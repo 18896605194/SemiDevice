@@ -1,0 +1,243 @@
+<Window
+    x:Class="SimulatorHub.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="xyz 统一仿真器"
+    Width="1280"
+    Height="720"
+    MinWidth="960"
+    MinHeight="600"
+    Background="{DynamicResource DarkWindowBackground}"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    TextElement.FontSize="13"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
+    WindowStartupLocation="CenterScreen">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         宿主壳: 工具栏 + TabControl, 每页内嵌一台仿真器面板 (RobotPanel /
+         LoadPortPanel, 与各自独立 exe 共用同一实现)。紧凑样式为两个仿真器
+         同款副本, 不跨程序集共享以避免样式键冲突。
+         ═══════════════════════════════════════════════════════════════ -->
+    <Window.Resources>
+
+        <!-- ── 文本 ── -->
+        <Style x:Key="PageTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="HeaderTxt" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="StatusTxt" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="StatusDim" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="EmptyTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style x:Key="EmptyHint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- ── 按钮 ── -->
+        <Style
+            x:Key="ToolBtn"
+            BasedOn="{StaticResource DefaultButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="78" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style
+            x:Key="ToolBtnDanger"
+            BasedOn="{StaticResource DangerButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="78" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="ToolSeparator" TargetType="Rectangle">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Fill" Value="{DynamicResource DarkBorderBrush}" />
+            <Setter Property="Margin" Value="12,4" />
+            <Setter Property="RadiusX" Value="0.5" />
+            <Setter Property="RadiusY" Value="0.5" />
+        </Style>
+
+        <!-- ── 页签 ── -->
+        <Style x:Key="TabHead" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="ToolTip" Value="双击关闭页签" />
+        </Style>
+        <Style x:Key="SimTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border
+                            x:Name="Bd"
+                            Margin="2,4,2,0"
+                            Padding="12,6"
+                            CornerRadius="4,4,0,0"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource DarkBorderBrush}"
+                            BorderThickness="1,1,1,1">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DarkSurfaceBackground}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DarkAccent}" />
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="1,2,1,1" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RightMenuItemHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- ── 顶栏 ── -->
+        <Border
+            DockPanel.Dock="Top"
+            Background="{DynamicResource DarkSurfaceBackground}"
+            BorderBrush="{DynamicResource DarkBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="16,10">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse
+                    Width="8"
+                    Height="8"
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Center"
+                    Fill="{DynamicResource DarkAccent}" />
+                <TextBlock Style="{StaticResource PageTitle}" Text="xyz 统一仿真器" />
+                <TextBlock
+                    Margin="14,2,0,0"
+                    Style="{StaticResource HeaderTxt}"
+                    Text="多台设备仿真集中一窗 · 每类仿真独立 exe, 此处当页签用" />
+            </StackPanel>
+        </Border>
+
+        <!-- ── 工具栏 ── -->
+        <Border
+            DockPanel.Dock="Top"
+            BorderBrush="{DynamicResource DarkBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="10,8">
+            <WrapPanel>
+                <Button
+                    Click="BtnAddRobot_Click"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="新增一台 RejeRobot 机械手仿真 (TCP), 实例目录 instances\robot-N, 端口从 9000 起自动避让"
+                    Content="+ 机械手 (TCP)" />
+                <Button
+                    Click="BtnAddLp_Click"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="新增一台 FcdLoadPort (LP300) 仿真 (串口), 实例目录 instances\lp-N"
+                    Content="+ LoadPort (串口)" />
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+                <Button
+                    Click="BtnCloseTab_Click"
+                    Style="{StaticResource ToolBtnDanger}"
+                    ToolTip="关闭当前页签并停掉对应实例 (数据保留, 双击页签标题同效)"
+                    Content="关闭当前页" />
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+                <Button
+                    Click="BtnSaveLayout_Click"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="把当前页签组合存成命名预设 (profiles\*.json)"
+                    Content="保存布局" />
+                <Button
+                    Click="BtnApplyPreset_Click"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="按最近使用的预设重建页签 (可勾选启用哪些实例/改端口)"
+                    Content="启用预设…" />
+                <Button
+                    x:Name="BtnLoadPreset"
+                    Click="BtnLoadPreset_Click"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="应用上次布局 / 载入或删除已存预设"
+                    Content="载入预设 ▾">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="PresetMenu" />
+                    </Button.ContextMenu>
+                </Button>
+            </WrapPanel>
+        </Border>
+
+        <!-- ── 底部状态条 ── -->
+        <Border
+            DockPanel.Dock="Bottom"
+            Background="{DynamicResource DarkSurfaceBackground}"
+            BorderBrush="{DynamicResource DarkBorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="14,6">
+            <DockPanel>
+                <TextBlock
+                    x:Name="StatusDir"
+                    DockPanel.Dock="Right"
+                    Style="{StaticResource StatusDim}" />
+                <TextBlock
+                    x:Name="StatusText"
+                    Style="{StaticResource StatusTxt}"
+                    Text="就绪 — 用工具栏添加仿真实例" />
+            </DockPanel>
+        </Border>
+
+        <!-- ── 页签区 ── -->
+        <Grid>
+            <TabControl
+                x:Name="Tabs"
+                Background="Transparent"
+                BorderThickness="0" />
+            <Border x:Name="EmptyState" Visibility="Visible">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Width="560">
+                    <TextBlock Style="{StaticResource EmptyTitle}" Text="尚无仿真实例" />
+                    <TextBlock
+                        Style="{StaticResource EmptyHint}"
+                        Text="工具栏 [+机械手] / [+LoadPort] 添加实例: 每个实例有独立数据目录与端口, 同类可加多台 (如双机械手 9000/9001)。&#x0a;常用组合可 [保存布局] 成预设, 下次启动自动还原。" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+
+</Window>

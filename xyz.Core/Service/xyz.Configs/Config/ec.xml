@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfSetting>
+    <!-- EC 为在线可调参数，由组件上的 [VariableMark(VariableType.EC, ...)] 自动生成/合并。 -->
+</ArrayOfSetting>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- xyz.35021.Module 是子目录里的独立项目，排除其编译产物 -->
+    <Compile Remove="xyz.35021.Module\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Modules\xyz.Modules.csproj" />
+  </ItemGroup>
+
+</Project>

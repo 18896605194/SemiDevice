@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfSetting>
+    <Setting Name="System" />  
+	<Setting Name="LoadPort">
+		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
+			<Value Name="Brand" Value="" />
+			<Value Name="CommType" Value="Serial" />
+			<Value Name="SlotCount" Value="25" />
+			<Value Name="ModuleNumber" Value="1" />
+			<Value Name="PortName" Value="COM2" />
+			<Value Name="BaudRate" Value="9600" />
+			<Value Name="Parity" Value="None" />
+			<Value Name="DataBits" Value="8" />
+			<Value Name="StopBits" Value="One" />
+			<Value Name="Host" Value="192.168.1.100" />
+			<Value Name="NetPort" Value="4004" />
+			<Setting Name="RFID">
+				<Value Name="Brand" Value="" />
+				<Value Name="PortName" Value="COM6" />
+				<Value Name="BaudRate" Value="9600" />
+				<Value Name="Parity" Value="None" />
+				<Value Name="DataBits" Value="8" />
+				<Value Name="StopBits" Value="One" />
+			</Setting>
+		</Setting>
+		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
+			<Value Name="Brand" Value="" />
+			<Value Name="CommType" Value="Serial" />
+			<Value Name="SlotCount" Value="25" />
+			<Value Name="ModuleNumber" Value="2" />
+			<Value Name="PortName" Value="COM4" />
+			<Value Name="BaudRate" Value="9600" />
+			<Value Name="Parity" Value="None" />
+			<Value Name="DataBits" Value="8" />
+			<Value Name="StopBits" Value="One" />
+			<Value Name="Host" Value="192.168.1.101" />
+			<Value Name="NetPort" Value="4004" />
+			<Setting Name="RFID">
+				<Value Name="Brand" Value="" />
+				<Value Name="PortName" Value="COM8" />
+				<Value Name="BaudRate" Value="9600" />
+				<Value Name="Parity" Value="None" />
+				<Value Name="DataBits" Value="8" />
+				<Value Name="StopBits" Value="One" />
+			</Setting>
+		</Setting>
+	</Setting>
+	<Setting Name="Robot" />
+	<Setting Name="Chamber" />
+    <Setting Name="CDS" />
+    <Setting Name="Supply" />
+</ArrayOfSetting>

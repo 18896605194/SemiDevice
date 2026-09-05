@@ -1,0 +1,639 @@
+<UserControl
+    x:Class="FcdLoadPortSimulator.LoadPortPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+    Background="{DynamicResource DarkWindowBackground}"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    TextElement.FontSize="13"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         紧凑覆盖样式: 与 RejeRobotSimulator 同一套。Presentation 的
+         文本/按钮/表格样式是给 xyz.Client 触屏 HMI 设计的 (标签 22px /
+         按钮高 44 / 表格行高 46), 放进本工具的密集调试面板会把固定
+         宽度全部撑爆。此处按 1920×1080 桌面窗口重定尺寸, 配色/控件
+         模板仍引用 Presentation 资源。
+         ═══════════════════════════════════════════════════════════════ -->
+    <UserControl.Resources>
+        <x:Array x:Key="ReplyTypes" Type="sys:String">
+            <sys:String>INF</sys:String>
+            <sys:String>ABS</sys:String>
+        </x:Array>
+
+        <!-- ── 文本 ── -->
+        <Style x:Key="PageTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="SecTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="Lbl" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="HeaderTxt" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="StatusTxt" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="StatusDim" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ── 应答表等宽字体列 (指令/回复体) ── -->
+        <Style
+            x:Key="MonoCellText"
+            BasedOn="{StaticResource DefaultDataGridTextStyle}"
+            TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="6,0" />
+        </Style>
+        <Style
+            x:Key="CellText"
+            BasedOn="{StaticResource DefaultDataGridTextStyle}"
+            TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="6,0" />
+        </Style>
+        <Style
+            x:Key="MonoCellEdit"
+            BasedOn="{StaticResource DefaultTextBoxStyle}"
+            TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- ── 应答表紧凑化 (行高 46→30 / 表头 48→32) ── -->
+        <Style
+            x:Key="CompactCell"
+            BasedOn="{StaticResource DefaultDataGridCellStyle}"
+            TargetType="DataGridCell">
+            <Setter Property="Padding" Value="4,0" />
+        </Style>
+        <Style
+            x:Key="CompactColumnHeader"
+            BasedOn="{StaticResource DefaultDataGridColumnHeaderStyle}"
+            TargetType="DataGridColumnHeader">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style
+            x:Key="CompactGrid"
+            BasedOn="{StaticResource DefaultDataGridStyle}"
+            TargetType="DataGrid">
+            <Setter Property="RowHeight" Value="30" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="CellStyle" Value="{StaticResource CompactCell}" />
+            <Setter Property="ColumnHeaderStyle" Value="{StaticResource CompactColumnHeader}" />
+        </Style>
+
+        <!-- ── 输入框 ── -->
+        <Style
+            x:Key="NumBox"
+            BasedOn="{StaticResource DefaultTextBoxStyle}"
+            TargetType="TextBox">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style
+            x:Key="ManualBox"
+            BasedOn="{StaticResource DefaultTextBoxStyle}"
+            TargetType="TextBox">
+            <Setter Property="Width" Value="320" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style
+            x:Key="CboPort"
+            BasedOn="{StaticResource DefaultComboBoxStyle}"
+            TargetType="ComboBox">
+            <Setter Property="Width" Value="120" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style
+            x:Key="CboCell"
+            BasedOn="{StaticResource DefaultComboBoxStyle}"
+            TargetType="ComboBox">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ── 按钮 ── -->
+        <Style
+            x:Key="ToolBtn"
+            BasedOn="{StaticResource DefaultButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="78" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style
+            x:Key="ToolBtnDanger"
+            BasedOn="{StaticResource DangerButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="78" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style
+            x:Key="ToolBtnSuccess"
+            BasedOn="{StaticResource SuccessButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="78" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- ── 其它 ── -->
+        <Style
+            x:Key="Card"
+            BasedOn="{StaticResource DefaultCardStyle}"
+            TargetType="materialDesign:Card">
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style x:Key="Chk" TargetType="CheckBox">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="Margin" Value="0,3,14,3" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="ToolSeparator" TargetType="Rectangle">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Fill" Value="{DynamicResource DarkBorderBrush}" />
+            <Setter Property="Margin" Value="12,4" />
+            <Setter Property="RadiusX" Value="0.5" />
+            <Setter Property="RadiusY" Value="0.5" />
+        </Style>
+
+        <!-- ── 日志条目 ── -->
+        <Style x:Key="LogTime" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <Style x:Key="LogTag" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Width" Value="56" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <Style x:Key="LogMsg" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+
+        <!-- ═══ 顶栏: 标题 + 连接状态 ═══ -->
+        <Border DockPanel.Dock="Top" Padding="16,8" Style="{DynamicResource HeaderBarBorderStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource PageTitle}" Text="FcdLoadPort (富创得 LP300) 仿真器" />
+                    <Border
+                        Margin="14,0,0,0"
+                        Padding="8,2"
+                        Background="{DynamicResource DarkSurfaceVariantBackground}"
+                        CornerRadius="3"
+                        VerticalAlignment="Center">
+                        <TextBlock
+                            x:Name="InstanceTag"
+                            FontSize="11"
+                            Foreground="{DynamicResource DarkSecondaryText}" />
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse
+                        x:Name="HeaderDot"
+                        Width="9"
+                        Height="9"
+                        Fill="{DynamicResource DarkAlarmStatus}" />
+                    <TextBlock
+                        x:Name="HeaderText"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource HeaderTxt}"
+                        Text="串口未打开" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══ 底部状态栏 ═══ -->
+        <Border
+            DockPanel.Dock="Bottom"
+            BorderBrush="{DynamicResource DarkBorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="16,5">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse
+                    x:Name="StatusDot"
+                    Width="9"
+                    Height="9"
+                    Fill="{DynamicResource DarkAlarmStatus}"
+                    VerticalAlignment="Center" />
+                <TextBlock
+                    x:Name="StatusText"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource StatusTxt}"
+                    Text="未打开串口" />
+                <TextBlock
+                    x:Name="StatusRowCount"
+                    Margin="24,0,0,0"
+                    Style="{StaticResource StatusTxt}" />
+                <TextBlock
+                    x:Name="StatusDataDir"
+                    Margin="24,0,0,0"
+                    Style="{StaticResource StatusDim}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ═══ 工具栏: 串口 + 应答表配置 (WrapPanel 防窄窗截断) ═══ -->
+        <Border
+            DockPanel.Dock="Top"
+            Margin="12,10,12,0"
+            Padding="10,6"
+            Background="{DynamicResource DarkSurfaceBackground}"
+            BorderBrush="{DynamicResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+            <WrapPanel>
+                <TextBlock
+                    Margin="0,0,6,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource Lbl}"
+                    Text="串口" />
+                <ComboBox
+                    x:Name="PortCombo"
+                    IsEditable="True"
+                    Style="{StaticResource CboPort}" />
+                <Button
+                    x:Name="BtnRefreshPorts"
+                    Click="BtnRefreshPorts_Click"
+                    Content="⟳"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="刷新串口列表" />
+                <Button
+                    x:Name="BtnOpen"
+                    Click="BtnOpen_Click"
+                    Content="打开"
+                    Style="{StaticResource ToolBtnSuccess}" />
+                <Button
+                    x:Name="BtnClose"
+                    Click="BtnClose_Click"
+                    Content="关闭"
+                    Style="{StaticResource ToolBtnDanger}" />
+
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Style="{StaticResource Lbl}"
+                    Text="INF/ABS 延迟" />
+                <TextBox
+                    x:Name="InfDelayText"
+                    Style="{StaticResource NumBox}"
+                    Text="1000" />
+                <TextBlock
+                    Margin="4,0,0,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource Lbl}"
+                    Text="ms" />
+
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+
+                <Button
+                    x:Name="BtnSave"
+                    Click="BtnSave_Click"
+                    Content="保存配置"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="把当前应答表写入 responses.json" />
+                <Button
+                    x:Name="BtnReload"
+                    Click="BtnReload_Click"
+                    Content="重新加载"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="从 responses.json 重新读回应答表" />
+                <Button
+                    x:Name="BtnDefault"
+                    Click="BtnDefault_Click"
+                    Content="恢复默认"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="恢复出厂默认应答表 (需保存才落盘)" />
+
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+
+                <Button
+                    x:Name="BtnMapAllP"
+                    Click="BtnMapAllP_Click"
+                    Content="Map 全 P"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="所有 mapping 回复置为 25 槽全有片" />
+                <Button
+                    x:Name="BtnMapAllE"
+                    Click="BtnMapAllE_Click"
+                    Content="Map 全 E"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="所有 mapping 回复置为 25 槽全空片" />
+
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+
+                <Button
+                    x:Name="BtnResetHits"
+                    Click="BtnResetHits_Click"
+                    Content="清零计数"
+                    Style="{StaticResource ToolBtn}" />
+                <Button
+                    x:Name="BtnProtocolTest"
+                    Click="BtnProtocolTest_Click"
+                    Content="协议自测"
+                    Style="{StaticResource ToolBtn}"
+                    ToolTip="不依赖串口, 校验协议分发与封帧 (结果进日志)" />
+
+                <TextBlock
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource Hint}"
+                    Text="← ACK / INF / ABS / 类型 列可双击修改, 改完点[保存配置]" />
+            </WrapPanel>
+        </Border>
+
+        <!-- ═══ FOUP 状态卡 ═══ -->
+        <Border
+            DockPanel.Dock="Top"
+            Margin="12,10,12,0"
+            Padding="10,6"
+            Background="{DynamicResource DarkSurfaceBackground}"
+            BorderBrush="{DynamicResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+            <WrapPanel>
+                <TextBlock
+                    Margin="0,0,12,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource SecTitle}"
+                    Text="FOUP 状态" />
+                <CheckBox
+                    x:Name="ChkFoupPresent"
+                    Checked="OnFoupCheckChanged"
+                    Content="在位 (byte1)"
+                    Style="{StaticResource Chk}"
+                    Unchecked="OnFoupCheckChanged" />
+                <CheckBox
+                    x:Name="ChkFoupPlaced"
+                    Margin="14,3,14,3"
+                    Checked="OnFoupCheckChanged"
+                    Content="放好 (byte2)"
+                    Style="{StaticResource Chk}"
+                    Unchecked="OnFoupCheckChanged" />
+                <CheckBox
+                    x:Name="ChkFoupAlarm"
+                    Margin="0,3,14,3"
+                    Checked="OnFoupCheckChanged"
+                    Content="硬件报警 (byte8)"
+                    Foreground="{DynamicResource DarkAlarmStatus}"
+                    Style="{StaticResource Chk}"
+                    Unchecked="OnFoupCheckChanged" />
+
+                <Rectangle Style="{StaticResource ToolSeparator}" />
+
+                <Button
+                    x:Name="BtnPodOn"
+                    Click="BtnPodOn_Click"
+                    Content="放 FOUP (PODON)"
+                    Style="{StaticResource ToolBtnSuccess}"
+                    ToolTip="置位在位/放好并主动推送 INF:PODON 事件" />
+                <Button
+                    x:Name="BtnPodOff"
+                    Click="BtnPodOff_Click"
+                    Content="取 FOUP (PODOF)"
+                    Style="{StaticResource ToolBtnDanger}"
+                    ToolTip="清零在位/放好并主动推送 INF:PODOF 事件" />
+
+                <TextBlock
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource Hint}"
+                    Text="← 勾选实时改写 GET:STATE 应答串" />
+            </WrapPanel>
+        </Border>
+
+        <!-- ═══ 主体: 上应答表 / 下收发日志 ═══ -->
+        <Grid Margin="12,10,12,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="260" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="360" MinHeight="180" />
+            </Grid.RowDefinitions>
+
+            <!-- 应答表 -->
+            <materialDesign:Card Grid.Row="0" Padding="0" Style="{StaticResource Card}">
+                <DataGrid
+                    x:Name="ResponseGrid"
+                    AutoGenerateColumns="False"
+                    CanUserAddRows="False"
+                    CanUserDeleteRows="False"
+                    GridLinesVisibility="Horizontal"
+                    ItemsSource="{Binding Rows}"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+                    Style="{StaticResource CompactGrid}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Width="120"
+                            Binding="{Binding Cmd}"
+                            ElementStyle="{StaticResource MonoCellText}"
+                            Header="指令"
+                            IsReadOnly="True" />
+                        <DataGridTextColumn
+                            Width="2*"
+                            Binding="{Binding Ack}"
+                            EditingElementStyle="{StaticResource MonoCellEdit}"
+                            ElementStyle="{StaticResource MonoCellText}"
+                            Header="第一次回复 (ACK)" />
+                        <DataGridTextColumn
+                            Width="2*"
+                            Binding="{Binding Inf}"
+                            EditingElementStyle="{StaticResource MonoCellEdit}"
+                            ElementStyle="{StaticResource MonoCellText}"
+                            Header="第二次回复 - INF" />
+                        <DataGridTextColumn
+                            Width="1.2*"
+                            Binding="{Binding Abs}"
+                            EditingElementStyle="{StaticResource MonoCellEdit}"
+                            ElementStyle="{StaticResource MonoCellText}"
+                            Header="第二次回复 - ABS" />
+                        <DataGridTemplateColumn Width="72" Header="类型">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <ComboBox
+                                        ItemsSource="{StaticResource ReplyTypes}"
+                                        SelectedItem="{Binding Type, UpdateSourceTrigger=PropertyChanged}"
+                                        Style="{StaticResource CboCell}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn
+                            Width="1*"
+                            Binding="{Binding Note}"
+                            ElementStyle="{StaticResource CellText}"
+                            Header="说明"
+                            IsReadOnly="True" />
+                        <DataGridTextColumn
+                            Width="60"
+                            Binding="{Binding Hits}"
+                            ElementStyle="{StaticResource CellText}"
+                            Header="命中"
+                            IsReadOnly="True" />
+                        <DataGridTextColumn
+                            Width="70"
+                            Binding="{Binding Last}"
+                            ElementStyle="{StaticResource MonoCellText}"
+                            Header="最近"
+                            IsReadOnly="True" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </materialDesign:Card>
+
+            <!-- 上下分栏拖条: 必须可见(原先透明, 误拖会把表格/日志拖没且无从察觉) -->
+            <GridSplitter
+                Grid.Row="1"
+                Height="6"
+                Margin="0,4"
+                HorizontalAlignment="Stretch"
+                Background="{DynamicResource DarkBorderBrush}"
+                ShowsPreview="False" />
+
+            <!-- 收发日志 -->
+            <materialDesign:Card Grid.Row="2" Padding="0" Style="{StaticResource Card}">
+                <DockPanel>
+                    <Border
+                        DockPanel.Dock="Top"
+                        BorderBrush="{DynamicResource DarkBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="14,5">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SecTitle}"
+                                Text="收发日志" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource Hint}"
+                                Text="接收=绿 发送=蓝 系统=灰 错误=红 自测=黄" />
+                            <TextBlock Width="16" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource Lbl}"
+                                Text="主动发帧" />
+                            <TextBox
+                                x:Name="ManualFrameText"
+                                Style="{StaticResource ManualBox}"
+                                Text="INF:PODON"
+                                ToolTip="套上 B 类帧壳从串口发出, 如 INF:PODON / ACK:STATE/..." />
+                            <Button
+                                x:Name="BtnManualSend"
+                                Click="BtnManualSend_Click"
+                                Content="发送"
+                                Style="{StaticResource ToolBtn}" />
+                        </StackPanel>
+                    </Border>
+                    <ListBox
+                        x:Name="LogList"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        ItemContainerStyle="{x:Null}"
+                        ItemsSource="{Binding Logs}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="14,2" Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource LogTime}" Text="{Binding Time}" />
+                                    <TextBlock
+                                        Foreground="{Binding TagBrush}"
+                                        Style="{StaticResource LogTag}"
+                                        Text="{Binding Tag}" />
+                                    <TextBlock
+                                        Style="{StaticResource LogMsg}"
+                                        Text="{Binding Message}"
+                                        TextTrimming="None" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </materialDesign:Card>
+        </Grid>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,115 @@
+<UserControl x:Class="xyz.Client.Manual.Views.LoadPortManualControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/DarkColors.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/Color.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/CardStyles.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ButtonStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <materialDesign:Card Style="{StaticResource DefaultCardStyle}" Margin="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 标题栏 -->
+            <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding ModuleName}"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource DarkPrimaryText}"
+                           VerticalAlignment="Center" />
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- 通讯灯 -->
+                    <Ellipse Width="12" Height="12" Margin="8,0" ToolTip="通讯连接">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#555" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource GreenHealthy}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+
+                    <!-- FOUP 在位灯 -->
+                    <Ellipse Width="12" Height="12" Margin="8,0" ToolTip="FOUP 在位">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#555" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPodPlaced}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource PrimaryAccent}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+
+                    <!-- 状态码徽章 -->
+                    <Border Background="{DynamicResource DarkSurfaceBackground}"
+                            CornerRadius="4" Padding="10,3" Margin="8,0">
+                        <TextBlock Text="{Binding State, StringFormat='State {0}'}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource DarkSecondaryText}" />
+                    </Border>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- 花篮图 -->
+            <presentationControls:LoadPort Grid.Row="1"
+                                           Title=""
+                                           SlotCount="25"
+                                           StatusOn="{Binding IsConnected}" />
+
+            <!-- 按钮排 -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                <Button Content="Home" Style="{StaticResource DefaultButtonStyle}"
+                        Command="{Binding HomeCommand}" />
+                <Button Content="Load" Style="{StaticResource SuccessButtonStyle}"
+                        Command="{Binding LoadCommand}" />
+                <Button Content="Unload" Style="{StaticResource DefaultButtonStyle}"
+                        Command="{Binding UnloadCommand}" />
+                <Button Content="Reset" Style="{StaticResource DefaultButtonStyle}"
+                        Command="{Binding ResetCommand}" />
+                <Button Content="Abort" Style="{StaticResource DangerButtonStyle}"
+                        Command="{Binding AbortCommand}" />
+            </StackPanel>
+
+            <!-- 错误提示条 -->
+            <Border Grid.Row="3" Background="#33FF5252"
+                    CornerRadius="4" Padding="12,6" Margin="0,8,0,0">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding LastError}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding LastError}"
+                           Foreground="#FF8A80"
+                           FontSize="13"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap" />
+            </Border>
+    </Grid>
+    </materialDesign:Card>
+</UserControl>

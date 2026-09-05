@@ -1,0 +1,312 @@
+<Window
+    x:Class="xyz.Client.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:xyz.Client"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="xyz Client"
+        Width="1280"
+        Height="800"
+        WindowState="Maximized"
+    MinWidth="800"
+    MinHeight="520"
+    SnapsToDevicePixels="True"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    UseLayoutRounding="True"
+    WindowStartupLocation="CenterScreen"
+    WindowStyle="None"
+    AllowsTransparency="True"
+    Background="Transparent"
+    StateChanged="OnWindowStateChanged"
+    mc:Ignorable="d">
+
+    <Grid>
+        <Border
+            x:Name="WindowBorder"
+            Background="{DynamicResource DarkWindowBackground}"
+            BorderBrush="#333333"
+            BorderThickness="1"
+            CornerRadius="12">
+            <Grid>
+                <Viewbox
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Stretch="Fill"
+                    StretchDirection="Both">
+                    <Grid Width="1980" Height="1080">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  顶部状态区：使用 Material Design 卡片、图标和输入控件  -->
+        <materialDesign:Card
+            Grid.Row="0"
+            Height="96"
+            Margin="12,8,12,4"
+            Padding="12,6"
+            materialDesign:ElevationAssist.Elevation="Dp2"
+            UniformCornerRadius="8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid
+                    Grid.Column="0"
+                    Grid.Row="0"
+                    Margin="0,0,16,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <materialDesign:PackIcon
+                        Grid.Column="0"
+                        Width="20"
+                        Height="20"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource MaterialDesign.Brush.Primary}"
+                        Kind="MessageTextOutline" />
+
+                    <ComboBox
+                        Grid.Column="1"
+                        Height="36"
+                        MinWidth="240"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource DefaultComboBoxStyle}" />
+                </Grid>
+
+                <Grid
+                    Grid.Column="0"
+                    Grid.Row="1"
+                    Margin="0,0,16,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <materialDesign:PackIcon
+                        Grid.Column="0"
+                        Width="20"
+                        Height="20"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource DarkAlarmIcon}"
+                        Kind="AlertOutline" />
+
+                    <ComboBox
+                        Grid.Column="1"
+                        Height="36"
+                        MinWidth="240"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource DefaultComboBoxStyle}" />
+                </Grid>
+
+                <Border
+                    Grid.Column="1"
+                    Grid.RowSpan="2"
+                    Padding="16,0,4,0"
+                    BorderBrush="{DynamicResource MaterialDesign.Brush.Divider}"
+                    BorderThickness="1,0,0,0">
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <materialDesign:PackIcon
+                            Width="26"
+                            Height="26"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource MaterialDesign.Brush.Primary}"
+                            Kind="AccountCircle" />
+                        <StackPanel Margin="8,0,0,0">
+                            <TextBlock
+                                FontSize="{DynamicResource Size10}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="当前用户" />
+                            <TextBlock
+                                FontSize="{DynamicResource Size13}"
+                                FontWeight="SemiBold"
+                                Text="Admin" />
+                        </StackPanel>
+
+                        <Border
+                            Width="1"
+                            Height="30"
+                            Margin="14,0"
+                            Background="{DynamicResource MaterialDesign.Brush.Divider}" />
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock
+                                Margin="0,0,0,4"
+                                FontSize="{DynamicResource Size10}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="设备状态" />
+                            <StackPanel Orientation="Horizontal">
+                                <Border
+                                    Width="12"
+                                    Height="12"
+                                    Margin="0,0,10,0"
+                                    Background="{DynamicResource DarkAlarmStatus}"
+                                    CornerRadius="6"
+                                    ToolTip="报警" />
+                                <Border
+                                    Width="12"
+                                    Height="12"
+                                    Margin="0,0,10,0"
+                                    Background="{DynamicResource DarkWarningStatus}"
+                                    CornerRadius="6"
+                                    ToolTip="警告" />
+                                <Border
+                                    Width="12"
+                                    Height="12"
+                                    Margin="0,0,10,0"
+                                    Background="{DynamicResource DarkRunningStatus}"
+                                    CornerRadius="6"
+                                    ToolTip="运行" />
+                                <Border
+                                    Width="12"
+                                    Height="12"
+                                    Background="{DynamicResource DarkCommunicationStatus}"
+                                    CornerRadius="6"
+                                    ToolTip="通讯" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </materialDesign:Card>
+
+        <!--  中间：内容承载区，以后所有页面都填充到这里  -->
+        <materialDesign:Card
+            Grid.Row="1"
+            Margin="12,4"
+            materialDesign:ElevationAssist.Elevation="Dp1"
+            UniformCornerRadius="8">
+            <Grid>
+                <ContentControl
+                    x:Name="ContentHost"
+                    Content="{Binding CurrentView}" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource DarkSecondaryText}"
+                    IsHitTestVisible="False"
+                    Style="{DynamicResource NullContentHintTextStyle}"
+                    Tag="{Binding CurrentView}"
+                    Text="请选择主菜单" />
+            </Grid>
+        </materialDesign:Card>
+
+        <!--  底部：上面二级菜单，下面一级菜单  -->
+        <materialDesign:Card
+            x:Name="PrimaryMenuBar"
+            Grid.Row="2"
+            Height="Auto"
+            Margin="12,4,12,8"
+            Padding="8,4"
+            materialDesign:ElevationAssist.Elevation="Dp2"
+            UniformCornerRadius="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="32" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <ListBox
+                    x:Name="SecondaryMenuList"
+                    Grid.Row="0"
+                    MinHeight="28"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    ItemContainerStyle="{DynamicResource NavigationListBoxItemStyle}"
+                    ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
+                    ItemsSource="{Binding SecondaryMenus}"
+                    ItemTemplate="{DynamicResource NavigationListBoxItemTemplate}"
+                    PreviewMouseLeftButtonUp="OnSecondaryMenuPreviewMouseLeftButtonUp"
+                    SelectedItem="{Binding SelectedSecondaryMenu, Mode=TwoWay}"
+                    Style="{DynamicResource NavigationListBoxStyle}" />
+
+                <ListBox
+                    x:Name="PrimaryMenuList"
+                    Grid.Row="1"
+                    Margin="0,4,0,0"
+                    HorizontalAlignment="Left"
+                    ItemContainerStyle="{DynamicResource NavigationListBoxItemStyle}"
+                    ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
+                    ItemsSource="{Binding PrimaryMenus}"
+                    ItemTemplate="{DynamicResource NavigationListBoxItemTemplate}"
+                    PreviewMouseLeftButtonUp="OnPrimaryMenuPreviewMouseLeftButtonUp"
+                    SelectedItem="{Binding SelectedPrimaryMenu, Mode=TwoWay}"
+                    Style="{DynamicResource NavigationListBoxStyle}" />
+            </Grid>
+        </materialDesign:Card>
+
+                <!--  透明顶部拖拽区域：只占最顶部很薄的一条  -->
+                <Border
+                    Height="8"
+                    VerticalAlignment="Top"
+                    Background="Transparent"
+                    MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown"
+                    Panel.ZIndex="1000" />
+
+                <!--  自绘窗口按钮：悬浮在右上角  -->
+                <StackPanel
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,12,24,0"
+                    Panel.ZIndex="1001"
+                    Orientation="Horizontal">
+                    <Button
+                        Width="44"
+                        Height="40"
+                        Click="OnMinimizeClick"
+                        Content="—"
+                        FontSize="16"
+                        Foreground="#DDDDDD"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+                    <Button
+                        x:Name="MaximizeRestoreButton"
+                        Width="44"
+                        Height="40"
+                        Click="OnMaximizeClick"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand">
+                        <materialDesign:PackIcon
+                            x:Name="MaximizeRestoreIcon"
+                            Width="20"
+                            Height="20"
+                            Foreground="White"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Kind="WindowMaximize" />
+                    </Button>
+                    <Button
+                        Width="44"
+                        Height="40"
+                        Click="OnCloseClick"
+                        Content="✕"
+                        FontSize="16"
+                        Foreground="#DDDDDD"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+                </StackPanel>
+                    </Grid>
+                </Viewbox>
+
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

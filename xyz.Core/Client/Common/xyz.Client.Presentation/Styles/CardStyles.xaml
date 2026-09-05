@@ -1,0 +1,16 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <Style x:Key="DefaultCardStyle" TargetType="materialDesign:Card">
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="18" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceVariantBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="UniformCornerRadius" Value="8" />
+        <Setter Property="materialDesign:ElevationAssist.Elevation" Value="Dp1" />
+    </Style>
+
+</ResourceDictionary>

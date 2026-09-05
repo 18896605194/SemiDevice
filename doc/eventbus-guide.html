@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xyz 框架开发文档</title>
+<style>
+  :root {
+    --bg: #1e1f22;
+    --panel: #26282b;
+    --card: #2b2d30;
+    --border: #3c3f44;
+    --text: #e4e6e9;
+    --muted: #9aa0a6;
+    --accent: #4f9cf9;
+    --accent-soft: rgba(79, 156, 249, 0.12);
+    --green: #57ab5a;
+    --orange: #e2a03f;
+    --red: #e5534b;
+    --code-bg: #1a1b1d;
+    --k: #6cb6ff;
+    --s: #96d982;
+    --c: #7c8590;
+    --t: #f4b860;
+    --nav-w: 248px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+  }
+  code, pre { font-family: "Cascadia Code", Consolas, "Courier New", monospace; }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  /* ============================================================
+     左侧：大文档菜单（未来所有主题都在这里分组挂载）
+     ============================================================ */
+  nav {
+    width: var(--nav-w);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 20px 12px 30px 16px;
+    border-right: 1px solid var(--border);
+    font-size: 13.5px;
+    background: #212226;
+  }
+  nav::-webkit-scrollbar { width: 6px; }
+  nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .site {
+    padding: 6px 10px 14px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .site .site-name { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+  .site .site-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+  /* —— 主题组 —— */
+  .group { margin-bottom: 4px; }
+  .group-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+  .group-title:hover { background: var(--panel); }
+  .group-title .chev {
+    color: var(--muted);
+    font-size: 11px;
+    transition: transform .15s ease;
+    width: 12px;
+    flex-shrink: 0;
+  }
+  .group.open > .group-title .chev { transform: rotate(90deg); }
+  .group .group-items { display: none; padding: 2px 0 6px; }
+  .group.open .group-items { display: block; }
+
+  nav a.item {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 5px 10px 5px 29px;
+    border-radius: 6px;
+    margin: 1px 0;
+    border-left: 2px solid transparent;
+  }
+  nav a.item:hover { color: var(--text); background: var(--panel); }
+  nav a.item.active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* —— 组内二级分类标题（不可点，只做分隔）—— */
+  .subhead {
+    color: #6f767d;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 12px 10px 3px 12px;
+    border-bottom: 1px dashed #33363a;
+    margin: 6px 4px 4px;
+    user-select: none;
+  }
+
+  /* ============================================================
+     右侧：正文（同一时间只显示一个小节）
+     ============================================================ */
+  main { flex: 1; min-width: 0; padding: 40px 48px 60px; max-width: 980px; }
+
+  section.page { display: none; }
+  section.page.active { display: block; animation: fadein .18s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  h1.page-title {
+    font-size: 25px;
+    margin: 0 0 4px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-sub { color: var(--muted); font-size: 13.5px; margin: 10px 0 0; }
+  h2 {
+    font-size: 19px;
+    margin: 44px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+  }
+  h3 { font-size: 16px; margin: 26px 0 10px; }
+  p { margin: 10px 0; }
+  .muted { color: var(--muted); }
+  strong { color: #fff; }
+  a { color: var(--accent); }
+  ul { padding-left: 24px; }
+  li { margin: 5px 0; }
+
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 13px;
+    color: #d6e2f0;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+  pre .codelabel {
+    display: block;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: "Segoe UI", sans-serif;
+    margin-bottom: 8px;
+    user-select: none;
+  }
+  pre .codelabel::before { content: "● "; color: var(--accent); }
+  .k { color: var(--k); }
+  .s { color: var(--s); }
+  .c { color: var(--c); font-style: italic; }
+  .t { color: var(--t); }
+
+  .note, .warn, .danger {
+    border-radius: 10px;
+    padding: 13px 18px;
+    margin: 16px 0;
+    font-size: 14px;
+    border: 1px solid;
+  }
+  .note { background: var(--accent-soft); border-color: rgba(79,156,249,.35); }
+  .note::before { content: "💡 "; }
+  .warn { background: rgba(226,160,63,.10); border-color: rgba(226,160,63,.35); }
+  .warn::before { content: "⚠️ "; }
+  .danger { background: rgba(229,83,75,.10); border-color: rgba(229,83,75,.40); }
+  .danger::before { content: "🚫 "; }
+
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 9px 14px; text-align: left; }
+  th { background: var(--panel); color: var(--muted); font-weight: 600; white-space: nowrap; }
+  tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+  td code { white-space: nowrap; }
+
+  /* —— 架构图 —— */
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 130px 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin: 20px 0;
+  }
+  .proc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .proc-title {
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .node {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    margin: 6px 0;
+    font-size: 13px;
+    text-align: center;
+  }
+  .node.core { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .node small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; }
+  .vlink, .down { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.3; padding: 1px 0; }
+  .pipe {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 0 6px;
+  }
+  .pipe .flow { color: var(--green); font-size: 16px; letter-spacing: -1px; }
+  .pipe b { color: var(--text); font-weight: 600; }
+  .legend { font-size: 13px; color: var(--muted); margin-top: -6px; }
+  .legend span { margin-right: 18px; white-space: nowrap; }
+
+  .badge {
+    display: inline-block;
+    border-radius: 20px;
+    font-size: 11.5px;
+    padding: 1px 11px;
+    margin-left: 8px;
+    vertical-align: 2px;
+    border: 1px solid;
+    font-weight: 600;
+  }
+  .badge.local { color: var(--green); border-color: var(--green); background: rgba(87,171,90,.10); }
+  .badge.remote { color: var(--orange); border-color: var(--orange); background: rgba(226,160,63,.10); }
+  .badge.main { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  /* —— 页底上一节/下一节 —— */
+  .pager {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 60px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+  .pager a {
+    display: block;
+    max-width: 46%;
+    text-decoration: none;
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+  .pager a:hover { border-color: var(--accent); }
+  .pager a small { display: block; color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+  .pager a.next { margin-left: auto; text-align: right; }
+
+  footer {
+    margin-top: 40px;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  @media (max-width: 860px) {
+    .layout { display: block; }
+    nav {
+      width: auto; height: auto; position: static;
+      border-right: none; border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+    }
+    main { padding: 26px 20px 50px; }
+    .arch { grid-template-columns: 1fr; }
+    .pipe { padding: 14px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ================================================================
+     左侧大菜单：一个主题 = 一个 group，组内小节 = a.item
+     未来新增主题时：复制一份 group 模板（见下方注释），改标题，
+     再在 main 里添加对应 section.page（id 与 data-target 一致）
+     ================================================================ -->
+<nav id="toc">
+  <div class="site">
+    <div class="site-name">xyz 框架文档</div>
+    <div class="site-sub">半导体设备控制软件 · 开发指南</div>
+  </div>
+
+  <!-- ============================================
+       主题组模板（新增主题时复制这段并去掉注释）
+       ============================================
+  <div class="group open">
+    <div class="group-title"><span class="chev">▶</span> 📁 新主题名称</div>
+    <div class="group-items">
+      <a class="item" href="#新节id" data-target="新节id">小节标题</a>
+    </div>
+  </div>
+-->
+
+  <div class="group open">
+    <div class="group-title"><span class="chev">▶</span> 📡 事件总线 EventBus</div>
+    <div class="group-items">
+      <a class="item" href="#eb-overview"  data-target="eb-overview">一句话理解</a>
+      <a class="item" href="#eb-arch"      data-target="eb-arch">整体架构</a>
+      <a class="item" href="#eb-message"   data-target="eb-message">定义消息</a>
+      <a class="item" href="#eb-a"         data-target="eb-a">场景 A｜后端进程内</a>
+      <a class="item" href="#eb-b"         data-target="eb-b">场景 B｜前端进程内</a>
+      <a class="item" href="#eb-c"         data-target="eb-c">场景 C｜前端订阅后端 ★</a>
+      <a class="item" href="#eb-d"         data-target="eb-d">场景 D｜前端上行后端</a>
+      <a class="item" href="#eb-thread"    data-target="eb-thread">线程与回调</a>
+      <a class="item" href="#eb-retain"    data-target="eb-retain">留存语义</a>
+      <a class="item" href="#eb-rules"     data-target="eb-rules">约定与红线</a>
+      <a class="item" href="#eb-cheat"     data-target="eb-cheat">速查表</a>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title"><span class="chev">▶</span> 🧩 组件介绍</div>
+    <div class="group-items">
+      <a class="item" href="#comp-overview" data-target="comp-overview">总览与机制</a>
+      <div class="subhead">界面控件 · Presentation</div>
+      <a class="item" href="#comp-loadport"  data-target="comp-loadport">LoadPort 花篮槽位</a>
+      <a class="item" href="#comp-foup"      data-target="comp-foup">Foup 花篮壳</a>
+      <a class="item" href="#comp-wafer"     data-target="comp-wafer">Wafer 晶圆（圆盘）</a>
+      <a class="item" href="#comp-hwafer"    data-target="comp-hwafer">HorizontalWafer 晶圆（水平）</a>
+      <a class="item" href="#comp-chamber"   data-target="comp-chamber">ChamberInfoCard 腔体卡片</a>
+      <a class="item" href="#comp-bchamber"  data-target="comp-bchamber">BottomChamberInfoCard 底部腔体</a>
+      <div class="subhead">设备组件 · xyz.Components</div>
+      <a class="item" href="#comp-axis"   data-target="comp-axis">AxisComponent 运动轴</a>
+      <a class="item" href="#comp-armaxis" data-target="comp-armaxis">ArmAxisComponent 手臂轴</a>
+      <a class="item" href="#comp-spin"   data-target="comp-spin">SpinMotorComponent 旋转电机</a>
+      <a class="item" href="#comp-cyl"    data-target="comp-cyl">CylinderComponent 气缸</a>
+      <a class="item" href="#comp-valve"  data-target="comp-valve">ValveComponent 阀门</a>
+      <a class="item" href="#comp-di"     data-target="comp-di">DiSensorComponent 数字量传感器</a>
+      <a class="item" href="#comp-ai"     data-target="comp-ai">AiSensorComponent 模拟量传感器</a>
+      <a class="item" href="#comp-light"  data-target="comp-light">LightComponent 三色灯</a>
+      <a class="item" href="#comp-rfid"   data-target="comp-rfid">RfidReaderComponent RFID 读头</a>
+      <a class="item" href="#comp-alarm"  data-target="comp-alarm">AlarmComponent 报警</a>
+      <a class="item" href="#comp-db"     data-target="comp-db">DataBaseComponent 数据库</a>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title"><span class="chev">▶</span> 📖 关于本文档</div>
+    <div class="group-items">
+      <a class="item" href="#doc-about" data-target="doc-about">维护说明</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-overview">
+  <h1 class="page-title">一句话理解</h1>
+  <p class="page-sub">事件总线 EventBus —— 进程内 + 跨进程统一的发布订阅</p>
+
+  <p>业务代码<strong>永远只跟 <code>EventBus</code> 打交道</strong>，它有两个静态方法：</p>
+
+  <pre><code>EventBus.Send&lt;T&gt;(message, token);      // 发布
+EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用于注销</code></pre>
+
+  <p>所谓"进程内"和"跨进程"，<strong>对写代码的人来说没有任何区别</strong>——后端 <code>Send</code>、前端 <code>Register</code>，中间的 gRPC 传输、断线重连、UI 线程投递全部由基础设施自动完成。四种场景一张表看清：</p>
+
+  <table>
+    <tr><th>场景</th><th>谁发布</th><th>谁订阅</th><th>是否跨进程</th></tr>
+    <tr><td>A. 后端自己订阅自己发布</td><td>后端 <code>EventBus.Send</code></td><td>后端 <code>EventBus.Register</code></td><td>否</td></tr>
+    <tr><td>B. 前端自己订阅自己发布</td><td>前端 <code>EventBus.Send</code></td><td>前端 <code>EventBus.Register</code></td><td>否</td></tr>
+    <tr><td><strong>C. 前端订阅后端</strong>（主场景）</td><td>后端 <code>EventBus.Send</code></td><td>前端 <code>EventBus.Register</code></td><td>是（自动桥接）</td></tr>
+    <tr><td>D. 前端发往后端（上行）</td><td>前端 <code>RemoteEventBus.SendToServer</code></td><td>后端 <code>EventBus.Register</code></td><td>是（一元调用）</td></tr>
+  </table>
+
+  <div class="note">对应实现：xyz.Core/Shared/xyz.Utilities（EventBus）· xyz.Service/Events（服务端桥）· xyz.Client.DataModels/Events（客户端流泵）</div>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-arch">
+  <h1 class="page-title">整体架构</h1>
+  <p class="page-sub">每个进程各有一条进程内静态总线，gRPC 服务端流当水管</p>
+
+  <p>每个进程各有一条<strong>进程内的静态总线</strong>；后端到前端由一条 gRPC 服务端流当作"水管"，两端各有一个基础设施组件负责灌水和接水：</p>
+
+  <div class="arch">
+    <div class="proc">
+      <div class="proc-title">前端进程（xyz.Client）</div>
+      <div class="node">ViewModel / 页面组件</div>
+      <div class="down">▲ 回调（已投递到 UI 线程）&nbsp;&nbsp;│ Register 订阅</div>
+      <div class="node core">EventBus<small>进程内静态总线</small></div>
+      <div class="vlink">▲ Deliver 信封（UI 线程投递）</div>
+      <div class="node">RemoteEventBus<small>流泵：收流 / 3s 自动重连</small></div>
+    </div>
+    <div class="pipe">
+      <span>gRPC<br><b>服务端流</b></span>
+      <span class="flow">══════▶</span>
+      <span>localhost:5000<br>连接即重放留存</span>
+    </div>
+    <div class="proc">
+      <div class="proc-title">后端进程（GrpcHost）</div>
+      <div class="node">RemoteEventBus 上行到达（如有）</div>
+      <div class="node core">EventBus<small>进程内静态总线</small></div>
+      <div class="vlink">│ SubscribeRaw 桥接&nbsp;&nbsp;│ Send 发布</div>
+      <div class="node">EventService<small>gRPC 桥（每客户端一条流）</small></div>
+      <div class="down">▲ LoadPortManager / 各模块 / 各服务</div>
+    </div>
+  </div>
+
+  <p class="legend">
+    <span>━━ 进程内：直接方法调用，同一对象引用，不经序列化</span>
+    <span>══ 跨进程：信封（JSON）经 gRPC 流传输</span>
+  </p>
+
+  <div class="note">
+  三个使用前提都已经接好线，直接用即可：后端 <code>GrpcHost</code> 已 <code>MapGrpcService&lt;EventService&gt;()</code>；前端 <code>App.OnStartup</code> 已 <code>GrpcClientFactory.Initialize()</code> + <code>RemoteEventBus.Initialize()</code>。
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-message">
+  <h1 class="page-title">定义消息</h1>
+  <p class="page-sub">消息 = 普通 class / record，token = 字符串实例名</p>
+
+  <p>消息就是普通的 <code>class</code> 或 <code>record</code>，<strong>必须放在 xyz.Shared（DTO 目录旁）</strong>——因为跨进程时两端都要能序列化/反序列化它：</p>
+
+  <pre><code><span class="c">// xyz.Core/Shared/xyz.Shared/Messages/LoadPortMessages.cs</span>
+<span class="k">namespace</span> xyz.Shared.Messages;
+
+<span class="c">/// LoadPort 状态变化（状态类消息，推荐 record）</span>
+<span class="k">public sealed record</span> <span class="t">LoadPortStateChanged</span>(<span class="t">LoadPortDto</span> State);
+
+<span class="c">/// 操作员提醒（发生类消息示例）</span>
+<span class="k">public sealed record</span> <span class="t">OperatorAttention</span>(<span class="k">string</span> Module, <span class="k">string</span> Reason);</code></pre>
+
+  <h3>token 是什么</h3>
+  <p>token 是一个<strong>普通字符串</strong>，用来区分"同一种消息的不同实例"——比如两台 LoadPort 用同一个消息类型，token 分别为 <code>"LoadPort1"</code>、<code>"LoadPort2"</code>，互不串扰。路由键 = <strong>（消息类型全名 + token）</strong>，两者合起来唯一定位一条消息通道。token 省略（空串）表示该类型的<strong>全局消息</strong>，所有未指定 token 的订阅者都能收到。</p>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-a">
+  <h1 class="page-title">场景 A：后端自己订阅自己发布 <span class="badge local">进程内</span></h1>
+  <p class="page-sub">模块之间解耦：发布方完全不知道谁在听</p>
+
+  <p>典型用途：模块之间解耦。例如 <code>LoadPortManager</code> 轮询到状态变化后发布，同进程的报警模块、日志模块、调度模块各自订阅——发布方完全不知道谁在听。</p>
+
+  <pre><code><span class="codelabel">后端 xyz.Service —— 模块 A：发布（如 LoadPortManager 轮询循环里）</span>
+<span class="t">EventBus</span>.Send(<span class="k">new</span> <span class="t">LoadPortStateChanged</span>(snapshot), <span class="s">"LoadPort1"</span>);
+
+<span class="codelabel">后端 xyz.Service —— 模块 B：订阅（如 AlarmService 构造/初始化时）</span>
+<span class="t">EventBus</span>.Register&lt;<span class="t">LoadPortStateChanged</span>&gt;(<span class="s">"LoadPort1"</span>, m =&gt;
+{
+    <span class="c">// m 就是发布的那个 record，同一个对象引用，不经序列化</span>
+    <span class="k">if</span> (m.State.State == ModuleState.Error) RaiseAlarm(...);
+});</code></pre>
+
+  <div class="note">
+  即使订阅发生在发布之后，也能立即收到该键<strong>最后一条留存消息</strong>——后端启动顺序不同步也没关系，晚初始化的模块照样拿到当前状态。
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-b">
+  <h1 class="page-title">场景 B：前端自己订阅自己发布 <span class="badge local">进程内</span></h1>
+  <p class="page-sub">客户端内部各页面/组件之间通信，不经过后端</p>
+
+  <p>典型用途：客户端内部各页面/组件之间通信，不经过后端。例如配方页面选了配方，标题栏、参数页都要刷新。</p>
+
+  <pre><code><span class="codelabel">前端 xyz.Client —— 配方页面：发布</span>
+<span class="t">EventBus</span>.Send(<span class="k">new</span> <span class="t">RecipeSelected</span>(recipeId));   <span class="c">// 不传 token = 全局消息</span>
+
+<span class="codelabel">前端 xyz.Client —— 任意其他页面/控件：订阅</span>
+<span class="t">EventBus</span>.Register&lt;<span class="t">RecipeSelected</span>&gt;(m =&gt;
+{
+    SelectedRecipeId = m.RecipeId;   <span class="c">// 直接改绑定属性</span>
+});</code></pre>
+
+  <div class="warn">
+  前端 <code>EventBus.Send</code> 的消息<strong>只在本进程内流转</strong>：不会传到后端，也不会传到其他客户端。进程内 <code>Send</code> 在<strong>调用线程同步回调</strong>——在 UI 线程发就 UI 线程收，在后台线程发就后台线程收。
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-c">
+  <h1 class="page-title">场景 C：前端订阅后端 <span class="badge remote">跨进程</span><span class="badge main">主场景</span></h1>
+  <p class="page-sub">后端轮询硬件/模块 → 发布状态 → 前端界面实时刷新</p>
+
+  <p>这是整套东西存在的意义：后端轮询硬件/模块 → 发布状态 → 前端界面实时刷新。<strong>两端的写法和场景 A、B 完全一样</strong>——发布端不知道有没有人订阅、订阅端不知道消息从哪个进程来。</p>
+
+  <h3>① 后端发布（与场景 A 逐字相同）</h3>
+  <pre><code><span class="codelabel">后端 xyz.Service —— LoadPortManager 轮询到状态变化</span>
+<span class="t">EventBus</span>.Send(<span class="k">new</span> <span class="t">LoadPortStateChanged</span>(snapshot), <span class="s">"LoadPort1"</span>);</code></pre>
+  <p class="muted">后端订阅者（场景 A）与前端订阅者会同时收到，互不影响。</p>
+
+  <h3>② 前端订阅（与场景 B 逐字相同）</h3>
+  <pre><code><span class="codelabel">前端 xyz.Client.Manual —— LoadPortManualViewModel</span>
+<span class="k">public override void</span> Init()
+{
+    <span class="t">EventBus</span>.Register&lt;<span class="t">LoadPortStateChanged</span>&gt;(<span class="s">"LoadPort1"</span>, m =&gt;
+    {
+        <span class="c">// 回调已在 UI 线程（RemoteEventBus 统一投递），可直接改绑定属性</span>
+        StateName = m.State.StateName;
+        IsConnected = m.State.IsConnected;
+    });
+
+    <span class="t">EventBus</span>.Register&lt;<span class="t">LoadPortStateChanged</span>&gt;(<span class="s">"LoadPort2"</span>, m =&gt; { ... });
+}</code></pre>
+
+  <div class="note">
+  跨进程订阅免费获得三个保障：
+  <br><strong>① 晚注册补发</strong>——VM 在流泵连上之后才 Init 也没关系，Register 时立即拿到当前状态；
+  <br><strong>② 断线自动重连</strong>——后端重启后 3 秒内自动重连，重连成功即重放所有留存消息，界面自动恢复到最新状态；
+  <br><strong>③ 回调必在 UI 线程</strong>——不需要任何 Dispatcher 代码。
+  </div>
+
+  <h3>③ 连接状态灯（可选）</h3>
+  <p>界面顶部的通讯状态灯可直接绑定 <code>RemoteEventBus</code>：</p>
+  <pre><code><span class="codelabel">前端 —— 订阅连接状态变化（ConnectionChanged 也在 UI 线程触发）</span>
+<span class="t">RemoteEventBus</span>.ConnectionChanged += online =&gt; IsOnline = online;
+<span class="c">// 或直接轮询属性：RemoteEventBus.IsConnected</span></code></pre>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-d">
+  <h1 class="page-title">场景 D：前端发往后端（上行）<span class="badge remote">跨进程</span></h1>
+  <p class="page-sub">前端主动通知后端某件事（注意：不是命令！）</p>
+
+  <p>前端主动通知后端某件事（不是命令！），用 <code>RemoteEventBus.SendToServer</code>。消息进入<strong>后端进程内总线</strong>，后端按场景 A 的写法订阅即可：</p>
+
+  <pre><code><span class="codelabel">前端 —— 上行发布</span>
+<span class="t">RemoteEventBus</span>.SendToServer(<span class="k">new</span> <span class="t">OperatorAttention</span>(<span class="s">"LoadPort1"</span>, <span class="s">"料盒未到位"</span>));
+
+<span class="codelabel">后端 —— 正常订阅（与场景 A 相同）</span>
+<span class="t">EventBus</span>.Register&lt;<span class="t">OperatorAttention</span>&gt;(m =&gt;
+{
+    Logger.Warn($<span class="s">"操作员提醒: {m.Module} {m.Reason}"</span>);
+});</code></pre>
+
+  <div class="warn">
+  上行的特点：① 默认<strong>不留存</strong>（发生类消息语义），晚注册的后端订阅者不会收到历史；② <strong>不回声</strong>——不会广播给其他客户端；③ 后端不在线时静默丢弃，需要确认送达的业务应由后端回发一个事件确认。
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-thread">
+  <h1 class="page-title">线程与回调</h1>
+  <p class="page-sub">四条路径各在哪个线程回调、能否直接改绑定属性</p>
+
+  <table>
+    <tr><th>路径</th><th>回调所在线程</th><th>能否直接改绑定属性</th></tr>
+    <tr><td>进程内 Send → Register（前端）</td><td>Send 的调用线程</td><td>UI 线程发就能；后台线程发就不能</td></tr>
+    <tr><td>进程内 Send → Register（后端）</td><td>Send 的调用线程（多为轮询线程）</td><td>—（后端无 UI，注意被订阅方自己的线程安全）</td></tr>
+    <tr><td>跨进程：后端 Send → 前端 Register</td><td><strong>UI 线程</strong>（RemoteEventBus 投递）</td><td><strong>能，随便改</strong></td></tr>
+    <tr><td>跨进程：前端上行 → 后端 Register</td><td>gRPC 线程池线程</td><td>—（注意模块内加锁）</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-retain">
+  <h1 class="page-title">留存语义（retain）</h1>
+  <p class="page-sub">状态类消息默认留存补发；发生类消息显式关掉</p>
+
+  <p><code>Send</code> 默认按<strong>状态类消息</strong>处理：每个（类型 + token）键保留最后一条，用于——</p>
+  <ul>
+    <li><strong>Register 补发</strong>：订阅时立即收到当前值（晚初始化的模块/VM 不吃亏）</li>
+    <li><strong>重连重放</strong>：客户端断线重连后立即恢复全部最新状态</li>
+  </ul>
+
+  <p>"发生了某件事"类的消息（日志、一次性通知、按钮点击通知）不适合补发，发布时显式关掉留存：</p>
+
+  <pre><code><span class="c">// 状态类（默认）：留最后一条，新订阅者补发</span>
+<span class="t">EventBus</span>.Send(<span class="k">new</span> <span class="t">LoadPortStateChanged</span>(snapshot), <span class="s">"LoadPort1"</span>);
+
+<span class="c">// 发生类：只给当时在线的订阅者，不留存、不补发</span>
+<span class="t">EventBus</span>.Send(<span class="k">new</span> <span class="t">OperatorAttention</span>(<span class="s">"LoadPort1"</span>, <span class="s">"料盒未到位"</span>), retain: <span class="k">false</span>);</code></pre>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-rules">
+  <h1 class="page-title">约定与红线</h1>
+  <p class="page-sub">命令绝不走事件通道；消息类放 xyz.Shared；token 用稳定业务名</p>
+
+  <div class="danger">
+  <strong>命令绝不走事件通道。</strong>Load / Unload / Home 这类需要下发到硬件、需要知道成败的"命令"，必须走普通 gRPC 一元调用（如 ILoadPortService.InvokeActionAsync）。事件通道是<strong>单向通知</strong>：不保证送达时刻、没有返回值、没有错误回传。用事件发命令 = 丢命令 + 无法报错。
+  </div>
+
+  <ul>
+    <li><strong>消息类放 xyz.Shared</strong>——两端共用一个类型；类型全名是路由键的一部分，两端版本要一起发版。</li>
+    <li><strong>token 用稳定的业务名</strong>——模块名（"LoadPort1"）、页面名等，不要用 GUID 这类每次变化的值（留存会失效）。</li>
+    <li><strong>订阅回调里不要做长活</strong>——跨进程回调在 UI 线程，长活会卡界面；重的活丢 Task.Run 或后台队列。</li>
+    <li><strong>注销</strong>：Register 返回 <code>IDisposable</code>。跟进程同寿命的模块/单例 VM 不需要注销；临时订阅（如弹窗页面）用完记得 Dispose，否则回调泄漏。</li>
+    <li><strong>排查丢消息</strong>：订阅 <code>EventBus.DeadLetter</code>（反序列化失败、订阅者回调抛异常都会触发，带着信封和异常）。</li>
+  </ul>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="eb-cheat">
+  <h1 class="page-title">速查表</h1>
+  <p class="page-sub">我要做什么 → 写这句 → 写在哪</p>
+
+  <table>
+    <tr><th>我要做什么</th><th>写这句</th><th>写在哪</th></tr>
+    <tr><td>后端发布状态</td><td><code>EventBus.Send(msg, "token")</code></td><td>xyz.Service / 模块层</td></tr>
+    <tr><td>后端订阅（本进程或等前端同款消息）</td><td><code>EventBus.Register&lt;T&gt;("token", m =&gt; ...)</code></td><td>xyz.Service</td></tr>
+    <tr><td>前端订阅后端状态</td><td><code>EventBus.Register&lt;T&gt;("token", m =&gt; ...)</code></td><td>ViewModel.Init()</td></tr>
+    <tr><td>前端内部通知</td><td>发 <code>EventBus.Send(msg)</code> / 收 <code>EventBus.Register&lt;T&gt;(m =&gt; ...)</code></td><td>任意客户端代码</td></tr>
+    <tr><td>前端上行通知后端</td><td><code>RemoteEventBus.SendToServer(msg, "token")</code></td><td>客户端</td></tr>
+    <tr><td>显示后端在线状态</td><td><code>RemoteEventBus.IsConnected</code> / <code>ConnectionChanged</code></td><td>ViewModel</td></tr>
+    <tr><td>发一次性事件（不留存）</td><td><code>EventBus.Send(msg, "token", retain: false)</code></td><td>发布方</td></tr>
+    <tr><td>排查丢消息</td><td><code>EventBus.DeadLetter += (envelope, ex) =&gt; ...</code></td><td>调试期任意一端</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-overview">
+  <h1 class="page-title">组件总览与机制</h1>
+  <p class="page-sub">界面控件（客户端）+ 设备组件（服务端），两大类一次看清</p>
+
+  <h3>界面控件（xyz.Client.Presentation.Controls）</h3>
+  <p>纯展示型 WPF UserControl，用 <strong>DependencyProperty</strong> 驱动、可 XAML 直接使用，配合 Styles 目录的样式资源构成暗色主题界面。</p>
+  <table>
+    <tr><th>控件</th><th>用途</th><th>核心属性</th></tr>
+    <tr><td><a href="#comp-loadport" onclick="show('comp-loadport');return false;">LoadPort</a></td><td>LoadPort 花篮槽位图（默认 25 槽，可等比缩放）</td><td>Title / SlotCount / Wafers / StatusOn</td></tr>
+    <tr><td><a href="#comp-foup" onclick="show('comp-foup');return false;">Foup</a></td><td>花篮外壳造型（纯视觉装饰，无属性）</td><td>—</td></tr>
+    <tr><td><a href="#comp-wafer" onclick="show('comp-wafer');return false;">Wafer</a></td><td>晶圆（圆盘，可旋转动画）</td><td>Label / FillColor / RotationSpeed / Data</td></tr>
+    <tr><td><a href="#comp-hwafer" onclick="show('comp-hwafer');return false;">HorizontalWafer</a></td><td>晶圆（水平条状，用于流程图/机械手示意）</td><td>Label / Data</td></tr>
+    <tr><td><a href="#comp-chamber" onclick="show('comp-chamber');return false;">ChamberInfoCard</a></td><td>腔体卡片（工艺腔状态一览）</td><td>Title / State / Recipe / Step / ShutterState / Wafer</td></tr>
+    <tr><td><a href="#comp-bchamber" onclick="show('comp-bchamber');return false;">BottomChamberInfoCard</a></td><td>腔体卡片（底部布局变体，属性同上）</td><td>同 ChamberInfoCard</td></tr>
+  </table>
+
+  <h3>设备组件（xyz.Service 侧 · xyz.Components.Components）</h3>
+  <p>继承 <code>ComponentBase</code> 的硬件功能组件，被模块（如 LoadPortBase）聚合为子组件。三个关键机制：</p>
+  <ul>
+    <li><code>[SCEditor("默认值", "分组", "说明")]</code> —— 标注 SC 装机常量，启动时从 sc.xml 对应 Setting 组自动装载；</li>
+    <li><code>[Component(description: "...")]</code> —— 标注机台模块，供配置系统反射构造；</li>
+    <li><code>[Alarm("名称", 分类, ...)]</code> —— 声明报警字段，自动注册进报警体系。</li>
+  </ul>
+  <table>
+    <tr><th>组件</th><th>继承</th><th>用途</th></tr>
+    <tr><td>AxisComponent</td><td>ComponentBase</td><td>运动轴（速度/加减速/超时/到位容差）</td></tr>
+    <tr><td>ArmAxisComponent</td><td>AxisComponent</td><td>机械手臂轴（心位 Center / 边位 Edge）</td></tr>
+    <tr><td>SpinMotorComponent</td><td>AxisComponent</td><td>旋转电机（交接位 TransferPosition）</td></tr>
+    <tr><td>CylinderComponent</td><td>ComponentBase</td><td>气缸（双/单线圈 DO + 开关到位 DI + 超时报警）</td></tr>
+    <tr><td>ValveComponent</td><td>ComponentBase</td><td>阀门（DO 驱动 + 可选开到位反馈）</td></tr>
+    <tr><td>DiSensorComponent</td><td>ComponentBase</td><td>数字量传感器（触发电平/消抖/直接报警）</td></tr>
+    <tr><td>AiSensorComponent</td><td>ComponentBase</td><td>模拟量传感器（量程/设定值/预警带/持续时间）</td></tr>
+    <tr><td>LightComponent</td><td>ComponentBase</td><td>三色灯 + 蜂鸣器（红黄绿蓝四个 DO）</td></tr>
+    <tr><td>RfidReaderComponent</td><td>ComponentBase</td><td>RFID 读头（串口参数 + ReadCarrierId）</td></tr>
+    <tr><td>AlarmComponent</td><td>ComponentBase, IAlarmComponent</td><td>报警的注册/触发/清除/确认</td></tr>
+    <tr><td>DataBaseComponent</td><td>ComponentBase</td><td>数据库连接（连接串/库类型）</td></tr>
+  </table>
+
+  <div class="note">聚合用法示例见 <a href="#comp-rfid" onclick="show('comp-rfid');return false;">RfidReaderComponent</a> —— LoadPortBase 通过 <code>AddChild(RFID)</code> 挂子组件并开放 <code>ReadCarrierId()</code>。</div>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-loadport">
+  <h1 class="page-title">LoadPort 花篮槽位</h1>
+  <p class="page-sub">xyz.Client.Presentation.Controls.LoadPort —— 垂直花篮槽位图，默认 25 槽，可等比缩放</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
+    <tr><td><code>Title</code></td><td>string</td><td>"LOAD PORT"</td><td>标题文字</td></tr>
+    <tr><td><code>SlotCount</code></td><td>int</td><td>25</td><td>槽数量（变化自动重建槽位）</td></tr>
+    <tr><td><code>Wafers</code></td><td>IEnumerable</td><td>null</td><td>晶圆数据集合（ WaferModel 列表），自动映射到槽位</td></tr>
+    <tr><td><code>StatusOn</code></td><td>bool</td><td>false</td><td>通讯状态灯</td></tr>
+    <tr><td><code>CreateCommand</code> / <code>CreateEnable</code></td><td>ICommand / bool</td><td>null / —</td><td>创建动作按钮</td></tr>
+    <tr><td><code>DeleteCommand</code> / <code>DeleteEnable</code></td><td>ICommand / bool</td><td>null / —</td><td>删除动作按钮</td></tr>
+  </table>
+
+  <pre><code><span class="codelabel">XAML（xmlns 见项目里现有页面的写法）</span>&lt;presentationControls:LoadPort
+    Title="{Binding Name}"
+    SlotCount="{Binding SlotCount}"
+    StatusOn="{Binding IsConnected}"
+    Wafers="{Binding Wafers}" /&gt;</code></pre>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-foup">
+  <h1 class="page-title">Foup 花篮壳</h1>
+  <p class="page-sub">xyz.Client.Presentation.Controls.Foup —— 纯视觉花篮外壳造型</p>
+
+  <p>无任何依赖属性，纯粹的花篮外壳/框架造型，一般作为 LoadPort 或腔体页面的背景装饰，让晶圆槽位看起来装在壳里。</p>
+
+  <pre><code><span class="codelabel">XAML —— 常与 LoadPort 叠放（见 xyz.Client 的 LoadPortPanel.xaml）</span>&lt;presentationControls:Foup
+    Margin="20"
+    HorizontalAlignment="Stretch"
+    VerticalAlignment="Stretch" /&gt;</code></pre>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-wafer">
+  <h1 class="page-title">Wafer 晶圆（圆盘）</h1>
+  <p class="page-sub">xyz.Client.Presentation.Controls.Wafer —— 圆盘晶圆，支持旋转动画</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>Label</code></td><td>string</td><td>晶圆标签文字</td></tr>
+    <tr><td><code>FillColor</code></td><td>Brush</td><td>填充色（按状态着色）</td></tr>
+    <tr><td><code>IsDiskVisible</code></td><td>bool</td><td>是否显示圆盘</td></tr>
+    <tr><td><code>RotateClockwise</code></td><td>bool</td><td>旋转方向（true=顺时针）</td></tr>
+    <tr><td><code>RotationSpeed</code></td><td>double</td><td>旋转速度（0 = 静止）</td></tr>
+    <tr><td><code>Data</code> / <code>CommandParameter</code></td><td>object</td><td>挂业务数据 / 命令参数</td></tr>
+    <tr><td><code>CreateCommand</code> / <code>DeleteCommand</code> + Enable</td><td>ICommand / bool</td><td>创建/删除命令</td></tr>
+  </table>
+
+  <h3>配套数据模型 WaferModel</h3>
+  <p>位于 xyz.Client.Presentation.Models，实现 INotifyPropertyChanged，可直接绑定：</p>
+  <table>
+    <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>Slot</code></td><td>int</td><td>槽位号</td></tr>
+    <tr><td><code>State</code></td><td>string</td><td>晶圆状态</td></tr>
+    <tr><td><code>LoadPort</code> / <code>LpSlot</code></td><td>string</td><td>来源 LoadPort 与槽位</td></tr>
+    <tr><td><code>Time</code></td><td>string</td><td>时间</td></tr>
+    <tr><td><code>IsCurrent</code></td><td>bool</td><td>是否当前片（高亮）</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-hwafer">
+  <h1 class="page-title">HorizontalWafer 晶圆（水平）</h1>
+  <p class="page-sub">xyz.Client.Presentation.Controls.HorizontalWafer —— 水平条状晶圆示意</p>
+
+  <p>用于流程图、机械手传送示意等<strong>横向布局</strong>场景，属性集是 Wafer 的子集（无圆盘/旋转相关）：</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>Label</code></td><td>string</td><td>晶圆标签文字</td></tr>
+    <tr><td><code>Data</code> / <code>CommandParameter</code></td><td>object</td><td>挂业务数据 / 命令参数</td></tr>
+    <tr><td><code>CreateCommand</code> / <code>DeleteCommand</code> + Enable</td><td>ICommand / bool</td><td>创建/删除命令</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-chamber">
+  <h1 class="page-title">ChamberInfoCard 腔体卡片</h1>
+  <p class="page-sub">xyz.Client.Presentation.Controls.ChamberInfoCard —— 工艺腔状态一览卡片</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+    <tr><td><code>Title</code></td><td>string</td><td>腔体标题</td></tr>
+    <tr><td><code>State</code></td><td>string</td><td>腔体状态文字</td></tr>
+    <tr><td><code>StatusOn</code></td><td>bool</td><td>状态灯</td></tr>
+    <tr><td><code>IsOnline</code></td><td>string</td><td>在线状态文本</td></tr>
+    <tr><td><code>Recipe</code> / <code>RecipeState</code> / <code>RecipeTime</code></td><td>string</td><td>配方名 / 配方状态 / 配方时间</td></tr>
+    <tr><td><code>Step</code> / <code>StepTime</code></td><td>string</td><td>当前工艺步序 / 步序时间</td></tr>
+    <tr><td><code>ShutterState</code></td><td>string</td><td>闸阀状态</td></tr>
+    <tr><td><code>Wafer</code></td><td><a href="#comp-wafer" onclick="show('comp-wafer');return false;">WaferModel</a></td><td>腔内晶圆（圆盘旋转展示）</td></tr>
+    <tr><td><code>RotationSpeed</code></td><td>double</td><td>晶圆旋转速度</td></tr>
+    <tr><td><code>CreateCommand</code> / <code>DeleteCommand</code> + Enable</td><td>ICommand / bool</td><td>创建/删除命令</td></tr>
+  </table>
+
+  <pre><code><span class="codelabel">XAML</span>&lt;presentationControls:ChamberInfoCard
+    Title="Chamber 1"
+    State="{Binding StateName}"
+    Recipe="{Binding RecipeName}"
+    Step="{Binding StepName}"
+    ShutterState="{Binding ShutterText}"
+    Wafer="{Binding CurrentWafer}" /&gt;</code></pre>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-bchamber">
+  <h1 class="page-title">BottomChamberInfoCard 底部腔体卡片</h1>
+  <p class="page-sub">xyz.Client.Presentation.Controls.BottomChamberInfoCard —— 布局变体</p>
+
+  <p>与 <a href="#comp-chamber" onclick="show('comp-chamber');return false;">ChamberInfoCard</a> <strong>属性完全相同</strong>（Title / State / StatusOn / IsOnline / Recipe 系列 / Step 系列 / ShutterState / Wafer / RotationSpeed / 命令系列），只是内部布局不同——适用于卡片底部对齐的页面构图（如上下腔体堆叠展示）。</p>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-axis">
+  <h1 class="page-title">AxisComponent 运动轴</h1>
+  <p class="page-sub">xyz.Components.Components.AxisComponent —— 继承 ComponentBase</p>
+
+  <p>单轴运动参数组件。ArmAxisComponent 与 SpinMotorComponent 都从它继承。</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
+    <tr><td><code>HomeSpeed</code></td><td>double</td><td>10</td><td>回零速度</td></tr>
+    <tr><td><code>MoveSpeed</code></td><td>double</td><td>50</td><td>定位速度</td></tr>
+    <tr><td><code>Accel</code> / <code>Decel</code></td><td>double</td><td>1000</td><td>加速度 / 减速度</td></tr>
+    <tr><td><code>MaxSpeed</code></td><td>double</td><td>100</td><td>最大速度</td></tr>
+    <tr><td><code>TimeoutMs</code></td><td>int</td><td>30000</td><td>运动超时</td></tr>
+    <tr><td><code>StopTimeoutMs</code></td><td>int</td><td>5000</td><td>停止超时</td></tr>
+    <tr><td><code>SpinTimeoutMs</code></td><td>int</td><td>30000</td><td>旋转超时</td></tr>
+    <tr><td><code>PositionTolerance</code></td><td>double</td><td>1.0</td><td>到位容差</td></tr>
+    <tr><td><code>SpeedTolerance</code></td><td>double</td><td>5</td><td>速度容差（静止判定）</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-armaxis">
+  <h1 class="page-title">ArmAxisComponent 手臂轴</h1>
+  <p class="page-sub">xyz.Components.Components.ArmAxisComponent —— 继承 AxisComponent</p>
+
+  <p>机械手臂轴：在运动轴参数之上增加手臂专用位置常量。</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
+    <tr><td><code>Center</code></td><td>double</td><td>0</td><td>中心位（取放片的心位）</td></tr>
+    <tr><td><code>Edge</code></td><td>double</td><td>150</td><td>边位（避让/换道位置）</td></tr>
+  </table>
+  <p class="muted">另继承 AxisComponent 全部速度/超时/容差参数。</p>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-spin">
+  <h1 class="page-title">SpinMotorComponent 旋转电机</h1>
+  <p class="page-sub">xyz.Components.Components.SpinMotorComponent —— 继承 AxisComponent</p>
+
+  <p>转盘/旋转台电机，在运动轴参数之上增加交接位置常量。</p>
+
+  <table>
+    <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
+    <tr><td><code>TransferPosition</code></td><td>double</td><td>0</td><td>与机械手交接的平移位置</td></tr>
+  </table>
+  <p class="muted">另继承 AxisComponent 全部速度/超时/容差参数（含 SpinTimeoutMs 旋转超时）。</p>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-cyl">
+  <h1 class="page-title">CylinderComponent 气缸</h1>
+  <p class="page-sub">xyz.Components.Components.CylinderComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>DoOpenIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>开侧 DO 索引</td></tr>
+    <tr><td><code>DoCloseIndex</code></td><td>-1</td><td>关侧 DO 索引（-1 = 单线圈）</td></tr>
+    <tr><td><code>DiOpenedIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>开到位 DI 索引</td></tr>
+    <tr><td><code>DiClosedIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>关到位 DI 索引</td></tr>
+    <tr><td><code>ActionTimeoutMs</code></td><td>5000</td><td>动作超时（触发 TimeoutAlarm）</td></tr>
+    <tr><td><code>TimeoutAlarm</code></td><td>—</td><td>超时报警字段（[Alarm] 声明）</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-valve">
+  <h1 class="page-title">ValveComponent 阀门</h1>
+  <p class="page-sub">xyz.Components.Components.ValveComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>DoIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>阀门驱动 DO 索引</td></tr>
+    <tr><td><code>DiOpenedIndex</code></td><td>-1</td><td>开到位反馈 DI 索引（-1 = 无反馈）</td></tr>
+    <tr><td><code>FeedbackTimeoutMs</code></td><td>3000</td><td>反馈超时</td></tr>
+    <tr><td><code>FeedbackTimeoutAlarm</code></td><td>—</td><td>反馈超时报警字段</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-di">
+  <h1 class="page-title">DiSensorComponent 数字量传感器</h1>
+  <p class="page-sub">xyz.Components.Components.DiSensorComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>DiIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>监控的 DI 索引</td></tr>
+    <tr><td><code>TriggerLevel</code></td><td>High</td><td>触发有效电平（High=高电平报警 / Low=低电平报警）</td></tr>
+    <tr><td><code>AlarmEnabled</code></td><td>True</td><td>是否直接报警（false = 只提供状态，由宿主处理）</td></tr>
+    <tr><td><code>DebounceMs</code></td><td>200</td><td>消抖时间</td></tr>
+    <tr><td><code>SensorAlarm</code></td><td>—</td><td>传感器报警字段</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-ai">
+  <h1 class="page-title">AiSensorComponent 模拟量传感器</h1>
+  <p class="page-sub">xyz.Components.Components.AiSensorComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>AiIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>监控的 AI 索引</td></tr>
+    <tr><td><code>MonitoringDoIndex</code></td><td>-1</td><td>监控使能 DO 索引（-1 = 始终监控）</td></tr>
+    <tr><td><code>MonitoringActiveHigh</code></td><td>True</td><td>监控使能有效电平</td></tr>
+    <tr><td><code>AlarmEnabled</code></td><td>True</td><td>超限是否直接报警</td></tr>
+    <tr><td><code>Min</code> / <code>Max</code></td><td>—</td><td>报警量程下/上限</td></tr>
+    <tr><td><code>WarningMin</code> / <code>WarningMax</code></td><td>—</td><td>预警带下/上限</td></tr>
+    <tr><td><code>Setpoint</code></td><td>—</td><td>设定值</td></tr>
+    <tr><td><code>DurationMs</code></td><td>1000</td><td>越限持续时间才报警</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-light">
+  <h1 class="page-title">LightComponent 三色灯</h1>
+  <p class="page-sub">xyz.Components.Components.LightComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>DoRedIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>红灯 DO 索引</td></tr>
+    <tr><td><code>DoYellowIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>黄灯 DO 索引</td></tr>
+    <tr><td><code>DoGreenIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>绿灯 DO 索引</td></tr>
+    <tr><td><code>DoBlueIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>蓝灯 DO 索引</td></tr>
+    <tr><td><code>DoBuzzerIndex</code> <span class="muted">IO · 必填</span></td><td>-1</td><td>蜂鸣器 DO 索引</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-rfid">
+  <h1 class="page-title">RfidReaderComponent RFID 读头</h1>
+  <p class="page-sub">xyz.Components.Components.RfidReaderComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>Brand</code></td><td>""</td><td>RFID 读头品牌</td></tr>
+    <tr><td><code>PortName</code></td><td>"COM"</td><td>串口名称</td></tr>
+    <tr><td><code>BaudRate</code></td><td>9600</td><td>波特率</td></tr>
+    <tr><td><code>Parity</code> / <code>DataBits</code> / <code>StopBits</code></td><td>None / 8 / One</td><td>串口参数</td></tr>
+  </table>
+  <p>方法：<code>string? ReadCarrierId()</code> 读取载具 ID。</p>
+
+  <pre><code><span class="codelabel">聚合进模块的用法（LoadPortBase 的真实写法）</span>
+<span class="k">public</span> <span class="t">RfidReaderComponent</span> RFID { <span class="k">get</span>; }
+
+<span class="k">protected</span> LoadPortBase()
+{
+    RFID = <span class="k">new</span> <span class="t">RfidReaderComponent</span>();
+    AddChild(RFID);                  <span class="c">// 挂为子组件，SC 参数自动装载</span>
+}
+
+<span class="c">// 对外开放读码能力</span>
+<span class="k">public</span> <span class="k">string</span>? ReadCarrierId() =&gt; RFID.ReadCarrierId();</code></pre>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-alarm">
+  <h1 class="page-title">AlarmComponent 报警</h1>
+  <p class="page-sub">xyz.Components.Components.AlarmComponent —— ComponentBase, IAlarmComponent</p>
+
+  <p>报警中心组件：统一注册、触发、清除、确认。</p>
+
+  <table>
+    <tr><th>方法</th><th>说明</th></tr>
+    <tr><td><code>Register(string sourcePath, ComponentBase source)</code></td><td>注册报警源（扫描其 [Alarm] 字段）</td></tr>
+    <tr><td><code>Raise(string sourcePath, string alarmCode)</code></td><td>触发报警</td></tr>
+    <tr><td><code>Clear(string sourcePath, string alarmCode)</code></td><td>清除报警</td></tr>
+    <tr><td><code>Acknowledge(string sourcePath, string alarmCode)</code></td><td>确认报警</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="comp-db">
+  <h1 class="page-title">DataBaseComponent 数据库</h1>
+  <p class="page-sub">xyz.Components.Components.DataBaseComponent —— 继承 ComponentBase</p>
+
+  <table>
+    <tr><th>属性</th><th>SC 默认</th><th>说明</th></tr>
+    <tr><td><code>ConnectionString</code></td><td>XyzDb.DefaultConnectionString</td><td>数据库连接字符串</td></tr>
+    <tr><td><code>DbType</code></td><td>Sqlite</td><td>数据库类型</td></tr>
+  </table>
+</section>
+
+<!-- ================================================================ -->
+<section class="page" id="doc-about">
+  <h1 class="page-title">维护说明</h1>
+  <p class="page-sub">本文档如何扩充 —— 给未来往里加主题的人</p>
+
+  <p>这个页面是<strong>单文件的文档站</strong>：左侧是一个大菜单，<strong>一个主题 = 一个可折叠分组</strong>，组内每一小节就是右侧的一"页"。未来要介绍新东西（权限系统、模块开发、驱动开发、报警体系……）时，加一个分组 + 对应的页即可。</p>
+
+  <h3>加一个新主题的三个步骤</h3>
+  <ol>
+    <li>在 <code>&lt;nav&gt;</code> 里复制顶部的"主题组模板"注释，改分组标题（建议带个 emoji 图标）；</li>
+    <li>在 <code>&lt;main&gt;</code> 里为每个小节添加 <code>&lt;section class="page" id="..."&gt;</code>，id 与菜单项的 <code>data-target</code> 一致；</li>
+    <li>无需改任何 JS —— 页面切换、上一节/下一节、地址栏锚点都是自动生成的。</li>
+  </ol>
+
+  <h3>约定</h3>
+  <ul>
+    <li>小节 id 用主题前缀（事件总线用 <code>eb-</code>），避免未来冲突；</li>
+    <li>代码示例必须对应真实实现的 API，注明文件路径；</li>
+    <li>纯离线：不引外部字体/脚本/样式，车间断网环境可直接打开。</li>
+  </ul>
+
+  <footer>xyz 框架 · 开发文档 · 2026-09-03</footer>
+</section>
+
+<!-- 页底上一节/下一节（JS 自动填充） -->
+<div class="pager" id="pager"></div>
+
+</main>
+</div>
+
+<script>
+// =============================================================
+// 1) 页面切换：菜单项 data-target <-> section.page 的 id
+// 2) 主题分组折叠
+// 3) 上一节/下一节：按菜单顺序自动生成
+// =============================================================
+(function () {
+  var items = Array.prototype.slice.call(document.querySelectorAll('nav a.item'));
+  var order = items.map(function (a) { return a.dataset.target; });
+
+  function show(id, replace) {
+    var valid = order.indexOf(id) >= 0 ? id : order[0];
+    document.querySelectorAll('main section.page').forEach(function (p) {
+      p.classList.toggle('active', p.id === valid);
+    });
+    items.forEach(function (a) { a.classList.toggle('active', a.dataset.target === valid); });
+    // 自动展开所在分组
+    var link = document.querySelector('nav a.item[data-target="' + valid + '"]');
+    if (link) {
+      var group = link.closest('.group');
+      if (group) group.classList.add('open');
+    }
+    window.scrollTo(0, 0);
+    if (replace !== false) history.replaceState(null, '', '#' + valid);
+    renderPager(valid);
+  }
+
+  function renderPager(id) {
+    var i = order.indexOf(id);
+    var pager = document.getElementById('pager');
+    if (!pager || i < 0) return;
+    var html = '';
+    if (i > 0) {
+      html += '<a href="#' + order[i - 1] + '" data-go="' + order[i - 1] + '"><small>← 上一节</small>' + titleOf(order[i - 1]) + '</a>';
+    }
+    if (i < order.length - 1) {
+      html += '<a class="next" href="#' + order[i + 1] + '" data-go="' + order[i + 1] + '"><small>下一节 →</small>' + titleOf(order[i + 1]) + '</a>';
+    }
+    pager.innerHTML = html;
+    pager.querySelectorAll('a[data-go]').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); show(a.dataset.go); });
+    });
+  }
+
+  function titleOf(id) {
+    var a = document.querySelector('nav a.item[data-target="' + id + '"]');
+    return a ? a.textContent : id;
+  }
+
+  items.forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); show(a.dataset.target); });
+  });
+
+  document.querySelectorAll('nav .group-title').forEach(function (h) {
+    h.addEventListener('click', function () {
+      h.parentElement.classList.toggle('open');
+    });
+  });
+
+  window.addEventListener('hashchange', function () {
+    show(location.hash.replace('#', ''), false);
+  });
+
+  // 暴露给正文里的交叉链接（onclick="show('xxx')"）
+  window.show = show;
+
+  show(location.hash.replace('#', ''), false);
+
+  // —— 轻量 C# 语法高亮（离线，无外部依赖）——
+  var keywords = 'record|sealed|public|private|protected|internal|static|class|new|return|void|string|bool|int|double|var|using|namespace|override|async|await|true|false|null|nameof|if|foreach|while';
+  var types = 'EventBus|RemoteEventBus|EventService|EventMessage|IDisposable|ModuleState|LoadPortStateChanged|LoadPortDto|OperatorAttention|RecipeSelected|ComponentBase|RfidReaderComponent';
+  var re = new RegExp('(\\/\\/[^\\n]*)|("(?:[^"\\\\\\n]|\\\\.)*")|\\b(' + keywords + ')\\b|\\b(' + types + ')\\b', 'g');
+  document.querySelectorAll('pre code').forEach(function (el) {
+    var s = el.textContent
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    el.innerHTML = s.replace(re, function (m, c, str, kw, ty) {
+      if (c)   return '<span class="c">' + c + '</span>';
+      if (str) return '<span class="s">' + str + '</span>';
+      if (kw)  return '<span class="k">' + kw + '</span>';
+      if (ty)  return '<span class="t">' + ty + '</span>';
+      return m;
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

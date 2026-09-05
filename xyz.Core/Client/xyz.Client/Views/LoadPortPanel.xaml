@@ -1,0 +1,215 @@
+<UserControl
+    x:Class="xyz.Client.Views.LoadPortPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:xyz.Client.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    d:DesignHeight="900"
+    d:DesignWidth="1600"
+    mc:Ignorable="d">
+
+    <Border Background="{DynamicResource DarkWindowBackground}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="1*" />
+                <RowDefinition Height="9*" />
+            </Grid.RowDefinitions>
+
+            <Border
+                Grid.Row="0"
+                Padding="24,0"
+                Style="{DynamicResource HeaderBarBorderStyle}">
+                <Grid>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PageTitleTextStyle}"
+                        Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+
+                    <StackPanel
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Border
+                            Style="{DynamicResource ConnectionStatusDotBorderStyle}"
+                            Tag="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+                        <TextBlock
+                            Style="{DynamicResource ConnectionStatusTextStyle}"
+                            Tag="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="21*" />
+                    <ColumnDefinition Width="79*" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    Grid.Column="0"
+                    Margin="0,0,16,0"
+                    Style="{DynamicResource SurfaceCardBorderStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock
+                            Grid.Row="0"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Center"
+                            Style="{DynamicResource SectionTitleTextStyle}"
+                            Text="{Binding PortName, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+
+                        <presentationControls:Foup
+                            Grid.Row="1"
+                            HorizontalAlignment="Stretch"
+                            Margin="20"
+                            VerticalAlignment="Stretch" />
+
+                        <Border
+                            Grid.Row="2"
+                            Height="1"
+                            Margin="8,0,8,12"
+                            Background="{DynamicResource DarkBorderBrush}" />
+
+                        <Grid Grid.Row="3" Margin="8,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Style="{DynamicResource StatusDotBorderStyle}"
+                                Tag="{Binding IsCarrierPresent, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Style="{DynamicResource StatusLabelTextStyle}"
+                                Text="CARRIER PRESENT" />
+                        </Grid>
+
+                        <Grid Grid.Row="4" Margin="8,6,8,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Style="{DynamicResource StatusDotBorderStyle}"
+                                Tag="{Binding IsClamped, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Style="{DynamicResource StatusLabelTextStyle}"
+                                Text="CLAMPED" />
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border
+                    Grid.Column="1"
+                    Style="{DynamicResource SurfaceCardBorderStyle}">
+                    <Grid Margin="28,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="5*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="1*" />
+                            <RowDefinition Height="1*" />
+                            <RowDefinition Height="1*" />
+                            <RowDefinition Height="1*" />
+                            <RowDefinition Height="1.6*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            Style="{DynamicResource FieldLabelTextStyle}"
+                            Text="SLOT" />
+                        <TextBox
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Style="{DynamicResource LargeTextBoxStyle}"
+                            Text="{Binding Slot, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Style="{DynamicResource FieldLabelTextStyle}"
+                            Text="SEQUENCE" />
+                        <ComboBox
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            ItemsSource="{Binding SequenceOptions, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                            SelectedItem="{Binding SelectedSequence, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}, Mode=TwoWay}"
+                            Style="{DynamicResource LargeComboBoxStyle}" />
+
+                        <TextBlock
+                            Grid.Row="2"
+                            Grid.Column="0"
+                            Style="{DynamicResource FieldLabelTextStyle}"
+                            Text="CJ STATUS" />
+                        <Border
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Style="{DynamicResource StatusFieldBorderStyle}"
+                            Tag="{Binding IsCjReady, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}">
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Border
+                                    Style="{DynamicResource LargeStatusDotBorderStyle}"
+                                    Tag="{Binding IsCjReady, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+                                <TextBlock
+                                    Style="{DynamicResource StatusValueTextStyle}"
+                                    Tag="{Binding IsCjReady, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                                    Text="{Binding CjStatus, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock
+                            Grid.Row="3"
+                            Grid.Column="0"
+                            Style="{DynamicResource FieldLabelTextStyle}"
+                            Text="DIRECTION" />
+                        <ComboBox
+                            Grid.Row="3"
+                            Grid.Column="1"
+                            ItemsSource="{Binding DirectionOptions, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                            SelectedItem="{Binding SelectedDirection, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}, Mode=TwoWay}"
+                            Style="{DynamicResource LargeComboBoxStyle}" />
+
+                        <Grid
+                            Grid.Row="4"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="2"
+                            Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button
+                                Grid.Column="0"
+                                Margin="0,0,8,0"
+                                Command="{Binding CreateJobCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                                CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                                Content="CREATE JOB"
+                                Style="{DynamicResource PrimaryLargeActionButtonStyle}" />
+                            <Button
+                                Grid.Column="1"
+                                Margin="8,0,0,0"
+                                Command="{Binding StartJobCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                                CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=local:LoadPortPanel}}"
+                                Content="START JOB"
+                                Style="{DynamicResource SuccessLargeActionButtonStyle}" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

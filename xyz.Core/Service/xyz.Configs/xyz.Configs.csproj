@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\xyz.Common\xyz.Common.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="Config\sc.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Config\ec.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Paths.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

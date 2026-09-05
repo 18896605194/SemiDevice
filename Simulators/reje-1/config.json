@@ -1,0 +1,7 @@
+{
+  "Port": 9000,
+  "AckDelayMs": 50,
+  "ResponseDelayMs": 50,
+  "MotionDelayMs": 3000,
+  "FailureRate": 0
+}

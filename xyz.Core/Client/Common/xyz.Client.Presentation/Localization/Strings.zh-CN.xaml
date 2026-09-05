@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- 平台语言包（简体中文）。key 与 xyz.Shared.Errors.ErrorCodes 一一对应；
+         {0}{1} 为错误码 Args 占位。机型新增文案放机型项目自己的语言包，不修改本文件。 -->
+
+    <sys:String x:Key="module.not_found">模块不存在：{0}</sys:String>
+    <sys:String x:Key="module.action_rejected">{0} 动作被拒（当前状态 {1} 不允许，或已有动作在途）</sys:String>
+    <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
+    <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
+
+    <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
+    <sys:String x:Key="loadport.timeout">{0} 动作超时（{1}ms）</sys:String>
+    <sys:String x:Key="loadport.device_failed">{0} 设备报错：{1}</sys:String>
+</ResourceDictionary>

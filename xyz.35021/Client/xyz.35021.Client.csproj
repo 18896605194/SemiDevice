@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Compile Remove="xyz.35021.Main\**\*.cs" />
+    <Compile Remove="xyz.35021.Manual\**\*.cs" />
+    <Page Remove="xyz.35021.Main\**\*.xaml" />
+    <Page Remove="xyz.35021.Manual\**\*.xaml" />
+    <Resource Remove="xyz.35021.Main\**\*.xaml" />
+    <Resource Remove="xyz.35021.Manual\**\*.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\xyz.Core\Client\xyz.Client\xyz.Client.csproj" />
+    <ProjectReference Include="xyz.35021.Main\xyz.35021.Main.csproj" />
+    <ProjectReference Include="xyz.35021.Manual\xyz.35021.Manual.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>xyz._35021.Client</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

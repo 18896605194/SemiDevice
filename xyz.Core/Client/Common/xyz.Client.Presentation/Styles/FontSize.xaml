@@ -1,0 +1,18 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- 全局字体尺寸：界面和控件只引用资源，不直接写数字。 -->
+    <sys:Double x:Key="Size10">10</sys:Double>
+    <sys:Double x:Key="Size12">12</sys:Double>
+    <sys:Double x:Key="Size13">13</sys:Double>
+    <sys:Double x:Key="Size14">14</sys:Double>
+    <sys:Double x:Key="Size16">16</sys:Double>
+    <sys:Double x:Key="Size18">18</sys:Double>
+    <sys:Double x:Key="Size20">20</sys:Double>
+    <sys:Double x:Key="Size22">22</sys:Double>
+    <sys:Double x:Key="Size24">24</sys:Double>
+    <sys:Double x:Key="Size26">26</sys:Double>
+    <sys:Double x:Key="Size28">28</sys:Double>
+
+</ResourceDictionary>

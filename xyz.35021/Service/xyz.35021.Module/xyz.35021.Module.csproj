@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\xyz.Core\Service\xyz.Modules\xyz.Modules.csproj" />
+    <ProjectReference Include="..\..\..\xyz.Core\Shared\xyz.Shared\xyz.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

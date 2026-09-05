@@ -1,0 +1,135 @@
+<UserControl
+    x:Class="xyz.Client.Setting.Views.MenuView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="820"
+    d:DesignWidth="1640"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <Grid Background="{DynamicResource DarkWindowBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border
+            Grid.Row="0"
+            Style="{DynamicResource HeaderBarBorderStyle}">
+            <TextBlock
+                Style="{DynamicResource PageTitleTextStyle}"
+                Text="菜单管理" />
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border
+                Grid.Row="0"
+                Style="{DynamicResource ToolbarBorderStyle}">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Command="{Binding CreateMenuCommand}"
+                        Content="创建"
+                        Style="{DynamicResource DefaultButtonStyle}" />
+                    <Button
+                        Command="{Binding DeleteMenuCommand}"
+                        Content="删除"
+                        Style="{DynamicResource DangerButtonStyle}" />
+                    <Button
+                        Command="{Binding SaveMenuCommand}"
+                        Content="保存"
+                        Style="{DynamicResource SuccessButtonStyle}" />
+                </StackPanel>
+            </Border>
+
+            <materialDesign:Card
+                Grid.Row="1"
+                Margin="0,16,0,0"
+                Style="{DynamicResource DefaultCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border
+                        Grid.Row="0"
+                        Style="{DynamicResource TableHeaderBorderStyle}">
+                        <Grid Margin="32,0,8,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="0.6*" />
+                                <ColumnDefinition Width="0.5*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Style="{DynamicResource ColumnHeaderTextStyle}"
+                                Text="菜单名称" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Style="{DynamicResource ColumnHeaderTextStyle}"
+                                Text="菜单编码" />
+                            <TextBlock
+                                Grid.Column="2"
+                                HorizontalAlignment="Center"
+                                Style="{DynamicResource ColumnHeaderTextStyle}"
+                                Text="排序" />
+                            <TextBlock
+                                Grid.Column="3"
+                                HorizontalAlignment="Center"
+                                Style="{DynamicResource ColumnHeaderTextStyle}"
+                                Text="启用" />
+                        </Grid>
+                    </Border>
+
+                    <TreeView
+                        Grid.Row="1"
+                        ItemContainerStyle="{DynamicResource DefaultTreeViewItemStyle}"
+                        ItemsSource="{Binding Menus}"
+                        SelectedItemChanged="OnTreeViewSelectedItemChanged"
+                        Style="{DynamicResource DefaultTreeViewStyle}">
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                <Grid
+                                    Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=TreeView}}"
+                                    Margin="4,0,16,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="0.6*" />
+                                        <ColumnDefinition Width="0.5*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Style="{DynamicResource DefaultDataGridTextStyle}"
+                                        Text="{Binding Name}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Style="{DynamicResource DefaultDataGridTextStyle}"
+                                        Text="{Binding Code}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Center"
+                                        Style="{DynamicResource DefaultDataGridTextStyle}"
+                                        Text="{Binding Sort}" />
+                                    <CheckBox
+                                        Grid.Column="3"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsChecked="{Binding IsEnabled}"
+                                        IsHitTestVisible="False" />
+                                </Grid>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </Grid>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</UserControl>

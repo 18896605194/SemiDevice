@@ -1,0 +1,64 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style x:Key="DefaultDataGridTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="8,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+    <Style x:Key="DefaultDataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+        <Setter Property="Height" Value="48" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,1,1" />
+    </Style>
+
+    <Style x:Key="DefaultDataGridCellStyle" TargetType="DataGridCell">
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                <Setter Property="Background" Value="{StaticResource DarkAccentPressed}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style
+        x:Key="DefaultDataGridStyle"
+        BasedOn="{StaticResource MaterialDesignDataGrid}"
+        TargetType="DataGrid">
+        <Setter Property="AutoGenerateColumns" Value="False" />
+        <Setter Property="CanUserAddRows" Value="False" />
+        <Setter Property="CanUserDeleteRows" Value="False" />
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="HeadersVisibility" Value="Column" />
+        <Setter Property="SelectionMode" Value="Single" />
+        <Setter Property="SelectionUnit" Value="FullRow" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="RowHeight" Value="46" />
+        <Setter Property="AlternationCount" Value="2" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="RowBackground" Value="{StaticResource DarkSurfaceBackground}" />
+        <Setter Property="AlternatingRowBackground" Value="{StaticResource DarkSurfaceVariantBackground}" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="CellStyle" Value="{StaticResource DefaultDataGridCellStyle}" />
+        <Setter Property="ColumnHeaderStyle" Value="{StaticResource DefaultDataGridColumnHeaderStyle}" />
+    </Style>
+
+</ResourceDictionary>

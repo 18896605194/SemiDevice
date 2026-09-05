@@ -1,0 +1,35 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 暗色主题基础层级 -->
+    <SolidColorBrush x:Key="DarkWindowBackground" Color="#121212" />
+    <SolidColorBrush x:Key="DarkSurfaceBackground" Color="#1E1E1E" />
+    <SolidColorBrush x:Key="DarkSurfaceVariantBackground" Color="#252525" />
+    <SolidColorBrush x:Key="DarkControlBackground" Color="#2B2B2B" />
+    <SolidColorBrush x:Key="DarkBorderBrush" Color="#424242" />
+
+    <!-- 暗色主题文字 -->
+    <SolidColorBrush x:Key="DarkPrimaryText" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DarkSecondaryText" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DarkDisabledText" Color="#9E9E9E" />
+
+    <!-- 暗色主题强调色 -->
+    <SolidColorBrush x:Key="DarkAccent" Color="#42A5F5" />
+    <SolidColorBrush x:Key="DarkAccentPressed" Color="#1976D2" />
+    <SolidColorBrush x:Key="DarkAlarmIcon" Color="#FF9800" />
+
+    <!-- 设备状态色 -->
+    <SolidColorBrush x:Key="DarkAlarmStatus" Color="#EF5350" />
+    <SolidColorBrush x:Key="DarkWarningStatus" Color="#FBC02D" />
+    <SolidColorBrush x:Key="DarkRunningStatus" Color="#43A047" />
+    <SolidColorBrush x:Key="DarkCommunicationStatus" Color="#1E88E5" />
+
+    <!-- 暗色右键菜单 -->
+    <SolidColorBrush x:Key="RightMenuBackground" Color="#252525" />
+    <SolidColorBrush x:Key="RightMenuBorder" Color="#424242" />
+    <SolidColorBrush x:Key="RightMenuForeground" Color="#F5F5F5" />
+    <SolidColorBrush x:Key="RightMenuDisabledForeground" Color="#757575" />
+    <SolidColorBrush x:Key="RightMenuItemHover" Color="#383838" />
+    <SolidColorBrush x:Key="RightMenuItemPressed" Color="#454545" />
+
+</ResourceDictionary>

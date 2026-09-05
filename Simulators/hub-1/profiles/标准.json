@@ -1,0 +1,17 @@
+{
+  "Name": "标准",
+  "Instances": [
+    {
+      "Type": "Robot",
+      "Instance": "robot-1",
+      "Port": "9000",
+      "AutoOpen": true
+    },
+    {
+      "Type": "Lp300",
+      "Instance": "lp-1",
+      "Port": "",
+      "AutoOpen": true
+    }
+  ]
+}

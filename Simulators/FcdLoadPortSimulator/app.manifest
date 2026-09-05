@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PerMonitorV2: WPF 默认 System-DPI-aware, 在混合缩放多屏 (如主屏150%+副屏100%)
+     间拖动窗口时布局比例会卡在旧缩放, 内容列被排到窗口外。声明 PMv2 后由 WPF
+     正确处理 WM_DPICHANGED, 逐屏重排版。 -->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>

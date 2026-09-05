@@ -1,0 +1,14 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- Platform language pack (English, fallback language). Keys match xyz.Shared.Errors.ErrorCodes. -->
+
+    <sys:String x:Key="module.not_found">Module not found: {0}</sys:String>
+    <sys:String x:Key="module.action_rejected">{0} action rejected (state {1} not allowed, or another action in flight)</sys:String>
+    <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
+    <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
+
+    <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
+    <sys:String x:Key="loadport.timeout">{0} timeout ({1}ms)</sys:String>
+    <sys:String x:Key="loadport.device_failed">{0} device error: {1}</sys:String>
+</ResourceDictionary>

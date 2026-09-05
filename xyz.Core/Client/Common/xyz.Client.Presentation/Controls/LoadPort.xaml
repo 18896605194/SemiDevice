@@ -1,0 +1,152 @@
+<UserControl
+    x:Class="xyz.Client.Presentation.Controls.LoadPort"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="720"
+    d:DesignWidth="320"
+    HorizontalContentAlignment="Stretch"
+    SnapsToDevicePixels="True"
+    UseLayoutRounding="True"
+    VerticalContentAlignment="Stretch"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/Color.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/DarkColors.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/FontSize.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/BorderStyles.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/TextBlockStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Viewbox
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        Stretch="Uniform"
+        StretchDirection="Both">
+        <Border
+            Width="320"
+            Height="720"
+            Background="{DynamicResource DarkSurfaceVariantBackground}"
+            BorderBrush="{DynamicResource DarkDisabledText}"
+            BorderThickness="2"
+            CornerRadius="16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="72" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Grid.Row="0"
+                    Padding="22,0"
+                    CornerRadius="14,14,0,0"
+                    Style="{DynamicResource HeaderBarBorderStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border
+                            Grid.Column="0"
+                            Style="{DynamicResource LargeStatusDotBorderStyle}"
+                            Tag="{Binding StatusOn, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Style="{DynamicResource SectionTitleTextStyle}"
+                            Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
+                        <StackPanel
+                            Grid.Column="2"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                FontSize="{DynamicResource Size16}"
+                                FontWeight="Bold"
+                                Foreground="{DynamicResource DarkAccent}"
+                                Text="{Binding SlotCount, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                FontSize="{DynamicResource Size10}"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Text="SLOTS" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" Margin="10,20,10,10">
+                    <Border
+                        Width="10"
+                        Margin="4,16,0,16"
+                        HorizontalAlignment="Left"
+                        Background="{DynamicResource DarkControlBackground}"
+                        BorderBrush="{DynamicResource DarkDisabledText}"
+                        BorderThickness="1"
+                        CornerRadius="4" />
+                    <Border
+                        Width="10"
+                        Margin="0,16,4,16"
+                        HorizontalAlignment="Right"
+                        Background="{DynamicResource DarkControlBackground}"
+                        BorderBrush="{DynamicResource DarkDisabledText}"
+                        BorderThickness="1"
+                        CornerRadius="4" />
+
+                    <ItemsControl
+                        Margin="20,18,20,32"
+                        ItemsSource="{Binding Slots, RelativeSource={RelativeSource AncestorType=local:LoadPort}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <DockPanel LastChildFill="False" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="DockPanel.Dock" Value="Bottom" />
+                                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:HorizontalWafer
+                                    Height="16"
+                                    Margin="0,2"
+                                    Background="Transparent"
+                                    BorderBrush="{DynamicResource DarkBorderBrush}"
+                                    BorderThickness="1"
+                                    CommandParameter="{Binding Slot}"
+                                    CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:LoadPort}}"
+                                    CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:LoadPort}}"
+                                    Data="{Binding Wafer}"
+                                    DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:LoadPort}}"
+                                    DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:LoadPort}}"
+                                    FontSize="{DynamicResource Size10}"
+                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                    Label="{Binding SlotText}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border
+                        Height="12"
+                        Margin="8,0,8,4"
+                        VerticalAlignment="Bottom"
+                        Background="{DynamicResource DarkControlBackground}"
+                        BorderBrush="{DynamicResource DarkDisabledText}"
+                        BorderThickness="1"
+                        CornerRadius="3" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Viewbox>
+</UserControl>

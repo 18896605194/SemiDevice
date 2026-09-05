@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
+    <ProjectReference Include="..\..\Shared\xyz.Tools\xyz.Tools.csproj" />
+    <ProjectReference Include="..\xyz.Database\xyz.Database.csproj" />
+    <ProjectReference Include="..\xyz.Modules\xyz.Modules.csproj" />
+    <ProjectReference Include="..\xyz.Configs\xyz.Configs.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mapster" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

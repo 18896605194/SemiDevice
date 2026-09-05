@@ -1,0 +1,23 @@
+{
+  "Name": "预设-0904-1524",
+  "Instances": [
+    {
+      "Type": "Robot",
+      "Instance": "robot-1",
+      "Port": "9000",
+      "AutoOpen": true
+    },
+    {
+      "Type": "Robot",
+      "Instance": "robot-2",
+      "Port": "9001",
+      "AutoOpen": true
+    },
+    {
+      "Type": "Lp300",
+      "Instance": "lp-1",
+      "Port": "COM20",
+      "AutoOpen": true
+    }
+  ]
+}

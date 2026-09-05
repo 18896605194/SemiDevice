@@ -1,0 +1,13 @@
+12:59:10.259  系统  未找到配置, 已写入默认: D:\Common\Simulators\fcd-1\responses.json
+12:59:10.990  系统  串口已打开: COM5 @ 9600
+12:59:30.333  接收  s00GET:VERSN;
+12:59:30.340  发送  s00ACK:VERSN/02-04-04-LP300SIM;
+12:59:32.829  接收  s00MOV:ORGSH;
+12:59:32.829  系统  ORGSH → 门关到位 (DoorOpen=F, DoorClose=O, GET:STATE 已更新)
+12:59:32.838  发送  s00ACK:ORGSH;
+12:59:33.840  发送  s00INF:ORGSH;
+12:59:35.330  接收  s00GET:STATE;
+12:59:35.335  发送  s00ACK:STATE/110100000000000000000000000000000000000000FO00000000000000000000;
+12:59:45.280  系统  串口已关闭
+09:58:17.927  系统  应答表已从配置加载: D:\Common\Simulators\fcd-1\responses.json
+09:58:18.533  系统  串口已打开: COM5 @ 9600

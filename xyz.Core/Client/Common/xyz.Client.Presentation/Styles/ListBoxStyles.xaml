@@ -1,0 +1,42 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ItemsPanelTemplate x:Key="HorizontalListBoxItemsPanelTemplate">
+        <StackPanel Orientation="Horizontal" />
+    </ItemsPanelTemplate>
+
+    <DataTemplate x:Key="NavigationListBoxItemTemplate">
+        <TextBlock
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            FontWeight="SemiBold"
+            Text="{Binding Name}" />
+    </DataTemplate>
+
+    <Style
+        x:Key="NavigationListBoxStyle"
+        BasedOn="{StaticResource MaterialDesignListBox}"
+        TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    </Style>
+
+    <Style
+        x:Key="NavigationListBoxItemStyle"
+        BasedOn="{StaticResource MaterialDesignListBoxItem}"
+        TargetType="ListBoxItem">
+        <Setter Property="MinWidth" Value="80" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Margin" Value="2,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+</ResourceDictionary>

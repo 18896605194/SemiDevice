@@ -1,0 +1,77 @@
+<UserControl
+    x:Class="xyz.Client.Setting.Views.RoleView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="820"
+    d:DesignWidth="1640"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <Grid Background="{DynamicResource DarkWindowBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border
+            Grid.Row="0"
+            Style="{DynamicResource HeaderBarBorderStyle}">
+            <TextBlock
+                Style="{DynamicResource PageTitleTextStyle}"
+                Text="角色管理" />
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border
+                Grid.Row="0"
+                Style="{DynamicResource ToolbarBorderStyle}">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Command="{Binding CreateRoleCommand}"
+                        Content="创建"
+                        Style="{DynamicResource DefaultButtonStyle}" />
+                    <Button
+                        Command="{Binding DeleteRoleCommand}"
+                        Content="删除"
+                        Style="{DynamicResource DangerButtonStyle}" />
+                </StackPanel>
+            </Border>
+
+            <materialDesign:Card
+                Grid.Row="1"
+                Margin="0,16,0,0"
+                Style="{DynamicResource DefaultCardStyle}">
+                <DataGrid
+                    ItemsSource="{Binding Roles}"
+                    SelectedItem="{Binding SelectedRole}"
+                    Style="{DynamicResource DefaultDataGridStyle}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding Name}"
+                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                            Header="角色名称" />
+                        <DataGridTextColumn
+                            Width="1.4*"
+                            Binding="{Binding Description}"
+                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                            Header="说明" />
+                        <DataGridTextColumn
+                            Width="120"
+                            Binding="{Binding UserCount}"
+                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                            Header="用户数" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</UserControl>

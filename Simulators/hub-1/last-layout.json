@@ -1,0 +1,17 @@
+{
+  "Name": "last",
+  "Instances": [
+    {
+      "Type": "Robot",
+      "Instance": "robot-1",
+      "Port": "9000",
+      "AutoOpen": true
+    },
+    {
+      "Type": "Lp300",
+      "Instance": "lp-1",
+      "Port": "COM20",
+      "AutoOpen": true
+    }
+  ]
+}

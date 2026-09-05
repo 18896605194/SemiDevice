@@ -1,0 +1,64 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style
+        x:Key="DefaultButtonStyle"
+        BasedOn="{StaticResource MaterialDesignRaisedButton}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="110" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Margin" Value="4" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Background" Value="{StaticResource DarkAccentPressed}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkAccentPressed}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <Style
+        x:Key="DangerButtonStyle"
+        BasedOn="{StaticResource DefaultButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
+    </Style>
+
+    <Style
+        x:Key="SuccessButtonStyle"
+        BasedOn="{StaticResource DefaultButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkRunningStatus}" />
+    </Style>
+
+    <Style
+        x:Key="LargeActionButtonStyle"
+        BasedOn="{StaticResource MaterialDesignRaisedButton}"
+        TargetType="Button">
+        <Setter Property="MinHeight" Value="64" />
+        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size28}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style
+        x:Key="PrimaryLargeActionButtonStyle"
+        BasedOn="{StaticResource LargeActionButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkAccentPressed}" />
+    </Style>
+
+    <Style
+        x:Key="SuccessLargeActionButtonStyle"
+        BasedOn="{StaticResource LargeActionButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
+    </Style>
+
+</ResourceDictionary>
