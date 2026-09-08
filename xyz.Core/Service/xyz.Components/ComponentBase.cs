@@ -128,6 +128,26 @@ public abstract class ComponentBase
 
     #endregion
 
+    #region 中止与复位钩子
+
+    /// <summary>
+    /// 组件中止钩子，默认空实现，由子类重写本组件的中止处理。
+    /// 后续由控制流程显式调用，处理应及时返回。
+    /// </summary>
+    protected virtual void OnAbort()
+    {
+    }
+
+    /// <summary>
+    /// 组件复位钩子，默认空实现，由子类重写本组件的复位处理。
+    /// 后续由控制流程显式调用，处理应及时返回。
+    /// </summary>
+    protected virtual void OnReset()
+    {
+    }
+
+    #endregion
+
     #region EC live 读
 
     /// <summary>

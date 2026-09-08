@@ -7,7 +7,7 @@ using xyz.Client.DataModels.Rpc;
 using xyz.Service.Events;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
-using xyz.Utilities;
+using xyz.Tools;
 
 namespace EventBusSmoke;
 

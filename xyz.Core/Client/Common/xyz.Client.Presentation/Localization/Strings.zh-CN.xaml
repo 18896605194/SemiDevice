@@ -6,8 +6,25 @@
 
     <sys:String x:Key="module.not_found">模块不存在：{0}</sys:String>
     <sys:String x:Key="module.action_rejected">{0} 动作被拒（当前状态 {1} 不允许，或已有动作在途）</sys:String>
+    <sys:String x:Key="module.wait_timeout">{0} 等待结果超时（{1}ms），操作结果尚未确认，请查询设备状态</sys:String>
     <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
+
+    <!-- 模块状态文字：码值见 xyz.Modules 的 ModuleState/TransferModuleState/LoadPortState -->
+    <sys:String x:Key="module.state.not_init">未初始化</sys:String>
+    <sys:String x:Key="module.state.initing">初始化中</sys:String>
+    <sys:String x:Key="module.state.idle">空闲</sys:String>
+    <sys:String x:Key="module.state.aborting">中止中</sys:String>
+    <sys:String x:Key="module.state.error">报警</sys:String>
+    <sys:String x:Key="module.state.pre_transfer">搬运前</sys:String>
+    <sys:String x:Key="module.state.transfer_ready">待搬运</sys:String>
+    <sys:String x:Key="module.state.transferring">搬运中</sys:String>
+    <sys:String x:Key="module.state.transfer_complete">搬运完成</sys:String>
+    <sys:String x:Key="module.state.loading">装载中</sys:String>
+    <sys:String x:Key="module.state.loaded">已装载</sys:String>
+    <sys:String x:Key="module.state.unloading">卸载中</sys:String>
+    <sys:String x:Key="module.state.homing">回零中</sys:String>
+    <sys:String x:Key="module.state.unknown">未知状态（{0}）</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
     <sys:String x:Key="loadport.timeout">{0} 动作超时（{1}ms）</sys:String>

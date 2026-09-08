@@ -1,152 +1,123 @@
-using System.Windows;
 using CommunityToolkit.Mvvm.Input;
+using Mapster;
 using xyz.Client.DataModels.Rpc;
-using xyz.Client.Presentation.Localization;
+using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Manual.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Client.Manual.ViewModels;
 
-/// <summary>
-/// LoadPort 手动操作面板的 ViewModel：五个 gRPC 命令 + 状态绑定。
-/// 按 ModuleName 实例化，每个 LoadPort 一个。
-/// </summary>
-public class LoadPortManualViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+
+public class LoadPortManualViewModel : BaseViewModel, IDisposable
 {
+    #region Column
+
+    /// <summary>
+    /// 模块实例名，与 EventBus token / gRPC 参数一致，如 "LoadPort1"。
+    /// </summary>
+    public string ModuleName { get; }
+
+    private LoadPortModel _model = new();
+
+    public LoadPortModel Model
+    {
+        get => _model;
+        private set => SetProperty(ref _model, value);
+    }
+
+    #endregion
+
+    #region Command
+
+    public IAsyncRelayCommand HomeCommand { get; }
+
+    public IAsyncRelayCommand LoadCommand { get; }
+
+    public IAsyncRelayCommand UnloadCommand { get; }
+
+    public IAsyncRelayCommand ResetCommand { get; }
+
+    public IAsyncRelayCommand OnlineCommand { get; }
+
+    public IAsyncRelayCommand OfflineCommand { get; }
+
+    public IAsyncRelayCommand AbortCommand { get; }
+
+    #endregion
+
+    #region Service
+
     private readonly ILoadPortService _service;
-    private string _moduleName;
-    private int _state;
-    private bool _isConnected;
-    private bool _isPodPlaced;
-    private bool _isBusy;
-    private string _lastError = string.Empty;
+
+    private IDisposable? _stateSubscription;
+
+    #endregion
 
     public LoadPortManualViewModel(string moduleName)
     {
-        _moduleName = moduleName;
+        ModuleName = moduleName;
         _service = GrpcClientFactory.Create<ILoadPortService>();
 
-        HomeCommand = new RelayCommand(() => ExecuteAction("Home"), () => !IsBusy);
-        LoadCommand = new RelayCommand(() => ExecuteAction("Load"), () => !IsBusy);
-        UnloadCommand = new RelayCommand(() => ExecuteAction("Unload"), () => !IsBusy);
-        ResetCommand = new RelayCommand(() => ExecuteAction("Reset"), () => !IsBusy);
-        AbortCommand = new RelayCommand(() => ExecuteAction("Abort"), () => !IsBusy);
-
-        RefreshState();
+        HomeCommand = new AsyncRelayCommand(DoHome);
+        LoadCommand = new AsyncRelayCommand(DoLoad);
+        UnloadCommand = new AsyncRelayCommand(DoUnload);
+        ResetCommand = new AsyncRelayCommand(DoReset);
+        OnlineCommand = new AsyncRelayCommand(DoOnline);
+        OfflineCommand = new AsyncRelayCommand(DoOffline);
+        AbortCommand = new AsyncRelayCommand(DoAbort);
     }
 
-    #region 绑定属性
-
-    public string ModuleName
+    public override void Init()
     {
-        get => _moduleName;
-        private set => SetProperty(ref _moduleName, value);
+        _stateSubscription?.Dispose();
+        _stateSubscription = EventBus.Register<LoadPortDto>(ModuleName, OnStateReceived);
     }
 
-    public int State
+    public void Dispose()
     {
-        get => _state;
-        private set => SetProperty(ref _state, value);
+        _stateSubscription?.Dispose();
+        _stateSubscription = null;
     }
 
-    public bool IsConnected
+    private void OnStateReceived(LoadPortDto dto)
     {
-        get => _isConnected;
-        private set => SetProperty(ref _isConnected, value);
+        Model = dto.Adapt<LoadPortModel>();
     }
 
-    public bool IsPodPlaced
+    private Task DoHome()
     {
-        get => _isPodPlaced;
-        private set => SetProperty(ref _isPodPlaced, value);
+        return _service.HomeAsync(ModuleName);
     }
 
-    public bool IsBusy
+    private Task DoLoad()
     {
-        get => _isBusy;
-        private set => SetProperty(ref _isBusy, value);
+        return _service.LoadAsync(ModuleName);
     }
 
-    /// <summary>
-    /// 最近一次失败的错误码句子（已按当前语言渲染）。
-    /// </summary>
-    public string LastError
+    private Task DoUnload()
     {
-        get => _lastError;
-        private set => SetProperty(ref _lastError, value);
+        return _service.UnloadAsync(ModuleName);
     }
 
-    #endregion
-
-    #region 命令
-
-    public RelayCommand HomeCommand { get; }
-    public RelayCommand LoadCommand { get; }
-    public RelayCommand UnloadCommand { get; }
-    public RelayCommand ResetCommand { get; }
-    public RelayCommand AbortCommand { get; }
-
-    #endregion
-
-    private async void ExecuteAction(string action)
+    private Task DoReset()
     {
-        IsBusy = true;
-        LastError = string.Empty;
-
-        try
-        {
-            var response = action switch
-            {
-                "Home" => await _service.HomeAsync(ModuleName),
-                "Load" => await _service.LoadAsync(ModuleName),
-                "Unload" => await _service.UnloadAsync(ModuleName),
-                "Reset" => await _service.ResetAsync(ModuleName),
-                "Abort" => await _service.AbortAsync(ModuleName),
-                _ => throw new NotSupportedException($"未知动作: {action}"),
-            };
-
-            if (!response.Success)
-            {
-                LastError = L10n.Get(response.Code, response.Args.ToArray());
-            }
-        }
-        catch (Exception exception)
-        {
-            LastError = exception.Message;
-        }
-        finally
-        {
-            IsBusy = false;
-            RefreshState();
-        }
+        return _service.ResetAsync(ModuleName);
     }
 
-    /// <summary>
-    /// 轮询当前状态（后续替换为 EventBus 订阅）。
-    /// </summary>
-    public async void RefreshState()
+    private Task DoOnline()
     {
-        try
-        {
-            var response = await _service.GetStateAsync(ModuleName);
-            if (!response.Success)
-            {
-                return;
-            }
+        return _service.OnlineAsync(ModuleName);
+    }
 
-            var dto = System.Text.Json.JsonSerializer.Deserialize<LoadPortDto>(response.Data);
-            if (dto is null)
-            {
-                return;
-            }
+    private Task DoOffline()
+    {
+        return _service.OfflineAsync(ModuleName);
+    }
 
-            State = dto.State;
-            IsConnected = dto.IsConnected;
-            IsPodPlaced = dto.IsPodPlaced;
-        }
-        catch
-        {
-            // 后端未启动时静默
-        }
+    private Task DoAbort()
+    {
+        return _service.AbortAsync(ModuleName);
     }
 }

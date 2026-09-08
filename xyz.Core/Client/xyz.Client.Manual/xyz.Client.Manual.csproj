@@ -12,4 +12,15 @@
     <ProjectReference Include="..\Common\xyz.Client.Presentation\xyz.Client.Presentation.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Mapster" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Properties\DesignTimeResources.xaml">
+      <ContainsDesignTimeResources>true</ContainsDesignTimeResources>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+
 </Project>

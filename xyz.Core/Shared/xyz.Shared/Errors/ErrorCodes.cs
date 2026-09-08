@@ -11,6 +11,9 @@ public static class ErrorCodes
     /// <summary>动作被拒（状态不允许或已有动作在途）。Args: [模块名, 当前状态码]</summary>
     public const string ActionRejected = "module.action_rejected";
 
+    /// <summary>等待操作结果超时，最终结果尚未确认。Args: [操作名, 等待ms]</summary>
+    public const string WaitTimeout = "module.wait_timeout";
+
     #endregion
 
     #region LoadPort

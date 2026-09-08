@@ -6,7 +6,9 @@ namespace xyz.Modules;
 
 public abstract class ModuleOperation
 {
-    private OperationState _state = OperationState.Running;
+    private volatile OperationState _state = OperationState.Running;
+    private readonly object _terminalGate = new();
+    private bool _completionDeferred;
 
     /// <summary>
     /// 操作名（如 "Load"），诊断用。
@@ -80,12 +82,10 @@ public abstract class ModuleOperation
     /// </summary>
     public void AbortByHost(string reason)
     {
-        if (IsTerminal)
+        if (!TrySetTerminal(OperationState.Aborted, reason, ErrorCodes.Aborted, [Name]))
         {
             return;
         }
-
-        SetTerminal(OperationState.Aborted, reason);
 
         try
         {
@@ -114,7 +114,7 @@ public abstract class ModuleOperation
     /// </summary>
     protected void Complete()
     {
-        SetTerminal(OperationState.Completed, string.Empty);
+        TrySetTerminal(OperationState.Completed, string.Empty, string.Empty, []);
     }
 
     /// <summary>
@@ -122,32 +122,62 @@ public abstract class ModuleOperation
     /// </summary>
     protected void Fail(string code, string reason, params string[] args)
     {
-        Code = code;
-        ErrorArgs = args;
-        SetTerminal(OperationState.Failed, reason);
+        TrySetTerminal(OperationState.Failed, reason, code, args);
     }
 
     /// <summary>
-    /// 等待操作到终态（阻塞，终态事件唤醒不空转）。
+    /// 等待操作完成收尾（阻塞，完成事件唤醒不空转）；false 只表示等待超时。
     /// 用于 RPC/工具等需要结果的同步调用方；模块扫描线程不要用（等待发生在状态机里）。
     /// </summary>
-    public bool WaitReply(int timeoutMilliseconds)
+    public bool WaitReply(int timeoutMilliseconds, CancellationToken cancellationToken = default)
     {
-        return _terminal.Wait(timeoutMilliseconds);
+        return _terminal.Wait(timeoutMilliseconds, cancellationToken);
     }
 
     private readonly ManualResetEventSlim _terminal = new(false);
 
-    private void SetTerminal(OperationState state, string reason)
+    /// <summary>
+    /// 挂载后由模块在状态迁移完成后唤醒等待方，避免先回包再更新模块状态。
+    /// </summary>
+    internal void DeferCompletion()
     {
-        if (IsTerminal)
+        lock (_terminalGate)
         {
-            return;
-        }
+            if (IsTerminal || _completionDeferred)
+            {
+                throw new InvalidOperationException("操作只能挂载一次，且必须处于执行中。");
+            }
 
-        _state = state;
-        Reason = reason ?? string.Empty;
-        Watch.Stop();
+            _completionDeferred = true;
+        }
+    }
+
+    internal void NotifyCompletion()
+    {
         _terminal.Set();
+    }
+
+    private bool TrySetTerminal(OperationState state, string reason, string code, IReadOnlyList<string> args)
+    {
+        lock (_terminalGate)
+        {
+            if (IsTerminal)
+            {
+                return false;
+            }
+
+            Reason = reason ?? string.Empty;
+            Code = code;
+            ErrorArgs = Array.AsReadOnly(args.ToArray());
+            Watch.Stop();
+            _state = state;
+
+            if (!_completionDeferred)
+            {
+                NotifyCompletion();
+            }
+
+            return true;
+        }
     }
 }

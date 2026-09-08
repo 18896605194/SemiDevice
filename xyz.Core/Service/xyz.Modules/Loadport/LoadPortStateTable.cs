@@ -27,6 +27,17 @@ public static class LoadPortStateTable
             [(ModuleState.Error, LoadPortAction.Reset)] = (ModuleState.Error, ModuleState.Idle),
             [(LoadPortState.Loaded, LoadPortAction.Reset)] = (LoadPortState.Loaded, ModuleState.Idle),
 
+            // E84 上/下线是模式切换：不占用执行状态，成功后模块状态保持原样。
+            [(ModuleState.NotInit, LoadPortAction.Online)] = (ModuleState.NotInit, ModuleState.NotInit),
+            [(ModuleState.Idle, LoadPortAction.Online)] = (ModuleState.Idle, ModuleState.Idle),
+            [(ModuleState.Error, LoadPortAction.Online)] = (ModuleState.Error, ModuleState.Error),
+            [(LoadPortState.Loaded, LoadPortAction.Online)] = (LoadPortState.Loaded, LoadPortState.Loaded),
+
+            [(ModuleState.NotInit, LoadPortAction.Offline)] = (ModuleState.NotInit, ModuleState.NotInit),
+            [(ModuleState.Idle, LoadPortAction.Offline)] = (ModuleState.Idle, ModuleState.Idle),
+            [(ModuleState.Error, LoadPortAction.Offline)] = (ModuleState.Error, ModuleState.Error),
+            [(LoadPortState.Loaded, LoadPortAction.Offline)] = (LoadPortState.Loaded, LoadPortState.Loaded),
+
             // null 表示任意当前状态。
             [(null, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle)
         };

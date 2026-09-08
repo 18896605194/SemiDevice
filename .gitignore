@@ -33,6 +33,12 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Track logging source and configuration while keeping runtime logs ignored.
+!/xyz.Core/Service/xyz.Common/Log/
+/xyz.Core/Service/xyz.Common/Log/*
+!/xyz.Core/Service/xyz.Common/Log/*.cs
+!/xyz.Core/Service/xyz.Common/Log/NLog.config
+
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 # Uncomment if you have tasks that create the project's static files in wwwroot

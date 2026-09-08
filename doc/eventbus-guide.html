@@ -406,7 +406,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
     <tr><td>D. 前端发往后端（上行）</td><td>前端 <code>RemoteEventBus.SendToServer</code></td><td>后端 <code>EventBus.Register</code></td><td>是（一元调用）</td></tr>
   </table>
 
-  <div class="note">对应实现：xyz.Core/Shared/xyz.Utilities（EventBus）· xyz.Service/Events（服务端桥）· xyz.Client.DataModels/Events（客户端流泵）</div>
+  <div class="note">对应实现：xyz.Core/Shared/xyz.Tools（EventBus）· xyz.Service/Events（服务端桥）· xyz.Client.DataModels/Events（客户端流泵）</div>
 </section>
 
 <!-- ================================================================ -->
@@ -662,7 +662,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
   </table>
 
   <h3>设备组件（xyz.Service 侧 · xyz.Components.Components）</h3>
-  <p>继承 <code>ComponentBase</code> 的硬件功能组件，被模块（如 LoadPortBase）聚合为子组件。三个关键机制：</p>
+  <p>继承 <code>ComponentBase</code> 的硬件功能组件，被模块（如 BaseLoadPortModule）聚合为子组件。三个关键机制：</p>
   <ul>
     <li><code>[SCEditor("默认值", "分组", "说明")]</code> —— 标注 SC 装机常量，启动时从 sc.xml 对应 Setting 组自动装载；</li>
     <li><code>[Component(description: "...")]</code> —— 标注机台模块，供配置系统反射构造；</li>
@@ -683,7 +683,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
     <tr><td>DataBaseComponent</td><td>ComponentBase</td><td>数据库连接（连接串/库类型）</td></tr>
   </table>
 
-  <div class="note">聚合用法示例见 <a href="#comp-rfid" onclick="show('comp-rfid');return false;">RfidReaderComponent</a> —— LoadPortBase 通过 <code>AddChild(RFID)</code> 挂子组件并开放 <code>ReadCarrierId()</code>。</div>
+  <div class="note">聚合用法示例见 <a href="#comp-rfid" onclick="show('comp-rfid');return false;">RfidReaderComponent</a> —— BaseLoadPortModule 通过 <code>AddChild(RFID)</code> 挂子组件并开放 <code>ReadCarrierId()</code>。</div>
 </section>
 
 <!-- ================================================================ -->
@@ -942,10 +942,10 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
   </table>
   <p>方法：<code>string? ReadCarrierId()</code> 读取载具 ID。</p>
 
-  <pre><code><span class="codelabel">聚合进模块的用法（LoadPortBase 的真实写法）</span>
+  <pre><code><span class="codelabel">聚合进模块的用法（BaseLoadPortModule 的真实写法）</span>
 <span class="k">public</span> <span class="t">RfidReaderComponent</span> RFID { <span class="k">get</span>; }
 
-<span class="k">protected</span> LoadPortBase()
+<span class="k">protected</span> BaseLoadPortModule()
 {
     RFID = <span class="k">new</span> <span class="t">RfidReaderComponent</span>();
     AddChild(RFID);                  <span class="c">// 挂为子组件，SC 参数自动装载</span>

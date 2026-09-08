@@ -3,113 +3,180 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/DarkColors.xaml" />
-                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/Color.xaml" />
-                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/CardStyles.xaml" />
-                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ButtonStyles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
 
-    <materialDesign:Card Style="{StaticResource DefaultCardStyle}" Margin="8">
+    <materialDesign:Card Style="{DynamicResource DefaultCardStyle}" Margin="8">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- 标题栏 -->
             <DockPanel Grid.Row="0" Margin="0,0,0,12">
-                <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding ModuleName}"
-                           FontSize="20"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource DarkPrimaryText}"
-                           VerticalAlignment="Center" />
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 在线状态圆点 -->
+                    <Ellipse Width="12" Height="12" VerticalAlignment="Center" ToolTip="驱动串口在线">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#555" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Model.IsConnected}" Value="True">
+                                        <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding ModuleName}"
+                               Margin="8,0,0,0"
+                               FontSize="{DynamicResource Size20}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource DarkPrimaryText}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <!-- 通讯灯 -->
-                    <Ellipse Width="12" Height="12" Margin="8,0" ToolTip="通讯连接">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="#555" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource GreenHealthy}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-
-                    <!-- FOUP 在位灯 -->
-                    <Ellipse Width="12" Height="12" Margin="8,0" ToolTip="FOUP 在位">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="#555" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsPodPlaced}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource PrimaryAccent}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-
-                    <!-- 状态码徽章 -->
-                    <Border Background="{DynamicResource DarkSurfaceBackground}"
-                            CornerRadius="4" Padding="10,3" Margin="8,0">
-                        <TextBlock Text="{Binding State, StringFormat='State {0}'}"
-                                   FontSize="12"
+                    <!-- 通讯 -->
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" ToolTip="驱动串口连接" VerticalAlignment="Center">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.IsConnected}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="通讯" Margin="4,0,0,0" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource Size12}"
                                    Foreground="{DynamicResource DarkSecondaryText}" />
-                    </Border>
+                    </StackPanel>
+
+                    <!-- 在位（放上来了） -->
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" ToolTip="FOUP 在位（Pod Present）；灰色表示反馈不可用" VerticalAlignment="Center">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.PodPresent}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource PrimaryAccent}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="在位" Margin="4,0,0,0" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource Size12}"
+                                   Foreground="{DynamicResource DarkSecondaryText}" />
+                    </StackPanel>
+
+                    <!-- 到位（放平贴紧） -->
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" ToolTip="FOUP 放置到位（Pod Placed）；灰色表示反馈不可用" VerticalAlignment="Center">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.PodPlaced}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="到位" Margin="4,0,0,0" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource Size12}"
+                                   Foreground="{DynamicResource DarkSecondaryText}" />
+                    </StackPanel>
+
+                    <!-- 报警 -->
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" ToolTip="设备硬件报警" VerticalAlignment="Center">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.DeviceAlarm}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="报警" Margin="4,0,0,0" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource Size12}"
+                                   Foreground="{DynamicResource DarkSecondaryText}" />
+                    </StackPanel>
+
+                    <!-- AUTO：E84 online -->
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" ToolTip="自动模式（E84 online）；灰色表示反馈不可用" VerticalAlignment="Center">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.AutoMode}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="AUTO" Margin="4,0,0,0" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource Size12}"
+                                   Foreground="{DynamicResource DarkSecondaryText}" />
+                    </StackPanel>
+
+                    <!-- MANUAL：E84 offline -->
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" ToolTip="手动模式（E84 offline）；灰色表示反馈不可用" VerticalAlignment="Center">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.AutoMode}" Value="False">
+                                            <Setter Property="Fill" Value="{DynamicResource DarkWarningStatus}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="MANUAL" Margin="4,0,0,0" VerticalAlignment="Center"
+                                   FontSize="{DynamicResource Size12}"
+                                   Foreground="{DynamicResource DarkSecondaryText}" />
+                    </StackPanel>
                 </StackPanel>
             </DockPanel>
 
-            <!-- 花篮图 -->
+            <!-- 花篮图：占满剩余空间，控件内部 Viewbox 等比缩放 -->
             <presentationControls:LoadPort Grid.Row="1"
+                                           Margin="0,4"
                                            Title=""
                                            SlotCount="25"
-                                           StatusOn="{Binding IsConnected}" />
+                                           StatusText="{Binding Model.StateText}" />
 
             <!-- 按钮排 -->
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
-                <Button Content="Home" Style="{StaticResource DefaultButtonStyle}"
+                <Button Content="Home" Style="{DynamicResource DefaultButtonStyle}"
                         Command="{Binding HomeCommand}" />
-                <Button Content="Load" Style="{StaticResource SuccessButtonStyle}"
+                <Button Content="Load" Style="{DynamicResource SuccessButtonStyle}"
                         Command="{Binding LoadCommand}" />
-                <Button Content="Unload" Style="{StaticResource DefaultButtonStyle}"
+                <Button Content="Unload" Style="{DynamicResource DefaultButtonStyle}"
                         Command="{Binding UnloadCommand}" />
-                <Button Content="Reset" Style="{StaticResource DefaultButtonStyle}"
+                <Button Content="Reset" Style="{DynamicResource DefaultButtonStyle}"
                         Command="{Binding ResetCommand}" />
-                <Button Content="Abort" Style="{StaticResource DangerButtonStyle}"
+                <Button Content="Online" Style="{DynamicResource SuccessButtonStyle}"
+                        Command="{Binding OnlineCommand}" />
+                <Button Content="Offline" Style="{DynamicResource DefaultButtonStyle}"
+                        Command="{Binding OfflineCommand}" />
+                <Button Content="Abort" Style="{DynamicResource DangerButtonStyle}"
                         Command="{Binding AbortCommand}" />
             </StackPanel>
-
-            <!-- 错误提示条 -->
-            <Border Grid.Row="3" Background="#33FF5252"
-                    CornerRadius="4" Padding="12,6" Margin="0,8,0,0">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding LastError}" Value="">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock Text="{Binding LastError}"
-                           Foreground="#FF8A80"
-                           FontSize="13"
-                           HorizontalAlignment="Center"
-                           TextWrapping="Wrap" />
-            </Border>
     </Grid>
     </materialDesign:Card>
 </UserControl>

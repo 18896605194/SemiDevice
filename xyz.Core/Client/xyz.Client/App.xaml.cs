@@ -16,6 +16,9 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // 全局兜底：命令内的异步异常（如后端不在线）不再带崩界面；后续接入报警中心
+        DispatcherUnhandledException += (_, args) => args.Handled = true;
+
         GrpcClientFactory.Initialize();
         RemoteEventBus.Initialize();
 

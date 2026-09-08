@@ -52,29 +52,29 @@ public abstract class FcdCommand : LoadPortCommand
                 OnAck(data);
                 if (CompleteOnAck && !IsCompleted)
                 {
-                    IsCompleted = true;
                     IsSucceeded = true;
+                    IsCompleted = true;
                 }
 
                 return true;
 
             case FcdProtocol.Inf:
                 OnInf(data);
-                IsCompleted = true;
                 IsSucceeded = true;
+                IsCompleted = true;
                 return true;
 
             case FcdProtocol.Abs:
                 OnAbs(data);
-                IsCompleted = true;
                 IsSucceeded = false;
                 Error = $"{FcdProtocol.Abs}:{Name}/{data}";
+                IsCompleted = true;
                 return true;
 
             case FcdProtocol.Nak:
-                IsCompleted = true;
                 IsSucceeded = false;
                 Error = $"{FcdProtocol.Nak}:{Name}/{data}";
+                IsCompleted = true;
                 return true;
 
             default:

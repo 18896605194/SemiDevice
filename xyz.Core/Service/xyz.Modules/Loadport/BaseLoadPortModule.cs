@@ -9,10 +9,12 @@ using xyz.Drivers.Communication.Tcp;
 using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
+using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class LoadPortBase : BaseModule, ILoadPort
+public abstract class BaseLoadPortModule : BaseModule, ILoadPort
 {
     #region SV 状态变量
 
@@ -28,8 +30,30 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "FOUP 是否在位")]
     public bool IsPodPlaced { get; private set; }
 
-  
+    /// <summary>
+    /// 自动模式（SV，E84 online）；false 为手动。驱动状态查询刷新；
+    /// 查询超时保持最后已知值，不回退。
+    /// </summary>
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动模式（E84 online），false 为手动")]
+    public bool IsAutoMode { get; private set; }
 
+    private volatile LoadPortStatus? _status;
+
+    /// <summary>
+    /// 最近一次成功查询的设备状态；尚未查询成功或查询超时时为 null。
+    /// </summary>
+    public LoadPortStatus? Status
+    {
+        get => _status;
+        protected set
+        {
+            _status = value;
+            if (value is not null)
+            {
+                IsAutoMode = value.AutoMode;
+            }
+        }
+    }
     #endregion
 
     #region SC 装机常量
@@ -81,7 +105,15 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
 
     #endregion
 
-    #region EC 在线参数（动作超时，属性读写直通 EC，改完即时生效）
+    #region EC 在线参数（查询与动作超时，属性读写直通 EC，改完即时生效）
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "3000", description: "设备状态查询超时")]
+    public int QueryDataTimeOut
+    {
+        get { return GetEcInt(nameof(QueryDataTimeOut)); }
+        set { SetEcInt(nameof(QueryDataTimeOut), value); }
+    }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
         @default: "30000", description: "Load 动作超时（开门+Mapping）")]
@@ -123,6 +155,22 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
         set { SetEcInt(nameof(AbortTimeout), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "5000", description: "E84 上线超时")]
+    public int OnlineTimeout
+    {
+        get { return GetEcInt(nameof(OnlineTimeout)); }
+        set { SetEcInt(nameof(OnlineTimeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "5000", description: "E84 下线超时")]
+    public int OfflineTimeout
+    {
+        get { return GetEcInt(nameof(OfflineTimeout)); }
+        set { SetEcInt(nameof(OfflineTimeout), value); }
+    }
+
     #endregion
 
     #region Alarm
@@ -147,6 +195,16 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
 
     #endregion
 
+    #region Event 采集事件
+
+    [EventAttribut("FOUP 到达", Description = "FOUP 从不在位变为在位")]
+    public readonly string FoupArrivedEvent = "FoupArrived";
+
+    [EventAttribut("FOUP 移除", Description = "FOUP 从在位变为不在位")]
+    public readonly string FoupRemovedEvent = "FoupRemoved";
+
+    #endregion
+
     #region Component
 
     public RfidReaderComponent RFID { get; }
@@ -154,7 +212,7 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
     #endregion
 
    
-    protected LoadPortBase()
+    protected BaseLoadPortModule()
     {
         RFID = new RfidReaderComponent();
         AddChild(RFID);
@@ -221,9 +279,68 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
 
     #endregion
 
+    #region 状态发布
+
+    private LoadPortDto? _lastPublishedState;
+
+    /// <summary>
+    /// 在设备状态扫描后调用：首次发布，之后只在状态变化时发布。
+    /// EventBus 留存最后一条消息，供界面晚订阅或重连时补发。
+    /// </summary>
+    protected void PublishState()
+    {
+        var dto = new LoadPortDto
+        {
+            Name = Name,
+            State = State,
+            IsPodPlaced = IsPodPlaced,
+        };
+
+        var driver = Driver;
+        if (driver is not null)
+        {
+            dto.IsConnected = driver.IsConnected;
+        }
+
+        var status = Status;
+        if (!dto.IsConnected)
+        {
+            status = null;
+        }
+
+        if (!IsEnable)
+        {
+            status = null;
+        }
+
+        if (status is not null)
+        {
+            dto.IsPodPlaced = status.PodPresent;
+            dto.PodPresent = status.PodPresent;
+            dto.PodPlaced = status.PodPlaced;
+            dto.DoorOpen = status.DoorOpen;
+            dto.DoorClosed = status.DoorClosed;
+            dto.DeviceAlarm = status.DeviceAlarm;
+            // 模块 SV 是模式汇合点（指令反馈 + 状态位）；FCD 状态位未映射前驱动值恒 false。
+            dto.AutoMode = IsAutoMode;
+        }
+
+        if (!dto.HasStateChanged(_lastPublishedState))
+        {
+            return;
+        }
+
+        _lastPublishedState = dto;
+        EventBus.Send(dto, Name);
+    }
+
+    #endregion
+
     #region Action（ILoadPort 契约：动作体由机型实现——直接创建操作）
 
     private (int ExecutingState, int SuccessState) _transition;
+
+    private LoadPortAction _currentAction;
 
     /// <summary>
     /// 通过 LoadPort 内部的 RFID 组件读取载具 ID。
@@ -256,37 +373,66 @@ public abstract class LoadPortBase : BaseModule, ILoadPort
     public abstract ModuleOperation? Abort();
 
     /// <summary>
+    /// 发起 E84 上线（自动模式）；成功后 IsAutoMode=true。
+    /// </summary>
+    public abstract ModuleOperation? Online();
+
+    /// <summary>
+    /// 发起 E84 下线（手动模式）；成功后 IsAutoMode=false。
+    /// </summary>
+    public abstract ModuleOperation? Offline();
+
+    /// <summary>
     /// 发起动作：前置检查 + 状态迁移表 + 挂载传入的操作并进入执行状态，立即返回。
     /// 操作由模块扫描线程自动步进（见 BaseModule），终结按迁移表落状态。
     /// 返回操作实例；null 表示被拒绝：未启用、驱动未建、已有在途动作（Abort 除外）或状态表不允许。
     /// </summary>
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
     {
-        if (!IsEnable || Driver is null)
+        lock (OperationGate)
         {
-            return null;
-        }
+            if (!IsEnable || Driver is null)
+            {
+                return null;
+            }
 
-        if (!LoadPortStateTable.TryGetTransition(State, action, out var transition))
-        {
-            return null;
-        }
+            if (!LoadPortStateTable.TryGetTransition(State, action, out var transition))
+            {
+                return null;
+            }
 
-        if (!Run(operation, replace: action == LoadPortAction.Abort))
-        {
-            return null;
-        }
+            if (!Run(operation, replace: action == LoadPortAction.Abort))
+            {
+                return null;
+            }
 
-        _transition = transition;
-        State = transition.ExecutingState;
-        return operation;
+            _transition = transition;
+            _currentAction = action;
+            State = transition.ExecutingState;
+            return operation;
+        }
     }
 
     /// <summary>
-    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
+    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error；
+    /// E84 上/下线成功时同步翻转 IsAutoMode（状态查询位未映射前的指令反馈路径）。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
+        if (operation.IsSuccess)
+        {
+            switch (_currentAction)
+            {
+                case LoadPortAction.Online:
+                    IsAutoMode = true;
+                    break;
+
+                case LoadPortAction.Offline:
+                    IsAutoMode = false;
+                    break;
+            }
+        }
+
         State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
     }
 

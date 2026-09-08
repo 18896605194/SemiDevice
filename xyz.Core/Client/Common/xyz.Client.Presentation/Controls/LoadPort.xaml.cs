@@ -34,16 +34,19 @@ public partial class LoadPort : UserControl
             nameof(Title), typeof(string), typeof(LoadPort),
             new PropertyMetadata("LOAD PORT"));
 
-    public bool StatusOn
+    /// <summary>
+    /// 标题行显示的当前状态文字（如“空闲”“装载中”），由页面绑定，空串不占位。
+    /// </summary>
+    public string StatusText
     {
-        get => (bool)GetValue(StatusOnProperty);
-        set => SetValue(StatusOnProperty, value);
+        get => (string)GetValue(StatusTextProperty);
+        set => SetValue(StatusTextProperty, value);
     }
 
-    public static readonly DependencyProperty StatusOnProperty =
+    public static readonly DependencyProperty StatusTextProperty =
         DependencyProperty.Register(
-            nameof(StatusOn), typeof(bool), typeof(LoadPort),
-            new PropertyMetadata(false));
+            nameof(StatusText), typeof(string), typeof(LoadPort),
+            new PropertyMetadata(string.Empty));
 
     public int SlotCount
     {
@@ -166,7 +169,8 @@ public partial class LoadPort : UserControl
 
         for (int index = 0; index < count; index++)
         {
-            int slot = index + 1;
+            // 自顶向下编号：大号在上（25 顶、01 底），与 UniformGrid 的填充顺序一致
+            int slot = count - index;
             Slots[index].Slot = slot;
             Slots[index].SlotText = slot.ToString("00");
             Slots[index].Wafer = wafersBySlot.GetValueOrDefault(slot);

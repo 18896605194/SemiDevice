@@ -47,7 +47,7 @@ public abstract class BaseModule : ComponentBase
 
     #region 操作挂载（单动作，扫描线程统一步进）
 
-    private readonly object _operationGate = new();
+    protected object OperationGate { get; } = new();
     private ModuleOperation? _operation;
 
     /// <summary>
@@ -57,7 +57,7 @@ public abstract class BaseModule : ComponentBase
     {
         get
         {
-            lock (_operationGate)
+            lock (OperationGate)
             {
                 return _operation;
             }
@@ -70,19 +70,24 @@ public abstract class BaseModule : ComponentBase
     /// </summary>
     protected bool Run(ModuleOperation operation, bool replace = false)
     {
-        lock (_operationGate)
+        lock (OperationGate)
         {
-            if (_operation is { IsTerminal: false })
+            if (_operation is { } current)
             {
-                if (!replace)
+                if (!current.IsTerminal)
                 {
-                    return false;
+                    if (!replace)
+                    {
+                        return false;
+                    }
+
+                    current.AbortByHost("被新操作顶替");
                 }
 
-                // 顶替：打断旧操作。
-                _operation.AbortByHost("被新操作顶替");
+                CompleteOperation(current);
             }
 
+            operation.DeferCompletion();
             _operation = operation;
             return true;
         }
@@ -96,18 +101,33 @@ public abstract class BaseModule : ComponentBase
     {
         base.OnScan();
 
-        var operation = _operation;
-        if (operation is null)
+        lock (OperationGate)
         {
-            return;
+            var operation = _operation;
+            if (operation is null)
+            {
+                return;
+            }
+
+            operation.Scan();
+
+            if (operation.IsTerminal)
+            {
+                CompleteOperation(operation);
+            }
         }
+    }
 
-        operation.Scan();
-
-        if (operation.IsTerminal)
+    private void CompleteOperation(ModuleOperation operation)
+    {
+        try
+        {
+            OnOperationCompleted(operation);
+        }
+        finally
         {
             _operation = null;
-            OnOperationCompleted(operation);
+            operation.NotifyCompletion();
         }
     }
 

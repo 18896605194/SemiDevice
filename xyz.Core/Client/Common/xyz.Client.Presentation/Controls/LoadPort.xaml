@@ -51,20 +51,24 @@
                     Style="{DynamicResource HeaderBarBorderStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <Border
-                            Grid.Column="0"
-                            Style="{DynamicResource LargeStatusDotBorderStyle}"
-                            Tag="{Binding StatusOn, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
                         <TextBlock
-                            Grid.Column="1"
+                            Grid.Column="0"
                             VerticalAlignment="Center"
                             Style="{DynamicResource SectionTitleTextStyle}"
                             Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size16}"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource DarkAccent}"
+                            Text="{Binding StatusText, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
                         <StackPanel
                             Grid.Column="2"
                             VerticalAlignment="Center">
@@ -84,42 +88,23 @@
                     </Grid>
                 </Border>
 
-                <Grid Grid.Row="1" Margin="10,20,10,10">
-                    <Border
-                        Width="10"
-                        Margin="4,16,0,16"
-                        HorizontalAlignment="Left"
-                        Background="{DynamicResource DarkControlBackground}"
-                        BorderBrush="{DynamicResource DarkDisabledText}"
-                        BorderThickness="1"
-                        CornerRadius="4" />
-                    <Border
-                        Width="10"
-                        Margin="0,16,4,16"
-                        HorizontalAlignment="Right"
-                        Background="{DynamicResource DarkControlBackground}"
-                        BorderBrush="{DynamicResource DarkDisabledText}"
-                        BorderThickness="1"
-                        CornerRadius="4" />
-
+                <Grid Grid.Row="1" Margin="10,4,10,4">
                     <ItemsControl
-                        Margin="20,18,20,32"
+                        Margin="4,8,4,8"
                         ItemsSource="{Binding Slots, RelativeSource={RelativeSource AncestorType=local:LoadPort}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <DockPanel LastChildFill="False" />
+                                <UniformGrid Rows="{Binding SlotCount, RelativeSource={RelativeSource AncestorType=local:LoadPort}}" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemContainerStyle>
                             <Style TargetType="ContentPresenter">
-                                <Setter Property="DockPanel.Dock" Value="Bottom" />
                                 <Setter Property="HorizontalAlignment" Value="Stretch" />
                             </Style>
                         </ItemsControl.ItemContainerStyle>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <controls:HorizontalWafer
-                                    Height="16"
                                     Margin="0,2"
                                     Background="Transparent"
                                     BorderBrush="{DynamicResource DarkBorderBrush}"
@@ -136,15 +121,6 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-
-                    <Border
-                        Height="12"
-                        Margin="8,0,8,4"
-                        VerticalAlignment="Bottom"
-                        Background="{DynamicResource DarkControlBackground}"
-                        BorderBrush="{DynamicResource DarkDisabledText}"
-                        BorderThickness="1"
-                        CornerRadius="3" />
                 </Grid>
             </Grid>
         </Border>

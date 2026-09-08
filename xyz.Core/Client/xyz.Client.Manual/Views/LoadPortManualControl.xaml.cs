@@ -30,9 +30,14 @@ public partial class LoadPortManualControl : UserControl
 
     private static void OnModuleNameChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is LoadPortManualControl control && e.NewValue is string name && !string.IsNullOrEmpty(name))
+        if (d is not LoadPortManualControl control || e.NewValue is not string name || string.IsNullOrEmpty(name))
         {
-            control.DataContext = new LoadPortManualViewModel(name);
+            return;
         }
+
+        (control.DataContext as LoadPortManualViewModel)?.Dispose();
+        var viewModel = new LoadPortManualViewModel(name);
+        control.DataContext = viewModel;
+        viewModel.Init();
     }
 }

@@ -5,8 +5,25 @@
 
     <sys:String x:Key="module.not_found">Module not found: {0}</sys:String>
     <sys:String x:Key="module.action_rejected">{0} action rejected (state {1} not allowed, or another action in flight)</sys:String>
+    <sys:String x:Key="module.wait_timeout">{0} result wait timed out ({1}ms). The outcome is not yet confirmed; check the device state.</sys:String>
     <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
+
+    <!-- Module state texts; codes defined in xyz.Modules ModuleState/TransferModuleState/LoadPortState -->
+    <sys:String x:Key="module.state.not_init">Not initialized</sys:String>
+    <sys:String x:Key="module.state.initing">Initializing</sys:String>
+    <sys:String x:Key="module.state.idle">Idle</sys:String>
+    <sys:String x:Key="module.state.aborting">Aborting</sys:String>
+    <sys:String x:Key="module.state.error">Error</sys:String>
+    <sys:String x:Key="module.state.pre_transfer">Pre-transfer</sys:String>
+    <sys:String x:Key="module.state.transfer_ready">Transfer ready</sys:String>
+    <sys:String x:Key="module.state.transferring">Transferring</sys:String>
+    <sys:String x:Key="module.state.transfer_complete">Transfer complete</sys:String>
+    <sys:String x:Key="module.state.loading">Loading</sys:String>
+    <sys:String x:Key="module.state.loaded">Loaded</sys:String>
+    <sys:String x:Key="module.state.unloading">Unloading</sys:String>
+    <sys:String x:Key="module.state.homing">Homing</sys:String>
+    <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
     <sys:String x:Key="loadport.timeout">{0} timeout ({1}ms)</sys:String>

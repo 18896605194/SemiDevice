@@ -13,7 +13,7 @@ public abstract class LoadPortCommand
     protected LoadPortDriverBase Driver { get; }
 
     /// <summary>
-    /// 是否最终完成，失败成功都算
+    /// 是否最终完成，失败成功都算。先写入结果，再置为 true，供等待方和扫描线程读取。
     /// </summary>
     public bool IsCompleted
     {
@@ -29,7 +29,7 @@ public abstract class LoadPortCommand
         }
     }
 
-    private bool _isCompleted;
+    private volatile bool _isCompleted;
     private readonly ManualResetEventSlim _replied = new(false);
 
     /// <summary>
