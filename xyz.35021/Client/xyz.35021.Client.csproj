@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\xyz.Core\Client\xyz.Client\xyz.Client.csproj" />
+    <ProjectReference Include="..\..\xyz.Core\Client\xyz.Client.Manual\xyz.Client.Manual.csproj" />
     <ProjectReference Include="xyz.35021.Main\xyz.35021.Main.csproj" />
     <ProjectReference Include="xyz.35021.Manual\xyz.35021.Manual.csproj" />
   </ItemGroup>

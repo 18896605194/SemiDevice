@@ -20,8 +20,6 @@ public enum LoadPortAction
     Unload,
     Home,
     Reset,
-    Abort,
-    Online,
-    Offline
+    Abort
 }
 

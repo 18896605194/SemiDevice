@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using xyz.Client.DataModels.Events;
 using xyz.Client.DataModels.Ioc;
+using xyz.Client.DataModels.Log;
 using xyz.Client.DataModels.Rpc;
 using xyz.Client.DataModels.ViewModels;
 
@@ -16,8 +17,12 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // 全局兜底：命令内的异步异常（如后端不在线）不再带崩界面；后续接入报警中心
-        DispatcherUnhandledException += (_, args) => args.Handled = true;
+        // 全局兜底：命令内未处理的异常（如后端不在线）写进日志下拉框，不带崩界面。
+        DispatcherUnhandledException += (_, args) =>
+        {
+            ClientLog.Error("Client", args.Exception.Message);
+            args.Handled = true;
+        };
 
         GrpcClientFactory.Initialize();
         RemoteEventBus.Initialize();

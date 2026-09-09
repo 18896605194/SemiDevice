@@ -1,10 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
+using xyz.Common.Log;
 using xyz.Components;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Service.UserManger;
+using xyz.Shared.Dtos;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Service;
 
@@ -18,6 +21,22 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddXyzServices(this IServiceCollection services)
     {
+        #region 日志转发（LogHelper → 队列 → 单消费者 → EventBus → 客户端）
+
+        LogQueue.Start(item => EventBus.Send(
+            new LogDto
+            {
+                Time = item.Time,
+                Level = item.Level.Name,
+                Module = item.Module,
+                Message = item.Message,
+                Source = "Server",
+            },
+            LogDto.EventToken,
+            retain: false));
+
+        #endregion
+
         #region 模块装配（SC 配置 → 组件实例 → EC 合并 → 启动扫描线程）
 
         var settings = SC.Load();

@@ -62,10 +62,10 @@ public class LoadPortModel : ObservableObject
         set => SetProperty(ref _deviceAlarm, value);
     }
 
-    private bool? _autoMode;
+    private bool _autoMode;
 
-    /// <summary>查询反馈：自动模式（E84 online），false 为手动；null 表示反馈不可用。</summary>
-    public bool? AutoMode
+    /// <summary>自动模式（true=自动，false=手动）。内部控制位，不经设备协议。</summary>
+    public bool AutoMode
     {
         get => _autoMode;
         set => SetProperty(ref _autoMode, value);

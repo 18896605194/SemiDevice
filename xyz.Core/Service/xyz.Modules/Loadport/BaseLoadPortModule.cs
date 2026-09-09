@@ -31,10 +31,10 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     public bool IsPodPlaced { get; private set; }
 
     /// <summary>
-    /// 自动模式（SV，E84 online）；false 为手动。驱动状态查询刷新；
-    /// 查询超时保持最后已知值，不回退。
+    /// 自动/手动模式（SV）。内部控制位，不经设备协议：
+    /// Online()/Offline() 置位；默认手动，掉电不保持。
     /// </summary>
-    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动模式（E84 online），false 为手动")]
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动模式（true=自动，false=手动）")]
     public bool IsAutoMode { get; private set; }
 
     private volatile LoadPortStatus? _status;
@@ -45,14 +45,7 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     public LoadPortStatus? Status
     {
         get => _status;
-        protected set
-        {
-            _status = value;
-            if (value is not null)
-            {
-                IsAutoMode = value.AutoMode;
-            }
-        }
+        protected set => _status = value;
     }
     #endregion
 
@@ -153,22 +146,6 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     {
         get { return GetEcInt(nameof(AbortTimeout)); }
         set { SetEcInt(nameof(AbortTimeout), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "5000", description: "E84 上线超时")]
-    public int OnlineTimeout
-    {
-        get { return GetEcInt(nameof(OnlineTimeout)); }
-        set { SetEcInt(nameof(OnlineTimeout), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "5000", description: "E84 下线超时")]
-    public int OfflineTimeout
-    {
-        get { return GetEcInt(nameof(OfflineTimeout)); }
-        set { SetEcInt(nameof(OfflineTimeout), value); }
     }
 
     #endregion
@@ -294,6 +271,7 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
             Name = Name,
             State = State,
             IsPodPlaced = IsPodPlaced,
+            AutoMode = IsAutoMode,
         };
 
         var driver = Driver;
@@ -321,8 +299,6 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
             dto.DoorOpen = status.DoorOpen;
             dto.DoorClosed = status.DoorClosed;
             dto.DeviceAlarm = status.DeviceAlarm;
-            // 模块 SV 是模式汇合点（指令反馈 + 状态位）；FCD 状态位未映射前驱动值恒 false。
-            dto.AutoMode = IsAutoMode;
         }
 
         if (!dto.HasStateChanged(_lastPublishedState))
@@ -339,8 +315,6 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     #region Action（ILoadPort 契约：动作体由机型实现——直接创建操作）
 
     private (int ExecutingState, int SuccessState) _transition;
-
-    private LoadPortAction _currentAction;
 
     /// <summary>
     /// 通过 LoadPort 内部的 RFID 组件读取载具 ID。
@@ -373,14 +347,12 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     public abstract ModuleOperation? Abort();
 
     /// <summary>
-    /// 发起 E84 上线（自动模式）；成功后 IsAutoMode=true。
+    /// 设置自动/手动模式（内部模式位，不经设备协议）；置位后由下一次扫描随状态事件发布。
     /// </summary>
-    public abstract ModuleOperation? Online();
-
-    /// <summary>
-    /// 发起 E84 下线（手动模式）；成功后 IsAutoMode=false。
-    /// </summary>
-    public abstract ModuleOperation? Offline();
+    public void SetAutoMode(bool autoMode)
+    {
+        IsAutoMode = autoMode;
+    }
 
     /// <summary>
     /// 发起动作：前置检查 + 状态迁移表 + 挂载传入的操作并进入执行状态，立即返回。
@@ -407,32 +379,16 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
             }
 
             _transition = transition;
-            _currentAction = action;
             State = transition.ExecutingState;
             return operation;
         }
     }
 
     /// <summary>
-    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error；
-    /// E84 上/下线成功时同步翻转 IsAutoMode（状态查询位未映射前的指令反馈路径）。
+    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        if (operation.IsSuccess)
-        {
-            switch (_currentAction)
-            {
-                case LoadPortAction.Online:
-                    IsAutoMode = true;
-                    break;
-
-                case LoadPortAction.Offline:
-                    IsAutoMode = false;
-                    break;
-            }
-        }
-
         State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
     }
 

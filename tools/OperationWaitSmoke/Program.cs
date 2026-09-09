@@ -116,8 +116,7 @@ var port = new ProbePort();
 var service = new LoadPortService(new ComponentBase[] { port });
 var actions = new Func<string, CallContext, Task<RpcResponse>>[]
 {
-    service.LoadAsync, service.UnloadAsync, service.HomeAsync, service.ResetAsync, service.AbortAsync,
-    service.OnlineAsync, service.OfflineAsync
+    service.LoadAsync, service.UnloadAsync, service.HomeAsync, service.ResetAsync, service.AbortAsync
 };
 foreach (var action in actions)
 {
@@ -165,7 +164,21 @@ foreach (var action in actions)
     Check(port.Calls == callsBefore, "A request canceled before admission must not start a device action.");
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races and all seven RPC actions).");
+// Online/Offline 是内部模式位（不经设备协议）：置位即成功，不产生操作、不等待。
+var modeResponse = await service.OnlineAsync("missing", default);
+Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
+    "Online must report a missing module.");
+
+Check(!port.IsAutoMode, "Probe port must start in manual mode.");
+modeResponse = await service.OnlineAsync(port.Name, default);
+Check(modeResponse.Success && port.IsAutoMode, "Online must set auto mode.");
+
+var callsBeforeMode = port.Calls;
+modeResponse = await service.OfflineAsync(port.Name, default);
+Check(modeResponse.Success && !port.IsAutoMode && port.Calls == callsBeforeMode,
+    "Offline must clear auto mode without starting a device action.");
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, and the online/offline mode switch).");
 
 sealed class ProbeOperation() : ModuleOperation("Probe")
 {
@@ -206,7 +219,7 @@ sealed class ProbePort : BaseLoadPortModule
         foreach (var key in new[]
                  {
                      nameof(LoadTimeout), nameof(UnloadTimeout), nameof(HomeTimeout), nameof(ResetTimeout),
-                     nameof(AbortTimeout), nameof(OnlineTimeout), nameof(OfflineTimeout)
+                     nameof(AbortTimeout)
                  })
         {
             // Seed only this process's EC memory; never load or flush a configuration file.
@@ -219,6 +232,4 @@ sealed class ProbePort : BaseLoadPortModule
     public override ModuleOperation? Home() => Take();
     public override ModuleOperation? Reset() => Take();
     public override ModuleOperation? Abort() => Take();
-    public override ModuleOperation? Online() => Take();
-    public override ModuleOperation? Offline() => Take();
 }

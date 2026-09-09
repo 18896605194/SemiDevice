@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>半导体设备新人基础培训 · Load Port 与 Robot</title>
+<style>
+  :root{
+    --blue:#0b6bcb; --blue-d:#0a4b8f; --blue-l:#e8f1fc;
+    --cyan:#0f8f9e;
+    --ink:#152232; --muted:#5c6d80; --line:#d9e2ec;
+    --bg:#eef3f8; --card:#ffffff;
+    --ok:#149a5a; --warn:#c07300; --bad:#d33b3b;
+    --shadow:0 1px 2px rgba(16,40,70,.06),0 8px 24px rgba(16,40,70,.06);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,-apple-system,sans-serif;
+    font-size:15px; line-height:1.8;
+  }
+  .layout{display:grid; grid-template-columns:280px minmax(0,1fr); align-items:start;}
+
+  /* ---------- 侧边导航 ---------- */
+  .side{
+    position:sticky; top:0; height:100vh; overflow-y:auto;
+    background:linear-gradient(180deg,#0d1b2a,#122a42); color:#c6d6e6;
+    padding:24px 0 40px;
+  }
+  .side .brand{padding:0 22px 18px; border-bottom:1px solid rgba(255,255,255,.09); margin-bottom:14px}
+  .side .brand b{display:block; color:#fff; font-size:17px; letter-spacing:.3px}
+  .side .brand span{font-size:12px; color:#7e9bb8; letter-spacing:1.2px}
+  .side nav a{
+    display:block; padding:9px 22px; color:#a9c1d8; text-decoration:none;
+    font-size:13.5px; border-left:3px solid transparent; transition:.16s;
+  }
+  .side nav a:hover{background:rgba(255,255,255,.06); color:#fff}
+  .side nav a.active{background:rgba(11,107,203,.28); color:#fff; border-left-color:#38bdf8; font-weight:600}
+  .side nav .grp{padding:14px 22px 6px; font-size:11px; letter-spacing:1.6px; color:#5f7f9e; text-transform:uppercase}
+  .side .foot{padding:18px 22px 0; margin-top:16px; border-top:1px solid rgba(255,255,255,.09); font-size:11.5px; color:#6d8aa6}
+
+  /* ---------- 主体 ---------- */
+  main{padding:0 46px 100px; max-width:1200px}
+  .hero{
+    margin:0 -46px 34px; padding:44px 46px 38px; color:#fff;
+    background:linear-gradient(125deg,#0a4b8f 0%,#0b6bcb 45%,#0f8f9e 100%);
+  }
+  .hero .kicker{margin:0 0 10px; font-size:12px; letter-spacing:2.4px; opacity:.85}
+  .hero h1{margin:0 0 12px; font-size:31px; line-height:1.35; letter-spacing:.5px}
+  .hero .lead{margin:0 0 20px; max-width:820px; font-size:15.5px; opacity:.94}
+  .chips{display:flex; flex-wrap:wrap; gap:9px}
+  .chip{
+    background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.28);
+    padding:4px 13px; border-radius:999px; font-size:12.5px; backdrop-filter:blur(4px);
+  }
+
+  section.sec{margin:0 0 46px; scroll-margin-top:20px}
+  h2{
+    margin:44px 0 16px; padding-left:14px; font-size:22px; line-height:1.4;
+    border-left:6px solid var(--blue); color:#0b3d70;
+  }
+  h3{margin:28px 0 10px; font-size:17.5px; color:#0d5aa7}
+  h4{margin:20px 0 8px; font-size:15.5px; color:#243c56}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0; padding-left:22px}
+  li{margin:5px 0}
+  code{
+    background:#eaf0f7; color:#0a4b8f; padding:1px 6px; border-radius:5px;
+    font-family:Consolas,"Cascadia Mono",monospace; font-size:13px;
+  }
+  b,strong{color:#0a3d73}
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:18px 22px; margin:16px 0; box-shadow:var(--shadow);
+  }
+  .card h4:first-child, .card h3:first-child{margin-top:0}
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px}
+  .grid3{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px}
+
+  .callout{
+    border-left:5px solid var(--blue); background:#f3f9ff;
+    padding:14px 18px; border-radius:0 10px 10px 0; margin:16px 0;
+  }
+  .callout .t{font-weight:700; color:var(--blue-d); display:block; margin-bottom:4px}
+  .callout.warn{border-color:var(--warn); background:#fff8ec}
+  .callout.warn .t{color:#a35f00}
+  .callout.bad{border-color:var(--bad); background:#fff2f2}
+  .callout.bad .t{color:#a82c2c}
+  .callout.ok{border-color:var(--ok); background:#f1fbf5}
+  .callout.ok .t{color:#0d7a46}
+
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:13.8px; background:#fff;
+    border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  thead th{
+    background:#0d5aa7; color:#fff; text-align:left; padding:10px 12px; font-weight:600;
+    font-size:13.2px; letter-spacing:.3px;
+  }
+  tbody td{padding:9px 12px; border-top:1px solid var(--line); vertical-align:top}
+  tbody tr:nth-child(even){background:#f8fbfe}
+  .tw{overflow-x:auto}
+  td.c,th.c{text-align:center}
+  .tag{display:inline-block; padding:1px 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap}
+  .tag.b{background:#e3eefb; color:#0a4b8f}
+  .tag.g{background:#e6f7ee; color:#0d7a46}
+  .tag.o{background:#fff1dc; color:#a35f00}
+  .tag.r{background:#fde9e9; color:#a82c2c}
+
+  /* 模块标签 / 编号 / 阶段分组 */
+  .mod{
+    display:inline-block; background:#0b6bcb; color:#fff; font-size:12px; font-weight:600;
+    padding:2px 10px; border-radius:6px; margin-right:8px; vertical-align:2px; letter-spacing:.5px;
+  }
+  .num{
+    display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%;
+    background:#0b6bcb; color:#fff; font-weight:700; font-size:12.5px;
+  }
+  tbody tr.phase td{
+    background:#eaf3fc; color:#0a4b8f; font-weight:700; font-size:13.4px;
+    letter-spacing:.4px; border-top:1px solid #cfe0f2;
+  }
+  h3[id],h4[id]{scroll-margin-top:24px}
+  .side nav a.sub{padding-left:40px; font-size:12.8px; color:#8fb0cc}
+  .side nav a.sub::before{content:"· "; color:#5f7f9e}
+
+  /* 流程步骤 */
+  ol.steps{list-style:none; padding:0; margin:16px 0; counter-reset:s}
+  ol.steps>li{
+    counter-increment:s; position:relative; padding:11px 0 11px 48px;
+    border-bottom:1px dashed var(--line);
+  }
+  ol.steps>li:last-child{border-bottom:none}
+  ol.steps>li::before{
+    content:counter(s); position:absolute; left:0; top:12px;
+    width:30px; height:30px; border-radius:50%; background:var(--blue); color:#fff;
+    display:grid; place-items:center; font-weight:700; font-size:14px;
+  }
+  ol.steps>li b{display:block; color:#0a3d73}
+
+  details{
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:12px 18px; margin:10px 0;
+  }
+  details[open]{box-shadow:var(--shadow)}
+  summary{cursor:pointer; font-weight:600; color:var(--blue-d); list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ "; color:var(--blue)}
+  details[open] summary::before{content:"▾ "}
+  details .ans{margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); color:#2b4059}
+
+  /* 测验 */
+  .quiz{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 20px; margin:14px 0; box-shadow:var(--shadow)}
+  .quiz .q{font-weight:600; color:#0a3d73; margin-bottom:10px}
+  .quiz .opt{
+    display:block; width:100%; text-align:left; margin:7px 0; padding:9px 14px;
+    background:#f6f9fd; border:1px solid var(--line); border-radius:8px;
+    font:inherit; font-size:14px; color:var(--ink); cursor:pointer; transition:.15s;
+  }
+  .quiz .opt:hover{background:#eaf2fc; border-color:#b7d2ee}
+  .quiz .opt.right{background:#e6f7ee; border-color:#57bb8a; color:#0d7a46; font-weight:600}
+  .quiz .opt.wrong{background:#fde9e9; border-color:#e58c8c; color:#a82c2c}
+  .quiz .hint{font-size:13px; color:var(--muted); margin-top:8px; display:none}
+  .quiz .hint.show{display:block}
+
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0}
+  .btn{
+    padding:7px 16px; border-radius:8px; border:1px solid #b7d2ee; background:#fff;
+    color:var(--blue-d); font:inherit; font-size:13.5px; cursor:pointer; transition:.15s;
+  }
+  .btn:hover{background:var(--blue-l)}
+
+  svg{max-width:100%; height:auto; display:block; margin:0 auto}
+  .figcap{text-align:center; font-size:13px; color:var(--muted); margin-top:6px}
+
+  .kv{display:grid; grid-template-columns:150px 1fr; gap:2px 14px; font-size:14px; margin:12px 0}
+  .kv dt{font-weight:600; color:#0a3d73; padding:5px 0}
+  .kv dd{margin:0; padding:5px 0; border-bottom:1px dashed var(--line)}
+
+  .toc-mini{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:16px 0}
+  .toc-mini a{
+    display:block; padding:11px 15px; background:#fff; border:1px solid var(--line);
+    border-radius:10px; text-decoration:none; color:#0a3d73; font-weight:600; font-size:14px;
+    box-shadow:var(--shadow); transition:.15s;
+  }
+  .toc-mini a:hover{border-color:var(--blue); background:var(--blue-l)}
+  .toc-mini a small{display:block; font-weight:400; color:var(--muted); font-size:12px; margin-top:2px}
+
+  footer{border-top:1px solid var(--line); margin-top:50px; padding-top:18px; font-size:13px; color:var(--muted)}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr}
+    .side{position:static; height:auto; padding-bottom:12px}
+    .side nav{display:flex; flex-wrap:wrap; gap:4px; padding:0 12px}
+    .side nav a{border-left:none; border-radius:8px; padding:7px 12px}
+    .side nav a.active{border-left:none}
+    .side nav .grp{width:100%; padding:8px 12px 2px}
+    .side .brand,.side .foot{display:none}
+    main{padding:0 18px 60px}
+    .hero{margin:0 -18px 26px; padding:30px 20px}
+    .hero h1{font-size:24px}
+    .kv{grid-template-columns:1fr}
+  }
+  @media print{
+    .side,.toolbar{display:none}
+    .layout{grid-template-columns:1fr}
+    main{padding:0; max-width:none}
+    .hero{color:#000; background:#fff; border-bottom:3px solid #0b6bcb}
+    .hero .chip{border-color:#999; background:#fff; color:#333}
+    .card,details,.quiz{box-shadow:none; break-inside:avoid}
+    h2{break-after:avoid}
+    details{page-break-inside:avoid}
+    details:not([open]) .ans{display:block}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ================= 侧边导航 ================= -->
+  <aside class="side">
+    <div class="brand">
+      <b>Load Port &amp; Robot</b>
+      <span>半导体设备新人基础培训</span>
+    </div>
+    <nav>
+      <div class="grp">开始</div>
+      <a href="#intro">课程说明与目标</a>
+      <a href="#ch0">第 0 章 · 背景知识</a>
+      <div class="grp">核心模块</div>
+      <a href="#ch1">第 1 章 · Load Port</a>
+      <a href="#ch1-hw" class="sub">1.1 硬件结构</a>
+      <a href="#ch1-seq" class="sub">1.2 正常动作</a>
+      <a href="#ch1-e84" class="sub">1.3 E84 模块</a>
+      <a href="#ch2">第 2 章 · Robot</a>
+      <a href="#ch3">第 3 章 · 两者协同</a>
+      <div class="grp">规范与计划</div>
+      <a href="#ch4">第 4 章 · 安全规范</a>
+      <a href="#ch5">第 5 章 · 培训安排</a>
+      <div class="grp">附录</div>
+      <a href="#apA">A · 术语表</a>
+      <a href="#apB">B · 自测题</a>
+      <a href="#apC">C · 点检表模板</a>
+    </nav>
+    <div class="foot">
+      内部培训资料 · v1.0<br>
+      参数以设备手册与最新 SEMI 标准为准
+    </div>
+  </aside>
+
+  <!-- ================= 主体 ================= -->
+  <main>
+
+    <header class="hero">
+      <p class="kicker">半导体设备新人培养 · 基础模块 01</p>
+      <h1>Load Port 与 Robot 基础培训</h1>
+      <p class="lead">
+        面向零基础新人：从「一片晶圆怎么进出设备」讲起，把 EFEM 的两大核心部件——载具接口（Load Port）与搬运机械手（Robot）——讲透。
+        目标是培训结束后，你能看懂结构、说清流程、读懂报警、动手点检。
+      </p>
+      <div class="chips">
+        <span class="chip">适用对象：设备工程师 / 设备维护 / 制程支援新人</span>
+        <span class="chip">建议时长：5 天</span>
+        <span class="chip">先修要求：无</span>
+        <span class="chip">配套：理论 + 实操 + 考核</span>
+      </div>
+    </header>
+
+    <!-- ============ 课程说明 ============ -->
+    <section class="sec" id="intro">
+      <h2>课程说明与学习目标</h2>
+
+      <div class="toc-mini">
+        <a href="#ch1">第 1 章 · Load Port<small>硬件结构 · 10 个动作 · E84</small></a>
+        <a href="#ch2">第 2 章 · Robot<small>构型 · R-θ-Z · 示教 · 故障</small></a>
+        <a href="#ch3">第 3 章 · 协同工作流<small>EFEM 全流程 · E84 · SECS/GEM</small></a>
+        <a href="#ch5">第 5 章 · 培训安排<small>5 天日程 · 实操 · 考核</small></a>
+      </div>
+
+      <h3>学完这门课，你应该能做到</h3>
+      <table>
+        <thead><tr><th style="width:60px" class="c">序号</th><th>能力目标</th><th style="width:110px">对应章节</th></tr></thead>
+        <tbody>
+          <tr><td class="c">1</td><td>说清 EFEM 在整台设备中的位置、作用，以及它为什么必须存在</td><td class="c">第 0 章</td></tr>
+          <tr><td class="c">2</td><td>对照实物指出 Load Port 的 10 个主要部件，并说出各自作用</td><td class="c">1.1</td></tr>
+          <tr><td class="c">3</td><td>完整复述一次「4 个阶段、10 个动作」的正常流程</td><td class="c">1.2</td></tr>
+          <tr><td class="c">4</td><td>说明 E84 是干什么的、和 OHT 握手的基本过程</td><td class="c">1.3</td></tr>
+          <tr><td class="c">5</td><td>区分常见机械手构型（单/双臂、蛙腿、直驱、大气/真空），说出各自适用场景</td><td class="c">第 2 章</td></tr>
+          <tr><td class="c">6</td><td>解释 R-θ-Z 运动含义，说明「示教（Teach）」在做什么、为什么位置会漂移</td><td class="c">第 2 章</td></tr>
+          <tr><td class="c">7</td><td>根据报警信息，把故障定位到 Load Port 侧、Robot 侧还是通讯侧</td><td class="c">第 1/2/3 章</td></tr>
+          <tr><td class="c">8</td><td>正确执行安全规范：LOTO、E-Stop、Interlock、真空/气动残压处理</td><td class="c">第 4 章</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <span class="t">阅读建议</span>
+        第一次看，按章节顺序读；带徒弟时，建议先看第 0 章的图和第 3 章的完整流程建立整体印象，再回头抠第 1、2 章的细节。
+        附录 B 的自测题可以直接当课后小考用。
+      </div>
+    </section>
+
+    <!-- ============ 第 0 章 ============ -->
+    <section class="sec" id="ch0">
+      <h2>第 0 章 · 背景知识：先搞清楚我们在讲什么</h2>
+
+      <h3>0.1 一片晶圆的「最后一公里」</h3>
+      <p>
+        晶圆在前段做完几百道工序后，是装在<strong>载具（Carrier）</strong>里被搬运的。
+        载具由 OHT（空中搬运车）/ AGV / 人工送到设备的<strong>载具接口</strong>上，
+        设备内部再把它取出来送进工艺腔，加工完再放回去。这中间「从载具到工艺腔」的这一段，就是
+        <strong>EFEM</strong> 负责的。
+      </p>
+      <p>
+        Load Port 和 Robot，正是 EFEM 里最核心的两个部件：<strong>Load Port 是「门和接口」，Robot 是「手和脚」</strong>。
+      </p>
+
+      <h3>0.2 载具家族：先认识它们，才能看懂 Load Port</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>名称</th><th>全称 / 含义</th><th class="c">晶圆尺寸</th><th class="c">开门方式</th><th class="c">典型容量</th><th>主要用途</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>FOUP</b></td>
+              <td>Front Opening Unified Pod，前开式统一载具</td>
+              <td class="c">300 mm</td><td class="c">前开门</td><td class="c">25 片</td>
+              <td>厂内主力载具，随片进出设备</td>
+            </tr>
+            <tr>
+              <td><b>FOSB</b></td>
+              <td>Front Opening Shipping Box，前开式运输箱</td>
+              <td class="c">300 mm</td><td class="c">前开门</td><td class="c">25 片</td>
+              <td>厂际 / 跨区运输，机械强度更高</td>
+            </tr>
+            <tr>
+              <td><b>SMIF Pod</b></td>
+              <td>Standard Mechanical Interface Pod</td>
+              <td class="c">200 mm</td><td class="c">底开门</td><td class="c">25 片</td>
+              <td>200 mm 世代的标准载具</td>
+            </tr>
+            <tr>
+              <td><b>Open Cassette</b></td>
+              <td>开放式片架</td>
+              <td class="c">150 / 200 mm</td><td class="c">无门</td><td class="c">25 片</td>
+              <td>老世代或非关键工序，洁净等级要求低</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <span class="t">关键概念：槽位（Slot）</span>
+        FOUP 内部有 25 个槽位（slot），每个槽位只能放一片晶圆。槽位编号从下往上通常为 1～25。
+        <b>Mapping（扫片）</b>就是去确认「哪个槽里有片、哪个槽是空的、有没有一个槽插了两片」。这是新人最先要建立的空间概念。
+      </div>
+
+      <h3>0.3 EFEM 全景图</h3>
+      <p>下面这张侧视图，是新人第一天必须记住的「地图」。把它背下来，后面所有内容都能挂上去。</p>
+
+      <div class="card">
+        <svg viewBox="0 0 900 440" role="img" aria-label="EFEM 侧视结构示意图">
+          <defs>
+            <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6 z" fill="#0b6bcb"/>
+            </marker>
+            <marker id="ar2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6 z" fill="#c07300"/>
+            </marker>
+            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#eaf4ff"/><stop offset="100%" stop-color="#d7e8fb"/>
+            </linearGradient>
+          </defs>
+
+          <!-- 地面 -->
+          <line x1="20" y1="400" x2="880" y2="400" stroke="#c8d4e0" stroke-width="2"/>
+
+          <!-- EFEM 机架 -->
+          <rect x="360" y="46" width="500" height="336" rx="8" fill="url(#g1)" stroke="#8fb6dc" stroke-width="2"/>
+          <rect x="374" y="60" width="472" height="308" rx="5" fill="#f7fbff" stroke="#b9d4ec" stroke-width="1.5"/>
+          <text x="610" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#0a4b8f">EFEM（微环境 / Mini-Environment）</text>
+
+          <!-- 顶部 FFU -->
+          <rect x="374" y="60" width="472" height="18" fill="#cfe4f8" stroke="#b9d4ec"/>
+          <text x="610" y="74" text-anchor="middle" font-size="11" fill="#0a4b8f">FFU 送风 · 离子风机 · 正压维持</text>
+
+          <!-- FOUP -->
+          <rect x="112" y="96" width="200" height="164" rx="6" fill="#fff" stroke="#3f7fbf" stroke-width="2.5"/>
+          <text x="212" y="132" text-anchor="middle" font-size="14" font-weight="700" fill="#0a4b8f">FOUP / FOSB</text>
+          <text x="212" y="152" text-anchor="middle" font-size="11" fill="#5c6d80">25 slots</text>
+          <!-- FOUP 门 -->
+          <rect x="304" y="106" width="16" height="144" fill="#dbe9f8" stroke="#3f7fbf" stroke-width="2"/>
+          <text x="212" y="188" text-anchor="middle" font-size="11" fill="#5c6d80">载具门（含 2 个 Latch）</text>
+          <!-- 晶圆示意 -->
+          <g stroke="#7fb3e0" stroke-width="1.4">
+            <line x1="126" y1="212" x2="298" y2="212"/>
+            <line x1="126" y1="224" x2="298" y2="224"/>
+            <line x1="126" y1="236" x2="298" y2="236"/>
+          </g>
+
+          <!-- Stage -->
+          <rect x="100" y="260" width="238" height="18" rx="3" fill="#8fb6dc" stroke="#3f7fbf" stroke-width="1.5"/>
+          <text x="219" y="274" text-anchor="middle" font-size="11" fill="#fff">Stage 承载台 + 定位销 + Clamp</text>
+          <!-- Load Port 立柱 -->
+          <rect x="150" y="278" width="150" height="122" fill="#e4eef8" stroke="#8fb6dc" stroke-width="1.5"/>
+          <text x="225" y="330" text-anchor="middle" font-size="11" fill="#0a4b8f">Load Port</text>
+          <text x="225" y="348" text-anchor="middle" font-size="11" fill="#0a4b8f">立柱 / 升降</text>
+          <text x="225" y="366" text-anchor="middle" font-size="11" fill="#5c6d80">（含控制板 / PIO）</text>
+
+          <!-- Port Door -->
+          <rect x="336" y="96" width="18" height="248" rx="3" fill="#9dbcd8" stroke="#3f7fbf" stroke-width="2"/>
+          <text x="345" y="368" text-anchor="middle" font-size="11" fill="#0a4b8f">Port Door</text>
+
+          <!-- 开门箭头 -->
+          <path d="M362,180 L404,180" stroke="#c07300" stroke-width="2.5" marker-end="url(#ar2)"/>
+          <text x="383" y="170" text-anchor="middle" font-size="11" fill="#a35f00">开门方向</text>
+
+          <!-- Robot -->
+          <rect x="620" y="252" width="104" height="62" rx="5" fill="#dbe9f8" stroke="#3f7fbf" stroke-width="2"/>
+          <text x="672" y="288" text-anchor="middle" font-size="12" font-weight="700" fill="#0a4b8f">Robot</text>
+          <line x1="672" y1="252" x2="596" y2="188" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round"/>
+          <line x1="596" y1="188" x2="486" y2="160" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="672" cy="252" r="6" fill="#0b6bcb"/>
+          <circle cx="596" cy="188" r="5" fill="#0b6bcb"/>
+          <!-- blade + wafer -->
+          <rect x="440" y="153" width="48" height="13" rx="3" fill="#7fb3e0" stroke="#0b6bcb" stroke-width="1.5"/>
+          <ellipse cx="418" cy="160" rx="26" ry="6" fill="#cfe4f8" stroke="#0b6bcb" stroke-width="1.5"/>
+          <text x="418" y="136" text-anchor="middle" font-size="11" fill="#0a4b8f">Blade / 末端执行器</text>
+
+          <!-- Aligner -->
+          <rect x="500" y="330" width="120" height="38" rx="4" fill="#dbe9f8" stroke="#3f7fbf" stroke-width="1.5"/>
+          <text x="560" y="354" text-anchor="middle" font-size="12" fill="#0a4b8f">Aligner 对中</text>
+
+          <!-- 通向工艺腔 -->
+          <path d="M860,200 L886,200" stroke="#0b6bcb" stroke-width="3" marker-end="url(#ar)"/>
+          <text x="830" y="188" text-anchor="middle" font-size="11" fill="#0a4b8f">→ 工艺腔</text>
+        </svg>
+        <p class="figcap">图 0-1　EFEM 侧视结构示意：左侧载具与 Load Port，右侧腔体内的搬运机械手</p>
+      </div>
+
+      <h3>0.4 为什么必须是「微环境」？——洁净与污染</h3>
+      <div class="grid2">
+        <div class="card">
+          <h4>颗粒（Particle）的杀伤力</h4>
+          <ul>
+            <li>一颗 <code>0.1 µm</code> 级别的颗粒落在关键层上，就可能直接毁掉一颗 die。</li>
+            <li>300 mm 时代线宽远小于颗粒尺寸，因此不能靠「把整个厂房做成超净」来解决问题。</li>
+            <li>做法改为：<b>FOUP 内 → EFEM 内 → 工艺腔内</b> 形成一条连续的微环境通道，外界只暴露载具外表面。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>污染的几个来源</h4>
+          <ul>
+            <li><b>机械摩擦</b>：Clamp、Latch、导轨、皮带磨损产生颗粒。</li>
+            <li><b>气流组织不良</b>：EFEM 内出现涡流，颗粒反复扬起。</li>
+            <li><b>密封失效</b>：Port Door 密封圈老化，外界空气渗入。</li>
+            <li><b>人为因素</b>：开门作业、擦拭方式不对、手套带静电吸尘。</li>
+            <li><b>AMC</b>：气态分子污染物（酸性、碱性、有机、掺杂），靠化学过滤器处理。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">新人最容易犯的错</span>
+        载具放在 Load Port 上之后，在设备还没关门完成的情况下伸手去碰 FOUP 或 Port Door。
+        正确做法：确认设备状态指示为「非取放状态」、Robot 已停止，再按 SOP 操作。
+      </div>
+
+      <h3>0.5 SEMI 标准速查（延伸查阅用）</h3>
+      <p>不需要背，但要知道「遇到这类问题，该去翻哪份标准」。下表为常见标准及大致内容，具体条款请以最新版标准与设备规格书为准。</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:110px">标准编号</th><th>大致内容</th><th style="width:180px">什么时候会用到</th></tr></thead>
+          <tbody>
+            <tr><td><b>E15</b></td><td>工具侧 Load Port 的机械接口规范（尺寸、位置、定位方式）</td><td>Load Port 高度、定位销布置争议</td></tr>
+            <tr><td><b>E47.1</b></td><td>300 mm FOUP 载具的机械接口</td><td>FOUP 与 Load Port 匹配性、定位孔</td></tr>
+            <tr><td><b>E57</b></td><td>运动学定位（Kinematic Coupling）</td><td>定位重复性、载具放置精度</td></tr>
+            <tr><td><b>E62 / E63</b></td><td>300 mm FOUP 开门接口 / 开门机构相关规范</td><td>Latch key、开门力、开门时序</td></tr>
+            <tr><td><b>E84</b></td><td>载具交接的并行 I/O 接口（PIO）握手协议</td><td>OHT 送片失败、握手超时报警</td></tr>
+            <tr><td><b>E87</b></td><td>载具管理系统（Carrier Management）</td><td>载具 ID、载具状态追踪</td></tr>
+            <tr><td><b>E90</b></td><td>基板追踪（Substrate Tracking）</td><td>晶圆级追溯、Slot 状态</td></tr>
+            <tr><td><b>E40</b></td><td>加工管理（Processing Management）</td><td>配方、批次管理</td></tr>
+            <tr><td><b>E5 / E30 / E37</b></td><td>SECS-II 消息 / GEM 通用设备模型 / HSMS 高速消息服务</td><td>设备与 MES/EAP 联机</td></tr>
+            <tr><td><b>E10</b></td><td>设备可靠性、可用性、可维护性（RAM）的定义与度量</td><td>算 Uptime、MTBF、MTTR</td></tr>
+            <tr><td><b>S2 / S8</b></td><td>半导体制造设备的电气安全 / 人体工效安全</td><td>安全评审、E-Stop、Interlock 设计</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+        <!-- ============ 第 1 章 ============ -->
+    <section class="sec" id="ch1">
+      <h2>第 1 章 · Load Port（载具接口）</h2>
+
+      <div class="callout">
+        <span class="t">本章怎么学：拆成三块，由浅入深</span>
+        <span class="mod">模块一</span><b>硬件结构</b>——先认识它身上有哪些东西。<br>
+        <span class="mod">模块二</span><b>正常动作</b>——再看它平时一步一步怎么动。<br>
+        <span class="mod">模块三</span><b>E84 模块</b>——最后看它怎么和 OHT「对话」。<br>
+        <span style="color:#5c6d80">第一次学，不用背参数、不用背故障码。把「有哪些部件」和「按什么顺序动」记住，就达到目标了。</span>
+      </div>
+
+      <!-- ===================== 模块一 ===================== -->
+      <h3 id="ch1-hw"><span class="mod">模块一</span>硬件结构：它身上有哪些东西</h3>
+
+      <p>
+        用一句话形容 Load Port：<b>它是一个「带门、带锁、带眼睛的停车位」</b>。
+        载具（FOUP）开进来停下，它负责停稳、锁住、把载具的门打开、看清楚里面有几片晶圆。
+      </p>
+
+      <div class="card">
+        <svg viewBox="0 0 900 470" role="img" aria-label="Load Port 硬件结构编号示意图">
+          <defs>
+            <marker id="arA" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6 z" fill="#c07300"/>
+            </marker>
+          </defs>
+
+          <!-- 地面 -->
+          <line x1="20" y1="452" x2="880" y2="452" stroke="#c8d4e0" stroke-width="2"/>
+
+          <!-- EFEM 腔体 -->
+          <rect x="492" y="52" width="380" height="390" rx="8" fill="#f7fbff" stroke="#8fb6dc" stroke-width="2"/>
+          <text x="682" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#0a4b8f">EFEM 内部</text>
+
+          <!-- Robot 示意 -->
+          <circle cx="770" cy="330" r="8" fill="#0b6bcb"/>
+          <line x1="770" y1="330" x2="700" y2="270" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round"/>
+          <line x1="700" y1="270" x2="610" y2="250" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round"/>
+          <rect x="566" y="243" width="46" height="12" rx="3" fill="#7fb3e0" stroke="#0b6bcb" stroke-width="1.5"/>
+          <text x="730" y="366" text-anchor="middle" font-size="11" fill="#5c6d80">Robot（第 2 章）</text>
+
+          <!-- FOUP -->
+          <rect x="140" y="82" width="250" height="200" rx="6" fill="#fff" stroke="#3f7fbf" stroke-width="2.5"/>
+          <text x="265" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#0a4b8f">FOUP 载具</text>
+          <g stroke="#7fb3e0" stroke-width="1.4">
+            <line x1="152" y1="140" x2="378" y2="140"/>
+            <line x1="152" y1="156" x2="378" y2="156"/>
+            <line x1="152" y1="172" x2="378" y2="172"/>
+          </g>
+          <text x="265" y="212" text-anchor="middle" font-size="11" fill="#5c6d80">里面 25 个槽位</text>
+
+          <!-- 载具门 -->
+          <rect x="390" y="92" width="20" height="180" fill="#dbe9f8" stroke="#3f7fbf" stroke-width="2"/>
+          <circle cx="400" cy="132" r="5" fill="#c07300"/>
+          <circle cx="400" cy="222" r="5" fill="#c07300"/>
+
+          <!-- Stage -->
+          <rect x="120" y="282" width="290" height="24" rx="3" fill="#8fb6dc" stroke="#3f7fbf" stroke-width="1.5"/>
+
+          <!-- 定位销 -->
+          <path d="M190,282 L190,258" stroke="#c07300" stroke-width="5" stroke-linecap="round"/>
+          <path d="M340,282 L340,258" stroke="#c07300" stroke-width="5" stroke-linecap="round"/>
+
+          <!-- Clamp -->
+          <path d="M120,274 L96,274 L96,316 L120,316" fill="none" stroke="#d33b3b" stroke-width="3.5"/>
+          <path d="M410,274 L434,274 L434,316 L410,316" fill="none" stroke="#d33b3b" stroke-width="3.5"/>
+
+          <!-- Load Port 立柱 -->
+          <rect x="190" y="306" width="160" height="134" fill="#e4eef8" stroke="#8fb6dc" stroke-width="1.5"/>
+          <text x="270" y="356" text-anchor="middle" font-size="11" fill="#0a4b8f">Load Port 本体</text>
+
+          <!-- Port Door -->
+          <rect x="470" y="82" width="22" height="290" rx="3" fill="#9dbcd8" stroke="#3f7fbf" stroke-width="2"/>
+
+          <!-- Door Opener -->
+          <rect x="524" y="170" width="52" height="62" rx="5" fill="#dbe9f8" stroke="#3f7fbf" stroke-width="1.5"/>
+          <path d="M414,200 L520,200" stroke="#c07300" stroke-width="2.5" marker-end="url(#arA)"/>
+
+          <!-- Mapping 光路 -->
+          <line x1="452" y1="110" x2="452" y2="272" stroke="#0f8f9e" stroke-width="1.8" stroke-dasharray="6,5"/>
+
+          <!-- ID Reader -->
+          <rect x="110" y="124" width="18" height="42" rx="3" fill="#cfe4f8" stroke="#3f7fbf" stroke-width="1.5"/>
+          <path d="M130,140 L150,140" stroke="#0b6bcb" stroke-width="2"/>
+
+          <!-- Presence Sensor -->
+          <rect x="232" y="310" width="22" height="14" rx="3" fill="#cfe4f8" stroke="#3f7fbf" stroke-width="1.5"/>
+
+          <!-- PIO -->
+          <rect x="204" y="408" width="60" height="22" rx="4" fill="#cfe4f8" stroke="#3f7fbf" stroke-width="1.5"/>
+
+          <!-- 编号圈 -->
+          <g font-size="13" font-weight="700" text-anchor="middle" fill="#fff">
+            <circle cx="88" cy="262" r="14" fill="#0b6bcb"/><text x="88" y="267">1</text>
+            <circle cx="190" cy="236" r="14" fill="#0b6bcb"/><text x="190" y="241">2</text>
+            <circle cx="70" cy="336" r="14" fill="#0b6bcb"/><text x="70" y="341">3</text>
+            <circle cx="444" cy="132" r="14" fill="#0b6bcb"/><text x="444" y="137">4</text>
+            <circle cx="560" cy="142" r="14" fill="#0b6bcb"/><text x="560" y="147">5</text>
+            <circle cx="470" cy="398" r="14" fill="#0b6bcb"/><text x="470" y="403">6</text>
+            <circle cx="418" cy="96" r="14" fill="#0b6bcb"/><text x="418" y="101">7</text>
+            <circle cx="96" cy="96" r="14" fill="#0b6bcb"/><text x="96" y="101">8</text>
+            <circle cx="288" cy="340" r="14" fill="#0b6bcb"/><text x="288" y="345">9</text>
+            <circle cx="176" cy="428" r="14" fill="#0b6bcb"/><text x="176" y="433">10</text>
+          </g>
+        </svg>
+        <p class="figcap">图 1-1　Load Port 硬件结构（编号对应下表）</p>
+      </div>
+
+      <h4>部件清单：10 个东西，认全就够入门了</h4>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th class="c" style="width:46px">编号</th>
+              <th style="width:150px">正式名称</th>
+              <th style="width:110px">大白话</th>
+              <th>干什么用的</th>
+              <th style="width:170px">新人要知道的一件事</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="phase"><td colspan="5">第一组 · 接住载具</td></tr>
+            <tr>
+              <td class="c"><span class="num">1</span></td>
+              <td><b>Stage</b><br>承载台</td>
+              <td>停车位的地面</td>
+              <td>载具就放在这块平面上</td>
+              <td>台面必须干净、无划伤，有颗粒会导致载具放不平</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">2</span></td>
+              <td><b>定位销</b><br>Kinematic Pin</td>
+              <td>地上的卡位</td>
+              <td>让载具每次都停在<strong>完全相同</strong>的位置</td>
+              <td>销子磨损或粘颗粒 → 载具位置偏 → 开门困难</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">3</span></td>
+              <td><b>Clamp</b><br>夹紧机构</td>
+              <td>停车后的挡块</td>
+              <td>从两侧把载具夹住，防止开门时被带跑</td>
+              <td>夹紧必须在开门之前完成</td>
+            </tr>
+            <tr class="phase"><td colspan="5">第二组 · 开门</td></tr>
+            <tr>
+              <td class="c"><span class="num">4</span></td>
+              <td><b>Latch Key</b><br>开锁钥匙</td>
+              <td>开载具门的钥匙</td>
+              <td>插进载具门上的锁孔，转一下把门解锁</td>
+              <td>钥匙会磨损打滑，是常见「开不了门」的原因</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">5</span></td>
+              <td><b>Door Opener</b><br>开门机构</td>
+              <td>拉门的手</td>
+              <td>吸住载具门，把它从载具上拉下来、让开</td>
+              <td>靠真空吸住，吸盘老化会「吸不住」</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">6</span></td>
+              <td><b>Port Door</b><br>接口挡门</td>
+              <td>设备的大门</td>
+              <td>平时关着，把 EFEM 内部和外界隔开</td>
+              <td>边缘有密封圈，老化会漏气、进颗粒</td>
+            </tr>
+            <tr class="phase"><td colspan="5">第三组 · 看（检测）</td></tr>
+            <tr>
+              <td class="c"><span class="num">7</span></td>
+              <td><b>Mapping Sensor</b><br>扫片传感器</td>
+              <td>扫描仪</td>
+              <td>扫一遍，数出每个槽位有没有晶圆</td>
+              <td>镜面脏了会误报「空槽」或「双片」</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">8</span></td>
+              <td><b>ID Reader</b><br>载具读头</td>
+              <td>扫码枪</td>
+              <td>读载具上的编号，确认是不是本站该收的载具</td>
+              <td>读不到不一定是设备坏，先看标签有没有污损</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">9</span></td>
+              <td><b>Presence Sensor</b><br>有无载具传感器</td>
+              <td>感应器</td>
+              <td>告诉设备「台子上到底有没有载具」</td>
+              <td>这是所有动作的第一道判断，误报会连锁报警</td>
+            </tr>
+            <tr class="phase"><td colspan="5">第四组 · 说话（通讯）</td></tr>
+            <tr>
+              <td class="c"><span class="num">10</span></td>
+              <td><b>PIO 接口</b><br>并行 I/O</td>
+              <td>对讲机</td>
+              <td>和 OHT 交换信号，决定「谁来取、谁来放」</td>
+              <td>这就是<strong>模块三</strong>要讲的内容</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <span class="t">四组一句话记住</span>
+        <b>接住</b>（Stage / 定位销 / Clamp）→ <b>开门</b>（Latch Key / Door Opener / Port Door）→
+        <b>看</b>（Mapping / ID Reader / Presence Sensor）→ <b>说话</b>（PIO）。
+      </div>
+
+      <details>
+        <summary>实地对照练习：去现场把这 10 个东西找出来</summary>
+        <div class="ans">
+          <p>带着这张表到设备前，逐项确认（<b>注意：必须在设备停止、且不违反厂内安全规定的状态下进行</b>）：</p>
+          <ol>
+            <li>Stage 台面在哪？用手电筒侧照，看有没有颗粒或划伤。</li>
+            <li>定位销长什么样？几个？在哪个位置？</li>
+            <li>Clamp 在载具的哪一侧？动作方向是什么？</li>
+            <li>载具门上的 Latch 锁孔在哪？Latch Key 在门机构的什么位置？</li>
+            <li>Port Door 关上时，缝隙均匀吗？</li>
+            <li>Mapping 传感器的光路窗口在哪？</li>
+            <li>ID Reader 装在哪一侧？</li>
+            <li>Presence Sensor 在哪？用手挡一下看指示灯变化（如允许）。</li>
+            <li>PIO 端子排/连接器在哪个电气箱里？</li>
+          </ol>
+          <p>能全部指出来，模块一就通过了。</p>
+        </div>
+      </details>
+
+      <!-- ===================== 模块二 ===================== -->
+      <h3 id="ch1-seq"><span class="mod">模块二</span>正常动作：它平时一步一步怎么动</h3>
+
+      <p>
+        场景：OHT 送来一盒 FOUP → 设备把里面的晶圆取出来加工 → 加工完放回去 → OHT 把 FOUP 取走。
+        整个过程分成 <b>4 个阶段、10 个动作</b>。
+      </p>
+
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th class="c" style="width:52px">动作</th>
+              <th style="width:130px">叫什么</th>
+              <th style="width:110px">谁在动</th>
+              <th>具体做什么</th>
+              <th style="width:180px">做完的标志</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="phase"><td colspan="5">阶段一 · 进站（载具来、停下、锁好）</td></tr>
+            <tr>
+              <td class="c"><span class="num">1</span></td>
+              <td><b>载具到位</b></td>
+              <td>OHT</td>
+              <td>OHT 把 FOUP 放到 Stage 上，然后离开</td>
+              <td>Presence Sensor 检测到「有载具」</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">2</span></td>
+              <td><b>夹紧定位</b></td>
+              <td>Load Port</td>
+              <td>Clamp 动作，把载具推到定位销上并夹住</td>
+              <td>Clamp 到位信号 = 1</td>
+            </tr>
+
+            <tr class="phase"><td colspan="5">阶段二 · 开门（读身份、开门、数片）</td></tr>
+            <tr>
+              <td class="c"><span class="num">3</span></td>
+              <td><b>读载具 ID</b></td>
+              <td>Load Port</td>
+              <td>ID Reader 读取 FOUP 编号，上报给主机</td>
+              <td>主机确认「这是我该收的载具」</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">4</span></td>
+              <td><b>解锁</b></td>
+              <td>Load Port</td>
+              <td>Latch Key 插入载具门锁孔，旋转解锁</td>
+              <td>载具门锁扣松开</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">5</span></td>
+              <td><b>拉门</b></td>
+              <td>Load Port</td>
+              <td>Door Opener 吸住载具门，把它拉进 EFEM 内并让开</td>
+              <td>门完全让开，机械手有取片空间</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">6</span></td>
+              <td><b>扫片 Mapping</b></td>
+              <td>Load Port</td>
+              <td>Mapping 光束从上到下扫过 25 个槽位</td>
+              <td>得到一张「哪个槽有片」的清单</td>
+            </tr>
+
+            <tr class="phase"><td colspan="5">阶段三 · 取放片（机械手干活）</td></tr>
+            <tr>
+              <td class="c"><span class="num">7</span></td>
+              <td><b>取片</b></td>
+              <td>Robot</td>
+              <td>按 Mapping 结果，逐片从槽位取出，送去对中、进工艺腔</td>
+              <td>真空吸附确认「吸住了」</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">8</span></td>
+              <td><b>回片</b></td>
+              <td>Robot</td>
+              <td>加工完成后，把晶圆放回指定的槽位</td>
+              <td>放回完成信号</td>
+            </tr>
+
+            <tr class="phase"><td colspan="5">阶段四 · 出站（关门、松开、走人）</td></tr>
+            <tr>
+              <td class="c"><span class="num">9</span></td>
+              <td><b>关门锁定</b></td>
+              <td>Load Port</td>
+              <td>把载具门推回去，Latch Key 反向旋转锁紧；Port Door 关闭</td>
+              <td>门锁到位、密封恢复</td>
+            </tr>
+            <tr>
+              <td class="c"><span class="num">10</span></td>
+              <td><b>松夹出站</b></td>
+              <td>Load Port + OHT</td>
+              <td>Clamp 松开，通知 OHT 来取载具</td>
+              <td>载具被 OHT 取走，本站空闲</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout ok">
+        <span class="t">口诀</span>
+        <b>接 → 夹 → 读 → 开 → 扫 → 取 → 还 → 关 → 松 → 走</b>。
+        任何一次报警，先问自己「卡在第几个动作」，范围立刻就小了一半。
+      </div>
+
+      <h4>动作和部件怎么对上</h4>
+      <p>把模块一和模块二连起来看，就明白每个部件是在哪一步出场的：</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:130px">动作</th><th>用到的部件</th><th style="width:220px">这一步常见的卡点</th></tr></thead>
+          <tbody>
+            <tr><td>1 载具到位</td><td>Stage、Presence Sensor</td><td>传感器脏污 → 误报「没有载具」</td></tr>
+            <tr><td>2 夹紧定位</td><td>定位销、Clamp</td><td>定位销有颗粒、Clamp 气压不足</td></tr>
+            <tr><td>3 读 ID</td><td>ID Reader</td><td>标签污损、读头脏</td></tr>
+            <tr><td>4 解锁</td><td>Latch Key</td><td>钥匙磨损打滑、锁扣卡住</td></tr>
+            <tr><td>5 拉门</td><td>Door Opener、Port Door</td><td>吸盘失真空、密封圈粘黏</td></tr>
+            <tr><td>6 扫片</td><td>Mapping Sensor</td><td>镜面脏、光路偏 → 误报空槽/双片</td></tr>
+            <tr><td>7 / 8 取放片</td><td>Robot（第 2 章）</td><td>真空异常、示教偏移</td></tr>
+            <tr><td>9 关门</td><td>Door Opener、Latch Key、Port Door</td><td>门被带歪、锁不紧</td></tr>
+            <tr><td>10 松夹出站</td><td>Clamp、PIO</td><td>Clamp 松不开、握手超时</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details>
+        <summary>新人最常问的 4 个问题</summary>
+        <div class="ans">
+          <p><b>Q1：为什么一定要先夹紧再开门？</b><br>
+          因为开门时 Latch Key 会旋转、Door Opener 会往外拉，载具会被带动。如果不夹紧，载具可能被拉偏甚至移位，导致后续机械手取片位置不对。</p>
+
+          <p><b>Q2：为什么一定要做 Mapping？</b><br>
+          因为设备「看不见」载具里面。机械手如果去一个空槽取片，会白跑一趟；如果槽里插了两片，直接去取就会碰片。Mapping 就是提前把「哪里有几片」问清楚。</p>
+
+          <p><b>Q3：载具放歪了会怎么样？</b><br>
+          定位销就是用来防止这件事的。如果载具真的放歪（比如台面有颗粒），Clamp 可能夹不到位，或者 Latch Key 对不准锁孔，设备会在「夹紧」或「解锁」这一步报超时。</p>
+
+          <p><b>Q4：这 10 个动作要多久？</b><br>
+          远比你想象的快——整套开门+扫片通常在几秒内完成。这也是为什么不能随便伸手进去，机构动作速度很快。</p>
+        </div>
+      </details>
+
+      <!-- ===================== 模块三 ===================== -->
+      <h3 id="ch1-e84"><span class="mod">模块三</span>E84 模块：它怎么和 OHT「说话」</h3>
+
+      <div class="callout">
+        <span class="t">先搞清楚为什么要「说话」</span>
+        OHT 是一台自动搬运车，Load Port 是接口。两边都不是人，必须事先约好一套「对话规则」，
+        否则会出事故：OHT 以为可以放，设备却还没准备好；或者设备还没关门，OHT 就伸手来取。<br>
+        这套规则就是 <b>SEMI E84</b>（载具交接的并行 I/O 接口）。
+      </div>
+
+      <h4>E84 是什么？</h4>
+      <ul>
+        <li><b>它不是网络协议</b>，而是几根实实在在的<b>信号线</b>（硬线）。</li>
+        <li>双方通过「把线拉高 / 拉低」来传递意思，一方发、另一方读。</li>
+        <li>因为走硬线，所以<b>快、可靠、不依赖网络</b>——哪怕 MES 断了，OHT 照样能把片子送进来。</li>
+        <li>接口就叫 <b>PIO</b>（Parallel I/O，并行 I/O），也就是模块一里的第 10 号部件。</li>
+      </ul>
+
+      <div class="callout ok">
+        <span class="t">打个比方：两个人交接一个箱子</span>
+        甲（设备）：我这边有空位了 → 乙（OHT）：我要放箱子过来 → 甲：好，你放 →
+        乙：放好了 → 甲：收到，我接手了。<br>
+        每一步都要等对方回应，谁也不能抢跑。E84 就是把这段话变成了电信号。
+      </div>
+
+      <h4>常见的 E84 信号</h4>
+      <p>不同厂商实现可能略有差异，下表是<b>示意性</b>的常见信号，实际以设备的 PIO 接口规格书为准。</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:150px">信号</th><th style="width:140px">谁发出</th><th>大白话含义</th></tr></thead>
+          <tbody>
+            <tr class="phase"><td colspan="3">设备侧（Load Port）发给 OHT 的</td></tr>
+            <tr><td><code>L_REQ</code></td><td>设备</td><td>「我要装一个载具，请你送来」</td></tr>
+            <tr><td><code>U_REQ</code></td><td>设备</td><td>「我要还一个载具，请你取走」</td></tr>
+            <tr><td><code>READY</code></td><td>设备</td><td>「我准备好了，你可以放/取」</td></tr>
+            <tr><td><code>BUSY</code></td><td>设备</td><td>「我正忙着，等一下」</td></tr>
+            <tr><td><code>COMPT</code></td><td>设备</td><td>「这次交接我完成了」</td></tr>
+            <tr><td><code>HO_AVBL</code></td><td>设备</td><td>「我这里有可用的交接位」</td></tr>
+            <tr class="phase"><td colspan="3">AMHS 侧（OHT）发给设备的</td></tr>
+            <tr><td><code>TR_REQ</code></td><td>OHT</td><td>「我要来交接了」</td></tr>
+            <tr><td><code>BUSY</code></td><td>OHT</td><td>「我正忙着，等一下」</td></tr>
+            <tr><td><code>COMPT</code></td><td>OHT</td><td>「我这边动作完成」</td></tr>
+            <tr><td><code>CONT</code></td><td>OHT</td><td>「继续」</td></tr>
+            <tr><td><code>VALID</code> / <code>CS_0</code> / <code>CS_1</code></td><td>OHT</td><td>「载具 ID 有效」+ 选通位</td></tr>
+            <tr><td><code>ES</code></td><td>OHT</td><td>急停信号</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>场景一：OHT 把载具送过来（Load）</h4>
+      <ol class="steps">
+        <li><b>设备说「我要片」</b>设备置 <code>L_REQ</code>，表示这个 Load Port 需要一个载具。</li>
+        <li><b>设备说「位置是空的」</b>设备置 <code>HO_AVBL</code>，表示交接位可用。</li>
+        <li><b>OHT 说「我来了」</b>OHT 置 <code>TR_REQ</code>，表示它要执行这次交接。</li>
+        <li><b>设备说「可以放」</b>设备置 <code>READY</code>，OHT 开始下降放载具。</li>
+        <li><b>OHT 放好</b>OHT 置 <code>BUSY</code>，放完置 <code>COMPT</code>。</li>
+        <li><b>设备确认接手</b>设备读 <code>COMPT</code>，撤销 <code>L_REQ</code>，OHT 撤销 <code>TR_REQ</code>、<code>BUSY</code>、<code>COMPT</code>，然后离开。</li>
+        <li><b>回到模块二的第 1 步</b>Presence Sensor 确认有载具，接下来就是「夹 → 读 → 开 → 扫」。</li>
+      </ol>
+
+      <h4>场景二：OHT 把载具取走（Unload）</h4>
+      <ol class="steps">
+        <li>设备完成取放片、关门锁紧、Clamp 松开后，置 <code>U_REQ</code>：「我这边好了，来取吧」。</li>
+        <li>OHT 置 <code>TR_REQ</code> 响应。</li>
+        <li>设备置 <code>READY</code>，表示可以取。</li>
+        <li>OHT 取走载具，置 <code>COMPT</code>。</li>
+        <li>设备撤销 <code>U_REQ</code>，OHT 撤销相关信号，本站恢复空闲。</li>
+      </ol>
+
+      <h4>场景三：异常与急停（ES）</h4>
+      <ul>
+        <li>OHT 置 <code>ES</code>（急停）时，设备必须停止动作并给出响应。</li>
+        <li>设备侧出现报警、门未关好、Robot 异常时，不能给 <code>READY</code>，否则 OHT 会以为可以动作。</li>
+        <li>任何一方信号异常，握手就会「卡住」，表现为超时报警。</li>
+      </ul>
+
+      <h4>E84 出问题的典型现象</h4>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:250px">现象</th><th>可能是哪一侧的问题</th><th>先看什么</th></tr></thead>
+          <tbody>
+            <tr><td>OHT 停在设备前不动，报握手超时</td><td>设备侧没给 <code>READY</code> / <code>HO_AVBL</code></td><td>Load Port 是不是被禁用（Disable）或处于手动模式</td></tr>
+            <tr><td>载具放下后设备迟迟不动作</td><td>Presence Sensor 没识别到，或 E84 没走完</td><td>IO 监视页：各信号是否按顺序变化</td></tr>
+            <tr><td>载具取不走，OHT 反复重试</td><td>设备没置 <code>U_REQ</code>，或 Clamp 没松开</td><td>设备是否还在「关门/松夹」阶段、有无未清报警</td></tr>
+            <tr><td>信号时好时坏</td><td>端子接触不良、线缆松动</td><td>端子排紧固、线缆走向有无拉扯</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">排查三步走</span>
+        ① <b>看状态</b>：Load Port 是否 Enable、有无未清报警、是否处于手动。<br>
+        ② <b>看信号</b>：打开 IO 监视页，看哪个信号该变没变。<br>
+        ③ <b>看时序</b>：拿标准时序图对比，找出卡在第几步。<br>
+        不要凭记忆短接信号线——这是最容易被禁止的操作之一。
+      </div>
+
+      <div class="callout">
+        <span class="t">E84 和 SECS/GEM 别搞混</span>
+        <b>E84（PIO）</b>：设备 ↔ OHT，硬线信号，毫秒级，负责「谁在什么时候能动手」。<br>
+        <b>SECS/GEM</b>：设备 ↔ 主机（MES/EAP），走网络，秒级，负责「这批片子是谁的、该用什么配方」。<br>
+        两条通道互相独立，排查时分开看。
+      </div>
+
+      <!-- ===================== 进阶 ===================== -->
+      <h3><span class="mod">进阶</span>有余力再看</h3>
+      <p>下面这些属于第二阶段的内容，第一次学可以跳过。</p>
+
+      <details>
+        <summary>定位销为什么要用「一圆销 + 一菱形销」？</summary>
+        <div class="ans">
+          平面上的刚体有 6 个自由度（3 个平移 + 3 个旋转）。如果两个销都是圆柱销，会「过约束」，
+          载具放不下去或产生应力。经典做法是：圆销约束 2 个平移自由度，菱形销只约束 1 个平移 + 1 个旋转，
+          底面再约束剩下的自由度——刚好 6 个全约束，且可重复装配。这就是 <b>Kinematic Coupling</b>。
+        </div>
+      </details>
+
+      <details>
+        <summary>Mapping 的四种典型结果与处理原则</summary>
+        <div class="ans">
+          <table>
+            <thead><tr><th style="width:150px">状态</th><th>含义</th><th>处理原则</th></tr></thead>
+            <tbody>
+              <tr><td><span class="tag g">Normal</span></td><td>槽位有且仅有一片，位置正常</td><td>正常取片</td></tr>
+              <tr><td><span class="tag b">Empty</span></td><td>空槽</td><td>跳过，不取</td></tr>
+              <tr><td><span class="tag r">Double / Cross</span></td><td>一个槽位两片，或晶圆斜插跨两槽</td><td><b>禁止自动取片</b>，按 SOP 隔离并人工确认</td></tr>
+              <tr><td><span class="tag o">Unknown</span></td><td>Mapping 失败或传感器异常</td><td>先查传感器与光路，不要盲目继续</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>Port Door 密封失效会带来什么后果？</summary>
+        <div class="ans">
+          EFEM 内部通常维持微正压，靠 Port Door 密封圈隔绝外界。密封失效会导致：
+          ① 外界颗粒进入，Particle 超标，影响良率；
+          ② 湿度/氧含量波动，对铜、低 k 等工艺产生氧化风险；
+          ③ 压力波动导致内部气流组织紊乱，触发压力报警。
+        </div>
+      </details>
+
+      <details>
+        <summary>关键规格参数（典型值参考）</summary>
+        <div class="ans">
+          <table>
+            <thead><tr><th style="width:200px">项目</th><th>说明</th><th style="width:190px">备注</th></tr></thead>
+            <tbody>
+              <tr><td>载具类型</td><td>支持 FOUP / FOSB 等</td><td>300 mm 前开式</td></tr>
+              <tr><td>台面高度</td><td>与 OHT 交接高度相关</td><td>按 SEMI E15 与厂内 OHT 配置确定</td></tr>
+              <tr><td>定位重复精度</td><td>载具每次落位的一致性</td><td>数十微米级（依机构而定）</td></tr>
+              <tr><td>开门时间</td><td>从解锁到门完全让开</td><td>秒级，直接影响产能</td></tr>
+              <tr><td>Mapping 时间</td><td>扫描 25 槽</td><td>数秒内</td></tr>
+              <tr><td>夹紧力</td><td>既要固定又不能使载具变形</td><td>按规格设定，不可随意调整</td></tr>
+              <tr><td>MTBF / MTTR</td><td>平均无故障间隔 / 平均修复时间</td><td>按 SEMI E10 定义统计</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>常见报警速查表</summary>
+        <div class="ans">
+          <table>
+            <thead><tr><th style="width:210px">报警 / 现象</th><th style="width:210px">可能原因</th><th>处理思路</th></tr></thead>
+            <tbody>
+              <tr><td>Presence 异常（有载具报无 / 反之）</td><td>传感器脏污、位置偏移、线缆松脱</td><td>清洁并确认传感器位置；用空 FOUP 验证；查 I/O 状态</td></tr>
+              <tr><td>Clamp 夹紧超时</td><td>气压不足、夹爪卡异物、到位传感器失效</td><td>确认气压；目视夹爪；手动动作测试</td></tr>
+              <tr><td>Door Open / Close 超时</td><td>Latch 卡死、吸盘失真空、导轨阻力大</td><td>不要强行拉扯；先查真空值，再查机械阻力与润滑</td></tr>
+              <tr><td>Latch 无法解锁</td><td>钥匙磨损打滑、锁扣损坏、载具故障</td><td>换备用载具验证；检查钥匙磨损量</td></tr>
+              <tr><td>Mapping 双片 / 斜片</td><td>前段插错、槽位损坏、取放碰片</td><td>禁止自动继续；按 SOP 隔离载具并通报</td></tr>
+              <tr><td>Mapping 全空但应有片</td><td>传感器脏、光路偏移、被遮挡</td><td>清洁镜面；用已知有片载具做对照测试</td></tr>
+              <tr><td>Carrier ID 读取失败</td><td>标签污损、读头脏、载具位置偏</td><td>清洁读头；按 SOP 手动补录并记录</td></tr>
+              <tr><td>EFEM 压力 / 洁净度报警</td><td>Port Door 密封失效、FFU 异常、排风不畅</td><td>检查密封圈与门体、压差表、排风管路</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <details>
+        <summary>日常点检要点</summary>
+        <div class="ans">
+          <p><b>每班：</b>Stage 台面与定位销无颗粒/划伤；Presence Sensor 指示与实际一致；Port Door 关闭无缝隙、无异常声；无遗留报警。</p>
+          <p><b>每周：</b>清洁 Mapping 镜面与光路窗口；检查 Clamp 夹爪磨损与动作平顺度；检查 Latch Key 磨损并补专用润滑脂；检查 Port Door 密封圈。</p>
+          <p><b>耗材关注：</b>门密封圈、Clamp 夹爪与导轨滑块、Latch Key 组件、Mapping 传感器与吸盘、指定型号润滑脂。</p>
+        </div>
+      </details>
+
+      <div class="callout bad">
+        <span class="t">安全红线</span>
+        任何涉及门机构、Clamp、Latch 的检查，必须先让 Load Port 进入安全状态（手动 / 断电 / LOTO），
+        并确认 Robot 不会误动作。<b>严禁在门机构动作过程中伸手。</b>
+      </div>
+    </section>
+
+    <!-- ============ 第 2 章 ============ -->
+    <section class="sec" id="ch2">
+      <h2>第 2 章 · Robot（搬运机械手）</h2>
+
+      <h3>2.1 一句话定义</h3>
+      <div class="callout">
+        <span class="t">定义</span>
+        EFEM 内的 Robot 是<b>负责在载具、对中台（Aligner）、缓存位（Buffer）与工艺腔之间搬运晶圆的机械手</b>。
+        它不改变晶圆的工艺状态，只负责「安全、快速、无污染、不碰伤」地移动晶圆。
+      </div>
+
+      <h3>2.2 常见构型对比</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:170px">构型</th><th>特点</th><th style="width:150px">典型场景</th><th style="width:130px">关注点</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>大气机械手</b><br>Atmospheric</td>
+              <td>工作在 EFEM 常压洁净环境中，负载小，速度快</td>
+              <td>EFEM 内取放片</td>
+              <td>颗粒、洁净度</td>
+            </tr>
+            <tr>
+              <td><b>真空机械手</b><br>Vacuum</td>
+              <td>工作在真空传输腔（VTM）内，结构与润滑要求特殊</td>
+              <td>工艺腔之间传输</td>
+              <td>放气率、耐真空润滑</td>
+            </tr>
+            <tr>
+              <td><b>单臂 / 双臂</b></td>
+              <td>单臂结构简单；双臂可一片取一片放，提升吞吐</td>
+              <td>高产率设备用双臂</td>
+              <td>干涉风险、示教复杂度</td>
+            </tr>
+            <tr>
+              <td><b>蛙腿式</b><br>Frog-leg / SCARA</td>
+              <td>多连杆联动，末端始终沿径向直线运动，刚性好</td>
+              <td>经典 EFEM 构型</td>
+              <td>连杆间隙、皮带张力</td>
+            </tr>
+            <tr>
+              <td><b>直驱式</b><br>Direct Drive</td>
+              <td>电机直接驱动关节，无皮带/减速机，精度高、颗粒少</td>
+              <td>高洁净、高精度场合</td>
+              <td>成本高、维修需专业</td>
+            </tr>
+            <tr>
+              <td><b>水平多关节</b></td>
+              <td>类似工业 SCARA，结构成熟、成本可控</td>
+              <td>部分 EFEM / 封测设备</td>
+              <td>示教一致性</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>2.3 运动学：R-θ-Z</h3>
+      <p>
+        绝大多数 EFEM 机械手的定位由三个自由度决定：
+      </p>
+      <dl class="kv">
+        <dt>R（Radial）</dt><dd>末端沿径向伸出/缩回的距离，决定「伸多远」</dd>
+        <dt>θ（Theta）</dt><dd>整体旋转角度，决定「朝哪个方向」</dd>
+        <dt>Z（Z-axis）</dt><dd>升降高度，决定「对哪一层槽位 / 哪个工位」</dd>
+      </dl>
+      <p>因此一个「取片位置」在控制器里通常就是一组 <code>(R, θ, Z)</code> 参数，称为一个 <b>Station</b> 或 <b>Position</b>。</p>
+
+      <div class="card">
+        <svg viewBox="0 0 900 400" role="img" aria-label="Robot R-θ-Z 运动学示意">
+          <defs>
+            <marker id="ar4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6 z" fill="#0f8f9e"/>
+            </marker>
+            <marker id="ar5" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6 z" fill="#c07300"/>
+            </marker>
+          </defs>
+
+          <!-- 左：俯视图 -->
+          <text x="230" y="34" text-anchor="middle" font-size="14" font-weight="700" fill="#0a4b8f">俯视图：R 与 θ</text>
+          <circle cx="200" cy="230" r="86" fill="none" stroke="#dbe9f8" stroke-width="2"/>
+          <!-- 旋转弧 -->
+          <path d="M200,144 A86,86 0 0,1 286,230" fill="none" stroke="#c07300" stroke-width="2.5" stroke-dasharray="6,4" marker-end="url(#ar5)"/>
+          <text x="252" y="160" font-size="12" fill="#a35f00">θ 旋转</text>
+          <!-- 基座 -->
+          <circle cx="200" cy="230" r="16" fill="#0b6bcb"/>
+          <!-- 臂1 -->
+          <line x1="200" y1="230" x2="286" y2="150" stroke="#0b6bcb" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="286" cy="150" r="8" fill="#0b6bcb"/>
+          <!-- 臂2 -->
+          <line x1="286" y1="150" x2="372" y2="182" stroke="#0b6bcb" stroke-width="6" stroke-linecap="round"/>
+          <!-- blade -->
+          <rect x="372" y="175" width="46" height="14" rx="4" fill="#7fb3e0" stroke="#0b6bcb" stroke-width="1.5"/>
+          <ellipse cx="440" cy="182" rx="30" ry="8" fill="#cfe4f8" stroke="#0b6bcb" stroke-width="1.5"/>
+          <text x="440" y="216" text-anchor="middle" font-size="12" fill="#0a4b8f">晶圆</text>
+          <!-- R 箭头 -->
+          <path d="M200,230 L430,182" stroke="#0f8f9e" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#ar4)"/>
+          <text x="320" y="246" font-size="12" fill="#0f8f9e">R 径向伸出</text>
+
+          <!-- 右：侧视图 -->
+          <text x="670" y="34" text-anchor="middle" font-size="14" font-weight="700" fill="#0a4b8f">侧视图：Z 升降</text>
+          <line x1="500" y1="360" x2="870" y2="360" stroke="#c8d4e0" stroke-width="2"/>
+          <rect x="600" y="300" width="140" height="60" rx="6" fill="#dbe9f8" stroke="#3f7fbf" stroke-width="2"/>
+          <text x="670" y="336" text-anchor="middle" font-size="12" font-weight="700" fill="#0a4b8f">Robot 基座</text>
+          <!-- Z 轴 -->
+          <line x1="670" y1="300" x2="670" y2="110" stroke="#c07300" stroke-width="3" stroke-dasharray="7,5" marker-end="url(#ar5)"/>
+          <text x="700" y="150" font-size="13" fill="#a35f00">Z 升降行程</text>
+          <!-- 层位 -->
+          <line x1="560" y1="180" x2="880" y2="180" stroke="#b9d4ec" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <line x1="560" y1="230" x2="880" y2="230" stroke="#b9d4ec" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <line x1="560" y1="280" x2="880" y2="280" stroke="#b9d4ec" stroke-width="1.5" stroke-dasharray="4,4"/>
+          <text x="540" y="184" text-anchor="end" font-size="11" fill="#5c6d80">Slot 25</text>
+          <text x="540" y="234" text-anchor="end" font-size="11" fill="#5c6d80">Slot 13</text>
+          <text x="540" y="284" text-anchor="end" font-size="11" fill="#5c6d80">Slot 1</text>
+          <!-- 臂在中间层 -->
+          <line x1="670" y1="230" x2="600" y2="230" stroke="#0b6bcb" stroke-width="5" stroke-linecap="round"/>
+          <rect x="556" y="224" width="44" height="12" rx="3" fill="#7fb3e0" stroke="#0b6bcb" stroke-width="1.5"/>
+        </svg>
+        <p class="figcap">图 2-1　R-θ-Z 三自由度：径向伸出、整体旋转、升降定位</p>
+      </div>
+
+      <h3>2.4 末端执行器（Blade）与晶圆夹持</h3>
+      <div class="grid2">
+        <div class="card">
+          <h4>常见夹持方式</h4>
+          <ul>
+            <li><b>真空吸附（Vacuum Chuck）</b>：最常用。靠负压把晶圆吸在 blade 背面，需要真空检测确认「吸住了」。</li>
+            <li><b>边缘夹持（Edge Grip）</b>：夹住晶圆边缘，适合不能背面接触的场合。</li>
+            <li><b>伯努利吸盘</b>：靠气流产生负压，非接触，颗粒风险最低，但稳定性要求高。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Blade 上常见的传感器</h4>
+          <ul>
+            <li><b>真空压力开关</b>：判断是否有片（有片时真空度建立更快）。</li>
+            <li><b>边缘/有无片传感器</b>：辅助判断晶圆是否在正确位置。</li>
+            <li><b>Mapping 传感器</b>：部分机械手自带，用于扫载具槽位。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">「有片判断」是高频故障点</span>
+        真空吸附的「有片 / 无片」判断，本质上靠真空压力变化。吸盘老化、管路微漏、气源波动都会导致误判，
+        表现为「明明吸住了却报无片」或「空 blade 却报有片」。排查时优先查吸盘与管路，而不是急着改参数。
+      </div>
+
+      <h3>2.5 示教（Teach）：新人最该理解的动作</h3>
+      <p>
+        示教就是把机械手移动到正确位置，并把这个位置的 <code>(R, θ, Z)</code> 记录下来。
+        每个取放点（Load Port 的每个槽、Aligner、Buffer、各工艺腔）都有一个示教位置。
+      </p>
+
+      <h4>示教位置为什么会「漂」？</h4>
+      <div class="grid2">
+        <div class="card">
+          <h4>机械原因</h4>
+          <ul>
+            <li>皮带张力变化、连杆间隙变大</li>
+            <li>紧固件松动、轴承磨损</li>
+            <li>碰撞后轻微变形</li>
+            <li>更换电机/编码器后零点丢失</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>环境与其它原因</h4>
+          <ul>
+            <li>温度变化引起热胀冷缩</li>
+            <li>载具定位销磨损导致载具位置变化</li>
+            <li>设备搬迁、调水平后基准改变</li>
+            <li>软件/固件升级后参数被重置</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout">
+        <span class="t">示教的安全顺序</span>
+        1) 降速 → 2) 单步 / 手动模式 → 3) 确认无人处于运动范围内 → 4) 记录并备份原参数 → 5) 修改后先低速验证 → 6) 再做多片连续验证。
+        <b>任何示教都必须先备份原始参数。</b>
+      </div>
+
+      <h3>2.6 关键性能指标</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:190px">指标</th><th>含义</th><th style="width:210px">为什么重要</th></tr></thead>
+          <tbody>
+            <tr><td>定位重复精度</td><td>多次到达同一位置的一致性</td><td>决定会不会碰片、放错槽</td></tr>
+            <tr><td>吞吐量（WPH）</td><td>每小时搬运片数</td><td>直接影响设备产能</td></tr>
+            <tr><td>颗粒释放</td><td>运动过程中产生的颗粒</td><td>影响良率</td></tr>
+            <tr><td>振动</td><td>加减速引起的抖动</td><td>影响定位与颗粒</td></tr>
+            <tr><td>MTBF / MTTR</td><td>平均无故障间隔 / 平均修复时间</td><td>影响设备可用率</td></tr>
+            <tr><td>洁净等级适配</td><td>能否在目标洁净度下工作</td><td>EFEM 内通常要求极高洁净度</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>2.7 常见报警与故障处理</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:220px">报警 / 现象</th><th style="width:230px">可能原因</th><th>处理思路</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>真空报警 / 有片检测异常</td>
+              <td>吸盘老化破损、气管漏气、真空发生器异常、气源压力不足</td>
+              <td>先测真空值；查管路接头；换吸盘做对照；确认气源</td>
+            </tr>
+            <tr>
+              <td>撞片 / 碰片</td>
+              <td>示教偏移、晶圆在槽内位置不正、Mapping 误判、速度过快</td>
+              <td>立即停机；检查晶圆与 blade 状态；核对示教；查 Mapping 记录</td>
+            </tr>
+            <tr>
+              <td>掉片</td>
+              <td>真空丢失、blade 变形、加减速过大</td>
+              <td>查真空保持能力；检查 blade 平整度；确认运动参数</td>
+            </tr>
+            <tr>
+              <td>电机过载 / 伺服报警</td>
+              <td>机械卡阻、皮带过紧、异物、编码器异常</td>
+              <td>手动盘车感受阻力；查机械传动；不要反复复位硬冲</td>
+            </tr>
+            <tr>
+              <td>位置漂移 / 找不到原点</td>
+              <td>零点丢失、编码器电池、限位/原点传感器脏污</td>
+              <td>按 SOP 重新回零；检查原点传感器；必要时重新示教</td>
+            </tr>
+            <tr>
+              <td>颗粒超标</td>
+              <td>润滑不足/过量、皮带磨损、密封件老化</td>
+              <td>按周期维护；使用指定润滑剂；做颗粒测试验证</td>
+            </tr>
+            <tr>
+              <td>通讯异常 / 控制器报错</td>
+              <td>通讯线松、控制器参数丢失、固件异常</td>
+              <td>查通讯状态；备份并核对参数；联系厂商支持</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>2.8 维护与点检</h3>
+      <div class="grid2">
+        <div class="card">
+          <h4>日常</h4>
+          <ul>
+            <li>运行中有无异常声响、抖动</li>
+            <li>真空值是否在正常区间</li>
+            <li>有无掉片/碰片报警历史</li>
+            <li>EFEM 内颗粒监测数值</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>定期</h4>
+          <ul>
+            <li>吸盘检查与更换（按周期或按状态）</li>
+            <li>皮带张力 / 连杆间隙检查</li>
+            <li>按厂商要求补充专用润滑脂</li>
+            <li>重复精度验证、示教点抽检</li>
+            <li>参数备份（示教点、运动参数）</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 第 3 章 ============ -->
+    <section class="sec" id="ch3">
+      <h2>第 3 章 · Load Port 与 Robot 如何协同</h2>
+
+      <h3>3.1 一次完整的搬运流程</h3>
+      <p>
+        第 1 章模块二讲的是 <b>Load Port 自己的 10 个动作</b>；这里把 <b>Robot 的动作</b>也加进来，
+        看整条链路是怎么串起来的：
+      </p>
+      <ol class="steps">
+        <li><b>载具到位</b>OHT 把 FOUP 放到 Load Port，E84 握手完成。</li>
+        <li><b>开门扫片</b>Clamp → Latch 解锁 → 开门 → Mapping，生成槽位状态。</li>
+        <li><b>取片</b>Robot 按 Mapping 结果到指定槽位取片（R-θ-Z 到位 → 真空吸附 → 确认有片 → 抬起）。</li>
+        <li><b>对中</b>送到 Aligner 做圆心/缺口对中，保证后续工艺定位精度。</li>
+        <li><b>进腔</b>送入工艺腔（或经 VTM 机械手转交）。</li>
+        <li><b>加工</b>工艺腔执行配方。</li>
+        <li><b>回片</b>Robot 取回晶圆，按规则放回 FOUP 槽位。</li>
+        <li><b>关门出站</b>关门锁紧 → 松夹 → E84 通知 OHT 取走。</li>
+      </ol>
+
+      <div class="callout ok">
+        <span class="t">一个重要的判断习惯</span>
+        遇到报警先问自己三个问题：<br>
+        ① 报警发生在「哪个阶段」？（进站 / 开门 / 扫片 / 取片 / 回片 / 出站）<br>
+        ② 是「载具侧」问题还是「机械手侧」问题？<br>
+        ③ 是「机械动作」问题还是「信号/通讯」问题？<br>
+        这三问能让你在 80% 的情况下快速缩小范围。
+      </div>
+
+      <h3>3.2 与主机通讯：SECS/GEM 概览</h3>
+      <p>设备状态最终要上报给 MES/EAP，靠的是 SECS/GEM 体系：</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:150px">标准</th><th>作用</th><th style="width:260px">与 Load Port / Robot 的关系</th></tr></thead>
+          <tbody>
+            <tr><td><b>SECS-II（E5）</b></td><td>定义消息格式</td><td>上报载具 ID、槽位状态、报警</td></tr>
+            <tr><td><b>GEM（E30）</b></td><td>定义通用设备行为模型</td><td>状态机、报警管理、远程命令</td></tr>
+            <tr><td><b>HSMS（E37）</b></td><td>基于 TCP/IP 的通讯层</td><td>实际传输通道</td></tr>
+            <tr><td><b>E40</b></td><td>加工管理</td><td>批次与配方关联</td></tr>
+            <tr><td><b>E87 / E90</b></td><td>载具管理 / 基板追踪</td><td>载具与晶圆的全程追溯</td></tr>
+            <tr><td><b>E84</b></td><td>载具交接并行 I/O</td><td>与 OHT 的实时握手（不经过 MES）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <span class="t">区分清楚</span>
+        <b>E84（PIO）</b>是设备 ↔ OHT 之间的硬线信号，毫秒级、实时；<br>
+        <b>SECS/GEM</b>是设备 ↔ 主机之间的消息通讯，秒级、走网络。<br>
+        两者是两条独立的通道，排查时不要混在一起看。
+      </div>
+
+      <h3>3.3 联机问题排查思路</h3>
+      <ol class="steps">
+        <li><b>看现象归属</b>是 OHT 报错、设备报错，还是 MES 侧任务卡住？</li>
+        <li><b>看硬线</b>PIO 各信号实际电平与期望是否一致（万用表/示波器/IO 监视页）。</li>
+        <li><b>看设备状态</b>Load Port 是否处于 Enable、是否 Manual、是否有未清报警。</li>
+        <li><b>看软件状态</b>SECS 通讯是否 Online、Host 是否下发了正确任务。</li>
+        <li><b>看历史</b>报警时间戳 + 事件日志，往往能直接定位到是哪一步超时。</li>
+        <li><b>记录并升级</b>把信号时序图、日志、现象描述整理好再升级给厂商，效率最高。</li>
+      </ol>
+    </section>
+
+    <!-- ============ 第 4 章 ============ -->
+    <section class="sec" id="ch4">
+      <h2>第 4 章 · 安全规范</h2>
+
+      <div class="callout bad">
+        <span class="t">最重要的三条</span>
+        ① 进入设备运动区域前，必须执行 <b>LOTO（挂牌上锁）</b> 或设备规定的安全隔离流程。<br>
+        ② 绝不绕过 <b>Interlock（安全联锁）</b>，绝不用短接线让设备「先跑起来」。<br>
+        ③ 不确定是否安全时，<b>停下来问</b>，不要凭猜测动手。
+      </div>
+
+      <h3>4.1 机械安全</h3>
+      <ul>
+        <li>Robot 运动范围、Load Port 门机构、升降机构都是夹伤/撞伤风险点。</li>
+        <li>急停（E-Stop）位置要在上岗第一天就记住，并知道按下后设备会处于什么状态。</li>
+        <li>断电后部分机构可能仍有重力下落风险，需确认抱闸/支撑是否有效。</li>
+        <li>手动模式下操作必须低速、单步，并保持手在安全位置。</li>
+      </ul>
+
+      <h3>4.2 电气安全</h3>
+      <ul>
+        <li>只做授权范围内的电气作业；带电测量必须使用合格仪表与防护。</li>
+        <li>断电后确认电容放电时间，再接触端子。</li>
+        <li>更换板卡/传感器前记录原始接线与参数。</li>
+      </ul>
+
+      <h3>4.3 气动与真空安全</h3>
+      <ul>
+        <li>断气前确认机构不会因失压而掉落或移动。</li>
+        <li>拆卸气管前先泄压，避免气管甩动伤人。</li>
+        <li>真空管路残压与吸附的晶圆同样需要处理。</li>
+      </ul>
+
+      <h3>4.4 洁净室与 ESD 规范</h3>
+      <div class="grid2">
+        <div class="card">
+          <h4>洁净室行为</h4>
+          <ul>
+            <li>按规定穿无尘服、手套、口罩，不化浓妆、不佩戴饰品。</li>
+            <li>不在设备开口处快速走动、说话、咳嗽。</li>
+            <li>物品掉落后不擅自捡起放入设备。</li>
+            <li>不在洁净室内使用非洁净纸笔。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>ESD 防护</h4>
+          <ul>
+            <li>接触晶圆/载具/电子板卡前先做静电释放。</li>
+            <li>使用防静电手套与腕带（按厂内规定）。</li>
+            <li>板卡用防静电袋存放，不裸手拿。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>4.5 异常处理原则</h3>
+      <ol>
+        <li><b>先停</b>：出现异常声响、异味、冒烟、撞片，第一时间急停。</li>
+        <li><b>再隔离</b>：断电/断气，隔离能量源，防止二次伤害。</li>
+        <li><b>后记录</b>：拍照、记录报警号与时间，不要急于复位。</li>
+        <li><b>再上报</b>：按厂内流程通知，不擅自拆解关键部件。</li>
+      </ol>
+    </section>
+
+    <!-- ============ 第 5 章 ============ -->
+    <section class="sec" id="ch5">
+      <h2>第 5 章 · 培训安排（5 天方案）</h2>
+
+      <h3>5.1 日程总览</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:70px" class="c">Day</th><th style="width:170px">主题</th><th>主要内容</th><th style="width:150px">形式</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="c"><b>Day 1</b></td>
+              <td>入门与安全</td>
+              <td>半导体制造流程概览；载具与槽位概念；EFEM 全景；洁净室与 ESD 规范；安全红线与 E-Stop/LOTO 演练</td>
+              <td>理论 + 现场安全走查</td>
+            </tr>
+            <tr>
+              <td class="c"><b>Day 2</b></td>
+              <td>Load Port 原理</td>
+              <td>第 1 章三模块：硬件结构认部件 → 10 个正常动作 → E84 握手入门；对照实物走一遍</td>
+              <td>理论 + 实物拆解观摩</td>
+            </tr>
+            <tr>
+              <td class="c"><b>Day 3</b></td>
+              <td>Robot 原理</td>
+              <td>第 2 章全部：构型、R-θ-Z、Blade 与真空、示教概念、性能指标；观察一次实际搬运</td>
+              <td>理论 + 现场观察</td>
+            </tr>
+            <tr>
+              <td class="c"><b>Day 4</b></td>
+              <td>协同与实操</td>
+              <td>第 3 章：完整流程、E84 与 SECS/GEM 区别；实操：手动开门、Mapping 结果判读、真空测试、报警查询</td>
+              <td>理论 + 实操</td>
+            </tr>
+            <tr>
+              <td class="c"><b>Day 5</b></td>
+              <td>故障演练与考核</td>
+              <td>典型故障案例复盘；分组排查演练；理论笔试 + 实操考核 + 答辩</td>
+              <td>案例 + 考核</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>5.2 实操项目清单</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:60px" class="c">#</th><th style="width:230px">实操项目</th><th>能力验证点</th><th style="width:100px" class="c">建议时长</th></tr></thead>
+          <tbody>
+            <tr><td class="c">1</td><td>安全走查与 E-Stop 定位</td><td>能指出所有急停位置与运动危险区</td><td class="c">0.5 h</td></tr>
+            <tr><td class="c">2</td><td>Load Port 部件指认</td><td>对照实物说出 10 个以上部件名称与功能</td><td class="c">1 h</td></tr>
+            <tr><td class="c">3</td><td>手动放置空 FOUP 并观察开门时序</td><td>能按顺序描述每一步动作</td><td class="c">1 h</td></tr>
+            <tr><td class="c">4</td><td>Mapping 结果判读</td><td>能区分正常/空槽/双片/异常并说出处理原则</td><td class="c">1 h</td></tr>
+            <tr><td class="c">5</td><td>Robot 真空吸附测试</td><td>能读出真空值并判断吸盘状态</td><td class="c">1 h</td></tr>
+            <tr><td class="c">6</td><td>报警查询与日志定位</td><td>能根据报警号找到对应阶段与部件</td><td class="c">1 h</td></tr>
+            <tr><td class="c">7</td><td>点检表实做</td><td>独立完成一次日常点检并记录</td><td class="c">1 h</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>5.3 考核标准建议</h3>
+      <div class="grid3">
+        <div class="card">
+          <h4>理论（40%）</h4>
+          <p>附录 B 自测题 + 讲师补充题。及格线建议 80 分。</p>
+        </div>
+        <div class="card">
+          <h4>实操（40%）</h4>
+          <p>部件指认、时序复述、Mapping 判读、真空测试四项必过。</p>
+        </div>
+        <div class="card">
+          <h4>安全（20%）</h4>
+          <p>一票否决项：违反 LOTO / Interlock 直接不通过。</p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <span class="t">带徒弟的小技巧</span>
+        每讲完一个模块，让对方<b>用自己的话复述一遍</b>，并画一张草图。
+        能画出来，才算真懂；只会点头，通常三周后就忘了。
+      </div>
+    </section>
+
+    <!-- ============ 附录 A ============ -->
+    <section class="sec" id="apA">
+      <h2>附录 A · 术语表</h2>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:190px">术语</th><th>解释</th></tr></thead>
+          <tbody>
+            <tr><td><b>EFEM</b></td><td>Equipment Front End Module，设备前端模块，由 Load Port、机械手、Aligner、Buffer 等组成</td></tr>
+            <tr><td><b>Load Port</b></td><td>载具接口，负责载具的接收、定位、夹紧、开门与扫片</td></tr>
+            <tr><td><b>FOUP</b></td><td>Front Opening Unified Pod，300 mm 前开式载具，通常 25 片</td></tr>
+            <tr><td><b>FOSB</b></td><td>Front Opening Shipping Box，前开式运输箱</td></tr>
+            <tr><td><b>SMIF Pod</b></td><td>200 mm 世代标准机械接口载具，底开门</td></tr>
+            <tr><td><b>Slot</b></td><td>载具内的槽位，一片晶圆一个槽</td></tr>
+            <tr><td><b>Mapping</b></td><td>扫片，检测各槽位有片/无片/双片/斜插</td></tr>
+            <tr><td><b>Kinematic Coupling</b></td><td>运动学定位，用最少的约束实现可重复的精确装配</td></tr>
+            <tr><td><b>Clamp</b></td><td>夹紧机构</td></tr>
+            <tr><td><b>Latch / Latch Key</b></td><td>载具门锁扣 / 解锁钥匙</td></tr>
+            <tr><td><b>Port Door</b></td><td>Load Port 侧封闭 EFEM 开口的挡门，带密封圈</td></tr>
+            <tr><td><b>Door Opener</b></td><td>开门机构，把载具门拉入 EFEM</td></tr>
+            <tr><td><b>Blade / End Effector</b></td><td>机械手末端执行器（叉/片），承载晶圆</td></tr>
+            <tr><td><b>R-θ-Z</b></td><td>机械手的径向、旋转、升降三个自由度</td></tr>
+            <tr><td><b>Teach / Teaching</b></td><td>示教，把机械手位置记录下来作为取放点</td></tr>
+            <tr><td><b>Aligner</b></td><td>对中机构，校正晶圆圆心与缺口方向</td></tr>
+            <tr><td><b>Buffer</b></td><td>缓存位，临时存放晶圆</td></tr>
+            <tr><td><b>PIO</b></td><td>Parallel I/O，并行 I/O 接口，用于 E84 握手</td></tr>
+            <tr><td><b>OHT</b></td><td>Overhead Hoist Transport，空中搬运车</td></tr>
+            <tr><td><b>AMHS</b></td><td>Automated Material Handling System，自动物料搬运系统</td></tr>
+            <tr><td><b>SECS / GEM / HSMS</b></td><td>设备与主机通讯的标准体系（消息格式 / 行为模型 / 传输层）</td></tr>
+            <tr><td><b>Particle</b></td><td>颗粒污染物</td></tr>
+            <tr><td><b>AMC</b></td><td>Airborne Molecular Contamination，气态分子污染物</td></tr>
+            <tr><td><b>FFU</b></td><td>Fan Filter Unit，风机过滤单元</td></tr>
+            <tr><td><b>MTBF / MTTR</b></td><td>平均无故障间隔 / 平均修复时间</td></tr>
+            <tr><td><b>LOTO</b></td><td>Lock Out Tag Out，挂牌上锁的能量隔离流程</td></tr>
+            <tr><td><b>Interlock</b></td><td>安全联锁装置</td></tr>
+            <tr><td><b>VTM</b></td><td>Vacuum Transfer Module，真空传输腔</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 附录 B ============ -->
+    <section class="sec" id="apB">
+      <h2>附录 B · 自测题</h2>
+      <p>前 8 题为选择题（点选即可判分），后 6 题为简答题（点击展开参考答案）。建议闭卷作答。</p>
+
+      <div class="toolbar">
+        <button class="btn" id="expandAll">展开全部简答</button>
+        <button class="btn" id="collapseAll">收起全部简答</button>
+        <button class="btn" id="resetQuiz">重置选择题</button>
+      </div>
+
+      <div class="quiz" data-answer="B">
+        <p class="q">1. Load Port 的核心作用是什么？</p>
+        <button class="opt" data-k="A">A. 对晶圆进行工艺加工</button>
+        <button class="opt" data-k="B">B. 完成载具的接收、定位、夹紧、开门与扫片</button>
+        <button class="opt" data-k="C">C. 把晶圆从工艺腔搬到另一个工艺腔</button>
+        <button class="opt" data-k="D">D. 负责与 MES 通讯</button>
+        <p class="hint">正确答案：B。加工是工艺腔的事，腔间传输通常是真空机械手的事。</p>
+      </div>
+
+      <div class="quiz" data-answer="C">
+        <p class="q">2. 「一圆销 + 一菱形销」这种定位方式的设计目的是？</p>
+        <button class="opt" data-k="A">A. 让载具更容易被推动</button>
+        <button class="opt" data-k="B">B. 增加夹紧力</button>
+        <button class="opt" data-k="C">C. 在约束全部自由度的同时避免过约束</button>
+        <button class="opt" data-k="D">D. 方便读取载具 ID</button>
+        <p class="hint">正确答案：C。这是运动学定位（Kinematic Coupling）的经典做法。</p>
+      </div>
+
+      <div class="quiz" data-answer="A">
+        <p class="q">3. Mapping 报出「Double / Cross」，正确处理方式是？</p>
+        <button class="opt" data-k="A">A. 禁止自动取片，按 SOP 隔离并人工确认</button>
+        <button class="opt" data-k="B">B. 复位报警后继续自动运行</button>
+        <button class="opt" data-k="C">C. 提高机械手速度绕过问题槽位</button>
+        <button class="opt" data-k="D">D. 直接关闭 Mapping 功能</button>
+        <p class="hint">正确答案：A。双片/斜插意味着有碰片风险，必须人工介入。</p>
+      </div>
+
+      <div class="quiz" data-answer="D">
+        <p class="q">4. 机械手 R-θ-Z 中，Z 轴代表什么？</p>
+        <button class="opt" data-k="A">A. 旋转角度</button>
+        <button class="opt" data-k="B">B. 径向伸出距离</button>
+        <button class="opt" data-k="C">C. 夹持力大小</button>
+        <button class="opt" data-k="D">D. 升降高度</button>
+        <p class="hint">正确答案：D。R = 径向，θ = 旋转，Z = 升降。</p>
+      </div>
+
+      <div class="quiz" data-answer="B">
+        <p class="q">5. 「明明吸住了晶圆却报无片」，最应该优先排查什么？</p>
+        <button class="opt" data-k="A">A. 机械手的旋转角度参数</button>
+        <button class="opt" data-k="B">B. 吸盘状态与真空管路</button>
+        <button class="opt" data-k="C">C. 载具的槽位数量</button>
+        <button class="opt" data-k="D">D. MES 下发的任务</button>
+        <p class="hint">正确答案：B。有片/无片判断依赖真空压力变化，吸盘老化或管路微漏是首要嫌疑。</p>
+      </div>
+
+      <div class="quiz" data-answer="C">
+        <p class="q">6. E84（PIO）与 SECS/GEM 的区别是？</p>
+        <button class="opt" data-k="A">A. 两者都是走网络的软件协议</button>
+        <button class="opt" data-k="B">B. E84 用于与 MES 通讯，SECS/GEM 用于与 OHT 握手</button>
+        <button class="opt" data-k="C">C. E84 是与 OHT 的硬线实时握手，SECS/GEM 是设备与主机的消息通讯</button>
+        <button class="opt" data-k="D">D. 两者可以互相替代</button>
+        <p class="hint">正确答案：C。两条通道独立，排查时不要混在一起。</p>
+      </div>
+
+      <div class="quiz" data-answer="A">
+        <p class="q">7. 关于示教（Teach），下列做法正确的是？</p>
+        <button class="opt" data-k="A">A. 先备份原始参数，再降速、单步修改并低速验证</button>
+        <button class="opt" data-k="B">B. 直接全速运行验证新参数</button>
+        <button class="opt" data-k="C">C. 不需要备份，改错了重新调即可</button>
+        <button class="opt" data-k="D">D. 可以由新人独立完成，无需确认</button>
+        <p class="hint">正确答案：A。示教是高风险作业，必须备份 + 降速 + 双人确认（按厂内规定）。</p>
+      </div>
+
+      <div class="quiz" data-answer="D">
+        <p class="q">8. 下列哪一项属于「一票否决」的安全红线？</p>
+        <button class="opt" data-k="A">A. 没戴无尘帽</button>
+        <button class="opt" data-k="B">B. 记录表格填写不规范</button>
+        <button class="opt" data-k="C">C. 工具用完没归位</button>
+        <button class="opt" data-k="D">D. 短接安全联锁让设备运行</button>
+        <p class="hint">正确答案：D。绕过 Interlock 是最严重的安全违规。</p>
+      </div>
+
+      <h3>简答题</h3>
+
+      <details>
+        <summary>9. 请按顺序说出 Load Port 自动开门到出站的完整时序（至少 8 步）。</summary>
+        <div class="ans">
+          接 → 夹 → 读 → 开 → 扫 → 取 → 还 → 关 → 松 → 走。<br>
+          即：载具交接到位 → Clamp 夹紧定位 → 读取载具 ID → Latch 解锁并开门 → Mapping 扫片 →
+          Robot 取片（经 Aligner 对中）→ 加工后回片 → 关门锁紧 → Clamp 松开 → PIO 通知 OHT 取走。
+        </div>
+      </details>
+
+      <details>
+        <summary>10. 为什么 300 mm 世代要使用 EFEM 微环境，而不是把整个厂房做成超净？</summary>
+        <div class="ans">
+          线宽远小于颗粒尺寸，颗粒对良率影响极大；把整个厂房维持在极高洁净度成本过高且难以实现。
+          微环境方案只让载具内部、EFEM 内部和工艺腔形成连续洁净通道，外界仅暴露载具外表面，成本与效果更优。
+        </div>
+      </details>
+
+      <details>
+        <summary>11. 机械手的定位精度为什么会随时间漂移？举出至少 4 个原因。</summary>
+        <div class="ans">
+          ① 皮带张力变化、连杆间隙变大；② 紧固件松动、轴承磨损；③ 碰撞后轻微变形；
+          ④ 更换电机/编码器后零点丢失；⑤ 温度变化导致热胀冷缩；⑥ 载具定位销磨损使载具位置改变；
+          ⑦ 设备搬迁或调水平后基准变化；⑧ 固件/软件升级导致参数重置。
+        </div>
+      </details>
+
+      <details>
+        <summary>12. 遇到「Load Port 开门超时」报警，你的排查顺序是什么？</summary>
+        <div class="ans">
+          ① 确认设备处于安全状态（必要时 LOTO），不要强行拉门；<br>
+          ② 查 Door Opener 真空是否建立（吸盘/管路）；<br>
+          ③ 查 Latch Key 是否打滑、锁扣是否卡死（换备用载具做对照）；<br>
+          ④ 查导轨阻力、润滑状态与门密封圈是否粘黏；<br>
+          ⑤ 查相关到位传感器信号是否正常；<br>
+          ⑥ 记录现象与日志，超出授权范围按流程升级厂商。
+        </div>
+      </details>
+
+      <details>
+        <summary>13. Port Door 密封失效会带来哪些后果？</summary>
+        <div class="ans">
+          外界颗粒进入导致 Particle 超标、影响良率；湿度/氧含量波动可能引起晶圆氧化；
+          EFEM 内部压力波动导致气流组织紊乱，可能触发压力报警。
+        </div>
+      </details>
+
+      <details>
+        <summary>14. 请用一句话向完全不懂的人解释「Load Port 和 Robot 的关系」。</summary>
+        <div class="ans">
+          参考答法：Load Port 是设备的「门和接口」，负责把载具接住、打开、并把里面的晶圆情况看清楚；
+          Robot 是设备的「手」，负责按顺序把晶圆从载具里拿进拿出。
+          一个管接口，一个管搬运，合起来就是 EFEM 的两大核心。
+        </div>
+      </details>
+    </section>
+
+    <!-- ============ 附录 C ============ -->
+    <section class="sec" id="apC">
+      <h2>附录 C · 日常点检表模板</h2>
+      <p>可直接打印使用。检查结果填写「OK / NG」，NG 项须记录并升级。</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th style="width:60px" class="c">区域</th><th style="width:90px" class="c">频次</th><th>检查项目</th><th style="width:110px" class="c">判定</th><th style="width:110px" class="c">确认人</th></tr></thead>
+          <tbody>
+            <tr><td class="c">Load Port</td><td class="c">每班</td><td>Stage 台面 / 定位销无颗粒、无划伤、无变形</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Load Port</td><td class="c">每班</td><td>Presence Sensor 指示与实际载具状态一致</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Load Port</td><td class="c">每班</td><td>Port Door 关闭无缝隙、无异常声响</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Load Port</td><td class="c">每周</td><td>Clamp 动作平顺、夹爪无明显磨损</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Load Port</td><td class="c">每周</td><td>Latch Key 磨损量在允许范围</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Load Port</td><td class="c">每周</td><td>Mapping 传感器镜面清洁、光路正常</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Load Port</td><td class="c">每周</td><td>门密封圈无老化、裂纹、变形</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Robot</td><td class="c">每班</td><td>运行无异常声响、无抖动</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Robot</td><td class="c">每班</td><td>真空值在正常区间</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Robot</td><td class="c">每周</td><td>Blade 无变形、无明显污染</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Robot</td><td class="c">每月</td><td>皮带张力 / 连杆间隙检查</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">Robot</td><td class="c">每月</td><td>重复精度验证、示教点抽检</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">系统</td><td class="c">每班</td><td>无历史遗留报警未清</td><td class="c">OK / NG</td><td class="c"></td></tr>
+            <tr><td class="c">系统</td><td class="c">每月</td><td>示教参数与配置已备份</td><td class="c">OK / NG</td><td class="c"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer>
+        <p>
+          本文档为内部培训参考资料，用于新人建立整体认知。<br>
+          文中参数、信号定义与故障处理方式均为通用性说明，<b>实际作业必须遵循设备厂商手册、厂内 SOP 与最新版 SEMI 标准</b>。
+        </p>
+      </footer>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- 导航高亮 ---------- */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.side nav a'));
+  var map = {};
+  var sections = [];
+  links.forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) { map[id] = a; sections.push(el); }
+  });
+
+  function activate(id) {
+    links.forEach(function (a) {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+    });
+  }
+
+  if ('IntersectionObserver' in window && sections.length) {
+    var io = new IntersectionObserver(function (entries) {
+      var best = null;
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          if (!best || e.intersectionRatio > best.intersectionRatio) best = e;
+        }
+      });
+      if (best) activate(best.target.id);
+    }, { rootMargin: '-10% 0px -70% 0px', threshold: [0.01, 0.15, 0.4] });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+
+  /* ---------- 选择题判分 ---------- */
+  function resetQuiz() {
+    document.querySelectorAll('.quiz').forEach(function (q) {
+      q.querySelectorAll('.opt').forEach(function (b) {
+        b.classList.remove('right', 'wrong');
+      });
+      var h = q.querySelector('.hint');
+      if (h) h.classList.remove('show');
+    });
+  }
+
+  document.querySelectorAll('.quiz').forEach(function (q) {
+    var answer = q.getAttribute('data-answer');
+    var hint = q.querySelector('.hint');
+    q.querySelectorAll('.opt').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        q.querySelectorAll('.opt').forEach(function (b) {
+          b.classList.remove('right', 'wrong');
+        });
+        if (btn.getAttribute('data-k') === answer) {
+          btn.classList.add('right');
+        } else {
+          btn.classList.add('wrong');
+          var correct = q.querySelector('.opt[data-k="' + answer + '"]');
+          if (correct) correct.classList.add('right');
+        }
+        if (hint) hint.classList.add('show');
+      });
+    });
+  });
+
+  /* ---------- 简答展开 / 收起 ---------- */
+  var allDetails = document.querySelectorAll('details');
+  var ea = document.getElementById('expandAll');
+  var ca = document.getElementById('collapseAll');
+  var rq = document.getElementById('resetQuiz');
+  if (ea) ea.addEventListener('click', function () {
+    allDetails.forEach(function (d) { d.open = true; });
+  });
+  if (ca) ca.addEventListener('click', function () {
+    allDetails.forEach(function (d) { d.open = false; });
+  });
+  if (rq) rq.addEventListener('click', resetQuiz);
+})();
+</script>
+</body>
+</html>

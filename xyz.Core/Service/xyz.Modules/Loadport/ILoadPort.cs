@@ -20,14 +20,9 @@ public interface ILoadPort
     ModuleOperation? Abort();
 
     /// <summary>
-    /// E84 上线（自动模式）；成功后 IsAutoMode=true。
+    /// 设置自动/手动模式（内部模式位，不经设备协议）。
     /// </summary>
-    ModuleOperation? Online();
-
-    /// <summary>
-    /// E84 下线（手动模式）；成功后 IsAutoMode=false。
-    /// </summary>
-    ModuleOperation? Offline();
+    void SetAutoMode(bool autoMode);
 
     string? ReadCarrierId();
 }

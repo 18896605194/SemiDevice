@@ -128,14 +128,4 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
     {
         return Begin(LoadPortAction.Abort, new AbortOperation(this));
     }
-
-    public override ModuleOperation? Online()
-    {
-        return Begin(LoadPortAction.Online, new OnlineOperation(this));
-    }
-
-    public override ModuleOperation? Offline()
-    {
-        return Begin(LoadPortAction.Offline, new OfflineOperation(this));
-    }
 }

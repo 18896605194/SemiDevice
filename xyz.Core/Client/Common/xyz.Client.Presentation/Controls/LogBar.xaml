@@ -1,0 +1,64 @@
+<UserControl x:Class="xyz.Client.Presentation.Controls.LogBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <!--  日志下拉框：收起时显示最新一条，展开显示队列消费出来的历史  -->
+    <ComboBox
+        MinWidth="520"
+        Height="36"
+        MaxDropDownHeight="420"
+        VerticalAlignment="Center"
+        ItemsSource="{Binding Logs}"
+        SelectedItem="{Binding SelectedLog, Mode=OneWay}"
+        Style="{DynamicResource DefaultComboBoxStyle}">
+        <ComboBox.ItemTemplate>
+            <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size12}"
+                        Foreground="{DynamicResource DarkSecondaryText}"
+                        Text="{Binding TimeText}" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size12}"
+                        Foreground="{DynamicResource DarkSecondaryText}"
+                        Text="{Binding SourceText}" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size12}"
+                        Text="{Binding Level}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Level}" Value="Warn">
+                                        <Setter Property="Foreground" Value="{DynamicResource DarkWarningStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Error">
+                                        <Setter Property="Foreground" Value="{DynamicResource DarkAlarmStatus}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size12}"
+                        Foreground="{DynamicResource DarkSecondaryText}"
+                        Text="{Binding Module}" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size12}"
+                        Foreground="{DynamicResource DarkPrimaryText}"
+                        Text="{Binding Message}" />
+                </StackPanel>
+            </DataTemplate>
+        </ComboBox.ItemTemplate>
+    </ComboBox>
+</UserControl>

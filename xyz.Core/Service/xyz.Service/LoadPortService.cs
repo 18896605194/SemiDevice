@@ -46,14 +46,17 @@ public class LoadPortService : ILoadPortService
         return Execute(module, port => port.Abort(), port => port.AbortTimeout, context);
     }
 
+    /// <summary>
+    /// 上线/下线是内部模式位（不经设备协议），置位即成功；界面经事件流刷新 AUTO/MANUAL 灯。
+    /// </summary>
     public Task<RpcResponse> OnlineAsync(string module, CallContext context = default)
     {
-        return Execute(module, port => port.Online(), port => port.OnlineTimeout, context);
+        return SetModeAsync(module, true);
     }
 
     public Task<RpcResponse> OfflineAsync(string module, CallContext context = default)
     {
-        return Execute(module, port => port.Offline(), port => port.OfflineTimeout, context);
+        return SetModeAsync(module, false);
     }
 
     public Task<RpcResponse> GetStateAsync(string module, CallContext context = default)
@@ -112,6 +115,18 @@ public class LoadPortService : ILoadPortService
         return Task.FromResult(operation.IsSuccess
             ? RpcResponse.Ok()
             : RpcResponse.Fail(operation.Code, operation.ErrorArgs));
+    }
+
+    private Task<RpcResponse> SetModeAsync(string module, bool autoMode)
+    {
+        var port = FindPort(module);
+        if (port is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ModuleNotFound, [module]));
+        }
+
+        port.SetAutoMode(autoMode);
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     private BaseLoadPortModule? FindPort(string module)

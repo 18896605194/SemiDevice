@@ -1,8 +1,10 @@
 using CommunityToolkit.Mvvm.Input;
 using Mapster;
+using xyz.Client.DataModels.Log;
 using xyz.Client.DataModels.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;
+using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
@@ -86,38 +88,66 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         Model = dto.Adapt<LoadPortModel>();
     }
 
-    private Task DoHome()
+    private async Task DoHome()
     {
-        return _service.HomeAsync(ModuleName);
+        var response = await _service.HomeAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Home 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 
-    private Task DoLoad()
+    private async Task DoLoad()
     {
-        return _service.LoadAsync(ModuleName);
+        var response = await _service.LoadAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Load 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 
-    private Task DoUnload()
+    private async Task DoUnload()
     {
-        return _service.UnloadAsync(ModuleName);
+        var response = await _service.UnloadAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Unload 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 
-    private Task DoReset()
+    private async Task DoReset()
     {
-        return _service.ResetAsync(ModuleName);
+        var response = await _service.ResetAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Reset 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 
-    private Task DoOnline()
+    private async Task DoOnline()
     {
-        return _service.OnlineAsync(ModuleName);
+        var response = await _service.OnlineAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Online 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 
-    private Task DoOffline()
+    private async Task DoOffline()
     {
-        return _service.OfflineAsync(ModuleName);
+        var response = await _service.OfflineAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Offline 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 
-    private Task DoAbort()
+    private async Task DoAbort()
     {
-        return _service.AbortAsync(ModuleName);
+        var response = await _service.AbortAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Abort 失败：{L10n.Get(response.Code, response.Args)}");
+        }
     }
 }

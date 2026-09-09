@@ -1,12 +1,30 @@
-﻿<Window x:Class="xyz._35021.Client.MainWindow"
+<Window x:Class="xyz._35021.Client.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:xyz._35021.Client"
+        xmlns:manual="clr-namespace:xyz.Client.Manual.Views;assembly=xyz.Client.Manual"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="35021 手动操作"
+        Width="1100"
+        Height="760"
+        MinWidth="900"
+        MinHeight="640"
+        Background="{DynamicResource DarkWindowBackground}"
+        TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+        WindowStartupLocation="CenterScreen">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
+        <!--  日志下拉框：后端 LogHelper 日志 + 客户端报错，从队列逐条消费  -->
+        <controls:LogBar Grid.Row="0" Margin="8,8,8,0" />
+
+        <!--  ModuleName 必须与 sc.xml 的模块实例名一致（LoadPort1 / LoadPort2）  -->
+        <manual:LoadPortManualControl Grid.Row="1" ModuleName="LoadPort1" />
     </Grid>
 </Window>
