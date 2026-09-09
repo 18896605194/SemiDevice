@@ -1,7 +1,7 @@
 using Mapster;
 using ProtoBuf.Grpc;
 using SqlSugar;
-using System.Text.Json;
+using xyz.Tools;
 using xyz.Database.Auth;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -28,7 +28,7 @@ public class MenuService : RepositoryBase<MenuEntity>, IMenuService
             .Select(menu => menu.Adapt<MenuDto>())
             .ToList();
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(menus));
+        return RpcResponse.Ok(JsonHelper.Serialize(menus));
     }
 
     public async Task<RpcResponse> CreateMenuAsync(RpcRequest request, CallContext context = default)
@@ -44,7 +44,7 @@ public class MenuService : RepositoryBase<MenuEntity>, IMenuService
 
         entity.Id = await InsertAsync(entity);
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(entity.Adapt<MenuDto>()));
+        return RpcResponse.Ok(JsonHelper.Serialize(entity.Adapt<MenuDto>()));
     }
 
     public async Task<RpcResponse> SaveMenuAsync(RpcRequest request, CallContext context = default)
@@ -69,7 +69,7 @@ public class MenuService : RepositoryBase<MenuEntity>, IMenuService
 
         await UpdateAsync(entity);
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(entity.Adapt<MenuDto>()));
+        return RpcResponse.Ok(JsonHelper.Serialize(entity.Adapt<MenuDto>()));
     }
 
     public async Task<RpcResponse> DeleteMenuAsync(RpcRequest request, CallContext context = default)

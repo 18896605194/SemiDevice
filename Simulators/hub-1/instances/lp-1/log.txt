@@ -1,6 +1,0 @@
-15:22:55.355  系统  未找到配置, 已写入默认: d:\Common\Simulators\hub-1\instances\lp-1\responses.json
-15:22:55.366  错误  打开串口失败: Could not find file 'COM20'.
-15:25:12.997  系统  应答表已从配置加载: d:\Common\Simulators\hub-1\instances\lp-1\responses.json
-15:25:13.005  错误  打开串口失败: Could not find file 'COM20'.
-15:31:15.948  系统  应答表已从配置加载: d:\Common\Simulators\hub-1\instances\lp-1\responses.json
-15:31:15.955  错误  打开串口失败: Could not find file 'COM20'.

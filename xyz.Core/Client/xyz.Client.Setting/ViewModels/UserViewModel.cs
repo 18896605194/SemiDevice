@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Mapster;
 using System.Collections.ObjectModel;
-using System.Text.Json;
+using xyz.Shared.Rpc;
 using System.Windows;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Dialogs;
@@ -17,11 +17,6 @@ namespace xyz.Client.Setting.ViewModels;
 /// </summary>
 public class UserViewModel : BaseViewModel
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     #region Column
 
     public ObservableCollection<UserModel> Users { get; }
@@ -75,7 +70,7 @@ public class UserViewModel : BaseViewModel
             .GetAwaiter()
             .GetResult();
 
-        foreach (var roleDto in Deserialize<List<RoleDto>>(roleResponse))
+        foreach (var roleDto in roleResponse.DeserializeData<List<RoleDto>>())
         {
             Roles.Add(roleDto.Adapt<RoleModel>());
         }
@@ -85,7 +80,7 @@ public class UserViewModel : BaseViewModel
             .GetAwaiter()
             .GetResult();
 
-        foreach (var userDto in Deserialize<List<UserDto>>(userResponse))
+        foreach (var userDto in userResponse.DeserializeData<List<UserDto>>())
         {
             Users.Add(userDto.Adapt<UserModel>());
         }
@@ -123,7 +118,7 @@ public class UserViewModel : BaseViewModel
             }
         });
 
-        if (Deserialize<bool>(existsResponse))
+        if (existsResponse.DeserializeData<bool>())
         {
             MessageBox.Show(
                 "用户名已存在，请更换后重试",
@@ -143,7 +138,7 @@ public class UserViewModel : BaseViewModel
             }
         });
 
-        var userDto = Deserialize<UserDto>(createResponse);
+        var userDto = createResponse.DeserializeData<UserDto>();
         var user = userDto.Adapt<UserModel>();
 
         Users.Add(user);
@@ -164,23 +159,10 @@ public class UserViewModel : BaseViewModel
                 ["Id"] = SelectedUser.Id.ToString()
             }
         });
-        EnsureSuccess(response);
+        response.EnsureSuccess();
 
         Users.Remove(SelectedUser);
         SelectedUser = Users.FirstOrDefault();
     }
 
-    private static T Deserialize<T>(RpcResponse response)
-    {
-        EnsureSuccess(response);
-        return JsonSerializer.Deserialize<T>(response.Data, JsonOptions)!;
-    }
-
-    private static void EnsureSuccess(RpcResponse response)
-    {
-        if (!response.Success)
-        {
-            throw new InvalidOperationException(response.Message);
-        }
-    }
 }

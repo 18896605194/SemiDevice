@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Mapster;
 using System.Collections.ObjectModel;
-using System.Text.Json;
+using xyz.Shared.Rpc;
 using System.Windows;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Dialogs;
@@ -17,11 +17,6 @@ namespace xyz.Client.Setting.ViewModels;
 /// </summary>
 public class RoleViewModel : BaseViewModel
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     #region Column
 
     public ObservableCollection<RoleModel> Roles { get; }
@@ -68,7 +63,7 @@ public class RoleViewModel : BaseViewModel
             .GetAwaiter()
             .GetResult();
 
-        var roles = Deserialize<List<RoleDto>>(response);
+        var roles = response.DeserializeData<List<RoleDto>>();
         foreach (var role in roles)
         {
             Roles.Add(role.Adapt<RoleModel>());
@@ -98,7 +93,7 @@ public class RoleViewModel : BaseViewModel
             }
         });
 
-        if (Deserialize<bool>(existsResponse))
+        if (existsResponse.DeserializeData<bool>())
         {
             MessageBox.Show(
                 "角色名称已存在，请更换后重试",
@@ -115,7 +110,7 @@ public class RoleViewModel : BaseViewModel
                 ["Name"] = roleName
             }
         });
-        var roleDto = Deserialize<RoleDto>(createResponse);
+        var roleDto = createResponse.DeserializeData<RoleDto>();
         var role = roleDto.Adapt<RoleModel>();
 
         Roles.Add(role);
@@ -136,23 +131,10 @@ public class RoleViewModel : BaseViewModel
                 ["Id"] = SelectedRole.Id.ToString()
             }
         });
-        EnsureSuccess(response);
+        response.EnsureSuccess();
 
         Roles.Remove(SelectedRole);
         SelectedRole = Roles.FirstOrDefault();
     }
 
-    private static T Deserialize<T>(RpcResponse response)
-    {
-        EnsureSuccess(response);
-        return JsonSerializer.Deserialize<T>(response.Data, JsonOptions)!;
-    }
-
-    private static void EnsureSuccess(RpcResponse response)
-    {
-        if (!response.Success)
-        {
-            throw new InvalidOperationException(response.Message);
-        }
-    }
 }

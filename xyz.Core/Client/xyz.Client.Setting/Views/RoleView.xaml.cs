@@ -1,5 +1,5 @@
 using System.Windows.Controls;
-using xyz.Client.DataModels.Ioc;
+using xyz.Tools;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Setting.ViewModels;
 

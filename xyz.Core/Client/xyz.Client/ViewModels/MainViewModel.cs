@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
-using System.Text.Json;
+using xyz.Shared.Rpc;
 using System.Windows.Controls;
 using xyz.Client.DataModels.Rpc;
 using xyz.Client.Setting.Models;
@@ -16,11 +16,6 @@ namespace xyz.Client.ViewModels;
 /// </summary>
 public class MainViewModel : BaseViewModel
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     #region Column
 
     /// <summary>
@@ -95,8 +90,6 @@ public class MainViewModel : BaseViewModel
 
     #region Command
 
-    // 目前主菜单的打开/选择由 View 事件调用 Service 方法；
-    // 后续如需改为 Command 绑定，再在此区域声明 IRelayCommand。
 
     #endregion
 
@@ -189,7 +182,7 @@ public class MainViewModel : BaseViewModel
             .GetAwaiter()
             .GetResult();
 
-        var menuDtos = Deserialize<List<MenuDto>>(response);
+        var menuDtos = response.DeserializeData<List<MenuDto>>();
 
         PrimaryMenus.Clear();
         PreloadViews(menuDtos);
@@ -247,13 +240,4 @@ public class MainViewModel : BaseViewModel
         };
     }
 
-    private static T Deserialize<T>(RpcResponse response)
-    {
-        if (!response.Success)
-        {
-            throw new InvalidOperationException(response.Message);
-        }
-
-        return JsonSerializer.Deserialize<T>(response.Data, JsonOptions)!;
-    }
 }

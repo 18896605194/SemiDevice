@@ -1,8 +1,11 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace xyz.Common.Helpers;
+namespace xyz.Tools;
 
+/// <summary>
+/// 统一 IoC 容器获取入口，前后端共用（原先前后端各有一份完全相同的实现）。
+/// 启动时由宿主赋值 <see cref="ServiceProvider"/>：客户端 App.OnStartup / 后端 Program。
+/// </summary>
 public static class IocHelper
 {
     /// <summary>

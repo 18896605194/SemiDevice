@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\xyz.Common\xyz.Common.csproj" />
+    <ProjectReference Include="..\..\Shared\xyz.Tools\xyz.Tools.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

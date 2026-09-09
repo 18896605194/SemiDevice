@@ -1,4 +1,4 @@
-using System.Text.Json;
+using xyz.Tools;
 using ProtoBuf.Grpc;
 using xyz.Common.Log;
 using xyz.Components;
@@ -73,7 +73,7 @@ public class LoadPortService : ILoadPortService
             })
             .ToList();
 
-        var data = dto.Count == 1 ? JsonSerializer.Serialize(dto[0]) : JsonSerializer.Serialize(dto);
+        var data = dto.Count == 1 ? JsonHelper.Serialize(dto[0]) : JsonHelper.Serialize(dto);
         return Task.FromResult(RpcResponse.Ok(data));
     }
 

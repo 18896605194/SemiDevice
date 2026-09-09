@@ -43,12 +43,10 @@ public class EventMessage
 }
 
 /// <summary>
-/// 信封打包/解包辅助，统一 JSON 序列化选项。
+/// 信封打包/解包辅助，统一走 <see cref="JsonHelper"/>。
 /// </summary>
 public static class EventEnvelope
 {
-    internal static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
-
     /// <summary>
     /// 把消息对象打包成信封。retain 默认 false（上行/发生类），
     /// 后端 Send 状态类消息时显式传 true。
@@ -60,7 +58,7 @@ public static class EventEnvelope
         {
             TypeName = typeof(TMessage).FullName ?? string.Empty,
             Token = token ?? string.Empty,
-            Payload = JsonSerializer.Serialize(message, Options),
+            Payload = JsonHelper.Serialize(message),
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             Retain = retain,
         };
@@ -71,7 +69,7 @@ public static class EventEnvelope
     /// </summary>
     public static object From(EventMessage envelope, Type type)
     {
-        return JsonSerializer.Deserialize(envelope.Payload, type, Options)
+        return JsonHelper.Deserialize(envelope.Payload, type)
                ?? throw new JsonException($"类型 {type.Name} 反序列化结果为 null");
     }
 }

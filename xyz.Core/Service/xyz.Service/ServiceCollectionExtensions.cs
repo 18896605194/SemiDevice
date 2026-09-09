@@ -4,6 +4,7 @@ using xyz.Components;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
+using xyz.Service.Events;
 using xyz.Service.UserManger;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
@@ -23,17 +24,21 @@ public static class ServiceCollectionExtensions
     {
         #region 日志转发（LogHelper → 队列 → 单消费者 → EventBus → 客户端）
 
-        LogQueue.Start(item => EventBus.Send(
-            new LogDto
+        LogQueue.Start(item =>
+        {
+            var log = new LogDto
             {
                 Time = item.Time,
                 Level = item.Level.Name,
                 Module = item.Module,
                 Message = item.Message,
                 Source = "Server",
-            },
-            LogDto.EventToken,
-            retain: false));
+            };
+
+            // 进环形缓冲（供客户端连上后补历史）+ 实时推事件流
+            LogHistory.Add(log);
+            EventBus.Send(log, LogDto.EventToken, retain: false);
+        });
 
         #endregion
 
@@ -56,7 +61,7 @@ public static class ServiceCollectionExtensions
         {
             if (!module.Open())
             {
-                Console.WriteLine($"模块 {module.Name} 驱动连接失败");
+                LogHelper.Error(module.Name, "驱动连接失败");
             }
         }
 
@@ -65,7 +70,7 @@ public static class ServiceCollectionExtensions
             module.Start();
         }
 
-        Console.WriteLine($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
+        LogHelper.Info($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
 
         #endregion
 

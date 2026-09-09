@@ -1,6 +1,6 @@
 using Mapster;
 using ProtoBuf.Grpc;
-using System.Text.Json;
+using xyz.Tools;
 using xyz.Database.Auth;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -23,7 +23,7 @@ public class RoleService : RepositoryBase<RoleEntity>, IRoleService
         var entities = await GetAllEnabledAsync();
         var roles = entities.Select(role => role.Adapt<RoleDto>()).ToList();
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(roles));
+        return RpcResponse.Ok(JsonHelper.Serialize(roles));
     }
 
     public async Task<RpcResponse> ExistsAsync(RpcRequest request, CallContext context = default)
@@ -32,7 +32,7 @@ public class RoleService : RepositoryBase<RoleEntity>, IRoleService
         var exists = await AnyAsync(role =>
             role.Name == name && role.IsEnabled);
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(exists));
+        return RpcResponse.Ok(JsonHelper.Serialize(exists));
     }
 
     public async Task<RpcResponse> CreateRoleAsync(RpcRequest request, CallContext context = default)
@@ -49,7 +49,7 @@ public class RoleService : RepositoryBase<RoleEntity>, IRoleService
 
         entity.Id = await InsertAsync(entity);
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(entity.Adapt<RoleDto>()));
+        return RpcResponse.Ok(JsonHelper.Serialize(entity.Adapt<RoleDto>()));
     }
 
     public async Task<RpcResponse> DeleteRoleAsync(RpcRequest request, CallContext context = default)

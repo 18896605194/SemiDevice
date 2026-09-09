@@ -1,5 +1,5 @@
 using ProtoBuf.Grpc;
-using System.Text.Json;
+using xyz.Tools;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 
@@ -13,7 +13,7 @@ public class RpcService : IRpcService
 {
     public Task<RpcResponse> InvokeAsync(RpcRequest request, CallContext context = default)
     {
-        var response = RpcResponse.Ok(JsonSerializer.Serialize(request.Parameters));
+        var response = RpcResponse.Ok(JsonHelper.Serialize(request.Parameters));
         return Task.FromResult(response);
     }
 }

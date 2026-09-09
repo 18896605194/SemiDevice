@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
-using System.Text.Json;
+using xyz.Shared.Rpc;
 using xyz.Client.DataModels.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Setting.Models;
@@ -15,11 +15,6 @@ namespace xyz.Client.Setting.ViewModels;
 /// </summary>
 public class MenuViewModel : BaseViewModel
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     private List<MenuDto> _allMenus = new();
 
     #region Column
@@ -148,7 +143,7 @@ public class MenuViewModel : BaseViewModel
             .GetAwaiter()
             .GetResult();
 
-        _allMenus = Deserialize<List<MenuDto>>(response);
+        _allMenus = response.DeserializeData<List<MenuDto>>();
 
         var items = _allMenus
             .OrderBy(menu => menu.Sort)
@@ -200,13 +195,4 @@ public class MenuViewModel : BaseViewModel
         return parameters;
     }
 
-    private static T Deserialize<T>(RpcResponse response)
-    {
-        if (!response.Success)
-        {
-            throw new InvalidOperationException(response.Message);
-        }
-
-        return JsonSerializer.Deserialize<T>(response.Data, JsonOptions)!;
-    }
 }

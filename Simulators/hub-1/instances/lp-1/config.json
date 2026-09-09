@@ -1,9 +1,0 @@
-{
-  "SerialPort": {
-    "DefaultPort": "COM20",
-    "DefaultBaudRate": 9600,
-    "DefaultDataBits": 8,
-    "DefaultStopBits": 1,
-    "DefaultParity": "None"
-  }
-}

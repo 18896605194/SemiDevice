@@ -1,6 +1,6 @@
 using Mapster;
 using ProtoBuf.Grpc;
-using System.Text.Json;
+using xyz.Tools;
 using xyz.Database.Auth;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -23,7 +23,7 @@ public class UserService : RepositoryBase<UserEntity>, IUserService
         var entities = await GetAllEnabledAsync();
         var users = entities.Select(user => user.Adapt<UserDto>()).ToList();
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(users));
+        return RpcResponse.Ok(JsonHelper.Serialize(users));
     }
 
     public async Task<RpcResponse> ExistsAsync(RpcRequest request, CallContext context = default)
@@ -32,7 +32,7 @@ public class UserService : RepositoryBase<UserEntity>, IUserService
         var exists = await AnyAsync(user =>
             user.UserName == userName && user.IsEnabled);
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(exists));
+        return RpcResponse.Ok(JsonHelper.Serialize(exists));
     }
 
     public async Task<RpcResponse> CreateUserAsync(RpcRequest request, CallContext context = default)
@@ -52,7 +52,7 @@ public class UserService : RepositoryBase<UserEntity>, IUserService
 
         entity.Id = await InsertAsync(entity);
 
-        return RpcResponse.Ok(JsonSerializer.Serialize(entity.Adapt<UserDto>()));
+        return RpcResponse.Ok(JsonHelper.Serialize(entity.Adapt<UserDto>()));
     }
 
     public async Task<RpcResponse> DeleteUserAsync(RpcRequest request, CallContext context = default)

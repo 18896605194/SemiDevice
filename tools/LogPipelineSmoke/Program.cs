@@ -6,6 +6,7 @@ using xyz.Client.DataModels.Rpc;
 using xyz.Client.Presentation.ViewModels;
 using xyz.Common.Log;
 using xyz.Shared.Dtos;
+using xyz.Shared.Services;
 using xyz.Tools;
 
 // 跨进程模式：连到正在运行的后端，用真实客户端的组合（RemoteEventBus → EventBus → ClientLog → LogViewModel）
@@ -23,7 +24,11 @@ if (args.Length > 0 && args[0] == "client")
 
     await Task.Delay(TimeSpan.FromSeconds(seconds));
 
-    Console.WriteLine($"client mode: viewModel.Logs={clientViewModel.Logs.Count}");
+    var service = GrpcClientFactory.Create<ILogService>();
+    var response = await service.GetRecentAsync(new LogQuery { Count = 10 });
+    var data = response.Data.Length > 160 ? response.Data[..160] : response.Data;
+    Console.WriteLine($"client mode: connected={RemoteEventBus.IsConnected} viewModel.Logs={clientViewModel.Logs.Count} " +
+                      $"GetRecent.Success={response.Success} Data={data}");
     if (clientViewModel.Logs.Count > 0)
     {
         var last = clientViewModel.Logs[^1];

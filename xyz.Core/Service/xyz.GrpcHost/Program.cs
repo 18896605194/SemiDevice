@@ -32,6 +32,7 @@ public static class Program
         app.MapGrpcService<MenuService>();
         app.MapGrpcService<EventService>();
         app.MapGrpcService<LoadPortService>();
+        app.MapGrpcService<LogService>();
 
         app.Run();
     }

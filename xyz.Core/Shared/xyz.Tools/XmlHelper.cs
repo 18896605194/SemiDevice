@@ -1,9 +1,9 @@
 using System.Xml.Serialization;
 
-namespace xyz.Common.Helpers;
+namespace xyz.Tools;
 
 /// <summary>
-/// XML 序列化/反序列化通用辅助类。
+/// XML 序列化/反序列化通用辅助类（原先在 xyz.Common.Helpers，前后端共用后归入 Tools）。
 /// </summary>
 public static class XmlHelper
 {

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using xyz.Client.DataModels.Events;
-using xyz.Client.DataModels.Ioc;
+using xyz.Tools;
 using xyz.Client.DataModels.Log;
 using xyz.Client.DataModels.Rpc;
 using xyz.Client.DataModels.ViewModels;
