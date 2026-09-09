@@ -1,15 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
-    <ProjectReference Include="..\..\..\Shared\xyz.Tools\xyz.Tools.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Grpc.Net.Client" Version="2.83.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
-    <PackageReference Include="protobuf-net.Grpc" Version="1.3.14" />
   </ItemGroup>
 
   <PropertyGroup>

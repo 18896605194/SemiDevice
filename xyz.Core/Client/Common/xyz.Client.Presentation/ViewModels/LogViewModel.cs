@@ -1,8 +1,8 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Threading;
-using xyz.Client.DataModels.Events;
-using xyz.Client.DataModels.Log;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Events;
+using xyz.Client.Common.Log;
+using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;

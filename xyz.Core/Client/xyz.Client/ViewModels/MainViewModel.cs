@@ -1,8 +1,8 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using xyz.Shared.Rpc;
 using System.Windows.Controls;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Rpc;
 using xyz.Client.Setting.Models;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Views;

@@ -1,7 +1,7 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using xyz.Shared.Rpc;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Setting.Models;
 using xyz.Client.Setting.Views;

@@ -38,6 +38,9 @@ bld/
 /xyz.Core/Service/xyz.Common/Log/*
 !/xyz.Core/Service/xyz.Common/Log/*.cs
 !/xyz.Core/Service/xyz.Common/Log/NLog.config
+# 客户端 Common 的日志源码同样放行（[Ll]og/ 默认忽略整个目录）。
+!/xyz.Core/Client/Common/xyz.Client.Common/Log/
+!/xyz.Core/Client/Common/xyz.Client.Common/Log/*.cs
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

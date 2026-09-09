@@ -1,7 +1,7 @@
 using Grpc.Net.Client;
 using ProtoBuf.Grpc.Client;
 
-namespace xyz.Client.DataModels.Rpc;
+namespace xyz.Client.Common.Rpc;
 
 /// <summary>
 /// 通用 gRPC 客户端工厂。

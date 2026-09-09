@@ -1,11 +1,11 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using Mapster;
 using System.Collections.ObjectModel;
 using xyz.Shared.Rpc;
 using System.Windows;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Dialogs;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Rpc;
 using xyz.Client.Setting.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;

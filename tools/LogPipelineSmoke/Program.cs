@@ -1,8 +1,8 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using NLog;
-using xyz.Client.DataModels.Events;
-using xyz.Client.DataModels.Log;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Events;
+using xyz.Client.Common.Log;
+using xyz.Client.Common.Rpc;
 using xyz.Client.Presentation.ViewModels;
 using xyz.Common.Log;
 using xyz.Shared.Dtos;

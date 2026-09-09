@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
+    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Common\xyz.Client.Common.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
   </ItemGroup>
 

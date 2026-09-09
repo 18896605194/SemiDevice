@@ -1,7 +1,7 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using Mapster;
-using xyz.Client.DataModels.Log;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Log;
+using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Localization;

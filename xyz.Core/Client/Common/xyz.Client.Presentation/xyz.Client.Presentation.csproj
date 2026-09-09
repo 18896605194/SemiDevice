@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\xyz.Client.Common\xyz.Client.Common.csproj" />
     <ProjectReference Include="..\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
   </ItemGroup>
 

@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
-using xyz.Client.DataModels.Events;
-using xyz.Client.DataModels.Rpc;
+using xyz.Client.Common.Events;
+using xyz.Client.Common.Rpc;
 using xyz.Service.Events;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;

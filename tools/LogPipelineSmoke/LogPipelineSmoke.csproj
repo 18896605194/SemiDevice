@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
+    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Common\xyz.Client.Common.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Presentation\xyz.Client.Presentation.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Common\xyz.Common.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Shared\xyz.Shared\xyz.Shared.csproj" />

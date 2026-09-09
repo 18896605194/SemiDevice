@@ -1,6 +1,6 @@
-using System.Globalization;
-using xyz.Client.DataModels.Log;
-using xyz.Client.DataModels.Rpc;
+﻿using System.Globalization;
+using xyz.Client.Common.Log;
+using xyz.Client.Common.Rpc;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
