@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
     <ProjectReference Include="..\Common\xyz.Client.Presentation\xyz.Client.Presentation.csproj" />
     <ProjectReference Include="..\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
+    <ProjectReference Include="..\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
     <ProjectReference Include="..\xyz.Client.Setting\xyz.Client.Setting.csproj" />
     <ProjectReference Include="..\xyz.Client.Io\xyz.Client.Io.csproj" />
   </ItemGroup>

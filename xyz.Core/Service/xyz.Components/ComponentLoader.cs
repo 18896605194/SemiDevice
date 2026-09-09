@@ -28,13 +28,13 @@ public static class ComponentLoader
 
     /// <summary>
     /// [Component] 类型目录：注册键（Key 或 CLR 全名）→ 类型。
-    /// 扫描运行目录所有 DLL——机型层 DLL 即使未被宿主引用（仅拷贝部署）也能被发现。
+    /// 扫描运行目录及 Modules 子目录的所有 DLL——机型层 DLL 即使未被宿主引用（仅拷贝部署）也能被发现。
     /// </summary>
     private static Dictionary<string, Type> BuildCatalog()
     {
         var catalog = new Dictionary<string, Type>(StringComparer.Ordinal);
 
-        foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll"))
+        foreach (var path in EnumerateAssemblies())
         {
             Assembly assembly;
             try
@@ -74,6 +74,28 @@ public static class ComponentLoader
         }
 
         return catalog;
+    }
+
+    /// <summary>
+    /// 运行目录顶层 DLL + Modules 目录（含子目录）DLL；机型按 Modules\&lt;机型&gt;\ 部署。
+    /// </summary>
+    private static IEnumerable<string> EnumerateAssemblies()
+    {
+        foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll"))
+        {
+            yield return path;
+        }
+
+        var modulesDirectory = Path.Combine(AppContext.BaseDirectory, "Modules");
+        if (!Directory.Exists(modulesDirectory))
+        {
+            yield break;
+        }
+
+        foreach (var path in Directory.EnumerateFiles(modulesDirectory, "*.dll", SearchOption.AllDirectories))
+        {
+            yield return path;
+        }
     }
 
     private static void Build(ModuleConfig setting, Dictionary<string, Type> catalog, ComponentBase? parent, List<ComponentBase> roots)

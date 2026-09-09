@@ -26,6 +26,8 @@
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ListBoxStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/TreeViewStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ContextMenuStyles.xaml" />
+                <!-- 语言包：L10n.Get 从 Application 资源取句子，不合并会回退成原始 key。 -->
+                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Localization/Strings.zh-CN.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

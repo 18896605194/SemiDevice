@@ -15,9 +15,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
     <ProjectReference Include="..\xyz.Service\xyz.Service.csproj" />
-    <!-- 机型模块部署引用：仅为把机型 DLL 带进输出目录供 ComponentLoader 扫描发现，宿主代码不依赖它 -->
-    <!-- 机型模块部署引用：仅为把机型 DLL 带进输出目录供 ComponentLoader 扫描发现，宿主代码不依赖它 -->
-    <ProjectReference Include="..\..\..\xyz.35021\Service\xyz.35021.Module\xyz.35021.Module.csproj" />
+    <!-- 平台宿主不引用任何机型项目：机型模块 DLL 由 tools\deploy-module.ps1 部署到
+         输出目录的 Modules\<机型>\，ComponentLoader 启动时扫目录发现。 -->
   </ItemGroup>
 
   <ItemGroup>

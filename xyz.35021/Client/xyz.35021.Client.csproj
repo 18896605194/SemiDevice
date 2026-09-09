@@ -1,16 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- 机型引用平台（允许）；平台不引用本工程，靠运行时扫描 Modules\<机型> 加载。 -->
+    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Client\xyz.Client.Manual\xyz.Client.Manual.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+  </ItemGroup>
+
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>xyz._35021.Client</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- 插件要能独立部署：把 NuGet 依赖也拷进输出，部署时整份拷进壳的 Modules\35021。 -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
 </Project>

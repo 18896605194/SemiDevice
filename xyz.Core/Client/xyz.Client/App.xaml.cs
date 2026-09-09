@@ -5,6 +5,7 @@ using xyz.Tools;
 using xyz.Client.DataModels.Log;
 using xyz.Client.DataModels.Rpc;
 using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Modules;
 
 namespace xyz.Client;
 
@@ -30,8 +31,14 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddXyzClientServices();
 
+        // 机型模块：扫描 Modules 目录里的 [ClientModule] DLL，壳不引用任何机型项目。
+        var modules = ClientModuleLoader.Load(services);
+
         Services = services.BuildServiceProvider();
         IocHelper.ServiceProvider = Services;
+
+        // 机型菜单行由机型模块声明，先补齐再让 MainViewModel 读菜单。
+        ClientMenuSynchronizer.Ensure(modules);
 
         InitializeViewModels();
 
