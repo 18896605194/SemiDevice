@@ -1,9 +1,0 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
-    <!-- 35021 机型语言包（简体中文）：只放 m35021.* 错误码和机型界面的 key，不修改平台包。
-         启动时与平台包合并（平台在前、机型在后）。 -->
-
-    <!-- 示例：机型错误码文案（有实际码后启用）
-    <sys:String x:Key="m35021.something_wrong">35021 专属问题：{0}</sys:String> -->
-</ResourceDictionary>

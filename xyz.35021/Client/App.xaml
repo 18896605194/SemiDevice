@@ -25,10 +25,9 @@
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ListBoxStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/TreeViewStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ContextMenuStyles.xaml" />
-                <!-- 语言包：平台包在前、机型包在后，机型 key 可覆盖平台 key。
-                     L10n.Get 从 Application 资源取句子，不合并会回退成原始 key。 -->
+                <!-- 语言包：L10n.Get 从 Application 资源取句子，不合并会回退成原始 key。
+                     机型专属文案以后再加一个机型包，放在平台包后面即可覆盖。 -->
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Localization/Strings.zh-CN.xaml" />
-                <ResourceDictionary Source="pack://application:,,,/xyz.35021.Client;component/Localization/Strings.zh-CN.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

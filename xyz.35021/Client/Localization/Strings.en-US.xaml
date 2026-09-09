@@ -1,5 +1,0 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
-    <!-- 35021 machine language pack (English, fallback): m35021.* keys only; never edit the platform pack. -->
-</ResourceDictionary>
