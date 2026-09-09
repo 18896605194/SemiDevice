@@ -18,10 +18,25 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        #region 异常
+
         RegisterGlobalExceptionHandlers();
 
+        #endregion
+
+        #region Grpc的初始化通道
+
         GrpcClientFactory.Initialize();
+
+        #endregion
+
+        #region 前后端事件的处理初始化
+
         RemoteEventBus.Initialize();
+
+        #endregion
+
+        #region 容器服务注册和创建
 
         var services = new ServiceCollection();
         services.AddXyzClientServices();
@@ -32,10 +47,16 @@ public partial class App : Application
         Services = services.BuildServiceProvider();
         IocHelper.ServiceProvider = Services;
 
+        #endregion
+
         // 机型菜单行由机型模块声明，先补齐再让 MainViewModel 读菜单。
         ClientMenuSynchronizer.Ensure(modules);
 
+        #region 加载所有viewmodel 的init
+
         InitializeViewModels();
+
+        #endregion
 
         base.OnStartup(e);
     }
