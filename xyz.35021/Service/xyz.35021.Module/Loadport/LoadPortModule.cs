@@ -17,19 +17,29 @@ namespace xyz._35021.Module.Loadport;
 [Component(description: "35021 LoadPort 模块")]
 public class LoadPortModule : BaseLoadPortModule, ILoadPort
 {
-    private ActionStep _stateQueryStep = ActionStep.SendCommand;
-    private FcdGetStateCommand? _stateCommand;
-    private readonly Stopwatch _stateQueryWatch = new();
+    #region Column
 
     /// <summary>
     /// 最近一次 Load 的 Mapping 槽位数据（如 25 个 P）。
     /// </summary>
     public string SlotMap { get; internal set; } = string.Empty;
 
+    #endregion
+
+    #region 驱动连接
+
     protected override LoadPortDriverBase CreateDriver()
     {
         return new FcdLoadPortDriver(new FrameCommunication(CreateTransport(), new FcdFrameCodec()));
     }
+
+    #endregion
+
+    #region 扫描
+
+    private ActionStep _stateQueryStep = ActionStep.SendCommand;
+    private FcdGetStateCommand? _stateCommand;
+    private readonly Stopwatch _stateQueryWatch = new();
 
     protected override void OnScan()
     {
@@ -104,6 +114,10 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
         }
     }
 
+    #endregion
+
+    #region Action
+
     public override ModuleOperation? Load()
     {
         return Begin(LoadPortAction.Load, new LoadOperation(this));
@@ -128,4 +142,6 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
     {
         return Begin(LoadPortAction.Abort, new AbortOperation(this));
     }
+
+    #endregion
 }

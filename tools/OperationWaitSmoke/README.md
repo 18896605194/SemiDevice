@@ -6,7 +6,7 @@ Run from the repository root:
 dotnet run --project tools/OperationWaitSmoke
 ```
 
-Checks synchronous success/failure, wait timeout versus action timeout, cancellation,
+Checks synchronous success/failure, wait timeout versus action timeout,
 Abort results, module cleanup before waking waiters, operation replacement, concurrent
 terminal results, and response handling for all five LoadPort device actions plus the
 online/offline mode switch.

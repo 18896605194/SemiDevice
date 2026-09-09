@@ -1,4 +1,3 @@
-using ProtoBuf.Grpc;
 using xyz.Components;
 using xyz.Configs;
 using xyz.Modules;
@@ -114,67 +113,61 @@ for (var i = 0; i < 200; i++)
 
 var port = new ProbePort();
 var service = new LoadPortService(new ComponentBase[] { port });
-var actions = new Func<string, CallContext, Task<RpcResponse>>[]
+var actions = new Func<string, Task<RpcResponse>>[]
 {
     service.LoadAsync, service.UnloadAsync, service.HomeAsync, service.ResetAsync, service.AbortAsync
 };
 foreach (var action in actions)
 {
-    var response = await action("missing", default);
+    var response = await action("missing");
     Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "Missing module response changed.");
 
     port.Next = null;
-    response = await action(port.Name, default);
+    response = await action(port.Name);
     Check(!response.Success && response.Code == ErrorCodes.ActionRejected, "Rejected action response changed.");
 
     port.Next = new ProbeOperation();
     port.Next.Succeed();
-    response = await action(port.Name, default);
+    response = await action(port.Name);
     Check(response.Success, "RPC did not return a successful operation.");
 
     port.Next = new ProbeOperation();
     port.Next.Reject();
-    response = await action(port.Name, default);
+    response = await action(port.Name);
     Check(!response.Success && response.Code == ErrorCodes.DeviceFailed && response.Args.Count == 2,
         "RPC lost device failure details.");
 
     port.Next = new ProbeOperation();
     port.Next.TimeOut();
-    response = await action(port.Name, default);
+    response = await action(port.Name);
     Check(!response.Success && response.Code == ErrorCodes.Timeout, "RPC lost action timeout details.");
 
     port.Next = new ProbeOperation();
     port.Next.AbortByHost("replacement");
-    response = await action(port.Name, default);
+    response = await action(port.Name);
     Check(!response.Success && response.Code == ErrorCodes.Aborted, "RPC returned an empty Abort error.");
 
     port.Next = new ProbeOperation();
-    response = await action(port.Name, default);
+    response = await action(port.Name);
     Check(!response.Success && response.Code == ErrorCodes.WaitTimeout
         && response.Args.SequenceEqual(new[] { "Probe", "0" })
         && port.Next.State == OperationState.Running,
         "RPC must report wait timeout without changing device operation state.");
     port.Next.Succeed();
     Check(port.Next.Wait(0), "RPC timeout prevented later completion.");
-
-    using var cancellation = new CancellationTokenSource();
-    cancellation.Cancel();
-    var callsBefore = port.Calls;
-    Throws<OperationCanceledException>(() => action(port.Name, cancellation.Token).GetAwaiter().GetResult());
-    Check(port.Calls == callsBefore, "A request canceled before admission must not start a device action.");
 }
 
 // Online/Offline 是内部模式位（不经设备协议）：置位即成功，不产生操作、不等待。
-var modeResponse = await service.OnlineAsync("missing", default);
+var modeResponse = await service.OnlineAsync("missing");
 Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
     "Online must report a missing module.");
 
 Check(!port.IsAutoMode, "Probe port must start in manual mode.");
-modeResponse = await service.OnlineAsync(port.Name, default);
+modeResponse = await service.OnlineAsync(port.Name);
 Check(modeResponse.Success && port.IsAutoMode, "Online must set auto mode.");
 
 var callsBeforeMode = port.Calls;
-modeResponse = await service.OfflineAsync(port.Name, default);
+modeResponse = await service.OfflineAsync(port.Name);
 Check(modeResponse.Success && !port.IsAutoMode && port.Calls == callsBeforeMode,
     "Offline must clear auto mode without starting a device action.");
 

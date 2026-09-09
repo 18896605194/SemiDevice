@@ -1,67 +1,109 @@
-using xyz.Tools;
-using ProtoBuf.Grpc;
-using xyz.Common.Log;
 using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
-using xyz.Shared.Errors;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Service;
 
 /// <summary>
 /// LoadPort 手动操作 gRPC 服务（命令通道）：下发 → 同步等终态 → 码+参数回包。
+/// 公共流程（找模块、被拒/超时/终态回包）在 <see cref="BaseService"/>。
 /// </summary>
-public class LoadPortService : ILoadPortService
+public class LoadPortService : BaseService, ILoadPortService
 {
-    private readonly IReadOnlyList<ComponentBase> _roots;
-
-    public LoadPortService(IReadOnlyList<ComponentBase> roots)
+    public LoadPortService(IReadOnlyList<ComponentBase> roots) : base(roots)
     {
-        _roots = roots;
     }
 
-    public Task<RpcResponse> LoadAsync(string module, CallContext context = default)
+    public Task<RpcResponse> LoadAsync(string module)
     {
-        return Execute(module, port => port.Load(), port => port.LoadTimeout, context);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return RunOperation(module, port, port.Load(), port.LoadTimeout);
     }
 
-    public Task<RpcResponse> UnloadAsync(string module, CallContext context = default)
+    public Task<RpcResponse> UnloadAsync(string module)
     {
-        return Execute(module, port => port.Unload(), port => port.UnloadTimeout, context);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return RunOperation(module, port, port.Unload(), port.UnloadTimeout);
     }
 
-    public Task<RpcResponse> HomeAsync(string module, CallContext context = default)
+    public Task<RpcResponse> HomeAsync(string module)
     {
-        return Execute(module, port => port.Home(), port => port.HomeTimeout, context);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return RunOperation(module, port, port.Home(), port.HomeTimeout);
     }
 
-    public Task<RpcResponse> ResetAsync(string module, CallContext context = default)
+    public Task<RpcResponse> ResetAsync(string module)
     {
-        return Execute(module, port => port.Reset(), port => port.ResetTimeout, context);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return RunOperation(module, port, port.Reset(), port.ResetTimeout);
     }
 
-    public Task<RpcResponse> AbortAsync(string module, CallContext context = default)
+    public Task<RpcResponse> AbortAsync(string module)
     {
-        return Execute(module, port => port.Abort(), port => port.AbortTimeout, context);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return RunOperation(module, port, port.Abort(), port.AbortTimeout);
     }
 
     /// <summary>
     /// 上线/下线是内部模式位（不经设备协议），置位即成功；界面经事件流刷新 AUTO/MANUAL 灯。
     /// </summary>
-    public Task<RpcResponse> OnlineAsync(string module, CallContext context = default)
+    public Task<RpcResponse> OnlineAsync(string module)
     {
-        return SetModeAsync(module, true);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        port.SetAutoMode(true);
+        return Task.FromResult(RpcResponse.Ok());
     }
 
-    public Task<RpcResponse> OfflineAsync(string module, CallContext context = default)
+    /// <summary>
+    /// 上线/下线是内部模式位（不经设备协议），置位即成功；界面经事件流刷新 AUTO/MANUAL 灯。
+    /// </summary>
+    public Task<RpcResponse> OfflineAsync(string module)
     {
-        return SetModeAsync(module, false);
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        port.SetAutoMode(false);
+        return Task.FromResult(RpcResponse.Ok());
     }
 
-    public Task<RpcResponse> GetStateAsync(string module, CallContext context = default)
+    public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = _roots.OfType<BaseLoadPortModule>()
+        var dto = Roots.OfType<BaseLoadPortModule>()
             .Where(port => string.IsNullOrWhiteSpace(module)
                            || string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(port => new LoadPortDto
@@ -75,63 +117,5 @@ public class LoadPortService : ILoadPortService
 
         var data = dto.Count == 1 ? JsonHelper.Serialize(dto[0]) : JsonHelper.Serialize(dto);
         return Task.FromResult(RpcResponse.Ok(data));
-    }
-
-    /// <summary>
-    /// 下发动作并同步等终态：模块不存在回 module.not_found，动作被拒回 module.action_rejected，
-    /// 等待超时回 module.wait_timeout（只表示结果未确认，操作仍在执行，不能据此判失败或重发），
-    /// 终态回 Ok 或操作自身的错误码。
-    /// 请求已取消时不下发动作；等待期间取消只停止等待，不中止设备动作（需要时用 AbortAsync）。
-    /// </summary>
-    private Task<RpcResponse> Execute(string module,
-        Func<BaseLoadPortModule, ModuleOperation?> start,
-        Func<BaseLoadPortModule, int> timeoutOf,
-        CallContext context)
-    {
-        var cancellationToken = context.CancellationToken;
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var port = FindPort(module);
-        if (port is null)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ModuleNotFound, [module]));
-        }
-
-        var operation = start(port);
-        if (operation is null)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, [module, port.State.ToString()]));
-        }
-
-        var timeout = timeoutOf(port);
-        LogHelper.Debug($"[LoadPort] {module} {operation.Name}: {operation.State}, Reason={operation.Reason}");
-
-        if (!operation.WaitReply(timeout, cancellationToken))
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaitTimeout,
-                [operation.Name, timeout.ToString()]));
-        }
-
-        return Task.FromResult(operation.IsSuccess
-            ? RpcResponse.Ok()
-            : RpcResponse.Fail(operation.Code, operation.ErrorArgs));
-    }
-
-    private Task<RpcResponse> SetModeAsync(string module, bool autoMode)
-    {
-        var port = FindPort(module);
-        if (port is null)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ModuleNotFound, [module]));
-        }
-
-        port.SetAutoMode(autoMode);
-        return Task.FromResult(RpcResponse.Ok());
-    }
-
-    private BaseLoadPortModule? FindPort(string module)
-    {
-        return _roots.OfType<BaseLoadPortModule>()
-            .FirstOrDefault(port => string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase));
     }
 }
