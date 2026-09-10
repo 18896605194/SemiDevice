@@ -18,6 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\Common\xyz.Client.Common\Log\NLog.config" Link="Log\NLog.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Page Update="Properties\DesignTimeResources.xaml">
       <ContainsDesignTimeResources>true</ContainsDesignTimeResources>
       <SubType>Designer</SubType>
