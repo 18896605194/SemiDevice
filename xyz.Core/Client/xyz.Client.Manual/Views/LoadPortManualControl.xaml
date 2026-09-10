@@ -4,73 +4,61 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
 
-    <materialDesign:Card Style="{DynamicResource DefaultCardStyle}" Margin="8">
-        <Grid>
-            <Grid.RowDefinitions>
-                <!--  顶部：显示区（模块名 + 状态）  -->
-                <RowDefinition Height="Auto" />
-                <!--  中间：25 片  -->
-                <RowDefinition Height="*" />
-                <!--  底部：按钮区  -->
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+    <!--  三个独立卡片：状态信号 / 花篮 / 操作，各自一张 card，互不挤在一起  -->
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-            <!--  顶部显示区  -->
-            <Border
-                Grid.Row="0"
-                Padding="16,10"
-                BorderBrush="{DynamicResource MaterialDesign.Brush.Divider}"
-                BorderThickness="0,0,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+        <!--  ① 状态信号：两列 —— 左边模块名，右边三行等分（信号灯 / 状态 / 在线模式）  -->
+        <materialDesign:Card
+            Grid.Row="0"
+            Margin="0,0,0,10"
+            Style="{DynamicResource DefaultCardStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!--  左列：模块名  -->
+                    <ColumnDefinition Width="Auto" />
+                    <!--  竖分隔线  -->
+                    <ColumnDefinition Width="Auto" />
+                    <!--  右列：三行等分  -->
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                    <!--  左：在线圆点 + 模块名 + 当前状态  -->
-                    <StackPanel
-                        Grid.Column="0"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center">
-                        <Ellipse
-                            Width="12"
-                            Height="12"
-                            VerticalAlignment="Center"
-                            ToolTip="驱动串口在线">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="#555" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Model.IsConnected}" Value="True">
-                                            <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <TextBlock
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size20}"
-                            FontWeight="Bold"
-                            Foreground="{DynamicResource DarkPrimaryText}"
-                            Text="{Binding ModuleName}" />
-                        <TextBlock
-                            Margin="16,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size13}"
-                            Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="{Binding Model.StateText}" />
-                    </StackPanel>
+                <!--  左列：模块名（LoadPort1 / LoadPort2）  -->
+                <TextBlock
+                    Grid.Column="0"
+                    MinWidth="160"
+                    VerticalAlignment="Center"
+                    FontSize="{DynamicResource Size20}"
+                    FontWeight="Bold"
+                    Foreground="{DynamicResource DarkPrimaryText}"
+                    Text="{Binding ModuleName}" />
 
-                    <!--  右：状态灯组  -->
-                    <StackPanel
-                        Grid.Column="1"
-                        Orientation="Horizontal"
+                <Border
+                    Grid.Column="1"
+                    Width="1"
+                    Margin="16,0"
+                    Background="{DynamicResource MaterialDesign.Brush.Divider}" />
+
+                <!--  右列：三行等分  -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="32" />
+                        <RowDefinition Height="32" />
+                        <RowDefinition Height="32" />
+                    </Grid.RowDefinitions>
+
+                    <!--  第一行：信号灯，6 等分，不会挤出去  -->
+                    <UniformGrid
+                        Grid.Row="0"
+                        Columns="6"
+                        Rows="1"
                         VerticalAlignment="Center">
                         <!--  通讯  -->
                         <StackPanel
-                            Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             ToolTip="驱动串口连接">
@@ -96,7 +84,6 @@
 
                         <!--  在位（放上来了）  -->
                         <StackPanel
-                            Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             ToolTip="FOUP 在位（Pod Present）；灰色表示反馈不可用">
@@ -122,7 +109,6 @@
 
                         <!--  到位（放平贴紧）  -->
                         <StackPanel
-                            Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             ToolTip="FOUP 放置到位（Pod Placed）；灰色表示反馈不可用">
@@ -148,7 +134,6 @@
 
                         <!--  报警  -->
                         <StackPanel
-                            Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             ToolTip="设备硬件报警">
@@ -174,7 +159,6 @@
 
                         <!--  AUTO：E84 online  -->
                         <StackPanel
-                            Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             ToolTip="自动模式（E84 online）；灰色表示反馈不可用">
@@ -200,7 +184,6 @@
 
                         <!--  MANUAL：E84 offline  -->
                         <StackPanel
-                            Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             ToolTip="手动模式（E84 offline）；灰色表示反馈不可用">
@@ -223,29 +206,72 @@
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="MANUAL" />
                         </StackPanel>
+                    </UniformGrid>
+
+                    <!--  第二行：状态文本  -->
+                    <StackPanel
+                        Grid.Row="1"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            FontSize="{DynamicResource Size13}"
+                            Foreground="{DynamicResource DarkSecondaryText}"
+                            Text="状态：" />
+                        <TextBlock
+                            FontSize="{DynamicResource Size13}"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource DarkPrimaryText}"
+                            Text="{Binding Model.StateText}" />
+                    </StackPanel>
+
+                    <!--  第三行：在线模式（Online=true / Offline=false）  -->
+                    <StackPanel
+                        Grid.Row="2"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            FontSize="{DynamicResource Size13}"
+                            Foreground="{DynamicResource DarkSecondaryText}"
+                            Text="在线模式：" />
+                        <TextBlock FontSize="{DynamicResource Size13}" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="下线" />
+                                    <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.AutoMode}" Value="True">
+                                            <Setter Property="Text" Value="在线" />
+                                            <Setter Property="Foreground" Value="{DynamicResource GreenHealthy}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Grid>
-            </Border>
+            </Grid>
+        </materialDesign:Card>
 
-            <!--  中间：花篮图，占满剩余空间，控件内部 Viewbox 等比缩放  -->
+        <!--  ② 花篮（25 片）：控件内部 Viewbox 等比缩放，占满卡片  -->
+        <materialDesign:Card
+            Grid.Row="1"
+            Margin="0,0,0,10"
+            Style="{DynamicResource DefaultCardStyle}">
             <presentationControls:LoadPort
-                Grid.Row="1"
-                Margin="0,4"
                 SlotCount="25"
                 StatusText="{Binding Model.StateText}"
                 Title="" />
+        </materialDesign:Card>
 
-            <!--  底部：按钮区，第一行 Online/Offline，其余两行动作  -->
-            <Grid
-                Grid.Row="2"
-                Margin="16,12,16,4">
+        <!--  ③ 操作：三行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
+        <materialDesign:Card Grid.Row="2" Style="{DynamicResource DefaultCardStyle}">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!--  三个 UniformGrid 都按 3 列排：按钮同宽同高，不满一行的位置留空  -->
                 <UniformGrid Grid.Row="0" Columns="3">
                     <Button
                         MinHeight="38"
@@ -297,6 +323,6 @@
                         Style="{DynamicResource DangerButtonStyle}" />
                 </UniformGrid>
             </Grid>
-        </Grid>
-    </materialDesign:Card>
+        </materialDesign:Card>
+    </Grid>
 </UserControl>
