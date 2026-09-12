@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
-using xyz.Client.Manual.Views;
+using xyz.Client.DataModels.ViewModels;
+using xyz._35021.Client.Manual.ViewModels;
+using xyz._35021.Client.Manual.Views;
 
 namespace xyz._35021.Client;
 
@@ -12,9 +14,11 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddXyz35021ClientServices(this IServiceCollection services)
     {
-        // ModuleName 必须与 sc.xml 的模块实例名一致（LoadPort1 / LoadPort2）。
-        services.AddKeyedSingleton<UserControl>("Manual.LoadPort1",(_, _) => new LoadPortManualControl { ModuleName = "LoadPort1" });
-        services.AddKeyedSingleton<UserControl>("Manual.LoadPort2",(_, _) => new LoadPortManualControl { ModuleName = "LoadPort2" });
+        // 大手动界面：一个页面里按 sc.xml 配的 LoadPort 数量动态生成多个面板。
+        services.AddSingleton<LoadPortsManualViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<LoadPortsManualViewModel>());
+
+        services.AddKeyedSingleton<UserControl, LoadPortsManualView>("Manual.LoadPorts");
 
         return services;
     }

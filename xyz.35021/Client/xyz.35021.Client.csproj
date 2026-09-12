@@ -3,11 +3,18 @@
   <ItemGroup>
     <!-- 机型引用平台（允许）；平台不引用本工程，靠运行时扫描 Modules\<机型> 加载。 -->
     <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
-    <ProjectReference Include="..\..\xyz.Core\Client\xyz.Client.Manual\xyz.Client.Manual.csproj" />
+    <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
+    <ProjectReference Include="Manual\xyz.35021.Client.Manual.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Manual 是子目录里的独立项目，排除其源文件 -->
+    <Compile Remove="Manual\**" />
+    <Page Remove="Manual\**" />
   </ItemGroup>
 
   <PropertyGroup>

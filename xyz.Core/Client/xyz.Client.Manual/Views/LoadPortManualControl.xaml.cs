@@ -35,9 +35,13 @@ public partial class LoadPortManualControl : UserControl
             return;
         }
 
-        (control.DataContext as LoadPortManualViewModel)?.Dispose();
+        // 只把 DataContext 挂在内容根节点上，不动控件自身的 DataContext：
+        // 否则外层 <xxx ModuleName="{Binding}" /> 的绑定会因为 DataContext 变化二次求值，
+        // 把 ViewModel 对象转成字符串再塞回 ModuleName。
+        (control.Root.DataContext as LoadPortManualViewModel)?.Dispose();
+
         var viewModel = new LoadPortManualViewModel(name);
-        control.DataContext = viewModel;
+        control.Root.DataContext = viewModel;
         viewModel.Init();
     }
 }

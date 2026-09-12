@@ -12,4 +12,9 @@ public interface IClientMenuProvider
     /// 本机型需要的菜单行；为空表示不补菜单（页面只能由已有菜单 Code 命中）。
     /// </summary>
     IReadOnlyList<ClientMenu> Menus { get; }
+
+    /// <summary>
+    /// 需要从后端菜单表删掉的旧菜单 Code（机型改版后清理旧菜单项），默认不清理。
+    /// </summary>
+    IReadOnlyList<string> RetiredMenuCodes => Array.Empty<string>();
 }

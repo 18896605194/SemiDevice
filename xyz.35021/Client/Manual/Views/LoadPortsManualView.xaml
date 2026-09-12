@@ -1,0 +1,20 @@
+<UserControl x:Class="xyz._35021.Client.Manual.Views.LoadPortsManualView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:manual="clr-namespace:xyz.Client.Manual.Views;assembly=xyz.Client.Manual"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <!--  35021 大手动界面：固定 4 列（最多 4 个 LoadPort），有几个就从左到右填，空位留白。  -->
+    <ItemsControl ItemsSource="{Binding Ports}">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <UniformGrid Columns="4" Rows="1" />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <manual:LoadPortManualControl ModuleName="{Binding}" />
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

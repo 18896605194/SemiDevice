@@ -26,6 +26,33 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  紧凑按钮：多行按钮区（如 LoadPort 手动操作）用，比默认按钮矮一档  -->
+    <Style
+        x:Key="CompactButtonStyle"
+        BasedOn="{StaticResource DefaultButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Margin" Value="3" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
+    <Style
+        x:Key="CompactSuccessButtonStyle"
+        BasedOn="{StaticResource CompactButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkRunningStatus}" />
+    </Style>
+
+    <Style
+        x:Key="CompactDangerButtonStyle"
+        BasedOn="{StaticResource CompactButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
+    </Style>
+
     <Style
         x:Key="SuccessButtonStyle"
         BasedOn="{StaticResource DefaultButtonStyle}"

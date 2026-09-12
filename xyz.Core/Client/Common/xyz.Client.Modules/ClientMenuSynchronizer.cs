@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Shared.Dtos;
@@ -18,12 +18,11 @@ public static class ClientMenuSynchronizer
     /// </summary>
     public static void Ensure(IReadOnlyList<IClientModule> modules)
     {
-        var menus = modules
-            .OfType<IClientMenuProvider>()
-            .SelectMany(provider => provider.Menus)
-            .ToList();
+        var providers = modules.OfType<IClientMenuProvider>().ToList();
+        var menus = providers.SelectMany(provider => provider.Menus).ToList();
+        var retiredCodes = providers.SelectMany(provider => provider.RetiredMenuCodes).ToList();
 
-        if (menus.Count == 0)
+        if (menus.Count == 0 && retiredCodes.Count == 0)
         {
             return;
         }
@@ -37,6 +36,26 @@ public static class ClientMenuSynchronizer
                 .DeserializeData<List<MenuDto>>();
 
             var byCode = existing.ToDictionary(menu => menu.Code, StringComparer.OrdinalIgnoreCase);
+
+            // 先清理机型改版后废弃的旧菜单，再补齐当前菜单。
+            foreach (var code in retiredCodes)
+            {
+                if (!byCode.TryGetValue(code, out var obsolete))
+                {
+                    continue;
+                }
+
+                var deleteRequest = new RpcRequest();
+                deleteRequest.Parameters["Id"] = obsolete.Id.ToString(CultureInfo.InvariantCulture);
+
+                service.DeleteMenuAsync(deleteRequest)
+                    .GetAwaiter()
+                    .GetResult()
+                    .EnsureSuccess();
+
+                byCode.Remove(code);
+                ClientLog.Info("Client", $"已清理旧菜单 {code}");
+            }
 
             foreach (var menu in menus)
             {
