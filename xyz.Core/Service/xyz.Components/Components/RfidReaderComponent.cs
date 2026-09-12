@@ -1,13 +1,12 @@
 using xyz.Components;
 using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// RFID 读头组件：承载读头品牌和串口装机配置。
-/// </summary>
+
 [Component(description: "RFID 读头组件")]
-public class RfidReaderComponent : ComponentBase
+public class RfidReaderComponent : ComponentBase, IRfidReader
 {
     #region SC 装机常量
 
@@ -34,7 +33,22 @@ public class RfidReaderComponent : ComponentBase
     #region Action Template
 
     /// <summary>
-    /// 读取载具 ID。公共入口固定，具体 RFID 协议由实现类重写。
+    /// 打开读头连接。通用组件无协议、无连接可开，恒成功；品牌子类重写以按 SC 配置建立串口/网口连接。
+    /// </summary>
+    public bool Open()
+    {
+        return true;
+    }
+
+    /// <summary>
+    /// 关闭读头连接。通用组件无连接可关；品牌子类重写以释放串口/网口。
+    /// </summary>
+    public void Close()
+    {
+    }
+
+    /// <summary>
+    /// 读取载具 ID。IRfidReader 契约入口固定，具体 RFID 协议由实现类重写。
     /// </summary>
     public string? ReadCarrierId()
     {

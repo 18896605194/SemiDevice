@@ -3,6 +3,7 @@ using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Communication.Serial;
 using xyz.Drivers.Communication.Tcp;
@@ -184,15 +185,28 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
 
     #region Component
 
-    public RfidReaderComponent RFID { get; }
+    /// <summary>
+    /// RFID 读头：基类只依赖 IRfidReader 接口，具体品牌组件由 CreateRfidReader 决定，机型可重写更换。
+    /// </summary>
+    public IRfidReader RFID { get; }
 
     #endregion
 
-   
+
     protected BaseLoadPortModule()
     {
-        RFID = new RfidReaderComponent();
-        AddChild(RFID);
+        var rfid = CreateRfidReader();
+        RFID = rfid;
+        AddChild(rfid);
+    }
+
+    /// <summary>
+    /// 创建 RFID 读头组件；默认通用组件（只承载装机配置，不含品牌协议）。
+    /// 机型使用不同 RFID 读头时重写，返回实现了 IRfidReader 的 RfidReaderComponent 子类。
+    /// </summary>
+    protected virtual RfidReaderComponent CreateRfidReader()
+    {
+        return new RfidReaderComponent();
     }
 
     #region 驱动连接
@@ -234,9 +248,23 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
             return true;
         }
 
+        if (!RFID.Open())
+        {
+            return false;
+        }
+
         Driver = CreateDriver();
         Driver.OnSpontaneousEvent += OnDriverSpontaneousEvent;  //事件
         return Driver.Open();
+    }
+
+    /// <summary>
+    /// 关闭 RFID 读头与驱动连接；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// </summary>
+    public void Close()
+    {
+        RFID.Close();
+        Driver?.Close();
     }
 
     private void OnDriverSpontaneousEvent(LoadPortDeviceEvent evt)

@@ -64,6 +64,87 @@ public abstract class ComponentBase
         _children.Add(child);
     }
 
+    #region 查找子组件
+
+    /// <summary>
+    /// 按名字在子组件树（含各级后代，不含自己）中查找，忽略大小写；找不到返回 null。
+    /// </summary>
+    public ComponentBase? FindChild(string name)
+    {
+        foreach (var child in _children)
+        {
+            if (string.Equals(child.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return child;
+            }
+
+            var found = child.FindChild(name);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 按名字 + 类型在子组件树（含各级后代，不含自己）中查找，忽略大小写；
+    /// 名字命中但类型不符（或找不到）返回 null。T 可为具体组件类（含派生）或接口。
+    /// </summary>
+    public T? FindChild<T>(string name) where T : class
+    {
+        return FindChild(name) as T;
+    }
+
+    /// <summary>
+    /// 按类型在子组件树（含各级后代，不含自己）中查找第一个匹配项；找不到返回 null。
+    /// T 可以是具体组件类（含其派生类）或接口（如 IRfidReader，匹配任意实现类）。
+    /// </summary>
+    public T? FindChild<T>() where T : class
+    {
+        foreach (var child in _children)
+        {
+            if (child is T matched)
+            {
+                return matched;
+            }
+
+            var found = child.FindChild<T>();
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 按类型或接口在子组件树（含各级后代，不含自己）中查找全部匹配项（含派生类/实现类）。
+    /// </summary>
+    public IReadOnlyList<T> FindChildren<T>() where T : class
+    {
+        var result = new List<T>();
+        CollectChildren(this, result);
+        return result;
+    }
+
+    private static void CollectChildren<T>(ComponentBase component, List<T> result) where T : class
+    {
+        foreach (var child in component._children)
+        {
+            if (child is T matched)
+            {
+                result.Add(matched);
+            }
+
+            CollectChildren(child, result);
+        }
+    }
+
+    #endregion
+
 
     #region 开启轮询 间隔50ms
     /// <summary>
