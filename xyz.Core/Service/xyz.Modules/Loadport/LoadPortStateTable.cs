@@ -31,8 +31,14 @@ public static class LoadPortStateTable
             [(null, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle)
         };
 
-    public static bool TryGetTransition(int state,LoadPortAction action, out (int ExecutingState, int SuccessState) transition)
+    /// <summary>
+    /// 转成基类迁移表的注册键（动作名 = 枚举 ToString），供 LoadPort 模块实例注册自己的表；
+    /// 机型可在返回值基础上增删后经 RegisterTransitions/AddTransition 定制。
+    /// </summary>
+    public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
     {
-        return Transitions.TryGetValue((state, action), out transition)|| Transitions.TryGetValue((null, action), out transition);
+        return Transitions.ToDictionary(
+            kv => (kv.Key.State, kv.Key.Action.ToString()),
+            kv => kv.Value);
     }
 }

@@ -2,7 +2,7 @@ namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// RFID 读头能力契约：LoadPort 基类只依赖本接口，不同机型可换不同品牌的读头实现。
-/// 实现类同时应是 RfidReaderComponent 子类（挂到模块组件树上承载 SC 装机配置）。
+/// 实现类不限制基类；需要从 sc.xml 装机时实现为 ComponentBase 子类并命名 RFID（模块会挂到组件树灌值）。
 /// </summary>
 public interface IRfidReader
 {

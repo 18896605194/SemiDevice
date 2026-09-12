@@ -1,7 +1,6 @@
 using xyz.Components;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
-using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Drivers.Communication;
@@ -15,7 +14,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseLoadPortModule : BaseModule, ILoadPort
+public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
     #region SV 状态变量
 
@@ -23,7 +22,7 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     /// LoadPort 当前状态（SV）。既可以保存平台公共状态，也可以保存 LoadPort 专属状态。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
-    public int State { get; protected set; } = ModuleState.NotInit;
+    public override int State { get; protected set; } = ModuleState.NotInit;
 
     /// <summary>
     /// FOUP 是否在位（SV）。驱动 PODON/PODOF 主动事件刷新。
@@ -185,40 +184,25 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
 
     #region Component
 
-    /// <summary>
-    /// RFID 读头：基类只依赖 IRfidReader 接口，具体品牌组件由 CreateRfidReader 决定，机型可重写更换。
-    /// </summary>
-    public IRfidReader RFID { get; }
+    public IRfidReader? RFID => FindChild<IRfidReader>();
 
     #endregion
 
-
     protected BaseLoadPortModule()
     {
-        var rfid = CreateRfidReader();
-        RFID = rfid;
-        AddChild(rfid);
+        // 注册 LoadPort 家族默认迁移表；机型可在基表上增删定制"自己的表"。
+        RegisterTransitions(LoadPortStateTable.ToModuleTable());
     }
 
     /// <summary>
-    /// 创建 RFID 读头组件；默认通用组件（只承载装机配置，不含品牌协议）。
-    /// 机型使用不同 RFID 读头时重写，返回实现了 IRfidReader 的 RfidReaderComponent 子类。
+    /// 传片环锚点态：LoadPort 已装载（Loaded）即可被机械手服务。
     /// </summary>
-    protected virtual RfidReaderComponent CreateRfidReader()
-    {
-        return new RfidReaderComponent();
-    }
+    protected override int AnchorState => LoadPortState.Loaded;
 
     #region 驱动连接
 
-    /// <summary>
-    /// 当前驱动；Open 之后可用。公开给机型操作类（LoadOperation 等）取用发指令。
-    /// </summary>
     public LoadPortDriverBase? Driver { get; private set; }
 
-    /// <summary>
-    /// 按通讯类型建字节传输（SC 的 CommType 决定串口/网口）。
-    /// </summary>
     protected ICommunication CreateTransport()
     {
         return CommType switch
@@ -248,7 +232,8 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
             return true;
         }
 
-        if (!RFID.Open())
+        var rfid = RFID;
+        if (rfid is not null && !rfid.Open())
         {
             return false;
         }
@@ -263,7 +248,7 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     /// </summary>
     public void Close()
     {
-        RFID.Close();
+        RFID?.Close();
         Driver?.Close();
     }
 
@@ -289,10 +274,10 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     private LoadPortDto? _lastPublishedState;
 
     /// <summary>
-    /// 在设备状态扫描后调用：首次发布，之后只在状态变化时发布。
+    /// 发布当前状态（扫描周期与传片环标记都会调）：首次发布，之后只在状态变化时发布。
     /// EventBus 留存最后一条消息，供界面晚订阅或重连时补发。
     /// </summary>
-    protected void PublishState()
+    protected override void PublishState()
     {
         var dto = new LoadPortDto
         {
@@ -345,9 +330,9 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
     private (int ExecutingState, int SuccessState) _transition;
 
     /// <summary>
-    /// 通过 LoadPort 内部的 RFID 组件读取载具 ID。
+    /// 通过 LoadPort 内部的 RFID 组件读取载具 ID；未挂载读头组件时返回 null。
     /// </summary>
-    public string? ReadCarrierId() => RFID.ReadCarrierId();
+    public string? ReadCarrierId() => RFID?.ReadCarrierId();
 
     /// <summary>
     /// 发起 Load。机型实现：Begin(LoadPortAction.Load, new ...Operation(...))。
@@ -382,6 +367,9 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
         IsAutoMode = autoMode;
     }
 
+    // 传片状态标记（MarkTransferReady / MarkTransferring / MarkTransferComplete）
+    // 已上移到 BaseTransferStationModule，锚点态见 AnchorState（LoadPort = Loaded）。
+
     /// <summary>
     /// 发起动作：前置检查 + 状态迁移表 + 挂载传入的操作并进入执行状态，立即返回。
     /// 操作由模块扫描线程自动步进（见 BaseModule），终结按迁移表落状态。
@@ -396,7 +384,7 @@ public abstract class BaseLoadPortModule : BaseModule, ILoadPort
                 return null;
             }
 
-            if (!LoadPortStateTable.TryGetTransition(State, action, out var transition))
+            if (!TryGetTransition(State, action.ToString(), out var transition))
             {
                 return null;
             }

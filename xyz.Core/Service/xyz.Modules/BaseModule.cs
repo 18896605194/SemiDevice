@@ -15,6 +15,49 @@ public abstract class BaseModule : ComponentBase
         return true;
     }
 
+    #region 状态迁移表（模块注册自己的表，动作发起前查表放行）
+
+    private readonly Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> _transitions = new();
+
+    /// <summary>
+    /// 注册本模块的状态迁移表（整表替换）。
+    /// 键：当前状态（null=任意状态通配）+ 动作名（约定用动作枚举 ToString，如 "Load"）；
+    /// 值：(执行状态, 成功状态)。机型可在家族默认表基础上增删后传入，得到"属于自己的表"。
+    /// </summary>
+    protected void RegisterTransitions(
+        IEnumerable<KeyValuePair<(int? State, string Action), (int ExecutingState, int SuccessState)>> entries)
+    {
+        _transitions.Clear();
+        foreach (var entry in entries)
+        {
+            _transitions[entry.Key] = entry.Value;
+        }
+    }
+
+    /// <summary>
+    /// 单条追加/覆盖迁移（机型在注册的默认表上定制用）。
+    /// </summary>
+    protected void AddTransition(
+        (int? State, string Action) key, (int ExecutingState, int SuccessState) transition)
+    {
+        _transitions[key] = transition;
+    }
+
+    /// <summary>
+    /// 动作发起前查表：先按当前状态精确匹配，未命中再查 null 通配；都不中返回 false（状态不允许）。
+    /// </summary>
+    protected bool TryGetTransition(int state, string action, out (int ExecutingState, int SuccessState) transition)
+    {
+        if (_transitions.TryGetValue((state, action), out transition))
+        {
+            return true;
+        }
+
+        return _transitions.TryGetValue((null, action), out transition);
+    }
+
+    #endregion
+
     #region EC 在线参数（扫描）
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
