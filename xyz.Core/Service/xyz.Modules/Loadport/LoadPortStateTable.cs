@@ -27,6 +27,10 @@ public static class LoadPortStateTable
             [(ModuleState.Error, LoadPortAction.Reset)] = (ModuleState.Error, ModuleState.Idle),
             [(LoadPortState.Loaded, LoadPortAction.Reset)] = (LoadPortState.Loaded, ModuleState.Idle),
 
+            // Clamp/Unclamp 只在空闲（门关）时允许；Loaded（门开）不允许松开。
+            [(ModuleState.Idle, LoadPortAction.Clamp)] = (LoadPortState.Clamping, ModuleState.Idle),
+            [(ModuleState.Idle, LoadPortAction.Unclamp)] = (LoadPortState.Unclamping, ModuleState.Idle),
+
             // null 表示任意当前状态。
             [(null, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle)
         };

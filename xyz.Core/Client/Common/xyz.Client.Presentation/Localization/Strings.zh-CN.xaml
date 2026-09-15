@@ -24,6 +24,8 @@
     <sys:String x:Key="module.state.loaded">已装载</sys:String>
     <sys:String x:Key="module.state.unloading">卸载中</sys:String>
     <sys:String x:Key="module.state.homing">回零中</sys:String>
+    <sys:String x:Key="module.state.clamping">夹紧中</sys:String>
+    <sys:String x:Key="module.state.unclamping">松开中</sys:String>
     <sys:String x:Key="module.state.unknown">未知状态（{0}）</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>

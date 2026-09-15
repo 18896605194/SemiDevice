@@ -23,6 +23,8 @@
     <sys:String x:Key="module.state.loaded">Loaded</sys:String>
     <sys:String x:Key="module.state.unloading">Unloading</sys:String>
     <sys:String x:Key="module.state.homing">Homing</sys:String>
+    <sys:String x:Key="module.state.clamping">Clamping</sys:String>
+    <sys:String x:Key="module.state.unclamping">Unclamping</sys:String>
     <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>

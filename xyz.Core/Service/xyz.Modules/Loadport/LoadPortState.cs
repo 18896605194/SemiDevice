@@ -12,6 +12,10 @@ public class LoadPortState : TransferModuleState
     public const int Unloading = 120;
 
     public const int Homing = 130;
+
+    public const int Clamping = 140;
+
+    public const int Unclamping = 150;
 }
 
 public enum LoadPortAction
@@ -20,6 +24,8 @@ public enum LoadPortAction
     Unload,
     Home,
     Reset,
-    Abort
+    Abort,
+    Clamp,
+    Unclamp
 }
 

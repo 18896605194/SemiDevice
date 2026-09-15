@@ -95,6 +95,8 @@ public class LoadPortModel : ObservableObject
                 110 => L10n.Get("module.state.loaded"),
                 120 => L10n.Get("module.state.unloading"),
                 130 => L10n.Get("module.state.homing"),
+                140 => L10n.Get("module.state.clamping"),
+                150 => L10n.Get("module.state.unclamping"),
                 _ => L10n.Get("module.state.unknown", State),
             };
         }

@@ -225,4 +225,6 @@ sealed class ProbePort : BaseLoadPortModule
     public override ModuleOperation? Home() => Take();
     public override ModuleOperation? Reset() => Take();
     public override ModuleOperation? Abort() => Take();
+    public override ModuleOperation? Clamp() => Take();
+    public override ModuleOperation? Unclamp() => Take();
 }

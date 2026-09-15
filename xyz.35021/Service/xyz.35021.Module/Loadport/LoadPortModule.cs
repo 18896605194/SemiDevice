@@ -17,12 +17,15 @@ namespace xyz._35021.Module.Loadport;
 [Component(description: "35021 LoadPort 模块")]
 public class LoadPortModule : BaseLoadPortModule, ILoadPort
 {
-    #region Column
+    #region Mapping
 
     /// <summary>
-    /// 最近一次 Load 的 Mapping 槽位数据（如 25 个 P）。
+    /// Load 操作收到 Mapping 数据后调用：转交基类更新 SlotMap 并回调 EAP。
     /// </summary>
-    public string SlotMap { get; internal set; } = string.Empty;
+    internal void NoteSlotMap(IReadOnlyList<SlotState> slotMap)
+    {
+        UpdateSlotMap(slotMap);
+    }
 
     #endregion
 
@@ -141,6 +144,16 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
     public override ModuleOperation? Abort()
     {
         return Begin(LoadPortAction.Abort, new AbortOperation(this));
+    }
+
+    public override ModuleOperation? Clamp()
+    {
+        return Begin(LoadPortAction.Clamp, new ClampOperation(this));
+    }
+
+    public override ModuleOperation? Unclamp()
+    {
+        return Begin(LoadPortAction.Unclamp, new UnclampOperation(this));
     }
 
     #endregion

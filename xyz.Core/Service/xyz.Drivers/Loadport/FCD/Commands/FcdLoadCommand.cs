@@ -15,9 +15,14 @@ public sealed class FcdLoadCommand : FcdCommand
     protected override string Name => "CLOAD";
 
     /// <summary>
-    /// Mapping 槽位数据（随 INF:MAPDT 推送，先于完成），如 25 个 P。
+    /// Mapping 槽位数据原文（随 INF:MAPDT 推送，先于完成），如 25 个 P。
     /// </summary>
     public string SlotMap { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// 归一化的槽位状态（厂商无关），下标 0 对应第 1 槽；未收到 MAPDT 时为空列表。
+    /// </summary>
+    public IReadOnlyList<SlotState> Slots { get; private set; } = Array.Empty<SlotState>();
 
     public override string BuildMsg()
     {
@@ -30,6 +35,7 @@ public sealed class FcdLoadCommand : FcdCommand
         if (body.StartsWith(MapDataPrefix, StringComparison.OrdinalIgnoreCase))
         {
             SlotMap = body[MapDataPrefix.Length..];
+            Slots = FcdProtocol.ParseSlotMap(SlotMap);
             return true;
         }
 

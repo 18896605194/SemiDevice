@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
@@ -36,6 +38,29 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动模式（true=自动，false=手动）")]
     public bool IsAutoMode { get; private set; }
+
+    private volatile string? _carrierId;
+
+    /// <summary>
+    /// 当前载具 ID（SV）：读卡成功或 Host 改写后有值；未读或载具已移走为 null。
+    /// </summary>
+    [VariableMark(VariableType.SV, ValueFormat.String, description: "当前载具 ID")]
+    public string? CarrierId
+    {
+        get => _carrierId;
+        private set => _carrierId = value;
+    }
+
+    private volatile IReadOnlyList<SlotState> _slotMap = Array.Empty<SlotState>();
+
+    /// <summary>
+    /// 最近一次 Mapping 结果，下标 0 对应第 1 槽；未 Mapping 或载具已移走为空列表。
+    /// </summary>
+    public IReadOnlyList<SlotState> SlotMap
+    {
+        get => _slotMap;
+        private set => _slotMap = value;
+    }
 
     private volatile LoadPortStatus? _status;
 
@@ -148,6 +173,22 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         set { SetEcInt(nameof(AbortTimeout), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "10000", description: "Clamp 动作超时（夹紧）")]
+    public int ClampTimeout
+    {
+        get { return GetEcInt(nameof(ClampTimeout)); }
+        set { SetEcInt(nameof(ClampTimeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "10000", description: "Unclamp 动作超时（松开）")]
+    public int UnclampTimeout
+    {
+        get { return GetEcInt(nameof(UnclampTimeout)); }
+        set { SetEcInt(nameof(UnclampTimeout), value); }
+    }
+
     #endregion
 
     #region Alarm
@@ -190,7 +231,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     protected BaseLoadPortModule()
     {
-        // 注册 LoadPort 家族默认迁移表；机型可在基表上增删定制"自己的表"。
         RegisterTransitions(LoadPortStateTable.ToModuleTable());
     }
 
@@ -328,11 +368,67 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region Action（ILoadPort 契约：动作体由机型实现——直接创建操作）
 
     private (int ExecutingState, int SuccessState) _transition;
+    private LoadPortAction _action;
 
     /// <summary>
-    /// 通过 LoadPort 内部的 RFID 组件读取载具 ID；未挂载读头组件时返回 null。
+    /// 通过 LoadPort 内部的 RFID 组件读取载具 ID；未挂载读头组件时返回 null（不回调 EAP）。
+    /// 读到非空 ID：更新 CarrierId 并回调 CarrierIdRead；读头返回空或抛异常：回调 CarrierIdReadFailed（异常原样抛出）。
     /// </summary>
-    public string? ReadCarrierId() => RFID?.ReadCarrierId();
+    public string? ReadCarrierId()
+    {
+        var reader = RFID;
+        if (reader is null)
+        {
+            return null;
+        }
+
+        string? result;
+        try
+        {
+            result = reader.ReadCarrierId();
+        }
+        catch
+        {
+            EnqueueEap(callback => callback.CarrierIdReadFailed(this));
+            throw;
+        }
+
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            EnqueueEap(callback => callback.CarrierIdReadFailed(this));
+            return null;
+        }
+
+        string carrierId = result;
+        CarrierId = carrierId;
+        EnqueueEap(callback => callback.CarrierIdRead(this, carrierId));
+        return carrierId;
+    }
+
+    /// <summary>
+    /// 改写载具 ID：Host 确认的 ID 与读到的不一致时以 Host 为准（对应 CTC 的 ProceedSetCarrierID）；不回调 EAP。
+    /// </summary>
+    public void SetCarrierId(string carrierId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(carrierId);
+        CarrierId = carrierId;
+    }
+
+    /// <summary>
+    /// 更新 Mapping 结果并回调 EAP SlotMapRead；机型在 Mapping 数据到达时调用，空列表忽略。
+    /// </summary>
+    protected void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
+    {
+        ArgumentNullException.ThrowIfNull(slotMap);
+        if (slotMap.Count == 0)
+        {
+            return;
+        }
+
+        var snapshot = slotMap.ToArray();
+        SlotMap = snapshot;
+        EnqueueEap(callback => callback.SlotMapRead(this, snapshot));
+    }
 
     /// <summary>
     /// 发起 Load。机型实现：Begin(LoadPortAction.Load, new ...Operation(...))。
@@ -360,21 +456,30 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public abstract ModuleOperation? Abort();
 
     /// <summary>
+    /// 发起 Clamp（夹紧 FOUP），状态表只允许空闲时发起。
+    /// </summary>
+    public abstract ModuleOperation? Clamp();
+
+    /// <summary>
+    /// 发起 Unclamp（松开 FOUP），状态表只允许空闲时发起。
+    /// </summary>
+    public abstract ModuleOperation? Unclamp();
+
+    /// <summary>
     /// 设置自动/手动模式（内部模式位，不经设备协议）；置位后由下一次扫描随状态事件发布。
+    /// 模式有变化时回调 EAP AutoModeChanged。
     /// </summary>
     public void SetAutoMode(bool autoMode)
     {
+        if (IsAutoMode == autoMode)
+        {
+            return;
+        }
+
         IsAutoMode = autoMode;
+        EnqueueEap(callback => callback.AutoModeChanged(this, autoMode));
     }
 
-    // 传片状态标记（MarkTransferReady / MarkTransferring / MarkTransferComplete）
-    // 已上移到 BaseTransferStationModule，锚点态见 AnchorState（LoadPort = Loaded）。
-
-    /// <summary>
-    /// 发起动作：前置检查 + 状态迁移表 + 挂载传入的操作并进入执行状态，立即返回。
-    /// 操作由模块扫描线程自动步进（见 BaseModule），终结按迁移表落状态。
-    /// 返回操作实例；null 表示被拒绝：未启用、驱动未建、已有在途动作（Abort 除外）或状态表不允许。
-    /// </summary>
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
     {
         lock (OperationGate)
@@ -395,6 +500,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             }
 
             _transition = transition;
+            _action = action;
             State = transition.ExecutingState;
             return operation;
         }
@@ -402,10 +508,123 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
+    /// Load/Unload/Home/Clamp/Unclamp 成功时回调 EAP（在模块锁内只入队，派发在扫描线程锁外进行）。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
         State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
+
+        if (!operation.IsSuccess)
+        {
+            return;
+        }
+
+        switch (_action)
+        {
+            case LoadPortAction.Load:
+                EnqueueEap(callback => callback.LoadCompleted(this));
+                break;
+
+            case LoadPortAction.Unload:
+                EnqueueEap(callback => callback.UnloadCompleted(this));
+                break;
+
+            case LoadPortAction.Home:
+                EnqueueEap(callback => callback.Homed(this));
+                break;
+
+            case LoadPortAction.Clamp:
+                EnqueueEap(callback => callback.ClampCompleted(this));
+                break;
+
+            case LoadPortAction.Unclamp:
+                EnqueueEap(callback => callback.UnclampCompleted(this));
+                break;
+        }
+    }
+
+    #endregion
+
+    #region EAP 口子（对应 CTC 的 LPCallBack：载具节点回调给 EAP，EAP 经 ILoadPort 反向下发动作）
+
+    private readonly ConcurrentQueue<Action<ILoadPortEapCallback>> _eapNotifications = new();
+    private bool _lastPodPlaced;
+
+    /// <summary>
+    /// EAP 回调；null 表示未接 EAP，模块照常运行。装配时由 EAP 侧挂上。
+    /// </summary>
+    public ILoadPortEapCallback? EapCallback { get; set; }
+
+    /// <summary>
+    /// 扫描周期：先扫子组件与操作（基类），再判载具在位边沿，最后派发 EAP 回调。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        CheckCarrierPresence();
+        DispatchEapNotifications();
+    }
+
+    /// <summary>
+    /// 在位边沿：放上回调 CarrierArrived；移走先清载具 ID 与 Mapping，再回调 CarrierRemoved。
+    /// 在位位由驱动路由线程翻转，这里在扫描线程判边沿，保证回调顺序。
+    /// </summary>
+    private void CheckCarrierPresence()
+    {
+        bool placed = IsPodPlaced;
+        if (placed == _lastPodPlaced)
+        {
+            return;
+        }
+
+        _lastPodPlaced = placed;
+        if (placed)
+        {
+            EnqueueEap(callback => callback.CarrierArrived(this));
+            return;
+        }
+
+        string? carrierId = CarrierId;
+        CarrierId = null;
+        SlotMap = Array.Empty<SlotState>();
+        EnqueueEap(callback => callback.CarrierRemoved(this, carrierId));
+    }
+
+    /// <summary>
+    /// 入队一条 EAP 回调；未挂 EAP 时直接丢弃。任意线程可调。
+    /// </summary>
+    private void EnqueueEap(Action<ILoadPortEapCallback> notification)
+    {
+        if (EapCallback is null)
+        {
+            return;
+        }
+
+        _eapNotifications.Enqueue(notification);
+    }
+
+    /// <summary>
+    /// 在扫描线程上按入队顺序派发，不持有模块锁（回调里可直接调 ILoadPort 动作）；单条异常只记日志。
+    /// </summary>
+    private void DispatchEapNotifications()
+    {
+        while (_eapNotifications.TryDequeue(out var notification))
+        {
+            var callback = EapCallback;
+            if (callback is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                notification(callback);
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Warn(Name, $"EAP 回调异常: {exception.Message}");
+            }
+        }
     }
 
     #endregion

@@ -1,7 +1,7 @@
 namespace xyz.Drivers.Loadport.FCD;
 
 /// <summary>
-/// FCD B 类帧协议常量：指令类型前缀与回复类型。
+/// FCD B 类帧协议常量与通用解析：指令类型前缀、回复类型、Mapping 字符。
 /// </summary>
 public static class FcdProtocol
 {
@@ -31,6 +31,34 @@ public static class FcdProtocol
 
     /// <summary>拒绝。</summary>
     public const string Nak = "NAK";
+
+    #endregion
+
+    #region Mapping 字符（E=空 P=有片 2=交叉 W=双片）
+
+    /// <summary>
+    /// 把 Mapping 槽位串（如 INF:MAPDT 数据）归一化为厂商无关的槽位状态，下标 0 对应第 1 槽；
+    /// 无法识别的字符记为 Undefined。
+    /// </summary>
+    public static IReadOnlyList<SlotState> ParseSlotMap(string mapData)
+    {
+        ArgumentNullException.ThrowIfNull(mapData);
+
+        var slots = new SlotState[mapData.Length];
+        for (int i = 0; i < mapData.Length; i++)
+        {
+            slots[i] = char.ToUpperInvariant(mapData[i]) switch
+            {
+                'E' => SlotState.Empty,
+                'P' => SlotState.CorrectlyOccupied,
+                '2' => SlotState.CrossSlotted,
+                'W' => SlotState.DoubleSlotted,
+                _ => SlotState.Undefined,
+            };
+        }
+
+        return slots;
+    }
 
     #endregion
 }
