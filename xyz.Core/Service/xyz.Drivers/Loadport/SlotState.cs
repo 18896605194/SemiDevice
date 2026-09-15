@@ -1,9 +1,5 @@
 namespace xyz.Drivers.Loadport;
 
-/// <summary>
-/// 槽位状态（厂商无关，取值与 SEMI E87 SlotState 一致）：
-/// 各品牌 Mapping 字符归一化到这里，模块/EAP/界面只认本类型。
-/// </summary>
 public enum SlotState
 {
     /// <summary>

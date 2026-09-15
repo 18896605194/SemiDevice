@@ -37,14 +37,15 @@ public sealed class LoadOperation : ModuleOperation<ActionStep>
             case ActionStep.WaitCommand:
                 if (_command!.IsCompleted)
                 {
-                    if (_command.IsSucceeded)
+                    var response = _command.Response!;
+                    if (response.IsSuccess)
                     {
-                        _module.NoteSlotMap(_command.Slots);
+                        _module.NoteSlotMap(response.SlotMap);
                         Complete();
                     }
                     else
                     {
-                        Fail(ErrorCodes.DeviceFailed, _command.Error, "Load", _command.Error);
+                        Fail(ErrorCodes.DeviceFailed, response.Error, "Load", response.Error);
                     }
                 }
                 else if (Watch.ElapsedMilliseconds > _module.LoadTimeout)

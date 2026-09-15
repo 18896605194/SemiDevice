@@ -12,44 +12,45 @@ public abstract class LoadPortCommand
     /// </summary>
     protected LoadPortDriverBase Driver { get; }
 
+    private volatile LoadPortResponse? _response;
+    private volatile bool _isCompleted;
+    private readonly ManualResetEventSlim _replied = new(false);
+
     /// <summary>
     /// 是否最终完成，失败成功都算。先写入结果，再置为 true，供等待方和扫描线程读取。
     /// </summary>
-    public bool IsCompleted
-    {
-        get => _isCompleted;
-        protected set
-        {
-            _isCompleted = value;
-            if (value)
-            {
-                // 唤醒 WaitReply 的等待方。
-                _replied.Set();
-            }
-        }
-    }
+    public bool IsCompleted => _isCompleted;
 
-    private volatile bool _isCompleted;
-    private readonly ManualResetEventSlim _replied = new(false);
+    /// <summary>
+    /// 指令结果（厂商无关），到终态前为 null。上层只读本对象，不碰品牌指令的内部字段。
+    /// </summary>
+    public LoadPortResponse? Response => _response;
 
     /// <summary>
     /// 是否在途：已发出且未到终态。就是还在字典里面
     /// </summary>
     public bool IsInFlight { get; internal set; }
 
-    /// <summary>
-    /// 成功完成
-    /// </summary>
-    public bool IsSucceeded { get; protected set; }
-
-    /// <summary>
-    /// 失败原因
-    /// </summary>
-    public string Error { get; protected set; } = string.Empty;
-
     protected LoadPortCommand(LoadPortDriverBase driver)
     {
         Driver = driver ?? throw new ArgumentNullException(nameof(driver));
+    }
+
+    /// <summary>
+    /// 落终态：先写结果，再置完成并唤醒 WaitReply 的等待方；已完成时忽略（保留首个终态）。
+    /// 品牌指令解析到终结帧时调用（在驱动路由消费任务上，单线程）。
+    /// </summary>
+    protected void Complete(LoadPortResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        if (_isCompleted)
+        {
+            return;
+        }
+
+        _response = response;
+        _isCompleted = true;
+        _replied.Set();
     }
 
     /// <summary>
@@ -76,6 +77,7 @@ public abstract class LoadPortCommand
 
     /// <summary>
     /// 解析一帧已去壳的回复体；返回 true 表示这一帧属于本指令（按指令名对上号）。
+    /// 解析到终结帧时把厂商数据转换成 LoadPortResponse 并调用 Complete。
     /// </summary>
     public abstract bool ParseMsg(string body);
 }

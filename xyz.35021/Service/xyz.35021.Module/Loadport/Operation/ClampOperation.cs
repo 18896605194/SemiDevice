@@ -37,13 +37,14 @@ public sealed class ClampOperation : ModuleOperation<ActionStep>
             case ActionStep.WaitCommand:
                 if (_command!.IsCompleted)
                 {
-                    if (_command.IsSucceeded)
+                    var response = _command.Response!;
+                    if (response.IsSuccess)
                     {
                         Complete();
                     }
                     else
                     {
-                        Fail(ErrorCodes.DeviceFailed, _command.Error, "Clamp", _command.Error);
+                        Fail(ErrorCodes.DeviceFailed, response.Error, "Clamp", response.Error);
                     }
                 }
                 else if (Watch.ElapsedMilliseconds > _module.ClampTimeout)

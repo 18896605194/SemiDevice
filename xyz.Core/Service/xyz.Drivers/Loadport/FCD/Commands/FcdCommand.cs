@@ -49,32 +49,33 @@ public abstract class FcdCommand : LoadPortCommand
         {
             case FcdProtocol.Ack:
                 AckReceived = true;
-                OnAck(data);
-                if (CompleteOnAck && !IsCompleted)
+                if (CompleteOnAck)
                 {
-                    IsSucceeded = true;
-                    IsCompleted = true;
+                    Complete(BuildResponse(data));
                 }
 
                 return true;
 
             case FcdProtocol.Inf:
-                OnInf(data);
-                IsSucceeded = true;
-                IsCompleted = true;
+                Complete(BuildResponse(data));
                 return true;
 
             case FcdProtocol.Abs:
-                OnAbs(data);
-                IsSucceeded = false;
-                Error = $"{FcdProtocol.Abs}:{Name}/{data}";
-                IsCompleted = true;
+                Complete(new LoadPortResponse
+                {
+                    IsSuccess = false,
+                    Error = $"{FcdProtocol.Abs}:{Name}/{data}",
+                    Content = data,
+                });
                 return true;
 
             case FcdProtocol.Nak:
-                IsSucceeded = false;
-                Error = $"{FcdProtocol.Nak}:{Name}/{data}";
-                IsCompleted = true;
+                Complete(new LoadPortResponse
+                {
+                    IsSuccess = false,
+                    Error = $"{FcdProtocol.Nak}:{Name}/{data}",
+                    Content = data,
+                });
                 return true;
 
             default:
@@ -83,23 +84,15 @@ public abstract class FcdCommand : LoadPortCommand
     }
 
     /// <summary>
-    /// 收到 ACK；查询类在此取数据并置终态。
+    /// 把终结帧（查询类为 ACK，动作类为 INF）的数据段转换成厂商无关结果；默认成功且只带原文。
+    /// 带状态、Mapping 等数据的指令重写，在这里消化 FCD 数据格式；数据不合法时返回失败结果。
     /// </summary>
-    protected virtual void OnAck(string data)
+    protected virtual LoadPortResponse BuildResponse(string data)
     {
-    }
-
-    /// <summary>
-    /// 收到 INF（动作完成通知）。
-    /// </summary>
-    protected virtual void OnInf(string data)
-    {
-    }
-
-    /// <summary>
-    /// 收到 ABS（异常完成）。
-    /// </summary>
-    protected virtual void OnAbs(string data)
-    {
+        return new LoadPortResponse
+        {
+            IsSuccess = true,
+            Content = data,
+        };
     }
 }

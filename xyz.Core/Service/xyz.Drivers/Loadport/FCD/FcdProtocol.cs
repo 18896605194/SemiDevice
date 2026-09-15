@@ -34,25 +34,26 @@ public static class FcdProtocol
 
     #endregion
 
-    #region Mapping 字符（E=空 P=有片 2=交叉 W=双片）
+    #region Mapping 字符（E=空 P=有片 C=交叉 D=双片 ?=无法识别）
 
     /// <summary>
-    /// 把 Mapping 槽位串（如 INF:MAPDT 数据）归一化为厂商无关的槽位状态，下标 0 对应第 1 槽；
-    /// 无法识别的字符记为 Undefined。
+    /// 把 FCD Mapping 槽位串归一化为厂商无关的槽位状态，下标 0 对应第 1 槽；无法识别的字符记为 Undefined。
+    /// 只在 FCD 指令内部使用，结果经 LoadPortResponse.SlotMap 交给上层。
     /// </summary>
-    public static IReadOnlyList<SlotState> ParseSlotMap(string mapData)
+    internal static IReadOnlyList<SlotState> ParseSlotMap(string mapData)
     {
         ArgumentNullException.ThrowIfNull(mapData);
 
-        var slots = new SlotState[mapData.Length];
-        for (int i = 0; i < mapData.Length; i++)
+        string trimmed = mapData.Trim();
+        var slots = new SlotState[trimmed.Length];
+        for (int i = 0; i < trimmed.Length; i++)
         {
-            slots[i] = char.ToUpperInvariant(mapData[i]) switch
+            slots[i] = char.ToUpperInvariant(trimmed[i]) switch
             {
                 'E' => SlotState.Empty,
                 'P' => SlotState.CorrectlyOccupied,
-                '2' => SlotState.CrossSlotted,
-                'W' => SlotState.DoubleSlotted,
+                'C' => SlotState.CrossSlotted,
+                'D' => SlotState.DoubleSlotted,
                 _ => SlotState.Undefined,
             };
         }

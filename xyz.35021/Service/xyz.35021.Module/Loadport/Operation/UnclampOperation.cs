@@ -37,13 +37,14 @@ public sealed class UnclampOperation : ModuleOperation<ActionStep>
             case ActionStep.WaitCommand:
                 if (_command!.IsCompleted)
                 {
-                    if (_command.IsSucceeded)
+                    var response = _command.Response!;
+                    if (response.IsSuccess)
                     {
                         Complete();
                     }
                     else
                     {
-                        Fail(ErrorCodes.DeviceFailed, _command.Error, "Unclamp", _command.Error);
+                        Fail(ErrorCodes.DeviceFailed, response.Error, "Unclamp", response.Error);
                     }
                 }
                 else if (Watch.ElapsedMilliseconds > _module.UnclampTimeout)

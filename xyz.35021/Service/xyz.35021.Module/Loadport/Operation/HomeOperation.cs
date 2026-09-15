@@ -37,13 +37,14 @@ public sealed class HomeOperation : ModuleOperation<ActionStep>
             case ActionStep.WaitCommand:
                 if (_command!.IsCompleted)
                 {
-                    if (_command.IsSucceeded)
+                    var response = _command.Response!;
+                    if (response.IsSuccess)
                     {
                         Complete();
                     }
                     else
                     {
-                        Fail(ErrorCodes.DeviceFailed, _command.Error, "Home", _command.Error);
+                        Fail(ErrorCodes.DeviceFailed, response.Error, "Home", response.Error);
                     }
                 }
                 else if (Watch.ElapsedMilliseconds > _module.HomeTimeout)

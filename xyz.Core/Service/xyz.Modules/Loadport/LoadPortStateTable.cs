@@ -41,8 +41,6 @@ public static class LoadPortStateTable
     /// </summary>
     public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
     {
-        return Transitions.ToDictionary(
-            kv => (kv.Key.State, kv.Key.Action.ToString()),
-            kv => kv.Value);
+        return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()),kv => kv.Value);
     }
 }

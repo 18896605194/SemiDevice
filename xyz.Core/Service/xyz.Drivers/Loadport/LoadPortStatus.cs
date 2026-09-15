@@ -2,7 +2,7 @@ namespace xyz.Drivers.Loadport;
 
 /// <summary>
 /// LoadPort 标准状态快照（E87 载具管理语义，厂商无关）：
-/// 各品牌协议（如 FCD 的 GET:STATE）归一化到这里，模块/EAP/界面只认本类型。
+/// 各品牌协议（如 FCD 的 GET:STATE）归一化到这里，随 LoadPortResponse.Status 交给上层。
 /// 未映射的位保留在 Raw 原文中，待各品牌协议手册确认后补充。
 /// </summary>
 public class LoadPortStatus

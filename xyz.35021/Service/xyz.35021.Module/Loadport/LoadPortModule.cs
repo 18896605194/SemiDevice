@@ -101,13 +101,10 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
                     break;
                 }
 
-                if (_stateCommand.IsSucceeded)
+                var response = _stateCommand.Response!;
+                if (response.IsSuccess && response.Status is not null)
                 {
-                    var status = _stateCommand.Status;
-                    if (status is not null)
-                    {
-                        Status = status;
-                    }
+                    Status = response.Status;
                 }
 
                 _stateCommand = null;
