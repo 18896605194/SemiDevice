@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Configs;
+using xyz.Configs.Models;
 
 namespace xyz.Components;
 
@@ -224,6 +225,18 @@ public abstract class ComponentBase
     /// 后续由控制流程显式调用，处理应及时返回。
     /// </summary>
     protected virtual void OnReset()
+    {
+    }
+
+    #endregion
+
+    #region 装配钩子
+
+    /// <summary>
+    /// 装配钩子：ComponentLoader 灌完 [SCEditor] 属性后，把本组件在 sc.xml 中的 Setting 节点原样交给组件，
+    /// 供读取名字不固定的配置（如机械手站点表）；默认无动作。配置不合法时抛异常，装配即失败。
+    /// </summary>
+    protected internal virtual void OnSettingLoaded(ModuleConfig setting)
     {
     }
 

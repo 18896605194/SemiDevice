@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IUserService, UserService>();
         services.AddTransient<IMenuService, MenuService>();
         services.AddTransient<ILoadPortService, LoadPortService>();
+        services.AddTransient<IRobotService, RobotService>();
 
         #endregion
 

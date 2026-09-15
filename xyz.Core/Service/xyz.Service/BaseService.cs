@@ -40,20 +40,38 @@ public abstract class BaseService
     }
 
     /// <summary>
-    /// 下发动作并同步等终态：
-    /// 动作被拒（operation 为 null）→ module.action_rejected + 当前状态码；
-    /// 等待超时 → module.wait_timeout + [操作名, 等待ms]（操作仍在执行，不能据此判失败或重发）；
-    /// 到终态 → Ok 或操作自身错误码。
+    /// 下发 LoadPort 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
     protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,
         ModuleOperation? operation, int timeout)
     {
+        return RunOperation("LoadPort", module, port.State, operation, timeout);
+    }
+
+    /// <summary>
+    /// 下发 Robot 动作并同步等终态（回包规则见私有重载）。
+    /// </summary>
+    protected static Task<RpcResponse> RunOperation(string module, BaseRobotModule robot,
+        ModuleOperation? operation, int timeout)
+    {
+        return RunOperation("Robot", module, robot.State, operation, timeout);
+    }
+
+    /// <summary>
+    /// 下发动作并同步等终态：
+    /// 动作被拒（operation 为 null）→ module.action_rejected + 当前状态码（调用方在发起动作之后读取）；
+    /// 等待超时 → module.wait_timeout + [操作名, 等待ms]（操作仍在执行，不能据此判失败或重发）；
+    /// 到终态 → Ok 或操作自身错误码。
+    /// </summary>
+    private static Task<RpcResponse> RunOperation(string category, string module, int state,
+        ModuleOperation? operation, int timeout)
+    {
         if (operation is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, [module, port.State.ToString()]));
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, [module, state.ToString()]));
         }
 
-        LogHelper.Debug($"[LoadPort] {module} {operation.Name}: {operation.State}, Reason={operation.Reason}");
+        LogHelper.Debug($"[{category}] {module} {operation.Name}: {operation.State}, Reason={operation.Reason}");
 
         if (!operation.WaitReply(timeout))
         {

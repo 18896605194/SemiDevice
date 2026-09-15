@@ -110,6 +110,7 @@ public static class ComponentLoader
                     string.Equals(c.Name, setting.Name, StringComparison.OrdinalIgnoreCase)) is { } existing)
             {
                 AssignValues(existing, setting);
+                existing.OnSettingLoaded(setting);
                 component = existing;
             }
         }
@@ -130,6 +131,7 @@ public static class ComponentLoader
             }
 
             AssignValues(component, setting);
+            component.OnSettingLoaded(setting);
 
             if (parent is null)
             {

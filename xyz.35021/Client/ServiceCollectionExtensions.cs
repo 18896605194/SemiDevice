@@ -20,6 +20,12 @@ public static class ServiceCollectionExtensions
 
         services.AddKeyedSingleton<UserControl, LoadPortsManualView>("Manual.LoadPorts");
 
+        // Transfer 调度界面：搬运地图 + 机械手状态与手动取放片。
+        services.AddSingleton<TransferViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<TransferViewModel>());
+
+        services.AddKeyedSingleton<UserControl, TransferView>("Manual.Transfer");
+
         return services;
     }
 }

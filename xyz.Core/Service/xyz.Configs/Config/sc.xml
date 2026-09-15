@@ -45,7 +45,19 @@
 			</Setting>
 		</Setting>
 	</Setting>
-	<Setting Name="Robot" />
+	<Setting Name="Robot">
+		<Setting Name="Robot1" Type="xyz._35021.Module.Robot.RobotModule">
+			<Value Name="Brand" Value="Reje" />
+			<Value Name="Host" Value="127.0.0.1" />
+			<Value Name="NetPort" Value="9000" />
+			<Setting Name="Stations">
+				<Value Name="LoadPort1" Value="1" />
+				<Value Name="LoadPort2" Value="2" />
+				<Value Name="Chamber1" Value="3" />
+				<Value Name="Chamber2" Value="4" />
+			</Setting>
+		</Setting>
+	</Setting>
 	<Setting Name="Chamber" />
     <Setting Name="CDS" />
     <Setting Name="Supply" />

@@ -34,4 +34,11 @@ public static class ErrorCodes
     public const string OperationFaulted = "module.operation_faulted";
 
     #endregion
+
+    #region Robot
+
+    /// <summary>站点未在该机械手的站点表中配置。Args: [机械手模块名, 站点名]</summary>
+    public const string StationNotFound = "robot.station_not_found";
+
+    #endregion
 }

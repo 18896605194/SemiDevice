@@ -30,4 +30,6 @@
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
     <sys:String x:Key="loadport.timeout">{0} timeout ({1}ms)</sys:String>
     <sys:String x:Key="loadport.device_failed">{0} device error: {1}</sys:String>
+
+    <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
 </ResourceDictionary>

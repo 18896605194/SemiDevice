@@ -20,6 +20,7 @@ public sealed class Module35021 : IClientModule, IClientMenuProvider
     public IReadOnlyList<ClientMenu> Menus { get; } = new[]
     {
         new ClientMenu("Manual", "LoadPort 手动", "Manual.LoadPorts", 1),
+        new ClientMenu("Manual", "Transfer 调度", "Manual.Transfer", 2),
     };
 
     /// <inheritdoc />
