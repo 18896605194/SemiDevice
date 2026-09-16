@@ -2,8 +2,13 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using xyz.Components;
+using xyz.Components.Components;
+using xyz.Components.Wafers;
 using xyz.Configs;
+using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
+using xyz.Drivers.Loadport.FCD;
+using xyz.Modules.Enums;
 using xyz.Modules;
 using xyz.Service;
 using xyz.Shared.Dtos;
@@ -197,9 +202,130 @@ Check(snapshot.Slots.Count == 3
 Check(!port.CreateStateDto().HasStateChanged(snapshot), "An unchanged snapshot must not count as a change.");
 port.NoteMap([SlotState.Empty, SlotState.Empty, SlotState.CrossSlotted]);
 Check(port.CreateStateDto().HasStateChanged(snapshot), "A slot map change must count as a change.");
+
+// ── 载具对象：放上到取走这一程 ──────────────────────────────────────────
+// 载具 ID 是空的不等于没载具——这就是要有载具对象的原因。
+Check(port.Carrier is null, "还没放 FOUP 时不该有载具对象");
+port.SetCarrierId("GHOST");
+Check(port.Carrier is null, "没有载具时改 ID 不该凭空造出一个载具对象");
+
+var ledger = new WaferManager();
+port.NotePodPlaced(true);
+port.Tick();
+
+var carrier = port.Carrier;
+Check(carrier is not null, "FOUP 放上后应建出载具对象");
+Check(carrier!.Location == port.Name && carrier.Capacity == port.SlotCount,
+    "载具应记住在哪个端口、几个槽");
+Check(carrier.IdStatus == CarrierIdStatus.NotRead
+      && carrier.SlotMapStatus == CarrierSlotMapStatus.NotRead
+      && carrier.AccessStatus == CarrierAccessStatus.NotAccessed,
+    "刚放上的载具三个状态都应是初始值");
+Check(eap.Wait(nameof(IE87Callback.CarrierArrived)), "FOUP 放上应上报 CarrierArrived");
+
+// Mapping：载具状态推进，同时落到晶圆账
+port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CrossSlotted, SlotState.Undefined]);
+Check(port.Carrier!.SlotMapStatus == CarrierSlotMapStatus.Read, "Mapping 后槽图状态应转 Read");
+Check(ledger.CountWafers(port.Name) == 3, $"Mapping 应落账 3 片，实际 {ledger.CountWafers(port.Name)}");
+Check(ledger.Get(port.Name, 1)?.Status == WaferStatus.Normal, "正常片应记 Normal");
+Check(ledger.Get(port.Name, 2) is null, "空槽不该建片");
+Check(ledger.Get(port.Name, 3)?.Status == WaferStatus.Crossed, "交叉片应记 Crossed");
+Check(ledger.Get(port.Name, 4)?.Status == WaferStatus.Unknown,
+    "识别不出的槽要按有片记——记成空槽机械手会往上放，那是撞片");
+
+// 读码晚于 Mapping：账上的片要能补上载具号
+Check(string.IsNullOrEmpty(ledger.Get(port.Name, 1)?.CarrierId), "Mapping 时还没读码，载具号应为空");
+port.SetCarrierId("FOUP-777");
+Check(port.Carrier!.CarrierId == "FOUP-777" && port.Carrier.IdStatus == CarrierIdStatus.Verified,
+    "Host 改写载具 ID 即认定");
+Check(ledger.Get(port.Name, 1)?.CarrierId == "FOUP-777", "读码回来后应补上账上所有片的载具号");
+Check(ledger.Get(port.Name, 4)?.CarrierId == "FOUP-777", "补载具号应覆盖整个模块");
+
+// 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnOperationCompleted），
+// 顺带把 LoadCompleted/AccessStarted 那条完成分支也覆盖掉。
+port.Open();
+port.NoteState(ModuleState.Idle);
+
+var loadOp = new ProbeOperation();
+Check(port.BeginAction(LoadPortAction.Load, loadOp) is not null, "Idle 状态应能发起 Load");
+loadOp.Succeed();
+port.Tick();
+Check(port.State == LoadPortState.Loaded, $"Load 成功应落 Loaded，实际 {port.State}");
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "Load 完成后载具应进 InAccess");
+Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
+Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成应上报 AccessStarted");
+
+// Unload：这一轮取放结束，但"干完了"不由 Unload 判——只把 InAccess 退回未取放
+var unloadOp = new ProbeOperation();
+Check(port.BeginAction(LoadPortAction.Unload, unloadOp) is not null, "Loaded 状态应能发起 Unload");
+unloadOp.Succeed();
+port.Tick();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.NotAccessed,
+    "Unload 只结束这一轮取放，应把 InAccess 退回 NotAccessed");
+
+// 再开一轮，这次上层判完成：Complete 之后 Unload 不能把它退回去
+var reloadOp = new ProbeOperation();
+port.BeginAction(LoadPortAction.Load, reloadOp);
+reloadOp.Succeed();
+port.Tick();
+port.NoteCarrierComplete();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete, "上层判完成后应转 Complete");
+
+var lastUnload = new ProbeOperation();
+port.BeginAction(LoadPortAction.Unload, lastUnload);
+lastUnload.Succeed();
+port.Tick();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete,
+    "已经判完成的载具，Unload 不该把它退回未取放");
+
+// 取放途中出错：载具算没干完，落 Stopped
+port.NoteState(ModuleState.Idle);
+var breakLoad = new ProbeOperation();
+port.BeginAction(LoadPortAction.Load, breakLoad);
+breakLoad.Succeed();
+port.Tick();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "重新 Load 应回到 InAccess");
+
+var brokenUnload = new ProbeOperation();
+port.BeginAction(LoadPortAction.Unload, brokenUnload);
+brokenUnload.Reject();
+port.Tick();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放途中出错应落 Stopped");
+Check(eap.Wait(nameof(IE87Callback.PortError)), "动作失败应上报 PortError");
+port.NoteCarrierComplete();
+
+// 载具状态要能出到 DTO，并且被 HasStateChanged 认出来
+var carrierSnapshot = port.CreateStateDto();
+Check(carrierSnapshot is { HasCarrier: true, CarrierId: "FOUP-777" }
+      && carrierSnapshot.CarrierIdStatus == CarrierIdStatus.Verified
+      && carrierSnapshot.CarrierSlotMapStatus == CarrierSlotMapStatus.Read
+      && carrierSnapshot.CarrierAccessStatus == CarrierAccessStatus.Complete,
+    "状态快照应带出载具的三个状态");
+Check(!port.CreateStateDto().HasStateChanged(carrierSnapshot), "载具没变时不该算变化");
+
+// 取走：载具对象与这个端口的晶圆账一起清掉
+port.NotePodPlaced(false);
+port.Tick();
+Check(port.Carrier is null, "FOUP 取走后载具对象应清掉");
+Check(ledger.CountWafers(port.Name) == 0, "FOUP 取走后端口上的片也应从账上清掉，不能留幽灵片");
+Check(port.CreateStateDto().HasStateChanged(carrierSnapshot), "载具走了应算状态变化");
+Check(eap.Wait(nameof(IE87Callback.CarrierRemoved)), "FOUP 取走应上报 CarrierRemoved");
+
+WaferManager.Current = null;
 port.E87Callback = null;
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline mode switch, and the EAP callback and carrier snapshot path).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline mode switch, the EAP callback path, and the carrier lifecycle from arrival to removal with its wafer-ledger side effects).");
+
+// 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
+sealed class FakeFrameCommunication : IFrameCommunication
+{
+    public event Action<string>? FrameReceived;
+    public bool IsConnected { get; private set; }
+    public bool Open() { IsConnected = true; return true; }
+    public void Close() => IsConnected = false;
+    public void Send(string body) { }
+    public void Push(string body) => FrameReceived?.Invoke(body);
+}
 
 sealed class ProbeOperation() : ModuleOperation("Probe")
 {
@@ -248,6 +374,22 @@ sealed class ProbePort : BaseLoadPortModule
         }
     }
     public void NoteMap(IReadOnlyList<SlotState> slotMap) => UpdateSlotMap(slotMap);
+
+    /// <summary>顶替驱动的 PODON/PODOF 主动事件翻在位位（生产里由驱动路由线程翻）。</summary>
+    public void NotePodPlaced(bool placed) =>
+        typeof(BaseLoadPortModule).GetProperty(nameof(IsPodPlaced))!.SetValue(this, placed);
+
+    /// <summary>顶替扫描线程推一拍（本工具不跑扫描循环）。</summary>
+    public void Tick() => OnScan();
+
+    /// <summary>假驱动：Begin() 要求有驱动且已连接，这里只为把那道门打开，不收发真实帧。</summary>
+    protected override LoadPortDriverBase CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
+
+    /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
+    public void NoteState(int state) => State = state;
+
+    /// <summary>走真路径发起动作（状态表 + 操作登记），不是 Load() 那种直接返回。</summary>
+    public ModuleOperation? BeginAction(LoadPortAction action, ModuleOperation operation) => Begin(action, operation);
     private ModuleOperation? Take() { Calls++; return Next; }
     public override ModuleOperation? Load() => Take();
     public override ModuleOperation? Unload() => Take();

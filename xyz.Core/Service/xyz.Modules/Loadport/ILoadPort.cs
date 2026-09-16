@@ -38,7 +38,10 @@ public interface ILoadPort
 
     void SetAutoMode(bool autoMode);
 
-    string? ReadCarrierId();
+    /// <summary>
+    /// 发起一次读码（非阻塞）；结果经 CarrierId 与 E87 的 CarrierIdRead/CarrierIdReadFailed 出。
+    /// </summary>
+    bool ReadCarrierId();
 
     void SetCarrierId(string carrierId);
 

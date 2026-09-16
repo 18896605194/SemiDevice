@@ -492,6 +492,31 @@ public class WaferManager : ComponentBase
         return Update(module, slot, wafer => wafer.CarrierId = carrierId);
     }
 
+    /// <summary>
+    /// 把一个模块上所有片的载具号一起改掉，返回改了几片。
+    /// 用在读码与 Mapping 先后顺序不定的场合：Mapping 先到就先建片（载具号还是空的），
+    /// 读码回来之后用这个补上。
+    /// </summary>
+    public int SetCarrierIdOn(string module, string? carrierId)
+    {
+        if (!IsEnable)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        var slots = GetSlots(module);
+        for (int index = 0; index < slots.Count; index++)
+        {
+            if (slots[index] is not null && SetCarrierId(module, index + 1, carrierId))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     /// <summary>改工艺状态。</summary>
     public bool SetProcessState(string module, int slot, WaferProcessState state)
     {

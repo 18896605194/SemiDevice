@@ -1,10 +1,10 @@
-using System.Collections.Concurrent;
 using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
+using xyz.Components.Components;
 using xyz.Components.Enums;
-using xyz.Components.Interfaces;
+using xyz.Components.Wafers;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Communication.Serial;
 using xyz.Drivers.Communication.Tcp;
@@ -111,6 +111,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     [SCEditor("1", "LoadPort", "机械手从本 LoadPort 取片用的手臂")]
     public int UseArm { get; set; } = 1;
+
+    [SCEditor("True", "LoadPort", "载具到位后自动读码（False=只由上层/EAP 显式触发）")]
+    public bool AutoReadCarrierId { get; set; } = true;
 
     #endregion
 
@@ -220,6 +223,28 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
+    #region 载具
+
+    private readonly object _carrierGate = new();
+    private volatile CarrierInfo? _carrier;
+
+    public CarrierInfo? Carrier => _carrier;
+
+    private void UpdateCarrier(Func<CarrierInfo, CarrierInfo> change)
+    {
+        lock (_carrierGate)
+        {
+            if (_carrier is not { } carrier)
+            {
+                return;
+            }
+
+            _carrier = change(carrier) with { UpdatedAt = DateTime.Now };
+        }
+    }
+
+    #endregion
+
     protected BaseLoadPortModule()
     {
         RegisterTransitions(LoadPortStateTable.ToModuleTable());
@@ -269,6 +294,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return false;
         }
 
+        // 先在晶圆账上占好槽位，Mapping 一到就能直接落账。
+        WaferManager.Current?.RegisterLocation(Name, SlotCount);
+
         Driver = CreateDriver();
         Driver.OnSpontaneousEvent += OnDriverSpontaneousEvent;  //事件
         return Driver.Open();
@@ -311,6 +339,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     public LoadPortDto CreateStateDto()
     {
+        var carrier = Carrier;
         var dto = new LoadPortDto
         {
             Name = Name,
@@ -319,6 +348,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             AutoMode = IsAutoMode,
             CarrierId = CarrierId ?? string.Empty,
             Slots = ToSlotDtos(SlotMap),
+            HasCarrier = carrier is not null,
+            LotId = carrier?.LotId ?? string.Empty,
+            CarrierIdStatus = carrier?.IdStatus ?? CarrierIdStatus.NotRead,
+            CarrierSlotMapStatus = carrier?.SlotMapStatus ?? CarrierSlotMapStatus.NotRead,
+            CarrierAccessStatus = carrier?.AccessStatus ?? CarrierAccessStatus.NotAccessed,
         };
 
         var driver = Driver;
@@ -397,38 +431,42 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private LoadPortAction _action;
 
     /// <summary>
-    /// 通过 LoadPort 内部的 RFID 组件读取载具 ID；未挂载读头组件时返回 null（不回调 EAP）。
-    /// 读到非空 ID：更新 CarrierId 并回调 CarrierIdRead；读头返回空或抛异常：回调 CarrierIdReadFailed（异常原样抛出）。
+    /// 发起一次读码。读码要走好几轮握手（几百毫秒），所以这里只发起、不等结果——
+    /// 读完之后 CarrierId 会更新，并回调 EAP 的 CarrierIdRead / CarrierIdReadFailed。
+    /// 未挂读头组件、读头没连上或上一次还没读完，返回 false。
     /// </summary>
-    public string? ReadCarrierId()
+    public bool ReadCarrierId()
     {
         var reader = RFID;
-        if (reader is null)
+        return reader is not null && reader.BeginRead();
+    }
+
+    /// <summary>
+    /// 收读码结果：成功更新 CarrierId 并回调 CarrierIdRead，失败回调 CarrierIdReadFailed。
+    /// 在扫描线程上跑（读头的步进机由 base.OnScan 递归带着走，这里紧跟着取结果）。
+    /// </summary>
+    private void CheckCarrierIdRead()
+    {
+        if (RFID?.TakeResult() is not { } result)
         {
-            return null;
+            return;
         }
 
-        string? result;
-        try
+        if (!result.IsSuccess)
         {
-            result = reader.ReadCarrierId();
-        }
-        catch
-        {
+            LogHelper.Warn(Name, $"读码失败: {result.Error}");
+            UpdateCarrier(carrier => carrier with { IdStatus = CarrierIdStatus.ReadFailed });
             EnqueueE87(callback => callback.CarrierIdReadFailed(this));
-            throw;
+            return;
         }
 
-        if (string.IsNullOrWhiteSpace(result))
-        {
-            EnqueueE87(callback => callback.CarrierIdReadFailed(this));
-            return null;
-        }
-
-        string carrierId = result;
+        string carrierId = result.CarrierId;
         CarrierId = carrierId;
+
+        // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
+        UpdateCarrier(carrier => carrier with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Read });
+        WaferManager.Current?.SetCarrierIdOn(Name, carrierId);
         EnqueueE87(callback => callback.CarrierIdRead(this, carrierId));
-        return carrierId;
     }
 
     /// <summary>
@@ -438,6 +476,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(carrierId);
         CarrierId = carrierId;
+
+        // Host 改写即认定：读到什么不重要了，以 Host 为准。
+        UpdateCarrier(carrier => carrier with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Verified });
+        WaferManager.Current?.SetCarrierIdOn(Name, carrierId);
     }
 
     /// <summary>
@@ -453,7 +495,45 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         var snapshot = slotMap.ToArray();
         SlotMap = snapshot;
+        UpdateCarrier(carrier => carrier with { SlotMapStatus = CarrierSlotMapStatus.Read });
+        ApplySlotMapToLedger(snapshot);
         EnqueueE87(callback => callback.SlotMapRead(this, snapshot));
+    }
+
+    /// <summary>
+    /// 把 Mapping 结果落到晶圆账：这个端口的账整篮重建，一槽一片。
+    ///
+    /// 识别不出来的槽（Undefined）按"有片但状态不明"记，不按空槽记——两种错的代价不一样：
+    /// 记成有片而实际没有，机械手去取会空手，Verify 对不上报警，停下来让人看；
+    /// 记成空而实际有片，机械手会往上放，那是撞片。宁可多记不可漏记。
+    /// </summary>
+    private void ApplySlotMapToLedger(IReadOnlyList<SlotState> slotMap)
+    {
+        var ledger = WaferManager.Current;
+        if (ledger is null)
+        {
+            return;
+        }
+
+        ledger.RegisterLocation(Name, SlotCount);
+
+        var statuses = new WaferStatus?[slotMap.Count];
+        for (int index = 0; index < slotMap.Count; index++)
+        {
+            statuses[index] = slotMap[index] switch
+            {
+                SlotState.Empty => null,
+                SlotState.CorrectlyOccupied => WaferStatus.Normal,
+                SlotState.NotEmpty => WaferStatus.Normal,
+                SlotState.DoubleSlotted => WaferStatus.Double,
+                SlotState.CrossSlotted => WaferStatus.Crossed,
+                _ => WaferStatus.Unknown,
+            };
+        }
+
+        var carrier = Carrier;
+        int created = ledger.ApplySlotMap(Name, statuses, carrier?.CarrierId, carrier?.LotId);
+        LogHelper.Info($"[{Name}] Mapping 落账：{created} 片");
     }
 
     /// <summary>
@@ -543,6 +623,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         if (!operation.IsSuccess)
         {
             string reason = operation.Reason;
+
+            // 取放途中出错：这个载具算没干完，落 Stopped（还没开始取放的就不动它）。
+            UpdateCarrier(carrier => carrier.AccessStatus == CarrierAccessStatus.InAccess
+                ? carrier with { AccessStatus = CarrierAccessStatus.Stopped }
+                : carrier);
             EnqueueE87(callback => callback.PortError(this, reason));
             return;
         }
@@ -551,12 +636,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         {
             case LoadPortAction.Load:
                 // 门已开，机械手可以取放：E87 访问状态进 IN_ACCESS。
+                UpdateCarrier(carrier => carrier with { AccessStatus = CarrierAccessStatus.InAccess });
                 EnqueueE87(callback => callback.LoadCompleted(this));
                 EnqueueE87(callback => callback.AccessStarted(this));
                 break;
 
             case LoadPortAction.Unload:
-                // 门已关，取放结束。
+                // 门已关，这一轮取放结束。干没干完不由这里判——上层作业调 NoteCarrierComplete 才算完成，
+                // 所以只把 InAccess 退回未取放，已经 Complete/Stopped 的保持原样。
+                UpdateCarrier(carrier => carrier.AccessStatus == CarrierAccessStatus.InAccess
+                    ? carrier with { AccessStatus = CarrierAccessStatus.NotAccessed }
+                    : carrier);
                 EnqueueE87(callback => callback.AccessStopped(this));
                 EnqueueE87(callback => callback.UnloadCompleted(this));
                 break;
@@ -618,16 +708,19 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     public void NoteCarrierComplete()
     {
+        UpdateCarrier(carrier => carrier with { AccessStatus = CarrierAccessStatus.Complete });
         EnqueueE87(callback => callback.CarrierComplete(this));
     }
 
     /// <summary>
-    /// 扫描周期：先扫子组件与操作（基类），再判载具在位边沿；EAP 回调由专用派发线程发，不占扫描线程。
+    /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机也在里面），
+    /// 再判载具在位边沿、收读码结果；EAP 回调由专用派发线程发，不占扫描线程。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
         CheckCarrierPresence();
+        CheckCarrierIdRead();
     }
 
     /// <summary>
@@ -645,13 +738,30 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         _lastPodPlaced = placed;
         if (placed)
         {
+            lock (_carrierGate)
+            {
+                _carrier = new CarrierInfo { Location = Name, Capacity = SlotCount };
+            }
+
             EnqueueE87(callback => callback.CarrierArrived(this));
+            if (AutoReadCarrierId)
+            {
+                ReadCarrierId();
+            }
+
             return;
         }
 
         string? carrierId = CarrierId;
         CarrierId = null;
         SlotMap = Array.Empty<SlotState>();
+        lock (_carrierGate)
+        {
+            _carrier = null;
+        }
+
+        // 载具走了，这个端口上的片也一起走：晶圆账上清掉，免得留一堆幽灵片。
+        WaferManager.Current?.Clear(Name);
         EnqueueE87(callback => callback.CarrierRemoved(this, carrierId));
     }
 

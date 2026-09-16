@@ -83,6 +83,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventBusSmoke", "tools\Even
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaferLedgerSmoke", "tools\WaferLedgerSmoke\WaferLedgerSmoke.csproj", "{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RfidSmoke", "tools\RfidSmoke\RfidSmoke.csproj", "{71330A23-B76F-4D57-8604-955E05386F66}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -453,6 +455,18 @@ Global
 		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x64.Build.0 = Release|Any CPU
 		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x86.ActiveCfg = Release|Any CPU
 		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x86.Build.0 = Release|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Debug|x64.Build.0 = Debug|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Debug|x86.Build.0 = Debug|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Release|x64.ActiveCfg = Release|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Release|x64.Build.0 = Release|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Release|x86.ActiveCfg = Release|Any CPU
+		{71330A23-B76F-4D57-8604-955E05386F66}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -495,6 +509,7 @@ Global
 		{9F5223E2-37BF-432E-8BB1-E8BEAAF3497F} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{A24069EF-29BF-444C-A999-0B70256473BE} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{71330A23-B76F-4D57-8604-955E05386F66} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D0000000-0000-0000-0000-000000000001}

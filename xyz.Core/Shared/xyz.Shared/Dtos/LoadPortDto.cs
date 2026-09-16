@@ -39,6 +39,21 @@ public class LoadPortDto
     /// <summary>载具 ID，来自 LoadPort 内部 RFID 组件；未读到为空串。</summary>
     public string CarrierId { get; set; } = string.Empty;
 
+    /// <summary>端口上有没有载具。载具 ID 为空只说明没读到，不代表没载具。</summary>
+    public bool HasCarrier { get; set; }
+
+    /// <summary>批次号；未下发为空串。</summary>
+    public string LotId { get; set; } = string.Empty;
+
+    /// <summary>载具 ID 认定到哪一步。</summary>
+    public CarrierIdStatus CarrierIdStatus { get; set; }
+
+    /// <summary>槽图认定到哪一步。</summary>
+    public CarrierSlotMapStatus CarrierSlotMapStatus { get; set; }
+
+    /// <summary>载具取放到哪一步。</summary>
+    public CarrierAccessStatus CarrierAccessStatus { get; set; }
+
     /// <summary>
     /// 比较当前发布的模块状态、连接状态、设备反馈、载具 ID 与花篮槽位；没有上一次状态时视为变化。
     /// </summary>
@@ -100,6 +115,15 @@ public class LoadPortDto
         }
 
         if (CarrierId != previous.CarrierId)
+        {
+            return true;
+        }
+
+        if (HasCarrier != previous.HasCarrier
+            || LotId != previous.LotId
+            || CarrierIdStatus != previous.CarrierIdStatus
+            || CarrierSlotMapStatus != previous.CarrierSlotMapStatus
+            || CarrierAccessStatus != previous.CarrierAccessStatus)
         {
             return true;
         }
