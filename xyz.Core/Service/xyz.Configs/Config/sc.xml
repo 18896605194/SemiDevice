@@ -1,6 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
-    <Setting Name="System" />  
+    <Setting Name="System" />
+	<!-- 数据库连接：只分两个。业务数据（含晶圆流水）走 Default；
+	     Io 单独一个，专门装设备采上来的点位数据——那是唯一一路秒级不停写的，跟业务分开免得互相拖慢 -->
+	<Setting Name="Database">
+		<Setting Name="Default" Type="xyz.Components.Components.DataBaseComponent">
+			<Value Name="ConnectionString" Value="DataSource=xyz.db" />
+			<Value Name="DbType" Value="Sqlite" />
+		</Setting>
+		<Setting Name="Io" Type="xyz.Components.Components.DataBaseComponent">
+			<Value Name="ConnectionString" Value="DataSource=io.db" />
+			<Value Name="DbType" Value="Sqlite" />
+		</Setting>
+	</Setting>
+	<!-- 晶圆账：全系统一本，事件驱动不参与扫描 -->
+	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManager">
+		<Value Name="IsEnable" Value="True" />
+		<Value Name="EnableHistory" Value="True" />
+		<Value Name="HistoryDatabase" Value="Default" />
+		<Value Name="HistoryKeepDays" Value="90" />
+	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="Brand" Value="" />

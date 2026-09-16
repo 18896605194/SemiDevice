@@ -243,7 +243,8 @@
             <presentationControls:LoadPort
                 SlotCount="25"
                 StatusText="{Binding Model.StateText}"
-                Title="" />
+                Title="{Binding Model.CarrierId}"
+                Wafers="{Binding Model.Wafers}" />
         </materialDesign:Card>
 
         <!--  ③ 操作：三行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->

@@ -106,13 +106,7 @@ public class LoadPortService : BaseService, ILoadPortService
         var dto = Roots.OfType<BaseLoadPortModule>()
             .Where(port => string.IsNullOrWhiteSpace(module)
                            || string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase))
-            .Select(port => new LoadPortDto
-            {
-                Name = port.Name,
-                State = port.State,
-                IsConnected = port.Driver?.IsConnected ?? false,
-                IsPodPlaced = port.IsPodPlaced,
-            })
+            .Select(port => port.CreateStateDto())
             .ToList();
 
         var data = dto.Count == 1 ? JsonHelper.Serialize(dto[0]) : JsonHelper.Serialize(dto);

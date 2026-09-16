@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
@@ -17,7 +18,7 @@ namespace xyz.Modules;
 
 public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
-    #region SV 状态变量
+    #region SV 
 
     /// <summary>
     /// LoadPort 当前状态（SV）。既可以保存平台公共状态，也可以保存 LoadPort 专属状态。
@@ -73,7 +74,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
     #endregion
 
-    #region SC 装机常量
+    #region SC 
 
     [SCEditor("", "LoadPort", "LoadPort 品牌")]
     public string Brand { get; set; } = string.Empty;
@@ -113,7 +114,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    #region EC 在线参数（查询与动作超时，属性读写直通 EC，改完即时生效）
+    #region EC
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
         @default: "3000", description: "设备状态查询超时")]
@@ -203,7 +204,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    #region Event 采集事件
+    #region Event
 
     [EventAttribut("FOUP 到达", Description = "FOUP 从不在位变为在位")]
     public readonly string FoupArrivedEvent = "FoupArrived";
@@ -274,12 +275,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 关闭 RFID 读头与驱动连接；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// 关闭 RFID 读头与驱动连接，并结束 EAP 派发线程；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
     /// </summary>
     public void Close()
     {
         RFID?.Close();
         Driver?.Close();
+        _eapNotifications.Writer.TryComplete();
     }
 
     private void OnDriverSpontaneousEvent(LoadPortDeviceEvent evt)
@@ -304,10 +306,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private LoadPortDto? _lastPublishedState;
 
     /// <summary>
-    /// 发布当前状态（扫描周期与传片环标记都会调）：首次发布，之后只在状态变化时发布。
-    /// EventBus 留存最后一条消息，供界面晚订阅或重连时补发。
+    /// 当前状态快照，状态发布与 GetState 查询共用。
+    /// 未连接或停用时查询反馈（在位、门、报警）不可信，置 null；载具 ID 与 Mapping 结果取模块当前值（载具移走时已清空）。
     /// </summary>
-    protected override void PublishState()
+    public LoadPortDto CreateStateDto()
     {
         var dto = new LoadPortDto
         {
@@ -315,6 +317,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             State = State,
             IsPodPlaced = IsPodPlaced,
             AutoMode = IsAutoMode,
+            CarrierId = CarrierId ?? string.Empty,
+            Slots = ToSlotDtos(SlotMap),
         };
 
         var driver = Driver;
@@ -344,6 +348,38 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             dto.DeviceAlarm = status.DeviceAlarm;
         }
 
+        return dto;
+    }
+
+    /// <summary>
+    /// Mapping 结果转契约对象：下标 0 即第 1 槽，槽位状态按厂商无关语义原样带出。
+    /// </summary>
+    private static List<LoadPortSlotDto> ToSlotDtos(IReadOnlyList<SlotState> slotMap)
+    {
+        var slots = new List<LoadPortSlotDto>(slotMap.Count);
+        for (int index = 0; index < slotMap.Count; index++)
+        {
+            slots.Add(new LoadPortSlotDto
+            {
+                Slot = index + 1,
+                State = slotMap[index] switch
+                {
+                    SlotState.Empty => LoadPortSlotState.Empty,
+                    SlotState.NotEmpty => LoadPortSlotState.NotEmpty,
+                    SlotState.CorrectlyOccupied => LoadPortSlotState.CorrectlyOccupied,
+                    SlotState.DoubleSlotted => LoadPortSlotState.DoubleSlotted,
+                    SlotState.CrossSlotted => LoadPortSlotState.CrossSlotted,
+                    _ => LoadPortSlotState.Undefined,
+                },
+            });
+        }
+
+        return slots;
+    }
+
+    protected override void PublishState()
+    {
+        var dto = CreateStateDto();
         if (!dto.HasStateChanged(_lastPublishedState))
         {
             return;
@@ -543,7 +579,16 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region EAP 口子（设备侧上报给 EAP，EAP 经 ILoadPort 反向下发动作）
 
-    private readonly ConcurrentQueue<Action> _eapNotifications = new();
+    /// <summary>
+    /// EAP 回调积压到这个条数的整数倍时记一次告警。
+    /// </summary>
+    private const int EapBacklogWarning = 500;
+
+    private readonly Channel<Action> _eapNotifications =
+        Channel.CreateUnbounded<Action>(new UnboundedChannelOptions { SingleReader = true });
+
+    private int _eapDispatchStarted;
+    private int _eapPending;
     private bool _lastPodPlaced;
 
     /// <summary>
@@ -577,13 +622,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 扫描周期：先扫子组件与操作（基类），再判载具在位边沿，最后派发 EAP 回调。
+    /// 扫描周期：先扫子组件与操作（基类），再判载具在位边沿；EAP 回调由专用派发线程发，不占扫描线程。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
         CheckCarrierPresence();
-        DispatchEapNotifications();
     }
 
     /// <summary>
@@ -621,7 +665,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        _eapNotifications.Enqueue(() =>
+        Enqueue(() =>
         {
             var callback = E87Callback;
             if (callback is not null)
@@ -641,7 +685,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        _eapNotifications.Enqueue(() =>
+        Enqueue(() =>
         {
             var callback = E84Callback;
             if (callback is not null)
@@ -652,12 +696,43 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 在扫描线程上按入队顺序派发，不持有模块锁（回调里可直接调 ILoadPort 动作）；单条异常只记日志。
+    /// 投递一条回调并确保派发线程已起；积压超过水位只记日志，不丢事件（EAP 事件丢了比慢更糟）。
     /// </summary>
-    private void DispatchEapNotifications()
+    private void Enqueue(Action notification)
     {
-        while (_eapNotifications.TryDequeue(out var notification))
+        EnsureDispatchRunning();
+        if (!_eapNotifications.Writer.TryWrite(notification))
         {
+            return;
+        }
+
+        int pending = Interlocked.Increment(ref _eapPending);
+        if (pending > 0 && pending % EapBacklogWarning == 0)
+        {
+            LogHelper.Warn(Name, $"EAP 回调积压 {pending} 条，检查 EAP 侧是否卡住");
+        }
+    }
+
+    /// <summary>
+    /// 第一次真正入队时才起派发线程：没接 EAP 的机台不会多出这个线程。
+    /// </summary>
+    private void EnsureDispatchRunning()
+    {
+        if (Interlocked.CompareExchange(ref _eapDispatchStarted, 1, 0) == 0)
+        {
+            _ = Task.Run(DispatchEapLoopAsync);
+        }
+    }
+
+    /// <summary>
+    /// 专用线程按入队顺序派发，不持模块锁也不占扫描线程：EAP 侧发 SECS 阻塞时不会卡住设备轮询。
+    /// 单条异常只记日志；Close 后队列关闭、循环自然结束。
+    /// </summary>
+    private async Task DispatchEapLoopAsync()
+    {
+        await foreach (var notification in _eapNotifications.Reader.ReadAllAsync())
+        {
+            Interlocked.Decrement(ref _eapPending);
             try
             {
                 notification();

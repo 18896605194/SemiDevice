@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -80,6 +80,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LogPipelineSmoke", "tools\LogPipelineSmoke\LogPipelineSmoke.csproj", "{9F5223E2-37BF-432E-8BB1-E8BEAAF3497F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventBusSmoke", "tools\EventBusSmoke\EventBusSmoke.csproj", "{A24069EF-29BF-444C-A999-0B70256473BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaferLedgerSmoke", "tools\WaferLedgerSmoke\WaferLedgerSmoke.csproj", "{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -439,6 +441,18 @@ Global
 		{A24069EF-29BF-444C-A999-0B70256473BE}.Release|x64.Build.0 = Release|Any CPU
 		{A24069EF-29BF-444C-A999-0B70256473BE}.Release|x86.ActiveCfg = Release|Any CPU
 		{A24069EF-29BF-444C-A999-0B70256473BE}.Release|x86.Build.0 = Release|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Debug|x64.Build.0 = Debug|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Debug|x86.Build.0 = Debug|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x64.ActiveCfg = Release|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x64.Build.0 = Release|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x86.ActiveCfg = Release|Any CPU
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -480,6 +494,7 @@ Global
 		{48C2E9EC-0DF1-41B1-900C-F1697A24D1EF} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{9F5223E2-37BF-432E-8BB1-E8BEAAF3497F} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{A24069EF-29BF-444C-A999-0B70256473BE} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{ACB6875F-22E6-42AD-BDBC-0709C37FC33C} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D0000000-0000-0000-0000-000000000001}

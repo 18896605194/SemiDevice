@@ -3,7 +3,7 @@ namespace xyz.Modules;
 /// <summary>
 /// E84 自动交接的设备侧上报口：搬运车（OHT/AGV）与本端口的一次交接，进展由模块调这里告诉 EAP。
 /// 实现由 EAP 侧提供并挂到 ILoadPort.E84Callback；未接 EAP 或本机没有 E84 硬件时为 null，模块照常运行。
-/// 全部回调在扫描线程上按发生顺序串行调用。
+/// 与 E87 回调共用同一条派发线程，按发生顺序串行调用。
 /// </summary>
 public interface IE84Callback
 {

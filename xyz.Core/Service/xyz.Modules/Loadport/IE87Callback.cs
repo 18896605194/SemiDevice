@@ -5,7 +5,7 @@ namespace xyz.Modules;
 /// <summary>
 /// E87 载具管理的设备侧上报口：端口上发生的物理事实由模块调这里，EAP 侧据此推进 E87 状态机并上报 Host。
 /// 实现由 EAP 侧提供并挂到 ILoadPort.E87Callback；未接 EAP 时为 null，模块照常运行。
-/// 全部回调在扫描线程上按发生顺序串行调用，实现里不要阻塞。
+/// 全部回调在模块的 EAP 派发线程上按发生顺序串行调用（不占扫描线程），实现里可以慢，但不要死等。
 /// </summary>
 public interface IE87Callback
 {

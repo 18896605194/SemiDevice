@@ -40,7 +40,7 @@ public class LoadPortDto
     public string CarrierId { get; set; } = string.Empty;
 
     /// <summary>
-    /// 比较当前发布的模块状态、连接状态和设备反馈；没有上一次状态时视为变化。
+    /// 比较当前发布的模块状态、连接状态、设备反馈、载具 ID 与花篮槽位；没有上一次状态时视为变化。
     /// </summary>
     public bool HasStateChanged(LoadPortDto? previous)
     {
@@ -99,6 +99,24 @@ public class LoadPortDto
             return true;
         }
 
+        if (CarrierId != previous.CarrierId)
+        {
+            return true;
+        }
+
+        if (Slots.Count != previous.Slots.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < Slots.Count; i++)
+        {
+            if (Slots[i].Slot != previous.Slots[i].Slot || Slots[i].State != previous.Slots[i].State)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 }
@@ -111,6 +129,11 @@ public class LoadPortSlotDto
     /// <summary>槽位号，从 1 开始。</summary>
     public int Slot { get; set; }
 
-    /// <summary>该槽位是否有晶圆。</summary>
-    public bool HasWafer { get; set; }
+    /// <summary>该槽位的 Mapping 结果。</summary>
+    public LoadPortSlotState State { get; set; }
+
+    /// <summary>该槽位有没有片（叠片、交叉片也算有片）。</summary>
+    public bool HasWafer =>
+        State is LoadPortSlotState.NotEmpty or LoadPortSlotState.CorrectlyOccupied
+            or LoadPortSlotState.DoubleSlotted or LoadPortSlotState.CrossSlotted;
 }

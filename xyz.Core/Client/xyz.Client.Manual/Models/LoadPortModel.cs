@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Presentation.Models;
+using xyz.Shared.Dtos;
 
 namespace xyz.Client.Manual.Models;
 
@@ -69,6 +71,57 @@ public class LoadPortModel : ObservableObject
     {
         get => _autoMode;
         set => SetProperty(ref _autoMode, value);
+    }
+
+    private string _carrierId = string.Empty;
+
+    /// <summary>载具 ID；未读到为空串。</summary>
+    public string CarrierId
+    {
+        get => _carrierId;
+        set => SetProperty(ref _carrierId, value);
+    }
+
+    private List<LoadPortSlotDto> _slots = [];
+
+    /// <summary>花篮槽位表（Mapping 结果），下标顺序即槽位顺序。</summary>
+    public List<LoadPortSlotDto> Slots
+    {
+        get => _slots;
+        set
+        {
+            if (SetProperty(ref _slots, value))
+            {
+                _wafers = null;
+            }
+        }
+    }
+
+    private IReadOnlyList<WaferModel>? _wafers;
+
+    /// <summary>
+    /// 花篮里的片：有片的槽位各给一片，交给 LoadPort 控件按槽位号摆；叠片/交叉片用各自的状态色。
+    /// Model 每次整体替换，绑定随 Model 属性变化重新取值，无需单独通知。
+    /// </summary>
+    public IReadOnlyList<WaferModel> Wafers
+    {
+        get
+        {
+            return _wafers ??= Slots
+                .Where(slot => slot.HasWafer)
+                .Select(slot => new WaferModel
+                {
+                    Slot = slot.Slot,
+                    LpSlot = slot.Slot.ToString("00"),
+                    State = slot.State switch
+                    {
+                        LoadPortSlotState.DoubleSlotted => "Double",
+                        LoadPortSlotState.CrossSlotted => "Crossed",
+                        _ => "IdleHasjob",
+                    },
+                })
+                .ToList();
+        }
     }
 
     /// <summary>

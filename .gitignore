@@ -370,3 +370,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# 运行/冒烟生成的 SQLite 库（sc.xml 的 Database 节点建出来的，不进版本库）
+*.db
+*.db-shm
+*.db-wal

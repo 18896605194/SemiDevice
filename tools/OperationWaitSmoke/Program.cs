@@ -1,5 +1,9 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using xyz.Components;
 using xyz.Configs;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Service;
 using xyz.Shared.Dtos;
@@ -171,7 +175,31 @@ modeResponse = await service.OfflineAsync(port.Name);
 Check(modeResponse.Success && !port.IsAutoMode && port.Calls == callsBeforeMode,
     "Offline must clear auto mode without starting a device action.");
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, and the online/offline mode switch).");
+// EAP 口子：回调走专用派发线程（本工具不跑扫描循环，正好证明派发不再依赖扫描）。
+var eap = new RecordingE87Callback();
+port.E87Callback = eap;
+port.SetAutoMode(true);
+Check(eap.Wait(nameof(IE87Callback.AutoModeChanged)), "EAP callbacks must be delivered without a scan loop.");
+port.SetAutoMode(false);
+
+// 载具 ID 与 Mapping 结果要能进状态快照（DTO），否则出不了服务进程。
+port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CrossSlotted]);
+Check(eap.Wait(nameof(IE87Callback.SlotMapRead)), "Mapping must report SlotMapRead.");
+port.SetCarrierId("FOUP-001");
+
+var snapshot = port.CreateStateDto();
+Check(snapshot.CarrierId == "FOUP-001", "The state snapshot must carry the carrier id.");
+Check(snapshot.Slots.Count == 3
+      && snapshot.Slots[0].Slot == 1 && snapshot.Slots[0].State == LoadPortSlotState.CorrectlyOccupied && snapshot.Slots[0].HasWafer
+      && snapshot.Slots[1].State == LoadPortSlotState.Empty && !snapshot.Slots[1].HasWafer
+      && snapshot.Slots[2].State == LoadPortSlotState.CrossSlotted && snapshot.Slots[2].HasWafer,
+    "The state snapshot must carry the slot map.");
+Check(!port.CreateStateDto().HasStateChanged(snapshot), "An unchanged snapshot must not count as a change.");
+port.NoteMap([SlotState.Empty, SlotState.Empty, SlotState.CrossSlotted]);
+Check(port.CreateStateDto().HasStateChanged(snapshot), "A slot map change must count as a change.");
+port.E87Callback = null;
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline mode switch, and the EAP callback and carrier snapshot path).");
 
 sealed class ProbeOperation() : ModuleOperation("Probe")
 {
@@ -219,6 +247,7 @@ sealed class ProbePort : BaseLoadPortModule
             EC.UpsertValueMetadata(Name, key, "0", "Int", "ms", null, null, null, null, null);
         }
     }
+    public void NoteMap(IReadOnlyList<SlotState> slotMap) => UpdateSlotMap(slotMap);
     private ModuleOperation? Take() { Calls++; return Next; }
     public override ModuleOperation? Load() => Take();
     public override ModuleOperation? Unload() => Take();
@@ -227,4 +256,40 @@ sealed class ProbePort : BaseLoadPortModule
     public override ModuleOperation? Abort() => Take();
     public override ModuleOperation? Clamp() => Take();
     public override ModuleOperation? Unclamp() => Take();
+}
+
+// 只记下收到了哪些回调：派发在别的线程上，等到为止。
+sealed class RecordingE87Callback : IE87Callback
+{
+    private readonly ConcurrentDictionary<string, bool> _received = new();
+
+    public bool Wait(string name, int timeoutMs = 2000)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < timeoutMs)
+        {
+            if (_received.ContainsKey(name)) return true;
+            Thread.Sleep(5);
+        }
+
+        return false;
+    }
+
+    private void Note([CallerMemberName] string? name = null) => _received[name!] = true;
+
+    public void CarrierArrived(ILoadPort port) => Note();
+    public void CarrierRemoved(ILoadPort port, string? carrierId) => Note();
+    public void CarrierIdRead(ILoadPort port, string carrierId) => Note();
+    public void CarrierIdReadFailed(ILoadPort port) => Note();
+    public void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap) => Note();
+    public void LoadCompleted(ILoadPort port) => Note();
+    public void UnloadCompleted(ILoadPort port) => Note();
+    public void Homed(ILoadPort port) => Note();
+    public void ClampCompleted(ILoadPort port) => Note();
+    public void UnclampCompleted(ILoadPort port) => Note();
+    public void AutoModeChanged(ILoadPort port, bool autoMode) => Note();
+    public void AccessStarted(ILoadPort port) => Note();
+    public void AccessStopped(ILoadPort port) => Note();
+    public void CarrierComplete(ILoadPort port) => Note();
+    public void PortError(ILoadPort port, string error) => Note();
 }
