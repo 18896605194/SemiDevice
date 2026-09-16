@@ -6,7 +6,6 @@
 			<Value Name="Brand" Value="" />
 			<Value Name="CommType" Value="Serial" />
 			<Value Name="SlotCount" Value="25" />
-			<Value Name="ModuleNumber" Value="1" />
 			<Value Name="PortName" Value="COM2" />
 			<Value Name="BaudRate" Value="9600" />
 			<Value Name="Parity" Value="None" />
@@ -27,7 +26,6 @@
 			<Value Name="Brand" Value="" />
 			<Value Name="CommType" Value="Serial" />
 			<Value Name="SlotCount" Value="25" />
-			<Value Name="ModuleNumber" Value="2" />
 			<Value Name="PortName" Value="COM4" />
 			<Value Name="BaudRate" Value="9600" />
 			<Value Name="Parity" Value="None" />
@@ -50,11 +48,28 @@
 			<Value Name="Brand" Value="Reje" />
 			<Value Name="Host" Value="127.0.0.1" />
 			<Value Name="NetPort" Value="9000" />
+			<!-- 站点表：每个站点一个子节点。Number 设备站点号；Rotation 转台方位（North/East/South/West）；Travel 平移距离 -->
 			<Setting Name="Stations">
-				<Value Name="LoadPort1" Value="1" />
-				<Value Name="LoadPort2" Value="2" />
-				<Value Name="Chamber1" Value="3" />
-				<Value Name="Chamber2" Value="4" />
+				<Setting Name="LoadPort1">
+					<Value Name="Number" Value="1" />
+					<Value Name="Rotation" Value="South" />
+					<Value Name="Travel" Value="20" />
+				</Setting>
+				<Setting Name="LoadPort2">
+					<Value Name="Number" Value="2" />
+					<Value Name="Rotation" Value="South" />
+					<Value Name="Travel" Value="0" />
+				</Setting>
+				<Setting Name="Chamber1">
+					<Value Name="Number" Value="3" />
+					<Value Name="Rotation" Value="North" />
+					<Value Name="Travel" Value="0" />
+				</Setting>
+				<Setting Name="Chamber2">
+					<Value Name="Number" Value="4" />
+					<Value Name="Rotation" Value="North" />
+					<Value Name="Travel" Value="0" />
+				</Setting>
 			</Setting>
 		</Setting>
 	</Setting>

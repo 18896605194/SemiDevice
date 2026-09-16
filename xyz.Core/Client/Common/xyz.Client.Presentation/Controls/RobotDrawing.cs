@@ -11,8 +11,7 @@ internal sealed record RobotSceneFrame(
     RobotArmType ArmType,
     RobotDisplayStatus Status,
     double Rotation,
-    double TravelX,
-    double TravelY,
+    double Travel,
     IReadOnlyList<RobotSceneArm> Arms,
     double TimeMs);
 
@@ -43,14 +42,15 @@ internal static class RobotDrawing
     #region 坐标换算
 
     /// <summary>
-    /// 本体坐标（转台中心为原点）→ 控件坐标：缩放后平移到控件中心加平移量。
+    /// 本体坐标（转台中心为原点）→ 控件坐标：先在设计尺寸下水平平移，再缩放，最后移到控件中心；平移量跟机械手一起缩放。
     /// </summary>
     public static Matrix BodyMatrix(Size size, RobotSceneFrame frame)
     {
         double scale = Scale(size);
         var matrix = Matrix.Identity;
+        matrix.Translate(frame.Travel, 0);
         matrix.Scale(scale, scale);
-        matrix.Translate(size.Width / 2 + frame.TravelX, size.Height / 2 + frame.TravelY);
+        matrix.Translate(size.Width / 2, size.Height / 2);
         return matrix;
     }
 

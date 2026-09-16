@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace xyz.Modules;
 
 /// <summary>
@@ -36,14 +38,14 @@ public interface IRobot
     #region 站点
 
     /// <summary>
-    /// 本机械手的站点表：模块名（如 LoadPort1）→ 设备站点号，来自 sc.xml 本 Robot 节点下的 Stations。
+    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置（站点号、转台方位、平移距离），来自 sc.xml 本 Robot 节点下的 Stations。
     /// </summary>
-    IReadOnlyDictionary<string, int> Stations { get; }
+    IReadOnlyDictionary<string, RobotStation> Stations { get; }
 
     /// <summary>
-    /// 按模块名查站点号（忽略大小写）；未配置返回 false。
+    /// 按模块名查站点配置（忽略大小写）；未配置返回 false。
     /// </summary>
-    bool TryGetStation(string station, out int stationNumber);
+    bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config);
 
     #endregion
 

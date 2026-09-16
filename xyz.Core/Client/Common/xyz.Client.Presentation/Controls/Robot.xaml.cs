@@ -8,13 +8,14 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using xyz.Client.Presentation.Models;
+using xyz.Shared.Dtos;
 
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 机械手控件（俯视）：只有机械手本体，背景透明，由页面摆放。
 /// 转台旋转、平移、各手臂独立伸缩，支持直伸直出与蛙式两种手臂结构；机械手随控件大小等比缩放；手臂上的片用 Wafer 控件。
-/// 绑定只给目标姿态（Rotation / TravelX / TravelY / 各手臂 Extension），运动顺序由控件自己排：
+/// 绑定只给目标姿态（Rotation / Travel / 各手臂 Extension），运动顺序由控件自己排：
 /// 需要转向或平移时先收回全部手臂，到位后再伸出；换片时先收回的手臂收完，另一只才伸出，不会两只一起伸。
 /// </summary>
 public partial class Robot : UserControl
@@ -27,6 +28,21 @@ public partial class Robot : UserControl
     private const double ExtensionEpsilon = 0.002;
 
     /// <summary>
+    /// 转台转一次的动画时长（毫秒），固定 0.5 s，不管转 90° 还是 180°。
+    /// </summary>
+    private const double TurnDurationMs = 500;
+
+    /// <summary>
+    /// 手臂伸出或收回一次的动画时长（毫秒），固定 0.5 s，不管伸缩多少。
+    /// </summary>
+    private const double ExtendDurationMs = 500;
+
+    /// <summary>
+    /// 水平平移一次的动画时长（毫秒），固定 0.5 s，不管移多远。
+    /// </summary>
+    private const double TravelDurationMs = 500;
+
+    /// <summary>
     /// 没有运动、只有状态环动画（动作中/报警）时的刷新间隔，约 30 帧。
     /// </summary>
     private const double StatusFrameIntervalMs = 33;
@@ -37,8 +53,7 @@ public partial class Robot : UserControl
     private readonly Dictionary<RobotArmModel, ArmVisual> _armVisuals = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly MotionTrack _rotation = new();
-    private readonly MotionTrack _travelX = new();
-    private readonly MotionTrack _travelY = new();
+    private readonly MotionTrack _travel = new();
     private readonly Dictionary<RobotArmModel, MotionTrack> _armTracks = new();
     private readonly Dictionary<int, RobotArmModel> _placeholderArms = new();
     private readonly HashSet<RobotArmModel> _boundArms = new();
@@ -84,46 +99,35 @@ public partial class Robot : UserControl
             new PropertyMetadata(RobotDisplayStatus.Offline, OnSceneChanged));
 
     /// <summary>
-    /// 转台目标朝向（度）：0 = 正上方，顺时针为正；按最短路径转过去。
+    /// 转台目标朝向（俯视，屏幕上方为北）：North 0°、East 90°、South 180°、West 270°，只接受这四个方向；按最短路径转过去。
     /// </summary>
-    public double Rotation
+    public RobotDirection Rotation
     {
-        get => (double)GetValue(RotationProperty);
+        get => (RobotDirection)GetValue(RotationProperty);
         set => SetValue(RotationProperty, value);
     }
 
     public static readonly DependencyProperty RotationProperty =
         DependencyProperty.Register(
-            nameof(Rotation), typeof(double), typeof(Robot),
-            new PropertyMetadata(0.0, OnPoseChanged));
+            nameof(Rotation), typeof(RobotDirection), typeof(Robot),
+            new PropertyMetadata(RobotDirection.North, OnPoseChanged),
+            IsValidDirection);
 
     /// <summary>
-    /// 水平平移目标（像素，相对控件中心，向右为正）；机械手可以移出控件范围。
+    /// 水平平移目标：机械手中心相对控件中心向右移多少，负数向左；机械手可以移出控件范围。
+    /// 按机械手设计尺寸 400×400 计，跟机械手一起按短边等比缩放：短边 400 时就是像素，短边 800 时实际移动 2 倍。
     /// </summary>
-    public double TravelX
+    public double Travel
     {
-        get => (double)GetValue(TravelXProperty);
-        set => SetValue(TravelXProperty, value);
+        get => (double)GetValue(TravelProperty);
+        set => SetValue(TravelProperty, value);
     }
 
-    public static readonly DependencyProperty TravelXProperty =
+    public static readonly DependencyProperty TravelProperty =
         DependencyProperty.Register(
-            nameof(TravelX), typeof(double), typeof(Robot),
-            new PropertyMetadata(0.0, OnPoseChanged));
-
-    /// <summary>
-    /// 垂直平移目标（像素，相对控件中心，向下为正）；机械手可以移出控件范围。
-    /// </summary>
-    public double TravelY
-    {
-        get => (double)GetValue(TravelYProperty);
-        set => SetValue(TravelYProperty, value);
-    }
-
-    public static readonly DependencyProperty TravelYProperty =
-        DependencyProperty.Register(
-            nameof(TravelY), typeof(double), typeof(Robot),
-            new PropertyMetadata(0.0, OnPoseChanged));
+            nameof(Travel), typeof(double), typeof(Robot),
+            new PropertyMetadata(0.0, OnPoseChanged),
+            IsValidTravel);
 
     /// <summary>
     /// 手指（手臂）数量，1~4：控件画出 1..ArmCount 号手臂，Arms 里没有数据的手臂按空手收回显示。
@@ -236,6 +240,19 @@ public partial class Robot : UserControl
     private static object CoerceArmCount(DependencyObject dependencyObject, object baseValue)
     {
         return Math.Clamp((int)baseValue, 1, MaxArmCount);
+    }
+
+    /// <summary>
+    /// 朝向只认枚举里的四个方向，(RobotDirection)80 这类未定义的值直接拒绝。
+    /// </summary>
+    private static bool IsValidDirection(object value)
+    {
+        return Enum.IsDefined((RobotDirection)value);
+    }
+
+    private static bool IsValidTravel(object value)
+    {
+        return double.IsFinite((double)value);
     }
 
     #endregion
@@ -404,17 +421,16 @@ public partial class Robot : UserControl
         }
 
         _rotation.Stop();
-        _travelX.Stop();
-        _travelY.Stop();
+        _travel.Stop();
         foreach (var track in _armTracks.Values)
         {
             track.Stop();
         }
 
-        double rotationTarget = _rotation.Value + ShortestAngle(_rotation.Value, Rotation);
+        // 枚举值就是度数。
+        double rotationTarget = _rotation.Value + ShortestAngle(_rotation.Value, (int)Rotation);
         bool turn = Math.Abs(rotationTarget - _rotation.Value) > AngleEpsilon;
-        double travelDistance = Math.Sqrt(Math.Pow(TravelX - _travelX.Value, 2) + Math.Pow(TravelY - _travelY.Value, 2));
-        bool shift = travelDistance > TravelEpsilon;
+        bool shift = Math.Abs(Travel - _travel.Value) > TravelEpsilon;
         bool relocate = turn || shift;
 
         // ① 收回：要转向或平移时全部手臂先收回；原地不动时只收需要收的。
@@ -425,7 +441,7 @@ public partial class Robot : UserControl
             double hold = relocate ? 0 : Math.Min(track.Value, arm.Extension);
             if (track.Value - hold > ExtensionEpsilon)
             {
-                track.Append(hold, now, ExtendDuration(track.Value - hold));
+                track.Append(hold, now, ExtendDurationMs);
                 retracted = Math.Max(retracted, track.EndTime);
             }
         }
@@ -434,16 +450,14 @@ public partial class Robot : UserControl
         double arrived = retracted;
         if (turn)
         {
-            _rotation.Append(rotationTarget, retracted, TurnDuration(rotationTarget - _rotation.Value));
+            _rotation.Append(rotationTarget, retracted, TurnDurationMs);
             arrived = Math.Max(arrived, _rotation.EndTime);
         }
 
         if (shift)
         {
-            double duration = TravelDuration(travelDistance);
-            _travelX.Append(TravelX, retracted, duration);
-            _travelY.Append(TravelY, retracted, duration);
-            arrived = Math.Max(arrived, _travelX.EndTime);
+            _travel.Append(Travel, retracted, TravelDurationMs);
+            arrived = Math.Max(arrived, _travel.EndTime);
         }
 
         // ③ 伸出：到位且其它手臂收完后，再伸到目标伸出量。
@@ -452,7 +466,7 @@ public partial class Robot : UserControl
             var track = _armTracks[arm];
             if (arm.Extension - track.EndValue > ExtensionEpsilon)
             {
-                track.Append(arm.Extension, arrived, ExtendDuration(arm.Extension - track.EndValue));
+                track.Append(arm.Extension, arrived, ExtendDurationMs);
             }
         }
 
@@ -462,9 +476,8 @@ public partial class Robot : UserControl
 
     private void JumpToTargets()
     {
-        _rotation.Jump(Rotation);
-        _travelX.Jump(TravelX);
-        _travelY.Jump(TravelY);
+        _rotation.Jump((int)Rotation);
+        _travel.Jump(Travel);
         foreach (var arm in _arms)
         {
             _armTracks[arm].Jump(arm.Extension);
@@ -477,8 +490,7 @@ public partial class Robot : UserControl
     private bool AdvanceTracks(double now)
     {
         bool moving = _rotation.Advance(now);
-        moving |= _travelX.Advance(now);
-        moving |= _travelY.Advance(now);
+        moving |= _travel.Advance(now);
         foreach (var track in _armTracks.Values)
         {
             moving |= track.Advance(now);
@@ -488,7 +500,7 @@ public partial class Robot : UserControl
     }
 
     private bool HasActiveTracks =>
-        _rotation.IsActive || _travelX.IsActive || _travelY.IsActive || _armTracks.Values.Any(track => track.IsActive);
+        _rotation.IsActive || _travel.IsActive || _armTracks.Values.Any(track => track.IsActive);
 
     private static double ShortestAngle(double from, double to)
     {
@@ -503,21 +515,6 @@ public partial class Robot : UserControl
         }
 
         return delta;
-    }
-
-    private static double TurnDuration(double degrees)
-    {
-        return 260 + 640 * Math.Min(Math.Abs(degrees), 180) / 180;
-    }
-
-    private static double TravelDuration(double distance)
-    {
-        return 260 + 540 * Math.Min(distance, 400) / 400;
-    }
-
-    private static double ExtendDuration(double distance)
-    {
-        return 220 + 480 * Math.Min(Math.Abs(distance), 1);
     }
 
     #endregion
@@ -591,7 +588,7 @@ public partial class Robot : UserControl
         var arms = _arms
             .Select(arm => new RobotSceneArm(arm.Arm, _armTracks[arm].Value, arm.Heading, arm.Wafer is not null))
             .ToList();
-        var frame = new RobotSceneFrame(ArmType, Status, _rotation.Value, _travelX.Value, _travelY.Value, arms, now);
+        var frame = new RobotSceneFrame(ArmType, Status, _rotation.Value, _travel.Value, arms, now);
         _body.Update(frame);
 
         var size = StageHost.RenderSize;

@@ -5,7 +5,7 @@ using xyz.Tools;
 namespace xyz._35021.Client.Manual.Views;
 
 /// <summary>
-/// 35021 Transfer 调度界面：搬运地图（站点 + 机械手）与机械手手动取放片。
+/// 35021 Transfer 调度界面：显示机械手（去哪、朝哪、手臂上的片）。
 /// </summary>
 public partial class TransferView : UserControl
 {

@@ -108,15 +108,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [SCEditor("25", "LoadPort", "花篮槽数")]
     public int SlotCount { get; set; } = 25;
 
-    [SCEditor("1", "LoadPort", "工位号")]
-    public int ModuleNumber { get; set; } = 1;
-
-    [SCEditor("0", "LoadPort", "机械手服务此工位的平移位置")]
-    public double TXPoint { get; set; }
-
-    [SCEditor("T_South", "LoadPort", "机械手服务此工位的转盘方位")]
-    public string TAction { get; set; } = "T_South";
-
     [SCEditor("1", "LoadPort", "机械手从本 LoadPort 取片用的手臂")]
     public int UseArm { get; set; } = 1;
 

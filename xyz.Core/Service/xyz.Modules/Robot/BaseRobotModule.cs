@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
@@ -130,56 +131,105 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #endregion
 
-    #region 站点表（SC：本 Robot 节点下的 Stations 子节点，每个 Value 为 模块名 = 站点号）
+    #region 站点表（SC：本 Robot 节点下的 Stations，每个站点一个子节点：Number 站点号 / Rotation 转台方位 / Travel 平移距离）
 
     private const string StationsSettingName = "Stations";
 
-    private IReadOnlyDictionary<string, int> _stations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, RobotStation> _stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+
+    private volatile RobotStation? _currentStation;
 
     /// <summary>
-    /// 本机械手的站点表：模块名（如 LoadPort1）→ 设备站点号，取放片按它下发。
-    /// 每台机械手各配各的，同一模块在不同机械手上的站点号可以不同；装配时读入，运行中不变。
+    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置。取放片按站点号下发，转台方位与平移距离随状态推给界面。
+    /// 每台机械手各配各的，同一模块在不同机械手上的配置可以不同；装配时读入，运行中不变。
     /// </summary>
-    public IReadOnlyDictionary<string, int> Stations => _stations;
+    public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
 
     /// <summary>
-    /// 按模块名查站点号（忽略大小写）；未配置返回 false。
+    /// 按模块名查站点配置（忽略大小写）；未配置返回 false。
     /// </summary>
-    public bool TryGetStation(string station, out int stationNumber)
+    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
     {
-        return _stations.TryGetValue(station, out stationNumber);
+        return _stations.TryGetValue(station, out config);
     }
 
     /// <summary>
-    /// 装配时读入站点表；站点号不是正整数或模块名重复时抛异常，装配即失败。
+    /// 装配时读入站点表：Number 必配且为正整数；Rotation 只认 North/East/South/West，不配为 North；Travel 为数字，不配为 0。
+    /// 配置不合法或站点重复时抛异常，装配即失败。
     /// </summary>
     protected override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
 
-        var stations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
         var node = setting.Children.FirstOrDefault(child =>
             string.Equals(child.Name, StationsSettingName, StringComparison.OrdinalIgnoreCase));
         if (node is not null)
         {
-            foreach (var value in node.Values)
+            foreach (var stationNode in node.Children)
             {
-                if (!int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)
-                    || number < 1)
+                string path = $"{setting.Name}.{StationsSettingName}.{stationNode.Name}";
+                var station = new RobotStation(
+                    stationNode.Name,
+                    ParseStationNumber(stationNode, path),
+                    ParseStationRotation(stationNode, path),
+                    ParseStationTravel(stationNode, path));
+                if (!stations.TryAdd(station.Name, station))
                 {
-                    throw new InvalidOperationException(
-                        $"sc.xml 节点 {setting.Name}.{StationsSettingName} 的站点 {value.Name}=\"{value.Value}\" 不是有效站点号（须为正整数）。");
-                }
-
-                if (!stations.TryAdd(value.Name, number))
-                {
-                    throw new InvalidOperationException(
-                        $"sc.xml 节点 {setting.Name}.{StationsSettingName} 的站点 {value.Name} 重复配置。");
+                    throw new InvalidOperationException($"sc.xml 节点 {path} 重复配置。");
                 }
             }
         }
 
         _stations = stations;
+    }
+
+    private static int ParseStationNumber(ModuleConfig node, string path)
+    {
+        string? text = FindStationValue(node, nameof(RobotStation.Number));
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number) || number < 1)
+        {
+            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Number=\"{text}\" 不是有效站点号（须为正整数）。");
+        }
+
+        return number;
+    }
+
+    private static RobotDirection ParseStationRotation(ModuleConfig node, string path)
+    {
+        string? text = FindStationValue(node, nameof(RobotStation.Rotation));
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return RobotDirection.North;
+        }
+
+        if (!Enum.TryParse(text, ignoreCase: true, out RobotDirection rotation) || !Enum.IsDefined(rotation))
+        {
+            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Rotation=\"{text}\" 不是有效方位（North/East/South/West）。");
+        }
+
+        return rotation;
+    }
+
+    private static double ParseStationTravel(ModuleConfig node, string path)
+    {
+        string? text = FindStationValue(node, nameof(RobotStation.Travel));
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return 0;
+        }
+
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double travel) || !double.IsFinite(travel))
+        {
+            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Travel=\"{text}\" 不是有效数字。");
+        }
+
+        return travel;
+    }
+
+    private static string? FindStationValue(ModuleConfig node, string name)
+    {
+        return node.Values.FirstOrDefault(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase))?.Value;
     }
 
     #endregion
@@ -266,14 +316,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     /// <summary>
     /// 当前状态快照，状态发布与 GetState 查询共用。
-    /// 未连接或停用时查询反馈（伺服使能、设备报错）不可信，置 null；手指在位保留最后一次推送值。
+    /// 未连接或停用时查询反馈（伺服使能、设备报错）不可信，置 null；手指在位保留最后一次推送值；
+    /// 当前站点及其转台方位、平移距离取最近一次发起成功的取放片，还没取放过为 北 / 0。
     /// </summary>
     public RobotDto CreateStateDto()
     {
+        var station = _currentStation;
         var dto = new RobotDto
         {
             Name = Name,
             State = State,
+            Station = station?.Name,
+            Rotation = station?.Rotation ?? RobotDirection.North,
+            Travel = station?.Travel ?? 0,
             Arms = _armWafers
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new RobotArmDto { Arm = pair.Key, HasWafer = pair.Value })
@@ -337,7 +392,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public ModuleOperation? Pick(int arm, string station, int slot)
     {
-        return TryGetStation(station, out int stationNumber) ? Pick(arm, stationNumber, slot) : null;
+        return BeginAtStation(station, config => Pick(arm, config.Number, slot));
     }
 
     /// <summary>
@@ -345,7 +400,26 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public ModuleOperation? Place(int arm, string station, int slot)
     {
-        return TryGetStation(station, out int stationNumber) ? Place(arm, stationNumber, slot) : null;
+        return BeginAtStation(station, config => Place(arm, config.Number, slot));
+    }
+
+    /// <summary>
+    /// 查站点表并发起取放片；发起成功才记为当前站点（被拒不改），随状态推给界面显示机械手去哪、朝哪。
+    /// </summary>
+    private ModuleOperation? BeginAtStation(string station, Func<RobotStation, ModuleOperation?> begin)
+    {
+        if (!TryGetStation(station, out var config))
+        {
+            return null;
+        }
+
+        var operation = begin(config);
+        if (operation is not null)
+        {
+            _currentStation = config;
+        }
+
+        return operation;
     }
 
     /// <summary>
