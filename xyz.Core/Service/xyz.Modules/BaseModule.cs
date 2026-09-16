@@ -182,4 +182,12 @@ public abstract class BaseModule : ComponentBase
     }
 
     #endregion
+
+    /// <summary>
+    /// 发布本模块状态；子类按自己的 DTO 实现，默认不发。
+    /// 扫描周期会调，状态环改完状态也会立即调（不等下一拍）。
+    /// </summary>
+    protected virtual void PublishState()
+    {
+    }
 }

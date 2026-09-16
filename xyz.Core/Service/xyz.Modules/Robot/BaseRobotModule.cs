@@ -354,7 +354,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 发布当前状态（扫描周期调用）：首次发布，之后只在状态变化时发布。
     /// EventBus 留存最后一条消息，供界面晚订阅或重连时补发。
     /// </summary>
-    protected virtual void PublishState()
+    protected override void PublishState()
     {
         var dto = CreateStateDto();
         if (!dto.HasStateChanged(_lastPublishedState))

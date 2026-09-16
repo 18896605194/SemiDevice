@@ -3,74 +3,67 @@ using xyz.Modules.Enums;
 namespace xyz.Modules;
 
 /// <summary>
-/// 机械手可服务工位基类：实现 ITransferStation 的标准交互环
-/// （锚点态 → TransferReady → Transferring → TransferComplete → 回锚点态）。
+/// 机械手可服务工位基类
 /// </summary>
 public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 {
     #region 锚点与状态（环的起终点定义）
 
     /// <summary>
-    /// 锚点态：工位就绪、可被机械手服务的状态（LoadPort=Loaded；腔体按自己的状态表定义）。子类重写。
+    /// 工位就绪、可被机械手服务的状态 ,有的是idle，有的是loaded类似这种
     /// </summary>
     protected virtual int AnchorState => ModuleState.Idle;
 
-    /// <summary>
-    /// 工位当前状态码（SV）；环标记与查表都依赖它，子类以真实 SV 覆写。
-    /// </summary>
     public abstract int State { get; protected set; }
 
     #endregion
 
-    #region 契约实现（ITransferStation：调度/机械手流程调用的五个方法）
+    #region ITransferStation 实现
 
     public virtual bool CanPrepare => State == AnchorState;
 
     /// <summary>
-    /// 准备一（粗准备）默认实现：无设备动作，允许即返回立即成功的空操作；需要粗准备的子类（腔体）重写。
+    /// 准备一
     /// </summary>
     public virtual ModuleOperation? PrepareTransfer()
     {
-        return CanPrepare ? new NoOpOperation("PrepareTransfer") : null;
-    }
-
-    public virtual ModuleOperation? FinalizeTransfer()
-    {
-        return MarkTransferStep(AnchorState, TransferModuleState.TransferReady)
-            ? new NoOpOperation("FinalizeTransfer")
+        return TransferStep(AnchorState, TransferModuleState.PreTransfer)
+            ? new NoOpOperation("PrepareTransfer")
             : null;
     }
 
     /// <summary>
-    /// 标记本轮取放片进行中（机械手开始交互时调用）；状态不符返回 false。
+    /// 准备二
     /// </summary>
-    public bool MarkTransferring()
+    public virtual ModuleOperation? PrepareTransfer2()
     {
-        return MarkTransferStep(TransferModuleState.TransferReady, TransferModuleState.Transferring);
+        return TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady)
+            ? new NoOpOperation("PrepareTransfer2")
+            : null;
     }
 
     /// <summary>
-    /// 标记本轮完成：先落 TransferComplete 并发布，随即回落锚点态，并回调 OnTransferFinished。
-    /// 状态不符返回 false。
+    /// 机械手和工站正在交互
     /// </summary>
-    public bool MarkTransferComplete()
+    public bool Transferring()
     {
-        lock (OperationGate)
+        return TransferStep(TransferModuleState.TransferReady, TransferModuleState.Transferring);
+    }
+
+    /// <summary>
+    /// 机械手和站点传输完成
+    /// </summary>
+    public bool TransferComplete()
+    {
+        // 只落到 TransferComplete 就交给钩子。收尾期间不能是锚点态——
+        // 锚点态的意思是"我空闲、可以被服务"，门还在关就说这句话，调度器会把机械手再派过来。
+        if (!TransferStep(TransferModuleState.Transferring, TransferModuleState.TransferComplete))
         {
-            if (State != TransferModuleState.Transferring)
-            {
-                return false;
-            }
-
-            State = TransferModuleState.TransferComplete;
-            PublishState();
-
-            State = AnchorState;
-            PublishState();
-
-            OnTransferFinished();
-            return true;
+            return false;
         }
+
+        OnTransferFinished(); //钩子
+        return true;
     }
 
     #endregion
@@ -78,18 +71,12 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     #region 钩子（子类扩展点）
 
     /// <summary>
-    /// 一轮传片完成后的处理钩子（腔体：关门、触发工艺；默认无动作）。
-    /// 在 MarkTransferComplete 回落锚点态后回调。
+    /// 一轮传片完成后的收尾钩子。默认没有收尾动作，直接回锚点态。
+    /// 腔体重写：关门、起工艺，收尾真做完了再自己落状态——在那之前一直停在 TransferComplete。
     /// </summary>
     protected virtual void OnTransferFinished()
     {
-    }
-
-    /// <summary>
-    /// 状态发布钩子：环标记改状态后立即调用（不等扫描周期）；子类按自己的 DTO 发布，默认空。
-    /// </summary>
-    protected virtual void PublishState()
-    {
+        TransferStep(TransferModuleState.TransferComplete, AnchorState);
     }
 
     #endregion
@@ -98,8 +85,9 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 
     /// <summary>
     /// 状态环单步：锁内校验当前态 → 迁移 → 立即发布；状态不符返回 false。
+    /// 子类收尾完毕落状态也走这个，别直接赋 State（会跳过校验和发布）。
     /// </summary>
-    private bool MarkTransferStep(int expected, int next)
+    protected bool TransferStep(int expected, int next)
     {
         lock (OperationGate)
         {
