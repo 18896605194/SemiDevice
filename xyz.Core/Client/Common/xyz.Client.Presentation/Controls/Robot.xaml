@@ -9,6 +9,10 @@
     d:DesignWidth="400"
     mc:Ignorable="d">
 
+    <!--
+        画法全在这里：坐标以转台中心为原点、正前方朝上，按设计尺寸 400×400 画，外面用 Viewbox 等比缩放。
+        代码只算"动到哪"（转角、平移、每只手臂的伸出量），写进下面几个具名 Transform 与手臂的绑定数据。
+    -->
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -20,9 +24,621 @@
             <ControlTemplate x:Key="ArmWaferTemplate" TargetType="local:Wafer">
                 <ContentPresenter />
             </ControlTemplate>
+
+            <!--  阴影统一挂在父级上：子元素转起来时，阴影方向仍按屏幕走  -->
+            <DropShadowEffect
+                x:Key="TurretShadow"
+                BlurRadius="12"
+                Direction="-60"
+                Opacity="0.5"
+                ShadowDepth="8"
+                Color="#000000" />
+            <DropShadowEffect
+                x:Key="ArmShadow"
+                BlurRadius="10"
+                Direction="-59"
+                Opacity="0.55"
+                ShadowDepth="6"
+                Color="#000000" />
+
+            <!--  底座  -->
+            <RadialGradientBrush x:Key="BaseShadowBrush">
+                <GradientStop Offset="0" Color="#90000000" />
+                <GradientStop Offset="1" Color="#00000000" />
+            </RadialGradientBrush>
+            <RadialGradientBrush x:Key="BaseBrush" GradientOrigin="0.35,0.28">
+                <GradientStop Offset="0" Color="#5A6270" />
+                <GradientStop Offset="0.5" Color="#393F49" />
+                <GradientStop Offset="1" Color="#23272E" />
+            </RadialGradientBrush>
+            <LinearGradientBrush x:Key="BaseStroke" StartPoint="0,0" EndPoint="0.574,0.819">
+                <GradientStop Offset="0" Color="#8A94A3" />
+                <GradientStop Offset="1" Color="#16191E" />
+            </LinearGradientBrush>
+
+            <!--  转台  -->
+            <LinearGradientBrush x:Key="TurretBrush" StartPoint="0,0" EndPoint="1,0.35">
+                <GradientStop Offset="0" Color="#5E6775" />
+                <GradientStop Offset="0.55" Color="#404752" />
+                <GradientStop Offset="1" Color="#2B3038" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="TurretStroke" Color="#76808E" />
+            <SolidColorBrush x:Key="SlotBrush" Color="#C814171C" />
+            <RadialGradientBrush x:Key="CapBrush" GradientOrigin="0.35,0.3">
+                <GradientStop Offset="0" Color="#8E98A7" />
+                <GradientStop Offset="1" Color="#2A2F37" />
+            </RadialGradientBrush>
+            <SolidColorBrush x:Key="CapStroke" Color="#1A1D22" />
+
+            <!--  手臂：导轨、滑座/腕部、叉、吸盘、关节  -->
+            <LinearGradientBrush x:Key="RailOuterBrush" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Offset="0" Color="#6C7685" />
+                <GradientStop Offset="1" Color="#3A414C" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="RailInnerBrush" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Offset="0" Color="#A0AAB8" />
+                <GradientStop Offset="1" Color="#565F6C" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="RailStroke" Color="#1E2228" />
+            <LinearGradientBrush x:Key="MetalBrush" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Offset="0" Color="#727C8B" />
+                <GradientStop Offset="1" Color="#3B424D" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="MetalStroke" Color="#1C2026" />
+            <LinearGradientBrush x:Key="ForkBrush" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Offset="0" Color="#E6EBF1" />
+                <GradientStop Offset="0.5" Color="#B3BCC8" />
+                <GradientStop Offset="1" Color="#848F9D" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="ForkStroke" Color="#4E5763" />
+            <SolidColorBrush x:Key="PadBrush" Color="#1D2329" />
+            <SolidColorBrush x:Key="PadIdleStroke" Color="#59636F" />
+            <SolidColorBrush x:Key="ArmNumberBrush" Color="#DDE3EA" />
+            <RadialGradientBrush x:Key="JointBrush" GradientOrigin="0.35,0.3">
+                <GradientStop Offset="0" Color="#9EA8B6" />
+                <GradientStop Offset="1" Color="#3A404A" />
+            </RadialGradientBrush>
+            <SolidColorBrush x:Key="JointStroke" Color="#16191E" />
+            <SolidColorBrush x:Key="BoltBrush" Color="#1B1E23" />
+
+            <!--  叉：U 形两齿夹住片，柄接回滑座（直伸直出）或腕部（蛙式），相对片心是固定形状  -->
+            <PathGeometry x:Key="LinearForkGeometry" Figures="M-25,-46 A5,5 0 0 1 -15,-46 L-15,16 L15,16 L15,-46 A5,5 0 0 1 25,-46 L25,22 A8,8 0 0 1 17,30 L7,30 L7,40 L-7,40 L-7,30 L-17,30 A8,8 0 0 1 -25,22 Z" />
+            <PathGeometry x:Key="FrogLegForkGeometry" Figures="M-25,-46 A5,5 0 0 1 -15,-46 L-15,16 L15,16 L15,-46 A5,5 0 0 1 25,-46 L25,22 A8,8 0 0 1 17,30 L7,30 L7,49 L-7,49 L-7,30 L-17,30 A8,8 0 0 1 -25,22 Z" />
+
+            <!--  按手臂结构显示：直伸直出一套、蛙式一套  -->
+            <Style x:Key="LinearOnly" TargetType="FrameworkElement">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ArmType, RelativeSource={RelativeSource AncestorType=local:Robot}}" Value="Linear">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="FrogLegOnly" TargetType="FrameworkElement">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding ArmType, RelativeSource={RelativeSource AncestorType=local:Robot}}" Value="FrogLeg">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  叉上的真空吸盘：手臂上有片时点亮  -->
+            <Style x:Key="PadStyle" TargetType="Ellipse">
+                <Setter Property="Width" Value="6" />
+                <Setter Property="Height" Value="6" />
+                <Setter Property="Fill" Value="{StaticResource PadBrush}" />
+                <Setter Property="Stroke" Value="{StaticResource PadIdleStroke}" />
+                <Setter Property="StrokeThickness" Value="1" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasWafer}" Value="True">
+                        <Setter Property="Stroke" Value="{DynamicResource DarkAccent}" />
+                        <Setter Property="StrokeThickness" Value="1.1" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  手臂号：伸出去的那只点亮  -->
+            <Style x:Key="ArmNumberStyle" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Foreground" Value="{StaticResource ArmNumberBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsExtended}" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource DarkAccent}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  蛙式连杆：描边 + 本体 + 高光三层  -->
+            <Style x:Key="UpperLinkOutline" TargetType="Line">
+                <Setter Property="Stroke" Value="#13161B" />
+                <Setter Property="StrokeThickness" Value="18" />
+                <Setter Property="StrokeStartLineCap" Value="Round" />
+                <Setter Property="StrokeEndLineCap" Value="Round" />
+            </Style>
+            <Style x:Key="UpperLinkBody" TargetType="Line" BasedOn="{StaticResource UpperLinkOutline}">
+                <Setter Property="Stroke" Value="#5E6878" />
+                <Setter Property="StrokeThickness" Value="15" />
+            </Style>
+            <Style x:Key="UpperLinkShine" TargetType="Line" BasedOn="{StaticResource UpperLinkOutline}">
+                <Setter Property="Stroke" Value="#2EFFFFFF" />
+                <Setter Property="StrokeThickness" Value="4" />
+            </Style>
+            <Style x:Key="ForeLinkOutline" TargetType="Line" BasedOn="{StaticResource UpperLinkOutline}">
+                <Setter Property="StrokeThickness" Value="14.5" />
+            </Style>
+            <Style x:Key="ForeLinkBody" TargetType="Line" BasedOn="{StaticResource UpperLinkOutline}">
+                <Setter Property="Stroke" Value="#727C8C" />
+                <Setter Property="StrokeThickness" Value="12" />
+            </Style>
+            <Style x:Key="ForeLinkShine" TargetType="Line" BasedOn="{StaticResource UpperLinkOutline}">
+                <Setter Property="Stroke" Value="#33FFFFFF" />
+                <Setter Property="StrokeThickness" Value="3.2" />
+            </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <!--  只有机械手本体：背景透明、不裁剪，手臂伸出与平移可以画到控件范围之外；绘制层由代码插入  -->
-    <Grid x:Name="StageHost" />
+    <!--  背景透明、不裁剪：手臂伸出与平移可以画到控件范围之外  -->
+    <Grid>
+        <Viewbox
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Stretch="Uniform">
+            <!--  设计尺寸 400×400，里面那个零尺寸 Canvas 把原点放到正中心  -->
+            <Grid Width="400" Height="400">
+                <Canvas
+                    Width="0"
+                    Height="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                    <Canvas.RenderTransform>
+                        <!--  水平平移：整台机械手一起挪  -->
+                        <TranslateTransform x:Name="TravelTransform" />
+                    </Canvas.RenderTransform>
+
+                    <!--  本体：底座不转，转台跟着 Rotation 转  -->
+                    <Canvas IsHitTestVisible="False">
+                        <Ellipse
+                            Canvas.Left="-71"
+                            Canvas.Top="-67"
+                            Width="152"
+                            Height="152"
+                            Fill="{StaticResource BaseShadowBrush}" />
+                        <Ellipse
+                            Canvas.Left="-58"
+                            Canvas.Top="-58"
+                            Width="116"
+                            Height="116"
+                            Fill="{StaticResource BaseBrush}"
+                            Stroke="{StaticResource BaseStroke}"
+                            StrokeThickness="2" />
+                        <Ellipse
+                            Canvas.Left="-52"
+                            Canvas.Top="-52"
+                            Width="104"
+                            Height="104"
+                            Stroke="#16FFFFFF"
+                            StrokeThickness="1" />
+
+                        <Canvas Effect="{StaticResource TurretShadow}">
+                            <Canvas>
+                                <Canvas.RenderTransform>
+                                    <RotateTransform x:Name="TurretRotation" />
+                                </Canvas.RenderTransform>
+
+                                <!--  直伸直出：长条转台 + 导轨槽  -->
+                                <Rectangle
+                                    Canvas.Left="-37"
+                                    Canvas.Top="-50"
+                                    Width="74"
+                                    Height="96"
+                                    Fill="{StaticResource TurretBrush}"
+                                    RadiusX="18"
+                                    RadiusY="18"
+                                    Stroke="{StaticResource TurretStroke}"
+                                    StrokeThickness="1.2"
+                                    Style="{StaticResource LinearOnly}" />
+                                <Rectangle
+                                    Canvas.Left="-4"
+                                    Canvas.Top="-44"
+                                    Width="8"
+                                    Height="72"
+                                    Fill="{StaticResource SlotBrush}"
+                                    RadiusX="4"
+                                    RadiusY="4"
+                                    Style="{StaticResource LinearOnly}" />
+                                <Path
+                                    Data="M-7,-37 L0,-43 L7,-37"
+                                    Opacity="0.88"
+                                    Stroke="{DynamicResource DarkAccent}"
+                                    StrokeEndLineCap="Round"
+                                    StrokeLineJoin="Round"
+                                    StrokeStartLineCap="Round"
+                                    StrokeThickness="2.4"
+                                    Style="{StaticResource LinearOnly}" />
+
+                                <!--  蛙式：宽扁转台  -->
+                                <Rectangle
+                                    Canvas.Left="-46"
+                                    Canvas.Top="-34"
+                                    Width="92"
+                                    Height="66"
+                                    Fill="{StaticResource TurretBrush}"
+                                    RadiusX="26"
+                                    RadiusY="26"
+                                    Stroke="{StaticResource TurretStroke}"
+                                    StrokeThickness="1.2"
+                                    Style="{StaticResource FrogLegOnly}" />
+                                <Path
+                                    Data="M-7,-21 L0,-27 L7,-21"
+                                    Opacity="0.88"
+                                    Stroke="{DynamicResource DarkAccent}"
+                                    StrokeEndLineCap="Round"
+                                    StrokeLineJoin="Round"
+                                    StrokeStartLineCap="Round"
+                                    StrokeThickness="2.4"
+                                    Style="{StaticResource FrogLegOnly}" />
+                            </Canvas>
+                        </Canvas>
+
+                        <!--  中心盖  -->
+                        <Ellipse
+                            Canvas.Left="-12"
+                            Canvas.Top="-12"
+                            Width="24"
+                            Height="24"
+                            Fill="{StaticResource CapBrush}"
+                            Stroke="{StaticResource CapStroke}"
+                            StrokeThickness="1.2" />
+                    </Canvas>
+
+                    <!--  手臂：一只一项，叠放次序与压暗由 Layer / DimOpacity 决定  -->
+                    <ItemsControl x:Name="ArmHost" ItemsSource="{Binding ArmVisuals, RelativeSource={RelativeSource AncestorType=local:Robot}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Panel.ZIndex" Value="{Binding Layer}" />
+                                <Setter Property="Opacity" Value="{Binding DimOpacity}" />
+                                <Setter Property="Effect" Value="{StaticResource ArmShadow}" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!--  手臂坐标系：收回时错开一点，再整只绕转台中心转到朝向  -->
+                                <Canvas Width="0" Height="0">
+                                    <Canvas.RenderTransform>
+                                        <TransformGroup>
+                                            <TranslateTransform X="{Binding StackOffset}" Y="{Binding StackOffset}" />
+                                            <RotateTransform Angle="{Binding Angle}" />
+                                        </TransformGroup>
+                                    </Canvas.RenderTransform>
+
+                                    <!--  直伸直出：两节伸缩导轨，收回到底就缩进转台里不画  -->
+                                    <Canvas IsHitTestVisible="False" Style="{StaticResource LinearOnly}">
+                                        <Rectangle
+                                            Canvas.Left="-9"
+                                            Canvas.Top="{Binding RailOuterTop}"
+                                            Width="18"
+                                            Height="{Binding RailOuterHeight}"
+                                            Fill="{StaticResource RailOuterBrush}"
+                                            RadiusX="3"
+                                            RadiusY="3"
+                                            Stroke="{StaticResource RailStroke}"
+                                            StrokeThickness="1"
+                                            Visibility="{Binding RailVisibility}" />
+                                        <Rectangle
+                                            Canvas.Left="-6"
+                                            Canvas.Top="{Binding RailInnerTop}"
+                                            Width="12"
+                                            Height="{Binding RailInnerHeight}"
+                                            Fill="{StaticResource RailInnerBrush}"
+                                            RadiusX="3"
+                                            RadiusY="3"
+                                            Stroke="{StaticResource RailStroke}"
+                                            StrokeThickness="1"
+                                            Visibility="{Binding RailVisibility}" />
+                                    </Canvas>
+
+                                    <!--  蛙式：左右各 大臂 + 小臂，肘关节由连杆长度解算  -->
+                                    <Canvas IsHitTestVisible="False" Style="{StaticResource FrogLegOnly}">
+                                        <Line
+                                            Style="{StaticResource UpperLinkOutline}"
+                                            X1="-20"
+                                            X2="{Binding ElbowLeftX}"
+                                            Y1="10"
+                                            Y2="{Binding ElbowLeftY}" />
+                                        <Line
+                                            Style="{StaticResource UpperLinkOutline}"
+                                            X1="20"
+                                            X2="{Binding ElbowRightX}"
+                                            Y1="10"
+                                            Y2="{Binding ElbowRightY}" />
+                                        <Line
+                                            Style="{StaticResource ForeLinkOutline}"
+                                            X1="{Binding ElbowLeftX}"
+                                            X2="-12"
+                                            Y1="{Binding ElbowLeftY}"
+                                            Y2="{Binding PivotY}" />
+                                        <Line
+                                            Style="{StaticResource ForeLinkOutline}"
+                                            X1="{Binding ElbowRightX}"
+                                            X2="12"
+                                            Y1="{Binding ElbowRightY}"
+                                            Y2="{Binding PivotY}" />
+                                        <Line
+                                            Style="{StaticResource UpperLinkBody}"
+                                            X1="-20"
+                                            X2="{Binding ElbowLeftX}"
+                                            Y1="10"
+                                            Y2="{Binding ElbowLeftY}" />
+                                        <Line
+                                            Style="{StaticResource UpperLinkBody}"
+                                            X1="20"
+                                            X2="{Binding ElbowRightX}"
+                                            Y1="10"
+                                            Y2="{Binding ElbowRightY}" />
+                                        <Line
+                                            Style="{StaticResource ForeLinkBody}"
+                                            X1="{Binding ElbowLeftX}"
+                                            X2="-12"
+                                            Y1="{Binding ElbowLeftY}"
+                                            Y2="{Binding PivotY}" />
+                                        <Line
+                                            Style="{StaticResource ForeLinkBody}"
+                                            X1="{Binding ElbowRightX}"
+                                            X2="12"
+                                            Y1="{Binding ElbowRightY}"
+                                            Y2="{Binding PivotY}" />
+                                        <Line
+                                            Style="{StaticResource UpperLinkShine}"
+                                            X1="-20"
+                                            X2="{Binding ElbowLeftX}"
+                                            Y1="10"
+                                            Y2="{Binding ElbowLeftY}" />
+                                        <Line
+                                            Style="{StaticResource UpperLinkShine}"
+                                            X1="20"
+                                            X2="{Binding ElbowRightX}"
+                                            Y1="10"
+                                            Y2="{Binding ElbowRightY}" />
+                                        <Line
+                                            Style="{StaticResource ForeLinkShine}"
+                                            X1="{Binding ElbowLeftX}"
+                                            X2="-12"
+                                            Y1="{Binding ElbowLeftY}"
+                                            Y2="{Binding PivotY}" />
+                                        <Line
+                                            Style="{StaticResource ForeLinkShine}"
+                                            X1="{Binding ElbowRightX}"
+                                            X2="12"
+                                            Y1="{Binding ElbowRightY}"
+                                            Y2="{Binding PivotY}" />
+
+                                        <!--  肩关节（固定）与肘关节（跟着解算结果走）  -->
+                                        <Canvas Canvas.Left="-20" Canvas.Top="10">
+                                            <Ellipse
+                                                Canvas.Left="-10"
+                                                Canvas.Top="-10"
+                                                Width="20"
+                                                Height="20"
+                                                Fill="{StaticResource JointBrush}"
+                                                Stroke="{StaticResource JointStroke}"
+                                                StrokeThickness="1.1" />
+                                            <Ellipse
+                                                Canvas.Left="-3.2"
+                                                Canvas.Top="-3.2"
+                                                Width="6.4"
+                                                Height="6.4"
+                                                Fill="{StaticResource BoltBrush}" />
+                                        </Canvas>
+                                        <Canvas Canvas.Left="20" Canvas.Top="10">
+                                            <Ellipse
+                                                Canvas.Left="-10"
+                                                Canvas.Top="-10"
+                                                Width="20"
+                                                Height="20"
+                                                Fill="{StaticResource JointBrush}"
+                                                Stroke="{StaticResource JointStroke}"
+                                                StrokeThickness="1.1" />
+                                            <Ellipse
+                                                Canvas.Left="-3.2"
+                                                Canvas.Top="-3.2"
+                                                Width="6.4"
+                                                Height="6.4"
+                                                Fill="{StaticResource BoltBrush}" />
+                                        </Canvas>
+                                        <Canvas Canvas.Left="{Binding ElbowLeftX}" Canvas.Top="{Binding ElbowLeftY}">
+                                            <Ellipse
+                                                Canvas.Left="-7.5"
+                                                Canvas.Top="-7.5"
+                                                Width="15"
+                                                Height="15"
+                                                Fill="{StaticResource JointBrush}"
+                                                Stroke="{StaticResource JointStroke}"
+                                                StrokeThickness="1.1" />
+                                            <Ellipse
+                                                Canvas.Left="-2.4"
+                                                Canvas.Top="-2.4"
+                                                Width="4.8"
+                                                Height="4.8"
+                                                Fill="{StaticResource BoltBrush}" />
+                                        </Canvas>
+                                        <Canvas Canvas.Left="{Binding ElbowRightX}" Canvas.Top="{Binding ElbowRightY}">
+                                            <Ellipse
+                                                Canvas.Left="-7.5"
+                                                Canvas.Top="-7.5"
+                                                Width="15"
+                                                Height="15"
+                                                Fill="{StaticResource JointBrush}"
+                                                Stroke="{StaticResource JointStroke}"
+                                                StrokeThickness="1.1" />
+                                            <Ellipse
+                                                Canvas.Left="-2.4"
+                                                Canvas.Top="-2.4"
+                                                Width="4.8"
+                                                Height="4.8"
+                                                Fill="{StaticResource BoltBrush}" />
+                                        </Canvas>
+                                    </Canvas>
+
+                                    <!--  片心刚性组：滑座/腕部、叉、吸盘、片都跟着片心走  -->
+                                    <Canvas Canvas.Top="{Binding WaferTop}">
+                                        <!--  直伸直出的滑座（兼手臂号牌）  -->
+                                        <Grid
+                                            Canvas.Left="-17"
+                                            Canvas.Top="38"
+                                            Width="34"
+                                            Height="24"
+                                            IsHitTestVisible="False"
+                                            RenderTransformOrigin="0.5,0.5"
+                                            Style="{StaticResource LinearOnly}">
+                                            <Rectangle
+                                                Fill="{StaticResource MetalBrush}"
+                                                RadiusX="6"
+                                                RadiusY="6"
+                                                Stroke="{StaticResource MetalStroke}"
+                                                StrokeThickness="1.1" />
+                                            <TextBlock
+                                                Style="{StaticResource ArmNumberStyle}"
+                                                Text="{Binding Arm}"
+                                                RenderTransformOrigin="0.5,0.5">
+                                                <TextBlock.RenderTransform>
+                                                    <RotateTransform Angle="{Binding CounterAngle}" />
+                                                </TextBlock.RenderTransform>
+                                            </TextBlock>
+                                        </Grid>
+
+                                        <!--  蛙式的腕部（兼手臂号牌）与两个铰点  -->
+                                        <Grid
+                                            Canvas.Left="-24"
+                                            Canvas.Top="47"
+                                            Width="48"
+                                            Height="22"
+                                            IsHitTestVisible="False"
+                                            Style="{StaticResource FrogLegOnly}">
+                                            <Rectangle
+                                                Fill="{StaticResource MetalBrush}"
+                                                RadiusX="9"
+                                                RadiusY="9"
+                                                Stroke="{StaticResource MetalStroke}"
+                                                StrokeThickness="1.1" />
+                                            <TextBlock
+                                                Style="{StaticResource ArmNumberStyle}"
+                                                Text="{Binding Arm}"
+                                                RenderTransformOrigin="0.5,0.5">
+                                                <TextBlock.RenderTransform>
+                                                    <RotateTransform Angle="{Binding CounterAngle}" />
+                                                </TextBlock.RenderTransform>
+                                            </TextBlock>
+                                        </Grid>
+                                        <Canvas
+                                            Canvas.Left="-12"
+                                            Canvas.Top="58"
+                                            IsHitTestVisible="False"
+                                            Style="{StaticResource FrogLegOnly}">
+                                            <Ellipse
+                                                Canvas.Left="-5.5"
+                                                Canvas.Top="-5.5"
+                                                Width="11"
+                                                Height="11"
+                                                Fill="{StaticResource JointBrush}"
+                                                Stroke="{StaticResource JointStroke}"
+                                                StrokeThickness="1.1" />
+                                            <Ellipse
+                                                Canvas.Left="-1.8"
+                                                Canvas.Top="-1.8"
+                                                Width="3.6"
+                                                Height="3.6"
+                                                Fill="{StaticResource BoltBrush}" />
+                                        </Canvas>
+                                        <Canvas
+                                            Canvas.Left="12"
+                                            Canvas.Top="58"
+                                            IsHitTestVisible="False"
+                                            Style="{StaticResource FrogLegOnly}">
+                                            <Ellipse
+                                                Canvas.Left="-5.5"
+                                                Canvas.Top="-5.5"
+                                                Width="11"
+                                                Height="11"
+                                                Fill="{StaticResource JointBrush}"
+                                                Stroke="{StaticResource JointStroke}"
+                                                StrokeThickness="1.1" />
+                                            <Ellipse
+                                                Canvas.Left="-1.8"
+                                                Canvas.Top="-1.8"
+                                                Width="3.6"
+                                                Height="3.6"
+                                                Fill="{StaticResource BoltBrush}" />
+                                        </Canvas>
+
+                                        <!--  叉：形状按手臂结构换（柄长不同）  -->
+                                        <Path IsHitTestVisible="False" Stroke="{StaticResource ForkStroke}" StrokeThickness="0.9">
+                                            <Path.Style>
+                                                <Style TargetType="Path">
+                                                    <Setter Property="Fill" Value="{StaticResource ForkBrush}" />
+                                                    <Setter Property="Data" Value="{StaticResource LinearForkGeometry}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ArmType, RelativeSource={RelativeSource AncestorType=local:Robot}}" Value="FrogLeg">
+                                                            <Setter Property="Data" Value="{StaticResource FrogLegForkGeometry}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+
+                                        <!--  真空吸盘  -->
+                                        <Ellipse
+                                            Canvas.Left="-23"
+                                            Canvas.Top="-33"
+                                            IsHitTestVisible="False"
+                                            Style="{StaticResource PadStyle}" />
+                                        <Ellipse
+                                            Canvas.Left="17"
+                                            Canvas.Top="-33"
+                                            IsHitTestVisible="False"
+                                            Style="{StaticResource PadStyle}" />
+                                        <Ellipse
+                                            Canvas.Left="-3"
+                                            Canvas.Top="20"
+                                            IsHitTestVisible="False"
+                                            Style="{StaticResource PadStyle}" />
+
+                                        <!--  片：真的 Wafer 控件，文字跟着反向转保持正立  -->
+                                        <local:Wafer
+                                            Canvas.Left="-42"
+                                            Canvas.Top="-42"
+                                            Width="84"
+                                            Height="84"
+                                            BorderBrush="{DynamicResource DarkDisabledText}"
+                                            BorderThickness="2"
+                                            CommandParameter="{Binding Arm}"
+                                            CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:Robot}}"
+                                            CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:Robot}}"
+                                            Data="{Binding Wafer}"
+                                            DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:Robot}}"
+                                            DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:Robot}}"
+                                            RenderTransformOrigin="0.5,0.5"
+                                            Template="{StaticResource ArmWaferTemplate}">
+                                            <local:Wafer.RenderTransform>
+                                                <RotateTransform Angle="{Binding CounterAngle}" />
+                                            </local:Wafer.RenderTransform>
+                                        </local:Wafer>
+                                    </Canvas>
+                                </Canvas>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Canvas>
+            </Grid>
+        </Viewbox>
+    </Grid>
 </UserControl>

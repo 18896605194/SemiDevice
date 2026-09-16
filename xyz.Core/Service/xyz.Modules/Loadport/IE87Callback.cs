@@ -3,65 +3,43 @@ using xyz.Drivers.Loadport;
 namespace xyz.Modules;
 
 /// <summary>
-/// LoadPort → EAP 的载具节点回调（对应 CTC 的 IE87CallBack）。
-/// 模块在物理节点完成后回调，EAP 实现据此推进 E87 等状态并上报 Host；需要设备动作时反调 <see cref="ILoadPort"/>。
-/// 回调在模块扫描线程上按发生顺序串行触发，且不持有模块锁：实现方要及时返回（耗时处理自行排队），
-/// 可以在回调里直接调用 ILoadPort 的动作（被拒返回 null）。
+/// E87 载具管理的设备侧上报口：端口上发生的物理事实由模块调这里，EAP 侧据此推进 E87 状态机并上报 Host。
+/// 实现由 EAP 侧提供并挂到 ILoadPort.E87Callback；未接 EAP 时为 null，模块照常运行。
+/// 全部回调在扫描线程上按发生顺序串行调用，实现里不要阻塞。
 /// </summary>
-public interface ILoadPortEapCallback
+public interface IE87Callback
 {
-    /// <summary>
-    /// FOUP 放上（在位由无到有）。
-    /// </summary>
     void CarrierArrived(ILoadPort port);
 
-    /// <summary>
-    /// FOUP 移走（在位由有到无）；carrierId 为移走前的载具 ID，未读过为 null。
-    /// </summary>
     void CarrierRemoved(ILoadPort port, string? carrierId);
 
-    /// <summary>
-    /// 载具 ID 读取成功。
-    /// </summary>
     void CarrierIdRead(ILoadPort port, string carrierId);
 
-    /// <summary>
-    /// 载具 ID 读取失败（读头返回空或抛异常）。
-    /// </summary>
     void CarrierIdReadFailed(ILoadPort port);
 
-    /// <summary>
-    /// Mapping 结果可用，下标 0 对应第 1 槽。
-    /// </summary>
     void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap);
 
-    /// <summary>
-    /// Load 成功完成（已开门，可取放片）。
-    /// </summary>
     void LoadCompleted(ILoadPort port);
 
-    /// <summary>
-    /// Unload 成功完成（已关门，可搬走）。
-    /// </summary>
     void UnloadCompleted(ILoadPort port);
 
-    /// <summary>
-    /// Home 成功完成。
-    /// </summary>
     void Homed(ILoadPort port);
 
-    /// <summary>
-    /// Clamp 成功完成（FOUP 已夹紧）。
-    /// </summary>
     void ClampCompleted(ILoadPort port);
 
-    /// <summary>
-    /// Unclamp 成功完成（FOUP 已松开）。
-    /// </summary>
     void UnclampCompleted(ILoadPort port);
 
-    /// <summary>
-    /// 自动/手动模式切换（true=自动）。
-    /// </summary>
     void AutoModeChanged(ILoadPort port, bool autoMode);
+
+    /// <summary>可以开始取放这个载具了（Load 完成后）。</summary>
+    void AccessStarted(ILoadPort port);
+
+    /// <summary>不再取放这个载具（Unload 完成或中断）。</summary>
+    void AccessStopped(ILoadPort port);
+
+    /// <summary>这个载具的活干完了，由上层作业判定后经 ILoadPort.NoteCarrierComplete 触发。</summary>
+    void CarrierComplete(ILoadPort port);
+
+    /// <summary>端口出错：动作失败或设备报错，error 为"错误码#内容"。</summary>
+    void PortError(ILoadPort port, string error);
 }

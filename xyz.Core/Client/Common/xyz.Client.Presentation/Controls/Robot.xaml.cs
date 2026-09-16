@@ -1,12 +1,13 @@
 using System.Collections;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
@@ -14,8 +15,8 @@ namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 机械手控件（俯视）：只有机械手本体，背景透明，由页面摆放。
-/// 转台旋转、平移、各手臂独立伸缩，支持直伸直出与蛙式两种手臂结构；机械手随控件大小等比缩放；手臂上的片用 Wafer 控件。
-/// 绑定只给目标姿态（Rotation / Travel / 各手臂 Extension），运动顺序由控件自己排：
+/// 转台旋转、水平平移、各手臂独立伸缩，支持直伸直出与蛙式两种手臂结构；机械手随控件大小等比缩放；手臂上的片用 Wafer 控件。
+/// 长什么样全在 Robot.xaml 里，这里只算动到哪：绑定给目标姿态（Rotation / Travel / 各手臂 Extension），运动顺序由控件自己排——
 /// 需要转向或平移时先收回全部手臂，到位后再伸出；换片时先收回的手臂收完，另一只才伸出，不会两只一起伸。
 /// </summary>
 public partial class Robot : UserControl
@@ -43,14 +44,77 @@ public partial class Robot : UserControl
     private const double TravelDurationMs = 500;
 
     /// <summary>
-    /// 没有运动、只有状态环动画（动作中/报警）时的刷新间隔，约 30 帧。
+    /// 蛙式手臂互相交叠时，没干活的手臂压暗到这个透明度。
     /// </summary>
-    private const double StatusFrameIntervalMs = 33;
+    private const double DimmedOpacity = 0.45;
 
     #endregion
 
-    private readonly RobotBodyLayer _body = new();
-    private readonly Dictionary<RobotArmModel, ArmVisual> _armVisuals = new();
+    #region 设计尺寸下的几何（与 Robot.xaml 里的形状同一套坐标：转台中心为原点、正前方朝上）
+
+    /// <summary>收回到底时片心到转台中心的距离（叉停在转台上，跟转台形状配套，固定）。</summary>
+    private const double RetractedReach = 24;
+
+    /// <summary>叉根（腕部）到片心的距离。</summary>
+    private const double EffectorLength = 58;
+
+    /// <summary>蛙式连杆长度（大臂、小臂等长）。</summary>
+    private const double LinkLength = 66;
+
+    /// <summary>蛙式左右肩关节到中线的距离。</summary>
+    private const double ShoulderOffset = 20;
+
+    /// <summary>蛙式腕部两个铰点到中线的距离。</summary>
+    private const double WristOffset = 12;
+
+    /// <summary>蛙式肩关节在转台中心后方的位置。</summary>
+    private const double ShoulderY = 10;
+
+    /// <summary>直伸直出：滑座在片心后方的距离。</summary>
+    private const double CarriageToWafer = 50;
+
+    /// <summary>直伸直出：导轨露出转台前沿的位置。</summary>
+    private const double TurretFront = -44;
+
+    /// <summary>超过这个伸出量就算"伸出去了"（叠放次序、手臂号高亮用）。</summary>
+    private const double ExtendedThreshold = 0.01;
+
+    /// <summary>
+    /// 片心到转台中心的距离：收回到底 RetractedReach，完全伸出 ExtendedReach，中间按伸出量线性插值。
+    /// </summary>
+    private double Reach(double extension)
+    {
+        return RetractedReach + Math.Clamp(extension, 0, 1) * (ExtendedReach - RetractedReach);
+    }
+
+    /// <summary>
+    /// 收回时多只手臂叠在一起：按手臂号错开一点，下层露边；伸出过程中回到中线。
+    /// </summary>
+    private static double StackOffset(int count, int index, double extension)
+    {
+        return (count - 1 - index) * 3.5 * (1 - Math.Min(extension * 4, 1));
+    }
+
+    /// <summary>
+    /// 两连杆解算肘关节位置（大臂、小臂等长）；outwardRight 为 true 取靠右的解，否则取靠左的解。
+    /// </summary>
+    private static Point Elbow(Point shoulder, Point wrist, bool outwardRight)
+    {
+        Vector span = wrist - shoulder;
+        double length = Math.Max(span.Length, 0.001);
+        double distance = Math.Min(length, 2 * LinkLength - 0.5);
+        Vector unit = span / length;
+        double along = distance / 2;
+        double height = Math.Sqrt(Math.Max(0, LinkLength * LinkLength - along * along));
+        Point foot = shoulder + unit * along;
+        var normal = new Vector(-unit.Y, unit.X);
+        Point first = foot + normal * height;
+        Point second = foot - normal * height;
+        return outwardRight == (first.X > second.X) ? first : second;
+    }
+
+    #endregion
+
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly MotionTrack _rotation = new();
     private readonly MotionTrack _travel = new();
@@ -59,17 +123,19 @@ public partial class Robot : UserControl
     private readonly HashSet<RobotArmModel> _boundArms = new();
     private List<RobotArmModel> _arms = [];
     private bool _isRendering;
-    private double _lastFrameMs = double.NegativeInfinity;
 
     public Robot()
     {
         InitializeComponent();
-        StageHost.Children.Add(_body);
-        StageHost.SizeChanged += (_, _) => PushFrame(Now);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         SyncArms();
     }
+
+    /// <summary>
+    /// 各手臂这一帧的显示数据，Robot.xaml 里的手臂模板绑它；由控件自己维护，外部不要改。
+    /// </summary>
+    public ObservableCollection<ArmVisual> ArmVisuals { get; } = new();
 
     #region 依赖属性
 
@@ -83,20 +149,6 @@ public partial class Robot : UserControl
         DependencyProperty.Register(
             nameof(ArmType), typeof(RobotArmType), typeof(Robot),
             new PropertyMetadata(RobotArmType.Linear, OnSceneChanged));
-
-    /// <summary>
-    /// 底座状态环的显示状态。
-    /// </summary>
-    public RobotDisplayStatus Status
-    {
-        get => (RobotDisplayStatus)GetValue(StatusProperty);
-        set => SetValue(StatusProperty, value);
-    }
-
-    public static readonly DependencyProperty StatusProperty =
-        DependencyProperty.Register(
-            nameof(Status), typeof(RobotDisplayStatus), typeof(Robot),
-            new PropertyMetadata(RobotDisplayStatus.Offline, OnSceneChanged));
 
     /// <summary>
     /// 转台目标朝向（俯视，屏幕上方为北）：North 0°、East 90°、South 180°、West 270°，只接受这四个方向；按最短路径转过去。
@@ -128,6 +180,22 @@ public partial class Robot : UserControl
             nameof(Travel), typeof(double), typeof(Robot),
             new PropertyMetadata(0.0, OnPoseChanged),
             IsValidTravel);
+
+    /// <summary>
+    /// 伸出行程：手臂完全伸出（Extension = 1）时片心离转台中心多远，按机械手设计尺寸 400×400 计，跟机械手一起等比缩放。
+    /// 各机台按自己的臂展配；形状不变，只是伸得远近不同。收回到底固定为 24。
+    /// </summary>
+    public double ExtendedReach
+    {
+        get => (double)GetValue(ExtendedReachProperty);
+        set => SetValue(ExtendedReachProperty, value);
+    }
+
+    public static readonly DependencyProperty ExtendedReachProperty =
+        DependencyProperty.Register(
+            nameof(ExtendedReach), typeof(double), typeof(Robot),
+            new PropertyMetadata(150.0, OnSceneChanged),
+            IsValidReach);
 
     /// <summary>
     /// 手指（手臂）数量，1~4：控件画出 1..ArmCount 号手臂，Arms 里没有数据的手臂按空手收回显示。
@@ -255,6 +323,14 @@ public partial class Robot : UserControl
         return double.IsFinite((double)value);
     }
 
+    /// <summary>
+    /// 伸出行程至少要够把叉推出转台（不能比收回位置还近）。
+    /// </summary>
+    private static bool IsValidReach(object value)
+    {
+        return value is double reach && double.IsFinite(reach) && reach >= RetractedReach;
+    }
+
     #endregion
 
     #region 数据订阅
@@ -312,8 +388,6 @@ public partial class Robot : UserControl
         foreach (var removed in _armTracks.Keys.Except(arms).ToList())
         {
             _armTracks.Remove(removed);
-            StageHost.Children.Remove(_armVisuals[removed].Host);
-            _armVisuals.Remove(removed);
         }
 
         foreach (var arm in arms)
@@ -321,42 +395,29 @@ public partial class Robot : UserControl
             if (!_armTracks.ContainsKey(arm))
             {
                 _armTracks[arm] = new MotionTrack(arm.Extension);
-                var visual = CreateArmVisual(arm);
-                _armVisuals[arm] = visual;
-                StageHost.Children.Add(visual.Host);
             }
+        }
+
+        // 显示数据按手臂顺序对齐：同一只手臂沿用原来的那份，模板里的元素（含片控件）不重建。
+        for (int index = 0; index < arms.Count; index++)
+        {
+            if (index >= ArmVisuals.Count)
+            {
+                ArmVisuals.Add(new ArmVisual(arms[index]));
+            }
+            else if (!ReferenceEquals(ArmVisuals[index].Model, arms[index]))
+            {
+                ArmVisuals[index] = new ArmVisual(arms[index]);
+            }
+        }
+
+        while (ArmVisuals.Count > arms.Count)
+        {
+            ArmVisuals.RemoveAt(ArmVisuals.Count - 1);
         }
 
         _arms = arms;
         PlanMotion();
-    }
-
-    /// <summary>
-    /// 一只手臂的显示元素：手臂绘制层 + 叉上的 Wafer 控件，装在同一个容器里，整体按叠放次序排层。
-    /// </summary>
-    private ArmVisual CreateArmVisual(RobotArmModel arm)
-    {
-        var wafer = new Wafer
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            RenderTransform = new TranslateTransform(),
-            Template = (ControlTemplate)FindResource("ArmWaferTemplate"),
-            BorderThickness = new Thickness(2),
-        };
-        wafer.SetResourceReference(BorderBrushProperty, "DarkDisabledText");
-        wafer.SetBinding(Wafer.DataProperty, new Binding(nameof(RobotArmModel.Wafer)) { Source = arm });
-        wafer.SetBinding(Wafer.CommandParameterProperty, new Binding(nameof(RobotArmModel.Arm)) { Source = arm });
-        wafer.SetBinding(Wafer.CreateCommandProperty, new Binding(nameof(CreateCommand)) { Source = this });
-        wafer.SetBinding(Wafer.DeleteCommandProperty, new Binding(nameof(DeleteCommand)) { Source = this });
-        wafer.SetBinding(Wafer.CreateEnableProperty, new Binding(nameof(CreateEnable)) { Source = this });
-        wafer.SetBinding(Wafer.DeleteEnableProperty, new Binding(nameof(DeleteEnable)) { Source = this });
-
-        var layer = new RobotArmLayer();
-        var host = new Grid();
-        host.Children.Add(layer);
-        host.Children.Add(wafer);
-        return new ArmVisual(host, layer, wafer);
     }
 
     /// <summary>
@@ -415,7 +476,7 @@ public partial class Robot : UserControl
         if (!IsLoaded || !IsAnimationEnabled)
         {
             JumpToTargets();
-            PushFrame(now);
+            PushFrame();
             UpdateRendering();
             return;
         }
@@ -470,7 +531,7 @@ public partial class Robot : UserControl
             }
         }
 
-        PushFrame(now);
+        PushFrame();
         UpdateRendering();
     }
 
@@ -521,13 +582,11 @@ public partial class Robot : UserControl
 
     #region 渲染循环
 
-    private bool IsStatusAnimated => Status is RobotDisplayStatus.Busy or RobotDisplayStatus.Alarm;
-
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
         // 首次显示（或切回页面）直接落到当前姿态，不从旧姿态补播动画。
         JumpToTargets();
-        PushFrame(Now);
+        PushFrame();
         UpdateRendering();
     }
 
@@ -538,18 +597,17 @@ public partial class Robot : UserControl
 
     private void Redraw()
     {
-        double now = Now;
-        AdvanceTracks(now);
-        PushFrame(now);
+        AdvanceTracks(Now);
+        PushFrame();
         UpdateRendering();
     }
 
     /// <summary>
-    /// 有运动或状态动画时挂到渲染帧上，都停了就摘掉，空闲时不占 CPU。
+    /// 有运动时挂到渲染帧上，停了就摘掉，不动时不占 CPU。
     /// </summary>
     private void UpdateRendering()
     {
-        bool needed = IsLoaded && (HasActiveTracks || IsStatusAnimated);
+        bool needed = IsLoaded && HasActiveTracks;
         if (needed == _isRendering)
         {
             return;
@@ -569,56 +627,307 @@ public partial class Robot : UserControl
 
     private void OnRendering(object? sender, EventArgs args)
     {
-        double now = Now;
-        bool moving = AdvanceTracks(now);
-        if (moving || now - _lastFrameMs >= StatusFrameIntervalMs)
+        if (AdvanceTracks(Now))
         {
-            PushFrame(now);
+            PushFrame();
         }
 
         UpdateRendering();
     }
 
     /// <summary>
-    /// 推一帧：本体层与各手臂层重画，手臂按叠放次序排层，片控件跟着叉走。
+    /// 推一帧：把当前姿态写进 Robot.xaml 里的转台/平移 Transform 与各手臂的显示数据。
     /// </summary>
-    private void PushFrame(double now)
+    private void PushFrame()
     {
-        _lastFrameMs = now;
-        var arms = _arms
-            .Select(arm => new RobotSceneArm(arm.Arm, _armTracks[arm].Value, arm.Heading, arm.Wafer is not null))
-            .ToList();
-        var frame = new RobotSceneFrame(ArmType, Status, _rotation.Value, _travel.Value, arms, now);
-        _body.Update(frame);
+        TurretRotation.Angle = _rotation.Value;
+        TravelTransform.X = _travel.Value;
 
-        var size = StageHost.RenderSize;
-        double diameter = RobotDrawing.WaferRadius * 2 * RobotDrawing.Scale(size);
-        var order = RobotDrawing.DrawOrder(frame);
-        for (int rank = 0; rank < order.Count; rank++)
+        bool frogLeg = ArmType == RobotArmType.FrogLeg;
+        var extensions = _arms.Select(arm => _armTracks[arm].Value).ToList();
+        bool anyExtended = extensions.Any(extension => extension > ExtendedThreshold);
+        var layers = DrawOrder(extensions);
+
+        for (int index = 0; index < _arms.Count && index < ArmVisuals.Count; index++)
         {
-            int index = order[rank];
-            var visual = _armVisuals[_arms[index]];
-            Panel.SetZIndex(visual.Host, rank + 1);
-            visual.Host.Opacity = RobotDrawing.IsDimmed(frame, index) ? 0.45 : 1;
-            visual.Layer.Update(frame, index);
-
-            var wafer = visual.Wafer;
-            if (wafer.Width != diameter)
-            {
-                wafer.Width = diameter;
-                wafer.Height = diameter;
-            }
-
-            Point waferCenter = RobotDrawing.WaferCenter(size, frame, index);
-            var offset = (TranslateTransform)wafer.RenderTransform;
-            offset.X = waferCenter.X - diameter / 2;
-            offset.Y = waferCenter.Y - diameter / 2;
+            var arm = _arms[index];
+            double extension = extensions[index];
+            bool dimmed = frogLeg && anyExtended && extension <= ExtendedThreshold;
+            ArmVisuals[index].Update(
+                extension,
+                -Reach(extension),
+                _rotation.Value + arm.Heading,
+                StackOffset(_arms.Count, index, extension),
+                layers[index],
+                dimmed ? DimmedOpacity : 1,
+                frogLeg);
         }
+    }
+
+    /// <summary>
+    /// 叠放次序（每只手臂的层号，越大越靠上）：伸出的手臂在最上层；
+    /// 收回的手臂里带片的压在空手之上，片不被叉挡住。
+    /// </summary>
+    private IReadOnlyList<int> DrawOrder(IReadOnlyList<double> extensions)
+    {
+        var ranked = Enumerable.Range(0, _arms.Count)
+            .OrderBy(index => extensions[index] > ExtendedThreshold ? 1 : 0)
+            .ThenBy(index => extensions[index])
+            .ThenBy(index => _arms[index].Wafer is not null ? 1 : 0)
+            .ThenBy(index => _arms[index].Arm)
+            .ToList();
+
+        var layers = new int[_arms.Count];
+        for (int rank = 0; rank < ranked.Count; rank++)
+        {
+            layers[ranked[rank]] = rank + 1;
+        }
+
+        return layers;
     }
 
     #endregion
 
-    private sealed record ArmVisual(Grid Host, RobotArmLayer Layer, Wafer Wafer);
+    /// <summary>
+    /// 一只手臂这一帧的显示数据：Robot.xaml 里的手臂模板绑它。
+    /// 数值都在设计尺寸（400×400）下、以转台中心为原点、正前方朝上，由控件每帧按伸出量算好写进来。
+    /// </summary>
+    public sealed class ArmVisual : ObservableObject
+    {
+        internal ArmVisual(RobotArmModel arm)
+        {
+            Model = arm;
+        }
+
+        /// <summary>
+        /// 对应的手臂数据（页面传进来的那只手臂）。
+        /// </summary>
+        internal RobotArmModel Model { get; }
+
+        private int _arm;
+
+        /// <summary>手指号，写在滑座（或腕部）上。</summary>
+        public int Arm
+        {
+            get => _arm;
+            private set => SetProperty(ref _arm, value);
+        }
+
+        private WaferModel? _wafer;
+
+        /// <summary>叉上的片；没片为 null，Wafer 控件自己隐藏。</summary>
+        public WaferModel? Wafer
+        {
+            get => _wafer;
+            private set => SetProperty(ref _wafer, value);
+        }
+
+        private bool _hasWafer;
+
+        /// <summary>叉上有没有片：吸盘点亮用。</summary>
+        public bool HasWafer
+        {
+            get => _hasWafer;
+            private set => SetProperty(ref _hasWafer, value);
+        }
+
+        private bool _isExtended;
+
+        /// <summary>是不是伸出去了：手臂号点亮用。</summary>
+        public bool IsExtended
+        {
+            get => _isExtended;
+            private set => SetProperty(ref _isExtended, value);
+        }
+
+        private double _angle;
+
+        /// <summary>手臂朝向（转台角度 + 本手臂偏置），整只手臂绕转台中心转这么多。</summary>
+        public double Angle
+        {
+            get => _angle;
+            private set
+            {
+                if (SetProperty(ref _angle, value))
+                {
+                    CounterAngle = -value;
+                }
+            }
+        }
+
+        private double _counterAngle;
+
+        /// <summary>反向角：手臂号与片上的文字靠它保持正立。</summary>
+        public double CounterAngle
+        {
+            get => _counterAngle;
+            private set => SetProperty(ref _counterAngle, value);
+        }
+
+        private double _stackOffset;
+
+        /// <summary>收回时与其它手臂错开的偏移。</summary>
+        public double StackOffset
+        {
+            get => _stackOffset;
+            private set => SetProperty(ref _stackOffset, value);
+        }
+
+        private int _layer;
+
+        /// <summary>叠放次序：伸出的手臂在最上层，收回的带片手臂压在空手之上。</summary>
+        public int Layer
+        {
+            get => _layer;
+            private set => SetProperty(ref _layer, value);
+        }
+
+        private double _dimOpacity = 1;
+
+        /// <summary>蛙式互相交叠时，没干活的手臂压暗。</summary>
+        public double DimOpacity
+        {
+            get => _dimOpacity;
+            private set => SetProperty(ref _dimOpacity, value);
+        }
+
+        private double _waferTop;
+
+        /// <summary>片心位置：叉、吸盘、滑座、腕部相对它是固定的，跟着它一起走。</summary>
+        public double WaferTop
+        {
+            get => _waferTop;
+            private set => SetProperty(ref _waferTop, value);
+        }
+
+        private Visibility _railVisibility = Visibility.Collapsed;
+
+        /// <summary>导轨收进转台里就不画。</summary>
+        public Visibility RailVisibility
+        {
+            get => _railVisibility;
+            private set => SetProperty(ref _railVisibility, value);
+        }
+
+        private double _railOuterTop;
+
+        public double RailOuterTop
+        {
+            get => _railOuterTop;
+            private set => SetProperty(ref _railOuterTop, value);
+        }
+
+        private double _railOuterHeight;
+
+        public double RailOuterHeight
+        {
+            get => _railOuterHeight;
+            private set => SetProperty(ref _railOuterHeight, value);
+        }
+
+        private double _railInnerTop;
+
+        public double RailInnerTop
+        {
+            get => _railInnerTop;
+            private set => SetProperty(ref _railInnerTop, value);
+        }
+
+        private double _railInnerHeight;
+
+        public double RailInnerHeight
+        {
+            get => _railInnerHeight;
+            private set => SetProperty(ref _railInnerHeight, value);
+        }
+
+        private double _elbowLeftX;
+
+        public double ElbowLeftX
+        {
+            get => _elbowLeftX;
+            private set => SetProperty(ref _elbowLeftX, value);
+        }
+
+        private double _elbowLeftY;
+
+        public double ElbowLeftY
+        {
+            get => _elbowLeftY;
+            private set => SetProperty(ref _elbowLeftY, value);
+        }
+
+        private double _elbowRightX;
+
+        public double ElbowRightX
+        {
+            get => _elbowRightX;
+            private set => SetProperty(ref _elbowRightX, value);
+        }
+
+        private double _elbowRightY;
+
+        public double ElbowRightY
+        {
+            get => _elbowRightY;
+            private set => SetProperty(ref _elbowRightY, value);
+        }
+
+        private double _pivotY;
+
+        /// <summary>蛙式腕部两个铰点的纵坐标（横坐标是 ±12）。</summary>
+        public double PivotY
+        {
+            get => _pivotY;
+            private set => SetProperty(ref _pivotY, value);
+        }
+
+        /// <summary>
+        /// 按这一帧的伸出量与片心位置算出全部位置。
+        /// </summary>
+        internal void Update(double extension, double waferY, double angle, double stackOffset, int layer, double dimOpacity, bool frogLeg)
+        {
+            Arm = Model.Arm;
+            Wafer = Model.Wafer;
+            HasWafer = Model.Wafer is not null;
+            IsExtended = extension > ExtendedThreshold;
+            Angle = angle;
+            StackOffset = stackOffset;
+            Layer = layer;
+            DimOpacity = dimOpacity;
+            WaferTop = waferY;
+
+            if (frogLeg)
+            {
+                double wristY = waferY + EffectorLength;
+                PivotY = wristY;
+                Point elbowLeft = Elbow(new Point(-ShoulderOffset, ShoulderY), new Point(-WristOffset, wristY), outwardRight: false);
+                Point elbowRight = Elbow(new Point(ShoulderOffset, ShoulderY), new Point(WristOffset, wristY), outwardRight: true);
+                ElbowLeftX = elbowLeft.X;
+                ElbowLeftY = elbowLeft.Y;
+                ElbowRightX = elbowRight.X;
+                ElbowRightY = elbowRight.Y;
+                RailVisibility = Visibility.Collapsed;
+                return;
+            }
+
+            // 导轨从滑座后方伸到转台前沿，露出来才画；两节套筒各占一半。
+            double railTop = waferY + CarriageToWafer + 10;
+            if (railTop < TurretFront)
+            {
+                double middle = (railTop + TurretFront) / 2;
+                RailOuterTop = middle;
+                RailOuterHeight = TurretFront - middle + 4;
+                RailInnerTop = railTop;
+                RailInnerHeight = middle - railTop + 3;
+                RailVisibility = Visibility.Visible;
+            }
+            else
+            {
+                RailVisibility = Visibility.Collapsed;
+            }
+        }
+    }
 
     /// <summary>
     /// 单个运动量（转角、平移位置或某只手臂的伸出量）的分段缓动轨道。

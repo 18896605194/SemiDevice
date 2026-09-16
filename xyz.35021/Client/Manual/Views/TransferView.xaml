@@ -3,17 +3,24 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
-    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-
-    <!--  Transfer 调度界面：只做显示，机械手去哪、朝哪由后端按 sc.xml 站点表推过来  -->
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:models="clr-namespace:xyz.Client.Presentation.Models;assembly=xyz.Client.Presentation">
     <materialDesign:Card Margin="8" Style="{DynamicResource DefaultCardStyle}">
-        <!--  机械手：不设宽高，铺满外框并按短边等比缩放；绑显示模型，运动顺序由控件自己排  -->
         <controls:Robot
-            ArmCount="{Binding Robot.ArmCount}"
+            ArmCount="2"
             ArmType="Linear"
-            Arms="{Binding Robot.Arms}"
-            Rotation="{Binding Robot.Rotation}"
-            Status="{Binding Robot.Status}"
-            Travel="{Binding Robot.Travel}" />
+            Rotation="South"
+            Travel="120">
+            <controls:Robot.Arms>
+                <x:Array Type="{x:Type models:RobotArmModel}">
+                    <models:RobotArmModel Arm="1" Extension="1">
+                        <models:RobotArmModel.Wafer>
+                            <models:WaferModel LpSlot="05" State="Transfer" />
+                        </models:RobotArmModel.Wafer>
+                    </models:RobotArmModel>
+                    <models:RobotArmModel Arm="2" Extension="1" />
+                </x:Array>
+            </controls:Robot.Arms>
+        </controls:Robot>
     </materialDesign:Card>
 </UserControl>

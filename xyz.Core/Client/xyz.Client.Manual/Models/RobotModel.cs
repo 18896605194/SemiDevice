@@ -49,15 +49,6 @@ public class RobotModel : ObservableObject
         private set => SetProperty(ref _travel, value);
     }
 
-    private RobotDisplayStatus _status = RobotDisplayStatus.Offline;
-
-    /// <summary>底座状态环：未连接灰、报错红、未初始化黄、空闲绿、其余（动作中/中止中）蓝色流光。</summary>
-    public RobotDisplayStatus Status
-    {
-        get => _status;
-        private set => SetProperty(ref _status, value);
-    }
-
     private int _armCount = 2;
 
     /// <summary>手指数量：按推送的手指在位信息取最大手指号（1~4）。</summary>
@@ -81,7 +72,6 @@ public class RobotModel : ObservableObject
         Station = dto.Station;
         Rotation = dto.Rotation;
         Travel = dto.Travel;
-        Status = ToDisplayStatus(dto);
 
         if (dto.Arms.Count > 0)
         {
@@ -100,29 +90,6 @@ public class RobotModel : ObservableObject
                 arm.Wafer = null;
             }
         }
-    }
-
-    /// <summary>
-    /// 状态码对应 xyz.Modules 的 ModuleState/RobotState。
-    /// </summary>
-    private static RobotDisplayStatus ToDisplayStatus(RobotDto dto)
-    {
-        if (!dto.IsConnected)
-        {
-            return RobotDisplayStatus.Offline;
-        }
-
-        if (dto.State == 40 || !string.IsNullOrEmpty(dto.DeviceError))
-        {
-            return RobotDisplayStatus.Alarm;
-        }
-
-        return dto.State switch
-        {
-            10 or 20 => RobotDisplayStatus.NotReady,
-            30 => RobotDisplayStatus.Idle,
-            _ => RobotDisplayStatus.Busy,
-        };
     }
 
     private RobotArmModel GetArm(int number)

@@ -379,19 +379,19 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
         catch
         {
-            EnqueueEap(callback => callback.CarrierIdReadFailed(this));
+            EnqueueE87(callback => callback.CarrierIdReadFailed(this));
             throw;
         }
 
         if (string.IsNullOrWhiteSpace(result))
         {
-            EnqueueEap(callback => callback.CarrierIdReadFailed(this));
+            EnqueueE87(callback => callback.CarrierIdReadFailed(this));
             return null;
         }
 
         string carrierId = result;
         CarrierId = carrierId;
-        EnqueueEap(callback => callback.CarrierIdRead(this, carrierId));
+        EnqueueE87(callback => callback.CarrierIdRead(this, carrierId));
         return carrierId;
     }
 
@@ -417,7 +417,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         var snapshot = slotMap.ToArray();
         SlotMap = snapshot;
-        EnqueueEap(callback => callback.SlotMapRead(this, snapshot));
+        EnqueueE87(callback => callback.SlotMapRead(this, snapshot));
     }
 
     /// <summary>
@@ -467,7 +467,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         IsAutoMode = autoMode;
-        EnqueueEap(callback => callback.AutoModeChanged(this, autoMode));
+        EnqueueE87(callback => callback.AutoModeChanged(this, autoMode));
     }
 
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
@@ -498,7 +498,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
-    /// Load/Unload/Home/Clamp/Unclamp 成功时回调 EAP（在模块锁内只入队，派发在扫描线程锁外进行）。
+    /// 成功的动作与失败的原因都回调 EAP（在模块锁内只入队，派发在扫描线程锁外进行）。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
@@ -506,44 +506,75 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         if (!operation.IsSuccess)
         {
+            string reason = operation.Reason;
+            EnqueueE87(callback => callback.PortError(this, reason));
             return;
         }
 
         switch (_action)
         {
             case LoadPortAction.Load:
-                EnqueueEap(callback => callback.LoadCompleted(this));
+                // 门已开，机械手可以取放：E87 访问状态进 IN_ACCESS。
+                EnqueueE87(callback => callback.LoadCompleted(this));
+                EnqueueE87(callback => callback.AccessStarted(this));
                 break;
 
             case LoadPortAction.Unload:
-                EnqueueEap(callback => callback.UnloadCompleted(this));
+                // 门已关，取放结束。
+                EnqueueE87(callback => callback.AccessStopped(this));
+                EnqueueE87(callback => callback.UnloadCompleted(this));
                 break;
 
             case LoadPortAction.Home:
-                EnqueueEap(callback => callback.Homed(this));
+                EnqueueE87(callback => callback.Homed(this));
                 break;
 
             case LoadPortAction.Clamp:
-                EnqueueEap(callback => callback.ClampCompleted(this));
+                EnqueueE87(callback => callback.ClampCompleted(this));
                 break;
 
             case LoadPortAction.Unclamp:
-                EnqueueEap(callback => callback.UnclampCompleted(this));
+                EnqueueE87(callback => callback.UnclampCompleted(this));
                 break;
         }
     }
 
     #endregion
 
-    #region EAP 口子（对应 CTC 的 LPCallBack：载具节点回调给 EAP，EAP 经 ILoadPort 反向下发动作）
+    #region EAP 口子（设备侧上报给 EAP，EAP 经 ILoadPort 反向下发动作）
 
-    private readonly ConcurrentQueue<Action<ILoadPortEapCallback>> _eapNotifications = new();
+    private readonly ConcurrentQueue<Action> _eapNotifications = new();
     private bool _lastPodPlaced;
 
     /// <summary>
-    /// EAP 回调；null 表示未接 EAP，模块照常运行。装配时由 EAP 侧挂上。
+    /// E87 载具管理回调；null 表示未接 EAP，模块照常运行。装配时由 EAP 侧挂上。
     /// </summary>
-    public ILoadPortEapCallback? EapCallback { get; set; }
+    public IE87Callback? E87Callback { get; set; }
+
+    /// <summary>
+    /// E84 自动交接回调；null 表示未接 EAP 或本机没有 E84 硬件。
+    /// </summary>
+    public IE84Callback? E84Callback { get; set; }
+
+    /// <summary>
+    /// E84 握手期间反查 EAP 的口子；null 时设备侧按本地开关自行决定。
+    /// </summary>
+    public IE84Provider? E84Provider { get; set; }
+
+    /// <summary>
+    /// 置本端口对搬运车的可交接状态（HO_AVBL）：默认空动作，有 E84 硬件（PIO）的机型重写。
+    /// </summary>
+    public virtual void SetE84Available(bool available)
+    {
+    }
+
+    /// <summary>
+    /// 上层作业判定这个载具干完了：转成 E87 的 CarrierComplete 上报。
+    /// </summary>
+    public void NoteCarrierComplete()
+    {
+        EnqueueE87(callback => callback.CarrierComplete(this));
+    }
 
     /// <summary>
     /// 扫描周期：先扫子组件与操作（基类），再判载具在位边沿，最后派发 EAP 回调。
@@ -570,27 +601,54 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         _lastPodPlaced = placed;
         if (placed)
         {
-            EnqueueEap(callback => callback.CarrierArrived(this));
+            EnqueueE87(callback => callback.CarrierArrived(this));
             return;
         }
 
         string? carrierId = CarrierId;
         CarrierId = null;
         SlotMap = Array.Empty<SlotState>();
-        EnqueueEap(callback => callback.CarrierRemoved(this, carrierId));
+        EnqueueE87(callback => callback.CarrierRemoved(this, carrierId));
     }
 
     /// <summary>
-    /// 入队一条 EAP 回调；未挂 EAP 时直接丢弃。任意线程可调。
+    /// 入队一条 E87 回调；未挂 EAP 时直接丢弃。任意线程可调。
     /// </summary>
-    private void EnqueueEap(Action<ILoadPortEapCallback> notification)
+    private void EnqueueE87(Action<IE87Callback> notification)
     {
-        if (EapCallback is null)
+        if (E87Callback is null)
         {
             return;
         }
 
-        _eapNotifications.Enqueue(notification);
+        _eapNotifications.Enqueue(() =>
+        {
+            var callback = E87Callback;
+            if (callback is not null)
+            {
+                notification(callback);
+            }
+        });
+    }
+
+    /// <summary>
+    /// 入队一条 E84 回调；未挂 EAP 时直接丢弃。任意线程可调（E84 信号由 IO 线程翻转）。
+    /// </summary>
+    protected void EnqueueE84(Action<IE84Callback> notification)
+    {
+        if (E84Callback is null)
+        {
+            return;
+        }
+
+        _eapNotifications.Enqueue(() =>
+        {
+            var callback = E84Callback;
+            if (callback is not null)
+            {
+                notification(callback);
+            }
+        });
     }
 
     /// <summary>
@@ -600,15 +658,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     {
         while (_eapNotifications.TryDequeue(out var notification))
         {
-            var callback = EapCallback;
-            if (callback is null)
-            {
-                continue;
-            }
-
             try
             {
-                notification(callback);
+                notification();
             }
             catch (Exception exception)
             {
