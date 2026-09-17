@@ -27,6 +27,9 @@ public static class ErrorCodes
     /// <summary>设备报错完成（ABS/NAK/协议错误）。Args: [操作名, 设备错误描述]</summary>
     public const string DeviceFailed = "loadport.device_failed";
 
+    /// <summary>读码没发起（没挂读头、读头未连接或上一次还没读完）。Args: [模块名]</summary>
+    public const string ReadCarrierIdRejected = "loadport.read_carrier_id_rejected";
+
     /// <summary>操作被 Abort 顶替。Args: [操作名]</summary>
     public const string Aborted = "module.action_aborted";
 

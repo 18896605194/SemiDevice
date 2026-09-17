@@ -34,6 +34,12 @@ public interface ILoadPortService
     Task<RpcResponse> OfflineAsync(string module);
 
     /// <summary>
+    /// 读载具 ID（读 RFID）：只发起不等结果，读到的 ID 随状态推送刷新。
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> ReadCarrierIdAsync(string module);
+
+    /// <summary>
     /// 查询当前状态。module 为空返回全部 LoadPort；Data 为 LoadPortDto（或其数组）的 JSON。
     /// </summary>
     [OperationContract]

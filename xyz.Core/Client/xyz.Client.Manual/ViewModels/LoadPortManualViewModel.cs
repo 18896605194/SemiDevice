@@ -45,6 +45,8 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     public IAsyncRelayCommand OfflineCommand { get; }
 
+    public IAsyncRelayCommand ReadCarrierIdCommand { get; }
+
     public IAsyncRelayCommand AbortCommand { get; }
 
     #endregion
@@ -68,6 +70,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         ResetCommand = new AsyncRelayCommand(DoReset);
         OnlineCommand = new AsyncRelayCommand(DoOnline);
         OfflineCommand = new AsyncRelayCommand(DoOffline);
+        ReadCarrierIdCommand = new AsyncRelayCommand(DoReadCarrierId);
         AbortCommand = new AsyncRelayCommand(DoAbort);
     }
 
@@ -139,6 +142,15 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Offline 失败：{L10n.Get(response.Code, response.Args)}");
+        }
+    }
+
+    private async Task DoReadCarrierId()
+    {
+        var response = await _service.ReadCarrierIdAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Read ID 失败：{L10n.Get(response.Code, response.Args)}");
         }
     }
 

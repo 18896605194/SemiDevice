@@ -31,6 +31,7 @@
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
     <sys:String x:Key="loadport.timeout">{0} 动作超时（{1}ms）</sys:String>
     <sys:String x:Key="loadport.device_failed">{0} 设备报错：{1}</sys:String>
+    <sys:String x:Key="loadport.read_carrier_id_rejected">{0} 读码没发起（没挂读头、读头未连接或上一次还没读完）</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
 </ResourceDictionary>

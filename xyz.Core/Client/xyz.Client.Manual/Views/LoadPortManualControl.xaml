@@ -13,7 +13,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  ① 状态信号：竖排四行 —— 模块名 / 信号灯（整行铺开） / 状态 / 在线模式  -->
+        <!--  ① 状态信号：竖排五行 —— 模块名 / 信号灯（整行铺开） / 状态 / 在线模式 / 载具 ID  -->
         <materialDesign:Card
             Grid.Row="0"
             Margin="0,0,0,10"
@@ -22,6 +22,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="34" />
+                    <RowDefinition Height="26" />
                     <RowDefinition Height="26" />
                     <RowDefinition Height="26" />
                 </Grid.RowDefinitions>
@@ -232,10 +233,26 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </StackPanel>
+
+                <!--  载具 ID（读 RFID 得到，没读到为空）  -->
+                <StackPanel
+                    Grid.Row="4"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        FontSize="{DynamicResource Size14}"
+                        Foreground="{DynamicResource DarkSecondaryText}"
+                        Text="载具 ID：" />
+                    <TextBlock
+                        FontSize="{DynamicResource Size14}"
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource DarkPrimaryText}"
+                        Text="{Binding Model.CarrierId}" />
+                </StackPanel>
             </Grid>
         </materialDesign:Card>
 
-        <!--  ② 花篮（25 片）：控件内部 Viewbox 等比缩放，占满卡片  -->
+        <!--  ② 花篮（25 片）：控件内部 Viewbox 等比缩放，占满卡片；载具 ID 只在状态卡显示  -->
         <materialDesign:Card
             Grid.Row="1"
             Margin="0,0,0,10"
@@ -243,14 +260,14 @@
             <presentationControls:LoadPort
                 SlotCount="25"
                 StatusText="{Binding Model.StateText}"
-                Title="{Binding Model.CarrierId}"
                 Wafers="{Binding Model.Wafers}" />
         </materialDesign:Card>
 
-        <!--  ③ 操作：三行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
+        <!--  ③ 操作：四行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
         <materialDesign:Card Grid.Row="2" Style="{DynamicResource DefaultCardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -267,7 +284,15 @@
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
+                <!--  读载具 ID（读 RFID）：只发起，读到的 ID 随状态推送刷新到状态卡  -->
                 <UniformGrid Grid.Row="1" Columns="3">
+                    <Button
+                        Command="{Binding ReadCarrierIdCommand}"
+                        Content="Read ID"
+                        Style="{DynamicResource CompactButtonStyle}" />
+                </UniformGrid>
+
+                <UniformGrid Grid.Row="2" Columns="3">
                     <Button
                         Command="{Binding HomeCommand}"
                         Content="Home"
@@ -282,7 +307,7 @@
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
-                <UniformGrid Grid.Row="2" Columns="3">
+                <UniformGrid Grid.Row="3" Columns="3">
                     <Button
                         Command="{Binding ResetCommand}"
                         Content="Reset"

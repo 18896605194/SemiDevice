@@ -1,6 +1,7 @@
 using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -99,6 +100,23 @@ public class LoadPortService : BaseService, ILoadPortService
 
         port.SetAutoMode(false);
         return Task.FromResult(RpcResponse.Ok());
+    }
+
+    /// <summary>
+    /// 读码（读 RFID）只发起不等结果：读头握手要几百毫秒，读到的 ID 随状态推送刷新；
+    /// 读码失败的原因由模块记警告日志（客户端日志栏可见）。
+    /// </summary>
+    public Task<RpcResponse> ReadCarrierIdAsync(string module)
+    {
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        return Task.FromResult(port.ReadCarrierId()
+            ? RpcResponse.Ok()
+            : RpcResponse.Fail(ErrorCodes.ReadCarrierIdRejected, [module]));
     }
 
     public Task<RpcResponse> GetStateAsync(string module)

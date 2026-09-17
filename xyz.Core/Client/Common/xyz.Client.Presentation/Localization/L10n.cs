@@ -21,4 +21,13 @@ public static class L10n
 
         return args.Length == 0 ? template : string.Format(template, args);
     }
+
+    /// <summary>
+    /// 按错误码参数列表取句子（如 RpcResponse.Args）：展开成逐个参数再填占位。
+    /// 列表直接传给 params 版会被当成一个参数，句子里只剩类型名，两个占位还会抛 FormatException。
+    /// </summary>
+    public static string Get(string key, IEnumerable<string> args)
+    {
+        return Get(key, args.Cast<object?>().ToArray());
+    }
 }
