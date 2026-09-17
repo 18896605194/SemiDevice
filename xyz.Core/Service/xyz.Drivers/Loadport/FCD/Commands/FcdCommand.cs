@@ -12,7 +12,7 @@ public abstract class FcdCommand : LoadPortCommand
     /// </summary>
     protected abstract string Name { get; }
 
-    protected FcdCommand(LoadPortDriverBase driver) : base(driver)
+    protected FcdCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

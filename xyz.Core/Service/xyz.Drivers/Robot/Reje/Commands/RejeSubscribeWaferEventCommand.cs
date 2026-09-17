@@ -5,7 +5,7 @@ namespace xyz.Drivers.Robot.Reje.Commands;
 /// </summary>
 public sealed class RejeSubscribeWaferEventCommand : RejeCommand
 {
-    public RejeSubscribeWaferEventCommand(RobotDriverBase driver) : base(driver)
+    public RejeSubscribeWaferEventCommand(IRobotDriver driver) : base(driver)
     {
     }
 

@@ -19,9 +19,35 @@ public class RobotModule : BaseRobotModule, IRobot
 {
     #region 驱动连接
 
-    protected override RobotDriverBase CreateDriver()
+    /// <summary>
+    /// 锐洁走网口。
+    /// </summary>
+    protected override IRobotDriver CreateDriver()
     {
-        return new RejeRobotDriver(new FrameCommunication(CreateTransport(), new RejeFrameCodec()));
+        var transport = CommunicationFactory.CreateTcp(Host, NetPort);
+        return new RejeRobotDriver(new FrameCommunication(transport, new RejeFrameCodec()));
+    }
+
+    protected override void OnDriverCreated(IRobotDriver driver)
+    {
+        driver.OnSpontaneousEvent += OnDeviceEvent;
+    }
+
+    /// <summary>
+    /// 设备主动推送：在驱动路由线程回调，只做轻量状态翻转。
+    /// </summary>
+    private void OnDeviceEvent(RobotDeviceEvent evt)
+    {
+        switch (evt.Kind)
+        {
+            case RobotDeviceEventKind.WaferPresence:
+                NoteWaferPresence(evt.Arm, evt.HasWafer);
+                break;
+
+            case RobotDeviceEventKind.DeviceError:
+                DeviceError = evt.Content;
+                break;
+        }
     }
 
     #endregion
@@ -103,7 +129,7 @@ public class RobotModule : BaseRobotModule, IRobot
         }
     }
 
-    private RobotCommand CreateQueryCommand(RobotDriverBase driver)
+    private RobotCommand CreateQueryCommand(IRobotDriver driver)
     {
         int count = _queryCount++;
         if (!_waferEventSubscribed && count % SubscribeRetryInterval == 0)
@@ -162,14 +188,14 @@ public class RobotModule : BaseRobotModule, IRobot
         return Begin(RobotAction.Abort, new AbortOperation(this));
     }
 
-    protected override ModuleOperation? Pick(int arm, int stationNumber, int slot)
+    protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
     {
-        return Begin(RobotAction.Pick, new PickOperation(this, arm, stationNumber, slot));
+        return new PickOperation(this, arm, stationNumber, slot);
     }
 
-    protected override ModuleOperation? Place(int arm, int stationNumber, int slot)
+    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
     {
-        return Begin(RobotAction.Place, new PlaceOperation(this, arm, stationNumber, slot));
+        return new PlaceOperation(this, arm, stationNumber, slot);
     }
 
     public override ModuleOperation? PowerOn()

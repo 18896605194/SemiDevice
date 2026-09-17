@@ -3,12 +3,7 @@ using xyz.Drivers.Communication;
 
 namespace xyz.Drivers.Robot;
 
-/// <summary>
-/// Robot 驱动基类：承载品牌无关的指令受理与帧路由机制
-/// （在途槽位、收发内存队列、无主帧主动事件），具体品牌只补设备语义；不承担搬运调度及模块状态流转。
-/// 动作结果以指令的 Response 为准（设备确认完成），而非仅发送成功。
-/// </summary>
-public abstract class RobotDriverBase
+public abstract class RobotDriverBase : IRobotDriver
 {
     #region 字段与构造
 
@@ -23,10 +18,6 @@ public abstract class RobotDriverBase
     private Channel<string>? _rxChannel;
     private Channel<string>? _txChannel;
 
-    /// <summary>
-    /// 设备主动上报事件：无在途指令认领的帧经 ParseSpontaneousEvent 归一化后触发，
-    /// 在路由消费任务上回调，订阅方应及时返回。
-    /// </summary>
     public event Action<RobotDeviceEvent>? OnSpontaneousEvent;
 
     protected RobotDriverBase(IFrameCommunication communication)

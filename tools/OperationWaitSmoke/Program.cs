@@ -5,9 +5,12 @@ using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Wafers;
 using xyz.Configs;
+using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 using xyz.Drivers.Loadport.FCD;
+using xyz.Drivers.Robot;
+using xyz.Drivers.Robot.Reje;
 using xyz.Modules.Enums;
 using xyz.Modules;
 using xyz.Service;
@@ -314,7 +317,185 @@ Check(eap.Wait(nameof(IE87Callback.CarrierRemoved)), "FOUP 取走应上报 Carri
 WaferManager.Current = null;
 port.E87Callback = null;
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline mode switch, the EAP callback path, and the carrier lifecycle from arrival to removal with its wafer-ledger side effects).");
+// ── 机械手取放写晶圆账 ──────────────────────────────────────────────────
+{
+    var robotLedger = new WaferManager();
+    var robot = new ProbeRobot();
+    robot.NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children =
+        [
+            new ModuleConfig
+            {
+                Name = "Stations",
+                Children =
+                [
+                    new ModuleConfig
+                    {
+                        Name = "SmokeLP",
+                        Values =
+                        [
+                            new ValueConfig { Name = "Number", Value = "1" },
+                            new ValueConfig { Name = "Rotation", Value = "South" },
+                            new ValueConfig { Name = "Travel", Value = "20" },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+    Check(robot.TryGetStation("SmokeLP", out var lpStation) && lpStation.Number == 1
+          && lpStation.Rotation == RobotDirection.South && lpStation.Travel == 20,
+        "站点表应从 sc.xml 节点读进来");
+
+    robotLedger.RegisterLocation("SmokeLP", 5);
+    var carried = robotLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-ROBOT")!;
+
+    Check(robot.Open(), "探针机械手应能打开");
+    Check(robotLedger.GetSlots(robot.Name).Count == robot.ArmCount,
+        $"开机应把手指注册成账本槽位，实际 {robotLedger.GetSlots(robot.Name).Count} 个");
+
+    robot.NoteState(ModuleState.Idle);
+    Check(robot.Pick(1, "NoSuchStation", 1) is null, "没配在站点表里的站点应被拒");
+
+    // Pick 成功：片从花篮槽位挪到手指上
+    robot.Next = new ProbeOperation();
+    Check(robot.Pick(1, "SmokeLP", 3) is not null, "Idle 状态应能发起 Pick");
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
+    Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id, "Pick 成功后片应在手指上，且还是同一片");
+
+    // Place 成功：片从手指放回另一个槽位
+    robot.Next = new ProbeOperation();
+    Check(robot.Place(1, "SmokeLP", 5) is not null, "应能发起 Place");
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robotLedger.Get(robot.Name, 1) is null, "Place 成功后手指应空");
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id, "Place 成功后片应落到目标槽位");
+
+    // 取放失败不动账：片到底在手上还是在槽里已经说不准了，乱改比不改更糟
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    robot.Pick(1, "SmokeLP", 5);
+    robot.Next!.Reject();
+    robot.Tick();
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id, "Pick 失败不该把片从账上挪走");
+    Check(robotLedger.Get(robot.Name, 1) is null, "Pick 失败不该把片记到手指上");
+
+    // 非取放动作终结时不碰账
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    robot.Home();
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id, "Home 不该动账");
+
+    // 账实不符：设备说取成功，但账上那个槽位本来就没片
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    robot.Pick(1, "SmokeLP", 2);
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robotLedger.Get(robot.Name, 1) is null, "源上没片时不该凭空在手指上造出一片（上面那条 Error 日志是预期的）");
+
+    WaferManager.Current = null;
+}
+
+// ── 报警：LoadPort / Robot 出故障要报出来，恢复了要消掉 ────────────────────
+{
+    var alarms = new AlarmComponent();
+    bool Active(ComponentBase source, string code) =>
+        alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
+
+    // LoadPort 设备报警：跟着状态查询里的报警位走
+    port.NoteStatus(new LoadPortStatus { DeviceAlarm = true });
+    port.Tick();
+    Check(Active(port, port.LoadPortDeviceAlarm), "状态查询里报警位亮，应报 LoadPort 设备报警");
+    port.NoteStatus(null);
+    port.Tick();
+    Check(Active(port, port.LoadPortDeviceAlarm), "查不到状态不算恢复——不知道不等于没事");
+    port.NoteStatus(new LoadPortStatus { DeviceAlarm = false });
+    port.Tick();
+    Check(!Active(port, port.LoadPortDeviceAlarm), "报警位灭了应恢复");
+
+    // LoadPort 动作失败 → 受控停止
+    port.NoteState(ModuleState.Idle);
+    var failedLoad = new ProbeOperation();
+    Check(port.BeginAction(LoadPortAction.Load, failedLoad) is not null, "Idle 应能发起 Load");
+    failedLoad.Reject();
+    port.Tick();
+    Check(Active(port, port.ControlledStopAlarm), "Load 失败应报受控停止");
+    Check(!Active(port, port.InitTimeoutAlarm), "不是 Home 超时，不该报初始化超时");
+
+    // Home 超时 → 再加报初始化超时
+    var slowHome = new ProbeOperation();
+    Check(port.BeginAction(LoadPortAction.Home, slowHome) is not null, "Error 状态应允许 Home");
+    slowHome.TimeOut();
+    port.Tick();
+    Check(Active(port, port.InitTimeoutAlarm) && Active(port, port.ControlledStopAlarm), "Home 超时应报初始化超时");
+
+    // Home 成功回到 Idle → 动作类报警全恢复
+    var goodHome = new ProbeOperation();
+    port.BeginAction(LoadPortAction.Home, goodHome);
+    goodHome.Succeed();
+    port.Tick();
+    Check(!Active(port, port.ControlledStopAlarm) && !Active(port, port.InitTimeoutAlarm),
+        "Home 成功回到 Idle，动作类报警都应恢复");
+
+    // 操作员急停顶掉的动作不报
+    var interrupted = new ProbeOperation();
+    var abort = new ProbeOperation();
+    port.BeginAction(LoadPortAction.Load, interrupted);
+    port.BeginAction(LoadPortAction.Abort, abort);
+    abort.Succeed();
+    port.Tick();
+    Check(!Active(port, port.ControlledStopAlarm), "操作员急停顶掉的动作不该报受控停止");
+
+    // Robot 设备报警：跟着设备报错走
+    var robot = new ProbeRobot();
+    Check(robot.Open(), "探针机械手应能打开");
+    robot.NoteDeviceError("40010006#Arm2 No Wafer When Put");
+    robot.Tick();
+    Check(Active(robot, robot.RobotDeviceAlarm), "设备报错应报 Robot 设备报警");
+    robot.NoteDeviceError(null);
+    robot.Tick();
+    Check(!Active(robot, robot.RobotDeviceAlarm), "查询确认没报错了应恢复");
+
+    robot.NoteDeviceError("stale");
+    robot.Close();
+    robot.Tick();
+    Check(!Active(robot, robot.RobotDeviceAlarm), "没连上时 DeviceError 是旧值，不该据此报警");
+
+    // Robot 动作失败 → 受控停止；复位回 NotInit 还不算恢复，Home 回 Idle 才算
+    Check(robot.Open(), "重新打开");
+    robot.NoteDeviceError(null);
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    robot.Home();
+    robot.Next!.Reject();
+    robot.Tick();
+    Check(Active(robot, robot.ControlledStopAlarm), "Robot 动作失败应报受控停止");
+
+    robot.Next = new ProbeOperation();
+    robot.Reset();
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robot.State == ModuleState.NotInit && Active(robot, robot.ControlledStopAlarm),
+        "复位后是 NotInit（位置不可信，还得回原点），不该算恢复");
+
+    robot.Next = new ProbeOperation();
+    robot.Home();
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robot.State == ModuleState.Idle && !Active(robot, robot.ControlledStopAlarm),
+        "Home 成功回到 Idle 才算恢复");
+
+    AlarmComponent.Current = null;
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline mode switch, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, and LoadPort/Robot alarms raised and cleared).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -383,10 +564,13 @@ sealed class ProbePort : BaseLoadPortModule
     public void Tick() => OnScan();
 
     /// <summary>假驱动：Begin() 要求有驱动且已连接，这里只为把那道门打开，不收发真实帧。</summary>
-    protected override LoadPortDriverBase CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
+    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
 
     /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
+
+    /// <summary>摆一个设备状态查询结果（生产里由机型扫描下发 GET:STATE 刷新）。</summary>
+    public void NoteStatus(LoadPortStatus? status) => Status = status;
 
     /// <summary>走真路径发起动作（状态表 + 操作登记），不是 Load() 那种直接返回。</summary>
     public ModuleOperation? BeginAction(LoadPortAction action, ModuleOperation operation) => Begin(action, operation);
@@ -434,4 +618,48 @@ sealed class RecordingE87Callback : IE87Callback
     public void AccessStopped(ILoadPort port) => Note();
     public void CarrierComplete(ILoadPort port) => Note();
     public void PortError(ILoadPort port, string error) => Note();
+}
+
+// 探针机械手：动作体不连设备，只为验"取放成功之后账有没有跟着动"。
+sealed class ProbeRobot : BaseRobotModule
+{
+    public ProbeOperation? Next { get; set; }
+
+    public ProbeRobot()
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "SmokeRobot");
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
+        foreach (var key in new[] { nameof(QueryDataTimeOut), nameof(HomeTimeout), nameof(PickTimeout),
+                     nameof(PlaceTimeout), nameof(ResetTimeout), nameof(AbortTimeout), nameof(PowerTimeout) })
+        {
+            EC.UpsertValueMetadata(Name, key, "0", "Int", "ms", null, null, null, null, null);
+        }
+    }
+
+    protected override IRobotDriver CreateDriver() => new RejeRobotDriver(new FakeFrameCommunication());
+
+    /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
+    public void NoteState(int state) => State = state;
+
+    /// <summary>顶替扫描线程推一拍。</summary>
+    public void Tick() => OnScan();
+
+    /// <summary>灌站点表（生产里由 ComponentLoader 把 sc.xml 节点交给 OnSettingLoaded）。</summary>
+    public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
+
+    /// <summary>摆一个设备报错（生产里由查询或主动推送刷新）。</summary>
+    public void NoteDeviceError(string? error) => DeviceError = error;
+
+    private ModuleOperation? Take(RobotAction action) => Next is null ? null : Begin(action, Next);
+
+    public override ModuleOperation? Home() => Take(RobotAction.Home);
+    public override ModuleOperation? Reset() => Take(RobotAction.Reset);
+    public override ModuleOperation? Abort() => Take(RobotAction.Abort);
+    public override ModuleOperation? PowerOn() => Take(RobotAction.PowerOn);
+    public override ModuleOperation? PowerOff() => Take(RobotAction.PowerOff);
+    protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot) => Supply();
+    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot) => Supply();
+
+    private ModuleOperation Supply() =>
+        Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
 }

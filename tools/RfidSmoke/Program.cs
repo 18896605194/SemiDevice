@@ -273,7 +273,7 @@ namespace RfidSmoke
             _device = device;
         }
 
-        protected override RfidDriverBase CreateDriver()
+        protected override IRfidDriver CreateDriver()
         {
             return new FcdRfidDriver(
                 new FrameCommunication(_device, new FcdRfidFrameCodec(), FcdRfidProtocol.Binary));

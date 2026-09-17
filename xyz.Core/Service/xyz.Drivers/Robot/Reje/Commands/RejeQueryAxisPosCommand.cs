@@ -9,7 +9,7 @@ public sealed class RejeQueryAxisPosCommand : RejeCommand
 {
     private readonly string _wire;
 
-    public RejeQueryAxisPosCommand(RobotDriverBase driver, RobotAxis axis) : base(driver)
+    public RejeQueryAxisPosCommand(IRobotDriver driver, RobotAxis axis) : base(driver)
     {
         _wire = axis + "Pos";
     }

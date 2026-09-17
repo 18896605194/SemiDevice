@@ -31,7 +31,7 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
 
     #region 驱动连接
 
-    protected override LoadPortDriverBase CreateDriver()
+    protected override ILoadPortDriver CreateDriver()
     {
         return new FcdLoadPortDriver(new FrameCommunication(CreateTransport(), new FcdFrameCodec()));
     }

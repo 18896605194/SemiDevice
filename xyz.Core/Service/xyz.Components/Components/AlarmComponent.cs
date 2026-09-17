@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 
@@ -12,11 +13,22 @@ namespace xyz.Components.Components;
 [Component(description: "报警管理组件")]
 public class AlarmComponent : ComponentBase, IAlarmComponent
 {
+    /// <summary>
+    /// 当前报警管理；sc.xml 里装出来即生效。没装（冒烟、单测）时各处的 Raise 是空操作，不影响设备跑。
+    /// </summary>
+    public static AlarmComponent? Current { get; set; }
+
     private readonly object _syncRoot = new();
     private readonly Dictionary<(string SourcePath, string AlarmCode), AlarmAttribute> _definitions = new();
     private readonly Dictionary<(string SourcePath, string AlarmCode), AlarmItem> _activeAlarms = new();
+    private readonly HashSet<ComponentBase> _autoRegistered = new(ReferenceEqualityComparer.Instance);
     private readonly Queue<AlarmItem> _notifications = new();
     private bool _publishing;
+
+    public AlarmComponent()
+    {
+        Current = this;
+    }
 
     /// <summary>
     /// 报警发生变化后的快照；重复触发、重复确认不发送通知。
@@ -94,6 +106,75 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
             {
                 _definitions.Add((sourcePath, definition.Key), definition.Value);
             }
+        }
+    }
+
+    /// <summary>
+    /// 触发报警：来源路径与报警定义都从组件自己身上取，不用事先 Register。
+    /// 报警代码就是组件上那个带 [Alarm] 的字段值，所以"忘了注册"这种错不会有。
+    /// </summary>
+    public bool Raise(ComponentBase source, string alarmCode)
+    {
+        return Report(source, alarmCode, Raise);
+    }
+
+    /// <summary>
+    /// 故障恢复（组件自报）。
+    /// </summary>
+    public bool Clear(ComponentBase source, string alarmCode)
+    {
+        return Report(source, alarmCode, Clear);
+    }
+
+    /// <summary>
+    /// 组件自报的公共入口：报警上报本身不能把调用方带崩——这些都在设备扫描线程上调，
+    /// 定义配错了（报警码重复/为空）只记一条日志，设备照跑。
+    /// </summary>
+    private bool Report(ComponentBase source, string alarmCode, Func<string, string, bool> action)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        try
+        {
+            EnsureRegistered(source);
+            string path = string.IsNullOrWhiteSpace(source.FullPath) ? source.GetType().Name : source.FullPath;
+            return action(path, alarmCode);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Warn(Name, $"报警 {alarmCode} 上报失败: {exception.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 第一次用到某个组件的报警时，把它身上的 [Alarm] 定义读进来。按实例记，注册过就不再读。
+    /// </summary>
+    private void EnsureRegistered(ComponentBase source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        lock (_syncRoot)
+        {
+            if (!_autoRegistered.Add(source))
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            Register(string.IsNullOrWhiteSpace(source.FullPath) ? source.GetType().Name : source.FullPath, source);
+        }
+        catch
+        {
+            // 注册失败（重复路径、代码为空）就退回未注册，下次还能再试，异常照抛给调用方。
+            lock (_syncRoot)
+            {
+                _autoRegistered.Remove(source);
+            }
+
+            throw;
         }
     }
 

@@ -10,7 +10,7 @@ public abstract class RobotCommand
     /// <summary>
     /// 提交口（驱动基类），构造时注入
     /// </summary>
-    protected RobotDriverBase Driver { get; }
+    protected IRobotDriver Driver { get; }
 
     private volatile RobotResponse? _response;
     private volatile bool _isCompleted;
@@ -36,7 +36,7 @@ public abstract class RobotCommand
     /// </summary>
     public virtual bool IsMotion => false;
 
-    protected RobotCommand(RobotDriverBase driver)
+    protected RobotCommand(IRobotDriver driver)
     {
         Driver = driver ?? throw new ArgumentNullException(nameof(driver));
     }

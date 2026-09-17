@@ -5,7 +5,7 @@ namespace xyz.Drivers.Loadport.FCD.Commands;
 /// </summary>
 public sealed class FcdHomeCommand : FcdCommand
 {
-    public FcdHomeCommand(LoadPortDriverBase driver) : base(driver)
+    public FcdHomeCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

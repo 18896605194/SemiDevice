@@ -10,7 +10,7 @@ public abstract class LoadPortCommand
     /// <summary>
     /// 提交口（驱动基类），构造时注入
     /// </summary>
-    protected LoadPortDriverBase Driver { get; }
+    protected ILoadPortDriver Driver { get; }
 
     private volatile LoadPortResponse? _response;
     private volatile bool _isCompleted;
@@ -31,7 +31,7 @@ public abstract class LoadPortCommand
     /// </summary>
     public bool IsInFlight { get; internal set; }
 
-    protected LoadPortCommand(LoadPortDriverBase driver)
+    protected LoadPortCommand(ILoadPortDriver driver)
     {
         Driver = driver ?? throw new ArgumentNullException(nameof(driver));
     }

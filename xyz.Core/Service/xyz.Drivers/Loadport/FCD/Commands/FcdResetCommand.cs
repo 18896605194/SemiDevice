@@ -5,7 +5,7 @@ namespace xyz.Drivers.Loadport.FCD.Commands;
 /// </summary>
 public sealed class FcdResetCommand : FcdCommand
 {
-    public FcdResetCommand(LoadPortDriverBase driver) : base(driver)
+    public FcdResetCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

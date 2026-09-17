@@ -5,7 +5,7 @@ namespace xyz.Drivers.Loadport.FCD.Commands;
 /// </summary>
 public sealed class FcdAbortCommand : FcdCommand
 {
-    public FcdAbortCommand(LoadPortDriverBase driver) : base(driver)
+    public FcdAbortCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

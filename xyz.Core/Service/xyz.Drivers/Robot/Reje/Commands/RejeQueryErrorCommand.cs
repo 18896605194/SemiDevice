@@ -6,7 +6,7 @@ namespace xyz.Drivers.Robot.Reje.Commands;
 /// </summary>
 public sealed class RejeQueryErrorCommand : RejeCommand
 {
-    public RejeQueryErrorCommand(RobotDriverBase driver) : base(driver)
+    public RejeQueryErrorCommand(IRobotDriver driver) : base(driver)
     {
     }
 

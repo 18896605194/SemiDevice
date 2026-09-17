@@ -9,7 +9,7 @@ public sealed class RejeSetSpeedCommand : RejeCommand
 {
     private readonly string _wire;
 
-    public RejeSetSpeedCommand(RobotDriverBase driver, int speed) : base(driver)
+    public RejeSetSpeedCommand(IRobotDriver driver, int speed) : base(driver)
     {
         if (speed is < 1 or > 100)
         {

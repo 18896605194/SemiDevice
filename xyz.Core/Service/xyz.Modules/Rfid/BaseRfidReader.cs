@@ -4,8 +4,6 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Drivers.Communication;
-using xyz.Drivers.Communication.Serial;
-using xyz.Drivers.Communication.Tcp;
 using xyz.Drivers.Rfid;
 
 namespace xyz.Modules;
@@ -69,22 +67,20 @@ public abstract class BaseRfidReader : ComponentBase, IRfidReader
 
     #region 驱动连接
 
-    public RfidDriverBase? Driver { get; private set; }
+    public IRfidDriver? Driver { get; private set; }
 
+    /// <summary>
+    /// 按 sc.xml 配的 CommType 建传输。
+    /// </summary>
     protected ICommunication CreateTransport()
     {
-        return CommType switch
-        {
-            CommType.Serial => new SerialCommunication().Create(PortName, BaudRate, Parity, DataBits, StopBits),
-            CommType.Tcp => new TcpCommunication().Create(Host, NetPort),
-            _ => throw new NotSupportedException($"不支持的通讯类型: {CommType}"),
-        };
+        return CommunicationFactory.Create(CommType, PortName, BaudRate, Parity, DataBits, StopBits, Host, NetPort);
     }
 
     /// <summary>
     /// 创建品牌驱动（传输 + 品牌帧编解码 + 驱动）；机型组件重写。
     /// </summary>
-    protected virtual RfidDriverBase CreateDriver()
+    protected virtual IRfidDriver CreateDriver()
     {
         throw new NotSupportedException($"{GetType().Name} 尚未实现 CreateDriver。");
     }

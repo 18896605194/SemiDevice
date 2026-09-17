@@ -11,7 +11,7 @@ public sealed class FcdLoadCommand : FcdCommand
 
     private string _mapData = string.Empty;
 
-    public FcdLoadCommand(LoadPortDriverBase driver) : base(driver)
+    public FcdLoadCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

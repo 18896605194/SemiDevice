@@ -7,7 +7,7 @@ namespace xyz.Drivers.Rfid;
 /// 具体的握手时序与块语义由品牌驱动补。
 /// 与 LoadPort 驱动不同的是这里没有按指令名分槽：读头一次只认一条。
 /// </summary>
-public abstract class RfidDriverBase
+public abstract class RfidDriverBase : IRfidDriver
 {
     #region 字段与构造
 

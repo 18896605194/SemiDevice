@@ -16,7 +16,7 @@ public class RfidReaderComponent : BaseRfidReader
 {
     #region 驱动连接
 
-    protected override RfidDriverBase CreateDriver()
+    protected override IRfidDriver CreateDriver()
     {
         // 二进制协议：帧通讯用 Latin1，字节过 string 管道无损。
         return new FcdRfidDriver(

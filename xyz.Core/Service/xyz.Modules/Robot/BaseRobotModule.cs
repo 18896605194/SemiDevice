@@ -1,23 +1,23 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
+using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
+using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Configs.Models;
-using xyz.Drivers.Communication;
-using xyz.Drivers.Communication.Tcp;
 using xyz.Drivers.Robot;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 namespace xyz.Modules;
 
 public abstract class BaseRobotModule : BaseModule, IRobot
 {
-    #region SV 状态变量
+    #region SV 
 
     /// <summary>
     /// Robot 当前状态（SV）。
@@ -55,7 +55,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #endregion
 
-    #region SC 装机常量
+    #region SC
 
     [SCEditor("", "Robot", "Robot 品牌")]
     public string Brand { get; set; } = string.Empty;
@@ -69,9 +69,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     [SCEditor("9000", "Robot", "Robot 网口端口")]
     public int NetPort { get; set; } = 9000;
 
+    [SCEditor("2", "Robot", "手指数（手指号从 1 开始；晶圆账按手指注册槽位）")]
+    public int ArmCount { get; set; } = 2;
+
     #endregion
 
-    #region EC 在线参数（查询与动作超时，属性读写直通 EC，改完即时生效）
+    #region EC 
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
         @default: "3000", description: "设备状态查询超时")]
@@ -131,109 +134,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #endregion
 
-    #region 站点表（SC：本 Robot 节点下的 Stations，每个站点一个子节点：Number 站点号 / Rotation 转台方位 / Travel 平移距离）
-
-    private const string StationsSettingName = "Stations";
-
-    private IReadOnlyDictionary<string, RobotStation> _stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-
-    private volatile RobotStation? _currentStation;
-
-    /// <summary>
-    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置。取放片按站点号下发，转台方位与平移距离随状态推给界面。
-    /// 每台机械手各配各的，同一模块在不同机械手上的配置可以不同；装配时读入，运行中不变。
-    /// </summary>
-    public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
-
-    /// <summary>
-    /// 按模块名查站点配置（忽略大小写）；未配置返回 false。
-    /// </summary>
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
-    {
-        return _stations.TryGetValue(station, out config);
-    }
-
-    /// <summary>
-    /// 装配时读入站点表：Number 必配且为正整数；Rotation 只认 North/East/South/West，不配为 North；Travel 为数字，不配为 0。
-    /// 配置不合法或站点重复时抛异常，装配即失败。
-    /// </summary>
-    protected override void OnSettingLoaded(ModuleConfig setting)
-    {
-        base.OnSettingLoaded(setting);
-
-        var stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-        var node = setting.Children.FirstOrDefault(child =>
-            string.Equals(child.Name, StationsSettingName, StringComparison.OrdinalIgnoreCase));
-        if (node is not null)
-        {
-            foreach (var stationNode in node.Children)
-            {
-                string path = $"{setting.Name}.{StationsSettingName}.{stationNode.Name}";
-                var station = new RobotStation(
-                    stationNode.Name,
-                    ParseStationNumber(stationNode, path),
-                    ParseStationRotation(stationNode, path),
-                    ParseStationTravel(stationNode, path));
-                if (!stations.TryAdd(station.Name, station))
-                {
-                    throw new InvalidOperationException($"sc.xml 节点 {path} 重复配置。");
-                }
-            }
-        }
-
-        _stations = stations;
-    }
-
-    private static int ParseStationNumber(ModuleConfig node, string path)
-    {
-        string? text = FindStationValue(node, nameof(RobotStation.Number));
-        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number) || number < 1)
-        {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Number=\"{text}\" 不是有效站点号（须为正整数）。");
-        }
-
-        return number;
-    }
-
-    private static RobotDirection ParseStationRotation(ModuleConfig node, string path)
-    {
-        string? text = FindStationValue(node, nameof(RobotStation.Rotation));
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return RobotDirection.North;
-        }
-
-        if (!Enum.TryParse(text, ignoreCase: true, out RobotDirection rotation) || !Enum.IsDefined(rotation))
-        {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Rotation=\"{text}\" 不是有效方位（North/East/South/West）。");
-        }
-
-        return rotation;
-    }
-
-    private static double ParseStationTravel(ModuleConfig node, string path)
-    {
-        string? text = FindStationValue(node, nameof(RobotStation.Travel));
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return 0;
-        }
-
-        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double travel) || !double.IsFinite(travel))
-        {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Travel=\"{text}\" 不是有效数字。");
-        }
-
-        return travel;
-    }
-
-    private static string? FindStationValue(ModuleConfig node, string name)
-    {
-        return node.Values.FirstOrDefault(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase))?.Value;
-    }
-
-    #endregion
-
     #region Alarm
 
     [Alarm("Robot 设备报警", AlarmCategory.HardwareError,
@@ -242,8 +142,46 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         Solution = "查询报错内容，排除故障后复位并重新回原点")]
     public string RobotDeviceAlarm = nameof(RobotDeviceAlarm);
 
+    [Alarm("Robot 受控停止", AlarmCategory.MotionError,
+        AlarmLevel = AlarmLevel.Alarm1,
+        Description = "取放片、回原点等动作失败或超时，Robot 进入错误状态",
+        Solution = "先确认手指与站点上的实际片位，再复位并重新回原点")]
+    public string ControlledStopAlarm = nameof(ControlledStopAlarm);
+
     #endregion
 
+    #region 站点表（本 Robot 节点下的 Stations，每个站点一个子节点）
+
+    private IReadOnlyDictionary<string, RobotStation> _stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
+    private volatile RobotStation? _currentStation;
+
+    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
+    {
+        return _stations.TryGetValue(station, out config);
+    }
+
+    protected override void OnSettingLoaded(ModuleConfig setting)
+    {
+        base.OnSettingLoaded(setting);
+
+        var stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+        var node = setting.Children.FirstOrDefault(child =>
+            string.Equals(child.Name, "Stations", StringComparison.OrdinalIgnoreCase));
+
+        foreach (var stationNode in node?.Children ?? [])
+        {
+            string path = $"{setting.Name}.Stations.{stationNode.Name}";
+            if (!stations.TryAdd(stationNode.Name, RobotStation.FromConfig(stationNode, path)))
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {path} 重复配置。");
+            }
+        }
+
+        _stations = stations;
+    }
+
+    #endregion
     protected BaseRobotModule()
     {
         RegisterTransitions(RobotStateTable.ToModuleTable());
@@ -251,20 +189,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region 驱动连接
 
-    public RobotDriverBase? Driver { get; private set; }
-
-    /// <summary>
-    /// Robot 走网口（TCP）。
-    /// </summary>
-    protected ICommunication CreateTransport()
-    {
-        return new TcpCommunication().Create(Host, NetPort);
-    }
+    public IRobotDriver? Driver { get; private set; }
 
     /// <summary>
     /// 创建品牌驱动（传输 + 品牌帧编解码 + 驱动）；机型模块重写。
+    /// 传输走串口还是网口由机型自己定，基类不认具体传输类型。
     /// </summary>
-    protected virtual RobotDriverBase CreateDriver()
+    protected virtual IRobotDriver CreateDriver()
     {
         throw new NotSupportedException($"{GetType().Name} 尚未实现 CreateDriver。");
     }
@@ -280,8 +211,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return true;
         }
 
+        // 手指在晶圆账里也是槽位：片停在手上算在途，跟停在花篮里一样要有位置。
+        WaferManager.Current?.RegisterLocation(Name, ArmCount);
+
         Driver = CreateDriver();
-        Driver.OnSpontaneousEvent += OnDriverSpontaneousEvent;
+
+        // 挂钩放在 Open 之前：连上之后设备可能立刻推事件，晚订阅会漏。
+        OnDriverCreated(Driver);
         return Driver.Open();
     }
 
@@ -293,19 +229,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         Driver?.Close();
     }
 
-    private void OnDriverSpontaneousEvent(RobotDeviceEvent evt)
+    /// <summary>
+    /// 驱动已建好、尚未打开时回调；机型在这儿订阅设备主动事件。默认什么都不订。
+    /// </summary>
+    protected virtual void OnDriverCreated(IRobotDriver driver)
     {
-        // 在驱动路由线程回调，只做轻量状态翻转。
-        switch (evt.Kind)
-        {
-            case RobotDeviceEventKind.WaferPresence:
-                _armWafers[evt.Arm] = evt.HasWafer;
-                break;
+    }
 
-            case RobotDeviceEventKind.DeviceError:
-                DeviceError = evt.Content;
-                break;
-        }
+    /// <summary>
+    /// 记下手指在位（机型收到设备推送时调）。在驱动路由线程上调，只翻标志不做重活。
+    /// </summary>
+    protected void NoteWaferPresence(int arm, bool hasWafer)
+    {
+        _armWafers[arm] = hasWafer;
     }
 
     #endregion
@@ -392,7 +328,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public ModuleOperation? Pick(int arm, string station, int slot)
     {
-        return BeginAtStation(station, config => Pick(arm, config.Number, slot));
+        return BeginAtStation(RobotAction.Pick, arm, station, slot,
+            config => Begin(RobotAction.Pick, CreatePickOperation(arm, config.Number, slot)));
     }
 
     /// <summary>
@@ -400,37 +337,45 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public ModuleOperation? Place(int arm, string station, int slot)
     {
-        return BeginAtStation(station, config => Place(arm, config.Number, slot));
+        return BeginAtStation(RobotAction.Place, arm, station, slot,
+            config => Begin(RobotAction.Place, CreatePlaceOperation(arm, config.Number, slot)));
     }
 
     /// <summary>
     /// 查站点表并发起取放片；发起成功才记为当前站点（被拒不改），随状态推给界面显示机械手去哪、朝哪。
     /// </summary>
-    private ModuleOperation? BeginAtStation(string station, Func<RobotStation, ModuleOperation?> begin)
+    private ModuleOperation? BeginAtStation(
+        RobotAction action, int arm, string station, int slot, Func<RobotStation, ModuleOperation?> begin)
     {
         if (!TryGetStation(station, out var config))
         {
             return null;
         }
 
-        var operation = begin(config);
-        if (operation is not null)
+        // 挂操作和记意图必须在同一把锁里：否则扫描线程可能在意图记上之前就把操作终结了，这一趟就不记账。
+        lock (OperationGate)
         {
-            _currentStation = config;
-        }
+            var operation = begin(config);
+            if (operation is null)
+            {
+                return null;
+            }
 
-        return operation;
+            _currentStation = config;
+            _intent = new TransferIntent(action, arm, station, slot);
+            return operation;
+        }
     }
 
     /// <summary>
-    /// 按设备站点号发起 Pick（站点号已由站点表解析）。机型实现：Begin(RobotAction.Pick, new ...Operation(...))。
+    /// 造一个取片操作（站点号已由站点表解析成设备站点号）；发不发得出去由基类查表决定。
     /// </summary>
-    protected abstract ModuleOperation? Pick(int arm, int stationNumber, int slot);
+    protected abstract ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot);
 
     /// <summary>
-    /// 按设备站点号发起 Place（站点号已由站点表解析）。
+    /// 造一个放片操作。
     /// </summary>
-    protected abstract ModuleOperation? Place(int arm, int stationNumber, int slot);
+    protected abstract ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot);
 
     /// <summary>
     /// 发起 PowerOn（伺服上使能）。
@@ -473,6 +418,113 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
         State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
+        UpdateLedger(operation);
+        UpdateActionAlarms(operation);
+    }
+
+    #endregion
+
+    #region 报警
+
+    /// <summary>
+    /// 扫描周期：先扫子组件与操作（基类），再按设备报错刷新报警。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        CheckDeviceAlarm();
+    }
+
+    /// <summary>
+    /// 设备报警跟着设备报错走：有报错就报，查询确认没报错了才恢复。
+    /// 没连上时 DeviceError 是上一次的旧值，不作数，不报也不恢复。
+    /// </summary>
+    private void CheckDeviceAlarm()
+    {
+        if (Driver is not { IsConnected: true })
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(DeviceError))
+        {
+            AlarmComponent.Current?.Raise(this, RobotDeviceAlarm);
+        }
+        else
+        {
+            AlarmComponent.Current?.Clear(this, RobotDeviceAlarm);
+        }
+    }
+
+    /// <summary>
+    /// 动作类报警：失败就报，成功并回到能干活的状态才恢复。
+    /// Robot 急停/复位之后是 NotInit（位置不可信，要重新回原点），这时候还不算恢复，只有 Home 成功回到 Idle 才算。
+    /// 人为急停顶掉的动作不报——那是操作员自己按的，不是故障。
+    /// </summary>
+    private void UpdateActionAlarms(ModuleOperation operation)
+    {
+        var alarms = AlarmComponent.Current;
+        if (alarms is null)
+        {
+            return;
+        }
+
+        if (operation.IsSuccess)
+        {
+            if (State != ModuleState.NotInit && State != ModuleState.Error)
+            {
+                alarms.Clear(this, ControlledStopAlarm);
+            }
+
+            return;
+        }
+
+        if (operation.Code != ErrorCodes.Aborted)
+        {
+            alarms.Raise(this, ControlledStopAlarm);
+        }
+    }
+
+    #endregion
+
+    #region 晶圆账
+
+    /// <summary>本次取放的意图；非取放动作为 null。</summary>
+    private sealed record TransferIntent(RobotAction Action, int Arm, string Station, int Slot);
+
+    private TransferIntent? _intent;
+
+    /// <summary>
+    /// 取放成功后写账：Pick 把片从站点槽位移到手指上，Place 反过来。
+    /// 失败或被打断不动账——片到底在手上还是在槽里已经说不准了，乱改账比不改更糟，留给人工对账。
+    /// 在模块锁内调用（OnOperationCompleted 本身就在锁里）。
+    /// </summary>
+    private void UpdateLedger(ModuleOperation operation)
+    {
+        var intent = _intent;
+        _intent = null;
+        if (intent is null || !operation.IsSuccess)
+        {
+            return;
+        }
+
+        var ledger = WaferManager.Current;
+        if (ledger is null)
+        {
+            return;
+        }
+
+        bool moved = intent.Action == RobotAction.Pick
+            ? ledger.Move(intent.Station, intent.Slot, Name, intent.Arm)
+            : ledger.Move(Name, intent.Arm, intent.Station, intent.Slot);
+
+        // 设备说取放成功，账却移不动（源上没片/目标已有片）：账实不符。
+        // 账本自己已经报警了，这里补一条带动作的日志，方便现场对着流水查。
+        if (!moved)
+        {
+            LogHelper.Error(Name,
+                $"{intent.Action} 成功但账没记上：{intent.Station}.{intent.Slot:00} ↔ {Name}.{intent.Arm:00}");
+        }
     }
 
     #endregion

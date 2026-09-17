@@ -5,7 +5,7 @@ namespace xyz.Drivers.Robot.Reje.Commands;
 /// </summary>
 public sealed class RejeHomeCommand : RejeCommand
 {
-    public RejeHomeCommand(RobotDriverBase driver) : base(driver)
+    public RejeHomeCommand(IRobotDriver driver) : base(driver)
     {
     }
 

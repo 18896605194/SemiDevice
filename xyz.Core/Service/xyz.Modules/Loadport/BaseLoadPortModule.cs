@@ -6,12 +6,11 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Wafers;
 using xyz.Drivers.Communication;
-using xyz.Drivers.Communication.Serial;
-using xyz.Drivers.Communication.Tcp;
 using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 namespace xyz.Modules;
@@ -257,22 +256,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 驱动连接
 
-    public LoadPortDriverBase? Driver { get; private set; }
+    public ILoadPortDriver? Driver { get; private set; }
 
+    /// <summary>
+    /// 按 sc.xml 配的 CommType 建传输。
+    /// </summary>
     protected ICommunication CreateTransport()
     {
-        return CommType switch
-        {
-            CommType.Serial => new SerialCommunication().Create(PortName, BaudRate, Parity, DataBits, StopBits),
-            CommType.Tcp => new TcpCommunication().Create(Host, NetPort),
-            _ => throw new NotSupportedException($"不支持的通讯类型: {CommType}"),
-        };
+        return CommunicationFactory.Create(CommType, PortName, BaudRate, Parity, DataBits, StopBits, Host, NetPort);
     }
 
     /// <summary>
     /// 创建品牌驱动（传输 + 品牌帧编解码 + 驱动）；机型模块重写。
     /// </summary>
-    protected virtual LoadPortDriverBase CreateDriver()
+    protected virtual ILoadPortDriver CreateDriver()
     {
         throw new NotSupportedException($"{GetType().Name} 尚未实现 CreateDriver。");
     }
@@ -619,6 +616,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
         State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
+        UpdateActionAlarms(operation);
 
         if (!operation.IsSuccess)
         {
@@ -721,6 +719,66 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         base.OnScan();
         CheckCarrierPresence();
         CheckCarrierIdRead();
+        CheckDeviceAlarm();
+    }
+
+    /// <summary>
+    /// 设备报警跟着状态查询走：报警位亮就报，灭了就恢复。
+    /// 查不到（没连上/查询超时，Status 为 null）不算恢复——不知道不等于没事。
+    /// </summary>
+    private void CheckDeviceAlarm()
+    {
+        if (Status is not { } status)
+        {
+            return;
+        }
+
+        if (status.DeviceAlarm)
+        {
+            AlarmComponent.Current?.Raise(this, LoadPortDeviceAlarm);
+        }
+        else
+        {
+            AlarmComponent.Current?.Clear(this, LoadPortDeviceAlarm);
+        }
+    }
+
+    /// <summary>
+    /// 动作类报警：失败就报，成功并回到能干活的状态才恢复。
+    /// 人为急停顶掉的不报——那是操作员自己按的，不是故障。
+    /// </summary>
+    private void UpdateActionAlarms(ModuleOperation operation)
+    {
+        var alarms = AlarmComponent.Current;
+        if (alarms is null)
+        {
+            return;
+        }
+
+        if (operation.IsSuccess)
+        {
+            if (State != ModuleState.NotInit && State != ModuleState.Error)
+            {
+                alarms.Clear(this, ControlledStopAlarm);
+                if (_action == LoadPortAction.Home)
+                {
+                    alarms.Clear(this, InitTimeoutAlarm);
+                }
+            }
+
+            return;
+        }
+
+        if (operation.Code == ErrorCodes.Aborted)
+        {
+            return;
+        }
+
+        alarms.Raise(this, ControlledStopAlarm);
+        if (_action == LoadPortAction.Home && operation.Code == ErrorCodes.Timeout)
+        {
+            alarms.Raise(this, InitTimeoutAlarm);
+        }
     }
 
     /// <summary>

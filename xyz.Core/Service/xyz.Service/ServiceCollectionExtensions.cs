@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using xyz.Common.Log;
 using xyz.Components;
+using xyz.Components.Components;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
@@ -53,6 +54,24 @@ public static class ServiceCollectionExtensions
 
         // 把组件树 [VariableMark(EC)] 声明合并进 ec.xml（缺的补建，已有值不动）。
         EcMerger.Merge(roots);
+
+        // 报警转推客户端：报警组件在组件层（不引用契约层），所以这条桥搭在这儿，跟日志那条一个路子。
+        if (AlarmComponent.Current is { } alarms)
+        {
+            alarms.AlarmChanged += item => EventBus.Send(new AlarmDto
+            {
+                Source = item.SourcePath,
+                Code = item.AlarmCode,
+                Text = item.AlarmText,
+                Category = item.Category.ToString(),
+                Level = item.Level.ToString(),
+                Description = item.Description ?? string.Empty,
+                Solution = item.Solution ?? string.Empty,
+                RaisedAt = item.RaisedAt.LocalDateTime,
+                AcknowledgedAt = item.AcknowledgedAt?.LocalDateTime,
+                ClearedAt = item.ClearedAt?.LocalDateTime,
+            }, AlarmDto.EventToken, retain: false);
+        }
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 

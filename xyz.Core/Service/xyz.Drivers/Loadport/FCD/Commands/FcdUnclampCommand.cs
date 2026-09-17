@@ -5,7 +5,7 @@ namespace xyz.Drivers.Loadport.FCD.Commands;
 /// </summary>
 public sealed class FcdUnclampCommand : FcdCommand
 {
-    public FcdUnclampCommand(LoadPortDriverBase driver) : base(driver)
+    public FcdUnclampCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

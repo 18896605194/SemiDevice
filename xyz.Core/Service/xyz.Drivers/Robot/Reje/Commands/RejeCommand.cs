@@ -2,7 +2,7 @@ namespace xyz.Drivers.Robot.Reje.Commands;
 
 public abstract class RejeCommand : RobotCommand
 {
-    protected RejeCommand(RobotDriverBase driver) : base(driver)
+    protected RejeCommand(IRobotDriver driver) : base(driver)
     {
     }
 

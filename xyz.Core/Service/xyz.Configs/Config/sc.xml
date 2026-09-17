@@ -13,6 +13,8 @@
 			<Value Name="DbType" Value="Sqlite" />
 		</Setting>
 	</Setting>
+	<!-- 报警：全系统一本，模块用 AlarmComponent.Current.Raise(this, 报警码) 上报 -->
+	<Setting Name="Alarm" Type="xyz.Components.Components.AlarmComponent" />
 	<!-- 晶圆账：全系统一本，事件驱动不参与扫描 -->
 	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManager">
 		<Value Name="IsEnable" Value="True" />
@@ -73,6 +75,7 @@
 			<Value Name="Brand" Value="Reje" />
 			<Value Name="Host" Value="127.0.0.1" />
 			<Value Name="NetPort" Value="9000" />
+			<Value Name="ArmCount" Value="2" />
 			<!-- 站点表：每个站点一个子节点。Number 设备站点号；Rotation 转台方位（North/East/South/West）；Travel 平移距离 -->
 			<Setting Name="Stations">
 				<Setting Name="LoadPort1">

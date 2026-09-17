@@ -699,11 +699,11 @@ public class WaferManager : ComponentBase
     }
 
     /// <summary>
-    /// 账实不符：先记错误日志。报警组件接上之后在这里 Raise(WaferLedgerAlarm)，
-    /// 不要退化成只写日志——CTC 那边就是因为静默，现场表现成"片凭空消失"。
+    /// 账实不符：记日志并报警。不能只写日志——CTC 那边就是因为静默，现场表现成"片凭空消失"。
     /// </summary>
     private void Fault(string message)
     {
         LogHelper.Error(Name, $"晶圆账: {message}");
+        AlarmComponent.Current?.Raise(this, WaferLedgerAlarm);
     }
 }

@@ -6,7 +6,7 @@ namespace xyz.Drivers.Loadport.FCD.Commands;
 /// </summary>
 public sealed class FcdGetStateCommand : FcdCommand
 {
-    public FcdGetStateCommand(LoadPortDriverBase driver) : base(driver)
+    public FcdGetStateCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 

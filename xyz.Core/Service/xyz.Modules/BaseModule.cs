@@ -7,23 +7,15 @@ namespace xyz.Modules;
 
 public abstract class BaseModule : ComponentBase
 {
-    /// <summary>
-    /// 打开模块的外部资源（驱动连接等），由装配在 Start 之前调用；默认成功。
-    /// </summary>
     public virtual bool Open()
     {
         return true;
     }
 
-    #region 状态迁移表（模块注册自己的表，动作发起前查表放行）
+    #region 状态迁移表
 
     private readonly Dictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> _transitions = new();
 
-    /// <summary>
-    /// 注册本模块的状态迁移表（整表替换）。
-    /// 键：当前状态（null=任意状态通配）+ 动作名（约定用动作枚举 ToString，如 "Load"）；
-    /// 值：(执行状态, 成功状态)。机型可在家族默认表基础上增删后传入，得到"属于自己的表"。
-    /// </summary>
     protected void RegisterTransitions(
         IEnumerable<KeyValuePair<(int? State, string Action), (int ExecutingState, int SuccessState)>> entries)
     {

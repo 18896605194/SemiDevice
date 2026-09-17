@@ -8,7 +8,7 @@ namespace xyz.Drivers.Loadport;
 /// （在途槽位、收发内存队列、无主帧主动事件），具体品牌只补设备语义。
 /// 动作返回 true 表示设备已确认动作完成，而非仅发送成功。
 /// </summary>
-public abstract class LoadPortDriverBase
+public abstract class LoadPortDriverBase : ILoadPortDriver
 {
     #region 字段与构造
 

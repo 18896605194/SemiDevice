@@ -7,7 +7,7 @@ public sealed class RejePickCommand : RejeCommand
 {
     private readonly string _wire;
 
-    public RejePickCommand(RobotDriverBase driver, int arm, int station, int slot) : base(driver)
+    public RejePickCommand(IRobotDriver driver, int arm, int station, int slot) : base(driver)
     {
         _wire = "G" + RejeProtocol.EncodeMotionArgs(arm, station, slot);
     }
