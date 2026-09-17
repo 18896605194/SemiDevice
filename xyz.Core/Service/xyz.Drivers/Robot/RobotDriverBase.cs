@@ -7,9 +7,6 @@ public abstract class RobotDriverBase : IRobotDriver
 {
     #region 字段与构造
 
-    /// <summary>
-    /// 帧通讯（传输 + 帧编解码），构造注入。
-    /// </summary>
     protected readonly IFrameCommunication Communication;
 
     private readonly object _gate = new();

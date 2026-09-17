@@ -4,9 +4,6 @@ using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Loadport.Operation;
 
-/// <summary>
-/// Load 操作：发送 FCD CLOAD（开门+Mapping）→ 等 INF 终结；超时走模块 EC live 读；成功收 SlotMap。
-/// </summary>
 public sealed class LoadOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
