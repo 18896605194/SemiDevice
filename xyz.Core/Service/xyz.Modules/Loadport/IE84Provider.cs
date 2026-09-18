@@ -1,8 +1,8 @@
 namespace xyz.Modules;
 
 /// <summary>
-/// E84 握手期间设备侧反查 EAP 的口子：置 L_REQ/U_REQ、给 READY 之前按这里的结果判断能不能接受这次交接。
-/// 实现由 EAP 侧提供并挂到 ILoadPort.E84Provider；未接 EAP 时为 null，设备侧按本地开关自行决定。
+/// E84 握手期间设备侧反查 EAP 的口子：LoadPort 每拍按这里的结果算给 E84 的许可 (E84Permit)。
+/// 实现由 EAP 侧提供并挂到 ILoadPort.E84Provider；未接 EAP 时为 null，LoadPort 按本地状态自行判断。
 /// </summary>
 public interface IE84Provider
 {
@@ -11,7 +11,4 @@ public interface IE84Provider
 
     /// <summary>端口是否处于自动（AMHS 可交接）模式。</summary>
     bool IsAutoAccessMode(ILoadPort port);
-
-    /// <summary>端口是否已被 Host 预约给某个载具；预约给别人时不接受交接。</summary>
-    bool IsReserved(ILoadPort port);
 }

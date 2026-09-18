@@ -95,7 +95,7 @@ public class E84Component : ComponentBase, IE84
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
-        @default: "60000", description: "TP4：撤 L_REQ/U_REQ 后等搬运车撤 BUSY")]
+        @default: "60000", description: "TP4：撤 L_REQ/U_REQ 后等搬运车撤 BUSY、给 COMPT")]
     public int Tp4Timeout
     {
         get { return GetEcInt(nameof(Tp4Timeout)); }
@@ -125,8 +125,8 @@ public class E84Component : ComponentBase, IE84
     #region 状态
 
     private readonly object _gate = new();
-    private readonly Dictionary<E84Timer, Stopwatch> _timers = new();
-    private IE84Host? _host;
+    private readonly Stopwatch _stepWatch = new();
+    private readonly List<E84Report> _reports = new();
     private E84Inputs _inputs;
     private E84Inputs _loggedInputs;
     private E84Outputs _outputs;
@@ -139,11 +139,6 @@ public class E84Component : ComponentBase, IE84
     /// 超时锁住期间保留，Complete 要按它核对载具位置。
     /// </summary>
     private bool? _isLoad;
-
-    /// <summary>
-    /// 这次交接是否已经开始（READY 已给出、已上报 HandoffStarted）。
-    /// </summary>
-    private bool _started;
 
     public E84State State
     {
@@ -167,17 +162,17 @@ public class E84Component : ComponentBase, IE84
 
     #endregion
 
-    #region 挂接与人工恢复
+    #region 打开与人工恢复
 
-    public void Attach(IE84Host host)
+    public bool Open()
     {
-        ArgumentNullException.ThrowIfNull(host);
         lock (_gate)
         {
-            _host = host;
             Clear();
+            _reports.Clear();
             WriteOutputs(_outputs);
             _written = _outputs;
+            return true;
         }
     }
 
@@ -185,34 +180,29 @@ public class E84Component : ComponentBase, IE84
     {
         lock (_gate)
         {
-            if (_host is not { } host)
-            {
-                return;
-            }
-
             LogHelper.Info(FullPath, "E84 Retry：放弃这次交接，重新等搬运车");
-            if (_timedOutTimer is null && _started && _isLoad is { } isLoad)
+            if (IsHandoffStarted(_state) && _isLoad is { } isLoad)
             {
-                host.HandoffAborted(isLoad, "人工 Retry");
+                _reports.Add(E84Report.Aborted(isLoad, "人工 Retry"));
             }
 
             Clear();
             AlarmComponent.Current?.Clear(this, E84TimeoutAlarm);
-            Flush(host);
+            Flush();
         }
     }
 
-    public bool Complete()
+    public bool Complete(bool carrierPlaced)
     {
         lock (_gate)
         {
-            if (_host is not { } host || _timedOutTimer is null || _isLoad is not { } isLoad)
+            if (_state != E84State.TimedOut || _isLoad is not { } isLoad)
             {
                 LogHelper.Warn(FullPath, "E84 没有超时锁住的交接，Complete 不处理");
                 return false;
             }
 
-            if (isLoad != host.IsCarrierPlaced)
+            if (isLoad != carrierPlaced)
             {
                 LogHelper.Warn(FullPath, isLoad
                     ? "E84 Complete 被拒：载具不在位，送盒没有完成"
@@ -221,116 +211,164 @@ public class E84Component : ComponentBase, IE84
             }
 
             LogHelper.Info(FullPath, $"E84 人工确认{Direction(isLoad)}交接已完成");
-            host.HandoffCompleted(isLoad);
+            _reports.Add(E84Report.Completed(isLoad));
             Clear();
             AlarmComponent.Current?.Clear(this, E84TimeoutAlarm);
-            Flush(host);
+            Flush();
             return true;
         }
     }
 
     /// <summary>
-    /// 输出全灭、计时全停、清方向与超时锁存（CTC ResetSignal）。
+    /// 输出全灭、清方向与超时锁存，回到不可交接（CTC ResetSignal）。
     /// </summary>
     private void Clear()
     {
         _outputs = default;
-        _timers.Clear();
         _isLoad = null;
-        _started = false;
         _timedOutTimer = null;
         _state = E84State.NotAvailable;
+        _stepWatch.Reset();
     }
 
     #endregion
 
-    #region 扫描（CTC E84Passiver.OnTimer）
+    #region 推进
 
-    protected override void OnScan()
+    public IReadOnlyList<E84Report> Step(E84Permit permit, bool carrierPlaced)
     {
-        base.OnScan();
-
         lock (_gate)
         {
-            if (_host is not { } host)
+            _inputs = ReadInputs();
+            Advance(permit, carrierPlaced);
+            Flush();
+
+            if (_reports.Count == 0)
             {
-                return;
+                return Array.Empty<E84Report>();
             }
 
-            _inputs = ReadInputs();
-            Step(host);
-            Flush(host);
+            var reports = _reports.ToArray();
+            _reports.Clear();
+            return reports;
         }
     }
 
-    private void Step(IE84Host host)
+    private void Advance(E84Permit permit, bool carrierPlaced)
     {
-        // 闸门：E84 没开、不是 Auto、Out Of Service、光幕被挡 → 输出全灭，计时全停。
+        // 闸门：E84 没开、端口不可交接、光幕被挡 → 输出全灭，进行中的交接按中止处理。
         // 超时锁存不因此解开（跟 CTC 一样），仍等人工恢复。
-        string? blocked = BlockedReason(host);
-        if (blocked is not null)
+        string? closed = GateClosedReason(permit);
+        if (closed is not null)
         {
-            if (_timedOutTimer is null)
-            {
-                if (_started && _isLoad is { } isLoad)
-                {
-                    LogHelper.Warn(FullPath, $"E84 {Direction(isLoad)}交接中止：{blocked}");
-                    host.HandoffAborted(isLoad, blocked);
-                }
-
-                _isLoad = null;
-                _started = false;
-                _state = E84State.NotAvailable;
-            }
-
-            _outputs = default;
-            _timers.Clear();
+            CloseGate(closed);
             return;
         }
 
-        if (_timedOutTimer is not null)
+        if (_state == E84State.TimedOut)
         {
             return;
         }
 
         _outputs = _outputs with { HoAvbl = true, Es = true };
 
-        if (_isLoad is null)
+        var i = _inputs;
+        bool selected = i.Cs0 && i.Valid;
+
+        // 送盒等载具放上，取盒等载具被取走。
+        bool carrierDone = _isLoad is { } load && load == carrierPlaced;
+
+        switch (_state)
         {
-            TryRequest(host);
+            case E84State.NotAvailable:
+            case E84State.Available:
+                // 搬运车 CS_0+VALID 选中本端口：等送盒且没载具就亮 L_REQ，等取盒且有载具就亮 U_REQ。
+                if (selected && permit == E84Permit.ReadyToLoad && !carrierPlaced)
+                {
+                    Request(isLoad: true);
+                }
+                else if (selected && permit == E84Permit.ReadyToUnload && carrierPlaced)
+                {
+                    Request(isLoad: false);
+                }
+                else
+                {
+                    _state = E84State.Available;
+                }
+
+                break;
+
+            case E84State.Requesting:
+                if (!selected)
+                {
+                    // 还没开始交接搬运车就撤了：收回请求，回去等下一次。
+                    LogHelper.Info(FullPath, $"E84 搬运车撤销选中，收回{Direction(_isLoad == true)}请求");
+                    _outputs = _outputs with { LReq = false, UReq = false };
+                    _isLoad = null;
+                    Enter(E84State.Available);
+                }
+                else if (i.TrReq && !carrierDone)
+                {
+                    _outputs = _outputs with { Ready = true };
+                    Enter(E84State.WaitBusy);
+                    LogHelper.Info(FullPath, $"E84 {Direction(_isLoad == true)}交接开始");
+                    _reports.Add(E84Report.Started(_isLoad == true));
+                }
+
+                break;
+
+            case E84State.WaitBusy:
+                if (i.Busy)
+                {
+                    Enter(E84State.Transferring);
+                }
+
+                break;
+
+            case E84State.Transferring:
+                if (carrierDone)
+                {
+                    _outputs = _outputs with { LReq = false, UReq = false };
+                    Enter(E84State.WaitComplete);
+                }
+
+                break;
+
+            case E84State.WaitComplete:
+                if (i.Compt)
+                {
+                    _outputs = _outputs with { Ready = false };
+                    Enter(E84State.Releasing);
+                }
+
+                break;
+
+            case E84State.Releasing:
+                if (!i.Valid && !i.TrReq && !i.Busy && !i.Compt && carrierDone)
+                {
+                    bool isLoad = _isLoad == true;
+                    _isLoad = null;
+                    Enter(E84State.Available);
+                    LogHelper.Info(FullPath, $"E84 {Direction(isLoad)}交接完成");
+                    _reports.Add(E84Report.Completed(isLoad));
+                }
+
+                break;
         }
 
-        if (_isLoad is { } direction)
-        {
-            StepHandoff(host, direction);
-        }
-
-        CheckTimers(host);
-
-        if (_timedOutTimer is null)
-        {
-            _state = _isLoad is null ? E84State.Available
-                : !_started ? E84State.Requesting
-                : _isLoad == true ? E84State.Loading
-                : E84State.Unloading;
-        }
+        CheckTimeout();
     }
 
-    private string? BlockedReason(IE84Host host)
+    private string? GateClosedReason(E84Permit permit)
     {
         if (!E84Enabled)
         {
             return "E84 未启用";
         }
 
-        if (!host.IsAutoAccessMode)
+        if (permit == E84Permit.NotAvailable)
         {
-            return "端口不是 Auto";
-        }
-
-        if (host.TransferState == LoadPortTransferState.OutOfService)
-        {
-            return "端口 Out Of Service";
+            return "端口不可交接（Manual / 下线 / Out Of Service）";
         }
 
         bool lightCurtainBlocked = LightCurtainReverse ? _inputs.LightCurtain : !_inputs.LightCurtain;
@@ -342,166 +380,77 @@ public class E84Component : ComponentBase, IE84
         return null;
     }
 
-    /// <summary>
-    /// 没在交接时：搬运车 CS_0+VALID 选中本端口，端口等送盒且没载具就亮 L_REQ，等取盒且有载具就亮 U_REQ。
-    /// </summary>
-    private void TryRequest(IE84Host host)
+    private void CloseGate(string reason)
     {
-        if (!_inputs.Cs0 || !_inputs.Valid)
+        _outputs = default;
+        if (_state == E84State.TimedOut)
         {
             return;
         }
 
-        bool placed = host.IsCarrierPlaced;
-        switch (host.TransferState)
+        if (IsHandoffStarted(_state) && _isLoad is { } isLoad)
         {
-            case LoadPortTransferState.ReadyToLoad when !placed:
-                _outputs = _outputs with { LReq = true };
-                _isLoad = true;
-                break;
-
-            case LoadPortTransferState.ReadyToUnload when placed:
-                _outputs = _outputs with { UReq = true };
-                _isLoad = false;
-                break;
-
-            default:
-                return;
+            LogHelper.Warn(FullPath, $"E84 {Direction(isLoad)}交接中止：{reason}");
+            _reports.Add(E84Report.Aborted(isLoad, reason));
         }
 
-        LogHelper.Info(FullPath, $"E84 搬运车选中本端口，请求{Direction(_isLoad == true)}");
+        _isLoad = null;
+        _state = E84State.NotAvailable;
+        _stepWatch.Reset();
+    }
+
+    private void Request(bool isLoad)
+    {
+        _isLoad = isLoad;
+        _outputs = isLoad ? _outputs with { LReq = true } : _outputs with { UReq = true };
+        Enter(E84State.Requesting);
+        LogHelper.Info(FullPath, $"E84 搬运车选中本端口，请求{Direction(isLoad)}");
     }
 
     /// <summary>
-    /// 交接的一拍（CTC 的 Load/Unload 时序，送盒和取盒对称）：
-    /// 请求段——等 TR_REQ（TP1），来了给 READY，算交接开始；
-    /// 交接段——等 BUSY（TP2）→ 等载具放上/取走（TP3），到了撤 L_REQ/U_REQ → 等 BUSY 撤掉（TP4）
-    /// → COMPT 来了撤 READY → 等 VALID 等信号全撤（TP5），算交接完成。
+    /// 进下一步；带计时的步从这一刻起算超时。
     /// </summary>
-    private void StepHandoff(IE84Host host, bool isLoad)
+    private void Enter(E84State state)
     {
-        var i = _inputs;
-        bool selected = i.Cs0 && i.Valid;
-
-        // 送盒等载具放上，取盒等载具被取走。
-        bool carrierDone = isLoad == host.IsCarrierPlaced;
-
-        if (!_started)
-        {
-            if (!selected)
-            {
-                // 还没开始交接搬运车就撤了：收回请求，回去等下一次。
-                LogHelper.Info(FullPath, $"E84 搬运车撤销选中，收回{Direction(isLoad)}请求");
-                _outputs = _outputs with { LReq = false, UReq = false };
-                _timers.Remove(E84Timer.TP1);
-                _isLoad = null;
-                return;
-            }
-
-            if (!i.TrReq)
-            {
-                StartTimer(E84Timer.TP1);
-                return;
-            }
-
-            if (!carrierDone)
-            {
-                _timers.Remove(E84Timer.TP1);
-                _outputs = _outputs with { Ready = true };
-                _started = true;
-                LogHelper.Info(FullPath, $"E84 {Direction(isLoad)}交接开始");
-                host.HandoffStarted(isLoad);
-            }
-
-            return;
-        }
-
-        bool request = isLoad ? _outputs.LReq : _outputs.UReq;
-
-        if (selected && request && i.TrReq && _outputs.Ready && !i.Busy)
-        {
-            StartTimer(E84Timer.TP2);
-        }
-
-        if (selected && request && i.TrReq && _outputs.Ready && i.Busy)
-        {
-            _timers.Remove(E84Timer.TP2);
-            if (!carrierDone)
-            {
-                StartTimer(E84Timer.TP3);
-            }
-            else
-            {
-                _timers.Remove(E84Timer.TP3);
-                _outputs = isLoad ? _outputs with { LReq = false } : _outputs with { UReq = false };
-                request = false;
-            }
-        }
-
-        if (selected && !request && i.TrReq && _outputs.Ready && i.Busy)
-        {
-            StartTimer(E84Timer.TP4);
-        }
-
-        if (selected && !request && _outputs.Ready && !i.Busy)
-        {
-            _timers.Remove(E84Timer.TP4);
-        }
-
-        if (selected && !request && _outputs.Ready && i.Compt)
-        {
-            _outputs = _outputs with { Ready = false };
-            _timers.Remove(E84Timer.TP4);
-            StartTimer(E84Timer.TP5);
-        }
-
-        if (!i.Valid && !i.TrReq && !i.Busy && !i.Compt
-            && !_outputs.LReq && !_outputs.UReq && !_outputs.Ready && carrierDone)
-        {
-            _timers.Remove(E84Timer.TP5);
-            _isLoad = null;
-            _started = false;
-            LogHelper.Info(FullPath, $"E84 {Direction(isLoad)}交接完成");
-            host.HandoffCompleted(isLoad);
-        }
+        _state = state;
+        _stepWatch.Restart();
     }
 
     /// <summary>
-    /// 哪段计时超了：撤 L_REQ/U_REQ/READY/HO_AVBL（ES 保持），锁住等人工恢复，报警并上报。
+    /// 当前步超时了：撤 L_REQ/U_REQ/READY/HO_AVBL（ES 保持），锁住等人工恢复，报警并上报。
     /// </summary>
-    private void CheckTimers(IE84Host host)
+    private void CheckTimeout()
     {
-        E84Timer? expired = null;
-        foreach (var (timer, watch) in _timers)
-        {
-            if (watch.ElapsedMilliseconds > TimeoutOf(timer) && (expired is null || timer < expired))
-            {
-                expired = timer;
-            }
-        }
-
-        if (expired is not { } timedOut)
+        if (TimerOf(_state) is not { } timer || _stepWatch.ElapsedMilliseconds <= TimeoutOf(timer))
         {
             return;
         }
 
         bool isLoad = _isLoad == true;
         _outputs = _outputs with { LReq = false, UReq = false, Ready = false, HoAvbl = false };
-        _timers.Clear();
-        _timedOutTimer = timedOut;
+        _timedOutTimer = timer;
         _state = E84State.TimedOut;
+        _stepWatch.Reset();
         LogHelper.Warn(FullPath,
-            $"E84 {Direction(isLoad)}交接 {timedOut} 超时（{TimeoutOf(timedOut)}ms），输出已撤，等人工 Retry 或 Complete");
+            $"E84 {Direction(isLoad)}交接 {timer} 超时（{TimeoutOf(timer)}ms），输出已撤，等人工 Retry 或 Complete");
         AlarmComponent.Current?.Raise(this, E84TimeoutAlarm);
-        host.HandoffTimedOut(isLoad, timedOut);
+        _reports.Add(E84Report.TimedOut(isLoad, timer));
     }
 
-    private void StartTimer(E84Timer timer)
+    /// <summary>
+    /// 每一步由哪段 TP 计时；不计时的步为 null。
+    /// </summary>
+    private static E84Timer? TimerOf(E84State state)
     {
-        if (!_timers.ContainsKey(timer))
+        return state switch
         {
-            _timers[timer] = Stopwatch.StartNew();
-        }
+            E84State.Requesting => E84Timer.TP1,
+            E84State.WaitBusy => E84Timer.TP2,
+            E84State.Transferring => E84Timer.TP3,
+            E84State.WaitComplete => E84Timer.TP4,
+            E84State.Releasing => E84Timer.TP5,
+            _ => null,
+        };
     }
 
     private int TimeoutOf(E84Timer timer)
@@ -517,9 +466,17 @@ public class E84Component : ComponentBase, IE84
     }
 
     /// <summary>
-    /// 把这一拍的输出写出去（有变化才写），HO_AVBL 变了报给端口；信号有变化记一条日志（CTC RecordSignalChange）。
+    /// 已给出 READY、交接真正开始的步（这之后被打断要按中止上报）。
     /// </summary>
-    private void Flush(IE84Host host)
+    private static bool IsHandoffStarted(E84State state)
+    {
+        return state is E84State.WaitBusy or E84State.Transferring or E84State.WaitComplete or E84State.Releasing;
+    }
+
+    /// <summary>
+    /// 把这一拍的输出写出去（有变化才写），HO_AVBL 变了上报；信号有变化记一条日志（CTC RecordSignalChange）。
+    /// </summary>
+    private void Flush()
     {
         if (_inputs != _loggedInputs || _outputs != _written)
         {
@@ -540,7 +497,7 @@ public class E84Component : ComponentBase, IE84
         _written = _outputs;
         if (availabilityChanged)
         {
-            host.AvailabilityChanged(_outputs.HoAvbl);
+            _reports.Add(E84Report.AvailabilityChanged(_outputs.HoAvbl));
         }
     }
 

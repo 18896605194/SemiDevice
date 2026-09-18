@@ -14,7 +14,7 @@ public enum E84Timer
     /// <summary>搬运车动作中，等载具实际放到位／取离端口。</summary>
     TP3,
 
-    /// <summary>载具放上/取走、撤掉 L_REQ/U_REQ 后，等搬运车撤掉 BUSY。</summary>
+    /// <summary>载具放上/取走、撤掉 L_REQ/U_REQ 后，等搬运车撤掉 BUSY、给出 COMPT。</summary>
     TP4,
 
     /// <summary>COMPT 来了撤掉 READY 后，等搬运车撤销交接信号（VALID）。</summary>

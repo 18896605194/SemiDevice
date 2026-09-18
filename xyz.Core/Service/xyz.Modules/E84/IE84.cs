@@ -6,14 +6,22 @@ namespace xyz.Modules;
 /// 时序照 SEMI E84 与 CTC 的 E84Passiver：端口可交接时亮 HO_AVBL；搬运车 CS_0+VALID 选中本端口后，
 /// 按 L_REQ/U_REQ → TR_REQ → READY → BUSY → 载具放上/取走 → COMPT → 撤信号 走完一次交接；
 /// 任一段（TP1–TP5）超时就把输出全灭并锁住，等人工 Retry 或 Complete。
+///
+/// 组件不认识端口，由 LoadPort 驱动（和 RFID 一样）：端口每个扫描周期调 <see cref="Step"/>，
+/// 给出这一拍的许可和载具在位；交接进展由 Step 返回，端口转给 EAP。
 /// </summary>
 public interface IE84
 {
     /// <summary>
-    /// 挂上所属端口，输出全灭回初始；端口 Open 时调用。
+    /// 打开：输出全灭、回初始；端口 Open 时调用。
     /// </summary>
-    /// <param name="host"></param>
-    void Attach(IE84Host host);
+    bool Open();
+
+    /// <summary>
+    /// 推一拍：读输入、走一步、写输出；在端口扫描线程上调。
+    /// 返回这一拍（含上一拍之后 Retry/Complete）产生的交接进展，没有为空。
+    /// </summary>
+    IReadOnlyList<E84Report> Step(E84Permit permit, bool carrierPlaced);
 
     /// <summary>
     /// 是否启用 E84（EC）。关着时输出全灭，不理搬运车。
@@ -47,59 +55,8 @@ public interface IE84
 
     /// <summary>
     /// 超时后人工确认这次交接其实已经完成——送盒时载具确实已放上，取盒时确实已取走——
-    /// 按完成收尾并上报（CTC 的 E84Complete）。没锁住或载具位置对不上返回 false，保持锁住。
+    /// 按完成收尾并上报（CTC 的 E84Complete）。carrierPlaced 由调用方给出当前载具在位；
+    /// 没锁住或载具位置对不上返回 false，保持锁住。
     /// </summary>
-    bool Complete();
-}
-
-/// <summary>
-/// E84 组件向所属端口要的现况和上报口，由 LoadPort 实现。
-/// 都在端口的扫描线程上调（E84 组件随端口扫描）；上报由端口转给 EAP，不在这里等 EAP。
-/// </summary>
-public interface IE84Host
-{
-    /// <summary>
-    /// 端口名。
-    /// </summary>
-    string Name { get; }
-
-    /// <summary>
-    /// Access Mode 是否 Auto；接了 EAP 以 EAP 为准
-    /// </summary>
-    bool IsAutoAccessMode { get; }
-
-    /// <summary>
-    /// 端口搬运状态：决定这次是送盒还是取盒、能不能交接；接了 EAP 以 EAP 为准，没接由端口按本地状态判断。
-    /// </summary>
-    LoadPortTransferState TransferState { get; }
-
-    /// <summary>
-    /// 载具在位。
-    /// </summary>
-    bool IsCarrierPlaced { get; }
-
-    /// <summary>
-    /// 交接开始（READY 已给出）；isLoad = true 为送盒进来，false 为把盒取走。
-    /// </summary>
-    void HandoffStarted(bool isLoad);
-
-    /// <summary>
-    /// 交接正常结束，或超时后人工 Complete 确认已完成。
-    /// </summary>
-    void HandoffCompleted(bool isLoad);
-
-    /// <summary>
-    /// 某一段握手超时，本次交接中止。
-    /// </summary>
-    void HandoffTimedOut(bool isLoad, E84Timer timer);
-
-    /// <summary>
-    /// 交接进行中被打断（切 Manual、下线、光幕被挡、人工 Retry 等）。
-    /// </summary>
-    void HandoffAborted(bool isLoad, string reason);
-
-    /// <summary>
-    /// HO_AVBL 变了。
-    /// </summary>
-    void AvailabilityChanged(bool available);
+    bool Complete(bool carrierPlaced);
 }

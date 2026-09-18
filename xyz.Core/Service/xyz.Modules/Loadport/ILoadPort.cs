@@ -66,8 +66,8 @@ public interface ILoadPort
     IE84Callback? E84Callback { get; set; }
 
     /// <summary>
-    /// E84 握手期间设备侧反查 EAP（端口搬运状态、自动模式、预约）。
-    /// HO_AVBL 由 E84 组件按 Auto/Manual 与搬运状态自己开关，EAP 不直接置。
+    /// E84 握手期间设备侧反查 EAP（端口搬运状态、自动模式）。
+    /// HO_AVBL 由 E84 组件按端口给的许可自己开关，EAP 不直接置。
     /// </summary>
     IE84Provider? E84Provider { get; set; }
 

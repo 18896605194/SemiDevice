@@ -15,7 +15,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort, IE84Host
+public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
     #region SV 
 
@@ -297,7 +297,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             return false;
         }
 
-        E84?.Attach(this);
+        var e84 = E84;
+        if (e84 is not null && !e84.Open())
+        {
+            return false;
+        }
 
         // 先在晶圆账上占好槽位，Mapping 一到就能直接落账。
         WaferManager.Current?.RegisterLocation(Name, SlotCount);
@@ -703,37 +707,42 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     public IE84Provider? E84Provider { get; set; }
 
-    #region E84 组件取现况、报进展（IE84Host，都在扫描线程上）
+    #region E84（端口驱动 E84 组件：每拍给许可与载具在位，交接进展转给 EAP）
 
-    bool IE84Host.IsAutoAccessMode => E84Provider?.IsAutoAccessMode(this) ?? IsAutoMode;
-
-    LoadPortTransferState IE84Host.TransferState => E84Provider?.GetTransferState(this) ?? LocalTransferState();
-
-    bool IE84Host.IsCarrierPlaced => IsPodPlaced;
-
-    void IE84Host.HandoffStarted(bool isLoad)
+    /// <summary>
+    /// 推 E84 一拍，交接进展放进 EAP 派发队列（和 E87 回调同一条，先后不乱）；没配 E84 组件什么都不做。
+    /// </summary>
+    private void StepE84()
     {
-        EnqueueE84(callback => callback.HandoffStarted(this, isLoad));
+        if (E84 is not { } e84)
+        {
+            return;
+        }
+
+        foreach (var report in e84.Step(CurrentE84Permit(), IsPodPlaced))
+        {
+            EnqueueE84(callback => report.DispatchTo(callback, this));
+        }
     }
 
-    void IE84Host.HandoffCompleted(bool isLoad)
+    /// <summary>
+    /// 这一拍能不能交接、往哪个方向：接了 EAP 以 EAP 的 Access Mode 与搬运状态为准，没接由端口本地判断。
+    /// </summary>
+    private E84Permit CurrentE84Permit()
     {
-        EnqueueE84(callback => callback.HandoffCompleted(this, isLoad));
-    }
+        bool auto = E84Provider?.IsAutoAccessMode(this) ?? IsAutoMode;
+        if (!auto)
+        {
+            return E84Permit.NotAvailable;
+        }
 
-    void IE84Host.HandoffTimedOut(bool isLoad, E84Timer timer)
-    {
-        EnqueueE84(callback => callback.HandoffTimeout(this, isLoad, timer));
-    }
-
-    void IE84Host.HandoffAborted(bool isLoad, string reason)
-    {
-        EnqueueE84(callback => callback.HandoffAborted(this, isLoad, reason));
-    }
-
-    void IE84Host.AvailabilityChanged(bool available)
-    {
-        EnqueueE84(callback => callback.AvailabilityChanged(this, available));
+        return (E84Provider?.GetTransferState(this) ?? LocalTransferState()) switch
+        {
+            LoadPortTransferState.OutOfService => E84Permit.NotAvailable,
+            LoadPortTransferState.ReadyToLoad => E84Permit.ReadyToLoad,
+            LoadPortTransferState.ReadyToUnload => E84Permit.ReadyToUnload,
+            _ => E84Permit.Blocked,
+        };
     }
 
     /// <summary>
@@ -776,12 +785,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     /// <summary>
     /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机也在里面），
-    /// 再判载具在位边沿、收读码结果；EAP 回调由专用派发线程发，不占扫描线程。
+    /// 再判载具在位边沿、推 E84、收读码结果；EAP 回调由专用派发线程发，不占扫描线程。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
         CheckCarrierPresence();
+        StepE84();
         CheckCarrierIdRead();
         CheckDeviceAlarm();
     }
