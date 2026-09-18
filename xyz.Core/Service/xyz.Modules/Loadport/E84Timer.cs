@@ -1,8 +1,7 @@
 namespace xyz.Modules;
 
 /// <summary>
-/// E84 握手分段的超时计时器：哪一段超时就带哪个值回调 IE84Callback.HandoffTimeout，本次交接中止。
-/// 分段按 SEMI E84 的握手顺序，各段边界与时长以规范和设备手册为准（时长走 SC 配置）。
+/// E84 握手分段的超时计时器
 /// </summary>
 public enum E84Timer
 {

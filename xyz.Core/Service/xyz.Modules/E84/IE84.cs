@@ -11,8 +11,8 @@ public interface IE84
 {
     /// <summary>
     /// 挂上所属端口，输出全灭回初始；端口 Open 时调用。
-    /// 之后每个扫描周期从端口取现况、把交接进展报给端口。
     /// </summary>
+    /// <param name="host"></param>
     void Attach(IE84Host host);
 
     /// <summary>
@@ -41,8 +41,7 @@ public interface IE84
     E84Timer? TimedOutTimer { get; }
 
     /// <summary>
-    /// 放弃这次交接重来：清锁存、输出全灭，下一拍重新等搬运车（CTC 的 E84Retry）。
-    /// 交接进行中被放弃按中止上报。
+    /// 放弃这次交接重来
     /// </summary>
     void Retry();
 

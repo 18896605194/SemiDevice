@@ -53,7 +53,7 @@ public interface ILoadPort
 
     #endregion
 
-    #region EAP 口子（装配时由 EAP 侧挂上；都为 null 表示未接 EAP，模块照常运行）
+    #region EAP 口子
 
     /// <summary>
     /// E87 载具管理：载具到达/移走、ID、Mapping、动作完成等由模块上报。
