@@ -169,19 +169,34 @@ foreach (var action in actions)
     Check(port.Next.Wait(0), "RPC timeout prevented later completion.");
 }
 
-// Online/Offline 是内部模式位（不经设备协议）：置位即成功，不产生操作、不等待。
+// Online/Offline 只改模块模式 Mode，Auto/Manual 只改 LoadPort 的 Access Mode：
+// 都不经设备协议，置位即成功，不产生操作、不等待，而且互不影响。
 var modeResponse = await service.OnlineAsync("missing");
 Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
     "Online must report a missing module.");
+modeResponse = await service.AutoAsync("missing");
+Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
+    "Auto must report a missing module.");
 
-Check(!port.IsAutoMode, "Probe port must start in manual mode.");
-modeResponse = await service.OnlineAsync(port.Name);
-Check(modeResponse.Success && port.IsAutoMode, "Online must set auto mode.");
-
+Check(port.Mode == ModuleMode.Offline && !port.IsAutoMode, "Probe port must start offline and in manual mode.");
 var callsBeforeMode = port.Calls;
+var modeSnapshot = port.CreateStateDto();
+modeResponse = await service.OnlineAsync(port.Name);
+Check(modeResponse.Success && port.Mode == ModuleMode.Online && !port.IsAutoMode,
+    "Online must only set the module mode.");
+Check(port.CreateStateDto() is { Mode: ModuleMode.Online } && port.CreateStateDto().HasStateChanged(modeSnapshot),
+    "The module mode must reach the state snapshot and count as a change.");
+
+modeResponse = await service.AutoAsync(port.Name);
+Check(modeResponse.Success && port.IsAutoMode && port.Mode == ModuleMode.Online,
+    "Auto must only set the access mode.");
+modeResponse = await service.ManualAsync(port.Name);
+Check(modeResponse.Success && !port.IsAutoMode && port.Mode == ModuleMode.Online,
+    "Manual must only clear the access mode.");
+
 modeResponse = await service.OfflineAsync(port.Name);
-Check(modeResponse.Success && !port.IsAutoMode && port.Calls == callsBeforeMode,
-    "Offline must clear auto mode without starting a device action.");
+Check(modeResponse.Success && port.Mode == ModuleMode.Offline && port.Calls == callsBeforeMode,
+    "Offline must clear the module mode without starting a device action.");
 
 // EAP 口子：回调走专用派发线程（本工具不跑扫描循环，正好证明派发不再依赖扫描）。
 var eap = new RecordingE87Callback();
@@ -495,7 +510,175 @@ port.E87Callback = null;
     AlarmComponent.Current = null;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline mode switch, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, and LoadPort/Robot alarms raised and cleared).");
+// ── E84：按 CTC 时序走一遍送盒、取盒，闸门（没开/Manual/下线）、中途打断、超时锁住与人工恢复 ─────
+{
+    var alarms = new AlarmComponent();
+
+    // 送盒/取盒整程：计时给足，不让超时掺和
+    var lp = new ProbePort("E84SmokePort");
+    var e84 = new ProbeE84(lp.Name, timeoutMs: 60000);
+    lp.AddChild(e84);
+    var events = new RecordingE84Callback();
+    lp.E84Callback = events;
+    Check(ReferenceEquals(lp.E84, e84), "LoadPort 应能按接口找到 E84 子组件");
+    Check(lp.Open(), "带 E84 的端口应能打开");
+    lp.NoteState(ModuleState.Idle);
+
+    lp.Tick();
+    Check(e84.State == E84State.NotAvailable && e84.Outputs == default, "Manual + 下线时 E84 不可交接，输出全灭");
+    lp.SetAutoMode(true);
+    lp.Tick();
+    Check(e84.State == E84State.NotAvailable && !e84.Outputs.HoAvbl, "只切 Auto、没上线（Out Of Service）也不交接");
+    lp.Online();
+    lp.Tick();
+    Check(e84.State == E84State.Available && e84.Outputs is { HoAvbl: true, Es: true, LReq: false, UReq: false },
+        "Auto + 上线 + 空闲 + 没载具：亮 HO_AVBL 等搬运车");
+    Check(events.Wait("AvailabilityChanged:True"), "HO_AVBL 亮了应上报");
+
+    // 送盒：CS_0+VALID → L_REQ；TR_REQ → READY（交接开始）；BUSY 时载具放上 → 撤 L_REQ；BUSY 撤；COMPT → 撤 READY；信号全撤 → 完成
+    e84.Set(cs0: true, valid: true);
+    lp.Tick();
+    Check(e84.State == E84State.Requesting && e84.Outputs is { LReq: true, UReq: false, Ready: false },
+        "空端口被选中应亮 L_REQ");
+    e84.Set(cs0: true, valid: true, trReq: true);
+    lp.Tick();
+    Check(e84.State == E84State.Loading && e84.Outputs.Ready, "TR_REQ 来了应给 READY");
+    Check(events.Wait("HandoffStarted:True"), "送盒交接开始应上报");
+    e84.Set(cs0: true, valid: true, trReq: true, busy: true);
+    lp.Tick();
+    Check(e84.Outputs is { LReq: true, Ready: true }, "载具还没放上，L_REQ 保持");
+    lp.NotePodPlaced(true);
+    lp.Tick();
+    Check(e84.Outputs is { LReq: false, Ready: true }, "载具放上应撤 L_REQ");
+    e84.Set(cs0: true, valid: true, trReq: true);
+    lp.Tick();
+    e84.Set(cs0: true, valid: true, trReq: true, compt: true);
+    lp.Tick();
+    Check(!e84.Outputs.Ready && e84.State == E84State.Loading, "COMPT 来了应撤 READY，等信号全撤");
+    e84.Set();
+    lp.Tick();
+    Check(events.Wait("HandoffCompleted:True"), "信号全撤应算送盒完成并上报");
+    Check(e84.State == E84State.Available && e84.Outputs is { HoAvbl: true, LReq: false, UReq: false },
+        "送盒完成后回到可交接");
+
+    // 盒子刚到、还没干完：搬运车再来也不给取
+    e84.Set(cs0: true, valid: true);
+    lp.Tick();
+    Check(e84.State == E84State.Available && !e84.Outputs.UReq, "这一盒还没干完，不该亮 U_REQ");
+
+    // 取盒：干完了才亮 U_REQ；载具被取走 → 撤 U_REQ；COMPT → 撤 READY；信号全撤 → 完成
+    lp.NoteCarrierComplete();
+    lp.Tick();
+    Check(e84.State == E84State.Requesting && e84.Outputs is { UReq: true, LReq: false }, "这一盒干完了应亮 U_REQ");
+    e84.Set(cs0: true, valid: true, trReq: true);
+    lp.Tick();
+    Check(e84.State == E84State.Unloading && e84.Outputs.Ready, "取盒 TR_REQ 来了应给 READY");
+    Check(events.Wait("HandoffStarted:False"), "取盒交接开始应上报");
+    e84.Set(cs0: true, valid: true, trReq: true, busy: true);
+    lp.Tick();
+    Check(e84.Outputs.UReq, "载具还在，U_REQ 保持");
+    lp.NotePodPlaced(false);
+    lp.Tick();
+    Check(e84.Outputs is { UReq: false, Ready: true }, "载具取走应撤 U_REQ");
+    e84.Set(cs0: true, valid: true, trReq: true);
+    lp.Tick();
+    e84.Set(cs0: true, valid: true, trReq: true, compt: true);
+    lp.Tick();
+    e84.Set();
+    lp.Tick();
+    Check(events.Wait("HandoffCompleted:False"), "取盒完成应上报");
+    Check(e84.State == E84State.Available, "取盒完成后空端口回到可交接");
+
+    // 送盒中途切 Manual：输出全灭，按中止上报；切回 Auto 重新可交接
+    e84.Set(cs0: true, valid: true);
+    lp.Tick();
+    e84.Set(cs0: true, valid: true, trReq: true);
+    lp.Tick();
+    Check(e84.State == E84State.Loading, "又开始一次送盒");
+    lp.SetAutoMode(false);
+    lp.Tick();
+    Check(e84.State == E84State.NotAvailable && e84.Outputs == default, "切 Manual 应立刻撤掉全部输出");
+    Check(events.Wait("HandoffAborted:True"), "交接进行中被打断应按中止上报");
+    e84.Set();
+    lp.SetAutoMode(true);
+    lp.Tick();
+    Check(e84.State == E84State.Available, "切回 Auto 应重新可交接");
+
+    // 选中后没等到 TR_REQ 搬运车就撤了：收回请求，不算交接
+    e84.Set(cs0: true, valid: true);
+    lp.Tick();
+    e84.Set();
+    lp.Tick();
+    Check(e84.State == E84State.Available && !e84.Outputs.LReq, "搬运车撤销选中应收回 L_REQ");
+
+    // EC 没开：什么都不亮
+    var offPort = new ProbePort("E84OffPort");
+    var offE84 = new ProbeE84(offPort.Name, enabled: false);
+    offPort.AddChild(offE84);
+    Check(offPort.Open(), "E84 没开的端口也应能打开");
+    offPort.NoteState(ModuleState.Idle);
+    offPort.Online();
+    offPort.SetAutoMode(true);
+    offE84.Set(cs0: true, valid: true);
+    offPort.Tick();
+    Check(offE84.State == E84State.NotAvailable && offE84.Outputs == default, "E84 没开（EC）不该理搬运车");
+
+    // 超时：计时调短；TP1 没等到 TR_REQ → 锁住、撤输出、报警；Retry 解锁
+    var tpPort = new ProbePort("E84TimeoutPort");
+    var tpE84 = new ProbeE84(tpPort.Name, timeoutMs: 100);
+    tpPort.AddChild(tpE84);
+    var tpEvents = new RecordingE84Callback();
+    tpPort.E84Callback = tpEvents;
+    Check(tpPort.Open(), "超时用的端口应能打开");
+    tpPort.NoteState(ModuleState.Idle);
+    tpPort.Online();
+    tpPort.SetAutoMode(true);
+    tpE84.Set(cs0: true, valid: true);
+    tpPort.Tick();
+    Check(tpE84.State == E84State.Requesting, "亮了 L_REQ 等 TR_REQ");
+    Thread.Sleep(150);
+    tpPort.Tick();
+    Check(tpE84.State == E84State.TimedOut && tpE84.TimedOutTimer == E84Timer.TP1
+          && tpE84.Outputs is { LReq: false, HoAvbl: false, Es: true },
+        "TP1 超时应锁住并撤 L_REQ/HO_AVBL（ES 保持）");
+    Check(tpEvents.Wait("HandoffTimeout:True:TP1"), "TP1 超时应上报");
+    Check(Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "超时应报 E84 交接超时");
+    tpE84.Set();
+    tpPort.Tick();
+    Check(tpE84.State == E84State.TimedOut, "搬运车撤了也不自动解锁，得人工恢复");
+    Check(!tpE84.Complete(), "送盒没放上载具，Complete 应被拒");
+    tpE84.Retry();
+    tpPort.Tick();
+    Check(tpE84.State == E84State.Available && tpE84.Outputs.HoAvbl && tpE84.TimedOutTimer is null,
+        "Retry 后应重新可交接");
+    Check(!Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "Retry 应消掉超时报警");
+
+    // TP3 超时（BUSY 了载具迟迟没到），人工确认载具其实放好了 → Complete 按送盒完成收尾
+    tpE84.Set(cs0: true, valid: true);
+    tpPort.Tick();
+    tpE84.Set(cs0: true, valid: true, trReq: true);
+    tpPort.Tick();
+    tpE84.Set(cs0: true, valid: true, trReq: true, busy: true);
+    tpPort.Tick();
+    Thread.Sleep(150);
+    tpPort.Tick();
+    Check(tpE84.State == E84State.TimedOut && tpE84.TimedOutTimer == E84Timer.TP3, "等载具放上超时应锁在 TP3");
+    Check(tpEvents.Wait("HandoffTimeout:True:TP3"), "TP3 超时应上报");
+    tpE84.Set();
+    tpPort.NotePodPlaced(true);
+    Check(tpE84.Complete(), "载具确实放上了，Complete 应按完成收尾");
+    Check(tpEvents.Wait("HandoffCompleted:True"), "人工 Complete 应上报交接完成");
+    tpPort.Tick();
+    Check(tpE84.State == E84State.Available && !Active(tpE84, tpE84.E84TimeoutAlarm, alarms),
+        "Complete 后回到可交接，报警消掉");
+
+    AlarmComponent.Current = null;
+
+    static bool Active(ComponentBase source, string code, AlarmComponent alarms) =>
+        alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared, and the E84 handoff flow: load, unload, gating, abort, timeout and recovery).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -539,10 +722,10 @@ sealed class ProbePort : BaseLoadPortModule
 {
     public ProbeOperation? Next { get; set; }
     public int Calls { get; private set; }
-    public ProbePort()
+    public ProbePort(string name = "WaitSmokePort")
     {
         // Production names are assigned by ComponentLoader through internal setters.
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "WaitSmokePort");
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
         foreach (var key in new[]
                  {
@@ -582,6 +765,57 @@ sealed class ProbePort : BaseLoadPortModule
     public override ModuleOperation? Abort() => Take();
     public override ModuleOperation? Clamp() => Take();
     public override ModuleOperation? Unclamp() => Take();
+}
+
+// 探针 E84：IO 读写层还没接，输入由测试直接摆，输出只记次数；EC 只在本进程内存里种，不落盘。
+sealed class ProbeE84 : E84Component
+{
+    private E84Inputs _next;
+
+    public int Writes { get; private set; }
+
+    public ProbeE84(string portName, int timeoutMs = 60000, bool enabled = true)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "E84");
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, $"{portName}.E84");
+        EC.UpsertValueMetadata(FullPath, nameof(E84Enabled), enabled.ToString(), "Bool", null, null, null, null, null, null);
+        foreach (var key in new[] { nameof(Tp1Timeout), nameof(Tp2Timeout), nameof(Tp3Timeout), nameof(Tp4Timeout), nameof(Tp5Timeout) })
+        {
+            EC.UpsertValueMetadata(FullPath, key, timeoutMs.ToString(), "Int", "ms", null, null, null, null, null);
+        }
+    }
+
+    /// <summary>摆下一拍搬运车给的信号（没给的都当 OFF）。</summary>
+    public void Set(bool cs0 = false, bool valid = false, bool trReq = false, bool busy = false, bool compt = false) =>
+        _next = new E84Inputs { Cs0 = cs0, Valid = valid, TrReq = trReq, Busy = busy, Compt = compt };
+
+    protected override E84Inputs ReadInputs() => _next;
+
+    protected override void WriteOutputs(E84Outputs outputs) => Writes++;
+}
+
+// 只记下收到了哪些 E84 回调（带方向/计时段），派发在别的线程上，等到为止。
+sealed class RecordingE84Callback : IE84Callback
+{
+    private readonly ConcurrentDictionary<string, bool> _received = new();
+
+    public bool Wait(string name, int timeoutMs = 2000)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < timeoutMs)
+        {
+            if (_received.ContainsKey(name)) return true;
+            Thread.Sleep(5);
+        }
+
+        return false;
+    }
+
+    public void HandoffStarted(ILoadPort port, bool isLoad) => _received[$"HandoffStarted:{isLoad}"] = true;
+    public void HandoffCompleted(ILoadPort port, bool isLoad) => _received[$"HandoffCompleted:{isLoad}"] = true;
+    public void HandoffTimeout(ILoadPort port, bool isLoad, E84Timer timer) => _received[$"HandoffTimeout:{isLoad}:{timer}"] = true;
+    public void HandoffAborted(ILoadPort port, bool isLoad, string reason) => _received[$"HandoffAborted:{isLoad}"] = true;
+    public void AvailabilityChanged(ILoadPort port, bool available) => _received[$"AvailabilityChanged:{available}"] = true;
 }
 
 // 只记下收到了哪些回调：派发在别的线程上，等到为止。

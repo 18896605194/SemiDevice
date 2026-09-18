@@ -73,9 +73,40 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
     /// <summary>
-    /// 上线/下线是内部模式位（不经设备协议），置位即成功；界面经事件流刷新 AUTO/MANUAL 灯。
+    /// 上线/下线只改模块模式 Mode（不经设备协议），置位即成功；界面经事件流刷新在线模式。
     /// </summary>
     public Task<RpcResponse> OnlineAsync(string module)
+    {
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        port.Online();
+        return Task.FromResult(RpcResponse.Ok());
+    }
+
+    /// <summary>
+    /// 上线/下线只改模块模式 Mode（不经设备协议），置位即成功；界面经事件流刷新在线模式。
+    /// </summary>
+    public Task<RpcResponse> OfflineAsync(string module)
+    {
+        var port = FindModule<BaseLoadPortModule>(module);
+        if (port is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        port.Offline();
+        return Task.FromResult(RpcResponse.Ok());
+    }
+
+    /// <summary>
+    /// Auto/Manual 是 LoadPort 的 Access Mode（内部模式位，不经设备协议），置位即成功；
+    /// 界面经事件流刷新 AUTO/MANUAL 灯，E84 组件下一拍按它开关与搬运车的交接。
+    /// </summary>
+    public Task<RpcResponse> AutoAsync(string module)
     {
         var port = FindModule<BaseLoadPortModule>(module);
         if (port is null)
@@ -88,9 +119,10 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
     /// <summary>
-    /// 上线/下线是内部模式位（不经设备协议），置位即成功；界面经事件流刷新 AUTO/MANUAL 灯。
+    /// Auto/Manual 是 LoadPort 的 Access Mode（内部模式位，不经设备协议），置位即成功；
+    /// 界面经事件流刷新 AUTO/MANUAL 灯，E84 组件下一拍按它开关与搬运车的交接。
     /// </summary>
-    public Task<RpcResponse> OfflineAsync(string module)
+    public Task<RpcResponse> ManualAsync(string module)
     {
         var port = FindModule<BaseLoadPortModule>(module);
         if (port is null)

@@ -45,6 +45,10 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     public IAsyncRelayCommand OfflineCommand { get; }
 
+    public IAsyncRelayCommand AutoCommand { get; }
+
+    public IAsyncRelayCommand ManualCommand { get; }
+
     public IAsyncRelayCommand ReadCarrierIdCommand { get; }
 
     public IAsyncRelayCommand AbortCommand { get; }
@@ -70,6 +74,8 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         ResetCommand = new AsyncRelayCommand(DoReset);
         OnlineCommand = new AsyncRelayCommand(DoOnline);
         OfflineCommand = new AsyncRelayCommand(DoOffline);
+        AutoCommand = new AsyncRelayCommand(DoAuto);
+        ManualCommand = new AsyncRelayCommand(DoManual);
         ReadCarrierIdCommand = new AsyncRelayCommand(DoReadCarrierId);
         AbortCommand = new AsyncRelayCommand(DoAbort);
     }
@@ -142,6 +148,24 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Offline 失败：{L10n.Get(response.Code, response.Args)}");
+        }
+    }
+
+    private async Task DoAuto()
+    {
+        var response = await _service.AutoAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Auto 失败：{L10n.Get(response.Code, response.Args)}");
+        }
+    }
+
+    private async Task DoManual()
+    {
+        var response = await _service.ManualAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Manual 失败：{L10n.Get(response.Code, response.Args)}");
         }
     }
 

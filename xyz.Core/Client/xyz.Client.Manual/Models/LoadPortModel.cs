@@ -19,6 +19,15 @@ public class LoadPortModel : ObservableObject
         set => SetProperty(ref _state, value);
     }
 
+    private ModuleMode _mode;
+
+    /// <summary>模块模式（Online/Offline）：是否参与自动调度。</summary>
+    public ModuleMode Mode
+    {
+        get => _mode;
+        set => SetProperty(ref _mode, value);
+    }
+
     private bool _isConnected;
 
     /// <summary>驱动串口连接是否可用。</summary>
@@ -66,7 +75,7 @@ public class LoadPortModel : ObservableObject
 
     private bool _autoMode;
 
-    /// <summary>自动模式（true=自动，false=手动）。内部控制位，不经设备协议。</summary>
+    /// <summary>Auto/Manual（LoadPort 的 Access Mode）：true = Auto（搬运车经 E84 自动交接），false = Manual（人工放取）。</summary>
     public bool AutoMode
     {
         get => _autoMode;

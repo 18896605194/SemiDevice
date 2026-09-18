@@ -9,6 +9,9 @@ public class LoadPortDto
     /// <summary>模块状态码，取值见 ModuleState/LoadPortState。</summary>
     public int State { get; set; }
 
+    /// <summary>模块模式（Online/Offline）：是否参与自动调度。</summary>
+    public ModuleMode Mode { get; set; }
+
     /// <summary>驱动串口连接是否可用。</summary>
     public bool IsConnected { get; set; }
 
@@ -30,7 +33,7 @@ public class LoadPortDto
     /// <summary>查询反馈：设备硬件报警；null 表示反馈不可用。</summary>
     public bool? DeviceAlarm { get; set; }
 
-    /// <summary>自动模式（true=自动，false=手动）。内部控制位，不经设备协议。</summary>
+    /// <summary>Auto/Manual（LoadPort 的 Access Mode）：true = Auto（搬运车经 E84 自动交接），false = Manual（人工放取）。</summary>
     public bool AutoMode { get; set; }
 
     /// <summary>花篮槽位表（Mapping 结果），下标顺序即槽位顺序。</summary>
@@ -70,6 +73,11 @@ public class LoadPortDto
         }
 
         if (State != previous.State)
+        {
+            return true;
+        }
+
+        if (Mode != previous.Mode)
         {
             return true;
         }

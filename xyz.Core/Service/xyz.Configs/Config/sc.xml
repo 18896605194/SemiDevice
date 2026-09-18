@@ -45,6 +45,24 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
+			<!-- E84：搬运车 PIO 信号走 IO 板。IO 读写还没接，DI/DO 索引先填 -1，接线后按实际改；是否启用走 EC E84Enabled（默认关） -->
+			<Setting Name="E84" Type="xyz.Modules.E84Component">
+				<Value Name="DiValidIndex" Value="-1" />
+				<Value Name="DiCs0Index" Value="-1" />
+				<Value Name="DiCs1Index" Value="-1" />
+				<Value Name="DiAmAvblIndex" Value="-1" />
+				<Value Name="DiTrReqIndex" Value="-1" />
+				<Value Name="DiBusyIndex" Value="-1" />
+				<Value Name="DiComptIndex" Value="-1" />
+				<Value Name="DiContIndex" Value="-1" />
+				<Value Name="DiLightCurtainIndex" Value="-1" />
+				<Value Name="LightCurtainReverse" Value="False" />
+				<Value Name="DoLReqIndex" Value="-1" />
+				<Value Name="DoUReqIndex" Value="-1" />
+				<Value Name="DoReadyIndex" Value="-1" />
+				<Value Name="DoHoAvblIndex" Value="-1" />
+				<Value Name="DoEsIndex" Value="-1" />
+			</Setting>
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="Brand" Value="" />
@@ -67,6 +85,24 @@
 				<Value Name="StopBits" Value="One" />
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
+			</Setting>
+			<!-- E84：搬运车 PIO 信号走 IO 板。IO 读写还没接，DI/DO 索引先填 -1，接线后按实际改；是否启用走 EC E84Enabled（默认关） -->
+			<Setting Name="E84" Type="xyz.Modules.E84Component">
+				<Value Name="DiValidIndex" Value="-1" />
+				<Value Name="DiCs0Index" Value="-1" />
+				<Value Name="DiCs1Index" Value="-1" />
+				<Value Name="DiAmAvblIndex" Value="-1" />
+				<Value Name="DiTrReqIndex" Value="-1" />
+				<Value Name="DiBusyIndex" Value="-1" />
+				<Value Name="DiComptIndex" Value="-1" />
+				<Value Name="DiContIndex" Value="-1" />
+				<Value Name="DiLightCurtainIndex" Value="-1" />
+				<Value Name="LightCurtainReverse" Value="False" />
+				<Value Name="DoLReqIndex" Value="-1" />
+				<Value Name="DoUReqIndex" Value="-1" />
+				<Value Name="DoReadyIndex" Value="-1" />
+				<Value Name="DoHoAvblIndex" Value="-1" />
+				<Value Name="DoEsIndex" Value="-1" />
 			</Setting>
 		</Setting>
 	</Setting>

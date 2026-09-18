@@ -12,6 +12,9 @@ public interface ILoadPort
 
     bool IsPodPlaced { get; }
 
+    /// <summary>
+    /// Auto/Manual（LoadPort 的 Access Mode）：Auto = 搬运车经 E84 自动交接，Manual = 人工放取。
+    /// </summary>
     bool IsAutoMode { get; }
 
     string? CarrierId { get; }
@@ -36,6 +39,9 @@ public interface ILoadPort
 
     ModuleOperation? Unclamp();
 
+    /// <summary>
+    /// 切 Auto/Manual（内部模式位，不经设备协议）；变了回调 EAP AutoModeChanged。
+    /// </summary>
     void SetAutoMode(bool autoMode);
 
     /// <summary>
@@ -61,13 +67,9 @@ public interface ILoadPort
 
     /// <summary>
     /// E84 握手期间设备侧反查 EAP（端口搬运状态、自动模式、预约）。
+    /// HO_AVBL 由 E84 组件按 Auto/Manual 与搬运状态自己开关，EAP 不直接置。
     /// </summary>
     IE84Provider? E84Provider { get; set; }
-
-    /// <summary>
-    /// 置本端口对搬运车的可交接状态（HO_AVBL）；没有 E84 硬件的机型为空动作。
-    /// </summary>
-    void SetE84Available(bool available);
 
     /// <summary>
     /// 上层作业判定这个载具干完了，转成 E87 的 CarrierComplete 上报。

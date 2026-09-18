@@ -15,12 +15,12 @@ public enum E84Timer
     /// <summary>搬运车动作中，等载具实际放到位／取离端口。</summary>
     TP3,
 
-    /// <summary>载具到位后，等搬运车给出完成信号（COMPT）。</summary>
+    /// <summary>载具放上/取走、撤掉 L_REQ/U_REQ 后，等搬运车撤掉 BUSY。</summary>
     TP4,
 
-    /// <summary>完成信号之后，等搬运车撤销交接信号。</summary>
+    /// <summary>COMPT 来了撤掉 READY 后，等搬运车撤销交接信号（VALID）。</summary>
     TP5,
 
-    /// <summary>信号复位、本次交接收尾。</summary>
+    /// <summary>连续交接时 VALID 撤掉后等下一次 VALID；当前流程不做连续交接，不用这一段。</summary>
     TP6,
 }

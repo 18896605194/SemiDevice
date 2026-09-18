@@ -1,6 +1,8 @@
+using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
@@ -11,6 +13,43 @@ public abstract class BaseModule : ComponentBase
     {
         return true;
     }
+
+    #region 模块模式
+
+    /// <summary>
+    /// 模块模式（SV）：是否参与自动调度。Online()/Offline() 只改它，不动设备；默认 Offline，掉电不保持。
+    /// </summary>
+    [VariableMark(VariableType.SV, ValueFormat.Enum, description: "模块模式（Online/Offline）")]
+    public ModuleMode Mode { get; private set; } = ModuleMode.Offline;
+
+    /// <summary>
+    /// 上线：参与自动调度。
+    /// </summary>
+    public void Online()
+    {
+        SetMode(ModuleMode.Online);
+    }
+
+    /// <summary>
+    /// 下线：退出自动调度。
+    /// </summary>
+    public void Offline()
+    {
+        SetMode(ModuleMode.Offline);
+    }
+
+    private void SetMode(ModuleMode mode)
+    {
+        if (Mode == mode)
+        {
+            return;
+        }
+
+        Mode = mode;
+        LogHelper.Info($"[{Name}] {mode}");
+    }
+
+    #endregion
 
     #region 状态迁移表
 

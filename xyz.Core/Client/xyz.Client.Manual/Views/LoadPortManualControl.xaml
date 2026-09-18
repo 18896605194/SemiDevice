@@ -142,11 +142,11 @@
                             Text="报警" />
                     </StackPanel>
 
-                    <!--  AUTO：E84 online  -->
+                    <!--  AUTO：LoadPort Access Mode = Auto（Auto/Manual 按钮切换，与在线模式无关）  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="自动模式（E84 online）；灰色表示反馈不可用">
+                        ToolTip="Auto：搬运车经 E84 自动交接">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -167,11 +167,11 @@
                             Text="AUTO" />
                     </StackPanel>
 
-                    <!--  MANUAL：E84 offline  -->
+                    <!--  MANUAL：LoadPort Access Mode = Manual  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="手动模式（E84 offline）；灰色表示反馈不可用">
+                        ToolTip="Manual：人工放取">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -224,7 +224,7 @@
                                 <Setter Property="Text" Value="下线" />
                                 <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Model.AutoMode}" Value="True">
+                                    <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
                                         <Setter Property="Text" Value="在线" />
                                         <Setter Property="Foreground" Value="{DynamicResource GreenHealthy}" />
                                     </DataTrigger>
@@ -263,7 +263,7 @@
                 Wafers="{Binding Model.Wafers}" />
         </materialDesign:Card>
 
-        <!--  ③ 操作：四行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
+        <!--  ③ 操作：五行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
         <materialDesign:Card Grid.Row="2" Style="{DynamicResource DefaultCardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
@@ -271,8 +271,10 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <!--  Online/Offline：模块模式（是否参与自动调度），刷新状态卡的在线模式  -->
                 <UniformGrid Grid.Row="0" Columns="3">
                     <Button
                         Command="{Binding OnlineCommand}"
@@ -284,15 +286,27 @@
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
-                <!--  读载具 ID（读 RFID）：只发起，读到的 ID 随状态推送刷新到状态卡  -->
+                <!--  Auto/Manual：LoadPort 的 Access Mode，E84 按它决定跟不跟搬运车交接，刷新 AUTO/MANUAL 灯  -->
                 <UniformGrid Grid.Row="1" Columns="3">
+                    <Button
+                        Command="{Binding AutoCommand}"
+                        Content="Auto"
+                        Style="{DynamicResource CompactSuccessButtonStyle}" />
+                    <Button
+                        Command="{Binding ManualCommand}"
+                        Content="Manual"
+                        Style="{DynamicResource CompactButtonStyle}" />
+                </UniformGrid>
+
+                <!--  读载具 ID（读 RFID）：只发起，读到的 ID 随状态推送刷新到状态卡  -->
+                <UniformGrid Grid.Row="2" Columns="3">
                     <Button
                         Command="{Binding ReadCarrierIdCommand}"
                         Content="Read ID"
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
-                <UniformGrid Grid.Row="2" Columns="3">
+                <UniformGrid Grid.Row="3" Columns="3">
                     <Button
                         Command="{Binding HomeCommand}"
                         Content="Home"
@@ -307,7 +321,7 @@
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
-                <UniformGrid Grid.Row="3" Columns="3">
+                <UniformGrid Grid.Row="4" Columns="3">
                     <Button
                         Command="{Binding ResetCommand}"
                         Content="Reset"

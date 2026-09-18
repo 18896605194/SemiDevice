@@ -15,7 +15,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
+public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort, IE84Host
 {
     #region SV 
 
@@ -32,10 +32,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public bool IsPodPlaced { get; private set; }
 
     /// <summary>
-    /// 自动/手动模式（SV）。内部控制位，不经设备协议：
-    /// Online()/Offline() 置位；默认手动，掉电不保持。
+    /// Auto/Manual（SV）：LoadPort 独有的 Access Mode，Auto = 搬运车经 E84 自动交接，Manual = 人工放取。
+    /// 内部控制位，不经设备协议：SetAutoMode 置位；默认 Manual，掉电不保持。
+    /// 跟模块的 Online/Offline（Mode）互不影响；E84 组件按它决定跟不跟搬运车交接。
     /// </summary>
-    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动模式（true=自动，false=手动）")]
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "Auto/Manual（true=Auto，false=Manual）")]
     public bool IsAutoMode { get; private set; }
 
     private volatile string? _carrierId;
@@ -220,6 +221,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public IRfidReader? RFID => FindChild<IRfidReader>();
 
+    /// <summary>
+    /// E84 交接组件；没配（本机型没有 E84）为 null。
+    /// </summary>
+    public IE84? E84 => FindChild<IE84>();
+
     #endregion
 
     #region 载具
@@ -291,6 +297,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return false;
         }
 
+        E84?.Attach(this);
+
         // 先在晶圆账上占好槽位，Mapping 一到就能直接落账。
         WaferManager.Current?.RegisterLocation(Name, SlotCount);
 
@@ -341,6 +349,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         {
             Name = Name,
             State = State,
+            Mode = Mode,
             IsPodPlaced = IsPodPlaced,
             AutoMode = IsAutoMode,
             CarrierId = CarrierId ?? string.Empty,
@@ -569,8 +578,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public abstract ModuleOperation? Unclamp();
 
     /// <summary>
-    /// 设置自动/手动模式（内部模式位，不经设备协议）；置位后由下一次扫描随状态事件发布。
-    /// 模式有变化时回调 EAP AutoModeChanged。
+    /// 切 Auto/Manual（LoadPort 的 Access Mode，内部模式位，不经设备协议）；置位后由下一次扫描随状态事件发布，
+    /// E84 组件下一拍按它开关与搬运车的交接。模式有变化时回调 EAP AutoModeChanged。
     /// </summary>
     public void SetAutoMode(bool autoMode)
     {
@@ -694,12 +703,67 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     public IE84Provider? E84Provider { get; set; }
 
-    /// <summary>
-    /// 置本端口对搬运车的可交接状态（HO_AVBL）：默认空动作，有 E84 硬件（PIO）的机型重写。
-    /// </summary>
-    public virtual void SetE84Available(bool available)
+    #region E84 组件取现况、报进展（IE84Host，都在扫描线程上）
+
+    bool IE84Host.IsAutoAccessMode => E84Provider?.IsAutoAccessMode(this) ?? IsAutoMode;
+
+    LoadPortTransferState IE84Host.TransferState => E84Provider?.GetTransferState(this) ?? LocalTransferState();
+
+    bool IE84Host.IsCarrierPlaced => IsPodPlaced;
+
+    void IE84Host.HandoffStarted(bool isLoad)
     {
+        EnqueueE84(callback => callback.HandoffStarted(this, isLoad));
     }
+
+    void IE84Host.HandoffCompleted(bool isLoad)
+    {
+        EnqueueE84(callback => callback.HandoffCompleted(this, isLoad));
+    }
+
+    void IE84Host.HandoffTimedOut(bool isLoad, E84Timer timer)
+    {
+        EnqueueE84(callback => callback.HandoffTimeout(this, isLoad, timer));
+    }
+
+    void IE84Host.HandoffAborted(bool isLoad, string reason)
+    {
+        EnqueueE84(callback => callback.HandoffAborted(this, isLoad, reason));
+    }
+
+    void IE84Host.AvailabilityChanged(bool available)
+    {
+        EnqueueE84(callback => callback.AvailabilityChanged(this, available));
+    }
+
+    /// <summary>
+    /// 没接 EAP 时按本地状态判断端口搬运状态（E87 那套由 EAP 维护，这里只给 E84 用）：
+    /// 停用、下线、未初始化或出错 → Out Of Service；不在空闲 → 挡住；
+    /// 空闲且没载具 → 等送盒；有载具且这一盒已经干完或中断（Complete/Stopped）→ 等取走；其余挡住。
+    /// </summary>
+    private LoadPortTransferState LocalTransferState()
+    {
+        if (!IsEnable || Mode != ModuleMode.Online || State == ModuleState.NotInit || State == ModuleState.Error)
+        {
+            return LoadPortTransferState.OutOfService;
+        }
+
+        if (State != ModuleState.Idle)
+        {
+            return LoadPortTransferState.TransferBlocked;
+        }
+
+        if (!IsPodPlaced)
+        {
+            return LoadPortTransferState.ReadyToLoad;
+        }
+
+        return Carrier?.AccessStatus is CarrierAccessStatus.Complete or CarrierAccessStatus.Stopped
+            ? LoadPortTransferState.ReadyToUnload
+            : LoadPortTransferState.TransferBlocked;
+    }
+
+    #endregion
 
     /// <summary>
     /// 上层作业判定这个载具干完了：转成 E87 的 CarrierComplete 上报。
