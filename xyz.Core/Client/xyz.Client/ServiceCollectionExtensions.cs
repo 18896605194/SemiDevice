@@ -17,6 +17,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<MainViewModel>());
+        services.AddSingleton<TopBarViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<TopBarViewModel>());
         services.AddTransient<PlaceholderView>();
 
         services.AddXyzSettingServices();

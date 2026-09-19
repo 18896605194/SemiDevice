@@ -82,11 +82,16 @@ public static class RemoteEventBus
             {
                 var service = GrpcClientFactory.Create<IEventService>();
                 var stream = service.SubscribeAsync(new EventSubscription());
-                SetConnected(true);
 
+                // 调 SubscribeAsync 时还没真正连上（后端不在线要等枚举时才抛），收到第一条才算连上；
+                // 后端开流先发一条空信封作标记，标记本身不投递。
                 await foreach (var envelope in stream)
                 {
-                    DeliverOnUi(envelope);
+                    SetConnected(true);
+                    if (!string.IsNullOrEmpty(envelope.TypeName))
+                    {
+                        DeliverOnUi(envelope);
+                    }
                 }
             }
             catch

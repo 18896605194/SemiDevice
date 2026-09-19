@@ -1,12 +1,14 @@
 using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
 /// <summary>
 /// 四色灯和蜂鸣器组件，提供各路独立开关；DO 点位由上层通过 SC 配置。
+/// 外部经 <see cref="ILightComponent"/> 使用，不直接依赖本类。
 /// </summary>
 [Component(description: "四色灯和蜂鸣器组件")]
-public class LightComponent : ComponentBase
+public class LightComponent : ComponentBase, ILightComponent
 {
     #region SC 装机常量
 
@@ -27,36 +29,55 @@ public class LightComponent : ComponentBase
 
     #endregion
 
+    #region 状态（最后一次成功输出的开关）
+
+    public bool IsRedOn { get; private set; }
+
+    public bool IsYellowOn { get; private set; }
+
+    public bool IsGreenOn { get; private set; }
+
+    public bool IsBlueOn { get; private set; }
+
+    public bool IsBuzzerOn { get; private set; }
+
+    #endregion
+
     #region Control
 
     /// <summary>设置红灯开关。</summary>
     public virtual void SetRed(bool isOn)
     {
         SetOutput(DoRedIndex, isOn, nameof(DoRedIndex));
+        IsRedOn = isOn;
     }
 
     /// <summary>设置黄灯开关。</summary>
     public virtual void SetYellow(bool isOn)
     {
         SetOutput(DoYellowIndex, isOn, nameof(DoYellowIndex));
+        IsYellowOn = isOn;
     }
 
     /// <summary>设置绿灯开关。</summary>
     public virtual void SetGreen(bool isOn)
     {
         SetOutput(DoGreenIndex, isOn, nameof(DoGreenIndex));
+        IsGreenOn = isOn;
     }
 
     /// <summary>设置蓝灯开关。</summary>
     public virtual void SetBlue(bool isOn)
     {
         SetOutput(DoBlueIndex, isOn, nameof(DoBlueIndex));
+        IsBlueOn = isOn;
     }
 
     /// <summary>设置蜂鸣器开关。</summary>
     public virtual void SetBuzzer(bool isOn)
     {
         SetOutput(DoBuzzerIndex, isOn, nameof(DoBuzzerIndex));
+        IsBuzzerOn = isOn;
     }
 
     private void SetOutput(int doIndex, bool isOn, string configName)

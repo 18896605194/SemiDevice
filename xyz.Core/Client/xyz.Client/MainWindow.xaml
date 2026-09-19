@@ -17,20 +17,15 @@
     TextElement.Foreground="{DynamicResource DarkPrimaryText}"
     UseLayoutRounding="True"
     WindowStartupLocation="CenterScreen"
-    WindowStyle="None"
-    AllowsTransparency="True"
-    Background="Transparent"
-    StateChanged="OnWindowStateChanged"
+    Background="{DynamicResource DarkWindowBackground}"
     mc:Ignorable="d">
 
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
+
+    <!--  标题栏、最小化 / 最大化 / 关闭都用系统自带的（深色见代码后置）；最大化只铺满工作区，不挡任务栏  -->
     <Grid>
-        <Border
-            x:Name="WindowBorder"
-            Background="{DynamicResource DarkWindowBackground}"
-            BorderBrush="#333333"
-            BorderThickness="1"
-            CornerRadius="12">
-            <Grid>
                 <Viewbox
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
@@ -43,14 +38,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  顶部状态区：使用 Material Design 卡片、图标和输入控件  -->
-        <materialDesign:Card
+        <!--  顶栏：通栏，贴满左右，不做成浮起的卡片  -->
+        <Border
             Grid.Row="0"
             Height="96"
-            Margin="12,8,12,4"
-            Padding="12,6"
-            materialDesign:ElevationAssist.Elevation="Dp2"
-            UniformCornerRadius="8">
+            Padding="16,0"
+            Style="{DynamicResource ShellBarBorderStyle}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -103,209 +96,205 @@
                         Foreground="{DynamicResource DarkAlarmIcon}"
                         Kind="AlertOutline" />
 
-                    <ComboBox
+                    <!--  报警栏：当前报警的条数和最新一条，展开看全部  -->
+                    <controls:AlarmBar
                         Grid.Column="1"
-                        Height="36"
-                        MinWidth="240"
-                        VerticalAlignment="Center"
-                        Style="{DynamicResource DefaultComboBoxStyle}" />
+                        VerticalAlignment="Center" />
                 </Grid>
 
-                <Border
-                    Grid.Column="1"
+                <!--  右侧跟左边一样分两行、上下对齐：四色灯跨两行 | 上 = 时间、下 = 当前用户 | 三个按钮竖排（注销 / 复位 / 退出）  -->
+                <Grid
+                    Grid.Row="0"
                     Grid.RowSpan="2"
-                    Padding="16,0,4,0"
-                    BorderBrush="{DynamicResource MaterialDesign.Brush.Divider}"
-                    BorderThickness="1,0,0,0">
-                    <StackPanel
+                    Grid.Column="1"
+                    DataContext="{Binding TopBar}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!--  四色灯：红 = 报警、黄 = 警告、绿 = 运行（设备总状态），蓝 = 和后端的通讯  -->
+                    <controls:SignalTower
+                        Grid.RowSpan="2"
+                        Grid.Column="0"
+                        Height="88"
+                        Margin="4,0,16,0"
                         VerticalAlignment="Center"
-                        Orientation="Horizontal">
-                        <materialDesign:PackIcon
-                            Width="26"
-                            Height="26"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource MaterialDesign.Brush.Primary}"
-                            Kind="AccountCircle" />
-                        <StackPanel Margin="8,0,0,0">
-                            <TextBlock
-                                FontSize="{DynamicResource Size10}"
-                                Foreground="{DynamicResource DarkSecondaryText}"
-                                Text="当前用户" />
-                            <TextBlock
-                                FontSize="{DynamicResource Size13}"
-                                FontWeight="SemiBold"
-                                Text="Admin" />
-                        </StackPanel>
+                        IsBlueOn="{Binding IsConnected}"
+                        IsGreenOn="{Binding IsRunningOn}"
+                        IsRedOn="{Binding IsAlarmOn}"
+                        IsYellowOn="{Binding IsWarningOn}" />
 
-                        <Border
-                            Width="1"
-                            Height="30"
-                            Margin="14,0"
-                            Background="{DynamicResource MaterialDesign.Brush.Divider}" />
-
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock
-                                Margin="0,0,0,4"
-                                FontSize="{DynamicResource Size10}"
-                                Foreground="{DynamicResource DarkSecondaryText}"
-                                Text="设备状态" />
-                            <StackPanel Orientation="Horizontal">
-                                <Border
-                                    Width="12"
-                                    Height="12"
-                                    Margin="0,0,10,0"
-                                    Background="{DynamicResource DarkAlarmStatus}"
-                                    CornerRadius="6"
-                                    ToolTip="报警" />
-                                <Border
-                                    Width="12"
-                                    Height="12"
-                                    Margin="0,0,10,0"
-                                    Background="{DynamicResource DarkWarningStatus}"
-                                    CornerRadius="6"
-                                    ToolTip="警告" />
-                                <Border
-                                    Width="12"
-                                    Height="12"
-                                    Margin="0,0,10,0"
-                                    Background="{DynamicResource DarkRunningStatus}"
-                                    CornerRadius="6"
-                                    ToolTip="运行" />
-                                <Border
-                                    Width="12"
-                                    Height="12"
-                                    Background="{DynamicResource DarkCommunicationStatus}"
-                                    CornerRadius="6"
-                                    ToolTip="通讯" />
+                    <Border
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Margin="0,4,12,4"
+                        Style="{DynamicResource TopBarInfoBorderStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Kind="ClockOutline" />
+                            <!--  时间在上、日期在下，跟任务栏时钟一样，块窄一些  -->
+                            <StackPanel
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    Style="{DynamicResource TopBarValueTextStyle}"
+                                    Text="{Binding Now, StringFormat='{}{0:HH:mm:ss}'}" />
+                                <TextBlock
+                                    Style="{DynamicResource TopBarCaptionTextStyle}"
+                                    Text="{Binding Now, StringFormat='{}{0:yyyy-MM-dd}'}" />
                             </StackPanel>
                         </StackPanel>
+                    </Border>
+
+                    <Border
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Margin="0,4,12,4"
+                        Style="{DynamicResource TopBarInfoBorderStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Kind="AccountCircleOutline" />
+                            <TextBlock
+                                Margin="8,0,0,0"
+                                Style="{DynamicResource TopBarValueTextStyle}"
+                                Text="Admin" />
+                        </StackPanel>
+                    </Border>
+
+                    <!--  右上角三个按钮竖排：注销、整机复位、退出  -->
+                    <StackPanel
+                        Grid.Row="0"
+                        Grid.RowSpan="2"
+                        Grid.Column="2"
+                        VerticalAlignment="Center">
+                        <!--  注销：登录功能还没做，先放着不可点，接上登录后再绑命令  -->
+                        <Button
+                            IsEnabled="False"
+                            Style="{DynamicResource TopBarStackButtonStyle}"
+                            ToolTip="注销（登录功能接上后可用）"
+                            ToolTipService.ShowOnDisabled="True">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Kind="Logout" />
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="Logout" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  整机复位：复位全部有报警的来源；有报警时变红  -->
+                        <Button
+                            Margin="0,2"
+                            Command="{Binding ResetCommand}"
+                            Style="{DynamicResource TopBarStackAccentButtonStyle}"
+                            Tag="{Binding IsAlarmOn}"
+                            ToolTip="复位全部有报警的来源">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Kind="Restore" />
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="Reset" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  退出软件（先确认）  -->
+                        <Button
+                            Command="{Binding OffCommand}"
+                            Style="{DynamicResource TopBarStackDangerButtonStyle}"
+                            ToolTip="退出软件">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Kind="Power" />
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="Off" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                </Border>
-            </Grid>
-        </materialDesign:Card>
-
-        <!--  中间：内容承载区，以后所有页面都填充到这里  -->
-        <materialDesign:Card
-            Grid.Row="1"
-            Margin="12,4"
-            materialDesign:ElevationAssist.Elevation="Dp1"
-            UniformCornerRadius="8">
-            <Grid>
-                <ContentControl
-                    x:Name="ContentHost"
-                    Content="{Binding CurrentView}" />
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Foreground="{DynamicResource DarkSecondaryText}"
-                    IsHitTestVisible="False"
-                    Style="{DynamicResource NullContentHintTextStyle}"
-                    Tag="{Binding CurrentView}"
-                    Text="请选择主菜单" />
-            </Grid>
-        </materialDesign:Card>
-
-        <!--  底部：上面二级菜单，下面一级菜单  -->
-        <materialDesign:Card
-            x:Name="PrimaryMenuBar"
-            Grid.Row="2"
-            Height="Auto"
-            Margin="12,4,12,8"
-            Padding="8,4"
-            materialDesign:ElevationAssist.Elevation="Dp2"
-            UniformCornerRadius="8">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="32" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <ListBox
-                    x:Name="SecondaryMenuList"
-                    Grid.Row="0"
-                    MinHeight="28"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Center"
-                    ItemContainerStyle="{DynamicResource NavigationListBoxItemStyle}"
-                    ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
-                    ItemsSource="{Binding SecondaryMenus}"
-                    ItemTemplate="{DynamicResource NavigationListBoxItemTemplate}"
-                    PreviewMouseLeftButtonUp="OnSecondaryMenuPreviewMouseLeftButtonUp"
-                    SelectedItem="{Binding SelectedSecondaryMenu, Mode=TwoWay}"
-                    Style="{DynamicResource NavigationListBoxStyle}" />
-
-                <ListBox
-                    x:Name="PrimaryMenuList"
-                    Grid.Row="1"
-                    Margin="0,4,0,0"
-                    HorizontalAlignment="Left"
-                    ItemContainerStyle="{DynamicResource NavigationListBoxItemStyle}"
-                    ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
-                    ItemsSource="{Binding PrimaryMenus}"
-                    ItemTemplate="{DynamicResource NavigationListBoxItemTemplate}"
-                    PreviewMouseLeftButtonUp="OnPrimaryMenuPreviewMouseLeftButtonUp"
-                    SelectedItem="{Binding SelectedPrimaryMenu, Mode=TwoWay}"
-                    Style="{DynamicResource NavigationListBoxStyle}" />
-            </Grid>
-        </materialDesign:Card>
-
-                <!--  透明顶部拖拽区域：只占最顶部很薄的一条  -->
-                <Border
-                    Height="8"
-                    VerticalAlignment="Top"
-                    Background="Transparent"
-                    MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown"
-                    Panel.ZIndex="1000" />
-
-                <!--  自绘窗口按钮：悬浮在右上角  -->
-                <StackPanel
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Margin="0,12,24,0"
-                    Panel.ZIndex="1001"
-                    Orientation="Horizontal">
-                    <Button
-                        Width="44"
-                        Height="40"
-                        Click="OnMinimizeClick"
-                        Content="—"
-                        FontSize="16"
-                        Foreground="#DDDDDD"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand" />
-                    <Button
-                        x:Name="MaximizeRestoreButton"
-                        Width="44"
-                        Height="40"
-                        Click="OnMaximizeClick"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand">
-                        <materialDesign:PackIcon
-                            x:Name="MaximizeRestoreIcon"
-                            Width="20"
-                            Height="20"
-                            Foreground="White"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Kind="WindowMaximize" />
-                    </Button>
-                    <Button
-                        Width="44"
-                        Height="40"
-                        Click="OnCloseClick"
-                        Content="✕"
-                        FontSize="16"
-                        Foreground="#DDDDDD"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand" />
-                </StackPanel>
-                    </Grid>
-                </Viewbox>
-
+                </Grid>
             </Grid>
         </Border>
+
+        <!--  中间：内容承载区，所有页面都填充到这里，铺满不留边  -->
+        <Grid Grid.Row="1">
+            <ContentControl
+                x:Name="ContentHost"
+                Content="{Binding CurrentView}" />
+            <TextBlock
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Foreground="{DynamicResource DarkSecondaryText}"
+                IsHitTestVisible="False"
+                Style="{DynamicResource NullContentHintTextStyle}"
+                Tag="{Binding CurrentView}"
+                Text="请选择主菜单" />
+        </Grid>
+
+        <!--  底部导航：通栏。左边一级菜单，光条后面是当前一级菜单下的二级页面（当前页高亮），没有二级页面就都不显示  -->
+        <Border
+            x:Name="PrimaryMenuBar"
+            Grid.Row="2"
+            Padding="12,6"
+            Style="{DynamicResource ShellBarBorderStyle}">
+            <StackPanel Orientation="Horizontal">
+                <ListBox
+                    x:Name="PrimaryMenuList"
+                    ItemContainerStyle="{DynamicResource BottomNavListBoxItemStyle}"
+                    ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
+                    ItemsSource="{Binding PrimaryMenus}"
+                    ItemTemplate="{DynamicResource BottomNavItemTemplate}"
+                    SelectedItem="{Binding SelectedPrimaryMenu, Mode=TwoWay}"
+                    Style="{DynamicResource NavigationListBoxStyle}" />
+
+                <!--  强调色竖光条：把选中的一级菜单和后面的二级页面分开  -->
+                <Border
+                    Style="{DynamicResource SubNavDividerBorderStyle}"
+                    Visibility="{Binding HasSecondaryMenus, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                <!--  二级页面托盘：分段按钮，当前页实心高亮  -->
+                <Border
+                    Style="{DynamicResource SubNavTrayBorderStyle}"
+                    Visibility="{Binding HasSecondaryMenus, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ListBox
+                        x:Name="SecondaryMenuList"
+                        ItemContainerStyle="{DynamicResource SubNavListBoxItemStyle}"
+                        ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
+                        ItemsSource="{Binding SecondaryMenus}"
+                        ItemTemplate="{DynamicResource SubNavItemTemplate}"
+                        SelectedItem="{Binding SelectedSecondaryMenu, Mode=TwoWay}"
+                        Style="{DynamicResource NavigationListBoxStyle}" />
+                </Border>
+            </StackPanel>
+        </Border>
+
+                    </Grid>
+                </Viewbox>
     </Grid>
 </Window>

@@ -19,6 +19,9 @@ public class EventService : IEventService
         var channel = Channel.CreateUnbounded<EventMessage>(
             new UnboundedChannelOptions { SingleReader = true });
 
+        // 开流标记：先发一条空信封（TypeName 为空），客户端收到第一条才算真正连上，不靠有没有留存消息。
+        channel.Writer.TryWrite(new EventMessage());
+
         var subscription = EventBus.SubscribeRaw(message => channel.Writer.TryWrite(message));
         foreach (var retained in EventBus.GetRetained())
         {

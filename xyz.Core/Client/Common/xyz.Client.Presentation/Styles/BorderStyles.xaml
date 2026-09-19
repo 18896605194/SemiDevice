@@ -75,6 +75,54 @@
         </Style.Triggers>
     </Style>
 
+    <!--  主窗口的通栏（顶栏、底部导航）：贴满左右，不做成浮起的圆角卡片  -->
+    <Style x:Key="ShellBarBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Card.Background}" />
+    </Style>
+
+    <!--  顶栏信息块（时间、当前用户）：不要底框，只占位跟顶栏的日志 / 报警下拉框同高对齐  -->
+    <Style x:Key="TopBarInfoBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Margin" Value="0,4" />
+    </Style>
+
+    <!--  底部导航里一级菜单和二级页面之间的分隔：强调色竖光条，中间亮、两头渐隐，带一圈光晕（颜色同 DarkAccent）  -->
+    <Style x:Key="SubNavDividerBorderStyle" TargetType="Border">
+        <Setter Property="Width" Value="3" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Margin" Value="16,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Offset="0" Color="#0042A5F5" />
+                    <GradientStop Offset="0.5" Color="#FF42A5F5" />
+                    <GradientStop Offset="1" Color="#0042A5F5" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect
+                    BlurRadius="12"
+                    Opacity="0.9"
+                    ShadowDepth="0"
+                    Color="#42A5F5" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  底部导航的二级页面托盘：下沉的深色圆角槽，里面放二级页面按钮（分段按钮的样子）  -->
+    <Style x:Key="SubNavTrayBorderStyle" TargetType="Border">
+        <Setter Property="Padding" Value="4" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="22" />
+    </Style>
+
     <Style
         x:Key="LargeStatusDotBorderStyle"
         BasedOn="{StaticResource StatusDotBorderStyle}"

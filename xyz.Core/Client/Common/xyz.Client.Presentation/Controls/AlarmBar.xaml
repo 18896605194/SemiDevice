@@ -1,0 +1,84 @@
+<UserControl
+    x:Class="xyz.Client.Presentation.Controls.AlarmBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--  报警栏：收起时显示最新一条，展开看全部当前报警；有报警时框内右侧显示条数，没有时显示提示  -->
+    <Grid>
+        <ComboBox
+            MinWidth="520"
+            Height="36"
+            MaxDropDownHeight="420"
+            VerticalAlignment="Center"
+            ItemsSource="{Binding Alarms}"
+            SelectedItem="{Binding Latest, Mode=OneWay}"
+            Style="{DynamicResource DefaultComboBoxStyle}">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size12}"
+                            Foreground="{DynamicResource DarkSecondaryText}"
+                            Text="{Binding RaisedAt, StringFormat='{}{0:HH:mm:ss}'}" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size12}"
+                            Style="{DynamicResource AlarmLevelTextStyle}"
+                            Text="{Binding Level}" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size12}"
+                            Foreground="{DynamicResource DarkSecondaryText}"
+                            Text="{Binding Source}" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size12}"
+                            Foreground="{DynamicResource DarkPrimaryText}"
+                            Text="{Binding Text}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock
+            Margin="14,0,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Center"
+            FontSize="{DynamicResource Size12}"
+            Foreground="{DynamicResource DarkDisabledText}"
+            IsHitTestVisible="False"
+            Style="{DynamicResource NullContentHintTextStyle}"
+            Tag="{Binding Latest}"
+            Text="当前没有报警" />
+
+        <!--  条数：框内右侧、下拉箭头左边  -->
+        <Border
+            Margin="0,0,36,0"
+            Padding="8,1"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Center"
+            Background="{DynamicResource DarkAlarmStatus}"
+            CornerRadius="9"
+            IsHitTestVisible="False">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasAlarm}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock
+                FontSize="{DynamicResource Size12}"
+                FontWeight="SemiBold"
+                Foreground="{DynamicResource DarkPrimaryText}"
+                Text="{Binding CountText}" />
+        </Border>
+    </Grid>
+</UserControl>

@@ -19,6 +19,11 @@ public class MainViewModel : BaseViewModel
     #region Column
 
     /// <summary>
+    /// 顶栏右侧：四色灯、当前时间、整机复位。
+    /// </summary>
+    public TopBarViewModel TopBar { get; }
+
+    /// <summary>
     /// 一级菜单。
     /// </summary>
     public ObservableCollection<MenuModel> PrimaryMenus { get; }
@@ -31,7 +36,7 @@ public class MainViewModel : BaseViewModel
     private MenuModel? _selectedPrimaryMenu;
 
     /// <summary>
-    /// 当前选中的一级菜单。
+    /// 当前选中的一级菜单：选中即显示它的页面；有二级页面时回到上次在它下面看的那一页，第一次来显示第一页。
     /// </summary>
     public MenuModel? SelectedPrimaryMenu
     {
@@ -48,7 +53,7 @@ public class MainViewModel : BaseViewModel
     private MenuModel? _selectedSecondaryMenu;
 
     /// <summary>
-    /// 当前选中的二级菜单。
+    /// 当前选中的二级菜单：选中即显示它的页面，并记下来，切回这个一级菜单时还回到这一页。
     /// </summary>
     public MenuModel? SelectedSecondaryMenu
     {
@@ -60,20 +65,19 @@ public class MainViewModel : BaseViewModel
                 return;
             }
 
+            if (SelectedPrimaryMenu != null)
+            {
+                _lastSecondaryCodes[SelectedPrimaryMenu.Code] = value.Code;
+            }
+
             CurrentView = CreateView(value);
         }
     }
 
-    private bool _isSecondaryMenuOpen;
-
     /// <summary>
-    /// 是否显示当前一级菜单对应的二级菜单浮层。
+    /// 当前一级菜单下有没有二级页面（底部菜单里的竖线跟着它显示）。
     /// </summary>
-    public bool IsSecondaryMenuOpen
-    {
-        get => _isSecondaryMenuOpen;
-        set => SetProperty(ref _isSecondaryMenuOpen, value);
-    }
+    public bool HasSecondaryMenus => SecondaryMenus.Count > 0;
 
     private object? _currentView;
 
@@ -99,11 +103,17 @@ public class MainViewModel : BaseViewModel
     private readonly IMenuService _menuService;
     private readonly Dictionary<string, UserControl> _views = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 每个一级菜单上次看的二级页面：一级菜单 Code → 二级菜单 Code。
+    /// </summary>
+    private readonly Dictionary<string, string> _lastSecondaryCodes = new(StringComparer.OrdinalIgnoreCase);
+
     #endregion
 
-    public MainViewModel(IServiceProvider serviceProvider)
+    public MainViewModel(IServiceProvider serviceProvider, TopBarViewModel topBar)
     {
         _serviceProvider = serviceProvider;
+        TopBar = topBar;
         _menuService = GrpcClientFactory.Create<IMenuService>();
 
         PrimaryMenus = new ObservableCollection<MenuModel>();
@@ -117,62 +127,42 @@ public class MainViewModel : BaseViewModel
         SelectedPrimaryMenu = null;
         SelectedSecondaryMenu = null;
         CurrentView = null;
-        IsSecondaryMenuOpen = false;
 
         LoadMenus();
     }
 
+    /// <summary>
+    /// 换一级菜单：列出它的二级页面；没有二级页面直接显示它自己的页面，
+    /// 有就回到上次在它下面看的那一页（第一次来是第一页），高亮的菜单跟中间的页面始终对得上。
+    /// </summary>
     private void ApplyPrimaryMenuSelection(MenuModel? menu)
     {
         SecondaryMenus.Clear();
         SelectedSecondaryMenu = null;
 
-        if (menu?.Children == null)
+        if (menu != null)
+        {
+            foreach (var child in menu.Children)
+            {
+                SecondaryMenus.Add(child);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasSecondaryMenus));
+
+        if (menu == null)
         {
             return;
-        }
-
-        foreach (var child in menu.Children)
-        {
-            SecondaryMenus.Add(child);
-        }
-    }
-
-    /// <summary>
-    /// 点击一级菜单时，在底部菜单上方临时展开它的二级菜单。
-    /// </summary>
-    public void OpenPrimaryMenu(MenuModel menu)
-    {
-        if (!ReferenceEquals(SelectedPrimaryMenu, menu))
-        {
-            SelectedPrimaryMenu = menu;
         }
 
         if (SecondaryMenus.Count == 0)
         {
             CurrentView = CreateView(menu);
-            IsSecondaryMenuOpen = false;
             return;
         }
 
-        IsSecondaryMenuOpen = true;
-    }
-
-    /// <summary>
-    /// 选中二级菜单后显示对应页面，并收起浮层。
-    /// </summary>
-    public void SelectSecondaryMenu(MenuModel menu)
-    {
-        if (!ReferenceEquals(SelectedSecondaryMenu, menu))
-        {
-            SelectedSecondaryMenu = menu;
-        }
-        else
-        {
-            CurrentView = CreateView(menu);
-        }
-
-        IsSecondaryMenuOpen = false;
+        var lastCode = _lastSecondaryCodes.GetValueOrDefault(menu.Code);
+        SelectedSecondaryMenu = SecondaryMenus.FirstOrDefault(child => child.Code == lastCode) ?? SecondaryMenus[0];
     }
 
     private void LoadMenus()

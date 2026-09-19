@@ -1,0 +1,150 @@
+<UserControl
+    x:Class="xyz.Client.Presentation.Controls.SignalTower"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="88"
+    d:DesignWidth="24"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!--  灯罩高光：左亮右暗，看起来像一截圆柱  -->
+        <LinearGradientBrush x:Key="LampGlossBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Offset="0" Color="#00FFFFFF" />
+            <GradientStop Offset="0.28" Color="#59FFFFFF" />
+            <GradientStop Offset="0.55" Color="#0FFFFFFF" />
+            <GradientStop Offset="1" Color="#33000000" />
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="TowerMetalBrush" Color="#4F4F4F" />
+        <SolidColorBrush x:Key="TowerHousingBrush" Color="#161616" />
+    </UserControl.Resources>
+
+    <!--
+        四色灯竖排：顶盖、红黄绿蓝四节灯、灯杆、底座。
+        亮：本色 + 光晕；灭：暗底 + 一圈本色描边，一眼看得出是哪个颜色、亮没亮。亮灭由代码后置按四个开关设。
+    -->
+    <Viewbox Stretch="Uniform">
+        <StackPanel Width="20">
+            <Border
+                Height="4"
+                Margin="3,0"
+                Background="{StaticResource TowerMetalBrush}"
+                CornerRadius="2,2,0,0" />
+
+            <Border
+                Padding="2"
+                Background="{StaticResource TowerHousingBrush}"
+                CornerRadius="3">
+                <StackPanel>
+                    <Grid Height="14" ToolTip="报警">
+                        <Border
+                            x:Name="RedLamp"
+                            Background="{DynamicResource DarkAlarmStatus}"
+                            CornerRadius="2">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    x:Name="RedGlow"
+                                    BlurRadius="8"
+                                    Opacity="0"
+                                    ShadowDepth="0"
+                                    Color="{Binding Color, Source={StaticResource DarkAlarmStatus}}" />
+                            </Border.Effect>
+                        </Border>
+                        <Border
+                            BorderBrush="{DynamicResource DarkAlarmStatus}"
+                            BorderThickness="1"
+                            CornerRadius="2"
+                            Opacity="0.6" />
+                        <Border Background="{StaticResource LampGlossBrush}" CornerRadius="2" />
+                    </Grid>
+
+                    <Grid
+                        Height="14"
+                        Margin="0,2,0,0"
+                        ToolTip="警告">
+                        <Border
+                            x:Name="YellowLamp"
+                            Background="{DynamicResource DarkWarningStatus}"
+                            CornerRadius="2">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    x:Name="YellowGlow"
+                                    BlurRadius="8"
+                                    Opacity="0"
+                                    ShadowDepth="0"
+                                    Color="{Binding Color, Source={StaticResource DarkWarningStatus}}" />
+                            </Border.Effect>
+                        </Border>
+                        <Border
+                            BorderBrush="{DynamicResource DarkWarningStatus}"
+                            BorderThickness="1"
+                            CornerRadius="2"
+                            Opacity="0.6" />
+                        <Border Background="{StaticResource LampGlossBrush}" CornerRadius="2" />
+                    </Grid>
+
+                    <Grid
+                        Height="14"
+                        Margin="0,2,0,0"
+                        ToolTip="运行">
+                        <Border
+                            x:Name="GreenLamp"
+                            Background="{DynamicResource DarkRunningStatus}"
+                            CornerRadius="2">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    x:Name="GreenGlow"
+                                    BlurRadius="8"
+                                    Opacity="0"
+                                    ShadowDepth="0"
+                                    Color="{Binding Color, Source={StaticResource DarkRunningStatus}}" />
+                            </Border.Effect>
+                        </Border>
+                        <Border
+                            BorderBrush="{DynamicResource DarkRunningStatus}"
+                            BorderThickness="1"
+                            CornerRadius="2"
+                            Opacity="0.6" />
+                        <Border Background="{StaticResource LampGlossBrush}" CornerRadius="2" />
+                    </Grid>
+
+                    <Grid
+                        Height="14"
+                        Margin="0,2,0,0"
+                        ToolTip="通讯">
+                        <Border
+                            x:Name="BlueLamp"
+                            Background="{DynamicResource DarkCommunicationStatus}"
+                            CornerRadius="2">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    x:Name="BlueGlow"
+                                    BlurRadius="8"
+                                    Opacity="0"
+                                    ShadowDepth="0"
+                                    Color="{Binding Color, Source={StaticResource DarkCommunicationStatus}}" />
+                            </Border.Effect>
+                        </Border>
+                        <Border
+                            BorderBrush="{DynamicResource DarkCommunicationStatus}"
+                            BorderThickness="1"
+                            CornerRadius="2"
+                            Opacity="0.6" />
+                        <Border Background="{StaticResource LampGlossBrush}" CornerRadius="2" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border
+                Width="4"
+                Height="8"
+                Background="{StaticResource TowerMetalBrush}" />
+            <Border
+                Width="16"
+                Height="4"
+                Background="{StaticResource TowerMetalBrush}"
+                CornerRadius="2" />
+        </StackPanel>
+    </Viewbox>
+</UserControl>

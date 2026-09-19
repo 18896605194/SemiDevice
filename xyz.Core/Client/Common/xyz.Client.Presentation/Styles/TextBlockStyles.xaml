@@ -76,6 +76,43 @@
         </Style.Triggers>
     </Style>
 
+    <!--  顶栏信息块里的主值（时间、用户名）：数字等宽，秒跳动时不晃  -->
+    <Style x:Key="TopBarValueTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!--  顶栏信息块里的附注（日期）：小一号、灰一点  -->
+    <Style x:Key="TopBarCaptionTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size10}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!--  报警等级文字（数据要有 Level 属性）：Warn 黄、Alarm1/Alarm2 橙、Fatal 红  -->
+    <Style x:Key="AlarmLevelTextStyle" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Level}" Value="Warn">
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Alarm1">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmIcon}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Alarm2">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmIcon}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Fatal">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="NullContentHintTextStyle" TargetType="TextBlock">
         <Setter Property="Visibility" Value="Collapsed" />
         <Style.Triggers>

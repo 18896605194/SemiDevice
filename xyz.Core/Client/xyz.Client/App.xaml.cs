@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System.Threading.Tasks;
 using System.Windows;
+using xyz.Client.Common.Alarms;
 using xyz.Client.Common.Events;
 using xyz.Tools;
 using xyz.Client.Common.Log;
@@ -60,6 +61,7 @@ public partial class App : Application
             #region 前后端事件的处理初始化
 
             RemoteEventBus.Initialize();
+            ClientAlarms.Initialize();
             await ReportAsync(loadingWindow, 35, "正在连接后端事件流…");
 
             #endregion
@@ -157,11 +159,21 @@ public partial class App : Application
         };
     }
 
+    /// <summary>
+    /// 逐个 Init：一个页面失败（多半是后端没起、菜单拉不到）只记日志，不耽误后面的，顶栏的灯和时间照常走。
+    /// </summary>
     private static void InitializeViewModels()
     {
         foreach (var viewModel in Services.GetServices<BaseViewModel>())
         {
-            viewModel.Init();
+            try
+            {
+                viewModel.Init();
+            }
+            catch (Exception exception)
+            {
+                ClientLog.Error("Client", $"{viewModel.GetType().Name} 初始化失败：{exception.Message}");
+            }
         }
     }
 }

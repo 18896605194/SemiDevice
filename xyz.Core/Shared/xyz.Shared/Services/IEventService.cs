@@ -14,7 +14,7 @@ namespace xyz.Shared.Services;
 public interface IEventService
 {
     /// <summary>
-    /// 订阅后端事件流（服务端流式；连接建立时先重放各键最后一条留存消息）。
+    /// 订阅后端事件流（服务端流式；连接建立时先发一条空信封作开流标记，再重放各键最后一条留存消息）。
     /// </summary>
     [OperationContract]
     IAsyncEnumerable<EventMessage> SubscribeAsync(EventSubscription request, CallContext context = default);

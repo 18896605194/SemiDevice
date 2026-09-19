@@ -11,25 +11,8 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!--  只显示：标题 + 当前报警条数，没有操作按钮  -->
-        <Border Grid.Row="0" Style="{DynamicResource HeaderBarBorderStyle}">
-            <DockPanel>
-                <TextBlock
-                    DockPanel.Dock="Right"
-                    Style="{DynamicResource StatusLabelTextStyle}"
-                    Text="{Binding Summary}" />
-                <TextBlock Style="{DynamicResource PageTitleTextStyle}" Text="实时报警" />
-            </DockPanel>
-        </Border>
-
-        <!--  当前报警：最新的在最上面；等级按颜色区分，处理建议悬停看全文  -->
+        <!--  当前报警（只显示，没有操作按钮；条数看顶栏报警栏）：最新的在最上面；等级按颜色区分，处理建议悬停看全文  -->
         <materialDesign:Card
-            Grid.Row="1"
             Margin="16"
             Style="{DynamicResource DefaultCardStyle}">
             <DataGrid ItemsSource="{Binding Alarms}" Style="{DynamicResource CompactDataGridStyle}">

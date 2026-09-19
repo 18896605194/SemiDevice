@@ -1,18 +1,12 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:xyz.Client.Presentation.Converters"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
 
     <ItemsPanelTemplate x:Key="HorizontalListBoxItemsPanelTemplate">
         <StackPanel Orientation="Horizontal" />
     </ItemsPanelTemplate>
-
-    <DataTemplate x:Key="NavigationListBoxItemTemplate">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontWeight="SemiBold"
-            Text="{Binding Name}" />
-    </DataTemplate>
 
     <Style
         x:Key="NavigationListBoxStyle"
@@ -26,17 +20,107 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     </Style>
 
-    <Style
-        x:Key="NavigationListBoxItemStyle"
-        BasedOn="{StaticResource MaterialDesignListBoxItem}"
-        TargetType="ListBoxItem">
-        <Setter Property="MinWidth" Value="80" />
-        <Setter Property="Padding" Value="12,6" />
-        <Setter Property="Margin" Value="2,0" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!--  底部导航一级菜单：图标 + 名字  -->
+    <DataTemplate x:Key="BottomNavItemTemplate">
+        <StackPanel Orientation="Horizontal">
+            <materialDesign:PackIcon
+                Width="20"
+                Height="20"
+                VerticalAlignment="Center"
+                Kind="{Binding Code, Converter={x:Static converters:MenuIconConverter.Instance}}" />
+            <TextBlock
+                Margin="8,0,0,0"
+                VerticalAlignment="Center"
+                FontSize="{StaticResource Size14}"
+                FontWeight="SemiBold"
+                Text="{Binding Name}" />
+        </StackPanel>
+    </DataTemplate>
+
+    <!--  底部导航一级菜单项：等宽标签；选中 = 顶部一条强调色指示线 + 强调色文字，悬停微微提亮，没有焦点虚线框  -->
+    <Style x:Key="BottomNavListBoxItemStyle" TargetType="ListBoxItem">
+        <Setter Property="Width" Value="150" />
+        <Setter Property="Height" Value="52" />
+        <Setter Property="Margin" Value="0,0,4,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Grid Background="Transparent">
+                        <Border
+                            x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6" />
+                        <Border
+                            x:Name="Indicator"
+                            Height="3"
+                            Margin="20,0"
+                            VerticalAlignment="Top"
+                            Background="{StaticResource DarkAccent}"
+                            CornerRadius="0,0,2,2"
+                            Visibility="Collapsed" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#0FFFFFFF" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#1F42A5F5" />
+                            <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  底部导航二级页面（跟在一级菜单后面）  -->
+    <DataTemplate x:Key="SubNavItemTemplate">
+        <TextBlock
+            VerticalAlignment="Center"
+            FontSize="{StaticResource Size14}"
+            Text="{Binding Name}" />
+    </DataTemplate>
+
+    <!--  底部导航二级页面：放在托盘里的分段按钮；其它页 = 灰字，悬停提亮；当前页 = 实心强调色白字  -->
+    <Style x:Key="SubNavListBoxItemStyle" TargetType="ListBoxItem">
+        <Setter Property="MinWidth" Value="104" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border
+                        x:Name="Chrome"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="18">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#14FFFFFF" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource DarkAccentPressed}" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
 </ResourceDictionary>

@@ -11,20 +11,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <Border
-            Grid.Row="0"
-            Style="{DynamicResource HeaderBarBorderStyle}">
-            <TextBlock
-                Style="{DynamicResource PageTitleTextStyle}"
-                Text="角色管理" />
-        </Border>
-
-        <Grid Grid.Row="1" Margin="16">
+        <Grid Margin="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

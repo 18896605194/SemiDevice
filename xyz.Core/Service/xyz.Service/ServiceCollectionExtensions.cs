@@ -92,6 +92,9 @@ public static class ServiceCollectionExtensions
             module.Start();
         }
 
+        // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
+        EquipmentStatusPublisher.Start(roots, modules);
+
         LogHelper.Info($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
 
         #endregion

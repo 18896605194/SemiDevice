@@ -27,6 +27,19 @@ public static class DialogService
     }
 
     /// <summary>
+    /// 弹出系统确认框（是 / 否），点了“是”返回 true。
+    /// </summary>
+    public static bool ShowConfirm(string title, string message)
+    {
+        var owner = Application.Current?.MainWindow;
+        var result = owner is null
+            ? MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question)
+            : MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        return result == MessageBoxResult.Yes;
+    }
+
+    /// <summary>
     /// 弹出“文本框 + 下拉框”输入弹窗。
     /// 返回输入文本和选中项；取消返回 null。
     /// </summary>
