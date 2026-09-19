@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Presentation.Dialogs;
 
@@ -11,7 +12,7 @@ public partial class TextInputDialog : Window
     private readonly bool _required;
 
     public TextInputDialog()
-        : this("输入", "请输入内容")
+        : this(L10n.Get("common.input"), L10n.Get("common.input_prompt"))
     {
     }
 

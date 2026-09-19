@@ -4,12 +4,12 @@ using System.Windows.Data;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Rpc;
-using xyz.Client.DataCenter.Models;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.DataCenter.ViewModels;
 
@@ -20,16 +20,6 @@ namespace xyz.Client.DataCenter.ViewModels;
 /// </summary>
 public class LogRealtimeViewModel : BaseViewModel
 {
-    /// <summary>
-    /// 页面最多保留的日志条数，超出丢最旧的。
-    /// </summary>
-    private const int MaxLogs = 2000;
-
-    /// <summary>
-    /// 连上后端时补拉的条数。
-    /// </summary>
-    private const int HistoryCount = 200;
-
     #region Column
 
     /// <summary>
@@ -96,12 +86,12 @@ public class LogRealtimeViewModel : BaseViewModel
     /// <summary>
     /// 暂停按钮上的字。
     /// </summary>
-    public string PauseText => IsPaused ? "继续" : "暂停";
+    public string PauseText => L10n.Get(IsPaused ? "log.resume" : "log.pause");
 
     /// <summary>
     /// 工具栏右侧的状态：共多少条；暂停时显示攒了多少条没显示。
     /// </summary>
-    public string Summary => IsPaused ? $"已暂停，新到 {_pending.Count} 条" : $"共 {Logs.Count} 条";
+    public string Summary => IsPaused ? L10n.Get("log.paused_summary", _pending.Count) : L10n.Get("common.total", Logs.Count);
 
     #endregion
 
@@ -123,6 +113,11 @@ public class LogRealtimeViewModel : BaseViewModel
     private readonly List<LogModel> _pending = [];
 
     private IDisposable? _subscription;
+
+    /// <summary>
+    /// 页面最多保留的日志条数，超出丢最旧的；连上后端时按 sc.xml 的 Log 节点（RealtimeDisplayMaxCount）更新。
+    /// </summary>
+    private int _maxLogs = LogSettingsDto.DefaultRealtimeDisplayMaxCount;
 
     #endregion
 
@@ -161,9 +156,12 @@ public class LogRealtimeViewModel : BaseViewModel
             return;
         }
 
+        await LoadSettingsAsync();
+
         try
         {
-            var response = await _service.GetRecentAsync(new LogQuery { Count = HistoryCount });
+            // 后端缓冲里有多少补多少（缓冲条数在 sc.xml 的 Log 节点配）
+            var response = await _service.GetRecentAsync(new LogQuery());
             if (!response.Success)
             {
                 return;
@@ -185,21 +183,57 @@ public class LogRealtimeViewModel : BaseViewModel
         }
     }
 
+    /// <summary>
+    /// 取后端配的显示条数（sc.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// </summary>
+    private async Task LoadSettingsAsync()
+    {
+        try
+        {
+            var response = await _service.GetSettingsAsync(new RpcRequest());
+            var settings = response.Success ? JsonHelper.Deserialize<LogSettingsDto>(response.Data) : null;
+            if (settings is null || settings.RealtimeDisplayMaxCount <= 0)
+            {
+                return;
+            }
+
+            _maxLogs = settings.RealtimeDisplayMaxCount;
+            TrimOldest();
+        }
+        catch
+        {
+            // 后端不可用：断线重连时还会再拉。
+        }
+    }
+
     private void Receive(LogModel model)
     {
         if (IsPaused)
         {
             _pending.Add(model);
-            if (_pending.Count > MaxLogs)
-            {
-                _pending.RemoveAt(0);
-            }
+            TrimOldest();
 
             OnPropertyChanged(nameof(Summary));
             return;
         }
 
         Insert(model);
+    }
+
+    /// <summary>
+    /// 超出显示条数丢最旧的：表格最新的在前、最旧的在后；暂停攒着的按到达顺序、最旧的在前。
+    /// </summary>
+    private void TrimOldest()
+    {
+        while (Logs.Count > _maxLogs)
+        {
+            Logs.RemoveAt(Logs.Count - 1);
+        }
+
+        while (_pending.Count > _maxLogs)
+        {
+            _pending.RemoveAt(0);
+        }
     }
 
     /// <summary>
@@ -214,10 +248,7 @@ public class LogRealtimeViewModel : BaseViewModel
         }
 
         Logs.Insert(index, model);
-        while (Logs.Count > MaxLogs)
-        {
-            Logs.RemoveAt(Logs.Count - 1);
-        }
+        TrimOldest();
     }
 
     private void DoPause()

@@ -1,5 +1,5 @@
 <UserControl
-    x:Class="xyz.Client.DataCenter.Views.AlarmHistoryView"
+    x:Class="xyz.Client.Alarm.Views.AlarmHistoryView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -11,7 +11,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <Grid Margin="16">
+        <Grid Margin="8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -28,39 +28,39 @@
                         <DatePicker
                             Width="170"
                             Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="开始日期"
+                            materialDesign:HintAssist.Hint="{DynamicResource common.start_date}"
                             SelectedDate="{Binding StartDate}"
                             Style="{DynamicResource DefaultDatePickerStyle}" />
                         <DatePicker
                             Width="170"
                             Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="结束日期"
+                            materialDesign:HintAssist.Hint="{DynamicResource common.end_date}"
                             SelectedDate="{Binding EndDate}"
                             Style="{DynamicResource DefaultDatePickerStyle}" />
                         <ComboBox
                             Width="140"
                             Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="等级"
+                            materialDesign:HintAssist.Hint="{DynamicResource alarmview.level}"
                             ItemsSource="{Binding Levels}"
                             SelectedItem="{Binding SelectedLevel}"
                             Style="{DynamicResource DefaultComboBoxStyle}" />
                         <TextBox
                             Width="280"
                             Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="关键字（来源 / 代码 / 内容）"
+                            materialDesign:HintAssist.Hint="{DynamicResource alarmview.keyword_hint}"
                             Style="{DynamicResource DefaultTextBoxStyle}"
                             Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
                         <Button
                             Command="{Binding QueryCommand}"
-                            Content="查询"
+                            Content="{DynamicResource common.query}"
                             Style="{DynamicResource DefaultButtonStyle}" />
                         <Button
                             Command="{Binding TodayCommand}"
-                            Content="今天"
+                            Content="{DynamicResource common.today}"
                             Style="{DynamicResource DefaultButtonStyle}" />
                         <Button
                             Command="{Binding LastWeekCommand}"
-                            Content="最近 7 天"
+                            Content="{DynamicResource common.last_7_days}"
                             Style="{DynamicResource DefaultButtonStyle}" />
                     </WrapPanel>
                 </DockPanel>
@@ -69,7 +69,7 @@
             <!--  查询结果：报出、清除各一行，最新的在最上面；清除那行带着报了多久  -->
             <materialDesign:Card
                 Grid.Row="1"
-                Margin="0,16,0,0"
+                Margin="0,8,0,0"
                 Style="{DynamicResource DefaultCardStyle}">
                 <DataGrid ItemsSource="{Binding Records}" Style="{DynamicResource CompactDataGridStyle}">
                     <DataGrid.Columns>
@@ -77,47 +77,47 @@
                             Width="200"
                             Binding="{Binding OccurredAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="时间" />
+                            Header="{DynamicResource common.time}" />
                         <DataGridTextColumn
                             Width="90"
                             Binding="{Binding ActionText}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="动作" />
+                            Header="{DynamicResource alarmview.action}" />
                         <DataGridTextColumn
                             Width="110"
                             Binding="{Binding Level}"
                             ElementStyle="{DynamicResource AlarmLevelDataGridTextStyle}"
-                            Header="等级" />
+                            Header="{DynamicResource alarmview.level}" />
                         <DataGridTextColumn
                             Width="160"
                             Binding="{Binding Source}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                            Header="来源" />
+                            Header="{DynamicResource alarmview.source}" />
                         <DataGridTextColumn
                             Width="220"
                             Binding="{Binding Code}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                            Header="代码" />
+                            Header="{DynamicResource alarmview.code}" />
                         <DataGridTextColumn
                             Width="*"
                             Binding="{Binding Text}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                            Header="报警内容" />
+                            Header="{DynamicResource alarmview.text}" />
                         <DataGridTextColumn
                             Width="180"
                             Binding="{Binding Category}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                            Header="分类" />
+                            Header="{DynamicResource alarmview.category}" />
                         <DataGridTextColumn
                             Width="200"
                             Binding="{Binding RaisedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="报出时间" />
+                            Header="{DynamicResource alarmview.raised_at}" />
                         <DataGridTextColumn
                             Width="110"
                             Binding="{Binding DurationText}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="持续" />
+                            Header="{DynamicResource alarmview.duration}" />
                     </DataGrid.Columns>
                 </DataGrid>
             </materialDesign:Card>

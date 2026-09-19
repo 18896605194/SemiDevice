@@ -38,7 +38,7 @@
                     VerticalAlignment="Center"
                     FontSize="{DynamicResource Size12}"
                     Foreground="{DynamicResource DarkSecondaryText}"
-                    Text="正在启动…" />
+                    Text="{DynamicResource shell.loading.starting}" />
                 <TextBlock
                     x:Name="ProgressText"
                     HorizontalAlignment="Right"

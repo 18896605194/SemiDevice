@@ -17,17 +17,14 @@ public sealed class Module35021 : IClientModule, IClientMenuProvider
     }
 
     /// <inheritdoc />
+    public string? PresentationAssembly => "xyz.35021.Client.Presentation";
+
+    /// <summary>
+    /// 本机型用到的框架页面，挂在平台的 Manual 一级菜单下；菜单名是框架的，配在平台语言包（menu.{Code}）。
+    /// </summary>
     public IReadOnlyList<ClientMenu> Menus { get; } = new[]
     {
-        new ClientMenu("Manual", "LoadPort 手动", "Manual.LoadPorts", 1),
-        new ClientMenu("Manual", "Transfer 调度", "Manual.Transfer", 2),
-    };
-
-    /// <inheritdoc />
-    public IReadOnlyList<string> RetiredMenuCodes { get; } = new[]
-    {
-        // 旧版本一个 LoadPort 一个菜单项，改成大手动界面后清理掉。
-        "Manual.LoadPort1",
-        "Manual.LoadPort2",
+        new ClientMenu("Manual", "Manual.LoadPorts", 1),
+        new ClientMenu("Manual", "Manual.Transfer", 2),
     };
 }

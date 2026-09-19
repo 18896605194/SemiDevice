@@ -3,7 +3,7 @@ using xyz.Client.Common.Alarms;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;
 
-namespace xyz.Client.DataCenter.ViewModels;
+namespace xyz.Client.Alarm.ViewModels;
 
 /// <summary>
 /// 实时报警页 ViewModel（只显示）：跟着客户端当前报警（ClientAlarms）走，最新的在最上面。

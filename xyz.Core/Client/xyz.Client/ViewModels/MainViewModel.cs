@@ -1,18 +1,17 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
-using xyz.Shared.Rpc;
 using System.Windows.Controls;
-using xyz.Client.Common.Rpc;
-using xyz.Client.Setting.Models;
+using xyz.Client.Common.Log;
 using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Models;
+using xyz.Client.Modules;
+using xyz.Client.Presentation.Localization;
 using xyz.Client.Views;
-using xyz.Shared.Dtos;
-using xyz.Shared.Services;
 
 namespace xyz.Client.ViewModels;
 
 /// <summary>
-/// 主界面 ViewModel。菜单数据来自后端 Menu 表。
+/// 主界面 ViewModel。菜单写在代码里：平台菜单（PlatformMenuProvider）+ 机型模块声明的菜单，名字走语言包。
 /// </summary>
 public class MainViewModel : BaseViewModel
 {
@@ -100,7 +99,7 @@ public class MainViewModel : BaseViewModel
     #region Service
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly IMenuService _menuService;
+    private readonly IReadOnlyList<IClientMenuProvider> _menuProviders;
     private readonly Dictionary<string, UserControl> _views = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -110,11 +109,11 @@ public class MainViewModel : BaseViewModel
 
     #endregion
 
-    public MainViewModel(IServiceProvider serviceProvider, TopBarViewModel topBar)
+    public MainViewModel(IServiceProvider serviceProvider, TopBarViewModel topBar, IEnumerable<IClientMenuProvider> menuProviders)
     {
         _serviceProvider = serviceProvider;
         TopBar = topBar;
-        _menuService = GrpcClientFactory.Create<IMenuService>();
+        _menuProviders = menuProviders.ToList();
 
         PrimaryMenus = new ObservableCollection<MenuModel>();
         SecondaryMenus = new ObservableCollection<MenuModel>();
@@ -165,39 +164,45 @@ public class MainViewModel : BaseViewModel
         SelectedSecondaryMenu = SecondaryMenus.FirstOrDefault(child => child.Code == lastCode) ?? SecondaryMenus[0];
     }
 
+    /// <summary>
+    /// 合成菜单树：平台先注册，同一个 Code 只认第一个声明的；父菜单没人声明的二级菜单记日志跳过。
+    /// </summary>
     private void LoadMenus()
     {
-        var response = _menuService
-            .GetMenusAsync(new RpcRequest())
-            .GetAwaiter()
-            .GetResult();
+        var menus = _menuProviders
+            .SelectMany(provider => provider.Menus)
+            .DistinctBy(menu => menu.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var codes = menus.Select(menu => menu.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var menuDtos = response.DeserializeData<List<MenuDto>>();
+        foreach (var orphan in menus.Where(menu => menu.ParentCode != null && !codes.Contains(menu.ParentCode)))
+        {
+            ClientLog.Warn("Client", $"菜单 {orphan.Code} 的父菜单 {orphan.ParentCode} 没有声明，已跳过。");
+        }
 
-        PrimaryMenus.Clear();
-        PreloadViews(menuDtos);
+        PreloadViews(menus);
 
-        foreach (var menuDto in menuDtos
-                     .Where(menu => menu.ParentId == null)
+        foreach (var menu in menus
+                     .Where(menu => menu.ParentCode == null)
                      .OrderBy(menu => menu.Sort))
         {
-            PrimaryMenus.Add(BuildMenu(menuDto, menuDtos));
+            PrimaryMenus.Add(BuildMenu(menu, menus));
         }
 
         SelectedPrimaryMenu = PrimaryMenus.FirstOrDefault();
     }
 
-    private static MenuModel BuildMenu(MenuDto menuDto, List<MenuDto> allMenus)
+    private static MenuModel BuildMenu(ClientMenu menu, IReadOnlyList<ClientMenu> allMenus)
     {
         var menuModel = new MenuModel
         {
-            Name = menuDto.Name,
-            Code = menuDto.Code
+            Name = L10n.MenuName(menu.Code),
+            Code = menu.Code
         };
 
         foreach (var child in allMenus
-                     .Where(menu => menu.ParentId == menuDto.Id)
-                     .OrderBy(menu => menu.Sort))
+                     .Where(child => string.Equals(child.ParentCode, menu.Code, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(child => child.Sort))
         {
             menuModel.Children.Add(BuildMenu(child, allMenus));
         }
@@ -205,14 +210,14 @@ public class MainViewModel : BaseViewModel
         return menuModel;
     }
 
-    private void PreloadViews(List<MenuDto> menuDtos)
+    private void PreloadViews(IEnumerable<ClientMenu> menus)
     {
-        foreach (var menuDto in menuDtos)
+        foreach (var menu in menus)
         {
-            var view = _serviceProvider.GetKeyedService<UserControl>(menuDto.Code);
+            var view = _serviceProvider.GetKeyedService<UserControl>(menu.Code);
             if (view != null)
             {
-                _views[menuDto.Code] = view;
+                _views[menu.Code] = view;
             }
         }
     }

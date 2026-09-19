@@ -39,4 +39,135 @@
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
 
     <sys:String x:Key="history.query_failed">查询失败：{0}</sys:String>
+
+    <!-- ==================== 界面文字 ====================
+         XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
+         界面语言由后端 sc.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
+
+    <!-- 通用 -->
+    <sys:String x:Key="common.ok">确定</sys:String>
+    <sys:String x:Key="common.cancel">取消</sys:String>
+    <sys:String x:Key="common.create">创建</sys:String>
+    <sys:String x:Key="common.delete">删除</sys:String>
+    <sys:String x:Key="common.save">保存</sys:String>
+    <sys:String x:Key="common.enabled">启用</sys:String>
+    <sys:String x:Key="common.sort">排序</sys:String>
+    <sys:String x:Key="common.none">无</sys:String>
+    <sys:String x:Key="common.all">全部</sys:String>
+    <sys:String x:Key="common.input">输入</sys:String>
+    <sys:String x:Key="common.input_prompt">请输入内容</sys:String>
+    <sys:String x:Key="common.select_prompt">请选择</sys:String>
+    <sys:String x:Key="common.query">查询</sys:String>
+    <sys:String x:Key="common.today">今天</sys:String>
+    <sys:String x:Key="common.last_7_days">最近 7 天</sys:String>
+    <sys:String x:Key="common.start_date">开始日期</sys:String>
+    <sys:String x:Key="common.end_date">结束日期</sys:String>
+    <sys:String x:Key="common.time">时间</sys:String>
+    <sys:String x:Key="common.count">{0} 条</sys:String>
+    <sys:String x:Key="common.total">共 {0} 条</sys:String>
+    <sys:String x:Key="common.query_hint">选好日期后点查询</sys:String>
+    <sys:String x:Key="common.query_failed">查询失败</sys:String>
+    <sys:String x:Key="common.truncated">只显示最新的 {0} 条，缩短日期段或加条件再查</sys:String>
+    <sys:String x:Key="common.days_duration">{0}天 {1}</sys:String>
+
+    <!-- 主窗口、加载窗口 -->
+    <sys:String x:Key="shell.loading.starting">正在启动…</sys:String>
+    <sys:String x:Key="shell.loading.channel">正在初始化通讯通道…</sys:String>
+    <sys:String x:Key="shell.loading.events">正在连接后端事件流…</sys:String>
+    <sys:String x:Key="shell.loading.modules">正在加载机型模块…</sys:String>
+    <sys:String x:Key="shell.loading.views">正在加载界面…</sys:String>
+    <sys:String x:Key="shell.loading.done">加载完成</sys:String>
+    <sys:String x:Key="shell.select_menu">请选择主菜单</sys:String>
+    <sys:String x:Key="shell.placeholder">「{0}」模块后续实现，内容将显示在中间区域。</sys:String>
+    <sys:String x:Key="shell.no_alarm">当前没有报警</sys:String>
+    <sys:String x:Key="shell.logout">Logout</sys:String>
+    <sys:String x:Key="shell.logout_tip">注销（登录功能接上后可用）</sys:String>
+    <sys:String x:Key="shell.reset">Reset</sys:String>
+    <sys:String x:Key="shell.reset_tip">复位全部有报警的来源</sys:String>
+    <sys:String x:Key="shell.buzzer_off">Off</sys:String>
+    <sys:String x:Key="shell.buzzer_off_tip">关闭蜂鸣器</sys:String>
+
+    <!-- 四色灯 -->
+    <sys:String x:Key="lamp.alarm">报警</sys:String>
+    <sys:String x:Key="lamp.warning">警告</sys:String>
+    <sys:String x:Key="lamp.running">运行</sys:String>
+    <sys:String x:Key="lamp.communication">通讯</sys:String>
+
+    <!-- 日志页 -->
+    <sys:String x:Key="log.level">级别</sys:String>
+    <sys:String x:Key="log.module">模块</sys:String>
+    <sys:String x:Key="log.message">内容</sys:String>
+    <sys:String x:Key="log.keyword_hint">关键字（模块 / 内容）</sys:String>
+    <sys:String x:Key="log.pause">暂停</sys:String>
+    <sys:String x:Key="log.resume">继续</sys:String>
+    <sys:String x:Key="log.clear">清空</sys:String>
+    <sys:String x:Key="log.paused_summary">已暂停，新到 {0} 条</sys:String>
+
+    <!-- 报警页 -->
+    <sys:String x:Key="alarmview.raised_at">报出时间</sys:String>
+    <sys:String x:Key="alarmview.level">等级</sys:String>
+    <sys:String x:Key="alarmview.source">来源</sys:String>
+    <sys:String x:Key="alarmview.code">代码</sys:String>
+    <sys:String x:Key="alarmview.text">报警内容</sys:String>
+    <sys:String x:Key="alarmview.category">分类</sys:String>
+    <sys:String x:Key="alarmview.solution">处理建议</sys:String>
+    <sys:String x:Key="alarmview.action">动作</sys:String>
+    <sys:String x:Key="alarmview.duration">持续</sys:String>
+    <sys:String x:Key="alarmview.keyword_hint">关键字（来源 / 代码 / 内容）</sys:String>
+    <sys:String x:Key="alarmview.action.raised">报出</sys:String>
+    <sys:String x:Key="alarmview.action.cleared">清除</sys:String>
+
+    <!-- 设置页（用户、角色） -->
+    <sys:String x:Key="setting.user.name">用户名</sys:String>
+    <sys:String x:Key="setting.user.real_name">姓名</sys:String>
+    <sys:String x:Key="setting.user.role">角色</sys:String>
+    <sys:String x:Key="setting.user.role_select">所属角色</sys:String>
+    <sys:String x:Key="setting.user.create">创建用户</sys:String>
+    <sys:String x:Key="setting.user.exists">用户名已存在，请更换后重试</sys:String>
+    <sys:String x:Key="setting.role.name">角色名称</sys:String>
+    <sys:String x:Key="setting.role.description">说明</sys:String>
+    <sys:String x:Key="setting.role.user_count">用户数</sys:String>
+    <sys:String x:Key="setting.role.create">创建角色</sys:String>
+    <sys:String x:Key="setting.role.exists">角色名称已存在，请更换后重试</sys:String>
+
+    <!-- Io 页 -->
+    <sys:String x:Key="io.point">点位</sys:String>
+    <sys:String x:Key="io.value">值</sys:String>
+    <sys:String x:Key="io.unit">单位</sys:String>
+    <sys:String x:Key="io.type">类型</sys:String>
+
+    <!-- LoadPort 手动页 -->
+    <sys:String x:Key="lpmanual.comm">通讯</sys:String>
+    <sys:String x:Key="lpmanual.comm_tip">驱动串口连接</sys:String>
+    <sys:String x:Key="lpmanual.present">在位</sys:String>
+    <sys:String x:Key="lpmanual.present_tip">FOUP 在位（Pod Present）；灰色表示反馈不可用</sys:String>
+    <sys:String x:Key="lpmanual.placed">到位</sys:String>
+    <sys:String x:Key="lpmanual.placed_tip">FOUP 放置到位（Pod Placed）；灰色表示反馈不可用</sys:String>
+    <sys:String x:Key="lpmanual.alarm">报警</sys:String>
+    <sys:String x:Key="lpmanual.alarm_tip">设备硬件报警</sys:String>
+    <sys:String x:Key="lpmanual.auto_tip">Auto：搬运车经 E84 自动交接</sys:String>
+    <sys:String x:Key="lpmanual.manual_tip">Manual：人工放取</sys:String>
+    <sys:String x:Key="lpmanual.state">状态：</sys:String>
+    <sys:String x:Key="lpmanual.online_mode">在线模式：</sys:String>
+    <sys:String x:Key="lpmanual.online">在线</sys:String>
+    <sys:String x:Key="lpmanual.offline">下线</sys:String>
+    <sys:String x:Key="lpmanual.carrier_id">载具 ID：</sys:String>
+
+    <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身。
+         框架提供的菜单（含机型模块声明的 LoadPort 手动、Transfer）都配在这里；机型独有的菜单配在机型语言包。 -->
+    <sys:String x:Key="menu.Main">主界面</sys:String>
+    <sys:String x:Key="menu.Manual">手动</sys:String>
+    <sys:String x:Key="menu.Recipe">配方</sys:String>
+    <sys:String x:Key="menu.Alarm">报警</sys:String>
+    <sys:String x:Key="menu.DataCenter">数据中心</sys:String>
+    <sys:String x:Key="menu.Setting">设置</sys:String>
+    <sys:String x:Key="menu.Io">IO</sys:String>
+    <sys:String x:Key="menu.Manual.LoadPorts">LoadPort 手动</sys:String>
+    <sys:String x:Key="menu.Manual.Transfer">Transfer 调度</sys:String>
+    <sys:String x:Key="menu.Alarm.Realtime">实时报警</sys:String>
+    <sys:String x:Key="menu.Alarm.History">报警历史</sys:String>
+    <sys:String x:Key="menu.DataCenter.LogRealtime">实时日志</sys:String>
+    <sys:String x:Key="menu.DataCenter.LogHistory">日志历史</sys:String>
+    <sys:String x:Key="menu.Setting.User">用户管理</sys:String>
+    <sys:String x:Key="menu.Setting.Role">角色管理</sys:String>
 </ResourceDictionary>

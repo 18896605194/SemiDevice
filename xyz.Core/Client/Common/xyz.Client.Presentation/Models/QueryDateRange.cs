@@ -1,4 +1,4 @@
-namespace xyz.Client.DataCenter.Models;
+namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 历史查询的时间段：界面选两个日期（含首尾两天），查询按 [起始日 0 点, 截止日次日 0 点)；选反了自动对调。

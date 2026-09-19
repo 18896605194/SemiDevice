@@ -1,8 +1,8 @@
 using System.Windows.Controls;
-using xyz.Client.DataCenter.ViewModels;
+using xyz.Client.Alarm.ViewModels;
 using xyz.Tools;
 
-namespace xyz.Client.DataCenter.Views;
+namespace xyz.Client.Alarm.Views;
 
 /// <summary>
 /// 实时报警页。

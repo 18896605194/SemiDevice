@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Presentation.Dialogs;
 
@@ -13,7 +14,7 @@ public partial class TextSelectDialog : Window
     private readonly bool _selectionRequired;
 
     public TextSelectDialog()
-        : this("输入", "请输入内容", "请选择", Array.Empty<object>())
+        : this(L10n.Get("common.input"), L10n.Get("common.input_prompt"), L10n.Get("common.select_prompt"), Array.Empty<object>())
     {
     }
 

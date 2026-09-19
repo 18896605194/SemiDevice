@@ -23,11 +23,8 @@
                 Margin="0,10,0,0"
                 HorizontalAlignment="Center"
                 FontSize="{DynamicResource Size14}"
-                Foreground="{DynamicResource DarkSecondaryText}">
-                <Run Text="「" />
-                <Run Text="{Binding Title, ElementName=root}" />
-                <Run Text="」模块后续实现，内容将显示在中间区域。" />
-            </TextBlock>
+                Foreground="{DynamicResource DarkSecondaryText}"
+                Text="{Binding Message, ElementName=root}" />
         </StackPanel>
     </Grid>
 </UserControl>

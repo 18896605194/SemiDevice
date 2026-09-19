@@ -7,8 +7,8 @@ using xyz.Client.DataModels.ViewModels;
 namespace xyz.Client.DataCenter;
 
 /// <summary>
-/// DataCenter 模块服务注册扩展：实时日志、日志历史、实时报警、报警历史四个页面。
-/// 页面按菜单 Code 注册（菜单行由后端 MenuService 种子补齐）。
+/// DataCenter 模块服务注册扩展：实时日志、日志历史两个页面（报警的两个页面在 xyz.Client.Alarm）。
+/// 页面按菜单 Code 注册（菜单在壳的 PlatformMenuProvider 里声明）。
 /// </summary>
 public static class ServiceCollectionExtensions
 {
@@ -20,16 +20,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LogHistoryViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<LogHistoryViewModel>());
 
-        services.AddSingleton<AlarmRealtimeViewModel>();
-        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<AlarmRealtimeViewModel>());
-
-        services.AddSingleton<AlarmHistoryViewModel>();
-        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<AlarmHistoryViewModel>());
-
         services.AddKeyedSingleton<UserControl, LogRealtimeView>("DataCenter.LogRealtime");
         services.AddKeyedSingleton<UserControl, LogHistoryView>("DataCenter.LogHistory");
-        services.AddKeyedSingleton<UserControl, AlarmRealtimeView>("Alarm.Realtime");
-        services.AddKeyedSingleton<UserControl, AlarmHistoryView>("Alarm.History");
 
         return services;
     }

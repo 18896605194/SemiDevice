@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 35021 机型的界面资源：照平台 xyz.Client.Presentation 的样子，放本机型独有的控件、样式和语言包。
+       框架提供的功能（LoadPort 手动、Transfer 等）的文字在平台语言包里，这里不重复放。 -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\xyz.Core\Client\Common\xyz.Client.Presentation\xyz.Client.Presentation.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>xyz._35021.Client.Presentation</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

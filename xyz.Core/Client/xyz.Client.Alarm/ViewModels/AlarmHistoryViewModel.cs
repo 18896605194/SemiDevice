@@ -3,25 +3,21 @@ using CommunityToolkit.Mvvm.Input;
 using Mapster;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
-using xyz.Client.DataCenter.Models;
+using xyz.Client.Alarm.Models;
+using xyz.Client.Presentation.Models;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 
-namespace xyz.Client.DataCenter.ViewModels;
+namespace xyz.Client.Alarm.ViewModels;
 
 /// <summary>
-/// 报警历史页 ViewModel：按日期段查报警记录（报出、清除各一条），可按等级、关键字筛；最多显示最新的 1000 条。
+/// 报警历史页 ViewModel：按日期段查报警记录（报出、清除各一条），可按等级、关键字筛；一次最多显示多少条按后端 sc.xml 配置，超出只留最新的。
 /// </summary>
 public class AlarmHistoryViewModel : BaseViewModel
 {
-    /// <summary>
-    /// 一次最多显示的条数，超出只留最新的。
-    /// </summary>
-    private const int MaxCount = 1000;
-
     #region Column
 
     /// <summary>
@@ -69,7 +65,7 @@ public class AlarmHistoryViewModel : BaseViewModel
         set => SetProperty(ref _keyword, value);
     }
 
-    private string _summary = "选好日期后点查询";
+    private string _summary = L10n.Get("common.query_hint");
 
     /// <summary>
     /// 查询结果说明：共多少条，或提示只显示了最新的一部分。
@@ -118,12 +114,11 @@ public class AlarmHistoryViewModel : BaseViewModel
                 End = range.End,
                 Level = LevelOptions.ToQuery(SelectedLevel),
                 Keyword = Keyword.Trim(),
-                MaxCount = MaxCount,
             });
 
             if (!response.Success)
             {
-                Summary = "查询失败";
+                Summary = L10n.Get("common.query_failed");
                 ClientLog.Error("Alarm", $"报警历史查询失败：{L10n.Get(response.Code, response.Args)}");
                 return;
             }
@@ -136,12 +131,12 @@ public class AlarmHistoryViewModel : BaseViewModel
             }
 
             Summary = result.Truncated
-                ? $"只显示最新的 {MaxCount} 条，缩短日期段或加条件再查"
-                : $"共 {Records.Count} 条";
+                ? L10n.Get("common.truncated", Records.Count)
+                : L10n.Get("common.total", Records.Count);
         }
         catch (Exception exception)
         {
-            Summary = "查询失败";
+            Summary = L10n.Get("common.query_failed");
             ClientLog.Error("Alarm", $"报警历史查询失败：{exception.Message}");
         }
     }

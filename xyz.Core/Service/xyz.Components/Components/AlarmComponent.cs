@@ -52,6 +52,14 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
     [SCEditor("90", "Alarm", "报警记录保留天数，超期每天清理一次")]
     public int HistoryKeepDays { get; set; } = 90;
 
+    /// <summary>
+    /// 报警历史一次最多返回条数的默认值（sc.xml 没配或没装报警组件时用）。
+    /// </summary>
+    public const int DefaultHistoryQueryMaxCount = 1000;
+
+    [SCEditor("1000", "Alarm", "报警历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
+    public int HistoryQueryMaxCount { get; set; } = DefaultHistoryQueryMaxCount;
+
     #endregion
 
     /// <summary>

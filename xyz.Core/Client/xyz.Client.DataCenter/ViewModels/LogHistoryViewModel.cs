@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
-using xyz.Client.DataCenter.Models;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Localization;
 using xyz.Client.Presentation.Models;
@@ -13,15 +12,10 @@ using xyz.Shared.Services;
 namespace xyz.Client.DataCenter.ViewModels;
 
 /// <summary>
-/// 日志历史页 ViewModel：按日期段查后端日志文件，可按级别、关键字筛；最多显示最新的 1000 条。
+/// 日志历史页 ViewModel：按日期段查后端日志文件，可按级别、关键字筛；一次最多显示多少条按后端 sc.xml 配置，超出只留最新的。
 /// </summary>
 public class LogHistoryViewModel : BaseViewModel
 {
-    /// <summary>
-    /// 一次最多显示的条数，超出只留最新的。
-    /// </summary>
-    private const int MaxCount = 1000;
-
     #region Column
 
     /// <summary>
@@ -69,7 +63,7 @@ public class LogHistoryViewModel : BaseViewModel
         set => SetProperty(ref _keyword, value);
     }
 
-    private string _summary = "选好日期后点查询";
+    private string _summary = L10n.Get("common.query_hint");
 
     /// <summary>
     /// 查询结果说明：共多少条，或提示只显示了最新的一部分。
@@ -118,12 +112,11 @@ public class LogHistoryViewModel : BaseViewModel
                 End = range.End,
                 Level = LevelOptions.ToQuery(SelectedLevel),
                 Keyword = Keyword.Trim(),
-                MaxCount = MaxCount,
             });
 
             if (!response.Success)
             {
-                Summary = "查询失败";
+                Summary = L10n.Get("common.query_failed");
                 ClientLog.Error("DataCenter", $"日志查询失败：{L10n.Get(response.Code, response.Args)}");
                 return;
             }
@@ -136,12 +129,12 @@ public class LogHistoryViewModel : BaseViewModel
             }
 
             Summary = result.Truncated
-                ? $"只显示最新的 {MaxCount} 条，缩短日期段或加条件再查"
-                : $"共 {Logs.Count} 条";
+                ? L10n.Get("common.truncated", Logs.Count)
+                : L10n.Get("common.total", Logs.Count);
         }
         catch (Exception exception)
         {
-            Summary = "查询失败";
+            Summary = L10n.Get("common.query_failed");
             ClientLog.Error("DataCenter", $"日志查询失败：{exception.Message}");
         }
     }

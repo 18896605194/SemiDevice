@@ -15,16 +15,6 @@ namespace xyz.Service.Alarms;
 /// </summary>
 public class AlarmService : IAlarmService
 {
-    /// <summary>
-    /// 历史查询默认最多返回条数。
-    /// </summary>
-    private const int DefaultMaxCount = 1000;
-
-    /// <summary>
-    /// 历史查询返回条数上限。
-    /// </summary>
-    private const int MaxCountLimit = 5000;
-
     public Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default)
     {
         var alarms = AlarmComponent.Current?.ActiveAlarms.Select(item => item.ToDto()).ToList() ?? [];
@@ -71,7 +61,13 @@ public class AlarmService : IAlarmService
             {
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
-                var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, MaxCountLimit) : DefaultMaxCount;
+                var configured = AlarmComponent.Current?.HistoryQueryMaxCount ?? AlarmComponent.DefaultHistoryQueryMaxCount;
+                if (configured <= 0)
+                {
+                    configured = AlarmComponent.DefaultHistoryQueryMaxCount;
+                }
+
+                var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, configured) : configured;
                 var start = query.Start;
                 var end = query.End;
 

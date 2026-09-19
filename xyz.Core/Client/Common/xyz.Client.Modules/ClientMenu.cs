@@ -1,30 +1,25 @@
 namespace xyz.Client.Modules;
 
 /// <summary>
-/// 机型菜单声明：按 Code 挂到已有父菜单下，Code 同时也是页面在 DI 里的 keyed 注册键。
+/// 菜单声明：菜单写在代码里（平台的由壳声明，机型的由机型模块声明），不进数据库。
+/// Code 同时是页面在 DI 里的 keyed 注册键；显示名按 Code 到语言包取 menu.{Code}。
 /// </summary>
 public sealed class ClientMenu
 {
-    public ClientMenu(string parentCode, string name, string code, int sort)
+    public ClientMenu(string? parentCode, string code, int sort)
     {
         ParentCode = parentCode;
-        Name = name;
         Code = code;
         Sort = sort;
     }
 
     /// <summary>
-    /// 父菜单 Code（如 "Manual"），必须是后端菜单表里已存在的菜单。
+    /// 父菜单 Code（如 "Manual"）；null 表示一级菜单。二级菜单挂的父菜单必须有人声明。
     /// </summary>
-    public string ParentCode { get; }
+    public string? ParentCode { get; }
 
     /// <summary>
-    /// 菜单显示名。
-    /// </summary>
-    public string Name { get; }
-
-    /// <summary>
-    /// 菜单编码，与 keyed UserControl 的注册键一致。
+    /// 菜单编码，与 keyed UserControl 的注册键一致；显示名在语言包里配 menu.{Code}。
     /// </summary>
     public string Code { get; }
 

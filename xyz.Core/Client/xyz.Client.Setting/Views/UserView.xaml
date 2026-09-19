@@ -11,7 +11,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <Grid Margin="16">
+        <Grid Margin="8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -23,18 +23,18 @@
                 <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding CreateUserCommand}"
-                        Content="创建"
+                        Content="{DynamicResource common.create}"
                         Style="{DynamicResource DefaultButtonStyle}" />
                     <Button
                         Command="{Binding DeleteUserCommand}"
-                        Content="删除"
+                        Content="{DynamicResource common.delete}"
                         Style="{DynamicResource DangerButtonStyle}" />
                 </StackPanel>
             </Border>
 
             <materialDesign:Card
                 Grid.Row="1"
-                Margin="0,16,0,0"
+                Margin="0,8,0,0"
                 Style="{DynamicResource DefaultCardStyle}">
                 <DataGrid
                     ItemsSource="{Binding Users}"
@@ -45,21 +45,21 @@
                             Width="*"
                             Binding="{Binding UserName}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="用户名" />
+                            Header="{DynamicResource setting.user.name}" />
                         <DataGridTextColumn
                             Width="*"
                             Binding="{Binding DisplayName}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="姓名" />
+                            Header="{DynamicResource setting.user.real_name}" />
                         <DataGridTextColumn
                             Width="*"
                             Binding="{Binding RoleName}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="角色" />
+                            Header="{DynamicResource setting.user.role}" />
                         <DataGridCheckBoxColumn
                             Width="100"
                             Binding="{Binding IsEnabled}"
-                            Header="启用" />
+                            Header="{DynamicResource common.enabled}" />
                     </DataGrid.Columns>
                 </DataGrid>
             </materialDesign:Card>

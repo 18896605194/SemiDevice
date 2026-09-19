@@ -19,16 +19,6 @@ namespace xyz.Client.Presentation.ViewModels;
 /// </summary>
 public class LogViewModel : BaseViewModel, IDisposable
 {
-    /// <summary>
-    /// 界面最多保留的日志条数，超出丢弃最旧的。
-    /// </summary>
-    private const int MaxLogs = 500;
-
-    /// <summary>
-    /// 连上后端时补拉的历史条数。
-    /// </summary>
-    private const int HistoryCount = 200;
-
     #region Column
 
     /// <summary>
@@ -60,6 +50,11 @@ public class LogViewModel : BaseViewModel, IDisposable
     private IDisposable? _subscription;
     private CancellationTokenSource? _consumeCts;
     private Task? _consumer;
+
+    /// <summary>
+    /// 界面最多保留的日志条数，超出丢最旧的；连上后端时按 sc.xml 的 Log 节点（LogBarDisplayMaxCount）更新。
+    /// </summary>
+    private int _maxLogs = LogSettingsDto.DefaultLogBarDisplayMaxCount;
 
     /// <summary>
     /// 消费者 Task（诊断/测试用）：从队列逐条取日志的循环。
@@ -102,10 +97,13 @@ public class LogViewModel : BaseViewModel, IDisposable
             return;
         }
 
+        var service = GrpcClientFactory.Create<ILogService>();
+        await LoadSettingsAsync(service);
+
         try
         {
-            var service = GrpcClientFactory.Create<ILogService>();
-            var response = await service.GetRecentAsync(new LogQuery { Count = HistoryCount });
+            // 后端缓冲里有多少补多少（缓冲条数在 sc.xml 的 Log 节点配）
+            var response = await service.GetRecentAsync(new LogQuery());
             if (!response.Success)
             {
                 return;
@@ -129,6 +127,29 @@ public class LogViewModel : BaseViewModel, IDisposable
         }
     }
 
+    /// <summary>
+    /// 取后端配的显示条数（sc.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// </summary>
+    private async Task LoadSettingsAsync(ILogService service)
+    {
+        try
+        {
+            var response = await service.GetSettingsAsync(new RpcRequest());
+            var settings = response.Success ? JsonHelper.Deserialize<LogSettingsDto>(response.Data) : null;
+            if (settings is null || settings.LogBarDisplayMaxCount <= 0)
+            {
+                return;
+            }
+
+            _maxLogs = settings.LogBarDisplayMaxCount;
+            TrimOldest();
+        }
+        catch
+        {
+            // 后端不可用：断线重连时还会再拉
+        }
+    }
+
     private async Task ConsumeAsync(CancellationToken token)
     {
         try
@@ -136,11 +157,7 @@ public class LogViewModel : BaseViewModel, IDisposable
             await foreach (var dto in ClientLog.Reader.ReadAllAsync(token))
             {
                 Append(LogModel.From(dto));
-
-                while (Logs.Count > MaxLogs)
-                {
-                    Logs.RemoveAt(0);
-                }
+                TrimOldest();
 
                 SelectedLog = Logs[^1];
             }
@@ -148,6 +165,17 @@ public class LogViewModel : BaseViewModel, IDisposable
         catch (OperationCanceledException)
         {
             // 停止消费：窗口关闭/重新 Init
+        }
+    }
+
+    /// <summary>
+    /// 超出显示条数丢最旧的（列表按时间升序，最旧的在最前）。
+    /// </summary>
+    private void TrimOldest()
+    {
+        while (Logs.Count > _maxLogs)
+        {
+            Logs.RemoveAt(0);
         }
     }
 

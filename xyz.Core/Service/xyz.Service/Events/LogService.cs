@@ -1,6 +1,7 @@
 using xyz.Tools;
 using ProtoBuf.Grpc;
 using xyz.Common.Log;
+using xyz.Components.Components;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -8,20 +9,11 @@ using xyz.Shared.Services;
 namespace xyz.Service.Events;
 
 /// <summary>
-/// 日志 gRPC 服务：客户端连上后拉取后端最近日志（历史），实时日志走事件流；日志历史页按时间段查日志文件。
+/// 日志 gRPC 服务：客户端连上后拉取后端最近日志（历史），实时日志走事件流；日志历史页按时间段查日志文件；
+/// 客户端日志显示条数也从这里取（sc.xml 的 Log 节点）。
 /// </summary>
 public class LogService : ILogService
 {
-    /// <summary>
-    /// 历史查询默认最多返回条数。
-    /// </summary>
-    private const int DefaultMaxCount = 1000;
-
-    /// <summary>
-    /// 历史查询返回条数上限，免得一次把几十万行推给界面。
-    /// </summary>
-    private const int MaxCountLimit = 5000;
-
     public Task<RpcResponse> GetRecentAsync(LogQuery query, CallContext context = default)
     {
         var logs = LogHistory.Snapshot();
@@ -45,7 +37,13 @@ public class LogService : ILogService
             {
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
-                var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, MaxCountLimit) : DefaultMaxCount;
+                var configured = LogComponent.Current?.HistoryQueryMaxCount ?? LogComponent.DefaultHistoryQueryMaxCount;
+                if (configured <= 0)
+                {
+                    configured = LogComponent.DefaultHistoryQueryMaxCount;
+                }
+
+                var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, configured) : configured;
 
                 var kept = new Queue<LogItem>();
                 bool truncated = false;
@@ -93,5 +91,25 @@ public class LogService : ILogService
                 return RpcResponse.Fail(ErrorCodes.HistoryQueryFailed, [exception.Message]);
             }
         });
+    }
+
+    /// <summary>
+    /// 客户端日志显示条数：读 sc.xml 的 Log 节点（LogComponent.Current），没装或配得不对时给默认值。
+    /// </summary>
+    public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
+    {
+        var component = LogComponent.Current;
+        var settings = new LogSettingsDto
+        {
+            RealtimeDisplayMaxCount = PositiveOr(component?.RealtimeDisplayMaxCount, LogComponent.DefaultRealtimeDisplayMaxCount),
+            LogBarDisplayMaxCount = PositiveOr(component?.LogBarDisplayMaxCount, LogComponent.DefaultLogBarDisplayMaxCount),
+        };
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));
+    }
+
+    private static int PositiveOr(int? value, int fallback)
+    {
+        return value > 0 ? value.Value : fallback;
     }
 }

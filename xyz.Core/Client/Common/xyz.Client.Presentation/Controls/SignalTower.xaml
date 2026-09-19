@@ -37,7 +37,7 @@
                 Background="{StaticResource TowerHousingBrush}"
                 CornerRadius="3">
                 <StackPanel>
-                    <Grid Height="14" ToolTip="报警">
+                    <Grid Height="14" ToolTip="{DynamicResource lamp.alarm}">
                         <Border
                             x:Name="RedLamp"
                             Background="{DynamicResource DarkAlarmStatus}"
@@ -62,7 +62,7 @@
                     <Grid
                         Height="14"
                         Margin="0,2,0,0"
-                        ToolTip="警告">
+                        ToolTip="{DynamicResource lamp.warning}">
                         <Border
                             x:Name="YellowLamp"
                             Background="{DynamicResource DarkWarningStatus}"
@@ -87,7 +87,7 @@
                     <Grid
                         Height="14"
                         Margin="0,2,0,0"
-                        ToolTip="运行">
+                        ToolTip="{DynamicResource lamp.running}">
                         <Border
                             x:Name="GreenLamp"
                             Background="{DynamicResource DarkRunningStatus}"
@@ -112,7 +112,7 @@
                     <Grid
                         Height="14"
                         Margin="0,2,0,0"
-                        ToolTip="通讯">
+                        ToolTip="{DynamicResource lamp.communication}">
                         <Border
                             x:Name="BlueLamp"
                             Background="{DynamicResource DarkCommunicationStatus}"

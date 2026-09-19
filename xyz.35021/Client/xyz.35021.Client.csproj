@@ -5,6 +5,7 @@
     <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
     <ProjectReference Include="..\..\xyz.Core\Client\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
     <ProjectReference Include="Manual\xyz.35021.Client.Manual.csproj" />
+    <ProjectReference Include="Presentation\xyz.35021.Client.Presentation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -12,9 +13,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Manual 是子目录里的独立项目，排除其源文件 -->
+    <!-- Manual、Presentation 是子目录里的独立项目，排除其源文件 -->
     <Compile Remove="Manual\**" />
     <Page Remove="Manual\**" />
+    <Compile Remove="Presentation\**" />
+    <Page Remove="Presentation\**" />
+    <None Remove="Presentation\**" />
   </ItemGroup>
 
   <PropertyGroup>

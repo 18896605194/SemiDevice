@@ -357,6 +357,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             IsPodPlaced = IsPodPlaced,
             AutoMode = IsAutoMode,
             CarrierId = CarrierId ?? string.Empty,
+            SlotCount = SlotCount,
             Slots = ToSlotDtos(SlotMap),
             HasCarrier = carrier is not null,
             LotId = carrier?.LotId ?? string.Empty,

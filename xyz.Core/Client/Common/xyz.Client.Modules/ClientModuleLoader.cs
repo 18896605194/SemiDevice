@@ -12,15 +12,21 @@ namespace xyz.Client.Modules;
 public static class ClientModuleLoader
 {
     /// <summary>
-    /// 发现并注册所有机型模块，返回模块实例列表（供菜单同步等后续步骤使用）。
+    /// 发现并注册所有机型模块，返回模块实例列表（供合并语言包等后续步骤使用）。
+    /// 模块声明了菜单（IClientMenuProvider）就一起注册进 DI，壳合成底部导航时能取到。
     /// </summary>
-    public static IReadOnlyList<IClientModule> Load(IServiceCollection services)
+    public static IReadOnlyList<IClientModule> Load(IServiceCollection services, string? baseDirectory = null)
     {
-        var modules = Discover();
+        var modules = Discover(baseDirectory);
 
         foreach (var module in modules)
         {
             module.Register(services);
+
+            if (module is IClientMenuProvider menuProvider)
+            {
+                services.AddSingleton(menuProvider);
+            }
         }
 
         return modules;

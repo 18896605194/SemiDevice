@@ -28,6 +28,7 @@
                 Height="20"
                 VerticalAlignment="Center"
                 Kind="{Binding Code, Converter={x:Static converters:MenuIconConverter.Instance}}" />
+            <!--  Name 是壳按菜单编码从语言包取好的 menu.{Code}  -->
             <TextBlock
                 Margin="8,0,0,0"
                 VerticalAlignment="Center"

@@ -9,6 +9,7 @@ using xyz.Client.Common.Rpc;
 using xyz.Client.Setting.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Setting.ViewModels;
 
@@ -96,9 +97,9 @@ public class UserViewModel : BaseViewModel
     private async Task DoCreateUser()
     {
         var result = DialogService.ShowTextSelect(
-            "创建用户",
-            "用户名",
-            "所属角色",
+            L10n.Get("setting.user.create"),
+            L10n.Get("setting.user.name"),
+            L10n.Get("setting.user.role_select"),
             Roles,
             nameof(RoleModel.Name));
 
@@ -121,8 +122,8 @@ public class UserViewModel : BaseViewModel
         if (existsResponse.DeserializeData<bool>())
         {
             MessageBox.Show(
-                "用户名已存在，请更换后重试",
-                "创建用户",
+                L10n.Get("setting.user.exists"),
+                L10n.Get("setting.user.create"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;

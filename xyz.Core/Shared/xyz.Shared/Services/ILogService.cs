@@ -22,4 +22,10 @@ public interface ILogService
     /// </summary>
     [OperationContract]
     Task<RpcResponse> QueryHistoryAsync(LogHistoryQuery query, CallContext context = default);
+
+    /// <summary>
+    /// 日志显示设置（sc.xml 的 Log 节点）。Data 为 LogSettingsDto 的 JSON。
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default);
 }

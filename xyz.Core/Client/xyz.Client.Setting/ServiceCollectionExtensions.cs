@@ -19,12 +19,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RoleViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<RoleViewModel>());
 
-        services.AddSingleton<MenuViewModel>();
-        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<MenuViewModel>());
-
         services.AddKeyedSingleton<UserControl, UserView>("Setting.User");
         services.AddKeyedSingleton<UserControl, RoleView>("Setting.Role");
-        services.AddKeyedSingleton<UserControl, MenuView>("Setting.Menu");
 
         return services;
     }

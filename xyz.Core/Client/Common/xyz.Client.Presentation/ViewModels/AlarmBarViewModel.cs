@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using xyz.Client.Common.Alarms;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Presentation.ViewModels;
 
@@ -36,7 +37,7 @@ public class AlarmBarViewModel : BaseViewModel
     /// <summary>
     /// 条数文字。
     /// </summary>
-    public string CountText => $"{Alarms.Count} 条";
+    public string CountText => L10n.Get("common.count", Alarms.Count);
 
     #endregion
 

@@ -91,6 +91,15 @@ public class LoadPortModel : ObservableObject
         set => SetProperty(ref _carrierId, value);
     }
 
+    private int _slotCount;
+
+    /// <summary>花篮槽数（后端 sc.xml 里 LoadPort 节点的 SlotCount）；还没收到状态时为 0，界面不画槽。</summary>
+    public int SlotCount
+    {
+        get => _slotCount;
+        set => SetProperty(ref _slotCount, value);
+    }
+
     private List<LoadPortSlotDto> _slots = [];
 
     /// <summary>花篮槽位表（Mapping 结果），下标顺序即槽位顺序。</summary>

@@ -11,7 +11,7 @@ using xyz.Client.Presentation.Models;
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
-/// 可等比缩放的垂直 Load Port 槽位控件，默认显示 25 个槽位。
+/// 可等比缩放的垂直 Load Port 槽位控件；槽数由使用方绑定（后端 sc.xml 配置），0 表示还不知道、不画槽。
 /// </summary>
 public partial class LoadPort : UserControl
 {
@@ -114,9 +114,12 @@ public partial class LoadPort : UserControl
             nameof(DeleteEnable), typeof(bool), typeof(LoadPort),
             new PropertyMetadata(true));
 
+    /// <summary>
+    /// 槽数由使用方绑定（后端 sc.xml 配置）；0 表示还不知道，不画槽。
+    /// </summary>
     private static object CoerceSlotCount(DependencyObject dependencyObject, object baseValue)
     {
-        return Math.Clamp((int)baseValue, 1, 50);
+        return Math.Clamp((int)baseValue, 0, 50);
     }
 
     private static void OnSlotCountChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)

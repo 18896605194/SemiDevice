@@ -9,6 +9,7 @@ using xyz.Client.Common.Rpc;
 using xyz.Client.Setting.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Setting.ViewModels;
 
@@ -79,7 +80,7 @@ public class RoleViewModel : BaseViewModel
 
     private async Task DoCreateRole()
     {
-        var roleName = DialogService.ShowTextInput("创建角色", "角色名称");
+        var roleName = DialogService.ShowTextInput(L10n.Get("setting.role.create"), L10n.Get("setting.role.name"));
         if (string.IsNullOrWhiteSpace(roleName))
         {
             return;
@@ -96,8 +97,8 @@ public class RoleViewModel : BaseViewModel
         if (existsResponse.DeserializeData<bool>())
         {
             MessageBox.Show(
-                "角色名称已存在，请更换后重试",
-                "创建角色",
+                L10n.Get("setting.role.exists"),
+                L10n.Get("setting.role.create"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;

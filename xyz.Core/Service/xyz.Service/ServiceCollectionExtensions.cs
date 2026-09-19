@@ -8,6 +8,7 @@ using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Service.Alarms;
 using xyz.Service.Events;
+using xyz.Service.Systems;
 using xyz.Service.UserManger;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
@@ -105,10 +106,10 @@ public static class ServiceCollectionExtensions
 
         services.AddTransient<IRoleService, RoleService>();
         services.AddTransient<IUserService, UserService>();
-        services.AddTransient<IMenuService, MenuService>();
         services.AddTransient<ILoadPortService, LoadPortService>();
         services.AddTransient<IRobotService, RobotService>();
         services.AddTransient<IAlarmService, AlarmService>();
+        services.AddTransient<ISystemService, SystemService>();
 
         #endregion
 

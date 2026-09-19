@@ -1,4 +1,6 @@
-namespace xyz.Client.DataCenter.Models;
+using xyz.Client.Presentation.Localization;
+
+namespace xyz.Client.Alarm.Models;
 
 /// <summary>
 /// 报警历史页的一行，由 AlarmHistoryDto 经 Mapster 映射，字段与 DTO 同名对齐。
@@ -26,7 +28,7 @@ public class AlarmHistoryModel
     public DateTime OccurredAt { get; set; }
 
     /// <summary>动作文字。</summary>
-    public string ActionText => Action == "Cleared" ? "清除" : "报出";
+    public string ActionText => L10n.Get(Action == "Cleared" ? "alarmview.action.cleared" : "alarmview.action.raised");
 
     /// <summary>报了多久才被清除（只有清除那条有）。</summary>
     public string DurationText
@@ -40,7 +42,7 @@ public class AlarmHistoryModel
 
             var duration = OccurredAt - RaisedAt;
             return duration.TotalDays >= 1
-                ? $"{(int)duration.TotalDays}天 {duration:hh\\:mm\\:ss}"
+                ? L10n.Get("common.days_duration", (int)duration.TotalDays, duration.ToString("hh\\:mm\\:ss"))
                 : duration.ToString("hh\\:mm\\:ss");
         }
     }

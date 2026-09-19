@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Views;
 
@@ -24,6 +25,28 @@ public partial class PlaceholderView : UserControl
             nameof(Title),
             typeof(string),
             typeof(PlaceholderView),
+            new PropertyMetadata(string.Empty, (d, _) => ((PlaceholderView)d).UpdateMessage()));
+
+    /// <summary>
+    /// 提示句（语言包 shell.placeholder，填入页面名）。
+    /// </summary>
+    public string Message
+    {
+        get => (string)GetValue(MessageProperty);
+        private set => SetValue(MessagePropertyKey, value);
+    }
+
+    private static readonly DependencyPropertyKey MessagePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(Message),
+            typeof(string),
+            typeof(PlaceholderView),
             new PropertyMetadata(string.Empty));
 
+    public static readonly DependencyProperty MessageProperty = MessagePropertyKey.DependencyProperty;
+
+    private void UpdateMessage()
+    {
+        Message = L10n.Get("shell.placeholder", Title);
+    }
 }

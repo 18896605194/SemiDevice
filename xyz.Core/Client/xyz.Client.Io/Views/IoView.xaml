@@ -100,22 +100,22 @@
                         Width="*"
                         Binding="{Binding Name}"
                         ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="点位" />
+                        Header="{DynamicResource io.point}" />
                     <DataGridTextColumn
                         Width="60"
                         Binding="{Binding Value}"
                         ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="值" />
+                        Header="{DynamicResource io.value}" />
                     <DataGridTextColumn
                         Width="60"
                         Binding="{Binding Unit}"
                         ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="单位" />
+                        Header="{DynamicResource io.unit}" />
                     <DataGridTextColumn
                         Width="60"
                         Binding="{Binding IsOutput}"
                         ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="类型" />
+                        Header="{DynamicResource io.type}" />
                 </DataGrid.Columns>
             </DataGrid>
         </materialDesign:Card>

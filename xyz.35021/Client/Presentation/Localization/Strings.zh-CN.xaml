@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- 35021 机型语言包（简体中文）：只放本机型独有界面的文字，key 用 m35021. 开头；
+         框架提供的功能（菜单名、LoadPort 手动、Transfer 等）的文字在平台语言包里，不在这里放。
+         壳加载本机型后按当前界面语言合并（模块的 PresentationAssembly 指向本程序集）。 -->
+</ResourceDictionary>

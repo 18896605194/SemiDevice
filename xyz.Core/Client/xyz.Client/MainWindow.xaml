@@ -102,7 +102,7 @@
                         VerticalAlignment="Center" />
                 </Grid>
 
-                <!--  右侧跟左边一样分两行、上下对齐：四色灯跨两行 | 上 = 时间、下 = 当前用户 | 三个按钮竖排（注销 / 复位 / 退出）  -->
+                <!--  右侧跟左边一样分两行、上下对齐：四色灯跨两行 | 上 = 时间、下 = 当前用户 | 三个按钮竖排（注销 / 复位 / 关蜂鸣器）  -->
                 <Grid
                     Grid.Row="0"
                     Grid.RowSpan="2"
@@ -175,7 +175,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!--  右上角三个按钮竖排：注销、整机复位、退出  -->
+                    <!--  右上角三个按钮竖排：注销、整机复位、关闭蜂鸣器  -->
                     <StackPanel
                         Grid.Row="0"
                         Grid.RowSpan="2"
@@ -185,7 +185,7 @@
                         <Button
                             IsEnabled="False"
                             Style="{DynamicResource TopBarStackButtonStyle}"
-                            ToolTip="注销（登录功能接上后可用）"
+                            ToolTip="{DynamicResource shell.logout_tip}"
                             ToolTipService.ShowOnDisabled="True">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon
@@ -196,7 +196,7 @@
                                 <TextBlock
                                     Margin="6,0,0,0"
                                     VerticalAlignment="Center"
-                                    Text="Logout" />
+                                    Text="{DynamicResource shell.logout}" />
                             </StackPanel>
                         </Button>
 
@@ -206,7 +206,7 @@
                             Command="{Binding ResetCommand}"
                             Style="{DynamicResource TopBarStackAccentButtonStyle}"
                             Tag="{Binding IsAlarmOn}"
-                            ToolTip="复位全部有报警的来源">
+                            ToolTip="{DynamicResource shell.reset_tip}">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon
                                     Width="16"
@@ -216,25 +216,25 @@
                                 <TextBlock
                                     Margin="6,0,0,0"
                                     VerticalAlignment="Center"
-                                    Text="Reset" />
+                                    Text="{DynamicResource shell.reset}" />
                             </StackPanel>
                         </Button>
 
-                        <!--  退出软件（先确认）  -->
+                        <!--  关闭蜂鸣器的声音  -->
                         <Button
-                            Command="{Binding OffCommand}"
-                            Style="{DynamicResource TopBarStackDangerButtonStyle}"
-                            ToolTip="退出软件">
+                            Command="{Binding BuzzerOffCommand}"
+                            Style="{DynamicResource TopBarStackButtonStyle}"
+                            ToolTip="{DynamicResource shell.buzzer_off_tip}">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon
                                     Width="16"
                                     Height="16"
                                     VerticalAlignment="Center"
-                                    Kind="Power" />
+                                    Kind="VolumeOff" />
                                 <TextBlock
                                     Margin="6,0,0,0"
                                     VerticalAlignment="Center"
-                                    Text="Off" />
+                                    Text="{DynamicResource shell.buzzer_off}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -254,7 +254,7 @@
                 IsHitTestVisible="False"
                 Style="{DynamicResource NullContentHintTextStyle}"
                 Tag="{Binding CurrentView}"
-                Text="请选择主菜单" />
+                Text="{DynamicResource shell.select_menu}" />
         </Grid>
 
         <!--  底部导航：通栏。左边一级菜单，光条后面是当前一级菜单下的二级页面（当前页高亮），没有二级页面就都不显示  -->

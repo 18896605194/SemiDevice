@@ -75,6 +75,13 @@
         </Style.Triggers>
     </Style>
 
+    <!--  卡片内分段的横线：一张卡里上下几段内容之间用它隔开（不拆成几张卡）  -->
+    <Style x:Key="SectionDividerBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="0,14" />
+        <Setter Property="Background" Value="{StaticResource DarkBorderBrush}" />
+    </Style>
+
     <!--  主窗口的通栏（顶栏、底部导航）：贴满左右，不做成浮起的圆角卡片  -->
     <Style x:Key="ShellBarBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Card.Background}" />

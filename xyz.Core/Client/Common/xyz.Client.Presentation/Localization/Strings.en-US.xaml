@@ -38,4 +38,135 @@
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
 
     <sys:String x:Key="history.query_failed">Query failed: {0}</sys:String>
+
+    <!-- ==================== UI texts ====================
+         XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
+         The UI language comes from the System node (Language) in the backend sc.xml, fetched once at client startup. -->
+
+    <!-- Common -->
+    <sys:String x:Key="common.ok">OK</sys:String>
+    <sys:String x:Key="common.cancel">Cancel</sys:String>
+    <sys:String x:Key="common.create">Create</sys:String>
+    <sys:String x:Key="common.delete">Delete</sys:String>
+    <sys:String x:Key="common.save">Save</sys:String>
+    <sys:String x:Key="common.enabled">Enabled</sys:String>
+    <sys:String x:Key="common.sort">Order</sys:String>
+    <sys:String x:Key="common.none">None</sys:String>
+    <sys:String x:Key="common.all">All</sys:String>
+    <sys:String x:Key="common.input">Input</sys:String>
+    <sys:String x:Key="common.input_prompt">Please enter a value</sys:String>
+    <sys:String x:Key="common.select_prompt">Please select</sys:String>
+    <sys:String x:Key="common.query">Search</sys:String>
+    <sys:String x:Key="common.today">Today</sys:String>
+    <sys:String x:Key="common.last_7_days">Last 7 days</sys:String>
+    <sys:String x:Key="common.start_date">Start date</sys:String>
+    <sys:String x:Key="common.end_date">End date</sys:String>
+    <sys:String x:Key="common.time">Time</sys:String>
+    <sys:String x:Key="common.count">{0}</sys:String>
+    <sys:String x:Key="common.total">{0} records</sys:String>
+    <sys:String x:Key="common.query_hint">Pick the dates, then click Search</sys:String>
+    <sys:String x:Key="common.query_failed">Search failed</sys:String>
+    <sys:String x:Key="common.truncated">Showing only the latest {0} records; narrow the dates or add filters</sys:String>
+    <sys:String x:Key="common.days_duration">{0}d {1}</sys:String>
+
+    <!-- Main window, loading window -->
+    <sys:String x:Key="shell.loading.starting">Starting…</sys:String>
+    <sys:String x:Key="shell.loading.channel">Initializing the communication channel…</sys:String>
+    <sys:String x:Key="shell.loading.events">Connecting to the backend event stream…</sys:String>
+    <sys:String x:Key="shell.loading.modules">Loading equipment modules…</sys:String>
+    <sys:String x:Key="shell.loading.views">Loading views…</sys:String>
+    <sys:String x:Key="shell.loading.done">Done</sys:String>
+    <sys:String x:Key="shell.select_menu">Select a menu</sys:String>
+    <sys:String x:Key="shell.placeholder">The "{0}" module is not implemented yet; its content will appear here.</sys:String>
+    <sys:String x:Key="shell.no_alarm">No active alarms</sys:String>
+    <sys:String x:Key="shell.logout">Logout</sys:String>
+    <sys:String x:Key="shell.logout_tip">Log out (available once login is implemented)</sys:String>
+    <sys:String x:Key="shell.reset">Reset</sys:String>
+    <sys:String x:Key="shell.reset_tip">Reset all alarm sources</sys:String>
+    <sys:String x:Key="shell.buzzer_off">Off</sys:String>
+    <sys:String x:Key="shell.buzzer_off_tip">Turn off the buzzer</sys:String>
+
+    <!-- Signal tower -->
+    <sys:String x:Key="lamp.alarm">Alarm</sys:String>
+    <sys:String x:Key="lamp.warning">Warning</sys:String>
+    <sys:String x:Key="lamp.running">Running</sys:String>
+    <sys:String x:Key="lamp.communication">Communication</sys:String>
+
+    <!-- Log pages -->
+    <sys:String x:Key="log.level">Level</sys:String>
+    <sys:String x:Key="log.module">Module</sys:String>
+    <sys:String x:Key="log.message">Message</sys:String>
+    <sys:String x:Key="log.keyword_hint">Keyword (module / message)</sys:String>
+    <sys:String x:Key="log.pause">Pause</sys:String>
+    <sys:String x:Key="log.resume">Resume</sys:String>
+    <sys:String x:Key="log.clear">Clear</sys:String>
+    <sys:String x:Key="log.paused_summary">Paused, {0} new</sys:String>
+
+    <!-- Alarm pages -->
+    <sys:String x:Key="alarmview.raised_at">Raised at</sys:String>
+    <sys:String x:Key="alarmview.level">Level</sys:String>
+    <sys:String x:Key="alarmview.source">Source</sys:String>
+    <sys:String x:Key="alarmview.code">Code</sys:String>
+    <sys:String x:Key="alarmview.text">Alarm</sys:String>
+    <sys:String x:Key="alarmview.category">Category</sys:String>
+    <sys:String x:Key="alarmview.solution">Solution</sys:String>
+    <sys:String x:Key="alarmview.action">Action</sys:String>
+    <sys:String x:Key="alarmview.duration">Duration</sys:String>
+    <sys:String x:Key="alarmview.keyword_hint">Keyword (source / code / text)</sys:String>
+    <sys:String x:Key="alarmview.action.raised">Raised</sys:String>
+    <sys:String x:Key="alarmview.action.cleared">Cleared</sys:String>
+
+    <!-- Settings pages (users, roles) -->
+    <sys:String x:Key="setting.user.name">User name</sys:String>
+    <sys:String x:Key="setting.user.real_name">Full name</sys:String>
+    <sys:String x:Key="setting.user.role">Role</sys:String>
+    <sys:String x:Key="setting.user.role_select">Role</sys:String>
+    <sys:String x:Key="setting.user.create">Create user</sys:String>
+    <sys:String x:Key="setting.user.exists">The user name already exists; please choose another one</sys:String>
+    <sys:String x:Key="setting.role.name">Role name</sys:String>
+    <sys:String x:Key="setting.role.description">Description</sys:String>
+    <sys:String x:Key="setting.role.user_count">Users</sys:String>
+    <sys:String x:Key="setting.role.create">Create role</sys:String>
+    <sys:String x:Key="setting.role.exists">The role name already exists; please choose another one</sys:String>
+
+    <!-- IO page -->
+    <sys:String x:Key="io.point">Point</sys:String>
+    <sys:String x:Key="io.value">Value</sys:String>
+    <sys:String x:Key="io.unit">Unit</sys:String>
+    <sys:String x:Key="io.type">Type</sys:String>
+
+    <!-- LoadPort manual page -->
+    <sys:String x:Key="lpmanual.comm">Comm</sys:String>
+    <sys:String x:Key="lpmanual.comm_tip">Driver serial connection</sys:String>
+    <sys:String x:Key="lpmanual.present">Present</sys:String>
+    <sys:String x:Key="lpmanual.present_tip">FOUP present (Pod Present); gray means the feedback is unavailable</sys:String>
+    <sys:String x:Key="lpmanual.placed">Placed</sys:String>
+    <sys:String x:Key="lpmanual.placed_tip">FOUP placed (Pod Placed); gray means the feedback is unavailable</sys:String>
+    <sys:String x:Key="lpmanual.alarm">Alarm</sys:String>
+    <sys:String x:Key="lpmanual.alarm_tip">Device hardware alarm</sys:String>
+    <sys:String x:Key="lpmanual.auto_tip">Auto: hand off with the vehicle over E84</sys:String>
+    <sys:String x:Key="lpmanual.manual_tip">Manual: load and unload by hand</sys:String>
+    <sys:String x:Key="lpmanual.state">State:</sys:String>
+    <sys:String x:Key="lpmanual.online_mode">Online mode:</sys:String>
+    <sys:String x:Key="lpmanual.online">Online</sys:String>
+    <sys:String x:Key="lpmanual.offline">Offline</sys:String>
+    <sys:String x:Key="lpmanual.carrier_id">Carrier ID:</sys:String>
+
+    <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
+         Framework menus (including LoadPort Manual and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
+    <sys:String x:Key="menu.Main">Main</sys:String>
+    <sys:String x:Key="menu.Manual">Manual</sys:String>
+    <sys:String x:Key="menu.Recipe">Recipe</sys:String>
+    <sys:String x:Key="menu.Alarm">Alarm</sys:String>
+    <sys:String x:Key="menu.DataCenter">Data Center</sys:String>
+    <sys:String x:Key="menu.Setting">Settings</sys:String>
+    <sys:String x:Key="menu.Io">IO</sys:String>
+    <sys:String x:Key="menu.Manual.LoadPorts">LoadPort Manual</sys:String>
+    <sys:String x:Key="menu.Manual.Transfer">Transfer</sys:String>
+    <sys:String x:Key="menu.Alarm.Realtime">Live Alarms</sys:String>
+    <sys:String x:Key="menu.Alarm.History">Alarm History</sys:String>
+    <sys:String x:Key="menu.DataCenter.LogRealtime">Live Log</sys:String>
+    <sys:String x:Key="menu.DataCenter.LogHistory">Log History</sys:String>
+    <sys:String x:Key="menu.Setting.User">Users</sys:String>
+    <sys:String x:Key="menu.Setting.Role">Roles</sys:String>
 </ResourceDictionary>

@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Grpc.Core;
+using Microsoft.Extensions.DependencyInjection;
+using ProtoBuf.Grpc;
 using System.Threading.Tasks;
 using System.Windows;
 using xyz.Client.Common.Alarms;
@@ -8,7 +10,11 @@ using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Modules;
+using xyz.Client.Presentation.Localization;
 using xyz.Client.Views;
+using xyz.Shared.Dtos;
+using xyz.Shared.Rpc;
+using xyz.Shared.Services;
 
 namespace xyz.Client;
 
@@ -42,19 +48,22 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 启动初始化：先让加载界面渲染出来，再完成 Grpc 通道、事件流、容器、菜单和 ViewModel 初始化，
+    /// 启动初始化：先让加载界面渲染出来，再完成 Grpc 通道、事件流、容器和 ViewModel 初始化，
     /// 最后切到主界面。初始化失败（例如后端不在线）只记日志，仍然打开主界面，不卡在加载界面。
     /// </summary>
     private async Task StartUpAsync(LoadingWindow loadingWindow)
     {
         try
         {
-            await ReportAsync(loadingWindow, 5, "正在启动…");
+            await ReportAsync(loadingWindow, 5, L10n.Get("shell.loading.starting"));
 
             #region Grpc的初始化通道
 
             GrpcClientFactory.Initialize();
-            await ReportAsync(loadingWindow, 20, "正在初始化通讯通道…");
+
+            // 界面语言跟后端 sc.xml 的 System 节点走：先换好语言包再建界面。
+            await ApplySystemLanguageAsync();
+            await ReportAsync(loadingWindow, 20, L10n.Get("shell.loading.channel"));
 
             #endregion
 
@@ -62,7 +71,7 @@ public partial class App : Application
 
             RemoteEventBus.Initialize();
             ClientAlarms.Initialize();
-            await ReportAsync(loadingWindow, 35, "正在连接后端事件流…");
+            await ReportAsync(loadingWindow, 35, L10n.Get("shell.loading.events"));
 
             #endregion
 
@@ -74,24 +83,29 @@ public partial class App : Application
             // 机型模块：扫描 Modules 目录里的 [ClientModule] DLL，壳不引用任何机型项目。
             var modules = ClientModuleLoader.Load(services);
 
+            // 机型独有界面的语言包在机型的界面资源程序集里（IClientModule.PresentationAssembly），按当前语言合并。
+            foreach (var module in modules)
+            {
+                if (module.PresentationAssembly is { Length: > 0 } presentationAssembly)
+                {
+                    L10n.AddPack(presentationAssembly);
+                }
+            }
+
             Services = services.BuildServiceProvider();
             IocHelper.ServiceProvider = Services;
-            await ReportAsync(loadingWindow, 55, "正在加载机型模块…");
+            await ReportAsync(loadingWindow, 55, L10n.Get("shell.loading.modules"));
 
             #endregion
-
-            // 机型菜单行由机型模块声明，先补齐再让 MainViewModel 读菜单。
-            ClientMenuSynchronizer.Ensure(modules);
-            await ReportAsync(loadingWindow, 75, "正在同步菜单…");
 
             #region 加载所有viewmodel 的init
 
             InitializeViewModels();
-            await ReportAsync(loadingWindow, 95, "正在加载界面…");
+            await ReportAsync(loadingWindow, 95, L10n.Get("shell.loading.views"));
 
             #endregion
 
-            await ReportAsync(loadingWindow, 100, "加载完成");
+            await ReportAsync(loadingWindow, 100, L10n.Get("shell.loading.done"));
         }
         catch (Exception exception)
         {
@@ -100,6 +114,24 @@ public partial class App : Application
         finally
         {
             ShowMainWindow(loadingWindow);
+        }
+    }
+
+    /// <summary>
+    /// 界面语言跟后端 sc.xml 的 System 节点（Language）走：启动时问一次后端，换好语言包再建界面。
+    /// 后端没起或没配时用默认的简体中文；改了语言重启客户端生效。
+    /// </summary>
+    private static async Task ApplySystemLanguageAsync()
+    {
+        try
+        {
+            var context = new CallContext(new CallOptions(deadline: DateTime.UtcNow.AddSeconds(3)));
+            var response = await GrpcClientFactory.Create<ISystemService>().GetSettingsAsync(new RpcRequest(), context);
+            L10n.Apply(response.DeserializeData<SystemSettingsDto>().Language);
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Warn("Client", $"没拿到界面语言设置，先用 {L10n.Language}：{exception.Message}");
         }
     }
 
@@ -160,7 +192,7 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 逐个 Init：一个页面失败（多半是后端没起、菜单拉不到）只记日志，不耽误后面的，顶栏的灯和时间照常走。
+    /// 逐个 Init：一个页面失败（多半是后端没起）只记日志，不耽误后面的，顶栏的灯和时间照常走。
     /// </summary>
     private static void InitializeViewModels()
     {

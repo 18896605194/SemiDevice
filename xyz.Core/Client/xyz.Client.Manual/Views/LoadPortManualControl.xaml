@@ -4,21 +4,23 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
 
-    <!--  三个独立卡片：状态信号 / 花篮 / 操作，各自一张 card，互不挤在一起  -->
+    <!--  一个 LoadPort 一整张卡：状态信号 / 花篮 / 操作三段上下相连，段与段之间一条细线分开（三块是一个整体，不拆成三张卡）  -->
     <!--  DataContext 由代码后置设在这个根节点上（不设控件自身的 DataContext，避免模板绑定二次求值）  -->
-    <Grid x:Name="Root" Margin="8">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <materialDesign:Card
+        x:Name="Root"
+        Margin="8"
+        Style="{DynamicResource DefaultCardStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <!--  ① 状态信号：竖排五行 —— 模块名 / 信号灯（整行铺开） / 状态 / 在线模式 / 载具 ID  -->
-        <materialDesign:Card
-            Grid.Row="0"
-            Margin="0,0,0,10"
-            Style="{DynamicResource DefaultCardStyle}">
-            <Grid>
+            <!--  ① 状态信号：竖排五行 —— 模块名 / 信号灯（整行铺开） / 状态 / 在线模式 / 载具 ID  -->
+            <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="34" />
@@ -46,7 +48,7 @@
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="驱动串口连接">
+                        ToolTip="{DynamicResource lpmanual.comm_tip}">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -64,14 +66,14 @@
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="通讯" />
+                            Text="{DynamicResource lpmanual.comm}" />
                     </StackPanel>
 
                     <!--  在位（放上来了）  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="FOUP 在位（Pod Present）；灰色表示反馈不可用">
+                        ToolTip="{DynamicResource lpmanual.present_tip}">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -89,14 +91,14 @@
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="在位" />
+                            Text="{DynamicResource lpmanual.present}" />
                     </StackPanel>
 
                     <!--  到位（放平贴紧）  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="FOUP 放置到位（Pod Placed）；灰色表示反馈不可用">
+                        ToolTip="{DynamicResource lpmanual.placed_tip}">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -114,14 +116,14 @@
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="到位" />
+                            Text="{DynamicResource lpmanual.placed}" />
                     </StackPanel>
 
                     <!--  报警  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="设备硬件报警">
+                        ToolTip="{DynamicResource lpmanual.alarm_tip}">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -139,14 +141,14 @@
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="报警" />
+                            Text="{DynamicResource lpmanual.alarm}" />
                     </StackPanel>
 
                     <!--  AUTO：LoadPort Access Mode = Auto（Auto/Manual 按钮切换，与在线模式无关）  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="Auto：搬运车经 E84 自动交接">
+                        ToolTip="{DynamicResource lpmanual.auto_tip}">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -171,7 +173,7 @@
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
-                        ToolTip="Manual：人工放取">
+                        ToolTip="{DynamicResource lpmanual.manual_tip}">
                         <Ellipse Width="12" Height="12" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
@@ -201,7 +203,7 @@
                     <TextBlock
                         FontSize="{DynamicResource Size14}"
                         Foreground="{DynamicResource DarkSecondaryText}"
-                        Text="状态：" />
+                        Text="{DynamicResource lpmanual.state}" />
                     <TextBlock
                         FontSize="{DynamicResource Size14}"
                         FontWeight="SemiBold"
@@ -217,15 +219,15 @@
                     <TextBlock
                         FontSize="{DynamicResource Size14}"
                         Foreground="{DynamicResource DarkSecondaryText}"
-                        Text="在线模式：" />
+                        Text="{DynamicResource lpmanual.online_mode}" />
                     <TextBlock FontSize="{DynamicResource Size14}" FontWeight="SemiBold">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="下线" />
+                                <Setter Property="Text" Value="{DynamicResource lpmanual.offline}" />
                                 <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
-                                        <Setter Property="Text" Value="在线" />
+                                        <Setter Property="Text" Value="{DynamicResource lpmanual.online}" />
                                         <Setter Property="Foreground" Value="{DynamicResource GreenHealthy}" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -242,7 +244,7 @@
                     <TextBlock
                         FontSize="{DynamicResource Size14}"
                         Foreground="{DynamicResource DarkSecondaryText}"
-                        Text="载具 ID：" />
+                        Text="{DynamicResource lpmanual.carrier_id}" />
                     <TextBlock
                         FontSize="{DynamicResource Size14}"
                         FontWeight="SemiBold"
@@ -250,22 +252,19 @@
                         Text="{Binding Model.CarrierId}" />
                 </StackPanel>
             </Grid>
-        </materialDesign:Card>
+            <Border Grid.Row="1" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-        <!--  ② 花篮（25 片）：控件内部 Viewbox 等比缩放，占满卡片；载具 ID 只在状态卡显示  -->
-        <materialDesign:Card
-            Grid.Row="1"
-            Margin="0,0,0,10"
-            Style="{DynamicResource DefaultCardStyle}">
+            <!--  ② 花篮：槽数按后端 sc.xml 的 LoadPort 节点 SlotCount；控件内部 Viewbox 等比缩放，占满中间这一段；载具 ID 只在状态段显示  -->
             <presentationControls:LoadPort
-                SlotCount="25"
+                Grid.Row="2"
+                SlotCount="{Binding Model.SlotCount}"
                 StatusText="{Binding Model.StateText}"
                 Wafers="{Binding Model.Wafers}" />
-        </materialDesign:Card>
 
-        <!--  ③ 操作：五行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
-        <materialDesign:Card Grid.Row="2" Style="{DynamicResource DefaultCardStyle}">
-            <Grid>
+            <Border Grid.Row="3" Style="{DynamicResource SectionDividerBorderStyle}" />
+
+            <!--  ③ 操作：五行按钮，每行 3 列等宽，按钮同宽同高，不满一行的位置留空  -->
+            <Grid Grid.Row="4">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -332,6 +331,6 @@
                         Style="{DynamicResource CompactDangerButtonStyle}" />
                 </UniformGrid>
             </Grid>
-        </materialDesign:Card>
-    </Grid>
+        </Grid>
+    </materialDesign:Card>
 </UserControl>

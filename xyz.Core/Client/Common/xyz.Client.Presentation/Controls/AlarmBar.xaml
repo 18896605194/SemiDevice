@@ -53,7 +53,7 @@
             IsHitTestVisible="False"
             Style="{DynamicResource NullContentHintTextStyle}"
             Tag="{Binding Latest}"
-            Text="当前没有报警" />
+            Text="{DynamicResource shell.no_alarm}" />
 
         <!--  条数：框内右侧、下拉箭头左边  -->
         <Border

@@ -8,7 +8,7 @@ public class HistoryResult<T>
     public List<T> Items { get; set; } = [];
 
     /// <summary>
-    /// 符合条件的比返回的多（只留了最新的 MaxCount 条），界面据此提示缩小时间段或加条件。
+    /// 符合条件的比返回的多（只留了最新的一部分，条数按后端 sc.xml 配置），界面据此提示缩小时间段或加条件。
     /// </summary>
     public bool Truncated { get; set; }
 }

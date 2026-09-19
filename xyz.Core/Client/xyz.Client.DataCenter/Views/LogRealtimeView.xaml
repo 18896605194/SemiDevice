@@ -11,7 +11,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <Grid Margin="16">
+        <Grid Margin="8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -28,14 +28,14 @@
                         <ComboBox
                             Width="140"
                             Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="级别"
+                            materialDesign:HintAssist.Hint="{DynamicResource log.level}"
                             ItemsSource="{Binding Levels}"
                             SelectedItem="{Binding SelectedLevel}"
                             Style="{DynamicResource DefaultComboBoxStyle}" />
                         <TextBox
                             Width="320"
                             Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="关键字（模块 / 内容）"
+                            materialDesign:HintAssist.Hint="{DynamicResource log.keyword_hint}"
                             Style="{DynamicResource DefaultTextBoxStyle}"
                             Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
                         <Button
@@ -44,7 +44,7 @@
                             Style="{DynamicResource DefaultButtonStyle}" />
                         <Button
                             Command="{Binding ClearCommand}"
-                            Content="清空"
+                            Content="{DynamicResource log.clear}"
                             Style="{DynamicResource DefaultButtonStyle}" />
                     </WrapPanel>
                 </DockPanel>
@@ -53,7 +53,7 @@
             <!--  日志表：最新的在最上面，超长内容省略、悬停看全文  -->
             <materialDesign:Card
                 Grid.Row="1"
-                Margin="0,16,0,0"
+                Margin="0,8,0,0"
                 Style="{DynamicResource DefaultCardStyle}">
                 <DataGrid ItemsSource="{Binding LogsView}" Style="{DynamicResource CompactDataGridStyle}">
                     <DataGrid.Columns>
@@ -61,22 +61,22 @@
                             Width="150"
                             Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss.fff}'}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="时间" />
+                            Header="{DynamicResource common.time}" />
                         <DataGridTextColumn
                             Width="110"
                             Binding="{Binding Level}"
                             ElementStyle="{DynamicResource LogLevelDataGridTextStyle}"
-                            Header="级别" />
+                            Header="{DynamicResource log.level}" />
                         <DataGridTextColumn
                             Width="180"
                             Binding="{Binding Module}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                            Header="模块" />
+                            Header="{DynamicResource log.module}" />
                         <DataGridTextColumn
                             Width="*"
                             Binding="{Binding Message}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                            Header="内容" />
+                            Header="{DynamicResource log.message}" />
                     </DataGrid.Columns>
                 </DataGrid>
             </materialDesign:Card>

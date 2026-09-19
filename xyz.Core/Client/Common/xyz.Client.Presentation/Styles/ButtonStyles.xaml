@@ -89,7 +89,7 @@
         <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
     </Style>
 
-    <!--  顶栏右上角竖排的小按钮（注销）：描边；三个按钮一样宽高，竖排正好占满顶栏两行  -->
+    <!--  顶栏右上角竖排的小按钮（注销、关蜂鸣器）：描边；三个按钮一样宽高，竖排正好占满顶栏两行  -->
     <Style
         x:Key="TopBarStackButtonStyle"
         BasedOn="{StaticResource MaterialDesignOutlinedButton}"
@@ -124,20 +124,4 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
-
-    <!--  竖排按钮里的退出：红色描边红字，悬停变实心红  -->
-    <Style
-        x:Key="TopBarStackDangerButtonStyle"
-        BasedOn="{StaticResource TopBarStackButtonStyle}"
-        TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
-                <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
-            </Trigger>
-        </Style.Triggers>
-    </Style>
-
 </ResourceDictionary>

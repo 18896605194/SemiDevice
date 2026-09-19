@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- 35021 equipment language pack (English): only texts of screens unique to this equipment, keys start with m35021.;
+         texts of framework features (menu names, LoadPort manual, Transfer, ...) live in the platform pack, not here.
+         The shell merges this pack for the current UI language after loading the module (the module's PresentationAssembly points here). -->
+</ResourceDictionary>

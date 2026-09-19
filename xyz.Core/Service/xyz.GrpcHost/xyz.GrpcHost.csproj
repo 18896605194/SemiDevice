@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- WinExe：启动不弹控制台黑框，状态看右下角托盘灯（HostTrayIcon）。TFM 不改 net10.0-windows，输出目录保持 net10.0 -->
+    <OutputType>WinExe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-xyz.GrpcHost-f4e57ef7-7ddb-4cda-a7cd-c23487d297ba</UserSecretsId>

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
-    <Setting Name="System" />
+	<!-- 系统设置：界面语言（zh-CN 简体中文 / en-US 英文），客户端启动时按它显示，改了重启客户端生效 -->
+	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
+		<Value Name="Language" Value="zh-CN" />
+	</Setting>
 	<!-- EC：全系统一本在线可调参数（ec.xml，跟 sc.xml 同目录），各组件的 EC 属性经它读写。
 	     放最前面：后面的组件装配时就能读到 ec.xml 里的值 -->
 	<Setting Name="EC" Type="xyz.Components.Components.EcComponent" />
@@ -21,6 +24,14 @@
 		<Value Name="EnableHistory" Value="True" />
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
+		<Value Name="HistoryQueryMaxCount" Value="1000" />
+	</Setting>
+	<!-- 日志：历史页一次最多返回多少条、后端保留最近多少条（客户端连上时补拉）、实时日志页和顶部日志栏最多显示多少条 -->
+	<Setting Name="Log" Type="xyz.Components.Components.LogComponent">
+		<Value Name="HistoryQueryMaxCount" Value="1000" />
+		<Value Name="RecentLogCount" Value="200" />
+		<Value Name="RealtimeDisplayMaxCount" Value="2000" />
+		<Value Name="LogBarDisplayMaxCount" Value="500" />
 	</Setting>
 	<!-- 晶圆账：全系统一本，事件驱动不参与扫描 -->
 	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManager">
