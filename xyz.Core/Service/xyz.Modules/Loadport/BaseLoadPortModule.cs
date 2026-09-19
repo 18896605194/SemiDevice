@@ -562,14 +562,44 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public abstract ModuleOperation? Home();
 
     /// <summary>
-    /// 发起 Reset。
+    /// 初始化（重写组件基类的 Init）：先初始化子组件（E84、RFID），再回原点——Home 就是 LoadPort 的初始化，
+    /// 超时报的也是"初始化超时"。返回 Home 操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
-    public abstract ModuleOperation? Reset();
+    public override ModuleOperation? Init()
+    {
+        base.Init();
+        return Home();
+    }
 
     /// <summary>
-    /// 发起 Abort；Abort 可顶替在途动作。
+    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（E84、RFID），再发设备复位清错。
+    /// 返回设备复位操作，调用方等它做完；状态不允许时为 null，报警照样已经清了。
     /// </summary>
-    public abstract ModuleOperation? Abort();
+    public override ModuleOperation? Reset()
+    {
+        base.Reset();
+        return ResetDevice();
+    }
+
+    /// <summary>
+    /// 发设备复位清错。机型实现：Begin(LoadPortAction.Reset, new ...Operation(...))。
+    /// </summary>
+    protected abstract ModuleOperation? ResetDevice();
+
+    /// <summary>
+    /// 中止（重写组件基类的 Abort）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
+    /// 返回设备中止操作；状态不允许时为 null。
+    /// </summary>
+    public override ModuleOperation? Abort()
+    {
+        base.Abort();
+        return AbortDevice();
+    }
+
+    /// <summary>
+    /// 发设备中止。机型实现：Begin(LoadPortAction.Abort, new ...Operation(...))。
+    /// </summary>
+    protected abstract ModuleOperation? AbortDevice();
 
     /// <summary>
     /// 发起 Clamp（夹紧 FOUP），状态表只允许空闲时发起。
@@ -797,61 +827,32 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 设备报警跟着状态查询走：报警位亮就报，灭了就恢复。
-    /// 查不到（没连上/查询超时，Status 为 null）不算恢复——不知道不等于没事。
+    /// 设备报警跟着状态查询走：报警位亮就报。灭了也不清——报警只能人工 Reset 清。
+    /// 查不到（没连上/查询超时，Status 为 null）不判。
     /// </summary>
     private void CheckDeviceAlarm()
     {
-        if (Status is not { } status)
+        if (Status is { DeviceAlarm: true })
         {
-            return;
-        }
-
-        if (status.DeviceAlarm)
-        {
-            AlarmComponent.Current?.Raise(this, LoadPortDeviceAlarm);
-        }
-        else
-        {
-            AlarmComponent.Current?.Clear(this, LoadPortDeviceAlarm);
+            RaiseAlarm(LoadPortDeviceAlarm);
         }
     }
 
     /// <summary>
-    /// 动作类报警：失败就报，成功并回到能干活的状态才恢复。
+    /// 动作类报警：失败就报，Home 超时再加报初始化超时；动作成功也不清，只能人工 Reset 清。
     /// 人为急停顶掉的不报——那是操作员自己按的，不是故障。
     /// </summary>
     private void UpdateActionAlarms(ModuleOperation operation)
     {
-        var alarms = AlarmComponent.Current;
-        if (alarms is null)
+        if (operation.IsSuccess || operation.Code == ErrorCodes.Aborted)
         {
             return;
         }
 
-        if (operation.IsSuccess)
-        {
-            if (State != ModuleState.NotInit && State != ModuleState.Error)
-            {
-                alarms.Clear(this, ControlledStopAlarm);
-                if (_action == LoadPortAction.Home)
-                {
-                    alarms.Clear(this, InitTimeoutAlarm);
-                }
-            }
-
-            return;
-        }
-
-        if (operation.Code == ErrorCodes.Aborted)
-        {
-            return;
-        }
-
-        alarms.Raise(this, ControlledStopAlarm);
+        RaiseAlarm(ControlledStopAlarm);
         if (_action == LoadPortAction.Home && operation.Code == ErrorCodes.Timeout)
         {
-            alarms.Raise(this, InitTimeoutAlarm);
+            RaiseAlarm(InitTimeoutAlarm);
         }
     }
 

@@ -3,6 +3,7 @@ using xyz.Components.Alarm;
 using xyz.Components.Components;
 using xyz.Components.Wafers;
 using xyz.Configs.Models;
+using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Database.Wafers;
 using xyz.Modules;
@@ -243,11 +244,30 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         .SplitTable(tables => tables.Take(2)).ExecuteCommand();
 }
 
-// 14. 报警：账实不符要报出来，不能只写日志（CTC 那边就是静默，现场表现成"片凭空消失"）
+// 14. 报警：账实不符要报出来，不能只写日志（CTC 那边就是静默，现场表现成"片凭空消失"）；
+//     报出去以后只能人工复位清；报出、清除都入库。
 {
-    var alarms = new AlarmComponent();
-    typeof(ComponentBase).GetProperty("Name")!.SetValue(alarms, "Alarm");
-    typeof(ComponentBase).GetProperty("FullPath")!.SetValue(alarms, "Alarm");
+    var alarmNode = scConfig.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Alarm", StringComparison.OrdinalIgnoreCase));
+    Check(alarmNode is not null && alarmNode.Type == typeof(AlarmComponent).FullName
+          && alarmNode.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
+                                           && string.Equals(value.Value, "Default", StringComparison.OrdinalIgnoreCase)),
+        "sc.xml 应有报警节点；报警记录属业务数据，应配在默认库");
+
+    // 装配出来（读到 SC）的报警组件才入库；这里落到冒烟库，不碰默认库
+    var alarmSince = DateTime.Now.AddSeconds(-1);
+    var alarms = ComponentLoader.Load([
+        new ModuleConfig
+        {
+            Name = "Alarm",
+            Type = typeof(AlarmComponent).FullName,
+            Values =
+            [
+                new ValueConfig { Name = "EnableHistory", Value = "True" },
+                new ValueConfig { Name = "HistoryDatabase", Value = "SmokeWafer" },
+                new ValueConfig { Name = "HistoryKeepDays", Value = "90" },
+            ],
+        },
+    ]).OfType<AlarmComponent>().Single();
     Check(ReferenceEquals(AlarmComponent.Current, alarms), "装出来的报警组件应成为 Current");
 
     var raised = new List<AlarmItem>();
@@ -258,20 +278,20 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     typeof(ComponentBase).GetProperty("FullPath")!.SetValue(faulty, "SmokeLedger");
     faulty.RegisterLocation("AlarmLp", 2);
 
-    Check(alarms.ActiveAlarms.Count == 0, "还没出事时不该有活动报警");
+    Check(alarms.ActiveAlarms.Count == 0 && !faulty.HasAlarm, "还没出事时不该有报警");
 
     // 源上没片却要移：账实不符
     Check(!faulty.Move("AlarmLp", 1, "AlarmLp", 2), "源上没片应该移不动");
-    Check(alarms.ActiveAlarms.Count == 1, $"账实不符应报出来，实际 {alarms.ActiveAlarms.Count} 条");
+    Check(alarms.ActiveAlarms.Count == 1 && faulty.HasAlarm, $"账实不符应报出来，实际 {alarms.ActiveAlarms.Count} 条");
 
     var alarm = alarms.ActiveAlarms[0];
     Check(alarm.SourcePath == "SmokeLedger" && alarm.AlarmCode == "WaferLedgerAlarm",
         $"报警应带上来源与代码，实际 {alarm.SourcePath}.{alarm.AlarmCode}");
     Check(alarm.AlarmText == "晶圆账异常" && alarm.Level == AlarmLevel.Alarm1
           && alarm.Category == AlarmCategory.ProcessError,
-        "报警文本/等级/分类应来自组件上的 [Alarm] 定义——不用事先 Register");
+        "报警文本/等级/分类应来自组件上的 [Alarm] 定义——不用事先注册");
     Check(!string.IsNullOrWhiteSpace(alarm.Solution), "报警应带处理建议，界面要显示给操作员");
-    Check(alarm.IsActive && !alarm.IsAcknowledged, "刚报出来应是活动且未确认");
+    Check(alarm.IsActive, "刚报出来应是活动的");
 
     // 同一个报警反复触发不刷屏
     faulty.Move("AlarmLp", 1, "AlarmLp", 2);
@@ -282,19 +302,49 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         Check(raised.Count == 1, $"重复触发不该重复通知，实际 {raised.Count} 条");
     }
 
-    // 确认不等于恢复
-    Check(alarms.Acknowledge("SmokeLedger", "WaferLedgerAlarm"), "首次确认应成功");
-    Check(!alarms.Acknowledge("SmokeLedger", "WaferLedgerAlarm"), "重复确认应返回 false");
-    Check(alarms.ActiveAlarms.Count == 1 && alarms.ActiveAlarms[0].IsAcknowledged,
-        "确认之后报警仍在活动列表里——确认的是人看到了，不是故障没了");
-
-    // 恢复才出列
-    Check(alarms.Clear(faulty, "WaferLedgerAlarm"), "恢复应成功");
-    Check(alarms.ActiveAlarms.Count == 0, "恢复后应移出活动列表");
+    // 只能人工复位清：界面按来源复位，走到账本组件的 Reset
+    Check(!alarms.Reset("没报过的来源"), "没报过报警的来源复位返回 false");
+    Check(alarms.Reset("SmokeLedger"), "按来源复位应找到账本");
+    Check(alarms.ActiveAlarms.Count == 0 && !faulty.HasAlarm, "复位后应移出报警列表");
     lock (raised)
     {
-        Check(raised.Count == 3 && raised[^1].ClearedAt is not null,
-            $"触发/确认/恢复各推一条，实际 {raised.Count} 条");
+        Check(raised.Count == 2 && raised[^1].ClearedAt is not null,
+            $"报出、清除各推一条，实际 {raised.Count} 条");
+    }
+
+    // 入库：报出、清除各一行，清除那行带上报出时刻
+    alarms.StopHistory();
+    var alarmRows = new List<AlarmHistoryEntity>();
+    for (int attempt = 0; attempt < 50 && alarmRows.Count < 2; attempt++)
+    {
+        using var db = XyzDb.Create("SmokeWafer");
+        if (db.DbMaintenance.IsAnyTable($"alarm_history_{DateTime.Today:yyyyMMdd}", false))
+        {
+            alarmRows = db.Queryable<AlarmHistoryEntity>()
+                .SplitTable(tables => tables.Take(2))
+                .Where(row => row.Source == "SmokeLedger")
+                .OrderBy(row => row.Id)
+                .ToList()
+                .Where(row => row.OccurredAt >= alarmSince)
+                .ToList();
+        }
+
+        if (alarmRows.Count < 2)
+        {
+            Thread.Sleep(100);
+        }
+    }
+
+    Check(alarmRows.Select(row => row.Action).SequenceEqual(new[] { "Raised", "Cleared" }),
+        "报警应入库：报出、清除各一行，实际: " + string.Join(",", alarmRows.Select(row => row.Action)));
+    Check(alarmRows.All(row => row.Code == "WaferLedgerAlarm" && row.Level == "Alarm1" && row.Text == "晶圆账异常")
+          && alarmRows[1].RaisedAt == alarmRows[0].RaisedAt && alarmRows[1].OccurredAt >= alarmRows[1].RaisedAt,
+        "报警记录应带代码、等级、文本；清除那行带上报出时刻");
+
+    using (var cleanup = XyzDb.Create("SmokeWafer"))
+    {
+        cleanup.Deleteable<AlarmHistoryEntity>().Where(row => row.Source == "SmokeLedger")
+            .SplitTable(tables => tables.Take(2)).ExecuteCommand();
     }
 
     // 报警上报不能把设备线程带崩：没装报警组件时是空操作
@@ -302,4 +352,4 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     Check(!ledger.Move("AlarmLp", 1, "AlarmLp", 2), "没装报警组件时账本照常工作");
 }
 
-Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races and the wafer history persistence path; the rejection error logs above are expected).");
+Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, and the ledger alarm raised, manually reset and written to the alarm history; the rejection error logs above are expected).");

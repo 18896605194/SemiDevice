@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using xyz.Client.DataCenter;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Io;
 using xyz.Client.Setting;
@@ -20,6 +21,7 @@ public static class ServiceCollectionExtensions
 
         services.AddXyzSettingServices();
         services.AddXyzIoServices();
+        services.AddXyzDataCenterServices();
 
         return services;
     }

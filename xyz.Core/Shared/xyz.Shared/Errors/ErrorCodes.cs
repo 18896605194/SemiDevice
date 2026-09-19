@@ -44,4 +44,21 @@ public static class ErrorCodes
     public const string StationNotFound = "robot.station_not_found";
 
     #endregion
+
+    #region 报警
+
+    /// <summary>报警组件没装（sc.xml 没配 Alarm 节点）。</summary>
+    public const string AlarmNotInstalled = "alarm.not_installed";
+
+    /// <summary>这个来源没报过报警，没有可复位的。Args: [来源路径]</summary>
+    public const string AlarmSourceNotFound = "alarm.source_not_found";
+
+    #endregion
+
+    #region 历史查询
+
+    /// <summary>历史查询失败（读日志文件或数据库出错）。Args: [原因]</summary>
+    public const string HistoryQueryFailed = "history.query_failed";
+
+    #endregion
 }

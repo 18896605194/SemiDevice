@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Components.Wafers;
-using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
@@ -31,6 +31,9 @@ void Throws<T>(Action action) where T : Exception
     catch (T) { checks++; return; }
     throw new InvalidOperationException($"Expected {typeof(T).Name}.");
 }
+
+// EC 只放在本进程内存里：直接 new 的 EC 组件不读也不写 ec.xml，各探针构造时经 EC 属性把值摆进去。
+var ec = new EcComponent();
 
 ModuleOperation? rejected = null;
 Check(!rejected.Wait(0), "A rejected operation should return false.");
@@ -418,22 +421,36 @@ port.E87Callback = null;
     WaferManager.Current = null;
 }
 
-// ── 报警：LoadPort / Robot 出故障要报出来，恢复了要消掉 ────────────────────
+// ── 报警：LoadPort / Robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
 {
     var alarms = new AlarmComponent();
     bool Active(ComponentBase source, string code) =>
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 
-    // LoadPort 设备报警：跟着状态查询里的报警位走
+    // LoadPort 设备报警：状态查询里的报警位亮就报；查不到、灭了都不清
     port.NoteStatus(new LoadPortStatus { DeviceAlarm = true });
     port.Tick();
-    Check(Active(port, port.LoadPortDeviceAlarm), "状态查询里报警位亮，应报 LoadPort 设备报警");
+    Check(Active(port, port.LoadPortDeviceAlarm) && port.HasAlarm, "状态查询里报警位亮，应报 LoadPort 设备报警");
     port.NoteStatus(null);
     port.Tick();
-    Check(Active(port, port.LoadPortDeviceAlarm), "查不到状态不算恢复——不知道不等于没事");
+    Check(Active(port, port.LoadPortDeviceAlarm), "查不到状态不清");
     port.NoteStatus(new LoadPortStatus { DeviceAlarm = false });
     port.Tick();
-    Check(!Active(port, port.LoadPortDeviceAlarm), "报警位灭了应恢复");
+    Check(Active(port, port.LoadPortDeviceAlarm), "报警位灭了也不自动清——报警只能人工 Reset 清");
+    port.Reset();
+    Check(!Active(port, port.LoadPortDeviceAlarm) && !port.HasAlarm, "人工 Reset 应清掉报警");
+
+    // 报警位还亮着就 Reset：照样清，下个扫描周期又报出来
+    port.NoteStatus(new LoadPortStatus { DeviceAlarm = true });
+    port.Tick();
+    port.Reset();
+    Check(!Active(port, port.LoadPortDeviceAlarm), "条件还在也照样清");
+    port.Tick();
+    Check(Active(port, port.LoadPortDeviceAlarm), "条件还在，下个扫描周期应重新报出来");
+    port.NoteStatus(new LoadPortStatus { DeviceAlarm = false });
+    Check(alarms.Reset(port.FullPath) && !Active(port, port.LoadPortDeviceAlarm),
+        "界面按来源复位应走到组件的 Reset、清掉报警");
+    Check(!alarms.Reset("NoSuchSource"), "没报过报警的来源复位返回 false");
 
     // LoadPort 动作失败 → 受控停止
     port.NoteState(ModuleState.Idle);
@@ -451,13 +468,14 @@ port.E87Callback = null;
     port.Tick();
     Check(Active(port, port.InitTimeoutAlarm) && Active(port, port.ControlledStopAlarm), "Home 超时应报初始化超时");
 
-    // Home 成功回到 Idle → 动作类报警全恢复
+    // Home 成功回到 Idle 也不清，等人工复位；全部复位清掉
     var goodHome = new ProbeOperation();
     port.BeginAction(LoadPortAction.Home, goodHome);
     goodHome.Succeed();
     port.Tick();
-    Check(!Active(port, port.ControlledStopAlarm) && !Active(port, port.InitTimeoutAlarm),
-        "Home 成功回到 Idle，动作类报警都应恢复");
+    Check(port.State == ModuleState.Idle && Active(port, port.ControlledStopAlarm) && Active(port, port.InitTimeoutAlarm),
+        "Home 成功回到 Idle 也不自动清，等人工复位");
+    Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, "全部复位应清掉所有报警");
 
     // 操作员急停顶掉的动作不报
     var interrupted = new ProbeOperation();
@@ -468,7 +486,7 @@ port.E87Callback = null;
     port.Tick();
     Check(!Active(port, port.ControlledStopAlarm), "操作员急停顶掉的动作不该报受控停止");
 
-    // Robot 设备报警：跟着设备报错走
+    // Robot 设备报警：有报错就报；报错没了也不清
     var robot = new ProbeRobot();
     Check(robot.Open(), "探针机械手应能打开");
     robot.NoteDeviceError("40010006#Arm2 No Wafer When Put");
@@ -476,14 +494,23 @@ port.E87Callback = null;
     Check(Active(robot, robot.RobotDeviceAlarm), "设备报错应报 Robot 设备报警");
     robot.NoteDeviceError(null);
     robot.Tick();
-    Check(!Active(robot, robot.RobotDeviceAlarm), "查询确认没报错了应恢复");
+    Check(Active(robot, robot.RobotDeviceAlarm), "报错没了也不自动清——报警只能人工 Reset 清");
+
+    // Robot 的 Reset 重写了组件基类的 Reset：先清报警，再发设备复位清错，把操作交出去等
+    robot.Next = new ProbeOperation();
+    var robotReset = robot.Reset();
+    Check(robotReset is not null && ReferenceEquals(robotReset, robot.Next) && !Active(robot, robot.RobotDeviceAlarm),
+        "Robot Reset 应清掉报警并交出设备复位操作");
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(robot.State == ModuleState.NotInit, "复位后是 NotInit（位置不可信，还得回原点）");
 
     robot.NoteDeviceError("stale");
     robot.Close();
     robot.Tick();
     Check(!Active(robot, robot.RobotDeviceAlarm), "没连上时 DeviceError 是旧值，不该据此报警");
 
-    // Robot 动作失败 → 受控停止；复位回 NotInit 还不算恢复，Home 回 Idle 才算
+    // Robot 动作失败 → 受控停止；Home 成功回到 Idle 也不清，只有人工复位清
     Check(robot.Open(), "重新打开");
     robot.NoteDeviceError(null);
     robot.NoteState(ModuleState.Idle);
@@ -494,18 +521,15 @@ port.E87Callback = null;
     Check(Active(robot, robot.ControlledStopAlarm), "Robot 动作失败应报受控停止");
 
     robot.Next = new ProbeOperation();
-    robot.Reset();
-    robot.Next!.Succeed();
-    robot.Tick();
-    Check(robot.State == ModuleState.NotInit && Active(robot, robot.ControlledStopAlarm),
-        "复位后是 NotInit（位置不可信，还得回原点），不该算恢复");
-
-    robot.Next = new ProbeOperation();
     robot.Home();
     robot.Next!.Succeed();
     robot.Tick();
-    Check(robot.State == ModuleState.Idle && !Active(robot, robot.ControlledStopAlarm),
-        "Home 成功回到 Idle 才算恢复");
+    Check(robot.State == ModuleState.Idle && Active(robot, robot.ControlledStopAlarm),
+        "Home 成功回到 Idle 也不自动清");
+
+    // 界面按来源复位（这次不摆设备复位操作，只看报警）
+    robot.Next = null;
+    Check(alarms.Reset(robot.FullPath) && !Active(robot, robot.ControlledStopAlarm), "人工复位才清");
 
     AlarmComponent.Current = null;
 }
@@ -645,6 +669,7 @@ port.E87Callback = null;
         "TP1 超时应锁住并撤 L_REQ/HO_AVBL（ES 保持）");
     Check(tpEvents.Wait("HandoffTimeout:True:TP1"), "TP1 超时应上报");
     Check(Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "超时应报 E84 交接超时");
+    Check(tpPort.HasAlarm, "E84 子组件的报警算在端口头上（按路径前缀）");
     tpE84.Set();
     tpPort.Tick();
     Check(tpE84.State == E84State.TimedOut, "搬运车撤了也不自动解锁，得人工恢复");
@@ -653,7 +678,9 @@ port.E87Callback = null;
     tpPort.Tick();
     Check(tpE84.State == E84State.Available && tpE84.Outputs.HoAvbl && tpE84.TimedOutTimer is null,
         "Retry 后应重新可交接");
-    Check(!Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "Retry 应消掉超时报警");
+    Check(Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "Retry 只恢复交接，不清报警——报警只能人工复位");
+    Check(alarms.Reset(tpE84.FullPath) && !Active(tpE84, tpE84.E84TimeoutAlarm, alarms) && !tpPort.HasAlarm,
+        "人工复位 E84 应清掉超时报警");
 
     // TP3 超时（BUSY 了载具迟迟没到），人工确认载具其实放好了 → Complete 按送盒完成收尾
     tpE84.Set(cs0: true, valid: true);
@@ -671,8 +698,10 @@ port.E87Callback = null;
     Check(tpE84.Complete(tpPort.IsPodPlaced), "载具确实放上了，Complete 应按完成收尾");
     tpPort.Tick();
     Check(tpEvents.Wait("HandoffCompleted:True"), "人工 Complete 应在下一拍随进展上报交接完成");
-    Check(tpE84.State == E84State.Available && !Active(tpE84, tpE84.E84TimeoutAlarm, alarms),
-        "Complete 后回到可交接，报警消掉");
+    Check(tpE84.State == E84State.Available && Active(tpE84, tpE84.E84TimeoutAlarm, alarms),
+        "Complete 后回到可交接；报警还在，等人工复位");
+    tpPort.Reset();
+    Check(!Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "复位端口连同 E84 子组件一起复位，清掉超时报警");
 
     AlarmComponent.Current = null;
 
@@ -680,7 +709,207 @@ port.E87Callback = null;
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared, and the E84 handoff flow: load, unload, gating, abort, timeout and recovery).");
+// ── DI/AI 报警防抖：持续满 EC 防抖时间才报；公共组件的报警算在装它的模块头上；只能人工复位清 ─────
+{
+    var alarms = new AlarmComponent();
+    bool Active(ComponentBase source, string code) =>
+        alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
+
+    var chamber = new ProbeModule();
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(chamber, "SmokeChamber");
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(chamber, "SmokeChamber");
+    var di = new ProbeDi("SmokeChamber.Di1") { DebounceMs = 200 };
+    var ai = new ProbeAi("SmokeChamber.Ai1");
+    chamber.AddChild(di);
+    chamber.AddChild(ai);
+
+    // DI：IO 没接（读不到）不判
+    di.Tick();
+    Check(!di.IsTriggered && alarms.ActiveAlarms.Count == 0, "读不到 DI 时不判");
+
+    // 到了报警电平但没持续满防抖时间就断了：计时重来，不报
+    di.Level = true;
+    di.Tick();
+    di.Level = false;
+    di.Tick();
+    di.Level = true;
+    di.Tick();
+    Thread.Sleep(80);
+    di.Tick();
+    Check(!di.IsTriggered && !Active(di, di.SensorAlarm), "报警电平没持续满防抖时间不报（中间断过，计时重来）");
+
+    // 持续满防抖时间：触发并报警，报警算在装它的模块头上
+    Thread.Sleep(200);
+    di.Tick();
+    Check(di.IsTriggered && Active(di, di.SensorAlarm), "报警电平持续满防抖时间应触发并报警");
+    Check(chamber.HasAlarm && di.HasAlarm && !ai.HasAlarm, "DI 的报警应算在装它的模块头上");
+
+    // 离开报警电平：触发立刻撤，报警不清
+    di.Level = false;
+    di.Tick();
+    Check(!di.IsTriggered && Active(di, di.SensorAlarm), "离开报警电平触发撤了，报警还在，等人工复位");
+
+    // 复位模块连同子组件：清掉 DI 的报警
+    chamber.Reset();
+    Check(!Active(di, di.SensorAlarm) && !chamber.HasAlarm, "复位模块应连同 DI 一起清掉报警");
+
+    // 低电平报警 + 关掉直接报警：只给触发状态，不报
+    var quiet = new ProbeDi("SmokeChamber.Di2") { TriggerLevel = TriggerLevel.Low, AlarmEnabled = false, DebounceMs = 0 };
+    quiet.Level = false;
+    quiet.Tick();
+    Check(quiet.IsTriggered && !Active(quiet, quiet.SensorAlarm), "AlarmEnabled=False 只给触发状态，不报警");
+
+    // AI：没标定（上下限都为 0）不判
+    ai.Reading = 1000;
+    ai.Tick();
+    Check(!ai.IsOutOfRange && !ai.IsInWarning && !ai.HasAlarm, "没标定的 AI 不判超限");
+
+    ai.Min = 10;
+    ai.Max = 90;
+    ai.WarningMin = 20;
+    ai.WarningMax = 80;
+    ai.DurationMs = 0;
+    Check(ai.Min == 10 && ai.WarningMax == 80, "AI 上下限是 EC，写完即生效");
+
+    ai.Reading = 50;
+    ai.Tick();
+    Check(ai.Value == 50 && !ai.IsOutOfRange && !ai.IsInWarning, "在预警带内不报");
+
+    ai.Reading = 85;
+    ai.Tick();
+    Check(ai.IsInWarning && !ai.IsOutOfRange && Active(ai, ai.AiSensorWarnAlarm) && !Active(ai, ai.AiSensorAlarm),
+        "出了预警带、没超限：报预警");
+
+    ai.Reading = 95;
+    ai.Tick();
+    Check(ai.IsOutOfRange && !ai.IsInWarning && Active(ai, ai.AiSensorAlarm), "超限：报超限，不再算预警");
+
+    ai.Reading = 50;
+    ai.Tick();
+    Check(!ai.IsOutOfRange && Active(ai, ai.AiSensorAlarm) && Active(ai, ai.AiSensorWarnAlarm),
+        "回到范围内状态撤了，报警还在，等人工复位");
+    Check(alarms.Reset(ai.FullPath) && !ai.HasAlarm, "人工复位清掉 AI 的报警");
+
+    // 超限要持续满 DurationMs 才报
+    ai.DurationMs = 200;
+    ai.Reading = 95;
+    ai.Tick();
+    Check(!ai.IsOutOfRange && !Active(ai, ai.AiSensorAlarm), "超限没持续满 DurationMs 不报");
+    Thread.Sleep(250);
+    ai.Tick();
+    Check(ai.IsOutOfRange && Active(ai, ai.AiSensorAlarm), "超限持续满 DurationMs 应报");
+    ai.Reset();
+
+    // 监控使能 DO 门控：没开（或读不到）就不判
+    var gated = new ProbeAi("SmokeChamber.Ai2") { MonitoringDoIndex = 3, MonitoringActiveHigh = true };
+    gated.Min = 10;
+    gated.Max = 90;
+    gated.DurationMs = 0;
+    gated.Reading = 95;
+    gated.MonitoringDo = false;
+    gated.Tick();
+    Check(!gated.IsOutOfRange && !Active(gated, gated.AiSensorAlarm), "监控使能 DO 没开不判");
+    gated.MonitoringDo = null;
+    gated.Tick();
+    Check(!gated.IsOutOfRange, "读不到监控使能 DO 当作没开");
+    gated.MonitoringDo = true;
+    gated.Tick();
+    Check(gated.IsOutOfRange && Active(gated, gated.AiSensorAlarm), "监控使能 DO 开了才判超限");
+
+    // 读不到 AI：不判，状态保持
+    gated.Reading = null;
+    gated.Tick();
+    Check(gated.IsOutOfRange && gated.Value is null, "读不到 AI 时不判，状态保持");
+
+    AlarmComponent.Current = null;
+}
+
+// ── EC 组件：属性读写即生效、缺项回退默认值；合并声明补默认、不动已有值；没装时写不生效；ec.xml 往返 ─────
+{
+    var ecPort = new ProbePort("EcSmokePort");
+    Check(ecPort.LoadTimeout == 0 && ec.Get(ecPort.FullPath, nameof(ecPort.LoadTimeout)) == "0",
+        "属性写应落进 EC 组件，读回即是新值");
+    Check(ecPort.ClampTimeout == 10000 && ec.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)).Length == 0,
+        "没摆过的项读回退 [VariableMark] 默认值");
+
+    Check(ec.Merge([ecPort]), "合并声明应补建缺的项");
+    Check(ec.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000", "合并按声明的 Default 补建");
+    Check(ecPort.LoadTimeout == 0, "合并不动已有值");
+    Check(!ec.Merge([ecPort]), "再合并一次应没有变化");
+    Check(ec.FilePath.Length == 0, "直接 new 的 EC 组件只在内存里，不落盘");
+
+    ecPort.LoadTimeout = 1234;
+    Check(ecPort.LoadTimeout == 1234, "改完即生效");
+    ecPort.LoadTimeout = 0;
+
+    EcComponent.Current = null;
+    Check(ecPort.LoadTimeout == 30000, "EC 没装时读回退默认值");
+    ecPort.LoadTimeout = 1;
+    Check(ecPort.LoadTimeout == 30000, "EC 没装时写不生效");
+    EcComponent.Current = ec;
+
+    // ec.xml 往返：用临时文件，不碰真配置
+    var file = Path.Combine(Path.GetTempPath(), $"ec-smoke-{Guid.NewGuid():N}.xml");
+    try
+    {
+        var stored = new EcComponent();
+        stored.Load(file);
+        Check(stored.Merge([ecPort]) && File.Exists(file), "文件不存在时合并应补建并写出 ec.xml");
+        Check(stored.Set(ecPort.FullPath, nameof(ecPort.HomeTimeout), "4321"), "改值应写回");
+
+        var reloaded = new EcComponent();
+        reloaded.Load(file);
+        Check(reloaded.Get(ecPort.FullPath, nameof(ecPort.HomeTimeout)) == "4321"
+              && reloaded.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000",
+            "重新读 ec.xml 应拿到改过的值和合并补建的项");
+    }
+    finally
+    {
+        File.Delete(file);
+        EcComponent.Current = ec;
+    }
+}
+
+// ── 初始化、中止：先处理子组件（Init 按 InitOrder），基类默认什么都不做、不强制重写；
+//    模块 Init = 子组件 + Home，Abort = 子组件 + 设备中止，Abort 不清报警 ─────────────────────────
+{
+    var trace = new List<string>();
+    var parent = new ProbeChild("Parent", trace);
+    parent.AddChild(new ProbeChild("Late", trace, initOrder: 20));
+    parent.AddChild(new ProbeChild("Early", trace, initOrder: 10));
+    parent.AddChild(new PlainChild());
+    Check(parent.Init() is null && trace.SequenceEqual(new[] { "Init:Early", "Init:Late", "Init:Parent" }),
+        "Init 先按 InitOrder 从小到大初始化子组件，再初始化自己");
+    trace.Clear();
+    Check(parent.Abort() is null && trace.SequenceEqual(new[] { "Abort:Late", "Abort:Early", "Abort:Parent" }),
+        "Abort 先按装配顺序中止子组件，再中止自己");
+    var plain = new PlainChild();
+    Check(plain.Init() is null && plain.Abort() is null, "没重写 Init/Abort 的组件照样能调，什么都不做");
+
+    var alarms = new AlarmComponent();
+    var initPort = new ProbePort("InitAbortPort");
+    var child = new ProbeChild("Child", trace, fullPath: "InitAbortPort.Child");
+    initPort.AddChild(child);
+    trace.Clear();
+    int calls = initPort.Calls;
+    initPort.Next = new ProbeOperation();
+    Check(ReferenceEquals(initPort.Init(), initPort.Next) && initPort.Calls == calls + 1
+          && trace.SequenceEqual(new[] { "Init:Child" }), "LoadPort 的 Init = 子组件初始化 + Home");
+
+    child.Fault();
+    Check(child.HasAlarm && initPort.HasAlarm, "子组件报警算在模块头上");
+    trace.Clear();
+    initPort.Next = new ProbeOperation();
+    Check(ReferenceEquals(initPort.Abort(), initPort.Next) && trace.SequenceEqual(new[] { "Abort:Child" }),
+        "LoadPort 的 Abort = 子组件中止 + 设备中止");
+    Check(child.HasAlarm, "Abort 不清报警");
+    initPort.Next = new ProbeOperation();
+    initPort.Reset();
+    Check(!child.HasAlarm && !initPort.HasAlarm, "报警只有 Reset 清");
+    AlarmComponent.Current = null;
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -729,15 +958,13 @@ sealed class ProbePort : BaseLoadPortModule
         // Production names are assigned by ComponentLoader through internal setters.
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
-        foreach (var key in new[]
-                 {
-                     nameof(LoadTimeout), nameof(UnloadTimeout), nameof(HomeTimeout), nameof(ResetTimeout),
-                     nameof(AbortTimeout)
-                 })
-        {
-            // Seed only this process's EC memory; never load or flush a configuration file.
-            EC.UpsertValueMetadata(Name, key, "0", "Int", "ms", null, null, null, null, null);
-        }
+
+        // Seed only the in-memory EC component created at the top; never load or flush a configuration file.
+        LoadTimeout = 0;
+        UnloadTimeout = 0;
+        HomeTimeout = 0;
+        ResetTimeout = 0;
+        AbortTimeout = 0;
     }
     public void NoteMap(IReadOnlyList<SlotState> slotMap) => UpdateSlotMap(slotMap);
 
@@ -763,8 +990,8 @@ sealed class ProbePort : BaseLoadPortModule
     public override ModuleOperation? Load() => Take();
     public override ModuleOperation? Unload() => Take();
     public override ModuleOperation? Home() => Take();
-    public override ModuleOperation? Reset() => Take();
-    public override ModuleOperation? Abort() => Take();
+    protected override ModuleOperation? ResetDevice() => Take();
+    protected override ModuleOperation? AbortDevice() => Take();
     public override ModuleOperation? Clamp() => Take();
     public override ModuleOperation? Unclamp() => Take();
 }
@@ -780,11 +1007,12 @@ sealed class ProbeE84 : E84Component
     {
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "E84");
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, $"{portName}.E84");
-        EC.UpsertValueMetadata(FullPath, nameof(E84Enabled), enabled.ToString(), "Bool", null, null, null, null, null, null);
-        foreach (var key in new[] { nameof(Tp1Timeout), nameof(Tp2Timeout), nameof(Tp3Timeout), nameof(Tp4Timeout), nameof(Tp5Timeout) })
-        {
-            EC.UpsertValueMetadata(FullPath, key, timeoutMs.ToString(), "Int", "ms", null, null, null, null, null);
-        }
+        E84Enabled = enabled;
+        Tp1Timeout = timeoutMs;
+        Tp2Timeout = timeoutMs;
+        Tp3Timeout = timeoutMs;
+        Tp4Timeout = timeoutMs;
+        Tp5Timeout = timeoutMs;
     }
 
     /// <summary>摆下一拍搬运车给的信号（没给的都当 OFF）。</summary>
@@ -794,6 +1022,44 @@ sealed class ProbeE84 : E84Component
     protected override E84Inputs ReadInputs() => _next;
 
     protected override void WriteOutputs(E84Outputs outputs) => Writes++;
+}
+
+// 探针 DI/AI：IO 读写层还没接，读数由测试直接摆；EC 只在本进程内存里。
+sealed class ProbeDi : DiSensorComponent
+{
+    public bool? Level { get; set; }
+
+    public ProbeDi(string path)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, path[(path.LastIndexOf('.') + 1)..]);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        DiIndex = 0;
+    }
+
+    /// <summary>顶替扫描线程推一拍。</summary>
+    public void Tick() => OnScan();
+
+    protected override bool? ReadDi() => Level;
+}
+
+sealed class ProbeAi : AiSensorComponent
+{
+    public double? Reading { get; set; }
+    public bool? MonitoringDo { get; set; }
+
+    public ProbeAi(string path)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, path[(path.LastIndexOf('.') + 1)..]);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        AiIndex = 0;
+    }
+
+    /// <summary>顶替扫描线程推一拍。</summary>
+    public void Tick() => OnScan();
+
+    protected override double? ReadAi() => Reading;
+
+    protected override bool? ReadMonitoringDo() => MonitoringDo;
 }
 
 // 只记下收到了哪些 E84 回调（带方向/计时段），派发在别的线程上，等到为止。
@@ -865,11 +1131,13 @@ sealed class ProbeRobot : BaseRobotModule
     {
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "SmokeRobot");
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
-        foreach (var key in new[] { nameof(QueryDataTimeOut), nameof(HomeTimeout), nameof(PickTimeout),
-                     nameof(PlaceTimeout), nameof(ResetTimeout), nameof(AbortTimeout), nameof(PowerTimeout) })
-        {
-            EC.UpsertValueMetadata(Name, key, "0", "Int", "ms", null, null, null, null, null);
-        }
+        QueryDataTimeOut = 0;
+        HomeTimeout = 0;
+        PickTimeout = 0;
+        PlaceTimeout = 0;
+        ResetTimeout = 0;
+        AbortTimeout = 0;
+        PowerTimeout = 0;
     }
 
     protected override IRobotDriver CreateDriver() => new RejeRobotDriver(new FakeFrameCommunication());
@@ -889,8 +1157,8 @@ sealed class ProbeRobot : BaseRobotModule
     private ModuleOperation? Take(RobotAction action) => Next is null ? null : Begin(action, Next);
 
     public override ModuleOperation? Home() => Take(RobotAction.Home);
-    public override ModuleOperation? Reset() => Take(RobotAction.Reset);
-    public override ModuleOperation? Abort() => Take(RobotAction.Abort);
+    protected override ModuleOperation? ResetDevice() => Take(RobotAction.Reset);
+    protected override ModuleOperation? AbortDevice() => Take(RobotAction.Abort);
     public override ModuleOperation? PowerOn() => Take(RobotAction.PowerOn);
     public override ModuleOperation? PowerOff() => Take(RobotAction.PowerOff);
     protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot) => Supply();
@@ -898,4 +1166,42 @@ sealed class ProbeRobot : BaseRobotModule
 
     private ModuleOperation Supply() =>
         Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
+}
+
+// 探针子组件：记下 Init/Abort 的先后，能报自己的一条报警。
+sealed class ProbeChild : ComponentBase
+{
+    private readonly List<string> _trace;
+
+    public ProbeChild(string name, List<string> trace, int initOrder = 10000, string? fullPath = null)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, fullPath ?? name);
+        typeof(ComponentBase).GetProperty(nameof(InitOrder))!.SetValue(this, initOrder);
+        _trace = trace;
+    }
+
+    [xyz.Components.Alarm.Alarm("探针故障", xyz.Components.Alarm.AlarmCategory.Other)]
+    public string ProbeFault = nameof(ProbeFault);
+
+    public void Fault() => RaiseAlarm(ProbeFault);
+
+    public override object? Init()
+    {
+        base.Init();
+        _trace.Add($"Init:{Name}");
+        return null;
+    }
+
+    public override object? Abort()
+    {
+        base.Abort();
+        _trace.Add($"Abort:{Name}");
+        return null;
+    }
+}
+
+// 什么都没重写的组件：Init、Abort 照样能调。
+sealed class PlainChild : ComponentBase
+{
 }

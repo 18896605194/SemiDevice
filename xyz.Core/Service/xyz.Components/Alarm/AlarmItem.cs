@@ -19,16 +19,11 @@ public sealed class AlarmItem
 
     public string? Solution { get; internal init; }
 
-    /// <summary>本次触发时间，使用 UTC。</summary>
+    /// <summary>本次报出时间，使用 UTC。</summary>
     public DateTimeOffset RaisedAt { get; internal init; }
 
-    /// <summary>人工确认时间，未确认时为 null。</summary>
-    public DateTimeOffset? AcknowledgedAt { get; internal set; }
-
-    /// <summary>故障恢复时间，仍然活动时为 null。</summary>
+    /// <summary>人工清除（Reset）时间；还在报时为 null。</summary>
     public DateTimeOffset? ClearedAt { get; internal set; }
-
-    public bool IsAcknowledged => AcknowledgedAt.HasValue;
 
     public bool IsActive => !ClearedAt.HasValue;
 

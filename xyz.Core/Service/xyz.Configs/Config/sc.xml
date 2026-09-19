@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
     <Setting Name="System" />
+	<!-- EC：全系统一本在线可调参数（ec.xml，跟 sc.xml 同目录），各组件的 EC 属性经它读写。
+	     放最前面：后面的组件装配时就能读到 ec.xml 里的值 -->
+	<Setting Name="EC" Type="xyz.Components.Components.EcComponent" />
 	<!-- 数据库连接：只分两个。业务数据（含晶圆流水）走 Default；
 	     Io 单独一个，专门装设备采上来的点位数据——那是唯一一路秒级不停写的，跟业务分开免得互相拖慢 -->
 	<Setting Name="Database">
@@ -13,8 +16,12 @@
 			<Value Name="DbType" Value="Sqlite" />
 		</Setting>
 	</Setting>
-	<!-- 报警：全系统一本，模块用 AlarmComponent.Current.Raise(this, 报警码) 上报 -->
-	<Setting Name="Alarm" Type="xyz.Components.Components.AlarmComponent" />
+	<!-- 报警：全系统一本。组件经基类 RaiseAlarm/CheckAlarm 自己报，只能人工 Reset 清；报出、清除都入库 -->
+	<Setting Name="Alarm" Type="xyz.Components.Components.AlarmComponent">
+		<Value Name="EnableHistory" Value="True" />
+		<Value Name="HistoryDatabase" Value="Default" />
+		<Value Name="HistoryKeepDays" Value="90" />
+	</Setting>
 	<!-- 晶圆账：全系统一本，事件驱动不参与扫描 -->
 	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManager">
 		<Value Name="IsEnable" Value="True" />

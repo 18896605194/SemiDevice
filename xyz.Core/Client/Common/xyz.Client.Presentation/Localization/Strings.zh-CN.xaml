@@ -34,4 +34,9 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} 读码没发起（没挂读头、读头未连接或上一次还没读完）</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
+
+    <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
+    <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
+
+    <sys:String x:Key="history.query_failed">查询失败：{0}</sys:String>
 </ResourceDictionary>

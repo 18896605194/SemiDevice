@@ -142,6 +142,8 @@ public class MenuService : RepositoryBase<MenuEntity>, IMenuService
             InsertMenu(db, "Io", "Io", null, 7);
 
             EnsureSettingChildren(db);
+            EnsureAlarmChildren(db);
+            EnsureDataCenterChildren(db);
             return;
         }
 
@@ -159,6 +161,8 @@ public class MenuService : RepositoryBase<MenuEntity>, IMenuService
         MigrateMenuCode(db, "Setting.MenuManagement", "Setting.Menu");
 
         EnsureSettingChildren(db);
+        EnsureAlarmChildren(db);
+        EnsureDataCenterChildren(db);
     }
 
     private static void EnsureTopLevel(SqlSugarClient db, string name, string code, int sort)
@@ -217,6 +221,40 @@ public class MenuService : RepositoryBase<MenuEntity>, IMenuService
         EnsureChild(db, setting.Id, "用户管理", "Setting.User", 4);
         EnsureChild(db, setting.Id, "角色管理", "Setting.Role", 5);
         EnsureChild(db, setting.Id, "菜单管理", "Setting.Menu", 6);
+    }
+
+    /// <summary>
+    /// 报警菜单：实时报警、报警历史（页面在 xyz.Client.DataCenter）。
+    /// </summary>
+    private static void EnsureAlarmChildren(SqlSugarClient db)
+    {
+        var alarm = db.Queryable<MenuEntity>()
+            .First(menu => menu.Code == "Alarm");
+
+        if (alarm == null)
+        {
+            return;
+        }
+
+        EnsureChild(db, alarm.Id, "实时报警", "Alarm.Realtime", 1);
+        EnsureChild(db, alarm.Id, "报警历史", "Alarm.History", 2);
+    }
+
+    /// <summary>
+    /// 数据中心菜单：实时日志、日志历史（页面在 xyz.Client.DataCenter）。
+    /// </summary>
+    private static void EnsureDataCenterChildren(SqlSugarClient db)
+    {
+        var dataCenter = db.Queryable<MenuEntity>()
+            .First(menu => menu.Code == "DataCenter");
+
+        if (dataCenter == null)
+        {
+            return;
+        }
+
+        EnsureChild(db, dataCenter.Id, "实时日志", "DataCenter.LogRealtime", 1);
+        EnsureChild(db, dataCenter.Id, "日志历史", "DataCenter.LogHistory", 2);
     }
 
     private static void EnsureChild(

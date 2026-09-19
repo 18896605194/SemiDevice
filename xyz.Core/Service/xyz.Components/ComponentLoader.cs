@@ -23,7 +23,22 @@ public static class ComponentLoader
             Build(setting, catalog, parent: null, roots);
         }
 
+        // 构造时挂好的子组件（sc.xml 里不写 Type 的那种）原本只有本级名，这里按树补全层级路径。
+        foreach (var root in roots)
+        {
+            AssignFullPath(root, parentPath: string.Empty);
+        }
+
         return roots;
+    }
+
+    private static void AssignFullPath(ComponentBase component, string parentPath)
+    {
+        component.FullPath = parentPath.Length == 0 ? component.Name : parentPath + "." + component.Name;
+        foreach (var child in component.Children)
+        {
+            AssignFullPath(child, component.FullPath);
+        }
     }
 
     /// <summary>

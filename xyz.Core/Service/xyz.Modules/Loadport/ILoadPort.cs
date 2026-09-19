@@ -31,6 +31,11 @@ public interface ILoadPort
 
     ModuleOperation? Home();
 
+    /// <summary>
+    /// 初始化：子组件先初始化，再 Home。
+    /// </summary>
+    ModuleOperation? Init();
+
     ModuleOperation? Reset();
 
     ModuleOperation? Abort();

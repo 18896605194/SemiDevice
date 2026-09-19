@@ -1,10 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using xyz.Common.Log;
 using xyz.Components;
+using xyz.Components.Collectors;
 using xyz.Components.Components;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
+using xyz.Service.Alarms;
 using xyz.Service.Events;
 using xyz.Service.UserManger;
 using xyz.Shared.Dtos;
@@ -52,25 +54,26 @@ public static class ServiceCollectionExtensions
         var roots = ComponentLoader.Load(settings);
         services.AddSingleton<IReadOnlyList<ComponentBase>>(roots);
 
-        // 把组件树 [VariableMark(EC)] 声明合并进 ec.xml（缺的补建，已有值不动）。
-        EcMerger.Merge(roots);
+        // EC 组件把组件树 [VariableMark(EC)] 声明合并进 ec.xml（缺的补建，已有值不动）。
+        if (EcComponent.Current is { } ec)
+        {
+            ec.Merge(roots);
+        }
+        else
+        {
+            LogHelper.Warn("EC", "sc.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
+        }
+
+        // 编号：EC/SV/报警/CEID/DV 五个采集器按代码声明生成编号表（EcDefinitions.xml 等，跟 sc.xml 同目录）：
+        // 已有的保号、新增的在号段里接着分、代码里删掉的停用保号；报警另配报出/清除事件；一键采集走 CollectAll。
+        var collectors = new GemCollectors();
+        collectors.Merge(roots, SC.ConfigDirectory);
+        services.AddSingleton(collectors);
 
         // 报警转推客户端：报警组件在组件层（不引用契约层），所以这条桥搭在这儿，跟日志那条一个路子。
         if (AlarmComponent.Current is { } alarms)
         {
-            alarms.AlarmChanged += item => EventBus.Send(new AlarmDto
-            {
-                Source = item.SourcePath,
-                Code = item.AlarmCode,
-                Text = item.AlarmText,
-                Category = item.Category.ToString(),
-                Level = item.Level.ToString(),
-                Description = item.Description ?? string.Empty,
-                Solution = item.Solution ?? string.Empty,
-                RaisedAt = item.RaisedAt.LocalDateTime,
-                AcknowledgedAt = item.AcknowledgedAt?.LocalDateTime,
-                ClearedAt = item.ClearedAt?.LocalDateTime,
-            }, AlarmDto.EventToken, retain: false);
+            alarms.AlarmChanged += item => EventBus.Send(item.ToDto(), AlarmDto.EventToken, retain: false);
         }
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
@@ -102,6 +105,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IMenuService, MenuService>();
         services.AddTransient<ILoadPortService, LoadPortService>();
         services.AddTransient<IRobotService, RobotService>();
+        services.AddTransient<IAlarmService, AlarmService>();
 
         #endregion
 

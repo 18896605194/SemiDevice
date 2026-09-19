@@ -1,0 +1,94 @@
+<UserControl
+    x:Class="xyz.Client.DataCenter.Views.LogRealtimeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="820"
+    d:DesignWidth="1640"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <Grid Background="{DynamicResource DarkWindowBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{DynamicResource HeaderBarBorderStyle}">
+            <TextBlock Style="{DynamicResource PageTitleTextStyle}" Text="实时日志" />
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--  筛选与操作：级别、关键字随输随筛；暂停后新到的先攒着，点继续一次补上  -->
+            <Border Grid.Row="0" Style="{DynamicResource ToolbarBorderStyle}">
+                <DockPanel>
+                    <TextBlock
+                        DockPanel.Dock="Right"
+                        Style="{DynamicResource StatusLabelTextStyle}"
+                        Text="{Binding Summary}" />
+                    <WrapPanel Orientation="Horizontal">
+                        <ComboBox
+                            Width="140"
+                            Margin="0,4,12,4"
+                            materialDesign:HintAssist.Hint="级别"
+                            ItemsSource="{Binding Levels}"
+                            SelectedItem="{Binding SelectedLevel}"
+                            Style="{DynamicResource DefaultComboBoxStyle}" />
+                        <TextBox
+                            Width="320"
+                            Margin="0,4,12,4"
+                            materialDesign:HintAssist.Hint="关键字（模块 / 内容）"
+                            Style="{DynamicResource DefaultTextBoxStyle}"
+                            Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button
+                            Command="{Binding PauseCommand}"
+                            Content="{Binding PauseText}"
+                            Style="{DynamicResource DefaultButtonStyle}" />
+                        <Button
+                            Command="{Binding ClearCommand}"
+                            Content="清空"
+                            Style="{DynamicResource DefaultButtonStyle}" />
+                    </WrapPanel>
+                </DockPanel>
+            </Border>
+
+            <!--  日志表：最新的在最上面，超长内容省略、悬停看全文  -->
+            <materialDesign:Card
+                Grid.Row="1"
+                Margin="0,16,0,0"
+                Style="{DynamicResource DefaultCardStyle}">
+                <DataGrid ItemsSource="{Binding LogsView}" Style="{DynamicResource CompactDataGridStyle}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Width="150"
+                            Binding="{Binding Time, StringFormat='{}{0:HH:mm:ss.fff}'}"
+                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                            Header="时间" />
+                        <DataGridTextColumn
+                            Width="110"
+                            Binding="{Binding Level}"
+                            ElementStyle="{DynamicResource LogLevelDataGridTextStyle}"
+                            Header="级别" />
+                        <DataGridTextColumn
+                            Width="180"
+                            Binding="{Binding Module}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="模块" />
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding Message}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="内容" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</UserControl>

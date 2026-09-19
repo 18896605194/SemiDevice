@@ -1,41 +1,29 @@
 namespace xyz.Components.Alarm;
 
 /// <summary>
-/// 平台通用报警管理契约。模块依赖此接口，不依赖具体的 AlarmComponent 实现。
-/// 同一台设备应共用同一个报警管理实例。
+/// 报警管理契约，给界面用：看当前有哪些报警、人工复位。
+/// 报警由各组件经 ComponentBase 的 RaiseAlarm / CheckAlarm 自己报，不走这里；报出去以后只能人工复位清。
 /// </summary>
 public interface IAlarmComponent
 {
     /// <summary>
-    /// 报警触发、确认或恢复后的快照。重复操作不发送变化通知；不保证在 UI 线程执行。
+    /// 报警变化的快照：报出、清除各推一条；重复报不推。不保证在 UI 线程执行。
     /// </summary>
     event Action<AlarmItem>? AlarmChanged;
 
     /// <summary>
-    /// 当前活动报警的快照，按触发时间排序。人工确认不代表故障恢复，确认后仍保留在此列表中。
+    /// 当前报警的快照，按报出时间排序。
     /// </summary>
     IReadOnlyList<AlarmItem> ActiveAlarms { get; }
 
     /// <summary>
-    /// 初始化时读取组件公开实例字段或属性上的 AlarmAttribute 定义。
-    /// 字符串成员值作为报警代码，sourcePath 用于区分组件实例；不递归注册子组件。
+    /// 人工复位某个报警来源（连同它的子组件）：走那个组件的 Reset，组件能复位就清掉它的报警。
+    /// 条件还在的报警清了以后，下个扫描周期会重新报出来。没报过报警的来源返回 false。
     /// </summary>
-    void Register(string sourcePath, ComponentBase source);
+    bool Reset(string sourcePath);
 
     /// <summary>
-    /// 触发已注册的报警；新增活动报警时返回 true，已活动时返回 false。
+    /// 人工复位全部有报警的组件；返回复位了几个组件。
     /// </summary>
-    bool Raise(string sourcePath, string alarmCode);
-
-    /// <summary>
-    /// 由故障检测方在故障恢复后调用。移出活动列表并通知，不自动确认报警。
-    /// 成功恢复时返回 true，不存在活动报警时返回 false。
-    /// </summary>
-    bool Clear(string sourcePath, string alarmCode);
-
-    /// <summary>
-    /// 人工确认活动报警，不清除故障，也不控制蜂鸣器。
-    /// 首次确认时返回 true，不存在活动报警或已经确认时返回 false。
-    /// </summary>
-    bool Acknowledge(string sourcePath, string alarmCode);
+    int ResetAll();
 }

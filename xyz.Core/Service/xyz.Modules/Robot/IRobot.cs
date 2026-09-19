@@ -54,6 +54,11 @@ public interface IRobot
     ModuleOperation? Home();
 
     /// <summary>
+    /// 初始化：子组件先初始化，再 Home。
+    /// </summary>
+    ModuleOperation? Init();
+
+    /// <summary>
     /// 清除设备报错；报错状态下清错后回 NotInit，需重新 Home。
     /// </summary>
     ModuleOperation? Reset();

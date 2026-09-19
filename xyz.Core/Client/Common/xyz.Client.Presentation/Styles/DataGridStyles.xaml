@@ -61,4 +61,63 @@
         <Setter Property="ColumnHeaderStyle" Value="{StaticResource DefaultDataGridColumnHeaderStyle}" />
     </Style>
 
+    <!--  紧凑表格：行矮、字小，用于日志、报警这类一屏要看很多行的列表  -->
+    <Style
+        x:Key="CompactDataGridStyle"
+        BasedOn="{StaticResource DefaultDataGridStyle}"
+        TargetType="DataGrid">
+        <Setter Property="RowHeight" Value="32" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
+    <!--  长文本单元格：一行显示，超长省略，鼠标悬停看全文  -->
+    <Style
+        x:Key="EllipsisDataGridTextStyle"
+        BasedOn="{StaticResource DefaultDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+    </Style>
+
+    <!--  日志级别单元格（行数据要有 Level 属性）：Debug 灰、Warn 黄、Error 红  -->
+    <Style
+        x:Key="LogLevelDataGridTextStyle"
+        BasedOn="{StaticResource DefaultDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Level}" Value="Debug">
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Warn">
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Error">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  报警等级单元格（行数据要有 Level 属性）：Warn 黄、Alarm1/Alarm2 橙、Fatal 红  -->
+    <Style
+        x:Key="AlarmLevelDataGridTextStyle"
+        BasedOn="{StaticResource DefaultDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Level}" Value="Warn">
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Alarm1">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmIcon}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Alarm2">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmIcon}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Level}" Value="Fatal">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

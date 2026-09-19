@@ -3,7 +3,6 @@ using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
-using xyz.Components.Components;
 using xyz.Components.Enums;
 
 namespace xyz.Modules;
@@ -117,7 +116,7 @@ public class E84Component : ComponentBase, IE84
     [Alarm("E84 交接超时", AlarmCategory.Timeout,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "E84 握手某一段（TP1–TP5）超时，本次交接中止，输出已全灭",
-        Solution = "检查搬运车与端口的 E84 信号和光幕；确认载具实际位置后 Retry 或 Complete")]
+        Solution = "检查搬运车与端口的 E84 信号和光幕；确认载具实际位置后 Retry 或 Complete，再复位报警")]
     public string E84TimeoutAlarm = nameof(E84TimeoutAlarm);
 
     #endregion
@@ -187,7 +186,6 @@ public class E84Component : ComponentBase, IE84
             }
 
             Clear();
-            AlarmComponent.Current?.Clear(this, E84TimeoutAlarm);
             Flush();
         }
     }
@@ -213,7 +211,6 @@ public class E84Component : ComponentBase, IE84
             LogHelper.Info(FullPath, $"E84 人工确认{Direction(isLoad)}交接已完成");
             _reports.Add(E84Report.Completed(isLoad));
             Clear();
-            AlarmComponent.Current?.Clear(this, E84TimeoutAlarm);
             Flush();
             return true;
         }
@@ -433,7 +430,7 @@ public class E84Component : ComponentBase, IE84
         _stepWatch.Reset();
         LogHelper.Warn(FullPath,
             $"E84 {Direction(isLoad)}交接 {timer} 超时（{TimeoutOf(timer)}ms），输出已撤，等人工 Retry 或 Complete");
-        AlarmComponent.Current?.Raise(this, E84TimeoutAlarm);
+        RaiseAlarm(E84TimeoutAlarm);
         _reports.Add(E84Report.TimedOut(isLoad, timer));
     }
 

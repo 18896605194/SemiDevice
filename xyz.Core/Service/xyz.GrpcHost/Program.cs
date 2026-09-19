@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using xyz.Service;
+using xyz.Service.Alarms;
 using xyz.Service.Events;
 using xyz.Service.UserManger;
 
@@ -34,6 +35,7 @@ public static class Program
         app.MapGrpcService<LoadPortService>();
         app.MapGrpcService<RobotService>();
         app.MapGrpcService<LogService>();
+        app.MapGrpcService<AlarmService>();
 
         app.Run();
     }

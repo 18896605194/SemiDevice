@@ -133,12 +133,12 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
         return Begin(LoadPortAction.Home, new HomeOperation(this));
     }
 
-    public override ModuleOperation? Reset()
+    protected override ModuleOperation? ResetDevice()
     {
         return Begin(LoadPortAction.Reset, new ResetOperation(this));
     }
 
-    public override ModuleOperation? Abort()
+    protected override ModuleOperation? AbortDevice()
     {
         return Begin(LoadPortAction.Abort, new AbortOperation(this));
     }

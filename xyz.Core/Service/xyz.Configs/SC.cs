@@ -16,6 +16,11 @@ public static class SC
         return config?.Modules ?? [];
     }
 
+    /// <summary>
+    /// 配置目录（sc.xml 所在目录）；ec.xml 和各编号表（EcDefinitions.xml 等）都跟它放一起。
+    /// </summary>
+    public static string ConfigDirectory => Path.GetDirectoryName(FindConfigFile())!;
+
     private static string FindConfigFile()
     {
         var pathsFile = Path.Combine(AppContext.BaseDirectory, "Paths.json");

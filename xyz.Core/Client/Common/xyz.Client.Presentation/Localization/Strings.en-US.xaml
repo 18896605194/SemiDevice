@@ -33,4 +33,9 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} carrier ID read not started (no reader, reader disconnected, or previous read still in progress)</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
+
+    <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
+    <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
+
+    <sys:String x:Key="history.query_failed">Query failed: {0}</sys:String>
 </ResourceDictionary>

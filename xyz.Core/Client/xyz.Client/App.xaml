@@ -19,6 +19,7 @@
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/BorderStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/TextBoxStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ComboBoxStyles.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/DatePickerStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ButtonStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/CardStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/DataGridStyles.xaml" />

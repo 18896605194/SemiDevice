@@ -704,6 +704,6 @@ public class WaferManager : ComponentBase
     private void Fault(string message)
     {
         LogHelper.Error(Name, $"晶圆账: {message}");
-        AlarmComponent.Current?.Raise(this, WaferLedgerAlarm);
+        RaiseAlarm(WaferLedgerAlarm);
     }
 }

@@ -6,7 +6,9 @@ using xyz.Components.Enums;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// DI 值监控组件：单个 DI，支持电平触发、防抖和报警声明。
+/// DI 值监控组件：单个 DI，电平触发 + 报警防抖（EC DebounceMs）。
+/// 公共组件：装进哪个模块都一样用，报警算在装它的模块头上（模块的 HasAlarm 自动包含）。
+/// IO 读写层还没接：ReadDi 先返回 null（不判），接上后只改那一处。
 /// </summary>
 [Component(description: "DI 值监控组件")]
 public class DiSensorComponent : ComponentBase
@@ -26,8 +28,12 @@ public class DiSensorComponent : ComponentBase
 
     #region EC 可调参数
 
-    [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "10000", "200", "防抖时间：电平需稳定该时长才被识别")]
-    public int DebounceMs { get; set; } = 200;
+    [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "10000", "200", "报警防抖：处于报警电平持续满该时长才算触发、才报警")]
+    public int DebounceMs
+    {
+        get { return GetEcInt(nameof(DebounceMs)); }
+        set { SetEcInt(nameof(DebounceMs), value); }
+    }
 
     #endregion
 
@@ -37,6 +43,43 @@ public class DiSensorComponent : ComponentBase
         Description = "DI 数字输入处于配置的报警电平",
         Solution = "检查对应设备/互锁状态及该 DI 点接线")]
     public string SensorAlarm = nameof(SensorAlarm);
+
+    #endregion
+
+    #region 状态
+
+    /// <summary>
+    /// 是否触发（防抖后）：处于报警电平并持续满 DebounceMs；离开报警电平立刻算没触发。
+    /// AlarmEnabled=False 时不报警，宿主看它自己处理。
+    /// </summary>
+    public bool IsTriggered { get; private set; }
+
+    #endregion
+
+    #region 扫描
+
+    /// <summary>
+    /// 每个扫描周期读一次 DI，按防抖判触发、报警；没配点（-1）或读不到时不判，状态与防抖计时都不动。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        if (DiIndex < 0 || ReadDi() is not { } level)
+        {
+            return;
+        }
+
+        bool active = level == (TriggerLevel == TriggerLevel.High);
+        IsTriggered = CheckAlarm(SensorAlarm, active, DebounceMs, raise: AlarmEnabled);
+    }
+
+    /// <summary>
+    /// 读 DI 电平（true = 高电平）。IO 读写层还没接，先返回 null。
+    /// </summary>
+    protected virtual bool? ReadDi()
+    {
+        return null;
+    }
 
     #endregion
 }

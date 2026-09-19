@@ -314,14 +314,44 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public abstract ModuleOperation? Home();
 
     /// <summary>
-    /// 发起 Reset（清设备报错）。
+    /// 初始化（重写组件基类的 Init）：先初始化子组件，再回原点——Home 就是机械手的初始化（NotInit → Idle）。
+    /// 返回 Home 操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
-    public abstract ModuleOperation? Reset();
+    public override ModuleOperation? Init()
+    {
+        base.Init();
+        return Home();
+    }
 
     /// <summary>
-    /// 发起 Abort（急停）；Abort 可顶替在途动作。
+    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件，再发设备复位清错。
+    /// 返回设备复位操作，调用方等它做完；状态不允许时为 null，报警照样已经清了。
     /// </summary>
-    public abstract ModuleOperation? Abort();
+    public override ModuleOperation? Reset()
+    {
+        base.Reset();
+        return ResetDevice();
+    }
+
+    /// <summary>
+    /// 发设备复位清错。机型实现：Begin(RobotAction.Reset, new ...Operation(...))。
+    /// </summary>
+    protected abstract ModuleOperation? ResetDevice();
+
+    /// <summary>
+    /// 中止（重写组件基类的 Abort，急停）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
+    /// 返回设备中止操作；状态不允许时为 null。
+    /// </summary>
+    public override ModuleOperation? Abort()
+    {
+        base.Abort();
+        return AbortDevice();
+    }
+
+    /// <summary>
+    /// 发设备中止。机型实现：Begin(RobotAction.Abort, new ...Operation(...))。
+    /// </summary>
+    protected abstract ModuleOperation? AbortDevice();
 
     /// <summary>
     /// 发起 Pick：station 为站点表中的模块名（如 LoadPort1），站点号取本机械手站点表；未配置的站点被拒（返回 null）。
@@ -436,52 +466,26 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 设备报警跟着设备报错走：有报错就报，查询确认没报错了才恢复。
-    /// 没连上时 DeviceError 是上一次的旧值，不作数，不报也不恢复。
+    /// 设备报警跟着设备报错走：有报错就报。报错没了也不清——报警只能人工 Reset 清。
+    /// 没连上时 DeviceError 是上一次的旧值，不作数，不判。
     /// </summary>
     private void CheckDeviceAlarm()
     {
-        if (Driver is not { IsConnected: true })
+        if (Driver is { IsConnected: true } && !string.IsNullOrEmpty(DeviceError))
         {
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(DeviceError))
-        {
-            AlarmComponent.Current?.Raise(this, RobotDeviceAlarm);
-        }
-        else
-        {
-            AlarmComponent.Current?.Clear(this, RobotDeviceAlarm);
+            RaiseAlarm(RobotDeviceAlarm);
         }
     }
 
     /// <summary>
-    /// 动作类报警：失败就报，成功并回到能干活的状态才恢复。
-    /// Robot 急停/复位之后是 NotInit（位置不可信，要重新回原点），这时候还不算恢复，只有 Home 成功回到 Idle 才算。
+    /// 动作类报警：失败就报；动作成功也不清，只能人工 Reset 清。
     /// 人为急停顶掉的动作不报——那是操作员自己按的，不是故障。
     /// </summary>
     private void UpdateActionAlarms(ModuleOperation operation)
     {
-        var alarms = AlarmComponent.Current;
-        if (alarms is null)
+        if (!operation.IsSuccess && operation.Code != ErrorCodes.Aborted)
         {
-            return;
-        }
-
-        if (operation.IsSuccess)
-        {
-            if (State != ModuleState.NotInit && State != ModuleState.Error)
-            {
-                alarms.Clear(this, ControlledStopAlarm);
-            }
-
-            return;
-        }
-
-        if (operation.Code != ErrorCodes.Aborted)
-        {
-            alarms.Raise(this, ControlledStopAlarm);
+            RaiseAlarm(ControlledStopAlarm);
         }
     }
 

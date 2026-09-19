@@ -178,12 +178,12 @@ public class RobotModule : BaseRobotModule, IRobot
         return Begin(RobotAction.Home, new HomeOperation(this));
     }
 
-    public override ModuleOperation? Reset()
+    protected override ModuleOperation? ResetDevice()
     {
         return Begin(RobotAction.Reset, new ResetOperation(this));
     }
 
-    public override ModuleOperation? Abort()
+    protected override ModuleOperation? AbortDevice()
     {
         return Begin(RobotAction.Abort, new AbortOperation(this));
     }

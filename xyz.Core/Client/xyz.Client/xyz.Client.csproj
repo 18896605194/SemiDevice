@@ -8,6 +8,7 @@
     <ProjectReference Include="..\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
     <ProjectReference Include="..\xyz.Client.Setting\xyz.Client.Setting.csproj" />
     <ProjectReference Include="..\xyz.Client.Io\xyz.Client.Io.csproj" />
+    <ProjectReference Include="..\xyz.Client.DataCenter\xyz.Client.DataCenter.csproj" />
   </ItemGroup>
 
   <ItemGroup>

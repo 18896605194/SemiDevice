@@ -1,7 +1,7 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 报警契约：报警触发、确认、恢复各推一条，界面据此刷新报警列表。
+/// 报警契约：报警报出、人工清除各推一条，界面据此刷新报警列表。
 /// </summary>
 public class AlarmDto
 {
@@ -28,14 +28,9 @@ public class AlarmDto
 
     public DateTime RaisedAt { get; set; }
 
-    /// <summary>人工确认时刻；未确认为 null。</summary>
-    public DateTime? AcknowledgedAt { get; set; }
-
-    /// <summary>故障恢复时刻；仍在报为 null。</summary>
+    /// <summary>人工清除（Reset）时刻；还在报为 null。</summary>
     public DateTime? ClearedAt { get; set; }
 
-    /// <summary>还在报（没恢复）。确认过但没恢复的仍算在报。</summary>
+    /// <summary>还在报（没被人工清除）。</summary>
     public bool IsActive => !ClearedAt.HasValue;
-
-    public bool IsAcknowledged => AcknowledgedAt.HasValue;
 }

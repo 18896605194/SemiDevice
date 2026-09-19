@@ -679,7 +679,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
     <tr><td>AiSensorComponent</td><td>ComponentBase</td><td>模拟量传感器（量程/设定值/预警带/持续时间）</td></tr>
     <tr><td>LightComponent</td><td>ComponentBase</td><td>三色灯 + 蜂鸣器（红黄绿蓝四个 DO）</td></tr>
     <tr><td>RfidReaderComponent</td><td>ComponentBase</td><td>RFID 读头（串口参数 + ReadCarrierId）</td></tr>
-    <tr><td>AlarmComponent</td><td>ComponentBase, IAlarmComponent</td><td>报警的注册/触发/清除/确认</td></tr>
+    <tr><td>AlarmComponent</td><td>ComponentBase, IAlarmComponent</td><td>当前报警、人工复位、报警入库</td></tr>
     <tr><td>DataBaseComponent</td><td>ComponentBase</td><td>数据库连接（连接串/库类型）</td></tr>
   </table>
 
@@ -960,15 +960,24 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
   <h1 class="page-title">AlarmComponent 报警</h1>
   <p class="page-sub">xyz.Components.Components.AlarmComponent —— ComponentBase, IAlarmComponent</p>
 
-  <p>报警中心组件：统一注册、触发、清除、确认。</p>
+  <p>报警管理组件：全系统一个，只管当前有哪些报警、人工复位、报警入库。报警由各组件自己报，报出去以后只能人工复位清，源头恢复了也不自动清。</p>
 
   <table>
-    <tr><th>方法</th><th>说明</th></tr>
-    <tr><td><code>Register(string sourcePath, ComponentBase source)</code></td><td>注册报警源（扫描其 [Alarm] 字段）</td></tr>
-    <tr><td><code>Raise(string sourcePath, string alarmCode)</code></td><td>触发报警</td></tr>
-    <tr><td><code>Clear(string sourcePath, string alarmCode)</code></td><td>清除报警</td></tr>
-    <tr><td><code>Acknowledge(string sourcePath, string alarmCode)</code></td><td>确认报警</td></tr>
+    <tr><th>组件基类（ComponentBase）</th><th>说明</th></tr>
+    <tr><td><code>RaiseAlarm(string code)</code></td><td>报一次性的报警（动作失败、超时、账实不符），立即报；报警码是组件上带 [Alarm] 的字段值</td></tr>
+    <tr><td><code>CheckAlarm(string code, bool condition, int debounceMs)</code></td><td>信号类报警（DI、AI），每个扫描周期调；条件持续满防抖时间（组件自己的 EC）才报</td></tr>
+    <tr><td><code>Reset()</code></td><td>人工复位：先复位子组件，再清自己的报警；组件可重写，LoadPort/Robot 重写后还会发设备复位</td></tr>
+    <tr><td><code>HasAlarm</code></td><td>自己或任意子组件有没有报警（按来源路径前缀查），公共组件的报警算在装它的模块头上</td></tr>
   </table>
+
+  <table>
+    <tr><th>IAlarmComponent（界面用）</th><th>说明</th></tr>
+    <tr><td><code>ActiveAlarms</code> / <code>AlarmChanged</code></td><td>当前报警快照；报出、清除各推一条</td></tr>
+    <tr><td><code>Reset(string sourcePath)</code></td><td>按报警来源复位，走那个组件的 Reset</td></tr>
+    <tr><td><code>ResetAll()</code></td><td>复位全部有报警的组件</td></tr>
+  </table>
+
+  <p>入库：报出、清除各记一行到 <code>alarm_history_yyyyMMdd</code> 日表，库与保留天数在 sc.xml 的 Alarm 节点配（EnableHistory / HistoryDatabase / HistoryKeepDays）。</p>
 </section>
 
 <!-- ================================================================ -->
