@@ -4,7 +4,8 @@ namespace xyz.Client.Menus;
 
 /// <summary>
 /// 平台菜单：固定的一级菜单和平台页面的二级菜单，写在代码里，不进数据库。
-/// 机型的二级菜单由机型模块自己声明（IClientMenuProvider），挂到这里的一级菜单下。
+/// 框架页面的二级菜单都在这里声明（含 Manual 下的手动页——单片类机台长得都一样），机型模块只写对应的界面；
+/// 真有机型独有的页面时，才由机型实现 IClientMenuProvider 挂到这里的一级菜单下。
 /// 显示名在语言包里配 menu.{Code}。
 /// </summary>
 public sealed class PlatformMenuProvider : IClientMenuProvider
@@ -19,6 +20,9 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
         new ClientMenu(null, "DataCenter", 5),
         new ClientMenu(null, "Setting", 6),
         new ClientMenu(null, "Io", 7),
+
+        new ClientMenu("Manual", "Manual.LoadPorts", 1),
+        new ClientMenu("Manual", "Manual.Transfer", 2),
 
         new ClientMenu("Alarm", "Alarm.Realtime", 1),
         new ClientMenu("Alarm", "Alarm.History", 2),
