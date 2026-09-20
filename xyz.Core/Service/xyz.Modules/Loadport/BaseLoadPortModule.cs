@@ -183,6 +183,36 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         set { SetEcInt(nameof(UnclampTimeout), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "False",
+        description: "是否循环跑片（False = 跑完一轮就停）")]
+    public bool IsCycle
+    {
+        get { return bool.TryParse(GetEcString(nameof(IsCycle)), out var cycle) && cycle; }
+        set { SetEc(nameof(IsCycle), value.ToString()); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, min: "1", max: "999999",
+        @default: "1", description: "循环跑片总轮数（IsCycle=True 时生效）")]
+    public int CycleRunTotal
+    {
+        get { return GetEcInt(nameof(CycleRunTotal)); }
+        set { SetEcInt(nameof(CycleRunTotal), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Enum, @default: "BottomUp",
+        description: "取片顺序：BottomUp=从下往上（先取 Slot 1），TopDown=从上往下（先取顶槽）",
+        Options = "BottomUp,TopDown")]
+    public SlotPickOrder PickOrder
+    {
+        get
+        {
+            return Enum.TryParse<SlotPickOrder>(GetEcString(nameof(PickOrder)), true, out var order)
+                ? order
+                : SlotPickOrder.BottomUp;
+        }
+        set { SetEc(nameof(PickOrder), value.ToString()); }
+    }
+
     #endregion
 
     #region Alarm

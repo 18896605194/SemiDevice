@@ -157,11 +157,22 @@
 	</Setting>
 	<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动派单下的是同一种搬运单，
 	     都完整走站点交互环（准备→取放→收尾）；设备点动不走这儿。
-	     放在 Robot 之后：装配按顺序走，到这儿机械手和工位都已经建好 -->
+	     模块表在装配全部完成后统一绑，跟本节点在 sc.xml 里的位置无关 -->
 	<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
 		<Value Name="IsEnable" Value="True" />
 	</Setting>
-	<Setting Name="Chamber" />
+	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
+	     站点号/转台方位/平移距离不在这儿，在 Robot 的 Stations 里配 -->
+	<Setting Name="Chamber">
+		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsEnable" Value="True" />
+			<Value Name="SlotCount" Value="1" />
+		</Setting>
+		<Setting Name="Chamber2" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsEnable" Value="True" />
+			<Value Name="SlotCount" Value="1" />
+		</Setting>
+	</Setting>
     <Setting Name="CDS" />
     <Setting Name="Supply" />
 </ArrayOfSetting>
