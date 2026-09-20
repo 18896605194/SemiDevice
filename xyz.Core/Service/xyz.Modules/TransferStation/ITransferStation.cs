@@ -1,10 +1,6 @@
 namespace xyz.Modules;
 
-/// <summary>
-/// 机械手可服务工位契约：调度/机械手流程只依赖本接口，不感知工位是 LoadPort 还是腔体。
-/// 交互标准环见 TransferModuleState：锚点态 → PrepareTransfer → PrepareTransfer2(TransferReady)
-/// → Transferring → TransferComplete → 回锚点态。
-/// </summary>
+
 public interface ITransferStation
 {
     /// <summary>

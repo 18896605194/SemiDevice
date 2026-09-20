@@ -93,6 +93,19 @@ public static class ServiceCollectionExtensions
             module.Start();
         }
 
+        // 搬运管理：模块全起来之后再绑表启动——它一转就会执行搬运单，
+        // 不能在模块还没连上驱动、还没 Home 的时候就开始派机械手。
+        var transfers = TransferManager.Current;
+        if (transfers is not null)
+        {
+            transfers.Bind(modules);
+            transfers.Start();
+        }
+        else
+        {
+            LogHelper.Warn("Transfer", "sc.xml 没配 Transfer 节点：手动传片与自动派单都不可用");
+        }
+
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
         EquipmentStatusPublisher.Start(roots, modules);
 

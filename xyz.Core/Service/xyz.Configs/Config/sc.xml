@@ -155,6 +155,12 @@
 			</Setting>
 		</Setting>
 	</Setting>
+	<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动派单下的是同一种搬运单，
+	     都完整走站点交互环（准备→取放→收尾）；设备点动不走这儿。
+	     放在 Robot 之后：装配按顺序走，到这儿机械手和工位都已经建好 -->
+	<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
+		<Value Name="IsEnable" Value="True" />
+	</Setting>
 	<Setting Name="Chamber" />
     <Setting Name="CDS" />
     <Setting Name="Supply" />
