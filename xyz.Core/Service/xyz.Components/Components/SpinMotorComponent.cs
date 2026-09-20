@@ -13,7 +13,11 @@ public class SpinMotorComponent : AxisComponent
     #region EC 可调参数
 
     [VariableMark(VariableType.EC, ValueFormat.Double, "unit", "-100000", "100000", "0", "卡盘取放片示教位")]
-    public double TransferPosition { get; set; }
+    public double TransferPosition
+    {
+        get { return GetEcDouble(nameof(TransferPosition)); }
+        set { SetEcDouble(nameof(TransferPosition), value); }
+    }
 
     #endregion
 }

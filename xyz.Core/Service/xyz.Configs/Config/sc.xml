@@ -162,15 +162,125 @@
 		<Value Name="IsEnable" Value="True" />
 	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
-	     站点号/转台方位/平移距离不在这儿，在 Robot 的 Stations 里配 -->
+	     站点号/转台方位/平移距离不在这儿，在 Robot 的 Stations 里配。
+	     子组件层级按物理装配走：升降气缸和喷嘴装在摆臂上，就挂摆臂节点下面——
+	     配置上一眼看出哪路喷嘴在哪条臂，报警也按路径自动算到摆臂、再算到腔体。
+	     控制上它们跟轴是平级的，谁也不调谁，协调在工艺配方里。
+	     IO 索引全填 -1 = 接线未定；轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
+	     Bowl 层数、摆臂条数、喷嘴路数按实际增减，下面只是骨架 -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
+			<!-- 腔体门：归站点交互环管（开门放行机械手、关门收尾），不归工艺 -->
+			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="-1" />
+				<Value Name="DoCloseIndex" Value="-1" />
+				<Value Name="DiOpenedIndex" Value="-1" />
+				<Value Name="DiClosedIndex" Value="-1" />
+			</Setting>
+			<!-- Bowl 各层：每层一个气缸。本节点不带 Type，只是分组，运行时气缸直接挂在腔体下。
+			     层位选哪几层是配方参数，不配在这儿 -->
+			<Setting Name="Bowl">
+				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+			</Setting>
+			<!-- 卡盘轴。轴号这类 SC 装机参数还没有（AxisComponent 目前只声明了 EC），
+			     所以这儿暂时是空节点，补了轴号才能落到实际硬件 -->
+			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent" />
+			<!-- 摆臂：升降气缸与各路喷嘴都装在它上面 -->
+			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
+				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="DIW" />
+				</Setting>
+				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="SC1" />
+				</Setting>
+			</Setting>
+			<!-- 片在位检测：只给状态不报警，有没有片以晶圆账为准 -->
+			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+				<Value Name="DiIndex" Value="-1" />
+				<Value Name="AlarmEnabled" Value="False" />
+			</Setting>
 		</Setting>
 		<Setting Name="Chamber2" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
+			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="-1" />
+				<Value Name="DoCloseIndex" Value="-1" />
+				<Value Name="DiOpenedIndex" Value="-1" />
+				<Value Name="DiClosedIndex" Value="-1" />
+			</Setting>
+			<Setting Name="Bowl">
+				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+			</Setting>
+			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent" />
+			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
+				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="DIW" />
+				</Setting>
+				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="SC1" />
+				</Setting>
+			</Setting>
+			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+				<Value Name="DiIndex" Value="-1" />
+				<Value Name="AlarmEnabled" Value="False" />
+			</Setting>
 		</Setting>
 	</Setting>
     <Setting Name="CDS" />
