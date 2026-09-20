@@ -4,6 +4,11 @@ namespace xyz.Modules;
 public interface ITransferStation
 {
     /// <summary>
+    /// 工位模块名（如 LoadPort1）。机械手按这个名字查自己的站点表。
+    /// </summary>
+    string Name { get; }
+
+    /// <summary>
     /// 当前状态是否允许发起准备；调度器选工位时先过滤，避免盲目发起被拒。
     /// </summary>
     bool CanPrepare { get; }

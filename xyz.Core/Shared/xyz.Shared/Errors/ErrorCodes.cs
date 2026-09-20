@@ -45,6 +45,28 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 搬运
+
+    /// <summary>站点等不到可服务（一直没回到锚点态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>
+    public const string StationBusy = "transfer.station_busy";
+
+    /// <summary>站点准备被拒（状态不允许）。Args: [站点名, 准备阶段]</summary>
+    public const string StationPrepareRejected = "transfer.station_prepare_rejected";
+
+    /// <summary>站点准备失败。Args: [站点名, 准备阶段]</summary>
+    public const string StationPrepareFailed = "transfer.station_prepare_failed";
+
+    /// <summary>取放片发起被拒（机械手状态不允许、未连接、或站点未配置）。Args: [机械手模块名, 动作]</summary>
+    public const string TransferRejected = "transfer.rejected";
+
+    /// <summary>取放片失败。Args: [机械手模块名, 动作]</summary>
+    public const string TransferFailed = "transfer.failed";
+
+    /// <summary>环标记落不下去（站点状态跟搬运进度对不上，多半是被人工插手动了）。Args: [站点名, 标记]</summary>
+    public const string TransferStepRejected = "transfer.step_rejected";
+
+    #endregion
+
     #region 报警
 
     /// <summary>报警组件没装（sc.xml 没配 Alarm 节点）。</summary>
