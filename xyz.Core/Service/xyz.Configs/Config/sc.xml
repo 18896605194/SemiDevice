@@ -201,11 +201,16 @@
 					<Value Name="DiClosedIndex" Value="-1" />
 				</Setting>
 			</Setting>
-			<!-- 卡盘轴。轴号这类 SC 装机参数还没有（AxisComponent 目前只声明了 EC），
-			     所以这儿暂时是空节点，补了轴号才能落到实际硬件 -->
-			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent" />
+			<!-- 轴不按轴号绑硬件，按 PLC 数据块的数组名绑：SendPlcDataPath 下发、ReceivePlcDataPath 回读。
+			     空 = 数据块还没定；速度/标定是 EC，在 ec.xml -->
+			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
+			</Setting>
 			<!-- 摆臂：升降气缸与各路喷嘴都装在它上面 -->
 			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
 				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
 					<Value Name="DoOpenIndex" Value="-1" />
 					<Value Name="DoCloseIndex" Value="-1" />
@@ -258,8 +263,13 @@
 					<Value Name="DiClosedIndex" Value="-1" />
 				</Setting>
 			</Setting>
-			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent" />
+			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
+			</Setting>
 			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
 				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
 					<Value Name="DoOpenIndex" Value="-1" />
 					<Value Name="DoCloseIndex" Value="-1" />
