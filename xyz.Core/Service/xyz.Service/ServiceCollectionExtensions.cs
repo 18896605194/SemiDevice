@@ -99,6 +99,25 @@ public static class ServiceCollectionExtensions
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 
+        // 各轴自行订阅通信，与 Init（回零）分开；后续由轴自身扫描处理重连。
+        if (PlcComponent.Current is { } axisPlc)
+        {
+            var outputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var axis in roots.OfType<AxisComponent>()
+                         .Concat(roots.SelectMany(root => root.FindChildren<AxisComponent>())).Distinct())
+            {
+                if (!string.IsNullOrWhiteSpace(axis.SendPlcDataPath) && !outputPaths.Add(axis.SendPlcDataPath))
+                {
+                    throw new InvalidOperationException($"轴输出路径重复: {axis.SendPlcDataPath}");
+                }
+
+                if (!axis.Open(axisPlc))
+                {
+                    LogHelper.Warn(axis.FullPath, "轴收发路径未配置，未注册 PLC 订阅");
+                }
+            }
+        }
+
         // 先连接后启动：模块在此打开驱动连接。
         foreach (var module in modules)
         {

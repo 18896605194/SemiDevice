@@ -84,6 +84,7 @@ public partial class PlcComponent : ComponentBase, IPlc
     private int _connected;
     private long _connectionGeneration;
     private volatile bool _closed;
+    private readonly object _scanGate = new();
     public long ConnectionGeneration => Interlocked.Read(ref _connectionGeneration);
 
     #endregion
@@ -126,10 +127,12 @@ public partial class PlcComponent : ComponentBase, IPlc
     /// </summary>
     public void Close()
     {
-        _closed = true;
-        IsConnected = false;
-        ResetSubscriptions();
-        DisconnectDevice();
+        lock (_scanGate)
+        {
+            _closed = true;
+            IsConnected = false;
+            DisconnectDevice();
+        }
     }
 
     /// <summary>
@@ -375,6 +378,11 @@ public partial class PlcComponent : ComponentBase, IPlc
     /// </summary>
     protected override void OnScan()
     {
+        lock (_scanGate) ScanPlc();
+    }
+
+    private void ScanPlc()
+    {
         base.OnScan();
 
         if (_closed || string.IsNullOrWhiteSpace(Host))
@@ -384,16 +392,12 @@ public partial class PlcComponent : ComponentBase, IPlc
 
         if (!IsConnected)
         {
-            ResetSubscriptions();
             Reconnect();
         }
         else
         {
             RefreshCache();
         }
-
-        PumpSubscriptions();
-
         CheckAlarm(PlcOfflineAlarm, !IsConnected, OfflineDebounceMs);
     }
 

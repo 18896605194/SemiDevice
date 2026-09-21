@@ -9,6 +9,7 @@ var io = new IoComponent();
 try
 {
     SinglePointWrites.Run();
+    AxisSubscriptions.Run();
     var csv = Path.Combine(directory, "points.csv");
     File.WriteAllText(csv,
         "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +
@@ -67,6 +68,10 @@ static void Check(bool condition, string message)
 sealed class FakePlc : IPlc
 {
     public bool IsConnected => true;
+    public long ConnectionGeneration => 0;
+    public IDisposable SubscribeInput<T>(string path, Action<T> received) where T : unmanaged => throw new NotSupportedException();
+    public IDisposable SubscribeOutput<T>(string path, Func<T?> desired, Action<T> initialize, Action<T> written)
+        where T : unmanaged => throw new NotSupportedException();
     public (int, bool) LastDo { get; private set; }
     public (int, double) LastAo { get; private set; }
     public void Register(string path) { }

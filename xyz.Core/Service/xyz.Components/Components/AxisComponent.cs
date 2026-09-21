@@ -2,16 +2,12 @@ using xyz.Components;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Motion;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 运动轴组件。
-/// 轴不按轴号绑硬件，按 PLC 数据块的数组名绑：下发和回读各一个路径，装机时在 sc.xml 里配。
-/// EC 全走 live 读写——现场改 ec.xml 立即生效，不经过这个对象的字段。
-/// </summary>
 [Component(description: "运动轴组件")]
-public class AxisComponent : ComponentBase
+public partial class AxisComponent : ComponentBase
 {
     #region SC 装机常量
 
@@ -86,6 +82,138 @@ public class AxisComponent : ComponentBase
     {
         get { return GetEcDouble(nameof(SpeedTolerance)); }
         set { SetEcDouble(nameof(SpeedTolerance), value); }
+    }
+
+    #endregion
+
+    #region SV 运行状态
+
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "轴 PLC 状态是否有效")]
+    public bool HasPlcData
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData();
+            }
+        }
+    }
+
+    public MotionPlcToCSharpData Status
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return _status;
+            }
+        }
+    }
+
+    public bool IsCommandPending
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData() && _operation == AxisOperationState.Pending;
+            }
+        }
+    }
+
+    public AxisOperationState OperationState
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                if (!HasValidPlcData() && _operation is AxisOperationState.Pending or AxisOperationState.Running)
+                {
+                    return AxisOperationState.Failed;
+                }
+
+                return _operation;
+            }
+        }
+    }
+
+    [VariableMark(VariableType.SV, ValueFormat.Double, description: "轴实际位置（HasPlcData 为 false 时无效）")]
+    public double CurrentPosition
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return _status.Current_Position;
+            }
+        }
+    }
+
+    public double CurrentSpeed
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return _status.Current_Speed;
+            }
+        }
+    }
+
+    public bool IsHomed
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData() && _status.Is_Homed == 1;
+            }
+        }
+    }
+
+    public bool IsInPosition
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData() && _status.Is_In_Position == 1;
+            }
+        }
+    }
+
+    public bool IsBusy
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData() && _status.Is_Busy == 1;
+            }
+        }
+    }
+
+    public bool IsServoOn
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData() && _status.Is_Servo_On == 1;
+            }
+        }
+    }
+
+    public bool IsError
+    {
+        get
+        {
+            lock (_axisGate)
+            {
+                return HasValidPlcData() && _status.Is_Err == 1;
+            }
+        }
     }
 
     #endregion

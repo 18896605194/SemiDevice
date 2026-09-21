@@ -11,7 +11,7 @@ public interface IPlc
     IDisposable SubscribeInput<T>(string path, Action<T> received) where T : unmanaged;
 
     /// <summary>每次连接先读取 PLC 指令并调用 initialize；写成功才调用 written。</summary>
-    IDisposable SubscribeOutput<T>(string path, Func<T> desired, Action<T> initialize,
+    IDisposable SubscribeOutput<T>(string path, Func<T?> desired, Action<T> initialize,
         Action<T> written) where T : unmanaged;
 
     /// <summary>

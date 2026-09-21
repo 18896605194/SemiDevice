@@ -4,21 +4,17 @@ using TwinCAT.Ads.TypeSystem;
 using TwinCAT.TypeSystem;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
+using System.Reactive.Disposables;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 倍福 PLC 组件：走 ADS 连本机 AMS 路由，整块采集、按数组元素写 IO。
-/// 缓存扫描、点位编解码、断线重连、报警都在 <see cref="PlcComponent"/> 里，
-/// 这儿只管三件品牌的事：怎么连、怎么读一块、怎么写一块。
-///
-/// sc.xml 里 Host 填 AmsNetId（如 192.168.1.50.1.1），Port 填 851。
-/// </summary>
+
 [Component(description: "倍福 PLC 组件（ADS）")]
 public class BeckhoffPlcComponent : PlcComponent
 {
     private AdsClient? _client;
     private ISymbolLoader? _symbols;
+    private readonly object _deviceGate = new();
 
     private readonly object _handleGate = new();
 
@@ -28,6 +24,14 @@ public class BeckhoffPlcComponent : PlcComponent
     #region 连接
 
     protected override bool ConnectDevice()
+    {
+        lock (_deviceGate) 
+        { 
+            return ConnectAds(); 
+        }
+    }
+
+    private bool ConnectAds()
     {
         try
         {
@@ -63,6 +67,14 @@ public class BeckhoffPlcComponent : PlcComponent
     }
 
     protected override void DisconnectDevice()
+    {
+        lock (_deviceGate) 
+        {
+            DisconnectAds(); 
+        }
+    }
+
+    private void DisconnectAds()
     {
         lock (_handleGate)
         {
@@ -101,6 +113,69 @@ public class BeckhoffPlcComponent : PlcComponent
 
     #region 块读写
 
+    protected override IDisposable SubscribeDevice<T>(string path, Action<T> received, bool cyclic = false)
+    {
+        lock (_deviceGate)
+        {
+            return SubscribeAds(path, received, cyclic);
+        }
+    }
+
+    private IDisposable SubscribeAds<T>(string path, Action<T> received, bool cyclic) where T : unmanaged
+    {
+        var client = _client ?? throw new InvalidOperationException("PLC 未连接");
+        object token = new();
+        int disposed = 0;
+        EventHandler<AdsNotificationExEventArgs> handler = delegate(object? sender, AdsNotificationExEventArgs args)
+        {
+            if (Volatile.Read(ref disposed) != 0 || !ReferenceEquals(args.UserData, token))
+            {
+                return;
+            }
+
+            if (!ReferenceEquals(_client, client) || !IsConnected)
+            {
+                return;
+            }
+
+            if (args.Value is T value)
+            {
+                try
+                {
+                    received(value);
+                }
+                catch (Exception exception)
+                {
+                    LogHelper.Warn("Plc", $"ADS 回调 {path} 失败: {exception.Message}");
+                }
+            }
+        };
+        client.AdsNotificationEx += handler;
+        try
+        {
+            uint handle = client.AddDeviceNotificationEx(path,
+                new NotificationSettings(cyclic ? AdsTransMode.Cyclic : AdsTransMode.OnChange, 50, 0), token, typeof(T));
+            return Disposable.Create(delegate
+            {
+                Interlocked.Exchange(ref disposed, 1);
+                client.AdsNotificationEx -= handler;
+                try
+                {
+                    client.DeleteDeviceNotification(handle);
+                }
+                catch (Exception exception)
+                {
+                    LogHelper.Warn("Plc", $"释放 ADS 订阅失败: {exception.Message}");
+                }
+            });
+        }
+        catch
+        {
+            client.AdsNotificationEx -= handler;
+            throw;
+        }
+    }
+
     protected override bool WriteDoDevice(int index, bool on)
     {
         return WriteDevice($"{DoDataPath}[{index}]", [on ? (byte)1 : (byte)0]);
@@ -115,6 +190,11 @@ public class BeckhoffPlcComponent : PlcComponent
     }
 
     protected override bool ReadDevice(string path, out byte[] data)
+    {
+        lock (_deviceGate) return ReadAds(path, out data);
+    }
+
+    private bool ReadAds(string path, out byte[] data)
     {
         data = [];
         var client = _client;
@@ -142,6 +222,15 @@ public class BeckhoffPlcComponent : PlcComponent
     }
 
     protected override bool WriteDevice(string path, byte[] data)
+    {
+        lock (_deviceGate)
+        {
+            if (!IsConnected) return false;
+            return WriteAds(path, data);
+        }
+    }
+
+    private bool WriteAds(string path, byte[] data)
     {
         var client = _client;
         if (client is null)
