@@ -1,21 +1,21 @@
 namespace xyz.Components.Interfaces;
 
-/// <summary>
-/// PLC 契约：读写 IO 的一方只认这个接口，不依赖具体品牌（倍福、西门子、汇川……）。
-/// 气缸、轴、腔体都面向它编程；换 PLC 只换实现，上层一行不动。
-///
-/// 读接口一律是 Try 形式，因为"读不到"和"读到 0"是两回事：
-/// 掉线之后缓存还是上一拍的值，照着它判到位就会误判，所以没连上一律返回 false。
-/// </summary>
+
 public interface IPlc
 {
-    /// <summary>
-    /// 通讯是否连着。断了以后所有读都失败，上层据此决定是等还是报警。
-    /// </summary>
     bool IsConnected { get; }
 
+    /// <summary>连接状态变化时递增；旧连接的状态和待发指令不得跨代使用。</summary>
+    long ConnectionGeneration { get; }
+
+    IDisposable SubscribeInput<T>(string path, Action<T> received) where T : unmanaged;
+
+    /// <summary>每次连接先读取 PLC 指令并调用 initialize；写成功才调用 written。</summary>
+    IDisposable SubscribeOutput<T>(string path, Func<T> desired, Action<T> initialize,
+        Action<T> written) where T : unmanaged;
+
     /// <summary>
-    /// 登记一个要每拍读回来的数据块（轴、腔体装配时把自己的回读块名报进来）。
+    /// 登记一个要每拍轮询的数据块。轴状态使用 SubscribeInput 通知订阅。
     /// 重复登记是空操作；空路径忽略（接线未定）。
     /// </summary>
     void Register(string path);

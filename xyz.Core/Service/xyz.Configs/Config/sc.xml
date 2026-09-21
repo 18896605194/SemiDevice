@@ -55,7 +55,7 @@
 		<Value Name="IoPointCount" Value="1000" />
 	</Setting>
 	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv，跟仿真器共用同一份）放在本文件同目录的 IO\ 下，
-	     每拍从 PLC 缓存刷一遍；业务组件按点名取点，界面订阅后端推来的整包 -->
+	     每拍从 PLC 缓存刷一遍；上层按索引取点，界面订阅后端推来的整包 -->
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
 	</Setting>

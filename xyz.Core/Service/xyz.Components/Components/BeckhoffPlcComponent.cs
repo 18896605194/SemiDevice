@@ -8,7 +8,7 @@ using xyz.Components.Attributes;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 倍福 PLC 组件：走 ADS 连本机 AMS 路由，按符号名整块读写。
+/// 倍福 PLC 组件：走 ADS 连本机 AMS 路由，整块采集、按数组元素写 IO。
 /// 缓存扫描、点位编解码、断线重连、报警都在 <see cref="PlcComponent"/> 里，
 /// 这儿只管三件品牌的事：怎么连、怎么读一块、怎么写一块。
 ///
@@ -22,7 +22,7 @@ public class BeckhoffPlcComponent : PlcComponent
 
     private readonly object _handleGate = new();
 
-    /// <summary>块名 → 变量句柄。每块建一次复用，断开时清空——每读一次建一个又不删，PLC 那边的句柄会被耗光。</summary>
+    /// <summary>符号路径 → 变量句柄，块和单点均复用句柄，断开时清空。</summary>
     private readonly Dictionary<string, uint> _handles = new(StringComparer.OrdinalIgnoreCase);
 
     #region 连接
@@ -101,6 +101,19 @@ public class BeckhoffPlcComponent : PlcComponent
 
     #region 块读写
 
+    protected override bool WriteDoDevice(int index, bool on)
+    {
+        return WriteDevice($"{DoDataPath}[{index}]", [on ? (byte)1 : (byte)0]);
+    }
+
+    protected override bool WriteAoDevice(int index, double value)
+    {
+        // AO 为 REAL，与整块回读的 4 字节浮点布局一致。
+        float raw = (float)value;
+        return float.IsFinite(raw)
+            && WriteDevice($"{AoDataPath}[{index}]", BitConverter.GetBytes(raw));
+    }
+
     protected override bool ReadDevice(string path, out byte[] data)
     {
         data = [];
@@ -131,13 +144,24 @@ public class BeckhoffPlcComponent : PlcComponent
     protected override bool WriteDevice(string path, byte[] data)
     {
         var client = _client;
-        if (client is null || !TryGetHandle(path, out uint handle, out _))
+        if (client is null)
         {
             return false;
         }
 
         try
         {
+            // 直接取元素符号的句柄，不依赖符号加载器是否展开数组元素。
+            uint handle;
+            lock (_handleGate)
+            {
+                if (!_handles.TryGetValue(path, out handle))
+                {
+                    handle = client.CreateVariableHandle(path);
+                    _handles[path] = handle;
+                }
+            }
+
             client.Write(handle, data);
             return true;
         }

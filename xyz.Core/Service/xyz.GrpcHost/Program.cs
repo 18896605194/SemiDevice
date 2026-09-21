@@ -2,6 +2,8 @@ using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
+using xyz.Components;
+using xyz.Components.Components;
 using xyz.Service;
 using xyz.Service.Alarms;
 using xyz.Service.Events;
@@ -67,6 +69,14 @@ public static class Program
         builder.Services.AddXyzServices();
 
         var app = builder.Build();
+
+        app.Lifetime.ApplicationStopping.Register(() =>
+        {
+            foreach (var io in app.Services.GetRequiredService<IReadOnlyList<ComponentBase>>().OfType<IoComponent>())
+            {
+                io.StopCollecting();
+            }
+        });
 
         app.MapGrpcService<RpcService>();
         app.MapGrpcService<RoleService>();

@@ -7,7 +7,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 [Component(description: "PLC 组件（全系统 IO 底座）")]
-public class PlcComponent : ComponentBase, IPlc
+public partial class PlcComponent : ComponentBase, IPlc
 {
     public static IPlc? Current { get; set; }
 
@@ -69,7 +69,22 @@ public class PlcComponent : ComponentBase, IPlc
     /// 让上层知道"读不到"，而不是拿陈旧值当真。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "PLC 通讯是否连接")]
-    public bool IsConnected { get; protected set; }
+    public bool IsConnected
+    {
+        get => Volatile.Read(ref _connected) != 0;
+        protected set
+        {
+            if (Interlocked.Exchange(ref _connected, value ? 1 : 0) != (value ? 1 : 0))
+            {
+                Interlocked.Increment(ref _connectionGeneration);
+            }
+        }
+    }
+
+    private int _connected;
+    private long _connectionGeneration;
+    private volatile bool _closed;
+    public long ConnectionGeneration => Interlocked.Read(ref _connectionGeneration);
 
     #endregion
 
@@ -93,11 +108,9 @@ public class PlcComponent : ComponentBase, IPlc
 
     private int _reconnectCountdownMs;
 
-    /// <summary>
-    /// 连 PLC；由装配在模块启动之前调用。Host 空 = 没接，直接算成功并空转。
-    /// </summary>
     public bool Open()
     {
+        _closed = false;
         if (string.IsNullOrWhiteSpace(Host))
         {
             LogHelper.Info($"[{FullPath}] 未配 Host，PLC 空转（装机没接 PLC）");
@@ -113,8 +126,10 @@ public class PlcComponent : ComponentBase, IPlc
     /// </summary>
     public void Close()
     {
-        DisconnectDevice();
+        _closed = true;
         IsConnected = false;
+        ResetSubscriptions();
+        DisconnectDevice();
     }
 
     /// <summary>
@@ -236,13 +251,13 @@ public class PlcComponent : ComponentBase, IPlc
     }
 
     /// <summary>
-    /// 写一个 DO 点：照缓存里的 DO 块改这一点再整块下发。
-    /// DO 块只有本组件写，所以以缓存为准不会跟别人打架；
-    /// 品牌若支持按点直写，子类重写这个方法更省一次整块下发。
+    /// 直接写一个 DO 点；不修改回读缓存，实际状态由下一次采集确认。
     /// </summary>
     public virtual bool WriteDo(int index, bool on)
     {
-        return WritePoint(DoDataPath, index, block => EncodeDo(block, index, on));
+        return IsConnected && IsValidIoIndex(index)
+            && !string.IsNullOrWhiteSpace(DoDataPath)
+            && WriteDoDevice(index, on);
     }
 
     /// <summary>
@@ -280,12 +295,21 @@ public class PlcComponent : ComponentBase, IPlc
     }
 
     /// <summary>
-    /// 写一个 AO 点。
+    /// 直接写一个 AO 点；不修改回读缓存。
     /// </summary>
     public virtual bool WriteAo(int index, double value)
     {
-        return WritePoint(AoDataPath, index, block => EncodeAo(block, index, value));
+        return IsConnected && IsValidIoIndex(index)
+            && !string.IsNullOrWhiteSpace(AoDataPath)
+            && double.IsFinite(value)
+            && WriteAoDevice(index, value);
     }
+
+    /// <summary>品牌驱动实现单点 DO 写入，不支持时返回 false，不回退为整块写入。</summary>
+    protected virtual bool WriteDoDevice(int index, bool on) => false;
+
+    /// <summary>品牌驱动实现单点 AO 写入，value 为 PLC 原始值。</summary>
+    protected virtual bool WriteAoDevice(int index, double value) => false;
 
     /// <summary>
     /// 从 DI 块里解出第 index 点。默认按倍福 ARRAY[0..n] OF BOOL 的布局：
@@ -300,20 +324,6 @@ public class PlcComponent : ComponentBase, IPlc
         }
 
         on = block[index] != 0;
-        return true;
-    }
-
-    /// <summary>
-    /// 把第 index 点编进 DO 块；布局同 <see cref="DecodeDi"/>，一点一字节。
-    /// </summary>
-    protected virtual bool EncodeDo(byte[] block, int index, bool on)
-    {
-        if (index >= block.Length)
-        {
-            return false;
-        }
-
-        block[index] = on ? (byte)1 : (byte)0;
         return true;
     }
 
@@ -335,7 +345,7 @@ public class PlcComponent : ComponentBase, IPlc
     }
 
     /// <summary>
-    /// 从 AO 块里解出第 index 点（回读输出）；布局跟 <see cref="EncodeAo"/> 对称。
+    /// 从 AO 块里解出第 index 点（回读输出）；默认每点 4 字节 REAL。
     /// </summary>
     protected virtual bool DecodeAo(byte[] block, int index, out double value)
     {
@@ -348,51 +358,6 @@ public class PlcComponent : ComponentBase, IPlc
 
         value = BitConverter.ToSingle(block, offset);
         return true;
-    }
-
-    /// <summary>
-    /// 把第 index 点编进 AO 块。默认按倍福 ARRAY[0..n] OF REAL：每点 4 字节小端浮点。
-    /// </summary>
-    protected virtual bool EncodeAo(byte[] block, int index, double value)
-    {
-        int offset = index * sizeof(float);
-        if (offset + sizeof(float) > block.Length)
-        {
-            return false;
-        }
-
-        return BitConverter.TryWriteBytes(block.AsSpan(offset), (float)value);
-    }
-
-    /// <summary>
-    /// 改一个点再整块下发：克隆缓存里那一块、按 encode 改、换回缓存、下发。
-    /// 克隆而不原地改，是因为别人可能正拿着旧引用读这一拍。
-    /// </summary>
-    private bool WritePoint(string path, int index, Func<byte[], bool> encode)
-    {
-        if (!IsConnected || string.IsNullOrWhiteSpace(path) || !IsValidIoIndex(index))
-        {
-            return false;
-        }
-
-        byte[] updated;
-        lock (_cacheGate)
-        {
-            if (!_cache.TryGetValue(path, out var cached))
-            {
-                return false;
-            }
-
-            updated = (byte[])cached.Clone();
-            if (!encode(updated))
-            {
-                return false;
-            }
-
-            _cache[path] = updated;
-        }
-
-        return WriteDevice(path, updated);
     }
 
     private bool IsValidIoIndex(int index)
@@ -412,19 +377,22 @@ public class PlcComponent : ComponentBase, IPlc
     {
         base.OnScan();
 
-        if (string.IsNullOrWhiteSpace(Host))
+        if (_closed || string.IsNullOrWhiteSpace(Host))
         {
             return;
         }
 
         if (!IsConnected)
         {
+            ResetSubscriptions();
             Reconnect();
         }
         else
         {
             RefreshCache();
         }
+
+        PumpSubscriptions();
 
         CheckAlarm(PlcOfflineAlarm, !IsConnected, OfflineDebounceMs);
     }
@@ -454,7 +422,7 @@ public class PlcComponent : ComponentBase, IPlc
             paths = [.. _paths];
         }
 
-        // DI/AI 给传感器读，DO/AO 也要读回来——按点改写是照缓存里那一块改的。
+        // DI/AI 给传感器读，DO/AO 回读 PLC 实际输出，写入请求不更新缓存。
         foreach (var path in Enumerate(paths))
         {
             if (!ReadDevice(path, out var data))

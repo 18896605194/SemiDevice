@@ -6,21 +6,12 @@ using xyz.Configs;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// IO 组件：全机点位的唯一出口。一直转着——每拍从 PLC 缓存把所有点刷一遍，
-/// 谁要用点就从这儿按名字取，不直接碰 PLC。
-///
-/// 跟 <see cref="PlcComponent"/> 的分工：PLC 管通道（怎么连、整块读写、按索引解码，不知道点的含义），
-/// 这儿管点位（索引对应哪个点、叫什么、什么单位、怎么标定）。所以换 PLC 品牌这儿一行不动，
-/// 改接线只动点表 csv，业务组件配的是点名、也不动。
-///
-/// 点表跟仿真器共用同一份 csv（电控给的机台点表直接两边放），放在 sc.xml 同目录的 IO\ 下。
-/// </summary>
+
 [Component(description: "IO 组件（点表 + 持续采集）")]
 public class IoComponent : ComponentBase
 {
     /// <summary>
-    /// 当前 IO 表；sc.xml 里装出来即生效。气缸、传感器、界面都从这儿取点。
+    /// 当前 IO 表；sc.xml 里装出来即生效，上层可按索引取点。
     /// </summary>
     public static IoComponent? Current { get; set; }
 
@@ -71,8 +62,12 @@ public class IoComponent : ComponentBase
 
     #region 装载与采集
 
+    private readonly object _collectionGate = new();
+    private CancellationTokenSource? _collectionCancellation;
+    private Task? _collectionTask;
+
     /// <summary>
-    /// 读点表；由装配在 Start 之前调用。点表不在就是空表，照常空转不拦启动——
+    /// 读点表；由装配在 StartCollecting 之前调用。点表不在就是空表，照常空转不拦启动——
     /// 装机时电控还没给点表是常事。
     /// </summary>
     public bool Open()
@@ -91,12 +86,77 @@ public class IoComponent : ComponentBase
     }
 
     /// <summary>
-    /// 扫描周期：把所有点刷一遍。本组件自己是一棵扫描树的根，由装配显式 Start。
+    /// 启动 IO 专用长任务，不依赖组件树的 OnScan。重复启动不创建新线程。
     /// </summary>
-    protected override void OnScan()
+    public void StartCollecting()
     {
-        base.OnScan();
-        Collect();
+        lock (_collectionGate)
+        {
+            if (_collectionTask is not null)
+            {
+                return;
+            }
+
+            _collectionCancellation = new CancellationTokenSource();
+            var token = _collectionCancellation.Token;
+            _collectionTask = Task.Factory.StartNew( () => CollectionLoop(token), CancellationToken.None,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }
+    }
+
+    /// <summary>停止并等待采集退出；停止后各点不再视为有效。</summary>
+    public void StopCollecting()
+    {
+        lock (_collectionGate)
+        {
+            if (_collectionTask is null)
+            {
+                return;
+            }
+
+            _collectionCancellation!.Cancel();
+            try
+            {
+                _collectionTask.GetAwaiter().GetResult();
+            }
+            finally
+            {
+                _collectionCancellation.Dispose();
+                _collectionCancellation = null;
+                _collectionTask = null;
+            }
+        }
+    }
+
+    private void CollectionLoop(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    Collect();
+                }
+                catch (Exception exception)
+                {
+                    IsCollecting = false;
+                    Invalidate();
+                    LogHelper.Warn("Io", $"[{FullPath}] IO 采集异常: {exception.Message}");
+                }
+
+                // 本轮采集完成后等 50ms；停止时立即唤醒。
+                if (token.WaitHandle.WaitOne(50))
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            IsCollecting = false;
+            Invalidate();
+        }
     }
 
     private void Collect()
@@ -148,15 +208,15 @@ public class IoComponent : ComponentBase
 
     #endregion
 
-    #region 按点名读写（业务组件用这一套，配点名不配索引）
+    #region 按索引读写
 
     /// <summary>
-    /// 读一个 DI 点。点表里没这个名字、这一拍没读到，都返回 false。
+    /// 读一个 DI 点。点表里没有该索引或点位无效时返回 false。
     /// </summary>
-    public bool TryReadDi(string pointName, out bool on)
+    public bool TryReadDi(int index, out bool on)
     {
         on = false;
-        var point = Di.Find(pointName);
+        var point = Di.Find(index);
         if (point is null || !point.IsValid)
         {
             return false;
@@ -169,10 +229,10 @@ public class IoComponent : ComponentBase
     /// <summary>
     /// 回读一个 DO 点当前的输出状态。
     /// </summary>
-    public bool TryReadDo(string pointName, out bool on)
+    public bool TryReadDo(int index, out bool on)
     {
         on = false;
-        var point = Do.Find(pointName);
+        var point = Do.Find(index);
         if (point is null || !point.IsValid)
         {
             return false;
@@ -183,11 +243,11 @@ public class IoComponent : ComponentBase
     }
 
     /// <summary>
-    /// 写一个 DO 点：直接下发到 PLC，下一拍采集回来才会反映到点的当前值上。
+    /// 按索引写一个 DO 点，点表里没有该索引时返回 false。
     /// </summary>
-    public bool WriteDo(string pointName, bool on)
+    public bool WriteDo(int index, bool on)
     {
-        var point = Do.Find(pointName);
+        var point = Do.Find(index);
         var plc = PlcComponent.Current;
         if (point is null || plc is null)
         {
@@ -200,10 +260,10 @@ public class IoComponent : ComponentBase
     /// <summary>
     /// 读一个 AI 点的工程值（按点表里的标定换算；没标定就是原始码）。
     /// </summary>
-    public bool TryReadAi(string pointName, out double value)
+    public bool TryReadAi(int index, out double value)
     {
         value = 0;
-        var point = Ai.Find(pointName);
+        var point = Ai.Find(index);
         if (point is null || !point.IsValid)
         {
             return false;
@@ -216,9 +276,9 @@ public class IoComponent : ComponentBase
     /// <summary>
     /// 写一个 AO 点：给的是工程值，按标定反算成原始码再下发。
     /// </summary>
-    public bool WriteAo(string pointName, double engineering)
+    public bool WriteAo(int index, double engineering)
     {
-        var point = Ao.Find(pointName);
+        var point = Ao.Find(index);
         var plc = PlcComponent.Current;
         if (point is null || plc is null)
         {

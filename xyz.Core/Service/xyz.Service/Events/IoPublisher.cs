@@ -157,7 +157,7 @@ public static class IoPublisher
             {
                 foreach (var pointDto in moduleDto.Points)
                 {
-                    var point = table.Find(pointDto.Name);
+                    var point = table.Find(pointDto.Index);
                     if (point is null)
                     {
                         pointDto.IsValid = false;

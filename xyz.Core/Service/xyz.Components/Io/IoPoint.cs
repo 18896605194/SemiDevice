@@ -1,9 +1,5 @@
 namespace xyz.Components.Io;
 
-/// <summary>
-/// 一个 IO 点：点表里的装机信息（索引、名字、归属、标定）+ 每拍刷新的当前值。
-/// 点表由电控给，跟仿真器共用同一份 csv。
-/// </summary>
 public sealed class IoPoint
 {
     #region 点表（装机配置，运行期不变）
@@ -11,7 +7,7 @@ public sealed class IoPoint
     /// <summary>PLC 数据块里的数组下标。</summary>
     public int Index { get; init; }
 
-    /// <summary>点名，全表唯一；业务组件按它取点。</summary>
+    /// <summary>点名，用于展示和搜索；读写按 Index 定位。</summary>
     public string Name { get; init; } = string.Empty;
 
     /// <summary>归属模块（LoadPort1、Chamber1、E84……）。</summary>
@@ -59,8 +55,6 @@ public sealed class IoPoint
     public double Value => IsScaled ? ToEngineering(Raw) : Raw;
 
     #endregion
-
-    /// <summary>原始码 → 工程值（线性标定，跟仿真器同一个公式）。</summary>
     public double ToEngineering(double raw)
     {
         if (!IsScaled)
@@ -71,7 +65,6 @@ public sealed class IoPoint
         return (raw - PhysicalMin) / (PhysicalMax - PhysicalMin) * (LogicalMax - LogicalMin) + LogicalMin;
     }
 
-    /// <summary>工程值 → 原始码（写 AO 用）。</summary>
     public double ToRaw(double engineering)
     {
         if (!IsScaled)

@@ -90,11 +90,11 @@ public static class ServiceCollectionExtensions
             plc.Start();
         }
 
-        // IO 表：读点表、起采集。排在 PLC 之后、模块之前——模块里的气缸、传感器都按点名取点。
+        // IO 表：读点表、起采集。排在 PLC 之后、模块之前，供上层按索引取点。
         foreach (var io in roots.OfType<IoComponent>())
         {
             io.Open();
-            io.Start();
+            io.StartCollecting();
         }
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();

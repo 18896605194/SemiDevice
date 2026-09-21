@@ -4,11 +4,11 @@ using xyz.Common.Log;
 namespace xyz.Components.Io;
 
 /// <summary>
-/// 一类 IO（DI/DO/AI/AO）的点表：按索引和按名字各存一份，取点不用遍历。
+/// 一类 IO（DI/DO/AI/AO）的点表：按 PLC 索引取点，列表用于采集和展示。
 /// </summary>
 public sealed class IoPointTable
 {
-    private readonly Dictionary<string, IoPoint> _byName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, IoPoint> _byIndex = new();
 
     public IoPointTable(string name)
     {
@@ -20,10 +20,10 @@ public sealed class IoPointTable
 
     public IReadOnlyList<IoPoint> Points { get; private set; } = [];
 
-    /// <summary>按名字取点；点表里没有返回 null。</summary>
-    public IoPoint? Find(string pointName)
+    /// <summary>按 PLC 索引取点；点表里没有返回 null，索引不要求连续。</summary>
+    public IoPoint? Find(int index)
     {
-        return _byName.GetValueOrDefault(pointName);
+        return _byIndex.GetValueOrDefault(index);
     }
 
     /// <summary>
@@ -34,7 +34,7 @@ public sealed class IoPointTable
     public void Load(string csvPath)
     {
         var points = new List<IoPoint>();
-        _byName.Clear();
+        _byIndex.Clear();
 
         if (!File.Exists(csvPath))
         {
@@ -99,13 +99,13 @@ public sealed class IoPointTable
                 LogicalMin = Number(fields, logicalMinColumn),
             };
 
-            points.Add(point);
-
-            // 点名重复是点表的错：业务按名字取点，重名就会取错点，这儿必须吭声。
-            if (point.Name.Length > 0 && !_byName.TryAdd(point.Name, point))
+            if (!_byIndex.TryAdd(index, point))
             {
-                LogHelper.Warn("Io", $"{Name} 点表里 {point.Name} 重名（索引 {index}），后一条不参与按名取点");
+                LogHelper.Warn("Io", $"{Name} 点表索引 {index} 重复，忽略第 {line + 1} 行");
+                continue;
             }
+
+            points.Add(point);
         }
 
         Points = points;
