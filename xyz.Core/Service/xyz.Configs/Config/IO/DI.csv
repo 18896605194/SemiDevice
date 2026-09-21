@@ -1,0 +1,19 @@
+﻿Index,Module,Component,Name,Tag,Description
+0,LoadPort1,E84,LP1_E84_CS_0,CS_0,LoadPort1 E84 搬运车选中本端口
+1,LoadPort1,E84,LP1_E84_CS_1,CS_1,LoadPort1 E84 选中第二载具位
+2,LoadPort1,E84,LP1_E84_VALID,VALID,LoadPort1 E84 交接信号有效
+3,LoadPort1,E84,LP1_E84_AM_AVBL,AM_AVBL,LoadPort1 E84 搬运车可交接
+4,LoadPort1,E84,LP1_E84_TR_REQ,TR_REQ,LoadPort1 E84 请求交接
+5,LoadPort1,E84,LP1_E84_BUSY,BUSY,LoadPort1 E84 搬运中
+6,LoadPort1,E84,LP1_E84_COMPT,COMPT,LoadPort1 E84 交接完成
+7,LoadPort1,E84,LP1_E84_CONT,CONT,LoadPort1 E84 连续交接
+8,LoadPort1,E84,LP1_E84_LightCurtain,LightCurtain,LoadPort1 光幕 (ON = 未遮挡)
+16,LoadPort2,E84,LP2_E84_CS_0,CS_0,LoadPort2 E84 搬运车选中本端口
+17,LoadPort2,E84,LP2_E84_CS_1,CS_1,LoadPort2 E84 选中第二载具位
+18,LoadPort2,E84,LP2_E84_VALID,VALID,LoadPort2 E84 交接信号有效
+19,LoadPort2,E84,LP2_E84_AM_AVBL,AM_AVBL,LoadPort2 E84 搬运车可交接
+20,LoadPort2,E84,LP2_E84_TR_REQ,TR_REQ,LoadPort2 E84 请求交接
+21,LoadPort2,E84,LP2_E84_BUSY,BUSY,LoadPort2 E84 搬运中
+22,LoadPort2,E84,LP2_E84_COMPT,COMPT,LoadPort2 E84 交接完成
+23,LoadPort2,E84,LP2_E84_CONT,CONT,LoadPort2 E84 连续交接
+24,LoadPort2,E84,LP2_E84_LightCurtain,LightCurtain,LoadPort2 光幕 (ON = 未遮挡)

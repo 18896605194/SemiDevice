@@ -170,4 +170,17 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">日志历史</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>
     <sys:String x:Key="menu.Setting.Role">角色管理</sys:String>
+
+    <sys:String x:Key="io.module">模块</sys:String>
+    <sys:String x:Key="io.search">搜点号 / 点名 / 描述</sys:String>
+    <sys:String x:Key="io.collecting">采集中</sys:String>
+    <sys:String x:Key="io.stopped">未采集</sys:String>
+    <sys:String x:Key="io.index">点号</sys:String>
+    <sys:String x:Key="io.name">点名</sys:String>
+    <sys:String x:Key="io.description">描述</sys:String>
+    <sys:String x:Key="io.di">数字量输入 DI</sys:String>
+    <sys:String x:Key="io.do">数字量输出 DO</sys:String>
+    <sys:String x:Key="io.ai">模拟量输入 AI</sys:String>
+    <sys:String x:Key="io.ao">模拟量输出 AO</sys:String>
+    <sys:String x:Key="io.empty">点表里没有这一类点</sys:String>
 </ResourceDictionary>

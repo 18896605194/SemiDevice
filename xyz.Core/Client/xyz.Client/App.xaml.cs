@@ -61,8 +61,8 @@ public partial class App : Application
 
             GrpcClientFactory.Initialize();
 
-            // 界面语言跟后端 sc.xml 的 System 节点走：先换好语言包再建界面。
-            await ApplySystemLanguageAsync();
+            // 界面语言跟后端 sc.xml 的 System 节点走：先换好语言包再建界面。顺带拿回装了哪些模块。
+            var deviceModules = await ApplySystemLanguageAsync();
             await ReportAsync(loadingWindow, 20, L10n.Get("shell.loading.channel"));
 
             #endregion
@@ -78,7 +78,7 @@ public partial class App : Application
             #region 容器服务注册和创建
 
             var services = new ServiceCollection();
-            services.AddXyzClientServices();
+            services.AddXyzClientServices(deviceModules);
 
             // 机型模块：扫描 Modules 目录里的 [ClientModule] DLL，壳不引用任何机型项目。
             var modules = ClientModuleLoader.Load(services);
@@ -121,17 +121,22 @@ public partial class App : Application
     /// 界面语言跟后端 sc.xml 的 System 节点（Language）走：启动时问一次后端，换好语言包再建界面。
     /// 后端没起或没配时用默认的简体中文；改了语言重启客户端生效。
     /// </summary>
-    private static async Task ApplySystemLanguageAsync()
+    private static async Task<IReadOnlyList<string>> ApplySystemLanguageAsync()
     {
         try
         {
             var context = new CallContext(new CallOptions(deadline: DateTime.UtcNow.AddSeconds(3)));
             var response = await GrpcClientFactory.Create<ISystemService>().GetSettingsAsync(new RpcRequest(), context);
-            L10n.Apply(response.DeserializeData<SystemSettingsDto>().Language);
+            var settings = response.DeserializeData<SystemSettingsDto>();
+            L10n.Apply(settings.Language);
+
+            // 顺带拿回装了哪些模块：按模块分的页面与菜单照它生成，sc.xml 里没配的不出现。
+            return settings.Modules;
         }
         catch (Exception exception)
         {
             ClientLog.Warn("Client", $"没拿到界面语言设置，先用 {L10n.Language}：{exception.Message}");
+            return [];
         }
     }
 

@@ -79,8 +79,8 @@ public static class ServiceCollectionExtensions
 
         // PLC 是全机 IO 底座（气缸的 DI/DO、轴的数据块都从它走），所以先于模块连上并起扫描：
         // 模块 Open 时可能就要登记自己的数据块。它不是模块，不在下面的模块列表里，自己就是一棵扫描树的根。
-        var plc = PlcComponent.Current;
-        if (plc is not null)
+        // 这儿按组件类型取而不是走 PlcComponent.Current——Current 是给上层读写用的 IPlc，不带装配这一面。
+        foreach (var plc in roots.OfType<PlcComponent>())
         {
             if (!plc.Open())
             {
@@ -88,6 +88,13 @@ public static class ServiceCollectionExtensions
             }
 
             plc.Start();
+        }
+
+        // IO 表：读点表、起采集。排在 PLC 之后、模块之前——模块里的气缸、传感器都按点名取点。
+        foreach (var io in roots.OfType<IoComponent>())
+        {
+            io.Open();
+            io.Start();
         }
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
@@ -121,6 +128,9 @@ public static class ServiceCollectionExtensions
 
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
         EquipmentStatusPublisher.Start(roots, modules);
+
+        // IO 点位：按周期整包推给 IO 界面，界面只订阅不拉。
+        IoPublisher.Start();
 
         LogHelper.Info($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
 

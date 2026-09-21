@@ -4,4 +4,11 @@
     <!-- 35021 equipment language pack (English): only texts of screens unique to this equipment, keys start with m35021.;
          texts of framework features (menu names, LoadPort manual, Transfer, ...) live in the platform pack, not here.
          The shell merges this pack for the current UI language after loading the module (the module's PresentationAssembly points here). -->
+
+    <!-- IO submenu, one item per module. Module names match sc.xml and are left untranslated on purpose. -->
+    <sys:String x:Key="menu.Io.LoadPort1">LoadPort1</sys:String>
+    <sys:String x:Key="menu.Io.LoadPort2">LoadPort2</sys:String>
+    <sys:String x:Key="menu.Io.Robot1">Robot1</sys:String>
+    <sys:String x:Key="menu.Io.Chamber1">Chamber1</sys:String>
+    <sys:String x:Key="menu.Io.Chamber2">Chamber2</sys:String>
 </ResourceDictionary>

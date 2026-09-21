@@ -47,9 +47,17 @@
 		<Value Name="Brand" Value="" />
 		<Value Name="Host" Value="" />
 		<Value Name="Port" Value="851" />
-		<Value Name="DiDataPath" Value="" />
-		<Value Name="DoDataPath" Value="" />
-		<Value Name="IoPointCount" Value="256" />
+		<!-- 四个块在 PLC 里的变量名：倍福用全局别名那一套（GVL 全名写法是 IO_CSharp.DigIn，两种读写同一份过程映像） -->
+		<Value Name="DiDataPath" Value=".DigIn" />
+		<Value Name="DoDataPath" Value=".DigOut" />
+		<Value Name="AiDataPath" Value=".AnaIn" />
+		<Value Name="AoDataPath" Value=".AnaOut" />
+		<Value Name="IoPointCount" Value="1000" />
+	</Setting>
+	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv，跟仿真器共用同一份）放在本文件同目录的 IO\ 下，
+	     每拍从 PLC 缓存刷一遍；业务组件按点名取点，界面订阅后端推来的整包 -->
+	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
+		<Value Name="PointTableDirectory" Value="IO" />
 	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">

@@ -16,7 +16,12 @@ namespace xyz.Client;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddXyzClientServices(this IServiceCollection services)
+    /// <summary>
+    /// 注册客户端服务。modules 是后端 sc.xml 里装了的模块名，按模块分的页面与菜单（IO）照它生成——
+    /// sc.xml 里没配的模块，菜单里就不该出现。后端没起时是空的，那些菜单一并不出现。
+    /// </summary>
+    public static IServiceCollection AddXyzClientServices(
+        this IServiceCollection services, IReadOnlyList<string> modules)
     {
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<MainViewModel>());
@@ -24,11 +29,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<TopBarViewModel>());
         services.AddTransient<PlaceholderView>();
 
-        // 平台菜单写在代码里；机型菜单由 ClientModuleLoader 按模块声明补进来。
-        services.AddSingleton<IClientMenuProvider, PlatformMenuProvider>();
+        // 平台菜单写在代码里；IO 下按模块分的二级菜单照后端装的模块生成。
+        services.AddSingleton<IClientMenuProvider>(new PlatformMenuProvider(modules));
 
         services.AddXyzSettingServices();
-        services.AddXyzIoServices();
+
+        // IO 页面一个模块一页，跟上面的二级菜单一一对应。
+        foreach (var module in modules)
+        {
+            services.AddXyzIoModule(module);
+        }
+
         services.AddXyzDataCenterServices();
         services.AddXyzAlarmServices();
 

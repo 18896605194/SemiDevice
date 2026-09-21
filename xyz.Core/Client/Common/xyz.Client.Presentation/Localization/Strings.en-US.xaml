@@ -169,4 +169,17 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">Log History</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>
     <sys:String x:Key="menu.Setting.Role">Roles</sys:String>
+
+    <sys:String x:Key="io.module">Module</sys:String>
+    <sys:String x:Key="io.search">Search index / name / description</sys:String>
+    <sys:String x:Key="io.collecting">Collecting</sys:String>
+    <sys:String x:Key="io.stopped">Stopped</sys:String>
+    <sys:String x:Key="io.index">Index</sys:String>
+    <sys:String x:Key="io.name">Name</sys:String>
+    <sys:String x:Key="io.description">Description</sys:String>
+    <sys:String x:Key="io.di">Digital In (DI)</sys:String>
+    <sys:String x:Key="io.do">Digital Out (DO)</sys:String>
+    <sys:String x:Key="io.ai">Analog In (AI)</sys:String>
+    <sys:String x:Key="io.ao">Analog Out (AO)</sys:String>
+    <sys:String x:Key="io.empty">No points of this type in the table</sys:String>
 </ResourceDictionary>

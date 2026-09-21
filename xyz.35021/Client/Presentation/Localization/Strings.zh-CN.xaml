@@ -4,4 +4,11 @@
     <!-- 35021 机型语言包（简体中文）：只放本机型独有界面的文字，key 用 m35021. 开头；
          框架提供的功能（菜单名、LoadPort 手动、Transfer 等）的文字在平台语言包里，不在这里放。
          壳加载本机型后按当前界面语言合并（模块的 PresentationAssembly 指向本程序集）。 -->
+
+    <!-- IO 菜单下按模块分的二级项。模块名跟 sc.xml 一致，中英文都不翻译，现场好对照 -->
+    <sys:String x:Key="menu.Io.LoadPort1">LoadPort1</sys:String>
+    <sys:String x:Key="menu.Io.LoadPort2">LoadPort2</sys:String>
+    <sys:String x:Key="menu.Io.Robot1">Robot1</sys:String>
+    <sys:String x:Key="menu.Io.Chamber1">Chamber1</sys:String>
+    <sys:String x:Key="menu.Io.Chamber2">Chamber2</sys:String>
 </ResourceDictionary>

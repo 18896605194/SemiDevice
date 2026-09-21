@@ -1,0 +1,11 @@
+﻿Index,Module,Component,Name,Tag,Description
+0,LoadPort1,E84,LP1_E84_L_REQ,L_REQ,LoadPort1 E84 请求送盒
+1,LoadPort1,E84,LP1_E84_U_REQ,U_REQ,LoadPort1 E84 请求取盒
+2,LoadPort1,E84,LP1_E84_READY,READY,LoadPort1 E84 准备好交接
+3,LoadPort1,E84,LP1_E84_HO_AVBL,HO_AVBL,LoadPort1 E84 端口可交接
+4,LoadPort1,E84,LP1_E84_ES,ES,LoadPort1 E84 急停 (ON = 正常)
+8,LoadPort2,E84,LP2_E84_L_REQ,L_REQ,LoadPort2 E84 请求送盒
+9,LoadPort2,E84,LP2_E84_U_REQ,U_REQ,LoadPort2 E84 请求取盒
+10,LoadPort2,E84,LP2_E84_READY,READY,LoadPort2 E84 准备好交接
+11,LoadPort2,E84,LP2_E84_HO_AVBL,HO_AVBL,LoadPort2 E84 端口可交接
+12,LoadPort2,E84,LP2_E84_ES,ES,LoadPort2 E84 急停 (ON = 正常)

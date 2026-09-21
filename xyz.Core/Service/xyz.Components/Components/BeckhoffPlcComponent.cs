@@ -1,0 +1,206 @@
+using TwinCAT;
+using TwinCAT.Ads;
+using TwinCAT.Ads.TypeSystem;
+using TwinCAT.TypeSystem;
+using xyz.Common.Log;
+using xyz.Components.Attributes;
+
+namespace xyz.Components.Components;
+
+/// <summary>
+/// 倍福 PLC 组件：走 ADS 连本机 AMS 路由，按符号名整块读写。
+/// 缓存扫描、点位编解码、断线重连、报警都在 <see cref="PlcComponent"/> 里，
+/// 这儿只管三件品牌的事：怎么连、怎么读一块、怎么写一块。
+///
+/// sc.xml 里 Host 填 AmsNetId（如 192.168.1.50.1.1），Port 填 851。
+/// </summary>
+[Component(description: "倍福 PLC 组件（ADS）")]
+public class BeckhoffPlcComponent : PlcComponent
+{
+    private AdsClient? _client;
+    private ISymbolLoader? _symbols;
+
+    private readonly object _handleGate = new();
+
+    /// <summary>块名 → 变量句柄。每块建一次复用，断开时清空——每读一次建一个又不删，PLC 那边的句柄会被耗光。</summary>
+    private readonly Dictionary<string, uint> _handles = new(StringComparer.OrdinalIgnoreCase);
+
+    #region 连接
+
+    protected override bool ConnectDevice()
+    {
+        try
+        {
+            // 重连前先把上一条连接清干净，免得句柄和符号表串到新连接上。
+            DisconnectDevice();
+
+            var client = new AdsClient();
+            client.Connect(Host, Port);
+            if (!client.IsConnected)
+            {
+                client.Dispose();
+                return false;
+            }
+
+            // 连上不等于能用：PLC 停着的时候读回来的是上一轮的残值。
+            if (client.ReadState().AdsState != AdsState.Run)
+            {
+                LogHelper.Warn($"[{FullPath}] PLC 不在 Run 状态，暂不算连上");
+                client.Dispose();
+                return false;
+            }
+
+            client.AdsStateChanged += OnAdsStateChanged;
+            _client = client;
+            _symbols = SymbolLoaderFactory.Create(client, SymbolLoaderSettings.Default);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Warn($"[{FullPath}] 连 PLC 失败: {exception.Message}");
+            return false;
+        }
+    }
+
+    protected override void DisconnectDevice()
+    {
+        lock (_handleGate)
+        {
+            _handles.Clear();
+        }
+
+        _symbols = null;
+
+        var client = _client;
+        _client = null;
+        if (client is null)
+        {
+            return;
+        }
+
+        try
+        {
+            client.AdsStateChanged -= OnAdsStateChanged;
+            client.Dispose();
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Warn($"[{FullPath}] 断开 PLC 出错: {exception.Message}");
+        }
+    }
+
+    private void OnAdsStateChanged(object? sender, AdsStateChangedEventArgs e)
+    {
+        if (e.State.AdsState != AdsState.Run)
+        {
+            IsConnected = false;
+        }
+    }
+
+    #endregion
+
+    #region 块读写
+
+    protected override bool ReadDevice(string path, out byte[] data)
+    {
+        data = [];
+        var client = _client;
+        if (client is null || !TryGetHandle(path, out uint handle, out int size))
+        {
+            return false;
+        }
+
+        try
+        {
+            var result = client.ReadAsResult(handle, size);
+            if (!result.Succeeded)
+            {
+                return false;
+            }
+
+            data = result.Data.ToArray();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            OnAdsFailed(path, exception);
+            return false;
+        }
+    }
+
+    protected override bool WriteDevice(string path, byte[] data)
+    {
+        var client = _client;
+        if (client is null || !TryGetHandle(path, out uint handle, out _))
+        {
+            return false;
+        }
+
+        try
+        {
+            client.Write(handle, data);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            OnAdsFailed(path, exception);
+            return false;
+        }
+    }
+
+    private bool TryGetHandle(string path, out uint handle, out int size)
+    {
+        handle = 0;
+        size = 0;
+
+        var client = _client;
+        var symbols = _symbols;
+        if (client is null || symbols is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var symbol = symbols.Symbols[path];
+            size = symbol.ByteSize;
+            if (size <= 0)
+            {
+                return false;
+            }
+
+            lock (_handleGate)
+            {
+                if (!_handles.TryGetValue(path, out handle))
+                {
+                    handle = client.CreateVariableHandle(path);
+                    _handles[path] = handle;
+                }
+            }
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            OnAdsFailed(path, exception);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 读写出错：ADS 层面的错误多半是连接断了，撂下标志让基类走重连；
+    /// 块名配错这类只记日志，基类那边照常报 PlcDataErrorAlarm。
+    /// </summary>
+    private void OnAdsFailed(string path, Exception exception)
+    {
+        LogHelper.Warn($"[{FullPath}] 读写 {path} 失败: {exception.Message}");
+
+        if (exception is AdsErrorException)
+        {
+            IsConnected = false;
+            DisconnectDevice();
+        }
+    }
+
+    #endregion
+}

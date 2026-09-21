@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using xyz.Client.DataModels.ViewModels;
+
 using xyz._35021.Client.Manual.ViewModels;
 using xyz._35021.Client.Manual.Views;
 

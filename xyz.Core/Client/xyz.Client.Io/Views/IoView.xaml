@@ -1,8 +1,9 @@
-<UserControl
+﻿<UserControl
     x:Class="xyz.Client.Io.Views.IoView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:xyz.Client.Io.Views"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="820"
@@ -10,114 +11,94 @@
     TextElement.Foreground="{DynamicResource DarkPrimaryText}"
     mc:Ignorable="d">
 
-    <Grid Margin="20">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="420" />
-        </Grid.ColumnDefinitions>
+    <!--  界面通用：模块、点、类型全来自后端推的点表，点表改了这儿一行不用动。  -->
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <!--  左：平台 + IO 点位值  -->
-        <materialDesign:Card
-            Grid.Column="0"
-            Style="{DynamicResource DefaultCardStyle}">
-            <Grid>
-                <Border
-                    Margin="30"
-                    Background="#1E3A5F"
-                    BorderBrush="#3E5C7F"
-                    BorderThickness="2"
-                    CornerRadius="24">
-                    <Grid>
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            FontSize="24"
-                            FontWeight="Bold"
-                            Foreground="#6699CC"
-                            Text="PLATFORM" />
+        <!--  顶栏：搜点、看采集活没活着。看哪个模块由菜单决定（Io 下的二级项），这儿不用再选一遍  -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <TextBox
+                Width="260"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                materialDesign:HintAssist.Hint="{DynamicResource io.search}"
+                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <ItemsControl ItemsSource="{Binding Points}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas Width="640" Height="340" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel
-                                        Canvas.Left="{Binding X}"
-                                        Canvas.Top="{Binding Y}"
-                                        Width="100">
-                                        <Ellipse
-                                            Width="16"
-                                            Height="16"
-                                            HorizontalAlignment="Left">
-                                            <Ellipse.Style>
-                                                <Style TargetType="Ellipse">
-                                                    <Setter Property="Fill" Value="#EF5350" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsOn}" Value="True">
-                                                            <Setter Property="Fill" Value="#66BB6A" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Ellipse.Style>
-                                        </Ellipse>
-                                        <TextBlock
-                                            Margin="0,4,0,0"
-                                            FontSize="11"
-                                            Foreground="#CCCCCC"
-                                            Text="{Binding Name}" />
-                                        <TextBlock
-                                            FontSize="14"
-                                            FontWeight="Bold"
-                                            Foreground="White"
-                                            Text="{Binding Value}" />
-                                        <TextBlock
-                                            FontSize="10"
-                                            Foreground="#B0BEC5"
-                                            Text="{Binding Unit}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Grid>
-                </Border>
-            </Grid>
-        </materialDesign:Card>
+            <StackPanel
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="0,0,6,0"
+                    VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{DynamicResource DarkDisabledText}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCollecting}" Value="True">
+                                    <Setter Property="Fill" Value="{DynamicResource DarkRunningStatus}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{DynamicResource io.stopped}" />
+                            <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCollecting}" Value="True">
+                                    <Setter Property="Text" Value="{DynamicResource io.collecting}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Grid>
 
-        <!--  右：IO 点位列表  -->
-        <materialDesign:Card
-            Grid.Column="1"
-            Margin="12,0,0,0"
-            Style="{DynamicResource DefaultCardStyle}">
-            <DataGrid
-                ItemsSource="{Binding Points}"
-                SelectedItem="{Binding SelectedPoint}"
-                Style="{DynamicResource DefaultDataGridStyle}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn
-                        Width="*"
-                        Binding="{Binding Name}"
-                        ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="{DynamicResource io.point}" />
-                    <DataGridTextColumn
-                        Width="60"
-                        Binding="{Binding Value}"
-                        ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="{DynamicResource io.value}" />
-                    <DataGridTextColumn
-                        Width="60"
-                        Binding="{Binding Unit}"
-                        ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="{DynamicResource io.unit}" />
-                    <DataGridTextColumn
-                        Width="60"
-                        Binding="{Binding IsOutput}"
-                        ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="{DynamicResource io.type}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </materialDesign:Card>
+        <!--  四象限：输入在左、输出在右，数字量在上、模拟量在下  -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <local:IoTable
+                Grid.Row="0"
+                Grid.Column="0"
+                Margin="0,0,6,6"
+                Points="{Binding DiView}"
+                Title="{DynamicResource io.di}" />
+            <local:IoTable
+                Grid.Row="0"
+                Grid.Column="1"
+                Margin="6,0,0,6"
+                Points="{Binding DoView}"
+                Title="{DynamicResource io.do}" />
+            <local:IoTable
+                Grid.Row="1"
+                Grid.Column="0"
+                Margin="0,6,6,0"
+                Points="{Binding AiView}"
+                Title="{DynamicResource io.ai}" />
+            <local:IoTable
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="6,6,0,0"
+                Points="{Binding AoView}"
+                Title="{DynamicResource io.ao}" />
+        </Grid>
     </Grid>
 </UserControl>
