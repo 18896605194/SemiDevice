@@ -40,6 +40,17 @@
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
 	</Setting>
+	<!-- PLC：全机 IO 底座——气缸的 DI/DO 点、轴的数据块都从它读写，每拍整块读回缓存。
+	     排在模块前面：模块装配时要向它登记自己的数据块。
+	     Host 留空 = 装机没接 PLC，组件空转不报警；接了 PLC 时 Type 换成品牌子类 -->
+	<Setting Name="Plc" Type="xyz.Components.Components.PlcComponent">
+		<Value Name="Brand" Value="" />
+		<Value Name="Host" Value="" />
+		<Value Name="Port" Value="851" />
+		<Value Name="DiDataPath" Value="" />
+		<Value Name="DoDataPath" Value="" />
+		<Value Name="IoPointCount" Value="256" />
+	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="Brand" Value="" />

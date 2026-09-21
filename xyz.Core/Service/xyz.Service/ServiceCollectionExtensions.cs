@@ -77,6 +77,19 @@ public static class ServiceCollectionExtensions
             alarms.AlarmChanged += item => EventBus.Send(item.ToDto(), AlarmDto.EventToken, retain: false);
         }
 
+        // PLC 是全机 IO 底座（气缸的 DI/DO、轴的数据块都从它走），所以先于模块连上并起扫描：
+        // 模块 Open 时可能就要登记自己的数据块。它不是模块，不在下面的模块列表里，自己就是一棵扫描树的根。
+        var plc = PlcComponent.Current;
+        if (plc is not null)
+        {
+            if (!plc.Open())
+            {
+                LogHelper.Error(plc.Name, "PLC 连接失败");
+            }
+
+            plc.Start();
+        }
+
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 
         // 先连接后启动：模块在此打开驱动连接。

@@ -935,6 +935,8 @@ sealed class ProbeOperation() : ModuleOperation("Probe")
 
 sealed class ProbeModule : BaseModule
 {
+    /// <summary>本探针只验操作挂载与终结，不跑状态表；状态码摆着不用。</summary>
+    public override int State { get; protected set; } = ModuleState.NotInit;
     public ManualResetEventSlim? Completing { get; init; }
     public ManualResetEventSlim? ReleaseCompletion { get; init; }
     public bool CleanupDone { get; private set; }

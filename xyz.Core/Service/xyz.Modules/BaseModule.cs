@@ -2,6 +2,7 @@ using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
@@ -13,6 +14,15 @@ public abstract class BaseModule : ComponentBase
     {
         return true;
     }
+
+    #region 模块状态
+
+    /// <summary>
+    /// 模块状态码；子类重写并挂 [VariableMark(SV)]——状态码表各类模块自己定。
+    /// </summary>
+    public abstract int State { get; protected set; }
+
+    #endregion
 
     #region 模块模式
 
@@ -168,6 +178,51 @@ public abstract class BaseModule : ComponentBase
     }
 
     /// <summary>
+    /// 急停动作名：三类模块的动作枚举里急停都叫 Abort，只有它能顶替在途动作。
+    /// </summary>
+    private const string AbortAction = "Abort";
+
+    private (int ExecutingState, int SuccessState) _transition;
+
+    /// <summary>
+    /// 动作能不能发；默认没限制。
+    /// 装机停用、驱动没建起来的模块重写成 false——装配里 Open 失败了就不该还能发指令。
+    /// </summary>
+    protected virtual bool CanBeginAction => true;
+
+    /// <summary>
+    /// 发起一个动作：查迁移表 → 挂操作 → 落执行态，三类模块一套流程。
+    /// 动作枚举各模块自己定（ChamberAction/LoadPortAction/RobotAction），这里只按名字查表，所以收成泛型。
+    /// 发不出去返回 null：模块不可发、当前状态不允许这个动作、已有动作在途（Abort 除外，它顶替）。
+    /// </summary>
+    protected ModuleOperation? Begin<TAction>(TAction action, ModuleOperation operation)
+        where TAction : struct, Enum
+    {
+        lock (OperationGate)
+        {
+            if (!CanBeginAction)
+            {
+                return null;
+            }
+
+            string name = action.ToString();
+            if (!TryGetTransition(State, name, out var transition))
+            {
+                return null;
+            }
+
+            if (!Run(operation, replace: name == AbortAction))
+            {
+                return null;
+            }
+
+            _transition = transition;
+            State = transition.ExecutingState;
+            return operation;
+        }
+    }
+
+    /// <summary>
     /// 扫描周期：先扫子组件，再步进挂载的操作。
     /// 子类只在有自己的周期逻辑时才重写（记得调 base.OnScan）。
     /// </summary>
@@ -196,6 +251,8 @@ public abstract class BaseModule : ComponentBase
     {
         try
         {
+            // 先落状态：成功走迁移表的成功态，失败/被打断落 Error。回调里看到的已经是终态。
+            State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
             OnOperationCompleted(operation);
         }
         finally
@@ -206,7 +263,7 @@ public abstract class BaseModule : ComponentBase
     }
 
     /// <summary>
-    /// 操作终结回调；需要处理结果的模块重写（如按状态迁移表落状态）。
+    /// 操作终结回调；状态已落好，模块在这儿做自己的收尾（报警、晶圆账、EAP 回调等）。
     /// </summary>
     protected virtual void OnOperationCompleted(ModuleOperation operation)
     {

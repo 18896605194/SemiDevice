@@ -468,7 +468,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Action（ILoadPort 契约：动作体由机型实现——直接创建操作）
 
-    private (int ExecutingState, int SuccessState) _transition;
     private LoadPortAction _action;
 
     /// <summary>
@@ -657,39 +656,35 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         EnqueueE87(callback => callback.AutoModeChanged(this, autoMode));
     }
 
+    /// <summary>
+    /// 装机停用、或驱动还没建起来（装配里 Open 失败）都不发动作。
+    /// </summary>
+    protected override bool CanBeginAction => IsEnable && Driver is not null;
+
+    /// <summary>
+    /// 发起动作：发起这件事走基类，这儿只多记一笔"这趟发的是什么动作"——终结时按它回调 EAP。
+    /// 记在同一把锁里：否则扫描线程可能在记上之前就把操作终结了，回调就发错。
+    /// </summary>
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
     {
         lock (OperationGate)
         {
-            if (!IsEnable || Driver is null)
+            var started = base.Begin(action, operation);
+            if (started is not null)
             {
-                return null;
+                _action = action;
             }
 
-            if (!TryGetTransition(State, action.ToString(), out var transition))
-            {
-                return null;
-            }
-
-            if (!Run(operation, replace: action == LoadPortAction.Abort))
-            {
-                return null;
-            }
-
-            _transition = transition;
-            _action = action;
-            State = transition.ExecutingState;
-            return operation;
+            return started;
         }
     }
 
     /// <summary>
-    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
+    /// 操作终结（状态已由基类落好）：失败的动作报警，
     /// 成功的动作与失败的原因都回调 EAP（在模块锁内只入队，派发在扫描线程锁外进行）。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
         UpdateActionAlarms(operation);
 
         if (!operation.IsSuccess)

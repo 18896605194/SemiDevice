@@ -7,14 +7,12 @@ namespace xyz.Modules;
 /// </summary>
 public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 {
-    #region 锚点与状态（环的起终点定义）
+    #region 锚点（环的起终点定义）
 
     /// <summary>
     /// 工位就绪、可被机械手服务的状态 ,有的是idle，有的是loaded类似这种
     /// </summary>
     protected virtual int AnchorState => ModuleState.Idle;
-
-    public abstract int State { get; protected set; }
 
     #endregion
 

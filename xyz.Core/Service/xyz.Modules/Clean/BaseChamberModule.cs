@@ -8,19 +8,6 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 腔体基类：既是机械手可服务的工位，也是自己会跑工艺的设备。
-/// 工位那一半（准备 → 取放 → 收尾的交互环）继承自 <see cref="BaseTransferStationModule"/>；
-/// 回原点、工艺这些设备动作由机型实现。
-///
-/// 腔体里有没有片不看 State，查晶圆账——State 只说设备这会儿在干什么。
-/// 所以空着和装着片待取都是 Idle：两者都是不忙、门关、可以被机械手服务。
-///
-/// 有门的机型重写 OnTransferFinished：起关门操作、别调 base，门真关上了再自己
-/// TransferStep(TransferModuleState.TransferComplete, AnchorState) 落状态；
-/// 在那之前一直停在 TransferComplete，机械手不会被再派过来。
-/// 工艺不在收尾里起——跑哪个配方是上层作业的事，腔体不自己决定。
-/// </summary>
 public abstract class BaseChamberModule : BaseTransferStationModule
 {
     #region SV
@@ -123,9 +110,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule
 
     #region 站点环
 
-    /// <summary>
-    /// 锚点态：不忙、门关、可以被机械手服务。
-    /// </summary>
     protected override int AnchorState => ModuleState.Idle;
 
     #endregion
@@ -135,11 +119,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule
         RegisterTransitions(ChamberStateTable.ToModuleTable());
     }
 
-    #region 设备连接
+    #region 启动前准备
 
     /// <summary>
-    /// 打开设备连接；由装配在 Start 之前调用。
-    /// 装机停用（IsEnable=False）的模块视为打开成功，空转。
+    /// 启动前准备；由装配在 Start 之前调用。腔体这儿只占晶圆账的槽位，不连设备——
+    /// 多个腔体通常挂在同一个 PLC 上，连接是那个 PLC 组件的事（它 Open 一次，腔体按地址读写），
+    /// 摊到每个腔体里连就变成一台机器开 N 条连接了。
+    /// 装机停用（IsEnable=False）的腔体连账都不占，空转。
     /// </summary>
     public override bool Open()
     {
@@ -150,16 +136,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
         WaferManager.Current?.RegisterLocation(Name, SlotCount);
-
-        return OpenDevice();
-    }
-
-    /// <summary>
-    /// 连设备；机型实现。走 PLC 还是串口网口由机型定，基类不认具体驱动类型——
-    /// 驱动实例和通讯参数都由机型自己声明。默认视为连上（没接设备的空腔体照常空转）。
-    /// </summary>
-    protected virtual bool OpenDevice()
-    {
         return true;
     }
 
@@ -167,7 +143,10 @@ public abstract class BaseChamberModule : BaseTransferStationModule
 
     #region Action（动作体由机型实现——直接创建操作）
 
-    private (int ExecutingState, int SuccessState) _transition;
+    /// <summary>
+    /// 装机停用的腔体不发动作（腔体不持驱动，能不能发只看这一条）。
+    /// </summary>
+    protected override bool CanBeginAction => IsEnable;
 
     /// <summary>
     /// 发起回原点。机型实现：Begin(ChamberAction.Home, new ...Operation(...))。
@@ -221,39 +200,10 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     public abstract ModuleOperation? Process(string recipe);
 
     /// <summary>
-    /// 挂操作并按迁移表落执行态；状态不允许、模块停用、已有动作在途都返回 null。
-    /// </summary>
-    protected ModuleOperation? Begin(ChamberAction action, ModuleOperation operation)
-    {
-        lock (OperationGate)
-        {
-            if (!IsEnable)
-            {
-                return null;
-            }
-
-            if (!TryGetTransition(State, action.ToString(), out var transition))
-            {
-                return null;
-            }
-
-            if (!Run(operation, replace: action == ChamberAction.Abort))
-            {
-                return null;
-            }
-
-            _transition = transition;
-            State = transition.ExecutingState;
-            return operation;
-        }
-    }
-
-    /// <summary>
-    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
+    /// 操作终结（状态已由基类落好）：失败的动作报警。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
         UpdateActionAlarms(operation);
     }
 

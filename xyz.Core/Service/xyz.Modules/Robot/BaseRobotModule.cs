@@ -23,7 +23,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// Robot 当前状态（SV）。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
-    public int State { get; protected set; } = ModuleState.NotInit;
+    public override int State { get; protected set; } = ModuleState.NotInit;
 
     /// <summary>
     /// 伺服是否上使能（SV）：机型轮询查询刷新；尚未查到为 null。
@@ -306,8 +306,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region Action（IRobot 契约：动作体由机型实现——直接创建操作）
 
-    private (int ExecutingState, int SuccessState) _transition;
-
     /// <summary>
     /// 发起 Home。机型实现：Begin(RobotAction.Home, new ...Operation(...))。
     /// </summary>
@@ -417,37 +415,16 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public abstract ModuleOperation? PowerOff();
 
-    protected ModuleOperation? Begin(RobotAction action, ModuleOperation operation)
-    {
-        lock (OperationGate)
-        {
-            if (!IsEnable || Driver is null)
-            {
-                return null;
-            }
-
-            if (!TryGetTransition(State, action.ToString(), out var transition))
-            {
-                return null;
-            }
-
-            if (!Run(operation, replace: action == RobotAction.Abort))
-            {
-                return null;
-            }
-
-            _transition = transition;
-            State = transition.ExecutingState;
-            return operation;
-        }
-    }
+    /// <summary>
+    /// 装机停用、或驱动还没建起来（装配里 Open 失败）都不发动作。
+    /// </summary>
+    protected override bool CanBeginAction => IsEnable && Driver is not null;
 
     /// <summary>
-    /// 操作终结：成功落迁移表的成功态，失败/被打断落 Error。
+    /// 操作终结（状态已由基类落好）：记晶圆账，失败的动作报警。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        State = operation.IsSuccess ? _transition.SuccessState : ModuleState.Error;
         UpdateLedger(operation);
         UpdateActionAlarms(operation);
     }
