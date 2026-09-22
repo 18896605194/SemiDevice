@@ -73,14 +73,10 @@ public static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             var roots = app.Services.GetRequiredService<IReadOnlyList<ComponentBase>>();
-            foreach (var axis in roots.OfType<AxisComponent>()
-                         .Concat(roots.SelectMany(root => root.FindChildren<AxisComponent>())).Distinct())
-                axis.Close();
-            foreach (var io in roots.OfType<IoComponent>())
+            foreach (var plc in roots.OfType<PlcComponent>())
             {
-                io.StopCollecting();
+                plc.Close();
             }
-            foreach (var plc in roots.OfType<PlcComponent>()) plc.Close();
         });
 
         app.MapGrpcService<RpcService>();

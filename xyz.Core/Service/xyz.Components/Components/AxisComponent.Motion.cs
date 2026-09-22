@@ -1,5 +1,6 @@
+using System.Runtime.InteropServices;
+using xyz.Components.Interfaces;
 using xyz.Components.Motion;
-using xyz.Common.Log;
 
 namespace xyz.Components.Components;
 
@@ -7,18 +8,53 @@ public partial class AxisComponent
 {
     #region 运行字段
 
-    // 以下状态由 PLC 回调和模块扫描共享，访问时持有 _axisGate。
-    private readonly object _axisGate = new();
+    /// <summary>
+    /// 发令后再过几拍才拿"停稳/到位"判完成。PLC 扫描刷缓存和轴扫描读缓存是两个没对齐的 50ms 循环，
+    /// 叠起来发令后头两拍读到的可能还是发令前的旧帧，旧帧上的到位不能算数；期间看到"运动中"就不用等了。
+    /// </summary>
+    private const int SettleScans = 3;
 
-    // 指令和反馈。
+    // 以下状态由轴扫描和调用方线程共享，访问时持有 _axisGate。
+    private readonly object _axisGate = new();
+    private IPlc? _plc;
+
+    // 最近一次写下去的命令块。连上后先把 PLC 现有的命令块读回来当基线，同步号接着编，不撞号也不重发。
     private MotionCSharpToPlcCommand _command;
+    private bool _baselined;
+
     private MotionPlcToCSharpData _status;
+    private bool _hasPlcData;
 
     // 当前动作。
-    private long _operationStarted;
+    private ActionState _action;
+    private long _actionStarted;
+    private int _scansSinceSent;
     private bool _observedMotion;
     private double _target;
-    private AxisOperationState _operation;
+
+    #endregion
+
+    #region 通信
+
+    /// <summary>把收发两块登记进 PLC 的整块缓存；不回零不使能。由装配在模块启动前调用。</summary>
+    public bool Open(IPlc plc)
+    {
+        if (string.IsNullOrWhiteSpace(SendPlcDataPath) || string.IsNullOrWhiteSpace(ReceivePlcDataPath))
+        {
+            return false;
+        }
+
+        lock (_axisGate)
+        {
+            _plc = plc;
+            _baselined = false;
+            _hasPlcData = false;
+        }
+
+        plc.Register(SendPlcDataPath);
+        plc.Register(ReceivePlcDataPath);
+        return true;
+    }
 
     #endregion
 
@@ -49,177 +85,81 @@ public partial class AxisComponent
 
     #endregion
 
-    #region 轴操作
+    #region 轴操作（返回 true 只表示指令已写进 PLC，完成看 ActionState）
 
-    /// <summary>返回 true 只表示已接受待发指令；完成看 OperationState 和有效 PLC 状态。</summary>
     public bool Home()
     {
-        return QueueCommand(MotionCommandId.Home, 0, HomeSpeed);
+        return Send(MotionCommandId.Home, 0, HomeSpeed);
     }
 
     public bool MoveTo(double position, double? speed = null)
     {
-        return QueueCommand(MotionCommandId.MoveTo, position, speed ?? MoveSpeed);
+        return Send(MotionCommandId.MoveTo, position, speed ?? MoveSpeed);
     }
 
     public bool MoveBy(double offset, double? speed = null)
     {
-        return QueueCommand(MotionCommandId.MoveBy, offset, speed ?? MoveSpeed);
+        return Send(MotionCommandId.MoveBy, offset, speed ?? MoveSpeed);
     }
 
     public bool Jog(double speed)
     {
-        return QueueCommand(MotionCommandId.Jog, 0, speed);
+        return Send(MotionCommandId.Jog, 0, speed);
     }
 
     public bool Spin(double speed)
     {
-        return QueueCommand(MotionCommandId.Spin, 0, speed);
+        return Send(MotionCommandId.Spin, 0, speed);
     }
 
     public bool Stop()
     {
-        return QueueCommand(MotionCommandId.Stop, 0, 0, priority: true);
+        return Send(MotionCommandId.Stop, 0, 0, priority: true);
     }
 
     public bool EmergencyStop()
     {
-        return QueueCommand(MotionCommandId.EStop, 0, 0, priority: true);
+        return Send(MotionCommandId.EStop, 0, 0, priority: true);
     }
 
     public bool ResetDrive()
     {
-        return QueueCommand(MotionCommandId.Reset, 0, 0);
+        return Send(MotionCommandId.Reset, 0, 0);
     }
 
+    /// <summary>
+    /// 伺服使能是命令块里跟命令码并行的电平字节，改了随一条 Stop 下发让 PLC 锁存（轴静止时 Stop 没副作用）。
+    /// 下使能可以打断在途动作，上使能要等上一条完成。
+    /// </summary>
     public bool SetServo(bool enabled)
     {
-        return QueueCommand(MotionCommandId.Stop, 0, 0,
-            priority: !enabled, servo: enabled ? (byte)1 : (byte)0);
+        return Send(MotionCommandId.Stop, 0, 0, priority: !enabled, servo: enabled ? (byte)1 : (byte)0);
     }
 
     #endregion
 
-    #region 状态读取
+    #region 发令
 
-    public bool TryGetStatus(out MotionPlcToCSharpData status)
+    /// <summary>
+    /// 校验 → 组包 → 同步写进命令块。写成功即 Running，之后由扫描判完成/超时。
+    /// 停止类（priority）可以打断在途动作，其他指令要等上一条完成。
+    /// </summary>
+    private bool Send(MotionCommandId command, double position, double speed, bool priority = false, byte? servo = null)
     {
         lock (_axisGate)
         {
-            status = _status;
-            return HasValidPlcData();
-        }
-    }
-    // 仅供持有 _axisGate 的内部代码使用。
-    private bool HasValidPlcData()
-    {
-        // 输入初值和输出基线都读取成功后，才记录本次连接。
-        return _plc is { IsConnected: true }
-            && _subscribedGeneration == _plc.ConnectionGeneration;
-    }
-
-    #endregion
-
-    #region PLC 订阅回调
-
-    private void InitializeCommand(MotionCSharpToPlcCommand value, long generation, int version)
-    {
-        lock (_axisGate)
-        {
-            if (!IsCurrentSubscription(generation, version))
-            {
-                return;
-            }
-
-            _command = value;
-            if (_operation is AxisOperationState.Pending or AxisOperationState.Running)
-            {
-                _operation = AxisOperationState.Failed;
-            }
-        }
-    }
-
-    private MotionCSharpToPlcCommand? GetDesiredCommand(long generation, int version)
-    {
-        lock (_axisGate)
-        {
-            if (!IsCurrentSubscription(generation, version))
-            {
-                return null;
-            }
-
-            if (!HasValidPlcData() || _operation != AxisOperationState.Pending)
-            {
-                return null;
-            }
-
-            return _command;
-        }
-    }
-
-    private void OnCommandWritten(MotionCSharpToPlcCommand value, long generation, int version)
-    {
-        lock (_axisGate)
-        {
-            if (!IsCurrentSubscription(generation, version))
-            {
-                return;
-            }
-
-            if (!HasValidPlcData() || value.Command_Sync_No != _command.Command_Sync_No || _operation != AxisOperationState.Pending)
-            {
-                return;
-            }
-
-            _observedMotion = false;
-            _operation = AxisOperationState.Running;
-        }
-    }
-
-    private void OnStatusReceived(MotionPlcToCSharpData value, long generation, int version)
-    {
-        lock (_axisGate)
-        {
-            if (!IsCurrentSubscription(generation, version))
-            {
-                return;
-            }
-
-            _status = value;
-            // Running 只在指令写成功后设置，此处自然是写入后的新反馈。
-            if (_operation == AxisOperationState.Running)
-            {
-                _observedMotion |= value.Is_Busy == 1 || value.Is_Stopped == 0;
-                CheckOperationCompletion();
-            }
-        }
-    }
-
-    #endregion
-
-    #region 指令校验与组装
-
-    private bool QueueCommand(
-        MotionCommandId command,
-        double position,
-        double speed,
-        bool priority = false,
-        byte? servo = null)
-    {
-        lock (_axisGate)
-        {
-            // 先检查通信和指令占用，再检查本次动作的条件。
-            if (!CanAcceptCommand(priority))
+            var plc = _plc;
+            if (plc is null || !_hasPlcData)
             {
                 return false;
             }
 
-            if (!double.IsFinite(position))
+            if (!priority && _action == ActionState.Running)
             {
                 return false;
             }
 
-            if (!double.IsFinite(speed))
+            if (!double.IsFinite(position) || !double.IsFinite(speed))
             {
                 return false;
             }
@@ -227,18 +167,13 @@ public partial class AxisComponent
             double accel = Accel;
             double decel = Decel;
             double maxSpeed = MaxSpeed;
-            if (!CanExecuteCommand(command, speed, accel, decel, maxSpeed))
+            if (!CanExecute(command, speed, accel, decel, maxSpeed))
             {
                 return false;
             }
 
-            // 相对位移换算成绝对目标，供后续到位判断使用。
-            _target = position;
-            if (command == MotionCommandId.MoveBy)
-            {
-                _target = _status.Current_Position + position;
-            }
-
+            // 相对位移换算成绝对目标，供到位判断用。
+            _target = command == MotionCommandId.MoveBy ? _status.Current_Position + position : position;
             if (!double.IsFinite(_target))
             {
                 return false;
@@ -246,51 +181,43 @@ public partial class AxisComponent
 
             if (IsAlreadyAtTarget(command))
             {
-                // 已在目标容差内无需再次下发，避免等待一个不会发生的 Busy 变化。
-                _operation = AxisOperationState.Completed;
+                // 已在目标容差内不再下发，免得等一个不会发生的运动。
+                _action = ActionState.Completed;
                 return true;
             }
 
-            _command = CreateCommand(command, position, speed, accel, decel, maxSpeed, servo);
-            _operationStarted = Environment.TickCount64;
-            _operation = AxisOperationState.Pending;
+            var next = new MotionCSharpToPlcCommand
+            {
+                Axis_Command = (byte)command,
+                Axis_Servo = servo ?? _command.Axis_Servo,
+                Axis_Spare1 = _command.Axis_Spare1,
+                Axis_Spare2 = _command.Axis_Spare2,
+                Param1 = position,
+                Param2 = speed,
+                Param3 = accel,
+                Param4 = decel,
+                Param5 = maxSpeed,
+                Param10 = 1,
+                Command_Sync_No = unchecked(_command.Command_Sync_No + 1),
+            };
+            byte[] data = new byte[Marshal.SizeOf<MotionCSharpToPlcCommand>()];
+            MemoryMarshal.Write(data, in next);
+            if (!plc.WriteBlock(SendPlcDataPath, data))
+            {
+                return false;
+            }
+
+            _command = next;
+            _action = ActionState.Running;
+            _actionStarted = Environment.TickCount64;
+            _scansSinceSent = 0;
+            _observedMotion = false;
             return true;
         }
     }
 
-    // 以下检查由 QueueCommand 在轴锁内调用。
-    private bool CanAcceptCommand(bool priority)
-    {
-        if (!HasValidPlcData())
-        {
-            return false;
-        }
-
-        // 停止类指令允许替换待发动作。
-        if (priority)
-        {
-            return true;
-        }
-
-        if (_operation == AxisOperationState.Pending)
-        {
-            return false;
-        }
-
-        if (_operation == AxisOperationState.Running)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private bool CanExecuteCommand(
-        MotionCommandId command,
-        double speed,
-        double accel,
-        double decel,
-        double maxSpeed)
+    // 以下检查由 Send 在轴锁内调用。
+    private bool CanExecute(MotionCommandId command, double speed, double accel, double decel, double maxSpeed)
     {
         if (!double.IsFinite(decel) || decel <= 0)
         {
@@ -300,26 +227,11 @@ public partial class AxisComponent
         switch (command)
         {
             case MotionCommandId.Home:
-                if (speed <= 0)
-                {
-                    return false;
-                }
-
-                return CanStartMotion(speed, accel, maxSpeed);
+                return speed > 0 && CanStartMotion(speed, accel, maxSpeed);
 
             case MotionCommandId.MoveTo:
             case MotionCommandId.MoveBy:
-                if (speed <= 0)
-                {
-                    return false;
-                }
-
-                if (_status.Is_Homed != 1)
-                {
-                    return false;
-                }
-
-                return CanStartMotion(speed, accel, maxSpeed);
+                return speed > 0 && _status.Is_Homed == 1 && CanStartMotion(speed, accel, maxSpeed);
 
             case MotionCommandId.Jog:
             case MotionCommandId.Spin:
@@ -332,44 +244,19 @@ public partial class AxisComponent
 
     private bool CanStartMotion(double speed, double accel, double maxSpeed)
     {
-        // 设备条件。
-        if (_status.Is_Err != 0)
-        {
-            return false;
-        }
-
-        if (_status.Is_Ready != 1)
-        {
-            return false;
-        }
-
-        if (_status.Is_Servo_On != 1)
-        {
-            return false;
-        }
-
-        if (_status.Is_Busy != 0)
+        // 设备条件：没报错、就绪、使能、不忙。
+        if (_status.Is_Err != 0 || _status.Is_Ready != 1 || _status.Is_Servo_On != 1 || _status.Is_Busy != 0)
         {
             return false;
         }
 
         // 运动参数。
-        if (!double.IsFinite(accel) || accel <= 0)
+        if (!double.IsFinite(accel) || accel <= 0 || !double.IsFinite(maxSpeed) || maxSpeed <= 0)
         {
             return false;
         }
 
-        if (!double.IsFinite(maxSpeed) || maxSpeed <= 0)
-        {
-            return false;
-        }
-
-        if (speed == 0 || Math.Abs(speed) > maxSpeed)
-        {
-            return false;
-        }
-
-        return true;
+        return speed != 0 && Math.Abs(speed) <= maxSpeed;
     }
 
     private bool IsAlreadyAtTarget(MotionCommandId command)
@@ -379,98 +266,32 @@ public partial class AxisComponent
             return false;
         }
 
-        if (_status.Is_Stopped != 1)
-        {
-            return false;
-        }
-
-        if (_status.Is_In_Position != 1)
-        {
-            return false;
-        }
-
-        return Math.Abs(_status.Current_Position - _target) <= PositionTolerance;
-    }
-
-    private MotionCSharpToPlcCommand CreateCommand(
-        MotionCommandId command,
-        double position,
-        double speed,
-        double accel,
-        double decel,
-        double maxSpeed,
-        byte? servo)
-    {
-        return new MotionCSharpToPlcCommand
-        {
-            Axis_Command = (byte)command,
-            Axis_Servo = servo ?? _command.Axis_Servo,
-            Axis_Spare1 = _command.Axis_Spare1,
-            Axis_Spare2 = _command.Axis_Spare2,
-            Param1 = position,
-            Param2 = speed,
-            Param3 = accel,
-            Param4 = decel,
-            Param5 = maxSpeed,
-            Param10 = 1,
-            Command_Sync_No = unchecked(_command.Command_Sync_No + 1),
-        };
+        return _status.Is_Stopped == 1
+            && _status.Is_In_Position == 1
+            && Math.Abs(_status.Current_Position - _target) <= PositionTolerance;
     }
 
     #endregion
 
-    #region 动作完成判断
-
-    private void CheckOperationCompletion()
-    {
-        if (!HasValidPlcData())
-        {
-            return;
-        }
-
-        var command = (MotionCommandId)_command.Axis_Command;
-        if (_status.Is_Err == 1 && command is not MotionCommandId.Reset and not MotionCommandId.Stop and not MotionCommandId.EStop)
-        {
-            _operation = AxisOperationState.Failed;
-            return;
-        }
-
-        bool completed = command switch
-        {
-            MotionCommandId.Home => _observedMotion && _status.Is_Homed == 1 && _status.Is_Busy == 0,
-            MotionCommandId.MoveTo or MotionCommandId.MoveBy => _observedMotion && _status.Is_Busy == 0
-                && _status.Is_In_Position == 1 && Math.Abs(_status.Current_Position - _target) <= PositionTolerance,
-            MotionCommandId.Stop or MotionCommandId.EStop => _status.Is_Stopped == 1 && _status.Is_Busy == 0
-                && _status.Is_Servo_On == _command.Axis_Servo,
-            MotionCommandId.Reset => _status.Is_Err == 0,
-            // 连续运动到速后允许后续命令，设备是否还在转由 IsBusy/CurrentSpeed 表示。
-            MotionCommandId.Spin or MotionCommandId.Jog => _observedMotion
-                && Math.Abs(_status.Current_Speed - _command.Param2) <= SpeedTolerance,
-            _ => false,
-        };
-        if (completed)
-        {
-            _operation = AxisOperationState.Completed;
-        }
-    }
-
-    #endregion
-
-    #region 扫描与超时报警
+    #region 扫描：读状态、判完成、判超时
 
     protected override void OnScan()
     {
         base.OnScan();
-        EnsureSubscribed();
+
         string? alarm = null;
         lock (_axisGate)
         {
-            if (!HasValidPlcData())
+            if (!ReadPlc())
             {
-                if (_operation is AxisOperationState.Pending or AxisOperationState.Running)
+                // 读不到就是断了：在途动作作废，重连后重新取基线。
+                _hasPlcData = false;
+                _baselined = false;
+                if (_action == ActionState.Running)
                 {
-                    _operation = AxisOperationState.Failed;
+                    _action = ActionState.Failed;
                 }
+
                 return;
             }
 
@@ -479,9 +300,15 @@ public partial class AxisComponent
                 alarm = AxisErrorAlarm;
             }
 
-            if (_operation is AxisOperationState.Pending or AxisOperationState.Running)
+            if (_action == ActionState.Running)
             {
-                alarm = CheckOperationTimeout() ?? alarm;
+                _scansSinceSent++;
+                _observedMotion |= _status.Is_Busy == 1 || _status.Is_Stopped == 0;
+                CheckCompletion();
+                if (_action == ActionState.Running)
+                {
+                    alarm = CheckTimeout() ?? alarm;
+                }
             }
         }
 
@@ -491,18 +318,85 @@ public partial class AxisComponent
         }
     }
 
-    private string? CheckOperationTimeout()
+    /// <summary>
+    /// 从 PLC 缓存取状态块；连上后的第一拍还要把命令块读回来当同步号基线。两块都到手才算有数据。
+    /// </summary>
+    private bool ReadPlc()
+    {
+        var plc = _plc;
+        if (plc is null || !TryRead(plc, ReceivePlcDataPath, out MotionPlcToCSharpData status))
+        {
+            return false;
+        }
+
+        if (!_baselined)
+        {
+            if (!TryRead(plc, SendPlcDataPath, out MotionCSharpToPlcCommand baseline))
+            {
+                return false;
+            }
+
+            _command = baseline;
+            _baselined = true;
+        }
+
+        _status = status;
+        _hasPlcData = true;
+        return true;
+    }
+
+    private static bool TryRead<T>(IPlc plc, string path, out T value) where T : unmanaged
+    {
+        value = default;
+        if (!plc.TryReadBlock(path, out var block) || block.Length < Marshal.SizeOf<T>())
+        {
+            return false;
+        }
+
+        value = MemoryMarshal.Read<T>(block);
+        return true;
+    }
+
+    private void CheckCompletion()
+    {
+        var command = (MotionCommandId)_command.Axis_Command;
+        if (_status.Is_Err == 1 && command is not MotionCommandId.Reset and not MotionCommandId.Stop and not MotionCommandId.EStop)
+        {
+            _action = ActionState.Failed;
+            return;
+        }
+
+        // 看到过"运动中"或者已过了旧帧窗口，这一帧的停稳/到位才作数。
+        bool settled = _observedMotion || _scansSinceSent >= SettleScans;
+        bool completed = command switch
+        {
+            MotionCommandId.Home => settled && _status.Is_Homed == 1 && _status.Is_Busy == 0 && _status.Is_Stopped == 1,
+            MotionCommandId.MoveTo or MotionCommandId.MoveBy => settled && _status.Is_Busy == 0
+                && _status.Is_In_Position == 1 && Math.Abs(_status.Current_Position - _target) <= PositionTolerance,
+            MotionCommandId.Stop or MotionCommandId.EStop => settled && _status.Is_Stopped == 1 && _status.Is_Busy == 0
+                && _status.Is_Servo_On == _command.Axis_Servo,
+            MotionCommandId.Reset => settled && _status.Is_Err == 0,
+            // 连续运动到速即完成，设备是否还在转看 IsBusy/CurrentSpeed。
+            MotionCommandId.Spin or MotionCommandId.Jog => settled
+                && Math.Abs(_status.Current_Speed - _command.Param2) <= SpeedTolerance,
+            _ => false,
+        };
+        if (completed)
+        {
+            _action = ActionState.Completed;
+        }
+    }
+
+    private string? CheckTimeout()
     {
         var command = (MotionCommandId)_command.Axis_Command;
         bool stopping = command is MotionCommandId.Stop or MotionCommandId.EStop;
-        int timeout = stopping ? StopTimeoutMs : TimeoutMs;
-        if (Environment.TickCount64 - _operationStarted < timeout)
+        if (Environment.TickCount64 - _actionStarted < (stopping ? StopTimeoutMs : TimeoutMs))
         {
             return null;
         }
 
-        _operation = AxisOperationState.Failed;
-
+        _action = ActionState.Failed;
         return command switch
         {
             MotionCommandId.Home => HomeTimeoutAlarm,
@@ -512,5 +406,4 @@ public partial class AxisComponent
     }
 
     #endregion
-
 }

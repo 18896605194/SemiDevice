@@ -8,7 +8,7 @@ namespace xyz.Components.Components;
 /// <summary>
 /// AI 值监控组件：上下限报警、预警带，超限/出预警带持续满 DurationMs 才报（报警防抖，EC）；可选监控使能 DO 门控。
 /// 公共组件：装进哪个模块都一样用，报警算在装它的模块头上（模块的 HasAlarm 自动包含）。
-/// IO 读写层还没接：ReadAi / ReadMonitoringDo 先返回 null（不判），接上后只改那两处。
+/// AI 经 IoComponent 按索引读工程值（点表里得有这个索引，标定也在点表）；读不到（PLC 没连）这一拍不判。
 /// </summary>
 [Component(description: "AI 值监控组件")]
 public class AiSensorComponent : ComponentBase
@@ -134,11 +134,12 @@ public class AiSensorComponent : ComponentBase
             return;
         }
 
-        if (value is not { } reading)
+        if (value is null)
         {
             return;
         }
 
+        double reading = value.Value;
         int duration = DurationMs;
         IsOutOfRange = CheckAlarm(AiSensorAlarm, Outside(reading, Min, Max), duration, raise: AlarmEnabled);
 
@@ -157,23 +158,41 @@ public class AiSensorComponent : ComponentBase
 
     private bool IsMonitoring()
     {
-        return MonitoringDoIndex < 0 || (ReadMonitoringDo() is { } level && level == MonitoringActiveHigh);
+        if (MonitoringDoIndex < 0)
+        {
+            return true;
+        }
+
+        var level = ReadMonitoringDo();
+        return level is not null && level.Value == MonitoringActiveHigh;
     }
 
     /// <summary>
-    /// 读 AI。IO 读写层还没接，先返回 null。
+    /// 读 AI 工程值；PLC 没连或点表里没这个索引返回 null。探针测试重写它直接摆读数。
     /// </summary>
     protected virtual double? ReadAi()
     {
-        return null;
+        var io = IoComponent.Current;
+        if (io is null || !io.TryReadAi(AiIndex, out double value))
+        {
+            return null;
+        }
+
+        return value;
     }
 
     /// <summary>
-    /// 读监控使能 DO（true = 高电平）。IO 读写层还没接，先返回 null（当作没开监控）。
+    /// 回读监控使能 DO（true = 高电平）；读不到返回 null（当作没开监控）。
     /// </summary>
     protected virtual bool? ReadMonitoringDo()
     {
-        return null;
+        var io = IoComponent.Current;
+        if (io is null || !io.TryReadDo(MonitoringDoIndex, out bool on))
+        {
+            return null;
+        }
+
+        return on;
     }
 
     #endregion

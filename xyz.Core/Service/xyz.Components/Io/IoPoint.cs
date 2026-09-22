@@ -1,9 +1,10 @@
 namespace xyz.Components.Io;
 
+/// <summary>
+/// 点表里的一行：装机配置，运行期不变。当前值不存在这儿——读的时候直接从 PLC 组件的整块缓存解出来。
+/// </summary>
 public sealed class IoPoint
 {
-    #region 点表（装机配置，运行期不变）
-
     /// <summary>PLC 数据块里的数组下标。</summary>
     public int Index { get; init; }
 
@@ -38,23 +39,6 @@ public sealed class IoPoint
     public bool IsScaled =>
         Math.Abs(PhysicalMax - PhysicalMin) > 0.0001 && Math.Abs(LogicalMax - LogicalMin) > 0.0001;
 
-    #endregion
-
-    #region 当前值（采集线程每拍刷，读的人可能拿到上一拍的，50ms 级无所谓）
-
-    /// <summary>这一拍有没有读到。读不到时下面两个值不可信——别拿陈旧值当真。</summary>
-    public bool IsValid { get; internal set; }
-
-    /// <summary>数字量当前状态（DI/DO）。</summary>
-    public bool IsOn { get; internal set; }
-
-    /// <summary>模拟量当前原始码（AI/AO）。</summary>
-    public double Raw { get; internal set; }
-
-    /// <summary>模拟量当前工程值；没标定就等于原始码。</summary>
-    public double Value => IsScaled ? ToEngineering(Raw) : Raw;
-
-    #endregion
     public double ToEngineering(double raw)
     {
         if (!IsScaled)

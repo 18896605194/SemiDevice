@@ -91,12 +91,21 @@ public class LightComponent : ComponentBase, ILightComponent
     }
 
     /// <summary>
-    /// 对接实际 IO 驱动。isOn 表示逻辑开关，具体输出电平由实现按硬件接线处理。
-    /// 写入失败应抛出异常，不能将未执行的输出当作成功。
+    /// 经 IoComponent 写 DO。isOn 表示逻辑开关，接线反相在 PLC 侧处理。
+    /// 写入失败抛异常，不能把没执行的输出当成功——调用方（EquipmentStatusPublisher）接住记日志。
     /// </summary>
     protected virtual void WriteOutput(int doIndex, bool isOn)
     {
-        throw new NotSupportedException($"{GetType().Name} 尚未实现 DO 输出控制。");
+        var io = IoComponent.Current;
+        if (io is null)
+        {
+            throw new InvalidOperationException("sc.xml 没配 Io 节点，四色灯没有输出通道");
+        }
+
+        if (!io.WriteDo(doIndex, isOn))
+        {
+            throw new InvalidOperationException($"DO{doIndex} 写入失败（PLC 没连或点表里没有这个索引）");
+        }
     }
 
     #endregion

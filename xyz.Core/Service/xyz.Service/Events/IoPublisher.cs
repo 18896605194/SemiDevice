@@ -140,49 +140,35 @@ public static class IoPublisher
     }
 
     /// <summary>
-    /// 只刷值：骨架的顺序跟点表一一对应，按类型名拿回对应的点表再逐点取。
+    /// 只刷值：每个点现读现填，读的是 PLC 组件这一拍的缓存；读不到的点 IsValid=false，界面显示成"—"。
     /// </summary>
     private static void RefreshValues(IoComponent io, IoDto snapshot)
     {
         foreach (var typeDto in snapshot.Types)
         {
-            var table = Resolve(io, typeDto.Type);
-            if (table is null)
-            {
-                continue;
-            }
-
             bool isAnalog = typeDto.Type is "AI" or "AO";
             foreach (var moduleDto in typeDto.Modules)
             {
                 foreach (var pointDto in moduleDto.Points)
                 {
-                    var point = table.Find(pointDto.Index);
-                    if (point is null)
+                    bool on = false;
+                    double value = 0;
+                    bool valid = typeDto.Type switch
                     {
-                        pointDto.IsValid = false;
-                        continue;
-                    }
+                        "DI" => io.TryReadDi(pointDto.Index, out on),
+                        "DO" => io.TryReadDo(pointDto.Index, out on),
+                        "AI" => io.TryReadAi(pointDto.Index, out value),
+                        "AO" => io.TryReadAo(pointDto.Index, out value),
+                        _ => false,
+                    };
 
-                    pointDto.IsValid = point.IsValid;
-                    pointDto.IsOn = point.IsOn;
+                    pointDto.IsValid = valid;
+                    pointDto.IsOn = on;
                     pointDto.Value = isAnalog
-                        ? point.Value.ToString("0.###")
-                        : point.IsOn ? "1" : "0";
+                        ? value.ToString("0.###")
+                        : on ? "1" : "0";
                 }
             }
         }
-    }
-
-    private static IoPointTable? Resolve(IoComponent io, string type)
-    {
-        return type switch
-        {
-            "DI" => io.Di,
-            "DO" => io.Do,
-            "AI" => io.Ai,
-            "AO" => io.Ao,
-            _ => null,
-        };
     }
 }

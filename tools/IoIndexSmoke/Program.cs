@@ -9,7 +9,8 @@ var io = new IoComponent();
 try
 {
     SinglePointWrites.Run();
-    AxisSubscriptions.Run();
+    AxisCommands.Run();
+    ActuatorCommands.Run();
     var csv = Path.Combine(directory, "points.csv");
     File.WriteAllText(csv,
         "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +
@@ -28,33 +29,32 @@ try
     }
 
     var plc = new FakePlc();
+    PlcComponent.Current = null;
+    Check(!io.IsCollecting && !io.TryReadDi(7, out _), "no PLC means nothing is readable");
     PlcComponent.Current = plc;
-    Check(!io.TryReadDi(7, out _), "uncollected point must be invalid");
-    io.StartCollecting();
-    io.StartCollecting();
-    Check(SpinWait.SpinUntil(() => io.TryReadAi(7, out var value) && value == 50, 3000),
-        "collection must resolve sparse PLC indices and scale AI");
+    Check(io.IsCollecting, "collecting follows the PLC connection");
+    Check(io.TryReadAi(7, out var value) && value == 50, "AI must resolve sparse PLC indices and scale");
     Check(io.TryReadDi(7, out var on) && on, "DI index 7");
     Check(io.TryReadDi(2, out on) && !on, "same name at index 2 must not read index 7");
     Check(io.TryReadDo(12, out on) && on, "unnamed DO read");
+    Check(io.TryReadAo(7, out value) && value == 25, "AO readback keeps engineering conversion");
     Check(!io.TryReadAi(0, out _), "missing AI index");
     Check(io.WriteDo(12, true) && plc.LastDo == (12, true), "DO writes use the requested index");
     Check(io.WriteAo(7, 25) && plc.LastAo == (7, 250d), "AO keeps engineering conversion");
     Check(!io.WriteDo(-1, true) && !io.WriteAo(0, 25), "invalid writes must fail");
     Check(plc.LastAo == (7, 250d), "invalid write must not reach PLC");
 
-    io.StopCollecting();
-    Check(!io.IsCollecting && !io.TryReadDi(7, out _), "stop must invalidate points");
-    io.StartCollecting();
-    Check(SpinWait.SpinUntil(() => io.TryReadDi(7, out _), 3000), "collection must restart");
-    io.StopCollecting();
+    plc.IsConnected = false;
+    Check(!io.IsCollecting && !io.TryReadDi(7, out _) && !io.TryReadAi(7, out _),
+        "offline PLC makes every point unreadable");
+    plc.IsConnected = true;
+    Check(io.TryReadDi(7, out _), "reads resume with the connection");
     io.Di.Load(Path.Combine(directory, "missing.csv"));
     Check(io.Di.Points.Count == 0 && io.Di.Find(7) is null, "reload must clear index lookup");
-    Console.WriteLine("PASS: index lookup, reads, writes, scaling, invalid indices and collection lifecycle");
+    Console.WriteLine("PASS: index lookup, reads, writes, scaling, invalid indices and connection gating");
 }
 finally
 {
-    io.StopCollecting();
     PlcComponent.Current = previousPlc;
     IoComponent.Current = previousIo;
     Directory.Delete(directory, recursive: true);
@@ -67,18 +67,14 @@ static void Check(bool condition, string message)
 
 sealed class FakePlc : IPlc
 {
-    public bool IsConnected => true;
-    public long ConnectionGeneration => 0;
-    public IDisposable SubscribeInput<T>(string path, Action<T> received) where T : unmanaged => throw new NotSupportedException();
-    public IDisposable SubscribeOutput<T>(string path, Func<T?> desired, Action<T> initialize, Action<T> written)
-        where T : unmanaged => throw new NotSupportedException();
+    public bool IsConnected { get; set; } = true;
     public (int, bool) LastDo { get; private set; }
     public (int, double) LastAo { get; private set; }
     public void Register(string path) { }
-    public bool TryReadDi(int index, out bool on) { on = index == 7; return true; }
-    public bool TryReadDo(int index, out bool on) { on = index == 12; return true; }
-    public bool TryReadAi(int index, out double value) { value = index == 7 ? 500 : 100; return true; }
-    public bool TryReadAo(int index, out double value) { value = 250; return true; }
+    public bool TryReadDi(int index, out bool on) { on = IsConnected && index == 7; return IsConnected; }
+    public bool TryReadDo(int index, out bool on) { on = IsConnected && index == 12; return IsConnected; }
+    public bool TryReadAi(int index, out double value) { value = index == 7 ? 500 : 100; return IsConnected; }
+    public bool TryReadAo(int index, out double value) { value = 250; return IsConnected; }
     public bool WriteDo(int index, bool on) { LastDo = (index, on); return true; }
     public bool WriteAo(int index, double value) { LastAo = (index, value); return true; }
     public bool TryReadBlock(string path, out byte[] block) { block = []; return false; }

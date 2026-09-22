@@ -3,6 +3,7 @@ using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
+using xyz.Components.Components;
 using xyz.Components.Enums;
 
 namespace xyz.Modules;
@@ -130,6 +131,9 @@ public class E84Component : ComponentBase, IE84
     private E84Inputs _loggedInputs;
     private E84Outputs _outputs;
     private E84Outputs _written;
+
+    // 上一拍输出写没写通：翻转时记一条日志，别每拍刷屏。
+    private bool _outputsWritable = true;
     private E84State _state = E84State.NotAvailable;
     private E84Timer? _timedOutTimer;
 
@@ -169,8 +173,11 @@ public class E84Component : ComponentBase, IE84
         {
             Clear();
             _reports.Clear();
-            WriteOutputs(_outputs);
-            _written = _outputs;
+            if (WriteOutputs(_outputs))
+            {
+                _written = _outputs;
+            }
+
             return true;
         }
     }
@@ -490,7 +497,12 @@ public class E84Component : ComponentBase, IE84
         }
 
         bool availabilityChanged = _outputs.HoAvbl != _written.HoAvbl;
-        WriteOutputs(_outputs);
+        if (!WriteOutputs(_outputs))
+        {
+            // 没写进去（PLC 没连）：_written 不动，下一拍再写。
+            return;
+        }
+
         _written = _outputs;
         if (availabilityChanged)
         {
@@ -510,23 +522,72 @@ public class E84Component : ComponentBase, IE84
 
     #endregion
 
-    #region IO（还没接）
+    #region IO
 
     /// <summary>
-    /// 读一拍输入。IO 读写还没接，先按输入全 OFF 处理（搬运车不会被当成选中了本端口）；
-    /// 接 IO 时按上面的 DI 索引读，没配的（-1）当 OFF。
+    /// 读一拍输入：按上面的 DI 索引经 IoComponent 读，没配的（-1）、PLC 没连或点表里没有的都当 OFF——
+    /// 搬运车不会被当成选中了本端口。
     /// </summary>
     protected virtual E84Inputs ReadInputs()
     {
-        return default;
+        var io = IoComponent.Current;
+        if (io is null)
+        {
+            return default;
+        }
+
+        return new E84Inputs
+        {
+            Valid = InputOn(io, DiValidIndex),
+            Cs0 = InputOn(io, DiCs0Index),
+            Cs1 = InputOn(io, DiCs1Index),
+            AmAvbl = InputOn(io, DiAmAvblIndex),
+            TrReq = InputOn(io, DiTrReqIndex),
+            Busy = InputOn(io, DiBusyIndex),
+            Compt = InputOn(io, DiComptIndex),
+            Cont = InputOn(io, DiContIndex),
+            LightCurtain = InputOn(io, DiLightCurtainIndex),
+        };
     }
 
     /// <summary>
-    /// 写一拍输出（有变化才调）。IO 读写还没接，先只记在 Outputs 上；
-    /// 接 IO 时按上面的 DO 索引写，没配的（-1）跳过。
+    /// 写一拍输出（有变化才调）：按上面的 DO 索引经 IoComponent 写，没配的（-1）跳过。
+    /// 有一路写失败就返回 false（调用方留着下一拍重写）；失败只记一次日志，写通了再记一次恢复。
     /// </summary>
-    protected virtual void WriteOutputs(E84Outputs outputs)
+    protected virtual bool WriteOutputs(E84Outputs outputs)
     {
+        var io = IoComponent.Current;
+        bool written = OutputWritten(io, DoLReqIndex, outputs.LReq)
+            && OutputWritten(io, DoUReqIndex, outputs.UReq)
+            && OutputWritten(io, DoReadyIndex, outputs.Ready)
+            && OutputWritten(io, DoHoAvblIndex, outputs.HoAvbl)
+            && OutputWritten(io, DoEsIndex, outputs.Es);
+        if (written == _outputsWritable)
+        {
+            return written;
+        }
+
+        _outputsWritable = written;
+        if (written)
+        {
+            LogHelper.Info(FullPath, "E84 输出写入恢复");
+        }
+        else
+        {
+            LogHelper.Warn(FullPath, "E84 输出写入失败（PLC 没连或 DO 索引不在点表里），下一拍再写");
+        }
+
+        return written;
+    }
+
+    private static bool InputOn(IoComponent io, int index)
+    {
+        return index >= 0 && io.TryReadDi(index, out bool on) && on;
+    }
+
+    private static bool OutputWritten(IoComponent? io, int index, bool on)
+    {
+        return index < 0 || (io is not null && io.WriteDo(index, on));
     }
 
     #endregion

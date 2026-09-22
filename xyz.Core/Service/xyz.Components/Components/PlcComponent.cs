@@ -65,7 +65,7 @@ public partial class PlcComponent : ComponentBase, IPlc
     #region SV
 
     /// <summary>
-    /// 通讯是否连着（SV）。断了以后缓存还是上一拍的值，所以读接口一律失败——
+    /// 通讯是否连着（SV）。断了以后读接口一律失败，连接换代时整块缓存清空——
     /// 让上层知道"读不到"，而不是拿陈旧值当真。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "PLC 通讯是否连接")]
@@ -74,18 +74,23 @@ public partial class PlcComponent : ComponentBase, IPlc
         get => Volatile.Read(ref _connected) != 0;
         protected set
         {
-            if (Interlocked.Exchange(ref _connected, value ? 1 : 0) != (value ? 1 : 0))
+            int next = value ? 1 : 0;
+            if (Interlocked.Exchange(ref _connected, next) == next)
             {
-                Interlocked.Increment(ref _connectionGeneration);
+                return;
+            }
+
+            // 连接换代了：缓存里是上一条连接的旧帧，清掉——读不到（false）比拿旧值当真安全。
+            lock (_cacheGate)
+            {
+                _cache.Clear();
             }
         }
     }
 
     private int _connected;
-    private long _connectionGeneration;
     private volatile bool _closed;
     private readonly object _scanGate = new();
-    public long ConnectionGeneration => Interlocked.Read(ref _connectionGeneration);
 
     #endregion
 

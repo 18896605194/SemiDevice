@@ -1023,7 +1023,11 @@ sealed class ProbeE84 : E84Component
 
     protected override E84Inputs ReadInputs() => _next;
 
-    protected override void WriteOutputs(E84Outputs outputs) => Writes++;
+    protected override bool WriteOutputs(E84Outputs outputs)
+    {
+        Writes++;
+        return true;
+    }
 }
 
 // 探针 DI/AI：IO 读写层还没接，读数由测试直接摆；EC 只在本进程内存里。

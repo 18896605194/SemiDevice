@@ -8,7 +8,7 @@ namespace xyz.Components.Components;
 /// <summary>
 /// DI 值监控组件：单个 DI，电平触发 + 报警防抖（EC DebounceMs）。
 /// 公共组件：装进哪个模块都一样用，报警算在装它的模块头上（模块的 HasAlarm 自动包含）。
-/// IO 读写层还没接：ReadDi 先返回 null（不判），接上后只改那一处。
+/// DI 经 IoComponent 按索引读（点表里得有这个索引）；读不到（PLC 没连）这一拍不判。
 /// </summary>
 [Component(description: "DI 值监控组件")]
 public class DiSensorComponent : ComponentBase
@@ -64,21 +64,33 @@ public class DiSensorComponent : ComponentBase
     protected override void OnScan()
     {
         base.OnScan();
-        if (DiIndex < 0 || ReadDi() is not { } level)
+        if (DiIndex < 0)
         {
             return;
         }
 
-        bool active = level == (TriggerLevel == TriggerLevel.High);
+        var level = ReadDi();
+        if (level is null)
+        {
+            return;
+        }
+
+        bool active = level.Value == (TriggerLevel == TriggerLevel.High);
         IsTriggered = CheckAlarm(SensorAlarm, active, DebounceMs, raise: AlarmEnabled);
     }
 
     /// <summary>
-    /// 读 DI 电平（true = 高电平）。IO 读写层还没接，先返回 null。
+    /// 读 DI 电平（true = 高电平）；PLC 没连或点表里没这个索引返回 null。探针测试重写它直接摆读数。
     /// </summary>
     protected virtual bool? ReadDi()
     {
-        return null;
+        var io = IoComponent.Current;
+        if (io is null || !io.TryReadDi(DiIndex, out bool on))
+        {
+            return null;
+        }
+
+        return on;
     }
 
     #endregion

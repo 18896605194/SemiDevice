@@ -90,17 +90,17 @@ public static class ServiceCollectionExtensions
             plc.Start();
         }
 
-        // IO 表：读点表、起采集。排在 PLC 之后、模块之前，供上层按索引取点。
+        // IO 表：读点表。排在 PLC 之后、模块之前，供上层按索引取点；值直接从 PLC 缓存解出来，不另起采集。
         foreach (var io in roots.OfType<IoComponent>())
         {
             io.Open();
-            io.StartCollecting();
         }
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 
-        // 各轴自行订阅通信，与 Init（回零）分开；后续由轴自身扫描处理重连。
-        if (PlcComponent.Current is { } axisPlc)
+        // 各轴把收发两块登记进 PLC 缓存，与 Init（回零）分开；断线重连由轴自身扫描处理。
+        var axisPlc = PlcComponent.Current;
+        if (axisPlc is not null)
         {
             var outputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var axis in roots.OfType<AxisComponent>()
@@ -108,12 +108,12 @@ public static class ServiceCollectionExtensions
             {
                 if (!string.IsNullOrWhiteSpace(axis.SendPlcDataPath) && !outputPaths.Add(axis.SendPlcDataPath))
                 {
-                    throw new InvalidOperationException($"轴输出路径重复: {axis.SendPlcDataPath}");
+                    throw new InvalidOperationException($"轴命令块路径重复: {axis.SendPlcDataPath}");
                 }
 
                 if (!axis.Open(axisPlc))
                 {
-                    LogHelper.Warn(axis.FullPath, "轴收发路径未配置，未注册 PLC 订阅");
+                    LogHelper.Warn(axis.FullPath, "轴收发块未配置，未登记 PLC 数据块");
                 }
             }
         }
