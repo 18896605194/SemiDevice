@@ -7,8 +7,6 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// AI 值监控组件：上下限报警、预警带，超限/出预警带持续满 DurationMs 才报（报警防抖，EC）；可选监控使能 DO 门控。
-/// 公共组件：装进哪个模块都一样用，报警算在装它的模块头上（模块的 HasAlarm 自动包含）。
-/// AI 经 IoComponent 按索引读工程值（点表里得有这个索引，标定也在点表）；读不到（PLC 没连）这一拍不判。
 /// </summary>
 [Component(description: "AI 值监控组件")]
 public class AiSensorComponent : ComponentBase

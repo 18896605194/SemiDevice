@@ -3,6 +3,7 @@ using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
+using xyz.Components.Enums;
 using xyz.Components.Wafers;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
@@ -47,35 +48,39 @@ public class WaferManager : ComponentBase
 
     #endregion
 
-    #region 流水入库（装配时按 SC 开；直接 new 出来的账本不碰数据库）
+    #region EC
 
-    // ⚠ 这一段里凡是连数据库的（PrepareTodayTable / WriteHistoryLoopAsync / CleanupHistory）
+    [VariableMark(VariableType.EC, ValueFormat.Int, "条", "1", "1000", "64", "晶圆流水入库批量：写库线程每次最多攒这么多条写一次")]
+    public int HistoryBatchSize
+    {
+        get { return GetEcInt(nameof(HistoryBatchSize)); }
+        set { SetEcInt(nameof(HistoryBatchSize), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, "条", "100", "100000", "1000", "入库积压告警：待写库的流水攒到这个条数的整数倍时记一次告警日志")]
+    public int HistoryBacklogWarning
+    {
+        get { return GetEcInt(nameof(HistoryBacklogWarning)); }
+        set { SetEcInt(nameof(HistoryBacklogWarning), value); }
+    }
+
+    #endregion
+
+    #region 流水入库（装配时按 SC 开；直接 new 出来的账本不碰数据库；批量、积压告警是 EC）
+
+    // ⚠ 这一段里凡是连数据库的（WriteHistoryLoopAsync / CleanupIfDayChanged / CleanupHistory）
     //   一律不许在 lock (_gate) 里面调：磁盘一卡，所有设备线程就全堵在账本锁上。
     //   写账的地方都是出了锁、拿到 snapshot 之后再 RecordHistory，只入队不写库。
-
-    /// <summary>一次最多攒这么多行再写，避免一行一次 IO。</summary>
-    private const int HistoryBatchSize = 64;
-
-    /// <summary>积压到这个条数的整数倍时记一次告警。</summary>
-    private const int HistoryBacklogWarning = 1000;
-
-    /// <summary>清理间隔：一天跑一次。</summary>
-    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(24);
-
-    /// <summary>开机第一次清理延后一分钟：让 sc.xml 整棵树装完，别在装配途中连库。</summary>
-    private static readonly TimeSpan StartupCleanupDelay = TimeSpan.FromMinutes(1);
 
     /// <summary>null = 不落库（没装配，或 SC 里关了）。</summary>
     private Channel<WaferHistoryEntity>? _historyRows;
 
-    private Timer? _cleanupTimer;
     private int _historyPending;
-    private DateTime _historyPreparedDay = DateTime.MinValue;
 
     /// <summary>
     /// 装配读完 SC 后开流水队列与写库线程；EnableHistory=False 就不开，整个账本不碰数据库。
-    /// 这里不建表：sc.xml 里 Database 节点万一排在账本后面，这会儿连接还没注册，
-    /// 建表就建到默认库去了。等真有流水要写（那时整棵树早装完了）再建。
+    /// 这里不建表也不连库：日表由实体上的 [SplitTable] 让 ORM 插入时自动建；
+    /// sc.xml 里 Database 节点万一排在账本后面，这会儿连接还没注册，等真有流水要写（那时整棵树早装完了）再碰库。
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
@@ -89,7 +94,6 @@ public class WaferManager : ComponentBase
         var rows = Channel.CreateUnbounded<WaferHistoryEntity>(new UnboundedChannelOptions { SingleReader = true });
         _historyRows = rows;
         _ = Task.Run(() => WriteHistoryLoopAsync(rows));
-        _cleanupTimer = new Timer(_ => CleanupHistory(), null, StartupCleanupDelay, CleanupInterval);
     }
 
     /// <summary>
@@ -98,8 +102,6 @@ public class WaferManager : ComponentBase
     public void StopHistory()
     {
         _historyRows?.Writer.TryComplete();
-        _cleanupTimer?.Dispose();
-        _cleanupTimer = null;
     }
 
     /// <summary>
@@ -107,7 +109,8 @@ public class WaferManager : ComponentBase
     /// </summary>
     private void RecordHistory(WaferHistoryAction action, WaferInfo wafer, string? fromModule = null, int? fromSlot = null)
     {
-        if (_historyRows is not { } rows)
+        var rows = _historyRows;
+        if (rows is null)
         {
             return;
         }
@@ -135,22 +138,24 @@ public class WaferManager : ComponentBase
         }
 
         int pending = Interlocked.Increment(ref _historyPending);
-        if (pending > 0 && pending % HistoryBacklogWarning == 0)
+        int backlogWarning = HistoryBacklogWarning;
+        if (backlogWarning > 0 && pending > 0 && pending % backlogWarning == 0)
         {
             LogHelper.Warn(Name, $"晶圆流水积压 {pending} 行，检查数据库是否卡住");
         }
     }
 
     /// <summary>
-    /// 写库后台线程：攒一批写一次。库挂了只记日志丢这批，账照记、设备照跑。
+    /// 写库循环：攒一批写一次。库挂了只记日志丢这批，账照记、设备照跑；队列关了（StopHistory）写完剩下的就退出。
     /// </summary>
     private async Task WriteHistoryLoopAsync(Channel<WaferHistoryEntity> rows)
     {
-        var batch = new List<WaferHistoryEntity>(HistoryBatchSize);
+        var batch = new List<WaferHistoryEntity>();
         while (await rows.Reader.WaitToReadAsync())
         {
             batch.Clear();
-            while (batch.Count < HistoryBatchSize && rows.Reader.TryRead(out var row))
+            int batchSize = Math.Max(1, HistoryBatchSize);
+            while (batch.Count < batchSize && rows.Reader.TryRead(out var row))
             {
                 Interlocked.Decrement(ref _historyPending);
                 batch.Add(row);
@@ -163,7 +168,8 @@ public class WaferManager : ComponentBase
 
             try
             {
-                PrepareTodayTable();
+                CleanupIfDayChanged();
+                // 当天的日表不用建：实体上的 [SplitTable] 让 ORM 按 OccurredAt 分流、缺表自动建。
                 using var db = XyzDb.Create(HistoryDatabase);
                 db.Insertable(batch).SplitTable().ExecuteCommand();
             }
@@ -172,55 +178,6 @@ public class WaferManager : ComponentBase
                 // 写库失败不能拖住设备：丢这一批并记日志，账本本身不受影响。
                 LogHelper.Warn(Name, $"晶圆流水写库失败，丢弃 {batch.Count} 行: {exception.Message}");
             }
-        }
-    }
-
-    /// <summary>
-    /// 建当天的分表；跨天后写下一批之前再建一次。
-    /// </summary>
-    private void PrepareTodayTable()
-    {
-        if (_historyPreparedDay == DateTime.Today)
-        {
-            return;
-        }
-
-        if (!XyzDb.IsRegistered(HistoryDatabase))
-        {
-            LogHelper.Warn(Name, $"晶圆流水库 {HistoryDatabase} 没在 sc.xml 的 Database 节点里配，暂时落到默认库");
-        }
-
-        using var db = XyzDb.Create(HistoryDatabase);
-        db.CodeFirst.SplitTables().InitTables<WaferHistoryEntity>();
-        _historyPreparedDay = DateTime.Today;
-    }
-
-    /// <summary>
-    /// 清理过期流水：按天分表，直接删整张过期的日表，不用逐行删；失败只记日志，下次再试。
-    /// </summary>
-    private void CleanupHistory()
-    {
-        try
-        {
-            var deadline = DateTime.Today.AddDays(-HistoryKeepDays);
-            using var db = XyzDb.Create(HistoryDatabase);
-            var expired = db.SplitHelper<WaferHistoryEntity>().GetTables()
-                .Where(table => table.Date < deadline)
-                .ToList();
-
-            foreach (var table in expired)
-            {
-                db.DbMaintenance.DropTable(table.TableName);
-            }
-
-            if (expired.Count > 0)
-            {
-                LogHelper.Info($"[{Name}] 清理晶圆流水 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
-            }
-        }
-        catch (Exception exception)
-        {
-            LogHelper.Warn(Name, $"清理晶圆流水失败: {exception.Message}");
         }
     }
 
@@ -706,4 +663,59 @@ public class WaferManager : ComponentBase
         LogHelper.Error(Name, $"晶圆账: {message}");
         RaiseAlarm(WaferLedgerAlarm);
     }
+
+    #region 过期流水清理（一天一次：跨天后写第一批之前顺手清；平时不用看）
+
+    private DateTime _historyCleanedDay = DateTime.MinValue;
+
+    /// <summary>
+    /// 跨天了（含开机第一批）就清一次过期日表；平时只是比一下日期，不碰库。
+    /// 不用定时器：有新流水要写、又跨了天，才在写之前清——没流水写就没表在长，也不用清。
+    /// </summary>
+    private void CleanupIfDayChanged()
+    {
+        if (_historyCleanedDay == DateTime.Today)
+        {
+            return;
+        }
+
+        _historyCleanedDay = DateTime.Today;
+        if (!XyzDb.IsRegistered(HistoryDatabase))
+        {
+            LogHelper.Warn(Name, $"晶圆流水库 {HistoryDatabase} 没在 sc.xml 的 Database 节点里配，落到默认库");
+        }
+
+        CleanupHistory();
+    }
+
+    /// <summary>
+    /// 清理过期流水：按天分表，直接删整张过期的日表，不用逐行删；失败只记日志，下次跨天再试。
+    /// </summary>
+    private void CleanupHistory()
+    {
+        try
+        {
+            var deadline = DateTime.Today.AddDays(-HistoryKeepDays);
+            using var db = XyzDb.Create(HistoryDatabase);
+            var expired = db.SplitHelper<WaferHistoryEntity>().GetTables()
+                .Where(table => table.Date < deadline)
+                .ToList();
+
+            foreach (var table in expired)
+            {
+                db.DbMaintenance.DropTable(table.TableName);
+            }
+
+            if (expired.Count > 0)
+            {
+                LogHelper.Info($"[{Name}] 清理晶圆流水 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
+            }
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Warn(Name, $"清理晶圆流水失败: {exception.Message}");
+        }
+    }
+
+    #endregion
 }
