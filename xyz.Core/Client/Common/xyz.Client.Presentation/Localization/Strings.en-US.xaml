@@ -150,8 +150,11 @@
     <sys:String x:Key="lpmanual.placed_tip">FOUP placed (Pod Placed); gray means the feedback is unavailable</sys:String>
     <sys:String x:Key="lpmanual.alarm">Alarm</sys:String>
     <sys:String x:Key="lpmanual.alarm_tip">Device hardware alarm</sys:String>
+    <sys:String x:Key="lpmanual.auto">Auto</sys:String>
+    <sys:String x:Key="lpmanual.manual">Manual</sys:String>
     <sys:String x:Key="lpmanual.auto_tip">Auto: hand off with the vehicle over E84</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual: load and unload by hand</sys:String>
+    <sys:String x:Key="lpmanual.slots">Slots</sys:String>
     <sys:String x:Key="lpmanual.state">State:</sys:String>
     <sys:String x:Key="lpmanual.online_mode">Online mode:</sys:String>
     <sys:String x:Key="lpmanual.online">Online</sys:String>
@@ -169,9 +172,9 @@
     <sys:String x:Key="robotmanual.online_tip">Online: joins automatic scheduling</sys:String>
     <sys:String x:Key="robotmanual.fact_state">State:</sys:String>
     <sys:String x:Key="robotmanual.fact_station">Station:</sys:String>
-    <sys:String x:Key="robotmanual.fact_rotation">Facing:</sys:String>
-    <sys:String x:Key="robotmanual.fact_travel">Travel:</sys:String>
-    <sys:String x:Key="robotmanual.stage_hint">Top view · station facing / travel come from the backend</sys:String>
+    <sys:String x:Key="robotmanual.fact_rotation">Direction:</sys:String>
+    <sys:String x:Key="robotmanual.fact_travel">Y:</sys:String>
+    <sys:String x:Key="robotmanual.stage_hint">Top view · station direction / Y come from the backend</sys:String>
     <sys:String x:Key="robotmanual.params">Pick parameters</sys:String>
     <sys:String x:Key="robotmanual.field_arm">Arm</sys:String>
     <sys:String x:Key="robotmanual.field_station">Station</sys:String>

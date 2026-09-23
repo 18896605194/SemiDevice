@@ -1,6 +1,7 @@
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Io;
 using xyz.Configs;
 
@@ -21,6 +22,13 @@ public class IoComponent : ComponentBase
     {
         Current = this;
     }
+
+    /// <summary>
+    /// 本组件用的 PLC。Current 装配/冒烟里会后设，所以摸一次就固定，不放构造里绑。
+    /// </summary>
+    private IPlc? _plc;
+
+    private IPlc? Plc => _plc ??= PlcComponent.Current;
 
     #region SC
 
@@ -46,7 +54,7 @@ public class IoComponent : ComponentBase
     /// 采集是否在工作（SV）：PLC 连着才算。断了以后所有点都读不到（TryRead 一律 false），不会拿陈旧值当真。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "IO 采集是否在工作")]
-    public bool IsCollecting => PlcComponent.Current?.IsConnected ?? false;
+    public bool IsCollecting => Plc?.IsConnected ?? false;
 
     #endregion
 
@@ -90,7 +98,7 @@ public class IoComponent : ComponentBase
     {
         on = false;
         var point = Di.Find(index);
-        var plc = PlcComponent.Current;
+        var plc = Plc;
         if (point is null || plc is null)
         {
             return false;
@@ -106,7 +114,7 @@ public class IoComponent : ComponentBase
     {
         on = false;
         var point = Do.Find(index);
-        var plc = PlcComponent.Current;
+        var plc = Plc;
         if (point is null || plc is null)
         {
             return false;
@@ -121,7 +129,7 @@ public class IoComponent : ComponentBase
     public bool WriteDo(int index, bool on)
     {
         var point = Do.Find(index);
-        var plc = PlcComponent.Current;
+        var plc = Plc;
         if (point is null || plc is null)
         {
             return false;
@@ -137,7 +145,7 @@ public class IoComponent : ComponentBase
     {
         value = 0;
         var point = Ai.Find(index);
-        var plc = PlcComponent.Current;
+        var plc = Plc;
         if (point is null || plc is null || !plc.TryReadAi(point.Index, out double raw))
         {
             return false;
@@ -154,7 +162,7 @@ public class IoComponent : ComponentBase
     {
         value = 0;
         var point = Ao.Find(index);
-        var plc = PlcComponent.Current;
+        var plc = Plc;
         if (point is null || plc is null || !plc.TryReadAo(point.Index, out double raw))
         {
             return false;
@@ -170,7 +178,7 @@ public class IoComponent : ComponentBase
     public bool WriteAo(int index, double engineering)
     {
         var point = Ao.Find(index);
-        var plc = PlcComponent.Current;
+        var plc = Plc;
         if (point is null || plc is null)
         {
             return false;

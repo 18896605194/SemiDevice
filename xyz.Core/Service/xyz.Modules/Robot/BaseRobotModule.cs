@@ -268,7 +268,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 当前状态快照，状态发布与 GetState 查询共用。
     /// 未连接或停用时查询反馈（伺服使能、设备报错）不可信，置 null；手指在位保留最后一次推送值；
-    /// 当前站点及其转台方位、平移距离取最近一次发起成功的取放片，还没取放过为 北 / 0；
+    /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
     /// 站点表与轴坐标整表下推，界面（站点下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
@@ -280,9 +280,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             State = State,
             Mode = Mode,
             Station = station?.Name,
-            Rotation = station?.Rotation ?? RobotDirection.North,
-            Travel = station?.Travel ?? 0,
+            Direction = station?.Direction ?? RobotDirection.North,
+            Y = station?.Y ?? 0,
             Stations = _stations.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
+            StationInfos = _stations.Values
+                .OrderBy(station => station.Number)
+                .Select(station => new RobotStationDto
+                {
+                    Name = station.Name,
+                    Number = station.Number,
+                    Direction = station.Direction,
+                    Y = station.Y,
+                })
+                .ToList(),
             Arms = _armWafers
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new RobotArmDto { Arm = pair.Key, HasWafer = pair.Value })

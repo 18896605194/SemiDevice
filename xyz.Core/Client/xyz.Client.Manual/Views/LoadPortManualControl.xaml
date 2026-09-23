@@ -166,7 +166,7 @@
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="AUTO" />
+                            Text="{DynamicResource lpmanual.auto}" />
                     </StackPanel>
 
                     <!--  MANUAL：LoadPort Access Mode = Manual  -->
@@ -191,7 +191,7 @@
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkSecondaryText}"
-                            Text="MANUAL" />
+                            Text="{DynamicResource lpmanual.manual}" />
                     </StackPanel>
                 </UniformGrid>
 

@@ -83,7 +83,7 @@
                                 FontSize="{DynamicResource Size10}"
                                 FontWeight="SemiBold"
                                 Foreground="{DynamicResource DarkDisabledText}"
-                                Text="SLOTS" />
+                                Text="{DynamicResource lpmanual.slots}" />
                         </StackPanel>
                     </Grid>
                 </Border>

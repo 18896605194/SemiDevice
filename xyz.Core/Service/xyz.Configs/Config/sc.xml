@@ -156,27 +156,28 @@
 				<Value Name="NetPort" Value="9000" />
 				<Value Name="Axes" Value="X,Z,Theta,Arm1,Arm2" />
 			</Setting>
-			<!-- 站点表：每个站点一个子节点。Number 设备站点号；Rotation 转台方位（North/East/South/West）；Travel 平移距离 -->
+			<!-- 站点表：每个站点一个子节点（LoadPort / 腔体各编站点号）。
+			     Number 设备站点号（正整数）；Y 机械手伸出距离（数值）；Direction 伸出方向（RobotDirection 枚举：North/East/South/West） -->
 			<Setting Name="Stations">
 				<Setting Name="LoadPort1">
 					<Value Name="Number" Value="1" />
-					<Value Name="Rotation" Value="South" />
-					<Value Name="Travel" Value="20" />
+					<Value Name="Y" Value="20" />
+					<Value Name="Direction" Value="South" />
 				</Setting>
 				<Setting Name="LoadPort2">
 					<Value Name="Number" Value="2" />
-					<Value Name="Rotation" Value="South" />
-					<Value Name="Travel" Value="0" />
+					<Value Name="Y" Value="0" />
+					<Value Name="Direction" Value="South" />
 				</Setting>
 				<Setting Name="Chamber1">
 					<Value Name="Number" Value="3" />
-					<Value Name="Rotation" Value="North" />
-					<Value Name="Travel" Value="0" />
+					<Value Name="Y" Value="0" />
+					<Value Name="Direction" Value="North" />
 				</Setting>
 				<Setting Name="Chamber2">
 					<Value Name="Number" Value="4" />
-					<Value Name="Rotation" Value="North" />
-					<Value Name="Travel" Value="0" />
+					<Value Name="Y" Value="0" />
+					<Value Name="Direction" Value="North" />
 				</Setting>
 			</Setting>
 		</Setting>
@@ -188,7 +189,7 @@
 		<Value Name="IsEnable" Value="True" />
 	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
-	     站点号/转台方位/平移距离不在这儿，在 Robot 的 Stations 里配。
+	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。
 	     子组件层级按物理装配走：升降气缸和喷嘴装在摆臂上，就挂摆臂节点下面——
 	     配置上一眼看出哪路喷嘴在哪条臂，报警也按路径自动算到摆臂、再算到腔体。
 	     控制上它们跟轴是平级的，谁也不调谁，协调在工艺配方里。

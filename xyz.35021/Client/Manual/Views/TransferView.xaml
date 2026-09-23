@@ -3,24 +3,219 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
-    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-    xmlns:models="clr-namespace:xyz.Client.Presentation.Models;assembly=xyz.Client.Presentation">
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
     <materialDesign:Card Margin="8" Style="{DynamicResource DefaultCardStyle}">
-        <controls:Robot
-            ArmCount="2"
-            ArmType="Linear"
-            Rotation="South"
-            Travel="120">
-            <controls:Robot.Arms>
-                <x:Array Type="{x:Type models:RobotArmModel}">
-                    <models:RobotArmModel Arm="1" Extension="1">
-                        <models:RobotArmModel.Wafer>
-                            <models:WaferModel LpSlot="05" State="Transfer" />
-                        </models:RobotArmModel.Wafer>
-                    </models:RobotArmModel>
-                    <models:RobotArmModel Arm="2" Extension="1" />
-                </x:Array>
-            </controls:Robot.Arms>
-        </controls:Robot>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="1.1*" />
+                <RowDefinition Height="1.2*" />
+                <RowDefinition Height="1.1*" />
+            </Grid.RowDefinitions>
+
+            <!--  ① 上：腔体（站点 3/4，North）  -->
+            <ItemsControl
+                Grid.Row="0"
+                Margin="8,4"
+                ItemsSource="{Binding Robot.NorthStations}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="6">
+                            <controls:ChamberInfoCard
+                                CreateEnable="False"
+                                DeleteEnable="False"
+                                IsOnline="OFFLINE"
+                                Recipe=""
+                                RecipeState=""
+                                RotationSpeed="0"
+                                ShutterState=""
+                                State=""
+                                StatusOn="False"
+                                Step=""
+                                StepTime=""
+                                RecipeTime=""
+                                Title="{Binding Title}" />
+                            <Border
+                                Margin="12"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Padding="10,4"
+                                Background="{DynamicResource PrimaryAccent}"
+                                CornerRadius="10">
+                                <TextBlock
+                                    FontSize="{DynamicResource Size14}"
+                                    FontWeight="Bold"
+                                    Foreground="White"
+                                    Text="{Binding NumberText}" />
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!--  ② 中：机械手 + 站点角标（与手动页同一套方位）  -->
+            <Grid Grid.Row="1" Margin="16,4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ItemsControl
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    HorizontalAlignment="Center"
+                    ItemsSource="{Binding Robot.NorthStations}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border
+                                Margin="4,0"
+                                Padding="10,4"
+                                Background="#2A313A"
+                                BorderBrush="{DynamicResource DarkBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border
+                                        MinWidth="24"
+                                        Padding="5,1"
+                                        Background="{DynamicResource PrimaryAccent}"
+                                        CornerRadius="8">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            FontSize="{DynamicResource Size13}"
+                                            FontWeight="Bold"
+                                            Foreground="White"
+                                            Text="{Binding NumberText}" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size13}"
+                                        Foreground="{DynamicResource DarkPrimaryText}"
+                                        Text="{Binding Title}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Viewbox
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    MaxWidth="300"
+                    MaxHeight="300"
+                    Stretch="Uniform">
+                    <controls:Robot
+                        ArmCount="{Binding Robot.ArmCount}"
+                        ArmType="Linear"
+                        Arms="{Binding Robot.Arms}"
+                        Rotation="{Binding Robot.Direction}"
+                        Travel="{Binding Robot.Y}" />
+                </Viewbox>
+
+                <ItemsControl
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    HorizontalAlignment="Center"
+                    ItemsSource="{Binding Robot.SouthStations}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border
+                                Margin="4,0"
+                                Padding="10,4"
+                                Background="#2A313A"
+                                BorderBrush="{DynamicResource DarkBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border
+                                        MinWidth="24"
+                                        Padding="5,1"
+                                        Background="{DynamicResource PrimaryAccent}"
+                                        CornerRadius="8">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            FontSize="{DynamicResource Size13}"
+                                            FontWeight="Bold"
+                                            Foreground="White"
+                                            Text="{Binding NumberText}" />
+                                    </Border>
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size13}"
+                                        Foreground="{DynamicResource DarkPrimaryText}"
+                                        Text="{Binding Title}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+
+            <!--  ③ 下：LoadPort（站点 1/2，South）  -->
+            <ItemsControl
+                Grid.Row="2"
+                Margin="8,4"
+                ItemsSource="{Binding Robot.SouthStations}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="6">
+                            <controls:LoadPortInfoCard
+                                Alarm="False"
+                                AutoMode="True"
+                                CreateEnable="False"
+                                DeleteEnable="False"
+                                IsConnected="False"
+                                IsOnline="OFFLINE"
+                                Placed="False"
+                                Present="False"
+                                RotationSpeed="0"
+                                SlotCount="0"
+                                Title="{Binding Title}" />
+                            <Border
+                                Margin="12"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Padding="10,4"
+                                Background="{DynamicResource PrimaryAccent}"
+                                CornerRadius="10">
+                                <TextBlock
+                                    FontSize="{DynamicResource Size14}"
+                                    FontWeight="Bold"
+                                    Foreground="White"
+                                    Text="{Binding NumberText}" />
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
     </materialDesign:Card>
 </UserControl>

@@ -24,14 +24,17 @@ public class RobotDto
     /// <summary>当前站点：最近一次发起成功的取放片站点名（如 LoadPort1）；还没取放过为 null。</summary>
     public string? Station { get; set; }
 
-    /// <summary>当前站点在 sc.xml 站点表里配置的转台方位，界面显示机械手朝哪。</summary>
-    public RobotDirection Rotation { get; set; }
+    /// <summary>当前站点在 sc.xml 站点表里配置的伸出方向（RobotDirection），界面显示机械手朝哪伸出。</summary>
+    public RobotDirection Direction { get; set; }
 
-    /// <summary>当前站点在 sc.xml 站点表里配置的平移距离，界面显示机械手去哪。</summary>
-    public double Travel { get; set; }
+    /// <summary>当前站点在 sc.xml 站点表里配置的伸出距离 Y（数值），界面显示机械手伸出多远。</summary>
+    public double Y { get; set; }
 
-    /// <summary>站点表（sc.xml 配置）里的全部站点名，界面下拉用；站点/方位/平移都由后端下发，界面不写死。</summary>
+    /// <summary>站点表（sc.xml 配置）里的全部站点名，界面下拉用；站点号/伸出方向/伸出距离都由后端下发，界面不写死。</summary>
     public List<string> Stations { get; set; } = [];
+
+    /// <summary>站点明细（含站点号 Number / 伸出距离 Y / 伸出方向 Direction），调度图与站点角标用；与 Stations 同源。</summary>
+    public List<RobotStationDto> StationInfos { get; set; } = [];
 
     /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
@@ -79,7 +82,7 @@ public class RobotDto
             return true;
         }
 
-        if (Station != previous.Station || Rotation != previous.Rotation || Travel != previous.Travel)
+        if (Station != previous.Station || Direction != previous.Direction || Y != previous.Y)
         {
             return true;
         }
@@ -92,6 +95,24 @@ public class RobotDto
         for (int i = 0; i < Stations.Count; i++)
         {
             if (Stations[i] != previous.Stations[i])
+            {
+                return true;
+            }
+        }
+
+        if (StationInfos.Count != previous.StationInfos.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < StationInfos.Count; i++)
+        {
+            var current = StationInfos[i];
+            var last = previous.StationInfos[i];
+            if (current.Name != last.Name
+                || current.Number != last.Number
+                || current.Direction != last.Direction
+                || current.Y != last.Y)
             {
                 return true;
             }
@@ -126,6 +147,24 @@ public class RobotDto
 
         return false;
     }
+}
+
+/// <summary>
+/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向，供界面画站点角标与调度图。
+/// </summary>
+public class RobotStationDto
+{
+    /// <summary>站点名（与模块名一致，如 LoadPort1）。</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>设备站点号（sc.xml Number，如 1/2/3/4）。</summary>
+    public int Number { get; set; }
+
+    /// <summary>机械手伸出方向（sc.xml Direction）：North=腔体侧，South=LoadPort 侧。</summary>
+    public RobotDirection Direction { get; set; }
+
+    /// <summary>机械手伸出距离（sc.xml Y，数值）。</summary>
+    public double Y { get; set; }
 }
 
 /// <summary>

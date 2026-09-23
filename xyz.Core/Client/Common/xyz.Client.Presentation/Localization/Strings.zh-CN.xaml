@@ -151,8 +151,11 @@
     <sys:String x:Key="lpmanual.placed_tip">FOUP 放置到位（Pod Placed）；灰色表示反馈不可用</sys:String>
     <sys:String x:Key="lpmanual.alarm">报警</sys:String>
     <sys:String x:Key="lpmanual.alarm_tip">设备硬件报警</sys:String>
+    <sys:String x:Key="lpmanual.auto">自动</sys:String>
+    <sys:String x:Key="lpmanual.manual">手动</sys:String>
     <sys:String x:Key="lpmanual.auto_tip">Auto：搬运车经 E84 自动交接</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual：人工放取</sys:String>
+    <sys:String x:Key="lpmanual.slots">槽</sys:String>
     <sys:String x:Key="lpmanual.state">状态：</sys:String>
     <sys:String x:Key="lpmanual.online_mode">在线模式：</sys:String>
     <sys:String x:Key="lpmanual.online">在线</sys:String>
@@ -170,9 +173,9 @@
     <sys:String x:Key="robotmanual.online_tip">Online：参与自动调度</sys:String>
     <sys:String x:Key="robotmanual.fact_state">状态：</sys:String>
     <sys:String x:Key="robotmanual.fact_station">站点：</sys:String>
-    <sys:String x:Key="robotmanual.fact_rotation">方位：</sys:String>
-    <sys:String x:Key="robotmanual.fact_travel">平移：</sys:String>
-    <sys:String x:Key="robotmanual.stage_hint">俯视 · 站点方位 / 平移由后端配置下发</sys:String>
+    <sys:String x:Key="robotmanual.fact_rotation">伸出方向：</sys:String>
+    <sys:String x:Key="robotmanual.fact_travel">伸出 Y：</sys:String>
+    <sys:String x:Key="robotmanual.stage_hint">俯视 · 站点伸出方向 / Y 由后端配置下发</sys:String>
     <sys:String x:Key="robotmanual.params">取放参数</sys:String>
     <sys:String x:Key="robotmanual.field_arm">手臂</sys:String>
     <sys:String x:Key="robotmanual.field_station">站点</sys:String>

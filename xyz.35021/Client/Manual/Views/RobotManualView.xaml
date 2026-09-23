@@ -4,11 +4,12 @@
              xmlns:manual="clr-namespace:xyz.Client.Manual.Views;assembly=xyz.Client.Manual"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
 
-    <!--  35021 Robot 手动界面：固定 2 列（最多 2 个 Robot），有几个就从左到右填，空位留白。  -->
+    <!--  35021 Robot 手动界面：1 个铺满整行，2 个左右各半；再多按行换列。  -->
     <ItemsControl ItemsSource="{Binding Robots}">
         <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-                <UniformGrid Columns="2" Rows="1" />
+                <!--  Rows 固定 1，Columns 跟条目数走：1 个整宽，2 个左右  -->
+                <UniformGrid Rows="1" />
             </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>

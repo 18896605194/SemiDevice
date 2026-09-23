@@ -7,7 +7,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Manual.Models;
 
 /// <summary>
-/// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，站点表 / 去哪 / 朝哪（Stations / Travel / Rotation）、轴坐标都由后端按 sc.xml 配置推过来。
+/// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，站点表 / 伸出方向 Direction / 伸出距离 Y（Stations / Direction / Y）、轴坐标都由后端按 sc.xml 配置推过来。
 /// 状态推送来了就地刷新：手臂按手指号保留同一实例，控件的运动动画不会因为换实例被打断。
 /// </summary>
 public class RobotModel : ObservableObject
@@ -102,28 +102,28 @@ public class RobotModel : ObservableObject
         private set => SetProperty(ref _station, value);
     }
 
-    private RobotDirection _rotation;
+    private RobotDirection _direction;
 
-    /// <summary>转台方位：当前站点在 sc.xml 里配置的 Rotation。</summary>
-    public RobotDirection Rotation
+    /// <summary>伸出方向：当前站点在 sc.xml 里配置的 Direction（<see cref="RobotDirection"/>）。</summary>
+    public RobotDirection Direction
     {
-        get => _rotation;
+        get => _direction;
         private set
         {
-            if (SetProperty(ref _rotation, value))
+            if (SetProperty(ref _direction, value))
             {
                 OnPropertyChanged(nameof(RotationText));
             }
         }
     }
 
-    private double _travel;
+    private double _y;
 
-    /// <summary>水平平移距离：当前站点在 sc.xml 里配置的 Travel。</summary>
-    public double Travel
+    /// <summary>伸出距离：当前站点在 sc.xml 里配置的 Y（数值）。</summary>
+    public double Y
     {
-        get => _travel;
-        private set => SetProperty(ref _travel, value);
+        get => _y;
+        private set => SetProperty(ref _y, value);
     }
 
     private List<string> _stations = [];
@@ -134,6 +134,40 @@ public class RobotModel : ObservableObject
         get => _stations;
         private set => SetProperty(ref _stations, value);
     }
+
+    private List<RobotStationModel> _stationMarks = [];
+
+    /// <summary>站点角标（站点号/名称/方位），转台图四周标注用。</summary>
+    public List<RobotStationModel> StationMarks
+    {
+        get => _stationMarks;
+        private set
+        {
+            if (SetProperty(ref _stationMarks, value))
+            {
+                OnPropertyChanged(nameof(NorthStations));
+                OnPropertyChanged(nameof(SouthStations));
+                OnPropertyChanged(nameof(EastStations));
+                OnPropertyChanged(nameof(WestStations));
+            }
+        }
+    }
+
+    /// <summary>北侧（腔体侧）站点。</summary>
+    public List<RobotStationModel> NorthStations =>
+        StationMarks.Where(mark => mark.Direction == RobotDirection.North).ToList();
+
+    /// <summary>南侧（LoadPort 侧）站点。</summary>
+    public List<RobotStationModel> SouthStations =>
+        StationMarks.Where(mark => mark.Direction == RobotDirection.South).ToList();
+
+    /// <summary>东侧站点。</summary>
+    public List<RobotStationModel> EastStations =>
+        StationMarks.Where(mark => mark.Direction == RobotDirection.East).ToList();
+
+    /// <summary>西侧站点。</summary>
+    public List<RobotStationModel> WestStations =>
+        StationMarks.Where(mark => mark.Direction == RobotDirection.West).ToList();
 
     private int _armCount = 2;
 
@@ -185,18 +219,18 @@ public class RobotModel : ObservableObject
         }
     }
 
-    /// <summary>转台方位文字（按当前语言）。</summary>
+    /// <summary>伸出方向文字（按当前语言）。</summary>
     public string RotationText
     {
         get
         {
-            switch (Rotation)
+            switch (Direction)
             {
                 case RobotDirection.North: return L10n.Get("robot.direction.north");
                 case RobotDirection.East: return L10n.Get("robot.direction.east");
                 case RobotDirection.South: return L10n.Get("robot.direction.south");
                 case RobotDirection.West: return L10n.Get("robot.direction.west");
-                default: return Rotation.ToString();
+                default: return Direction.ToString();
             }
         }
     }
@@ -260,9 +294,28 @@ public class RobotModel : ObservableObject
         IsServoOn = dto.IsServoOn;
         DeviceError = dto.DeviceError;
         Station = dto.Station;
-        Rotation = dto.Rotation;
-        Travel = dto.Travel;
+        Direction = dto.Direction;
+        Y = dto.Y;
         Stations = [.. dto.Stations];
+        StationMarks = dto.StationInfos.Count > 0
+            ? dto.StationInfos
+                .OrderBy(info => info.Number)
+                .Select(info => new RobotStationModel
+                {
+                    Name = info.Name,
+                    Number = info.Number,
+                    Direction = info.Direction,
+                    Y = info.Y,
+                })
+                .ToList()
+            : dto.Stations
+                .Select((name, index) => new RobotStationModel
+                {
+                    Name = name,
+                    Number = index + 1,
+                    Direction = RobotDirection.North,
+                })
+                .ToList();
         AxisPositions = dto.AxisPositions
             .Select(axis => new RobotAxisModel { Name = axis.Name, Position = axis.Position })
             .ToList();

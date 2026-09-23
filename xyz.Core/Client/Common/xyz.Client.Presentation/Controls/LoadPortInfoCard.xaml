@@ -1,0 +1,289 @@
+<UserControl
+    x:Class="xyz.Client.Presentation.Controls.LoadPortInfoCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch"
+    d:DesignHeight="560"
+    d:DesignWidth="1000"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    UseLayoutRounding="True"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/Color.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/DarkColors.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/FontSize.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/BorderStyles.xaml" />
+                <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/TextBlockStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  底栏信号灯：圆点 + 短标签，对齐手动页 LoadPortManualControl 的六灯  -->
+            <Style x:Key="LampDotStyle" TargetType="Ellipse">
+                <Setter Property="Width" Value="12" />
+                <Setter Property="Height" Value="12" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Fill" Value="#555" />
+            </Style>
+
+            <Style x:Key="LampLabelStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="4,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="{DynamicResource Size13}" />
+                <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--  底栏标题 + 状态灯；主体左花篮（sc 槽数）右 disk 圆片  -->
+    <Viewbox
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        Stretch="Uniform"
+        StretchDirection="Both">
+        <Border
+            Width="1000"
+            Height="560"
+            Padding="0"
+            Background="{DynamicResource DarkSurfaceVariantBackground}"
+            BorderBrush="{DynamicResource DarkDisabledText}"
+            BorderThickness="2"
+            CornerRadius="16">
+            <DockPanel LastChildFill="True">
+
+                <Border
+                    Height="96"
+                    Padding="32,0"
+                    BorderThickness="0,2,0,0"
+                    CornerRadius="0,0,14,14"
+                    DockPanel.Dock="Bottom"
+                    Style="{DynamicResource HeaderBarBorderStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Style="{DynamicResource PageTitleTextStyle}"
+                            Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
+
+                        <UniformGrid
+                            Grid.Column="1"
+                            Margin="24,0,8,0"
+                            Columns="6"
+                            Rows="1"
+                            VerticalAlignment="Center">
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse" BasedOn="{StaticResource LampDotStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsConnected, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Style="{DynamicResource LampLabelStyle}"
+                                    Text="{DynamicResource lpmanual.comm}" />
+                            </StackPanel>
+
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse" BasedOn="{StaticResource LampDotStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Present, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource PrimaryAccent}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Style="{DynamicResource LampLabelStyle}"
+                                    Text="{DynamicResource lpmanual.present}" />
+                            </StackPanel>
+
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse" BasedOn="{StaticResource LampDotStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Placed, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Style="{DynamicResource LampLabelStyle}"
+                                    Text="{DynamicResource lpmanual.placed}" />
+                            </StackPanel>
+
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse" BasedOn="{StaticResource LampDotStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Alarm, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Style="{DynamicResource LampLabelStyle}"
+                                    Text="{DynamicResource lpmanual.alarm}" />
+                            </StackPanel>
+
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse" BasedOn="{StaticResource LampDotStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AutoMode, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Style="{DynamicResource LampLabelStyle}"
+                                    Text="{DynamicResource lpmanual.auto}" />
+                            </StackPanel>
+
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse" BasedOn="{StaticResource LampDotStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AutoMode, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" Value="False">
+                                                    <Setter Property="Fill" Value="{DynamicResource DarkWarningStatus}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Style="{DynamicResource LampLabelStyle}"
+                                    Text="{DynamicResource lpmanual.manual}" />
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <TextBlock
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Style="{DynamicResource ConnectionStatusTextStyle}"
+                            Text="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
+                    </Grid>
+                </Border>
+
+                <Grid Margin="28,28,28,24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40*" />
+                        <ColumnDefinition Width="60*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  左：花篮槽位（槽数跟 sc 的 SlotCount，与手动页 LoadPort 同源）  -->
+                    <Border
+                        Grid.Column="0"
+                        Padding="16,12"
+                        Background="{DynamicResource DarkSurfaceBackground}"
+                        BorderBrush="{DynamicResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <ItemsControl
+                                Grid.Column="0"
+                                Margin="0,4"
+                                ItemsSource="{Binding Slots, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Rows="{Binding SlotCount, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <controls:HorizontalWafer
+                                            Margin="0,1"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource DarkBorderBrush}"
+                                            BorderThickness="1"
+                                            CommandParameter="{Binding Slot}"
+                                            CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                                            CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                                            Data="{Binding Wafer}"
+                                            DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                                            DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                                            FontSize="{DynamicResource Size10}"
+                                            Foreground="{DynamicResource DarkPrimaryText}"
+                                            Label="{Binding SlotText}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel
+                                Grid.Column="1"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    Style="{DynamicResource FieldValueTextStyle}"
+                                    Text="{Binding SlotCount, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="{DynamicResource Size10}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource DarkDisabledText}"
+                                    Text="{DynamicResource lpmanual.slots}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!--  右：与 ChamberCard 同款 disk 圆片  -->
+                    <controls:Wafer
+                        Grid.Column="1"
+                        Margin="30,0,0,0"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        BorderBrush="{DynamicResource DarkDisabledText}"
+                        BorderThickness="2"
+                        CommandParameter="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                        CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                        CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                        Data="{Binding Wafer, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                        DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                        DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                        RotationSpeed="{Binding RotationSpeed, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
+                </Grid>
+            </DockPanel>
+        </Border>
+    </Viewbox>
+</UserControl>

@@ -355,8 +355,8 @@ port.E87Callback = null;
                         Values =
                         [
                             new ValueConfig { Name = "Number", Value = "1" },
-                            new ValueConfig { Name = "Rotation", Value = "South" },
-                            new ValueConfig { Name = "Travel", Value = "20" },
+                            new ValueConfig { Name = "Y", Value = "20" },
+                            new ValueConfig { Name = "Direction", Value = "South" },
                         ],
                     },
                 ],
@@ -364,7 +364,7 @@ port.E87Callback = null;
         ],
     });
     Check(robot.TryGetStation("SmokeLP", out var lpStation) && lpStation.Number == 1
-          && lpStation.Rotation == RobotDirection.South && lpStation.Travel == 20,
+          && lpStation.Direction == RobotDirection.South && lpStation.Y == 20,
         "站点表应从 sc.xml 节点读进来");
 
     robotLedger.RegisterLocation("SmokeLP", 5);

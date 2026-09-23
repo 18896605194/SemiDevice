@@ -38,7 +38,7 @@ public interface IRobot
     #region 站点
 
     /// <summary>
-    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置（站点号、转台方位、平移距离），来自 sc.xml 本 Robot 节点下的 Stations。
+    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置（站点号 Number、伸出距离 Y、伸出方向 Direction），来自 sc.xml 本 Robot 节点下的 Stations。
     /// </summary>
     IReadOnlyDictionary<string, RobotStation> Stations { get; }
 

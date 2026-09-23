@@ -230,7 +230,7 @@
                             FontSize="{DynamicResource Size14}"
                             FontWeight="SemiBold"
                             Foreground="{DynamicResource DarkPrimaryText}"
-                            Text="{Binding Model.Travel}" />
+                            Text="{Binding Model.Y}" />
                     </StackPanel>
                 </StackPanel>
             </Grid>
@@ -243,7 +243,7 @@
                     <ColumnDefinition Width="360" />
                 </Grid.ColumnDefinitions>
 
-                <!--  ② 转台图：现有 Robot 控件，Viewbox 等比缩放铺满；站点方位 / 平移由后端 SC 经 DTO 推  -->
+                <!--  ② 转台图：Robot 控件等比缩放并限幅；站点号/名称按方位贴在四周  -->
                 <Grid Grid.Column="0" Margin="14,0,14,14">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -257,19 +257,210 @@
                         Text="{DynamicResource robotmanual.stage_hint}" />
                     <Border
                         Grid.Row="1"
-                        MinHeight="360"
+                        MinHeight="240"
                         Background="{DynamicResource DarkControlBackground}"
                         BorderBrush="{DynamicResource DarkBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                        <Viewbox Margin="12" Stretch="Uniform">
-                            <presentationControls:Robot
-                                ArmCount="{Binding Model.ArmCount}"
-                                ArmType="Linear"
-                                Arms="{Binding Model.Arms}"
-                                Rotation="{Binding Model.Rotation}"
-                                Travel="{Binding Model.Travel}" />
-                        </Viewbox>
+                        <Grid Margin="12">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  北侧站点（腔体）  -->
+                            <ItemsControl
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                HorizontalAlignment="Center"
+                                ItemsSource="{Binding Model.NorthStations}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="4,0"
+                                            Padding="8,4"
+                                            VerticalAlignment="Center"
+                                            Background="#2A313A"
+                                            BorderBrush="{DynamicResource DarkBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border
+                                                    MinWidth="22"
+                                                    Padding="4,1"
+                                                    Background="{DynamicResource PrimaryAccent}"
+                                                    CornerRadius="8">
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        FontSize="{DynamicResource Size12}"
+                                                        FontWeight="Bold"
+                                                        Foreground="White"
+                                                        Text="{Binding NumberText}" />
+                                                </Border>
+                                                <TextBlock
+                                                    Margin="6,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="{DynamicResource Size12}"
+                                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                                    Text="{Binding Title}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!--  西侧站点  -->
+                            <ItemsControl
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                ItemsSource="{Binding Model.WestStations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="0,4"
+                                            Padding="8,4"
+                                            Background="#2A313A"
+                                            BorderBrush="{DynamicResource DarkBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border
+                                                    MinWidth="22"
+                                                    Padding="4,1"
+                                                    Background="{DynamicResource PrimaryAccent}"
+                                                    CornerRadius="8">
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        FontSize="{DynamicResource Size12}"
+                                                        FontWeight="Bold"
+                                                        Foreground="White"
+                                                        Text="{Binding NumberText}" />
+                                                </Border>
+                                                <TextBlock
+                                                    Margin="6,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="{DynamicResource Size12}"
+                                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                                    Text="{Binding Title}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!--  转台图：限幅，避免在大片空白里被撑得过大  -->
+                            <Viewbox
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                MaxWidth="280"
+                                MaxHeight="280"
+                                Stretch="Uniform">
+                                <presentationControls:Robot
+                                    ArmCount="{Binding Model.ArmCount}"
+                                    ArmType="Linear"
+                                    Arms="{Binding Model.Arms}"
+                                    Rotation="{Binding Model.Direction}"
+                                    Travel="{Binding Model.Y}" />
+                            </Viewbox>
+
+                            <!--  东侧站点  -->
+                            <ItemsControl
+                                Grid.Row="1"
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                ItemsSource="{Binding Model.EastStations}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="0,4"
+                                            Padding="8,4"
+                                            Background="#2A313A"
+                                            BorderBrush="{DynamicResource DarkBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border
+                                                    MinWidth="22"
+                                                    Padding="4,1"
+                                                    Background="{DynamicResource PrimaryAccent}"
+                                                    CornerRadius="8">
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        FontSize="{DynamicResource Size12}"
+                                                        FontWeight="Bold"
+                                                        Foreground="White"
+                                                        Text="{Binding NumberText}" />
+                                                </Border>
+                                                <TextBlock
+                                                    Margin="6,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="{DynamicResource Size12}"
+                                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                                    Text="{Binding Title}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!--  南侧站点（LoadPort）  -->
+                            <ItemsControl
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                HorizontalAlignment="Center"
+                                ItemsSource="{Binding Model.SouthStations}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="4,0"
+                                            Padding="8,4"
+                                            VerticalAlignment="Center"
+                                            Background="#2A313A"
+                                            BorderBrush="{DynamicResource DarkBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border
+                                                    MinWidth="22"
+                                                    Padding="4,1"
+                                                    Background="{DynamicResource PrimaryAccent}"
+                                                    CornerRadius="8">
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        FontSize="{DynamicResource Size12}"
+                                                        FontWeight="Bold"
+                                                        Foreground="White"
+                                                        Text="{Binding NumberText}" />
+                                                </Border>
+                                                <TextBlock
+                                                    Margin="6,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="{DynamicResource Size12}"
+                                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                                    Text="{Binding Title}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
                     </Border>
                 </Grid>
 
