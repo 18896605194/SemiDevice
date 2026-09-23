@@ -28,6 +28,8 @@ public class RobotModule : BaseRobotModule, IRobot
     private QueryKind _queryKind;
     private int _queryCount;
     private bool _waferEventSubscribed;
+    private string? _queryAxis;
+    private int _axisScan;
     private readonly Stopwatch _queryWatch = new();
 
     /// <summary>当前这条只读查询问的是什么；回包按它落模块状态，不认品牌指令类型。</summary>
@@ -36,6 +38,7 @@ public class RobotModule : BaseRobotModule, IRobot
         SubscribeWaferEvent,
         ServoOn,
         DeviceError,
+        AxisPos,
     }
 
     protected override void OnScan()
@@ -102,6 +105,9 @@ public class RobotModule : BaseRobotModule, IRobot
         }
     }
 
+    /// <summary>
+    /// 轮流查：订阅（没成前）→ 报错 → 伺服 → 轴位（按轴表逐轴轮）。查询被拒就跳过这条，下拍再试。
+    /// </summary>
     private RobotCommand? CreateQueryCommand(RobotDriverComponent robot)
     {
         int count = _queryCount++;
@@ -111,14 +117,31 @@ public class RobotModule : BaseRobotModule, IRobot
             return robot.SubscribeWaferEvent();
         }
 
-        if (count % 2 == 0)
+        switch (count % 4)
         {
-            _queryKind = QueryKind.DeviceError;
-            return robot.QueryDeviceError();
+            case 0:
+                _queryKind = QueryKind.DeviceError;
+                return robot.QueryDeviceError();
+
+            case 1:
+                _queryKind = QueryKind.ServoOn;
+                return robot.QueryServoOn();
+
+            case 2:
+            case 3:
+                _queryKind = QueryKind.AxisPos;
+                var axisList = robot.AxisList;
+                if (axisList.Count == 0)
+                {
+                    return null;
+                }
+
+                // 每拍轮一根轴：X、Z、Theta、Arm1、Arm2……按轴表顺序滚。
+                _queryAxis = axisList[_axisScan++ % axisList.Count];
+                return robot.QueryAxisPos(_queryAxis);
         }
 
-        _queryKind = QueryKind.ServoOn;
-        return robot.QueryServoOn();
+        return null;
     }
 
     /// <summary>
@@ -150,6 +173,14 @@ public class RobotModule : BaseRobotModule, IRobot
                 if (response.IsSuccess)
                 {
                     DeviceError = response.DeviceError;
+                }
+
+                break;
+
+            case QueryKind.AxisPos:
+                if (response.IsSuccess && response.Position.HasValue && _queryAxis is not null)
+                {
+                    NoteAxisPos(_queryAxis, response.Position.Value);
                 }
 
                 break;

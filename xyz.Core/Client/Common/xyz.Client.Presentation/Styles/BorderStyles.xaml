@@ -82,6 +82,15 @@
         <Setter Property="Background" Value="{StaticResource DarkBorderBrush}" />
     </Style>
 
+    <!--  查询结果小面板（如手动页轴位表）：浅底细边圆角，里面按"标签 / 数值"两列排  -->
+    <Style x:Key="ReadoutBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="8,6" />
+    </Style>
+
     <!--  主窗口的通栏（顶栏、底部导航）：贴满左右，不做成浮起的圆角卡片  -->
     <Style x:Key="ShellBarBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Card.Background}" />

@@ -38,12 +38,22 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     private readonly ConcurrentDictionary<int, bool> _armWafers = new();
 
+    private readonly ConcurrentDictionary<string, double> _axisPositions = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// 手指上是否有片：驱动手指在位主动推送刷新；尚未收到该手指的推送为 null。
     /// </summary>
     public bool? HasWafer(int arm)
     {
         return _armWafers.TryGetValue(arm, out bool hasWafer) ? hasWafer : null;
+    }
+
+    /// <summary>
+    /// 记下轴坐标。扫描查询回包时调，只写缓存不做重活。
+    /// </summary>
+    protected void NoteAxisPos(string axis, double position)
+    {
+        _axisPositions[axis] = position;
     }
 
 
@@ -258,7 +268,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 当前状态快照，状态发布与 GetState 查询共用。
     /// 未连接或停用时查询反馈（伺服使能、设备报错）不可信，置 null；手指在位保留最后一次推送值；
-    /// 当前站点及其转台方位、平移距离取最近一次发起成功的取放片，还没取放过为 北 / 0。
+    /// 当前站点及其转台方位、平移距离取最近一次发起成功的取放片，还没取放过为 北 / 0；
+    /// 站点表与轴坐标整表下推，界面（站点下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
@@ -267,9 +278,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         {
             Name = Name,
             State = State,
+            Mode = Mode,
             Station = station?.Name,
             Rotation = station?.Rotation ?? RobotDirection.North,
             Travel = station?.Travel ?? 0,
+            Stations = _stations.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
             Arms = _armWafers
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new RobotArmDto { Arm = pair.Key, HasWafer = pair.Value })
@@ -280,6 +293,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         if (robot is not null)
         {
             dto.IsConnected = robot.IsConnected;
+
+            // 轴坐标按轴表顺序，还没查到的轴不下发。
+            foreach (var axis in robot.AxisList)
+            {
+                if (_axisPositions.TryGetValue(axis, out double position))
+                {
+                    dto.AxisPositions.Add(new RobotAxisPositionDto { Name = axis, Position = position });
+                }
+            }
         }
 
         if (dto.IsConnected && IsEnable)

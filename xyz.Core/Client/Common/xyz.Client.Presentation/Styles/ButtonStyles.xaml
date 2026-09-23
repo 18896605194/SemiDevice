@@ -54,6 +54,62 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  分段选择组（如手动页选手臂）：一排互斥小块，选中填强调色；配 CompactSegmentItemStyle 用  -->
+    <Style
+        x:Key="CompactSegmentListBoxStyle"
+        BasedOn="{StaticResource MaterialDesignListBox}"
+        TargetType="ListBox">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    </Style>
+
+    <!--  分段选择块：选中实心强调色，块与块之间一条细线  -->
+    <Style x:Key="CompactSegmentItemStyle" TargetType="ListBoxItem">
+        <Setter Property="MinWidth" Value="40" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border
+                        x:Name="Chrome"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="0,0,1,0">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#14FFFFFF" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource DarkAccent}" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style
         x:Key="SuccessButtonStyle"
         BasedOn="{StaticResource DefaultButtonStyle}"

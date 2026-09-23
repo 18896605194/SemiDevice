@@ -25,6 +25,8 @@
     <sys:String x:Key="module.state.homing">Homing</sys:String>
     <sys:String x:Key="module.state.clamping">Clamping</sys:String>
     <sys:String x:Key="module.state.unclamping">Unclamping</sys:String>
+    <sys:String x:Key="module.state.picking">Picking</sys:String>
+    <sys:String x:Key="module.state.placing">Placing</sys:String>
     <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
@@ -33,6 +35,10 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} carrier ID read not started (no reader, reader disconnected, or previous read still in progress)</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
+    <sys:String x:Key="robot.direction.north">North</sys:String>
+    <sys:String x:Key="robot.direction.east">East</sys:String>
+    <sys:String x:Key="robot.direction.south">South</sys:String>
+    <sys:String x:Key="robot.direction.west">West</sys:String>
 
     <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
@@ -152,6 +158,33 @@
     <sys:String x:Key="lpmanual.offline">Offline</sys:String>
     <sys:String x:Key="lpmanual.carrier_id">Carrier ID:</sys:String>
 
+    <!-- Robot manual page -->
+    <sys:String x:Key="robotmanual.comm">Comm</sys:String>
+    <sys:String x:Key="robotmanual.comm_tip">Driver connection</sys:String>
+    <sys:String x:Key="robotmanual.servo">Servo</sys:String>
+    <sys:String x:Key="robotmanual.servo_tip">Servo enabled (PowerOn)</sys:String>
+    <sys:String x:Key="robotmanual.arm_tip">Lights up when the finger holds a wafer</sys:String>
+    <sys:String x:Key="robotmanual.alarm">Alarm</sys:String>
+    <sys:String x:Key="robotmanual.alarm_tip">Current device error</sys:String>
+    <sys:String x:Key="robotmanual.online_tip">Online: joins automatic scheduling</sys:String>
+    <sys:String x:Key="robotmanual.fact_state">State:</sys:String>
+    <sys:String x:Key="robotmanual.fact_station">Station:</sys:String>
+    <sys:String x:Key="robotmanual.fact_rotation">Facing:</sys:String>
+    <sys:String x:Key="robotmanual.fact_travel">Travel:</sys:String>
+    <sys:String x:Key="robotmanual.stage_hint">Top view · station facing / travel come from the backend</sys:String>
+    <sys:String x:Key="robotmanual.params">Pick parameters</sys:String>
+    <sys:String x:Key="robotmanual.field_arm">Arm</sys:String>
+    <sys:String x:Key="robotmanual.field_station">Station</sys:String>
+    <sys:String x:Key="robotmanual.field_slot">Slot</sys:String>
+    <sys:String x:Key="robotmanual.pick_place">Pick · Place</sys:String>
+    <sys:String x:Key="robotmanual.motion">Motion</sys:String>
+    <sys:String x:Key="robotmanual.fault">Fault</sys:String>
+    <sys:String x:Key="robotmanual.axis_error">Axes · Error</sys:String>
+    <sys:String x:Key="robotmanual.device_error">Error</sys:String>
+    <sys:String x:Key="robotmanual.servo_on">ON</sys:String>
+    <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>
+    <sys:String x:Key="robotmanual.na">—</sys:String>
+
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
          Framework menus (including LoadPort Manual and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
     <sys:String x:Key="menu.Main">Main</sys:String>
@@ -163,6 +196,7 @@
     <sys:String x:Key="menu.Io">IO</sys:String>
     <sys:String x:Key="menu.Manual.LoadPorts">LoadPort Manual</sys:String>
     <sys:String x:Key="menu.Manual.Transfer">Transfer</sys:String>
+    <sys:String x:Key="menu.Manual.Robot">Robot Manual</sys:String>
     <sys:String x:Key="menu.Alarm.Realtime">Live Alarms</sys:String>
     <sys:String x:Key="menu.Alarm.History">Alarm History</sys:String>
     <sys:String x:Key="menu.DataCenter.LogRealtime">Live Log</sys:String>

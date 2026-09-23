@@ -30,4 +30,16 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
     </Style>
 
+    <!--  参数行里的紧凑下拉（如手动页选站点）：跟分段选择、输入同一行高  -->
+    <Style
+        x:Key="CompactComboBoxStyle"
+        BasedOn="{StaticResource DefaultComboBoxStyle}"
+        TargetType="ComboBox">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
 </ResourceDictionary>

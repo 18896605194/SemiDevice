@@ -21,6 +21,12 @@ public static class ServiceCollectionExtensions
 
         services.AddKeyedSingleton<UserControl, LoadPortsManualView>("Manual.LoadPorts");
 
+        // Robot 手动界面：一个页面里按 sc.xml 配的 Robot 数量动态生成多个面板。
+        services.AddSingleton<RobotManualViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<RobotManualViewModel>());
+
+        services.AddKeyedSingleton<UserControl, RobotManualView>("Manual.Robot");
+
         // Transfer 调度界面：搬运地图 + 机械手状态与手动取放片。
         services.AddSingleton<TransferViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<TransferViewModel>());

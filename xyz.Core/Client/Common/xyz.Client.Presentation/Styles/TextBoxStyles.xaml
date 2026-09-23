@@ -28,4 +28,16 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
     </Style>
 
+    <!--  参数行里的紧凑输入（如手动页槽位）：跟分段选择、下拉同一行高  -->
+    <Style
+        x:Key="CompactTextBoxStyle"
+        BasedOn="{StaticResource DefaultTextBoxStyle}"
+        TargetType="TextBox">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
 </ResourceDictionary>

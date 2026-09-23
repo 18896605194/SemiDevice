@@ -26,6 +26,8 @@
     <sys:String x:Key="module.state.homing">回零中</sys:String>
     <sys:String x:Key="module.state.clamping">夹紧中</sys:String>
     <sys:String x:Key="module.state.unclamping">松开中</sys:String>
+    <sys:String x:Key="module.state.picking">取片中</sys:String>
+    <sys:String x:Key="module.state.placing">放片中</sys:String>
     <sys:String x:Key="module.state.unknown">未知状态（{0}）</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
@@ -34,6 +36,10 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} 读码没发起（没挂读头、读头未连接或上一次还没读完）</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
+    <sys:String x:Key="robot.direction.north">北</sys:String>
+    <sys:String x:Key="robot.direction.east">东</sys:String>
+    <sys:String x:Key="robot.direction.south">南</sys:String>
+    <sys:String x:Key="robot.direction.west">西</sys:String>
 
     <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
@@ -153,6 +159,33 @@
     <sys:String x:Key="lpmanual.offline">下线</sys:String>
     <sys:String x:Key="lpmanual.carrier_id">载具 ID：</sys:String>
 
+    <!-- Robot 手动页 -->
+    <sys:String x:Key="robotmanual.comm">通讯</sys:String>
+    <sys:String x:Key="robotmanual.comm_tip">驱动连接</sys:String>
+    <sys:String x:Key="robotmanual.servo">伺服</sys:String>
+    <sys:String x:Key="robotmanual.servo_tip">伺服上使能（PowerOn）</sys:String>
+    <sys:String x:Key="robotmanual.arm_tip">手指上有片亮</sys:String>
+    <sys:String x:Key="robotmanual.alarm">报警</sys:String>
+    <sys:String x:Key="robotmanual.alarm_tip">设备当前报错</sys:String>
+    <sys:String x:Key="robotmanual.online_tip">Online：参与自动调度</sys:String>
+    <sys:String x:Key="robotmanual.fact_state">状态：</sys:String>
+    <sys:String x:Key="robotmanual.fact_station">站点：</sys:String>
+    <sys:String x:Key="robotmanual.fact_rotation">方位：</sys:String>
+    <sys:String x:Key="robotmanual.fact_travel">平移：</sys:String>
+    <sys:String x:Key="robotmanual.stage_hint">俯视 · 站点方位 / 平移由后端配置下发</sys:String>
+    <sys:String x:Key="robotmanual.params">取放参数</sys:String>
+    <sys:String x:Key="robotmanual.field_arm">手臂</sys:String>
+    <sys:String x:Key="robotmanual.field_station">站点</sys:String>
+    <sys:String x:Key="robotmanual.field_slot">槽位</sys:String>
+    <sys:String x:Key="robotmanual.pick_place">取放</sys:String>
+    <sys:String x:Key="robotmanual.motion">运动</sys:String>
+    <sys:String x:Key="robotmanual.fault">异常</sys:String>
+    <sys:String x:Key="robotmanual.axis_error">轴位 · 报错</sys:String>
+    <sys:String x:Key="robotmanual.device_error">报错</sys:String>
+    <sys:String x:Key="robotmanual.servo_on">ON</sys:String>
+    <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>
+    <sys:String x:Key="robotmanual.na">—</sys:String>
+
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身。
          框架提供的菜单（含机型模块声明的 LoadPort 手动、Transfer）都配在这里；机型独有的菜单配在机型语言包。 -->
     <sys:String x:Key="menu.Main">主界面</sys:String>
@@ -164,6 +197,7 @@
     <sys:String x:Key="menu.Io">IO</sys:String>
     <sys:String x:Key="menu.Manual.LoadPorts">LoadPort 手动</sys:String>
     <sys:String x:Key="menu.Manual.Transfer">Transfer 调度</sys:String>
+    <sys:String x:Key="menu.Manual.Robot">Robot 手动</sys:String>
     <sys:String x:Key="menu.Alarm.Realtime">实时报警</sys:String>
     <sys:String x:Key="menu.Alarm.History">报警历史</sys:String>
     <sys:String x:Key="menu.DataCenter.LogRealtime">实时日志</sys:String>

@@ -27,6 +27,7 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
 
             new ClientMenu("Manual", "Manual.LoadPorts", 1),
             new ClientMenu("Manual", "Manual.Transfer", 2),
+            new ClientMenu("Manual", "Manual.Robot", 3),
 
             new ClientMenu("Alarm", "Alarm.Realtime", 1),
             new ClientMenu("Alarm", "Alarm.History", 2),

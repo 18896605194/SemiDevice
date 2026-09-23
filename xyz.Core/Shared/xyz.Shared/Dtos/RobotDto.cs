@@ -9,6 +9,9 @@ public class RobotDto
     /// <summary>模块状态码，取值见 ModuleState/RobotState。</summary>
     public int State { get; set; }
 
+    /// <summary>模块模式（Online=参与自动调度 / Offline）。</summary>
+    public ModuleMode Mode { get; set; }
+
     /// <summary>驱动连接是否可用。</summary>
     public bool IsConnected { get; set; }
 
@@ -27,8 +30,14 @@ public class RobotDto
     /// <summary>当前站点在 sc.xml 站点表里配置的平移距离，界面显示机械手去哪。</summary>
     public double Travel { get; set; }
 
+    /// <summary>站点表（sc.xml 配置）里的全部站点名，界面下拉用；站点/方位/平移都由后端下发，界面不写死。</summary>
+    public List<string> Stations { get; set; } = [];
+
     /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
+
+    /// <summary>各轴当前坐标（扫描查询刷新），按轴表顺序；还没查到的轴不在列表中。</summary>
+    public List<RobotAxisPositionDto> AxisPositions { get; set; } = [];
 
     /// <summary>
     /// 比较当前发布的模块状态、连接状态、设备反馈、当前站点和手指在位；没有上一次状态时视为变化。
@@ -46,6 +55,11 @@ public class RobotDto
         }
 
         if (State != previous.State)
+        {
+            return true;
+        }
+
+        if (Mode != previous.Mode)
         {
             return true;
         }
@@ -70,6 +84,19 @@ public class RobotDto
             return true;
         }
 
+        if (Stations.Count != previous.Stations.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < Stations.Count; i++)
+        {
+            if (Stations[i] != previous.Stations[i])
+            {
+                return true;
+            }
+        }
+
         if (Arms.Count != previous.Arms.Count)
         {
             return true;
@@ -83,8 +110,34 @@ public class RobotDto
             }
         }
 
+        if (AxisPositions.Count != previous.AxisPositions.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < AxisPositions.Count; i++)
+        {
+            if (AxisPositions[i].Name != previous.AxisPositions[i].Name
+                || AxisPositions[i].Position != previous.AxisPositions[i].Position)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
+}
+
+/// <summary>
+/// Robot 单个轴的坐标契约对象。
+/// </summary>
+public class RobotAxisPositionDto
+{
+    /// <summary>轴名（轴表里的名字，如 X / Z / Theta / Arm1）。</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>当前坐标。</summary>
+    public double Position { get; set; }
 }
 
 /// <summary>
