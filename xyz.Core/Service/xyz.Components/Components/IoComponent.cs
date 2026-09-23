@@ -7,8 +7,7 @@ using xyz.Configs;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// IO 组件：点表 + 按索引读写。值不另存一份——读的时候直接从 PLC 组件最近一拍的整块缓存解出来，
-/// AI/AO 按点表标定换算成工程值。界面看到的整包由 IoPublisher 按周期现读现拼。
+/// IO 组件：点表 + 按索引读写。
 /// </summary>
 [Component(description: "IO 组件（点表 + 按索引读写）")]
 public class IoComponent : ComponentBase

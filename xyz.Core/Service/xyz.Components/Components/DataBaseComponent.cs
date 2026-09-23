@@ -11,15 +11,9 @@ public class DataBaseComponent : ComponentBase
 {
     #region SC 
 
-    /// <summary>
-    /// 数据库连接字符串，通过 sc.xml 的 Value 注入。
-    /// </summary>
     [SCEditor(XyzDb.DefaultConnectionString, "Database", "数据库连接字符串")]
     public string ConnectionString { get; set; } = XyzDb.DefaultConnectionString;
 
-    /// <summary>
-    /// 数据库类型，通过 sc.xml 的 Value 注入。
-    /// </summary>
     [SCEditor("Sqlite", "Database", "数据库类型")]
     public DbType DbType { get; set; } = DbType.Sqlite;
 

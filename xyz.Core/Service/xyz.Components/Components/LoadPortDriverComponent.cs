@@ -47,13 +47,12 @@ public abstract class LoadPortDriverComponent : ComponentBase
         get { return Driver?.IsConnected ?? false; }
     }
 
-    /// <summary>设备主动推送（在驱动路由线程上回调，事件已归一成 LoadPortDeviceEvent）。</summary>
+    /// <summary>
+    /// 设备主动推送
+    /// </summary>
     public event Action<LoadPortDeviceEvent>? DeviceEvent;
 
-    /// <summary>
-    /// 建驱动（首次）并打开连接。驱动建好先挂事件转发再开连：连上之后设备可能立刻推事件，晚订阅会漏。
-    /// 可重复调用：已建好的驱动只重开连接。
-    /// </summary>
+
     public bool Open()
     {
         var driver = Driver;
@@ -67,7 +66,6 @@ public abstract class LoadPortDriverComponent : ComponentBase
         return driver.Open();
     }
 
-    /// <summary>关闭连接；驱动保留，重开走 Open。</summary>
     public void Close()
     {
         Driver?.Close();
@@ -78,7 +76,10 @@ public abstract class LoadPortDriverComponent : ComponentBase
         DeviceEvent?.Invoke(evt);
     }
 
-    /// <summary>按 sc.xml 配的 CommType 建传输（串口/网口都吃配置，不像机械手只走网口）。</summary>
+    /// <summary>
+    /// 返回通讯接口
+    /// </summary>
+    /// <returns></returns>
     protected ICommunication CreateTransport()
     {
         return CommunicationFactory.Create(CommType, PortName, BaudRate, Parity, DataBits, StopBits, Host, NetPort);
@@ -88,70 +89,32 @@ public abstract class LoadPortDriverComponent : ComponentBase
 
     #region 统一触发口
 
-    /// <summary>Load：开门 + Mapping（结果在 Response.SlotMap）。</summary>
-    public LoadPortCommand? Load()
-    {
-        return Run(CreateLoad());
-    }
+    /// <summary>Load：开门 + Mapping（结果在 Response.SlotMap）。成功返回句柄（等 IsCompleted 读 Response），被拒返回 null。</summary>
+    public LoadPortCommand? Load() => CreateLoad().Execute();
 
     /// <summary>Unload：关门。</summary>
-    public LoadPortCommand? Unload()
-    {
-        return Run(CreateUnload());
-    }
+    public LoadPortCommand? Unload() => CreateUnload().Execute();
 
     /// <summary>Home：整机回零。</summary>
-    public LoadPortCommand? Home()
-    {
-        return Run(CreateHome());
-    }
+    public LoadPortCommand? Home() => CreateHome().Execute();
 
     /// <summary>Clamp：夹紧 FOUP。</summary>
-    public LoadPortCommand? Clamp()
-    {
-        return Run(CreateClamp());
-    }
+    public LoadPortCommand? Clamp() => CreateClamp().Execute();
 
     /// <summary>Unclamp：松开 FOUP。</summary>
-    public LoadPortCommand? Unclamp()
-    {
-        return Run(CreateUnclamp());
-    }
+    public LoadPortCommand? Unclamp() => CreateUnclamp().Execute();
 
     /// <summary>Stop：急停（组件基类的 Abort 是中止上层操作，两回事）。</summary>
-    public LoadPortCommand? Stop()
-    {
-        return Run(CreateStop());
-    }
+    public LoadPortCommand? Stop() => CreateStop().Execute();
 
     /// <summary>ResetDrive：清设备报错（组件基类的 Reset 是清报警+复位子组件，两回事）。</summary>
-    public LoadPortCommand? ResetDrive()
-    {
-        return Run(CreateResetDrive());
-    }
+    public LoadPortCommand? ResetDrive() => CreateResetDrive().Execute();
 
     /// <summary>QueryStatus：查设备状态（结果在 Response.Status）。</summary>
-    public LoadPortCommand? QueryStatus()
-    {
-        return Run(CreateQueryStatus());
-    }
+    public LoadPortCommand? QueryStatus() => CreateQueryStatus().Execute();
 
     /// <summary>QueryVersion：查设备版本。</summary>
-    public LoadPortCommand? QueryVersion()
-    {
-        return Run(CreateQueryVersion());
-    }
-
-    /// <summary>受理下发一条指令：成功返回句柄（等 IsCompleted 读 Response），被拒（未连接或同键在途）返回 null。</summary>
-    private static LoadPortCommand? Run(LoadPortCommand command)
-    {
-        if (command.Execute())
-        {
-            return command;
-        }
-
-        return null;
-    }
+    public LoadPortCommand? QueryVersion() => CreateQueryVersion().Execute();
 
     #endregion
 

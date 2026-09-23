@@ -7,8 +7,6 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// DI 值监控组件：单个 DI，电平触发 + 报警防抖（EC DebounceMs）。
-/// 公共组件：装进哪个模块都一样用，报警算在装它的模块头上（模块的 HasAlarm 自动包含）。
-/// DI 经 IoComponent 按索引读（点表里得有这个索引）；读不到（PLC 没连）这一拍不判。
 /// </summary>
 [Component(description: "DI 值监控组件")]
 public class DiSensorComponent : ComponentBase

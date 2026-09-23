@@ -54,11 +54,11 @@ public abstract class LoadPortCommand
     }
 
     /// <summary>
-    /// 提交自己：经驱动占在途槽位并下发，立即返回。子类可重写以定制提交流程。
+    /// 提交自己：经驱动占在途槽位并下发，立即返回。受理成功返回句柄，被拒（未连接或同键在途）返回 null。子类可重写以定制提交流程。
     /// </summary>
-    public virtual bool Execute()
+    public virtual LoadPortCommand? Execute()
     {
-        return Driver.Submit(this);
+        return Driver.Submit(this) ? this : null;
     }
 
     /// <summary>
