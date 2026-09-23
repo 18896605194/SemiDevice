@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// 搬运车（主动方）给本端口的 E84 输入信号，一个扫描周期读一次。

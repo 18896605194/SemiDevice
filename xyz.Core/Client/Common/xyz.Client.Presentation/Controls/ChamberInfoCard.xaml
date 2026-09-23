@@ -34,8 +34,8 @@
         Stretch="Uniform"
         StretchDirection="Both">
         <Border
-            Width="1000"
-            Height="560"
+            Width="620"
+            Height="348"
             Padding="0"
             Background="{DynamicResource DarkSurfaceVariantBackground}"
             BorderBrush="{DynamicResource DarkDisabledText}"
@@ -44,8 +44,8 @@
             <DockPanel LastChildFill="True">
 
                 <Border
-                    Height="96"
-                    Padding="32,0"
+                    Height="64"
+                    Padding="20,0"
                     CornerRadius="14,14,0,0"
                     DockPanel.Dock="Top"
                     Style="{DynamicResource HeaderBarBorderStyle}">
@@ -71,8 +71,8 @@
 
                         <Border
                             Grid.Column="2"
-                            Margin="32,0,0,0"
-                            Padding="18,8"
+                            Margin="16,0,0,0"
+                            Padding="12,6"
                             VerticalAlignment="Center">
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -106,7 +106,7 @@
                     </Grid>
                 </Border>
 
-                <Grid Margin="28,24,28,28">
+                <Grid Margin="16,12,16,14">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="56*" />
                         <ColumnDefinition Width="44*" />
@@ -170,90 +170,90 @@
                             <TextBlock
                                 Grid.Row="0"
                                 Grid.Column="0"
-                                Margin="24,0"
+                                Margin="12,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
                                 Text="State" />
                             <TextBlock
                                 Grid.Row="0"
                                 Grid.Column="1"
-                                Margin="28,0"
+                                Margin="14,0"
                                 Style="{DynamicResource FieldValueTextStyle}"
                                 Text="{Binding State, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                             <TextBlock
                                 Grid.Row="1"
                                 Grid.Column="0"
-                                Margin="24,0"
+                                Margin="12,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
                                 Text="Recipe" />
                             <TextBlock
                                 Grid.Row="1"
                                 Grid.Column="1"
-                                Margin="28,0"
+                                Margin="14,0"
                                 Style="{DynamicResource FieldValueTextStyle}"
                                 Text="{Binding Recipe, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                             <TextBlock
                                 Grid.Row="2"
                                 Grid.Column="0"
-                                Margin="24,0"
+                                Margin="12,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
                                 Text="Step" />
                             <TextBlock
                                 Grid.Row="2"
                                 Grid.Column="1"
-                                Margin="28,0"
+                                Margin="14,0"
                                 Style="{DynamicResource FieldValueTextStyle}"
                                 Text="{Binding Step, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                             <TextBlock
                                 Grid.Row="3"
                                 Grid.Column="0"
-                                Margin="24,0"
+                                Margin="12,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
                                 Text="StepTime" />
                             <TextBlock
                                 Grid.Row="3"
                                 Grid.Column="1"
-                                Margin="28,0"
+                                Margin="14,0"
                                 Style="{DynamicResource FieldValueTextStyle}"
                                 Text="{Binding StepTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                             <TextBlock
                                 Grid.Row="4"
                                 Grid.Column="0"
-                                Margin="24,0"
+                                Margin="12,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
                                 Text="RecipeTime" />
                             <TextBlock
                                 Grid.Row="4"
                                 Grid.Column="1"
-                                Margin="28,0"
+                                Margin="14,0"
                                 Style="{DynamicResource FieldValueTextStyle}"
                                 Text="{Binding RecipeTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                             <TextBlock
                                 Grid.Row="5"
                                 Grid.Column="0"
-                                Margin="24,0"
+                                Margin="12,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
                                 Text="Shutter" />
                             <TextBlock
                                 Grid.Row="5"
                                 Grid.Column="1"
-                                Margin="28,0"
+                                Margin="14,0"
                                 Style="{DynamicResource FieldValueTextStyle}"
                                 Text="{Binding ShutterState, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Column="1" Margin="30,0,0,0">
+                    <Grid Grid.Column="1" Margin="16,0,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
@@ -261,7 +261,7 @@
 
                         <controls:Wafer
                             Grid.Row="0"
-                            Margin="34,0,34,10"
+                            Margin="16,0,16,6"
                             HorizontalAlignment="Stretch"
                             VerticalAlignment="Stretch"
                             BorderBrush="{DynamicResource DarkDisabledText}"

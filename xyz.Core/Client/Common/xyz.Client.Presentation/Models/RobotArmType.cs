@@ -1,4 +1,4 @@
-namespace xyz.Client.Presentation.Models;
+﻿namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 机械手手臂结构。

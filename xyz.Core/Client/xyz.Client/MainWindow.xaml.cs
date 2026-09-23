@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using xyz.Client.Presentation.Helpers;
 using xyz.Client.ViewModels;

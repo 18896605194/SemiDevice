@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 一条报警记录：报警每报出一次、每被人工清除一次各一条。

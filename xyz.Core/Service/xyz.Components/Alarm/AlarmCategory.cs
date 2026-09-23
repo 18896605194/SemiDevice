@@ -1,4 +1,4 @@
-namespace xyz.Components.Alarm;
+﻿namespace xyz.Components.Alarm;
 
 /// <summary>
 /// 报警分类。

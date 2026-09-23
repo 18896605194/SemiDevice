@@ -1,4 +1,4 @@
-namespace xyz.Components.Wafers;
+﻿namespace xyz.Components.Wafers;
 
 /// <summary>
 /// 片的工艺状态，由工艺模块在开始/结束时改。

@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 机械手转台方位（俯视，上北下南、左西右东），枚举值即转角度数，顺时针为正。

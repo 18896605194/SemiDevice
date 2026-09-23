@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 报警契约：报警报出、人工清除各推一条，界面据此刷新报警列表。

@@ -1,4 +1,4 @@
-namespace xyz.Client.Presentation.Models;
+﻿namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 机械手单个轴的坐标显示数据，轴位表按行显示（轴名 + 坐标）。

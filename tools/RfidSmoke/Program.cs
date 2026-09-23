@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using RfidSmoke;
 using xyz.Components;
 using xyz.Drivers.Communication;

@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Rfid;
+﻿namespace xyz.Drivers.Rfid;
 
 /// <summary>
 /// RFID 指令结果（厂商无关）：上层只读本对象，不碰品牌指令的内部字节。

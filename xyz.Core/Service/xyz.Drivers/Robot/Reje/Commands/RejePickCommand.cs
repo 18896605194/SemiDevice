@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 /// <summary>
 /// Pick（@GXYYZZ;）：用手指 X 从工位 YY 的层 ZZ 取片（工位、层为十六进制）。

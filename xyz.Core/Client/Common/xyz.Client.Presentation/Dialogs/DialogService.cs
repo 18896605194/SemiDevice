@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Windows;
 
 namespace xyz.Client.Presentation.Dialogs;

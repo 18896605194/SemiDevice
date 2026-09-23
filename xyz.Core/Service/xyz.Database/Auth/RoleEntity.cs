@@ -1,4 +1,4 @@
-using SqlSugar;
+﻿using SqlSugar;
 using xyz.Database;
 
 namespace xyz.Database.Auth;

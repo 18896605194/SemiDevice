@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 /// <summary>
 /// PowerOn（@PowerOn;）：伺服上使能，仅自动模式有效。

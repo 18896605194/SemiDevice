@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Rfid;
+﻿namespace xyz.Drivers.Rfid;
 
 /// <summary>
 /// 一条 RFID 指令：自带下发块与认领的响应块 ID，解析到终结块时落结果。

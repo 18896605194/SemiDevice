@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// E84 自动交接的设备侧上报口：搬运车（OHT/AGV）与本端口的一次交接，进展由模块调这里告诉 EAP。

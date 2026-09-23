@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 模块模式：模块是否参与自动调度。所有模块都有，Online/Offline 只改它，不动设备；

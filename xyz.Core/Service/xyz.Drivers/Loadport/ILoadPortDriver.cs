@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport;
+﻿namespace xyz.Drivers.Loadport;
 
 /// <summary>
 /// LoadPort 驱动契约：模块、操作、指令都只认这个接口，不认具体驱动类。

@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 /// <summary>
 /// PowerOff（@PowerOff;）：伺服下使能，仅自动模式有效。

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System.Windows.Controls;
 using xyz.Client.Alarm.ViewModels;
 using xyz.Client.Alarm.Views;

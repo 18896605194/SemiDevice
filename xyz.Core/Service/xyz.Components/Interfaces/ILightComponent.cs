@@ -1,4 +1,4 @@
-namespace xyz.Components.Interfaces;
+﻿namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// 四色灯（带蜂鸣器）契约：亮灯的一方只认这个接口，不依赖具体的灯组件（IO 版、PLC 版……）。

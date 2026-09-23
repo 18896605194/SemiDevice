@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// 一趟搬运的步骤：源站点准备 → 取片 → 目标站点准备 → 放片。

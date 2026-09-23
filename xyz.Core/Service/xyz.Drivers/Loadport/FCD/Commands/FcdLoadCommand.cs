@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport.FCD.Commands;
+﻿namespace xyz.Drivers.Loadport.FCD.Commands;
 
 /// <summary>
 /// Load（MOV:CLOAD）：开门并 Mapping。

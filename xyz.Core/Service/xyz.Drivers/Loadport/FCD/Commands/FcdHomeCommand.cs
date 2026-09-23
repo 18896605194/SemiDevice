@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport.FCD.Commands;
+﻿namespace xyz.Drivers.Loadport.FCD.Commands;
 
 /// <summary>
 /// Home（MOV:ORGSH）：整机回零。

@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport.FCD.Commands;
+﻿namespace xyz.Drivers.Loadport.FCD.Commands;
 
 /// <summary>
 /// Abort（MOV:ABORT）：终止当前动作。

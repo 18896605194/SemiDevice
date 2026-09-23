@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Communication;
+﻿namespace xyz.Drivers.Communication;
 
 /// <summary>
 /// 帧级通讯接口：以帧体为单位收发的通讯抽象。

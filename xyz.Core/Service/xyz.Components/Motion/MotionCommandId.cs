@@ -1,4 +1,4 @@
-namespace xyz.Components.Motion
+﻿namespace xyz.Components.Motion
 {
     /// <summary>
     /// plc 电机动作指令码

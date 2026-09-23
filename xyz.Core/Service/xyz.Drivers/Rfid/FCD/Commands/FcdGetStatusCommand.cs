@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Rfid.FCD.Commands;
+﻿namespace xyz.Drivers.Rfid.FCD.Commands;
 
 /// <summary>
 /// 取读头状态：0x01 → 0x61。

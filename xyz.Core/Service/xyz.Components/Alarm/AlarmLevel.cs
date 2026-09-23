@@ -1,4 +1,4 @@
-namespace xyz.Components.Alarm;
+﻿namespace xyz.Components.Alarm;
 
 /// <summary>
 /// 报警等级，等级决定所属模块的处理动作。

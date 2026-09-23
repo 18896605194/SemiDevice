@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Communication;
+﻿namespace xyz.Drivers.Communication;
 
 /// <summary>
 /// 串口网口的接口

@@ -1,4 +1,4 @@
-namespace xyz.Tools;
+﻿namespace xyz.Tools;
 
 /// <summary>
 /// 进程内静态事件总线，写法与 CommunityToolkit.Mvvm 的 Messenger 一致：

@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 /// <summary>
 /// Reset（@Reset;）：清除控制器报错。

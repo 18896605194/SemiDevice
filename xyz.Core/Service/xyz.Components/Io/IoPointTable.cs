@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using xyz.Common.Log;
 
 namespace xyz.Components.Io;

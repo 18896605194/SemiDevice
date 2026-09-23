@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// LoadPort 每一拍给 E84 的结论：由端口综合 Auto/Manual、上线、搬运状态算好（接了 EAP 以 EAP 为准），E84 只照着做。

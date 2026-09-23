@@ -1,4 +1,4 @@
-namespace xyz.Components.Wafers;
+﻿namespace xyz.Components.Wafers;
 
 /// <summary>
 /// 账上的一片：身份、当前在哪、从哪来、状态。

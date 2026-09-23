@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Alarm;

@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 花篮单个槽位的 Mapping 结果（厂商无关语义，与驱动层 SlotState 取值一一对应）。

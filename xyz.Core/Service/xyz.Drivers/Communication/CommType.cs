@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Communication;
+﻿namespace xyz.Drivers.Communication;
 
 /// <summary>
 /// 通讯传输类型（SC 装机配置选择）。

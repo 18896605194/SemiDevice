@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// 带步骤枚举的操作基类：每个操作定义自己的 TStep，OnScan 里 switch 推进。

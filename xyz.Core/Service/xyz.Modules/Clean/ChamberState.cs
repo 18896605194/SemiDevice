@@ -1,4 +1,4 @@
-namespace xyz.Modules.Enums;
+﻿namespace xyz.Modules.Enums;
 
 
 public class ChamberState : TransferModuleState

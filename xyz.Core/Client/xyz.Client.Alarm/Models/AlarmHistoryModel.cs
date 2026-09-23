@@ -1,4 +1,4 @@
-using xyz.Client.Presentation.Localization;
+﻿using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.Alarm.Models;
 

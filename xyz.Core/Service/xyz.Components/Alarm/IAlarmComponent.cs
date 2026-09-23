@@ -1,4 +1,4 @@
-namespace xyz.Components.Alarm;
+﻿namespace xyz.Components.Alarm;
 
 /// <summary>
 /// 报警管理契约，给界面用：看当前有哪些报警、人工复位。

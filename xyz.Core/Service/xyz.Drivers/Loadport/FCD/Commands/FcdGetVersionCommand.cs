@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport.FCD.Commands;
+﻿namespace xyz.Drivers.Loadport.FCD.Commands;
 
 /// <summary>
 /// 查询 FCD LoadPort 固件版本（GET:VERSN）。数据随 ACK 返回，ACK 即终结；

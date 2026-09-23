@@ -1,0 +1,5 @@
+# https://editorconfig.org
+root = true
+
+# 婧愮爜缁熶竴 UTF-8锛堝甫 BOM锛夛細鏃?BOM 鐨?UTF-8 鍦ㄤ腑鏂囩増 Visual Studio 閲屼細琚寜 GBK 鎵撳紑锛屾敞閲婂叏鏄贡鐮併€?[*.{cs,xaml,csproj,md,resx,xml,config}]
+charset = utf-8-bom

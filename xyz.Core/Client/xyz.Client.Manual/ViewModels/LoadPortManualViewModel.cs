@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using Mapster;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;

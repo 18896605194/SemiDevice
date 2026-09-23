@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// E84 组件当前走到哪一步（组件按它 switch 推进；带计时的步各对应一段 TP）。

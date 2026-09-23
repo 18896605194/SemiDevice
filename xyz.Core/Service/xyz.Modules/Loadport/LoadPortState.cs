@@ -1,4 +1,4 @@
-namespace xyz.Modules.Enums;
+﻿namespace xyz.Modules.Enums;
 
 /// <summary>
 /// LoadPort 状态码；公共搬运状态继承自 <see cref="TransferModuleState"/>。

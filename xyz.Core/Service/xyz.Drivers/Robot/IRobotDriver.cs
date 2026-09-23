@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot;
+﻿namespace xyz.Drivers.Robot;
 
 /// <summary>
 /// 机械手驱动契约：模块、操作、指令都只认这个接口，不认具体驱动类。

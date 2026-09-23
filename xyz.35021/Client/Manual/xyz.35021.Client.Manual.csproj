@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <!-- 复用平台的手动操作面板控件（xyz.Client.Manual.Views.LoadPortManualControl） -->

@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport;
+﻿namespace xyz.Drivers.Loadport;
 
 /// <summary>
 /// LoadPort 标准状态快照（E87 载具管理语义，厂商无关）：

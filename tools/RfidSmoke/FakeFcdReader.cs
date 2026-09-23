@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Rfid.FCD;
 

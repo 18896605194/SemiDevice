@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Collectors;

@@ -1,4 +1,4 @@
-namespace xyz.Components.Alarm;
+﻿namespace xyz.Components.Alarm;
 
 /// <summary>
 /// 一次报警的运行时快照。与组件上的 AlarmAttribute 定义分开保存。

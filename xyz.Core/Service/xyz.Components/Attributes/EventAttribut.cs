@@ -1,4 +1,4 @@
-namespace xyz.Components.Attributes;
+﻿namespace xyz.Components.Attributes;
 
 /// <summary>
 /// 声明组件的采集事件。公开实例字符串字段或属性的值作为稳定事件代码，

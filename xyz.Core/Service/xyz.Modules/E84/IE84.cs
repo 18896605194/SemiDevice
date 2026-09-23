@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// E84 交接组件契约（本端口是被动方）：LoadPort 只依赖本接口，信号接在哪、怎么读写由实现决定。

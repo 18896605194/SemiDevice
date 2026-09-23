@@ -1,4 +1,4 @@
-namespace xyz.Components.Io;
+﻿namespace xyz.Components.Io;
 
 /// <summary>
 /// 点表里的一行：装机配置，运行期不变。当前值不存在这儿——读的时候直接从 PLC 组件的整块缓存解出来。

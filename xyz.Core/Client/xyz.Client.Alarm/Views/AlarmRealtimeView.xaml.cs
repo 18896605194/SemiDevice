@@ -1,4 +1,4 @@
-using System.Windows.Controls;
+﻿using System.Windows.Controls;
 using xyz.Client.Alarm.ViewModels;
 using xyz.Tools;
 

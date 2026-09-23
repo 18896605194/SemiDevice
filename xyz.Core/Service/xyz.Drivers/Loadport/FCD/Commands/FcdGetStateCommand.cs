@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport.FCD.Commands;
+﻿namespace xyz.Drivers.Loadport.FCD.Commands;
 
 /// <summary>
 /// 查询 FCD LoadPort 系统状态（GET:STATE）。64 字符状态串随 ACK 返回，ACK 即终结；

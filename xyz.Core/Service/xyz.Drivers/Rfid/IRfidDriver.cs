@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Rfid;
+﻿namespace xyz.Drivers.Rfid;
 
 /// <summary>
 /// RFID 读头驱动契约：读头组件只认这个接口，不认具体驱动类。

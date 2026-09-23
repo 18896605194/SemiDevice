@@ -1,4 +1,4 @@
-namespace xyz.Client.Models;
+﻿namespace xyz.Client.Models;
 
 /// <summary>
 /// 底部导航的菜单项：由代码里声明的菜单（IClientMenuProvider）合成，不来自数据库。

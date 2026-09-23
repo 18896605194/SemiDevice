@@ -1,4 +1,4 @@
-using xyz.Client.Common.Log;
+﻿using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;

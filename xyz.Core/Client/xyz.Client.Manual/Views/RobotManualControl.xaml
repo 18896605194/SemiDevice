@@ -1,4 +1,4 @@
-<UserControl x:Class="xyz.Client.Manual.Views.RobotManualControl"
+﻿<UserControl x:Class="xyz.Client.Manual.Views.RobotManualControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
@@ -26,11 +26,11 @@
                 </Grid.ColumnDefinitions>
 
                 <!--  模块名（Robot1）  -->
-                <TextBlock
-                    Grid.Column="0"
-                    Margin="0,0,20,0"
-                    VerticalAlignment="Center"
-                    FontSize="{DynamicResource Size22}"
+                    <TextBlock
+                        Grid.Column="0"
+                        Margin="0,0,20,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size24}"
                     FontWeight="Bold"
                     Foreground="{DynamicResource DarkPrimaryText}"
                     Text="{Binding ModuleName}" />
@@ -43,11 +43,11 @@
 
                     <!--  通讯  -->
                     <StackPanel
-                        Margin="0,0,16,0"
+                        Margin="0,0,20,0"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         ToolTip="{DynamicResource robotmanual.comm_tip}">
-                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                        <Ellipse Width="16" Height="16" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
@@ -62,18 +62,18 @@
                         <TextBlock
                             Margin="4,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size13}"
+                            FontSize="{DynamicResource Size15}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.comm}" />
                     </StackPanel>
 
                     <!--  伺服  -->
                     <StackPanel
-                        Margin="0,0,16,0"
+                        Margin="0,0,20,0"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         ToolTip="{DynamicResource robotmanual.servo_tip}">
-                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                        <Ellipse Width="16" Height="16" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
@@ -88,7 +88,7 @@
                         <TextBlock
                             Margin="4,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size13}"
+                            FontSize="{DynamicResource Size15}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.servo}" />
                     </StackPanel>
@@ -105,10 +105,10 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel
-                                    Margin="0,0,16,0"
+                                    Margin="0,0,20,0"
                                     Orientation="Horizontal"
                                     ToolTip="{DynamicResource robotmanual.arm_tip}">
-                                    <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                                    <Ellipse Width="16" Height="16" VerticalAlignment="Center">
                                         <Ellipse.Style>
                                             <Style TargetType="Ellipse">
                                                 <Setter Property="Fill" Value="#555" />
@@ -123,7 +123,7 @@
                                     <TextBlock
                                         Margin="4,0,0,0"
                                         VerticalAlignment="Center"
-                                        FontSize="{DynamicResource Size13}"
+                                        FontSize="{DynamicResource Size15}"
                                         Foreground="{DynamicResource DarkSecondaryText}"
                                         Text="{Binding Arm, StringFormat=Arm{0}}" />
                                 </StackPanel>
@@ -133,11 +133,11 @@
 
                     <!--  报警  -->
                     <StackPanel
-                        Margin="0,0,16,0"
+                        Margin="0,0,20,0"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         ToolTip="{DynamicResource robotmanual.alarm_tip}">
-                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                        <Ellipse Width="16" Height="16" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
@@ -152,7 +152,7 @@
                         <TextBlock
                             Margin="4,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size13}"
+                            FontSize="{DynamicResource Size15}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.alarm}" />
                     </StackPanel>
@@ -162,7 +162,7 @@
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         ToolTip="{DynamicResource robotmanual.online_tip}">
-                        <Ellipse Width="12" Height="12" VerticalAlignment="Center">
+                        <Ellipse Width="16" Height="16" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
@@ -177,7 +177,7 @@
                         <TextBlock
                             Margin="4,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size13}"
+                            FontSize="{DynamicResource Size15}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="Online" />
                     </StackPanel>
@@ -190,44 +190,44 @@
                     Orientation="Horizontal">
                     <StackPanel Margin="0,0,14,0" Orientation="Horizontal">
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.fact_state}" />
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             FontWeight="SemiBold"
                             Foreground="{DynamicResource DarkPrimaryText}"
                             Text="{Binding Model.StateText}" />
                     </StackPanel>
                     <StackPanel Margin="0,0,14,0" Orientation="Horizontal">
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.fact_station}" />
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             FontWeight="SemiBold"
                             Foreground="{DynamicResource DarkPrimaryText}"
                             Text="{Binding Model.Station}" />
                     </StackPanel>
                     <StackPanel Margin="0,0,14,0" Orientation="Horizontal">
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.fact_rotation}" />
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             FontWeight="SemiBold"
                             Foreground="{DynamicResource DarkPrimaryText}"
                             Text="{Binding Model.RotationText}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             Foreground="{DynamicResource DarkSecondaryText}"
                             Text="{DynamicResource robotmanual.fact_travel}" />
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size16}"
                             FontWeight="SemiBold"
                             Foreground="{DynamicResource DarkPrimaryText}"
                             Text="{Binding Model.Y}" />
@@ -245,19 +245,7 @@
 
                 <!--  ② 转台图：Robot 控件等比缩放并限幅；站点号/名称按方位贴在四周  -->
                 <Grid Grid.Column="0" Margin="14,0,14,14">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <TextBlock
-                        Grid.Row="0"
-                        Margin="0,0,0,6"
-                        FontSize="{DynamicResource Size13}"
-                        Foreground="{DynamicResource DarkDisabledText}"
-                        Text="{DynamicResource robotmanual.stage_hint}" />
                     <Border
-                        Grid.Row="1"
-                        MinHeight="240"
                         Background="{DynamicResource DarkControlBackground}"
                         BorderBrush="{DynamicResource DarkBorderBrush}"
                         BorderThickness="1"
@@ -278,7 +266,8 @@
                             <ItemsControl
                                 Grid.Row="0"
                                 Grid.Column="1"
-                                Margin="0,0,0,8"
+                                Margin="0,0,0,10"
+                                HorizontalAlignment="Center"
                                 ItemsSource="{Binding Model.NorthStations}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -288,9 +277,9 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <presentationControls:ChamberInfoCard
-                                            Width="220"
-                                            Height="160"
-                                            Margin="4,0"
+                                            Width="440"
+                                            Height="247"
+                                            Margin="6,0"
                                             CreateEnable="False"
                                             DeleteEnable="False"
                                             IsOnline=""
@@ -311,8 +300,8 @@
                             <Viewbox
                                 Grid.Row="1"
                                 Grid.Column="1"
-                                MaxWidth="480"
-                                MaxHeight="480"
+                                MaxWidth="760"
+                                MaxHeight="300"
                                 Stretch="Uniform">
                                 <presentationControls:Robot
                                     ArmCount="{Binding Model.ArmCount}"
@@ -326,7 +315,8 @@
                             <ItemsControl
                                 Grid.Row="2"
                                 Grid.Column="1"
-                                Margin="0,8,0,0"
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center"
                                 ItemsSource="{Binding Model.SouthStations}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -336,105 +326,9 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <presentationControls:LoadPortInfoCard
-                                            Width="280"
-                                            Height="180"
-                                            Margin="4,0"
-                                            Alarm="False"
-                                            AutoMode="True"
-                                            CreateEnable="False"
-                                            DeleteEnable="False"
-                                            IsConnected="False"
-                                            IsOnline=""
-                                            Placed="False"
-                                            Present="False"
-                                            RotationSpeed="0"
-                                            SlotCount="0"
-                                            Title="{Binding Title}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                    </Grid>
-
-                    <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <!--  北侧站点（腔体）  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <!--  北：腔体用 ChamberInfoCard  -->
-                            <ItemsControl
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                Margin="0,0,0,8"
-                                ItemsSource="{Binding Model.NorthStations}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <presentationControls:ChamberInfoCard
-                                            Width="220"
-                                            Height="160"
-                                            Margin="4,0"
-                                            CreateEnable="False"
-                                            DeleteEnable="False"
-                                            IsOnline=""
-                                            Recipe=""
-                                            RecipeState=""
-                                            RotationSpeed="0"
-                                            ShutterState=""
-                                            State=""
-                                            StatusOn="False"
-                                            Step=""
-                                            StepTime=""
-                                            RecipeTime=""
-                                            Title="{Binding Title}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <Viewbox
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                MaxWidth="480"
-                                MaxHeight="480"
-                                Stretch="Uniform">
-                                <presentationControls:Robot
-                                    ArmCount="{Binding Model.ArmCount}"
-                                    ArmType="Linear"
-                                    Arms="{Binding Model.Arms}"
-                                    Rotation="{Binding Model.Direction}"
-                                    Travel="{Binding Model.Y}" />
-                            </Viewbox>
-
-                            <!--  南：LoadPort 用 LoadPortInfoCard  -->
-                            <ItemsControl
-                                Grid.Row="2"
-                                Grid.Column="1"
-                                Margin="0,8,0,0"
-                                ItemsSource="{Binding Model.SouthStations}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <presentationControls:LoadPortInfoCard
-                                            Width="280"
-                                            Height="180"
-                                            Margin="4,0"
+                                            Width="440"
+                                            Height="247"
+                                            Margin="6,0"
                                             Alarm="False"
                                             AutoMode="True"
                                             CreateEnable="False"

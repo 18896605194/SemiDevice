@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// E87 的端口搬运状态（Host 看到的那一套）：由 EAP 侧状态机维护，设备侧只在 E84 握手时查询。

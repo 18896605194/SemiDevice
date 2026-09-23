@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// IO 点位契约：后端按周期整包推，界面订阅后照 类型 → 模块 两级分组显示。

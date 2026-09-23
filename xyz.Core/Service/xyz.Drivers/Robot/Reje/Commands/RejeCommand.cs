@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 public abstract class RejeCommand : RobotCommand
 {

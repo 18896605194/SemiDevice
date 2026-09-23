@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// 从 LoadPort 取片的槽位顺序。槽位号 1 在最下面、SlotCount 在最上面。

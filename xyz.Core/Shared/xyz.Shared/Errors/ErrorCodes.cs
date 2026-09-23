@@ -1,4 +1,4 @@
-namespace xyz.Shared.Errors;
+﻿namespace xyz.Shared.Errors;
 
 
 public static class ErrorCodes

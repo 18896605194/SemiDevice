@@ -1,4 +1,4 @@
-using System.Windows.Controls;
+﻿using System.Windows.Controls;
 using xyz._35021.Client.Manual.ViewModels;
 using xyz.Tools;
 

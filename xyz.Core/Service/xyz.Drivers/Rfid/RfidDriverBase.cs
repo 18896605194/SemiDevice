@@ -1,4 +1,4 @@
-using xyz.Drivers.Communication;
+﻿using xyz.Drivers.Communication;
 
 namespace xyz.Drivers.Rfid;
 

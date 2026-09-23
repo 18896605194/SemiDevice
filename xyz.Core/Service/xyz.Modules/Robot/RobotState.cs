@@ -1,4 +1,4 @@
-namespace xyz.Modules.Enums;
+﻿namespace xyz.Modules.Enums;
 
 /// <summary>
 /// Robot 状态码；公共状态继承自 <see cref="ModuleState"/>。

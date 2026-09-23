@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 系统设置（后端 sc.xml 的 System 节点），客户端启动时拉一次。

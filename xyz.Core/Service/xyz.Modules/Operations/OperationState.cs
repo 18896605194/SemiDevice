@@ -1,4 +1,4 @@
-namespace xyz.Modules;
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// 操作状态：Running 执行中；Completed / Failed / Aborted 为终态。

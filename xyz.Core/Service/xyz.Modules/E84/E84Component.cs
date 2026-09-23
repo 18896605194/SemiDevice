@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Alarm;

@@ -1,4 +1,4 @@
-namespace xyz.Components.Wafers;
+﻿namespace xyz.Components.Wafers;
 
 /// <summary>
 /// 流水里的变动类型。

@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport.FCD;
+﻿namespace xyz.Drivers.Loadport.FCD;
 
 /// <summary>
 /// FCD B 类帧协议常量与通用解析：指令类型前缀、回复类型、Mapping 字符。

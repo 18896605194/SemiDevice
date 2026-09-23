@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using xyz.Components.Enums;
 
 namespace xyz.Components.Attributes;

@@ -1,4 +1,4 @@
-namespace xyz.Components.Enums;
+﻿namespace xyz.Components.Enums;
 
 /// <summary>
 /// 变量值格式（UI 据此选择编辑控件）。

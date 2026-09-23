@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using xyz.Client.Common.Alarms;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Models;

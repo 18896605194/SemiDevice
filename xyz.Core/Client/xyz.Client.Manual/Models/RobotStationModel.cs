@@ -1,4 +1,4 @@
-using xyz.Shared.Dtos;
+﻿using xyz.Shared.Dtos;
 
 namespace xyz.Client.Manual.Models;
 

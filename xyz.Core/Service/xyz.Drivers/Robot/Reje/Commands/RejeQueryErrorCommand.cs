@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 /// <summary>
 /// Error（@Error;）：查询控制器当前报错。无错回 00000000；有错回八位报警码 + 内容——

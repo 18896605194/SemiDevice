@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <!-- 机型引用平台（允许）；平台不引用本工程，靠运行时扫描 Modules\<机型> 加载。 -->

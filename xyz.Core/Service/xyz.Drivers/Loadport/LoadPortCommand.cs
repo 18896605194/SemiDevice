@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Loadport;
+﻿namespace xyz.Drivers.Loadport;
 
 public abstract class LoadPortCommand
 {

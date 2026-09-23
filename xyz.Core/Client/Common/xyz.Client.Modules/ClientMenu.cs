@@ -1,4 +1,4 @@
-namespace xyz.Client.Modules;
+﻿namespace xyz.Client.Modules;
 
 /// <summary>
 /// 菜单声明：菜单写在代码里（平台的由壳声明，机型的由机型模块声明），不进数据库。

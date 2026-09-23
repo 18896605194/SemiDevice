@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;

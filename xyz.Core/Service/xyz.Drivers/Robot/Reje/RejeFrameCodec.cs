@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using xyz.Drivers.Communication;
 
 namespace xyz.Drivers.Robot.Reje;

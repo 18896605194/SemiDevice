@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Rfid.FCD.Commands;
+﻿namespace xyz.Drivers.Rfid.FCD.Commands;
 
 /// <summary>
 /// 取读头版本：0x00 → 0x60。开机自检用，确认读头在线且协议对得上。

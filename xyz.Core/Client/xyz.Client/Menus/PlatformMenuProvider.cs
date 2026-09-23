@@ -1,15 +1,15 @@
-using xyz.Client.Modules;
+﻿using xyz.Client.Modules;
 
 namespace xyz.Client.Menus;
 
 /// <summary>
-/// 平台菜单：固定的一级菜单和平台页面的二级菜单，写在代码里，不进数据库�?
-/// 框架页面的二级菜单都在这里声明（�?Manual 下的手动页——单片类机台长得都一样），机型模块只写对应的界面�?
-/// 真有机型独有的页面时，才由机型实�?IClientMenuProvider 挂到这里的一级菜单下�?
-/// 显示名在语言包里�?menu.{Code}�?
+/// 平台菜单：固定的一级菜单和平台页面的二级菜单，写在代码里，不进数据库。
+/// 框架页面的二级菜单都在这里声明（含 Manual 下的手动页——单片类机台长得都一样），机型模块只写对应的界面。
+/// 真有机型独有的页面时，才由机型实现 IClientMenuProvider 挂到这里的一级菜单下。
+/// 显示名在语言包里配 menu.{Code}。
 ///
-/// IO 下按模块分的二级菜单是个例外：它照后�?sc.xml 里实际装的模块生成，
-/// 机台配了几个模块就有几项——sc.xml 里没�?LoadPort1，菜单里就不会有 LoadPort1�?
+/// IO 下按模块分的二级菜单是个例外：它照后端 sc.xml 里实际装的模块生成，
+/// 机台配了几个模块就有几项——sc.xml 里没配 LoadPort1，菜单里就不会有 LoadPort1。
 /// </summary>
 public sealed class PlatformMenuProvider : IClientMenuProvider
 {

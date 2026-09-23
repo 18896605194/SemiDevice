@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 设备总状态：四色灯的红、黄、绿按它亮（蓝灯是客户端与后端的通讯，客户端自己判断）。

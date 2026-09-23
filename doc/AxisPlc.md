@@ -1,4 +1,4 @@
-# 轴与 PLC 数据块
+﻿# 轴与 PLC 数据块
 
 普通 IO 整块采集、单点写入。轴按 `SendPlcDataPath`（命令块）、`ReceivePlcDataPath`（状态块）两个数据块名绑 PLC，
 两块都登记进 PLC 组件的 50ms 整块缓存：发令是同步写命令块，状态每拍从缓存取。

@@ -1,4 +1,4 @@
-namespace xyz.Components.Wafers;
+﻿namespace xyz.Components.Wafers;
 
 /// <summary>
 /// 片在槽位里的物理状态，来自 Mapping 结果或人工建片。

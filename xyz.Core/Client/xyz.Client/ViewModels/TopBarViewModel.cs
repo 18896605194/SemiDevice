@@ -1,4 +1,4 @@
-using System.Windows.Threading;
+﻿using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;

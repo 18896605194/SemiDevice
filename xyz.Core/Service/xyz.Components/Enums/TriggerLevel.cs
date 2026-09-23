@@ -1,4 +1,4 @@
-namespace xyz.Components.Enums;
+﻿namespace xyz.Components.Enums;
 
 /// <summary>
 /// DI 触发有效电平。

@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 历史查询结果（RpcResponse.Data 的 JSON）：查到的记录按时间倒序（最新的在前）。

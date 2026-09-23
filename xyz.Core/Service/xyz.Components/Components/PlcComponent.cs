@@ -1,4 +1,4 @@
-using xyz.Common.Log;
+﻿using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;

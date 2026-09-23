@@ -1,4 +1,4 @@
-namespace xyz.Drivers.Robot.Reje.Commands;
+﻿namespace xyz.Drivers.Robot.Reje.Commands;
 
 /// <summary>
 /// QEnable（@QEnable;）：查询伺服是否上使能，内容段 YES/NO 解析成 Response.ServoOn。

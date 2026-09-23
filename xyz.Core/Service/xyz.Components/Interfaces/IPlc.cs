@@ -1,4 +1,4 @@
-namespace xyz.Components.Interfaces;
+﻿namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// PLC 读写出口：气缸/传感器按索引读写单点，轴按数据块名整块收发。

@@ -1,4 +1,4 @@
-using xyz.Drivers.Communication.Serial;
+﻿using xyz.Drivers.Communication.Serial;
 using xyz.Drivers.Communication.Tcp;
 
 namespace xyz.Drivers.Communication;

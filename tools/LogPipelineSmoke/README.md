@@ -1,4 +1,4 @@
-# Log pipeline checks
+﻿# Log pipeline checks
 
 Run from the repository root:
 
