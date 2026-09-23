@@ -1,16 +1,17 @@
-using xyz.Drivers.Loadport.FCD.Commands;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Loadport.Operation;
 
 /// <summary>
-/// Abort 操作：发送 FCD ABORT（终止）→ 等 INF 终结；超时走模块 EC live 读。
+/// Abort 操作：发设备急停 → 等指令终结；超时走模块 EC live 读。
+/// 急停指令在驱动组件上叫 Stop（Abort 是组件基类中止上层操作的口，两回事）。
 /// </summary>
 public sealed class AbortOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
-    private FcdAbortCommand? _command;
+    private LoadPortCommand? _command;
 
     public AbortOperation(LoadPortModule module) : base("Abort", ActionStep.SendCommand)
     {
@@ -22,8 +23,8 @@ public sealed class AbortOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new FcdAbortCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Driver!.Stop();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

@@ -1,10 +1,7 @@
 using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
-using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
-using xyz.Drivers.Loadport.FCD;
-using xyz.Drivers.Loadport.FCD.Commands;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz._35021.Module.Loadport.Operation;
@@ -12,7 +9,8 @@ using xyz._35021.Module.Loadport.Operation;
 namespace xyz._35021.Module.Loadport;
 
 /// <summary>
-/// 35021 机台 LoadPort 模块：FCD 驱动 + 各动作操作（操作类在 Operation 文件夹）。
+/// 35021 机台 LoadPort 模块：各动作操作 + 设备状态轮询（操作类在 Operation 文件夹）。
+/// 品牌驱动是 sc.xml 挂在本模块下的 Driver 子组件，换 Type 即换品牌。
 /// </summary>
 [Component(description: "35021 LoadPort 模块")]
 public class LoadPortModule : BaseLoadPortModule, ILoadPort
@@ -29,19 +27,10 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
 
     #endregion
 
-    #region 驱动连接
-
-    protected override ILoadPortDriver CreateDriver()
-    {
-        return new FcdLoadPortDriver(new FrameCommunication(CreateTransport(), new FcdFrameCodec()));
-    }
-
-    #endregion
-
     #region 扫描
 
     private ActionStep _stateQueryStep = ActionStep.SendCommand;
-    private FcdGetStateCommand? _stateCommand;
+    private LoadPortCommand? _stateCommand;
     private readonly Stopwatch _stateQueryWatch = new();
 
     protected override void OnScan()
@@ -70,13 +59,8 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
         switch (_stateQueryStep)
         {
             case ActionStep.SendCommand:
-                if (!driver.IsConnected)
-                {
-                    break;
-                }
-
-                _stateCommand = new FcdGetStateCommand(driver);
-                if (_stateCommand.Execute())
+                _stateCommand = driver.QueryStatus();
+                if (_stateCommand is not null)
                 {
                     _stateQueryWatch.Restart();
                     _stateQueryStep = ActionStep.WaitCommand;
@@ -94,8 +78,8 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
                         _stateQueryWatch.Reset();
                         _stateCommand = null;
                         _stateQueryStep = ActionStep.SendCommand;
-                        // 驱动保留旧查询的在途项，旧回复到达前不会受理下一条 STATE。
-                        LogHelper.Warn(Name, $"GET:STATE 查询超时（{timeout}ms）");
+                        // 驱动保留旧查询的在途项，旧回复到达前不会受理下一条状态查询。
+                        LogHelper.Warn(Name, $"状态查询超时（{timeout}ms）");
                     }
 
                     break;

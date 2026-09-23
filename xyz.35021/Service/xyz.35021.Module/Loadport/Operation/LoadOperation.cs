@@ -1,4 +1,4 @@
-using xyz.Drivers.Loadport.FCD.Commands;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
@@ -7,7 +7,7 @@ namespace xyz._35021.Module.Loadport.Operation;
 public sealed class LoadOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
-    private FcdLoadCommand? _command;
+    private LoadPortCommand? _command;
 
     public LoadOperation(LoadPortModule module) : base("Load", ActionStep.SendCommand)
     {
@@ -19,8 +19,8 @@ public sealed class LoadOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new FcdLoadCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Driver!.Load();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

@@ -1,16 +1,17 @@
-using xyz.Drivers.Loadport.FCD.Commands;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Loadport.Operation;
 
 /// <summary>
-/// Reset 操作：发送 FCD SET:RESET（复位清错）→ 等 INF 终结；超时走模块 EC live 读。
+/// Reset 操作：发设备复位清错 → 等指令终结；超时走模块 EC live 读。
+/// 设备清错指令在驱动组件上叫 ResetDrive（Reset 是组件基类清报警的口，两回事）。
 /// </summary>
 public sealed class ResetOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
-    private FcdResetCommand? _command;
+    private LoadPortCommand? _command;
 
     public ResetOperation(LoadPortModule module) : base("Reset", ActionStep.SendCommand)
     {
@@ -22,8 +23,8 @@ public sealed class ResetOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new FcdResetCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Driver!.ResetDrive();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

@@ -61,18 +61,20 @@
 	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
-			<Value Name="Brand" Value="" />
-			<Value Name="CommType" Value="Serial" />
 			<Value Name="SlotCount" Value="25" />
-			<Value Name="PortName" Value="COM2" />
-			<Value Name="BaudRate" Value="9600" />
-			<Value Name="Parity" Value="None" />
-			<Value Name="DataBits" Value="8" />
-			<Value Name="StopBits" Value="One" />
-			<Value Name="Host" Value="192.168.1.100" />
-			<Value Name="NetPort" Value="4004" />
-			<Setting Name="RFID" Type="xyz._35021.Module.Rfid.RfidReaderComponent">
-				<Value Name="Brand" Value="FCD" />
+			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
+			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
+				<Value Name="CommType" Value="Serial" />
+				<Value Name="PortName" Value="COM2" />
+				<Value Name="BaudRate" Value="9600" />
+				<Value Name="Parity" Value="None" />
+				<Value Name="DataBits" Value="8" />
+				<Value Name="StopBits" Value="One" />
+				<Value Name="Host" Value="192.168.1.100" />
+				<Value Name="NetPort" Value="4004" />
+			</Setting>
+			<!-- RFID 读头：品牌壳，换 Type 即换品牌 -->
+			<Setting Name="RFID" Type="xyz.Components.Components.FcdRfidComponent">
 				<Value Name="CommType" Value="Serial" />
 				<Value Name="PortName" Value="COM6" />
 				<Value Name="BaudRate" Value="9600" />
@@ -102,18 +104,20 @@
 			</Setting>
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
-			<Value Name="Brand" Value="" />
-			<Value Name="CommType" Value="Serial" />
 			<Value Name="SlotCount" Value="25" />
-			<Value Name="PortName" Value="COM4" />
-			<Value Name="BaudRate" Value="9600" />
-			<Value Name="Parity" Value="None" />
-			<Value Name="DataBits" Value="8" />
-			<Value Name="StopBits" Value="One" />
-			<Value Name="Host" Value="192.168.1.101" />
-			<Value Name="NetPort" Value="4004" />
-			<Setting Name="RFID" Type="xyz._35021.Module.Rfid.RfidReaderComponent">
-				<Value Name="Brand" Value="FCD" />
+			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
+			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
+				<Value Name="CommType" Value="Serial" />
+				<Value Name="PortName" Value="COM4" />
+				<Value Name="BaudRate" Value="9600" />
+				<Value Name="Parity" Value="None" />
+				<Value Name="DataBits" Value="8" />
+				<Value Name="StopBits" Value="One" />
+				<Value Name="Host" Value="192.168.1.101" />
+				<Value Name="NetPort" Value="4004" />
+			</Setting>
+			<!-- RFID 读头：品牌壳，换 Type 即换品牌 -->
+			<Setting Name="RFID" Type="xyz.Components.Components.FcdRfidComponent">
 				<Value Name="CommType" Value="Serial" />
 				<Value Name="PortName" Value="COM8" />
 				<Value Name="BaudRate" Value="9600" />

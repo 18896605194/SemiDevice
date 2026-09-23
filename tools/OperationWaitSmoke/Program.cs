@@ -960,6 +960,7 @@ sealed class ProbePort : BaseLoadPortModule
         // Production names are assigned by ComponentLoader through internal setters.
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
+        AddChild(new ProbePortShell());
 
         // Seed only the in-memory EC component created at the top; never load or flush a configuration file.
         LoadTimeout = 0;
@@ -977,13 +978,10 @@ sealed class ProbePort : BaseLoadPortModule
     /// <summary>顶替扫描线程推一拍（本工具不跑扫描循环）。</summary>
     public void Tick() => OnScan();
 
-    /// <summary>假驱动：Begin() 要求有驱动且已连接，这里只为把那道门打开，不收发真实帧。</summary>
-    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
-
     /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
 
-    /// <summary>摆一个设备状态查询结果（生产里由机型扫描下发 GET:STATE 刷新）。</summary>
+    /// <summary>摆一个设备状态查询结果（生产里由机型扫描下发状态查询刷新）。</summary>
     public void NoteStatus(LoadPortStatus? status) => Status = status;
 
     /// <summary>走真路径发起动作（状态表 + 操作登记），不是 Load() 那种直接返回。</summary>
@@ -996,6 +994,12 @@ sealed class ProbePort : BaseLoadPortModule
     protected override ModuleOperation? AbortDevice() => Take();
     public override ModuleOperation? Clamp() => Take();
     public override ModuleOperation? Unclamp() => Take();
+}
+
+// 探针 LoadPort 品牌壳：只把传输换成假通道，编解码/驱动/指令都是生产代码。
+sealed class ProbePortShell : FcdLoadPortComponent
+{
+    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
 }
 
 // 探针 E84：IO 读写层还没接，输入由测试直接摆，输出只记次数；EC 只在本进程内存里种，不落盘。

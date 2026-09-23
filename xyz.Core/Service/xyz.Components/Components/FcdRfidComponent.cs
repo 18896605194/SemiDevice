@@ -3,19 +3,12 @@ using xyz.Drivers.Communication;
 using xyz.Drivers.Rfid;
 using xyz.Drivers.Rfid.FCD;
 using xyz.Drivers.Rfid.FCD.Commands;
-using xyz.Modules;
 
-namespace xyz._35021.Module.Rfid;
+namespace xyz.Components.Components;
 
-/// <summary>
-/// 35021 机台 RFID 读头：FCD（富创得 RFT-200S）驱动。
-/// 挂在 sc.xml 的 LoadPort 节点下面，名字固定叫 RFID。
-/// </summary>
-[Component(description: "35021 RFID 读头组件")]
-public class RfidReaderComponent : BaseRfidReader
+[Component(description: "富创得 RFID 读头驱动组件（RFT-200S）")]
+public class FcdRfidComponent : RfidDriverComponent
 {
-    #region 驱动连接
-
     protected override IRfidDriver CreateDriver()
     {
         // 二进制协议：帧通讯用 Latin1，字节过 string 管道无损。
@@ -27,6 +20,4 @@ public class RfidReaderComponent : BaseRfidReader
     {
         return new FcdReadCarrierIdCommand(IdStart, IdLength);
     }
-
-    #endregion
 }

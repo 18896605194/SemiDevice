@@ -101,7 +101,7 @@ public abstract class ComponentBase
 
     /// <summary>
     /// 按类型在子组件树（含各级后代，不含自己）中查找第一个匹配项；找不到返回 null。
-    /// T 可以是具体组件类（含其派生类）或接口（如 IRfidReader，匹配任意实现类）。
+    /// T 可以是具体组件类（含其派生类）或接口（如 IE84，匹配任意实现类）。
     /// </summary>
     public T? FindChild<T>() where T : class
     {

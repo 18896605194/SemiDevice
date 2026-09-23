@@ -1,16 +1,16 @@
-using xyz.Drivers.Loadport.FCD.Commands;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Loadport.Operation;
 
 /// <summary>
-/// Unload 操作：发送 FCD CULOD（关门）→ 等 INF 终结；超时走模块 EC live 读。
+/// Unload 操作：关门 → 等指令终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class UnloadOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
-    private FcdUnloadCommand? _command;
+    private LoadPortCommand? _command;
 
     public UnloadOperation(LoadPortModule module) : base("Unload", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class UnloadOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new FcdUnloadCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Driver!.Unload();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

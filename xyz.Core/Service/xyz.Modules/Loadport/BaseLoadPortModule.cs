@@ -5,7 +5,6 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Wafers;
-using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -76,35 +75,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region SC 
 
-    [SCEditor("", "LoadPort", "LoadPort 品牌")]
-    public string Brand { get; set; } = string.Empty;
-
     [SCEditor("True", "LoadPort", "是否启用本 LoadPort (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
-
-    [SCEditor("Serial", "LoadPort", "通讯类型：Serial=串口，Tcp=网口")]
-    public CommType CommType { get; set; } = CommType.Serial;
-
-    [SCEditor("COM", "LoadPort", "LoadPort 串口名称（CommType=Serial 时生效）")]
-    public string PortName { get; set; } = string.Empty;
-
-    [SCEditor("9600", "LoadPort", "LoadPort 串口波特率（CommType=Serial 时生效）")]
-    public int BaudRate { get; set; } = 9600;
-
-    [SCEditor("None", "LoadPort", "LoadPort 串口校验位（CommType=Serial 时生效）")]
-    public string Parity { get; set; } = "None";
-
-    [SCEditor("8", "LoadPort", "LoadPort 串口数据位（CommType=Serial 时生效）")]
-    public int DataBits { get; set; } = 8;
-
-    [SCEditor("One", "LoadPort", "LoadPort 串口停止位（CommType=Serial 时生效）")]
-    public string StopBits { get; set; } = "One";
-
-    [SCEditor("192.168.1.100", "LoadPort", "网口 IP（CommType=Tcp 时生效）")]
-    public string Host { get; set; } = "192.168.1.100";
-
-    [SCEditor("4004", "LoadPort", "网口端口（CommType=Tcp 时生效）")]
-    public int NetPort { get; set; } = 4004;
 
     [SCEditor("25", "LoadPort", "花篮槽数")]
     public int SlotCount { get; set; } = 25;
@@ -249,7 +221,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Component
 
-    public IRfidReader? RFID => FindChild<IRfidReader>();
+    /// <summary>
+    /// 品牌驱动组件（sc.xml 挂在本模块下的 Driver 子节点，换 Type 即换品牌）；Open 时按类型找到并挂上。
+    /// </summary>
+    public LoadPortDriverComponent? Driver { get; private set; }
+
+    public RfidDriverComponent? RFID => FindChild<RfidDriverComponent>();
 
     /// <summary>
     /// E84 交接组件；没配（本机型没有 E84）为 null。
@@ -292,24 +269,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 驱动连接
 
-    public ILoadPortDriver? Driver { get; private set; }
-
-    /// <summary>
-    /// 按 sc.xml 配的 CommType 建传输。
-    /// </summary>
-    protected ICommunication CreateTransport()
-    {
-        return CommunicationFactory.Create(CommType, PortName, BaudRate, Parity, DataBits, StopBits, Host, NetPort);
-    }
-
-    /// <summary>
-    /// 创建品牌驱动（传输 + 品牌帧编解码 + 驱动）；机型模块重写。
-    /// </summary>
-    protected virtual ILoadPortDriver CreateDriver()
-    {
-        throw new NotSupportedException($"{GetType().Name} 尚未实现 CreateDriver。");
-    }
-
     /// <summary>
     /// 打开驱动连接并订阅主动事件；由装配在 Start 之前调用。
     /// 装机停用（IsEnable=False）的模块视为打开成功，空转。
@@ -336,9 +295,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         // 先在晶圆账上占好槽位，Mapping 一到就能直接落账。
         WaferManager.Current?.RegisterLocation(Name, SlotCount);
 
-        Driver = CreateDriver();
-        Driver.OnSpontaneousEvent += OnDriverSpontaneousEvent;  //事件
-        return Driver.Open();
+        var driver = FindChild<LoadPortDriverComponent>();
+        if (driver is null)
+        {
+            LogHelper.Error(Name, "sc.xml 未挂品牌驱动组件（Driver 子节点），无法打开");
+            return false;
+        }
+
+        // 先摘后挂：Open 可重入，保证只挂一份。
+        driver.DeviceEvent -= OnDeviceEvent;
+        driver.DeviceEvent += OnDeviceEvent;
+        Driver = driver;
+        return driver.Open();
     }
 
     /// <summary>
@@ -351,7 +319,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         _eapNotifications.Writer.TryComplete();
     }
 
-    private void OnDriverSpontaneousEvent(LoadPortDeviceEvent evt)
+    private void OnDeviceEvent(LoadPortDeviceEvent evt)
     {
         // 在驱动路由线程回调，只做轻量状态翻转。
         switch (evt.Kind)

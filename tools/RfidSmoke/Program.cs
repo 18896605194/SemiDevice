@@ -5,8 +5,8 @@ using xyz.Drivers.Communication;
 using xyz.Drivers.Rfid;
 using xyz.Drivers.Rfid.FCD;
 using xyz.Drivers.Rfid.FCD.Commands;
+using xyz.Components.Components;
 using xyz.Modules;
-using xyz._35021.Module.Rfid;
 
 // FCD RFID 读头冒烟：不开硬件，用假读头按真实握手时序对话。
 // 覆盖帧编解码、ENQ/EOT/ACK/NAK 双向握手、块校验、载具 ID 切片、在途位管理与超时。
@@ -264,7 +264,7 @@ namespace RfidSmoke
     /// <summary>
     /// 机型组件的冒烟版：只把传输换成假读头，编解码/驱动/指令/步进机都是生产代码。
     /// </summary>
-    internal sealed class SmokeRfidReader : RfidReaderComponent
+    internal sealed class SmokeRfidReader : FcdRfidComponent
     {
         private readonly FakeFcdReader _device;
 

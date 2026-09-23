@@ -1,16 +1,16 @@
-using xyz.Drivers.Loadport.FCD.Commands;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Loadport.Operation;
 
 /// <summary>
-/// Home 操作：发送 FCD ORGSH（整机回零）→ 等 INF 终结；超时走模块 EC live 读。
+/// Home 操作：整机回零 → 等指令终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class HomeOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
-    private FcdHomeCommand? _command;
+    private LoadPortCommand? _command;
 
     public HomeOperation(LoadPortModule module) : base("Home", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class HomeOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new FcdHomeCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Driver!.Home();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

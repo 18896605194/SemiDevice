@@ -1,16 +1,16 @@
-using xyz.Drivers.Loadport.FCD.Commands;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Loadport.Operation;
 
 /// <summary>
-/// Unclamp 操作：发送 FCD PODOP（松开 FOUP）→ 等 INF 终结；超时走模块 EC live 读。
+/// Unclamp 操作：松开 FOUP → 等指令终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class UnclampOperation : ModuleOperation<ActionStep>
 {
     private readonly LoadPortModule _module;
-    private FcdUnclampCommand? _command;
+    private LoadPortCommand? _command;
 
     public UnclampOperation(LoadPortModule module) : base("Unclamp", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class UnclampOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new FcdUnclampCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Driver!.Unclamp();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }
