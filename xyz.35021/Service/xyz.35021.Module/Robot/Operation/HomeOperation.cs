@@ -1,16 +1,16 @@
-using xyz.Drivers.Robot.Reje.Commands;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Robot.Operation;
 
 /// <summary>
-/// Home 操作：发送锐洁 Home（全轴回原点）→ 等结果帧终结；超时走模块 EC live 读。
+/// Home 操作：经驱动组件发回原点（全轴回原点）→ 等结果帧终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class HomeOperation : ModuleOperation<ActionStep>
 {
     private readonly RobotModule _module;
-    private RejeHomeCommand? _command;
+    private RobotCommand? _command;
 
     public HomeOperation(RobotModule module) : base("Home", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class HomeOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new RejeHomeCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Robot!.Home();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

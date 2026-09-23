@@ -1,10 +1,8 @@
 using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
-using xyz.Drivers.Communication;
+using xyz.Components.Components;
 using xyz.Drivers.Robot;
-using xyz.Drivers.Robot.Reje;
-using xyz.Drivers.Robot.Reje.Commands;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz._35021.Module.Robot.Operation;
@@ -12,43 +10,12 @@ using xyz._35021.Module.Robot.Operation;
 namespace xyz._35021.Module.Robot;
 
 /// <summary>
-/// 35021 机台 Robot 模块：锐洁驱动 + 各动作操作（操作类在 Operation 文件夹）。
+/// 35021 机台 Robot 模块：设备状态轮询 + 各动作操作（操作类在 Operation 文件夹）。
+/// 品牌指令由 Driver 组件选（sc.xml 换 Type 即换品牌），机型代码不碰具体品牌。
 /// </summary>
 [Component(description: "35021 Robot 模块")]
 public class RobotModule : BaseRobotModule, IRobot
 {
-    #region 驱动连接
-
-    protected override IRobotDriver CreateDriver()
-    {
-        var transport = CommunicationFactory.CreateTcp(Host, NetPort);
-        return new RejeRobotDriver(new FrameCommunication(transport, new RejeFrameCodec()));
-    }
-
-    protected override void OnDriverCreated(IRobotDriver driver)
-    {
-        driver.OnSpontaneousEvent += OnDeviceEvent;
-    }
-
-    /// <summary>
-    /// 设备主动推送：在驱动路由线程回调，只做轻量状态翻转。
-    /// </summary>
-    private void OnDeviceEvent(RobotDeviceEvent evt)
-    {
-        switch (evt.Kind)
-        {
-            case RobotDeviceEventKind.WaferPresence:
-                NoteWaferPresence(evt.Arm, evt.HasWafer);
-                break;
-
-            case RobotDeviceEventKind.DeviceError:
-                DeviceError = evt.Content;
-                break;
-        }
-    }
-
-    #endregion
-
     #region 扫描
 
     /// <summary>
@@ -58,9 +25,18 @@ public class RobotModule : BaseRobotModule, IRobot
 
     private ActionStep _queryStep = ActionStep.SendCommand;
     private RobotCommand? _queryCommand;
+    private QueryKind _queryKind;
     private int _queryCount;
     private bool _waferEventSubscribed;
     private readonly Stopwatch _queryWatch = new();
+
+    /// <summary>当前这条只读查询问的是什么；回包按它落模块状态，不认品牌指令类型。</summary>
+    private enum QueryKind
+    {
+        SubscribeWaferEvent,
+        ServoOn,
+        DeviceError,
+    }
 
     protected override void OnScan()
     {
@@ -79,8 +55,8 @@ public class RobotModule : BaseRobotModule, IRobot
             return;
         }
 
-        var driver = Driver;
-        if (driver is null)
+        var robot = Robot;
+        if (robot is null)
         {
             return;
         }
@@ -88,13 +64,13 @@ public class RobotModule : BaseRobotModule, IRobot
         switch (_queryStep)
         {
             case ActionStep.SendCommand:
-                if (!driver.IsConnected)
+                if (!robot.IsConnected)
                 {
                     break;
                 }
 
-                _queryCommand = CreateQueryCommand(driver);
-                if (_queryCommand.Execute())
+                _queryCommand = CreateQueryCommand(robot);
+                if (_queryCommand is not null)
                 {
                     _queryWatch.Restart();
                     _queryStep = ActionStep.WaitCommand;
@@ -126,17 +102,23 @@ public class RobotModule : BaseRobotModule, IRobot
         }
     }
 
-    private RobotCommand CreateQueryCommand(IRobotDriver driver)
+    private RobotCommand? CreateQueryCommand(RobotDriverComponent robot)
     {
         int count = _queryCount++;
         if (!_waferEventSubscribed && count % SubscribeRetryInterval == 0)
         {
-            return new RejeSubscribeWaferEventCommand(driver);
+            _queryKind = QueryKind.SubscribeWaferEvent;
+            return robot.SubscribeWaferEvent();
         }
 
-        return count % 2 == 0
-            ? new RejeQueryErrorCommand(driver)
-            : new RejeQueryEnableCommand(driver);
+        if (count % 2 == 0)
+        {
+            _queryKind = QueryKind.DeviceError;
+            return robot.QueryDeviceError();
+        }
+
+        _queryKind = QueryKind.ServoOn;
+        return robot.QueryServoOn();
     }
 
     /// <summary>
@@ -145,9 +127,9 @@ public class RobotModule : BaseRobotModule, IRobot
     private void ApplyQueryResponse(RobotCommand command)
     {
         var response = command.Response!;
-        switch (command)
+        switch (_queryKind)
         {
-            case RejeSubscribeWaferEventCommand:
+            case QueryKind.SubscribeWaferEvent:
                 _waferEventSubscribed = response.IsSuccess;
                 if (!response.IsSuccess)
                 {
@@ -156,12 +138,20 @@ public class RobotModule : BaseRobotModule, IRobot
 
                 break;
 
-            case RejeQueryEnableCommand when response.IsSuccess:
-                IsServoOn = response.ServoOn;
+            case QueryKind.ServoOn:
+                if (response.IsSuccess)
+                {
+                    IsServoOn = response.ServoOn;
+                }
+
                 break;
 
-            case RejeQueryErrorCommand when response.IsSuccess:
-                DeviceError = response.DeviceError;
+            case QueryKind.DeviceError:
+                if (response.IsSuccess)
+                {
+                    DeviceError = response.DeviceError;
+                }
+
                 break;
         }
     }

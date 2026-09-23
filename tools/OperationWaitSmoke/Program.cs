@@ -1144,9 +1144,8 @@ sealed class ProbeRobot : BaseRobotModule
         ResetTimeout = 0;
         AbortTimeout = 0;
         PowerTimeout = 0;
+        AddChild(new ProbeRobotShell());
     }
-
-    protected override IRobotDriver CreateDriver() => new RejeRobotDriver(new FakeFrameCommunication());
 
     /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
@@ -1172,6 +1171,12 @@ sealed class ProbeRobot : BaseRobotModule
 
     private ModuleOperation Supply() =>
         Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
+}
+
+// 探针品牌壳：驱动走假传输，只为把连接那道门打开（生产里真指令都被 ProbeOperation 顶替了）。
+sealed class ProbeRobotShell : RejeRobotComponent
+{
+    protected override IRobotDriver CreateDriver() => new RejeRobotDriver(new FakeFrameCommunication());
 }
 
 // 探针子组件：记下 Init/Abort 的先后，能报自己的一条报警。

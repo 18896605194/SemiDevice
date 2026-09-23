@@ -1,16 +1,16 @@
-using xyz.Drivers.Robot.Reje.Commands;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Robot.Operation;
 
 /// <summary>
-/// Reset 操作：发送锐洁 Reset（清除控制器报错）→ 等结果帧终结；超时走模块 EC live 读。
+/// Reset 操作：经驱动组件发设备复位（清设备报错）→ 等结果帧终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class ResetOperation : ModuleOperation<ActionStep>
 {
     private readonly RobotModule _module;
-    private RejeResetCommand? _command;
+    private RobotCommand? _command;
 
     public ResetOperation(RobotModule module) : base("Reset", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class ResetOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new RejeResetCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Robot!.ResetDrive();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

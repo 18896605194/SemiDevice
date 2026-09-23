@@ -1,11 +1,11 @@
-using xyz.Drivers.Robot.Reje.Commands;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Robot.Operation;
 
 /// <summary>
-/// Place 操作：发送锐洁 P（指定手指向工位槽位放片）→ 等结果帧终结；超时走模块 EC live 读。
+/// Place 操作：经驱动组件发放片（指定手指向工位槽位放片）→ 等结果帧终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class PlaceOperation : ModuleOperation<ActionStep>
 {
@@ -13,7 +13,7 @@ public sealed class PlaceOperation : ModuleOperation<ActionStep>
     private readonly int _arm;
     private readonly int _station;
     private readonly int _slot;
-    private RejePlaceCommand? _command;
+    private RobotCommand? _command;
 
     public PlaceOperation(RobotModule module, int arm, int station, int slot) : base("Place", ActionStep.SendCommand)
     {
@@ -28,8 +28,8 @@ public sealed class PlaceOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new RejePlaceCommand(_module.Driver!, _arm, _station, _slot);
-                if (_command.Execute())
+                _command = _module.Robot!.Place(_arm, _station, _slot);
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

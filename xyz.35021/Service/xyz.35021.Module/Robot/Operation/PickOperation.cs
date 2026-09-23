@@ -1,11 +1,11 @@
-using xyz.Drivers.Robot.Reje.Commands;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Robot.Operation;
 
 /// <summary>
-/// Pick 操作：发送锐洁 G（指定手指从工位槽位取片）→ 等结果帧终结；超时走模块 EC live 读。
+/// Pick 操作：经驱动组件发取片（指定手指从工位槽位取片）→ 等结果帧终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class PickOperation : ModuleOperation<ActionStep>
 {
@@ -13,7 +13,7 @@ public sealed class PickOperation : ModuleOperation<ActionStep>
     private readonly int _arm;
     private readonly int _station;
     private readonly int _slot;
-    private RejePickCommand? _command;
+    private RobotCommand? _command;
 
     public PickOperation(RobotModule module, int arm, int station, int slot) : base("Pick", ActionStep.SendCommand)
     {
@@ -28,8 +28,8 @@ public sealed class PickOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new RejePickCommand(_module.Driver!, _arm, _station, _slot);
-                if (_command.Execute())
+                _command = _module.Robot!.Pick(_arm, _station, _slot);
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

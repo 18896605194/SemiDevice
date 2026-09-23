@@ -145,10 +145,13 @@
 	</Setting>
 	<Setting Name="Robot">
 		<Setting Name="Robot1" Type="xyz._35021.Module.Robot.RobotModule">
-			<Value Name="Brand" Value="Reje" />
-			<Value Name="Host" Value="127.0.0.1" />
-			<Value Name="NetPort" Value="9000" />
-			<Value Name="ArmCount" Value="2" />
+			<!-- 品牌驱动组件：换 Type 即换品牌（RejeRobotComponent / 其他品牌壳），机型代码不动。
+			     Axes 轴表决定手指数（Arm* 个数）：2 指机型 Arm1,Arm2，4 指再加 Arm3,Arm4 -->
+			<Setting Name="Driver" Type="xyz.Components.Components.RejeRobotComponent">
+				<Value Name="Host" Value="127.0.0.1" />
+				<Value Name="NetPort" Value="9000" />
+				<Value Name="Axes" Value="X,Z,Theta,Arm1,Arm2" />
+			</Setting>
 			<!-- 站点表：每个站点一个子节点。Number 设备站点号；Rotation 转台方位（North/East/South/West）；Travel 平移距离 -->
 			<Setting Name="Stations">
 				<Setting Name="LoadPort1">

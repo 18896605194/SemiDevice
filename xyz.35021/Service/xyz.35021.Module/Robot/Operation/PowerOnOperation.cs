@@ -1,16 +1,16 @@
-using xyz.Drivers.Robot.Reje.Commands;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Robot.Operation;
 
 /// <summary>
-/// PowerOn 操作：发送锐洁 PowerOn（伺服上使能）→ 等结果帧终结；超时走模块 EC live 读。
+/// PowerOn 操作：经驱动组件发伺服上使能 → 等结果帧终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class PowerOnOperation : ModuleOperation<ActionStep>
 {
     private readonly RobotModule _module;
-    private RejePowerOnCommand? _command;
+    private RobotCommand? _command;
 
     public PowerOnOperation(RobotModule module) : base("PowerOn", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class PowerOnOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new RejePowerOnCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Robot!.PowerOn();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

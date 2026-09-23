@@ -9,6 +9,9 @@
   <ItemGroup>
     <ProjectReference Include="..\xyz.Configs\xyz.Configs.csproj" />
     <ProjectReference Include="..\xyz.Database\xyz.Database.csproj" />
+    <!-- 品牌驱动组件（RobotDriverComponent/RejeRobotComponent）按薄壳模式关品牌指令；
+         Drivers 保持纯协议不回引 Components，引用单向。 -->
+    <ProjectReference Include="..\xyz.Drivers\xyz.Drivers.csproj" />
     <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
     <!-- TwinCAT.Ads 的传递依赖。DLL 走 Libs 本地引用，NuGet 不知道它依赖谁，所以这几个得自己列出来：
          漏了在 ASP.NET 宿主里看不出来（框架自带），换成普通控制台就 FileNotFoundException。

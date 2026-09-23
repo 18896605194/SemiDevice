@@ -1,16 +1,16 @@
-using xyz.Drivers.Robot.Reje.Commands;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 
 namespace xyz._35021.Module.Robot.Operation;
 
 /// <summary>
-/// PowerOff 操作：发送锐洁 PowerOff（伺服下使能）→ 等结果帧终结；超时走模块 EC live 读。
+/// PowerOff 操作：经驱动组件发伺服下使能 → 等结果帧终结；超时走模块 EC live 读。
 /// </summary>
 public sealed class PowerOffOperation : ModuleOperation<ActionStep>
 {
     private readonly RobotModule _module;
-    private RejePowerOffCommand? _command;
+    private RobotCommand? _command;
 
     public PowerOffOperation(RobotModule module) : base("PowerOff", ActionStep.SendCommand)
     {
@@ -22,8 +22,8 @@ public sealed class PowerOffOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = new RejePowerOffCommand(_module.Driver!);
-                if (_command.Execute())
+                _command = _module.Robot!.PowerOff();
+                if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);
                 }

@@ -51,20 +51,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region SC
 
-    [SCEditor("", "Robot", "Robot 品牌")]
-    public string Brand { get; set; } = string.Empty;
-
     [SCEditor("True", "Robot", "是否启用本 Robot (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("127.0.0.1", "Robot", "Robot 网口 IP")]
-    public string Host { get; set; } = "127.0.0.1";
-
-    [SCEditor("9000", "Robot", "Robot 网口端口")]
-    public int NetPort { get; set; } = 9000;
-
-    [SCEditor("2", "Robot", "手指数（手指号从 1 开始；晶圆账按手指注册槽位）")]
-    public int ArmCount { get; set; } = 2;
+    // 品牌/网口/轴表在 Driver 子组件上配（RobotDriverComponent）：换品牌就是换那个节点的 Type。
 
     #endregion
 
@@ -183,15 +173,18 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region 驱动连接
 
-    public IRobotDriver? Driver { get; private set; }
+    /// <summary>
+    /// 品牌驱动组件（sc.xml 本模块下的 Driver 子节点）：换 Type 即换品牌。
+    /// 打开成功后有值；装机停用或没挂驱动组件时为 null。
+    /// </summary>
+    public RobotDriverComponent? Robot { get; private set; }
 
     /// <summary>
-    /// 创建品牌驱动（传输 + 品牌帧编解码 + 驱动）；机型模块重写。
-    /// 传输走串口还是网口由机型自己定，基类不认具体传输类型。
+    /// 手指数：驱动组件轴表里 Arm* 的个数（手指号从 1 开始；晶圆账按手指注册槽位）。
     /// </summary>
-    protected virtual IRobotDriver CreateDriver()
+    public int ArmCount
     {
-        throw new NotSupportedException($"{GetType().Name} 尚未实现 CreateDriver。");
+        get { return Robot?.ArmCount ?? 0; }
     }
 
     /// <summary>
@@ -205,14 +198,22 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return true;
         }
 
+        var robot = FindChild<RobotDriverComponent>();
+        if (robot is null)
+        {
+            LogHelper.Error(Name, "sc.xml 没挂驱动组件：本模块下要有 Driver 子节点（Type 指定品牌壳）");
+            return false;
+        }
+
+        Robot = robot;
+
+        // 先摘后挂：Open 可能不止一次（重开），保证只挂一份。
+        robot.DeviceEvent -= OnDeviceEvent;
+        robot.DeviceEvent += OnDeviceEvent;
+
         // 手指在晶圆账里也是槽位：片停在手上算在途，跟停在花篮里一样要有位置。
-        WaferManager.Current?.RegisterLocation(Name, ArmCount);
-
-        Driver = CreateDriver();
-
-        // 挂钩放在 Open 之前：连上之后设备可能立刻推事件，晚订阅会漏。
-        OnDriverCreated(Driver);
-        return Driver.Open();
+        WaferManager.Current?.RegisterLocation(Name, robot.ArmCount);
+        return robot.Open();
     }
 
     /// <summary>
@@ -220,18 +221,28 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public void Close()
     {
-        Driver?.Close();
+        Robot?.Close();
     }
 
     /// <summary>
-    /// 驱动已建好、尚未打开时回调；机型在这儿订阅设备主动事件。默认什么都不订。
+    /// 设备主动推送（驱动路由线程上回调，事件已归一成 RobotDeviceEvent）：只做轻量状态翻转。
     /// </summary>
-    protected virtual void OnDriverCreated(IRobotDriver driver)
+    private void OnDeviceEvent(RobotDeviceEvent evt)
     {
+        switch (evt.Kind)
+        {
+            case RobotDeviceEventKind.WaferPresence:
+                NoteWaferPresence(evt.Arm, evt.HasWafer);
+                break;
+
+            case RobotDeviceEventKind.DeviceError:
+                DeviceError = evt.Content;
+                break;
+        }
     }
 
     /// <summary>
-    /// 记下手指在位（机型收到设备推送时调）。在驱动路由线程上调，只翻标志不做重活。
+    /// 记下手指在位。在驱动路由线程上调，只翻标志不做重活。
     /// </summary>
     protected void NoteWaferPresence(int arm, bool hasWafer)
     {
@@ -265,10 +276,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 .ToList(),
         };
 
-        var driver = Driver;
-        if (driver is not null)
+        var robot = Robot;
+        if (robot is not null)
         {
-            dto.IsConnected = driver.IsConnected;
+            dto.IsConnected = robot.IsConnected;
         }
 
         if (dto.IsConnected && IsEnable)
@@ -410,9 +421,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public abstract ModuleOperation? PowerOff();
 
     /// <summary>
-    /// 装机停用、或驱动还没建起来（装配里 Open 失败）都不发动作。
+    /// 装机停用、或驱动组件没挂起来（装配里 Open 失败）都不发动作。
     /// </summary>
-    protected override bool CanBeginAction => IsEnable && Driver is not null;
+    protected override bool CanBeginAction => IsEnable && Robot is not null;
 
     /// <summary>
     /// 操作终结（状态已由基类落好）：记晶圆账，失败的动作报警。
@@ -442,7 +453,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     private void CheckDeviceAlarm()
     {
-        if (Driver is { IsConnected: true } && !string.IsNullOrEmpty(DeviceError))
+        var robot = Robot;
+        if (robot is not null && robot.IsConnected && !string.IsNullOrEmpty(DeviceError))
         {
             RaiseAlarm(RobotDeviceAlarm);
         }
