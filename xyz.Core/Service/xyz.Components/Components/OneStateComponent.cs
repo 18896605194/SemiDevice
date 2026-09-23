@@ -5,16 +5,10 @@ using xyz.Components.Enums;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 单状态执行器底座：一个 DO 驱动 + 一个 DI 到位反馈。
-/// 只有一个受控状态——通电到位，断电靠弹簧/自重/气压自己复位，复位那一侧不受控也没得反馈。
-/// 阀门、单作用气缸这类都从它派生；DO/DI 的读写与到位判定写在这儿，派生类只加自己的语义属性。
-/// 动作由组件自己管到完成：调用方 On()/Off() 后看 ActionState；通电侧接了 DI 才等到位、才可能报超时，
-/// 没接 DI 和断电回位都是写完即完成；新指令随时可以顶替在途动作。
-/// </summary>
+
 public abstract class OneStateComponent : ComponentBase
 {
-    #region SC 装机常量
+    #region 
 
     [SCEditor("-1", "IO", "驱动 DO 索引", Required = true)]
     public int DoIndex { get; set; } = -1;
@@ -24,7 +18,7 @@ public abstract class OneStateComponent : ComponentBase
 
     #endregion
 
-    #region EC 可调参数
+    #region 
 
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "100", "60000", "3000",
         "到位超时时间（没接 DI 时不生效）")]

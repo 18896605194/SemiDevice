@@ -5,15 +5,10 @@ using xyz.Components.Motion;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 运动轴组件：一根走倍福数据块的伺服轴。指令同步写进命令块（SendPlcDataPath），状态每拍从状态块
-/// （ReceivePlcDataPath）的缓存里取，两块都走 PLC 组件的整块缓存。
-/// 动作由轴自己管到完成：调用方发 MoveTo 后看 ActionState，超时和驱动器报错由轴自报。
-/// </summary>
 [Component(description: "运动轴组件")]
 public partial class AxisComponent : ComponentBase
 {
-    #region SC 装机常量
+    #region SC 
 
     [SCEditor("", "Plc", "下发给 PLC 的命令块名（指令/目标位置/速度写到这儿），空 = 接线未定", Required = true)]
     public string SendPlcDataPath { get; set; } = string.Empty;
@@ -23,7 +18,7 @@ public partial class AxisComponent : ComponentBase
 
     #endregion
 
-    #region EC 可调参数
+    #region EC 
 
     [VariableMark(VariableType.EC, ValueFormat.Double, "unit/s", "0.1", "10000", "10", "回零速度")]
     public double HomeSpeed
@@ -90,7 +85,7 @@ public partial class AxisComponent : ComponentBase
 
     #endregion
 
-    #region SV 运行状态
+    #region SV 
 
     /// <summary>
     /// PLC 状态是否有效：状态块这一拍读到了、命令块基线也拿到了。false 时下面的数值是断线前的旧值，只能留着显示。

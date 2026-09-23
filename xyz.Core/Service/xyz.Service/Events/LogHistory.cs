@@ -17,8 +17,8 @@ public static class LogHistory
     {
         get
         {
-            var configured = LogComponent.Current?.RecentLogCount ?? LogComponent.DefaultRecentLogCount;
-            return configured > 0 ? configured : LogComponent.DefaultRecentLogCount;
+            var configured = LogComponent.Current?.RecentLogCount ?? 0;
+            return configured > 0 ? configured : 200;
         }
     }
 

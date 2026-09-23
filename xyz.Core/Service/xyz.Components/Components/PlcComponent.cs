@@ -245,7 +245,7 @@ public partial class PlcComponent : ComponentBase, IPlc
 
     #endregion
 
-    #region DI / DO / AI / AO 按索引读写（气缸、传感器、四色灯用这一套）
+    #region DI / DO / AI / AO 
 
     /// <summary>
     /// 读一个 DI 点。读不到返回 false（没连上、DI 块没配、索引越界），值只在返回 true 时有意义。

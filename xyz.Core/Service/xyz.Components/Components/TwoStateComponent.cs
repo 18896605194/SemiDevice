@@ -14,7 +14,7 @@ namespace xyz.Components.Components;
 /// </summary>
 public abstract class TwoStateComponent : ComponentBase
 {
-    #region SC 装机常量
+    #region SC 
 
     [SCEditor("-1", "IO", "开侧驱动 DO 索引", Required = true)]
     public int DoOpenIndex { get; set; } = -1;
@@ -30,7 +30,7 @@ public abstract class TwoStateComponent : ComponentBase
 
     #endregion
 
-    #region EC 可调参数
+    #region EC 
 
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "100", "60000", "5000",
         "到位超时时间（只管接了 DI 的那一侧）")]
@@ -119,7 +119,6 @@ public abstract class TwoStateComponent : ComponentBase
         return Move(false);
     }
 
-    /// <summary>先断对侧线圈再通本侧，两个线圈不会同时带电；哪一侧写失败都返回 false。</summary>
     private bool Move(bool opening)
     {
         var io = IoComponent.Current;

@@ -37,10 +37,10 @@ public class LogService : ILogService
             {
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
-                var configured = LogComponent.Current?.HistoryQueryMaxCount ?? LogComponent.DefaultHistoryQueryMaxCount;
+                var configured = LogComponent.Current?.HistoryQueryMaxCount ?? 0;
                 if (configured <= 0)
                 {
-                    configured = LogComponent.DefaultHistoryQueryMaxCount;
+                    configured = 1000;
                 }
 
                 var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, configured) : configured;
@@ -101,8 +101,8 @@ public class LogService : ILogService
         var component = LogComponent.Current;
         var settings = new LogSettingsDto
         {
-            RealtimeDisplayMaxCount = PositiveOr(component?.RealtimeDisplayMaxCount, LogComponent.DefaultRealtimeDisplayMaxCount),
-            LogBarDisplayMaxCount = PositiveOr(component?.LogBarDisplayMaxCount, LogComponent.DefaultLogBarDisplayMaxCount),
+            RealtimeDisplayMaxCount = PositiveOr(component?.RealtimeDisplayMaxCount, LogSettingsDto.DefaultRealtimeDisplayMaxCount),
+            LogBarDisplayMaxCount = PositiveOr(component?.LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
         };
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));

@@ -61,10 +61,10 @@ public class AlarmService : IAlarmService
             {
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
-                var configured = AlarmComponent.Current?.HistoryQueryMaxCount ?? AlarmComponent.DefaultHistoryQueryMaxCount;
+                var configured = AlarmComponent.Current?.HistoryQueryMaxCount ?? 0;
                 if (configured <= 0)
                 {
-                    configured = AlarmComponent.DefaultHistoryQueryMaxCount;
+                    configured = 1000;
                 }
 
                 var maxCount = query.MaxCount > 0 ? Math.Min(query.MaxCount, configured) : configured;

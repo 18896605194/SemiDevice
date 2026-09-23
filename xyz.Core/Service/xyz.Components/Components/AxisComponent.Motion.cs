@@ -7,18 +7,10 @@ namespace xyz.Components.Components;
 public partial class AxisComponent
 {
     #region 运行字段
-
-    /// <summary>
-    /// 发令后再过几拍才拿"停稳/到位"判完成。PLC 扫描刷缓存和轴扫描读缓存是两个没对齐的 50ms 循环，
-    /// 叠起来发令后头两拍读到的可能还是发令前的旧帧，旧帧上的到位不能算数；期间看到"运动中"就不用等了。
-    /// </summary>
     private const int SettleScans = 3;
 
-    // 以下状态由轴扫描和调用方线程共享，访问时持有 _axisGate。
     private readonly object _axisGate = new();
     private IPlc? _plc;
-
-    // 最近一次写下去的命令块。连上后先把 PLC 现有的命令块读回来当基线，同步号接着编，不撞号也不重发。
     private MotionCSharpToPlcCommand _command;
     private bool _baselined;
 
@@ -36,7 +28,6 @@ public partial class AxisComponent
 
     #region 通信
 
-    /// <summary>把收发两块登记进 PLC 的整块缓存；不回零不使能。由装配在模块启动前调用。</summary>
     public bool Open(IPlc plc)
     {
         if (string.IsNullOrWhiteSpace(SendPlcDataPath) || string.IsNullOrWhiteSpace(ReceivePlcDataPath))
@@ -51,7 +42,7 @@ public partial class AxisComponent
             _hasPlcData = false;
         }
 
-        plc.Register(SendPlcDataPath);
+        plc.Register(SendPlcDataPath);  //注册轴
         plc.Register(ReceivePlcDataPath);
         return true;
     }
@@ -85,7 +76,7 @@ public partial class AxisComponent
 
     #endregion
 
-    #region 轴操作（返回 true 只表示指令已写进 PLC，完成看 ActionState）
+    #region 轴操作
 
     public bool Home()
     {
@@ -167,6 +158,7 @@ public partial class AxisComponent
             double accel = Accel;
             double decel = Decel;
             double maxSpeed = MaxSpeed;
+            //参数校验
             if (!CanExecute(command, speed, accel, decel, maxSpeed))
             {
                 return false;
@@ -179,6 +171,7 @@ public partial class AxisComponent
                 return false;
             }
 
+            //判断是否已经在目标状态和位置
             if (IsAlreadyAtTarget(command))
             {
                 // 已在目标容差内不再下发，免得等一个不会发生的运动。
@@ -216,7 +209,15 @@ public partial class AxisComponent
         }
     }
 
-    // 以下检查由 Send 在轴锁内调用。
+    /// <summary>
+    /// 发送指令动作参数检查
+    /// </summary>
+    /// <param name="command"></param>
+    /// <param name="speed"></param>
+    /// <param name="accel"></param>
+    /// <param name="decel"></param>
+    /// <param name="maxSpeed"></param>
+    /// <returns></returns>
     private bool CanExecute(MotionCommandId command, double speed, double accel, double decel, double maxSpeed)
     {
         if (!double.IsFinite(decel) || decel <= 0)
@@ -360,7 +361,10 @@ public partial class AxisComponent
     private void CheckCompletion()
     {
         var command = (MotionCommandId)_command.Axis_Command;
-        if (_status.Is_Err == 1 && command is not MotionCommandId.Reset and not MotionCommandId.Stop and not MotionCommandId.EStop)
+        if (_status.Is_Err == 1
+            && command != MotionCommandId.Reset
+            && command != MotionCommandId.Stop
+            && command != MotionCommandId.EStop)
         {
             _action = ActionState.Failed;
             return;
@@ -368,19 +372,43 @@ public partial class AxisComponent
 
         // 看到过"运动中"或者已过了旧帧窗口，这一帧的停稳/到位才作数。
         bool settled = _observedMotion || _scansSinceSent >= SettleScans;
-        bool completed = command switch
+        if (!settled)
         {
-            MotionCommandId.Home => settled && _status.Is_Homed == 1 && _status.Is_Busy == 0 && _status.Is_Stopped == 1,
-            MotionCommandId.MoveTo or MotionCommandId.MoveBy => settled && _status.Is_Busy == 0
-                && _status.Is_In_Position == 1 && Math.Abs(_status.Current_Position - _target) <= PositionTolerance,
-            MotionCommandId.Stop or MotionCommandId.EStop => settled && _status.Is_Stopped == 1 && _status.Is_Busy == 0
-                && _status.Is_Servo_On == _command.Axis_Servo,
-            MotionCommandId.Reset => settled && _status.Is_Err == 0,
+            return;
+        }
+
+        bool completed;
+        switch (command)
+        {
+            case MotionCommandId.Home:
+                completed = _status.Is_Homed == 1 && _status.Is_Busy == 0 && _status.Is_Stopped == 1;
+                break;
+
+            case MotionCommandId.MoveTo:
+            case MotionCommandId.MoveBy:
+                completed = _status.Is_Busy == 0&& _status.Is_In_Position == 1&& Math.Abs(_status.Current_Position - _target) <= PositionTolerance;
+                break;
+
+            case MotionCommandId.Stop:
+            case MotionCommandId.EStop:
+                completed = _status.Is_Stopped == 1 && _status.Is_Busy == 0&& _status.Is_Servo_On == _command.Axis_Servo;
+                break;
+
+            case MotionCommandId.Reset:
+                completed = _status.Is_Err == 0;
+                break;
+
             // 连续运动到速即完成，设备是否还在转看 IsBusy/CurrentSpeed。
-            MotionCommandId.Spin or MotionCommandId.Jog => settled
-                && Math.Abs(_status.Current_Speed - _command.Param2) <= SpeedTolerance,
-            _ => false,
-        };
+            case MotionCommandId.Spin:
+            case MotionCommandId.Jog:
+                completed = Math.Abs(_status.Current_Speed - _command.Param2) <= SpeedTolerance;
+                break;
+
+            default:
+                completed = false;
+                break;
+        }
+
         if (completed)
         {
             _action = ActionState.Completed;
@@ -390,19 +418,25 @@ public partial class AxisComponent
     private string? CheckTimeout()
     {
         var command = (MotionCommandId)_command.Axis_Command;
-        bool stopping = command is MotionCommandId.Stop or MotionCommandId.EStop;
+        bool stopping = command == MotionCommandId.Stop || command == MotionCommandId.EStop;
         if (Environment.TickCount64 - _actionStarted < (stopping ? StopTimeoutMs : TimeoutMs))
         {
             return null;
         }
 
         _action = ActionState.Failed;
-        return command switch
+        switch (command)
         {
-            MotionCommandId.Home => HomeTimeoutAlarm,
-            MotionCommandId.Stop or MotionCommandId.EStop => StopTimeoutAlarm,
-            _ => MoveTimeoutAlarm,
-        };
+            case MotionCommandId.Home:
+                return HomeTimeoutAlarm;
+
+            case MotionCommandId.Stop:
+            case MotionCommandId.EStop:
+                return StopTimeoutAlarm;
+
+            default:
+                return MoveTimeoutAlarm;
+        }
     }
 
     #endregion

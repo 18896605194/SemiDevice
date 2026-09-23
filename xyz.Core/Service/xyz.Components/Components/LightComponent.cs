@@ -3,10 +3,7 @@ using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 四色灯和蜂鸣器组件，提供各路独立开关；DO 点位由上层通过 SC 配置。
-/// 外部经 <see cref="ILightComponent"/> 使用，不直接依赖本类。
-/// </summary>
+
 [Component(description: "四色灯和蜂鸣器组件")]
 public class LightComponent : ComponentBase, ILightComponent
 {

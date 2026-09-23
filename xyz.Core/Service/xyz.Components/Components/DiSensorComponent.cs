@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 [Component(description: "DI 值监控组件")]
 public class DiSensorComponent : ComponentBase
 {
-    #region SC 装机常量
+    #region SC 
 
     [SCEditor("-1", "IO", "监控的 DI 索引", Required = true)]
     public int DiIndex { get; set; } = -1;
@@ -26,7 +26,7 @@ public class DiSensorComponent : ComponentBase
 
     #endregion
 
-    #region EC 可调参数
+    #region EC 
 
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "10000", "200", "报警防抖：处于报警电平持续满该时长才算触发、才报警")]
     public int DebounceMs

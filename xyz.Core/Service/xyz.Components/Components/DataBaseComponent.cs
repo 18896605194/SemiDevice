@@ -6,15 +6,10 @@ using xyz.Database.DbProvider;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 数据库组件：一个节点就是一个具名连接，节点名即库名（Default / Wafer / Log ……）。
-/// 装配时把自己注册进 XyzDb，之后任何地方都能用 XyzDb.Create("库名") 拿到对应连接。
-/// 按用途分库：流水这种高频写不要跟登录鉴权挤同一个 SQLite 文件，互相抢写锁，坏一个也不牵连其它。
-/// </summary>
 [Component(description: "数据库连接（节点名即库名）")]
 public class DataBaseComponent : ComponentBase
 {
-    #region SC 装机常量
+    #region SC 
 
     /// <summary>
     /// 数据库连接字符串，通过 sc.xml 的 Value 注入。
