@@ -6,10 +6,6 @@ using xyz.Drivers.Robot.Reje.Commands;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 锐洁机械手驱动组件：网口 + 锐洁帧编解码 + RejeRobotDriver，每个动作对应一条锐洁指令。
-/// Reje/*Command 在壳内消化厂商怪癖（Wire/回显认领），上层只读 command.Response。
-/// </summary>
 [Component(description: "锐洁机械手驱动组件")]
 public class RejeRobotComponent : RobotDriverComponent
 {

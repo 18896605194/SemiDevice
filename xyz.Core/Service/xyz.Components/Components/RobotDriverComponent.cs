@@ -4,9 +4,7 @@ using xyz.Drivers.Robot;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 机械手驱动组件基座（薄壳）：配置与轴表、驱动生命周期、品牌无关的统一触发口。
-/// 品牌差异全部关在品牌壳（如 RejeRobotComponent）里——同一个机型模块 sc.xml 换 Type 即换品牌，零代码。
-/// 触发口下发即返回指令句柄：等 IsCompleted，结果读 Response。
+/// 机械手驱动组件基座
 /// </summary>
 public abstract class RobotDriverComponent : ComponentBase
 {
@@ -41,7 +39,6 @@ public abstract class RobotDriverComponent : ComponentBase
         }
     }
 
-    /// <summary>手指数 = 轴表里 Arm* 的个数（手指号从 1 开始；晶圆账按手指注册槽位）。</summary>
     public int ArmCount
     {
         get { return AxisList.Count(axis => axis.StartsWith("Arm", StringComparison.OrdinalIgnoreCase)); }
@@ -51,7 +48,6 @@ public abstract class RobotDriverComponent : ComponentBase
 
     #region 驱动连接
 
-    /// <summary>品牌驱动（传输 + 帧编解码 + 指令收发）；Open 建好后有值。</summary>
     public IRobotDriver? Driver { get; private set; }
 
     public bool IsConnected
@@ -92,9 +88,8 @@ public abstract class RobotDriverComponent : ComponentBase
 
     #endregion
 
-    #region 统一触发口（品牌无关）
+    #region 统一触发口
 
-    /// <summary>Home：全轴回原点。</summary>
     public RobotCommand? Home()
     {
         return Run(CreateHome());
