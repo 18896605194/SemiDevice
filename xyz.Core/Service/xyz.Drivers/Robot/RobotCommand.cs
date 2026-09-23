@@ -2,14 +2,8 @@ namespace xyz.Drivers.Robot;
 
 public abstract class RobotCommand
 {
-    /// <summary>
-    /// 指令唯一键（如锐洁的回显名）。驱动按它分在途槽位：同键指令同一时间只能有一条在途
-    /// </summary>
     public abstract string Key { get; }
 
-    /// <summary>
-    /// 提交口（驱动基类），构造时注入
-    /// </summary>
     protected IRobotDriver Driver { get; }
 
     private volatile RobotResponse? _response;

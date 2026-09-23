@@ -19,9 +19,6 @@ public class RobotModule : BaseRobotModule, IRobot
 {
     #region 驱动连接
 
-    /// <summary>
-    /// 锐洁走网口。
-    /// </summary>
     protected override IRobotDriver CreateDriver()
     {
         var transport = CommunicationFactory.CreateTcp(Host, NetPort);

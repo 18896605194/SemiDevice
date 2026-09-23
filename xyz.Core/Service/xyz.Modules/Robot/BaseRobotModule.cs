@@ -19,29 +19,22 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 {
     #region SV 
 
-    /// <summary>
-    /// Robot 当前状态（SV）。
-    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
     public override int State { get; protected set; } = ModuleState.NotInit;
 
-    /// <summary>
-    /// 伺服是否上使能（SV）：机型轮询查询刷新；尚未查到为 null。
-    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "伺服是否上使能")]
     public bool? IsServoOn { get; protected set; }
 
     private volatile string? _deviceError;
 
-    /// <summary>
-    /// 设备当前报错（SV，错误码#内容）：机型轮询查询或设备主动推送刷新；无报错为 null。
-    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "设备当前报错")]
     public string? DeviceError
     {
         get => _deviceError;
         protected set => _deviceError = value;
     }
+
+    #endregion
 
     private readonly ConcurrentDictionary<int, bool> _armWafers = new();
 
@@ -53,7 +46,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         return _armWafers.TryGetValue(arm, out bool hasWafer) ? hasWafer : null;
     }
 
-    #endregion
+
+
 
     #region SC
 
@@ -150,7 +144,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #endregion
 
-    #region 站点表（本 Robot 节点下的 Stations，每个站点一个子节点）
+    #region 站点表
 
     private IReadOnlyDictionary<string, RobotStation> _stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
