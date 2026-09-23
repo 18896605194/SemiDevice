@@ -274,11 +274,11 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <!--  北侧站点（腔体）  -->
+                            <!--  北：腔体 ChamberInfoCard  -->
                             <ItemsControl
                                 Grid.Row="0"
                                 Grid.Column="1"
-                                HorizontalAlignment="Center"
+                                Margin="0,0,0,8"
                                 ItemsSource="{Binding Model.NorthStations}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -287,85 +287,32 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border
+                                        <presentationControls:ChamberInfoCard
+                                            Width="220"
+                                            Height="160"
                                             Margin="4,0"
-                                            Padding="8,4"
-                                            VerticalAlignment="Center"
-                                            Background="#2A313A"
-                                            BorderBrush="{DynamicResource DarkBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="10">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Border
-                                                    MinWidth="22"
-                                                    Padding="4,1"
-                                                    Background="{DynamicResource PrimaryAccent}"
-                                                    CornerRadius="8">
-                                                    <TextBlock
-                                                        HorizontalAlignment="Center"
-                                                        FontSize="{DynamicResource Size12}"
-                                                        FontWeight="Bold"
-                                                        Foreground="White"
-                                                        Text="{Binding NumberText}" />
-                                                </Border>
-                                                <TextBlock
-                                                    Margin="6,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    FontSize="{DynamicResource Size12}"
-                                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                                    Text="{Binding Title}" />
-                                            </StackPanel>
-                                        </Border>
+                                            CreateEnable="False"
+                                            DeleteEnable="False"
+                                            IsOnline=""
+                                            Recipe=""
+                                            RecipeState=""
+                                            RotationSpeed="0"
+                                            ShutterState=""
+                                            State=""
+                                            StatusOn="False"
+                                            Step=""
+                                            StepTime=""
+                                            RecipeTime=""
+                                            Title="{Binding Title}" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <!--  西侧站点  -->
-                            <ItemsControl
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                VerticalAlignment="Center"
-                                ItemsSource="{Binding Model.WestStations}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border
-                                            Margin="0,4"
-                                            Padding="8,4"
-                                            Background="#2A313A"
-                                            BorderBrush="{DynamicResource DarkBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="10">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Border
-                                                    MinWidth="22"
-                                                    Padding="4,1"
-                                                    Background="{DynamicResource PrimaryAccent}"
-                                                    CornerRadius="8">
-                                                    <TextBlock
-                                                        HorizontalAlignment="Center"
-                                                        FontSize="{DynamicResource Size12}"
-                                                        FontWeight="Bold"
-                                                        Foreground="White"
-                                                        Text="{Binding NumberText}" />
-                                                </Border>
-                                                <TextBlock
-                                                    Margin="6,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    FontSize="{DynamicResource Size12}"
-                                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                                    Text="{Binding Title}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!--  转台图：限幅，避免在大片空白里被撑得过大  -->
                             <Viewbox
                                 Grid.Row="1"
                                 Grid.Column="1"
-                                MaxWidth="280"
-                                MaxHeight="280"
+                                MaxWidth="480"
+                                MaxHeight="480"
                                 Stretch="Uniform">
                                 <presentationControls:Robot
                                     ArmCount="{Binding Model.ArmCount}"
@@ -375,51 +322,11 @@
                                     Travel="{Binding Model.Y}" />
                             </Viewbox>
 
-                            <!--  东侧站点  -->
-                            <ItemsControl
-                                Grid.Row="1"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                ItemsSource="{Binding Model.EastStations}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border
-                                            Margin="0,4"
-                                            Padding="8,4"
-                                            Background="#2A313A"
-                                            BorderBrush="{DynamicResource DarkBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="10">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Border
-                                                    MinWidth="22"
-                                                    Padding="4,1"
-                                                    Background="{DynamicResource PrimaryAccent}"
-                                                    CornerRadius="8">
-                                                    <TextBlock
-                                                        HorizontalAlignment="Center"
-                                                        FontSize="{DynamicResource Size12}"
-                                                        FontWeight="Bold"
-                                                        Foreground="White"
-                                                        Text="{Binding NumberText}" />
-                                                </Border>
-                                                <TextBlock
-                                                    Margin="6,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    FontSize="{DynamicResource Size12}"
-                                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                                    Text="{Binding Title}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!--  南侧站点（LoadPort）  -->
+                            <!--  南：LoadPort 用 LoadPortInfoCard  -->
                             <ItemsControl
                                 Grid.Row="2"
                                 Grid.Column="1"
-                                HorizontalAlignment="Center"
+                                Margin="0,8,0,0"
                                 ItemsSource="{Binding Model.SouthStations}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -428,35 +335,117 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border
+                                        <presentationControls:LoadPortInfoCard
+                                            Width="280"
+                                            Height="180"
                                             Margin="4,0"
-                                            Padding="8,4"
-                                            VerticalAlignment="Center"
-                                            Background="#2A313A"
-                                            BorderBrush="{DynamicResource DarkBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="10">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Border
-                                                    MinWidth="22"
-                                                    Padding="4,1"
-                                                    Background="{DynamicResource PrimaryAccent}"
-                                                    CornerRadius="8">
-                                                    <TextBlock
-                                                        HorizontalAlignment="Center"
-                                                        FontSize="{DynamicResource Size12}"
-                                                        FontWeight="Bold"
-                                                        Foreground="White"
-                                                        Text="{Binding NumberText}" />
-                                                </Border>
-                                                <TextBlock
-                                                    Margin="6,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    FontSize="{DynamicResource Size12}"
-                                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                                    Text="{Binding Title}" />
-                                            </StackPanel>
-                                        </Border>
+                                            Alarm="False"
+                                            AutoMode="True"
+                                            CreateEnable="False"
+                                            DeleteEnable="False"
+                                            IsConnected="False"
+                                            IsOnline=""
+                                            Placed="False"
+                                            Present="False"
+                                            RotationSpeed="0"
+                                            SlotCount="0"
+                                            Title="{Binding Title}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Grid>
+
+                    <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  北侧站点（腔体）  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <!--  北：腔体用 ChamberInfoCard  -->
+                            <ItemsControl
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                Margin="0,0,0,8"
+                                ItemsSource="{Binding Model.NorthStations}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <presentationControls:ChamberInfoCard
+                                            Width="220"
+                                            Height="160"
+                                            Margin="4,0"
+                                            CreateEnable="False"
+                                            DeleteEnable="False"
+                                            IsOnline=""
+                                            Recipe=""
+                                            RecipeState=""
+                                            RotationSpeed="0"
+                                            ShutterState=""
+                                            State=""
+                                            StatusOn="False"
+                                            Step=""
+                                            StepTime=""
+                                            RecipeTime=""
+                                            Title="{Binding Title}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Viewbox
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                MaxWidth="480"
+                                MaxHeight="480"
+                                Stretch="Uniform">
+                                <presentationControls:Robot
+                                    ArmCount="{Binding Model.ArmCount}"
+                                    ArmType="Linear"
+                                    Arms="{Binding Model.Arms}"
+                                    Rotation="{Binding Model.Direction}"
+                                    Travel="{Binding Model.Y}" />
+                            </Viewbox>
+
+                            <!--  南：LoadPort 用 LoadPortInfoCard  -->
+                            <ItemsControl
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                Margin="0,8,0,0"
+                                ItemsSource="{Binding Model.SouthStations}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <presentationControls:LoadPortInfoCard
+                                            Width="280"
+                                            Height="180"
+                                            Margin="4,0"
+                                            Alarm="False"
+                                            AutoMode="True"
+                                            CreateEnable="False"
+                                            DeleteEnable="False"
+                                            IsConnected="False"
+                                            IsOnline=""
+                                            Placed="False"
+                                            Present="False"
+                                            RotationSpeed="0"
+                                            SlotCount="0"
+                                            Title="{Binding Title}" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

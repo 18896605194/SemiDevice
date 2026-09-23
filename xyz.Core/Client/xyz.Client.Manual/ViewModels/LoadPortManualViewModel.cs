@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Input;
 using Mapster;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
@@ -6,6 +6,7 @@ using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -82,6 +83,26 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     public override void Init()
     {
+        // 先拉一次当前状态，再订阅推送；只等推送的话刚进页面会一直是空默认值。
+        try
+        {
+            var response = _service.GetStateAsync(ModuleName).GetAwaiter().GetResult();
+            response.EnsureSuccess();
+
+            var json = response.Data?.TrimStart() ?? string.Empty;
+            var port = json.StartsWith('[')
+                ? JsonHelper.Deserialize<List<LoadPortDto>>(json)?.FirstOrDefault()
+                : JsonHelper.Deserialize<LoadPortDto>(json);
+            if (port is not null)
+            {
+                OnStateReceived(port);
+            }
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(ModuleName, $"读取 LoadPort 状态失败：{exception.Message}");
+        }
+
         _stateSubscription?.Dispose();
         _stateSubscription = EventBus.Register<LoadPortDto>(ModuleName, OnStateReceived);
     }

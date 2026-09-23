@@ -6,6 +6,7 @@ using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
+using xyz.Shared.Rpc;
 using xyz.Shared.Services;
 using xyz.Tools;
 
@@ -103,6 +104,26 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     public override void Init()
     {
+        // 先拉一次当前状态（含站点表），再订阅推送；只等推送的话页面刚打开会一直是空的。
+        try
+        {
+            var response = _service.GetStateAsync(ModuleName).GetAwaiter().GetResult();
+            response.EnsureSuccess();
+
+            var json = response.Data?.TrimStart() ?? string.Empty;
+            var robot = json.StartsWith('[')
+                ? JsonHelper.Deserialize<List<RobotDto>>(json)?.FirstOrDefault()
+                : JsonHelper.Deserialize<RobotDto>(json);
+            if (robot is not null)
+            {
+                ApplyState(robot);
+            }
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(ModuleName, $"读取机械手状态失败：{exception.Message}");
+        }
+
         _stateSubscription?.Dispose();
         _stateSubscription = EventBus.Register<RobotDto>(ModuleName, OnStateReceived);
     }
@@ -114,6 +135,11 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     }
 
     private void OnStateReceived(RobotDto dto)
+    {
+        ApplyState(dto);
+    }
+
+    private void ApplyState(RobotDto dto)
     {
         Model.Update(dto);
 

@@ -26,20 +26,49 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Grid Margin="6">
-                            <controls:ChamberInfoCard
-                                CreateEnable="False"
-                                DeleteEnable="False"
-                                IsOnline="OFFLINE"
-                                Recipe=""
-                                RecipeState=""
-                                RotationSpeed="0"
-                                ShutterState=""
-                                State=""
-                                StatusOn="False"
-                                Step=""
-                                StepTime=""
-                                RecipeTime=""
-                                Title="{Binding Title}" />
+                            <!--  调度图只留简单框：标题 / 状态 / 圆片，不用 ChamberInfoCard 那套字段表  -->
+                            <Border
+                                Padding="12"
+                                Background="{DynamicResource DarkSurfaceVariantBackground}"
+                                BorderBrush="{DynamicResource DarkDisabledText}"
+                                BorderThickness="2"
+                                CornerRadius="12">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel
+                                        Grid.Row="0"
+                                        Margin="0,0,0,8"
+                                        HorizontalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="{DynamicResource Size16}"
+                                            FontWeight="Bold"
+                                            Foreground="{DynamicResource DarkPrimaryText}"
+                                            Text="{Binding Title}" />
+                                        <TextBlock
+                                            Margin="12,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontSize="{DynamicResource Size13}"
+                                            Foreground="{DynamicResource DarkSecondaryText}"
+                                            Text="{DynamicResource lpmanual.offline}" />
+                                    </StackPanel>
+
+                                    <controls:Wafer
+                                        Grid.Row="1"
+                                        Margin="24,0"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        BorderBrush="{DynamicResource DarkDisabledText}"
+                                        BorderThickness="2"
+                                        CreateEnable="False"
+                                        DeleteEnable="False" />
+                                </Grid>
+                            </Border>
                             <Border
                                 Margin="12"
                                 HorizontalAlignment="Left"
