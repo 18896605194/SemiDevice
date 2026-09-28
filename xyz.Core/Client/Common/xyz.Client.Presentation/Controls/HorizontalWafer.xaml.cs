@@ -53,6 +53,20 @@ namespace xyz.Client.Presentation.Controls
                 nameof(Label), typeof(string), typeof(HorizontalWafer),
                 new PropertyMetadata(string.Empty));
 
+        /// <summary>
+        /// 条内是否写字（Label / 槽号）；条太窄写不下时关掉，由宿主在条外另写。
+        /// </summary>
+        public bool IsLabelVisible
+        {
+            get { return (bool)GetValue(IsLabelVisibleProperty); }
+            set { SetValue(IsLabelVisibleProperty, value); }
+        }
+
+        public static readonly DependencyProperty IsLabelVisibleProperty =
+            DependencyProperty.Register(
+                nameof(IsLabelVisible), typeof(bool), typeof(HorizontalWafer),
+                new PropertyMetadata(true));
+
         public ICommand CreateCommand
         {
             get { return (ICommand)GetValue(CreateCommandProperty); }

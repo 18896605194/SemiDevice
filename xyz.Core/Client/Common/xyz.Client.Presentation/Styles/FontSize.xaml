@@ -7,6 +7,7 @@
     <sys:Double x:Key="Size12">12</sys:Double>
     <sys:Double x:Key="Size13">13</sys:Double>
     <sys:Double x:Key="Size14">14</sys:Double>
+    <sys:Double x:Key="Size15">15</sys:Double>
     <sys:Double x:Key="Size16">16</sys:Double>
     <sys:Double x:Key="Size18">18</sys:Double>
     <sys:Double x:Key="Size20">20</sys:Double>

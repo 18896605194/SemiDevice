@@ -27,6 +27,8 @@
                 <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/FontSize.xaml" />
                 <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/ContextMenuStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -119,7 +121,8 @@
             <Viewbox
                 Margin="6,2"
                 Stretch="Uniform"
-                StretchDirection="Both">
+                StretchDirection="Both"
+                Visibility="{Binding IsLabelVisible, RelativeSource={RelativeSource AncestorType=local:HorizontalWafer}, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
