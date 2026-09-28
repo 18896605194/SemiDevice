@@ -16,8 +16,8 @@
                 <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <!--  ① 调度图：北排腔体卡 / 中间 Robot 控件 / 南排 LoadPort 卡，三排按比例分高；
-                 卡片按站点数平分整行宽度、按真实字号排版（不写死宽高，不整卡缩放）  -->
+            <!--  ① 调度图：北排腔体卡（最多四张）/ 中间 Robot 控件 / 南排 LoadPort 卡（两张），卡片近方形 280×233、居中排；
+                 片在哪都是同一个大小：卡片圆片直径（DiskSize）= 机械手叉上的片直径  -->
             <Grid Grid.Column="0" Margin="14">
                 <Border
                     Background="{DynamicResource DarkControlBackground}"
@@ -26,9 +26,9 @@
                     CornerRadius="6">
                     <Grid Margin="12">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -41,17 +41,20 @@
                             Grid.Row="0"
                             Grid.Column="1"
                             Margin="0,0,0,8"
+                            HorizontalAlignment="Center"
                             ItemsSource="{Binding Model.NorthStations}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Rows="1" />
+                                    <StackPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <presentationControls:ChamberInfoCard
-                                        MaxWidth="860"
+                                        Width="280"
+                                        Height="233"
                                         Margin="6,0"
+                                        DiskSize="76"
                                         Number="{Binding NumberText}"
                                         CreateEnable="False"
                                         DeleteEnable="False"
@@ -70,9 +73,11 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!--  机械手画 360 高：Robot 控件按 400 设计，叉上的片直径 84，放到 360 约 76，跟卡片圆片一样大  -->
                         <Viewbox
                             Grid.Row="1"
                             Grid.Column="1"
+                            Height="360"
                             Stretch="Uniform">
                             <presentationControls:Robot
                                 ArmCount="{Binding Model.ArmCount}"
@@ -87,17 +92,20 @@
                             Grid.Row="2"
                             Grid.Column="1"
                             Margin="0,8,0,0"
+                            HorizontalAlignment="Center"
                             ItemsSource="{Binding Model.SouthStations}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Rows="1" />
+                                    <StackPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <presentationControls:LoadPortInfoCard
-                                        MaxWidth="860"
+                                        Width="280"
+                                        Height="233"
                                         Margin="6,0"
+                                        DiskSize="76"
                                         Number="{Binding NumberText}"
                                         Alarm="False"
                                         AutoMode="True"
@@ -108,7 +116,7 @@
                                         Placed="False"
                                         Present="False"
                                         RotationSpeed="0"
-                                        SlotCount="0"
+                                        SlotCount="{Binding SlotCount}"
                                         Title="{Binding Title}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -117,248 +125,255 @@
                 </Border>
             </Grid>
 
-            <!--  ② 右栏：机械手状态 + 取放参数 / 取放 / 运动 / 异常 + 轴位·报错，块间一条细线  -->
+            <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 取放（手臂 + 源 / 目标 的站点·槽位 → Pick · Place）→ Home / Abort / Reset → 轴位  -->
             <Border
                 Grid.Column="1"
                 BorderBrush="{DynamicResource DarkBorderBrush}"
                 BorderThickness="1,0,0,0">
                 <StackPanel>
 
-                    <!--  机械手状态：模块名 / 信号灯（通讯·伺服·报警·Online 一行，各手指一行，四列对齐） / 状态·站点·伸出方向·伸出 Y  -->
-                    <StackPanel Margin="14,12,14,0">
-                        <TextBlock
-                            FontSize="{DynamicResource Size22}"
-                            FontWeight="Bold"
-                            Foreground="{DynamicResource DarkPrimaryText}"
-                            Text="{Binding ModuleName}" />
+                    <!--  模块名  -->
+                    <TextBlock
+                        Margin="14,12,14,0"
+                        FontSize="{DynamicResource Size22}"
+                        FontWeight="Bold"
+                        Foreground="{DynamicResource DarkPrimaryText}"
+                        Text="{Binding ModuleName}" />
 
-                        <UniformGrid
-                            Margin="0,8,0,0"
-                            Columns="4"
-                            Rows="1">
+                    <!--  状态色条：按状态整条上底色（空闲绿 / 报错红 / 动作中蓝 / 急停中黄 / 未初始化灰），一眼看出机械手能不能动  -->
+                    <Border
+                        Height="40"
+                        Margin="14,8,14,0"
+                        CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource DarkInactiveStatus}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="20">
+                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="30">
+                                        <Setter Property="Background" Value="{DynamicResource DarkRunningStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="35">
+                                        <Setter Property="Background" Value="{DynamicResource DarkWarningStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="40">
+                                        <Setter Property="Background" Value="{DynamicResource DarkAlarmStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="200">
+                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="210">
+                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Model.State}" Value="220">
+                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size18}"
+                            FontWeight="Bold"
+                            Text="{Binding Model.StateText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="White" />
+                                    <Style.Triggers>
+                                        <!--  黄底配深色字  -->
+                                        <DataTrigger Binding="{Binding Model.State}" Value="35">
+                                            <Setter Property="Foreground" Value="{DynamicResource DarkSurfaceBackground}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+
+                    <!--  参数框：通讯 / 使能 / 报错 一行一盏灯（使能行带 ON / OFF 小按钮，报错行写报错内容），速度显示数值  -->
+                    <Border Margin="14,10,14,0" Style="{DynamicResource ReadoutBorderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
                             <!--  通讯  -->
-                            <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource robotmanual.comm_tip}">
-                                <Ellipse Width="14" Height="14" VerticalAlignment="Center">
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#555" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Model.IsConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
-                                </Ellipse>
-                                <TextBlock
-                                    Margin="5,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.comm}" />
+                            <TextBlock
+                                Grid.Row="0"
+                                Margin="0,4"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource robotmanual.comm}"
+                                ToolTip="{DynamicResource robotmanual.comm_tip}" />
+                            <Ellipse
+                                Grid.Row="0"
+                                Grid.Column="2"
+                                Width="12"
+                                Height="12"
+                                VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#555" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Model.IsConnected}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+
+                            <!--  使能：伺服上 / 下使能的小按钮 + 灯  -->
+                            <TextBlock
+                                Grid.Row="1"
+                                Margin="0,4"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource robotmanual.enable}"
+                                ToolTip="{DynamicResource robotmanual.servo_tip}" />
+                            <StackPanel
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Margin="0,0,8,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Button
+                                    Command="{Binding PowerOnCommand}"
+                                    Content="{DynamicResource robotmanual.servo_on}"
+                                    Style="{DynamicResource MiniButtonStyle}" />
+                                <Button
+                                    Command="{Binding PowerOffCommand}"
+                                    Content="{DynamicResource robotmanual.servo_off}"
+                                    Style="{DynamicResource MiniButtonStyle}" />
                             </StackPanel>
+                            <Ellipse
+                                Grid.Row="1"
+                                Grid.Column="2"
+                                Width="12"
+                                Height="12"
+                                VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#555" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Model.IsServoOn}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
 
-                            <!--  伺服  -->
-                            <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource robotmanual.servo_tip}">
-                                <Ellipse Width="14" Height="14" VerticalAlignment="Center">
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#555" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Model.IsServoOn}" Value="True">
-                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
-                                </Ellipse>
-                                <TextBlock
-                                    Margin="5,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.servo}" />
-                            </StackPanel>
+                            <!--  报错：有报错灯亮，报错内容（错误码#内容）写在灯左边  -->
+                            <TextBlock
+                                Grid.Row="2"
+                                Margin="0,4"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource robotmanual.device_error}"
+                                ToolTip="{DynamicResource robotmanual.alarm_tip}" />
+                            <TextBlock
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                Margin="12,0,8,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas"
+                                FontSize="{DynamicResource Size13}"
+                                Foreground="{DynamicResource DarkPrimaryText}"
+                                Text="{Binding Model.DeviceError}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding Model.DeviceError}" />
+                            <Ellipse
+                                Grid.Row="2"
+                                Grid.Column="2"
+                                Width="12"
+                                Height="12"
+                                VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#555" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Model.HasDeviceError}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
 
-                            <!--  报警  -->
-                            <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource robotmanual.alarm_tip}">
-                                <Ellipse Width="14" Height="14" VerticalAlignment="Center">
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#555" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Model.HasDeviceError}" Value="True">
-                                                    <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
-                                </Ellipse>
-                                <TextBlock
-                                    Margin="5,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.alarm}" />
-                            </StackPanel>
+                            <!--  速度：全局速度百分比  -->
+                            <TextBlock
+                                Grid.Row="3"
+                                Margin="0,4"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource robotmanual.speed}" />
+                            <TextBlock
+                                Grid.Row="3"
+                                Grid.Column="1"
+                                Grid.ColumnSpan="2"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas"
+                                FontSize="{DynamicResource Size14}"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource DarkPrimaryText}"
+                                Text="{Binding Model.SpeedText}" />
+                        </Grid>
+                    </Border>
 
-                            <!--  Online：模块模式 Online=参与自动调度  -->
-                            <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource robotmanual.online_tip}">
-                                <Ellipse Width="14" Height="14" VerticalAlignment="Center">
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#555" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
-                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
-                                </Ellipse>
-                                <TextBlock
-                                    Margin="5,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="Online" />
-                            </StackPanel>
-                        </UniformGrid>
+                    <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                        <!--  各手指有片（一指一盏，跟着推送的手指在位走），与上一行同四列对齐  -->
-                        <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Model.Arms}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="4" Rows="1" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" ToolTip="{DynamicResource robotmanual.arm_tip}">
-                                        <Ellipse Width="14" Height="14" VerticalAlignment="Center">
-                                            <Ellipse.Style>
-                                                <Style TargetType="Ellipse">
-                                                    <Setter Property="Fill" Value="#555" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasWafer}" Value="True">
-                                                            <Setter Property="Fill" Value="{DynamicResource PrimaryAccent}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Ellipse.Style>
-                                        </Ellipse>
-                                        <TextBlock
-                                            Margin="5,0,0,0"
-                                            VerticalAlignment="Center"
-                                            FontSize="{DynamicResource Size14}"
-                                            Foreground="{DynamicResource DarkSecondaryText}"
-                                            Text="{Binding Arm, StringFormat=Arm{0}}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!--  状态 / 站点 / 伸出方向 / 伸出 Y（都由后端 SC 经 DTO 推）  -->
-                        <Border Margin="0,8,0,0" Style="{DynamicResource ReadoutBorderStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <TextBlock
-                                    Grid.Row="0"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.fact_state}" />
-                                <TextBlock
-                                    Grid.Row="0"
-                                    Grid.Column="1"
-                                    HorizontalAlignment="Right"
-                                    FontSize="{DynamicResource Size14}"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                    Text="{Binding Model.StateText}" />
-
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Margin="0,3,0,0"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.fact_station}" />
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Margin="0,3,0,0"
-                                    HorizontalAlignment="Right"
-                                    FontSize="{DynamicResource Size14}"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                    Text="{Binding Model.Station}" />
-
-                                <TextBlock
-                                    Grid.Row="2"
-                                    Margin="0,3,0,0"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.fact_rotation}" />
-                                <TextBlock
-                                    Grid.Row="2"
-                                    Grid.Column="1"
-                                    Margin="0,3,0,0"
-                                    HorizontalAlignment="Right"
-                                    FontSize="{DynamicResource Size14}"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                    Text="{Binding Model.RotationText}" />
-
-                                <TextBlock
-                                    Grid.Row="3"
-                                    Margin="0,3,0,0"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkSecondaryText}"
-                                    Text="{DynamicResource robotmanual.fact_travel}" />
-                                <TextBlock
-                                    Grid.Row="3"
-                                    Grid.Column="1"
-                                    Margin="0,3,0,0"
-                                    HorizontalAlignment="Right"
-                                    FontSize="{DynamicResource Size14}"
-                                    FontWeight="SemiBold"
-                                    Foreground="{DynamicResource DarkPrimaryText}"
-                                    Text="{Binding Model.Y}" />
-                            </Grid>
-                        </Border>
-                    </StackPanel>
-
-                    <Border Margin="14,8" Style="{DynamicResource SectionDividerBorderStyle}" />
-
-                    <!--  取放参数：手臂 / 站点 / 槽位  -->
+                    <!--  取放：手臂 + 源 / 目标 各一行 站点·槽位（槽位跟着站点在 sc.xml 里配的槽数走：LoadPort 1~25、腔体 1）；
+                         Pick 从源取片、Place 往目标放片  -->
                     <StackPanel Margin="14,0,14,0">
                         <TextBlock
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource robotmanual.params}" />
+                            Text="{DynamicResource robotmanual.pick_place}" />
 
-                        <Grid Margin="0,2">
+                        <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="52" />
+                                <ColumnDefinition Width="44" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="80" />
                             </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--  手臂  -->
                             <TextBlock
+                                Grid.Row="0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size13}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource robotmanual.field_arm}" />
                             <ListBox
+                                Grid.Row="0"
                                 Grid.Column="1"
+                                Grid.ColumnSpan="3"
                                 HorizontalAlignment="Left"
                                 ItemContainerStyle="{DynamicResource CompactSegmentItemStyle}"
                                 ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
@@ -371,117 +386,113 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                        </Grid>
 
-                        <Grid Margin="0,2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="52" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                            <!--  列头：站点 / 槽位  -->
                             <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Margin="2,8,0,2"
+                                FontSize="{DynamicResource Size12}"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Text="{DynamicResource robotmanual.field_station}" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="3"
+                                Margin="2,8,0,2"
+                                FontSize="{DynamicResource Size12}"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Text="{DynamicResource robotmanual.field_slot}" />
+
+                            <!--  源：Pick 从这儿取片  -->
+                            <TextBlock
+                                Grid.Row="2"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size13}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
-                                Text="{DynamicResource robotmanual.field_station}" />
+                                Text="{DynamicResource robotmanual.source}" />
                             <ComboBox
+                                Grid.Row="2"
                                 Grid.Column="1"
-                                ItemsSource="{Binding Model.Stations}"
-                                SelectedItem="{Binding SelectedStation}"
+                                Margin="0,2"
+                                DisplayMemberPath="Name"
+                                ItemsSource="{Binding Model.StationMarks}"
+                                SelectedValue="{Binding SourceStation}"
+                                SelectedValuePath="Name"
+                                Style="{DynamicResource CompactComboBoxStyle}" />
+                            <ComboBox
+                                Grid.Row="2"
+                                Grid.Column="3"
+                                Margin="0,2"
+                                ItemsSource="{Binding SourceSlotOptions}"
+                                SelectedItem="{Binding SourceSlot}"
+                                Style="{DynamicResource CompactComboBoxStyle}" />
+
+                            <!--  目标：Place 往这儿放片  -->
+                            <TextBlock
+                                Grid.Row="3"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size13}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource robotmanual.target}" />
+                            <ComboBox
+                                Grid.Row="3"
+                                Grid.Column="1"
+                                Margin="0,2"
+                                DisplayMemberPath="Name"
+                                ItemsSource="{Binding Model.StationMarks}"
+                                SelectedValue="{Binding TargetStation}"
+                                SelectedValuePath="Name"
+                                Style="{DynamicResource CompactComboBoxStyle}" />
+                            <ComboBox
+                                Grid.Row="3"
+                                Grid.Column="3"
+                                Margin="0,2"
+                                ItemsSource="{Binding TargetSlotOptions}"
+                                SelectedItem="{Binding TargetSlot}"
                                 Style="{DynamicResource CompactComboBoxStyle}" />
                         </Grid>
 
-                        <Grid Margin="0,2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="52" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                FontSize="{DynamicResource Size13}"
-                                Foreground="{DynamicResource DarkSecondaryText}"
-                                Text="{DynamicResource robotmanual.field_slot}" />
-                            <TextBox
-                                Grid.Column="1"
-                                Width="72"
-                                HorizontalAlignment="Left"
-                                Text="{Binding SelectedSlot}"
-                                Style="{DynamicResource CompactTextBoxStyle}" />
-                        </Grid>
-                    </StackPanel>
-
-                    <Border Margin="14,8" Style="{DynamicResource SectionDividerBorderStyle}" />
-
-                    <!--  取放  -->
-                    <StackPanel Margin="14,0,14,0">
-                        <TextBlock
-                            FontSize="{DynamicResource Size13}"
-                            Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource robotmanual.pick_place}" />
-                        <UniformGrid Margin="0,6,0,0" Columns="2">
+                        <UniformGrid Margin="0,10,0,0" Columns="2">
                             <Button
+                                Height="36"
                                 Command="{Binding PickCommand}"
                                 Content="Pick"
-                                Style="{DynamicResource CompactSuccessButtonStyle}" />
+                                Style="{DynamicResource CompactButtonStyle}" />
                             <Button
+                                Height="36"
                                 Command="{Binding PlaceCommand}"
                                 Content="Place"
                                 Style="{DynamicResource CompactButtonStyle}" />
                         </UniformGrid>
                     </StackPanel>
 
-                    <Border Margin="14,8" Style="{DynamicResource SectionDividerBorderStyle}" />
+                    <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                    <!--  运动  -->
-                    <StackPanel Margin="14,0,14,0">
-                        <TextBlock
-                            FontSize="{DynamicResource Size13}"
-                            Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource robotmanual.motion}" />
-                        <UniformGrid Margin="0,6,0,0" Columns="3">
-                            <Button
-                                Command="{Binding HomeCommand}"
-                                Content="Home"
-                                Style="{DynamicResource CompactButtonStyle}" />
-                            <Button
-                                Command="{Binding PowerOnCommand}"
-                                Content="PowerOn"
-                                Style="{DynamicResource CompactSuccessButtonStyle}" />
-                            <Button
-                                Command="{Binding PowerOffCommand}"
-                                Content="PowerOff"
-                                Style="{DynamicResource CompactButtonStyle}" />
-                        </UniformGrid>
-                    </StackPanel>
+                    <!--  Home / Abort / Reset：Abort 是急停，用红色  -->
+                    <UniformGrid Margin="14,0" Columns="3">
+                        <Button
+                            Command="{Binding HomeCommand}"
+                            Content="Home"
+                            Style="{DynamicResource CompactButtonStyle}" />
+                        <Button
+                            Command="{Binding AbortCommand}"
+                            Content="Abort"
+                            Style="{DynamicResource CompactDangerButtonStyle}" />
+                        <Button
+                            Command="{Binding ResetCommand}"
+                            Content="Reset"
+                            Style="{DynamicResource CompactButtonStyle}" />
+                    </UniformGrid>
 
-                    <Border Margin="14,8" Style="{DynamicResource SectionDividerBorderStyle}" />
+                    <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                    <!--  异常  -->
-                    <StackPanel Margin="14,0,14,0">
-                        <TextBlock
-                            FontSize="{DynamicResource Size13}"
-                            Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource robotmanual.fault}" />
-                        <UniformGrid Margin="0,6,0,0" Columns="2">
-                            <Button
-                                Command="{Binding StopCommand}"
-                                Content="Stop"
-                                Style="{DynamicResource CompactDangerButtonStyle}" />
-                            <Button
-                                Command="{Binding ResetDriveCommand}"
-                                Content="ResetDrive"
-                                Style="{DynamicResource CompactButtonStyle}" />
-                        </UniformGrid>
-                    </StackPanel>
-
-                    <Border Margin="14,8" Style="{DynamicResource SectionDividerBorderStyle}" />
-
-                    <!--  轴位 · 报错：数字右对齐，扫描查询刷新  -->
+                    <!--  轴位：数字右对齐，扫描查询刷新  -->
                     <StackPanel Margin="14,0,14,14">
                         <TextBlock
                             Margin="0,0,0,6"
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource robotmanual.axis_error}" />
+                            Text="{DynamicResource robotmanual.axis}" />
                         <Border Style="{DynamicResource ReadoutBorderStyle}">
                             <ItemsControl ItemsSource="{Binding Model.AxisPositions}">
                                 <ItemsControl.ItemTemplate>
@@ -507,47 +518,6 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </Border>
-                        <Border Margin="0,6,0,0" Style="{DynamicResource ReadoutBorderStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        FontSize="{DynamicResource Size13}"
-                                        Foreground="{DynamicResource DarkSecondaryText}"
-                                        Text="{DynamicResource robotmanual.servo}" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        HorizontalAlignment="Right"
-                                        FontFamily="Consolas"
-                                        FontSize="{DynamicResource Size13}"
-                                        FontWeight="SemiBold"
-                                        Foreground="{DynamicResource DarkPrimaryText}"
-                                        Text="{Binding Model.ServoText}" />
-                                </Grid>
-                                <Grid Margin="0,3,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        FontSize="{DynamicResource Size13}"
-                                        Foreground="{DynamicResource DarkSecondaryText}"
-                                        Text="{DynamicResource robotmanual.device_error}" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        HorizontalAlignment="Right"
-                                        FontFamily="Consolas"
-                                        FontSize="{DynamicResource Size13}"
-                                        FontWeight="SemiBold"
-                                        Foreground="{DynamicResource DarkPrimaryText}"
-                                        Text="{Binding Model.DeviceErrorText}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </Grid>
-                            </StackPanel>
                         </Border>
                     </StackPanel>
                 </StackPanel>

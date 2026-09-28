@@ -155,6 +155,12 @@
     <sys:String x:Key="lpmanual.auto_tip">Auto: hand off with the vehicle over E84</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual: load and unload by hand</sys:String>
     <sys:String x:Key="lpmanual.slots">Slots</sys:String>
+    <sys:String x:Key="chambercard.state">State</sys:String>
+    <sys:String x:Key="chambercard.recipe">Recipe</sys:String>
+    <sys:String x:Key="chambercard.step">Step</sys:String>
+    <sys:String x:Key="chambercard.shutter">Shutter</sys:String>
+    <sys:String x:Key="chambercard.step_time">Step Time</sys:String>
+    <sys:String x:Key="chambercard.recipe_time">Recipe Time</sys:String>
     <sys:String x:Key="lpmanual.state">State:</sys:String>
     <sys:String x:Key="lpmanual.online_mode">Online mode:</sys:String>
     <sys:String x:Key="lpmanual.online">Online</sys:String>
@@ -183,6 +189,11 @@
     <sys:String x:Key="robotmanual.motion">Motion</sys:String>
     <sys:String x:Key="robotmanual.fault">Fault</sys:String>
     <sys:String x:Key="robotmanual.axis_error">Axes · Error</sys:String>
+    <sys:String x:Key="robotmanual.axis">Axes</sys:String>
+    <sys:String x:Key="robotmanual.enable">Enable</sys:String>
+    <sys:String x:Key="robotmanual.speed">Speed</sys:String>
+    <sys:String x:Key="robotmanual.source">Source</sys:String>
+    <sys:String x:Key="robotmanual.target">Target</sys:String>
     <sys:String x:Key="robotmanual.device_error">Error</sys:String>
     <sys:String x:Key="robotmanual.servo_on">ON</sys:String>
     <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>

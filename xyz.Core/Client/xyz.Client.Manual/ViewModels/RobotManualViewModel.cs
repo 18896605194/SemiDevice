@@ -13,8 +13,8 @@ using xyz.Tools;
 namespace xyz.Client.Manual.ViewModels;
 
 /// <summary>
-/// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表 / 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
-/// Stop = 急停（AbortAsync，可顶替在途动作）、ResetDrive = 发设备复位清错（ResetAsync）。
+/// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表（含各站点槽数）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
+/// Pick 从源站点槽位取片、Place 往目标站点槽位放片；Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
 /// </summary>
 public class RobotManualViewModel : BaseViewModel, IDisposable
 {
@@ -39,26 +39,62 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         set => SetProperty(ref _selectedArm, value);
     }
 
-    private string _selectedStation = string.Empty;
+    private string _sourceStation = string.Empty;
 
-    /// <summary>取放站点名（站点表里的模块名，如 LoadPort1）；站点表还没推下来时为空。</summary>
-    public string SelectedStation
+    /// <summary>源站点（Pick 从这儿取片），站点表里的模块名如 LoadPort1；换站点时源槽位下拉跟着换。</summary>
+    public string SourceStation
     {
-        get => _selectedStation;
-        set => SetProperty(ref _selectedStation, value);
+        get => _sourceStation;
+        set
+        {
+            if (SetProperty(ref _sourceStation, value))
+            {
+                UpdateSourceSlots();
+            }
+        }
     }
 
-    private int _selectedSlot = 1;
+    private int _sourceSlot = 1;
 
-    /// <summary>取放槽位号。</summary>
-    public int SelectedSlot
+    /// <summary>源槽位号。</summary>
+    public int SourceSlot
     {
-        get => _selectedSlot;
-        set => SetProperty(ref _selectedSlot, value);
+        get => _sourceSlot;
+        set => SetProperty(ref _sourceSlot, value);
+    }
+
+    private string _targetStation = string.Empty;
+
+    /// <summary>目标站点（Place 往这儿放片）；换站点时目标槽位下拉跟着换。</summary>
+    public string TargetStation
+    {
+        get => _targetStation;
+        set
+        {
+            if (SetProperty(ref _targetStation, value))
+            {
+                UpdateTargetSlots();
+            }
+        }
+    }
+
+    private int _targetSlot = 1;
+
+    /// <summary>目标槽位号。</summary>
+    public int TargetSlot
+    {
+        get => _targetSlot;
+        set => SetProperty(ref _targetSlot, value);
     }
 
     /// <summary>手臂选择的数据源（1~ArmCount）。</summary>
     public ObservableCollection<int> ArmOptions { get; } = new();
+
+    /// <summary>源槽位下拉：1~源站点的槽数（站点模块在 sc.xml 里配的 SlotCount，LoadPort 25、腔体 1）。</summary>
+    public ObservableCollection<int> SourceSlotOptions { get; } = new();
+
+    /// <summary>目标槽位下拉：1~目标站点的槽数。</summary>
+    public ObservableCollection<int> TargetSlotOptions { get; } = new();
 
     #endregion
 
@@ -70,13 +106,13 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     public IAsyncRelayCommand HomeCommand { get; }
 
+    public IAsyncRelayCommand AbortCommand { get; }
+
+    public IAsyncRelayCommand ResetCommand { get; }
+
     public IAsyncRelayCommand PowerOnCommand { get; }
 
     public IAsyncRelayCommand PowerOffCommand { get; }
-
-    public IAsyncRelayCommand StopCommand { get; }
-
-    public IAsyncRelayCommand ResetDriveCommand { get; }
 
     #endregion
 
@@ -96,10 +132,10 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         PickCommand = new AsyncRelayCommand(DoPick);
         PlaceCommand = new AsyncRelayCommand(DoPlace);
         HomeCommand = new AsyncRelayCommand(DoHome);
+        AbortCommand = new AsyncRelayCommand(DoAbort);
+        ResetCommand = new AsyncRelayCommand(DoReset);
         PowerOnCommand = new AsyncRelayCommand(DoPowerOn);
         PowerOffCommand = new AsyncRelayCommand(DoPowerOff);
-        StopCommand = new AsyncRelayCommand(DoStop);
-        ResetDriveCommand = new AsyncRelayCommand(DoResetDrive);
     }
 
     public override void Init()
@@ -159,11 +195,80 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
             SelectedArm = ArmOptions[0];
         }
 
-        // 站点下拉默认选站点表里的第一个。
-        if (string.IsNullOrEmpty(SelectedStation) && Model.Stations.Count > 0)
+        // 源默认选站点表里的第一个（按站点号排，一般是 LoadPort1），目标默认选腔体侧（北）的第一个。
+        if (string.IsNullOrEmpty(SourceStation) && Model.StationMarks.Count > 0)
         {
-            SelectedStation = Model.Stations[0];
+            SourceStation = Model.StationMarks[0].Name;
         }
+
+        if (string.IsNullOrEmpty(TargetStation) && Model.StationMarks.Count > 0)
+        {
+            var chamber = Model.NorthStations.FirstOrDefault();
+            TargetStation = chamber is not null ? chamber.Name : Model.StationMarks[0].Name;
+        }
+
+        // 站点槽数可能晚到（后端搬运模块表绑好后才有），每次推送都对一下。
+        UpdateSourceSlots();
+        UpdateTargetSlots();
+    }
+
+    private void UpdateSourceSlots()
+    {
+        if (FillSlotOptions(SourceSlotOptions, SourceStation))
+        {
+            SourceSlot = ClampSlot(SourceSlotOptions, SourceSlot);
+
+            // 列表重建时下拉会丢掉选中项，把当前槽位再推一次让它选回来。
+            OnPropertyChanged(nameof(SourceSlot));
+        }
+    }
+
+    private void UpdateTargetSlots()
+    {
+        if (FillSlotOptions(TargetSlotOptions, TargetStation))
+        {
+            TargetSlot = ClampSlot(TargetSlotOptions, TargetSlot);
+            OnPropertyChanged(nameof(TargetSlot));
+        }
+    }
+
+    /// <summary>
+    /// 槽位下拉按站点槽数列成 1~N；槽数没变不重建（免得下拉被重置），返回是否重建了。
+    /// </summary>
+    private bool FillSlotOptions(ObservableCollection<int> options, string station)
+    {
+        int count = 0;
+        var mark = Model.StationMarks.FirstOrDefault(candidate => candidate.Name == station);
+        if (mark is not null)
+        {
+            count = mark.SlotCount;
+        }
+
+        if (options.Count == count)
+        {
+            return false;
+        }
+
+        options.Clear();
+        for (int slot = 1; slot <= count; slot++)
+        {
+            options.Add(slot);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 当前槽位在下拉范围里就保留，超出范围回到第一个；没有槽位时原样。
+    /// </summary>
+    private static int ClampSlot(ObservableCollection<int> options, int slot)
+    {
+        if (options.Count > 0 && !options.Contains(slot))
+        {
+            return options[0];
+        }
+
+        return slot;
     }
 
     private async Task DoPick()
@@ -172,8 +277,8 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         {
             Module = ModuleName,
             Arm = SelectedArm,
-            Station = SelectedStation,
-            Slot = SelectedSlot,
+            Station = SourceStation,
+            Slot = SourceSlot,
         });
         if (!response.Success)
         {
@@ -187,8 +292,8 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         {
             Module = ModuleName,
             Arm = SelectedArm,
-            Station = SelectedStation,
-            Slot = SelectedSlot,
+            Station = TargetStation,
+            Slot = TargetSlot,
         });
         if (!response.Success)
         {
@@ -202,6 +307,26 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"Home 失败：{L10n.Get(response.Code, response.Args)}");
+        }
+    }
+
+    private async Task DoAbort()
+    {
+        // 急停：可顶替在途动作（被顶的调用方收到 module.action_aborted）。
+        var response = await _service.AbortAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Abort 失败：{L10n.Get(response.Code, response.Args)}");
+        }
+    }
+
+    private async Task DoReset()
+    {
+        // 复位：组件基类先清报警，模块再发设备复位清错。
+        var response = await _service.ResetAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Reset 失败：{L10n.Get(response.Code, response.Args)}");
         }
     }
 
@@ -220,26 +345,6 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"PowerOff 失败：{L10n.Get(response.Code, response.Args)}");
-        }
-    }
-
-    private async Task DoStop()
-    {
-        // Stop 按钮 = 急停：RPC 叫 AbortAsync，可顶替在途动作。
-        var response = await _service.AbortAsync(ModuleName);
-        if (!response.Success)
-        {
-            ClientLog.Error(ModuleName, $"Stop 失败：{L10n.Get(response.Code, response.Args)}");
-        }
-    }
-
-    private async Task DoResetDrive()
-    {
-        // ResetDrive 按钮 = 发设备复位清错：RPC 叫 ResetAsync（组件基类的 Reset 清报警也在这条链上）。
-        var response = await _service.ResetAsync(ModuleName);
-        if (!response.Success)
-        {
-            ClientLog.Error(ModuleName, $"ResetDrive 失败：{L10n.Get(response.Code, response.Args)}");
         }
     }
 }

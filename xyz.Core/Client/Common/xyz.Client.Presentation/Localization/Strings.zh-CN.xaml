@@ -156,6 +156,12 @@
     <sys:String x:Key="lpmanual.auto_tip">Auto：搬运车经 E84 自动交接</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual：人工放取</sys:String>
     <sys:String x:Key="lpmanual.slots">槽</sys:String>
+    <sys:String x:Key="chambercard.state">状态</sys:String>
+    <sys:String x:Key="chambercard.recipe">配方</sys:String>
+    <sys:String x:Key="chambercard.step">步骤</sys:String>
+    <sys:String x:Key="chambercard.shutter">腔门</sys:String>
+    <sys:String x:Key="chambercard.step_time">步骤时间</sys:String>
+    <sys:String x:Key="chambercard.recipe_time">配方时间</sys:String>
     <sys:String x:Key="lpmanual.state">状态：</sys:String>
     <sys:String x:Key="lpmanual.online_mode">在线模式：</sys:String>
     <sys:String x:Key="lpmanual.online">在线</sys:String>
@@ -184,6 +190,11 @@
     <sys:String x:Key="robotmanual.motion">运动</sys:String>
     <sys:String x:Key="robotmanual.fault">异常</sys:String>
     <sys:String x:Key="robotmanual.axis_error">轴位 · 报错</sys:String>
+    <sys:String x:Key="robotmanual.axis">轴位</sys:String>
+    <sys:String x:Key="robotmanual.enable">使能</sys:String>
+    <sys:String x:Key="robotmanual.speed">速度</sys:String>
+    <sys:String x:Key="robotmanual.source">源</sys:String>
+    <sys:String x:Key="robotmanual.target">目标</sys:String>
     <sys:String x:Key="robotmanual.device_error">报错</sys:String>
     <sys:String x:Key="robotmanual.servo_on">ON</sys:String>
     <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>

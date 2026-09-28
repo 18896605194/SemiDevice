@@ -179,6 +179,16 @@
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 				</Setting>
+				<Setting Name="Chamber3">
+					<Value Name="Number" Value="5" />
+					<Value Name="Y" Value="0" />
+					<Value Name="Direction" Value="North" />
+				</Setting>
+				<Setting Name="Chamber4">
+					<Value Name="Number" Value="6" />
+					<Value Name="Y" Value="0" />
+					<Value Name="Direction" Value="North" />
+				</Setting>
 			</Setting>
 		</Setting>
 	</Setting>
@@ -262,6 +272,122 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber2" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsEnable" Value="True" />
+			<Value Name="SlotCount" Value="1" />
+			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="-1" />
+				<Value Name="DoCloseIndex" Value="-1" />
+				<Value Name="DiOpenedIndex" Value="-1" />
+				<Value Name="DiClosedIndex" Value="-1" />
+			</Setting>
+			<Setting Name="Bowl">
+				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+			</Setting>
+			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
+			</Setting>
+			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
+				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="DIW" />
+				</Setting>
+				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="SC1" />
+				</Setting>
+			</Setting>
+			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+				<Value Name="DiIndex" Value="-1" />
+				<Value Name="AlarmEnabled" Value="False" />
+			</Setting>
+		</Setting>
+		<Setting Name="Chamber3" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsEnable" Value="True" />
+			<Value Name="SlotCount" Value="1" />
+			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="-1" />
+				<Value Name="DoCloseIndex" Value="-1" />
+				<Value Name="DiOpenedIndex" Value="-1" />
+				<Value Name="DiClosedIndex" Value="-1" />
+			</Setting>
+			<Setting Name="Bowl">
+				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+			</Setting>
+			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
+			</Setting>
+			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
+				<Value Name="SendPlcDataPath" Value="" />
+				<Value Name="ReceivePlcDataPath" Value="" />
+				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+					<Value Name="DoOpenIndex" Value="-1" />
+					<Value Name="DoCloseIndex" Value="-1" />
+					<Value Name="DiOpenedIndex" Value="-1" />
+					<Value Name="DiClosedIndex" Value="-1" />
+				</Setting>
+				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="DIW" />
+				</Setting>
+				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
+					<Value Name="DoIndex" Value="-1" />
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="Chemical" Value="SC1" />
+				</Setting>
+			</Setting>
+			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
+				<Value Name="DiIndex" Value="-1" />
+				<Value Name="AlarmEnabled" Value="False" />
+			</Setting>
+		</Setting>
+		<Setting Name="Chamber4" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">

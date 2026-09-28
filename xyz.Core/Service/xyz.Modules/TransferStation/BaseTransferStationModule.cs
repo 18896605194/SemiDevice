@@ -18,6 +18,11 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 
     #region ITransferStation 实现
 
+    /// <summary>
+    /// 槽位数：各类工位在自己的 SC 里配（LoadPort 花篮槽数、腔体片位数），默认值各自带。
+    /// </summary>
+    public abstract int SlotCount { get; set; }
+
     public virtual bool CanPrepare => State == AnchorState;
 
     /// <summary>

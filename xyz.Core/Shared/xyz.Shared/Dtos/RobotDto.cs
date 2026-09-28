@@ -21,6 +21,9 @@ public class RobotDto
     /// <summary>查询反馈：设备当前报错（错误码#内容）；null 表示无报错或反馈不可用。</summary>
     public string? DeviceError { get; set; }
 
+    /// <summary>查询反馈：全局速度百分比；null 表示反馈不可用。</summary>
+    public double? Speed { get; set; }
+
     /// <summary>当前站点：最近一次发起成功的取放片站点名（如 LoadPort1）；还没取放过为 null。</summary>
     public string? Station { get; set; }
 
@@ -35,6 +38,9 @@ public class RobotDto
 
     /// <summary>站点明细（含站点号 Number / 伸出距离 Y / 伸出方向 Direction），调度图与站点角标用；与 Stations 同源。</summary>
     public List<RobotStationDto> StationInfos { get; set; } = [];
+
+    /// <summary>手指数：sc.xml 本机械手 Driver 节点轴表（Axes）里 Arm* 的个数；界面手臂选择、画几只手臂都按它。驱动没配时为 0。</summary>
+    public int ArmCount { get; set; }
 
     /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
@@ -82,6 +88,11 @@ public class RobotDto
             return true;
         }
 
+        if (Speed != previous.Speed)
+        {
+            return true;
+        }
+
         if (Station != previous.Station || Direction != previous.Direction || Y != previous.Y)
         {
             return true;
@@ -112,10 +123,16 @@ public class RobotDto
             if (current.Name != last.Name
                 || current.Number != last.Number
                 || current.Direction != last.Direction
-                || current.Y != last.Y)
+                || current.Y != last.Y
+                || current.SlotCount != last.SlotCount)
             {
                 return true;
             }
+        }
+
+        if (ArmCount != previous.ArmCount)
+        {
+            return true;
         }
 
         if (Arms.Count != previous.Arms.Count)
@@ -150,7 +167,7 @@ public class RobotDto
 }
 
 /// <summary>
-/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向，供界面画站点角标与调度图。
+/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向 + 槽数，供界面画调度图与限定取放槽位。
 /// </summary>
 public class RobotStationDto
 {
@@ -165,6 +182,9 @@ public class RobotStationDto
 
     /// <summary>机械手伸出距离（sc.xml Y，数值）。</summary>
     public double Y { get; set; }
+
+    /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。</summary>
+    public int SlotCount { get; set; }
 }
 
 /// <summary>

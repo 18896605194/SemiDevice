@@ -38,6 +38,7 @@ public class RobotModule : BaseRobotModule, IRobot
         SubscribeWaferEvent,
         ServoOn,
         DeviceError,
+        Speed,
         AxisPos,
     }
 
@@ -49,7 +50,7 @@ public class RobotModule : BaseRobotModule, IRobot
     }
 
     /// <summary>
-    /// 分周期下发查询并读取结果，不阻塞扫描线程：先订阅手指在位推送，之后轮流查设备报错与伺服使能。
+    /// 分周期下发查询并读取结果，不阻塞扫描线程：先订阅手指在位推送，之后轮流查设备报错、伺服使能、速度与轴位。
     /// </summary>
     private void ScanDeviceStatus()
     {
@@ -106,7 +107,7 @@ public class RobotModule : BaseRobotModule, IRobot
     }
 
     /// <summary>
-    /// 轮流查：订阅（没成前）→ 报错 → 伺服 → 轴位（按轴表逐轴轮）。查询被拒就跳过这条，下拍再试。
+    /// 轮流查：订阅（没成前）→ 报错 → 伺服 → 速度 → 轴位（按轴表逐轴轮，占两拍）。查询被拒就跳过这条，下拍再试。
     /// </summary>
     private RobotCommand? CreateQueryCommand(RobotDriverComponent robot)
     {
@@ -117,7 +118,7 @@ public class RobotModule : BaseRobotModule, IRobot
             return robot.SubscribeWaferEvent();
         }
 
-        switch (count % 4)
+        switch (count % 5)
         {
             case 0:
                 _queryKind = QueryKind.DeviceError;
@@ -128,7 +129,11 @@ public class RobotModule : BaseRobotModule, IRobot
                 return robot.QueryServoOn();
 
             case 2:
+                _queryKind = QueryKind.Speed;
+                return robot.QuerySpeed();
+
             case 3:
+            case 4:
                 _queryKind = QueryKind.AxisPos;
                 var axisList = robot.AxisList;
                 if (axisList.Count == 0)
@@ -173,6 +178,14 @@ public class RobotModule : BaseRobotModule, IRobot
                 if (response.IsSuccess)
                 {
                     DeviceError = response.DeviceError;
+                }
+
+                break;
+
+            case QueryKind.Speed:
+                if (response.IsSuccess)
+                {
+                    Speed = response.Speed;
                 }
 
                 break;

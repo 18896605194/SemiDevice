@@ -6,7 +6,7 @@ using xyz.Client.Presentation.Models;
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
-/// 腔体信息卡片控件，参考 GR 调度界面的 ChamberInfoCard。按真实字号排版、随给定尺寸伸缩，不整卡缩放。
+/// 近方形腔体信息卡片，参考 GR 调度界面的 ChamberInfoCard：左六行字段 + 右圆片。按真实字号排版、随给定尺寸伸缩，不整卡缩放。
 /// </summary>
 public partial class ChamberInfoCard : UserControl
 {
@@ -37,6 +37,19 @@ public partial class ChamberInfoCard : UserControl
     public static readonly DependencyProperty NumberProperty =
         DependencyProperty.Register(nameof(Number), typeof(string), typeof(ChamberInfoCard),
             new PropertyMetadata(string.Empty));
+
+    /// <summary>
+    /// 圆片直径：跟调度图里机械手叉上的片一样大，由页面按机械手的显示尺寸给。
+    /// </summary>
+    public double DiskSize
+    {
+        get => (double)GetValue(DiskSizeProperty);
+        set => SetValue(DiskSizeProperty, value);
+    }
+
+    public static readonly DependencyProperty DiskSizeProperty =
+        DependencyProperty.Register(nameof(DiskSize), typeof(double), typeof(ChamberInfoCard),
+            new PropertyMetadata(100.0));
 
     public bool StatusOn
     {

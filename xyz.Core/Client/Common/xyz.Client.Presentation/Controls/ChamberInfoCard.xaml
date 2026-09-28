@@ -8,8 +8,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     HorizontalContentAlignment="Stretch"
     VerticalContentAlignment="Stretch"
-    d:DesignHeight="265"
-    d:DesignWidth="760"
+    d:DesignHeight="233"
+    d:DesignWidth="280"
     SnapsToDevicePixels="True"
     UseLayoutRounding="True"
     mc:Ignorable="d">
@@ -24,18 +24,23 @@
                 <ResourceDictionary Source="/xyz.Client.Presentation;component/Styles/TextBlockStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!--  字段表：标签灰色常规、值白色加粗  -->
+            <!--  圆片：不要 UserControl 默认模板的方框，只留圆（跟 Robot 控件叉上的片一样）  -->
+            <ControlTemplate x:Key="DiskWaferTemplate" TargetType="local:Wafer">
+                <ContentPresenter />
+            </ControlTemplate>
+
+            <!--  字段：标签灰色常规、右对齐贴着值，值白色加粗，一行一项  -->
             <Style x:Key="CardFieldLabelStyle" TargetType="TextBlock">
-                <Setter Property="Margin" Value="12,0,8,0" />
+                <Setter Property="Margin" Value="0,2,8,2" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
                 <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="FontSize" Value="{DynamicResource Size14}" />
+                <Setter Property="FontSize" Value="{DynamicResource Size13}" />
                 <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
-                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             </Style>
             <Style x:Key="CardFieldValueStyle" TargetType="TextBlock">
-                <Setter Property="Margin" Value="0,0,12,0" />
+                <Setter Property="Margin" Value="0,2" />
                 <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="FontSize" Value="{DynamicResource Size16}" />
+                <Setter Property="FontSize" Value="{DynamicResource Size14}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -43,7 +48,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <!--  按真实字号排版、随给定尺寸伸缩；不再整卡套 Viewbox 缩放（卡片给小了字会跟着缩到看不清）  -->
+    <!--  近方形卡片，按真实字号排版、随给定尺寸伸缩；不整卡套 Viewbox 缩放（卡片给小了字会跟着缩到看不清）  -->
     <Border
         Background="{DynamicResource DarkSurfaceVariantBackground}"
         BorderBrush="{DynamicResource DarkDisabledText}"
@@ -51,17 +56,15 @@
         CornerRadius="12">
         <DockPanel LastChildFill="True">
 
-            <!--  标题栏：状态点 / 站点号 / 名称 / 配方状态 …… 在线  -->
+            <!--  标题栏：状态点 / 站点号 / 名称 …… 在线  -->
             <Border
-                Height="48"
-                Padding="16,0"
+                Height="40"
+                Padding="12,0"
                 CornerRadius="10,10,0,0"
                 DockPanel.Dock="Top"
                 Style="{DynamicResource HeaderBarBorderStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -70,18 +73,18 @@
 
                     <Border
                         Grid.Column="0"
-                        Margin="0,0,10,0"
+                        Margin="0,0,8,0"
                         Style="{DynamicResource StatusDotBorderStyle}"
                         Tag="{Binding StatusOn, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                     <!--  站点号角标：没给就不显示  -->
                     <Border
                         Grid.Column="1"
-                        Margin="0,0,10,0"
-                        Padding="8,1"
+                        Margin="0,0,8,0"
+                        Padding="6,0"
                         VerticalAlignment="Center"
                         Background="{DynamicResource PrimaryAccent}"
-                        CornerRadius="8">
+                        CornerRadius="7">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Style.Triggers>
@@ -95,7 +98,7 @@
                             </Style>
                         </Border.Style>
                         <TextBlock
-                            FontSize="{DynamicResource Size16}"
+                            FontSize="{DynamicResource Size14}"
                             FontWeight="Bold"
                             Foreground="White"
                             Text="{Binding Number, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
@@ -104,17 +107,52 @@
                     <TextBlock
                         Grid.Column="2"
                         VerticalAlignment="Center"
-                        FontSize="{DynamicResource Size20}"
+                        FontSize="{DynamicResource Size18}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource DarkPrimaryText}"
                         Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         TextTrimming="CharacterEllipsis" />
 
-                    <Border
+                    <TextBlock
                         Grid.Column="3"
-                        Margin="12,0,0,0"
-                        Padding="8,2"
-                        VerticalAlignment="Center">
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size13}"
+                        Style="{DynamicResource ConnectionStatusTextStyle}"
+                        Tag="{Binding StatusOn, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        Text="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+                </Grid>
+            </Border>
+
+            <!--  主体：左六行字段，右圆片（直径 DiskSize，跟机械手叉上的片一样大；下面配方状态）  -->
+            <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <controls:Wafer
+                        Width="{Binding DiskSize, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        Height="{Binding DiskSize, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        BorderBrush="{DynamicResource DarkDisabledText}"
+                        BorderThickness="2"
+                        FillColor="{DynamicResource DarkSurfaceBackground}"
+                        IsDiskVisible="True"
+                        Template="{StaticResource DiskWaferTemplate}"
+                        CommandParameter="{Binding Title, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        Data="{Binding Wafer, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        RotationSpeed="{Binding RotationSpeed, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <!--  配方状态：没有就不显示  -->
+                    <Border
+                        Margin="0,8,0,0"
+                        Padding="6,1"
+                        HorizontalAlignment="Center">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="{DynamicResource DarkSurfaceBackground}" />
@@ -132,145 +170,90 @@
                             </Style>
                         </Border.Style>
                         <TextBlock
-                            FontSize="{DynamicResource Size14}"
+                            FontSize="{DynamicResource Size13}"
                             FontWeight="Bold"
                             Foreground="{DynamicResource DarkRunningStatus}"
                             Text="{Binding RecipeState, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
                     </Border>
+                </StackPanel>
+
+                <Grid
+                    Grid.Column="0"
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
                     <TextBlock
-                        Grid.Column="5"
-                        VerticalAlignment="Center"
-                        FontSize="{DynamicResource Size16}"
-                        Style="{DynamicResource ConnectionStatusTextStyle}"
-                        Tag="{Binding StatusOn, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                        Text="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+                        Grid.Row="0"
+                        Style="{StaticResource CardFieldLabelStyle}"
+                        Text="{DynamicResource chambercard.state}" />
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Style="{StaticResource CardFieldValueStyle}"
+                        Text="{Binding State, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <TextBlock
+                        Grid.Row="1"
+                        Style="{StaticResource CardFieldLabelStyle}"
+                        Text="{DynamicResource chambercard.recipe}" />
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Style="{StaticResource CardFieldValueStyle}"
+                        Text="{Binding Recipe, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <TextBlock
+                        Grid.Row="2"
+                        Style="{StaticResource CardFieldLabelStyle}"
+                        Text="{DynamicResource chambercard.step}" />
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="1"
+                        Style="{StaticResource CardFieldValueStyle}"
+                        Text="{Binding Step, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <TextBlock
+                        Grid.Row="3"
+                        Style="{StaticResource CardFieldLabelStyle}"
+                        Text="{DynamicResource chambercard.shutter}" />
+                    <TextBlock
+                        Grid.Row="3"
+                        Grid.Column="1"
+                        Style="{StaticResource CardFieldValueStyle}"
+                        Text="{Binding ShutterState, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <TextBlock
+                        Grid.Row="4"
+                        Style="{StaticResource CardFieldLabelStyle}"
+                        Text="{DynamicResource chambercard.step_time}" />
+                    <TextBlock
+                        Grid.Row="4"
+                        Grid.Column="1"
+                        Style="{StaticResource CardFieldValueStyle}"
+                        Text="{Binding StepTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <TextBlock
+                        Grid.Row="5"
+                        Style="{StaticResource CardFieldLabelStyle}"
+                        Text="{DynamicResource chambercard.recipe_time}" />
+                    <TextBlock
+                        Grid.Row="5"
+                        Grid.Column="1"
+                        Style="{StaticResource CardFieldValueStyle}"
+                        Text="{Binding RecipeTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
                 </Grid>
-            </Border>
-
-            <!--  主体：左字段表（两组三行），右圆片区（一直留着，没片画空圆片；边长跟主体同高）  -->
-            <Grid Margin="14,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <Border
-                    Grid.Column="0"
-                    Background="{DynamicResource DarkSurfaceBackground}"
-                    BorderBrush="{DynamicResource DarkBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <Border
-                            Grid.Row="0"
-                            Grid.ColumnSpan="4"
-                            Style="{DynamicResource TableRowBorderStyle}" />
-                        <Border
-                            Grid.Row="1"
-                            Grid.ColumnSpan="4"
-                            Style="{DynamicResource TableRowBorderStyle}" />
-
-                        <!--  两组字段之间的竖线  -->
-                        <Border
-                            Grid.RowSpan="3"
-                            Grid.Column="1"
-                            Width="1"
-                            HorizontalAlignment="Right"
-                            Background="{DynamicResource DarkBorderBrush}" />
-
-                        <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            Style="{StaticResource CardFieldLabelStyle}"
-                            Text="State" />
-                        <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Style="{StaticResource CardFieldValueStyle}"
-                            Text="{Binding State, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-                        <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="2"
-                            Style="{StaticResource CardFieldLabelStyle}"
-                            Text="Recipe" />
-                        <TextBlock
-                            Grid.Row="0"
-                            Grid.Column="3"
-                            Style="{StaticResource CardFieldValueStyle}"
-                            Text="{Binding Recipe, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-
-                        <TextBlock
-                            Grid.Row="1"
-                            Grid.Column="0"
-                            Style="{StaticResource CardFieldLabelStyle}"
-                            Text="Step" />
-                        <TextBlock
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Style="{StaticResource CardFieldValueStyle}"
-                            Text="{Binding Step, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-                        <TextBlock
-                            Grid.Row="1"
-                            Grid.Column="2"
-                            Style="{StaticResource CardFieldLabelStyle}"
-                            Text="Shutter" />
-                        <TextBlock
-                            Grid.Row="1"
-                            Grid.Column="3"
-                            Style="{StaticResource CardFieldValueStyle}"
-                            Text="{Binding ShutterState, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-
-                        <TextBlock
-                            Grid.Row="2"
-                            Grid.Column="0"
-                            Style="{StaticResource CardFieldLabelStyle}"
-                            Text="StepTime" />
-                        <TextBlock
-                            Grid.Row="2"
-                            Grid.Column="1"
-                            Style="{StaticResource CardFieldValueStyle}"
-                            Text="{Binding StepTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-                        <TextBlock
-                            Grid.Row="2"
-                            Grid.Column="2"
-                            Style="{StaticResource CardFieldLabelStyle}"
-                            Text="RecipeTime" />
-                        <TextBlock
-                            Grid.Row="2"
-                            Grid.Column="3"
-                            Style="{StaticResource CardFieldValueStyle}"
-                            Text="{Binding RecipeTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-                    </Grid>
-                </Border>
-
-                <controls:Wafer
-                    Grid.Column="1"
-                    Margin="14,0,0,0"
-                    VerticalAlignment="Stretch"
-                    BorderBrush="{DynamicResource DarkDisabledText}"
-                    BorderThickness="2"
-                    FillColor="{DynamicResource DarkSurfaceBackground}"
-                    IsDiskVisible="True"
-                    CommandParameter="{Binding Title, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                    CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                    CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                    Data="{Binding Wafer, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                    DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                    DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                    RotationSpeed="{Binding RotationSpeed, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
             </Grid>
         </DockPanel>
     </Border>

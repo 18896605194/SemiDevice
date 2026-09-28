@@ -25,6 +25,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "伺服是否上使能")]
     public bool? IsServoOn { get; protected set; }
 
+    [VariableMark(VariableType.SV, ValueFormat.Double, unit: "%", description: "全局速度百分比")]
+    public double? Speed { get; protected set; }
+
     private volatile string? _deviceError;
 
     [VariableMark(VariableType.SV, ValueFormat.String, description: "设备当前报错")]
@@ -267,9 +270,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     /// <summary>
     /// 当前状态快照，状态发布与 GetState 查询共用。
-    /// 未连接或停用时查询反馈（伺服使能、设备报错）不可信，置 null；手指在位保留最后一次推送值；
+    /// 未连接或停用时查询反馈（伺服使能、设备报错、速度）不可信，置 null；手指在位保留最后一次推送值；
     /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
-    /// 站点表与轴坐标整表下推，界面（站点下拉、轴位表）不写死。
+    /// 站点表（含各站点槽数）与轴坐标整表下推，界面（站点 / 槽位下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
@@ -291,6 +294,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     Number = station.Number,
                     Direction = station.Direction,
                     Y = station.Y,
+                    SlotCount = SlotCountOf(station.Name),
                 })
                 .ToList(),
             Arms = _armWafers
@@ -303,6 +307,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         if (robot is not null)
         {
             dto.IsConnected = robot.IsConnected;
+            dto.ArmCount = robot.ArmCount;
 
             // 轴坐标按轴表顺序，还没查到的轴不下发。
             foreach (var axis in robot.AxisList)
@@ -318,9 +323,30 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         {
             dto.IsServoOn = IsServoOn;
             dto.DeviceError = DeviceError;
+            dto.Speed = Speed;
         }
 
         return dto;
+    }
+
+    /// <summary>
+    /// 站点槽数：取站点模块在 sc.xml 里配的 SlotCount（LoadPort 25、腔体 1），不在站点表里重复配。
+    /// 搬运模块表还没绑好、或站点名不是可服务工位时为 0。
+    /// </summary>
+    private static int SlotCountOf(string station)
+    {
+        var transfers = TransferManager.Current;
+        if (transfers is null)
+        {
+            return 0;
+        }
+
+        if (!transfers.TryGetStation(station, out var module))
+        {
+            return 0;
+        }
+
+        return module.SlotCount;
     }
 
     /// <summary>

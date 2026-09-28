@@ -65,6 +65,11 @@ public class RejeRobotComponent : RobotDriverComponent
         return new RejeQueryEnableCommand(Driver!);
     }
 
+    protected override RobotCommand CreateQuerySpeed()
+    {
+        return new RejeQuerySpeedCommand(Driver!);
+    }
+
     protected override RobotCommand CreateSubscribeWaferEvent()
     {
         return new RejeSubscribeWaferEventCommand(Driver!);

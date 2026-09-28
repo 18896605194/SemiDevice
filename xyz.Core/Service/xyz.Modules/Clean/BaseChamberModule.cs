@@ -41,7 +41,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     public bool IsEnable { get; set; } = true;
 
     [SCEditor("1", "Chamber", "片位数（腔体一般 1 片；晶圆账按它注册槽位）")]
-    public int SlotCount { get; set; } = 1;
+    public override int SlotCount { get; set; } = 1;
 
     // 通讯参数（IP/端口/串口号）不在基类：腔体走 PLC 还是串口网口由机型定，
     // 机型自己声明自己的 [SCEditor]，别在这儿预设一套用不上的。

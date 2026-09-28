@@ -79,7 +79,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public bool IsEnable { get; set; } = true;
 
     [SCEditor("25", "LoadPort", "花篮槽数")]
-    public int SlotCount { get; set; } = 25;
+    public override int SlotCount { get; set; } = 25;
 
     [SCEditor("1", "LoadPort", "机械手从本 LoadPort 取片用的手臂")]
     public int UseArm { get; set; } = 1;

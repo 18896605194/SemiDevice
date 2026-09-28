@@ -149,6 +149,12 @@ public abstract class RobotDriverComponent : ComponentBase
         return Run(CreateQueryServoOn());
     }
 
+    /// <summary>QuerySpeed：查全局速度百分比（结果在 Response.Speed）。</summary>
+    public RobotCommand? QuerySpeed()
+    {
+        return Run(CreateQuerySpeed());
+    }
+
     /// <summary>SubscribeWaferEvent：订阅手指在位主动推送。</summary>
     public RobotCommand? SubscribeWaferEvent()
     {
@@ -192,6 +198,8 @@ public abstract class RobotDriverComponent : ComponentBase
     protected abstract RobotCommand CreateQueryDeviceError();
 
     protected abstract RobotCommand CreateQueryServoOn();
+
+    protected abstract RobotCommand CreateQuerySpeed();
 
     protected abstract RobotCommand CreateSubscribeWaferEvent();
 

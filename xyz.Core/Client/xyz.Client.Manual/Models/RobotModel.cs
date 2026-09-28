@@ -93,6 +93,21 @@ public class RobotModel : ObservableObject
         }
     }
 
+    private double? _speed;
+
+    /// <summary>查询反馈：全局速度百分比；null 表示反馈不可用。</summary>
+    public double? Speed
+    {
+        get => _speed;
+        private set
+        {
+            if (SetProperty(ref _speed, value))
+            {
+                OnPropertyChanged(nameof(SpeedText));
+            }
+        }
+    }
+
     private string? _station;
 
     /// <summary>当前站点（最近一次取放片的站点名，如 LoadPort1）；还没取放过为 null。</summary>
@@ -169,9 +184,9 @@ public class RobotModel : ObservableObject
     public List<RobotStationModel> WestStations =>
         StationMarks.Where(mark => mark.Direction == RobotDirection.West).ToList();
 
-    private int _armCount = 2;
+    private int _armCount;
 
-    /// <summary>手指数量：按推送的手指在位信息取最大手指号（1~4）。</summary>
+    /// <summary>手指数：sc.xml 轴表里 Arm* 的个数（后端下发，1~4）；还没收到状态时为 0。</summary>
     public int ArmCount
     {
         get => _armCount;
@@ -254,6 +269,20 @@ public class RobotModel : ObservableObject
         }
     }
 
+    /// <summary>速度文字：如 "50 %"；反馈不可用显示占位符。</summary>
+    public string SpeedText
+    {
+        get
+        {
+            if (!Speed.HasValue)
+            {
+                return L10n.Get("robotmanual.na");
+            }
+
+            return $"{Speed.Value:0.#} %";
+        }
+    }
+
     /// <summary>设备报错灯：已连接且报错有内容才亮。</summary>
     public bool HasDeviceError
     {
@@ -293,11 +322,13 @@ public class RobotModel : ObservableObject
         IsConnected = dto.IsConnected;
         IsServoOn = dto.IsServoOn;
         DeviceError = dto.DeviceError;
+        Speed = dto.Speed;
         Station = dto.Station;
         Direction = dto.Direction;
         Y = dto.Y;
         Stations = [.. dto.Stations];
-        StationMarks = dto.StationInfos.Count > 0
+
+        var marks = dto.StationInfos.Count > 0
             ? dto.StationInfos
                 .OrderBy(info => info.Number)
                 .Select(info => new RobotStationModel
@@ -306,6 +337,7 @@ public class RobotModel : ObservableObject
                     Number = info.Number,
                     Direction = info.Direction,
                     Y = info.Y,
+                    SlotCount = info.SlotCount,
                 })
                 .ToList()
             : dto.Stations
@@ -316,11 +348,22 @@ public class RobotModel : ObservableObject
                     Direction = RobotDirection.North,
                 })
                 .ToList();
+
+        // 站点表跟上次一样就不换实例：每次推送都换，调度图的卡片会重建、站点下拉会被重置。
+        if (!SameStations(marks, StationMarks))
+        {
+            StationMarks = marks;
+        }
         AxisPositions = dto.AxisPositions
             .Select(axis => new RobotAxisModel { Name = axis.Name, Position = axis.Position })
             .ToList();
 
-        if (dto.Arms.Count > 0)
+        // 手指数以 sc.xml 轴表为准；后端没给（驱动没配）时才按推送过的最大手指号推。
+        if (dto.ArmCount > 0)
+        {
+            ArmCount = Math.Clamp(dto.ArmCount, 1, MaxArmCount);
+        }
+        else if (dto.Arms.Count > 0)
         {
             ArmCount = Math.Clamp(dto.Arms.Max(arm => arm.Arm), 1, MaxArmCount);
         }
@@ -337,6 +380,30 @@ public class RobotModel : ObservableObject
                 arm.Wafer = null;
             }
         }
+    }
+
+    private static bool SameStations(IReadOnlyList<RobotStationModel> left, IReadOnlyList<RobotStationModel> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < left.Count; i++)
+        {
+            var a = left[i];
+            var b = right[i];
+            if (a.Name != b.Name
+                || a.Number != b.Number
+                || a.Direction != b.Direction
+                || a.Y != b.Y
+                || a.SlotCount != b.SlotCount)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private RobotArmModel GetArm(int number)

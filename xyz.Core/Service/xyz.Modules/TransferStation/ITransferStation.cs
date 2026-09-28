@@ -9,6 +9,11 @@ public interface ITransferStation
     string Name { get; }
 
     /// <summary>
+    /// 槽位数（sc.xml 本模块的 SlotCount：LoadPort 花篮 25、腔体 1）；机械手手动取放按它限定可选槽位。
+    /// </summary>
+    int SlotCount { get; }
+
+    /// <summary>
     /// 当前状态是否允许发起准备；调度器选工位时先过滤，避免盲目发起被拒。
     /// </summary>
     bool CanPrepare { get; }

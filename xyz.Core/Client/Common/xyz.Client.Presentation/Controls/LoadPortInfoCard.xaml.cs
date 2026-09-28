@@ -9,7 +9,7 @@ using xyz.Client.Presentation.Models;
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
-/// 标题栏位于底部的 LoadPort 信息卡片：底栏标题 + 状态灯；主体横排槽位色带（槽数跟 sc 的 SlotCount，左起 1 号）+ 槽数 + disk 圆片。
+/// 标题栏位于底部的近方形 LoadPort 信息卡片：底栏标题 + 状态灯；主体左花篮（槽数跟 sc 的 SlotCount，一槽一条细线）右 disk 圆片 + 槽数。
 /// 按真实字号排版、随给定尺寸伸缩，不整卡缩放。槽位重建逻辑与手动页的 <see cref="LoadPort"/> 同源；调度图下排两颗 LP 用它。
 /// </summary>
 public partial class LoadPortInfoCard : UserControl
@@ -44,6 +44,19 @@ public partial class LoadPortInfoCard : UserControl
     public static readonly DependencyProperty NumberProperty =
         DependencyProperty.Register(nameof(Number), typeof(string), typeof(LoadPortInfoCard),
             new PropertyMetadata(string.Empty));
+
+    /// <summary>
+    /// 圆片直径：跟调度图里机械手叉上的片一样大，由页面按机械手的显示尺寸给。
+    /// </summary>
+    public double DiskSize
+    {
+        get => (double)GetValue(DiskSizeProperty);
+        set => SetValue(DiskSizeProperty, value);
+    }
+
+    public static readonly DependencyProperty DiskSizeProperty =
+        DependencyProperty.Register(nameof(DiskSize), typeof(double), typeof(LoadPortInfoCard),
+            new PropertyMetadata(100.0));
 
     /// <summary>底栏 Online 文案。</summary>
     public string IsOnline
@@ -249,8 +262,8 @@ public partial class LoadPortInfoCard : UserControl
 
         for (int index = 0; index < count; index++)
         {
-            // 横排色带左起 1 号，与 UniformGrid 的填充顺序一致
-            int slot = index + 1;
+            // 自顶向下编号：大号在上（25 顶、01 底），与 UniformGrid 的填充顺序一致
+            int slot = count - index;
             Slots[index].Slot = slot;
             Slots[index].SlotText = slot.ToString("00");
             Slots[index].Wafer = wafersBySlot.GetValueOrDefault(slot);

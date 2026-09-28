@@ -16,6 +16,9 @@ public sealed class RobotStationModel
     /// <summary>机械手伸出距离（sc.xml Y，数值）。</summary>
     public double Y { get; init; }
 
+    /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1），取放槽位下拉按它列 1~N。</summary>
+    public int SlotCount { get; init; }
+
     /// <summary>角标主文案：站点号。</summary>
     public string NumberText => Number.ToString();
 

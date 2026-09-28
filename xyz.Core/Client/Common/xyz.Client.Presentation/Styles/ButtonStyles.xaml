@@ -54,6 +54,23 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  行内小按钮（如机械手参数框里使能那一行的 ON / OFF）：描边、矮小，不抢主按钮  -->
+    <Style
+        x:Key="MiniButtonStyle"
+        BasedOn="{StaticResource MaterialDesignOutlinedButton}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Margin" Value="4,0,0,0" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="4" />
+    </Style>
+
     <!--  分段选择组（如手动页选手臂）：一排互斥小块，选中填强调色；配 CompactSegmentItemStyle 用  -->
     <Style
         x:Key="CompactSegmentListBoxStyle"

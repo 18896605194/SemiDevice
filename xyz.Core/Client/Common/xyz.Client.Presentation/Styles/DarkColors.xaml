@@ -23,6 +23,8 @@
     <SolidColorBrush x:Key="DarkWarningStatus" Color="#FBC02D" />
     <SolidColorBrush x:Key="DarkRunningStatus" Color="#43A047" />
     <SolidColorBrush x:Key="DarkCommunicationStatus" Color="#1E88E5" />
+    <!-- 未初始化 / 停用：灰 -->
+    <SolidColorBrush x:Key="DarkInactiveStatus" Color="#616161" />
 
     <!-- 暗色右键菜单 -->
     <SolidColorBrush x:Key="RightMenuBackground" Color="#252525" />
