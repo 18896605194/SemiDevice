@@ -11,4 +11,20 @@
     <ProjectReference Include="..\..\..\xyz.Core\Shared\xyz.Shared\xyz.Shared.csproj" />
   </ItemGroup>
 
+  <!-- 编译完自动部署进后端宿主（等同 tools\deploy-module.ps1 -Target Service），F5 跑的就是刚改的机型代码和点表：
+       DLL 进 Modules\35021；IO 点表（Config\IO\*.csv，跟仿真器 Machines\35021\IO 同一份）进宿主的 Config\IO。
+       宿主的输出目录 TFM 写死 net10.0：宿主升级 TFM 时这里一起改。 -->
+  <Target Name="DeployToHost" AfterTargets="Build">
+    <ItemGroup>
+      <ModuleOutput Include="$(OutDir)*.dll;$(OutDir)*.pdb" />
+      <IoPointTable Include="$(MSBuildThisFileDirectory)Config\IO\*.csv" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModuleOutput)"
+          DestinationFolder="$(MSBuildThisFileDirectory)..\..\..\xyz.Core\Service\xyz.GrpcHost\bin\$(Configuration)\net10.0\Modules\35021"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(IoPointTable)"
+          DestinationFolder="$(MSBuildThisFileDirectory)..\..\..\xyz.Core\Service\xyz.GrpcHost\bin\$(Configuration)\net10.0\Config\IO"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

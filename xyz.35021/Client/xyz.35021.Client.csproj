@@ -31,4 +31,15 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <!-- 编译完自动部署进客户端壳的 Modules\35021（等同 tools\deploy-module.ps1 -Target Client），F5 跑的就是刚改的机型代码。
+       壳的输出目录 TFM 写死 net10.0-windows：壳升级 TFM 时这里一起改。 -->
+  <Target Name="DeployToShell" AfterTargets="Build">
+    <ItemGroup>
+      <ModuleOutput Include="$(OutDir)*.dll;$(OutDir)*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModuleOutput)"
+          DestinationFolder="$(MSBuildThisFileDirectory)..\..\xyz.Core\Client\xyz.Client\bin\$(Configuration)\net10.0-windows\Modules\35021"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

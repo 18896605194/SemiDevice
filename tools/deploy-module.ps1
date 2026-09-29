@@ -65,6 +65,15 @@ function Deploy-Module {
     Copy-Item -Path (Join-Path $dll.Directory.FullName '*.pdb') -Destination $moduleDirectory -Force
 
     Write-Host "已部署 $Label 机型模块 $Module -> $moduleDirectory"
+
+    # 机型的 IO 点表（服务端才有）跟着部署进宿主的 Config\IO。
+    $pointTable = Join-Path (Split-Path -Parent (Split-Path -Parent $SourceBinRoot)) 'Config\IO'
+    if (Test-Path $pointTable) {
+        $ioDirectory = Join-Path $destinationOutput.FullName 'Config\IO'
+        New-Item -ItemType Directory -Force -Path $ioDirectory | Out-Null
+        Copy-Item -Path (Join-Path $pointTable '*.csv') -Destination $ioDirectory -Force
+        Write-Host "已部署 $Label IO 点表 -> $ioDirectory"
+    }
 }
 
 if ($Target -eq 'Client' -or $Target -eq 'All') {

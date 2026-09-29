@@ -42,10 +42,12 @@
 	</Setting>
 	<!-- PLC：全机 IO 底座——气缸的 DI/DO 点、轴的数据块都从它读写，每拍整块读回缓存。
 	     排在模块前面：模块装配时要向它登记自己的数据块。
-	     Host 留空 = 装机没接 PLC，组件空转不报警；接了 PLC 时 Type 换成品牌子类 -->
-	<Setting Name="Plc" Type="xyz.Components.Components.PlcComponent">
-		<Value Name="Brand" Value="" />
-		<Value Name="Host" Value="" />
+	     Host 留空 = 装机没接 PLC，组件空转不报警；Host 填 Local = 连本机的倍福运行时或仿真器（D:\仿真 统一仿真器，Start-35021.cmd）。
+	     本机要有 ADS 路由才连得上：真机由 TwinCAT 提供；开发机没装 TwinCAT 就装 tools\AdsRouter 服务（开机自启）。
+	     没有路由时填 Local，每次连接会卡 6 秒多再失败 -->
+	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
+		<Value Name="Brand" Value="Beckhoff" />
+		<Value Name="Host" Value="Local" />
 		<Value Name="Port" Value="851" />
 		<!-- 四个块在 PLC 里的变量名：倍福用全局别名那一套（GVL 全名写法是 IO_CSharp.DigIn，两种读写同一份过程映像） -->
 		<Value Name="DiDataPath" Value=".DigIn" />
@@ -54,7 +56,10 @@
 		<Value Name="AoDataPath" Value=".AnaOut" />
 		<Value Name="IoPointCount" Value="1000" />
 	</Setting>
-	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv，跟仿真器共用同一份）放在本文件同目录的 IO\ 下，
+	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv）是机型的东西，源文件在 xyz.35021\Service\xyz.35021.Module\Config\IO，
+	     编译时由机型项目部署到宿主输出目录里本文件同目录的 IO\ 下；仿真器 Machines\35021\IO 里是同一份，改了两边一起改。Module 列就是模块名（LoadPort1、Chamber1……），IO 界面按它分页；
+	     点位分段：LoadPort1/2 从 32/48 起（E84 + 光幕），Robot1 从 64 起，Chamber1~4 的 DI/DO 从 100/140/180/220 起、每段 40 点，
+	     AI 从 100/120/140/160 起、每段 20 点；同一部件的 DO 与 DI 偏移对齐。
 	     每拍从 PLC 缓存刷一遍；上层按索引取点，界面订阅后端推来的整包 -->
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
@@ -84,23 +89,23 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
-			<!-- E84：搬运车 PIO 信号走 IO 板。IO 读写还没接，DI/DO 索引先填 -1，接线后按实际改；是否启用走 EC E84Enabled（默认关） -->
+			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84；是否启用走 EC E84Enabled（默认关） -->
 			<Setting Name="E84" Type="xyz.Modules.E84Component">
-				<Value Name="DiValidIndex" Value="-1" />
-				<Value Name="DiCs0Index" Value="-1" />
-				<Value Name="DiCs1Index" Value="-1" />
-				<Value Name="DiAmAvblIndex" Value="-1" />
-				<Value Name="DiTrReqIndex" Value="-1" />
-				<Value Name="DiBusyIndex" Value="-1" />
-				<Value Name="DiComptIndex" Value="-1" />
-				<Value Name="DiContIndex" Value="-1" />
-				<Value Name="DiLightCurtainIndex" Value="-1" />
+				<Value Name="DiValidIndex" Value="34" />
+				<Value Name="DiCs0Index" Value="32" />
+				<Value Name="DiCs1Index" Value="33" />
+				<Value Name="DiAmAvblIndex" Value="35" />
+				<Value Name="DiTrReqIndex" Value="36" />
+				<Value Name="DiBusyIndex" Value="37" />
+				<Value Name="DiComptIndex" Value="38" />
+				<Value Name="DiContIndex" Value="39" />
+				<Value Name="DiLightCurtainIndex" Value="40" />
 				<Value Name="LightCurtainReverse" Value="False" />
-				<Value Name="DoLReqIndex" Value="-1" />
-				<Value Name="DoUReqIndex" Value="-1" />
-				<Value Name="DoReadyIndex" Value="-1" />
-				<Value Name="DoHoAvblIndex" Value="-1" />
-				<Value Name="DoEsIndex" Value="-1" />
+				<Value Name="DoLReqIndex" Value="32" />
+				<Value Name="DoUReqIndex" Value="33" />
+				<Value Name="DoReadyIndex" Value="34" />
+				<Value Name="DoHoAvblIndex" Value="35" />
+				<Value Name="DoEsIndex" Value="36" />
 			</Setting>
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
@@ -127,23 +132,23 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
-			<!-- E84：搬运车 PIO 信号走 IO 板。IO 读写还没接，DI/DO 索引先填 -1，接线后按实际改；是否启用走 EC E84Enabled（默认关） -->
+			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84；是否启用走 EC E84Enabled（默认关） -->
 			<Setting Name="E84" Type="xyz.Modules.E84Component">
-				<Value Name="DiValidIndex" Value="-1" />
-				<Value Name="DiCs0Index" Value="-1" />
-				<Value Name="DiCs1Index" Value="-1" />
-				<Value Name="DiAmAvblIndex" Value="-1" />
-				<Value Name="DiTrReqIndex" Value="-1" />
-				<Value Name="DiBusyIndex" Value="-1" />
-				<Value Name="DiComptIndex" Value="-1" />
-				<Value Name="DiContIndex" Value="-1" />
-				<Value Name="DiLightCurtainIndex" Value="-1" />
+				<Value Name="DiValidIndex" Value="50" />
+				<Value Name="DiCs0Index" Value="48" />
+				<Value Name="DiCs1Index" Value="49" />
+				<Value Name="DiAmAvblIndex" Value="51" />
+				<Value Name="DiTrReqIndex" Value="52" />
+				<Value Name="DiBusyIndex" Value="53" />
+				<Value Name="DiComptIndex" Value="54" />
+				<Value Name="DiContIndex" Value="55" />
+				<Value Name="DiLightCurtainIndex" Value="56" />
 				<Value Name="LightCurtainReverse" Value="False" />
-				<Value Name="DoLReqIndex" Value="-1" />
-				<Value Name="DoUReqIndex" Value="-1" />
-				<Value Name="DoReadyIndex" Value="-1" />
-				<Value Name="DoHoAvblIndex" Value="-1" />
-				<Value Name="DoEsIndex" Value="-1" />
+				<Value Name="DoLReqIndex" Value="48" />
+				<Value Name="DoUReqIndex" Value="49" />
+				<Value Name="DoReadyIndex" Value="50" />
+				<Value Name="DoHoAvblIndex" Value="51" />
+				<Value Name="DoEsIndex" Value="52" />
 			</Setting>
 		</Setting>
 	</Setting>
@@ -210,7 +215,8 @@
 	     子组件层级按物理装配走：升降气缸和喷嘴装在摆臂上，就挂摆臂节点下面——
 	     配置上一眼看出哪路喷嘴在哪条臂，报警也按路径自动算到摆臂、再算到腔体。
 	     控制上它们跟轴是平级的，谁也不调谁，协调在工艺配方里。
-	     IO 索引全填 -1 = 接线未定；轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
+	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一部件 DO 与 DI 同号；-1 = 接线未定）；
+	     气缸开侧 = 门开 / Bowl 升 / 升降气缸升。轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
 	     Bowl 层数、摆臂条数、喷嘴路数按实际增减，下面只是骨架 -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
@@ -218,63 +224,64 @@
 			<Value Name="SlotCount" Value="1" />
 			<!-- 腔体门：归站点交互环管（开门放行机械手、关门收尾），不归工艺 -->
 			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
-				<Value Name="DoOpenIndex" Value="-1" />
-				<Value Name="DoCloseIndex" Value="-1" />
-				<Value Name="DiOpenedIndex" Value="-1" />
-				<Value Name="DiClosedIndex" Value="-1" />
+				<Value Name="DoOpenIndex" Value="100" />
+				<Value Name="DoCloseIndex" Value="101" />
+				<Value Name="DiOpenedIndex" Value="100" />
+				<Value Name="DiClosedIndex" Value="101" />
 			</Setting>
 			<!-- Bowl 各层：每层一个气缸。本节点不带 Type，只是分组，运行时气缸直接挂在腔体下。
 			     层位选哪几层是配方参数，不配在这儿 -->
 			<Setting Name="Bowl">
 				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="102" />
+					<Value Name="DoCloseIndex" Value="103" />
+					<Value Name="DiOpenedIndex" Value="102" />
+					<Value Name="DiClosedIndex" Value="103" />
 				</Setting>
 				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="104" />
+					<Value Name="DoCloseIndex" Value="105" />
+					<Value Name="DiOpenedIndex" Value="104" />
+					<Value Name="DiClosedIndex" Value="105" />
 				</Setting>
 				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="106" />
+					<Value Name="DoCloseIndex" Value="107" />
+					<Value Name="DiOpenedIndex" Value="106" />
+					<Value Name="DiClosedIndex" Value="107" />
 				</Setting>
 			</Setting>
 			<!-- 轴不按轴号绑硬件，按 PLC 数据块的数组名绑：SendPlcDataPath 下发、ReceivePlcDataPath 回读。
+			     仿真器按 .Motor_*[下标] 给数据块，下标 = 腔体号×10（旋转电机）、+1（摆臂），跟仿真器 Axes.csv 一致；
 			     空 = 数据块还没定；速度/标定是 EC，在 ec.xml -->
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[10]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[10]" />
 			</Setting>
 			<!-- 摆臂：升降气缸与各路喷嘴都装在它上面 -->
 			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[11]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[11]" />
 				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="108" />
+					<Value Name="DoCloseIndex" Value="109" />
+					<Value Name="DiOpenedIndex" Value="108" />
+					<Value Name="DiClosedIndex" Value="109" />
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="110" />
+					<Value Name="DiIndex" Value="110" />
 					<Value Name="Chemical" Value="DIW" />
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="111" />
+					<Value Name="DiIndex" Value="111" />
 					<Value Name="Chemical" Value="SC1" />
 				</Setting>
 			</Setting>
 			<!-- 片在位检测：只给状态不报警，有没有片以晶圆账为准 -->
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
-				<Value Name="DiIndex" Value="-1" />
+				<Value Name="DiIndex" Value="112" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>
@@ -282,57 +289,57 @@
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
-				<Value Name="DoOpenIndex" Value="-1" />
-				<Value Name="DoCloseIndex" Value="-1" />
-				<Value Name="DiOpenedIndex" Value="-1" />
-				<Value Name="DiClosedIndex" Value="-1" />
+				<Value Name="DoOpenIndex" Value="140" />
+				<Value Name="DoCloseIndex" Value="141" />
+				<Value Name="DiOpenedIndex" Value="140" />
+				<Value Name="DiClosedIndex" Value="141" />
 			</Setting>
 			<Setting Name="Bowl">
 				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="142" />
+					<Value Name="DoCloseIndex" Value="143" />
+					<Value Name="DiOpenedIndex" Value="142" />
+					<Value Name="DiClosedIndex" Value="143" />
 				</Setting>
 				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="144" />
+					<Value Name="DoCloseIndex" Value="145" />
+					<Value Name="DiOpenedIndex" Value="144" />
+					<Value Name="DiClosedIndex" Value="145" />
 				</Setting>
 				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="146" />
+					<Value Name="DoCloseIndex" Value="147" />
+					<Value Name="DiOpenedIndex" Value="146" />
+					<Value Name="DiClosedIndex" Value="147" />
 				</Setting>
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[20]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[20]" />
 			</Setting>
 			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[21]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[21]" />
 				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="148" />
+					<Value Name="DoCloseIndex" Value="149" />
+					<Value Name="DiOpenedIndex" Value="148" />
+					<Value Name="DiClosedIndex" Value="149" />
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="150" />
+					<Value Name="DiIndex" Value="150" />
 					<Value Name="Chemical" Value="DIW" />
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="151" />
+					<Value Name="DiIndex" Value="151" />
 					<Value Name="Chemical" Value="SC1" />
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
-				<Value Name="DiIndex" Value="-1" />
+				<Value Name="DiIndex" Value="152" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>
@@ -340,57 +347,57 @@
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
-				<Value Name="DoOpenIndex" Value="-1" />
-				<Value Name="DoCloseIndex" Value="-1" />
-				<Value Name="DiOpenedIndex" Value="-1" />
-				<Value Name="DiClosedIndex" Value="-1" />
+				<Value Name="DoOpenIndex" Value="180" />
+				<Value Name="DoCloseIndex" Value="181" />
+				<Value Name="DiOpenedIndex" Value="180" />
+				<Value Name="DiClosedIndex" Value="181" />
 			</Setting>
 			<Setting Name="Bowl">
 				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="182" />
+					<Value Name="DoCloseIndex" Value="183" />
+					<Value Name="DiOpenedIndex" Value="182" />
+					<Value Name="DiClosedIndex" Value="183" />
 				</Setting>
 				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="184" />
+					<Value Name="DoCloseIndex" Value="185" />
+					<Value Name="DiOpenedIndex" Value="184" />
+					<Value Name="DiClosedIndex" Value="185" />
 				</Setting>
 				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="186" />
+					<Value Name="DoCloseIndex" Value="187" />
+					<Value Name="DiOpenedIndex" Value="186" />
+					<Value Name="DiClosedIndex" Value="187" />
 				</Setting>
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[30]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[30]" />
 			</Setting>
 			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[31]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[31]" />
 				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="188" />
+					<Value Name="DoCloseIndex" Value="189" />
+					<Value Name="DiOpenedIndex" Value="188" />
+					<Value Name="DiClosedIndex" Value="189" />
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="190" />
+					<Value Name="DiIndex" Value="190" />
 					<Value Name="Chemical" Value="DIW" />
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="191" />
+					<Value Name="DiIndex" Value="191" />
 					<Value Name="Chemical" Value="SC1" />
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
-				<Value Name="DiIndex" Value="-1" />
+				<Value Name="DiIndex" Value="192" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>
@@ -398,57 +405,57 @@
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
-				<Value Name="DoOpenIndex" Value="-1" />
-				<Value Name="DoCloseIndex" Value="-1" />
-				<Value Name="DiOpenedIndex" Value="-1" />
-				<Value Name="DiClosedIndex" Value="-1" />
+				<Value Name="DoOpenIndex" Value="220" />
+				<Value Name="DoCloseIndex" Value="221" />
+				<Value Name="DiOpenedIndex" Value="220" />
+				<Value Name="DiClosedIndex" Value="221" />
 			</Setting>
 			<Setting Name="Bowl">
 				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="222" />
+					<Value Name="DoCloseIndex" Value="223" />
+					<Value Name="DiOpenedIndex" Value="222" />
+					<Value Name="DiClosedIndex" Value="223" />
 				</Setting>
 				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="224" />
+					<Value Name="DoCloseIndex" Value="225" />
+					<Value Name="DiOpenedIndex" Value="224" />
+					<Value Name="DiClosedIndex" Value="225" />
 				</Setting>
 				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="226" />
+					<Value Name="DoCloseIndex" Value="227" />
+					<Value Name="DiOpenedIndex" Value="226" />
+					<Value Name="DiClosedIndex" Value="227" />
 				</Setting>
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[40]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[40]" />
 			</Setting>
 			<Setting Name="Arm1" Type="xyz.Components.Components.ArmAxisComponent">
-				<Value Name="SendPlcDataPath" Value="" />
-				<Value Name="ReceivePlcDataPath" Value="" />
+				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[41]" />
+				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[41]" />
 				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="-1" />
-					<Value Name="DoCloseIndex" Value="-1" />
-					<Value Name="DiOpenedIndex" Value="-1" />
-					<Value Name="DiClosedIndex" Value="-1" />
+					<Value Name="DoOpenIndex" Value="228" />
+					<Value Name="DoCloseIndex" Value="229" />
+					<Value Name="DiOpenedIndex" Value="228" />
+					<Value Name="DiClosedIndex" Value="229" />
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="230" />
+					<Value Name="DiIndex" Value="230" />
 					<Value Name="Chemical" Value="DIW" />
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
-					<Value Name="DoIndex" Value="-1" />
-					<Value Name="DiIndex" Value="-1" />
+					<Value Name="DoIndex" Value="231" />
+					<Value Name="DiIndex" Value="231" />
 					<Value Name="Chemical" Value="SC1" />
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
-				<Value Name="DiIndex" Value="-1" />
+				<Value Name="DiIndex" Value="232" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>

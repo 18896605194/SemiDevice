@@ -21,7 +21,7 @@ public partial class PlcComponent : ComponentBase, IPlc
     [SCEditor("", "Plc", "PLC 品牌（空 = 装机没接 PLC）")]
     public string Brand { get; set; } = string.Empty;
 
-    [SCEditor("", "Plc", "PLC 地址（IP 或倍福 AmsNetId），空 = 接线未定，不连也不报警")]
+    [SCEditor("", "Plc", "PLC 地址（IP 或倍福 AmsNetId；倍福填 Local = 连本机运行时/仿真器），空 = 接线未定，不连也不报警")]
     public string Host { get; set; } = string.Empty;
 
     [SCEditor("851", "Plc", "端口")]

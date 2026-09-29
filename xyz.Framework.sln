@@ -22,6 +22,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{A1000001-0000-0000-0000-000000000009}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Client", "xyz.Core\Client\xyz.Client\xyz.Client.csproj", "{26808D77-208A-4087-9B65-C859E01C0904}"
+	ProjectSection(ProjectDependencies) = postProject
+		{65377AFC-E113-400E-8C2F-ADE399737B76} = {65377AFC-E113-400E-8C2F-ADE399737B76}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Client.DataModels", "xyz.Core\Client\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj", "{1F9BE20A-EB43-42CA-AADE-B5B39B6542B4}"
 EndProject
@@ -48,6 +51,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Tools", "xyz.Core\Shared\xyz.Tools\xyz.Tools.csproj", "{31B29DEC-9CB7-4DE3-9B36-B52193B88480}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.GrpcHost", "xyz.Core\Service\xyz.GrpcHost\xyz.GrpcHost.csproj", "{103633DA-0157-4B90-9F70-582A4F7759DF}"
+	ProjectSection(ProjectDependencies) = postProject
+		{BA58114F-A357-42ED-A987-B3A955A8D5F2} = {BA58114F-A357-42ED-A987-B3A955A8D5F2}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "xyz.Common", "xyz.Core\Service\xyz.Common\xyz.Common.csproj", "{A91898C1-D3B9-47E8-B7E2-5E9BE7A0777F}"
 EndProject
@@ -90,6 +96,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GemCollectorSmoke", "tools\GemCollectorSmoke\GemCollectorSmoke.csproj", "{C73C3562-9BBF-4298-B90A-AC9F010893AE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataCenterSmoke", "tools\DataCenterSmoke\DataCenterSmoke.csproj", "{00EA9A03-1841-4455-A47F-98F00250CD85}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdsRouter", "tools\AdsRouter\AdsRouter.csproj", "{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -509,6 +517,18 @@ Global
 		{00EA9A03-1841-4455-A47F-98F00250CD85}.Release|x64.Build.0 = Release|Any CPU
 		{00EA9A03-1841-4455-A47F-98F00250CD85}.Release|x86.ActiveCfg = Release|Any CPU
 		{00EA9A03-1841-4455-A47F-98F00250CD85}.Release|x86.Build.0 = Release|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Debug|x64.Build.0 = Debug|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Debug|x86.Build.0 = Debug|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Release|x64.ActiveCfg = Release|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Release|x64.Build.0 = Release|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Release|x86.ActiveCfg = Release|Any CPU
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -555,6 +575,7 @@ Global
 		{71330A23-B76F-4D57-8604-955E05386F66} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{C73C3562-9BBF-4298-B90A-AC9F010893AE} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{00EA9A03-1841-4455-A47F-98F00250CD85} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{00DDA875-8ABF-4D0B-8507-3F6E5F91A5B9} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D0000000-0000-0000-0000-000000000001}

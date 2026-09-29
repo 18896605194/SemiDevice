@@ -82,6 +82,7 @@
 
     <!-- 主窗口、加载窗口 -->
     <sys:String x:Key="shell.loading.starting">正在启动…</sys:String>
+    <sys:String x:Key="shell.loading.backend">正在等待后端启动…</sys:String>
     <sys:String x:Key="shell.loading.channel">正在初始化通讯通道…</sys:String>
     <sys:String x:Key="shell.loading.events">正在连接后端事件流…</sys:String>
     <sys:String x:Key="shell.loading.modules">正在加载机型模块…</sys:String>
@@ -167,7 +168,6 @@
     <sys:String x:Key="chambercard.shutter">腔门</sys:String>
     <sys:String x:Key="chambercard.step_time">步骤时间</sys:String>
     <sys:String x:Key="chambercard.recipe_time">配方时间</sys:String>
-    <sys:String x:Key="lpmanual.state">状态：</sys:String>
     <sys:String x:Key="lpmanual.online_mode">在线模式：</sys:String>
     <sys:String x:Key="lpmanual.online">在线</sys:String>
     <sys:String x:Key="lpmanual.offline">下线</sys:String>

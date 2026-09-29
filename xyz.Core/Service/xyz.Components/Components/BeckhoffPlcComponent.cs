@@ -20,6 +20,9 @@ public class BeckhoffPlcComponent : PlcComponent
     /// <summary>符号路径 → 变量句柄，块和单点均复用句柄，断开时清空。</summary>
     private readonly Dictionary<string, uint> _handles = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Host 的这个取值表示连本机（按本机 AmsNetId）。</summary>
+    private const string LocalHost = "Local";
+
     #region 连接
 
     protected override bool ConnectDevice()
@@ -38,7 +41,17 @@ public class BeckhoffPlcComponent : PlcComponent
             DisconnectDevice();
 
             var client = new AdsClient();
-            client.Connect(Host, Port);
+
+            // Host 写 Local = 连本机的 PLC 运行时或仿真器，不用把本机 AmsNetId 写死进配置（换台机器就不对了）。
+            if (string.Equals(Host, LocalHost, StringComparison.OrdinalIgnoreCase))
+            {
+                client.Connect(Port);
+            }
+            else
+            {
+                client.Connect(Host, Port);
+            }
+
             if (!client.IsConnected)
             {
                 client.Dispose();

@@ -69,6 +69,32 @@ public partial class LoadPortInfoCard : UserControl
         DependencyProperty.Register(nameof(IsOnline), typeof(string), typeof(LoadPortInfoCard),
             new PropertyMetadata(string.Empty));
 
+    /// <summary>
+    /// LoadPort 状态文字，标题行右侧缩小版状态徽标显示；空就不显示徽标。
+    /// </summary>
+    public string StateText
+    {
+        get => (string)GetValue(StateTextProperty);
+        set => SetValue(StateTextProperty, value);
+    }
+
+    public static readonly DependencyProperty StateTextProperty =
+        DependencyProperty.Register(nameof(StateText), typeof(string), typeof(LoadPortInfoCard),
+            new PropertyMetadata(string.Empty));
+
+    /// <summary>
+    /// LoadPort 状态色调（徽标底色）。
+    /// </summary>
+    public ModuleStateTone StateTone
+    {
+        get => (ModuleStateTone)GetValue(StateToneProperty);
+        set => SetValue(StateToneProperty, value);
+    }
+
+    public static readonly DependencyProperty StateToneProperty =
+        DependencyProperty.Register(nameof(StateTone), typeof(ModuleStateTone), typeof(LoadPortInfoCard),
+            new PropertyMetadata(ModuleStateTone.Inactive));
+
     /// <summary>通讯灯：驱动串口是否连上。</summary>
     public bool IsConnected
     {

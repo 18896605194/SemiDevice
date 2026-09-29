@@ -34,6 +34,7 @@ public class RobotModel : ObservableObject
             if (SetProperty(ref _state, value))
             {
                 OnPropertyChanged(nameof(StateText));
+                OnPropertyChanged(nameof(StateTone));
             }
         }
     }
@@ -230,6 +231,32 @@ public class RobotModel : ObservableObject
                 case 210: return L10n.Get("module.state.picking");
                 case 220: return L10n.Get("module.state.placing");
                 default: return L10n.Get("module.state.unknown", State);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 状态色调（状态徽标的底色）：空闲就绪，初始化、回零、取放都算动作中。
+    /// </summary>
+    public ModuleStateTone StateTone
+    {
+        get
+        {
+            switch (State)
+            {
+                case 30: return ModuleStateTone.Ready;
+                case 35: return ModuleStateTone.Warning;
+                case 40: return ModuleStateTone.Alarm;
+                case 20:
+                case 50:
+                case 60:
+                case 70:
+                case 80:
+                case 130:
+                case 200:
+                case 210:
+                case 220: return ModuleStateTone.Busy;
+                default: return ModuleStateTone.Inactive;
             }
         }
     }

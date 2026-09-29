@@ -6,7 +6,7 @@ using xyz.Client.Presentation.Models;
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
-/// 近方形腔体信息卡片，参考 GR 调度界面的 ChamberInfoCard：左六行字段 + 右圆片。按真实字号排版、随给定尺寸伸缩，不整卡缩放。
+/// 近方形腔体信息卡片，参考 GR 调度界面的 ChamberInfoCard：标题行带缩小版状态徽标，左五行字段 + 右圆片。按真实字号排版、随给定尺寸伸缩，不整卡缩放。
 /// </summary>
 public partial class ChamberInfoCard : UserControl
 {
@@ -71,15 +71,31 @@ public partial class ChamberInfoCard : UserControl
         DependencyProperty.Register(nameof(IsOnline), typeof(string), typeof(ChamberInfoCard),
             new PropertyMetadata(string.Empty));
 
-    public string State
+    /// <summary>
+    /// 腔体状态文字，标题行右侧缩小版状态徽标显示；空就不显示徽标。
+    /// </summary>
+    public string StateText
     {
-        get => (string)GetValue(StateProperty);
-        set => SetValue(StateProperty, value);
+        get => (string)GetValue(StateTextProperty);
+        set => SetValue(StateTextProperty, value);
     }
 
-    public static readonly DependencyProperty StateProperty =
-        DependencyProperty.Register(nameof(State), typeof(string), typeof(ChamberInfoCard),
+    public static readonly DependencyProperty StateTextProperty =
+        DependencyProperty.Register(nameof(StateText), typeof(string), typeof(ChamberInfoCard),
             new PropertyMetadata(string.Empty));
+
+    /// <summary>
+    /// 腔体状态色调（徽标底色）。
+    /// </summary>
+    public ModuleStateTone StateTone
+    {
+        get => (ModuleStateTone)GetValue(StateToneProperty);
+        set => SetValue(StateToneProperty, value);
+    }
+
+    public static readonly DependencyProperty StateToneProperty =
+        DependencyProperty.Register(nameof(StateTone), typeof(ModuleStateTone), typeof(ChamberInfoCard),
+            new PropertyMetadata(ModuleStateTone.Inactive));
 
     public string RecipeState
     {

@@ -81,6 +81,7 @@
 
     <!-- Main window, loading window -->
     <sys:String x:Key="shell.loading.starting">Starting…</sys:String>
+    <sys:String x:Key="shell.loading.backend">Waiting for the backend to start…</sys:String>
     <sys:String x:Key="shell.loading.channel">Initializing the communication channel…</sys:String>
     <sys:String x:Key="shell.loading.events">Connecting to the backend event stream…</sys:String>
     <sys:String x:Key="shell.loading.modules">Loading equipment modules…</sys:String>
@@ -166,7 +167,6 @@
     <sys:String x:Key="chambercard.shutter">Shutter</sys:String>
     <sys:String x:Key="chambercard.step_time">Step Time</sys:String>
     <sys:String x:Key="chambercard.recipe_time">Recipe Time</sys:String>
-    <sys:String x:Key="lpmanual.state">State:</sys:String>
     <sys:String x:Key="lpmanual.online_mode">Online mode:</sys:String>
     <sys:String x:Key="lpmanual.online">Online</sys:String>
     <sys:String x:Key="lpmanual.offline">Offline</sys:String>

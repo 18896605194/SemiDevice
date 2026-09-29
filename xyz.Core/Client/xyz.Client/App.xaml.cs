@@ -28,6 +28,17 @@ public partial class App : Application
     /// </summary>
     private const int StepDelayMs = 180;
 
+    /// <summary>
+    /// 等后端最多多久。后端要先装配、连完设备才开始监听端口（设备不在线时 TCP 连接要等系统超时），
+    /// VS 里前后端一起启动时客户端往往先起来；过了这个时间还没等到，就按后端不在线处理。
+    /// </summary>
+    private const int BackendWaitSeconds = 30;
+
+    /// <summary>
+    /// 后端还没起来时，每隔多久再问一次。
+    /// </summary>
+    private const int BackendRetryDelayMs = 1000;
+
     public static IServiceProvider Services { get; private set; } = default!;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -62,7 +73,7 @@ public partial class App : Application
             GrpcClientFactory.Initialize();
 
             // 界面语言跟后端 sc.xml 的 System 节点走：先换好语言包再建界面。顺带拿回装了哪些模块、哪些是腔体。
-            var settings = await ApplySystemLanguageAsync();
+            var settings = await ApplySystemLanguageAsync(loadingWindow);
             await ReportAsync(loadingWindow, 20, L10n.Get("shell.loading.channel"));
 
             #endregion
@@ -119,24 +130,37 @@ public partial class App : Application
 
     /// <summary>
     /// 界面语言跟后端 sc.xml 的 System 节点（Language）走：启动时问一次后端，换好语言包再建界面。
-    /// 后端没起或没配时用默认的简体中文；改了语言重启客户端生效。
+    /// 后端还没起来（连不上）就每秒再问一次，最多等 BackendWaitSeconds——模块表只在这儿拿一次，
+    /// 没拿到的话 IO、腔体这些按模块分的菜单整场都是空的。
+    /// 等到头还没拿到，或后端在但没配时用默认的简体中文；改了语言重启客户端生效。
     /// </summary>
-    private static async Task<SystemSettingsDto> ApplySystemLanguageAsync()
+    private static async Task<SystemSettingsDto> ApplySystemLanguageAsync(LoadingWindow loadingWindow)
     {
-        try
+        var waitUntil = DateTime.UtcNow.AddSeconds(BackendWaitSeconds);
+        while (true)
         {
-            var context = new CallContext(new CallOptions(deadline: DateTime.UtcNow.AddSeconds(3)));
-            var response = await GrpcClientFactory.Create<ISystemService>().GetSettingsAsync(new RpcRequest(), context);
-            var settings = response.DeserializeData<SystemSettingsDto>();
-            L10n.Apply(settings.Language);
+            try
+            {
+                var context = new CallContext(new CallOptions(deadline: DateTime.UtcNow.AddSeconds(3)));
+                var response = await GrpcClientFactory.Create<ISystemService>().GetSettingsAsync(new RpcRequest(), context);
+                var settings = response.DeserializeData<SystemSettingsDto>();
+                L10n.Apply(settings.Language);
 
-            // 顺带带回装了哪些模块、哪些是腔体：按模块分的页面与菜单照它生成，sc.xml 里没配的不出现。
-            return settings;
-        }
-        catch (Exception exception)
-        {
-            ClientLog.Warn("Client", $"没拿到界面语言设置，先用 {L10n.Language}：{exception.Message}");
-            return new SystemSettingsDto();
+                // 顺带带回装了哪些模块、哪些是腔体：按模块分的页面与菜单照它生成，sc.xml 里没配的不出现。
+                return settings;
+            }
+            catch (RpcException exception) when (
+                exception.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                && DateTime.UtcNow < waitUntil)
+            {
+                loadingWindow.Report(10, L10n.Get("shell.loading.backend"));
+                await Task.Delay(BackendRetryDelayMs);
+            }
+            catch (Exception exception)
+            {
+                ClientLog.Warn("Client", $"没拿到界面语言设置，先用 {L10n.Language}：{exception.Message}");
+                return new SystemSettingsDto();
+            }
         }
     }
 

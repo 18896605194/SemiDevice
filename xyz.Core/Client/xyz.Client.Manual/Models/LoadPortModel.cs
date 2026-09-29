@@ -143,33 +143,55 @@ public class LoadPortModel : ObservableObject
     }
 
     /// <summary>
-    /// 状态文字（按当前语言）。码值对应 xyz.Modules 的
-    /// ModuleState/TransferModuleState/LoadPortState，未收录的码显示原值。
-    /// Model 每次整体替换，绑定随 Model 属性变化重新取值，无需单独通知。
+    /// 状态文字（按当前语言）。Model 每次整体替换，绑定随 Model 属性变化重新取值，无需单独通知。
     /// </summary>
-    public string StateText
+    public string StateText => StateTextOf(State);
+
+    /// <summary>
+    /// 状态色调（状态徽标的底色）。
+    /// </summary>
+    public ModuleStateTone StateTone => StateToneOf(State);
+
+    /// <summary>
+    /// LoadPort 状态码 → 状态文字（按当前语言），Robot 页的站点卡片也用它。码值对应 xyz.Modules 的
+    /// ModuleState/TransferModuleState/LoadPortState，未收录的码显示原值。
+    /// </summary>
+    public static string StateTextOf(int state)
     {
-        get
+        return state switch
         {
-            return State switch
-            {
-                10 => L10n.Get("module.state.not_init"),
-                20 => L10n.Get("module.state.initing"),
-                30 => L10n.Get("module.state.idle"),
-                35 => L10n.Get("module.state.aborting"),
-                40 => L10n.Get("module.state.error"),
-                50 => L10n.Get("module.state.pre_transfer"),
-                60 => L10n.Get("module.state.transfer_ready"),
-                70 => L10n.Get("module.state.transferring"),
-                80 => L10n.Get("module.state.transfer_complete"),
-                100 => L10n.Get("module.state.loading"),
-                110 => L10n.Get("module.state.loaded"),
-                120 => L10n.Get("module.state.unloading"),
-                130 => L10n.Get("module.state.homing"),
-                140 => L10n.Get("module.state.clamping"),
-                150 => L10n.Get("module.state.unclamping"),
-                _ => L10n.Get("module.state.unknown", State),
-            };
-        }
+            10 => L10n.Get("module.state.not_init"),
+            20 => L10n.Get("module.state.initing"),
+            30 => L10n.Get("module.state.idle"),
+            35 => L10n.Get("module.state.aborting"),
+            40 => L10n.Get("module.state.error"),
+            50 => L10n.Get("module.state.pre_transfer"),
+            60 => L10n.Get("module.state.transfer_ready"),
+            70 => L10n.Get("module.state.transferring"),
+            80 => L10n.Get("module.state.transfer_complete"),
+            100 => L10n.Get("module.state.loading"),
+            110 => L10n.Get("module.state.loaded"),
+            120 => L10n.Get("module.state.unloading"),
+            130 => L10n.Get("module.state.homing"),
+            140 => L10n.Get("module.state.clamping"),
+            150 => L10n.Get("module.state.unclamping"),
+            _ => L10n.Get("module.state.unknown", state),
+        };
+    }
+
+    /// <summary>
+    /// LoadPort 状态码 → 状态色调，Robot 页的站点卡片也用它。已装载是 LoadPort 的锚点态（可被机械手服务），
+    /// 跟空闲一样算就绪；装卸、回零、夹紧/松开、传片环都算动作中。
+    /// </summary>
+    public static ModuleStateTone StateToneOf(int state)
+    {
+        return state switch
+        {
+            30 or 110 => ModuleStateTone.Ready,
+            35 => ModuleStateTone.Warning,
+            40 => ModuleStateTone.Alarm,
+            20 or 50 or 60 or 70 or 80 or 100 or 120 or 130 or 140 or 150 => ModuleStateTone.Busy,
+            _ => ModuleStateTone.Inactive,
+        };
     }
 }

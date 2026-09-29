@@ -47,67 +47,11 @@
                         Foreground="{DynamicResource DarkPrimaryText}"
                         Text="{Binding ModuleName}" />
 
-                    <!--  状态色条：按状态整条上底色（空闲绿 / 报警红 / 回零·工艺·搬运中蓝 / 中止中黄 / 未初始化灰），一眼看出腔体能不能用  -->
-                    <Border
-                        Height="40"
+                    <!--  状态徽标：一眼看出腔体能不能用  -->
+                    <presentationControls:ModuleStateBadge
                         Margin="14,8,14,0"
-                        CornerRadius="6">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="{DynamicResource DarkInactiveStatus}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="20">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="30">
-                                        <Setter Property="Background" Value="{DynamicResource DarkRunningStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="35">
-                                        <Setter Property="Background" Value="{DynamicResource DarkWarningStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="40">
-                                        <Setter Property="Background" Value="{DynamicResource DarkAlarmStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="50">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="60">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="70">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="80">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="100">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Model.State}" Value="110">
-                                        <Setter Property="Background" Value="{DynamicResource DarkCommunicationStatus}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            FontSize="{DynamicResource Size18}"
-                            FontWeight="Bold"
-                            Text="{Binding Model.StateText}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="White" />
-                                    <Style.Triggers>
-                                        <!--  黄底配深色字  -->
-                                        <DataTrigger Binding="{Binding Model.State}" Value="35">
-                                            <Setter Property="Foreground" Value="{DynamicResource DarkSurfaceBackground}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Border>
+                        Text="{Binding Model.StateText}"
+                        Tone="{Binding Model.StateTone}" />
 
                     <!--  参数框：启用 / 模式 / 报错 一行一盏灯（模式行带 Online / Offline 小按钮，报错行写报错内容），当前配方显示配方名  -->
                     <Border Margin="14,10,14,0" Style="{DynamicResource ReadoutBorderStyle}">

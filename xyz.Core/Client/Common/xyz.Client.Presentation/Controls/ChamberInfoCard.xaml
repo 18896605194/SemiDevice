@@ -56,7 +56,7 @@
         CornerRadius="12">
         <DockPanel LastChildFill="True">
 
-            <!--  标题栏：状态点 / 站点号 / 名称 …… 在线  -->
+            <!--  标题栏：状态点 / 站点号 / 名称 …… 状态徽标（缩小版）/ 在线  -->
             <Border
                 Height="40"
                 Padding="12,0"
@@ -68,6 +68,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
@@ -113,8 +114,16 @@
                         Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         TextTrimming="CharacterEllipsis" />
 
-                    <TextBlock
+                    <local:ModuleStateBadge
                         Grid.Column="3"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        IsCompact="True"
+                        Text="{Binding StateText, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
+                        Tone="{Binding StateTone, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
+
+                    <TextBlock
+                        Grid.Column="4"
                         Margin="8,0,0,0"
                         VerticalAlignment="Center"
                         FontSize="{DynamicResource Size13}"
@@ -124,7 +133,7 @@
                 </Grid>
             </Border>
 
-            <!--  主体：左六行字段，右圆片（直径 DiskSize，跟机械手叉上的片一样大；下面配方状态）  -->
+            <!--  主体：左五行字段，右圆片（直径 DiskSize，跟机械手叉上的片一样大；下面配方状态）  -->
             <Grid Margin="10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -185,8 +194,8 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
+                    <!--  状态不在这儿：标题行右侧的缩小版状态徽标  -->
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -197,59 +206,49 @@
                     <TextBlock
                         Grid.Row="0"
                         Style="{StaticResource CardFieldLabelStyle}"
-                        Text="{DynamicResource chambercard.state}" />
-                    <TextBlock
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        Style="{StaticResource CardFieldValueStyle}"
-                        Text="{Binding State, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
-
-                    <TextBlock
-                        Grid.Row="1"
-                        Style="{StaticResource CardFieldLabelStyle}"
                         Text="{DynamicResource chambercard.recipe}" />
                     <TextBlock
-                        Grid.Row="1"
+                        Grid.Row="0"
                         Grid.Column="1"
                         Style="{StaticResource CardFieldValueStyle}"
                         Text="{Binding Recipe, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                     <TextBlock
-                        Grid.Row="2"
+                        Grid.Row="1"
                         Style="{StaticResource CardFieldLabelStyle}"
                         Text="{DynamicResource chambercard.step}" />
                     <TextBlock
-                        Grid.Row="2"
+                        Grid.Row="1"
                         Grid.Column="1"
                         Style="{StaticResource CardFieldValueStyle}"
                         Text="{Binding Step, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                     <TextBlock
-                        Grid.Row="3"
+                        Grid.Row="2"
                         Style="{StaticResource CardFieldLabelStyle}"
                         Text="{DynamicResource chambercard.shutter}" />
                     <TextBlock
-                        Grid.Row="3"
+                        Grid.Row="2"
                         Grid.Column="1"
                         Style="{StaticResource CardFieldValueStyle}"
                         Text="{Binding ShutterState, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                     <TextBlock
-                        Grid.Row="4"
+                        Grid.Row="3"
                         Style="{StaticResource CardFieldLabelStyle}"
                         Text="{DynamicResource chambercard.step_time}" />
                     <TextBlock
-                        Grid.Row="4"
+                        Grid.Row="3"
                         Grid.Column="1"
                         Style="{StaticResource CardFieldValueStyle}"
                         Text="{Binding StepTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                     <TextBlock
-                        Grid.Row="5"
+                        Grid.Row="4"
                         Style="{StaticResource CardFieldLabelStyle}"
                         Text="{DynamicResource chambercard.recipe_time}" />
                     <TextBlock
-                        Grid.Row="5"
+                        Grid.Row="4"
                         Grid.Column="1"
                         Style="{StaticResource CardFieldValueStyle}"
                         Text="{Binding RecipeTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />

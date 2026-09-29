@@ -40,7 +40,7 @@
                     <DataGridTextColumn
                         Binding="{Binding Index}"
                         Header="{DynamicResource io.index}"
-                        Width="52" />
+                        Width="64" />
                     <DataGridTextColumn
                         Binding="{Binding Name}"
                         Header="{DynamicResource io.name}"

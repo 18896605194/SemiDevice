@@ -1,0 +1,92 @@
+﻿Index,Module,Component,Name,Tag,Description
+32,LoadPort1,E84,LP1_E84_CS_0,CS_0,LoadPort1 E84 搬运车选中本端口
+33,LoadPort1,E84,LP1_E84_CS_1,CS_1,LoadPort1 E84 选中第二载具位
+34,LoadPort1,E84,LP1_E84_VALID,VALID,LoadPort1 E84 交接信号有效
+35,LoadPort1,E84,LP1_E84_AM_AVBL,AM_AVBL,LoadPort1 E84 搬运车可交接
+36,LoadPort1,E84,LP1_E84_TR_REQ,TR_REQ,LoadPort1 E84 请求交接
+37,LoadPort1,E84,LP1_E84_BUSY,BUSY,LoadPort1 E84 搬运中
+38,LoadPort1,E84,LP1_E84_COMPT,COMPT,LoadPort1 E84 交接完成
+39,LoadPort1,E84,LP1_E84_CONT,CONT,LoadPort1 E84 连续交接
+40,LoadPort1,E84,LP1_E84_LightCurtain,LightCurtain,LoadPort1 光幕 (ON = 未遮挡)
+48,LoadPort2,E84,LP2_E84_CS_0,CS_0,LoadPort2 E84 搬运车选中本端口
+49,LoadPort2,E84,LP2_E84_CS_1,CS_1,LoadPort2 E84 选中第二载具位
+50,LoadPort2,E84,LP2_E84_VALID,VALID,LoadPort2 E84 交接信号有效
+51,LoadPort2,E84,LP2_E84_AM_AVBL,AM_AVBL,LoadPort2 E84 搬运车可交接
+52,LoadPort2,E84,LP2_E84_TR_REQ,TR_REQ,LoadPort2 E84 请求交接
+53,LoadPort2,E84,LP2_E84_BUSY,BUSY,LoadPort2 E84 搬运中
+54,LoadPort2,E84,LP2_E84_COMPT,COMPT,LoadPort2 E84 交接完成
+55,LoadPort2,E84,LP2_E84_CONT,CONT,LoadPort2 E84 连续交接
+56,LoadPort2,E84,LP2_E84_LightCurtain,LightCurtain,LoadPort2 光幕 (ON = 未遮挡)
+64,Robot1,Robot,Robot_Ready,Ready,机械手控制器就绪
+65,Robot1,Robot,Robot_Alarm,Alarm,机械手控制器报警
+66,Robot1,Robot,Arm1_Retracted,Arm1Retracted,Arm1 已缩回（腔门关门互锁）
+67,Robot1,Robot,Arm2_Retracted,Arm2Retracted,Arm2 已缩回（腔门关门互锁）
+68,Robot1,Robot,Controller_Power_OK,PowerOk,机械手控制器电源正常
+100,Chamber1,Door,CH1_Door_Opened,Opened,Chamber1 腔门 开到位
+101,Chamber1,Door,CH1_Door_Closed,Closed,Chamber1 腔门 关到位
+102,Chamber1,Bowl1,CH1_Bowl1_Up,Opened,Chamber1 Bowl1 升到位
+103,Chamber1,Bowl1,CH1_Bowl1_Down,Closed,Chamber1 Bowl1 降到位
+104,Chamber1,Bowl2,CH1_Bowl2_Up,Opened,Chamber1 Bowl2 升到位
+105,Chamber1,Bowl2,CH1_Bowl2_Down,Closed,Chamber1 Bowl2 降到位
+106,Chamber1,Bowl3,CH1_Bowl3_Up,Opened,Chamber1 Bowl3 升到位
+107,Chamber1,Bowl3,CH1_Bowl3_Down,Closed,Chamber1 Bowl3 降到位
+108,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Up,Opened,Chamber1 摆臂升降气缸 升到位
+109,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Down,Closed,Chamber1 摆臂升降气缸 降到位
+110,Chamber1,Arm1.Nozzle_DIW,CH1_Arm1_DIW_Flow,Flow,Chamber1 摆臂 DIW 喷嘴流量开关
+111,Chamber1,Arm1.Nozzle_SC1,CH1_Arm1_SC1_Flow,Flow,Chamber1 摆臂 SC1 喷嘴流量开关
+112,Chamber1,WaferSensor,CH1_Wafer_Present,Present,Chamber1 片在位
+116,Chamber1,Arm1,CH1_Arm1_FW_Limit,PLimit,Chamber1 摆臂正限位
+117,Chamber1,Arm1,CH1_Arm1_RV_Limit,NLimit,Chamber1 摆臂负限位
+118,Chamber1,Arm1,CH1_Arm1_Home,Home,Chamber1 摆臂原点
+119,Chamber1,SpinMotor,CH1_Spin_Home,Home,Chamber1 旋转电机原点
+140,Chamber2,Door,CH2_Door_Opened,Opened,Chamber2 腔门 开到位
+141,Chamber2,Door,CH2_Door_Closed,Closed,Chamber2 腔门 关到位
+142,Chamber2,Bowl1,CH2_Bowl1_Up,Opened,Chamber2 Bowl1 升到位
+143,Chamber2,Bowl1,CH2_Bowl1_Down,Closed,Chamber2 Bowl1 降到位
+144,Chamber2,Bowl2,CH2_Bowl2_Up,Opened,Chamber2 Bowl2 升到位
+145,Chamber2,Bowl2,CH2_Bowl2_Down,Closed,Chamber2 Bowl2 降到位
+146,Chamber2,Bowl3,CH2_Bowl3_Up,Opened,Chamber2 Bowl3 升到位
+147,Chamber2,Bowl3,CH2_Bowl3_Down,Closed,Chamber2 Bowl3 降到位
+148,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Up,Opened,Chamber2 摆臂升降气缸 升到位
+149,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Down,Closed,Chamber2 摆臂升降气缸 降到位
+150,Chamber2,Arm1.Nozzle_DIW,CH2_Arm1_DIW_Flow,Flow,Chamber2 摆臂 DIW 喷嘴流量开关
+151,Chamber2,Arm1.Nozzle_SC1,CH2_Arm1_SC1_Flow,Flow,Chamber2 摆臂 SC1 喷嘴流量开关
+152,Chamber2,WaferSensor,CH2_Wafer_Present,Present,Chamber2 片在位
+156,Chamber2,Arm1,CH2_Arm1_FW_Limit,PLimit,Chamber2 摆臂正限位
+157,Chamber2,Arm1,CH2_Arm1_RV_Limit,NLimit,Chamber2 摆臂负限位
+158,Chamber2,Arm1,CH2_Arm1_Home,Home,Chamber2 摆臂原点
+159,Chamber2,SpinMotor,CH2_Spin_Home,Home,Chamber2 旋转电机原点
+180,Chamber3,Door,CH3_Door_Opened,Opened,Chamber3 腔门 开到位
+181,Chamber3,Door,CH3_Door_Closed,Closed,Chamber3 腔门 关到位
+182,Chamber3,Bowl1,CH3_Bowl1_Up,Opened,Chamber3 Bowl1 升到位
+183,Chamber3,Bowl1,CH3_Bowl1_Down,Closed,Chamber3 Bowl1 降到位
+184,Chamber3,Bowl2,CH3_Bowl2_Up,Opened,Chamber3 Bowl2 升到位
+185,Chamber3,Bowl2,CH3_Bowl2_Down,Closed,Chamber3 Bowl2 降到位
+186,Chamber3,Bowl3,CH3_Bowl3_Up,Opened,Chamber3 Bowl3 升到位
+187,Chamber3,Bowl3,CH3_Bowl3_Down,Closed,Chamber3 Bowl3 降到位
+188,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Up,Opened,Chamber3 摆臂升降气缸 升到位
+189,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Down,Closed,Chamber3 摆臂升降气缸 降到位
+190,Chamber3,Arm1.Nozzle_DIW,CH3_Arm1_DIW_Flow,Flow,Chamber3 摆臂 DIW 喷嘴流量开关
+191,Chamber3,Arm1.Nozzle_SC1,CH3_Arm1_SC1_Flow,Flow,Chamber3 摆臂 SC1 喷嘴流量开关
+192,Chamber3,WaferSensor,CH3_Wafer_Present,Present,Chamber3 片在位
+196,Chamber3,Arm1,CH3_Arm1_FW_Limit,PLimit,Chamber3 摆臂正限位
+197,Chamber3,Arm1,CH3_Arm1_RV_Limit,NLimit,Chamber3 摆臂负限位
+198,Chamber3,Arm1,CH3_Arm1_Home,Home,Chamber3 摆臂原点
+199,Chamber3,SpinMotor,CH3_Spin_Home,Home,Chamber3 旋转电机原点
+220,Chamber4,Door,CH4_Door_Opened,Opened,Chamber4 腔门 开到位
+221,Chamber4,Door,CH4_Door_Closed,Closed,Chamber4 腔门 关到位
+222,Chamber4,Bowl1,CH4_Bowl1_Up,Opened,Chamber4 Bowl1 升到位
+223,Chamber4,Bowl1,CH4_Bowl1_Down,Closed,Chamber4 Bowl1 降到位
+224,Chamber4,Bowl2,CH4_Bowl2_Up,Opened,Chamber4 Bowl2 升到位
+225,Chamber4,Bowl2,CH4_Bowl2_Down,Closed,Chamber4 Bowl2 降到位
+226,Chamber4,Bowl3,CH4_Bowl3_Up,Opened,Chamber4 Bowl3 升到位
+227,Chamber4,Bowl3,CH4_Bowl3_Down,Closed,Chamber4 Bowl3 降到位
+228,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Up,Opened,Chamber4 摆臂升降气缸 升到位
+229,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Down,Closed,Chamber4 摆臂升降气缸 降到位
+230,Chamber4,Arm1.Nozzle_DIW,CH4_Arm1_DIW_Flow,Flow,Chamber4 摆臂 DIW 喷嘴流量开关
+231,Chamber4,Arm1.Nozzle_SC1,CH4_Arm1_SC1_Flow,Flow,Chamber4 摆臂 SC1 喷嘴流量开关
+232,Chamber4,WaferSensor,CH4_Wafer_Present,Present,Chamber4 片在位
+236,Chamber4,Arm1,CH4_Arm1_FW_Limit,PLimit,Chamber4 摆臂正限位
+237,Chamber4,Arm1,CH4_Arm1_RV_Limit,NLimit,Chamber4 摆臂负限位
+238,Chamber4,Arm1,CH4_Arm1_Home,Home,Chamber4 摆臂原点
+239,Chamber4,SpinMotor,CH4_Spin_Home,Home,Chamber4 旋转电机原点

@@ -1,0 +1,13 @@
+﻿Index,Module,Component,Name,Tag,Description,Unit,PhysicalMax,PhysicalMin,LogicalMax,LogicalMin
+100,Chamber1,Arm1.Nozzle_DIW,CH1_DIW_Flow,Flow,Chamber1 DIW 流量,L/min,32767,0,3,0
+101,Chamber1,Arm1.Nozzle_SC1,CH1_SC1_Flow,Flow,Chamber1 SC1 流量,L/min,32767,0,3,0
+102,Chamber1,Exhaust,CH1_Exhaust_Pressure,Pressure,Chamber1 排风压力,Pa,32767,0,500,0
+120,Chamber2,Arm1.Nozzle_DIW,CH2_DIW_Flow,Flow,Chamber2 DIW 流量,L/min,32767,0,3,0
+121,Chamber2,Arm1.Nozzle_SC1,CH2_SC1_Flow,Flow,Chamber2 SC1 流量,L/min,32767,0,3,0
+122,Chamber2,Exhaust,CH2_Exhaust_Pressure,Pressure,Chamber2 排风压力,Pa,32767,0,500,0
+140,Chamber3,Arm1.Nozzle_DIW,CH3_DIW_Flow,Flow,Chamber3 DIW 流量,L/min,32767,0,3,0
+141,Chamber3,Arm1.Nozzle_SC1,CH3_SC1_Flow,Flow,Chamber3 SC1 流量,L/min,32767,0,3,0
+142,Chamber3,Exhaust,CH3_Exhaust_Pressure,Pressure,Chamber3 排风压力,Pa,32767,0,500,0
+160,Chamber4,Arm1.Nozzle_DIW,CH4_DIW_Flow,Flow,Chamber4 DIW 流量,L/min,32767,0,3,0
+161,Chamber4,Arm1.Nozzle_SC1,CH4_SC1_Flow,Flow,Chamber4 SC1 流量,L/min,32767,0,3,0
+162,Chamber4,Exhaust,CH4_Exhaust_Pressure,Pressure,Chamber4 排风压力,Pa,32767,0,500,0

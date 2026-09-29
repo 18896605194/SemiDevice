@@ -13,8 +13,7 @@
 
   <ItemGroup>
     <None Update="Config\sc.xml" CopyToOutputDirectory="PreserveNewest" />
-    <!-- IO 点表：电控给的机台点表，跟仿真器共用同一份 csv -->
-    <None Update="Config\IO\*.csv" CopyToOutputDirectory="PreserveNewest" />
+    <!-- IO 点表是机型的东西，放在机型项目（如 xyz.35021.Module\Config\IO），由机型项目部署进宿主的 Config\IO -->
     <None Update="Config\ec.xml" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Paths.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

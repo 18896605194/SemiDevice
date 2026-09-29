@@ -96,7 +96,7 @@
         CornerRadius="12">
         <DockPanel LastChildFill="True">
 
-            <!--  底栏（朝外）：第一行 站点号 / 名称 …… 在线；下面六灯两行三列  -->
+            <!--  底栏（朝外）：第一行 站点号 / 名称 …… 状态徽标（缩小版）/ 在线；下面六灯两行三列  -->
             <Border
                 Padding="12,6"
                 BorderThickness="0,2,0,0"
@@ -108,6 +108,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
@@ -147,8 +148,16 @@
                             Text="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
                             TextTrimming="CharacterEllipsis" />
 
-                        <TextBlock
+                        <local:ModuleStateBadge
                             Grid.Column="2"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            IsCompact="True"
+                            Text="{Binding StateText, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
+                            Tone="{Binding StateTone, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
+
+                        <TextBlock
+                            Grid.Column="3"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="{DynamicResource Size13}"

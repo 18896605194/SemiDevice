@@ -135,6 +135,12 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private IDisposable? _stateSubscription;
 
+    /// <summary>调度图站点卡片的状态订阅：每个站点订 LoadPort、腔体两种推送；站点表换了就重订。</summary>
+    private readonly List<IDisposable> _stationSubscriptions = new();
+
+    /// <summary>当前订着的是哪一份站点表（Model 在站点表没变时不换实例，按引用比）。</summary>
+    private IReadOnlyList<RobotStationModel>? _subscribedStations;
+
     #endregion
 
     public RobotManualViewModel(string moduleName)
@@ -181,6 +187,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     {
         _stateSubscription?.Dispose();
         _stateSubscription = null;
+        UnsubscribeStations();
     }
 
     private void OnStateReceived(RobotDto dto)
@@ -191,6 +198,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     private void ApplyState(RobotDto dto)
     {
         Model.Update(dto);
+        SubscribeStations();
 
         // 源默认选站点表里的第一个（按站点号排，一般是 LoadPort1），目标默认选腔体侧（北）的第一个。
         if (string.IsNullOrEmpty(SourceStation) && Model.StationMarks.Count > 0)
@@ -243,6 +251,41 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
             TargetSlot = ClampOption(TargetSlotOptions, TargetSlot);
             OnPropertyChanged(nameof(TargetSlot));
         }
+    }
+
+    /// <summary>
+    /// 按站点名（就是模块名，也是 EventBus token）订阅站点模块的状态推送，刷新调度图卡片上的状态徽标。
+    /// LoadPort、腔体两种都订，站点是哪种就只会来哪种；总线留存最后一条状态，订上立即补发。站点表没换就不重订。
+    /// </summary>
+    private void SubscribeStations()
+    {
+        var stations = Model.StationMarks;
+        if (ReferenceEquals(stations, _subscribedStations))
+        {
+            return;
+        }
+
+        UnsubscribeStations();
+        _subscribedStations = stations;
+
+        foreach (var station in stations)
+        {
+            _stationSubscriptions.Add(EventBus.Register<LoadPortDto>(station.Name,
+                port => station.UpdateState(LoadPortModel.StateTextOf(port.State), LoadPortModel.StateToneOf(port.State))));
+            _stationSubscriptions.Add(EventBus.Register<ChamberDto>(station.Name,
+                chamber => station.UpdateState(ChamberModel.StateTextOf(chamber.State), ChamberModel.StateToneOf(chamber.State))));
+        }
+    }
+
+    private void UnsubscribeStations()
+    {
+        foreach (var subscription in _stationSubscriptions)
+        {
+            subscription.Dispose();
+        }
+
+        _stationSubscriptions.Clear();
+        _subscribedStations = null;
     }
 
     private RobotStationModel? FindStation(string station)

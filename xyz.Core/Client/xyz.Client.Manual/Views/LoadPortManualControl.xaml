@@ -19,12 +19,12 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!--  ① 状态信号：竖排五行 —— 模块名 / 信号灯（整行铺开） / 状态 / 在线模式 / 载具 ID  -->
+            <!--  ① 状态信号：竖排五行 —— 模块名 / 状态徽标 / 信号灯（整行铺开） / 在线模式 / 载具 ID  -->
             <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="34" />
-                    <RowDefinition Height="26" />
                     <RowDefinition Height="26" />
                     <RowDefinition Height="26" />
                 </Grid.RowDefinitions>
@@ -38,9 +38,16 @@
                     Foreground="{DynamicResource DarkPrimaryText}"
                     Text="{Binding ModuleName}" />
 
+                <!--  状态徽标：一眼看出 LoadPort 能不能用  -->
+                <presentationControls:ModuleStateBadge
+                    Grid.Row="1"
+                    Margin="0,2,0,4"
+                    Text="{Binding Model.StateText}"
+                    Tone="{Binding Model.StateTone}" />
+
                 <!--  信号灯：6 等分，窄格子也不会挤出去  -->
                 <UniformGrid
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Columns="6"
                     Rows="1"
                     VerticalAlignment="Center">
@@ -194,22 +201,6 @@
                             Text="{DynamicResource lpmanual.manual}" />
                     </StackPanel>
                 </UniformGrid>
-
-                <!--  状态文本  -->
-                <StackPanel
-                    Grid.Row="2"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
-                    <TextBlock
-                        FontSize="{DynamicResource Size14}"
-                        Foreground="{DynamicResource DarkSecondaryText}"
-                        Text="{DynamicResource lpmanual.state}" />
-                    <TextBlock
-                        FontSize="{DynamicResource Size14}"
-                        FontWeight="SemiBold"
-                        Foreground="{DynamicResource DarkPrimaryText}"
-                        Text="{Binding Model.StateText}" />
-                </StackPanel>
 
                 <!--  在线模式  -->
                 <StackPanel

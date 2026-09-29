@@ -1,9 +1,14 @@
-﻿using xyz.Shared.Dtos;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using xyz.Client.Presentation.Models;
+using xyz.Shared.Dtos;
 
 namespace xyz.Client.Manual.Models;
 
-/// <summary>转台图四周的站点角标：设备站点号 + 名称 + 所在方位。</summary>
-public sealed class RobotStationModel
+/// <summary>
+/// 转台图四周的站点角标：设备站点号 + 名称 + 所在方位（机械手站点表推来，不变），
+/// 外加站点模块自己的实时状态（Robot 页按站点名订阅 LoadPort / 腔体的状态推送，就地刷新）。
+/// </summary>
+public sealed class RobotStationModel : ObservableObject
 {
     public string Name { get; init; } = string.Empty;
 
@@ -27,4 +32,32 @@ public sealed class RobotStationModel
 
     /// <summary>角标副文案：站点名。</summary>
     public string Title => Name;
+
+    private string _stateText = string.Empty;
+
+    /// <summary>站点模块的状态文字；还没收到状态推送为空（卡片上不显示徽标）。</summary>
+    public string StateText
+    {
+        get => _stateText;
+        private set => SetProperty(ref _stateText, value);
+    }
+
+    private ModuleStateTone _stateTone;
+
+    /// <summary>站点模块的状态色调。</summary>
+    public ModuleStateTone StateTone
+    {
+        get => _stateTone;
+        private set => SetProperty(ref _stateTone, value);
+    }
+
+    /// <summary>
+    /// 用站点模块的状态推送刷新（界面线程调用）。文字和色调由站点模块自己的显示模型归好——
+    /// 同一个码在 LoadPort 和腔体里意思不同，这儿不认码。
+    /// </summary>
+    public void UpdateState(string text, ModuleStateTone tone)
+    {
+        StateText = text;
+        StateTone = tone;
+    }
 }
