@@ -89,6 +89,7 @@ public static class Program
         app.MapGrpcService<LogService>();
         app.MapGrpcService<AlarmService>();
         app.MapGrpcService<SystemService>();
+        app.MapGrpcService<IoService>();
 
         // 端口监听上了灯才变绿；托盘上点退出就停宿主。
         app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"localhost:{Port}"));

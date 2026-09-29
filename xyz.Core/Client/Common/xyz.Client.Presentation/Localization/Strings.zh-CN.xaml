@@ -266,4 +266,12 @@
     <sys:String x:Key="io.ai">模拟量输入 AI</sys:String>
     <sys:String x:Key="io.ao">模拟量输出 AO</sys:String>
     <sys:String x:Key="io.empty">点表里没有这一类点</sys:String>
+    <sys:String x:Key="io.action">操作</sys:String>
+    <sys:String x:Key="io.turn_on">开</sys:String>
+    <sys:String x:Key="io.turn_off">关</sys:String>
+    <sys:String x:Key="io.send">下发</sys:String>
+    <sys:String x:Key="io.setpoint">设定值</sys:String>
+    <sys:String x:Key="io.invalid_value">“{0}”不是有效的数值</sys:String>
+    <sys:String x:Key="io.write_failed">{0} {1} 写入失败（PLC 没连上、点表里没有这个点，或写 PLC 出错）</sys:String>
+    <sys:String x:Key="io.out_of_range">AO {0} 下发值超出范围 {1} ~ {2} {3}</sys:String>
 </ResourceDictionary>

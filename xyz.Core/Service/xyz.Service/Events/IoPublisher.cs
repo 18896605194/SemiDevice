@@ -166,7 +166,7 @@ public static class IoPublisher
                     pointDto.IsOn = on;
                     pointDto.Value = isAnalog
                         ? value.ToString("0.###")
-                        : on ? "1" : "0";
+                        : on ? bool.TrueString : bool.FalseString;
                 }
             }
         }

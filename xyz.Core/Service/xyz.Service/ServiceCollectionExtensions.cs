@@ -166,6 +166,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IChamberService, ChamberService>();
         services.AddTransient<IAlarmService, AlarmService>();
         services.AddTransient<ISystemService, SystemService>();
+        services.AddTransient<IIoService, IoService>();
 
         #endregion
 

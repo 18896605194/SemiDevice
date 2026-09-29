@@ -1,33 +1,28 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Data;
+using CommunityToolkit.Mvvm.Input;
+using xyz.Client.Common.Log;
+using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Io.Models;
+using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
+using xyz.Shared.Services;
 using xyz.Tools;
 
 namespace xyz.Client.Io.ViewModels;
 
 /// <summary>
-/// 一个模块的 IO 页面：只订阅后端推来的整包点位，自己不拉也不轮询。
+/// 一个模块的 IO 页面：点位值只订阅后端推来的整包，自己不拉也不轮询。
 ///
 /// 一个模块一个页面（菜单 Io 下的二级项），页面里按 DI / DO / AI / AO 四类摆开。
 /// 有哪些点全看后端推的点表——点表里给这个模块加一行，界面上就多一行，这儿不用改。
+/// 输出点可以手动写：DO 开 / 关，AO 输入设定值下发。写进 PLC 即回包，显示以下一包推送的回读为准。
 /// </summary>
 public class IoViewModel : BaseViewModel, IDisposable
 {
-    /// <summary>本页对应的模块名，跟点表 Module 列、sc.xml 里的模块名对齐。</summary>
-    private readonly string _module;
-
-    public IoViewModel(string module)
-    {
-        _module = module;
-        DiView = CreateView(DiPoints);
-        DoView = CreateView(DoPoints);
-        AiView = CreateView(AiPoints);
-        AoView = CreateView(AoPoints);
-    }
-
     #region Column
 
     private string _searchText = string.Empty;
@@ -72,11 +67,44 @@ public class IoViewModel : BaseViewModel, IDisposable
 
     #endregion
 
+    #region Command
+
+    /// <summary>DO 置 ON（参数：那一行的点）。</summary>
+    public IAsyncRelayCommand<IoPointModel> TurnOnCommand { get; }
+
+    /// <summary>DO 置 OFF（参数：那一行的点）。</summary>
+    public IAsyncRelayCommand<IoPointModel> TurnOffCommand { get; }
+
+    /// <summary>AO 下发那一行输入框里的设定值（参数：那一行的点）。</summary>
+    public IAsyncRelayCommand<IoPointModel> SendAoCommand { get; }
+
+    #endregion
+
     #region Service
+
+    /// <summary>本页对应的模块名，跟点表 Module 列、sc.xml 里的模块名对齐。</summary>
+    private readonly string _module;
+
+    private readonly IIoService _service;
 
     private IDisposable? _subscription;
 
     #endregion
+
+    public IoViewModel(string module)
+    {
+        _module = module;
+        _service = GrpcClientFactory.Create<IIoService>();
+
+        DiView = CreateView(DiPoints);
+        DoView = CreateView(DoPoints);
+        AiView = CreateView(AiPoints);
+        AoView = CreateView(AoPoints);
+
+        TurnOnCommand = new AsyncRelayCommand<IoPointModel>(DoTurnOn);
+        TurnOffCommand = new AsyncRelayCommand<IoPointModel>(DoTurnOff);
+        SendAoCommand = new AsyncRelayCommand<IoPointModel>(DoSendAo);
+    }
 
     public override void Init()
     {
@@ -95,7 +123,7 @@ public class IoViewModel : BaseViewModel, IDisposable
     /// <summary>
     /// 收到一包：点数对得上就只改值，对不上才重建。
     /// 点表只在启动时定，所以正常情况下每包都只是改值——每半秒重建一次表格，
-    /// 选中行和滚动位置就没法看了。
+    /// 选中行和滚动位置就没法看了，AO 输入框里正在输的数也会被冲掉。
     /// </summary>
     private void OnSnapshotReceived(IoDto dto)
     {
@@ -161,6 +189,68 @@ public class IoViewModel : BaseViewModel, IDisposable
             .Modules
             .FirstOrDefault(item => string.Equals(item.Module, _module, StringComparison.OrdinalIgnoreCase))?
             .Points ?? [];
+    }
+
+    #endregion
+
+    #region 写输出
+
+    private Task DoTurnOn(IoPointModel? point)
+    {
+        return WriteDo(point, true);
+    }
+
+    private Task DoTurnOff(IoPointModel? point)
+    {
+        return WriteDo(point, false);
+    }
+
+    /// <summary>
+    /// 写一个 DO。开、关是两个按钮而不是一个切换：按下去是什么结果一眼确定，不依赖屏幕上那一拍的回读。
+    /// </summary>
+    private async Task WriteDo(IoPointModel? point, bool on)
+    {
+        if (point is null)
+        {
+            return;
+        }
+
+        var response = await _service.WriteDoAsync(new IoWriteRequest { Index = point.Index, Value = on ? 1 : 0 });
+        if (!response.Success)
+        {
+            ClientLog.Error(_module, L10n.Get(response.Code, response.Args));
+        }
+    }
+
+    /// <summary>
+    /// 下发一个 AO：输入框里的数按工程值下发，超出点表标定范围后端会拒。输入框里的数下发后留着，方便微调再发。
+    /// </summary>
+    private async Task DoSendAo(IoPointModel? point)
+    {
+        if (point is null)
+        {
+            return;
+        }
+
+        if (!TryParseValue(point.PendingValue, out double value))
+        {
+            ClientLog.Warn(_module, L10n.Get("io.invalid_value", point.PendingValue));
+            return;
+        }
+
+        var response = await _service.WriteAoAsync(new IoWriteRequest { Index = point.Index, Value = value });
+        if (!response.Success)
+        {
+            ClientLog.Error(_module, L10n.Get(response.Code, response.Args));
+        }
+    }
+
+    /// <summary>小数点写成点或当前区域的写法都认。</summary>
+    private static bool TryParseValue(string text, out double value)
+    {
+        text = text.Trim();
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+               || double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value);
     }
 
     #endregion

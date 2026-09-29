@@ -61,7 +61,7 @@ public class IoPointDto
     /// <summary>数字量当前状态；模拟量固定 false。</summary>
     public bool IsOn { get; set; }
 
-    /// <summary>显示值：数字量是 0/1，模拟量是标定后的工程值。</summary>
+    /// <summary>显示值：数字量是 True/False，模拟量是标定后的工程值。</summary>
     public string Value { get; set; } = string.Empty;
 
     /// <summary>这一包有没有读到；false 时上面的值是陈旧的，界面显示成"—"。</summary>

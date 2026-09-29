@@ -86,7 +86,9 @@
                 Grid.Column="1"
                 Margin="6,0,0,6"
                 Points="{Binding DoView}"
-                Title="{DynamicResource io.do}" />
+                Title="{DynamicResource io.do}"
+                TurnOffCommand="{Binding TurnOffCommand}"
+                TurnOnCommand="{Binding TurnOnCommand}" />
             <local:IoTable
                 Grid.Row="1"
                 Grid.Column="0"
@@ -98,6 +100,7 @@
                 Grid.Column="1"
                 Margin="6,6,0,0"
                 Points="{Binding AoView}"
+                SendCommand="{Binding SendAoCommand}"
                 Title="{DynamicResource io.ao}" />
         </Grid>
     </Grid>

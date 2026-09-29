@@ -87,6 +87,16 @@ public static class ErrorCodes
 
     #endregion
 
+    #region IO
+
+    /// <summary>IO 输出写不进（PLC 没连上、点表里没有这个点、写 PLC 出错）。Args: [类型 DO/AO, 点号]</summary>
+    public const string IoWriteFailed = "io.write_failed";
+
+    /// <summary>AO 下发值超出点表标定的工程量范围。Args: [点号, 下限, 上限, 单位]</summary>
+    public const string IoOutOfRange = "io.out_of_range";
+
+    #endregion
+
     #region 历史查询
 
     /// <summary>历史查询失败（读日志文件或数据库出错）。Args: [原因]</summary>

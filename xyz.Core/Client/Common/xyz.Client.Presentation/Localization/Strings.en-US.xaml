@@ -265,4 +265,12 @@
     <sys:String x:Key="io.ai">Analog In (AI)</sys:String>
     <sys:String x:Key="io.ao">Analog Out (AO)</sys:String>
     <sys:String x:Key="io.empty">No points of this type in the table</sys:String>
+    <sys:String x:Key="io.action">Action</sys:String>
+    <sys:String x:Key="io.turn_on">ON</sys:String>
+    <sys:String x:Key="io.turn_off">OFF</sys:String>
+    <sys:String x:Key="io.send">Send</sys:String>
+    <sys:String x:Key="io.setpoint">Setpoint</sys:String>
+    <sys:String x:Key="io.invalid_value">"{0}" is not a valid number</sys:String>
+    <sys:String x:Key="io.write_failed">{0} {1} write failed (PLC not connected, point not in the table, or PLC write error)</sys:String>
+    <sys:String x:Key="io.out_of_range">AO {0}: value out of range {1} ~ {2} {3}</sys:String>
 </ResourceDictionary>

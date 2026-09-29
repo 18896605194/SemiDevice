@@ -34,7 +34,7 @@ public class IoPointModel : ObservableObject
 
     private string _value = string.Empty;
 
-    /// <summary>显示值：数字量 0/1，模拟量是工程值。</summary>
+    /// <summary>显示值：数字量 True/False，模拟量是工程值。</summary>
     public string Value
     {
         get => _value;
@@ -51,5 +51,16 @@ public class IoPointModel : ObservableObject
     {
         get => _isValid;
         set => SetProperty(ref _isValid, value);
+    }
+
+    private string _pendingValue = string.Empty;
+
+    /// <summary>
+    /// AO 行输入框里还没下发的设定值。跟回读的 Value 分开放：推送每半秒刷一次 Value，不会冲掉正在输入的数。
+    /// </summary>
+    public string PendingValue
+    {
+        get => _pendingValue;
+        set => SetProperty(ref _pendingValue, value ?? string.Empty);
     }
 }
