@@ -13,7 +13,7 @@ namespace xyz.Client.Manual.ViewModels;
 
 /// <summary>
 /// 腔体手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；启用、模式、片位、当前配方都是后端推的，这里不写死。
-/// Process 按填的配方名起工艺（只在空闲时允许）；Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
+/// Start 按配方框里的配方名起工艺（Process，只在空闲时允许）；Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
 /// </summary>
 public class ChamberManualViewModel : BaseViewModel, IDisposable
 {
@@ -31,7 +31,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     private string _recipe = string.Empty;
 
-    /// <summary>要起的工艺配方名（Process 按它发）；空着 Process 按钮不可用。</summary>
+    /// <summary>要起的工艺配方名（Start 按它发 Process）；空着 Start 按钮不可用。配方库做好之前手填。</summary>
     public string Recipe
     {
         get => _recipe;

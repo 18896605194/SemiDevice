@@ -125,7 +125,7 @@
                 </Border>
             </Grid>
 
-            <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 取放（源 / 目标 的站点·手臂·槽位 → Pick · Place）→ Home / Abort / Reset → 轴位  -->
+            <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 轴位 → 取放（源 / 目标 的站点·手臂·槽位 → Pick · Place）→ Home / Abort / Reset  -->
             <Border
                 Grid.Column="1"
                 BorderBrush="{DynamicResource DarkBorderBrush}"
@@ -339,6 +339,41 @@
                         </Grid>
                     </Border>
 
+                    <!--  轴位：按 sc.xml 轴表（Driver 的 Axes）整表列出，坐标扫描查询刷新；还没查到或没连上显示"—"  -->
+                    <StackPanel Margin="14,10,14,0">
+                        <TextBlock
+                            Margin="0,0,0,6"
+                            FontSize="{DynamicResource Size13}"
+                            Foreground="{DynamicResource DarkDisabledText}"
+                            Text="{DynamicResource robotmanual.axis}" />
+                        <Border Style="{DynamicResource ReadoutBorderStyle}">
+                            <ItemsControl ItemsSource="{Binding Model.AxisPositions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                FontSize="{DynamicResource Size13}"
+                                                Foreground="{DynamicResource DarkSecondaryText}"
+                                                Text="{Binding Name}" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Right"
+                                                FontFamily="Consolas"
+                                                FontSize="{DynamicResource Size13}"
+                                                FontWeight="SemiBold"
+                                                Foreground="{DynamicResource DarkPrimaryText}"
+                                                Text="{Binding PositionText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </StackPanel>
+
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
                     <!--  取放：源 / 目标 各一行 站点·手臂·槽位，手臂和槽位都跟着选中的站点走
@@ -480,7 +515,7 @@
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
                     <!--  Home / Abort / Reset：Abort 是急停，用红色  -->
-                    <UniformGrid Margin="14,0" Columns="3">
+                    <UniformGrid Margin="14,0,14,14" Columns="3">
                         <Button
                             Command="{Binding HomeCommand}"
                             Content="Home"
@@ -494,43 +529,6 @@
                             Content="Reset"
                             Style="{DynamicResource CompactButtonStyle}" />
                     </UniformGrid>
-
-                    <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
-
-                    <!--  轴位：数字右对齐，扫描查询刷新  -->
-                    <StackPanel Margin="14,0,14,14">
-                        <TextBlock
-                            Margin="0,0,0,6"
-                            FontSize="{DynamicResource Size13}"
-                            Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource robotmanual.axis}" />
-                        <Border Style="{DynamicResource ReadoutBorderStyle}">
-                            <ItemsControl ItemsSource="{Binding Model.AxisPositions}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock
-                                                FontSize="{DynamicResource Size13}"
-                                                Foreground="{DynamicResource DarkSecondaryText}"
-                                                Text="{Binding Name}" />
-                                            <TextBlock
-                                                Grid.Column="1"
-                                                HorizontalAlignment="Right"
-                                                FontFamily="Consolas"
-                                                FontSize="{DynamicResource Size13}"
-                                                FontWeight="SemiBold"
-                                                Foreground="{DynamicResource DarkPrimaryText}"
-                                                Text="{Binding Position, StringFormat={}{0:F2}}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Border>
-                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>

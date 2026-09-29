@@ -213,6 +213,8 @@
     <sys:String x:Key="chambermanual.current_recipe">Current recipe</sys:String>
     <sys:String x:Key="chambermanual.process">Process</sys:String>
     <sys:String x:Key="chambermanual.recipe">Recipe</sys:String>
+    <sys:String x:Key="chambermanual.select">Select</sys:String>
+    <sys:String x:Key="chambermanual.select_tip">Recipe library is not available yet; type the recipe name on the left</sys:String>
     <sys:String x:Key="chambermanual.na">—</sys:String>
 
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.

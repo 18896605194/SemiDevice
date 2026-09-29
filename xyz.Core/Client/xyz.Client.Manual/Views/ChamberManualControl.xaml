@@ -32,7 +32,7 @@
                 </Border>
             </Grid>
 
-            <!--  ② 右栏：模块名 + 状态色条 → 参数框（启用 / 模式 / 报错 / 当前配方）→ 工艺（配方 → Process）→ Home / Abort / Reset  -->
+            <!--  ② 右栏：模块名 + 状态色条 → 参数框（启用 / 模式 / 报错 / 当前配方）→ 工艺（配方 · 选择 · Start）→ Home / Abort / Reset  -->
             <Border
                 Grid.Column="1"
                 BorderBrush="{DynamicResource DarkBorderBrush}"
@@ -259,7 +259,7 @@
 
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                    <!--  工艺：填配方名 → Process（只在空闲时允许，做完才回包；要停按 Abort）  -->
+                    <!--  工艺：配方框 → 选择（配方库做好之前先不可用，配方名手填）→ Start（按配方起工艺，只在空闲时允许，做完才回包；要停按 Abort）  -->
                     <StackPanel Margin="14,0,14,0">
                         <TextBlock
                             FontSize="{DynamicResource Size13}"
@@ -270,6 +270,8 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="44" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock
                                 VerticalAlignment="Center"
@@ -280,14 +282,25 @@
                                 Grid.Column="1"
                                 Style="{DynamicResource CompactTextBoxStyle}"
                                 Text="{Binding Recipe, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button
+                                Grid.Column="2"
+                                Height="28"
+                                MinWidth="56"
+                                Margin="6,0,0,0"
+                                Content="{DynamicResource chambermanual.select}"
+                                IsEnabled="False"
+                                Style="{DynamicResource CompactButtonStyle}"
+                                ToolTip="{DynamicResource chambermanual.select_tip}"
+                                ToolTipService.ShowOnDisabled="True" />
+                            <Button
+                                Grid.Column="3"
+                                Height="28"
+                                MinWidth="56"
+                                Margin="6,0,0,0"
+                                Command="{Binding ProcessCommand}"
+                                Content="Start"
+                                Style="{DynamicResource CompactSuccessButtonStyle}" />
                         </Grid>
-
-                        <Button
-                            Height="36"
-                            Margin="0,10,0,0"
-                            Command="{Binding ProcessCommand}"
-                            Content="Process"
-                            Style="{DynamicResource CompactButtonStyle}" />
                     </StackPanel>
 
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />

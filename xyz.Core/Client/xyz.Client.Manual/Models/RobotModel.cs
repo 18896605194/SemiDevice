@@ -200,7 +200,7 @@ public class RobotModel : ObservableObject
 
     private List<RobotAxisModel> _axisPositions = [];
 
-    /// <summary>各轴当前坐标（扫描查询刷新），按轴表顺序；还没查到的轴不在列表里。</summary>
+    /// <summary>各轴当前坐标（扫描查询刷新）：按 sc.xml 轴表整表列出，轴名总在；坐标还没查到或没连上为 null，显示"—"。</summary>
     public List<RobotAxisModel> AxisPositions
     {
         get => _axisPositions;

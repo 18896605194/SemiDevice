@@ -322,13 +322,18 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             dto.IsConnected = robot.IsConnected;
             dto.ArmCount = robot.ArmCount;
 
-            // 轴坐标按轴表顺序，还没查到的轴不下发。
+            // 轴位表按 sc.xml 轴表整表下发（轴名总在，界面没数据也列得出轴）：
+            // 连上了才带坐标，还没查到或没连上的轴坐标为 null——断线时缓存的是旧值，不作数。
+            bool trusted = dto.IsConnected && IsEnable;
             foreach (var axis in robot.AxisList)
             {
-                if (_axisPositions.TryGetValue(axis, out double position))
+                double? position = null;
+                if (trusted && _axisPositions.TryGetValue(axis, out double value))
                 {
-                    dto.AxisPositions.Add(new RobotAxisPositionDto { Name = axis, Position = position });
+                    position = value;
                 }
+
+                dto.AxisPositions.Add(new RobotAxisPositionDto { Name = axis, Position = position });
             }
         }
 

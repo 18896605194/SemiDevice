@@ -45,7 +45,7 @@ public class RobotDto
     /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
 
-    /// <summary>各轴当前坐标（扫描查询刷新），按轴表顺序；还没查到的轴不在列表中。</summary>
+    /// <summary>各轴当前坐标（扫描查询刷新）：按 sc.xml 轴表整表下发、顺序同轴表，轴名总在；坐标还没查到或驱动没连上为 null。</summary>
     public List<RobotAxisPositionDto> AxisPositions { get; set; } = [];
 
     /// <summary>
@@ -199,8 +199,8 @@ public class RobotAxisPositionDto
     /// <summary>轴名（轴表里的名字，如 X / Z / Theta / Arm1）。</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>当前坐标。</summary>
-    public double Position { get; set; }
+    /// <summary>当前坐标；还没查到或驱动没连上为 null。</summary>
+    public double? Position { get; set; }
 }
 
 /// <summary>

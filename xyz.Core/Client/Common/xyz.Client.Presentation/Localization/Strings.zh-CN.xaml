@@ -214,6 +214,8 @@
     <sys:String x:Key="chambermanual.current_recipe">当前配方</sys:String>
     <sys:String x:Key="chambermanual.process">工艺</sys:String>
     <sys:String x:Key="chambermanual.recipe">配方</sys:String>
+    <sys:String x:Key="chambermanual.select">选择</sys:String>
+    <sys:String x:Key="chambermanual.select_tip">配方库还没做，先在左边手填配方名</sys:String>
     <sys:String x:Key="chambermanual.na">—</sys:String>
 
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
