@@ -259,6 +259,7 @@
                 Grid.Row="2"
                 SlotCount="{Binding Model.SlotCount}"
                 StatusText="{Binding Model.StateText}"
+                Title="{DynamicResource lpmanual.cassette}"
                 Wafers="{Binding Model.Wafers}" />
 
             <Border Grid.Row="3" Style="{DynamicResource SectionDividerBorderStyle}" />
@@ -277,11 +278,11 @@
                 <UniformGrid Grid.Row="0" Columns="3">
                     <Button
                         Command="{Binding OnlineCommand}"
-                        Content="Online"
+                        Content="{DynamicResource action.online}"
                         Style="{DynamicResource CompactSuccessButtonStyle}" />
                     <Button
                         Command="{Binding OfflineCommand}"
-                        Content="Offline"
+                        Content="{DynamicResource action.offline}"
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
@@ -289,11 +290,11 @@
                 <UniformGrid Grid.Row="1" Columns="3">
                     <Button
                         Command="{Binding AutoCommand}"
-                        Content="Auto"
+                        Content="{DynamicResource action.auto}"
                         Style="{DynamicResource CompactSuccessButtonStyle}" />
                     <Button
                         Command="{Binding ManualCommand}"
-                        Content="Manual"
+                        Content="{DynamicResource action.manual}"
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
@@ -301,33 +302,33 @@
                 <UniformGrid Grid.Row="2" Columns="3">
                     <Button
                         Command="{Binding ReadCarrierIdCommand}"
-                        Content="Read ID"
+                        Content="{DynamicResource action.read_id}"
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
                 <UniformGrid Grid.Row="3" Columns="3">
                     <Button
                         Command="{Binding HomeCommand}"
-                        Content="Home"
+                        Content="{DynamicResource action.home}"
                         Style="{DynamicResource CompactButtonStyle}" />
                     <Button
                         Command="{Binding LoadCommand}"
-                        Content="Load"
+                        Content="{DynamicResource action.load}"
                         Style="{DynamicResource CompactSuccessButtonStyle}" />
                     <Button
                         Command="{Binding UnloadCommand}"
-                        Content="Unload"
+                        Content="{DynamicResource action.unload}"
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 
                 <UniformGrid Grid.Row="4" Columns="3">
                     <Button
                         Command="{Binding ResetCommand}"
-                        Content="Reset"
+                        Content="{DynamicResource action.reset}"
                         Style="{DynamicResource CompactButtonStyle}" />
                     <Button
                         Command="{Binding AbortCommand}"
-                        Content="Abort"
+                        Content="{DynamicResource action.abort}"
                         Style="{DynamicResource CompactDangerButtonStyle}" />
                 </UniformGrid>
             </Grid>

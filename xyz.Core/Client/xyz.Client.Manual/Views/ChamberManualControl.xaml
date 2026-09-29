@@ -169,11 +169,11 @@
                                 Orientation="Horizontal">
                                 <Button
                                     Command="{Binding OnlineCommand}"
-                                    Content="Online"
+                                    Content="{DynamicResource action.online}"
                                     Style="{DynamicResource MiniButtonStyle}" />
                                 <Button
                                     Command="{Binding OfflineCommand}"
-                                    Content="Offline"
+                                    Content="{DynamicResource action.offline}"
                                     Style="{DynamicResource MiniButtonStyle}" />
                             </StackPanel>
                             <Ellipse
@@ -287,7 +287,7 @@
                                 Height="28"
                                 MinWidth="56"
                                 Margin="6,0,0,0"
-                                Content="{DynamicResource chambermanual.select}"
+                                Content="{DynamicResource action.select}"
                                 IsEnabled="False"
                                 Style="{DynamicResource CompactButtonStyle}"
                                 ToolTip="{DynamicResource chambermanual.select_tip}"
@@ -298,7 +298,7 @@
                                 MinWidth="56"
                                 Margin="6,0,0,0"
                                 Command="{Binding ProcessCommand}"
-                                Content="Start"
+                                Content="{DynamicResource action.start}"
                                 Style="{DynamicResource CompactSuccessButtonStyle}" />
                         </Grid>
                     </StackPanel>
@@ -309,15 +309,15 @@
                     <UniformGrid Margin="14,0,14,14" Columns="3">
                         <Button
                             Command="{Binding HomeCommand}"
-                            Content="Home"
+                            Content="{DynamicResource action.home}"
                             Style="{DynamicResource CompactButtonStyle}" />
                         <Button
                             Command="{Binding AbortCommand}"
-                            Content="Abort"
+                            Content="{DynamicResource action.abort}"
                             Style="{DynamicResource CompactDangerButtonStyle}" />
                         <Button
                             Command="{Binding ResetCommand}"
-                            Content="Reset"
+                            Content="{DynamicResource action.reset}"
                             Style="{DynamicResource CompactButtonStyle}" />
                     </UniformGrid>
                 </StackPanel>

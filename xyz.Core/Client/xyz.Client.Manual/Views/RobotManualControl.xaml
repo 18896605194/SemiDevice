@@ -502,12 +502,12 @@
                             <Button
                                 Height="36"
                                 Command="{Binding PickCommand}"
-                                Content="Pick"
+                                Content="{DynamicResource action.pick}"
                                 Style="{DynamicResource CompactButtonStyle}" />
                             <Button
                                 Height="36"
                                 Command="{Binding PlaceCommand}"
-                                Content="Place"
+                                Content="{DynamicResource action.place}"
                                 Style="{DynamicResource CompactButtonStyle}" />
                         </UniformGrid>
                     </StackPanel>
@@ -518,15 +518,15 @@
                     <UniformGrid Margin="14,0,14,14" Columns="3">
                         <Button
                             Command="{Binding HomeCommand}"
-                            Content="Home"
+                            Content="{DynamicResource action.home}"
                             Style="{DynamicResource CompactButtonStyle}" />
                         <Button
                             Command="{Binding AbortCommand}"
-                            Content="Abort"
+                            Content="{DynamicResource action.abort}"
                             Style="{DynamicResource CompactDangerButtonStyle}" />
                         <Button
                             Command="{Binding ResetCommand}"
-                            Content="Reset"
+                            Content="{DynamicResource action.reset}"
                             Style="{DynamicResource CompactButtonStyle}" />
                     </UniformGrid>
                 </StackPanel>

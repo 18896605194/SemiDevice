@@ -159,6 +159,7 @@
     <sys:String x:Key="lpmanual.auto_tip">Auto: hand off with the vehicle over E84</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual: load and unload by hand</sys:String>
     <sys:String x:Key="lpmanual.slots">Slots</sys:String>
+    <sys:String x:Key="lpmanual.cassette">Cassette</sys:String>
     <sys:String x:Key="chambercard.state">State</sys:String>
     <sys:String x:Key="chambercard.recipe">Recipe</sys:String>
     <sys:String x:Key="chambercard.step">Step</sys:String>
@@ -203,6 +204,22 @@
     <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>
     <sys:String x:Key="robotmanual.na">—</sys:String>
 
+    <!-- Action buttons shared by the LoadPort / Robot / chamber manual pages: button captions go through the language pack like any other UI text -->
+    <sys:String x:Key="action.home">Home</sys:String>
+    <sys:String x:Key="action.abort">Abort</sys:String>
+    <sys:String x:Key="action.reset">Reset</sys:String>
+    <sys:String x:Key="action.pick">Pick</sys:String>
+    <sys:String x:Key="action.place">Place</sys:String>
+    <sys:String x:Key="action.online">Online</sys:String>
+    <sys:String x:Key="action.offline">Offline</sys:String>
+    <sys:String x:Key="action.auto">Auto</sys:String>
+    <sys:String x:Key="action.manual">Manual</sys:String>
+    <sys:String x:Key="action.read_id">Read ID</sys:String>
+    <sys:String x:Key="action.load">Load</sys:String>
+    <sys:String x:Key="action.unload">Unload</sys:String>
+    <sys:String x:Key="action.select">Select</sys:String>
+    <sys:String x:Key="action.start">Start</sys:String>
+
     <!-- Chamber manual page (one sub-menu per chamber under Manual) -->
     <sys:String x:Key="chambermanual.enable">Enabled</sys:String>
     <sys:String x:Key="chambermanual.enable_tip">IsEnable in sc.xml: a disabled (not installed) chamber accepts no action</sys:String>
@@ -213,7 +230,6 @@
     <sys:String x:Key="chambermanual.current_recipe">Current recipe</sys:String>
     <sys:String x:Key="chambermanual.process">Process</sys:String>
     <sys:String x:Key="chambermanual.recipe">Recipe</sys:String>
-    <sys:String x:Key="chambermanual.select">Select</sys:String>
     <sys:String x:Key="chambermanual.select_tip">Recipe library is not available yet; type the recipe name on the left</sys:String>
     <sys:String x:Key="chambermanual.na">—</sys:String>
 

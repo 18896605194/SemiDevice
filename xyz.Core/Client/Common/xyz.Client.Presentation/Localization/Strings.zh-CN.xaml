@@ -160,6 +160,7 @@
     <sys:String x:Key="lpmanual.auto_tip">Auto：搬运车经 E84 自动交接</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual：人工放取</sys:String>
     <sys:String x:Key="lpmanual.slots">槽</sys:String>
+    <sys:String x:Key="lpmanual.cassette">花篮</sys:String>
     <sys:String x:Key="chambercard.state">状态</sys:String>
     <sys:String x:Key="chambercard.recipe">配方</sys:String>
     <sys:String x:Key="chambercard.step">步骤</sys:String>
@@ -200,9 +201,25 @@
     <sys:String x:Key="robotmanual.source">源</sys:String>
     <sys:String x:Key="robotmanual.target">目标</sys:String>
     <sys:String x:Key="robotmanual.device_error">报错</sys:String>
-    <sys:String x:Key="robotmanual.servo_on">ON</sys:String>
-    <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>
+    <sys:String x:Key="robotmanual.servo_on">开</sys:String>
+    <sys:String x:Key="robotmanual.servo_off">关</sys:String>
     <sys:String x:Key="robotmanual.na">—</sys:String>
+
+    <!-- 操作按钮（LoadPort / Robot / 腔体手动页共用）：按钮文字跟界面其他文字一样走语言包，不在控件里写死英文 -->
+    <sys:String x:Key="action.home">回零</sys:String>
+    <sys:String x:Key="action.abort">中止</sys:String>
+    <sys:String x:Key="action.reset">复位</sys:String>
+    <sys:String x:Key="action.pick">取片</sys:String>
+    <sys:String x:Key="action.place">放片</sys:String>
+    <sys:String x:Key="action.online">上线</sys:String>
+    <sys:String x:Key="action.offline">下线</sys:String>
+    <sys:String x:Key="action.auto">自动</sys:String>
+    <sys:String x:Key="action.manual">手动</sys:String>
+    <sys:String x:Key="action.read_id">读 ID</sys:String>
+    <sys:String x:Key="action.load">装载</sys:String>
+    <sys:String x:Key="action.unload">卸载</sys:String>
+    <sys:String x:Key="action.select">选择</sys:String>
+    <sys:String x:Key="action.start">开始</sys:String>
 
     <!-- 腔体手动页（Manual 下一个腔体一个子菜单） -->
     <sys:String x:Key="chambermanual.enable">启用</sys:String>
@@ -214,7 +231,6 @@
     <sys:String x:Key="chambermanual.current_recipe">当前配方</sys:String>
     <sys:String x:Key="chambermanual.process">工艺</sys:String>
     <sys:String x:Key="chambermanual.recipe">配方</sys:String>
-    <sys:String x:Key="chambermanual.select">选择</sys:String>
     <sys:String x:Key="chambermanual.select_tip">配方库还没做，先在左边手填配方名</sys:String>
     <sys:String x:Key="chambermanual.na">—</sys:String>
 

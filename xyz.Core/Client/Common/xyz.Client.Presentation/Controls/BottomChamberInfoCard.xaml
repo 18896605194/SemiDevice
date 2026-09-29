@@ -174,7 +174,7 @@
                                 Margin="24,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
-                                Text="State" />
+                                Text="{DynamicResource chambercard.state}" />
                             <TextBlock
                                 Grid.Row="0"
                                 Grid.Column="1"
@@ -188,7 +188,7 @@
                                 Margin="24,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
-                                Text="Recipe" />
+                                Text="{DynamicResource chambercard.recipe}" />
                             <TextBlock
                                 Grid.Row="1"
                                 Grid.Column="1"
@@ -202,7 +202,7 @@
                                 Margin="24,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
-                                Text="Step" />
+                                Text="{DynamicResource chambercard.step}" />
                             <TextBlock
                                 Grid.Row="2"
                                 Grid.Column="1"
@@ -216,7 +216,7 @@
                                 Margin="24,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
-                                Text="StepTime" />
+                                Text="{DynamicResource chambercard.step_time}" />
                             <TextBlock
                                 Grid.Row="3"
                                 Grid.Column="1"
@@ -230,7 +230,7 @@
                                 Margin="24,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
-                                Text="RecipeTime" />
+                                Text="{DynamicResource chambercard.recipe_time}" />
                             <TextBlock
                                 Grid.Row="4"
                                 Grid.Column="1"
@@ -244,7 +244,7 @@
                                 Margin="24,0"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Style="{DynamicResource FieldLabelTextStyle}"
-                                Text="Shutter" />
+                                Text="{DynamicResource chambercard.shutter}" />
                             <TextBlock
                                 Grid.Row="5"
                                 Grid.Column="1"

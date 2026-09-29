@@ -58,14 +58,14 @@
                         x:Name="createMenuItem"
                         Command="{Binding CreateCommand}"
                         CommandParameter="{Binding CommandParameter}"
-                        Header="Create"
+                        Header="{DynamicResource common.create}"
                         IsEnabled="{Binding CreateEnable}"
                         Style="{StaticResource DefaultMenuItemStyle}" />
                     <MenuItem
                         x:Name="deleteMenuItem"
                         Command="{Binding DeleteCommand}"
                         CommandParameter="{Binding CommandParameter}"
-                        Header="Delete"
+                        Header="{DynamicResource common.delete}"
                         IsEnabled="{Binding DeleteEnable}"
                         Style="{StaticResource DefaultMenuItemStyle}" />
                 </ContextMenu>
