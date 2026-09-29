@@ -10,6 +10,7 @@
     <ProjectReference Include="..\xyz.Client.Io\xyz.Client.Io.csproj" />
     <ProjectReference Include="..\xyz.Client.DataCenter\xyz.Client.DataCenter.csproj" />
     <ProjectReference Include="..\xyz.Client.Alarm\xyz.Client.Alarm.csproj" />
+    <ProjectReference Include="..\xyz.Client.Manual\xyz.Client.Manual.csproj" />
   </ItemGroup>
 
   <ItemGroup>

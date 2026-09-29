@@ -45,6 +45,13 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 腔体
+
+    /// <summary>起工艺没给配方名。Args: [模块名]</summary>
+    public const string RecipeRequired = "chamber.recipe_required";
+
+    #endregion
+
     #region 搬运
 
     /// <summary>站点等不到可服务（一直没回到锚点态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>

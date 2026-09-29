@@ -28,6 +28,7 @@
     <sys:String x:Key="module.state.unclamping">松开中</sys:String>
     <sys:String x:Key="module.state.picking">取片中</sys:String>
     <sys:String x:Key="module.state.placing">放片中</sys:String>
+    <sys:String x:Key="module.state.processing">工艺中</sys:String>
     <sys:String x:Key="module.state.unknown">未知状态（{0}）</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
@@ -40,6 +41,8 @@
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>
     <sys:String x:Key="robot.direction.west">西</sys:String>
+
+    <sys:String x:Key="chamber.recipe_required">{0} 起工艺要先填配方名</sys:String>
 
     <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
@@ -200,7 +203,20 @@
     <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>
     <sys:String x:Key="robotmanual.na">—</sys:String>
 
-    <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身。
+    <!-- 腔体手动页（Manual 下一个腔体一个子菜单） -->
+    <sys:String x:Key="chambermanual.enable">启用</sys:String>
+    <sys:String x:Key="chambermanual.enable_tip">sc.xml 里的 IsEnable：停用（装机未接）时动作一律发不出去</sys:String>
+    <sys:String x:Key="chambermanual.mode">模式</sys:String>
+    <sys:String x:Key="chambermanual.mode_tip">Online：参与自动调度</sys:String>
+    <sys:String x:Key="chambermanual.device_error">报错</sys:String>
+    <sys:String x:Key="chambermanual.device_error_tip">设备当前报错</sys:String>
+    <sys:String x:Key="chambermanual.current_recipe">当前配方</sys:String>
+    <sys:String x:Key="chambermanual.process">工艺</sys:String>
+    <sys:String x:Key="chambermanual.recipe">配方</sys:String>
+    <sys:String x:Key="chambermanual.na">—</sys:String>
+
+    <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
+         按模块生成的菜单（IO、腔体手动）直接显示 sc.xml 里的模块名，不在这里配。
          框架提供的菜单（含机型模块声明的 LoadPort 手动、Transfer）都配在这里；机型独有的菜单配在机型语言包。 -->
     <sys:String x:Key="menu.Main">主界面</sys:String>
     <sys:String x:Key="menu.Manual">手动</sys:String>

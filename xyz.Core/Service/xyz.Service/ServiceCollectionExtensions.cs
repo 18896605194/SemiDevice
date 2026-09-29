@@ -163,6 +163,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IUserService, UserService>();
         services.AddTransient<ILoadPortService, LoadPortService>();
         services.AddTransient<IRobotService, RobotService>();
+        services.AddTransient<IChamberService, ChamberService>();
         services.AddTransient<IAlarmService, AlarmService>();
         services.AddTransient<ISystemService, SystemService>();
 

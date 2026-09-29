@@ -11,7 +11,8 @@ using xyz.Client.Views;
 namespace xyz.Client.ViewModels;
 
 /// <summary>
-/// 主界面 ViewModel。菜单写在代码里：平台菜单（PlatformMenuProvider）+ 机型模块声明的菜单，名字走语言包。
+/// 主界面 ViewModel。菜单写在代码里：平台菜单（PlatformMenuProvider）+ 机型模块声明的菜单，名字走语言包；
+/// 按模块生成的菜单（IO、腔体手动）直接显示模块名。
 /// </summary>
 public class MainViewModel : BaseViewModel
 {
@@ -196,7 +197,7 @@ public class MainViewModel : BaseViewModel
     {
         var menuModel = new MenuModel
         {
-            Name = L10n.MenuName(menu.Code),
+            Name = menu.Title ?? L10n.MenuName(menu.Code),
             Code = menu.Code
         };
 

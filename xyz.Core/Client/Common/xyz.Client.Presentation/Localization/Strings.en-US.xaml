@@ -27,6 +27,7 @@
     <sys:String x:Key="module.state.unclamping">Unclamping</sys:String>
     <sys:String x:Key="module.state.picking">Picking</sys:String>
     <sys:String x:Key="module.state.placing">Placing</sys:String>
+    <sys:String x:Key="module.state.processing">Processing</sys:String>
     <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
@@ -39,6 +40,8 @@
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>
     <sys:String x:Key="robot.direction.west">West</sys:String>
+
+    <sys:String x:Key="chamber.recipe_required">{0}: enter a recipe name before starting the process</sys:String>
 
     <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
@@ -199,7 +202,20 @@
     <sys:String x:Key="robotmanual.servo_off">OFF</sys:String>
     <sys:String x:Key="robotmanual.na">—</sys:String>
 
+    <!-- Chamber manual page (one sub-menu per chamber under Manual) -->
+    <sys:String x:Key="chambermanual.enable">Enabled</sys:String>
+    <sys:String x:Key="chambermanual.enable_tip">IsEnable in sc.xml: a disabled (not installed) chamber accepts no action</sys:String>
+    <sys:String x:Key="chambermanual.mode">Mode</sys:String>
+    <sys:String x:Key="chambermanual.mode_tip">Online: joins automatic scheduling</sys:String>
+    <sys:String x:Key="chambermanual.device_error">Error</sys:String>
+    <sys:String x:Key="chambermanual.device_error_tip">Current device error</sys:String>
+    <sys:String x:Key="chambermanual.current_recipe">Current recipe</sys:String>
+    <sys:String x:Key="chambermanual.process">Process</sys:String>
+    <sys:String x:Key="chambermanual.recipe">Recipe</sys:String>
+    <sys:String x:Key="chambermanual.na">—</sys:String>
+
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
+         Per-module menus (IO, chamber manual) show the module name from sc.xml and are not configured here.
          Framework menus (including LoadPort Manual and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
     <sys:String x:Key="menu.Main">Main</sys:String>
     <sys:String x:Key="menu.Manual">Manual</sys:String>

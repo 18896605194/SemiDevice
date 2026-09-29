@@ -10,7 +10,7 @@ namespace xyz.Service.Systems;
 
 /// <summary>
 /// 系统设置 gRPC 服务：读 sc.xml 的 System 节点（SystemComponent.Current），没装时给默认值。
-/// 顺带把装了哪些模块告诉客户端——按模块分的界面（IO 等）照它生成，sc.xml 里没配的不出现。
+/// 顺带把装了哪些模块（其中哪些是腔体）告诉客户端——按模块分的界面（IO、腔体手动）照它生成，sc.xml 里没配的不出现。
 /// </summary>
 public class SystemService : ISystemService
 {
@@ -28,6 +28,7 @@ public class SystemService : ISystemService
         {
             Language = string.IsNullOrWhiteSpace(language) ? SystemSettingsDto.DefaultLanguage : language,
             Modules = [.. _roots.OfType<BaseModule>().Where(module => module.IsEnabled).Select(module => module.Name)],
+            Chambers = [.. _roots.OfType<BaseChamberModule>().Where(module => module.IsEnabled).Select(module => module.Name)],
         };
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));

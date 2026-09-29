@@ -40,9 +40,22 @@ public class ChamberModule : BaseChamberModule
         return Begin(ChamberAction.Abort, new TimedOperation("Abort", SimulateActionMs));
     }
 
-    public override ModuleOperation? Process(string recipe)
+    protected override ModuleOperation? StartProcess(string recipe)
     {
         return Begin(ChamberAction.Process, new TimedOperation($"Process {recipe}", SimulateProcessMs));
+    }
+
+    #endregion
+
+    #region 扫描
+
+    /// <summary>
+    /// 扫描周期：先扫子组件与操作（基类），再发布状态（有变化才发）。驱动接上后在两者之间补设备状态轮询。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        PublishState();
     }
 
     #endregion

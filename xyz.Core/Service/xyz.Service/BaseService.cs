@@ -58,6 +58,15 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 下发腔体动作并同步等终态（回包规则见私有重载）。
+    /// </summary>
+    protected static Task<RpcResponse> RunOperation(string module, BaseChamberModule chamber,
+        ModuleOperation? operation, int timeout)
+    {
+        return RunOperation("Chamber", module, chamber.State, operation, timeout);
+    }
+
+    /// <summary>
     /// 下发动作并同步等终态：
     /// 动作被拒（operation 为 null）→ module.action_rejected + 当前状态码（调用方在发起动作之后读取）；
     /// 等待超时 → module.wait_timeout + [操作名, 等待ms]（操作仍在执行，不能据此判失败或重发）；

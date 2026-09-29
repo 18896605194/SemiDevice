@@ -85,6 +85,7 @@ public static class Program
         app.MapGrpcService<EventService>();
         app.MapGrpcService<LoadPortService>();
         app.MapGrpcService<RobotService>();
+        app.MapGrpcService<ChamberService>();
         app.MapGrpcService<LogService>();
         app.MapGrpcService<AlarmService>();
         app.MapGrpcService<SystemService>();

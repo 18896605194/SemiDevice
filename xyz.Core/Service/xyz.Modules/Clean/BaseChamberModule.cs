@@ -2,9 +2,12 @@
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Wafers;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
+using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
@@ -28,6 +31,18 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     {
         get => _deviceError;
         protected set => _deviceError = value;
+    }
+
+    private volatile string? _recipe;
+
+    /// <summary>
+    /// 当前配方（SV）：最近一次发起成功的工艺配方名；还没做过工艺为 null。
+    /// </summary>
+    [VariableMark(VariableType.SV, ValueFormat.String, description: "当前工艺配方名")]
+    public string? Recipe
+    {
+        get => _recipe;
+        private set => _recipe = value;
     }
 
     #endregion
@@ -141,6 +156,110 @@ public abstract class BaseChamberModule : BaseTransferStationModule
 
     #endregion
 
+    #region 状态发布
+
+    private ChamberDto? _lastPublishedState;
+
+    /// <summary>
+    /// 当前状态快照，状态发布与 GetState 查询共用。
+    /// 停用的腔体不连设备，设备报错不可信，置 null；片位按晶圆账逐位取（片号 + 工艺状态）。
+    /// </summary>
+    public ChamberDto CreateStateDto()
+    {
+        var dto = new ChamberDto
+        {
+            Name = Name,
+            State = State,
+            Mode = Mode,
+            IsEnable = IsEnable,
+            Recipe = Recipe,
+            SlotCount = SlotCount,
+            Slots = CreateSlotDtos(),
+        };
+
+        if (IsEnable)
+        {
+            dto.DeviceError = DeviceError;
+        }
+
+        return dto;
+    }
+
+    /// <summary>
+    /// 片位表：按 SlotCount 逐位查晶圆账；账上没注册这个腔体（停用、或 sc.xml 没配晶圆账）时全给空。
+    /// </summary>
+    private List<ChamberSlotDto> CreateSlotDtos()
+    {
+        IReadOnlyList<WaferInfo?> wafers = [];
+        var manager = WaferManager.Current;
+        if (manager is not null)
+        {
+            wafers = manager.GetSlots(Name);
+        }
+
+        var slots = new List<ChamberSlotDto>();
+        for (int slot = 1; slot <= SlotCount; slot++)
+        {
+            WaferInfo? wafer = null;
+            if (slot <= wafers.Count)
+            {
+                wafer = wafers[slot - 1];
+            }
+
+            slots.Add(new ChamberSlotDto
+            {
+                Slot = slot,
+                State = ToSlotState(wafer),
+                WaferId = wafer?.WaferId,
+            });
+        }
+
+        return slots;
+    }
+
+    /// <summary>
+    /// 账上的片转片位状态：没片为空，有片按它的工艺状态。
+    /// </summary>
+    private static ChamberSlotState ToSlotState(WaferInfo? wafer)
+    {
+        if (wafer is null)
+        {
+            return ChamberSlotState.Empty;
+        }
+
+        switch (wafer.ProcessState)
+        {
+            case WaferProcessState.InProcess:
+                return ChamberSlotState.InProcess;
+            case WaferProcessState.Completed:
+                return ChamberSlotState.Completed;
+            case WaferProcessState.Failed:
+                return ChamberSlotState.Failed;
+            case WaferProcessState.Aborted:
+                return ChamberSlotState.Aborted;
+            default:
+                return ChamberSlotState.Idle;
+        }
+    }
+
+    /// <summary>
+    /// 发布当前状态（机型扫描周期调用，状态环改完状态也会立即调）：首次发布，之后只在状态变化时发布。
+    /// EventBus 留存最后一条消息，供界面晚订阅或重连时补发。
+    /// </summary>
+    protected override void PublishState()
+    {
+        var dto = CreateStateDto();
+        if (!dto.HasStateChanged(_lastPublishedState))
+        {
+            return;
+        }
+
+        _lastPublishedState = dto;
+        EventBus.Send(dto, Name);
+    }
+
+    #endregion
+
     #region Action（动作体由机型实现——直接创建操作）
 
     /// <summary>
@@ -194,10 +313,24 @@ public abstract class BaseChamberModule : BaseTransferStationModule
 
     /// <summary>
     /// 起工艺。只在 Idle（门关、机械手不在里面）时允许；腔里有没有片由调用方查晶圆账。
-    /// 配方怎么传、传什么，等工艺定下来再收窄——现在先按名字给。
-    /// 机型实现：Begin(ChamberAction.Process, new ...Operation(...))。
+    /// 配方怎么传、传什么，等工艺定下来再收窄——现在先按名字给。发起成功记下配方名（SV Recipe），界面据此显示当前配方。
+    /// 返回工艺操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
-    public abstract ModuleOperation? Process(string recipe);
+    public ModuleOperation? Process(string recipe)
+    {
+        var operation = StartProcess(recipe);
+        if (operation is not null)
+        {
+            Recipe = recipe;
+        }
+
+        return operation;
+    }
+
+    /// <summary>
+    /// 发起工艺。机型实现：Begin(ChamberAction.Process, new ...Operation(...))。
+    /// </summary>
+    protected abstract ModuleOperation? StartProcess(string recipe);
 
     /// <summary>
     /// 操作终结（状态已由基类落好）：失败的动作报警。

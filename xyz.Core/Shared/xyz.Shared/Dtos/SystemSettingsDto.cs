@@ -20,4 +20,10 @@ public class SystemSettingsDto
     /// 客户端据此生成按模块分的页面与菜单——sc.xml 里没配的模块，界面上就不该出现。
     /// </summary>
     public List<string> Modules { get; set; } = [];
+
+    /// <summary>
+    /// 其中哪些是腔体（sc.xml 里装配出来的腔体模块名，如 Chamber1）。
+    /// 客户端手动菜单下一个腔体一个子菜单——配了四个腔体就是四个，哪怕四个长得一模一样。
+    /// </summary>
+    public List<string> Chambers { get; set; } = [];
 }
