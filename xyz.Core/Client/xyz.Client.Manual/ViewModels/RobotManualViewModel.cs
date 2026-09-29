@@ -13,8 +13,9 @@ using xyz.Tools;
 namespace xyz.Client.Manual.ViewModels;
 
 /// <summary>
-/// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表（含各站点槽数）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
-/// Pick 从源站点槽位取片、Place 往目标站点槽位放片；Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
+/// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表（含各站点槽数、允许的手指）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
+/// Pick 用源手臂从源站点槽位取片、Place 用目标手臂往目标站点槽位放片——手臂和槽位下拉都跟着选中的站点走；
+/// Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
 /// </summary>
 public class RobotManualViewModel : BaseViewModel, IDisposable
 {
@@ -30,18 +31,9 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     /// </summary>
     public RobotModel Model { get; } = new();
 
-    private int _selectedArm = 1;
-
-    /// <summary>取放用的手指号（1 开始）。</summary>
-    public int SelectedArm
-    {
-        get => _selectedArm;
-        set => SetProperty(ref _selectedArm, value);
-    }
-
     private string _sourceStation = string.Empty;
 
-    /// <summary>源站点（Pick 从这儿取片），站点表里的模块名如 LoadPort1；换站点时源槽位下拉跟着换。</summary>
+    /// <summary>源站点（Pick 从这儿取片），站点表里的模块名如 LoadPort1；换站点时源手臂、源槽位下拉跟着换。</summary>
     public string SourceStation
     {
         get => _sourceStation;
@@ -49,9 +41,18 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         {
             if (SetProperty(ref _sourceStation, value))
             {
-                UpdateSourceSlots();
+                UpdateSourceOptions();
             }
         }
+    }
+
+    private int _sourceArm = 1;
+
+    /// <summary>Pick 用的手指号（1 开始），只能在源站点允许的手指里选。</summary>
+    public int SourceArm
+    {
+        get => _sourceArm;
+        set => SetProperty(ref _sourceArm, value);
     }
 
     private int _sourceSlot = 1;
@@ -65,7 +66,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private string _targetStation = string.Empty;
 
-    /// <summary>目标站点（Place 往这儿放片）；换站点时目标槽位下拉跟着换。</summary>
+    /// <summary>目标站点（Place 往这儿放片）；换站点时目标手臂、目标槽位下拉跟着换。</summary>
     public string TargetStation
     {
         get => _targetStation;
@@ -73,9 +74,18 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         {
             if (SetProperty(ref _targetStation, value))
             {
-                UpdateTargetSlots();
+                UpdateTargetOptions();
             }
         }
+    }
+
+    private int _targetArm = 1;
+
+    /// <summary>Place 用的手指号，只能在目标站点允许的手指里选。</summary>
+    public int TargetArm
+    {
+        get => _targetArm;
+        set => SetProperty(ref _targetArm, value);
     }
 
     private int _targetSlot = 1;
@@ -87,11 +97,14 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         set => SetProperty(ref _targetSlot, value);
     }
 
-    /// <summary>手臂选择的数据源（1~ArmCount）。</summary>
-    public ObservableCollection<int> ArmOptions { get; } = new();
+    /// <summary>源手臂下拉：源站点允许的手指（sc.xml 机械手站点节点的 Arms，没配就是所有手指）。</summary>
+    public ObservableCollection<int> SourceArmOptions { get; } = new();
 
     /// <summary>源槽位下拉：1~源站点的槽数（站点模块在 sc.xml 里配的 SlotCount，LoadPort 25、腔体 1）。</summary>
     public ObservableCollection<int> SourceSlotOptions { get; } = new();
+
+    /// <summary>目标手臂下拉：目标站点允许的手指。</summary>
+    public ObservableCollection<int> TargetArmOptions { get; } = new();
 
     /// <summary>目标槽位下拉：1~目标站点的槽数。</summary>
     public ObservableCollection<int> TargetSlotOptions { get; } = new();
@@ -179,22 +192,6 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     {
         Model.Update(dto);
 
-        // 手臂选择的数据源跟着手指数走；默认选 1 号。
-        while (ArmOptions.Count > Model.ArmCount)
-        {
-            ArmOptions.RemoveAt(ArmOptions.Count - 1);
-        }
-
-        while (ArmOptions.Count < Model.ArmCount)
-        {
-            ArmOptions.Add(ArmOptions.Count + 1);
-        }
-
-        if (ArmOptions.Count > 0 && !ArmOptions.Contains(SelectedArm))
-        {
-            SelectedArm = ArmOptions[0];
-        }
-
         // 源默认选站点表里的第一个（按站点号排，一般是 LoadPort1），目标默认选腔体侧（北）的第一个。
         if (string.IsNullOrEmpty(SourceStation) && Model.StationMarks.Count > 0)
         {
@@ -207,68 +204,108 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
             TargetStation = chamber is not null ? chamber.Name : Model.StationMarks[0].Name;
         }
 
-        // 站点槽数可能晚到（后端搬运模块表绑好后才有），每次推送都对一下。
-        UpdateSourceSlots();
-        UpdateTargetSlots();
+        // 站点槽数、允许的手指可能晚到（后端搬运模块表绑好、驱动起来后才齐），每次推送都对一下。
+        UpdateSourceOptions();
+        UpdateTargetOptions();
     }
 
-    private void UpdateSourceSlots()
+    private void UpdateSourceOptions()
     {
-        if (FillSlotOptions(SourceSlotOptions, SourceStation))
-        {
-            SourceSlot = ClampSlot(SourceSlotOptions, SourceSlot);
+        var mark = FindStation(SourceStation);
 
-            // 列表重建时下拉会丢掉选中项，把当前槽位再推一次让它选回来。
+        if (FillOptions(SourceArmOptions, ArmsOf(mark)))
+        {
+            SourceArm = ClampOption(SourceArmOptions, SourceArm);
+
+            // 列表重建时下拉会丢掉选中项，把当前值再推一次让它选回来。
+            OnPropertyChanged(nameof(SourceArm));
+        }
+
+        if (FillOptions(SourceSlotOptions, SlotsOf(mark)))
+        {
+            SourceSlot = ClampOption(SourceSlotOptions, SourceSlot);
             OnPropertyChanged(nameof(SourceSlot));
         }
     }
 
-    private void UpdateTargetSlots()
+    private void UpdateTargetOptions()
     {
-        if (FillSlotOptions(TargetSlotOptions, TargetStation))
+        var mark = FindStation(TargetStation);
+
+        if (FillOptions(TargetArmOptions, ArmsOf(mark)))
         {
-            TargetSlot = ClampSlot(TargetSlotOptions, TargetSlot);
+            TargetArm = ClampOption(TargetArmOptions, TargetArm);
+            OnPropertyChanged(nameof(TargetArm));
+        }
+
+        if (FillOptions(TargetSlotOptions, SlotsOf(mark)))
+        {
+            TargetSlot = ClampOption(TargetSlotOptions, TargetSlot);
             OnPropertyChanged(nameof(TargetSlot));
         }
     }
 
-    /// <summary>
-    /// 槽位下拉按站点槽数列成 1~N；槽数没变不重建（免得下拉被重置），返回是否重建了。
-    /// </summary>
-    private bool FillSlotOptions(ObservableCollection<int> options, string station)
+    private RobotStationModel? FindStation(string station)
     {
-        int count = 0;
-        var mark = Model.StationMarks.FirstOrDefault(candidate => candidate.Name == station);
-        if (mark is not null)
+        return Model.StationMarks.FirstOrDefault(candidate => candidate.Name == station);
+    }
+
+    /// <summary>
+    /// 站点允许的手指（sc.xml 站点节点的 Arms，后端已把"没配"展开成所有手指）；站点还没选上时为空。
+    /// </summary>
+    private static IReadOnlyList<int> ArmsOf(RobotStationModel? mark)
+    {
+        if (mark is null)
         {
-            count = mark.SlotCount;
+            return [];
         }
 
-        if (options.Count == count)
+        return mark.Arms;
+    }
+
+    /// <summary>
+    /// 站点槽位 1~槽数；站点还没选上时为空。
+    /// </summary>
+    private static IReadOnlyList<int> SlotsOf(RobotStationModel? mark)
+    {
+        if (mark is null)
+        {
+            return [];
+        }
+
+        return [.. Enumerable.Range(1, mark.SlotCount)];
+    }
+
+    /// <summary>
+    /// 下拉按给定的值重列；跟现有的一样就不重建（免得下拉被重置），返回是否重建了。
+    /// </summary>
+    private static bool FillOptions(ObservableCollection<int> options, IReadOnlyList<int> values)
+    {
+        if (options.SequenceEqual(values))
         {
             return false;
         }
 
         options.Clear();
-        for (int slot = 1; slot <= count; slot++)
+        foreach (int value in values)
         {
-            options.Add(slot);
+            options.Add(value);
         }
 
         return true;
     }
 
     /// <summary>
-    /// 当前槽位在下拉范围里就保留，超出范围回到第一个；没有槽位时原样。
+    /// 当前值在下拉范围里就保留，超出范围回到第一个；下拉为空时原样。
     /// </summary>
-    private static int ClampSlot(ObservableCollection<int> options, int slot)
+    private static int ClampOption(ObservableCollection<int> options, int value)
     {
-        if (options.Count > 0 && !options.Contains(slot))
+        if (options.Count > 0 && !options.Contains(value))
         {
             return options[0];
         }
 
-        return slot;
+        return value;
     }
 
     private async Task DoPick()
@@ -276,7 +313,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.PickAsync(new RobotPickPlaceRequest
         {
             Module = ModuleName,
-            Arm = SelectedArm,
+            Arm = SourceArm,
             Station = SourceStation,
             Slot = SourceSlot,
         });
@@ -291,7 +328,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.PlaceAsync(new RobotPickPlaceRequest
         {
             Module = ModuleName,
-            Arm = SelectedArm,
+            Arm = TargetArm,
             Station = TargetStation,
             Slot = TargetSlot,
         });

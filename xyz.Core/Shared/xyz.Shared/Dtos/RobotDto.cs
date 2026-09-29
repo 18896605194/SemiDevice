@@ -39,7 +39,7 @@ public class RobotDto
     /// <summary>站点明细（含站点号 Number / 伸出距离 Y / 伸出方向 Direction），调度图与站点角标用；与 Stations 同源。</summary>
     public List<RobotStationDto> StationInfos { get; set; } = [];
 
-    /// <summary>手指数：sc.xml 本机械手 Driver 节点轴表（Axes）里 Arm* 的个数；界面手臂选择、画几只手臂都按它。驱动没配时为 0。</summary>
+    /// <summary>手指数：sc.xml 本机械手 Driver 节点轴表（Axes）里 Arm* 的个数；界面画几只手臂按它（取放能用哪只手按站点的 Arms）。驱动没配时为 0。</summary>
     public int ArmCount { get; set; }
 
     /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
@@ -124,7 +124,8 @@ public class RobotDto
                 || current.Number != last.Number
                 || current.Direction != last.Direction
                 || current.Y != last.Y
-                || current.SlotCount != last.SlotCount)
+                || current.SlotCount != last.SlotCount
+                || !current.Arms.SequenceEqual(last.Arms))
             {
                 return true;
             }
@@ -167,7 +168,7 @@ public class RobotDto
 }
 
 /// <summary>
-/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向 + 槽数，供界面画调度图与限定取放槽位。
+/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向 + 槽数 + 允许的手指，供界面画调度图与限定取放的手臂、槽位。
 /// </summary>
 public class RobotStationDto
 {
@@ -185,6 +186,9 @@ public class RobotStationDto
 
     /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。</summary>
     public int SlotCount { get; set; }
+
+    /// <summary>这个站点允许用哪几只手取放（sc.xml 站点节点的 Arms，没配就是所有手指），升序；取放手臂下拉只列这些。</summary>
+    public List<int> Arms { get; set; } = [];
 }
 
 /// <summary>

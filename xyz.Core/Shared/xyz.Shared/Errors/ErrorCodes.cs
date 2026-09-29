@@ -43,6 +43,9 @@ public static class ErrorCodes
     /// <summary>站点未在该机械手的站点表中配置。Args: [机械手模块名, 站点名]</summary>
     public const string StationNotFound = "robot.station_not_found";
 
+    /// <summary>站点不许用这只手取放（sc.xml 机械手站点节点的 Arms）。Args: [机械手模块名, 站点名, 手指号]</summary>
+    public const string ArmNotAllowed = "robot.arm_not_allowed";
+
     #endregion
 
     #region 腔体

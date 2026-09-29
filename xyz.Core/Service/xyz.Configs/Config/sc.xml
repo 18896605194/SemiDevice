@@ -157,37 +157,44 @@
 				<Value Name="Axes" Value="X,Z,Theta,Arm1,Arm2" />
 			</Setting>
 			<!-- 站点表：每个站点一个子节点（LoadPort / 腔体各编站点号）。
-			     Number 设备站点号（正整数）；Y 机械手伸出距离（数值）；Direction 伸出方向（RobotDirection 枚举：North/East/South/West） -->
+			     Number 设备站点号（正整数）；Y 机械手伸出距离（数值）；Direction 伸出方向（RobotDirection 枚举：North/East/South/West）；
+			     Arms 这个站点允许用哪几只手取放（手指号，逗号分隔，如 1,2；不配 = 所有手指都能用）——手动页选了站点，手臂下拉只列这几只，别的手发过来一律拒 -->
 			<Setting Name="Stations">
 				<Setting Name="LoadPort1">
 					<Value Name="Number" Value="1" />
 					<Value Name="Y" Value="20" />
 					<Value Name="Direction" Value="South" />
+					<Value Name="Arms" Value="1,2" />
 				</Setting>
 				<Setting Name="LoadPort2">
 					<Value Name="Number" Value="2" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="South" />
+					<Value Name="Arms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber1">
 					<Value Name="Number" Value="3" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
+					<Value Name="Arms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber2">
 					<Value Name="Number" Value="4" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
+					<Value Name="Arms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber3">
 					<Value Name="Number" Value="5" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
+					<Value Name="Arms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber4">
 					<Value Name="Number" Value="6" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
+					<Value Name="Arms" Value="1,2" />
 				</Setting>
 			</Setting>
 		</Setting>

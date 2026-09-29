@@ -37,6 +37,7 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} 读码没发起（没挂读头、读头未连接或上一次还没读完）</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
+    <sys:String x:Key="robot.arm_not_allowed">{0} 的站点 {1} 不允许用 Arm{2} 取放（见 sc.xml 站点节点的 Arms）</sys:String>
     <sys:String x:Key="robot.direction.north">北</sys:String>
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>

@@ -19,6 +19,9 @@ public sealed class RobotStationModel
     /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1），取放槽位下拉按它列 1~N。</summary>
     public int SlotCount { get; init; }
 
+    /// <summary>这个站点允许用的手指号（sc.xml 站点节点的 Arms，没配就是所有手指），取放手臂下拉只列这些。</summary>
+    public IReadOnlyList<int> Arms { get; init; } = [];
+
     /// <summary>角标主文案：站点号。</summary>
     public string NumberText => Number.ToString();
 

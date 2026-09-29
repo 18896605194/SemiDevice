@@ -36,6 +36,7 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} carrier ID read not started (no reader, reader disconnected, or previous read still in progress)</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
+    <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} (see Arms of the station node in sc.xml)</sys:String>
     <sys:String x:Key="robot.direction.north">North</sys:String>
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>

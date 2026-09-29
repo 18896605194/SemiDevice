@@ -125,7 +125,7 @@
                 </Border>
             </Grid>
 
-            <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 取放（手臂 + 源 / 目标 的站点·槽位 → Pick · Place）→ Home / Abort / Reset → 轴位  -->
+            <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 取放（源 / 目标 的站点·手臂·槽位 → Pick · Place）→ Home / Abort / Reset → 轴位  -->
             <Border
                 Grid.Column="1"
                 BorderBrush="{DynamicResource DarkBorderBrush}"
@@ -341,77 +341,62 @@
 
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                    <!--  取放：手臂 + 源 / 目标 各一行 站点·槽位（槽位跟着站点在 sc.xml 里配的槽数走：LoadPort 1~25、腔体 1）；
-                         Pick 从源取片、Place 往目标放片  -->
+                    <!--  取放：源 / 目标 各一行 站点·手臂·槽位，手臂和槽位都跟着选中的站点走
+                         （手臂取 sc.xml 机械手站点节点的 Arms，槽位取站点的槽数：LoadPort 1~25、腔体 1）；
+                         Pick 用源手臂从源取片、Place 用目标手臂往目标放片  -->
                     <StackPanel Margin="14,0,14,0">
                         <TextBlock
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkDisabledText}"
                             Text="{DynamicResource robotmanual.pick_place}" />
 
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="0,2,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44" />
+                                <ColumnDefinition Width="48" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="78" />
+                                <ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="64" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <!--  手臂  -->
+                            <!--  列头：站点 / 手臂 / 槽位  -->
                             <TextBlock
                                 Grid.Row="0"
-                                VerticalAlignment="Center"
-                                FontSize="{DynamicResource Size13}"
-                                Foreground="{DynamicResource DarkSecondaryText}"
-                                Text="{DynamicResource robotmanual.field_arm}" />
-                            <ListBox
-                                Grid.Row="0"
                                 Grid.Column="1"
-                                Grid.ColumnSpan="3"
-                                HorizontalAlignment="Left"
-                                ItemContainerStyle="{DynamicResource CompactSegmentItemStyle}"
-                                ItemsPanel="{DynamicResource HorizontalListBoxItemsPanelTemplate}"
-                                ItemsSource="{Binding ArmOptions}"
-                                SelectedItem="{Binding SelectedArm}"
-                                Style="{DynamicResource CompactSegmentListBoxStyle}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding StringFormat=Arm{0}}" />
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-
-                            <!--  列头：站点 / 槽位  -->
-                            <TextBlock
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Margin="2,8,0,2"
+                                Margin="2,6,0,2"
                                 FontSize="{DynamicResource Size12}"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Text="{DynamicResource robotmanual.field_station}" />
                             <TextBlock
-                                Grid.Row="1"
+                                Grid.Row="0"
                                 Grid.Column="3"
-                                Margin="2,8,0,2"
+                                Margin="2,6,0,2"
+                                FontSize="{DynamicResource Size12}"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Text="{DynamicResource robotmanual.field_arm}" />
+                            <TextBlock
+                                Grid.Row="0"
+                                Grid.Column="5"
+                                Margin="2,6,0,2"
                                 FontSize="{DynamicResource Size12}"
                                 Foreground="{DynamicResource DarkDisabledText}"
                                 Text="{DynamicResource robotmanual.field_slot}" />
 
-                            <!--  源：Pick 从这儿取片  -->
+                            <!--  源：Pick 用源手臂从这儿取片  -->
                             <TextBlock
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size13}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource robotmanual.source}" />
                             <ComboBox
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 Grid.Column="1"
                                 Margin="0,2"
                                 DisplayMemberPath="Name"
@@ -420,22 +405,35 @@
                                 SelectedValuePath="Name"
                                 Style="{DynamicResource CompactComboBoxStyle}" />
                             <ComboBox
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 Grid.Column="3"
+                                Margin="0,2"
+                                ItemsSource="{Binding SourceArmOptions}"
+                                SelectedItem="{Binding SourceArm}"
+                                Style="{DynamicResource CompactComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding StringFormat=Arm{0}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <ComboBox
+                                Grid.Row="1"
+                                Grid.Column="5"
                                 Margin="0,2"
                                 ItemsSource="{Binding SourceSlotOptions}"
                                 SelectedItem="{Binding SourceSlot}"
                                 Style="{DynamicResource CompactComboBoxStyle}" />
 
-                            <!--  目标：Place 往这儿放片  -->
+                            <!--  目标：Place 用目标手臂往这儿放片  -->
                             <TextBlock
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size13}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource robotmanual.target}" />
                             <ComboBox
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 Grid.Column="1"
                                 Margin="0,2"
                                 DisplayMemberPath="Name"
@@ -444,8 +442,21 @@
                                 SelectedValuePath="Name"
                                 Style="{DynamicResource CompactComboBoxStyle}" />
                             <ComboBox
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 Grid.Column="3"
+                                Margin="0,2"
+                                ItemsSource="{Binding TargetArmOptions}"
+                                SelectedItem="{Binding TargetArm}"
+                                Style="{DynamicResource CompactComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding StringFormat=Arm{0}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <ComboBox
+                                Grid.Row="2"
+                                Grid.Column="5"
                                 Margin="0,2"
                                 ItemsSource="{Binding TargetSlotOptions}"
                                 SelectedItem="{Binding TargetSlot}"

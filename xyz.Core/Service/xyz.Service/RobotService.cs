@@ -61,9 +61,14 @@ public class RobotService : BaseService, IRobotService
         }
 
         var station = request.Station ?? string.Empty;
-        if (!robot.TryGetStation(station, out _))
+        if (!robot.TryGetStation(station, out var config))
         {
             return StationNotFound(module, station);
+        }
+
+        if (!config.AllowsArm(request.Arm))
+        {
+            return ArmNotAllowed(module, station, request.Arm);
         }
 
         return RunOperation(module, robot, robot.Pick(request.Arm, station, request.Slot), robot.PickTimeout);
@@ -80,9 +85,14 @@ public class RobotService : BaseService, IRobotService
         }
 
         var station = request.Station ?? string.Empty;
-        if (!robot.TryGetStation(station, out _))
+        if (!robot.TryGetStation(station, out var config))
         {
             return StationNotFound(module, station);
+        }
+
+        if (!config.AllowsArm(request.Arm))
+        {
+            return ArmNotAllowed(module, station, request.Arm);
         }
 
         return RunOperation(module, robot, robot.Place(request.Arm, station, request.Slot), robot.PlaceTimeout);
@@ -131,5 +141,13 @@ public class RobotService : BaseService, IRobotService
     private static Task<RpcResponse> StationNotFound(string module, string station)
     {
         return Task.FromResult(RpcResponse.Fail(ErrorCodes.StationNotFound, [module, station]));
+    }
+
+    /// <summary>
+    /// 站点不许用这只手回包（robot.arm_not_allowed）：站点允许的手指在 sc.xml 站点节点的 Arms 里配。
+    /// </summary>
+    private static Task<RpcResponse> ArmNotAllowed(string module, string station, int arm)
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.ArmNotAllowed, [module, station, arm.ToString()]));
     }
 }

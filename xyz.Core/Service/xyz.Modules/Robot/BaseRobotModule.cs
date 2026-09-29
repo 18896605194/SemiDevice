@@ -220,6 +220,18 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
         Robot = robot;
 
+        // 站点表里配的手指号不能超出轴表的手指数：配了 Arm3 却只有两只手，界面会给出一只用不了的手。
+        foreach (var station in _stations.Values)
+        {
+            foreach (int arm in station.Arms)
+            {
+                if (arm > robot.ArmCount)
+                {
+                    LogHelper.Error(Name, $"sc.xml 站点 {station.Name} 的 Arms 配了 Arm{arm}，但驱动轴表只有 {robot.ArmCount} 只手");
+                }
+            }
+        }
+
         // 先摘后挂：Open 可能不止一次（重开），保证只挂一份。
         robot.DeviceEvent -= OnDeviceEvent;
         robot.DeviceEvent += OnDeviceEvent;
@@ -272,7 +284,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 当前状态快照，状态发布与 GetState 查询共用。
     /// 未连接或停用时查询反馈（伺服使能、设备报错、速度）不可信，置 null；手指在位保留最后一次推送值；
     /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
-    /// 站点表（含各站点槽数）与轴坐标整表下推，界面（站点 / 槽位下拉、轴位表）不写死。
+    /// 站点表（含各站点槽数、允许的手指）与轴坐标整表下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
@@ -295,6 +307,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     Direction = station.Direction,
                     Y = station.Y,
                     SlotCount = SlotCountOf(station.Name),
+                    Arms = ArmsOf(station),
                 })
                 .ToList(),
             Arms = _armWafers
@@ -347,6 +360,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         }
 
         return module.SlotCount;
+    }
+
+    /// <summary>
+    /// 站点允许的手指：sc.xml 站点节点配了 Arms 就按它；没配就是所有手指（1~ArmCount，驱动没起来时为空）。
+    /// </summary>
+    private List<int> ArmsOf(RobotStation station)
+    {
+        if (station.Arms.Count > 0)
+        {
+            return [.. station.Arms];
+        }
+
+        return [.. Enumerable.Range(1, ArmCount)];
     }
 
     /// <summary>
@@ -415,7 +441,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     protected abstract ModuleOperation? AbortDevice();
 
     /// <summary>
-    /// 发起 Pick：station 为站点表中的模块名（如 LoadPort1），站点号取本机械手站点表；未配置的站点被拒（返回 null）。
+    /// 发起 Pick：station 为站点表中的模块名（如 LoadPort1），站点号取本机械手站点表；
+    /// 未配置的站点、站点不许用的手指（站点节点的 Arms）被拒（返回 null）。
     /// </summary>
     public ModuleOperation? Pick(int arm, string station, int slot)
     {
@@ -424,7 +451,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 发起 Place：station 为站点表中的模块名，站点号取本机械手站点表；未配置的站点被拒（返回 null）。
+    /// 发起 Place：station 为站点表中的模块名，站点号取本机械手站点表；
+    /// 未配置的站点、站点不许用的手指被拒（返回 null）。
     /// </summary>
     public ModuleOperation? Place(int arm, string station, int slot)
     {
@@ -439,6 +467,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         RobotAction action, int arm, string station, int slot, Func<RobotStation, ModuleOperation?> begin)
     {
         if (!TryGetStation(station, out var config))
+        {
+            return null;
+        }
+
+        // 这个站点不许用这只手：手动、自动下的单一样拒。
+        if (!config.AllowsArm(arm))
         {
             return null;
         }

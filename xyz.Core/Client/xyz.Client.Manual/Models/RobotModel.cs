@@ -338,6 +338,7 @@ public class RobotModel : ObservableObject
                     Direction = info.Direction,
                     Y = info.Y,
                     SlotCount = info.SlotCount,
+                    Arms = [.. info.Arms],
                 })
                 .ToList()
             : dto.Stations
@@ -397,7 +398,8 @@ public class RobotModel : ObservableObject
                 || a.Number != b.Number
                 || a.Direction != b.Direction
                 || a.Y != b.Y
-                || a.SlotCount != b.SlotCount)
+                || a.SlotCount != b.SlotCount
+                || !a.Arms.SequenceEqual(b.Arms))
             {
                 return false;
             }
