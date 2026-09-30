@@ -97,6 +97,13 @@ public static class ServiceCollectionExtensions
             io.Open();
         }
 
+        // 安全信号（Safety 节点下的急停、维修门、漏液、厂务气源/排风这些）：不是模块，给它单起一条扫描线程监控。
+        // 排在 IO 表之后：子节点读点要走点表。
+        foreach (var safety in roots.OfType<SafetyComponent>())
+        {
+            safety.Start();
+        }
+
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 
         // 各轴把收发两块登记进 PLC 缓存，与 Init（回零）分开；断线重连由轴自身扫描处理。
@@ -152,13 +159,14 @@ public static class ServiceCollectionExtensions
         // IO 点位：按周期整包推给 IO 界面，界面只订阅不拉。
         IoPublisher.Start();
 
-        // 数据曲线：每秒采一整行（IO 点 + 数值 SV）入库；实时曲线订阅同一份采样，留最近一段、推给界面。
+        // 数据曲线：每秒采一整行入库——只记 sc.xml 里配置了的（组件上的 SV + 组件绑的 IO）；
+        // 实时曲线订阅同一份采样，留最近一段、推给界面。
         // 放在最后：采样要读 SV 编号表和 IO 点表，都得先备好。
         if (DataChartComponent.Current is { } dataChart)
         {
             RealChartComponent.Current?.Attach(dataChart);
             RealChartPublisher.Start();
-            dataChart.StartSampling();
+            dataChart.StartSampling(roots);
         }
         else
         {

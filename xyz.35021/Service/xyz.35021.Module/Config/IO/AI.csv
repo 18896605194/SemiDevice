@@ -1,4 +1,8 @@
 ﻿Index,Module,Component,Name,Tag,Description,Unit,PhysicalMax,PhysicalMin,LogicalMax,LogicalMin
+0,Safety,CdaPressure,CDA_Pressure,Pressure,气源（CDA）压力,MPa,32767,0,1,0
+1,Safety,ExhaustPressure,Exhaust_Pressure,Pressure,厂务排风压力,Pa,32767,0,1000,0
+2,Safety,VacuumPressure,Vacuum_Pressure,Pressure,真空压力,kPa,32767,0,100,0
+3,Safety,CabinetTemperature,Cabinet_Temperature,Temperature,电控柜温度,℃,32767,0,100,0
 100,Chamber1,Arm1.Nozzle_DIW,CH1_DIW_Flow,Flow,Chamber1 DIW 流量,L/min,32767,0,3,0
 101,Chamber1,Arm1.Nozzle_SC1,CH1_SC1_Flow,Flow,Chamber1 SC1 流量,L/min,32767,0,3,0
 102,Chamber1,Exhaust,CH1_Exhaust_Pressure,Pressure,Chamber1 排风压力,Pa,32767,0,500,0

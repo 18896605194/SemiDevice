@@ -27,7 +27,12 @@ public class SystemService : ISystemService
         var settings = new SystemSettingsDto
         {
             Language = string.IsNullOrWhiteSpace(language) ? SystemSettingsDto.DefaultLanguage : language,
-            Modules = [.. _roots.OfType<BaseModule>().Where(module => module.IsEnabled).Select(module => module.Name)],
+            // 配了安全信号（Safety 节点下有子节点）时，它排在最前面：IO 页给它单独一页。
+            Modules =
+            [
+                .. _roots.OfType<SafetyComponent>().Where(safety => safety.Children.Count > 0).Select(safety => safety.Name),
+                .. _roots.OfType<BaseModule>().Where(module => module.IsEnabled).Select(module => module.Name),
+            ],
             Chambers = [.. _roots.OfType<BaseChamberModule>().Where(module => module.IsEnabled).Select(module => module.Name)],
         };
 

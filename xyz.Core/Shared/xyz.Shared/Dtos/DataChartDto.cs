@@ -3,7 +3,8 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 数据曲线（实时曲线也用）的一个信号。名字按点号分层（模块 → 部件 → 属性），界面照它长出勾选树；
+/// 数据曲线（实时曲线也用）的一个信号。名字全部由 sc.xml 生成、按点号分层（模块 → 部件 → 属性），界面照它长出勾选树：
+/// SV = 组件全路径.属性名；组件绑的 IO = 组件全路径.配置项名去掉 Index（Chamber1.Door.DiOpened）。
 /// 名字就是库表里的列名，查询按名字查。
 /// </summary>
 public class DataChartSignalDto
@@ -11,22 +12,31 @@ public class DataChartSignalDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 开关量（DI/DO、布尔 SV）：值只有 0/1，界面在图的下方分道画。
+    /// 开关量（DI/DO、布尔 SV）：值只有 1/0（true=1、false=0），界面在图的下方分道画。
     /// </summary>
     public bool IsDigital { get; set; }
 
     /// <summary>
-    /// 来源：SV / DI / DO / AI / AO；保留期内库里有、现在已经不采的信号为空。
+    /// 来源：SV / DI / DO / AI / AO。
     /// </summary>
     public string Source { get; set; } = string.Empty;
 
+    /// <summary>
+    /// IO 点的地址（DI100 这种）；SV 为空。
+    /// </summary>
+    public string Address { get; set; } = string.Empty;
+
     public string Unit { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 说明：SV 的描述；IO 是点表里的点名和描述。
+    /// </summary>
     public string Description { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：正在采的在前（带单位、说明），保留期内有过、现在不采的在后（只有名字）。
+/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：就是正在记的那些——sc.xml 里配置了的（组件上的 SV + 组件绑的 IO），
+/// 顺序跟 sc.xml 一样；库里记的也正是这些。
 /// </summary>
 public class DataChartSignalsDto
 {

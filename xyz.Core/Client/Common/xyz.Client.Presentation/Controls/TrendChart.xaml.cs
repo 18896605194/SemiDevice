@@ -18,7 +18,7 @@ namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 趋势图：ScottPlot 5 的封装，数据曲线、实时曲线两页共用。
-/// 喂给它一组 <see cref="TrendSeries"/>（Series），它负责：配色、按单位分纵轴（第一种单位左轴、第二种右轴，再多往两边加）、
+/// 喂给它一组 <see cref="TrendSeries"/>（Series），它负责：配色；纵轴只有左边一根，所有模拟量曲线共用（不按单位分轴）；
 /// 开关量在图的下方分道画阶梯线、模拟量在上方；纵轴按当前看到的那段数据自动适配（中键框选放大后按框定住，双击恢复）。
 /// 采样点不挤的时候每个点画一个小圆点；鼠标悬停时对准最近的采样时刻，每条线在这一刻的点放大高亮，旁边弹出数值框（时刻、点名、值）。
 /// 横轴是时间：RangeStart/RangeEnd 是"整段"，FollowRange 为真时横轴跟着它走（实时曲线每秒挪一格就是这么挪的）；
@@ -58,21 +58,9 @@ public partial class TrendChart : UserControl
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
     /// <summary>
-    /// 模拟量占图的上方这一段（从下往上的比例）；有开关量时下沿让到开关量那段之上。
+    /// 纵轴自动适配时，数据的最小、最大值上下各留这么一点空（占数据跨度的比例），贴着边的线看得见。
     /// </summary>
-    private const double AnalogBandTop = 0.95;
-
-    private const double BandGap = 0.06;
-
-    /// <summary>
-    /// 开关量每一道占的高度比例，道多了整段最多占一半。
-    /// </summary>
-    private const double LaneHeight = 0.08;
-
-    /// <summary>
-    /// 开关量在自己那一道里 0 和 1 之间占道高的比例，上下各留一点空，相邻两道的线不挨着。
-    /// </summary>
-    private const double LaneFill = 0.7;
+    private const double ValueMargin = 0.05;
 
     /// <summary>
     /// 滚轮一格缩放的比例。
@@ -80,7 +68,7 @@ public partial class TrendChart : UserControl
     private const double WheelZoom = 0.8;
 
     /// <summary>
-    /// 模拟量纵轴最少撑开到数值大小的这个比例。
+    /// 纵轴最少撑开到数值大小的这个比例。
     /// </summary>
     private const double MinSpanRatio = 0.02;
 
@@ -111,6 +99,12 @@ public partial class TrendChart : UserControl
     /// </summary>
     private const double MinBoxPixels = 6;
 
+    /// <summary>
+    /// 图上文字用的字体：挑一个中文和 ℃ 这类符号都显示得出来的（本机上是 Microsoft YaHei UI）。
+    /// 不能写死 Microsoft YaHei——图表库按这个名字找不到字体，会退回没有中文的 Segoe UI，单位里的 ℃ 就成了方框。
+    /// </summary>
+    private static readonly string ChartFont = Fonts.Detect("温度℃");
+
     private readonly Plot _plot;
 
     private readonly Dictionary<TrendSeries, Scatter> _lines = [];
@@ -121,21 +115,15 @@ public partial class TrendChart : UserControl
     private readonly Dictionary<TrendSeries, Marker> _highlights = [];
 
     /// <summary>
-    /// 模拟量纵轴：第 0 个是左轴、第 1 个是右轴，再往后是加出来的；每根轴配一个只在自己那段出刻度的刻度生成器。
+    /// 纵轴只有左边这一根：所有曲线（模拟量、开关量）都按真实数值画在它上面，不按单位分轴、不给开关量另外分道——
+    /// 线在哪个刻度上，值就是多少。
     /// </summary>
-    private readonly List<(IYAxis Axis, BandTickGenerator Ticks)> _analogAxes = [];
+    private readonly IYAxis _valueAxis;
 
     /// <summary>
-    /// 模拟量的单位，按分到的纵轴排（跟 _analogAxes 一一对应）。
+    /// 中键框选放大后定住的纵轴范围；没框过就是 null，纵轴自动适配。双击回到整段时清掉。
     /// </summary>
-    private List<string> _units = [];
-
-    /// <summary>
-    /// 中键框选放大后按单位定住的纵轴范围；没有的单位照样自动适配。双击回到整段时清掉。
-    /// </summary>
-    private readonly Dictionary<string, (double Min, double Max)> _manualRanges = [];
-
-    private readonly IYAxis _digitalAxis;
+    private (double Min, double Max)? _manualRange;
 
     private readonly VerticalLine _cursorLine;
 
@@ -148,11 +136,6 @@ public partial class TrendChart : UserControl
     private bool _renderWhenVisible;
 
     private bool _fitPending = true;
-
-    /// <summary>
-    /// 模拟量那一段的下沿（从下往上的比例），中键框选时判断框的是模拟量还是开关量。
-    /// </summary>
-    private double _analogBottom = 0.05;
 
     private double _timeSpanDays;
 
@@ -187,15 +170,8 @@ public partial class TrendChart : UserControl
         _timeTicks = (DateTimeAutomatic)timeAxis.TickGenerator;
         _timeTicks.LabelFormatter = FormatTime;
 
-        _analogAxes.Add((_plot.Axes.Left, new BandTickGenerator()));
-        _analogAxes.Add((_plot.Axes.Right, new BandTickGenerator()));
-        foreach (var (axis, ticks) in _analogAxes)
-        {
-            axis.TickGenerator = ticks;
-        }
-
-        _digitalAxis = _plot.Axes.AddLeftAxis();
-        _digitalAxis.IsVisible = false;
+        _valueAxis = _plot.Axes.Left;
+        _plot.Axes.Right.IsVisible = false;
 
         _cursorLine = _plot.Add.VerticalLine(0);
         _cursorLine.LinePattern = LinePattern.Dashed;
@@ -410,29 +386,10 @@ public partial class TrendChart : UserControl
 
         _plot.MoveToFront(_cursorLine);
 
-        // 模拟量：一种单位一根纵轴，按第一次出现的先后分：左、右，再往两边加。
-        _units = series.Where(item => !item.IsDigital).Select(item => item.Unit).Distinct().ToList();
-        while (_analogAxes.Count < _units.Count)
-        {
-            IYAxis axis = _analogAxes.Count % 2 == 0 ? _plot.Axes.AddLeftAxis() : _plot.Axes.AddRightAxis();
-            var ticks = new BandTickGenerator();
-            axis.TickGenerator = ticks;
-            StyleAxis(axis);
-            _analogAxes.Add((axis, ticks));
-        }
-
-        while (_analogAxes.Count > Math.Max(2, _units.Count))
-        {
-            _plot.Axes.Remove(_analogAxes[^1].Axis);
-            _analogAxes.RemoveAt(_analogAxes.Count - 1);
-        }
-
-        for (int index = 0; index < _analogAxes.Count; index++)
-        {
-            var axis = _analogAxes[index].Axis;
-            axis.IsVisible = index < _units.Count;
-            axis.Label.Text = index < _units.Count ? _units[index] : string.Empty;
-        }
+        // 模拟量都画在左边这一根纵轴上。几条线单位一样就把单位标在轴上，单位不一样就不标（各自的单位看数值框和信息表）。
+        var units = series.Where(item => !item.IsDigital).Select(item => item.Unit).Distinct().ToList();
+        _valueAxis.IsVisible = units.Count > 0;
+        _valueAxis.Label.Text = units.Count == 1 ? units[0] : string.Empty;
 
         // 开关量：先勾的在最上面一道。
         var digital = series.Where(item => item.IsDigital).ToList();
@@ -448,7 +405,7 @@ public partial class TrendChart : UserControl
             }
             else
             {
-                line.Axes.YAxis = _analogAxes[_units.IndexOf(item.Unit)].Axis;
+                line.Axes.YAxis = _valueAxis;
                 line.ScaleY = 1;
                 line.OffsetY = 0;
             }
@@ -462,7 +419,7 @@ public partial class TrendChart : UserControl
     /// </summary>
     private void FitTime(List<TrendSeries> series)
     {
-        _manualRanges.Clear();
+        _manualRange = null;
 
         double left;
         double right;
@@ -510,16 +467,12 @@ public partial class TrendChart : UserControl
         double digitalTop = analog.Count == 0 ? 0.97 : Math.Clamp(0.03 + digital * LaneHeight, 0.2, 0.5);
         _analogBottom = digital == 0 ? 0.05 : digitalTop + BandGap;
 
-        for (int index = 0; index < _units.Count; index++)
+        if (analog.Count > 0)
         {
-            var (min, max) = _manualRanges.TryGetValue(_units[index], out var manual)
-                ? manual
-                : DataRange(analog.Where(item => item.Unit == _units[index]), left, right);
-
-            var (axis, ticks) = _analogAxes[index];
-            ticks.BandMin = min;
-            ticks.BandMax = max;
-            SetBand(axis, min, max, _analogBottom, AnalogBandTop);
+            var (min, max) = _manualRange ?? DataRange(analog, left, right);
+            _valueTicks.BandMin = min;
+            _valueTicks.BandMax = max;
+            SetBand(_valueAxis, min, max, _analogBottom, AnalogBandTop);
         }
 
         if (digital > 0)
@@ -884,17 +837,13 @@ public partial class TrendChart : UserControl
         _plot.Axes.SetLimitsX(timeFrom, timeTo);
 
         double centerFraction = rect.Height > 0 ? (rect.Bottom - (top + bottom) / 2) / rect.Height : 0;
-        if (bottom - top >= MinBoxPixels && centerFraction >= _analogBottom)
+        if (bottom - top >= MinBoxPixels && centerFraction >= _analogBottom && _valueAxis.IsVisible)
         {
-            for (int index = 0; index < _units.Count; index++)
+            double low = _valueAxis.GetCoordinate(bottom, rect);
+            double high = _valueAxis.GetCoordinate(top, rect);
+            if (high > low)
             {
-                var axis = _analogAxes[index].Axis;
-                double low = axis.GetCoordinate(bottom, rect);
-                double high = axis.GetCoordinate(top, rect);
-                if (high > low)
-                {
-                    _manualRanges[_units[index]] = (low, high);
-                }
+                _manualRange = (low, high);
             }
         }
 
@@ -936,14 +885,14 @@ public partial class TrendChart : UserControl
     #region 外观
 
     /// <summary>
-    /// 暗色主题：颜色全从 DarkColors.xaml 取；字体用微软雅黑，单位里有中文也显示得出来。
+    /// 暗色主题：颜色全从 DarkColors.xaml 取；字体用 ChartFont，单位里有中文、℃ 也显示得出来。
     /// </summary>
     private void ApplyTheme()
     {
         _plot.FigureBackground.Color = ResourceColor("DarkSurfaceBackground");
         _plot.DataBackground.Color = ResourceColor("DarkWindowBackground");
         _plot.Grid.MajorLineColor = ResourceColor("DarkChartGrid");
-        _plot.Font.Set("Microsoft YaHei");
+        _plot.Font.Set(ChartFont);
         foreach (var axis in _plot.Axes.GetAxes())
         {
             StyleAxis(axis);
@@ -957,9 +906,9 @@ public partial class TrendChart : UserControl
     {
         var text = ResourceColor("DarkChartAxisText");
         axis.Label.ForeColor = text;
-        axis.Label.FontName = "Microsoft YaHei";
+        axis.Label.FontName = ChartFont;
         axis.TickLabelStyle.ForeColor = text;
-        axis.TickLabelStyle.FontName = "Microsoft YaHei";
+        axis.TickLabelStyle.FontName = ChartFont;
         axis.MajorTickStyle.Color = text;
         axis.MinorTickStyle.Color = text;
         axis.FrameLineStyle.Color = ResourceColor("DarkBorderBrush");

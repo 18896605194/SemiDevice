@@ -30,10 +30,10 @@ public sealed class CollectedSv
 }
 
 /// <summary>
-/// 能画成曲线的一项 SV（布尔、整数、浮点、枚举）：全名、格式、单位、说明，Read 现读当前值——
+/// 能画成曲线的一项 SV（布尔、整数、浮点、枚举）：全名、所在组件、格式、单位、说明，Read 现读当前值——
 /// 布尔记 0/1、枚举记它的数值，读不出来或不是有限数给 null。
 /// </summary>
-public sealed record NumericSv(string Name, ValueFormat Format, string Unit, string Description, Func<double?> Read);
+public sealed record NumericSv(string Name, ComponentBase Owner, ValueFormat Format, string Unit, string Description, Func<double?> Read);
 
 /// <summary>
 /// SV 采集器：启动时把组件树上的 [VariableMark(SV)] 合并进 SvDefinitions.xml，分配 SVID（30000–49999）；
@@ -125,7 +125,7 @@ public sealed class SvCollector
     {
         return _items
             .Where(item => item.Declaration.Mark.Format != ValueFormat.String)
-            .Select(item => new NumericSv(item.Row.Name, item.Declaration.Mark.Format, item.Row.Unit,
+            .Select(item => new NumericSv(item.Row.Name, item.Declaration.Owner, item.Declaration.Mark.Format, item.Row.Unit,
                 item.Row.Description, () => ReadNumber(item.Declaration)))
             .ToList();
     }

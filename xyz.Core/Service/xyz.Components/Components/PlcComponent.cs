@@ -436,6 +436,13 @@ public partial class PlcComponent : ComponentBase, IPlc
         {
             if (!ReadDevice(path, out var data))
             {
+                // 这一拍没读回来，缓存里那份就是旧的，拿掉：读不到就是读不到，
+                // 不能让上层把上一拍（甚至 PLC 重启前）的值当成现在的值用、当成实时数据记下来。
+                lock (_cacheGate)
+                {
+                    _cache.Remove(path);
+                }
+
                 RaiseAlarm(PlcDataErrorAlarm);
                 continue;
             }

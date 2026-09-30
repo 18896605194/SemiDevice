@@ -89,12 +89,13 @@
             Text="{Binding Name}" />
     </DataTemplate>
 
-    <!--  底部导航二级页面：放在托盘里的分段按钮；其它页 = 灰字，悬停提亮；当前页 = 实心强调色白字  -->
+    <!--  底部导航二级页面：放在托盘里的分段按钮；其它页 = 灰字，悬停提亮；当前页 = 实心强调色白字。
+          宽度按"IO 下 8 项（Safety + 7 个模块）一行放得下"定的，再加宽最右边的会被挤出窗口  -->
     <Style x:Key="SubNavListBoxItemStyle" TargetType="ListBoxItem">
-        <Setter Property="MinWidth" Value="104" />
+        <Setter Property="MinWidth" Value="96" />
         <Setter Property="Height" Value="36" />
         <Setter Property="Margin" Value="1,0" />
-        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="Padding" Value="16,0" />
         <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Cursor" Value="Hand" />

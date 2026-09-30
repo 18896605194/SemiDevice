@@ -15,6 +15,7 @@ internal static class ChartMapper
             Name = signal.Name,
             IsDigital = signal.IsDigital,
             Source = signal.Source,
+            Address = signal.Address,
             Unit = signal.Unit,
             Description = signal.Description,
         };

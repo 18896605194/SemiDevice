@@ -91,6 +91,7 @@ public class BeckhoffPlcComponent : PlcComponent
         lock (_handleGate)
         {
             _handles.Clear();
+            _readFaults.Clear();
         }
 
         _symbols = null;
@@ -157,7 +158,13 @@ public class BeckhoffPlcComponent : PlcComponent
             var result = client.ReadAsResult(handle, size);
             if (!result.Succeeded)
             {
+                DropHandle(client, path, handle, result.ErrorCode.ToString());
                 return false;
+            }
+
+            lock (_handleGate)
+            {
+                _readFaults.Remove(path);
             }
 
             data = result.Data.ToArray();
@@ -167,6 +174,40 @@ public class BeckhoffPlcComponent : PlcComponent
         {
             OnAdsFailed(path, exception);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 块名 → 最近一次读失败的错误码：同样的错只记一次日志（扫描 50ms 一拍，不然一秒二十条）。
+    /// </summary>
+    private readonly Dictionary<string, string> _readFaults = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 没抛异常但没读成：多半是 PLC 重启、重新下载过程序，手里的句柄作废了。
+    /// 把这个句柄扔掉，下一拍重新取——PLC 回来以后自己就恢复，不用重启后端。
+    /// </summary>
+    private void DropHandle(AdsClient client, string path, uint handle, string error)
+    {
+        bool isNew;
+        lock (_handleGate)
+        {
+            _handles.Remove(path);
+            isNew = !_readFaults.TryGetValue(path, out var last) || last != error;
+            _readFaults[path] = error;
+        }
+
+        try
+        {
+            client.DeleteVariableHandle(handle);
+        }
+        catch
+        {
+            // 句柄本来就作废了，删不掉正常。
+        }
+
+        if (isNew)
+        {
+            LogHelper.Warn($"[{FullPath}] 读 {path} 没读成（{error}），句柄作废，下一拍重新取");
         }
     }
 

@@ -58,16 +58,98 @@
 	</Setting>
 	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv）是机型的东西，源文件在 xyz.35021\Service\xyz.35021.Module\Config\IO，
 	     编译时由机型项目部署到宿主输出目录里本文件同目录的 IO\ 下；仿真器 Machines\35021\IO 里是同一份，改了两边一起改。Module 列就是模块名（LoadPort1、Chamber1……），IO 界面按它分页；
-	     点位分段：LoadPort1/2 从 32/48 起（E84 + 光幕），Robot1 从 64 起，Chamber1~4 的 DI/DO 从 100/140/180/220 起、每段 40 点，
-	     AI 从 100/120/140/160 起、每段 20 点；同一部件的 DO 与 DI 偏移对齐。
+	     点位分段：Safety（整机安全信号）DI 从 0 起、AI 从 0 起；LoadPort1/2 从 32/48 起（E84 + 光幕），Robot1 从 64 起，
+	     Chamber1~4 的 DI/DO 从 100/140/180/220 起、每段 40 点，AI 从 100/120/140/160 起、每段 20 点；同一部件的 DO 与 DI 偏移对齐。
 	     每拍从 PLC 缓存刷一遍；上层按索引取点，界面订阅后端推来的整包 -->
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
 	</Setting>
-	<!-- 数据曲线：每个采样周期采一整行（全部 IO 点 + 能画成曲线的 SV），值没变也记，读不到的存空不存 0。
-	     入 Io 库，按天一张宽表 DataRecord_yyyyMMdd：Time（UTC 毫秒）+ 每个信号一列，列名就是信号名
-	     （SV = 组件全路径.属性名，IO 点 = Module.Component.Tag），数据曲线页按名字查。
-	     Exclude 写不采的信号，逗号分隔，可写上级路径整枝去掉（如 LoadPort1.E84）；
+	<!-- 安全：整机的安全信号（急停、维修门、漏液、烟感、厂务气源/排风……），不归哪个模块管，一个信号一个子节点。
+	     DI 用 DiSensorComponent：DiIndex 点号，TriggerLevel 报警电平（High = 高电平报警，Low = 低电平报警），AlarmEnabled 是否报警；
+	     AI 用 AiSensorComponent：AiIndex 点号，上下限、预警带、防抖在 ec.xml（都为 0 = 没标定不判）。
+	     开机后自己一条扫描线程监控。点位在点表的 Safety 段。
+	     绑在这儿的点才进数据曲线（库里记、勾选树里有）；IO 页里 Safety 单独一页。
+	     报警先都关着（AlarmEnabled=False）：要报哪个，把它的 AlarmEnabled 改成 True -->
+	<Setting Name="Safety" Type="xyz.Components.Components.SafetyComponent">
+		<!-- 急停回路：1 = 正常，按下急停为 0 -->
+		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="0" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<!-- 维修门：1 = 关好，门开为 0 -->
+		<Setting Name="FrontDoor" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="1" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="RearDoor" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="2" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="LeftDoor" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="3" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="RightDoor" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="4" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<!-- 漏液、烟感：1 = 有漏液 / 有烟 -->
+		<Setting Name="LeakTray" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="5" />
+			<Value Name="TriggerLevel" Value="High" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="LeakCabinet" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="6" />
+			<Value Name="TriggerLevel" Value="High" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="Smoke" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="7" />
+			<Value Name="TriggerLevel" Value="High" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<!-- 厂务开关量：1 = 正常 -->
+		<Setting Name="CdaOk" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="8" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="ExhaustOk" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="9" />
+			<Value Name="TriggerLevel" Value="Low" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<!-- 整机模拟量：气源压力、厂务排风压力、真空压力、电控柜温度 -->
+		<Setting Name="CdaPressure" Type="xyz.Components.Components.AiSensorComponent">
+			<Value Name="AiIndex" Value="0" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="ExhaustPressure" Type="xyz.Components.Components.AiSensorComponent">
+			<Value Name="AiIndex" Value="1" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="VacuumPressure" Type="xyz.Components.Components.AiSensorComponent">
+			<Value Name="AiIndex" Value="2" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="CabinetTemperature" Type="xyz.Components.Components.AiSensorComponent">
+			<Value Name="AiIndex" Value="3" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+	</Setting>
+	<!-- 数据曲线：每个采样周期采一整行，值没变也记，读不到的存空不存 0。
+	     只记本文件里配置了的：组件上能画成曲线的 SV，加上组件绑的 IO（DiXxxIndex / DoXxxIndex / AiXxxIndex / AoXxxIndex 这类配置项，-1 不算）。
+	     点表里有、但没绑到组件上的点不记——想看哪个点，就把它绑到组件上（整机信号绑在上面的 Safety 里），重启后开始记。
+	     入 Io 库，按天一张宽表 DataRecord_yyyyMMdd：Time（UTC 毫秒）+ 每个信号一列，列名全部由本文件生成、跟这里的层级一一对应：
+	     SV = 组件全路径.属性名；IO = 组件全路径.配置项名去掉 Index（Chamber1.Door.DiOpened、Safety.LeakTray.Di）。开关量存 1/0。
+	     数据曲线、实时曲线页的勾选树列的就是这些，所以看得到的一定查得到。
+	     Exclude 写不记的信号，逗号分隔，可写上级路径整枝去掉（如 LoadPort1.E84）；
 	     入库批量、积压告警是 EC（RecordBatchSeconds / RecordBacklogWarning），在 ec.xml -->
 	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
 		<Value Name="EnableRecord" Value="True" />
