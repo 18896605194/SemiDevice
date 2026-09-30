@@ -11,7 +11,7 @@ namespace xyz._35021.Client;
 /// 35021 机型模块的客户端服务注册：页面按菜单 Code 注册成 keyed UserControl，
 /// 平台主界面按菜单 Code 从 DI 取页面塞进中间内容区。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     public static IServiceCollection AddXyz35021ClientServices(this IServiceCollection services)
     {
