@@ -127,8 +127,7 @@ public partial class Robot : UserControl
     public Robot()
     {
         InitializeComponent();
-        Loaded += OnLoaded;
-        Unloaded += OnUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
         SyncArms();
     }
 
@@ -582,16 +581,18 @@ public partial class Robot : UserControl
 
     #region 渲染循环
 
-    private void OnLoaded(object sender, RoutedEventArgs args)
+    /// <summary>
+    /// 按"看不看得见"跟帧，不按加载/卸载：页面常驻内容区（切页只切可见性），藏着的时候不该跟着渲染帧空转。
+    /// 首次显示（或切回页面）直接落到当前姿态，不从旧姿态补播动画。
+    /// </summary>
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs args)
     {
-        // 首次显示（或切回页面）直接落到当前姿态，不从旧姿态补播动画。
-        JumpToTargets();
-        PushFrame();
-        UpdateRendering();
-    }
+        if (IsVisible)
+        {
+            JumpToTargets();
+            PushFrame();
+        }
 
-    private void OnUnloaded(object sender, RoutedEventArgs args)
-    {
         UpdateRendering();
     }
 
@@ -607,7 +608,7 @@ public partial class Robot : UserControl
     /// </summary>
     private void UpdateRendering()
     {
-        bool needed = IsLoaded && HasActiveTracks;
+        bool needed = IsVisible && HasActiveTracks;
         if (needed == _isRendering)
         {
             return;

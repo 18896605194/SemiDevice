@@ -26,6 +26,38 @@
     <!-- 未初始化 / 停用：灰 -->
     <SolidColorBrush x:Key="DarkInactiveStatus" Color="#616161" />
 
+    <!-- 趋势图（数据曲线、实时曲线）：绘图区、网格、坐标轴文字 -->
+    <SolidColorBrush x:Key="DarkChartGrid" Color="#2E2E2E" />
+    <SolidColorBrush x:Key="DarkChartAxisText" Color="#BDBDBD" />
+    <!-- 中键框选放大时拖出来的框：半透明强调色 -->
+    <SolidColorBrush x:Key="DarkChartZoomFill" Color="#3342A5F5" />
+    <!-- 悬停数值框的底色：比绘图区亮一档、略透，压在曲线上也看得清 -->
+    <SolidColorBrush x:Key="DarkChartHoverBackground" Color="#E62B2B2B" />
+
+    <!-- 趋势图曲线配色：按勾选顺序轮着用，暗底上彼此分得开 -->
+    <x:Array x:Key="TrendPalette" Type="{x:Type Color}">
+        <Color>#4FC3F7</Color>
+        <Color>#FFB74D</Color>
+        <Color>#81C784</Color>
+        <Color>#E57373</Color>
+        <Color>#BA68C8</Color>
+        <Color>#FFF176</Color>
+        <Color>#4DB6AC</Color>
+        <Color>#F06292</Color>
+        <Color>#9575CD</Color>
+        <Color>#AED581</Color>
+        <Color>#FF8A65</Color>
+        <Color>#90A4AE</Color>
+        <Color>#64B5F6</Color>
+        <Color>#DCE775</Color>
+        <Color>#A1887F</Color>
+        <Color>#4DD0E1</Color>
+        <Color>#FFD54F</Color>
+        <Color>#7986CB</Color>
+        <Color>#E0E0E0</Color>
+        <Color>#CE93D8</Color>
+    </x:Array>
+
     <!-- 暗色右键菜单 -->
     <SolidColorBrush x:Key="RightMenuBackground" Color="#252525" />
     <SolidColorBrush x:Key="RightMenuBorder" Color="#424242" />

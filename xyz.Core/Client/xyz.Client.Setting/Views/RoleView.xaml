@@ -24,11 +24,11 @@
                     <Button
                         Command="{Binding CreateRoleCommand}"
                         Content="{DynamicResource common.create}"
-                        Style="{DynamicResource DefaultButtonStyle}" />
+                        Style="{DynamicResource ToolbarButtonStyle}" />
                     <Button
                         Command="{Binding DeleteRoleCommand}"
                         Content="{DynamicResource common.delete}"
-                        Style="{DynamicResource DangerButtonStyle}" />
+                        Style="{DynamicResource ToolbarDangerButtonStyle}" />
                 </StackPanel>
             </Border>
 

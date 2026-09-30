@@ -1,0 +1,74 @@
+﻿<UserControl
+    x:Class="xyz.Client.DataCenter.Views.SignalTreePanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:presentation="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    d:DesignHeight="700"
+    d:DesignWidth="320"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <!--  信号勾选树（数据曲线、实时曲线两页共用，DataContext 是页面的 ViewModel）：
+          模块 → 部件 → 属性，跟 sc.xml 的组件层级一个样子；勾模块、部件就是勾下面全部（搜索时只勾看得见的）。
+          名字后面的小字是来源和单位，悬停看全名和说明  -->
+    <materialDesign:Card Padding="12,12,12,8" Style="{DynamicResource DefaultCardStyle}">
+        <DockPanel>
+            <DockPanel Margin="0,0,0,4" DockPanel.Dock="Top">
+                <Button
+                    Command="{Binding RefreshSignalsCommand}"
+                    Content="{DynamicResource chart.refresh}"
+                    DockPanel.Dock="Right"
+                    Style="{DynamicResource CompactButtonStyle}" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Style="{DynamicResource SectionTitleTextStyle}"
+                    Text="{DynamicResource chart.signals}" />
+            </DockPanel>
+
+            <presentation:InputTextBox
+                Margin="0,4"
+                materialDesign:HintAssist.Hint="{DynamicResource chart.search}"
+                DataType="Text"
+                DockPanel.Dock="Top"
+                Style="{DynamicResource DefaultTextBoxStyle}"
+                Value="{Binding SearchText}" />
+
+            <DockPanel Margin="0,6,0,0" DockPanel.Dock="Bottom">
+                <Button
+                    Command="{Binding ClearCommand}"
+                    Content="{DynamicResource chart.clear}"
+                    DockPanel.Dock="Right"
+                    Style="{DynamicResource CompactButtonStyle}" />
+                <TextBlock VerticalAlignment="Center" Style="{DynamicResource ItemDetailTextStyle}">
+                    <Run Text="{DynamicResource chart.selected}" />
+                    <Run Text="{Binding Series.Count, Mode=OneWay}" />
+                    <Run Text="/" />
+                    <Run Text="{Binding MaxSignals, Mode=OneWay}" />
+                </TextBlock>
+            </DockPanel>
+
+            <TreeView
+                ItemContainerStyle="{DynamicResource CheckTreeViewItemStyle}"
+                ItemsSource="{Binding Signals}"
+                Style="{DynamicResource DefaultTreeViewStyle}"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling">
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" ToolTip="{Binding ToolTip}">
+                            <CheckBox VerticalAlignment="Center" IsChecked="{Binding IsChecked}" />
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="{Binding Name}" />
+                            <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{Binding Detail}" />
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+        </DockPanel>
+    </materialDesign:Card>
+</UserControl>

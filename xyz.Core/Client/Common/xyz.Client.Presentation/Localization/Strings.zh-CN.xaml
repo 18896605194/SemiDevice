@@ -50,6 +50,9 @@
 
     <sys:String x:Key="history.query_failed">查询失败：{0}</sys:String>
 
+    <sys:String x:Key="datachart.not_installed">数据曲线没装（sc.xml 没配 DataChart 节点）</sys:String>
+    <sys:String x:Key="realchart.not_installed">实时曲线没装（sc.xml 没配 RealChart 节点）</sys:String>
+
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
          界面语言由后端 sc.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
@@ -70,12 +73,13 @@
     <sys:String x:Key="common.query">查询</sys:String>
     <sys:String x:Key="common.today">今天</sys:String>
     <sys:String x:Key="common.last_7_days">最近 7 天</sys:String>
-    <sys:String x:Key="common.start_date">开始日期</sys:String>
-    <sys:String x:Key="common.end_date">结束日期</sys:String>
+    <sys:String x:Key="common.last_hour">最近 1 小时</sys:String>
+    <sys:String x:Key="common.start_time">开始时间</sys:String>
+    <sys:String x:Key="common.end_time">结束时间</sys:String>
     <sys:String x:Key="common.time">时间</sys:String>
     <sys:String x:Key="common.count">{0} 条</sys:String>
     <sys:String x:Key="common.total">共 {0} 条</sys:String>
-    <sys:String x:Key="common.query_hint">选好日期后点查询</sys:String>
+    <sys:String x:Key="common.query_hint">选好时间段后点查询</sys:String>
     <sys:String x:Key="common.query_failed">查询失败</sys:String>
     <sys:String x:Key="common.truncated">只显示最新的 {0} 条，缩短日期段或加条件再查</sys:String>
     <sys:String x:Key="common.days_duration">{0}天 {1}</sys:String>
@@ -140,6 +144,39 @@
     <sys:String x:Key="setting.role.user_count">用户数</sys:String>
     <sys:String x:Key="setting.role.create">创建角色</sys:String>
     <sys:String x:Key="setting.role.exists">角色名称已存在，请更换后重试</sys:String>
+
+    <!-- 数据曲线、实时曲线（两页共用左边的信号树和右下角的曲线信息） -->
+    <sys:String x:Key="chart.signals">信号</sys:String>
+    <sys:String x:Key="chart.search">搜信号名，回车筛选</sys:String>
+    <sys:String x:Key="chart.selected">已选</sys:String>
+    <sys:String x:Key="chart.clear">清空勾选</sys:String>
+    <sys:String x:Key="chart.refresh">刷新信号</sys:String>
+    <sys:String x:Key="chart.empty">勾选左边的信号，曲线画在这里</sys:String>
+    <sys:String x:Key="chart.popout">放大：在单独的窗口里全屏显示</sys:String>
+    <sys:String x:Key="chart.popin">收回到页面</sys:String>
+    <sys:String x:Key="chart.popped_out">曲线已在单独的窗口里全屏显示</sys:String>
+    <sys:String x:Key="chart.too_many">最多同时画 {0} 条曲线，先去掉几条再勾</sys:String>
+    <sys:String x:Key="chart.load_failed">信号表没拿到：{0}</sys:String>
+    <sys:String x:Key="chart.name">名称</sys:String>
+    <sys:String x:Key="chart.unit">单位</sys:String>
+    <sys:String x:Key="chart.cursor_value">光标处</sys:String>
+    <sys:String x:Key="chart.current_value">当前值</sys:String>
+    <sys:String x:Key="chart.min">最小</sys:String>
+    <sys:String x:Key="chart.max">最大</sys:String>
+    <sys:String x:Key="chart.avg">平均</sys:String>
+    <sys:String x:Key="chart.cursor_at">光标</sys:String>
+    <sys:String x:Key="chart.view">显示</sys:String>
+    <sys:String x:Key="datachart.querying">查询中…</sys:String>
+    <sys:String x:Key="datachart.points">共 {0} 个时间点</sys:String>
+    <sys:String x:Key="datachart.decimated">时间段较长，每 {0} 秒取最小、最大值画（统计按原始数据）</sys:String>
+    <sys:String x:Key="datachart.no_data">这段时间没有数据</sys:String>
+    <sys:String x:Key="realchart.window">显示范围</sys:String>
+    <sys:String x:Key="realchart.minute_unit">分钟</sys:String>
+    <sys:String x:Key="realchart.pause">暂停</sys:String>
+    <sys:String x:Key="realchart.resume">继续</sys:String>
+    <sys:String x:Key="realchart.live">实时刷新中，最新 {0:HH:mm:ss}</sys:String>
+    <sys:String x:Key="realchart.paused">已暂停：新数据照收，点"继续"回到最新</sys:String>
+    <sys:String x:Key="realchart.waiting">等后端推送数据…</sys:String>
 
     <!-- Io 页 -->
     <sys:String x:Key="io.point">点位</sys:String>
@@ -251,6 +288,8 @@
     <sys:String x:Key="menu.Alarm.History">报警历史</sys:String>
     <sys:String x:Key="menu.DataCenter.LogRealtime">实时日志</sys:String>
     <sys:String x:Key="menu.DataCenter.LogHistory">日志历史</sys:String>
+    <sys:String x:Key="menu.DataCenter.DataChart">数据曲线</sys:String>
+    <sys:String x:Key="menu.DataCenter.RealChart">实时曲线</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>
     <sys:String x:Key="menu.Setting.Role">角色管理</sys:String>
 
@@ -274,4 +313,11 @@
     <sys:String x:Key="io.invalid_value">“{0}”不是有效的数值</sys:String>
     <sys:String x:Key="io.write_failed">{0} {1} 写入失败（PLC 没连上、点表里没有这个点，或写 PLC 出错）</sys:String>
     <sys:String x:Key="io.out_of_range">AO {0} 下发值超出范围 {1} ~ {2} {3}</sys:String>
+
+    <!-- 通用输入框（InputTextBox）的默认错误提示；{0}{1} 是上下限，最后一个占位是单位（带前导空格，没有就空） -->
+    <sys:String x:Key="input.integer_required">请输入整数</sys:String>
+    <sys:String x:Key="input.number_required">请输入数字</sys:String>
+    <sys:String x:Key="input.range">范围 {0} ~ {1}{2}</sys:String>
+    <sys:String x:Key="input.min">不能小于 {0}{1}</sys:String>
+    <sys:String x:Key="input.max">不能大于 {0}{1}</sys:String>
 </ResourceDictionary>

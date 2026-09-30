@@ -17,11 +17,30 @@
         <Setter Property="BorderThickness" Value="0,0,0,2" />
     </Style>
 
+    <!--  页面顶上那一条工具栏：上下只留一点边，里面的控件用 Toolbar* 那套矮样式（34 高），整条不占地方  -->
     <Style
         x:Key="ToolbarBorderStyle"
         BasedOn="{StaticResource SurfaceCardBorderStyle}"
         TargetType="Border">
-        <Setter Property="Padding" Value="12" />
+        <Setter Property="Padding" Value="10,6" />
+    </Style>
+
+    <!--  趋势图的悬停数值框：鼠标对准的那一刻，每条线一行（颜色、点名、值）  -->
+    <Style x:Key="ChartHoverCardBorderStyle" TargetType="Border">
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Background" Value="{StaticResource DarkChartHoverBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="TextElement.FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+    <!--  趋势图中键框选时拖出来的框  -->
+    <Style x:Key="ChartZoomBoxBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DarkChartZoomFill}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <Style x:Key="TableHeaderBorderStyle" TargetType="Border">

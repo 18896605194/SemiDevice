@@ -34,6 +34,8 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
 
             new ClientMenu("DataCenter", "DataCenter.LogRealtime", 1),
             new ClientMenu("DataCenter", "DataCenter.LogHistory", 2),
+            new ClientMenu("DataCenter", "DataCenter.DataChart", 3),
+            new ClientMenu("DataCenter", "DataCenter.RealChart", 4),
 
             new ClientMenu("Setting", "Setting.User", 1),
             new ClientMenu("Setting", "Setting.Role", 2),

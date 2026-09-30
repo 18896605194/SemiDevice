@@ -49,6 +49,9 @@
 
     <sys:String x:Key="history.query_failed">Query failed: {0}</sys:String>
 
+    <sys:String x:Key="datachart.not_installed">Data chart is not installed (no DataChart node in sc.xml)</sys:String>
+    <sys:String x:Key="realchart.not_installed">Real-time chart is not installed (no RealChart node in sc.xml)</sys:String>
+
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
          The UI language comes from the System node (Language) in the backend sc.xml, fetched once at client startup. -->
@@ -69,12 +72,13 @@
     <sys:String x:Key="common.query">Search</sys:String>
     <sys:String x:Key="common.today">Today</sys:String>
     <sys:String x:Key="common.last_7_days">Last 7 days</sys:String>
-    <sys:String x:Key="common.start_date">Start date</sys:String>
-    <sys:String x:Key="common.end_date">End date</sys:String>
+    <sys:String x:Key="common.last_hour">Last hour</sys:String>
+    <sys:String x:Key="common.start_time">Start time</sys:String>
+    <sys:String x:Key="common.end_time">End time</sys:String>
     <sys:String x:Key="common.time">Time</sys:String>
     <sys:String x:Key="common.count">{0}</sys:String>
     <sys:String x:Key="common.total">{0} records</sys:String>
-    <sys:String x:Key="common.query_hint">Pick the dates, then click Search</sys:String>
+    <sys:String x:Key="common.query_hint">Pick the time range, then click Search</sys:String>
     <sys:String x:Key="common.query_failed">Search failed</sys:String>
     <sys:String x:Key="common.truncated">Showing only the latest {0} records; narrow the dates or add filters</sys:String>
     <sys:String x:Key="common.days_duration">{0}d {1}</sys:String>
@@ -139,6 +143,39 @@
     <sys:String x:Key="setting.role.user_count">Users</sys:String>
     <sys:String x:Key="setting.role.create">Create role</sys:String>
     <sys:String x:Key="setting.role.exists">The role name already exists; please choose another one</sys:String>
+
+    <!-- Data chart / real-time chart (both share the signal tree on the left and the curve info at the bottom right) -->
+    <sys:String x:Key="chart.signals">Signals</sys:String>
+    <sys:String x:Key="chart.search">Search signals, press Enter</sys:String>
+    <sys:String x:Key="chart.selected">Selected</sys:String>
+    <sys:String x:Key="chart.clear">Clear</sys:String>
+    <sys:String x:Key="chart.refresh">Refresh</sys:String>
+    <sys:String x:Key="chart.empty">Check signals on the left to plot them here</sys:String>
+    <sys:String x:Key="chart.popout">Enlarge: show in a separate full-screen window</sys:String>
+    <sys:String x:Key="chart.popin">Back to the page</sys:String>
+    <sys:String x:Key="chart.popped_out">The chart is shown in a separate full-screen window</sys:String>
+    <sys:String x:Key="chart.too_many">At most {0} curves at a time; uncheck some first</sys:String>
+    <sys:String x:Key="chart.load_failed">Could not load the signal list: {0}</sys:String>
+    <sys:String x:Key="chart.name">Name</sys:String>
+    <sys:String x:Key="chart.unit">Unit</sys:String>
+    <sys:String x:Key="chart.cursor_value">At cursor</sys:String>
+    <sys:String x:Key="chart.current_value">Current</sys:String>
+    <sys:String x:Key="chart.min">Min</sys:String>
+    <sys:String x:Key="chart.max">Max</sys:String>
+    <sys:String x:Key="chart.avg">Avg</sys:String>
+    <sys:String x:Key="chart.cursor_at">Cursor</sys:String>
+    <sys:String x:Key="chart.view">View</sys:String>
+    <sys:String x:Key="datachart.querying">Querying…</sys:String>
+    <sys:String x:Key="datachart.points">{0} time points</sys:String>
+    <sys:String x:Key="datachart.decimated">Long range: plotted as min/max per {0} s (statistics use the raw data)</sys:String>
+    <sys:String x:Key="datachart.no_data">No data in this range</sys:String>
+    <sys:String x:Key="realchart.window">Window</sys:String>
+    <sys:String x:Key="realchart.minute_unit">min</sys:String>
+    <sys:String x:Key="realchart.pause">Pause</sys:String>
+    <sys:String x:Key="realchart.resume">Resume</sys:String>
+    <sys:String x:Key="realchart.live">Live, latest {0:HH:mm:ss}</sys:String>
+    <sys:String x:Key="realchart.paused">Paused: data keeps arriving, click Resume to follow the latest</sys:String>
+    <sys:String x:Key="realchart.waiting">Waiting for data from the backend…</sys:String>
 
     <!-- IO page -->
     <sys:String x:Key="io.point">Point</sys:String>
@@ -250,6 +287,8 @@
     <sys:String x:Key="menu.Alarm.History">Alarm History</sys:String>
     <sys:String x:Key="menu.DataCenter.LogRealtime">Live Log</sys:String>
     <sys:String x:Key="menu.DataCenter.LogHistory">Log History</sys:String>
+    <sys:String x:Key="menu.DataCenter.DataChart">Data Chart</sys:String>
+    <sys:String x:Key="menu.DataCenter.RealChart">Real-time Chart</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>
     <sys:String x:Key="menu.Setting.Role">Roles</sys:String>
 
@@ -273,4 +312,11 @@
     <sys:String x:Key="io.invalid_value">"{0}" is not a valid number</sys:String>
     <sys:String x:Key="io.write_failed">{0} {1} write failed (PLC not connected, point not in the table, or PLC write error)</sys:String>
     <sys:String x:Key="io.out_of_range">AO {0}: value out of range {1} ~ {2} {3}</sys:String>
+
+    <!-- InputTextBox default error messages; {0}{1} are the limits, the last placeholder is the unit (with a leading space, or empty) -->
+    <sys:String x:Key="input.integer_required">Enter an integer</sys:String>
+    <sys:String x:Key="input.number_required">Enter a number</sys:String>
+    <sys:String x:Key="input.range">Range {0} ~ {1}{2}</sys:String>
+    <sys:String x:Key="input.min">Must be at least {0}{1}</sys:String>
+    <sys:String x:Key="input.max">Must be at most {0}{1}</sys:String>
 </ResourceDictionary>

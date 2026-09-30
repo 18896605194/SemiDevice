@@ -124,6 +124,8 @@ public static class IoPublisher
                         Component = point.Component,
                         Description = point.Description,
                         Unit = point.Unit,
+                        Min = point.IsScaled ? Math.Min(point.LogicalMin, point.LogicalMax) : null,
+                        Max = point.IsScaled ? Math.Max(point.LogicalMin, point.LogicalMax) : null,
                         IsOutput = isOutput,
                     });
                 }

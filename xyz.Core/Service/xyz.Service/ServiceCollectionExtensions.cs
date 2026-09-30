@@ -7,6 +7,7 @@ using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Service.Alarms;
+using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Service.Systems;
 using xyz.Service.UserManger;
@@ -151,6 +152,19 @@ public static class ServiceCollectionExtensions
         // IO 点位：按周期整包推给 IO 界面，界面只订阅不拉。
         IoPublisher.Start();
 
+        // 数据曲线：每秒采一整行（IO 点 + 数值 SV）入库；实时曲线订阅同一份采样，留最近一段、推给界面。
+        // 放在最后：采样要读 SV 编号表和 IO 点表，都得先备好。
+        if (DataChartComponent.Current is { } dataChart)
+        {
+            RealChartComponent.Current?.Attach(dataChart);
+            RealChartPublisher.Start();
+            dataChart.StartSampling();
+        }
+        else
+        {
+            LogHelper.Warn("DataChart", "sc.xml 没配 DataChart 节点：数据曲线、实时曲线都没有数据");
+        }
+
         LogHelper.Info($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
 
         #endregion
@@ -167,6 +181,9 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IAlarmService, AlarmService>();
         services.AddTransient<ISystemService, SystemService>();
         services.AddTransient<IIoService, IoService>();
+        services.AddTransient<IEcService, EcService>();
+        services.AddTransient<IDataChartService, DataChartService>();
+        services.AddTransient<IRealChartService, RealChartService>();
 
         #endregion
 

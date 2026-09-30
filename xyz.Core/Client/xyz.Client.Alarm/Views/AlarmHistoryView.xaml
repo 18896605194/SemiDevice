@@ -2,6 +2,7 @@
     x:Class="xyz.Client.Alarm.Views.AlarmHistoryView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -17,7 +18,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!--  查询条件：日期段（含首尾两天）、等级、关键字；今天 / 最近 7 天直接查  -->
+            <!--  查询条件：时间段（精确到分钟，截止那一分钟也算）、等级、关键字；今天 / 最近 7 天直接查  -->
             <Border Grid.Row="0" Style="{DynamicResource ToolbarBorderStyle}">
                 <DockPanel>
                     <TextBlock
@@ -25,43 +26,41 @@
                         Style="{DynamicResource StatusLabelTextStyle}"
                         Text="{Binding Summary}" />
                     <WrapPanel Orientation="Horizontal">
-                        <DatePicker
-                            Width="170"
-                            Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="{DynamicResource common.start_date}"
-                            SelectedDate="{Binding StartDate}"
-                            Style="{DynamicResource DefaultDatePickerStyle}" />
-                        <DatePicker
-                            Width="170"
-                            Margin="0,4,12,4"
-                            materialDesign:HintAssist.Hint="{DynamicResource common.end_date}"
-                            SelectedDate="{Binding EndDate}"
-                            Style="{DynamicResource DefaultDatePickerStyle}" />
+                        <controls:DateTimePicker
+                            Width="300"
+                            Margin="0,0,10,0"
+                            Hint="{DynamicResource common.start_time}"
+                            Value="{Binding StartTime}" />
+                        <controls:DateTimePicker
+                            Width="300"
+                            Margin="0,0,10,0"
+                            Hint="{DynamicResource common.end_time}"
+                            Value="{Binding EndTime}" />
                         <ComboBox
                             Width="140"
-                            Margin="0,4,12,4"
+                            Margin="0,0,10,0"
                             materialDesign:HintAssist.Hint="{DynamicResource alarmview.level}"
                             ItemsSource="{Binding Levels}"
                             SelectedItem="{Binding SelectedLevel}"
-                            Style="{DynamicResource DefaultComboBoxStyle}" />
+                            Style="{DynamicResource ToolbarComboBoxStyle}" />
                         <TextBox
                             Width="280"
-                            Margin="0,4,12,4"
+                            Margin="0,0,10,0"
                             materialDesign:HintAssist.Hint="{DynamicResource alarmview.keyword_hint}"
-                            Style="{DynamicResource DefaultTextBoxStyle}"
+                            Style="{DynamicResource ToolbarTextBoxStyle}"
                             Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
                         <Button
                             Command="{Binding QueryCommand}"
                             Content="{DynamicResource common.query}"
-                            Style="{DynamicResource DefaultButtonStyle}" />
+                            Style="{DynamicResource ToolbarButtonStyle}" />
                         <Button
                             Command="{Binding TodayCommand}"
                             Content="{DynamicResource common.today}"
-                            Style="{DynamicResource DefaultButtonStyle}" />
+                            Style="{DynamicResource ToolbarButtonStyle}" />
                         <Button
                             Command="{Binding LastWeekCommand}"
                             Content="{DynamicResource common.last_7_days}"
-                            Style="{DynamicResource DefaultButtonStyle}" />
+                            Style="{DynamicResource ToolbarButtonStyle}" />
                     </WrapPanel>
                 </DockPanel>
             </Border>

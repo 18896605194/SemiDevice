@@ -103,4 +103,14 @@ public static class ErrorCodes
     public const string HistoryQueryFailed = "history.query_failed";
 
     #endregion
+
+    #region 数据曲线
+
+    /// <summary>数据曲线没装（sc.xml 没配 DataChart 节点）。</summary>
+    public const string DataChartNotInstalled = "datachart.not_installed";
+
+    /// <summary>实时曲线没装（sc.xml 没配 RealChart 节点）。</summary>
+    public const string RealChartNotInstalled = "realchart.not_installed";
+
+    #endregion
 }

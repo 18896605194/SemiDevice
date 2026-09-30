@@ -7,6 +7,7 @@
     xmlns:local="clr-namespace:xyz.Client"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="clr-namespace:xyz.Client.Views"
     Title="xyz Client"
         Width="1280"
         Height="800"
@@ -242,11 +243,11 @@
             </Grid>
         </Border>
 
-        <!--  中间：内容承载区，所有页面都填充到这里，铺满不留边  -->
+        <!--  中间：内容承载区，铺满不留边。全部页面启动时一次性挂上、一起排好版，切菜单只切可见性（见 PageHost）  -->
         <Grid Grid.Row="1">
-            <ContentControl
-                x:Name="ContentHost"
-                Content="{Binding CurrentView}" />
+            <views:PageHost
+                Current="{Binding CurrentView}"
+                Pages="{Binding Pages}" />
             <TextBlock
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"

@@ -6,6 +6,7 @@ using xyz.Components;
 using xyz.Components.Components;
 using xyz.Service;
 using xyz.Service.Alarms;
+using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Service.Systems;
 using xyz.Service.UserManger;
@@ -72,6 +73,9 @@ public static class Program
 
         app.Lifetime.ApplicationStopping.Register(() =>
         {
+            // 先停采样、把攒着的最后一批写进库，再断 PLC。
+            DataChartComponent.Current?.StopSampling();
+
             var roots = app.Services.GetRequiredService<IReadOnlyList<ComponentBase>>();
             foreach (var plc in roots.OfType<PlcComponent>())
             {
@@ -90,6 +94,9 @@ public static class Program
         app.MapGrpcService<AlarmService>();
         app.MapGrpcService<SystemService>();
         app.MapGrpcService<IoService>();
+        app.MapGrpcService<EcService>();
+        app.MapGrpcService<DataChartService>();
+        app.MapGrpcService<RealChartService>();
 
         // 端口监听上了灯才变绿；托盘上点退出就停宿主。
         app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"localhost:{Port}"));

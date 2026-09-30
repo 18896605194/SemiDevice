@@ -27,6 +27,37 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  工具栏按钮（页面顶上那一条工具栏里的查询、今天、暂停、创建……）：跟工具栏里的输入框、下拉同高（34），按钮之间留 8  -->
+    <Style
+        x:Key="ToolbarButtonStyle"
+        BasedOn="{StaticResource DefaultButtonStyle}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="88" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Padding" Value="14,0" />
+    </Style>
+
+    <Style
+        x:Key="ToolbarDangerButtonStyle"
+        BasedOn="{StaticResource ToolbarButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
+    </Style>
+
+    <!--  图角上的小图标按钮（趋势图右上角的放大）：圆形、透明底，浮在图上不挡曲线  -->
+    <Style
+        x:Key="ChartCornerButtonStyle"
+        BasedOn="{StaticResource MaterialDesignIconButton}"
+        TargetType="Button">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkChartAxisText}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
     <!--  紧凑按钮：多行按钮区（如 LoadPort 手动操作）用，比默认按钮矮一档  -->
     <Style
         x:Key="CompactButtonStyle"

@@ -64,6 +64,25 @@
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
 	</Setting>
+	<!-- 数据曲线：每个采样周期采一整行（全部 IO 点 + 能画成曲线的 SV），值没变也记，读不到的存空不存 0。
+	     入 Io 库，按天一张宽表 DataRecord_yyyyMMdd：Time（UTC 毫秒）+ 每个信号一列，列名就是信号名
+	     （SV = 组件全路径.属性名，IO 点 = Module.Component.Tag），数据曲线页按名字查。
+	     Exclude 写不采的信号，逗号分隔，可写上级路径整枝去掉（如 LoadPort1.E84）；
+	     入库批量、积压告警是 EC（RecordBatchSeconds / RecordBacklogWarning），在 ec.xml -->
+	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
+		<Value Name="EnableRecord" Value="True" />
+		<Value Name="Database" Value="Io" />
+		<Value Name="KeepDays" Value="30" />
+		<Value Name="SampleIntervalMs" Value="1000" />
+		<Value Name="Exclude" Value="" />
+		<Value Name="QueryMaxPoints" Value="4000" />
+		<Value Name="QueryMaxSignals" Value="20" />
+	</Setting>
+	<!-- 实时曲线：专管推送，自己不采样——订阅数据曲线的每一行推给实时曲线页，内存里留最近 WindowSeconds 秒，
+	     页面打开、新勾曲线时先补这一段 -->
+	<Setting Name="RealChart" Type="xyz.Components.Components.RealChartComponent">
+		<Value Name="WindowSeconds" Value="600" />
+	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />

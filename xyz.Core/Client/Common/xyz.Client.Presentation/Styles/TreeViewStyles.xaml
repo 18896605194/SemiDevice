@@ -10,6 +10,22 @@
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
     </Style>
 
+    <!--  勾选树的节点（数据曲线的信号树）：行矮一些；展开、显示跟着节点模型的 IsExpanded / IsShown 走（搜索过滤时藏掉不匹配的）  -->
+    <Style
+        x:Key="CheckTreeViewItemStyle"
+        BasedOn="{StaticResource MaterialDesignTreeViewItem}"
+        TargetType="TreeViewItem">
+        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+        <Setter Property="Padding" Value="4,3" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsShown}" Value="False">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="DefaultTreeViewItemStyle" TargetType="TreeViewItem">
         <Setter Property="IsExpanded" Value="True" />
         <Setter Property="Margin" Value="0,2" />

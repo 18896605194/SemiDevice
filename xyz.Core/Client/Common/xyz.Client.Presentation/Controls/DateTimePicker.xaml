@@ -1,0 +1,42 @@
+﻿<UserControl
+    x:Class="xyz.Client.Presentation.Controls.DateTimePicker"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    x:Name="Root">
+
+    <!--  日期 + 时 + 分：左边选日期，右边两个下拉直接选几点（00~23）、几分（00~59），合起来就是 Value；提示文字写在日期框上  -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="68" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="68" />
+        </Grid.ColumnDefinitions>
+
+        <DatePicker
+            x:Name="DatePart"
+            Grid.Column="0"
+            Margin="0"
+            materialDesign:HintAssist.Hint="{Binding Hint, ElementName=Root}"
+            SelectedDateChanged="OnDateChanged"
+            Style="{DynamicResource ToolbarDatePickerStyle}" />
+        <ComboBox
+            x:Name="HourPart"
+            Grid.Column="2"
+            SelectionChanged="OnTimeChanged"
+            Style="{DynamicResource TimePartComboBoxStyle}" />
+        <TextBlock
+            Grid.Column="3"
+            Margin="4,0"
+            VerticalAlignment="Center"
+            FontSize="{DynamicResource Size14}"
+            Text=":" />
+        <ComboBox
+            x:Name="MinutePart"
+            Grid.Column="4"
+            SelectionChanged="OnTimeChanged"
+            Style="{DynamicResource TimePartComboBoxStyle}" />
+    </Grid>
+</UserControl>

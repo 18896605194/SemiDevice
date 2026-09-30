@@ -20,4 +20,13 @@
         <Setter Property="materialDesign:HintAssist.HintOpacity" Value="1" />
     </Style>
 
+    <!--  工具栏里的日期框（DateTimePicker 左边那个）：跟工具栏按钮同高（34），上下不留外边距  -->
+    <Style
+        x:Key="ToolbarDatePickerStyle"
+        BasedOn="{StaticResource DefaultDatePickerStyle}"
+        TargetType="DatePicker">
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
 </ResourceDictionary>

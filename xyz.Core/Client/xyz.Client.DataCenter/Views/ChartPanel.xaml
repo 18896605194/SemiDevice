@@ -1,0 +1,82 @@
+﻿<UserControl
+    x:Class="xyz.Client.DataCenter.Views.ChartPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="clr-namespace:xyz.Client.DataCenter.Views"
+    d:DesignHeight="700"
+    d:DesignWidth="1300"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <!--  曲线 + 曲线信息（数据曲线、实时曲线两页共用，DataContext 是页面的 ViewModel）。
+          右上角"放大"把整块搬到单独的窗口里全屏显示，页面这儿留一句提示和"收回"；窗口关掉整块搬回来  -->
+    <Grid x:Name="Holder">
+        <materialDesign:Card
+            x:Name="Placeholder"
+            Style="{DynamicResource DefaultCardStyle}"
+            Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Style="{DynamicResource CenterHintTextStyle}" Text="{DynamicResource chart.popped_out}" />
+                <Button
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Center"
+                    Click="OnPopInClick"
+                    Content="{DynamicResource chart.popin}"
+                    Style="{DynamicResource ToolbarButtonStyle}" />
+            </StackPanel>
+        </materialDesign:Card>
+
+        <Grid x:Name="Body">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="200" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="230" MinHeight="120" />
+            </Grid.RowDefinitions>
+
+            <materialDesign:Card
+                Grid.Row="0"
+                Padding="4"
+                Style="{DynamicResource DefaultCardStyle}">
+                <Grid>
+                    <controls:TrendChart
+                        CursorTime="{Binding CursorTime}"
+                        FollowRange="{Binding FollowRange}"
+                        RangeEnd="{Binding RangeEnd}"
+                        RangeStart="{Binding RangeStart}"
+                        Series="{Binding Series}"
+                        VisibleEnd="{Binding VisibleEnd}"
+                        VisibleStart="{Binding VisibleStart}" />
+                    <TextBlock
+                        Style="{DynamicResource EmptyCountHintTextStyle}"
+                        Tag="{Binding Series.Count}"
+                        Text="{DynamicResource chart.empty}" />
+                    <Button
+                        x:Name="PopOutButton"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Click="OnPopOutClick"
+                        Style="{DynamicResource ChartCornerButtonStyle}"
+                        ToolTip="{DynamicResource chart.popout}">
+                        <materialDesign:PackIcon
+                            x:Name="PopOutIcon"
+                            Width="20"
+                            Height="20"
+                            Kind="Fullscreen" />
+                    </Button>
+                </Grid>
+            </materialDesign:Card>
+
+            <GridSplitter
+                Grid.Row="1"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="Transparent" />
+
+            <views:TrendInfoTable x:Name="InfoTable" Grid.Row="2" />
+        </Grid>
+    </Grid>
+</UserControl>

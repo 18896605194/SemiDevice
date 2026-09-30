@@ -1,4 +1,5 @@
-﻿using xyz.Common.Log;
+﻿using System.Globalization;
+using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 
@@ -27,6 +28,12 @@ public sealed class CollectedSv
 
     public bool Visible { get; init; }
 }
+
+/// <summary>
+/// 能画成曲线的一项 SV（布尔、整数、浮点、枚举）：全名、格式、单位、说明，Read 现读当前值——
+/// 布尔记 0/1、枚举记它的数值，读不出来或不是有限数给 null。
+/// </summary>
+public sealed record NumericSv(string Name, ValueFormat Format, string Unit, string Description, Func<double?> Read);
 
 /// <summary>
 /// SV 采集器：启动时把组件树上的 [VariableMark(SV)] 合并进 SvDefinitions.xml，分配 SVID（30000–49999）；
@@ -109,6 +116,40 @@ public sealed class SvCollector
             Description = item.Row.Description,
             Visible = item.Row.Visible,
         }).ToList();
+    }
+
+    /// <summary>
+    /// 能画成曲线的在用 SV（字符串类的不算），顺序同编号表；数据曲线每秒按它取一行。
+    /// </summary>
+    public IReadOnlyList<NumericSv> NumericItems()
+    {
+        return _items
+            .Where(item => item.Declaration.Mark.Format != ValueFormat.String)
+            .Select(item => new NumericSv(item.Row.Name, item.Declaration.Mark.Format, item.Row.Unit,
+                item.Row.Description, () => ReadNumber(item.Declaration)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// 每秒都要读，读失败不记日志（记了就是每秒一条），直接给 null。
+    /// </summary>
+    private static double? ReadNumber(VariableDeclaration declaration)
+    {
+        try
+        {
+            double? value = declaration.Property.GetValue(declaration.Owner) switch
+            {
+                bool flag => flag ? 1 : 0,
+                Enum member => Convert.ToDouble(member, CultureInfo.InvariantCulture),
+                IConvertible number and not string => number.ToDouble(CultureInfo.InvariantCulture),
+                _ => null,
+            };
+            return value is { } finite && double.IsFinite(finite) ? finite : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>

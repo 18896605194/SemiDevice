@@ -32,8 +32,8 @@
 107,Chamber1,Bowl3,CH1_Bowl3_Down,Closed,Chamber1 Bowl3 降到位
 108,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Up,Opened,Chamber1 摆臂升降气缸 升到位
 109,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Down,Closed,Chamber1 摆臂升降气缸 降到位
-110,Chamber1,Arm1.Nozzle_DIW,CH1_Arm1_DIW_Flow,Flow,Chamber1 摆臂 DIW 喷嘴流量开关
-111,Chamber1,Arm1.Nozzle_SC1,CH1_Arm1_SC1_Flow,Flow,Chamber1 摆臂 SC1 喷嘴流量开关
+110,Chamber1,Arm1.Nozzle_DIW,CH1_Arm1_DIW_Flow,FlowSwitch,Chamber1 摆臂 DIW 喷嘴流量开关
+111,Chamber1,Arm1.Nozzle_SC1,CH1_Arm1_SC1_Flow,FlowSwitch,Chamber1 摆臂 SC1 喷嘴流量开关
 112,Chamber1,WaferSensor,CH1_Wafer_Present,Present,Chamber1 片在位
 116,Chamber1,Arm1,CH1_Arm1_FW_Limit,PLimit,Chamber1 摆臂正限位
 117,Chamber1,Arm1,CH1_Arm1_RV_Limit,NLimit,Chamber1 摆臂负限位
@@ -49,8 +49,8 @@
 147,Chamber2,Bowl3,CH2_Bowl3_Down,Closed,Chamber2 Bowl3 降到位
 148,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Up,Opened,Chamber2 摆臂升降气缸 升到位
 149,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Down,Closed,Chamber2 摆臂升降气缸 降到位
-150,Chamber2,Arm1.Nozzle_DIW,CH2_Arm1_DIW_Flow,Flow,Chamber2 摆臂 DIW 喷嘴流量开关
-151,Chamber2,Arm1.Nozzle_SC1,CH2_Arm1_SC1_Flow,Flow,Chamber2 摆臂 SC1 喷嘴流量开关
+150,Chamber2,Arm1.Nozzle_DIW,CH2_Arm1_DIW_Flow,FlowSwitch,Chamber2 摆臂 DIW 喷嘴流量开关
+151,Chamber2,Arm1.Nozzle_SC1,CH2_Arm1_SC1_Flow,FlowSwitch,Chamber2 摆臂 SC1 喷嘴流量开关
 152,Chamber2,WaferSensor,CH2_Wafer_Present,Present,Chamber2 片在位
 156,Chamber2,Arm1,CH2_Arm1_FW_Limit,PLimit,Chamber2 摆臂正限位
 157,Chamber2,Arm1,CH2_Arm1_RV_Limit,NLimit,Chamber2 摆臂负限位
@@ -66,8 +66,8 @@
 187,Chamber3,Bowl3,CH3_Bowl3_Down,Closed,Chamber3 Bowl3 降到位
 188,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Up,Opened,Chamber3 摆臂升降气缸 升到位
 189,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Down,Closed,Chamber3 摆臂升降气缸 降到位
-190,Chamber3,Arm1.Nozzle_DIW,CH3_Arm1_DIW_Flow,Flow,Chamber3 摆臂 DIW 喷嘴流量开关
-191,Chamber3,Arm1.Nozzle_SC1,CH3_Arm1_SC1_Flow,Flow,Chamber3 摆臂 SC1 喷嘴流量开关
+190,Chamber3,Arm1.Nozzle_DIW,CH3_Arm1_DIW_Flow,FlowSwitch,Chamber3 摆臂 DIW 喷嘴流量开关
+191,Chamber3,Arm1.Nozzle_SC1,CH3_Arm1_SC1_Flow,FlowSwitch,Chamber3 摆臂 SC1 喷嘴流量开关
 192,Chamber3,WaferSensor,CH3_Wafer_Present,Present,Chamber3 片在位
 196,Chamber3,Arm1,CH3_Arm1_FW_Limit,PLimit,Chamber3 摆臂正限位
 197,Chamber3,Arm1,CH3_Arm1_RV_Limit,NLimit,Chamber3 摆臂负限位
@@ -83,8 +83,8 @@
 227,Chamber4,Bowl3,CH4_Bowl3_Down,Closed,Chamber4 Bowl3 降到位
 228,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Up,Opened,Chamber4 摆臂升降气缸 升到位
 229,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Down,Closed,Chamber4 摆臂升降气缸 降到位
-230,Chamber4,Arm1.Nozzle_DIW,CH4_Arm1_DIW_Flow,Flow,Chamber4 摆臂 DIW 喷嘴流量开关
-231,Chamber4,Arm1.Nozzle_SC1,CH4_Arm1_SC1_Flow,Flow,Chamber4 摆臂 SC1 喷嘴流量开关
+230,Chamber4,Arm1.Nozzle_DIW,CH4_Arm1_DIW_Flow,FlowSwitch,Chamber4 摆臂 DIW 喷嘴流量开关
+231,Chamber4,Arm1.Nozzle_SC1,CH4_Arm1_SC1_Flow,FlowSwitch,Chamber4 摆臂 SC1 喷嘴流量开关
 232,Chamber4,WaferSensor,CH4_Wafer_Present,Present,Chamber4 片在位
 236,Chamber4,Arm1,CH4_Arm1_FW_Limit,PLimit,Chamber4 摆臂正限位
 237,Chamber4,Arm1,CH4_Arm1_RV_Limit,NLimit,Chamber4 摆臂负限位

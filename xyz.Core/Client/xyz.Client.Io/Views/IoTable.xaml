@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:xyz.Client.Io.Views"
+    xmlns:presentation="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     x:Name="Root"
@@ -132,18 +133,38 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBox
-                                            Width="80"
+                                        <!--  设定值用通用输入框：按点表标定范围卡，错着的时候不交出去，下发按钮也灰掉。
+                                              行只有 32 高，错误提示走弹出层，放在框下面会被行裁掉  -->
+                                        <presentation:InputTextBox
+                                            x:Name="SetpointBox"
+                                            Width="90"
                                             VerticalAlignment="Center"
                                             materialDesign:HintAssist.Hint="{DynamicResource io.setpoint}"
+                                            materialDesign:ValidationAssist.UsePopup="True"
+                                            DataType="Decimal"
+                                            HasError="{Binding HasInputError, Mode=OneWayToSource}"
+                                            Maximum="{Binding Max}"
+                                            Minimum="{Binding Min}"
                                             Style="{DynamicResource CompactTextBoxStyle}"
-                                            Text="{Binding PendingValue, UpdateSourceTrigger=PropertyChanged}" />
+                                            Unit="{Binding Unit}"
+                                            Value="{Binding PendingValue}" />
                                         <Button
                                             Command="{Binding SendCommand, RelativeSource={RelativeSource AncestorType=local:IoTable}}"
                                             CommandParameter="{Binding}"
-                                            Content="{DynamicResource io.send}"
-                                            IsEnabled="{Binding IsValid}"
-                                            Style="{DynamicResource MiniButtonStyle}" />
+                                            Content="{DynamicResource io.send}">
+                                            <Button.Style>
+                                                <Style BasedOn="{StaticResource MiniButtonStyle}" TargetType="Button">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding HasError, ElementName=SetpointBox}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                     </StackPanel>
                                 </StackPanel>
                             </DataTemplate>

@@ -1,1 +1,9 @@
 ﻿Index,Module,Component,Name,Tag,Description,Unit,PhysicalMax,PhysicalMin,LogicalMax,LogicalMin
+100,Chamber1,Arm1.Nozzle_DIW,CH1_DIW_Flow_Set,Setpoint,Chamber1 DIW 流量设定,L/min,3,0,3,0
+101,Chamber1,Arm1.Nozzle_SC1,CH1_SC1_Flow_Set,Setpoint,Chamber1 SC1 流量设定,L/min,3,0,3,0
+120,Chamber2,Arm1.Nozzle_DIW,CH2_DIW_Flow_Set,Setpoint,Chamber2 DIW 流量设定,L/min,3,0,3,0
+121,Chamber2,Arm1.Nozzle_SC1,CH2_SC1_Flow_Set,Setpoint,Chamber2 SC1 流量设定,L/min,3,0,3,0
+140,Chamber3,Arm1.Nozzle_DIW,CH3_DIW_Flow_Set,Setpoint,Chamber3 DIW 流量设定,L/min,3,0,3,0
+141,Chamber3,Arm1.Nozzle_SC1,CH3_SC1_Flow_Set,Setpoint,Chamber3 SC1 流量设定,L/min,3,0,3,0
+160,Chamber4,Arm1.Nozzle_DIW,CH4_DIW_Flow_Set,Setpoint,Chamber4 DIW 流量设定,L/min,3,0,3,0
+161,Chamber4,Arm1.Nozzle_SC1,CH4_SC1_Flow_Set,Setpoint,Chamber4 SC1 流量设定,L/min,3,0,3,0

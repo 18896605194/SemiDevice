@@ -55,6 +55,12 @@ public class IoPointDto
     /// <summary>工程单位（AI/AO 用）。</summary>
     public string Unit { get; set; } = string.Empty;
 
+    /// <summary>工程量下限：点表标定过的模拟量才有（LogicalMin/Max 里小的那个），AO 输入框按它卡范围。</summary>
+    public double? Min { get; set; }
+
+    /// <summary>工程量上限：同上。</summary>
+    public double? Max { get; set; }
+
     /// <summary>是输出点（DO/AO）——界面上输出点才给强制/下发的入口。</summary>
     public bool IsOutput { get; set; }
 

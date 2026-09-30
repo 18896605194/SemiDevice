@@ -61,12 +61,29 @@ Use these rules for WPF client work in the xyz repository.
   ```
 - Register ViewModels in the corresponding module `ServiceCollectionExtensions.AddXxxServices()` and register each concrete ViewModel as a `BaseViewModel` alias for centralized initialization.
 - Use the native DI container / `IocHelper`; do not let XAML create ViewModels directly.
+- All pages stay in the main window's content area (`PageHost`) from startup and are laid out once; switching menus only toggles `Visibility` (current `Visible`, others `Hidden`). So `Loaded` / `Unloaded` fire once, not per navigation — to react to a page being shown or hidden use `IsVisibleChanged`, and stop per-frame work (e.g. `CompositionTarget.Rendering`) while `IsVisible` is false.
+
+## Text / number input
+
+- Use `xyz.Client.Presentation.Controls.InputTextBox` for every text or number input; do not add bare `TextBox` input fields.
+- Bind `Value` (the committed legal value, two-way by default), never `Text` (`Text` is the raw text being typed and carries the control's validation).
+- Set `DataType` (`Text` / `Integer` / `Decimal`). Range limits (`Minimum` / `Maximum`) and `Unit` only apply to numbers; `Text` has no range.
+- For EC-backed parameters set `EcKey="<component full path>.<parameter name>"` (e.g. `LoadPort1.LoadTimeout`); type, limits and unit come from the EC definition. Values written in XAML override EC; nothing configured means no validation.
+- Validation: format is checked while typing (only input that can never become valid is flagged); range is checked on commit (Enter / focus loss). Invalid input shows the red error and is not passed to `Value`, which keeps the last legal value.
+- When a command sends the value (e.g. a "send" button), bind `HasError` with `Mode=OneWayToSource` and do not send while it is true. Inside table rows set `materialDesign:ValidationAssist.UsePopup="True"` so the message is not clipped.
+
+## Time ranges and charts
+
+- For a time-range query use two `xyz.Client.Presentation.Controls.DateTimePicker` (date box + plain hour 00–23 and minute 00–59 dropdowns; no clock-dial time picker) bound to `DateTime?` `Value`; do not use a bare `DatePicker`. Build the query range with `QueryDateRange.Of(start, end)`: minute precision, the end minute is included (`[start, end + 1 min)`); `QueryDateRange.Today()` / `LastDays(n)` / `LastHours(n)` give the toolbar shortcuts.
+- Plot time series with `xyz.Client.Presentation.Controls.TrendChart` (ScottPlot 5 wrapper) fed an `ObservableCollection<TrendSeries>`; do not use ScottPlot directly in a page. `TrendSeries` holds OADate `Xs` / `Ys` (`NaN` = gap) and the info-row values (`CursorValue`, `Min`, `Max`, `Avg`); change data only through `SetData` / `Append`. The chart assigns colors, gives each unit its own Y axis and draws digital (0/1) series as lanes below the analog ones; it reports `VisibleStart` / `VisibleEnd` / `CursorTime` and `FollowRange` back two-way. Built-in interaction (keep it, do not add operation hint text on the chart): sample dots when points are not crowded, hover snaps to the nearest sample and shows a value card (time, name, value), wheel zooms time, left-drag pans, middle-drag box-zooms (time + analog value range), double-click resets.
+- Data pipelines in chart pages use Rx (`System.Reactive`): query requests go through `Throttle` + `Select(Observable.FromAsync(...))` + `Switch()` so a newer request cancels the older one; hop back to the UI thread with `ObserveOn(SynchronizationContext)` before touching bound objects.
 
 ## XAML resources
 
 - Do not declare page-level or window-level styles/resources in business View XAML. Reusable component XAML such as `Wafer.xaml` is exempt when local resources are part of the component.
 - Put control and page styles in `xyz.Client.Presentation/Styles` and merge them through the application/design-time resource dictionaries.
 - Reference font sizes from `Styles/FontSize.xaml`; do not hard-code `FontSize` values in Views.
+- A page's top toolbar is a `Border` with `ToolbarBorderStyle` and uses the 34 px toolbar control styles (`ToolbarButtonStyle`, `ToolbarDangerButtonStyle`, `ToolbarComboBoxStyle`, `ToolbarTextBoxStyle`, `DateTimePicker`) with `Margin="0,0,10,0"` between inputs; keep toolbars low, do not use the 40–44 px default controls there.
 - Reference dark-theme colors from `Styles/DarkColors.xaml`; do not hard-code theme colors in Views.
 
 When related existing code is touched, bring it into compliance with these conventions instead of adding a second coding pattern.

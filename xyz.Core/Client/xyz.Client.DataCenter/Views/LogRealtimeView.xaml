@@ -27,25 +27,25 @@
                     <WrapPanel Orientation="Horizontal">
                         <ComboBox
                             Width="140"
-                            Margin="0,4,12,4"
+                            Margin="0,0,10,0"
                             materialDesign:HintAssist.Hint="{DynamicResource log.level}"
                             ItemsSource="{Binding Levels}"
                             SelectedItem="{Binding SelectedLevel}"
-                            Style="{DynamicResource DefaultComboBoxStyle}" />
+                            Style="{DynamicResource ToolbarComboBoxStyle}" />
                         <TextBox
                             Width="320"
-                            Margin="0,4,12,4"
+                            Margin="0,0,10,0"
                             materialDesign:HintAssist.Hint="{DynamicResource log.keyword_hint}"
-                            Style="{DynamicResource DefaultTextBoxStyle}"
+                            Style="{DynamicResource ToolbarTextBoxStyle}"
                             Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
                         <Button
                             Command="{Binding PauseCommand}"
                             Content="{Binding PauseText}"
-                            Style="{DynamicResource DefaultButtonStyle}" />
+                            Style="{DynamicResource ToolbarButtonStyle}" />
                         <Button
                             Command="{Binding ClearCommand}"
                             Content="{DynamicResource log.clear}"
-                            Style="{DynamicResource DefaultButtonStyle}" />
+                            Style="{DynamicResource ToolbarButtonStyle}" />
                     </WrapPanel>
                 </DockPanel>
             </Border>

@@ -20,6 +20,11 @@ public class IoPointModel : ObservableObject
 
     public string Unit { get; init; } = string.Empty;
 
+    /// <summary>工程量上下限（点表标定过的模拟量才有），AO 输入框按它卡范围。</summary>
+    public double? Min { get; init; }
+
+    public double? Max { get; init; }
+
     /// <summary>输出点（DO/AO），界面上只有它们给设值的入口。</summary>
     public bool IsOutput { get; init; }
 
@@ -62,5 +67,17 @@ public class IoPointModel : ObservableObject
     {
         get => _pendingValue;
         set => SetProperty(ref _pendingValue, value ?? string.Empty);
+    }
+
+    private bool _hasInputError;
+
+    /// <summary>
+    /// AO 输入框当前是不是错着（输入框按提交校验的结果往回写）。错着的时候 PendingValue 还是上一次的合法值，
+    /// 这时下发会把旧值发出去，所以下发前要看它。
+    /// </summary>
+    public bool HasInputError
+    {
+        get => _hasInputError;
+        set => SetProperty(ref _hasInputError, value);
     }
 }

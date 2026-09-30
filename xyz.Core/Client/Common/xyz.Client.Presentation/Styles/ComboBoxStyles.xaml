@@ -30,6 +30,24 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
     </Style>
 
+    <!--  工具栏里的下拉（级别、显示范围……）：跟工具栏按钮同高（34），上下不留外边距  -->
+    <Style
+        x:Key="ToolbarComboBoxStyle"
+        BasedOn="{StaticResource DefaultComboBoxStyle}"
+        TargetType="ComboBox">
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!--  时间里的"时""分"下拉（DateTimePicker 日期框右边那两个，只用在工具栏里）：跟日期框同高，窄一点，下拉列表限高、滚着选  -->
+    <Style
+        x:Key="TimePartComboBoxStyle"
+        BasedOn="{StaticResource ToolbarComboBoxStyle}"
+        TargetType="ComboBox">
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="MaxDropDownHeight" Value="320" />
+    </Style>
+
     <!--  参数行里的紧凑下拉（如手动页选站点）：跟分段选择、输入同一行高  -->
     <Style
         x:Key="CompactComboBoxStyle"

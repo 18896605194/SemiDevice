@@ -90,6 +90,17 @@ public class MainViewModel : BaseViewModel
         set => SetProperty(ref _currentView, value);
     }
 
+    private IReadOnlyList<UserControl> _pages = [];
+
+    /// <summary>
+    /// 启动时建好的全部页面：主窗口内容区一次性挂上、一起排好版，切菜单只切可见性（见 PageHost）。
+    /// </summary>
+    public IReadOnlyList<UserControl> Pages
+    {
+        get => _pages;
+        private set => SetProperty(ref _pages, value);
+    }
+
     #endregion
 
     #region Command
@@ -182,6 +193,7 @@ public class MainViewModel : BaseViewModel
         }
 
         PreloadViews(menus);
+        Pages = _views.Values.ToList();
 
         foreach (var menu in menus
                      .Where(menu => menu.ParentCode == null)
@@ -225,15 +237,17 @@ public class MainViewModel : BaseViewModel
 
     private object CreateView(MenuModel menu)
     {
-        if (_views.TryGetValue(menu.Code, out var view))
+        if (!_views.TryGetValue(menu.Code, out var view))
         {
-            return view;
+            // 还没实现的页面给个占位页：建一次记下来，来回切不重复建（内容区会一直挂着它）。
+            view = new PlaceholderView
+            {
+                Title = menu.Name
+            };
+            _views[menu.Code] = view;
         }
 
-        return new PlaceholderView
-        {
-            Title = menu.Name
-        };
+        return view;
     }
 
 }

@@ -28,6 +28,15 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
     </Style>
 
+    <!--  工具栏里的输入（关键字……）：跟工具栏按钮同高（34），上下不留外边距  -->
+    <Style
+        x:Key="ToolbarTextBoxStyle"
+        BasedOn="{StaticResource DefaultTextBoxStyle}"
+        TargetType="TextBox">
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
     <!--  参数行里的紧凑输入（如手动页槽位）：跟分段选择、下拉同一行高  -->
     <Style
         x:Key="CompactTextBoxStyle"

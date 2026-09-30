@@ -171,6 +171,8 @@ public class IoViewModel : BaseViewModel, IDisposable
                 Component = point.Component,
                 Description = point.Description,
                 Unit = point.Unit,
+                Min = point.Min,
+                Max = point.Max,
                 IsOutput = point.IsOutput,
                 IsOn = point.IsOn,
                 Value = point.Value,
@@ -223,11 +225,12 @@ public class IoViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 下发一个 AO：输入框里的数按工程值下发，超出点表标定范围后端会拒。输入框里的数下发后留着，方便微调再发。
+    /// 下发一个 AO：输入框提交过的合法值按工程值下发（输入框已按点表标定范围卡过，后端还会再卡一次）。
+    /// 输入框正错着时不发——那时 PendingValue 还是上一次的合法值，发出去就是旧值。输入框里的数下发后留着，方便微调再发。
     /// </summary>
     private async Task DoSendAo(IoPointModel? point)
     {
-        if (point is null)
+        if (point is null || point.HasInputError)
         {
             return;
         }

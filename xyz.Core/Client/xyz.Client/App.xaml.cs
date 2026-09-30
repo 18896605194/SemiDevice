@@ -4,6 +4,7 @@ using ProtoBuf.Grpc;
 using System.Threading.Tasks;
 using System.Windows;
 using xyz.Client.Common.Alarms;
+using xyz.Client.Common.Ec;
 using xyz.Client.Common.Events;
 using xyz.Tools;
 using xyz.Client.Common.Log;
@@ -38,6 +39,11 @@ public partial class App : Application
     /// 后端还没起来时，每隔多久再问一次。
     /// </summary>
     private const int BackendRetryDelayMs = 1000;
+
+    /// <summary>
+    /// 主窗口先在屏幕外显示的位置（画完首帧再挪回来）。
+    /// </summary>
+    private const double OffScreen = -32000;
 
     public static IServiceProvider Services { get; private set; } = default!;
 
@@ -82,6 +88,7 @@ public partial class App : Application
 
             RemoteEventBus.Initialize();
             ClientAlarms.Initialize();
+            ClientEc.Initialize();
             await ReportAsync(loadingWindow, 35, L10n.Get("shell.loading.events"));
 
             #endregion
@@ -124,7 +131,7 @@ public partial class App : Application
         }
         finally
         {
-            ShowMainWindow(loadingWindow);
+            await ShowMainWindowAsync(loadingWindow);
         }
     }
 
@@ -175,16 +182,43 @@ public partial class App : Application
 
     /// <summary>
     /// 主界面准备好后显示主窗口并关掉加载界面。
+    /// 全部页面都挂在内容区里（PageHost），主窗口第一次显示时要把它们一起套模板、排版、走"已加载"、画首帧（几秒，界面线程在忙）。
+    /// 所以先在屏幕外显示、加载界面置顶开着，等首帧画完再挪回来最大化——用户看到的是加载界面收尾，
+    /// 而不是一个看得见却点不动的主窗口；之后点菜单只切可见性，不再现套模板、现排版。
+    /// 不在显示前单独预排版：没挂到真窗口上排的那一遍，显示时会整个再排一遍，白费一倍时间。
     /// </summary>
-    private void ShowMainWindow(LoadingWindow loadingWindow)
+    private async Task ShowMainWindowAsync(LoadingWindow loadingWindow)
     {
         try
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             var mainWindow = new MainWindow();
             MainWindow = mainWindow;
-            mainWindow.Show();
 
+            var rendered = new TaskCompletionSource();
+            mainWindow.ContentRendered += (_, _) => rendered.TrySetResult();
+            loadingWindow.Topmost = true;
+
+            var workArea = SystemParameters.WorkArea;
+            mainWindow.WindowState = WindowState.Normal;
+            mainWindow.WindowStartupLocation = WindowStartupLocation.Manual;
+            mainWindow.ShowActivated = false;
+            mainWindow.Left = OffScreen;
+            mainWindow.Top = OffScreen;
+            mainWindow.Width = workArea.Width;
+            mainWindow.Height = workArea.Height;
+            mainWindow.Show();
+            long shown = watch.ElapsedMilliseconds;
+            await rendered.Task;
+            long firstFrame = watch.ElapsedMilliseconds;
+
+            mainWindow.Left = workArea.Left;
+            mainWindow.Top = workArea.Top;
+            mainWindow.WindowState = WindowState.Maximized;
             loadingWindow.Close();
+            mainWindow.Activate();
+
+            ClientLog.Info("Client", $"主窗口：显示（全部页面套模板、排版）{shown} ms，首帧 {firstFrame - shown} ms");
         }
         catch (Exception exception)
         {

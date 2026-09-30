@@ -182,6 +182,36 @@ public class EcComponent : ComponentBase
     }
 
     /// <summary>
+    /// 全部 EC 项的快照（组件全路径 + 值节点副本），给界面取格式、上下限、单位这些元数据用。
+    /// 给副本不给原节点：原节点在锁里改，拿出去读会跟写并发。
+    /// </summary>
+    public IReadOnlyList<(string Path, EcValueConfig Value)> Snapshot()
+    {
+        lock (_gate)
+        {
+            return _values
+                .Select(pair => (pair.Key[..pair.Key.IndexOf('\0')], Copy(pair.Value)))
+                .ToList();
+        }
+    }
+
+    private static EcValueConfig Copy(EcValueConfig value)
+    {
+        return new EcValueConfig
+        {
+            Name = value.Name,
+            Description = value.Description,
+            Format = value.Format,
+            Min = value.Min,
+            Max = value.Max,
+            Value = value.Value,
+            Default = value.Default,
+            Unit = value.Unit,
+            Options = value.Options,
+        };
+    }
+
+    /// <summary>
     /// 整树写回 ec.xml；只在内存里（没有文件）或还是空树时不写。
     /// </summary>
     public void Flush()

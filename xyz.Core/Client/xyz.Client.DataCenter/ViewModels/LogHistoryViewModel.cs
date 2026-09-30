@@ -12,7 +12,7 @@ using xyz.Shared.Services;
 namespace xyz.Client.DataCenter.ViewModels;
 
 /// <summary>
-/// 日志历史页 ViewModel：按日期段查后端日志文件，可按级别、关键字筛；一次最多显示多少条按后端 sc.xml 配置，超出只留最新的。
+/// 日志历史页 ViewModel：按时间段（精确到分钟）查后端日志文件，可按级别、关键字筛；一次最多显示多少条按后端 sc.xml 配置，超出只留最新的。
 /// </summary>
 public class LogHistoryViewModel : BaseViewModel
 {
@@ -28,20 +28,26 @@ public class LogHistoryViewModel : BaseViewModel
     /// </summary>
     public IReadOnlyList<string> Levels => LevelOptions.Log;
 
-    private DateTime? _startDate = DateTime.Today;
+    private DateTime? _startTime = QueryDateRange.Today().Start;
 
-    public DateTime? StartDate
+    /// <summary>
+    /// 起始时刻（精确到分钟）。
+    /// </summary>
+    public DateTime? StartTime
     {
-        get => _startDate;
-        set => SetProperty(ref _startDate, value);
+        get => _startTime;
+        set => SetProperty(ref _startTime, value);
     }
 
-    private DateTime? _endDate = DateTime.Today;
+    private DateTime? _endTime = QueryDateRange.Today().End;
 
-    public DateTime? EndDate
+    /// <summary>
+    /// 截止时刻（精确到分钟，这一分钟整分钟都算进去）。
+    /// </summary>
+    public DateTime? EndTime
     {
-        get => _endDate;
-        set => SetProperty(ref _endDate, value);
+        get => _endTime;
+        set => SetProperty(ref _endTime, value);
     }
 
     private string _selectedLevel = LevelOptions.All;
@@ -103,7 +109,7 @@ public class LogHistoryViewModel : BaseViewModel
 
     private async Task DoQuery()
     {
-        var range = QueryDateRange.Of(StartDate ?? DateTime.Today, EndDate ?? DateTime.Today);
+        var range = QueryDateRange.Of(StartTime ?? QueryDateRange.Today().Start, EndTime ?? QueryDateRange.Today().End);
         try
         {
             var response = await _service.QueryHistoryAsync(new LogHistoryQuery
@@ -141,15 +147,13 @@ public class LogHistoryViewModel : BaseViewModel
 
     private Task DoToday()
     {
-        StartDate = DateTime.Today;
-        EndDate = DateTime.Today;
+        (StartTime, EndTime) = QueryDateRange.Today();
         return DoQuery();
     }
 
     private Task DoLastWeek()
     {
-        StartDate = DateTime.Today.AddDays(-6);
-        EndDate = DateTime.Today;
+        (StartTime, EndTime) = QueryDateRange.LastDays(7);
         return DoQuery();
     }
 }

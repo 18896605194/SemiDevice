@@ -1,0 +1,14 @@
+﻿<Window
+    x:Class="xyz.Client.DataCenter.Views.ChartWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="1280"
+    Height="800"
+    Background="{DynamicResource DarkWindowBackground}"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    WindowStartupLocation="CenterOwner"
+    WindowState="Maximized">
+
+    <!--  放大出来的曲线窗口：页面上的曲线 + 曲线信息整块搬进来，关掉窗口（或按 Esc）搬回去  -->
+    <Border x:Name="Host" Margin="8" />
+</Window>
