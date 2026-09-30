@@ -13,7 +13,7 @@
 
     <!--  信号勾选树（数据曲线、实时曲线两页共用，DataContext 是页面的 ViewModel）：
           模块 → 部件 → 属性，跟 sc.xml 的组件层级一个样子；勾模块、部件就是勾下面全部（搜索时只勾看得见的）。
-          名字后面的小字是来源和单位，悬停看全名和说明  -->
+          名字后面的小字是 IO 的点位地址和单位（SV 只有单位），悬停看全名和说明  -->
     <materialDesign:Card Padding="12,12,12,8" Style="{DynamicResource DefaultCardStyle}">
         <DockPanel>
             <DockPanel Margin="0,0,0,4" DockPanel.Dock="Top">

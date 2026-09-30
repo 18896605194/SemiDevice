@@ -18,8 +18,9 @@ namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 趋势图：ScottPlot 5 的封装，数据曲线、实时曲线两页共用。
-/// 喂给它一组 <see cref="TrendSeries"/>（Series），它负责：配色；纵轴只有左边一根，所有模拟量曲线共用（不按单位分轴）；
-/// 开关量在图的下方分道画阶梯线、模拟量在上方；纵轴按当前看到的那段数据自动适配（中键框选放大后按框定住，双击恢复）。
+/// 喂给它一组 <see cref="TrendSeries"/>（Series），它负责：配色；纵轴只有左边一根，所有曲线都按真实数值画在它上面
+/// （不按单位分轴，开关量也不另外分道——就是 0 和 1 两个位置上的阶梯线）；
+/// 纵轴按当前看到的那段数据自动适配（中键框选放大后按框定住，双击恢复）。
 /// 采样点不挤的时候每个点画一个小圆点；鼠标悬停时对准最近的采样时刻，每条线在这一刻的点放大高亮，旁边弹出数值框（时刻、点名、值）。
 /// 横轴是时间：RangeStart/RangeEnd 是"整段"，FollowRange 为真时横轴跟着它走（实时曲线每秒挪一格就是这么挪的）；
 /// 滚轮缩放、左键拖动平移、中键框选时 FollowRange 自动变假，双击回到整段并重新跟随。
@@ -121,6 +122,16 @@ public partial class TrendChart : UserControl
     private readonly IYAxis _valueAxis;
 
     /// <summary>
+    /// 纵轴平时的刻度（自动疏密）。
+    /// </summary>
+    private readonly NumericAutomatic _valueTicks = new();
+
+    /// <summary>
+    /// 图上只有开关量时纵轴的刻度：只标 0 和 1，中间的 0.2、0.4 对开关量没有意义。
+    /// </summary>
+    private readonly NumericManual _digitalTicks = new([0, 1], ["0", "1"]);
+
+    /// <summary>
     /// 中键框选放大后定住的纵轴范围；没框过就是 null，纵轴自动适配。双击回到整段时清掉。
     /// </summary>
     private (double Min, double Max)? _manualRange;
@@ -171,6 +182,7 @@ public partial class TrendChart : UserControl
         _timeTicks.LabelFormatter = FormatTime;
 
         _valueAxis = _plot.Axes.Left;
+        _valueAxis.TickGenerator = _valueTicks;
         _plot.Axes.Right.IsVisible = false;
 
         _cursorLine = _plot.Add.VerticalLine(0);
@@ -341,7 +353,8 @@ public partial class TrendChart : UserControl
     }
 
     /// <summary>
-    /// 曲线增删：新来的配色、建线（按引用画 TrendSeries 的两串数据）和它的悬停高亮点，走了的拆掉；再按单位分配纵轴、给开关量排道。
+    /// 曲线增删：新来的配色、建线（按引用画 TrendSeries 的两串数据）和它的悬停高亮点，走了的拆掉。
+    /// 线都挂在左边那根纵轴上、按真实数值画；开关量画成阶梯线。
     /// </summary>
     private void SyncLines(List<TrendSeries> series)
     {
@@ -386,32 +399,10 @@ public partial class TrendChart : UserControl
 
         _plot.MoveToFront(_cursorLine);
 
-        // 模拟量都画在左边这一根纵轴上。几条线单位一样就把单位标在轴上，单位不一样就不标（各自的单位看数值框和信息表）。
-        var units = series.Where(item => !item.IsDigital).Select(item => item.Unit).Distinct().ToList();
-        _valueAxis.IsVisible = units.Count > 0;
+        // 图上的线单位都一样就把单位标在轴上，不一样就不标（各自的单位看数值框和信息表）。
+        var units = series.Select(item => item.Unit).Distinct().ToList();
+        _valueAxis.IsVisible = series.Count > 0;
         _valueAxis.Label.Text = units.Count == 1 ? units[0] : string.Empty;
-
-        // 开关量：先勾的在最上面一道。
-        var digital = series.Where(item => item.IsDigital).ToList();
-        foreach (var item in series)
-        {
-            var line = _lines[item];
-            if (item.IsDigital)
-            {
-                int lane = digital.Count - 1 - digital.IndexOf(item);
-                line.Axes.YAxis = _digitalAxis;
-                line.ScaleY = LaneFill;
-                line.OffsetY = lane + (1 - LaneFill) / 2;
-            }
-            else
-            {
-                line.Axes.YAxis = _valueAxis;
-                line.ScaleY = 1;
-                line.OffsetY = 0;
-            }
-
-            _highlights[item].Axes.YAxis = line.Axes.YAxis;
-        }
     }
 
     /// <summary>
@@ -452,38 +443,32 @@ public partial class TrendChart : UserControl
     }
 
     /// <summary>
-    /// 纵轴：模拟量每根轴取它那几条线在当前看到那段里的最小、最大值（框选定住的用框的范围），放进上方那一段；
-    /// 开关量一道一道排在下方。
+    /// 纵轴：取全部曲线在当前看到那段里的最小、最大值，上下各留一点空；框选定住的就用框的范围。
+    /// 图上只有开关量时刻度只标 0 和 1。
     /// </summary>
     private void FitValues(List<TrendSeries> series)
     {
         var limits = _plot.Axes.GetLimits();
-        double left = limits.Left;
-        double right = limits.Right;
-        _timeSpanDays = right - left;
-
-        var digital = series.Count(item => item.IsDigital);
-        var analog = series.Where(item => !item.IsDigital).ToList();
-        double digitalTop = analog.Count == 0 ? 0.97 : Math.Clamp(0.03 + digital * LaneHeight, 0.2, 0.5);
-        _analogBottom = digital == 0 ? 0.05 : digitalTop + BandGap;
-
-        if (analog.Count > 0)
+        _timeSpanDays = limits.Right - limits.Left;
+        if (series.Count == 0)
         {
-            var (min, max) = _manualRange ?? DataRange(analog, left, right);
-            _valueTicks.BandMin = min;
-            _valueTicks.BandMax = max;
-            SetBand(_valueAxis, min, max, _analogBottom, AnalogBandTop);
+            return;
         }
 
-        if (digital > 0)
-        {
-            SetBand(_digitalAxis, 0, digital, 0.03, digitalTop);
-        }
+        _valueAxis.TickGenerator = _manualRange is null && series.All(item => item.IsDigital)
+            ? _digitalTicks
+            : _valueTicks;
+
+        var (min, max) = _manualRange ?? DataRange(series, limits.Left, limits.Right);
+        double margin = _manualRange is null ? (max - min) * ValueMargin : 0;
+        _plot.Axes.SetLimitsY(min - margin, max + margin, _valueAxis);
     }
 
     /// <summary>
-    /// 这几条线在 [left, right] 里的最小、最大值；纵轴至少撑开到数值大小的 2%（全是 0 就 ±0.5），
-    /// 几乎不变的值不把噪声放大成大起大落，同一根轴上差一点点的两条线也不会被拉得老远。
+    /// 这几条线在 [left, right] 里的最小、最大值。开关量只有 0、1 两个值，有它在就把 0~1 都包进来，
+    /// 一直是 1（或一直是 0）的线也看得出是 1 还是 0。
+    /// 纵轴至少撑开到数值大小的 2%：几乎不变的值不把噪声放大成大起大落，差一点点的两条线也不会被拉得老远；
+    /// 全是 0 就给 0~1，线落在 0 刻度上，不往 0 以下撑。
     /// </summary>
     private static (double Min, double Max) DataRange(IEnumerable<TrendSeries> lines, double left, double right)
     {
@@ -491,11 +476,13 @@ public partial class TrendChart : UserControl
         double max = double.MinValue;
         foreach (var item in lines)
         {
+            bool hasValue = false;
             for (int point = Math.Max(0, item.LowerBound(left) - 1); point < item.Xs.Count; point++)
             {
                 double value = item.Ys[point];
                 if (!double.IsNaN(value))
                 {
+                    hasValue = true;
                     min = Math.Min(min, value);
                     max = Math.Max(max, value);
                 }
@@ -505,6 +492,12 @@ public partial class TrendChart : UserControl
                     break;
                 }
             }
+
+            if (hasValue && item.IsDigital)
+            {
+                min = Math.Min(min, 0);
+                max = Math.Max(max, 1);
+            }
         }
 
         if (min > max)
@@ -513,7 +506,12 @@ public partial class TrendChart : UserControl
         }
 
         double magnitude = Math.Max(Math.Abs(min), Math.Abs(max));
-        double minSpan = magnitude > 0 ? magnitude * MinSpanRatio : 1;
+        if (magnitude == 0)
+        {
+            return (0, 1);
+        }
+
+        double minSpan = magnitude * MinSpanRatio;
         if (max - min < minSpan)
         {
             double middle = (min + max) / 2;
@@ -521,16 +519,6 @@ public partial class TrendChart : UserControl
         }
 
         return (min, max);
-    }
-
-    /// <summary>
-    /// 让数据 [min, max] 正好落在图高的 [fromFraction, toFraction] 这一段。
-    /// </summary>
-    private void SetBand(IYAxis axis, double min, double max, double fromFraction, double toFraction)
-    {
-        double span = (max - min) / (toFraction - fromFraction);
-        double bottom = min - fromFraction * span;
-        _plot.Axes.SetLimitsY(bottom, bottom + span, axis);
     }
 
     /// <summary>
@@ -607,10 +595,10 @@ public partial class TrendChart : UserControl
 
             var value = near ? item.ValueAt(cursor) : null;
             highlight.IsVisible = value is not null;
-            if (value is { } shown && _lines.TryGetValue(item, out var line))
+            if (value is { } shown)
             {
                 highlight.X = cursor;
-                highlight.Y = shown * line.ScaleY + line.OffsetY;
+                highlight.Y = shown;
             }
         }
 
@@ -809,8 +797,8 @@ public partial class TrendChart : UserControl
     }
 
     /// <summary>
-    /// 中键框选放大：时间轴放大到框住的那段；框落在模拟量那一段里时，模拟量纵轴也定到框住的数值范围
-    /// （框的是下方开关量那几道就只放大时间）。之后缩放、平移都不动这个纵轴范围，双击回到整段才放开。
+    /// 中键框选放大：时间轴放大到框住的那段，纵轴也定到框住的数值范围（框得太扁就只放大时间）。
+    /// 之后缩放、平移都不动这个纵轴范围，双击回到整段才放开。
     /// </summary>
     private void ZoomToBox(Pixel from, Pixel to)
     {
@@ -836,8 +824,7 @@ public partial class TrendChart : UserControl
         StopFollowing();
         _plot.Axes.SetLimitsX(timeFrom, timeTo);
 
-        double centerFraction = rect.Height > 0 ? (rect.Bottom - (top + bottom) / 2) / rect.Height : 0;
-        if (bottom - top >= MinBoxPixels && centerFraction >= _analogBottom && _valueAxis.IsVisible)
+        if (bottom - top >= MinBoxPixels && _valueAxis.IsVisible)
         {
             double low = _valueAxis.GetCoordinate(bottom, rect);
             double high = _valueAxis.GetCoordinate(top, rect);
@@ -960,35 +947,4 @@ public partial class TrendChart : UserControl
     }
 
     #endregion
-
-    /// <summary>
-    /// 模拟量纵轴的刻度只出在它自己那一段（BandMin~BandMax），不伸到下方开关量那几道里去；
-    /// 刻度疏密按那一段的像素高度算，跟整根轴一样好读。
-    /// </summary>
-    private sealed class BandTickGenerator : ITickGenerator
-    {
-        private readonly NumericAutomatic _inner = new();
-
-        public double BandMin { get; set; }
-
-        public double BandMax { get; set; } = 1;
-
-        public Tick[] Ticks { get; set; } = [];
-
-        public int MaxTickCount
-        {
-            get => _inner.MaxTickCount;
-            set => _inner.MaxTickCount = value;
-        }
-
-        public void Regenerate(CoordinateRange range, Edge edge, PixelLength size, Paint paint, LabelStyle labelStyle)
-        {
-            double fraction = (BandMax - BandMin) / Math.Max(1e-12, range.Max - range.Min);
-            _inner.Regenerate(new CoordinateRange(BandMin, BandMax), edge,
-                new PixelLength((float)(size.Length * Math.Clamp(fraction, 0.05, 1))), paint, labelStyle);
-            Ticks = _inner.Ticks
-                .Where(tick => tick.Position >= BandMin - 1e-9 && tick.Position <= BandMax + 1e-9)
-                .ToArray();
-        }
-    }
 }

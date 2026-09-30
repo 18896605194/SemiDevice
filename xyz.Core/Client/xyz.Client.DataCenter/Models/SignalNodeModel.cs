@@ -45,12 +45,11 @@ public sealed class SignalNodeModel : ObservableObject
     public ObservableCollection<SignalNodeModel> Children { get; } = [];
 
     /// <summary>
-    /// 叶子名字后面那行小字：IO 是点位地址 + 单位（AI0 · MPa），SV 是来源 + 单位（SV · %）。
+    /// 叶子名字后面那行小字：IO 是点位地址 + 单位（AI0 · MPa）；SV 只写单位（%），没有单位就什么都不写——不标"SV"。
     /// </summary>
     public string Detail => Signal is null
         ? string.Empty
-        : string.Join(" · ", new[] { Signal.Address.Length > 0 ? Signal.Address : Signal.Source, Signal.Unit }
-            .Where(part => !string.IsNullOrEmpty(part)));
+        : string.Join(" · ", new[] { Signal.Address, Signal.Unit }.Where(part => !string.IsNullOrEmpty(part)));
 
     /// <summary>
     /// 悬停提示：全名 + 说明（IO 是点表里的点名和描述）。

@@ -27,7 +27,7 @@ public sealed class TrendSeries : ObservableObject
     public string Unit { get; }
 
     /// <summary>
-    /// 开关量：值只有 0/1，图上在下方分道画成阶梯线。
+    /// 开关量：值只有 0/1，图上画成阶梯线（跟模拟量同一根纵轴，就在 0 和 1 的位置）。
     /// </summary>
     public bool IsDigital { get; }
 
