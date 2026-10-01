@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
+    <!-- Override SqlSugar's transitive SQLite bundle to include the patched native library. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
   </ItemGroup>
 
 </Project>
