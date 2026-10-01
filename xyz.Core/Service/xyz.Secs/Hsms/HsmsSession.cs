@@ -7,16 +7,7 @@ using xyz.Secs.SecsII;
 
 namespace xyz.Secs.Hsms;
 
-/// <summary>
-/// 一条 HSMS-SS 连接的协议机：接收泵、发送串行化、Select 交接、事务配对（SystemBytes）、
-/// T3/T6/T7/T8 定时器和 Linktest 心跳都收在这里。Connector（主动连出）和 Listener（被动监听）
-/// 负责建 TCP，建好之后都交给本类。
-/// 线程模型：泵与控制循环（Select/Linktest/T7）是同步阻塞循环，由 Task.Factory.StartNew +
-/// LongRunning 跑在 TPL 专用线程上（和 FrameCommunication.PumpLoop 同款）——LongRunning 只有配
-/// 同步委托才真正生效，配 async 委托专用线程只活到第一个 await。
-/// IO 走同步 Read/Write：T8 用 NetworkStream.ReadTimeout 实现（开帧后每一跳受限，帧间空闲不限、靠 Linktest 探活）。
-/// 对外的 SendAsync 只是等回复的薄壳（TaskCompletionSource + WaitAsync），挂在调用方上下文，不占泵线程。
-/// </summary>
+
 public sealed class HsmsSession : IDisposable
 {
     private const string Category = "Hsms";
