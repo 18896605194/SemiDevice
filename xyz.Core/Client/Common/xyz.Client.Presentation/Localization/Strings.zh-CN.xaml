@@ -153,7 +153,6 @@
     <sys:String x:Key="setting.role.exists">角色名称已存在，请更换后重试</sys:String>
 
     <!-- 设置页（EC 设置）：左边组件树，右边一行一项 EC -->
-    <sys:String x:Key="setting.ec.search">搜参数名 / 说明，回车筛选</sys:String>
     <sys:String x:Key="setting.ec.component">组件</sys:String>
     <sys:String x:Key="setting.ec.name">参数</sys:String>
     <sys:String x:Key="setting.ec.description">说明</sys:String>
@@ -162,7 +161,6 @@
     <sys:String x:Key="setting.ec.default">默认值</sys:String>
     <sys:String x:Key="setting.ec.setpoint">设定值</sys:String>
     <sys:String x:Key="setting.ec.set">设置</sys:String>
-    <sys:String x:Key="setting.ec.count">共 {0} 项</sys:String>
     <sys:String x:Key="setting.ec.set_failed">{0} 没改成：{1}</sys:String>
 
     <!-- 数据曲线、实时曲线（两页共用左边的信号树和右下角的曲线信息） -->

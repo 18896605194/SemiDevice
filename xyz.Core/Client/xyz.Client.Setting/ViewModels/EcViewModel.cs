@@ -34,37 +34,9 @@ public class EcViewModel : BaseViewModel
     public ObservableCollection<EcItemModel> Items { get; } = [];
 
     /// <summary>
-    /// 表格里列的：左边选中的组件（含下级）里，名字或说明对得上搜索词的参数。
+    /// 表格里列的：左边选中的组件和它下级的参数。
     /// </summary>
     public ICollectionView ItemsView { get; }
-
-    private string _searchText = string.Empty;
-
-    /// <summary>
-    /// 搜索词：参数全名（组件全路径.参数名）或说明里包含就算，不分大小写；在左边选中的范围里搜。
-    /// </summary>
-    public string SearchText
-    {
-        get => _searchText;
-        set
-        {
-            if (SetProperty(ref _searchText, value ?? string.Empty))
-            {
-                RefreshView();
-            }
-        }
-    }
-
-    private string _summary = string.Empty;
-
-    /// <summary>
-    /// 工具栏右侧的说明：表格里现在列了多少项。
-    /// </summary>
-    public string Summary
-    {
-        get => _summary;
-        private set => SetProperty(ref _summary, value);
-    }
 
     #endregion
 
@@ -146,7 +118,6 @@ public class EcViewModel : BaseViewModel
 
         if (Items.Count == 0)
         {
-            RefreshView();
             return;
         }
 
@@ -191,26 +162,12 @@ public class EcViewModel : BaseViewModel
     private void OnNodeSelected(EcNodeModel node)
     {
         _selectedNode = node;
-        RefreshView();
-    }
-
-    private void RefreshView()
-    {
         ItemsView.Refresh();
-        Summary = L10n.Get("setting.ec.count", ItemsView.Cast<object>().Count());
     }
 
     private bool Matches(object candidate)
     {
-        if (candidate is not EcItemModel item || (_selectedNode is { } node && !node.Contains(item.Path)))
-        {
-            return false;
-        }
-
-        string query = SearchText.Trim();
-        return query.Length == 0
-               || item.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
-               || item.Description.Contains(query, StringComparison.OrdinalIgnoreCase);
+        return candidate is EcItemModel item && (_selectedNode is null || _selectedNode.Contains(item.Path));
     }
 
     /// <summary>

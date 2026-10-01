@@ -152,7 +152,6 @@
     <sys:String x:Key="setting.role.exists">The role name already exists; please choose another one</sys:String>
 
     <!-- Settings page (EC settings): component tree on the left, one EC item per row on the right -->
-    <sys:String x:Key="setting.ec.search">Search name / description, press Enter</sys:String>
     <sys:String x:Key="setting.ec.component">Component</sys:String>
     <sys:String x:Key="setting.ec.name">Parameter</sys:String>
     <sys:String x:Key="setting.ec.description">Description</sys:String>
@@ -161,7 +160,6 @@
     <sys:String x:Key="setting.ec.default">Default</sys:String>
     <sys:String x:Key="setting.ec.setpoint">New value</sys:String>
     <sys:String x:Key="setting.ec.set">Set</sys:String>
-    <sys:String x:Key="setting.ec.count">{0} items</sys:String>
     <sys:String x:Key="setting.ec.set_failed">{0} was not changed: {1}</sys:String>
 
     <!-- Data chart / real-time chart (both share the signal tree on the left and the curve info at the bottom right) -->

@@ -12,172 +12,148 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
+        <!--  左：组件树（层级、先后跟 sc.xml 的组件层级一样），点哪个节点右边就列哪个组件（含下级）的参数；
+              右：一行一项 EC，在"设定值"里填新值点"设置"才改  -->
         <Grid Margin="8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" MinWidth="200" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!--  搜索：在左边选中的范围里按参数名、说明找  -->
-            <Border Grid.Row="0" Style="{DynamicResource ToolbarBorderStyle}">
-                <DockPanel>
-                    <TextBlock
-                        DockPanel.Dock="Right"
-                        Style="{DynamicResource StatusLabelTextStyle}"
-                        Text="{Binding Summary}" />
-                    <presentation:InputTextBox
-                        Width="320"
-                        HorizontalAlignment="Left"
-                        materialDesign:HintAssist.Hint="{DynamicResource setting.ec.search}"
-                        DataType="Text"
-                        Style="{DynamicResource ToolbarTextBoxStyle}"
-                        Value="{Binding SearchText}" />
-                </DockPanel>
-            </Border>
+            <materialDesign:Card
+                Grid.Column="0"
+                Padding="4,8"
+                Style="{DynamicResource DefaultCardStyle}">
+                <TreeView
+                    ItemContainerStyle="{DynamicResource NavTreeViewItemStyle}"
+                    ItemsSource="{Binding Nodes}"
+                    Style="{DynamicResource DefaultTreeViewStyle}">
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{Binding Count}" />
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </materialDesign:Card>
 
-            <!--  左：组件树（层级、先后跟 sc.xml 的组件层级一样），点哪个节点右边就列哪个组件（含下级）的参数；
-                  右：一行一项 EC，在"设定值"里填新值点"设置"才改  -->
-            <Grid Grid.Row="1" Margin="0,8,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="300" MinWidth="200" />
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+            <GridSplitter
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                Background="Transparent" />
 
-                <materialDesign:Card
-                    Grid.Column="0"
-                    Padding="4,8"
-                    Style="{DynamicResource DefaultCardStyle}">
-                    <TreeView
-                        ItemContainerStyle="{DynamicResource NavTreeViewItemStyle}"
-                        ItemsSource="{Binding Nodes}"
-                        Style="{DynamicResource DefaultTreeViewStyle}">
-                        <TreeView.ItemTemplate>
-                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
-                                    <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{Binding Count}" />
-                                </StackPanel>
-                            </HierarchicalDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
-                </materialDesign:Card>
-
-                <GridSplitter
-                    Grid.Column="1"
-                    HorizontalAlignment="Stretch"
-                    Background="Transparent" />
-
-                <materialDesign:Card Grid.Column="2" Style="{DynamicResource DefaultCardStyle}">
-                    <DataGrid ItemsSource="{Binding ItemsView}" Style="{DynamicResource CompactDataGridStyle}">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn
-                                Width="200"
-                                Binding="{Binding Path, Mode=OneWay}"
-                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                                Header="{DynamicResource setting.ec.component}" />
-                            <DataGridTextColumn
-                                Width="190"
-                                Binding="{Binding Name, Mode=OneWay}"
-                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                                Header="{DynamicResource setting.ec.name}" />
-                            <DataGridTextColumn
-                                Width="*"
-                                Binding="{Binding Description, Mode=OneWay}"
-                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                                Header="{DynamicResource setting.ec.description}" />
-                            <DataGridTemplateColumn Width="130" Header="{DynamicResource setting.ec.value}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel
-                                            Margin="8,0"
+            <materialDesign:Card Grid.Column="2" Style="{DynamicResource DefaultCardStyle}">
+                <DataGrid ItemsSource="{Binding ItemsView}" Style="{DynamicResource CompactDataGridStyle}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Width="200"
+                            Binding="{Binding Path, Mode=OneWay}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource setting.ec.component}" />
+                        <DataGridTextColumn
+                            Width="190"
+                            Binding="{Binding Name, Mode=OneWay}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource setting.ec.name}" />
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding Description, Mode=OneWay}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource setting.ec.description}" />
+                        <DataGridTemplateColumn Width="130" Header="{DynamicResource setting.ec.value}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel
+                                        Margin="8,0"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <TextBlock
                                             VerticalAlignment="Center"
-                                            Orientation="Horizontal">
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                FontWeight="SemiBold"
-                                                Text="{Binding Value}" />
-                                            <TextBlock
-                                                Margin="4,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Foreground="{DynamicResource DarkSecondaryText}"
-                                                Text="{Binding Unit}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn
-                                Width="160"
-                                Binding="{Binding RangeText, Mode=OneWay}"
-                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                                Header="{DynamicResource setting.ec.range}" />
-                            <DataGridTextColumn
-                                Width="100"
-                                Binding="{Binding Default, Mode=OneWay}"
-                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                                Header="{DynamicResource setting.ec.default}" />
-
-                            <!--  设定值：数值、文本用通用输入框（按这一项 EC 的格式、上下限卡，错着的时候"设置"灰掉），布尔、枚举用下拉；
-                                  行只有 32 高，错误提示走弹出层，放在框下面会被行裁掉  -->
-                            <DataGridTemplateColumn Width="Auto" Header="{DynamicResource setting.ec.setpoint}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel
-                                            Margin="4,0"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Value}" />
+                                        <TextBlock
+                                            Margin="4,0,0,0"
                                             VerticalAlignment="Center"
-                                            Orientation="Horizontal">
-                                            <Grid>
-                                                <Grid.Style>
-                                                    <Style TargetType="Grid">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsChoice}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Grid.Style>
-                                                <presentation:InputTextBox
-                                                    Width="120"
-                                                    VerticalAlignment="Center"
-                                                    materialDesign:HintAssist.Hint="{DynamicResource setting.ec.setpoint}"
-                                                    materialDesign:ValidationAssist.UsePopup="True"
-                                                    EcKey="{Binding Key}"
-                                                    HasError="{Binding HasInputError, Mode=OneWayToSource}"
-                                                    Style="{DynamicResource CompactTextBoxStyle}"
-                                                    Value="{Binding PendingValue}" />
-                                            </Grid>
-                                            <Grid>
-                                                <Grid.Style>
-                                                    <Style TargetType="Grid">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsChoice}" Value="False">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Grid.Style>
-                                                <ComboBox
-                                                    Width="120"
-                                                    VerticalAlignment="Center"
-                                                    materialDesign:HintAssist.Hint="{DynamicResource setting.ec.setpoint}"
-                                                    ItemsSource="{Binding Choices}"
-                                                    SelectedItem="{Binding PendingChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    Style="{DynamicResource CompactComboBoxStyle}" />
-                                            </Grid>
-                                            <Button
-                                                Command="{Binding DataContext.SetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Content="{DynamicResource setting.ec.set}"
-                                                IsEnabled="{Binding CanSet}"
-                                                Style="{DynamicResource MiniButtonStyle}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </materialDesign:Card>
-            </Grid>
+                                            Foreground="{DynamicResource DarkSecondaryText}"
+                                            Text="{Binding Unit}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn
+                            Width="160"
+                            Binding="{Binding RangeText, Mode=OneWay}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource setting.ec.range}" />
+                        <DataGridTextColumn
+                            Width="100"
+                            Binding="{Binding Default, Mode=OneWay}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource setting.ec.default}" />
+
+                        <!--  设定值：数值、文本用通用输入框（按这一项 EC 的格式、上下限卡，错着的时候"设置"灰掉），布尔、枚举用下拉；
+                              行只有 32 高，错误提示走弹出层，放在框下面会被行裁掉  -->
+                        <DataGridTemplateColumn Width="Auto" Header="{DynamicResource setting.ec.setpoint}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel
+                                        Margin="4,0"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <Grid>
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsChoice}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+                                            <presentation:InputTextBox
+                                                Width="120"
+                                                VerticalAlignment="Center"
+                                                materialDesign:HintAssist.Hint="{DynamicResource setting.ec.setpoint}"
+                                                materialDesign:ValidationAssist.UsePopup="True"
+                                                EcKey="{Binding Key}"
+                                                HasError="{Binding HasInputError, Mode=OneWayToSource}"
+                                                Style="{DynamicResource CompactTextBoxStyle}"
+                                                Value="{Binding PendingValue}" />
+                                        </Grid>
+                                        <Grid>
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsChoice}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+                                            <ComboBox
+                                                Width="120"
+                                                VerticalAlignment="Center"
+                                                materialDesign:HintAssist.Hint="{DynamicResource setting.ec.setpoint}"
+                                                ItemsSource="{Binding Choices}"
+                                                SelectedItem="{Binding PendingChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Style="{DynamicResource CompactComboBoxStyle}" />
+                                        </Grid>
+                                        <Button
+                                            Command="{Binding DataContext.SetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{DynamicResource setting.ec.set}"
+                                            IsEnabled="{Binding CanSet}"
+                                            Style="{DynamicResource MiniButtonStyle}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </materialDesign:Card>
         </Grid>
     </Grid>
 </UserControl>
