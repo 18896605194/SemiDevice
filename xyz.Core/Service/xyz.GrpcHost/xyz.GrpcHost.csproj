@@ -23,7 +23,6 @@
 
   <ItemGroup>
     <Content Include="..\xyz.Configs\Config\sc.xml" Link="sc.xml" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\xyz.Configs\Config\ec.xml" Link="Config\ec.xml" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\xyz.Configs\Paths.json" Link="Paths.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\xyz.Common\Log\NLog.config" Link="Log\NLog.config" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

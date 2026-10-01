@@ -97,6 +97,28 @@ public static class ErrorCodes
 
     #endregion
 
+    #region EC
+
+    /// <summary>EC 组件没装（sc.xml 没配 EC 节点）。</summary>
+    public const string EcNotInstalled = "ec.not_installed";
+
+    /// <summary>没有这一项 EC（组件树上没声明）。Args: [键]</summary>
+    public const string EcNotFound = "ec.not_found";
+
+    /// <summary>EC 值的写法不对。Args: [键, 格式 Int/Double/Bool/Enum]</summary>
+    public const string EcInvalidFormat = "ec.invalid_format";
+
+    /// <summary>EC 值超出声明的上下限。Args: [键, 下限, 上限, 单位]</summary>
+    public const string EcOutOfRange = "ec.out_of_range";
+
+    /// <summary>EC 值不在枚举的可选值里。Args: [键, 可选值]</summary>
+    public const string EcInvalidOption = "ec.invalid_option";
+
+    /// <summary>ec.xml 写不进去，值没改。Args: [键]</summary>
+    public const string EcSaveFailed = "ec.save_failed";
+
+    #endregion
+
     #region 历史查询
 
     /// <summary>历史查询失败（读日志文件或数据库出错）。Args: [原因]</summary>

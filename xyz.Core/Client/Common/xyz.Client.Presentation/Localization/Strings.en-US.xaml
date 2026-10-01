@@ -52,6 +52,13 @@
     <sys:String x:Key="datachart.not_installed">Data chart is not installed (no DataChart node in sc.xml)</sys:String>
     <sys:String x:Key="realchart.not_installed">Real-time chart is not installed (no RealChart node in sc.xml)</sys:String>
 
+    <sys:String x:Key="ec.not_installed">EC component is not installed (no EC node in sc.xml)</sys:String>
+    <sys:String x:Key="ec.not_found">No such EC item: {0}</sys:String>
+    <sys:String x:Key="ec.invalid_format">{0}: invalid value (expected {1})</sys:String>
+    <sys:String x:Key="ec.out_of_range">{0} is out of range {1} ~ {2} {3}</sys:String>
+    <sys:String x:Key="ec.invalid_option">{0} must be one of: {1}</sys:String>
+    <sys:String x:Key="ec.save_failed">{0} was not changed: cannot write ec.xml (file in use or access denied)</sys:String>
+
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
          The UI language comes from the System node (Language) in the backend sc.xml, fetched once at client startup. -->
@@ -144,13 +151,25 @@
     <sys:String x:Key="setting.role.create">Create role</sys:String>
     <sys:String x:Key="setting.role.exists">The role name already exists; please choose another one</sys:String>
 
+    <!-- Settings page (EC settings): component tree on the left, one EC item per row on the right -->
+    <sys:String x:Key="setting.ec.search">Search name / description, press Enter</sys:String>
+    <sys:String x:Key="setting.ec.component">Component</sys:String>
+    <sys:String x:Key="setting.ec.name">Parameter</sys:String>
+    <sys:String x:Key="setting.ec.description">Description</sys:String>
+    <sys:String x:Key="setting.ec.value">Current</sys:String>
+    <sys:String x:Key="setting.ec.range">Range</sys:String>
+    <sys:String x:Key="setting.ec.default">Default</sys:String>
+    <sys:String x:Key="setting.ec.setpoint">New value</sys:String>
+    <sys:String x:Key="setting.ec.set">Set</sys:String>
+    <sys:String x:Key="setting.ec.count">{0} items</sys:String>
+    <sys:String x:Key="setting.ec.set_failed">{0} was not changed: {1}</sys:String>
+
     <!-- Data chart / real-time chart (both share the signal tree on the left and the curve info at the bottom right) -->
     <sys:String x:Key="chart.signals">Signals</sys:String>
     <sys:String x:Key="chart.search">Search signals, press Enter</sys:String>
     <sys:String x:Key="chart.selected">Selected</sys:String>
     <sys:String x:Key="chart.clear">Clear</sys:String>
     <sys:String x:Key="chart.refresh">Refresh</sys:String>
-    <sys:String x:Key="chart.empty">Check signals on the left to plot them here</sys:String>
     <sys:String x:Key="chart.popout">Enlarge: show in a separate full-screen window</sys:String>
     <sys:String x:Key="chart.popin">Back to the page</sys:String>
     <sys:String x:Key="chart.popped_out">The chart is shown in a separate full-screen window</sys:String>
@@ -289,6 +308,7 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">Log History</sys:String>
     <sys:String x:Key="menu.DataCenter.DataChart">Data Chart</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">Real-time Chart</sys:String>
+    <sys:String x:Key="menu.Setting.Ec">EC Settings</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>
     <sys:String x:Key="menu.Setting.Role">Roles</sys:String>
 

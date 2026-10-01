@@ -5,6 +5,8 @@
 		<Value Name="Language" Value="zh-CN" />
 	</Setting>
 	<!-- EC：全系统一本在线可调参数（ec.xml，跟 sc.xml 同目录），各组件的 EC 属性经它读写。
+	     ec.xml 不用手建：后端启动时照本文件的组件层级自动生成，层级、先后都跟这里一样；已经有了就只补新的，改过的值不动。
+	     界面上在 设置 → EC 设置 里改，改完立即生效。
 	     放最前面：后面的组件装配时就能读到 ec.xml 里的值 -->
 	<Setting Name="EC" Type="xyz.Components.Components.EcComponent" />
 	<!-- 数据库连接：只分两个。业务数据（含晶圆流水）走 Default；

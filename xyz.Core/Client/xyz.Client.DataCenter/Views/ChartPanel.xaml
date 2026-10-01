@@ -50,10 +50,6 @@
                         Series="{Binding Series}"
                         VisibleEnd="{Binding VisibleEnd}"
                         VisibleStart="{Binding VisibleStart}" />
-                    <TextBlock
-                        Style="{DynamicResource EmptyCountHintTextStyle}"
-                        Tag="{Binding Series.Count}"
-                        Text="{DynamicResource chart.empty}" />
                     <Button
                         x:Name="PopOutButton"
                         HorizontalAlignment="Right"

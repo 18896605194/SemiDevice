@@ -13,12 +13,16 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddXyzSettingServices(this IServiceCollection services)
     {
+        services.AddSingleton<EcViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<EcViewModel>());
+
         services.AddSingleton<UserViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<UserViewModel>());
 
         services.AddSingleton<RoleViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<RoleViewModel>());
 
+        services.AddKeyedSingleton<UserControl, EcView>("Setting.Ec");
         services.AddKeyedSingleton<UserControl, UserView>("Setting.User");
         services.AddKeyedSingleton<UserControl, RoleView>("Setting.Role");
 

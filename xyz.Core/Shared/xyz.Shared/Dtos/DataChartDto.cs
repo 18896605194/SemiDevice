@@ -12,7 +12,7 @@ public class DataChartSignalDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 开关量（DI/DO、布尔 SV）：值只有 1/0（true=1、false=0），界面在图的下方分道画。
+    /// 开关量（DI/DO、布尔 SV）：值只有 1/0（true=1、false=0），界面画成阶梯线。
     /// </summary>
     public bool IsDigital { get; set; }
 

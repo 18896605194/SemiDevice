@@ -53,6 +53,13 @@
     <sys:String x:Key="datachart.not_installed">数据曲线没装（sc.xml 没配 DataChart 节点）</sys:String>
     <sys:String x:Key="realchart.not_installed">实时曲线没装（sc.xml 没配 RealChart 节点）</sys:String>
 
+    <sys:String x:Key="ec.not_installed">EC 组件没装（sc.xml 没配 EC 节点）</sys:String>
+    <sys:String x:Key="ec.not_found">没有这一项 EC：{0}</sys:String>
+    <sys:String x:Key="ec.invalid_format">{0} 的值写法不对（应为 {1}）</sys:String>
+    <sys:String x:Key="ec.out_of_range">{0} 超出范围 {1} ~ {2} {3}</sys:String>
+    <sys:String x:Key="ec.invalid_option">{0} 只能是：{1}</sys:String>
+    <sys:String x:Key="ec.save_failed">{0} 没改成：ec.xml 写不进去（文件被占着或没有权限）</sys:String>
+
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
          界面语言由后端 sc.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
@@ -145,13 +152,25 @@
     <sys:String x:Key="setting.role.create">创建角色</sys:String>
     <sys:String x:Key="setting.role.exists">角色名称已存在，请更换后重试</sys:String>
 
+    <!-- 设置页（EC 设置）：左边组件树，右边一行一项 EC -->
+    <sys:String x:Key="setting.ec.search">搜参数名 / 说明，回车筛选</sys:String>
+    <sys:String x:Key="setting.ec.component">组件</sys:String>
+    <sys:String x:Key="setting.ec.name">参数</sys:String>
+    <sys:String x:Key="setting.ec.description">说明</sys:String>
+    <sys:String x:Key="setting.ec.value">当前值</sys:String>
+    <sys:String x:Key="setting.ec.range">范围</sys:String>
+    <sys:String x:Key="setting.ec.default">默认值</sys:String>
+    <sys:String x:Key="setting.ec.setpoint">设定值</sys:String>
+    <sys:String x:Key="setting.ec.set">设置</sys:String>
+    <sys:String x:Key="setting.ec.count">共 {0} 项</sys:String>
+    <sys:String x:Key="setting.ec.set_failed">{0} 没改成：{1}</sys:String>
+
     <!-- 数据曲线、实时曲线（两页共用左边的信号树和右下角的曲线信息） -->
     <sys:String x:Key="chart.signals">信号</sys:String>
     <sys:String x:Key="chart.search">搜信号名，回车筛选</sys:String>
     <sys:String x:Key="chart.selected">已选</sys:String>
     <sys:String x:Key="chart.clear">清空勾选</sys:String>
     <sys:String x:Key="chart.refresh">刷新信号</sys:String>
-    <sys:String x:Key="chart.empty">勾选左边的信号，曲线画在这里</sys:String>
     <sys:String x:Key="chart.popout">放大：在单独的窗口里全屏显示</sys:String>
     <sys:String x:Key="chart.popin">收回到页面</sys:String>
     <sys:String x:Key="chart.popped_out">曲线已在单独的窗口里全屏显示</sys:String>
@@ -290,6 +309,7 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">日志历史</sys:String>
     <sys:String x:Key="menu.DataCenter.DataChart">数据曲线</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">实时曲线</sys:String>
+    <sys:String x:Key="menu.Setting.Ec">EC 设置</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>
     <sys:String x:Key="menu.Setting.Role">角色管理</sys:String>
 

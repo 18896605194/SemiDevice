@@ -56,10 +56,14 @@ public static class ServiceCollectionExtensions
         var roots = ComponentLoader.Load(settings);
         services.AddSingleton<IReadOnlyList<ComponentBase>>(roots);
 
-        // EC 组件把组件树 [VariableMark(EC)] 声明合并进 ec.xml（缺的补建，已有值不动）。
+        // EC 组件把组件树 [VariableMark(EC)] 声明合并进 ec.xml（没有这个文件就生成，缺的补建，已有值不动，层级先后跟 sc.xml 一样）。
         if (EcComponent.Current is { } ec)
         {
             ec.Merge(roots);
+
+            // EC 值一变就推给客户端（界面改的、组件自己写的都算）：EC 设置页和输入框按 EcKey 取的范围跟着走。
+            // EC 组件在组件层（不引用契约层），所以这条桥搭在这儿，跟报警那条一个路子。
+            ec.ValueChanged += (path, value) => EventBus.Send(value.ToDto(path), EcItemDto.EventToken, retain: false);
         }
         else
         {

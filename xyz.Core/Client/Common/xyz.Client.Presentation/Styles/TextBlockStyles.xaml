@@ -122,19 +122,6 @@
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
 
-    <!--  空状态提示（Tag 绑条数，比如 Series.Count）：条数为 0 才显示  -->
-    <Style
-        x:Key="EmptyCountHintTextStyle"
-        BasedOn="{StaticResource CenterHintTextStyle}"
-        TargetType="TextBlock">
-        <Setter Property="Visibility" Value="Collapsed" />
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="0">
-                <Setter Property="Visibility" Value="Visible" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <!--  趋势图悬停数值框的第一行：时刻，小字、灰  -->
     <Style x:Key="ChartHoverTimeTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,0,0,4" />
@@ -142,7 +129,7 @@
         <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
     </Style>
 
-    <!--  列表、树里名字后面的附注（来源、单位）：小一号、灰  -->
+    <!--  列表、树里名字后面的附注（点位地址、单位）：小一号、灰  -->
     <Style x:Key="ItemDetailTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="8,0,0,0" />
         <Setter Property="VerticalAlignment" Value="Center" />
