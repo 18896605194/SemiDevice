@@ -119,6 +119,33 @@ public sealed class SvCollector
     }
 
     /// <summary>
+    /// 按 SVID 取一项在用 SV 的当前值；没这个号或已停用返回 null。HSMS 的 S1F3 按号答话走这里。
+    /// </summary>
+    public CollectedSv? BySvid(int svid)
+    {
+        foreach (var (row, declaration) in _items)
+        {
+            if (row.Id == svid)
+            {
+                return new CollectedSv
+                {
+                    Svid = row.Id,
+                    Name = row.Name,
+                    Value = CollectorHelper.ReadValue(declaration, Kind),
+                    Format = row.Format,
+                    Unit = row.Unit,
+                    Min = row.Min,
+                    Max = row.Max,
+                    Description = row.Description,
+                    Visible = row.Visible,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// 能画成曲线的在用 SV（字符串类的不算），顺序同编号表；数据曲线每秒按它取一行。
     /// </summary>
     public IReadOnlyList<NumericSv> NumericItems()

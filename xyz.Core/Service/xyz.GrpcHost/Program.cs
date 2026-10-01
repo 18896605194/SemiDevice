@@ -1,4 +1,5 @@
-﻿using System.Runtime.Versioning;
+﻿using System.Net;
+using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
@@ -16,7 +17,7 @@ namespace xyz.GrpcHost;
 [SupportedOSPlatform("windows")]
 public static class Program
 {
-    private const int Port = 5000;
+    private const int DefaultPort = 5000;
 
     public static void Main(string[] args)
     {
@@ -54,12 +55,30 @@ public static class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        // 先装配组件树再配监听：gRPC 端点本身是组件（sc.xml 的 Rpc 节点），地址端口从 RpcComponent 上取；
+        // 没配该节点时退回默认 localhost:5000，行为与老版本一致。组件照旧先于端口装配（PLC 先连先扫描的启动顺序不变）。
+        builder.Services.AddXyzServices();
+        var rpc = RpcComponent.Current;
+        var host = rpc is { Host.Length: > 0 } endpoint ? endpoint.Host : "localhost";
+        var port = rpc?.Port ?? DefaultPort;
+
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenLocalhost(Port, listenOptions =>
+            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
             {
-                listenOptions.Protocols = HttpProtocols.Http2;
-            });
+                options.ListenLocalhost(port, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http2;
+                });
+            }
+            else
+            {
+                // 远程调试场景：按明确地址监听（IPv4/IPv6 均可）
+                options.Listen(IPAddress.Parse(host), port, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http2;
+                });
+            }
         });
 
         // 退出时不干等长连接：客户端的事件流不会自己断，按默认 30 秒超时要等半分钟才退得掉。
@@ -67,12 +86,13 @@ public static class Program
 
         builder.Services.AddCodeFirstGrpc();
 
-        builder.Services.AddXyzServices();
-
         var app = builder.Build();
 
         app.Lifetime.ApplicationStopping.Register(() =>
         {
+            // EAP 链路先优雅断开（发 Separate），再停采样、落库、断 PLC。
+            HsmsComponent.Current?.Close();
+
             // 先停采样、把攒着的最后一批写进库，再断 PLC。
             DataChartComponent.Current?.StopSampling();
 
@@ -99,7 +119,7 @@ public static class Program
         app.MapGrpcService<RealChartService>();
 
         // 端口监听上了灯才变绿；托盘上点退出就停宿主。
-        app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"localhost:{Port}"));
+        app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"{host}:{port}"));
         tray.ExitRequested.Register(app.Lifetime.StopApplication);
 
         app.Run();

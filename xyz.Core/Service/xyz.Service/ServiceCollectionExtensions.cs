@@ -82,6 +82,13 @@ public static class ServiceCollectionExtensions
             alarms.AlarmChanged += item => EventBus.Send(item.ToDto(), AlarmDto.EventToken, retain: false);
         }
 
+        // EAP 主机链路（sc.xml 的 Hsms 节点）：排在编号表合并之后——S1F3 要按 SVID 表答话；
+        // IsEnable=False 时组件自己只记一条日志不监听。退出时的 Separate 优雅断开挂在宿主的 ApplicationStopping。
+        foreach (var hsms in roots.OfType<HsmsComponent>())
+        {
+            hsms.Open();
+        }
+
         // PLC 是全机 IO 底座（气缸的 DI/DO、轴的数据块都从它走），所以先于模块连上并起扫描：
         // 模块 Open 时可能就要登记自己的数据块。它不是模块，不在下面的模块列表里，自己就是一棵扫描树的根。
         // 这儿按组件类型取而不是走 PlcComponent.Current——Current 是给上层读写用的 IPlc，不带装配这一面。

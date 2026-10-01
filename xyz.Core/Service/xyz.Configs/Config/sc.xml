@@ -4,6 +4,26 @@
 	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
 		<Value Name="Language" Value="zh-CN" />
 	</Setting>
+	<!-- 对前端壳的 gRPC 服务端点：客户端壳连这个地址，默认 localhost:5000。
+	     端口规划注意：HSMS（EAP 链路）惯例端口也是 5000，接 EAP 时把其中一边挪开；
+	     改这里要同步改客户端 exe 旁的 client.json（GrpcAddress），没配 client.json 时客户端按 localhost:5000 连 -->
+	<Setting Name="Rpc" Type="xyz.Components.Components.RpcComponent">
+		<Value Name="Host" Value="localhost" />
+		<Value Name="Port" Value="5000" />
+	</Setting>
+	<!-- EAP 主机链路（SECS/GEM over HSMS）：没接 EAP 的机器保持 IsEnable=False（不监听端口、照常跑）。
+	     接 EAP 时改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口）；
+	     DeviceId、T3~T8、MDLN/SOFTREV 按 EAP 侧要求对齐 -->
+	<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
+		<Value Name="IsEnable" Value="False" />
+		<Value Name="IsActive" Value="False" />
+		<Value Name="Host" Value="" />
+		<Value Name="Port" Value="5000" />
+		<Value Name="DeviceId" Value="0" />
+		<Value Name="EquipmentModel" Value="xyz" />
+		<Value Name="SoftwareRevision" Value="1.0.0" />
+		<Value Name="LogMessages" Value="True" />
+	</Setting>
 	<!-- EC：全系统一本在线可调参数（ec.xml，跟 sc.xml 同目录），各组件的 EC 属性经它读写。
 	     ec.xml 不用手建：后端启动时照本文件的组件层级自动生成，层级、先后都跟这里一样；已经有了就只补新的，改过的值不动。
 	     界面上在 设置 → EC 设置 里改，改完立即生效。
