@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="no-js">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECF 设备控制平台 — xyz | WPF + gRPC 前后端分离 · 机型插件化</title>
+  <meta name="description" content="xyz ECF 设备控制平台：WPF 深色客户端 + gRPC 后端服务前后端分离，组件树配置装配，机型插件热插拔，覆盖报警、IO 监控、手动操作、配方、数据中心全功能。">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <span class="logo">xyz</span>
+        <span>xyz<small>Equipment Software</small></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="index.html">首页</a>
+        <a href="platform.html" class="active">ECF 平台</a>
+        <a href="secs.html">SECS / GEM</a>
+        <a href="solutions.html">解决方案</a>
+        <a href="about.html">关于我们</a>
+      </nav>
+      <button class="nav-toggle" aria-label="打开菜单" onclick="document.getElementById('navLinks').classList.toggle('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= 页头 ================= -->
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb"><a href="index.html">首页</a> / ECF 设备控制平台</nav>
+      <h1>xyz ECF 设备控制平台</h1>
+      <p>Equipment Control Framework —— 平台核心。WPF 客户端与 gRPC 后端服务前后端分离，组件树按配置装配，
+        机型以插件形式热插拔，为半导体设备提供从 IO 到界面的完整上位机软件底座。</p>
+    </div>
+  </section>
+
+  <!-- ================= 架构分层 ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Architecture</span>
+        <h2>六层架构，职责清晰</h2>
+        <p>客户端不引用任何后端工程，全部通过 <code>xyz.Shared</code> 契约以 code-first gRPC 通信——界面与控制彻底解耦，任一层可独立替换。</p>
+      </div>
+
+      <div class="arch reveal">
+        <div class="arch-layer">
+          <div class="layer-name"><b>客户端层</b><span>xyz.Client · WPF + MVVM</span></div>
+          <div class="layer-boxes">
+            <span class="chip accent">主程序壳 / 页面宿主</span>
+            <span class="chip">设置 / EC 参数</span>
+            <span class="chip">IO 监控</span>
+            <span class="chip">报警中心</span>
+            <span class="chip">手动操作</span>
+            <span class="chip">数据中心</span>
+            <span class="chip">配方管理</span>
+            <span class="chip accent">机型客户端插件</span>
+          </div>
+        </div>
+        <div class="arch-arrow">⇅　gRPC 契约（xyz.Shared · DTO + 服务接口）</div>
+        <div class="arch-layer">
+          <div class="layer-name"><b>服务层</b><span>xyz.GrpcHost · xyz.Service</span></div>
+          <div class="layer-boxes">
+            <span class="chip accent">托盘常驻宿主</span>
+            <span class="chip">报警 / 事件 / 用户权限</span>
+            <span class="chip">数据 / 日志 / 图表服务</span>
+            <span class="chip">单实例互斥保护</span>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="layer-name"><b>模块层</b><span>xyz.Modules · 机型插件</span></div>
+          <div class="layer-boxes">
+            <span class="chip">Load Port 模块</span>
+            <span class="chip">Robot 机械手模块</span>
+            <span class="chip">Clean 清洗腔模块</span>
+            <span class="chip">Transfer 搬运调度</span>
+            <span class="chip">E84 交接模块</span>
+            <span class="chip accent">OnScan 状态机</span>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="layer-name"><b>组件层</b><span>xyz.Components · 组件树</span></div>
+          <div class="layer-boxes">
+            <span class="chip">PLC 组件</span>
+            <span class="chip">轴 / 气缸 / 阀门 / 传感器</span>
+            <span class="chip">RFID</span>
+            <span class="chip">晶圆账 Wafer Ledger</span>
+            <span class="chip accent">GEM 采集器</span>
+            <span class="chip">三色灯</span>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="layer-name"><b>驱动层</b><span>xyz.Drivers · 纯协议实现</span></div>
+          <div class="layer-boxes">
+            <span class="chip">串口 / TCP 通信框架</span>
+            <span class="chip">FCD Load Port</span>
+            <span class="chip">FCD RFID</span>
+            <span class="chip">机械手 TCP 协议</span>
+            <span class="chip">TwinCAT ADS</span>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="layer-name"><b>数据层</b><span>xyz.Database · SQLite 分库</span></div>
+          <div class="layer-boxes">
+            <span class="chip">xyz.db 业务库</span>
+            <span class="chip">io.db 秒级采样库</span>
+            <span class="chip">90 天历史留存</span>
+            <span class="chip">可切换企业级数据库</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 机型插件 ================= -->
+  <section class="section alt">
+    <div class="container split">
+      <div class="reveal">
+        <span class="section-kicker">Plugin Architecture</span>
+        <h2>平台 + 机型插件<br>换型不改平台</h2>
+        <p>
+          平台壳（GrpcHost / Client）不引用任何机型工程。机型以后端模块、客户端插件、专属控件三件套独立开发，
+          编译后部署到 <code>Modules\&lt;机型&gt;\</code> 目录，启动时自动扫描装配——同一套平台并行支撑多机型研发，互不干扰。
+        </p>
+        <ul class="ticks">
+          <li>机型 DLL 编译即部署，无需改动平台代码</li>
+          <li>机型专属手动操作页、HMI 控件与语言包随插件下发</li>
+          <li>IO 点表以 CSV 点表管理，随机型插件走版本管理</li>
+          <li>首个落地机型：35021 清洗设备（清洗腔 + Load Port + 机械手）</li>
+        </ul>
+      </div>
+      <div class="figure reveal">
+        <div class="code-block">
+          <div class="bar"><i></i><i></i><i></i><span>Modules/ — 机型插件目录</span></div>
+<pre><span class="tok-c">// 启动时扫描 Modules/&lt;机型&gt;/ 自动装配</span>
+Modules/
+└── <span class="tok-s">35021</span>/                    <span class="tok-c">// 清洗设备机型插件</span>
+    ├── xyz.35021.Module.dll      <span class="tok-c">// 后端：腔体/端口/机械手模块</span>
+    ├── xyz.35021.Client.dll      <span class="tok-c">// 客户端：[ClientModule("35021")]</span>
+    ├── xyz.35021.Client.Manual.dll
+    ├── xyz.35021.Presentation.dll <span class="tok-c">// 机型控件 + zh-CN/en-US</span>
+    ├── xyz.35021.Shared.dll
+    └── IO/ *.csv                 <span class="tok-c">// DI/DO/AI/AO 点表</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 组件库 ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Component Library</span>
+        <h2>设备组件库，即配即用</h2>
+        <p>后端按 <code>sc.xml</code> 配置以反射构建组件树；设备参数 <code>ec.xml</code> 随组件树自动生成，无需手写界面绑定。</p>
+      </div>
+      <div class="feature-row" style="margin-bottom:22px">
+        <div class="mini-card reveal"><h4><span class="dot"></span>Load Port 花篮组件</h4><p>槽位、Foup 壳、插针状态建模，对接 E87 载具事件。</p></div>
+        <div class="mini-card reveal"><h4><span class="dot"></span>晶圆 Wafer 组件</h4><p>槽位级晶圆存在性、编号与状态，驱动晶圆账记账。</p></div>
+        <div class="mini-card reveal"><h4><span class="dot"></span>腔体 Chamber 组件</h4><p>工艺腔卡片视图，TimedOperation 定时工艺流程编排。</p></div>
+      </div>
+      <div class="feature-row" style="margin-bottom:22px">
+        <div class="mini-card reveal"><h4><span class="dot"></span>轴 / 气缸 / 阀门 / 传感器</h4><p>命令块与状态块数据协议，同步号校验与断线重连。</p></div>
+        <div class="mini-card reveal"><h4><span class="dot"></span>RFID 载具识读</h4><p>FCD RFID 协议，载具 ID 读取事件化上抛 EAP。</p></div>
+        <div class="mini-card reveal"><h4><span class="dot"></span>三色灯 / 报警组件</h4><p>ALID 报警体系，报出 / 清除入库，灯色联动。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 驱动与互联 ================= -->
+  <section class="section alt" id="drivers">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Drivers &amp; Connectivity</span>
+        <h2>设备驱动套件</h2>
+        <p>纯协议实现、与业务解耦的驱动层，新硬件接入只需实现一个驱动类。</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="16" height="12" rx="2"/><path d="M8 13v4M12 13v4M16 13v4M6 9V6a6 6 0 0 1 12 0v3"/></svg></div>
+          <h3>FCD Load Port</h3>
+          <p>B 类帧协议驱动：Dock/Undock、Mapping、门开闭与插针状态轮询，串口 / TCP 双通道。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20V9l6-5 6 5v11"/><path d="M10 20v-6h4v6"/></svg></div>
+          <h3>晶圆机械手</h3>
+          <p>Reje 四臂机械手 TCP 协议：取放 / 回零 / 速度与轴位控制，晶圆事件推送与心跳保活。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h4v6H6zM14 9h4M14 12h4M14 15h4"/></svg></div>
+          <h3>PLC · TwinCAT ADS</h3>
+          <p>倍福 ADS 协议接入：命令块 / 状态块整块读写，50ms 轮询缓存，断线自动重连恢复。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 7.5l7 9M15.5 7.5l-7 9"/></svg></div>
+          <h3>SEMI E84 并行 IO</h3>
+          <p>VALID/CS0/CS1、L_REQ/U_REQ、HO_AVBL 全信号时序，光幕互锁与 E84 超时计时保护。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+          <h3>Transfer 搬运调度</h3>
+          <p>TransferManager 统一调度多工位间晶圆搬运路径，冲突排队与异常中断恢复。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3>互锁 Interlock 层</h3>
+          <p>基于条件与规则表的互锁引擎设计：动作许可集中判定，三值逻辑处理未知状态。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 数据与追溯 ================= -->
+  <section class="section" id="data">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Data &amp; Traceability</span>
+        <h2>数据中心 · 晶圆追溯</h2>
+        <p>生产数据与 IO 采样分库存储避免锁竞争，历史留存 90 天，客户端随时回查。</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M12 7v3m0 4v3M10 12H7m10 0h-3"/></svg></div>
+          <h3>Wafer Ledger 晶圆账</h3>
+          <p>全系统唯一「哪个槽位有哪片晶圆」账本，事件驱动记账，90 天历史入库可查轨迹。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+          <h3>实时 / 历史趋势</h3>
+          <p>IO 秒级采样写入独立 io.db，ScottPlot 实时曲线与数据中心历史查询双视图。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v4M21 12a9 9 0 1 1-9-9M12 21a9 9 0 0 1-9-9"/><path d="M12 8v4l3 3"/></svg></div>
+          <h3>报警与事件审计</h3>
+          <p>ALID 报警报出 / 清除全记录，用户操作与权限变更留痕，满足产线审计要求。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 技术栈 ================= -->
+  <section class="section alt">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Tech Stack</span>
+        <h2>技术栈</h2>
+      </div>
+      <div class="table-wrap reveal">
+        <table>
+          <thead><tr><th>分层</th><th>技术选型</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>运行时</td><td>.NET 10（客户端 net10.0-windows）</td><td>统一运行时，Nullable + ImplicitUsings 全开</td></tr>
+            <tr><td>客户端</td><td>WPF + MVVM · MaterialDesignThemes · ScottPlot</td><td>深色主题工业界面，趋势图内嵌</td></tr>
+            <tr><td>通信</td><td>code-first gRPC（protobuf-net.Grpc · Kestrel HTTP/2）</td><td>契约共享、无手写 proto</td></tr>
+            <tr><td>PLC</td><td>倍福 TwinCAT ADS · E84 并行 IO · 串口 / TCP 帧</td><td>命令块 / 状态块数据协议</td></tr>
+            <tr><td>协议栈</td><td>自研 SECS-II / HSMS-SS</td><td>无第三方依赖，源码级交付</td></tr>
+            <tr><td>数据</td><td>SQLite 分库 + SqlSugar ORM + Mapster</td><td>CodeFirst，可切换企业级数据库</td></tr>
+            <tr><td>质量</td><td>10 个冒烟测试工程（Secs / GEM / RFID / 晶圆账…）</td><td>核心链路持续冒烟回归</td></tr>
+            <tr><td>日志</td><td>NLog 分级管道</td><td>运行日志、通信报文、审计分文件落盘</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="cta reveal">
+        <div>
+          <h2>想了解平台如何适配您的机型？</h2>
+          <p>提供设备构成与 IO 规模，我们可以给出基于 ECF 平台的功能覆盖清单与开发排期。</p>
+        </div>
+        <a class="btn btn-light" href="about.html#contact">联系我们</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="logo">xyz</span>
+            <span>xyz<small>Equipment Software</small></span>
+          </a>
+          <p>面向半导体及泛半导体设备制造商的上位机软件平台：设备控制、SECS/GEM 联机、晶圆追溯一体化交付。</p>
+        </div>
+        <div>
+          <h4>产品</h4>
+          <ul>
+            <li><a href="platform.html">ECF 设备控制平台</a></li>
+            <li><a href="secs.html">SECS / GEM 协议栈</a></li>
+            <li><a href="platform.html#drivers">设备驱动套件</a></li>
+            <li><a href="platform.html#data">数据与追溯</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>解决方案</h4>
+          <ul>
+            <li><a href="solutions.html">清洗设备软件</a></li>
+            <li><a href="solutions.html#eap">EAP 对接</a></li>
+            <li><a href="solutions.html#sim">仿真联调</a></li>
+            <li><a href="solutions.html#porting">机型适配</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>联系</h4>
+          <ul>
+            <li><a href="about.html#contact">联系我们</a></li>
+            <li><a href="mailto:contact@xyz-semi.example.com">contact@xyz-semi.example.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> xyz Equipment Software. 保留所有权利。</span>
+        <span>半导体装备软件 · 设备控制 · SECS/GEM · 晶圆追溯</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

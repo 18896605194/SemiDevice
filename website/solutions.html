@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="no-js">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>解决方案 — xyz | 清洗设备软件 · EAP 对接 · 机型适配 · 仿真联调</title>
+  <meta name="description" content="xyz 平台解决方案：清洗设备整机软件（机型 35021）、EAP/MES 联机对接、新机型四步快速适配、统一仿真器联调与冒烟测试工具链。">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <span class="logo">xyz</span>
+        <span>xyz<small>Equipment Software</small></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="index.html">首页</a>
+        <a href="platform.html">ECF 平台</a>
+        <a href="secs.html">SECS / GEM</a>
+        <a href="solutions.html" class="active">解决方案</a>
+        <a href="about.html">关于我们</a>
+      </nav>
+      <button class="nav-toggle" aria-label="打开菜单" onclick="document.getElementById('navLinks').classList.toggle('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= 页头 ================= -->
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb"><a href="index.html">首页</a> / 解决方案</nav>
+      <h1>解决方案</h1>
+      <p>以「平台 + 机型插件」为底座，覆盖新机型适配、整机软件交付、产线联机与出厂前仿真联调的完整生命周期。</p>
+    </div>
+  </section>
+
+  <!-- ================= 机型适配流程 ================= -->
+  <section class="section" id="porting">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Machine Onboarding</span>
+        <h2>新机型四步适配</h2>
+        <p>平台层能力全部复用，机型研发只做「差异部分」——这是平台化架构对交付周期最大的贡献。</p>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <h3>组件树建模</h3>
+          <p>按设备构成编写 <code>sc.xml</code>：腔体、Load Port、机械手、轴、传感器以组件挂树，参数表 ec.xml 自动生成。</p>
+        </div>
+        <div class="step reveal">
+          <h3>驱动与点表接入</h3>
+          <p>复用 FCD / Reje / ADS 现成驱动，导入机型 IO 点表 CSV，PLC 命令块 / 状态块对接联调。</p>
+        </div>
+        <div class="step reveal">
+          <h3>模块与互锁开发</h3>
+          <p>机型模块 OnScan 状态机 + 搬运调度 + 互锁规则表，手动操作页与 HMI 控件随客户端插件交付。</p>
+        </div>
+        <div class="step reveal">
+          <h3>联机与验收</h3>
+          <p>GEM 采集器快照生成数据模型，SecsSmoke 冒烟跑通后对接 EAP 联调，晶圆账核对交付。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 清洗设备案例 ================= -->
+  <section class="section alt">
+    <div class="container split">
+      <div class="reveal">
+        <span class="section-kicker">Case Study</span>
+        <h2>35021 清洗设备<br>整机软件</h2>
+        <p>
+          平台首个落地机型：多腔体清洗设备，涵盖上料 Load Port、晶圆传输机械手、清洗腔工艺与 E84 出入口交接。
+          软件按「平台 + 机型插件」拆分为后端模块、客户端插件与机型专属控件三件套，平台代码零改动。
+        </p>
+        <ul class="ticks">
+          <li>清洗腔 TimedOperation 定时工艺编排，工艺参数 EC 化远程可调</li>
+          <li>四臂晶圆机械手实时模型界面，取放动作与槽位状态同步呈现</li>
+          <li>Load Port 花篮槽位 + Foup 建模，RFID 载具识读接入 E87 事件</li>
+          <li>晶圆账全程记账：上料 → 工艺 → 下料每一片可回溯 90 天</li>
+          <li>zh-CN / en-US 双语操作界面，随机型插件发布</li>
+        </ul>
+      </div>
+      <figure class="figure reveal">
+        <img src="assets/robot-hero.png" alt="四臂晶圆机械手实时模型">
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================= EAP 对接 ================= -->
+  <section class="section" id="eap">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">EAP / MES Integration</span>
+        <h2>EAP 对接</h2>
+        <p>设备进厂联机是验收红线。xyz 的做法是把风险全部前置到出厂之前。</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal">
+          <h3>清单先行</h3>
+          <p>按客户 EAP 事务清单逐条映射到 CEID / RPTID 报告定义，数据模型评审通过后再动代码。</p>
+        </div>
+        <div class="card reveal">
+          <h3>模拟对打</h3>
+          <p>自研协议栈双端能力：本机起 Host 模拟器与设备端互打，S1/S2/S5/S6 事务全跑通再上产线。</p>
+        </div>
+        <div class="card reveal">
+          <h3>现场陪跑</h3>
+          <p>报文级日志双轨落盘，联调现场按 item 定位分歧点，配合客户 EAP 工程师逐项关闭问题。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 仿真联调 ================= -->
+  <section class="section alt" id="sim">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Simulation &amp; Tooling</span>
+        <h2>仿真联调与工具链</h2>
+        <p>没有设备、没有 PLC 也要能开发——平台配套统一仿真器与十个冒烟测试工程，软件进度不被硬件到货卡住。</p>
+      </div>
+      <div class="table-wrap reveal">
+        <table>
+          <thead><tr><th>工具</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>统一仿真器</code></td><td>本机模拟 PLC 与设备部件行为，支撑界面与流程开发</td></tr>
+            <tr><td><code>SecsSmoke</code></td><td>SECS/HSMS 链路与标准事务冒烟</td></tr>
+            <tr><td><code>GemCollectorSmoke</code></td><td>GEM 五类采集器快照与编号合并验证</td></tr>
+            <tr><td><code>WaferLedgerSmoke</code> / <code>RfidSmoke</code></td><td>晶圆账记账与 RFID 识读链路验证</td></tr>
+            <tr><td><code>DataCenterSmoke</code> / <code>LogPipelineSmoke</code></td><td>数据入库、查询与日志管道验证</td></tr>
+            <tr><td><code>EventBusSmoke</code> / <code>OperationWaitSmoke</code> / <code>IoIndexSmoke</code></td><td>事件总线、流程等待与 IO 点表索引验证</td></tr>
+            <tr><td><code>AdsRouter</code></td><td>轻量 ADS 路由服务，替代倍福官方路由组件的部署依赖</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="cta reveal">
+        <div>
+          <h2>聊聊您的设备与产线要求</h2>
+          <p>机型构成、IO 规模、客户 EAP 清单——三项信息即可输出可执行的分阶段交付方案。</p>
+        </div>
+        <a class="btn btn-light" href="about.html#contact">联系我们</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="logo">xyz</span>
+            <span>xyz<small>Equipment Software</small></span>
+          </a>
+          <p>面向半导体及泛半导体设备制造商的上位机软件平台：设备控制、SECS/GEM 联机、晶圆追溯一体化交付。</p>
+        </div>
+        <div>
+          <h4>产品</h4>
+          <ul>
+            <li><a href="platform.html">ECF 设备控制平台</a></li>
+            <li><a href="secs.html">SECS / GEM 协议栈</a></li>
+            <li><a href="platform.html#drivers">设备驱动套件</a></li>
+            <li><a href="platform.html#data">数据与追溯</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>解决方案</h4>
+          <ul>
+            <li><a href="solutions.html">清洗设备软件</a></li>
+            <li><a href="solutions.html#eap">EAP 对接</a></li>
+            <li><a href="solutions.html#sim">仿真联调</a></li>
+            <li><a href="solutions.html#porting">机型适配</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>联系</h4>
+          <ul>
+            <li><a href="about.html#contact">联系我们</a></li>
+            <li><a href="mailto:contact@xyz-semi.example.com">contact@xyz-semi.example.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> xyz Equipment Software. 保留所有权利。</span>
+        <span>半导体装备软件 · 设备控制 · SECS/GEM · 晶圆追溯</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

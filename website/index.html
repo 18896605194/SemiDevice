@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="no-js">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>xyz — 半导体装备上位机软件平台 | 设备控制 · SECS/GEM · 晶圆追溯</title>
+  <meta name="description" content="xyz 为半导体及泛半导体设备制造商提供装备上位机软件平台：WPF + gRPC 前后端分离架构、自研 SECS-II/HSMS-SS 协议栈、GEM 数据采集、机型插件化换型、晶圆全流程追溯。">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+
+  <!-- ================= 导航 ================= -->
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <span class="logo">xyz</span>
+        <span>xyz<small>Equipment Software</small></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="index.html" class="active">首页</a>
+        <a href="platform.html">ECF 平台</a>
+        <a href="secs.html">SECS / GEM</a>
+        <a href="solutions.html">解决方案</a>
+        <a href="about.html">关于我们</a>
+      </nav>
+      <button class="nav-toggle" aria-label="打开菜单" onclick="document.getElementById('navLinks').classList.toggle('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= Hero ================= -->
+  <section class="hero">
+    <div class="container hero-inner">
+      <div>
+        <span class="hero-eyebrow">半导体装备上位机软件平台</span>
+        <h1>一套平台，<br>驱动每一台<span class="grad">半导体设备</span></h1>
+        <p class="lead">
+          xyz 是面向半导体及泛半导体设备的装备上位机软件平台：WPF 客户端 + gRPC 后端服务前后端分离，
+          组件树装配 + 机型插件热插拔，自研 SECS-II / HSMS-SS 协议栈直连 EAP，
+          让每一片晶圆的流动都可追溯。
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="platform.html">了解 ECF 平台</a>
+          <a class="btn btn-ghost" href="secs.html">SECS/GEM 协议栈 →</a>
+        </div>
+      </div>
+      <figure class="hero-figure">
+        <img src="assets/robot-hero.png" alt="四臂晶圆机械手控制模型" loading="eager">
+        <figcaption class="tag">设备端 · 晶圆传输机械手实时模型</figcaption>
+      </figure>
+    </div>
+    <div class="hero-stats">
+      <div class="container">
+        <div class="stat"><b data-count="27">0</b><span>平台工程模块</span></div>
+        <div class="stat"><b data-count="50" data-suffix="ms">0</b><span>PLC 实时扫描周期</span></div>
+        <div class="stat"><b data-count="5">0</b><span>GEM 标准采集器</span></div>
+        <div class="stat"><b data-count="90" data-suffix="天">0</b><span>生产数据全程追溯</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 我们做什么 ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="section-kicker">What We Do</span>
+        <h2>为设备制造商解决装备软件的工程难题</h2>
+        <p>从设备控制到工厂联机，xyz 提供平台化的软件产品与定制研发服务，帮助您：</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M7 8h4M7 11h2"/></svg>
+          </div>
+          <h3>装备控制软件平台</h3>
+          <p>成熟稳定、源码级交付的设备上位机平台：界面、控制、驱动、数据四层解耦，机型插件化扩展，新机型复用平台快速落地。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6m0 0l-4 4m4-4l4 4M5 21a7 7 0 0 1 14 0"/></svg>
+          </div>
+          <h3>SECS / GEM 联机集成</h3>
+          <p>自研 SECS-II / HSMS-SS 协议栈与 GEM 五类数据采集器，符合 SEMI E87 / E84 标准，让设备顺利接入客户产线 EAP/MES。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10l2.1 2.1m0-14.2l-2.1 2.1m-10 10l-2.1 2.1"/></svg>
+          </div>
+          <h3>机型软件定制研发</h3>
+          <p>清洗、传输、Load Port、机械手等设备模块的交钥匙软件研发：从 IO 点表、互锁逻辑到操作界面与培训文档整体交付。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 产品线 ================= -->
+  <section class="section alt">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="section-kicker">Product Lines</span>
+        <h2>产品与技术</h2>
+        <p>平台由四个可独立交付的软件产品组成，覆盖「控制 — 联机 — 互联 — 数据」完整链路</p>
+      </div>
+      <div class="grid grid-2">
+        <a class="product-card reveal" href="platform.html">
+          <span class="pkg">xyz.Core / xyz.Client</span>
+          <h3>xyz ECF 设备控制平台</h3>
+          <p class="sub">Equipment Control Framework · 平台核心</p>
+          <ul>
+            <li>WPF 深色主题客户端 + gRPC 后端服务，前后端完全解耦</li>
+            <li>组件树按配置装配，轴 / 气缸 / 阀门 / 传感器即配即用</li>
+            <li>机型插件热插拔，平台与机型工程互不依赖</li>
+            <li>报警、IO 监控、手动操作、配方、数据中心开箱即用</li>
+          </ul>
+          <span class="more">查看平台详情 →</span>
+        </a>
+        <a class="product-card reveal" href="secs.html">
+          <span class="pkg">xyz.Secs</span>
+          <h3>xyz SECS / GEM 协议栈</h3>
+          <p class="sub">100% 自研 · 无第三方黑盒依赖</p>
+          <ul>
+            <li>SECS-II 全格式编解码 + HSMS-SS 主动 / 被动双模式</li>
+            <li>GEM 五类采集器：ECID / SVID / ALID / CEID / DVID</li>
+            <li>SEMI E87 载具管理回调 + E84 并行 IO 交接时序</li>
+            <li>配套 SecsSmoke 冒烟测试工具，联机前逐项验证</li>
+          </ul>
+          <span class="more">查看协议栈详情 →</span>
+        </a>
+        <a class="product-card reveal" href="platform.html#drivers">
+          <span class="pkg">xyz.Drivers / xyz.Modules</span>
+          <h3>xyz Drivers 设备驱动套件</h3>
+          <p class="sub">向下直连设备硬件层</p>
+          <ul>
+            <li>FCD Load Port、FCD RFID 载具识读串口 / TCP 驱动</li>
+            <li>晶圆机械手 TCP 协议驱动：取放 / 回零 / 事件推送 / 心跳</li>
+            <li>倍福 TwinCAT ADS 接入，50ms 整块轮询缓存</li>
+            <li>E84 光幕互锁与超时保护并行 IO 组件</li>
+          </ul>
+          <span class="more">查看驱动与互联 →</span>
+        </a>
+        <a class="product-card reveal" href="platform.html#data">
+          <span class="pkg">xyz.Database</span>
+          <h3>xyz DataCenter 数据与追溯</h3>
+          <p class="sub">让每一片晶圆有据可查</p>
+          <ul>
+            <li>Wafer Ledger 晶圆账：全系统唯一「槽位 ↔ 晶圆」账本</li>
+            <li>报警报出 / 清除入库，90 天历史可回溯</li>
+            <li>秒级 IO 采样独立分库，趋势图实时绘制</li>
+            <li>SQLite 免运维部署，支持切换企业级数据库</li>
+          </ul>
+          <span class="more">查看数据能力 →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 核心能力 ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="section-kicker">Why xyz</span>
+        <h2>为什么选择 xyz</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>全栈自研，源码可控</h3>
+          <p>协议栈到组件层全部自研实现，无第三方黑盒。出现疑难联机问题时，您的工程师可以直接看到每一字节的处理逻辑。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg></div>
+          <h3>机型插件化</h3>
+          <p>「平台 + 机型插件」架构：平台壳与机型工程彻底分离，机型 DLL 编译即部署，换型不动平台、多机型并行互不干扰。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
+          <h3>50ms 实时响应</h3>
+          <p>PLC 数据 50ms 整块轮询缓存，模块 OnScan 状态机驱动，事件驱动的晶圆账记账——监控密度达到生产级要求。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></div>
+          <h3>晶圆全流程追溯</h3>
+          <p>从 Load Port 上料到腔体工艺再到下料，每一片晶圆的位置变化全部记账并保留 90 天，客户端随时查询历史轨迹。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></div>
+          <h3>中英双语界面</h3>
+          <p>客户端界面与机型控件内置 zh-CN / en-US 双语言包，满足国内外产线与海外设备出口的本地化要求。</p>
+        </div>
+        <div class="card reveal">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg></div>
+          <h3>免维护部署</h3>
+          <p>业务库与 IO 采样库分库设计避免写锁竞争，SQLite 开箱即用零运维，单机部署即可支撑设备端全部数据负载。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 合作模式 ================= -->
+  <section class="section alt">
+    <div class="container">
+      <div class="section-head center reveal">
+        <span class="section-kicker">Cooperation</span>
+        <h2>合作模式</h2>
+        <p>无论您需要一套平台自研、一台设备的交钥匙软件，还是一次联机集成支持，都可以展开合作</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="mode-card reveal">
+          <span class="num">MODE 01</span>
+          <h3>平台授权</h3>
+          <p>整平台源码级授权交付，配套架构文档与开发规范。您的团队在成熟平台上开发机型软件，掌握全部代码。</p>
+        </div>
+        <div class="mode-card reveal">
+          <span class="num">MODE 02</span>
+          <h3>交钥匙定制</h3>
+          <p>从 IO 点表与硬件清单出发，完成设备软件整体研发：控制逻辑、互锁、界面、联机、培训与现场支持，直接交付可用系统。</p>
+        </div>
+        <div class="mode-card reveal">
+          <span class="num">MODE 03</span>
+          <h3>联机集成咨询</h3>
+          <p>SECS/GEM 对入 EAP 的方案评估、协议栈集成、联调陪跑与问题定位，以及设备软件架构的技术咨询。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section class="section">
+    <div class="container">
+      <div class="cta reveal">
+        <div>
+          <h2>正在研发新机型，或为联机集成发愁？</h2>
+          <p>告诉我们设备类型与产线要求，我们可以在一周内给出基于 xyz 平台的软件方案与排期评估。</p>
+        </div>
+        <a class="btn btn-light" href="about.html#contact">联系我们</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 页脚 ================= -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="logo">xyz</span>
+            <span>xyz<small>Equipment Software</small></span>
+          </a>
+          <p>面向半导体及泛半导体设备制造商的上位机软件平台：设备控制、SECS/GEM 联机、晶圆追溯一体化交付。</p>
+        </div>
+        <div>
+          <h4>产品</h4>
+          <ul>
+            <li><a href="platform.html">ECF 设备控制平台</a></li>
+            <li><a href="secs.html">SECS / GEM 协议栈</a></li>
+            <li><a href="platform.html#drivers">设备驱动套件</a></li>
+            <li><a href="platform.html#data">数据与追溯</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>解决方案</h4>
+          <ul>
+            <li><a href="solutions.html">清洗设备软件</a></li>
+            <li><a href="solutions.html#eap">EAP 对接</a></li>
+            <li><a href="solutions.html#sim">仿真联调</a></li>
+            <li><a href="solutions.html#porting">机型适配</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>联系</h4>
+          <ul>
+            <li><a href="about.html#contact">联系我们</a></li>
+            <li><a href="mailto:contact@xyz-semi.example.com">contact@xyz-semi.example.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> xyz Equipment Software. 保留所有权利。</span>
+        <span>半导体装备软件 · 设备控制 · SECS/GEM · 晶圆追溯</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

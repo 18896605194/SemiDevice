@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="no-js">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于我们 — xyz | 半导体装备软件团队</title>
+  <meta name="description" content="xyz 团队专注半导体装备上位机软件：设备控制平台、SECS/GEM 协议栈与机型软件定制研发。联系我们获取方案与排期评估。">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <span class="logo">xyz</span>
+        <span>xyz<small>Equipment Software</small></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="index.html">首页</a>
+        <a href="platform.html">ECF 平台</a>
+        <a href="secs.html">SECS / GEM</a>
+        <a href="solutions.html">解决方案</a>
+        <a href="about.html" class="active">关于我们</a>
+      </nav>
+      <button class="nav-toggle" aria-label="打开菜单" onclick="document.getElementById('navLinks').classList.toggle('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= 页头 ================= -->
+  <section class="page-hero">
+    <div class="container">
+      <nav class="breadcrumb"><a href="index.html">首页</a> / 关于我们</nav>
+      <h1>关于 xyz</h1>
+      <p>一支专注半导体装备软件的工程团队，相信「好软件是架构出来的」——平台化、组件化、可验证，是我们交付每一台设备软件的方式。</p>
+    </div>
+  </section>
+
+  <!-- ================= 关于 ================= -->
+  <section class="section">
+    <div class="container split">
+      <div class="reveal">
+        <span class="section-kicker">About Us</span>
+        <h2>把装备软件做成工程品</h2>
+        <p>
+          xyz 团队深耕半导体及泛半导体设备上位机软件领域，围绕自研的 ECF 设备控制平台展开研发与交付。
+          我们不做一机一套的「项目制烟囱」，而是让每一台新机型都站在同一套经过验证的平台上生长：
+          组件树复用、驱动复用、协议栈复用、数据模型复用。
+        </p>
+        <ul class="ticks">
+          <li>自研 SECS-II / HSMS-SS 协议栈与 GEM 采集框架，源码级掌控</li>
+          <li>平台 + 机型插件的交付模式，客户可平滑接手二次开发</li>
+          <li>十个冒烟测试工程守护核心链路，改得动、测得住</li>
+          <li>配套开发规范与培训教材，交给客户的不只是代码</li>
+        </ul>
+      </div>
+      <div class="reveal">
+        <div class="grid" style="gap:18px">
+          <div class="mini-card"><h4><span class="dot"></span>产品理念</h4><p>平台沉淀共性，插件承载差异；任何机型软件的 80% 应当来自复用。</p></div>
+          <div class="mini-card"><h4><span class="dot"></span>工程文化</h4><p>配置优于编码、契约优于耦合、冒烟优于口头确认——每一步都可验证。</p></div>
+          <div class="mini-card"><h4><span class="dot"></span>交付承诺</h4><p>源码、文档、培训、现场联调支持一体交付，客户团队完整接得住。</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 常见问题 ================= -->
+  <section class="section alt">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">FAQ</span>
+        <h2>常见问题</h2>
+      </div>
+      <div class="grid grid-2">
+        <div class="card reveal">
+          <h3>平台支持哪些设备类型？</h3>
+          <p>架构上不限机型：清洗、刻蚀、沉积、传输、EFEM 等有 PLC + IO + 工艺流程特征的设备均可适配。首个完整落地机型为多腔体清洗设备（机型 35021）。</p>
+        </div>
+        <div class="card reveal">
+          <h3>协议栈为什么坚持自研？</h3>
+          <p>联机问题往往要深入到字节级定位。自研协议栈无黑盒、无授权费、报文日志可定制，配合双端模拟能力，能把联调风险前置到出厂之前。</p>
+        </div>
+        <div class="card reveal">
+          <h3>可以只采购部分能力吗？</h3>
+          <p>可以。平台按产品线模块化：只要 SECS/GEM 协议栈做集成、或只要整机交钥匙定制，都可以单独合作。</p>
+        </div>
+        <div class="card reveal">
+          <h3>数据库为什么选 SQLite？</h3>
+          <p>设备端是单机负载场景：业务库与 IO 采样库分库后，SQLite 免运维、零部署成本。ORM 层已抽象，有 MES 统一采集需求时可切换企业级数据库。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 联系 ================= -->
+  <section class="section" id="contact">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="section-kicker">Contact</span>
+        <h2>联系我们</h2>
+        <p>请说明设备类型、IO / 轴规模与目标产线的 EAP 要求，我们会尽快回复方案与排期评估。</p>
+      </div>
+      <div class="contact-grid">
+        <div class="reveal">
+          <div class="contact-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></div>
+            <div><b>商务合作</b><span>contact@xyz-semi.example.com</span></div>
+          </div>
+          <div class="contact-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z"/></svg></div>
+            <div><b>电话</b><span>000-0000-0000（请替换为实际号码）</span></div>
+          </div>
+          <div class="contact-item">
+            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+            <div><b>地址</b><span>省 · 市 · 高新区科技园（请替换为实际地址）</span></div>
+          </div>
+        </div>
+        <form class="form reveal" onsubmit="return false;">
+          <h3>获取方案评估</h3>
+          <p>描述您的设备与需求，我们将在一周内回复</p>
+          <div class="row">
+            <div>
+              <label for="f-name">称呼</label>
+              <input id="f-name" type="text" placeholder="您的姓名" required>
+            </div>
+            <div>
+              <label for="f-company">公司</label>
+              <input id="f-company" type="text" placeholder="公司 / 团队名称">
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="f-phone">联系方式</label>
+              <input id="f-phone" type="text" placeholder="电话或邮箱" required>
+            </div>
+            <div>
+              <label for="f-type">合作意向</label>
+              <select id="f-type">
+                <option>整机软件定制（交钥匙）</option>
+                <option>平台授权</option>
+                <option>SECS/GEM 联机集成</option>
+                <option>技术咨询</option>
+              </select>
+            </div>
+          </div>
+          <label for="f-msg">需求描述</label>
+          <textarea id="f-msg" rows="4" placeholder="设备类型、IO / 轴规模、目标产线 EAP 要求…"></textarea>
+          <button class="btn btn-primary" type="submit">提交需求</button>
+          <p class="hint">提交即表示同意我们通过所留方式与您联系</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="logo">xyz</span>
+            <span>xyz<small>Equipment Software</small></span>
+          </a>
+          <p>面向半导体及泛半导体设备制造商的上位机软件平台：设备控制、SECS/GEM 联机、晶圆追溯一体化交付。</p>
+        </div>
+        <div>
+          <h4>产品</h4>
+          <ul>
+            <li><a href="platform.html">ECF 设备控制平台</a></li>
+            <li><a href="secs.html">SECS / GEM 协议栈</a></li>
+            <li><a href="platform.html#drivers">设备驱动套件</a></li>
+            <li><a href="platform.html#data">数据与追溯</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>解决方案</h4>
+          <ul>
+            <li><a href="solutions.html">清洗设备软件</a></li>
+            <li><a href="solutions.html#eap">EAP 对接</a></li>
+            <li><a href="solutions.html#sim">仿真联调</a></li>
+            <li><a href="solutions.html#porting">机型适配</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>联系</h4>
+          <ul>
+            <li><a href="about.html#contact">联系我们</a></li>
+            <li><a href="mailto:contact@xyz-semi.example.com">contact@xyz-semi.example.com</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> xyz Equipment Software. 保留所有权利。</span>
+        <span>半导体装备软件 · 设备控制 · SECS/GEM · 晶圆追溯</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>
