@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Windows x64 deployment: select only x64 native assets, including SQLite. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <SelfContained>false</SelfContained>
+    <!-- Keep the output paths used by module deployment and the SC editor. -->
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+</Project>
