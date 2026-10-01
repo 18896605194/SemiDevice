@@ -192,7 +192,15 @@ public static class ComponentLoader
 
             try
             {
-                property.SetValue(component, ConvertValue(property.PropertyType, value.Value));
+                var text = value.Value;
+                // 兼容旧版 DI 配置，其他布尔参数仍使用标准 true/false。
+                if (component is Components.DiSensorComponent && property.Name == nameof(Components.DiSensorComponent.TriggerLevel))
+                {
+                    text = text.Trim();
+                    if (text.Equals("High", StringComparison.OrdinalIgnoreCase)) text = "true";
+                    else if (text.Equals("Low", StringComparison.OrdinalIgnoreCase)) text = "false";
+                }
+                property.SetValue(component, ConvertValue(property.PropertyType, text));
             }
             catch (Exception exception) when (
                 exception is FormatException or ArgumentException or NotSupportedException)

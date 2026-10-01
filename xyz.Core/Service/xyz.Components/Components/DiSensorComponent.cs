@@ -16,8 +16,8 @@ public class DiSensorComponent : ComponentBase
     [SCEditor("-1", "IO", "监控的 DI 索引", Required = true)]
     public int DiIndex { get; set; } = -1;
 
-    [SCEditor("High", "Config", "触发有效电平：High=高电平报警，Low=低电平报警")]
-    public TriggerLevel TriggerLevel { get; set; } = TriggerLevel.High;
+    [SCEditor("true", "Config", "触发有效电平：true=高电平触发，false=低电平触发")]
+    public bool TriggerLevel { get; set; } = true;
 
     [SCEditor("True", "Config", "是否直接报警（false = 只提供触发状态，由宿主处理）")]
     public bool AlarmEnabled { get; set; } = true;
@@ -73,7 +73,7 @@ public class DiSensorComponent : ComponentBase
             return;
         }
 
-        bool active = level.Value == (TriggerLevel == TriggerLevel.High);
+        bool active = level.Value == TriggerLevel;
         IsTriggered = CheckAlarm(SensorAlarm, active, DebounceMs, raise: AlarmEnabled);
     }
 

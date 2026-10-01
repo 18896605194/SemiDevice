@@ -754,10 +754,39 @@ port.E87Callback = null;
     Check(!Active(di, di.SensorAlarm) && !chamber.HasAlarm, "复位模块应连同 DI 一起清掉报警");
 
     // 低电平报警 + 关掉直接报警：只给触发状态，不报
-    var quiet = new ProbeDi("SmokeChamber.Di2") { TriggerLevel = TriggerLevel.Low, AlarmEnabled = false, DebounceMs = 0 };
+    var quiet = new ProbeDi("SmokeChamber.Di2") { TriggerLevel = false, AlarmEnabled = false, DebounceMs = 0 };
     quiet.Level = false;
     quiet.Tick();
     Check(quiet.IsTriggered && !Active(quiet, quiet.SensorAlarm), "AlarmEnabled=False 只给触发状态，不报警");
+    quiet.Level = true;
+    quiet.Tick();
+    Check(!quiet.IsTriggered, "TriggerLevel=false 在 DI=true 时不触发");
+
+    foreach (var (text, expected) in new[] { ("true", true), ("false", false), ("True", true), ("False", false), ("High", true), ("Low", false) })
+    {
+        var loaded = (DiSensorComponent)ComponentLoader.Load([new ModuleConfig
+        {
+            Name = "TriggerLevelSmoke", Type = typeof(DiSensorComponent).FullName,
+            Values = [new() { Name = "TriggerLevel", Value = text }]
+        }]).Single();
+        Check(loaded.TriggerLevel == expected, $"DI 触发电平配置 {text} 应加载为 {expected}");
+    }
+    var defaultDi = (DiSensorComponent)ComponentLoader.Load([new ModuleConfig
+    {
+        Name = "DefaultTriggerSmoke", Type = typeof(DiSensorComponent).FullName
+    }]).Single();
+    Check(defaultDi.TriggerLevel, "未配置触发电平时仍默认高电平触发");
+    var invalidTriggerRejected = false;
+    try
+    {
+        ComponentLoader.Load([new ModuleConfig
+        {
+            Name = "InvalidTriggerSmoke", Type = typeof(DiSensorComponent).FullName,
+            Values = [new() { Name = "TriggerLevel", Value = "invalid" }]
+        }]);
+    }
+    catch (InvalidOperationException) { invalidTriggerRejected = true; }
+    Check(invalidTriggerRejected, "非法 DI 触发电平应拒绝加载");
 
     // AI：没标定（上下限都为 0）不判
     ai.Reading = 1000;

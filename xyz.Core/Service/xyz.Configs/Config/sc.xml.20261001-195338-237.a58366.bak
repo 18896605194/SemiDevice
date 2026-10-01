@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
 	<!-- 系统设置：界面语言（zh-CN 简体中文 / en-US 英文），客户端启动时按它显示，改了重启客户端生效 -->
 	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
@@ -87,7 +87,7 @@
 		<Value Name="PointTableDirectory" Value="IO" />
 	</Setting>
 	<!-- 安全：整机的安全信号（急停、维修门、漏液、烟感、厂务气源/排风……），不归哪个模块管，一个信号一个子节点。
-	     DI 用 DiSensorComponent：DiIndex 点号，TriggerLevel 触发电平（true = 高电平触发，false = 低电平触发），AlarmEnabled 是否报警；
+	     DI 用 DiSensorComponent：DiIndex 点号，TriggerLevel 报警电平（High = 高电平报警，Low = 低电平报警），AlarmEnabled 是否报警；
 	     AI 用 AiSensorComponent：AiIndex 点号，上下限、预警带、防抖在 ec.xml（都为 0 = 没标定不判）。
 	     开机后自己一条扫描线程监控。点位在点表的 Safety 段。
 	     绑在这儿的点才进数据曲线（库里记、勾选树里有）；IO 页里 Safety 单独一页。
@@ -96,55 +96,55 @@
 		<!-- 急停回路：1 = 正常，按下急停为 0 -->
 		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="0" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<!-- 维修门：1 = 关好，门开为 0 -->
 		<Setting Name="FrontDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="1" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="RearDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="2" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="LeftDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="3" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="RightDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="4" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<!-- 漏液、烟感：1 = 有漏液 / 有烟 -->
 		<Setting Name="LeakTray" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="5" />
-			<Value Name="TriggerLevel" Value="true" />
+			<Value Name="TriggerLevel" Value="High" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="LeakCabinet" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="6" />
-			<Value Name="TriggerLevel" Value="true" />
+			<Value Name="TriggerLevel" Value="High" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="Smoke" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="7" />
-			<Value Name="TriggerLevel" Value="true" />
+			<Value Name="TriggerLevel" Value="High" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<!-- 厂务开关量：1 = 正常 -->
 		<Setting Name="CdaOk" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="8" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="ExhaustOk" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="9" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerLevel" Value="Low" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<!-- 整机模拟量：气源压力、厂务排风压力、真空压力、电控柜温度 -->
@@ -276,7 +276,7 @@
 		</Setting>
 	</Setting>
 	<Setting Name="Robot">
-		<Setting Type="xyz._35021.Module.Robot.RobotModule" Name="Robot1">
+		<Setting Name="Robot1" Type="xyz._35021.Module.Robot.RobotModule">
 			<!-- 品牌驱动组件：换 Type 即换品牌（RejeRobotComponent / 其他品牌壳），机型代码不动。
 			     Axes 轴表决定手指数（Arm* 个数）：2 指机型 Arm1,Arm2，4 指再加 Arm3,Arm4 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.RejeRobotComponent">
