@@ -762,7 +762,7 @@ port.E87Callback = null;
     quiet.Tick();
     Check(!quiet.IsTriggered, "TriggerLevel=false 在 DI=true 时不触发");
 
-    foreach (var (text, expected) in new[] { ("true", true), ("false", false), ("True", true), ("False", false), ("High", true), ("Low", false) })
+    foreach (var (text, expected) in new[] { ("true", true), ("false", false), ("True", true), ("False", false) })
     {
         var loaded = (DiSensorComponent)ComponentLoader.Load([new ModuleConfig
         {
@@ -776,17 +776,21 @@ port.E87Callback = null;
         Name = "DefaultTriggerSmoke", Type = typeof(DiSensorComponent).FullName
     }]).Single();
     Check(defaultDi.TriggerLevel, "未配置触发电平时仍默认高电平触发");
-    var invalidTriggerRejected = false;
-    try
+    // 只认 bool：旧的 High/Low 写法不再兼容，跟乱填的一样拒绝加载
+    foreach (var invalid in new[] { "invalid", "High", "Low" })
     {
-        ComponentLoader.Load([new ModuleConfig
+        var invalidTriggerRejected = false;
+        try
         {
-            Name = "InvalidTriggerSmoke", Type = typeof(DiSensorComponent).FullName,
-            Values = [new() { Name = "TriggerLevel", Value = "invalid" }]
-        }]);
+            ComponentLoader.Load([new ModuleConfig
+            {
+                Name = "InvalidTriggerSmoke", Type = typeof(DiSensorComponent).FullName,
+                Values = [new() { Name = "TriggerLevel", Value = invalid }]
+            }]);
+        }
+        catch (InvalidOperationException) { invalidTriggerRejected = true; }
+        Check(invalidTriggerRejected, $"DI 触发电平 {invalid} 不是 bool，应拒绝加载");
     }
-    catch (InvalidOperationException) { invalidTriggerRejected = true; }
-    Check(invalidTriggerRejected, "非法 DI 触发电平应拒绝加载");
 
     // AI：没标定（上下限都为 0）不判
     ai.Reading = 1000;

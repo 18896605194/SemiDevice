@@ -375,3 +375,6 @@ FodyWeavers.xsd
 *.db
 *.db-shm
 *.db-wal
+
+# ScEdit 保存 sc.xml 前的备份（放在 sc.xml 同级的 backup 子目录），只留在本机
+**/Config/backup/

@@ -16,6 +16,8 @@
     <!-- IO 点表是机型的东西，放在机型项目（如 xyz.35021.Module\Config\IO），由机型项目部署进宿主的 Config\IO -->
     <!-- ec.xml 不在这儿、也不随编译拷贝：它是后端启动时照组件树生成的，里面是现场调过的值，编译、清理都不能碰它 -->
     <None Update="Paths.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- ScEdit 保存前的备份（Config\backup），不进项目、不随编译拷贝 -->
+    <None Remove="Config\backup\**" />
   </ItemGroup>
 
 </Project>
