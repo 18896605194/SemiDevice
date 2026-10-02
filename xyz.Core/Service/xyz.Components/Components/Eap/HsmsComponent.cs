@@ -476,4 +476,40 @@ public class HsmsComponent : ComponentBase
     }
 
     #endregion
+
+    #region 日志转接
+
+    /// <summary>
+    /// xyz.Secs 的日志出口接到框架日志：链路状态按级别记，报文明文（LogMessages=True 时）记一行 Info。
+    /// </summary>
+    private sealed class SecsLogSink : ISecsSink
+    {
+        private readonly string _category;
+        private readonly bool _traceEnabled;
+
+        public SecsLogSink(string category, bool traceEnabled)
+        {
+            _category = category;
+            _traceEnabled = traceEnabled;
+        }
+
+        public void Info(string category, string message) => LogHelper.Info(_category, message);
+
+        public void Warn(string category, string message) => LogHelper.Warn(_category, message);
+
+        public void Error(string category, string message) => LogHelper.Error(_category, message);
+
+        public void Trace(SecsMessageDirection direction, HsmsMessage message)
+        {
+            if (!_traceEnabled)
+            {
+                return;
+            }
+
+            var arrow = direction == SecsMessageDirection.Sent ? ">>" : "<<";
+            LogHelper.Info(_category, $"{arrow} {SecsMessageText.Format(message).Replace("\r", " ").Replace("\n", " | ")}");
+        }
+    }
+
+    #endregion
 }
