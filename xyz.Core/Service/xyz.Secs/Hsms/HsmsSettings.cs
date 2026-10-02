@@ -8,6 +8,12 @@ public sealed class HsmsSettings
     /// <summary>设备号（SessionId）：数据消息头里带上，双方要一致，不一致的报文会被丢弃记警告。</summary>
     public ushort DeviceId { get; set; }
 
+    /// <summary>
+    /// 本端是设备（不是 Host）：处理不了的报文回 S9（S9 只能设备发），T3 超时按 E37.1 §5 发 S9F9；
+    /// Host 端（false）不发 S9，对方要回复的回同 Stream 的 F0 中止事务。跟 TCP 主动/被动模式无关。
+    /// </summary>
+    public bool IsEquipment { get; set; }
+
     /// <summary>true = 主动连出（连 EAP）；false = 被动监听（等 EAP 连入，设备端常规模式）。</summary>
     public bool IsActive { get; set; }
 
@@ -34,4 +40,20 @@ public sealed class HsmsSettings
 
     /// <summary>Linktest 心跳周期；SELECTED 后周期发 Linktest.req，T6 内没回就判链路死。0 = 不主动发（仍会应答对方）。</summary>
     public int LinktestIntervalMs { get; set; } = 30_000;
+
+    /// <summary>本实现的资源限制（非 SEMI 协议上限）。大配方测试可调大。</summary>
+    public int MaxFrameLength { get; set; } = 32 * 1024 * 1024;
+
+    public int SendTimeoutMs { get; set; } = 10_000;
+
+    /// <summary>检查参数，不合法抛 ArgumentException；Listener/Connector 的 Start 也会先调它。</summary>
+    public void Validate()
+    {
+        if (DeviceId > 0x7FFF) throw new ArgumentOutOfRangeException(nameof(DeviceId), "HSMS-SS DeviceID 必须是 15 位");
+        if (Port < 0 || Port > 65535) throw new ArgumentOutOfRangeException(nameof(Port));
+        if (T3ReplyTimeoutMs <= 0 || T5ConnectRetryMs <= 0 || T6ControlTimeoutMs <= 0
+            || T7NotSelectedTimeoutMs <= 0 || T8IntercharacterTimeoutMs <= 0
+            || SendTimeoutMs <= 0 || LinktestIntervalMs < 0 || MaxFrameLength < 10)
+            throw new ArgumentException("超时必须为正值，Linktest 可为 0，帧上限至少为 10");
+    }
 }

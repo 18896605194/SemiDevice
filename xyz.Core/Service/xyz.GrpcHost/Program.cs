@@ -17,8 +17,6 @@ namespace xyz.GrpcHost;
 [SupportedOSPlatform("windows")]
 public static class Program
 {
-    private const int DefaultPort = 5000;
-
     public static void Main(string[] args)
     {
         // 一台机只跑一个后端（灯绿灯红都算在跑）：再双击 exe 只让已有那颗灯冒气泡提示，这个直接退，不再去连一遍设备。
@@ -60,7 +58,7 @@ public static class Program
         builder.Services.AddXyzServices();
         var rpc = RpcComponent.Current;
         var host = rpc is { Host.Length: > 0 } endpoint ? endpoint.Host : "localhost";
-        var port = rpc?.Port ?? DefaultPort;
+        var port = rpc?.Port ?? RpcComponent.DefaultPort;
 
         builder.WebHost.ConfigureKestrel(options =>
         {

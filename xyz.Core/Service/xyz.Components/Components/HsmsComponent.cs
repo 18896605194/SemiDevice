@@ -1,10 +1,12 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using xyz.Common.Log;
 using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Enums;
 using xyz.Secs;
+using xyz.Secs.Diagnostics;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 
@@ -14,7 +16,8 @@ namespace xyz.Components.Components;
 /// EAP 主机链路（sc.xml 的 Hsms 节点）：SECS/GEM over HSMS 的设备端。
 /// 传输与编解码在 xyz.Secs 类库（专用线程 + 同步泵），本组件只做三件事：
 /// ① 按 sc.xml 建链路（被动监听等 EAP 连入是设备常规，IsActive=True 主动连出）；
-/// ② GEM 答话——S1F13 通讯建立、S1F1 在线询问、S1F3 按 SVID 表答状态、S1F17 对时；
+/// ② GEM 答话——S1F13 通讯建立、S1F1 在线询问、S1F3 按 SVID 表答状态、S1F17 上线请求、S2F17 时间查询、S2F31 对时；
+///    没实现的报文按 E5 回 S9（整个 Stream 没实现回 S9F3，Function 没实现回 S9F5），不让 EAP 干等 T3；
 /// ③ 报警推 S5F1（ALID 查编号表，报出/清除都推）。
 /// S2F41 远程命令暂回 HCACK=4（不接受），路由到 TransferManager 派单是下一阶段；
 /// S2F33/35/37 动态报告、S6F11 事件上报同属下一阶段。
@@ -44,7 +47,7 @@ public class HsmsComponent : ComponentBase
     [SCEditor("", "Hsms", "对端 EAP 地址（IsActive=True 时用，如 192.168.1.10）；被动模式不用")]
     public string Host { get; set; } = string.Empty;
 
-    [SCEditor("5000", "Hsms", "HSMS 端口，SEMI 惯例 5000；注意与 Rpc 节点的 gRPC 端口不能同为 5000，接 EAP 时把 gRPC 挪走")]
+    [SCEditor("5000", "Hsms", "HSMS 端口，SEMI 惯例 5000；不能跟 Rpc 节点的 gRPC 端口相同（相同时 EAP 链路不启动、记错误），接 EAP 时把 gRPC 挪走")]
     public int Port { get; set; } = 5000;
 
     [SCEditor("0", "Hsms", "设备号（DeviceId/SessionId），要和 EAP 侧配置一致，不一致的报文会被丢弃")]
@@ -102,8 +105,16 @@ public class HsmsComponent : ComponentBase
             return;
         }
 
+        // 配置不对（设备号超出 15 位、超时填了 0 这类）：EAP 链路不起，记错误，不拖垮整个后端。
+        if (DeviceId is < 0 or > 0x7FFF)
+        {
+            LogHelper.Error(Name, $"EAP 链路没起来：DeviceId={DeviceId} 不对，HSMS 设备号只能是 0~32767");
+            return;
+        }
+
         var settings = new HsmsSettings
         {
+            IsEquipment = true,
             IsActive = IsActive,
             Host = string.IsNullOrWhiteSpace(Host) ? "127.0.0.1" : Host,
             Port = Port,
@@ -115,6 +126,16 @@ public class HsmsComponent : ComponentBase
             T8IntercharacterTimeoutMs = T8IntercharacterTimeoutMs,
             LinktestIntervalMs = LinktestIntervalMs,
         };
+        try
+        {
+            settings.Validate();
+        }
+        catch (ArgumentException exception)
+        {
+            LogHelper.Error(Name, $"EAP 链路没起来：Hsms 配置不对，{exception.Message}");
+            return;
+        }
+
         var sink = new SecsLogSink(Name, LogMessages);
 
         if (IsActive)
@@ -126,9 +147,30 @@ public class HsmsComponent : ComponentBase
         }
         else
         {
+            // 跟 gRPC 同端口：宿主先开 EAP 链路、后起 gRPC，监听是独占的，gRPC 就绑不上、整个后端起不来。
+            // 只能让一边让路——界面要靠 gRPC，所以 EAP 链路不起，记错误。
+            int rpcPort = RpcComponent.Current?.Port ?? RpcComponent.DefaultPort;
+            if (Port == rpcPort)
+            {
+                LogHelper.Error(Name, $"EAP 链路没起来：Hsms 端口 {Port} 跟 Rpc 节点的 gRPC 端口相同，把其中一个挪开");
+                return;
+            }
+
             _listener = new HsmsListener(settings, sink);
             _listener.SessionEstablished += Wire;
-            _listener.Start();
+            try
+            {
+                _listener.Start();
+            }
+            catch (HsmsConnectionException exception)
+            {
+                // 端口被别的程序占着：EAP 链路起不来，但不拖垮整个后端。
+                LogHelper.Error(Name, $"EAP 链路没起来：{exception.Message}；换个端口或关掉占着它的程序");
+                _listener.Dispose();
+                _listener = null;
+                return;
+            }
+
             LogHelper.Info(Name, $"EAP 链路：监听 0.0.0.0:{Port} 等 EAP 连入，DeviceId={DeviceId}");
         }
 
@@ -180,48 +222,104 @@ public class HsmsComponent : ComponentBase
 
     private void OnPrimary(HsmsSession session, HsmsMessage message)
     {
-        switch (message.Name)
+        try
         {
-            // 通讯建立：回通讯建立码 0 + MDLN/SOFTREV
-            case "S1F13 W":
-                session.Reply(message, message.CreateReply(
-                    SecsItem.L(SecsItem.B(0), SecsItem.L(SecsItem.A(EquipmentModel), SecsItem.A(SoftwareRevision)))));
+            Answer(session, message);
+        }
+        catch (SecsException exception)
+        {
+            // 报文里的数据不对（类型、取值）：按 E5 回 S9F7 非法数据
+            LogHelper.Warn(Name, $"{message.Name} 数据不对，回 S9F7: {exception.Message}");
+            session.SendError(message.Header, 7);
+        }
+        catch (Exception exception)
+        {
+            // 本端处理出了错：要回复的回 F0 中止事务，别让 EAP 干等 T3
+            LogHelper.Error(Name, $"处理 {message.Name} 出错: {exception.Message}");
+            if (message.Header.ReplyExpected)
+            {
+                session.Reply(message, new SecsMessage(message.Header.Stream, 0, false));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 按 Stream/Function 答话；对方没要回复（W=0）时 Reply 自动不发。
+    /// </summary>
+    private void Answer(HsmsSession session, HsmsMessage message)
+    {
+        switch (message.Header.Stream, message.Header.Function)
+        {
+            // S1F13 通讯建立 → S1F14：COMMACK=0 + MDLN/SOFTREV
+            case (1, 13):
+                session.Reply(message, message.CreateReply(SecsItem.L(SecsItem.B(0), Identity())));
                 break;
 
-            // 在线询问（Are You There）：回 0（在线）
-            case "S1F1 W":
-                session.Reply(message, message.CreateReply(SecsItem.B(0)));
+            // S1F1 在线询问（Are You There）→ S1F2：设备回 MDLN/SOFTREV（只有 Host 回的才是空 L）
+            case (1, 1):
+                session.Reply(message, message.CreateReply(Identity()));
                 break;
 
-            // 状态查询：按 SVID 逐个答（空列表 = 全查），值类型按 SV 声明的格式落
-            case "S1F3 W":
+            // S1F3 状态查询 → S1F4：按 SVID 逐个答（空列表 = 全查），值类型按 SV 声明的格式落
+            case (1, 3):
                 session.Reply(message, message.CreateReply(AnswerSvQuery(message.Body)));
                 break;
 
-            // 对时询问：回本机时间，E5 格式 yyMMddHHmmssff（14 位、24 小时制带厘秒；12 小时制要带 A/P 后缀，不用）
-            case "S1F17 W":
-                session.Reply(message, message.CreateReply(SecsItem.A(DateTime.Now.ToString("yyMMddHHmmssff"))));
+            // S1F17 上线请求 → S1F18 ONLACK。框架还没有 GEM 控制状态模型，设备一直算在线：回 2（已经在线）
+            case (1, 17):
+                session.Reply(message, message.CreateReply(SecsItem.B(2)));
                 break;
 
-            // 对时设置：先只答"收下"（0），不动机器时钟——要不要真对时是现场策略，定了一起改
-            case "S2F31 W":
+            // S2F17 时间查询 → S2F18：E5 的 16 位格式 YYYYMMDDhhmmsscc（24 小时制，带厘秒）
+            case (2, 17):
+                session.Reply(message, message.CreateReply(
+                    SecsItem.A(DateTime.Now.ToString("yyyyMMddHHmmssff", CultureInfo.InvariantCulture))));
+                break;
+
+            // S2F31 对时 → S2F32 TIACK=0：先只答收下，不动机器时钟——要不要真对时是现场策略，定了一起改
+            case (2, 31):
                 session.Reply(message, message.CreateReply(SecsItem.B(0)));
                 break;
 
-            // 远程命令：HCACK=4（命令不接受）。下一阶段接 TransferManager 派单后按命令名路由
-            case "S2F41 W":
-                LogHelper.Warn(Name, $"远程命令暂不支持: {message.Body?.First().GetString()}");
-                session.Reply(message, message.CreateReply(SecsItem.L(SecsItem.B(4))));
+            // S2F41 远程命令 → S2F42 L[2]{HCACK=4（命令不接受）, L[0]}。下一阶段接 TransferManager 派单后按命令名路由
+            case (2, 41):
+                LogHelper.Warn(Name, $"远程命令暂不支持: {RcmdText(message.Body)}");
+                session.Reply(message, message.CreateReply(SecsItem.L(SecsItem.B(4), SecsItem.L())));
                 break;
 
             default:
-                // 没实现的报文不硬答：乱答比超时更难排障。W=1 的对端会 T3 超时，这里记警告留痕
-                if (message.Header.ReplyExpected)
-                {
-                    LogHelper.Warn(Name, $"未实现的报文: {message.Name}");
-                }
+                // 没实现的报文按 E5 回 S9：整个 Stream 一条都没实现回 S9F3，Stream 用到了但这个 Function 没实现回 S9F5。
+                // 不回的话 EAP 要干等 T3 才知道。
+                byte error = message.Header.Stream is 1 or 2 or 5 ? (byte)5 : (byte)3;
+                LogHelper.Warn(Name, $"未实现的报文 {message.Name}，回 S9F{error}");
+                session.SendError(message.Header, error);
                 break;
         }
+    }
+
+    /// <summary>
+    /// 设备身份 L[2]{MDLN, SOFTREV}：S1F2、S1F14 都带它。
+    /// </summary>
+    private SecsItem Identity()
+    {
+        return SecsItem.L(SecsItem.A(Ascii(EquipmentModel)), SecsItem.A(Ascii(SoftwareRevision)));
+    }
+
+    /// <summary>
+    /// 远程命令名（日志用）：RCMD 一般是 ASCII，也可能是整数。
+    /// </summary>
+    private static string RcmdText(SecsItem? body)
+    {
+        var rcmd = body is { Format: SecsFormat.List, Count: > 0 } ? body.Items[0] : null;
+        return rcmd is null ? "（没带 RCMD）" : rcmd.Format == SecsFormat.Ascii ? rcmd.GetString() : SecsMessageText.Format(rcmd);
+    }
+
+    /// <summary>
+    /// SECS 的 A 类型只能是 ASCII：中文这类字符换成 ?——编码器碰到非 ASCII 会直接报错，一个字符就能毁掉整条回复。
+    /// </summary>
+    private static string Ascii(string text)
+    {
+        return string.Concat(text.Select(ch => ch <= '\x7F' ? ch : '?'));
     }
 
     /// <summary>
@@ -245,7 +343,7 @@ public class HsmsComponent : ComponentBase
         var values = new List<SecsItem>();
         foreach (var requested in body.Items)
         {
-            int svid = (int)requested.GetUInt64();
+            int svid = ReadSvid(requested);
             var sv = collector.Sv.BySvid(svid);
             if (sv is null)
             {
@@ -264,6 +362,29 @@ public class HsmsComponent : ComponentBase
         }
 
         return SecsItem.L(values);
+    }
+
+    /// <summary>
+    /// SVID 只认单个非负整数（本机编号都是 U4，哪种整数类型都收）；文字、多个值、负数算数据不对，抛出去由上层回 S9F7。
+    /// </summary>
+    private static int ReadSvid(SecsItem item)
+    {
+        long[] ids;
+        try
+        {
+            ids = item.GetInt64Array();
+        }
+        catch (OverflowException)
+        {
+            ids = [];
+        }
+
+        if (ids.Length != 1 || ids[0] < 0 || ids[0] > int.MaxValue)
+        {
+            throw new SecsException($"SVID 应是单个非负整数，收到 {SecsMessageText.Format(item)}");
+        }
+
+        return (int)ids[0];
     }
 
     /// <summary>
@@ -293,7 +414,7 @@ public class HsmsComponent : ComponentBase
                     : SecsItem.A(sv.Value);
 
             default:
-                return SecsItem.A(string.IsNullOrEmpty(sv.Value) ? " " : sv.Value);
+                return SecsItem.A(string.IsNullOrEmpty(sv.Value) ? " " : Ascii(sv.Value));
         }
     }
 
@@ -318,16 +439,31 @@ public class HsmsComponent : ComponentBase
                 return;
             }
 
-            // S5F1: L[ALID(U4), ALCD(B), ALED(B)]。ALCD 用 0x80（设备级软报警）占位，清除时报 0
+            // S5F1: L[3]{ALCD(B), ALID(U4), ALTX(A)}。ALCD 最高位 1 = 报出、0 = 清除，低 7 位的报警类别先不细分
             var alcd = alarm.IsActive ? (byte)0x80 : (byte)0;
             session.Send(new SecsMessage(5, 1, true,
-                SecsItem.L(SecsItem.U4((uint)alid), SecsItem.B(alcd), SecsItem.B(1))));
+                SecsItem.L(SecsItem.B(alcd), SecsItem.U4((uint)alid), SecsItem.A(AlarmText(alarm)))));
         }
         catch (Exception exception)
         {
             // 推送失败绝不能反过来影响报警系统本身
             LogHelper.Warn(Name, $"S5F1 推送失败: {exception.Message}");
         }
+    }
+
+    /// <summary>
+    /// ALTX：E5 限 40 个字符、只能 ASCII。报警文字是中文发不出去，发"组件全路径.报警代码"（跟编号表里的名字一样），
+    /// 超长就只发报警代码。EAP 一般按 ALID 对自己的报警表，这段只是方便人看。
+    /// </summary>
+    private static string AlarmText(AlarmItem alarm)
+    {
+        var text = Ascii($"{alarm.SourcePath}.{alarm.AlarmCode}");
+        if (text.Length > 40)
+        {
+            text = Ascii(alarm.AlarmCode);
+        }
+
+        return text.Length > 40 ? text[..40] : text;
     }
 
     /// <summary>报警实例 → ALID：按编号表里"组件全路径.报警代码"的全名查。</summary>

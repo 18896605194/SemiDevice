@@ -5,26 +5,7 @@ using xyz.Components.Attributes;
 namespace xyz.Components.Collectors;
 
 /// <summary>
-/// 采集到的一项事件定义：编号、全名、文本、描述和报告时带的 DVID。
-/// </summary>
-public sealed class CollectedEvent
-{
-    public int Ceid { get; init; }
-
-    public string Name { get; init; } = string.Empty;
-
-    public string EventText { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-
-    public IReadOnlyList<int> Dvids { get; init; } = [];
-}
-
-/// <summary>
-/// 事件（CEID）采集器：启动时把组件树上的 [EventAttribut] 和报警的报出/清除事件合并进 EventDefinitions.xml，
-/// 分配 CEID（70000–89999）；Collect 一次取全部事件定义。
-/// 报警事件每条报警两个（Warn 级不生成），名字按 ALID 起（System.Alarm.{ALID}.Set/Clear，跟 GR 一样），
-/// 报告时带 DvCollector 的报警 DV。
+/// 事件（CEID）采集器
 /// </summary>
 public sealed class EventCollector
 {
@@ -193,3 +174,21 @@ public sealed class EventCollector
         return changed;
     }
 }
+
+/// <summary>
+/// 采集到的一项事件定义：编号、全名、文本、描述和报告时带的 DVID。
+/// </summary>
+public sealed class CollectedEvent
+{
+    public int Ceid { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string EventText { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    public IReadOnlyList<int> Dvids { get; init; } = [];
+}
+
+

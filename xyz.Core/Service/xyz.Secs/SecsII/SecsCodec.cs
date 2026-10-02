@@ -5,18 +5,23 @@ namespace xyz.Secs.SecsII;
 
 /// <summary>
 /// SECS-II 编解码（SEMI E5）。只管 Item 树 ↔ 字节，不知道网络。
-/// 头部规则：1 字节格式（高 6 位格式 + 低 2 位长度字节数-1）+ 1~3 字节大端长度
+/// 头部规则：1 字节格式（高 6 位格式 + 低 2 位长度字节数）+ 1~3 字节大端长度
 /// （List 的长度是子项个数，其余格式是字节数）+ 数据体；多字节整数/浮点一律大端。
 /// </summary>
 public static class SecsCodec
 {
+    public const int MaxDepth = 64;
+    private static readonly Encoding StrictAscii = Encoding.GetEncoding("us-ascii",
+        EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+    private static readonly Encoding Jis8 = Encoding.GetEncoding("iso-8859-1",
+        EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
     /// <summary>
     /// 编码整棵树（含头）。SECS 报文都是小报文（几 KB 级），直接拼数组最简单可靠，不做流式。
     /// </summary>
     public static byte[] Encode(SecsItem item)
     {
-        var buffer = new MemoryStream();
-        EncodeItem(item, buffer);
+        using var buffer = new MemoryStream();
+        EncodeItem(item, buffer, 0);
         return buffer.ToArray();
     }
 
@@ -25,7 +30,7 @@ public static class SecsCodec
     /// </summary>
     public static SecsItem Decode(ReadOnlySpan<byte> bytes)
     {
-        var (item, consumed) = DecodeItem(bytes);
+        var (item, consumed) = DecodeItem(bytes, 0);
         if (consumed != bytes.Length)
         {
             throw new SecsException($"解码后剩余 {bytes.Length - consumed} 字节，报文非法");
@@ -35,8 +40,9 @@ public static class SecsCodec
 
     #region 编码
 
-    private static void EncodeItem(SecsItem item, MemoryStream buffer)
+    private static void EncodeItem(SecsItem item, MemoryStream buffer, int depth)
     {
+        if (depth > MaxDepth) throw new SecsException("SECS-II 嵌套超过限制");
         switch (item.Format)
         {
             case SecsFormat.List:
@@ -44,13 +50,15 @@ public static class SecsCodec
                 WriteHead(buffer, SecsFormat.List, items.Count);
                 foreach (var child in items)
                 {
-                    EncodeItem(child, buffer);
+                    EncodeItem(child, buffer, depth + 1);
                 }
                 break;
 
             case SecsFormat.Ascii:
             case SecsFormat.Jis8:
-                var text = Encoding.ASCII.GetBytes(item.GetString());
+                byte[] text;
+                try { text = (item.Format == SecsFormat.Ascii ? StrictAscii : Jis8).GetBytes(item.GetString()); }
+                catch (EncoderFallbackException ex) { throw new SecsException($"字符串无法编码为 {item.Format}: {ex.Message}"); }
                 WriteHead(buffer, item.Format, text.Length);
                 buffer.Write(text, 0, text.Length);
                 break;
@@ -138,7 +146,8 @@ public static class SecsCodec
     private static void WriteHead(MemoryStream buffer, SecsFormat format, int length)
     {
         int lengthBytes = length <= byte.MaxValue ? 1 : length <= ushort.MaxValue ? 2 : 3;
-        buffer.WriteByte((byte)((int)format | (lengthBytes - 1)));
+        if (length < 0 || length > 0xFFFFFF) throw new SecsException("数据项长度超过 3 字节可表示范围");
+        buffer.WriteByte((byte)((int)format | lengthBytes));
         Span<byte> span = stackalloc byte[3];
         for (int i = 0; i < lengthBytes; i++)
         {
@@ -152,8 +161,9 @@ public static class SecsCodec
     #region 解码
 
     /// <summary>解出一棵子树，返回子树和消费的字节数（List 需要逐子项递归累计）。</summary>
-    private static (SecsItem Item, int Consumed) DecodeItem(ReadOnlySpan<byte> bytes)
+    private static (SecsItem Item, int Consumed) DecodeItem(ReadOnlySpan<byte> bytes, int depth)
     {
+        if (depth > MaxDepth) throw new SecsException("SECS-II 嵌套超过限制");
         if (bytes.Length < 2)
         {
             throw new SecsException("剩余字节不足一个项头");
@@ -161,7 +171,8 @@ public static class SecsCodec
 
         byte head = bytes[0];
         var format = (SecsFormat)(head & 0xFC);
-        int lengthBytes = (head & 0x03) + 1;
+        int lengthBytes = head & 0x03;
+        if (lengthBytes == 0) throw new SecsException("数据项长度字节数不能为 0");
         if (bytes.Length < 1 + lengthBytes)
         {
             throw new SecsException($"格式 {format} 的长度头不完整");
@@ -176,11 +187,13 @@ public static class SecsCodec
         switch (format)
         {
             case SecsFormat.List:
+                if (length > (bytes.Length - 1 - lengthBytes) / 2)
+                    throw new SecsException("List 声明的子项个数超过剩余数据");
                 var children = new List<SecsItem>(length);
                 int offset = 1 + lengthBytes;
                 for (int i = 0; i < length; i++)
                 {
-                    var (child, consumed) = DecodeItem(bytes[offset..]);
+                    var (child, consumed) = DecodeItem(bytes[offset..], depth + 1);
                     children.Add(child);
                     offset += consumed;
                 }
@@ -190,8 +203,8 @@ public static class SecsCodec
             case SecsFormat.Jis8:
                 RequireLength(format, bytes, lengthBytes, length);
                 return (format == SecsFormat.Ascii
-                    ? SecsItem.A(Encoding.ASCII.GetString(bytes.Slice(1 + lengthBytes, length)))
-                    : SecsItem.J(Encoding.ASCII.GetString(bytes.Slice(1 + lengthBytes, length))), 1 + lengthBytes + length);
+                    ? SecsItem.A(DecodeAscii(bytes.Slice(1 + lengthBytes, length)))
+                    : SecsItem.J(Jis8.GetString(bytes.Slice(1 + lengthBytes, length))), 1 + lengthBytes + length);
 
             case SecsFormat.Binary:
                 RequireLength(format, bytes, lengthBytes, length);
@@ -328,6 +341,12 @@ public static class SecsCodec
         {
             throw new SecsException($"格式 {format} 声明 {length} 字节但剩余不足");
         }
+    }
+
+    private static string DecodeAscii(ReadOnlySpan<byte> bytes)
+    {
+        try { return StrictAscii.GetString(bytes); }
+        catch (DecoderFallbackException ex) { throw new SecsException($"非法 ASCII 字节: {ex.Message}"); }
     }
 
     #endregion

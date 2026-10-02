@@ -3,24 +3,7 @@
 namespace xyz.Components.Collectors;
 
 /// <summary>
-/// 采集到的一项 DV 定义：编号、全名、格式与说明（DV 的值只在事件报告时才有）。
-/// </summary>
-public sealed class CollectedDv
-{
-    public int Dvid { get; init; }
-
-    public string Name { get; init; } = string.Empty;
-
-    public string Format { get; init; } = string.Empty;
-
-    public string Unit { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-}
-
-/// <summary>
-/// DV 采集器：维护 DvDefinitions.xml，分配 DVID（90000–99999）。目前的 DV 就是报警事件带的那 6 个，
-/// 名字跟 GR 一样（System.Alarm.*）；只要有报警事件就在用，一个都没有时停用保号。
+/// DV 采集器
 /// </summary>
 public sealed class DvCollector
 {
@@ -126,3 +109,21 @@ public sealed class DvCollector
         return changed;
     }
 }
+
+/// <summary>
+/// 采集到的一项 DV 定义：编号、全名、格式与说明（DV 的值只在事件报告时才有）。
+/// </summary>
+public sealed class CollectedDv
+{
+    public int Dvid { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string Format { get; init; } = string.Empty;
+
+    public string Unit { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+}
+
+

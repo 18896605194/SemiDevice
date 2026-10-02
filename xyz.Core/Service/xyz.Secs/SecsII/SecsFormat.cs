@@ -16,19 +16,19 @@ public enum SecsFormat : byte
     Boolean = 0x24,
 
     /// <summary>ASCII 字符串。</summary>
-    Ascii = 0x28,
+    Ascii = 0x40,
 
     /// <summary>JIS-8 编码字符串（少见，按字节透明传输）。</summary>
-    Jis8 = 0x2C,
+    Jis8 = 0x44,
 
-    I1 = 0x40,
-    I2 = 0x48,
-    I4 = 0x50,
-    I8 = 0x58,
-    F4 = 0x60,
-    F8 = 0x68,
-    U1 = 0x70,
-    U2 = 0x78,
-    U4 = 0x80,
-    U8 = 0x88,
+    I1 = 0x64,
+    I2 = 0x68,
+    I4 = 0x70,
+    I8 = 0x60,
+    F4 = 0x90,
+    F8 = 0x80,
+    U1 = 0xA4,
+    U2 = 0xA8,
+    U4 = 0xB0,
+    U8 = 0xA0,
 }

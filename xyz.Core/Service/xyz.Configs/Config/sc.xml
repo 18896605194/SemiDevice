@@ -12,7 +12,7 @@
 		<Value Name="Port" Value="5000" />
 	</Setting>
 	<!-- EAP 主机链路（SECS/GEM over HSMS）：没接 EAP 的机器保持 IsEnable=False（不监听端口、照常跑）。
-	     接 EAP 时改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口）；
+	     接 EAP 时改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口：同端口时 EAP 链路不启动、日志记错误）；
 	     DeviceId、T3~T8、MDLN/SOFTREV 按 EAP 侧要求对齐 -->
 	<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
 		<Value Name="IsEnable" Value="False" />

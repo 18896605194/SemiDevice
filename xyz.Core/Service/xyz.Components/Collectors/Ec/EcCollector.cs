@@ -5,36 +5,7 @@ using xyz.Components.Enums;
 namespace xyz.Components.Collectors;
 
 /// <summary>
-/// 采集到的一项 EC：编号、全名、当前值和元数据。
-/// </summary>
-public sealed class CollectedEc
-{
-    public int Ecid { get; init; }
-
-    public string Name { get; init; } = string.Empty;
-
-    public string Value { get; init; } = string.Empty;
-
-    public string Format { get; init; } = string.Empty;
-
-    public string Unit { get; init; } = string.Empty;
-
-    public string Min { get; init; } = string.Empty;
-
-    public string Max { get; init; } = string.Empty;
-
-    public string Default { get; init; } = string.Empty;
-
-    public string Options { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-
-    public bool Visible { get; init; }
-}
-
-/// <summary>
-/// EC 采集器：启动时把组件树上的 [VariableMark(EC)] 合并进 EcDefinitions.xml，分配 ECID（10000–29999）；
-/// Collect 一次取全部 EC 的编号和当前值。EC 的值在 ec.xml，由 EcComponent 管，这里只读不写。
+/// ECid 采集器
 /// </summary>
 public sealed class EcCollector
 {
@@ -133,3 +104,33 @@ public sealed class EcCollector
         return changed;
     }
 }
+
+/// <summary>
+/// 采集到的一项 EC：编号、全名、当前值和元数据。
+/// </summary>
+public sealed class CollectedEc
+{
+    public int Ecid { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string Value { get; init; } = string.Empty;
+
+    public string Format { get; init; } = string.Empty;
+
+    public string Unit { get; init; } = string.Empty;
+
+    public string Min { get; init; } = string.Empty;
+
+    public string Max { get; init; } = string.Empty;
+
+    public string Default { get; init; } = string.Empty;
+
+    public string Options { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    public bool Visible { get; init; }
+}
+
+

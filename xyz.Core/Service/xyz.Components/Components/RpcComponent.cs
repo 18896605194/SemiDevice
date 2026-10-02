@@ -10,9 +10,9 @@ namespace xyz.Components.Components;
 [Component(description: "对前端壳的 gRPC 服务端点（监听地址与端口）")]
 public class RpcComponent : ComponentBase
 {
-    /// <summary>
-    /// 当前端点配置；sc.xml 没配 Rpc 节点时为 null，宿主按默认端口监听。
-    /// </summary>
+
+    public const int DefaultPort = 5000;
+
     public static RpcComponent? Current { get; set; }
 
     public RpcComponent()
@@ -31,5 +31,5 @@ public class RpcComponent : ComponentBase
     /// 客户端 exe 旁的 client.json（GrpcAddress）跟着改，两边要一致。
     /// </summary>
     [SCEditor("5000", "Rpc", "gRPC 监听端口，默认 5000。注意 HSMS（EAP）惯例端口也是 5000，接 EAP 时把一边挪开；改这里要同步改客户端的 client.json")]
-    public int Port { get; set; } = 5000;
+    public int Port { get; set; } = DefaultPort;
 }

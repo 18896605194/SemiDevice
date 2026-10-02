@@ -33,6 +33,7 @@ public sealed class HsmsConnector : IDisposable
 
     public void Start()
     {
+        _settings.Validate();
         if (Interlocked.Exchange(ref _started, 1) == 1)
         {
             return;

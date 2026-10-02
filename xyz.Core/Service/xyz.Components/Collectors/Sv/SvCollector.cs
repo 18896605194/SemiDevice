@@ -6,38 +6,7 @@ using xyz.Components.Enums;
 namespace xyz.Components.Collectors;
 
 /// <summary>
-/// 采集到的一项 SV：编号、全名、当前值和元数据。
-/// </summary>
-public sealed class CollectedSv
-{
-    public int Svid { get; init; }
-
-    public string Name { get; init; } = string.Empty;
-
-    public string Value { get; init; } = string.Empty;
-
-    public string Format { get; init; } = string.Empty;
-
-    public string Unit { get; init; } = string.Empty;
-
-    public string Min { get; init; } = string.Empty;
-
-    public string Max { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-
-    public bool Visible { get; init; }
-}
-
-/// <summary>
-/// 能画成曲线的一项 SV（布尔、整数、浮点、枚举）：全名、所在组件、格式、单位、说明，Read 现读当前值——
-/// 布尔记 0/1、枚举记它的数值，读不出来或不是有限数给 null。
-/// </summary>
-public sealed record NumericSv(string Name, ComponentBase Owner, ValueFormat Format, string Unit, string Description, Func<double?> Read);
-
-/// <summary>
-/// SV 采集器：启动时把组件树上的 [VariableMark(SV)] 合并进 SvDefinitions.xml，分配 SVID（30000–49999）；
-/// Collect 一次取全部 SV 的编号和当前值（直接读组件属性）。
+/// SV 采集器
 /// </summary>
 public sealed class SvCollector
 {
@@ -193,3 +162,35 @@ public sealed class SvCollector
         return changed;
     }
 }
+
+/// <summary>
+/// 采集到的一项 SV：编号、全名、当前值和元数据。
+/// </summary>
+public sealed class CollectedSv
+{
+    public int Svid { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string Value { get; init; } = string.Empty;
+
+    public string Format { get; init; } = string.Empty;
+
+    public string Unit { get; init; } = string.Empty;
+
+    public string Min { get; init; } = string.Empty;
+
+    public string Max { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    public bool Visible { get; init; }
+}
+
+/// <summary>
+/// 能画成曲线的一项 SV（布尔、整数、浮点、枚举）：全名、所在组件、格式、单位、说明，Read 现读当前值——
+/// 布尔记 0/1、枚举记它的数值，读不出来或不是有限数给 null。
+/// </summary>
+public sealed record NumericSv(string Name, ComponentBase Owner, ValueFormat Format, string Unit, string Description, Func<double?> Read);
+
+

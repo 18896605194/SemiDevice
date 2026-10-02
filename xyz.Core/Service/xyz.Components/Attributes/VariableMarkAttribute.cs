@@ -3,6 +3,9 @@ using xyz.Components.Enums;
 
 namespace xyz.Components.Attributes;
 
+/// <summary>
+/// EAP 需要采集的，SVID,ECID等
+/// </summary>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 public sealed class VariableMarkAttribute : Attribute
 {

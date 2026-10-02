@@ -5,33 +5,7 @@ using xyz.Components.Alarm;
 namespace xyz.Components.Collectors;
 
 /// <summary>
-/// 采集到的一项报警定义：编号、全名、文本、分类、等级、描述、处理建议和报出/清除事件的 CEID。
-/// </summary>
-public sealed class CollectedAlarm
-{
-    public int Alid { get; init; }
-
-    public string Name { get; init; } = string.Empty;
-
-    public string AlarmText { get; init; } = string.Empty;
-
-    public string Category { get; init; } = string.Empty;
-
-    public string AlarmLevel { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-
-    public string Solution { get; init; } = string.Empty;
-
-    public int SetEventId { get; init; }
-
-    public int ClearEventId { get; init; }
-}
-
-/// <summary>
-/// 报警采集器：启动时把组件树上的 [Alarm] 合并进 AlarmDefinitions.xml，分配 ALID（50000–69999）；
-/// 事件编号出来后再把每条报警报出/清除事件的 CEID 回填进表（Warn 级不生成事件，填 0）。
-/// Collect 一次取全部报警定义。只管编号，报警的报出与复位还是 AlarmComponent 的事。
+/// 报警采集器
 /// </summary>
 public sealed class AlarmCollector
 {
@@ -212,4 +186,28 @@ public sealed class AlarmCollector
         changed |= DefinitionTable.SetIfChanged(value => row.Solution = value, row.Solution, attribute.Solution);
         return changed;
     }
+}
+
+/// <summary>
+/// 集到报警定义
+/// </summary>
+public sealed class CollectedAlarm
+{
+    public int Alid { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string AlarmText { get; init; } = string.Empty;
+
+    public string Category { get; init; } = string.Empty;
+
+    public string AlarmLevel { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    public string Solution { get; init; } = string.Empty;
+
+    public int SetEventId { get; init; }
+
+    public int ClearEventId { get; init; }
 }

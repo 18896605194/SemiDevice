@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Alarm;
 
 /// <summary>
-/// 报警等级，等级决定所属模块的处理动作。
+/// 报警等级，后续会根据登记做相应动作
 /// </summary>
 public enum AlarmLevel
 {

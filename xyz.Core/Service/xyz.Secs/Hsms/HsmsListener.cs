@@ -35,16 +35,33 @@ public sealed class HsmsListener : IDisposable
         _sink = sink ?? NullSecsSink.Instance;
     }
 
-    /// <summary>开始监听 sc 配置的端口（IPAddress.Any）。</summary>
+    /// <summary>
+    /// 开始监听 sc 配置的端口（IPAddress.Any）。端口已被别的程序占着时抛 HsmsConnectionException，可以换端口后再调。
+    /// </summary>
     public void Start()
     {
+        _settings.Validate();
         if (Interlocked.Exchange(ref _started, 1) == 1)
         {
             return;
         }
 
-        _tcpListener = new TcpListener(IPAddress.Any, _settings.Port);
-        _tcpListener.Start();
+        // 独占绑定：不独占的话，别的程序占着 127.0.0.1 的同一端口（本框架的 gRPC 就是 localhost:5000）时
+        // 0.0.0.0 照样绑得上，看着在监听，本机连这个端口却连到了别人那里。独占后端口有人用就直接失败；
+        // 反过来本端先绑上的话，后来的程序（哪怕只绑 127.0.0.1）也绑不上这个端口。
+        var listener = new TcpListener(IPAddress.Any, _settings.Port);
+        listener.Server.ExclusiveAddressUse = true;
+        try
+        {
+            listener.Start();
+        }
+        catch (SocketException exception)
+        {
+            Interlocked.Exchange(ref _started, 0);
+            throw new HsmsConnectionException($"HSMS 端口 {_settings.Port} 已被占用，监听失败：{exception.Message}");
+        }
+
+        _tcpListener = listener;
         _ = Task.Factory.StartNew(AcceptLoop, TaskCreationOptions.LongRunning);
         _sink.Info(Category, $"监听 0.0.0.0:{LocalEndpoint?.Port}，等 EAP 连入");
     }

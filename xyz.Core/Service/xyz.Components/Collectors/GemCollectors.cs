@@ -3,25 +3,7 @@
 namespace xyz.Components.Collectors;
 
 /// <summary>
-/// 一键采集的结果：五类一次取全。
-/// </summary>
-public sealed class GemSnapshot
-{
-    public IReadOnlyList<CollectedEc> Ecs { get; init; } = [];
-
-    public IReadOnlyList<CollectedSv> Svs { get; init; } = [];
-
-    public IReadOnlyList<CollectedAlarm> Alarms { get; init; } = [];
-
-    public IReadOnlyList<CollectedEvent> Events { get; init; } = [];
-
-    public IReadOnlyList<CollectedDv> Dvs { get; init; } = [];
-}
-
-/// <summary>
-/// EC、SV、报警、CEID、DV 五个采集器放一起：启动时 Merge 一次生成五张编号表（跟 sc.xml 同目录），
-/// CollectAll 一键采集。号段：ECID 10000–29999，SVID 30000–49999，ALID 50000–69999，CEID 70000–89999，
-/// DVID 90000–99999。
+/// 一起采集
 /// </summary>
 public sealed class GemCollectors
 {
@@ -86,3 +68,22 @@ public sealed class GemCollectors
         }
     }
 }
+
+
+/// <summary>
+/// 一键采集的结果：五类一次取全。
+/// </summary>
+public sealed class GemSnapshot
+{
+    public IReadOnlyList<CollectedEc> Ecs { get; init; } = [];
+
+    public IReadOnlyList<CollectedSv> Svs { get; init; } = [];
+
+    public IReadOnlyList<CollectedAlarm> Alarms { get; init; } = [];
+
+    public IReadOnlyList<CollectedEvent> Events { get; init; } = [];
+
+    public IReadOnlyList<CollectedDv> Dvs { get; init; } = [];
+}
+
+

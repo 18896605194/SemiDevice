@@ -29,9 +29,7 @@ public interface IDefinitionFile<TRow>
 internal readonly record struct MergeResult(bool Changed, int Added, int Restored, int Disabled);
 
 /// <summary>
-/// 编号表（EcDefinitions.xml 等）的读、合并、写，四个采集器共用。规则跟 GR 一样：
-/// 代码里有、表里也有的保号，元数据按代码刷新；代码里新增的在号段里接着往下分；
-/// 代码里删掉的保号并置 Enabled=false，号永不回收。
+/// 编号表（EcDefinitions.xml 等）的读、合并、写，四个采集器共用
 /// </summary>
 internal static class DefinitionTable
 {

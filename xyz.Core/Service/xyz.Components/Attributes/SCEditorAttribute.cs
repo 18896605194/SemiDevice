@@ -2,6 +2,9 @@ using System;
 
 namespace xyz.Components.Attributes;
 
+/// <summary>
+/// SC 装机特性
+/// </summary>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
 public sealed class SCEditorAttribute : Attribute
 {

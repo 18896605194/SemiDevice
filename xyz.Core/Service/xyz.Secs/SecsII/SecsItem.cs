@@ -15,7 +15,12 @@ public sealed class SecsItem
     private SecsItem(SecsFormat format, object data)
     {
         Format = format;
-        _data = data;
+        _data = data switch
+        {
+            SecsItem[] items => Array.AsReadOnly(items.ToArray()),
+            Array array => array.Clone(),
+            _ => data,
+        };
     }
 
     public SecsFormat Format { get; }
@@ -93,9 +98,9 @@ public sealed class SecsItem
 
     public string GetString() => _data as string ?? throw new SecsException($"Format={Format} 不是字符串");
 
-    public byte[] GetBinary() => _data as byte[] ?? throw new SecsException($"Format={Format} 不是 Binary");
+    public byte[] GetBinary() => _data is byte[] bytes ? bytes.ToArray() : throw new SecsException($"Format={Format} 不是 Binary");
 
-    public bool[] GetBooleanArray() => _data as bool[] ?? throw new SecsException($"Format={Format} 不是 Boolean");
+    public bool[] GetBooleanArray() => _data is bool[] values ? values.ToArray() : throw new SecsException($"Format={Format} 不是 Boolean");
 
     /// <summary>I/U 系列通吃：取第一个元素的 64 位值（U8 高于 long.MaxValue 时抛溢出异常，用 GetUInt64）。</summary>
     public long GetInt64()
@@ -107,7 +112,7 @@ public sealed class SecsItem
     {
         return _data switch
         {
-            long[] values => values,
+            long[] values => values.ToArray(),
             ulong[] values => Array.ConvertAll(values, value => checked((long)value)),
             _ => throw new SecsException($"Format={Format} 不是整数"),
         };
@@ -122,7 +127,7 @@ public sealed class SecsItem
     {
         return _data switch
         {
-            ulong[] values => values,
+            ulong[] values => values.ToArray(),
             long[] values => Array.ConvertAll(values, value => checked((ulong)value)),
             _ => throw new SecsException($"Format={Format} 不是整数"),
         };
@@ -134,7 +139,7 @@ public sealed class SecsItem
     }
 
     public double[] GetDoubleArray() =>
-        _data as double[] ?? throw new SecsException($"Format={Format} 不是浮点");
+        _data is double[] values ? values.ToArray() : throw new SecsException($"Format={Format} 不是浮点");
 
     #endregion
 

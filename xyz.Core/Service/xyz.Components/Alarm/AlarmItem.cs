@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Alarm;
 
 /// <summary>
-/// 一次报警的运行时快照。与组件上的 AlarmAttribute 定义分开保存。
+/// 报警消息类
 /// </summary>
 public sealed class AlarmItem
 {
@@ -19,12 +19,19 @@ public sealed class AlarmItem
 
     public string? Solution { get; internal init; }
 
-    /// <summary>本次报出时间，使用 UTC。</summary>
+    /// <summary>
+    /// 触发时间
+    /// </summary>
     public DateTimeOffset RaisedAt { get; internal init; }
 
-    /// <summary>人工清除（Reset）时间；还在报时为 null。</summary>
+    /// <summary>
+    /// reset 时间
+    /// </summary>
     public DateTimeOffset? ClearedAt { get; internal set; }
 
+    /// <summary>
+    /// 是否是活跃的
+    /// </summary>
     public bool IsActive => !ClearedAt.HasValue;
 
     internal AlarmItem Snapshot()

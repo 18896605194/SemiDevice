@@ -3,7 +3,7 @@
 namespace xyz.Components.Alarm;
 
 /// <summary>
-/// 标记一个组件报警（字段或属性），与 GR 项目的 [Alarm] 用法一致。
+/// 报警特性
 /// </summary>
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 public sealed class AlarmAttribute : Attribute

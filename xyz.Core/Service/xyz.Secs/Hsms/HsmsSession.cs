@@ -19,10 +19,12 @@ public sealed class HsmsSession : IDisposable
     private readonly object _sendGate = new();
 
     /// <summary>数据事务表：我发出去的 primary 的 SystemBytes → 等 secondary。</summary>
-    private readonly ConcurrentDictionary<uint, TaskCompletionSource<HsmsMessage>> _transactions = new();
+    private sealed record DataTransaction(byte Stream, byte Function,
+        TaskCompletionSource<HsmsMessage> Completion);
+    private readonly ConcurrentDictionary<uint, DataTransaction> _transactions = new();
 
     /// <summary>控制事务表：Select/Deselect/Linktest 的 SystemBytes → 等 rsp。</summary>
-    private readonly ConcurrentDictionary<uint, TaskCompletionSource<HsmsHeader>> _controls = new();
+    private readonly ConcurrentDictionary<uint, (HsmsMessageType Expected, TaskCompletionSource<HsmsHeader> Completion)> _controls = new();
 
     private int _systemBytes = Random.Shared.Next(1, int.MaxValue);  // 重连后换起始号，降低与对端撞号概率
     private volatile HsmsLinkState _state;
@@ -44,6 +46,8 @@ public sealed class HsmsSession : IDisposable
     public HsmsLinkState State => _state;
 
     public bool IsSelected => _state == HsmsLinkState.Selected;
+
+    public int PendingTransactionCount => _transactions.Count;
 
     internal HsmsSession(Stream stream, HsmsSettings settings, ISecsSink? sink = null, bool initiateSelect = false)
     {
@@ -89,16 +93,28 @@ public sealed class HsmsSession : IDisposable
             throw new SecsException($"{message.Name} W=0 没有回复，用 Send 发送");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         var tcs = SendCore(message, out var systemBytes);
+        return await WaitForReplyAsync(tcs, systemBytes, message.Name, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<HsmsMessage> WaitForReplyAsync(TaskCompletionSource<HsmsMessage> tcs,
+        uint systemBytes, string name, CancellationToken cancellationToken = default)
+    {
         try
         {
-            return await tcs.Task.WaitAsync(TimeSpan.FromMilliseconds(_settings.T3ReplyTimeoutMs), cancellationToken);
+            return await tcs.Task.WaitAsync(TimeSpan.FromMilliseconds(_settings.T3ReplyTimeoutMs), cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
-            _transactions.TryRemove(systemBytes, out _);
-            throw new SecsTimeoutException($"T3 等回复超时: {message.Name} Sys={systemBytes}");
+            if (_settings.IsEquipment && IsSelected && _transactions.TryRemove(systemBytes, out var expired))
+            {
+                try { SendError(HsmsHeader.CreateData(_settings.DeviceId, expired.Stream, expired.Function, true, systemBytes), 9); }
+                catch (SecsException ex) { _sink.Warn(Category, ex.Message); }
+            }
+            throw new SecsTimeoutException($"T3 等回复超时: {name} Sys={systemBytes}");
         }
+        finally { _transactions.TryRemove(systemBytes, out _); }
     }
 
     /// <summary>
@@ -106,7 +122,14 @@ public sealed class HsmsSession : IDisposable
     /// </summary>
     public void Send(SecsMessage message)
     {
-        SendCore(message, out _);
+        var tcs = SendCore(message, out var systemBytes);
+        if (message.ReplyExpected) _ = ObserveReplyAsync(tcs, systemBytes, message.Name);
+    }
+
+    private async Task ObserveReplyAsync(TaskCompletionSource<HsmsMessage> tcs, uint systemBytes, string name)
+    {
+        try { await WaitForReplyAsync(tcs, systemBytes, name).ConfigureAwait(false); }
+        catch (Exception ex) { _sink.Warn(Category, ex.Message); }
     }
 
     /// <summary>
@@ -115,6 +138,7 @@ public sealed class HsmsSession : IDisposable
     /// </summary>
     public void Reply(HsmsMessage primary, SecsMessage reply)
     {
+        if (!primary.Header.ReplyExpected) return;
         var header = HsmsHeader.CreateData(_settings.DeviceId, reply.Stream, reply.Function,
             replyExpected: false, primary.Header.SystemBytes);
         WriteFrame(header, reply.Body);
@@ -127,16 +151,17 @@ public sealed class HsmsSession : IDisposable
             throw new HsmsConnectionException($"未 SELECTED，不能发 {message.Name}");
         }
 
-        systemBytes = message.SystemBytes != 0 ? message.SystemBytes : NextSystemBytes();
+        systemBytes = NextSystemBytes();
         message.SystemBytes = systemBytes;
         var header = HsmsHeader.CreateData(_settings.DeviceId, message.Stream, message.Function, message.ReplyExpected, systemBytes);
         var tcs = new TaskCompletionSource<HsmsMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (message.ReplyExpected)
         {
-            _transactions[systemBytes] = tcs;
+            if (!_transactions.TryAdd(systemBytes, new DataTransaction(message.Stream, message.Function, tcs)))
+                throw new SecsException($"重复的 SystemBytes={systemBytes}");
         }
-
-        WriteFrame(header, message.Body);
+        try { WriteFrame(header, message.Body); }
+        catch { _transactions.TryRemove(systemBytes, out _); throw; }
         return tcs;
     }
 
@@ -150,10 +175,10 @@ public sealed class HsmsSession : IDisposable
 
         uint systemBytes = NextSystemBytes();
         var tcs = new TaskCompletionSource<HsmsHeader>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _controls[systemBytes] = tcs;
-        WriteFrame(HsmsHeader.CreateControl(type, systemBytes), null);
+        _controls[systemBytes] = ((HsmsMessageType)((byte)type + 1), tcs);
         try
         {
+            WriteFrame(HsmsHeader.CreateControl(type, systemBytes), null);
             if (!tcs.Task.Wait(timeoutMs))
             {
                 throw new SecsTimeoutException($"T6 控制事务超时: {type}");
@@ -199,6 +224,8 @@ public sealed class HsmsSession : IDisposable
         }
 
         byte[] item = body is null ? [] : SecsCodec.Encode(body);
+        if ((long)HsmsHeader.Size + item.Length > _settings.MaxFrameLength)
+            throw new SecsException("发送帧超过 MaxFrameLength");
         var frame = new byte[4 + HsmsHeader.Size + item.Length];
         BinaryPrimitives.WriteInt32BigEndian(frame, HsmsHeader.Size + item.Length);
         header.Write(frame.AsSpan(4, HsmsHeader.Size));
@@ -213,6 +240,7 @@ public sealed class HsmsSession : IDisposable
 
             try
             {
+                if (_stream.CanTimeout) _stream.WriteTimeout = _settings.SendTimeoutMs;
                 _stream.Write(frame, 0, frame.Length);
                 _stream.Flush();
             }
@@ -272,7 +300,7 @@ public sealed class HsmsSession : IDisposable
         }
 
         int length = BinaryPrimitives.ReadInt32BigEndian(prefix);
-        if (length < HsmsHeader.Size)
+        if (length < HsmsHeader.Size || length > _settings.MaxFrameLength)
         {
             throw new SecsException($"HSMS 帧长 {length} 非法");
         }
@@ -339,20 +367,35 @@ public sealed class HsmsSession : IDisposable
             return;
         }
 
+        if (header.PType != 0)
+        {
+            WriteFrame(HsmsHeader.CreateReject(header, 2), null);
+            return;
+        }
+        if (frame.Length != HsmsHeader.Size || header.DeviceId != ushort.MaxValue || header.ReplyExpected)
+        {
+            Close("非法 HSMS 控制帧");
+            return;
+        }
+
         _sink.Trace(SecsMessageDirection.Received, new HsmsMessage(header, null));
         switch (header.MessageType)
         {
             case HsmsMessageType.SelectReq:
-                // 单会话模式：对端想通讯就接受，回 0（已 SELECTED 时再收一个也回 0，保持链路）
-                WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.SelectRsp, header.SystemBytes), null);
-                OnSelected();
+                if (header.Stream != 0 || header.Function != 0) { Close("非法 Select.req 头"); break; }
+                var alreadySelected = IsSelected;
+                WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.SelectRsp, header.SystemBytes,
+                    result: alreadySelected ? (byte)1 : (byte)0), null);
+                if (alreadySelected) Close("重复 Select：非零 Select Status");
+                else OnSelected();
                 break;
 
             case HsmsMessageType.SelectRsp:
-                if (_controls.TryRemove(header.SystemBytes, out var select))
+                if (TakeControlResponse(header, out var select))
                 {
                     if (header.Function == 0)
                     {
+                        OnSelected();
                         select.TrySetResult(header);
                     }
                     else
@@ -363,24 +406,18 @@ public sealed class HsmsSession : IDisposable
                 break;
 
             case HsmsMessageType.DeselectReq:
-                WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.DeselectRsp, header.SystemBytes), null);
-                Close("对端 Deselect");
-                break;
-
             case HsmsMessageType.DeselectRsp:
-                if (_controls.TryRemove(header.SystemBytes, out var deselect))
-                {
-                    deselect.TrySetResult(header);
-                    Close("Deselect 完成");
-                }
+                // E37.1-0702 §7.3：SS 不使用 Deselect，结束连接用 Separate。
+                WriteFrame(HsmsHeader.CreateReject(header, 1), null);
                 break;
 
             case HsmsMessageType.LinktestReq:
+                if (!IsSelected) { WriteFrame(HsmsHeader.CreateReject(header, 4), null); break; }
                 WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.LinktestRsp, header.SystemBytes), null);
                 break;
 
             case HsmsMessageType.LinktestRsp:
-                if (_controls.TryRemove(header.SystemBytes, out var linktest))
+                if (TakeControlResponse(header, out var linktest))
                 {
                     linktest.TrySetResult(header);
                 }
@@ -394,37 +431,48 @@ public sealed class HsmsSession : IDisposable
                 _sink.Warn(Category, $"对端 Reject: 事务 Sys={header.SystemBytes} 原因码 {header.Function}");
                 if (_controls.TryRemove(header.SystemBytes, out var rejected))
                 {
-                    rejected.TrySetException(new HsmsConnectionException("对端 Reject"));
+                    rejected.Completion.TrySetException(new HsmsConnectionException("对端 Reject"));
                 }
                 break;
 
             default:
-                _sink.Warn(Category, $"不认识的 SType={header.SType}，丢弃");
+                _sink.Warn(Category, $"不认识的 SType={header.SType}，回 Reject");
+                WriteFrame(HsmsHeader.CreateReject(header, 1), null);
                 break;
         }
+    }
+
+    private bool TakeControlResponse(HsmsHeader header, out TaskCompletionSource<HsmsHeader> completion)
+    {
+        completion = null!;
+        if (!_controls.TryGetValue(header.SystemBytes, out var pending) || pending.Expected != header.MessageType)
+        {
+            _sink.Warn(Category, $"未匹配的控制回复 {header.MessageType} Sys={header.SystemBytes}");
+            WriteFrame(HsmsHeader.CreateReject(header, 3), null);
+            return false;
+        }
+        if (!_controls.TryRemove(header.SystemBytes, out pending)) return false;
+        completion = pending.Completion;
+        return true;
     }
 
     private void DispatchData(HsmsHeader header, ReadOnlySpan<byte> body)
     {
         if (!IsSelected)
         {
-            _sink.Warn(Category, $"未 SELECTED 收到数据消息，丢弃: S{header.Stream}F{header.Function}");
+            _sink.Warn(Category, $"未 SELECTED 收到数据消息，回 Reject: S{header.Stream}F{header.Function}");
+            WriteFrame(HsmsHeader.CreateReject(header, 4), null);
             return;
         }
 
         if (header.PType != 0)
         {
             _sink.Warn(Category, $"PType={header.PType} 不支持（只支持 SECS-II），回 Reject");
-            WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.RejectReq, header.SystemBytes, result: 2), null);
+            WriteFrame(HsmsHeader.CreateReject(header, 2), null);
             return;
         }
 
-        if (header.DeviceId != _settings.DeviceId)
-        {
-            _sink.Warn(Category, $"DeviceId={header.DeviceId} 与本端 {_settings.DeviceId} 不符，丢弃");
-            return;
-        }
-
+        bool deviceMatched = header.DeviceId == _settings.DeviceId;
         SecsItem? item = null;
         if (!body.IsEmpty)
         {
@@ -434,7 +482,8 @@ public sealed class HsmsSession : IDisposable
             }
             catch (SecsException exception)
             {
-                Close($"报文解码失败: {exception.Message}");
+                _sink.Warn(Category, $"报文解码失败: {exception.Message}");
+                ReportError(header, deviceMatched ? (byte)7 : (byte)1);
                 return;
             }
         }
@@ -442,10 +491,45 @@ public sealed class HsmsSession : IDisposable
         var message = new HsmsMessage(header, item);
         _sink.Trace(SecsMessageDirection.Received, message);
 
-        if (_transactions.TryRemove(header.SystemBytes, out var transaction))
+        // 对方报的错（S9）先认，尽快落到我方在途的事务上；S9F1（设备号不对）里带的就是对方的设备号，本来就跟本端对不上，不能按设备号丢掉。
+        if (header.Stream == 9)
         {
-            // SystemBytes 对上了：这是我的 primary 的 secondary
-            transaction.TrySetResult(message);
+            if (item is { Format: SecsFormat.Binary } && item.Count == HsmsHeader.Size)
+            {
+                var original = HsmsHeader.Parse(item.GetBinary());
+                if (_transactions.TryGetValue(original.SystemBytes, out var failed)
+                    && original.Stream == failed.Stream && original.Function == failed.Function
+                    && _transactions.TryRemove(original.SystemBytes, out failed))
+                    failed.Completion.TrySetException(new SecsException($"收到 {message.Name}，原事务 S{original.Stream}F{original.Function}"));
+            }
+            return;
+        }
+
+        if (!deviceMatched)
+        {
+            _sink.Warn(Category, $"DeviceId={header.DeviceId} 与本端 {_settings.DeviceId} 不符");
+            ReportError(header, 1);
+            return;
+        }
+
+        if (header.ReplyExpected && (header.Function == 0 || header.Function % 2 == 0))
+        {
+            _sink.Warn(Category, $"{message.Name} 是 secondary 却带了 W-Bit");
+            ReportError(header, 7);
+            return;
+        }
+
+        if (header.Function % 2 == 0)
+        {
+            if (_transactions.TryGetValue(header.SystemBytes, out var transaction)
+                && header.Stream == transaction.Stream
+                && (header.Function == 0 || header.Function == transaction.Function + 1)
+                && _transactions.TryRemove(header.SystemBytes, out transaction))
+            {
+                if (header.Function == 0) transaction.Completion.TrySetException(new SecsException($"S{header.Stream}F0 中止事务"));
+                else transaction.Completion.TrySetResult(message);
+            }
+            else _sink.Warn(Category, $"未匹配的 secondary {message.Name} Sys={header.SystemBytes}，丢弃");
             return;
         }
 
@@ -456,6 +540,38 @@ public sealed class HsmsSession : IDisposable
         catch (Exception exception)
         {
             _sink.Error(Category, $"PrimaryReceived 订阅方抛异常: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 设备端报错：发 S9Fx，体是出错报文的原始 10 字节头（MHEAD）。按 E5，S9 只能设备发给 Host，Host 端别调。
+    /// 常用：S9F1 设备号不对、S9F3 不认识的 Stream、S9F5 不认识的 Function、S9F7 数据不对、S9F9 T3 超时。
+    /// </summary>
+    public void SendError(HsmsHeader original, byte function)
+    {
+        var bytes = new byte[HsmsHeader.Size];
+        original.Write(bytes);
+        Send(new SecsMessage(9, function, false, SecsItem.B(bytes)));
+    }
+
+    /// <summary>
+    /// 链路层收到处理不了的报文：设备端回 S9（MHEAD 带原始头）；Host 端不能发 S9，对方要回复的就回同 Stream 的 F0 中止事务，
+    /// 不要回复的只记日志。F0 带回原报文的设备号，设备号配错时对方也能对上自己的事务。S9 本身出错不再回，免得两边来回报错。
+    /// </summary>
+    private void ReportError(HsmsHeader original, byte function)
+    {
+        if (original.Stream == 9)
+        {
+            return;
+        }
+
+        if (_settings.IsEquipment)
+        {
+            SendError(original, function);
+        }
+        else if (original.ReplyExpected)
+        {
+            WriteFrame(HsmsHeader.CreateData(original.DeviceId, original.Stream, 0, replyExpected: false, original.SystemBytes), null);
         }
     }
 
@@ -489,7 +605,7 @@ public sealed class HsmsSession : IDisposable
 
     private void OnSelected()
     {
-        if (_state == HsmsLinkState.Selected)
+        if (_closed == 1 || _state == HsmsLinkState.Selected)
         {
             return;
         }
@@ -551,13 +667,13 @@ public sealed class HsmsSession : IDisposable
 
         foreach (var transaction in _transactions.Values)
         {
-            transaction.TrySetException(new HsmsConnectionException($"连接已断开（{reason}）"));
+            transaction.Completion.TrySetException(new HsmsConnectionException($"连接已断开（{reason}）"));
         }
         _transactions.Clear();
 
         foreach (var control in _controls.Values)
         {
-            control.TrySetException(new HsmsConnectionException($"连接已断开（{reason}）"));
+            control.Completion.TrySetException(new HsmsConnectionException($"连接已断开（{reason}）"));
         }
         _controls.Clear();
 
@@ -572,7 +688,9 @@ public sealed class HsmsSession : IDisposable
 
     private uint NextSystemBytes()
     {
-        return (uint)Interlocked.Increment(ref _systemBytes);
+        uint value;
+        do { value = (uint)Interlocked.Increment(ref _systemBytes); } while (value == 0);
+        return value;
     }
 
     #endregion
