@@ -2,7 +2,7 @@
 using System.Reactive.Subjects;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
-using xyz.Components.DataCharts;
+using xyz.Components.Models;
 
 namespace xyz.Components.Components;
 

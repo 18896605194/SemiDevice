@@ -1,8 +1,6 @@
-﻿namespace xyz.Components.Wafers;
+﻿namespace xyz.Components.Enums;
 
-/// <summary>
-/// 流水里的变动类型。
-/// </summary>
+
 public enum WaferHistoryAction
 {
     /// <summary>建片。</summary>

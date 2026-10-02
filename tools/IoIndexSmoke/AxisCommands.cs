@@ -1,7 +1,8 @@
 ﻿using System.Runtime.InteropServices;
 using xyz.Components;
 using xyz.Components.Components;
-using xyz.Components.Motion;
+using xyz.Components.Enums;
+using xyz.Components.Models;
 
 static class AxisCommands
 {

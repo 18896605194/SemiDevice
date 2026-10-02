@@ -1,10 +1,9 @@
 ﻿using System.Threading.Channels;
 using SqlSugar;
 using xyz.Common.Log;
-using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
-using xyz.Components.Wafers;
+using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Database.Wafers;

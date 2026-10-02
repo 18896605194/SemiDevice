@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
+using xyz.Components.Enums;
 using xyz.Components.Interfaces;
-using xyz.Components.Motion;
+using xyz.Components.Models;
 
 namespace xyz.Components.Components;
 

@@ -1,5 +1,4 @@
 ﻿using xyz.Components;
-using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Components;

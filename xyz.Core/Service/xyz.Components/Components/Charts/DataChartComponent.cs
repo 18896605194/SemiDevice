@@ -6,8 +6,8 @@ using System.Text.RegularExpressions;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
-using xyz.Components.DataCharts;
 using xyz.Components.Enums;
+using xyz.Components.Models;
 using xyz.Database.DbProvider;
 
 namespace xyz.Components.Components;

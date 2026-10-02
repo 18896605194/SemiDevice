@@ -1,7 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using xyz.Common.Log;
-using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;

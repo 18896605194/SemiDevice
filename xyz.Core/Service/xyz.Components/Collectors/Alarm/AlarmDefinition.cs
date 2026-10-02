@@ -1,4 +1,5 @@
 ﻿using System.Xml.Serialization;
+using xyz.Components.Enums;
 
 namespace xyz.Components.Collectors;
 

@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using System.Net;
 using xyz.Common.Log;
-using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Enums;
+using xyz.Components.Models;
 using xyz.Secs;
 using xyz.Secs.Diagnostics;
 using xyz.Secs.Hsms;

@@ -1,10 +1,8 @@
 ﻿using System.Threading.Channels;
 using xyz.Common.Log;
-using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
-using xyz.Components.Wafers;
 using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;

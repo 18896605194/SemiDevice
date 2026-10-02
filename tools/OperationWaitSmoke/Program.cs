@@ -2,17 +2,17 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using xyz.Components;
+using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
-using xyz.Components.Wafers;
 using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 using xyz.Drivers.Loadport.FCD;
 using xyz.Drivers.Robot;
 using xyz.Drivers.Robot.Reje;
-using xyz.Modules.Enums;
 using xyz.Modules;
+using xyz.Modules.Enums;
 using xyz.Service;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -1229,7 +1229,7 @@ sealed class ProbeChild : ComponentBase
         _trace = trace;
     }
 
-    [xyz.Components.Alarm.Alarm("探针故障", xyz.Components.Alarm.AlarmCategory.Other)]
+    [xyz.Components.Attributes.Alarm("探针故障", xyz.Components.Enums.AlarmCategory.Other)]
     public string ProbeFault = nameof(ProbeFault);
 
     public void Fault() => RaiseAlarm(ProbeFault);

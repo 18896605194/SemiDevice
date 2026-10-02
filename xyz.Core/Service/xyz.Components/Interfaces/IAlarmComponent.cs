@@ -1,4 +1,6 @@
-﻿namespace xyz.Components.Alarm;
+﻿using xyz.Components.Models;
+
+namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// 报警组件接口

@@ -1,4 +1,6 @@
-﻿namespace xyz.Components.Wafers;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Components.Models;
 
 /// <summary>
 /// 账上的一片：身份、当前在哪、从哪来、状态。

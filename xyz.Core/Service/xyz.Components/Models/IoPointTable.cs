@@ -1,7 +1,7 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
 
-namespace xyz.Components.Io;
+namespace xyz.Components.Models;
 
 /// <summary>
 /// 一类 IO（DI/DO/AI/AO）的点表：按 PLC 索引取点，列表用于采集和展示。

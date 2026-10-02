@@ -1,4 +1,6 @@
-﻿namespace xyz.Components.Alarm;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Components.Models;
 
 /// <summary>
 /// 报警消息类

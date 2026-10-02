@@ -1,6 +1,7 @@
 ﻿using System;
+using xyz.Components.Enums;
 
-namespace xyz.Components.Alarm;
+namespace xyz.Components.Attributes;
 
 /// <summary>
 /// 报警特性

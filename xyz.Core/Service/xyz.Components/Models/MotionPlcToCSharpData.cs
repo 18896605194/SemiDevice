@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace xyz.Components.Motion
+namespace xyz.Components.Models
 {
 
     /// <summary>

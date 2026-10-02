@@ -1,8 +1,7 @@
-﻿using xyz.Components.Alarm;
-using xyz.Components.Attributes;
+﻿using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
-using xyz.Components.Wafers;
+using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;

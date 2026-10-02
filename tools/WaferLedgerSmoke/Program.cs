@@ -1,7 +1,7 @@
 ﻿using xyz.Components;
-using xyz.Components.Alarm;
 using xyz.Components.Components;
-using xyz.Components.Wafers;
+using xyz.Components.Enums;
+using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
@@ -18,7 +18,8 @@ void Check(bool condition, string message)
 }
 
 // 0. 真 sc.xml 里配了账本节点（这里只装配这一个节点：整份 sc.xml 要机型模块程序集，不是本工具的事）。
-var scConfig = XmlHelper.Deserialize<ScConfig>(@"D:\Common\xyz.Core\Service\xyz.Configs\Config\sc.xml");
+// 读编译时从 xyz.Configs 拷到输出目录的那份（跟源码 sc.xml 同一份），不写死仓库位置。
+var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
 Check(scConfig is not null, "sc.xml 解析失败");
 var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "WaferManager", StringComparison.OrdinalIgnoreCase));
 Check(node is not null && node.Type == typeof(WaferManager).FullName, "sc.xml 里应有指向 WaferManager 的顶层节点");

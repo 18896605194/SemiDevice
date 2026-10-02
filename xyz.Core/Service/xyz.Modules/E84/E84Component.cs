@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components;
-using xyz.Components.Alarm;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;

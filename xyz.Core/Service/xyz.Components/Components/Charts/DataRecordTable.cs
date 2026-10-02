@@ -2,8 +2,9 @@
 using System.Globalization;
 using System.Text;
 using SqlSugar;
+using xyz.Components.Models;
 
-namespace xyz.Components.DataCharts;
+namespace xyz.Components.Components;
 
 /// <summary>
 /// 数据曲线的库表：按天一张宽表 DataRecord_yyyyMMdd（本机日期），一个采样周期一行——

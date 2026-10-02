@@ -1,44 +1,7 @@
 ﻿using SqlSugar;
+using xyz.Components.Models;
 
-namespace xyz.Components.DataCharts;
-
-/// <summary>
-/// 一条曲线的查询结果：Values 跟 <see cref="DataQueryResult.Times"/> 一一对应，null = 这一刻没有数据（曲线在这儿断开）。
-/// Min / Max / Avg / Count 是查询时间段内原始数据的精确统计，抽不抽稀都一样。
-/// </summary>
-public sealed class DataQuerySeries
-{
-    public required string Name { get; init; }
-
-    public required float?[] Values { get; init; }
-
-    public double? Min { get; init; }
-
-    public double? Max { get; init; }
-
-    public double? Avg { get; init; }
-
-    public int Count { get; init; }
-}
-
-/// <summary>
-/// 按名字、按时间段查出来的曲线：所有曲线共用一条时间轴（UTC 毫秒）。
-/// </summary>
-public sealed class DataQueryResult
-{
-    public static readonly DataQueryResult Empty = new() { Times = [], Series = [] };
-
-    public required long[] Times { get; init; }
-
-    public required IReadOnlyList<DataQuerySeries> Series { get; init; }
-
-    /// <summary>
-    /// 时间段太长、点数超过上限时抽稀过：每段（BucketMs 宽）只留最小、最大两个点，按出现的先后排——峰谷不丢，曲线形状不走样。
-    /// </summary>
-    public bool IsDecimated { get; init; }
-
-    public long BucketMs { get; init; }
-}
+namespace xyz.Components.Components;
 
 /// <summary>
 /// 查询：逐张日表按行读（只读要的列），边读边统计；点数没超上限原样给，超了按时段取最小、最大值。

@@ -1,4 +1,4 @@
-﻿using xyz.Components.DataCharts;
+﻿using xyz.Components.Models;
 using xyz.Shared.Dtos;
 
 namespace xyz.Service.Charts;

@@ -1,4 +1,4 @@
-﻿namespace xyz.Components.Alarm;
+﻿namespace xyz.Components.Enums;
 
 /// <summary>
 /// 报警等级，后续会根据登记做相应动作

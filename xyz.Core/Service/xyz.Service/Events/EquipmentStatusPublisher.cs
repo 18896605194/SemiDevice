@@ -1,7 +1,7 @@
 ﻿using xyz.Common.Log;
 using xyz.Components;
-using xyz.Components.Alarm;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;

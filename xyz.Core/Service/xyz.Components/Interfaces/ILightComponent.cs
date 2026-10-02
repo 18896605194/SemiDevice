@@ -1,8 +1,7 @@
 ﻿namespace xyz.Components.Interfaces;
 
 /// <summary>
-/// 四色灯（带蜂鸣器）契约：亮灯的一方只认这个接口，不依赖具体的灯组件（IO 版、PLC 版……）。
-/// 亮哪个灯由上层按设备状态决定（红 = 报警，黄 = 警告，绿 = 运行），灯组件只管输出。
+/// 四色灯（带蜂鸣器） 接口
 /// </summary>
 public interface ILightComponent
 {
@@ -17,7 +16,6 @@ public interface ILightComponent
 
     bool IsBuzzerOn { get; }
 
-    /// <summary>设置红灯开关；输出失败抛异常，不能把没执行的输出当成功。</summary>
     void SetRed(bool isOn);
 
     void SetYellow(bool isOn);
