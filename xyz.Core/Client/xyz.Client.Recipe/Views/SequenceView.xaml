@@ -464,9 +464,12 @@
             <Border Style="{DynamicResource DialogCardBorderStyle}">
                 <StackPanel>
                     <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{Binding DialogTitle}" />
-                    <Border Style="{DynamicResource DialogSummaryBorderStyle}">
-                        <TextBlock Style="{DynamicResource DialogSubjectTextStyle}" Text="{Binding DialogSubject}" />
-                    </Border>
+                    <!--  删除、放弃修改：大字写要动的是哪一个；新建、重命名不显示（编号在标题里，名称就在下面的输入框，不重复）  -->
+                    <Grid Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding HasDialogSubject}">
+                        <Border Style="{DynamicResource DialogSummaryBorderStyle}">
+                            <TextBlock Style="{DynamicResource DialogSubjectTextStyle}" Text="{Binding DialogSubject}" />
+                        </Border>
+                    </Grid>
 
                     <!--  新建、重命名：名称  -->
                     <StackPanel Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsNaming}">

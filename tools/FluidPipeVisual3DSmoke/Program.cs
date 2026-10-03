@@ -18,10 +18,13 @@ internal static class Program
         {
             var app = new Application();
             foreach (string dictionary in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
                     Source = new Uri($"/xyz.Client.Presentation;component/Styles/{dictionary}.xaml", UriKind.Relative)
                 });
+            }
+
             var scene = (Grid)Application.LoadComponent(new Uri("/FluidPipeVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new PipeFeedback();
             scene.DataContext = feedback;
@@ -106,7 +109,11 @@ internal static class Program
             Check(((Model3DGroup)diw.Content).Children.Count == 2, "selection does not create a liquid stream");
             diw.IsSelected = false;
             Check(BodyColor(diw) == idle, "closed unselected pipe restores metal color");
-            foreach (double invalid in new[] { double.NaN, double.PositiveInfinity, -1d }) Reject(diw, FluidPipeVisual3D.StreamLengthProperty, invalid);
+            foreach (double invalid in new[] { double.NaN, double.PositiveInfinity, -1d })
+            {
+                Reject(diw, FluidPipeVisual3D.StreamLengthProperty, invalid);
+            }
+
             Reject(diw, FluidPipeVisual3D.LengthProperty, 0);
             sc1.StreamLength = 0;
             Check(((Model3DGroup)((Model3DGroup)sc1.Content).Children.Last()).Children.Count < meshes.Length,
@@ -118,14 +125,22 @@ internal static class Program
             feedback.Sc1IsFlowing = false;
             feedback.DiwIsFlowing = true;
             Pump(650);
-            if (args.Length > 0) Save(Render(scene), args[0]);
+            if (args.Length > 0)
+            {
+                Save(Render(scene), args[0]);
+            }
+
             feedback.DiwIsFlowing = false;
             host.RootVisual = null;
             Console.WriteLine("PASS: pipe flow pixels, independent channels, Arm/Lift attachment, visibility/detach lifecycle and input validation.");
             app.Shutdown();
             return 0;
         }
-        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine(error);
+            return 1;
+        }
     }
 
     private static Color BodyColor(FluidPipeVisual3D pipe) =>

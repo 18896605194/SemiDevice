@@ -1,0 +1,60 @@
+<UserControl
+    x:Class="xyz.Client.Presentation.Controls.ThreeD.ChamberScene"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls.ThreeD">
+
+    <!--  腔体三维图：灯光、相机、底座写在这儿；Bowl、旋转盘、门、各条摆臂由代码按 Parts（sc 里配了什么）搭到底座上  -->
+    <!--  三维对象不在逻辑树里，灯光颜色用 StaticResource 在加载时取 token  -->
+    <Grid ClipToBounds="True">
+        <Viewport3D
+            x:Name="Viewport"
+            ClipToBounds="True"
+            LostMouseCapture="OnViewportLostMouseCapture"
+            MouseLeftButtonDown="OnViewportMouseLeftButtonDown"
+            MouseLeftButtonUp="OnViewportMouseLeftButtonUp"
+            MouseMove="OnViewportMouseMove"
+            MouseWheel="OnViewportMouseWheel">
+            <Viewport3D.Camera>
+                <OrthographicCamera x:Name="Camera" UpDirection="0,1,0" />
+            </Viewport3D.Camera>
+            <ModelVisual3D>
+                <ModelVisual3D.Content>
+                    <Model3DGroup>
+                        <AmbientLight Color="{StaticResource DarkHardwareAmbientLightColor}" />
+                        <DirectionalLight Direction="-1,-3,-2" Color="{StaticResource DarkHardwareKeyLightColor}" />
+                    </Model3DGroup>
+                </ModelVisual3D.Content>
+            </ModelVisual3D>
+            <local:ChamberBaseVisual3D
+                x:Name="Base"
+                Length="5.8"
+                Thickness="0.12"
+                Width="4.6" />
+        </Viewport3D>
+
+        <!--  视角：左转、右转、复位、俯视；在图上左键拖动也能转，滚轮缩放  -->
+        <StackPanel
+            Margin="10"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Orientation="Horizontal">
+            <Button
+                Click="OnRotateLeftClick"
+                Content="{DynamicResource chamberscene.rotate_left}"
+                Style="{DynamicResource SceneViewButtonStyle}" />
+            <Button
+                Click="OnRotateRightClick"
+                Content="{DynamicResource chamberscene.rotate_right}"
+                Style="{DynamicResource SceneViewButtonStyle}" />
+            <Button
+                Click="OnResetViewClick"
+                Content="{DynamicResource chamberscene.reset_view}"
+                Style="{DynamicResource SceneViewButtonStyle}" />
+            <Button
+                Click="OnTopViewClick"
+                Content="{DynamicResource chamberscene.top_view}"
+                Style="{DynamicResource SceneViewButtonStyle}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

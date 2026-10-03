@@ -18,8 +18,11 @@ internal static class Program
         {
             var app = new Application();
             foreach (string name in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 { Source = new Uri($"/xyz.Client.Presentation;component/Styles/{name}.xaml", UriKind.Relative) });
+            }
+
             var scene = (Grid)Application.LoadComponent(new Uri("/ChamberBaseVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new BaseFeedback();
             scene.DataContext = feedback;
@@ -41,10 +44,18 @@ internal static class Program
             var initialPositions = attachments.Select(Position).ToArray();
             Check(attachments.Length == 4 && model.Bounds.Y < 0 && Near(model.Bounds.Y + model.Bounds.SizeY, 0), "XAML assembly mounts on a fixed top plane");
             var fullPreview = Render(scene);
-            foreach (var child in attachments) plate.Attachments.Remove(child);
+            foreach (var child in attachments)
+            {
+                plate.Attachments.Remove(child);
+            }
+
             ((TextBlock)scene.FindName("StateTitle")).Text = "ChamberBase · 独立底座";
             var basePreview = Render(scene);
-            foreach (var child in attachments) plate.Attachments.Add(child);
+            foreach (var child in attachments)
+            {
+                plate.Attachments.Add(child);
+            }
+
             feedback.Thickness = 0.3;
             feedback.Length = 6.4;
             feedback.Width = 5.2;
@@ -79,12 +90,23 @@ internal static class Program
             pipe.IsFlowing = false;
             Check(BindingOperations.IsDataBound(plate, ChamberBaseVisual3D.ThicknessProperty), "resizing preserves external binding");
             foreach (var property in new[] { ChamberBaseVisual3D.LengthProperty, ChamberBaseVisual3D.WidthProperty, ChamberBaseVisual3D.ThicknessProperty })
+            {
                 foreach (double invalid in new[] { 0, -1, double.NaN, double.PositiveInfinity })
                 {
                     bool rejected = false;
-                    try { new ChamberBaseVisual3D().SetValue(property, invalid); } catch (ArgumentException) { rejected = true; }
+                    try
+                    {
+                        new ChamberBaseVisual3D().SetValue(property, invalid);
+                    }
+                    catch (ArgumentException)
+                    {
+                        rejected = true;
+                    }
+
                     Check(rejected, "invalid dimensions rejected");
                 }
+            }
+
             if (args.Length > 0)
             {
                 var visual = new DrawingVisual();
@@ -108,7 +130,11 @@ internal static class Program
             Console.WriteLine("PASS: ChamberBase dimensions, stable mounting plane, nested transforms, independent states, binding retention and descendant lifecycle.");
             return 0;
         }
-        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
     }
     private static BitmapSource Render(Grid scene)
     {
@@ -130,7 +156,10 @@ internal static class Program
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 }
 

@@ -1,10 +1,11 @@
-﻿<UserControl x:Class="xyz.Client.Manual.Views.ChamberManualControl"
+<UserControl x:Class="xyz.Client.Manual.Views.ChamberManualControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+             xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+             xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation">
 
-    <!--  一个腔体一整张卡，布局跟 Robot 手动页一致：左腔体俯视图 + 右栏（腔体状态 + 操作盘），中间一条细线（整体一块，不拆成多张卡）  -->
+    <!--  一个腔体一整张卡：左边三维图 + 部件操作，右栏腔体状态 + 工艺 + Home / Abort / Reset，中间一条细线（整体一块，不拆成多张卡）  -->
     <!--  DataContext 由代码后置设在这个根节点上（不设控件自身的 DataContext，避免模板绑定二次求值）  -->
     <materialDesign:Card
         x:Name="Root"
@@ -16,20 +17,64 @@
                 <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <!--  ① 腔体俯视图：片位数按 sc.xml 的 SlotCount，片来自晶圆账（颜色 = 工艺状态，中间写片号）  -->
+            <!--  ① 左：腔体三维图（部件按 sc.xml 搭、状态跟推送走，盘上的片来自晶圆账）+ 部件操作  -->
             <Grid Grid.Column="0" Margin="14">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
                 <Border
                     Background="{DynamicResource DarkControlBackground}"
                     BorderBrush="{DynamicResource DarkBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6">
-                    <presentationControls:Chamber
-                        MaxWidth="560"
-                        MaxHeight="560"
-                        Margin="24"
-                        SlotCount="{Binding Model.SlotCount}"
-                        Wafers="{Binding Model.Wafers}" />
+                    <threeD:ChamberScene Parts="{Binding Parts}" Wafer="{Binding Model.Wafer}" />
                 </Border>
+
+                <!--  部件操作：sc 里配了哪些部件就有哪些组，组名照 sc 路径；一个动作在途时所有部件按钮都不可用  -->
+                <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                    <TextBlock
+                        FontSize="{DynamicResource Size13}"
+                        Foreground="{DynamicResource DarkDisabledText}"
+                        Text="{DynamicResource chambermanual.parts}" />
+                    <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Parts.Groups}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,10,10" Style="{DynamicResource ReadoutBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock
+                                            Margin="3,0,0,2"
+                                            Style="{DynamicResource MetaLabelTextStyle}"
+                                            Text="{Binding Title}" />
+                                        <ItemsControl ItemsSource="{Binding Actions}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button
+                                                        MinWidth="72"
+                                                        Command="{Binding DataContext.PartActionCommand, ElementName=Root}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="{Binding Text}"
+                                                        Style="{DynamicResource CompactButtonStyle}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </Grid>
 
             <!--  ② 右栏：模块名 + 状态色条 → 参数框（启用 / 模式 / 报错 / 当前配方）→ 工艺（配方 · 选择 · Start）→ Home / Abort / Reset  -->
@@ -85,7 +130,7 @@
                                 VerticalAlignment="Center">
                                 <Ellipse.Style>
                                     <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="#555" />
+                                        <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Model.IsEnable}" Value="True">
                                                 <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
@@ -128,7 +173,7 @@
                                 VerticalAlignment="Center">
                                 <Ellipse.Style>
                                     <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="#555" />
+                                        <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Model.IsOnline}" Value="True">
                                                 <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
@@ -167,7 +212,7 @@
                                 VerticalAlignment="Center">
                                 <Ellipse.Style>
                                     <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="#555" />
+                                        <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Model.HasDeviceError}" Value="True">
                                                 <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
@@ -222,10 +267,11 @@
                                 FontSize="{DynamicResource Size13}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource chambermanual.recipe}" />
-                            <TextBox
+                            <presentationControls:InputTextBox
                                 Grid.Column="1"
+                                DataType="Text"
                                 Style="{DynamicResource CompactTextBoxStyle}"
-                                Text="{Binding Recipe, UpdateSourceTrigger=PropertyChanged}" />
+                                Value="{Binding Recipe}" />
                             <Button
                                 Grid.Column="2"
                                 Height="28"

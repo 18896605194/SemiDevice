@@ -5,7 +5,7 @@ using xyz.Client.Manual.ViewModels;
 namespace xyz.Client.Manual.Views;
 
 /// <summary>
-/// 腔体手动操作面板：俯视图 + 状态色条 + 参数框 + 工艺 / Home / Abort / Reset 按钮。
+/// 腔体手动操作面板：三维图 + 部件操作 + 状态色条 + 参数框 + 工艺 / Home / Abort / Reset 按钮。
 /// 通过 ModuleName 依赖属性实例化，每个腔体一个实例（Manual 下一个腔体一个子菜单）。
 /// </summary>
 public partial class ChamberManualControl : UserControl

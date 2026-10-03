@@ -18,10 +18,13 @@ internal static class Program
         {
             var app = new Application();
             foreach (string dictionary in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
                     Source = new Uri($"/xyz.Client.Presentation;component/Styles/{dictionary}.xaml", UriKind.Relative)
                 });
+            }
+
 
             var scene = (Grid)Application.LoadComponent(new Uri("/LiftVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new CylinderFeedback();
@@ -40,8 +43,11 @@ internal static class Program
             Check(ColorOf((GeometryModel3D)((Model3DGroup)initialUp.Content).Children[2]) == idle,
                 "initial state does not imply motion");
             foreach (string name in new[] { "Position", "Stroke", "Progress", "ExtensionHeight" })
+            {
                 Check(typeof(LiftVisual3D).GetProperty(name, BindingFlags.Public | BindingFlags.Instance) is null,
                     $"continuous motion parameter {name} is not public");
+            }
+
             Check(LiftVisual3D.MountHeightProperty.ReadOnly, "assembly height is read-only");
 
             var mount = new TranslateTransform3D();
@@ -163,11 +169,17 @@ internal static class Program
         bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
         int count = 0;
         for (int y = 72; y < 380; y++)
+        {
             for (int x = 0; x < bitmap.PixelWidth; x++)
             {
                 int offset = (y * bitmap.PixelWidth + x) * 4;
-                if (pixels[offset] > pixels[offset + 2] + 15) count++;
+                if (pixels[offset] > pixels[offset + 2] + 15)
+                {
+                    count++;
+                }
             }
+        }
+
         return count;
     }
 
@@ -200,7 +212,10 @@ internal static class Program
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 }
 

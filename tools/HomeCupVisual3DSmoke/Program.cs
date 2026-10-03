@@ -17,8 +17,11 @@ internal static class Program
         {
             var app = new Application();
             foreach (string name in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 { Source = new Uri($"/xyz.Client.Presentation;component/Styles/{name}.xaml", UriKind.Relative) });
+            }
+
             var scene = (Grid)Application.LoadComponent(new Uri("/HomeCupVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new CupFeedback();
             scene.DataContext = feedback;
@@ -72,12 +75,23 @@ internal static class Program
                 }
             }
             foreach (var property in new[] { HomeCupVisual3D.RadiusProperty, HomeCupVisual3D.HeightProperty })
+            {
                 foreach (double invalid in new[] { 0, -1, double.NaN, double.PositiveInfinity })
                 {
                     bool rejected = false;
-                    try { other.SetValue(property, invalid); } catch (ArgumentException) { rejected = true; }
+                    try
+                    {
+                        other.SetValue(property, invalid);
+                    }
+                    catch (ArgumentException)
+                    {
+                        rejected = true;
+                    }
+
                     Check(rejected, "invalid dimension rejected");
                 }
+            }
+
             Check(BindingOperations.IsDataBound(cup, HomeCupVisual3D.IsDrainingProperty), "status binding preserved");
             if (args.Length > 0)
             {
@@ -101,7 +115,11 @@ internal static class Program
             Console.WriteLine("PASS: HomeCup XAML bindings, hollow drain, dimensions, fixed placement, independent state and rendered highlight.");
             return 0;
         }
-        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
     }
 
     private static void Flush(Grid scene)
@@ -124,13 +142,22 @@ internal static class Program
         bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
         int count = 0;
         for (int i = 0; i < pixels.Length; i += 4)
-            if (pixels[i] > pixels[i + 2] + 15) count++;
+        {
+            if (pixels[i] > pixels[i + 2] + 15)
+            {
+                count++;
+            }
+        }
+
         return count;
     }
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 }
 

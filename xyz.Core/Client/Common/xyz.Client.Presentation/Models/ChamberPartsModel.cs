@@ -13,6 +13,9 @@ public class ChamberPartsModel : ObservableObject
 {
     private string _module = string.Empty;
 
+    /// <summary>腔体模块名，如 "Chamber1"；还没收到推送时为空。</summary>
+    public string Module => _module;
+
     /// <summary>腔门；sc 里没配时 IsPresent 为 false。</summary>
     public ChamberCylinderModel Door { get; } = new();
 

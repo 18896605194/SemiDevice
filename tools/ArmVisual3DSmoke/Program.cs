@@ -84,7 +84,9 @@ internal static class Program
                          ArmVisual3D.ThicknessProperty, ArmVisual3D.PivotRadiusProperty })
             {
                 foreach (double invalid in new[] { 0d, -1, double.NaN, double.PositiveInfinity })
+                {
                     Reject(arm, property, invalid);
+                }
             }
             Reject(arm, ArmVisual3D.AngleProperty, double.NaN);
             Reject(arm, ArmVisual3D.AngleProperty, double.NegativeInfinity);
@@ -166,11 +168,17 @@ internal static class Program
         int changed = 0;
         // 只检查三维区域，排除标题变化导致的假阳性。
         for (int y = 56; y < 300; y++)
+        {
             for (int x = 0; x < idle.PixelWidth; x++)
             {
                 int offset = (y * idle.PixelWidth + x) * 4;
-                if (Math.Abs(pixels[offset] - highlighted[offset]) > 10) changed++;
+                if (Math.Abs(pixels[offset] - highlighted[offset]) > 10)
+                {
+                    changed++;
+                }
             }
+        }
+
         Check(changed > 1000, "rendered arm visibly changes with IsMoving");
 
         var comparison = new DrawingVisual();
@@ -210,13 +218,23 @@ internal static class Program
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-8;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 
     private static void Reject(DependencyObject target, DependencyProperty property, double value)
     {
-        try { target.SetValue(property, value); }
-        catch (ArgumentException) { return; }
+        try
+        {
+            target.SetValue(property, value);
+        }
+        catch (ArgumentException)
+        {
+            return;
+        }
+
         throw new InvalidOperationException($"{property.Name} accepted invalid input: {value}");
     }
 }

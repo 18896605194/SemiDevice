@@ -305,13 +305,22 @@ public class SequenceViewModel : BaseViewModel
     private string _dialogSubject = string.Empty;
 
     /// <summary>
-    /// 确认框里的主角：编号（和名称）。
+    /// 确认框里的主角（大字）：删除、放弃修改时是要动的那一个（编号和名称）；新建、重命名没有——编号写在标题里，
+    /// 名称就在下面的输入框里，不再重复显示一遍。
     /// </summary>
     public string DialogSubject
     {
         get => _dialogSubject;
-        private set => SetProperty(ref _dialogSubject, value);
+        private set
+        {
+            if (SetProperty(ref _dialogSubject, value))
+            {
+                OnPropertyChanged(nameof(HasDialogSubject));
+            }
+        }
     }
+
+    public bool HasDialogSubject => DialogSubject.Length > 0;
 
     private string _dialogMessage = string.Empty;
 
@@ -955,13 +964,13 @@ public class SequenceViewModel : BaseViewModel
         switch (kind)
         {
             case SequenceDialogKind.Create:
-                DialogTitle = L10n.Get("recipe.sequence.dialog_create");
-                DialogSubject = IndexText;
+                DialogTitle = L10n.Get("recipe.sequence.dialog_create", IndexText);
+                DialogSubject = string.Empty;
                 DialogName = string.Empty;
                 break;
             case SequenceDialogKind.Rename:
-                DialogTitle = L10n.Get("recipe.sequence.dialog_rename");
-                DialogSubject = subject;
+                DialogTitle = L10n.Get("recipe.sequence.dialog_rename", IndexText);
+                DialogSubject = string.Empty;
                 DialogName = Current?.Name ?? string.Empty;
                 break;
             case SequenceDialogKind.Delete:

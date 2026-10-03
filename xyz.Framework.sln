@@ -107,6 +107,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HsmsSmoke", "tools\HsmsSmok
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SequenceSmoke", "tools\SequenceSmoke\SequenceSmoke.csproj", "{5B16F9BA-7866-4CC5-9862-BE59E1BA9A19}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChamberSmoke", "tools\ChamberSmoke\ChamberSmoke.csproj", "{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -585,6 +587,18 @@ Global
 		{5B16F9BA-7866-4CC5-9862-BE59E1BA9A19}.Release|x64.Build.0 = Release|Any CPU
 		{5B16F9BA-7866-4CC5-9862-BE59E1BA9A19}.Release|x86.ActiveCfg = Release|Any CPU
 		{5B16F9BA-7866-4CC5-9862-BE59E1BA9A19}.Release|x86.Build.0 = Release|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Debug|x64.Build.0 = Debug|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Debug|x86.Build.0 = Debug|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Release|x64.ActiveCfg = Release|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Release|x64.Build.0 = Release|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Release|x86.ActiveCfg = Release|Any CPU
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -636,6 +650,7 @@ Global
 		{8B2C3D4E-6F7A-4B8C-9D0E-1F2A3B4C5D6E} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{9C3D4E5F-7A8B-4C9D-8E0F-2F3A4B5C6E7F} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{5B16F9BA-7866-4CC5-9862-BE59E1BA9A19} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D0000000-0000-0000-0000-000000000001}

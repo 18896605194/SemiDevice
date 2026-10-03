@@ -402,6 +402,7 @@
     <sys:String x:Key="chamberscene.rotate_right">右转</sys:String>
     <sys:String x:Key="chamberscene.reset_view">复位</sys:String>
     <sys:String x:Key="chamberscene.top_view">俯视</sys:String>
+    <sys:String x:Key="chamberscene.too_many_arms">{0} 配了 {1} 条摆臂，三维图只画前 {2} 条</sys:String>
 
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
          按模块生成的菜单（IO、腔体手动）直接显示 sc.xml 里的模块名，不在这里配。
@@ -474,8 +475,8 @@
     <sys:String x:Key="recipe.sequence.route_tip">按流程步骤自动生成</sys:String>
     <sys:String x:Key="recipe.sequence.route_none">没勾 {0}</sys:String>
     <sys:String x:Key="recipe.sequence.route_no_recipe">没选工艺配方</sys:String>
-    <sys:String x:Key="recipe.sequence.dialog_create">新建流程配方</sys:String>
-    <sys:String x:Key="recipe.sequence.dialog_rename">重命名</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_create">新建流程配方 {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_rename">重命名流程配方 {0}</sys:String>
     <sys:String x:Key="recipe.sequence.dialog_delete">删除流程配方</sys:String>
     <sys:String x:Key="recipe.sequence.dialog_discard">有没保存的修改</sys:String>
     <sys:String x:Key="recipe.sequence.name_hint">名称（字母、数字、_、-）</sys:String>

@@ -1,7 +1,7 @@
 # 三维硬件组件
 
 `ArmVisual3D`、`LiftVisual3D`、`FluidPipeVisual3D`、`BowlVisual3D` 和 `HomeCupVisual3D` 是平台的摆臂、升降气缸、管子、Bowl 和 Home 排液杯组件，共用页面的 `Viewport3D`。
-多个硬件共用相机、灯光和三维空间，后续可与主轴等组件组装。
+多个硬件共用相机、灯光和三维空间；`ChamberScene` 把它们连同底座、旋转盘、腔门装成腔体手动页的三维图（见下文）。
 组件内部不创建独立视口、不连接服务、不发送设备指令。
 
 ## ChamberBase 底座与整体装配
@@ -141,10 +141,11 @@ Arm 的角度和动作状态仍独立提供，Arm 回 Home 不会改变 `IsRaise
     HighlightColor="{Binding Color, Source={StaticResource DarkAccent}, Mode=OneWay}" />
 ```
 
-HeightLevel 是外观规格，不是升降挡位。IsRaised 变化时整体沿 Y 轴过渡并自动高亮，
+HeightLevel 是外观规格，不是升降挡位。IsRaised 变化时底边一直贴着安装面，上沿抬高 `0.55`、
+直侧壁跟着拉长（倒角只平移不变形），侧壁始终连到底，不会悬空露缝；过渡期间自动高亮，
 结束后恢复默认材质；外部 IsMoving 或 IsSelected 仍为 true 时继续高亮。
-内部行程和动画时长采用示意值，不作为设备指令或实际位置反馈。
-默认原点位于下位底面中心，外部 Transform 用于安装位置，升降不会覆盖它。
+内部行程和动画时长采用示意值，不作为设备指令或实际位置反馈。升降只改各段截面的变换，不重建网格。
+原点位于底面中心，外部 Transform 用于安装位置，升降不会覆盖它。
 多个 Bowl 分别绑定各自状态，不互相联动。页面隐藏或从视口移除后停止动画并直接呈现目标状态。
 通过硬件节点动态挂载；普通 ModelVisual3D 包装节点的拆卸不会通知内部硬件，有限过渡会自行结束。
 
@@ -294,7 +295,7 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 ```
 
 `Length` 默认 `2.2`，是沿局部 +X 的直管长度，通常绑定 Arm.Length。
-末端喷口位于 `(Length, -0.21, 0)`，沿 -Y 出液。
+末端喷口位于 `(Length, -FluidPipeVisual3D.OutletDrop, 0)`（`OutletDrop` = `0.21`，公开常量供装配层算落点），沿 -Y 出液。
 `StreamLength` 默认 `0.55`，是喷口到接液面的示意距离，设置为 `0` 时隐藏外部液柱和波纹。
 这些是装配尺寸，不是流量或设备动作指令。完整腔体装配需要根据实际升降高度、晶圆或 Home 排液杯位置
 设置或绑定接液距离，管子本身不推断 Home、Lift 状态，不自动改变出液开关。
@@ -303,6 +304,33 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 页面隐藏时暂停动画，重新显示后按当前反馈恢复；从视口移除 Arm 或从 Attachments 移除管子也会停止时钟。
 场景应通过硬件节点执行挂载、移除；若另行使用普通 ModelVisual3D 包装整个装配并动态拆卸，
 装配层需同时关闭 IsAnimationEnabled。动画只改变变换，复用冻结网格，不注册全局逐帧事件。
+
+## ChamberScene 腔体三维图
+
+`ChamberScene`（UserControl）是腔体手动页左边那张三维图，把上面的组件装成一个腔：
+底座上装 Bowl、旋转盘、腔门，每条摆臂一套 Lift 立柱 + 摆臂（带喷嘴管）+ Home 接液杯。
+只有两个依赖属性：
+
+| 依赖属性 | 含义 |
+| --- | --- |
+| `Parts` | `ChamberPartsModel`：后端按 sc.xml 推来的部件组成和状态（`ChamberPartsDto` 就地刷新） |
+| `Wafer` | 盘上的片（晶圆账，`WaferModel`）；null 显示空盘 |
+
+```xml
+<threeD:ChamberScene Parts="{Binding Parts}" Wafer="{Binding Model.Wafer}" />
+```
+
+- 装哪些部件看 sc.xml：名叫 Door、Bowl 的气缸配了才装，旋转盘一直在；摆臂按 sc 先后放在 Bowl 右、左两个安装位，
+  最多两条（多配的在日志里提示）。`Revision` 变了（部件组成变了）才整套重搭，平时只改绑定的状态。
+- 状态都是绑定：门 `IsOpen`、Bowl / Lift `IsRaised` 跟气缸的指令侧（指令一发出去就开始动），没到位时 `IsMoving` 高亮；
+  喷嘴出液跟 `IsOn`；旋转盘在转就按固定的显示转速转（不跟实际转速，几百转画出来只会频闪），转向跟实际转速正负。
+- 摆角：后端推 `Reach`（0 = Home，1 = 工艺位，按轴位置和 EC Center 换算），这里换成摆角，
+  收到新位置 0.3 s 过渡过去（写死）；页面没显示时直接落位。工艺位的臂长、角度按安装位算好，几路喷嘴左右对称排开，
+  中点正对盘心；Home 时臂尖朝前，接液杯就放在臂尖下面。
+- 液柱：在 Home 落进接液杯（杯亮），喷口在盘面上方落到盘面，其他位置落到底座面上（开着阀摆过去就是这样）。
+  **不注册逐帧事件**：摆角、Lift 高度、出液经绑定接到每条摆臂自己的依赖属性上，变了才重算液柱；
+  只有动画进行中才会逐帧变，停下来不算。
+- 视角：左键拖动旋转、滚轮缩放，左下角左转 / 右转 / 复位 / 俯视。灯光、盘面颜色取 `DarkHardware*` token。
 
 ## 动作与高亮约定
 
@@ -368,6 +396,13 @@ Disk 二维/三维功能对照、十种状态色、菜单命令、旋转及生�
 
 ```powershell
 dotnet run --project tools/DiskVisual3DSmoke -- D:\Code\artifacts\disk-wpf-parity.png
+```
+
+ChamberScene 按部件组成搭建、摆臂对盘心和接液杯、液柱落点、0.3 s 过渡、隐藏时直接落位、门 / Bowl / Lift / 旋转跟状态、
+组成变化重搭检查，附带工艺位总装图：
+
+```powershell
+dotnet run --project tools/ChamberSceneSmoke -- D:\Code\artifacts\chamber-scene.png
 ```
 
 WPF 机制参考：[自定义依赖属性](https://learn.microsoft.com/zh-cn/dotnet/desktop/wpf/properties/custom-dependency-properties)、

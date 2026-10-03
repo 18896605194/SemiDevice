@@ -11,6 +11,10 @@ using xyz.Client.Presentation.Controls.ThreeD;
 
 internal static class Program
 {
+    private const double LevelHeight = 0.275;
+    private const double Stroke = 0.55;
+    private const double Chamfer = 0.015;
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -18,8 +22,11 @@ internal static class Program
         {
             var app = new Application();
             foreach (string name in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 { Source = new Uri($"/xyz.Client.Presentation;component/Styles/{name}.xaml", UriKind.Relative) });
+            }
+
             var scene = (Grid)Application.LoadComponent(new Uri("/BowlVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new BowlFeedback();
             scene.DataContext = feedback;
@@ -35,7 +42,19 @@ internal static class Program
             var model = (Model3DGroup)bowl.Content;
             GeometryModel3D Side() => (GeometryModel3D)model.Children[1];
             Color ColorOf() => ((SolidColorBrush)((DiffuseMaterial)Side().Material).Brush).Color;
-            double Y() => model.Bounds.Y;
+            double Bottom() => model.Bounds.Y;
+            double Top() => model.Bounds.Y + model.Bounds.SizeY;
+            // 上沿比这一级的原高度多出来多少：0 = 下位，Stroke = 上位。
+            double Rise() => Top() - LevelHeight * bowl.HeightLevel;
+            // 内外两条直侧壁始终从底部倒角连到上沿倒角，中间不露缝。
+            bool WallsConnected()
+            {
+                var outer = model.Children[1].Bounds;
+                var inner = model.Children[5].Bounds;
+                return Near(outer.Y, Chamfer) && Near(inner.Y, Chamfer)
+                    && Near(outer.Y + outer.SizeY, Top() - Chamfer) && Near(inner.Y + inner.SizeY, Top() - Chamfer);
+            }
+
             var placement = new TranslateTransform3D(0, 0, 0);
             bowl.Transform = placement;
             var previews = new List<BitmapSource>();
@@ -46,7 +65,7 @@ internal static class Program
                 Pump(30);
                 Check(bowl.HeightLevel == level && model.Bounds.SizeY > previousHeight, "bound levels strictly increase wall height");
                 previousHeight = model.Bounds.SizeY;
-                Check(Near(model.Bounds.SizeX, 3.18) && Near(Y(), 0), "levels preserve width and bottom mounting plane");
+                Check(Near(model.Bounds.SizeX, 3.18) && Near(Bottom(), 0), "levels preserve width and bottom mounting plane");
                 foreach (var part in model.Children.Cast<GeometryModel3D>())
                 {
                     var mesh = (MeshGeometry3D)part.Geometry;
@@ -64,18 +83,24 @@ internal static class Program
             Color idle = ColorOf();
             feedback.IsRaised = true;
             Pump(120);
-            Check(bowl.HasAnimatedProperties && Y() > 0 && Y() < 0.55 && ColorOf() != idle, "boolean rise animates and highlights automatically");
-            double intermediate = Y();
+            Check(bowl.HasAnimatedProperties && Rise() > 0 && Rise() < Stroke && Near(Bottom(), 0) && ColorOf() != idle,
+                "boolean rise animates the rim up, keeps the bottom on the plate and highlights automatically");
+            Check(WallsConnected(), "side walls stay connected to the bottom while rising");
+            double intermediate = Rise();
             feedback.IsRaised = false;
-            Check(Near(Y(), intermediate), "reversal does not jump");
+            Check(Near(Rise(), intermediate), "reversal does not jump");
             Pump(550);
-            Check(Near(Y(), 0) && !bowl.HasAnimatedProperties && ColorOf() == idle, "reverse returns to lower stop and removes clock/highlight");
+            Check(Near(Rise(), 0) && Near(Bottom(), 0) && !bowl.HasAnimatedProperties && ColorOf() == idle,
+                "reverse returns to lower stop and removes clock/highlight");
             feedback.IsRaised = true;
             Pump(550);
-            Check(Near(Y(), 0.55) && bowl.HeightLevel == 3, "raising translates the whole Bowl without changing height level");
+            Check(Near(Rise(), Stroke) && Near(Bottom(), 0) && bowl.HeightLevel == 3,
+                "raising lifts the rim by the stroke, bottom stays on the mounting plane, height level unchanged");
+            Check(WallsConnected(), "raised side walls reach from the bottom chamfer to the rim");
             Check(model.Children.Cast<GeometryModel3D>().Select((p, i) => ReferenceEquals(p.Geometry, meshes[i])).All(x => x), "movement reuses meshes");
             feedback.HeightLevel = 1;
-            Check(Near(Y(), 0.55) && bowl.IsRaised && ReferenceEquals(bowl.Transform, placement), "height updates preserve raised state and external transform");
+            Check(Near(Rise(), Stroke) && Near(Bottom(), 0) && WallsConnected() && bowl.IsRaised && ReferenceEquals(bowl.Transform, placement),
+                "height updates preserve raised state, continuous walls and external transform");
             bowl.IsSelected = true;
             feedback.IsRaised = false;
             Pump(550);
@@ -86,27 +111,42 @@ internal static class Program
             Pump(90);
             scene.Visibility = Visibility.Hidden;
             Pump(30);
-            Check(!bowl.HasAnimatedProperties && Near(Y(), 0.55), "hidden page settles feedback and stops animation");
+            Check(!bowl.HasAnimatedProperties && Near(Rise(), Stroke), "hidden page settles feedback and stops animation");
             scene.Visibility = Visibility.Visible;
             feedback.IsRaised = false;
             Pump(70);
             viewport.Children.Remove(bowl);
-            Check(!bowl.HasAnimatedProperties && Near(Y(), 0), "detach stops the animation");
+            Check(!bowl.HasAnimatedProperties && Near(Rise(), 0), "detach stops the animation");
             viewport.Children.Add(bowl);
             Check(BindingOperations.IsDataBound(bowl, BowlVisual3D.IsRaisedProperty) && BindingOperations.IsDataBound(bowl, BowlVisual3D.HeightLevelProperty), "feedback bindings are retained");
             foreach (int invalid in new[] { -1, 0, 4 })
             {
                 bool rejected = false;
-                try { new BowlVisual3D().HeightLevel = invalid; } catch (ArgumentException) { rejected = true; }
+                try
+                {
+                    new BowlVisual3D().HeightLevel = invalid;
+                }
+                catch (ArgumentException)
+                {
+                    rejected = true;
+                }
+
                 Check(rejected, "out-of-range level rejected");
             }
             var other = new BowlVisual3D { HeightLevel = 2, IsRaised = true, Radius = 1.8 };
-            Check(Near(other.Content.Bounds.Y, 0.55) && Near(other.Content.Bounds.SizeX, 3.6) && !bowl.IsRaised, "initial upper state and separate Bowl instances are independent");
+            Check(Near(other.Content.Bounds.Y, 0) && Near(other.Content.Bounds.SizeY, LevelHeight * 2 + Stroke)
+                && Near(other.Content.Bounds.SizeX, 3.6) && !bowl.IsRaised, "initial upper state and separate Bowl instances are independent");
             if (args.Length > 0)
             {
                 var drawing = new DrawingVisual();
                 using (var dc = drawing.RenderOpen())
-                    for (int i = 0; i < previews.Count; i++) dc.DrawImage(previews[i], new Rect(i * 402, 0, 400, 340));
+                {
+                    for (int i = 0; i < previews.Count; i++)
+                    {
+                        dc.DrawImage(previews[i], new Rect(i * 402, 0, 400, 340));
+                    }
+                }
+
                 var bitmap = new RenderTargetBitmap(1204, 340, 96, 96, PixelFormats.Pbgra32);
                 bitmap.Render(drawing);
                 var encoder = new PngBitmapEncoder();
@@ -119,10 +159,14 @@ internal static class Program
             }
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine("PASS: Bowl three levels, hollow geometry, bindings, rise/fall, reversal, highlight, visibility and detach lifecycle.");
+            Console.WriteLine("PASS: Bowl three levels, hollow geometry, bindings, fixed-bottom rise/fall with continuous walls, reversal, highlight, visibility and detach lifecycle.");
             return 0;
         }
-        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
     }
 
     private static BitmapSource Render(Grid scene)
@@ -146,7 +190,10 @@ internal static class Program
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 }
 

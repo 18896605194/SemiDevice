@@ -18,8 +18,11 @@ internal static class Program
         {
             var app = new Application();
             foreach (string name in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 { Source = new Uri($"/xyz.Client.Presentation;component/Styles/{name}.xaml", UriKind.Relative) });
+            }
+
             var scene = (Grid)Application.LoadComponent(new Uri("/DoorVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new DoorFeedback();
             scene.DataContext = feedback;
@@ -111,7 +114,11 @@ internal static class Program
             Console.WriteLine("PASS: Door boolean binding, open/close, reversal, moving highlight, fixed frame, assembly independence and visibility/detach lifecycle.");
             return 0;
         }
-        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
     }
     private static BitmapSource Render(Grid scene)
     {
@@ -133,7 +140,10 @@ internal static class Program
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 }
 

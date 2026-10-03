@@ -7,7 +7,7 @@ namespace xyz.Client.Manual.Models;
 
 /// <summary>
 /// 腔体显示模型，腔体手动页直接绑它；只做显示，启用、模式、设备报错、当前配方、片位（晶圆账）都由后端按 sc.xml 与晶圆账推过来。
-/// 状态推送来了就地刷新；片位没变就不换圆片列表，俯视图不会跟着别的字段一起重建。
+/// 状态推送来了就地刷新；片位没变就不换盘上的片，三维图的盘面不会跟着别的字段一起重建。
 /// </summary>
 public class ChamberModel : ObservableObject
 {
@@ -99,24 +99,16 @@ public class ChamberModel : ObservableObject
         }
     }
 
-    private int _slotCount;
-
-    /// <summary>片位数（sc.xml 腔体节点的 SlotCount）；还没收到状态时为 0，俯视图不画片位。</summary>
-    public int SlotCount
-    {
-        get => _slotCount;
-        private set => SetProperty(ref _slotCount, value);
-    }
-
-    private IReadOnlyList<WaferModel> _wafers = [];
+    private WaferModel? _wafer;
 
     /// <summary>
-    /// 腔里的片：有片的片位各给一片，交给腔体俯视图按片位号摆；颜色按工艺状态（未做 / 工艺中 / 做完 / 失败），中间写片号。
+    /// 盘上的片（晶圆账）：三维图的旋转盘只有一个，取第一个有片的片位；颜色按工艺状态（未做 / 工艺中 / 做完 / 失败），盘面写片号。
+    /// 没片为 null，盘面显示空盘。
     /// </summary>
-    public IReadOnlyList<WaferModel> Wafers
+    public WaferModel? Wafer
     {
-        get => _wafers;
-        private set => SetProperty(ref _wafers, value);
+        get => _wafer;
+        private set => SetProperty(ref _wafer, value);
     }
 
     private List<ChamberSlotDto> _slots = [];
@@ -170,16 +162,13 @@ public class ChamberModel : ObservableObject
         IsEnable = dto.IsEnable;
         DeviceError = dto.DeviceError;
         Recipe = dto.Recipe;
-        SlotCount = dto.SlotCount;
 
-        // 片位跟上次一样就不换圆片列表：每次推送都换，俯视图会跟着模式、报错这些字段一起重建。
+        // 片位跟上次一样就不换圆片：每次推送都换，盘面会跟着模式、报错这些字段一起重建。
         if (!SameSlots(dto.Slots, _slots))
         {
             _slots = dto.Slots;
-            Wafers = dto.Slots
-                .Where(slot => slot.HasWafer)
-                .Select(ToWafer)
-                .ToList();
+            var slot = dto.Slots.FirstOrDefault(item => item.HasWafer);
+            Wafer = slot is null ? null : ToWafer(slot);
         }
     }
 

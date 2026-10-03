@@ -402,6 +402,7 @@
     <sys:String x:Key="chamberscene.rotate_right">Rotate right</sys:String>
     <sys:String x:Key="chamberscene.reset_view">Reset view</sys:String>
     <sys:String x:Key="chamberscene.top_view">Top view</sys:String>
+    <sys:String x:Key="chamberscene.too_many_arms">{0} has {1} arms; the 3D view only draws the first {2}</sys:String>
 
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
          Per-module menus (IO, chamber manual) show the module name from sc.xml and are not configured here.
@@ -474,8 +475,8 @@
     <sys:String x:Key="recipe.sequence.route_tip">Generated from the steps</sys:String>
     <sys:String x:Key="recipe.sequence.route_none">No {0}</sys:String>
     <sys:String x:Key="recipe.sequence.route_no_recipe">No process recipe</sys:String>
-    <sys:String x:Key="recipe.sequence.dialog_create">New sequence</sys:String>
-    <sys:String x:Key="recipe.sequence.dialog_rename">Rename</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_create">New sequence {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_rename">Rename sequence {0}</sys:String>
     <sys:String x:Key="recipe.sequence.dialog_delete">Delete sequence</sys:String>
     <sys:String x:Key="recipe.sequence.dialog_discard">Unsaved changes</sys:String>
     <sys:String x:Key="recipe.sequence.name_hint">Name (letters, digits, _ and -)</sys:String>

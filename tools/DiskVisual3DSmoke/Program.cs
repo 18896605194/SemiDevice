@@ -23,8 +23,11 @@ internal static class Program
         {
             var app = new Application();
             foreach (string name in new[] { "DarkColors", "FontSize" })
+            {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 { Source = new Uri($"/xyz.Client.Presentation;component/Styles/{name}.xaml", UriKind.Relative) });
+            }
+
             var scene = (Grid)Application.LoadComponent(new Uri("/DiskVisual3DSmoke;component/Scene.xaml", UriKind.Relative));
             var feedback = new Feedback { Wafer = new WaferModel { LpSlot = "LP1-03", State = "Process" } };
             scene.DataContext = feedback;
@@ -152,7 +155,15 @@ internal static class Program
             Check(BindingOperations.IsDataBound(disk, DiskVisual3D.DataProperty) && BindingOperations.IsDataBound(disk, DiskVisual3D.RotationSpeedProperty), "external bindings survive state changes");
             Check(Viewport2DVisual3D.GetIsVisualHostMaterial(surface.Material), "surface enables WPF 3D input routing");
             var hits = new List<RayHitTestResult>();
-            VisualTreeHelper.HitTest(disk, null, result => { if (result is RayHitTestResult ray) hits.Add(ray); return HitTestResultBehavior.Continue; },
+            VisualTreeHelper.HitTest(disk, null, result =>
+                {
+                    if (result is RayHitTestResult ray)
+                    {
+                        hits.Add(ray);
+                    }
+
+                    return HitTestResultBehavior.Continue;
+                },
                 new RayHitTestParameters(new Point3D(0, 3, 0), new Vector3D(0, -1, 0)));
             Check(hits.OrderBy(hit => hit.DistanceToRayOrigin).FirstOrDefault()?.VisualHit == surface, "ray hits interactive top surface rather than underlying geometry");
             if (args.Length > 0)
@@ -178,7 +189,11 @@ internal static class Program
             Console.WriteLine("PASS: Disk 2D parity, state colors, labels, menu commands, CanExecute, 3D rotation/hit testing, visibility and assembly lifecycle.");
             return 0;
         }
-        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
     }
     private static BitmapSource Render(Grid scene)
     {
@@ -200,7 +215,10 @@ internal static class Program
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {
-        if (!condition) throw new InvalidOperationException(description);
+        if (!condition)
+        {
+            throw new InvalidOperationException(description);
+        }
     }
 }
 internal sealed class TestCommand : ICommand
