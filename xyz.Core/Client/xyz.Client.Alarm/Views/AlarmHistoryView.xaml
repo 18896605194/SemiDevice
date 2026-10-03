@@ -78,7 +78,7 @@
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                             Header="{DynamicResource common.time}" />
                         <DataGridTextColumn
-                            Width="90"
+                            Width="110"
                             Binding="{Binding ActionText}"
                             ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                             Header="{DynamicResource alarmview.action}" />

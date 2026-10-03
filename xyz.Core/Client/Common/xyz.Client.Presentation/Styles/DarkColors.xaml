@@ -30,6 +30,8 @@
     <SolidColorBrush x:Key="DarkWarningStatus" Color="#FBC02D" />
     <SolidColorBrush x:Key="DarkRunningStatus" Color="#43A047" />
     <SolidColorBrush x:Key="DarkCommunicationStatus" Color="#1E88E5" />
+    <!-- 三维硬件默认金属灰；动作高亮使用 DarkAccent 的 Color。 -->
+    <Color x:Key="DarkHardwareBodyColor">#686868</Color>
     <!-- 未初始化 / 停用：灰 -->
     <SolidColorBrush x:Key="DarkInactiveStatus" Color="#616161" />
 

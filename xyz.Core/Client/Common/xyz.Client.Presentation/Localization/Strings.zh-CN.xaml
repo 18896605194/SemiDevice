@@ -68,6 +68,22 @@
     <sys:String x:Key="wafer.same_slot">源和目标是同一个槽</sys:String>
     <sys:String x:Key="wafer.id_required">补账要填片号</sys:String>
     <sys:String x:Key="wafer.duplicate_id">片号 {0} 已经在账上（{1} 第 {2} 槽），要挪过来请用移动账单</sys:String>
+    <sys:String x:Key="sequence.not_installed">流程配方库没装（sc.xml 没配 Sequence 节点）</sys:String>
+    <sys:String x:Key="sequence.index_out_of_range">没有 {0} 号（编号 1 ~ {1}）</sys:String>
+    <sys:String x:Key="sequence.not_found">{0} 号没有流程配方（可能刚被别处删了）</sys:String>
+    <sys:String x:Key="sequence.index_occupied">{0} 号已经有流程配方了：{1}</sys:String>
+    <sys:String x:Key="sequence.name_required">名称还没填</sys:String>
+    <sys:String x:Key="sequence.name_too_long">名称最多 {0} 个字符</sys:String>
+    <sys:String x:Key="sequence.name_invalid">名称“{0}”里有不能用的字符：只能用字母、数字、_ 和 -</sys:String>
+    <sys:String x:Key="sequence.name_duplicate">名称 {0} 跟 {1} 号重了</sys:String>
+    <sys:String x:Key="sequence.revision_mismatch">{0} 号打开以后被别处改过，存不进去：先放弃修改，重新打开再改</sys:String>
+    <sys:String x:Key="sequence.too_few_steps">步骤太少：第 1 步、最后一步是 LoadPort，中间至少要有一步</sys:String>
+    <sys:String x:Key="sequence.step_not_loadport">第 {0} 步要是 LoadPort</sys:String>
+    <sys:String x:Key="sequence.group_not_found">第 {0} 步的分组 {1} 现在没有了（sc.xml 改过，或机械手到不了）</sys:String>
+    <sys:String x:Key="sequence.station_required">第 {0} 步一个站点都没勾</sys:String>
+    <sys:String x:Key="sequence.station_not_in_group">第 {0} 步勾的 {1} 不在分组 {2} 里</sys:String>
+    <sys:String x:Key="sequence.recipe_required">第 {0} 步没选工艺配方</sys:String>
+    <sys:String x:Key="sequence.save_failed">{0} 号流程配方文件写不进去：{1}</sys:String>
 
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
@@ -388,6 +404,72 @@
     <sys:String x:Key="menu.Setting.WaferLedger">账单调整</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>
     <sys:String x:Key="menu.Setting.Role">角色管理</sys:String>
+    <sys:String x:Key="menu.Recipe.Sequence">流程配方</sys:String>
+    <sys:String x:Key="menu.Recipe.Process">工艺配方</sys:String>
+
+    <!-- 公共选择框（PickerBox）、公共选择弹窗 -->
+    <sys:String x:Key="picker.select">点开选择</sys:String>
+    <sys:String x:Key="picker.empty">没有可选的内容</sys:String>
+
+    <!-- 流程配方页（配方 → 流程配方）：左边编号列表，右边基本信息、流程步骤、路线预览。分组名、模块名照 sc.xml 原样显示，不在这里配 -->
+    <sys:String x:Key="recipe.sequence.list">流程配方</sys:String>
+    <sys:String x:Key="recipe.sequence.create">新建</sys:String>
+    <sys:String x:Key="recipe.sequence.rename">重命名</sys:String>
+    <sys:String x:Key="recipe.sequence.delete">删除</sys:String>
+    <sys:String x:Key="recipe.sequence.index">编号</sys:String>
+    <sys:String x:Key="recipe.sequence.name">名称</sys:String>
+    <sys:String x:Key="recipe.sequence.info">基本信息</sys:String>
+    <sys:String x:Key="recipe.sequence.created_by">创建人</sys:String>
+    <sys:String x:Key="recipe.sequence.created_at">创建时间</sys:String>
+    <sys:String x:Key="recipe.sequence.modified_by">修改人</sys:String>
+    <sys:String x:Key="recipe.sequence.modified_at">修改时间</sys:String>
+    <sys:String x:Key="recipe.sequence.revision">版本</sys:String>
+    <sys:String x:Key="recipe.sequence.description">说明</sys:String>
+    <sys:String x:Key="recipe.sequence.save">保存</sys:String>
+    <sys:String x:Key="recipe.sequence.dirty">有没保存的修改</sys:String>
+    <sys:String x:Key="recipe.sequence.empty_slot">{0} 号还没有流程配方，点左边的“新建”建一个。</sys:String>
+    <sys:String x:Key="recipe.sequence.steps">流程步骤</sys:String>
+    <sys:String x:Key="recipe.sequence.add_step">添加</sys:String>
+    <sys:String x:Key="recipe.sequence.delete_step">删除</sys:String>
+    <sys:String x:Key="recipe.sequence.step">步骤</sys:String>
+    <sys:String x:Key="recipe.sequence.station">站点</sys:String>
+    <sys:String x:Key="recipe.sequence.station_tip">同一步勾几个 = 哪个空去哪个</sys:String>
+    <sys:String x:Key="recipe.sequence.recipe">工艺配方</sys:String>
+    <sys:String x:Key="recipe.sequence.recipe_hint">选择工艺配方</sys:String>
+    <sys:String x:Key="recipe.sequence.pick_recipe">选择工艺配方</sys:String>
+    <sys:String x:Key="recipe.sequence.pick_group">添加步骤：选择站点分组</sys:String>
+    <sys:String x:Key="recipe.sequence.group">分组</sys:String>
+    <sys:String x:Key="recipe.sequence.modules">模块</sys:String>
+    <sys:String x:Key="recipe.sequence.empty_steps">新建以后在这里编辑步骤</sys:String>
+    <sys:String x:Key="recipe.sequence.need_station">至少勾一个 {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.group_missing">分组 {0} 现在没有了，删掉这一步重新添加</sys:String>
+    <sys:String x:Key="recipe.sequence.error_station">第 {0} 步没勾 {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.error_recipe">第 {0} 步没选工艺配方</sys:String>
+    <sys:String x:Key="recipe.sequence.error_group">第 {0} 步的分组 {1} 现在没有了</sys:String>
+    <sys:String x:Key="recipe.sequence.error_separator">；</sys:String>
+    <sys:String x:Key="recipe.sequence.list_separator">、</sys:String>
+    <sys:String x:Key="recipe.sequence.route">路线预览</sys:String>
+    <sys:String x:Key="recipe.sequence.route_tip">按流程步骤自动生成</sys:String>
+    <sys:String x:Key="recipe.sequence.route_none">没勾 {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.route_no_recipe">没选工艺配方</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_create">新建流程配方</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_rename">重命名</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_delete">删除流程配方</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_discard">有没保存的修改</sys:String>
+    <sys:String x:Key="recipe.sequence.name_hint">名称（字母、数字、_、-）</sys:String>
+    <sys:String x:Key="recipe.sequence.delete_hint">删掉以后这个编号空出来，可以重新新建。</sys:String>
+    <sys:String x:Key="recipe.sequence.confirm_delete">确认删除</sys:String>
+    <sys:String x:Key="recipe.sequence.discard_hint">改了还没保存，切到别的编号会丢掉这些修改。</sys:String>
+    <sys:String x:Key="recipe.sequence.discard">放弃修改</sys:String>
+    <sys:String x:Key="recipe.sequence.keep_editing">继续编辑</sys:String>
+    <sys:String x:Key="recipe.sequence.created">已新建 {0} 号 {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.renamed">{0} 号已改名为 {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.deleted">已删除 {0} 号 {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.saved">已保存 {0} 号 {1}（版本 {2}）</sys:String>
+    <sys:String x:Key="recipe.sequence.load_failed">流程配方读取失败：{0}</sys:String>
+    <sys:String x:Key="recipe.sequence.save_failed">流程配方保存失败：{0}</sys:String>
+    <sys:String x:Key="recipe.sequence.offline">没连上后端</sys:String>
+    <sys:String x:Key="recipe.sequence.loading">正在读取流程配方…</sys:String>
 
     <sys:String x:Key="io.module">模块</sys:String>
     <sys:String x:Key="io.search">搜点号 / 点名 / 描述</sys:String>

@@ -9,7 +9,7 @@ namespace xyz.Client.Setting;
 /// <summary>
 /// Setting 模块服务注册扩展。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     public static IServiceCollection AddXyzSettingServices(this IServiceCollection services)
     {

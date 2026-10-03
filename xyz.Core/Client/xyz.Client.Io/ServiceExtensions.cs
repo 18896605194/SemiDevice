@@ -9,7 +9,7 @@ namespace xyz.Client.Io;
 /// <summary>
 /// IO 模块服务注册扩展。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     /// <summary>
     /// 注册一个模块的 IO 页面。模块有几个、叫什么由机型定（跟 sc.xml 里的模块名对齐），

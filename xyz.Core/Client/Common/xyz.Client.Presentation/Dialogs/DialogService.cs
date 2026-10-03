@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Windows;
+using xyz.Client.Presentation.Controls;
 
 namespace xyz.Client.Presentation.Dialogs;
 
@@ -58,6 +59,25 @@ public static class DialogService
         return dialog.ShowDialog() == true
             ? new TextSelectResult(dialog.Text, dialog.SelectedItem)
             : null;
+    }
+
+    /// <summary>
+    /// 弹出公共选择弹窗：标题、列、数据由调用方给，单选。返回选中的那一项；取消返回 null。
+    /// 给了 currentValue、valuePath 就先选中值对得上的那一项（如选择框里现在填的）。
+    /// </summary>
+    public static object? ShowPicker(
+        string title,
+        IEnumerable<PickerColumn> columns,
+        IEnumerable items,
+        string? currentValue = null,
+        string? valuePath = null)
+    {
+        var dialog = new PickerDialog(title, columns, items, currentValue, valuePath)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+
+        return dialog.ShowDialog() == true ? dialog.SelectedItem : null;
     }
 }
 

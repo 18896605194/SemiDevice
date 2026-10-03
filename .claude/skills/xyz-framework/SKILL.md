@@ -32,7 +32,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 
 ### 依赖铁律
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
-2. xyz.Components 不引用 xyz.Shared：组件发 C# 事件，转成 EventBus 推送的桥搭在 `xyz.Service\ServiceCollectionExtensions.cs`。
+2. xyz.Components 不引用 xyz.Shared：组件发 C# 事件，转成 EventBus 推送的桥搭在 `xyz.Service\ServiceExtensions.cs`。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
 
@@ -46,7 +46,15 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    if (alarms is not null && alarms.ActiveAlarms.Count > 0) { ... }
    ```
 3. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[SCEditor]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
-4. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；大括号不省略；目录 = 命名空间（组件 `Components\<类别>` 例外）。
+4. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
+   **大括号一律不省略**：`if` / `else` / `for` / `foreach` / `while` 后面哪怕只有一句 `return` / `continue` / `break` / `throw` / 赋值，
+   也要换行加大括号；不写 `if (x) return;`、`if (!ok) throw ...;` 这种单行，lambda 里的 `if` 也一样。
+   ```csharp
+   if (version != _transitionVersion)
+   {
+       return;
+   }
+   ```
 5. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
 6. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
 7. 错误：配置/装配错了抛 `InvalidOperationException`（开机就暴露）；运行期返回结果（bool、结果枚举、操作的 Code+Args）；
@@ -79,7 +87,8 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 1. 编译整个 `xyz.Framework.sln`：0 错误（`tools\IoIndexSmoke` 不在 sln 里，单独编）。宿主、客户端在跑时先关掉，否则 DLL 拷不进去。
 2. 跑冒烟：至少跑相关的；动了公共代码（组件基类、模块基类、契约、事件、日志）就全跑一遍，对一下每个的检查数。**新功能、改了行为要在冒烟里加检查**。
 3. 改了界面：用离屏预览出中英文截图看一遍（machine-and-tools.md §5）；用户要看就把软件真跑起来（§4）。
-4. 全仓再搜一遍硬规矩（如 `rg "\bis\s+(not\s+)?[\{\[]" --glob "*.cs"`、`== null`）。
+4. 全仓再搜一遍硬规矩（如 `rg "\bis\s+(not\s+)?[\{\[]" --glob "*.cs"`、`== null`、
+   单行不带大括号的 `rg "^\s*(if|else if|while|for|foreach)\b.*\)\s*[^{\s/].*;\s*$" --glob "*.cs"`）。
 
 ## 五、跟用户的协作方式
 

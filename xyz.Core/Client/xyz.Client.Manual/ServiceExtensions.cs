@@ -7,7 +7,7 @@ namespace xyz.Client.Manual;
 /// <summary>
 /// 手动模块服务注册扩展。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     /// <summary>
     /// 注册一个腔体的手动页面，按菜单 Code "Manual.&lt;模块名&gt;" 注册，跟 Manual 下的腔体子菜单一一对应。

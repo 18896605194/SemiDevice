@@ -10,7 +10,7 @@ namespace xyz.Client.Alarm;
 /// Alarm 模块服务注册扩展：实时报警、报警历史两个页面。
 /// 页面按菜单 Code 注册（菜单在壳的 PlatformMenuProvider 里声明）。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     public static IServiceCollection AddXyzAlarmServices(this IServiceCollection services)
     {

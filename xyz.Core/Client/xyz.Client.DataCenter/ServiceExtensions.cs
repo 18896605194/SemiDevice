@@ -10,7 +10,7 @@ namespace xyz.Client.DataCenter;
 /// DataCenter 模块服务注册扩展：实时日志、日志历史、数据曲线、实时曲线四个页面（报警的两个页面在 xyz.Client.Alarm）。
 /// 页面按菜单 Code 注册（菜单在壳的 PlatformMenuProvider 里声明）。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     public static IServiceCollection AddXyzDataCenterServices(this IServiceCollection services)
     {

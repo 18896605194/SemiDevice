@@ -1,0 +1,509 @@
+﻿<UserControl
+    x:Class="xyz.Client.Recipe.Views.SequenceView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="920"
+    d:DesignWidth="1980"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <!--  Esc 关掉确认框  -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding DialogCancelCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid Background="{DynamicResource DarkWindowBackground}">
+        <!--  左边流程配方列表（编号 1~N，个数由后端给），右边三块：基本信息、流程步骤、路线预览。每块带标题条，按钮放在各自的标题条上  -->
+        <Grid
+            Margin="8"
+            Style="{DynamicResource ShowWhenTagTrueStyle}"
+            Tag="{Binding IsReady}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="380" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--  流程配方列表：只有编号、名称两列；新建 / 重命名 / 删除马上生效  -->
+            <Border Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Command="{Binding CreateCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon
+                                            Width="16"
+                                            Height="16"
+                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Kind="Plus" />
+                                        <TextBlock Text="{DynamicResource recipe.sequence.create}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding RenameCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon
+                                            Width="16"
+                                            Height="16"
+                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Kind="PencilOutline" />
+                                        <TextBlock Text="{DynamicResource recipe.sequence.rename}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding DeleteCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon
+                                            Width="16"
+                                            Height="16"
+                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Kind="DeleteOutline" />
+                                        <TextBlock Text="{DynamicResource recipe.sequence.delete}" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource recipe.sequence.list}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!--  单元格样式要直接写在 DataGrid 上：只靠表格样式里的 CellStyle，MaterialDesign 会先套上它自己的单元格样式，选中行变成灰的  -->
+                    <DataGrid
+                        CellStyle="{DynamicResource DefaultDataGridCellStyle}"
+                        ItemsSource="{Binding Slots}"
+                        SelectedItem="{Binding SelectedSlot}"
+                        Style="{DynamicResource ZoneDataGridStyle}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="84"
+                                Binding="{Binding IndexText, Mode=OneWay}"
+                                ElementStyle="{DynamicResource SlotIndexDataGridTextStyle}"
+                                Header="{DynamicResource recipe.sequence.index}" />
+                            <DataGridTemplateColumn Width="*" Header="{DynamicResource recipe.sequence.name}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,0" Orientation="Horizontal">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Name, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <!--  正在编辑、改了还没保存  -->
+                                            <TextBlock
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Foreground="{DynamicResource DarkWarningStatus}"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding IsDirty}"
+                                                Text="●" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  基本信息：编号、名称（改名走列表的重命名）、创建 / 修改记录、版本只读，说明可改；保存在这块的标题条上  -->
+                <Border Grid.Row="0" Style="{DynamicResource ZoneBorderStyle}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                            <DockPanel>
+                                <StackPanel
+                                    DockPanel.Dock="Right"
+                                    Orientation="Horizontal"
+                                    Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                    Tag="{Binding HasSequence}">
+                                    <Border Style="{DynamicResource DirtyChipBorderStyle}" Tag="{Binding IsDirty}">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="{DynamicResource Size12}"
+                                            FontWeight="SemiBold"
+                                            Text="{DynamicResource recipe.sequence.dirty}" />
+                                    </Border>
+                                    <Button Command="{Binding SaveCommand}" Style="{DynamicResource ZoneHeaderPrimaryButtonStyle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon
+                                                Width="16"
+                                                Height="16"
+                                                Margin="0,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Kind="ContentSaveOutline" />
+                                            <TextBlock Text="{DynamicResource recipe.sequence.save}" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                    <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource recipe.sequence.info}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <Grid>
+                            <StackPanel
+                                Margin="14,12,14,14"
+                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                Tag="{Binding HasSequence}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="1.6*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="1.4*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="1.4*" />
+                                        <ColumnDefinition Width="80" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.index}" />
+                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding IndexText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.name}" />
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Style="{DynamicResource MetaValueTextStyle}"
+                                            Text="{Binding NameText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.created_by}" />
+                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding CreatedBy}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.created_at}" />
+                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding CreatedAtText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.modified_by}" />
+                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding ModifiedBy}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="5">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.modified_at}" />
+                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding ModifiedAtText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="6">
+                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.sequence.revision}" />
+                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding RevisionText}" />
+                                    </StackPanel>
+                                </Grid>
+                                <controls:InputTextBox
+                                    Margin="0,14,0,0"
+                                    materialDesign:HintAssist.Hint="{DynamicResource recipe.sequence.description}"
+                                    DataType="Text"
+                                    Value="{Binding Description}" />
+                            </StackPanel>
+
+                            <!--  选中空编号  -->
+                            <TextBlock
+                                Margin="16,18"
+                                Foreground="{DynamicResource DarkDisabledText}"
+                                Style="{DynamicResource NullContentHintTextStyle}"
+                                Tag="{Binding Current}"
+                                Text="{Binding EmptyText}" />
+                        </Grid>
+                    </DockPanel>
+                </Border>
+
+                <!--  流程步骤：步号就是普通数字。第 1 步、最后一步是 LoadPort（取片、放片，默认从哪来回哪去），中间是片要经过的站点。
+                      点一行选中：添加插在它后面，删除删它；分组名、模块名照 sc.xml 原样显示  -->
+                <Border Grid.Row="2" Style="{DynamicResource ZoneBorderStyle}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                            <DockPanel>
+                                <StackPanel
+                                    DockPanel.Dock="Right"
+                                    Orientation="Horizontal"
+                                    Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                    Tag="{Binding HasSequence}">
+                                    <Button Command="{Binding AddStepCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon
+                                                Width="16"
+                                                Height="16"
+                                                Margin="0,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Kind="Plus" />
+                                            <TextBlock Text="{DynamicResource recipe.sequence.add_step}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding DeleteStepCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon
+                                                Width="16"
+                                                Height="16"
+                                                Margin="0,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Kind="DeleteOutline" />
+                                            <TextBlock Text="{DynamicResource recipe.sequence.delete_step}" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                    <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource recipe.sequence.steps}" />
+                                </StackPanel>
+                                <TextBlock Style="{DynamicResource ZoneErrorTextStyle}" Text="{Binding ValidationText}" />
+                            </DockPanel>
+                        </Border>
+
+                        <Grid>
+                            <DockPanel Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding HasSequence}">
+                                <Border DockPanel.Dock="Top" Style="{DynamicResource StepHeaderBorderStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="300" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontWeight="SemiBold"
+                                            Text="{DynamicResource recipe.sequence.step}" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontWeight="SemiBold"
+                                                Text="{DynamicResource recipe.sequence.station}" />
+                                            <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource recipe.sequence.station_tip}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            FontWeight="SemiBold"
+                                            Text="{DynamicResource recipe.sequence.recipe}" />
+                                    </Grid>
+                                </Border>
+
+                                <ListBox
+                                    ItemContainerStyle="{DynamicResource StepListBoxItemStyle}"
+                                    ItemsSource="{Binding Steps}"
+                                    SelectedItem="{Binding SelectedStep}"
+                                    Style="{DynamicResource PickListBoxStyle}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="70" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="300" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding Number}" />
+
+                                                <DockPanel Grid.Column="1">
+                                                    <TextBlock
+                                                        Width="90"
+                                                        VerticalAlignment="Center"
+                                                        DockPanel.Dock="Left"
+                                                        Text="{Binding Group}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <WrapPanel VerticalAlignment="Center">
+                                                        <ItemsControl ItemsSource="{Binding Options}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <ToggleButton
+                                                                        Content="{Binding Name}"
+                                                                        IsChecked="{Binding IsChecked}"
+                                                                        Style="{DynamicResource StationChipToggleStyle}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBlock
+                                                            Style="{DynamicResource RowErrorTextStyle}"
+                                                            Text="{Binding StationHint}" />
+                                                    </WrapPanel>
+                                                </DockPanel>
+
+                                                <!--  工艺配方：公共选择框。工艺配方库还没做，弹窗里暂时没有可选的，先允许手输名字  -->
+                                                <Border
+                                                    Grid.Column="2"
+                                                    Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                    Tag="{Binding NeedsRecipe}">
+                                                    <controls:PickerBox
+                                                        Width="260"
+                                                        HorizontalAlignment="Left"
+                                                        HasError="{Binding HasRecipeError}"
+                                                        IsEditable="True"
+                                                        ItemsSource="{Binding DataContext.ProcessRecipes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        PickerTitle="{DynamicResource recipe.sequence.pick_recipe}"
+                                                        Placeholder="{DynamicResource recipe.sequence.recipe_hint}"
+                                                        Style="{DynamicResource ToolbarPickerBoxStyle}"
+                                                        Value="{Binding Recipe}">
+                                                        <controls:PickerBox.Columns>
+                                                            <controls:PickerColumn
+                                                                HeaderKey="recipe.sequence.index"
+                                                                Path="No"
+                                                                Width="80" />
+                                                            <controls:PickerColumn
+                                                                HeaderKey="recipe.sequence.name"
+                                                                Path="Name"
+                                                                Width="220" />
+                                                            <controls:PickerColumn HeaderKey="recipe.sequence.description" Path="Description" />
+                                                        </controls:PickerBox.Columns>
+                                                    </controls:PickerBox>
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+
+                            <TextBlock
+                                Style="{DynamicResource CenterNullHintTextStyle}"
+                                Tag="{Binding Current}"
+                                Text="{DynamicResource recipe.sequence.empty_steps}" />
+                        </Grid>
+                    </DockPanel>
+                </Border>
+
+                <!--  路线预览：一步一列，按流程步骤自动生成，只是看的；勾了好几个的外面画虚线框（哪个空去哪个）  -->
+                <Border Grid.Row="4" Style="{DynamicResource ZoneBorderStyle}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                            <DockPanel>
+                                <TextBlock
+                                    Margin="0,0,6,0"
+                                    DockPanel.Dock="Right"
+                                    Style="{DynamicResource ItemDetailTextStyle}"
+                                    Text="{DynamicResource recipe.sequence.route_tip}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                    <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource recipe.sequence.route}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <ScrollViewer
+                            Height="236"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Disabled">
+                            <ItemsControl
+                                Margin="24,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                ItemsSource="{Binding RouteColumns}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Margin="22,0"
+                                                VerticalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding HasArrow}">
+                                                <materialDesign:PackIcon
+                                                    Width="28"
+                                                    Height="28"
+                                                    Foreground="{DynamicResource DarkAccent}"
+                                                    Kind="ArrowRight" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Style="{DynamicResource RouteNumberTextStyle}" Text="{Binding Number}" />
+                                                <Grid Margin="0,6">
+                                                    <Rectangle Style="{DynamicResource RouteGroupFrameStyle}" Tag="{Binding IsMulti}" />
+                                                    <ItemsControl Margin="7" ItemsSource="{Binding Boxes}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel MaxHeight="148" Orientation="Vertical" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Style="{DynamicResource RouteBoxBorderStyle}" Tag="{Binding Kind}">
+                                                                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                                                        <materialDesign:PackIcon Style="{DynamicResource RouteBoxIconStyle}" Tag="{Binding Kind}" />
+                                                                        <TextBlock VerticalAlignment="Center" Text="{Binding Text}" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Grid>
+                                                <TextBlock
+                                                    Style="{DynamicResource RouteRecipeTextStyle}"
+                                                    Tag="{Binding HasRecipeError}"
+                                                    Text="{Binding RecipeText}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!--  没连上后端、没装流程配方库时正中的一句  -->
+        <TextBlock
+            Style="{DynamicResource CenterTagHintTextStyle}"
+            Tag="{Binding IsPageHintVisible}"
+            Text="{Binding PageHint}" />
+
+        <!--  确认框：新建、重命名填名称；删除、放弃修改确认。后端拒了的原因写在框里，框不关；Esc 或"取消"关掉  -->
+        <Border Style="{DynamicResource PageOverlayBorderStyle}" Tag="{Binding IsDialogOpen}">
+            <Border Style="{DynamicResource DialogCardBorderStyle}">
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{Binding DialogTitle}" />
+                    <Border Style="{DynamicResource DialogSummaryBorderStyle}">
+                        <TextBlock Style="{DynamicResource DialogSubjectTextStyle}" Text="{Binding DialogSubject}" />
+                    </Border>
+
+                    <!--  新建、重命名：名称  -->
+                    <StackPanel Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsNaming}">
+                        <controls:InputTextBox
+                            x:Name="NameBox"
+                            Margin="0,18,0,0"
+                            materialDesign:HintAssist.Hint="{DynamicResource recipe.sequence.name_hint}"
+                            DataType="Text"
+                            Value="{Binding DialogName}" />
+                    </StackPanel>
+
+                    <TextBlock Style="{DynamicResource DialogMessageTextStyle}" Text="{Binding DialogMessage}" />
+                    <TextBlock Style="{DynamicResource DialogErrorTextStyle}" Text="{Binding DialogError}" />
+
+                    <StackPanel
+                        Margin="0,20,0,0"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Command="{Binding DialogCancelCommand}"
+                            Content="{Binding CancelText}"
+                            Style="{DynamicResource ToolbarOutlinedButtonStyle}" />
+                        <Button
+                            Command="{Binding DialogConfirmCommand}"
+                            Content="{Binding ConfirmText}"
+                            Style="{DynamicResource DialogConfirmButtonStyle}"
+                            Tag="{Binding IsDangerConfirm}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

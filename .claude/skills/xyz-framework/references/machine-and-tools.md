@@ -5,7 +5,7 @@
 - `xyz.Core\`（平台：Shared / Service / Client）、`xyz.35021\`（机型 35021）、`tools\`（冒烟测试、部署和编码脚本、AdsRouter）、
   `doc\`（`AxisPlc.md` 轴和 PLC 数据块、`interlock-design.md` 联锁设计草案未实现、`eventbus-guide.html` 事件总线说明）、`Libs\`（TwinCAT.Ads DLL）。
   `website\`、`HotShot\` 跟框架无关。
-- `xyz.Framework.sln`（38 个工程；`tools\IoIndexSmoke` 不在解决方案里，要单独编译）、`xyz.Framework.slnLaunch`（"Client + Service" 同时起宿主和客户端）。
+- `xyz.Framework.sln`（39 个工程；`tools\IoIndexSmoke` 不在解决方案里，要单独编译）、`xyz.Framework.slnLaunch`（"Client + Service" 同时起宿主和客户端）。
 - `Directory.Build.props`：win-x64、x64、输出路径不带 RID（机型部署、ScEdit 依赖这个路径）。包版本写在各 csproj 里。
 - **编码**：源文件 UTF-8 **带 BOM**（.cs、.xaml、.csproj、.xml；skill 的 SKILL.md 例外，不加 BOM）。`.editorconfig` 本意如此，但它第 4 行的乱码注释把节头吞了，
   现在实际不生效；`tools\check-bom.ps1` / `add-bom.ps1` / `verify-encoding.ps1` 可以查和补。
@@ -34,6 +34,7 @@
 |---|---|
 | OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort |
 | WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务 |
+| SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码 |
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
 | DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
 | HsmsSmoke / SecsSmoke | HSMS 组件对假 EAP；SECS-II 编解码、HSMS 握手和计时器 |
@@ -42,7 +43,8 @@
 | IoIndexSmoke（不在 sln） | IO 点表下标和换算、PLC 门控、单点写、轴和执行器命令 |
 | EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
 
-- 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException("FAIL: " + message); checks++; }`；
+- 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`
+  （if 后面也要大括号，见 SKILL.md 硬规矩 4）；
   按 `// N. 说明` 分节；会改静态 `X.Current` 的用完还原；最后一行 `PASS: N xxx checks (...)`；探针 / 假驱动写成文件末尾的 `sealed class`。
   失败就是未处理异常、退出码非 0。
 - 数据：内存里造组件（`new WaferManager()`、`ComponentLoader.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
@@ -53,6 +55,8 @@
 
 - 起法：先后端 `xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0\xyz.GrpcHost.exe`（托盘图标：灰 = 启动中、绿 = 正常、红 = 失败，单实例），
   再客户端 `xyz.Core\Client\xyz.Client\bin\Debug\net10.0-windows\xyz.Client.exe`。编译前先关掉它们，否则 DLL 被占着拷不进去。
+  用户开着、又不方便关的时候：把源码 `robocopy D:\Code <scratchpad>\fullbuild /E /XD bin obj .git .vs node_modules`（约 19 MB）拷出去，
+  在副本里编整个 sln、跑冒烟——机型工程的部署目标是相对路径，只部署进副本；别在原目录编 RfidSmoke 这类引用机型工程的冒烟。
 - 机型 DLL 要先部署（编译机型工程会自动部署），否则 sc.xml 里 `xyz._35021.*` 的 Type 找不到，后端起不来。
 - PLC 仿真：本机没装 TwinCAT 时要有 `xyzAdsRouter` 服务（`tools\AdsRouter\install-service.ps1`，真机上别装），
   再起 `D:\仿真\统一仿真器\Start-35021.cmd`；顺序：路由 → 仿真器 → 后端 → 客户端。没有仿真器后端也能起，PLC 报通讯断开。
@@ -70,3 +74,5 @@
 4. 反射调 VM 的私有方法（如 `Apply`）喂示例数据；每次拍之前用 DispatcherTimer 等约 600 ms（Material 输入框的浮动提示是动画）。
 5. 挂 `PresentationTraceSources.DataBindingSource` / `ResourceDictionarySource` 监听，绑定和资源错误应为 0。
 6. `RenderTargetBitmap` 存 PNG，中英文各出一套；给用户看的截图放桌面一个子文件夹。
+   用 `VisualBrush` 画的话要 1:1：`Stretch=None`、`ViewboxUnits=Absolute`、`Viewbox=(0,0,宽,高)`——默认的拉伸在有东西画出界
+   （确认框、按钮阴影）时会把整页缩小一圈。独立窗口的弹窗（如选择弹窗）放到屏幕外 `Show()`，截窗口的根元素（卡片四周的阴影边也在里面）。

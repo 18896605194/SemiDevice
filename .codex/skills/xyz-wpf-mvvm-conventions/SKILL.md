@@ -59,7 +59,7 @@ Use these rules for WPF client work in the xyz repository.
       viewModel.Init();
   }
   ```
-- Register ViewModels in the corresponding module `ServiceCollectionExtensions.AddXxxServices()` and register each concrete ViewModel as a `BaseViewModel` alias for centralized initialization.
+- Register ViewModels in the corresponding module `ServiceExtensions.AddXxxServices()` and register each concrete ViewModel as a `BaseViewModel` alias for centralized initialization.
 - Use the native DI container / `IocHelper`; do not let XAML create ViewModels directly.
 - All pages stay in the main window's content area (`PageHost`) from startup and are laid out once; switching menus only toggles `Visibility` (current `Visible`, others `Hidden`). So `Loaded` / `Unloaded` fire once, not per navigation — to react to a page being shown or hidden use `IsVisibleChanged`, and stop per-frame work (e.g. `CompositionTarget.Rendering`) while `IsVisible` is false.
 

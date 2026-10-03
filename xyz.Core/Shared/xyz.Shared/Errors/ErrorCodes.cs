@@ -147,6 +147,58 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 流程配方
+
+    /// <summary>流程配方库没装（sc.xml 没配 Sequence 节点）。Args: []</summary>
+    public const string SequenceNotInstalled = "sequence.not_installed";
+
+    /// <summary>编号超出范围。Args: [编号, 个数]</summary>
+    public const string SequenceIndexOutOfRange = "sequence.index_out_of_range";
+
+    /// <summary>这个编号上没有流程配方（可能刚被别处删了）。Args: [编号]</summary>
+    public const string SequenceNotFound = "sequence.not_found";
+
+    /// <summary>新建的编号上已经有流程配方。Args: [编号, 已有的名称]</summary>
+    public const string SequenceIndexOccupied = "sequence.index_occupied";
+
+    /// <summary>名称没填。Args: []</summary>
+    public const string SequenceNameRequired = "sequence.name_required";
+
+    /// <summary>名称太长。Args: [最多几个字符]</summary>
+    public const string SequenceNameTooLong = "sequence.name_too_long";
+
+    /// <summary>名称里有不能用的字符（只能用字母、数字、_ 和 -）。Args: [名称]</summary>
+    public const string SequenceNameInvalid = "sequence.name_invalid";
+
+    /// <summary>名称跟别的编号重了（不分大小写）。Args: [名称, 那个编号]</summary>
+    public const string SequenceNameDuplicate = "sequence.name_duplicate";
+
+    /// <summary>保存时版本对不上：打开以后别处改过（另一台客户端保存或改名了）。Args: [编号]</summary>
+    public const string SequenceRevisionMismatch = "sequence.revision_mismatch";
+
+    /// <summary>步骤太少：第 1 步、最后一步是 LoadPort，中间至少要有一步。Args: []</summary>
+    public const string SequenceTooFewSteps = "sequence.too_few_steps";
+
+    /// <summary>第 1 步或最后一步不是 LoadPort 分组。Args: [步号]</summary>
+    public const string SequenceStepNotLoadPort = "sequence.step_not_loadport";
+
+    /// <summary>步骤的站点分组不在可选分组里（sc.xml 改过，或这个分组的站点机械手都到不了）。Args: [步号, 分组名]</summary>
+    public const string SequenceGroupNotFound = "sequence.group_not_found";
+
+    /// <summary>这一步一个站点都没勾。Args: [步号]</summary>
+    public const string SequenceStationRequired = "sequence.station_required";
+
+    /// <summary>勾的站点不在这一步的分组里。Args: [步号, 站点名, 分组名]</summary>
+    public const string SequenceStationNotInGroup = "sequence.station_not_in_group";
+
+    /// <summary>这一步要选工艺配方，没选。Args: [步号]</summary>
+    public const string SequenceRecipeRequired = "sequence.recipe_required";
+
+    /// <summary>流程配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>
+    public const string SequenceSaveFailed = "sequence.save_failed";
+
+    #endregion
+
     #region 历史查询
 
     /// <summary>历史查询失败（读日志文件或数据库出错）。Args: [原因]</summary>

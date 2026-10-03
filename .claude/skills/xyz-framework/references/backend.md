@@ -18,7 +18,7 @@ Service\xyz.Service   gRPC 服务实现 + 装配 + 事件桥（→ Shared、Tool
 Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、Service）
 ```
 
-- 组件层看不到契约层，所以"组件事件 → EventBus 推客户端"的桥都搭在 `xyz.Service\ServiceCollectionExtensions.cs`。
+- 组件层看不到契约层，所以"组件事件 → EventBus 推客户端"的桥都搭在 `xyz.Service\ServiceExtensions.cs`。
 - 平台不引用机型工程；机型 DLL 由 DeployToHost 拷到宿主 `Modules\<机型>\`，装配时按目录扫描。
 - 没有单元测试工程，测试是 `D:\Code\tools\*Smoke` 控制台程序（见 machine-and-tools.md）。
 
@@ -32,7 +32,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   模块把返回类型收窄成 `ModuleOperation?`。`Open()` 不在基类，各类型自己定义（模块、PLC、IO、HSMS、驱动、轴）。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManager、Io、Safety、Hsms、
-  DataChart、RealChart、PLC、TransferManager、GemCollectors）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
+  DataChart、RealChart、PLC、TransferManager、GemCollectors、SequenceComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
@@ -111,6 +111,11 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 状态推送：`PublishState()` 里 `EventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
   能放片的模块在推送里带上晶圆账（`LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name)`，腔体是 `Slots`），并在 HasStateChanged 里比较——
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
+- 流程配方库 `Recipe\SequenceComponent`（sc.xml `Sequence` 节点，SC：`Capacity` 99 个编号、`Folder` `Recipe\Sequence`、`NameMaxLength` 32）：
+  编号 1~Capacity，一个编号一个文件（`001.xml`，`SequenceData`，先写 `.tmp` 再整个替换）；坏文件、编号越界的文件跳过并记日志。
+  可选站点分组由 `Bind(settings, modules)` 生成（模块全起来后调）：sc.xml 顶层没 Type 的分组节点下、机械手 `Stations` 到得了的站点模块，
+  顶层直接装的站点自成一组；第 1 步和最后一步必须是 LoadPort 组（组里全是 LoadPort），有腔体的组每步要填工艺配方；名字一律照 sc.xml 原样。
+  保存带版本号（对不上回 `sequence.revision_mismatch`，防两个人同时改），至少 3 步；`Changed(编号)` 在锁外发。服务 `ISequenceService`（`xyz.Service\Recipes`）。
 
 ## 4. 驱动（`xyz.Components\Components\Drivers` + `xyz.Drivers`）
 
@@ -134,7 +139,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
    ```
 2. 请求 DTO 放 `Shared\xyz.Shared\Dtos`，`[ProtoContract]` + `[ProtoMember(n)]`；返回数据也放 Dtos（普通 POCO，走 JSON）。
 3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`，构造 `(IReadOnlyList<ComponentBase> roots) : base(roots)`。
-4. 注册：`xyz.Service\ServiceCollectionExtensions.cs` 的 `AddTransient<IXxxService, XxxService>()`，`xyz.GrpcHost\Program.cs` 的 `MapGrpcService<XxxService>()`。
+4. 注册：`xyz.Service\ServiceExtensions.cs` 的 `AddTransient<IXxxService, XxxService>()`，`xyz.GrpcHost\Program.cs` 的 `MapGrpcService<XxxService>()`。
 5. 错误码 + 两个语言包（§6）。
 6. 冒烟里直接 new 服务类调方法验证（不起网络），见 `tools\WaferLedgerSmoke` 第 16 节。
 
@@ -148,16 +153,16 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
-  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Log"、"RealChart"、"WaferLedger"）；
+  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Log"、"RealChart"、"Sequence"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；
   - "发生了一件事"类用 `retain: false`。
-- 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManager.Wafer*`），在 `ServiceCollectionExtensions` 里桥成 EventBus 消息。
+- 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManager.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。
 - 周期推送放 `xyz.Service\Events\*Publisher`（静态、吞异常、同一个故障只记一次日志）。
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → HSMS Open → PLC Open + Start →
-IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 设备总状态 / IO 推送 →
+IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要 Open/Start 的，按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
 
@@ -189,7 +194,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
 - 节点顺序：System → Rpc → Hsms → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →
-  LoadPort → Robot → Transfer → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
+  LoadPort → Robot → Transfer → Sequence → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）。
 
 ## 9. 日志

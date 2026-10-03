@@ -29,6 +29,10 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
             new ClientMenu("Manual", "Manual.Robot", 2),
             .. chambers.Select((chamber, index) => new ClientMenu("Manual", $"Manual.{chamber}", index + 3, chamber)),
 
+            // 配方：流程配方（片在设备里怎么走）、工艺配方（片在一个腔里怎么做，页面还没做，先是占位页）
+            new ClientMenu("Recipe", "Recipe.Sequence", 1),
+            new ClientMenu("Recipe", "Recipe.Process", 2),
+
             new ClientMenu("Alarm", "Alarm.Realtime", 1),
             new ClientMenu("Alarm", "Alarm.History", 2),
 

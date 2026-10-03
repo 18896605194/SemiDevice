@@ -9,6 +9,7 @@ using xyz.Modules;
 using xyz.Service.Alarms;
 using xyz.Service.Charts;
 using xyz.Service.Events;
+using xyz.Service.Recipes;
 using xyz.Service.Systems;
 using xyz.Service.UserManger;
 using xyz.Service.Wafers;
@@ -21,7 +22,7 @@ namespace xyz.Service;
 /// <summary>
 /// 业务服务注册扩展。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     /// <summary>
     /// 注册 xyz 后端业务服务。
@@ -180,6 +181,20 @@ public static class ServiceCollectionExtensions
             LogHelper.Warn("Transfer", "sc.xml 没配 Transfer 节点：手动传片与自动派单都不可用");
         }
 
+        // 流程配方库：可选站点按 sc.xml 的分组节点和装起来的模块生成（机械手站点表里有的才算），所以等模块全起来再绑。
+        // 内容一变就通知客户端（只带编号），流程配方页收到后重拉。库在模块层（这边才认得 EventBus 和契约），桥搭在这儿。
+        var sequences = SequenceComponent.Current;
+        if (sequences is not null)
+        {
+            sequences.Bind(settings, modules);
+            sequences.Changed += index =>
+                EventBus.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
+        }
+        else
+        {
+            LogHelper.Warn("Sequence", "sc.xml 没配 Sequence 节点：流程配方页用不了");
+        }
+
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
         EquipmentStatusPublisher.Start(roots, modules);
 
@@ -219,6 +234,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IIoService, IoService>();
         services.AddTransient<IEcService, EcService>();
         services.AddTransient<IWaferLedgerService, WaferLedgerService>();
+        services.AddTransient<ISequenceService, SequenceService>();
         services.AddTransient<IDataChartService, DataChartService>();
         services.AddTransient<IRealChartService, RealChartService>();
 

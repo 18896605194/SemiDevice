@@ -262,4 +262,132 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+
+    <!--  块标题条上的按钮（如流程配方页的新建、重命名、删除、添加）：描边、矮一档（30），按钮之间留 6  -->
+    <Style
+        x:Key="ZoneHeaderButtonStyle"
+        BasedOn="{StaticResource ToolbarOutlinedButtonStyle}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+
+    <!--  块标题条上的主按钮（如保存）：实心强调色，跟描边按钮同高  -->
+    <Style
+        x:Key="ZoneHeaderPrimaryButtonStyle"
+        BasedOn="{StaticResource ToolbarButtonStyle}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
+    <!--  确认框的确认按钮：Tag=True（删除、放弃修改这种收不回来的）红色，否则强调色  -->
+    <Style
+        x:Key="DialogConfirmButtonStyle"
+        BasedOn="{StaticResource ToolbarButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Margin" Value="0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  勾选块（如流程步骤里一步可去的站点）：圆角胶囊；勾上淡强调底、强调色边、前面一个勾，没勾描边灰字  -->
+    <Style x:Key="StationChipToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Margin" Value="0,4,8,4" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="16">
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                x:Name="Mark"
+                                Width="16"
+                                Height="16"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource DarkAccent}"
+                                Kind="Check"
+                                Visibility="Collapsed" />
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                            <Setter Property="Background" Value="{StaticResource DarkHoverBackground}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
+                            <Setter Property="Padding" Value="10,0,14,0" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                            <Setter Property="Background" Value="{StaticResource DarkAccentSoft}" />
+                            <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  选择框（PickerBox）右边的"…"按钮：贴在框里，左边一道竖线隔开；悬停提亮、图标变强调色。不抢焦点，点了直接弹选择弹窗  -->
+    <Style x:Key="PickerBoxButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceVariantBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1,0,0,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="0,3,3,0">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

@@ -1,6 +1,7 @@
 ﻿<ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
 
     <Style x:Key="DefaultDataGridTextStyle" TargetType="TextBlock">
@@ -60,6 +61,9 @@
         <Setter Property="FontSize" Value="{StaticResource Size14}" />
         <Setter Property="CellStyle" Value="{StaticResource DefaultDataGridCellStyle}" />
         <Setter Property="ColumnHeaderStyle" Value="{StaticResource DefaultDataGridColumnHeaderStyle}" />
+        <!--  有星号列时各列铺满可视宽度：页面启动时先建好、后挂进窗口，DataGrid 会把列宽算成最小值又补不回来，
+              表头和内容的字全被裁掉（见 DataGridColumnFill）  -->
+        <Setter Property="helpers:DataGridColumnFill.IsEnabled" Value="True" />
     </Style>
 
     <!--  紧凑表格：行矮、字小，用于日志、报警这类一屏要看很多行的列表  -->
@@ -216,6 +220,34 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Level}" Value="Fatal">
                 <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+
+    <!--  块里、框里的表格（如流程配方页左边的列表、公共选择弹窗的列表）：不带外框（外面已经有边了），行 32，不能点表头排序。
+          用的地方还要在 DataGrid 上直接写 CellStyle，见流程配方页  -->
+    <Style
+        x:Key="ZoneDataGridStyle"
+        BasedOn="{StaticResource CompactDataGridStyle}"
+        TargetType="DataGrid">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CanUserSortColumns" Value="False" />
+        <Setter Property="ColumnHeaderStyle" Value="{StaticResource CompactDataGridColumnHeaderStyle}" />
+        <!--  Material 的表头按这个附加属性留边，表头样式里的 Padding 管不到；左右 8 跟单元格里的字（左边距 8）对齐，上下 10 是 Material 原样  -->
+        <Setter Property="materialDesign:DataGridAssist.ColumnHeaderPadding" Value="8,10" />
+    </Style>
+
+    <!--  流程配方列表的编号列（行数据要有 IsUsed）：没用的编号灰字  -->
+    <Style
+        x:Key="SlotIndexDataGridTextStyle"
+        BasedOn="{StaticResource DefaultDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsUsed}" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>

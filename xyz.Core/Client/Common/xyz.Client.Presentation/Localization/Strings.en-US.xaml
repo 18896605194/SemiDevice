@@ -67,6 +67,22 @@
     <sys:String x:Key="wafer.same_slot">Source and target are the same slot</sys:String>
     <sys:String x:Key="wafer.id_required">Enter a wafer ID to create a ledger entry</sys:String>
     <sys:String x:Key="wafer.duplicate_id">Wafer {0} is already in the ledger ({1} slot {2}); use Move to bring it here</sys:String>
+    <sys:String x:Key="sequence.not_installed">The sequence library is not installed (no Sequence node in sc.xml)</sys:String>
+    <sys:String x:Key="sequence.index_out_of_range">No. {0} does not exist (1 ~ {1})</sys:String>
+    <sys:String x:Key="sequence.not_found">No. {0} has no sequence (it may have just been deleted elsewhere)</sys:String>
+    <sys:String x:Key="sequence.index_occupied">No. {0} already has a sequence: {1}</sys:String>
+    <sys:String x:Key="sequence.name_required">Enter a name</sys:String>
+    <sys:String x:Key="sequence.name_too_long">The name can have at most {0} characters</sys:String>
+    <sys:String x:Key="sequence.name_invalid">The name "{0}" has characters that are not allowed: use letters, digits, _ and - only</sys:String>
+    <sys:String x:Key="sequence.name_duplicate">The name {0} is already used by No. {1}</sys:String>
+    <sys:String x:Key="sequence.revision_mismatch">No. {0} was changed elsewhere after you opened it, so it can't be saved: discard your changes and open it again</sys:String>
+    <sys:String x:Key="sequence.too_few_steps">Too few steps: step 1 and the last step are LoadPort, with at least one step in between</sys:String>
+    <sys:String x:Key="sequence.step_not_loadport">Step {0} must be a LoadPort</sys:String>
+    <sys:String x:Key="sequence.group_not_found">Step {0}: group {1} no longer exists (sc.xml changed, or the robot can't reach it)</sys:String>
+    <sys:String x:Key="sequence.station_required">Step {0}: no station ticked</sys:String>
+    <sys:String x:Key="sequence.station_not_in_group">Step {0}: {1} is not in group {2}</sys:String>
+    <sys:String x:Key="sequence.recipe_required">Step {0}: no process recipe selected</sys:String>
+    <sys:String x:Key="sequence.save_failed">Could not write the file of sequence No. {0}: {1}</sys:String>
 
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
@@ -388,6 +404,72 @@
     <sys:String x:Key="menu.Setting.WaferLedger">Wafer Ledger</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>
     <sys:String x:Key="menu.Setting.Role">Roles</sys:String>
+    <sys:String x:Key="menu.Recipe.Sequence">Sequence</sys:String>
+    <sys:String x:Key="menu.Recipe.Process">Process Recipe</sys:String>
+
+    <!-- 公共选择框（PickerBox）、公共选择弹窗 -->
+    <sys:String x:Key="picker.select">Select</sys:String>
+    <sys:String x:Key="picker.empty">Nothing to select</sys:String>
+
+    <!-- 流程配方页（配方 → 流程配方）：左边编号列表，右边基本信息、流程步骤、路线预览。分组名、模块名照 sc.xml 原样显示，不在这里配 -->
+    <sys:String x:Key="recipe.sequence.list">Sequences</sys:String>
+    <sys:String x:Key="recipe.sequence.create">New</sys:String>
+    <sys:String x:Key="recipe.sequence.rename">Rename</sys:String>
+    <sys:String x:Key="recipe.sequence.delete">Delete</sys:String>
+    <sys:String x:Key="recipe.sequence.index">No.</sys:String>
+    <sys:String x:Key="recipe.sequence.name">Name</sys:String>
+    <sys:String x:Key="recipe.sequence.info">Details</sys:String>
+    <sys:String x:Key="recipe.sequence.created_by">Created by</sys:String>
+    <sys:String x:Key="recipe.sequence.created_at">Created at</sys:String>
+    <sys:String x:Key="recipe.sequence.modified_by">Modified by</sys:String>
+    <sys:String x:Key="recipe.sequence.modified_at">Modified at</sys:String>
+    <sys:String x:Key="recipe.sequence.revision">Revision</sys:String>
+    <sys:String x:Key="recipe.sequence.description">Description</sys:String>
+    <sys:String x:Key="recipe.sequence.save">Save</sys:String>
+    <sys:String x:Key="recipe.sequence.dirty">Unsaved changes</sys:String>
+    <sys:String x:Key="recipe.sequence.empty_slot">No. {0} has no sequence yet. Click "New" on the left to create one.</sys:String>
+    <sys:String x:Key="recipe.sequence.steps">Steps</sys:String>
+    <sys:String x:Key="recipe.sequence.add_step">Add</sys:String>
+    <sys:String x:Key="recipe.sequence.delete_step">Delete</sys:String>
+    <sys:String x:Key="recipe.sequence.step">Step</sys:String>
+    <sys:String x:Key="recipe.sequence.station">Stations</sys:String>
+    <sys:String x:Key="recipe.sequence.station_tip">tick several = any free one</sys:String>
+    <sys:String x:Key="recipe.sequence.recipe">Process recipe</sys:String>
+    <sys:String x:Key="recipe.sequence.recipe_hint">Select a process recipe</sys:String>
+    <sys:String x:Key="recipe.sequence.pick_recipe">Select process recipe</sys:String>
+    <sys:String x:Key="recipe.sequence.pick_group">Add step: select a station group</sys:String>
+    <sys:String x:Key="recipe.sequence.group">Group</sys:String>
+    <sys:String x:Key="recipe.sequence.modules">Modules</sys:String>
+    <sys:String x:Key="recipe.sequence.empty_steps">Steps appear here after you create a sequence</sys:String>
+    <sys:String x:Key="recipe.sequence.need_station">Tick at least one {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.group_missing">Group {0} no longer exists; delete this step and add it again</sys:String>
+    <sys:String x:Key="recipe.sequence.error_station">Step {0}: no {1} ticked</sys:String>
+    <sys:String x:Key="recipe.sequence.error_recipe">Step {0}: no process recipe</sys:String>
+    <sys:String x:Key="recipe.sequence.error_group">Step {0}: group {1} no longer exists</sys:String>
+    <sys:String x:Key="recipe.sequence.error_separator" xml:space="preserve">; </sys:String>
+    <sys:String x:Key="recipe.sequence.list_separator" xml:space="preserve">, </sys:String>
+    <sys:String x:Key="recipe.sequence.route">Route preview</sys:String>
+    <sys:String x:Key="recipe.sequence.route_tip">Generated from the steps</sys:String>
+    <sys:String x:Key="recipe.sequence.route_none">No {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.route_no_recipe">No process recipe</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_create">New sequence</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_rename">Rename</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_delete">Delete sequence</sys:String>
+    <sys:String x:Key="recipe.sequence.dialog_discard">Unsaved changes</sys:String>
+    <sys:String x:Key="recipe.sequence.name_hint">Name (letters, digits, _ and -)</sys:String>
+    <sys:String x:Key="recipe.sequence.delete_hint">The number becomes free and can be used again.</sys:String>
+    <sys:String x:Key="recipe.sequence.confirm_delete">Delete</sys:String>
+    <sys:String x:Key="recipe.sequence.discard_hint">There are unsaved changes. Switching to another number discards them.</sys:String>
+    <sys:String x:Key="recipe.sequence.discard">Discard</sys:String>
+    <sys:String x:Key="recipe.sequence.keep_editing">Keep editing</sys:String>
+    <sys:String x:Key="recipe.sequence.created">Created No. {0} {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.renamed">No. {0} renamed to {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.deleted">Deleted No. {0} {1}</sys:String>
+    <sys:String x:Key="recipe.sequence.saved">Saved No. {0} {1} (revision {2})</sys:String>
+    <sys:String x:Key="recipe.sequence.load_failed">Failed to load sequences: {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.save_failed">Failed to save the sequence: {0}</sys:String>
+    <sys:String x:Key="recipe.sequence.offline">Not connected to the backend</sys:String>
+    <sys:String x:Key="recipe.sequence.loading">Loading sequences…</sys:String>
 
     <sys:String x:Key="io.module">Module</sys:String>
     <sys:String x:Key="io.search">Search index / name / description</sys:String>

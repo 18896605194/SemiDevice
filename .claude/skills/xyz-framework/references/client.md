@@ -7,7 +7,7 @@ MaterialDesignThemes 5（暗色）、CommunityToolkit.Mvvm 8、protobuf-net.Grpc
 
 ```
 xyz.Client（壳，WinExe）
-  → 功能模块 xyz.Client.Alarm / DataCenter / Io / Manual / Setting（Recipe 目前是空工程）
+  → 功能模块 xyz.Client.Alarm / DataCenter / Io / Manual / Recipe / Setting
     → Common\xyz.Client.Presentation（控件、样式、语言包、公共显示模型）
       → Common\xyz.Client.Common（RPC、远程事件、日志、EC/报警缓存、会话）、Common\xyz.Client.DataModels（BaseViewModel）
         → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（EventBus、IocHelper、JsonHelper）
@@ -17,7 +17,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 客户端**不引用任何后端工程**，只走 `xyz.Shared` 里的契约（服务接口、DTO、错误码）。
 - 功能模块之间不互相引用；要共用的东西下沉到 Presentation / Common。
 - 壳不引用机型工程；机型客户端模块（如 `xyz.35021\Client\Module35021.cs`）运行时按目录扫描加载。
-- 每个功能模块：`Views\`、`ViewModels\`、`Models\`，根目录一个 `ServiceCollectionExtensions.cs`（`AddXyzXxxServices()`）。
+- 每个功能模块：`Views\`、`ViewModels\`、`Models\`，根目录一个 `ServiceExtensions.cs`（`AddXyzXxxServices()`）。
 
 ## 2. 启动顺序（`xyz.Client\App.xaml.cs`）
 
@@ -39,8 +39,9 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   `ClientMenu(parentCode, code, sort, title?)`：`parentCode == null` 是一级菜单；**Code 就是页面的 keyed 注册键**；
   显示名取语言包 `menu.{Code}`（没配就显示 Code），按模块生成的菜单直接用 title（模块名）。
 - 一级菜单：Main 1、Manual 2、Recipe 3、Alarm 4、DataCenter 5、Setting 6、Io 7。
+  Recipe 下：Recipe.Sequence 1（流程配方）、Recipe.Process 2（工艺配方，还没做）。
   Setting 下：Setting.Ec 1、Setting.WaferLedger 2、Setting.User 3、Setting.Role 4。
-- 页面注册（功能模块的 `ServiceCollectionExtensions`）：
+- 页面注册（功能模块的 `ServiceExtensions`）：
   ```csharp
   services.AddSingleton<XxxViewModel>();
   services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<XxxViewModel>());   // 统一 Init 用
@@ -50,11 +51,11 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - `xyz.Client\Views\PageHost.cs`：全部页面启动时挂上，当前页 Visible、其余 Hidden。
   **页面常驻：Loaded / Unloaded 只触发一次**。要知道页面显示没显示用 `IsVisibleChanged`，转给 VM（示例 `WaferLedgerView.xaml.cs` →
   `viewModel.SetPageVisible(...)`）；页面不在前台时不拉数据、不跑每帧的东西（TrendChart、Robot 控件隐藏时停 `CompositionTarget.Rendering`）。
-- 没注册页面的菜单显示占位页（Main、Recipe 目前就是）。
+- 没注册页面的菜单显示占位页（Main、Recipe.Process 目前就是）。
 
 ### 加一个页面（清单）
 1. 功能模块里加 `Models\`、`ViewModels\XxxViewModel.cs`、`Views\XxxView.xaml(.cs)`。
-2. 模块 `ServiceCollectionExtensions` 注册 VM（+ BaseViewModel 别名）和 keyed View。
+2. 模块 `ServiceExtensions` 注册 VM（+ BaseViewModel 别名）和 keyed View。
 3. `PlatformMenuProvider` 加 `ClientMenu`（注意后面的 sort 顺延）。
 4. 两个语言包加 `menu.{Code}` 和页面文字。
 5. 样式缺的加到 `Presentation\Styles`，不在页面里写资源。
@@ -137,7 +138,20 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   列文字用 `ElementStyle`；**要让样式来定 Text 的列用模板列**（DataGridTextColumn 会在 TextBlock 上设本地 Text，盖掉样式）。
   Material 的格子、表头留白由 `materialDesign:DataGridAssist.CellPadding` / `ColumnHeaderPadding` 决定（上下左右都算，表头高度也跟着它），
   表头样式里的 Padding、Height 不管用。
-- InputTextBox 有焦点时，VM 改 Value 不会冲掉框里正在输的字（故意的）；要清空输入框，在它拿到焦点之前改（比如弹框之前先清 VM 的值）。
+- **表格样式里的 CellStyle 不生效**：Material 会先给列套上它自己的单元格样式，选中行成了灰的。要自己的单元格样式（选中行强调色、
+  `PickDataGridCellStyle` 这类）就在 DataGrid 上直接写 `CellStyle="{DynamicResource ...}"`（账单调整页、流程配方页、选择弹窗都这么写）。
+  这样写之后单元格模板是 WPF 默认的、不认 CellPadding，字离左边多远只看列的 ElementStyle 的 Margin（默认 8）；
+  表头左右也要是 8 才对得齐——`ZoneDataGridStyle` 已经配好（`ColumnHeaderPadding` 8,10）。
+- 分块的页面（一页几块、每块带标题条，如流程配方页）：`ZoneBorderStyle` 包一块，`ZoneHeaderBorderStyle` 是标题条
+  （左边 `ZoneTitleBarBorderStyle` 竖条 + `ZoneTitleTextStyle`，右边按钮 `ZoneHeaderButtonStyle` / 主按钮 `ZoneHeaderPrimaryButtonStyle`，
+  检查不过的红字 `ZoneErrorTextStyle`），块里的表格 `ZoneDataGridStyle`；字段 `MetaLabelTextStyle` / `MetaValueTextStyle`。
+- 页内确认框（`PageOverlayBorderStyle` + `DialogCardBorderStyle`）：标题 `PanelTitleTextStyle`，主角 `DialogSummaryBorderStyle` + `DialogSubjectTextStyle`，
+  说明 `DialogMessageTextStyle`、后端拒了的原因 `DialogErrorTextStyle`（没字时不占地方），确认按钮 `DialogConfirmButtonStyle`（Tag=True 红，删除、放弃用）。
+- 三档表格样式都挂了 `Helpers\DataGridColumnFill`：页面启动时先建好、后挂进窗口，有星号列的 DataGrid 会把列宽算成最小列宽 20 又补不回来
+  （表头、内容的字全被裁掉，看着像空表；报警两页踩过），它在可视宽度出来后检查、没铺满就让 DataGrid 重算。新表格用这三档样式就自动有，
+  自己写 DataGrid 样式要 BasedOn 它们。离屏预览查不出这类时序问题，要用真客户端启动、UI 自动化读表头宽度看。
+- InputTextBox 有焦点、而且敲了字还没提交时，VM 改 Value 不会冲掉框里正在输的字（故意的）；焦点在框里但没敲过字的照样同步
+  （2026-10-03 改的：以前只看焦点，确认框关了再开、焦点还留在框里时，重命名框里留着上回填的名字）。
 
 ## 7. 控件（`Common\xyz.Client.Presentation\Controls`）
 
@@ -149,6 +163,12 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **TrendChart**（ScottPlot 5 封装）：喂 `ObservableCollection<TrendSeries>`，只用 `SetData` / `Append` 改数据；单一左 Y 轴，所有曲线按真实值画。
 - **ModuleStateBadge**（`Text`、`Tone`、`IsCompact`）：模块状态一律用它（整条圆角色块：灰未初始化 / 蓝动作中 / 绿就绪 / 黄中止中 / 红报错），
   不写"状态：xxx"文字。码 → 字和色调用 `Presentation\Models\ModuleStates`（按 LoadPort / Chamber / Robot / 其他分开，同一个码不同模块意思不同）。
+- **PickerBox**（从一个库里选一项：左边文本、右边"…"按钮弹公共选择弹窗；**选东西不用下拉框**）：绑 `Value`（默认双向）；
+  `ItemsSource` 候选、`Columns`（`PickerColumn`：`HeaderKey` 语言包 key、`Path`、`Width`，不写是星号列）、`ValuePath`（默认 Name）、
+  `PickerTitle`、`Placeholder`、`IsEditable`（默认 false 只能选；true 也能手输）、`HasError` 红框；`Width` / `Height` 用的地方随便设，
+  档位样式 `DefaultPickerBoxStyle` 40 / `ToolbarPickerBoxStyle` 34 / `CompactPickerBoxStyle` 28。
+- **公共选择弹窗** `DialogService.ShowPicker(标题, 列, 数据, 当前值, 值属性)`：一个普通模态窗口（不是 DialogHost，不动主窗口），
+  单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - LogBar / AlarmBar 只在主窗口顶栏用。
 
 ## 8. 语言包（`Common\xyz.Client.Presentation\Localization`）

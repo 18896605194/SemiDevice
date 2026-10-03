@@ -433,11 +433,12 @@ public class InputTextBox : TextBox
     #region 同步与错误显示
 
     /// <summary>
-    /// Value 从外面变了（绑定的属性改了）：同步到输入框。正在输入时不冲掉用户敲的，等他提交。
+    /// Value 从外面变了（绑定的属性改了）：同步到输入框。正在输入（敲了字还没提交）时不冲掉用户敲的，等他提交；
+    /// 光是焦点在框里、没敲过字的照样同步——不然框里一直留着旧值（比如确认框关了再开，焦点还留在框里，名称还是上回的）。
     /// </summary>
     private void SyncTextFromValue()
     {
-        if (_syncing || IsKeyboardFocusWithin)
+        if (_syncing || (IsKeyboardFocusWithin && _dirty))
         {
             return;
         }

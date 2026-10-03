@@ -9,6 +9,7 @@ using xyz.Service;
 using xyz.Service.Alarms;
 using xyz.Service.Charts;
 using xyz.Service.Events;
+using xyz.Service.Recipes;
 using xyz.Service.Systems;
 using xyz.Service.UserManger;
 using xyz.Service.Wafers;
@@ -115,6 +116,7 @@ public static class Program
         app.MapGrpcService<IoService>();
         app.MapGrpcService<EcService>();
         app.MapGrpcService<WaferLedgerService>();
+        app.MapGrpcService<SequenceService>();
         app.MapGrpcService<DataChartService>();
         app.MapGrpcService<RealChartService>();
 

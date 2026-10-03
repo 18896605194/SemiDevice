@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 三维盘面仅显示 Wafer 内容，去掉 UserControl 外层矩形边框；原二维实例不受影响。 -->
+    <ControlTemplate x:Key="DiskVisual3DFaceTemplate" TargetType="UserControl">
+        <ContentPresenter />
+    </ControlTemplate>
+</ResourceDictionary>

@@ -1,0 +1,86 @@
+﻿<UserControl
+    x:Class="xyz.Client.Presentation.Controls.PickerBox"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    x:Name="Root">
+
+    <!--  公共选择框：左边是选中的值，右边"…"按钮点开公共选择弹窗（DialogService.ShowPicker），选完回填 Value。
+          默认只能选、不能手输（点文字也弹窗）；IsEditable=True 时也能手输。宽高在用的地方直接设，或用 Default / Toolbar / Compact 三档样式；
+          按钮跟着高度保持方形。HasError=True 时红框  -->
+    <Border
+        Background="{DynamicResource DarkControlBackground}"
+        BorderThickness="1"
+        CornerRadius="4"
+        SnapsToDevicePixels="True">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="BorderBrush" Value="{DynamicResource DarkBorderBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource DarkAccent}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding HasError, ElementName=Root}" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource DarkAlarmStatus}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox
+                x:Name="ValueBox"
+                Padding="8,0"
+                VerticalContentAlignment="Center"
+                Background="Transparent"
+                BorderThickness="0"
+                CaretBrush="{DynamicResource DarkPrimaryText}"
+                Foreground="{DynamicResource DarkPrimaryText}"
+                PreviewMouseLeftButtonUp="OnValueBoxClick"
+                Style="{x:Null}"
+                Text="{Binding Value, ElementName=Root, UpdateSourceTrigger=LostFocus}" />
+
+            <!--  没有值时的提示字  -->
+            <TextBlock
+                Margin="12,0"
+                VerticalAlignment="Center"
+                Foreground="{DynamicResource DarkDisabledText}"
+                IsHitTestVisible="False"
+                Text="{Binding Placeholder, ElementName=Root}"
+                TextTrimming="CharacterEllipsis">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Value, ElementName=Root}" Value="">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Value, ElementName=Root}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasError, ElementName=Root}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource DarkAlarmStatus}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Button
+                Grid.Column="1"
+                Width="{Binding ActualHeight, RelativeSource={RelativeSource Self}}"
+                Click="OnPickClick"
+                Style="{DynamicResource PickerBoxButtonStyle}"
+                ToolTip="{DynamicResource picker.select}">
+                <materialDesign:PackIcon
+                    Width="18"
+                    Height="18"
+                    Kind="DotsHorizontal" />
+            </Button>
+        </Grid>
+    </Border>
+</UserControl>

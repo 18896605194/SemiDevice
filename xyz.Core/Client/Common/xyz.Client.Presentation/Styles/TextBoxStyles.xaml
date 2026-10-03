@@ -1,6 +1,7 @@
 ﻿<ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls">
 
     <Style
         x:Key="DefaultTextBoxStyle"
@@ -46,6 +47,28 @@
         <Setter Property="Height" Value="28" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
+
+    <!--  公共选择框（PickerBox）的三档高，跟输入框一样：默认 40、工具栏 34、紧凑 28（字小一号）；宽度在用的地方设  -->
+    <Style x:Key="DefaultPickerBoxStyle" TargetType="controls:PickerBox">
+        <Setter Property="Height" Value="40" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+    </Style>
+
+    <Style
+        x:Key="ToolbarPickerBoxStyle"
+        BasedOn="{StaticResource DefaultPickerBoxStyle}"
+        TargetType="controls:PickerBox">
+        <Setter Property="Height" Value="34" />
+    </Style>
+
+    <Style
+        x:Key="CompactPickerBoxStyle"
+        BasedOn="{StaticResource DefaultPickerBoxStyle}"
+        TargetType="controls:PickerBox">
+        <Setter Property="Height" Value="28" />
         <Setter Property="FontSize" Value="{StaticResource Size13}" />
     </Style>
 

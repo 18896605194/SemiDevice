@@ -6,6 +6,7 @@ using xyz.Client.Io;
 using xyz.Client.Manual;
 using xyz.Client.Menus;
 using xyz.Client.Modules;
+using xyz.Client.Recipe;
 using xyz.Client.Setting;
 using xyz.Client.ViewModels;
 using xyz.Client.Views;
@@ -16,7 +17,7 @@ namespace xyz.Client;
 /// <summary>
 /// 客户端服务注册扩展。
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class ServiceExtensions
 {
     /// <summary>
     /// 注册客户端服务。settings 里是后端 sc.xml 里装了的模块名（及其中的腔体），按模块分的页面与菜单（IO、腔体手动）照它生成——
@@ -35,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IClientMenuProvider>(new PlatformMenuProvider(settings.Modules, settings.Chambers));
 
         services.AddXyzSettingServices();
+        services.AddXyzRecipeServices();
 
         // IO 页面一个模块一页，跟上面的二级菜单一一对应。
         foreach (var module in settings.Modules)

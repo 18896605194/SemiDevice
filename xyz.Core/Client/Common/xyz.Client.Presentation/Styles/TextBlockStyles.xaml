@@ -231,4 +231,118 @@
         </Style.Triggers>
     </Style>
 
+
+    <!--  块标题条里的标题（如流程配方页"流程配方""基本信息""流程步骤""路线预览"）  -->
+    <Style x:Key="ZoneTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size15}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+    <!--  块标题条里的红字（如流程步骤检查没过的地方）：一行放不下就省略，悬停看全文；没有字时什么都不显示  -->
+    <Style x:Key="ZoneErrorTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="16,0,12,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+        <Style.Triggers>
+            <Trigger Property="Text" Value="">
+                <Setter Property="ToolTip" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  一组只读字段的小标题（如基本信息里的"创建人""修改时间"）：小字、灰  -->
+    <Style x:Key="MetaLabelTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+    </Style>
+
+    <!--  只读字段的值：正文大小，数字等宽，放不下省略  -->
+    <Style x:Key="MetaValueTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,3,8,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!--  确认框里的说明：灰字、自动换行；没有字时不占地方（如流程配方页新建框没有说明）  -->
+    <Style x:Key="DialogMessageTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,14,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Style.Triggers>
+            <Trigger Property="Text" Value="">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  确认框里后端拒了的原因：红字、自动换行；没有时不占地方  -->
+    <Style
+        x:Key="DialogErrorTextStyle"
+        BasedOn="{StaticResource DialogMessageTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,10,0,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+    </Style>
+
+    <!--  行里的红字提示（如流程步骤"至少勾一个 Chamber"）  -->
+    <Style x:Key="RowErrorTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="4,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+    </Style>
+
+    <!--  路线预览一列上面的步号：小字、灰  -->
+    <Style x:Key="RouteNumberTextStyle" TargetType="TextBlock">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+    </Style>
+
+    <!--  路线预览一列下面的工艺配方名：强调色小字；Tag=True（没选）时红字  -->
+    <Style x:Key="RouteRecipeTextStyle" TargetType="TextBlock">
+        <Setter Property="Height" Value="18" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  正中的一句提示，Tag=True 才显示（如流程配方页没连上后端、没装流程配方库时）  -->
+    <Style
+        x:Key="CenterTagHintTextStyle"
+        BasedOn="{StaticResource CenterHintTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  正中的一句提示，Tag 为 null 才显示（如流程配方页选中空编号时步骤区的"新建以后在这里编辑步骤"）  -->
+    <Style
+        x:Key="CenterNullHintTextStyle"
+        BasedOn="{StaticResource CenterHintTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="{x:Null}">
+                <Setter Property="Visibility" Value="Visible" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>
