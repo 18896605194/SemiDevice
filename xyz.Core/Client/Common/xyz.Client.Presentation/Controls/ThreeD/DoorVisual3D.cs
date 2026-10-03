@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -13,6 +13,9 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// </summary>
 public sealed class DoorVisual3D : HardwareVisual3D
 {
+    /// <summary>全行程开关门过渡时间（示意，不代表实际气缸速度；三维里的动画一律 0.2 s）。</summary>
+    private const double TransitionMilliseconds = 200;
+
     private readonly TranslateTransform3D _panelTranslation = new();
     private int _transitionVersion;
 
@@ -98,7 +101,7 @@ public sealed class DoorVisual3D : HardwareVisual3D
             return;
         }
         int version = ++_transitionVersion;
-        var animation = new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(450 * Math.Abs(target - current)));
+        var animation = new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(TransitionMilliseconds * Math.Abs(target - current)));
         animation.Completed += (_, _) =>
         {
             if (version == _transitionVersion)

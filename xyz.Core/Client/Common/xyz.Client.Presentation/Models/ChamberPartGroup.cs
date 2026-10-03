@@ -1,4 +1,4 @@
-namespace xyz.Client.Presentation.Models;
+﻿namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 腔体手动页部件操作区的一组按钮：组名是部件在 sc.xml 里的路径（去掉腔体名，如 "Arm1.Lift"），按钮按部件种类给。

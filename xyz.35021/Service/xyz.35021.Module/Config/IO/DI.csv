@@ -34,8 +34,12 @@
 68,Robot1,Robot,Controller_Power_OK,PowerOk,机械手控制器电源正常
 100,Chamber1,Door,CH1_Door_Opened,Opened,Chamber1 腔门 开到位
 101,Chamber1,Door,CH1_Door_Closed,Closed,Chamber1 腔门 关到位
-102,Chamber1,Bowl,CH1_Bowl_Up,Opened,Chamber1 Bowl 升到位
-103,Chamber1,Bowl,CH1_Bowl_Down,Closed,Chamber1 Bowl 降到位
+102,Chamber1,Bowl1,CH1_Bowl1_Up,Opened,Chamber1 Bowl1 升到位
+103,Chamber1,Bowl1,CH1_Bowl1_Down,Closed,Chamber1 Bowl1 降到位
+104,Chamber1,Bowl2,CH1_Bowl2_Up,Opened,Chamber1 Bowl2 升到位
+105,Chamber1,Bowl2,CH1_Bowl2_Down,Closed,Chamber1 Bowl2 降到位
+106,Chamber1,Bowl3,CH1_Bowl3_Up,Opened,Chamber1 Bowl3 升到位
+107,Chamber1,Bowl3,CH1_Bowl3_Down,Closed,Chamber1 Bowl3 降到位
 108,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Up,Opened,Chamber1 摆臂升降气缸 升到位
 109,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Down,Closed,Chamber1 摆臂升降气缸 降到位
 110,Chamber1,Arm1.Nozzle_DIW,CH1_Arm1_DIW_Flow,FlowSwitch,Chamber1 摆臂 DIW 喷嘴流量开关
@@ -47,8 +51,12 @@
 119,Chamber1,SpinMotor,CH1_Spin_Home,Home,Chamber1 旋转电机原点
 140,Chamber2,Door,CH2_Door_Opened,Opened,Chamber2 腔门 开到位
 141,Chamber2,Door,CH2_Door_Closed,Closed,Chamber2 腔门 关到位
-142,Chamber2,Bowl,CH2_Bowl_Up,Opened,Chamber2 Bowl 升到位
-143,Chamber2,Bowl,CH2_Bowl_Down,Closed,Chamber2 Bowl 降到位
+142,Chamber2,Bowl1,CH2_Bowl1_Up,Opened,Chamber2 Bowl1 升到位
+143,Chamber2,Bowl1,CH2_Bowl1_Down,Closed,Chamber2 Bowl1 降到位
+144,Chamber2,Bowl2,CH2_Bowl2_Up,Opened,Chamber2 Bowl2 升到位
+145,Chamber2,Bowl2,CH2_Bowl2_Down,Closed,Chamber2 Bowl2 降到位
+146,Chamber2,Bowl3,CH2_Bowl3_Up,Opened,Chamber2 Bowl3 升到位
+147,Chamber2,Bowl3,CH2_Bowl3_Down,Closed,Chamber2 Bowl3 降到位
 148,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Up,Opened,Chamber2 摆臂升降气缸 升到位
 149,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Down,Closed,Chamber2 摆臂升降气缸 降到位
 150,Chamber2,Arm1.Nozzle_DIW,CH2_Arm1_DIW_Flow,FlowSwitch,Chamber2 摆臂 DIW 喷嘴流量开关
@@ -60,8 +68,12 @@
 159,Chamber2,SpinMotor,CH2_Spin_Home,Home,Chamber2 旋转电机原点
 180,Chamber3,Door,CH3_Door_Opened,Opened,Chamber3 腔门 开到位
 181,Chamber3,Door,CH3_Door_Closed,Closed,Chamber3 腔门 关到位
-182,Chamber3,Bowl,CH3_Bowl_Up,Opened,Chamber3 Bowl 升到位
-183,Chamber3,Bowl,CH3_Bowl_Down,Closed,Chamber3 Bowl 降到位
+182,Chamber3,Bowl1,CH3_Bowl1_Up,Opened,Chamber3 Bowl1 升到位
+183,Chamber3,Bowl1,CH3_Bowl1_Down,Closed,Chamber3 Bowl1 降到位
+184,Chamber3,Bowl2,CH3_Bowl2_Up,Opened,Chamber3 Bowl2 升到位
+185,Chamber3,Bowl2,CH3_Bowl2_Down,Closed,Chamber3 Bowl2 降到位
+186,Chamber3,Bowl3,CH3_Bowl3_Up,Opened,Chamber3 Bowl3 升到位
+187,Chamber3,Bowl3,CH3_Bowl3_Down,Closed,Chamber3 Bowl3 降到位
 188,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Up,Opened,Chamber3 摆臂升降气缸 升到位
 189,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Down,Closed,Chamber3 摆臂升降气缸 降到位
 190,Chamber3,Arm1.Nozzle_DIW,CH3_Arm1_DIW_Flow,FlowSwitch,Chamber3 摆臂 DIW 喷嘴流量开关
@@ -73,8 +85,12 @@
 199,Chamber3,SpinMotor,CH3_Spin_Home,Home,Chamber3 旋转电机原点
 220,Chamber4,Door,CH4_Door_Opened,Opened,Chamber4 腔门 开到位
 221,Chamber4,Door,CH4_Door_Closed,Closed,Chamber4 腔门 关到位
-222,Chamber4,Bowl,CH4_Bowl_Up,Opened,Chamber4 Bowl 升到位
-223,Chamber4,Bowl,CH4_Bowl_Down,Closed,Chamber4 Bowl 降到位
+222,Chamber4,Bowl1,CH4_Bowl1_Up,Opened,Chamber4 Bowl1 升到位
+223,Chamber4,Bowl1,CH4_Bowl1_Down,Closed,Chamber4 Bowl1 降到位
+224,Chamber4,Bowl2,CH4_Bowl2_Up,Opened,Chamber4 Bowl2 升到位
+225,Chamber4,Bowl2,CH4_Bowl2_Down,Closed,Chamber4 Bowl2 降到位
+226,Chamber4,Bowl3,CH4_Bowl3_Up,Opened,Chamber4 Bowl3 升到位
+227,Chamber4,Bowl3,CH4_Bowl3_Down,Closed,Chamber4 Bowl3 降到位
 228,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Up,Opened,Chamber4 摆臂升降气缸 升到位
 229,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Down,Closed,Chamber4 摆臂升降气缸 降到位
 230,Chamber4,Arm1.Nozzle_DIW,CH4_Arm1_DIW_Flow,FlowSwitch,Chamber4 摆臂 DIW 喷嘴流量开关

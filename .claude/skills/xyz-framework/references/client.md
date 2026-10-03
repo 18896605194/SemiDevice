@@ -170,6 +170,10 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **公共选择弹窗** `DialogService.ShowPicker(标题, 列, 数据, 当前值, 值属性)`：一个普通模态窗口（不是 DialogHost，不动主窗口），
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - LogBar / AlarmBar 只在主窗口顶栏用。
+- **三维硬件**（`Controls\ThreeD`，说明见那儿的 README）：Arm / Lift / FluidPipe / Bowl / HomeCup / Door / Disk / ChamberBase 组件，
+  `ChamberScene` 把它们装成腔体手动页左边的三维图（`Parts` 绑 `ChamberPartsModel`、`Wafer` 绑晶圆账的片）。腔体手动页只有三维，
+  不再有二维俯视图；部件按钮按 `ChamberPartsModel.Groups` 生成（组名照 sc 路径），都走 VM 的 `PartActionCommand`。
+  三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
 
 ## 8. 语言包（`Common\xyz.Client.Presentation\Localization`）
 
@@ -190,8 +194,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 
 ## 10. 旧代码里和规则不一致的地方（截至 2026-10-03；改到时顺手改，新代码别学）
 
-- 裸 TextBox：报警历史、日志历史/实时的关键字框，IoView 搜索框，腔体手动配方框，两个对话框。
-- 写死颜色 / 字号：Manual 控件里的 `#555`、LoadingWindow 的 `#333333`、Dialogs 的 `FontSize="14"`。
+- 裸 TextBox：报警历史、日志历史/实时的关键字框，IoView 搜索框，两个对话框。
+- 写死颜色 / 字号：LoadPort、Robot 手动控件里的 `#555`（腔体页已换成 `DarkInactiveStatus`）、LoadingWindow 的 `#333333`、Dialogs 的 `FontSize="14"`。
 - `MainWindow` 有 `Window.Resources`（BooleanToVisibilityConverter）。
 - Manual、User、Role 的 VM 在 Init 里同步等 RPC；User/Role 用了 MessageBox。
 - User/Role 选中项变了没刷新删除按钮的 CanExecute（删除按钮可能一直灰）。

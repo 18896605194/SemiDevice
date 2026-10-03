@@ -40,7 +40,9 @@
 | HsmsSmoke / SecsSmoke | HSMS 组件对假 EAP；SECS-II 编解码、HSMS 握手和计时器 |
 | RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
+| ChamberSmoke | 腔体部件：按 sc 认部件、部件状态推送（指令侧 / 在走 / 出液 / 转动 / 摆臂 Reach 和到位容差）、部件手动动作（找不到、不支持、指令没发出去、Manual 状态、在途拒绝、Abort 顶替、失败落 Error、停用），假 PLC 模拟气缸和轴 |
 | IoIndexSmoke（不在 sln） | IO 点表下标和换算、PLC 门控、单点写、轴和执行器命令 |
+| `*Visual3DSmoke`、ChamberSceneSmoke（不在 sln，WPF） | 三维硬件组件和腔体三维图（ChamberScene：搭建、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、重搭）；`-- 路径.png` 出图 |
 | EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
 
 - 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -59,7 +59,7 @@ try
 
     var chamber = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber9", enabled: true)]).Single();
     var door = Find<CylinderComponent>(chamber, "Door");
-    var bowl = Find<CylinderComponent>(chamber, "Bowl");
+    var bowl = Find<CylinderComponent>(chamber, "Bowl1");
     var lift = Find<CylinderComponent>(chamber, "Lift");
     var spin = Find<SpinMotorComponent>(chamber, "SpinMotor");
     var arm = Find<ArmAxisComponent>(chamber, "Arm1");
@@ -146,6 +146,16 @@ try
         return chamber.CreatePartsDto().Arms[0].Reach;
     }
 
+    double EdgeReach()
+    {
+        return chamber.CreatePartsDto().Arms[0].EdgeReach;
+    }
+
+    bool Near(double a, double b)
+    {
+        return Math.Abs(a - b) < 1e-9;
+    }
+
     void SetArm(double position)
     {
         var status = plc.Read<MotionPlcToCSharpData>("Arm.Status");
@@ -169,7 +179,7 @@ try
     var parts = chamber.CreatePartsDto();
     Check(parts.Name == "Chamber9", "部件快照带模块名");
     Check(parts.Door is not null && parts.Door.Name == "Door" && parts.Door.Path == "Chamber9.Door", "门按名字认出来，路径照 sc");
-    Check(parts.Bowl is not null && parts.Bowl.Path == "Chamber9.Bowl", "Bowl 按名字认出来（一个气缸）");
+    Check(parts.Bowl is not null && parts.Bowl.Path == "Chamber9.Bowl1", "Bowl 按名字开头认出来（sc 里叫 Bowl1，一个气缸）");
     Check(parts.Spin is not null && parts.Spin.Path == "Chamber9.SpinMotor", "旋转电机按类型认出来");
     Check(parts.Arms.Count == 1 && parts.Arms[0].Path == "Chamber9.Arm1" && parts.Arms[0].Name == "Arm1", "摆臂按类型认出来");
     var armDto = parts.Arms[0];
@@ -222,23 +232,39 @@ try
     Check(!SpinState().IsSpinning, "速度容差以内不算在转");
     SetSpinSpeed(0);
 
-    Check(Reach() == 0, "回零位、Center 未标定（默认 0）：Home");
-    SetArm(10);
-    Check(Reach() == 1, "未标定时离开 0 位就算工艺位（只分两档）");
-    arm.Center = 40;
-    SetArm(20);
-    Check(Math.Abs(Reach() - 0.5) < 1e-9, "标定后按轴位置线性换算：20 / 40 = 0.5");
-    SetArm(20.5);
-    Check(Math.Abs(Reach() - 0.5) < 1e-9, "位置变化在到位容差（1）以内不算动");
-    SetArm(22);
-    Check(Math.Abs(Reach() - 0.55) < 1e-9, "超出到位容差就跟着变");
+    // 摆臂：回零后 0 位 = Home；示教位默认 Edge = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）
+    Check(Near(arm.Center, 150) && Near(arm.Edge, 0), "示教位默认 Center = 150、Edge = 0（轴位置按晶圆坐标走）");
+    Check(Reach() == 0 && EdgeReach() == 0, "0 位是 Home；默认 Edge 跟 Home 重合，不分段");
+    SetArm(75);
+    Check(Near(Reach(), 0.5), "默认示教位下按 Center 线性换算：75 / 150 = 0.5");
+    // 示教后（实际轴位置）：Edge = 100、Center = 200
+    arm.Edge = 100;
+    arm.Center = 200;
+    SetArm(100);
+    Check(Near(Reach(), 0.5) && Near(EdgeReach(), 0.5), "示教后轴在 Edge：Reach = 100 / 200，边缘在 Reach 上的位置 = Edge / Center");
+    SetArm(150);
+    Check(Near(Reach(), 0.75), "边缘到中心之间按轴位置线性：150 / 200");
+    SetArm(150.5);
+    Check(Near(Reach(), 0.75), "位置变化在到位容差（1）以内不算动");
+    SetArm(152);
+    Check(Near(Reach(), 0.76), "超出到位容差就跟着变");
     plc.IsConnected = false;
     Tick();
-    Check(!arm.HasPlcData && Math.Abs(Reach() - 0.55) < 1e-9, "PLC 断了保持上次推的值");
+    Check(!arm.HasPlcData && Near(Reach(), 0.76), "PLC 断了保持上次推的值");
     plc.IsConnected = true;
     Tick(2);
+    arm.Edge = 250;
+    Tick();
+    Check(EdgeReach() == 0, "Edge 不在 Home 和 Center 之间（示教错了）不分段");
+    arm.Edge = 100;
+    arm.Center = 0;
     SetArm(0);
-    Check(Reach() == 0, "回到 0 位");
+    Check(Reach() == 0 && EdgeReach() == 0, "Center 被改到跟 0 位分不开：0 位算 Home，不分段");
+    SetArm(10);
+    Check(Reach() == 1, "Center 跟 0 位分不开时离开 0 位就算工艺位（只分两档）");
+    arm.Center = 200;
+    SetArm(0);
+    Check(Reach() == 0 && Near(EdgeReach(), 0.5), "回到 0 位，示教位恢复");
 
     // 4. 推送：有变化才推；跟 ChamberDto 同 token、类型不同，各自留存互不覆盖
     int pushes = 0;
@@ -287,7 +313,7 @@ try
     }));
     Tick(3);
     Check(!opening.IsCompleted && chamber.State == ChamberState.Manual, "门在走：模块落 Manual（120），RPC 还在等");
-    response = Act("Chamber9.Bowl", ChamberPartAction.Open);
+    response = Act("Chamber9.Bowl1", ChamberPartAction.Open);
     Check(!response.Success && response.Code == ErrorCodes.ActionRejected
         && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]), "一个部件动作在途时别的动作被拒");
     Check(!plc.ReadDo(2), "被拒的动作没发指令（Bowl 线圈没通）");
@@ -329,7 +355,7 @@ try
     response = Act("Chamber9.Arm1", ChamberPartAction.Home);
     Check(response.Success && arm.IsHomed && chamber.State == ModuleState.Idle, "摆臂回零");
     response = Act("Chamber9.Arm1", ChamberPartAction.Center);
-    Check(response.Success && Math.Abs(arm.CurrentPosition - 40) < 1e-9 && Reach() == 1, "摆臂去工艺位：走到 EC Center，Reach = 1");
+    Check(response.Success && Math.Abs(arm.CurrentPosition - 200) < 1e-9 && Reach() == 1, "摆臂去工艺位：走到 EC Center（示教的 200），Reach = 1");
     response = Act("Chamber9.Arm1", ChamberPartAction.Home);
     Check(response.Success && Reach() == 0, "摆臂回 Home");
     response = Act("Chamber9.SpinMotor", ChamberPartAction.Start);
@@ -344,7 +370,7 @@ try
     Check(response.Success && Cylinder(dto => dto.Arms[0].Lift).IsOpen, "Lift 升");
     response = Act("Chamber9.Arm1.Lift", ChamberPartAction.Close);
     Check(response.Success && !Cylinder(dto => dto.Arms[0].Lift).IsOpen, "Lift 降");
-    response = Act("Chamber9.Bowl", ChamberPartAction.Open);
+    response = Act("Chamber9.Bowl1", ChamberPartAction.Open);
     Check(response.Success && Cylinder(dto => dto.Bowl).IsOpen && chamber.State == ModuleState.Idle, "Bowl 升，做完回空闲");
 
     // 11. 停用的腔体不发部件动作
@@ -407,7 +433,7 @@ static ModuleConfig ChamberConfig(string name, bool enabled)
     [
         Node("Door", typeof(CylinderComponent), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1"),
             Value("DiOpenedIndex", "0"), Value("DiClosedIndex", "1")),
-        Node("Bowl", typeof(CylinderComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3"),
+        Node("Bowl1", typeof(CylinderComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3"),
             Value("DiOpenedIndex", "2"), Value("DiClosedIndex", "3")),
         Node("SpinMotor", typeof(SpinMotorComponent), Value("SendPlcDataPath", "Spin.Command"), Value("ReceivePlcDataPath", "Spin.Status")),
         arm,

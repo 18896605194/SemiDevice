@@ -80,7 +80,8 @@ static class AxisCommands
             axis.Tick();
             Check(!axis.HasPlcData && axis.ActionState == ActionState.Failed && !axis.MoveTo(60),
                 "disconnect fails the movement and blocks new ones");
-            plc.Put("Axis.Command", new MotionCSharpToPlcCommand { Axis_Servo = 1, Command_Sync_No = 100 });
+            // 重连后命令块的使能字节是 0（像刚启动的 PLC / 仿真器），驱动器却报使能：后面的命令不能顺手把伺服关掉。
+            plc.Put("Axis.Command", new MotionCSharpToPlcCommand { Axis_Servo = 0, Command_Sync_No = 100 });
             plc.Connect();
             axis.Tick();
             Check(!axis.HasPlcData, "reconnect must not serve frames cached before the disconnect");
@@ -90,6 +91,7 @@ static class AxisCommands
             Check(axis.CurrentPosition == 12, "status after reconnect");
             Check(axis.Home() && plc.Writes.Last().Axis_Command == (byte)MotionCommandId.Home
                 && plc.Writes.Last().Command_Sync_No == 101, "sync must follow the new PLC baseline");
+            Check(plc.Writes.Last().Axis_Servo == 1, "servo level follows the drive feedback, not a zeroed command block");
             status.Is_Busy = 1; status.Is_Stopped = 0; status.Is_Homed = 0;
             Tick(plc, axis, status);
             Check(axis.ActionState == ActionState.Running, "homing in progress");

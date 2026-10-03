@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Shared.Dtos;
 
@@ -40,6 +40,15 @@ public class ChamberArmModel : ObservableObject
         private set => SetProperty(ref _reach, value);
     }
 
+    private double _edgeReach;
+
+    /// <summary>第一个边缘在 Reach 上的位置（Edge / Center）；0 表示还没示教，三维图按 Home → 中心一段画。</summary>
+    public double EdgeReach
+    {
+        get => _edgeReach;
+        private set => SetProperty(ref _edgeReach, value);
+    }
+
     private bool _isMoving;
 
     /// <summary>轴在动，三维图据此高亮。</summary>
@@ -56,6 +65,7 @@ public class ChamberArmModel : ObservableObject
     public void Update(ChamberArmDto dto)
     {
         Reach = dto.Reach;
+        EdgeReach = dto.EdgeReach;
         IsMoving = dto.IsMoving;
         Lift.Update(dto.Lift);
         for (int i = 0; i < Nozzles.Count; i++)

@@ -338,6 +338,9 @@ public partial class AxisComponent
                 return false;
             }
 
+            // 使能电平以驱动器实际状态为准：刚启动的 PLC / 仿真器命令块全是 0，照抄的话
+            // 第一条运动命令会顺手把正在使能的伺服关掉，轴就一直不动、等到超时。
+            baseline.Axis_Servo = status.Is_Servo_On;
             _command = baseline;
             _baselined = true;
         }

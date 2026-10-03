@@ -38,7 +38,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
   `xyz._35021.Module.Loadport.LoadPortModule`）——所以组件挪目录不能改命名空间。需要 public 无参构造。
 - 扫运行目录 `*.dll` + `Modules\**\*.dll`；找不到 Type 直接抛异常（宿主托盘变红）。
-- 没写 Type 的节点：父组件已有同名子组件就灌值给它，否则是纯分组（LoadPort、Database、Bowl），名字不进 FullPath。
+- 没写 Type 的节点：父组件已有同名子组件就灌值给它，否则是纯分组（LoadPort、Database、Chamber），名字不进 FullPath。
 - 灌值：先把所有可写 [SCEditor] 属性设成默认值，再按 `<Value Name>`（不分大小写）覆盖；支持 int / double / bool / string / enum（InvariantCulture），转不了抛异常带节点名和值。
 
 ### 参数：SC 和 EC（代码里不留魔法数）
@@ -80,7 +80,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - `BaseModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`Open()`、
   `Online()/Offline()`、动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
 - 状态码（`public const int`，有继承）：`ModuleState` NotInit 10 / Initing 20 / Idle 30 / Aborting 35 / Error 40；
-  `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110；`RobotState` 200/210/220。
+  `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110 / Manual 120（部件手动动作中）；`RobotState` 200/210/220。
   同一个码在不同模块意思不同，客户端按模块种类翻（`ModuleStates`）。
 - **动作 = ModuleOperation**：
   ```csharp
@@ -108,6 +108,14 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；Open 里先开 RFID、E84，再登记晶圆账槽位、开驱动）、
   `BaseRobotModule`（sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
   `BaseChamberModule`（Open 只登记晶圆账）。
+- 腔体部件（`BaseChamberModule`）：按 sc 结构认——名叫 `Door` 的气缸、腔体下名字以 `Bowl` 开头的第一个气缸（sc 里叫 Bowl1）、
+  第一个 `SpinMotor`、每个 `ArmAxis`（它下面第一个气缸是 Lift，喷嘴按 sc 先后）。`ChamberPartsDto` 跟 `ChamberDto` 同 token（模块名）、
+  类型不同，各推各的；气缸给指令侧（看线圈，`TwoStateComponent.IsOpenCommanded`）和在走（`IsTraveling`），
+  摆臂给 `Reach`（0 = 回零的 0 位，1 = EC Center）和 `EdgeReach`（Edge / Center，示教过才有，界面分两段画），轴位置变化在到位容差内不推。
+  `ArmAxisComponent` 示教位：`Edge` = 配方 0（第一个边缘）、`Center` = 配方 150（晶圆中心）的实际轴位置，默认 0 / 150。部件手动动作 `TryPartAction(路径, ChamberPartAction)` → `ChamberService.PartActionAsync`：
+  迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态）；指令在发起线程锁内发，
+  发不出去回 `chamber.part_command_rejected` 不改状态、不报警；`ChamberPartOperation` 只看部件自己的 ActionState，EC `PartActionTimeout` 兜底。
+  旋转电机"转"用 EC `ManualSpeed`。联锁还没做。
 - 状态推送：`PublishState()` 里 `EventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
   能放片的模块在推送里带上晶圆账（`LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name)`，腔体是 `Slots`），并在 HasStateChanged 里比较——
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
@@ -154,7 +162,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
   - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Log"、"RealChart"、"Sequence"、"WaferLedger"）；
-  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；
+  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的 `ChamberPartsDto`）也用模块名，类型不同互不覆盖；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManager.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。

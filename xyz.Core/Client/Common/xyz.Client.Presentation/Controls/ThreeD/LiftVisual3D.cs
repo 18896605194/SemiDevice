@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
@@ -17,7 +17,7 @@ public sealed class LiftVisual3D : HardwareVisual3D
     private const double Stroke = 0.55;
     private const double BaseHeight = BodyRadius * 0.4;
     private const double MountThickness = BodyRadius * 0.18;
-    private const double TransitionMilliseconds = 450;
+    private const double TransitionMilliseconds = 200;
 
     private readonly ScaleTransform3D _rodScale = new();
     private readonly TranslateTransform3D _mountTranslation = new();

@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 腔体部件的手动动作。按部件种类给：气缸开 / 关（门开关、Bowl 和 Lift 升降，开侧 = 门开 / 升），

@@ -1,4 +1,4 @@
-# 三维硬件组件
+﻿# 三维硬件组件
 
 `ArmVisual3D`、`LiftVisual3D`、`FluidPipeVisual3D`、`BowlVisual3D` 和 `HomeCupVisual3D` 是平台的摆臂、升降气缸、管子、Bowl 和 Home 排液杯组件，共用页面的 `Viewport3D`。
 多个硬件共用相机、灯光和三维空间；`ChamberScene` 把它们连同底座、旋转盘、腔门装成腔体手动页的三维图（见下文）。
@@ -104,7 +104,7 @@ Attachments 是底座的子 Visual3D 集合；每个硬件使用自己的 Transf
 ```
 
 `LiftIsRaised` 由调用方提供；不要把设备 Open/Close、上下位反馈的业务映射放进外观组件。
-组件在场景内收到状态切换后，用约 450 ms 完成全行程视觉过渡；中途反向会从当前显示位置继续。
+组件在场景内收到状态切换后，用 0.2 s 完成全行程视觉过渡（三维里的动画一律 0.2 s，写死）；中途反向会从当前显示位置继续。
 动画期间自动高亮，无需另外设置 `IsMoving`；到位后取消动画高亮。
 这段动画是状态变化的视觉提示，不代表气缸的实际运动时间或连续位置测量。
 装入场景前赋值时直接显示对应初始状态。动画完成后清除时钟，不保留逐帧事件或后台计时器。
@@ -172,7 +172,7 @@ HeightLevel 是外观规格，不是升降挡位。IsRaised 变化时底边一�
 不会改变二维控件。业务状态色完整沿用 IdleNojob、IdleHasjob、Process、Completed、Error、
 RcmCompleted、Soaking、Transfer、Crossed、Double 十种状态。
 
-额外的 `Radius`（默认 1.32）和 `Thickness`（默认 0.045）控制三维外观，必须为有限正数。
+额外的 `Radius`（默认 1.32）和 `Thickness`（默认 0.045）控制三维外观，必须为有限正数；`SpindleHeight`（默认 0 不画）是盘下面主轴露出的长度，盘架高时撑到安装面。
 原点为盘底中心，Y 向上；用 Transform 把盘放进 Bowl。停止、换速和换向保留当前角度。
 页面隐藏、无盘显示或移除所属底座后停止动画，重新显示时按输入状态继续。
 IsMoving / IsSelected 保留公共硬件高亮约定，不向设备发指令。
@@ -207,7 +207,7 @@ IsMoving / IsSelected 保留公共硬件高亮约定，不向设备发指令。
 外部操作状态只绑定 `IsOpen`：true 打开，false 关闭。
 门板上升打开、下降关闭。打开后门板底边高于门框最高点，整个门洞完全空出；尺寸和安装位置仍为示意。
 Width 默认 `2.2`、Height 默认 `0.58`，控制门板外观尺寸，均为有限正数。
-行程和连续位置不向外开放。状态变化时自动播放约 450 ms 的全行程过渡并高亮，反向从当前位置继续。
+行程和连续位置不向外开放。状态变化时自动播放 0.2 s 的全行程过渡并高亮，反向从当前位置继续。
 
 ```xml
 <!-- 放在 ChamberBaseVisual3D.Attachments 内，底座直接挂在 Viewport3D 中。 -->
@@ -320,13 +320,14 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 <threeD:ChamberScene Parts="{Binding Parts}" Wafer="{Binding Model.Wafer}" />
 ```
 
-- 装哪些部件看 sc.xml：名叫 Door、Bowl 的气缸配了才装，旋转盘一直在；摆臂按 sc 先后放在 Bowl 右、左两个安装位，
+- 装哪些部件看 sc.xml：名叫 Door 的气缸、名字以 Bowl 开头的气缸（Bowl1）配了才装，旋转盘一直在（架在主轴上，比 Bowl 降下时的上沿高、比升起时低：降下露出盘面好取放片，升起围住盘面挡液）；摆臂按 sc 先后放在 Bowl 右、左两个安装位，
   最多两条（多配的在日志里提示）。`Revision` 变了（部件组成变了）才整套重搭，平时只改绑定的状态。
 - 状态都是绑定：门 `IsOpen`、Bowl / Lift `IsRaised` 跟气缸的指令侧（指令一发出去就开始动），没到位时 `IsMoving` 高亮；
   喷嘴出液跟 `IsOn`；旋转盘在转就按固定的显示转速转（不跟实际转速，几百转画出来只会频闪），转向跟实际转速正负。
-- 摆角：后端推 `Reach`（0 = Home，1 = 工艺位，按轴位置和 EC Center 换算），这里换成摆角，
-  收到新位置 0.3 s 过渡过去（写死）；页面没显示时直接落位。工艺位的臂长、角度按安装位算好，几路喷嘴左右对称排开，
-  中点正对盘心；Home 时臂尖朝前，接液杯就放在臂尖下面。
+- 摆角：后端推 `Reach`（0 = Home 即回零的 0 位，1 = EC Center 晶圆中心）和 `EdgeReach`（EC Edge 第一个边缘在 Reach 上的位置），
+  这里分两段换成摆角：Home 角 → 边缘角（臂尖离盘心正好一个盘半径）→ 工艺位角，轴在 Edge 时喷嘴画在盘边、在 Center 时正对盘心；
+  没示教（默认 Edge = 0 跟 Home 重合，EdgeReach = 0）就 Home → 工艺位一段。收到新位置 0.2 s 过渡过去（写死）；页面没显示时直接落位。
+  工艺位的臂长、角度按安装位算好，几路喷嘴左右对称排开，中点正对盘心；Home 时臂尖朝前，接液杯就放在臂尖下面。
 - 液柱：在 Home 落进接液杯（杯亮），喷口在盘面上方落到盘面，其他位置落到底座面上（开着阀摆过去就是这样）。
   **不注册逐帧事件**：摆角、Lift 高度、出液经绑定接到每条摆臂自己的依赖属性上，变了才重算液柱；
   只有动画进行中才会逐帧变，停下来不算。
@@ -398,7 +399,7 @@ Disk 二维/三维功能对照、十种状态色、菜单命令、旋转及生�
 dotnet run --project tools/DiskVisual3DSmoke -- D:\Code\artifacts\disk-wpf-parity.png
 ```
 
-ChamberScene 按部件组成搭建、摆臂对盘心和接液杯、液柱落点、0.3 s 过渡、隐藏时直接落位、门 / Bowl / Lift / 旋转跟状态、
+ChamberScene 按部件组成搭建、摆臂对盘心和接液杯、液柱落点、0.2 s 过渡、隐藏时直接落位、门 / Bowl / Lift / 旋转跟状态、
 组成变化重搭检查，附带工艺位总装图：
 
 ```powershell

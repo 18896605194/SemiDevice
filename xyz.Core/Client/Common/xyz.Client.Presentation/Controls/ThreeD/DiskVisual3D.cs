@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -99,6 +99,17 @@ public sealed class DiskVisual3D : HardwareVisual3D
     public static readonly DependencyProperty ThicknessProperty = DependencyProperty.Register(
         nameof(Thickness), typeof(double), typeof(DiskVisual3D), new PropertyMetadata(0.045d, OnGeometryChanged), IsPositiveFinite);
 
+    /// <summary>
+    /// 盘下面主轴（旋转电机）露出来的长度：盘架高了就用一根轴撑到安装面上，免得悬空；0 = 不画主轴（默认）。
+    /// </summary>
+    public double SpindleHeight { get => (double)GetValue(SpindleHeightProperty); set => SetValue(SpindleHeightProperty, value); }
+    public static readonly DependencyProperty SpindleHeightProperty = DependencyProperty.Register(
+        nameof(SpindleHeight), typeof(double), typeof(DiskVisual3D), new PropertyMetadata(0d, OnGeometryChanged),
+        value => value is double height && double.IsFinite(height) && height >= 0);
+
+    /// <summary>主轴半径占盘半径的比例。</summary>
+    private const double SpindleRadiusRatio = 0.12;
+
     private static readonly DependencyProperty AngleProperty = DependencyProperty.Register(
         "Angle", typeof(double), typeof(DiskVisual3D), new PropertyMetadata(0d, OnAngleChanged));
     private static readonly DependencyProperty IsHostVisibleProperty = DependencyProperty.Register(
@@ -180,6 +191,11 @@ public sealed class DiskVisual3D : HardwareVisual3D
     {
         ClearParts();
         AddPart(HardwareMesh3D.Cylinder(Radius, Thickness, 0), 0.8);
+        if (SpindleHeight > 0)
+        {
+            AddPart(HardwareMesh3D.Cylinder(Radius * SpindleRadiusRatio, SpindleHeight, -SpindleHeight), 0.7);
+        }
+
         AddPart(HardwareMesh3D.Annulus(Radius * 1.005, Radius * 1.025), 1.3)
             .Transform = new TranslateTransform3D(0, Thickness, 0);
         // 边缘方向标记让没有文字的盘面也能看出旋转。

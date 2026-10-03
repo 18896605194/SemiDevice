@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -16,6 +16,9 @@ public sealed class BowlVisual3D : HardwareVisual3D
 {
     private const double LevelOneHeight = 0.275;
     private const double Stroke = 0.55;
+
+    /// <summary>全行程升降过渡时间（示意，不代表实际气缸速度；三维里的动画一律 0.2 s）。</summary>
+    private const double TransitionMilliseconds = 200;
     private readonly List<WallBand> _bands = [];
     private int _transitionVersion;
 
@@ -110,7 +113,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
         }
 
         int version = ++_transitionVersion;
-        var animation = new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(450 * Math.Abs(target - current)));
+        var animation = new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(TransitionMilliseconds * Math.Abs(target - current)));
         animation.Completed += (_, _) =>
         {
             if (version == _transitionVersion)

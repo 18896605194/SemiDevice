@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Shared.Dtos;
 
 namespace xyz.Client.Presentation.Models;

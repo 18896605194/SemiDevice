@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 腔体部件状态（腔体手动页的三维图和部件按钮用）：门、Bowl、旋转电机、各条摆臂（带 Lift 和喷嘴）。
@@ -13,7 +13,7 @@ public class ChamberPartsDto
     /// <summary>腔门（sc 里名叫 Door 的气缸）；没配为 null。</summary>
     public ChamberCylinderDto? Door { get; set; }
 
-    /// <summary>Bowl（sc 里名叫 Bowl 的气缸，升 = 开侧）；没配为 null。</summary>
+    /// <summary>Bowl（腔体下名字以 Bowl 开头的第一个气缸，现在 sc 里叫 Bowl1；升 = 开侧）；没配为 null。</summary>
     public ChamberCylinderDto? Bowl { get; set; }
 
     /// <summary>旋转电机（腔体下第一个 SpinMotor）；没配为 null。</summary>
@@ -143,10 +143,16 @@ public class ChamberArmDto
     public string Path { get; set; } = string.Empty;
 
     /// <summary>
-    /// 摆到哪：0 = Home（回零后的 0 位），1 = 工艺位（EC Center，Wafer 中心），中间按轴位置线性换算，可以超出 0~1。
-    /// 后端按轴位置和标定算好，界面只管换成摆角。
+    /// 摆到哪：0 = Home（回零后的 0 位），1 = 工艺位（EC Center，晶圆中心），中间按轴位置线性换算，可以超出 0~1。
+    /// 后端按轴位置和示教位算好，界面只管换成摆角。
     /// </summary>
     public double Reach { get; set; }
+
+    /// <summary>
+    /// 第一个边缘（EC Edge）在 Reach 上的位置（= Edge / Center）：界面按 Home → 边缘 → 中心分两段画摆角，轴在 Edge 时喷嘴正好画在盘边上。
+    /// 没在 0~1 之间（还没示教，比如默认 Edge = 0 跟 Home 重合）给 0，界面就按 Home → 中心一段画。
+    /// </summary>
+    public double EdgeReach { get; set; }
 
     /// <summary>轴在动（PLC 忙）。</summary>
     public bool IsMoving { get; set; }
@@ -163,6 +169,7 @@ public class ChamberArmDto
         if (left.Name != right.Name
             || left.Path != right.Path
             || left.Reach != right.Reach
+            || left.EdgeReach != right.EdgeReach
             || left.IsMoving != right.IsMoving
             || !ChamberCylinderDto.Same(left.Lift, right.Lift)
             || left.Nozzles.Count != right.Nozzles.Count)

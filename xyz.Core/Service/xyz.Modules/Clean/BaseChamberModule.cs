@@ -275,14 +275,17 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     /// <summary>sc.xml 里腔门的节点名：门和 Bowl 都是气缸，只能按名字认。</summary>
     private const string DoorPartName = "Door";
 
-    /// <summary>sc.xml 里 Bowl 的节点名。</summary>
-    private const string BowlPartName = "Bowl";
+    /// <summary>
+    /// sc.xml 里 Bowl 节点名的开头：现在只配一层，跟点表、仿真器同名叫 Bowl1；以后加层（Bowl2……）三维图也只画第一个。
+    /// </summary>
+    private const string BowlPartPrefix = "Bowl";
 
     private volatile ChamberPartsDto? _lastPublishedParts;
 
     /// <summary>
-    /// 部件状态快照（腔体手动页的三维图、部件按钮用）：按 sc.xml 的结构找部件——名叫 Door / Bowl 的气缸、
-    /// 第一个旋转电机、每条摆臂（摆臂下面第一个气缸是它的 Lift，喷嘴按 sc 里的先后）。sc 里没配的部件不出现。
+    /// 部件状态快照（腔体手动页的三维图、部件按钮用）：按 sc.xml 的结构找部件——名叫 Door 的气缸、
+    /// 腔体下名字以 Bowl 开头的第一个气缸、第一个旋转电机、每条摆臂（摆臂下面第一个气缸是它的 Lift，喷嘴按 sc 里的先后）。
+    /// sc 里没配的部件不出现。
     /// </summary>
     public ChamberPartsDto CreatePartsDto()
     {
@@ -291,7 +294,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule
         {
             Name = Name,
             Door = CreateCylinderDto(FindChild<TwoStateComponent>(DoorPartName)),
-            Bowl = CreateCylinderDto(FindChild<TwoStateComponent>(BowlPartName)),
+            Bowl = CreateCylinderDto(FindBowl()),
             Spin = CreateSpinDto(FindChild<SpinMotorComponent>()),
         };
 
@@ -308,6 +311,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule
                 Name = arm.Name,
                 Path = arm.FullPath,
                 Reach = ReachOf(arm, published),
+                EdgeReach = EdgeReachOf(arm),
                 IsMoving = arm.IsBusy,
                 Lift = CreateCylinderDto(arm.FindChild<TwoStateComponent>()),
                 Nozzles = arm.FindChildren<NozzleComponent>()
@@ -323,6 +327,20 @@ public abstract class BaseChamberModule : BaseTransferStationModule
         }
 
         return dto;
+    }
+
+    /// <summary>腔体下（直接子节点）名字以 Bowl 开头的第一个气缸；没配返回 null。</summary>
+    private TwoStateComponent? FindBowl()
+    {
+        foreach (var child in Children)
+        {
+            if (child is TwoStateComponent cylinder && child.Name.StartsWith(BowlPartPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return cylinder;
+            }
+        }
+
+        return null;
     }
 
     private static ChamberCylinderDto? CreateCylinderDto(TwoStateComponent? cylinder)
@@ -359,8 +377,8 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     }
 
     /// <summary>
-    /// 摆臂摆到哪：0 = Home（回零后轴在 0 位），1 = 工艺位（EC Center），中间按轴位置线性换算，可以超出 0~1。
-    /// Center 还没标定（跟 0 位分不开）时只分两档：在 0 位附近算 Home，离开了算工艺位。
+    /// 摆臂摆到哪：0 = Home（回零后轴在 0 位），1 = 工艺位（EC Center，晶圆中心的示教位），中间按轴位置线性换算，可以超出 0~1。
+    /// Center 被改到跟 0 位分不开时没法换算，只分两档：在 0 位附近算 Home，离开了算工艺位。
     /// PLC 没数据时保持上次推的值；位置变化在到位容差以内不算动，免得编码器抖一下就推一次。
     /// </summary>
     private static double ReachOf(ArmAxisComponent arm, ChamberArmDto? published)
@@ -385,6 +403,24 @@ public abstract class BaseChamberModule : BaseTransferStationModule
         }
 
         return reach;
+    }
+
+    /// <summary>
+    /// 第一个边缘（EC Edge）在 Reach 上的位置 = Edge / Center：界面据此分 Home → 边缘 → 中心两段画摆角。
+    /// Edge 跟 Home 或 Center 分不开（还没示教时默认 Edge = 0，正好跟 Home 重合），或者不在两者之间，给 0——界面就不分段。
+    /// </summary>
+    private static double EdgeReachOf(ArmAxisComponent arm)
+    {
+        double center = arm.Center;
+        double edge = arm.Edge;
+        double tolerance = arm.PositionTolerance;
+        if (Math.Abs(center) <= tolerance || Math.Abs(edge) <= tolerance || Math.Abs(center - edge) <= tolerance)
+        {
+            return 0;
+        }
+
+        double reach = edge / center;
+        return reach > 0 && reach < 1 ? reach : 0;
     }
 
     /// <summary>部件状态有变化才推；token 是模块名，跟 ChamberDto 类型不同、互不覆盖。</summary>

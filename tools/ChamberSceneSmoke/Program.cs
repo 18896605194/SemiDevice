@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Interop;
@@ -11,7 +11,7 @@ using xyz.Client.Presentation.Controls.ThreeD;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
-// 腔体三维图冒烟：按部件组成搭建、摆臂工艺位对盘心 / Home 对接液杯、液柱落点、0.3 s 过渡（中途换目标不跳、隐藏时直接落位）、
+// 腔体三维图冒烟：按部件组成搭建、摆臂工艺位对盘心 / Home 对接液杯、液柱落点、0.2 s 过渡（中途换目标不跳、隐藏时直接落位）、
 // Lift 升降带动摆臂和液柱、门 / Bowl / 旋转跟状态、组成变化重搭、多于两条摆臂只画两条、解绑。不连后端，状态直接喂显示模型。
 internal static class Program
 {
@@ -28,10 +28,11 @@ internal static class Program
         try
         {
             var app = new Application();
-            foreach (string name in new[] { "DarkColors", "FontSize" })
+            // 跟壳的 App.xaml 一样并进中文语言包：按钮字、日志里的提示才是按模板拼好的句子。
+            foreach (string name in new[] { "Styles/DarkColors", "Styles/FontSize", "Localization/Strings.zh-CN" })
             {
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
-                { Source = new Uri($"/xyz.Client.Presentation;component/Styles/{name}.xaml", UriKind.Relative) });
+                { Source = new Uri($"/xyz.Client.Presentation;component/{name}.xaml", UriKind.Relative) });
             }
 
             var scene = new ChamberScene { Width = 900, Height = 600 };
@@ -66,13 +67,16 @@ internal static class Program
             Check(arms.All(arm => arm.Attachments.OfType<FluidPipeVisual3D>().Count() == 2), "每条摆臂两路喷嘴两根管");
             Check(Pivot(arms[0], plate).X > bowl.Radius && Pivot(arms[1], plate).X < -bowl.Radius, "第 1 条装在 Bowl 右侧，第 2 条在左侧");
             Check(parts.Revision == 1 && parts.Groups.Select(group => group.Title).SequenceEqual(
-                ["Door", "Bowl", "SpinMotor", "Arm1", "Arm1.Lift", "Arm1.Nozzle_DIW", "Arm1.Nozzle_SC1",
+                ["Door", "Bowl1", "SpinMotor", "Arm1", "Arm1.Lift", "Arm1.Nozzle_DIW", "Arm1.Nozzle_SC1",
                  "Arm2", "Arm2.Lift", "Arm2.Nozzle_DIW", "Arm2.Nozzle_SC1"]), "按钮组照 sc 路径（去掉腔体名）、按部件顺序");
             Check(parts.Groups[0].Actions.Select(action => action.Action).SequenceEqual([ChamberPartAction.Open, ChamberPartAction.Close])
                 && parts.Groups[2].Actions.Select(action => action.Action).SequenceEqual([ChamberPartAction.Start, ChamberPartAction.Stop])
                 && parts.Groups[3].Actions.Select(action => action.Action).SequenceEqual([ChamberPartAction.Home, ChamberPartAction.Center])
                 && parts.Groups[5].Actions.Select(action => action.Action).SequenceEqual([ChamberPartAction.On, ChamberPartAction.Off])
                 && parts.Groups[4].Actions[0].Path == "Chamber1.Arm1.Lift", "每组按钮按部件种类给，带全路径");
+            Check(parts.Groups[0].Actions[0].Text == "开" && parts.Groups[1].Actions[0].Text == "升"
+                && parts.Groups[3].Actions[1].Text == "工艺位" && parts.Groups[5].Actions[0].Text == "出液"
+                && parts.Groups[4].Actions[0].Part == "Arm1.Lift", "按钮字按语言包取（门开 / Bowl 升 / 工艺位 / 出液），失败提示用 sc 路径");
 
             // 3. 工艺位：两路喷嘴的中点正对盘心，液柱落到盘面
             var center = disk.TransformToAncestor(plate).Transform(new Point3D());
@@ -87,7 +91,7 @@ internal static class Program
             double processAngle = arms[0].Angle;
             Check(!arms[0].HasAnimatedProperties, "刚搭好直接摆到目标角度，不从默认位置动画过来");
 
-            // 4. 回 Home：0.3 s 过渡；到 Home 喷嘴在自己的接液杯正上方，液柱落进杯里，有出液时杯亮
+            // 4. 回 Home：0.2 s 过渡；到 Home 喷嘴在自己的接液杯正上方，液柱落进杯里，有出液时杯亮
             dto = Dto(arms: 2);
             dto.Arms[0].Nozzles[0].IsOn = true;
             parts.Update(dto);
@@ -95,7 +99,7 @@ internal static class Program
             Pump(120);
             Check(arms[0].Angle > processAngle && arms[0].Angle < HomeAngle, "过渡中角度在两头之间");
             Pump(350);
-            Check(Near(arms[0].Angle, HomeAngle) && !arms[0].HasAnimatedProperties, "约 0.3 s 到位，不留动画时钟");
+            Check(Near(arms[0].Angle, HomeAngle) && !arms[0].HasAnimatedProperties, "约 0.2 s 到位，不留动画时钟");
             for (int i = 0; i < arms.Count; i++)
             {
                 var cupTop = cups[i].TransformToAncestor(plate).Transform(new Point3D(0, cups[i].Height, 0));
@@ -120,6 +124,39 @@ internal static class Program
             Check(Near(arms[0].Angle, midway), "中途换目标不跳");
             Pump(450);
             Check(Near(arms[0].Angle, HomeAngle + 0.5 * (processAngle - HomeAngle)) && !arms[0].HasAnimatedProperties, "Reach 0.5 落在 Home 和工艺位中间");
+
+            // 5b. 示教过边缘：Home → 边缘 → 中心分两段；轴在 Edge 时喷嘴正好在盘边（靠 Home 那侧），只改边缘也会重新摆
+            dto = Dto(arms: 2);
+            dto.Arms[0].Reach = 0.5;
+            dto.Arms[0].EdgeReach = 0.5;
+            parts.Update(dto);
+            Pump(450);
+            double edgeAngle = arms[0].Angle;
+            var edgeMiddle = Middle(Nozzle(Pipes(arms[0])[0], plate), Nozzle(Pipes(arms[0])[1], plate));
+            Check(!Near(edgeAngle, HomeAngle + 0.5 * (processAngle - HomeAngle)), "只改边缘位置也重新摆");
+            Check(Math.Abs(Horizontal(edgeMiddle, center) - disk.Radius) < 1e-6, "轴在 Edge：两路喷嘴中点正好在盘边");
+            Check(edgeAngle < HomeAngle && edgeAngle > processAngle, "边缘在 Home 和工艺位之间（第一个边缘）");
+            dto = Dto(arms: 2);
+            dto.Arms[0].Reach = 0.25;
+            dto.Arms[0].EdgeReach = 0.5;
+            parts.Update(dto);
+            Pump(450);
+            Check(Near(arms[0].Angle, (HomeAngle + edgeAngle) / 2), "Home 到边缘之间按轴位置线性");
+            dto = Dto(arms: 2);
+            dto.Arms[0].Reach = 0.75;
+            dto.Arms[0].EdgeReach = 0.5;
+            parts.Update(dto);
+            Pump(450);
+            Check(Near(arms[0].Angle, (edgeAngle + processAngle) / 2), "边缘到中心之间按轴位置线性");
+            dto = Dto(arms: 2);
+            dto.Arms[0].Reach = 1;
+            dto.Arms[0].EdgeReach = 0.5;
+            parts.Update(dto);
+            Pump(450);
+            var centerMiddle = Middle(Nozzle(Pipes(arms[0])[0], plate), Nozzle(Pipes(arms[0])[1], plate));
+            Check(Near(arms[0].Angle, processAngle) && Horizontal(centerMiddle, center) < 1e-6, "轴在 Center 仍正对盘心");
+            parts.Update(Dto(arms: 2));
+            Pump(450);
 
             // 6. 页面隐藏：收到新位置直接落位；过渡中被隐藏也直接落到目标
             scene.Visibility = Visibility.Hidden;
@@ -187,6 +224,20 @@ internal static class Program
             scene.Wafer = wafer;
             Check(ReferenceEquals(disk.Data, wafer), "盘上的片跟 Wafer 走");
 
+            // 8b. Bowl 和旋转盘的高低：降下时上沿比盘低（露出盘面好取放片），升起来才比盘高；盘下面主轴撑到底座面
+            Pump(300);
+            Rect3D Bounds(ModelVisual3D visual) => visual.TransformToAncestor(plate).TransformBounds(visual.Content.Bounds);
+            double diskBottom = disk.TransformToAncestor(plate).Transform(new Point3D()).Y;
+            Check(Bounds(bowl).Y + Bounds(bowl).SizeY < diskBottom, "Bowl 降下：上沿比旋转盘低，露出盘面");
+            Check(Near(Bounds(disk).Y, 0), "旋转盘下面的主轴撑到底座面，不悬空");
+            dto = Dto(arms: 2);
+            SetCylinder(dto.Bowl, open: true, moving: false);
+            parts.Update(dto);
+            Pump(300);
+            Check(Bounds(bowl).Y + Bounds(bowl).SizeY > diskTop && Near(Bounds(bowl).Y, 0), "Bowl 升起：上沿比盘面高、底边还在底座面上");
+            parts.Update(Dto(arms: 2));
+            Pump(300);
+
             // 9. 部件组成变了重搭：一条摆臂、没有门
             parts.Update(Dto(arms: 1, door: false));
             Pump(30);
@@ -238,7 +289,7 @@ internal static class Program
             host.RootVisual = null;
             app.Shutdown();
             Console.WriteLine($"PASS: {_checks} chamber scene checks (assembly from parts, process/home alignment, stream landing, "
-                + "0.3 s transition with retarget and hidden settle, lift, door/bowl/spin/highlight bindings, rebuild, arm limit, unbind)");
+                + "0.2 s transition with retarget and hidden settle, lift, door/bowl/spin/highlight bindings, rebuild, arm limit, unbind)");
             return 0;
         }
         catch (Exception ex)
@@ -253,7 +304,7 @@ internal static class Program
         var dto = new ChamberPartsDto
         {
             Name = "Chamber1",
-            Bowl = new ChamberCylinderDto { Name = "Bowl", Path = "Chamber1.Bowl" },
+            Bowl = new ChamberCylinderDto { Name = "Bowl1", Path = "Chamber1.Bowl1" },
             Spin = new ChamberSpinDto { Name = "SpinMotor", Path = "Chamber1.SpinMotor", IsClockwise = true },
         };
         if (door)

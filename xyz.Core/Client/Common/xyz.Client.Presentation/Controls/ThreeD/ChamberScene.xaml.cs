@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,7 +16,7 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// <summary>
 /// 腔体三维图：底座上装 Bowl、旋转盘、腔门和每条摆臂（Lift 立柱、摆臂、喷嘴管、Home 接液杯）。
 /// 装哪些部件看 Parts（后端按 sc.xml 推来的部件组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
-/// 摆臂收到新位置后 0.3 s 过渡过去。不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，
+/// 摆臂收到新位置后 0.2 s 过渡过去。不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，
 /// 只有动画进行中角度和高度才会逐帧变，停下来就一点不算。
 /// 左键拖动旋转视角、滚轮缩放，左下角四个按钮：左转、右转、复位、俯视。
 /// </summary>
@@ -27,8 +27,11 @@ public partial class ChamberScene : UserControl
     private const double BowlRadius = 1.59;
     private const double DiskRadius = 1.32;
 
-    /// <summary>旋转盘底面离安装面的高度。</summary>
-    private const double DiskHeight = 0.12;
+    /// <summary>
+    /// 旋转盘（卡盘）底面离安装面的高度，下面主轴撑着：比 Bowl 降下时的上沿（1 级 0.275）高、比升起时（0.825）低——
+    /// Bowl 降下露出盘面好取放片，升起来才把盘围住挡液（用户点名的关系）。
+    /// </summary>
+    private const double DiskHeight = 0.32;
 
     private const double DoorWidth = 2.2;
     private const double DoorHeight = 0.58;
@@ -71,8 +74,8 @@ public partial class ChamberScene : UserControl
     /// <summary>液柱长度变化小于它就不改（改一次管子要重建网格）。</summary>
     private const double StreamTolerance = 0.0001;
 
-    /// <summary>收到新位置后摆臂 0.3 s 过渡过去（用户定的，写死），免得一跳一跳。</summary>
-    private const int ArmTransitionMilliseconds = 300;
+    /// <summary>收到新位置后摆臂 0.2 s 过渡过去，免得一跳一跳（用户定的：三维里的动画一律 0.2 s，写死）。</summary>
+    private const int ArmTransitionMilliseconds = 200;
 
     /// <summary>旋转盘的显示转速（度 / 秒）：只表示"在转"，不跟实际转速走——真实几百转画出来只会频闪。</summary>
     private const double SpinDisplaySpeed = 100;
@@ -129,6 +132,7 @@ public partial class ChamberScene : UserControl
         {
             IsDiskVisible = true,
             Radius = DiskRadius,
+            SpindleHeight = DiskHeight,
             Transform = new TranslateTransform3D(0, DiskHeight, 0),
         };
         _door = new DoorVisual3D
@@ -424,10 +428,14 @@ public partial class ChamberScene : UserControl
         private static readonly DependencyProperty ReachProperty = DependencyProperty.Register(
             "Reach", typeof(double), typeof(ArmRig), new PropertyMetadata(0d, OnReachChanged));
 
+        private static readonly DependencyProperty EdgeReachProperty = DependencyProperty.Register(
+            "EdgeReach", typeof(double), typeof(ArmRig), new PropertyMetadata(0d, OnReachChanged));
+
         private readonly ChamberScene _scene;
         private readonly TranslateTransform3D _mount = new();
         private readonly List<FluidPipeVisual3D> _pipes = [];
         private readonly double _processAngle;
+        private readonly double _edgeAngle;
         private double _targetAngle;
         private int _transitionVersion;
         private bool _ready;
@@ -441,6 +449,10 @@ public partial class ChamberScene : UserControl
             // 臂长取回转中心到盘心的距离，工艺位角度让臂尖正对盘心（盘心在底座原点）。
             double reach = Math.Sqrt(x * x + z * z);
             _processAngle = Math.Atan2(z, -x) * 180 / Math.PI;
+            // 第一个边缘：臂尖画的圆过盘心，回转中心、盘心、臂尖成等腰三角形（两腰都是臂长），
+            // 臂尖离盘心正好一个盘半径时，臂比工艺位往 Home 那边少转 2·asin(半径 / 2 臂长)。
+            double edgeSweep = 2 * Math.Asin(scene._disk.Radius / (2 * reach)) * 180 / Math.PI;
+            _edgeAngle = _processAngle + edgeSweep * Math.Sign(HomeAngle - _processAngle);
 
             Lift = new LiftVisual3D { Transform = Placement(x, z) };
             Arm = new ArmVisual3D { Length = reach / ArmScale };
@@ -472,7 +484,7 @@ public partial class ChamberScene : UserControl
             Bind(Lift, LiftVisual3D.IsRaisedProperty, model.Lift, nameof(ChamberCylinderModel.IsOpen));
             Bind(Lift, HardwareVisual3D.IsMovingProperty, model.Lift, nameof(ChamberCylinderModel.IsMoving));
             Bind(Arm, HardwareVisual3D.IsMovingProperty, model, nameof(ChamberArmModel.IsMoving));
-            _targetAngle = AngleOf(model.Reach);
+            _targetAngle = AngleOf(model.Reach, model.EdgeReach);
             Arm.Angle = _targetAngle;
             scene.Base.Attachments.Add(Cup);
             scene.Base.Attachments.Add(Lift);
@@ -482,6 +494,7 @@ public partial class ChamberScene : UserControl
             Bind(this, MountHeightProperty, Lift, nameof(LiftVisual3D.MountHeight));
             Bind(this, FlowingProperty, model, nameof(ChamberArmModel.IsAnyNozzleOn));
             Bind(this, ReachProperty, model, nameof(ChamberArmModel.Reach));
+            Bind(this, EdgeReachProperty, model, nameof(ChamberArmModel.EdgeReach));
             _ready = true;
             UpdateStreams();
         }
@@ -495,22 +508,36 @@ public partial class ChamberScene : UserControl
         private static void OnStreamInputChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
             ((ArmRig)sender).UpdateStreams();
 
+        /// <summary>位置或示教位（边缘）变了都重新算目标摆角。</summary>
         private static void OnReachChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
         {
             var rig = (ArmRig)sender;
             if (rig._ready)
             {
-                rig.MoveTo(rig.AngleOf((double)args.NewValue));
+                rig.MoveTo(rig.AngleOf((double)rig.GetValue(ReachProperty), (double)rig.GetValue(EdgeReachProperty)));
             }
         }
 
-        /// <summary>Reach 换成摆角：0 = Home 角，1 = 工艺位角，中间线性。</summary>
-        private double AngleOf(double reach)
+        /// <summary>
+        /// Reach 换成摆角：示教过边缘（0 &lt; edgeReach &lt; 1）就分两段——Home 角 → 边缘角 → 工艺位角，
+        /// 轴在 Edge 时喷嘴正好画在盘边、在 Center 时正对盘心；没示教就 Home 角 → 工艺位角一段。超出两头按最近那段接着外推。
+        /// </summary>
+        private double AngleOf(double reach, double edgeReach)
         {
-            return HomeAngle + reach * (_processAngle - HomeAngle);
+            if (edgeReach <= 0 || edgeReach >= 1)
+            {
+                return HomeAngle + reach * (_processAngle - HomeAngle);
+            }
+
+            if (reach <= edgeReach)
+            {
+                return HomeAngle + reach / edgeReach * (_edgeAngle - HomeAngle);
+            }
+
+            return _edgeAngle + (reach - edgeReach) / (1 - edgeReach) * (_processAngle - _edgeAngle);
         }
 
-        /// <summary>从现在显示的角度 0.3 s 过渡到新角度；新位置接着来就从当前位置接着走。页面没显示时直接落位。</summary>
+        /// <summary>从现在显示的角度 0.2 s 过渡到新角度；新位置接着来就从当前位置接着走。页面没显示时直接落位。</summary>
         private void MoveTo(double target)
         {
             _targetAngle = target;

@@ -349,7 +349,7 @@
 	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一部件 DO 与 DI 同号；-1 = 接线未定）；
 	     气缸开侧 = 门开 / Bowl 升 / 升降气缸升。轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
 	     摆臂条数、喷嘴路数按实际增减，下面只是骨架。
-	     腔体手动页的三维图和部件按钮按这里的结构生成：名叫 Door、Bowl 的气缸，SpinMotor，每条摆臂（下面第一个气缸是它的 Lift）和它的喷嘴 -->
+	     腔体手动页的三维图和部件按钮按这里的结构生成：名叫 Door 的气缸、名字以 Bowl 开头的第一个气缸（Bowl1），SpinMotor，每条摆臂（下面第一个气缸是它的 Lift）和它的喷嘴 -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
@@ -361,8 +361,8 @@
 				<Value Name="DiOpenedIndex" Value="100" />
 				<Value Name="DiClosedIndex" Value="101" />
 			</Setting>
-			<!-- Bowl：一个气缸整体升降（升 = 开侧） -->
-			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+			<!-- Bowl：先只配一层，一个气缸整体升降（升 = 开侧）；叫 Bowl1 跟点表、仿真器同名，点表里 Bowl2、Bowl3 的点留着没接组件 -->
+			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
 				<Value Name="DoOpenIndex" Value="102" />
 				<Value Name="DoCloseIndex" Value="103" />
 				<Value Name="DiOpenedIndex" Value="102" />
@@ -411,7 +411,7 @@
 				<Value Name="DiOpenedIndex" Value="140" />
 				<Value Name="DiClosedIndex" Value="141" />
 			</Setting>
-			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
 				<Value Name="DoOpenIndex" Value="142" />
 				<Value Name="DoCloseIndex" Value="143" />
 				<Value Name="DiOpenedIndex" Value="142" />
@@ -455,7 +455,7 @@
 				<Value Name="DiOpenedIndex" Value="180" />
 				<Value Name="DiClosedIndex" Value="181" />
 			</Setting>
-			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
 				<Value Name="DoOpenIndex" Value="182" />
 				<Value Name="DoCloseIndex" Value="183" />
 				<Value Name="DiOpenedIndex" Value="182" />
@@ -499,7 +499,7 @@
 				<Value Name="DiOpenedIndex" Value="220" />
 				<Value Name="DiClosedIndex" Value="221" />
 			</Setting>
-			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
 				<Value Name="DoOpenIndex" Value="222" />
 				<Value Name="DoCloseIndex" Value="223" />
 				<Value Name="DiOpenedIndex" Value="222" />
