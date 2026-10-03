@@ -61,7 +61,7 @@ internal static class Program
             Flush(scene);
             Check(lift.IsRaised && !lift.IsMoving && ColorOf(parts[2]) != idle,
                 "one boolean starts an animation and automatic highlight without IsMoving input");
-            Pump(170);
+            Pump(80);
             Check(lift.MountHeight > down && lift.MountHeight < up, "the rod has an intermediate rising position");
             Check(Near(mount.OffsetY, lift.MountHeight) && arm.Angle == 27 && !arm.IsMoving,
                 "assembly follows the mounting height without rotating or marking the Arm as moving");
@@ -135,7 +135,7 @@ internal static class Program
         title.Text = "下位 · 静止";
         var down = Render(scene);
         feedback.IsRaised = true;
-        Pump(180);
+        Pump(80);
         title.Text = "上升中 · 自动高亮";
         var moving = Render(scene);
         Check(lift.HasAnimatedProperties, "middle preview is captured during the actual transition");
