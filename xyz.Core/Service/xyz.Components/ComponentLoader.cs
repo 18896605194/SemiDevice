@@ -120,13 +120,16 @@ public static class ComponentLoader
         if (string.IsNullOrWhiteSpace(setting.Type))
         {
             // 无 Type：在父组件已有子组件中按名匹配灌值（RFID 这类构造时挂好的子组件）。
-            if (parent is not null
-                && parent.Children.FirstOrDefault(c =>
-                    string.Equals(c.Name, setting.Name, StringComparison.OrdinalIgnoreCase)) is { } existing)
+            if (parent is not null)
             {
-                AssignValues(existing, setting);
-                existing.OnSettingLoaded(setting);
-                component = existing;
+                var existing = parent.Children.FirstOrDefault(c =>
+                    string.Equals(c.Name, setting.Name, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    AssignValues(existing, setting);
+                    existing.OnSettingLoaded(setting);
+                    component = existing;
+                }
             }
         }
         else

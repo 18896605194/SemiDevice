@@ -19,7 +19,8 @@ public class DataChartService : IDataChartService
     /// </summary>
     public Task<RpcResponse> GetSignalsAsync(RpcRequest request, CallContext context = default)
     {
-        if (DataChartComponent.Current is not { } chart)
+        var chart = DataChartComponent.Current;
+        if (chart is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.DataChartNotInstalled, []));
         }
@@ -38,7 +39,8 @@ public class DataChartService : IDataChartService
         var token = context.CancellationToken;
         return Task.Run(() =>
         {
-            if (DataChartComponent.Current is not { } chart)
+            var chart = DataChartComponent.Current;
+            if (chart is null)
             {
                 return RpcResponse.Fail(ErrorCodes.DataChartNotInstalled, []);
             }

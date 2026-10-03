@@ -414,10 +414,12 @@ public partial class TrendChart : UserControl
 
         double left;
         double right;
-        if (RangeStart is { } start && RangeEnd is { } end && end > start)
+        var start = RangeStart;
+        var end = RangeEnd;
+        if (start is not null && end is not null && end.Value > start.Value)
         {
-            left = start.ToOADate();
-            right = end.ToOADate();
+            left = start.Value.ToOADate();
+            right = end.Value.ToOADate();
         }
         else
         {
@@ -595,10 +597,10 @@ public partial class TrendChart : UserControl
 
             var value = near ? item.ValueAt(cursor) : null;
             highlight.IsVisible = value is not null;
-            if (value is { } shown)
+            if (value is not null)
             {
                 highlight.X = cursor;
-                highlight.Y = shown;
+                highlight.Y = value.Value;
             }
         }
 
@@ -640,9 +642,10 @@ public partial class TrendChart : UserControl
     /// </summary>
     private void FollowMouse()
     {
-        if (_mousePixel is { } pixel && _cursorLine.IsVisible)
+        var pixel = _mousePixel;
+        if (pixel is not null && _cursorLine.IsVisible)
         {
-            UpdateHover(_plot.GetCoordinates(pixel).X);
+            UpdateHover(_plot.GetCoordinates(pixel.Value).X);
         }
     }
 

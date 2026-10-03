@@ -195,7 +195,8 @@ public class RobotModel : ObservableObject
     }
 
     /// <summary>
-    /// 各手臂：手臂上的片来自手指在位推送；设备只报有无片、槽位未知，显示一片"搬运中"的片。
+    /// 各手臂：手臂上的片以晶圆账为准（按片的状态上色，片上写片号）；账上没有、手指在位传感器却有片时，
+    /// 画一片"在途"色的片，提示账实不符。
     /// </summary>
     public ObservableCollection<RobotArmModel> Arms { get; } = new();
 
@@ -211,55 +212,12 @@ public class RobotModel : ObservableObject
     /// <summary>
     /// 状态文字（按当前语言）。码值对应 xyz.Modules 的 ModuleState/RobotState，未收录的码显示原值。
     /// </summary>
-    public string StateText
-    {
-        get
-        {
-            switch (State)
-            {
-                case 10: return L10n.Get("module.state.not_init");
-                case 20: return L10n.Get("module.state.initing");
-                case 30: return L10n.Get("module.state.idle");
-                case 35: return L10n.Get("module.state.aborting");
-                case 40: return L10n.Get("module.state.error");
-                case 50: return L10n.Get("module.state.pre_transfer");
-                case 60: return L10n.Get("module.state.transfer_ready");
-                case 70: return L10n.Get("module.state.transferring");
-                case 80: return L10n.Get("module.state.transfer_complete");
-                case 130: return L10n.Get("module.state.homing");
-                case 200: return L10n.Get("module.state.homing");
-                case 210: return L10n.Get("module.state.picking");
-                case 220: return L10n.Get("module.state.placing");
-                default: return L10n.Get("module.state.unknown", State);
-            }
-        }
-    }
+    public string StateText => ModuleStates.RobotText(State);
 
     /// <summary>
     /// 状态色调（状态徽标的底色）：空闲就绪，初始化、回零、取放都算动作中。
     /// </summary>
-    public ModuleStateTone StateTone
-    {
-        get
-        {
-            switch (State)
-            {
-                case 30: return ModuleStateTone.Ready;
-                case 35: return ModuleStateTone.Warning;
-                case 40: return ModuleStateTone.Alarm;
-                case 20:
-                case 50:
-                case 60:
-                case 70:
-                case 80:
-                case 130:
-                case 200:
-                case 210:
-                case 220: return ModuleStateTone.Busy;
-                default: return ModuleStateTone.Inactive;
-            }
-        }
-    }
+    public ModuleStateTone StateTone => ModuleStates.RobotTone(State);
 
     /// <summary>伸出方向文字（按当前语言）。</summary>
     public string RotationText
@@ -386,7 +344,7 @@ public class RobotModel : ObservableObject
             .Select(axis => new RobotAxisModel { Name = axis.Name, Position = axis.Position })
             .ToList();
 
-        // 手指数以 sc.xml 轴表为准；后端没给（驱动没配）时才按推送过的最大手指号推。
+        // 手指数以 sc.xml 轴表为准；后端没给（驱动没配）时才按推送过的最大手指号、账上登记的手指数推。
         if (dto.ArmCount > 0)
         {
             ArmCount = Math.Clamp(dto.ArmCount, 1, MaxArmCount);
@@ -395,19 +353,43 @@ public class RobotModel : ObservableObject
         {
             ArmCount = Math.Clamp(dto.Arms.Max(arm => arm.Arm), 1, MaxArmCount);
         }
-
-        foreach (var reported in dto.Arms)
+        else if (dto.LedgerSlots.Count > 0)
         {
-            var arm = GetArm(reported.Arm);
-            if (reported.HasWafer)
+            ArmCount = Math.Clamp(dto.LedgerSlots.Count, 1, MaxArmCount);
+        }
+
+        // 手指上的片：先看账，账上没有再看传感器。片的实例能留就留（只改颜色和片上的字），手臂动画不会因为换实例被打断。
+        for (int number = 1; number <= ArmCount; number++)
+        {
+            var arm = GetArm(number);
+            var ledger = dto.LedgerSlots.FirstOrDefault(slot => slot.Slot == number)?.Wafer;
+            var sensor = dto.Arms.FirstOrDefault(item => item.Arm == number);
+            if (ledger is not null)
             {
-                arm.Wafer ??= new WaferModel { State = "Transfer" };
+                ShowWafer(arm, WaferStates.Of(ledger), WaferLabel.Of(ledger.SourceLoadPort, ledger.SourceSlot));
+            }
+            else if (sensor is not null && sensor.HasWafer)
+            {
+                ShowWafer(arm, WaferStates.Unledgered, string.Empty);
             }
             else
             {
                 arm.Wafer = null;
             }
         }
+    }
+
+    private static void ShowWafer(RobotArmModel arm, string state, string label)
+    {
+        var wafer = arm.Wafer;
+        if (wafer is null)
+        {
+            arm.Wafer = new WaferModel { Slot = arm.Arm, State = state, LpSlot = label };
+            return;
+        }
+
+        wafer.State = state;
+        wafer.LpSlot = label;
     }
 
     private static bool SameStations(IReadOnlyList<RobotStationModel> left, IReadOnlyList<RobotStationModel> right)

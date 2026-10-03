@@ -60,6 +60,15 @@
     <sys:String x:Key="ec.invalid_option">{0} 只能是：{1}</sys:String>
     <sys:String x:Key="ec.save_failed">{0} 没改成：ec.xml 写不进去（文件被占着或没有权限）</sys:String>
 
+    <sys:String x:Key="wafer.ledger_disabled">晶圆账没开（sc.xml 没配 WaferManager 节点，或 IsEnable=False）</sys:String>
+    <sys:String x:Key="wafer.location_not_found">账上没有这个位置：{0}</sys:String>
+    <sys:String x:Key="wafer.slot_out_of_range">{0} 没有第 {1} 槽（共 {2} 槽）</sys:String>
+    <sys:String x:Key="wafer.no_wafer">{0} 第 {1} 槽上没有片（可能刚被别处改过账）</sys:String>
+    <sys:String x:Key="wafer.slot_occupied">{0} 第 {1} 槽上已经有片：{2}</sys:String>
+    <sys:String x:Key="wafer.same_slot">源和目标是同一个槽</sys:String>
+    <sys:String x:Key="wafer.id_required">补账要填片号</sys:String>
+    <sys:String x:Key="wafer.duplicate_id">片号 {0} 已经在账上（{1} 第 {2} 槽），要挪过来请用移动账单</sys:String>
+
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
          界面语言由后端 sc.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
@@ -102,11 +111,11 @@
     <sys:String x:Key="shell.select_menu">请选择主菜单</sys:String>
     <sys:String x:Key="shell.placeholder">「{0}」模块后续实现，内容将显示在中间区域。</sys:String>
     <sys:String x:Key="shell.no_alarm">当前没有报警</sys:String>
-    <sys:String x:Key="shell.logout">Logout</sys:String>
+    <sys:String x:Key="shell.logout">注销</sys:String>
     <sys:String x:Key="shell.logout_tip">注销（登录功能接上后可用）</sys:String>
-    <sys:String x:Key="shell.reset">Reset</sys:String>
+    <sys:String x:Key="shell.reset">复位</sys:String>
     <sys:String x:Key="shell.reset_tip">复位全部有报警的来源</sys:String>
-    <sys:String x:Key="shell.buzzer_off">Off</sys:String>
+    <sys:String x:Key="shell.buzzer_off">关蜂鸣器</sys:String>
     <sys:String x:Key="shell.buzzer_off_tip">关闭蜂鸣器</sys:String>
 
     <!-- 四色灯 -->
@@ -162,6 +171,74 @@
     <sys:String x:Key="setting.ec.setpoint">设定值</sys:String>
     <sys:String x:Key="setting.ec.set">设置</sys:String>
     <sys:String x:Key="setting.ec.set_failed">{0} 没改成：{1}</sys:String>
+
+    <!-- 设置页（账单调整）：实物和系统账对不上时（比如取片报警，片其实已经在手指上），人按实物移账、删账、补账；只改账，设备不动作 -->
+    <sys:String x:Key="setting.ledger.reason">原因（选填）</sys:String>
+    <sys:String x:Key="setting.ledger.move">移动账单</sys:String>
+    <sys:String x:Key="setting.ledger.create">新建账单</sys:String>
+    <sys:String x:Key="setting.ledger.delete">删除账单</sys:String>
+    <sys:String x:Key="setting.ledger.source">源</sys:String>
+    <sys:String x:Key="setting.ledger.source_hint">选一片要调整的晶圆</sys:String>
+    <sys:String x:Key="setting.ledger.target">目标</sys:String>
+    <sys:String x:Key="setting.ledger.target_hint">选一个空槽（移动、新建时用）</sys:String>
+    <sys:String x:Key="setting.ledger.free_count">空位 {0}</sys:String>
+    <sys:String x:Key="setting.ledger.kind.robot">机械手</sys:String>
+    <sys:String x:Key="setting.ledger.kind.loadport">LoadPort</sys:String>
+    <sys:String x:Key="setting.ledger.kind.chamber">腔体</sys:String>
+    <sys:String x:Key="setting.ledger.kind.other">其他</sys:String>
+    <sys:String x:Key="setting.ledger.slot_name">槽 {0:00}</sys:String>
+    <sys:String x:Key="setting.ledger.arm_name">手指 {0}</sys:String>
+    <sys:String x:Key="setting.ledger.summary_slots">{0} 槽 · {1} 片</sys:String>
+    <sys:String x:Key="setting.ledger.summary_arms">{0} 只手指 · {1} 片</sys:String>
+    <sys:String x:Key="setting.ledger.no_carrier">无载具</sys:String>
+    <sys:String x:Key="setting.ledger.slot">槽位</sys:String>
+    <sys:String x:Key="setting.ledger.wafer">晶圆</sys:String>
+    <sys:String x:Key="setting.ledger.state">状态</sys:String>
+    <sys:String x:Key="setting.ledger.lot">批次</sys:String>
+    <sys:String x:Key="setting.ledger.empty">空</sys:String>
+    <sys:String x:Key="setting.ledger.process.Idle">未处理</sys:String>
+    <sys:String x:Key="setting.ledger.process.InProcess">工艺中</sys:String>
+    <sys:String x:Key="setting.ledger.process.Completed">已完成</sys:String>
+    <sys:String x:Key="setting.ledger.process.Failed">失败</sys:String>
+    <sys:String x:Key="setting.ledger.process.Aborted">中止</sys:String>
+    <sys:String x:Key="setting.ledger.status.Crossed">交叉片</sys:String>
+    <sys:String x:Key="setting.ledger.status.Double">叠片</sys:String>
+    <sys:String x:Key="setting.ledger.status.Dummy">陪片</sys:String>
+    <sys:String x:Key="setting.ledger.status.Unknown">状态不明</sys:String>
+    <sys:String x:Key="setting.ledger.status_with_process">{0} · {1}</sys:String>
+    <sys:String x:Key="setting.ledger.legend.error">失败 / 中止</sys:String>
+    <sys:String x:Key="setting.ledger.records">调整记录</sys:String>
+    <sys:String x:Key="setting.ledger.records_hint">人工移动、删除、新建；最近 50 条</sys:String>
+    <sys:String x:Key="setting.ledger.action">操作</sys:String>
+    <sys:String x:Key="setting.ledger.action.Move">移动</sys:String>
+    <sys:String x:Key="setting.ledger.action.Delete">删除</sys:String>
+    <sys:String x:Key="setting.ledger.action.Create">新建</sys:String>
+    <sys:String x:Key="setting.ledger.wafer_id">片号</sys:String>
+    <sys:String x:Key="setting.ledger.path">从 → 到</sys:String>
+    <sys:String x:Key="setting.ledger.operator">操作人</sys:String>
+    <sys:String x:Key="setting.ledger.reason_column">原因</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_move_title">确认移动账单</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_delete_title">确认删除账单</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_create_title">确认新建账单</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_move">确认移动</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_delete">确认删除</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_create">确认新建</sys:String>
+    <sys:String x:Key="setting.ledger.delete_path">这片的账将被删除</sys:String>
+    <sys:String x:Key="setting.ledger.wafer_id_hint">片号（必填）</sys:String>
+    <sys:String x:Key="setting.ledger.wafer_id_missing">先填片号</sys:String>
+    <sys:String x:Key="setting.ledger.move_hint">只改系统账，设备不会动作。片号、批次、载具号、工艺状态跟着片走；改完记一条调整记录。</sys:String>
+    <sys:String x:Key="setting.ledger.delete_hint">删除后这个位置变成空槽，这片在系统里就没有了（调整记录里留底）。只在实物确实已经拿走时删除。</sys:String>
+    <sys:String x:Key="setting.ledger.create_hint">在这个空槽上建一片：正常片、未处理，没有批次和载具号。只改系统账，设备不会动作；改完记一条调整记录。只在实物确实在这里、账上没有时新建。</sys:String>
+    <sys:String x:Key="setting.ledger.no_reason">—</sys:String>
+    <sys:String x:Key="setting.ledger.no_locations">没有能放片的位置（机械手的 Stations 都没配，或站点没登记槽位）</sys:String>
+    <sys:String x:Key="setting.ledger.offline">没连上后端，连上后自动拉账</sys:String>
+    <sys:String x:Key="setting.ledger.moved">已移动账单：{0}  {1} → {2}</sys:String>
+    <sys:String x:Key="setting.ledger.deleted">已删除账单：{0}（{1}）</sys:String>
+    <sys:String x:Key="setting.ledger.created">已新建账单：{0}（{1}）</sys:String>
+    <sys:String x:Key="setting.ledger.move_failed">移动账单没成：{0}</sys:String>
+    <sys:String x:Key="setting.ledger.delete_failed">删除账单没成：{0}</sys:String>
+    <sys:String x:Key="setting.ledger.create_failed">新建账单没成：{0}</sys:String>
+    <sys:String x:Key="setting.ledger.load_failed">晶圆账没拉到：{0}</sys:String>
 
     <!-- 数据曲线、实时曲线（两页共用左边的信号树和右下角的曲线信息） -->
     <sys:String x:Key="chart.signals">信号</sys:String>
@@ -308,6 +385,7 @@
     <sys:String x:Key="menu.DataCenter.DataChart">数据曲线</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">实时曲线</sys:String>
     <sys:String x:Key="menu.Setting.Ec">EC 设置</sys:String>
+    <sys:String x:Key="menu.Setting.WaferLedger">账单调整</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>
     <sys:String x:Key="menu.Setting.Role">角色管理</sys:String>
 

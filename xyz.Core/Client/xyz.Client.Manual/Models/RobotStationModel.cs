@@ -6,7 +6,7 @@ namespace xyz.Client.Manual.Models;
 
 /// <summary>
 /// 转台图四周的站点角标：设备站点号 + 名称 + 所在方位（机械手站点表推来，不变），
-/// 外加站点模块自己的实时状态（Robot 页按站点名订阅 LoadPort / 腔体的状态推送，就地刷新）。
+/// 外加站点模块自己的实时状态和站点上的片（Robot 页按站点名订阅 LoadPort / 腔体的状态推送，就地刷新；片以晶圆账为准）。
 /// </summary>
 public sealed class RobotStationModel : ObservableObject
 {
@@ -59,5 +59,35 @@ public sealed class RobotStationModel : ObservableObject
     {
         StateText = text;
         StateTone = tone;
+    }
+
+    private WaferModel? _wafer;
+
+    /// <summary>腔体站点上的片（晶圆账）；空片位或不是腔体为 null。调度图的腔体卡片画它。</summary>
+    public WaferModel? Wafer
+    {
+        get => _wafer;
+        private set => SetProperty(ref _wafer, value);
+    }
+
+    private IReadOnlyList<WaferModel> _wafers = [];
+
+    /// <summary>LoadPort 站点花篮里的片（以晶圆账为准）；调度图的 LoadPort 卡片画它。</summary>
+    public IReadOnlyList<WaferModel> Wafers
+    {
+        get => _wafers;
+        private set => SetProperty(ref _wafers, value);
+    }
+
+    /// <summary>用腔体的状态推送刷新卡片上的片（界面线程调用）。</summary>
+    public void UpdateWafer(WaferModel? wafer)
+    {
+        Wafer = wafer;
+    }
+
+    /// <summary>用 LoadPort 的状态推送刷新卡片上的花篮（界面线程调用）。</summary>
+    public void UpdateWafers(IReadOnlyList<WaferModel> wafers)
+    {
+        Wafers = wafers;
     }
 }

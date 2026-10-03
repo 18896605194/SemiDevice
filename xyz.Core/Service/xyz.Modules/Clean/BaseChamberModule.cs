@@ -210,6 +210,8 @@ public abstract class BaseChamberModule : BaseTransferStationModule
                 Slot = slot,
                 State = ToSlotState(wafer),
                 WaferId = wafer?.WaferId,
+                SourceLoadPort = wafer?.SourceLoadPort,
+                SourceSlot = wafer?.SourceSlot ?? 0,
             });
         }
 

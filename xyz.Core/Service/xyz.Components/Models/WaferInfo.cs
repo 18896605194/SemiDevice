@@ -8,12 +8,14 @@ namespace xyz.Components.Models;
 /// </summary>
 public sealed class WaferInfo
 {
-    internal WaferInfo(string module, int slot, WaferStatus status, string? carrierId, string? lotId)
+    internal WaferInfo(string module, int slot, WaferStatus status, string? carrierId, string? lotId, bool onLoadPort)
     {
         Module = module;
         Slot = slot;
         OriginModule = module;
         OriginSlot = slot;
+        SourceLoadPort = onLoadPort ? module : null;
+        SourceSlot = onLoadPort ? slot : 0;
         OriginCarrierId = carrierId;
         CarrierId = carrierId;
         LotId = lotId;
@@ -31,6 +33,8 @@ public sealed class WaferInfo
         Slot = source.Slot;
         OriginModule = source.OriginModule;
         OriginSlot = source.OriginSlot;
+        SourceLoadPort = source.SourceLoadPort;
+        SourceSlot = source.SourceSlot;
         OriginCarrierId = source.OriginCarrierId;
         CarrierId = source.CarrierId;
         LotId = source.LotId;
@@ -57,6 +61,15 @@ public sealed class WaferInfo
 
     /// <summary>建片时所在槽位。</summary>
     public int OriginSlot { get; }
+
+    /// <summary>
+    /// 来源 LoadPort：在 LoadPort 上建的片（Mapping 落账、在 LoadPort 槽上补账）就是那个 LoadPort 的模块名；
+    /// 在手臂、腔体上补账建的片为 null。界面圆片上显示"LoadPort1-25"就靠它和 SourceSlot，为 null 时不显示。
+    /// </summary>
+    public string? SourceLoadPort { get; }
+
+    /// <summary>来源 LoadPort 的槽号；不是在 LoadPort 上建的片为 0。</summary>
+    public int SourceSlot { get; }
 
     /// <summary>建片时所在载具；不在载具里建的为 null。</summary>
     public string? OriginCarrierId { get; }

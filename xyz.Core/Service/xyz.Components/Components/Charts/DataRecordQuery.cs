@@ -93,7 +93,7 @@ internal static class DataRecordQuery
 
     private static float? ToFloat(double? value)
     {
-        return value is { } number ? (float)number : null;
+        return value is not null ? (float)value.Value : null;
     }
 
     private struct Stat
@@ -146,9 +146,10 @@ internal static class DataRecordQuery
 
         public void Add(long time, double?[] row)
         {
-            if (_last is { } last && time - last > gapMs)
+            long? last = _last;
+            if (last is not null && time - last.Value > gapMs)
             {
-                _times.Add(last + intervalMs);
+                _times.Add(last.Value + intervalMs);
                 foreach (var values in _values)
                 {
                     values.Add(null);
@@ -212,11 +213,13 @@ internal static class DataRecordQuery
 
             for (int index = 0; index < _count; index++)
             {
-                if (row[index] is not { } value)
+                double? cell = row[index];
+                if (cell is null)
                 {
                     continue;
                 }
 
+                double value = cell.Value;
                 int slot = index * _buckets + (int)bucket;
                 if (!_has[slot])
                 {

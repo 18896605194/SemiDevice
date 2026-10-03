@@ -1,0 +1,542 @@
+﻿<UserControl
+    x:Class="xyz.Client.Setting.Views.WaferLedgerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="920"
+    d:DesignWidth="1980"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <!--  Esc 关掉确认框  -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+    </UserControl.InputBindings>
+
+    <Grid Background="{DynamicResource DarkWindowBackground}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--  工具栏：原因、移动 / 新建 / 删除；右边是色条的颜色说明。选好的源、目标看两栏里高亮的行，确认框里会再列一遍  -->
+            <Border Grid.Row="0" Style="{DynamicResource ToolbarBorderStyle}">
+                <DockPanel>
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        DockPanel.Dock="Right"
+                        Orientation="Horizontal">
+                        <Rectangle Style="{DynamicResource WaferLegendBarStyle}" Tag="Idle" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.process.Idle}" />
+                        <Rectangle Style="{DynamicResource WaferLegendBarStyle}" Tag="InProcess" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.process.InProcess}" />
+                        <Rectangle Style="{DynamicResource WaferLegendBarStyle}" Tag="Completed" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.process.Completed}" />
+                        <Rectangle Style="{DynamicResource WaferLegendBarStyle}" Tag="Error" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.legend.error}" />
+                        <Rectangle Style="{DynamicResource WaferLegendBarStyle}" Tag="Crossed" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.status.Crossed}" />
+                        <Rectangle Style="{DynamicResource WaferLegendBarStyle}" Tag="Double" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.status.Double}" />
+                    </StackPanel>
+
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <controls:InputTextBox
+                            Width="360"
+                            Margin="0,0,10,0"
+                            materialDesign:HintAssist.Hint="{DynamicResource setting.ledger.reason}"
+                            DataType="Text"
+                            Style="{DynamicResource ToolbarTextBoxStyle}"
+                            Value="{Binding Reason}" />
+                        <Button
+                            Command="{Binding MoveCommand}"
+                            Content="{DynamicResource setting.ledger.move}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
+                        <Button
+                            Command="{Binding CreateCommand}"
+                            Content="{DynamicResource setting.ledger.create}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
+                        <Button
+                            Command="{Binding DeleteCommand}"
+                            Content="{DynamicResource setting.ledger.delete}"
+                            Style="{DynamicResource ToolbarDangerButtonStyle}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!--  两栏 + 调整记录。位置多少都不影响布局：每栏左边是位置列表（按机械手、LoadPort、腔体、其他分组，多了就滚动），
+                  右边只列选中位置的槽（腔体 1 槽、Buffer 几槽、LoadPort 25 槽都行）。没账时整块收起，正中给一句提示  -->
+            <Grid
+                Grid.Row="1"
+                Margin="0,8,0,0"
+                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                Tag="{Binding IsReady}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="32" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="680" />
+                </Grid.ColumnDefinitions>
+
+                <!--  源：有片的槽才能点  -->
+                <materialDesign:Card
+                    Grid.Column="0"
+                    Padding="12,10,12,12"
+                    Style="{DynamicResource DefaultCardStyle}">
+                    <DockPanel>
+                        <DockPanel
+                            Height="40"
+                            Margin="0,0,0,8"
+                            DockPanel.Dock="Top">
+                            <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource setting.ledger.source}" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                Style="{DynamicResource ItemDetailTextStyle}"
+                                Text="{DynamicResource setting.ledger.source_hint}"
+                                TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="176" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  位置：名字、有几片 / 几槽  -->
+                            <Border Grid.Column="0" Style="{DynamicResource ListPaneBorderStyle}">
+                                <ListBox
+                                    IsSynchronizedWithCurrentItem="False"
+                                    ItemContainerStyle="{DynamicResource PickListBoxItemStyle}"
+                                    ItemsSource="{Binding SourceLocationsView}"
+                                    SelectedItem="{Binding SourceLocation}"
+                                    Style="{DynamicResource PickListBoxStyle}">
+                                    <ListBox.GroupStyle>
+                                        <GroupStyle>
+                                            <GroupStyle.HeaderTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{DynamicResource ListGroupHeaderTextStyle}" Text="{Binding Name}" />
+                                                </DataTemplate>
+                                            </GroupStyle.HeaderTemplate>
+                                        </GroupStyle>
+                                    </ListBox.GroupStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    Text="{Binding Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    MinWidth="34"
+                                                    Style="{DynamicResource ItemDetailTextStyle}"
+                                                    TextAlignment="Right">
+                                                    <Run Text="{Binding WaferCount, Mode=OneWay}" /><Run Text="/" /><Run Text="{Binding SlotCount, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+
+                            <!--  选中位置的槽  -->
+                            <Border Grid.Column="2" Style="{DynamicResource ListPaneBorderStyle}">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Style="{DynamicResource PaneCaptionBorderStyle}">
+                                        <DockPanel>
+                                            <TextBlock
+                                                DockPanel.Dock="Right"
+                                                Style="{DynamicResource ItemDetailTextStyle}"
+                                                Text="{Binding SourceLocation.SummaryText}" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding SourceLocation.Name}" />
+                                        </DockPanel>
+                                    </Border>
+                                    <DataGrid
+                                        CellStyle="{DynamicResource PickDataGridCellStyle}"
+                                        ItemsSource="{Binding SourceSlots}"
+                                        RowStyle="{DynamicResource PickDataGridRowStyle}"
+                                        SelectedItem="{Binding SourceRow}"
+                                        SelectionChanged="OnSlotSelectionChanged"
+                                        Style="{DynamicResource DenseDataGridStyle}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn
+                                                Width="64"
+                                                Binding="{Binding SlotText, Mode=OneWay}"
+                                                ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                                Header="{DynamicResource setting.ledger.slot}" />
+                                            <DataGridTemplateColumn Width="*" Header="{DynamicResource setting.ledger.wafer}">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel
+                                                            Margin="4,0"
+                                                            VerticalAlignment="Center"
+                                                            Orientation="Horizontal">
+                                                            <Rectangle Style="{DynamicResource WaferBarStyle}" Tag="{Binding Tone}" />
+                                                            <Grid Margin="8,0,0,0">
+                                                                <TextBlock
+                                                                    Foreground="{DynamicResource DarkDisabledText}"
+                                                                    Style="{DynamicResource NullContentHintTextStyle}"
+                                                                    Tag="{Binding Wafer}"
+                                                                    Text="{DynamicResource setting.ledger.empty}" />
+                                                                <TextBlock Text="{Binding WaferId, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn
+                                                Width="96"
+                                                Binding="{Binding StateText, Mode=OneWay}"
+                                                ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                                Header="{DynamicResource setting.ledger.state}" />
+                                            <DataGridTextColumn
+                                                Width="80"
+                                                Binding="{Binding LotId, Mode=OneWay}"
+                                                ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                                Header="{DynamicResource setting.ledger.lot}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+                </materialDesign:Card>
+
+                <Border Grid.Column="1" Style="{DynamicResource RoundIconBorderStyle}">
+                    <materialDesign:PackIcon
+                        Width="18"
+                        Height="18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Kind="ArrowRight" />
+                </Border>
+
+                <!--  目标：空槽才能点（移账时用，删账不用选）  -->
+                <materialDesign:Card
+                    Grid.Column="2"
+                    Padding="12,10,12,12"
+                    Style="{DynamicResource DefaultCardStyle}">
+                    <DockPanel>
+                        <DockPanel
+                            Height="40"
+                            Margin="0,0,0,8"
+                            DockPanel.Dock="Top">
+                            <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource setting.ledger.target}" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                Style="{DynamicResource ItemDetailTextStyle}"
+                                Text="{DynamicResource setting.ledger.target_hint}"
+                                TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="176" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  位置：名字、空几个槽  -->
+                            <Border Grid.Column="0" Style="{DynamicResource ListPaneBorderStyle}">
+                                <ListBox
+                                    IsSynchronizedWithCurrentItem="False"
+                                    ItemContainerStyle="{DynamicResource PickListBoxItemStyle}"
+                                    ItemsSource="{Binding TargetLocationsView}"
+                                    SelectedItem="{Binding TargetLocation}"
+                                    Style="{DynamicResource PickListBoxStyle}">
+                                    <ListBox.GroupStyle>
+                                        <GroupStyle>
+                                            <GroupStyle.HeaderTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{DynamicResource ListGroupHeaderTextStyle}" Text="{Binding Name}" />
+                                                </DataTemplate>
+                                            </GroupStyle.HeaderTemplate>
+                                        </GroupStyle>
+                                    </ListBox.GroupStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    Text="{Binding Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    MinWidth="34"
+                                                    Style="{DynamicResource ItemDetailTextStyle}"
+                                                    Text="{Binding FreeText}"
+                                                    TextAlignment="Right" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+
+                            <!--  选中位置的槽  -->
+                            <Border Grid.Column="2" Style="{DynamicResource ListPaneBorderStyle}">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Top" Style="{DynamicResource PaneCaptionBorderStyle}">
+                                        <DockPanel>
+                                            <TextBlock
+                                                DockPanel.Dock="Right"
+                                                Style="{DynamicResource ItemDetailTextStyle}"
+                                                Text="{Binding TargetLocation.SummaryText}" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding TargetLocation.Name}" />
+                                        </DockPanel>
+                                    </Border>
+                                    <DataGrid
+                                        CellStyle="{DynamicResource PickDataGridCellStyle}"
+                                        ItemsSource="{Binding TargetSlots}"
+                                        RowStyle="{DynamicResource PickDataGridRowStyle}"
+                                        SelectedItem="{Binding TargetRow}"
+                                        SelectionChanged="OnSlotSelectionChanged"
+                                        Style="{DynamicResource DenseDataGridStyle}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn
+                                                Width="64"
+                                                Binding="{Binding SlotText, Mode=OneWay}"
+                                                ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                                Header="{DynamicResource setting.ledger.slot}" />
+                                            <DataGridTemplateColumn Width="*" Header="{DynamicResource setting.ledger.wafer}">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel
+                                                            Margin="4,0"
+                                                            VerticalAlignment="Center"
+                                                            Orientation="Horizontal">
+                                                            <Rectangle Style="{DynamicResource WaferBarStyle}" Tag="{Binding Tone}" />
+                                                            <Grid Margin="8,0,0,0">
+                                                                <TextBlock
+                                                                    Foreground="{DynamicResource DarkDisabledText}"
+                                                                    Style="{DynamicResource NullContentHintTextStyle}"
+                                                                    Tag="{Binding Wafer}"
+                                                                    Text="{DynamicResource setting.ledger.empty}" />
+                                                                <TextBlock Text="{Binding WaferId, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn
+                                                Width="96"
+                                                Binding="{Binding StateText, Mode=OneWay}"
+                                                ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                                Header="{DynamicResource setting.ledger.state}" />
+                                            <DataGridTextColumn
+                                                Width="80"
+                                                Binding="{Binding LotId, Mode=OneWay}"
+                                                ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                                Header="{DynamicResource setting.ledger.lot}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+                </materialDesign:Card>
+
+                <!--  调整记录：人工移动、删除，最新的在最上面；本机刚做的那条淡强调底  -->
+                <materialDesign:Card
+                    Grid.Column="4"
+                    Padding="12,10,12,12"
+                    Style="{DynamicResource DefaultCardStyle}">
+                    <DockPanel>
+                        <DockPanel
+                            Height="40"
+                            Margin="0,0,0,8"
+                            DockPanel.Dock="Top">
+                            <TextBlock
+                                DockPanel.Dock="Right"
+                                Style="{DynamicResource ItemDetailTextStyle}"
+                                Text="{DynamicResource setting.ledger.records_hint}" />
+                            <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource setting.ledger.records}" />
+                        </DockPanel>
+                        <Border Style="{DynamicResource ListPaneBorderStyle}">
+                            <DataGrid
+                                CellStyle="{DynamicResource FreshDataGridCellStyle}"
+                                ItemsSource="{Binding Records}"
+                                Style="{DynamicResource DenseDataGridStyle}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn
+                                        Width="88"
+                                        Binding="{Binding Time, Mode=OneWay, StringFormat='{}{0:MM-dd HH:mm}'}"
+                                        ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                        Header="{DynamicResource common.time}" />
+                                    <DataGridTemplateColumn Width="64" Header="{DynamicResource setting.ledger.action}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Style="{DynamicResource LedgerActionDataGridTextStyle}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn
+                                        Width="84"
+                                        Binding="{Binding WaferId, Mode=OneWay}"
+                                        ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                        Header="{DynamicResource setting.ledger.wafer_id}" />
+                                    <DataGridTextColumn
+                                        Width="*"
+                                        Binding="{Binding PathText, Mode=OneWay}"
+                                        ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                        Header="{DynamicResource setting.ledger.path}" />
+                                    <DataGridTextColumn
+                                        Width="76"
+                                        Binding="{Binding Operator, Mode=OneWay}"
+                                        ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                        Header="{DynamicResource setting.ledger.operator}" />
+                                    <DataGridTextColumn
+                                        Width="104"
+                                        Binding="{Binding Reason, Mode=OneWay}"
+                                        ElementStyle="{DynamicResource DenseDataGridTextStyle}"
+                                        Header="{DynamicResource setting.ledger.reason_column}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </DockPanel>
+                </materialDesign:Card>
+            </Grid>
+
+            <!--  没账时正中的一句：没连上后端 / 晶圆账没开 / 没有能放片的位置  -->
+            <TextBlock
+                Grid.Row="1"
+                Style="{DynamicResource LedgerPageHintTextStyle}"
+                Tag="{Binding PageState}" />
+        </Grid>
+
+        <!--  确认框：盖住整页；要改的那片、从哪到哪（新建时填片号、建在哪）、操作人和原因都摆出来再确认，Esc 或"取消"关掉  -->
+        <Border Style="{DynamicResource PageOverlayBorderStyle}" Tag="{Binding IsConfirming}">
+            <Border Style="{DynamicResource DialogCardBorderStyle}">
+                <StackPanel>
+                    <TextBlock Style="{DynamicResource LedgerDialogTitleTextStyle}" Tag="{Binding PendingAction}" />
+
+                    <!--  新建：填片号，下面是建在哪个空槽  -->
+                    <StackPanel Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsCreating}">
+                        <Border Style="{DynamicResource DialogSummaryBorderStyle}">
+                            <StackPanel>
+                                <controls:InputTextBox
+                                    x:Name="NewWaferIdBox"
+                                    Width="320"
+                                    HorizontalAlignment="Left"
+                                    materialDesign:HintAssist.Hint="{DynamicResource setting.ledger.wafer_id_hint}"
+                                    DataType="Text"
+                                    Style="{DynamicResource ToolbarTextBoxStyle}"
+                                    Value="{Binding NewWaferId}" />
+                                <TextBlock
+                                    Margin="0,6,0,0"
+                                    Foreground="{DynamicResource DarkAlarmStatus}"
+                                    Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                    Tag="{Binding IsWaferIdMissing}"
+                                    Text="{DynamicResource setting.ledger.wafer_id_missing}" />
+                                <TextBlock
+                                    Margin="0,10,0,0"
+                                    FontWeight="SemiBold"
+                                    Text="{Binding Target.PositionText}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!--  移动、删除：源的片号和位置  -->
+                    <StackPanel Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsSourceAction}">
+                        <Border Style="{DynamicResource DialogSummaryBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource DialogSubjectTextStyle}" Text="{Binding Source.WaferId}" />
+                                <WrapPanel Margin="0,10,0,0">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding Source.PositionText}" />
+                                    <StackPanel
+                                        Orientation="Horizontal"
+                                        Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                        Tag="{Binding IsMoving}">
+                                        <materialDesign:PackIcon
+                                            Width="20"
+                                            Height="20"
+                                            Margin="10,0"
+                                            VerticalAlignment="Center"
+                                            Foreground="{DynamicResource DarkAccent}"
+                                            Kind="ArrowRight" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Target.PositionText}" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Foreground="{DynamicResource DarkAlarmStatus}"
+                                        Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                        Tag="{Binding IsDeleting}"
+                                        Text="{DynamicResource setting.ledger.delete_path}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Style="{DynamicResource LedgerDialogHintTextStyle}" Tag="{Binding PendingAction}" />
+
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Foreground="{DynamicResource DarkDisabledText}" Text="{DynamicResource setting.ledger.operator}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Text="{Binding OperatorName}" />
+                        <TextBlock
+                            Grid.Row="1"
+                            Margin="0,6,0,0"
+                            Foreground="{DynamicResource DarkDisabledText}"
+                            Text="{DynamicResource setting.ledger.reason_column}" />
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Margin="12,6,0,0"
+                            Text="{Binding ReasonText}"
+                            TextWrapping="Wrap" />
+                    </Grid>
+
+                    <StackPanel
+                        Margin="0,22,0,0"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Command="{Binding CancelCommand}"
+                            Content="{DynamicResource common.cancel}"
+                            Style="{DynamicResource ToolbarOutlinedButtonStyle}" />
+                        <Button
+                            Command="{Binding ConfirmCommand}"
+                            Style="{DynamicResource LedgerConfirmButtonStyle}"
+                            Tag="{Binding PendingAction}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

@@ -82,7 +82,8 @@ public static class L10n
             }
 
             var target = source[..^PackFileName(Language).Length] + PackFileName(language);
-            if (TryLoad(target) is { } pack)
+            var pack = TryLoad(target);
+            if (pack is not null)
             {
                 dictionaries[i] = pack;
             }

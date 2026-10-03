@@ -116,7 +116,8 @@ Check(s1f14.Name == "S1F14" && s1f14.Body!.Items[0].GetBinary()[0] == 0
 
 // 3.2 S1F1 在线询问：设备回 L[2]{MDLN, SOFTREV}（只有 Host 回空 L）。
 var s1f2 = await session.SendAsync(new SecsMessage(1, 1, true));
-Check(s1f2.Name == "S1F2" && s1f2.Body is { Items.Count: 2 } && s1f2.Body.Items[0].GetString() == "xyz-35021"
+Check(s1f2.Name == "S1F2" && s1f2.Body is not null && s1f2.Body.Items.Count == 2
+      && s1f2.Body.Items[0].GetString() == "xyz-35021"
       && s1f2.Body.Items[1].GetString() == "0.1", "S1F1 应答出 S1F2 L[2]{MDLN, SOFTREV}");
 
 // 3.3 S1F3 按号查：LinkState 此刻应是 Selected（SV 值来自组件属性反射）。
@@ -139,7 +140,8 @@ Check(s2f18.Name == "S2F18" && s2f18.Body!.GetString().Length == 16
 // 3.6 S2F41 远程命令：S2F42 L[2]{HCACK=4（不接受，下一阶段接派单）, L[0]}。
 var s2f42 = await session.SendAsync(new SecsMessage(2, 41, true,
     SecsItem.L(SecsItem.A("START"), SecsItem.L())));
-Check(s2f42.Body is { Items.Count: 2 } && s2f42.Body.Items[0].GetBinary()[0] == 4 && s2f42.Body.Items[1].Count == 0,
+Check(s2f42.Body is not null && s2f42.Body.Items.Count == 2
+      && s2f42.Body.Items[0].GetBinary()[0] == 4 && s2f42.Body.Items[1].Count == 0,
     "S2F41 应回 L[2]{HCACK=4, L[0]}");
 
 // 3.7 S2F31 对时设置：答收下（B(0)）。
@@ -169,12 +171,14 @@ foreach (var (request, expected) in new[]
 // 3.7c 报警推 S5F1 L[3]{ALCD, ALID, ALTX}：报出 ALCD 最高位 1，复位清除 ALCD=0，ALTX 是"组件全路径.报警代码"。
 probe.Fire();
 var raised = await alarmReports.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
-Check(raised.Body is { Items.Count: 3 } && raised.Body.Items[0].GetBinary()[0] == 0x80
+Check(raised.Body is not null && raised.Body.Items.Count == 3
+      && raised.Body.Items[0].GetBinary()[0] == 0x80
       && raised.Body.Items[1].Format == SecsFormat.U4 && raised.Body.Items[1].GetUInt64() == probeAlid
       && raised.Body.Items[2].GetString() == "Probe.ProbeAlarm", "报警报出应推 S5F1 L[3]{80, ALID, ALTX}");
 probe.Reset();
 var cleared = await alarmReports.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
-Check(cleared.Body is { Items.Count: 3 } && cleared.Body.Items[0].GetBinary()[0] == 0
+Check(cleared.Body is not null && cleared.Body.Items.Count == 3
+      && cleared.Body.Items[0].GetBinary()[0] == 0
       && cleared.Body.Items[1].GetUInt64() == probeAlid, "报警清除应推 S5F1，ALCD=0");
 
 // 3.8 断线重连：会话 Separate 后 T5 重连，组件对新会话照常答话。

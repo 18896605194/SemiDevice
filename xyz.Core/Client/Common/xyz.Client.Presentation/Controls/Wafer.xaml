@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="xyz.Client.Presentation.Controls.Wafer"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -120,14 +120,25 @@
                     </Style>
                 </Ellipse.Style>
             </Ellipse>
-            <TextBlock
+            <!--
+                片上的字跟着片一起在上面的 Viewbox 里缩放，字号就是"占片直径的比例"：
+                原来 10 号只占一成，机械手上的片外面还套着机械手和页面两层缩放，到屏幕上只剩 6 px 左右，糊成一团。
+                现在显示"LoadPort1-25"这么长，一行能多宽就多宽：左右各留 7（片心那一行的弦宽约 90，再宽字就贴到圆边），
+                字号 24 是上限，放不下就等比缩到刚好塞满，不出圆。
+            -->
+            <Viewbox
+                Margin="7,0"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Panel.ZIndex="1"
-                FontSize="{StaticResource Size10}"
-                FontWeight="Bold"
-                Foreground="Black"
-                Text="{Binding Path=Data.LpSlot, RelativeSource={RelativeSource AncestorType=local:Wafer}}" />
+                Stretch="Uniform"
+                StretchDirection="DownOnly">
+                <TextBlock
+                    FontSize="{StaticResource Size24}"
+                    FontWeight="Bold"
+                    Foreground="Black"
+                    Text="{Binding Path=Data.LpSlot, RelativeSource={RelativeSource AncestorType=local:Wafer}}" />
+            </Viewbox>
 
             <Ellipse
                 Margin="2"

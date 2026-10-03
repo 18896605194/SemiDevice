@@ -11,6 +11,7 @@ using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Service.Systems;
 using xyz.Service.UserManger;
+using xyz.Service.Wafers;
 
 namespace xyz.GrpcHost;
 
@@ -57,7 +58,7 @@ public static class Program
         // 没配该节点时退回默认 localhost:5000，行为与老版本一致。组件照旧先于端口装配（PLC 先连先扫描的启动顺序不变）。
         builder.Services.AddXyzServices();
         var rpc = RpcComponent.Current;
-        var host = rpc is { Host.Length: > 0 } endpoint ? endpoint.Host : "localhost";
+        var host = rpc is not null && !string.IsNullOrEmpty(rpc.Host) ? rpc.Host : "localhost";
         var port = rpc?.Port ?? RpcComponent.DefaultPort;
 
         builder.WebHost.ConfigureKestrel(options =>
@@ -113,6 +114,7 @@ public static class Program
         app.MapGrpcService<SystemService>();
         app.MapGrpcService<IoService>();
         app.MapGrpcService<EcService>();
+        app.MapGrpcService<WaferLedgerService>();
         app.MapGrpcService<DataChartService>();
         app.MapGrpcService<RealChartService>();
 

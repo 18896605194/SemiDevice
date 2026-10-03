@@ -140,7 +140,7 @@ public sealed class SvCollector
                 IConvertible number and not string => number.ToDouble(CultureInfo.InvariantCulture),
                 _ => null,
             };
-            return value is { } finite && double.IsFinite(finite) ? finite : null;
+            return value is not null && double.IsFinite(value.Value) ? value.Value : null;
         }
         catch
         {

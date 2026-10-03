@@ -38,8 +38,9 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
             new ClientMenu("DataCenter", "DataCenter.RealChart", 4),
 
             new ClientMenu("Setting", "Setting.Ec", 1),
-            new ClientMenu("Setting", "Setting.User", 2),
-            new ClientMenu("Setting", "Setting.Role", 3),
+            new ClientMenu("Setting", "Setting.WaferLedger", 2),
+            new ClientMenu("Setting", "Setting.User", 3),
+            new ClientMenu("Setting", "Setting.Role", 4),
 
             .. modules.Select((module, index) => new ClientMenu("Io", $"Io.{module}", index + 1, module)),
         ];

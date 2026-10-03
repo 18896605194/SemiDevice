@@ -88,11 +88,13 @@ try
     var alarmService = new AlarmService();
     device.Fault();
     var active = JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!;
-    Check(active is [{ Source: "Tool1", Code: "ProbeFault", Level: "Alarm1", IsActive: true }], "当前报警带来源、代码、等级");
+    Check(active.Count == 1 && active[0].Source == "Tool1" && active[0].Code == "ProbeFault"
+          && active[0].Level == "Alarm1" && active[0].IsActive, "当前报警带来源、代码、等级");
     Check(active[0].Text == "探针故障" && active[0].Solution == "检查探针后复位", "报警文本与处理建议");
 
     var unknown = await alarmService.ResetAsync(new RpcRequest { Parameters = { ["Source"] = "Nobody" } });
-    Check(!unknown.Success && unknown.Code == ErrorCodes.AlarmSourceNotFound && unknown.Args is ["Nobody"],
+    Check(!unknown.Success && unknown.Code == ErrorCodes.AlarmSourceNotFound
+          && unknown.Args.Count == 1 && unknown.Args[0] == "Nobody",
         "复位没报过报警的来源：给错误码和来源");
     var reset = await alarmService.ResetAsync(new RpcRequest { Parameters = { ["Source"] = "Tool1" } });
     Check(reset.Success && alarms.ActiveAlarms.Count == 0, "复位来源后报警清掉");

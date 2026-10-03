@@ -26,6 +26,9 @@ public class WaferManager : ComponentBase
     /// <summary>模块名 → 槽位数组，下标 0 即第 1 槽；null 表示空槽。容量在注册时定死，不随运行增删。</summary>
     private readonly Dictionary<string, WaferInfo?[]> _locations = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>按 LoadPort 注册的位置：在这些位置上建的片记下来源 LoadPort（WaferInfo.OriginLoadPort）。</summary>
+    private readonly HashSet<string> _loadPorts = new(StringComparer.OrdinalIgnoreCase);
+
     public WaferManager()
     {
         Current = this;
@@ -233,6 +236,19 @@ public class WaferManager : ComponentBase
     }
 
     /// <summary>
+    /// 注册一个 LoadPort 位置：槽位同 RegisterLocation，另外记下它是 LoadPort——
+    /// 账本不认模块类型，只有这样才知道在它上面建的片"从哪个 LoadPort 的第几槽来"。
+    /// </summary>
+    public void RegisterLoadPort(string module, int slotCount)
+    {
+        RegisterLocation(module, slotCount);
+        lock (_gate)
+        {
+            _loadPorts.Add(module);
+        }
+    }
+
+    /// <summary>
     /// 这个位置有没有注册过。
     /// </summary>
     public bool IsRegistered(string module)
@@ -266,13 +282,14 @@ public class WaferManager : ComponentBase
                 return null;
             }
 
-            if (slots[slot - 1] is { } occupied)
+            var occupied = slots[slot - 1];
+            if (occupied is not null)
             {
                 Fault($"{module}.{slot:00} 已经有片 {occupied.WaferId}，不能重复建片");
                 return null;
             }
 
-            created = new WaferInfo(module, slot, status, carrierId, lotId);
+            created = new WaferInfo(module, slot, status, carrierId, lotId, _loadPorts.Contains(module));
             slots[slot - 1] = created;
         }
 
@@ -300,13 +317,15 @@ public class WaferManager : ComponentBase
                 return false;
             }
 
-            if (slots[slot - 1] is not { } wafer)
+            var wafer = slots[slot - 1];
+            if (wafer is null)
             {
                 Fault($"{module}.{slot:00} 上没片，删不了");
                 return false;
             }
 
             deleted = wafer;
+            deleted.UpdatedAt = DateTime.Now;  // 流水按这个时间记、按它分表，得是删的时刻
             slots[slot - 1] = null;
         }
 
@@ -336,8 +355,10 @@ public class WaferManager : ComponentBase
 
             for (int index = 0; index < slots.Length; index++)
             {
-                if (slots[index] is { } wafer)
+                var wafer = slots[index];
+                if (wafer is not null)
                 {
+                    wafer.UpdatedAt = DateTime.Now;
                     deleted.Add(wafer);
                     slots[index] = null;
                 }
@@ -373,7 +394,8 @@ public class WaferManager : ComponentBase
                 return false;
             }
 
-            if (source[fromSlot - 1] is not { } wafer)
+            var wafer = source[fromSlot - 1];
+            if (wafer is null)
             {
                 Fault($"{fromModule}.{fromSlot:00} 上没片，移不了");
                 return false;
@@ -384,7 +406,8 @@ public class WaferManager : ComponentBase
                 return true;
             }
 
-            if (target[toSlot - 1] is { } blocked)
+            var blocked = target[toSlot - 1];
+            if (blocked is not null)
             {
                 Fault($"{toModule}.{toSlot:00} 上已经有片 {blocked.WaferId}，{wafer.WaferId} 移不过去");
                 return false;
@@ -421,7 +444,8 @@ public class WaferManager : ComponentBase
         int created = 0;
         for (int index = 0; index < slots.Count; index++)
         {
-            if (slots[index] is { } status && Create(module, index + 1, status, carrierId, lotId) is not null)
+            var status = slots[index];
+            if (status is not null && Create(module, index + 1, status.Value, carrierId, lotId) is not null)
             {
                 created++;
             }
@@ -494,7 +518,8 @@ public class WaferManager : ComponentBase
                 return false;
             }
 
-            if (slots[slot - 1] is not { } wafer)
+            var wafer = slots[slot - 1];
+            if (wafer is null)
             {
                 Fault($"{module}.{slot:00} 上没片，改不了");
                 return false;
@@ -634,6 +659,278 @@ public class WaferManager : ComponentBase
 
     #endregion
 
+    #region 人工调整（设置 → 账单调整页）
+
+    /// <summary>
+    /// 调整记录最多给界面列几条（新的在前）。
+    /// </summary>
+    public const int RecentAdjustmentCount = 50;
+
+    private readonly object _adjustmentGate = new();
+
+    /// <summary>
+    /// 最近的人工调整（新的在前）：流水不落库时就靠它；落库时以库里的为准。
+    /// </summary>
+    private readonly List<WaferAdjustmentEntity> _recentAdjustments = [];
+
+    private bool _adjustmentTableReady;
+
+    /// <summary>
+    /// 人工移账：机械手出错时实物和账对不上（比如片子已经在手指上，账还在腔体里），人按实物把账挪过去。
+    /// 跟 Move 一样在一把锁里校验和搬；校验不过不报警——这是人在对账，不是设备流程出错——把原因返回给界面。
+    /// 改成了照常发 WaferMoved、记流水，另记一条调整记录（操作人、原因）。
+    /// </summary>
+    public WaferAdjustResult ManualMove(string fromModule, int fromSlot, string toModule, int toSlot, string operatorName, string? reason)
+    {
+        if (!IsEnable)
+        {
+            return WaferAdjustResult.Disabled;
+        }
+
+        WaferInfo moved;
+        lock (_gate)
+        {
+            if (!_locations.TryGetValue(fromModule, out var source) || !_locations.TryGetValue(toModule, out var target))
+            {
+                return WaferAdjustResult.LocationNotFound;
+            }
+
+            if (fromSlot < 1 || fromSlot > source.Length || toSlot < 1 || toSlot > target.Length)
+            {
+                return WaferAdjustResult.SlotOutOfRange;
+            }
+
+            var wafer = source[fromSlot - 1];
+            if (wafer is null)
+            {
+                return WaferAdjustResult.NoWafer;
+            }
+
+            if (ReferenceEquals(source, target) && fromSlot == toSlot)
+            {
+                return WaferAdjustResult.SameSlot;
+            }
+
+            if (target[toSlot - 1] is not null)
+            {
+                return WaferAdjustResult.SlotOccupied;
+            }
+
+            source[fromSlot - 1] = null;
+            target[toSlot - 1] = wafer;
+            wafer.Module = toModule;
+            wafer.Slot = toSlot;
+            wafer.UpdatedAt = DateTime.Now;
+            moved = wafer;
+        }
+
+        var snapshot = moved.Clone();
+        WaferMoved?.Invoke(snapshot, fromModule, fromSlot);
+        RecordHistory(WaferHistoryAction.Moved, snapshot, fromModule, fromSlot);
+        RecordAdjustment("Move", snapshot, fromModule, fromSlot, toModule, toSlot, operatorName, reason);
+        LogHelper.Info(Name, $"人工移账：{snapshot.WaferId} {fromModule}.{fromSlot:00} → {toModule}.{toSlot:00}，操作人 {operatorName}"
+            + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"，原因：{reason}"));
+        return WaferAdjustResult.Ok;
+    }
+
+    /// <summary>
+    /// 人工补账：实物在、账上没有时（账被误删、丢了），在空槽上按实物建一片。片号由人填，其余按默认：正常片、未处理、没有批次和载具号。
+    /// 片号已经在账上别的槽里就拒绝——那是同一片，该用移动；校验不过同样不报警，把原因返回给界面。
+    /// 建成了照常发 WaferCreated、记流水，另记一条调整记录。
+    /// </summary>
+    public WaferAdjustResult ManualCreate(string module, int slot, string waferId, string operatorName, string? reason)
+    {
+        if (!IsEnable)
+        {
+            return WaferAdjustResult.Disabled;
+        }
+
+        string id = waferId.Trim();
+        if (id.Length == 0)
+        {
+            return WaferAdjustResult.WaferIdRequired;
+        }
+
+        WaferInfo created;
+        lock (_gate)
+        {
+            if (!_locations.TryGetValue(module, out var slots))
+            {
+                return WaferAdjustResult.LocationNotFound;
+            }
+
+            if (slot < 1 || slot > slots.Length)
+            {
+                return WaferAdjustResult.SlotOutOfRange;
+            }
+
+            if (slots[slot - 1] is not null)
+            {
+                return WaferAdjustResult.SlotOccupied;
+            }
+
+            foreach (var location in _locations.Values)
+            {
+                foreach (var wafer in location)
+                {
+                    if (wafer is not null && string.Equals(wafer.WaferId, id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return WaferAdjustResult.DuplicateWaferId;
+                    }
+                }
+            }
+
+            created = new WaferInfo(module, slot, WaferStatus.Normal, null, null, _loadPorts.Contains(module));
+            created.WaferId = id;
+            slots[slot - 1] = created;
+        }
+
+        var snapshot = created.Clone();
+        WaferCreated?.Invoke(snapshot);
+        RecordHistory(WaferHistoryAction.Created, snapshot);
+        RecordAdjustment("Create", snapshot, module, slot, null, null, operatorName, reason);
+        LogHelper.Info(Name, $"人工补账：{snapshot.WaferId} {module}.{slot:00}，操作人 {operatorName}"
+            + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"，原因：{reason}"));
+        return WaferAdjustResult.Ok;
+    }
+
+    /// <summary>
+    /// 人工删账：实物确实已经拿走（碎片、人工取出）时，把这片从账上删掉。校验不过同样不报警，把原因返回给界面。
+    /// 改成了照常发 WaferDeleted、记流水，另记一条调整记录。
+    /// </summary>
+    public WaferAdjustResult ManualDelete(string module, int slot, string operatorName, string? reason)
+    {
+        if (!IsEnable)
+        {
+            return WaferAdjustResult.Disabled;
+        }
+
+        WaferInfo deleted;
+        lock (_gate)
+        {
+            if (!_locations.TryGetValue(module, out var slots))
+            {
+                return WaferAdjustResult.LocationNotFound;
+            }
+
+            if (slot < 1 || slot > slots.Length)
+            {
+                return WaferAdjustResult.SlotOutOfRange;
+            }
+
+            var wafer = slots[slot - 1];
+            if (wafer is null)
+            {
+                return WaferAdjustResult.NoWafer;
+            }
+
+            deleted = wafer;
+            deleted.UpdatedAt = DateTime.Now;
+            slots[slot - 1] = null;
+        }
+
+        var snapshot = deleted.Clone();
+        WaferDeleted?.Invoke(snapshot);
+        RecordHistory(WaferHistoryAction.Deleted, snapshot);
+        RecordAdjustment("Delete", snapshot, module, slot, null, null, operatorName, reason);
+        LogHelper.Info(Name, $"人工删账：{snapshot.WaferId} {module}.{slot:00}，操作人 {operatorName}"
+            + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"，原因：{reason}"));
+        return WaferAdjustResult.Ok;
+    }
+
+    /// <summary>
+    /// 最近的人工调整记录，新的在前，最多 <see cref="RecentAdjustmentCount"/> 条。
+    /// 流水落库时从库里查（重启过也查得到）；不落库或库读不了时给本次运行里的。
+    /// </summary>
+    public IReadOnlyList<WaferAdjustmentEntity> GetRecentAdjustments()
+    {
+        if (_historyRows is not null)
+        {
+            try
+            {
+                using var db = XyzDb.Create(HistoryDatabase);
+                EnsureAdjustmentTable(db);
+                return db.Queryable<WaferAdjustmentEntity>()
+                    .OrderBy(row => row.OccurredAt, OrderByType.Desc)
+                    .Take(RecentAdjustmentCount)
+                    .ToList();
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Warn(Name, $"查人工调整记录失败，给本次运行里的: {exception.Message}");
+            }
+        }
+
+        lock (_adjustmentGate)
+        {
+            return _recentAdjustments.ToList();
+        }
+    }
+
+    /// <summary>
+    /// 记一条人工调整：内存里留最近的；流水落库时也写进库（人工调整很少，直接写，写完界面马上查得到）。必须在 _gate 之外调。
+    /// </summary>
+    private void RecordAdjustment(string action, WaferInfo wafer, string fromModule, int fromSlot,
+        string? toModule, int? toSlot, string operatorName, string? reason)
+    {
+        var row = new WaferAdjustmentEntity
+        {
+            Action = action,
+            WaferGuid = wafer.Id.ToString(),
+            WaferId = wafer.WaferId,
+            FromModule = fromModule,
+            FromSlot = fromSlot,
+            ToModule = toModule,
+            ToSlot = toSlot,
+            CarrierId = wafer.CarrierId,
+            LotId = wafer.LotId,
+            Operator = operatorName,
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+            OccurredAt = DateTime.Now,
+        };
+
+        lock (_adjustmentGate)
+        {
+            _recentAdjustments.Insert(0, row);
+            if (_recentAdjustments.Count > RecentAdjustmentCount)
+            {
+                _recentAdjustments.RemoveAt(_recentAdjustments.Count - 1);
+            }
+        }
+
+        if (_historyRows is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var db = XyzDb.Create(HistoryDatabase);
+            EnsureAdjustmentTable(db);
+            db.Insertable(row).ExecuteCommand();
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Warn(Name, $"人工调整记录写库失败（账已经改了）: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 调整记录表第一次用到时建（已有就只补列）。
+    /// </summary>
+    private void EnsureAdjustmentTable(ISqlSugarClient db)
+    {
+        if (_adjustmentTableReady)
+        {
+            return;
+        }
+
+        db.CodeFirst.InitTables<WaferAdjustmentEntity>();
+        _adjustmentTableReady = true;
+    }
+
+    #endregion
+
     /// <summary>
     /// 槽位定位：模块没注册或槽位越界都算调用方写错了，记错误日志（不抛异常，避免打断设备流程）。
     /// </summary>
@@ -708,6 +1005,12 @@ public class WaferManager : ComponentBase
             if (expired.Count > 0)
             {
                 LogHelper.Info($"[{Name}] 清理晶圆流水 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
+            }
+
+            // 人工调整记录不分表，按同一个保留天数逐行删（量很小）
+            if (db.DbMaintenance.IsAnyTable("wafer_adjustment", false))
+            {
+                db.Deleteable<WaferAdjustmentEntity>().Where(row => row.OccurredAt < deadline).ExecuteCommand();
             }
         }
         catch (Exception exception)

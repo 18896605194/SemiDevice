@@ -124,56 +124,12 @@ public class ChamberModel : ObservableObject
     /// <summary>
     /// 状态文字（按当前语言）。
     /// </summary>
-    public string StateText => StateTextOf(State);
+    public string StateText => ModuleStates.ChamberText(State);
 
     /// <summary>
     /// 状态色调（状态徽标的底色）。
     /// </summary>
-    public ModuleStateTone StateTone => StateToneOf(State);
-
-    /// <summary>
-    /// 腔体状态码 → 状态文字（按当前语言），Robot 页的站点卡片也用它。
-    /// 码值对应 xyz.Modules 的 ModuleState/TransferModuleState/ChamberState，未收录的码显示原值。
-    /// </summary>
-    public static string StateTextOf(int state)
-    {
-        switch (state)
-        {
-            case 10: return L10n.Get("module.state.not_init");
-            case 20: return L10n.Get("module.state.initing");
-            case 30: return L10n.Get("module.state.idle");
-            case 35: return L10n.Get("module.state.aborting");
-            case 40: return L10n.Get("module.state.error");
-            case 50: return L10n.Get("module.state.pre_transfer");
-            case 60: return L10n.Get("module.state.transfer_ready");
-            case 70: return L10n.Get("module.state.transferring");
-            case 80: return L10n.Get("module.state.transfer_complete");
-            case 100: return L10n.Get("module.state.homing");
-            case 110: return L10n.Get("module.state.processing");
-            default: return L10n.Get("module.state.unknown", state);
-        }
-    }
-
-    /// <summary>
-    /// 腔体状态码 → 状态色调，Robot 页的站点卡片也用它：空闲就绪；初始化、回零、工艺、传片环都算动作中。
-    /// </summary>
-    public static ModuleStateTone StateToneOf(int state)
-    {
-        switch (state)
-        {
-            case 30: return ModuleStateTone.Ready;
-            case 35: return ModuleStateTone.Warning;
-            case 40: return ModuleStateTone.Alarm;
-            case 20:
-            case 50:
-            case 60:
-            case 70:
-            case 80:
-            case 100:
-            case 110: return ModuleStateTone.Busy;
-            default: return ModuleStateTone.Inactive;
-        }
-    }
+    public ModuleStateTone StateTone => ModuleStates.ChamberTone(State);
 
     /// <summary>设备报错灯：腔体启用且报错有内容才亮。</summary>
     public bool HasDeviceError
@@ -238,7 +194,9 @@ public class ChamberModel : ObservableObject
         {
             if (left[i].Slot != right[i].Slot
                 || left[i].State != right[i].State
-                || left[i].WaferId != right[i].WaferId)
+                || left[i].WaferId != right[i].WaferId
+                || left[i].SourceLoadPort != right[i].SourceLoadPort
+                || left[i].SourceSlot != right[i].SourceSlot)
             {
                 return false;
             }
@@ -249,8 +207,9 @@ public class ChamberModel : ObservableObject
 
     /// <summary>
     /// 片位上的片转圆片：颜色沿用圆片控件的状态色——未做 = 待加工、工艺中、做完、失败 / 中止 = 报错。
+    /// Robot 页调度图的腔体卡片也用它。
     /// </summary>
-    private static WaferModel ToWafer(ChamberSlotDto slot)
+    internal static WaferModel ToWafer(ChamberSlotDto slot)
     {
         string state;
         switch (slot.State)
@@ -273,7 +232,7 @@ public class ChamberModel : ObservableObject
         return new WaferModel
         {
             Slot = slot.Slot,
-            LpSlot = slot.WaferId ?? string.Empty,
+            LpSlot = WaferLabel.Of(slot.SourceLoadPort, slot.SourceSlot),
             State = state,
         };
     }

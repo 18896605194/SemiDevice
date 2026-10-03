@@ -386,7 +386,8 @@ public class InputTextBox : TextBox
 
     private string RangeError()
     {
-        if (CustomError() is { } custom)
+        var custom = CustomError();
+        if (custom is not null)
         {
             return custom;
         }
@@ -468,7 +469,8 @@ public class InputTextBox : TextBox
     {
         SetCurrentValue(HasErrorProperty, true);
         PushToSource(HasErrorProperty);
-        if (GetBindingExpression(TextProperty) is { } expression)
+        var expression = GetBindingExpression(TextProperty);
+        if (expression is not null)
         {
             Validation.ClearInvalid(expression);
             Validation.MarkInvalid(expression, new ValidationError(ManualRule.Instance, expression, message, null));
@@ -479,7 +481,8 @@ public class InputTextBox : TextBox
     {
         SetCurrentValue(HasErrorProperty, false);
         PushToSource(HasErrorProperty);
-        if (GetBindingExpression(TextProperty) is { } expression)
+        var expression = GetBindingExpression(TextProperty);
+        if (expression is not null)
         {
             Validation.ClearInvalid(expression);
         }

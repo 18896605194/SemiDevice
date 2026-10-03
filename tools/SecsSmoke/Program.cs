@@ -203,7 +203,8 @@ connector.SessionEstablished += session =>
 };
 connector.Start();
 var host = await hostReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
-Check(host.IsSelected && listener.Current is { IsSelected: true }, "两端都应 SELECTED");
+var listenerSession = listener.Current;
+Check(host.IsSelected && listenerSession is not null && listenerSession.IsSelected, "两端都应 SELECTED");
 // 设备端是先写 Select.rsp 上网络、再进 SELECTED 状态：主机端此刻可能已选中而设备事件还没跑到，
 // 用等待断言而不是瞬时 IsCompleted（否则是竞态）。
 var device = await deviceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -219,7 +220,7 @@ Check(s1f14.Body!.Items.Count == 2 && s1f14.Body.Items[0].GetBinary()[0] == 0
 
 // 3.2 空 body 消息（S1F1 Are You There）。
 var s1f2 = await host.SendAsync(new SecsMessage(1, 1, true));
-Check(s1f2.Name == "S1F2" && s1f2.Body is { Items.Count: 2 }, "S1F1 应答出 S1F2");
+Check(s1f2.Name == "S1F2" && s1f2.Body is not null && s1f2.Body.Items.Count == 2, "S1F1 应答出 S1F2");
 
 // 3.3 W=0 单发：不等回复，设备端事件里能看到。
 host.Send(new SecsMessage(6, 11, false, SecsItem.L(SecsItem.U4(70001))));
@@ -251,7 +252,8 @@ Check(afterTimeout.Name == "S1F2", "T3 超时后链路应仍可用");
 
 // 3.5 Linktest：双端 250ms 心跳跑一阵子，链路保持。
 await Task.Delay(1200);
-Check(host.IsSelected && listener.Current is { IsSelected: true }, "心跳期间链路应保持 SELECTED");
+listenerSession = listener.Current;
+Check(host.IsSelected && listenerSession is not null && listenerSession.IsSelected, "心跳期间链路应保持 SELECTED");
 
 // 3.6 重复接入拒绝：链路活着时第二条连接应被立刻关掉，原链路不受影响。
 var rogue = new TcpClient();
@@ -313,7 +315,8 @@ using (var clash = new HsmsListener(clashSettings, sink))
 
     clashSettings.Port = 0;
     clash.Start();
-    Check(clash.LocalEndpoint is { Port: > 0 } && clash.LocalEndpoint.Port != occupiedPort, "换端口后同一个监听能再起来");
+    Check(clash.LocalEndpoint is not null && clash.LocalEndpoint.Port > 0 && clash.LocalEndpoint.Port != occupiedPort,
+        "换端口后同一个监听能再起来");
 }
 occupant.Stop();
 

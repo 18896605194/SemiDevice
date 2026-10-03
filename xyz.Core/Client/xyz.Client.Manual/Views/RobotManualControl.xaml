@@ -69,7 +69,8 @@
                                         Step=""
                                         StepTime=""
                                         RecipeTime=""
-                                        Title="{Binding Title}" />
+                                        Title="{Binding Title}"
+                                        Wafer="{Binding Wafer}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -120,7 +121,8 @@
                                         SlotCount="{Binding SlotCount}"
                                         StateText="{Binding StateText}"
                                         StateTone="{Binding StateTone}"
-                                        Title="{Binding Title}" />
+                                        Title="{Binding Title}"
+                                        Wafers="{Binding Wafers}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

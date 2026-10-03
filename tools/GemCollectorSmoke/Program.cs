@@ -69,9 +69,10 @@ try
     Check(setEvent.Payloads.Select(payload => payload.Dvid).SequenceEqual(gem.Dv.AlarmPayloadDvids)
           && gem.Dv.AlarmPayloadDvids.SequenceEqual(Enumerable.Range(90000, 6)), "报警事件带 6 个报警 DV");
     Check(setEvent.Description.Contains("Tool1.TimeoutAlarm") && setEvent.EventText == "报警报出", "报警事件说明带报警全名");
-    Check(gem.Dv.Definitions[0] is { Name: "System.Alarm.Alid", Format: "Int" }, "第一个 DV 是 ALID");
+    var firstDv = gem.Dv.Definitions[0];
+    Check(firstDv is not null && firstDv.Name == "System.Alarm.Alid" && firstDv.Format == "Int", "第一个 DV 是 ALID");
     var warn = AlarmOf(gem, "Tool1.HotWarn");
-    Check(warn is { SetEventId: 0, ClearEventId: 0 }
+    Check(warn is not null && warn.SetEventId == 0 && warn.ClearEventId == 0
           && gem.Event.Definitions.All(row => !row.Name.StartsWith($"System.Alarm.{warn.Id}.")),
         "Warn 级报警不生成事件，事件编号填 0");
     Check(gem.Event.Definitions.Single(row => row.Name == "Tool1.Arrived").Payloads.Count == 0, "组件事件目前不带 DV");
@@ -107,9 +108,10 @@ try
           && IdOf(shrunk.Ec.Definitions, "Tool2.ActionTimeout") == IdOf(gem.Ec.Definitions, "Tool2.ActionTimeout"),
         "删掉的 EC 保号、Enabled=False");
     var tool2Alarm = AlarmOf(shrunk, "Tool2.TimeoutAlarm");
-    Check(!tool2Alarm.Enabled && tool2Alarm is { SetEventId: 0, ClearEventId: 0 }
+    Check(!tool2Alarm.Enabled && tool2Alarm.SetEventId == 0 && tool2Alarm.ClearEventId == 0
           && !EventOf(shrunk, tool2Alarm.Id, clear: false).Enabled, "删掉的报警停用，它的报出/清除事件也停用保号");
-    Check(shrunk.CollectAll() is { } trimmed && trimmed.Ecs.All(item => !item.Name.StartsWith("Tool2."))
+    var trimmed = shrunk.CollectAll();
+    Check(trimmed.Ecs.All(item => !item.Name.StartsWith("Tool2."))
           && trimmed.Alarms.Count == 4 && trimmed.Events.Count == 6 && trimmed.Dvs.Count == 6,
         "一键采集只取在用的");
 
@@ -152,7 +154,8 @@ try
     Check(snapshot.Ecs.Count == 8 && snapshot.Svs.Count == 8 && snapshot.Alarms.Count == 8
           && snapshot.Events.Count == 12 && snapshot.Dvs.Count == 6,
         "五类一次取全（事件 = 4 个组件事件 + 4 条报警×2）");
-    Check(snapshot.Ecs.Single(item => item.Name == "Tool1.ActionTimeout") is { Value: "4567", Visible: false } one
+    var one = snapshot.Ecs.Single(item => item.Name == "Tool1.ActionTimeout");
+    Check(one.Value == "4567" && !one.Visible
           && one.Ecid == refreshedRow.Id, "EC 采集带编号和当前值");
     Check(snapshot.Ecs.Single(item => item.Name == "Tool3.ActionTimeout").Value == "3000", "没改过的 EC 取默认值");
     Check(snapshot.Ecs.Single(item => item.Name == "Tool1.AutoRun").Value == "False", "Bool 按 True/False 采");
@@ -210,7 +213,10 @@ try
     // ── 11. 只有 Warn 级报警：有 ALID，但没有报警事件，也不需要报警 DV ─────────────────
     var warnOnly = new GemCollectors();
     warnOnly.Merge(ComponentLoader.Load([new ModuleConfig { Name = "Quiet", Type = typeof(ProbeWarnOnly).FullName }]), quiet);
-    Check(warnOnly.Alarm.Definitions is [{ Name: "Quiet.OnlyWarn", SetEventId: 0, ClearEventId: 0 }], "Warn 有 ALID、没有事件");
+    var warnOnlyAlarms = warnOnly.Alarm.Definitions;
+    Check(warnOnlyAlarms.Count == 1 && warnOnlyAlarms[0].Name == "Quiet.OnlyWarn"
+          && warnOnlyAlarms[0].SetEventId == 0 && warnOnlyAlarms[0].ClearEventId == 0,
+        "Warn 有 ALID、没有事件");
     Check(warnOnly.Event.Definitions.Count == 0 && warnOnly.Dv.Definitions.Count == 0 && warnOnly.Dv.AlarmPayloadDvids.Count == 0,
         "没有报警事件时不生成报警 DV");
 }

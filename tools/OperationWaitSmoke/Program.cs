@@ -187,7 +187,9 @@ var modeSnapshot = port.CreateStateDto();
 modeResponse = await service.OnlineAsync(port.Name);
 Check(modeResponse.Success && port.Mode == ModuleMode.Online && !port.IsAutoMode,
     "Online must only set the module mode.");
-Check(port.CreateStateDto() is { Mode: ModuleMode.Online } && port.CreateStateDto().HasStateChanged(modeSnapshot),
+var onlineSnapshot = port.CreateStateDto();
+Check(onlineSnapshot is not null && onlineSnapshot.Mode == ModuleMode.Online
+      && port.CreateStateDto().HasStateChanged(modeSnapshot),
     "The module mode must reach the state snapshot and count as a change.");
 
 modeResponse = await service.AutoAsync(port.Name);
@@ -254,6 +256,16 @@ Check(ledger.Get(port.Name, 3)?.Status == WaferStatus.Crossed, "交叉片应记 
 Check(ledger.Get(port.Name, 4)?.Status == WaferStatus.Unknown,
     "识别不出的槽要按有片记——记成空槽机械手会往上放，那是撞片");
 
+// 状态推送带着账：LoadPort 页按账画片，取放片、人工改账都跟着变，不用另外通知
+var mappedState = port.CreateStateDto();
+Check(mappedState.LedgerSlots.Count == port.SlotCount
+      && mappedState.LedgerSlots[0].Wafer?.Status == "Normal" && mappedState.LedgerSlots[1].Wafer is null
+      && mappedState.LedgerSlots[2].Wafer?.Status == "Crossed",
+    "LoadPort 状态推送应带上账上每个槽的片");
+ledger.SetProcessState(port.Name, 1, WaferProcessState.InProcess);
+Check(port.CreateStateDto().HasStateChanged(mappedState), "账一变（改工艺状态）LoadPort 状态推送就该算变化");
+ledger.SetProcessState(port.Name, 1, WaferProcessState.Idle);
+
 // 读码晚于 Mapping：账上的片要能补上载具号
 Check(string.IsNullOrEmpty(ledger.Get(port.Name, 1)?.CarrierId), "Mapping 时还没读码，载具号应为空");
 port.SetCarrierId("FOUP-777");
@@ -317,7 +329,7 @@ port.NoteCarrierComplete();
 
 // 载具状态要能出到 DTO，并且被 HasStateChanged 认出来
 var carrierSnapshot = port.CreateStateDto();
-Check(carrierSnapshot is { HasCarrier: true, CarrierId: "FOUP-777" }
+Check(carrierSnapshot is not null && carrierSnapshot.HasCarrier && carrierSnapshot.CarrierId == "FOUP-777"
       && carrierSnapshot.CarrierIdStatus == CarrierIdStatus.Verified
       && carrierSnapshot.CarrierSlotMapStatus == CarrierSlotMapStatus.Read
       && carrierSnapshot.CarrierAccessStatus == CarrierAccessStatus.Complete,
@@ -384,6 +396,17 @@ port.E87Callback = null;
     robot.Tick();
     Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
     Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id, "Pick 成功后片应在手指上，且还是同一片");
+
+    // 状态推送带着账：手指上的片（片号、状态）跟着账走，界面不用另外通知
+    var pickedState = robot.CreateStateDto();
+    Check(pickedState.LedgerSlots.Count == robot.ArmCount
+          && pickedState.LedgerSlots[0].Slot == 1 && pickedState.LedgerSlots[0].Wafer?.WaferId == carried.WaferId
+          && pickedState.LedgerSlots[0].Wafer?.ProcessState == "Idle",
+        "机械手状态推送应带上账上手指的片");
+    var beforeLedgerChange = robot.CreateStateDto();
+    robotLedger.SetWaferId(robot.Name, 1, "W-RENAMED");
+    Check(robot.CreateStateDto().HasStateChanged(beforeLedgerChange), "账一变（改片号）状态推送就该算变化，下一拍推给界面");
+    robotLedger.SetWaferId(robot.Name, 1, carried.WaferId);
 
     // Place 成功：片从手指放回另一个槽位
     robot.Next = new ProbeOperation();
@@ -555,14 +578,16 @@ port.E87Callback = null;
     Check(e84.State == E84State.NotAvailable && !e84.Outputs.HoAvbl, "只切 Auto、没上线（Out Of Service）也不交接");
     lp.Online();
     lp.Tick();
-    Check(e84.State == E84State.Available && e84.Outputs is { HoAvbl: true, Es: true, LReq: false, UReq: false },
+    var outputs = e84.Outputs;
+    Check(e84.State == E84State.Available && outputs.HoAvbl && outputs.Es && !outputs.LReq && !outputs.UReq,
         "Auto + 上线 + 空闲 + 没载具：亮 HO_AVBL 等搬运车");
     Check(events.Wait("AvailabilityChanged:True"), "HO_AVBL 亮了应上报");
 
     // 送盒：CS_0+VALID → L_REQ；TR_REQ → READY（交接开始）；BUSY 时载具放上 → 撤 L_REQ；BUSY 撤；COMPT → 撤 READY；信号全撤 → 完成
     e84.Set(cs0: true, valid: true);
     lp.Tick();
-    Check(e84.State == E84State.Requesting && e84.Outputs is { LReq: true, UReq: false, Ready: false },
+    outputs = e84.Outputs;
+    Check(e84.State == E84State.Requesting && outputs.LReq && !outputs.UReq && !outputs.Ready,
         "空端口被选中应亮 L_REQ");
     e84.Set(cs0: true, valid: true, trReq: true);
     lp.Tick();
@@ -570,11 +595,13 @@ port.E87Callback = null;
     Check(events.Wait("HandoffStarted:True"), "送盒交接开始应上报");
     e84.Set(cs0: true, valid: true, trReq: true, busy: true);
     lp.Tick();
-    Check(e84.State == E84State.Transferring && e84.Outputs is { LReq: true, Ready: true },
+    outputs = e84.Outputs;
+    Check(e84.State == E84State.Transferring && outputs.LReq && outputs.Ready,
         "BUSY 来了进搬运；载具还没放上，L_REQ 保持");
     lp.NotePodPlaced(true);
     lp.Tick();
-    Check(e84.State == E84State.WaitComplete && e84.Outputs is { LReq: false, Ready: true },
+    outputs = e84.Outputs;
+    Check(e84.State == E84State.WaitComplete && !outputs.LReq && outputs.Ready,
         "载具放上应撤 L_REQ，等 BUSY 撤、COMPT 到");
     e84.Set(cs0: true, valid: true, trReq: true);
     lp.Tick();
@@ -584,7 +611,8 @@ port.E87Callback = null;
     e84.Set();
     lp.Tick();
     Check(events.Wait("HandoffCompleted:True"), "信号全撤应算送盒完成并上报");
-    Check(e84.State == E84State.Available && e84.Outputs is { HoAvbl: true, LReq: false, UReq: false },
+    outputs = e84.Outputs;
+    Check(e84.State == E84State.Available && outputs.HoAvbl && !outputs.LReq && !outputs.UReq,
         "送盒完成后回到可交接");
 
     // 盒子刚到、还没干完：搬运车再来也不给取
@@ -595,17 +623,20 @@ port.E87Callback = null;
     // 取盒：干完了才亮 U_REQ；载具被取走 → 撤 U_REQ；COMPT → 撤 READY；信号全撤 → 完成
     lp.NoteCarrierComplete();
     lp.Tick();
-    Check(e84.State == E84State.Requesting && e84.Outputs is { UReq: true, LReq: false }, "这一盒干完了应亮 U_REQ");
+    outputs = e84.Outputs;
+    Check(e84.State == E84State.Requesting && outputs.UReq && !outputs.LReq, "这一盒干完了应亮 U_REQ");
     e84.Set(cs0: true, valid: true, trReq: true);
     lp.Tick();
-    Check(e84.State == E84State.WaitBusy && e84.Outputs is { UReq: true, Ready: true }, "取盒 TR_REQ 来了应给 READY");
+    outputs = e84.Outputs;
+    Check(e84.State == E84State.WaitBusy && outputs.UReq && outputs.Ready, "取盒 TR_REQ 来了应给 READY");
     Check(events.Wait("HandoffStarted:False"), "取盒交接开始应上报");
     e84.Set(cs0: true, valid: true, trReq: true, busy: true);
     lp.Tick();
     Check(e84.Outputs.UReq, "载具还在，U_REQ 保持");
     lp.NotePodPlaced(false);
     lp.Tick();
-    Check(e84.Outputs is { UReq: false, Ready: true }, "载具取走应撤 U_REQ");
+    outputs = e84.Outputs;
+    Check(!outputs.UReq && outputs.Ready, "载具取走应撤 U_REQ");
     e84.Set(cs0: true, valid: true, trReq: true);
     lp.Tick();
     e84.Set(cs0: true, valid: true, trReq: true, compt: true);
@@ -664,8 +695,9 @@ port.E87Callback = null;
     Check(tpE84.State == E84State.Requesting, "亮了 L_REQ 等 TR_REQ");
     Thread.Sleep(150);
     tpPort.Tick();
+    var tpOutputs = tpE84.Outputs;
     Check(tpE84.State == E84State.TimedOut && tpE84.TimedOutTimer == E84Timer.TP1
-          && tpE84.Outputs is { LReq: false, HoAvbl: false, Es: true },
+          && !tpOutputs.LReq && !tpOutputs.HoAvbl && tpOutputs.Es,
         "TP1 超时应锁住并撤 L_REQ/HO_AVBL（ES 保持）");
     Check(tpEvents.Wait("HandoffTimeout:True:TP1"), "TP1 超时应上报");
     Check(Active(tpE84, tpE84.E84TimeoutAlarm, alarms), "超时应报 E84 交接超时");

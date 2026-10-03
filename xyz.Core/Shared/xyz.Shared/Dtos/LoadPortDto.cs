@@ -39,8 +39,13 @@ public class LoadPortDto
     /// <summary>花篮槽数（sc.xml 里 LoadPort 节点的 SlotCount），界面按它画槽位。</summary>
     public int SlotCount { get; set; }
 
-    /// <summary>花篮槽位表（Mapping 结果），下标顺序即槽位顺序。</summary>
+    /// <summary>花篮槽位表（设备 Mapping 结果），下标顺序即槽位顺序；取放片、人工改账之后它不变，界面画片以 LedgerSlots 为准。</summary>
     public List<LoadPortSlotDto> Slots { get; set; } = [];
+
+    /// <summary>
+    /// 晶圆账上各槽的片（空槽的 Wafer 为 null）；晶圆账没开或没登记这个 LoadPort 时为空，界面这时才退回按 Mapping 结果画。
+    /// </summary>
+    public List<WaferSlotDto> LedgerSlots { get; set; } = [];
 
     /// <summary>载具 ID，来自 LoadPort 内部 RFID 组件；未读到为空串。</summary>
     public string CarrierId { get; set; } = string.Empty;
@@ -61,7 +66,7 @@ public class LoadPortDto
     public CarrierAccessStatus CarrierAccessStatus { get; set; }
 
     /// <summary>
-    /// 比较当前发布的模块状态、连接状态、设备反馈、载具 ID 与花篮槽位；没有上一次状态时视为变化。
+    /// 比较当前发布的模块状态、连接状态、设备反馈、载具 ID、花篮槽位与账上的片；没有上一次状态时视为变化。
     /// </summary>
     public bool HasStateChanged(LoadPortDto? previous)
     {
@@ -152,7 +157,7 @@ public class LoadPortDto
             }
         }
 
-        return false;
+        return !WaferSlotDto.SameSlots(LedgerSlots, previous.LedgerSlots);
     }
 }
 

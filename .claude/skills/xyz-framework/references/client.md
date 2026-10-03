@@ -1,0 +1,178 @@
+# 客户端（WPF）
+
+路径都相对 `xyz.Core\Client`。.NET 10，WPF 工程 `net10.0-windows`、其余 `net10.0`；Nullable、ImplicitUsings 全开。
+MaterialDesignThemes 5（暗色）、CommunityToolkit.Mvvm 8、protobuf-net.Grpc（code-first）、ScottPlot 5、System.Reactive。
+
+## 1. 工程和依赖方向
+
+```
+xyz.Client（壳，WinExe）
+  → 功能模块 xyz.Client.Alarm / DataCenter / Io / Manual / Setting（Recipe 目前是空工程）
+    → Common\xyz.Client.Presentation（控件、样式、语言包、公共显示模型）
+      → Common\xyz.Client.Common（RPC、远程事件、日志、EC/报警缓存、会话）、Common\xyz.Client.DataModels（BaseViewModel）
+        → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（EventBus、IocHelper、JsonHelper）
+Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[ClientModule]、ClientModuleLoader、IClientMenuProvider、ClientMenu）
+```
+
+- 客户端**不引用任何后端工程**，只走 `xyz.Shared` 里的契约（服务接口、DTO、错误码）。
+- 功能模块之间不互相引用；要共用的东西下沉到 Presentation / Common。
+- 壳不引用机型工程；机型客户端模块（如 `xyz.35021\Client\Module35021.cs`）运行时按目录扫描加载。
+- 每个功能模块：`Views\`、`ViewModels\`、`Models\`，根目录一个 `ServiceCollectionExtensions.cs`（`AddXyzXxxServices()`）。
+
+## 2. 启动顺序（`xyz.Client\App.xaml.cs`）
+
+1. 挂全局异常（Dispatcher / AppDomain / TaskScheduler），一律 `ClientLog.Error("Client", ...)`；显示加载窗口。
+2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`，exe 旁 `client.json` 的 `GrpcAddress` 可改）。
+3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
+   返回的模块名、腔体名用来生成 IO / 腔体菜单。后端一直不在就用 zh-CN、这两类菜单整次为空；换语言要重启客户端。
+4. `RemoteEventBus.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`。
+5. 建 DI：`AddXyzClientServices(settings)`（壳 VM、平台菜单、各功能模块注册）→ `ClientModuleLoader.Load(services)`
+   （扫 exe 目录和 `Modules\**\*.dll` 里带 `[ClientModule]` 的 `IClientModule`，按 Key 排序调 `Register`；机型后注册，
+   同一个 keyed 页面键会覆盖平台的）→ 机型语言包 `L10n.AddPack(module.PresentationAssembly)` → `IocHelper.ServiceProvider = ...`。
+6. 统一调一遍所有 `BaseViewModel` 的 `Init()`（各自 try/catch 记日志）。`MainViewModel` 最先注册，它的 Init 会把所有页面建出来，
+   所以**页面的构造先于自己 VM 的 Init**。
+7. 主窗口先放到屏幕外 `Show`、等 `ContentRendered`（所有页面套模板、排版、Loaded 一次做完），再挪回来最大化、关加载窗口。
+
+## 3. 菜单和页面
+
+- 菜单写在代码里，不进数据库：平台菜单在 `xyz.Client\Menus\PlatformMenuProvider.cs`；机型真有独有页面时实现 `IClientMenuProvider`。
+  `ClientMenu(parentCode, code, sort, title?)`：`parentCode == null` 是一级菜单；**Code 就是页面的 keyed 注册键**；
+  显示名取语言包 `menu.{Code}`（没配就显示 Code），按模块生成的菜单直接用 title（模块名）。
+- 一级菜单：Main 1、Manual 2、Recipe 3、Alarm 4、DataCenter 5、Setting 6、Io 7。
+  Setting 下：Setting.Ec 1、Setting.WaferLedger 2、Setting.User 3、Setting.Role 4。
+- 页面注册（功能模块的 `ServiceCollectionExtensions`）：
+  ```csharp
+  services.AddSingleton<XxxViewModel>();
+  services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<XxxViewModel>());   // 统一 Init 用
+  services.AddKeyedSingleton<UserControl, XxxView>("Setting.Xxx");                    // 键 = 菜单 Code
+  ```
+  按模块一页的（IO、腔体手动）用工厂：`AddKeyedSingleton<UserControl>(code, (sp, key) => new IoView(...))`。
+- `xyz.Client\Views\PageHost.cs`：全部页面启动时挂上，当前页 Visible、其余 Hidden。
+  **页面常驻：Loaded / Unloaded 只触发一次**。要知道页面显示没显示用 `IsVisibleChanged`，转给 VM（示例 `WaferLedgerView.xaml.cs` →
+  `viewModel.SetPageVisible(...)`）；页面不在前台时不拉数据、不跑每帧的东西（TrendChart、Robot 控件隐藏时停 `CompositionTarget.Rendering`）。
+- 没注册页面的菜单显示占位页（Main、Recipe 目前就是）。
+
+### 加一个页面（清单）
+1. 功能模块里加 `Models\`、`ViewModels\XxxViewModel.cs`、`Views\XxxView.xaml(.cs)`。
+2. 模块 `ServiceCollectionExtensions` 注册 VM（+ BaseViewModel 别名）和 keyed View。
+3. `PlatformMenuProvider` 加 `ClientMenu`（注意后面的 sort 顺延）。
+4. 两个语言包加 `menu.{Code}` 和页面文字。
+5. 样式缺的加到 `Presentation\Styles`，不在页面里写资源。
+6. 编译；用离屏预览（见 machine-and-tools.md）出中英文截图看一遍。
+
+## 4. ViewModel
+
+- 继承 `xyz.Client.DataModels.ViewModels.BaseViewModel`；不用 `[ObservableProperty]`、`[RelayCommand]` 这类源生成器。
+- 文件布局：常量（`private const` / `static readonly`）→ `#region Column` → `#region Command` → `#region Service` → 构造 → `Init()` → 其他方法。
+  - Column：**私有字段紧挨在它的属性上面**，属性用 `SetProperty`；派生属性通知、命令刷新（`NotifyCanExecuteChanged`）写在 setter 里。
+  - Command：`IRelayCommand` / `IAsyncRelayCommand(<T>)` 属性，在构造里 `new`。
+  - Service：只放字段（服务代理、计时器、订阅句柄、私有状态），不放方法。
+- 构造里只建对象（集合、命令、服务代理 `GrpcClientFactory.Create<IXxxService>()`、计时器、CollectionView），**不拉数据**。
+- 拉数据、订阅事件放 `Init()`（由壳统一调，View 里不调）。Init 要能重复调：先 `Dispose` 旧订阅、`-=` 再 `+=`。
+- 命令方法 `Do` 开头（`DoMove`、`DoConfirm`）；不是命令的方法不加 Do。会走 RPC / IO 的命令用 `AsyncRelayCommand`，方法返回 `Task`。
+- 不在 `Init` 里同步等 RPC（`.GetAwaiter().GetResult()`）——旧代码有（Manual、User、Role），新代码不要学。
+
+### 调后端
+```csharp
+var response = await _service.MoveAsync(request);
+if (!response.Success)
+{
+    string reason = string.IsNullOrEmpty(response.Code) ? response.Message : L10n.Get(response.Code, response.Args);
+    ClientLog.Error(LogModule, L10n.Get("setting.ledger.move_failed", reason));
+    return;
+}
+var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperationException
+```
+- 错误显示一律"错误码 → 语言包"；没码的老接口才用 `Message`。
+- 结果提示走顶栏日志栏：`ClientLog.Info/Warn/Error(模块名, 句子)`。不弹 MessageBox（只有 User/Role 旧代码还有）。
+
+### 事件
+- `EventBus.Register<TDto>(TDto.EventToken 或模块名, handler)`：远程消息由 `RemoteEventBus` 投递到 **UI 线程**，handler 里直接改绑定属性；
+  返回的 `IDisposable` 存在字段里，Init 重复调时先 Dispose。留存消息（retain）订上就会补发最后一条。
+- 连接状态：`RemoteEventBus.ConnectionChanged -= On; += On;` 再 `On(RemoteEventBus.IsConnected)`；连上时重拉全量（断线期间漏了推送）。
+- 高频推送、查询请求用 Rx：`Throttle` / `Sample` + `Select(Observable.FromAsync(...))` + `Switch()` + `ObserveOn(SynchronizationContext)`（DataChart、RealChart）。
+- 后端推的是"变了"通知、界面自己重拉时，要攒一下再拉（DispatcherTimer 节流，见 WaferLedgerViewModel.RequestReload）。
+
+## 5. View
+
+- 构造里只做 `InitializeComponent(); DataContext = IocHelper.GetRequiredService<XxxViewModel>();`，不调 Init；
+  需要感知可见性时再挂一个 `IsVisibleChanged`。按模块一页的 View 由工厂把 VM 传进构造（IoView）。
+- 自带 VM 的复用控件（LogBar、AlarmBar、手动页的 ChamberManualControl 等）自己建 VM、自己 Init，这是例外，不是页面的做法。
+- 不写 `<UserControl.DataContext>`、不写 `UserControl.Resources` / `Window.Resources`；样式都在 Presentation\Styles。
+  只跟这一处有关的显隐、变色可以写行内 `<X.Style>` + DataTrigger，能复用的做成 Tag 驱动的公共样式（见 §6）。
+- 引用资源一律 `{DynamicResource}`：样式、颜色（`Dark*`）、字号（`SizeNN`）、文字（语言包 key）。**不写死颜色、不写死 FontSize**。
+- 页面骨架：
+  ```xml
+  <UserControl d:DesignHeight="920" d:DesignWidth="1980" TextElement.Foreground="{DynamicResource DarkPrimaryText}">
+      <Grid Background="{DynamicResource DarkWindowBackground}">
+          <Grid Margin="8">  <!-- 行：Auto（工具栏）/ *（内容） -->
+  ```
+  工具栏 `<Border Style="{DynamicResource ToolbarBorderStyle}">`，里面用 34 高的 `Toolbar*` 控件，输入之间 `Margin="0,0,10,0"`；
+  内容用 `materialDesign:Card Style="{DynamicResource DefaultCardStyle}"`。整个窗口是 1980×1080 的 Viewbox，页面区 1980×920。
+- 文字：固定的标签、按钮、提示写在 XAML（DynamicResource）；要把数据拼进句子的（"{0} 槽 · {1} 片"、日志、错误）用语言包模板 + `L10n.Get` 在 VM/模型里拼；
+  C# 里不写死界面中文/英文。
+- 状态、颜色这类判断不进 VM：VM 给状态（bool、枚举、色调），XAML 用样式触发器换字、换色。
+
+## 6. 样式（`Common\xyz.Client.Presentation\Styles`）
+
+- 文件：Border / Button / Card / ComboBox / ContextMenu / DataGrid / DatePicker / ListBox / TextBlock / TextBox / TreeView `Styles.xaml`，
+  加 `Color.xaml`（老调色板，含 `Wafer*` 晶圆色）、`DarkColors.xaml`（暗色主题 token）、`FontSize.xaml`（Size10~Size28）。
+- 合并在 `xyz.Client\App.xaml`，**顺序有意义**：后面的样式用 `StaticResource` 取前面的颜色、字号。新加样式文件要同时加进 App.xaml
+  和各模块 `Properties\DesignTimeResources.xaml`（设计时用，各模块的列表目前不全）。`Theme\MaterialDesignTheme.xaml` 没人用。
+- 命名：`{档位}{控件}Style`——档位 Default / Toolbar / Compact / Dense / Mini / Large，再加 Danger / Success / Outlined 变体
+  （`ToolbarDangerButtonStyle`、`CompactTextBoxStyle`）；专用的叫 `{用途}{元素}Style`（`TopBarInfoBorderStyle`、`DialogCardBorderStyle`）。
+- 高度档：默认输入 40 / 默认按钮 44 / 工具栏 34 / 紧凑按钮 32 / 紧凑输入 28 / Mini 22。
+- 颜色 token（DarkColors）：底 `DarkWindowBackground`→`DarkSurfaceBackground`→`DarkSurfaceVariantBackground`→`DarkControlBackground`、
+  边 `DarkBorderBrush`、字 `DarkPrimaryText` / `DarkDisabledText`、强调 `DarkAccent` / `DarkAccentPressed` / `DarkAccentSoft`、
+  状态 `DarkRunningStatus` 绿 / `DarkWarningStatus` 黄 / `DarkAlarmStatus` 红 / `DarkCommunicationStatus` 蓝 / `DarkInactiveStatus` 灰、
+  悬停 `DarkHoverBackground`、遮罩 `DarkOverlayBackground`。新颜色先加 token 再用。
+- Tag 驱动的公共样式（数据绑到 `Tag`，样式按值换外观）：`ShowWhenTagTrueStyle`（FrameworkElement，Tag=True 才显示）、
+  `NullContentHintTextStyle`（Tag 为 null 才显示，做占位提示）、`PageOverlayBorderStyle`、`StatusDotBorderStyle`、
+  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Dummy/Unknown，其他=空槽虚线）。
+  DataTrigger 的 `Value="Move"` 这种字符串能直接匹配枚举。
+- 需要行数据带特定属性的样式：`LogLevelDataGridTextStyle`（Level）、`PickDataGridRowStyle` / `PickDataGridCellStyle`（IsPickable）、
+  `FreshDataGridCellStyle`（IsFresh）。
+- DataGrid 三档：`DefaultDataGridStyle`（行 46）、`CompactDataGridStyle`（行 32，日志、报警、IO、EC）、
+  `DenseDataGridStyle`（行 27、格子留白小、不能点表头排序、外面套 `ListPaneBorderStyle`）+ `DenseDataGridTextStyle`。
+  列文字用 `ElementStyle`；**要让样式来定 Text 的列用模板列**（DataGridTextColumn 会在 TextBlock 上设本地 Text，盖掉样式）。
+  Material 的格子、表头留白由 `materialDesign:DataGridAssist.CellPadding` / `ColumnHeaderPadding` 决定（上下左右都算，表头高度也跟着它），
+  表头样式里的 Padding、Height 不管用。
+- InputTextBox 有焦点时，VM 改 Value 不会冲掉框里正在输的字（故意的）；要清空输入框，在它拿到焦点之前改（比如弹框之前先清 VM 的值）。
+
+## 7. 控件（`Common\xyz.Client.Presentation\Controls`）
+
+- **InputTextBox**（所有文本、数字输入都用它，不用裸 TextBox）：绑 `Value`（提交后的合法值，默认双向），不绑 `Text`；
+  `DataType` Text/Integer/Decimal；`Minimum`/`Maximum`/`Unit` 只对数字；`EcKey="组件全路径.参数名"` 从 EC 取格式、范围、单位
+  （界面上写的优先）；边输边查格式，回车/失焦提交时查范围；错了红框提示、Value 保留上次合法值；
+  发送类按钮绑 `HasError`（`Mode=OneWayToSource`）错着不发；表格行里加 `materialDesign:ValidationAssist.UsePopup="True"`。
+- **DateTimePicker** + `QueryDateRange.Of/Today/LastDays/LastHours`：查时间段，分钟精度，截止那一分钟算进去。
+- **TrendChart**（ScottPlot 5 封装）：喂 `ObservableCollection<TrendSeries>`，只用 `SetData` / `Append` 改数据；单一左 Y 轴，所有曲线按真实值画。
+- **ModuleStateBadge**（`Text`、`Tone`、`IsCompact`）：模块状态一律用它（整条圆角色块：灰未初始化 / 蓝动作中 / 绿就绪 / 黄中止中 / 红报错），
+  不写"状态：xxx"文字。码 → 字和色调用 `Presentation\Models\ModuleStates`（按 LoadPort / Chamber / Robot / 其他分开，同一个码不同模块意思不同）。
+- LogBar / AlarmBar 只在主窗口顶栏用。
+
+## 8. 语言包（`Common\xyz.Client.Presentation\Localization`）
+
+- `Strings.zh-CN.xaml`、`Strings.en-US.xaml`，`<sys:String x:Key="...">`，**两份的 key 必须一一对应**（加一条就两边都加）。
+- key 小写点分、叶子 snake_case：错误码（= `xyz.Shared\Errors\ErrorCodes.cs` 的常量值，如 `wafer.slot_occupied`）、`module.state.*`、
+  `common.*`、`shell.*`、`setting.ledger.*`、`menu.{Code}`（Code 保留大小写）；枚举值做叶子时保留原样（`setting.ledger.process.InProcess`）；提示文字 `_tip` 结尾。
+- XAML 用 `{DynamicResource key}`；C# 用 `L10n.Get(key, 参数...)`（`string.Format`，可写 `{0:00}`）、`L10n.Get(code, response.Args)`；没有这个 key 时返回 key 本身。
+- 机型独有的文字放机型的 `*.Client.Presentation\Localization\Strings.{lang}.xaml`；框架页面（包括机型挂的框架菜单）的文字放平台包。
+- 界面语言由后端 sc.xml `System` 节点的 `Language` 决定，客户端启动时问一次。
+
+## 9. 显示模型
+
+- 公共的在 `Presentation\Models`（`ModuleStates`、`ModuleStateTone`、`QueryDateRange`、`TrendSeries`、`InputDataType`……），
+  页面自己的在功能模块 `Models\`。
+- DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
+- 当前用户 `xyz.Client.Common.Session.ClientSession.UserName`（登录没做，先固定 Admin），要记操作人的地方都从这儿取。
+- EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。
+
+## 10. 旧代码里和规则不一致的地方（截至 2026-10-03；改到时顺手改，新代码别学）
+
+- 裸 TextBox：报警历史、日志历史/实时的关键字框，IoView 搜索框，腔体手动配方框，两个对话框。
+- 写死颜色 / 字号：Manual 控件里的 `#555`、LoadingWindow 的 `#333333`、Dialogs 的 `FontSize="14"`。
+- `MainWindow` 有 `Window.Resources`（BooleanToVisibilityConverter）。
+- Manual、User、Role 的 VM 在 Init 里同步等 RPC；User/Role 用了 MessageBox。
+- User/Role 选中项变了没刷新删除按钮的 CanExecute（删除按钮可能一直灰）。
+- `.codex\skills\xyz-wpf-mvvm-conventions\SKILL.md` 里有过时内容（路径写成 D:\Common、提到 RpcClient/IRpcService、xyz.Shared/Models），以本 skill 为准。

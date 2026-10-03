@@ -46,6 +46,44 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  工具栏里的次要按钮（清除选择、取消……）：描边、透明底，跟工具栏按钮同高  -->
+    <Style
+        x:Key="ToolbarOutlinedButtonStyle"
+        BasedOn="{StaticResource MaterialDesignOutlinedButton}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="88" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="4" />
+    </Style>
+
+    <!--  账单调整页确认框的确认按钮：Tag 是要做的事——Move 强调色"确认移动"，Create 强调色"确认新建"，Delete 红色"确认删除"  -->
+    <Style
+        x:Key="LedgerConfirmButtonStyle"
+        BasedOn="{StaticResource ToolbarButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Margin" Value="0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Move">
+                <Setter Property="Content" Value="{DynamicResource setting.ledger.confirm_move}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Delete">
+                <Setter Property="Content" Value="{DynamicResource setting.ledger.confirm_delete}" />
+                <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Create">
+                <Setter Property="Content" Value="{DynamicResource setting.ledger.confirm_create}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!--  图角上的小图标按钮（趋势图右上角的放大）：圆形、透明底，浮在图上不挡曲线  -->
     <Style
         x:Key="ChartCornerButtonStyle"
@@ -193,34 +231,30 @@
         <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
     </Style>
 
-    <!--  顶栏右上角竖排的小按钮（注销、关蜂鸣器）：描边；三个按钮一样宽高，竖排正好占满顶栏两行  -->
+    <!--  顶栏右上角竖排的三个按钮（注销、复位、关蜂鸣器）：一样宽高、控件底色细边，图标和字靠左；竖排正好占满顶栏两行  -->
     <Style
         x:Key="TopBarStackButtonStyle"
         BasedOn="{StaticResource MaterialDesignOutlinedButton}"
         TargetType="Button">
-        <Setter Property="Width" Value="104" />
+        <Setter Property="Width" Value="120" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Margin" Value="0" />
-        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="FontSize" Value="{StaticResource Size13}" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
         <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="4" />
     </Style>
 
-    <!--  竖排按钮里的主操作（整机复位）：实心强调色；Tag=True（有报警）时变红提醒  -->
+    <!--  竖排按钮里的整机复位：平时跟另外两个一样；Tag=True（有报警）时整块变红提醒  -->
     <Style
         x:Key="TopBarStackAccentButtonStyle"
-        BasedOn="{StaticResource DefaultButtonStyle}"
+        BasedOn="{StaticResource TopBarStackButtonStyle}"
         TargetType="Button">
-        <Setter Property="MinWidth" Value="0" />
-        <Setter Property="Width" Value="104" />
-        <Setter Property="Height" Value="28" />
-        <Setter Property="Padding" Value="8,0" />
-        <Setter Property="FontSize" Value="{StaticResource Size13}" />
-        <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="4" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
                 <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />

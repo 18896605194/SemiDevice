@@ -156,7 +156,8 @@ public abstract class BaseModule : ComponentBase
     {
         lock (OperationGate)
         {
-            if (_operation is { } current)
+            var current = _operation;
+            if (current is not null)
             {
                 if (!current.IsTerminal)
                 {

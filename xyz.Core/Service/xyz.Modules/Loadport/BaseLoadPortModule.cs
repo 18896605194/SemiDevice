@@ -244,7 +244,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     {
         lock (_carrierGate)
         {
-            if (_carrier is not { } carrier)
+            var carrier = _carrier;
+            if (carrier is null)
             {
                 return;
             }
@@ -291,7 +292,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         // 先在晶圆账上占好槽位，Mapping 一到就能直接落账。
-        WaferManager.Current?.RegisterLocation(Name, SlotCount);
+        WaferManager.Current?.RegisterLoadPort(Name, SlotCount);
 
         var driver = FindChild<LoadPortDriverComponent>();
         if (driver is null)
@@ -355,6 +356,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             CarrierId = CarrierId ?? string.Empty,
             SlotCount = SlotCount,
             Slots = ToSlotDtos(SlotMap),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
             HasCarrier = carrier is not null,
             LotId = carrier?.LotId ?? string.Empty,
             CarrierIdStatus = carrier?.IdStatus ?? CarrierIdStatus.NotRead,
@@ -453,7 +455,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void CheckCarrierIdRead()
     {
-        if (RFID?.TakeResult() is not { } result)
+        var result = RFID?.TakeResult();
+        if (result is null)
         {
             return;
         }
@@ -736,7 +739,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void StepE84()
     {
-        if (E84 is not { } e84)
+        var e84 = E84;
+        if (e84 is null)
         {
             return;
         }
@@ -824,7 +828,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void CheckDeviceAlarm()
     {
-        if (Status is { DeviceAlarm: true })
+        var status = Status;
+        if (status is not null && status.DeviceAlarm)
         {
             RaiseAlarm(LoadPortDeviceAlarm);
         }

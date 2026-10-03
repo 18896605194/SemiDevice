@@ -1,0 +1,72 @@
+# 机型层、测试、运行和验证
+
+## 1. 仓库顶层（`D:\Code`）
+
+- `xyz.Core\`（平台：Shared / Service / Client）、`xyz.35021\`（机型 35021）、`tools\`（冒烟测试、部署和编码脚本、AdsRouter）、
+  `doc\`（`AxisPlc.md` 轴和 PLC 数据块、`interlock-design.md` 联锁设计草案未实现、`eventbus-guide.html` 事件总线说明）、`Libs\`（TwinCAT.Ads DLL）。
+  `website\`、`HotShot\` 跟框架无关。
+- `xyz.Framework.sln`（38 个工程；`tools\IoIndexSmoke` 不在解决方案里，要单独编译）、`xyz.Framework.slnLaunch`（"Client + Service" 同时起宿主和客户端）。
+- `Directory.Build.props`：win-x64、x64、输出路径不带 RID（机型部署、ScEdit 依赖这个路径）。包版本写在各 csproj 里。
+- **编码**：源文件 UTF-8 **带 BOM**（.cs、.xaml、.csproj、.xml；skill 的 SKILL.md 例外，不加 BOM）。`.editorconfig` 本意如此，但它第 4 行的乱码注释把节头吞了，
+  现在实际不生效；`tools\check-bom.ps1` / `add-bom.ps1` / `verify-encoding.ps1` 可以查和补。
+  PowerShell 5.1 跑含中文的 .ps1 也要存成带 BOM 的 UTF-8，否则按 GBK 读会解析出错。
+- Git：master；提交说明多数只写了 `1`，提交由用户自己做，**不要自作主张提交或推送**。
+
+## 2. 机型层（以 `xyz.35021` 为例）
+
+- 命名空间 `xyz._35021.*`（数字开头前面加下划线）。
+- 后端 `Service\xyz.35021.Module`（→ xyz.Modules、xyz.Shared）：
+  - `Loadport\LoadPortModule : BaseLoadPortModule, ILoadPort`、`Robot\RobotModule : BaseRobotModule, IRobot`、`Clean\ChamberModule : BaseChamberModule`，
+    类上 `[Component(description: "...")]`；动作在各自 `Operation\` 目录（`XxxOperation : ModuleOperation<ActionStep>`，步骤 SendCommand / WaitCommand）。
+  - `Config\IO\{DI,DO,AI,AO}.csv` 点表（表头 `Index,Module,Component,Name,Tag,Description`，AI/AO 加量程列）；跟 PLC 仿真器的
+    `Machines\35021\IO` 是同一份，改了两边一起改。
+  - `DeployToHost`（AfterBuild）：把 DLL 拷到 `GrpcHost\bin\<配置>\net10.0\Modules\35021`，点表拷到宿主 `Config\IO`。
+- `Shared\xyz.35021.Shared`：机型错误码（`xyz._35021.Shared.Errors.ErrorCodes`，现在是空的）。
+- 客户端 `Client\xyz.35021.Client`：`[ClientModule("35021", "...")] Module35021 : IClientModule`，`Register` 里注册机型页面
+  （`Manual.LoadPorts`、`Manual.Robot` 两个 keyed 页面），`PresentationAssembly` 指向机型语言包；`DeployToShell` 拷到客户端 `Modules\35021`。
+  `Client\Manual`（机型手动页，复用平台 xyz.Client.Manual 的控件）、`Client\Presentation\Localization`（机型独有文字）。
+- 手动部署：`tools\deploy-module.ps1 -Module 35021 [-Target Client|Service|All]`。
+- 规则：平台不引用机型；机型能做的就按平台的抽象做（继承 Base*Module、实现 I*），平台缺抽象就补到平台，别在机型里另起一套。
+
+## 3. 冒烟测试（`tools\*Smoke`）
+
+| 工程 | 管什么 |
+|---|---|
+| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort |
+| WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务 |
+| GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
+| DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
+| HsmsSmoke / SecsSmoke | HSMS 组件对假 EAP；SECS-II 编解码、HSMS 握手和计时器 |
+| RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
+| LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
+| IoIndexSmoke（不在 sln） | IO 点表下标和换算、PLC 门控、单点写、轴和执行器命令 |
+| EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
+
+- 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException("FAIL: " + message); checks++; }`；
+  按 `// N. 说明` 分节；会改静态 `X.Current` 的用完还原；最后一行 `PASS: N xxx checks (...)`；探针 / 假驱动写成文件末尾的 `sealed class`。
+  失败就是未处理异常、退出码非 0。
+- 数据：内存里造组件（`new WaferManager()`、`ComponentLoader.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
+- 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；IoIndexSmoke 单独编）。HsmsSmoke 要用端口，别和真宿主同时跑。
+- **新功能、改了行为都要在对应冒烟里加检查**；冒烟测试里的代码也守同样的编码规范（不写花括号模式匹配等）。
+
+## 4. 运行起来看
+
+- 起法：先后端 `xyz.Core\Service\xyz.GrpcHost\bin\Debug\net10.0\xyz.GrpcHost.exe`（托盘图标：灰 = 启动中、绿 = 正常、红 = 失败，单实例），
+  再客户端 `xyz.Core\Client\xyz.Client\bin\Debug\net10.0-windows\xyz.Client.exe`。编译前先关掉它们，否则 DLL 被占着拷不进去。
+- 机型 DLL 要先部署（编译机型工程会自动部署），否则 sc.xml 里 `xyz._35021.*` 的 Type 找不到，后端起不来。
+- PLC 仿真：本机没装 TwinCAT 时要有 `xyzAdsRouter` 服务（`tools\AdsRouter\install-service.ps1`，真机上别装），
+  再起 `D:\仿真\统一仿真器\Start-35021.cmd`；顺序：路由 → 仿真器 → 后端 → 客户端。没有仿真器后端也能起，PLC 报通讯断开。
+- 没有真设备时：LoadPort 的 RFID 开不了，它的晶圆账槽位也不登记；机械手、腔体照常有。
+- 看英文界面：语言取后端 sc.xml `System/Language`，**改运行目录那份**（`bin\...\Config\sc.xml`），起完后端立刻改回去；不要改源 sc.xml。
+- 用 UI 自动化点菜单：底部导航两个 ListBox 的 AutomationId 是 `PrimaryMenuList`、`SecondaryMenuList`，用 `SelectionItemPattern.Select()` 选项。
+
+## 5. 界面不连后端的离屏预览（改了页面或样式时用）
+
+在 scratchpad 建一个 `net10.0-windows` WPF 小程序，ProjectReference 页面所在工程：
+1. `new Application()`，按 App.xaml 的先后**一个一个**把资源字典 `MergedDictionaries.Add(new ResourceDictionary { Source = ... })`
+   （BundledTheme 单独 `XamlReader.Parse`）。一次 Parse 整个字典会报"找不到 MaterialDesignOutlinedTextBox"。
+2. `GrpcClientFactory.Initialize("http://127.0.0.1:9")`（只建通道），`IocHelper.ServiceProvider` 里只注册要看的 VM。
+3. 页面放进 `Canvas` 再放进离屏窗口（`Left=-30000`）——直接当窗口内容会被屏幕宽度卡住，1980 宽的页面右边被裁。
+4. 反射调 VM 的私有方法（如 `Apply`）喂示例数据；每次拍之前用 DispatcherTimer 等约 600 ms（Material 输入框的浮动提示是动画）。
+5. 挂 `PresentationTraceSources.DataBindingSource` / `ResourceDictionarySource` 监听，绑定和资源错误应为 0。
+6. `RenderTargetBitmap` 存 PNG，中英文各出一套；给用户看的截图放桌面一个子文件夹。

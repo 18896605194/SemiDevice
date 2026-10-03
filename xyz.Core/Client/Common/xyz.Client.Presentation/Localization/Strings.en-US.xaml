@@ -59,6 +59,15 @@
     <sys:String x:Key="ec.invalid_option">{0} must be one of: {1}</sys:String>
     <sys:String x:Key="ec.save_failed">{0} was not changed: cannot write ec.xml (file in use or access denied)</sys:String>
 
+    <sys:String x:Key="wafer.ledger_disabled">The wafer ledger is off (no WaferManager node in sc.xml, or IsEnable=False)</sys:String>
+    <sys:String x:Key="wafer.location_not_found">The ledger has no location named {0}</sys:String>
+    <sys:String x:Key="wafer.slot_out_of_range">{0} has no slot {1} (it has {2} slots)</sys:String>
+    <sys:String x:Key="wafer.no_wafer">There is no wafer in {0} slot {1} (the ledger may have just been changed elsewhere)</sys:String>
+    <sys:String x:Key="wafer.slot_occupied">{0} slot {1} already holds a wafer: {2}</sys:String>
+    <sys:String x:Key="wafer.same_slot">Source and target are the same slot</sys:String>
+    <sys:String x:Key="wafer.id_required">Enter a wafer ID to create a ledger entry</sys:String>
+    <sys:String x:Key="wafer.duplicate_id">Wafer {0} is already in the ledger ({1} slot {2}); use Move to bring it here</sys:String>
+
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
          The UI language comes from the System node (Language) in the backend sc.xml, fetched once at client startup. -->
@@ -105,7 +114,7 @@
     <sys:String x:Key="shell.logout_tip">Log out (available once login is implemented)</sys:String>
     <sys:String x:Key="shell.reset">Reset</sys:String>
     <sys:String x:Key="shell.reset_tip">Reset all alarm sources</sys:String>
-    <sys:String x:Key="shell.buzzer_off">Off</sys:String>
+    <sys:String x:Key="shell.buzzer_off">Buzzer Off</sys:String>
     <sys:String x:Key="shell.buzzer_off_tip">Turn off the buzzer</sys:String>
 
     <!-- Signal tower -->
@@ -161,6 +170,75 @@
     <sys:String x:Key="setting.ec.setpoint">New value</sys:String>
     <sys:String x:Key="setting.ec.set">Set</sys:String>
     <sys:String x:Key="setting.ec.set_failed">{0} was not changed: {1}</sys:String>
+
+    <!-- Settings page (wafer ledger): when the equipment and the ledger disagree (e.g. a pick alarm while the wafer is already on the arm),
+         move, delete or create ledger entries to match the real wafers. Only the ledger changes; the equipment does not move. -->
+    <sys:String x:Key="setting.ledger.reason">Reason (optional)</sys:String>
+    <sys:String x:Key="setting.ledger.move">Move</sys:String>
+    <sys:String x:Key="setting.ledger.create">Create</sys:String>
+    <sys:String x:Key="setting.ledger.delete">Delete</sys:String>
+    <sys:String x:Key="setting.ledger.source">Source</sys:String>
+    <sys:String x:Key="setting.ledger.source_hint">Pick the wafer to adjust</sys:String>
+    <sys:String x:Key="setting.ledger.target">Target</sys:String>
+    <sys:String x:Key="setting.ledger.target_hint">Pick an empty slot (for a move or create)</sys:String>
+    <sys:String x:Key="setting.ledger.free_count">{0} empty</sys:String>
+    <sys:String x:Key="setting.ledger.kind.robot">Robots</sys:String>
+    <sys:String x:Key="setting.ledger.kind.loadport">LoadPorts</sys:String>
+    <sys:String x:Key="setting.ledger.kind.chamber">Chambers</sys:String>
+    <sys:String x:Key="setting.ledger.kind.other">Other</sys:String>
+    <sys:String x:Key="setting.ledger.slot_name">Slot {0:00}</sys:String>
+    <sys:String x:Key="setting.ledger.arm_name">Arm {0}</sys:String>
+    <sys:String x:Key="setting.ledger.summary_slots">Slots: {0} · Wafers: {1}</sys:String>
+    <sys:String x:Key="setting.ledger.summary_arms">Arms: {0} · Wafers: {1}</sys:String>
+    <sys:String x:Key="setting.ledger.no_carrier">No carrier</sys:String>
+    <sys:String x:Key="setting.ledger.slot">Slot</sys:String>
+    <sys:String x:Key="setting.ledger.wafer">Wafer</sys:String>
+    <sys:String x:Key="setting.ledger.state">State</sys:String>
+    <sys:String x:Key="setting.ledger.lot">Lot</sys:String>
+    <sys:String x:Key="setting.ledger.empty">Empty</sys:String>
+    <sys:String x:Key="setting.ledger.process.Idle">Not processed</sys:String>
+    <sys:String x:Key="setting.ledger.process.InProcess">In process</sys:String>
+    <sys:String x:Key="setting.ledger.process.Completed">Completed</sys:String>
+    <sys:String x:Key="setting.ledger.process.Failed">Failed</sys:String>
+    <sys:String x:Key="setting.ledger.process.Aborted">Aborted</sys:String>
+    <sys:String x:Key="setting.ledger.status.Crossed">Crossed</sys:String>
+    <sys:String x:Key="setting.ledger.status.Double">Double</sys:String>
+    <sys:String x:Key="setting.ledger.status.Dummy">Dummy</sys:String>
+    <sys:String x:Key="setting.ledger.status.Unknown">Unknown</sys:String>
+    <sys:String x:Key="setting.ledger.status_with_process">{0} · {1}</sys:String>
+    <sys:String x:Key="setting.ledger.legend.error">Failed / aborted</sys:String>
+    <sys:String x:Key="setting.ledger.records">Adjustments</sys:String>
+    <sys:String x:Key="setting.ledger.records_hint">Manual moves, deletes and creates; latest 50</sys:String>
+    <sys:String x:Key="setting.ledger.action">Action</sys:String>
+    <sys:String x:Key="setting.ledger.action.Move">Move</sys:String>
+    <sys:String x:Key="setting.ledger.action.Delete">Delete</sys:String>
+    <sys:String x:Key="setting.ledger.action.Create">Create</sys:String>
+    <sys:String x:Key="setting.ledger.wafer_id">Wafer ID</sys:String>
+    <sys:String x:Key="setting.ledger.path">From → To</sys:String>
+    <sys:String x:Key="setting.ledger.operator">Operator</sys:String>
+    <sys:String x:Key="setting.ledger.reason_column">Reason</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_move_title">Move ledger entry?</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_delete_title">Delete ledger entry?</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_create_title">Create ledger entry?</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_move">Move</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_delete">Delete</sys:String>
+    <sys:String x:Key="setting.ledger.confirm_create">Create</sys:String>
+    <sys:String x:Key="setting.ledger.delete_path">This wafer will be removed from the ledger</sys:String>
+    <sys:String x:Key="setting.ledger.wafer_id_hint">Wafer ID (required)</sys:String>
+    <sys:String x:Key="setting.ledger.wafer_id_missing">Enter a wafer ID first</sys:String>
+    <sys:String x:Key="setting.ledger.move_hint">Only the ledger changes; the equipment does not move. Wafer ID, lot, carrier and process state go with the wafer, and an adjustment record is written.</sys:String>
+    <sys:String x:Key="setting.ledger.delete_hint">The slot becomes empty and the wafer is gone from the system (the adjustment record keeps a trace). Delete only when the wafer has really been taken out.</sys:String>
+    <sys:String x:Key="setting.ledger.create_hint">Creates a wafer in this empty slot: normal, not processed, no lot or carrier. Only the ledger changes; the equipment does not move, and an adjustment record is written. Create only when the wafer is really here but missing from the ledger.</sys:String>
+    <sys:String x:Key="setting.ledger.no_reason">—</sys:String>
+    <sys:String x:Key="setting.ledger.no_locations">No wafer locations (no robot Stations configured, or no station has registered slots)</sys:String>
+    <sys:String x:Key="setting.ledger.offline">Not connected to the backend; the ledger loads once connected</sys:String>
+    <sys:String x:Key="setting.ledger.moved">Ledger entry moved: {0}  {1} → {2}</sys:String>
+    <sys:String x:Key="setting.ledger.deleted">Ledger entry deleted: {0} ({1})</sys:String>
+    <sys:String x:Key="setting.ledger.created">Ledger entry created: {0} ({1})</sys:String>
+    <sys:String x:Key="setting.ledger.move_failed">Move failed: {0}</sys:String>
+    <sys:String x:Key="setting.ledger.delete_failed">Delete failed: {0}</sys:String>
+    <sys:String x:Key="setting.ledger.create_failed">Create failed: {0}</sys:String>
+    <sys:String x:Key="setting.ledger.load_failed">Could not load the wafer ledger: {0}</sys:String>
 
     <!-- Data chart / real-time chart (both share the signal tree on the left and the curve info at the bottom right) -->
     <sys:String x:Key="chart.signals">Signals</sys:String>
@@ -307,6 +385,7 @@
     <sys:String x:Key="menu.DataCenter.DataChart">Data Chart</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">Real-time Chart</sys:String>
     <sys:String x:Key="menu.Setting.Ec">EC Settings</sys:String>
+    <sys:String x:Key="menu.Setting.WaferLedger">Wafer Ledger</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>
     <sys:String x:Key="menu.Setting.Role">Roles</sys:String>
 

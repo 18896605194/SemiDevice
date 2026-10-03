@@ -89,7 +89,8 @@ public class RejeRobotDriver : RobotDriverBase
     /// </summary>
     protected override void OnCommandCompleted(RobotCommand command)
     {
-        if (command is RejeSStopCommand && command.Response is { IsSuccess: true })
+        var response = command.Response;
+        if (command is RejeSStopCommand && response is not null && response.IsSuccess)
         {
             InterruptMotions("被急停打断（Sstop）");
         }

@@ -89,13 +89,14 @@ public partial class DateTimePicker : UserControl
             return;
         }
 
-        if (DatePart.SelectedDate is not { } date)
+        var date = DatePart.SelectedDate;
+        if (date is null)
         {
             SetCurrentValue(ValueProperty, null);
             return;
         }
 
-        var value = date.Date
+        var value = date.Value.Date
             .AddHours(Math.Max(0, HourPart.SelectedIndex))
             .AddMinutes(Math.Max(0, MinutePart.SelectedIndex));
         if (Value != value)

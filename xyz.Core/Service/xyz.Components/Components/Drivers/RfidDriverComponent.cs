@@ -198,7 +198,8 @@ public abstract class RfidDriverComponent : ComponentBase
     {
         lock (_gate)
         {
-            if (_reading is not { } command)
+            var command = _reading;
+            if (command is null)
             {
                 return;
             }
@@ -206,7 +207,7 @@ public abstract class RfidDriverComponent : ComponentBase
             if (command.IsCompleted)
             {
                 var response = command.Response;
-                _result = response is { IsSuccess: true }
+                _result = response is not null && response.IsSuccess
                     ? RfidReadResult.Success(response.CarrierId ?? string.Empty)
                     : RfidReadResult.Failure(response?.Error ?? "NoResponse");
                 _reading = null;

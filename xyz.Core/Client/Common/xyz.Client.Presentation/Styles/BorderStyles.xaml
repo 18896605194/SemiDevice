@@ -115,10 +115,16 @@
         <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Card.Background}" />
     </Style>
 
-    <!--  顶栏信息块（时间、当前用户）：不要底框，只占位跟顶栏的日志 / 报警下拉框同高对齐  -->
+    <!--  顶栏信息块（时间、当前用户）：深一档的底、细边圆角，上下两块一样宽，跟顶栏的日志 / 报警下拉框同高对齐  -->
     <Style x:Key="TopBarInfoBorderStyle" TargetType="Border">
         <Setter Property="Height" Value="40" />
+        <Setter Property="MinWidth" Value="140" />
         <Setter Property="Margin" Value="0,4" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
     </Style>
 
     <!--  底部导航里一级菜单和二级页面之间的分隔：强调色竖光条，中间亮、两头渐隐，带一圈光晕（颜色同 DarkAccent）  -->
@@ -166,6 +172,140 @@
         <Setter Property="Height" Value="20" />
         <Setter Property="Margin" Value="0,0,14,0" />
         <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <!--  列表、表格的底框（如账单调整页的位置列表、槽位表）：深底细边，里面的内容自己滚动  -->
+    <Style x:Key="ListPaneBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="2" />
+    </Style>
+
+    <!--  底框顶上的标题条（如槽位表上面那一条：位置名、状态、几槽几片）  -->
+    <Style x:Key="PaneCaptionBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
+    <!--  两栏之间的圆形图标（如账单调整页源、目标两栏中间的箭头）  -->
+    <Style x:Key="RoundIconBorderStyle" TargetType="Border">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkAccent}" />
+    </Style>
+
+    <!--  页内确认层：Tag=True 时盖住整页（半透明黑，挡住后面的点击），确认框（DialogCardBorderStyle）居中浮在上面  -->
+    <Style x:Key="PageOverlayBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DarkOverlayBackground}" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  确认框：浮在确认层上的卡片  -->
+    <Style x:Key="DialogCardBorderStyle" TargetType="Border">
+        <Setter Property="Width" Value="560" />
+        <Setter Property="Padding" Value="24" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+
+    <!--  确认框里"要改的是什么"那一块：深底细边（片号大字，下面是从哪到哪）  -->
+    <Style x:Key="DialogSummaryBorderStyle" TargetType="Border">
+        <Setter Property="Margin" Value="0,16,0,0" />
+        <Setter Property="Padding" Value="16,14" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+
+    <!--  晶圆色条（如账单调整页槽位表的"晶圆"列、工具栏的颜色说明）。Tag 是片的色调：
+          Idle 未处理 / InProcess 工艺中 / Completed 已完成 / Error 失败或中止 / Crossed 交叉片 / Double 叠片 / Dummy 陪片 / Unknown 状态不明；
+          其他值（Empty）是空槽，画虚线框。用 Rectangle 是因为空槽要虚线，Border 画不了  -->
+    <Style x:Key="WaferBarStyle" TargetType="Rectangle">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="10" />
+        <Setter Property="RadiusX" Value="5" />
+        <Setter Property="RadiusY" Value="5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Fill" Value="Transparent" />
+        <Setter Property="Stroke" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeDashArray" Value="3 2" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Idle">
+                <Setter Property="Fill" Value="{DynamicResource WaferIdleNojob}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="InProcess">
+                <Setter Property="Fill" Value="{DynamicResource WaferInProcess}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Completed">
+                <Setter Property="Fill" Value="{DynamicResource WaferProcessComplete}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Error">
+                <Setter Property="Fill" Value="{DynamicResource WaferError}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Crossed">
+                <Setter Property="Fill" Value="{DynamicResource WaferCrossed}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Double">
+                <Setter Property="Fill" Value="{DynamicResource WaferDouble}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Dummy">
+                <Setter Property="Fill" Value="{DynamicResource WaferDummy}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Unknown">
+                <Setter Property="Fill" Value="{DynamicResource Gray}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  颜色说明里的小色条：比表格里的短一些  -->
+    <Style
+        x:Key="WaferLegendBarStyle"
+        BasedOn="{StaticResource WaferBarStyle}"
+        TargetType="Rectangle">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="RadiusX" Value="4" />
+        <Setter Property="RadiusY" Value="4" />
+        <Setter Property="Margin" Value="14,0,0,0" />
+    </Style>
+
+    <!--  通用：Tag=True 才显示的一块（如确认框里只有移动时才有的"→ 目标"）  -->
+    <Style x:Key="ShowWhenTagTrueStyle" TargetType="FrameworkElement">
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

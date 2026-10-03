@@ -104,7 +104,8 @@ public partial class App : Application
             // 机型独有界面的语言包在机型的界面资源程序集里（IClientModule.PresentationAssembly），按当前语言合并。
             foreach (var module in modules)
             {
-                if (module.PresentationAssembly is { Length: > 0 } presentationAssembly)
+                var presentationAssembly = module.PresentationAssembly;
+                if (presentationAssembly is not null && presentationAssembly.Length > 0)
                 {
                     L10n.AddPack(presentationAssembly);
                 }

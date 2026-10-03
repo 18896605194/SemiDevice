@@ -16,6 +16,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EcViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<EcViewModel>());
 
+        services.AddSingleton<WaferLedgerViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<WaferLedgerViewModel>());
+
         services.AddSingleton<UserViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<UserViewModel>());
 
@@ -23,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<RoleViewModel>());
 
         services.AddKeyedSingleton<UserControl, EcView>("Setting.Ec");
+        services.AddKeyedSingleton<UserControl, WaferLedgerView>("Setting.WaferLedger");
         services.AddKeyedSingleton<UserControl, UserView>("Setting.User");
         services.AddKeyedSingleton<UserControl, RoleView>("Setting.Role");
 

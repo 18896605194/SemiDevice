@@ -172,7 +172,7 @@
                             <TextBlock
                                 Margin="8,0,0,0"
                                 Style="{DynamicResource TopBarValueTextStyle}"
-                                Text="Admin" />
+                                Text="{Binding UserName}" />
                         </StackPanel>
                     </Border>
 

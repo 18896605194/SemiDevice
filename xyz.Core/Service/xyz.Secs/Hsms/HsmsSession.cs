@@ -321,10 +321,8 @@ public sealed class HsmsSession : IDisposable
             {
                 read = _stream.Read(buffer, done, buffer.Length - done);
             }
-            catch (IOException exception) when (exception.InnerException is SocketException
-            {
-                SocketErrorCode: SocketError.TimedOut
-            })
+            catch (IOException exception) when (exception.InnerException is SocketException socketException
+                && socketException.SocketErrorCode == SocketError.TimedOut)
             {
                 throw new SecsTimeoutException("T8：帧内字节间超时");
             }
@@ -494,7 +492,7 @@ public sealed class HsmsSession : IDisposable
         // 对方报的错（S9）先认，尽快落到我方在途的事务上；S9F1（设备号不对）里带的就是对方的设备号，本来就跟本端对不上，不能按设备号丢掉。
         if (header.Stream == 9)
         {
-            if (item is { Format: SecsFormat.Binary } && item.Count == HsmsHeader.Size)
+            if (item is not null && item.Format == SecsFormat.Binary && item.Count == HsmsHeader.Size)
             {
                 var original = HsmsHeader.Parse(item.GetBinary());
                 if (_transactions.TryGetValue(original.SystemBytes, out var failed)

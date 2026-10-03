@@ -26,7 +26,8 @@ public class AlarmService : IAlarmService
     /// </summary>
     public Task<RpcResponse> ResetAsync(RpcRequest request, CallContext context = default)
     {
-        if (AlarmComponent.Current is not { } alarms)
+        var alarms = AlarmComponent.Current;
+        if (alarms is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
         }
@@ -42,7 +43,8 @@ public class AlarmService : IAlarmService
 
     public Task<RpcResponse> ResetAllAsync(RpcRequest request, CallContext context = default)
     {
-        if (AlarmComponent.Current is not { } alarms)
+        var alarms = AlarmComponent.Current;
+        if (alarms is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
         }

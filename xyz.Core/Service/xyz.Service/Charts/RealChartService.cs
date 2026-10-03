@@ -14,7 +14,8 @@ public class RealChartService : IRealChartService
 {
     public Task<RpcResponse> GetLayoutAsync(RpcRequest request, CallContext context = default)
     {
-        if (RealChartComponent.Current is not { } chart)
+        var chart = RealChartComponent.Current;
+        if (chart is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RealChartNotInstalled, []));
         }
@@ -32,7 +33,8 @@ public class RealChartService : IRealChartService
 
     public Task<RpcResponse> GetRecentAsync(RealChartRecentQuery query, CallContext context = default)
     {
-        if (RealChartComponent.Current is not { } chart)
+        var chart = RealChartComponent.Current;
+        if (chart is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RealChartNotInstalled, []));
         }

@@ -448,7 +448,7 @@ public class RealChartViewModel : BaseViewModel
             {
                 if (_seriesByName.TryGetValue(item.Name, out var series))
                 {
-                    series.SetData(xs, item.Values.Select(value => value is { } number ? number : double.NaN));
+                    series.SetData(xs, item.Values.Select(value => value is not null ? value.Value : double.NaN));
                 }
             }
 
@@ -489,7 +489,8 @@ public class RealChartViewModel : BaseViewModel
                 continue;
             }
 
-            series.Append(x, frame.Values[index] is { } value ? value : double.NaN, keepFrom);
+            var value = frame.Values[index];
+            series.Append(x, value is not null ? value.Value : double.NaN, keepFrom);
         }
 
         _latest = time;
@@ -519,10 +520,11 @@ public class RealChartViewModel : BaseViewModel
 
     private void UpdateStatus()
     {
-        Status = _latest is not { } latest
+        var latest = _latest;
+        Status = latest is null
             ? L10n.Get("realchart.waiting")
             : FollowRange
-                ? L10n.Get("realchart.live", latest)
+                ? L10n.Get("realchart.live", latest.Value)
                 : L10n.Get("realchart.paused");
     }
 
@@ -534,7 +536,7 @@ public class RealChartViewModel : BaseViewModel
         double? x = CursorTime?.ToOADate();
         foreach (var series in Series)
         {
-            series.CursorValue = x is { } time ? series.ValueAt(time) : series.LastValue;
+            series.CursorValue = x is not null ? series.ValueAt(x.Value) : series.LastValue;
         }
     }
 
@@ -543,13 +545,15 @@ public class RealChartViewModel : BaseViewModel
     /// </summary>
     private void UpdateStats()
     {
-        if (VisibleStart is not { } start || VisibleEnd is not { } end)
+        var start = VisibleStart;
+        var end = VisibleEnd;
+        if (start is null || end is null)
         {
             return;
         }
 
-        double from = start.ToOADate();
-        double to = end.ToOADate();
+        double from = start.Value.ToOADate();
+        double to = end.Value.ToOADate();
         foreach (var series in Series)
         {
             (series.Min, series.Max, series.Avg) = series.StatsBetween(from, to);

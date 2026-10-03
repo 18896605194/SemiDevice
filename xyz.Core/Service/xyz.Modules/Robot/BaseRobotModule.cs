@@ -313,6 +313,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new RobotArmDto { Arm = pair.Key, HasWafer = pair.Value })
                 .ToList(),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
         };
 
         var robot = Robot;

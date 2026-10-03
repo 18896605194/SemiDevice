@@ -127,7 +127,8 @@ internal static class DataRecordTable
                 parameters[0] = new SugarParameter("@t", row.Time);
                 for (int i = 0; i < signals.Count; i++)
                 {
-                    object value = row.Values[i] is { } number ? number : DBNull.Value;
+                    double? cell = row.Values[i];
+                    object value = cell is not null ? cell.Value : DBNull.Value;
                     parameters[i + 1] = new SugarParameter("@v" + i.ToString(CultureInfo.InvariantCulture), value);
                 }
 

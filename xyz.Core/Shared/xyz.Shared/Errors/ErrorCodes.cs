@@ -119,6 +119,34 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 晶圆账
+
+    /// <summary>晶圆账没开（sc.xml 没配 WaferManager，或 IsEnable=False）。</summary>
+    public const string WaferLedgerDisabled = "wafer.ledger_disabled";
+
+    /// <summary>账上没有这个位置（模块没登记过槽位）。Args: [位置]</summary>
+    public const string WaferLocationNotFound = "wafer.location_not_found";
+
+    /// <summary>槽号超出这个位置的槽数。Args: [位置, 槽号, 槽数]</summary>
+    public const string WaferSlotOutOfRange = "wafer.slot_out_of_range";
+
+    /// <summary>这个槽上没片（可能刚被别处改过账）。Args: [位置, 槽号]</summary>
+    public const string WaferNoWafer = "wafer.no_wafer";
+
+    /// <summary>目标槽上已经有片。Args: [位置, 槽号, 片号]</summary>
+    public const string WaferSlotOccupied = "wafer.slot_occupied";
+
+    /// <summary>源和目标是同一个槽。</summary>
+    public const string WaferSameSlot = "wafer.same_slot";
+
+    /// <summary>补账没填片号。</summary>
+    public const string WaferIdRequired = "wafer.id_required";
+
+    /// <summary>补账的片号已经在账上。Args: [片号, 位置, 槽号]</summary>
+    public const string WaferDuplicateId = "wafer.duplicate_id";
+
+    #endregion
+
     #region 历史查询
 
     /// <summary>历史查询失败（读日志文件或数据库出错）。Args: [原因]</summary>

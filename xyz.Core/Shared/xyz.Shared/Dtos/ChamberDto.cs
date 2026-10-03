@@ -81,7 +81,9 @@ public class ChamberDto
         {
             if (Slots[i].Slot != previous.Slots[i].Slot
                 || Slots[i].State != previous.Slots[i].State
-                || Slots[i].WaferId != previous.Slots[i].WaferId)
+                || Slots[i].WaferId != previous.Slots[i].WaferId
+                || Slots[i].SourceLoadPort != previous.Slots[i].SourceLoadPort
+                || Slots[i].SourceSlot != previous.Slots[i].SourceSlot)
             {
                 return true;
             }
@@ -104,6 +106,12 @@ public class ChamberSlotDto
 
     /// <summary>片号（晶圆账的业务片号）；空片位为 null。</summary>
     public string? WaferId { get; set; }
+
+    /// <summary>来源 LoadPort 的模块名（如 LoadPort1）；空片位、不是在 LoadPort 上建的片为 null。圆片上显示"LoadPort1-25"用。</summary>
+    public string? SourceLoadPort { get; set; }
+
+    /// <summary>来源 LoadPort 的槽号；空片位、不是在 LoadPort 上建的片为 0。</summary>
+    public int SourceSlot { get; set; }
 
     /// <summary>这个片位有没有片。</summary>
     public bool HasWafer => State != ChamberSlotState.Empty;

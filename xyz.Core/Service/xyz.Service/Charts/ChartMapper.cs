@@ -55,6 +55,6 @@ internal static class ChartMapper
 
     public static float? ToFloat(double? value)
     {
-        return value is { } number ? (float)number : null;
+        return value is not null ? (float)value.Value : null;
     }
 }

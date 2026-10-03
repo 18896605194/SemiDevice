@@ -108,5 +108,6 @@
     <SolidColorBrush x:Key="WaferTransfer" Color="#FACC15" />
     <SolidColorBrush x:Key="WaferCrossed" Color="#F59E0B" />
     <SolidColorBrush x:Key="WaferDouble" Color="#EC4899" />
+    <SolidColorBrush x:Key="WaferDummy" Color="#94A3B8" />
 
 </ResourceDictionary>

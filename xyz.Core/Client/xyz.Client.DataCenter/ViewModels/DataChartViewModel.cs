@@ -405,9 +405,10 @@ public class DataChartViewModel : BaseViewModel
         SignalTree.RefreshGroups(Signals);
         if (check)
         {
-            if (_fetchedRange is { } range)
+            var range = _fetchedRange;
+            if (range is not null)
             {
-                RequestFetch(range.Start, range.End, now: true);
+                RequestFetch(range.Value.Start, range.Value.End, now: true);
             }
             else if (_defaultTimes)
             {
@@ -427,19 +428,22 @@ public class DataChartViewModel : BaseViewModel
     /// </summary>
     private void FetchVisibleRange()
     {
-        if (VisibleStart is not { } start || VisibleEnd is not { } end || end <= start || Series.Count == 0)
+        var start = VisibleStart;
+        var end = VisibleEnd;
+        if (start is null || end is null || end.Value <= start.Value || Series.Count == 0)
         {
             return;
         }
 
-        if (_fetchedRange is { } fetched
-            && Math.Abs((fetched.Start - start).TotalSeconds) < 1
-            && Math.Abs((fetched.End - end).TotalSeconds) < 1)
+        var fetched = _fetchedRange;
+        if (fetched is not null
+            && Math.Abs((fetched.Value.Start - start.Value).TotalSeconds) < 1
+            && Math.Abs((fetched.Value.End - end.Value).TotalSeconds) < 1)
         {
             return;
         }
 
-        RequestFetch(start, end, now: false);
+        RequestFetch(start.Value, end.Value, now: false);
     }
 
     private void RequestFetch(DateTime start, DateTime end, bool now)
@@ -481,9 +485,11 @@ public class DataChartViewModel : BaseViewModel
     /// </summary>
     private void Apply(ChartOutcome outcome)
     {
-        if (outcome.Result is not { } result)
+        var result = outcome.Result;
+        if (result is null)
         {
-            string reason = outcome.Code is { Length: > 0 } code
+            var code = outcome.Code;
+            string reason = code is not null && code.Length > 0
                 ? L10n.Get(code, outcome.Args ?? [])
                 : string.Join(" ", outcome.Args ?? []);
             Summary = L10n.Get("common.query_failed");
@@ -501,7 +507,7 @@ public class DataChartViewModel : BaseViewModel
                 continue;
             }
 
-            series.SetData(xs, item.Values.Select(value => value is { } number ? number : double.NaN));
+            series.SetData(xs, item.Values.Select(value => value is not null ? value.Value : double.NaN));
             series.Min = item.Min;
             series.Max = item.Max;
             series.Avg = item.Avg;
@@ -520,7 +526,7 @@ public class DataChartViewModel : BaseViewModel
         double? x = CursorTime?.ToOADate();
         foreach (var series in Series)
         {
-            series.CursorValue = x is { } time ? series.ValueAt(time) : null;
+            series.CursorValue = x is not null ? series.ValueAt(x.Value) : null;
         }
     }
 

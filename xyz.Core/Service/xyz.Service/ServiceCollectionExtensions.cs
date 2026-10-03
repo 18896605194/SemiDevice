@@ -11,6 +11,7 @@ using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Service.Systems;
 using xyz.Service.UserManger;
+using xyz.Service.Wafers;
 using xyz.Shared.Dtos;
 using xyz.Shared.Services;
 using xyz.Tools;
@@ -57,7 +58,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IReadOnlyList<ComponentBase>>(roots);
 
         // EC 组件把组件树 [VariableMark(EC)] 声明合并进 ec.xml（没有这个文件就生成，缺的补建，已有值不动，层级先后跟 sc.xml 一样）。
-        if (EcComponent.Current is { } ec)
+        var ec = EcComponent.Current;
+        if (ec is not null)
         {
             ec.Merge(roots);
 
@@ -77,9 +79,23 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(collectors);
 
         // 报警转推客户端：报警组件在组件层（不引用契约层），所以这条桥搭在这儿，跟日志那条一个路子。
-        if (AlarmComponent.Current is { } alarms)
+        var alarms = AlarmComponent.Current;
+        if (alarms is not null)
         {
             alarms.AlarmChanged += item => EventBus.Send(item.ToDto(), AlarmDto.EventToken, retain: false);
+        }
+
+        // 晶圆账一变就通知客户端：只说哪个位置变了，不带账（整篮 Mapping 会一下来一串），账单调整页收到后合并着重拉一次。
+        var wafers = WaferManager.Current;
+        if (wafers is not null)
+        {
+            void NotifyLedger(string module) =>
+                EventBus.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
+
+            wafers.WaferCreated += wafer => NotifyLedger(wafer.Module);
+            wafers.WaferDeleted += wafer => NotifyLedger(wafer.Module);
+            wafers.WaferUpdated += wafer => NotifyLedger(wafer.Module);
+            wafers.WaferMoved += (wafer, _, _) => NotifyLedger(wafer.Module);
         }
 
         // EAP 主机链路（sc.xml 的 Hsms 节点）：排在编号表合并之后——S1F3 要按 SVID 表答话；
@@ -173,7 +189,8 @@ public static class ServiceCollectionExtensions
         // 数据曲线：每秒采一整行入库——只记 sc.xml 里配置了的（组件上的 SV + 组件绑的 IO）；
         // 实时曲线订阅同一份采样，留最近一段、推给界面。
         // 放在最后：采样要读 SV 编号表和 IO 点表，都得先备好。
-        if (DataChartComponent.Current is { } dataChart)
+        var dataChart = DataChartComponent.Current;
+        if (dataChart is not null)
         {
             RealChartComponent.Current?.Attach(dataChart);
             RealChartPublisher.Start();
@@ -201,6 +218,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ISystemService, SystemService>();
         services.AddTransient<IIoService, IoService>();
         services.AddTransient<IEcService, EcService>();
+        services.AddTransient<IWaferLedgerService, WaferLedgerService>();
         services.AddTransient<IDataChartService, DataChartService>();
         services.AddTransient<IRealChartService, RealChartService>();
 

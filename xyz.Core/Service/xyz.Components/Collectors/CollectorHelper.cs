@@ -51,7 +51,8 @@ internal static class CollectorHelper
 
                 string local = type == VariableType.SV && !string.IsNullOrWhiteSpace(mark.Name) ? mark.Name : property.Name;
                 string name = $"{component.FullPath}.{local}";
-                if (property.GetMethod is not { IsPublic: true } || property.GetIndexParameters().Length != 0)
+                var getter = property.GetMethod;
+                if (getter is null || !getter.IsPublic || property.GetIndexParameters().Length != 0)
                 {
                     LogHelper.Warn(kind, $"{name} 没有可读的公开 get，不编号");
                     continue;

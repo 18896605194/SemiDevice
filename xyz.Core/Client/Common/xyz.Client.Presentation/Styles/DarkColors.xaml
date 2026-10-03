@@ -16,7 +16,14 @@
     <!-- 暗色主题强调色 -->
     <SolidColorBrush x:Key="DarkAccent" Color="#42A5F5" />
     <SolidColorBrush x:Key="DarkAccentPressed" Color="#1976D2" />
+    <!-- 淡强调底：刚加进来的那一行（如账单调整页最新一条调整记录） -->
+    <SolidColorBrush x:Key="DarkAccentSoft" Color="#3D1976D2" />
     <SolidColorBrush x:Key="DarkAlarmIcon" Color="#FF9800" />
+
+    <!-- 列表项悬停：在底色上微微提亮 -->
+    <SolidColorBrush x:Key="DarkHoverBackground" Color="#14FFFFFF" />
+    <!-- 页内确认层：盖住整页的半透明黑，确认框浮在上面 -->
+    <SolidColorBrush x:Key="DarkOverlayBackground" Color="#8C000000" />
 
     <!-- 设备状态色 -->
     <SolidColorBrush x:Key="DarkAlarmStatus" Color="#EF5350" />

@@ -74,6 +74,32 @@
         <Setter Property="materialDesign:DataGridAssist.CellPadding" Value="16,0" />
     </Style>
 
+    <!--  矮表头（配 DenseDataGridStyle）：左右边距也收一些  -->
+    <Style
+        x:Key="CompactDataGridColumnHeaderStyle"
+        BasedOn="{StaticResource DefaultDataGridColumnHeaderStyle}"
+        TargetType="DataGridColumnHeader">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+    </Style>
+
+    <!--  密表格：行更矮、表头也矮、格子左右只留 4（配 DenseDataGridTextStyle 再留 4），不带外框（外面套 ListPaneBorderStyle）；
+          一屏要放下整篮 25 槽、几列挤在一栏里的地方用（如账单调整页的槽位表、调整记录）。
+          先后由数据定（槽位表 LoadPort 大号在上、记录新的在上），不让点表头排序，表头也就不用给排序箭头留位置  -->
+    <Style
+        x:Key="DenseDataGridStyle"
+        BasedOn="{StaticResource CompactDataGridStyle}"
+        TargetType="DataGrid">
+        <Setter Property="RowHeight" Value="27" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CanUserSortColumns" Value="False" />
+        <Setter Property="ColumnHeaderStyle" Value="{StaticResource CompactDataGridColumnHeaderStyle}" />
+        <Setter Property="materialDesign:DataGridAssist.CellPadding" Value="4,0" />
+        <!--  Material 的表头模板按这个附加属性留边（上下左右都是），表头样式里的 Padding 管不到；上下 8 正好是原来的表头高度  -->
+        <Setter Property="materialDesign:DataGridAssist.ColumnHeaderPadding" Value="8,8" />
+    </Style>
+
     <!--  长文本单元格：一行显示，超长省略，鼠标悬停看全文  -->
     <Style
         x:Key="EllipsisDataGridTextStyle"
@@ -81,6 +107,15 @@
         TargetType="TextBlock">
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+    </Style>
+
+    <!--  密表格（DenseDataGridStyle）的单元格：小一号、左右只留 4，超长省略、悬停看全文  -->
+    <Style
+        x:Key="DenseDataGridTextStyle"
+        BasedOn="{StaticResource EllipsisDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Margin" Value="4,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
     </Style>
 
     <!--  日志级别单元格（行数据要有 Level 属性）：Debug 灰、Warn 黄、Error 红  -->
@@ -98,6 +133,67 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Level}" Value="Error">
                 <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  可点选的行（行数据要有 IsPickable 属性）：能选的手形光标；不能选的点不中（如账单调整页源栏的空槽、目标栏有片的槽）  -->
+    <Style
+        x:Key="PickDataGridRowStyle"
+        BasedOn="{StaticResource MaterialDesignDataGridRow}"
+        TargetType="DataGridRow">
+        <Setter Property="Cursor" Value="Hand" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPickable}" Value="False">
+                <Setter Property="IsEnabled" Value="False" />
+                <Setter Property="Cursor" Value="Arrow" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  配 PickDataGridRowStyle 用的单元格：不能选的行字变灰  -->
+    <Style
+        x:Key="PickDataGridCellStyle"
+        BasedOn="{StaticResource DefaultDataGridCellStyle}"
+        TargetType="DataGridCell">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPickable}" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  刚加进来的行（行数据要有 IsFresh 属性）淡强调底，比如账单调整页刚做完的那条调整记录  -->
+    <Style
+        x:Key="FreshDataGridCellStyle"
+        BasedOn="{StaticResource DefaultDataGridCellStyle}"
+        TargetType="DataGridCell">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsFresh}" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkAccentSoft}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  账单调整记录的"操作"单元格（行数据要有 Action 属性）：Move 移动（强调色）、Delete 删除（红）、Create 新建（绿）  -->
+    <Style
+        x:Key="LedgerActionDataGridTextStyle"
+        BasedOn="{StaticResource DenseDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Text" Value="{Binding Action}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Action}" Value="Move">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.action.Move}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Action}" Value="Delete">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.action.Delete}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Action}" Value="Create">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.action.Create}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>

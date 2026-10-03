@@ -146,4 +146,89 @@
         </Style.Triggers>
     </Style>
 
+    <!--  卡片里一栏的标题（如账单调整页的"源""目标""调整记录"）  -->
+    <Style x:Key="PanelTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size16}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+    <!--  分组列表的组名（如账单调整页位置列表的"机械手""LoadPort""腔体"）：小字、灰  -->
+    <Style x:Key="ListGroupHeaderTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="12,10,12,4" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+    </Style>
+
+    <!--  确认框里的主角（如要调整的片号）：大一号、加粗  -->
+    <Style x:Key="DialogSubjectTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource Size20}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!--  账单调整页正中的一句提示：Tag 是页面状态——Offline 没连上后端 / Disabled 晶圆账没开 / NoLocations 没有能放片的位置；
+          其他（Ready 有账、Loading 正在拉）不显示  -->
+    <Style
+        x:Key="LedgerPageHintTextStyle"
+        BasedOn="{StaticResource CenterHintTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Offline">
+                <Setter Property="Visibility" Value="Visible" />
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.offline}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Disabled">
+                <Setter Property="Visibility" Value="Visible" />
+                <Setter Property="Text" Value="{DynamicResource wafer.ledger_disabled}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="NoLocations">
+                <Setter Property="Visibility" Value="Visible" />
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.no_locations}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  账单调整页确认框的标题：Tag 是要做的事（Move 移动 / Delete 删除 / Create 新建）  -->
+    <Style x:Key="LedgerDialogTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource Size18}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Move">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.confirm_move_title}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Delete">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.confirm_delete_title}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Create">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.confirm_create_title}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  账单调整页确认框的说明：灰字、自动换行；删账（Tag=Delete）换成警告黄的那一句；Tag=Create 是补账的说明  -->
+    <Style x:Key="LedgerDialogHintTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,14,0,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="LineHeight" Value="22" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Move">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.move_hint}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Delete">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.delete_hint}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Create">
+                <Setter Property="Text" Value="{DynamicResource setting.ledger.create_hint}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

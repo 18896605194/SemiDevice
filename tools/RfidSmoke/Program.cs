@@ -74,7 +74,7 @@ Check(reader.IsReading, "发起后应处于读码在途");
 Check(!reader.BeginRead(), "同一时刻不该受理第二条读码");
 
 var result = PumpUntilResult(reader);
-Check(result is { IsSuccess: true }, "读码应成功，实际: " + (result?.Error ?? "无结果"));
+Check(result is not null && result.IsSuccess, "读码应成功，实际: " + (result?.Error ?? "无结果"));
 Check(result!.CarrierId == "FOUP-0001", $"应切出载具 ID，实际 \"{result.CarrierId}\"");
 Check(reader.TakeResult() is null, "结果取走即清，不该拿到第二次");
 Check(!reader.IsReading, "读完应让出在途位");
@@ -88,7 +88,7 @@ Check(FcdRfidProtocol.TryUnwrapBlock(sent!, out byte sentId, out byte[] sentData
 // 在途位已让出：第二次读码照样能走
 Check(reader.BeginRead(), "第一次读完后应能再读");
 result = PumpUntilResult(reader);
-Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二次读码也应成功");
+Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001", "第二次读码也应成功");
 
 // ── 4. 载具 ID 切片：起始偏移与长度 ──────────────────────────────────────
 {
@@ -99,7 +99,7 @@ Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二�
     sliced.Open();
     sliced.BeginRead();
     var slicedResult = PumpUntilResult(sliced);
-    Check(slicedResult is { IsSuccess: true } && slicedResult.CarrierId == "0001",
+    Check(slicedResult is not null && slicedResult.IsSuccess && slicedResult.CarrierId == "0001",
         $"应按 IdStart/IdLength 切片，实际 \"{slicedResult?.CarrierId}\"");
 }
 
@@ -110,7 +110,7 @@ Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二�
     padded.Open();
     padded.BeginRead();
     var paddedResult = PumpUntilResult(padded);
-    Check(paddedResult is { IsSuccess: true } && paddedResult.CarrierId == "ABC",
+    Check(paddedResult is not null && paddedResult.IsSuccess && paddedResult.CarrierId == "ABC",
         $"标签尾部的空格与 NUL 应去掉，实际 \"{paddedResult?.CarrierId}\"");
 }
 
@@ -121,7 +121,7 @@ Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二�
     failing.Open();
     failing.BeginRead();
     var errorResult = PumpUntilResult(failing);
-    Check(errorResult is { IsSuccess: false }, "错误块应落读码失败");
+    Check(errorResult is not null && !errorResult.IsSuccess, "错误块应落读码失败");
     Check(errorResult!.Error == "ERR02", $"应带出设备错误码，实际 \"{errorResult.Error}\"");
     Check(!failing.IsReading, "失败后也要让出在途位");
     Check(failing.BeginRead(), "失败之后应还能再读");
@@ -134,7 +134,7 @@ Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二�
     rejected.Open();
     rejected.BeginRead();
     var nakResult = PumpUntilResult(rejected);
-    Check(nakResult is { IsSuccess: false, Error: "NAK" },
+    Check(nakResult is not null && !nakResult.IsSuccess && nakResult.Error == "NAK",
         $"读头拒收应立刻落失败而不是干等超时，实际 \"{nakResult?.Error}\"");
 }
 
@@ -179,7 +179,7 @@ Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二�
     Check(timeout == 5000, $"读码超时默认应为 5000ms，实际 {timeout}");
 
     var timedOut = PumpUntilResult(silent, timeout + 1500);
-    Check(timedOut is { IsSuccess: false }, "读头不回结果应落超时失败");
+    Check(timedOut is not null && !timedOut.IsSuccess, "读头不回结果应落超时失败");
     Check(timedOut!.Error.Contains("超时"), $"失败原因应说明是超时，实际 \"{timedOut.Error}\"");
     Check(!silent.IsReading, "超时后必须让出在途位");
     Check(silent.BeginRead(), "超时之后应还能再发起读码——在途位没让出来的话这里会挂");
@@ -194,13 +194,13 @@ Check(result is { IsSuccess: true } && result.CarrierId == "FOUP-0001", "第二�
     var version = new FcdGetVersionCommand();
     Check(driver.Submit(version), "应能下发取版本指令");
     Check(WaitCompleted(version), "取版本应有回复");
-    Check(version.Response is { IsSuccess: true } && version.Response.Data.Length == 2,
+    Check(version.Response is not null && version.Response.IsSuccess && version.Response.Data.Length == 2,
         "取版本应带回版本数据");
 
     var status = new FcdGetStatusCommand();
     Check(driver.Submit(status), "上一条终结后应能下发取状态指令");
     Check(WaitCompleted(status), "取状态应有回复");
-    Check(status.Response is { IsSuccess: true }, "取状态应成功");
+    Check(status.Response is not null && status.Response.IsSuccess, "取状态应成功");
 }
 
 Console.WriteLine($"PASS: {checks} RFID checks (FCD RFT-200S 协议、双向握手、切片、在途位与超时；不连硬件)。");
@@ -232,7 +232,8 @@ static RfidReadResult? PumpUntilResult(SmokeRfidReader reader, int milliseconds 
     while (Environment.TickCount < deadline)
     {
         reader.Tick();
-        if (reader.TakeResult() is { } result)
+        var result = reader.TakeResult();
+        if (result is not null)
         {
             return result;
         }

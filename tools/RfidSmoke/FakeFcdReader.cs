@@ -178,9 +178,10 @@ internal sealed class FakeFcdReader : ICommunication
             return;
         }
 
-        if (ErrorCode is { } code)
+        var code = ErrorCode;
+        if (code is not null)
         {
-            block = [FcdRfidProtocol.RspError, code];
+            block = [FcdRfidProtocol.RspError, code.Value];
         }
 
         var wrapped = FcdRfidProtocol.WrapBlock(block);

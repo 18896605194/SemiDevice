@@ -45,11 +45,17 @@ public class RobotDto
     /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
 
+    /// <summary>
+    /// 晶圆账上各手指的片（槽号 = 手指号，空手的 Wafer 为 null）；晶圆账没开或没登记这个机械手时为空。
+    /// 界面手指上画的片以账为准；账上没有、传感器（Arms）却有片时画成"在途"，提示账实不符。
+    /// </summary>
+    public List<WaferSlotDto> LedgerSlots { get; set; } = [];
+
     /// <summary>各轴当前坐标（扫描查询刷新）：按 sc.xml 轴表整表下发、顺序同轴表，轴名总在；坐标还没查到或驱动没连上为 null。</summary>
     public List<RobotAxisPositionDto> AxisPositions { get; set; } = [];
 
     /// <summary>
-    /// 比较当前发布的模块状态、连接状态、设备反馈、当前站点和手指在位；没有上一次状态时视为变化。
+    /// 比较当前发布的模块状态、连接状态、设备反馈、当前站点、手指在位和账上的片；没有上一次状态时视为变化。
     /// </summary>
     public bool HasStateChanged(RobotDto? previous)
     {
@@ -147,6 +153,11 @@ public class RobotDto
             {
                 return true;
             }
+        }
+
+        if (!WaferSlotDto.SameSlots(LedgerSlots, previous.LedgerSlots))
+        {
+            return true;
         }
 
         if (AxisPositions.Count != previous.AxisPositions.Count)

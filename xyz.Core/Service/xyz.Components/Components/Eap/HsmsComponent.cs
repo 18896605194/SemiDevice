@@ -175,7 +175,8 @@ public class HsmsComponent : ComponentBase
         }
 
         // 报警推 EAP：ALID 从编号表查，查不到只记日志（不影响报警入库和客户端推送这两条既有链路）
-        if (AlarmComponent.Current is { } alarms)
+        var alarms = AlarmComponent.Current;
+        if (alarms is not null)
         {
             alarms.AlarmChanged += PushAlarm;
         }
@@ -192,7 +193,8 @@ public class HsmsComponent : ComponentBase
         _listener = null;
         _connector = null;
 
-        if (AlarmComponent.Current is { } alarms)
+        var alarms = AlarmComponent.Current;
+        if (alarms is not null)
         {
             alarms.AlarmChanged -= PushAlarm;
         }
@@ -310,7 +312,7 @@ public class HsmsComponent : ComponentBase
     /// </summary>
     private static string RcmdText(SecsItem? body)
     {
-        var rcmd = body is { Format: SecsFormat.List, Count: > 0 } ? body.Items[0] : null;
+        var rcmd = body is not null && body.Format == SecsFormat.List && body.Count > 0 ? body.Items[0] : null;
         return rcmd is null ? "（没带 RCMD）" : rcmd.Format == SecsFormat.Ascii ? rcmd.GetString() : SecsMessageText.Format(rcmd);
     }
 
@@ -427,7 +429,7 @@ public class HsmsComponent : ComponentBase
         try
         {
             var session = _listener?.Current ?? _connector?.Current;
-            if (session is not { IsSelected: true })
+            if (session is null || !session.IsSelected)
             {
                 return;  // EAP 不在线就不推（断线缓存 Spooling 是以后的事）
             }

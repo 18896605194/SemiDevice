@@ -186,8 +186,10 @@ public class E84Component : ComponentBase, IE84
         lock (_gate)
         {
             LogHelper.Info(FullPath, "E84 Retry：放弃这次交接，重新等搬运车");
-            if (IsHandoffStarted(_state) && _isLoad is { } isLoad)
+            bool? load = _isLoad;
+            if (IsHandoffStarted(_state) && load is not null)
             {
+                bool isLoad = load.Value;
                 _reports.Add(E84Report.Aborted(isLoad, "人工 Retry"));
             }
 
@@ -200,12 +202,14 @@ public class E84Component : ComponentBase, IE84
     {
         lock (_gate)
         {
-            if (_state != E84State.TimedOut || _isLoad is not { } isLoad)
+            bool? load = _isLoad;
+            if (_state != E84State.TimedOut || load is null)
             {
                 LogHelper.Warn(FullPath, "E84 没有超时锁住的交接，Complete 不处理");
                 return false;
             }
 
+            bool isLoad = load.Value;
             if (isLoad != carrierPlaced)
             {
                 LogHelper.Warn(FullPath, isLoad
@@ -279,7 +283,8 @@ public class E84Component : ComponentBase, IE84
         bool selected = i.Cs0 && i.Valid;
 
         // 送盒等载具放上，取盒等载具被取走。
-        bool carrierDone = _isLoad is { } load && load == carrierPlaced;
+        bool? load = _isLoad;
+        bool carrierDone = load is not null && load.Value == carrierPlaced;
 
         switch (_state)
         {
@@ -391,8 +396,10 @@ public class E84Component : ComponentBase, IE84
             return;
         }
 
-        if (IsHandoffStarted(_state) && _isLoad is { } isLoad)
+        bool? load = _isLoad;
+        if (IsHandoffStarted(_state) && load is not null)
         {
+            bool isLoad = load.Value;
             LogHelper.Warn(FullPath, $"E84 {Direction(isLoad)}交接中止：{reason}");
             _reports.Add(E84Report.Aborted(isLoad, reason));
         }
@@ -424,11 +431,13 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     private void CheckTimeout()
     {
-        if (TimerOf(_state) is not { } timer || _stepWatch.ElapsedMilliseconds <= TimeoutOf(timer))
+        E84Timer? stepTimer = TimerOf(_state);
+        if (stepTimer is null || _stepWatch.ElapsedMilliseconds <= TimeoutOf(stepTimer.Value))
         {
             return;
         }
 
+        E84Timer timer = stepTimer.Value;
         bool isLoad = _isLoad == true;
         _outputs = _outputs with { LReq = false, UReq = false, Ready = false, HoAvbl = false };
         _timedOutTimer = timer;

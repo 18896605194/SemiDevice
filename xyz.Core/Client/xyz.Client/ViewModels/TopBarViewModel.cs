@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
+using xyz.Client.Common.Session;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
@@ -13,7 +14,7 @@ using xyz.Tools;
 namespace xyz.Client.ViewModels;
 
 /// <summary>
-/// 主界面顶栏右侧：四色灯、当前时间、整机复位。
+/// 主界面顶栏右侧：四色灯、当前时间、当前用户、整机复位。
 /// 红 = 报警、黄 = 警告、绿 = 运行，跟后端推来的设备总状态（EquipmentStatusDto）亮；蓝 = 和后端的通讯。
 /// </summary>
 public class TopBarViewModel : BaseViewModel
@@ -74,6 +75,11 @@ public class TopBarViewModel : BaseViewModel
         get => _now;
         private set => SetProperty(ref _now, value);
     }
+
+    /// <summary>
+    /// 当前用户（登录还没做，先是 Admin）。
+    /// </summary>
+    public string UserName => ClientSession.UserName;
 
     #endregion
 

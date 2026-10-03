@@ -5,6 +5,7 @@ using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
@@ -254,7 +255,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 按站点名（就是模块名，也是 EventBus token）订阅站点模块的状态推送，刷新调度图卡片上的状态徽标。
+    /// 按站点名（就是模块名，也是 EventBus token）订阅站点模块的状态推送，刷新调度图卡片上的状态徽标和片（以晶圆账为准）。
     /// LoadPort、腔体两种都订，站点是哪种就只会来哪种；总线留存最后一条状态，订上立即补发。站点表没换就不重订。
     /// </summary>
     private void SubscribeStations()
@@ -270,10 +271,17 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
         foreach (var station in stations)
         {
-            _stationSubscriptions.Add(EventBus.Register<LoadPortDto>(station.Name,
-                port => station.UpdateState(LoadPortModel.StateTextOf(port.State), LoadPortModel.StateToneOf(port.State))));
-            _stationSubscriptions.Add(EventBus.Register<ChamberDto>(station.Name,
-                chamber => station.UpdateState(ChamberModel.StateTextOf(chamber.State), ChamberModel.StateToneOf(chamber.State))));
+            _stationSubscriptions.Add(EventBus.Register<LoadPortDto>(station.Name, port =>
+            {
+                station.UpdateState(ModuleStates.LoadPortText(port.State), ModuleStates.LoadPortTone(port.State));
+                station.UpdateWafers(LoadPortModel.WafersOf(port.LedgerSlots, port.Slots));
+            }));
+            _stationSubscriptions.Add(EventBus.Register<ChamberDto>(station.Name, chamber =>
+            {
+                station.UpdateState(ModuleStates.ChamberText(chamber.State), ModuleStates.ChamberTone(chamber.State));
+                var slot = chamber.Slots.FirstOrDefault(item => item.HasWafer);
+                station.UpdateWafer(slot is null ? null : ChamberModel.ToWafer(slot));
+            }));
         }
     }
 
