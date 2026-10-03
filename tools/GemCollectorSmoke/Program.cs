@@ -10,7 +10,11 @@ using xyz.Tools;
 var checks = 0;
 void Check(bool condition, string message)
 {
-    if (!condition) throw new InvalidOperationException("FAIL: " + message);
+    if (!condition)
+    {
+        throw new InvalidOperationException("FAIL: " + message);
+    }
+
     checks++;
 }
 

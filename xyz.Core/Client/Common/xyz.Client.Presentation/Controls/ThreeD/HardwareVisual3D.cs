@@ -30,9 +30,15 @@ public abstract class HardwareVisual3D : ModelVisual3D
 
     private static void NotifySceneConnection(DependencyObject node)
     {
-        if (node is HardwareVisual3D hardware) hardware.OnSceneConnectionChanged();
+        if (node is HardwareVisual3D hardware)
+        {
+            hardware.OnSceneConnectionChanged();
+        }
+
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+        {
             NotifySceneConnection(VisualTreeHelper.GetChild(node, i));
+        }
     }
 
     /// <summary>绑定设备动作反馈；为 true 时自动高亮，不依赖鼠标选中。</summary>
@@ -106,7 +112,11 @@ public abstract class HardwareVisual3D : ModelVisual3D
     /// <summary>内部动作（升降过渡、持续出液等）的高亮，不修改外部绑定的 IsMoving。</summary>
     protected void SetVisualActive(bool active)
     {
-        if (_isVisualActive == active) return;
+        if (_isVisualActive == active)
+        {
+            return;
+        }
+
         _isVisualActive = active;
         RefreshMaterials();
     }

@@ -32,6 +32,12 @@
     <SolidColorBrush x:Key="DarkCommunicationStatus" Color="#1E88E5" />
     <!-- 三维硬件默认金属灰；动作高亮使用 DarkAccent 的 Color。 -->
     <Color x:Key="DarkHardwareBodyColor">#686868</Color>
+    <!-- 腔体三维图的灯光：环境光打底、斜上方一盏主光，金属灰的明暗层次靠它 -->
+    <Color x:Key="DarkHardwareAmbientLightColor">#707070</Color>
+    <Color x:Key="DarkHardwareKeyLightColor">#C0C0C0</Color>
+    <!-- 腔体三维图的旋转盘：没片时的盘面、盘边线 -->
+    <SolidColorBrush x:Key="DarkHardwareDiskFill" Color="#484848" />
+    <SolidColorBrush x:Key="DarkHardwareDiskBorder" Color="#747474" />
     <!-- 未初始化 / 停用：灰 -->
     <SolidColorBrush x:Key="DarkInactiveStatus" Color="#616161" />
 

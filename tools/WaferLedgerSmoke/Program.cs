@@ -19,7 +19,11 @@ using xyz.Tools;
 var checks = 0;
 void Check(bool condition, string message)
 {
-    if (!condition) throw new InvalidOperationException("FAIL: " + message);
+    if (!condition)
+    {
+        throw new InvalidOperationException("FAIL: " + message);
+    }
+
     checks++;
 }
 
@@ -127,8 +131,22 @@ for (int round = 0; round < 50; round++)
 
     int won = 0;
     using var start = new ManualResetEventSlim();
-    var first = new Thread(() => { start.Wait(); if (race.Move("A", 1, "B", 1)) Interlocked.Increment(ref won); });
-    var second = new Thread(() => { start.Wait(); if (race.Move("A", 2, "B", 1)) Interlocked.Increment(ref won); });
+    var first = new Thread(() =>
+    {
+        start.Wait();
+        if (race.Move("A", 1, "B", 1))
+        {
+            Interlocked.Increment(ref won);
+        }
+    });
+    var second = new Thread(() =>
+    {
+        start.Wait();
+        if (race.Move("A", 2, "B", 1))
+        {
+            Interlocked.Increment(ref won);
+        }
+    });
     first.Start();
     second.Start();
     start.Set();
@@ -287,7 +305,13 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     Check(ReferenceEquals(AlarmComponent.Current, alarms), "装出来的报警组件应成为 Current");
 
     var raised = new List<AlarmItem>();
-    alarms.AlarmChanged += item => { lock (raised) { raised.Add(item); } };
+    alarms.AlarmChanged += item =>
+    {
+        lock (raised)
+        {
+            raised.Add(item);
+        }
+    };
 
     var faulty = new WaferManager();
     typeof(ComponentBase).GetProperty("Name")!.SetValue(faulty, "SmokeLedger");

@@ -29,6 +29,7 @@
     <sys:String x:Key="module.state.picking">取片中</sys:String>
     <sys:String x:Key="module.state.placing">放片中</sys:String>
     <sys:String x:Key="module.state.processing">工艺中</sys:String>
+    <sys:String x:Key="module.state.manual">手动动作中</sys:String>
     <sys:String x:Key="module.state.unknown">未知状态（{0}）</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
@@ -44,6 +45,10 @@
     <sys:String x:Key="robot.direction.west">西</sys:String>
 
     <sys:String x:Key="chamber.recipe_required">{0} 起工艺要先填配方名</sys:String>
+    <sys:String x:Key="chamber.part_not_found">{0} 下没有部件 {1}</sys:String>
+    <sys:String x:Key="chamber.part_action_unsupported">{0} 不支持 {1}</sys:String>
+    <sys:String x:Key="chamber.part_command_rejected">{0} {1} 指令没发出去（PLC 没连上、IO 点没配，或轴没回零 / 没使能 / 正忙）</sys:String>
+    <sys:String x:Key="chamber.part_action_failed">{0} {1} 没做成（到位超时或设备报错）</sys:String>
 
     <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
@@ -380,6 +385,23 @@
     <sys:String x:Key="chambermanual.recipe">配方</sys:String>
     <sys:String x:Key="chambermanual.select_tip">配方库还没做，先在左边手填配方名</sys:String>
     <sys:String x:Key="chambermanual.na">—</sys:String>
+    <sys:String x:Key="chambermanual.state_failed">读取腔体状态失败：{0}</sys:String>
+    <sys:String x:Key="chambermanual.action_failed">{0}失败：{1}</sys:String>
+    <sys:String x:Key="chambermanual.parts">部件操作</sys:String>
+    <sys:String x:Key="chambermanual.part_failed">{0} {1} 失败：{2}</sys:String>
+    <sys:String x:Key="chambermanual.part.open">开</sys:String>
+    <sys:String x:Key="chambermanual.part.close">关</sys:String>
+    <sys:String x:Key="chambermanual.part.up">升</sys:String>
+    <sys:String x:Key="chambermanual.part.down">降</sys:String>
+    <sys:String x:Key="chambermanual.part.dispense">出液</sys:String>
+    <sys:String x:Key="chambermanual.part.stop_dispense">停液</sys:String>
+    <sys:String x:Key="chambermanual.part.spin">旋转</sys:String>
+    <sys:String x:Key="chambermanual.part.stop">停止</sys:String>
+    <sys:String x:Key="chambermanual.part.center">工艺位</sys:String>
+    <sys:String x:Key="chamberscene.rotate_left">左转</sys:String>
+    <sys:String x:Key="chamberscene.rotate_right">右转</sys:String>
+    <sys:String x:Key="chamberscene.reset_view">复位</sys:String>
+    <sys:String x:Key="chamberscene.top_view">俯视</sys:String>
 
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
          按模块生成的菜单（IO、腔体手动）直接显示 sc.xml 里的模块名，不在这里配。

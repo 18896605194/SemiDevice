@@ -47,7 +47,11 @@ public readonly struct HsmsHeader
     public void Write(Span<byte> target)
     {
         BinaryPrimitives.WriteUInt16BigEndian(target, DeviceId);
-        if (SType == 0 && Stream > 127) throw new SecsException("Stream 必须在 0~127 之间");
+        if (SType == 0 && Stream > 127)
+        {
+            throw new SecsException("Stream 必须在 0~127 之间");
+        }
+
         target[2] = SType == 0 ? (byte)(Stream | (ReplyExpected ? 0x80 : 0)) : Stream;
         target[3] = Function;
         target[4] = PType;

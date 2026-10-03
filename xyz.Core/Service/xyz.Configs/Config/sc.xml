@@ -348,7 +348,8 @@
 	     控制上它们跟轴是平级的，谁也不调谁，协调在工艺配方里。
 	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一部件 DO 与 DI 同号；-1 = 接线未定）；
 	     气缸开侧 = 门开 / Bowl 升 / 升降气缸升。轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
-	     Bowl 层数、摆臂条数、喷嘴路数按实际增减，下面只是骨架 -->
+	     摆臂条数、喷嘴路数按实际增减，下面只是骨架。
+	     腔体手动页的三维图和部件按钮按这里的结构生成：名叫 Door、Bowl 的气缸，SpinMotor，每条摆臂（下面第一个气缸是它的 Lift）和它的喷嘴 -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
@@ -360,27 +361,12 @@
 				<Value Name="DiOpenedIndex" Value="100" />
 				<Value Name="DiClosedIndex" Value="101" />
 			</Setting>
-			<!-- Bowl 各层：每层一个气缸。本节点不带 Type，只是分组，运行时气缸直接挂在腔体下。
-			     层位选哪几层是配方参数，不配在这儿 -->
-			<Setting Name="Bowl">
-				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="102" />
-					<Value Name="DoCloseIndex" Value="103" />
-					<Value Name="DiOpenedIndex" Value="102" />
-					<Value Name="DiClosedIndex" Value="103" />
-				</Setting>
-				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="104" />
-					<Value Name="DoCloseIndex" Value="105" />
-					<Value Name="DiOpenedIndex" Value="104" />
-					<Value Name="DiClosedIndex" Value="105" />
-				</Setting>
-				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="106" />
-					<Value Name="DoCloseIndex" Value="107" />
-					<Value Name="DiOpenedIndex" Value="106" />
-					<Value Name="DiClosedIndex" Value="107" />
-				</Setting>
+			<!-- Bowl：一个气缸整体升降（升 = 开侧） -->
+			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="102" />
+				<Value Name="DoCloseIndex" Value="103" />
+				<Value Name="DiOpenedIndex" Value="102" />
+				<Value Name="DiClosedIndex" Value="103" />
 			</Setting>
 			<!-- 轴不按轴号绑硬件，按 PLC 数据块的数组名绑：SendPlcDataPath 下发、ReceivePlcDataPath 回读。
 			     仿真器按 .Motor_*[下标] 给数据块，下标 = 腔体号×10（旋转电机）、+1（摆臂），跟仿真器 Axes.csv 一致；
@@ -425,25 +411,11 @@
 				<Value Name="DiOpenedIndex" Value="140" />
 				<Value Name="DiClosedIndex" Value="141" />
 			</Setting>
-			<Setting Name="Bowl">
-				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="142" />
-					<Value Name="DoCloseIndex" Value="143" />
-					<Value Name="DiOpenedIndex" Value="142" />
-					<Value Name="DiClosedIndex" Value="143" />
-				</Setting>
-				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="144" />
-					<Value Name="DoCloseIndex" Value="145" />
-					<Value Name="DiOpenedIndex" Value="144" />
-					<Value Name="DiClosedIndex" Value="145" />
-				</Setting>
-				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="146" />
-					<Value Name="DoCloseIndex" Value="147" />
-					<Value Name="DiOpenedIndex" Value="146" />
-					<Value Name="DiClosedIndex" Value="147" />
-				</Setting>
+			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="142" />
+				<Value Name="DoCloseIndex" Value="143" />
+				<Value Name="DiOpenedIndex" Value="142" />
+				<Value Name="DiClosedIndex" Value="143" />
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[20]" />
@@ -483,25 +455,11 @@
 				<Value Name="DiOpenedIndex" Value="180" />
 				<Value Name="DiClosedIndex" Value="181" />
 			</Setting>
-			<Setting Name="Bowl">
-				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="182" />
-					<Value Name="DoCloseIndex" Value="183" />
-					<Value Name="DiOpenedIndex" Value="182" />
-					<Value Name="DiClosedIndex" Value="183" />
-				</Setting>
-				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="184" />
-					<Value Name="DoCloseIndex" Value="185" />
-					<Value Name="DiOpenedIndex" Value="184" />
-					<Value Name="DiClosedIndex" Value="185" />
-				</Setting>
-				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="186" />
-					<Value Name="DoCloseIndex" Value="187" />
-					<Value Name="DiOpenedIndex" Value="186" />
-					<Value Name="DiClosedIndex" Value="187" />
-				</Setting>
+			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="182" />
+				<Value Name="DoCloseIndex" Value="183" />
+				<Value Name="DiOpenedIndex" Value="182" />
+				<Value Name="DiClosedIndex" Value="183" />
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[30]" />
@@ -541,25 +499,11 @@
 				<Value Name="DiOpenedIndex" Value="220" />
 				<Value Name="DiClosedIndex" Value="221" />
 			</Setting>
-			<Setting Name="Bowl">
-				<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="222" />
-					<Value Name="DoCloseIndex" Value="223" />
-					<Value Name="DiOpenedIndex" Value="222" />
-					<Value Name="DiClosedIndex" Value="223" />
-				</Setting>
-				<Setting Name="Bowl2" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="224" />
-					<Value Name="DoCloseIndex" Value="225" />
-					<Value Name="DiOpenedIndex" Value="224" />
-					<Value Name="DiClosedIndex" Value="225" />
-				</Setting>
-				<Setting Name="Bowl3" Type="xyz.Components.Components.CylinderComponent">
-					<Value Name="DoOpenIndex" Value="226" />
-					<Value Name="DoCloseIndex" Value="227" />
-					<Value Name="DiOpenedIndex" Value="226" />
-					<Value Name="DiClosedIndex" Value="227" />
-				</Setting>
+			<Setting Name="Bowl" Type="xyz.Components.Components.CylinderComponent">
+				<Value Name="DoOpenIndex" Value="222" />
+				<Value Name="DoCloseIndex" Value="223" />
+				<Value Name="DiOpenedIndex" Value="222" />
+				<Value Name="DiClosedIndex" Value="223" />
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[40]" />

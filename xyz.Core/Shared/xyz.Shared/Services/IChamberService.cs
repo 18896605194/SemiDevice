@@ -25,6 +25,13 @@ public interface IChamberService
     Task<RpcResponse> ProcessAsync(ChamberProcessRequest request);
 
     /// <summary>
+    /// 部件手动动作：门、Bowl、Lift 开关，喷嘴出液 / 停液，摆臂回零 / 去工艺位，旋转电机转 / 停。
+    /// 只在未初始化、空闲、报错时允许；同步等部件做完（上限是腔体的 EC PartActionTimeout）。
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> PartActionAsync(ChamberPartActionRequest request);
+
+    /// <summary>
     /// 上线：模块模式切 Online（只改 Mode，不经设备）。
     /// </summary>
     [OperationContract]

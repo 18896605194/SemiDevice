@@ -28,6 +28,7 @@
     <sys:String x:Key="module.state.picking">Picking</sys:String>
     <sys:String x:Key="module.state.placing">Placing</sys:String>
     <sys:String x:Key="module.state.processing">Processing</sys:String>
+    <sys:String x:Key="module.state.manual">Manual action</sys:String>
     <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
@@ -43,6 +44,10 @@
     <sys:String x:Key="robot.direction.west">West</sys:String>
 
     <sys:String x:Key="chamber.recipe_required">{0}: enter a recipe name before starting the process</sys:String>
+    <sys:String x:Key="chamber.part_not_found">{0} has no part {1}</sys:String>
+    <sys:String x:Key="chamber.part_action_unsupported">{0} does not support {1}</sys:String>
+    <sys:String x:Key="chamber.part_command_rejected">{0} {1} was not sent (PLC offline, IO point not configured, or axis not homed / not enabled / busy)</sys:String>
+    <sys:String x:Key="chamber.part_action_failed">{0} {1} did not finish (timeout or device error)</sys:String>
 
     <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
@@ -380,6 +385,23 @@
     <sys:String x:Key="chambermanual.recipe">Recipe</sys:String>
     <sys:String x:Key="chambermanual.select_tip">Recipe library is not available yet; type the recipe name on the left</sys:String>
     <sys:String x:Key="chambermanual.na">—</sys:String>
+    <sys:String x:Key="chambermanual.state_failed">Failed to read the chamber state: {0}</sys:String>
+    <sys:String x:Key="chambermanual.action_failed">{0} failed: {1}</sys:String>
+    <sys:String x:Key="chambermanual.parts">Parts</sys:String>
+    <sys:String x:Key="chambermanual.part_failed">{0} {1} failed: {2}</sys:String>
+    <sys:String x:Key="chambermanual.part.open">Open</sys:String>
+    <sys:String x:Key="chambermanual.part.close">Close</sys:String>
+    <sys:String x:Key="chambermanual.part.up">Up</sys:String>
+    <sys:String x:Key="chambermanual.part.down">Down</sys:String>
+    <sys:String x:Key="chambermanual.part.dispense">Dispense</sys:String>
+    <sys:String x:Key="chambermanual.part.stop_dispense">Stop</sys:String>
+    <sys:String x:Key="chambermanual.part.spin">Spin</sys:String>
+    <sys:String x:Key="chambermanual.part.stop">Stop</sys:String>
+    <sys:String x:Key="chambermanual.part.center">Center</sys:String>
+    <sys:String x:Key="chamberscene.rotate_left">Rotate left</sys:String>
+    <sys:String x:Key="chamberscene.rotate_right">Rotate right</sys:String>
+    <sys:String x:Key="chamberscene.reset_view">Reset view</sys:String>
+    <sys:String x:Key="chamberscene.top_view">Top view</sys:String>
 
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
          Per-module menus (IO, chamber manual) show the module name from sc.xml and are not configured here.

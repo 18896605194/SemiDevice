@@ -1,5 +1,6 @@
 ﻿using xyz.Components;
 using xyz.Modules;
+using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -67,6 +68,38 @@ public class ChamberService : BaseService, IChamberService
         }
 
         return RunOperation(module, chamber, chamber.Process(recipe.Trim()), chamber.ProcessTimeout);
+    }
+
+    /// <summary>
+    /// 部件手动动作：找不到部件、部件不支持、指令没发出去各回各的码；状态不允许或已有动作在途走 module.action_rejected；
+    /// 发起了就同步等部件做完（上限 EC PartActionTimeout）。
+    /// </summary>
+    public Task<RpcResponse> PartActionAsync(ChamberPartActionRequest request)
+    {
+        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
+        var module = request.Module ?? string.Empty;
+        var chamber = FindModule<BaseChamberModule>(module);
+        if (chamber is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        var path = request.Part ?? string.Empty;
+        string action = request.Action.ToString();
+        switch (chamber.TryPartAction(path, request.Action, out var operation))
+        {
+            case ChamberPartActionResult.NotFound:
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartNotFound, [module, path]));
+
+            case ChamberPartActionResult.Unsupported:
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartActionUnsupported, [path, action]));
+
+            case ChamberPartActionResult.CommandRejected:
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartCommandRejected, [path, action]));
+
+            default:
+                return RunOperation(module, chamber, operation, chamber.PartActionTimeout);
+        }
     }
 
     /// <summary>

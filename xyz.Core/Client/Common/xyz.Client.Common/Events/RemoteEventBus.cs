@@ -119,7 +119,10 @@ public static class RemoteEventBus
     private static void SetConnected(bool value)
     {
         var flag = value ? 1 : 0;
-        if (Interlocked.Exchange(ref _connected, flag) == flag) return;
+        if (Interlocked.Exchange(ref _connected, flag) == flag)
+        {
+            return;
+        }
 
         if (_uiContext is null)
         {

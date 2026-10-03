@@ -43,7 +43,11 @@ public sealed class DiskVisual3D : HardwareVisual3D
             (Wafer.IsDiskVisibleProperty, nameof(IsDiskVisible)), (Wafer.FillColorProperty, nameof(FillColor)),
             (Control.BorderBrushProperty, nameof(BorderBrush)), (Control.BorderThicknessProperty, nameof(BorderThickness)),
             (Wafer.LabelProperty, nameof(Label))
-        }) BindingOperations.SetBinding(_face, target, new Binding(path) { Source = this, Mode = BindingMode.OneWay });
+        })
+        {
+            BindingOperations.SetBinding(_face, target, new Binding(path) { Source = this, Mode = BindingMode.OneWay });
+        }
+
         RebuildGeometry();
         UpdateLabel();
     }
@@ -114,12 +118,21 @@ public sealed class DiskVisual3D : HardwareVisual3D
     protected override void OnSceneConnectionChanged()
     {
         DependencyObject? parent = VisualTreeHelper.GetParent(this);
-        while (parent is not null && parent is not Viewport3D) parent = VisualTreeHelper.GetParent(parent);
+        while (parent is not null && parent is not Viewport3D)
+        {
+            parent = VisualTreeHelper.GetParent(parent);
+        }
+
         BindingOperations.ClearBinding(this, IsHostVisibleProperty);
         if (parent is Viewport3D viewport)
+        {
             BindingOperations.SetBinding(this, IsHostVisibleProperty,
                 new Binding(nameof(UIElement.IsVisible)) { Source = viewport, Mode = BindingMode.OneWay });
-        else SetValue(IsHostVisibleProperty, false);
+        }
+        else
+        {
+            SetValue(IsHostVisibleProperty, false);
+        }
     }
 
     private void UpdateRotation()
@@ -130,7 +143,11 @@ public sealed class DiskVisual3D : HardwareVisual3D
         BeginAnimation(AngleProperty, null);
         bool spinning = RotationSpeed > 1 && (Data is not null || IsDiskVisible);
         SetVisualActive(spinning);
-        if (!spinning || !(bool)GetValue(IsHostVisibleProperty)) return;
+        if (!spinning || !(bool)GetValue(IsHostVisibleProperty))
+        {
+            return;
+        }
+
         var animation = new DoubleAnimation(current, current + (RotateClockwise ? 360 : -360),
             TimeSpan.FromSeconds(Math.Clamp(360 / RotationSpeed, 0.001, 360))) { RepeatBehavior = RepeatBehavior.Forever };
         Timeline.SetDesiredFrameRate(animation, 30);
@@ -150,8 +167,13 @@ public sealed class DiskVisual3D : HardwareVisual3D
         var root = (Grid)_face.FindName("rootGrid");
         var text = root.Children.OfType<Viewbox>().Select(v => v.Child).OfType<TextBlock>().Single();
         if (string.IsNullOrEmpty(Label))
+        {
             BindingOperations.SetBinding(text, TextBlock.TextProperty, new Binding("Data.LpSlot") { Source = this });
-        else text.SetValue(TextBlock.TextProperty, Label);
+        }
+        else
+        {
+            text.SetValue(TextBlock.TextProperty, Label);
+        }
     }
 
     private void RebuildGeometry()

@@ -114,7 +114,10 @@ static class ActuatorCommands
 
     private static void Check(bool condition, string message)
     {
-        if (!condition) throw new InvalidOperationException(message);
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
+        }
     }
 
     private sealed class ScanningCylinder : CylinderComponent
@@ -147,7 +150,18 @@ static class ActuatorCommands
         public void Register(string path) { }
         public bool TryReadDi(int index, out bool on) { on = IsConnected && Di.GetValueOrDefault(index); return IsConnected; }
         public bool TryReadDo(int index, out bool on) { on = IsConnected && Do.GetValueOrDefault(index); return IsConnected; }
-        public bool WriteDo(int index, bool on) { if (!IsConnected) return false; Do[index] = on; return true; }
+
+        public bool WriteDo(int index, bool on)
+        {
+            if (!IsConnected)
+            {
+                return false;
+            }
+
+            Do[index] = on;
+            return true;
+        }
+
         public bool TryReadAi(int index, out double value) { value = Ai.GetValueOrDefault(index); return IsConnected; }
         public bool TryReadAo(int index, out double value) { value = 0; return false; }
         public bool WriteAo(int index, double value) => false;

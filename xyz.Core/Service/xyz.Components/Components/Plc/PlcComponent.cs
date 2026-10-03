@@ -382,7 +382,10 @@ public partial class PlcComponent : ComponentBase, IPlc
     /// </summary>
     protected override void OnScan()
     {
-        lock (_scanGate) ScanPlc();
+        lock (_scanGate)
+        {
+            ScanPlc();
+        }
     }
 
     private void ScanPlc()

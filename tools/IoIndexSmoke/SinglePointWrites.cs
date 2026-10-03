@@ -70,7 +70,10 @@ static class SinglePointWrites
 
     private static void Check(bool condition, string message)
     {
-        if (!condition) throw new InvalidOperationException(message);
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
+        }
     }
 
     private sealed class RecordingBeckhoff : BeckhoffPlcComponent
@@ -101,7 +104,11 @@ static class SinglePointWrites
                 WriteCount++;
                 LastPath = path;
                 LastData = (byte[])data.Clone();
-                if (FailWrites) return false;
+                if (FailWrites)
+                {
+                    return false;
+                }
+
                 int bracket = path.IndexOf('[');
                 Check(bracket > 0 && path.EndsWith(']'), "transport must receive an element path");
                 int index = int.Parse(path[(bracket + 1)..^1]);

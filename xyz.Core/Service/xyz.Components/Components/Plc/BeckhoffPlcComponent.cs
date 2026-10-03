@@ -141,7 +141,10 @@ public class BeckhoffPlcComponent : PlcComponent
 
     protected override bool ReadDevice(string path, out byte[] data)
     {
-        lock (_deviceGate) return ReadAds(path, out data);
+        lock (_deviceGate)
+        {
+            return ReadAds(path, out data);
+        }
     }
 
     private bool ReadAds(string path, out byte[] data)
@@ -215,7 +218,11 @@ public class BeckhoffPlcComponent : PlcComponent
     {
         lock (_deviceGate)
         {
-            if (!IsConnected) return false;
+            if (!IsConnected)
+            {
+                return false;
+            }
+
             return WriteAds(path, data);
         }
     }

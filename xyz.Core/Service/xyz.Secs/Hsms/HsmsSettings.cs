@@ -49,11 +49,21 @@ public sealed class HsmsSettings
     /// <summary>检查参数，不合法抛 ArgumentException；Listener/Connector 的 Start 也会先调它。</summary>
     public void Validate()
     {
-        if (DeviceId > 0x7FFF) throw new ArgumentOutOfRangeException(nameof(DeviceId), "HSMS-SS DeviceID 必须是 15 位");
-        if (Port < 0 || Port > 65535) throw new ArgumentOutOfRangeException(nameof(Port));
+        if (DeviceId > 0x7FFF)
+        {
+            throw new ArgumentOutOfRangeException(nameof(DeviceId), "HSMS-SS DeviceID 必须是 15 位");
+        }
+
+        if (Port < 0 || Port > 65535)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Port));
+        }
+
         if (T3ReplyTimeoutMs <= 0 || T5ConnectRetryMs <= 0 || T6ControlTimeoutMs <= 0
             || T7NotSelectedTimeoutMs <= 0 || T8IntercharacterTimeoutMs <= 0
             || SendTimeoutMs <= 0 || LinktestIntervalMs < 0 || MaxFrameLength < 10)
+        {
             throw new ArgumentException("超时必须为正值，Linktest 可为 0，帧上限至少为 10");
+        }
     }
 }

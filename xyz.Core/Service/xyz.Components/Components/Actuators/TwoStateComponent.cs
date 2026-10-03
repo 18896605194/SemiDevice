@@ -82,6 +82,58 @@ public abstract class TwoStateComponent : ComponentBase
     /// <summary>是否在关侧，判法同 <see cref="IsOpened"/>。</summary>
     public bool IsClosed => IsAtSide(DiClosedIndex, DiOpenedIndex, DoCloseIndex, DoOpenIndex);
 
+    /// <summary>
+    /// 指令在开侧：开侧线圈通、关侧线圈断。两个线圈一样（刚上电都没通）时按到位反馈算，在开侧就是 true。
+    /// 看线圈不看到位：界面画开关 / 升降方向用，指令一发出去画面就开始动，不用等到位。PLC 没连一律 false。
+    /// </summary>
+    public bool IsOpenCommanded
+    {
+        get
+        {
+            if (!TryReadCoils(out bool open, out bool close))
+            {
+                return false;
+            }
+
+            if (open != close)
+            {
+                return open;
+            }
+
+            return IsOpened;
+        }
+    }
+
+    /// <summary>
+    /// 正在走：指令侧还没到位（开侧线圈通着却还不在开侧，或者反过来）。
+    /// 两个线圈一样、PLC 没连都不算在走。
+    /// </summary>
+    public bool IsTraveling
+    {
+        get
+        {
+            if (!TryReadCoils(out bool open, out bool close) || open == close)
+            {
+                return false;
+            }
+
+            return open ? !IsOpened : !IsClosed;
+        }
+    }
+
+    private bool TryReadCoils(out bool open, out bool close)
+    {
+        open = false;
+        close = false;
+        var io = IoComponent.Current;
+        if (io is null)
+        {
+            return false;
+        }
+
+        return io.TryReadDo(DoOpenIndex, out open) && io.TryReadDo(DoCloseIndex, out close);
+    }
+
     private static bool IsAtSide(int di, int oppositeDi, int coil, int oppositeCoil)
     {
         var io = IoComponent.Current;

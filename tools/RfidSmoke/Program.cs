@@ -13,7 +13,11 @@ using xyz.Modules;
 var checks = 0;
 void Check(bool condition, string message)
 {
-    if (!condition) throw new InvalidOperationException("FAIL: " + message);
+    if (!condition)
+    {
+        throw new InvalidOperationException("FAIL: " + message);
+    }
+
     checks++;
 }
 
@@ -155,7 +159,13 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     var (listening, tag) = Build();
     var events = new List<RfidResponse>();
     listening.Open();
-    listening.Driver!.OnSpontaneousEvent += response => { lock (events) { events.Add(response); } };
+    listening.Driver!.OnSpontaneousEvent += response =>
+    {
+        lock (events)
+        {
+            events.Add(response);
+        }
+    };
 
     tag.PushSpontaneousEvent(0x07);
     Pump(listening, 300);

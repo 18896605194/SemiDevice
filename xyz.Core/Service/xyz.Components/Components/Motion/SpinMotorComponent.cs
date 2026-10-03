@@ -27,6 +27,14 @@ public class SpinMotorComponent : AxisComponent
         set { SetEcInt(nameof(SpinTimeoutMs), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Double, "unit/s", "-10000", "10000", "50",
+        "手动旋转速度（腔体手动页\"旋转\"按钮用，正负是方向；不能超过 MaxSpeed）")]
+    public double ManualSpeed
+    {
+        get { return GetEcDouble(nameof(ManualSpeed)); }
+        set { SetEcDouble(nameof(ManualSpeed), value); }
+    }
+
     #endregion
 
     #region Alarm

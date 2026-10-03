@@ -158,7 +158,10 @@ static class AxisCommands
 
     private static void Check(bool condition, string message)
     {
-        if (!condition) throw new InvalidOperationException(message);
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
+        }
     }
 
     private sealed class ScanningAxis : AxisComponent
@@ -201,7 +204,11 @@ static class AxisCommands
 
         protected override bool WriteDevice(string path, byte[] data)
         {
-            if (FailWrites) return false;
+            if (FailWrites)
+            {
+                return false;
+            }
+
             Check(path == "Axis.Command", "axis output path");
             Writes.Add(MemoryMarshal.Read<MotionCSharpToPlcCommand>(data));
             _data[path] = data;

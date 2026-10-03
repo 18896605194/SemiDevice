@@ -72,12 +72,21 @@ public sealed class DoorVisual3D : HardwareVisual3D
     protected override void OnSceneConnectionChanged()
     {
         DependencyObject? parent = VisualTreeHelper.GetParent(this);
-        while (parent is not null && parent is not Viewport3D) parent = VisualTreeHelper.GetParent(parent);
+        while (parent is not null && parent is not Viewport3D)
+        {
+            parent = VisualTreeHelper.GetParent(parent);
+        }
+
         BindingOperations.ClearBinding(this, IsHostVisibleProperty);
         if (parent is Viewport3D viewport)
+        {
             BindingOperations.SetBinding(this, IsHostVisibleProperty,
                 new Binding(nameof(UIElement.IsVisible)) { Source = viewport, Mode = BindingMode.OneWay });
-        else SetValue(IsHostVisibleProperty, false);
+        }
+        else
+        {
+            SetValue(IsHostVisibleProperty, false);
+        }
     }
 
     private void TransitionTo(double target)
@@ -90,7 +99,13 @@ public sealed class DoorVisual3D : HardwareVisual3D
         }
         int version = ++_transitionVersion;
         var animation = new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(450 * Math.Abs(target - current)));
-        animation.Completed += (_, _) => { if (version == _transitionVersion) FinishTransition(target); };
+        animation.Completed += (_, _) =>
+        {
+            if (version == _transitionVersion)
+            {
+                FinishTransition(target);
+            }
+        };
         SetVisualActive(true);
         BeginAnimation(ProgressProperty, animation, HandoffBehavior.SnapshotAndReplace);
     }
@@ -111,7 +126,10 @@ public sealed class DoorVisual3D : HardwareVisual3D
         AddPart(HardwareMesh3D.ChamferedBox(new Point3D(-Width / 2, 0.18, 0.1), Width, Height, 0.1), 1.05)
             .Transform = _panelTranslation;
         foreach (double x in new[] { -Width / 2 - 0.12, Width / 2 })
+        {
             AddPart(HardwareMesh3D.ChamferedBox(new Point3D(x, 0, -0.08), 0.12, Height + 0.28, 0.16), 0.65);
+        }
+
         AddPart(HardwareMesh3D.ChamferedBox(new Point3D(-Width / 2 - 0.12, Height + 0.18, -0.08), Width + 0.24, 0.1, 0.16), 0.8);
         UpdatePosition();
     }

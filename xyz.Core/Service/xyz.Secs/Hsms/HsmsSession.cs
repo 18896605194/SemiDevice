@@ -109,12 +109,22 @@ public sealed class HsmsSession : IDisposable
         {
             if (_settings.IsEquipment && IsSelected && _transactions.TryRemove(systemBytes, out var expired))
             {
-                try { SendError(HsmsHeader.CreateData(_settings.DeviceId, expired.Stream, expired.Function, true, systemBytes), 9); }
-                catch (SecsException ex) { _sink.Warn(Category, ex.Message); }
+                try
+                {
+                    SendError(HsmsHeader.CreateData(_settings.DeviceId, expired.Stream, expired.Function, true, systemBytes), 9);
+                }
+                catch (SecsException ex)
+                {
+                    _sink.Warn(Category, ex.Message);
+                }
             }
+
             throw new SecsTimeoutException($"T3 等回复超时: {name} Sys={systemBytes}");
         }
-        finally { _transactions.TryRemove(systemBytes, out _); }
+        finally
+        {
+            _transactions.TryRemove(systemBytes, out _);
+        }
     }
 
     /// <summary>
@@ -123,13 +133,22 @@ public sealed class HsmsSession : IDisposable
     public void Send(SecsMessage message)
     {
         var tcs = SendCore(message, out var systemBytes);
-        if (message.ReplyExpected) _ = ObserveReplyAsync(tcs, systemBytes, message.Name);
+        if (message.ReplyExpected)
+        {
+            _ = ObserveReplyAsync(tcs, systemBytes, message.Name);
+        }
     }
 
     private async Task ObserveReplyAsync(TaskCompletionSource<HsmsMessage> tcs, uint systemBytes, string name)
     {
-        try { await WaitForReplyAsync(tcs, systemBytes, name).ConfigureAwait(false); }
-        catch (Exception ex) { _sink.Warn(Category, ex.Message); }
+        try
+        {
+            await WaitForReplyAsync(tcs, systemBytes, name).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _sink.Warn(Category, ex.Message);
+        }
     }
 
     /// <summary>
@@ -138,7 +157,11 @@ public sealed class HsmsSession : IDisposable
     /// </summary>
     public void Reply(HsmsMessage primary, SecsMessage reply)
     {
-        if (!primary.Header.ReplyExpected) return;
+        if (!primary.Header.ReplyExpected)
+        {
+            return;
+        }
+
         var header = HsmsHeader.CreateData(_settings.DeviceId, reply.Stream, reply.Function,
             replyExpected: false, primary.Header.SystemBytes);
         WriteFrame(header, reply.Body);
@@ -158,10 +181,21 @@ public sealed class HsmsSession : IDisposable
         if (message.ReplyExpected)
         {
             if (!_transactions.TryAdd(systemBytes, new DataTransaction(message.Stream, message.Function, tcs)))
+            {
                 throw new SecsException($"重复的 SystemBytes={systemBytes}");
+            }
         }
-        try { WriteFrame(header, message.Body); }
-        catch { _transactions.TryRemove(systemBytes, out _); throw; }
+
+        try
+        {
+            WriteFrame(header, message.Body);
+        }
+        catch
+        {
+            _transactions.TryRemove(systemBytes, out _);
+            throw;
+        }
+
         return tcs;
     }
 
@@ -225,7 +259,10 @@ public sealed class HsmsSession : IDisposable
 
         byte[] item = body is null ? [] : SecsCodec.Encode(body);
         if ((long)HsmsHeader.Size + item.Length > _settings.MaxFrameLength)
+        {
             throw new SecsException("发送帧超过 MaxFrameLength");
+        }
+
         var frame = new byte[4 + HsmsHeader.Size + item.Length];
         BinaryPrimitives.WriteInt32BigEndian(frame, HsmsHeader.Size + item.Length);
         header.Write(frame.AsSpan(4, HsmsHeader.Size));
@@ -240,7 +277,11 @@ public sealed class HsmsSession : IDisposable
 
             try
             {
-                if (_stream.CanTimeout) _stream.WriteTimeout = _settings.SendTimeoutMs;
+                if (_stream.CanTimeout)
+                {
+                    _stream.WriteTimeout = _settings.SendTimeoutMs;
+                }
+
                 _stream.Write(frame, 0, frame.Length);
                 _stream.Flush();
             }
@@ -380,12 +421,24 @@ public sealed class HsmsSession : IDisposable
         switch (header.MessageType)
         {
             case HsmsMessageType.SelectReq:
-                if (header.Stream != 0 || header.Function != 0) { Close("非法 Select.req 头"); break; }
+                if (header.Stream != 0 || header.Function != 0)
+                {
+                    Close("非法 Select.req 头");
+                    break;
+                }
+
                 var alreadySelected = IsSelected;
                 WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.SelectRsp, header.SystemBytes,
                     result: alreadySelected ? (byte)1 : (byte)0), null);
-                if (alreadySelected) Close("重复 Select：非零 Select Status");
-                else OnSelected();
+                if (alreadySelected)
+                {
+                    Close("重复 Select：非零 Select Status");
+                }
+                else
+                {
+                    OnSelected();
+                }
+
                 break;
 
             case HsmsMessageType.SelectRsp:
@@ -410,7 +463,12 @@ public sealed class HsmsSession : IDisposable
                 break;
 
             case HsmsMessageType.LinktestReq:
-                if (!IsSelected) { WriteFrame(HsmsHeader.CreateReject(header, 4), null); break; }
+                if (!IsSelected)
+                {
+                    WriteFrame(HsmsHeader.CreateReject(header, 4), null);
+                    break;
+                }
+
                 WriteFrame(HsmsHeader.CreateControl(HsmsMessageType.LinktestRsp, header.SystemBytes), null);
                 break;
 
@@ -449,7 +507,11 @@ public sealed class HsmsSession : IDisposable
             WriteFrame(HsmsHeader.CreateReject(header, 3), null);
             return false;
         }
-        if (!_controls.TryRemove(header.SystemBytes, out pending)) return false;
+        if (!_controls.TryRemove(header.SystemBytes, out pending))
+        {
+            return false;
+        }
+
         completion = pending.Completion;
         return true;
     }
@@ -498,7 +560,9 @@ public sealed class HsmsSession : IDisposable
                 if (_transactions.TryGetValue(original.SystemBytes, out var failed)
                     && original.Stream == failed.Stream && original.Function == failed.Function
                     && _transactions.TryRemove(original.SystemBytes, out failed))
+                {
                     failed.Completion.TrySetException(new SecsException($"收到 {message.Name}，原事务 S{original.Stream}F{original.Function}"));
+                }
             }
             return;
         }
@@ -524,10 +588,20 @@ public sealed class HsmsSession : IDisposable
                 && (header.Function == 0 || header.Function == transaction.Function + 1)
                 && _transactions.TryRemove(header.SystemBytes, out transaction))
             {
-                if (header.Function == 0) transaction.Completion.TrySetException(new SecsException($"S{header.Stream}F0 中止事务"));
-                else transaction.Completion.TrySetResult(message);
+                if (header.Function == 0)
+                {
+                    transaction.Completion.TrySetException(new SecsException($"S{header.Stream}F0 中止事务"));
+                }
+                else
+                {
+                    transaction.Completion.TrySetResult(message);
+                }
             }
-            else _sink.Warn(Category, $"未匹配的 secondary {message.Name} Sys={header.SystemBytes}，丢弃");
+            else
+            {
+                _sink.Warn(Category, $"未匹配的 secondary {message.Name} Sys={header.SystemBytes}，丢弃");
+            }
+
             return;
         }
 

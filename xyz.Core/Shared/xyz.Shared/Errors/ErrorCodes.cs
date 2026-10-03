@@ -53,6 +53,18 @@ public static class ErrorCodes
     /// <summary>起工艺没给配方名。Args: [模块名]</summary>
     public const string RecipeRequired = "chamber.recipe_required";
 
+    /// <summary>腔体下没有这个部件。Args: [模块名, 部件路径]</summary>
+    public const string ChamberPartNotFound = "chamber.part_not_found";
+
+    /// <summary>部件不支持这个动作（如对门发"去工艺位"）。Args: [部件路径, 动作]</summary>
+    public const string ChamberPartActionUnsupported = "chamber.part_action_unsupported";
+
+    /// <summary>部件指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [部件路径, 动作]</summary>
+    public const string ChamberPartCommandRejected = "chamber.part_command_rejected";
+
+    /// <summary>部件动作没做成：到位超时、轴报错，或等过了 EC PartActionTimeout。Args: [部件路径, 动作]</summary>
+    public const string ChamberPartActionFailed = "chamber.part_action_failed";
+
     #endregion
 
     #region 搬运

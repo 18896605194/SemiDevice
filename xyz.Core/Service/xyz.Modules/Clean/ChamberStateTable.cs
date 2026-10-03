@@ -33,6 +33,12 @@ public static class ChamberStateTable
             [(TransferModuleState.Transferring, ChamberAction.Reset)] = (TransferModuleState.Transferring, ModuleState.Idle),
             [(TransferModuleState.TransferComplete, ChamberAction.Reset)] = (TransferModuleState.TransferComplete, ModuleState.Idle),
 
+            // 部件手动动作：没初始化、空闲、报错时都能点（报错后常要手动把部件挪回去），
+            // 执行中落 Manual——不是锚点态，调度不会趁这时候派机械手；做完回到原来的状态，不顺带清错。
+            [(ModuleState.NotInit, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.NotInit),
+            [(ModuleState.Idle, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.Idle),
+            [(ModuleState.Error, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.Error),
+
             // null 表示任意当前状态。
             [(null, ChamberAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle),
         };

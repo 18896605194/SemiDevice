@@ -42,26 +42,47 @@ if (args.Length > 0 && args[0] == "client")
 var checks = 0;
 void Check(bool condition, string message)
 {
-    if (!condition) throw new InvalidOperationException(message);
+    if (!condition)
+    {
+        throw new InvalidOperationException(message);
+    }
+
     checks++;
 }
 
 var delivered = new List<LogItem>();
 var gate = new object();
-int DeliveredCount() { lock (gate) return delivered.Count; }
+int DeliveredCount()
+{
+    lock (gate)
+    {
+        return delivered.Count;
+    }
+}
+
 bool WaitFor(int target, int timeoutMs = 5000)
 {
     var watch = Stopwatch.StartNew();
     while (watch.ElapsedMilliseconds < timeoutMs)
     {
-        if (DeliveredCount() >= target) return true;
+        if (DeliveredCount() >= target)
+        {
+            return true;
+        }
+
         Thread.Sleep(10);
     }
     return false;
 }
 
 LogQueue.MinLevel = LogLevel.Debug;
-LogQueue.Start(item => { lock (gate) delivered.Add(item); });
+LogQueue.Start(item =>
+{
+    lock (gate)
+    {
+        delivered.Add(item);
+    }
+});
 
 // 1) 单生产者：顺序与不丢
 for (var i = 0; i < 1000; i++)

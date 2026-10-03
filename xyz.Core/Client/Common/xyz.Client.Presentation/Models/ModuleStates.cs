@@ -38,7 +38,7 @@ public static class ModuleStates
     }
 
     /// <summary>
-    /// 腔体：空闲就绪；回零、工艺都算动作中。
+    /// 腔体：空闲就绪；回零、工艺、部件手动动作都算动作中。
     /// </summary>
     public static string ChamberText(int state)
     {
@@ -46,6 +46,7 @@ public static class ModuleStates
         {
             100 => L10n.Get("module.state.homing"),
             110 => L10n.Get("module.state.processing"),
+            120 => L10n.Get("module.state.manual"),
             _ => CommonText(state),
         };
     }
@@ -54,7 +55,7 @@ public static class ModuleStates
     {
         return state switch
         {
-            100 or 110 => ModuleStateTone.Busy,
+            100 or 110 or 120 => ModuleStateTone.Busy,
             _ => CommonTone(state),
         };
     }

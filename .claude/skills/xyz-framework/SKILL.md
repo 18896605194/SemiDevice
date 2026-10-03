@@ -47,8 +47,9 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    ```
 3. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[SCEditor]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
 4. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
-   **大括号一律不省略**：`if` / `else` / `for` / `foreach` / `while` 后面哪怕只有一句 `return` / `continue` / `break` / `throw` / 赋值，
+   **大括号一律不省略**：`if` / `else` / `for` / `foreach` / `while` / `lock` 后面哪怕只有一句 `return` / `continue` / `break` / `throw` / 赋值，
    也要换行加大括号；不写 `if (x) return;`、`if (!ok) throw ...;` 这种单行，lambda 里的 `if` 也一样。
+   带了大括号也不挤在一行：`if (x) { return; }`、`try { X(); }`、`catch { ... }`、`get { lock (_gate) { return _x; } }` 都拆成多行。
    ```csharp
    if (version != _transitionVersion)
    {
@@ -87,8 +88,10 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 1. 编译整个 `xyz.Framework.sln`：0 错误（`tools\IoIndexSmoke` 不在 sln 里，单独编）。宿主、客户端在跑时先关掉，否则 DLL 拷不进去。
 2. 跑冒烟：至少跑相关的；动了公共代码（组件基类、模块基类、契约、事件、日志）就全跑一遍，对一下每个的检查数。**新功能、改了行为要在冒烟里加检查**。
 3. 改了界面：用离屏预览出中英文截图看一遍（machine-and-tools.md §5）；用户要看就把软件真跑起来（§4）。
-4. 全仓再搜一遍硬规矩（如 `rg "\bis\s+(not\s+)?[\{\[]" --glob "*.cs"`、`== null`、
-   单行不带大括号的 `rg "^\s*(if|else if|while|for|foreach)\b.*\)\s*[^{\s/].*;\s*$" --glob "*.cs"`）。
+4. 全仓再搜一遍硬规矩（如 `rg "\bis\s+(not\s+)?[\{\[]" --glob "*.cs"`、`== null`）。大括号三种写法都要搜：
+   单行不带括号 `rg "^\s*(if|else if|while|for|foreach)\b.*\)\s*[^{\s/].*;\s*$" --glob "*.cs"`；
+   换行不带括号 `rg -U "^\s*(if|else if|while|for|foreach|lock)\b.*\)\s*\r?\n\s*[A-Za-z_]" --glob "*.cs"`、`rg -U "^\s*else\s*\r?\n\s*[A-Za-z_]" --glob "*.cs"`；
+   带了括号却挤在一行 `rg "^\s*(if|else if|else|while|for|foreach|lock|try|catch|finally)\b[^{]*\{[^}]*\}\s*$" --glob "*.cs"`。
 
 ## 五、跟用户的协作方式
 

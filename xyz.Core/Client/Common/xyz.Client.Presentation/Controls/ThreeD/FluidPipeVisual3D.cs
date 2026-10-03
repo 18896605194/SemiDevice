@@ -14,7 +14,10 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 public sealed class FluidPipeVisual3D : HardwareVisual3D
 {
     private const double PipeRadius = 0.024;
-    private const double OutletDrop = 0.21;
+
+    /// <summary>喷口比直管低多少：喷口在局部 (Length, -OutletDrop, 0)，装配层按它算液柱落点。</summary>
+    public const double OutletDrop = 0.21;
+
     private readonly Model3DGroup _liquid = new();
     private readonly List<Trail> _trails = [];
     private readonly SolidColorBrush _rippleBrush = new();
@@ -37,13 +40,21 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
     {
         // 显式重新寻找宿主：RelativeSource 绑定在整个三维子树移除后可能仍缓存旧视口。
         DependencyObject? parent = VisualTreeHelper.GetParent(this);
-        while (parent is not null && parent is not Viewport3D) parent = VisualTreeHelper.GetParent(parent);
+        while (parent is not null && parent is not Viewport3D)
+        {
+            parent = VisualTreeHelper.GetParent(parent);
+        }
+
         BindingOperations.ClearBinding(this, IsHostVisibleProperty);
         if (parent is Viewport3D viewport)
+        {
             BindingOperations.SetBinding(this, IsHostVisibleProperty,
                 new Binding(nameof(UIElement.IsVisible)) { Source = viewport, Mode = BindingMode.OneWay });
+        }
         else
+        {
             SetValue(IsHostVisibleProperty, false);
+        }
     }
 
     public bool IsFlowing
@@ -123,16 +134,25 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
             Transform = Group(new ScaleTransform3D(1, StreamLength, 1),
                 new TranslateTransform3D(Length, -OutletDrop - StreamLength, 0))
         };
-        if (StreamLength > 0) _liquid.Children.Add(_stream);
+        if (StreamLength > 0)
+        {
+            _liquid.Children.Add(_stream);
+        }
 
         AddTrails(Length, false, horizontal);
-        if (StreamLength > 0) AddTrails(StreamLength, true, Transform3D.Identity);
+        if (StreamLength > 0)
+        {
+            AddTrails(StreamLength, true, Transform3D.Identity);
+        }
 
         _ripple = new GeometryModel3D(HardwareMesh3D.Annulus(0.84, 1), new EmissiveMaterial(_rippleBrush))
         {
             Transform = Group(_rippleScale, new TranslateTransform3D(Length, -OutletDrop - StreamLength, 0))
         };
-        if (StreamLength > 0) _liquid.Children.Add(_ripple);
+        if (StreamLength > 0)
+        {
+            _liquid.Children.Add(_ripple);
+        }
         UpdateLiquidMaterials();
         UpdateFlow();
     }
@@ -154,15 +174,27 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
     private static Transform3DGroup Group(params Transform3D[] transforms)
     {
         var result = new Transform3DGroup();
-        foreach (var transform in transforms) result.Children.Add(transform);
+        foreach (var transform in transforms)
+        {
+            result.Children.Add(transform);
+        }
+
         return result;
     }
 
     private void UpdateFlow()
     {
         SetVisualActive(IsFlowing);
-        if (IsFlowing && !Model.Children.Contains(_liquid)) Model.Children.Add(_liquid);
-        if (!IsFlowing) Model.Children.Remove(_liquid);
+        if (IsFlowing && !Model.Children.Contains(_liquid))
+        {
+            Model.Children.Add(_liquid);
+        }
+
+        if (!IsFlowing)
+        {
+            Model.Children.Remove(_liquid);
+        }
+
         bool run = IsFlowing && IsAnimationEnabled && (bool)GetValue(IsHostVisibleProperty);
         if (run != _clockRunning)
         {
@@ -202,7 +234,11 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
 
     private void UpdateLiquidMaterials()
     {
-        if (_stream is null) return;
+        if (_stream is null)
+        {
+            return;
+        }
+
         var streamMaterial = new DiffuseMaterial(new SolidColorBrush(HighlightColor));
         streamMaterial.Freeze();
         _stream.Material = streamMaterial;
@@ -210,7 +246,11 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
         byte Light(byte value) => (byte)(value * 0.45 + 255 * 0.55);
         var trailMaterial = new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(Light(color.R), Light(color.G), Light(color.B))));
         trailMaterial.Freeze();
-        foreach (var trail in _trails) trail.Part.Material = trailMaterial;
+        foreach (var trail in _trails)
+        {
+            trail.Part.Material = trailMaterial;
+        }
+
         UpdateTrails();
     }
 

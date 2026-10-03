@@ -96,6 +96,19 @@
         <Setter Property="Cursor" Value="Hand" />
     </Style>
 
+    <!--  三维图左下角的视角按钮（左转、右转、复位、俯视）：描边、透明底、矮一档，浮在图上不抢眼  -->
+    <Style
+        x:Key="SceneViewButtonStyle"
+        BasedOn="{StaticResource ToolbarOutlinedButtonStyle}"
+        TargetType="Button">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+
     <!--  紧凑按钮：多行按钮区（如 LoadPort 手动操作）用，比默认按钮矮一档  -->
     <Style
         x:Key="CompactButtonStyle"
@@ -276,7 +289,7 @@
         <Setter Property="FontWeight" Value="Normal" />
     </Style>
 
-    <!--  块标题条上的主按钮（如保存）：实心强调色，跟描边按钮同高  -->
+    <!--  块标题条上的主按钮（如流程配方页流程步骤标题条最右的保存）：实心强调色，跟描边按钮同高  -->
     <Style
         x:Key="ZoneHeaderPrimaryButtonStyle"
         BasedOn="{StaticResource ToolbarButtonStyle}"

@@ -12,9 +12,16 @@ public sealed class SecsMessage
     /// <param name="body">根数据项，S1F1 这类空报文传 null。</param>
     public SecsMessage(byte stream, byte function, bool replyExpected = false, SecsItem? body = null)
     {
-        if (stream > 127) throw new ArgumentOutOfRangeException(nameof(stream), "Stream 必须在 0~127 之间");
+        if (stream > 127)
+        {
+            throw new ArgumentOutOfRangeException(nameof(stream), "Stream 必须在 0~127 之间");
+        }
+
         if (replyExpected && (function == 0 || function % 2 == 0 || stream == 9))
+        {
             throw new ArgumentException("仅非 S9 的奇数 Function primary 可以设置 W-Bit", nameof(replyExpected));
+        }
+
         Stream = stream;
         Function = function;
         ReplyExpected = replyExpected;

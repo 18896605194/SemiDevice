@@ -121,40 +121,14 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!--  基本信息：编号、名称（改名走列表的重命名）、创建 / 修改记录、版本只读，说明可改；保存在这块的标题条上  -->
+                <!--  基本信息：编号、名称（改名走列表的重命名）、创建 / 修改记录、版本只读，说明可改（跟步骤一起，用流程步骤标题条上的"保存"存）  -->
                 <Border Grid.Row="0" Style="{DynamicResource ZoneBorderStyle}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
-                            <DockPanel>
-                                <StackPanel
-                                    DockPanel.Dock="Right"
-                                    Orientation="Horizontal"
-                                    Style="{DynamicResource ShowWhenTagTrueStyle}"
-                                    Tag="{Binding HasSequence}">
-                                    <Border Style="{DynamicResource DirtyChipBorderStyle}" Tag="{Binding IsDirty}">
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontSize="{DynamicResource Size12}"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.sequence.dirty}" />
-                                    </Border>
-                                    <Button Command="{Binding SaveCommand}" Style="{DynamicResource ZoneHeaderPrimaryButtonStyle}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <materialDesign:PackIcon
-                                                Width="16"
-                                                Height="16"
-                                                Margin="0,0,4,0"
-                                                VerticalAlignment="Center"
-                                                Kind="ContentSaveOutline" />
-                                            <TextBlock Text="{DynamicResource recipe.sequence.save}" />
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal">
-                                    <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
-                                    <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource recipe.sequence.info}" />
-                                </StackPanel>
-                            </DockPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource recipe.sequence.info}" />
+                            </StackPanel>
                         </Border>
 
                         <Grid>
@@ -223,7 +197,8 @@
                 </Border>
 
                 <!--  流程步骤：步号就是普通数字。第 1 步、最后一步是 LoadPort（取片、放片，默认从哪来回哪去），中间是片要经过的站点。
-                      点一行选中：添加插在它后面，删除删它；分组名、模块名照 sc.xml 原样显示  -->
+                      点一行选中：添加插在它后面，删除删它；分组名、模块名照 sc.xml 原样显示。
+                      标题条最右：[有没保存的修改] [添加] [删除] [保存]——保存存的是整个流程配方（说明 + 全部步骤），放在平时改得最多的这块上  -->
                 <Border Grid.Row="2" Style="{DynamicResource ZoneBorderStyle}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
@@ -233,6 +208,13 @@
                                     Orientation="Horizontal"
                                     Style="{DynamicResource ShowWhenTagTrueStyle}"
                                     Tag="{Binding HasSequence}">
+                                    <Border Style="{DynamicResource DirtyChipBorderStyle}" Tag="{Binding IsDirty}">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="{DynamicResource Size12}"
+                                            FontWeight="SemiBold"
+                                            Text="{DynamicResource recipe.sequence.dirty}" />
+                                    </Border>
                                     <Button Command="{Binding AddStepCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
                                         <StackPanel Orientation="Horizontal">
                                             <materialDesign:PackIcon
@@ -253,6 +235,17 @@
                                                 VerticalAlignment="Center"
                                                 Kind="DeleteOutline" />
                                             <TextBlock Text="{DynamicResource recipe.sequence.delete_step}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding SaveCommand}" Style="{DynamicResource ZoneHeaderPrimaryButtonStyle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon
+                                                Width="16"
+                                                Height="16"
+                                                Margin="0,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Kind="ContentSaveOutline" />
+                                            <TextBlock Text="{DynamicResource recipe.sequence.save}" />
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>

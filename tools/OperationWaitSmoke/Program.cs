@@ -21,14 +21,26 @@ using xyz.Shared.Errors;
 var checks = 0;
 void Check(bool condition, string message)
 {
-    if (!condition) throw new InvalidOperationException(message);
+    if (!condition)
+    {
+        throw new InvalidOperationException(message);
+    }
+
     checks++;
 }
 
 void Throws<T>(Action action) where T : Exception
 {
-    try { action(); }
-    catch (T) { checks++; return; }
+    try
+    {
+        action();
+    }
+    catch (T)
+    {
+        checks++;
+        return;
+    }
+
     throw new InvalidOperationException($"Expected {typeof(T).Name}.");
 }
 
@@ -94,7 +106,11 @@ using (var release = new ManualResetEventSlim())
         Check(entered.Wait(2000), "Module completion callback did not start.");
         Check(!operation.WaitReply(0), "Waiter was released before module state cleanup.");
     }
-    finally { release.Set(); }
+    finally
+    {
+        release.Set();
+    }
+
     await scanner.WaitAsync(TimeSpan.FromSeconds(5));
     Check(operation.Wait(0) && module.CleanupDone && module.CurrentOperation is null,
         "Successful wait must observe a completed module transition and an empty slot.");
@@ -820,7 +836,11 @@ port.E87Callback = null;
                 Values = [new() { Name = "TriggerLevel", Value = invalid }]
             }]);
         }
-        catch (InvalidOperationException) { invalidTriggerRejected = true; }
+        catch (InvalidOperationException)
+        {
+            invalidTriggerRejected = true;
+        }
+
         Check(invalidTriggerRejected, $"DI 触发电平 {invalid} 不是 bool，应拒绝加载");
     }
 
@@ -994,7 +1014,15 @@ sealed class ProbeOperation() : ModuleOperation("Probe")
     public void Succeed() => Complete();
     public void Reject() => Fail(ErrorCodes.DeviceFailed, "device error", Name, "device error");
     public void TimeOut() => Fail(ErrorCodes.Timeout, "action timeout", Name, "1000");
-    protected override void OnScan() { if (FinishOnScan) Complete(); }
+
+    protected override void OnScan()
+    {
+        if (FinishOnScan)
+        {
+            Complete();
+        }
+    }
+
     protected override void OnAborted(string reason) => AbortCount++;
 }
 
@@ -1011,7 +1039,10 @@ sealed class ProbeModule : BaseModule
     {
         Completing?.Set();
         if (ReleaseCompletion is not null && !ReleaseCompletion.Wait(2000))
+        {
             throw new TimeoutException("Test completion callback was not released.");
+        }
+
         CleanupDone = true;
     }
 }
@@ -1147,7 +1178,11 @@ sealed class RecordingE84Callback : IE84Callback
         var watch = Stopwatch.StartNew();
         while (watch.ElapsedMilliseconds < timeoutMs)
         {
-            if (_received.ContainsKey(name)) return true;
+            if (_received.ContainsKey(name))
+            {
+                return true;
+            }
+
             Thread.Sleep(5);
         }
 
@@ -1171,7 +1206,11 @@ sealed class RecordingE87Callback : IE87Callback
         var watch = Stopwatch.StartNew();
         while (watch.ElapsedMilliseconds < timeoutMs)
         {
-            if (_received.ContainsKey(name)) return true;
+            if (_received.ContainsKey(name))
+            {
+                return true;
+            }
+
             Thread.Sleep(5);
         }
 

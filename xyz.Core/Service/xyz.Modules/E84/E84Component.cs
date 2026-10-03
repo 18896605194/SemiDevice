@@ -144,22 +144,46 @@ public class E84Component : ComponentBase, IE84
 
     public E84State State
     {
-        get { lock (_gate) { return _state; } }
+        get
+        {
+            lock (_gate)
+            {
+                return _state;
+            }
+        }
     }
 
     public E84Inputs Inputs
     {
-        get { lock (_gate) { return _inputs; } }
+        get
+        {
+            lock (_gate)
+            {
+                return _inputs;
+            }
+        }
     }
 
     public E84Outputs Outputs
     {
-        get { lock (_gate) { return _outputs; } }
+        get
+        {
+            lock (_gate)
+            {
+                return _outputs;
+            }
+        }
     }
 
     public E84Timer? TimedOutTimer
     {
-        get { lock (_gate) { return _timedOutTimer; } }
+        get
+        {
+            lock (_gate)
+            {
+                return _timedOutTimer;
+            }
+        }
     }
 
     #endregion

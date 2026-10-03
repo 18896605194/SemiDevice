@@ -12,48 +12,32 @@
 64,Robot1,Robot,Robot_Reset,Reset,机械手控制器复位
 100,Chamber1,Door,CH1_Door_Open,Open,Chamber1 腔门 开
 101,Chamber1,Door,CH1_Door_Close,Close,Chamber1 腔门 关
-102,Chamber1,Bowl1,CH1_Bowl1_Up,Open,Chamber1 Bowl1 升
-103,Chamber1,Bowl1,CH1_Bowl1_Down,Close,Chamber1 Bowl1 降
-104,Chamber1,Bowl2,CH1_Bowl2_Up,Open,Chamber1 Bowl2 升
-105,Chamber1,Bowl2,CH1_Bowl2_Down,Close,Chamber1 Bowl2 降
-106,Chamber1,Bowl3,CH1_Bowl3_Up,Open,Chamber1 Bowl3 升
-107,Chamber1,Bowl3,CH1_Bowl3_Down,Close,Chamber1 Bowl3 降
+102,Chamber1,Bowl,CH1_Bowl_Up,Open,Chamber1 Bowl 升
+103,Chamber1,Bowl,CH1_Bowl_Down,Close,Chamber1 Bowl 降
 108,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Up,Open,Chamber1 摆臂升降气缸 升
 109,Chamber1,Arm1.Lift,CH1_Arm1_Lift_Down,Close,Chamber1 摆臂升降气缸 降
 110,Chamber1,Arm1.Nozzle_DIW,CH1_Arm1_DIW_Valve,Valve,Chamber1 摆臂 DIW 喷嘴阀
 111,Chamber1,Arm1.Nozzle_SC1,CH1_Arm1_SC1_Valve,Valve,Chamber1 摆臂 SC1 喷嘴阀
 140,Chamber2,Door,CH2_Door_Open,Open,Chamber2 腔门 开
 141,Chamber2,Door,CH2_Door_Close,Close,Chamber2 腔门 关
-142,Chamber2,Bowl1,CH2_Bowl1_Up,Open,Chamber2 Bowl1 升
-143,Chamber2,Bowl1,CH2_Bowl1_Down,Close,Chamber2 Bowl1 降
-144,Chamber2,Bowl2,CH2_Bowl2_Up,Open,Chamber2 Bowl2 升
-145,Chamber2,Bowl2,CH2_Bowl2_Down,Close,Chamber2 Bowl2 降
-146,Chamber2,Bowl3,CH2_Bowl3_Up,Open,Chamber2 Bowl3 升
-147,Chamber2,Bowl3,CH2_Bowl3_Down,Close,Chamber2 Bowl3 降
+142,Chamber2,Bowl,CH2_Bowl_Up,Open,Chamber2 Bowl 升
+143,Chamber2,Bowl,CH2_Bowl_Down,Close,Chamber2 Bowl 降
 148,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Up,Open,Chamber2 摆臂升降气缸 升
 149,Chamber2,Arm1.Lift,CH2_Arm1_Lift_Down,Close,Chamber2 摆臂升降气缸 降
 150,Chamber2,Arm1.Nozzle_DIW,CH2_Arm1_DIW_Valve,Valve,Chamber2 摆臂 DIW 喷嘴阀
 151,Chamber2,Arm1.Nozzle_SC1,CH2_Arm1_SC1_Valve,Valve,Chamber2 摆臂 SC1 喷嘴阀
 180,Chamber3,Door,CH3_Door_Open,Open,Chamber3 腔门 开
 181,Chamber3,Door,CH3_Door_Close,Close,Chamber3 腔门 关
-182,Chamber3,Bowl1,CH3_Bowl1_Up,Open,Chamber3 Bowl1 升
-183,Chamber3,Bowl1,CH3_Bowl1_Down,Close,Chamber3 Bowl1 降
-184,Chamber3,Bowl2,CH3_Bowl2_Up,Open,Chamber3 Bowl2 升
-185,Chamber3,Bowl2,CH3_Bowl2_Down,Close,Chamber3 Bowl2 降
-186,Chamber3,Bowl3,CH3_Bowl3_Up,Open,Chamber3 Bowl3 升
-187,Chamber3,Bowl3,CH3_Bowl3_Down,Close,Chamber3 Bowl3 降
+182,Chamber3,Bowl,CH3_Bowl_Up,Open,Chamber3 Bowl 升
+183,Chamber3,Bowl,CH3_Bowl_Down,Close,Chamber3 Bowl 降
 188,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Up,Open,Chamber3 摆臂升降气缸 升
 189,Chamber3,Arm1.Lift,CH3_Arm1_Lift_Down,Close,Chamber3 摆臂升降气缸 降
 190,Chamber3,Arm1.Nozzle_DIW,CH3_Arm1_DIW_Valve,Valve,Chamber3 摆臂 DIW 喷嘴阀
 191,Chamber3,Arm1.Nozzle_SC1,CH3_Arm1_SC1_Valve,Valve,Chamber3 摆臂 SC1 喷嘴阀
 220,Chamber4,Door,CH4_Door_Open,Open,Chamber4 腔门 开
 221,Chamber4,Door,CH4_Door_Close,Close,Chamber4 腔门 关
-222,Chamber4,Bowl1,CH4_Bowl1_Up,Open,Chamber4 Bowl1 升
-223,Chamber4,Bowl1,CH4_Bowl1_Down,Close,Chamber4 Bowl1 降
-224,Chamber4,Bowl2,CH4_Bowl2_Up,Open,Chamber4 Bowl2 升
-225,Chamber4,Bowl2,CH4_Bowl2_Down,Close,Chamber4 Bowl2 降
-226,Chamber4,Bowl3,CH4_Bowl3_Up,Open,Chamber4 Bowl3 升
-227,Chamber4,Bowl3,CH4_Bowl3_Down,Close,Chamber4 Bowl3 降
+222,Chamber4,Bowl,CH4_Bowl_Up,Open,Chamber4 Bowl 升
+223,Chamber4,Bowl,CH4_Bowl_Down,Close,Chamber4 Bowl 降
 228,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Up,Open,Chamber4 摆臂升降气缸 升
 229,Chamber4,Arm1.Lift,CH4_Arm1_Lift_Down,Close,Chamber4 摆臂升降气缸 降
 230,Chamber4,Arm1.Nozzle_DIW,CH4_Arm1_DIW_Valve,Valve,Chamber4 摆臂 DIW 喷嘴阀

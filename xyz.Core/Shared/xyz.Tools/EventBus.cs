@@ -65,8 +65,14 @@ public static class EventBus
         // 桥接订阅者（gRPC 服务端流）拿信封转发
         foreach (var subscriber in raw)
         {
-            try { subscriber(envelope); }
-            catch (Exception ex) { DeadLetter?.Invoke(envelope, ex); }
+            try
+            {
+                subscriber(envelope);
+            }
+            catch (Exception ex)
+            {
+                DeadLetter?.Invoke(envelope, ex);
+            }
         }
     }
 
@@ -158,7 +164,10 @@ public static class EventBus
             }
         }
 
-        if (typed is null) return;
+        if (typed is null)
+        {
+            return;
+        }
 
         object message;
         try
@@ -211,11 +220,21 @@ public static class EventBus
 
     private static void Dispatch(List<Action<object>>? typed, object message, EventMessage envelope)
     {
-        if (typed is null) return;
+        if (typed is null)
+        {
+            return;
+        }
+
         foreach (var handler in typed)
         {
-            try { handler(message); }
-            catch (Exception ex) { DeadLetter?.Invoke(envelope, ex); }
+            try
+            {
+                handler(message);
+            }
+            catch (Exception ex)
+            {
+                DeadLetter?.Invoke(envelope, ex);
+            }
         }
     }
 

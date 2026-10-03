@@ -80,7 +80,11 @@ public sealed class LiftVisual3D : HardwareVisual3D
         animation.Completed += (_, _) =>
         {
             // 快速反向时，旧动画不能终止新动画或提前取消高亮。
-            if (version != _transitionVersion) return;
+            if (version != _transitionVersion)
+            {
+                return;
+            }
+
             SetValue(ProgressProperty, target);
             BeginAnimation(ProgressProperty, null);
             SetVisualActive(false);
