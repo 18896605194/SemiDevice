@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -994,7 +995,56 @@ port.E87Callback = null;
     AlarmComponent.Current = null;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms).");
+// ── 一趟搬运（TransferRoutine）出错时报给界面的错误码和参数：参数只放站点名、步号、毫秒数这类数据，
+//    句子由界面按语言包写（不传中文阶段名，英文界面里才不会夹中文）─────────────────────────
+{
+    var transferRobot = new ProbeTransferRobot();
+    var transferTarget = new ProbeStation("Target");
+
+    TransferRoutine RunTransfer(ProbeStation source, int waitMilliseconds)
+    {
+        var routine = new TransferRoutine(TransferOrigin.Manual, transferRobot, source, 1, transferTarget, 1, 1, waitMilliseconds);
+        for (int scan = 0; scan < 10 && !routine.IsTerminal; scan++)
+        {
+            routine.Scan();
+        }
+
+        return routine;
+    }
+
+    ModuleOperation Succeeded()
+    {
+        var operation = new ProbeOperation();
+        operation.Succeed();
+        return operation;
+    }
+
+    ModuleOperation Rejected()
+    {
+        var operation = new ProbeOperation();
+        operation.Reject();
+        return operation;
+    }
+
+    // 一直抢不到站点（第 1 步准备总被拒），等待上限 0 ms
+    var busy = RunTransfer(new ProbeStation("Busy"), 0);
+    Check(busy.Code == ErrorCodes.StationBusy && busy.ErrorArgs.SequenceEqual(new[] { "Busy", "0" }),
+        "搬运等不到站点：transfer.station_busy，参数是站点名和等待毫秒数");
+
+    var firstFailed = RunTransfer(new ProbeStation("Src1") { First = Rejected }, 1000);
+    Check(firstFailed.Code == ErrorCodes.StationPrepareFailed && firstFailed.ErrorArgs.SequenceEqual(new[] { "Src1", "1" }),
+        "搬运第 1 步准备没做成：transfer.station_prepare_failed，参数是站点名和步号 1");
+
+    var secondRejected = RunTransfer(new ProbeStation("Src2") { First = Succeeded }, 1000);
+    Check(secondRejected.Code == ErrorCodes.StationPrepareRejected && secondRejected.ErrorArgs.SequenceEqual(new[] { "Src2", "2" }),
+        "搬运第 2 步准备被拒：transfer.station_prepare_rejected，参数是站点名和步号 2");
+
+    var secondFailed = RunTransfer(new ProbeStation("Src3") { First = Succeeded, Second = Rejected }, 1000);
+    Check(secondFailed.Code == ErrorCodes.StationPrepareFailed && secondFailed.ErrorArgs.SequenceEqual(new[] { "Src3", "2" }),
+        "搬运第 2 步准备没做成：参数是站点名和步号 2");
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -1323,4 +1373,44 @@ sealed class ProbeChild : ComponentBase
 // 什么都没重写的组件：Init、Abort 照样能调。
 sealed class PlainChild : ComponentBase
 {
+}
+
+// 探针站点：两步准备各给什么由测试定（不给 = 被拒），交互标记一律落得下；只为验搬运出错时报的错误码和参数。
+sealed class ProbeStation(string name) : ITransferStation
+{
+    public Func<ModuleOperation?> First { get; init; } = () => null;
+    public Func<ModuleOperation?> Second { get; init; } = () => null;
+    public string Name => name;
+    public int SlotCount => 1;
+    public bool CanPrepare => true;
+    public ModuleOperation? PrepareTransfer() => First();
+    public ModuleOperation? PrepareTransfer2() => Second();
+    public bool Transferring() => true;
+    public bool TransferComplete() => true;
+}
+
+// 探针机械手（搬运用）：只占个名字，动作一律发不出去——验的几种出错都停在站点准备，走不到取放片。
+sealed class ProbeTransferRobot : IRobot
+{
+    public string Name => "TransferRobot";
+    public int State => 0;
+    public bool? IsServoOn => null;
+    public string? DeviceError => null;
+    public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
+    public bool? HasWafer(int arm) => null;
+
+    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
+    {
+        config = null;
+        return false;
+    }
+
+    public ModuleOperation? Home() => null;
+    public ModuleOperation? Init() => null;
+    public ModuleOperation? Reset() => null;
+    public ModuleOperation? Abort() => null;
+    public ModuleOperation? Pick(int arm, string station, int slot) => null;
+    public ModuleOperation? Place(int arm, string station, int slot) => null;
+    public ModuleOperation? PowerOn() => null;
+    public ModuleOperation? PowerOff() => null;
 }

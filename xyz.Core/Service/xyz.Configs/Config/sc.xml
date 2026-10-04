@@ -341,6 +341,18 @@
 		<Value Name="Folder" Value="Recipe\Sequence" />
 		<Value Name="NameMaxLength" Value="32" />
 	</Setting>
+	<!-- 工艺配方库（配方 → 工艺配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……），Folder 相对宿主运行目录。
+	     能选的摆臂、药液不在这儿配：按腔体下装的摆臂轴和挂在它下面的喷嘴（喷嘴的 Chemical）生成；合计时长的上限是腔体 EC 的工艺超时。
+	     下面几个上限是编辑时的检查范围，跟设备能力走：一步最长秒数、转速 rpm、流量 L/min（喷嘴流量设定的量程）、摆臂扫描速度 mm/s -->
+	<Setting Name="ProcessRecipe" Type="xyz.Modules.ProcessRecipeComponent">
+		<Value Name="Capacity" Value="99" />
+		<Value Name="Folder" Value="Recipe\Process" />
+		<Value Name="NameMaxLength" Value="32" />
+		<Value Name="MaxStepSeconds" Value="3600" />
+		<Value Name="MaxRpm" Value="3000" />
+		<Value Name="MaxFlow" Value="3" />
+		<Value Name="MaxScanSpeed" Value="100" />
+	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
 	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。
 	     子组件层级按物理装配走：升降气缸和喷嘴装在摆臂上，就挂摆臂节点下面——

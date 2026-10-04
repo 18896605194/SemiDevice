@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -77,23 +78,28 @@ public partial class AxisComponent
 
     #endregion
 
-    #region 轴操作
+    #region 轴操作（标了 [ManualAction] 的手动页能直接调：回零、移动、步进、点动、停止、复位）
 
+    [ManualAction]
     public bool Home()
     {
         return Send(MotionCommandId.Home, 0, HomeSpeed);
     }
 
+    [ManualAction]
     public bool MoveTo(double position, double? speed = null)
     {
         return Send(MotionCommandId.MoveTo, position, speed ?? MoveSpeed);
     }
 
+    [ManualAction]
     public bool MoveBy(double offset, double? speed = null)
     {
         return Send(MotionCommandId.MoveBy, offset, speed ?? MoveSpeed);
     }
 
+    /// <summary>点动：按 speed 一直走（正负是方向），到速即算完成；手动页按住期间一直走、松手发 Stop。</summary>
+    [ManualAction(Release = nameof(Stop))]
     public bool Jog(double speed)
     {
         return Send(MotionCommandId.Jog, 0, speed);
@@ -104,6 +110,8 @@ public partial class AxisComponent
         return Send(MotionCommandId.Spin, 0, speed);
     }
 
+    /// <summary>停止：可以打断在途动作，手动页上别的动作在途时也照发。</summary>
+    [ManualAction(Priority = true)]
     public bool Stop()
     {
         return Send(MotionCommandId.Stop, 0, 0, priority: true);
@@ -114,6 +122,8 @@ public partial class AxisComponent
         return Send(MotionCommandId.EStop, 0, 0, priority: true);
     }
 
+    /// <summary>驱动器复位清错。</summary>
+    [ManualAction]
     public bool ResetDrive()
     {
         return Send(MotionCommandId.Reset, 0, 0);
@@ -261,9 +271,12 @@ public partial class AxisComponent
         return speed != 0 && Math.Abs(speed) <= maxSpeed;
     }
 
+    /// <summary>
+    /// 绝对定位的目标已经在到位容差里了就不发。相对移动（步进）不省：明确要走这一段，步距比到位容差还小也得走。
+    /// </summary>
     private bool IsAlreadyAtTarget(MotionCommandId command)
     {
-        if (command != MotionCommandId.MoveTo && command != MotionCommandId.MoveBy)
+        if (command != MotionCommandId.MoveTo)
         {
             return false;
         }

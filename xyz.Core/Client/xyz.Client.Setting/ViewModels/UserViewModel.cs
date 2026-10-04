@@ -91,7 +91,7 @@ public class UserViewModel : BaseViewModel
 
     private bool CanDeleteUser()
     {
-        return SelectedUser != null;
+        return SelectedUser is not null;
     }
 
     private async Task DoCreateUser()
@@ -103,7 +103,7 @@ public class UserViewModel : BaseViewModel
             Roles,
             nameof(RoleModel.Name));
 
-        if (result == null)
+        if (result is null)
         {
             return;
         }
@@ -148,7 +148,7 @@ public class UserViewModel : BaseViewModel
 
     private async Task DoDeleteUser()
     {
-        if (SelectedUser == null)
+        if (SelectedUser is null)
         {
             return;
         }

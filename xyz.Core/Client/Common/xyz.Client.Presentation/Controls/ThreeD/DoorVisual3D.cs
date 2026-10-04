@@ -8,7 +8,7 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// 气缸驱动的上下升降门示意。上升打开、下降关闭，外部只绑定 IsOpen。
+/// 气缸驱动的上下升降门示意。上升打开、下降关闭，外部绑定 IsOpen；IsUnknown=true（命令发了、到位信号还没亮）门板停在行程中间并一直高亮。
 /// 原点为门框下方安装面中心，Y 向上，门宽沿 X；打开时门板完全高于门框。
 /// </summary>
 public sealed class DoorVisual3D : HardwareVisual3D
@@ -31,7 +31,17 @@ public sealed class DoorVisual3D : HardwareVisual3D
     }
 
     public static readonly DependencyProperty IsOpenProperty = DependencyProperty.Register(
-        nameof(IsOpen), typeof(bool), typeof(DoorVisual3D), new PropertyMetadata(false, OnOpenChanged));
+        nameof(IsOpen), typeof(bool), typeof(DoorVisual3D), new PropertyMetadata(false, OnTargetChanged));
+
+    /// <summary>位置未知：门板画到行程中间并一直高亮，到位（变回 false）后再走到 IsOpen 那一头。</summary>
+    public bool IsUnknown
+    {
+        get => (bool)GetValue(IsUnknownProperty);
+        set => SetValue(IsUnknownProperty, value);
+    }
+
+    public static readonly DependencyProperty IsUnknownProperty = DependencyProperty.Register(
+        nameof(IsUnknown), typeof(bool), typeof(DoorVisual3D), new PropertyMetadata(false, OnTargetChanged));
 
     /// <summary>门板宽度，使用装配的统一长度单位。</summary>
     public double Width
@@ -61,14 +71,17 @@ public sealed class DoorVisual3D : HardwareVisual3D
     private static bool IsPositiveFinite(object value) => value is double number && double.IsFinite(number) && number > 0;
     private static void OnGeometryChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DoorVisual3D)sender).RebuildGeometry();
     private static void OnProgressChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DoorVisual3D)sender).UpdatePosition();
-    private static void OnOpenChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DoorVisual3D)sender).TransitionTo((bool)args.NewValue ? 1 : 0);
+    private static void OnTargetChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DoorVisual3D)sender).TransitionTo(((DoorVisual3D)sender).TargetProgress);
+
+    /// <summary>该画到的进度：未知在中间，否则开 1、关 0。</summary>
+    private double TargetProgress => IsUnknown ? UnknownProgress : IsOpen ? 1 : 0;
 
     private static void OnHostVisibleChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         if (!(bool)args.NewValue)
         {
             var door = (DoorVisual3D)sender;
-            door.FinishTransition(door.IsOpen ? 1 : 0);
+            door.FinishTransition(door.TargetProgress);
         }
     }
 
@@ -118,7 +131,7 @@ public sealed class DoorVisual3D : HardwareVisual3D
         ++_transitionVersion;
         SetValue(ProgressProperty, target);
         BeginAnimation(ProgressProperty, null);
-        SetVisualActive(false);
+        SetVisualActive(IsUnknown);
     }
 
     private void RebuildGeometry()

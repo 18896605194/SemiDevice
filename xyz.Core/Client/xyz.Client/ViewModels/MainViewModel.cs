@@ -60,12 +60,12 @@ public class MainViewModel : BaseViewModel
         get => _selectedSecondaryMenu;
         set
         {
-            if (!SetProperty(ref _selectedSecondaryMenu, value) || value == null)
+            if (!SetProperty(ref _selectedSecondaryMenu, value) || value is null)
             {
                 return;
             }
 
-            if (SelectedPrimaryMenu != null)
+            if (SelectedPrimaryMenu is not null)
             {
                 _lastSecondaryCodes[SelectedPrimaryMenu.Code] = value.Code;
             }
@@ -151,7 +151,7 @@ public class MainViewModel : BaseViewModel
         SecondaryMenus.Clear();
         SelectedSecondaryMenu = null;
 
-        if (menu != null)
+        if (menu is not null)
         {
             foreach (var child in menu.Children)
             {
@@ -161,7 +161,7 @@ public class MainViewModel : BaseViewModel
 
         OnPropertyChanged(nameof(HasSecondaryMenus));
 
-        if (menu == null)
+        if (menu is null)
         {
             return;
         }
@@ -187,7 +187,7 @@ public class MainViewModel : BaseViewModel
             .ToList();
         var codes = menus.Select(menu => menu.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var orphan in menus.Where(menu => menu.ParentCode != null && !codes.Contains(menu.ParentCode)))
+        foreach (var orphan in menus.Where(menu => menu.ParentCode is not null && !codes.Contains(menu.ParentCode)))
         {
             ClientLog.Warn("Client", $"菜单 {orphan.Code} 的父菜单 {orphan.ParentCode} 没有声明，已跳过。");
         }
@@ -196,7 +196,7 @@ public class MainViewModel : BaseViewModel
         Pages = _views.Values.ToList();
 
         foreach (var menu in menus
-                     .Where(menu => menu.ParentCode == null)
+                     .Where(menu => menu.ParentCode is null)
                      .OrderBy(menu => menu.Sort))
         {
             PrimaryMenus.Add(BuildMenu(menu, menus));
@@ -228,7 +228,7 @@ public class MainViewModel : BaseViewModel
         foreach (var menu in menus)
         {
             var view = _serviceProvider.GetKeyedService<UserControl>(menu.Code);
-            if (view != null)
+            if (view is not null)
             {
                 _views[menu.Code] = view;
             }

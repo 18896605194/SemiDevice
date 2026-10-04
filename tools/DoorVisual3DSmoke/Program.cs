@@ -63,6 +63,7 @@ internal static class Program
             feedback.IsOpen = true;
             Pump(550);
             double frameTop = parts[3].Bounds.Y + parts[3].Bounds.SizeY;
+            double openY = Y();
             Check(Y() > frameTop && !door.HasAnimatedProperties, "open panel bottom clears the entire frame, including the top beam");
             Check(parts[0].Bounds.Z > parts[3].Bounds.Z + parts[3].Bounds.SizeZ, "panel slides in front of the fixed crossbeam without intersecting it");
             Check(parts.Skip(1).Select((p, i) => p.Bounds == fixedBounds[i]).All(x => x), "frame stays fixed");
@@ -76,6 +77,22 @@ internal static class Program
             Check(ColorOf() != idle, "selection survives completion");
             door.IsSelected = false;
             Check(ColorOf() == idle, "deselection restores idle");
+
+            // 未知（命令发了、到位信号还没亮）：门板停在行程中间、一直高亮；到位后走到那一头、高亮撤掉
+            door.IsUnknown = true;
+            Pump(550);
+            Check(Math.Abs(Y() - (closedY + openY) / 2) < 0.000001 && !door.HasAnimatedProperties && ColorOf() != idle,
+                "unknown parks the panel mid-stroke and keeps the highlight after the transition");
+            door.IsUnknown = false;
+            Pump(550);
+            Check(Near(Y(), closedY) && ColorOf() == idle, "known again: the panel finishes at the reported end and drops the highlight");
+            var initialUnknown = new DoorVisual3D { Width = door.Width, Height = door.Height, IsUnknown = true };
+            var initialClosed = new DoorVisual3D { Width = door.Width, Height = door.Height };
+            double initialTravel = ((GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[0]).Bounds.Y
+                - ((GeometryModel3D)((Model3DGroup)initialClosed.Content).Children[0]).Bounds.Y;
+            Check(!initialUnknown.HasAnimatedProperties && Math.Abs(initialTravel - (openY - closedY) / 2) < 0.000001,
+                "initial unknown is drawn mid-stroke immediately before attachment");
+
             feedback.IsOpen = true;
             Pump(60);
             scene.Visibility = Visibility.Hidden;
@@ -111,7 +128,7 @@ internal static class Program
             }
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine("PASS: Door boolean binding, open/close, reversal, moving highlight, fixed frame, assembly independence and visibility/detach lifecycle.");
+            Console.WriteLine("PASS: Door boolean binding, open/close, reversal, moving highlight, unknown parked mid-stroke, fixed frame, assembly independence and visibility/detach lifecycle.");
             return 0;
         }
         catch (Exception ex)

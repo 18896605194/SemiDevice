@@ -329,7 +329,7 @@
                                                     </WrapPanel>
                                                 </DockPanel>
 
-                                                <!--  工艺配方：公共选择框。工艺配方库还没做，弹窗里暂时没有可选的，先允许手输名字  -->
+                                                <!--  工艺配方：公共选择框，只能从工艺配方库里选（后端没装库时才放开手输）  -->
                                                 <Border
                                                     Grid.Column="2"
                                                     Style="{DynamicResource ShowWhenTagTrueStyle}"
@@ -338,7 +338,7 @@
                                                         Width="260"
                                                         HorizontalAlignment="Left"
                                                         HasError="{Binding HasRecipeError}"
-                                                        IsEditable="True"
+                                                        IsEditable="{Binding DataContext.CanTypeRecipe, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         ItemsSource="{Binding DataContext.ProcessRecipes, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         PickerTitle="{DynamicResource recipe.sequence.pick_recipe}"
                                                         Placeholder="{DynamicResource recipe.sequence.recipe_hint}"
@@ -354,6 +354,10 @@
                                                                 Path="Name"
                                                                 Width="220" />
                                                             <controls:PickerColumn HeaderKey="recipe.sequence.description" Path="Description" />
+                                                            <controls:PickerColumn
+                                                                HeaderKey="recipe.process.duration"
+                                                                Path="DurationText"
+                                                                Width="110" />
                                                         </controls:PickerBox.Columns>
                                                     </controls:PickerBox>
                                                 </Border>

@@ -9,6 +9,9 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// </summary>
 public abstract class HardwareVisual3D : ModelVisual3D
 {
+    /// <summary>两态件（门、Bowl、Lift）位置未知（命令发了、到位信号还没亮）时画在行程的哪儿：正中间，一眼看出没到位。</summary>
+    protected const double UnknownProgress = 0.5;
+
     private readonly List<(GeometryModel3D Model, double Brightness)> _parts = [];
     private bool _isVisualActive;
 

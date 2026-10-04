@@ -5,7 +5,7 @@
 - `xyz.Core\`（平台：Shared / Service / Client）、`xyz.35021\`（机型 35021）、`tools\`（冒烟测试、部署和编码脚本、AdsRouter）、
   `doc\`（`AxisPlc.md` 轴和 PLC 数据块、`interlock-design.md` 联锁设计草案未实现、`eventbus-guide.html` 事件总线说明）、`Libs\`（TwinCAT.Ads DLL）。
   `website\`、`HotShot\` 跟框架无关。
-- `xyz.Framework.sln`（39 个工程；`tools\IoIndexSmoke` 不在解决方案里，要单独编译）、`xyz.Framework.slnLaunch`（"Client + Service" 同时起宿主和客户端）。
+- `xyz.Framework.sln`（41 个工程；`tools\IoIndexSmoke` 不在解决方案里，要单独编译）、`xyz.Framework.slnLaunch`（"Client + Service" 同时起宿主和客户端）。
 - `Directory.Build.props`：win-x64、x64、输出路径不带 RID（机型部署、ScEdit 依赖这个路径）。包版本写在各 csproj 里。
 - **编码**：源文件 UTF-8 **带 BOM**（.cs、.xaml、.csproj、.xml；skill 的 SKILL.md 例外，不加 BOM）。`.editorconfig` 本意如此，但它第 4 行的乱码注释把节头吞了，
   现在实际不生效；`tools\check-bom.ps1` / `add-bom.ps1` / `verify-encoding.ps1` 可以查和补。
@@ -32,17 +32,18 @@
 
 | 工程 | 管什么 |
 |---|---|
-| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort |
+| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数 |
 | WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务 |
-| SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码 |
+| SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码、工艺步骤的配方要在工艺配方库里 |
+| ProcessRecipeSmoke | 工艺配方库：sc.xml 节点和参数、摆臂和药液（腔体的摆臂轴 + 喷嘴）、新建/改名/保存/删除的各项检查（时间、转速、摆臂、药液、流量、位置、Scan、合计不超过工艺超时）、文件里不写用不上的属性、坏文件跳过、版本冲突、变更事件、服务和选项、腔体起工艺要配方在库里、没装库 |
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
 | DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
 | HsmsSmoke / SecsSmoke | HSMS 组件对假 EAP；SECS-II 编解码、HSMS 握手和计时器 |
 | RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
-| ChamberSmoke | 腔体部件：按 sc 认部件、部件状态推送（指令侧 / 在走 / 出液 / 转动 / 摆臂 Reach 和到位容差）、部件手动动作（找不到、不支持、指令没发出去、Manual 状态、在途拒绝、Abort 顶替、失败落 Error、停用），假 PLC 模拟气缸和轴 |
+| ChamberSmoke | 腔体部件：照 sc 生成的通用部件清单（[PartKind] / [LiveValue]）、气缸三态、喷嘴 / 旋转 / 摆臂 Reach、有变化才推；部件手动动作（找不到、没有这个动作、参数不对、指令没发出去、Manual 状态、在途拒绝、停止类忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用），假 PLC 模拟气缸和轴 |
 | IoIndexSmoke（不在 sln） | IO 点表下标和换算、PLC 门控、单点写、轴和执行器命令 |
-| `*Visual3DSmoke`、ChamberSceneSmoke（不在 sln，WPF） | 三维硬件组件和腔体三维图（ChamberScene：搭建、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、重搭）；`-- 路径.png` 出图 |
+| `*Visual3DSmoke`、ChamberSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间并高亮）和腔体三维图（ChamberScene：从通用部件推送认部件并搭建、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；`-- 路径.png` 出图 |
 | EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
 
 - 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`

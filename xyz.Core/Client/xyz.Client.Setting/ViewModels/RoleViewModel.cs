@@ -75,7 +75,7 @@ public class RoleViewModel : BaseViewModel
 
     private bool CanDeleteRole()
     {
-        return SelectedRole != null;
+        return SelectedRole is not null;
     }
 
     private async Task DoCreateRole()
@@ -120,7 +120,7 @@ public class RoleViewModel : BaseViewModel
 
     private async Task DoDeleteRole()
     {
-        if (SelectedRole == null)
+        if (SelectedRole is null)
         {
             return;
         }

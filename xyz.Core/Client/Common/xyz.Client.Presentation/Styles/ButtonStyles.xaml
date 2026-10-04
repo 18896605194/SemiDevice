@@ -96,17 +96,20 @@
         <Setter Property="Cursor" Value="Hand" />
     </Style>
 
-    <!--  三维图左下角的视角按钮（左转、右转、复位、俯视）：描边、透明底、矮一档，浮在图上不抢眼  -->
+    <!--  三维图下面视角工具栏的按钮（默认视角、俯视）：图标 + 字，平的，鼠标移上去才有底色  -->
     <Style
-        x:Key="SceneViewButtonStyle"
-        BasedOn="{StaticResource ToolbarOutlinedButtonStyle}"
+        x:Key="SceneToolButtonStyle"
+        BasedOn="{StaticResource MaterialDesignFlatButton}"
         TargetType="Button">
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="Height" Value="30" />
-        <Setter Property="Margin" Value="0,0,6,0" />
-        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="12,0" />
         <Setter Property="FontSize" Value="{StaticResource Size13}" />
         <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="4" />
     </Style>
 
     <!--  紧凑按钮：多行按钮区（如 LoadPort 手动操作）用，比默认按钮矮一档  -->

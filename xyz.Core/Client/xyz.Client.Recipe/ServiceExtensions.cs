@@ -15,8 +15,11 @@ public static class ServiceExtensions
     {
         services.AddSingleton<SequenceViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<SequenceViewModel>());
+        services.AddSingleton<ProcessRecipeViewModel>();
+        services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<ProcessRecipeViewModel>());
 
         services.AddKeyedSingleton<UserControl, SequenceView>("Recipe.Sequence");
+        services.AddKeyedSingleton<UserControl, ProcessRecipeView>("Recipe.Process");
 
         return services;
     }

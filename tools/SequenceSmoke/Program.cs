@@ -242,6 +242,28 @@ try
     SequenceComponent.Current = null;
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.SequenceNotInstalled && notInstalled.Args.Count == 0, "没装库：sequence.not_installed");
+
+    // 9. 装了工艺配方库：工艺步骤选的配方要在库里（不分大小写），不在的存不进去，错误码带步号和配方名（上面几节没装库，不查）。
+    string recipeFolder = Path.Combine(Path.GetTempPath(), "xyz-sequence-smoke-recipes-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var recipes = new ProcessRecipeComponent { Folder = recipeFolder };
+        recipes.Load();
+        Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsOk, "工艺配方库里建一个 SC1_60S");
+        int revision = library.Get(1).Sequence!.Revision;
+        Fails(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], " NOPE "), new("LoadPort", ["SmokeLP1"])], "Saver"),
+            ErrorCodes.SequenceRecipeNotFound, ["2", "NOPE"], "工艺配方不在库里存不进去");
+        var withRecipe = library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], "sc1_60s"), new("LoadPort", ["SmokeLP1"])], "Saver");
+        Check(withRecipe.IsOk && withRecipe.Sequence?.Steps[1].Recipe == "sc1_60s", "库里有的（不分大小写）存得进去");
+    }
+    finally
+    {
+        ProcessRecipeComponent.Current = null;
+        if (Directory.Exists(recipeFolder))
+        {
+            Directory.Delete(recipeFolder, recursive: true);
+        }
+    }
 }
 finally
 {
@@ -252,7 +274,7 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, files written and read back with bad files skipped, revision conflicts, change events, and the sequence service error codes).");
+Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library).");
 
 /// <summary>
 /// 探针用：生产里名字由装配器经 internal setter 设，这里反射设。

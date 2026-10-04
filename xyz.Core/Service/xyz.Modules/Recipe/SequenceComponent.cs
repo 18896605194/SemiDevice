@@ -302,13 +302,15 @@ public class SequenceComponent : ComponentBase
     /// </summary>
     public SequenceResult Save(int index, int revision, string description, IReadOnlyList<SequenceStep> steps, string operatorName)
     {
+        // 工艺配方要在工艺配方库里（没装库就不查）。库只被这边查、从不反过来调这边，两把锁不会互等
+        var recipes = ProcessRecipeComponent.Current;
         SequenceResult result;
         lock (_gate)
         {
             var groups = _groups;
             result = CheckExists(index)
                 ?? CheckRevision(index, revision)
-                ?? CheckSteps(steps, groups)
+                ?? CheckSteps(steps, groups, recipes)
                 ?? Store(Touch(_items[index], operatorName, next =>
                 {
                     next.Description = description.Trim();
@@ -522,9 +524,9 @@ public class SequenceComponent : ComponentBase
 
     /// <summary>
     /// 步骤：至少 3 步；第 1 步、最后一步是 LoadPort 分组；每步的分组要在可选分组里、至少勾一个站点、勾的站点在这个分组里、
-    /// 要工艺配方的分组得填配方。步号从 1 数，跟界面上一样。
+    /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里。步号从 1 数，跟界面上一样。
     /// </summary>
-    private static SequenceResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups)
+    private static SequenceResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, ProcessRecipeComponent? recipes)
     {
         if (steps.Count < MinSteps)
         {
@@ -563,6 +565,11 @@ public class SequenceComponent : ComponentBase
             if (group.NeedsRecipe && string.IsNullOrWhiteSpace(step.Recipe))
             {
                 return SequenceResult.Fail(ErrorCodes.SequenceRecipeRequired, number);
+            }
+
+            if (group.NeedsRecipe && recipes is not null && !recipes.Contains(step.Recipe))
+            {
+                return SequenceResult.Fail(ErrorCodes.SequenceRecipeNotFound, number, step.Recipe.Trim());
             }
         }
 

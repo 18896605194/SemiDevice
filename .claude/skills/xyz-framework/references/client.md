@@ -39,7 +39,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   `ClientMenu(parentCode, code, sort, title?)`：`parentCode == null` 是一级菜单；**Code 就是页面的 keyed 注册键**；
   显示名取语言包 `menu.{Code}`（没配就显示 Code），按模块生成的菜单直接用 title（模块名）。
 - 一级菜单：Main 1、Manual 2、Recipe 3、Alarm 4、DataCenter 5、Setting 6、Io 7。
-  Recipe 下：Recipe.Sequence 1（流程配方）、Recipe.Process 2（工艺配方，还没做）。
+  Recipe 下：Recipe.Sequence 1（流程配方）、Recipe.Process 2（工艺配方）。
   Setting 下：Setting.Ec 1、Setting.WaferLedger 2、Setting.User 3、Setting.Role 4。
 - 页面注册（功能模块的 `ServiceExtensions`）：
   ```csharp
@@ -51,7 +51,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - `xyz.Client\Views\PageHost.cs`：全部页面启动时挂上，当前页 Visible、其余 Hidden。
   **页面常驻：Loaded / Unloaded 只触发一次**。要知道页面显示没显示用 `IsVisibleChanged`，转给 VM（示例 `WaferLedgerView.xaml.cs` →
   `viewModel.SetPageVisible(...)`）；页面不在前台时不拉数据、不跑每帧的东西（TrendChart、Robot 控件隐藏时停 `CompositionTarget.Rendering`）。
-- 没注册页面的菜单显示占位页（Main、Recipe.Process 目前就是）。
+- 没注册页面的菜单显示占位页（Main 目前就是）。
 
 ### 加一个页面（清单）
 1. 功能模块里加 `Models\`、`ViewModels\XxxViewModel.cs`、`Views\XxxView.xaml(.cs)`。
@@ -144,7 +144,11 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   表头左右也要是 8 才对得齐——`ZoneDataGridStyle` 已经配好（`ColumnHeaderPadding` 8,10）。
 - 分块的页面（一页几块、每块带标题条，如流程配方页）：`ZoneBorderStyle` 包一块，`ZoneHeaderBorderStyle` 是标题条
   （左边 `ZoneTitleBarBorderStyle` 竖条 + `ZoneTitleTextStyle`，右边按钮 `ZoneHeaderButtonStyle` / 主按钮 `ZoneHeaderPrimaryButtonStyle`，
-  检查不过的红字 `ZoneErrorTextStyle`），块里的表格 `ZoneDataGridStyle`；字段 `MetaLabelTextStyle` / `MetaValueTextStyle`。
+  检查不过的红字 `ZoneErrorTextStyle`、合计这类统计字 `ZoneStatTextStyle`），块里的表格 `ZoneDataGridStyle`；字段 `MetaLabelTextStyle` / `MetaValueTextStyle`。
+- 一行一条、各列是输入框和下拉框的表（工艺配方页的工艺步骤）：不用 DataGrid，用 `ListBox`（`PickListBoxStyle` + `StepListBoxItemStyle`），
+  列头是 `StepHeaderBorderStyle` 里的一个 Grid、列宽跟行模板写成一样；输入框 `ToolbarTextBoxStyle`、下拉 `StepComboBoxStyle`（34 高，
+  Tag=True 红框，提示字只在没选时显示、不浮到框上面），这一格不用填时写的"—""Home"用 `StepPlaceholderTextStyle`。
+  点进行里的输入框、下拉框也要选中这一行：View 里 `PreviewGotKeyboardFocus` + `ItemsControl.ContainerFromElement`（见 ProcessRecipeView.xaml.cs）。
 - 页内确认框（`PageOverlayBorderStyle` + `DialogCardBorderStyle`）：标题 `PanelTitleTextStyle`，主角 `DialogSummaryBorderStyle` + `DialogSubjectTextStyle`，
   说明 `DialogMessageTextStyle`、后端拒了的原因 `DialogErrorTextStyle`（没字时不占地方），确认按钮 `DialogConfirmButtonStyle`（Tag=True 红，删除、放弃用）。
 - 三档表格样式都挂了 `Helpers\DataGridColumnFill`：页面启动时先建好、后挂进窗口，有星号列的 DataGrid 会把列宽算成最小列宽 20 又补不回来
@@ -159,6 +163,9 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `DataType` Text/Integer/Decimal；`Minimum`/`Maximum`/`Unit` 只对数字；`EcKey="组件全路径.参数名"` 从 EC 取格式、范围、单位
   （界面上写的优先）；边输边查格式，回车/失焦提交时查范围；错了红框提示、Value 保留上次合法值；
   发送类按钮绑 `HasError`（`Mode=OneWayToSource`）错着不发；表格行里加 `materialDesign:ValidationAssist.UsePopup="True"`。
+  没写 Style 时自动套 `TextBoxStyles.xaml` 里按类型的隐式样式（= `DefaultTextBoxStyle`）。**自定义控件的默认样式都这么给，别在构造函数里
+  `SetResourceReference(StyleProperty, ...)`**：那是本地值，列表行、表格行模板里写的 `Style` 优先级比它低，写了不生效
+  （2026-10-04 改的：之前 IO 页 AO 设定框、EC 页值框写的 `CompactTextBoxStyle` 一直没生效，实际是 40 高、上下各 4 的默认样式）。
 - **DateTimePicker** + `QueryDateRange.Of/Today/LastDays/LastHours`：查时间段，分钟精度，截止那一分钟算进去。
 - **TrendChart**（ScottPlot 5 封装）：喂 `ObservableCollection<TrendSeries>`，只用 `SetData` / `Append` 改数据；单一左 Y 轴，所有曲线按真实值画。
 - **ModuleStateBadge**（`Text`、`Tone`、`IsCompact`）：模块状态一律用它（整条圆角色块：灰未初始化 / 蓝动作中 / 绿就绪 / 黄中止中 / 红报错），
@@ -167,17 +174,29 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `ItemsSource` 候选、`Columns`（`PickerColumn`：`HeaderKey` 语言包 key、`Path`、`Width`，不写是星号列）、`ValuePath`（默认 Name）、
   `PickerTitle`、`Placeholder`、`IsEditable`（默认 false 只能选；true 也能手输）、`HasError` 红框；`Width` / `Height` 用的地方随便设，
   档位样式 `DefaultPickerBoxStyle` 40 / `ToolbarPickerBoxStyle` 34 / `CompactPickerBoxStyle` 28。
+  选工艺配方的两处（流程配方页的工艺配方列、腔体手动页的配方框）候选都是 `Presentation\Models\ProcessRecipeOptionModel`（编号、名称、说明、时长），
+  连上后端时拉 `IProcessRecipeService.GetListAsync`、订 `ProcessRecipeChangedDto` 重拉；回 `process_recipe.not_installed`（没装库）时 `IsEditable` 放开手输。
 - **公共选择弹窗** `DialogService.ShowPicker(标题, 列, 数据, 当前值, 值属性)`：一个普通模态窗口（不是 DialogHost，不动主窗口），
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - LogBar / AlarmBar 只在主窗口顶栏用。
+- **HoldButton**（按住类按钮，点动用）：按下发 `PressCommand`，按住期间每 `RenewMilliseconds`（默认 200）发一次 `RenewCommand`，
+  松开 / 拖出按钮 / 禁用 / 藏起来发 `ReleaseCommand`，三个命令共用 `CommandParameter`；不用 `Command`。样式照普通按钮套。
 - **三维硬件**（`Controls\ThreeD`，说明见那儿的 README）：Arm / Lift / FluidPipe / Bowl / HomeCup / Door / Disk / ChamberBase 组件，
-  `ChamberScene` 把它们装成腔体手动页左边的三维图（`Parts` 绑 `ChamberPartsModel`、`Wafer` 绑晶圆账的片）。腔体手动页只有三维，
-  不再有二维俯视图；部件按钮按 `ChamberPartsModel.Groups` 生成（组名照 sc 路径），都走 VM 的 `PartActionCommand`。
+  `ChamberScene` 把它们装成腔体手动页的三维图（`Parts` 绑 `ChamberPartsModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
   三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
+- **腔体手动页**（`xyz.Client.Manual\Views\ChamberManualControl`，布局照用户给的参考图，见 decisions.md）：部件都来自后端的
+  `ModulePartsDto`——`ChamberPartsModel.Update` 从里面认出三维要画的门 / Bowl / 卡盘 / 摆臂，VM 按 `PartDto.Kind` 分出轴页签
+  （`AxisPartModel`，Kind = Axis）和气缸表（`CylinderPartModel`，Kind = TwoState），都按 sc 的先后。数据名、动作名、种类名的常量在
+  `Presentation\Models\PartValueNames / PartActionNames / PartKinds`（就是后端的属性名、方法名、[PartKind]）。
+  动作都走 `IChamberService.PartActionAsync`（部件路径 + 方法名 + 不变区域性参数）；点动用 HoldButton：按下 Jog、续 `RenewPartActionAsync`、
+  松手先等点动请求回来再发 Stop。轴参数（移动速度、点动速度、步距）默认值取这根轴的 EC，`ClientEc` 拉到后补上空着的。
 
 ## 8. 语言包（`Common\xyz.Client.Presentation\Localization`）
 
 - `Strings.zh-CN.xaml`、`Strings.en-US.xaml`，`<sys:String x:Key="...">`，**两份的 key 必须一一对应**（加一条就两边都加）。
+- **界面上显示的都要多语言**（标题、按钮、状态、提示、报错，用户 2026-10-04 定的）；从数据库、配置查出来的数据
+  （sc 里的模块 / 部件名、配方名、日志内容、片号）原样显示，不翻。后端报错参数里带的固定标识也要换成叫法再显示，
+  比如部件动作名（= 组件方法名 MoveTo）走 `PartActionNames.LabelOf` → `part.action.{方法名转小写下划线}`，中文界面不露英文方法名。
 - key 小写点分、叶子 snake_case：错误码（= `xyz.Shared\Errors\ErrorCodes.cs` 的常量值，如 `wafer.slot_occupied`）、`module.state.*`、
   `common.*`、`shell.*`、`setting.ledger.*`、`menu.{Code}`（Code 保留大小写）；枚举值做叶子时保留原样（`setting.ledger.process.InProcess`）；提示文字 `_tip` 结尾。
 - XAML 用 `{DynamicResource key}`；C# 用 `L10n.Get(key, 参数...)`（`string.Format`，可写 `{0:00}`）、`L10n.Get(code, response.Args)`；没有这个 key 时返回 key 本身。
@@ -186,7 +205,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 
 ## 9. 显示模型
 
-- 公共的在 `Presentation\Models`（`ModuleStates`、`ModuleStateTone`、`QueryDateRange`、`TrendSeries`、`InputDataType`……），
+- 公共的在 `Presentation\Models`（`ModuleStates`、`ModuleStateTone`、`QueryDateRange`、`TrendSeries`、`InputDataType`、`ProcessRecipeOptionModel`……），
   页面自己的在功能模块 `Models\`。
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
 - 当前用户 `xyz.Client.Common.Session.ClientSession.UserName`（登录没做，先固定 Admin），要记操作人的地方都从这儿取。

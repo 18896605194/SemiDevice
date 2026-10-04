@@ -32,7 +32,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   模块把返回类型收窄成 `ModuleOperation?`。`Open()` 不在基类，各类型自己定义（模块、PLC、IO、HSMS、驱动、轴）。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManager、Io、Safety、Hsms、
-  DataChart、RealChart、PLC、TransferManager、GemCollectors、SequenceComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
+  DataChart、RealChart、PLC、TransferManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
@@ -108,14 +108,26 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；Open 里先开 RFID、E84，再登记晶圆账槽位、开驱动）、
   `BaseRobotModule`（sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
   `BaseChamberModule`（Open 只登记晶圆账）。
-- 腔体部件（`BaseChamberModule`）：按 sc 结构认——名叫 `Door` 的气缸、腔体下名字以 `Bowl` 开头的第一个气缸（sc 里叫 Bowl1）、
-  第一个 `SpinMotor`、每个 `ArmAxis`（它下面第一个气缸是 Lift，喷嘴按 sc 先后）。`ChamberPartsDto` 跟 `ChamberDto` 同 token（模块名）、
-  类型不同，各推各的；气缸给指令侧（看线圈，`TwoStateComponent.IsOpenCommanded`）和在走（`IsTraveling`），
-  摆臂给 `Reach`（0 = 回零的 0 位，1 = EC Center）和 `EdgeReach`（Edge / Center，示教过才有，界面分两段画），轴位置变化在到位容差内不推。
-  `ArmAxisComponent` 示教位：`Edge` = 配方 0（第一个边缘）、`Center` = 配方 150（晶圆中心）的实际轴位置，默认 0 / 150。部件手动动作 `TryPartAction(路径, ChamberPartAction)` → `ChamberService.PartActionAsync`：
-  迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态）；指令在发起线程锁内发，
-  发不出去回 `chamber.part_command_rejected` 不改状态、不报警；`ChamberPartOperation` 只看部件自己的 ActionState，EC `PartActionTimeout` 兜底。
-  旋转电机"转"用 EC `ManualSpeed`。联锁还没做。
+- **手动部件是通用的**（组件自己声明，模块不认具体硬件）：组件类标 `[PartKind("Axis")]`（派生类继承；现有 `Axis` 轴、`TwoState`
+  双作用气缸、`OneState` 阀 / 喷嘴），属性标 `[LiveValue]`（推给界面的实时数据，浮点按 `Decimals` 位取整，默认 3），
+  方法标 `[ManualAction]`（返回 bool = 指令发没发出去；`Priority = true` 停止类，`Release = "Stop"` 按住类）。
+  自己管动作到完成的组件实现 `IActionComponent`（`ActionState`）。`xyz.Modules\Parts\PartCatalog` 照模块的组件树（先父后子）
+  收标了种类的组件，反射结果按类缓存；`CreateDto()` 出 `ModulePartsDto`（每个部件：Path、Kind、Type = 组件类名、Values 字典，
+  值都是不变区域性字符串），`Find(路径)` → `ManualPart.TryGetAction(方法名)` → `ManualPartAction.TryBind(参数字符串)` / `Invoke`。
+  新硬件要上手动页：类上标种类、属性和方法上标特性，推送、动作接口都不用改；界面按 Kind 选模板（不认识的种类只收数据）。
+- 腔体部件（`BaseChamberModule`）：`PublishState()` 里顺带推 `ModulePartsDto`（token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖）。
+  `TryPartAction(路径, 动作名, 参数)` → `ChamberService.PartActionAsync(PartActionRequest)`：普通动作走迁移表 `Manual`
+  （未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内发，发不出去回 `chamber.part_command_rejected`
+  不改状态、不报警，`ChamberPartOperation` 只看部件的 ActionState（没有就发出去算完），EC `PartActionTimeout` 兜底；
+  停止类不看忙不忙、不挂操作，发出去就回；按住类（点动）挂 `ChamberHoldOperation` 等松手——界面按住期间调 `RenewPartActionAsync` 续，
+  EC `HoldTimeoutMs`（默认 1000）内没续上就自己发松手动作，松手后等部件停下才退出 Manual。错误码：`chamber.part_not_found`、
+  `chamber.part_action_unsupported`（组件上没有这个 [ManualAction] 方法）、`chamber.part_action_args_invalid`、`chamber.part_not_held`。
+  气缸 `TwoStateComponent.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
+  摆臂 `ArmAxisComponent.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
+  示教位 `Edge` = 配方 0（第一个边缘）、`Center` = 配方 150（晶圆中心）的实际轴位置，默认 0 / 150；旋转电机 `IsSpinning`。
+  轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
+  轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
+  以前会被当成已经到位、根本不走（2026-10-04 联调时发现）。联锁还没做。
 - 状态推送：`PublishState()` 里 `EventBus.Send(dto, Name)`（token = 模块名，留存），只在变化时发（`dto.HasStateChanged(上一次)`）。
   能放片的模块在推送里带上晶圆账（`LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name)`，腔体是 `Slots`），并在 HasStateChanged 里比较——
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
@@ -124,6 +136,15 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   可选站点分组由 `Bind(settings, modules)` 生成（模块全起来后调）：sc.xml 顶层没 Type 的分组节点下、机械手 `Stations` 到得了的站点模块，
   顶层直接装的站点自成一组；第 1 步和最后一步必须是 LoadPort 组（组里全是 LoadPort），有腔体的组每步要填工艺配方；名字一律照 sc.xml 原样。
   保存带版本号（对不上回 `sequence.revision_mismatch`，防两个人同时改），至少 3 步；`Changed(编号)` 在锁外发。服务 `ISequenceService`（`xyz.Service\Recipes`）。
+- 工艺配方库 `Recipe\ProcessRecipeComponent`（sc.xml `ProcessRecipe` 节点，SC：`Capacity` 99、`Folder` `Recipe\Process`、`NameMaxLength` 32、
+  `MaxStepSeconds` 3600、`MaxRpm` 3000、`MaxFlow` 3 L/min、`MaxScanSpeed` 100 mm/s）：编号、文件、版本号、`Changed(编号)` 跟流程配方库一样。
+  一步 = 时间、转速、摆臂（空 = 不出液，摆臂在 Home）→ 药液 → 流量 → 方式 `ProcessArmMode`（Time 停在一个位置喷 / Scan 在两个位置之间按速度来回扫，
+  扫到这一步时间到）→ 位置（晶圆坐标：`ArmAxisComponent.WaferEdgePosition` 0 = 边缘 ~ `WaferCenterPosition` 150 = 中心）；文件里只写这一步用得上的属性。
+  能选的摆臂和药液由 `Bind(modules)` 生成（模块全起来后调）：腔体下的 `ArmAxisComponent` + 挂在它下面的 `NozzleComponent.Chemical`，
+  同名摆臂合成一条、药液取并集，没喷嘴的摆臂不列；合计时长不超过腔体 EC `ProcessTimeout`（几个腔取最小，每次现查）。至少 1 步，新建时带一步默认值。
+  按名字被引用：流程配方保存时查工艺步骤的配方在不在库里（`sequence.recipe_not_found`），腔体起工艺查（`chamber.recipe_not_found`）；库没装都不查。
+  锁的先后：`SequenceComponent` 锁里可以调 `ProcessRecipeComponent.Contains`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`）。
+  还没做：腔体按工艺配方的步骤真的去转、去喷（35021 的 Process 还是定时模拟，只认名字）；喷嘴的流量设定 AO 还没在 sc.xml 里接。
 
 ## 4. 驱动（`xyz.Components\Components\Drivers` + `xyz.Drivers`）
 
@@ -161,8 +182,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
-  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Log"、"RealChart"、"Sequence"、"WaferLedger"）；
-  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的 `ChamberPartsDto`）也用模块名，类型不同互不覆盖；
+  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"WaferLedger"）；
+  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的部件推送 `ModulePartsDto`）也用模块名，类型不同互不覆盖；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManager.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。
@@ -170,7 +191,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → HSMS Open → PLC Open + Start →
-IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 设备总状态 / IO 推送 →
+IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 → 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要 Open/Start 的，按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
 
@@ -202,7 +223,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
 - 节点顺序：System → Rpc → Hsms → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →
-  LoadPort → Robot → Transfer → Sequence → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
+  LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）。
 
 ## 9. 日志

@@ -45,9 +45,9 @@ public class ChamberSpinModel : ObservableObject
     }
 
     /// <summary>
-    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配旋转电机。
+    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配旋转电机。转向看实际速度的正负，正的算顺时针。
     /// </summary>
-    public void Update(ChamberSpinDto? dto)
+    public void Update(PartDto? dto)
     {
         if (dto is null)
         {
@@ -59,7 +59,7 @@ public class ChamberSpinModel : ObservableObject
 
         IsPresent = true;
         Path = dto.Path;
-        IsSpinning = dto.IsSpinning;
-        IsClockwise = dto.IsClockwise;
+        IsSpinning = dto.GetBool(PartValueNames.IsSpinning);
+        IsClockwise = (dto.GetDouble(PartValueNames.CurrentSpeed) ?? 0) >= 0;
     }
 }

@@ -53,11 +53,20 @@ public static class ErrorCodes
     /// <summary>起工艺没给配方名。Args: [模块名]</summary>
     public const string RecipeRequired = "chamber.recipe_required";
 
+    /// <summary>起工艺给的配方不在工艺配方库里（可能被删了、改名了）。Args: [模块名, 配方名]</summary>
+    public const string ChamberRecipeNotFound = "chamber.recipe_not_found";
+
     /// <summary>腔体下没有这个部件。Args: [模块名, 部件路径]</summary>
     public const string ChamberPartNotFound = "chamber.part_not_found";
 
-    /// <summary>部件不支持这个动作（如对门发"去工艺位"）。Args: [部件路径, 动作]</summary>
+    /// <summary>部件没有这个手动动作（组件上没有标 [ManualAction] 的同名方法）。Args: [部件路径, 动作]</summary>
     public const string ChamberPartActionUnsupported = "chamber.part_action_unsupported";
+
+    /// <summary>部件动作的参数不对：个数不对，或者转不成方法要的类型（数字写错）。Args: [部件路径, 动作]</summary>
+    public const string ChamberPartActionArgsInvalid = "chamber.part_action_args_invalid";
+
+    /// <summary>续按住类动作时没有在按住的这个动作（已经松手、被停止或中止顶掉了）。Args: [部件路径, 动作]</summary>
+    public const string ChamberPartNotHeld = "chamber.part_not_held";
 
     /// <summary>部件指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [部件路径, 动作]</summary>
     public const string ChamberPartCommandRejected = "chamber.part_command_rejected";
@@ -72,10 +81,10 @@ public static class ErrorCodes
     /// <summary>站点等不到可服务（一直没回到锚点态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>
     public const string StationBusy = "transfer.station_busy";
 
-    /// <summary>站点准备被拒（状态不允许）。Args: [站点名, 准备阶段]</summary>
+    /// <summary>站点准备被拒（状态不允许）。Args: [站点名, 第几步准备（1 粗准备、2 开门放行）]</summary>
     public const string StationPrepareRejected = "transfer.station_prepare_rejected";
 
-    /// <summary>站点准备失败。Args: [站点名, 准备阶段]</summary>
+    /// <summary>站点准备失败。Args: [站点名, 第几步准备（1 粗准备、2 开门放行）]</summary>
     public const string StationPrepareFailed = "transfer.station_prepare_failed";
 
     /// <summary>取放片发起被拒（机械手状态不允许、未连接、或站点未配置）。Args: [机械手模块名, 动作]</summary>
@@ -206,8 +215,78 @@ public static class ErrorCodes
     /// <summary>这一步要选工艺配方，没选。Args: [步号]</summary>
     public const string SequenceRecipeRequired = "sequence.recipe_required";
 
+    /// <summary>这一步选的工艺配方不在工艺配方库里（可能被删了、改名了）。Args: [步号, 配方名]</summary>
+    public const string SequenceRecipeNotFound = "sequence.recipe_not_found";
+
     /// <summary>流程配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>
     public const string SequenceSaveFailed = "sequence.save_failed";
+
+    #endregion
+
+    #region 工艺配方
+
+    /// <summary>工艺配方库没装（sc.xml 没配 ProcessRecipe 节点）。Args: []</summary>
+    public const string ProcessRecipeNotInstalled = "process_recipe.not_installed";
+
+    /// <summary>编号超出范围。Args: [编号, 个数]</summary>
+    public const string ProcessRecipeIndexOutOfRange = "process_recipe.index_out_of_range";
+
+    /// <summary>这个编号上没有工艺配方（可能刚被别处删了）。Args: [编号]</summary>
+    public const string ProcessRecipeNotFound = "process_recipe.not_found";
+
+    /// <summary>新建的编号上已经有工艺配方。Args: [编号, 已有的名称]</summary>
+    public const string ProcessRecipeIndexOccupied = "process_recipe.index_occupied";
+
+    /// <summary>名称没填。Args: []</summary>
+    public const string ProcessRecipeNameRequired = "process_recipe.name_required";
+
+    /// <summary>名称太长。Args: [最多几个字符]</summary>
+    public const string ProcessRecipeNameTooLong = "process_recipe.name_too_long";
+
+    /// <summary>名称里有不能用的字符（只能用字母、数字、_ 和 -）。Args: [名称]</summary>
+    public const string ProcessRecipeNameInvalid = "process_recipe.name_invalid";
+
+    /// <summary>名称跟别的编号重了（不分大小写）。Args: [名称, 那个编号]</summary>
+    public const string ProcessRecipeNameDuplicate = "process_recipe.name_duplicate";
+
+    /// <summary>保存时版本对不上：打开以后别处改过（另一台客户端保存或改名了）。Args: [编号]</summary>
+    public const string ProcessRecipeRevisionMismatch = "process_recipe.revision_mismatch";
+
+    /// <summary>一步都没有。Args: []</summary>
+    public const string ProcessRecipeNoSteps = "process_recipe.no_steps";
+
+    /// <summary>这一步的时间不在范围里。Args: [步号, 下限, 上限]</summary>
+    public const string ProcessRecipeTimeOutOfRange = "process_recipe.time_out_of_range";
+
+    /// <summary>这一步的转速不在范围里。Args: [步号, 上限]</summary>
+    public const string ProcessRecipeRpmOutOfRange = "process_recipe.rpm_out_of_range";
+
+    /// <summary>这一步选的摆臂现在没有了（sc.xml 改过）。Args: [步号, 摆臂名]</summary>
+    public const string ProcessRecipeArmNotFound = "process_recipe.arm_not_found";
+
+    /// <summary>这一步选了摆臂，没选药液。Args: [步号, 摆臂名]</summary>
+    public const string ProcessRecipeChemicalRequired = "process_recipe.chemical_required";
+
+    /// <summary>这一步的药液不在这条摆臂上（sc.xml 改过）。Args: [步号, 药液, 摆臂名]</summary>
+    public const string ProcessRecipeChemicalNotOnArm = "process_recipe.chemical_not_on_arm";
+
+    /// <summary>这一步的流量不在范围里。Args: [步号, 下限, 上限]</summary>
+    public const string ProcessRecipeFlowOutOfRange = "process_recipe.flow_out_of_range";
+
+    /// <summary>这一步的位置不在晶圆上（晶圆坐标 0 边缘 ~ 150 中心）。Args: [步号, 下限, 上限]</summary>
+    public const string ProcessRecipePositionOutOfRange = "process_recipe.position_out_of_range";
+
+    /// <summary>这一步是 Scan，两头的位置一样（不扫就选 Time）。Args: [步号]</summary>
+    public const string ProcessRecipeScanSamePosition = "process_recipe.scan_same_position";
+
+    /// <summary>这一步 Scan 的速度不在范围里。Args: [步号, 下限, 上限]</summary>
+    public const string ProcessRecipeScanSpeedOutOfRange = "process_recipe.scan_speed_out_of_range";
+
+    /// <summary>合计时长超过腔体的工艺超时（腔体会在做完之前就判超时）。Args: [合计秒数, 上限秒数]</summary>
+    public const string ProcessRecipeTotalTooLong = "process_recipe.total_too_long";
+
+    /// <summary>工艺配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>
+    public const string ProcessRecipeSaveFailed = "process_recipe.save_failed";
 
     #endregion
 

@@ -50,6 +50,10 @@
         <Setter Property="FontSize" Value="{StaticResource Size13}" />
     </Style>
 
+    <!--  通用输入框（InputTextBox）没写 Style 时自动套这条（就是默认输入框）；
+          写了 Style 的照写的来——列表行、表格行模板里写的也算（默认样式要是在控件里设成本地值，模板里写的会被压住）  -->
+    <Style BasedOn="{StaticResource DefaultTextBoxStyle}" TargetType="controls:InputTextBox" />
+
 
     <!--  公共选择框（PickerBox）的三档高，跟输入框一样：默认 40、工具栏 34、紧凑 28（字小一号）；宽度在用的地方设  -->
     <Style x:Key="DefaultPickerBoxStyle" TargetType="controls:PickerBox">

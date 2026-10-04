@@ -1,11 +1,16 @@
 ﻿using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
-
-public abstract class OneStateComponent : ComponentBase
+/// <summary>
+/// 单状态执行器底座：一个 DO 通电驱动、断电靠弹簧回位，可选一个通电侧到位 DI。阀、喷嘴从它派生。
+/// 手动页现在不放阀；IsOn 推给三维图画出液。
+/// </summary>
+[PartKind("OneState")]
+public abstract class OneStateComponent : ComponentBase, IActionComponent
 {
     #region 
 
@@ -61,6 +66,7 @@ public abstract class OneStateComponent : ComponentBase
     }
 
     /// <summary>是否在通电到位态：接了 DI 看 DI；没接看 DO 回读（写没写进去）。PLC 没连一律 false。</summary>
+    [LiveValue]
     public bool IsOn
     {
         get
@@ -85,12 +91,14 @@ public abstract class OneStateComponent : ComponentBase
     #region 动作（返回 true 只表示 DO 已写进 PLC，完成看 ActionState）
 
     /// <summary>通电。</summary>
+    [ManualAction]
     public bool On()
     {
         return Drive(true);
     }
 
     /// <summary>断电回位。</summary>
+    [ManualAction]
     public bool Off()
     {
         return Drive(false);

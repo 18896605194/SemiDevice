@@ -87,6 +87,19 @@ internal static class Program
             lift.IsSelected = false;
             Check(ColorOf(parts[2]) == idle, "deselect restores the default material");
 
+            // 未知（命令发了、到位信号还没亮）：停在行程中间、一直高亮；到位后走到那一头、高亮撤掉
+            lift.IsUnknown = true;
+            Pump(600);
+            Check(Near(lift.MountHeight, (down + up) / 2) && !lift.HasAnimatedProperties && ColorOf(parts[2]) != idle,
+                "unknown parks mid-stroke and keeps the highlight after the transition");
+            lift.IsUnknown = false;
+            Pump(600);
+            Check(Near(lift.MountHeight, down) && ColorOf(parts[2]) == idle, "known again: finishes at the reported end and drops the highlight");
+            var initialUnknown = new LiftVisual3D { IsUnknown = true };
+            Check(Near(initialUnknown.MountHeight, (down + up) / 2) && !initialUnknown.HasAnimatedProperties
+                && ColorOf((GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[2]) != idle,
+                "initial unknown is drawn mid-stroke and highlighted before attaching");
+
             var movingSource = new CylinderFeedback();
             BindingOperations.SetBinding(lift, HardwareVisual3D.IsMovingProperty,
                 new Binding(nameof(CylinderFeedback.IsRaised)) { Source = movingSource });
@@ -117,7 +130,7 @@ internal static class Program
                 Pump(600);
                 SaveComparison(scene, feedback, args[0]);
             }
-            Console.WriteLine("PASS: Lift boolean binding, rise/fall, reversal, highlight, independent assembly and mesh reuse.");
+            Console.WriteLine("PASS: Lift boolean binding, rise/fall, reversal, highlight, unknown parked mid-stroke, independent assembly and mesh reuse.");
             app.Shutdown();
             return 0;
         }

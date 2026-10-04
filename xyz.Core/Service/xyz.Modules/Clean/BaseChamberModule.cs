@@ -106,11 +106,19 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "60000", description: "部件手动动作超时（等门、Bowl、Lift、喷嘴、摆臂、旋转电机做完的上限）")]
+        @default: "60000", description: "部件手动动作超时（等轴、气缸这些部件做完的上限；点动是松手后等停下的上限）")]
     public int PartActionTimeout
     {
         get { return GetEcInt(nameof(PartActionTimeout)); }
         set { SetEcInt(nameof(PartActionTimeout), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "500", max: "10000",
+        @default: "1000", description: "点动保活超时：手动页按住点动时界面每 200 ms 续一次，超过这么久没续上（界面断了、客户端退了）就自己停")]
+    public int HoldTimeoutMs
+    {
+        get { return GetEcInt(nameof(HoldTimeoutMs)); }
+        set { SetEcInt(nameof(HoldTimeoutMs), value); }
     }
 
     #endregion
@@ -140,6 +148,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     protected BaseChamberModule()
     {
         RegisterTransitions(ChamberStateTable.ToModuleTable());
+        _parts = new Lazy<PartCatalog>(() => new PartCatalog(this));
     }
 
     #region 启动前准备
@@ -270,160 +279,23 @@ public abstract class BaseChamberModule : BaseTransferStationModule
 
     #endregion
 
-    #region 部件（门、Bowl、旋转电机、摆臂及装在它上面的 Lift 和喷嘴）
+    #region 部件（sc.xml 里标了 [PartKind] 的组件：轴、气缸、阀……）
 
-    /// <summary>sc.xml 里腔门的节点名：门和 Bowl 都是气缸，只能按名字认。</summary>
-    private const string DoorPartName = "Door";
+    /// <summary>手动部件表：第一次用时按组件树建（装配时子组件是构造之后才挂上的，不能在构造里建）。</summary>
+    private readonly Lazy<PartCatalog> _parts;
 
-    /// <summary>
-    /// sc.xml 里 Bowl 节点名的开头：现在只配一层，跟点表、仿真器同名叫 Bowl1；以后加层（Bowl2……）三维图也只画第一个。
-    /// </summary>
-    private const string BowlPartPrefix = "Bowl";
-
-    private volatile ChamberPartsDto? _lastPublishedParts;
+    private volatile ModulePartsDto? _lastPublishedParts;
 
     /// <summary>
-    /// 部件状态快照（腔体手动页的三维图、部件按钮用）：按 sc.xml 的结构找部件——名叫 Door 的气缸、
-    /// 腔体下名字以 Bowl 开头的第一个气缸、第一个旋转电机、每条摆臂（摆臂下面第一个气缸是它的 Lift，喷嘴按 sc 里的先后）。
-    /// sc 里没配的部件不出现。
+    /// 部件快照（腔体手动页的轴页签、气缸表、三维图用）：sc.xml 里标了种类的组件和它们标了 [LiveValue] 的数据，按 sc 的先后。
+    /// 部件、数据都是组件自己声明的，这里不认具体是什么硬件。
     /// </summary>
-    public ChamberPartsDto CreatePartsDto()
+    public ModulePartsDto CreatePartsDto()
     {
-        var previous = _lastPublishedParts;
-        var dto = new ChamberPartsDto
-        {
-            Name = Name,
-            Door = CreateCylinderDto(FindChild<TwoStateComponent>(DoorPartName)),
-            Bowl = CreateCylinderDto(FindBowl()),
-            Spin = CreateSpinDto(FindChild<SpinMotorComponent>()),
-        };
-
-        foreach (var arm in FindChildren<ArmAxisComponent>())
-        {
-            ChamberArmDto? published = null;
-            if (previous is not null)
-            {
-                published = previous.Arms.FirstOrDefault(item => item.Path == arm.FullPath);
-            }
-
-            dto.Arms.Add(new ChamberArmDto
-            {
-                Name = arm.Name,
-                Path = arm.FullPath,
-                Reach = ReachOf(arm, published),
-                EdgeReach = EdgeReachOf(arm),
-                IsMoving = arm.IsBusy,
-                Lift = CreateCylinderDto(arm.FindChild<TwoStateComponent>()),
-                Nozzles = arm.FindChildren<NozzleComponent>()
-                    .Select(nozzle => new ChamberNozzleDto
-                    {
-                        Name = nozzle.Name,
-                        Path = nozzle.FullPath,
-                        Chemical = nozzle.Chemical,
-                        IsOn = nozzle.IsOn,
-                    })
-                    .ToList(),
-            });
-        }
-
-        return dto;
+        return _parts.Value.CreateDto();
     }
 
-    /// <summary>腔体下（直接子节点）名字以 Bowl 开头的第一个气缸；没配返回 null。</summary>
-    private TwoStateComponent? FindBowl()
-    {
-        foreach (var child in Children)
-        {
-            if (child is TwoStateComponent cylinder && child.Name.StartsWith(BowlPartPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return cylinder;
-            }
-        }
-
-        return null;
-    }
-
-    private static ChamberCylinderDto? CreateCylinderDto(TwoStateComponent? cylinder)
-    {
-        if (cylinder is null)
-        {
-            return null;
-        }
-
-        return new ChamberCylinderDto
-        {
-            Name = cylinder.Name,
-            Path = cylinder.FullPath,
-            IsOpen = cylinder.IsOpenCommanded,
-            IsMoving = cylinder.IsTraveling,
-        };
-    }
-
-    private static ChamberSpinDto? CreateSpinDto(SpinMotorComponent? spin)
-    {
-        if (spin is null)
-        {
-            return null;
-        }
-
-        double speed = spin.CurrentSpeed;
-        return new ChamberSpinDto
-        {
-            Name = spin.Name,
-            Path = spin.FullPath,
-            IsSpinning = spin.HasPlcData && Math.Abs(speed) > spin.SpeedTolerance,
-            IsClockwise = speed >= 0,
-        };
-    }
-
-    /// <summary>
-    /// 摆臂摆到哪：0 = Home（回零后轴在 0 位），1 = 工艺位（EC Center，晶圆中心的示教位），中间按轴位置线性换算，可以超出 0~1。
-    /// Center 被改到跟 0 位分不开时没法换算，只分两档：在 0 位附近算 Home，离开了算工艺位。
-    /// PLC 没数据时保持上次推的值；位置变化在到位容差以内不算动，免得编码器抖一下就推一次。
-    /// </summary>
-    private static double ReachOf(ArmAxisComponent arm, ChamberArmDto? published)
-    {
-        if (!arm.HasPlcData)
-        {
-            return published?.Reach ?? 0;
-        }
-
-        double position = arm.CurrentPosition;
-        double center = arm.Center;
-        double tolerance = arm.PositionTolerance;
-        if (Math.Abs(center) <= tolerance)
-        {
-            return Math.Abs(position) <= tolerance ? 0 : 1;
-        }
-
-        double reach = position / center;
-        if (published is not null && Math.Abs(reach - published.Reach) * Math.Abs(center) <= tolerance)
-        {
-            return published.Reach;
-        }
-
-        return reach;
-    }
-
-    /// <summary>
-    /// 第一个边缘（EC Edge）在 Reach 上的位置 = Edge / Center：界面据此分 Home → 边缘 → 中心两段画摆角。
-    /// Edge 跟 Home 或 Center 分不开（还没示教时默认 Edge = 0，正好跟 Home 重合），或者不在两者之间，给 0——界面就不分段。
-    /// </summary>
-    private static double EdgeReachOf(ArmAxisComponent arm)
-    {
-        double center = arm.Center;
-        double edge = arm.Edge;
-        double tolerance = arm.PositionTolerance;
-        if (Math.Abs(center) <= tolerance || Math.Abs(edge) <= tolerance || Math.Abs(center - edge) <= tolerance)
-        {
-            return 0;
-        }
-
-        double reach = edge / center;
-        return reach > 0 && reach < 1 ? reach : 0;
-    }
-
-    /// <summary>部件状态有变化才推；token 是模块名，跟 ChamberDto 类型不同、互不覆盖。</summary>
+    /// <summary>部件数据有变化才推；token 是模块名，跟 ChamberDto 类型不同、互不覆盖。</summary>
     private void PublishParts()
     {
         var parts = CreatePartsDto();
@@ -437,59 +309,53 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     }
 
     /// <summary>
-    /// 按全路径（sc.xml 的组件路径，如 "Chamber1.Arm1.Lift"）找本腔体下的部件，忽略大小写；找不到返回 null。
-    /// </summary>
-    public ComponentBase? FindPart(string path)
-    {
-        foreach (var child in FindChildren<ComponentBase>())
-        {
-            if (string.Equals(child.FullPath, path, StringComparison.OrdinalIgnoreCase))
-            {
-                return child;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>部件支不支持这个动作：气缸开 / 关，喷嘴出液 / 停液，摆臂回零 / 去工艺位，旋转电机转 / 停。</summary>
-    public static bool SupportsPartAction(ComponentBase part, ChamberPartAction action)
-    {
-        switch (part)
-        {
-            case TwoStateComponent:
-                return action is ChamberPartAction.Open or ChamberPartAction.Close;
-
-            case OneStateComponent:
-                return action is ChamberPartAction.On or ChamberPartAction.Off;
-
-            case SpinMotorComponent:
-                return action is ChamberPartAction.Start or ChamberPartAction.Stop;
-
-            case ArmAxisComponent:
-                return action is ChamberPartAction.Home or ChamberPartAction.Center;
-
-            default:
-                return false;
-        }
-    }
-
-    /// <summary>
-    /// 发起部件手动动作：找部件 → 看支不支持 → 锁内确认状态允许、没有在途动作 → 发指令 → 挂上等部件做完的操作。
+    /// 发起部件手动动作：找部件 → 找动作（组件上标了 [ManualAction] 的同名方法）→ 转参数 → 按动作类别发：
+    /// <list type="bullet">
+    /// <item>停止类（如轴停止）：不看腔体忙不忙、不挂操作，发出去就回 Sent；正按住的点动算松手。</item>
+    /// <item>普通动作：锁内确认状态允许、没有在途动作 → 发指令 → 挂上等部件做完的操作，回 Started。</item>
+    /// <item>按住类（如点动）：同普通动作，挂的是等松手的操作，回 Holding；按住期间界面调 RenewPartAction 续。</item>
+    /// </list>
     /// 指令在这儿就发：发不出去（PLC 没连、轴没回零……）直接回 CommandRejected，模块状态不动、也不报警。
     /// 先确认能挂上再发，别的动作在途时发出去的指令就没人等了。执行中落 ChamberState.Manual，做完回原来的状态。
     /// 还没做联锁（比如 Bowl 升着不许摆臂），操作员自己看着点。
     /// </summary>
-    public ChamberPartActionResult TryPartAction(string path, ChamberPartAction action, out ModuleOperation? operation)
+    public ChamberPartActionResult TryPartAction(string path, string action, IReadOnlyList<string> args, out ModuleOperation? operation)
     {
         operation = null;
-        var part = FindPart(path);
+        var part = _parts.Value.Find(path);
         if (part is null)
         {
             return ChamberPartActionResult.NotFound;
         }
 
-        if (!SupportsPartAction(part, action))
+        if (!part.TryGetAction(action, out var entry))
+        {
+            return ChamberPartActionResult.Unsupported;
+        }
+
+        if (!entry.TryBind(args, out var values))
+        {
+            return ChamberPartActionResult.InvalidArgs;
+        }
+
+        if (entry.IsPriority)
+        {
+            if (!entry.Invoke(part.Component, values))
+            {
+                return ChamberPartActionResult.CommandRejected;
+            }
+
+            if (CurrentOperation is ChamberHoldOperation hold && hold.Part == part.Component)
+            {
+                hold.Release();
+            }
+
+            return ChamberPartActionResult.Sent;
+        }
+
+        // 按住类先确认松手动作在，免得点动发出去了却停不下来。
+        ManualPartAction? release = null;
+        if (entry.Release is not null && (!part.TryGetAction(entry.Release, out release) || !release.TryBind([], out _)))
         {
             return ChamberPartActionResult.Unsupported;
         }
@@ -503,41 +369,48 @@ public abstract class BaseChamberModule : BaseTransferStationModule
                 return ChamberPartActionResult.Rejected;
             }
 
-            if (!SendPartCommand(part, action))
+            if (!entry.Invoke(part.Component, values))
             {
                 return ChamberPartActionResult.CommandRejected;
             }
 
-            operation = Begin(ChamberAction.Manual, new ChamberPartOperation(part, action, PartActionTimeout));
+            if (release is null)
+            {
+                operation = Begin(ChamberAction.Manual, new ChamberPartOperation(part.Component, entry.Name, PartActionTimeout));
+                return operation is null ? ChamberPartActionResult.Rejected : ChamberPartActionResult.Started;
+            }
+
+            var component = part.Component;
+            ManualPartAction releaseAction = release;
+            Func<bool> stop = () => releaseAction.Invoke(component, []);
+            operation = Begin(ChamberAction.Manual,
+                new ChamberHoldOperation(component, entry.Name, stop, HoldTimeoutMs, PartActionTimeout));
             if (operation is null)
             {
+                // 状态在锁里查过，挂不上只是防万一；点动已经发出去了，先停下来。
+                stop();
                 return ChamberPartActionResult.Rejected;
             }
 
-            return ChamberPartActionResult.Started;
+            return ChamberPartActionResult.Holding;
         }
     }
 
-    /// <summary>发部件指令；返回 true 只表示指令已经写进 PLC，做没做完由 ChamberPartOperation 看部件的动作状态。</summary>
-    private static bool SendPartCommand(ComponentBase part, ChamberPartAction action)
+    /// <summary>
+    /// 续按住类动作：正在按住的就是这个部件的这个动作才续上（重新计时），否则返回 false——已经松手、被停止或中止顶掉了。
+    /// </summary>
+    public bool RenewPartAction(string path, string action)
     {
-        switch (part)
+        var part = _parts.Value.Find(path);
+        if (part is null)
         {
-            case TwoStateComponent cylinder:
-                return action == ChamberPartAction.Open ? cylinder.Open() : cylinder.Close();
-
-            case OneStateComponent valve:
-                return action == ChamberPartAction.On ? valve.On() : valve.Off();
-
-            case SpinMotorComponent spin:
-                return action == ChamberPartAction.Start ? spin.Spin(spin.ManualSpeed) : spin.Stop();
-
-            case ArmAxisComponent arm:
-                return action == ChamberPartAction.Home ? arm.Home() : arm.MoveTo(arm.Center);
-
-            default:
-                return false;
+            return false;
         }
+
+        return CurrentOperation is ChamberHoldOperation hold
+            && hold.Part == part.Component
+            && string.Equals(hold.Action, action, StringComparison.OrdinalIgnoreCase)
+            && hold.Renew();
     }
 
     #endregion

@@ -195,6 +195,20 @@ public static class ServiceExtensions
             LogHelper.Warn("Sequence", "sc.xml 没配 Sequence 节点：流程配方页用不了");
         }
 
+        // 工艺配方库：能选的摆臂、药液按腔体下装的摆臂轴和喷嘴生成，合计时长的上限跟腔体的工艺超时走，所以也等模块全起来再绑。
+        // 内容一变就通知客户端（只带编号），工艺配方页、流程配方页、腔体手动页收到后重拉列表。
+        var processRecipes = ProcessRecipeComponent.Current;
+        if (processRecipes is not null)
+        {
+            processRecipes.Bind(modules);
+            processRecipes.Changed += index =>
+                EventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
+        }
+        else
+        {
+            LogHelper.Warn("ProcessRecipe", "sc.xml 没配 ProcessRecipe 节点：工艺配方页用不了，流程配方、腔体起工艺不查配方在不在库里");
+        }
+
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
         EquipmentStatusPublisher.Start(roots, modules);
 
@@ -235,6 +249,7 @@ public static class ServiceExtensions
         services.AddTransient<IEcService, EcService>();
         services.AddTransient<IWaferLedgerService, WaferLedgerService>();
         services.AddTransient<ISequenceService, SequenceService>();
+        services.AddTransient<IProcessRecipeService, ProcessRecipeService>();
         services.AddTransient<IDataChartService, DataChartService>();
         services.AddTransient<IRealChartService, RealChartService>();
 

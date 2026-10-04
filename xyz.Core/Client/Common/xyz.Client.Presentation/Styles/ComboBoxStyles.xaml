@@ -39,6 +39,20 @@
         <Setter Property="Margin" Value="0" />
     </Style>
 
+    <!--  工艺步骤表格里的下拉（摆臂、药液、方式）：就是工具栏下拉（34 高），多一条 Tag=True 时红框（这一格没选、选的不对）；
+          提示字只在没选时显示在框里，选了就不再浮到框上面（表格里每格上方有列名，不用再标一遍）  -->
+    <Style
+        x:Key="StepComboBoxStyle"
+        BasedOn="{StaticResource ToolbarComboBoxStyle}"
+        TargetType="ComboBox">
+        <Setter Property="materialDesign:HintAssist.IsFloating" Value="False" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!--  时间里的"时""分"下拉（DateTimePicker 日期框右边那两个，只用在工具栏里）：跟日期框同高，窄一点，下拉列表限高、滚着选  -->
     <Style
         x:Key="TimePartComboBoxStyle"

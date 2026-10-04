@@ -6,7 +6,7 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// 两态升降气缸外观：IsRaised=true 升起，false 收回。
+/// 两态升降气缸外观：IsRaised=true 升起，false 收回；IsUnknown=true（命令发了、到位信号还没亮）停在行程中间并一直高亮。
 /// 原点在底座底面中心，沿 +Y 伸出；尺寸、行程和过渡时间均为内部示意参数。
 /// </summary>
 public sealed class LiftVisual3D : HardwareVisual3D
@@ -38,7 +38,18 @@ public sealed class LiftVisual3D : HardwareVisual3D
 
     public static readonly DependencyProperty IsRaisedProperty = DependencyProperty.Register(
         nameof(IsRaised), typeof(bool), typeof(LiftVisual3D),
-        new PropertyMetadata(false, OnIsRaisedChanged));
+        new PropertyMetadata(false, OnTargetChanged));
+
+    /// <summary>位置未知：画到行程中间并一直高亮，到位（变回 false）后再走到 IsRaised 那一头。</summary>
+    public bool IsUnknown
+    {
+        get => (bool)GetValue(IsUnknownProperty);
+        set => SetValue(IsUnknownProperty, value);
+    }
+
+    public static readonly DependencyProperty IsUnknownProperty = DependencyProperty.Register(
+        nameof(IsUnknown), typeof(bool), typeof(LiftVisual3D),
+        new PropertyMetadata(false, OnTargetChanged));
 
     // 仅供内部动画使用，外部不需要提供连续位置或行程。
     private static readonly DependencyProperty ProgressProperty = DependencyProperty.Register(
@@ -53,8 +64,11 @@ public sealed class LiftVisual3D : HardwareVisual3D
     /// <summary>安装面当前的局部 Y 坐标（含动画），用于组装；不包含外部 Transform。</summary>
     public double MountHeight => (double)GetValue(MountHeightProperty);
 
-    private static void OnIsRaisedChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((LiftVisual3D)sender).TransitionTo((bool)args.NewValue ? 1 : 0);
+    private static void OnTargetChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
+        ((LiftVisual3D)sender).TransitionTo(((LiftVisual3D)sender).TargetProgress);
+
+    /// <summary>该画到的进度：未知在中间，否则升起 1、收回 0。</summary>
+    private double TargetProgress => IsUnknown ? UnknownProgress : IsRaised ? 1 : 0;
 
     private static void OnProgressChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
         ((LiftVisual3D)sender).UpdatePosition();
@@ -65,10 +79,10 @@ public sealed class LiftVisual3D : HardwareVisual3D
         double current = (double)GetValue(ProgressProperty);
         if (VisualTreeHelper.GetParent(this) is null || Math.Abs(target - current) < 0.000001)
         {
-            // 装入场景前直接呈现初始状态，避免初始 true 先显示为下位。
+            // 装入场景前直接呈现初始状态，避免初始 true 先显示为下位；未知一直高亮。
             SetValue(ProgressProperty, target);
             BeginAnimation(ProgressProperty, null);
-            SetVisualActive(false);
+            SetVisualActive(IsUnknown);
             return;
         }
 
@@ -87,7 +101,7 @@ public sealed class LiftVisual3D : HardwareVisual3D
 
             SetValue(ProgressProperty, target);
             BeginAnimation(ProgressProperty, null);
-            SetVisualActive(false);
+            SetVisualActive(IsUnknown);
         };
         SetVisualActive(true);
         BeginAnimation(ProgressProperty, animation, HandoffBehavior.SnapshotAndReplace);

@@ -17,9 +17,9 @@ namespace xyz.Client.Presentation.Controls
 
         private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
-            bool hasWafer = Data != null;
-            bool showCreate = !hasWafer && CreateCommand != null;
-            bool showDelete = hasWafer && DeleteCommand != null;
+            bool hasWafer = Data is not null;
+            bool showCreate = !hasWafer && CreateCommand is not null;
+            bool showDelete = hasWafer && DeleteCommand is not null;
 
             if (!showCreate && !showDelete)
             {

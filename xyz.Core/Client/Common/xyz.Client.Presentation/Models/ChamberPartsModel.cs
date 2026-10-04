@@ -1,16 +1,23 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
 
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 腔体部件的显示模型：腔体三维图和手动页的部件按钮都绑它，内容来自后端的部件状态推送（按 sc.xml 结构生成）。
-/// 推送来了就地刷新；部件组成（sc 里配了哪些部件）变了才重建摆臂和按钮组，并把 Revision 加一，三维图据此重搭。
+/// 腔体三维图的部件显示模型：内容来自后端的部件推送（ModulePartsDto，按 sc.xml 结构生成的通用部件 + 实时数据）。
+/// 推送里不分门、Bowl、摆臂，这里按 sc 的结构认出三维图要画的：腔体下名叫 Door 的气缸是门、名字以 Bowl 开头的第一个气缸是 Bowl、
+/// 第一个旋转电机是卡盘、每条摆臂（它下面第一个气缸是 Lift，下面的阀按 sc 里的先后是喷嘴）。sc 里没配的就不画。
+/// 推送来了就地刷新；部件组成变了才重建摆臂，并把 Revision 加一，三维图据此重搭。
 /// </summary>
 public class ChamberPartsModel : ObservableObject
 {
+    /// <summary>sc.xml 里腔门的节点名：门和 Bowl 都是气缸，只能按名字认。</summary>
+    private const string DoorName = "Door";
+
+    /// <summary>sc.xml 里 Bowl 节点名的开头：现在只配一层叫 Bowl1；以后加层（Bowl2……）三维图也只画第一个。</summary>
+    private const string BowlPrefix = "Bowl";
+
     private string _module = string.Empty;
 
     /// <summary>腔体模块名，如 "Chamber1"；还没收到推送时为空。</summary>
@@ -28,9 +35,6 @@ public class ChamberPartsModel : ObservableObject
     /// <summary>各条摆臂，按 sc.xml 里的先后。</summary>
     public ObservableCollection<ChamberArmModel> Arms { get; } = [];
 
-    /// <summary>部件操作区的按钮组：门、Bowl、旋转电机，再每条摆臂、它的 Lift、它的每路喷嘴各一组。</summary>
-    public ObservableCollection<ChamberPartGroup> Groups { get; } = [];
-
     private int _revision;
 
     /// <summary>部件组成的版本：第一次收到推送、或者 sc 里配的部件变了就加一。</summary>
@@ -41,44 +45,45 @@ public class ChamberPartsModel : ObservableObject
     }
 
     /// <summary>
-    /// 用推送就地刷新（界面线程调用）：部件组成没变只改状态，变了重建摆臂和按钮组。
+    /// 用推送就地刷新（界面线程调用）：部件组成没变只改状态，变了重建摆臂。
     /// </summary>
-    public void Update(ChamberPartsDto dto)
+    public void Update(ModulePartsDto dto)
     {
-        bool rebuild = Revision == 0 || !SameStructure(dto);
-        _module = dto.Name;
-        Door.Update(dto.Door);
-        Bowl.Update(dto.Bowl);
-        Spin.Update(dto.Spin);
+        var layout = Layout.Of(dto);
+        bool rebuild = Revision == 0 || !SameStructure(dto.Module, layout);
+        _module = dto.Module;
+        Door.Update(layout.Door);
+        Bowl.Update(layout.Bowl);
+        Spin.Update(layout.Spin);
         if (!rebuild)
         {
             for (int i = 0; i < Arms.Count; i++)
             {
-                Arms[i].Update(dto.Arms[i]);
+                var arm = layout.Arms[i];
+                Arms[i].Update(arm.Arm, arm.Lift, arm.Nozzles);
             }
 
             return;
         }
 
         Arms.Clear();
-        foreach (var arm in dto.Arms)
+        foreach (var arm in layout.Arms)
         {
-            Arms.Add(new ChamberArmModel(arm));
+            Arms.Add(new ChamberArmModel(arm.Arm, arm.Lift, arm.Nozzles));
         }
 
-        RebuildGroups();
         Revision++;
     }
 
     /// <summary>部件组成是否跟现在一样：看腔体名、各部件有没有、路径，摆臂的 Lift 和喷嘴。</summary>
-    private bool SameStructure(ChamberPartsDto dto)
+    private bool SameStructure(string module, Layout layout)
     {
-        if (dto.Name != _module
-            || !SamePart(Door, dto.Door)
-            || !SamePart(Bowl, dto.Bowl)
-            || Spin.IsPresent != (dto.Spin is not null)
-            || Spin.Path != (dto.Spin?.Path ?? string.Empty)
-            || Arms.Count != dto.Arms.Count)
+        if (module != _module
+            || !SamePart(Door, layout.Door)
+            || !SamePart(Bowl, layout.Bowl)
+            || Spin.IsPresent != (layout.Spin is not null)
+            || Spin.Path != (layout.Spin?.Path ?? string.Empty)
+            || Arms.Count != layout.Arms.Count)
         {
             return false;
         }
@@ -86,8 +91,8 @@ public class ChamberPartsModel : ObservableObject
         for (int i = 0; i < Arms.Count; i++)
         {
             var arm = Arms[i];
-            var next = dto.Arms[i];
-            if (arm.Path != next.Path || !SamePart(arm.Lift, next.Lift) || arm.Nozzles.Count != next.Nozzles.Count)
+            var next = layout.Arms[i];
+            if (arm.Path != next.Arm.Path || !SamePart(arm.Lift, next.Lift) || arm.Nozzles.Count != next.Nozzles.Count)
             {
                 return false;
             }
@@ -104,7 +109,7 @@ public class ChamberPartsModel : ObservableObject
         return true;
     }
 
-    private static bool SamePart(ChamberCylinderModel model, ChamberCylinderDto? dto)
+    private static bool SamePart(ChamberCylinderModel model, PartDto? dto)
     {
         if (dto is null)
         {
@@ -114,70 +119,54 @@ public class ChamberPartsModel : ObservableObject
         return model.IsPresent && model.Path == dto.Path;
     }
 
-    /// <summary>按现在的部件组成重建按钮组；按钮上的字按当前语言取（换语言要重启客户端）。</summary>
-    private void RebuildGroups()
+    /// <summary>一条摆臂和装在它上面的 Lift、喷嘴。</summary>
+    private sealed record ArmLayout(PartDto Arm, PartDto? Lift, IReadOnlyList<PartDto> Nozzles);
+
+    /// <summary>从推送里认出来的三维图部件。</summary>
+    private sealed record Layout(PartDto? Door, PartDto? Bowl, PartDto? Spin, IReadOnlyList<ArmLayout> Arms)
     {
-        Groups.Clear();
-        if (Door.IsPresent)
+        public static Layout Of(ModulePartsDto dto)
         {
-            AddGroup(Door.Path,
-                (ChamberPartAction.Open, "chambermanual.part.open"),
-                (ChamberPartAction.Close, "chambermanual.part.close"));
-        }
-
-        if (Bowl.IsPresent)
-        {
-            AddGroup(Bowl.Path,
-                (ChamberPartAction.Open, "chambermanual.part.up"),
-                (ChamberPartAction.Close, "chambermanual.part.down"));
-        }
-
-        if (Spin.IsPresent)
-        {
-            AddGroup(Spin.Path,
-                (ChamberPartAction.Start, "chambermanual.part.spin"),
-                (ChamberPartAction.Stop, "chambermanual.part.stop"));
-        }
-
-        foreach (var arm in Arms)
-        {
-            AddGroup(arm.Path,
-                (ChamberPartAction.Home, "action.home"),
-                (ChamberPartAction.Center, "chambermanual.part.center"));
-            if (arm.Lift.IsPresent)
+            PartDto? door = null;
+            PartDto? bowl = null;
+            PartDto? spin = null;
+            var arms = new List<ArmLayout>();
+            foreach (var part in dto.Parts)
             {
-                AddGroup(arm.Lift.Path,
-                    (ChamberPartAction.Open, "chambermanual.part.up"),
-                    (ChamberPartAction.Close, "chambermanual.part.down"));
+                if (part.Kind == PartKinds.TwoState && IsDirectChild(dto.Module, part.Path))
+                {
+                    string name = part.Path[(dto.Module.Length + 1)..];
+                    if (door is null && string.Equals(name, DoorName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        door = part;
+                    }
+                    else if (bowl is null && name.StartsWith(BowlPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        bowl = part;
+                    }
+                }
+                else if (part.Type == PartKinds.SpinMotorType)
+                {
+                    spin ??= part;
+                }
+                else if (part.Type == PartKinds.ArmAxisType)
+                {
+                    string prefix = part.Path + ".";
+                    var below = dto.Parts.Where(item => item.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+                    arms.Add(new ArmLayout(part,
+                        below.FirstOrDefault(item => item.Kind == PartKinds.TwoState),
+                        below.Where(item => item.Kind == PartKinds.OneState).ToList()));
+                }
             }
 
-            foreach (var nozzle in arm.Nozzles)
-            {
-                AddGroup(nozzle.Path,
-                    (ChamberPartAction.On, "chambermanual.part.dispense"),
-                    (ChamberPartAction.Off, "chambermanual.part.stop_dispense"));
-            }
+            return new Layout(door, bowl, spin, arms);
         }
-    }
 
-    private void AddGroup(string path, params (ChamberPartAction Action, string TextKey)[] actions)
-    {
-        string title = RelativePath(path);
-        var items = actions
-            .Select(item => new ChamberPartActionItem(title, path, item.Action, L10n.Get(item.TextKey)))
-            .ToList();
-        Groups.Add(new ChamberPartGroup(title, items));
-    }
-
-    /// <summary>部件路径去掉前面的腔体名："Chamber1.Arm1.Lift" → "Arm1.Lift"，照 sc.xml 原样显示。</summary>
-    private string RelativePath(string path)
-    {
-        string prefix = _module + ".";
-        if (!string.IsNullOrEmpty(_module) && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        /// <summary>是不是腔体的直接子节点（"Chamber1.Door" 是，"Chamber1.Arm1.Lift" 不是）。</summary>
+        private static bool IsDirectChild(string module, string path)
         {
-            return path[prefix.Length..];
+            string prefix = module + ".";
+            return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && path.IndexOf('.', prefix.Length) < 0;
         }
-
-        return path;
     }
 }

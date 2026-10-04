@@ -29,7 +29,7 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
             new ClientMenu("Manual", "Manual.Robot", 2),
             .. chambers.Select((chamber, index) => new ClientMenu("Manual", $"Manual.{chamber}", index + 3, chamber)),
 
-            // 配方：流程配方（片在设备里怎么走）、工艺配方（片在一个腔里怎么做，页面还没做，先是占位页）
+            // 配方：流程配方（片在设备里怎么走）、工艺配方（片在一个腔里怎么做：每一步的时间、转速、摆臂出液）
             new ClientMenu("Recipe", "Recipe.Sequence", 1),
             new ClientMenu("Recipe", "Recipe.Process", 2),
 

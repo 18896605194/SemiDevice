@@ -27,13 +27,13 @@ namespace xyz.Client.Presentation.Controls
 
         private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
-            if (CreateCommand == null && DeleteCommand == null)
+            if (CreateCommand is null && DeleteCommand is null)
             {
                 e.Handled = true;
                 return;
             }
 
-            bool hasWafer = Data != null;
+            bool hasWafer = Data is not null;
             createMenuItem.Visibility = hasWafer ? Visibility.Collapsed : Visibility.Visible;
             deleteMenuItem.Visibility = hasWafer ? Visibility.Visible : Visibility.Collapsed;
         }

@@ -10,16 +10,19 @@ namespace xyz.Client.Presentation.Models;
 /// </summary>
 public class ChamberArmModel : ObservableObject
 {
-    public ChamberArmModel(ChamberArmDto dto)
+    /// <param name="arm">摆臂轴。</param>
+    /// <param name="lift">它下面的升降气缸；没配为 null。</param>
+    /// <param name="nozzles">它下面的喷嘴，按 sc.xml 里的先后。</param>
+    public ChamberArmModel(PartDto arm, PartDto? lift, IReadOnlyList<PartDto> nozzles)
     {
-        Path = dto.Path;
-        Nozzles = dto.Nozzles.Select(nozzle => new ChamberNozzleModel(nozzle)).ToList();
+        Path = arm.Path;
+        Nozzles = nozzles.Select(nozzle => new ChamberNozzleModel(nozzle)).ToList();
         foreach (var nozzle in Nozzles)
         {
             nozzle.PropertyChanged += OnNozzleChanged;
         }
 
-        Update(dto);
+        Update(arm, lift, nozzles);
     }
 
     /// <summary>组件全路径，如 "Chamber1.Arm1"。</summary>
@@ -33,7 +36,7 @@ public class ChamberArmModel : ObservableObject
 
     private double _reach;
 
-    /// <summary>摆到哪：0 = Home，1 = 工艺位（Wafer 中心），后端按轴位置和标定换算好的。</summary>
+    /// <summary>摆到哪：0 = Home，1 = 工艺位（Wafer 中心），后端按轴位置和示教位换算好的。</summary>
     public double Reach
     {
         get => _reach;
@@ -62,15 +65,15 @@ public class ChamberArmModel : ObservableObject
     public bool IsAnyNozzleOn => Nozzles.Any(nozzle => nozzle.IsOn);
 
     /// <summary>用推送就地刷新（界面线程调用）；调用方保证部件组成跟建这条臂时一样。</summary>
-    public void Update(ChamberArmDto dto)
+    public void Update(PartDto arm, PartDto? lift, IReadOnlyList<PartDto> nozzles)
     {
-        Reach = dto.Reach;
-        EdgeReach = dto.EdgeReach;
-        IsMoving = dto.IsMoving;
-        Lift.Update(dto.Lift);
+        Reach = arm.GetDouble(PartValueNames.Reach) ?? 0;
+        EdgeReach = arm.GetDouble(PartValueNames.EdgeReach) ?? 0;
+        IsMoving = arm.GetBool(PartValueNames.IsBusy);
+        Lift.Update(lift);
         for (int i = 0; i < Nozzles.Count; i++)
         {
-            Nozzles[i].Update(dto.Nozzles[i]);
+            Nozzles[i].Update(nozzles[i]);
         }
     }
 

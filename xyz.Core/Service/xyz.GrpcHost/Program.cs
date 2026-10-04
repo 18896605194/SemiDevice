@@ -117,6 +117,7 @@ public static class Program
         app.MapGrpcService<EcService>();
         app.MapGrpcService<WaferLedgerService>();
         app.MapGrpcService<SequenceService>();
+        app.MapGrpcService<ProcessRecipeService>();
         app.MapGrpcService<DataChartService>();
         app.MapGrpcService<RealChartService>();
 

@@ -5,7 +5,7 @@ using xyz.Client.Manual.ViewModels;
 namespace xyz.Client.Manual.Views;
 
 /// <summary>
-/// 腔体手动操作面板：三维图 + 部件操作 + 状态色条 + 参数框 + 工艺 / Home / Abort / Reset 按钮。
+/// 腔体手动操作面板：腔体视图（三维图）+ 轴页签（选中轴的状态 / 参数 / 按钮）+ 右栏腔体状态 / 工艺 / 整腔操作 / 气缸表。
 /// 通过 ModuleName 依赖属性实例化，每个腔体一个实例（Manual 下一个腔体一个子菜单）。
 /// </summary>
 public partial class ChamberManualControl : UserControl
@@ -43,5 +43,14 @@ public partial class ChamberManualControl : UserControl
         var viewModel = new ChamberManualViewModel(name);
         control.Root.DataContext = viewModel;
         viewModel.Init();
+    }
+
+    /// <summary>页签多到一排放不下时，切到的那个（按"&gt;"或推送里换了选中）滚进来。</summary>
+    private void OnAxisTabChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (AxisTabs.SelectedItem is not null)
+        {
+            AxisTabs.ScrollIntoView(AxisTabs.SelectedItem);
+        }
     }
 }

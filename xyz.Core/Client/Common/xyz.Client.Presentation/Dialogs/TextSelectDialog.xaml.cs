@@ -63,7 +63,7 @@ public partial class TextSelectDialog : Window
     private void UpdateOkButtonState()
     {
         var textOk = !_textRequired || !string.IsNullOrWhiteSpace(InputTextBox.Text);
-        var selectionOk = !_selectionRequired || SelectComboBox.SelectedItem != null;
+        var selectionOk = !_selectionRequired || SelectComboBox.SelectedItem is not null;
         OkButton.IsEnabled = textOk && selectionOk;
     }
 

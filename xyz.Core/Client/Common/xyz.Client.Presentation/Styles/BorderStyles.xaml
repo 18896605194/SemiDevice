@@ -102,6 +102,24 @@
         <Setter Property="Background" Value="{StaticResource DarkBorderBrush}" />
     </Style>
 
+    <!--  三维图下面的视角工具栏：靠左一条细框，按钮之间用 ToolbarSeparatorBorderStyle 竖线隔开  -->
+    <Style x:Key="SceneToolbarBorderStyle" TargetType="Border">
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Margin" Value="8,0,8,8" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+
+    <!--  工具栏里按钮之间的竖线  -->
+    <Style x:Key="ToolbarSeparatorBorderStyle" TargetType="Border">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="Margin" Value="2,6" />
+        <Setter Property="Background" Value="{StaticResource DarkBorderBrush}" />
+    </Style>
+
     <!--  查询结果小面板（如手动页轴位表）：浅底细边圆角，里面按"标签 / 数值"两列排  -->
     <Style x:Key="ReadoutBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />

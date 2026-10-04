@@ -10,6 +10,7 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// <summary>
 /// 薄壁 Bowl 外观。HeightLevel 选择三级侧壁高度，IsRaised 控制升降：底边一直贴着安装面，
 /// 升起时只把上沿抬高、直侧壁跟着拉长，侧壁始终连到底，不会悬空露缝。
+/// IsUnknown=true（命令发了、到位信号还没亮）上沿停在行程中间并一直高亮。
 /// 原点为底面中心，Y 向上；不包含晶圆、主轴和设备指令。
 /// </summary>
 public sealed class BowlVisual3D : HardwareVisual3D
@@ -57,7 +58,17 @@ public sealed class BowlVisual3D : HardwareVisual3D
     }
 
     public static readonly DependencyProperty IsRaisedProperty = DependencyProperty.Register(
-        nameof(IsRaised), typeof(bool), typeof(BowlVisual3D), new PropertyMetadata(false, OnRaisedChanged));
+        nameof(IsRaised), typeof(bool), typeof(BowlVisual3D), new PropertyMetadata(false, OnTargetChanged));
+
+    /// <summary>位置未知：上沿画到行程中间并一直高亮，到位（变回 false）后再走到 IsRaised 那一头。</summary>
+    public bool IsUnknown
+    {
+        get => (bool)GetValue(IsUnknownProperty);
+        set => SetValue(IsUnknownProperty, value);
+    }
+
+    public static readonly DependencyProperty IsUnknownProperty = DependencyProperty.Register(
+        nameof(IsUnknown), typeof(bool), typeof(BowlVisual3D), new PropertyMetadata(false, OnTargetChanged));
 
     private static readonly DependencyProperty ProgressProperty = DependencyProperty.Register(
         "Progress", typeof(double), typeof(BowlVisual3D), new PropertyMetadata(0d, OnProgressChanged));
@@ -68,8 +79,11 @@ public sealed class BowlVisual3D : HardwareVisual3D
     private static void OnGeometryChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
         ((BowlVisual3D)sender).RebuildGeometry();
 
-    private static void OnRaisedChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((BowlVisual3D)sender).TransitionTo((bool)args.NewValue ? 1 : 0);
+    private static void OnTargetChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
+        ((BowlVisual3D)sender).TransitionTo(((BowlVisual3D)sender).TargetProgress);
+
+    /// <summary>该画到的进度：未知在中间，否则升起 1、降下 0。</summary>
+    private double TargetProgress => IsUnknown ? UnknownProgress : IsRaised ? 1 : 0;
 
     private static void OnProgressChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
         ((BowlVisual3D)sender).UpdateWall();
@@ -79,7 +93,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
         if (!(bool)args.NewValue)
         {
             var bowl = (BowlVisual3D)sender;
-            bowl.FinishTransition(bowl.IsRaised ? 1 : 0);
+            bowl.FinishTransition(bowl.TargetProgress);
         }
     }
 
@@ -130,7 +144,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
         ++_transitionVersion;
         SetValue(ProgressProperty, target);
         BeginAnimation(ProgressProperty, null);
-        SetVisualActive(false);
+        SetVisualActive(IsUnknown);
     }
 
     private void RebuildGeometry()

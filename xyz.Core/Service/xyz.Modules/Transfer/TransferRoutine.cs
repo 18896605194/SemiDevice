@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using xyz.Common.Log;
 using xyz.Shared.Errors;
 
@@ -11,6 +12,15 @@ namespace xyz.Modules;
 /// </summary>
 public sealed class TransferRoutine : ModuleOperation<TransferStep>
 {
+    /// <summary>
+    /// 站点准备第 1 步（准备一：粗准备，排气、预热、机构到位）。出错时步号作为错误参数报给界面，
+    /// 界面按语言包写成"第 1 步"——不把中文阶段名当参数传，英文界面里才不会夹中文。
+    /// </summary>
+    private const int FirstPreparePhase = 1;
+
+    /// <summary>站点准备第 2 步（准备二：最终准备，开门、放行），做完站点进 TransferReady。</summary>
+    private const int SecondPreparePhase = 2;
+
     private readonly IRobot _robot;
     private readonly ITransferStation _source;
     private readonly ITransferStation _target;
@@ -63,15 +73,15 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.WaitPrepareSource:
-                WaitPrepare(_source, "准备一", TransferStep.PrepareSource2);
+                WaitPrepare(_source, FirstPreparePhase, TransferStep.PrepareSource2);
                 break;
 
             case TransferStep.PrepareSource2:
-                BeginPrepare(_source, _source.PrepareTransfer2(), "准备二", TransferStep.WaitPrepareSource2);
+                BeginPrepare(_source, _source.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareSource2);
                 break;
 
             case TransferStep.WaitPrepareSource2:
-                WaitPrepare(_source, "准备二", TransferStep.Pick);
+                WaitPrepare(_source, SecondPreparePhase, TransferStep.Pick);
                 break;
 
             case TransferStep.Pick:
@@ -89,15 +99,15 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.WaitPrepareTarget:
-                WaitPrepare(_target, "准备一", TransferStep.PrepareTarget2);
+                WaitPrepare(_target, FirstPreparePhase, TransferStep.PrepareTarget2);
                 break;
 
             case TransferStep.PrepareTarget2:
-                BeginPrepare(_target, _target.PrepareTransfer2(), "准备二", TransferStep.WaitPrepareTarget2);
+                BeginPrepare(_target, _target.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareTarget2);
                 break;
 
             case TransferStep.WaitPrepareTarget2:
-                WaitPrepare(_target, "准备二", TransferStep.Place);
+                WaitPrepare(_target, SecondPreparePhase, TransferStep.Place);
                 break;
 
             case TransferStep.Place:
@@ -134,7 +144,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             Fail(ErrorCodes.StationBusy,
                 $"{station.Name} 等不到可服务（{_stationWaitTimeout}ms）",
                 station.Name,
-                _stationWaitTimeout.ToString());
+                _stationWaitTimeout.ToString(CultureInfo.InvariantCulture));
         }
     }
 
@@ -142,11 +152,14 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// 发一步准备。进了环之后（准备二及以后）被拒就是真故障：环是把锁，我们已经占住了，
     /// 这时候还被拒说明站点状态被人从旁边动过。
     /// </summary>
-    private void BeginPrepare(ITransferStation station, ModuleOperation? operation, string phase, TransferStep next)
+    private void BeginPrepare(ITransferStation station, ModuleOperation? operation, int phase, TransferStep next)
     {
         if (operation is null)
         {
-            Fail(ErrorCodes.StationPrepareRejected, $"{station.Name} {phase}被拒", station.Name, phase);
+            Fail(ErrorCodes.StationPrepareRejected,
+                $"{station.Name} 第 {phase} 步准备被拒",
+                station.Name,
+                phase.ToString(CultureInfo.InvariantCulture));
             return;
         }
 
@@ -157,7 +170,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// <summary>
     /// 等一步准备做完。
     /// </summary>
-    private void WaitPrepare(ITransferStation station, string phase, TransferStep next)
+    private void WaitPrepare(ITransferStation station, int phase, TransferStep next)
     {
         var operation = _current;
         if (operation is null || !operation.IsTerminal)
@@ -170,9 +183,9 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         if (!operation.IsSuccess)
         {
             Fail(ErrorCodes.StationPrepareFailed,
-                $"{station.Name} {phase}失败：{operation.Reason}",
+                $"{station.Name} 第 {phase} 步准备失败：{operation.Reason}",
                 station.Name,
-                phase);
+                phase.ToString(CultureInfo.InvariantCulture));
             return;
         }
 

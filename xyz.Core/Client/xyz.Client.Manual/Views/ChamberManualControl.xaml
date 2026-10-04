@@ -5,7 +5,9 @@
              xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
              xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation">
 
-    <!--  一个腔体一整张卡：左边三维图 + 部件操作，右栏腔体状态 + 工艺 + Home / Abort / Reset，中间一条细线（整体一块，不拆成多张卡）  -->
+    <!--  一个腔体一整张卡：左边 腔体视图（三维图 + 视角工具栏）→ 轴页签 → 选中轴的状态 / 参数 / 按钮；
+         右栏 腔体状态 → 工艺 → 整腔操作 → 气缸表，中间一条细线（整体一块，不拆成多张卡）。
+         轴页签、气缸表都照 sc.xml 生成（后端部件推送），sc 里加了轴、气缸自动多一个页签、一行  -->
     <!--  DataContext 由代码后置设在这个根节点上（不设控件自身的 DataContext，避免模板绑定二次求值）  -->
     <materialDesign:Card
         x:Name="Root"
@@ -14,17 +16,26 @@
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="420" />
             </Grid.ColumnDefinitions>
 
-            <!--  ① 左：腔体三维图（部件按 sc.xml 搭、状态跟推送走，盘上的片来自晶圆账）+ 部件操作  -->
+            <!--  ① 左：腔体视图 + 轴  -->
             <Grid Grid.Column="0" Margin="14">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <TextBlock
+                    Margin="0,0,0,8"
+                    Style="{DynamicResource PanelTitleTextStyle}"
+                    Text="{DynamicResource chambermanual.view}" />
+
+                <!--  三维图：部件按 sc.xml 搭、状态跟部件推送走，盘上的片来自晶圆账；视角工具栏在图下面  -->
                 <Border
+                    Grid.Row="1"
                     Background="{DynamicResource DarkControlBackground}"
                     BorderBrush="{DynamicResource DarkBorderBrush}"
                     BorderThickness="1"
@@ -32,169 +43,458 @@
                     <threeD:ChamberScene Parts="{Binding Parts}" Wafer="{Binding Model.Wafer}" />
                 </Border>
 
-                <!--  部件操作（一块，带标题条）：sc 里配了哪些部件就有哪些组，组名照 sc 路径、正文字号；一个动作在途时所有部件按钮都不可用  -->
+                <!--  轴页签：一根轴一个（照 sc 的先后，名字照 sc），右边"&gt;"切下一根  -->
                 <Border
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Margin="0,12,0,0"
-                    Style="{DynamicResource ZoneBorderStyle}">
-                    <DockPanel>
-                        <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
-                            <StackPanel Orientation="Horizontal">
-                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
-                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource chambermanual.parts}" />
-                            </StackPanel>
-                        </Border>
-                        <ItemsControl Margin="12,12,2,2" ItemsSource="{Binding Parts.Groups}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
+                    BorderBrush="{DynamicResource DarkBorderBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ListBox
+                            x:Name="AxisTabs"
+                            ItemContainerStyle="{DynamicResource UnderlineTabListBoxItemStyle}"
+                            ItemsSource="{Binding Axes}"
+                            SelectedItem="{Binding SelectedAxis}"
+                            SelectionChanged="OnAxisTabChanged"
+                            Style="{DynamicResource UnderlineTabListBoxStyle}">
+                            <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Margin="0,0,10,10" Style="{DynamicResource ReadoutBorderStyle}">
-                                        <StackPanel>
-                                            <TextBlock
-                                                Margin="3,0,0,4"
-                                                FontSize="{DynamicResource Size14}"
-                                                Foreground="{DynamicResource DarkPrimaryText}"
-                                                Text="{Binding Title}" />
-                                            <ItemsControl ItemsSource="{Binding Actions}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <StackPanel Orientation="Horizontal" />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button
-                                                            MinWidth="72"
-                                                            Command="{Binding DataContext.PartActionCommand, ElementName=Root}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="{Binding Text}"
-                                                            Style="{DynamicResource CompactButtonStyle}" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Border>
+                                    <TextBlock Text="{Binding Name}" />
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </DockPanel>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button
+                            Grid.Column="1"
+                            Command="{Binding NextAxisCommand}"
+                            Style="{DynamicResource SceneToolButtonStyle}"
+                            ToolTip="{DynamicResource chambermanual.axis.next}">
+                            <materialDesign:PackIcon Kind="ChevronRight" />
+                        </Button>
+                    </Grid>
                 </Border>
-            </Grid>
 
-            <!--  ② 右栏：模块名 + 状态色条 → 参数框（启用 / 模式 / 报错 / 当前配方）→ 工艺（配方 · 选择 · Start）→ Home / Abort / Reset  -->
-            <Border
-                Grid.Column="1"
-                BorderBrush="{DynamicResource DarkBorderBrush}"
-                BorderThickness="1,0,0,0">
-                <StackPanel>
+                <!--  选中轴：状态（位置 / 速度 + 五盏灯）| 参数（目标位置 / 移动速度 / 点动速度 / 步距）| 两行四列按钮。
+                     宽屏上三块并排一行、各自按内容宽，按钮和输入框都是固定的正常尺寸，不拉满（用户："很浪费，按钮都好大"）  -->
+                <Grid
+                    Grid.Row="3"
+                    Margin="0,10,0,0"
+                    DataContext="{Binding SelectedAxis}">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                    <!--  模块名  -->
-                    <TextBlock
-                        Margin="14,12,14,0"
-                        FontSize="{DynamicResource Size22}"
-                        FontWeight="Bold"
-                        Foreground="{DynamicResource DarkPrimaryText}"
-                        Text="{Binding ModuleName}" />
+                    <!--  状态：位置、速度一行；伺服就绪 / 已回零 / 运动中 / 已到位亮绿，故障亮红  -->
+                    <Border
+                        Margin="0,0,10,0"
+                        Padding="14,8"
+                        Style="{DynamicResource ReadoutBorderStyle}">
+                        <StackPanel VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    FontSize="{DynamicResource Size14}"
+                                    Foreground="{DynamicResource DarkSecondaryText}"
+                                    Text="{DynamicResource chambermanual.axis.position}" />
+                                <TextBlock
+                                    MinWidth="80"
+                                    Margin="10,0,24,0"
+                                    FontSize="{DynamicResource Size14}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                    Text="{Binding PositionText}"
+                                    Typography.NumeralAlignment="Tabular" />
+                                <TextBlock
+                                    FontSize="{DynamicResource Size14}"
+                                    Foreground="{DynamicResource DarkSecondaryText}"
+                                    Text="{DynamicResource chambermanual.axis.speed}" />
+                                <TextBlock
+                                    Margin="10,0,0,0"
+                                    FontSize="{DynamicResource Size14}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                    Text="{Binding SpeedText}"
+                                    Typography.NumeralAlignment="Tabular" />
+                            </StackPanel>
+                            <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                                <StackPanel Margin="0,0,18,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size14}"
+                                        Foreground="{DynamicResource DarkSecondaryText}"
+                                        Text="{DynamicResource chambermanual.axis.servo}" />
+                                    <Ellipse
+                                        Width="12"
+                                        Height="12"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsServoOn}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,18,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size14}"
+                                        Foreground="{DynamicResource DarkSecondaryText}"
+                                        Text="{DynamicResource chambermanual.axis.homed}" />
+                                    <Ellipse
+                                        Width="12"
+                                        Height="12"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHomed}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,18,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size14}"
+                                        Foreground="{DynamicResource DarkSecondaryText}"
+                                        Text="{DynamicResource chambermanual.axis.busy}" />
+                                    <Ellipse
+                                        Width="12"
+                                        Height="12"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,18,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size14}"
+                                        Foreground="{DynamicResource DarkSecondaryText}"
+                                        Text="{DynamicResource chambermanual.axis.in_position}" />
+                                    <Ellipse
+                                        Width="12"
+                                        Height="12"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsInPosition}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="{DynamicResource Size14}"
+                                        Foreground="{DynamicResource DarkSecondaryText}"
+                                        Text="{DynamicResource chambermanual.axis.error}" />
+                                    <Ellipse
+                                        Width="12"
+                                        Height="12"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
-                    <!--  状态徽标：一眼看出腔体能不能用  -->
-                    <presentationControls:ModuleStateBadge
-                        Margin="14,8,14,0"
-                        Text="{Binding Model.StateText}"
-                        Tone="{Binding Model.StateTone}" />
-
-                    <!--  参数框：启用 / 模式 / 报错 一行一盏灯（模式行带 Online / Offline 小按钮，报错行写报错内容），当前配方显示配方名  -->
-                    <Border Margin="14,10,14,0" Style="{DynamicResource ReadoutBorderStyle}">
-                        <Grid>
+                    <!--  参数：两行两对，输入框固定宽；速度和步距的默认值、上下限取这根轴的 EC  -->
+                    <Border
+                        Grid.Column="1"
+                        Margin="0,0,10,0"
+                        Padding="14,8"
+                        Style="{DynamicResource ReadoutBorderStyle}">
+                        <Grid VerticalAlignment="Center">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource chambermanual.axis.target}" />
+                            <presentationControls:InputTextBox
+                                Grid.Column="1"
+                                Width="100"
+                                Margin="8,0,20,0"
+                                materialDesign:ValidationAssist.UsePopup="True"
+                                DataType="Decimal"
+                                Style="{DynamicResource CompactTextBoxStyle}"
+                                Value="{Binding TargetPosition}" />
+                            <TextBlock
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource chambermanual.axis.move_speed}" />
+                            <presentationControls:InputTextBox
+                                Grid.Column="3"
+                                Width="100"
+                                Margin="8,0,0,0"
+                                materialDesign:ValidationAssist.UsePopup="True"
+                                EcKey="{Binding MoveSpeedEcKey}"
+                                Style="{DynamicResource CompactTextBoxStyle}"
+                                Value="{Binding MoveSpeed}" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Margin="0,10,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource chambermanual.axis.jog_speed}" />
+                            <presentationControls:InputTextBox
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Width="100"
+                                Margin="8,10,20,0"
+                                materialDesign:ValidationAssist.UsePopup="True"
+                                EcKey="{Binding JogSpeedEcKey}"
+                                Style="{DynamicResource CompactTextBoxStyle}"
+                                Value="{Binding JogSpeed}" />
+                            <TextBlock
+                                Grid.Row="1"
+                                Grid.Column="2"
+                                Margin="0,10,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}"
+                                Text="{DynamicResource chambermanual.axis.step}" />
+                            <presentationControls:InputTextBox
+                                Grid.Row="1"
+                                Grid.Column="3"
+                                Width="100"
+                                Margin="8,10,0,0"
+                                materialDesign:ValidationAssist.UsePopup="True"
+                                EcKey="{Binding JogStepEcKey}"
+                                Style="{DynamicResource CompactTextBoxStyle}"
+                                Value="{Binding JogStep}" />
+                        </Grid>
+                    </Border>
+
+                    <!--  按钮：两行四列，同宽同高（固定的正常尺寸）；中止停这根轴（红色），点动按住走、松开停，步进一下走一个步距  -->
+                    <Border
+                        Grid.Column="2"
+                        Padding="6"
+                        Style="{DynamicResource ReadoutBorderStyle}">
+                        <UniformGrid
+                            VerticalAlignment="Center"
+                            Columns="4"
+                            Rows="2">
+                            <Button
+                                MinWidth="88"
+                                Command="{Binding DataContext.AxisHomeCommand, ElementName=Root}"
+                                Content="{DynamicResource action.home}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <Button
+                                MinWidth="88"
+                                Command="{Binding DataContext.AxisMoveCommand, ElementName=Root}"
+                                Content="{DynamicResource chambermanual.axis.move}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <Button
+                                MinWidth="88"
+                                Command="{Binding DataContext.AxisStopCommand, ElementName=Root}"
+                                Content="{DynamicResource action.abort}"
+                                Style="{DynamicResource CompactDangerButtonStyle}" />
+                            <Button
+                                MinWidth="88"
+                                Command="{Binding DataContext.AxisResetCommand, ElementName=Root}"
+                                Content="{DynamicResource action.reset}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <presentationControls:HoldButton
+                                MinWidth="88"
+                                CommandParameter="1"
+                                Content="{DynamicResource chambermanual.axis.jog_plus}"
+                                PressCommand="{Binding DataContext.JogPressCommand, ElementName=Root}"
+                                ReleaseCommand="{Binding DataContext.JogReleaseCommand, ElementName=Root}"
+                                RenewCommand="{Binding DataContext.JogRenewCommand, ElementName=Root}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <presentationControls:HoldButton
+                                MinWidth="88"
+                                CommandParameter="-1"
+                                Content="{DynamicResource chambermanual.axis.jog_minus}"
+                                PressCommand="{Binding DataContext.JogPressCommand, ElementName=Root}"
+                                ReleaseCommand="{Binding DataContext.JogReleaseCommand, ElementName=Root}"
+                                RenewCommand="{Binding DataContext.JogRenewCommand, ElementName=Root}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <Button
+                                MinWidth="88"
+                                Command="{Binding DataContext.AxisStepCommand, ElementName=Root}"
+                                CommandParameter="1"
+                                Content="{DynamicResource chambermanual.axis.step_plus}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <Button
+                                MinWidth="88"
+                                Command="{Binding DataContext.AxisStepCommand, ElementName=Root}"
+                                CommandParameter="-1"
+                                Content="{DynamicResource chambermanual.axis.step_minus}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                        </UniformGrid>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!--  ② 右栏：腔体名 + 状态色条 → 启用 / 模式 / 报错 / 当前配方 → 工艺 → 整腔操作 → 气缸表；放不下时右栏自己滚  -->
+            <Border
+                Grid.Column="1"
+                BorderBrush="{DynamicResource DarkBorderBrush}"
+                BorderThickness="1,0,0,0">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14,12,14,14" Grid.IsSharedSizeScope="True">
+
+                        <!--  腔体名  -->
+                        <TextBlock
+                            FontSize="{DynamicResource Size22}"
+                            FontWeight="Bold"
+                            Foreground="{DynamicResource DarkPrimaryText}"
+                            Text="{Binding ModuleName}" />
+
+                        <!--  状态徽标：一眼看出腔体能不能用  -->
+                        <presentationControls:ModuleStateBadge
+                            Margin="0,8,0,0"
+                            Text="{Binding Model.StateText}"
+                            Tone="{Binding Model.StateTone}" />
+
+                        <!--  启用 / 模式（带上线、下线按钮）/ 报错 / 当前配方：左边名字、右边值  -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" MinWidth="80" SharedSizeGroup="Label" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="34" />
+                                <RowDefinition Height="34" />
+                                <RowDefinition Height="34" />
+                                <RowDefinition Height="34" />
                             </Grid.RowDefinitions>
 
                             <!--  启用：sc.xml 的 IsEnable，停用时动作一律发不出去  -->
                             <TextBlock
-                                Grid.Row="0"
-                                Margin="0,4"
+                                Margin="0,0,16,0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource chambermanual.enable}"
                                 ToolTip="{DynamicResource chambermanual.enable_tip}" />
-                            <Ellipse
-                                Grid.Row="0"
-                                Grid.Column="2"
-                                Width="12"
-                                Height="12"
-                                VerticalAlignment="Center">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkPrimaryText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{DynamicResource chambermanual.disabled}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Model.IsEnable}" Value="True">
-                                                <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                <Setter Property="Text" Value="{DynamicResource chambermanual.enabled}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
+                                </TextBlock.Style>
+                            </TextBlock>
 
-                            <!--  模式：上线 / 下线的小按钮 + 灯（Online 亮）  -->
+                            <!--  模式：当前模式 + 上线 / 下线按钮（只改 Mode，不经设备）  -->
                             <TextBlock
                                 Grid.Row="1"
-                                Margin="0,4"
+                                Margin="0,0,16,0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource chambermanual.mode}"
                                 ToolTip="{DynamicResource chambermanual.mode_tip}" />
-                            <StackPanel
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Margin="0,0,8,0"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal">
-                                <Button
-                                    Command="{Binding OnlineCommand}"
-                                    Content="{DynamicResource action.online}"
-                                    Style="{DynamicResource MiniButtonStyle}" />
-                                <Button
-                                    Command="{Binding OfflineCommand}"
-                                    Content="{DynamicResource action.offline}"
-                                    Style="{DynamicResource MiniButtonStyle}" />
-                            </StackPanel>
-                            <Ellipse
-                                Grid.Row="1"
-                                Grid.Column="2"
-                                Width="12"
-                                Height="12"
-                                VerticalAlignment="Center">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Model.IsOnline}" Value="True">
-                                                <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
+                            <DockPanel Grid.Row="1" Grid.Column="1">
+                                <StackPanel
+                                    VerticalAlignment="Center"
+                                    DockPanel.Dock="Right"
+                                    Orientation="Horizontal">
+                                    <Button
+                                        Command="{Binding OnlineCommand}"
+                                        Content="{DynamicResource action.online}"
+                                        Style="{DynamicResource MiniButtonStyle}" />
+                                    <Button
+                                        Command="{Binding OfflineCommand}"
+                                        Content="{DynamicResource action.offline}"
+                                        Style="{DynamicResource MiniButtonStyle}" />
+                                </StackPanel>
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="{DynamicResource Size14}"
+                                    Foreground="{DynamicResource DarkPrimaryText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{DynamicResource action.offline}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Model.IsOnline}" Value="True">
+                                                    <Setter Property="Text" Value="{DynamicResource action.online}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DockPanel>
 
-                            <!--  报错：有报错灯亮，报错内容（错误码#内容）写在灯左边  -->
+                            <!--  报错：没有写"无"，有就写报错内容（错误码#内容），红字  -->
                             <TextBlock
                                 Grid.Row="2"
-                                Margin="0,4"
+                                Margin="0,0,16,0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
@@ -203,37 +503,28 @@
                             <TextBlock
                                 Grid.Row="2"
                                 Grid.Column="1"
-                                Margin="12,0,8,0"
-                                HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
-                                FontFamily="Consolas"
-                                FontSize="{DynamicResource Size13}"
-                                Foreground="{DynamicResource DarkPrimaryText}"
-                                Text="{Binding Model.DeviceError}"
-                                TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding Model.DeviceError}" />
-                            <Ellipse
-                                Grid.Row="2"
-                                Grid.Column="2"
-                                Width="12"
-                                Height="12"
-                                VerticalAlignment="Center">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="{DynamicResource DarkInactiveStatus}" />
+                                FontSize="{DynamicResource Size14}"
+                                TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{DynamicResource chambermanual.no_error}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Model.HasDeviceError}" Value="True">
-                                                <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
+                                                <Setter Property="Text" Value="{Binding Model.DeviceError}" />
+                                                <Setter Property="ToolTip" Value="{Binding Model.DeviceError}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource DarkAlarmStatus}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
+                                </TextBlock.Style>
+                            </TextBlock>
 
                             <!--  当前配方：最近一次起的工艺  -->
                             <TextBlock
                                 Grid.Row="3"
-                                Margin="0,4"
+                                Margin="0,0,16,0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
@@ -241,84 +532,160 @@
                             <TextBlock
                                 Grid.Row="3"
                                 Grid.Column="1"
-                                Grid.ColumnSpan="2"
-                                Margin="12,0,0,0"
-                                HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
-                                FontWeight="SemiBold"
                                 Foreground="{DynamicResource DarkPrimaryText}"
                                 Text="{Binding Model.RecipeText}"
                                 TextTrimming="CharacterEllipsis"
                                 ToolTip="{Binding Model.RecipeText}" />
                         </Grid>
-                    </Border>
 
-                    <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
+                        <Border Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                    <!--  工艺：配方框 → 选择（配方库做好之前先不可用，配方名手填）→ Start（按配方起工艺，只在空闲时允许，做完才回包；要停按 Abort）  -->
-                    <StackPanel Margin="14,0,14,0">
-                        <TextBlock
-                            FontSize="{DynamicResource Size13}"
-                            Foreground="{DynamicResource DarkDisabledText}"
-                            Text="{DynamicResource chambermanual.process}" />
-
-                        <Grid Margin="0,6,0,0">
+                        <!--  工艺：配方框（点"…"从工艺配方库里选；后端没装库时手填）→ Start（按配方起工艺，只在空闲时允许，做完才回包；要停按 Abort）  -->
+                        <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.process}" />
+                        <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44" />
+                                <ColumnDefinition Width="Auto" MinWidth="80" SharedSizeGroup="Label" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock
+                                Margin="0,0,16,0"
                                 VerticalAlignment="Center"
-                                FontSize="{DynamicResource Size13}"
+                                FontSize="{DynamicResource Size14}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource chambermanual.recipe}" />
-                            <presentationControls:InputTextBox
+                            <presentationControls:PickerBox
                                 Grid.Column="1"
-                                DataType="Text"
-                                Style="{DynamicResource CompactTextBoxStyle}"
-                                Value="{Binding Recipe}" />
+                                IsEditable="{Binding CanTypeRecipe}"
+                                ItemsSource="{Binding ProcessRecipes}"
+                                PickerTitle="{DynamicResource chambermanual.pick_recipe}"
+                                Placeholder="{DynamicResource chambermanual.recipe_hint}"
+                                Style="{DynamicResource CompactPickerBoxStyle}"
+                                Value="{Binding Recipe}">
+                                <presentationControls:PickerBox.Columns>
+                                    <presentationControls:PickerColumn
+                                        HeaderKey="recipe.process.index"
+                                        Path="No"
+                                        Width="80" />
+                                    <presentationControls:PickerColumn
+                                        HeaderKey="recipe.process.name"
+                                        Path="Name"
+                                        Width="220" />
+                                    <presentationControls:PickerColumn HeaderKey="recipe.process.description" Path="Description" />
+                                    <presentationControls:PickerColumn
+                                        HeaderKey="recipe.process.duration"
+                                        Path="DurationText"
+                                        Width="110" />
+                                </presentationControls:PickerBox.Columns>
+                            </presentationControls:PickerBox>
                             <Button
                                 Grid.Column="2"
                                 Height="28"
-                                MinWidth="56"
-                                Margin="6,0,0,0"
-                                Content="{DynamicResource action.select}"
-                                IsEnabled="False"
-                                Style="{DynamicResource CompactButtonStyle}"
-                                ToolTip="{DynamicResource chambermanual.select_tip}"
-                                ToolTipService.ShowOnDisabled="True" />
-                            <Button
-                                Grid.Column="3"
-                                Height="28"
-                                MinWidth="56"
-                                Margin="6,0,0,0"
+                                MinWidth="60"
+                                Margin="8,0,0,0"
                                 Command="{Binding ProcessCommand}"
                                 Content="{DynamicResource action.start}"
                                 Style="{DynamicResource CompactSuccessButtonStyle}" />
                         </Grid>
+
+                        <Border Style="{DynamicResource SectionDividerBorderStyle}" />
+
+                        <!--  整腔操作：Home / Abort / Reset，Abort 是急停，用红色  -->
+                        <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.whole}" />
+                        <UniformGrid Margin="-3,8,-3,0" Columns="3">
+                            <Button
+                                Command="{Binding HomeCommand}"
+                                Content="{DynamicResource action.home}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                            <Button
+                                Command="{Binding AbortCommand}"
+                                Content="{DynamicResource action.abort}"
+                                Style="{DynamicResource CompactDangerButtonStyle}" />
+                            <Button
+                                Command="{Binding ResetCommand}"
+                                Content="{DynamicResource action.reset}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                        </UniformGrid>
+
+                        <Border Style="{DynamicResource SectionDividerBorderStyle}" />
+
+                        <!--  气缸：sc 里的双作用气缸一行一个（名字照 sc），状态 升到位 / 降到位 / 未知（命令发了、到位信号还没亮，黄字），升 / 降两个按钮  -->
+                        <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.cylinders}" />
+                        <Border
+                            Margin="0,10,0,0"
+                            Padding="0"
+                            Style="{DynamicResource ReadoutBorderStyle}">
+                            <ItemsControl ItemsSource="{Binding Cylinders}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="12,4,6,4" BorderBrush="{DynamicResource DarkBorderBrush}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderThickness" Value="0,1,0,0" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource PreviousData}}" Value="{x:Null}">
+                                                            <Setter Property="BorderThickness" Value="0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="90" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="{DynamicResource Size14}"
+                                                    Foreground="{DynamicResource DarkPrimaryText}"
+                                                    Text="{Binding Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="{DynamicResource Size14}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="{DynamicResource chambermanual.cylinder.unknown}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource DarkWarningStatus}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Position}" Value="Opened">
+                                                                    <Setter Property="Text" Value="{DynamicResource chambermanual.cylinder.opened}" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Position}" Value="Closed">
+                                                                    <Setter Property="Text" Value="{DynamicResource chambermanual.cylinder.closed}" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                    <Button
+                                                        MinWidth="60"
+                                                        Command="{Binding DataContext.CylinderOpenCommand, ElementName=Root}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="{DynamicResource chambermanual.cylinder.up}"
+                                                        Style="{DynamicResource CompactButtonStyle}" />
+                                                    <Button
+                                                        MinWidth="60"
+                                                        Command="{Binding DataContext.CylinderCloseCommand, ElementName=Root}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="{DynamicResource chambermanual.cylinder.down}"
+                                                        Style="{DynamicResource CompactButtonStyle}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
                     </StackPanel>
-
-                    <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
-
-                    <!--  Home / Abort / Reset：Abort 是急停，用红色  -->
-                    <UniformGrid Margin="14,0,14,14" Columns="3">
-                        <Button
-                            Command="{Binding HomeCommand}"
-                            Content="{DynamicResource action.home}"
-                            Style="{DynamicResource CompactButtonStyle}" />
-                        <Button
-                            Command="{Binding AbortCommand}"
-                            Content="{DynamicResource action.abort}"
-                            Style="{DynamicResource CompactDangerButtonStyle}" />
-                        <Button
-                            Command="{Binding ResetCommand}"
-                            Content="{DynamicResource action.reset}"
-                            Style="{DynamicResource CompactButtonStyle}" />
-                    </UniformGrid>
-                </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
     </materialDesign:Card>

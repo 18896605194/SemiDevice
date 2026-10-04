@@ -1,6 +1,7 @@
 ﻿using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
@@ -10,8 +11,10 @@ namespace xyz.Components.Components;
 /// DO/DI 的读写与到位判定写在这儿，派生类只加自己的语义属性。
 /// 两侧反馈各自可选：哪一侧 DI 配成 -1，哪一侧就不等反馈（写完即完成，在不在这一侧看线圈回读），也不会因此报超时。
 /// 动作由组件自己管到完成：调用方 Open()/Close() 后看 ActionState，到位超时由组件自报；新指令随时可以顶替在途动作。
+/// 手动页上是气缸表的一行：Position 显示升到位 / 降到位 / 未知，两个按钮发 Open / Close。
 /// </summary>
-public abstract class TwoStateComponent : ComponentBase
+[PartKind("TwoState")]
+public abstract class TwoStateComponent : ComponentBase, IActionComponent
 {
     #region SC 
 
@@ -83,55 +86,37 @@ public abstract class TwoStateComponent : ComponentBase
     public bool IsClosed => IsAtSide(DiClosedIndex, DiOpenedIndex, DoCloseIndex, DoOpenIndex);
 
     /// <summary>
-    /// 指令在开侧：开侧线圈通、关侧线圈断。两个线圈一样（刚上电都没通）时按到位反馈算，在开侧就是 true。
-    /// 看线圈不看到位：界面画开关 / 升降方向用，指令一发出去画面就开始动，不用等到位。PLC 没连一律 false。
+    /// 在哪一侧（手动页气缸表、三维图用）：命令发到哪一侧（哪个线圈通着）就看那一侧到没到位，到了是开到位 / 关到位，
+    /// 没到（命令发了、到位信号还没亮）就是未知；两个线圈一样（刚上电都没通）时只看到位反馈。PLC 没连是未知。
     /// </summary>
-    public bool IsOpenCommanded
+    [LiveValue]
+    public TwoStatePosition Position
     {
         get
         {
-            if (!TryReadCoils(out bool open, out bool close))
+            var io = IoComponent.Current;
+            if (io is null || !io.TryReadDo(DoOpenIndex, out bool open) || !io.TryReadDo(DoCloseIndex, out bool close))
             {
-                return false;
+                return TwoStatePosition.Unknown;
             }
 
             if (open != close)
             {
-                return open;
+                if (open)
+                {
+                    return IsOpened ? TwoStatePosition.Opened : TwoStatePosition.Unknown;
+                }
+
+                return IsClosed ? TwoStatePosition.Closed : TwoStatePosition.Unknown;
             }
 
-            return IsOpened;
-        }
-    }
-
-    /// <summary>
-    /// 正在走：指令侧还没到位（开侧线圈通着却还不在开侧，或者反过来）。
-    /// 两个线圈一样、PLC 没连都不算在走。
-    /// </summary>
-    public bool IsTraveling
-    {
-        get
-        {
-            if (!TryReadCoils(out bool open, out bool close) || open == close)
+            if (IsOpened)
             {
-                return false;
+                return TwoStatePosition.Opened;
             }
 
-            return open ? !IsOpened : !IsClosed;
+            return IsClosed ? TwoStatePosition.Closed : TwoStatePosition.Unknown;
         }
-    }
-
-    private bool TryReadCoils(out bool open, out bool close)
-    {
-        open = false;
-        close = false;
-        var io = IoComponent.Current;
-        if (io is null)
-        {
-            return false;
-        }
-
-        return io.TryReadDo(DoOpenIndex, out open) && io.TryReadDo(DoCloseIndex, out close);
     }
 
     private static bool IsAtSide(int di, int oppositeDi, int coil, int oppositeCoil)
@@ -160,11 +145,13 @@ public abstract class TwoStateComponent : ComponentBase
 
     #region 动作（返回 true 只表示 DO 已写进 PLC，完成看 ActionState）
 
+    [ManualAction]
     public bool Open()
     {
         return Move(true);
     }
 
+    [ManualAction]
     public bool Close()
     {
         return Move(false);

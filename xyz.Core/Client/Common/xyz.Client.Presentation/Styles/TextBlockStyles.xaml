@@ -291,6 +291,21 @@
         <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  工艺步骤里用不上的一格（不出液时药液、方式、流量写"—"，位置写 Home）和 Scan 那一格里的"到""速度""mm/s"：正文字号、灰  -->
+    <Style x:Key="StepPlaceholderTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+    </Style>
+
+    <!--  块标题条右边的一个统计数（如工艺步骤的"合计 115 s"）：灰字，跟后面的按钮隔开  -->
+    <Style x:Key="ZoneStatTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+    </Style>
+
     <!--  行里的红字提示（如流程步骤"至少勾一个 Chamber"）  -->
     <Style x:Key="RowErrorTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="4,0,0,0" />

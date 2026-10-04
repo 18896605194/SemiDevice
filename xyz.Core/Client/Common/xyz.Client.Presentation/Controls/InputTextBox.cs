@@ -76,9 +76,8 @@ public class InputTextBox : TextBox
 
     public InputTextBox()
     {
-        // 没指定样式时用框架默认的输入框样式；XAML 里写了 Style 会覆盖它。
-        SetResourceReference(StyleProperty, "DefaultTextBoxStyle");
-
+        // 没指定样式时的默认样式是 TextBoxStyles.xaml 里按类型自动套的那条，不在这里设：
+        // 这里设的是本地值，列表行、表格行这类模板里写的 Style 优先级比它低，会被它压住、写了不生效。
         SetBinding(TextProperty, new Binding
         {
             Path = new PropertyPath(CarrierProperty),

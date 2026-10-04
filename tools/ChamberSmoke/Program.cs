@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -14,8 +15,9 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 
-// 腔体部件冒烟：按 sc.xml 结构认部件，部件状态推送（指令侧 / 在走 / 出液 / 转动 / 摆臂 Reach 和到位容差），
-// 部件手动动作（找不到、不支持、指令没发出去、执行中 Manual、在途拒绝、Abort 顶替、失败、停用，以及各部件真走一遍）。
+// 腔体部件冒烟：部件清单照 sc 生成（标了 [PartKind] 的组件、[LiveValue] 的数据），气缸三态、喷嘴、旋转电机、摆臂 Reach，
+// 有变化才推；部件手动动作（找不到、没有这个动作、参数不对、指令没发出去、执行中 Manual、在途拒绝、Abort 顶替、失败、停用、
+// 停止类腔体忙也照发、点动按住 / 续 / 松手 / 没续上自己停，以及各部件真走一遍）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件。
 
 var checks = 0;
@@ -77,7 +79,7 @@ try
         }
     }
 
-    // 后台发 RPC（它会同步等操作做完），这边一拍一拍地扫，直到它回包。
+    // 后台发 RPC（普通动作会同步等操作做完），这边一拍一拍地扫，直到它回包。
     Task<RpcResponse> Start(Func<Task<RpcResponse>> call)
     {
         var task = Task.Run(call);
@@ -109,46 +111,46 @@ try
         return task.Result;
     }
 
-    RpcResponse Act(string part, ChamberPartAction action, string module = "Chamber9")
+    PartActionRequest Request(string module, string part, string action, string[] args)
     {
-        return Finish(Start(() => service.PartActionAsync(new ChamberPartActionRequest
-        {
-            Module = module,
-            Part = part,
-            Action = action,
-        })));
+        return new PartActionRequest { Module = module, Part = part, Action = action, Args = [.. args] };
     }
 
-    ChamberCylinderDto Cylinder(Func<ChamberPartsDto, ChamberCylinderDto?> pick)
+    RpcResponse ActIn(string module, string part, string action, params string[] args)
     {
-        var cylinder = pick(chamber.CreatePartsDto());
-        if (cylinder is null)
-        {
-            throw new InvalidOperationException("FAIL: 气缸快照不该为空");
-        }
-
-        return cylinder;
+        return Finish(Start(() => service.PartActionAsync(Request(module, part, action, args))));
     }
 
-    ChamberSpinDto SpinState()
+    RpcResponse Act(string part, string action, params string[] args)
     {
-        var state = chamber.CreatePartsDto().Spin;
-        if (state is null)
+        return ActIn("Chamber9", part, action, args);
+    }
+
+    RpcResponse Renew(string part, string action)
+    {
+        return service.RenewPartActionAsync(Request("Chamber9", part, action, [])).Result;
+    }
+
+    // 推送里某个部件的某项数据（原文）
+    string Live(string path, string name)
+    {
+        var part = chamber.CreatePartsDto().Find(path);
+        if (part is null)
         {
-            throw new InvalidOperationException("FAIL: 旋转电机快照不该为空");
+            throw new InvalidOperationException($"FAIL: 部件快照里应有 {path}");
         }
 
-        return state;
+        return part.Get(name);
     }
 
     double Reach()
     {
-        return chamber.CreatePartsDto().Arms[0].Reach;
+        return double.Parse(Live("Chamber9.Arm1", "Reach"), CultureInfo.InvariantCulture);
     }
 
     double EdgeReach()
     {
-        return chamber.CreatePartsDto().Arms[0].EdgeReach;
+        return double.Parse(Live("Chamber9.Arm1", "EdgeReach"), CultureInfo.InvariantCulture);
     }
 
     bool Near(double a, double b)
@@ -172,64 +174,77 @@ try
         Tick();
     }
 
+    void WaitIdle(string message)
+    {
+        var watch = Stopwatch.StartNew();
+        while (chamber.State == ChamberState.Manual && watch.ElapsedMilliseconds < 5000)
+        {
+            Tick();
+            Thread.Sleep(10);
+        }
+
+        Check(chamber.State != ChamberState.Manual, message);
+    }
+
     Tick(2);
     Check(arm.HasPlcData && spin.HasPlcData, "扫两拍后轴拿到 PLC 数据");
 
-    // 1. 部件组成：门、Bowl 按名字认（都是气缸），旋转电机、摆臂按类型认，摆臂下面第一个气缸是 Lift，喷嘴按 sc 先后
+    // 1. 部件清单：sc 里标了种类的组件按 sc 先后（先父后子），种类、类名、数据都是组件自己声明的；没标种类的（WaferSensor）不算部件
     var parts = chamber.CreatePartsDto();
-    Check(parts.Name == "Chamber9", "部件快照带模块名");
-    Check(parts.Door is not null && parts.Door.Name == "Door" && parts.Door.Path == "Chamber9.Door", "门按名字认出来，路径照 sc");
-    Check(parts.Bowl is not null && parts.Bowl.Path == "Chamber9.Bowl1", "Bowl 按名字开头认出来（sc 里叫 Bowl1，一个气缸）");
-    Check(parts.Spin is not null && parts.Spin.Path == "Chamber9.SpinMotor", "旋转电机按类型认出来");
-    Check(parts.Arms.Count == 1 && parts.Arms[0].Path == "Chamber9.Arm1" && parts.Arms[0].Name == "Arm1", "摆臂按类型认出来");
-    var armDto = parts.Arms[0];
-    Check(armDto.Lift is not null && armDto.Lift.Path == "Chamber9.Arm1.Lift", "摆臂下面的气缸是它的 Lift");
-    Check(armDto.Nozzles.Select(nozzle => nozzle.Name).SequenceEqual(["Nozzle_DIW", "Nozzle_SC1"])
-        && armDto.Nozzles[0].Chemical == "DIW" && armDto.Nozzles[1].Path == "Chamber9.Arm1.Nozzle_SC1", "喷嘴按 sc 先后，带药液名和路径");
-    Check(chamber.FindPart("chamber9.arm1.lift") == lift && chamber.FindPart("Chamber9.Nope") is null, "按全路径找部件，忽略大小写");
-    Check(!BaseChamberModule.SupportsPartAction(door, ChamberPartAction.Center)
-        && BaseChamberModule.SupportsPartAction(door, ChamberPartAction.Open)
-        && BaseChamberModule.SupportsPartAction(diw, ChamberPartAction.On)
-        && BaseChamberModule.SupportsPartAction(arm, ChamberPartAction.Center)
-        && BaseChamberModule.SupportsPartAction(spin, ChamberPartAction.Start)
-        && !BaseChamberModule.SupportsPartAction(spin, ChamberPartAction.Home)
-        && !BaseChamberModule.SupportsPartAction(Find<DiSensorComponent>(chamber, "WaferSensor"), ChamberPartAction.On),
-        "各部件只支持自己那几个动作");
+    Check(parts.Module == "Chamber9", "部件快照带模块名");
+    Check(parts.Parts.Select(part => part.Path).SequenceEqual(["Chamber9.Door", "Chamber9.Bowl1", "Chamber9.SpinMotor", "Chamber9.Arm1",
+        "Chamber9.Arm1.Lift", "Chamber9.Arm1.Nozzle_DIW", "Chamber9.Arm1.Nozzle_SC1"]), "部件照 sc 先后，WaferSensor 没标种类不在里面");
+    var doorDto = parts.Find("chamber9.door");
+    var armDto = parts.Find("Chamber9.Arm1");
+    var spinDto = parts.Find("Chamber9.SpinMotor");
+    var nozzleDto = parts.Find("Chamber9.Arm1.Nozzle_DIW");
+    Check(doorDto is not null && doorDto.Kind == "TwoState" && doorDto.Type == "CylinderComponent", "门：双作用气缸，类名照组件类，按路径找忽略大小写");
+    Check(armDto is not null && armDto.Kind == "Axis" && armDto.Type == "ArmAxisComponent", "摆臂：轴，类名 ArmAxisComponent（三维图据此认摆臂）");
+    Check(spinDto is not null && spinDto.Kind == "Axis" && spinDto.Type == "SpinMotorComponent", "旋转电机：轴，类名 SpinMotorComponent");
+    Check(nozzleDto is not null && nozzleDto.Kind == "OneState" && nozzleDto.Type == "NozzleComponent", "喷嘴：单线圈阀");
+    string[] axisValues = ["HasPlcData", "CurrentPosition", "CurrentSpeed", "IsHomed", "IsInPosition", "IsBusy", "IsServoOn", "IsError"];
+    Check(axisValues.All(name => armDto!.Values.ContainsKey(name) && spinDto!.Values.ContainsKey(name)), "轴都推位置、速度和五盏灯");
+    Check(armDto!.Values.ContainsKey("Reach") && armDto.Values.ContainsKey("EdgeReach") && !spinDto!.Values.ContainsKey("Reach"),
+        "摆臂另外推 Reach / EdgeReach，旋转电机没有");
+    Check(spinDto!.Values.ContainsKey("IsSpinning") && doorDto!.Values.Keys.SequenceEqual(["Position"])
+        && nozzleDto!.Values.Keys.SequenceEqual(["IsOn"]), "旋转电机推 IsSpinning；气缸只推 Position，喷嘴只推 IsOn");
+    Check(armDto.Get("HasPlcData") == "True" && armDto.Get("CurrentPosition") == "0" && armDto.Get("IsError") == "False",
+        "值是不变区域性字符串：布尔 True / False，数字没有多余的小数");
 
-    // 2. 气缸显示状态：看线圈画指令侧（不等到位），指令侧没到位算在走；两个线圈都没通时按到位反馈
-    Check(!Cylinder(dto => dto.Door).IsOpen && !Cylinder(dto => dto.Door).IsMoving, "刚上电线圈都没通、在关侧：关着、没在走");
+    // 2. 气缸三态：命令发到哪一侧就看那一侧到没到位，没到是未知；两个线圈都没通只看到位反馈；PLC 断了未知
+    Check(Live("Chamber9.Door", "Position") == "Closed", "刚上电线圈都没通、关到位信号亮：关到位");
     plc.HoldCylinders = true;
     Check(door.Open(), "直接开门，线圈写得进去");
-    Check(Cylinder(dto => dto.Door).IsOpen && Cylinder(dto => dto.Door).IsMoving, "指令一发出去就算开侧，没到位算在走");
+    Check(Live("Chamber9.Door", "Position") == "Unknown", "命令发到开侧、开到位信号还没亮：未知（关到位信号还亮着也算未知）");
     plc.HoldCylinders = false;
     Tick();
-    Check(Cylinder(dto => dto.Door).IsOpen && !Cylinder(dto => dto.Door).IsMoving, "到位后不再在走");
+    Check(Live("Chamber9.Door", "Position") == "Opened", "开到位信号亮了：开到位");
     plc.WriteDo(0, false);
-    Check(Cylinder(dto => dto.Door).IsOpen && !Cylinder(dto => dto.Door).IsMoving, "两个线圈都断了按到位反馈：还在开侧");
+    Check(Live("Chamber9.Door", "Position") == "Opened", "两个线圈都断了只看到位反馈：还是开到位");
     Check(door.Close(), "直接关门");
     Tick();
-    Check(!Cylinder(dto => dto.Door).IsOpen && !Cylinder(dto => dto.Door).IsMoving, "关到位");
+    Check(Live("Chamber9.Door", "Position") == "Closed", "关到位");
     plc.IsConnected = false;
-    Check(!Cylinder(dto => dto.Bowl).IsOpen && !Cylinder(dto => dto.Bowl).IsMoving, "PLC 断了不算开、也不算在走");
+    Check(Live("Chamber9.Bowl1", "Position") == "Unknown", "PLC 断了：未知");
     plc.IsConnected = true;
     Tick(2);
 
     // 3. 喷嘴、旋转电机、摆臂 Reach
-    Check(diw.On() && chamber.CreatePartsDto().Arms[0].Nozzles[0].IsOn, "不接反馈的喷嘴按输出回读算出液");
-    Check(sc1.On(), "接反馈的喷嘴写得进去");
-    Check(!chamber.CreatePartsDto().Arms[0].Nozzles[1].IsOn, "接了流量开关的喷嘴等反馈");
+    Check(diw.On() && Live("Chamber9.Arm1.Nozzle_DIW", "IsOn") == "True", "不接反馈的喷嘴按输出回读算出液");
+    Check(sc1.On() && Live("Chamber9.Arm1.Nozzle_SC1", "IsOn") == "False", "接了流量开关的喷嘴等反馈");
     Tick();
-    Check(chamber.CreatePartsDto().Arms[0].Nozzles[1].IsOn, "反馈来了算出液");
+    Check(Live("Chamber9.Arm1.Nozzle_SC1", "IsOn") == "True", "反馈来了算出液");
     Check(diw.Off() && sc1.Off(), "关喷嘴");
     Tick();
-    Check(chamber.CreatePartsDto().Arms[0].Nozzles.All(nozzle => !nozzle.IsOn), "都停液");
+    Check(Live("Chamber9.Arm1.Nozzle_DIW", "IsOn") == "False" && Live("Chamber9.Arm1.Nozzle_SC1", "IsOn") == "False", "都停液");
 
     SetSpinSpeed(50);
-    Check(SpinState().IsSpinning && SpinState().IsClockwise, "实际转速超出速度容差算在转，正转算顺时针");
+    Check(Live("Chamber9.SpinMotor", "IsSpinning") == "True" && Live("Chamber9.SpinMotor", "CurrentSpeed") == "50",
+        "实际转速超出速度容差算在转，正负照推（界面按正负画转向）");
     SetSpinSpeed(-50);
-    Check(SpinState().IsSpinning && !SpinState().IsClockwise, "反转");
+    Check(Live("Chamber9.SpinMotor", "IsSpinning") == "True" && Live("Chamber9.SpinMotor", "CurrentSpeed") == "-50", "反转");
     SetSpinSpeed(2);
-    Check(!SpinState().IsSpinning, "速度容差以内不算在转");
+    Check(Live("Chamber9.SpinMotor", "IsSpinning") == "False", "速度容差以内不算在转");
     SetSpinSpeed(0);
 
     // 摆臂：回零后 0 位 = Home；示教位默认 Edge = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）
@@ -244,17 +259,18 @@ try
     Check(Near(Reach(), 0.5) && Near(EdgeReach(), 0.5), "示教后轴在 Edge：Reach = 100 / 200，边缘在 Reach 上的位置 = Edge / Center");
     SetArm(150);
     Check(Near(Reach(), 0.75), "边缘到中心之间按轴位置线性：150 / 200");
-    SetArm(150.5);
-    Check(Near(Reach(), 0.75), "位置变化在到位容差（1）以内不算动");
+    SetArm(150.0004);
+    Check(Live("Chamber9.Arm1", "Reach") == "0.75" && Live("Chamber9.Arm1", "CurrentPosition") == "150",
+        "推的值按 3 位小数取整：编码器在这一位以下抖不变");
     SetArm(152);
-    Check(Near(Reach(), 0.76), "超出到位容差就跟着变");
+    Check(Near(Reach(), 0.76), "动了就跟着变");
     plc.IsConnected = false;
     Tick();
-    Check(!arm.HasPlcData && Near(Reach(), 0.76), "PLC 断了保持上次推的值");
+    Check(!arm.HasPlcData && Near(Reach(), 0.76) && Live("Chamber9.Arm1", "HasPlcData") == "False",
+        "PLC 断了 Reach 停在断线前的值，HasPlcData 推 False（界面位置显示\"—\"）");
     plc.IsConnected = true;
     Tick(2);
     arm.Edge = 250;
-    Tick();
     Check(EdgeReach() == 0, "Edge 不在 Home 和 Center 之间（示教错了）不分段");
     arm.Edge = 100;
     arm.Center = 0;
@@ -268,67 +284,77 @@ try
 
     // 4. 推送：有变化才推；跟 ChamberDto 同 token、类型不同，各自留存互不覆盖
     int pushes = 0;
-    ChamberPartsDto? pushed = null;
-    using var partsSubscription = EventBus.Register<ChamberPartsDto>("Chamber9", dto =>
+    ModulePartsDto? pushed = null;
+    using var partsSubscription = EventBus.Register<ModulePartsDto>("Chamber9", dto =>
     {
         pushes++;
         pushed = dto;
     });
     ChamberDto? state = null;
     using var stateSubscription = EventBus.Register<ChamberDto>("Chamber9", dto => state = dto);
-    Check(pushes == 1 && pushed is not null && pushed.Name == "Chamber9", "部件状态留存：订上就补发最后一条");
+    Check(pushes == 1 && pushed is not null && pushed.Module == "Chamber9", "部件推送留存：订上就补发最后一条");
     Check(state is not null && state.Name == "Chamber9", "模块状态也还在：两种 DTO 同 token 不互相覆盖");
     Tick(3);
     Check(pushes == 1, "没变化不推");
+    SetArm(0.0003);
+    Check(pushes == 1, "变化在推的小数位以下不推");
     Check(bowl.Open(), "升 Bowl");
     Tick();
-    Check(pushes == 2 && pushed is not null && pushed.Bowl is not null && pushed.Bowl.IsOpen, "变了推一次");
+    Check(pushes == 2 && pushed is not null && pushed.Find("Chamber9.Bowl1")?.Get("Position") == "Opened", "变了推一次");
     Check(bowl.Close(), "降 Bowl");
     Tick();
 
-    // 5. 部件动作：找不到、不支持、模块不存在
-    var response = Act("Chamber9.Nope", ChamberPartAction.Open);
+    // 5. 部件动作出错：找不到部件（不是部件的组件也算找不到）、没有这个动作、参数不对、模块不存在
+    var response = Act("Chamber9.Nope", "Open");
     Check(!response.Success && response.Code == ErrorCodes.ChamberPartNotFound
         && response.Args.SequenceEqual(["Chamber9", "Chamber9.Nope"]), "找不到部件：chamber.part_not_found [模块, 路径]");
-    response = Act("Chamber9.Door", ChamberPartAction.Center);
+    response = Act("Chamber9.WaferSensor", "Open");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartNotFound, "没标种类的组件不是部件");
+    response = Act("Chamber9.Door", "Center");
     Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionUnsupported
-        && response.Args.SequenceEqual(["Chamber9.Door", "Center"]), "门不支持去工艺位：chamber.part_action_unsupported [路径, 动作]");
-    response = Act("Chamber9.Door", ChamberPartAction.Open, module: "Chamber404");
+        && response.Args.SequenceEqual(["Chamber9.Door", "Center"]), "门上没有 Center：chamber.part_action_unsupported [路径, 动作]");
+    response = Act("Chamber9.Arm1", "Spin", "10");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionUnsupported, "没标 [ManualAction] 的方法不能调（轴的 Spin）");
+    response = Act("Chamber9.Arm1", "MoveTo", "abc");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionArgsInvalid
+        && response.Args.SequenceEqual(["Chamber9.Arm1", "MoveTo"]), "数字写错：chamber.part_action_args_invalid [路径, 动作]");
+    response = Act("Chamber9.Arm1", "MoveTo");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionArgsInvalid, "必填参数没给");
+    response = Act("Chamber9.Arm1", "MoveTo", "1", "2", "3");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionArgsInvalid, "参数给多了");
+    response = Act("Chamber9.Arm1", "MoveTo", "1e999");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionArgsInvalid, "不是有限数");
+    response = ActIn("Chamber404", "Chamber9.Door", "Open");
     Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "模块不存在");
 
-    // 6. 指令没发出去（轴没回零不能定位）：直接回码，模块状态不动、不挂操作
+    // 6. 指令没发出去（轴没回零不能定位）：直接回码，模块状态不动、不挂操作；动作名照方法名，大小写不论
     Check(chamber.State == ModuleState.NotInit, "还没初始化");
-    response = Act("Chamber9.Arm1", ChamberPartAction.Center);
+    response = Act("Chamber9.Arm1", "moveto", "10");
     Check(!response.Success && response.Code == ErrorCodes.ChamberPartCommandRejected
-        && response.Args.SequenceEqual(["Chamber9.Arm1", "Center"]), "轴没回零去工艺位：chamber.part_command_rejected");
+        && response.Args.SequenceEqual(["Chamber9.Arm1", "moveto"]), "轴没回零不能定位：chamber.part_command_rejected");
     Check(chamber.State == ModuleState.NotInit && chamber.CurrentOperation is null, "指令没发出去不改模块状态、不挂操作");
 
     // 7. 执行中落 Manual、在途拒绝别的动作、做完回原来的状态
     plc.HoldCylinders = true;
-    var opening = Start(() => service.PartActionAsync(new ChamberPartActionRequest
-    {
-        Module = "Chamber9",
-        Part = "Chamber9.Door",
-        Action = ChamberPartAction.Open,
-    }));
+    var opening = Start(() => service.PartActionAsync(Request("Chamber9", "Chamber9.Door", "Open", [])));
     Tick(3);
     Check(!opening.IsCompleted && chamber.State == ChamberState.Manual, "门在走：模块落 Manual（120），RPC 还在等");
-    response = Act("Chamber9.Bowl1", ChamberPartAction.Open);
+    response = Act("Chamber9.Bowl1", "Open");
     Check(!response.Success && response.Code == ErrorCodes.ActionRejected
         && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]), "一个部件动作在途时别的动作被拒");
     Check(!plc.ReadDo(2), "被拒的动作没发指令（Bowl 线圈没通）");
+    response = Act("Chamber9.SpinMotor", "Jog", "50");
+    Check(!response.Success && response.Code == ErrorCodes.ActionRejected && !spin.IsSpinning, "在途时点动也被拒");
+    response = Act("Chamber9.Arm1", "Stop");
+    Check(response.Success && chamber.State == ChamberState.Manual, "停止类腔体正忙也照发、发出去就回，不动在途的门");
     plc.HoldCylinders = false;
     response = Finish(opening);
-    Check(response.Success && chamber.State == ModuleState.NotInit && Cylinder(dto => dto.Door).IsOpen, "门开到位：成功，回到原来的未初始化");
+    Check(response.Success && chamber.State == ModuleState.NotInit && Live("Chamber9.Door", "Position") == "Opened",
+        "门开到位：成功，回到原来的未初始化");
 
     // 8. Abort 顶替在途的部件动作
     plc.HoldCylinders = true;
-    var lifting = Start(() => service.PartActionAsync(new ChamberPartActionRequest
-    {
-        Module = "Chamber9",
-        Part = "Chamber9.Arm1.Lift",
-        Action = ChamberPartAction.Open,
-    }));
+    var lifting = Start(() => service.PartActionAsync(Request("Chamber9", "Chamber9.Arm1.Lift", "Open", [])));
     Tick(2);
     response = Finish(Start(() => service.AbortAsync("Chamber9")));
     Check(response.Success, "Abort 成功");
@@ -341,52 +367,86 @@ try
     // 9. 部件做失败（到位超时）：回 chamber.part_action_failed，模块落 Error；Error 下还能手动动部件，做完仍是 Error
     door.ActionTimeoutMs = 200;
     plc.HoldCylinders = true;
-    response = Act("Chamber9.Door", ChamberPartAction.Close);
+    response = Act("Chamber9.Door", "Close");
     Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionFailed
         && response.Args.SequenceEqual(["Chamber9.Door", "Close"]), "关门等不到位：chamber.part_action_failed [路径, 动作]");
     Check(chamber.State == ModuleState.Error, "部件动作失败模块落 Error");
     plc.HoldCylinders = false;
-    response = Act("Chamber9.Door", ChamberPartAction.Close);
+    response = Act("Chamber9.Door", "Close");
     Check(response.Success && chamber.State == ModuleState.Error, "Error 下手动关门成功，不顺带清错");
     response = Finish(Start(() => service.ResetAsync("Chamber9")));
     Check(response.Success && chamber.State == ModuleState.Idle, "复位回空闲");
 
-    // 10. 各部件真走一遍：摆臂回零 / 工艺位、旋转电机转 / 停、喷嘴、Lift、Bowl
-    response = Act("Chamber9.Arm1", ChamberPartAction.Home);
+    // 10. 轴真走一遍：回零、移动（带速度 / 速度空着用 EC）、步进、复位
+    response = Act("Chamber9.Arm1", "Home");
     Check(response.Success && arm.IsHomed && chamber.State == ModuleState.Idle, "摆臂回零");
-    response = Act("Chamber9.Arm1", ChamberPartAction.Center);
-    Check(response.Success && Math.Abs(arm.CurrentPosition - 200) < 1e-9 && Reach() == 1, "摆臂去工艺位：走到 EC Center（示教的 200），Reach = 1");
-    response = Act("Chamber9.Arm1", ChamberPartAction.Home);
-    Check(response.Success && Reach() == 0, "摆臂回 Home");
-    response = Act("Chamber9.SpinMotor", ChamberPartAction.Start);
-    Check(response.Success && SpinState().IsSpinning && SpinState().IsClockwise, "旋转电机按 EC ManualSpeed（默认 50，正转）转起来");
-    response = Act("Chamber9.SpinMotor", ChamberPartAction.Stop);
-    Check(response.Success && !SpinState().IsSpinning, "旋转电机停");
-    response = Act("Chamber9.Arm1.Nozzle_SC1", ChamberPartAction.On);
-    Check(response.Success && chamber.CreatePartsDto().Arms[0].Nozzles[1].IsOn, "喷嘴出液（等到流量开关）");
-    response = Act("Chamber9.Arm1.Nozzle_SC1", ChamberPartAction.Off);
-    Check(response.Success && !chamber.CreatePartsDto().Arms[0].Nozzles[1].IsOn, "喷嘴停液");
-    response = Act("Chamber9.Arm1.Lift", ChamberPartAction.Open);
-    Check(response.Success && Cylinder(dto => dto.Arms[0].Lift).IsOpen, "Lift 升");
-    response = Act("Chamber9.Arm1.Lift", ChamberPartAction.Close);
-    Check(response.Success && !Cylinder(dto => dto.Arms[0].Lift).IsOpen, "Lift 降");
-    response = Act("Chamber9.Bowl1", ChamberPartAction.Open);
-    Check(response.Success && Cylinder(dto => dto.Bowl).IsOpen && chamber.State == ModuleState.Idle, "Bowl 升，做完回空闲");
+    response = Act("Chamber9.Arm1", "MoveTo", "200", "20");
+    Check(response.Success && Near(arm.CurrentPosition, 200) && Reach() == 1, "摆臂移动到 200（= 示教的 Center），Reach = 1");
+    response = Act("Chamber9.Arm1", "MoveBy", "-50", "20");
+    Check(response.Success && Near(arm.CurrentPosition, 150), "步进 -50 到 150");
+    response = Act("Chamber9.Arm1", "MoveBy", "0.5", "20");
+    Check(response.Success && Near(arm.CurrentPosition, 150.5), "步距比到位容差（1）还小也照走：相对移动不按\"已经在目标\"省掉");
+    response = Act("Chamber9.Arm1", "MoveTo", "150.2", "20");
+    Check(response.Success && Near(arm.CurrentPosition, 150.5), "绝对定位的目标已在到位容差里就不发");
+    response = Act("Chamber9.Arm1", "MoveTo", "0", "");
+    Check(response.Success && Near(arm.CurrentPosition, 0) && Reach() == 0, "速度给空串按后端 EC MoveSpeed 走回 0");
+    response = Act("Chamber9.Arm1", "ResetDrive");
+    Check(response.Success && chamber.State == ModuleState.Idle, "驱动器复位");
 
-    // 11. 停用的腔体不发部件动作
+    // 11. 点动（按住类）：发起就回、腔体进 Manual；按住期间续；松手发停止，停下来回原状态；松手后再续回 chamber.part_not_held
+    response = Act("Chamber9.SpinMotor", "Jog", "50");
+    Check(response.Success && chamber.State == ChamberState.Manual, "点动发起就回 Ok，腔体进手动中");
+    Tick();
+    Check(spin.IsSpinning && Live("Chamber9.SpinMotor", "CurrentSpeed") == "50", "点动按 50 转起来");
+    Check(Renew("Chamber9.SpinMotor", "jog").Success, "按住期间续得上（动作名大小写不论）");
+    response = Renew("Chamber9.SpinMotor", "Stop");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartNotHeld
+        && response.Args.SequenceEqual(["Chamber9.SpinMotor", "Stop"]), "续的不是正按着的动作：chamber.part_not_held");
+    Check(!Renew("Chamber9.Arm1", "Jog").Success, "续的不是正按着的部件");
+    response = Act("Chamber9.Bowl1", "Open");
+    Check(!response.Success && response.Code == ErrorCodes.ActionRejected, "点动按住期间别的普通动作被拒");
+    response = Act("Chamber9.SpinMotor", "Stop");
+    Check(response.Success, "松手发停止（停止类，腔体忙也照发）");
+    WaitIdle("松手后等停下就退出手动中");
+    Check(chamber.State == ModuleState.Idle && !spin.IsSpinning, "停下了，回到原来的空闲");
+    Check(!Renew("Chamber9.SpinMotor", "Jog").Success, "松手后再续：没在按住");
+    response = Act("Chamber9.Door", "Jog", "10");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionUnsupported, "气缸没有点动");
+    response = Act("Chamber9.SpinMotor", "Jog");
+    Check(!response.Success && response.Code == ErrorCodes.ChamberPartActionArgsInvalid, "点动没给速度");
+
+    // 12. 没续上（界面断了、客户端退了）：过了 EC HoldTimeoutMs 模块自己发停止
+    chamber.HoldTimeoutMs = 500;
+    response = Act("Chamber9.SpinMotor", "Jog", "-50");
+    Check(response.Success && chamber.State == ChamberState.Manual, "反向点动发起");
+    Tick();
+    Check(spin.IsSpinning && spin.CurrentSpeed < 0, "反向转起来");
+    var held = Stopwatch.StartNew();
+    WaitIdle("没续上应在保活超时后自己停");
+    Check(held.ElapsedMilliseconds >= 400 && !spin.IsSpinning && chamber.State == ModuleState.Idle, "过了保活超时（500 ms）自己停，回到空闲");
+
+    // 13. 气缸、喷嘴照方法名调：Lift 升降、喷嘴通断、Bowl 升
+    response = Act("Chamber9.Arm1.Lift", "Open");
+    Check(response.Success && Live("Chamber9.Arm1.Lift", "Position") == "Opened", "Lift 升");
+    response = Act("Chamber9.Arm1.Lift", "Close");
+    Check(response.Success && Live("Chamber9.Arm1.Lift", "Position") == "Closed", "Lift 降");
+    response = Act("Chamber9.Arm1.Nozzle_SC1", "On");
+    Check(response.Success && Live("Chamber9.Arm1.Nozzle_SC1", "IsOn") == "True", "喷嘴通（等到流量开关）");
+    response = Act("Chamber9.Arm1.Nozzle_SC1", "Off");
+    Check(response.Success && Live("Chamber9.Arm1.Nozzle_SC1", "IsOn") == "False", "喷嘴断");
+    response = Act("Chamber9.Bowl1", "Open");
+    Check(response.Success && Live("Chamber9.Bowl1", "Position") == "Opened" && chamber.State == ModuleState.Idle, "Bowl 升，做完回空闲");
+
+    // 14. 停用的腔体不发部件动作
     var disabled = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber8", enabled: false)]).Single();
     var disabledService = new ChamberService([disabled]);
-    var disabledResponse = disabledService.PartActionAsync(new ChamberPartActionRequest
-    {
-        Module = "Chamber8",
-        Part = "Chamber8.Door",
-        Action = ChamberPartAction.Open,
-    }).Result;
+    var disabledResponse = disabledService.PartActionAsync(Request("Chamber8", "Chamber8.Door", "Open", [])).Result;
     Check(!disabledResponse.Success && disabledResponse.Code == ErrorCodes.ActionRejected, "停用的腔体部件动作被拒");
 
-    Console.WriteLine($"PASS: {checks} chamber parts checks (structure from sc, cylinder/nozzle/spin/arm display state with reach deadband, "
-        + "push on change with retained replay, part actions: not found, unsupported, command rejected, Manual state, busy rejection, "
-        + "abort replacement, failure to Error, every part type end to end, disabled chamber)");
+    Console.WriteLine($"PASS: {checks} chamber parts checks (generic part list from sc, cylinder tri-state, nozzle/spin/arm values, "
+        + "push on change with retained replay, part actions: not found, unsupported, invalid args, command rejected, Manual state, "
+        + "busy rejection, priority stop while busy, abort replacement, failure to Error, axis end to end, jog hold/renew/release, "
+        + "hold timeout auto stop, cylinders and nozzles by method name, disabled chamber)");
     return 0;
 }
 finally
@@ -501,7 +561,7 @@ public sealed class TimedProbe : ModuleOperation
 
 /// <summary>
 /// 假 PLC：DI / DO 两张表、轴数据块存字典。Step() 模拟一拍设备：气缸照线圈走到位（HoldCylinders 时不动）、
-/// 带反馈的阀照输出给反馈、轴照新命令回零 / 定位 / 转 / 停。冒烟线程和 RPC 线程都会碰它，全部加锁。
+/// 带反馈的阀照输出给反馈、轴照新命令回零 / 定位 / 步进 / 点动 / 转 / 停 / 复位。冒烟线程和 RPC 线程都会碰它，全部加锁。
 /// </summary>
 public sealed class FakePlc : IPlc
 {
@@ -698,7 +758,14 @@ public sealed class FakePlc : IPlc
                         status.Is_Stopped = 1;
                         break;
 
+                    case MotionCommandId.MoveBy:
+                        status.Current_Position += command.Param1;
+                        status.Is_In_Position = 1;
+                        status.Is_Stopped = 1;
+                        break;
+
                     case MotionCommandId.Spin:
+                    case MotionCommandId.Jog:
                         status.Current_Speed = command.Param2;
                         status.Is_Stopped = 0;
                         break;
@@ -708,6 +775,10 @@ public sealed class FakePlc : IPlc
                         status.Current_Speed = 0;
                         status.Is_Stopped = 1;
                         status.Is_Servo_On = command.Axis_Servo;
+                        break;
+
+                    case MotionCommandId.Reset:
+                        status.Is_Err = 0;
                         break;
                 }
 

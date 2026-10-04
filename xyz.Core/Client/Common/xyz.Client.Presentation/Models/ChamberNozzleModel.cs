@@ -8,7 +8,7 @@ namespace xyz.Client.Presentation.Models;
 /// </summary>
 public class ChamberNozzleModel : ObservableObject
 {
-    public ChamberNozzleModel(ChamberNozzleDto dto)
+    public ChamberNozzleModel(PartDto dto)
     {
         Path = dto.Path;
         Update(dto);
@@ -27,8 +27,8 @@ public class ChamberNozzleModel : ObservableObject
     }
 
     /// <summary>用推送就地刷新（界面线程调用）。</summary>
-    public void Update(ChamberNozzleDto dto)
+    public void Update(PartDto dto)
     {
-        IsOn = dto.IsOn;
+        IsOn = dto.GetBool(PartValueNames.IsOn);
     }
 }

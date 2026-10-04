@@ -227,4 +227,58 @@
         </Setter>
     </Style>
 
+    <!--  下划线页签（腔体手动页的轴页签）：一排字，选中的蓝字 + 底下一条蓝线，鼠标移上去变亮；ListBox 套 UnderlineTabListBoxStyle  -->
+    <Style
+        x:Key="UnderlineTabListBoxStyle"
+        BasedOn="{StaticResource MaterialDesignListBox}"
+        TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="ItemsPanel" Value="{StaticResource HorizontalListBoxItemsPanelTemplate}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Hidden" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    </Style>
+
+    <Style x:Key="UnderlineTabListBoxItemStyle" TargetType="ListBoxItem">
+        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="FontSize" Value="{StaticResource Size15}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Grid Background="{TemplateBinding Background}">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                        <Border
+                            x:Name="Underline"
+                            Height="2"
+                            VerticalAlignment="Bottom"
+                            Background="{StaticResource DarkAccent}"
+                            Visibility="Hidden" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Underline" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

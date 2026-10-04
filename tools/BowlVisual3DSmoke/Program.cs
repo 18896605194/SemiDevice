@@ -107,6 +107,19 @@ internal static class Program
             Check(ColorOf() != idle, "selection survives motion completion");
             bowl.IsSelected = false;
             Check(ColorOf() == idle, "deselect restores material");
+
+            // 未知（命令发了、到位信号还没亮）：上沿停在行程中间、一直高亮，底边不动；到位后走到那一头、高亮撤掉
+            bowl.IsUnknown = true;
+            Pump(550);
+            Check(Near(Rise(), Stroke / 2) && Near(Bottom(), 0) && WallsConnected() && !bowl.HasAnimatedProperties && ColorOf() != idle,
+                "unknown parks the rim mid-stroke with continuous walls and keeps the highlight");
+            bowl.IsUnknown = false;
+            Pump(550);
+            Check(Near(Rise(), 0) && ColorOf() == idle, "known again: the rim finishes at the reported end and drops the highlight");
+            var initialUnknown = new BowlVisual3D { IsUnknown = true };
+            Check(!initialUnknown.HasAnimatedProperties && Near(initialUnknown.Content.Bounds.SizeY, LevelHeight + Stroke / 2),
+                "initial unknown is drawn mid-stroke immediately before attachment");
+
             feedback.IsRaised = true;
             Pump(90);
             scene.Visibility = Visibility.Hidden;
@@ -159,7 +172,7 @@ internal static class Program
             }
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine("PASS: Bowl three levels, hollow geometry, bindings, fixed-bottom rise/fall with continuous walls, reversal, highlight, visibility and detach lifecycle.");
+            Console.WriteLine("PASS: Bowl three levels, hollow geometry, bindings, fixed-bottom rise/fall with continuous walls, reversal, highlight, unknown parked mid-stroke, visibility and detach lifecycle.");
             return 0;
         }
         catch (Exception ex)

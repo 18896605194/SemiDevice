@@ -61,22 +61,29 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        var recipe = request.Recipe ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(recipe))
+        var recipe = (request.Recipe ?? string.Empty).Trim();
+        if (recipe.Length == 0)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeRequired, [module]));
         }
 
-        return RunOperation(module, chamber, chamber.Process(recipe.Trim()), chamber.ProcessTimeout);
+        // 配方要在工艺配方库里（没装库就不查）：被删了、改名了的配方不让起
+        var library = ProcessRecipeComponent.Current;
+        if (library is not null && !library.Contains(recipe))
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeNotFound, [module, recipe]));
+        }
+
+        return RunOperation(module, chamber, chamber.Process(recipe), chamber.ProcessTimeout);
     }
 
     /// <summary>
-    /// 部件手动动作：找不到部件、部件不支持、指令没发出去各回各的码；状态不允许或已有动作在途走 module.action_rejected；
-    /// 发起了就同步等部件做完（上限 EC PartActionTimeout）。
+    /// 部件手动动作：找不到部件、没有这个动作、参数不对、指令没发出去各回各的码；状态不允许或已有动作在途走 module.action_rejected；
+    /// 普通动作发起了就同步等部件做完（上限 EC PartActionTimeout）；停止类发出去、按住类发起了就回。
     /// </summary>
-    public Task<RpcResponse> PartActionAsync(ChamberPartActionRequest request)
+    public Task<RpcResponse> PartActionAsync(PartActionRequest request)
     {
-        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
+        // protobuf 传输省略默认值字段，空字符串、空列表在接收端可能为 null。
         var module = request.Module ?? string.Empty;
         var chamber = FindModule<BaseChamberModule>(module);
         if (chamber is null)
@@ -85,8 +92,9 @@ public class ChamberService : BaseService, IChamberService
         }
 
         var path = request.Part ?? string.Empty;
-        string action = request.Action.ToString();
-        switch (chamber.TryPartAction(path, request.Action, out var operation))
+        var action = request.Action ?? string.Empty;
+        IReadOnlyList<string> args = request.Args ?? [];
+        switch (chamber.TryPartAction(path, action, args, out var operation))
         {
             case ChamberPartActionResult.NotFound:
                 return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartNotFound, [module, path]));
@@ -94,12 +102,38 @@ public class ChamberService : BaseService, IChamberService
             case ChamberPartActionResult.Unsupported:
                 return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartActionUnsupported, [path, action]));
 
+            case ChamberPartActionResult.InvalidArgs:
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartActionArgsInvalid, [path, action]));
+
             case ChamberPartActionResult.CommandRejected:
                 return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberPartCommandRejected, [path, action]));
+
+            case ChamberPartActionResult.Sent:
+            case ChamberPartActionResult.Holding:
+                return Task.FromResult(RpcResponse.Ok());
 
             default:
                 return RunOperation(module, chamber, operation, chamber.PartActionTimeout);
         }
+    }
+
+    /// <summary>
+    /// 续按住类动作（点动）：正按着的就是这个动作回 Ok，否则回 chamber.part_not_held（界面据此不用再续）。
+    /// </summary>
+    public Task<RpcResponse> RenewPartActionAsync(PartActionRequest request)
+    {
+        var module = request.Module ?? string.Empty;
+        var chamber = FindModule<BaseChamberModule>(module);
+        if (chamber is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        var path = request.Part ?? string.Empty;
+        var action = request.Action ?? string.Empty;
+        return Task.FromResult(chamber.RenewPartAction(path, action)
+            ? RpcResponse.Ok()
+            : RpcResponse.Fail(ErrorCodes.ChamberPartNotHeld, [path, action]));
     }
 
     /// <summary>

@@ -16,9 +16,9 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// <summary>
 /// 腔体三维图：底座上装 Bowl、旋转盘、腔门和每条摆臂（Lift 立柱、摆臂、喷嘴管、Home 接液杯）。
 /// 装哪些部件看 Parts（后端按 sc.xml 推来的部件组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
-/// 摆臂收到新位置后 0.2 s 过渡过去。不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，
-/// 只有动画进行中角度和高度才会逐帧变，停下来就一点不算。
-/// 左键拖动旋转视角、滚轮缩放，左下角四个按钮：左转、右转、复位、俯视。
+/// 摆臂收到新位置后 0.2 s 过渡过去。门、Bowl、Lift 跟到位反馈走：到位画在那一头，未知（命令发了、到位信号还没亮）画在行程中间并高亮。
+/// 不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，只有动画进行中角度和高度才会逐帧变，停下来就一点不算。
+/// 左键拖动旋转视角、滚轮缩放，图下面一条工具栏：默认视角、俯视。
 /// </summary>
 public partial class ChamberScene : UserControl
 {
@@ -93,9 +93,6 @@ public partial class ChamberScene : UserControl
     private const double MinZoom = 4.8;
     private const double MaxZoom = 12;
 
-    /// <summary>左转 / 右转按钮一次转多少度。</summary>
-    private const double RotateStep = 15;
-
     /// <summary>拖动一像素转多少度：横向转方位、纵向转俯仰。</summary>
     private const double DragYawPerPixel = 0.35;
 
@@ -108,6 +105,11 @@ public partial class ChamberScene : UserControl
 
     /// <summary>正交相机离观察点的距离：只影响裁剪，不影响大小（大小看 Width）。</summary>
     private const double CameraDistance = 10;
+
+    /// <summary>
+    /// 视野宽度（_zoom）是按这个宽高比定的：图比它更矮更宽时正交相机按高度撑开视野，免得腔体上下被切掉（手动页三维区就是矮宽的）。
+    /// </summary>
+    private const double FitAspect = 2.3;
 
     private static readonly Point3D CameraTarget = new(0, 0.28, 0.1);
 
@@ -157,6 +159,7 @@ public partial class ChamberScene : UserControl
         BindingOperations.SetBinding(_disk, DiskVisual3D.DataProperty,
             new Binding(nameof(Wafer)) { Source = this, Mode = BindingMode.OneWay });
         IsVisibleChanged += OnVisibleChanged;
+        Viewport.SizeChanged += (_, _) => UpdateCamera();
         UpdateCamera();
         Rebuild();
     }
@@ -217,9 +220,9 @@ public partial class ChamberScene : UserControl
     {
         var parts = Parts;
         Bind(_door, DoorVisual3D.IsOpenProperty, parts, "Door.IsOpen");
-        Bind(_door, HardwareVisual3D.IsMovingProperty, parts, "Door.IsMoving");
+        Bind(_door, DoorVisual3D.IsUnknownProperty, parts, "Door.IsUnknown");
         Bind(_bowl, BowlVisual3D.IsRaisedProperty, parts, "Bowl.IsOpen");
-        Bind(_bowl, HardwareVisual3D.IsMovingProperty, parts, "Bowl.IsMoving");
+        Bind(_bowl, BowlVisual3D.IsUnknownProperty, parts, "Bowl.IsUnknown");
         Bind(_disk, DiskVisual3D.RotationSpeedProperty, parts, "Spin.IsSpinning", SpinSpeedConverter.Instance);
         Bind(_disk, DiskVisual3D.RotateClockwiseProperty, parts, "Spin.IsClockwise");
     }
@@ -324,22 +327,12 @@ public partial class ChamberScene : UserControl
             CameraDistance * Math.Cos(pitch) * Math.Cos(yaw));
         Camera.Position = CameraTarget + offset;
         Camera.LookDirection = -offset;
-        Camera.Width = _zoom;
+        double aspect = Viewport.ActualHeight > 0 ? Viewport.ActualWidth / Viewport.ActualHeight : FitAspect;
+        Camera.Width = _zoom * Math.Max(1, aspect / FitAspect);
     }
 
-    private void OnRotateLeftClick(object sender, RoutedEventArgs args)
-    {
-        _yaw -= RotateStep;
-        UpdateCamera();
-    }
-
-    private void OnRotateRightClick(object sender, RoutedEventArgs args)
-    {
-        _yaw += RotateStep;
-        UpdateCamera();
-    }
-
-    private void OnResetViewClick(object sender, RoutedEventArgs args)
+    /// <summary>回到默认视角（斜着往下看、默认视野）。</summary>
+    private void OnDefaultViewClick(object sender, RoutedEventArgs args)
     {
         _yaw = DefaultYaw;
         _pitch = DefaultPitch;
@@ -482,7 +475,7 @@ public partial class ChamberScene : UserControl
 
             // 先绑状态、定初始角度再挂进场景：还没挂上时组件直接显示目标状态，不会从默认位置动画过来。
             Bind(Lift, LiftVisual3D.IsRaisedProperty, model.Lift, nameof(ChamberCylinderModel.IsOpen));
-            Bind(Lift, HardwareVisual3D.IsMovingProperty, model.Lift, nameof(ChamberCylinderModel.IsMoving));
+            Bind(Lift, LiftVisual3D.IsUnknownProperty, model.Lift, nameof(ChamberCylinderModel.IsUnknown));
             Bind(Arm, HardwareVisual3D.IsMovingProperty, model, nameof(ChamberArmModel.IsMoving));
             _targetAngle = AngleOf(model.Reach, model.EdgeReach);
             Arm.Angle = _targetAngle;

@@ -11,6 +11,7 @@ using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Controls;
 using xyz.Client.Presentation.Dialogs;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Presentation.Models;
 using xyz.Client.Recipe.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -174,9 +175,20 @@ public class SequenceViewModel : BaseViewModel
     public ObservableCollection<RouteColumnModel> RouteColumns { get; } = [];
 
     /// <summary>
-    /// 选工艺配方弹窗里列的工艺配方。工艺配方库还没做，现在是空的（所以工艺配方框先允许手输）；工艺配方页做好后从它的服务拉。
+    /// 选工艺配方弹窗里列的工艺配方（工艺配方库，跟着后端的变更通知重拉）。
     /// </summary>
-    public ObservableCollection<RecipeOptionModel> ProcessRecipes { get; } = [];
+    public ObservableCollection<ProcessRecipeOptionModel> ProcessRecipes { get; } = [];
+
+    private bool _canTypeRecipe;
+
+    /// <summary>
+    /// 工艺配方框能不能手输：后端没装工艺配方库时才让手输（库都没有，只能填名字；后端那边也不查）；装了就只能从库里选。
+    /// </summary>
+    public bool CanTypeRecipe
+    {
+        get => _canTypeRecipe;
+        private set => SetProperty(ref _canTypeRecipe, value);
+    }
 
     private bool _isDirty;
 
@@ -438,12 +450,21 @@ public class SequenceViewModel : BaseViewModel
 
     private readonly ISequenceService _service;
 
+    private readonly IProcessRecipeService _recipeService;
+
     /// <summary>
     /// 攒变更通知用：第一条来了起表，到点拉一次。
     /// </summary>
     private readonly DispatcherTimer _reloadTimer;
 
     private IDisposable? _subscription;
+
+    private IDisposable? _recipeSubscription;
+
+    /// <summary>
+    /// 后端装了工艺配方库：装了才查"工艺配方在不在库里"。
+    /// </summary>
+    private bool _hasRecipeLibrary;
 
     private bool _isPageVisible;
 
@@ -492,6 +513,7 @@ public class SequenceViewModel : BaseViewModel
     public SequenceViewModel()
     {
         _service = GrpcClientFactory.Create<ISequenceService>();
+        _recipeService = GrpcClientFactory.Create<IProcessRecipeService>();
 
         CreateCommand = new RelayCommand(DoCreate, () => IsConnected && IsReady && !IsDialogOpen && _selectedSlot is not null && !_selectedSlot.IsUsed);
         RenameCommand = new RelayCommand(DoRename, () => IsConnected && !IsDialogOpen && Current is not null);
@@ -517,6 +539,10 @@ public class SequenceViewModel : BaseViewModel
     {
         _subscription?.Dispose();
         _subscription = EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, _ => RequestReload());
+
+        // 工艺配方库变了（新建、改名、删除）：选工艺配方的弹窗、"配方在不在库里"的检查都要跟着变，一起重拉
+        _recipeSubscription?.Dispose();
+        _recipeSubscription = EventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, _ => RequestReload());
 
         RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
         RemoteEventBus.ConnectionChanged += OnConnectionChanged;
@@ -598,6 +624,7 @@ public class SequenceViewModel : BaseViewModel
 
             var list = listResponse.DeserializeData<SequenceListDto>();
             var groups = (await _service.GetStationGroupsAsync(new RpcRequest())).DeserializeData<List<SequenceStationGroupDto>>();
+            var recipeResponse = await _recipeService.GetListAsync(new RpcRequest());
             if (version != _loadVersion)
             {
                 return;
@@ -606,6 +633,7 @@ public class SequenceViewModel : BaseViewModel
             _isLoaded = true;
             _isInstalled = true;
             _groups = groups.Select(group => new StationGroupModel(group)).ToList();
+            ApplyRecipes(recipeResponse);
             ApplyList(list);
             UpdatePageState();
 
@@ -613,6 +641,11 @@ public class SequenceViewModel : BaseViewModel
             if (slot is not null && !IsDirty)
             {
                 await Open(slot);
+            }
+            else
+            {
+                // 正在改的不重拉，但工艺配方库可能变了：按新的库再查一遍
+                Validate();
             }
         }
         catch (Exception exception)
@@ -623,6 +656,34 @@ public class SequenceViewModel : BaseViewModel
                 ClientLog.Error(LogModule, L10n.Get("recipe.sequence.load_failed", exception.Message));
             }
         }
+    }
+
+    /// <summary>
+    /// 换上工艺配方库的列表：装了库就只能从库里选；没装库（回 process_recipe.not_installed）放开手输、不查在不在库里；
+    /// 其他原因没拉到的保留上一次的，记一笔日志。
+    /// </summary>
+    private void ApplyRecipes(RpcResponse response)
+    {
+        if (response.Success)
+        {
+            _hasRecipeLibrary = true;
+            ProcessRecipes.Clear();
+            foreach (var option in ProcessRecipeOptionModel.From(response.DeserializeData<ProcessRecipeListDto>()))
+            {
+                ProcessRecipes.Add(option);
+            }
+        }
+        else if (response.Code == ErrorCodes.ProcessRecipeNotInstalled)
+        {
+            _hasRecipeLibrary = false;
+            ProcessRecipes.Clear();
+        }
+        else
+        {
+            ClientLog.Error(LogModule, L10n.Get("recipe.sequence.load_failed", ReasonOf(response)));
+        }
+
+        CanTypeRecipe = !_hasRecipeLibrary;
     }
 
     /// <summary>
@@ -782,7 +843,7 @@ public class SequenceViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 检查步骤（跟后端保存时的检查一样）：分组还在、至少勾一个站点、要工艺配方的填了配方。
+    /// 检查步骤（跟后端保存时的检查一样）：分组还在、至少勾一个站点、要工艺配方的填了配方，装了工艺配方库时配方还得在库里。
     /// 有问题的行标红，标题条右边列出来；全过了才能保存。
     /// </summary>
     private void Validate()
@@ -802,15 +863,22 @@ public class SequenceViewModel : BaseViewModel
                 messages.Add(L10n.Get("recipe.sequence.error_station", step.Number, step.Group));
             }
 
-            bool recipeMissing = step.NeedsRecipe && step.Recipe.Trim().Length == 0;
+            string recipe = step.Recipe.Trim();
+            bool recipeMissing = step.NeedsRecipe && recipe.Length == 0;
+            bool recipeUnknown = step.NeedsRecipe && !recipeMissing && _hasRecipeLibrary
+                && !ProcessRecipes.Any(option => string.Equals(option.Name, recipe, StringComparison.OrdinalIgnoreCase));
             if (recipeMissing)
             {
                 messages.Add(L10n.Get("recipe.sequence.error_recipe", step.Number));
             }
+            else if (recipeUnknown)
+            {
+                messages.Add(L10n.Get(ErrorCodes.SequenceRecipeNotFound, step.Number, recipe));
+            }
 
             step.StationHint = stationHint;
-            step.HasRecipeError = recipeMissing;
-            step.HasError = stationHint.Length > 0 || recipeMissing;
+            step.HasRecipeError = recipeMissing || recipeUnknown;
+            step.HasError = stationHint.Length > 0 || recipeMissing || recipeUnknown;
         }
 
         ValidationText = string.Join(L10n.Get("recipe.sequence.error_separator"), messages);
