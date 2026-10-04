@@ -25,6 +25,9 @@
 - 客户端 `Client\xyz.35021.Client`：`[ClientModule("35021", "...")] Module35021 : IClientModule`，`Register` 里注册机型页面
   （`Manual.LoadPorts`、`Manual.Robot` 两个 keyed 页面），`PresentationAssembly` 指向机型语言包；`DeployToShell` 拷到客户端 `Modules\35021`。
   `Client\Manual`（机型手动页，复用平台 xyz.Client.Manual 的控件）、`Client\Presentation\Localization`（机型独有文字）。
+  主界面中间的"整机调度"35021 用平台默认的（照机械手站点表自动摆）；别的机型要不同摆法，在 `Register` 里
+  `services.AddKeyedSingleton<UserControl, 自己的View>(ClientViewKeys.MainDispatch)` 换掉这一块（见 client.md §3 主界面）。
+  `Client\Manual\Views\TransferView`（"Transfer 调度"）是早先的半成品，没注册、没菜单。
 - 手动部署：`tools\deploy-module.ps1 -Module 35021 [-Target Client|Service|All]`。
 - 规则：平台不引用机型；机型能做的就按平台的抽象做（继承 Base*Module、实现 I*），平台缺抽象就补到平台，别在机型里另起一套。
 
@@ -32,10 +35,10 @@
 
 | 工程 | 管什么 |
 |---|---|
-| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数 |
+| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop） |
 | WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务 |
 | SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码、工艺步骤的配方要在工艺配方库里 |
-| ProcessRecipeSmoke | 工艺配方库：sc.xml 节点和参数、摆臂和药液（腔体的摆臂轴 + 喷嘴）、新建/改名/保存/删除的各项检查（时间、转速、摆臂、药液、流量、位置、Scan、合计不超过工艺超时）、文件里不写用不上的属性、坏文件跳过、版本冲突、变更事件、服务和选项、腔体起工艺要配方在库里、没装库 |
+| ProcessRecipeSmoke | 工艺配方库：sc.xml 节点和字段表、字段表配错开机就报、下拉按数据源取选项（直接写的、从腔体部件取的、跟着别的字段走的，几个腔体合起来）、新建/改名/保存/删除和按字段表的每一条检查、规整写法、字段都写进文件（老配方缺的按默认值补）、坏文件跳过、版本冲突、变更事件、配方对不对得上具体腔体、服务和字段表、腔体起工艺要配方在库里且对得上、没装库 |
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
 | DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
 | HsmsSmoke / SecsSmoke | HSMS 组件对假 EAP；SECS-II 编解码、HSMS 握手和计时器 |

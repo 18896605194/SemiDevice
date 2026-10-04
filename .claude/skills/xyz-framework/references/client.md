@@ -7,11 +7,12 @@ MaterialDesignThemes 5（暗色）、CommunityToolkit.Mvvm 8、protobuf-net.Grpc
 
 ```
 xyz.Client（壳，WinExe）
-  → 功能模块 xyz.Client.Alarm / DataCenter / Io / Manual / Recipe / Setting
+  → 功能模块 xyz.Client.Main / Alarm / DataCenter / Io / Manual / Recipe / Setting
     → Common\xyz.Client.Presentation（控件、样式、语言包、公共显示模型）
       → Common\xyz.Client.Common（RPC、远程事件、日志、EC/报警缓存、会话）、Common\xyz.Client.DataModels（BaseViewModel）
         → xyz.Core\Shared\xyz.Shared（契约）、xyz.Tools（EventBus、IocHelper、JsonHelper）
-Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[ClientModule]、ClientModuleLoader、IClientMenuProvider、ClientMenu）
+Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[ClientModule]、ClientModuleLoader、IClientMenuProvider、ClientMenu、
+  ClientViewKeys = 页面里能按机型换掉的一块的注册键）
 ```
 
 - 客户端**不引用任何后端工程**，只走 `xyz.Shared` 里的契约（服务接口、DTO、错误码）。
@@ -24,7 +25,8 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 1. 挂全局异常（Dispatcher / AppDomain / TaskScheduler），一律 `ClientLog.Error("Client", ...)`；显示加载窗口。
 2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`，exe 旁 `client.json` 的 `GrpcAddress` 可改）。
 3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
-   返回的模块名、腔体名用来生成 IO / 腔体菜单。后端一直不在就用 zh-CN、这两类菜单整次为空；换语言要重启客户端。
+   返回的模块名、腔体名用来生成 IO / 腔体菜单，LoadPort、机械手名单用来生成主界面的 LoadPort 页签和默认调度图。
+   后端一直不在就用 zh-CN、这些按模块生成的东西整次为空（主界面显示提示）；换语言要重启客户端。
 4. `RemoteEventBus.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`。
 5. 建 DI：`AddXyzClientServices(settings)`（壳 VM、平台菜单、各功能模块注册）→ `ClientModuleLoader.Load(services)`
    （扫 exe 目录和 `Modules\**\*.dll` 里带 `[ClientModule]` 的 `IClientModule`，按 Key 排序调 `Register`；机型后注册，
@@ -51,7 +53,26 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - `xyz.Client\Views\PageHost.cs`：全部页面启动时挂上，当前页 Visible、其余 Hidden。
   **页面常驻：Loaded / Unloaded 只触发一次**。要知道页面显示没显示用 `IsVisibleChanged`，转给 VM（示例 `WaferLedgerView.xaml.cs` →
   `viewModel.SetPageVisible(...)`）；页面不在前台时不拉数据、不跑每帧的东西（TrendChart、Robot 控件隐藏时停 `CompositionTarget.Rendering`）。
-- 没注册页面的菜单显示占位页（Main 目前就是）。
+- 没注册页面的菜单显示占位页。
+
+### 主界面（菜单 Main，`xyz.Client.Main`，布局照用户 2026-10-04 给的图，见 decisions.md）
+- 三块：左 **系统操作**（平台固定：系统状态徽标、当前模式、报警条数，Auto / Manual / Stop / Reset）| 中 **整机调度**（可替换）|
+  右 **LoadPort 页签**（`UnderlineTabListBoxStyle`，一个 LoadPort 一个：载具 / 槽图状态 / 槽数、LotID、Sequence 选择框、创建 / 启动 Job、槽位表）。
+- **以后机台变了，要动的就是中间和右边，都不用改主界面**：
+  - 右边页签照后端系统设置的 `SystemSettingsDto.LoadPorts`（sc.xml 装了的 LoadPort，先后同 sc）生成，3 个、4 个都不改代码。
+  - 中间默认是 `Views\DispatchView`：照 `SystemSettingsDto.Robots` 一台机械手一张公共调度图 `DispatchMap`，站点按机械手 sc.xml `Stations`
+    的 `Direction` 摆在上下左右，卡片按站点类型（`RobotStationDto.Kind`：LoadPort 花篮卡、腔体 / 其他单片卡）选，sc 里多一个站点图上就多一张。
+  - 机型要别的摆法（几台机械手、缓存位、对中台……）：在机型 `IClientModule.Register` 里
+    `services.AddKeyedSingleton<UserControl, 自己的View>(ClientViewKeys.MainDispatch)`，后注册的生效，整块换掉；
+    自己的图照样可以拿 `DispatchMap`、`StationCard`、`Robot` 控件来拼。主界面由 `MainPageView` 构造时按这个键从 DI 取。
+- 系统状态（`ModuleStateBadge` 整条色块）：没连上 / 还没收到设备总状态 = 未连接（灰），有报警 = 报警（红），有模块在动 = 运行中（蓝），
+  只有警告 = 警告（黄），否则空闲（绿）。模式取设备总状态 `EquipmentStatusDto.IsAuto`。四个按钮连上且收到状态后才能点。
+  Auto / Manual / Stop 走 `IEquipmentService`，Reset 跟右上角一样走 `IAlarmService.ResetAllAsync`；结果写顶栏日志。
+- 槽位表（`DenseDataGridStyle`，行高 24，25 槽一屏放下，大号在上）：片以晶圆账为准（`LoadPortDto.LedgerSlots`，账上没登记才按 Mapping）；
+  状态列 `JobWaferStateDataGridTextStyle`（物理状态不正常的先显示交叉片 / 叠片 / 状态不明，否则显示工艺状态）。
+  Sequence 是界面上选的、还不交给后端：上面的 Sequence 框一选给全篮能做的片套上，⊕ 弹公共选择弹窗给这一片单独选，⊖ 清空（这片不做）；
+  后来才放上 / Mapping 出来的片也套上面选的那个；交叉片、叠片、状态不明的没有 ⊕ ⊖。
+- **Job 还没做**：创建 Job / 启动 Job 两个按钮先灰着（悬停说明），等按 Job 自动调度一起做。
 
 ### 加一个页面（清单）
 1. 功能模块里加 `Models\`、`ViewModels\XxxViewModel.cs`、`Views\XxxView.xaml(.cs)`。
@@ -129,10 +150,12 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   悬停 `DarkHoverBackground`、遮罩 `DarkOverlayBackground`。新颜色先加 token 再用。
 - Tag 驱动的公共样式（数据绑到 `Tag`，样式按值换外观）：`ShowWhenTagTrueStyle`（FrameworkElement，Tag=True 才显示）、
   `NullContentHintTextStyle`（Tag 为 null 才显示，做占位提示）、`PageOverlayBorderStyle`、`StatusDotBorderStyle`、
-  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Dummy/Unknown，其他=空槽虚线）。
+  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Dummy/Unknown，其他=空槽虚线）、
+  `AlarmCountTextStyle`（Tag=True 红字，报警条数）、`MapStatusTextStyle`（Tag = CarrierSlotMapStatus，写"映射完成"这类字并换色）。
   DataTrigger 的 `Value="Move"` 这种字符串能直接匹配枚举。
+- 表单一行"标签 + 值"（主界面系统操作、LoadPort 栏）：`FormLabelTextStyle` / `FormValueTextStyle`。表格行里的小图标按钮（⊕ ⊖）：`RowIconButtonStyle`。
 - 需要行数据带特定属性的样式：`LogLevelDataGridTextStyle`（Level）、`PickDataGridRowStyle` / `PickDataGridCellStyle`（IsPickable）、
-  `FreshDataGridCellStyle`（IsFresh）。
+  `FreshDataGridCellStyle`（IsFresh）、`JobWaferStateDataGridTextStyle`（WaferState，主界面槽位表的状态列）。
 - DataGrid 三档：`DefaultDataGridStyle`（行 46）、`CompactDataGridStyle`（行 32，日志、报警、IO、EC）、
   `DenseDataGridStyle`（行 27、格子留白小、不能点表头排序、外面套 `ListPaneBorderStyle`）+ `DenseDataGridTextStyle`。
   列文字用 `ElementStyle`；**要让样式来定 Text 的列用模板列**（DataGridTextColumn 会在 TextBlock 上设本地 Text，盖掉样式）。
@@ -145,9 +168,12 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - 分块的页面（一页几块、每块带标题条，如流程配方页）：`ZoneBorderStyle` 包一块，`ZoneHeaderBorderStyle` 是标题条
   （左边 `ZoneTitleBarBorderStyle` 竖条 + `ZoneTitleTextStyle`，右边按钮 `ZoneHeaderButtonStyle` / 主按钮 `ZoneHeaderPrimaryButtonStyle`，
   检查不过的红字 `ZoneErrorTextStyle`、合计这类统计字 `ZoneStatTextStyle`），块里的表格 `ZoneDataGridStyle`；字段 `MetaLabelTextStyle` / `MetaValueTextStyle`。
-- 一行一条、各列是输入框和下拉框的表（工艺配方页的工艺步骤）：不用 DataGrid，用 `ListBox`（`PickListBoxStyle` + `StepListBoxItemStyle`），
-  列头是 `StepHeaderBorderStyle` 里的一个 Grid、列宽跟行模板写成一样；输入框 `ToolbarTextBoxStyle`、下拉 `StepComboBoxStyle`（34 高，
-  Tag=True 红框，提示字只在没选时显示、不浮到框上面），这一格不用填时写的"—""Home"用 `StepPlaceholderTextStyle`。
+- 一行一条、各列是输入框和下拉框的表（工艺配方页的工艺步骤）：不用 DataGrid，用 `ListBox`（`PickListBoxStyle` + `StepListBoxItemStyle`）。
+  **列不写死**：表头是 `StepHeaderBorderStyle` 里一个横排的 ItemsControl（绑字段表 `Fields`），每一行也是横排的 ItemsControl（绑这一行的 `Cells`），
+  列宽按字段类型定（`ProcessRecipeFieldModel.Width`），表头和格子用同一个宽；一格按类型三选一显示（`ShowWhenTagTrueStyle` 包着）：
+  输入框（整数、小数、文本，`DataType` / 上下限 / 单位绑字段，`ToolbarTextBoxStyle`）、下拉（`StepComboBoxStyle`，34 高，Tag=True 红框，
+  提示字不浮到框上面；第一项"—"是不选）、勾选框（开关）。跟着别的字段走的下拉（药液跟着摆臂）由这一行的模型换选项，原来选的不在新选项里就清掉。
+  检查跟后端同一套错误码；值本身有问题报具体原因，输入框里还有没提交的错字时报 `recipe.process.cell_invalid`（看框里的提示）。
   点进行里的输入框、下拉框也要选中这一行：View 里 `PreviewGotKeyboardFocus` + `ItemsControl.ContainerFromElement`（见 ProcessRecipeView.xaml.cs）。
 - 页内确认框（`PageOverlayBorderStyle` + `DialogCardBorderStyle`）：标题 `PanelTitleTextStyle`，主角 `DialogSummaryBorderStyle` + `DialogSubjectTextStyle`，
   说明 `DialogMessageTextStyle`、后端拒了的原因 `DialogErrorTextStyle`（没字时不占地方），确认按钮 `DialogConfirmButtonStyle`（Tag=True 红，删除、放弃用）。
@@ -179,6 +205,12 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **公共选择弹窗** `DialogService.ShowPicker(标题, 列, 数据, 当前值, 值属性)`：一个普通模态窗口（不是 DialogHost，不动主窗口），
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - LogBar / AlarmBar 只在主窗口顶栏用。
+- **DispatchMap**（调度图，Robot 手动页左边和主界面中间共用）：给 `RobotName`（机械手模块名）就自己建 `DispatchMapViewModel`、订机械手和各站点的推送
+  （都是留存消息，不用另外拉）；机械手在中间，站点按它 sc.xml `Stations` 的方向摆四周，每个站点一张 `StationCard`
+  （`Kind` = LoadPort 用 `LoadPortInfoCard` 花篮卡，其他用 `ChamberInfoCard` 单片卡，用模板切、只建用得上的那张）。
+  `CardWidth` / `CardHeight`（默认 280×233）、`RobotHeight`（默认 360）可设，卡片圆片直径跟着 RobotHeight 算（= 叉上的片）；
+  一排放不下时那一排整体缩小（只缩不放），不裁站点。LoadPort 卡底栏六盏灯跟 `LoadPortDto` 走（通讯 / 在位 / 到位 / 报警 / 自动 / 手动），
+  腔体卡的"配方"取 `ChamberDto.Recipe`。`ChamberInfoCard` 的五行字段哪一行没有值就整行不显示（2026-10-04 起，后端还没给步骤、时间这些）。
 - **HoldButton**（按住类按钮，点动用）：按下发 `PressCommand`，按住期间每 `RenewMilliseconds`（默认 200）发一次 `RenewCommand`，
   松开 / 拖出按钮 / 禁用 / 藏起来发 `ReleaseCommand`，三个命令共用 `CommandParameter`；不用 `Command`。样式照普通按钮套。
 - **三维硬件**（`Controls\ThreeD`，说明见那儿的 README）：Arm / Lift / FluidPipe / Bowl / HomeCup / Door / Disk / ChamberBase 组件，
@@ -205,7 +237,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 
 ## 9. 显示模型
 
-- 公共的在 `Presentation\Models`（`ModuleStates`、`ModuleStateTone`、`QueryDateRange`、`TrendSeries`、`InputDataType`、`ProcessRecipeOptionModel`……），
+- 公共的在 `Presentation\Models`（`ModuleStates`、`ModuleStateTone`、`QueryDateRange`、`TrendSeries`、`InputDataType`、`ProcessRecipeOptionModel`、
+  `RobotModel` / `RobotStationModel`（机械手和它的站点，Robot 手动页、调度图共用）、`StationWafers`（LoadPort 花篮 / 腔体片位 → 圆片，以晶圆账为准）……），
   页面自己的在功能模块 `Models\`。
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
 - 当前用户 `xyz.Client.Common.Session.ClientSession.UserName`（登录没做，先固定 Admin），要记操作人的地方都从这儿取。

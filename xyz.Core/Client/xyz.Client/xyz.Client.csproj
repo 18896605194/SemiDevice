@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
     <ProjectReference Include="..\Common\xyz.Client.Common\xyz.Client.Common.csproj" />
     <ProjectReference Include="..\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
+    <ProjectReference Include="..\xyz.Client.Main\xyz.Client.Main.csproj" />
     <ProjectReference Include="..\xyz.Client.Setting\xyz.Client.Setting.csproj" />
     <ProjectReference Include="..\xyz.Client.Recipe\xyz.Client.Recipe.csproj" />
     <ProjectReference Include="..\xyz.Client.Io\xyz.Client.Io.csproj" />

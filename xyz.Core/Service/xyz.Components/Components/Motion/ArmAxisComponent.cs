@@ -14,16 +14,6 @@ namespace xyz.Components.Components;
 [Component(description: "摆臂轴组件")]
 public class ArmAxisComponent : AxisComponent
 {
-    /// <summary>
-    /// 配方晶圆坐标的边缘：从 Home 摆过去先碰到的那个晶圆边缘。
-    /// </summary>
-    public const double WaferEdgePosition = 0;
-
-    /// <summary>
-    /// 配方晶圆坐标的中心（300 mm 晶圆的半径，所以坐标按 mm 理解，扫描速度按 mm/s）。
-    /// </summary>
-    public const double WaferCenterPosition = 150;
-
     #region EC 可调参数
 
     [VariableMark(VariableType.EC, ValueFormat.Double, "unit", "-100000", "100000", "150", "Wafer 中心示教位：配方 150（晶圆中心）对应的实际轴位置")]

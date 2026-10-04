@@ -51,6 +51,7 @@
     <sys:String x:Key="chamber.part_action_args_invalid">Invalid arguments for {1} on {0} (wrong count or not a number)</sys:String>
     <sys:String x:Key="chamber.part_not_held">{1} is not being held on {0} (released, stopped or aborted)</sys:String>
     <sys:String x:Key="chamber.recipe_not_found">{0}: recipe {1} is not in the process recipe library (it may have been deleted or renamed)</sys:String>
+    <sys:String x:Key="chamber.recipe_option_missing">{0} has no {2} {3}, so process recipe {1} cannot run there</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} did not become available within {1} ms (it never returned to idle, or another robot kept it busy)</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0}: transfer preparation step {1} was rejected (the station state does not allow it; it may have been operated manually)</sys:String>
@@ -58,6 +59,8 @@
     <sys:String x:Key="transfer.rejected">{0} {1} could not be started (robot state does not allow it, not connected, or the station is not configured)</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} failed: the station stays in Transferring; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} could not be marked {1} (the station state does not match the transfer progress; it may have been operated manually)</sys:String>
+    <sys:String x:Key="transfer.not_installed">Cannot switch to Auto: no Transfer node in sc.xml (transfer manager not installed)</sys:String>
+    <sys:String x:Key="transfer.disabled">Cannot switch to Auto: the transfer manager is disabled (IsEnable=False on the Transfer node in sc.xml)</sys:String>
 
     <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
@@ -98,6 +101,7 @@
     <sys:String x:Key="sequence.station_not_in_group">Step {0}: {1} is not in group {2}</sys:String>
     <sys:String x:Key="sequence.recipe_required">Step {0}: no process recipe selected</sys:String>
     <sys:String x:Key="sequence.recipe_not_found">Step {0}: process recipe {1} is not in the process recipe library (it may have been deleted or renamed)</sys:String>
+    <sys:String x:Key="sequence.recipe_option_missing">Step {0}: {1} has no {3} {4} (used by process recipe {2})</sys:String>
     <sys:String x:Key="sequence.save_failed">Could not write the file of sequence No. {0}: {1}</sys:String>
     <sys:String x:Key="process_recipe.not_installed">The process recipe library is not installed (no ProcessRecipe node in sc.xml)</sys:String>
     <sys:String x:Key="process_recipe.index_out_of_range">No. {0} does not exist (1 ~ {1})</sys:String>
@@ -109,15 +113,13 @@
     <sys:String x:Key="process_recipe.name_duplicate">The name {0} is already used by No. {1}</sys:String>
     <sys:String x:Key="process_recipe.revision_mismatch">No. {0} was changed elsewhere after you opened it, so it can't be saved: discard your changes and open it again</sys:String>
     <sys:String x:Key="process_recipe.no_steps">There are no steps: add at least one</sys:String>
-    <sys:String x:Key="process_recipe.time_out_of_range">Step {0}: time must be {1} ~ {2} s</sys:String>
-    <sys:String x:Key="process_recipe.rpm_out_of_range">Step {0}: speed must be 0 ~ {1} rpm</sys:String>
-    <sys:String x:Key="process_recipe.arm_not_found">Step {0}: arm {1} no longer exists (sc.xml changed)</sys:String>
-    <sys:String x:Key="process_recipe.chemical_required">Step {0}: {1} is selected but no chemical</sys:String>
-    <sys:String x:Key="process_recipe.chemical_not_on_arm">Step {0}: chemical {1} is not on {2} (sc.xml changed)</sys:String>
-    <sys:String x:Key="process_recipe.flow_out_of_range">Step {0}: flow must be {1} ~ {2} L/min</sys:String>
-    <sys:String x:Key="process_recipe.position_out_of_range">Step {0}: position must be {1} ~ {2} (wafer coordinates)</sys:String>
-    <sys:String x:Key="process_recipe.scan_same_position">Step {0} is Scan but both positions are the same (choose Time if it doesn't scan)</sys:String>
-    <sys:String x:Key="process_recipe.scan_speed_out_of_range">Step {0}: scan speed must be {1} ~ {2} mm/s</sys:String>
+    <sys:String x:Key="process_recipe.value_required">Step {0}: {1} is required</sys:String>
+    <sys:String x:Key="process_recipe.value_not_integer">Step {0}: {1} must be a whole number (now {2})</sys:String>
+    <sys:String x:Key="process_recipe.value_not_number">Step {0}: {1} must be a number (now {2})</sys:String>
+    <sys:String x:Key="process_recipe.value_below_min">Step {0}: {1} must be at least {2}{3}</sys:String>
+    <sys:String x:Key="process_recipe.value_above_max">Step {0}: {1} must be at most {2}{3}</sys:String>
+    <sys:String x:Key="process_recipe.value_too_precise">Step {0}: {1} allows at most {2} decimal places</sys:String>
+    <sys:String x:Key="process_recipe.value_not_in_options">Step {0}: {1} has no option {2}</sys:String>
     <sys:String x:Key="process_recipe.total_too_long">Total {0} s exceeds the chamber process timeout of {1} s</sys:String>
     <sys:String x:Key="process_recipe.save_failed">Could not write the file of process recipe No. {0}: {1}</sys:String>
 
@@ -462,6 +464,71 @@
     <sys:String x:Key="chamberscene.top_view">Top view</sys:String>
     <sys:String x:Key="chamberscene.too_many_arms">{0} has {1} arms; the 3D view only draws the first {2}</sys:String>
 
+    <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。
+         Job 和按 Job 自动调度还没做：创建 / 启动 Job 先灰着，槽位表的 ⊕ ⊖ 只改界面上的选择 -->
+    <sys:String x:Key="main.system">System</sys:String>
+    <sys:String x:Key="main.system_state">State</sys:String>
+    <sys:String x:Key="main.mode">Mode</sys:String>
+    <sys:String x:Key="main.alarms">Alarms</sys:String>
+    <sys:String x:Key="main.state.disconnected">Disconnected</sys:String>
+    <sys:String x:Key="main.state.idle">Idle</sys:String>
+    <sys:String x:Key="main.state.running">Running</sys:String>
+    <sys:String x:Key="main.state.warning">Warning</sys:String>
+    <sys:String x:Key="main.state.alarm">Alarm</sys:String>
+    <sys:String x:Key="main.mode.auto">Auto</sys:String>
+    <sys:String x:Key="main.mode.manual">Manual</sys:String>
+    <sys:String x:Key="main.auto">Auto</sys:String>
+    <sys:String x:Key="main.manual">Manual</sys:String>
+    <sys:String x:Key="main.stop">Stop</sys:String>
+    <sys:String x:Key="main.reset">Reset</sys:String>
+    <sys:String x:Key="main.auto_tip">Switch to Auto: turn on automatic dispatch (job-driven scheduling is not available yet)</sys:String>
+    <sys:String x:Key="main.manual_tip">Switch to Manual: turn off automatic dispatch; the transfer in progress finishes</sys:String>
+    <sys:String x:Key="main.stop_tip">Stop the equipment: turn off automatic dispatch and abort every module action in progress</sys:String>
+    <sys:String x:Key="main.reset_tip">Reset every alarm source (same as Reset at the top right)</sys:String>
+    <sys:String x:Key="main.auto_done">Switched to Auto</sys:String>
+    <sys:String x:Key="main.manual_done">Switched to Manual</sys:String>
+    <sys:String x:Key="main.auto_failed">Failed to switch to Auto: {0}</sys:String>
+    <sys:String x:Key="main.manual_failed">Failed to switch to Manual: {0}</sys:String>
+    <sys:String x:Key="main.stopped">Stopped: automatic dispatch is off; abort sent to {0} busy module(s)</sys:String>
+    <sys:String x:Key="main.stop_failed">Stop failed: {0}</sys:String>
+    <sys:String x:Key="main.reset_done">Reset {0} alarm source(s)</sys:String>
+    <sys:String x:Key="main.reset_failed">Reset failed: {0}</sys:String>
+    <sys:String x:Key="main.dispatch">Equipment</sys:String>
+    <sys:String x:Key="main.no_robot">No robot to show: the backend was not reachable at startup, or there is no Robot in sc.xml</sys:String>
+    <sys:String x:Key="main.no_loadport">No LoadPort: the backend was not reachable at startup, or there is no LoadPort in sc.xml</sys:String>
+    <sys:String x:Key="main.none">—</sys:String>
+    <sys:String x:Key="main.carrier">Carrier</sys:String>
+    <sys:String x:Key="main.slots">Slots</sys:String>
+    <sys:String x:Key="main.lot_id">LotID</sys:String>
+    <sys:String x:Key="main.lot_hint">Enter LotID</sys:String>
+    <sys:String x:Key="main.sequence">Sequence</sys:String>
+    <sys:String x:Key="main.sequence_hint">Select a Sequence</sys:String>
+    <sys:String x:Key="main.pick_sequence">Select Sequence</sys:String>
+    <sys:String x:Key="main.pick_slot_sequence">Sequence for slot {0}</sys:String>
+    <sys:String x:Key="main.sequences_failed">Failed to load the Sequence list: {0}</sys:String>
+    <sys:String x:Key="main.create_job">Create Job</sys:String>
+    <sys:String x:Key="main.start_job">Start Job</sys:String>
+    <sys:String x:Key="main.job_pending_tip">Jobs and job-driven scheduling are not available yet; this is the layout only</sys:String>
+    <sys:String x:Key="main.col.slot">Slot</sys:String>
+    <sys:String x:Key="main.col.wafer">Wafer</sys:String>
+    <sys:String x:Key="main.col.state">State</sys:String>
+    <sys:String x:Key="main.col.sequence">Sequence</sys:String>
+    <sys:String x:Key="main.add_sequence_tip">Pick a Sequence for this wafer</sys:String>
+    <sys:String x:Key="main.clear_sequence_tip">Clear this wafer's Sequence (it will not be processed)</sys:String>
+    <sys:String x:Key="main.map.NotRead">Not mapped</sys:String>
+    <sys:String x:Key="main.map.Read">Mapped</sys:String>
+    <sys:String x:Key="main.map.WaitingForHost">Waiting for host</sys:String>
+    <sys:String x:Key="main.map.Verified">Map verified</sys:String>
+    <sys:String x:Key="main.map.VerifyFailed">Map mismatch</sys:String>
+    <sys:String x:Key="main.wafer.Idle">Pending</sys:String>
+    <sys:String x:Key="main.wafer.InProcess">Processing</sys:String>
+    <sys:String x:Key="main.wafer.Completed">Completed</sys:String>
+    <sys:String x:Key="main.wafer.Failed">Failed</sys:String>
+    <sys:String x:Key="main.wafer.Aborted">Aborted</sys:String>
+    <sys:String x:Key="main.wafer.Crossed">Cross-slotted</sys:String>
+    <sys:String x:Key="main.wafer.Double">Double-slotted</sys:String>
+    <sys:String x:Key="main.wafer.Unknown">Unknown</sys:String>
+
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
          Per-module menus (IO, chamber manual) show the module name from sc.xml and are not configured here.
          Framework menus (including LoadPort Manual and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
@@ -576,28 +643,10 @@
     <sys:String x:Key="recipe.process.add_step">Add</sys:String>
     <sys:String x:Key="recipe.process.delete_step">Delete</sys:String>
     <sys:String x:Key="recipe.process.step">Step</sys:String>
-    <sys:String x:Key="recipe.process.time">Time (s)</sys:String>
-    <sys:String x:Key="recipe.process.rpm">Speed (rpm)</sys:String>
-    <sys:String x:Key="recipe.process.arm">Arm</sys:String>
-    <sys:String x:Key="recipe.process.chemical">Chemical</sys:String>
-    <sys:String x:Key="recipe.process.flow">Flow (L/min)</sys:String>
-    <sys:String x:Key="recipe.process.mode">Mode</sys:String>
-    <sys:String x:Key="recipe.process.position">Position</sys:String>
-    <sys:String x:Key="recipe.process.position_tip">{0} wafer edge · {1} center; Scan sweeps between the two until the step ends</sys:String>
-    <sys:String x:Key="recipe.process.unit_seconds">s</sys:String>
-    <sys:String x:Key="recipe.process.unit_rpm">rpm</sys:String>
-    <sys:String x:Key="recipe.process.unit_flow">L/min</sys:String>
-    <sys:String x:Key="recipe.process.unit_speed">mm/s</sys:String>
-    <sys:String x:Key="recipe.process.no_arm">No dispense</sys:String>
-    <sys:String x:Key="recipe.process.chemical_hint">Chemical</sys:String>
-    <sys:String x:Key="recipe.process.mode_time">Time</sys:String>
-    <sys:String x:Key="recipe.process.mode_scan">Scan</sys:String>
-    <sys:String x:Key="recipe.process.scan_to">to</sys:String>
-    <sys:String x:Key="recipe.process.scan_speed">speed</sys:String>
-    <sys:String x:Key="recipe.process.home">Home</sys:String>
     <sys:String x:Key="recipe.process.none">—</sys:String>
     <sys:String x:Key="recipe.process.empty_steps">Steps appear here after you create a process recipe</sys:String>
     <sys:String x:Key="recipe.process.error_separator" xml:space="preserve">; </sys:String>
+    <sys:String x:Key="recipe.process.cell_invalid">Step {0}: {1} is not valid (see the box)</sys:String>
     <sys:String x:Key="recipe.process.dialog_create">New process recipe {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_rename">Rename process recipe {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_delete">Delete process recipe</sys:String>

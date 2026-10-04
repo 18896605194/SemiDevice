@@ -1,4 +1,5 @@
-﻿using System.Xml.Serialization;
+﻿using System.Globalization;
+using System.Xml.Serialization;
 
 namespace xyz.Modules;
 
@@ -43,10 +44,21 @@ public class ProcessRecipeData
     public List<ProcessRecipeStep> Steps { get; set; } = [];
 
     /// <summary>
-    /// 合计时长（各步时间加起来），秒。
+    /// 合计时长（各步时间加起来），秒；时间没填、填的不是数的那一步不算。
     /// </summary>
     [XmlIgnore]
-    public double TotalSeconds => Steps.Sum(step => step.Seconds);
+    public double TotalSeconds => Steps.Sum(step => SecondsOf(step));
+
+    /// <summary>
+    /// 一步的时间（字段表里的 Seconds），秒；没填、不是数的算 0。
+    /// </summary>
+    public static double SecondsOf(ProcessRecipeStep step)
+    {
+        return double.TryParse(step.Get(ProcessRecipeField.SecondsKey), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture, out double seconds) && seconds > 0
+            ? seconds
+            : 0;
+    }
 
     /// <summary>
     /// 深拷贝：给调用方的都是副本，拿不到库里的活对象。

@@ -342,16 +342,92 @@
 		<Value Name="NameMaxLength" Value="32" />
 	</Setting>
 	<!-- 工艺配方库（配方 → 工艺配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……），Folder 相对宿主运行目录。
-	     能选的摆臂、药液不在这儿配：按腔体下装的摆臂轴和挂在它下面的喷嘴（喷嘴的 Chemical）生成；合计时长的上限是腔体 EC 的工艺超时。
-	     下面几个上限是编辑时的检查范围，跟设备能力走：一步最长秒数、转速 rpm、流量 L/min（喷嘴流量设定的量程）、摆臂扫描速度 mm/s -->
+	     每一步有哪些字段按下面的 Fields 字段表：一个子节点一个字段（配方页上的一列），节点名就是字段名（存进配方文件），从上到下就是从左到右。
+	     Text / TextEn 列名；Type：Int 整数、Double 小数、Choice 下拉、Bool 开关、Text 文本；Unit 单位、Min / Max 上下限、Decimals 最多几位小数（数字才填）；
+	     Default 新加一步时填的值；Required 必填（true / false）；Source 下拉的数据源：直接写选项用英文逗号隔开（如 Time,Scan），
+	     或 Parts:类型[.属性][@字段名] 从腔体里装的部件取（Parts:ArmAxisComponent 取摆臂名，Parts:NozzleComponent.Chemical@Arm 取所选摆臂上喷嘴的药液）。
+	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长的上限是腔体 EC 的工艺超时。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
+	     喷嘴喷的东西（DIW、SC1、N2、背面冲洗……）都是在药液里选、流量填在流量里，不单独加字段 -->
 	<Setting Name="ProcessRecipe" Type="xyz.Modules.ProcessRecipeComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Process" />
 		<Value Name="NameMaxLength" Value="32" />
-		<Value Name="MaxStepSeconds" Value="3600" />
-		<Value Name="MaxRpm" Value="3000" />
-		<Value Name="MaxFlow" Value="3" />
-		<Value Name="MaxScanSpeed" Value="100" />
+		<Setting Name="Fields">
+			<Setting Name="Seconds">
+				<Value Name="Text" Value="时间" />
+				<Value Name="TextEn" Value="Time" />
+				<Value Name="Type" Value="Double" />
+				<Value Name="Unit" Value="s" />
+				<Value Name="Min" Value="0.1" />
+				<Value Name="Max" Value="3600" />
+				<Value Name="Decimals" Value="1" />
+				<Value Name="Default" Value="10" />
+				<Value Name="Required" Value="true" />
+			</Setting>
+			<Setting Name="Rpm">
+				<Value Name="Text" Value="转速" />
+				<Value Name="TextEn" Value="Spin speed" />
+				<Value Name="Type" Value="Int" />
+				<Value Name="Unit" Value="rpm" />
+				<Value Name="Min" Value="0" />
+				<Value Name="Max" Value="3000" />
+				<Value Name="Default" Value="500" />
+				<Value Name="Required" Value="true" />
+			</Setting>
+			<Setting Name="Arm">
+				<Value Name="Text" Value="摆臂" />
+				<Value Name="TextEn" Value="Arm" />
+				<Value Name="Type" Value="Choice" />
+				<Value Name="Source" Value="Parts:ArmAxisComponent" />
+			</Setting>
+			<Setting Name="Chemical">
+				<Value Name="Text" Value="药液" />
+				<Value Name="TextEn" Value="Chemical" />
+				<Value Name="Type" Value="Choice" />
+				<Value Name="Source" Value="Parts:NozzleComponent.Chemical@Arm" />
+			</Setting>
+			<Setting Name="Flow">
+				<Value Name="Text" Value="流量" />
+				<Value Name="TextEn" Value="Flow" />
+				<Value Name="Type" Value="Double" />
+				<Value Name="Unit" Value="L/min" />
+				<Value Name="Min" Value="0.1" />
+				<Value Name="Max" Value="3" />
+				<Value Name="Decimals" Value="1" />
+			</Setting>
+			<Setting Name="Mode">
+				<Value Name="Text" Value="方式" />
+				<Value Name="TextEn" Value="Mode" />
+				<Value Name="Type" Value="Choice" />
+				<Value Name="Source" Value="Time,Scan" />
+				<Value Name="Default" Value="Time" />
+			</Setting>
+			<Setting Name="Position">
+				<Value Name="Text" Value="位置" />
+				<Value Name="TextEn" Value="Position" />
+				<Value Name="Type" Value="Double" />
+				<Value Name="Min" Value="0" />
+				<Value Name="Max" Value="150" />
+				<Value Name="Decimals" Value="1" />
+			</Setting>
+			<Setting Name="ScanTo">
+				<Value Name="Text" Value="到" />
+				<Value Name="TextEn" Value="To" />
+				<Value Name="Type" Value="Double" />
+				<Value Name="Min" Value="0" />
+				<Value Name="Max" Value="150" />
+				<Value Name="Decimals" Value="1" />
+			</Setting>
+			<Setting Name="ScanSpeed">
+				<Value Name="Text" Value="速度" />
+				<Value Name="TextEn" Value="Scan speed" />
+				<Value Name="Type" Value="Double" />
+				<Value Name="Unit" Value="mm/s" />
+				<Value Name="Min" Value="0.1" />
+				<Value Name="Max" Value="100" />
+				<Value Name="Decimals" Value="1" />
+			</Setting>
+		</Setting>
 	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
 	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。

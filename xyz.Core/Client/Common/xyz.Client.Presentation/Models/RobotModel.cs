@@ -1,14 +1,14 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Client.Presentation.Localization;
-using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
-namespace xyz.Client.Manual.Models;
+namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，站点表 / 伸出方向 Direction / 伸出距离 Y（Stations / Direction / Y）、轴坐标都由后端按 sc.xml 配置推过来。
 /// 状态推送来了就地刷新：手臂按手指号保留同一实例，控件的运动动画不会因为换实例被打断。
+/// Robot 手动页右栏、调度图（DispatchMap，Robot 手动页和主界面共用）都用它。
 /// </summary>
 public class RobotModel : ObservableObject
 {
@@ -324,6 +324,7 @@ public class RobotModel : ObservableObject
                     Y = info.Y,
                     SlotCount = info.SlotCount,
                     Arms = [.. info.Arms],
+                    Kind = info.Kind,
                 })
                 .ToList()
             : dto.Stations
@@ -408,6 +409,7 @@ public class RobotModel : ObservableObject
                 || a.Direction != b.Direction
                 || a.Y != b.Y
                 || a.SlotCount != b.SlotCount
+                || a.Kind != b.Kind
                 || !a.Arms.SequenceEqual(b.Arms))
             {
                 return false;

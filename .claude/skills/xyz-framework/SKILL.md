@@ -20,7 +20,7 @@ description: xyz 半导体设备框架（D:\Code）的架构分层和编码规�
 xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、JsonHelper、IocHelper）
 xyz.Core\Service  后端：xyz.Components（组件）→ xyz.Modules（模块）→ xyz.Service（gRPC 服务、装配、事件桥）→ xyz.GrpcHost（宿主）
                   旁支：xyz.Drivers（通讯/协议）、xyz.Secs（SECS/HSMS）、xyz.Database（SqlSugar）、xyz.Configs（sc.xml）、xyz.Common（日志）
-xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Alarm/DataCenter/Io/Manual/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
+xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Main/Alarm/DataCenter/Io/Manual/Recipe/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
                   → Common\xyz.Client.Common（RPC/事件/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
 xyz.35021         机型层：继承平台 Base*Module 写具体设备、机型客户端页面、IO 点表；编译后部署到宿主和客户端的 Modules\35021，运行时扫描加载
 tools             冒烟测试（控制台程序，不是单元测试工程）、部署和编码脚本
@@ -77,6 +77,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 | 加表、流水、历史清理 | backend.md §7 |
 | 改 sc.xml、启动顺序 | backend.md §5「启动顺序」、§8 |
 | 加客户端页面、菜单 | client.md §3 清单 |
+| 改主界面、按机型换整机调度图、LoadPort 页签 | client.md §3「主界面」；机型注册见 machine-and-tools.md §2 |
 | 写 ViewModel / View | client.md §4、§5 |
 | 加样式、用控件 | client.md §6、§7 |
 | 加文字 | client.md §8 |

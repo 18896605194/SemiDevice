@@ -252,4 +252,45 @@
         </Style.Triggers>
     </Style>
 
+    <!--  主界面槽位表的状态列（行数据要有 WaferState）：待处理白字，处理中强调色，做完绿字，失败、中止、交叉片、叠片红字，状态不明黄字，空槽不写字  -->
+    <Style
+        x:Key="JobWaferStateDataGridTextStyle"
+        BasedOn="{StaticResource DenseDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Text" Value="" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding WaferState}" Value="Idle">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Idle}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="InProcess">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.InProcess}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="Completed">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Completed}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="Failed">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Failed}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="Aborted">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Aborted}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="Crossed">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Crossed}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="Double">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Double}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding WaferState}" Value="Unknown">
+                <Setter Property="Text" Value="{DynamicResource main.wafer.Unknown}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

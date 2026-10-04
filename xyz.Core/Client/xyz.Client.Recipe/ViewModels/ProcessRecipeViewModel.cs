@@ -20,8 +20,7 @@ namespace xyz.Client.Recipe.ViewModels;
 
 /// <summary>
 /// 工艺配方页 ViewModel（配方 → 工艺配方）：左边编号 1~N 的列表（个数由后端给），右边选中那一个的基本信息、工艺步骤。
-/// 每一步：时间、转速，然后摆臂 → 这条摆臂上的药液 → 流量 → 方式（Time / Scan）→ 位置；摆臂、药液来自后端 sc.xml，原样显示，
-/// 各项范围也由后端给。新建、重命名、删除是列表上的操作，马上生效；说明和步骤改完点"保存"才存，带上打开时的版本，别处改过就存不进去。
+/// 每一步有哪些字段（列）不写死：按后端给的字段表（sc.xml ProcessRecipe → Fields）生成，类型、范围、默认值、下拉的选项都按它来。新建、重命名、删除是列表上的操作，马上生效；说明和步骤改完点"保存"才存，带上打开时的版本，别处改过就存不进去。
 /// 后端推"变了"通知，这里攒一下再重拉；页面不在前台时只记一笔，切回来再拉。
 /// </summary>
 public class ProcessRecipeViewModel : BaseViewModel
@@ -44,6 +43,11 @@ public class ProcessRecipeViewModel : BaseViewModel
     /// 提示里数字的写法：最多两位小数，不带多余的 0（跟后端错误码里的写法一样）。
     /// </summary>
     private const string NumberFormat = "0.##";
+
+    /// <summary>
+    /// 步骤时长那个字段的名字（后端字段表里必须有）：合计时长按它加。
+    /// </summary>
+    private const string SecondsKey = "Seconds";
 
     #region Column
 
@@ -163,25 +167,9 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 摆臂下拉框的选项："不出液" + 后端给的摆臂（sc.xml 原样）。
+    /// 字段表（步骤表的列，按先后）：表头和每一行的格子都按它摆。
     /// </summary>
-    public ObservableCollection<ProcessRecipeChoiceModel> ArmChoices { get; } = [];
-
-    /// <summary>
-    /// 方式下拉框的选项：Time / Scan。
-    /// </summary>
-    public IReadOnlyList<ProcessRecipeChoiceModel> ModeChoices { get; }
-
-    private string _positionTip = string.Empty;
-
-    /// <summary>
-    /// 位置那一列表头后面的说明（晶圆坐标两头是几，Scan 怎么扫）。
-    /// </summary>
-    public string PositionTip
-    {
-        get => _positionTip;
-        private set => SetProperty(ref _positionTip, value);
-    }
+    public ObservableCollection<ProcessRecipeFieldModel> Fields { get; } = [];
 
     private string _totalText = string.Empty;
 
@@ -489,11 +477,9 @@ public class ProcessRecipeViewModel : BaseViewModel
     private bool _isInstalled = true;
 
     /// <summary>
-    /// 后端给的选项：摆臂和药液、各项范围、新加一步的默认值。
+    /// 合计时长上限（秒，腔体工艺超时）；0 = 不限。
     /// </summary>
-    private ProcessRecipeOptionsDto _options = new();
-
-    private ProcessRecipeLimitsModel _limits = new(new ProcessRecipeOptionsDto());
+    private double _maxTotalSeconds;
 
     /// <summary>
     /// 有没保存的修改时点的那个编号，确认放弃后切过去。
@@ -510,11 +496,6 @@ public class ProcessRecipeViewModel : BaseViewModel
     public ProcessRecipeViewModel()
     {
         _service = GrpcClientFactory.Create<IProcessRecipeService>();
-        ModeChoices =
-        [
-            new ProcessRecipeChoiceModel(ProcessArmMode.Time, L10n.Get("recipe.process.mode_time")),
-            new ProcessRecipeChoiceModel(ProcessArmMode.Scan, L10n.Get("recipe.process.mode_scan")),
-        ];
 
         CreateCommand = new RelayCommand(DoCreate, () => IsConnected && IsReady && !IsDialogOpen && _selectedSlot is not null && !_selectedSlot.IsUsed);
         RenameCommand = new RelayCommand(DoRename, () => IsConnected && !IsDialogOpen && Current is not null);
@@ -649,20 +630,16 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 换上后端给的选项：摆臂下拉框的选项、各项范围、位置那一列的说明。
+    /// 换上后端给的字段表（列名按界面语言）和合计时长上限。打开着的工艺配方随后按新字段表重摆。
     /// </summary>
     private void ApplyOptions(ProcessRecipeOptionsDto options)
     {
-        _options = options;
-        _limits = new ProcessRecipeLimitsModel(options);
-        ArmChoices.Clear();
-        ArmChoices.Add(new ProcessRecipeChoiceModel(string.Empty, L10n.Get("recipe.process.no_arm")));
-        foreach (var arm in options.Arms)
+        _maxTotalSeconds = options.MaxTotalSeconds;
+        Fields.Clear();
+        foreach (var field in options.Fields ?? [])
         {
-            ArmChoices.Add(new ProcessRecipeChoiceModel(arm.Name, arm.Name));
+            Fields.Add(new ProcessRecipeFieldModel(field, L10n.Language));
         }
-
-        PositionTip = L10n.Get("recipe.process.position_tip", Format(options.MinPosition), Format(options.MaxPosition));
     }
 
     /// <summary>
@@ -757,7 +734,7 @@ public class ProcessRecipeViewModel : BaseViewModel
             {
                 foreach (var step in dto.Steps)
                 {
-                    Steps.Add(CreateStep(step));
+                    Steps.Add(CreateStep(step.Values));
                 }
             }
 
@@ -773,9 +750,9 @@ public class ProcessRecipeViewModel : BaseViewModel
         Validate();
     }
 
-    private ProcessRecipeStepModel CreateStep(ProcessRecipeStepDto dto)
+    private ProcessRecipeStepModel CreateStep(IReadOnlyDictionary<string, string>? values)
     {
-        return new ProcessRecipeStepModel(dto, _limits, _options.Arms, OnStepChanged);
+        return new ProcessRecipeStepModel(Fields.ToList(), values, OnStepChanged);
     }
 
     /// <summary>
@@ -810,22 +787,21 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 检查步骤（跟后端保存时的检查一样，提示文字也用同一套）：时间、转速在范围里；出液的摆臂还在、选了药液、药液在这条摆臂上、
-    /// 流量和位置在范围里，Scan 两头不一样、速度在范围里；合计不超过腔体的工艺超时。
+    /// 检查步骤（跟后端保存时的检查一样，提示文字也用同一套）：每一格按它那一列的字段查——必填、整数和小数的写法、小数位、上下限，
+    /// 开关只认 true / false，下拉的值要在能选的里面（跟着别的字段走的，按这一行那个字段的值取）；合计不超过腔体的工艺超时。
     /// 输入框自己报了错的（格式不对、超了范围，还没提交进来）也算没过。有问题的行标红，标题条上列出来；全过了才能保存。
     /// </summary>
     private void Validate()
     {
         var messages = new List<string>();
-        var limits = _limits;
         double total = 0;
         foreach (var step in Steps)
         {
-            var problems = CheckStep(step, limits, out bool chemicalError);
+            var problems = CheckStep(step);
             messages.AddRange(problems);
             step.HasError = problems.Count > 0;
-            step.HasChemicalError = chemicalError;
-            if (ProcessRecipeStepModel.TryNumber(step.SecondsText, out double seconds) && seconds > 0)
+            if (double.TryParse(step.Get(SecondsKey), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+                    CultureInfo.InvariantCulture, out double seconds) && seconds > 0)
             {
                 total += seconds;
             }
@@ -836,9 +812,9 @@ public class ProcessRecipeViewModel : BaseViewModel
             messages.Add(L10n.Get(ErrorCodes.ProcessRecipeNoSteps));
         }
 
-        if (limits.MaxTotalSeconds > 0 && total > limits.MaxTotalSeconds)
+        if (_maxTotalSeconds > 0 && total > _maxTotalSeconds)
         {
-            messages.Add(L10n.Get(ErrorCodes.ProcessRecipeTotalTooLong, Format(total), Format(limits.MaxTotalSeconds)));
+            messages.Add(L10n.Get(ErrorCodes.ProcessRecipeTotalTooLong, Format(total), Format(_maxTotalSeconds)));
         }
 
         TotalText = Current is null ? string.Empty : L10n.Get("recipe.process.total", Format(total));
@@ -847,64 +823,25 @@ public class ProcessRecipeViewModel : BaseViewModel
         RefreshCommands();
     }
 
-    private List<string> CheckStep(ProcessRecipeStepModel step, ProcessRecipeLimitsModel limits, out bool chemicalError)
+    private static List<string> CheckStep(ProcessRecipeStepModel step)
     {
         var problems = new List<string>();
-        chemicalError = false;
         string number = step.Number.ToString(CultureInfo.InvariantCulture);
-        if (step.HasSecondsError || !InRange(step.SecondsText, limits.MinSeconds, limits.MaxSeconds))
+        foreach (var cell in step.Cells)
         {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeTimeOutOfRange, number, Format(limits.MinSeconds), Format(limits.MaxSeconds)));
-        }
+            // 先按提交进来的值查（能说出具体原因）；值没问题、但输入框里还有没提交的错字时，提示看框里的说明
+            var field = cell.Field;
+            string? problem = field.Problem(cell.Value ?? string.Empty, number, field.OptionsFor(step.Get(field.ParentKey)));
+            if (problem is null && cell.HasInputError)
+            {
+                problem = L10n.Get("recipe.process.cell_invalid", number, field.Text);
+            }
 
-        if (step.HasRpmError || !IsWhole(step.RpmText) || !InRange(step.RpmText, limits.MinRpm, limits.MaxRpm))
-        {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeRpmOutOfRange, number, Format(limits.MaxRpm)));
-        }
-
-        if (!step.IsDispensing)
-        {
-            return problems;
-        }
-
-        string armName = step.Arm ?? string.Empty;
-        string chemical = step.Chemical ?? string.Empty;
-        var arm = _options.Arms.FirstOrDefault(item => string.Equals(item.Name, armName, StringComparison.OrdinalIgnoreCase));
-        if (arm is null)
-        {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeArmNotFound, number, armName));
-        }
-        else if (chemical.Length == 0)
-        {
-            chemicalError = true;
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeChemicalRequired, number, arm.Name));
-        }
-        else if (!arm.Chemicals.Contains(chemical, StringComparer.OrdinalIgnoreCase))
-        {
-            chemicalError = true;
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeChemicalNotOnArm, number, chemical, arm.Name));
-        }
-
-        if (step.HasChemical && (step.HasFlowError || !InRange(step.FlowText, limits.MinFlow, limits.MaxFlow)))
-        {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeFlowOutOfRange, number, Format(limits.MinFlow), Format(limits.MaxFlow)));
-        }
-
-        bool positionBad = step.HasPositionError || !InRange(step.PositionText, limits.MinPosition, limits.MaxPosition)
-            || (step.IsScan && (step.HasScanToError || !InRange(step.ScanToText, limits.MinPosition, limits.MaxPosition)));
-        if (positionBad)
-        {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipePositionOutOfRange, number, Format(limits.MinPosition), Format(limits.MaxPosition)));
-        }
-        else if (step.IsScan && ProcessRecipeStepModel.TryNumber(step.PositionText, out double from)
-            && ProcessRecipeStepModel.TryNumber(step.ScanToText, out double to) && from == to)
-        {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeScanSamePosition, number));
-        }
-
-        if (step.IsScan && (step.HasScanSpeedError || !InRange(step.ScanSpeedText, limits.MinScanSpeed, limits.MaxScanSpeed)))
-        {
-            problems.Add(L10n.Get(ErrorCodes.ProcessRecipeScanSpeedOutOfRange, number, Format(limits.MinScanSpeed), Format(limits.MaxScanSpeed)));
+            cell.HasError = problem is not null;
+            if (problem is not null)
+            {
+                problems.Add(problem);
+            }
         }
 
         return problems;
@@ -926,7 +863,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 添加一步：插在选中那一步后面（没选中就加在最后），内容按后端给的默认（不出液、转着），选中新的一行。
+    /// 添加一步：插在选中那一步后面（没选中就加在最后），每一格填字段表里的默认值，选中新的一行。
     /// </summary>
     private void DoAddStep()
     {
@@ -937,7 +874,7 @@ public class ProcessRecipeViewModel : BaseViewModel
 
         int selected = SelectedStep is null ? -1 : Steps.IndexOf(SelectedStep);
         int at = selected < 0 ? Steps.Count : selected + 1;
-        var step = CreateStep(new ProcessRecipeStepDto { Seconds = _options.NewStepSeconds, Rpm = _options.NewStepRpm });
+        var step = CreateStep(Fields.ToDictionary(field => field.Key, field => field.Default));
         Steps.Insert(at, step);
         Renumber();
         OnStepChanged(step);
@@ -1233,22 +1170,6 @@ public class ProcessRecipeViewModel : BaseViewModel
     private static string ReasonOf(RpcResponse response)
     {
         return string.IsNullOrEmpty(response.Code) ? response.Message : L10n.Get(response.Code, response.Args);
-    }
-
-    /// <summary>
-    /// 文字读成数并且在 [min, max] 里。
-    /// </summary>
-    private static bool InRange(string text, double min, double max)
-    {
-        return ProcessRecipeStepModel.TryNumber(text, out double value) && value >= min && value <= max;
-    }
-
-    /// <summary>
-    /// 是整数（转速只收整数）。
-    /// </summary>
-    private static bool IsWhole(string text)
-    {
-        return int.TryParse(text.Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _);
     }
 
     private static string Format(double value)

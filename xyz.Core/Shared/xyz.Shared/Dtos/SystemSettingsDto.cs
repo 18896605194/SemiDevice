@@ -27,4 +27,16 @@ public class SystemSettingsDto
     /// 客户端手动菜单下一个腔体一个子菜单——配了四个腔体就是四个，哪怕四个长得一模一样。
     /// </summary>
     public List<string> Chambers { get; set; } = [];
+
+    /// <summary>
+    /// 其中哪些是 LoadPort（按 sc.xml 的先后，如 LoadPort1、LoadPort2）。
+    /// 主界面右栏一个 LoadPort 一个页签——sc.xml 里配几个就有几个。
+    /// </summary>
+    public List<string> LoadPorts { get; set; } = [];
+
+    /// <summary>
+    /// 其中哪些是机械手（按 sc.xml 的先后，如 Robot1）。
+    /// 主界面默认的调度图一台机械手画一张（站点按它站点表里的方向摆）。
+    /// </summary>
+    public List<string> Robots { get; set; } = [];
 }

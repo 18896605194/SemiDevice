@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
-using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Localization;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
@@ -17,6 +16,7 @@ namespace xyz.Client.Manual.ViewModels;
 /// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表（含各站点槽数、允许的手指）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
 /// Pick 用源手臂从源站点槽位取片、Place 用目标手臂往目标站点槽位放片——手臂和槽位下拉都跟着选中的站点走；
 /// Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
+/// 左边的调度图是公共控件 DispatchMap，它自己订机械手和各站点的推送，这里只管右栏。
 /// </summary>
 public class RobotManualViewModel : BaseViewModel, IDisposable
 {
@@ -136,12 +136,6 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private IDisposable? _stateSubscription;
 
-    /// <summary>调度图站点卡片的状态订阅：每个站点订 LoadPort、腔体两种推送；站点表换了就重订。</summary>
-    private readonly List<IDisposable> _stationSubscriptions = new();
-
-    /// <summary>当前订着的是哪一份站点表（Model 在站点表没变时不换实例，按引用比）。</summary>
-    private IReadOnlyList<RobotStationModel>? _subscribedStations;
-
     #endregion
 
     public RobotManualViewModel(string moduleName)
@@ -188,7 +182,6 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     {
         _stateSubscription?.Dispose();
         _stateSubscription = null;
-        UnsubscribeStations();
     }
 
     private void OnStateReceived(RobotDto dto)
@@ -199,7 +192,6 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     private void ApplyState(RobotDto dto)
     {
         Model.Update(dto);
-        SubscribeStations();
 
         // 源默认选站点表里的第一个（按站点号排，一般是 LoadPort1），目标默认选腔体侧（北）的第一个。
         if (string.IsNullOrEmpty(SourceStation) && Model.StationMarks.Count > 0)
@@ -252,48 +244,6 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
             TargetSlot = ClampOption(TargetSlotOptions, TargetSlot);
             OnPropertyChanged(nameof(TargetSlot));
         }
-    }
-
-    /// <summary>
-    /// 按站点名（就是模块名，也是 EventBus token）订阅站点模块的状态推送，刷新调度图卡片上的状态徽标和片（以晶圆账为准）。
-    /// LoadPort、腔体两种都订，站点是哪种就只会来哪种；总线留存最后一条状态，订上立即补发。站点表没换就不重订。
-    /// </summary>
-    private void SubscribeStations()
-    {
-        var stations = Model.StationMarks;
-        if (ReferenceEquals(stations, _subscribedStations))
-        {
-            return;
-        }
-
-        UnsubscribeStations();
-        _subscribedStations = stations;
-
-        foreach (var station in stations)
-        {
-            _stationSubscriptions.Add(EventBus.Register<LoadPortDto>(station.Name, port =>
-            {
-                station.UpdateState(ModuleStates.LoadPortText(port.State), ModuleStates.LoadPortTone(port.State));
-                station.UpdateWafers(LoadPortModel.WafersOf(port.LedgerSlots, port.Slots));
-            }));
-            _stationSubscriptions.Add(EventBus.Register<ChamberDto>(station.Name, chamber =>
-            {
-                station.UpdateState(ModuleStates.ChamberText(chamber.State), ModuleStates.ChamberTone(chamber.State));
-                var slot = chamber.Slots.FirstOrDefault(item => item.HasWafer);
-                station.UpdateWafer(slot is null ? null : ChamberModel.ToWafer(slot));
-            }));
-        }
-    }
-
-    private void UnsubscribeStations()
-    {
-        foreach (var subscription in _stationSubscriptions)
-        {
-            subscription.Dispose();
-        }
-
-        _stationSubscriptions.Clear();
-        _subscribedStations = null;
     }
 
     private RobotStationModel? FindStation(string station)

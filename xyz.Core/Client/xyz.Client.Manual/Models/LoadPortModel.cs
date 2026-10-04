@@ -132,47 +132,10 @@ public class LoadPortModel : ObservableObject
     private IReadOnlyList<WaferModel>? _wafers;
 
     /// <summary>
-    /// 花篮里的片：有片的槽位各给一片，交给 LoadPort 控件按槽位号摆。
+    /// 花篮里的片：有片的槽位各给一片，交给 LoadPort 控件按槽位号摆（以晶圆账为准，见 StationWafers）。
     /// Model 每次整体替换，绑定随 Model 属性变化重新取值，无需单独通知。
     /// </summary>
-    public IReadOnlyList<WaferModel> Wafers => _wafers ??= WafersOf(LedgerSlots, Slots);
-
-    /// <summary>
-    /// 花篮里的片，Robot 页调度图的 LoadPort 卡片也用它：以晶圆账为准（取放片、人工改账都跟着变，颜色按片的状态）；
-    /// 账上没登记这个 LoadPort 时才退回按 Mapping 结果画（叠片 / 交叉片用各自的状态色）。
-    /// </summary>
-    public static IReadOnlyList<WaferModel> WafersOf(IReadOnlyList<WaferSlotDto> ledgerSlots, IReadOnlyList<LoadPortSlotDto> mapping)
-    {
-        if (ledgerSlots.Count > 0)
-        {
-            var wafers = new List<WaferModel>();
-            foreach (var slot in ledgerSlots)
-            {
-                var wafer = slot.Wafer;
-                if (wafer is not null)
-                {
-                    wafers.Add(new WaferModel { Slot = slot.Slot, LpSlot = slot.Slot.ToString("00"), State = WaferStates.Of(wafer) });
-                }
-            }
-
-            return wafers;
-        }
-
-        return mapping
-            .Where(slot => slot.HasWafer)
-            .Select(slot => new WaferModel
-            {
-                Slot = slot.Slot,
-                LpSlot = slot.Slot.ToString("00"),
-                State = slot.State switch
-                {
-                    LoadPortSlotState.DoubleSlotted => "Double",
-                    LoadPortSlotState.CrossSlotted => "Crossed",
-                    _ => "IdleHasjob",
-                },
-            })
-            .ToList();
-    }
+    public IReadOnlyList<WaferModel> Wafers => _wafers ??= StationWafers.OfLoadPort(LedgerSlots, Slots);
 
     /// <summary>
     /// 状态文字（按当前语言）。Model 每次整体替换，绑定随 Model 属性变化重新取值，无需单独通知。

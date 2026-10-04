@@ -168,7 +168,7 @@ public class ChamberModel : ObservableObject
         {
             _slots = dto.Slots;
             var slot = dto.Slots.FirstOrDefault(item => item.HasWafer);
-            Wafer = slot is null ? null : ToWafer(slot);
+            Wafer = slot is null ? null : StationWafers.OfChamber(slot);
         }
     }
 
@@ -192,37 +192,5 @@ public class ChamberModel : ObservableObject
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// 片位上的片转圆片：颜色沿用圆片控件的状态色——未做 = 待加工、工艺中、做完、失败 / 中止 = 报错。
-    /// Robot 页调度图的腔体卡片也用它。
-    /// </summary>
-    internal static WaferModel ToWafer(ChamberSlotDto slot)
-    {
-        string state;
-        switch (slot.State)
-        {
-            case ChamberSlotState.InProcess:
-                state = "Process";
-                break;
-            case ChamberSlotState.Completed:
-                state = "Completed";
-                break;
-            case ChamberSlotState.Failed:
-            case ChamberSlotState.Aborted:
-                state = "Error";
-                break;
-            default:
-                state = "IdleHasjob";
-                break;
-        }
-
-        return new WaferModel
-        {
-            Slot = slot.Slot,
-            LpSlot = WaferLabel.Of(slot.SourceLoadPort, slot.SourceSlot),
-            State = state,
-        };
     }
 }

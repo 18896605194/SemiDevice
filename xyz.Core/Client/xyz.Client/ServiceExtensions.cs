@@ -3,6 +3,7 @@ using xyz.Client.Alarm;
 using xyz.Client.DataCenter;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Io;
+using xyz.Client.Main;
 using xyz.Client.Manual;
 using xyz.Client.Menus;
 using xyz.Client.Modules;
@@ -34,6 +35,9 @@ public static class ServiceExtensions
 
         // 平台菜单写在代码里；IO 下、Manual 下按模块分的二级菜单照后端装的模块生成。
         services.AddSingleton<IClientMenuProvider>(new PlatformMenuProvider(settings.Modules, settings.Chambers));
+
+        // 主界面：右栏一个 LoadPort 一个页签、中间默认调度图一台机械手一张，都照后端装的模块生成。
+        services.AddXyzMainServices(settings);
 
         services.AddXyzSettingServices();
         services.AddXyzRecipeServices();

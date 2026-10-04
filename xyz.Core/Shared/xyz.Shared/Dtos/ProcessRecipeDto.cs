@@ -66,128 +66,108 @@ public class ProcessRecipeDto
 }
 
 /// <summary>
-/// 摆臂怎么喷：Time = 停在一个位置，按这一步的时间喷；Scan = 在两个位置之间来回扫，扫到这一步时间到。
-/// 界面上就显示 Time / Scan（用户定的叫法）。
+/// 工艺配方字段的类型（sc.xml 字段表里的 Type）：整数、小数、下拉、开关、文本。
 /// </summary>
-public enum ProcessArmMode
+public enum ProcessRecipeFieldType
 {
-    Time = 0,
-    Scan = 1,
+    Int = 0,
+    Double = 1,
+    Choice = 2,
+    Bool = 3,
+    Text = 4,
 }
 
 /// <summary>
-/// 一步：时间、转速；摆臂（空 = 这一步不出液，摆臂在 Home）、药液（这条摆臂上喷嘴的 Chemical）、流量、方式和位置。
-/// 位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 晶圆中心。
+/// 一步：每个字段的值（字段名 → 值，都按文字传；有哪些字段由 sc.xml 的字段表定，见 <see cref="ProcessRecipeFieldDto"/>）。
 /// 既是 <see cref="ProcessRecipeDto"/> 里的数据（走 JSON），也是保存请求里的消息（走 protobuf），所以带 ProtoContract。
 /// </summary>
 [ProtoContract]
 public class ProcessRecipeStepDto
 {
-    /// <summary>
-    /// 这一步多长，秒。
-    /// </summary>
     [ProtoMember(1)]
-    public double Seconds { get; set; }
-
-    /// <summary>
-    /// 转速 rpm（0 = 停着泡）。
-    /// </summary>
-    [ProtoMember(2)]
-    public int Rpm { get; set; }
-
-    /// <summary>
-    /// 摆臂名（sc.xml 里腔体下的摆臂轴，原样）；空 = 不出液，摆臂在 Home。
-    /// </summary>
-    [ProtoMember(3)]
-    public string Arm { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 药液（这条摆臂上喷嘴的 Chemical，原样）；不出液时为空。
-    /// </summary>
-    [ProtoMember(4)]
-    public string Chemical { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 流量 L/min；不出液时为 0。
-    /// </summary>
-    [ProtoMember(5)]
-    public double Flow { get; set; }
-
-    [ProtoMember(6)]
-    public ProcessArmMode Mode { get; set; }
-
-    /// <summary>
-    /// 位置（晶圆坐标）：Time 停在这里喷；Scan 从这里扫到 <see cref="ScanTo"/>。
-    /// </summary>
-    [ProtoMember(7)]
-    public double Position { get; set; }
-
-    /// <summary>
-    /// Scan 的另一头（晶圆坐标）；Time 时为 0。
-    /// </summary>
-    [ProtoMember(8)]
-    public double ScanTo { get; set; }
-
-    /// <summary>
-    /// Scan 的速度 mm/s；Time 时为 0。
-    /// </summary>
-    [ProtoMember(9)]
-    public double ScanSpeed { get; set; }
+    public Dictionary<string, string> Values { get; set; } = new();
 }
 
 /// <summary>
-/// 编辑工艺配方能选什么、范围多少：摆臂和它上面的药液来自腔体下装的摆臂轴和喷嘴（sc.xml），范围来自 sc.xml 的 ProcessRecipe 节点，
-/// 合计时长的上限是腔体的工艺超时（EC）。界面拿它出下拉框、给输入框定范围，不写死。
+/// 编辑工艺配方用的字段表（sc.xml ProcessRecipe → Fields，一个字段一列）和合计时长的上限：界面按它生成步骤表，不写死字段。
 /// </summary>
 public class ProcessRecipeOptionsDto
 {
-    public List<ProcessArmDto> Arms { get; set; } = [];
-
-    public double MinSeconds { get; set; }
-
-    public double MaxSeconds { get; set; }
-
-    public int MaxRpm { get; set; }
-
-    public double MinFlow { get; set; }
-
-    public double MaxFlow { get; set; }
-
-    /// <summary>
-    /// 位置下限：晶圆边缘（0）。
-    /// </summary>
-    public double MinPosition { get; set; }
-
-    /// <summary>
-    /// 位置上限：晶圆中心（150）。
-    /// </summary>
-    public double MaxPosition { get; set; }
-
-    public double MinScanSpeed { get; set; }
-
-    public double MaxScanSpeed { get; set; }
+    public List<ProcessRecipeFieldDto> Fields { get; set; } = [];
 
     /// <summary>
     /// 合计时长上限（秒）：腔体工艺超时里最短的那个；0 = 没有腔体，不限。
     /// </summary>
     public double MaxTotalSeconds { get; set; }
-
-    /// <summary>
-    /// 页面上"添加"的那一步的时间（跟新建工艺配方时的第一步一样，后端定）。
-    /// </summary>
-    public double NewStepSeconds { get; set; }
-
-    public int NewStepRpm { get; set; }
 }
 
 /// <summary>
-/// 一条摆臂：名字（sc.xml 里的摆臂轴名）和它上面喷嘴的药液（Chemical），都原样显示。
+/// 字段表里的一个字段（步骤表的一列）。下拉的选项已经按数据源取好：跟着别的字段走的（数据源写了 @字段名）按那个字段的值分开给；
+/// 几个腔体装的不一样时，给的是所有腔体合起来的选项（用到具体腔体时后端再查）。
 /// </summary>
-public class ProcessArmDto
+public class ProcessRecipeFieldDto
 {
-    public string Name { get; set; } = string.Empty;
+    /// <summary>
+    /// 字段名：存进配方文件、步骤里按它取值。
+    /// </summary>
+    public string Key { get; set; } = string.Empty;
 
-    public List<string> Chemicals { get; set; } = [];
+    /// <summary>
+    /// 中文名（列名）。
+    /// </summary>
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 英文名；空 = 英文界面也显示中文名。
+    /// </summary>
+    public string TextEn { get; set; } = string.Empty;
+
+    public ProcessRecipeFieldType Type { get; set; }
+
+    /// <summary>
+    /// 单位（整数、小数才有），跟在列名后面。
+    /// </summary>
+    public string Unit { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 下限；null = 不限。
+    /// </summary>
+    public double? Min { get; set; }
+
+    /// <summary>
+    /// 上限；null = 不限。
+    /// </summary>
+    public double? Max { get; set; }
+
+    /// <summary>
+    /// 最多几位小数（小数才有）；null = 不限。
+    /// </summary>
+    public int? Decimals { get; set; }
+
+    /// <summary>
+    /// 新加一步时填的值；老配方里没有这个字段时也按它补。
+    /// </summary>
+    public string Default { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 必填：不勾的可以空着。
+    /// </summary>
+    public bool Required { get; set; }
+
+    /// <summary>
+    /// 选项跟着哪个字段走（数据源里 @ 后面的字段名）；空 = 不跟。
+    /// </summary>
+    public string ParentKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 不跟别的字段走时的选项（下拉才有）。
+    /// </summary>
+    public List<string> Options { get; set; } = [];
+
+    /// <summary>
+    /// 跟着 <see cref="ParentKey"/> 走时：那个字段的值 → 能选的。
+    /// </summary>
+    public Dictionary<string, List<string>> OptionsByParent { get; set; } = new();
 }
 
 /// <summary>

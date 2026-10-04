@@ -291,13 +291,6 @@
         <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
-    <!--  工艺步骤里用不上的一格（不出液时药液、方式、流量写"—"，位置写 Home）和 Scan 那一格里的"到""速度""mm/s"：正文字号、灰  -->
-    <Style x:Key="StepPlaceholderTextStyle" TargetType="TextBlock">
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="FontSize" Value="{StaticResource Size14}" />
-        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
-    </Style>
-
     <!--  块标题条右边的一个统计数（如工艺步骤的"合计 115 s"）：灰字，跟后面的按钮隔开  -->
     <Style x:Key="ZoneStatTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,0,12,0" />
@@ -357,6 +350,63 @@
             <Trigger Property="Tag" Value="{x:Null}">
                 <Setter Property="Visibility" Value="Visible" />
             </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  表单一行的标签（如主界面系统操作的"系统状态""当前模式"、LoadPort 栏的"载具""LotID"）：正文大小，跟后面的值留开  -->
+    <Style x:Key="FormLabelTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,16,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkSecondaryText}" />
+    </Style>
+
+    <!--  表单一行的值：正文大小、半粗，数字等宽，放不下省略  -->
+    <Style x:Key="FormValueTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!--  报警条数：Tag=True（有报警）红字  -->
+    <Style
+        x:Key="AlarmCountTextStyle"
+        BasedOn="{StaticResource FormValueTextStyle}"
+        TargetType="TextBlock">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  载具的槽图认定到哪一步（Tag = CarrierSlotMapStatus）：映射完成、已确认绿字，等主机确认黄字，跟主机对不上红字，还没映射灰字  -->
+    <Style
+        x:Key="MapStatusTextStyle"
+        BasedOn="{StaticResource FormValueTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="Text" Value="{DynamicResource main.map.NotRead}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Read">
+                <Setter Property="Text" Value="{DynamicResource main.map.Read}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="WaitingForHost">
+                <Setter Property="Text" Value="{DynamicResource main.map.WaitingForHost}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Verified">
+                <Setter Property="Text" Value="{DynamicResource main.map.Verified}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="VerifyFailed">
+                <Setter Property="Text" Value="{DynamicResource main.map.VerifyFailed}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 

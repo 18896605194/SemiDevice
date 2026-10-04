@@ -1,88 +1,67 @@
-﻿using System.Xml.Serialization;
-using xyz.Shared.Dtos;
+﻿using System.Xml;
+using System.Xml.Serialization;
 
 namespace xyz.Modules;
 
 /// <summary>
-/// 工艺配方的一步（存成文件的样子）：时间、转速；摆臂（空 = 这一步不出液，摆臂在 Home）、药液、流量、方式（Time / Scan）、位置。
-/// 位置是晶圆坐标（0 = 从 Home 摆过去先到的晶圆边缘，150 = 晶圆中心）。
-/// 用不上的字段不写进文件：不出液的不写药液、流量、方式、位置；Time 不写 Scan 的另一头和速度——文件打开一眼看得清。
+/// 工艺配方的一步（存成文件的样子）：每个字段一个值，字段名 → 值，都按文字存；有哪些字段由 sc.xml 的字段表定。
+/// 文件里一个字段写成 Step 的一个属性（如 <c>&lt;Step Seconds="5" Rpm="300" Arm="Arm1" … /&gt;</c>），
+/// 存的时候字段表里的字段都写上（空的也写），这样字段表以后加了字段，老配方里看得出"这个字段当时还没有"，打开时按默认值补。
 /// </summary>
 public class ProcessRecipeStep
 {
     /// <summary>
-    /// 这一步多长，秒。
+    /// 这一步的值，按字段表的先后。
     /// </summary>
-    [XmlAttribute]
-    public double Seconds { get; set; }
+    [XmlIgnore]
+    public List<ProcessRecipeValue> Values { get; set; } = [];
 
     /// <summary>
-    /// 转速 rpm（0 = 停着泡）。
+    /// 给 XmlSerializer 用的：每个值写成一个属性，读的时候所有属性都收进来。
     /// </summary>
-    [XmlAttribute]
-    public int Rpm { get; set; }
+    [XmlAnyAttribute]
+    public XmlAttribute[] Attributes
+    {
+        get
+        {
+            var document = new XmlDocument();
+            return Values.Select(item =>
+            {
+                var attribute = document.CreateAttribute(item.Name);
+                attribute.Value = item.Value;
+                return attribute;
+            }).ToArray();
+        }
+        set
+        {
+            Values = (value ?? []).Select(attribute => new ProcessRecipeValue(attribute.Name, attribute.Value)).ToList();
+        }
+    }
 
     /// <summary>
-    /// 摆臂名（sc.xml 里腔体下的摆臂轴名）；空 = 不出液。
+    /// 取一个字段的值（字段名不分大小写）；没有就是空的。
     /// </summary>
-    [XmlAttribute]
-    public string Arm { get; set; } = string.Empty;
+    public string Get(string key)
+    {
+        var found = Values.FirstOrDefault(item => string.Equals(item.Name, key, StringComparison.OrdinalIgnoreCase));
+        return found is null ? string.Empty : found.Value;
+    }
 
     /// <summary>
-    /// 药液（这条摆臂上喷嘴的 Chemical）。
+    /// 有没有这个字段（空值也算有）：老配方里没有的字段打开时按默认值补。
     /// </summary>
-    [XmlAttribute]
-    public string Chemical { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 流量 L/min。
-    /// </summary>
-    [XmlAttribute]
-    public double Flow { get; set; }
-
-    [XmlAttribute]
-    public ProcessArmMode Mode { get; set; }
-
-    /// <summary>
-    /// 位置：Time 停在这里喷，Scan 从这里扫到 <see cref="ScanTo"/>。
-    /// </summary>
-    [XmlAttribute]
-    public double Position { get; set; }
-
-    /// <summary>
-    /// Scan 的另一头。
-    /// </summary>
-    [XmlAttribute]
-    public double ScanTo { get; set; }
-
-    /// <summary>
-    /// Scan 的速度 mm/s。
-    /// </summary>
-    [XmlAttribute]
-    public double ScanSpeed { get; set; }
-
-    private bool IsDispensing => Arm.Length > 0;
-
-    private bool IsScan => IsDispensing && Mode == ProcessArmMode.Scan;
-
-    // XmlSerializer 按 ShouldSerialize + 属性名决定写不写这个字段
-
-    public bool ShouldSerializeArm() => IsDispensing;
-
-    public bool ShouldSerializeChemical() => IsDispensing;
-
-    public bool ShouldSerializeFlow() => IsDispensing;
-
-    public bool ShouldSerializeMode() => IsDispensing;
-
-    public bool ShouldSerializePosition() => IsDispensing;
-
-    public bool ShouldSerializeScanTo() => IsScan;
-
-    public bool ShouldSerializeScanSpeed() => IsScan;
+    public bool Has(string key)
+    {
+        return Values.Any(item => string.Equals(item.Name, key, StringComparison.OrdinalIgnoreCase));
+    }
 
     public ProcessRecipeStep Clone()
     {
-        return (ProcessRecipeStep)MemberwiseClone();
+        return new ProcessRecipeStep { Values = [.. Values] };
     }
 }
+
+/// <summary>
+/// 一步里一个字段的值。
+/// </summary>
+public sealed record ProcessRecipeValue(string Name, string Value);

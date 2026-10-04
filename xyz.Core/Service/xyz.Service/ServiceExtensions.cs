@@ -245,6 +245,7 @@ public static class ServiceExtensions
         services.AddTransient<IChamberService, ChamberService>();
         services.AddTransient<IAlarmService, AlarmService>();
         services.AddTransient<ISystemService, SystemService>();
+        services.AddTransient<IEquipmentService, EquipmentService>();
         services.AddTransient<IIoService, IoService>();
         services.AddTransient<IEcService, EcService>();
         services.AddTransient<IWaferLedgerService, WaferLedgerService>();

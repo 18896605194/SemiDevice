@@ -23,6 +23,16 @@ public partial class Robot : UserControl
 {
     #region 常量
 
+    /// <summary>
+    /// 设计尺寸：Robot.xaml 按 400×400 画，外面用 Viewbox 等比缩放。调度图按它算站点卡片上的圆片画多大，片在哪都一样大。
+    /// </summary>
+    public const double DesignSize = 400;
+
+    /// <summary>
+    /// 叉上的片在设计尺寸下的直径（Robot.xaml 里 Wafer 的宽高）。
+    /// </summary>
+    public const double WaferDiameter = 84;
+
     private const int MaxArmCount = 4;
     private const double AngleEpsilon = 0.3;
     private const double TravelEpsilon = 0.5;

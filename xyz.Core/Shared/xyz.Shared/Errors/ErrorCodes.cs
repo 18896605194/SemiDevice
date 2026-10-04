@@ -56,6 +56,9 @@ public static class ErrorCodes
     /// <summary>起工艺给的配方不在工艺配方库里（可能被删了、改名了）。Args: [模块名, 配方名]</summary>
     public const string ChamberRecipeNotFound = "chamber.recipe_not_found";
 
+    /// <summary>配方里下拉选的值这个腔体没有（几个腔体装的不一样时）。Args: [模块名, 配方名, 字段, 值]</summary>
+    public const string ChamberRecipeOptionMissing = "chamber.recipe_option_missing";
+
     /// <summary>腔体下没有这个部件。Args: [模块名, 部件路径]</summary>
     public const string ChamberPartNotFound = "chamber.part_not_found";
 
@@ -95,6 +98,12 @@ public static class ErrorCodes
 
     /// <summary>环标记落不下去（站点状态跟搬运进度对不上，多半是被人工插手动了）。Args: [站点名, 标记]</summary>
     public const string TransferStepRejected = "transfer.step_rejected";
+
+    /// <summary>sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto。Args: []</summary>
+    public const string TransferNotInstalled = "transfer.not_installed";
+
+    /// <summary>搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto。Args: []</summary>
+    public const string TransferDisabled = "transfer.disabled";
 
     #endregion
 
@@ -218,6 +227,9 @@ public static class ErrorCodes
     /// <summary>这一步选的工艺配方不在工艺配方库里（可能被删了、改名了）。Args: [步号, 配方名]</summary>
     public const string SequenceRecipeNotFound = "sequence.recipe_not_found";
 
+    /// <summary>这一步勾的腔体上没有工艺配方里下拉选的值（几个腔体装的不一样时）。Args: [步号, 腔体, 配方名, 字段, 值]</summary>
+    public const string SequenceRecipeOptionMissing = "sequence.recipe_option_missing";
+
     /// <summary>流程配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>
     public const string SequenceSaveFailed = "sequence.save_failed";
 
@@ -255,32 +267,26 @@ public static class ErrorCodes
     /// <summary>一步都没有。Args: []</summary>
     public const string ProcessRecipeNoSteps = "process_recipe.no_steps";
 
-    /// <summary>这一步的时间不在范围里。Args: [步号, 下限, 上限]</summary>
-    public const string ProcessRecipeTimeOutOfRange = "process_recipe.time_out_of_range";
+    /// <summary>必填的字段没填。Args: [步号, 字段]</summary>
+    public const string ProcessRecipeValueRequired = "process_recipe.value_required";
 
-    /// <summary>这一步的转速不在范围里。Args: [步号, 上限]</summary>
-    public const string ProcessRecipeRpmOutOfRange = "process_recipe.rpm_out_of_range";
+    /// <summary>整数字段填的不是整数。Args: [步号, 字段, 填的]</summary>
+    public const string ProcessRecipeValueNotInteger = "process_recipe.value_not_integer";
 
-    /// <summary>这一步选的摆臂现在没有了（sc.xml 改过）。Args: [步号, 摆臂名]</summary>
-    public const string ProcessRecipeArmNotFound = "process_recipe.arm_not_found";
+    /// <summary>小数字段填的不是数字。Args: [步号, 字段, 填的]</summary>
+    public const string ProcessRecipeValueNotNumber = "process_recipe.value_not_number";
 
-    /// <summary>这一步选了摆臂，没选药液。Args: [步号, 摆臂名]</summary>
-    public const string ProcessRecipeChemicalRequired = "process_recipe.chemical_required";
+    /// <summary>比下限小。Args: [步号, 字段, 下限, 单位（带前导空格，没有就空）]</summary>
+    public const string ProcessRecipeValueBelowMin = "process_recipe.value_below_min";
 
-    /// <summary>这一步的药液不在这条摆臂上（sc.xml 改过）。Args: [步号, 药液, 摆臂名]</summary>
-    public const string ProcessRecipeChemicalNotOnArm = "process_recipe.chemical_not_on_arm";
+    /// <summary>比上限大。Args: [步号, 字段, 上限, 单位（带前导空格，没有就空）]</summary>
+    public const string ProcessRecipeValueAboveMax = "process_recipe.value_above_max";
 
-    /// <summary>这一步的流量不在范围里。Args: [步号, 下限, 上限]</summary>
-    public const string ProcessRecipeFlowOutOfRange = "process_recipe.flow_out_of_range";
+    /// <summary>小数位比字段表里配的多。Args: [步号, 字段, 最多几位]</summary>
+    public const string ProcessRecipeValueTooPrecise = "process_recipe.value_too_precise";
 
-    /// <summary>这一步的位置不在晶圆上（晶圆坐标 0 边缘 ~ 150 中心）。Args: [步号, 下限, 上限]</summary>
-    public const string ProcessRecipePositionOutOfRange = "process_recipe.position_out_of_range";
-
-    /// <summary>这一步是 Scan，两头的位置一样（不扫就选 Time）。Args: [步号]</summary>
-    public const string ProcessRecipeScanSamePosition = "process_recipe.scan_same_position";
-
-    /// <summary>这一步 Scan 的速度不在范围里。Args: [步号, 下限, 上限]</summary>
-    public const string ProcessRecipeScanSpeedOutOfRange = "process_recipe.scan_speed_out_of_range";
+    /// <summary>下拉、开关的值不在能选的里面（数据源变了，或别处传来的值不对）。Args: [步号, 字段, 值]</summary>
+    public const string ProcessRecipeValueNotInOptions = "process_recipe.value_not_in_options";
 
     /// <summary>合计时长超过腔体的工艺超时（腔体会在做完之前就判超时）。Args: [合计秒数, 上限秒数]</summary>
     public const string ProcessRecipeTotalTooLong = "process_recipe.total_too_long";

@@ -406,4 +406,21 @@
         </Style.Triggers>
     </Style>
 
+    <!--  表格行里的小图标按钮（如主界面槽位表每行的 ⊕ ⊖）：圆形、透明底，鼠标移上去变强调色  -->
+    <Style
+        x:Key="RowIconButtonStyle"
+        BasedOn="{StaticResource MaterialDesignIconButton}"
+        TargetType="Button">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

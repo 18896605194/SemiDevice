@@ -194,8 +194,8 @@
                     </DockPanel>
                 </Border>
 
-                <!--  工艺步骤：步号就是普通数字。每一步：时间、转速，然后摆臂 → 这条摆臂上的药液 → 流量 → 方式（Time / Scan）→ 位置；
-                      摆臂选"不出液"时后面几格不用填，摆臂在 Home。摆臂、药液照 sc.xml 原样显示，各项范围由后端给。
+                <!--  工艺步骤：步号就是普通数字。每一步有哪些列按后端的字段表（sc.xml ProcessRecipe → Fields）生成，不写死：
+                      整数、小数、文本是输入框，下拉是下拉框（选项按数据源取，跟着别的字段走的比如药液跟着摆臂），开关是勾选框。
                       点一行（或点进这一行的输入框、下拉框）选中：添加插在它后面，删除删它。
                       标题条最右：[合计] [有没保存的修改] [添加] [删除] [保存]——保存存的是整个工艺配方（说明 + 全部步骤）  -->
                 <Border Grid.Row="2" Style="{DynamicResource ZoneBorderStyle}">
@@ -260,59 +260,30 @@
                         <Grid>
                             <DockPanel Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding HasRecipe}">
                                 <Border DockPanel.Dock="Top" Style="{DynamicResource StepHeaderBorderStyle}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="70" />
-                                            <ColumnDefinition Width="140" />
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="170" />
-                                            <ColumnDefinition Width="160" />
-                                            <ColumnDefinition Width="130" />
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
                                         <TextBlock
+                                            Width="70"
                                             VerticalAlignment="Center"
                                             FontWeight="SemiBold"
                                             Text="{DynamicResource recipe.process.step}" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.process.time}" />
-                                        <TextBlock
-                                            Grid.Column="2"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.process.rpm}" />
-                                        <TextBlock
-                                            Grid.Column="3"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.process.arm}" />
-                                        <TextBlock
-                                            Grid.Column="4"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.process.chemical}" />
-                                        <TextBlock
-                                            Grid.Column="5"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.process.flow}" />
-                                        <TextBlock
-                                            Grid.Column="6"
-                                            VerticalAlignment="Center"
-                                            FontWeight="SemiBold"
-                                            Text="{DynamicResource recipe.process.mode}" />
-                                        <StackPanel Grid.Column="7" Orientation="Horizontal">
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                FontWeight="SemiBold"
-                                                Text="{DynamicResource recipe.process.position}" />
-                                            <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{Binding PositionTip}" />
-                                        </StackPanel>
-                                    </Grid>
+                                        <ItemsControl ItemsSource="{Binding Fields}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Width="{Binding Width}"
+                                                        VerticalAlignment="Center"
+                                                        FontWeight="SemiBold"
+                                                        Text="{Binding Header}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Border>
 
                                 <ListBox
@@ -323,167 +294,53 @@
                                     Style="{DynamicResource PickListBoxStyle}">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="70" />
-                                                    <ColumnDefinition Width="140" />
-                                                    <ColumnDefinition Width="150" />
-                                                    <ColumnDefinition Width="170" />
-                                                    <ColumnDefinition Width="160" />
-                                                    <ColumnDefinition Width="130" />
-                                                    <ColumnDefinition Width="150" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock VerticalAlignment="Center" Text="{Binding Number}" />
-
-                                                <!--  时间、转速：输入框自己查格式和范围（范围由后端给），错着把 HasError 报给这一行  -->
-                                                <controls:InputTextBox
-                                                    Grid.Column="1"
-                                                    Width="104"
-                                                    HorizontalAlignment="Left"
-                                                    materialDesign:ValidationAssist.UsePopup="True"
-                                                    DataType="Decimal"
-                                                    HasError="{Binding HasSecondsError, Mode=OneWayToSource}"
-                                                    Maximum="{Binding Limits.MaxSeconds}"
-                                                    Minimum="{Binding Limits.MinSeconds}"
-                                                    Style="{DynamicResource ToolbarTextBoxStyle}"
-                                                    Unit="{DynamicResource recipe.process.unit_seconds}"
-                                                    Value="{Binding SecondsText}" />
-                                                <controls:InputTextBox
-                                                    Grid.Column="2"
-                                                    Width="104"
-                                                    HorizontalAlignment="Left"
-                                                    materialDesign:ValidationAssist.UsePopup="True"
-                                                    DataType="Integer"
-                                                    HasError="{Binding HasRpmError, Mode=OneWayToSource}"
-                                                    Maximum="{Binding Limits.MaxRpm}"
-                                                    Minimum="{Binding Limits.MinRpm}"
-                                                    Style="{DynamicResource ToolbarTextBoxStyle}"
-                                                    Unit="{DynamicResource recipe.process.unit_rpm}"
-                                                    Value="{Binding RpmText}" />
-
-                                                <!--  摆臂："不出液" + sc.xml 里的摆臂轴  -->
-                                                <ComboBox
-                                                    Grid.Column="3"
-                                                    Width="140"
-                                                    HorizontalAlignment="Left"
-                                                    DisplayMemberPath="Text"
-                                                    ItemsSource="{Binding DataContext.ArmChoices, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    SelectedValue="{Binding Arm}"
-                                                    SelectedValuePath="Value"
-                                                    Style="{DynamicResource StepComboBoxStyle}" />
-
-                                                <!--  药液：只列这条摆臂上的喷嘴；不出液写"—"  -->
-                                                <Grid Grid.Column="4">
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsDispensing}">
-                                                        <ComboBox
-                                                            Width="130"
-                                                            HorizontalAlignment="Left"
-                                                            materialDesign:HintAssist.Hint="{DynamicResource recipe.process.chemical_hint}"
-                                                            ItemsSource="{Binding ChemicalOptions}"
-                                                            SelectedItem="{Binding Chemical}"
-                                                            Style="{DynamicResource StepComboBoxStyle}"
-                                                            Tag="{Binding HasChemicalError}" />
-                                                    </Border>
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsIdle}">
-                                                        <TextBlock Style="{DynamicResource StepPlaceholderTextStyle}" Text="{DynamicResource recipe.process.none}" />
-                                                    </Border>
-                                                </Grid>
-
-                                                <!--  流量：选了药液才填；没选写"—"  -->
-                                                <Grid Grid.Column="5">
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding HasChemical}">
-                                                        <controls:InputTextBox
-                                                            Width="90"
-                                                            HorizontalAlignment="Left"
-                                                            materialDesign:ValidationAssist.UsePopup="True"
-                                                            DataType="Decimal"
-                                                            HasError="{Binding HasFlowError, Mode=OneWayToSource}"
-                                                            Maximum="{Binding Limits.MaxFlow}"
-                                                            Minimum="{Binding Limits.MinFlow}"
-                                                            Style="{DynamicResource ToolbarTextBoxStyle}"
-                                                            Unit="{DynamicResource recipe.process.unit_flow}"
-                                                            Value="{Binding FlowText}" />
-                                                    </Border>
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding NoChemical}">
-                                                        <TextBlock Style="{DynamicResource StepPlaceholderTextStyle}" Text="{DynamicResource recipe.process.none}" />
-                                                    </Border>
-                                                </Grid>
-
-                                                <!--  方式：Time / Scan；不出液写"—"  -->
-                                                <Grid Grid.Column="6">
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsDispensing}">
-                                                        <ComboBox
-                                                            Width="120"
-                                                            HorizontalAlignment="Left"
-                                                            DisplayMemberPath="Text"
-                                                            ItemsSource="{Binding DataContext.ModeChoices, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                            SelectedValue="{Binding Mode}"
-                                                            SelectedValuePath="Value"
-                                                            Style="{DynamicResource StepComboBoxStyle}" />
-                                                    </Border>
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsIdle}">
-                                                        <TextBlock Style="{DynamicResource StepPlaceholderTextStyle}" Text="{DynamicResource recipe.process.none}" />
-                                                    </Border>
-                                                </Grid>
-
-                                                <!--  位置：Time 一个数；Scan 再加"到 … 速度 … mm/s"（在两个位置之间来回扫，扫到这一步时间到）；不出液写 Home  -->
-                                                <Grid Grid.Column="7">
-                                                    <StackPanel
-                                                        Orientation="Horizontal"
-                                                        Style="{DynamicResource ShowWhenTagTrueStyle}"
-                                                        Tag="{Binding IsDispensing}">
-                                                        <controls:InputTextBox
-                                                            Width="80"
-                                                            materialDesign:ValidationAssist.UsePopup="True"
-                                                            DataType="Decimal"
-                                                            HasError="{Binding HasPositionError, Mode=OneWayToSource}"
-                                                            Maximum="{Binding Limits.MaxPosition}"
-                                                            Minimum="{Binding Limits.MinPosition}"
-                                                            Style="{DynamicResource ToolbarTextBoxStyle}"
-                                                            Value="{Binding PositionText}" />
-                                                        <StackPanel
-                                                            Orientation="Horizontal"
-                                                            Style="{DynamicResource ShowWhenTagTrueStyle}"
-                                                            Tag="{Binding IsScan}">
-                                                            <TextBlock
-                                                                Margin="10,0"
-                                                                Style="{DynamicResource StepPlaceholderTextStyle}"
-                                                                Text="{DynamicResource recipe.process.scan_to}" />
-                                                            <controls:InputTextBox
-                                                                Width="80"
-                                                                materialDesign:ValidationAssist.UsePopup="True"
-                                                                DataType="Decimal"
-                                                                HasError="{Binding HasScanToError, Mode=OneWayToSource}"
-                                                                Maximum="{Binding Limits.MaxPosition}"
-                                                                Minimum="{Binding Limits.MinPosition}"
-                                                                Style="{DynamicResource ToolbarTextBoxStyle}"
-                                                                Value="{Binding ScanToText}" />
-                                                            <TextBlock
-                                                                Margin="18,0,10,0"
-                                                                Style="{DynamicResource StepPlaceholderTextStyle}"
-                                                                Text="{DynamicResource recipe.process.scan_speed}" />
-                                                            <controls:InputTextBox
-                                                                Width="80"
-                                                                materialDesign:ValidationAssist.UsePopup="True"
-                                                                DataType="Decimal"
-                                                                HasError="{Binding HasScanSpeedError, Mode=OneWayToSource}"
-                                                                Maximum="{Binding Limits.MaxScanSpeed}"
-                                                                Minimum="{Binding Limits.MinScanSpeed}"
-                                                                Style="{DynamicResource ToolbarTextBoxStyle}"
-                                                                Unit="{DynamicResource recipe.process.unit_speed}"
-                                                                Value="{Binding ScanSpeedText}" />
-                                                            <TextBlock
-                                                                Margin="10,0,0,0"
-                                                                Style="{DynamicResource StepPlaceholderTextStyle}"
-                                                                Text="{DynamicResource recipe.process.unit_speed}" />
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                    <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsIdle}">
-                                                        <TextBlock Style="{DynamicResource StepPlaceholderTextStyle}" Text="{DynamicResource recipe.process.home}" />
-                                                    </Border>
-                                                </Grid>
-                                            </Grid>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock
+                                                    Width="70"
+                                                    VerticalAlignment="Center"
+                                                    Text="{Binding Number}" />
+                                                <ItemsControl ItemsSource="{Binding Cells}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <!--  一格：按这一列的类型三选一显示；输入框自己按类型、上下限查，错着把 HasError 报给这一格  -->
+                                                            <Grid Width="{Binding Field.Width}">
+                                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding Field.IsInput}">
+                                                                    <controls:InputTextBox
+                                                                        Width="{Binding Field.ControlWidth}"
+                                                                        HorizontalAlignment="Left"
+                                                                        materialDesign:ValidationAssist.UsePopup="True"
+                                                                        DataType="{Binding Field.DataType}"
+                                                                        HasError="{Binding HasInputError, Mode=OneWayToSource}"
+                                                                        Maximum="{Binding Field.Max}"
+                                                                        Minimum="{Binding Field.Min}"
+                                                                        Style="{DynamicResource ToolbarTextBoxStyle}"
+                                                                        Unit="{Binding Field.Unit}"
+                                                                        Value="{Binding Value}" />
+                                                                </Border>
+                                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding Field.IsChoice}">
+                                                                    <ComboBox
+                                                                        Width="{Binding Field.ControlWidth}"
+                                                                        HorizontalAlignment="Left"
+                                                                        DisplayMemberPath="Text"
+                                                                        ItemsSource="{Binding Choices}"
+                                                                        SelectedValue="{Binding Value}"
+                                                                        SelectedValuePath="Value"
+                                                                        Style="{DynamicResource StepComboBoxStyle}"
+                                                                        Tag="{Binding HasError}" />
+                                                                </Border>
+                                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding Field.IsBool}">
+                                                                    <CheckBox VerticalAlignment="Center" IsChecked="{Binding IsChecked}" />
+                                                                </Border>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>

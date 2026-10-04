@@ -16,119 +16,17 @@
                 <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <!--  ① 调度图：北排腔体卡（最多四张）/ 中间 Robot 控件 / 南排 LoadPort 卡（两张），卡片近方形 280×233、居中排；
-                 片在哪都是同一个大小：卡片圆片直径（DiskSize）= 机械手叉上的片直径  -->
-            <Grid Grid.Column="0" Margin="14">
-                <Border
-                    Background="{DynamicResource DarkControlBackground}"
-                    BorderBrush="{DynamicResource DarkBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6">
-                    <Grid Margin="12">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <!--  北：腔体 ChamberInfoCard  -->
-                        <ItemsControl
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Margin="0,0,0,8"
-                            HorizontalAlignment="Center"
-                            ItemsSource="{Binding Model.NorthStations}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <presentationControls:ChamberInfoCard
-                                        Width="280"
-                                        Height="233"
-                                        Margin="6,0"
-                                        DiskSize="76"
-                                        Number="{Binding NumberText}"
-                                        CreateEnable="False"
-                                        DeleteEnable="False"
-                                        IsOnline=""
-                                        Recipe=""
-                                        RecipeState=""
-                                        RotationSpeed="0"
-                                        ShutterState=""
-                                        StateText="{Binding StateText}"
-                                        StateTone="{Binding StateTone}"
-                                        StatusOn="False"
-                                        Step=""
-                                        StepTime=""
-                                        RecipeTime=""
-                                        Title="{Binding Title}"
-                                        Wafer="{Binding Wafer}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!--  机械手画 360 高：Robot 控件按 400 设计，叉上的片直径 84，放到 360 约 76，跟卡片圆片一样大  -->
-                        <Viewbox
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Height="360"
-                            Stretch="Uniform">
-                            <presentationControls:Robot
-                                ArmCount="{Binding Model.ArmCount}"
-                                ArmType="Linear"
-                                Arms="{Binding Model.Arms}"
-                                Rotation="{Binding Model.Direction}"
-                                Travel="{Binding Model.Y}" />
-                        </Viewbox>
-
-                        <!--  南：LoadPort 用 LoadPortInfoCard  -->
-                        <ItemsControl
-                            Grid.Row="2"
-                            Grid.Column="1"
-                            Margin="0,8,0,0"
-                            HorizontalAlignment="Center"
-                            ItemsSource="{Binding Model.SouthStations}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <presentationControls:LoadPortInfoCard
-                                        Width="280"
-                                        Height="233"
-                                        Margin="6,0"
-                                        DiskSize="76"
-                                        Number="{Binding NumberText}"
-                                        Alarm="False"
-                                        AutoMode="True"
-                                        CreateEnable="False"
-                                        DeleteEnable="False"
-                                        IsConnected="False"
-                                        IsOnline=""
-                                        Placed="False"
-                                        Present="False"
-                                        RotationSpeed="0"
-                                        SlotCount="{Binding SlotCount}"
-                                        StateText="{Binding StateText}"
-                                        StateTone="{Binding StateTone}"
-                                        Title="{Binding Title}"
-                                        Wafers="{Binding Wafers}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Grid>
-                </Border>
-            </Grid>
+            <!--  ① 调度图（公共控件 DispatchMap，主界面也用它）：站点按机械手站点表的方向摆在四周，LoadPort 画花篮卡片、腔体画单片卡片，
+                 片在哪都是同一个大小（卡片圆片直径 = 机械手叉上的片）  -->
+            <Border
+                Grid.Column="0"
+                Margin="14"
+                Background="{DynamicResource DarkControlBackground}"
+                BorderBrush="{DynamicResource DarkBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <presentationControls:DispatchMap Margin="12" RobotName="{Binding ModuleName}" />
+            </Border>
 
             <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 轴位 → 取放（源 / 目标 的站点·手臂·槽位 → Pick · Place）→ Home / Abort / Reset  -->
             <Border

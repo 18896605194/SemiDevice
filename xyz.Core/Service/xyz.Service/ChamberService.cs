@@ -67,11 +67,18 @@ public class ChamberService : BaseService, IChamberService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeRequired, [module]));
         }
 
-        // 配方要在工艺配方库里（没装库就不查）：被删了、改名了的配方不让起
+        // 配方要在工艺配方库里（没装库就不查）：被删了、改名了的配方不让起；
+        // 配方里下拉选的（摆臂、药液这类从腔体部件取的）这个腔体也得有——几个腔体装的不一样时，别的腔体的配方起不了
         var library = ProcessRecipeComponent.Current;
         if (library is not null && !library.Contains(recipe))
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeNotFound, [module, recipe]));
+        }
+
+        var mismatch = library?.FindMismatch(recipe, module);
+        if (mismatch is not null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeOptionMissing, [module, recipe, mismatch.Field, mismatch.Value]));
         }
 
         return RunOperation(module, chamber, chamber.Process(recipe), chamber.ProcessTimeout);

@@ -113,6 +113,7 @@ public static class Program
         app.MapGrpcService<LogService>();
         app.MapGrpcService<AlarmService>();
         app.MapGrpcService<SystemService>();
+        app.MapGrpcService<EquipmentService>();
         app.MapGrpcService<IoService>();
         app.MapGrpcService<EcService>();
         app.MapGrpcService<WaferLedgerService>();

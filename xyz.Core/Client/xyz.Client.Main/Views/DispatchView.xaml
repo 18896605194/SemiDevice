@@ -1,0 +1,38 @@
+﻿<UserControl
+    x:Class="xyz.Client.Main.Views.DispatchView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="830"
+    d:DesignWidth="1020"
+    mc:Ignorable="d">
+
+    <!--  默认的整机调度：一台机械手一张调度图（公共控件 DispatchMap，站点按 sc.xml 的方向摆在四周），几台机械手就左右排几张。
+          卡片跟 Robot 手动页一样大（字排得下）；主界面中间这一块窄，一排放不下时那一排整体缩一点（四个腔体那排约九成）。
+          机型要别的摆法就按 ClientViewKeys.MainDispatch 注册自己的，把这一块整个换掉  -->
+    <Grid>
+        <ItemsControl x:Name="RobotList" Focusable="False">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <controls:DispatchMap RobotHeight="320" RobotName="{Binding}" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!--  没有机械手（启动时没连上后端，或 sc.xml 没配 Robot）  -->
+        <TextBlock
+            x:Name="EmptyHint"
+            Margin="24"
+            Style="{DynamicResource CenterHintTextStyle}"
+            Text="{DynamicResource main.no_robot}"
+            TextWrapping="Wrap"
+            Visibility="Collapsed" />
+    </Grid>
+</UserControl>

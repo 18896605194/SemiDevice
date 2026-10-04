@@ -1,7 +1,7 @@
 ﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 设备总状态：四色灯的红、黄、绿按它亮（蓝灯是客户端与后端的通讯，客户端自己判断）。
+/// 设备总状态：四色灯的红、黄、绿按它亮（蓝灯是客户端与后端的通讯，客户端自己判断）；主界面系统操作的状态、模式也看它。
 /// 状态类消息：变化才推，留存（晚连上的客户端立即拿到当前值）。
 /// </summary>
 public class EquipmentStatusDto
@@ -16,4 +16,7 @@ public class EquipmentStatusDto
 
     /// <summary>有模块正在执行动作 → 绿灯。</summary>
     public bool IsRunning { get; set; }
+
+    /// <summary>整机模式：true = Auto（搬运管理的自动派单开着），false = Manual。没配搬运管理时一直是 Manual。</summary>
+    public bool IsAuto { get; set; }
 }

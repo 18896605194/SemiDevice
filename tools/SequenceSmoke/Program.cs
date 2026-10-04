@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Components;
+using xyz.Components.Components;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Modules.Enums;
@@ -243,18 +244,72 @@ try
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.SequenceNotInstalled && notInstalled.Args.Count == 0, "没装库：sequence.not_installed");
 
-    // 9. 装了工艺配方库：工艺步骤选的配方要在库里（不分大小写），不在的存不进去，错误码带步号和配方名（上面几节没装库，不查）。
+    // 9. 装了工艺配方库（按字段表装：时间、摆臂、药液跟着摆臂走）：工艺步骤选的配方要在库里（不分大小写），不在的存不进去，
+    //    错误码带步号和配方名；配方里从腔体部件取的下拉，勾的每个腔体都要有（SmokePM1 的 Arm1 只有 DIW，SmokePM2 的还有 HF），
+    //    没有的存不进去，错误码带步号、腔体、配方、字段和值（上面几节没装库，不查）。
     string recipeFolder = Path.Combine(Path.GetTempPath(), "xyz-sequence-smoke-recipes-" + Guid.NewGuid().ToString("N"));
     try
     {
-        var recipes = new ProcessRecipeComponent { Folder = recipeFolder };
-        recipes.Load();
-        Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsOk, "工艺配方库里建一个 SC1_60S");
+        ModuleConfig FieldNode(string key, params (string Name, string Value)[] values)
+        {
+            return new ModuleConfig { Name = key, Values = values.Select(value => new ValueConfig { Name = value.Name, Value = value.Value }).ToList() };
+        }
+
+        var recipeNode = new ModuleConfig
+        {
+            Name = "ProcessRecipe",
+            Type = typeof(ProcessRecipeComponent).FullName,
+            Values = [new ValueConfig { Name = "Folder", Value = recipeFolder }],
+            Children =
+            [
+                new ModuleConfig
+                {
+                    Name = ProcessRecipeComponent.FieldsNodeName,
+                    Children =
+                    [
+                        FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Default", "10"), ("Required", "true")),
+                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Parts:ArmAxisComponent")),
+                        FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Chemical@Arm")),
+                    ],
+                },
+            ],
+        };
+        var recipes = (ProcessRecipeComponent)ComponentLoader.Load([recipeNode]).Single();
+        void Mount(ProbeChamber chamber, params string[] chemicals)
+        {
+            var arm = new ArmAxisComponent();
+            Probe.Name(arm, "Arm1");
+            chamber.AddChild(arm);
+            foreach (string chemical in chemicals)
+            {
+                var nozzle = new NozzleComponent { Chemical = chemical };
+                Probe.Name(nozzle, "Nozzle_" + chemical);
+                arm.AddChild(nozzle);
+            }
+        }
+
+        Mount(pm1, "DIW");
+        Mount(pm2, "DIW", "HF");
+        recipes.Bind([pm1, pm2, pm3]);
+        ProcessRecipeStep RecipeStep(string chemical)
+        {
+            return new ProcessRecipeStep { Values = [new("Seconds", "10"), new("Arm", "Arm1"), new("Chemical", chemical)] };
+        }
+
+        Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsOk
+              && recipes.Save(1, 1, string.Empty, [RecipeStep("DIW")], "Tester").IsOk, "工艺配方库里建一个 SC1_60S（用 DIW）");
+        Check(recipes.Create(2, "HF_ONLY", "Tester").IsOk && recipes.Save(2, 1, string.Empty, [RecipeStep("HF")], "Tester").IsOk,
+            "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
         int revision = library.Get(1).Sequence!.Revision;
         Fails(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], " NOPE "), new("LoadPort", ["SmokeLP1"])], "Saver"),
             ErrorCodes.SequenceRecipeNotFound, ["2", "NOPE"], "工艺配方不在库里存不进去");
         var withRecipe = library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], "sc1_60s"), new("LoadPort", ["SmokeLP1"])], "Saver");
         Check(withRecipe.IsOk && withRecipe.Sequence?.Steps[1].Recipe == "sc1_60s", "库里有的（不分大小写）存得进去");
+        revision = withRecipe.Sequence!.Revision;
+        Fails(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1", "SmokePM2"], "hf_only"), new("LoadPort", ["SmokeLP1"])], "Saver"),
+            ErrorCodes.SequenceRecipeOptionMissing, ["2", "SmokePM1", "hf_only", "药液", "HF"], "勾的 SmokePM1 没有 HF：存不进去");
+        Check(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM2"], "HF_ONLY"), new("LoadPort", ["SmokeLP1"])], "Saver").IsOk,
+            "只勾有 HF 的 SmokePM2：存得进去");
     }
     finally
     {
@@ -274,7 +329,7 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library).");
+Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library and to fit every chamber picked).");
 
 /// <summary>
 /// 探针用：生产里名字由装配器经 internal setter 设，这里反射设。

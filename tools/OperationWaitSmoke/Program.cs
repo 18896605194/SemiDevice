@@ -15,8 +15,11 @@ using xyz.Drivers.Robot.Reje;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Service;
+using xyz.Service.Events;
+using xyz.Service.Systems;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Rpc;
 
 // No host, hardware connection, or configuration-file writes are used by these checks.
 var checks = 0;
@@ -1044,7 +1047,116 @@ port.E87Callback = null;
         "搬运第 2 步准备没做成：参数是站点名和步号 2");
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args).");
+// ── 主界面要的后端：系统设置带上 LoadPort / 机械手名单（右栏页签、默认调度图照它生成），机械手站点带上类型（调度图按它选卡片），
+//    设备总状态带上模式，整机操作 Auto / Manual / Stop ─────────────────────────────────────────
+{
+    var previousTransfers = TransferManager.Current;
+    var mainPort = new ProbePort("MainLP");
+    var mainChamber = new ProbeChamber("MainPM");
+    var mainAligner = new ProbeAligner("MainAligner");
+    var mainRobot = new ProbeRobot();
+    ModuleConfig StationNode(string name, string number, string direction) => new()
+    {
+        Name = name,
+        Values =
+        [
+            new ValueConfig { Name = "Number", Value = number },
+            new ValueConfig { Name = "Direction", Value = direction },
+        ],
+    };
+    mainRobot.NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children =
+        [
+            new ModuleConfig
+            {
+                Name = "Stations",
+                Children =
+                [
+                    StationNode("MainLP", "1", "South"),
+                    StationNode("MainPM", "2", "North"),
+                    StationNode("MainAligner", "3", "East"),
+                    StationNode("Nowhere", "4", "West"),
+                ],
+            },
+        ],
+    });
+    BaseModule[] mainModules = [mainPort, mainChamber, mainAligner, mainRobot];
+
+    // 搬运模块表没绑之前认不出是哪一类（跟槽数一样），一律 Other；绑了之后 LoadPort / 腔体 / 其他分得开，不在表里的还是 Other
+    TransferManager.Current = null;
+    Check(mainRobot.CreateStateDto().StationInfos.All(info => info.Kind == StationKind.Other),
+        "搬运模块表还没绑时站点类型应一律是 Other");
+    var mainTransfers = new TransferManager();
+    mainTransfers.Bind(mainModules);
+    var unbound = new RobotDto { Name = "SmokeRobot", StationInfos = [new RobotStationDto { Name = "MainLP", Number = 1 }] };
+    var infos = mainRobot.CreateStateDto().StationInfos;
+    StationKind KindOf(string name) => infos.First(info => info.Name == name).Kind;
+    Check(KindOf("MainLP") == StationKind.LoadPort && KindOf("MainPM") == StationKind.Chamber
+          && KindOf("MainAligner") == StationKind.Other && KindOf("Nowhere") == StationKind.Other,
+        "站点类型应按搬运模块表认：LoadPort、腔体、其他，不在表里的算 Other");
+    var bound = new RobotDto
+    {
+        Name = "SmokeRobot",
+        StationInfos = [new RobotStationDto { Name = "MainLP", Number = 1, Kind = StationKind.LoadPort }],
+    };
+    Check(bound.HasStateChanged(unbound), "只有站点类型变了也要算状态变化（搬运模块表绑好后推给界面换卡片）");
+
+    // 系统设置：LoadPort、机械手、腔体名单照装配的先后
+    var system = new SystemService(mainModules);
+    var settings = system.GetSettingsAsync(new RpcRequest()).Result.DeserializeData<SystemSettingsDto>();
+    Check(settings.LoadPorts.SequenceEqual(["MainLP"]) && settings.Robots.SequenceEqual(["SmokeRobot"])
+          && settings.Chambers.SequenceEqual(["MainPM"]),
+        "系统设置应带上 LoadPort、机械手、腔体名单");
+
+    // 模式：开机是 Manual；Auto / Manual 就是开、关自动派单，设备总状态跟着变
+    var equipment = new EquipmentService(mainModules);
+    Check(!EquipmentStatusPublisher.Snapshot(mainModules).IsAuto, "开机应是 Manual（自动派单关着）");
+    Check(equipment.AutoAsync(new RpcRequest()).Result.Success && mainTransfers.IsAutoDispatch
+          && EquipmentStatusPublisher.Snapshot(mainModules).IsAuto,
+        "切 Auto 应开自动派单，设备总状态是 Auto");
+    Check(equipment.ManualAsync(new RpcRequest()).Result.Success && !mainTransfers.IsAutoDispatch
+          && !EquipmentStatusPublisher.Snapshot(mainModules).IsAuto,
+        "切 Manual 应关自动派单");
+
+    // 搬运管理停用（sc.xml IsEnable=False）：切不了 Auto
+    mainTransfers.IsEnable = false;
+    var disabled = equipment.AutoAsync(new RpcRequest()).Result;
+    Check(!disabled.Success && disabled.Code == ErrorCodes.TransferDisabled && disabled.Args.Count == 0 && !mainTransfers.IsAutoDispatch,
+        "搬运管理停用时切 Auto 应回 transfer.disabled");
+    mainTransfers.IsEnable = true;
+
+    // Stop：关自动派单，只给正在执行动作的模块发中止（闲着的不碰）；Data 是发了中止的个数
+    Check(equipment.AutoAsync(new RpcRequest()).Result.Success, "再切回 Auto");
+    mainPort.Open();
+    mainPort.NoteState(ModuleState.Idle);
+    var running = new ProbeOperation();
+    Check(mainPort.BeginAction(LoadPortAction.Load, running) is not null && mainPort.CurrentOperation is not null,
+        "摆一个正在做 Load 的 LoadPort");
+    int callsBefore = mainPort.Calls;
+    var stop = equipment.StopAsync(new RpcRequest()).Result;
+    Check(stop.Success && stop.DeserializeData<int>() == 1 && mainPort.Calls == callsBefore + 1 && !mainTransfers.IsAutoDispatch,
+        "Stop 应关自动派单，只给在做动作的那一个模块发中止");
+    running.Succeed();
+    mainPort.Tick();
+    var idleStop = equipment.StopAsync(new RpcRequest()).Result;
+    Check(idleStop.Success && idleStop.DeserializeData<int>() == 0 && mainPort.Calls == callsBefore + 1,
+        "都闲着时 Stop 不发设备中止");
+
+    // 没装搬运管理：切 Auto 回 transfer.not_installed，Manual 照样成功，模式一直是 Manual
+    TransferManager.Current = null;
+    var notInstalled = equipment.AutoAsync(new RpcRequest()).Result;
+    Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.TransferNotInstalled && notInstalled.Args.Count == 0,
+        "没装搬运管理时切 Auto 应回 transfer.not_installed");
+    Check(equipment.ManualAsync(new RpcRequest()).Result.Success && !EquipmentStatusPublisher.Snapshot(mainModules).IsAuto,
+        "没装搬运管理时 Manual 照样成功，模式是 Manual");
+    Check(equipment.StopAsync(new RpcRequest()).Result.Success, "没装搬运管理时 Stop 照样能用");
+
+    TransferManager.Current = previousTransfers;
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -1329,6 +1441,38 @@ sealed class ProbeRobot : BaseRobotModule
 
     private ModuleOperation Supply() =>
         Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
+}
+
+// 探针腔体：只占个名字和类型（主界面那一节验站点类型、系统设置的腔体名单），不做动作。
+sealed class ProbeChamber : BaseChamberModule
+{
+    public ProbeChamber(string name)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+    }
+
+    public override ModuleOperation? Home() => null;
+
+    protected override ModuleOperation? ResetDevice() => null;
+
+    protected override ModuleOperation? AbortDevice() => null;
+
+    protected override ModuleOperation? StartProcess(string recipe) => null;
+}
+
+// 探针普通站点（对中台这类）：能放片，既不是 LoadPort 也不是腔体。
+sealed class ProbeAligner : BaseTransferStationModule
+{
+    public ProbeAligner(string name)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+    }
+
+    public override int State { get; protected set; } = ModuleState.Idle;
+
+    public override int SlotCount { get; set; } = 1;
 }
 
 // 探针品牌壳：驱动走假传输，只为把连接那道门打开（生产里真指令都被 ProbeOperation 顶替了）。

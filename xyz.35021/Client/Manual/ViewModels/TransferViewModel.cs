@@ -1,7 +1,7 @@
 ﻿using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
-using xyz.Client.Manual.Models;
+using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;

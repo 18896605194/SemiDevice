@@ -307,6 +307,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     Y = station.Y,
                     SlotCount = SlotCountOf(station.Name),
                     Arms = ArmsOf(station),
+                    Kind = KindOf(station.Name),
                 })
                 .ToList(),
             Arms = _armWafers
@@ -365,6 +366,30 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         }
 
         return module.SlotCount;
+    }
+
+    /// <summary>
+    /// 站点是哪一类模块（调度图按它选卡片）：跟槽数一样从搬运模块表认；表还没绑好、或名字不是可服务工位时算 Other。
+    /// </summary>
+    private static StationKind KindOf(string station)
+    {
+        var transfers = TransferManager.Current;
+        if (transfers is null)
+        {
+            return StationKind.Other;
+        }
+
+        if (!transfers.TryGetStation(station, out var module))
+        {
+            return StationKind.Other;
+        }
+
+        return module switch
+        {
+            BaseLoadPortModule => StationKind.LoadPort,
+            BaseChamberModule => StationKind.Chamber,
+            _ => StationKind.Other,
+        };
     }
 
     /// <summary>

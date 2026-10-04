@@ -29,13 +29,22 @@
                 <ContentPresenter />
             </ControlTemplate>
 
-            <!--  字段：标签灰色常规、右对齐贴着值，值白色加粗，一行一项  -->
+            <!--  字段：标签灰色常规、右对齐贴着值，值白色加粗，一行一项。
+                  没有值的那一行整行不显示（标签的 Tag 绑同一个值）：后端还没给的字段不留一排空标签  -->
             <Style x:Key="CardFieldLabelStyle" TargetType="TextBlock">
                 <Setter Property="Margin" Value="0,2,8,2" />
                 <Setter Property="HorizontalAlignment" Value="Right" />
                 <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="FontSize" Value="{DynamicResource Size13}" />
                 <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+                <Style.Triggers>
+                    <Trigger Property="Tag" Value="">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </Trigger>
+                    <Trigger Property="Tag" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
             <Style x:Key="CardFieldValueStyle" TargetType="TextBlock">
                 <Setter Property="Margin" Value="0,2" />
@@ -44,6 +53,14 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Style.Triggers>
+                    <Trigger Property="Text" Value="">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </Trigger>
+                    <Trigger Property="Text" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -206,6 +223,7 @@
                     <TextBlock
                         Grid.Row="0"
                         Style="{StaticResource CardFieldLabelStyle}"
+                        Tag="{Binding Recipe, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         Text="{DynamicResource chambercard.recipe}" />
                     <TextBlock
                         Grid.Row="0"
@@ -216,6 +234,7 @@
                     <TextBlock
                         Grid.Row="1"
                         Style="{StaticResource CardFieldLabelStyle}"
+                        Tag="{Binding Step, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         Text="{DynamicResource chambercard.step}" />
                     <TextBlock
                         Grid.Row="1"
@@ -226,6 +245,7 @@
                     <TextBlock
                         Grid.Row="2"
                         Style="{StaticResource CardFieldLabelStyle}"
+                        Tag="{Binding ShutterState, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         Text="{DynamicResource chambercard.shutter}" />
                     <TextBlock
                         Grid.Row="2"
@@ -236,6 +256,7 @@
                     <TextBlock
                         Grid.Row="3"
                         Style="{StaticResource CardFieldLabelStyle}"
+                        Tag="{Binding StepTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         Text="{DynamicResource chambercard.step_time}" />
                     <TextBlock
                         Grid.Row="3"
@@ -246,6 +267,7 @@
                     <TextBlock
                         Grid.Row="4"
                         Style="{StaticResource CardFieldLabelStyle}"
+                        Tag="{Binding RecipeTime, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         Text="{DynamicResource chambercard.recipe_time}" />
                     <TextBlock
                         Grid.Row="4"

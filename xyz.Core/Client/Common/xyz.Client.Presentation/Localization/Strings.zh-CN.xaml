@@ -52,6 +52,7 @@
     <sys:String x:Key="chamber.part_action_args_invalid">{0} {1} 的参数不对（个数不对，或者数字写错了）</sys:String>
     <sys:String x:Key="chamber.part_not_held">{0} 没有在按住的 {1}（已经松手、被停止或中止顶掉了）</sys:String>
     <sys:String x:Key="chamber.recipe_not_found">{0} 的配方 {1} 不在工艺配方库里（可能被删了或改名了）</sys:String>
+    <sys:String x:Key="chamber.recipe_option_missing">{0} 没有{2} {3}，起不了工艺配方 {1}</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} 等了 {1} ms 还没空出来（没回到待命状态，或一直被别的机械手占着）</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0} 搬运准备（第 {1} 步）被拒：站点当前状态不允许，可能被人工动过</sys:String>
@@ -59,6 +60,8 @@
     <sys:String x:Key="transfer.rejected">{0} {1} 发不出去（机械手状态不允许、没连上，或站点没配置）</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} 没做成：站点会停在搬运中，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} 落不下 {1} 标记（站点状态跟搬运进度对不上，可能被人工动过）</sys:String>
+    <sys:String x:Key="transfer.not_installed">sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto</sys:String>
+    <sys:String x:Key="transfer.disabled">搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto</sys:String>
 
     <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
@@ -99,6 +102,7 @@
     <sys:String x:Key="sequence.station_not_in_group">第 {0} 步勾的 {1} 不在分组 {2} 里</sys:String>
     <sys:String x:Key="sequence.recipe_required">第 {0} 步没选工艺配方</sys:String>
     <sys:String x:Key="sequence.recipe_not_found">第 {0} 步的工艺配方 {1} 不在工艺配方库里（可能被删了或改名了）</sys:String>
+    <sys:String x:Key="sequence.recipe_option_missing">第 {0} 步勾的 {1} 没有{3} {4}（工艺配方 {2} 里用了）</sys:String>
     <sys:String x:Key="sequence.save_failed">{0} 号流程配方文件写不进去：{1}</sys:String>
     <sys:String x:Key="process_recipe.not_installed">工艺配方库没装（sc.xml 没配 ProcessRecipe 节点）</sys:String>
     <sys:String x:Key="process_recipe.index_out_of_range">没有 {0} 号（编号 1 ~ {1}）</sys:String>
@@ -110,15 +114,13 @@
     <sys:String x:Key="process_recipe.name_duplicate">名称 {0} 跟 {1} 号重了</sys:String>
     <sys:String x:Key="process_recipe.revision_mismatch">{0} 号打开以后被别处改过，存不进去：先放弃修改，重新打开再改</sys:String>
     <sys:String x:Key="process_recipe.no_steps">一步都没有：至少要有一步</sys:String>
-    <sys:String x:Key="process_recipe.time_out_of_range">第 {0} 步的时间要在 {1} ~ {2} s 之间</sys:String>
-    <sys:String x:Key="process_recipe.rpm_out_of_range">第 {0} 步的转速要在 0 ~ {1} rpm 之间</sys:String>
-    <sys:String x:Key="process_recipe.arm_not_found">第 {0} 步的摆臂 {1} 现在没有了（sc.xml 改过）</sys:String>
-    <sys:String x:Key="process_recipe.chemical_required">第 {0} 步选了 {1}，还没选药液</sys:String>
-    <sys:String x:Key="process_recipe.chemical_not_on_arm">第 {0} 步的药液 {1} 不在 {2} 上（sc.xml 改过）</sys:String>
-    <sys:String x:Key="process_recipe.flow_out_of_range">第 {0} 步的流量要在 {1} ~ {2} L/min 之间</sys:String>
-    <sys:String x:Key="process_recipe.position_out_of_range">第 {0} 步的位置要在 {1} ~ {2} 之间（晶圆坐标）</sys:String>
-    <sys:String x:Key="process_recipe.scan_same_position">第 {0} 步是 Scan，两头的位置一样（不扫就选 Time）</sys:String>
-    <sys:String x:Key="process_recipe.scan_speed_out_of_range">第 {0} 步的扫描速度要在 {1} ~ {2} mm/s 之间</sys:String>
+    <sys:String x:Key="process_recipe.value_required">第 {0} 步{1}没填</sys:String>
+    <sys:String x:Key="process_recipe.value_not_integer">第 {0} 步{1}要填整数（现在是 {2}）</sys:String>
+    <sys:String x:Key="process_recipe.value_not_number">第 {0} 步{1}要填数字（现在是 {2}）</sys:String>
+    <sys:String x:Key="process_recipe.value_below_min">第 {0} 步{1}不能小于 {2}{3}</sys:String>
+    <sys:String x:Key="process_recipe.value_above_max">第 {0} 步{1}不能大于 {2}{3}</sys:String>
+    <sys:String x:Key="process_recipe.value_too_precise">第 {0} 步{1}最多 {2} 位小数</sys:String>
+    <sys:String x:Key="process_recipe.value_not_in_options">第 {0} 步{1}没有 {2} 这一项</sys:String>
     <sys:String x:Key="process_recipe.total_too_long">合计 {0} s，超过腔体的工艺超时 {1} s</sys:String>
     <sys:String x:Key="process_recipe.save_failed">{0} 号工艺配方文件写不进去：{1}</sys:String>
 
@@ -462,6 +464,71 @@
     <sys:String x:Key="chamberscene.top_view">俯视</sys:String>
     <sys:String x:Key="chamberscene.too_many_arms">{0} 配了 {1} 条摆臂，三维图只画前 {2} 条</sys:String>
 
+    <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。
+         Job 和按 Job 自动调度还没做：创建 / 启动 Job 先灰着，槽位表的 ⊕ ⊖ 只改界面上的选择 -->
+    <sys:String x:Key="main.system">系统操作</sys:String>
+    <sys:String x:Key="main.system_state">系统状态</sys:String>
+    <sys:String x:Key="main.mode">当前模式</sys:String>
+    <sys:String x:Key="main.alarms">报警</sys:String>
+    <sys:String x:Key="main.state.disconnected">未连接</sys:String>
+    <sys:String x:Key="main.state.idle">空闲</sys:String>
+    <sys:String x:Key="main.state.running">运行中</sys:String>
+    <sys:String x:Key="main.state.warning">警告</sys:String>
+    <sys:String x:Key="main.state.alarm">报警</sys:String>
+    <sys:String x:Key="main.mode.auto">Auto</sys:String>
+    <sys:String x:Key="main.mode.manual">Manual</sys:String>
+    <sys:String x:Key="main.auto">Auto</sys:String>
+    <sys:String x:Key="main.manual">Manual</sys:String>
+    <sys:String x:Key="main.stop">Stop</sys:String>
+    <sys:String x:Key="main.reset">Reset</sys:String>
+    <sys:String x:Key="main.auto_tip">切到 Auto：开自动派单（按 Job 自动搬片的调度还没做）</sys:String>
+    <sys:String x:Key="main.manual_tip">切到 Manual：关自动派单，正在跑的那一趟跑完</sys:String>
+    <sys:String x:Key="main.stop_tip">整机停止：关自动派单，中止所有模块正在做的动作</sys:String>
+    <sys:String x:Key="main.reset_tip">复位全部有报警的来源（跟右上角的复位一样）</sys:String>
+    <sys:String x:Key="main.auto_done">已切到 Auto</sys:String>
+    <sys:String x:Key="main.manual_done">已切到 Manual</sys:String>
+    <sys:String x:Key="main.auto_failed">切到 Auto 失败：{0}</sys:String>
+    <sys:String x:Key="main.manual_failed">切到 Manual 失败：{0}</sys:String>
+    <sys:String x:Key="main.stopped">已停止：自动派单已关，{0} 个模块在做动作，已发中止</sys:String>
+    <sys:String x:Key="main.stop_failed">停止失败：{0}</sys:String>
+    <sys:String x:Key="main.reset_done">已复位 {0} 个报警来源</sys:String>
+    <sys:String x:Key="main.reset_failed">复位失败：{0}</sys:String>
+    <sys:String x:Key="main.dispatch">整机调度</sys:String>
+    <sys:String x:Key="main.no_robot">没有机械手可画：启动时没连上后端，或 sc.xml 没配 Robot</sys:String>
+    <sys:String x:Key="main.no_loadport">没有 LoadPort：启动时没连上后端，或 sc.xml 没配 LoadPort</sys:String>
+    <sys:String x:Key="main.none">—</sys:String>
+    <sys:String x:Key="main.carrier">载具</sys:String>
+    <sys:String x:Key="main.slots">槽位</sys:String>
+    <sys:String x:Key="main.lot_id">LotID</sys:String>
+    <sys:String x:Key="main.lot_hint">输入 LotID</sys:String>
+    <sys:String x:Key="main.sequence">Sequence</sys:String>
+    <sys:String x:Key="main.sequence_hint">选择 Sequence</sys:String>
+    <sys:String x:Key="main.pick_sequence">选择 Sequence</sys:String>
+    <sys:String x:Key="main.pick_slot_sequence">槽位 {0} 的 Sequence</sys:String>
+    <sys:String x:Key="main.sequences_failed">读取 Sequence 列表失败：{0}</sys:String>
+    <sys:String x:Key="main.create_job">创建 Job</sys:String>
+    <sys:String x:Key="main.start_job">启动 Job</sys:String>
+    <sys:String x:Key="main.job_pending_tip">Job 和按 Job 自动调度还没做，现在只有界面</sys:String>
+    <sys:String x:Key="main.col.slot">槽位</sys:String>
+    <sys:String x:Key="main.col.wafer">Wafer</sys:String>
+    <sys:String x:Key="main.col.state">状态</sys:String>
+    <sys:String x:Key="main.col.sequence">Sequence</sys:String>
+    <sys:String x:Key="main.add_sequence_tip">给这一片单独选一个 Sequence</sys:String>
+    <sys:String x:Key="main.clear_sequence_tip">清空这一片的 Sequence（这片不做）</sys:String>
+    <sys:String x:Key="main.map.NotRead">未映射</sys:String>
+    <sys:String x:Key="main.map.Read">映射完成</sys:String>
+    <sys:String x:Key="main.map.WaitingForHost">等待确认</sys:String>
+    <sys:String x:Key="main.map.Verified">映射已确认</sys:String>
+    <sys:String x:Key="main.map.VerifyFailed">映射不符</sys:String>
+    <sys:String x:Key="main.wafer.Idle">待处理</sys:String>
+    <sys:String x:Key="main.wafer.InProcess">处理中</sys:String>
+    <sys:String x:Key="main.wafer.Completed">已完成</sys:String>
+    <sys:String x:Key="main.wafer.Failed">失败</sys:String>
+    <sys:String x:Key="main.wafer.Aborted">已中止</sys:String>
+    <sys:String x:Key="main.wafer.Crossed">交叉片</sys:String>
+    <sys:String x:Key="main.wafer.Double">叠片</sys:String>
+    <sys:String x:Key="main.wafer.Unknown">状态不明</sys:String>
+
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
          按模块生成的菜单（IO、腔体手动）直接显示 sc.xml 里的模块名，不在这里配。
          框架提供的菜单（含机型模块声明的 LoadPort 手动、Transfer）都配在这里；机型独有的菜单配在机型语言包。 -->
@@ -576,28 +643,10 @@
     <sys:String x:Key="recipe.process.add_step">添加</sys:String>
     <sys:String x:Key="recipe.process.delete_step">删除</sys:String>
     <sys:String x:Key="recipe.process.step">步骤</sys:String>
-    <sys:String x:Key="recipe.process.time">时间 s</sys:String>
-    <sys:String x:Key="recipe.process.rpm">转速 rpm</sys:String>
-    <sys:String x:Key="recipe.process.arm">摆臂</sys:String>
-    <sys:String x:Key="recipe.process.chemical">药液</sys:String>
-    <sys:String x:Key="recipe.process.flow">流量 L/min</sys:String>
-    <sys:String x:Key="recipe.process.mode">方式</sys:String>
-    <sys:String x:Key="recipe.process.position">位置</sys:String>
-    <sys:String x:Key="recipe.process.position_tip">{0} 晶圆边缘 · {1} 晶圆中心；Scan 在两个位置之间来回扫，扫到这一步时间到</sys:String>
-    <sys:String x:Key="recipe.process.unit_seconds">s</sys:String>
-    <sys:String x:Key="recipe.process.unit_rpm">rpm</sys:String>
-    <sys:String x:Key="recipe.process.unit_flow">L/min</sys:String>
-    <sys:String x:Key="recipe.process.unit_speed">mm/s</sys:String>
-    <sys:String x:Key="recipe.process.no_arm">不出液</sys:String>
-    <sys:String x:Key="recipe.process.chemical_hint">选药液</sys:String>
-    <sys:String x:Key="recipe.process.mode_time">Time</sys:String>
-    <sys:String x:Key="recipe.process.mode_scan">Scan</sys:String>
-    <sys:String x:Key="recipe.process.scan_to">到</sys:String>
-    <sys:String x:Key="recipe.process.scan_speed">速度</sys:String>
-    <sys:String x:Key="recipe.process.home">Home</sys:String>
     <sys:String x:Key="recipe.process.none">—</sys:String>
     <sys:String x:Key="recipe.process.empty_steps">新建以后在这里编辑步骤</sys:String>
     <sys:String x:Key="recipe.process.error_separator">；</sys:String>
+    <sys:String x:Key="recipe.process.cell_invalid">第 {0} 步{1}没填对（看框里的提示）</sys:String>
     <sys:String x:Key="recipe.process.dialog_create">新建工艺配方 {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_rename">重命名工艺配方 {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_delete">删除工艺配方</sys:String>

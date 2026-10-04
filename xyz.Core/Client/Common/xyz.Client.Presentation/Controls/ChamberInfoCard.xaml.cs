@@ -7,6 +7,7 @@ namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 近方形腔体信息卡片，参考 GR 调度界面的 ChamberInfoCard：标题行带缩小版状态徽标，左五行字段 + 右圆片。按真实字号排版、随给定尺寸伸缩，不整卡缩放。
+/// 字段哪一行没有值就整行不显示（现在后端只给配方，步骤、腔门、时间这些有了数据才出来）。
 /// </summary>
 public partial class ChamberInfoCard : UserControl
 {

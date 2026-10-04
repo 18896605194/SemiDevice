@@ -1,6 +1,5 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Components;
-using xyz.Components.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -11,7 +10,7 @@ namespace xyz.Service.Recipes;
 
 /// <summary>
 /// 工艺配方 gRPC 服务（配方 → 工艺配方页；流程配方页、腔体手动页选工艺配方也用它的列表）：把工艺配方库（ProcessRecipeComponent）的结果翻成回包。
-/// 检查都在库里做（编号、名称、版本、步骤），这里只管取库、转 DTO、带上操作人。
+/// 检查都在库里做（编号、名称、版本、步骤），这里只管取库、转 DTO、带上操作人。字段表（每一步有哪些字段）也从库里取，界面按它生成步骤表。
 /// </summary>
 public class ProcessRecipeService : BaseService, IProcessRecipeService
 {
@@ -62,19 +61,8 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
         var dto = new ProcessRecipeOptionsDto
         {
-            Arms = library.Arms.Select(arm => new ProcessArmDto { Name = arm.Name, Chemicals = arm.Chemicals.ToList() }).ToList(),
-            MinSeconds = ProcessRecipeComponent.MinPositiveValue,
-            MaxSeconds = library.MaxStepSeconds,
-            MaxRpm = library.MaxRpm,
-            MinFlow = ProcessRecipeComponent.MinPositiveValue,
-            MaxFlow = library.MaxFlow,
-            MinPosition = ArmAxisComponent.WaferEdgePosition,
-            MaxPosition = ArmAxisComponent.WaferCenterPosition,
-            MinScanSpeed = ProcessRecipeComponent.MinPositiveValue,
-            MaxScanSpeed = library.MaxScanSpeed,
+            Fields = library.Fields.Select(field => ToDto(field, library.ChoicesOf(field))).ToList(),
             MaxTotalSeconds = library.MaxTotalSeconds,
-            NewStepSeconds = ProcessRecipeComponent.NewStepSeconds,
-            NewStepRpm = ProcessRecipeComponent.NewStepRpm,
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
@@ -108,15 +96,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         // protobuf 收到的空列表、空字符串可能是 null，进库之前都换成空的
         var steps = (request.Steps ?? []).Select(step => new ProcessRecipeStep
         {
-            Seconds = step.Seconds,
-            Rpm = step.Rpm,
-            Arm = step.Arm ?? string.Empty,
-            Chemical = step.Chemical ?? string.Empty,
-            Flow = step.Flow,
-            Mode = step.Mode,
-            Position = step.Position,
-            ScanTo = step.ScanTo,
-            ScanSpeed = step.ScanSpeed,
+            Values = (step.Values ?? []).Select(pair => new ProcessRecipeValue(pair.Key, pair.Value ?? string.Empty)).ToList(),
         }).ToList();
         return Reply(library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
     }
@@ -144,18 +124,41 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             ModifiedBy = data.ModifiedBy,
             ModifiedAt = data.ModifiedAt,
             Revision = data.Revision,
-            Steps = data.Steps.Select(step => new ProcessRecipeStepDto
-            {
-                Seconds = step.Seconds,
-                Rpm = step.Rpm,
-                Arm = step.Arm,
-                Chemical = step.Chemical,
-                Flow = step.Flow,
-                Mode = step.Mode,
-                Position = step.Position,
-                ScanTo = step.ScanTo,
-                ScanSpeed = step.ScanSpeed,
-            }).ToList(),
+            Steps = data.Steps.Select(ToDto).ToList(),
+        };
+    }
+
+    private static ProcessRecipeStepDto ToDto(ProcessRecipeStep step)
+    {
+        var dto = new ProcessRecipeStepDto();
+        foreach (var value in step.Values)
+        {
+            dto.Values.TryAdd(value.Name, value.Value);
+        }
+
+        return dto;
+    }
+
+    /// <summary>
+    /// 一个字段给界面：下拉带上取好的选项（跟着别的字段走的按那个字段的值分开给）。
+    /// </summary>
+    private static ProcessRecipeFieldDto ToDto(ProcessRecipeField field, ProcessRecipeChoices choices)
+    {
+        return new ProcessRecipeFieldDto
+        {
+            Key = field.Key,
+            Text = field.Text,
+            TextEn = field.TextEn,
+            Type = field.Type,
+            Unit = field.Unit,
+            Min = field.Min,
+            Max = field.Max,
+            Decimals = field.Decimals,
+            Default = field.Default,
+            Required = field.Required,
+            ParentKey = field.Source?.ParentKey ?? string.Empty,
+            Options = choices.Values.ToList(),
+            OptionsByParent = choices.ByParent.ToDictionary(pair => pair.Key, pair => pair.Value.ToList()),
         };
     }
 
