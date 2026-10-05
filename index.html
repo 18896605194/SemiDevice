@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FFF6EC">
+<title>萌宝养成记</title>
+<style>
+:root{
+  --cream:#FFF6EC; --paper:#FFFFFF; --ink:#4A3B32; --mut:#9C8A7E;
+  --pink:#FF8FA3; --pink-d:#F56F88; --pink-soft:#FFE3EA;
+  --blue:#7EC8E3; --blue-d:#5AB0D4; --blue-soft:#E3F4FB;
+  --gold:#FFC94A; --gold-d:#F0B020; --gold-soft:#FFF3D6;
+  --mint:#7ED9A7; --mint-soft:#E2F7EC;
+  --lilac:#C6B5F0;
+  --r-lg:26px; --r-md:18px; --r-sm:12px;
+  --sh:0 6px 20px rgba(74,59,50,.10);
+  --sh-soft:0 3px 10px rgba(74,59,50,.07);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+  background:#E9DED2;color:var(--ink);
+  -webkit-user-select:none;user-select:none;touch-action:manipulation;
+  display:flex;justify-content:center;
+}
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+input{font-family:inherit}
+#shell{
+  position:relative;width:100%;max-width:430px;height:100dvh;min-height:100%;
+  background:var(--cream);overflow:hidden;
+  box-shadow:0 0 60px rgba(0,0,0,.18);
+  display:flex;flex-direction:column;
+}
+/* ---------- 通用 ---------- */
+.hidden{display:none!important}
+.btn{
+  border-radius:999px;font-weight:700;transition:transform .12s ease,box-shadow .12s ease;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn:active{transform:scale(.95)}
+.btn-primary{
+  background:linear-gradient(180deg,#FF9FB1,var(--pink-d));color:#fff;
+  box-shadow:0 8px 18px rgba(245,111,136,.35);
+}
+.btn-ghost{background:var(--paper);color:var(--ink);box-shadow:var(--sh-soft)}
+.btn-gold{background:linear-gradient(180deg,#FFD97A,var(--gold-d));color:#6B4A00;box-shadow:0 8px 18px rgba(240,176,32,.35)}
+.btn-blue{background:linear-gradient(180deg,#8FD4ED,var(--blue-d));color:#fff;box-shadow:0 8px 18px rgba(90,176,212,.35)}
+.btn:disabled{opacity:.45;box-shadow:none}
+.card{background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--sh-soft)}
+
+/* ---------- 引导页 ---------- */
+#scrOnboard{
+  position:absolute;inset:0;z-index:60;background:var(--cream);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:28px 24px calc(28px + env(safe-area-inset-bottom));text-align:center;
+  overflow-y:auto;
+}
+.ob-logo{font-size:40px;font-weight:800;letter-spacing:2px;color:var(--pink-d);
+  text-shadow:0 4px 0 #FFD9E1}
+.ob-sub{margin-top:6px;font-size:14px;color:var(--mut);letter-spacing:4px}
+.ob-pick{display:flex;gap:18px;margin-top:30px}
+.ob-baby{
+  width:132px;padding:16px 10px 14px;border-radius:24px;background:var(--paper);
+  box-shadow:var(--sh-soft);border:3px solid transparent;transition:.15s;
+}
+.ob-baby.on{border-color:var(--pink);box-shadow:0 8px 22px rgba(255,143,163,.35);transform:translateY(-4px)}
+.ob-baby svg{width:92px;height:100px}
+.ob-baby .t{font-size:15px;font-weight:700;margin-top:6px}
+.ob-baby .d{font-size:12px;color:var(--mut);margin-top:2px}
+#obName{
+  margin-top:26px;width:100%;max-width:300px;padding:14px 18px;border-radius:16px;
+  border:2px solid #F0E2D4;background:var(--paper);font-size:17px;font-weight:600;
+  text-align:center;color:var(--ink);outline:none;
+}
+#obName:focus{border-color:var(--pink)}
+.ob-hint{font-size:12px;color:var(--mut);margin-top:10px}
+#btnStart{margin-top:26px;width:100%;max-width:300px;height:56px;font-size:19px}
+
+/* ---------- 主界面 ---------- */
+#appMain{position:absolute;inset:0;display:flex;flex-direction:column;z-index:10}
+.topbar{
+  display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background:rgba(255,246,236,.92);backdrop-filter:blur(8px);z-index:20;
+  border-bottom:1px solid rgba(74,59,50,.06);
+}
+.baby-chip{display:flex;align-items:center;gap:8px;min-width:0}
+.baby-face{
+  width:38px;height:38px;border-radius:50%;background:var(--pink-soft);
+  display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;
+}
+.baby-meta{min-width:0}
+.baby-name{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+.lv-row{display:flex;align-items:center;gap:6px;margin-top:3px}
+.lv-tag{font-size:10px;font-weight:800;color:#fff;background:var(--blue-d);
+  border-radius:99px;padding:1px 7px;letter-spacing:.5px;white-space:nowrap}
+.xp-track{width:74px;height:6px;border-radius:99px;background:#F0E2D4;overflow:hidden}
+.xp-fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#8FD4ED,var(--blue-d));transition:width .4s ease}
+.coin-chip{
+  margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--gold-soft);
+  border-radius:99px;padding:7px 13px 7px 9px;font-weight:800;font-size:15px;color:#8A5A00;
+}
+.coin-dot{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE9A8,var(--gold-d));
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;font-size:11px;color:#8A5A00}
+.icon-btn{
+  width:38px;height:38px;border-radius:50%;background:var(--paper);box-shadow:var(--sh-soft);
+  font-size:17px;display:flex;align-items:center;justify-content:center;flex:none;
+}
+.icon-btn:active{transform:scale(.92)}
+
+/* ---------- 视图容器 ---------- */
+.views{flex:1;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:14px 14px 18px;display:none}
+.view.on{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.view-title{font-size:19px;font-weight:800;margin:4px 2px 12px}
+.view-title small{font-size:12px;font-weight:600;color:var(--mut);margin-left:8px}
+
+/* ---------- 房间 ---------- */
+.room{
+  position:relative;border-radius:var(--r-lg);overflow:hidden;height:300px;
+  background:linear-gradient(180deg,#FDE8E4 0%,#FFF2E6 55%,#F7E6D2 100%);
+  box-shadow:var(--sh-soft);
+}
+.room.wall-blue{background:linear-gradient(180deg,#DFF2FB 0%,#EEF8FE 55%,#F3EDE2 100%)}
+.room.wall-forest{background:linear-gradient(180deg,#E3F6E9 0%,#F1FBEF 55%,#F3EAD8 100%)}
+.room.wall-night{background:linear-gradient(180deg,#D9DCF5 0%,#ECEEFB 55%,#E8E2F2 100%)}
+.room .rug{
+  position:absolute;left:50%;bottom:26px;transform:translateX(-50%);
+  width:78%;height:66px;border-radius:50%;
+  background:radial-gradient(ellipse at center,#FFE0E7 0%,#FFD1DC 70%,#FFC2D0 100%);
+  opacity:.9;
+}
+.room.wall-blue .rug{background:radial-gradient(ellipse at center,#D8F1FC,#BFE6F7)}
+.room.wall-forest .rug{background:radial-gradient(ellipse at center,#DCF5E4,#C6EED4)}
+.room.wall-night .rug{background:radial-gradient(ellipse at center,#E4E0FA,#D2CCF5)}
+.room .window{
+  position:absolute;top:22px;right:20px;width:64px;height:74px;border-radius:14px;
+  background:linear-gradient(180deg,#BDE7F8,#E8F8FF);border:5px solid #fff;
+  box-shadow:0 4px 10px rgba(0,0,0,.06);overflow:hidden;
+}
+.room .window::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 46%,#fff 46%,#fff 54%,transparent 54%),
+             linear-gradient(0deg,transparent 46%,#fff 46%,#fff 54%,transparent 54%)}
+.room .sun{position:absolute;top:8px;left:8px;width:18px;height:18px;border-radius:50%;background:#FFD97A}
+.room .shelf{
+  position:absolute;top:30px;left:18px;width:70px;height:8px;border-radius:4px;background:#E8C9A8;
+  box-shadow:0 3px 0 #D9B892;
+}
+.room .toy1,.room .toy2{position:absolute;top:12px;border-radius:6px}
+.room .toy1{left:8px;width:16px;height:16px;background:var(--pink)}
+.room .toy2{left:32px;width:14px;height:20px;background:var(--blue);border-radius:7px 7px 4px 4px}
+.room .plant{position:absolute;right:18px;bottom:34px;font-size:30px;filter:drop-shadow(0 3px 3px rgba(0,0,0,.08))}
+.room .balloons{position:absolute;left:16px;bottom:70px;font-size:34px;
+  display:none;animation:floaty 3.4s ease-in-out infinite}
+.room.deco-balloon .balloons{display:block}
+.room .star-deco{position:absolute;inset:0;pointer-events:none;opacity:0;transition:.4s;
+  background-image:radial-gradient(circle,#fff 1.2px,transparent 1.4px),radial-gradient(circle,#FFE9A8 1.4px,transparent 1.6px);
+  background-size:70px 70px,110px 110px;background-position:8px 14px,40px 40px}
+.room.deco-night .star-deco{opacity:.85}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+.baby-stage{
+  position:absolute;left:50%;bottom:40px;transform:translateX(-50%);
+  width:200px;height:210px;cursor:pointer;
+}
+.baby-stage svg{width:100%;height:100%;overflow:visible}
+.bob{animation:bob 2.6s ease-in-out infinite;transform-origin:100px 200px}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-6px) rotate(-1.5deg)}}
+.mood-sleep .bob{animation:sleepBob 3.6s ease-in-out infinite}
+@keyframes sleepBob{0%,100%{transform:translateY(2px)}50%{transform:translateY(-3px)}}
+.blink{animation:blink 4.2s infinite}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+.mood-sleep .blink,.mood-cry .blink{animation:none}
+#eyeOpen{display:block}
+#eyeShut{display:none}
+.mood-sleep #eyeOpen,.mood-cry #eyeOpen{display:none}
+.mood-sleep #eyeShut,.mood-cry #eyeShut{display:block}
+#mouthHappy,#mouthCry,#mouthSleep,#mouthO{display:none}
+.mood-happy #mouthHappy{display:block}
+.mood-cry #mouthCry{display:block}
+.mood-sleep #mouthSleep{display:block}
+.mood-normal #mouthO{display:block}
+#tears{display:none}
+.mood-cry #tears{display:block}
+#zzz{display:none}
+.mood-sleep #zzz{display:block}
+.teardrop{animation:tearFall 1.1s linear infinite}
+.teardrop.t2{animation-delay:.5s}
+@keyframes tearFall{0%{transform:translateY(0);opacity:1}80%{opacity:1}100%{transform:translateY(26px);opacity:0}}
+.zfloat{animation:zFloat 2.2s ease-out infinite;opacity:0}
+.zfloat.z2{animation-delay:1.1s}
+@keyframes zFloat{0%{transform:translate(0,0) scale(.6);opacity:0}25%{opacity:1}100%{transform:translate(14px,-34px) scale(1.1);opacity:0}}
+.pop-fx{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);pointer-events:none;
+  font-size:30px;animation:popUp .9s ease forwards;z-index:5}
+@keyframes popUp{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}
+  25%{transform:translate(-50%,-70%) scale(1.15);opacity:1}
+  100%{transform:translate(-50%,-160%) scale(1);opacity:0}}
+.bubble-thought{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);
+  background:#fff;border-radius:16px;padding:7px 13px;font-size:13px;font-weight:700;
+  box-shadow:var(--sh-soft);z-index:6;white-space:nowrap;
+  animation:fadeIn .3s ease;
+}
+.bubble-thought::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);
+  border:7px solid transparent;border-top-color:#fff}
+
+/* 状态条 */
+.bars{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.bar-item{background:var(--paper);border-radius:16px;padding:9px 12px 11px;box-shadow:var(--sh-soft)}
+.bar-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700}
+.bar-head .v{color:var(--mut);font-weight:800;font-variant-numeric:tabular-nums}
+.bar-track{height:9px;border-radius:99px;background:#F3E9DE;margin-top:7px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;transition:width .5s ease,background .3s}
+.bf-hungry{background:linear-gradient(90deg,#FFD07E,var(--gold-d))}
+.bf-joy{background:linear-gradient(90deg,#FFB3C1,var(--pink-d))}
+.bf-clean{background:linear-gradient(90deg,#9FDCF2,var(--blue-d))}
+.bf-energy{background:linear-gradient(90deg,#A9EBBF,var(--mint))}
+.bar-low .bar-fill{animation:lowPulse 1s ease-in-out infinite}
+@keyframes lowPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.bar-low .bar-head .v{color:var(--pink-d)}
+
+/* 照顾按钮 */
+.care-row{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px}
+.care-btn{
+  background:var(--paper);border-radius:20px;padding:12px 4px 10px;box-shadow:var(--sh-soft);
+  display:flex;flex-direction:column;align-items:center;gap:4px;transition:.12s;
+}
+.care-btn:active{transform:scale(.93)}
+.care-btn .ic{font-size:26px;line-height:1}
+.care-btn .lb{font-size:12px;font-weight:800}
+.care-btn .rw{font-size:10px;font-weight:700;color:var(--gold-d)}
+.care-btn.cool{opacity:.55;pointer-events:none}
+.tip-line{
+  margin-top:10px;text-align:center;font-size:12px;color:var(--mut);
+  background:rgba(255,255,255,.7);border-radius:99px;padding:8px 10px;
+}
+
+/* ---------- 底部导航 ---------- */
+.tabbar{
+  display:flex;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
+  border-top:1px solid rgba(74,59,50,.07);
+  padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 0;border-radius:16px;color:var(--mut);transition:.15s;
+}
+.tab .ic{font-size:22px;line-height:1}
+.tab .lb{font-size:11px;font-weight:700}
+.tab.on{color:var(--pink-d);background:var(--pink-soft)}
+.tab:active{transform:scale(.94)}
+
+/* ---------- 装扮商店 ---------- */
+.seg{display:flex;background:#F3E9DE;border-radius:99px;padding:4px;margin-bottom:14px}
+.seg button{
+  flex:1;padding:9px 0;border-radius:99px;font-size:13px;font-weight:800;color:var(--mut);
+  transition:.15s;
+}
+.seg button.on{background:var(--paper);color:var(--ink);box-shadow:var(--sh-soft)}
+.goods{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.good{
+  background:var(--paper);border-radius:20px;padding:14px 12px;box-shadow:var(--sh-soft);
+  text-align:center;position:relative;border:2.5px solid transparent;
+}
+.good.eq{border-color:var(--pink)}
+.good .art{
+  width:64px;height:64px;margin:0 auto 8px;border-radius:18px;
+  background:var(--pink-soft);display:flex;align-items:center;justify-content:center;
+  font-size:34px;
+}
+.good.b .art{background:var(--blue-soft)}
+.good.c .art{background:var(--gold-soft)}
+.good .nm{font-size:14px;font-weight:800}
+.good .pr{margin-top:7px;font-size:13px;font-weight:800;color:#8A5A00;
+  display:inline-flex;align-items:center;gap:4px}
+.good .own{font-size:12px;font-weight:800;color:var(--mint)}
+.good .eqtag{
+  position:absolute;top:9px;right:9px;background:var(--pink);color:#fff;
+  font-size:10px;font-weight:800;border-radius:99px;padding:2px 7px;
+}
+.good button{margin-top:8px;width:100%;height:36px;border-radius:99px;font-size:13px}
+
+/* ---------- 日记 ---------- */
+.diary-head{
+  background:linear-gradient(135deg,#FF9FB1,#FFC0A8);border-radius:var(--r-lg);
+  padding:18px;color:#fff;box-shadow:0 8px 20px rgba(245,111,136,.3);margin-bottom:14px;
+}
+.diary-head .k{font-size:13px;opacity:.9;font-weight:600}
+.diary-head .big{font-size:26px;font-weight:800;margin-top:4px}
+.diary-head .sub{font-size:12px;opacity:.9;margin-top:6px}
+.mile{
+  display:flex;gap:12px;align-items:center;background:var(--paper);
+  border-radius:18px;padding:13px 14px;box-shadow:var(--sh-soft);margin-bottom:10px;
+}
+.mile.lock{opacity:.5}
+.mile .em{
+  width:44px;height:44px;border-radius:14px;background:var(--mint-soft);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex:none;
+}
+.mile.lock .em{background:#F0EADF}
+.mile .tx{flex:1;min-width:0}
+.mile .nm{font-size:14px;font-weight:800}
+.mile .ds{font-size:12px;color:var(--mut);margin-top:2px}
+.mile .ok{font-size:11px;font-weight:800;color:var(--mint);flex:none}
+
+/* ---------- 弹窗层 ---------- */
+.ov{
+  position:absolute;inset:0;z-index:70;background:rgba(74,59,50,.45);
+  display:flex;align-items:center;justify-content:center;padding:22px;
+  animation:fadeIn .2s ease;backdrop-filter:blur(3px);
+}
+.ov-card{
+  width:100%;max-width:340px;background:var(--cream);border-radius:28px;
+  padding:24px 20px 20px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25);
+  animation:popIn .28s cubic-bezier(.2,1.4,.4,1);max-height:86dvh;overflow-y:auto;
+}
+@keyframes popIn{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-title{font-size:21px;font-weight:800}
+.ov-sub{font-size:13px;color:var(--mut);margin-top:7px;line-height:1.6;white-space:pre-line}
+.ov-emoji{font-size:52px;line-height:1}
+/* 签到 */
+.sign-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0 6px}
+.sign-cell{
+  background:var(--paper);border-radius:14px;padding:9px 3px 7px;position:relative;
+  border:2px solid transparent;
+}
+.sign-cell.done{background:var(--mint-soft);border-color:transparent}
+.sign-cell.today{border-color:var(--pink);box-shadow:0 4px 12px rgba(255,143,163,.35)}
+.sign-cell .d{font-size:10px;color:var(--mut);font-weight:700}
+.sign-cell .g{font-size:15px;font-weight:800;color:#8A5A00;margin-top:3px}
+.sign-cell .ck{position:absolute;top:-7px;right:-5px;font-size:14px}
+/* 升级庆祝 */
+.lvup-ring{
+  width:110px;height:110px;margin:6px auto 4px;border-radius:50%;
+  background:conic-gradient(var(--pink),var(--gold),var(--blue),var(--pink));
+  display:flex;align-items:center;justify-content:center;animation:spin 3s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lvup-core{
+  width:92px;height:92px;border-radius:50%;background:var(--cream);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  animation:spin 3s linear infinite reverse;
+}
+.lvup-core b{font-size:30px;color:var(--pink-d)}
+.confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.cf{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:cfFall linear forwards}
+@keyframes cfFall{to{transform:translateY(110dvh) rotate(720deg);opacity:.9}}
+
+/* ---------- 泡泡小游戏 ---------- */
+#ovGame{background:linear-gradient(180deg,#E8F7FE,#FFF6EC);flex-direction:column;padding:0}
+.game-wrap{position:absolute;inset:0;overflow:hidden}
+.g-hud{
+  position:absolute;top:calc(12px + env(safe-area-inset-top));left:0;right:0;
+  display:flex;justify-content:center;gap:12px;z-index:5;
+}
+.g-chip{background:rgba(255,255,255,.92);border-radius:99px;padding:8px 16px;
+  font-weight:800;font-size:15px;box-shadow:var(--sh-soft);font-variant-numeric:tabular-nums}
+.g-chip span{color:var(--pink-d)}
+.g-close{
+  position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;z-index:6;
+  width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.92);
+  box-shadow:var(--sh-soft);font-size:17px;
+}
+.bub{
+  position:absolute;border-radius:50%;cursor:pointer;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95),var(--bc) 58%);
+  box-shadow:inset -4px -6px 10px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.08);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  animation:bubUp linear forwards;will-change:transform;
+}
+@keyframes bubUp{from{transform:translateY(0)}to{transform:translateY(-108dvh)}}
+.bub.pop{animation:bubPop .18s ease forwards;pointer-events:none}
+@keyframes bubPop{to{transform:scale(1.6);opacity:0}}
+.g-over{
+  position:absolute;inset:0;background:rgba(255,246,236,.94);z-index:8;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  animation:fadeIn .3s ease;
+}
+.g-over .n{font-size:44px;font-weight:800;color:var(--pink-d);font-variant-numeric:tabular-nums}
+.g-over .l{font-size:14px;color:var(--mut);font-weight:600}
+
+/* toast */
+#toastBox{
+  position:absolute;left:0;right:0;bottom:calc(78px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;gap:8px;z-index:90;pointer-events:none;
+}
+.toast{
+  background:rgba(74,59,50,.92);color:#fff;font-size:13.5px;font-weight:700;
+  padding:10px 18px;border-radius:99px;box-shadow:0 8px 20px rgba(0,0,0,.2);
+  animation:toastIn .25s ease;max-width:86%;text-align:center;
+}
+.toast.gold{background:linear-gradient(180deg,#FFD97A,var(--gold-d));color:#6B4A00}
+@keyframes toastIn{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.toast.out{transition:.3s;opacity:0;transform:translateY(-8px)}
+@media (max-height:700px){
+  .room{height:250px}
+  .baby-stage{width:168px;height:176px;bottom:32px}
+}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <!-- ===== 首次引导 ===== -->
+  <div id="scrOnboard">
+    <div class="ob-logo">萌宝养成记</div>
+    <div class="ob-sub">MY BABY DIARY</div>
+    <div class="ob-pick">
+      <button class="ob-baby on" data-g="girl">
+        <svg viewBox="0 0 100 110">
+          <ellipse cx="50" cy="102" rx="26" ry="5" fill="rgba(74,59,50,.10)"/>
+          <rect x="30" y="62" width="40" height="34" rx="14" fill="#FFB7C5"/>
+          <circle cx="50" cy="42" r="28" fill="#FFE3D2"/>
+          <path d="M24 36c2-16 14-26 26-26s24 10 26 26c-6-6-16-9-26-9s-20 3-26 9z" fill="#6B4A3A"/>
+          <circle cx="40" cy="44" r="3.2" fill="#4A3B32"/><circle cx="60" cy="44" r="3.2" fill="#4A3B32"/>
+          <circle cx="34" cy="52" r="5" fill="#FFB0B8" opacity=".7"/><circle cx="66" cy="52" r="5" fill="#FFB0B8" opacity=".7"/>
+          <path d="M45 54q5 5 10 0" stroke="#D97A8A" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="t">女宝</div><div class="d">软萌小公主</div>
+      </button>
+      <button class="ob-baby" data-g="boy">
+        <svg viewBox="0 0 100 110">
+          <ellipse cx="50" cy="102" rx="26" ry="5" fill="rgba(74,59,50,.10)"/>
+          <rect x="30" y="62" width="40" height="34" rx="14" fill="#9FDCF2"/>
+          <circle cx="50" cy="42" r="28" fill="#FFE3D2"/>
+          <path d="M26 34c4-14 14-22 24-22s20 8 24 22c-8-4-16-6-24-6s-16 2-24 6z" fill="#4A3B32"/>
+          <circle cx="40" cy="44" r="3.2" fill="#4A3B32"/><circle cx="60" cy="44" r="3.2" fill="#4A3B32"/>
+          <circle cx="34" cy="52" r="5" fill="#FFB0B8" opacity=".7"/><circle cx="66" cy="52" r="5" fill="#FFB0B8" opacity=".7"/>
+          <path d="M45 54q5 5 10 0" stroke="#D97A8A" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="t">男宝</div><div class="d">元气小暖男</div>
+      </button>
+    </div>
+    <input id="obName" maxlength="6" placeholder="给宝宝起个名字" value="">
+    <div class="ob-hint">取好名字，就开始当妈妈啦</div>
+    <button id="btnStart" class="btn btn-primary">开始养娃</button>
+  </div>
+
+  <!-- ===== 主界面 ===== -->
+  <div id="appMain" class="hidden">
+    <div class="topbar">
+      <div class="baby-chip">
+        <div class="baby-face" id="topFace">👶</div>
+        <div class="baby-meta">
+          <div class="baby-name" id="topName">团团</div>
+          <div class="lv-row">
+            <span class="lv-tag" id="topLv">LV.1</span>
+            <div class="xp-track"><div class="xp-fill" id="topXp"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="coin-chip"><span class="coin-dot">¥</span><span id="topCoin">0</span></div>
+      <button class="icon-btn" id="btnSign" title="签到">📅</button>
+      <button class="icon-btn" id="btnSound" title="音效">🔊</button>
+    </div>
+
+    <div class="views">
+      <!-- 房间 -->
+      <section class="view on" id="viewRoom">
+        <div class="room" id="room">
+          <div class="window"><div class="sun"></div></div>
+          <div class="shelf"><div class="toy1"></div><div class="toy2"></div></div>
+          <div class="star-deco"></div>
+          <div class="rug"></div>
+          <div class="balloons">🎈</div>
+          <div class="plant" id="roomPlant">🌱</div>
+          <div class="baby-stage" id="babyStage">
+            <svg viewBox="0 0 200 220" id="babySvg">
+              <ellipse cx="100" cy="208" rx="58" ry="11" fill="rgba(74,59,50,.10)"/>
+              <g class="bob">
+                <!-- 腿 -->
+                <rect x="70" y="168" width="22" height="34" rx="11" fill="#FFD9C2"/>
+                <rect x="108" y="168" width="22" height="34" rx="11" fill="#FFD9C2"/>
+                <!-- 身体 -->
+                <rect id="bodyOnesie" x="56" y="104" width="88" height="76" rx="30" fill="#FFB7C5"/>
+                <rect x="56" y="104" width="88" height="76" rx="30" fill="rgba(255,255,255,.18)"/>
+                <!-- 手臂 -->
+                <rect x="38" y="114" width="24" height="46" rx="12" fill="#FFD9C2" transform="rotate(14 50 137)"/>
+                <rect x="138" y="114" width="24" height="46" rx="12" fill="#FFD9C2" transform="rotate(-14 150 137)"/>
+                <!-- 领子 -->
+                <path d="M78 108q22 18 44 0" stroke="rgba(255,255,255,.75)" stroke-width="7" fill="none" stroke-linecap="round"/>
+                <!-- 头 -->
+                <circle cx="100" cy="62" r="46" fill="#FFE3D2"/>
+                <!-- 头发 -->
+                <g id="hairBaby">
+                  <path d="M56 52c4-26 22-40 44-40s40 14 44 40c-10-10-26-15-44-15s-34 5-44 15z" fill="#6B4A3A"/>
+                  <path d="M96 20c4-8 12-12 18-10-4 6-6 12-6 18z" fill="#6B4A3A"/>
+                </g>
+                <g id="hairToddler" style="display:none">
+                  <path d="M54 54c4-28 24-42 46-42s42 14 46 42c-12-12-28-18-46-18s-34 6-46 18z" fill="#4A3B32"/>
+                </g>
+                <!-- 耳朵 -->
+                <circle cx="55" cy="66" r="9" fill="#FFD9C2"/><circle cx="145" cy="66" r="9" fill="#FFD9C2"/>
+                <!-- 眼睛（睁） -->
+                <g id="eyeOpen" class="blink" style="transform-origin:100px 64px">
+                  <circle cx="82" cy="64" r="6.4" fill="#3A2E27"/><circle cx="118" cy="64" r="6.4" fill="#3A2E27"/>
+                  <circle cx="84.5" cy="61.5" r="2.2" fill="#fff"/><circle cx="120.5" cy="61.5" r="2.2" fill="#fff"/>
+                </g>
+                <!-- 眼睛（闭） -->
+                <g id="eyeShut">
+                  <path d="M75 64q7 7 14 0" stroke="#3A2E27" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+                  <path d="M111 64q7 7 14 0" stroke="#3A2E27" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+                </g>
+                <!-- 腮红 -->
+                <ellipse cx="70" cy="76" rx="9" ry="6" fill="#FFA8B5" opacity=".75"/>
+                <ellipse cx="130" cy="76" rx="9" ry="6" fill="#FFA8B5" opacity=".75"/>
+                <!-- 嘴 -->
+                <path id="mouthHappy" d="M88 84q12 13 24 0" stroke="#D9687E" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <path id="mouthCry" d="M88 90q6-9 12 0q6 9 12 0" stroke="#D9687E" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <path id="mouthSleep" d="M94 86a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" fill="#E88A9C"/>
+                <path id="mouthO" d="M94 84a6 5 0 1 0 12 0a6 5 0 1 0 -12 0" fill="#E88A9C" opacity=".85"/>
+                <!-- 眼泪 -->
+                <g id="tears">
+                  <ellipse class="teardrop" cx="76" cy="72" rx="4" ry="5.5" fill="#7EC8E3"/>
+                  <ellipse class="teardrop t2" cx="124" cy="72" rx="4" ry="5.5" fill="#7EC8E3"/>
+                </g>
+                <!-- 睡觉 zzz -->
+                <g id="zzz">
+                  <text class="zfloat" x="146" y="44" font-size="16" font-weight="800" fill="#9C8A7E">z</text>
+                  <text class="zfloat z2" x="158" y="34" font-size="20" font-weight="800" fill="#9C8A7E">Z</text>
+                </g>
+                <!-- 帽饰 -->
+                <g id="hatBow" transform="translate(0,0)">
+                  <path d="M118 24c10-8 22-8 26-2c-4 8-16 12-26 8z" fill="#FF6B8A"/>
+                  <path d="M118 24c-2-10 4-20 12-20c6 6 4 16-4 22z" fill="#FF8FA3"/>
+                  <circle cx="120" cy="26" r="5" fill="#F56F88"/>
+                </g>
+                <g id="hatBear" style="display:none">
+                  <circle cx="74" cy="26" r="12" fill="#C9956A"/><circle cx="126" cy="26" r="12" fill="#C9956A"/>
+                  <circle cx="74" cy="26" r="6" fill="#E8C9A8"/><circle cx="126" cy="26" r="6" fill="#E8C9A8"/>
+                  <path d="M54 40c6-22 24-34 46-34s40 12 46 34c-14-10-30-14-46-14s-32 4-46 14z" fill="#C9956A"/>
+                </g>
+                <g id="hatParty" style="display:none">
+                  <path d="M100 4l22 40H78z" fill="#FF8FA3"/>
+                  <path d="M86 24l28 0M82 34l36 0" stroke="#FFD97A" stroke-width="5"/>
+                  <circle cx="100" cy="6" r="7" fill="#7EC8E3"/>
+                </g>
+                <g id="hatStraw" style="display:none">
+                  <ellipse cx="100" cy="30" rx="52" ry="12" fill="#F0D9A0"/>
+                  <path d="M66 30c2-16 16-26 34-26s32 10 34 26z" fill="#E8C97A"/>
+                  <path d="M66 30h68" stroke="#D9B86A" stroke-width="4"/>
+                  <path d="M74 22h52" stroke="#FF8FA3" stroke-width="6"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+          <div class="bubble-thought hidden" id="thought">……</div>
+        </div>
+
+        <div class="bars">
+          <div class="bar-item" id="barHunger">
+            <div class="bar-head"><span>🥛 吃饱饱</span><span class="v">100%</span></div>
+            <div class="bar-track"><div class="bar-fill bf-hungry" style="width:100%"></div></div>
+          </div>
+          <div class="bar-item" id="barJoy">
+            <div class="bar-head"><span>💗 心情</span><span class="v">100%</span></div>
+            <div class="bar-track"><div class="bar-fill bf-joy" style="width:100%"></div></div>
+          </div>
+          <div class="bar-item" id="barClean">
+            <div class="bar-head"><span>🛁 干干净净</span><span class="v">100%</span></div>
+            <div class="bar-track"><div class="bar-fill bf-clean" style="width:100%"></div></div>
+          </div>
+          <div class="bar-item" id="barEnergy">
+            <div class="bar-head"><span>😴 睡饱饱</span><span class="v">100%</span></div>
+            <div class="bar-track"><div class="bar-fill bf-energy" style="width:100%"></div></div>
+          </div>
+        </div>
+
+        <div class="care-row">
+          <button class="care-btn" data-care="feed"><span class="ic">🍼</span><span class="lb">喂奶</span><span class="rw">+3 金币</span></button>
+          <button class="care-btn" data-care="bath"><span class="ic">🛁</span><span class="lb">洗澡</span><span class="rw">+3 金币</span></button>
+          <button class="care-btn" data-care="sleep"><span class="ic">🌙</span><span class="lb">哄睡</span><span class="rw">回体力</span></button>
+          <button class="care-btn" data-care="play"><span class="ic">🎈</span><span class="lb">陪玩</span><span class="rw">赚金币</span></button>
+        </div>
+
+        <div class="tip-line" id="tipLine">点击宝宝可以逗它玩 · 状态掉了宝宝会哭哦</div>
+      </section>
+
+      <!-- 装扮 -->
+      <section class="view" id="viewShop">
+        <div class="view-title">装扮小屋 <small>用金币给宝宝打扮</small></div>
+        <div class="seg" id="shopSeg">
+          <button class="on" data-cat="hat">帽子</button>
+          <button data-cat="clothes">衣服</button>
+          <button data-cat="room">房间</button>
+        </div>
+        <div class="goods" id="goodsBox"></div>
+      </section>
+
+      <!-- 日记 -->
+      <section class="view" id="viewDiary">
+        <div class="view-title">成长日记 <small>记录每个第一次</small></div>
+        <div class="diary-head">
+          <div class="k">📖 我们的养育天数</div>
+          <div class="big" id="diaryDays">第 1 天</div>
+          <div class="sub" id="diarySub">和宝宝在一起的每一天都值得记录</div>
+        </div>
+        <div id="milesBox"></div>
+      </section>
+    </div>
+
+    <nav class="tabbar">
+      <button class="tab on" data-view="viewRoom"><span class="ic">🏠</span><span class="lb">房间</span></button>
+      <button class="tab" data-view="viewShop"><span class="ic">👗</span><span class="lb">装扮</span></button>
+      <button class="tab" data-view="viewDiary"><span class="ic">📖</span><span class="lb">日记</span></button>
+    </nav>
+  </div>
+
+  <!-- ===== 泡泡小游戏 ===== -->
+  <div class="ov hidden" id="ovGame">
+    <div class="game-wrap" id="gameWrap">
+      <div class="g-hud">
+        <div class="g-chip">戳破 <span id="gScore">0</span></div>
+        <div class="g-chip">⏱ <span id="gTime">20</span>s</div>
+      </div>
+      <button class="g-close" id="gClose">✕</button>
+      <div class="g-over hidden" id="gOver">
+        <div class="ov-emoji">🎉</div>
+        <div class="l">戳破了</div>
+        <div class="n" id="gFinal">0</div>
+        <div class="l" id="gReward">获得 0 金币</div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button class="btn btn-ghost" id="gBack" style="height:46px;padding:0 22px">回房间</button>
+          <button class="btn btn-primary" id="gAgain" style="height:46px;padding:0 22px">再来一局</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 签到 ===== -->
+  <div class="ov hidden" id="ovSign">
+    <div class="ov-card">
+      <div class="ov-emoji">📅</div>
+      <div class="ov-title">每日签到</div>
+      <div class="ov-sub">连续签到奖励越来越多，断了会重来哦</div>
+      <div class="sign-grid" id="signGrid"></div>
+      <button class="btn btn-gold" id="btnSignClaim" style="width:100%;height:52px;font-size:17px;margin-top:10px">领取今日奖励</button>
+      <button class="btn" id="btnSignClose" style="width:100%;height:44px;font-size:14px;color:var(--mut);margin-top:6px">稍后再说</button>
+    </div>
+  </div>
+
+  <!-- ===== 通用弹窗 ===== -->
+  <div class="ov hidden" id="ovModal">
+    <div class="ov-card">
+      <div class="ov-emoji" id="mdEmoji">🎉</div>
+      <div class="ov-title" id="mdTitle">标题</div>
+      <div class="ov-sub" id="mdSub">说明</div>
+      <div id="mdExtra"></div>
+      <button class="btn btn-primary" id="mdOk" style="width:100%;height:52px;font-size:17px;margin-top:16px">好的</button>
+      <button class="btn hidden" id="mdCancel" style="width:100%;height:44px;font-size:14px;color:var(--mut);margin-top:6px">取消</button>
+    </div>
+  </div>
+
+  <div id="toastBox"></div>
+</div>
+
+<script>
+'use strict';
+/* ================= 存档 ================= */
+const KEY='mengbao.v1';
+const DEF={
+  name:'',gender:'girl',born:0,
+  hunger:92,joy:88,clean:90,energy:95,
+  exp:0,level:1,coins:30,
+  hat:'bow',clothes:'onesie',room:'peach',
+  owned:{hat:['bow'],clothes:['onesie'],room:['peach']},
+  miles:[],streak:0,lastSign:'',playDays:1,
+  games:0,feed:0,bath:0,sleeps:0,signIn:0,
+  lastTs:0,sound:true,offGift:0,sleeping:false
+};
+let S=load();
+function load(){
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(!raw)return null;
+    return Object.assign({},DEF,JSON.parse(raw));
+  }catch(e){return null}
+}
+function save(){
+  S.lastTs=Date.now();
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+}
+
+/* ================= 工具 ================= */
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return todayStr(d)}
+
+/* ================= 音效 ================= */
+let AC=null;
+function ac(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  if(AC&&AC.state==='suspended')AC.resume();
+  return AC;
+}
+function beep(freq,dur,type,vol,slide){
+  if(!S||!S.sound)return;
+  const c=ac();if(!c)return;
+  const o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(freq,c.currentTime);
+  if(slide)o.frequency.exponentialRampToValueAtTime(slide,c.currentTime+dur);
+  g.gain.setValueAtTime(vol||.16,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);
+  o.connect(g);g.connect(c.destination);
+  o.start();o.stop(c.currentTime+dur+.02);
+}
+const SFX={
+  tap(){beep(520,.08,'triangle',.12,700)},
+  care(){beep(660,.1,'sine',.14,990);setTimeout(()=>beep(880,.12,'sine',.12,1180),70)},
+  coin(){beep(1050,.07,'square',.07,1400)},
+  pop(){beep(760,.06,'sine',.12,1200)},
+  level(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.16,'triangle',.14),i*90))},
+  sign(){[660,880,1100].forEach((f,i)=>setTimeout(()=>beep(f,.14,'sine',.13),i*80))},
+  cry(){beep(300,.3,'sawtooth',.06,180)},
+  err(){beep(220,.12,'square',.08,160)},
+  sleep(){beep(440,.3,'sine',.1,220)}
+};
+function buzz(ms){if(navigator.vibrate)try{navigator.vibrate(ms)}catch(e){}}
+
+/* ================= 状态计算 ================= */
+function expNeed(lv){return 20+lv*18}
+function stageOf(lv){return lv<=2?0:lv<=5?1:2}
+const STAGES=[{n:'奶娃娃',e:'👶'},{n:'学步宝宝',e:'🧒'},{n:'小可爱',e:'😄'}];
+function avgStat(){return (S.hunger+S.joy+S.clean+S.energy)/4}
+function anyLow(){return S.hunger<25||S.joy<25||S.clean<25||S.energy<25}
+
+/* 离线衰减 */
+const DECAY={hunger:.55,joy:.6,clean:.45,energy:.5}; // 每分钟
+function applyDecay(mins){
+  mins=clamp(mins,0,60*14);
+  if(mins<=0)return 0;
+  const sleeping=window.__sleeping;
+  for(const k in DECAY){
+    let d=DECAY[k]*mins*(sleeping&&k!=='energy'?0.35:1);
+    if(sleeping&&k==='energy')d=-5*mins; // 睡觉回体力
+    S[k]=clamp(S[k]-d,0,100);
+  }
+  return mins;
+}
+
+/* ================= 引导 ================= */
+let obGender='girl';
+$$('#scrOnboard .ob-baby').forEach(b=>{
+  b.onclick=()=>{
+    $$('#scrOnboard .ob-baby').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');obGender=b.dataset.g;SFX.tap();
+  };
+});
+$('#btnStart').onclick=()=>{
+  const nm=($('#obName').value||'').trim()|| (obGender==='girl'?'小棉袄':'小暖阳');
+  S=Object.assign({},DEF,{name:nm,gender:obGender,born:Date.now(),lastTs:Date.now()});
+  save();
+  $('#scrOnboard').classList.add('hidden');
+  $('#appMain').classList.remove('hidden');
+  SFX.care();buzz(20);
+  window.__sleeping=false;
+  renderAll();checkDaily(false);
+};
+
+/* ================= 渲染 ================= */
+function mood(){
+  if(window.__sleeping)return 'sleep';
+  if(anyLow())return 'cry';
+  if(avgStat()>=85)return 'happy';
+  return 'normal';
+}
+function renderBaby(){
+  const svg=$('#babySvg');
+  svg.className.baseVal='mood-'+mood();
+  svg.setAttribute('class','mood-'+mood());
+  const st=stageOf(S.level);
+  $('#hairBaby').style.display=st===0?'block':'none';
+  $('#hairToddler').style.display=st===0?'none':'block';
+  // 帽子
+  const h={bow:'hatBow',bear:'hatBear',party:'hatParty',straw:'hatStraw'};
+  for(const k in h)$('#'+h[k]).style.display=(S.hat===k?'block':'none');
+  if(!S.owned.hat.includes(S.hat))$('#hatBow').style.display='block';
+  // 衣服
+  const onesie=$('#bodyOnesie');
+  const colors={onesie:'#FFB7C5',dress:'#FF9FB1',space:'#9FDCF2',melon:'#8FE3B8',star:'#C6B5F0'};
+  onesie.setAttribute('fill',colors[S.clothes]||'#FFB7C5');
+  // 房间
+  const room=$('#room');
+  room.className='room';
+  if(S.room==='blue')room.classList.add('wall-blue');
+  if(S.room==='forest')room.classList.add('wall-forest');
+  if(S.room==='night'){room.classList.add('wall-night');room.classList.add('deco-night')}
+  if(S.room==='balloon')room.classList.add('deco-balloon');
+  $('#roomPlant').style.display=S.room==='forest'?'none':'block';
+  if(S.room==='forest')$('#roomPlant').textContent='🌳';else $('#roomPlant').textContent='🌱';
+}
+function renderBars(){
+  const map=[
+    ['barHunger','hunger'],['barJoy','joy'],['barClean','clean'],['barEnergy','energy']
+  ];
+  map.forEach(([id,k])=>{
+    const el=$('#'+id),v=S[k];
+    el.querySelector('.v').textContent=Math.round(v)+'%';
+    el.querySelector('.bar-fill').style.width=v+'%';
+    el.classList.toggle('bar-low',v<25);
+  });
+}
+function renderTop(){
+  $('#topName').textContent=S.name||'宝宝';
+  $('#topLv').textContent='LV.'+S.level+' '+STAGES[stageOf(S.level)].n;
+  $('#topXp').style.width=clamp(S.exp/expNeed(S.level)*100,0,100)+'%';
+  $('#topCoin').textContent=S.coins;
+  $('#topFace').textContent=STAGES[stageOf(S.level)].e;
+  $('#btnSound').textContent=S.sound?'🔊':'🔇';
+}
+function renderAll(){renderBaby();renderBars();renderTop()}
+
+/* ================= toast / 弹窗 ================= */
+function toast(msg,gold){
+  const t=document.createElement('div');
+  t.className='toast'+(gold?' gold':'');t.textContent=msg;
+  $('#toastBox').appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),320)},1700);
+}
+let mdOkFn=null;
+function modal(o){
+  $('#mdEmoji').textContent=o.emoji||'🎉';
+  $('#mdTitle').textContent=o.title||'';
+  $('#mdSub').textContent=o.sub||'';
+  $('#mdOk').textContent=o.ok||'好的';
+  $('#mdExtra').innerHTML=o.extra||'';
+  $('#mdCancel').classList.toggle('hidden',!o.cancel);
+  if(o.cancel)$('#mdCancel').textContent=o.cancel;
+  mdOkFn=o.onOk||null;
+  $('#ovModal').classList.remove('hidden');
+}
+$('#mdOk').onclick=()=>{$('#ovModal').classList.add('hidden');if(mdOkFn)mdOkFn()};
+$('#mdCancel').onclick=()=>{$('#ovModal').classList.add('hidden')};
+
+/* ================= 里程碑 ================= */
+const MILES=[
+  {id:'feed',e:'🍼',n:'第一次喂奶',d:'亲手把宝宝喂饱'},
+  {id:'bath',e:'🧼',n:'第一次洗澡',d:'洗得香喷喷'},
+  {id:'sleep',e:'🌙',n:'第一次哄睡',d:'看着宝宝进入梦乡'},
+  {id:'happy',e:'💖',n:'心情满格',d:'宝宝开心到冒泡泡'},
+  {id:'lv3',e:'🚶',n:'学步期',d:'升级到 LV.3，宝宝会走路啦'},
+  {id:'lv6',e:'🌟',n:'小可爱',d:'升级到 LV.6，长大的样子'},
+  {id:'sign3',e:'📅',n:'连续签到 3 天',d:'最有爱的妈妈'},
+  {id:'game5',e:'🎈',n:'陪玩 5 局',d:'泡泡戳戳乐老手'},
+  {id:'rich',e:'💰',n:'攒到 1000 金币',d:'小小理财家'},
+  {id:'all1',e:'🌈',n:'状态全 ≥ 80',d:'被照顾得超级好'}
+];
+function unlock(id){
+  if(S.miles.includes(id))return;
+  const m=MILES.find(x=>x.id===id);if(!m)return;
+  S.miles.push(id);save();
+  toast('📖 日记更新：'+m.n,true);SFX.level();
+}
+function checkMiles(){
+  if(S.feed>=1)unlock('feed');
+  if(S.bath>=1)unlock('bath');
+  if(S.sleeps>=1)unlock('sleep');
+  if(S.joy>=99)unlock('happy');
+  if(S.level>=3)unlock('lv3');
+  if(S.level>=6)unlock('lv6');
+  if(S.streak>=3)unlock('sign3');
+  if(S.games>=5)unlock('game5');
+  if(S.coins>=1000)unlock('rich');
+  if(S.hunger>=80&&S.joy>=80&&S.clean>=80&&S.energy>=80)unlock('all1');
+}
+
+/* ================= 升级 / 经验 ================= */
+function addExp(n){
+  S.exp+=n;let leveled=false;
+  while(S.exp>=expNeed(S.level)){
+    S.exp-=expNeed(S.level);S.level++;leveled=true;
+  }
+  if(leveled){
+    save();renderTop();SFX.level();buzz([30,40,30]);
+    confettiBurst();
+    const st=STAGES[stageOf(S.level)];
+    modal({
+      emoji:'🎉',title:'宝宝升级啦！',
+      sub:'LV.'+S.level+' · '+st.n+'\n继续好好照顾它，看看长大的样子！',
+      extra:'<div class="lvup-ring"><div class="lvup-core"><b>'+S.level+'</b></div></div>',
+      ok:'太棒了'
+    });
+    checkMiles();
+  }
+}
+function confettiBurst(){
+  const box=document.createElement('div');box.className='confetti';
+  const colors=['#FF8FA3','#7EC8E3','#FFC94A','#7ED9A7','#C6B5F0'];
+  for(let i=0;i<36;i++){
+    const c=document.createElement('div');c.className='cf';
+    c.style.left=rnd(0,100)+'%';
+    c.style.background=colors[i%colors.length];
+    c.style.animationDuration=rnd(1.4,2.6)+'s';
+    c.style.animationDelay=rnd(0,.4)+'s';
+    box.appendChild(c);
+  }
+  $('#shell').appendChild(box);
+  setTimeout(()=>box.remove(),3400);
+}
+function addCoins(n){
+  S.coins+=n;save();renderTop();checkMiles();
+}
+
+/* ================= 照顾动作 ================= */
+let busyUntil=0;
+function floatFx(txt){
+  const el=document.createElement('div');
+  el.className='pop-fx';el.textContent=txt;
+  $('#babyStage').appendChild(el);
+  setTimeout(()=>el.remove(),920);
+}
+function setThought(t){
+  const el=$('#thought');
+  el.textContent=t;el.classList.remove('hidden');
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.classList.add('hidden'),2600);
+}
+const NEED={hunger:'饿饿',joy:'陪陪',clean:'痒痒',energy:'困困'};
+function weakest(){
+  const ks=['hunger','joy','clean','energy'];
+  ks.sort((a,b)=>S[a]-S[b]);
+  return ks[0];
+}
+function wakeIfSleeping(){
+  if(!window.__sleeping)return false;
+  window.__sleeping=false;S.sleeping=false;
+  floatFx('☀️');setThought('睡醒啦！');
+  return true;
+}
+function care(kind){
+  const now=Date.now();
+  if(now<busyUntil)return;
+  if(kind==='sleep'){
+    S.sleeping=!S.sleeping;
+    window.__sleeping=S.sleeping;
+    if(S.sleeping){
+      S.sleeps++;
+      floatFx('💤');setThought('晚安……');
+      SFX.sleep();buzz(15);
+      toast('宝宝睡着了，体力恢复中');
+      addExp(4);
+    }else{
+      floatFx('☀️');setThought('睡醒啦！');
+      SFX.tap();toast('宝宝醒来了');
+    }
+    SFX.care();buzz(15);
+    checkMiles();save();renderAll();
+    return;
+  }
+  if(wakeIfSleeping())toast('宝宝醒过来啦');
+  if(kind==='play'){openGame();return}
+  busyUntil=now+450;
+  if(kind==='feed'){
+    S.hunger=clamp(S.hunger+34,0,100);S.feed++;
+    S.clean=clamp(S.clean-4,0,100);
+    floatFx('🍼+34');setThought('咕噜咕噜~真好喝！');
+    addCoins(3);addExp(6);
+    if(S.hunger>=99)toast('宝宝吃饱啦 +6 经验');
+  }else if(kind==='bath'){
+    S.clean=clamp(S.clean+42,0,100);S.bath++;
+    S.joy=clamp(S.joy+6,0,100);
+    floatFx('🛁+42');setThought('哗啦哗啦~洗得香香！');
+    addCoins(3);addExp(6);
+  }
+  S.joy=clamp(S.joy+2,0,100);
+  SFX.care();buzz(15);
+  checkMiles();save();renderAll();
+}
+$$('.care-btn').forEach(b=>b.onclick=()=>care(b.dataset.care));
+$('#babyStage').onclick=()=>{
+  if(window.__sleeping){setThought('嘘……在做梦');return}
+  S.joy=clamp(S.joy+5,0,100);
+  floatFx(['💗','✨','😜','🥰'][Math.floor(Math.random()*4)]);
+  const lines=['咯咯咯~','妈妈最好啦','还要玩！','么么哒！'];
+  setThought(lines[Math.floor(Math.random()*lines.length)]);
+  SFX.tap();buzz(10);save();renderBaby();renderBars();
+};
+
+/* ================= 主循环（状态衰减） ================= */
+let lastTick=Date.now();
+setInterval(()=>{
+  const now=Date.now();
+  const mins=(now-lastTick)/60000;lastTick=now;
+  if(!S||!S.born)return;
+  if(document.hidden){applyDecay(mins);save();return}
+  applyDecay(mins);
+  renderBars();renderBaby();
+  if(Math.random()<.02){
+    const w=weakest();
+    if(S[w]<30&&!window.__sleeping)setThought(NEED[w]+'……');
+  }
+  if(Math.floor(now/10000)!==Math.floor((now-2000)/10000))save();
+},2000);
+window.addEventListener('beforeunload',save);
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){save()}
+  else{const now=Date.now();applyDecay((now-lastTick)/60000);lastTick=now;renderAll()}
+});
+/* ================= 页签 ================= */
+$$('.tab').forEach(t=>{
+  t.onclick=()=>{
+    $$('.tab').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    $$('.view').forEach(v=>v.classList.remove('on'));
+    $('#'+t.dataset.view).classList.add('on');
+    SFX.tap();
+    if(t.dataset.view==='viewShop')renderShop();
+    if(t.dataset.view==='viewDiary')renderDiary();
+  };
+});
+
+/* ================= 装扮商店 ================= */
+const GOODS={
+  hat:[
+    {id:'bow',n:'蝴蝶结',e:'🎀',p:0},
+    {id:'bear',n:'小熊帽',e:'🐻',p:80},
+    {id:'party',n:'派对帽',e:'🥳',p:120},
+    {id:'straw',n:'草帽',e:'👒',p:150}
+  ],
+  clothes:[
+    {id:'onesie',n:'奶黄连体',e:'🟡',p:0},
+    {id:'dress',n:'蜜桃裙装',e:'🍑',p:100},
+    {id:'space',n:'宇航蓝蓝',e:'🚀',p:160},
+    {id:'melon',n:'西瓜套装',e:'🍉',p:200},
+    {id:'star',n:'星空睡衣',e:'⭐',p:240}
+  ],
+  room:[
+    {id:'peach',n:'蜜桃墙',e:'🌸',p:0},
+    {id:'blue',n:'天空墙',e:'☁️',p:120},
+    {id:'forest',n:'森林墙',e:'🌳',p:150},
+    {id:'night',n:'星空墙',e:'🌙',p:180},
+    {id:'balloon',n:'气球派对',e:'🎈',p:160}
+  ]
+};
+let shopCat='hat';
+$$('#shopSeg button').forEach(b=>{
+  b.onclick=()=>{
+    $$('#shopSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');shopCat=b.dataset.cat;renderShop();SFX.tap();
+  };
+});
+function renderShop(){
+  const box=$('#goodsBox');box.innerHTML='';
+  GOODS[shopCat].forEach(g=>{
+    const owned=S.owned[shopCat].includes(g.id);
+    const eq=S[shopCat]===g.id;
+    const card=document.createElement('div');
+    card.className='good '+({hat:'',clothes:'b',room:'c'})[shopCat]+(eq?' eq':'');
+    card.innerHTML=
+      '<div class="art">'+g.e+'</div>'+
+      '<div class="nm">'+g.n+'</div>'+
+      (eq?'<div class="eqtag">穿着中</div>':'')+
+      (owned
+        ? '<div class="pr own">已拥有</div><button class="btn btn-blue act-eq">'+(eq?'已穿上':'穿上')+'</button>'
+        : '<div class="pr"><span class="coin-dot" style="width:16px;height:16px;font-size:9px">¥</span>'+g.p+'</div><button class="btn btn-gold act-buy">购买</button>');
+    const btn=card.querySelector('button');
+    if(btn)btn.onclick=()=>{
+      if(btn.classList.contains('act-buy')){
+        if(S.coins<g.p){SFX.err();toast('金币不够，去陪玩赚点吧');return}
+        S.coins-=g.p;S.owned[shopCat].push(g.id);S[shopCat]=g.id;
+        SFX.coin();buzz(20);toast('购入成功：'+g.n,true);
+      }else{
+        S[shopCat]=g.id;SFX.tap();
+      }
+      save();renderShop();renderTop();renderBaby();
+    };
+    box.appendChild(card);
+  });
+}
+
+/* ================= 日记 ================= */
+function renderDiary(){
+  const dayN=Math.max(1,Math.ceil((Date.now()-(S.born||Date.now()))/86400000));
+  $('#diaryDays').textContent='第 '+dayN+' 天';
+  $('#diarySub').textContent='已解锁 '+S.miles.length+' / '+MILES.length+' 个成长瞬间';
+  const box=$('#milesBox');box.innerHTML='';
+  MILES.forEach(m=>{
+    const ok=S.miles.includes(m.id);
+    const el=document.createElement('div');
+    el.className='mile'+(ok?'':' lock');
+    el.innerHTML='<div class="em">'+(ok?m.e:'☆')+'</div>'+
+      '<div class="tx"><div class="nm">'+m.n+'</div><div class="ds">'+m.d+'</div></div>'+
+      (ok?'<div class="ok">已记录</div>':'');
+    box.appendChild(el);
+  });
+}
+
+/* ================= 每日签到 ================= */
+const SIGN_REWARDS=[30,40,50,60,80,100,200];
+function signTodayIdx(){
+  const t=todayStr();
+  if(S.lastSign===t)return clamp((S.streak||1)-1,0,6);
+  if(S.lastSign===yesterdayStr())return clamp(S.streak,0,6);
+  return 0;
+}
+function renderSignGrid(){
+  const t=todayStr();
+  const signed=S.lastSign===t;
+  const idx=signTodayIdx();
+  const g=$('#signGrid');g.innerHTML='';
+  for(let i=0;i<7;i++){
+    const cell=document.createElement('div');
+    const done=signed?i<=idx:i<idx;
+    const isToday=i===idx&&!signed;
+    cell.className='sign-cell'+(done?' done':'')+(isToday?' today':'');
+    cell.innerHTML='<div class="d">第'+(i+1)+'天</div>'+
+      '<div class="g">¥'+SIGN_REWARDS[i]+'</div>'+
+      (isToday?'<div class="ck">✨</div>':(done?'<div class="ck">✅</div>':''));
+    g.appendChild(cell);
+  }
+}
+function openSign(){
+  const signed=S.lastSign===todayStr();
+  const idx=signTodayIdx();
+  renderSignGrid();
+  const btn=$('#btnSignClaim');
+  btn.disabled=signed;
+  btn.textContent=signed?'今天已领取 ✅':'领取今日奖励（第 '+(idx+1)+' 天 · ¥'+SIGN_REWARDS[idx]+'）';
+  $('#ovSign').classList.remove('hidden');
+}
+$('#btnSign').onclick=()=>{openSign();SFX.tap()};
+$('#btnSignClose').onclick=()=>{$('#ovSign').classList.add('hidden');SFX.tap()};
+$('#btnSignClaim').onclick=()=>{
+  const t=todayStr();
+  if(S.lastSign===t)return;
+  const idx=signTodayIdx();
+  S.streak=idx+1;S.lastSign=t;
+  const rw=SIGN_REWARDS[idx];
+  S.coins+=rw;S.signIn++;
+  SFX.sign();buzz([25,35,25]);
+  save();renderTop();checkMiles();
+  modal({emoji:'🎁',title:'签到成功！',
+    sub:'连续第 '+S.streak+' 天签到\n获得 '+rw+' 金币'+(S.streak>=7?'\n7 天全勤达成，明天奖励循环重置！':''),
+    ok:'收下'});
+  openSign();
+};
+function checkDaily(silent){
+  const t=todayStr();
+  if(S.lastSign&&S.lastSign!==t&&S.lastSign!==yesterdayStr()){
+    S.streak=0;save();
+  }
+  if(S.lastSign!==t&&!silent){
+    setTimeout(()=>openSign(),700);
+  }
+}
+
+/* ================= 离线回归 ================= */
+function welcomeBack(){
+  const now=Date.now();
+  const mins=(now-(S.lastTs||now))/60000;
+  if(mins<45)return;
+  const h=Math.floor(mins/60),m=Math.floor(mins%60);
+  const gift=clamp(Math.floor(mins/30)*5,5,80);
+  S.offGift=gift;S.coins+=gift;save();renderTop();
+  const timeTxt=h>0?h+' 小时 '+m+' 分钟':Math.floor(mins)+' 分钟';
+  modal({emoji:'🏠',title:'你回来啦！',
+    sub:'你离开了 '+timeTxt+'\n宝宝一直乖乖等你，饿得肚子咕咕叫～\n想你想到哭唧唧',
+    extra:'<div style="margin-top:12px;background:var(--gold-soft);border-radius:16px;padding:12px;font-weight:800;color:#8A5A00">🎁 回归小礼物 +'+gift+' 金币</div>',
+    ok:'抱抱宝宝'});
+}
+
+/* ================= 泡泡小游戏 ================= */
+let gTimer=null,gSpawn=null,gScore=0,gTime=20,gRunning=false;
+function openGame(){
+  $('#ovGame').classList.remove('hidden');
+  $('#gOver').classList.add('hidden');
+  startGame();
+  SFX.tap();
+}
+function startGame(){
+  clearGame();
+  gScore=0;gTime=20;gRunning=true;
+  $('#gScore').textContent='0';$('#gTime').textContent='20';
+  const wrap=$('#gameWrap');
+  wrap.querySelectorAll('.bub').forEach(b=>b.remove());
+  gSpawn=setInterval(()=>{
+    if(!gRunning)return;
+    const size=rnd(52,92);
+    const b=document.createElement('div');
+    b.className='bub';
+    const colors=['#FF8FA3','#7EC8E3','#FFC94A','#7ED9A7','#C6B5F0'];
+    b.style.setProperty('--bc',colors[Math.floor(Math.random()*colors.length)]);
+    b.style.width=size+'px';b.style.height=size+'px';
+    b.style.left=rnd(6,86)+'%';
+    b.style.bottom='-110px';
+    b.style.animationDuration=rnd(3.4,5.2)+'s';
+    b.style.fontSize=(size*.42)+'px';
+    b.textContent=['⭐','🍬','🍓','🌈','🔵'][Math.floor(Math.random()*5)];
+    let popped=false;
+    b.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      if(popped||!gRunning)return;
+      popped=true;b.classList.add('pop');
+      gScore++;$('#gScore').textContent=gScore;
+      SFX.pop();buzz(8);
+      setTimeout(()=>b.remove(),200);
+    });
+    wrap.appendChild(b);
+    setTimeout(()=>{if(!popped)b.remove()},5600);
+  },420);
+  gTimer=setInterval(()=>{
+    gTime--;
+    $('#gTime').textContent=gTime;
+    if(gTime<=0)endGame();
+  },1000);
+}
+function clearGame(){
+  clearInterval(gTimer);clearInterval(gSpawn);
+  gTimer=gSpawn=null;gRunning=false;
+  $('#gameWrap').querySelectorAll('.bub').forEach(b=>b.remove());
+}
+function endGame(){
+  clearGame();
+  const rw=gScore;
+  S.games++;
+  S.joy=clamp(S.joy+18,0,100);
+  addCoins(rw);addExp(8+Math.floor(gScore/3));
+  save();checkMiles();renderAll();
+  $('#gFinal').textContent=gScore;
+  $('#gReward').textContent='获得 '+rw+' 金币 + 心情大涨！';
+  $('#gOver').classList.remove('hidden');
+  if(gScore>=15)SFX.level();else SFX.coin();
+}
+$('#gClose').onclick=()=>{clearGame();$('#ovGame').classList.add('hidden');SFX.tap();renderAll()};
+$('#gBack').onclick=()=>{$('#ovGame').classList.add('hidden');SFX.tap();renderAll()};
+$('#gAgain').onclick=()=>{$('#gOver').classList.add('hidden');startGame();SFX.tap()};
+
+/* ================= 音效开关 ================= */
+$('#btnSound').onclick=()=>{
+  S.sound=!S.sound;save();renderTop();
+  if(S.sound)SFX.tap();
+  toast(S.sound?'音效已开启':'音效已关闭');
+};
+
+/* ================= 启动 ================= */
+function boot(){
+  if(!S||!S.born){
+    // 老存档兜底
+    S=Object.assign({},DEF,S||{});
+    $('#scrOnboard').classList.remove('hidden');
+    $('#appMain').classList.add('hidden');
+    return;
+  }
+  $('#scrOnboard').classList.add('hidden');
+  $('#appMain').classList.remove('hidden');
+  lastTick=Date.now();
+  window.__sleeping=!!S.sleeping;
+  const away=(Date.now()-(S.lastTs||Date.now()))/60000;
+  applyDecay(away);
+  // 连续天数：隔天未签则重置
+  if(S.lastSign&&S.lastSign!==todayStr()&&S.lastSign!==yesterdayStr()){
+    S.streak=0;
+  }
+  save();
+  renderAll();
+  checkDaily(false);
+  welcomeBack();
+}
+boot();
+</script>
+</body>
+</html>

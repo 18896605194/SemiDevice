@@ -610,6 +610,29 @@ public class WaferManager : ComponentBase
         }
     }
 
+    /// <summary>
+    /// 按内部标识找片；找不到返回 null。内部标识从建片跟到删片，片号改了、片挪了都认得——
+    /// Job 认片、搬运认片都用它；整篮重新 Mapping 会重建片（换新标识），旧的就找不到了。
+    /// </summary>
+    public WaferInfo? FindById(Guid id)
+    {
+        lock (_gate)
+        {
+            foreach (var slots in _locations.Values)
+            {
+                foreach (var wafer in slots)
+                {
+                    if (wafer is not null && wafer.Id == id)
+                    {
+                        return wafer.Clone();
+                    }
+                }
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>按片号找片；找不到返回 null（同号取第一片）。</summary>
     public WaferInfo? Find(string waferId)
     {

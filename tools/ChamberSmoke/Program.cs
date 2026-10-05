@@ -523,9 +523,9 @@ public sealed class SmokeChamber : BaseChamberModule
         return Begin(ChamberAction.Abort, new TimedProbe("Abort", ActionMs));
     }
 
-    protected override ModuleOperation? StartProcess(string recipe)
+    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request)
     {
-        return Begin(ChamberAction.Process, new TimedProbe("Process", ActionMs));
+        return new TimedProbe("Process", ActionMs);
     }
 
     public void Tick()

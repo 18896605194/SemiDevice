@@ -380,7 +380,7 @@ sealed class ProbeChamber : BaseChamberModule
 
     protected override ModuleOperation? AbortDevice() => null;
 
-    protected override ModuleOperation? StartProcess(string recipe) => null;
+    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
 }
 
 // 探针普通站点（Aligner 这类）：能放片，不要工艺配方。

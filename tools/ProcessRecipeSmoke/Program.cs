@@ -480,5 +480,5 @@ sealed class ProbeChamber : BaseChamberModule
 
     protected override ModuleOperation? AbortDevice() => null;
 
-    protected override ModuleOperation? StartProcess(string recipe) => null;
+    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
 }

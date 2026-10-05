@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#FFF6EC",
+    "navigationBarTitleText": "萌宝养成记",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#FFF6EC",
+    "backgroundColorTop": "#FFF6EC",
+    "backgroundColorBottom": "#FFF6EC"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

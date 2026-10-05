@@ -77,6 +77,12 @@ public static class ErrorCodes
     /// <summary>部件动作没做成：到位超时、轴报错，或等过了 EC PartActionTimeout。Args: [部件路径, 动作]</summary>
     public const string ChamberPartActionFailed = "chamber.part_action_failed";
 
+    /// <summary>起工艺时腔里不是要做的那一片（没片，或换过片）。Args: [模块名, 槽号]</summary>
+    public const string ChamberWaferMismatch = "chamber.wafer_mismatch";
+
+    /// <summary>腔里的片正在一个没结束的 Job 里，不能手动起工艺。Args: [模块名, 片号, Job 名]</summary>
+    public const string ChamberWaferOwned = "chamber.wafer_owned";
+
     #endregion
 
     #region 搬运
@@ -102,8 +108,162 @@ public static class ErrorCodes
     /// <summary>sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto。Args: []</summary>
     public const string TransferNotInstalled = "transfer.not_installed";
 
-    /// <summary>搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto。Args: []</summary>
+    /// <summary>搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto、下不了搬运单。Args: []</summary>
     public const string TransferDisabled = "transfer.disabled";
+
+    /// <summary>搬运单里的站点不在搬运模块表里（没装、或不是能放片的站点）。Args: [站点名]</summary>
+    public const string TransferStationNotFound = "transfer.station_not_found";
+
+    /// <summary>搬运单里的槽号超出站点的槽数。Args: [站点名, 槽号, 槽数]</summary>
+    public const string TransferSlotOutOfRange = "transfer.slot_out_of_range";
+
+    /// <summary>源和目标是同一个槽。Args: []</summary>
+    public const string TransferSameSlot = "transfer.same_slot";
+
+    /// <summary>源槽上的片不是要搬的那一片（被人换过、重新 Mapping 过）。Args: [站点名, 槽号, 槽上现在的片号]</summary>
+    public const string TransferWaferMismatch = "transfer.wafer_mismatch";
+
+    /// <summary>这片正被一个没结束的 Job 占着，手动搬不了。Args: [片号, Job 名]</summary>
+    public const string TransferWaferOwned = "transfer.wafer_owned";
+
+    /// <summary>这个槽（或槽上的片）已经在别的搬运单里。Args: [站点名, 槽号]</summary>
+    public const string TransferSlotLocked = "transfer.slot_locked";
+
+    /// <summary>没有一台机械手两个站点都到得了（站点表里没配）。Args: [源站点, 目标站点]</summary>
+    public const string TransferNoRobot = "transfer.no_robot";
+
+    /// <summary>点名的这只手用不了：两个站点不都许用、手上有片，或正被别的单占着。Args: [机械手模块名, 手指号]</summary>
+    public const string TransferArmUnavailable = "transfer.arm_unavailable";
+
+    /// <summary>机械手没有一只能用的手（都有片、都被占着，或站点不许用）。Args: [机械手模块名]</summary>
+    public const string TransferNoArm = "transfer.no_arm";
+
+    /// <summary>搬运单还没开始就被撤了（片没动过）。Args: [搬运单号]</summary>
+    public const string TransferCancelled = "transfer.cancelled";
+
+    /// <summary>没有这张留着锁等人工确认的搬运单（已经放开了，或单号不对）。Args: [搬运单号]</summary>
+    public const string TransferNotHeld = "transfer.not_held";
+
+    /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [搬运单号, 等待ms]</summary>
+    public const string TransferWaitTimeout = "transfer.wait_timeout";
+
+    #endregion
+
+    #region Job（SEMI E94 CJ / E40 PJ）
+
+    /// <summary>sc.xml 没配 Job 节点（没有 Job 管理）。Args: []</summary>
+    public const string JobNotInstalled = "job.not_installed";
+
+    /// <summary>Job 管理停用了（sc.xml Job 节点 IsEnable=False）。Args: []</summary>
+    public const string JobDisabled = "job.disabled";
+
+    /// <summary>命令等 Job 管理受理超时，命令可能稍后还会执行。Args: [等待ms]</summary>
+    public const string JobCommandTimeout = "job.command_timeout";
+
+    /// <summary>没有这个 Job（CJ 或 PJ）。Args: [Job 名]</summary>
+    public const string JobNotFound = "job.not_found";
+
+    /// <summary>当前状态不收这个命令（照 SEMI E94 / E40 的转换表）。Args: [Job 名, 命令, 当前状态]</summary>
+    public const string JobCommandNotAllowed = "job.command_not_allowed";
+
+    /// <summary>Job 正在停止或中止，不再收这个命令。Args: [Job 名, 命令]</summary>
+    public const string JobEnding = "job.ending";
+
+    /// <summary>启动要在 Auto 下。Args: []</summary>
+    public const string JobNotAuto = "job.not_auto";
+
+    /// <summary>Job 名不合规（1~80 个 ASCII 可见字符，不能有 ? * ~ &gt; : 和空格）。Args: [名字]</summary>
+    public const string JobIdInvalid = "job.id_invalid";
+
+    /// <summary>Job 名已经在用（没结束的 Job 里有同名的）。Args: [名字]</summary>
+    public const string JobIdDuplicate = "job.id_duplicate";
+
+    /// <summary>没结束的 Job 太多了，建不了新的。Args: [上限]</summary>
+    public const string JobQueueFull = "job.queue_full";
+
+    /// <summary>没有这个 LoadPort。Args: [LoadPort]</summary>
+    public const string JobLoadPortNotFound = "job.loadport_not_found";
+
+    /// <summary>LoadPort 上没有能取片的载具（没放、没 Load、没 Mapping）。Args: [LoadPort]</summary>
+    public const string JobCarrierNotReady = "job.carrier_not_ready";
+
+    /// <summary>这个 LoadPort 上已经有没结束的 Job。Args: [LoadPort, Job 名]</summary>
+    public const string JobLoadPortBusy = "job.loadport_busy";
+
+    /// <summary>没选要做的片（没有槽配了流程配方）。Args: [LoadPort]</summary>
+    public const string JobNoWafers = "job.no_wafers";
+
+    /// <summary>这一槽没片。Args: [LoadPort, 槽号]</summary>
+    public const string JobSlotEmpty = "job.slot_empty";
+
+    /// <summary>这片不能做（交叉片、叠片这类）。Args: [LoadPort, 槽号, 片号, 物理状态]</summary>
+    public const string JobWaferNotNormal = "job.wafer_not_normal";
+
+    /// <summary>这片已经做过（工艺状态不是待处理）。Args: [LoadPort, 槽号, 片号, 工艺状态]</summary>
+    public const string JobWaferProcessed = "job.wafer_processed";
+
+    /// <summary>这片已经在别的没结束的 Job 里。Args: [片号, Job 名]</summary>
+    public const string JobWaferOwned = "job.wafer_owned";
+
+    /// <summary>流程配方库里没有这个流程配方。Args: [流程配方名]</summary>
+    public const string JobSequenceNotFound = "job.sequence_not_found";
+
+    /// <summary>流程配方的第 1 步没勾这个 LoadPort（片不能从这儿取）。Args: [流程配方名, LoadPort]</summary>
+    public const string JobSequenceSourceMismatch = "job.sequence_source_mismatch";
+
+    /// <summary>流程配方最后一步没有能回片的 LoadPort。Args: [流程配方名]</summary>
+    public const string JobSequenceNoReturn = "job.sequence_no_return";
+
+    /// <summary>回片的槽用不了（那个 LoadPort 没载具、槽上有片，或被别的 Job 占着）。Args: [LoadPort, 槽号]</summary>
+    public const string JobReturnSlotUnavailable = "job.return_slot_unavailable";
+
+    /// <summary>流程配方这一步一个能去的站点都没有（没装、停用、机械手到不了，或跑不了这一步的工艺配方）。Args: [流程配方名, 第几步, 工艺配方名]</summary>
+    public const string JobStepNoStation = "job.step_no_station";
+
+    /// <summary>工艺配方库里没有流程配方引用的工艺配方。Args: [流程配方名, 工艺配方名]</summary>
+    public const string JobRecipeNotFound = "job.recipe_not_found";
+
+    /// <summary>建 PJ 时找不到这个载具（不在任何 LoadPort 上）。Args: [载具号]</summary>
+    public const string JobCarrierNotFound = "job.carrier_not_found";
+
+    /// <summary>建 CJ 时引用的 PJ 不存在，或已经归了别的 CJ。Args: [PJ 名]</summary>
+    public const string JobProcessJobUnavailable = "job.process_job_unavailable";
+
+    /// <summary>自动派单没在暂停，没有要恢复的。Args: []</summary>
+    public const string JobNotHeld = "job.not_held";
+
+    /// <summary>还有出错的搬运单留着锁、片位没确认，恢复不了。Args: [留着的单数]</summary>
+    public const string JobRecoveryPending = "job.recovery_pending";
+
+    /// <summary>暂停派单的原因：搬运动过手才失败，片位要人工确认。Args: [片号, Job 名]</summary>
+    public const string JobHoldTransferFailed = "job.hold.transfer_failed";
+
+    /// <summary>暂停派单的原因：加工没做成。Args: [片号, 站点, Job 名]</summary>
+    public const string JobHoldProcessFailed = "job.hold.process_failed";
+
+    /// <summary>暂停派单的原因：片不在该在的地方（被改了账、载具被拿走、重新 Mapping 过）。Args: [片号, Job 名]</summary>
+    public const string JobHoldWaferLost = "job.hold.wafer_lost";
+
+    /// <summary>等待：Manual 模式，不派新动作。Args: []</summary>
+    public const string JobWaitManual = "job.wait.manual";
+
+    /// <summary>等待：出过执行故障，自动派单暂停中。Args: []</summary>
+    public const string JobWaitHeld = "job.wait.held";
+
+    /// <summary>等待：这一步能去的站点都没空（有片、没在待命、离线、被占着）。Args: [站点（逗号分隔）]</summary>
+    public const string JobWaitStation = "job.wait.station";
+
+    /// <summary>等待：机械手忙，或没有空着、两边都许用的手。Args: [机械手（逗号分隔）]</summary>
+    public const string JobWaitRobot = "job.wait.robot";
+
+    /// <summary>等待：回片槽现在放不了（有片或被占着）。Args: [LoadPort, 槽号]</summary>
+    public const string JobWaitReturnSlot = "job.wait.return_slot";
+
+    /// <summary>等待：机内片数到上限了（调度的 EC MaxWafersInMachine）。Args: [上限]</summary>
+    public const string JobWaitLimit = "job.wait.limit";
+
+    /// <summary>等待：PJ 暂停、停止中或 CJ 没在执行，不投新片。Args: [Job 名]</summary>
+    public const string JobWaitNotFeeding = "job.wait.not_feeding";
 
     #endregion
 

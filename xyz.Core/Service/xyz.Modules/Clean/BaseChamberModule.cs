@@ -1,4 +1,5 @@
-﻿using xyz.Components;
+﻿using System.Globalization;
+using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -11,7 +12,10 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseChamberModule : BaseTransferStationModule
+/// <summary>
+/// 腔体模块基类：可服务工位（机械手取放片）+ 能加工的站点（<see cref="IProcessStation"/>，Job 和手动起工艺走同一个口子）。
+/// </summary>
+public abstract class BaseChamberModule : BaseTransferStationModule, IProcessStation
 {
     #region SV
 
@@ -467,32 +471,157 @@ public abstract class BaseChamberModule : BaseTransferStationModule
     protected abstract ModuleOperation? AbortDevice();
 
     /// <summary>
-    /// 起工艺。只在 Idle（门关、机械手不在里面）时允许；腔里有没有片由调用方查晶圆账。
-    /// 配方怎么传、传什么，等工艺定下来再收窄——现在先按名字给。发起成功记下配方名（SV Recipe），界面据此显示当前配方。
-    /// 返回工艺操作，调用方等它做完；状态不允许时为 null。
+    /// 做出一次工艺的操作（机型实现：按请求里的配方快照去转、去喷，做完 Complete，出错 Fail）。
+    /// 只管造操作，发不发得出去（状态、片、配方）基类已经查过、Begin 也由基类做；造不出来（驱动没连上）返回 null。
     /// </summary>
-    public ModuleOperation? Process(string recipe)
-    {
-        var operation = StartProcess(recipe);
-        if (operation is not null)
-        {
-            Recipe = recipe;
-        }
-
-        return operation;
-    }
+    protected abstract ModuleOperation? CreateProcessOperation(ProcessRequest request);
 
     /// <summary>
-    /// 发起工艺。机型实现：Begin(ChamberAction.Process, new ...Operation(...))。
-    /// </summary>
-    protected abstract ModuleOperation? StartProcess(string recipe);
-
-    /// <summary>
-    /// 操作终结（状态已由基类落好）：失败的动作报警。
+    /// 操作终结（状态已由基类落好）：失败的动作报警；工艺做完把账上的片标成完成 / 失败 / 中止。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
         UpdateActionAlarms(operation);
+        FinishProcess(operation);
+    }
+
+    #endregion
+
+    #region 加工（IProcessStation：Job 和手动起工艺走同一个口子）
+
+    private volatile ProcessRequest? _process;
+
+    /// <summary>正在跑的工艺操作；只在模块锁里读写。</summary>
+    private ModuleOperation? _processOperation;
+
+    /// <summary>
+    /// 工艺是不是模拟的：默认不是；驱动还没接、计时空转的机型重写成 true，Job 结果里会标出来。
+    /// </summary>
+    public virtual bool IsProcessSimulated => false;
+
+    /// <summary>正在跑的工艺请求；没在跑为 null。</summary>
+    public ProcessRequest? CurrentProcess => _process;
+
+    /// <summary>
+    /// 现在能不能起这个工艺（不动设备）：先查请求本身（配方名、配方对不对得上这个腔体、腔里是不是要做的那一片），
+    /// 再查腔体此刻的状态——配方不对这种问题不管腔体忙不忙都先报出来。
+    /// </summary>
+    public ProcessRejection? CheckProcess(ProcessRequest request)
+    {
+        string slot = request.Slot.ToString(CultureInfo.InvariantCulture);
+        if (request.RecipeName.Trim().Length == 0)
+        {
+            return new ProcessRejection(ErrorCodes.RecipeRequired, [Name]);
+        }
+
+        // 配方里下拉选的（摆臂、药液这类从腔体部件取的）这个腔体也得有：几个腔体装的不一样时，别的腔体的配方起不了
+        var recipe = request.Recipe;
+        var library = ProcessRecipeComponent.Current;
+        if (recipe is not null && library is not null)
+        {
+            var mismatch = library.FindMismatch(recipe, Name);
+            if (mismatch is not null)
+            {
+                return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, recipe.Name, mismatch.Field, mismatch.Value]);
+            }
+        }
+
+        if (request.Slot < 1 || request.Slot > SlotCount)
+        {
+            return new ProcessRejection(ErrorCodes.ChamberWaferMismatch, [Name, slot]);
+        }
+
+        // 指定了片的（Job 起的）：腔里得正好是那一片，换过片、片没到都不起
+        var expected = request.WaferId;
+        if (expected is not null)
+        {
+            var wafer = WaferManager.Current?.Get(Name, request.Slot);
+            if (wafer is null || wafer.Id != expected.Value)
+            {
+                return new ProcessRejection(ErrorCodes.ChamberWaferMismatch, [Name, slot]);
+            }
+        }
+
+        lock (OperationGate)
+        {
+            var current = CurrentOperation;
+            bool busy = current is not null && !current.IsTerminal;
+            if (!CanBeginAction || busy || !TryGetTransition(State, nameof(ChamberAction.Process), out _))
+            {
+                return new ProcessRejection(ErrorCodes.ActionRejected, [Name, State.ToString(CultureInfo.InvariantCulture)]);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 起工艺：查过了才发。发起和"账上标加工中"在同一把锁里——扫描线程拿不到锁就推进不了这一步，
+    /// 不会出现工艺已经做完、账才被标成加工中的倒挂。发起成功记下配方名（SV Recipe），界面据此显示当前配方。
+    /// </summary>
+    public ModuleOperation? StartProcess(ProcessRequest request)
+    {
+        if (CheckProcess(request) is not null)
+        {
+            return null;
+        }
+
+        lock (OperationGate)
+        {
+            var built = CreateProcessOperation(request);
+            if (built is null)
+            {
+                return null;
+            }
+
+            var operation = Begin(ChamberAction.Process, built);
+            if (operation is null)
+            {
+                return null;
+            }
+
+            _process = request;
+            _processOperation = operation;
+            Recipe = request.RecipeName.Trim();
+
+            var ledger = WaferManager.Current;
+            if (ledger is not null && ledger.HasWafer(Name, request.Slot))
+            {
+                ledger.SetProcessState(Name, request.Slot, WaferProcessState.InProcess);
+            }
+
+            return operation;
+        }
+    }
+
+    /// <summary>
+    /// 工艺操作终结（在模块锁里）：账上的片按结果标完成 / 失败 / 中止；不是工艺操作不管。
+    /// </summary>
+    private void FinishProcess(ModuleOperation operation)
+    {
+        if (!ReferenceEquals(operation, _processOperation))
+        {
+            return;
+        }
+
+        var request = _process;
+        _process = null;
+        _processOperation = null;
+        if (request is null)
+        {
+            return;
+        }
+
+        var ledger = WaferManager.Current;
+        if (ledger is null || !ledger.HasWafer(Name, request.Slot))
+        {
+            return;
+        }
+
+        var state = operation.IsSuccess
+            ? WaferProcessState.Completed
+            : operation.State == OperationState.Aborted ? WaferProcessState.Aborted : WaferProcessState.Failed;
+        ledger.SetProcessState(Name, request.Slot, state);
     }
 
     #endregion

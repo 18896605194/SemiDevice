@@ -473,21 +473,42 @@ public class ProcessRecipeComponent : ComponentBase
     }
 
     /// <summary>
+    /// 按名字取一个工艺配方的快照（副本，不分大小写、去掉首尾空白）；没有返回 null。
+    /// Job 建 PJ、腔体起工艺都拿快照：之后库里改了、删了，已经拿到的那一份不变。
+    /// </summary>
+    public ProcessRecipeData? Find(string name)
+    {
+        string wanted = name.Trim();
+        lock (_gate)
+        {
+            return _items.Values.FirstOrDefault(item => string.Equals(item.Name, wanted, StringComparison.OrdinalIgnoreCase))?.Clone();
+        }
+    }
+
+    /// <summary>
     /// 这个配方用在这个腔体上对不对得上：配方里从腔体部件取选项的下拉，选的值这个腔体有没有（几个腔体装的不一样时才会对不上）。
     /// 对得上、腔体不认识（不是腔体，或没绑上）、配方不在库里（那是另一个错，由 <see cref="Contains"/> 那一步报）都返回 null。
     /// </summary>
     public ProcessRecipeMismatch? FindMismatch(string recipeName, string chamber)
     {
         string wanted = recipeName.Trim();
+        ProcessRecipeData? recipe;
+        lock (_gate)
+        {
+            recipe = _items.Values.FirstOrDefault(item => string.Equals(item.Name, wanted, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return recipe is null ? null : FindMismatch(recipe, chamber);
+    }
+
+    /// <summary>
+    /// 同上，查的是一份配方内容（快照）：Job、起工艺拿着快照查，不再按名字回库里找——库里的可能已经改了。
+    /// </summary>
+    public ProcessRecipeMismatch? FindMismatch(ProcessRecipeData recipe, string chamber)
+    {
         lock (_gate)
         {
             if (!_chamberChoices.TryGetValue(chamber.Trim(), out var choices))
-            {
-                return null;
-            }
-
-            var recipe = _items.Values.FirstOrDefault(item => string.Equals(item.Name, wanted, StringComparison.OrdinalIgnoreCase));
-            if (recipe is null)
             {
                 return null;
             }

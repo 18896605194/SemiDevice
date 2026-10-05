@@ -8,7 +8,10 @@ namespace xyz.Modules;
 /// <summary>
 /// 一趟搬运：把片从源站点的槽位搬到目标站点的槽位。
 /// 手动传片和自动派单下的都是这个东西，执行完全一样，区别只在谁下的单（Origin）。
-/// 这不是 CJ/PJ——那两层在上面，带自己的状态机、可暂停、跨整盒片；这儿就是一次物理搬运，跑完即弃。
+/// 这不是 CJ/PJ——那两层在上面（Job），带自己的状态机、可暂停、跨整盒片；这儿就是一次物理搬运，跑完即弃。
+/// 由搬运管理的扫描线程一拍一拍推进（不挂在哪个模块上）。每一步等的是 IsSettled：模块落好状态、记完账才算这一步完。
+/// 先抢目标站点再取片：目标准备不好就不取。没动手（还没落"交互中"标记）就失败或被撤时，把占着的环还回去；
+/// 动了手再失败，片在哪说不准，环留在原地等人工确认（站点卡住正好挡住后续自动动作）。
 /// </summary>
 public sealed class TransferRoutine : ModuleOperation<TransferStep>
 {
@@ -29,16 +32,54 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     private readonly int _arm;
     private readonly int _stationWaitTimeout;
 
+    /// <summary>源和目标是同一个站点：环只抢一次，取完不收尾接着放。</summary>
+    private readonly bool _sameStation;
+
     /// <summary>当前在等的那一步操作（站点准备、取片、放片）；没在等为 null。</summary>
     private ModuleOperation? _current;
 
     /// <summary>这一站是从什么时候开始抢的；抢站点那两步判超时用，换站点时重置。</summary>
     private long _grabSince;
 
+    /// <summary>占着源站点的环（准备过、还没收尾）。</summary>
+    private bool _holdingSource;
+
+    /// <summary>占着目标站点的环。</summary>
+    private bool _holdingTarget;
+
     /// <summary>
     /// 这一趟是谁下的单。执行不看它，失败怎么收场看它。
     /// </summary>
     public TransferOrigin Origin { get; }
+
+    /// <summary>搬片的机械手。</summary>
+    public IRobot Robot => _robot;
+
+    /// <summary>源站点。</summary>
+    public ITransferStation Source => _source;
+
+    /// <summary>目标站点。</summary>
+    public ITransferStation Target => _target;
+
+    /// <summary>源槽号（从 1 开始）。</summary>
+    public int SourceSlot => _sourceSlot;
+
+    /// <summary>目标槽号（从 1 开始）。</summary>
+    public int TargetSlot => _targetSlot;
+
+    /// <summary>用哪只手。</summary>
+    public int Arm => _arm;
+
+    /// <summary>
+    /// 动过手了：落过"交互中"标记、发过取片（不管成没成）。之后再失败，片在哪说不准，要留着等人工确认；
+    /// 没动手就失败，片还在源槽、环也还回去了。
+    /// </summary>
+    public bool MotionStarted { get; private set; }
+
+    /// <summary>
+    /// 机械手的取片或放片正在做：被中止时要给机械手发设备中止，光撤软件上的操作停不住手臂。
+    /// </summary>
+    public bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
 
     public TransferRoutine(
         TransferOrigin origin,
@@ -49,7 +90,8 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         int targetSlot,
         int arm,
         int stationWaitTimeout)
-        : base($"Transfer {source.Name}.{sourceSlot:00}→{target.Name}.{targetSlot:00}", TransferStep.PrepareSource)
+        : base($"Transfer {source.Name}.{sourceSlot:00}→{target.Name}.{targetSlot:00}",
+            IsSameStation(source, target) ? TransferStep.PrepareSource : TransferStep.PrepareTarget)
     {
         Origin = origin;
         _robot = robot;
@@ -59,17 +101,46 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         _targetSlot = targetSlot;
         _arm = arm;
         _stationWaitTimeout = stationWaitTimeout;
+        _sameStation = IsSameStation(source, target);
         _grabSince = Stopwatch.GetTimestamp();
+    }
+
+    private static bool IsSameStation(ITransferStation source, ITransferStation target)
+    {
+        return ReferenceEquals(source, target) || string.Equals(source.Name, target.Name, StringComparison.OrdinalIgnoreCase);
     }
 
     protected override void OnScan()
     {
         switch (Step)
         {
+            // —— 先抢目标站点：放不下就不取 ——
+
+            case TransferStep.PrepareTarget:
+                if (GrabStation(_target, TransferStep.WaitPrepareTarget))
+                {
+                    _holdingTarget = true;
+                }
+
+                break;
+
+            case TransferStep.WaitPrepareTarget:
+                if (WaitPrepare(_target, FirstPreparePhase, TransferStep.PrepareSource))
+                {
+                    // 换到源站点，抢站点的等待重新计时。
+                    _grabSince = Stopwatch.GetTimestamp();
+                }
+
+                break;
+
             // —— 源站点：准备 → 取片 ——
 
             case TransferStep.PrepareSource:
-                GrabStation(_source, TransferStep.WaitPrepareSource);
+                if (GrabStation(_source, TransferStep.WaitPrepareSource))
+                {
+                    _holdingSource = true;
+                }
+
                 break;
 
             case TransferStep.WaitPrepareSource:
@@ -89,18 +160,10 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.WaitPick:
-                WaitTransfer(_source, "Pick", TransferStep.PrepareTarget);
+                WaitPicked();
                 break;
 
-            // —— 目标站点：准备 → 放片 ——
-
-            case TransferStep.PrepareTarget:
-                GrabStation(_target, TransferStep.WaitPrepareTarget);
-                break;
-
-            case TransferStep.WaitPrepareTarget:
-                WaitPrepare(_target, FirstPreparePhase, TransferStep.PrepareTarget2);
-                break;
+            // —— 目标站点：准备二 → 放片 ——
 
             case TransferStep.PrepareTarget2:
                 BeginPrepare(_target, _target.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareTarget2);
@@ -115,48 +178,50 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.WaitPlace:
-                WaitTransfer(_target, "Place", next: null);
+                WaitPlaced();
                 break;
 
             default:
-                Fail(ErrorCodes.OperationFaulted, $"未知步骤: {Step}", Name, Step.ToString());
+                Abandon(ErrorCodes.OperationFaulted, $"未知步骤: {Step}", Name, Step.ToString());
                 break;
         }
     }
 
     /// <summary>
     /// 抢站点（发准备一）。站点不在锚点态——正被另一台机械手服务、或上一轮还没收尾完——
-    /// 会返回 null，这不算失败：下一拍接着抢，等到超时才判负。
+    /// 会返回 null，这不算失败：下一拍接着抢，等到超时才判负。抢到返回 true。
     /// 两台机械手抢同一个站点靠的就是这个：站点环在锁里校验当前态，只有一台能抢进去。
     /// </summary>
-    private void GrabStation(ITransferStation station, TransferStep next)
+    private bool GrabStation(ITransferStation station, TransferStep next)
     {
         var operation = station.PrepareTransfer();
         if (operation is not null)
         {
             _current = operation;
             SetStep(next);
-            return;
+            return true;
         }
 
         if (Stopwatch.GetElapsedTime(_grabSince).TotalMilliseconds > _stationWaitTimeout)
         {
-            Fail(ErrorCodes.StationBusy,
+            Abandon(ErrorCodes.StationBusy,
                 $"{station.Name} 等不到可服务（{_stationWaitTimeout}ms）",
                 station.Name,
                 _stationWaitTimeout.ToString(CultureInfo.InvariantCulture));
         }
+
+        return false;
     }
 
     /// <summary>
-    /// 发一步准备。进了环之后（准备二及以后）被拒就是真故障：环是把锁，我们已经占住了，
+    /// 发一步准备。进了环之后（准备二）被拒就是真故障：环是把锁，我们已经占住了，
     /// 这时候还被拒说明站点状态被人从旁边动过。
     /// </summary>
     private void BeginPrepare(ITransferStation station, ModuleOperation? operation, int phase, TransferStep next)
     {
         if (operation is null)
         {
-            Fail(ErrorCodes.StationPrepareRejected,
+            Abandon(ErrorCodes.StationPrepareRejected,
                 $"{station.Name} 第 {phase} 步准备被拒",
                 station.Name,
                 phase.ToString(CultureInfo.InvariantCulture));
@@ -168,42 +233,49 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 等一步准备做完。
+    /// 等一步准备收尾完成；成功才走下一步，做完返回 true。
     /// </summary>
-    private void WaitPrepare(ITransferStation station, int phase, TransferStep next)
+    private bool WaitPrepare(ITransferStation station, int phase, TransferStep next)
     {
         var operation = _current;
-        if (operation is null || !operation.IsTerminal)
+        if (operation is null || !operation.IsSettled)
         {
-            return;
+            return false;
         }
 
         _current = null;
 
         if (!operation.IsSuccess)
         {
-            Fail(ErrorCodes.StationPrepareFailed,
+            Abandon(ErrorCodes.StationPrepareFailed,
                 $"{station.Name} 第 {phase} 步准备失败：{operation.Reason}",
                 station.Name,
                 phase.ToString(CultureInfo.InvariantCulture));
-            return;
+            return false;
         }
 
         SetStep(next);
+        return true;
     }
 
     /// <summary>
     /// 落"交互中"标记并发起取/放片。标记必须先落：机械手要伸手进去了，这期间站点不能被别人动。
+    /// 从落标记起就算动过手了；同站点换槽时取片已经落过标记，放片不再落。
     /// </summary>
     private void BeginTransfer(ITransferStation station, int slot, bool pick, TransferStep next)
     {
-        if (!station.Transferring())
+        bool marked = !pick && _sameStation;
+        if (!marked)
         {
-            Fail(ErrorCodes.TransferStepRejected,
-                $"{station.Name} 落不下 Transferring 标记",
-                station.Name,
-                "Transferring");
-            return;
+            MotionStarted = true;
+            if (!station.Transferring())
+            {
+                Fail(ErrorCodes.TransferStepRejected,
+                    $"{station.Name} 落不下 Transferring 标记",
+                    station.Name,
+                    "Transferring");
+                return;
+            }
         }
 
         string action = pick ? "Pick" : "Place";
@@ -222,51 +294,122 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 等取/放片终结。成功才让站点收尾回锚点态；next 为 null 表示放完了，整趟结束。
-    /// 失败不收尾——片可能半挂在手上，这时候关门会撞。站点就卡在 Transferring，
-    /// 正好挡住后续所有自动动作，逼人到现场确认片在哪再复位。
+    /// 等取片收尾完成（机械手记完账）。成功后源站点收尾回锚点态；同站点换槽不收尾，接着放。
+    /// 失败不收尾——片可能半挂在手上，这时候关门会撞。站点就卡在 Transferring，挡住后续自动动作，逼人到现场确认。
     /// </summary>
-    private void WaitTransfer(ITransferStation station, string action, TransferStep? next)
+    private void WaitPicked()
     {
-        var operation = _current;
-        if (operation is null || !operation.IsTerminal)
+        var operation = TakeSettled();
+        if (operation is null)
         {
             return;
         }
-
-        _current = null;
 
         if (!operation.IsSuccess)
         {
-            LogHelper.Error(_robot.Name,
-                $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{operation.Reason}");
-            Fail(ErrorCodes.TransferFailed,
-                $"{_robot.Name} {action} 失败：{operation.Reason}",
-                _robot.Name,
-                action);
+            ReportMotionFailure(_source, "Pick", operation);
             return;
         }
 
-        station.TransferComplete();
-
-        if (next is null)
+        if (_sameStation)
         {
-            Complete();
+            SetStep(TransferStep.Place);
             return;
         }
 
-        // 换到目标站点，抢站点的等待重新计时。
-        _grabSince = Stopwatch.GetTimestamp();
-        SetStep(next.Value);
+        _source.TransferComplete();
+        _holdingSource = false;
+        SetStep(TransferStep.PrepareTarget2);
     }
 
     /// <summary>
-    /// 被撤单（急停、人工取消）：在途的那一步操作跟着撤。
-    /// 站点上的环标记不动——跟失败时一个道理，片在哪说不准，留着卡住等人工。
+    /// 等放片收尾完成。成功后目标站点收尾回锚点态，整趟结束。
+    /// </summary>
+    private void WaitPlaced()
+    {
+        var operation = TakeSettled();
+        if (operation is null)
+        {
+            return;
+        }
+
+        if (!operation.IsSuccess)
+        {
+            ReportMotionFailure(_target, "Place", operation);
+            return;
+        }
+
+        _target.TransferComplete();
+        _holdingTarget = false;
+        _holdingSource = false;
+        Complete();
+    }
+
+    /// <summary>
+    /// 当前在等的操作收尾完成了就交出来（清掉），还没完返回 null。
+    /// </summary>
+    private ModuleOperation? TakeSettled()
+    {
+        var operation = _current;
+        if (operation is null || !operation.IsSettled)
+        {
+            return null;
+        }
+
+        _current = null;
+        return operation;
+    }
+
+    private void ReportMotionFailure(ITransferStation station, string action, ModuleOperation operation)
+    {
+        LogHelper.Error(_robot.Name,
+            $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{operation.Reason}");
+        Fail(ErrorCodes.TransferFailed,
+            $"{_robot.Name} {action} 失败：{operation.Reason}",
+            _robot.Name,
+            action);
+    }
+
+    /// <summary>
+    /// 失败收场：还没动手就把占着的环还回去（片还在源槽，站点可以接着被服务），再落失败。
+    /// </summary>
+    private void Abandon(string code, string reason, params string[] args)
+    {
+        ReleaseRings();
+        Fail(code, reason, args);
+    }
+
+    /// <summary>
+    /// 被撤单（急停、人工取消、Job 中止）：在途的那一步操作跟着撤；没动手就把环还回去。
+    /// 动过手的环不动——跟失败时一个道理，片在哪说不准，留着卡住等人工。
     /// </summary>
     protected override void OnAborted(string reason)
     {
         _current?.AbortByHost(reason);
         _current = null;
+        ReleaseRings();
+    }
+
+    /// <summary>
+    /// 还环：只在没动过手时还，站点自己决定能不能撤（只撤准备阶段的）。
+    /// </summary>
+    private void ReleaseRings()
+    {
+        if (MotionStarted)
+        {
+            return;
+        }
+
+        if (_holdingSource)
+        {
+            _source.CancelTransfer();
+            _holdingSource = false;
+        }
+
+        if (_holdingTarget && !_sameStation)
+        {
+            _target.CancelTransfer();
+            _holdingTarget = false;
+        }
     }
 }

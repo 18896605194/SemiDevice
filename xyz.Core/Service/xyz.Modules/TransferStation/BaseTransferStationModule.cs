@@ -69,6 +69,27 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
         return true;
     }
 
+    /// <summary>
+    /// 撤回本轮：只在准备阶段（PreTransfer / TransferReady）撤，交给钩子收回准备做过的事；
+    /// 在锚点态说明没占着，直接算撤好了；交互中、收尾中、报错的都不撤。
+    /// </summary>
+    public bool CancelTransfer()
+    {
+        int state = State;
+        if (state == AnchorState)
+        {
+            return true;
+        }
+
+        if (state != TransferModuleState.PreTransfer && state != TransferModuleState.TransferReady)
+        {
+            return false;
+        }
+
+        OnTransferCancelled(state);
+        return true;
+    }
+
     #endregion
 
     #region 钩子（子类扩展点）
@@ -80,6 +101,15 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     protected virtual void OnTransferFinished()
     {
         TransferStep(TransferModuleState.TransferComplete, AnchorState);
+    }
+
+    /// <summary>
+    /// 撤回本轮的钩子（from 是撤之前的状态）。默认准备阶段什么都没动过，直接回锚点态；
+    /// 准备时开过门、抽过气的站点重写成先收回去，收好了再自己落锚点态。
+    /// </summary>
+    protected virtual void OnTransferCancelled(int from)
+    {
+        TransferStep(from, AnchorState);
     }
 
     #endregion

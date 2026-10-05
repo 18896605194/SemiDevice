@@ -159,6 +159,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - `xyz.Drivers`：`ICommunication`（串口 / TCP，`CommunicationFactory`）、`IFrameCodec` + `FrameCommunication`（收包泵 + 发送锁）、
   品牌协议放 `Robot\Reje\`、`Loadport\FCD\`、`Rfid\FCD\`（Protocol、FrameCodec、Commands）。驱动回调只改状态，动作由模块扫描线程推进。
 - HSMS（`xyz.Secs` + `HsmsComponent`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync。
+- 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性 + 专用派发线程）、反查口（provider，为 null 走本地规则），
+  照 `BaseLoadPortModule` 的 E87 / E84 写；细则见 decisions.md「EAP 接入的统一做法」。
 
 ## 5. 服务（gRPC code-first）
 

@@ -482,6 +482,11 @@ public class ProcessRecipeViewModel : BaseViewModel
     private double _maxTotalSeconds;
 
     /// <summary>
+    /// 现在摆着的字段表（后端给的原样转成文字）：重拉时一样就不重建列，免得把正在输的格子换掉。
+    /// </summary>
+    private string _fieldsSignature = string.Empty;
+
+    /// <summary>
     /// 有没保存的修改时点的那个编号，确认放弃后切过去。
     /// </summary>
     private ProcessRecipeSlotModel? _pendingSlot;
@@ -609,7 +614,7 @@ public class ProcessRecipeViewModel : BaseViewModel
 
             _isLoaded = true;
             _isInstalled = true;
-            ApplyOptions(options);
+            bool fieldsChanged = ApplyOptions(options);
             ApplyList(list);
             UpdatePageState();
 
@@ -617,6 +622,10 @@ public class ProcessRecipeViewModel : BaseViewModel
             if (slot is not null && !IsDirty)
             {
                 await Open(slot);
+            }
+            else if (fieldsChanged && IsDirty)
+            {
+                Relayout();
             }
         }
         catch (Exception exception)
@@ -630,16 +639,27 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 换上后端给的字段表（列名按界面语言）和合计时长上限。打开着的工艺配方随后按新字段表重摆。
+    /// 换上后端给的字段表（列名按界面语言）和合计时长上限。字段表只在后端重启时可能变（sc.xml 改了），
+    /// 别的时候重拉（谁存了配方都会触发）字段表一样，就不重建列。变了返回 true，打开着的工艺配方要按新字段表重摆。
     /// </summary>
-    private void ApplyOptions(ProcessRecipeOptionsDto options)
+    private bool ApplyOptions(ProcessRecipeOptionsDto options)
     {
         _maxTotalSeconds = options.MaxTotalSeconds;
+        var fields = options.Fields ?? [];
+        string signature = JsonHelper.Serialize(fields);
+        if (signature == _fieldsSignature)
+        {
+            return false;
+        }
+
+        _fieldsSignature = signature;
         Fields.Clear();
-        foreach (var field in options.Fields ?? [])
+        foreach (var field in fields)
         {
             Fields.Add(new ProcessRecipeFieldModel(field, L10n.Language));
         }
+
+        return true;
     }
 
     /// <summary>
@@ -747,6 +767,43 @@ public class ProcessRecipeViewModel : BaseViewModel
         }
 
         IsDirty = false;
+        Validate();
+    }
+
+    /// <summary>
+    /// 改着没保存的时候后端换了字段表（改了 sc.xml 又重启）：按新字段表重摆每一步，不然表头换了、格子还是老的，对不齐。
+    /// 填过的值按字段名带过去，新加的字段填默认值（跟后端读老配方一样），去掉的字段丢掉；还算"有没保存的修改"，再查一遍。
+    /// </summary>
+    private void Relayout()
+    {
+        var oldValues = Steps.Select(step => step.ToDto().Values).ToList();
+        int position = SelectedStep is null ? 0 : Steps.IndexOf(SelectedStep);
+        _applying = true;
+        try
+        {
+            Steps.Clear();
+            foreach (var values in oldValues)
+            {
+                var filled = Fields.ToDictionary(field => field.Key, field => field.Default, StringComparer.OrdinalIgnoreCase);
+                foreach (var pair in values)
+                {
+                    if (filled.ContainsKey(pair.Key))
+                    {
+                        filled[pair.Key] = pair.Value;
+                    }
+                }
+
+                Steps.Add(CreateStep(filled));
+            }
+
+            Renumber();
+            SelectedStep = Steps.Count == 0 ? null : Steps[Math.Clamp(position, 0, Steps.Count - 1)];
+        }
+        finally
+        {
+            _applying = false;
+        }
+
         Validate();
     }
 

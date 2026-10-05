@@ -32,6 +32,13 @@ public abstract class ModuleOperation
     public bool IsSuccess => _state == OperationState.Completed;
 
     /// <summary>
+    /// 收尾完成：不光到了终态，挂着它的模块也已经落好状态、做完收尾（记晶圆账、报警）。
+    /// 别的扫描线程判"这一步做完了"要看它，不能看 <see cref="IsTerminal"/>——终态在 Complete() 那一刻就有了，
+    /// 模块收尾还在后面，这时候去查账会看到"做完了、账还没动"。没挂到模块上的操作（空操作、一趟搬运）终态即收尾完成。
+    /// </summary>
+    public bool IsSettled => _terminal.IsSet;
+
+    /// <summary>
     /// 失败/中止原因，成功时为空。仅供日志/调试，界面显示走 Code。
     /// </summary>
     public string Reason { get; private set; } = string.Empty;

@@ -52,6 +52,8 @@
     <sys:String x:Key="chamber.part_not_held">{1} is not being held on {0} (released, stopped or aborted)</sys:String>
     <sys:String x:Key="chamber.recipe_not_found">{0}: recipe {1} is not in the process recipe library (it may have been deleted or renamed)</sys:String>
     <sys:String x:Key="chamber.recipe_option_missing">{0} has no {2} {3}, so process recipe {1} cannot run there</sys:String>
+    <sys:String x:Key="chamber.wafer_mismatch">{0} slot {1} does not hold the wafer to be processed (empty, or the wafer was swapped)</sys:String>
+    <sys:String x:Key="chamber.wafer_owned">{1} in {0} belongs to job {2}; it cannot be processed manually</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} did not become available within {1} ms (it never returned to idle, or another robot kept it busy)</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0}: transfer preparation step {1} was rejected (the station state does not allow it; it may have been operated manually)</sys:String>
@@ -60,7 +62,57 @@
     <sys:String x:Key="transfer.failed">{0} {1} failed: the station stays in Transferring; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} could not be marked {1} (the station state does not match the transfer progress; it may have been operated manually)</sys:String>
     <sys:String x:Key="transfer.not_installed">Cannot switch to Auto: no Transfer node in sc.xml (transfer manager not installed)</sys:String>
-    <sys:String x:Key="transfer.disabled">Cannot switch to Auto: the transfer manager is disabled (IsEnable=False on the Transfer node in sc.xml)</sys:String>
+    <sys:String x:Key="transfer.disabled">The transfer manager is disabled (IsEnable=False on the Transfer node in sc.xml): cannot switch to Auto or submit transfers</sys:String>
+    <sys:String x:Key="transfer.station_not_found">{0} is not a station that can hold wafers (not in the transfer module table)</sys:String>
+    <sys:String x:Key="transfer.slot_out_of_range">{0} has no slot {1} ({2} slots)</sys:String>
+    <sys:String x:Key="transfer.same_slot">Source and target are the same slot</sys:String>
+    <sys:String x:Key="transfer.wafer_mismatch">{0} slot {1} now holds {2}, not the wafer to be moved (it may have been swapped or re-mapped)</sys:String>
+    <sys:String x:Key="transfer.wafer_owned">{0} belongs to job {1} and cannot be moved manually</sys:String>
+    <sys:String x:Key="transfer.slot_locked">{0} slot {1} is already in another transfer</sys:String>
+    <sys:String x:Key="transfer.no_robot">No robot can reach both {0} and {1} (not configured in the robot station tables)</sys:String>
+    <sys:String x:Key="transfer.arm_unavailable">Arm {1} of {0} cannot be used (not allowed at both stations, holding a wafer, or taken by another transfer)</sys:String>
+    <sys:String x:Key="transfer.no_arm">{0} has no usable arm right now (all hold wafers, are taken, or are not allowed at these stations)</sys:String>
+    <sys:String x:Key="transfer.cancelled">Transfer {0} was cancelled before it started; the wafer was not moved</sys:String>
+    <sys:String x:Key="transfer.not_held">Transfer {0} holds no locks (already released, or wrong number)</sys:String>
+    <sys:String x:Key="transfer.wait_timeout">Transfer {0} did not finish within {1} ms: it is still running, result not yet confirmed</sys:String>
+    <sys:String x:Key="job.not_installed">No Job node in sc.xml (job manager not installed)</sys:String>
+    <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in sc.xml)</sys:String>
+    <sys:String x:Key="job.command_timeout">The command was not accepted within {0} ms; it may still be applied, check the job state</sys:String>
+    <sys:String x:Key="job.not_found">Job {0} not found</sys:String>
+    <sys:String x:Key="job.command_not_allowed">{0} does not accept {1} in state {2}</sys:String>
+    <sys:String x:Key="job.ending">{0} is stopping or aborting and no longer accepts {1}</sys:String>
+    <sys:String x:Key="job.not_auto">Jobs can only be started in Auto</sys:String>
+    <sys:String x:Key="job.id_invalid">Name {0} is invalid: use 1-80 letters, digits or symbols, without spaces or ? * ~ &gt; :</sys:String>
+    <sys:String x:Key="job.id_duplicate">Name {0} is already used by a job that has not ended</sys:String>
+    <sys:String x:Key="job.queue_full">There are already {0} unfinished jobs; no new job can be created</sys:String>
+    <sys:String x:Key="job.loadport_not_found">LoadPort {0} not found</sys:String>
+    <sys:String x:Key="job.carrier_not_ready">{0} has no carrier ready for picking (not placed, not loaded, or not mapped)</sys:String>
+    <sys:String x:Key="job.loadport_busy">{0} already has an unfinished job {1}</sys:String>
+    <sys:String x:Key="job.no_wafers">{0}: no wafers selected (no slot has a Sequence)</sys:String>
+    <sys:String x:Key="job.slot_empty">{0} slot {1} is empty</sys:String>
+    <sys:String x:Key="job.wafer_not_normal">{0} slot {1}: {2} is {3} and cannot be processed</sys:String>
+    <sys:String x:Key="job.wafer_processed">{0} slot {1}: {2} has already been processed ({3})</sys:String>
+    <sys:String x:Key="job.wafer_owned">{0} already belongs to job {1}</sys:String>
+    <sys:String x:Key="job.sequence_not_found">Sequence {0} not found in the sequence library</sys:String>
+    <sys:String x:Key="job.sequence_source_mismatch">Step 1 of sequence {0} does not include {1}; wafers cannot be picked from there</sys:String>
+    <sys:String x:Key="job.sequence_no_return">The last step of sequence {0} has no LoadPort to return wafers to</sys:String>
+    <sys:String x:Key="job.return_slot_unavailable">Return slot {1} on {0} cannot be used (no carrier, slot occupied, or taken by another job)</sys:String>
+    <sys:String x:Key="job.step_no_station">Step {1} of sequence {0} has no usable station (not installed, disabled, unreachable, or cannot run recipe {2})</sys:String>
+    <sys:String x:Key="job.recipe_not_found">Recipe {1} used by sequence {0} is not in the recipe library</sys:String>
+    <sys:String x:Key="job.carrier_not_found">Carrier {0} is not on any LoadPort</sys:String>
+    <sys:String x:Key="job.process_job_unavailable">PJ {0} does not exist or already belongs to another CJ</sys:String>
+    <sys:String x:Key="job.not_held">Automatic dispatching is not on hold; nothing to recover</sys:String>
+    <sys:String x:Key="job.recovery_pending">{0} failed transfers still need their wafer positions confirmed; check on site and correct the ledger first</sys:String>
+    <sys:String x:Key="job.hold.transfer_failed">{0} ({1}) failed during a transfer; confirm the wafer position on site</sys:String>
+    <sys:String x:Key="job.hold.process_failed">{0} ({2}) failed processing in {1}</sys:String>
+    <sys:String x:Key="job.hold.wafer_lost">{0} ({1}) is not where it should be (ledger changed, carrier removed, or re-mapped)</sys:String>
+    <sys:String x:Key="job.wait.manual">Manual mode: no new actions</sys:String>
+    <sys:String x:Key="job.wait.held">Automatic dispatching is on hold after a fault</sys:String>
+    <sys:String x:Key="job.wait.station">Waiting for a free station: {0}</sys:String>
+    <sys:String x:Key="job.wait.robot">Waiting for robot: {0}</sys:String>
+    <sys:String x:Key="job.wait.return_slot">Waiting for return slot {1} on {0}</sys:String>
+    <sys:String x:Key="job.wait.limit">The number of wafers in the tool reached the limit {0}</sys:String>
+    <sys:String x:Key="job.wait.not_feeding">{0} is not feeding wafers (paused, stopping, or the CJ is not executing)</sys:String>
 
     <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>

@@ -53,6 +53,8 @@
     <sys:String x:Key="chamber.part_not_held">{0} 没有在按住的 {1}（已经松手、被停止或中止顶掉了）</sys:String>
     <sys:String x:Key="chamber.recipe_not_found">{0} 的配方 {1} 不在工艺配方库里（可能被删了或改名了）</sys:String>
     <sys:String x:Key="chamber.recipe_option_missing">{0} 没有{2} {3}，起不了工艺配方 {1}</sys:String>
+    <sys:String x:Key="chamber.wafer_mismatch">{0} 第 {1} 槽不是要做的那一片（没片，或换过片）</sys:String>
+    <sys:String x:Key="chamber.wafer_owned">{0} 里的 {1} 正在 Job {2} 里，不能手动起工艺</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} 等了 {1} ms 还没空出来（没回到待命状态，或一直被别的机械手占着）</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0} 搬运准备（第 {1} 步）被拒：站点当前状态不允许，可能被人工动过</sys:String>
@@ -61,7 +63,57 @@
     <sys:String x:Key="transfer.failed">{0} {1} 没做成：站点会停在搬运中，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} 落不下 {1} 标记（站点状态跟搬运进度对不上，可能被人工动过）</sys:String>
     <sys:String x:Key="transfer.not_installed">sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto</sys:String>
-    <sys:String x:Key="transfer.disabled">搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto</sys:String>
+    <sys:String x:Key="transfer.disabled">搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto，也下不了搬运单</sys:String>
+    <sys:String x:Key="transfer.station_not_found">{0} 不是能放片的站点（不在搬运模块表里）</sys:String>
+    <sys:String x:Key="transfer.slot_out_of_range">{0} 没有第 {1} 槽（共 {2} 槽）</sys:String>
+    <sys:String x:Key="transfer.same_slot">源和目标是同一个槽</sys:String>
+    <sys:String x:Key="transfer.wafer_mismatch">{0} 第 {1} 槽上现在是 {2}，不是要搬的那一片（可能被换过或重新 Mapping 过）</sys:String>
+    <sys:String x:Key="transfer.wafer_owned">{0} 正在 Job {1} 里，不能手动搬</sys:String>
+    <sys:String x:Key="transfer.slot_locked">{0} 第 {1} 槽已经在别的搬运单里</sys:String>
+    <sys:String x:Key="transfer.no_robot">没有机械手同时到得了 {0} 和 {1}（机械手站点表里没配）</sys:String>
+    <sys:String x:Key="transfer.arm_unavailable">{0} 的 {1} 号手用不了（两个站点不都许用、手上有片，或正被别的搬运单占着）</sys:String>
+    <sys:String x:Key="transfer.no_arm">{0} 现在没有能用的手（都有片、都被占着，或站点不许用）</sys:String>
+    <sys:String x:Key="transfer.cancelled">搬运单 {0} 还没开始就撤了，片没动过</sys:String>
+    <sys:String x:Key="transfer.not_held">没有搬运单 {0} 留着的锁（已经放开了，或单号不对）</sys:String>
+    <sys:String x:Key="transfer.wait_timeout">搬运单 {0} 等了 {1} ms 还没做完：搬运还在跑，结果待确认</sys:String>
+    <sys:String x:Key="job.not_installed">sc.xml 没配 Job 节点（没有 Job 管理）</sys:String>
+    <sys:String x:Key="job.disabled">Job 管理停用了（sc.xml Job 节点 IsEnable=False）</sys:String>
+    <sys:String x:Key="job.command_timeout">命令等了 {0} ms 还没被受理，可能稍后还会执行，请看 Job 状态</sys:String>
+    <sys:String x:Key="job.not_found">没有 Job {0}</sys:String>
+    <sys:String x:Key="job.command_not_allowed">{0} 当前状态 {2} 不收 {1}</sys:String>
+    <sys:String x:Key="job.ending">{0} 正在停止或中止，不再收 {1}</sys:String>
+    <sys:String x:Key="job.not_auto">启动 Job 要在 Auto 下</sys:String>
+    <sys:String x:Key="job.id_invalid">名字 {0} 不合规：要 1~80 个英文、数字或符号，不能有空格和 ? * ~ &gt; :</sys:String>
+    <sys:String x:Key="job.id_duplicate">名字 {0} 已经在用（有同名的 Job 还没结束）</sys:String>
+    <sys:String x:Key="job.queue_full">没结束的 Job 已经有 {0} 个，建不了新的</sys:String>
+    <sys:String x:Key="job.loadport_not_found">没有 LoadPort {0}</sys:String>
+    <sys:String x:Key="job.carrier_not_ready">{0} 上没有能取片的载具（没放、没 Load 或没 Mapping）</sys:String>
+    <sys:String x:Key="job.loadport_busy">{0} 上已经有没结束的 Job {1}</sys:String>
+    <sys:String x:Key="job.no_wafers">{0} 没有选要做的片（槽位都没配 Sequence）</sys:String>
+    <sys:String x:Key="job.slot_empty">{0} 第 {1} 槽没片</sys:String>
+    <sys:String x:Key="job.wafer_not_normal">{0} 第 {1} 槽的 {2} 是 {3}，不能做</sys:String>
+    <sys:String x:Key="job.wafer_processed">{0} 第 {1} 槽的 {2} 已经做过（{3}）</sys:String>
+    <sys:String x:Key="job.wafer_owned">{0} 已经在 Job {1} 里</sys:String>
+    <sys:String x:Key="job.sequence_not_found">流程配方库里没有 {0}</sys:String>
+    <sys:String x:Key="job.sequence_source_mismatch">流程配方 {0} 的第 1 步没勾 {1}，片不能从这儿取</sys:String>
+    <sys:String x:Key="job.sequence_no_return">流程配方 {0} 的最后一步没有能回片的 LoadPort</sys:String>
+    <sys:String x:Key="job.return_slot_unavailable">回片的 {0} 第 {1} 槽用不了（没载具、槽上有片，或被别的 Job 占着）</sys:String>
+    <sys:String x:Key="job.step_no_station">流程配方 {0} 的第 {1} 步没有能去的站点（没装、停用、机械手到不了，或跑不了工艺配方 {2}）</sys:String>
+    <sys:String x:Key="job.recipe_not_found">流程配方 {0} 用的工艺配方 {1} 不在工艺配方库里</sys:String>
+    <sys:String x:Key="job.carrier_not_found">载具 {0} 不在任何 LoadPort 上</sys:String>
+    <sys:String x:Key="job.process_job_unavailable">PJ {0} 不存在，或已经归了别的 CJ</sys:String>
+    <sys:String x:Key="job.not_held">自动派单没在暂停，没有要恢复的</sys:String>
+    <sys:String x:Key="job.recovery_pending">还有 {0} 张出错的搬运单片位没确认，先到现场确认、对好账再恢复</sys:String>
+    <sys:String x:Key="job.hold.transfer_failed">{0}（{1}）搬运时出错，片位要到现场确认</sys:String>
+    <sys:String x:Key="job.hold.process_failed">{0}（{2}）在 {1} 加工没做成</sys:String>
+    <sys:String x:Key="job.hold.wafer_lost">{0}（{1}）不在该在的地方（被改了账、载具被拿走或重新 Mapping 过）</sys:String>
+    <sys:String x:Key="job.wait.manual">Manual 模式，不派新动作</sys:String>
+    <sys:String x:Key="job.wait.held">出过故障，自动派单暂停中</sys:String>
+    <sys:String x:Key="job.wait.station">等站点空出来：{0}</sys:String>
+    <sys:String x:Key="job.wait.robot">等机械手：{0}</sys:String>
+    <sys:String x:Key="job.wait.return_slot">等回片槽 {0} 第 {1} 槽空出来</sys:String>
+    <sys:String x:Key="job.wait.limit">机内片数到上限 {0} 了</sys:String>
+    <sys:String x:Key="job.wait.not_feeding">{0} 没在投片（暂停、停止中，或 CJ 没在执行）</sys:String>
 
     <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>

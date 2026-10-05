@@ -1002,11 +1002,10 @@ port.E87Callback = null;
 //    句子由界面按语言包写（不传中文阶段名，英文界面里才不会夹中文）─────────────────────────
 {
     var transferRobot = new ProbeTransferRobot();
-    var transferTarget = new ProbeStation("Target");
 
-    TransferRoutine RunTransfer(ProbeStation source, int waitMilliseconds)
+    TransferRoutine RunTransfer(ProbeStation source, ProbeStation target, int waitMilliseconds)
     {
-        var routine = new TransferRoutine(TransferOrigin.Manual, transferRobot, source, 1, transferTarget, 1, 1, waitMilliseconds);
+        var routine = new TransferRoutine(TransferOrigin.Manual, transferRobot, source, 1, target, 1, 1, waitMilliseconds);
         for (int scan = 0; scan < 10 && !routine.IsTerminal; scan++)
         {
             routine.Scan();
@@ -1029,22 +1028,41 @@ port.E87Callback = null;
         return operation;
     }
 
-    // 一直抢不到站点（第 1 步准备总被拒），等待上限 0 ms
-    var busy = RunTransfer(new ProbeStation("Busy"), 0);
-    Check(busy.Code == ErrorCodes.StationBusy && busy.ErrorArgs.SequenceEqual(new[] { "Busy", "0" }),
-        "搬运等不到站点：transfer.station_busy，参数是站点名和等待毫秒数");
+    // 先抢目标：目标一直抢不到（第 1 步准备总被拒），等待上限 0 ms——报目标站点，片没动过，源站点碰都没碰
+    var untouched = new ProbeStation("Src0") { First = Succeeded };
+    var targetBusy = RunTransfer(untouched, new ProbeStation("Busy"), 0);
+    Check(targetBusy.Code == ErrorCodes.StationBusy && targetBusy.ErrorArgs.SequenceEqual(new[] { "Busy", "0" })
+          && !targetBusy.MotionStarted && untouched.Prepares == 0,
+        "目标等不到：transfer.station_busy，参数是目标站点名和等待毫秒数，源站点不碰（放不下就不取）");
 
-    var firstFailed = RunTransfer(new ProbeStation("Src1") { First = Rejected }, 1000);
+    // 源一直抢不到：目标已经抢到了，判负时把目标的环还回去（没动过手）
+    var heldTarget = new ProbeStation("Target1") { First = Succeeded };
+    var busy = RunTransfer(new ProbeStation("Busy"), heldTarget, 0);
+    Check(busy.Code == ErrorCodes.StationBusy && busy.ErrorArgs.SequenceEqual(new[] { "Busy", "0" }) && heldTarget.Cancels == 1,
+        "源等不到：transfer.station_busy 报源站点，已经抢到的目标环要还回去");
+
+    var firstFailed = RunTransfer(new ProbeStation("Src1") { First = Rejected }, new ProbeStation("T1") { First = Succeeded }, 1000);
     Check(firstFailed.Code == ErrorCodes.StationPrepareFailed && firstFailed.ErrorArgs.SequenceEqual(new[] { "Src1", "1" }),
         "搬运第 1 步准备没做成：transfer.station_prepare_failed，参数是站点名和步号 1");
 
-    var secondRejected = RunTransfer(new ProbeStation("Src2") { First = Succeeded }, 1000);
-    Check(secondRejected.Code == ErrorCodes.StationPrepareRejected && secondRejected.ErrorArgs.SequenceEqual(new[] { "Src2", "2" }),
-        "搬运第 2 步准备被拒：transfer.station_prepare_rejected，参数是站点名和步号 2");
+    var secondSource = new ProbeStation("Src2") { First = Succeeded };
+    var secondTarget = new ProbeStation("T2") { First = Succeeded };
+    var secondRejected = RunTransfer(secondSource, secondTarget, 1000);
+    Check(secondRejected.Code == ErrorCodes.StationPrepareRejected && secondRejected.ErrorArgs.SequenceEqual(new[] { "Src2", "2" })
+          && secondSource.Cancels == 1 && secondTarget.Cancels == 1 && !secondRejected.MotionStarted,
+        "搬运第 2 步准备被拒：transfer.station_prepare_rejected，参数是站点名和步号 2；没动过手，两个环都还回去");
 
-    var secondFailed = RunTransfer(new ProbeStation("Src3") { First = Succeeded, Second = Rejected }, 1000);
+    var secondFailed = RunTransfer(new ProbeStation("Src3") { First = Succeeded, Second = Rejected }, new ProbeStation("T3") { First = Succeeded }, 1000);
     Check(secondFailed.Code == ErrorCodes.StationPrepareFailed && secondFailed.ErrorArgs.SequenceEqual(new[] { "Src3", "2" }),
         "搬运第 2 步准备没做成：参数是站点名和步号 2");
+
+    // 落了"交互中"标记、机械手却发不出取片：算动过手，环不还（留着等人工确认）
+    var pickSource = new ProbeStation("Src4") { First = Succeeded, Second = Succeeded };
+    var pickTarget = new ProbeStation("T4") { First = Succeeded };
+    var pickRejected = RunTransfer(pickSource, pickTarget, 1000);
+    Check(pickRejected.Code == ErrorCodes.TransferRejected && pickRejected.ErrorArgs.SequenceEqual(new[] { "TransferRobot", "Pick" })
+          && pickRejected.MotionStarted && pickSource.Cancels == 0 && pickTarget.Cancels == 0,
+        "取片发不出去：transfer.rejected，参数是机械手和动作；落过交互中标记就算动过手，环不还");
 }
 
 // ── 主界面要的后端：系统设置带上 LoadPort / 机械手名单（右栏页签、默认调度图照它生成），机械手站点带上类型（调度图按它选卡片），
@@ -1458,7 +1476,7 @@ sealed class ProbeChamber : BaseChamberModule
 
     protected override ModuleOperation? AbortDevice() => null;
 
-    protected override ModuleOperation? StartProcess(string recipe) => null;
+    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
 }
 
 // 探针普通站点（对中台这类）：能放片，既不是 LoadPort 也不是腔体。
@@ -1519,18 +1537,33 @@ sealed class PlainChild : ComponentBase
 {
 }
 
-// 探针站点：两步准备各给什么由测试定（不给 = 被拒），交互标记一律落得下；只为验搬运出错时报的错误码和参数。
+// 探针站点：两步准备各给什么由测试定（不给 = 被拒），交互标记一律落得下；只为验搬运出错时报的错误码和参数，
+// 顺带记下准备一被抢了几次、环被还了几次。
 sealed class ProbeStation(string name) : ITransferStation
 {
     public Func<ModuleOperation?> First { get; init; } = () => null;
     public Func<ModuleOperation?> Second { get; init; } = () => null;
+    public int Prepares { get; private set; }
+    public int Cancels { get; private set; }
     public string Name => name;
     public int SlotCount => 1;
     public bool CanPrepare => true;
-    public ModuleOperation? PrepareTransfer() => First();
+
+    public ModuleOperation? PrepareTransfer()
+    {
+        Prepares++;
+        return First();
+    }
+
     public ModuleOperation? PrepareTransfer2() => Second();
     public bool Transferring() => true;
     public bool TransferComplete() => true;
+
+    public bool CancelTransfer()
+    {
+        Cancels++;
+        return true;
+    }
 }
 
 // 探针机械手（搬运用）：只占个名字，动作一律发不出去——验的几种出错都停在站点准备，走不到取放片。

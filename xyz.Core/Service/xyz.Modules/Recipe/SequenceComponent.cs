@@ -226,6 +226,19 @@ public class SequenceComponent : ComponentBase
     }
 
     /// <summary>
+    /// 按名字取一个流程配方的快照（副本，不分大小写、去掉首尾空白）；没有返回 null。
+    /// 建 Job 时拿快照：之后库里改了、改名了、删了，已经建好的 Job 照原样跑。
+    /// </summary>
+    public SequenceData? Find(string name)
+    {
+        string wanted = name.Trim();
+        lock (_gate)
+        {
+            return _items.Values.FirstOrDefault(item => string.Equals(item.Name, wanted, StringComparison.OrdinalIgnoreCase))?.Clone();
+        }
+    }
+
+    /// <summary>
     /// 按编号取一个（副本）。
     /// </summary>
     public SequenceResult Get(int index)

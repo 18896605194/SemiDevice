@@ -158,3 +158,17 @@
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。
 - E84：设备端就是框架里的 `E84Component`（还在做）；SecsSim 只模拟天车（OHT）一侧，接 E84 这件事先不做。
+
+## EAP 接入的统一做法（2026-10-05，用户："以后这一套架构都这么设计"）
+- 照 LoadPort 现成的做法：凡是要给 EAP 用的设备侧对象（LoadPort、Job，以后的晶圆跟踪、设备性能跟踪……）都开同样三个口子，EAP 侧只做 SECS 翻译：
+  1. **命令接口**：EAP 直接调设备侧的接口，接口按对象起名 `I + 组件名`（LoadPort 是 `ILoadPort`；Job 打算叫 `IJobManager`，还没做），
+     跟本地界面的服务调同一个接口、过同一套检查，不给 EAP 另开一条进设备的路。调用当场回受理结果（被拒带错误码），后面的进展走回调和状态。
+  2. **上报口**：设备侧挂回调接口属性，**按 SEMI 标准号起名**：`IE87Callback` / `E87Callback`、`IE84Callback` / `E84Callback`；
+     Job 打算是 `IE40Callback` / `E40Callback`（PJ）和 `IE94Callback` / `E94Callback`（CJ）。没接 EAP 时为 null，设备照常跑；
+     同一个对象的几个回调共用一条专用派发线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢）。
+  3. **反查口**：要 Host 拿主意的事，设备侧问 provider，同样按标准号起名（`IE84Provider` / `E84Provider`），为 null 时按本地规则自己判断。
+     没有要问的就不开（Job 现在不开：载具核验归 E87 → LoadPort，Host 命令收不收归 E30 控制状态）。
+- 真正的状态只在设备侧存一份，EAP 侧不另记一份当真；Host 的决定（确认载具 ID、确认槽图、Job 命令）都经设备侧接口写回（例：`SetCarrierId` 后 ID 状态为已核验）。
+- SEMI 状态机放哪看它是什么：设备自己的执行状态（E40 的 PJ、E94 的 CJ）放在设备侧（JobManager），不接 EAP 本地也要用；
+  纯粹跟 Host 核对的过程（E87 的 ID / 槽图核验、端口搬运状态等）放在 EAP 侧，由回调推进。
+- 不学 CTC：它 FA 层、调度层各一套 Job，靠轮询加 `Task.Delay` 同步，Host 的 PJ 暂停 / 恢复都没接通。

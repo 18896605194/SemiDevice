@@ -1,0 +1,24 @@
+{
+  "compileType": "miniprogram",
+  "libVersion": "3.7.1",
+  "appid": "wx4e504f59d279ca8d",
+  "projectname": "mengbao-mini",
+  "description": "萌宝养成记 - 养成小游戏",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}

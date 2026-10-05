@@ -11,6 +11,7 @@ using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Service.Recipes;
 using xyz.Service.Systems;
+using xyz.Service.Transfers;
 using xyz.Service.UserManger;
 using xyz.Service.Wafers;
 using xyz.Shared.Dtos;
@@ -253,6 +254,7 @@ public static class ServiceExtensions
         services.AddTransient<IProcessRecipeService, ProcessRecipeService>();
         services.AddTransient<IDataChartService, DataChartService>();
         services.AddTransient<IRealChartService, RealChartService>();
+        services.AddTransient<ITransferService, TransferService>();
 
         #endregion
 

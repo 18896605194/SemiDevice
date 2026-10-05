@@ -67,21 +67,36 @@ public class ChamberService : BaseService, IChamberService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeRequired, [module]));
         }
 
-        // 配方要在工艺配方库里（没装库就不查）：被删了、改名了的配方不让起；
-        // 配方里下拉选的（摆臂、药液这类从腔体部件取的）这个腔体也得有——几个腔体装的不一样时，别的腔体的配方起不了
+        // 配方要在工艺配方库里（没装库就不查、只认名字）：被删了、改名了的配方不让起；
+        // 起工艺带的是这一刻的配方快照，跑的过程中库里改了也不影响这一次
         var library = ProcessRecipeComponent.Current;
-        if (library is not null && !library.Contains(recipe))
+        ProcessRecipeData? snapshot = null;
+        if (library is not null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeNotFound, [module, recipe]));
+            snapshot = library.Find(recipe);
+            if (snapshot is null)
+            {
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeNotFound, [module, recipe]));
+            }
         }
 
-        var mismatch = library?.FindMismatch(recipe, module);
-        if (mismatch is not null)
+        // 腔里的片正在 Job 里：工艺归 Job 起，手动不能插一脚
+        var wafer = WaferManager.Current?.Get(chamber.Name, 1);
+        string? owner = wafer is null ? null : JobManager.Current?.OwnerOf(wafer.Id);
+        if (wafer is not null && owner is not null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeOptionMissing, [module, recipe, mismatch.Field, mismatch.Value]));
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberWaferOwned, [module, wafer.WaferId, owner]));
         }
 
-        return RunOperation(module, chamber, chamber.Process(recipe), chamber.ProcessTimeout);
+        // 配方对不对得上这个腔体（摆臂、药液这类从腔体部件取的下拉）、腔体此刻能不能起，都由腔体自己查
+        var process = new ProcessRequest { Origin = ProcessOrigin.Manual, RecipeName = recipe, Recipe = snapshot };
+        var rejection = chamber.CheckProcess(process);
+        if (rejection is not null)
+        {
+            return Task.FromResult(RpcResponse.Fail(rejection.Code, rejection.Args));
+        }
+
+        return RunOperation(module, chamber, chamber.StartProcess(process), chamber.ProcessTimeout);
     }
 
     /// <summary>
