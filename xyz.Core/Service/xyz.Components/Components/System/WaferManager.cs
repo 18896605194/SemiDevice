@@ -42,7 +42,10 @@ public class WaferManager : ComponentBase
     [SCEditor("True", "WaferManager", "是否把每次变动写成流水入库（False=只在内存记账）")]
     public bool EnableHistory { get; set; } = true;
 
-    [SCEditor("Default", "WaferManager", "流水落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
+    [SCEditor("True", "WaferManager", "是否把账存盘、开机恢复腔体和机械手上的片（LoadPort 以开机 Mapping 为准；False=只在内存，重启后机内的片要人工补账）")]
+    public bool IsPersistent { get; set; } = true;
+
+    [SCEditor("Default", "WaferManager", "流水和存盘落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
     public string HistoryDatabase { get; set; } = XyzDb.DefaultName;
 
     [SCEditor("90", "WaferManager", "晶圆流水保留天数，超期每天清理一次")]
@@ -66,6 +69,13 @@ public class WaferManager : ComponentBase
         set { SetEcInt(nameof(HistoryBacklogWarning), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "100", "10000", "500", "账存盘间隔：账变了以后最多隔这么久把当前账整张写一次库")]
+    public int SnapshotIntervalMs
+    {
+        get { return GetEcInt(nameof(SnapshotIntervalMs)); }
+        set { SetEcInt(nameof(SnapshotIntervalMs), value); }
+    }
+
     #endregion
 
     #region 流水入库（装配时按 SC 开；直接 new 出来的账本不碰数据库；批量、积压告警是 EC）
@@ -80,7 +90,7 @@ public class WaferManager : ComponentBase
     private int _historyPending;
 
     /// <summary>
-    /// 装配读完 SC 后开流水队列与写库线程；EnableHistory=False 就不开，整个账本不碰数据库。
+    /// 装配读完 SC 后开流水队列与写库线程、存盘线程；EnableHistory、IsPersistent 都是 False 就整个账本不碰数据库。
     /// 这里不建表也不连库：日表由实体上的 [SplitTable] 让 ORM 插入时自动建；
     /// sc.xml 里 Database 节点万一排在账本后面，这会儿连接还没注册，等真有流水要写（那时整棵树早装完了）再碰库。
     /// </summary>
@@ -88,14 +98,23 @@ public class WaferManager : ComponentBase
     {
         base.OnSettingLoaded(setting);
 
-        if (!IsEnable || !EnableHistory)
+        if (!IsEnable)
         {
             return;
         }
 
-        var rows = Channel.CreateUnbounded<WaferHistoryEntity>(new UnboundedChannelOptions { SingleReader = true });
-        _historyRows = rows;
-        _ = Task.Run(() => WriteHistoryLoopAsync(rows));
+        if (EnableHistory)
+        {
+            var rows = Channel.CreateUnbounded<WaferHistoryEntity>(new UnboundedChannelOptions { SingleReader = true });
+            _historyRows = rows;
+            _ = Task.Run(() => WriteHistoryLoopAsync(rows));
+        }
+
+        if (IsPersistent)
+        {
+            _persisting = true;
+            _ = Task.Run(SnapshotLoopAsync);
+        }
     }
 
     /// <summary>
@@ -111,6 +130,9 @@ public class WaferManager : ComponentBase
     /// </summary>
     private void RecordHistory(WaferHistoryAction action, WaferInfo wafer, string? fromModule = null, int? fromSlot = null)
     {
+        // 写账的地方都走这儿：账变了，当前账下一轮要重新存盘
+        Interlocked.Exchange(ref _snapshotDirty, 1);
+
         var rows = _historyRows;
         if (rows is null)
         {
@@ -181,6 +203,272 @@ public class WaferManager : ComponentBase
                 LogHelper.Warn(Name, $"晶圆流水写库失败，丢弃 {batch.Count} 行: {exception.Message}");
             }
         }
+    }
+
+    #endregion
+
+    #region 存盘与开机恢复（当前账整张存一份；开机放回腔体、机械手上的片，LoadPort 以开机 Mapping 为准）
+
+    // ⚠ 跟流水一样：连库的只在存盘线程和开机恢复里做，不在 lock (_gate) 里碰库。
+
+    /// <summary>装配时 SC 开了存盘（直接 new 出来的账本不存盘）。</summary>
+    private bool _persisting;
+
+    /// <summary>开机恢复做完了才开始存盘：不然开机那一刻的空账会把上次存的冲掉。</summary>
+    private volatile bool _restored;
+
+    /// <summary>账变过、还没存盘为 1。</summary>
+    private int _snapshotDirty;
+
+    /// <summary>上一次存盘没成：再失败不重复记日志，存成了记一条恢复正常。</summary>
+    private bool _snapshotFailing;
+
+    private bool _currentTableReady;
+
+    /// <summary>
+    /// 开机恢复（各模块 Open 登记完槽位之后、开始扫描之前调一次）：把上次存的账放回腔体、机械手这些位置。
+    /// LoadPort 上的不恢复，以开机 Mapping 为准；位置没装、槽号越界、槽上已经有片的丢掉；
+    /// 重启前在加工的片记成中止（工艺被打断了，做没做完说不准）。恢复完才开始存盘。返回恢复了几片。
+    /// </summary>
+    public int Restore()
+    {
+        if (!IsEnable || !_persisting)
+        {
+            _restored = true;
+            return 0;
+        }
+
+        List<WaferCurrentEntity> rows;
+        try
+        {
+            using var db = XyzDb.Create(HistoryDatabase);
+            EnsureCurrentTable(db);
+            rows = db.Queryable<WaferCurrentEntity>().ToList();
+        }
+        catch (Exception exception)
+        {
+            // 读不出来就从空账开始、存盘照开：这一轮的账才是真的
+            _restored = true;
+            LogHelper.Error(Name, $"晶圆账开机恢复读库失败，账从空的开始（机内的片要人工补账）：{exception.Message}");
+            return 0;
+        }
+
+        var restored = new List<WaferInfo>();
+        var interrupted = new List<string>();
+        var dropped = new List<string>();
+        int onLoadPorts = 0;
+        lock (_gate)
+        {
+            foreach (var row in rows)
+            {
+                if (_loadPorts.Contains(row.Module))
+                {
+                    onLoadPorts++;
+                    continue;
+                }
+
+                var wafer = FromEntity(row);
+                if (wafer is null || !_locations.TryGetValue(row.Module, out var slots)
+                    || row.Slot < 1 || row.Slot > slots.Length || slots[row.Slot - 1] is not null)
+                {
+                    dropped.Add($"{row.WaferId}@{row.Module}.{row.Slot:00}");
+                    continue;
+                }
+
+                slots[row.Slot - 1] = wafer;
+                restored.Add(wafer.Clone());
+                if (string.Equals(row.ProcessState, nameof(WaferProcessState.InProcess), StringComparison.OrdinalIgnoreCase))
+                {
+                    interrupted.Add(wafer.WaferId);
+                }
+            }
+        }
+
+        _restored = true;
+        Interlocked.Exchange(ref _snapshotDirty, 1);
+        foreach (var wafer in restored)
+        {
+            RecordHistory(WaferHistoryAction.Restored, wafer);
+        }
+
+        if (restored.Count > 0)
+        {
+            string list = string.Join("、", restored.Select(wafer => $"{wafer.WaferId}（{wafer.Module}.{wafer.Slot:00}）"));
+            string cut = interrupted.Count > 0 ? $"；{string.Join("、", interrupted)} 重启前在加工，记成中止" : string.Empty;
+            LogHelper.Warn(Name, $"开机恢复晶圆账：机内还有 {restored.Count} 片 {list}{cut}；到现场确认片位后用全部回片送回来源槽");
+        }
+        else
+        {
+            LogHelper.Info(Name, "开机恢复晶圆账：机内没有片");
+        }
+
+        if (onLoadPorts > 0)
+        {
+            LogHelper.Info(Name, $"LoadPort 上的 {onLoadPorts} 片不恢复，以开机 Mapping 为准");
+        }
+
+        if (dropped.Count > 0)
+        {
+            LogHelper.Warn(Name, $"存盘里有 {dropped.Count} 片放不回去（位置没装、槽号越界、槽上已经有片或数据认不出来），已丢掉：{string.Join("、", dropped)}");
+        }
+
+        return restored.Count;
+    }
+
+    /// <summary>存盘停了（宿主退出时）：存盘线程不再写。</summary>
+    private volatile bool _snapshotStopped;
+
+    /// <summary>
+    /// 停止存盘（宿主退出时调）：存盘线程不再定时写，这里最后再存一次，退出前那一下的变动不丢。开机恢复还没做完就不存。
+    /// </summary>
+    public void StopSnapshot()
+    {
+        if (!_persisting || _snapshotStopped)
+        {
+            return;
+        }
+
+        _snapshotStopped = true;
+        if (_restored)
+        {
+            SaveSnapshot();
+        }
+    }
+
+    /// <summary>
+    /// 存盘线程：每隔 SnapshotIntervalMs 看一眼，账变过就把当前账整张重写一遍（开机恢复做完之前不写）。
+    /// 写不进去只记日志、下一轮再写，账照记、设备照跑。
+    /// </summary>
+    private async Task SnapshotLoopAsync()
+    {
+        while (!_snapshotStopped)
+        {
+            await Task.Delay(Math.Max(100, SnapshotIntervalMs)).ConfigureAwait(false);
+            if (_snapshotStopped || !_restored || Interlocked.Exchange(ref _snapshotDirty, 0) == 0)
+            {
+                continue;
+            }
+
+            if (!SaveSnapshot())
+            {
+                Interlocked.Exchange(ref _snapshotDirty, 1);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 把当前账整张写一次库（锁里只拷一份，出了锁再碰库）；存盘线程隔一会儿调，冒烟里也可以直接调。写成返回 true。
+    /// </summary>
+    public bool SaveSnapshot()
+    {
+        var rows = new List<WaferCurrentEntity>();
+        lock (_gate)
+        {
+            foreach (var slots in _locations.Values)
+            {
+                foreach (var wafer in slots)
+                {
+                    if (wafer is not null)
+                    {
+                        rows.Add(ToEntity(wafer));
+                    }
+                }
+            }
+        }
+
+        try
+        {
+            using var db = XyzDb.Create(HistoryDatabase);
+            EnsureCurrentTable(db);
+            string table = db.EntityMaintenance.GetTableName<WaferCurrentEntity>();
+            var result = db.Ado.UseTran(() =>
+            {
+                db.Ado.ExecuteCommand($"DELETE FROM {table}");
+                if (rows.Count > 0)
+                {
+                    db.Insertable(rows).ExecuteCommand();
+                }
+            });
+            if (!result.IsSuccess)
+            {
+                throw result.ErrorException;
+            }
+        }
+        catch (Exception exception)
+        {
+            if (!_snapshotFailing)
+            {
+                _snapshotFailing = true;
+                LogHelper.Warn(Name, $"晶圆账存盘失败（账照记，下一轮再存）：{exception.Message}");
+            }
+
+            return false;
+        }
+
+        if (_snapshotFailing)
+        {
+            _snapshotFailing = false;
+            LogHelper.Info(Name, "晶圆账存盘恢复正常");
+        }
+
+        return true;
+    }
+
+    /// <summary>当前账表第一次用到时建（已有就只补列）。</summary>
+    private void EnsureCurrentTable(ISqlSugarClient db)
+    {
+        if (_currentTableReady)
+        {
+            return;
+        }
+
+        db.CodeFirst.InitTables<WaferCurrentEntity>();
+        _currentTableReady = true;
+    }
+
+    private static WaferCurrentEntity ToEntity(WaferInfo wafer)
+    {
+        return new WaferCurrentEntity
+        {
+            WaferGuid = wafer.Id.ToString(),
+            WaferId = wafer.WaferId,
+            Module = wafer.Module,
+            Slot = wafer.Slot,
+            OriginModule = wafer.OriginModule,
+            OriginSlot = wafer.OriginSlot,
+            SourceLoadPort = wafer.SourceLoadPort,
+            SourceSlot = wafer.SourceSlot,
+            OriginCarrierId = wafer.OriginCarrierId,
+            CarrierId = wafer.CarrierId,
+            LotId = wafer.LotId,
+            Status = wafer.Status.ToString(),
+            ProcessState = wafer.ProcessState.ToString(),
+            CreatedAt = wafer.CreatedAt,
+            UpdatedAt = wafer.UpdatedAt,
+        };
+    }
+
+    /// <summary>
+    /// 存盘的一行 → 账上的一片（内部标识、来处原样）；标识、状态认不出来的返回 null。
+    /// 重启前在加工的记成中止；最后变动时刻记成恢复的这一刻（流水按它分表）。
+    /// </summary>
+    private static WaferInfo? FromEntity(WaferCurrentEntity row)
+    {
+        if (!Guid.TryParse(row.WaferGuid, out var id)
+            || !Enum.TryParse(row.Status, ignoreCase: true, out WaferStatus status)
+            || !Enum.TryParse(row.ProcessState, ignoreCase: true, out WaferProcessState processState))
+        {
+            return null;
+        }
+
+        if (processState == WaferProcessState.InProcess)
+        {
+            processState = WaferProcessState.Aborted;
+        }
+
+        return new WaferInfo(id, row.WaferId, row.Module, row.Slot, row.OriginModule, row.OriginSlot,
+            row.SourceLoadPort, row.SourceSlot, row.OriginCarrierId, row.CarrierId, row.LotId,
+            status, processState, row.CreatedAt, DateTime.Now);
     }
 
     #endregion

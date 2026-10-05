@@ -28,6 +28,20 @@ public static class DialogService
     }
 
     /// <summary>
+    /// 弹出公共确认弹窗：标题、说明、确定按钮的字由调用方给。danger = 确定按钮用红色（中止、删除这类）；
+    /// showCancel = false 时只有一个按钮（只是告知）。点确定返回 true，取消、Esc 返回 false。
+    /// </summary>
+    public static bool ShowConfirm(string title, string message, string okText, bool danger = false, bool showCancel = true)
+    {
+        var dialog = new ConfirmDialog(title, message, okText, danger, showCancel)
+        {
+            Owner = Application.Current?.MainWindow
+        };
+
+        return dialog.ShowDialog() == true;
+    }
+
+    /// <summary>
     /// 弹出“文本框 + 下拉框”输入弹窗。
     /// 返回输入文本和选中项；取消返回 null。
     /// </summary>

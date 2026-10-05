@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
@@ -19,6 +20,9 @@ internal sealed class JobBook
 
     /// <summary>最近删掉的 CJ，新的在前（给界面看历史）。</summary>
     public List<ControlJob> History { get; } = [];
+
+    /// <summary>上次开机留下的历史（存盘读回来的，只剩 DTO；重启时没删的 CJ 已经记成中止），新的在前，排在 <see cref="History"/> 后面。</summary>
+    public List<ControlJobDto> Restored { get; } = [];
 
     /// <summary>内容版本：每改一次加 1，发布时带上。</summary>
     public long Version { get; private set; }
@@ -86,14 +90,36 @@ internal sealed class JobBook
         }
     }
 
-    /// <summary>CJ 删掉：从队列挪进历史（最多留 keep 个）。</summary>
+    /// <summary>CJ 删掉：从队列挪进历史（连上次开机留下的一起最多留 keep 个，先扔最老的）。</summary>
     public void Archive(ControlJob job, int keep)
     {
         ControlJobs.Remove(job);
         History.Insert(0, job);
-        while (History.Count > Math.Max(0, keep))
+        TrimHistory(keep);
+    }
+
+    /// <summary>开机放回上次开机留下的历史（上次没删的 CJ 已经记成中止），排在本次的历史后面。</summary>
+    public void Restore(IEnumerable<ControlJobDto> jobs, int keep)
+    {
+        Restored.Clear();
+        Restored.AddRange(jobs);
+        TrimHistory(keep);
+        Touch();
+    }
+
+    private void TrimHistory(int keep)
+    {
+        int limit = Math.Max(0, keep);
+        while (History.Count + Restored.Count > limit)
         {
-            History.RemoveAt(History.Count - 1);
+            if (Restored.Count > 0)
+            {
+                Restored.RemoveAt(Restored.Count - 1);
+            }
+            else
+            {
+                History.RemoveAt(History.Count - 1);
+            }
         }
     }
 

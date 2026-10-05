@@ -19,7 +19,11 @@ internal sealed class TransferOrder
 
     public required IRobot Robot { get; init; }
 
-    public required ITransferStation Source { get; init; }
+    /// <summary>源站点；片已经在机械手手上（只放片）时为 null，源就是机械手、源槽是手指号。</summary>
+    public ITransferStation? Source { get; init; }
+
+    /// <summary>源的名字（站点名；只放片时是机械手名）：锁、日志、结果都按它。</summary>
+    public required string SourceName { get; init; }
 
     public required int SourceSlot { get; init; }
 
@@ -54,7 +58,7 @@ internal sealed class TransferOrder
     /// <summary>"源.槽 → 目标.槽（机械手 手 N）"，日志用。</summary>
     public string Describe()
     {
-        return $"{Source.Name}.{SourceSlot:00} → {Target.Name}.{TargetSlot:00}（{Robot.Name} 手 {Arm}）";
+        return $"{SourceName}.{SourceSlot:00} → {Target.Name}.{TargetSlot:00}（{Robot.Name} 手 {Arm}）";
     }
 
     public TransferResult ToResult(TransferOutcome outcome, string code, IReadOnlyList<string> args, bool needsRecovery)
@@ -65,7 +69,7 @@ internal sealed class TransferOrder
             Origin = Origin,
             Owner = Owner,
             WaferId = WaferId,
-            Source = Source.Name,
+            Source = SourceName,
             SourceSlot = SourceSlot,
             Target = Target.Name,
             TargetSlot = TargetSlot,

@@ -25,10 +25,6 @@
       <view class="blk moving {{moverSing?'sing':''}}" wx:if="{{moverOn}}"
         style="left:{{moverLeft}}px;bottom:{{moverBottom}}px;width:{{moverW}}px;background:{{moverC}};box-shadow:{{moverShadow}}"></view>
     </view>
-    <view id="kara" class="{{karaShow?'show':''}} {{karaBeat?'beat':''}}">
-      <text class="tag">♪ {{karaSong}} · 伴奏已就位</text>
-      <text>{{karaLine}}</text>
-    </view>
     <view id="hint" class="{{hintHide?'hide':''}}">👆 点任意位置落下
       <text class="hl">对得越齐，塔越稳</text>
     </view>

@@ -14,4 +14,7 @@ public enum WaferHistoryAction
 
     /// <summary>删片。</summary>
     Deleted = 3,
+
+    /// <summary>开机从存盘恢复（重启前就在这个位置上的片）。</summary>
+    Restored = 4,
 }

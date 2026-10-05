@@ -75,6 +75,10 @@
     <sys:String x:Key="transfer.cancelled">Transfer {0} was cancelled before it started; the wafer was not moved</sys:String>
     <sys:String x:Key="transfer.not_held">Transfer {0} holds no locks (already released, or wrong number)</sys:String>
     <sys:String x:Key="transfer.wait_timeout">Transfer {0} did not finish within {1} ms: it is still running, result not yet confirmed</sys:String>
+    <sys:String x:Key="transfer.return_no_source">No source LoadPort (added to the ledger inside the tool), so it cannot go back to its slot</sys:String>
+    <sys:String x:Key="transfer.return_port_not_ready">Its source {1} has no carrier ready to take wafers (none placed, not loaded, or removed)</sys:String>
+    <sys:String x:Key="transfer.return_carrier_changed">Came from carrier {2}, but {1} now holds {3}: the carrier was changed, so it cannot go into another carrier</sys:String>
+    <sys:String x:Key="transfer.return_running">Return all is already running</sys:String>
     <sys:String x:Key="job.not_installed">No Job node in sc.xml (job manager not installed)</sys:String>
     <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in sc.xml)</sys:String>
     <sys:String x:Key="job.command_timeout">The command was not accepted within {0} ms; it may still be applied, check the job state</sys:String>
@@ -535,7 +539,7 @@
     <sys:String x:Key="main.reset">Reset</sys:String>
     <sys:String x:Key="main.auto_tip">Switch to Auto: turn on automatic dispatch; jobs move wafers and start processes as scheduled</sys:String>
     <sys:String x:Key="main.manual_tip">Switch to Manual: turn off automatic dispatch; the transfer in progress finishes</sys:String>
-    <sys:String x:Key="main.stop_tip">Stop the equipment: turn off automatic dispatch, abort running jobs (waiting for the devices to confirm and checking wafer positions), and abort any other module action in progress</sys:String>
+    <sys:String x:Key="main.stop_tip">Stop the equipment: turn off automatic dispatch, abort running jobs (waiting for the devices to confirm and checking wafer positions), stop a running return all, and abort any other module action in progress</sys:String>
     <sys:String x:Key="main.reset_tip">Reset every alarm source (same as Reset at the top right)</sys:String>
     <sys:String x:Key="main.auto_done">Switched to Auto</sys:String>
     <sys:String x:Key="main.manual_done">Switched to Manual</sys:String>
@@ -545,6 +549,18 @@
     <sys:String x:Key="main.stop_failed">Stop failed: {0}</sys:String>
     <sys:String x:Key="main.reset_done">Reset {0} alarm source(s)</sys:String>
     <sys:String x:Key="main.reset_failed">Reset failed: {0}</sys:String>
+    <sys:String x:Key="main.return_all">Return All</sys:String>
+    <sys:String x:Key="main.return_all_tip">Send every wafer inside the tool (in chambers and on robot arms) back to its source slot: first lists what will move and what cannot; after you confirm, one recovery transfer per wafer, worked through by the robot in order; wafers in running jobs are left alone</sys:String>
+    <sys:String x:Key="main.return_all_ok">Return</sys:String>
+    <sys:String x:Key="main.return_all_moves">{0} wafer(s) to return:</sys:String>
+    <sys:String x:Key="main.return_all_move">{0} – {1} → {2}</sys:String>
+    <sys:String x:Key="main.return_all_skipped">{0} wafer(s) cannot be returned (handle them manually: check the ledger, or place them with the Robot manual page):</sys:String>
+    <sys:String x:Key="main.return_all_skip">{0} – {1}: {2}</sys:String>
+    <sys:String x:Key="main.return_all_none">No wafers inside the tool; nothing to return</sys:String>
+    <sys:String x:Key="main.return_all_started">Return all started: {0} wafer(s)</sys:String>
+    <sys:String x:Key="main.return_all_failed">Return all failed: {0}</sys:String>
+    <sys:String x:Key="main.position.slot">{0} · slot {1}</sys:String>
+    <sys:String x:Key="main.position.arm">{0} · arm {1}</sys:String>
     <sys:String x:Key="main.dispatch">Equipment</sys:String>
     <sys:String x:Key="main.no_robot">No robot to show: the backend was not reachable at startup, or there is no Robot in sc.xml</sys:String>
     <sys:String x:Key="main.no_loadport">No LoadPort: the backend was not reachable at startup, or there is no LoadPort in sc.xml</sys:String>

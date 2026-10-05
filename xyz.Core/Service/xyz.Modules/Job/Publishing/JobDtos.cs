@@ -89,7 +89,7 @@ internal static class JobDtos
     }
 
     /// <summary>
-    /// 整个账本的一份快照：没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）、历史、派单暂停的原因。
+    /// 整个账本的一份快照：没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）、历史（本次的在前，上次开机留下的在后）、派单暂停的原因。
     /// </summary>
     public static JobListDto Of(JobBook book, long version, JobWait? hold)
     {
@@ -112,7 +112,7 @@ internal static class JobDtos
             Version = version,
             ControlJobs = book.ControlJobs.Select(Of).ToList(),
             ProcessJobs = processJobs.Select(Of).ToList(),
-            History = book.History.Select(Of).ToList(),
+            History = book.History.Select(Of).Concat(book.Restored).ToList(),
             IsHeld = hold is not null,
             HoldCode = hold?.Code ?? string.Empty,
             HoldArgs = hold?.Args.ToList() ?? [],

@@ -74,6 +74,9 @@ public class ControlJobDto
     public DateTime? EndedAt { get; set; }
 
     public bool NeedsRecovery { get; set; }
+
+    /// <summary>设备重启时还没结束：开机后不接着跑，记成中止（CompletedBy 12）进历史。</summary>
+    public bool Restarted { get; set; }
 }
 
 /// <summary>

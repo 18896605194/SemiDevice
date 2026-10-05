@@ -3,6 +3,8 @@ using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Configs.Models;
+using xyz.Database.DbProvider;
+using xyz.Database.Jobs;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 using xyz.Drivers.Loadport.FCD;
@@ -37,6 +39,7 @@ void Check(bool condition, string message)
 // EC 只放在本进程内存里：不读也不写 ec.xml。
 var ec = new EcComponent();
 string folder = Path.Combine(Path.GetTempPath(), "xyz-job-smoke-" + Guid.NewGuid().ToString("N"));
+string jobDb = folder + ".db";
 try
 {
     // 0. 装一台假机器：两个 LoadPort、两个腔体、一台两指机械手（四个站点都到得了），再加一个机械手到不了的腔体。
@@ -120,8 +123,11 @@ try
     Sequence(3, "SEQ_C", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1", "PM2"), Step("LoadPort", "", "LP2"));
     Sequence(4, "SEQ_D", Step("LoadPort", "", "LP2"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP2"));
 
+    // Job 存盘写临时库（第 18 节"重启"时读回来），冒烟结束删掉
+    XyzDb.Register("JobSmoke", $"DataSource={jobDb}", SqlSugar.DbType.Sqlite);
     var jobs = new SmokeJobs();
     Probe.Name(jobs, "Job");
+    jobs.Database = "JobSmoke";
     jobs.Bind(modules);
     var events = new RecordingJobEvents();
     jobs.E40Callback = events;
@@ -618,12 +624,113 @@ try
     Check(!occupied.Success && occupied.Code == ErrorCodes.WaferNoWafer, "手动传片受理不了：错误码照搬");
     var notHeld = Pump(transferService.ReleaseAsync(new TransferReleaseRequest { Id = 12345 }));
     Check(!notHeld.Success && notHeld.Code == ErrorCodes.TransferNotHeld && notHeld.Args.SequenceEqual(new[] { "12345" }), "没有留着锁的单：transfer.not_held");
+    Check(ledger.Move("PM1", 1, "LP1", 1), "手动传过去的那片人工收回");
+    UnloadCarrier(lp1);
+
+    // 18. 重启：Job 存了盘（每次发布交给写库线程，只写最新的），"断电"后新的一个 Job 管理开机读回来——
+    //     没结束的不接着跑，记成中止（E94 #12，标着重启）进历史，上次的历史接着留；片不再归任何 Job。
+    bool WaitSaved(long version)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < 3000)
+        {
+            using (var db = XyzDb.Create("JobSmoke"))
+            {
+                var row = db.Queryable<JobSnapshotEntity>().InSingle(1);
+                if (row is not null && row.Version >= version)
+                {
+                    return true;
+                }
+            }
+
+            Thread.Sleep(20);
+        }
+
+        return false;
+    }
+
+    LoadCarrier(lp1, 1, 2, 3);
+    var lotR = Enumerable.Range(1, 3).Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
+    pm1.ProcessTicks = 200;
+    pm2.ProcessTicks = 200;
+    transfers.StartAutoDispatch();
+    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-R", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")))).Accepted, "建 LOT-R");
+    Check(RunUntil(() => PjOf("LOT-R-1")?.Wafers.Count(wafer => wafer.Phase == "Processing") == 2 && !transfers.GetView().IsRobotBusy("Robot1")),
+        "跑到两片在加工、机械手闲着");
+    Check(WaitSaved(jobs.Snapshot.Version), "Job 全貌存进库了");
+    transfers.StopAutoDispatch();
+    var restarted = new SmokeJobs();
+    Probe.Name(restarted, "Job");
+    restarted.Database = "JobSmoke";
+    restarted.Bind(modules);
+    jobs = restarted;
+    var afterRestart = jobs.Snapshot;
+    Check(afterRestart.ControlJobs.Count == 0 && afterRestart.ProcessJobs.Count == 0, "重启后没有接着跑的 Job");
+    Check(afterRestart.History.Count > 1 && afterRestart.History[0].Id == "LOT-R" && afterRestart.History[0].Restarted
+          && afterRestart.History[0].CompletedBy == 12 && afterRestart.History[0].EndedBy == 13,
+        "上次没做完的记成中止（#12）、标着重启，进历史");
+    Check(afterRestart.History.Any(job => job.Id == "LOT-E" && !job.Restarted), "上次的历史接着留");
+    Check(lotR.All(id => jobs.OwnerOf(id) is null), "片不再归任何 Job");
+
+    // 19. 全部回片（重启后、中止后机内留着片时用）：机内每片回它的来源 LoadPort 同号槽，机械手手上的先回（只放片），
+    //     一台机械手一张一张做；在做的时候再点回"已经在做"；回不去的（不知道从哪来、载具换过了）写原因不动；整机停止就不再往下下单。
+    Check(RunUntil(() => pm1.State == ModuleState.Idle && pm2.State == ModuleState.Idle), "腔体做完手上的工艺");
+    pm1.ProcessTicks = 3;
+    pm2.ProcessTicks = 3;
+    Check(ledger.ManualMove("LP1", 3, "Robot1", 1, "Smoke", "重启前取了没放") == WaferAdjustResult.Ok, "摆一片在机械手手上");
+    var returnPlan = transfers.PlanReturnAll();
+    Check(returnPlan.Moves.Count == 3 && returnPlan.Skipped.Count == 0 && returnPlan.Moves[0].SourceIsArm && returnPlan.Moves[0].Source == "Robot1"
+          && returnPlan.Moves[0].Target == "LP1" && returnPlan.Moves[0].TargetSlot == 3, "计划：机械手手上的先回，三片都回来源槽");
+    var returnStarted = equipment.ReturnAllAsync(new RpcRequest()).Result;
+    var returnAgain = equipment.ReturnAllAsync(new RpcRequest()).Result;
+    Check(returnStarted.Success && returnStarted.DeserializeData<ReturnPlanDto>().Moves.Count == 3 && transfers.IsReturning
+          && !returnAgain.Success && returnAgain.Code == ErrorCodes.TransferReturnRunning,
+        "开始全部回片；在做的时候再点：已经在做了");
+    Check(RunUntil(() => !transfers.IsReturning), "全部回片做完");
+    Check(Enumerable.Range(1, 3).All(slot => ledger.Get("LP1", slot)?.Id == lotR[slot - 1]) && ledger.Get("Robot1", 1) is null
+          && ledger.Get("PM1", 1) is null && ledger.Get("PM2", 1) is null, "都回到来源槽（手上那片只放片），手上、腔体里都空了");
+
+    var orphan = ledger.Create("PM2", 1)!;
+    Check(ledger.Move("LP1", 1, "PM1", 1) && ledger.SetCarrierId("PM1", 1, "CAR-OLD"), "摆两片回不去的：腔体上补账建的一片、载具换过了的一片");
+    lp1.SetCarrierId("CAR-NEW");
+    var stuck = transfers.PlanReturnAll();
+    var noSource = stuck.Skipped.FirstOrDefault(skip => skip.Source == "PM2");
+    var carrierChanged = stuck.Skipped.FirstOrDefault(skip => skip.Source == "PM1");
+    Check(stuck.Moves.Count == 0 && stuck.Skipped.Count == 2
+          && noSource is not null && noSource.Code == ErrorCodes.TransferReturnNoSource && noSource.Args.SequenceEqual(new[] { orphan.WaferId })
+          && carrierChanged is not null && carrierChanged.Code == ErrorCodes.TransferReturnCarrierChanged
+          && carrierChanged.Args.SequenceEqual(new[] { carrierChanged.WaferName, "LP1", "CAR-OLD", "CAR-NEW" }),
+        "回不去的写原因：不知道从哪来、载具换过了");
+    var nothingToReturn = transfers.StartReturnAll();
+    Check(nothingToReturn is not null && nothingToReturn.Moves.Count == 0 && nothingToReturn.Skipped.Count == 2 && !transfers.IsReturning,
+        "没有能回的：不开始，回不去的照样报出来");
+    Check(ledger.Delete("PM2", 1) && ledger.SetCarrierId("PM1", 1, "CAR-NEW"), "补账的那片删掉，那片的载具号改对");
+    Check(transfers.StartReturnAll()?.Moves.Count == 1 && transfers.IsReturning, "再开始全部回片");
+    var stopReturn = equipment.StopAsync(new RpcRequest()).Result;
+    for (int tick = 0; tick < 20; tick++)
+    {
+        Tick();
+    }
+
+    Check(stopReturn.Success && !transfers.IsReturning && ledger.Get("PM1", 1) is not null, "整机停止：全部回片不再往下下单，片还在腔体里");
+    Check(transfers.StartReturnAll()?.Moves.Count == 1 && RunUntil(() => !transfers.IsReturning)
+          && ledger.Get("LP1", 1) is not null && ledger.Get("PM1", 1) is null, "停了以后再点一次，回去了");
+    UnloadCarrier(lp1);
 }
 finally
 {
     if (Directory.Exists(folder))
     {
         Directory.Delete(folder, recursive: true);
+    }
+
+    try
+    {
+        File.Delete(jobDb);
+    }
+    catch (IOException)
+    {
+        // SQLite 连接池可能还占着文件：留在临时目录里，不影响结果
     }
 }
 
@@ -632,7 +739,8 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "jobs per SEMI E94/E40: creation checks with nothing left behind, one carrier with two sequences and a two-step route, transition numbers in order, " +
     "request-id de-duplication, sequence snapshots, returning to another LoadPort, PJ pause/resume, CJ pause that only stops starting new PJs, " +
     "CJ stop, PJ abort, process failure holding dispatch until recovery, a wafer moved behind the job's back, host-style PJ-then-CJ creation, " +
-    "the equipment stop going through job abort, and the job and transfer services)");
+    "the equipment stop going through job abort, the job and transfer services, a restart that closes unfinished jobs into history instead of resuming them, " +
+    "and return-all: wafers on robot arms placed first, chamber wafers back to their source slots, skip reasons and stopping)");
 
 // ── 假件 ─────────────────────────────────────────────────────────────
 
@@ -775,7 +883,7 @@ sealed class SmokePortShell : FcdLoadPortComponent
     protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
 }
 
-// 假腔体：工艺三拍做完，可以故意失败一次；记下收到几次中止。
+// 假腔体：工艺默认三拍做完（ProcessTicks 可调长），可以故意失败一次；记下收到几次中止。
 sealed class SmokeChamber : BaseChamberModule
 {
     public SmokeChamber(string name)
@@ -784,6 +892,8 @@ sealed class SmokeChamber : BaseChamberModule
     }
 
     public bool FailNextProcess { get; set; }
+
+    public int ProcessTicks { get; set; } = 3;
 
     public int Aborts { get; private set; }
 
@@ -805,7 +915,7 @@ sealed class SmokeChamber : BaseChamberModule
     {
         bool fail = FailNextProcess;
         FailNextProcess = false;
-        return new SmokeMotion("Process", 3, fail);
+        return new SmokeMotion("Process", ProcessTicks, fail);
     }
 }
 

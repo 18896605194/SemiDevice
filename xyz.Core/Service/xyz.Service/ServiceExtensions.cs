@@ -165,6 +165,10 @@ public static class ServiceExtensions
             }
         }
 
+        // 晶圆账开机恢复：模块 Open 时各自登记好槽位（机械手按手指、腔体按槽）之后、开始扫描之前，把上次存盘的账放回腔体、机械手上；
+        // LoadPort 不恢复，以开机 Mapping 为准；重启前在加工的片记成中止。恢复完账本才开始存盘。
+        wafers?.Restore();
+
         foreach (var module in modules)
         {
             module.Start();

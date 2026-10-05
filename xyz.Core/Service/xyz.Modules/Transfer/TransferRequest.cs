@@ -18,10 +18,12 @@ public sealed record TransferRequest
     /// </summary>
     public Guid? WaferId { get; init; }
 
-    /// <summary>源站点（模块名）。</summary>
+    /// <summary>
+    /// 源站点（模块名）。片已经在机械手手上（重启前搬到一半、手动取了没放）时写机械手名：只放片，源槽写拿着它的手指号。
+    /// </summary>
     public string Source { get; init; } = string.Empty;
 
-    /// <summary>源槽号。</summary>
+    /// <summary>源槽号（源是机械手时是手指号）。</summary>
     public int SourceSlot { get; init; }
 
     /// <summary>目标站点（模块名）。</summary>

@@ -10,7 +10,8 @@ using xyz.Tools;
 namespace xyz.Service.Systems;
 
 /// <summary>
-/// 整机操作 gRPC 服务（主界面的系统操作）：Auto / Manual 就是开、关搬运管理的自动派单；Stop 关自动派单并中止所有在做的动作。
+/// 整机操作 gRPC 服务（主界面的系统操作）：Auto / Manual 就是开、关搬运管理的自动派单；Stop 关自动派单并中止所有在做的动作；
+/// 全部回片把机内的片按来源槽送回去（搬运管理一张一张做）。
 /// 模式、系统状态由设备总状态推送带给界面（EquipmentStatusPublisher），这里只管改。
 /// </summary>
 public class EquipmentService : BaseService, IEquipmentService
@@ -81,5 +82,63 @@ public class EquipmentService : BaseService, IEquipmentService
 
         LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运单已撤，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(aborted)));
+    }
+
+    public Task<RpcResponse> GetReturnPlanAsync(RpcRequest request, CallContext context = default)
+    {
+        var transfers = TransferManager.Current;
+        if (transfers is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
+        }
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(transfers.PlanReturnAll()))));
+    }
+
+    public Task<RpcResponse> ReturnAllAsync(RpcRequest request, CallContext context = default)
+    {
+        var transfers = TransferManager.Current;
+        if (transfers is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
+        }
+
+        if (!transfers.IsEnable)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferDisabled, []));
+        }
+
+        var plan = transfers.StartReturnAll();
+        if (plan is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferReturnRunning, []));
+        }
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(plan))));
+    }
+
+    private static ReturnPlanDto ToDto(ReturnPlan plan)
+    {
+        return new ReturnPlanDto
+        {
+            Moves = plan.Moves.Select(move => new ReturnMoveDto
+            {
+                WaferId = move.WaferName,
+                Source = move.Source,
+                SourceSlot = move.SourceSlot,
+                SourceIsArm = move.SourceIsArm,
+                Target = move.Target,
+                TargetSlot = move.TargetSlot,
+            }).ToList(),
+            Skipped = plan.Skipped.Select(skip => new ReturnSkipDto
+            {
+                WaferId = skip.WaferName,
+                Source = skip.Source,
+                SourceSlot = skip.SourceSlot,
+                SourceIsArm = skip.SourceIsArm,
+                Code = skip.Code,
+                Args = skip.Args.ToList(),
+            }).ToList(),
+        };
     }
 }

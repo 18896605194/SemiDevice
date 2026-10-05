@@ -1,4 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Alarms;
 using xyz.Client.Common.Events;
@@ -20,7 +22,7 @@ using xyz.Tools;
 namespace xyz.Client.Main.ViewModels;
 
 /// <summary>
-/// 主界面 ViewModel：左边系统操作（系统状态、当前模式、报警条数，Auto / Manual / Stop / Reset），
+/// 主界面 ViewModel：左边系统操作（系统状态、当前模式、报警条数，Auto / Manual / Stop / Reset、全部回片），
 /// 右边一个 LoadPort 一个页签（载具、槽图、LotID、Sequence、槽位表、创建 / 启动 Job）。中间的整机调度是另一块（默认是公共控件 DispatchMap，机型可换），不归这里。
 /// 状态全靠订推送：设备总状态、各 LoadPort 状态、Job 全貌都是留存消息，订上就补发、重连后重放；报警条数跟着客户端的当前报警（ClientAlarms）。
 /// 创建 Job 把当前页签的 LotID 和各槽选的 Sequence 交给后端（建好等启动）；启动 Job 启动这个 LoadPort 上等启动的 CJ（要在 Auto 下）。
@@ -172,6 +174,9 @@ public class MainPageViewModel : BaseViewModel
     /// <summary>复位全部有报警的来源（跟右上角的复位一样）。</summary>
     public IAsyncRelayCommand ResetCommand { get; }
 
+    /// <summary>全部回片：机内（腔体、机械手上）的片都送回各自的来源槽；先列出要回的、回不去的，确认后开始。</summary>
+    public IAsyncRelayCommand ReturnAllCommand { get; }
+
     /// <summary>⊕：给这一片单独选一个 Sequence（公共选择弹窗）。</summary>
     public IRelayCommand<JobSlotModel> PickSlotSequenceCommand { get; }
 
@@ -220,6 +225,7 @@ public class MainPageViewModel : BaseViewModel
         ManualCommand = new AsyncRelayCommand(DoManual, () => IsReady && IsAuto);
         StopCommand = new AsyncRelayCommand(DoStop, () => IsReady);
         ResetCommand = new AsyncRelayCommand(DoReset, () => IsReady);
+        ReturnAllCommand = new AsyncRelayCommand(DoReturnAll, () => IsReady);
         PickSlotSequenceCommand = new RelayCommand<JobSlotModel>(DoPickSlotSequence);
         ClearSlotSequenceCommand = new RelayCommand<JobSlotModel>(DoClearSlotSequence);
         CreateJobCommand = new AsyncRelayCommand(DoCreateJob, CanCreateJob);
@@ -352,6 +358,7 @@ public class MainPageViewModel : BaseViewModel
         ManualCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ResetCommand.NotifyCanExecuteChanged();
+        ReturnAllCommand.NotifyCanExecuteChanged();
         RefreshJobCommands();
     }
 
@@ -484,6 +491,102 @@ public class MainPageViewModel : BaseViewModel
         {
             ClientLog.Error(LogModule, L10n.Get("main.reset_failed", exception.Message));
         }
+    }
+
+    /// <summary>
+    /// 全部回片（重启后、中止后机内留着片时用）：先拉计划，弹窗列出要回的每一片（从哪回哪）和回不去的（为什么），
+    /// 确认后开始——后端每片下一张恢复单，机械手手上的先回，一张一张做到底；进展看调度图、结果看顶栏日志。
+    /// 一片都回不去时只告知，不开始。
+    /// </summary>
+    private async Task DoReturnAll()
+    {
+        try
+        {
+            var planned = await _equipmentService.GetReturnPlanAsync(new RpcRequest());
+            if (!planned.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.return_all_failed", ReasonOf(planned)));
+                return;
+            }
+
+            var plan = planned.DeserializeData<ReturnPlanDto>();
+            if (plan.Moves.Count == 0 && plan.Skipped.Count == 0)
+            {
+                ClientLog.Info(LogModule, L10n.Get("main.return_all_none"));
+                return;
+            }
+
+            string title = L10n.Get("main.return_all");
+            if (plan.Moves.Count == 0)
+            {
+                DialogService.ShowConfirm(title, DescribePlan(plan), L10n.Get("common.ok"), showCancel: false);
+                return;
+            }
+
+            if (!DialogService.ShowConfirm(title, DescribePlan(plan), L10n.Get("main.return_all_ok")))
+            {
+                return;
+            }
+
+            var response = await _equipmentService.ReturnAllAsync(new RpcRequest());
+            if (!response.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.return_all_failed", ReasonOf(response)));
+                return;
+            }
+
+            var started = response.DeserializeData<ReturnPlanDto>();
+            ClientLog.Info(LogModule, L10n.Get("main.return_all_started", started.Moves.Count));
+            foreach (var skip in started.Skipped)
+            {
+                ClientLog.Warn(LogModule, L10n.Get("main.return_all_skip",
+                    skip.WaferId, PositionOf(skip.Source, skip.SourceSlot, skip.SourceIsArm), L10n.Get(skip.Code, skip.Args)));
+            }
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(LogModule, L10n.Get("main.return_all_failed", exception.Message));
+        }
+    }
+
+    /// <summary>确认框里的说明：要回的一片一行（从哪 → 回哪），回不去的一片一行（为什么）。</summary>
+    private static string DescribePlan(ReturnPlanDto plan)
+    {
+        var text = new StringBuilder();
+        if (plan.Moves.Count > 0)
+        {
+            text.AppendLine(L10n.Get("main.return_all_moves", plan.Moves.Count));
+            foreach (var move in plan.Moves)
+            {
+                text.AppendLine(L10n.Get("main.return_all_move",
+                    move.WaferId, PositionOf(move.Source, move.SourceSlot, move.SourceIsArm), PositionOf(move.Target, move.TargetSlot, false)));
+            }
+        }
+
+        if (plan.Skipped.Count > 0)
+        {
+            if (text.Length > 0)
+            {
+                text.AppendLine();
+            }
+
+            text.AppendLine(L10n.Get("main.return_all_skipped", plan.Skipped.Count));
+            foreach (var skip in plan.Skipped)
+            {
+                text.AppendLine(L10n.Get("main.return_all_skip",
+                    skip.WaferId, PositionOf(skip.Source, skip.SourceSlot, skip.SourceIsArm), L10n.Get(skip.Code, skip.Args)));
+            }
+        }
+
+        return text.ToString().TrimEnd();
+    }
+
+    /// <summary>位置写法跟账单调整页一样：Chamber1 · 槽 01、Robot1 · 手指 1。</summary>
+    private static string PositionOf(string module, int slot, bool arm)
+    {
+        return arm
+            ? L10n.Get("main.position.arm", module, slot.ToString(CultureInfo.InvariantCulture))
+            : L10n.Get("main.position.slot", module, slot.ToString("00", CultureInfo.InvariantCulture));
     }
 
     /// <summary>

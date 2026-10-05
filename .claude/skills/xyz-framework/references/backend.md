@@ -162,9 +162,18 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   受理就锁源槽、目标槽、片、手；一台机械手一次一单，站点跟在跑的单不重叠的才开始。`TransferRoutine` **先抢目标站点再抢源**，等 `IsSettled`
   （模块收完尾、记完账）才往下走；结果在站点环、晶圆账都收尾之后才出（`TransferFinished` 事件，任意线程）。没动手就失败（等不到站点、被撤）：
   把抢到的环撤回锚点（`ITransferStation.CancelTransfer`）、放锁；**动过手才失败：锁留着、站点停在交互中**（`HeldResults`，`NeedsRecovery`），
-  人工确认片位、对好账后 `ReleaseHold(单号)`。`Cancel` / `CancelOwner` / `CancelAll`（在动手的发机械手中止）；`Abort()` = 关自动派单 + 全撤。
+  人工确认片位、对好账后 `ReleaseHold(单号)`。`Cancel` / `CancelOwner` / `CancelAll`（在动手的发机械手中止）；`Abort()` = 关自动派单 + 停全部回片 + 全撤。
+  **源可以是机械手**（片已经在手上：重启前搬到一半、手动取了没放）：`Source` 写机械手名、`SourceSlot` 写手指号，就用拿着它的那只手，只放片
+  （`TransferRoutine` 抢目标 → 准备二 → 放；`TransferOrder.Source` 为 null、`SourceName` 是机械手名）。
   `Ownership`（`IWaferOwnership`，Job 管理绑上）。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等结果）、`ResultKeepCount`。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 下手动单等结果、`ReleaseAsync` 放留着的锁（`transfer.not_held`）。
+- **全部回片**（重启后、中止后机内留着片时用；主界面一键回片）：`TransferManager.PlanReturnAll()` 只算不动（`ReturnPlanner`）——
+  机械手手上的、腔体和别的站点上的每一片回它的来源 LoadPort 同号槽（`WaferInfo.SourceLoadPort / SourceSlot`），手上的排前面；
+  回不去的写原因：片在跑着的 Job 里（`transfer.wafer_owned`）、不知道从哪来（`transfer.return_no_source`）、来源 LoadPort 没有能放片的载具
+  （`transfer.return_port_not_ready`）、载具换过了（`transfer.return_carrier_changed`，片记着的载具号和 LoadPort 上现在的都有、对不上）、
+  来源槽有片、片或槽被出错的单锁着、没有机械手到得了。`StartReturnAll()` 照计划开一个 `ReturnSession`，搬运管理扫描里一拍一拍推：
+  每片一张恢复单（Recovery），手、槽一时占着的下一拍再试，别的拒单记成回不去；没有在做的单、这一拍也一张下不进去就收场；收场记日志（回不去的记告警）。
+  已经在做再开回 null（服务回 `transfer.return_running`）；整机停止（`Abort`）先停回片再撤单。锁的先后：回片的锁在外、搬运单的锁在里。
 - **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的线程；子节点 `Scheduler` = `SchedulerComponent`，换 Type 换策略）：SEMI E94 CJ / E40 PJ，
   决定见 decisions.md「Job」。目录按职责分：`Model`（CJ、PJ、每片进度 `JobWafer`、命令和请求）、`StateMachines`（转换表是数据，带 SEMI 转换号）、
   `Gates`（PJ 状态 → 能不能投片 / 往下走）、`Rules`（自动转换，一条一个类）、`Effects`（进状态要做的事，一个一个类：中止撤单 + 腔体中止、结束定结果放片、
@@ -174,9 +183,12 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ③ 核对片位 → ④ 跑规则直到不再转 → ⑤ 派单（Manual、暂停派单时不派）→ ⑥ 有变化就推（留存，开机先推一份）。
   出执行故障（动过手的搬运失败、加工没做成、片不在该在的地方）暂停自动派单，`RecoverAsync` 恢复：片位说不准的片按账上现在的位置认回来（来源槽里没动的回到待投，别处的不再做、直接回片，账上没了的算被拿走），
   还有留着锁的搬运单、还在机械手手上认不回来的片回 `job.recovery_pending`。
-  上报 `E40Callback` / `E94Callback` 走 `Eap\EapNotifier`（单读者派发线程）。SC：`MaxActiveControlJobs`、`ControlJobCapacity`、`ProcessJobCapacity`；
-  EC：`CommandTimeoutMs`、`HistoryKeepCount`、`RequestKeepCount`；调度 EC `MaxWafersInMachine`（0 = 不限）。服务 `IJobService`（`xyz.Service\Jobs`）。
-  还没做：存盘和重启核对、SECS 翻译层。
+  上报 `E40Callback` / `E94Callback` 走 `Eap\EapNotifier`（单读者派发线程）。SC：`MaxActiveControlJobs`、`ControlJobCapacity`、`ProcessJobCapacity`、
+  `IsPersistent`、`Database`；EC：`CommandTimeoutMs`、`HistoryKeepCount`、`RequestKeepCount`；调度 EC `MaxWafersInMachine`（0 = 不限）。服务 `IJobService`（`xyz.Service\Jobs`）。
+  **存盘与重启**：每次发布的全貌交给 `JobStore`（一条写库线程，只写最新一份，表 `job_snapshot` 一行 JSON）；`Bind` 时读回上一份，
+  `JobRestart.CloseOut`：**重启后 Job 不接着跑**——上次没删的 CJ 一律记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true）进历史
+  （`JobBook.Restored`，DTO，排在本次历史后面，一起按 `HistoryKeepCount` 留），上次的历史接着留；机内的片由人全部回片后重新建 Job。
+  重启时还没接 EAP，结束事件不在这里报（以后 EAP 侧开机后按历史里 `Restarted` 的补报）。还没做：SECS 翻译层。
 
 ## 4. 驱动（`xyz.Components\Components\Drivers` + `xyz.Drivers`）
 
@@ -231,11 +243,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`AutoAsync` 开自动派单（没配搬运管理回 `transfer.not_installed`，
   停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动派单 + 撤单），
   Job 全部走中止（`AbortAllAsync`，不等），在给 Job 做工艺的腔体（`JobManager.IsJobProcess`）、在搬运的机械手不直接发 Abort（由 Job / 搬运管理收场），
-  别的正在执行动作的模块发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个）。
+  别的正在执行动作的模块发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个）。`GetReturnPlanAsync` / `ReturnAllAsync`：全部回片的计划 / 开始
+  （Data 都是 `ReturnPlanDto`：要回的、回不去的带错误码 + 参数），见上面「全部回片」。
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → HSMS Open → PLC Open + Start →
-IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
+IO 表 Open → Safety Start → 轴 Open → 各模块 Open → **晶圆账开机恢复**（`WaferManager.Restore`：模块登记完槽位之后、开始扫描之前）→ 各模块 Start →
+TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
 JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要 Open/Start 的，按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
@@ -261,6 +275,11 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - 流水组件的套路（报警、晶圆账）：SC `EnableHistory` / `HistoryDatabase` / `HistoryKeepDays`，EC `HistoryBatchSize` / `HistoryBacklogWarning`；
   `OnSettingLoaded` 建 Channel 和写库任务（这时不碰库）；每天第一次写之前整张删过期日表。写库失败只记日志，不影响设备。
 - 量小、要马上查到的（人工调整记录）直接同步写一张不分表的表，用到时 `CodeFirst.InitTables` 建表。
+- **晶圆账存盘**（SC `IsPersistent`，EC `SnapshotIntervalMs` 默认 500）：表 `wafer_current` 存"现在"每片一行（内部标识、位置、来处、载具、状态），
+  账一变（都走 `RecordHistory`）标脏，存盘线程隔一会儿整张重写（事务里删了再插）；**开机恢复之前不写**（开机那一刻的空账不能冲掉上次的）。
+  `Restore()`（启动顺序里模块 Open 之后、Start 之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
+  重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
+- Job 存盘同理：`job_snapshot` 一行最新全貌（见 §3 Job）。
 
 ## 8. 配置文件
 

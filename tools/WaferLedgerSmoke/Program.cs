@@ -668,7 +668,87 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     AlarmComponent.Current = null;
 }
 
-Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, and the ledger adjustment service: locations from the robot station tables and every error code; the rejection error logs above are expected).");
+// 存盘与开机恢复：装配出来（读到 SC）的账本隔一会儿把当前账整张存盘；"重启"后新的一本账在模块登记完槽位后恢复——
+// 腔体、机械手上的片放回去（还是同一个内部标识，来处、载具都在），LoadPort 上的不恢复（以开机 Mapping 为准），
+// 重启前在加工的记成中止；恢复之前不存盘（开机那一刻的空账不能把上次存的冲掉）；退出时最后存一次。
+{
+    using (var db = XyzDb.Create("SmokeWafer"))
+    {
+        db.CodeFirst.InitTables<WaferCurrentEntity>();
+        db.Ado.ExecuteCommand("DELETE FROM wafer_current");
+    }
+
+    WaferManager Assemble()
+    {
+        var assembledLedger = ComponentLoader.Load([
+            new ModuleConfig
+            {
+                Name = "PersistSmoke",
+                Type = typeof(WaferManager).FullName,
+                Values =
+                [
+                    new ValueConfig { Name = "IsEnable", Value = "True" },
+                    new ValueConfig { Name = "EnableHistory", Value = "False" },
+                    new ValueConfig { Name = "IsPersistent", Value = "True" },
+                    new ValueConfig { Name = "HistoryDatabase", Value = "SmokeWafer" },
+                ],
+            },
+        ]).OfType<WaferManager>().Single();
+        assembledLedger.RegisterLoadPort("PLP", 3);
+        assembledLedger.RegisterLocation("PRB", 2);
+        assembledLedger.RegisterLocation("PPM", 1);
+        return assembledLedger;
+    }
+
+    List<WaferCurrentEntity> Saved()
+    {
+        using var db = XyzDb.Create("SmokeWafer");
+        return db.Queryable<WaferCurrentEntity>().ToList();
+    }
+
+    var before = Assemble();
+    Check(before.Restore() == 0, "第一次开机：库里没存过账");
+    var onPort = before.Create("PLP", 1, WaferStatus.Normal, "FOUP-P")!;
+    var inChamber = before.Create("PLP", 2, WaferStatus.Normal, "FOUP-P")!;
+    var armWafer = before.Create("PLP", 3, WaferStatus.Normal, "FOUP-P")!;
+    Check(before.Move("PLP", 2, "PPM", 1) && before.SetProcessState("PPM", 1, WaferProcessState.InProcess)
+          && before.Move("PLP", 3, "PRB", 2), "摆好：一片在载具里、一片在腔体里加工、一片在机械手手上");
+    before.StopSnapshot();
+    var saved = Saved();
+    Check(saved.Count == 3 && saved.Any(row => row.WaferGuid == inChamber.Id.ToString() && row.Module == "PPM"
+                                           && row.ProcessState == nameof(WaferProcessState.InProcess) && row.SourceLoadPort == "PLP" && row.SourceSlot == 2),
+        "退出时最后存一次：三片都在，带着来处");
+
+    var after = Assemble();
+    Check(after.Create("PLP", 1, WaferStatus.Normal, "FOUP-P") is not null, "恢复之前账就变了（开机 Mapping 抢在前面）");
+    Thread.Sleep(1300);
+    Check(Saved().Count == 3, "恢复之前不存盘：上次存的没被开机那一刻的账冲掉");
+    Check(after.Restore() == 2, "恢复了腔体、机械手上的两片");
+    var restoredChamber = after.Get("PPM", 1);
+    var restoredArm = after.Get("PRB", 2);
+    Check(restoredChamber is not null && restoredChamber.Id == inChamber.Id && restoredChamber.ProcessState == WaferProcessState.Aborted
+          && restoredChamber.SourceLoadPort == "PLP" && restoredChamber.SourceSlot == 2 && restoredChamber.CarrierId == "FOUP-P",
+        "腔体里那片：还是同一片，来处、载具都在；重启前在加工的记成中止");
+    Check(restoredArm is not null && restoredArm.Id == armWafer.Id && restoredArm.SourceSlot == 3, "机械手手上那片也回来了");
+    Check(after.Get("PLP", 2) is null && after.Get("PLP", 3) is null && after.Get("PLP", 1)?.Id != onPort.Id,
+        "LoadPort 上的不恢复：以开机 Mapping 为准");
+
+    bool savedAfterRestore = false;
+    for (int attempt = 0; attempt < 40 && !savedAfterRestore; attempt++)
+    {
+        Thread.Sleep(100);
+        var current = Saved();
+        savedAfterRestore = current.Count == 3
+            && current.Any(row => row.WaferGuid == inChamber.Id.ToString() && row.ProcessState == nameof(WaferProcessState.Aborted))
+            && !current.Any(row => row.WaferGuid == onPort.Id.ToString());
+    }
+
+    Check(savedAfterRestore, "恢复完存盘线程接着存：存的是这一轮的账（中止、开机 Mapping 的新片）");
+    after.StopSnapshot();
+    WaferManager.Current = null;
+}
+
+Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");
 
 // 探针机械手：只给账单调整服务一张站点表（位置跟着它列），不连设备、不做动作。
 sealed class LedgerProbeRobot : BaseModule, IRobot

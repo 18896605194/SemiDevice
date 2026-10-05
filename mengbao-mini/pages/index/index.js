@@ -49,10 +49,6 @@ Page({
     moverShadow: '0 6px 14px rgba(74,59,50,.25)',
     moverSing: false,
     singing: false,
-    karaShow: false,
-    karaBeat: false,
-    karaSong: '',
-    karaLine: '♪',
     hintHide: false,
     fxShow: false,
     fxId: 0,
@@ -203,224 +199,43 @@ Page({
     this.buffOn = on;
     this.setData({ singing: on, moverSing: on && this.playing });
   },
-  _startKara: function () {
-    if (this._karaT) return;
-    var L = LEVELS[this.cur];
-    var song = (L && L.song) || { t: '', lines: ['♪'] };
-    var lines = song.lines;
-    this.kickN = 0;
-    this.setData({ karaShow: true, karaSong: song.t, karaLine: lines[0], karaBeat: false });
-    var self = this;
-    this._karaT = setInterval(function () {
-      self._kick();
-      self.setData({ karaBeat: true });
-      setTimeout(function () { self.setData({ karaBeat: false }); }, 110);
-      self.kickN++;
-      if (self.kickN % 4 === 0) {
-        self.setData({ karaLine: lines[Math.floor(self.kickN / 4) % lines.length] });
-      }
-    }, 535);
-  },
-  _stopKara: function () {
-    if (this._karaT) { clearInterval(this._karaT); this._karaT = null; }
-    this.setData({ karaShow: false, karaBeat: false });
-  },
-  _maybeKara: function () {
-    if (this.singMode && LEVELS[this.cur].hard && this.playing) this._startKara();
-    else this._stopKara();
-  },
-  /* ===== 隐形麦克风：唱→立刻慢，停→立刻快，全程零提示 ===== */
-  _initMic: function () {
-    if (this._micInited) { this._micResume(); return; }
-    this._micInited = true;
-    this._frameSeen = false;
-    this._micErr = false;
-    this._micStep = 0;
-    this._bgE = null;
-    this._raiseSince = null;
-    this._offSince = null;
+  /* ===== 隐形减速：摇一摇 → 立刻慢，停摇 → 立刻快，全程零提示 ===== */
+  _initMotion: function () {
+    if (this._motionInited) { this._startMotion(); return; }
+    this._motionInited = true;
+    this._shakeTs = [];
+    this._lastStrong = 0;
+    this._lastSingFx = 0;
     var self = this;
     try {
-      var rm = wx.getRecorderManager();
-      this._rm = rm;
-      rm.onFrameRecorded(function (res) {
-        if (!res || !res.frameBuffer) return;
-        self._frameSeen = true;
-        self._onVoiceFrame(res.frameBuffer);
-      });
-      rm.onError(function () { self._micAdvance(); });
-      this._micStartStep();
-    } catch (e) { this._micErr = true; }
-  },
-  _micCfg: function () {
-    if (this._micStep === 0) return { fmt: 'pcm', opt: { format: 'pcm', sampleRate: 16000, frameSize: 1, duration: 600000 } };
-    if (this._micStep === 1) return { fmt: 'pcm', opt: { format: 'pcm', sampleRate: 16000, duration: 600000 } };
-    return { fmt: 'mp3', opt: { frameSize: 1, duration: 600000 } };
-  },
-  _micDoStart: function () {
-    if (this._micErr || !this._rm) return;
-    var c = this._micCfg();
-    this._micFmt = c.fmt;
-    try { this._rm.start(c.opt); } catch (e) { this._micErr = true; }
-  },
-  _micStartStep: function () {
-    this._micDoStart();
-    var self = this, stepAt = this._micStep;
-    clearTimeout(this._micWatch);
-    this._micWatch = setTimeout(function () {
-      if (stepAt !== self._micStep) return;
-      self._micAdvance();
-    }, 2500);
-  },
-  _micAdvance: function () {
-    if (this._frameSeen || this._micErr || this._advancing) return;
-    this._advancing = true;
-    var self = this;
-    setTimeout(function () { self._advancing = false; }, 400);
-    clearTimeout(this._micWatch);
-    this._micStep++;
-    if (this._micStep > 2) { this._micErr = true; return; }
-    try { this._rm.stop(); } catch (e) {}
-    this._micStartStep();
-  },
-  _micResume: function () {
-    if (!this._micErr && this._micFmt) this._micDoStart();
-  },
-  _onVoiceFrame: function (buf) {
-    var now = Date.now();
-    var inL2 = this.playing && LEVELS[this.cur] && LEVELS[this.cur].hard;
-    if (this._micFmt === 'pcm') {
-      // PCM：提取音高旋律，必须和本关歌曲对上才算“唱了”
-      this._pcmFrame(buf, now);
-      if (!inL2) { if (this.singMode) this._singOff(); return; }
-      if (this.singMode) {
-        if (now - (this._lastMatch || 0) > 3000 || now - (this._lastVoiced || 0) > 2200) this._singOff();
-        return;
-      }
-      if (this._lastMatch && now - this._lastMatch <= 400) this._singOn();
-      return;
-    }
-    // mp3 兜底路径：拿不到音高，只能大幅收紧“持续大音量”门槛
-    var b = this._byteStd(buf);
-    if (this._bgE === null) this._bgE = b;
-    var raised = b > this._bgE * 4 + 25;
-    if (!this.singMode) this._bgE = this._bgE * 0.96 + b * 0.04;
-    if (raised) { if (this._raiseSince == null) this._raiseSince = now; this._offSince = null; }
-    else { this._raiseSince = null; if (this._offSince == null) this._offSince = now; }
-    if (!inL2) { if (this.singMode) this._singOff(); return; }
-    if (!this.singMode && this._raiseSince && now - this._raiseSince >= 1500) this._singOn();
-    else if (this.singMode && this._offSince && now - this._offSince >= 600) this._singOff();
-  },
-  _pcmFrame: function (buf, now) {
-    try {
-      var ab = (buf instanceof ArrayBuffer) ? buf : (buf && (buf.buffer instanceof ArrayBuffer) ? buf.buffer : null);
-      if (!ab) return;
-      var n = ab.byteLength >> 1;
-      if (n < 256) return;
-      if (!this._recent) { this._recent = []; this._curMidi = 0; this._pendMidi = 0; this._melArmed = 0; }
-      var s = new Int16Array(ab, 0, n);
-      var sum = 0, i;
-      for (i = 0; i < n; i++) sum += s[i] * s[i];
-      var rms = Math.sqrt(sum / n) / 32768;
-      if (rms < 0.035) return;
-      this._lastVoiced = now;
-      var win = 1024, hop = 512, sr = 16000;
-      for (var st = 0; st + win <= n; st += hop) {
-        var f = this._pitchOf(s, st, win, sr);
-        if (!f) continue;
-        var midi = Math.round(69 + 12 * (Math.log(f / 440) / Math.LN2));
-        if (this._curMidi === 0) { this._curMidi = midi; continue; }
-        while (midi - this._curMidi > 7) midi -= 12;
-        while (this._curMidi - midi > 7) midi += 12;
-        if (midi === this._curMidi) { this._pendMidi = 0; continue; }
-        if (midi === this._pendMidi) {
-          // 连续两帧确认新音符 → 记一个旋律方向步
-          this._pendMidi = 0;
-          var d = midi - this._curMidi;
-          this._curMidi = midi;
-          if (d === 0) continue;
-          var dir = d > 0 ? 1 : -1;
-          this._recent.push({ d: dir, t: now });
-          if (this._recent.length > 18) this._recent.shift();
-          this._recent = this._recent.filter(function (x) { return now - x.t < 5500; });
-          var m = this._matchMel(now);
-          if (m === 2) { this._lastMatch = now; this._melArmed = 0; }
-          else if (m === 1) {
-            if (this._melArmed && now - this._melArmed <= 4500) { this._lastMatch = now; this._melArmed = 0; }
-            else this._melArmed = now;
-          }
-        } else {
-          this._pendMidi = midi;
+      wx.onAccelerometerChange(function (res) {
+        if (!res) return;
+        var x = res.x || 0, y = res.y || 0, z = res.z || 0;
+        var mag = Math.sqrt(x * x + y * y + z * z);
+        if (!self._gRef) self._gRef = (mag > 8 && mag < 12) ? 9.8 : 1;
+        var dev = Math.abs(mag - self._gRef) / self._gRef;
+        var now = Date.now();
+        var inHard = self.playing && LEVELS[self.cur] && LEVELS[self.cur].hard;
+        if (dev > 0.4) {
+          self._lastStrong = now;
+          self._shakeTs.push(now);
+          if (self._shakeTs.length > 14) self._shakeTs.shift();
         }
-      }
+        var hits = 0, i;
+        for (i = 0; i < self._shakeTs.length; i++) {
+          if (now - self._shakeTs[i] <= 1000) hits++;
+        }
+        if (inHard && !self.singMode && hits >= 4) self._singOn();
+        if (self.singMode && (!inHard || now - self._lastStrong > 1300)) self._singOff();
+      });
+      this._startMotion();
     } catch (e) {}
   },
-  _pitchOf: function (s, st, win, sr) {
-    var minLag = Math.floor(sr / 400), maxLag = Math.floor(sr / 70);
-    var i, lag, sum, best = 0, bestLag = 0;
-    var e = 0;
-    for (i = st; i < st + win; i += 2) e += s[i] * s[i];
-    if (e < 1e-6) return 0;
-    for (lag = minLag; lag <= maxLag; lag++) {
-      sum = 0;
-      for (i = st; i + lag < st + win; i += 2) sum += s[i] * s[i + lag];
-      if (sum > best) { best = sum; bestLag = lag; }
-    }
-    if (!bestLag) return 0;
-    var clarity = best / (e / 2 + 1e-9);
-    if (clarity < 0.30) return 0;
-    return sr / bestLag;
+  _startMotion: function () {
+    try { wx.startAccelerometer({ interval: 'game' }); } catch (e) {}
   },
-  _matchMel: function (now) {
-    var L = LEVELS[this.cur];
-    if (!L || !L.song || !L.song.mel) return 0;
-    var mel = L.song.mel;
-    var rec = this._recent.filter(function (x) { return now - x.t < 5500; });
-    if (rec.length < mel.length) return 0;
-    var loose = Math.ceil(mel.length * 0.75);
-    var bestOk = 0;
-    for (var off = 0; off + mel.length <= rec.length; off++) {
-      var ok = 0;
-      for (var j = 0; j < mel.length; j++) {
-        var u = rec[off + j].d, m = mel[j];
-        // 只有方向相反才算错（0 与 ±1 视为相近）
-        var wrong = (u > 0 && m < 0) || (u < 0 && m > 0);
-        if (!wrong) ok++;
-      }
-      if (ok > bestOk) bestOk = ok;
-      if (ok === mel.length) return 2;
-    }
-    if (bestOk >= loose) return 1;
-    return 0;
-  },
-  _rmsPcm: function (buf) {
-    try {
-      var ab = (buf instanceof ArrayBuffer) ? buf : (buf && (buf.buffer instanceof ArrayBuffer) ? buf.buffer : null);
-      if (!ab) return 0;
-      var n = ab.byteLength >> 1;
-      if (n < 16) return 0;
-      var v = new Int16Array(ab, 0, n);
-      var sum = 0;
-      for (var i = 0; i < n; i++) { var s = v[i] / 32768; sum += s * s; }
-      return Math.sqrt(sum / n);
-    } catch (e) { return 0; }
-  },
-  _byteStd: function (buf) {
-    try {
-      var arr;
-      if (buf instanceof ArrayBuffer) arr = new Uint8Array(buf);
-      else if (buf && buf.byteLength !== undefined) arr = new Uint8Array(buf);
-      else if (Array.isArray(buf)) arr = buf;
-      else return 0;
-      var n = arr.length;
-      if (!n) return 0;
-      var mean = 0, i;
-      for (i = 0; i < n; i++) mean += arr[i];
-      mean /= n;
-      var v = 0;
-      for (i = 0; i < n; i++) { var d = arr[i] - mean; v += d * d; }
-      return Math.sqrt(v / n);
-    } catch (e) { return 0; }
+  _stopMotion: function () {
+    try { wx.stopAccelerometer({}); } catch (e) {}
   },
   _singOn: function () {
     this.singMode = true;
@@ -428,19 +243,14 @@ Page({
     var now = Date.now();
     if (now - (this._lastSingFx || 0) > 5000) {
       this._lastSingFx = now;
-      this._floot('🎵 速度慢下来了～');
+      this._floot('🌀 时间慢下来了！');
       this._snd(392, 0.14, 'triangle', 0.13, 523);
     }
-    this._maybeKara();
     this._applyBuff();
   },
   _singOff: function () {
     this.singMode = false;
-    this._stopKara();
     this._applyBuff();
-  },
-  _stopMic: function () {
-    if (this._rm) { try { this._rm.stop(); } catch (e) {} }
   },
 
   /* ===== 核心玩法 ===== */
@@ -480,7 +290,6 @@ Page({
 
     this._renderChips();
     this._updHud();
-    this._stopKara();
     this._applyBuff();
 
     if (L.hard && !(this.save.stars[i] > 0)) {
@@ -491,7 +300,6 @@ Page({
 
     this.playing = true;
     this._applyBuff();
-    this._maybeKara();
     this._spawnMover();
   },
   _qField: function (cb) {
@@ -644,7 +452,6 @@ Page({
   /* ===== 失败 / 通关 ===== */
   _fail: function () {
     this.playing = false;
-    this._stopKara();
     var L = LEVELS[this.cur];
     if (L.hard) this.save.f2 = (this.save.f2 || 0) + 1;
     this._save();
@@ -671,7 +478,6 @@ Page({
   },
   _win: function () {
     this.playing = false;
-    this._stopKara();
     var L = LEVELS[this.cur];
     var st = this._starsFor(this.perf, L.t);
     if (st > (this.save.stars[this.cur] || 0)) this.save.stars[this.cur] = st;
@@ -687,8 +493,8 @@ Page({
       win.em = '🏆';
       win.t = isLastL ? '全通关！' : '过了第' + (this.cur + 1) + '关！';
       win.bragShow = true;
-      if (this.usedBuff && L.song) {
-        win.brag = '过关方式：边唱《' + L.song.t + '》过关 🎤 —— 🤫 别外传';
+      if (this.usedBuff) {
+        win.brag = '过关方式：狂摇过关 📳 —— 🤫 别外传';
       } else {
         win.brag = '你击败了 ' + (100 - parseInt(PASSRATE[this.cur], 10)) + '% 的玩家 —— 这一关值得晒！';
       }
@@ -762,11 +568,11 @@ Page({
       self.setData({ live: n });
     }, 2000);
 
-    this._initMic();
+    this._initMotion();
     this._startLevel(0);
   },
   onShow: function () {
-    if (this._micInited && !this._micErr) this._micResume();
+    if (this._motionInited) this._startMotion();
   },
   onResize: function () {
     var self = this;
@@ -782,12 +588,11 @@ Page({
       });
     }, 350);
   },
-  onHide: function () { this._save(); this._stopMic(); },
+  onHide: function () { this._save(); this._stopMotion(); },
   onUnload: function () {
     if (this._loopT) clearInterval(this._loopT);
     if (this._liveT) clearInterval(this._liveT);
-    this._stopKara();
-    this._stopMic();
+    this._stopMotion();
     this._save();
   }
 });

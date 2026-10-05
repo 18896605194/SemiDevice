@@ -9,6 +9,12 @@ public static class E94Transitions
     /// <summary>#1：建好，进 QUEUED。</summary>
     public const int Created = 1;
 
+    /// <summary>#12：中止做完，进 COMPLETED。</summary>
+    public const int Aborted = 12;
+
+    /// <summary>#13：完成后删掉。</summary>
+    public const int Deleted = 13;
+
     /// <summary>ACTIVE 超状态：SELECTED、WAITING FOR START、EXECUTING、PAUSED。</summary>
     public static IReadOnlyList<CtrlJobState> Active { get; } =
         [CtrlJobState.Selected, CtrlJobState.WaitingForStart, CtrlJobState.Executing, CtrlJobState.Paused];

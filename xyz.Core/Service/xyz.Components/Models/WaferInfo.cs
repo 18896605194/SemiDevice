@@ -10,6 +10,7 @@ public sealed class WaferInfo
 {
     internal WaferInfo(string module, int slot, WaferStatus status, string? carrierId, string? lotId, bool onLoadPort)
     {
+        Id = Guid.NewGuid();
         Module = module;
         Slot = slot;
         OriginModule = module;
@@ -23,6 +24,30 @@ public sealed class WaferInfo
         WaferId = $"{carrierId ?? module}.{slot:00}";
         CreatedAt = DateTime.Now;
         UpdatedAt = CreatedAt;
+    }
+
+    /// <summary>
+    /// 开机从存盘恢复：内部标识、来处、状态原样带回来，跟重启前是同一片（流水、调整记录、Job 都按内部标识认片）。
+    /// </summary>
+    internal WaferInfo(Guid id, string waferId, string module, int slot, string originModule, int originSlot,
+        string? sourceLoadPort, int sourceSlot, string? originCarrierId, string? carrierId, string? lotId,
+        WaferStatus status, WaferProcessState processState, DateTime createdAt, DateTime updatedAt)
+    {
+        Id = id;
+        WaferId = waferId;
+        Module = module;
+        Slot = slot;
+        OriginModule = originModule;
+        OriginSlot = originSlot;
+        SourceLoadPort = sourceLoadPort;
+        SourceSlot = sourceSlot;
+        OriginCarrierId = originCarrierId;
+        CarrierId = carrierId;
+        LotId = lotId;
+        Status = status;
+        ProcessState = processState;
+        CreatedAt = createdAt;
+        UpdatedAt = updatedAt;
     }
 
     private WaferInfo(WaferInfo source)
@@ -44,8 +69,8 @@ public sealed class WaferInfo
         UpdatedAt = source.UpdatedAt;
     }
 
-    /// <summary>内部唯一标识，建片时生成，一直跟到删片（入库主键）。</summary>
-    public Guid Id { get; } = Guid.NewGuid();
+    /// <summary>内部唯一标识，建片时生成，一直跟到删片（入库主键）；开机恢复的片还是原来那个。</summary>
+    public Guid Id { get; }
 
     /// <summary>业务片号，默认按"载具或模块.槽位"生成，读码或 Host 改写后更新。</summary>
     public string WaferId { get; internal set; }

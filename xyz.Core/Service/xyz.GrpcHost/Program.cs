@@ -98,6 +98,9 @@ public static class Program
             // 先停采样、把攒着的最后一批写进库，再断 PLC。
             DataChartComponent.Current?.StopSampling();
 
+            // 晶圆账最后存一次盘：下次开机按它把腔体、机械手上的片放回去。
+            WaferManager.Current?.StopSnapshot();
+
             var roots = app.Services.GetRequiredService<IReadOnlyList<ComponentBase>>();
             foreach (var plc in roots.OfType<PlcComponent>())
             {

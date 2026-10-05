@@ -76,6 +76,10 @@
     <sys:String x:Key="transfer.cancelled">搬运单 {0} 还没开始就撤了，片没动过</sys:String>
     <sys:String x:Key="transfer.not_held">没有搬运单 {0} 留着的锁（已经放开了，或单号不对）</sys:String>
     <sys:String x:Key="transfer.wait_timeout">搬运单 {0} 等了 {1} ms 还没做完：搬运还在跑，结果待确认</sys:String>
+    <sys:String x:Key="transfer.return_no_source">不知道是从哪个 LoadPort 来的（在机内补账建的片），回不了原槽</sys:String>
+    <sys:String x:Key="transfer.return_port_not_ready">来源 {1} 上没有能放片的载具（没放、没 Load，或载具拿走了）</sys:String>
+    <sys:String x:Key="transfer.return_carrier_changed">原来在载具 {2} 里，{1} 上现在是 {3}：载具换过了，不能放进别的载具</sys:String>
+    <sys:String x:Key="transfer.return_running">全部回片已经在做了</sys:String>
     <sys:String x:Key="job.not_installed">sc.xml 没配 Job 节点（没有 Job 管理）</sys:String>
     <sys:String x:Key="job.disabled">Job 管理停用了（sc.xml Job 节点 IsEnable=False）</sys:String>
     <sys:String x:Key="job.command_timeout">命令等了 {0} ms 还没被受理，可能稍后还会执行，请看 Job 状态</sys:String>
@@ -535,7 +539,7 @@
     <sys:String x:Key="main.reset">Reset</sys:String>
     <sys:String x:Key="main.auto_tip">切到 Auto：开自动派单，Job 按调度自动搬片、起工艺</sys:String>
     <sys:String x:Key="main.manual_tip">切到 Manual：关自动派单，正在跑的那一趟跑完</sys:String>
-    <sys:String x:Key="main.stop_tip">整机停止：关自动派单，在跑的 Job 走中止（等设备确认、核对片位），其他模块正在做的动作直接中止</sys:String>
+    <sys:String x:Key="main.stop_tip">整机停止：关自动派单，在跑的 Job 走中止（等设备确认、核对片位），全部回片也停，其他模块正在做的动作直接中止</sys:String>
     <sys:String x:Key="main.reset_tip">复位全部有报警的来源（跟右上角的复位一样）</sys:String>
     <sys:String x:Key="main.auto_done">已切到 Auto</sys:String>
     <sys:String x:Key="main.manual_done">已切到 Manual</sys:String>
@@ -545,6 +549,18 @@
     <sys:String x:Key="main.stop_failed">停止失败：{0}</sys:String>
     <sys:String x:Key="main.reset_done">已复位 {0} 个报警来源</sys:String>
     <sys:String x:Key="main.reset_failed">复位失败：{0}</sys:String>
+    <sys:String x:Key="main.return_all">全部回片</sys:String>
+    <sys:String x:Key="main.return_all_tip">把机内（腔体、机械手上）的片都送回各自的来源槽：先列出要回的和回不去的，确认后每片一张恢复单，机械手按顺序搬；在跑 Job 的片不动</sys:String>
+    <sys:String x:Key="main.return_all_ok">回片</sys:String>
+    <sys:String x:Key="main.return_all_moves">要回的 {0} 片：</sys:String>
+    <sys:String x:Key="main.return_all_move">{0}　{1} → {2}</sys:String>
+    <sys:String x:Key="main.return_all_skipped">回不去的 {0} 片（要人工处理：在账单调整里核对，或用 Robot 手动页放到指定位置）：</sys:String>
+    <sys:String x:Key="main.return_all_skip">{0}　{1}：{2}</sys:String>
+    <sys:String x:Key="main.return_all_none">机内没有片，不用回片</sys:String>
+    <sys:String x:Key="main.return_all_started">已开始全部回片：{0} 片</sys:String>
+    <sys:String x:Key="main.return_all_failed">全部回片失败：{0}</sys:String>
+    <sys:String x:Key="main.position.slot">{0} · 槽 {1}</sys:String>
+    <sys:String x:Key="main.position.arm">{0} · 手指 {1}</sys:String>
     <sys:String x:Key="main.dispatch">整机调度</sys:String>
     <sys:String x:Key="main.no_robot">没有机械手可画：启动时没连上后端，或 sc.xml 没配 Robot</sys:String>
     <sys:String x:Key="main.no_loadport">没有 LoadPort：启动时没连上后端，或 sc.xml 没配 LoadPort</sys:String>

@@ -147,6 +147,18 @@ public static class ErrorCodes
     /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [搬运单号, 等待ms]</summary>
     public const string TransferWaitTimeout = "transfer.wait_timeout";
 
+    /// <summary>全部回片：这片不知道从哪个 LoadPort 来（在机内补账建的），回不了原槽。Args: [片号]</summary>
+    public const string TransferReturnNoSource = "transfer.return_no_source";
+
+    /// <summary>全部回片：来源 LoadPort 上没有能放片的载具（没放、没 Load，或载具拿走了）。Args: [片号, LoadPort]</summary>
+    public const string TransferReturnPortNotReady = "transfer.return_port_not_ready";
+
+    /// <summary>全部回片：载具换过了，片记着的载具跟 LoadPort 上现在的对不上，不能放进别的载具。Args: [片号, LoadPort, 片记着的载具, 现在的载具]</summary>
+    public const string TransferReturnCarrierChanged = "transfer.return_carrier_changed";
+
+    /// <summary>全部回片已经在做了。Args: []</summary>
+    public const string TransferReturnRunning = "transfer.return_running";
+
     #endregion
 
     #region Job（SEMI E94 CJ / E40 PJ）

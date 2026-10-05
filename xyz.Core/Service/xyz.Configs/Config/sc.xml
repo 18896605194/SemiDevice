@@ -55,10 +55,11 @@
 		<Value Name="RealtimeDisplayMaxCount" Value="2000" />
 		<Value Name="LogBarDisplayMaxCount" Value="500" />
 	</Setting>
-	<!-- 晶圆账：全系统一本，事件驱动不参与扫描 -->
+	<!-- 晶圆账：全系统一本，事件驱动不参与扫描。IsPersistent：当前账存盘，开机放回腔体、机械手上的片（LoadPort 以开机 Mapping 为准） -->
 	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManager">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="EnableHistory" Value="True" />
+		<Value Name="IsPersistent" Value="True" />
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
 	</Setting>
@@ -431,12 +432,15 @@
 	</Setting>
 	<!-- Job 管理（SEMI E94 CJ / E40 PJ）：建 Job、控 Job（启动、暂停、恢复、停止、中止）、按 Job 自动调度，状态照 SEMI 标准。
 	     Job 数据只有它改：本地界面和以后的 EAP 调的是同一个命令接口。模块、搬运管理、配方库全起来后统一绑，跟本节点在 sc.xml 里的位置无关。
-	     Scheduler 子节点是调度策略：只算这一拍起哪些工艺、下哪些搬运单，不碰设备；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略 -->
+	     Scheduler 子节点是调度策略：只算这一拍起哪些工艺、下哪些搬运单，不碰设备；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
+	     IsPersistent：Job 存盘，重启后不接着跑，上次没结束的记成中止进历史 -->
 	<Setting Name="Job" Type="xyz.Modules.JobManager">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="MaxActiveControlJobs" Value="1" />
 		<Value Name="ControlJobCapacity" Value="10" />
 		<Value Name="ProcessJobCapacity" Value="50" />
+		<Value Name="IsPersistent" Value="True" />
+		<Value Name="Database" Value="Default" />
 		<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
 	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。

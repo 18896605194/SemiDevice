@@ -4,6 +4,7 @@ using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -61,6 +62,7 @@ public class JobManager : ComponentBase, IJobManager, IWaferOwnership
     private JobProgress? _progress;
     private JobDispatcher? _dispatcher;
     private SchedulerComponent? _scheduler;
+    private JobStore? _store;
     private volatile JobListDto _snapshot = new();
 
     public JobManager()
@@ -82,6 +84,12 @@ public class JobManager : ComponentBase, IJobManager, IWaferOwnership
 
     [SCEditor("50", "Job", "没结束的 PJ 最多几个")]
     public int ProcessJobCapacity { get; set; } = 50;
+
+    [SCEditor("True", "Job", "是否把 Job 存盘：开机把上次没结束的 Job 记成中止进历史（重启后不接着跑），历史接着留")]
+    public bool IsPersistent { get; set; } = true;
+
+    [SCEditor("Default", "Job", "存盘落哪个库（sc.xml 的 Database 节点名）")]
+    public string Database { get; set; } = XyzDb.DefaultName;
 
     #endregion
 
@@ -147,7 +155,7 @@ public class JobManager : ComponentBase, IJobManager, IWaferOwnership
 
     /// <summary>
     /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：挂到搬运管理上当晶圆归属口、订搬运单结束事件。
-    /// sc.xml 里 Job 下没配 Scheduler 子节点就用默认策略。
+    /// sc.xml 里 Job 下没配 Scheduler 子节点就用默认策略。开了存盘的读回上次的 Job：不接着跑，没结束的记成中止进历史。
     /// </summary>
     public void Bind(IEnumerable<BaseModule> modules)
     {
@@ -172,6 +180,19 @@ public class JobManager : ComponentBase, IJobManager, IWaferOwnership
             transfers.Ownership = this;
             transfers.TransferFinished -= OnTransferFinished;
             transfers.TransferFinished += OnTransferFinished;
+        }
+
+        if (IsPersistent && _store is null)
+        {
+            var store = new JobStore(Database, () => Name);
+            _store = store;
+            var interrupted = JobRestart.CloseOut(store.Load(), _book, HistoryKeepCount, DateTime.Now);
+            if (interrupted.Count > 0)
+            {
+                string jobs = string.Join("、", interrupted.Select(job => $"{job.Id}（{job.LoadPort}）"));
+                LogHelper.Warn(Name, $"上次有 {interrupted.Count} 个 Job 没做完就重启了：{jobs}。重启后不接着跑，已记成中止进历史；"
+                    + "机内的片到现场确认片位后全部回片，再重新建 Job");
+            }
         }
 
         _book.Touch();
@@ -468,6 +489,7 @@ public class JobManager : ComponentBase, IJobManager, IWaferOwnership
         long version = _book.NextVersion();
         var snapshot = JobDtos.Of(_book, version, _runtime?.Hold);
         _snapshot = snapshot;
+        _store?.Save(snapshot);
         try
         {
             EventBus.Send(snapshot, JobListDto.EventToken);
