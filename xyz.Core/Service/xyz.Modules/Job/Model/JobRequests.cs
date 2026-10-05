@@ -6,6 +6,9 @@
 /// </summary>
 public sealed record JobCommandResult(bool Accepted, string Code, IReadOnlyList<string> Args, string JobId)
 {
+    /// <summary>建 CJ 时一起建出来的 PJ 名（按执行顺序）；别的命令为空。</summary>
+    public IReadOnlyList<string> ProcessJobs { get; init; } = [];
+
     public static JobCommandResult Ok(string jobId)
     {
         return new JobCommandResult(true, string.Empty, [], jobId);

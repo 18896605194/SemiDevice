@@ -26,13 +26,13 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 - 属性：`Name`、`FullPath`（"Chamber1.Door"，纯分组节点不进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
-- 扫描：根组件（模块、PLC、Safety、TransferManager）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
+- 扫描：根组件（模块、PLC、Safety、TransferManager、JobManager）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
   `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。
 - 生命周期：`Init()`（先子后己、按 InitOrder，开机不自动调）、`Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）。
   模块把返回类型收窄成 `ModuleOperation?`。`Open()` 不在基类，各类型自己定义（模块、PLC、IO、HSMS、驱动、轴）。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManager、Io、Safety、Hsms、
-  DataChart、RealChart、PLC、TransferManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
+  DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
@@ -149,8 +149,34 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   按默认值补；字段表里没有的属性先留着、下次保存丢掉。存之前规整写法（整数、小数去多余写法，开关小写，下拉按数据源的大小写）。
   按名字被引用：流程配方查配方在不在库里（`sequence.recipe_not_found`），腔体起工艺查（`chamber.recipe_not_found`）；库没装都不查。
   锁的先后：`SequenceComponent` 锁里可以调 `ProcessRecipeComponent.Contains` / `FindMismatch`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`），
-  `GetOptionsAsync` 给字段表（带取好的下拉选项，跟着别的字段走的按那个字段的值分开给）。
+  `GetOptionsAsync` 给字段表（带取好的下拉选项，跟着别的字段走的按那个字段的值分开给）。两个库的 `Find(名字)` 给的是克隆（配方快照，库里再改不影响）。
   还没做：腔体按工艺配方的步骤真的去转、去喷（35021 的 Process 还是定时模拟，只认名字）；字段作用到哪个设备（AO 等，本来就配在 sc 腔体下面）到时再定。
+- **加工口** `Process\IProcessStation`（`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。`CheckProcess(ProcessRequest)` 只问不动设备
+  （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected`），
+  `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
+  机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）；驱动没接、计时模拟的重写 `IsProcessSimulated => true`（Job 把它记进结果）。
+  `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
+- **搬运管理** `Transfer\TransferManager`（sc.xml `Transfer`，自己的扫描线程）：手动、Job、回片共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
+  `Submit(TransferRequest)` 当场回 `TransferTicket`（受理带单号和 `Completion` 任务，拒带错误码 + 参数），受理时依次查：没开、没账、站点、槽号、同槽、
+  源槽有没有片 / 是不是那一片、目标槽空不空、片归别的 Job（`transfer.wafer_owned`，人工恢复单 Recovery 不查）、槽被别的单锁着、有没有两边都到得了的机械手、手。
+  受理就锁源槽、目标槽、片、手；一台机械手一次一单，站点跟在跑的单不重叠的才开始。`TransferRoutine` **先抢目标站点再抢源**，等 `IsSettled`
+  （模块收完尾、记完账）才往下走；结果在站点环、晶圆账都收尾之后才出（`TransferFinished` 事件，任意线程）。没动手就失败（等不到站点、被撤）：
+  把抢到的环撤回锚点（`ITransferStation.CancelTransfer`）、放锁；**动过手才失败：锁留着、站点停在交互中**（`HeldResults`，`NeedsRecovery`），
+  人工确认片位、对好账后 `ReleaseHold(单号)`。`Cancel` / `CancelOwner` / `CancelAll`（在动手的发机械手中止）；`Abort()` = 关自动派单 + 全撤。
+  `Ownership`（`IWaferOwnership`，Job 管理绑上）。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等结果）、`ResultKeepCount`。
+  服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 下手动单等结果、`ReleaseAsync` 放留着的锁（`transfer.not_held`）。
+- **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的线程；子节点 `Scheduler` = `SchedulerComponent`，换 Type 换策略）：SEMI E94 CJ / E40 PJ，
+  决定见 decisions.md「Job」。目录按职责分：`Model`（CJ、PJ、每片进度 `JobWafer`、命令和请求）、`StateMachines`（转换表是数据，带 SEMI 转换号）、
+  `Gates`（PJ 状态 → 能不能投片 / 往下走）、`Rules`（自动转换，一条一个类）、`Effects`（进状态要做的事，一个一个类：中止撤单 + 腔体中止、结束定结果放片、
+  CJ 完成告诉 LoadPort、删了进历史）、`Engine`（账本、设备环境、收结果 `JobProgress`、按计划下单 `JobDispatcher`）、`Scheduling`（`IJobPlanEnvironment` 上算计划，
+  不碰设备、不认识"暂停"）、`Publishing`（`JobListDto` 推送、E40 / E94 回调）。
+  单写者：命令（`IJobManager`，本地服务和以后的 EAP 共用）进队列，扫描里刷新环境后一拍六步：① 执行命令（请求号去重）→ ② 收搬运 / 工艺结果 →
+  ③ 核对片位 → ④ 跑规则直到不再转 → ⑤ 派单（Manual、暂停派单时不派）→ ⑥ 有变化就推（留存，开机先推一份）。
+  出执行故障（动过手的搬运失败、加工没做成、片不在该在的地方）暂停自动派单，`RecoverAsync` 恢复：片位说不准的片按账上现在的位置认回来（来源槽里没动的回到待投，别处的不再做、直接回片，账上没了的算被拿走），
+  还有留着锁的搬运单、还在机械手手上认不回来的片回 `job.recovery_pending`。
+  上报 `E40Callback` / `E94Callback` 走 `Eap\EapNotifier`（单读者派发线程）。SC：`MaxActiveControlJobs`、`ControlJobCapacity`、`ProcessJobCapacity`；
+  EC：`CommandTimeoutMs`、`HistoryKeepCount`、`RequestKeepCount`；调度 EC `MaxWafersInMachine`（0 = 不限）。服务 `IJobService`（`xyz.Service\Jobs`）。
+  还没做：存盘和重启核对、SECS 翻译层。
 
 ## 4. 驱动（`xyz.Components\Components\Drivers` + `xyz.Drivers`）
 
@@ -190,7 +216,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
-  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"WaferLedger"）；
+  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的部件推送 `ModulePartsDto`）也用模块名，类型不同互不覆盖；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManager.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
@@ -203,12 +229,14 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   （`TransferManager.TryGetStation` 拿到的是 `BaseLoadPortModule` / `BaseChamberModule` / 别的），表没绑好或不在表里算 Other；变了算状态变化。
 - 设备总状态 `EquipmentStatusDto.IsAuto` = 搬运管理的自动派单开着（`TransferManager.IsAutoDispatch`），`EquipmentStatusPublisher.Snapshot(modules)` 算一次。
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`AutoAsync` 开自动派单（没配搬运管理回 `transfer.not_installed`，
-  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单、`StopAsync` 关自动派单 + 给正在执行动作的模块发 Abort（闲着的不碰，不等中止做完，
-  Data = 发了几个）。按 Job 自动派单（TransferManager 的扫描里"待接"那两段）还没做，所以现在 Auto 只是把模式切过去。
+  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动派单 + 撤单），
+  Job 全部走中止（`AbortAllAsync`，不等），在给 Job 做工艺的腔体（`JobManager.IsJobProcess`）、在搬运的机械手不直接发 Abort（由 Job / 搬运管理收场），
+  别的正在执行动作的模块发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个）。
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → HSMS Open → PLC Open + Start →
-IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 → 设备总状态 / IO 推送 →
+IO 表 Open → Safety Start → 轴 Open → 各模块 Open → 各模块 Start → TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
+JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要 Open/Start 的，按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
 
@@ -240,7 +268,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
 - 节点顺序：System → Rpc → Hsms → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →
-  LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
+  LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`，源码不在本仓库）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；
   机械手站点表、工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）有专门的表格页。改了 ScEdit 要跑它的 build.ps1 发布到 app。
 

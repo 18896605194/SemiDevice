@@ -82,7 +82,7 @@
     <sys:String x:Key="job.command_not_allowed">{0} does not accept {1} in state {2}</sys:String>
     <sys:String x:Key="job.ending">{0} is stopping or aborting and no longer accepts {1}</sys:String>
     <sys:String x:Key="job.not_auto">Jobs can only be started in Auto</sys:String>
-    <sys:String x:Key="job.id_invalid">Name {0} is invalid: use 1-80 letters, digits or symbols, without spaces or ? * ~ &gt; :</sys:String>
+    <sys:String x:Key="job.id_invalid">Name {0} is invalid: use 1-80 letters, digits, symbols or spaces, without ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">Name {0} is already used by a job that has not ended</sys:String>
     <sys:String x:Key="job.queue_full">There are already {0} unfinished jobs; no new job can be created</sys:String>
     <sys:String x:Key="job.loadport_not_found">LoadPort {0} not found</sys:String>
@@ -102,14 +102,14 @@
     <sys:String x:Key="job.carrier_not_found">Carrier {0} is not on any LoadPort</sys:String>
     <sys:String x:Key="job.process_job_unavailable">PJ {0} does not exist or already belongs to another CJ</sys:String>
     <sys:String x:Key="job.not_held">Automatic dispatching is not on hold; nothing to recover</sys:String>
-    <sys:String x:Key="job.recovery_pending">{0} failed transfers still need their wafer positions confirmed; check on site and correct the ledger first</sys:String>
+    <sys:String x:Key="job.recovery_pending">{0} wafer position(s) still need confirming (a failed transfer still holds its locks, or a wafer is still on a robot arm); check on site and correct the ledger first</sys:String>
     <sys:String x:Key="job.hold.transfer_failed">{0} ({1}) failed during a transfer; confirm the wafer position on site</sys:String>
     <sys:String x:Key="job.hold.process_failed">{0} ({2}) failed processing in {1}</sys:String>
     <sys:String x:Key="job.hold.wafer_lost">{0} ({1}) is not where it should be (ledger changed, carrier removed, or re-mapped)</sys:String>
     <sys:String x:Key="job.wait.manual">Manual mode: no new actions</sys:String>
     <sys:String x:Key="job.wait.held">Automatic dispatching is on hold after a fault</sys:String>
     <sys:String x:Key="job.wait.station">Waiting for a free station: {0}</sys:String>
-    <sys:String x:Key="job.wait.robot">Waiting for robot: {0}</sys:String>
+    <sys:String x:Key="job.wait.robot">Waiting for a robot to move {0}</sys:String>
     <sys:String x:Key="job.wait.return_slot">Waiting for return slot {1} on {0}</sys:String>
     <sys:String x:Key="job.wait.limit">The number of wafers in the tool reached the limit {0}</sys:String>
     <sys:String x:Key="job.wait.not_feeding">{0} is not feeding wafers (paused, stopping, or the CJ is not executing)</sys:String>
@@ -517,7 +517,7 @@
     <sys:String x:Key="chamberscene.too_many_arms">{0} has {1} arms; the 3D view only draws the first {2}</sys:String>
 
     <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。
-         Job 和按 Job 自动调度还没做：创建 / 启动 Job 先灰着，槽位表的 ⊕ ⊖ 只改界面上的选择 -->
+         创建 Job 按各槽选的 Sequence 建（建好等启动），启动 Job 在 Auto 下启动这个 LoadPort 上等启动的 Job -->
     <sys:String x:Key="main.system">System</sys:String>
     <sys:String x:Key="main.system_state">State</sys:String>
     <sys:String x:Key="main.mode">Mode</sys:String>
@@ -533,15 +533,15 @@
     <sys:String x:Key="main.manual">Manual</sys:String>
     <sys:String x:Key="main.stop">Stop</sys:String>
     <sys:String x:Key="main.reset">Reset</sys:String>
-    <sys:String x:Key="main.auto_tip">Switch to Auto: turn on automatic dispatch (job-driven scheduling is not available yet)</sys:String>
+    <sys:String x:Key="main.auto_tip">Switch to Auto: turn on automatic dispatch; jobs move wafers and start processes as scheduled</sys:String>
     <sys:String x:Key="main.manual_tip">Switch to Manual: turn off automatic dispatch; the transfer in progress finishes</sys:String>
-    <sys:String x:Key="main.stop_tip">Stop the equipment: turn off automatic dispatch and abort every module action in progress</sys:String>
+    <sys:String x:Key="main.stop_tip">Stop the equipment: turn off automatic dispatch, abort running jobs (waiting for the devices to confirm and checking wafer positions), and abort any other module action in progress</sys:String>
     <sys:String x:Key="main.reset_tip">Reset every alarm source (same as Reset at the top right)</sys:String>
     <sys:String x:Key="main.auto_done">Switched to Auto</sys:String>
     <sys:String x:Key="main.manual_done">Switched to Manual</sys:String>
     <sys:String x:Key="main.auto_failed">Failed to switch to Auto: {0}</sys:String>
     <sys:String x:Key="main.manual_failed">Failed to switch to Manual: {0}</sys:String>
-    <sys:String x:Key="main.stopped">Stopped: automatic dispatch is off; abort sent to {0} busy module(s)</sys:String>
+    <sys:String x:Key="main.stopped">Stopped: automatic dispatch is off and running jobs are aborting; abort sent to {0} other busy module(s)</sys:String>
     <sys:String x:Key="main.stop_failed">Stop failed: {0}</sys:String>
     <sys:String x:Key="main.reset_done">Reset {0} alarm source(s)</sys:String>
     <sys:String x:Key="main.reset_failed">Reset failed: {0}</sys:String>
@@ -560,7 +560,12 @@
     <sys:String x:Key="main.sequences_failed">Failed to load the Sequence list: {0}</sys:String>
     <sys:String x:Key="main.create_job">Create Job</sys:String>
     <sys:String x:Key="main.start_job">Start Job</sys:String>
-    <sys:String x:Key="main.job_pending_tip">Jobs and job-driven scheduling are not available yet; this is the layout only</sys:String>
+    <sys:String x:Key="main.create_job_tip">Create a job for this carrier from the Sequence picked for each slot (one PJ per Sequence); it waits for Start. One job per LoadPort at a time; remove the carrier before creating another</sys:String>
+    <sys:String x:Key="main.start_job_tip">Start the job waiting on this LoadPort (Auto mode only)</sys:String>
+    <sys:String x:Key="main.job_created">{0}: job {1} created (PJ: {2}), waiting for Start</sys:String>
+    <sys:String x:Key="main.create_job_failed">{0}: failed to create the job: {1}</sys:String>
+    <sys:String x:Key="main.job_started">Job {0} started</sys:String>
+    <sys:String x:Key="main.start_job_failed">Failed to start job {0}: {1}</sys:String>
     <sys:String x:Key="main.col.slot">Slot</sys:String>
     <sys:String x:Key="main.col.wafer">Wafer</sys:String>
     <sys:String x:Key="main.col.state">State</sys:String>

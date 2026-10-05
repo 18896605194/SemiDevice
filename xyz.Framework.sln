@@ -113,6 +113,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChamberSmoke", "tools\Chamb
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProcessRecipeSmoke", "tools\ProcessRecipeSmoke\ProcessRecipeSmoke.csproj", "{EE56888A-BD02-44EA-99D6-A03F6CFC3086}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JobSmoke", "tools\JobSmoke\JobSmoke.csproj", "{E643E37D-6626-4B89-9640-0F7F14929CCD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -627,6 +629,18 @@ Global
 		{EE56888A-BD02-44EA-99D6-A03F6CFC3086}.Release|x64.Build.0 = Release|Any CPU
 		{EE56888A-BD02-44EA-99D6-A03F6CFC3086}.Release|x86.ActiveCfg = Release|Any CPU
 		{EE56888A-BD02-44EA-99D6-A03F6CFC3086}.Release|x86.Build.0 = Release|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Debug|x64.Build.0 = Debug|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Debug|x86.Build.0 = Debug|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Release|x64.ActiveCfg = Release|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Release|x64.Build.0 = Release|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Release|x86.ActiveCfg = Release|Any CPU
+		{E643E37D-6626-4B89-9640-0F7F14929CCD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -681,6 +695,7 @@ Global
 		{5B16F9BA-7866-4CC5-9862-BE59E1BA9A19} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{87200CE4-B5C1-4B04-A6B7-FEF3184EA020} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{EE56888A-BD02-44EA-99D6-A03F6CFC3086} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{E643E37D-6626-4B89-9640-0F7F14929CCD} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D0000000-0000-0000-0000-000000000001}

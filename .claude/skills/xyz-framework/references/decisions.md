@@ -148,12 +148,15 @@
 - 用户点名的重点：**以后变的是中间的调度界面和右边几个 LoadPort**。所以右边页签照 sc.xml 的 LoadPort 生成；中间默认照机械手站点表自动摆
   （公共控件 DispatchMap，Robot 手动页也换成了它），机型要别的摆法按 `ClientViewKeys.MainDispatch` 注册自己的整块换掉，主界面别处不动。
 - 系统状态用**整条色块徽标**（不照图写"空闲 ●"，用户选的，跟腔体页一样）。
-- **Job 这一轮只做界面**（用户选的）：创建 Job / 启动 Job 灰着，后端没有 Job，按 Job 自动调度另起一轮。
+- **Job 先只做界面**（2026-10-04 用户选的），2026-10-05 后端 Job 做好后接上：创建 Job 把这一页签的 LotID 和各槽的 Sequence 交给后端（AutoStart 关，建好等启动），
+  这个 LoadPort 上有没删的 CJ 时点不了；启动 Job 在 Auto 下、这个 LoadPort 上的 CJ 是 WAITINGFORSTART 时能点（发 CJStart）。按钮位置、样子没动，
+  Job 列表 / 详情界面还没做（要先给参考图或出样稿）。
 - **⊕ ⊖ 的意思**（用户讲的）：⊕ 给这一槽单独选一个 Sequence（公共选择弹窗），⊖ 把这一槽的 Sequence 清空。上面的 Sequence 框一选就给全篮能做的片套上
   （之后放上、Mapping 出来的片也套它），再用 ⊕ ⊖ 单独改；交叉片、叠片、状态不明的没有 ⊕ ⊖。
 - 界面字：用户说中文还是英文"无所谓，多语言双份就行，到时候自己改语言包"——中文包先照图写（Auto / Manual / Stop / Reset、LotID、Sequence、Wafer、Job 用英文）。
-- 自己定的（交付时说了）：Auto / Manual = 开 / 关搬运管理的自动派单；Stop = 关自动派单 + 给正在动的模块发中止（不弹确认，跟各手动页的中止一样）；
-  Reset = 右上角那个整机复位。腔体卡片没有值的字段整行不显示（图上就是空的，Robot 手动页跟着一样）；LoadPort 卡片的六盏灯改成真数据（以前写死）。
+- 自己定的（交付时说了）：Auto / Manual = 开 / 关搬运管理的自动派单；Stop 不弹确认（跟各手动页的中止一样）；Reset = 右上角那个整机复位。
+- **Stop 走 Job 中止**（2026-10-04 用户定的）：关自动派单、撤搬运单，在跑的 Job 全部走中止（等设备确认、核对片位），不直接删 Job；
+  在给 Job 做工艺的腔体、正在搬运的机械手由 Job / 搬运管理自己收场，别的正在动的模块照旧直接发中止。腔体卡片没有值的字段整行不显示（图上就是空的，Robot 手动页跟着一样）；LoadPort 卡片的六盏灯改成真数据（以前写死）。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。
@@ -161,10 +164,10 @@
 
 ## EAP 接入的统一做法（2026-10-05，用户："以后这一套架构都这么设计"）
 - 照 LoadPort 现成的做法：凡是要给 EAP 用的设备侧对象（LoadPort、Job，以后的晶圆跟踪、设备性能跟踪……）都开同样三个口子，EAP 侧只做 SECS 翻译：
-  1. **命令接口**：EAP 直接调设备侧的接口，接口按对象起名 `I + 组件名`（LoadPort 是 `ILoadPort`；Job 打算叫 `IJobManager`，还没做），
+  1. **命令接口**：EAP 直接调设备侧的接口，接口按对象起名 `I + 组件名`（LoadPort 是 `ILoadPort`，Job 是 `IJobManager`），
      跟本地界面的服务调同一个接口、过同一套检查，不给 EAP 另开一条进设备的路。调用当场回受理结果（被拒带错误码），后面的进展走回调和状态。
   2. **上报口**：设备侧挂回调接口属性，**按 SEMI 标准号起名**：`IE87Callback` / `E87Callback`、`IE84Callback` / `E84Callback`；
-     Job 打算是 `IE40Callback` / `E40Callback`（PJ）和 `IE94Callback` / `E94Callback`（CJ）。没接 EAP 时为 null，设备照常跑；
+     Job 是 `IE40Callback` / `E40Callback`（PJ）和 `IE94Callback` / `E94Callback`（CJ）。没接 EAP 时为 null，设备照常跑；
      同一个对象的几个回调共用一条专用派发线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢）。
   3. **反查口**：要 Host 拿主意的事，设备侧问 provider，同样按标准号起名（`IE84Provider` / `E84Provider`），为 null 时按本地规则自己判断。
      没有要问的就不开（Job 现在不开：载具核验归 E87 → LoadPort，Host 命令收不收归 E30 控制状态）。
@@ -172,3 +175,23 @@
 - SEMI 状态机放哪看它是什么：设备自己的执行状态（E40 的 PJ、E94 的 CJ）放在设备侧（JobManager），不接 EAP 本地也要用；
   纯粹跟 Host 核对的过程（E87 的 ID / 槽图核验、端口搬运状态等）放在 EAP 侧，由回调推进。
 - 不学 CTC：它 FA 层、调度层各一套 Job，靠轮询加 `Task.Delay` 同步，Host 的 PJ 暂停 / 恢复都没接通。
+
+## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05，需求文档《通用 Job 组件功能需求文档》v0.1）
+- **三个组件**（用户定的）：搬运管理 `TransferManager`（已有，自己的扫描线程）是手动、自动、回片共用的唯一执行口，按来源 `TransferOrigin` 区分，
+  **不学 CTC 拆 AutoTransfer / ManualTransfer**；`JobManager`（sc.xml 顶层 `Job`，自己的线程）；`Scheduler`（`Job` 的子节点，跟父线程扫，换 Type 换调度策略）。
+- **一套 Job 模型，状态照 SEMI**（用户点名）：PJ 照 E40（0 QUEUED/POOLED … 4 PROCESS COMPLETE、6 PAUSING、7 PAUSED、8 STOPPING、9 ABORTING、
+  10 STOPPED、11 ABORTED，转换 #1~#18），CJ 照 E94（0 QUEUED … 5 COMPLETED，转换 #1~#13，命令值 1 Start … 8 HOQ，Action 0 SaveJobs / 1 RemoveJobs）。
+  CJ 没有停止中 / 中止中状态，收了 Stop / Abort 标着、等 PJ 都结束再走 #11 / #12；"故障""待恢复确认"用标记，不造状态。
+- **暂停**：PJ 暂停 = 停投新片，机内的片照常做完回片（PAUSING），机内没这个 PJ 的片了才 PAUSED，可恢复（用户："肯定是照常跑完"）。
+  **CJ 暂停严格照 E94**（用户："那就按照标准做"）：只是不再启动新的 PJ，在跑的 PJ 照常投片做完；要马上停投片就暂停 PJ。本地按钮、Host 一样。
+- **停止**：不投新片、机内的走完回片、没投的记未执行，不能恢复。**中止**：撤单、给在做工艺的腔体发中止，设备中止做完（确认了）、在途动作都结束、
+  片位都确定才结束（#16）；片位说不准的标"要人工恢复确认"，不算中止完成。
+- **Auto / Manual / Stop**（用户定的）：Job 随时能建，启动要 Auto；运行中切 Manual 不派新动作（在途的做完）；主界面 Stop 走 Job 中止（见主界面一节）。
+- **写法要解耦**（用户："不要都揉到一起去"）：转换表是数据（带 SEMI 转换号）、闸门（PJ 状态 → 能不能投片 / 能不能往下走）、
+  自动转换规则一条一个类、进状态要做的事一个效果一个类、事件统一出口；调度只按闸门给的许可算计划，不认识"暂停"。
+- **Host 的做法**：先建 PJ（不归任何 CJ，排着）、再建 CJ 按顺序收进来；本地一篮按 Sequence 分 PJ（同一个 Sequence 的片一个 PJ），整篮一个 CJ，名字用 LotID。
+  一个 LoadPort 同时一个没删的 CJ，载具拿走（或换了）才删（#13）。
+- 自己定的（交付时说了，等用户确认）：出执行故障（动过手的搬运失败、加工没做成、片不在该在的地方）**整机暂停自动派单**、保留现场，人工确认后恢复；
+  腔体要 Online 才派片（LoadPort、机械手不看）；没做成的片不做后面的步骤、直接回片；回片槽建 PJ 时定（源 LoadPort 在最后一步里回原槽，
+  不在就放最后一步勾的、载具在的第一个 LoadPort 的同号槽）。
+- 还没做：存盘和重启核对、EAP 的 SECS 翻译层（S16 / S14 报文）、Job 列表 / 详情界面（要参考图）、设备动作中禁止改账的联锁（用户押后）。

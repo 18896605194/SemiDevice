@@ -172,7 +172,7 @@ public static class ErrorCodes
     /// <summary>启动要在 Auto 下。Args: []</summary>
     public const string JobNotAuto = "job.not_auto";
 
-    /// <summary>Job 名不合规（1~80 个 ASCII 可见字符，不能有 ? * ~ &gt; : 和空格）。Args: [名字]</summary>
+    /// <summary>Job 名不合规（1~80 个 ASCII 可见字符或空格，不能有 ? * ~ &gt; :）。Args: [名字]</summary>
     public const string JobIdInvalid = "job.id_invalid";
 
     /// <summary>Job 名已经在用（没结束的 Job 里有同名的）。Args: [名字]</summary>
@@ -232,7 +232,7 @@ public static class ErrorCodes
     /// <summary>自动派单没在暂停，没有要恢复的。Args: []</summary>
     public const string JobNotHeld = "job.not_held";
 
-    /// <summary>还有出错的搬运单留着锁、片位没确认，恢复不了。Args: [留着的单数]</summary>
+    /// <summary>还有片位没确认，恢复不了：出错的搬运单留着锁，或片还在机械手手上认不回来。Args: [几处]</summary>
     public const string JobRecoveryPending = "job.recovery_pending";
 
     /// <summary>暂停派单的原因：搬运动过手才失败，片位要人工确认。Args: [片号, Job 名]</summary>
@@ -253,7 +253,7 @@ public static class ErrorCodes
     /// <summary>等待：这一步能去的站点都没空（有片、没在待命、离线、被占着）。Args: [站点（逗号分隔）]</summary>
     public const string JobWaitStation = "job.wait.station";
 
-    /// <summary>等待：机械手忙，或没有空着、两边都许用的手。Args: [机械手（逗号分隔）]</summary>
+    /// <summary>等待：这一趟没有机械手接得了（机械手忙，或没有空着、两边都许用的手）。Args: [搬运（源→目标，逗号分隔）]</summary>
     public const string JobWaitRobot = "job.wait.robot";
 
     /// <summary>等待：回片槽现在放不了（有片或被占着）。Args: [LoadPort, 槽号]</summary>

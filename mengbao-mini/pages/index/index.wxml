@@ -1,288 +1,104 @@
 <view class="page-root">
-
-  <!-- ========== 首次引导 ========== -->
-  <view class="onboard" wx:if="{{!started}}">
-    <view class="ob-logo">萌宝养成记</view>
-    <view class="ob-sub">MY BABY DIARY</view>
-    <view class="ob-pick">
-      <view class="ob-baby {{obGender==='girl'?'on':''}}" bindtap="pickGirl">
-        <view class="ob-pic pic-girl">
-          <view class="op-head"><view class="op-hair g"></view><view class="op-e e1"></view><view class="op-e e2"></view><view class="op-b"></view><view class="op-m"></view></view>
-          <view class="op-body pink"></view>
-        </view>
-        <view class="t">女宝</view>
-        <view class="d">软萌小公主</view>
-      </view>
-      <view class="ob-baby {{obGender==='boy'?'on':''}}" bindtap="pickBoy">
-        <view class="ob-pic pic-boy">
-          <view class="op-head"><view class="op-hair b"></view><view class="op-e e1"></view><view class="op-e e2"></view><view class="op-b"></view><view class="op-m"></view></view>
-          <view class="op-body blue"></view>
-        </view>
-        <view class="t">男宝</view>
-        <view class="d">元气小暖男</view>
-      </view>
-    </view>
-    <input class="ob-name" maxlength="6" placeholder="给宝宝起个名字" value="{{obName}}" bindinput="onNameInput" confirm-type="done" />
-    <view class="ob-hint">取好名字，就开始当妈妈啦</view>
-    <view class="btn btn-primary btn-start" bindtap="onStart">开始养娃</view>
+  <view class="hd">
+    <view class="t1">叠塔闯关</view>
+    <view class="t2">👆 点屏幕落块，齐边通关<text class="live">{{live}} 人在闯关</text></view>
+    <view class="starChip">⭐ 总星 {{starTotal}}</view>
   </view>
-  <view class="main" wx:else>
 
-    <!-- 顶栏 -->
-    <view class="topbar">
-      <view class="baby-chip">
-        <view class="baby-face">{{top.face}}</view>
-        <view class="baby-meta">
-          <view class="baby-name">{{top.name}}</view>
-          <view class="lv-row">
-            <view class="lv-tag">{{top.lvTag}}</view>
-            <view class="xp-track"><view class="xp-fill" style="width:{{top.xpPct}}%"></view></view>
-          </view>
-        </view>
-      </view>
-      <view class="coin-chip"><view class="coin-dot">¥</view><text>{{top.coins}}</text></view>
-      <view class="icon-btn" bindtap="onSignBtn">📅</view>
-      <view class="icon-btn" bindtap="onSoundToggle">{{top.soundIcon}}</view>
+  <scroll-view scroll-x class="chips" enable-flex>
+    <view class="chip {{c.cls}}" wx:for="{{chips}}" wx:for-item="c" wx:key="id" data-idx="{{index}}" bindtap="onChip">
+      <text>第{{c.n}}关</text>
+      <text class="st">{{c.st}}</text>
     </view>
+  </scroll-view>
 
-    <view class="views">
+  <view class="barrow">
+    <view class="lvName">{{lvName}}</view>
+    <view class="prog">{{prog}}</view>
+    <view class="streak {{streakOn?'on':''}}">{{streakTxt}}</view>
+  </view>
 
-      <!-- ===== 房间 ===== -->
-      <view class="view {{tab==='room'?'on':''}}" wx:if="{{tab==='room'}}">
-        <view class="room wall-{{room.wall}}">
-          <view class="window"><view class="sun"></view></view>
-          <view class="shelf"><view class="toy1"></view><view class="toy2"></view></view>
-          <view class="star-deco" wx:if="{{room.wall==='night'}}"></view>
-          <view class="rug"></view>
-          <view class="balloons" wx:if="{{room.wall==='balloon'}}">🎈</view>
-          <view class="plant">{{room.plant}}</view>
-
-          <!-- 宝宝 -->
-          <view class="baby-stage" bindtap="onBabyTap">
-            <view class="b-shadow"></view>
-            <view class="b-outer mood-{{room.mood}}">
-              <view class="b-bob">
-                <view class="b-leg l1"></view>
-                <view class="b-leg l2"></view>
-                <view class="b-body cl-{{room.clothes}}"></view>
-                <view class="b-collar"></view>
-                <view class="b-arm a1"></view>
-                <view class="b-arm a2"></view>
-
-                <view class="b-head">
-                  <view class="b-hair hair-baby" wx:if="{{room.stage===0}}"></view>
-                  <view class="b-hair hair-toddler" wx:else></view>
-
-                  <view class="b-ear e-l"></view>
-                  <view class="b-ear e-r"></view>
-
-                  <view class="b-eyes">
-                    <view class="eye-open e-l">
-                      <view class="pupil"></view><view class="gleam"></view>
-                    </view>
-                    <view class="eye-open e-r">
-                      <view class="pupil"></view><view class="gleam"></view>
-                    </view>
-                    <view class="eye-shut s-l"></view>
-                    <view class="eye-shut s-r"></view>
-                  </view>
-
-                  <view class="b-blush c-l"></view>
-                  <view class="b-blush c-r"></view>
-                  <view class="b-mouth"></view>
-
-                  <view class="tears" wx:if="{{room.mood==='cry'}}">
-                    <view class="tear t1"></view>
-                    <view class="tear t2"></view>
-                  </view>
-                  <view class="zzz" wx:if="{{room.mood==='sleep'}}">
-                    <text class="z1">z</text><text class="z2">Z</text>
-                  </view>
-
-                  <!-- 帽饰 -->
-                  <view class="hat hat-bow" wx:if="{{room.hat==='bow'}}">
-                    <view class="bow-w bw-l"></view><view class="bow-w bw-r"></view><view class="bow-c"></view>
-                  </view>
-                  <view class="hat hat-bear" wx:if="{{room.hat==='bear'}}">
-                    <view class="bear-ear be-l"></view><view class="bear-ear be-r"></view>
-                    <view class="bear-band"></view>
-                  </view>
-                  <view class="hat hat-party" wx:if="{{room.hat==='party'}}">
-                    <view class="party-cone"></view><view class="party-ball"></view>
-                  </view>
-                  <view class="hat hat-straw" wx:if="{{room.hat==='straw'}}">
-                    <view class="straw-crown"></view><view class="straw-band"></view><view class="straw-brim"></view>
-                  </view>
-                </view>
-
-              </view>
-            </view>
-          </view>
-
-          <view class="bubble-thought" wx:if="{{room.thoughtShow}}">{{room.thoughtText}}</view>
-          <view class="pop-fx" wx:if="{{room.fxShow}}" wx:key="fxId">{{room.fxText}}</view>
-        </view>
-
-        <!-- 状态条 -->
-        <view class="bars">
-          <view class="bar-item {{bar.low?'bar-low':''}}" wx:for="{{bars}}" wx:for-item="bar" wx:key="key">
-            <view class="bar-head"><text>{{bar.icon}} {{bar.label}}</text><text class="v">{{bar.pct}}%</text></view>
-            <view class="bar-track"><view class="bar-fill {{bar.cls}}" style="width:{{bar.pct}}%"></view></view>
-          </view>
-        </view>
-
-        <!-- 照顾按钮 -->
-        <view class="care-row">
-          <view class="care-btn" data-kind="feed" bindtap="onCare">
-            <view class="ic">🍼</view><view class="lb">喂奶</view><view class="rw">+3 金币</view>
-          </view>
-          <view class="care-btn" data-kind="bath" bindtap="onCare">
-            <view class="ic">🛁</view><view class="lb">洗澡</view><view class="rw">+3 金币</view>
-          </view>
-          <view class="care-btn" data-kind="sleep" bindtap="onCare">
-            <view class="ic">🌙</view><view class="lb">哄睡</view><view class="rw">回体力</view>
-          </view>
-          <view class="care-btn" data-kind="play" bindtap="onCare">
-            <view class="ic">🎈</view><view class="lb">陪玩</view><view class="rw">赚金币</view>
-          </view>
-        </view>
-
-        <view class="tip-line">点击宝宝可以逗它玩 · 状态掉了宝宝会哭哦</view>
-      </view>
-      <!-- ===== 装扮 ===== -->
-      <view class="view {{tab==='shop'?'on':''}}" wx:if="{{tab==='shop'}}">
-        <view class="view-title">装扮小屋 <text class="vt-sub">用金币给宝宝打扮</text></view>
-        <view class="seg">
-          <view class="{{shopCat==='hat'?'on':''}}" data-cat="hat" bindtap="onShopCat">帽子</view>
-          <view class="{{shopCat==='clothes'?'on':''}}" data-cat="clothes" bindtap="onShopCat">衣服</view>
-          <view class="{{shopCat==='room'?'on':''}}" data-cat="room" bindtap="onShopCat">房间</view>
-        </view>
-        <view class="goods">
-          <view class="good {{g.cls}} {{g.eq?'eq':''}}" wx:for="{{goods}}" wx:for-item="g" wx:key="id">
-            <view class="art">{{g.e}}</view>
-            <view class="nm">{{g.n}}</view>
-            <view class="eqtag" wx:if="{{g.eq}}">穿着中</view>
-            <block wx:if="{{g.owned}}">
-              <view class="pr own">已拥有</view>
-              <view class="btn-sm btn-blue" data-id="{{g.id}}" bindtap="onEquip">{{g.eq?'已穿上':'穿上'}}</view>
-            </block>
-            <block wx:else>
-              <view class="pr"><view class="mini-coin">¥</view>{{g.p}}</view>
-              <view class="btn-sm btn-gold" data-id="{{g.id}}" bindtap="onBuy">购买</view>
-            </block>
-          </view>
-        </view>
-      </view>
-
-      <!-- ===== 日记 ===== -->
-      <view class="view {{tab==='diary'?'on':''}}" wx:if="{{tab==='diary'}}">
-        <view class="view-title">成长日记 <text class="vt-sub">记录每个第一次</text></view>
-        <view class="diary-head">
-          <view class="k">📖 我们的养育天数</view>
-          <view class="big">第 {{diary.days}} 天</view>
-          <view class="sub">已解锁 {{diary.done}} / {{diary.total}} 个成长瞬间</view>
-        </view>
-        <view class="mile {{m.ok?'':'lock'}}" wx:for="{{diary.miles}}" wx:for-item="m" wx:key="id">
-          <view class="em">{{m.ok?m.e:'☆'}}</view>
-          <view class="tx">
-            <view class="nm">{{m.n}}</view>
-            <view class="ds">{{m.d}}</view>
-          </view>
-          <view class="ok" wx:if="{{m.ok}}">已记录</view>
-        </view>
-      </view>
-
+  <view id="field" class="{{shake?'shake':''}} {{singing?'singing':''}}" bindtap="onFieldTap">
+    <view id="tower" style="transform:translateY({{cam}}px)">
+      <view class="blk {{b.cls}}" wx:for="{{blocks}}" wx:for-item="b" wx:key="id"
+        style="left:{{b.x}}px;bottom:{{b.y}}px;width:{{b.w}}px;background:{{b.c}}"></view>
+      <view class="blk moving {{moverSing?'sing':''}}" wx:if="{{moverOn}}"
+        style="left:{{moverLeft}}px;bottom:{{moverBottom}}px;width:{{moverW}}px;background:{{moverC}};box-shadow:{{moverShadow}}"></view>
     </view>
+    <view id="kara" class="{{karaShow?'show':''}} {{karaBeat?'beat':''}}">
+      <text class="tag">♪ {{karaSong}} · 伴奏已就位</text>
+      <text>{{karaLine}}</text>
+    </view>
+    <view id="hint" class="{{hintHide?'hide':''}}">👆 点任意位置落下
+      <text class="hl">对得越齐，塔越稳</text>
+    </view>
+    <view class="floot" wx:if="{{fxShow}}">{{fxText}}</view>
+  </view>
 
-    <!-- 底部导航 -->
-    <view class="tabbar">
-      <view class="tab {{tab==='room'?'on':''}}" data-v="room" bindtap="onTab">
-        <view class="ic">🏠</view><view class="lb">房间</view>
-      </view>
-      <view class="tab {{tab==='shop'?'on':''}}" data-v="shop" bindtap="onTab">
-        <view class="ic">👗</view><view class="lb">装扮</view>
-      </view>
-      <view class="tab {{tab==='diary'?'on':''}}" data-v="diary" bindtap="onTab">
-        <view class="ic">📖</view><view class="lb">日记</view>
+  <view class="stat">
+    <view class="s"><b>{{sPerf}}</b><text>本关完美</text></view>
+    <view class="s"><b>{{sBest}}</b><text>本关纪录(层)</text></view>
+    <view class="s"><b>{{sGap}}</b><text>距通关</text></view>
+  </view>
+
+  <view class="meta">
+    <view class="mb" bindtap="onRank">🏆 闯关榜</view>
+    <view class="mb" bindtap="onReset">🔄 重置进度</view>
+  </view>
+
+  <!-- 失败 -->
+  <view class="ov {{lose.show?'on':''}}">
+    <view class="card">
+      <view class="em">{{lose.em}}</view>
+      <view class="ct">{{lose.t}}</view>
+      <view class="cp">第 <text class="num">{{lose.cur}}</text> 关 · 叠了 <text class="num">{{lose.curL}}</text> / <text class="num">{{lose.tgt}}</text> 层 · 完美 <text class="num">{{lose.perf}}</text> 次</view>
+      <view class="record {{lose.gapCls}}">{{lose.gap}}</view>
+      <view class="btns">
+        <view class="btn p" bindtap="onRetry">🔥 再来一次</view>
+        <view class="btn g" bindtap="onRank">看榜</view>
       </view>
     </view>
   </view>
 
-  <!-- ========== 泡泡小游戏 ========== -->
-  <view class="ov game-ov" wx:if="{{game.show}}">
-    <view class="game-wrap">
-      <view class="g-hud">
-        <view class="g-chip">戳破 <text class="hot">{{game.score}}</text></view>
-        <view class="g-chip">⏱ <text class="hot">{{game.time}}</text>s</view>
-      </view>
-      <view class="g-close" bindtap="onGameClose">✕</view>
-
-      <view class="bub {{b.popped?'pop':''}}"
-        wx:for="{{game.bubbles}}" wx:for-item="b" wx:key="id"
-        data-id="{{b.id}}" catchtap="onPopBubble"
-        style="width:{{b.size}}rpx;height:{{b.size}}rpx;left:{{b.left}}%;animation-duration:{{b.dur}}s;background:{{b.bg}}">
-        <text>{{b.e}}</text>
-      </view>
-
-      <view class="g-over" wx:if="{{game.over}}">
-        <view class="ov-emoji">🎉</view>
-        <view class="g-l">戳破了</view>
-        <view class="g-final">{{game.final}}</view>
-        <view class="g-l">{{game.reward}}</view>
-        <view class="g-btns">
-          <view class="btn btn-ghost" bindtap="onGameBack">回房间</view>
-          <view class="btn btn-primary" bindtap="onGameAgain">再来一局</view>
-        </view>
+  <!-- 通关 -->
+  <view class="ov {{win.show?'on':''}}">
+    <view class="card">
+      <view class="em">{{win.em}}</view>
+      <view class="ct">{{win.t}}</view>
+      <view class="bigstars">{{win.stars}}</view>
+      <view class="cp">完美 <text class="num">{{win.perf}}</text> 次</view>
+      <view class="record red" wx:if="{{win.bragShow}}">{{win.brag}}</view>
+      <view class="btns">
+        <view class="btn p" bindtap="onNext">{{win.nextTxt}}</view>
+        <view class="btn g" bindtap="onAgain">{{win.againTxt}}</view>
       </view>
     </view>
   </view>
 
-  <!-- ========== 签到 ========== -->
-  <view class="ov" wx:if="{{sign.show}}">
-    <view class="ov-card">
-      <view class="ov-emoji">📅</view>
-      <view class="ov-title">每日签到</view>
-      <view class="ov-sub">连续签到奖励越来越多，断了会重来哦</view>
-      <view class="sign-grid">
-        <view class="sign-cell {{d.state}}" wx:for="{{sign.days}}" wx:for-item="d" wx:key="i">
-          <view class="d">第{{d.i}}天</view>
-          <view class="g">¥{{d.g}}</view>
-          <view class="ck" wx:if="{{d.state==='today'}}">✨</view>
-          <view class="ck" wx:elif="{{d.state==='done'}}">✅</view>
-        </view>
+  <!-- 榜 -->
+  <view class="ov {{rank.show?'on':''}}">
+    <view class="card">
+      <view class="em">🏆</view>
+      <view class="ct">今日闯关榜</view>
+      <view class="rank">
+        <view class="r"><text>🥇 大河向东流（杭州）</text><text>6关 · 16★</text></view>
+        <view class="r"><text>🥈 稳如老狗（深圳）</text><text>6关 · 14★</text></view>
+        <view class="r"><text>🥉 全网前5%·硬核玩家</text><text>3关 · 7★</text></view>
+        <view class="r me"><text>你（当前进度）</text><text>{{rank.me}}</text></view>
+        <view class="r"><text>好友·小林</text><text>卡在第 2 关 ×47 次</text></view>
       </view>
-      <view class="btn btn-gold btn-block {{sign.canClaim?'':'disabled'}}" bindtap="onSignClaim">{{sign.btnText}}</view>
-      <view class="btn btn-text btn-block" bindtap="onSignClose">稍后再说</view>
+      <view class="btns">
+        <view class="btn p" bindtap="onRankClose">继续闯关</view>
+      </view>
     </view>
   </view>
 
-  <!-- ========== 通用弹窗 ========== -->
-  <view class="ov" wx:if="{{modal.show}}">
-    <view class="ov-card">
-      <block wx:if="{{modal.type==='levelup'}}">
-        <view class="lvup-ring"><view class="lvup-core"><text>{{modal.lv}}</text></view></view>
-      </block>
-      <block wx:else>
-        <view class="ov-emoji">{{modal.emoji}}</view>
-      </block>
-      <view class="ov-title">{{modal.title}}</view>
-      <view class="ov-sub pre">{{modal.sub}}</view>
-      <view class="gift-box" wx:if="{{modal.gift}}">{{modal.gift}}</view>
-      <view class="btn btn-primary btn-block mt" bindtap="onModalOk">{{modal.ok}}</view>
-      <view class="btn btn-text btn-block" wx:if="{{modal.cancel}}" bindtap="onModalCancel">{{modal.cancel}}</view>
-    </view>
+  <view class="toast-box">
+    <view class="toast {{toast.gold?'gold':''}}" wx:if="{{toast.show}}">{{toast.text}}</view>
   </view>
 
-  <!-- 彩带 -->
   <view class="confetti" wx:if="{{confetti.length}}">
     <view class="cf" wx:for="{{confetti}}" wx:for-item="c" wx:key="id"
       style="left:{{c.left}}%;background:{{c.color}};animation-duration:{{c.dur}}s;animation-delay:{{c.delay}}s"></view>
   </view>
-
-  <!-- toast -->
-  <view class="toast-box">
-    <view class="toast {{t.gold?'gold':''}}" wx:for="{{toasts}}" wx:for-item="t" wx:key="id">{{t.text}}</view>
-  </view>
-
 </view>
-

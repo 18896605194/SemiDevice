@@ -42,6 +42,9 @@ public sealed class ProcessJob
     /// <summary>片位说不准、在途动作没确认：要人工恢复确认，解除前不往下走。</summary>
     public bool NeedsRecovery { get; set; }
 
+    /// <summary>中止时发给腔体的设备中止动作：都做完了（设备确认了）中止才算做完。</summary>
+    public List<ModuleOperation> DeviceAborts { get; } = [];
+
     public bool IsEnded => EndedBy is not null;
 
     /// <summary>有片在机内（投了还没回来，或片位说不准）。</summary>

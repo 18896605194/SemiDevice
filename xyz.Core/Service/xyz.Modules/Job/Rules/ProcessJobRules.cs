@@ -123,14 +123,14 @@ internal sealed class StopDoneRule : IProcessJobRule
 }
 
 /// <summary>
-/// #16 ABORTING → 结束：在途的动作都结束了，片位都确定（没有说不准的片、没有留着锁等确认的搬运单）。
+/// #16 ABORTING → 结束：在途的动作都结束了，发给腔体的中止都做完了（设备确认了），片位都确定（没有说不准的片、没有留着锁等确认的搬运单）。
 /// 片位说不准时不往下转，标成要人工恢复确认——仅仅删掉 Job 对象不能算中止完成。
 /// </summary>
 internal sealed class AbortDoneRule : IProcessJobRule
 {
     public PrJobTrigger? Evaluate(ProcessJob job, JobRuntime runtime)
     {
-        if (job.State != PrJobState.Aborting || job.HasInFlight)
+        if (job.State != PrJobState.Aborting || job.HasInFlight || job.DeviceAborts.Any(abort => !abort.IsSettled))
         {
             return null;
         }

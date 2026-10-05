@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Client.Presentation.Localization;
 using xyz.Shared.Dtos;
@@ -7,7 +8,7 @@ namespace xyz.Client.Main.Models;
 
 /// <summary>
 /// 主界面右栏的一个 LoadPort 页签：载具、槽图认定到哪一步、槽数（LoadPort 状态推送），LotID、Sequence（人填的），
-/// 槽位表（大号在上，片以晶圆账为准，账上没登记这个 LoadPort 时才按 Mapping 结果）。
+/// 槽位表（大号在上，片以晶圆账为准，账上没登记这个 LoadPort 时才按 Mapping 结果），这个 LoadPort 上的 CJ（Job 推送）。
 /// 推送来了就地刷新：行的实例保留，人选过的 Sequence 不会被冲掉。
 /// </summary>
 public sealed class LoadPortJobModel : ObservableObject
@@ -58,7 +59,7 @@ public sealed class LoadPortJobModel : ObservableObject
 
     private string _lotId = string.Empty;
 
-    /// <summary>批次号（人填的，建 Job 时带上；Job 还没做）。</summary>
+    /// <summary>批次号（人填的）：建 Job 时带上，也当 CJ 的名字；空着由后端自动起名。</summary>
     public string LotId
     {
         get => _lotId;
@@ -94,6 +95,30 @@ public sealed class LoadPortJobModel : ObservableObject
     /// <summary>槽位表，大号在上（25 → 01），跟花篮、账单调整页一样。</summary>
     public ObservableCollection<JobSlotModel> Slots { get; } = [];
 
+    /// <summary>有没有要做的片（能做、选了 Sequence 的）：没有就建不了 Job。</summary>
+    public bool HasSelection => Slots.Any(slot => slot.CanAssign && slot.Sequence.Length > 0);
+
+    /// <summary>要做的片，槽号从小到大：建 Job 时交给后端。</summary>
+    public IEnumerable<JobSlotModel> SelectedSlots =>
+        Slots.Where(slot => slot.CanAssign && slot.Sequence.Length > 0).OrderBy(slot => slot.Slot);
+
+    private ControlJobDto? _controlJob;
+
+    /// <summary>这个 LoadPort 上没删的 CJ（一个 LoadPort 同时只有一个，载具拿走后删）；没有为 null。</summary>
+    public ControlJobDto? ControlJob
+    {
+        get => _controlJob;
+        private set => SetProperty(ref _controlJob, value);
+    }
+
+    /// <summary>
+    /// 用 Job 推送刷新（界面线程调用）；null = 不知道（跟后端断开了），当成没有。
+    /// </summary>
+    public void UpdateJob(JobListDto? jobs)
+    {
+        ControlJob = jobs?.ControlJobs.FirstOrDefault(job => string.Equals(job.LoadPort, Name, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// 用 LoadPort 的状态推送刷新（界面线程调用）。槽数变了才重建行，其他时候就地改，人选过的 Sequence 留着。
     /// </summary>
@@ -108,8 +133,12 @@ public sealed class LoadPortJobModel : ObservableObject
             Slots.Clear();
             for (int slot = SlotCount; slot >= 1; slot--)
             {
-                Slots.Add(new JobSlotModel(slot));
+                var row = new JobSlotModel(slot);
+                row.PropertyChanged += OnSlotChanged;
+                Slots.Add(row);
             }
+
+            OnPropertyChanged(nameof(HasSelection));
         }
 
         // 账上登记了这个 LoadPort 就以账为准；没登记（晶圆账没开）才退回按 Mapping 结果，那时没有片号。
@@ -140,6 +169,15 @@ public sealed class LoadPortJobModel : ObservableObject
             {
                 row.Sequence = Sequence;
             }
+        }
+    }
+
+    /// <summary>某一格的 Sequence 或能不能做变了：要做的片跟着变（创建 Job 按钮据此可点不可点）。</summary>
+    private void OnSlotChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(JobSlotModel.Sequence) or nameof(JobSlotModel.CanAssign))
+        {
+            OnPropertyChanged(nameof(HasSelection));
         }
     }
 }

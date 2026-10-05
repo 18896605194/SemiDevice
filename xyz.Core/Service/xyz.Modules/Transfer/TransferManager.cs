@@ -556,6 +556,17 @@ public class TransferManager : ComponentBase
     }
 
     /// <summary>
+    /// 这台机械手正在跑搬运单（整机停止时由搬运管理撤单、手臂在动的发设备中止，不另外直接发）。
+    /// </summary>
+    public bool IsRobotInTransfer(string robot)
+    {
+        lock (_gate)
+        {
+            return _running.ContainsKey(robot);
+        }
+    }
+
+    /// <summary>
     /// 此刻的占用快照：调度每拍取一份，挑目标、挑手臂时避开锁着的。
     /// </summary>
     public TransferView GetView()

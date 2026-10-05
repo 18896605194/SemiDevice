@@ -6,7 +6,7 @@ namespace xyz.Client.Main.Models;
 
 /// <summary>
 /// 主界面槽位表的一行：槽号、片号、状态（以晶圆账为准）+ 这片走哪个 Sequence。
-/// Sequence 是界面上选的（⊕ 单独选、⊖ 清空、上面的 Sequence 框一次给全篮），Job 还没做，所以还不交给后端。
+/// Sequence 是界面上选的（⊕ 单独选、⊖ 清空、上面的 Sequence 框一次给全篮），点"创建 Job"时交给后端。
 /// </summary>
 public sealed class JobSlotModel : ObservableObject
 {

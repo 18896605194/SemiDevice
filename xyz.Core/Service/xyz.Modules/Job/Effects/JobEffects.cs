@@ -18,7 +18,7 @@ internal interface IControlJobEffect
 
 /// <summary>
 /// 进 ABORTING（E40 #13 / #14 / #15）：撤这个 PJ 还没开始的搬运单、中止它在跑的搬运（手臂在动的由搬运管理发设备中止），
-/// 再给正在给它做工艺的腔体发中止。中止做完、片位确定，规则才会把 PJ 转成结束（#16）。
+/// 再给正在给它做工艺的腔体发中止，记下发出去的中止动作。设备中止做完、片位确定，规则才会把 PJ 转成结束（#16）。
 /// </summary>
 internal sealed class AbortProcessJobEffect : IProcessJobEffect
 {
@@ -42,7 +42,12 @@ internal sealed class AbortProcessJobEffect : IProcessJobEffect
             var module = runtime.Environment.Module(station);
             if (module is IProcessStation process && string.Equals(process.CurrentProcess?.Owner, job.Id, StringComparison.OrdinalIgnoreCase))
             {
-                module.Abort();
+                // 发不出去（状态不允许）的不等：工艺照常跑完，在途加工结束了照样往下走
+                var abort = module.Abort() as ModuleOperation;
+                if (abort is not null)
+                {
+                    job.DeviceAborts.Add(abort);
+                }
             }
         }
     }

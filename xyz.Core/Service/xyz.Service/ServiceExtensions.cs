@@ -9,6 +9,7 @@ using xyz.Modules;
 using xyz.Service.Alarms;
 using xyz.Service.Charts;
 using xyz.Service.Events;
+using xyz.Service.Jobs;
 using xyz.Service.Recipes;
 using xyz.Service.Systems;
 using xyz.Service.Transfers;
@@ -210,6 +211,19 @@ public static class ServiceExtensions
             LogHelper.Warn("ProcessRecipe", "sc.xml 没配 ProcessRecipe 节点：工艺配方页用不了，流程配方、腔体起工艺不查配方在不在库里");
         }
 
+        // Job 管理（SEMI E94 CJ / E40 PJ）：模块、搬运管理、两个配方库都起来以后再绑——建 Job 要取配方快照、调度要用搬运管理；
+        // 绑完起它自己的扫描线程（命令、规则、调度都在这条线程上）。
+        var jobs = JobManager.Current;
+        if (jobs is not null)
+        {
+            jobs.Bind(modules);
+            jobs.Start();
+        }
+        else
+        {
+            LogHelper.Warn("Job", "sc.xml 没配 Job 节点：建不了 Job，主界面的创建 / 启动 Job 用不了");
+        }
+
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
         EquipmentStatusPublisher.Start(roots, modules);
 
@@ -255,6 +269,7 @@ public static class ServiceExtensions
         services.AddTransient<IDataChartService, DataChartService>();
         services.AddTransient<IRealChartService, RealChartService>();
         services.AddTransient<ITransferService, TransferService>();
+        services.AddTransient<IJobService, JobService>();
 
         #endregion
 

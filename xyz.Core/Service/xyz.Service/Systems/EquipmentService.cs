@@ -45,12 +45,21 @@ public class EquipmentService : BaseService, IEquipmentService
     }
 
     /// <summary>
-    /// 先关自动派单（停下来之后不能再派出新的一趟），再给正在执行动作的模块发中止；闲着的模块不碰，免得白发设备指令。
-    /// 中止是急停，可以顶替在途动作，所以不看模块现在是什么状态。
+    /// 整机停止：先关自动派单、撤掉所有搬运单（搬运管理撤：手臂正在取放的由它发设备中止），所有没结束的 Job 走中止流程
+    /// （等设备确认、核对片位，不是直接删 Job）；再给正在做别的动作（手动动作）的模块发中止——
+    /// 在跑搬运单的机械手、在给 Job 做工艺的腔体归上面两路去停，这里不直接发。闲着的模块不碰。Data 为这里直接发了中止的模块个数。
     /// </summary>
     public Task<RpcResponse> StopAsync(RpcRequest request, CallContext context = default)
     {
-        TransferManager.Current?.Abort();
+        var transfers = TransferManager.Current;
+        transfers?.Abort();
+
+        // 不等受理：Job 管理下一拍执行，中止的进展看 Job 推送
+        var jobs = JobManager.Current;
+        if (jobs is not null)
+        {
+            _ = jobs.AbortAllAsync(JobCommandSource.Local);
+        }
 
         int aborted = 0;
         foreach (var module in Roots.OfType<BaseModule>())
@@ -60,11 +69,17 @@ public class EquipmentService : BaseService, IEquipmentService
                 continue;
             }
 
+            bool robotInTransfer = module is IRobot robot && transfers is not null && transfers.IsRobotInTransfer(robot.Name);
+            if (robotInTransfer || JobManager.IsJobProcess(module))
+            {
+                continue;
+            }
+
             module.Abort();
             aborted++;
         }
 
-        LogHelper.Info(LogModule, $"整机停止：自动派单已关，{aborted} 个模块在执行动作，已发中止");
+        LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运单已撤，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(aborted)));
     }
 }

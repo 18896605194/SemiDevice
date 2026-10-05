@@ -4,6 +4,7 @@ using xyz.Client.Common.Alarms;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
+using xyz.Client.Common.Session;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Main.Models;
 using xyz.Client.Presentation.Controls;
@@ -20,9 +21,9 @@ namespace xyz.Client.Main.ViewModels;
 
 /// <summary>
 /// 主界面 ViewModel：左边系统操作（系统状态、当前模式、报警条数，Auto / Manual / Stop / Reset），
-/// 右边一个 LoadPort 一个页签（载具、槽图、LotID、Sequence、槽位表）。中间的整机调度是另一块（默认是公共控件 DispatchMap，机型可换），不归这里。
-/// 状态全靠订推送：设备总状态、各 LoadPort 状态都是留存消息，订上就补发、重连后重放；报警条数跟着客户端的当前报警（ClientAlarms）。
-/// Job 和按 Job 自动调度还没做：创建 / 启动 Job 在界面上灰着，⊕ ⊖ 和 Sequence 框只改界面上的选择。
+/// 右边一个 LoadPort 一个页签（载具、槽图、LotID、Sequence、槽位表、创建 / 启动 Job）。中间的整机调度是另一块（默认是公共控件 DispatchMap，机型可换），不归这里。
+/// 状态全靠订推送：设备总状态、各 LoadPort 状态、Job 全貌都是留存消息，订上就补发、重连后重放；报警条数跟着客户端的当前报警（ClientAlarms）。
+/// 创建 Job 把当前页签的 LotID 和各槽选的 Sequence 交给后端（建好等启动）；启动 Job 启动这个 LoadPort 上等启动的 CJ（要在 Auto 下）。
 /// </summary>
 public class MainPageViewModel : BaseViewModel
 {
@@ -141,7 +142,13 @@ public class MainPageViewModel : BaseViewModel
     public LoadPortJobModel? SelectedLoadPort
     {
         get => _selectedLoadPort;
-        set => SetProperty(ref _selectedLoadPort, value);
+        set
+        {
+            if (SetProperty(ref _selectedLoadPort, value))
+            {
+                RefreshJobCommands();
+            }
+        }
     }
 
     /// <summary>
@@ -171,6 +178,12 @@ public class MainPageViewModel : BaseViewModel
     /// <summary>⊖：清空这一片的 Sequence（这片不做）。</summary>
     public IRelayCommand<JobSlotModel> ClearSlotSequenceCommand { get; }
 
+    /// <summary>创建 Job：当前页签有要做的片、这个 LoadPort 上还没有 Job 才能点；建好等启动。</summary>
+    public IAsyncRelayCommand CreateJobCommand { get; }
+
+    /// <summary>启动 Job：Auto 下、这个 LoadPort 上的 CJ 在等启动才能点。</summary>
+    public IAsyncRelayCommand StartJobCommand { get; }
+
     #endregion
 
     #region Service
@@ -178,9 +191,11 @@ public class MainPageViewModel : BaseViewModel
     private readonly IEquipmentService _equipmentService;
     private readonly IAlarmService _alarmService;
     private readonly ISequenceService _sequenceService;
+    private readonly IJobService _jobService;
 
     private IDisposable? _statusSubscription;
     private IDisposable? _sequenceSubscription;
+    private IDisposable? _jobSubscription;
     private readonly List<IDisposable> _loadPortSubscriptions = [];
 
     /// <summary>最近一次收到的设备总状态；断开后清空，重连时后端补发当前值。</summary>
@@ -196,6 +211,7 @@ public class MainPageViewModel : BaseViewModel
         _equipmentService = GrpcClientFactory.Create<IEquipmentService>();
         _alarmService = GrpcClientFactory.Create<IAlarmService>();
         _sequenceService = GrpcClientFactory.Create<ISequenceService>();
+        _jobService = GrpcClientFactory.Create<IJobService>();
 
         LoadPorts = new ObservableCollection<LoadPortJobModel>(loadPorts.Select(name => new LoadPortJobModel(name)));
         _selectedLoadPort = LoadPorts.FirstOrDefault();
@@ -206,6 +222,20 @@ public class MainPageViewModel : BaseViewModel
         ResetCommand = new AsyncRelayCommand(DoReset, () => IsReady);
         PickSlotSequenceCommand = new RelayCommand<JobSlotModel>(DoPickSlotSequence);
         ClearSlotSequenceCommand = new RelayCommand<JobSlotModel>(DoClearSlotSequence);
+        CreateJobCommand = new AsyncRelayCommand(DoCreateJob, CanCreateJob);
+        StartJobCommand = new AsyncRelayCommand(DoStartJob, CanStartJob);
+
+        // 要做的片、这个 LoadPort 上的 Job 变了，两个按钮跟着变
+        foreach (var port in LoadPorts)
+        {
+            port.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(LoadPortJobModel.HasSelection) or nameof(LoadPortJobModel.ControlJob))
+                {
+                    RefreshJobCommands();
+                }
+            };
+        }
 
         RefreshSystem();
     }
@@ -231,6 +261,10 @@ public class MainPageViewModel : BaseViewModel
         _sequenceSubscription?.Dispose();
         _sequenceSubscription = EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, changed => _ = LoadSequences());
 
+        // Job 全貌：每个页签认自己 LoadPort 上的 CJ
+        _jobSubscription?.Dispose();
+        _jobSubscription = EventBus.Register<JobListDto>(JobListDto.EventToken, OnJobsChanged);
+
         ClientAlarms.Changed -= OnAlarmsChanged;
         ClientAlarms.Changed += OnAlarmsChanged;
         OnAlarmsChanged();
@@ -245,8 +279,9 @@ public class MainPageViewModel : BaseViewModel
         IsConnected = connected;
         if (!connected)
         {
-            // 断开后不知道设备现在是什么状态，等重连后后端重放
+            // 断开后不知道设备现在是什么状态、有哪些 Job，等重连后后端重放
             _status = null;
+            OnJobsChanged(null);
             RefreshSystem();
             return;
         }
@@ -258,6 +293,14 @@ public class MainPageViewModel : BaseViewModel
     {
         _status = status;
         RefreshSystem();
+    }
+
+    private void OnJobsChanged(JobListDto? jobs)
+    {
+        foreach (var port in LoadPorts)
+        {
+            port.UpdateJob(jobs);
+        }
     }
 
     private void OnAlarmsChanged()
@@ -309,6 +352,25 @@ public class MainPageViewModel : BaseViewModel
         ManualCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ResetCommand.NotifyCanExecuteChanged();
+        RefreshJobCommands();
+    }
+
+    private void RefreshJobCommands()
+    {
+        CreateJobCommand.NotifyCanExecuteChanged();
+        StartJobCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanCreateJob()
+    {
+        var port = SelectedLoadPort;
+        return IsReady && port is not null && port.HasSelection && port.ControlJob is null;
+    }
+
+    private bool CanStartJob()
+    {
+        var job = SelectedLoadPort?.ControlJob;
+        return IsReady && IsAuto && job is not null && job.State == ControlJobDto.StateWaitingForStart;
     }
 
     /// <summary>
@@ -421,6 +483,78 @@ public class MainPageViewModel : BaseViewModel
         catch (Exception exception)
         {
             ClientLog.Error(LogModule, L10n.Get("main.reset_failed", exception.Message));
+        }
+    }
+
+    /// <summary>
+    /// 创建 Job：当前页签选了 Sequence 的片交给后端（同一个 Sequence 的片一个 PJ，整篮一个 CJ，名字用 LotID），建好等启动。
+    /// 建没建成看回包；之后的进展看 Job 推送。
+    /// </summary>
+    private async Task DoCreateJob()
+    {
+        var port = SelectedLoadPort;
+        if (port is null)
+        {
+            return;
+        }
+
+        var request = new JobCreateRequest
+        {
+            LoadPort = port.Name,
+            LotId = port.LotId.Trim(),
+            Slots = port.SelectedSlots.Select(slot => new JobSlotDto { Slot = slot.Slot, Sequence = slot.Sequence }).ToList(),
+            AutoStart = false,
+            RequestId = Guid.NewGuid().ToString("N"),
+            Operator = ClientSession.UserName,
+        };
+        try
+        {
+            var response = await _jobService.CreateAsync(request);
+            if (!response.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.create_job_failed", port.Name, ReasonOf(response)));
+                return;
+            }
+
+            var created = response.DeserializeData<JobCreatedDto>();
+            ClientLog.Info(LogModule, L10n.Get("main.job_created", port.Name, created.ControlJob, string.Join(", ", created.ProcessJobs)));
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(LogModule, L10n.Get("main.create_job_failed", port.Name, exception.Message));
+        }
+    }
+
+    /// <summary>
+    /// 启动 Job：给当前页签 LoadPort 上等启动的 CJ 发 Start（E94 CJStart）。
+    /// </summary>
+    private async Task DoStartJob()
+    {
+        var job = SelectedLoadPort?.ControlJob;
+        if (job is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await _jobService.ControlJobCommandAsync(new JobCommandRequest
+            {
+                JobId = job.Id,
+                Command = JobCommandRequest.ControlJobStart,
+                RequestId = Guid.NewGuid().ToString("N"),
+            });
+            if (!response.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.start_job_failed", job.Id, ReasonOf(response)));
+                return;
+            }
+
+            ClientLog.Info(LogModule, L10n.Get("main.job_started", job.Id));
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(LogModule, L10n.Get("main.start_job_failed", job.Id, exception.Message));
         }
     }
 

@@ -155,7 +155,7 @@ public class SchedulerComponent : ComponentBase
 
         int stepCount = job.Recipe.Steps.Count;
         int next = wafer.Failed ? stepCount : wafer.Step + 1;
-        var robotsTried = new List<string>();
+        var movesWithoutRobot = new List<string>();
 
         if (next >= stepCount)
         {
@@ -174,8 +174,8 @@ public class SchedulerComponent : ComponentBase
                 return false;
             }
 
-            return TryClaim(job, wafer, source, sourceSlot, port, slot, stepCount, environment, plan, claimedSlots, claimedRobots, robotsTried)
-                || Wait(plan, wafer, ErrorCodes.JobWaitRobot, robotsTried);
+            return TryClaim(job, wafer, source, sourceSlot, port, slot, stepCount, environment, plan, claimedSlots, claimedRobots, movesWithoutRobot)
+                || Wait(plan, wafer, ErrorCodes.JobWaitRobot, movesWithoutRobot);
         }
 
         var step = job.Recipe.Steps[next];
@@ -192,14 +192,14 @@ public class SchedulerComponent : ComponentBase
                 continue;
             }
 
-            if (TryClaim(job, wafer, source, sourceSlot, station, slot, next, environment, plan, claimedSlots, claimedRobots, robotsTried))
+            if (TryClaim(job, wafer, source, sourceSlot, station, slot, next, environment, plan, claimedSlots, claimedRobots, movesWithoutRobot))
             {
                 return true;
             }
         }
 
-        return robotsTried.Count > 0
-            ? Wait(plan, wafer, ErrorCodes.JobWaitRobot, robotsTried)
+        return movesWithoutRobot.Count > 0
+            ? Wait(plan, wafer, ErrorCodes.JobWaitRobot, movesWithoutRobot)
             : Wait(plan, wafer, ErrorCodes.JobWaitStation, step.Stations);
     }
 
@@ -218,15 +218,15 @@ public class SchedulerComponent : ComponentBase
         return 0;
     }
 
-    /// <summary>找机械手；找到就记进计划、占住目标槽和机械手。没找到把"试过谁"记下来（等待原因用）。</summary>
+    /// <summary>找机械手；找到就记进计划、占住目标槽和机械手。没找到把这一趟（源→目标）记下来（等待原因用）。</summary>
     private static bool TryClaim(ProcessJob job, JobWafer wafer, string source, int sourceSlot, string target, int targetSlot, int targetStep,
-        IJobPlanEnvironment environment, JobPlan plan, ISet<string> claimedSlots, ISet<string> claimedRobots, List<string> robotsTried)
+        IJobPlanEnvironment environment, JobPlan plan, ISet<string> claimedSlots, ISet<string> claimedRobots, List<string> movesWithoutRobot)
     {
         var exclude = new HashSet<string>(claimedRobots, StringComparer.OrdinalIgnoreCase);
         string? robot = environment.RobotFor(source, target, exclude);
         if (robot is null)
         {
-            robotsTried.Add($"{source}→{target}");
+            movesWithoutRobot.Add($"{source}→{target}");
             return false;
         }
 

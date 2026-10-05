@@ -522,7 +522,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             var mismatch = library.FindMismatch(recipe, Name);
             if (mismatch is not null)
             {
-                return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, recipe.Name, mismatch.Field, mismatch.Value]);
+                return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, request.RecipeName.Trim(), mismatch.Field, mismatch.Value]);
             }
         }
 

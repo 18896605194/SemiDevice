@@ -9,6 +9,7 @@ using xyz.Service;
 using xyz.Service.Alarms;
 using xyz.Service.Charts;
 using xyz.Service.Events;
+using xyz.Service.Jobs;
 using xyz.Service.Recipes;
 using xyz.Service.Systems;
 using xyz.Service.Transfers;
@@ -123,6 +124,7 @@ public static class Program
         app.MapGrpcService<DataChartService>();
         app.MapGrpcService<RealChartService>();
         app.MapGrpcService<TransferService>();
+        app.MapGrpcService<JobService>();
 
         // 端口监听上了灯才变绿；托盘上点退出就停宿主。
         app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"{host}:{port}"));

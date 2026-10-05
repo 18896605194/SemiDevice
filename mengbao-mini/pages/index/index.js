@@ -1,794 +1,793 @@
-const KEY = 'mengbao.v1';
-
-const DEF = {
-  name: '', gender: 'girl', born: 0,
-  hunger: 92, joy: 88, clean: 90, energy: 95,
-  exp: 0, level: 1, coins: 30,
-  hat: 'bow', clothes: 'onesie', room: 'peach',
-  owned: { hat: ['bow'], clothes: ['onesie'], room: ['peach'] },
-  miles: [], streak: 0, lastSign: '', playDays: 1,
-  games: 0, feed: 0, bath: 0, sleeps: 0, signIn: 0,
-  lastTs: 0, sound: true, offGift: 0, sleeping: false
-};
-
-const STAGES = [
-  { n: '奶娃娃', e: '👶' },
-  { n: '学步宝宝', e: '🧒' },
-  { n: '小可爱', e: '😄' }
+var LEVELS = [
+  { n: '热身', t: 8, wmin: 170, wmax: 200, sp: 85, gr: 5, wind: 0, tol: 10, hard: false, song: null },
+  { n: '传说中的第二关', t: 15, wmin: 120, wmax: 136, sp: 235, gr: 14, wind: 0.2, tol: 5, hard: true,
+    song: { t: '好汉歌', lines: ['大河向东流哇～', '天上的星星参北斗哇～', '说走咱就走哇～', '你有我有全都有哇～', '路见不平一声吼哇～', '该出手时就出手哇～', '风风火火闯九州哇～'],
+      mel: [1, 1, -1, -1, 1, 1, -1, -1] } },
+  { n: '疾驰', t: 14, wmin: 160, wmax: 176, sp: 200, gr: 12, wind: 0.15, tol: 6, hard: true,
+    song: { t: '六月的雨', lines: ['六月的雨 就是无情的你', '伴随着点点滴滴 痛击我心里', '一个人撑伞 一个人擦泪 一个人好累'],
+      mel: [1, -1, -1, 0, 1, -1, -1, 0] } },
+  { n: '狂飙', t: 16, wmin: 150, wmax: 166, sp: 220, gr: 13, wind: 0.18, tol: 6, hard: true,
+    song: { t: '当', lines: ['当山峰没有棱角的时候', '当河水不再流', '当时间停住日夜不分', '当春夏秋冬不再变换', '红尘作伴潇潇洒洒', '策马奔腾 共享人世繁华'],
+      mel: [1, 1, 0, -1, -1, 0, -1, 1] } },
+  { n: '极速', t: 18, wmin: 140, wmax: 156, sp: 245, gr: 15, wind: 0.2, tol: 5, hard: true,
+    song: { t: '千年等一回', lines: ['千年等一回 等一回啊', '千年等一回 我无悔啊', '雨心碎 风流泪', '梦缠绵 情悠远'],
+      mel: [1, 1, -1, -1, 0, 1, -1, -1] } },
+  { n: '地狱叠', t: 22, wmin: 130, wmax: 146, sp: 270, gr: 17, wind: 0.25, tol: 5, hard: true,
+    song: { t: '向天再借五百年', lines: ['看铁蹄铮铮 踏遍万里河山', '我站在风口浪尖 紧握住日月旋转', '愿烟火人间 安得太平美满', '我真的还想再活五百年'],
+      mel: [1, 1, 1, 0, -1, -1, -1, -1] } }
 ];
-
-const MILES = [
-  { id: 'feed', e: '🍼', n: '第一次喂奶', d: '亲手把宝宝喂饱' },
-  { id: 'bath', e: '🧼', n: '第一次洗澡', d: '洗得香喷喷' },
-  { id: 'sleep', e: '🌙', n: '第一次哄睡', d: '看着宝宝进入梦乡' },
-  { id: 'happy', e: '💖', n: '心情满格', d: '宝宝开心到冒泡泡' },
-  { id: 'lv3', e: '🚶', n: '学步期', d: '升级到 LV.3，宝宝会走路啦' },
-  { id: 'lv6', e: '🌟', n: '小可爱', d: '升级到 LV.6，长大的样子' },
-  { id: 'sign3', e: '📅', n: '连续签到 3 天', d: '最有爱的妈妈' },
-  { id: 'game5', e: '🎈', n: '陪玩 5 局', d: '泡泡戳戳乐老手' },
-  { id: 'rich', e: '💰', n: '攒到 1000 金币', d: '小小理财家' },
-  { id: 'all1', e: '🌈', n: '状态全 ≥ 80', d: '被照顾得超级好' }
-];
-
-const GOODS = {
-  hat: [
-    { id: 'bow', n: '蝴蝶结', e: '🎀', p: 0 },
-    { id: 'bear', n: '小熊帽', e: '🐻', p: 80 },
-    { id: 'party', n: '派对帽', e: '🥳', p: 120 },
-    { id: 'straw', n: '草帽', e: '👒', p: 150 }
-  ],
-  clothes: [
-    { id: 'onesie', n: '奶黄连体', e: '🟡', p: 0 },
-    { id: 'dress', n: '蜜桃裙装', e: '🍑', p: 100 },
-    { id: 'space', n: '宇航蓝蓝', e: '🚀', p: 160 },
-    { id: 'melon', n: '西瓜套装', e: '🍉', p: 200 },
-    { id: 'star', n: '星空睡衣', e: '⭐', p: 240 }
-  ],
-  room: [
-    { id: 'peach', n: '蜜桃墙', e: '🌸', p: 0 },
-    { id: 'blue', n: '天空墙', e: '☁️', p: 120 },
-    { id: 'forest', n: '森林墙', e: '🌳', p: 150 },
-    { id: 'night', n: '星空墙', e: '🌙', p: 180 },
-    { id: 'balloon', n: '气球派对', e: '🎈', p: 160 }
-  ]
-};
-
-const SIGN_REWARDS = [30, 40, 50, 60, 80, 100, 200];
-const DECAY = { hunger: 0.55, joy: 0.6, clean: 0.45, energy: 0.5 };
-const NEED = { hunger: '饿饿', joy: '陪陪', clean: '痒痒', energy: '困困' };
+var PASSRATE = ['100%', '5%', '28%', '20%', '12%', '6%'];
+var COLORS = ['#FFB7C5', '#9FDCF2', '#FFD97A', '#8FE3B8', '#C6B5F0', '#FFE3D2', '#B8E0FF'];
+var BH = 26;
+var KEY = 'tower_qr_v1';
+var DEF = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0], hinted: 0, f2: 0 };
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function rnd(a, b) { return a + Math.random() * (b - a); }
-function todayStr(d) {
-  d = d || new Date();
-  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+function seededFactory(seed) {
+  var s = seed | 0;
+  return function () { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
 }
-function yesterdayStr() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return todayStr(d);
-}
-function expNeed(lv) { return 20 + lv * 18; }
-function stageOf(lv) { return lv <= 2 ? 0 : (lv <= 5 ? 1 : 2); }
+function starStr(n) { var o = ''; for (var i = 0; i < 3; i++) o += i < n ? '★' : '☆'; return o; }
 
 Page({
   data: {
-    started: false,
-    obGender: 'girl',
-    obName: '',
-    tab: 'room',
-    top: { name: '', face: '👶', lvTag: 'LV.1 奶娃娃', xpPct: 0, coins: 0, soundIcon: '🔊' },
-    room: {
-      mood: 'normal', stage: 0, hat: 'bow', clothes: 'onesie', wall: 'peach',
-      plant: '🌱', thoughtShow: false, thoughtText: '', fxShow: false, fxText: '', fxId: 0
-    },
-    bars: [
-      { key: 'hunger', icon: '🥛', label: '吃饱饱', pct: 92, low: false, cls: 'bf-hungry' },
-      { key: 'joy', icon: '💗', label: '心情', pct: 88, low: false, cls: 'bf-joy' },
-      { key: 'clean', icon: '🛁', label: '干干净净', pct: 90, low: false, cls: 'bf-clean' },
-      { key: 'energy', icon: '😴', label: '睡饱饱', pct: 95, low: false, cls: 'bf-energy' }
-    ],
-    shopCat: 'hat',
-    goods: [],
-    diary: { days: 1, done: 0, total: 10, miles: [] },
-    sign: { show: false, canClaim: false, btnText: '', days: [] },
-    modal: { show: false, type: 'normal', emoji: '🎉', title: '', sub: '', ok: '好的', cancel: '', gift: '', lv: 1 },
-    game: { show: false, over: false, score: 0, time: 20, final: 0, reward: '', bubbles: [] },
-    toasts: [],
+    live: 6531,
+    starTotal: 0,
+    chips: [],
+    lvName: '',
+    prog: '',
+    streakOn: false,
+    streakTxt: '✨完美 ×0',
+    cam: 0,
+    towerCls: '',
+    blocks: [],
+    moverOn: false,
+    moverLeft: 0,
+    moverBottom: 0,
+    moverW: 100,
+    moverC: '#FFB7C5',
+    moverShadow: '0 6px 14px rgba(74,59,50,.25)',
+    moverSing: false,
+    singing: false,
+    karaShow: false,
+    karaBeat: false,
+    karaSong: '',
+    karaLine: '♪',
+    hintHide: false,
+    fxShow: false,
+    fxId: 0,
+    fxText: '',
+    sPerf: 0,
+    sBest: 0,
+    sGap: 8,
+    shake: false,
+    lose: { show: false, em: '🙈', t: '手滑了！', cur: 1, curL: 0, tgt: 8, perf: 0, gap: '', gapCls: '' },
+    win: { show: false, em: '🎉', t: '通关！', stars: '★★★', perf: 0, brag: '', bragShow: false, nextTxt: '下一关 ⚔️', againTxt: '重刷拿三星' },
+    rank: { show: false, me: '0关 · 0★' },
+    toast: { show: false, text: '', gold: false },
     confetti: []
   },
 
-  /* ========== 存档 ========== */
-  _load() {
+  /* ===== 存档 ===== */
+  _load: function () {
     try {
-      const raw = wx.getStorageSync(KEY);
-      if (raw && typeof raw === 'object' && raw.born) {
-        const s = Object.assign({}, DEF, raw);
-        if (!Array.isArray(s.miles)) s.miles = [];
-        if (!s.owned || typeof s.owned !== 'object') {
-          s.owned = { hat: ['bow'], clothes: ['onesie'], room: ['peach'] };
-        }
-        ['hat', 'clothes', 'room'].forEach(k => {
-          if (!Array.isArray(s.owned[k])) s.owned[k] = DEF.owned[k].slice();
-        });
+      var raw = wx.getStorageSync(KEY);
+      if (raw && typeof raw === 'object') {
+        var s = Object.assign({}, DEF, raw);
+        if (!Array.isArray(s.stars)) s.stars = DEF.stars.slice();
+        if (!Array.isArray(s.bests)) s.bests = DEF.bests.slice();
         return s;
       }
     } catch (e) {}
-    return null;
+    return Object.assign({}, DEF, { stars: DEF.stars.slice(), bests: DEF.bests.slice() });
   },
-  _save() {
-    this.S.lastTs = Date.now();
-    try { wx.setStorageSync(KEY, this.S); } catch (e) {}
+  _save: function () {
+    try { wx.setStorageSync(KEY, this.save); } catch (e) {}
   },
 
-  /* ========== 音效 / 震动 ========== */
-  _beep(freq, dur, type, vol, slide) {
-    if (!this.S || !this.S.sound) return;
+  /* ===== 音效 ===== */
+  _ctx: function () {
+    if (!this._ac) { try { this._ac = wx.createWebAudioContext(); } catch (e) { this._ac = null; } }
+    if (this._ac && this._ac.state === 'suspended') { try { this._ac.resume(); } catch (e) {} }
+    return this._ac;
+  },
+  _snd: function (f, d, t, v, slide) {
     try {
-      if (!this._ac) this._ac = wx.createWebAudioContext();
-      const c = this._ac;
-      const o = c.createOscillator();
-      const g = c.createGain();
-      o.type = type || 'sine';
-      o.frequency.setValueAtTime(freq, c.currentTime);
-      if (slide) o.frequency.exponentialRampToValueAtTime(slide, c.currentTime + dur);
-      g.gain.setValueAtTime(vol || 0.16, c.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
-      o.connect(g);
-      g.connect(c.destination);
-      o.start();
-      o.stop(c.currentTime + dur + 0.02);
+      var c = this._ctx(); if (!c) return;
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = t || 'sine';
+      o.frequency.setValueAtTime(f, c.currentTime);
+      if (slide) o.frequency.exponentialRampToValueAtTime(slide, c.currentTime + d);
+      g.gain.setValueAtTime(v || 0.15, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + d);
+      o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + d + 0.02);
     } catch (e) {}
   },
-  _sfxTap() { this._beep(520, 0.08, 'triangle', 0.12, 700); },
-  _sfxCare() {
-    this._beep(660, 0.1, 'sine', 0.14, 990);
-    setTimeout(() => this._beep(880, 0.12, 'sine', 0.12, 1180), 70);
+  _kick: function () {
+    try {
+      var c = this._ctx(); if (!c) return;
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(160, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(55, c.currentTime + 0.12);
+      g.gain.setValueAtTime(0.35, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.14);
+      o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + 0.16);
+    } catch (e) {}
   },
-  _sfxCoin() { this._beep(1050, 0.07, 'square', 0.07, 1400); },
-  _sfxPop() { this._beep(760, 0.06, 'sine', 0.12, 1200); },
-  _sfxLevel() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this._beep(f, 0.16, 'triangle', 0.14), i * 90)); },
-  _sfxSign() { [660, 880, 1100].forEach((f, i) => setTimeout(() => this._beep(f, 0.14, 'sine', 0.13), i * 80)); },
-  _sfxErr() { this._beep(220, 0.12, 'square', 0.08, 160); },
-  _sfxSleep() { this._beep(440, 0.3, 'sine', 0.1, 220); },
-  _buzz() {
-    try { wx.vibrateShort({ type: 'light' }); } catch (e) {}
-  },
-  _buzzMid() {
-    try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
-  },
-
-  /* ========== 状态计算 ========== */
-  _avgStat() { return (this.S.hunger + this.S.joy + this.S.clean + this.S.energy) / 4; },
-  _anyLow() {
-    const S = this.S;
-    return S.hunger < 25 || S.joy < 25 || S.clean < 25 || S.energy < 25;
-  },
-  _mood() {
-    if (this.S.sleeping) return 'sleep';
-    if (this._anyLow()) return 'cry';
-    if (this._avgStat() >= 85) return 'happy';
-    return 'normal';
-  },
-  _applyDecay(mins) {
-    mins = clamp(mins, 0, 60 * 14);
-    if (mins <= 0) return;
-    const S = this.S;
-    const sleeping = !!S.sleeping;
-    for (const k in DECAY) {
-      let d = DECAY[k] * mins * (sleeping && k !== 'energy' ? 0.35 : 1);
-      if (sleeping && k === 'energy') d = -5 * mins;
-      S[k] = clamp(S[k] - d, 0, 100);
-    }
-  },
-
-  /* ========== 同步渲染 ========== */
-  _syncTop() {
-    const S = this.S;
-    const st = STAGES[stageOf(S.level)];
-    this.setData({
-      'top.name': S.name || '宝宝',
-      'top.face': st.e,
-      'top.lvTag': 'LV.' + S.level + ' ' + st.n,
-      'top.xpPct': Math.round(clamp(S.exp / expNeed(S.level) * 100, 0, 100)),
-      'top.coins': Math.floor(S.coins),
-      'top.soundIcon': S.sound ? '🔊' : '🔇'
+  _fanfare: function () {
+    var self = this;
+    [523, 659, 784, 1046].forEach(function (f, i) {
+      setTimeout(function () { self._snd(f, 0.16, 'triangle', 0.14); }, i * 90);
     });
   },
-  _syncBars() {
-    const S = this.S;
-    const keys = ['hunger', 'joy', 'clean', 'energy'];
-    const bars = this.data.bars.map((b, i) => {
-      const pct = Math.round(S[keys[i]]);
-      return Object.assign({}, b, { pct: pct, low: pct < 25 });
-    });
-    this.setData({ bars: bars });
-  },
-  _syncRoom() {
-    const S = this.S;
-    this.setData({
-      'room.mood': this._mood(),
-      'room.stage': stageOf(S.level),
-      'room.hat': S.owned.hat.indexOf(S.hat) >= 0 ? S.hat : 'bow',
-      'room.clothes': S.clothes,
-      'room.wall': S.room,
-      'room.plant': S.room === 'forest' ? '🌳' : '🌱'
-    });
-  },
-  _syncAll() { this._syncTop(); this._syncBars(); this._syncRoom(); },
+  _buzz: function () { try { wx.vibrateShort({ type: 'medium' }); } catch (e) {} },
 
-  /* ========== toast / 弹窗 ========== */
-  _toast(text, gold) {
-    const id = Date.now() + '_' + Math.random();
-    const list = this.data.toasts.concat([{ id: id, text: text, gold: !!gold }]);
-    this.setData({ toasts: list });
-    setTimeout(() => {
-      this.setData({ toasts: this.data.toasts.filter(t => t.id !== id) });
-    }, 1900);
+  /* ===== 小工具 ===== */
+  _toast: function (text, gold) {
+    this.setData({ toast: { show: true, text: text, gold: !!gold } });
+    clearTimeout(this._toastT);
+    var self = this;
+    this._toastT = setTimeout(function () {
+      self.setData({ 'toast.show': false });
+    }, 2400);
   },
-  _modal(o) {
-    this.setData({
-      modal: {
-        show: true,
-        type: o.type || 'normal',
-        emoji: o.emoji || '🎉',
-        title: o.title || '',
-        sub: o.sub || '',
-        ok: o.ok || '好的',
-        cancel: o.cancel || '',
-        gift: o.gift || '',
-        lv: o.lv || 1
-      }
-    });
+  _floot: function (txt) {
+    var id = Date.now();
+    this.setData({ fxShow: true, fxText: txt, fxId: id });
+    clearTimeout(this._fxT);
+    var self = this;
+    this._fxT = setTimeout(function () { self.setData({ fxShow: false }); }, 920);
   },
-  onModalOk() {
-    this.setData({ 'modal.show': false });
-    this._sfxTap();
-    if (this._mdOk) { const f = this._mdOk; this._mdOk = null; f(); }
-  },
-  onModalCancel() {
-    this.setData({ 'modal.show': false });
-    this._sfxTap();
-  },
-
-  /* ========== 里程碑 / 成长 ========== */
-  _unlock(id) {
-    if (this.S.miles.indexOf(id) >= 0) return;
-    const m = MILES.find(x => x.id === id);
-    if (!m) return;
-    this.S.miles.push(id);
-    this._save();
-    this._toast('📖 日记更新：' + m.n, true);
-    this._sfxLevel();
-    this._syncDiary();
-  },
-  _checkMiles() {
-    const S = this.S;
-    if (S.feed >= 1) this._unlock('feed');
-    if (S.bath >= 1) this._unlock('bath');
-    if (S.sleeps >= 1) this._unlock('sleep');
-    if (S.joy >= 99) this._unlock('happy');
-    if (S.level >= 3) this._unlock('lv3');
-    if (S.level >= 6) this._unlock('lv6');
-    if (S.streak >= 3) this._unlock('sign3');
-    if (S.games >= 5) this._unlock('game5');
-    if (S.coins >= 1000) this._unlock('rich');
-    if (S.hunger >= 80 && S.joy >= 80 && S.clean >= 80 && S.energy >= 80) this._unlock('all1');
-  },
-  _addExp(n) {
-    this.S.exp += n;
-    let leveled = false;
-    while (this.S.exp >= expNeed(this.S.level)) {
-      this.S.exp -= expNeed(this.S.level);
-      this.S.level += 1;
-      leveled = true;
-    }
-    if (leveled) {
-      this._save();
-      this._syncTop();
-      this._syncRoom();
-      this._sfxLevel();
-      this._buzzMid();
-      this._confetti();
-      const st = STAGES[stageOf(this.S.level)];
-      this._modal({
-        type: 'levelup',
-        lv: this.S.level,
-        title: '宝宝升级啦！',
-        sub: 'LV.' + this.S.level + ' · ' + st.n + '\n继续好好照顾它，看看长大的样子！',
-        ok: '太棒了'
-      });
-      this._checkMiles();
-    }
-    this._syncTop();
-  },
-  _addCoins(n) {
-    this.S.coins += n;
-    this._save();
-    this._syncTop();
-    this._checkMiles();
-  },
-  _confetti() {
-    const colors = ['#FF8FA3', '#7EC8E3', '#FFC94A', '#7ED9A7', '#C6B5F0'];
-    const list = [];
-    for (let i = 0; i < 36; i++) {
+  _confetti: function () {
+    var colors = COLORS;
+    var list = [];
+    for (var i = 0; i < 28; i++) {
       list.push({
         id: i + '_' + Date.now(),
-        left: Math.round(rnd(0, 100)),
+        left: Math.round(Math.random() * 100),
         color: colors[i % colors.length],
-        dur: rnd(1.4, 2.6).toFixed(2),
-        delay: rnd(0, 0.4).toFixed(2)
+        dur: (1.1 + Math.random() * 1.1).toFixed(2),
+        delay: (Math.random() * 0.4).toFixed(2)
       });
     }
     this.setData({ confetti: list });
-    setTimeout(() => this.setData({ confetti: [] }), 3600);
+    var self = this;
+    setTimeout(function () { self.setData({ confetti: [] }); }, 2600);
   },
-  /* ========== 引导 ========== */
-  pickGirl() { this.setData({ obGender: 'girl' }); this._sfxTap(); },
-  pickBoy() { this.setData({ obGender: 'boy' }); this._sfxTap(); },
-  onNameInput(e) { this.setData({ obName: e.detail.value }); },
-  onStart() {
-    const nm = (this.data.obName || '').trim() ||
-      (this.data.obGender === 'girl' ? '小棉袄' : '小暖阳');
-    this.S = Object.assign({}, DEF, {
-      name: nm,
-      gender: this.data.obGender,
-      born: Date.now(),
-      lastTs: Date.now(),
-      owned: { hat: ['bow'], clothes: ['onesie'], room: ['peach'] },
-      miles: []
+
+  /* ===== 关卡 UI ===== */
+  _starsFor: function (p, t) {
+    if (p >= Math.ceil(t * 0.7)) return 3;
+    if (p >= Math.ceil(t * 0.4)) return 2;
+    return 1;
+  },
+  _renderChips: function () {
+    var self = this;
+    var total = 0;
+    var chips = LEVELS.map(function (L, i) {
+      total += self.save.stars[i] || 0;
+      var locked = i >= self.save.unlocked;
+      var cls = (i === self.cur ? 'on' : (locked ? '' : 'ok')) + (L.hard && !self.save.stars[i] ? ' hard' : '');
+      var st;
+      if (locked) st = '🔒';
+      else if (self.save.stars[i]) st = starStr(self.save.stars[i]);
+      else if (L.hard) st = '仅' + PASSRATE[i] + '能过';
+      else st = PASSRATE[i];
+      return { id: i, n: i + 1, st: st, cls: cls, locked: locked };
     });
-    this._save();
-    this._sfxCare();
-    this._buzz();
-    this.setData({ started: true });
-    this._syncAll();
-    this._syncGoods();
-    this._syncDiary();
-    this._checkDaily(false);
+    this.setData({ chips: chips, starTotal: total });
   },
-
-  /* ========== 照顾动作 ========== */
-  _floatFx(txt) {
-    const id = Date.now();
-    this.setData({ 'room.fxShow': true, 'room.fxText': txt, 'room.fxId': id });
-    clearTimeout(this._fxT);
-    this._fxT = setTimeout(() => this.setData({ 'room.fxShow': false }), 900);
-  },
-  _thought(t) {
-    this.setData({ 'room.thoughtShow': true, 'room.thoughtText': t });
-    clearTimeout(this._thT);
-    this._thT = setTimeout(() => this.setData({ 'room.thoughtShow': false }), 2600);
-  },
-  _wakeIfSleeping() {
-    if (!this.S.sleeping) return false;
-    this.S.sleeping = false;
-    this._floatFx('☀️');
-    this._thought('睡醒啦！');
-    this._syncRoom();
-    return true;
-  },
-  _weakest() {
-    const S = this.S;
-    const ks = ['hunger', 'joy', 'clean', 'energy'];
-    ks.sort((a, b) => S[a] - S[b]);
-    return ks[0];
-  },
-  onCare(e) {
-    const kind = e.currentTarget.dataset.kind;
-    const now = Date.now();
-    if (now < (this._busy || 0)) return;
-    if (kind === 'sleep') {
-      this.S.sleeping = !this.S.sleeping;
-      if (this.S.sleeping) {
-        this.S.sleeps++;
-        this._floatFx('💤');
-        this._thought('晚安……');
-        this._sfxSleep();
-        this._buzz();
-        this._toast('宝宝睡着了，体力恢复中');
-        this._addExp(4);
-      } else {
-        this._floatFx('☀️');
-        this._thought('睡醒啦！');
-        this._sfxTap();
-        this._toast('宝宝醒来了');
-      }
-      this._sfxCare();
-      this._buzz();
-      this._checkMiles();
-      this._save();
-      this._syncAll();
-      return;
-    }
-    if (this._wakeIfSleeping()) this._toast('宝宝醒过来啦');
-    if (kind === 'play') { this._openGame(); return; }
-    this._busy = now + 450;
-    const S = this.S;
-    if (kind === 'feed') {
-      S.hunger = clamp(S.hunger + 34, 0, 100);
-      S.feed++;
-      S.clean = clamp(S.clean - 4, 0, 100);
-      this._floatFx('🍼+34');
-      this._thought('咕噜咕噜~真好喝！');
-      this._addCoins(3);
-      this._addExp(6);
-      if (S.hunger >= 99) this._toast('宝宝吃饱啦 +6 经验');
-    } else if (kind === 'bath') {
-      S.clean = clamp(S.clean + 42, 0, 100);
-      S.bath++;
-      S.joy = clamp(S.joy + 6, 0, 100);
-      this._floatFx('🛁+42');
-      this._thought('哗啦哗啦~洗得香香！');
-      this._addCoins(3);
-      this._addExp(6);
-    }
-    S.joy = clamp(S.joy + 2, 0, 100);
-    this._sfxCare();
-    this._buzz();
-    this._checkMiles();
-    this._save();
-    this._syncAll();
-  },
-  onBabyTap() {
-    if (this.S.sleeping) { this._thought('嘘……在做梦'); return; }
-    this.S.joy = clamp(this.S.joy + 5, 0, 100);
-    const fx = ['💗', '✨', '😜', '🥰'][Math.floor(Math.random() * 4)];
-    const lines = ['咯咯咯~', '妈妈最好啦', '还要玩！', '么么哒！'];
-    this._floatFx(fx);
-    this._thought(lines[Math.floor(Math.random() * lines.length)]);
-    this._sfxTap();
-    this._buzz();
-    this._save();
-    this._syncRoom();
-    this._syncBars();
-  },
-
-  /* ========== 页签 ========== */
-  onTab(e) {
-    const v = e.currentTarget.dataset.v;
-    if (v === this.data.tab) return;
-    this.setData({ tab: v });
-    this._sfxTap();
-    if (v === 'shop') this._syncGoods();
-    if (v === 'diary') this._syncDiary();
-  },
-
-  /* ========== 装扮商店 ========== */
-  onShopCat(e) {
-    this.setData({ shopCat: e.currentTarget.dataset.cat });
-    this._sfxTap();
-    this._syncGoods();
-  },
-  _syncGoods() {
-    const cat = this.data.shopCat;
-    const S = this.S;
-    const clsMap = { hat: '', clothes: 'b', room: 'c' };
-    const list = GOODS[cat].map(g => {
-      const owned = S.owned[cat].indexOf(g.id) >= 0;
-      return {
-        id: g.id, n: g.n, e: g.e, p: g.p,
-        owned: owned, eq: S[cat] === g.id,
-        cls: clsMap[cat]
-      };
-    });
-    this.setData({ goods: list });
-  },
-  onBuy(e) {
-    const id = e.currentTarget.dataset.id;
-    const cat = this.data.shopCat;
-    const g = GOODS[cat].find(x => x.id === id);
-    if (!g) return;
-    if (this.S.coins < g.p) {
-      this._sfxErr();
-      this._toast('金币不够，去陪玩赚点吧');
-      return;
-    }
-    this.S.coins -= g.p;
-    if (this.S.owned[cat].indexOf(id) < 0) this.S.owned[cat].push(id);
-    this.S[cat] = id;
-    this._sfxCoin();
-    this._buzz();
-    this._toast('购入成功：' + g.n, true);
-    this._save();
-    this._syncGoods();
-    this._syncTop();
-    this._syncRoom();
-  },
-  onEquip(e) {
-    const id = e.currentTarget.dataset.id;
-    const cat = this.data.shopCat;
-    this.S[cat] = id;
-    this._sfxTap();
-    this._save();
-    this._syncGoods();
-    this._syncRoom();
-  },
-
-  /* ========== 日记 ========== */
-  _syncDiary() {
-    const S = this.S;
-    const days = Math.max(1, Math.ceil((Date.now() - (S.born || Date.now())) / 86400000));
-    const miles = MILES.map(m => ({
-      id: m.id, e: m.e, n: m.n, d: m.d,
-      ok: S.miles.indexOf(m.id) >= 0
-    }));
+  _updHud: function () {
+    var L = LEVELS[this.cur];
     this.setData({
-      diary: {
-        days: days,
-        done: S.miles.length,
-        total: MILES.length,
-        miles: miles
-      }
+      lvName: '第' + (this.cur + 1) + '关 · ' + L.n + (L.hard ? ' ⚠️' : ''),
+      prog: this.level + ' / ' + L.t + ' 层',
+      sPerf: this.perf,
+      sBest: this.save.bests[this.cur] || 0,
+      sGap: Math.max(0, L.t - this.level),
+      streakOn: this.streak >= 2,
+      streakTxt: '✨完美 ×' + this.streak
     });
   },
-  /* ========== 每日签到 ========== */
-  _signIdx() {
-    const S = this.S;
-    const t = todayStr();
-    if (S.lastSign === t) return clamp((S.streak || 1) - 1, 0, 6);
-    if (S.lastSign === yesterdayStr()) return clamp(S.streak, 0, 6);
+
+  /* ===== 好汉歌 ===== */
+  _isBuff: function () {
+    return !!(this.singMode && LEVELS[this.cur] && LEVELS[this.cur].hard && this.playing);
+  },
+  _applyBuff: function () {
+    var on = this._isBuff();
+    if (on === this.buffOn) return;
+    this.buffOn = on;
+    this.setData({ singing: on, moverSing: on && this.playing });
+  },
+  _startKara: function () {
+    if (this._karaT) return;
+    var L = LEVELS[this.cur];
+    var song = (L && L.song) || { t: '', lines: ['♪'] };
+    var lines = song.lines;
+    this.kickN = 0;
+    this.setData({ karaShow: true, karaSong: song.t, karaLine: lines[0], karaBeat: false });
+    var self = this;
+    this._karaT = setInterval(function () {
+      self._kick();
+      self.setData({ karaBeat: true });
+      setTimeout(function () { self.setData({ karaBeat: false }); }, 110);
+      self.kickN++;
+      if (self.kickN % 4 === 0) {
+        self.setData({ karaLine: lines[Math.floor(self.kickN / 4) % lines.length] });
+      }
+    }, 535);
+  },
+  _stopKara: function () {
+    if (this._karaT) { clearInterval(this._karaT); this._karaT = null; }
+    this.setData({ karaShow: false, karaBeat: false });
+  },
+  _maybeKara: function () {
+    if (this.singMode && LEVELS[this.cur].hard && this.playing) this._startKara();
+    else this._stopKara();
+  },
+  /* ===== 隐形麦克风：唱→立刻慢，停→立刻快，全程零提示 ===== */
+  _initMic: function () {
+    if (this._micInited) { this._micResume(); return; }
+    this._micInited = true;
+    this._frameSeen = false;
+    this._micErr = false;
+    this._micStep = 0;
+    this._bgE = null;
+    this._raiseSince = null;
+    this._offSince = null;
+    var self = this;
+    try {
+      var rm = wx.getRecorderManager();
+      this._rm = rm;
+      rm.onFrameRecorded(function (res) {
+        if (!res || !res.frameBuffer) return;
+        self._frameSeen = true;
+        self._onVoiceFrame(res.frameBuffer);
+      });
+      rm.onError(function () { self._micAdvance(); });
+      this._micStartStep();
+    } catch (e) { this._micErr = true; }
+  },
+  _micCfg: function () {
+    if (this._micStep === 0) return { fmt: 'pcm', opt: { format: 'pcm', sampleRate: 16000, frameSize: 1, duration: 600000 } };
+    if (this._micStep === 1) return { fmt: 'pcm', opt: { format: 'pcm', sampleRate: 16000, duration: 600000 } };
+    return { fmt: 'mp3', opt: { frameSize: 1, duration: 600000 } };
+  },
+  _micDoStart: function () {
+    if (this._micErr || !this._rm) return;
+    var c = this._micCfg();
+    this._micFmt = c.fmt;
+    try { this._rm.start(c.opt); } catch (e) { this._micErr = true; }
+  },
+  _micStartStep: function () {
+    this._micDoStart();
+    var self = this, stepAt = this._micStep;
+    clearTimeout(this._micWatch);
+    this._micWatch = setTimeout(function () {
+      if (stepAt !== self._micStep) return;
+      self._micAdvance();
+    }, 2500);
+  },
+  _micAdvance: function () {
+    if (this._frameSeen || this._micErr || this._advancing) return;
+    this._advancing = true;
+    var self = this;
+    setTimeout(function () { self._advancing = false; }, 400);
+    clearTimeout(this._micWatch);
+    this._micStep++;
+    if (this._micStep > 2) { this._micErr = true; return; }
+    try { this._rm.stop(); } catch (e) {}
+    this._micStartStep();
+  },
+  _micResume: function () {
+    if (!this._micErr && this._micFmt) this._micDoStart();
+  },
+  _onVoiceFrame: function (buf) {
+    var now = Date.now();
+    var inL2 = this.playing && LEVELS[this.cur] && LEVELS[this.cur].hard;
+    if (this._micFmt === 'pcm') {
+      // PCM：提取音高旋律，必须和本关歌曲对上才算“唱了”
+      this._pcmFrame(buf, now);
+      if (!inL2) { if (this.singMode) this._singOff(); return; }
+      if (this.singMode) {
+        if (now - (this._lastMatch || 0) > 3000 || now - (this._lastVoiced || 0) > 2200) this._singOff();
+        return;
+      }
+      if (this._lastMatch && now - this._lastMatch <= 400) this._singOn();
+      return;
+    }
+    // mp3 兜底路径：拿不到音高，只能大幅收紧“持续大音量”门槛
+    var b = this._byteStd(buf);
+    if (this._bgE === null) this._bgE = b;
+    var raised = b > this._bgE * 4 + 25;
+    if (!this.singMode) this._bgE = this._bgE * 0.96 + b * 0.04;
+    if (raised) { if (this._raiseSince == null) this._raiseSince = now; this._offSince = null; }
+    else { this._raiseSince = null; if (this._offSince == null) this._offSince = now; }
+    if (!inL2) { if (this.singMode) this._singOff(); return; }
+    if (!this.singMode && this._raiseSince && now - this._raiseSince >= 1500) this._singOn();
+    else if (this.singMode && this._offSince && now - this._offSince >= 600) this._singOff();
+  },
+  _pcmFrame: function (buf, now) {
+    try {
+      var ab = (buf instanceof ArrayBuffer) ? buf : (buf && (buf.buffer instanceof ArrayBuffer) ? buf.buffer : null);
+      if (!ab) return;
+      var n = ab.byteLength >> 1;
+      if (n < 256) return;
+      if (!this._recent) { this._recent = []; this._curMidi = 0; this._pendMidi = 0; this._melArmed = 0; }
+      var s = new Int16Array(ab, 0, n);
+      var sum = 0, i;
+      for (i = 0; i < n; i++) sum += s[i] * s[i];
+      var rms = Math.sqrt(sum / n) / 32768;
+      if (rms < 0.035) return;
+      this._lastVoiced = now;
+      var win = 1024, hop = 512, sr = 16000;
+      for (var st = 0; st + win <= n; st += hop) {
+        var f = this._pitchOf(s, st, win, sr);
+        if (!f) continue;
+        var midi = Math.round(69 + 12 * (Math.log(f / 440) / Math.LN2));
+        if (this._curMidi === 0) { this._curMidi = midi; continue; }
+        while (midi - this._curMidi > 7) midi -= 12;
+        while (this._curMidi - midi > 7) midi += 12;
+        if (midi === this._curMidi) { this._pendMidi = 0; continue; }
+        if (midi === this._pendMidi) {
+          // 连续两帧确认新音符 → 记一个旋律方向步
+          this._pendMidi = 0;
+          var d = midi - this._curMidi;
+          this._curMidi = midi;
+          if (d === 0) continue;
+          var dir = d > 0 ? 1 : -1;
+          this._recent.push({ d: dir, t: now });
+          if (this._recent.length > 18) this._recent.shift();
+          this._recent = this._recent.filter(function (x) { return now - x.t < 5500; });
+          var m = this._matchMel(now);
+          if (m === 2) { this._lastMatch = now; this._melArmed = 0; }
+          else if (m === 1) {
+            if (this._melArmed && now - this._melArmed <= 4500) { this._lastMatch = now; this._melArmed = 0; }
+            else this._melArmed = now;
+          }
+        } else {
+          this._pendMidi = midi;
+        }
+      }
+    } catch (e) {}
+  },
+  _pitchOf: function (s, st, win, sr) {
+    var minLag = Math.floor(sr / 400), maxLag = Math.floor(sr / 70);
+    var i, lag, sum, best = 0, bestLag = 0;
+    var e = 0;
+    for (i = st; i < st + win; i += 2) e += s[i] * s[i];
+    if (e < 1e-6) return 0;
+    for (lag = minLag; lag <= maxLag; lag++) {
+      sum = 0;
+      for (i = st; i + lag < st + win; i += 2) sum += s[i] * s[i + lag];
+      if (sum > best) { best = sum; bestLag = lag; }
+    }
+    if (!bestLag) return 0;
+    var clarity = best / (e / 2 + 1e-9);
+    if (clarity < 0.30) return 0;
+    return sr / bestLag;
+  },
+  _matchMel: function (now) {
+    var L = LEVELS[this.cur];
+    if (!L || !L.song || !L.song.mel) return 0;
+    var mel = L.song.mel;
+    var rec = this._recent.filter(function (x) { return now - x.t < 5500; });
+    if (rec.length < mel.length) return 0;
+    var loose = Math.ceil(mel.length * 0.75);
+    var bestOk = 0;
+    for (var off = 0; off + mel.length <= rec.length; off++) {
+      var ok = 0;
+      for (var j = 0; j < mel.length; j++) {
+        var u = rec[off + j].d, m = mel[j];
+        // 只有方向相反才算错（0 与 ±1 视为相近）
+        var wrong = (u > 0 && m < 0) || (u < 0 && m > 0);
+        if (!wrong) ok++;
+      }
+      if (ok > bestOk) bestOk = ok;
+      if (ok === mel.length) return 2;
+    }
+    if (bestOk >= loose) return 1;
     return 0;
   },
-  _syncSign() {
-    const S = this.S;
-    const signed = S.lastSign === todayStr();
-    const idx = this._signIdx();
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      let state = 'todo';
-      if (signed ? i <= idx : i < idx) state = 'done';
-      else if (i === idx && !signed) state = 'today';
-      days.push({ i: i + 1, g: SIGN_REWARDS[i], state: state });
+  _rmsPcm: function (buf) {
+    try {
+      var ab = (buf instanceof ArrayBuffer) ? buf : (buf && (buf.buffer instanceof ArrayBuffer) ? buf.buffer : null);
+      if (!ab) return 0;
+      var n = ab.byteLength >> 1;
+      if (n < 16) return 0;
+      var v = new Int16Array(ab, 0, n);
+      var sum = 0;
+      for (var i = 0; i < n; i++) { var s = v[i] / 32768; sum += s * s; }
+      return Math.sqrt(sum / n);
+    } catch (e) { return 0; }
+  },
+  _byteStd: function (buf) {
+    try {
+      var arr;
+      if (buf instanceof ArrayBuffer) arr = new Uint8Array(buf);
+      else if (buf && buf.byteLength !== undefined) arr = new Uint8Array(buf);
+      else if (Array.isArray(buf)) arr = buf;
+      else return 0;
+      var n = arr.length;
+      if (!n) return 0;
+      var mean = 0, i;
+      for (i = 0; i < n; i++) mean += arr[i];
+      mean /= n;
+      var v = 0;
+      for (i = 0; i < n; i++) { var d = arr[i] - mean; v += d * d; }
+      return Math.sqrt(v / n);
+    } catch (e) { return 0; }
+  },
+  _singOn: function () {
+    this.singMode = true;
+    this.usedBuff = true;
+    var now = Date.now();
+    if (now - (this._lastSingFx || 0) > 5000) {
+      this._lastSingFx = now;
+      this._floot('🎵 速度慢下来了～');
+      this._snd(392, 0.14, 'triangle', 0.13, 523);
     }
-    this.setData({
-      sign: {
-        show: this.data.sign.show,
-        canClaim: !signed,
-        btnText: signed
-          ? '今天已领取 ✅'
-          : '领取今日奖励（第 ' + (idx + 1) + ' 天 · ¥' + SIGN_REWARDS[idx] + '）',
-        days: days
-      }
-    });
+    this._maybeKara();
+    this._applyBuff();
   },
-  _openSign() {
-    this._syncSign();
-    this.setData({ 'sign.show': true });
+  _singOff: function () {
+    this.singMode = false;
+    this._stopKara();
+    this._applyBuff();
   },
-  onSignBtn() { this._openSign(); this._sfxTap(); },
-  onSignClose() { this.setData({ 'sign.show': false }); this._sfxTap(); },
-  onSignClaim() {
-    const S = this.S;
-    const t = todayStr();
-    if (S.lastSign === t) return;
-    const idx = this._signIdx();
-    S.streak = idx + 1;
-    S.lastSign = t;
-    const rw = SIGN_REWARDS[idx];
-    S.coins += rw;
-    S.signIn++;
-    this._sfxSign();
-    this._buzzMid();
-    this._save();
-    this._syncTop();
-    this._checkMiles();
-    this._modal({
-      emoji: '🎁',
-      title: '签到成功！',
-      sub: '连续第 ' + S.streak + ' 天签到\n获得 ' + rw + ' 金币' +
-        (S.streak >= 7 ? '\n7 天全勤达成，明天奖励循环重置！' : ''),
-      ok: '收下'
-    });
-    this._syncSign();
-  },
-  _checkDaily(silent) {
-    const S = this.S;
-    const t = todayStr();
-    if (S.lastSign && S.lastSign !== t && S.lastSign !== yesterdayStr()) {
-      S.streak = 0;
-      this._save();
-    }
-    if (S.lastSign !== t && !silent) {
-      setTimeout(() => this._openSign(), 700);
-    }
-  },
-  _welcomeBack() {
-    const now = Date.now();
-    const mins = (now - (this.S.lastTs || now)) / 60000;
-    if (mins < 45) return;
-    const h = Math.floor(mins / 60);
-    const m = Math.floor(mins % 60);
-    const gift = clamp(Math.floor(mins / 30) * 5, 5, 80);
-    this.S.coins += gift;
-    this._save();
-    this._syncTop();
-    const timeTxt = h > 0 ? h + ' 小时 ' + m + ' 分钟' : Math.floor(mins) + ' 分钟';
-    this._modal({
-      emoji: '🏠',
-      title: '你回来啦！',
-      sub: '你离开了 ' + timeTxt + '\n宝宝一直乖乖等你，饿得肚子咕咕叫～\n想你想到哭唧唧',
-      gift: '🎁 回归小礼物 +' + gift + ' 金币',
-      ok: '抱抱宝宝'
-    });
+  _stopMic: function () {
+    if (this._rm) { try { this._rm.stop(); } catch (e) {} }
   },
 
-  /* ========== 泡泡小游戏 ========== */
-  _openGame() {
-    this.setData({ 'game.show': true, 'game.over': false });
-    this._startGame();
-    this._sfxTap();
-  },
-  _startGame() {
-    this._clearGameTimers();
-    this.setData({
-      'game.score': 0,
-      'game.time': 20,
-      'game.over': false,
-      'game.final': 0,
-      'game.reward': '',
-      'game.bubbles': []
-    });
-    this._gScore = 0;
-    this._gTime = 20;
-    this._gRunning = true;
-    this._gId = 0;
-    this._spawnT = setInterval(() => this._spawnBubble(), 420);
-    this._gameT = setInterval(() => {
-      if (!this._gRunning) return;
-      this._gTime--;
-      this.setData({ 'game.time': this._gTime });
-      if (this._gTime <= 0) this._endGame();
-    }, 1000);
-  },
-  _spawnBubble() {
-    if (!this._gRunning) return;
-    const colors = ['#FF8FA3', '#7EC8E3', '#FFC94A', '#7ED9A7', '#C6B5F0'];
-    const emo = ['⭐', '🍬', '🍓', '🌈', '🔵'];
-    const size = Math.round(rnd(104, 184));
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    const dur = rnd(3.4, 5.2);
-    const b = {
-      id: 'b' + (++this._gId),
-      left: Math.round(rnd(6, 86)),
-      size: size,
-      dur: dur.toFixed(2),
-      e: emo[Math.floor(Math.random() * emo.length)],
-      bg: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.95), ' + color + ' 58%)',
-      popped: false
-    };
-    const list = this.data.game.bubbles.concat([b]);
-    this.setData({ 'game.bubbles': list });
-    setTimeout(() => this._removeBubble(b.id), dur * 1000 + 800);
-  },
-  _removeBubble(id) {
-    const list = this.data.game.bubbles.filter(b => b.id !== id);
-    if (list.length !== this.data.game.bubbles.length) {
-      this.setData({ 'game.bubbles': list });
-    }
-  },
-  onPopBubble(e) {
-    if (!this._gRunning) return;
-    const id = e.currentTarget.dataset.id;
-    const b = this.data.game.bubbles.find(x => x.id === id);
-    if (!b || b.popped) return;
-    this._gScore++;
-    this.setData({
-      'game.score': this._gScore,
-      'game.bubbles': this.data.game.bubbles.map(x =>
-        x.id === id ? Object.assign({}, x, { popped: true }) : x)
-    });
-    this._sfxPop();
-    this._buzz();
-    setTimeout(() => this._removeBubble(id), 220);
-  },
-  _endGame() {
-    this._gRunning = false;
-    this._clearGameTimers();
-    const rw = this._gScore;
-    this.S.games++;
-    this.S.joy = clamp(this.S.joy + 18, 0, 100);
-    this._addCoins(rw);
-    this._addExp(8 + Math.floor(rw / 3));
-    this._save();
-    this._checkMiles();
-    this._syncAll();
-    this.setData({
-      'game.over': true,
-      'game.final': rw,
-      'game.reward': '获得 ' + rw + ' 金币 + 心情大涨！'
-    });
-    if (rw >= 15) this._sfxLevel(); else this._sfxCoin();
-  },
-  _clearGameTimers() {
-    if (this._spawnT) { clearInterval(this._spawnT); this._spawnT = null; }
-    if (this._gameT) { clearInterval(this._gameT); this._gameT = null; }
-  },
-  onGameClose() {
-    this._gRunning = false;
-    this._clearGameTimers();
-    this.setData({ 'game.show': false, 'game.bubbles': [] });
-    this._sfxTap();
-    this._syncAll();
-  },
-  onGameBack() {
-    this.setData({ 'game.show': false, 'game.bubbles': [] });
-    this._sfxTap();
-    this._syncAll();
-  },
-  onGameAgain() {
-    this._startGame();
-    this._sfxTap();
-  },
-  onSoundToggle() {
-    this.S.sound = !this.S.sound;
-    this._save();
-    this._syncTop();
-    if (this.S.sound) this._sfxTap();
-    this._toast(this.S.sound ? '音效已开启' : '音效已关闭');
-  },
+  /* ===== 核心玩法 ===== */
+  _begin: function (i) {
+    this.cur = i;
+    var self = this;
+    var L = LEVELS[i];
+    this.blocks = [];
+    this.level = 0;
+    this.perf = 0;
+    this.streak = 0;
+    this.falling = false;
+    this.mover = null;
+    this.usedBuff = false;
+    this.singMode = false;
+    this._voiceHits = 0;
+    this._raiseSince = null;
+    this._offSince = null;
+    this.dropped = false;
+    this.playing = false;
+    this._lastT = Date.now();
+    this._rnd = seededFactory(((Date.now() / 86400000) | 0) * 97 + i * 7919);
 
-  /* ========== 生命周期 ========== */
-  onLoad() {
-    const saved = this._load();
-    if (saved) {
-      this.S = saved;
-      this.setData({ started: true });
-      this._applyDecay((Date.now() - (saved.lastTs || Date.now())) / 60000);
-      if (saved.lastSign && saved.lastSign !== todayStr() && saved.lastSign !== yesterdayStr()) {
-        this.S.streak = 0;
-      }
-      this._save();
-      this._syncAll();
-      this._syncGoods();
-      this._syncDiary();
-      this._checkDaily(false);
-      this._welcomeBack();
-      this._decayT = setInterval(() => this._tick(), 2000);
-      this._lastTick = Date.now();
+    var w = Math.round(L.wmin + this._rnd() * (L.wmax - L.wmin));
+    var x = (this.fW - w) / 2;
+    this.blocks.push({ id: 0, x: x, y: 0, w: w, c: COLORS[0], cls: '' });
+    this._blockSeq = 1;
+
+    this.setData({
+      blocks: this.blocks.slice(),
+      cam: 0,
+      hintHide: false,
+      moverOn: false,
+      singing: false,
+      towerCls: ''
+    });
+
+    this._renderChips();
+    this._updHud();
+    this._stopKara();
+    this._applyBuff();
+
+    if (L.hard && !(this.save.stars[i] > 0)) {
+      this._toast('⚠️ 第' + (i + 1) + '关 · 全网通过率仅 ' + PASSRATE[i] + ' —— 目标 ' + L.t + ' 层');
     } else {
-      this.S = Object.assign({}, DEF, {
-        owned: { hat: ['bow'], clothes: ['onesie'], room: ['peach'] },
-        miles: []
+      this._toast('第' + (i + 1) + '关 · ' + L.n + ' —— 目标 ' + L.t + ' 层');
+    }
+
+    this.playing = true;
+    this._applyBuff();
+    this._maybeKara();
+    this._spawnMover();
+  },
+  _qField: function (cb) {
+    var self = this;
+    this.createSelectorQuery().select('#field').boundingClientRect(function (rect) {
+      if (rect && rect.width >= 100 && rect.height >= 80) {
+        self.fW = rect.width;
+        self.fH = rect.height;
+        if (cb) cb(true);
+      } else {
+        if (cb) cb(false);
+      }
+    }).exec();
+  },
+  _startLevel: function (i) {
+    var self = this;
+    var tries = 0;
+    var probe = function () {
+      self._qField(function (ok) {
+        if (ok) { self._begin(i); return; }
+        tries++;
+        if (tries > 40) return;
+        setTimeout(probe, 100);
       });
-      this.setData({ started: false });
-      this._syncGoods();
-      this._syncDiary();
+    };
+    probe();
+  },
+  _spawnMover: function () {
+    var L = LEVELS[this.cur];
+    var top = this.blocks[this.blocks.length - 1];
+    var w = top ? top.w : Math.round(L.wmin + this._rnd() * (L.wmax - L.wmin));
+    var x = this.level % 2 === 0 ? 4 : Math.max(4, this.fW - w - 4);
+    var speed = (L.sp + L.gr * this.level) * (0.94 + this._rnd() * 0.12);
+    this.mover = {
+      w: w, x: x, dir: this.level % 2 === 0 ? 1 : -1,
+      speed: speed, wind: L.wind
+    };
+    var near = (L.t - this.level) > 0 && (L.t - this.level) <= 2;
+    var shadow = near
+      ? '0 0 16px 3px rgba(255,201,74,.85), inset 0 -5px 0 rgba(0,0,0,.08)'
+      : '0 6px 14px rgba(74,59,50,.25), inset 0 -5px 0 rgba(0,0,0,.08)';
+    this.setData({
+      moverOn: true,
+      moverLeft: x,
+      moverBottom: this.level * BH,
+      moverW: w,
+      moverC: COLORS[this.level % COLORS.length],
+      moverShadow: shadow,
+      moverSing: this.buffOn
+    });
+  },
+  _tickMove: function () {
+    if (!this.playing || !this.mover || this.falling) return;
+    var now = Date.now();
+    var dt = Math.min(0.05, (now - (this._lastT || now)) / 1000);
+    this._lastT = now;
+    this._applyBuff();
+    var sp = this.mover.speed * (this.buffOn ? 0.5 : 1);
+    var wd = this.mover.wind * (this.buffOn ? 0.3 : 1);
+    var mul = 1 + wd * Math.sin(now / 370);
+    this.mover.x += this.mover.dir * sp * mul * dt;
+    if (this.mover.x < 0) { this.mover.x = 0; this.mover.dir = 1; }
+    if (this.mover.x + this.mover.w > this.fW) { this.mover.x = this.fW - this.mover.w; this.mover.dir = -1; }
+    this.setData({ 'moverLeft': Math.round(this.mover.x * 10) / 10 });
+  },
+  onFieldTap: function () { this._drop(); },
+  _drop: function () {
+    if (!this.playing || !this.mover || this.falling) return;
+    var self = this;
+    if (!this.dropped) { this.dropped = true; this.setData({ hintHide: true }); }
+    var L = LEVELS[this.cur];
+    var tol = L.tol;
+    var top = this.blocks[this.blocks.length - 1];
+    var tX = top ? top.x : this.mover.x;
+    var tW = top ? top.w : this.mover.w;
+    var l = Math.max(tX, this.mover.x);
+    var r = Math.min(tX + tW, this.mover.x + this.mover.w);
+    var ov = r - l;
+
+    if (ov <= 2) {
+      this.falling = true;
+      this.mover = null;
+      this.setData({ moverOn: false, shake: true });
+      this._snd(300, 0.35, 'sawtooth', 0.12, 90);
+      this._buzz();
+      setTimeout(function () {
+        self.setData({ shake: false });
+        self._fail();
+      }, 420);
+      return;
     }
-  },
-  onShow() {
-    if (!this.S || !this.S.born) return;
-    const now = Date.now();
-    if (this._lastTick) {
-      this._applyDecay((now - this._lastTick) / 60000);
-      this._syncBars();
-      this._syncRoom();
+
+    var dx = this.mover.x - tX;
+    var perfect = Math.abs(dx) <= tol;
+    var nw, nx, cls = '';
+    if (perfect) {
+      nw = tW; nx = tX;
+    } else {
+      nw = ov; nx = l;
+      var px = this.mover.x < l ? this.mover.x : r;
+      var pw = this.mover.w - ov;
+      if (pw > 1) {
+        var sl = { id: 's' + (this._blockSeq++), x: px, y: this.level * BH, w: pw, c: COLORS[this.level % COLORS.length], cls: 'slice' };
+        this.blocks.push(sl);
+        (function (sid) {
+          setTimeout(function () {
+            self.blocks = self.blocks.filter(function (b) { return b.id !== sid; });
+            self.setData({ blocks: self.blocks.slice() });
+          }, 470);
+        })(sl.id);
+      }
     }
-    this._lastTick = now;
-  },
-  onHide() {
-    if (this.S && this.S.born) this._save();
-  },
-  onUnload() {
-    if (this._decayT) clearInterval(this._decayT);
-    this._clearGameTimers();
-    clearTimeout(this._fxT);
-    clearTimeout(this._thT);
-    if (this.S && this.S.born) this._save();
-  },
-  _tick() {
-    if (!this.S || !this.S.born) return;
-    const now = Date.now();
-    const mins = (now - (this._lastTick || now)) / 60000;
-    this._lastTick = now;
-    this._applyDecay(mins);
-    this._syncBars();
-    this._syncRoom();
-    if (Math.random() < 0.03 && !this.S.sleeping) {
-      const w = this._weakest();
-      if (this.S[w] < 30) this._thought(NEED[w] + '……');
+    this.blocks.push({
+      id: this._blockSeq++,
+      x: nx, y: this.level * BH, w: nw,
+      c: COLORS[this.level % COLORS.length], cls: cls
+    });
+    this.level++;
+
+    if (this.level > (this.save.bests[this.cur] || 0)) {
+      this.save.bests[this.cur] = this.level;
+      this._save();
     }
-    if (Math.floor(now / 10000) !== Math.floor((now - 2000) / 10000)) this._save();
+
+    if (perfect) {
+      this.perf++;
+      this.streak++;
+      var f = 880 + Math.min(this.streak, 8) * 70;
+      this._snd(f, 0.09, 'triangle', 0.14, f * 1.35);
+      this._floot(this.streak >= 2 ? '完美 ×' + this.streak : '完美!');
+    } else {
+      this.streak = 0;
+      this._snd(420, 0.08, 'sine', 0.12, 300);
+    }
+
+    var cam = Math.max(0, (this.level + 2) * BH - (this.fH - 50));
+    this.setData({
+      blocks: this.blocks.slice(),
+      moverOn: false,
+      cam: cam
+    });
+    this.mover = null;
+    this._updHud();
+
+    if (this.level >= L.t) { this._win(); return; }
+    this._lastT = Date.now();
+    setTimeout(function () { if (self.playing) self._spawnMover(); }, 150);
+  },
+
+  /* ===== 失败 / 通关 ===== */
+  _fail: function () {
+    this.playing = false;
+    this._stopKara();
+    var L = LEVELS[this.cur];
+    if (L.hard) this.save.f2 = (this.save.f2 || 0) + 1;
+    this._save();
+
+    var lose;
+    if (L.hard) {
+      lose = {
+        show: true, em: '😤', t: '第' + (this.cur + 1) + '关就是这么狠！',
+        cur: this.cur + 1, curL: this.level, tgt: L.t, perf: this.perf,
+        gap: '全网只有 ' + PASSRATE[this.cur] + ' 的人过了这关 · 已突破 ' + this.level +
+          ' 层（纪录 ' + (this.save.bests[this.cur] || 0) + '）',
+        gapCls: ''
+      };
+    } else {
+      lose = {
+        show: true, em: '🙈', t: '手滑了！',
+        cur: this.cur + 1, curL: this.level, tgt: L.t, perf: this.perf,
+        gap: '差 ' + (L.t - this.level) + ' 层就能通关！本关纪录：' + (this.save.bests[this.cur] || 0) + ' 层',
+        gapCls: ''
+      };
+    }
+    var self = this;
+    setTimeout(function () { self.setData({ lose: lose }); }, 650);
+  },
+  _win: function () {
+    this.playing = false;
+    this._stopKara();
+    var L = LEVELS[this.cur];
+    var st = this._starsFor(this.perf, L.t);
+    if (st > (this.save.stars[this.cur] || 0)) this.save.stars[this.cur] = st;
+    if (this.cur + 1 >= this.save.unlocked && this.cur + 1 < LEVELS.length) this.save.unlocked = this.cur + 2;
+    this._save();
+    this._renderChips();
+    this._fanfare();
+    this._confetti();
+
+    var win = { show: true, perf: this.perf, bragShow: false, brag: '' };
+    var isLastL = this.cur === LEVELS.length - 1;
+    if (L.hard) {
+      win.em = '🏆';
+      win.t = isLastL ? '全通关！' : '过了第' + (this.cur + 1) + '关！';
+      win.bragShow = true;
+      if (this.usedBuff && L.song) {
+        win.brag = '过关方式：边唱《' + L.song.t + '》过关 🎤 —— 🤫 别外传';
+      } else {
+        win.brag = '你击败了 ' + (100 - parseInt(PASSRATE[this.cur], 10)) + '% 的玩家 —— 这一关值得晒！';
+      }
+    } else {
+      win.em = '🎉';
+      win.t = '通关！';
+    }
+    win.stars = starStr(st);
+    var isLast = this.cur === LEVELS.length - 1;
+    win.nextTxt = isLast ? '从第1关刷星' : '下一关 ⚔️';
+    win.againTxt = '重刷拿三星';
+    var self = this;
+    setTimeout(function () { self.setData({ win: win }); }, 450);
+  },
+
+  /* ===== 事件 ===== */
+  onChip: function (e) {
+    var idx = e.currentTarget.dataset.idx;
+    if (idx >= this.save.unlocked) return;
+    this.setData({ lose: { show: false }, win: { show: false } });
+    this._startLevel(idx);
+  },
+  onRetry: function () {
+    this.setData({ 'lose.show': false });
+    this._startLevel(this.cur);
+  },
+  onNext: function () {
+    this.setData({ 'win.show': false });
+    var nx = this.cur === LEVELS.length - 1 ? 0 : this.cur + 1;
+    this._startLevel(nx);
+  },
+  onAgain: function () {
+    this.setData({ 'win.show': false });
+    var nx = this.cur + 1;
+    if (this.data.win.nextTxt.indexOf('下一关') < 0) nx = this.cur;
+    this._startLevel(Math.min(nx, LEVELS.length - 1));
+  },
+  onRank: function () {
+    var stars = this.save.stars.reduce(function (a, b) { return a + b; }, 0);
+    var cleared = 0;
+    this.save.stars.forEach(function (s) { if (s > 0) cleared++; });
+    this.setData({
+      'lose.show': false,
+      rank: { show: true, me: cleared + '关 · ' + stars + '★' }
+    });
+  },
+  onRankClose: function () { this.setData({ 'rank.show': false }); },
+  onReset: function () {
+    this.save = Object.assign({}, DEF, { stars: DEF.stars.slice(), bests: DEF.bests.slice() });
+    this._save();
+    this._renderChips();
+    this._startLevel(0);
+    this._toast('进度已重置');
+  },
+
+  /* ===== 生命周期 ===== */
+  onLoad: function () {
+    this.save = this._load();
+    this.cur = 0;
+    this.playing = false;
+    this.singMode = false;
+    this.buffOn = false;
+    this.usedBuff = false;
+    this._blockSeq = 1;
+    this._renderChips();
+
+    var self = this;
+    this._loopT = setInterval(function () { self._tickMove(); }, 30);
+    this._liveT = setInterval(function () {
+      var n = self.data.live + ((Math.random() * 7) | 0) + 1;
+      self.setData({ live: n });
+    }, 2000);
+
+    this._initMic();
+    this._startLevel(0);
+  },
+  onShow: function () {
+    if (this._micInited && !this._micErr) this._micResume();
+  },
+  onResize: function () {
+    var self = this;
+    var ow = this.fW, oh = this.fH;
+    setTimeout(function () {
+      self._qField(function (ok) {
+        if (!ok) return;
+        if (Math.abs(self.fW - ow) > 24 || Math.abs(self.fH - oh) > 24) {
+          self.playing = false;
+          self.setData({ lose: { show: false }, win: { show: false }, rank: { show: false } });
+          self._startLevel(self.cur);
+        }
+      });
+    }, 350);
+  },
+  onHide: function () { this._save(); this._stopMic(); },
+  onUnload: function () {
+    if (this._loopT) clearInterval(this._loopT);
+    if (this._liveT) clearInterval(this._liveT);
+    this._stopKara();
+    this._stopMic();
+    this._save();
   }
 });
-

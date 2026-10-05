@@ -95,8 +95,14 @@ internal sealed class JobFactory
         {
             index++;
             string processId = $"{controlId}-{index.ToString(CultureInfo.InvariantCulture)}";
-            var processError = CheckNewId(processId)
-                ?? TryBuildProcessJob(processId, portName, slots, sequence, autoStart: true, JobCommandSource.Local, returnSlots, out var process);
+            var idTaken = CheckNewId(processId);
+            if (idTaken is not null)
+            {
+                return idTaken;
+            }
+
+            var processError = TryBuildProcessJob(processId, portName, slots, sequence, autoStart: true, JobCommandSource.Local,
+                returnSlots, out var process);
             if (processError is not null)
             {
                 return processError;

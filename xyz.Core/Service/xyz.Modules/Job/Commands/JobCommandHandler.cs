@@ -42,7 +42,7 @@ internal sealed class JobCommandHandler
         AddControlJob(control, processes);
         LogHelper.Info(LogModule,
             $"建 Job {control.Id}（{control.LoadPort}，{processes.Count} 个 PJ，{processes.Sum(process => process.Wafers.Count)} 片，操作人 {request.Operator}）");
-        return JobCommandResult.Ok(control.Id);
+        return JobCommandResult.Ok(control.Id) with { ProcessJobs = processes.Select(process => process.Id).ToList() };
     }
 
     public JobCommandResult CreateProcessJob(ProcessJobSpec spec, JobCommandSource source)

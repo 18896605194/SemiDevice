@@ -210,23 +210,23 @@
                                 </controls:PickerBox.Columns>
                             </controls:PickerBox>
 
-                            <!--  Job 和按 Job 自动调度还没做：两个按钮先灰着，悬停说明  -->
+                            <!--  创建 Job：按各槽选的 Sequence 建，建好等启动；启动 Job：Auto 下启动这个 LoadPort 上等启动的 Job。点不了时悬停说明条件  -->
                             <UniformGrid
                                 Grid.Row="6"
                                 Grid.ColumnSpan="2"
                                 Margin="-4"
                                 Columns="2">
                                 <Button
+                                    Command="{Binding DataContext.CreateJobCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     Content="{DynamicResource main.create_job}"
-                                    IsEnabled="False"
                                     Style="{DynamicResource DefaultButtonStyle}"
-                                    ToolTip="{DynamicResource main.job_pending_tip}"
+                                    ToolTip="{DynamicResource main.create_job_tip}"
                                     ToolTipService.ShowOnDisabled="True" />
                                 <Button
+                                    Command="{Binding DataContext.StartJobCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     Content="{DynamicResource main.start_job}"
-                                    IsEnabled="False"
                                     Style="{DynamicResource SuccessButtonStyle}"
-                                    ToolTip="{DynamicResource main.job_pending_tip}"
+                                    ToolTip="{DynamicResource main.start_job_tip}"
                                     ToolTipService.ShowOnDisabled="True" />
                             </UniformGrid>
 

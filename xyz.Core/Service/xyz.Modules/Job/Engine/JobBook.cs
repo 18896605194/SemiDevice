@@ -23,8 +23,10 @@ internal sealed class JobBook
     /// <summary>内容版本：每改一次加 1，发布时带上。</summary>
     public long Version { get; private set; }
 
-    /// <summary>有改动，这一拍要发布。</summary>
-    public bool IsDirty { get; private set; }
+    /// <summary>
+    /// 有改动，这一拍要发布。开机先算有改动：第一拍就发一份（空的也发），界面重连拿到的是这次开机的全貌，不会留着上次的。
+    /// </summary>
+    public bool IsDirty { get; private set; } = true;
 
     public void Touch()
     {

@@ -83,7 +83,7 @@
     <sys:String x:Key="job.command_not_allowed">{0} 当前状态 {2} 不收 {1}</sys:String>
     <sys:String x:Key="job.ending">{0} 正在停止或中止，不再收 {1}</sys:String>
     <sys:String x:Key="job.not_auto">启动 Job 要在 Auto 下</sys:String>
-    <sys:String x:Key="job.id_invalid">名字 {0} 不合规：要 1~80 个英文、数字或符号，不能有空格和 ? * ~ &gt; :</sys:String>
+    <sys:String x:Key="job.id_invalid">名字 {0} 不合规：要 1~80 个英文、数字、符号或空格，不能有 ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">名字 {0} 已经在用（有同名的 Job 还没结束）</sys:String>
     <sys:String x:Key="job.queue_full">没结束的 Job 已经有 {0} 个，建不了新的</sys:String>
     <sys:String x:Key="job.loadport_not_found">没有 LoadPort {0}</sys:String>
@@ -103,14 +103,14 @@
     <sys:String x:Key="job.carrier_not_found">载具 {0} 不在任何 LoadPort 上</sys:String>
     <sys:String x:Key="job.process_job_unavailable">PJ {0} 不存在，或已经归了别的 CJ</sys:String>
     <sys:String x:Key="job.not_held">自动派单没在暂停，没有要恢复的</sys:String>
-    <sys:String x:Key="job.recovery_pending">还有 {0} 张出错的搬运单片位没确认，先到现场确认、对好账再恢复</sys:String>
+    <sys:String x:Key="job.recovery_pending">还有 {0} 处片位没确认（出错的搬运单留着锁，或片还在机械手手上），先到现场确认、对好账再恢复</sys:String>
     <sys:String x:Key="job.hold.transfer_failed">{0}（{1}）搬运时出错，片位要到现场确认</sys:String>
     <sys:String x:Key="job.hold.process_failed">{0}（{2}）在 {1} 加工没做成</sys:String>
     <sys:String x:Key="job.hold.wafer_lost">{0}（{1}）不在该在的地方（被改了账、载具被拿走或重新 Mapping 过）</sys:String>
     <sys:String x:Key="job.wait.manual">Manual 模式，不派新动作</sys:String>
     <sys:String x:Key="job.wait.held">出过故障，自动派单暂停中</sys:String>
     <sys:String x:Key="job.wait.station">等站点空出来：{0}</sys:String>
-    <sys:String x:Key="job.wait.robot">等机械手：{0}</sys:String>
+    <sys:String x:Key="job.wait.robot">等机械手搬 {0}</sys:String>
     <sys:String x:Key="job.wait.return_slot">等回片槽 {0} 第 {1} 槽空出来</sys:String>
     <sys:String x:Key="job.wait.limit">机内片数到上限 {0} 了</sys:String>
     <sys:String x:Key="job.wait.not_feeding">{0} 没在投片（暂停、停止中，或 CJ 没在执行）</sys:String>
@@ -517,7 +517,7 @@
     <sys:String x:Key="chamberscene.too_many_arms">{0} 配了 {1} 条摆臂，三维图只画前 {2} 条</sys:String>
 
     <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。
-         Job 和按 Job 自动调度还没做：创建 / 启动 Job 先灰着，槽位表的 ⊕ ⊖ 只改界面上的选择 -->
+         创建 Job 按各槽选的 Sequence 建（建好等启动），启动 Job 在 Auto 下启动这个 LoadPort 上等启动的 Job -->
     <sys:String x:Key="main.system">系统操作</sys:String>
     <sys:String x:Key="main.system_state">系统状态</sys:String>
     <sys:String x:Key="main.mode">当前模式</sys:String>
@@ -533,15 +533,15 @@
     <sys:String x:Key="main.manual">Manual</sys:String>
     <sys:String x:Key="main.stop">Stop</sys:String>
     <sys:String x:Key="main.reset">Reset</sys:String>
-    <sys:String x:Key="main.auto_tip">切到 Auto：开自动派单（按 Job 自动搬片的调度还没做）</sys:String>
+    <sys:String x:Key="main.auto_tip">切到 Auto：开自动派单，Job 按调度自动搬片、起工艺</sys:String>
     <sys:String x:Key="main.manual_tip">切到 Manual：关自动派单，正在跑的那一趟跑完</sys:String>
-    <sys:String x:Key="main.stop_tip">整机停止：关自动派单，中止所有模块正在做的动作</sys:String>
+    <sys:String x:Key="main.stop_tip">整机停止：关自动派单，在跑的 Job 走中止（等设备确认、核对片位），其他模块正在做的动作直接中止</sys:String>
     <sys:String x:Key="main.reset_tip">复位全部有报警的来源（跟右上角的复位一样）</sys:String>
     <sys:String x:Key="main.auto_done">已切到 Auto</sys:String>
     <sys:String x:Key="main.manual_done">已切到 Manual</sys:String>
     <sys:String x:Key="main.auto_failed">切到 Auto 失败：{0}</sys:String>
     <sys:String x:Key="main.manual_failed">切到 Manual 失败：{0}</sys:String>
-    <sys:String x:Key="main.stopped">已停止：自动派单已关，{0} 个模块在做动作，已发中止</sys:String>
+    <sys:String x:Key="main.stopped">已停止：自动派单已关，在跑的 Job 走中止；另有 {0} 个模块在做动作，已发中止</sys:String>
     <sys:String x:Key="main.stop_failed">停止失败：{0}</sys:String>
     <sys:String x:Key="main.reset_done">已复位 {0} 个报警来源</sys:String>
     <sys:String x:Key="main.reset_failed">复位失败：{0}</sys:String>
@@ -560,7 +560,12 @@
     <sys:String x:Key="main.sequences_failed">读取 Sequence 列表失败：{0}</sys:String>
     <sys:String x:Key="main.create_job">创建 Job</sys:String>
     <sys:String x:Key="main.start_job">启动 Job</sys:String>
-    <sys:String x:Key="main.job_pending_tip">Job 和按 Job 自动调度还没做，现在只有界面</sys:String>
+    <sys:String x:Key="main.create_job_tip">按各槽选的 Sequence 给这一篮建 Job（同一个 Sequence 的片一个 PJ），建好等启动；一个 LoadPort 同时一个 Job，载具拿走后才能再建</sys:String>
+    <sys:String x:Key="main.start_job_tip">启动这个 LoadPort 上等启动的 Job（要在 Auto 下）</sys:String>
+    <sys:String x:Key="main.job_created">{0} 已建 Job {1}（PJ：{2}），等启动</sys:String>
+    <sys:String x:Key="main.create_job_failed">{0} 建 Job 失败：{1}</sys:String>
+    <sys:String x:Key="main.job_started">已启动 Job {0}</sys:String>
+    <sys:String x:Key="main.start_job_failed">启动 Job {0} 失败：{1}</sys:String>
     <sys:String x:Key="main.col.slot">槽位</sys:String>
     <sys:String x:Key="main.col.wafer">Wafer</sys:String>
     <sys:String x:Key="main.col.state">状态</sys:String>

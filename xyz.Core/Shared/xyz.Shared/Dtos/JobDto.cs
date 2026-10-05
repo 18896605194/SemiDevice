@@ -36,6 +36,9 @@ public class JobListDto
 /// </summary>
 public class ControlJobDto
 {
+    /// <summary>E94 状态值 WAITINGFORSTART：料到了，等启动命令。</summary>
+    public const int StateWaitingForStart = 2;
+
     public string Id { get; set; } = string.Empty;
 
     public string LoadPort { get; set; } = string.Empty;
@@ -227,6 +230,9 @@ public class JobSlotDto
 [ProtoContract]
 public class JobCommandRequest
 {
+    /// <summary>CJ 命令值 Start（E94 CTLJOBCMD 1）。</summary>
+    public const int ControlJobStart = 1;
+
     [ProtoMember(1)]
     public string JobId { get; set; } = string.Empty;
 
