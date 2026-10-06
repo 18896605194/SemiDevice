@@ -1,0 +1,1013 @@
+<meta charset="utf-8">
+<title>xyz 设备技术手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* 版式：左边深色设备目录（一级 = 设备，二级 = 这台设备的每一块），右边正文；每节顶上一行代码位置标签，告诉你这块代码在哪 */
+:root {
+  --bg: #f2f5f8;
+  --surface: #ffffff;
+  --surface-2: #f6f8fb;
+  --ink: #13202e;
+  --muted: #586a7c;
+  --line: #d6dfe8;
+  --accent: #1565c0;
+  --accent-soft: #e6eff9;
+  --code-bg: #f3f6f9;
+  --code-ink: #1a2938;
+  --nav-bg: #0e1a26;
+  --nav-ink: #a7bacd;
+  --nav-strong: #ffffff;
+  --nav-active: #42a5f5;
+  --nav-line: #1f2f40;
+  --st-gray: #616161;
+  --st-blue: #1e88e5;
+  --st-green: #43a047;
+  --st-yellow: #f9a825;
+  --st-red: #e53935;
+  --chip-ink: #ffffff;
+  --chip-ink-dark: #1d1a10;
+  --warn-bg: #fff6e0;
+  --warn-line: #e8c46a;
+  --font-body: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d131a; --surface: #141c25; --surface-2: #18222d; --ink: #e2e9f1; --muted: #93a4b6; --line: #273443;
+    --accent: #64b5f6; --accent-soft: #15273a; --code-bg: #0f1720; --code-ink: #d6e2ed;
+    --nav-bg: #090f15; --nav-ink: #9fb2c6; --nav-strong: #ffffff; --nav-active: #64b5f6; --nav-line: #18242f;
+    --warn-bg: #2a2412; --warn-line: #7a6326;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d131a; --surface: #141c25; --surface-2: #18222d; --ink: #e2e9f1; --muted: #93a4b6; --line: #273443;
+  --accent: #64b5f6; --accent-soft: #15273a; --code-bg: #0f1720; --code-ink: #d6e2ed;
+  --nav-bg: #090f15; --nav-ink: #9fb2c6; --nav-strong: #ffffff; --nav-active: #64b5f6; --nav-line: #18242f;
+  --warn-bg: #2a2412; --warn-line: #7a6326;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.75;
+}
+table { font-size: inherit; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, pre, .mono { font-family: var(--font-mono); }
+code { font-size: .88em; background: var(--accent-soft); color: var(--ink); padding: .08em .35em; border-radius: 4px; }
+
+.layout { display: grid; grid-template-columns: 284px minmax(0, 1fr); min-height: 100vh; }
+
+/* ---------- 目录 ---------- */
+.side {
+  background: var(--nav-bg);
+  color: var(--nav-ink);
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  height: 100vh;
+  overflow-y: auto;
+  padding-block: 22px 40px;
+}
+.brand { padding: 0 22px 18px; border-bottom: 1px solid var(--nav-line); }
+.brand b { display: block; color: var(--nav-strong); font-size: 17px; letter-spacing: .04em; }
+.brand span { font-family: var(--font-mono); font-size: 11.5px; color: var(--nav-ink); }
+.toc-toggle { display: none; }
+.group { margin-top: 14px; }
+.group-title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 22px; color: var(--nav-strong); font-weight: 700; font-size: 14px; letter-spacing: .06em;
+}
+.group-title small { font-family: var(--font-mono); font-weight: 400; font-size: 11px; color: var(--nav-ink); letter-spacing: 0; }
+.group.disabled .group-title { color: var(--nav-ink); opacity: .55; }
+.side ol { list-style: none; margin: 4px 0 0; padding: 0; counter-reset: sec; }
+.side ol li { counter-increment: sec; }
+.side ol a {
+  display: grid; grid-template-columns: 30px 1fr; align-items: baseline;
+  padding: 5px 22px 5px 24px; color: var(--nav-ink); text-decoration: none; font-size: 13.5px;
+  border-left: 3px solid transparent;
+}
+.side ol a::before { content: counter(sec, decimal-leading-zero); font-family: var(--font-mono); font-size: 11px; opacity: .6; }
+.side ol a:hover { color: var(--nav-strong); background: rgba(255, 255, 255, .04); }
+.side ol a.active { color: var(--nav-strong); border-left-color: var(--nav-active); background: rgba(100, 181, 246, .08); }
+
+/* ---------- 正文 ---------- */
+main { min-width: 0; padding-inline: 48px; padding-block: 40px 96px; }
+.wrap { max-width: 920px; }
+.hero { padding-bottom: 26px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.hero h1 { font-size: 30px; line-height: 1.3; margin: 6px 0 10px; letter-spacing: .02em; text-wrap: balance; }
+.hero p { margin: 0; color: var(--muted); max-width: 68ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+section { padding-top: 46px; scroll-margin-top: 12px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: .02em; overflow-wrap: anywhere; }
+h2 { font-size: 23px; line-height: 1.35; margin: 4px 0 12px; letter-spacing: .02em; text-wrap: balance; }
+h3 { font-size: 16.5px; margin: 26px 0 8px; text-wrap: balance; }
+p, li { max-width: 72ch; }
+p { margin: 0 0 12px; }
+ul, ol.plain { padding-left: 1.3em; margin: 0 0 12px; }
+li { margin: 3px 0; }
+.lead { font-size: 15.5px; }
+.muted { color: var(--muted); }
+
+.scroll { overflow-x: auto; margin: 10px 0 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table.tbl { border-collapse: collapse; width: 100%; min-width: 560px; }
+.tbl th, .tbl td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.tbl th { font-size: 12.5px; color: var(--muted); font-weight: 500; background: var(--surface-2); white-space: nowrap; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl td:first-child { white-space: nowrap; }
+.tbl .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 13px; }
+
+.code-wrap { position: relative; margin: 10px 0 16px; }
+pre.code {
+  margin: 0; padding: 14px 16px; overflow-x: auto; background: var(--code-bg); color: var(--code-ink);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 12.8px; line-height: 1.6; tab-size: 4;
+}
+pre.code .c { color: var(--muted); }
+.copy {
+  position: absolute; top: 8px; right: 8px; font: 12px var(--font-body); color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; cursor: pointer;
+}
+.copy:hover { color: var(--accent); border-color: var(--accent); }
+
+.note { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 12px 16px; margin: 12px 0 16px; }
+.note b.tag { font-family: var(--font-mono); font-size: 11.5px; color: var(--accent); margin-right: 8px; }
+.note.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+.note.warn b.tag { color: var(--ink); }
+.note p:last-child, .note ul:last-child { margin-bottom: 0; }
+
+/* 分层图 */
+.stack { display: grid; gap: 0; margin: 14px 0 18px; }
+.layer {
+  display: grid; grid-template-columns: 110px minmax(0, 1fr) minmax(0, 220px); gap: 14px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;
+}
+.layer + .layer { margin-top: 14px; position: relative; }
+.layer + .layer::before {
+  content: ""; position: absolute; left: 55px; top: -15px; width: 2px; height: 14px; background: var(--line);
+}
+.layer .lname { font-weight: 700; font-size: 13.5px; }
+.layer .lbody { font-size: 13.5px; min-width: 0; }
+.layer .lloc { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.layer.device { background: var(--accent-soft); }
+
+/* 泳道 */
+.lanes { min-width: 760px; display: grid; grid-template-columns: 36px repeat(5, minmax(0, 1fr)); }
+.lanes .lh { font-size: 12px; color: var(--muted); padding: 8px 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.lanes .ln { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding: 9px 0 9px 10px; border-bottom: 1px solid var(--line); }
+.lanes .cell { padding: 7px 8px; border-bottom: 1px solid var(--line); border-left: 1px dashed var(--line); }
+.lanes .hit { background: var(--accent-soft); border-radius: 6px; padding: 5px 8px; font-size: 12.8px; line-height: 1.5; }
+
+/* 状态色块（跟客户端的模块状态徽标一个颜色） */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; border-radius: 6px; padding: 3px 10px; font-size: 12.5px; color: var(--chip-ink); }
+.chip .k { font-family: var(--font-mono); font-size: 11px; opacity: .85; }
+.chip.gray { background: var(--st-gray); }
+.chip.blue { background: var(--st-blue); }
+.chip.green { background: var(--st-green); }
+.chip.yellow { background: var(--st-yellow); color: var(--chip-ink-dark); }
+.chip.red { background: var(--st-red); }
+
+/* 帧结构 */
+.frame { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+.seg { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); min-width: 0; }
+.seg b { display: block; font-family: var(--font-mono); font-size: 13px; padding: 4px 10px; border-bottom: 1px solid var(--line); background: var(--code-bg); color: var(--code-ink); }
+.seg span { display: block; font-size: 12px; color: var(--muted); padding: 3px 10px; }
+
+/* 花篮槽位条：Mapping 字符 → 槽位状态 */
+.slots { display: grid; grid-template-columns: repeat(13, minmax(26px, 1fr)); gap: 4px; min-width: 420px; padding: 10px; }
+.slot { text-align: center; border-radius: 4px; padding: 3px 0 2px; font-family: var(--font-mono); font-size: 11.5px; border: 1px solid var(--line); background: var(--surface); }
+.slot i { display: block; font-style: normal; font-size: 10px; color: var(--muted); }
+.slot.p { background: var(--st-green); color: var(--chip-ink); border-color: transparent; }
+.slot.p i, .slot.c i, .slot.d i, .slot.u i { color: inherit; opacity: .8; }
+.slot.c { background: var(--st-yellow); color: var(--chip-ink-dark); border-color: transparent; }
+.slot.d { background: var(--st-red); color: var(--chip-ink); border-color: transparent; }
+.slot.u { background: var(--st-gray); color: var(--chip-ink); border-color: transparent; }
+
+/* 真值表 */
+.truth td.on { color: var(--st-green); font-weight: 700; }
+.truth td.off { color: var(--muted); }
+
+ol.steps { list-style: none; padding: 0; margin: 12px 0; counter-reset: st; display: grid; gap: 12px; }
+ol.steps > li { counter-increment: st; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; max-width: none; }
+ol.steps > li::before {
+  content: counter(st); font-family: var(--font-mono); font-weight: 600; font-size: 13px;
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: var(--surface);
+}
+ol.steps > li > div { min-width: 0; }
+ol.steps h4 { margin: 2px 0 4px; font-size: 15px; }
+
+.placeholder { margin-top: 56px; padding: 18px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; height: auto; padding-block: 16px 12px; }
+  .toc-toggle {
+    display: inline-block; margin: 12px 22px 0; font: 13px var(--font-body); color: var(--nav-strong);
+    background: transparent; border: 1px solid var(--nav-line); border-radius: 6px; padding: 4px 12px; cursor: pointer;
+  }
+  .side.collapsed .group { display: none; }
+  main { padding-inline: 16px; padding-block: 24px 64px; }
+  .layer { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .layer + .layer::before { left: 24px; }
+  .hero h1 { font-size: 25px; }
+}
+</style>
+
+<div class="layout">
+  <aside class="side" id="side">
+    <div class="brand">
+      <b>xyz 设备技术手册</b>
+      <span>配置 · 后端 · 前端 · 新机型接入</span>
+    </div>
+    <button class="toc-toggle" id="tocToggle" type="button" aria-expanded="true">目录</button>
+
+    <div class="group">
+      <div class="group-title">LoadPort <small>15 节</small></div>
+      <ol id="toc">
+        <li><a href="#lp-overview">总览</a></li>
+        <li><a href="#lp-config">配置：sc.xml 和 EC</a></li>
+        <li><a href="#lp-driver">驱动与通信</a></li>
+        <li><a href="#lp-component">驱动组件与重连</a></li>
+        <li><a href="#lp-module">模块：状态与动作</a></li>
+        <li><a href="#lp-presence">在位判断</a></li>
+        <li><a href="#lp-threads">一拍扫描与线程</a></li>
+        <li><a href="#lp-service">服务与推送</a></li>
+        <li><a href="#lp-client">前端</a></li>
+        <li><a href="#lp-eap">EAP：E87 与 E84</a></li>
+        <li><a href="#lp-job">Job、搬运、回片</a></li>
+        <li><a href="#lp-newmachine">新机型接入</a></li>
+        <li><a href="#lp-test">测试与验证</a></li>
+        <li><a href="#lp-faq">问题排查</a></li>
+        <li><a href="#lp-limits">已知限制</a></li>
+      </ol>
+    </div>
+
+    <div class="group disabled" aria-disabled="true">
+      <div class="group-title">Robot <small>待补充</small></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="wrap">
+      <header class="hero">
+        <div class="eyebrow">D:\Code · xyz.Core / xyz.35021</div>
+        <h1>xyz 设备技术手册</h1>
+        <p>按设备分章：每台设备从 sc.xml 配置、驱动通信、模块、服务一路讲到界面，最后是新机型怎么接。左边一级菜单是设备，下面是这台设备的每一块。先写了 LoadPort，Robot 照同样的结构往下补。</p>
+        <div class="meta">
+          <span>按 2026-10-06 的代码写</span>
+          <span>机型样例：35021（FCD LP300 LoadPort）</span>
+        </div>
+      </header>
+
+      <!-- ===================== 01 总览 ===================== -->
+      <section id="lp-overview">
+        <div class="eyebrow">LoadPort · 总览</div>
+        <h2>LoadPort 在系统里管什么</h2>
+        <p class="lead">LoadPort（装载口）上放 FOUP（片盒）。它要做的事：夹紧、开门、Mapping（扫出每个槽有没有片），读载具号，然后把片交给机械手取放；干完关门，等人或天车把盒子拿走。接了天车时要跟天车走 E84 交接，接了 Host 时要跟 Host（EAP 的 E87）核对载具。</p>
+
+        <h3>一条链从界面到设备</h3>
+        <div class="stack">
+          <div class="layer">
+            <div class="lname">界面</div>
+            <div class="lbody">手动页 <code>LoadPortManualControl</code>（每个口一个面板）· 主界面 LoadPort 页签 · 调度图上的 LoadPort 卡片</div>
+            <div class="lloc">xyz.Client.Manual / Main / Presentation</div>
+          </div>
+          <div class="layer">
+            <div class="lname">契约</div>
+            <div class="lbody">命令走 gRPC：<code>ILoadPortService</code>；状态走事件推送：<code>LoadPortDto</code>（token = 模块名）</div>
+            <div class="lloc">xyz.Shared</div>
+          </div>
+          <div class="layer">
+            <div class="lname">服务</div>
+            <div class="lbody"><code>LoadPortService</code>：找模块、发起动作、等结果、翻成错误码。不碰设备</div>
+            <div class="lloc">xyz.Service</div>
+          </div>
+          <div class="layer">
+            <div class="lname">模块</div>
+            <div class="lbody"><code>BaseLoadPortModule</code>：状态表、7 个动作、状态查询、在位判断、载具、Mapping 落账、推送、EAP 口子。机型类 <code>LoadPortModule</code> 只放机型独有的</div>
+            <div class="lloc">xyz.Modules / xyz.35021</div>
+          </div>
+          <div class="layer">
+            <div class="lname">子组件</div>
+            <div class="lbody">Driver（品牌驱动壳）· RFID（读载具号）· E84（天车交接），都挂在 LoadPort 节点下面，跟着模块的扫描线程跑</div>
+            <div class="lloc">xyz.Components / xyz.Modules</div>
+          </div>
+          <div class="layer">
+            <div class="lname">驱动</div>
+            <div class="lbody"><code>LoadPortDriverBase</code>：在途表、帧路由、作废；FCD 品牌的指令（CLOAD、CULOD、GET:STATE……）</div>
+            <div class="lloc">xyz.Drivers / Loadport</div>
+          </div>
+          <div class="layer">
+            <div class="lname">通信</div>
+            <div class="lbody"><code>FrameCommunication</code>：包壳拆帧、接收泵；底下是串口或网口</div>
+            <div class="lloc">xyz.Drivers / Communication</div>
+          </div>
+          <div class="layer device">
+            <div class="lname">设备</div>
+            <div class="lbody">FCD LP300 LoadPort（35021：LoadPort1 走 COM2，LoadPort2 走 COM4）</div>
+            <div class="lloc">串口 9600 8N1</div>
+          </div>
+        </div>
+
+        <div class="note"><b class="tag">两条路</b>界面和后台之间只有两条路：命令走 gRPC 下去，一问一答；状态走事件推送上来，一直推。界面上看到的状态都来自推送，不是来自命令的返回值。</div>
+
+        <h3>先认识几个词</h3>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>词</th><th>意思</th><th>代码里</th></tr>
+            <tr><td>载具</td><td>放在端口上的那个 FOUP。到达时建一个载具对象，拿走时清掉</td><td><code>CarrierInfo</code></td></tr>
+            <tr><td>Mapping / 槽图</td><td>开门时扫出的每个槽的状态：空、有片、交叉片、叠片、认不出</td><td><code>SlotMap</code>、<code>SlotState</code></td></tr>
+            <tr><td>动作</td><td>一次要设备做的事（Load、Unload……），在扫描线程上一步一步推</td><td><code>ModuleOperation</code></td></tr>
+            <tr><td>在途指令</td><td>发给设备、还没等到回复的指令。同名指令同一时间只能有一条</td><td><code>LoadPortCommand</code></td></tr>
+            <tr><td>扫描一拍</td><td>模块自己的线程每 50 ms 跑一遍：推动作、查状态、判在位、推送</td><td><code>OnScan</code></td></tr>
+            <tr><td>载具到了</td><td>后台判出来的"端口上有盒子"，不是哪个传感器的原始值</td><td><code>IsCarrierArrived</code></td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===================== 02 配置 ===================== -->
+      <section id="lp-config">
+        <div class="eyebrow">xyz.Configs / Config / sc.xml · ec.xml</div>
+        <h2>配置：sc.xml 和 EC</h2>
+        <p>装机、接线、结构性的进 sc.xml（改了重启生效）；现场要调的超时、开关进 EC（ec.xml，在 设置 → EC 设置 里改，下一拍就生效）。sc.xml 只有一份源文件，编译时拷到宿主 bin 下，运行时读的是 bin 那一份。</p>
+
+        <h3>一个 LoadPort 节点长这样</h3>
+        <div class="code-wrap"><button class="copy" type="button">复制</button><pre class="code">&lt;Setting Name="LoadPort"&gt;                       <span class="c">&lt;!-- 分组节点，名字不进路径 --&gt;</span>
+  &lt;Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule"&gt;
+    &lt;Value Name="SlotCount" Value="25" /&gt;
+    &lt;Value Name="PresenceSource" Value="Query" /&gt;   <span class="c">&lt;!-- 在位以状态查询为准，见"在位判断" --&gt;</span>
+    &lt;Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent"&gt;
+      &lt;Value Name="CommType" Value="Serial" /&gt;
+      &lt;Value Name="PortName" Value="COM2" /&gt;
+      &lt;Value Name="BaudRate" Value="9600" /&gt;
+      &lt;Value Name="Parity" Value="None" /&gt;
+      &lt;Value Name="DataBits" Value="8" /&gt;
+      &lt;Value Name="StopBits" Value="One" /&gt;
+    &lt;/Setting&gt;
+    &lt;Setting Name="RFID" Type="xyz.Components.Components.FcdRfidComponent"&gt;
+      &lt;Value Name="PortName" Value="COM6" /&gt;
+      &lt;Value Name="IdStart" Value="0" /&gt;
+      &lt;Value Name="IdLength" Value="16" /&gt;
+    &lt;/Setting&gt;
+    &lt;Setting Name="E84" Type="xyz.Modules.E84Component"&gt;
+      &lt;Value Name="IsEnable" Value="False" /&gt;        <span class="c">&lt;!-- 本机没接天车 --&gt;</span>
+      &lt;Value Name="DiValidIndex" Value="34" /&gt;
+      <span class="c">&lt;!-- 其余 DI / DO 索引照点表填 --&gt;</span>
+    &lt;/Setting&gt;
+  &lt;/Setting&gt;
+&lt;/Setting&gt;</pre></div>
+        <p class="muted">Type 写类型全名，装配时按全名在运行目录和 <code>Modules\</code> 下的 DLL 里找，找不到开机就报错。节点名（LoadPort1）就是模块名：界面页签、推送 token、晶圆账位置、EC 路径都用它。</p>
+
+        <h3>SC 项（sc.xml）</h3>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>节点</th><th>项</th><th>默认</th><th>说明</th></tr>
+            <tr><td>LoadPort</td><td><code>IsEnable</code></td><td class="num">True</td><td>False = 装机没接 / 停用：打开算成功、空转，不发动作</td></tr>
+            <tr><td>LoadPort</td><td><code>SlotCount</code></td><td class="num">25</td><td>花篮槽数，界面按它画槽位</td></tr>
+            <tr><td>LoadPort</td><td><code>AutoReadCarrierId</code></td><td class="num">True</td><td>载具到了自动读码</td></tr>
+            <tr><td>LoadPort</td><td><code>PresenceSource</code></td><td class="num">Query</td><td>在位以什么为准：Query 状态查询 / Event 设备上报</td></tr>
+            <tr><td>Driver</td><td><code>CommType</code> 等</td><td class="num">Serial</td><td>Serial 用 PortName / BaudRate / Parity / DataBits / StopBits；Tcp 用 Host / NetPort</td></tr>
+            <tr><td>RFID</td><td><code>IdStart</code> / <code>IdLength</code></td><td class="num">0 / 16</td><td>载具号在标签内存里的起点和长度；通讯项同 Driver</td></tr>
+            <tr><td>E84</td><td><code>IsEnable</code></td><td class="num">True</td><td>装没装。False = 端口当没有 E84，不打开、不扫、不读写 IO</td></tr>
+            <tr><td>E84</td><td><code>Di*Index</code> / <code>Do*Index</code></td><td class="num">-1</td><td>E84 信号在点表里的下标，-1 = 没接；<code>LightCurtainReverse</code> 光幕电平</td></tr>
+          </table>
+        </div>
+
+        <h3>EC 项（ec.xml，在线改）</h3>
+        <p>EC 的键是"组件全路径.属性名"，比如 <code>LoadPort1.LoadTimeout</code>、<code>LoadPort1.Driver.ReconnectIntervalMs</code>。ec.xml 不随源码，宿主启动时按代码声明补齐，已有的值不动。</p>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>组件</th><th>项</th><th>默认</th><th>说明</th></tr>
+            <tr><td>LoadPort</td><td><code>LoadTimeout</code> / <code>UnloadTimeout</code></td><td class="num">30000 ms</td><td>Load（开门 + Mapping）、Unload（关门）的超时</td></tr>
+            <tr><td>LoadPort</td><td><code>HomeTimeout</code></td><td class="num">60000 ms</td><td>回零超时；超时另报"初始化超时"</td></tr>
+            <tr><td>LoadPort</td><td><code>ResetTimeout</code> / <code>AbortTimeout</code></td><td class="num">10000 ms</td><td>复位清错、急停的超时</td></tr>
+            <tr><td>LoadPort</td><td><code>ClampTimeout</code> / <code>UnclampTimeout</code></td><td class="num">10000 ms</td><td>夹紧、松开的超时</td></tr>
+            <tr><td>LoadPort</td><td><code>QueryDataTimeOut</code></td><td class="num">3000 ms</td><td>一条状态查询多久没回就作废重发</td></tr>
+            <tr><td>LoadPort</td><td><code>PickOrder</code></td><td class="num">BottomUp</td><td>Job 取片顺序：BottomUp 先取 1 槽，TopDown 先取顶槽</td></tr>
+            <tr><td>LoadPort</td><td><code>IsCycle</code> / <code>CycleRunTotal</code></td><td class="num">False / 1</td><td>循环跑片和总轮数</td></tr>
+            <tr><td>Driver</td><td><code>ReconnectIntervalMs</code></td><td class="num">5000 ms</td><td>通讯断开后隔多久重连一次</td></tr>
+            <tr><td>RFID</td><td><code>ReadCarrierIdTimeout</code> / <code>ReconnectIntervalMs</code></td><td class="num">5000 ms</td><td>读码超时；断线重连间隔</td></tr>
+            <tr><td>E84</td><td><code>E84Enabled</code></td><td class="num">False</td><td>装了以后跟不跟天车交接，现场在线开关</td></tr>
+            <tr><td>E84</td><td><code>Tp1Timeout</code> … <code>Tp5Timeout</code></td><td class="num">2000 / 2000 / 60000 / 60000 / 2000</td><td>握手各段超时，超时锁住等人工恢复</td></tr>
+          </table>
+        </div>
+
+        <h3>机械手站点表里的 LoadPort</h3>
+        <p>机械手能不能去这个 LoadPort、用哪只手，配在机械手节点的 <code>Stations</code> 里，不在 LoadPort 节点上：</p>
+        <div class="code-wrap"><button class="copy" type="button">复制</button><pre class="code">&lt;Setting Name="Stations"&gt;
+  &lt;Setting Name="LoadPort1"&gt;          <span class="c">&lt;!-- 名字跟 LoadPort 模块名一样 --&gt;</span>
+    &lt;Value Name="Number" Value="1" /&gt;      <span class="c">&lt;!-- 机械手的站点号 --&gt;</span>
+    &lt;Value Name="Y" Value="20" /&gt;          <span class="c">&lt;!-- 伸出距离 --&gt;</span>
+    &lt;Value Name="Direction" Value="South" /&gt;
+    &lt;Value Name="Arms" Value="1,2" /&gt;     <span class="c">&lt;!-- 允许哪几只手；不配 = 都能用 --&gt;</span>
+  &lt;/Setting&gt;
+&lt;/Setting&gt;</pre></div>
+
+        <h3>常用改法</h3>
+        <ul>
+          <li><b>加一个 LoadPort</b>：复制 LoadPort1 节点改名 LoadPort3、改串口；机械手 <code>Stations</code> 加同名站点；重启。主界面页签、手动页按系统设置的名单自动多出一个。</li>
+          <li><b>停用一个口</b>：<code>IsEnable=False</code>。</li>
+          <li><b>换品牌</b>：改 Driver 节点的 Type（换成那个品牌的驱动壳），通讯参数按新设备填。模块和界面都不用动。</li>
+          <li><b>本机没接天车</b>：E84 节点 <code>IsEnable=False</code>。装了但临时不交接，用 EC <code>E84Enabled</code>。</li>
+        </ul>
+      </section>
+
+      <!-- ===================== 03 驱动与通信 ===================== -->
+      <section id="lp-driver">
+        <div class="eyebrow">xyz.Drivers / Communication · Loadport · Loadport/FCD</div>
+        <h2>驱动与通信</h2>
+        <p><code>xyz.Drivers</code> 是纯协议和通讯，不引用任何别的工程（只用串口包）。机械手、RFID 的驱动也在这里，共用同一套通讯层。</p>
+
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>类</th><th>管什么</th></tr>
+            <tr><td><code>SerialCommunication</code> / <code>TcpCommunication</code></td><td>串口、网口：Connect / Close / Send / Receive。出 IO 错误自己关掉连接</td></tr>
+            <tr><td><code>FrameCommunication</code></td><td>用品牌的帧编解码包壳、拆帧；起接收泵收包。一次打开一轮接收泵，旧泵出错只停自己那一轮，重连不会被它搅乱</td></tr>
+            <tr><td><code>LoadPortDriverBase</code></td><td>在途表（同名指令一次一条）、发送队列、帧路由（先问在途指令"是不是你的"，没人认的当设备主动事件）、作废 <code>Abandon</code> / <code>AbandonAll</code></td></tr>
+            <tr><td><code>LoadPortCommand</code></td><td>一条指令：<code>Key</code>（在途槽位）、<code>BuildMsg</code>、<code>ParseMsg</code>、完结后 <code>Response</code>（厂商无关结果）</td></tr>
+            <tr><td><code>LoadPortStatus</code></td><td>状态快照，开关量都是 <code>Is</code> 开头：<code>IsPresent</code>、<code>IsPlaced</code>、<code>IsDoorOpen</code>、<code>IsDoorClosed</code>、<code>IsDeviceAlarm</code>……</td></tr>
+            <tr><td><code>FcdLoadPortDriver</code> / <code>Fcd*Command</code></td><td>FCD 品牌：主动事件 PODON / PODOF，各条指令</td></tr>
+          </table>
+        </div>
+
+        <h3>FCD 一帧长什么样</h3>
+        <div class="frame">
+          <div class="seg"><b>s00</b><span>帧头 + 地址</span></div>
+          <div class="seg"><b>MOV:CLOAD</b><span>类型 : 指令名[/数据]</span></div>
+          <div class="seg"><b>;</b><span>结束符</span></div>
+          <div class="seg"><b>\r</b><span>分隔</span></div>
+        </div>
+        <p class="muted">类型前缀：GET 查询、MOV 动作、SET 设置。回复：ACK 受理（查询类 ACK 就是完结）、INF 完成或主动事件、ABS 异常完成、NAK 拒绝。</p>
+
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>动作</th><th>发出去</th><th>完结帧</th><th>结果</th></tr>
+            <tr><td>Load</td><td><code>MOV:CLOAD</code></td><td><code>INF:CLOAD/槽位串</code>（或先来一帧 <code>INF:MAPDT/槽位串</code>）</td><td>槽图 SlotMap</td></tr>
+            <tr><td>Unload</td><td><code>MOV:CULOD</code></td><td><code>INF:CULOD</code></td><td>—</td></tr>
+            <tr><td>Home</td><td><code>MOV:ORGSH</code></td><td><code>INF:ORGSH</code></td><td>—</td></tr>
+            <tr><td>Abort（急停）</td><td><code>MOV:ABORT</code></td><td><code>INF:ABORT</code></td><td>—</td></tr>
+            <tr><td>Reset（清错）</td><td><code>SET:RESET</code></td><td><code>INF:RESET</code></td><td>—</td></tr>
+            <tr><td>Clamp / Unclamp</td><td><code>MOV:PODCL</code> / <code>MOV:PODOP</code></td><td><code>INF:</code>同名</td><td>—</td></tr>
+            <tr><td>查状态</td><td><code>GET:STATE</code></td><td><code>ACK:STATE/64 位状态串</code></td><td>LoadPortStatus</td></tr>
+            <tr><td>查版本</td><td><code>GET:VERSN</code></td><td><code>ACK:VERSN/…</code></td><td>原文</td></tr>
+            <tr><td>设备上报</td><td>—</td><td><code>INF:PODON</code> / <code>INF:PODOF</code></td><td>放上 / 拿走事件</td></tr>
+          </table>
+        </div>
+        <p>状态串：第 1 位在位、第 2 位到位、第 8 位报警，第 43 / 44 位是门开 / 门关（字符 O）；其余位等协议手册确认，原文留在 <code>LoadPortStatus.Raw</code>。</p>
+
+        <h3>槽位串怎么变成槽图</h3>
+        <p>一个字符一个槽，第 1 个字符是 1 槽：E 空、P 有片、C 交叉片、D 叠片，别的字符一律当认不出。下面是一个 13 槽的例子 <code>PPEPCPPEDPP?P</code>：</p>
+        <div class="scroll">
+          <div class="slots" aria-label="槽位串示例">
+            <div class="slot p">P<i>01</i></div><div class="slot p">P<i>02</i></div><div class="slot">E<i>03</i></div>
+            <div class="slot p">P<i>04</i></div><div class="slot c">C<i>05</i></div><div class="slot p">P<i>06</i></div>
+            <div class="slot p">P<i>07</i></div><div class="slot">E<i>08</i></div><div class="slot d">D<i>09</i></div>
+            <div class="slot p">P<i>10</i></div><div class="slot p">P<i>11</i></div><div class="slot u">?<i>12</i></div>
+            <div class="slot p">P<i>13</i></div>
+          </div>
+        </div>
+        <p class="muted">落到晶圆账时：有片记正常片，交叉、叠片照记，认不出的按"有片、状态不明"记。记成空而实际有片，机械手会往上放，那是撞片，所以宁可多记。</p>
+
+        <h3>在途指令和作废</h3>
+        <ul>
+          <li>同名指令同一时间只能有一条在途，前一条没完结，再发会被拒（<code>Submit</code> 返回 false，动作判 <code>loadport.command_rejected</code>）。</li>
+          <li>回复丢了，这条就一直占着在途位。所以要作废：状态查询超时作废这一条；动作没做成（失败、超时、被中止）作废全部；关连接、重连时作废全部。</li>
+          <li>作废的指令以失败落终态，等它的人马上醒。它的回复要是迟到了，没有在途指令认它，当无主帧丢掉。</li>
+        </ul>
+
+        <h3>加一个新品牌的 LoadPort</h3>
+        <ol class="plain">
+          <li>在 <code>xyz.Drivers/Loadport/&lt;品牌&gt;/</code> 写协议常量、帧编解码（实现 <code>IFrameCodec</code>）、驱动（继承 <code>LoadPortDriverBase</code>，重写 <code>ParseSpontaneousEvent</code> 认出放上 / 拿走）、每条指令（继承 <code>LoadPortCommand</code>）。</li>
+          <li>状态查询把品牌状态串翻成 <code>LoadPortStatus</code> 的 <code>Is*</code> 位；Load 把品牌槽位串翻成 <code>SlotState</code>。上层只认这两样。</li>
+          <li>在 <code>xyz.Components/Components/Drivers/</code> 写品牌壳，继承 <code>LoadPortDriverComponent</code>，只写 <code>CreateDriver</code> 和 9 个 <code>Create*</code> 指令工厂，类上加 <code>[Component]</code>。</li>
+          <li>sc.xml 里 Driver 的 Type 换成这个品牌壳。模块、服务、界面都不用改。</li>
+        </ol>
+      </section>
+
+      <!-- ===================== 04 驱动组件 ===================== -->
+      <section id="lp-component">
+        <div class="eyebrow">xyz.Components / Components / Drivers</div>
+        <h2>驱动组件、RFID 和断线重连</h2>
+        <p>驱动组件是挂在 LoadPort 节点下的子组件，把 sc.xml 的通讯配置、驱动的打开关闭、重连包起来，给模块一个统一的触发口。它不自己起线程，<code>OnScan</code> 跟着父模块的扫描线程跑。</p>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>组件</th><th>给模块用的</th></tr>
+            <tr><td><code>LoadPortDriverComponent</code></td><td><code>Load()</code>、<code>Unload()</code>、<code>Home()</code>、<code>Clamp()</code>、<code>Unclamp()</code>、<code>Stop()</code>、<code>ResetDrive()</code>、<code>QueryStatus()</code>、<code>QueryVersion()</code>：发一条指令，受理了返回指令对象，被拒返回 null；<code>DeviceEvent</code> 设备主动事件；<code>Abandon</code> / <code>AbandonAll</code></td></tr>
+            <tr><td><code>FcdLoadPortComponent</code></td><td>FCD 品牌壳，只决定造哪条 FCD 指令</td></tr>
+            <tr><td><code>RfidDriverComponent</code> / <code>FcdRfidComponent</code></td><td><code>BeginRead()</code> 只发起，结果模块每拍 <code>TakeResult()</code> 取；读码超时（EC）作废在途</td></tr>
+            <tr><td><code>DriverReconnector</code></td><td>LoadPort 驱动和 RFID 共用的断线重连</td></tr>
+          </table>
+        </div>
+        <h3>断线重连怎么走</h3>
+        <ul>
+          <li>组件 Open 过才管（装机停用的不管），Close 以后不再重连。</li>
+          <li>发现断了先记一条告警"通讯断开，每 N ms 重连一次"，之后按 EC <code>ReconnectIntervalMs</code> 在后台先关后开。关的时候在途指令全部作废、旧的收发任务收掉。</li>
+          <li>重开放在后台做：网口连不上时 Connect 要卡好几秒，不能卡扫描线程。连上了记一条"通讯恢复"，中间重连不上不再刷日志。</li>
+          <li>RFID 读头连不上不连累 LoadPort：照常开 LoadPort 驱动、登记晶圆账槽位，只是先读不了码。</li>
+        </ul>
+      </section>
+
+      <!-- ===================== 05 模块 ===================== -->
+      <section id="lp-module">
+        <div class="eyebrow">xyz.Modules / Loadport / BaseLoadPortModule.cs</div>
+        <h2>模块：状态与动作</h2>
+        <p>LoadPort 的业务都在平台的 <code>BaseLoadPortModule</code>：状态表、7 个动作（有默认实现）、状态查询、在位判断、载具、Mapping 落账、报警、推送、EAP 口子。机型类继承它，只在动作跟平台不一样时重写。</p>
+
+        <h3>状态码（界面上是这些颜色）</h3>
+        <div class="chips">
+          <span class="chip gray"><span class="k">10</span>未初始化 NotInit</span>
+          <span class="chip green"><span class="k">30</span>空闲 Idle</span>
+          <span class="chip blue"><span class="k">100</span>Loading</span>
+          <span class="chip green"><span class="k">110</span>Loaded</span>
+          <span class="chip blue"><span class="k">120</span>Unloading</span>
+          <span class="chip blue"><span class="k">130</span>Homing</span>
+          <span class="chip blue"><span class="k">140 / 150</span>Clamping / Unclamping</span>
+          <span class="chip yellow"><span class="k">35</span>中止中 Aborting</span>
+          <span class="chip red"><span class="k">40</span>报错 Error</span>
+        </div>
+        <p class="muted">机械手来取放时还会经过站点环的 50 PreTransfer → 60 TransferReady → 70 Transferring → 80 TransferComplete，完了回到 Loaded。同一个码在机械手、腔体里意思不同，界面按模块种类翻（<code>ModuleStates</code>）。</p>
+
+        <h3>状态表：什么状态能做什么动作</h3>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>动作</th><th>从这些状态</th><th>执行中</th><th>做成了</th></tr>
+            <tr><td>Load</td><td>Idle</td><td>Loading</td><td>Loaded</td></tr>
+            <tr><td>Unload</td><td>Loaded</td><td>Unloading</td><td>Idle</td></tr>
+            <tr><td>Home</td><td>NotInit、Idle、Error、Loaded</td><td>Homing</td><td>Idle</td></tr>
+            <tr><td>Reset</td><td>NotInit、Idle、Error、Loaded</td><td>（不变）</td><td>Idle</td></tr>
+            <tr><td>Clamp / Unclamp</td><td>Idle</td><td>Clamping / Unclamping</td><td>Idle</td></tr>
+            <tr><td>Abort</td><td>任何状态</td><td>Aborting</td><td>Idle</td></tr>
+          </table>
+        </div>
+        <ul>
+          <li>表里没有的组合直接拒，服务回 <code>module.action_rejected</code>，参数带当前状态码。</li>
+          <li>任何动作没做成都落 Error。</li>
+          <li><b>一个模块同时只挂一个动作</b>：已经有动作在跑，再发普通动作被拒；只有 Abort 能把在跑的那个当场顶掉。</li>
+        </ul>
+
+        <h3>7 个动作（平台默认实现）</h3>
+        <p>每个动作都是一个 <code>LoadPortCommandOperation</code>：第一拍发驱动指令，之后每拍看一眼指令完结没有，超过超时判失败。</p>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>动作</th><th>驱动触发口</th><th>超时（EC）</th><th>另外做的</th></tr>
+            <tr><td>Load</td><td><code>Load()</code></td><td><code>LoadTimeout</code></td><td>成功后 <code>UpdateSlotMap</code>：存槽图、整篮落晶圆账、回调 E87</td></tr>
+            <tr><td>Unload</td><td><code>Unload()</code></td><td><code>UnloadTimeout</code></td><td>载具取放过、没判完成的记中断</td></tr>
+            <tr><td>Home</td><td><code>Home()</code></td><td><code>HomeTimeout</code></td><td><code>Init()</code> = 子组件初始化 + Home</td></tr>
+            <tr><td>Reset</td><td><code>ResetDrive()</code></td><td><code>ResetTimeout</code></td><td><code>Reset()</code> = 清报警 + 子组件复位 + 设备清错</td></tr>
+            <tr><td>Abort</td><td><code>Stop()</code></td><td><code>AbortTimeout</code></td><td>顶替在跑的动作，不清报警</td></tr>
+            <tr><td>Clamp</td><td><code>Clamp()</code></td><td><code>ClampTimeout</code></td><td>—</td></tr>
+            <tr><td>Unclamp</td><td><code>Unclamp()</code></td><td><code>UnclampTimeout</code></td><td>—</td></tr>
+          </table>
+        </div>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>结果</th><th>错误码</th><th>参数</th></tr>
+            <tr><td>指令发不出去（没连上、同名在途）</td><td><code>loadport.command_rejected</code></td><td>动作名</td></tr>
+            <tr><td>设备回 ABS / NAK</td><td><code>loadport.device_failed</code></td><td>动作名、设备回的原文</td></tr>
+            <tr><td>等超时</td><td><code>loadport.timeout</code></td><td>动作名、超时 ms</td></tr>
+            <tr><td>被 Abort 顶替</td><td><code>module.action_aborted</code></td><td>动作名</td></tr>
+          </table>
+        </div>
+        <p>没做成时模块还会：报"受控停止"（Home 超时再加报"初始化超时"，被中止的不报）；作废驱动上所有在途指令；载具正在取放的记中断；回调 E87 PortError。</p>
+
+        <h3>载具、Mapping 落账、报警</h3>
+        <ul>
+          <li><b>载具对象 <code>CarrierInfo</code></b>：载具到了建、拿走清。带三组状态：ID 认定到哪步、槽图认定到哪步、取放到哪步。接了 EAP 时由 E87 把 Host 的结果写回来。</li>
+          <li><b>Mapping 落账</b>：Load 成功后这个端口的晶圆账整篮重建；读码比 Mapping 晚回来时，载具号会补到这一篮的片上。</li>
+          <li><b>报警</b>：初始化超时、受控停止、LoadPort 设备报警（状态查询的报警位亮就报）。报警只能人工复位清，设备恢复了也不自动清。</li>
+        </ul>
+
+        <h3>站点环和端口搬运状态</h3>
+        <ul>
+          <li>LoadPort 是机械手的站点，锚点状态是 Loaded（门开着才能取放）。机械手第一次来取放，载具进 IN ACCESS（E87 的"在取放"）。</li>
+          <li><code>LocalTransferState</code> 是端口自己判的搬运状态，E84 和 E87 都看它：停用、下线、没初始化、出错 → 停用；在忙 → 挡着；空闲没盒 → 等送盒；空闲有盒且这一盒干完或中断 → 等取走。</li>
+        </ul>
+
+        <h3>机型要改某个动作</h3>
+        <p>在机型的 <code>LoadPortModule</code> 里重写那一个，其余照用平台的。例：这台机门禁没关好不让开门（返回 null 就是拒，服务回 <code>module.action_rejected</code>）：</p>
+        <div class="code-wrap"><button class="copy" type="button">复制</button><pre class="code">[Component(description: "XXXXX LoadPort 模块")]
+public class LoadPortModule : BaseLoadPortModule, ILoadPort
+{
+    /// &lt;summary&gt;
+    /// Load 之前先看门禁：没关好不开门；关好了走平台的 Load。
+    /// &lt;/summary&gt;
+    public override ModuleOperation? Load()
+    {
+        // IsInterlockClosed 是这个机型自己写的检查（比如读一个 DI）
+        if (!IsInterlockClosed())
+        {
+            return null;
+        }
+
+        return base.Load();
+    }
+}</pre></div>
+        <p class="muted">要加一个单条指令的新动作，可以直接用 <code>new LoadPortCommandOperation("动作名", () =&gt; 发指令, () =&gt; 超时, 成功后要做的事)</code>。</p>
+      </section>
+
+      <!-- ===================== 06 在位判断 ===================== -->
+      <section id="lp-presence">
+        <div class="eyebrow">BaseLoadPortModule · SenseCarrierArrived / CheckCarrierPresence</div>
+        <h2>在位判断：载具到了没有</h2>
+        <p>三个名字别弄混：</p>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>名字</th><th>是什么</th><th>在哪</th></tr>
+            <tr><td><code>IsPresent</code></td><td>状态查询的原始位：在位（端口上压着东西）</td><td><code>LoadPortStatus</code>、<code>LoadPortDto</code></td></tr>
+            <tr><td><code>IsPlaced</code></td><td>状态查询的原始位：到位（放平、卡进定位销）</td><td><code>LoadPortStatus</code>、<code>LoadPortDto</code></td></tr>
+            <tr><td><code>IsCarrierArrived</code></td><td>后台判出来的"载具到了"。到达、拿走、E84、Job、回片、E87、界面"在位"用的都是它</td><td>模块、<code>ILoadPort</code>、<code>LoadPortDto</code></td></tr>
+          </table>
+        </div>
+
+        <h3>SC PresenceSource 二选一</h3>
+        <div class="scroll">
+          <table class="tbl truth">
+            <tr><th>Query（默认）在位 IsPresent</th><th>到位 IsPlaced</th><th>判断</th></tr>
+            <tr><td class="on">亮</td><td class="on">亮</td><td>载具到了</td></tr>
+            <tr><td class="off">灭</td><td class="off">灭</td><td>拿走了</td></tr>
+            <tr><td>一亮一灭</td><td></td><td>放了一半、没放正、正在拿：不算变化，保持原判断</td></tr>
+            <tr><td>查不到</td><td></td><td>没连上、查询超时：保持原判断</td></tr>
+          </table>
+        </div>
+        <p><b>Event</b>：只认设备主动上报，PODON 算放上，PODOF 算拿走，状态查询说什么都不管。</p>
+        <div class="note"><b class="tag">怎么选</b>Query 能自己对上：开机时盒子已经在端口上、丢过一个事件、断线期间换了盒，下一次查询都能认对；读错一位不会被当成拿走，要两位一起错才会。它靠状态查询一直在跑。Event 反应快，但开机已在端口上的盒子、断线期间的变化认不出来。</div>
+
+        <h3>到达、拿走的时候做什么</h3>
+        <p>只在扫描线程上判：这一拍判出来的跟上一拍不一样，才算放上或拿走。</p>
+        <ul>
+          <li><b>到达</b>：建载具对象 → 回调 E87 CarrierArrived → 报 GEM 事件 FoupArrived → 自动读码（<code>AutoReadCarrierId</code>）。</li>
+          <li><b>拿走</b>：清载具号、槽图、载具对象 → 晶圆账清掉这个端口的片 → 回调 E87 CarrierRemoved → 报 FoupRemoved。</li>
+        </ul>
+      </section>
+
+      <!-- ===================== 07 线程 ===================== -->
+      <section id="lp-threads">
+        <div class="eyebrow">ComponentBase.ScanLoop · BaseModule.OnScan · BaseLoadPortModule.OnScan</div>
+        <h2>一拍扫描与线程</h2>
+        <p>每个模块一条自己的扫描线程，50 ms 一拍。LoadPort 一拍按这个顺序做：</p>
+        <ol class="plain">
+          <li>子组件：驱动组件看要不要重连，RFID 推读码步进机。</li>
+          <li>挂着的动作往前推一步（在 <code>OperationGate</code> 锁里）；做完就收尾：落状态 → <code>OnOperationCompleted</code> → 叫醒等结果的人。</li>
+          <li><code>PollStatus</code>：查设备状态，一次一条 GET:STATE，超时作废重发。</li>
+          <li><code>CheckCarrierPresence</code>：判载具到达 / 拿走。</li>
+          <li><code>StepE84</code>：推一步 E84 握手。</li>
+          <li><code>CheckCarrierIdRead</code>：收读码结果。</li>
+          <li><code>CheckDeviceAlarm</code>：设备报警位亮就报警。</li>
+          <li><code>PublishState</code>：跟上次比有变化，就推给界面。</li>
+        </ol>
+
+        <h3>点一次 Load，经过哪些线程</h3>
+        <div class="scroll">
+          <div class="lanes" role="table" aria-label="点 Load 的线程泳道">
+            <div class="lh"></div><div class="lh">界面 UI 线程</div><div class="lh">后端 gRPC 线程</div><div class="lh">模块扫描线程</div><div class="lh">驱动收发任务</div><div class="lh">设备</div>
+
+            <div class="ln">1</div><div class="cell"><div class="hit">点 Load：<code>await LoadAsync(模块名)</code>，界面不卡</div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">2</div><div class="cell"></div><div class="cell"><div class="hit"><code>port.Load()</code> → <code>Begin</code>：查状态表、挂上动作、状态改 Loading</div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">3</div><div class="cell"></div><div class="cell"><div class="hit"><code>WaitReply(LoadTimeout)</code> 睡下等</div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">4</div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="hit">动作第 1 拍：<code>_driver.Load()</code>，指令进在途表、进发送队列</div></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">5</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="hit">发送任务写出 <code>s00MOV:CLOAD;</code></div></div><div class="cell"></div>
+            <div class="ln">6</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="hit">开门、Mapping，回 <code>INF:CLOAD/槽位串</code></div></div>
+            <div class="ln">7</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="hit">接收泵拆帧 → 帧路由交给在途的 CLOAD → 指令完结</div></div><div class="cell"></div>
+            <div class="ln">8</div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="hit">下一拍看到完结：落槽图 → <code>Complete</code>；收尾：状态改 Loaded、回调、叫醒等的人</div></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">9</div><div class="cell"></div><div class="cell"><div class="hit">醒来，回 Ok</div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">10</div><div class="cell"></div><div class="cell"></div><div class="cell"><div class="hit">同一拍最后 <code>PublishState</code> → 推 <code>LoadPortDto</code></div></div><div class="cell"></div><div class="cell"></div>
+            <div class="ln">11</div><div class="cell"><div class="hit">事件流收到，投到 UI 线程 → 徽标变 Loaded、花篮画片</div></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          </div>
+        </div>
+
+        <h3>写代码时守的规矩</h3>
+        <ul>
+          <li><b>扫描线程里不等待</b>：动作写成步进机，每拍做一步就返回。在里面 Sleep 或等结果，整个模块这一拍就卡住了（状态查询、在位、E84、推送全停）。</li>
+          <li><b>发起和等待分开</b>：<code>Begin</code> 只挂上动作（瞬间），阻塞等的是服务层的 <code>WaitReply</code>，最长等到动作超时。</li>
+          <li><b>改模块状态只有三处</b>：<code>Begin</code>、<code>CompleteOperation</code>、<code>TransferStep</code>，都在 <code>OperationGate</code> 锁里。别的线程不拿锁读到的只是某一刻的快照，真去做时会在锁里再查一遍。</li>
+          <li><b>锁里不做慢事</b>：<code>OnOperationCompleted</code> 和动作的每一步都在锁里跑；EAP 回调只放进队列，由专用派发线程发。</li>
+        </ul>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>线程</th><th>在这条链上跑什么</th></tr>
+            <tr><td>客户端 UI 线程</td><td>按钮命令、推送回调、绑定刷新</td></tr>
+            <tr><td>后端 gRPC 线程</td><td><code>LoadPortService</code>：发起动作、阻塞等结果</td></tr>
+            <tr><td>模块扫描线程</td><td>上面那一拍的 8 件事</td></tr>
+            <tr><td>驱动收发任务</td><td>接收泵、帧路由、发送队列</td></tr>
+            <tr><td>重连后台任务</td><td>断线时先关后开（不占扫描线程）</td></tr>
+            <tr><td>EAP 派发线程</td><td>E87 / E84 回调，按发生顺序一条一条发</td></tr>
+            <tr><td>客户端事件流</td><td>收推送，转给 UI 线程；断了 3 s 重连</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===================== 08 服务与推送 ===================== -->
+      <section id="lp-service">
+        <div class="eyebrow">xyz.Shared / Services / ILoadPortService · Dtos / LoadPortDto · xyz.Service / LoadPortService</div>
+        <h2>服务与推送</h2>
+        <h3>ILoadPortService（命令）</h3>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>方法</th><th>做什么</th></tr>
+            <tr><td><code>LoadAsync</code> <code>UnloadAsync</code> <code>HomeAsync</code> <code>ResetAsync</code> <code>AbortAsync</code></td><td>发起动作并等结果，等的时长 = 对应的 EC 超时</td></tr>
+            <tr><td><code>OnlineAsync</code> / <code>OfflineAsync</code></td><td>模块模式（参不参与自动调度），只改软件里的值，不经设备</td></tr>
+            <tr><td><code>AutoAsync</code> / <code>ManualAsync</code></td><td>存取方式（Access Mode）：Auto = 天车经 E84 交接，Manual = 人工放取</td></tr>
+            <tr><td><code>ReadCarrierIdAsync</code></td><td>发起一次读码，不等结果，读到的号随推送刷新</td></tr>
+            <tr><td><code>GetStateAsync</code></td><td>读模块当前的状态快照（跟推送是同一个东西，不去问设备）；传空串 = 全部，一个时回对象、多个回数组</td></tr>
+          </table>
+        </div>
+        <p>动作类的回包：动作被拒回 <code>module.action_rejected</code> [模块, 当前状态码]；等超时回 <code>module.wait_timeout</code> [动作名, 等待 ms]，这只表示后台不等了，动作可能还在跑；到终态回 Ok 或动作自己的错误码；模块名不对回 <code>module.not_found</code>。服务不往客户端抛异常，界面按错误码查语言包显示。</p>
+
+        <h3>LoadPortDto（推送）</h3>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>字段</th><th>意思</th></tr>
+            <tr><td><code>Name</code> / <code>State</code> / <code>Mode</code></td><td>模块名、状态码、在线 / 离线</td></tr>
+            <tr><td><code>IsConnected</code></td><td>驱动连没连上</td></tr>
+            <tr><td><code>IsCarrierArrived</code></td><td>载具到了（后台判的）</td></tr>
+            <tr><td><code>IsPresent</code> <code>IsPlaced</code> <code>IsDoorOpen</code> <code>IsDoorClosed</code> <code>IsDeviceAlarm</code></td><td>状态查询的原始反馈；没连上、查不到时为 null</td></tr>
+            <tr><td><code>AutoMode</code></td><td>存取方式 Auto / Manual</td></tr>
+            <tr><td><code>SlotCount</code> / <code>Slots</code></td><td>槽数、Mapping 结果（<code>LoadPortSlotDto</code>：槽号、状态、<code>HasWafer</code> = 不是空槽就算有片）</td></tr>
+            <tr><td><code>LedgerSlots</code></td><td>晶圆账上每个槽的片，界面画片以它为准</td></tr>
+            <tr><td><code>CarrierId</code> / <code>HasCarrier</code></td><td>载具号（没读到为空，不代表没盒子）、有没有载具对象</td></tr>
+            <tr><td><code>CarrierIdStatus</code> <code>CarrierSlotMapStatus</code> <code>CarrierAccessStatus</code></td><td>ID、槽图认定到哪步，取放到哪步</td></tr>
+          </table>
+        </div>
+        <ul>
+          <li>推送：<code>EventBus.Send(dto, 模块名)</code>，留存消息，跟上次比有变化才推（账一变下一拍就推）。</li>
+          <li>客户端 <code>EventBus.Register&lt;LoadPortDto&gt;(模块名, …)</code>，订上立即补发最后一条；投到 UI 线程。</li>
+        </ul>
+      </section>
+
+      <!-- ===================== 09 前端 ===================== -->
+      <section id="lp-client">
+        <div class="eyebrow">xyz.Client.Manual · xyz.Client.Main · xyz.Client.Presentation · xyz.35021 / Client</div>
+        <h2>前端：手动页、主界面、调度图</h2>
+        <h3>手动页（菜单 手动 → LoadPort）</h3>
+        <ol class="plain">
+          <li>菜单 Code <code>Manual.LoadPorts</code>（<code>PlatformMenuProvider</code>）就是页面的注册键，页面由机型注册：35021 是 <code>LoadPortsManualView</code>，一页 4 列，按后端的 LoadPort 名单放面板。</li>
+          <li>每个口一个平台面板 <code>LoadPortManualControl</code>（<code>ModuleName</code> = 模块名），它自己建 <code>LoadPortManualViewModel</code>。</li>
+          <li>VM 的 <code>Init</code> 先 <code>GetStateAsync</code> 拉一次画出来，再订推送；之后全靠推送更新，收到就整个替换 <code>LoadPortModel</code>（Mapster 按名字映射，DTO 字段改名两边要一起改）。</li>
+          <li>按钮：Online、Offline、Auto、Manual、Read ID、Home、Load、Unload、Reset、Abort，都调 <code>ILoadPortService</code>；失败按错误码查语言包，写到顶栏日志。</li>
+        </ol>
+        <h3>主界面 LoadPort 页签</h3>
+        <p>按系统设置里的 LoadPort 名单，一个口一个页签（<code>LoadPortJobModel</code>）：载具号、槽图状态、槽位表（片以晶圆账为准，账没登记才按 Mapping），LotID、Sequence，创建 / 启动 Job。</p>
+        <h3>调度图上的 LoadPort 卡片</h3>
+        <p><code>DispatchMapViewModel</code> 订每个站点的推送，LoadPort 的交给 <code>RobotStationModel.UpdateLoadPort</code>，卡片 <code>LoadPortInfoCard</code> 底下六盏灯：通讯、在位、到位、报警、自动、手动。</p>
+        <div class="note"><b class="tag">画片规则</b>所有画片的地方都以晶圆账为准（<code>LedgerSlots</code>），晶圆账没开或没登记这个口时，才退回按 Mapping 结果画。</div>
+      </section>
+
+      <!-- ===================== 10 EAP ===================== -->
+      <section id="lp-eap">
+        <div class="eyebrow">xyz.Components / Interfaces · Components / Eap / E87 · xyz.Modules / E84</div>
+        <h2>EAP 对接：E87 载具管理、E84 天车交接</h2>
+        <p>设备侧给 EAP 开三个口子，EAP 只做 SECS 翻译，真正的状态只在设备侧存一份：</p>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>口子</th><th>是什么</th><th>LoadPort 上</th></tr>
+            <tr><td>命令接口</td><td>EAP 和本地界面调同一个接口、过同一套检查</td><td><code>ILoadPort</code>（Load、SetCarrierId、UpdateCarrierStatus……）</td></tr>
+            <tr><td>上报口</td><td>设备侧发生了什么，按发生顺序回调给 EAP</td><td><code>E87Callback</code>、<code>E84Callback</code></td></tr>
+            <tr><td>反查口</td><td>要 Host 拿主意的事，设备侧问它；为 null 时按本地规则</td><td><code>E84Provider</code>（现在能不能交接、往哪个方向）</td></tr>
+          </table>
+        </div>
+        <p>没接 EAP 时这三个都是 null，LoadPort 照常跑。</p>
+
+        <h3>接了 EAP 时一个盒子的路线（E87）</h3>
+        <ol class="plain">
+          <li>放上 → 读码。有预告（Bind / CarrierNotification）且号对上，设备认定（#6）；没预告，等 Host ProceedWithCarrier（#3 → #8）。</li>
+          <li>ID 认定后自动 Load（SC <code>AutoLoad</code>）→ 读槽图。跟 Host 给的一样，设备认定（#13）；否则等 Host（#14 → #15）。</li>
+          <li>槽图认定就是"料到了"：Host 给的片号写进晶圆账，通知 E90 建片对象。</li>
+          <li>机械手第一次来取放 → 载具 IN ACCESS（#18）。</li>
+          <li>CJ 完成 → <code>NoteCarrierComplete</code> → 干完（#19）→ 自动 Unload（SC <code>AutoUnload</code>）→ 端口等取 → 拿走（#21）。</li>
+        </ol>
+        <p class="muted">Host 的载具动作走 S3F17，端口动作 S3F25，改存取方式 S3F27，都要 ON-LINE REMOTE。</p>
+
+        <h3>E84（天车交接，IO 版）</h3>
+        <ul>
+          <li>握手：天车选中本口 → L_REQ / U_REQ → TR_REQ → READY → BUSY → 盒子放上 / 取走 → COMPT → 撤信号。任一段超过 TP1~TP5 就把输出全灭、锁住，等人工 Retry 或 Complete。</li>
+          <li>端口每拍算一个许可交给 E84：要 Auto、在线、搬运状态是等送或等取才交接。</li>
+          <li>SC <code>IsEnable</code> 管装没装（False 时端口当没有 E84）；EC <code>E84Enabled</code> 管装了以后交不交接。</li>
+        </ul>
+      </section>
+
+      <!-- ===================== 11 Job ===================== -->
+      <section id="lp-job">
+        <div class="eyebrow">xyz.Modules / Job · Transfer · xyz.Components / System / WaferManager</div>
+        <h2>跟 Job、搬运管理、全部回片的关系</h2>
+        <ul>
+          <li><b>Job</b>：建 Job 要求载具能取片（载具到了，并且是 Loaded 或正在被机械手服务）；取片顺序看 EC <code>PickOrder</code>；CJ 结束时调 <code>NoteCarrierComplete</code>，告诉 LoadPort 这一盒干完了；载具拿走（或换了一个）以后，完成的 CJ 才删。</li>
+          <li><b>搬运管理</b>：LoadPort 是一个站点，取放片走站点环，锚点是 Loaded；整机 Stop 时由搬运管理收场。</li>
+          <li><b>全部回片</b>：片回它来源 LoadPort 的同号槽，要求那个口载具到了且是 Loaded；片记着的载具号跟现在的对不上就不放。</li>
+          <li><b>晶圆账</b>：Open 时登记这个口的槽位；Load 成功整篮重建；载具拿走清掉；重启后不恢复 LoadPort 上的片，以开机 Mapping 为准。</li>
+        </ul>
+      </section>
+
+      <!-- ===================== 12 新机型接入 ===================== -->
+      <section id="lp-newmachine">
+        <div class="eyebrow">xyz.&lt;机型&gt; · 照 xyz.35021 做</div>
+        <h2>新机型接入 LoadPort</h2>
+        <p>LoadPort 的动作、状态查询、在位、重连、推送都在平台。新机型通常只要一个空的机型类加 sc.xml，一行 LoadPort 逻辑都不用写；机型独有的东西才写进机型类。</p>
+        <ol class="steps">
+          <li><div>
+            <h4>建机型后端工程</h4>
+            <p>照 <code>xyz.35021/Service/xyz.35021.Module</code>：命名空间 <code>xyz._&lt;机型&gt;.*</code>（数字开头前面加下划线），引用 <code>xyz.Modules</code>、<code>xyz.Shared</code>；编译后 <code>DeployToHost</code> 把 DLL 拷到宿主 <code>Modules\&lt;机型&gt;</code>，宿主启动时按目录扫描加载。</p>
+          </div></li>
+          <li><div>
+            <h4>建 LoadPort 机型类</h4>
+            <p>空类就能用，留着放这个机型独有的：</p>
+            <div class="code-wrap"><button class="copy" type="button">复制</button><pre class="code">using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
+using xyz.Modules;
+
+namespace xyz._XXXXX.Module.Loadport;
+
+/// &lt;summary&gt;
+/// XXXXX 机台 LoadPort 模块：动作都用平台的，跟平台不一样的再重写。
+/// &lt;/summary&gt;
+[Component(description: "XXXXX LoadPort 模块")]
+public class LoadPortModule : BaseLoadPortModule, ILoadPort
+{
+}</pre></div>
+          </div></li>
+          <li><div>
+            <h4>写 sc.xml</h4>
+            <p>LoadPort 分组下一个口一个节点，Type 写机型类全名；Driver 挂品牌壳（FCD 用 <code>FcdLoadPortComponent</code>），有读头挂 RFID，有天车挂 E84（没接就 <code>IsEnable=False</code>），<code>PresenceSource</code> 按设备选。写法见"配置"。</p>
+          </div></li>
+          <li><div>
+            <h4>机械手站点表加上这几个口</h4>
+            <p>机械手节点 <code>Stations</code> 下加同名站点：Number、Y、Direction、Arms。没加的口机械手去不了，流程配方里也选不到。</p>
+          </div></li>
+          <li><div>
+            <h4>品牌不是 FCD</h4>
+            <p>先照"驱动与通信 → 加一个新品牌"写驱动和品牌壳，sc.xml 的 Driver 换成新品牌壳。</p>
+          </div></li>
+          <li><div>
+            <h4>客户端</h4>
+            <p>手动页 <code>Manual.LoadPorts</code> 由机型注册：照 35021 的 <code>LoadPortsManualView</code> + <code>LoadPortsManualViewModel</code>（一页按 LoadPort 名单放平台的 <code>LoadPortManualControl</code>），在机型的 <code>IClientModule.Register</code> 里注册成这个键。主界面 LoadPort 页签、调度图卡片不用写，照系统设置和机械手站点表自己生成。</p>
+          </div></li>
+          <li><div>
+            <h4>有特殊动作再重写</h4>
+            <p>在机型类里重写那一个动作（见"模块"一节的例子）。单条指令的新动作直接用 <code>LoadPortCommandOperation</code>。</p>
+          </div></li>
+          <li><div>
+            <h4>验证</h4>
+            <p>编译整个 sln；跑 OperationWaitSmoke、JobSmoke；上机看日志："通讯恢复"、"Mapping 落账：N 片"，有没有"状态查询超时""通讯断开"。</p>
+          </div></li>
+        </ol>
+      </section>
+
+      <!-- ===================== 13 测试 ===================== -->
+      <section id="lp-test">
+        <div class="eyebrow">tools / *Smoke</div>
+        <h2>测试与验证</h2>
+        <p>没有单元测试工程，测试是 <code>tools\*Smoke</code> 控制台程序。先编译整个 sln，再在仓库根目录跑：</p>
+        <div class="code-wrap"><button class="copy" type="button">复制</button><pre class="code">dotnet build xyz.Framework.sln
+dotnet run --no-build --project tools\OperationWaitSmoke</pre></div>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>冒烟</th><th>跟 LoadPort 有关的部分</th></tr>
+            <tr><td>OperationWaitSmoke</td><td>动作和模式、服务的错误码、载具从放上到拿走、在位二选一、状态查询超时作废重发、在途作废、断线重连、RFID 连不上、平台默认动作（真 FCD 驱动 + 假通道）、E84 握手、E87 回调路径</td></tr>
+            <tr><td>JobSmoke</td><td>Job、搬运管理、全部回片（假 LoadPort）</td></tr>
+            <tr><td>EapSmoke</td><td>E87 跟假 Host 的核对流程（假 LoadPort）</td></tr>
+            <tr><td>RfidSmoke</td><td>FCD RFID 协议、握手、超时（假读头）</td></tr>
+          </table>
+        </div>
+        <h3>单步跟一圈</h3>
+        <p>后端半圈调试跑 OperationWaitSmoke（从服务层直接调起，只把通讯换成假通道，FCD 编解码、驱动、指令都是生产代码）；前端半圈起宿主和客户端看。7 个断点串起整圈：</p>
+        <ol class="plain">
+          <li><code>LoadPortManualViewModel.DoLoad</code></li>
+          <li><code>LoadPortService.LoadAsync</code></li>
+          <li><code>BaseModule.Begin</code></li>
+          <li><code>LoadPortCommandOperation.OnScan</code></li>
+          <li><code>LoadPortDriverBase.Submit</code></li>
+          <li><code>BaseLoadPortModule.PublishState</code></li>
+          <li><code>LoadPortManualViewModel.OnStateReceived</code></li>
+        </ol>
+        <p class="muted">没接真 LoadPort 时：驱动、RFID 都连不上，开机各报一次，之后每 5 s 在后台重连、不刷日志；发动作会因为没连上判 <code>loadport.command_rejected</code>、落 Error。</p>
+      </section>
+
+      <!-- ===================== 14 问题排查 ===================== -->
+      <section id="lp-faq">
+        <div class="eyebrow">日志 · 错误码 · 状态灯</div>
+        <h2>问题排查</h2>
+        <div class="scroll">
+          <table class="tbl">
+            <tr><th>现象</th><th>先看什么</th><th>原因和处理</th></tr>
+            <tr><td>点 Load 回 action_rejected</td><td>错误参数里的当前状态码</td><td>状态表不允许：10 没初始化先 Home；110 已经 Loaded；40 报错先 Home 或 Reset；有动作在跑也会被拒</td></tr>
+            <tr><td>回 command_rejected</td><td>日志里有没有"通讯断开"</td><td>没连上，或同名指令还在途；在途的会在超时或动作失败后作废，再发就行</td></tr>
+            <tr><td>回 wait_timeout</td><td>之后的状态推送</td><td>后台不等了，动作可能还在跑；真超时稍后会落 Error</td></tr>
+            <tr><td>"在位"跟实物对不上</td><td>sc.xml <code>PresenceSource</code>，在位、到位两盏灯</td><td>Query 时两盏灯一亮一灭说明盒子没放正；Event 时开机已在端口上的盒子认不出</td></tr>
+            <tr><td>设备反馈灯全灰</td><td>通讯灯</td><td>没连上，反馈都是 null；看串口号、线、设备电源，后台会按间隔重连</td></tr>
+            <tr><td>载具号一直是空的</td><td>日志"读码失败""RFID 读头连不上"</td><td>读头没连上或读码超时（EC <code>ReadCarrierIdTimeout</code>），可以在手动页点 Read ID 再读</td></tr>
+            <tr><td>天车不交接</td><td>E84 节点 <code>IsEnable</code>、EC <code>E84Enabled</code></td><td>还要端口 Auto、Online，搬运状态是等送或等取；超时锁住要人工 Retry / Complete</td></tr>
+            <tr><td>状态查询超时一直刷</td><td>"状态查询超时"之后有没有"状态查询恢复"</td><td>超时、恢复各只记一次；一直没恢复说明设备不回 GET:STATE，查线和设备</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===================== 15 已知限制 ===================== -->
+      <section id="lp-limits">
+        <div class="eyebrow">分析过、还没做</div>
+        <h2>已知限制</h2>
+        <div class="note warn"><b class="tag">还没做</b>
+          <ul>
+            <li>复位、中止之后一律落 Idle，门可能还开着；之后再 Load 会把这一篮的账整篮重建。</li>
+            <li>接了 EAP 时，Job 中止（包括主界面 Stop）后会报"干完"并自动卸载，片可能还在机内。</li>
+            <li>E87 核对结果（ID、槽图认定）还没拦住建 Job 和手动 Load。</li>
+            <li>EAP 开着但不在 ON-LINE REMOTE 时，盒子一直等 Host，界面上也没有代 Host 确认的地方。</li>
+            <li>LoadPort1 取、LoadPort2 放时，LoadPort2 那一盒没人报干完。</li>
+            <li>开 EAP 时，开机已在端口上的盒子在 EAP 接上之前就判到了，到达、读码回调会丢。</li>
+            <li>E84 的上报口（<code>E84Callback</code>）还没有 EAP 组件接。</li>
+            <li><code>LoadPortDto.LotId</code> 目前没人赋值。</li>
+          </ul>
+        </div>
+      </section>
+
+      <div class="placeholder" id="robot">
+        <b>Robot</b>：待补充。照 LoadPort 这一章的结构写：总览、配置（含站点表）、驱动与通信、模块与动作（取放、手指、站点环）、线程、服务与推送、前端、新机型接入、测试、排查。
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  // 复制代码块：剪贴板写不进去（有的查看器不让）就把代码选中，让人自己复制
+  document.querySelectorAll('.code-wrap').forEach(function (wrap) {
+    var button = wrap.querySelector('.copy');
+    var pre = wrap.querySelector('pre');
+    if (!button || !pre) {
+      return;
+    }
+
+    button.addEventListener('click', function () {
+      var text = pre.innerText;
+      var done = function (label) {
+        button.textContent = label;
+        setTimeout(function () { button.textContent = '复制'; }, 1600);
+      };
+      var selectAll = function () {
+        var range = document.createRange();
+        range.selectNodeContents(pre);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        done('已选中');
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done('已复制'); }).catch(selectAll);
+      } else {
+        selectAll();
+      }
+    });
+  });
+
+  // 窄屏下目录可以收起来
+  var side = document.getElementById('side');
+  var toggle = document.getElementById('tocToggle');
+  if (side && toggle) {
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      side.classList.add('collapsed');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    toggle.addEventListener('click', function () {
+      var collapsed = side.classList.toggle('collapsed');
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+    document.querySelectorAll('#toc a').forEach(function (link) {
+      link.addEventListener('click', function () {
+        if (window.matchMedia('(max-width: 900px)').matches) {
+          side.classList.add('collapsed');
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
+  }
+
+  // 滚动时高亮当前这一节
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var byId = {};
+  links.forEach(function (link) { byId[link.getAttribute('href').slice(1)] = link; });
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          links.forEach(function (link) { link.classList.remove('active'); });
+          var current = byId[entry.target.id];
+          if (current) {
+            current.classList.add('active');
+          }
+        }
+      });
+    }, { rootMargin: '0px 0px -70% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (section) { observer.observe(section); });
+  }
+})();
+</script>
