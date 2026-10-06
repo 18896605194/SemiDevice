@@ -146,7 +146,7 @@ internal static class ReturnPlanner
     /// <summary>来源 LoadPort 能不能放片：载具在位，Load 过（或正在跟机械手交互）。跟 Job 判"载具能取片"一个标准。</summary>
     private static bool IsReadyForReturn(ILoadPort port)
     {
-        if (!port.IsPodPlaced)
+        if (!port.IsCarrierArrived)
         {
             return false;
         }

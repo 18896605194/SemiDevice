@@ -134,9 +134,9 @@ public sealed class RobotStationModel : ObservableObject
         StateTone = ModuleStates.LoadPortTone(dto.State);
         Wafers = StationWafers.OfLoadPort(dto.LedgerSlots, dto.Slots);
         IsConnected = dto.IsConnected;
-        IsPresent = dto.PodPresent == true;
-        IsPlaced = dto.PodPlaced == true;
-        HasDeviceAlarm = dto.DeviceAlarm == true;
+        IsPresent = dto.IsPresent == true;
+        IsPlaced = dto.IsPlaced == true;
+        HasDeviceAlarm = dto.IsDeviceAlarm == true;
         IsAutoMode = dto.AutoMode;
     }
 

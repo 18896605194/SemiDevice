@@ -18,17 +18,6 @@
         <Setter Property="CaretBrush" Value="{StaticResource DarkPrimaryText}" />
     </Style>
 
-    <Style
-        x:Key="LargeTextBoxStyle"
-        BasedOn="{StaticResource DefaultTextBoxStyle}"
-        TargetType="TextBox">
-        <Setter Property="MinHeight" Value="52" />
-        <Setter Property="Margin" Value="0,8" />
-        <Setter Property="Padding" Value="18,0" />
-        <Setter Property="FontSize" Value="{StaticResource Size20}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DarkAccent}" />
-    </Style>
-
     <!--  工具栏里的输入（关键字……）：跟工具栏按钮同高（34），上下不留外边距  -->
     <Style
         x:Key="ToolbarTextBoxStyle"

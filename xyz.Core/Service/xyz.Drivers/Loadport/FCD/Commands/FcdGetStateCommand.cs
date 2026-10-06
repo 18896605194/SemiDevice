@@ -41,11 +41,11 @@ public sealed class FcdGetStateCommand : FcdCommand
             Content = data,
             Status = new LoadPortStatus
             {
-                PodPresent = data[0] == '1',
-                PodPlaced = data[1] == '1',
-                DeviceAlarm = data[7] == '1',
-                DoorOpen = data[42] == 'O',
-                DoorClosed = data[43] == 'O',
+                IsPresent = data[0] == '1',
+                IsPlaced = data[1] == '1',
+                IsDeviceAlarm = data[7] == '1',
+                IsDoorOpen = data[42] == 'O',
+                IsDoorClosed = data[43] == 'O',
                 Raw = data,
             },
         };

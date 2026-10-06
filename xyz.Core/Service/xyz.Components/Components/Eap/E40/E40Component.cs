@@ -286,7 +286,7 @@ public class E40Component : ComponentBase, IE40Callback
     /// <summary>这个载具（在端口上的）里正常有片的槽（槽图里正常和有片说不准的）。</summary>
     private List<int> OccupiedSlots(string carrierId)
     {
-        var port = _ports.FirstOrDefault(item => item.IsPodPlaced && string.Equals(item.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
+        var port = _ports.FirstOrDefault(item => item.IsCarrierArrived && string.Equals(item.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
         if (port is null)
         {
             return [];

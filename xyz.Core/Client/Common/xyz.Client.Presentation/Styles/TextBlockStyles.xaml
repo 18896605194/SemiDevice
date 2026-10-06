@@ -64,18 +64,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="StatusValueTextStyle" TargetType="TextBlock">
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="FontSize" Value="{StaticResource Size22}" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
-                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <!--  顶栏信息块里的主值（时间、用户名）：数字等宽，秒跳动时不晃  -->
     <Style x:Key="TopBarValueTextStyle" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />

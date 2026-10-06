@@ -79,7 +79,7 @@ internal sealed class JobEnvironment : IJobPlanEnvironment
     public bool IsCarrierReady(string loadPort)
     {
         var port = LoadPort(loadPort);
-        if (port is null || !port.IsEnabled || !port.IsPodPlaced)
+        if (port is null || !port.IsEnabled || !port.IsCarrierArrived)
         {
             return false;
         }

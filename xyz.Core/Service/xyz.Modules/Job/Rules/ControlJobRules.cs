@@ -96,7 +96,7 @@ internal sealed class DeleteRule : IControlJobRule
 
         var port = runtime.Environment.LoadPort(job.LoadPort);
         var carrier = port?.Carrier;
-        bool sameCarrier = port is not null && port.IsPodPlaced && carrier is not null
+        bool sameCarrier = port is not null && port.IsCarrierArrived && carrier is not null
             && (job.CarrierInstance is null || carrier.Id == job.CarrierInstance.Value);
         return sameCarrier ? null : CtrlJobTrigger.Delete;
     }

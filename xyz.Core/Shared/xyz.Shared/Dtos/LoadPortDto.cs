@@ -15,23 +15,23 @@ public class LoadPortDto
     /// <summary>驱动串口连接是否可用。</summary>
     public bool IsConnected { get; set; }
 
-    /// <summary>FOUP 在位：后台按 sc.xml PresenceSource 判出来的（状态查询或 PODON/PODOF），跟后台判载具到达、拿走用的是同一个。</summary>
-    public bool IsPodPlaced { get; set; }
+    /// <summary>载具到了：后台按 sc.xml PresenceSource 判出来的（状态查询或 PODON/PODOF），跟后台判载具到达、拿走用的是同一个；原始的两位是 IsPresent / IsPlaced。</summary>
+    public bool IsCarrierArrived { get; set; }
 
     /// <summary>查询反馈：FOUP 在位；null 表示反馈不可用。</summary>
-    public bool? PodPresent { get; set; }
+    public bool? IsPresent { get; set; }
 
     /// <summary>查询反馈：FOUP 放置到位；null 表示反馈不可用。</summary>
-    public bool? PodPlaced { get; set; }
+    public bool? IsPlaced { get; set; }
 
     /// <summary>查询反馈：门开到位；null 表示反馈不可用。</summary>
-    public bool? DoorOpen { get; set; }
+    public bool? IsDoorOpen { get; set; }
 
     /// <summary>查询反馈：门关到位；null 表示反馈不可用。</summary>
-    public bool? DoorClosed { get; set; }
+    public bool? IsDoorClosed { get; set; }
 
     /// <summary>查询反馈：设备硬件报警；null 表示反馈不可用。</summary>
-    public bool? DeviceAlarm { get; set; }
+    public bool? IsDeviceAlarm { get; set; }
 
     /// <summary>Auto/Manual（LoadPort 的 Access Mode）：true = Auto（搬运车经 E84 自动交接），false = Manual（人工放取）。</summary>
     public bool AutoMode { get; set; }
@@ -95,32 +95,32 @@ public class LoadPortDto
             return true;
         }
 
-        if (IsPodPlaced != previous.IsPodPlaced)
+        if (IsCarrierArrived != previous.IsCarrierArrived)
         {
             return true;
         }
 
-        if (PodPresent != previous.PodPresent)
+        if (IsPresent != previous.IsPresent)
         {
             return true;
         }
 
-        if (PodPlaced != previous.PodPlaced)
+        if (IsPlaced != previous.IsPlaced)
         {
             return true;
         }
 
-        if (DoorOpen != previous.DoorOpen)
+        if (IsDoorOpen != previous.IsDoorOpen)
         {
             return true;
         }
 
-        if (DoorClosed != previous.DoorClosed)
+        if (IsDoorClosed != previous.IsDoorClosed)
         {
             return true;
         }
 
-        if (DeviceAlarm != previous.DeviceAlarm)
+        if (IsDeviceAlarm != previous.IsDeviceAlarm)
         {
             return true;
         }

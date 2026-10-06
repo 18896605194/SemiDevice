@@ -1,0 +1,91 @@
+﻿using xyz.Components.Components;
+using xyz.Drivers.Loadport;
+using xyz.Shared.Errors;
+
+namespace xyz.Modules;
+
+/// <summary>
+/// LoadPort 一条驱动指令的动作：发指令 → 等它完结，超过超时就判失败。
+/// Load、Unload、Home、Reset、Abort、Clamp、Unclamp 都是这一种，平台的默认动作都用它；机型加别的单条指令动作也直接用它。
+/// 只在模块扫描线程上推，不加锁、不等待。
+/// </summary>
+public sealed class LoadPortCommandOperation : ModuleOperation<LoadPortCommandStep>
+{
+    private readonly Func<LoadPortCommand?> _send;
+    private readonly Func<int> _timeoutMs;
+    private readonly Action<LoadPortResponse>? _onSuccess;
+    private LoadPortCommand? _command;
+
+    /// <param name="name">动作名（错误参数、日志里用，如 "Load"）。</param>
+    /// <param name="send">发指令：返回受理了的指令；被拒（没连上、同名指令在途）返回 null。</param>
+    /// <param name="timeoutMs">超时，每拍现取（取模块的 EC，在线改了下一拍就生效）。</param>
+    /// <param name="onSuccess">指令成功之后、动作算完成之前要做的事（比如 Load 把 Mapping 结果落下来）；没有为 null。</param>
+    public LoadPortCommandOperation(string name, Func<LoadPortCommand?> send, Func<int> timeoutMs,
+        Action<LoadPortResponse>? onSuccess = null) : base(name, LoadPortCommandStep.SendCommand)
+    {
+        _send = send;
+        _timeoutMs = timeoutMs;
+        _onSuccess = onSuccess;
+    }
+
+    protected override void OnScan()
+    {
+        switch (Step)
+        {
+            case LoadPortCommandStep.SendCommand:
+                SendCommand();
+                break;
+
+            case LoadPortCommandStep.WaitCommand:
+                WaitCommand();
+                break;
+
+            default:
+                Fail(ErrorCodes.OperationFaulted, $"未知步骤: {Step}", Name, Step.ToString());
+                break;
+        }
+    }
+
+    private void SendCommand()
+    {
+        _command = _send();
+        if (_command is null)
+        {
+            Fail(ErrorCodes.CommandRejected, "指令被拒绝（未连接或在途）", Name);
+            return;
+        }
+
+        SetStep(LoadPortCommandStep.WaitCommand);
+    }
+
+    private void WaitCommand()
+    {
+        var command = _command;
+        if (command is null)
+        {
+            Fail(ErrorCodes.OperationFaulted, "等指令时没有指令", Name, Step.ToString());
+            return;
+        }
+
+        if (command.IsCompleted)
+        {
+            var response = command.Response;
+            if (response is not null && response.IsSuccess)
+            {
+                _onSuccess?.Invoke(response);
+                Complete();
+                return;
+            }
+
+            string error = response?.Error ?? string.Empty;
+            Fail(ErrorCodes.DeviceFailed, error, Name, error);
+            return;
+        }
+
+        int timeout = _timeoutMs();
+        if (Watch.ElapsedMilliseconds > timeout)
+        {
+            Fail(ErrorCodes.Timeout, $"{Name} 动作超时（{timeout}ms）", Name, timeout.ToString());
+        }
+    }
+}

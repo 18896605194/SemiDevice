@@ -34,40 +34,40 @@ public class LoadPortModel : ObservableObject
         set => SetProperty(ref _isConnected, value);
     }
 
-    private bool _isPodPlaced;
+    private bool _isCarrierArrived;
 
     /// <summary>FOUP 在位（状态查询或 PODON/PODOF 事件）。</summary>
-    public bool IsPodPlaced
+    public bool IsCarrierArrived
     {
-        get => _isPodPlaced;
-        set => SetProperty(ref _isPodPlaced, value);
+        get => _isCarrierArrived;
+        set => SetProperty(ref _isCarrierArrived, value);
     }
 
-    private bool? _podPresent;
+    private bool? _isPresent;
 
     /// <summary>查询反馈：FOUP 在位；null 表示反馈不可用。</summary>
-    public bool? PodPresent
+    public bool? IsPresent
     {
-        get => _podPresent;
-        set => SetProperty(ref _podPresent, value);
+        get => _isPresent;
+        set => SetProperty(ref _isPresent, value);
     }
 
-    private bool? _podPlaced;
+    private bool? _isPlaced;
 
     /// <summary>查询反馈：FOUP 放置到位；null 表示反馈不可用。</summary>
-    public bool? PodPlaced
+    public bool? IsPlaced
     {
-        get => _podPlaced;
-        set => SetProperty(ref _podPlaced, value);
+        get => _isPlaced;
+        set => SetProperty(ref _isPlaced, value);
     }
 
-    private bool? _deviceAlarm;
+    private bool? _isDeviceAlarm;
 
     /// <summary>查询反馈：设备硬件报警；null 表示反馈不可用。</summary>
-    public bool? DeviceAlarm
+    public bool? IsDeviceAlarm
     {
-        get => _deviceAlarm;
-        set => SetProperty(ref _deviceAlarm, value);
+        get => _isDeviceAlarm;
+        set => SetProperty(ref _isDeviceAlarm, value);
     }
 
     private bool _autoMode;

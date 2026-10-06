@@ -805,7 +805,7 @@ sealed class FakePort : ILoadPort
 
     public int State => _loaded ? 110 : 30;
 
-    public bool IsPodPlaced { get; private set; }
+    public bool IsCarrierArrived { get; private set; }
 
     public bool IsAutoMode { get; private set; }
 
@@ -828,7 +828,7 @@ sealed class FakePort : ILoadPort
                 return LoadPortTransferState.TransferBlocked;
             }
 
-            if (!IsPodPlaced)
+            if (!IsCarrierArrived)
             {
                 return LoadPortTransferState.ReadyToLoad;
             }
@@ -914,7 +914,7 @@ sealed class FakePort : ILoadPort
 
     public void Arrive()
     {
-        IsPodPlaced = true;
+        IsCarrierArrived = true;
         _complete = false;
         LoadRequested = false;
         UnloadRequested = false;
@@ -961,7 +961,7 @@ sealed class FakePort : ILoadPort
     public void Remove()
     {
         string? carrierId = CarrierId;
-        IsPodPlaced = false;
+        IsCarrierArrived = false;
         CarrierId = null;
         SlotMap = [];
         _ledger.Clear(Name);

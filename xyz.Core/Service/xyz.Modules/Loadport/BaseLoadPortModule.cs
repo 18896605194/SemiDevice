@@ -22,11 +22,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public override int State { get; protected set; } = ModuleState.NotInit;
 
     /// <summary>
-    /// FOUP 是否在位（SV）：按 SC PresenceSource 判出来的（Query 看状态查询的在位、到位两位，Event 看 PODON/PODOF），
-    /// 只在扫描线程上改。载具到达、拿走、E84 交接、Job、回片、E87 用的都是它，推给界面的"在位"也是它。
+    /// 载具到了（SV）：按 SC PresenceSource 判出来的结果，不是哪个传感器的原始值——Query 看状态查询的在位（IsPresent）、
+    /// 到位（IsPlaced）两位，Event 看 PODON/PODOF；只在扫描线程上改。载具到达、拿走、E84 交接、Job、回片、E87 用的都是它，
+    /// 推给界面的"在位"也是它。
     /// </summary>
-    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "FOUP 是否在位")]
-    public bool IsPodPlaced { get; private set; }
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "载具到了（在位、到位都亮，或设备报了放上）")]
+    public bool IsCarrierArrived { get; private set; }
 
     /// <summary>
     /// Auto/Manual
@@ -189,13 +190,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Alarm
 
-    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1,Description = "LoadPort 初始化未在指定时间内完成", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
+    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 初始化未在指定时间内完成", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
     public string InitTimeoutAlarm = nameof(InitTimeoutAlarm);
 
-    [Alarm("LoadPort 受控停止", AlarmCategory.ProcessError,AlarmLevel = AlarmLevel.Alarm1,Description = "LoadPort 进入受控停止状态",Solution = "检查 LoadPort 当前状态并复位")]
+    [Alarm("LoadPort 受控停止", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 进入受控停止状态", Solution = "检查 LoadPort 当前状态并复位")]
     public string ControlledStopAlarm = nameof(ControlledStopAlarm);
 
-    [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError,AlarmLevel = AlarmLevel.Alarm1,Description = "LoadPort 设备本身报警",Solution = "检查 LoadPort 硬件/通讯状态")]
+    [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 设备本身报警", Solution = "检查 LoadPort 硬件/通讯状态")]
     public string LoadPortDeviceAlarm = nameof(LoadPortDeviceAlarm);
 
     #endregion
@@ -335,38 +336,38 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 在位判断（SC PresenceSource：状态查询 / 设备上报，二选一）
 
-    private volatile bool _eventPodPlaced;
+    private volatile bool _eventCarrierArrived;
 
     protected void NotePodEvent(bool placed)
     {
-        _eventPodPlaced = placed;
+        _eventCarrierArrived = placed;
     }
 
-    private bool SensePodPlaced()
+    private bool SenseCarrierArrived()
     {
         //事件
         if (PresenceSource == PodPresenceSource.Event)
         {
-            return _eventPodPlaced;
+            return _eventCarrierArrived;
         }
 
         var status = Status;
         if (status is null)
         {
-            return IsPodPlaced;
+            return IsCarrierArrived;
         }
 
-        if (status.PodPresent && status.PodPlaced)
+        if (status.IsPresent && status.IsPlaced)
         {
             return true;
         }
 
-        if (!status.PodPresent && !status.PodPlaced)
+        if (!status.IsPresent && !status.IsPlaced)
         {
             return false;
         }
 
-        return IsPodPlaced;
+        return IsCarrierArrived;
     }
 
     #endregion
@@ -453,7 +454,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             Name = Name,
             State = State,
             Mode = Mode,
-            IsPodPlaced = IsPodPlaced,
+            IsCarrierArrived = IsCarrierArrived,
             AutoMode = IsAutoMode,
             CarrierId = CarrierId ?? string.Empty,
             SlotCount = SlotCount,
@@ -485,11 +486,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         if (status is not null)
         {
-            dto.PodPresent = status.PodPresent;
-            dto.PodPlaced = status.PodPlaced;
-            dto.DoorOpen = status.DoorOpen;
-            dto.DoorClosed = status.DoorClosed;
-            dto.DeviceAlarm = status.DeviceAlarm;
+            dto.IsPresent = status.IsPresent;
+            dto.IsPlaced = status.IsPlaced;
+            dto.IsDoorOpen = status.IsDoorOpen;
+            dto.IsDoorClosed = status.IsDoorClosed;
+            dto.IsDeviceAlarm = status.IsDeviceAlarm;
         }
 
         return dto;
@@ -535,7 +536,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    #region Action（ILoadPort 契约：动作体由机型实现——直接创建操作）
+    #region Action（ILoadPort 契约：平台给默认实现——一条驱动指令一个动作；机型有特殊动作再重写）
 
     private LoadPortAction _action;
 
@@ -659,19 +660,30 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 发起 Load。机型实现：Begin(LoadPortAction.Load, new ...Operation(...))。
+    /// 发起 Load（开门 + Mapping）：平台默认发驱动的 Load 指令，成功后把 Mapping 结果落下来（UpdateSlotMap）。
+    /// 机型的 Load 要多做别的步骤就重写。
     /// </summary>
-    public abstract ModuleOperation? Load();
+    public virtual ModuleOperation? Load()
+    {
+        return Begin(LoadPortAction.Load, new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout,
+            response => UpdateSlotMap(response.SlotMap)));
+    }
 
     /// <summary>
-    /// 发起 Unload。
+    /// 发起 Unload（关门）：平台默认发驱动的 Unload 指令。
     /// </summary>
-    public abstract ModuleOperation? Unload();
+    public virtual ModuleOperation? Unload()
+    {
+        return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout));
+    }
 
     /// <summary>
-    /// 发起 Home。
+    /// 发起 Home（整机回零）：平台默认发驱动的 Home 指令。
     /// </summary>
-    public abstract ModuleOperation? Home();
+    public virtual ModuleOperation? Home()
+    {
+        return Begin(LoadPortAction.Home, new LoadPortCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout));
+    }
 
     /// <summary>
     /// 初始化（重写组件基类的 Init）：先初始化子组件（E84、_rfid），再回原点——Home 就是 LoadPort 的初始化，
@@ -694,9 +706,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 发设备复位清错。机型实现：Begin(LoadPortAction.Reset, new ...Operation(...))。
+    /// 发设备复位清错：平台默认发驱动的 ResetDrive 指令。
     /// </summary>
-    protected abstract ModuleOperation? ResetDevice();
+    protected virtual ModuleOperation? ResetDevice()
+    {
+        return Begin(LoadPortAction.Reset, new LoadPortCommandOperation("Reset", () => _driver?.ResetDrive(), () => ResetTimeout));
+    }
 
     /// <summary>
     /// 中止（重写组件基类的 Abort）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
@@ -709,19 +724,28 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 发设备中止。机型实现：Begin(LoadPortAction.Abort, new ...Operation(...))。
+    /// 发设备中止（急停）：平台默认发驱动的 Stop 指令。
     /// </summary>
-    protected abstract ModuleOperation? AbortDevice();
+    protected virtual ModuleOperation? AbortDevice()
+    {
+        return Begin(LoadPortAction.Abort, new LoadPortCommandOperation("Abort", () => _driver?.Stop(), () => AbortTimeout));
+    }
 
     /// <summary>
-    /// 发起 Clamp（夹紧 FOUP），状态表只允许空闲时发起。
+    /// 发起 Clamp（夹紧 FOUP），状态表只允许空闲时发起：平台默认发驱动的 Clamp 指令。
     /// </summary>
-    public abstract ModuleOperation? Clamp();
+    public virtual ModuleOperation? Clamp()
+    {
+        return Begin(LoadPortAction.Clamp, new LoadPortCommandOperation("Clamp", () => _driver?.Clamp(), () => ClampTimeout));
+    }
 
     /// <summary>
-    /// 发起 Unclamp（松开 FOUP），状态表只允许空闲时发起。
+    /// 发起 Unclamp（松开 FOUP），状态表只允许空闲时发起：平台默认发驱动的 Unclamp 指令。
     /// </summary>
-    public abstract ModuleOperation? Unclamp();
+    public virtual ModuleOperation? Unclamp()
+    {
+        return Begin(LoadPortAction.Unclamp, new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout));
+    }
 
     /// <summary>
     /// 切 Auto/Manual（LoadPort 的 Access Mode，内部模式位，不经设备协议）；置位后由下一次扫描随状态事件发布，
@@ -892,7 +916,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        foreach (var report in e84.Step(CurrentE84Permit(), IsPodPlaced))
+        foreach (var report in e84.Step(CurrentE84Permit(), IsCarrierArrived))
         {
             EnqueueE84(callback => report.DispatchTo(callback, this));
         }
@@ -937,7 +961,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return LoadPortTransferState.TransferBlocked;
             }
 
-            if (!IsPodPlaced)
+            if (!IsCarrierArrived)
             {
                 return LoadPortTransferState.ReadyToLoad;
             }
@@ -975,7 +999,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机、驱动的断线重连也在里面），
-    /// 再查设备状态、判载具在位边沿、推 E84、收读码结果、查设备报警；EAP 回调由专用派发线程发，不占扫描线程。
+    /// 再查设备状态、判载具在位边沿、推 E84、收读码结果、查设备报警，最后有变化就推给界面；
+    /// EAP 回调由专用派发线程发，不占扫描线程。机型重写时先调 base.OnScan()。
     /// </summary>
     protected override void OnScan()
     {
@@ -985,6 +1010,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         StepE84();
         CheckCarrierIdRead();
         CheckDeviceAlarm();
+        PublishState();
     }
 
     /// <summary>
@@ -994,7 +1020,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private void CheckDeviceAlarm()
     {
         var status = Status;
-        if (status is not null && status.DeviceAlarm)
+        if (status is not null && status.IsDeviceAlarm)
         {
             RaiseAlarm(LoadPortDeviceAlarm);
         }
@@ -1019,18 +1045,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 在位边沿：放上回调 CarrierArrived；移走先清载具 ID 与 Mapping，再回调 CarrierRemoved。
-    /// 这一拍按 SC PresenceSource 判出在位（SensePodPlaced），跟上一拍不一样才算放上 / 拿走；只在扫描线程判，保证回调顺序。
+    /// 检查载具是不是在位，两个信号
     /// </summary>
     private void CheckCarrierPresence()
     {
-        bool placed = SensePodPlaced();
-        if (placed == IsPodPlaced)
+        bool placed = SenseCarrierArrived();
+        if (placed == IsCarrierArrived)
         {
             return;
         }
 
-        IsPodPlaced = placed;
+        IsCarrierArrived = placed;
         if (placed)
         {
             lock (_carrierGate)

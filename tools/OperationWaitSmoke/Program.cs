@@ -497,26 +497,26 @@ port.E87Callback = null;
         alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == source.FullPath && alarm.AlarmCode == code);
 
     // LoadPort 设备报警：状态查询里的报警位亮就报；查不到、灭了都不清
-    port.NoteStatus(new LoadPortStatus { DeviceAlarm = true });
+    port.NoteStatus(new LoadPortStatus { IsDeviceAlarm = true });
     port.Tick();
     Check(Active(port, port.LoadPortDeviceAlarm) && port.HasAlarm, "状态查询里报警位亮，应报 LoadPort 设备报警");
     port.NoteStatus(null);
     port.Tick();
     Check(Active(port, port.LoadPortDeviceAlarm), "查不到状态不清");
-    port.NoteStatus(new LoadPortStatus { DeviceAlarm = false });
+    port.NoteStatus(new LoadPortStatus { IsDeviceAlarm = false });
     port.Tick();
     Check(Active(port, port.LoadPortDeviceAlarm), "报警位灭了也不自动清——报警只能人工 Reset 清");
     port.Reset();
     Check(!Active(port, port.LoadPortDeviceAlarm) && !port.HasAlarm, "人工 Reset 应清掉报警");
 
     // 报警位还亮着就 Reset：照样清，下个扫描周期又报出来
-    port.NoteStatus(new LoadPortStatus { DeviceAlarm = true });
+    port.NoteStatus(new LoadPortStatus { IsDeviceAlarm = true });
     port.Tick();
     port.Reset();
     Check(!Active(port, port.LoadPortDeviceAlarm), "条件还在也照样清");
     port.Tick();
     Check(Active(port, port.LoadPortDeviceAlarm), "条件还在，下个扫描周期应重新报出来");
-    port.NoteStatus(new LoadPortStatus { DeviceAlarm = false });
+    port.NoteStatus(new LoadPortStatus { IsDeviceAlarm = false });
     Check(alarms.Reset(port.FullPath) && !Active(port, port.LoadPortDeviceAlarm),
         "界面按来源复位应走到组件的 Reset、清掉报警");
     Check(!alarms.Reset("NoSuchSource"), "没报过报警的来源复位返回 false");
@@ -766,7 +766,7 @@ port.E87Callback = null;
     tpE84.Set();
     tpPort.Tick();
     Check(tpE84.State == E84State.TimedOut, "搬运车撤了也不自动解锁，得人工恢复");
-    Check(!tpE84.Complete(tpPort.IsPodPlaced), "送盒没放上载具，Complete 应被拒");
+    Check(!tpE84.Complete(tpPort.IsCarrierArrived), "送盒没放上载具，Complete 应被拒");
     tpE84.Retry();
     tpPort.Tick();
     Check(tpE84.State == E84State.Available && tpE84.Outputs.HoAvbl && tpE84.TimedOutTimer is null,
@@ -790,7 +790,7 @@ port.E87Callback = null;
     tpPort.NotePodPlaced(true);
     tpPort.Tick();  // 在位下一拍扫描才判出来；锁住的交接这一拍不动
     Check(tpE84.State == E84State.TimedOut, "人工恢复之前交接一直锁着");
-    Check(tpE84.Complete(tpPort.IsPodPlaced), "载具确实放上了，Complete 应按完成收尾");
+    Check(tpE84.Complete(tpPort.IsCarrierArrived), "载具确实放上了，Complete 应按完成收尾");
     tpPort.Tick();
     Check(tpEvents.Wait("HandoffCompleted:True"), "人工 Complete 应在下一拍随进展上报交接完成");
     Check(tpE84.State == E84State.Available && Active(tpE84, tpE84.E84TimeoutAlarm, alarms),
@@ -1262,42 +1262,42 @@ port.E87Callback = null;
     var queryPort = new ProbePort("PresenceQueryPort", PodPresenceSource.Query);
     queryPort.NoteState(ModuleState.Idle);
     queryPort.Tick();
-    Check(!queryPort.IsPodPlaced && queryPort.Carrier is null, "Query：还没查到状态时当没有载具");
-    queryPort.NoteStatus(new LoadPortStatus { PodPresent = true, PodPlaced = true });
+    Check(!queryPort.IsCarrierArrived && queryPort.Carrier is null, "Query：还没查到状态时当没有载具");
+    queryPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true });
     queryPort.Tick();
-    Check(queryPort.IsPodPlaced && queryPort.Carrier is not null && queryPort.CreateStateDto().IsPodPlaced,
+    Check(queryPort.IsCarrierArrived && queryPort.Carrier is not null && queryPort.CreateStateDto().IsCarrierArrived,
         "Query：在位、到位都亮算放好（开机时已在端口上的也认），建载具对象，推给界面的在位跟着变");
-    queryPort.NoteStatus(new LoadPortStatus { PodPresent = true, PodPlaced = false });
+    queryPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = false });
     queryPort.Tick();
-    Check(queryPort.IsPodPlaced && queryPort.Carrier is not null, "Query：一亮一灭不算拿走");
+    Check(queryPort.IsCarrierArrived && queryPort.Carrier is not null, "Query：一亮一灭不算拿走");
     queryPort.NoteStatus(null);
     queryPort.Tick();
-    Check(queryPort.IsPodPlaced, "Query：查不到状态保持原判断");
+    Check(queryPort.IsCarrierArrived, "Query：查不到状态保持原判断");
     queryPort.NotePodPlaced(false);
     queryPort.Tick();
-    Check(queryPort.IsPodPlaced, "Query：PODOF 事件不认");
-    queryPort.NoteStatus(new LoadPortStatus { PodPresent = false, PodPlaced = false });
+    Check(queryPort.IsCarrierArrived, "Query：PODOF 事件不认");
+    queryPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = false });
     queryPort.Tick();
-    Check(!queryPort.IsPodPlaced && queryPort.Carrier is null && !queryPort.CreateStateDto().IsPodPlaced,
+    Check(!queryPort.IsCarrierArrived && queryPort.Carrier is null && !queryPort.CreateStateDto().IsCarrierArrived,
         "Query：在位、到位都灭算拿走，载具对象清掉");
-    queryPort.NoteStatus(new LoadPortStatus { PodPresent = false, PodPlaced = true });
+    queryPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = true });
     queryPort.Tick();
-    Check(!queryPort.IsPodPlaced && queryPort.Carrier is null, "Query：一亮一灭不算放上");
+    Check(!queryPort.IsCarrierArrived && queryPort.Carrier is null, "Query：一亮一灭不算放上");
 
     // 2) Event：只认 PODON / PODOF，状态查询说什么都不管
     var eventPort = new ProbePort("PresenceEventPort", PodPresenceSource.Event);
-    eventPort.NoteStatus(new LoadPortStatus { PodPresent = true, PodPlaced = true });
+    eventPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true });
     eventPort.Tick();
-    Check(!eventPort.IsPodPlaced && eventPort.Carrier is null, "Event：状态查询说有盒也不认");
+    Check(!eventPort.IsCarrierArrived && eventPort.Carrier is null, "Event：状态查询说有盒也不认");
     eventPort.NotePodPlaced(true);
     eventPort.Tick();
-    Check(eventPort.IsPodPlaced && eventPort.Carrier is not null, "Event：PODON 算放上");
-    eventPort.NoteStatus(new LoadPortStatus { PodPresent = false, PodPlaced = false });
+    Check(eventPort.IsCarrierArrived && eventPort.Carrier is not null, "Event：PODON 算放上");
+    eventPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = false });
     eventPort.Tick();
-    Check(eventPort.IsPodPlaced, "Event：状态查询说没盒也不认");
+    Check(eventPort.IsCarrierArrived, "Event：状态查询说没盒也不认");
     eventPort.NotePodPlaced(false);
     eventPort.Tick();
-    Check(!eventPort.IsPodPlaced && eventPort.Carrier is null, "Event：PODOF 算拿走");
+    Check(!eventPort.IsCarrierArrived && eventPort.Carrier is null, "Event：PODOF 算拿走");
 
     // 3) 状态查询走真驱动：回来了接着发下一条；一条没回就超时作废、接着发（以前同名查询一直占着在途位，再也查不了）
     var pollPort = new ProbePort("PollPort", PodPresenceSource.Query);
@@ -1307,15 +1307,15 @@ port.E87Callback = null;
     pollPort.Tick();
     Check(WaitUntil(() => pollComm.SentCount("GET:STATE") == 1), "连上后扫描一拍就发出第一条状态查询");
     pollComm.Push(StateReply(present: true, placed: true));
-    Check(TickUntil(pollPort, () => pollPort.IsPodPlaced && pollPort.Carrier is not null),
+    Check(TickUntil(pollPort, () => pollPort.IsCarrierArrived && pollPort.Carrier is not null),
         "查询回来在位、到位都亮：判放上（盒子开机前就在端口上也认得）");
     Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 2), "上一条回来了，接着发下一条");
     Thread.Sleep(150);
     pollPort.Tick();
-    Check(pollPort.Status is null && pollPort.IsPodPlaced, "查询超时：Status 清空，在位保持原判断");
+    Check(pollPort.Status is null && pollPort.IsCarrierArrived, "查询超时：Status 清空，在位保持原判断");
     Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 3), "超时的那一条作废了，同名查询还能接着发");
     pollComm.Push(StateReply(present: false, placed: false));
-    Check(TickUntil(pollPort, () => !pollPort.IsPodPlaced && pollPort.Carrier is null), "查询回来两位都灭：判拿走");
+    Check(TickUntil(pollPort, () => !pollPort.IsCarrierArrived && pollPort.Carrier is null), "查询回来两位都灭：判拿走");
 
     // 4) 动作没做成（失败、超时、被顶替）：驱动上还在等回复的指令全部作废，同名指令能再发
     var stuckLoad = pollPort.Shell.Load();
@@ -1345,8 +1345,9 @@ port.E87Callback = null;
     Check(WaitUntil(() => linkComm.SentCount("GET:STATE") == 1), "连着时照常查状态");
     linkComm.Drop();
     Check(TickUntil(linkPort, () => linkComm.Opens >= 2 && linkComm.IsConnected), "断了按间隔在后台重连上");
-    int sentBeforeReconnect = linkComm.SentCount("GET:STATE");
-    Check(TickUntil(linkPort, () => linkComm.SentCount("GET:STATE") > sentBeforeReconnect),
+
+    // 断线前发过 1 条、断着的时候发不出去，所以到 2 条就是重连以后发的（重连上的那几拍里可能已经发了，不能从这时才开始数）
+    Check(TickUntil(linkPort, () => linkComm.SentCount("GET:STATE") >= 2),
         "重连上以后接着查状态（断线前在途的那条已经作废，同名查询能再发）");
     linkPort.Close();
     int opensAfterClose = linkComm.Opens;
@@ -1393,6 +1394,45 @@ port.E87Callback = null;
     Check(WaitUntil(() => received.Count == 2) && received.SequenceEqual(new[] { "INF:PODON", "INF:PODOF" }),
         "旧泵退出没把新的一轮停掉：第二帧照样收到");
     frameLink.Close();
+
+    // 9) 平台默认动作：机型一个动作都不写也能用——一条驱动指令一个动作。Load 成功把 Mapping 落下来；设备回 NAK、等超时、没连上都判失败
+    bool TickPlainUntil(PlainPort target, Func<bool> condition)
+    {
+        return WaitUntil(() =>
+        {
+            target.Tick();
+            return condition();
+        });
+    }
+
+    var plain = new PlainPort("PlainPort");
+    var plainComm = plain.Shell.Comm;
+    Check(plain.Open(), "平台默认动作用的端口应能打开");
+    plain.NoteState(ModuleState.Idle);
+    var plainLoad = plain.Load();
+    Check(plainLoad is not null && plain.State == LoadPortState.Loading, "平台默认 Load：空闲能发起，进 Loading");
+    Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 发的是 FCD 的 CLOAD");
+    plainComm.Push("INF:CLOAD/PEC");
+    Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
+          && plain.SlotMap.Count == 3 && plain.SlotMap[0] == SlotState.CorrectlyOccupied && plain.SlotMap[1] == SlotState.Empty
+          && plain.SlotMap[2] == SlotState.CrossSlotted,
+        "平台默认 Load：设备回完成就落 Loaded，Mapping 结果落进 SlotMap");
+    var plainUnload = plain.Unload();
+    Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
+    plainComm.Push("NAK:CULOD/BUSY");
+    Check(TickPlainUntil(plain, () => plainUnload!.IsTerminal) && plainUnload!.Code == ErrorCodes.DeviceFailed
+          && plain.State == ModuleState.Error,
+        "设备回 NAK：动作判失败（device_failed），落 Error");
+    plain.HomeTimeout = 100;
+    var plainHome = plain.Home();
+    Check(plainHome is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:ORGSH") == 1), "出错后能 Home，发 ORGSH");
+    Thread.Sleep(150);
+    Check(TickPlainUntil(plain, () => plainHome!.IsTerminal) && plainHome!.Code == ErrorCodes.Timeout, "设备不回：超时判失败（timeout）");
+    plainComm.Drop();
+    var droppedHome = plain.Home();
+    Check(droppedHome is not null && TickPlainUntil(plain, () => droppedHome!.IsTerminal) && droppedHome!.Code == ErrorCodes.CommandRejected,
+        "没连上：指令发不出去，判被拒（command_rejected）");
+    plain.Close();
 
     WaferManager.Current = previousLedger;
 }
@@ -1536,6 +1576,32 @@ sealed class ProbePort : BaseLoadPortModule
     protected override ModuleOperation? AbortDevice() => Take();
     public override ModuleOperation? Clamp() => Take();
     public override ModuleOperation? Unclamp() => Take();
+}
+
+// 平台默认动作的探针 LoadPort：一个动作都不重写，走 BaseLoadPortModule 自带的那一套（真 FCD 驱动 + 假通道）。
+sealed class PlainPort : BaseLoadPortModule
+{
+    public ProbePortShell Shell { get; }
+
+    public PlainPort(string name)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        Shell = new ProbePortShell();
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(Shell, "Driver");
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(Shell, $"{name}.Driver");
+        AddChild(Shell);
+        PresenceSource = PodPresenceSource.Event;
+
+        // 假通道不回状态查询：超时给到最长，别让查询超时的日志掺和
+        QueryDataTimeOut = 600000;
+    }
+
+    /// <summary>顶替扫描线程推一拍。</summary>
+    public void Tick() => OnScan();
+
+    /// <summary>直接摆状态，省去先跑一遍 Home。</summary>
+    public void NoteState(int state) => State = state;
 }
 
 // 探针 LoadPort 品牌壳：只把传输换成假通道，编解码/驱动/指令都是生产代码。

@@ -16,46 +16,46 @@ public class FcdLoadPortComponent : LoadPortDriverComponent
 
     protected override LoadPortCommand CreateLoad()
     {
-        return new FcdLoadCommand(Driver!);
+        return new FcdLoadCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateUnload()
     {
-        return new FcdUnloadCommand(Driver!);
+        return new FcdUnloadCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateHome()
     {
-        return new FcdHomeCommand(Driver!);
+        return new FcdHomeCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateClamp()
     {
-        return new FcdClampCommand(Driver!);
+        return new FcdClampCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateUnclamp()
     {
-        return new FcdUnclampCommand(Driver!);
+        return new FcdUnclampCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateStop()
     {
-        return new FcdAbortCommand(Driver!);
+        return new FcdAbortCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateResetDrive()
     {
-        return new FcdResetCommand(Driver!);
+        return new FcdResetCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateQueryStatus()
     {
-        return new FcdGetStateCommand(Driver!);
+        return new FcdGetStateCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateQueryVersion()
     {
-        return new FcdGetVersionCommand(Driver!);
+        return new FcdGetVersionCommand(_driver!);
     }
 }

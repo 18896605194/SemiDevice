@@ -173,6 +173,12 @@
 - **E84 装没装做成 SC `IsEnable`**（用户："本机跑的时候不要E84，这边没必要加载的吧"）：False = 端口当没有 E84（不打开、不扫、不读写 IO）；
   跟 EC `E84Enabled`（装了以后现场在线开关交接，默认关）分开。仓库里的 sc.xml 两个 E84 配 False（本机没接搬运车），真机装了改 True。
   数据曲线照旧按 sc 记 E84 的 IO 点（它不认任何组件的 IsEnable），不想要在 DataChart 的 Exclude 里加 `LoadPort1.E84,LoadPort2.E84`。
+- **LoadPort 给多设备复用：收进平台，不单独拆 DLL**（2026-10-06，用户："以后很多设备都要用"）。用户原想把 LoadPort 从驱动到通信底层拆成一个 DLL；
+  没拆的原因：通信层机械手、RFID 也在用；Job、机械手、流程配方、E87 直接用 `BaseLoadPortModule` / `ILoadPort`，单拆会循环引用；驱动到通信底层
+  本来就是独立的 `xyz.Drivers.dll`（不引用任何工程）。真正挡复用的是每个机型要抄一份 LoadPort 动作——所以 7 个动作收进平台（默认实现），
+  **35021 的 `LoadPortModule` 留着（空类），给机型自己的设备、动作扩展**（用户定的）。机械手、腔体以后多机型时照这个收。
+- 改名（2026-10-06，用户提的）：合成的在位叫 `IsCarrierArrived`（载具到了），状态查询的原始位叫 `IsPresent` / `IsPlaced`，
+  `LoadPortStatus` 的开关量一律 `Is` 开头（设备自己的自动模式位叫 `IsDeviceAutoMode`，跟模块的 `IsAutoMode` 分开）。
 - 还押着的：复位 / 中止后一律落 Idle（门其实还开着）这条，用户说后面再说；开着 EAP 时，开机已在端口上的盒子在 EAP 接上之前就判到了，
   到达、读码回调会丢（E87 只知道端口有盒、没有载具对象），开 EAP 之前要补"EAP 接上时把端口上已有的载具补报一遍"。
 

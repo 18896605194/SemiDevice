@@ -220,33 +220,6 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkRunningStatus}" />
     </Style>
 
-    <Style
-        x:Key="LargeActionButtonStyle"
-        BasedOn="{StaticResource MaterialDesignRaisedButton}"
-        TargetType="Button">
-        <Setter Property="MinHeight" Value="64" />
-        <Setter Property="Padding" Value="20,0" />
-        <Setter Property="FontSize" Value="{StaticResource Size28}" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-
-    <Style
-        x:Key="PrimaryLargeActionButtonStyle"
-        BasedOn="{StaticResource LargeActionButtonStyle}"
-        TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource DarkAccentPressed}" />
-    </Style>
-
-    <Style
-        x:Key="SuccessLargeActionButtonStyle"
-        BasedOn="{StaticResource LargeActionButtonStyle}"
-        TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
-    </Style>
-
     <!--  顶栏右上角竖排的三个按钮（注销、复位、关蜂鸣器）：一样宽高、控件底色细边，图标和字靠左；竖排正好占满顶栏两行  -->
     <Style
         x:Key="TopBarStackButtonStyle"

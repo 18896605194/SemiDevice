@@ -86,7 +86,7 @@
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Model.PodPresent}" Value="True">
+                                        <DataTrigger Binding="{Binding Model.IsPresent}" Value="True">
                                             <Setter Property="Fill" Value="{DynamicResource PrimaryAccent}" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -111,7 +111,7 @@
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Model.PodPlaced}" Value="True">
+                                        <DataTrigger Binding="{Binding Model.IsPlaced}" Value="True">
                                             <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -136,7 +136,7 @@
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Model.DeviceAlarm}" Value="True">
+                                        <DataTrigger Binding="{Binding Model.IsDeviceAlarm}" Value="True">
                                             <Setter Property="Fill" Value="{DynamicResource DarkAlarmStatus}" />
                                         </DataTrigger>
                                     </Style.Triggers>

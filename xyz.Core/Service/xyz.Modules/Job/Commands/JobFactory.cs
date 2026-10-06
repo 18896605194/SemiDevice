@@ -417,7 +417,7 @@ internal sealed class JobFactory
         }
 
         return _runtime.Environment.LoadPorts.FirstOrDefault(port =>
-            string.Equals(port.CarrierId, carrier, StringComparison.OrdinalIgnoreCase) && port.IsPodPlaced);
+            string.Equals(port.CarrierId, carrier, StringComparison.OrdinalIgnoreCase) && port.IsCarrierArrived);
     }
 
     /// <summary>

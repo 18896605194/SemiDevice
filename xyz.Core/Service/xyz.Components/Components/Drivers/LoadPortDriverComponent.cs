@@ -56,11 +56,11 @@ public abstract class LoadPortDriverComponent : ComponentBase
 
     private readonly DriverReconnector _reconnector = new();
 
-    public ILoadPortDriver? Driver { get; private set; }
+    public ILoadPortDriver? _driver { get; private set; }
 
     public bool IsConnected
     {
-        get { return Driver?.IsConnected ?? false; }
+        get { return _driver?.IsConnected ?? false; }
     }
 
     /// <summary>
@@ -73,12 +73,12 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// </summary>
     public bool Open()
     {
-        var driver = Driver;
+        var driver = _driver;
         if (driver is null)
         {
             driver = CreateDriver();
             driver.OnSpontaneousEvent += OnDeviceEvent;
-            Driver = driver;
+            _driver = driver;
         }
 
         _reconnector.Enable();
@@ -91,7 +91,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
     public void Close()
     {
         _reconnector.Disable();
-        Driver?.Close();
+        _driver?.Close();
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
     protected override void OnScan()
     {
         base.OnScan();
-        var driver = Driver;
+        var driver = _driver;
         if (driver is null)
         {
             return;
@@ -118,7 +118,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// </summary>
     public void Abandon(LoadPortCommand command, string reason)
     {
-        Driver?.Abandon(command, reason);
+        _driver?.Abandon(command, reason);
     }
 
     /// <summary>
@@ -126,7 +126,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// </summary>
     public void AbandonAll(string reason)
     {
-        Driver?.AbandonAll(reason);
+        _driver?.AbandonAll(reason);
     }
 
     private void OnDeviceEvent(LoadPortDeviceEvent evt)

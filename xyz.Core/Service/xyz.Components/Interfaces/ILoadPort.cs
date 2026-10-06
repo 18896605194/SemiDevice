@@ -13,7 +13,10 @@ public interface ILoadPort
 
     int State { get; }
 
-    bool IsPodPlaced { get; }
+    /// <summary>
+    /// 载具到了：后台按 sc.xml PresenceSource 判出来的结果（状态查询的在位、到位两位，或设备上报的 PODON/PODOF），不是传感器原始值。
+    /// </summary>
+    bool IsCarrierArrived { get; }
 
     /// <summary>
     /// Auto/Manual（LoadPort 的 Access Mode）：Auto = 搬运车经 E84 自动交接，Manual = 人工放取。

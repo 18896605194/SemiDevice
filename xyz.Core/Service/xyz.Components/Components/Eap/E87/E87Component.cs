@@ -317,7 +317,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
             byte id = 1;
             foreach (var device in ports)
             {
-                var port = new E87Port { Device = device, Id = id++, Present = device.IsPodPlaced };
+                var port = new E87Port { Device = device, Id = id++, Present = device.IsCarrierArrived };
                 _ports.Add(port);
                 device.E87Callback = this;
                 device.E84Provider = this;
@@ -726,7 +726,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         {
             actions.Add(() =>
             {
-                if (device.IsIdle && device.IsPodPlaced && device.Load() is null)
+                if (device.IsIdle && device.IsCarrierArrived && device.Load() is null)
                 {
                     LogHelper.Warn(Name, $"{device.Name} 载具 {id} 认定了，但现在 Load 不了（端口状态不允许），等操作员处理");
                 }
@@ -872,7 +872,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
             return E87Codes.ReadyToUnload;
         }
 
-        return port.Rejected && port.Device.IsIdle && port.Device.IsPodPlaced ? E87Codes.ReadyToUnload : E87Codes.TransferBlocked;
+        return port.Rejected && port.Device.IsIdle && port.Device.IsCarrierArrived ? E87Codes.ReadyToUnload : E87Codes.TransferBlocked;
     }
 
     /// <summary>
