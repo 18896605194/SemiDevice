@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -341,6 +343,8 @@ try
         "建好：CJ LOT-A，PJ 按投片顺序 LOT-A-1（SEQ_A）、LOT-A-2（SEQ_B）");
     var again = Do(jobs.CreateLocalJobAsync(create));
     Check(again == created && jobs.Snapshot.ControlJobs.Count == 1, "同一个请求号重发：回同一个结果，不建第二份");
+    IJobManager forHost = jobs;
+    Check(forHost.ProcessJobSpace == jobs.ProcessJobCapacity - 2, "还能建几个 PJ（Host 的 S16F21 问它）= 上限减去没结束的 2 个");
     Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-B", "LP1", false, (4, "SEQ_A")))), ErrorCodes.JobLoadPortBusy, ["LP1", "LOT-A"],
         "一个 LoadPort 同时只有一个没结束的 CJ");
     Check(jobs.OwnerOf(first.Id) == "LOT-A-1", "片归到 PJ 名下");

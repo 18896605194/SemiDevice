@@ -1,4 +1,7 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+using xyz.Components.Interfaces;
+
+namespace xyz.Modules;
 
 public enum E84ReportKind
 {

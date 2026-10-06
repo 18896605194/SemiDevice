@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// 调度对一个 PJ 能做什么。

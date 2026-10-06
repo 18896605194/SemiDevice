@@ -1,5 +1,6 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Common.Log;
+using xyz.Components.Enums;
 using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;

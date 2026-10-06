@@ -1,4 +1,7 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Components;
+using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// PJ 转换之后要做的事（状态已经落好）：一种事一个效果类，引擎每次转换挨个问一遍，跟这次转换没关系的直接返回。

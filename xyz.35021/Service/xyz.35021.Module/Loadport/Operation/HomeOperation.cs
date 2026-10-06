@@ -1,4 +1,5 @@
-﻿using xyz.Drivers.Loadport;
+﻿using xyz.Components.Components;
+using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Shared.Errors;
 

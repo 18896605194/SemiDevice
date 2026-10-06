@@ -3,6 +3,7 @@ using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -492,6 +493,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
+    /// EAP 写回 Host 核对载具的进展（给了的那一项才改）；没有载具时什么都不做，不回调 EAP。
+    /// </summary>
+    public void UpdateCarrierStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus)
+    {
+        UpdateCarrier(carrier => carrier with
+        {
+            IdStatus = idStatus ?? carrier.IdStatus,
+            SlotMapStatus = slotMapStatus ?? carrier.SlotMapStatus,
+        });
+    }
+
+    /// <summary>
     /// 更新 Mapping 结果并回调 EAP SlotMapRead；机型在 Mapping 数据到达时调用，空列表忽略。
     /// </summary>
     protected void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
@@ -626,6 +639,39 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
+    /// 机械手要来取放片（交互环的准备一）：这个载具第一次被取放时进 E87 的 IN ACCESS，回调 EAP AccessStarted。
+    /// </summary>
+    public override ModuleOperation? PrepareTransfer()
+    {
+        var operation = base.PrepareTransfer();
+        if (operation is not null)
+        {
+            MarkInAccess();
+        }
+
+        return operation;
+    }
+
+    private void MarkInAccess()
+    {
+        bool started = false;
+        lock (_carrierGate)
+        {
+            var carrier = _carrier;
+            if (carrier is not null && carrier.AccessStatus == CarrierAccessStatus.NotAccessed)
+            {
+                _carrier = carrier with { AccessStatus = CarrierAccessStatus.InAccess, UpdatedAt = DateTime.Now };
+                started = true;
+            }
+        }
+
+        if (started)
+        {
+            EnqueueE87(callback => callback.AccessStarted(this));
+        }
+    }
+
+    /// <summary>
     /// 装机停用、或驱动还没建起来（装配里 Open 失败）都不发动作。
     /// </summary>
     protected override bool CanBeginAction => IsEnable && Driver is not null;
@@ -671,17 +717,16 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         switch (_action)
         {
             case LoadPortAction.Load:
-                // 门已开，机械手可以取放：E87 访问状态进 IN_ACCESS。
-                UpdateCarrier(carrier => carrier with { AccessStatus = CarrierAccessStatus.InAccess });
+                // 门已开、槽图读了。还不算开始取放（E87 IN ACCESS 是机械手第一次来取放片，见 PrepareTransfer）：
+                // 这时候 Host 核对槽图不通过还能取消这个载具。
                 EnqueueE87(callback => callback.LoadCompleted(this));
-                EnqueueE87(callback => callback.AccessStarted(this));
                 break;
 
             case LoadPortAction.Unload:
-                // 门已关，这一轮取放结束。干没干完不由这里判——上层作业调 NoteCarrierComplete 才算完成，
-                // 所以只把 InAccess 退回未取放，已经 Complete/Stopped 的保持原样。
+                // 门已关，取放结束。干完没干完不由这里判——上层作业调 NoteCarrierComplete 才算完成；
+                // 取放过、没判完成就 Unload 了，这个载具算中断（E87 CARRIER STOPPED），已经 Complete/Stopped 的保持原样。
                 UpdateCarrier(carrier => carrier.AccessStatus == CarrierAccessStatus.InAccess
-                    ? carrier with { AccessStatus = CarrierAccessStatus.NotAccessed }
+                    ? carrier with { AccessStatus = CarrierAccessStatus.Stopped }
                     : carrier);
                 EnqueueE87(callback => callback.AccessStopped(this));
                 EnqueueE87(callback => callback.UnloadCompleted(this));
@@ -762,7 +807,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return E84Permit.NotAvailable;
         }
 
-        return (E84Provider?.GetTransferState(this) ?? LocalTransferState()) switch
+        return (E84Provider?.GetTransferState(this) ?? LocalTransferState) switch
         {
             LoadPortTransferState.OutOfService => E84Permit.NotAvailable,
             LoadPortTransferState.ReadyToLoad => E84Permit.ReadyToLoad,
@@ -772,31 +817,48 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 没接 EAP 时按本地状态判断端口搬运状态（E87 那套由 EAP 维护，这里只给 E84 用）：
+    /// 端口自己判的搬运状态（没接 EAP 时 E84 就按它；接了 EAP 由 E87 在它上面加 Host 的设定）：
     /// 停用、下线、未初始化或出错 → Out Of Service；不在空闲 → 挡住；
     /// 空闲且没载具 → 等送盒；有载具且这一盒已经干完或中断（Complete/Stopped）→ 等取走；其余挡住。
     /// </summary>
-    private LoadPortTransferState LocalTransferState()
+    public LoadPortTransferState LocalTransferState
     {
-        if (!IsEnable || Mode != ModuleMode.Online || State == ModuleState.NotInit || State == ModuleState.Error)
+        get
         {
-            return LoadPortTransferState.OutOfService;
-        }
+            if (!IsEnable || Mode != ModuleMode.Online || State == ModuleState.NotInit || State == ModuleState.Error)
+            {
+                return LoadPortTransferState.OutOfService;
+            }
 
-        if (State != ModuleState.Idle)
-        {
-            return LoadPortTransferState.TransferBlocked;
-        }
+            if (State != ModuleState.Idle)
+            {
+                return LoadPortTransferState.TransferBlocked;
+            }
 
-        if (!IsPodPlaced)
-        {
-            return LoadPortTransferState.ReadyToLoad;
-        }
+            if (!IsPodPlaced)
+            {
+                return LoadPortTransferState.ReadyToLoad;
+            }
 
-        return Carrier?.AccessStatus is CarrierAccessStatus.Complete or CarrierAccessStatus.Stopped
-            ? LoadPortTransferState.ReadyToUnload
-            : LoadPortTransferState.TransferBlocked;
+            return Carrier?.AccessStatus is CarrierAccessStatus.Complete or CarrierAccessStatus.Stopped
+                ? LoadPortTransferState.ReadyToUnload
+                : LoadPortTransferState.TransferBlocked;
+        }
     }
+
+    /// <summary>载具 Load 好了：Loaded，或者正被机械手服务（交互环的几个状态）。</summary>
+    public bool IsLoaded
+    {
+        get
+        {
+            int state = State;
+            return state == LoadPortState.Loaded
+                || (state >= TransferModuleState.PreTransfer && state <= TransferModuleState.TransferComplete);
+        }
+    }
+
+    /// <summary>端口空闲（Idle）：不在做动作、不在被机械手服务。</summary>
+    public bool IsIdle => State == ModuleState.Idle;
 
     #endregion
 
@@ -874,6 +936,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             }
 
             EnqueueE87(callback => callback.CarrierArrived(this));
+            RaiseEvent(FoupArrivedEvent);
             if (AutoReadCarrierId)
             {
                 ReadCarrierId();
@@ -893,6 +956,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         // 载具走了，这个端口上的片也一起走：晶圆账上清掉，免得留一堆幽灵片。
         WaferManager.Current?.Clear(Name);
         EnqueueE87(callback => callback.CarrierRemoved(this, carrierId));
+        RaiseEvent(FoupRemovedEvent);
     }
 
     /// <summary>

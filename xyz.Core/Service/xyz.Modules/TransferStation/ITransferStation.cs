@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Components;
+
+namespace xyz.Modules;
 
 
 public interface ITransferStation

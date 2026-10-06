@@ -293,6 +293,15 @@ public abstract class ComponentBase
     }
 
     /// <summary>
+    /// 报事件（GEM 的 Collection Event）：事件码就是组件上带 [EventAttribut] 的那个字段值，data 是事件带的 DV
+    /// （[DataVariable] 的代码 → 这一刻的值）。经 E30 统一发 S6F11；没接 EAP、离线、Host 关了这个事件时什么都不做。任意线程可调。
+    /// </summary>
+    protected void RaiseEvent(string code, params Models.GemData[] data)
+    {
+        E30Component.Current?.Report(this, code, data);
+    }
+
+    /// <summary>
     /// 条件报警（DI、AI 这类信号），每个扫描周期调一次：条件持续成立满 debounceMs 才算成立、才报；
     /// 没满就断了，计时重来。防抖时间用组件自己的 EC。条件消失不清报警——报警只能人工 Reset 清。
     /// 返回防抖后的条件；raise = false 时只算不报（组件关了直接报警、交给宿主处理时用）。

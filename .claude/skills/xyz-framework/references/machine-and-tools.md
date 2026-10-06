@@ -42,7 +42,8 @@
 | ProcessRecipeSmoke | 工艺配方库：sc.xml 节点和字段表、字段表配错开机就报、下拉按数据源取选项（直接写的、从腔体部件取的、跟着别的字段走的，几个腔体合起来）、新建/改名/保存/删除和按字段表的每一条检查、规整写法、字段都写进文件（老配方缺的按默认值补）、坏文件跳过、版本冲突、变更事件、配方对不对得上具体腔体、服务和字段表、腔体起工艺要配方在库里且对得上、没装库 |
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
 | DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
-| HsmsSmoke / SecsSmoke | HSMS 组件对假 EAP；SECS-II 编解码、HSMS 握手和计时器 |
+| HsmsSmoke / SecsSmoke | HSMS 链路组件对假 EAP（按 S/F 分发、S9F3 / F5 / F7、SxF0、闸门、回完再做、断线重连、端口冲突）；SECS-II 编解码、HSMS 握手和计时器 |
+| EapSmoke | EAP 各标准对假 Host：E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、E39（类型、属性名、带条件查属性）、E87（没预告等 Host、Host 给片号、取消、Bind 设备认定、读槽图核对、端口启停用、存取方式）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort、Job 管理是假的，晶圆账是真的 |
 | RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
 | ChamberSmoke | 腔体部件：照 sc 生成的通用部件清单（[PartKind] / [LiveValue]）、气缸三态、喷嘴 / 旋转 / 摆臂 Reach、有变化才推；部件手动动作（找不到、没有这个动作、参数不对、指令没发出去、Manual 状态、在途拒绝、停止类忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用），假 PLC 模拟气缸和轴 |
@@ -55,7 +56,8 @@
   按 `// N. 说明` 分节；会改静态 `X.Current` 的用完还原；最后一行 `PASS: N xxx checks (...)`；探针 / 假驱动写成文件末尾的 `sealed class`。
   失败就是未处理异常、退出码非 0。
 - 数据：内存里造组件（`new WaferManager()`、`ComponentLoader.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
-- 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；IoIndexSmoke 单独编）。HsmsSmoke 要用端口，别和真宿主同时跑。
+- 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；IoIndexSmoke 单独编）。HsmsSmoke、EapSmoke 随机用 5600~5999 的端口，
+  真宿主开着 EAP 链路（Hsms 启用、端口落在这一段）时别同时跑。
 - **新功能、改了行为都要在对应冒烟里加检查**；冒烟测试里的代码也守同样的编码规范（不写花括号模式匹配等）。
 
 ## 4. 运行起来看

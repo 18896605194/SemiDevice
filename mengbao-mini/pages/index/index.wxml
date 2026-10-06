@@ -13,7 +13,7 @@
   </scroll-view>
 
   <view class="barrow">
-    <view class="lvName">{{lvName}}</view>
+    <view class="lvName" bindtap="onSecretTap">{{lvName}}</view>
     <view class="prog">{{prog}}</view>
     <view class="streak {{streakOn?'on':''}}">{{streakTxt}}</view>
   </view>

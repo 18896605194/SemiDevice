@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// SEMI E40 PJ 状态转换表（#1~#18），一行一条，号码照标准。

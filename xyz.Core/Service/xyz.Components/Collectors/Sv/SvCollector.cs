@@ -17,6 +17,8 @@ public sealed class SvCollector
 
     private volatile IReadOnlyList<SvDefinition> _definitions = Array.Empty<SvDefinition>();
     private volatile IReadOnlyList<(SvDefinition Row, VariableDeclaration Declaration)> _items = [];
+    private volatile IReadOnlyDictionary<int, (SvDefinition Row, VariableDeclaration Declaration)> _bySvid =
+        new Dictionary<int, (SvDefinition Row, VariableDeclaration Declaration)>();
 
     /// <summary>
     /// 编号表全文（含代码里已删、Enabled=False 的行），按编号排序；Merge 之前或表不可用时为空。
@@ -31,6 +33,7 @@ public sealed class SvCollector
     {
         _definitions = Array.Empty<SvDefinition>();
         _items = [];
+        _bySvid = new Dictionary<int, (SvDefinition Row, VariableDeclaration Declaration)>();
 
         var declarations = CollectorHelper.ScanVariables(roots, VariableType.SV, Kind);
         var byName = declarations.ToDictionary(declaration => declaration.Name, StringComparer.OrdinalIgnoreCase);
@@ -63,6 +66,7 @@ public sealed class SvCollector
         _items = rows.Where(row => row.Enabled && byName.ContainsKey(row.Name))
             .Select(row => (row, byName[row.Name]))
             .ToList();
+        _bySvid = _items.ToDictionary(item => item.Row.Id);
         LogHelper.Info(Kind, $"{FileName}：在用 {_items.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
             + (result.Changed ? "，已写回" : "，无变化"));
         return result.Changed;
@@ -112,6 +116,32 @@ public sealed class SvCollector
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 按 SVID 读一项在用 SV 的原始值（属性给什么就是什么，不转字符串）：EAP 按值的类型落 SECS 格式（U1、列表这些字符串表达不了）。
+    /// 没这个号或已停用返回 false；读的时候出错记警告、值给 null。
+    /// </summary>
+    public bool TryRead(int svid, out SvDefinition? row, out object? value)
+    {
+        row = null;
+        value = null;
+        if (!_bySvid.TryGetValue(svid, out var item))
+        {
+            return false;
+        }
+
+        row = item.Row;
+        try
+        {
+            value = item.Declaration.Property.GetValue(item.Declaration.Owner);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Warn(Kind, $"{item.Row.Name} 读值失败: {(exception.InnerException ?? exception).Message}");
+        }
+
+        return true;
     }
 
     /// <summary>

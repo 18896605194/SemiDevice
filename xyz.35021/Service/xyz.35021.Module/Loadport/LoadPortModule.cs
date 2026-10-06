@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
+using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Drivers.Loadport;
 using xyz.Modules;
 using xyz.Modules.Enums;

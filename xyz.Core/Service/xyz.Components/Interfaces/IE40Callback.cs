@@ -1,6 +1,7 @@
-﻿using xyz.Shared.Dtos;
+﻿using xyz.Components.Enums;
+using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// E40（PJ）的设备侧上报口：PJ 的状态转换、片开始和结束加工由 JobManager 调这里，EAP 侧据此发 S6F11（每条转换一个 CEID）。

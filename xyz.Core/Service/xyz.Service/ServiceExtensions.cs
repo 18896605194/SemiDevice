@@ -3,6 +3,7 @@ using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Collectors;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
@@ -99,13 +100,6 @@ public static class ServiceExtensions
             wafers.WaferDeleted += wafer => NotifyLedger(wafer.Module);
             wafers.WaferUpdated += wafer => NotifyLedger(wafer.Module);
             wafers.WaferMoved += (wafer, _, _) => NotifyLedger(wafer.Module);
-        }
-
-        // EAP 主机链路（sc.xml 的 Hsms 节点）：排在编号表合并之后——S1F3 要按 SVID 表答话；
-        // IsEnable=False 时组件自己只记一条日志不监听。退出时的 Separate 优雅断开挂在宿主的 ApplicationStopping。
-        foreach (var hsms in roots.OfType<HsmsComponent>())
-        {
-            hsms.Open();
         }
 
         // PLC 是全机 IO 底座（气缸的 DI/DO、轴的数据块都从它走），所以先于模块连上并起扫描：
@@ -226,6 +220,19 @@ public static class ServiceExtensions
         else
         {
             LogHelper.Warn("Job", "sc.xml 没配 Job 节点：建不了 Job，主界面的创建 / 启动 Job 用不了");
+        }
+
+        // EAP（SECS/GEM，sc.xml 的 Eap 节点）：设备侧都起来以后再接——E87 挂到 LoadPort 上、E90 挂到晶圆账上、E40 / E94 挂到 Job 管理上，
+        // 都接好了最后才开链路，免得 Host 连进来时还有标准没接上。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备照常跑。
+        // 退出时的 Separate 优雅断开挂在宿主的 ApplicationStopping。
+        var eap = EapComponent.Current;
+        if (eap is not null)
+        {
+            eap.Bind(modules.OfType<ILoadPort>().ToList(), jobs);
+        }
+        else if (HsmsComponent.Current is not null)
+        {
+            LogHelper.Error("Eap", "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
         }
 
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。

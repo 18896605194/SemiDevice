@@ -1,6 +1,7 @@
-﻿using xyz.Shared.Dtos;
+﻿using xyz.Components.Enums;
+using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// E94（CJ）的设备侧上报口：CJ 的状态转换由 JobManager 调这里，EAP 侧据此发 S6F11（每条转换一个 CEID）。

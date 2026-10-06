@@ -2,21 +2,19 @@
 using System.Net.Sockets;
 using System.Threading.Channels;
 using xyz.Components;
-using xyz.Components.Attributes;
-using xyz.Components.Collectors;
 using xyz.Components.Components;
-using xyz.Components.Enums;
+using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Secs;
 using xyz.Secs.Diagnostics;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 
-// HsmsComponent 冒烟：组件经 ComponentLoader 按 sc.xml 同款结构装配（不走真 sc.xml，免拉整机），
-// 假 EAP 用 HsmsConnector 连入，验证 GEM 答话——S1F13 通讯建立、S1F1 回 MDLN/SOFTREV、S1F3 按 SVID 表答值（含
-// 未知号占位、SVID 类型不对回 S9F7）、S1F17 上线请求、S2F17 时间、S2F31 对时、S2F41 回 L[2]{HCACK=4, L}、
-// 没实现的报文回 S9F3/S9F5、报警报出/清除推 S5F1 L[3]{ALCD, ALID, ALTX}、断线重连后组件照常答话、Close 发 Separate、
-// 跟 gRPC 同端口、配置不对、端口被占时 Open 只记错误不抛。编号表用临时目录合并（组件自身的 LinkState SV 会分到 SVID，探针报警分到 ALID）。
+// HsmsComponent 冒烟（链路和报文分发，不带 GEM）：组件经 ComponentLoader 按 sc.xml 同款结构装配，登记几个测试处理方，
+// 假 EAP 用 HsmsConnector 连入，验证：按 Stream/Function 交给处理方（在派发线程上，可以 await）、处理方抛数据错回 S9F7、
+// 抛别的错回 SxF0、没人登记的回 S9F3 / S9F5、闸门挡住的照闸门回、回完再做的事排在回复之后、设备主动发报文等回复、
+// 连上 / 断开按先后通知、断线重连后照常分发、Close 发 Separate、跟 gRPC 同端口 / 配置不对 / 端口被占时 Open 只记错误不抛。
+// GEM 的答话（S1F13、S1F3……）归 E30，见 EapSmoke。
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -41,8 +39,6 @@ var node = new ModuleConfig
         new ValueConfig { Name = "IsEnable", Value = "True" },
         new ValueConfig { Name = "Port", Value = port.ToString() },
         new ValueConfig { Name = "DeviceId", Value = "7" },
-        new ValueConfig { Name = "EquipmentModel", Value = "xyz-35021" },
-        new ValueConfig { Name = "SoftwareRevision", Value = "0.1" },
         new ValueConfig { Name = "T3ReplyTimeoutMs", Value = "800" },
         new ValueConfig { Name = "T5ConnectRetryMs", Value = "300" },
         new ValueConfig { Name = "T6ControlTimeoutMs", Value = "1000" },
@@ -51,30 +47,40 @@ var node = new ModuleConfig
         new ValueConfig { Name = "LinktestIntervalMs", Value = "500" },
     },
 };
-var alarmNode = new ModuleConfig
-{
-    Name = "Alarm",
-    Type = typeof(AlarmComponent).FullName!,
-    Values = { new ValueConfig { Name = "EnableHistory", Value = "False" } },
-};
-var probeNode = new ModuleConfig { Name = "Probe", Type = typeof(AlarmProbe).FullName! };
-var roots = ComponentLoader.Load([alarmNode, probeNode, node]);
+var roots = ComponentLoader.Load([node]);
 var hsms = roots.OfType<HsmsComponent>().Single();
-var probe = roots.OfType<AlarmProbe>().Single();
 Check(ReferenceEquals(HsmsComponent.Current, hsms), "装配出来即成为 Current");
 Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[SCEditor] 灌值生效（IsEnable/Port/DeviceId）");
 
-// 2. 编号表：组件树合并进临时目录，LinkState SV 应分到 SVID。
-var directory = Path.Combine(Path.GetTempPath(), "HsmsSmoke");
-Directory.CreateDirectory(directory);
-var collectors = new GemCollectors();
-collectors.Merge(roots, directory);
-var linkStateRow = collectors.Sv.Definitions.FirstOrDefault(row => row.Name.EndsWith("LinkState", StringComparison.OrdinalIgnoreCase));
-Check(linkStateRow is not null && linkStateRow.Id >= SvCollector.FirstId, "LinkState SV 应进编号表");
-var linkStateSvid = linkStateRow!.Id;
-var probeAlarmRow = collectors.Alarm.Definitions.FirstOrDefault(row => row.Name == "Probe.ProbeAlarm");
-Check(probeAlarmRow is not null && probeAlarmRow.Id >= AlarmCollector.FirstId, "探针报警应进编号表");
-var probeAlid = (ulong)probeAlarmRow!.Id;
+// 2. 登记处理方和闸门（链路打开之前）。
+var linkEvents = Channel.CreateUnbounded<string>();
+hsms.LinkSelected += () => linkEvents.Writer.TryWrite("Selected");
+hsms.LinkClosed += reason => linkEvents.Writer.TryWrite("Closed");
+hsms.Handle(1, 1, message => SecsReply.Of(SecsItem.L(SecsItem.A("MDLN"), SecsItem.A("REV"))));
+hsms.Handle(1, 3, async message =>
+{
+    await Task.Delay(50);
+    throw new SecsException("测试：数据不对");
+});
+hsms.Handle(2, 1, SecsReply (HsmsMessage message) => throw new InvalidOperationException("测试：处理方自己出错"));
+hsms.Handle(6, 15, message => SecsReply.Of(SecsItem.B(0)).Then(() =>
+{
+    // 回完再做的事：在回复发出去之后发一条 primary，假 EAP 应该先收到回复、后收到它
+    _ = hsms.SendAsync(new SecsMessage(6, 11, true, SecsItem.L(SecsItem.U4(1), SecsItem.U4(2), SecsItem.L())));
+}));
+hsms.Handle(2, 13, message => SecsReply.Of(SecsItem.L()));
+hsms.Gate = message => message.Header.Stream == 2 && message.Header.Function == 13 ? SecsReply.Abort : null;
+bool duplicate = false;
+try
+{
+    hsms.Handle(1, 1, SecsReply (HsmsMessage message) => SecsReply.None);
+}
+catch (InvalidOperationException)
+{
+    duplicate = true;
+}
+
+Check(duplicate, "同一个 Stream/Function 登记两次应在开机时抛");
 
 hsms.Open();
 
@@ -94,71 +100,37 @@ var eap = new HsmsConnector(new HsmsSettings
     T8IntercharacterTimeoutMs = 2000,
     LinktestIntervalMs = 500,
 }, sink);
-var alarmReports = Channel.CreateUnbounded<HsmsMessage>();
+var primaries = Channel.CreateUnbounded<HsmsMessage>();
 eap.SessionEstablished += session =>
 {
     established++;
     session.PrimaryReceived += message =>
     {
-        if (message.Name == "S5F1 W")
-        {
-            session.Reply(message, message.CreateReply(SecsItem.B(0)));
-            alarmReports.Writer.TryWrite(message);
-        }
+        session.Reply(message, message.CreateReply(SecsItem.B(0)));
+        primaries.Writer.TryWrite(message);
     };
     ready.TrySetResult(session);
 };
 eap.Start();
 var session = await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
 Check(session.IsSelected, "假 EAP 应 SELECTED");
+Check(await linkEvents.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)) == "Selected", "连上应通知 LinkSelected");
+Check(hsms.IsSelected, "组件看链路已连上");
 
-// 3.1 S1F13 通讯建立：回建立码 0 + MDLN/SOFTREV。
-var s1f14 = await session.SendAsync(new SecsMessage(1, 13, true, SecsItem.L(SecsItem.A("MDLN"), SecsItem.A("1.0"))));
-Check(s1f14.Name == "S1F14" && s1f14.Body!.Items[0].GetBinary()[0] == 0
-      && s1f14.Body.Items[1].Items[0].GetString() == "xyz-35021"
-      && s1f14.Body.Items[1].Items[1].GetString() == "0.1", "S1F13 应答出建立码与 MDLN/SOFTREV");
-
-// 3.2 S1F1 在线询问：设备回 L[2]{MDLN, SOFTREV}（只有 Host 回空 L）。
+// 3.1 交给登记的处理方，按处理方给的回复回。
 var s1f2 = await session.SendAsync(new SecsMessage(1, 1, true));
-Check(s1f2.Name == "S1F2" && s1f2.Body is not null && s1f2.Body.Items.Count == 2
-      && s1f2.Body.Items[0].GetString() == "xyz-35021"
-      && s1f2.Body.Items[1].GetString() == "0.1", "S1F1 应答出 S1F2 L[2]{MDLN, SOFTREV}");
+Check(s1f2.Name == "S1F2" && s1f2.Body!.Items[0].GetString() == "MDLN" && s1f2.Body.Items[1].GetString() == "REV",
+    "S1F1 交给处理方，回 S1F2 带处理方给的体");
 
-// 3.3 S1F3 按号查：LinkState 此刻应是 Selected（SV 值来自组件属性反射）。
-var s1f4 = await session.SendAsync(new SecsMessage(1, 3, true, SecsItem.L(SecsItem.U4((uint)linkStateSvid))));
-Check(s1f4.Body!.Items.Count == 1 && s1f4.Body.Items[0].GetString() == "Selected", "S1F3 按号应答 LinkState=Selected");
-
-// 3.4 S1F3 未知号：回空 A 占位，保持与请求对齐。
-var unknown = await session.SendAsync(new SecsMessage(1, 3, true, SecsItem.L(SecsItem.U4(99999))));
-Check(unknown.Body!.Items.Count == 1 && unknown.Body.Items[0].GetString() == string.Empty, "未知 SVID 应回空占位");
-
-// 3.5 S1F17 上线请求：还没有 GEM 控制状态模型，设备一直在线，回 ONLACK=2（已经在线）。
-var s1f18 = await session.SendAsync(new SecsMessage(1, 17, true));
-Check(s1f18.Name == "S1F18" && s1f18.Body!.GetBinary()[0] == 2, "S1F17 应回 ONLACK=2");
-
-// 3.5b S2F17 时间查询：16 位 YYYYMMDDhhmmsscc。
-var s2f18 = await session.SendAsync(new SecsMessage(2, 17, true));
-Check(s2f18.Name == "S2F18" && s2f18.Body!.GetString().Length == 16
-      && s2f18.Body.GetString().All(char.IsAsciiDigit), "S2F17 应答出 16 位时间");
-
-// 3.6 S2F41 远程命令：S2F42 L[2]{HCACK=4（不接受，下一阶段接派单）, L[0]}。
-var s2f42 = await session.SendAsync(new SecsMessage(2, 41, true,
-    SecsItem.L(SecsItem.A("START"), SecsItem.L())));
-Check(s2f42.Body is not null && s2f42.Body.Items.Count == 2
-      && s2f42.Body.Items[0].GetBinary()[0] == 4 && s2f42.Body.Items[1].Count == 0,
-    "S2F41 应回 L[2]{HCACK=4, L[0]}");
-
-// 3.7 S2F31 对时设置：答收下（B(0)）。
-var s2f32 = await session.SendAsync(new SecsMessage(2, 31, true, SecsItem.A("2610011200000000")));
-Check(s2f32.Body!.GetBinary()[0] == 0, "S2F31 应答收下");
-
-// 3.7b 没实现的报文回 S9（体是原始消息头，EAP 的事务立刻失败，不用干等 T3）：Function 没实现 S9F5、
-//      整个 Stream 没实现 S9F3；SVID 给成文字是数据不对，回 S9F7。
+// 3.2 出错的几种：处理方说数据不对回 S9F7；处理方自己出错回 S2F0；没人管的 Stream 回 S9F3、有人管的 Stream 没这个 Function 回 S9F5；
+//     闸门挡住的照闸门回（S2F13 回 S2F0，处理方不会被叫到）。
 foreach (var (request, expected) in new[]
 {
-    (new SecsMessage(1, 11, true, SecsItem.L()), "S9F5"),
+    (new SecsMessage(1, 3, true, SecsItem.L()), "S9F7"),
+    (new SecsMessage(2, 1, true), "S2F0"),
     (new SecsMessage(7, 1, true, SecsItem.L()), "S9F3"),
-    (new SecsMessage(1, 3, true, SecsItem.L(SecsItem.A("LinkState"))), "S9F7"),
+    (new SecsMessage(1, 99, true), "S9F5"),
+    (new SecsMessage(2, 13, true, SecsItem.L()), "S2F0"),
 })
 {
     try
@@ -172,37 +144,41 @@ foreach (var (request, expected) in new[]
     }
 }
 
-// 3.7c 报警推 S5F1 L[3]{ALCD, ALID, ALTX}：报出 ALCD 最高位 1，复位清除 ALCD=0，ALTX 是"组件全路径.报警代码"。
-probe.Fire();
-var raised = await alarmReports.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
-Check(raised.Body is not null && raised.Body.Items.Count == 3
-      && raised.Body.Items[0].GetBinary()[0] == 0x80
-      && raised.Body.Items[1].Format == SecsFormat.U4 && raised.Body.Items[1].GetUInt64() == probeAlid
-      && raised.Body.Items[2].GetString() == "Probe.ProbeAlarm", "报警报出应推 S5F1 L[3]{80, ALID, ALTX}");
-probe.Reset();
-var cleared = await alarmReports.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
-Check(cleared.Body is not null && cleared.Body.Items.Count == 3
-      && cleared.Body.Items[0].GetBinary()[0] == 0
-      && cleared.Body.Items[1].GetUInt64() == probeAlid, "报警清除应推 S5F1，ALCD=0");
+// 3.3 回完再做的事排在回复后面：先收到 S6F16，后收到设备发的 S6F11。
+var s6f16 = await session.SendAsync(new SecsMessage(6, 15, true, SecsItem.U4(1)));
+Check(s6f16.Name == "S6F16", "S6F15 回 S6F16");
+var after = await primaries.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+Check(after.Name == "S6F11 W", "回完再做的事（发 S6F11）在回复之后到");
 
-// 3.8 断线重连：会话 Separate 后 T5 重连，组件对新会话照常答话。
+// 3.4 设备主动发报文等回复：假 EAP 回 B(0)。
+var reply = await hsms.SendAsync(new SecsMessage(5, 1, true, SecsItem.L(SecsItem.B(0x80), SecsItem.U4(1), SecsItem.A("x"))));
+Check(reply.Name == "S5F2" && reply.Body!.GetBinary()[0] == 0, "设备发 S5F1 等到 S5F2");
+await primaries.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+
+// 3.5 断线重连：会话 Separate 后先通知断开，T5 重连上再通知连上，新会话照常分发。
 session.SendSeparate();
-var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-while (established < 2 && DateTime.UtcNow < deadline)
-{
-    await Task.Delay(50);
-}
-Check(established == 2, "断开后应自动重连");
+Check(await linkEvents.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)) == "Closed", "断开应通知 LinkClosed");
+Check(await linkEvents.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)) == "Selected", "重连上应再通知 LinkSelected");
 var session2 = eap.Current;
-Check(session2 is not null && session2.IsSelected, "重连后应有新会话");
+Check(established == 2 && session2 is not null && session2.IsSelected, "断开后应自动重连");
 var again = await session2!.SendAsync(new SecsMessage(1, 1, true));
-Check(again.Name == "S1F2", "重连后的新会话应能正常答话");
+Check(again.Name == "S1F2", "重连后的新会话照常分发");
 
-// 3.9 收链路：Close 发 Separate，对端应收到断开。
+// 3.6 没连上时设备发报文：抛连接异常。
 hsms.Close();
 var closed = await session2.SendAsync(new SecsMessage(1, 1, true)).ContinueWith(task => task.IsFaulted);
 Check(closed, "Close 后对端再问应失败（链路已断）");
+bool notConnected = false;
+try
+{
+    await hsms.SendAsync(new SecsMessage(6, 11, true));
+}
+catch (HsmsConnectionException)
+{
+    notConnected = true;
+}
 
+Check(notConnected && !hsms.IsSelected, "链路断了设备发报文应抛连接异常");
 eap.Dispose();
 
 // 4. 链路起不来的几种情况：Open 只记错误、不抛，后端照常起，链路状态保持未连接。
@@ -236,17 +212,12 @@ Check(clash.LocalEndpoint is null && clash.LinkState == HsmsLinkState.NotConnect
 clash.Close();
 occupant.Stop();
 
+// ④ 没启用：不监听。
+var disabled = new HsmsComponent { IsEnable = false, Port = 0 };
+disabled.Open();
+Check(disabled.LocalEndpoint is null, "IsEnable=False 时不监听");
+
 Console.WriteLine($"PASS: {checks} 项检查全部通过");
-
-/// <summary>冒烟用的报警源：一个 [Alarm]，Fire 报出，Reset 清除。</summary>
-[Component(description: "HsmsSmoke 报警探针")]
-public sealed class AlarmProbe : ComponentBase
-{
-    [Alarm("冒烟报警", AlarmCategory.Other)]
-    public string ProbeAlarm = "ProbeAlarm";
-
-    public void Fire() => RaiseAlarm(ProbeAlarm);
-}
 
 /// <summary>报文明文打到控制台（复用协议库的格式化）。</summary>
 sealed class ConsoleSecsSink : ISecsSink

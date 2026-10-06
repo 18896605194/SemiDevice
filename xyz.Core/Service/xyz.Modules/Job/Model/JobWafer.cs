@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Components;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// 一片在路线上走到哪了。

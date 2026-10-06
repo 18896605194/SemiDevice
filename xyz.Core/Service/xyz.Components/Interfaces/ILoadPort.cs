@@ -1,6 +1,9 @@
-﻿using xyz.Drivers.Loadport;
+﻿using xyz.Components.Components;
+using xyz.Components.Enums;
+using xyz.Drivers.Loadport;
+using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Interfaces;
 
 public interface ILoadPort
 {
@@ -20,6 +23,21 @@ public interface ILoadPort
     string? CarrierId { get; }
 
     IReadOnlyList<SlotState> SlotMap { get; }
+
+    /// <summary>花篮槽数（E87 载具的 Capacity）。</summary>
+    int SlotCount { get; }
+
+    /// <summary>载具 Load 好了（门开着、能取放片，正被机械手服务时也算），Unload 之前一直是 true。</summary>
+    bool IsLoaded { get; }
+
+    /// <summary>端口空闲：不在做动作、不在被机械手服务（载具 Unload 好了、等人或天车取走时也是空闲）。</summary>
+    bool IsIdle { get; }
+
+    /// <summary>
+    /// 端口自己判的搬运状态（不看 EAP）：停用、离线、没初始化、出错 → OutOfService；在忙 → TransferBlocked；
+    /// 空闲没载具 → ReadyToLoad；空闲有载具、这一盒干完或中断了 → ReadyToUnload。E87 在这上面再加 Host 的设定。
+    /// </summary>
+    LoadPortTransferState LocalTransferState { get; }
 
     #endregion
 
@@ -55,6 +73,11 @@ public interface ILoadPort
     bool ReadCarrierId();
 
     void SetCarrierId(string carrierId);
+
+    /// <summary>
+    /// EAP 把 Host 核对载具的进展写回设备侧（给了的才改）：等 Host、核对通过、没通过。界面上看到的 ID / 槽图状态跟 Host 那边一致。
+    /// </summary>
+    void UpdateCarrierStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus);
 
     #endregion
 

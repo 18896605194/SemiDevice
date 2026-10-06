@@ -1,7 +1,7 @@
 ﻿using System.Threading.Channels;
 using xyz.Common.Log;
 
-namespace xyz.Modules;
+namespace xyz.Components.Components;
 
 /// <summary>
 /// EAP 回调派发：设备侧要报给 EAP 的事放进来，专用线程按入队顺序一条条调出去。

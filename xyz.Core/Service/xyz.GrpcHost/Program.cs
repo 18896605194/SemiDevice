@@ -93,7 +93,7 @@ public static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             // EAP 链路先优雅断开（发 Separate），再停采样、落库、断 PLC。
-            HsmsComponent.Current?.Close();
+            EapComponent.Current?.Close();
 
             // 先停采样、把攒着的最后一批写进库，再断 PLC。
             DataChartComponent.Current?.StopSampling();

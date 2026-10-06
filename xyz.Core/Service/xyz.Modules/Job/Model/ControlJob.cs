@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// CJ 要结束的方式：Stop / Abort 命令收下之后，CJ 的状态值不变，等下面的 PJ 都结束再走 #11 / #12。

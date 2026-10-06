@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Components.Components;
 
 /// <summary>
 /// 模块操作扩展：手动/同步调用方的等待糖。

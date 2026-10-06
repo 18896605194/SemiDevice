@@ -1,6 +1,6 @@
 ﻿using xyz.Drivers.Loadport;
 
-namespace xyz.Modules;
+namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// E87 载具管理的设备侧上报口：端口上发生的物理事实由模块调这里，EAP 侧据此推进 E87 状态机并上报 Host。

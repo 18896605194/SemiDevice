@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Components;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// 能加工的站点（腔体这类）：Job 和手动起工艺走同一个口子。

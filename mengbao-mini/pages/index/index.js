@@ -199,43 +199,16 @@ Page({
     this.buffOn = on;
     this.setData({ singing: on, moverSing: on && this.playing });
   },
-  /* ===== 隐形减速：摇一摇 → 立刻慢，停摇 → 立刻快，全程零提示 ===== */
-  _initMotion: function () {
-    if (this._motionInited) { this._startMotion(); return; }
-    this._motionInited = true;
-    this._shakeTs = [];
-    this._lastStrong = 0;
-    this._lastSingFx = 0;
-    var self = this;
-    try {
-      wx.onAccelerometerChange(function (res) {
-        if (!res) return;
-        var x = res.x || 0, y = res.y || 0, z = res.z || 0;
-        var mag = Math.sqrt(x * x + y * y + z * z);
-        if (!self._gRef) self._gRef = (mag > 8 && mag < 12) ? 9.8 : 1;
-        var dev = Math.abs(mag - self._gRef) / self._gRef;
-        var now = Date.now();
-        var inHard = self.playing && LEVELS[self.cur] && LEVELS[self.cur].hard;
-        if (dev > 0.4) {
-          self._lastStrong = now;
-          self._shakeTs.push(now);
-          if (self._shakeTs.length > 14) self._shakeTs.shift();
-        }
-        var hits = 0, i;
-        for (i = 0; i < self._shakeTs.length; i++) {
-          if (now - self._shakeTs[i] <= 1000) hits++;
-        }
-        if (inHard && !self.singMode && hits >= 4) self._singOn();
-        if (self.singMode && (!inHard || now - self._lastStrong > 1300)) self._singOff();
-      });
-      this._startMotion();
-    } catch (e) {}
-  },
-  _startMotion: function () {
-    try { wx.startAccelerometer({ interval: 'game' }); } catch (e) {}
-  },
-  _stopMotion: function () {
-    try { wx.stopAccelerometer({}); } catch (e) {}
+  /* ===== 隐形减速：连点关卡名 3 下 → 慢，再点 3 下 → 快，全程零提示 ===== */
+  onSecretTap: function () {
+    if (!this.playing || !LEVELS[this.cur] || !LEVELS[this.cur].hard) return;
+    var now = Date.now();
+    this._secretN = (now - (this._secretLast || 0) <= 1200) ? (this._secretN || 0) + 1 : 1;
+    this._secretLast = now;
+    if (this._secretN < 3) return;
+    this._secretN = 0;
+    if (this.singMode) this._singOff();
+    else this._singOn();
   },
   _singOn: function () {
     this.singMode = true;
@@ -265,10 +238,6 @@ Page({
     this.falling = false;
     this.mover = null;
     this.usedBuff = false;
-    this.singMode = false;
-    this._voiceHits = 0;
-    this._raiseSince = null;
-    this._offSince = null;
     this.dropped = false;
     this.playing = false;
     this._lastT = Date.now();
@@ -494,7 +463,7 @@ Page({
       win.t = isLastL ? '全通关！' : '过了第' + (this.cur + 1) + '关！';
       win.bragShow = true;
       if (this.usedBuff) {
-        win.brag = '过关方式：狂摇过关 📳 —— 🤫 别外传';
+        win.brag = '过关方式：无招胜有招 —— 🤫 别外传';
       } else {
         win.brag = '你击败了 ' + (100 - parseInt(PASSRATE[this.cur], 10)) + '% 的玩家 —— 这一关值得晒！';
       }
@@ -568,11 +537,7 @@ Page({
       self.setData({ live: n });
     }, 2000);
 
-    this._initMotion();
     this._startLevel(0);
-  },
-  onShow: function () {
-    if (this._motionInited) this._startMotion();
   },
   onResize: function () {
     var self = this;
@@ -588,11 +553,10 @@ Page({
       });
     }, 350);
   },
-  onHide: function () { this._save(); this._stopMotion(); },
+  onHide: function () { this._save(); },
   onUnload: function () {
     if (this._loopT) clearInterval(this._loopT);
     if (this._liveT) clearInterval(this._liveT);
-    this._stopMotion();
     this._save();
   }
 });

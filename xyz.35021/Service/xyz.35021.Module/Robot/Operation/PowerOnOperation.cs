@@ -1,4 +1,5 @@
-﻿using xyz.Drivers.Robot;
+﻿using xyz.Components.Components;
+using xyz.Drivers.Robot;
 using xyz.Modules;
 using xyz.Shared.Errors;
 

@@ -29,15 +29,16 @@ public sealed class GemCollectors
 
     /// <summary>
     /// 启动时调一次，组件树装配完之后：各类合并自己的编号表，一张表出问题不耽误别的，设备照跑。
-    /// 报警相关有先后：先分 ALID，再定报警事件带的 DV，再给报警生成报出/清除事件，最后把事件 CEID 回填进报警表。
+    /// 有先后：先分 ALID，再编 DV（组件声明的、报警事件带的），再编事件（组件声明的带上自己的 DV，报警各生成报出/清除），
+    /// 最后把事件 CEID 回填进报警表。
     /// </summary>
     public void Merge(IReadOnlyList<ComponentBase> roots, string directory)
     {
         Run("ECID", () => Ec.Merge(roots, directory));
         Run("SVID", () => Sv.Merge(roots, directory));
         Run("ALID", () => Alarm.Merge(roots, directory));
-        Run("DVID", () => Dv.Merge(directory, hasAlarmEvents: Alarm.WithEvents.Count > 0));
-        Run("CEID", () => Event.Merge(roots, directory, Alarm.WithEvents, Dv.AlarmPayloadDvids));
+        Run("DVID", () => Dv.Merge(roots, directory, hasAlarmEvents: Alarm.WithEvents.Count > 0));
+        Run("CEID", () => Event.Merge(roots, directory, Alarm.WithEvents, Dv));
         Run("ALID", () => Alarm.LinkEvents(Event));
     }
 

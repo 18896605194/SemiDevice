@@ -88,8 +88,8 @@ try
     // ── 3. 代码没变：再合并一次不写盘，编号不变 ───────────────────────────────────────
     var same = new GemCollectors();
     Check(!same.Ec.Merge(roots, directory) & !same.Sv.Merge(roots, directory) & !same.Alarm.Merge(roots, directory)
-          & !same.Dv.Merge(directory, hasAlarmEvents: true)
-          & !same.Event.Merge(roots, directory, same.Alarm.WithEvents, same.Dv.AlarmPayloadDvids)
+          & !same.Dv.Merge(roots, directory, hasAlarmEvents: true)
+          & !same.Event.Merge(roots, directory, same.Alarm.WithEvents, same.Dv)
           & !same.Alarm.LinkEvents(same.Event),
         "代码没变不该写盘");
     Check(IdOf(same.Ec.Definitions, "Tool2.AutoRun") == IdOf(gem.Ec.Definitions, "Tool2.AutoRun"), "重启后编号不变");

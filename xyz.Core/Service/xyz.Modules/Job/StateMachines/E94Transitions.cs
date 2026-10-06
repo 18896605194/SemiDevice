@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// SEMI E94 CJ 状态转换表（#1~#13），一行一条，号码照标准。

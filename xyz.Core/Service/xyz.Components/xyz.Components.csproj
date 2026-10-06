@@ -14,6 +14,9 @@
     <ProjectReference Include="..\xyz.Drivers\xyz.Drivers.csproj" />
     <!-- EAP 主机链路的传输与编解码（SECS-II/HSMS），零业务依赖的独立 DLL；HsmsComponent 在组件层做 GEM 答话。 -->
     <ProjectReference Include="..\xyz.Secs\xyz.Secs.csproj" />
+    <!-- 契约层（错误码、Job 的 DTO）：模块动作 ModuleOperation 和设备侧给 EAP 的接口（Interfaces）挪到组件层后要用到；
+         xyz.Shared 只引用 xyz.Tools，不会回头引用组件层，不成环。 -->
+    <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
     <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
     <!-- TwinCAT.Ads 的传递依赖。DLL 走 Libs 本地引用，NuGet 不知道它依赖谁，所以这几个得自己列出来：
          漏了在 ASP.NET 宿主里看不出来（框架自带），换成普通控制台就 FileNotFoundException。
@@ -23,6 +26,12 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.3" />
     <PackageReference Include="System.ComponentModel.Composition" Version="10.0.3" />
     <PackageReference Include="System.Reactive" Version="6.1.0" />
+  </ItemGroup>
+
+  <!-- ModuleOperation 在组件层，可"动作什么时候算真正做完"（DeferCompletion / NotifyCompletion）只该由模块基类控制：
+       内部方法只对 xyz.Modules 开放，别的工程看不到。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="xyz.Modules" />
   </ItemGroup>
 
   <!-- 倍福 ADS（7.0.172 net10.0）：DLL 放在仓库根的 Libs，不走 NuGet 源——

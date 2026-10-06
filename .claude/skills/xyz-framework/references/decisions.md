@@ -181,8 +181,29 @@
   纯粹跟 Host 核对的过程（E87 的 ID / 槽图核验、端口搬运状态等）放在 EAP 侧，由回调推进。
 - 不学 CTC：它 FA 层、调度层各一套 Job，靠轮询加 `Task.Delay` 同步，Host 的 PJ 暂停 / 恢复都没接通。
 - **EAP 组件写在组件层**（2026-10-05 用户定的）：xyz.Components 里一个 SEMI 标准一个组件（E30 / E87 / E40 / E94），设备侧的命令接口和上报口
-  （ILoadPort、IJobManager、IE87 / IE84 / IE40 / IE94 回调）从模块层提到 **xyz.Components\Interfaces**，EAP 组件才看得到。
-  还没做，EAP 开工时一起挪；连带的两处（动作返回值换成小接口、组件层引用 xyz.Shared）在跟用户解释，等点头。
+  （ILoadPort、IJobManager、IE87 / IE84 / IE40 / IE94 回调、IE84Provider）放 **xyz.Components\Interfaces**，EAP 组件才看得到——**已经挪好了**（2026-10-05）。
+  用户的选择：EAP 走接口拿到的动作对象跟本机一样是 `ModuleOperation`（不另造"小接口"），所以 ModuleOperation 一组也挪到组件层
+  （`Components\Operations`）；组件层改成引用 xyz.Shared（错误码、Job DTO），内部成员只对 xyz.Modules 开放。
+
+## EAP 各标准（2026-10-05 做完，用户："开始吧"，顺序 E30（连 E39、HSMS 按 S/F 分发）→ E87 → E90 → E40 / E94；E116 以后再说）
+做法在 backend.md §4「EAP」。下面是做的时候**我替用户定的**（交付时说了，等用户确认；用户改了就改这里）：
+- **结构**：sc.xml 新增 `Eap` 节点（`EapComponent`），`Hsms` 挪到它下面（原来在顶层；链路状态 SV 的编号会换新的，老的停用保号），
+  下面 `E30` / `E39` / `E87` / `E90` / `E40` / `E94` 一个标准一个组件。原来 HsmsComponent 里的 GEM 答话（S1F13、S1F3、S5F1……）全挪进 E30，
+  HsmsComponent 只管链路和按 S/F 分发。MDLN / SOFTREV 从 Hsms 节点挪到 E30 节点。
+- **E30 默认**：开机 OFF-LINE / HOST OFF-LINE（等 Host 发 S1F17 上线），上线进 REMOTE；缓存默认什么都不缓存（Host 用 S2F43 指定才缓存，
+  免得不懂缓存的 Host 重连后收不到事件）；S2F31 对时默认只答收下、不改本机时钟（SC `ApplyHostTime`）；S2F41 本机没有远程命令，一律回 HCACK=1；
+  Host 的动作命令（载具动作、建 Job、Job 命令、改 / 建 / 删对象）要 ON-LINE REMOTE，查询 ON-LINE 就行，S2F15 改 EC 在 LOCAL 也收。
+- **E87**：认定后自动 Load、干完 / 中断 / 不要了自动 Unload（SC `AutoLoad` / `AutoUnload` 默认开）。
+  **设备侧改了一处语义**：LoadPort 的载具"在取放"（E87 IN ACCESS）原来是 Load 好就算，改成**机械手第一次来取放才算**（Load 好以后 Host 核对槽图不通过还要能取消，
+  E87 规定在取放的载具不能取消）；取放过、没判完成就 Unload 的记**中断**（原来退回"没取放"，E87 里没有这条回头路）。
+  不支持：CarrierReCreate、CarrierRelease、读写载具标签、内部缓冲设备才有的动作。
+- **E90**：片对象在槽图认定（料到了）以后才建，Host 给的片号先写进晶圆账再建；工艺状态照账：完成 → PROCESSED、没做成 → REJECTED、中止 → ABORTED，
+  出去转了一圈没做就回来的 → SKIPPED。Job 结束时没投的片**不**写成跳过（账上一改，这些片就建不了新 Job 了）。没有读片号的设备，片号核对不做。
+- **E40 / E94**：建 PJ 的料只收一个载具加槽号，**载具要已经在端口上**（Host 先等料到、核对完再建 PJ；"料没到先建 PJ"要动 Job 的建法，没做）；
+  不支持配方参数、PJ 暂停事件、CJ 改回片地方（MtrlOutSpec 只能空 = 回原槽）。
+- LoadPort 上原来声明了没人报的"FOUP 到达 / 移除"事件，现在经 E30 真的报了（组件基类加了 `RaiseEvent`）。
+- **还没做**：GEM 控制状态的界面（E30 要求操作员看得到在线 / 离线、本地 / 远程，能切；后端接口 `RequestOnline` / `RequestOffline` / `RequestRemote` 有了），
+  要先出样稿；E116。
 
 ## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05，需求文档《通用 Job 组件功能需求文档》v0.1）
 - **三个组件**（用户定的）：搬运管理 `TransferManager`（已有，自己的扫描线程）是手动、自动、回片共用的唯一执行口，按来源 `TransferOrigin` 区分，
@@ -208,5 +229,5 @@
   机内的片人到现场确认片位后用主界面的**全部回片**（一键回片，用户点名"增加这个功能就行了"，跟 CTC 的 ReturnAllWafer 一个意思）送回来源槽，
   再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。全部回片先弹框列出要回的和回不去的（为什么），确认才开始；
   回不去的（来源载具拿走了、载具换过了、不知道从哪来）停下来让人处理。回片前要不要先冲洗（CTC 有）先不做。
-- 还没做：EAP 的 SECS 翻译层（S16 / S14 报文；用户要放组件层，模块接口往下提）、Job 页（样稿 v2 等确认）、设备动作中禁止改账的联锁（用户押后）。
+- EAP 的 SECS 翻译层（S16 / S14）2026-10-05 做了，见「EAP 各标准」。还没做：Job 页（样稿 v2 等确认）、设备动作中禁止改账的联锁（用户押后）。
   腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。

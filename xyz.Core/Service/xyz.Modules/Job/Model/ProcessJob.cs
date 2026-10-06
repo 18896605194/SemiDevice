@@ -1,4 +1,7 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Components;
+using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// PJ 运行对象（SEMI E40 的 Process Job）：一组片走同一份配方快照。状态照 E40，只在 JobManager 的扫描线程里改。

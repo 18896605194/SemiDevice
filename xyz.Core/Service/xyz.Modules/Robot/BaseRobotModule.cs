@@ -157,7 +157,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         return _stations.TryGetValue(station, out config);
     }
 
-    protected override void OnSettingLoaded(ModuleConfig setting)
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
 

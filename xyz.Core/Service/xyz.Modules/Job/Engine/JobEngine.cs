@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// 状态转换引擎：查 E40 / E94 转换表，能转就落状态（记时刻、结束标记），再挨个跑效果、最后报事件。

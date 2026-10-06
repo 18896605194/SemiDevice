@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// E84 握手期间设备侧反查 EAP 的口子：LoadPort 每拍按这里的结果算给 E84 的许可 (E84Permit)。

@@ -1,6 +1,8 @@
-﻿using xyz.Shared.Dtos;
+﻿using xyz.Components.Enums;
+using xyz.Components.Models;
+using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Interfaces;
 
 /// <summary>
 /// Job 的命令接口（按对象起名，跟 ILoadPort 一个写法）：本地界面的服务和 EAP（Host）调的是同一个接口、过同一套检查。
@@ -32,4 +34,13 @@ public interface IJobManager
 
     /// <summary>当前 Job 全貌（拿到就不变；每次变化换一份新的）。</summary>
     JobListDto Snapshot { get; }
+
+    /// <summary>还能建几个 PJ（PJ 上限减去没结束的；Host 用 S16F21 问）。</summary>
+    int ProcessJobSpace { get; }
+
+    /// <summary>E40（PJ）上报口；null 表示没接 EAP。EAP 侧接上时挂。</summary>
+    IE40Callback? E40Callback { get; set; }
+
+    /// <summary>E94（CJ）上报口；null 表示没接 EAP。跟 E40 共用一条派发线程。</summary>
+    IE94Callback? E94Callback { get; set; }
 }

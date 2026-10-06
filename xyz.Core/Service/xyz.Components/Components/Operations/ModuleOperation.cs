@@ -1,7 +1,8 @@
 ﻿using System.Diagnostics;
+using xyz.Components.Enums;
 using xyz.Shared.Errors;
 
-namespace xyz.Modules;
+namespace xyz.Components.Components;
 
 public abstract class ModuleOperation
 {

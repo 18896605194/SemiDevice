@@ -1,8 +1,11 @@
 ﻿using System.Collections.Concurrent;
 using System.Globalization;
 using xyz.Common.Log;
+using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Components;
 using xyz.Components.Attributes;
+using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -210,6 +213,8 @@ public class JobManager : ComponentBase, IJobManager, IWaferOwnership
     #region IJobManager / IWaferOwnership
 
     public JobListDto Snapshot => _snapshot;
+
+    public int ProcessJobSpace => Math.Max(0, ProcessJobCapacity - _snapshot.ProcessJobs.Count);
 
     /// <summary>出过执行故障、自动派单暂停中。</summary>
     public bool IsHeld => _runtime?.Hold is not null;

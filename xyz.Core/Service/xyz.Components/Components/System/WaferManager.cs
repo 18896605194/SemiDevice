@@ -3,6 +3,7 @@ using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
@@ -32,7 +33,62 @@ public class WaferManager : ComponentBase
     public WaferManager()
     {
         Current = this;
+        _eapNotifier = new EapNotifier(() => Name);
+
+        // 账一变就给 EAP 报一份（E90）：放进 EAP 派发线程按先后报，不占改账的线程。没挂 EAP 时不入队
+        WaferCreated += wafer => NotifyE90(callback => callback.WaferCreated(wafer));
+        WaferDeleted += wafer => NotifyE90(callback => callback.WaferDeleted(wafer));
+        WaferMoved += (wafer, fromModule, fromSlot) => NotifyE90(callback => callback.WaferMoved(wafer, fromModule, fromSlot));
+        WaferUpdated += wafer => NotifyE90(callback => callback.WaferUpdated(wafer));
     }
+
+    #region EAP 口子（E90 片跟踪）
+
+    private readonly EapNotifier _eapNotifier;
+
+    /// <summary>E90 片跟踪上报口；null 表示没接 EAP，照常记账。装配时由 EAP 侧挂上。</summary>
+    public IE90Callback? E90Callback { get; set; }
+
+    private void NotifyE90(Action<IE90Callback> notification)
+    {
+        if (E90Callback is null)
+        {
+            return;
+        }
+
+        _eapNotifier.Post(() =>
+        {
+            var callback = E90Callback;
+            if (callback is not null)
+            {
+                notification(callback);
+            }
+        });
+    }
+
+    /// <summary>注册过的位置和各自的槽数（E90 的片位对象按它建），按模块名排序。</summary>
+    public IReadOnlyList<(string Module, int SlotCount)> Locations
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _locations.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(pair => (pair.Key, pair.Value.Length)).ToList();
+            }
+        }
+    }
+
+    /// <summary>这个位置是不是按 LoadPort 注册的（片的来源 / 回片的地方）。</summary>
+    public bool IsLoadPort(string module)
+    {
+        lock (_gate)
+        {
+            return _loadPorts.Contains(module);
+        }
+    }
+
+    #endregion
 
     #region SC 
 

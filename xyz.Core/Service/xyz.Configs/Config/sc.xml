@@ -11,19 +11,6 @@
 		<Value Name="Host" Value="localhost" />
 		<Value Name="Port" Value="5000" />
 	</Setting>
-	<!-- EAP 主机链路（SECS/GEM over HSMS）：没接 EAP 的机器保持 IsEnable=False（不监听端口、照常跑）。
-	     接 EAP 时改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口：同端口时 EAP 链路不启动、日志记错误）；
-	     DeviceId、T3~T8、MDLN/SOFTREV 按 EAP 侧要求对齐 -->
-	<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
-		<Value Name="IsEnable" Value="False" />
-		<Value Name="IsActive" Value="False" />
-		<Value Name="Host" Value="" />
-		<Value Name="Port" Value="5000" />
-		<Value Name="DeviceId" Value="0" />
-		<Value Name="EquipmentModel" Value="xyz" />
-		<Value Name="SoftwareRevision" Value="1.0.0" />
-		<Value Name="LogMessages" Value="True" />
-	</Setting>
 	<!-- EC：全系统一本在线可调参数（ec.xml，跟 sc.xml 同目录），各组件的 EC 属性经它读写。
 	     ec.xml 不用手建：后端启动时照本文件的组件层级自动生成，层级、先后都跟这里一样；已经有了就只补新的，改过的值不动。
 	     界面上在 设置 → EC 设置 里改，改完立即生效。
@@ -442,6 +429,39 @@
 		<Value Name="IsPersistent" Value="True" />
 		<Value Name="Database" Value="Default" />
 		<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
+	</Setting>
+	<!-- EAP（SECS/GEM）：Hsms 是链路，下面每个 SEMI 标准一个组件。没接 EAP 的机器保持 Hsms 的 IsEnable=False
+	     （不监听端口、各标准不接到设备上，照常跑）。开机时设备侧（LoadPort、晶圆账、Job）都起来以后才接、最后才开链路，跟本节点在 sc.xml 里的位置无关。
+	     Hsms：接 EAP 时 IsEnable 改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口：同端口时 EAP 链路不启动、日志记错误）；
+	     DeviceId、T3~T8 按 EAP 侧要求对齐。
+	     E30（GEM）：MDLN / SOFTREV 报给 Host；开机离线还是在线、在线时本地还是远程、缓存这些在 EC 里调；Host 定的报告、开关、缓存存在 Database 指的库里。
+	     ApplyHostTime：Host 对时（S2F31）是不是真改本机时钟（False = 只答收下）。
+	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
+	     E87：载具 ID、槽图跟 Host 核对，端口搬运状态、预约、绑定；AutoLoad / AutoUnload：认定后自动 Load、干完或不要了自动 Unload。
+	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
+	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
+		<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
+			<Value Name="IsEnable" Value="False" />
+			<Value Name="IsActive" Value="False" />
+			<Value Name="Host" Value="" />
+			<Value Name="Port" Value="5000" />
+			<Value Name="DeviceId" Value="0" />
+			<Value Name="LogMessages" Value="True" />
+		</Setting>
+		<Setting Name="E30" Type="xyz.Components.Components.E30Component">
+			<Value Name="EquipmentModel" Value="xyz" />
+			<Value Name="SoftwareRevision" Value="1.0.0" />
+			<Value Name="Database" Value="Default" />
+			<Value Name="ApplyHostTime" Value="False" />
+		</Setting>
+		<Setting Name="E39" Type="xyz.Components.Components.E39Component" />
+		<Setting Name="E87" Type="xyz.Components.Components.E87Component">
+			<Value Name="AutoLoad" Value="True" />
+			<Value Name="AutoUnload" Value="True" />
+		</Setting>
+		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />
+		<Setting Name="E40" Type="xyz.Components.Components.E40Component" />
+		<Setting Name="E94" Type="xyz.Components.Components.E94Component" />
 	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
 	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。

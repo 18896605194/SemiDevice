@@ -16,6 +16,8 @@ public sealed class EcCollector
 
     private volatile IReadOnlyList<EcDefinition> _definitions = Array.Empty<EcDefinition>();
     private volatile IReadOnlyList<(EcDefinition Row, VariableDeclaration Declaration)> _items = [];
+    private volatile IReadOnlyDictionary<int, (EcDefinition Row, VariableDeclaration Declaration)> _byEcid =
+        new Dictionary<int, (EcDefinition Row, VariableDeclaration Declaration)>();
 
     /// <summary>
     /// 编号表全文（含代码里已删、Enabled=False 的行），按编号排序；Merge 之前或表不可用时为空。
@@ -30,6 +32,7 @@ public sealed class EcCollector
     {
         _definitions = Array.Empty<EcDefinition>();
         _items = [];
+        _byEcid = new Dictionary<int, (EcDefinition Row, VariableDeclaration Declaration)>();
 
         var declarations = CollectorHelper.ScanVariables(roots, VariableType.EC, Kind);
         var byName = declarations.ToDictionary(declaration => declaration.Name, StringComparer.OrdinalIgnoreCase);
@@ -62,6 +65,7 @@ public sealed class EcCollector
         _items = rows.Where(row => row.Enabled && byName.ContainsKey(row.Name))
             .Select(row => (row, byName[row.Name]))
             .ToList();
+        _byEcid = _items.ToDictionary(item => item.Row.Id);
         LogHelper.Info(Kind, $"{FileName}：在用 {_items.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
             + (result.Changed ? "，已写回" : "，无变化"));
         return result.Changed;
@@ -86,6 +90,66 @@ public sealed class EcCollector
             Description = item.Row.Description,
             Visible = item.Row.Visible,
         }).ToList();
+    }
+
+    /// <summary>
+    /// 按 ECID 取一项在用 EC 的当前值和元数据；没这个号或已停用返回 null。
+    /// </summary>
+    public CollectedEc? ByEcid(int ecid)
+    {
+        if (!_byEcid.TryGetValue(ecid, out var item))
+        {
+            return null;
+        }
+
+        return new CollectedEc
+        {
+            Ecid = item.Row.Id,
+            Name = item.Row.Name,
+            Value = CollectorHelper.ReadValue(item.Declaration, Kind),
+            Format = item.Row.Format,
+            Unit = item.Row.Unit,
+            Min = item.Row.Min,
+            Max = item.Row.Max,
+            Default = item.Row.Default,
+            Options = item.Row.Options,
+            Description = item.Row.Description,
+            Visible = item.Row.Visible,
+        };
+    }
+
+    /// <summary>
+    /// 按 ECID 找它在 ec.xml 里的位置（组件全路径 + 属性名），改值经 EcComponent 走；没这个号或已停用返回 false。
+    /// </summary>
+    public bool TryLocate(int ecid, out string path, out string name)
+    {
+        path = string.Empty;
+        name = string.Empty;
+        if (!_byEcid.TryGetValue(ecid, out var item))
+        {
+            return false;
+        }
+
+        path = item.Declaration.Owner.FullPath;
+        name = item.Declaration.Property.Name;
+        return true;
+    }
+
+    /// <summary>
+    /// 按 EC 在 ec.xml 里的位置反查 ECID（EC 值变了的通知只带位置）；没有返回 0。
+    /// </summary>
+    public int EcidOf(string path, string name)
+    {
+        foreach (var (row, declaration) in _items)
+        {
+            if (string.Equals(declaration.Owner.FullPath, path, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(declaration.Property.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return row.Id;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>

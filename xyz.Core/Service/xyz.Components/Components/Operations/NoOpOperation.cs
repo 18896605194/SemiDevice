@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Components.Components;
 
 /// <summary>
 /// 空操作：构造即成功终态，用于无设备动作的默认实现（如 LoadPort 的准备阶段）。

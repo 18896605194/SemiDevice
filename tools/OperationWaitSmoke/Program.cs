@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using xyz.Components.Interfaces;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -294,58 +295,59 @@ Check(port.Carrier!.CarrierId == "FOUP-777" && port.Carrier.IdStatus == CarrierI
 Check(ledger.Get(port.Name, 1)?.CarrierId == "FOUP-777", "读码回来后应补上账上所有片的载具号");
 Check(ledger.Get(port.Name, 4)?.CarrierId == "FOUP-777", "补载具号应覆盖整个模块");
 
-// 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnOperationCompleted），
-// 顺带把 LoadCompleted/AccessStarted 那条完成分支也覆盖掉。
+// 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnOperationCompleted）。
+// E87 的 IN ACCESS 是"开始取放片"：Load 好了还不算（这时 Host 核对槽图不通过还能取消载具），机械手第一次来取放才算。
 port.Open();
 port.NoteState(ModuleState.Idle);
+Check(port.LocalTransferState == LoadPortTransferState.OutOfService, "端口下线（不参与自动调度）时自己判停用");
+port.Online();
+Check(port.IsIdle && !port.IsLoaded && port.LocalTransferState == LoadPortTransferState.TransferBlocked,
+    "空闲、有载具、还没干完：端口自己判挡着（不让天车取走）");
 
 var loadOp = new ProbeOperation();
 Check(port.BeginAction(LoadPortAction.Load, loadOp) is not null, "Idle 状态应能发起 Load");
 loadOp.Succeed();
 port.Tick();
 Check(port.State == LoadPortState.Loaded, $"Load 成功应落 Loaded，实际 {port.State}");
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "Load 完成后载具应进 InAccess");
+Check(port.IsLoaded && !port.IsIdle, "Loaded 时 IsLoaded 为真、IsIdle 为假");
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.NotAccessed, "Load 好了还没取放片，载具应还是 NotAccessed");
 Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
-Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成应上报 AccessStarted");
 
-// Unload：这一轮取放结束，但"干完了"不由 Unload 判——只把 InAccess 退回未取放
-var unloadOp = new ProbeOperation();
-Check(port.BeginAction(LoadPortAction.Unload, unloadOp) is not null, "Loaded 状态应能发起 Unload");
-unloadOp.Succeed();
+Check(port.PrepareTransfer() is not null && port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess,
+    "机械手第一次来取放，载具进 InAccess");
+Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "开始取放应上报 AccessStarted");
+Check(port.CancelTransfer() && port.State == LoadPortState.Loaded, "撤回准备应回到 Loaded");
+
+// 取放途中出错：载具算没干完，落 Stopped
+var brokenUnload = new ProbeOperation();
+Check(port.BeginAction(LoadPortAction.Unload, brokenUnload) is not null, "Loaded 状态应能发起 Unload");
+brokenUnload.Reject();
 port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.NotAccessed,
-    "Unload 只结束这一轮取放，应把 InAccess 退回 NotAccessed");
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放途中出错应落 Stopped");
+Check(eap.Wait(nameof(IE87Callback.PortError)), "动作失败应上报 PortError");
 
-// 再开一轮，这次上层判完成：Complete 之后 Unload 不能把它退回去
+// 上层判完成：Complete 之后 Unload 不能把它改掉；Unload 好了端口自己判等取走
+port.NoteState(ModuleState.Idle);
+port.NoteCarrierComplete();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete, "上层判完成后应转 Complete");
 var reloadOp = new ProbeOperation();
 port.BeginAction(LoadPortAction.Load, reloadOp);
 reloadOp.Succeed();
 port.Tick();
-port.NoteCarrierComplete();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete, "上层判完成后应转 Complete");
-
 var lastUnload = new ProbeOperation();
 port.BeginAction(LoadPortAction.Unload, lastUnload);
 lastUnload.Succeed();
 port.Tick();
 Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete,
-    "已经判完成的载具，Unload 不该把它退回未取放");
+    "已经判完成的载具，Unload 不该把它改掉");
+Check(port.IsIdle && port.LocalTransferState == LoadPortTransferState.ReadyToUnload, "干完了、Unload 好了：端口自己判等取走");
+port.Offline();
 
-// 取放途中出错：载具算没干完，落 Stopped
-port.NoteState(ModuleState.Idle);
-var breakLoad = new ProbeOperation();
-port.BeginAction(LoadPortAction.Load, breakLoad);
-breakLoad.Succeed();
-port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "重新 Load 应回到 InAccess");
-
-var brokenUnload = new ProbeOperation();
-port.BeginAction(LoadPortAction.Unload, brokenUnload);
-brokenUnload.Reject();
-port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放途中出错应落 Stopped");
-Check(eap.Wait(nameof(IE87Callback.PortError)), "动作失败应上报 PortError");
-port.NoteCarrierComplete();
+// Host 核对的进展写回设备侧（EAP 的 E87 用）：给了的那一项才改
+port.UpdateCarrierStatus(null, CarrierSlotMapStatus.WaitingForHost);
+Check(port.Carrier!.IdStatus == CarrierIdStatus.Verified && port.Carrier.SlotMapStatus == CarrierSlotMapStatus.WaitingForHost,
+    "UpdateCarrierStatus 只改给了的槽图状态");
+port.UpdateCarrierStatus(null, CarrierSlotMapStatus.Read);
 
 // 载具状态要能出到 DTO，并且被 HasStateChanged 认出来
 var carrierSnapshot = port.CreateStateDto();
@@ -363,6 +365,23 @@ Check(port.Carrier is null, "FOUP 取走后载具对象应清掉");
 Check(ledger.CountWafers(port.Name) == 0, "FOUP 取走后端口上的片也应从账上清掉，不能留幽灵片");
 Check(port.CreateStateDto().HasStateChanged(carrierSnapshot), "载具走了应算状态变化");
 Check(eap.Wait(nameof(IE87Callback.CarrierRemoved)), "FOUP 取走应上报 CarrierRemoved");
+
+// 新放一个载具：取放过、没判完成就正常 Unload 了，也算中断（E87 CARRIER STOPPED）
+port.NotePodPlaced(true);
+port.Tick();
+port.NoteState(ModuleState.Idle);
+var secondLoad = new ProbeOperation();
+port.BeginAction(LoadPortAction.Load, secondLoad);
+secondLoad.Succeed();
+port.Tick();
+Check(port.PrepareTransfer() is not null && port.CancelTransfer(), "第二个载具：机械手来取放过");
+var secondUnload = new ProbeOperation();
+port.BeginAction(LoadPortAction.Unload, secondUnload);
+secondUnload.Succeed();
+port.Tick();
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放过、没判完成就 Unload，载具应落 Stopped");
+port.NotePodPlaced(false);
+port.Tick();
 
 WaferManager.Current = null;
 port.E87Callback = null;

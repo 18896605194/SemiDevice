@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// 状态、命令照 SEMI 原文的叫法（日志、错误码参数里用）：界面上的中文叫法按状态值查语言包，这里只管跟标准对得上的英文名。

@@ -1,4 +1,4 @@
-﻿namespace xyz.Modules;
+﻿namespace xyz.Components.Enums;
 
 /// <summary>
 /// E84 握手分段的超时计时器

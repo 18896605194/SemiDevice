@@ -320,6 +320,22 @@ public class EcComponent : ComponentBase
     }
 
     /// <summary>
+    /// 只查不改：这个值按声明的格式、上下限、可选值能不能改进去。Host（S2F15）一次改几项要么全改、要么都不改，先全查一遍再改。
+    /// </summary>
+    public EcSetResult Check(string path, string name, string value)
+    {
+        lock (_gate)
+        {
+            if (!_values.TryGetValue(Key(path, name), out var existing) || !IsDeclared(path, name))
+            {
+                return EcSetResult.NotFound;
+            }
+
+            return Normalize(existing, value, out _);
+        }
+    }
+
+    /// <summary>
     /// 组件树上声明了的全部 EC 项（组件全路径 + 值节点副本），先后跟组件树一样，给界面列参数、取格式上下限单位用。
     /// 给副本不给原节点：原节点在锁里改，拿出去读会跟写并发。
     /// </summary>

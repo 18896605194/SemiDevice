@@ -12,13 +12,16 @@ Service\xyz.Configs   SC（读 sc.xml）、配置模型、Config\sc.xml、Paths.
 Service\xyz.Database  SqlSugar：XyzDb、实体、分表
 Service\xyz.Drivers   纯协议/通讯（不引用 Components）
 Service\xyz.Secs      SECS-II / HSMS（零依赖）
-Service\xyz.Components 组件（→ Configs、Database、Drivers、Secs；**不引用 xyz.Shared**）
+Service\xyz.Components 组件 + 模块动作 ModuleOperation + 设备侧给 EAP 的接口（→ Configs、Database、Drivers、Secs、Shared）
 Service\xyz.Modules   模块（→ Components、Drivers、Shared）
 Service\xyz.Service   gRPC 服务实现 + 装配 + 事件桥（→ Shared、Tools、Database、Modules、Configs）
 Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、Service）
 ```
 
-- 组件层看不到契约层，所以"组件事件 → EventBus 推客户端"的桥都搭在 `xyz.Service\ServiceExtensions.cs`。
+- 组件层引用 xyz.Shared 只为错误码和 EAP 接口用到的 Job DTO（2026-10-05 起；原来不引用）。"组件事件 → EventBus 推客户端"的桥照旧都搭在
+  `xyz.Service\ServiceExtensions.cs`，组件里不直接推客户端。组件层的内部成员只对 xyz.Modules 开放（`InternalsVisibleTo`）：模块基类要控制
+  ModuleOperation"什么时候算真正做完"（`DeferCompletion` / `NotifyCompletion`）；所以 xyz.Modules 里重写 `protected internal` 的成员
+  （`OnSettingLoaded`）要写 `protected internal override`，机型工程照旧 `protected override`。
 - 平台不引用机型工程；机型 DLL 由 DeployToHost 拷到宿主 `Modules\<机型>\`，装配时按目录扫描。
 - 没有单元测试工程，测试是 `D:\Code\tools\*Smoke` 控制台程序（见 machine-and-tools.md）。
 
@@ -31,8 +34,8 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 - 生命周期：`Init()`（先子后己、按 InitOrder，开机不自动调）、`Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）。
   模块把返回类型收窄成 `ModuleOperation?`。`Open()` 不在基类，各类型自己定义（模块、PLC、IO、HSMS、驱动、轴）。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
-- 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManager、Io、Safety、Hsms、
-  DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
+- 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManager、Io、Safety、
+  Eap、Hsms、E30、DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
@@ -66,7 +69,11 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - **报警只能人工复位清**（`AlarmComponent.Reset(sourcePath)` → 组件 `Reset()`），源头恢复、动作成功都不自动清。
 - 历史入库（按天分表），报出、清除各一行。客户端推送由 Service 层桥接 `AlarmChanged`。
 - SECS 用的 SV / EC / ALID / CEID / DV 编号表由 `GemCollectors.Merge` 按代码声明生成（`*Definitions.xml`，号段固定、删掉的停用保号）；
-  事件声明 `[EventAttribut("FOUP 到达")] public readonly string FoupArrivedEvent = "FoupArrived";`（类名少个 e，是历史拼写）。
+  事件声明 `[EventAttribut("FOUP 到达")] public readonly string FoupArrivedEvent = "FoupArrived";`（类名少个 e，是历史拼写），
+  事件带的数据（DV）先声明 `[DataVariable(ValueFormat.String, "载具号")] public readonly string CarrierIdData = "CarrierID";`，
+  事件上写 `Data = new[] { "CarrierID" }`（同一组件上的 DV 代码）；报事件 `RaiseEvent(FoupArrivedEvent, new GemData("CarrierID", id))`——
+  经 E30 统一发 S6F11，值当场取好、排进发送线程，不阻塞（扫描线程上也能调）；没接 EAP、离线、Host 关了这个事件时什么都不做。
+  SV 属性可以直接返回 `SecsItem`（格式要精确的，比如列表），也可以是 byte / ushort / uint（报 U1 / U2 / U4），int 照老规矩非负报 U4。
 
 ### 目录（xyz.Components）
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
@@ -74,6 +81,12 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - `Components\` 下按类别分 System / Plc / Actuators（气缸、阀、喷嘴、灯）/ Sensors / Motion / Drivers（品牌驱动壳）/ Charts / Eap，
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
+- 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
+  `OperationState` 在 `Enums`——2026-10-05 从模块层挪下来，好让设备侧接口放进组件层。
+- `Interfaces` 下除了组件自己的（IPlc、IActionComponent……），还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`IE87Callback`、`IE84Callback`、
+  `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `WaferManager.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令、
+  `JobCommandSource` 在 `Enums`，Job 的请求和结果（`JobCommandResult`、`LocalJobRequest`、`ProcessJobSpec`、`ControlJobSpec`）在 `Models`。
+  实现还在模块层（`BaseLoadPortModule`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
 
 ## 3. 模块（`xyz.Modules`）
 
@@ -183,12 +196,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ③ 核对片位 → ④ 跑规则直到不再转 → ⑤ 派单（Manual、暂停派单时不派）→ ⑥ 有变化就推（留存，开机先推一份）。
   出执行故障（动过手的搬运失败、加工没做成、片不在该在的地方）暂停自动派单，`RecoverAsync` 恢复：片位说不准的片按账上现在的位置认回来（来源槽里没动的回到待投，别处的不再做、直接回片，账上没了的算被拿走），
   还有留着锁的搬运单、还在机械手手上认不回来的片回 `job.recovery_pending`。
-  上报 `E40Callback` / `E94Callback` 走 `Eap\EapNotifier`（单读者派发线程）。SC：`MaxActiveControlJobs`、`ControlJobCapacity`、`ProcessJobCapacity`、
+  上报 `E40Callback` / `E94Callback`（在 `IJobManager` 上，EAP 的 E40 / E94 接上时挂）走组件层的 `Components\Eap\EapNotifier`（单读者派发线程）。SC：`MaxActiveControlJobs`、`ControlJobCapacity`、`ProcessJobCapacity`、
   `IsPersistent`、`Database`；EC：`CommandTimeoutMs`、`HistoryKeepCount`、`RequestKeepCount`；调度 EC `MaxWafersInMachine`（0 = 不限）。服务 `IJobService`（`xyz.Service\Jobs`）。
   **存盘与重启**：每次发布的全貌交给 `JobStore`（一条写库线程，只写最新一份，表 `job_snapshot` 一行 JSON）；`Bind` 时读回上一份，
   `JobRestart.CloseOut`：**重启后 Job 不接着跑**——上次没删的 CJ 一律记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true）进历史
   （`JobBook.Restored`，DTO，排在本次历史后面，一起按 `HistoryKeepCount` 留），上次的历史接着留；机内的片由人全部回片后重新建 Job。
-  重启时还没接 EAP，结束事件不在这里报（以后 EAP 侧开机后按历史里 `Restarted` 的补报）。还没做：SECS 翻译层。
+  重启收场的 Job 不补报 E40 / E94 事件：开机时 Host 还没连上，报了也发不出去（不算断线，不进缓存）；Host 连上后用 S16F19、S14F1 查得到哪些还在。
+  Host 的 S16 / S14 由 EAP 的 E40 / E94 翻成 `IJobManager` 的命令（见 §4「EAP」）。
 
 ## 4. 驱动（`xyz.Components\Components\Drivers` + `xyz.Drivers`）
 
@@ -196,9 +210,42 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   和触发方法；品牌壳（`RejeRobotComponent`、`FcdLoadPortComponent`、`FcdRfidComponent`）只实现 `CreateDriver()` 和命令工厂。换品牌 = 改 sc.xml 的 Type。
 - `xyz.Drivers`：`ICommunication`（串口 / TCP，`CommunicationFactory`）、`IFrameCodec` + `FrameCommunication`（收包泵 + 发送锁）、
   品牌协议放 `Robot\Reje\`、`Loadport\FCD\`、`Rfid\FCD\`（Protocol、FrameCodec、Commands）。驱动回调只改状态，动作由模块扫描线程推进。
-- HSMS（`xyz.Secs` + `HsmsComponent`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync。
+- HSMS 协议（`xyz.Secs`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync
+  （`HsmsComponent` 已经把 Host 的报文挪到自己的派发线程上，处理方不用操心这个）。
 - 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性 + 专用派发线程）、反查口（provider，为 null 走本地规则），
-  照 `BaseLoadPortModule` 的 E87 / E84 写；细则见 decisions.md「EAP 接入的统一做法」。
+  照 `BaseLoadPortModule` 的 E87 / E84 写；接口放 `xyz.Components\Interfaces`（EAP 组件在组件层，看得到）；细则见 decisions.md「EAP 接入的统一做法」。
+
+### EAP（SECS/GEM，`xyz.Components\Components\Eap`，sc.xml 的 `Eap` 节点）
+- **一个 SEMI 标准一个组件**，都是 `EapComponent`（`Eap` 节点）的子节点：`Hsms`（E37 链路）、`E30`（GEM）、`E39`（对象服务 S14）、`E87`（载具）、
+  `E90`（片跟踪）、`E40`（PJ）、`E94`（CJ）。每个标准一个子目录（`Eap\E30` …），命名空间照旧 `xyz.Components.Components`；
+  几个标准共用的直接放 `Eap` 下：`SecsRead`（读 Host 报文，结构不对抛 SecsException → 链路回 S9F7）、`GemValue`（值 ↔ SECS 格式、时间格式）、
+  `E5Error`（ERRCODE + ERRTEXT，只用 E5 的码）、`JobErrors`（Job 的错误码 → E5）、`EapNotifier`。
+- **开机**：设备侧都起来以后宿主调 `EapComponent.Bind(LoadPort 们, JobManager)`：链路没启用（`Hsms.IsEnable=False`）什么都不接；
+  启用了按 E30 → E39 → E90 → E87 → E40 / E94 接好（各自 `Attach`：登记处理方、挂设备侧上报口），**最后才 `Hsms.Open`**。退出 `EapComponent.Close`（先 Separate，再摘回调）。
+- **链路 `HsmsComponent`**：只管连接和分发。`Handle(stream, function, 处理方)` 登记（重复登记开机就抛），Host 的 primary 放进一条派发线程
+  按先后处理——处理方可以 await 设备侧的命令；返回 `SecsReply`（`Of(体)` / `Abort`（SxF0）/ `Error(n)`（S9Fn）/ `None`），
+  `.Then(动作)` 是回复发出去以后接着做的（先让 Host 看到回复再报事件）。没人登记：整个 Stream 都没人管回 S9F3，否则 S9F5；
+  先过 `Gate`（E30 挂的）。连上 / 断开（`LinkSelected` / `LinkClosed`）也排在这条线上通知。设备主动发用 `SendAsync`（没连上抛连接异常）。
+- **E30**：通讯状态（链路连上后设备每隔 EC `EstablishCommunicationsTimeout` 发 S1F13，换过一次才算建立，之前 Host 的报文不理）；
+  控制状态（EC：`InitialOnline` 默认 False、`OfflineSubState` 默认 HostOffline、`OnlineRemote` 默认 True、`OnlineFailedState`；
+  离线时只收 S1F13、S1F17，别的回 SxF0；操作员接口 `RequestOnline` / `RequestOffline` / `RequestRemote`，界面还没做）；
+  报告（S2F33 / 35 / 37，S6F15 / 17 / 19 / 21）、报警（S5F1 + 报警事件，S5F3 / 5 / 7）、SV / EC / DV / 事件名单、S2F15 改 EC（全查过再改、不报操作员改常量）、
+  时间（EC `TimeFormat`；S2F31 默认只答收下，SC `ApplyHostTime` 为 True 才改本机时钟）、缓存（S2F43 指定缓存哪些——默认什么都不缓存；
+  断了通讯开缓存，开着时新报文也进缓存，Host S6F23 要了按先后发或清掉；状态和报文存库，重启接着开着）。S2F41 本机没有远程命令，回 HCACK=1。
+  Host 定的报告、开关、缓存范围存 `gem_config`（一行 JSON），缓存报文存 `gem_spool`（SC `Database` 指的库）。
+- **E39**：各标准把对象类型登记进来（`IE39ObjectType`：类型名、属性名先后 = 属性号、对象 ID、取属性；建、删、改可选）——Carrier、Port（E87）、
+  Substrate、SubstLoc（E90）、ProcessJob（E40）、ControlJob（E94，S14F9 建 CJ 走它）。查要 ON-LINE，改 / 建 / 删要 REMOTE。
+- **E87**：挂到每个 LoadPort 上（`IE87Callback` + `IE84Provider`，PortID 按传进来的先后从 1 编）；ID 核对：有 Bind / CarrierNotification 预告且号对上由设备认定，
+  没预告的等 Host ProceedWithCarrier，读码失败的等 Host 带端口号给号；认定后 SC `AutoLoad` 自动 Load；槽图跟 Host 给的一样由设备认定，否则等 Host；
+  槽图认定 = 料到了：Host 给的片号表写进晶圆账，再通知 E90 建片对象；Host 取消的、核对不过的不要了（卸下来等取），干完 / 中断 SC `AutoUnload` 自动 Unload。
+  端口搬运状态按设备的 `LocalTransferState` 加 Host 的停用、不要了的载具算，EC `PortPollMs` 定时重算；预约期间不能改存取方式。
+  不支持：CarrierReCreate、CarrierRelease、读写标签（S3F29 / 31）、内部缓冲设备的动作。
+- **E90**：挂在晶圆账上（`IE90Callback`），按账报片的位置（在来源 / 机内 / 回到载具）和工艺（要做 / 在做 / 做完 / 中止 / 没做成 / 跳过）、片位有没有片；
+  接了 E87 时 LoadPort 上的片等槽图认定才建片对象。片位号：单槽的位置用模块名，多槽的用"模块名.两位槽号"。没有读片号的设备，片号核对不做。
+- **E40 / E94**：Host 的 S16F11 / 15 / 5 / 17 / 19 / 21 / 27、S14F9 翻成 `IJobManager` 的命令（来源 Host），被拒的错误码经 `JobErrors` 翻成 E5；
+  建 PJ 的料只收一个载具加槽号（槽表空 = 载具上正常的片），载具要已经在端口上；不支持配方参数、暂停事件、改回片地方。
+  PJ / CJ 的状态转换（`IE40Callback` / `IE94Callback`）报 PrJobSMTrans01~18 / CtrlJobSMTrans01~13。
+- 冒烟：`HsmsSmoke`（链路和分发）、`EapSmoke`（各标准对假 Host、假 LoadPort、真晶圆账、假 Job 管理）。
 
 ## 5. 服务（gRPC code-first）
 
@@ -247,10 +294,10 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   （Data 都是 `ReturnPlanDto`：要回的、回不去的带错误码 + 参数），见上面「全部回片」。
 
 ### 启动顺序（`AddXyzServices`）
-日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → HSMS Open → PLC Open + Start →
+日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
 IO 表 Open → Safety Start → 轴 Open → 各模块 Open → **晶圆账开机恢复**（`WaferManager.Restore`：模块登记完槽位之后、开始扫描之前）→ 各模块 Start →
 TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
-JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ 设备总状态 / IO 推送 →
+JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ **EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，最后开 HSMS 链路）→ 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要 Open/Start 的，按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
 
@@ -280,14 +327,16 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   `Restore()`（启动顺序里模块 Open 之后、Start 之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
 - Job 存盘同理：`job_snapshot` 一行最新全貌（见 §3 Job）。
+- GEM（E30）掉电保持：`gem_config` 一行 JSON（Host 定的报告、链接、关掉的事件和报警、缓存范围、缓存状态），Host 改了就同步写；
+  `gem_spool` 缓存的报文一条一行（雪花号主键 = 先后，体是 SECS-II 编码的字节），断了通讯才写。见 §4「EAP」。
 
 ## 8. 配置文件
 
 - 源：`Service\xyz.Configs\Config\sc.xml`（只有这一个；UTF-8 BOM、Tab 缩进、节点带中文注释）。编译时拷到宿主 `bin\...\net10.0\Config\sc.xml`（**运行时读的是这份**）。
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
-- 节点顺序：System → Rpc → Hsms → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →
-  LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
+- 节点顺序：System → Rpc → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →
+  LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Eap（Hsms、E30、E39、E87、E90、E40、E94）→ Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`，源码不在本仓库）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；
   机械手站点表、工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）有专门的表格页。改了 ScEdit 要跑它的 build.ps1 发布到 app。
 

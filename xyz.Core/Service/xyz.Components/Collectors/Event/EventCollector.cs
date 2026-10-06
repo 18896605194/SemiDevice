@@ -16,6 +16,7 @@ public sealed class EventCollector
 
     private volatile IReadOnlyList<EventDefinition> _definitions = Array.Empty<EventDefinition>();
     private volatile IReadOnlyDictionary<string, int> _enabledCeids = new Dictionary<string, int>();
+    private volatile IReadOnlyDictionary<int, EventDefinition> _byCeid = new Dictionary<int, EventDefinition>();
 
     /// <summary>
     /// 编号表全文（含停用的行），按编号排序；Merge 之前或表不可用时为空。
@@ -39,18 +40,27 @@ public sealed class EventCollector
     }
 
     /// <summary>
+    /// 按 CEID 查在用的事件定义；没有或已停用返回 null。
+    /// </summary>
+    public EventDefinition? ByCeid(int ceid)
+    {
+        return _byCeid.TryGetValue(ceid, out var row) ? row : null;
+    }
+
+    /// <summary>
     /// 启动时调一次（报警、DV 编号出来之后）：扫组件树的 [EventAttribut]，再给 alarms 里每条报警生成报出/清除两个事件，
     /// 合并编号表，有变化才写回。表坏了或写不进去时不覆盖，本次 CEID 不可用。返回是否写了盘。
-    /// alarms：要生成事件的报警（在用、非 Warn）；alarmPayload：报警事件带的 DVID。
+    /// alarms：要生成事件的报警（在用、非 Warn）；dvs：DV 编号（事件带的 DV、报警事件带的 DV 都从它查号）。
     /// </summary>
     public bool Merge(IEnumerable<ComponentBase> roots, string directory,
-        IReadOnlyList<AlarmDefinition>? alarms = null, IReadOnlyList<int>? alarmPayload = null)
+        IReadOnlyList<AlarmDefinition>? alarms = null, DvCollector? dvs = null)
     {
         _definitions = Array.Empty<EventDefinition>();
         _enabledCeids = new Dictionary<string, int>();
+        _byCeid = new Dictionary<int, EventDefinition>();
 
-        var declarations = Scan(roots);
-        declarations.AddRange(AlarmEvents(alarms ?? [], alarmPayload ?? []));
+        var declarations = Scan(roots, dvs);
+        declarations.AddRange(AlarmEvents(alarms ?? [], dvs?.AlarmPayloadDvids ?? []));
         var byName = declarations.ToDictionary(declaration => declaration.Name, StringComparer.OrdinalIgnoreCase);
         var path = Path.Combine(directory, FileName);
         if (!DefinitionTable.TryLoad<EventDefinitionFile, EventDefinition>(path, out var rows, out var error))
@@ -80,6 +90,7 @@ public sealed class EventCollector
         _definitions = rows;
         _enabledCeids = rows.Where(row => row.Enabled)
             .ToDictionary(row => row.Name, row => row.Id, StringComparer.OrdinalIgnoreCase);
+        _byCeid = rows.Where(row => row.Enabled).ToDictionary(row => row.Id);
         LogHelper.Info(Kind, $"{FileName}：在用 {_enabledCeids.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
             + (result.Changed ? "，已写回" : "，无变化"));
         return result.Changed;
@@ -107,8 +118,9 @@ public sealed class EventCollector
 
     /// <summary>
     /// 扫组件树上的 [EventAttribut]：全名 = 组件全路径.事件代码（字段或属性的值）。代码为空、全名重复的记日志后跳过。
+    /// 事件带的 DV（Data 里的代码）按"组件全路径.DV 代码"查号，查不到的记错误、不带。
     /// </summary>
-    private static List<Declared> Scan(IEnumerable<ComponentBase> roots)
+    private static List<Declared> Scan(IEnumerable<ComponentBase> roots, DvCollector? dvs)
     {
         var result = new List<Declared>();
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -136,7 +148,20 @@ public sealed class EventCollector
                     continue;
                 }
 
-                result.Add(new Declared(name, attribute.EventText, attribute.Description, []));
+                var payload = new List<int>();
+                foreach (var data in attribute.Data)
+                {
+                    int dvid = dvs?.DvidOf($"{component.FullPath}.{data}") ?? 0;
+                    if (dvid == 0)
+                    {
+                        LogHelper.Error(Kind, $"{name} 带的 DV {data} 没有编号（组件上没声明 [DataVariable]，或 DV 表不可用），不带");
+                        continue;
+                    }
+
+                    payload.Add(dvid);
+                }
+
+                result.Add(new Declared(name, attribute.EventText, attribute.Description, payload));
             }
         }
 

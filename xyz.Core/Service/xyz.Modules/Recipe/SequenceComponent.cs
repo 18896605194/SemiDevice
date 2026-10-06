@@ -95,7 +95,7 @@ public class SequenceComponent : ComponentBase
     /// <summary>
     /// 装配读完 SC：先查参数（配错了开机就报出来），再从目录把流程配方读进来。
     /// </summary>
-    protected override void OnSettingLoaded(ModuleConfig setting)
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
 

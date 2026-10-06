@@ -1,8 +1,7 @@
-﻿using System.Globalization;
-using System.Net;
+﻿using System.Net;
+using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
-using xyz.Components.Collectors;
 using xyz.Components.Enums;
 using xyz.Components.Models;
 using xyz.Secs;
@@ -13,19 +12,25 @@ using xyz.Secs.SecsII;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// EAP 主机链路（sc.xml 的 Hsms 节点）：SECS/GEM over HSMS 的设备端。
-/// 传输与编解码在 xyz.Secs 类库（专用线程 + 同步泵），本组件只做三件事：
+/// EAP 主机链路（SEMI E37 HSMS，sc.xml 的 Eap 下的 Hsms 节点）：只管链路和报文分发，不懂 GEM。
+/// 传输与编解码在 xyz.Secs 类库（专用线程 + 同步泵），本组件做三件事：
 /// ① 按 sc.xml 建链路（被动监听等 EAP 连入是设备常规，IsActive=True 主动连出）；
-/// ② GEM 答话——S1F13 通讯建立、S1F1 在线询问、S1F3 按 SVID 表答状态、S1F17 上线请求、S2F17 时间查询、S2F31 对时；
-///    没实现的报文按 E5 回 S9（整个 Stream 没实现回 S9F3，Function 没实现回 S9F5），不让 EAP 干等 T3；
-/// ③ 报警推 S5F1（ALID 查编号表，报出/清除都推）。
-/// S2F41 远程命令暂回 HCACK=4（不接受），路由到 TransferManager 派单是下一阶段；
-/// S2F33/35/37 动态报告、S6F11 事件上报同属下一阶段。
-/// IsEnable=False 时整个节点只记一条日志，不监听端口——没接 EAP 的机器照常跑。
+/// ② Host 发来的 primary 按 Stream/Function 交给登记的处理方（E30、E87……各标准组件开机时登记），
+///    在一条专用派发线程上按收到的先后一条一条处理——不占收包线程，处理方可以等设备侧的命令结果；处理完照结果回。
+///    处理前先过闸门（E30 的通讯、控制状态）：还没建立通讯时不理、离线时不该收的回 SxF0。
+///    没人登记的按 E5 回 S9：整个 Stream 都没人管回 S9F3，Stream 有人管但这个 Function 没有回 S9F5，不让 EAP 干等 T3；
+/// ③ 给各标准组件发设备主动报的 primary（S6F11、S5F1……）；链路连上、断开也走同一条派发线程按先后通知它们。
+/// 本节点 IsEnable=False 时整个 EAP 不起（不监听端口），设备照常跑。
 /// </summary>
-[Component(description: "EAP 主机链路（SECS/GEM over HSMS）：监听、GEM 答话、报警上报")]
+[Component(description: "EAP 主机链路（SEMI E37 HSMS）：监听或连出、按 Stream/Function 分发报文")]
 public class HsmsComponent : ComponentBase
 {
+    /// <summary>S9F3：整个 Stream 不认识。</summary>
+    private const byte UnknownStreamFunction = 3;
+
+    /// <summary>S9F5：Stream 认识、Function 不认识。</summary>
+    private const byte UnknownFunctionFunction = 5;
+
     /// <summary>
     /// 当前链路组件；sc.xml 没配 Hsms 节点时为 null。退出时宿主经它做 Separate 优雅断开。
     /// </summary>
@@ -38,7 +43,7 @@ public class HsmsComponent : ComponentBase
 
     #region 配置（[SCEditor]，现场可在 EC 页改 sc.xml）
 
-    [SCEditor("False", "Hsms", "是否启用 EAP 链路；没接 EAP 的机器保持 False，不监听端口、不连设备")]
+    [SCEditor("False", "Hsms", "是否启用 EAP；没接 EAP 的机器保持 False，不监听端口、不连设备，各标准组件也不接到设备上")]
     public bool IsEnable { get; set; }
 
     [SCEditor("False", "Hsms", "主动连出（设备连 EAP）：False = 被动监听等 EAP 连入（设备常规模式）")]
@@ -74,28 +79,79 @@ public class HsmsComponent : ComponentBase
     [SCEditor("True", "Hsms", "报文明文进日志（fab 验收和现场排障全靠它；报文量大时可以关）")]
     public bool LogMessages { get; set; } = true;
 
-    [SCEditor("xyz", "Hsms", "MDLN 设备型号，S1F13/S1F14 通讯建立时报给 EAP")]
-    public string EquipmentModel { get; set; } = "xyz";
-
-    [SCEditor("1.0.0", "Hsms", "SOFTREV 软件版本，S1F13/S1F14 通讯建立时报给 EAP")]
-    public string SoftwareRevision { get; set; } = "1.0.0";
-
     #endregion
 
     /// <summary>链路状态（SV）：EAP 连没连上、过没过 Select，界面和 EAP 都能查。</summary>
     [VariableMark(VariableType.SV, ValueFormat.Enum, description: "EAP 链路状态（NotConnected/ConnectedNotSelected/Selected）")]
     public HsmsLinkState LinkState { get; private set; } = HsmsLinkState.NotConnected;
 
+    private readonly object _handlerGate = new();
+    private readonly Dictionary<(byte Stream, byte Function), Func<HsmsMessage, Task<SecsReply>>> _handlers = new();
+    private readonly HashSet<byte> _streams = new();
     private HsmsListener? _listener;
     private HsmsConnector? _connector;
+    private Channel<LinkWork>? _work;
 
     /// <summary>被动模式实际监听地址（Port 配 0 时系统分配，冒烟测试用）。</summary>
     public IPEndPoint? LocalEndpoint => _listener?.LocalEndpoint;
 
+    /// <summary>链路现在能不能发报文（过了 Select）。</summary>
+    public bool IsSelected
+    {
+        get
+        {
+            var session = CurrentSession;
+            return session is not null && session.IsSelected;
+        }
+    }
+
+    private HsmsSession? CurrentSession => _listener?.Current ?? _connector?.Current;
+
+    #region 登记（各标准组件开机时调，链路打开之前）
+
+    /// <summary>
+    /// 闸门：每条 Host 的 primary 先问它，返回不为 null 就照它回、不再交给处理方（E30 按通讯、控制状态挡）。
+    /// 在派发线程上调。
+    /// </summary>
+    public Func<HsmsMessage, SecsReply?>? Gate { get; set; }
+
+    /// <summary>链路进了 SELECTED（在派发线程上通知，跟收到的报文排在同一条线上，先后不乱）。</summary>
+    public event Action? LinkSelected;
+
+    /// <summary>链路断了，带原因（同样在派发线程上通知）。</summary>
+    public event Action<string>? LinkClosed;
+
+    /// <summary>
+    /// 登记一个 Stream/Function 的处理方：在派发线程上调，可以 await 设备侧的命令结果，返回怎么回。
+    /// 同一个 Stream/Function 登记两次是配置错了，开机就抛。
+    /// </summary>
+    public void Handle(byte stream, byte function, Func<HsmsMessage, Task<SecsReply>> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        lock (_handlerGate)
+        {
+            if (!_handlers.TryAdd((stream, function), handler))
+            {
+                throw new InvalidOperationException($"S{stream}F{function} 登记了两个处理方");
+            }
+
+            _streams.Add(stream);
+        }
+    }
+
+    /// <summary>登记一个不用等待的处理方（当场就能算出回复的）。</summary>
+    public void Handle(byte stream, byte function, Func<HsmsMessage, SecsReply> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        Handle(stream, function, message => Task.FromResult(handler(message)));
+    }
+
+    #endregion
+
     #region 生命周期
 
     /// <summary>
-    /// 建链路：组合根在编号表合并之后调（S1F3 要按 SVID 表答话）；报警推送也在这挂上。
+    /// 建链路：EAP 组件把各标准都接好、登记完之后调（Host 一连进来就可能发报文，处理方得先在）。
     /// </summary>
     public void Open()
     {
@@ -136,6 +192,7 @@ public class HsmsComponent : ComponentBase
             return;
         }
 
+        StartWorker();
         var sink = new SecsLogSink(Name, LogMessages);
 
         if (IsActive)
@@ -144,47 +201,38 @@ public class HsmsComponent : ComponentBase
             _connector.SessionEstablished += Wire;
             _connector.Start();
             LogHelper.Info(Name, $"EAP 链路：主动连出 {settings.Host}:{Port}，T5 重连 {T5ConnectRetryMs}ms");
+            return;
         }
-        else
+
+        // 跟 gRPC 同端口：宿主先开 EAP 链路、后起 gRPC，监听是独占的，gRPC 就绑不上、整个后端起不来。
+        // 只能让一边让路——界面要靠 gRPC，所以 EAP 链路不起，记错误。
+        int rpcPort = RpcComponent.Current?.Port ?? RpcComponent.DefaultPort;
+        if (Port == rpcPort)
         {
-            // 跟 gRPC 同端口：宿主先开 EAP 链路、后起 gRPC，监听是独占的，gRPC 就绑不上、整个后端起不来。
-            // 只能让一边让路——界面要靠 gRPC，所以 EAP 链路不起，记错误。
-            int rpcPort = RpcComponent.Current?.Port ?? RpcComponent.DefaultPort;
-            if (Port == rpcPort)
-            {
-                LogHelper.Error(Name, $"EAP 链路没起来：Hsms 端口 {Port} 跟 Rpc 节点的 gRPC 端口相同，把其中一个挪开");
-                return;
-            }
-
-            _listener = new HsmsListener(settings, sink);
-            _listener.SessionEstablished += Wire;
-            try
-            {
-                _listener.Start();
-            }
-            catch (HsmsConnectionException exception)
-            {
-                // 端口被别的程序占着：EAP 链路起不来，但不拖垮整个后端。
-                LogHelper.Error(Name, $"EAP 链路没起来：{exception.Message}；换个端口或关掉占着它的程序");
-                _listener.Dispose();
-                _listener = null;
-                return;
-            }
-
-            LogHelper.Info(Name, $"EAP 链路：监听 0.0.0.0:{Port} 等 EAP 连入，DeviceId={DeviceId}");
+            LogHelper.Error(Name, $"EAP 链路没起来：Hsms 端口 {Port} 跟 Rpc 节点的 gRPC 端口相同，把其中一个挪开");
+            return;
         }
 
-        // 报警推 EAP：ALID 从编号表查，查不到只记日志（不影响报警入库和客户端推送这两条既有链路）
-        var alarms = AlarmComponent.Current;
-        if (alarms is not null)
+        _listener = new HsmsListener(settings, sink);
+        _listener.SessionEstablished += Wire;
+        try
         {
-            alarms.AlarmChanged += PushAlarm;
+            _listener.Start();
         }
+        catch (HsmsConnectionException exception)
+        {
+            // 端口被别的程序占着：EAP 链路起不来，但不拖垮整个后端。
+            LogHelper.Error(Name, $"EAP 链路没起来：{exception.Message}；换个端口或关掉占着它的程序");
+            _listener.Dispose();
+            _listener = null;
+            return;
+        }
+
+        LogHelper.Info(Name, $"EAP 链路：监听 0.0.0.0:{Port} 等 EAP 连入，DeviceId={DeviceId}");
     }
 
     /// <summary>
-    /// 收链路：发 Separate 优雅断开（被动/主动都一样），摘掉报警订阅。
-    /// 宿主退出时调（先于断 PLC，跟采样落库同一段退出钩子）。
+    /// 收链路：发 Separate 优雅断开（被动/主动都一样），停派发线程。宿主退出时调。
     /// </summary>
     public void Close()
     {
@@ -192,289 +240,223 @@ public class HsmsComponent : ComponentBase
         _connector?.Dispose();
         _listener = null;
         _connector = null;
-
-        var alarms = AlarmComponent.Current;
-        if (alarms is not null)
-        {
-            alarms.AlarmChanged -= PushAlarm;
-        }
-
         LinkState = HsmsLinkState.NotConnected;
+        _work?.Writer.TryComplete();
+        _work = null;
     }
 
     /// <summary>
-    /// 每条新会话（含断线重连后的）都要重新挂答话回调。链路状态 SV 跟着会话走。
-    /// 注意：SessionEstablished 触发时 Selected 事件已经发完（它在监听器的订阅里先跑），
-    /// 所以这里除了挂事件还要直接认一次当前状态，别把已 SELECTED 的链路认成没连。
+    /// 每条新会话（含断线重连后的）都要重新挂回调。SessionEstablished 是在 Select 成功的那一刻触发的，
+    /// 这时会话已经是 SELECTED，所以直接认一次连上；断开先挂上再查一次，免得挂之前就断了的会话漏报。
     /// </summary>
     private void Wire(HsmsSession session)
     {
-        session.PrimaryReceived += message => OnPrimary(session, message);
-        session.Selected += () => LinkState = HsmsLinkState.Selected;
-        session.Closed += _ => LinkState = HsmsLinkState.NotConnected;
-        if (session.IsSelected)
+        int closedPosted = 0;
+        void PostClosed(string reason)
         {
-            LinkState = HsmsLinkState.Selected;
+            if (Interlocked.Exchange(ref closedPosted, 1) == 0)
+            {
+                LinkState = HsmsLinkState.NotConnected;
+                Post(new ClosedWork(reason));
+            }
+        }
+
+        session.PrimaryReceived += message => Post(new IncomingWork(session, message));
+        session.Closed += PostClosed;
+        LinkState = HsmsLinkState.Selected;
+        Post(new SelectedWork());
+        if (session.State == HsmsLinkState.NotConnected)
+        {
+            PostClosed("会话已断开");
         }
     }
 
     #endregion
 
-    #region GEM 答话（EAP 问、设备答）
+    #region 发送（设备主动报）
 
-    private void OnPrimary(HsmsSession session, HsmsMessage message)
+    /// <summary>
+    /// 发一条 primary 并等回复（W=1）：没连上抛 HsmsConnectionException，T3 到期抛 SecsTimeoutException，
+    /// 对方回 S9 / SxF0 抛 SecsException。别在派发线程的处理方里同步等它。
+    /// </summary>
+    public Task<HsmsMessage> SendAsync(SecsMessage message)
+    {
+        var session = CurrentSession;
+        if (session is null || !session.IsSelected)
+        {
+            throw new HsmsConnectionException($"EAP 链路没连上，{message.Name} 发不出去");
+        }
+
+        return session.SendAsync(message);
+    }
+
+    #endregion
+
+    #region 派发
+
+    private void StartWorker()
+    {
+        if (_work is not null)
+        {
+            return;
+        }
+
+        var work = Channel.CreateUnbounded<LinkWork>(new UnboundedChannelOptions { SingleReader = true });
+        _work = work;
+        _ = Task.Run(() => PumpAsync(work.Reader));
+    }
+
+    private void Post(LinkWork work)
+    {
+        _work?.Writer.TryWrite(work);
+    }
+
+    /// <summary>
+    /// 派发线程：收到的报文、连上、断开都按先后一条一条处理；一条出错只记日志，不连累后面的。
+    /// </summary>
+    private async Task PumpAsync(ChannelReader<LinkWork> reader)
+    {
+        await foreach (var work in reader.ReadAllAsync().ConfigureAwait(false))
+        {
+            try
+            {
+                switch (work)
+                {
+                    case IncomingWork incoming:
+                        await DispatchAsync(incoming.Session, incoming.Message).ConfigureAwait(false);
+                        break;
+
+                    case SelectedWork:
+                        LinkSelected?.Invoke();
+                        break;
+
+                    case ClosedWork closed:
+                        LinkClosed?.Invoke(closed.Reason);
+                        break;
+                }
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Error(Name, $"EAP 派发出错：{exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 处理一条 Host 的 primary：先过闸门，再找处理方；处理方说数据不对（SecsException）回 S9F7，
+    /// 自己出了错回 SxF0（对方要回复的话），别让 EAP 干等 T3。
+    /// </summary>
+    private async Task DispatchAsync(HsmsSession session, HsmsMessage message)
+    {
+        SecsReply reply;
+        try
+        {
+            reply = Gate?.Invoke(message) ?? await HandleAsync(message).ConfigureAwait(false);
+        }
+        catch (SecsException exception) when (exception is not HsmsConnectionException && exception is not SecsTimeoutException)
+        {
+            LogHelper.Warn(Name, $"{message.Name} 数据不对，回 S9F7：{exception.Message}");
+            reply = SecsReply.IllegalData;
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"处理 {message.Name} 出错：{exception.Message}");
+            reply = SecsReply.Abort;
+        }
+
+        Respond(session, message, reply);
+        if (reply.AfterReply is not null)
+        {
+            try
+            {
+                reply.AfterReply();
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Error(Name, $"回完 {message.Name} 后续处理出错：{exception.Message}");
+            }
+        }
+    }
+
+    private Task<SecsReply> HandleAsync(HsmsMessage message)
+    {
+        Func<HsmsMessage, Task<SecsReply>>? handler;
+        bool streamKnown;
+        lock (_handlerGate)
+        {
+            _handlers.TryGetValue((message.Header.Stream, message.Header.Function), out handler);
+            streamKnown = _streams.Contains(message.Header.Stream);
+        }
+
+        if (handler is not null)
+        {
+            return handler(message);
+        }
+
+        byte error = streamKnown ? UnknownFunctionFunction : UnknownStreamFunction;
+        LogHelper.Warn(Name, $"未实现的报文 {message.Name}，回 S9F{error}");
+        return Task.FromResult(SecsReply.Error(error));
+    }
+
+    /// <summary>照结果回；对方没要回复（W=0）时正常回复和 SxF0 都不发（会话自己判），S9 照发。会话断了只记日志。</summary>
+    private void Respond(HsmsSession session, HsmsMessage message, SecsReply reply)
     {
         try
         {
-            Answer(session, message);
+            switch (reply.Kind)
+            {
+                case SecsReplyKind.Normal:
+                    session.Reply(message, message.CreateReply(reply.Body));
+                    break;
+
+                case SecsReplyKind.Abort:
+                    session.Reply(message, new SecsMessage(message.Header.Stream, 0, false));
+                    break;
+
+                case SecsReplyKind.Error:
+                    session.SendError(message.Header, reply.ErrorFunction);
+                    break;
+            }
         }
         catch (SecsException exception)
         {
-            // 报文里的数据不对（类型、取值）：按 E5 回 S9F7 非法数据
-            LogHelper.Warn(Name, $"{message.Name} 数据不对，回 S9F7: {exception.Message}");
-            session.SendError(message.Header, 7);
-        }
-        catch (Exception exception)
-        {
-            // 本端处理出了错：要回复的回 F0 中止事务，别让 EAP 干等 T3
-            LogHelper.Error(Name, $"处理 {message.Name} 出错: {exception.Message}");
-            if (message.Header.ReplyExpected)
-            {
-                session.Reply(message, new SecsMessage(message.Header.Stream, 0, false));
-            }
+            LogHelper.Warn(Name, $"{message.Name} 的回复没发出去：{exception.Message}");
         }
     }
 
-    /// <summary>
-    /// 按 Stream/Function 答话；对方没要回复（W=0）时 Reply 自动不发。
-    /// </summary>
-    private void Answer(HsmsSession session, HsmsMessage message)
+    /// <summary>派发线程上排队的一件事。</summary>
+    private abstract class LinkWork
     {
-        switch (message.Header.Stream, message.Header.Function)
-        {
-            // S1F13 通讯建立 → S1F14：COMMACK=0 + MDLN/SOFTREV
-            case (1, 13):
-                session.Reply(message, message.CreateReply(SecsItem.L(SecsItem.B(0), Identity())));
-                break;
-
-            // S1F1 在线询问（Are You There）→ S1F2：设备回 MDLN/SOFTREV（只有 Host 回的才是空 L）
-            case (1, 1):
-                session.Reply(message, message.CreateReply(Identity()));
-                break;
-
-            // S1F3 状态查询 → S1F4：按 SVID 逐个答（空列表 = 全查），值类型按 SV 声明的格式落
-            case (1, 3):
-                session.Reply(message, message.CreateReply(AnswerSvQuery(message.Body)));
-                break;
-
-            // S1F17 上线请求 → S1F18 ONLACK。框架还没有 GEM 控制状态模型，设备一直算在线：回 2（已经在线）
-            case (1, 17):
-                session.Reply(message, message.CreateReply(SecsItem.B(2)));
-                break;
-
-            // S2F17 时间查询 → S2F18：E5 的 16 位格式 YYYYMMDDhhmmsscc（24 小时制，带厘秒）
-            case (2, 17):
-                session.Reply(message, message.CreateReply(
-                    SecsItem.A(DateTime.Now.ToString("yyyyMMddHHmmssff", CultureInfo.InvariantCulture))));
-                break;
-
-            // S2F31 对时 → S2F32 TIACK=0：先只答收下，不动机器时钟——要不要真对时是现场策略，定了一起改
-            case (2, 31):
-                session.Reply(message, message.CreateReply(SecsItem.B(0)));
-                break;
-
-            // S2F41 远程命令 → S2F42 L[2]{HCACK=4（命令不接受）, L[0]}。下一阶段接 TransferManager 派单后按命令名路由
-            case (2, 41):
-                LogHelper.Warn(Name, $"远程命令暂不支持: {RcmdText(message.Body)}");
-                session.Reply(message, message.CreateReply(SecsItem.L(SecsItem.B(4), SecsItem.L())));
-                break;
-
-            default:
-                // 没实现的报文按 E5 回 S9：整个 Stream 一条都没实现回 S9F3，Stream 用到了但这个 Function 没实现回 S9F5。
-                // 不回的话 EAP 要干等 T3 才知道。
-                byte error = message.Header.Stream is 1 or 2 or 5 ? (byte)5 : (byte)3;
-                LogHelper.Warn(Name, $"未实现的报文 {message.Name}，回 S9F{error}");
-                session.SendError(message.Header, error);
-                break;
-        }
     }
 
-    /// <summary>
-    /// 设备身份 L[2]{MDLN, SOFTREV}：S1F2、S1F14 都带它。
-    /// </summary>
-    private SecsItem Identity()
+    /// <summary>Host 发来的一条 primary。</summary>
+    private sealed class IncomingWork : LinkWork
     {
-        return SecsItem.L(SecsItem.A(Ascii(EquipmentModel)), SecsItem.A(Ascii(SoftwareRevision)));
+        public IncomingWork(HsmsSession session, HsmsMessage message)
+        {
+            Session = session;
+            Message = message;
+        }
+
+        public HsmsSession Session { get; }
+
+        public HsmsMessage Message { get; }
     }
 
-    /// <summary>
-    /// 远程命令名（日志用）：RCMD 一般是 ASCII，也可能是整数。
-    /// </summary>
-    private static string RcmdText(SecsItem? body)
+    /// <summary>链路进了 SELECTED。</summary>
+    private sealed class SelectedWork : LinkWork
     {
-        var rcmd = body is not null && body.Format == SecsFormat.List && body.Count > 0 ? body.Items[0] : null;
-        return rcmd is null ? "（没带 RCMD）" : rcmd.Format == SecsFormat.Ascii ? rcmd.GetString() : SecsMessageText.Format(rcmd);
     }
 
-    /// <summary>
-    /// SECS 的 A 类型只能是 ASCII：中文这类字符换成 ?——编码器碰到非 ASCII 会直接报错，一个字符就能毁掉整条回复。
-    /// </summary>
-    private static string Ascii(string text)
+    /// <summary>链路断了。</summary>
+    private sealed class ClosedWork : LinkWork
     {
-        return string.Concat(text.Select(ch => ch <= '\x7F' ? ch : '?'));
-    }
-
-    /// <summary>
-    /// S1F3 的应答体：按请求里的 SVID 顺序取值；查不到的号回空 ASCII 占位（保持与请求对齐）并记警告。
-    /// </summary>
-    private SecsItem AnswerSvQuery(SecsItem? body)
-    {
-        var collector = GemCollectors.Current;
-        if (collector is null)
+        public ClosedWork(string reason)
         {
-            LogHelper.Warn(Name, "编号表还没合并（GemCollectors.Current 为空），S1F3 只能回空");
-            return SecsItem.L();
+            Reason = reason;
         }
 
-        // 空 body 或空列表 = 全查（E5 语义）
-        if (body is null || body.Items.Count == 0)
-        {
-            return SecsItem.L(collector.Sv.Collect().Where(sv => sv.Visible).Select(SvToItem));
-        }
-
-        var values = new List<SecsItem>();
-        foreach (var requested in body.Items)
-        {
-            int svid = ReadSvid(requested);
-            var sv = collector.Sv.BySvid(svid);
-            if (sv is null)
-            {
-                LogHelper.Warn(Name, $"S1F3 问了不认识的 SVID {svid}，回空占位");
-                values.Add(SecsItem.A(string.Empty));
-            }
-            else if (!sv.Visible)
-            {
-                // 现场在编号表里标了不上传的，同样回空占位
-                values.Add(SecsItem.A(string.Empty));
-            }
-            else
-            {
-                values.Add(SvToItem(sv));
-            }
-        }
-
-        return SecsItem.L(values);
-    }
-
-    /// <summary>
-    /// SVID 只认单个非负整数（本机编号都是 U4，哪种整数类型都收）；文字、多个值、负数算数据不对，抛出去由上层回 S9F7。
-    /// </summary>
-    private static int ReadSvid(SecsItem item)
-    {
-        long[] ids;
-        try
-        {
-            ids = item.GetInt64Array();
-        }
-        catch (OverflowException)
-        {
-            ids = [];
-        }
-
-        if (ids.Length != 1 || ids[0] < 0 || ids[0] > int.MaxValue)
-        {
-            throw new SecsException($"SVID 应是单个非负整数，收到 {SecsMessageText.Format(item)}");
-        }
-
-        return (int)ids[0];
-    }
-
-    /// <summary>
-    /// SV 的字符串值按声明的格式落回 SECS 类型：Bool→Boolean、Int→U4/U8/I8（按正负和宽度）、
-    /// Double→F8、String/Enum→A。解析失败退 A（原样字符串），别让一条脏值毁掉整个 S1F4。
-    /// </summary>
-    private static SecsItem SvToItem(CollectedSv sv)
-    {
-        switch (sv.Format)
-        {
-            case "Bool":
-                return SecsItem.Boolean(bool.TryParse(sv.Value, out var flag) && flag);
-
-            case "Int":
-                if (!long.TryParse(sv.Value, out var number))
-                {
-                    return SecsItem.A(sv.Value);
-                }
-
-                return number >= 0
-                    ? number <= uint.MaxValue ? SecsItem.U4(unchecked((uint)number)) : SecsItem.U8(unchecked((ulong)number))
-                    : SecsItem.I8(number);
-
-            case "Double":
-                return double.TryParse(sv.Value, System.Globalization.CultureInfo.InvariantCulture, out var real)
-                    ? SecsItem.F8(real)
-                    : SecsItem.A(sv.Value);
-
-            default:
-                return SecsItem.A(string.IsNullOrEmpty(sv.Value) ? " " : Ascii(sv.Value));
-        }
-    }
-
-    #endregion
-
-    #region 报警推送（S5F1，设备→EAP）
-
-    private void PushAlarm(AlarmItem alarm)
-    {
-        try
-        {
-            var session = _listener?.Current ?? _connector?.Current;
-            if (session is null || !session.IsSelected)
-            {
-                return;  // EAP 不在线就不推（断线缓存 Spooling 是以后的事）
-            }
-
-            var alid = FindAlid(alarm);
-            if (alid is null)
-            {
-                LogHelper.Warn(Name, $"报警没有 ALID 编号，不推 EAP: {alarm.SourcePath}.{alarm.AlarmCode}");
-                return;
-            }
-
-            // S5F1: L[3]{ALCD(B), ALID(U4), ALTX(A)}。ALCD 最高位 1 = 报出、0 = 清除，低 7 位的报警类别先不细分
-            var alcd = alarm.IsActive ? (byte)0x80 : (byte)0;
-            session.Send(new SecsMessage(5, 1, true,
-                SecsItem.L(SecsItem.B(alcd), SecsItem.U4((uint)alid), SecsItem.A(AlarmText(alarm)))));
-        }
-        catch (Exception exception)
-        {
-            // 推送失败绝不能反过来影响报警系统本身
-            LogHelper.Warn(Name, $"S5F1 推送失败: {exception.Message}");
-        }
-    }
-
-    /// <summary>
-    /// ALTX：E5 限 40 个字符、只能 ASCII。报警文字是中文发不出去，发"组件全路径.报警代码"（跟编号表里的名字一样），
-    /// 超长就只发报警代码。EAP 一般按 ALID 对自己的报警表，这段只是方便人看。
-    /// </summary>
-    private static string AlarmText(AlarmItem alarm)
-    {
-        var text = Ascii($"{alarm.SourcePath}.{alarm.AlarmCode}");
-        if (text.Length > 40)
-        {
-            text = Ascii(alarm.AlarmCode);
-        }
-
-        return text.Length > 40 ? text[..40] : text;
-    }
-
-    /// <summary>报警实例 → ALID：按编号表里"组件全路径.报警代码"的全名查。</summary>
-    private int? FindAlid(AlarmItem alarm)
-    {
-        var name = $"{alarm.SourcePath}.{alarm.AlarmCode}";
-        return GemCollectors.Current?.Alarm.Definitions
-            .FirstOrDefault(row => row.Enabled && string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase))
-            ?.Id;
+        public string Reason { get; }
     }
 
     #endregion

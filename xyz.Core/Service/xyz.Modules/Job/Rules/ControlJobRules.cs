@@ -1,4 +1,6 @@
-﻿namespace xyz.Modules;
+﻿using xyz.Components.Enums;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// CJ 的自动转换规则：一条规则一个小类，只回答"这个 CJ 现在该不该自动往下转、转哪条"（不该转返回 null）。
