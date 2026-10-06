@@ -11,16 +11,16 @@ namespace xyz.Components.Interfaces;
 public interface IJobManager
 {
     /// <summary>建一个 PJ（E40）：Host 给载具号，本地给 LoadPort。建好排着，等 CJ 来收。</summary>
-    Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec, JobCommandSource source);
+    Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec);
 
     /// <summary>建一个 CJ（E94），把已经建好、还没归 CJ 的 PJ 按顺序收进来。</summary>
-    Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec, JobCommandSource source);
+    Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec);
 
     /// <summary>CJ 命令（E94 CJStart / CJPause / CJResume / CJCancel / CJDeselect / CJStop / CJAbort / CJHOQ）。</summary>
-    Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action, JobCommandSource source);
+    Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action);
 
     /// <summary>PJ 命令（E40 Start / Pause / Resume / Stop / Abort / Cancel）。</summary>
-    Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command, JobCommandSource source);
+    Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command);
 
     /// <summary>当前 Job 全貌（拿到就不变；每次变化换一份新的）。</summary>
     JobListDto Snapshot { get; }

@@ -1002,25 +1002,25 @@ sealed class FakeJobs : IJobManager
         return Task.FromResult(NextResult ?? HandleResult.Success(id));
     }
 
-    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec, JobCommandSource source)
+    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec)
     {
         ProcessJobs.Add(spec);
         return Result(spec.Id);
     }
 
-    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec, JobCommandSource source)
+    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec)
     {
         ControlJobs.Add(spec);
         return Result(spec.Id);
     }
 
-    public Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action, JobCommandSource source)
+    public Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action)
     {
         ControlCommands.Add((id, command, action));
         return Result(id);
     }
 
-    public Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command, JobCommandSource source)
+    public Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command)
     {
         ProcessCommands.Add((id, command));
         return Result(id);

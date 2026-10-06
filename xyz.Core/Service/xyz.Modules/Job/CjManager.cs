@@ -99,7 +99,7 @@ internal sealed class CjManager : ICjManager
             CarrierInstance = processes[0].CarrierInstance,
             LotId = spec.LotId,
             AutoStart = spec.AutoStart,
-            CreatedBy = source,
+
         };
         return null;
     }

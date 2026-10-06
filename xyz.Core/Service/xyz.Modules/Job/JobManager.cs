@@ -209,7 +209,7 @@ public class JobManager : ComponentBase, IJobManager
         return _processJobs.OwnerOf(waferId);
     }
 
-    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec, JobCommandSource source)
+    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec)
     {
         return Execute(() =>
         {
@@ -225,7 +225,7 @@ public class JobManager : ComponentBase, IJobManager
         });
     }
 
-    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec, JobCommandSource source)
+    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec)
     {
         return Execute(() =>
         {
@@ -246,7 +246,7 @@ public class JobManager : ComponentBase, IJobManager
         });
     }
 
-    public Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action, JobCommandSource source)
+    public Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action)
     {
         return Execute(() =>
         {
@@ -260,7 +260,7 @@ public class JobManager : ComponentBase, IJobManager
         });
     }
 
-    public Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command, JobCommandSource source)
+    public Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command)
     {
         return Execute(() =>
         {
@@ -276,7 +276,7 @@ public class JobManager : ComponentBase, IJobManager
     /// <summary>
     /// 整机停止：所有没结束的 Job 走中止（等设备确认、核对片位），不直接给模块发中止。
     /// </summary>
-    public Task<HandleResult> AbortAllAsync(JobCommandSource source)
+    public Task<HandleResult> AbortAllAsync()
     {
         return Execute(() =>
         {
@@ -398,7 +398,7 @@ public class JobManager : ComponentBase, IJobManager
             CarrierId = port.CarrierId,
             CarrierInstance = port.Carrier?.Id,
             AutoStart = spec.AutoStart,
-            CreatedBy = source,
+
         };
 
         foreach (int slot in slots)

@@ -166,7 +166,7 @@ public class E94Component : ComponentBase, IE94Callback
         }
         else
         {
-            var result = await _jobs.CommandControlJobAsync(id, command.Value, action, JobCommandSource.Host).ConfigureAwait(false);
+            var result = await _jobs.CommandControlJobAsync(id, command.Value, action).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 error = JobErrors.Of(result);
@@ -307,7 +307,7 @@ public class E94Component : ComponentBase, IE94Callback
             Id = id,
             ProcessJobs = processJobs,
             AutoStart = autoStart,
-        }, JobCommandSource.Host).ConfigureAwait(false);
+        }).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return E39Created.Fail(JobErrors.Of(result));

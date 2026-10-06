@@ -79,7 +79,7 @@ public class EquipmentService : BaseService, IEquipmentService
         var jobs = JobManager.Current;
         if (jobs is not null)
         {
-            _ = jobs.AbortAllAsync(JobCommandSource.Local);
+            _ = jobs.AbortAllAsync();
         }
 
         LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运单已撤，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");

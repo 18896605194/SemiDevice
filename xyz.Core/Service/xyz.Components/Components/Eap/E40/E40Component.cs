@@ -273,7 +273,7 @@ public class E40Component : ComponentBase, IE40Callback
             Slots = slots,
             Sequence = sequence,
             AutoStart = SecsRead.Flag(autoStart, "PRPROCESSSTART"),
-        }, JobCommandSource.Host).ConfigureAwait(false);
+        }).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return [JobErrors.Of(result)];
@@ -350,7 +350,7 @@ public class E40Component : ComponentBase, IE40Callback
             return [E5Error.Of(E5Error.NotAvailable, "Job manager not installed")];
         }
 
-        var result = await jobs.CommandProcessJobAsync(id, command, JobCommandSource.Host).ConfigureAwait(false);
+        var result = await jobs.CommandProcessJobAsync(id, command).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return [JobErrors.Of(result)];

@@ -76,7 +76,7 @@ public class JobService : BaseService, IJobService
                 Slots = slots,
                 Sequence = sequence,
             };
-            var process = await jobs.CreateProcessJobAsync(spec, JobCommandSource.Local).ConfigureAwait(false);
+            var process = await jobs.CreateProcessJobAsync(spec).ConfigureAwait(false);
             if (!process.IsSuccess)
             {
                 await CancelAsync(jobs, created).ConfigureAwait(false);
@@ -92,7 +92,7 @@ public class JobService : BaseService, IJobService
             ProcessJobs = created,
             AutoStart = request.AutoStart,
             LotId = lotId.Length > 0 ? lotId : null,
-        }, JobCommandSource.Local).ConfigureAwait(false);
+        }).ConfigureAwait(false);
         if (!control.IsSuccess)
         {
             await CancelAsync(jobs, created).ConfigureAwait(false);
@@ -122,7 +122,7 @@ public class JobService : BaseService, IJobService
                 [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
-        var result = await jobs.CommandControlJobAsync(id, command, action, JobCommandSource.Local).ConfigureAwait(false);
+        var result = await jobs.CommandControlJobAsync(id, command, action).ConfigureAwait(false);
         return Reply(result);
     }
 
@@ -142,7 +142,7 @@ public class JobService : BaseService, IJobService
                 [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
-        var result = await jobs.CommandProcessJobAsync(id, command, JobCommandSource.Local).ConfigureAwait(false);
+        var result = await jobs.CommandProcessJobAsync(id, command).ConfigureAwait(false);
         return Reply(result);
     }
 
@@ -197,7 +197,7 @@ public class JobService : BaseService, IJobService
     {
         foreach (string id in processJobs)
         {
-            var result = await jobs.CommandProcessJobAsync(id, PrJobCommand.Cancel, JobCommandSource.Local).ConfigureAwait(false);
+            var result = await jobs.CommandProcessJobAsync(id, PrJobCommand.Cancel).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 LogHelper.Warn(LogModule, $"建 Job 没成，已经建好的 PJ {id} 没撤掉（{result.ErrorMessage}），要手动取消");
