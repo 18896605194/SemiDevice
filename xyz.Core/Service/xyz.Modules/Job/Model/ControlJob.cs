@@ -2,32 +2,14 @@
 
 namespace xyz.Modules;
 
-/// <summary>
-/// CJ 要结束的方式：Stop / Abort 命令收下之后，CJ 的状态值不变，等下面的 PJ 都结束再走 #11 / #12。
-/// </summary>
-public enum CtrlJobEnding
-{
-    None,
-    Stop,
-    Abort,
-}
-
-/// <summary>
-/// CJ 运行对象（SEMI E94 的 Control Job）：一个载具（一个 LoadPort）上这一批片怎么跑，下面按顺序挂几个 PJ。
-/// 状态照 E94，只在 JobManager 的扫描线程里改。
-/// </summary>
 public sealed class ControlJob
 {
-    /// <summary>CtrlJobID（E39 的 ObjID）。本地建的默认用 LotID。</summary>
     public required string Id { get; init; }
 
-    /// <summary>来源 LoadPort（载具在哪）。</summary>
     public required string LoadPort { get; init; }
 
-    /// <summary>载具号（建 CJ 时 LoadPort 读到的；没读到为空）。</summary>
     public string? CarrierId { get; init; }
 
-    /// <summary>批次号。</summary>
     public string? LotId { get; init; }
 
     /// <summary>建 CJ 时 LoadPort 上那个载具对象的标识：载具拿走（或换了一个）之后，完成的 CJ 就可以删了（#13）。</summary>
@@ -36,12 +18,12 @@ public sealed class ControlJob
     /// <summary>StartMethod：料到了直接开始（true），还是等 Start 命令（false）。</summary>
     public bool AutoStart { get; init; }
 
-    public CtrlJobState State { get; set; } = CtrlJobState.Queued;
+    public CtrlJobState State { get; internal set; } = CtrlJobState.Queued;
 
     /// <summary>下面的 PJ，按执行顺序（ProcessingCtrlSpec 的顺序）。</summary>
     public List<ProcessJob> ProcessJobs { get; } = [];
 
-    /// <summary>收下的 Stop / Abort：等 PJ 都结束再进 COMPLETED。</summary>
+    /// <summary>收下的 Stop / Abort：CJ 没有停止中、中止中的状态，状态值不变，等 PJ 都结束再进 COMPLETED（#11 / #12）。</summary>
     public CtrlJobEnding Ending { get; set; } = CtrlJobEnding.None;
 
     public JobCommandSource CreatedBy { get; init; }
@@ -49,21 +31,36 @@ public sealed class ControlJob
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
     /// <summary>开始执行（#5 / #7）的时刻。</summary>
-    public DateTime? StartedAt { get; set; }
+    public DateTime? StartedAt { get; internal set; }
 
     /// <summary>进 COMPLETED 的时刻。</summary>
-    public DateTime? CompletedAt { get; set; }
+    public DateTime? CompletedAt { get; internal set; }
 
     /// <summary>进 COMPLETED 走的转换号（#10 正常、#11 停止、#12 中止）。</summary>
-    public int? CompletedBy { get; set; }
+    public int? CompletedBy { get; internal set; }
 
     /// <summary>删掉走的转换号（#2 排队时删、#13 完成后删）；没删为 null。</summary>
-    public int? EndedBy { get; set; }
+    public int? EndedBy { get; internal set; }
 
-    public DateTime? EndedAt { get; set; }
+    public DateTime? EndedAt { get; internal set; }
 
     public bool IsEnded => EndedBy is not null;
 
-    /// <summary>下面有 PJ 要人工恢复确认。</summary>
-    public bool NeedsRecovery => ProcessJobs.Any(job => job.NeedsRecovery);
+    /// <summary>下面有片出错等人处理。</summary>
+    public bool NeedsRecovery => ProcessJobs.Any(job => job.HasErrors);
+
+    /// <summary>
+    /// 能不能启动下面新的 PJ：在执行、没收 Stop / Abort。CJ 暂停（E94）就是这里关上——在跑的 PJ 不受影响。
+    /// </summary>
+    public bool CanStartProcessJobs => State == CtrlJobState.Executing && Ending == CtrlJobEnding.None;
+
+    /// <summary>在 ACTIVE 超状态里（选中、等启动、执行、暂停）：算"在跑的 CJ"。</summary>
+    public bool IsActive => State is CtrlJobState.Selected or CtrlJobState.WaitingForStart or CtrlJobState.Executing or CtrlJobState.Paused;
+}
+
+public enum CtrlJobEnding
+{
+    None,
+    Stop,
+    Abort,
 }

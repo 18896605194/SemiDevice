@@ -1,9 +1,9 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 推动 CJ 状态转换的事，每个对应 E94 的一条（或几条）转换。
+/// 推动 CJ 状态转换的动作（跟 LoadPort 的 LoadPortAction 一个意思）：命令和 CJ 自己的进展都在这儿，每个对应 E94 的一条转换。
 /// </summary>
-public enum CtrlJobTrigger
+public enum ControlStateAction
 {
     /// <summary>#2：排队时被 Cancel / Stop / Abort。</summary>
     Dequeue,

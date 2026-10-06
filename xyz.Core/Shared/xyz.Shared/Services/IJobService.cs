@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Shared.Services;
 
 /// <summary>
-/// Job 服务契约：本地建 Job、CJ / PJ 命令（照 SEMI E94 / E40）、恢复派单、查全貌。
+/// Job 服务契约：本地建 Job、CJ / PJ 命令（照 SEMI E94 / E40）、出错任务的人工处理、查全貌。
 /// Job 的进展不用轮询：JobListDto 推送（token = JobListDto.EventToken，留存）。没装 Job 管理时都回 job.not_installed。
 /// </summary>
 [ServiceContract]
@@ -31,8 +31,14 @@ public interface IJobService
     Task<RpcResponse> ProcessJobCommandAsync(JobCommandRequest request, CallContext context = default);
 
     /// <summary>
-    /// 恢复派单：出过执行故障、自动派单暂停后，到现场确认过片位、对好账再调。还有出错的搬运单片位没确认回 job.recovery_pending。
+    /// 出错的任务重做：退回待做，调度按片现在在哪重新派。不是出错的任务回 job.task_not_error。
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> RecoverAsync(RpcRequest request, CallContext context = default);
+    Task<RpcResponse> RetryTaskAsync(JobTaskRequest request, CallContext context = default);
+
+    /// <summary>
+    /// 出错的任务标记完成：人已经把这一步做完了，接着走。取放要片在账上正好在这一步做完该在的地方，不在回 job.task_position_mismatch。
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> CompleteTaskAsync(JobTaskRequest request, CallContext context = default);
 }

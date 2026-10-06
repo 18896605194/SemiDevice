@@ -9,15 +9,6 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 搬运管理：全系统唯一一个"把片从 A 搬到 B"的执行口。
-/// 手动传片、Job 自动调度、出错后的恢复走的是同一条路——都是往这儿下一张搬运单（<see cref="Submit"/>），区别只在单子是谁下的；
-/// 三种单都完整走站点交互环（准备→取放→收尾），门、夹紧、晶圆账一样不落。
-/// 受理时在一把锁里校验，同时把源槽、目标槽、手臂、片一起锁上：两张单抢同一个槽，只有一张拿得到。
-/// 自己的扫描线程里每台机械手一次跑一张，设备、站点、晶圆账都收尾了才出结果、放锁；
-/// 动过手才失败的单片位说不准，锁留着等人工确认（<see cref="ReleaseHold"/>）。
-/// 设备点动（直接调 robot.Pick / loadPort.Load）不走这儿，那是维修手段。
-/// </summary>
 [Component(description: "搬运管理：受理搬运单、锁槽位和手臂、驱动站点交互环与机械手取放")]
 public class TransferManager : ComponentBase
 {
@@ -115,11 +106,6 @@ public class TransferManager : ComponentBase
     public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
 
     /// <summary>
-    /// 晶圆归属（JobManager 装配时挂上）：手动单碰到被 Job 占着的片就拒；没装 Job 为 null，不查。
-    /// </summary>
-    public IWaferOwnership? Ownership { get; set; }
-
-    /// <summary>
     /// 绑定模块表（装配完、模块起扫描之后调一次）。
     /// 搬运单里的站点名就是模块名，靠这张表把名字解析成站点和机械手。
     /// </summary>
@@ -203,16 +189,6 @@ public class TransferManager : ComponentBase
         get { return GetEcInt(nameof(ResultKeepCount)); }
         set { SetEcInt(nameof(ResultKeepCount), value); }
     }
-
-    #endregion
-
-    #region 事件
-
-    /// <summary>
-    /// 一张单结束了（带结果）：在结束它的线程上、锁外发（跑完的在扫描线程，没开始就撤掉的在撤单的线程）。
-    /// Job 靠它推进度；处理里不要做慢事。
-    /// </summary>
-    public event Action<TransferResult>? TransferFinished;
 
     #endregion
 
@@ -343,7 +319,7 @@ public class TransferManager : ComponentBase
         }
 
         // 被 Job 占着的片：Job 只能搬自己的，手动单一律拒，恢复单人工确认过才下得来所以放行
-        string? owner = Ownership?.OwnerOf(wafer.Id);
+        string? owner = JobManager.Current?.OwnerOf(wafer.Id);
         if (owner is not null && request.Origin != TransferOrigin.Recovery
             && !string.Equals(owner, request.Owner, StringComparison.Ordinal))
         {
@@ -551,7 +527,7 @@ public class TransferManager : ComponentBase
                 _queue.Remove(order);
                 Unlock(order);
                 var result = order.ToResult(TransferOutcome.Cancelled, ErrorCodes.TransferCancelled,
-                    [order.Id.ToString(CultureInfo.InvariantCulture)], needsRecovery: false);
+                    [order.Id.ToString(CultureInfo.InvariantCulture)], needsRecovery: false, picked: false);
                 Remember(result);
                 dropped.Add((order, result));
             }
@@ -571,7 +547,6 @@ public class TransferManager : ComponentBase
         {
             LogHelper.Info(Name, $"搬运单 #{order.Id} 还没开始就撤了（{reason}）：{order.WaferName} 没动过");
             order.Completion.TrySetResult(result);
-            Raise(result);
         }
 
         return dropped.Count + marked;
@@ -666,7 +641,6 @@ public class TransferManager : ComponentBase
         }
 
         StepRunning();
-        AdvanceReturn();
         StartQueued();
     }
 
@@ -713,7 +687,7 @@ public class TransferManager : ComponentBase
     }
 
     /// <summary>
-    /// 一张单结束：成功或没动过手 → 放锁；动过手才失败 → 锁留着等人工确认。出结果、发事件（锁外）。
+    /// 一张单结束：成功或没动过手 → 放锁；动过手才失败 → 锁留着等人工确认。出结果（锁外）。
     /// </summary>
     private void Finish(TransferOrder order, TransferRoutine routine)
     {
@@ -721,7 +695,7 @@ public class TransferManager : ComponentBase
         var outcome = routine.IsSuccess
             ? TransferOutcome.Completed
             : routine.State == OperationState.Aborted ? TransferOutcome.Aborted : TransferOutcome.Failed;
-        var result = order.ToResult(outcome, routine.Code, routine.ErrorArgs, hold);
+        var result = order.ToResult(outcome, routine.Code, routine.ErrorArgs, hold, routine.HasPicked);
 
         lock (_gate)
         {
@@ -752,7 +726,6 @@ public class TransferManager : ComponentBase
         }
 
         order.Completion.TrySetResult(result);
-        Raise(result);
     }
 
     /// <summary>
@@ -805,106 +778,6 @@ public class TransferManager : ComponentBase
 
     #endregion
 
-    #region 全部回片
-
-    private readonly object _returnGate = new();
-    private ReturnSession? _returnSession;
-
-    /// <summary>全部回片正在做（还有没下完或没做完的单）。</summary>
-    public bool IsReturning
-    {
-        get
-        {
-            lock (_returnGate)
-            {
-                return _returnSession is not null;
-            }
-        }
-    }
-
-    /// <summary>
-    /// 全部回片的计划（只看账和设备状态，不动设备）：机内每一片回它的来源 LoadPort 同号槽，回不去的写原因。
-    /// 没装晶圆账、账停用时是空的。
-    /// </summary>
-    public ReturnPlan PlanReturnAll()
-    {
-        var ledger = WaferManager.Current;
-        if (ledger is null || !ledger.IsEnable)
-        {
-            return ReturnPlan.Empty;
-        }
-
-        return ReturnPlanner.Plan(this, ledger);
-    }
-
-    /// <summary>
-    /// 开始全部回片（重启后、中止后机内留着片时用）：按计划每片下一张恢复单，机械手手上的先回；
-    /// 一台机械手一次搬一张，手空出来再下后面的，由扫描线程一拍一拍推到底。回不去的留在计划的 Skipped 里不动。
-    /// 已经在做的返回 null（调用方回 transfer.return_running）。
-    /// </summary>
-    public ReturnPlan? StartReturnAll()
-    {
-        ReturnPlan plan;
-        lock (_returnGate)
-        {
-            if (_returnSession is not null)
-            {
-                return null;
-            }
-
-            plan = PlanReturnAll();
-            if (plan.Moves.Count > 0)
-            {
-                _returnSession = new ReturnSession(plan.Moves);
-            }
-        }
-
-        if (plan.Moves.Count > 0)
-        {
-            LogHelper.Info(Name, $"开始全部回片：{plan.Moves.Count} 片 "
-                + string.Join("、", plan.Moves.Select(move => $"{move.WaferName}（{move.Source}.{move.SourceSlot:00} → {move.Target}.{move.TargetSlot:00}）")));
-        }
-
-        foreach (var skip in plan.Skipped)
-        {
-            LogHelper.Warn(Name, $"全部回片：{skip.WaferName}（{skip.Source}.{skip.SourceSlot:00}）回不去：{skip.Code} [{string.Join(", ", skip.Args)}]，要人工处理");
-        }
-
-        return plan;
-    }
-
-    /// <summary>
-    /// 推全部回片：收做完的单、下能下的单；收场了记一笔（回不去的记告警，人工处理）。
-    /// 推的时候拿着回片的锁：整机停止（StopReturn）要等这一拍下完单再停，停了以后不会再冒出新单。
-    /// 锁的先后：回片的锁在外、搬运单的锁在里（Submit），哪儿都一样。
-    /// </summary>
-    private void AdvanceReturn()
-    {
-        ReturnSession session;
-        lock (_returnGate)
-        {
-            var current = _returnSession;
-            if (current is null || !current.Advance(this))
-            {
-                return;
-            }
-
-            _returnSession = null;
-            session = current;
-        }
-
-        if (session.NotReturned.Count == 0)
-        {
-            LogHelper.Info(Name, $"全部回片做完：{session.Returned.Count} 片都回到了来源槽");
-            return;
-        }
-
-        LogHelper.Warn(Name, $"全部回片做完：回了 {session.Returned.Count} 片，{session.NotReturned.Count} 片没回去（要人工处理）："
-            + string.Join("；", session.NotReturned.Select(skip => $"{skip.WaferName}（{skip.Source}.{skip.SourceSlot:00}）{skip.Code} [{string.Join(", ", skip.Args)}]")));
-    }
-
-    #endregion
-
     #region 中止
 
     /// <summary>
@@ -915,25 +788,8 @@ public class TransferManager : ComponentBase
     {
         base.Abort();
         StopAutoDispatch();
-        StopReturn();
         CancelAll("搬运管理中止");
         return null;
-    }
-
-    /// <summary>全部回片不再往下下单（整机停止时）；已经下了的单由撤单收场。</summary>
-    private void StopReturn()
-    {
-        bool stopped;
-        lock (_returnGate)
-        {
-            stopped = _returnSession is not null;
-            _returnSession = null;
-        }
-
-        if (stopped)
-        {
-            LogHelper.Warn(Name, "全部回片停了：后面的片不再下单，在搬的撤单");
-        }
     }
 
     #endregion
@@ -998,18 +854,6 @@ public class TransferManager : ComponentBase
             }
 
             _results.Remove(oldest);
-        }
-    }
-
-    private void Raise(TransferResult result)
-    {
-        try
-        {
-            TransferFinished?.Invoke(result);
-        }
-        catch (Exception exception)
-        {
-            LogHelper.Warn(Name, $"搬运单结束事件处理出错：{exception.Message}");
         }
     }
 

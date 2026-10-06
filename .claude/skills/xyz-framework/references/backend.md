@@ -85,7 +85,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `OperationState` 在 `Enums`——2026-10-05 从模块层挪下来，好让设备侧接口放进组件层。
 - `Interfaces` 下除了组件自己的（IPlc、IActionComponent……），还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `WaferManager.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令、
-  `JobCommandSource` 在 `Enums`，Job 的请求和结果（`JobCommandResult`、`LocalJobRequest`、`ProcessJobSpec`、`ControlJobSpec`）在 `Models`。
+  `JobCommandSource` 在 `Enums`，Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
+  （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
   实现还在模块层（`BaseLoadPortModule`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
 
 ## 3. 模块（`xyz.Modules`）
@@ -173,40 +174,50 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - **加工口** `Process\IProcessStation`（`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。`CheckProcess(ProcessRequest)` 只问不动设备
   （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected`），
   `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
-  机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）；驱动没接、计时模拟的重写 `IsProcessSimulated => true`（Job 把它记进结果）。
+  机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
-- **搬运管理** `Transfer\TransferManager`（sc.xml `Transfer`，自己的扫描线程）：手动、Job、回片共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
+- **搬运管理** `Transfer\TransferManager`（sc.xml `Transfer`，自己的扫描线程）：手动、Job、人工恢复共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
   `Submit(TransferRequest)` 当场回 `TransferTicket`（受理带单号和 `Completion` 任务，拒带错误码 + 参数），受理时依次查：没开、没账、站点、槽号、同槽、
   源槽有没有片 / 是不是那一片、目标槽空不空、片归别的 Job（`transfer.wafer_owned`，人工恢复单 Recovery 不查）、槽被别的单锁着、有没有两边都到得了的机械手、手。
   受理就锁源槽、目标槽、片、手；一台机械手一次一单，站点跟在跑的单不重叠的才开始。`TransferRoutine` **先抢目标站点再抢源**，等 `IsSettled`
-  （模块收完尾、记完账）才往下走；结果在站点环、晶圆账都收尾之后才出（`TransferFinished` 事件，任意线程）。没动手就失败（等不到站点、被撤）：
+  （模块收完尾、记完账）才往下走；结果在站点环、晶圆账都收尾之后才出（回执的 `Completion`；结果里 `Picked` 记着取片做完没有，没搬成时分得清错在取片还是放片）。没动手就失败（等不到站点、被撤）：
   把抢到的环撤回锚点（`ITransferStation.CancelTransfer`）、放锁；**动过手才失败：锁留着、站点停在交互中**（`HeldResults`，`NeedsRecovery`），
-  人工确认片位、对好账后 `ReleaseHold(单号)`。`Cancel` / `CancelOwner` / `CancelAll`（在动手的发机械手中止）；`Abort()` = 关自动派单 + 停全部回片 + 全撤。
+  人工确认片位、对好账后 `ReleaseHold(单号)`。`Cancel` / `CancelOwner` / `CancelAll`（在动手的发机械手中止）；`Abort()` = 关自动派单 + 全撤。
   **源可以是机械手**（片已经在手上：重启前搬到一半、手动取了没放）：`Source` 写机械手名、`SourceSlot` 写手指号，就用拿着它的那只手，只放片
   （`TransferRoutine` 抢目标 → 准备二 → 放；`TransferOrder.Source` 为 null、`SourceName` 是机械手名）。
-  `Ownership`（`IWaferOwnership`，Job 管理绑上）。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等结果）、`ResultKeepCount`。
+  受理时问片归哪个 Job：`JobManager.Current?.OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等结果）、`ResultKeepCount`。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 下手动单等结果、`ReleaseAsync` 放留着的锁（`transfer.not_held`）。
-- **全部回片**（重启后、中止后机内留着片时用；主界面一键回片）：`TransferManager.PlanReturnAll()` 只算不动（`ReturnPlanner`）——
-  机械手手上的、腔体和别的站点上的每一片回它的来源 LoadPort 同号槽（`WaferInfo.SourceLoadPort / SourceSlot`），手上的排前面；
-  回不去的写原因：片在跑着的 Job 里（`transfer.wafer_owned`）、不知道从哪来（`transfer.return_no_source`）、来源 LoadPort 没有能放片的载具
-  （`transfer.return_port_not_ready`）、载具换过了（`transfer.return_carrier_changed`，片记着的载具号和 LoadPort 上现在的都有、对不上）、
-  来源槽有片、片或槽被出错的单锁着、没有机械手到得了。`StartReturnAll()` 照计划开一个 `ReturnSession`，搬运管理扫描里一拍一拍推：
-  每片一张恢复单（Recovery），手、槽一时占着的下一拍再试，别的拒单记成回不去；没有在做的单、这一拍也一张下不进去就收场；收场记日志（回不去的记告警）。
-  已经在做再开回 null（服务回 `transfer.return_running`）；整机停止（`Abort`）先停回片再撤单。锁的先后：回片的锁在外、搬运单的锁在里。
-- **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的线程；子节点 `Scheduler` = `SchedulerComponent`，换 Type 换策略）：SEMI E94 CJ / E40 PJ，
-  决定见 decisions.md「Job」。目录按职责分：`Model`（CJ、PJ、每片进度 `JobWafer`、命令和请求）、`StateMachines`（转换表是数据，带 SEMI 转换号）、
-  `Gates`（PJ 状态 → 能不能投片 / 往下走）、`Rules`（自动转换，一条一个类）、`Effects`（进状态要做的事，一个一个类：中止撤单 + 腔体中止、结束定结果放片、
-  CJ 完成告诉 LoadPort、删了进历史）、`Engine`（账本、设备环境、收结果 `JobProgress`、按计划下单 `JobDispatcher`）、`Scheduling`（`IJobPlanEnvironment` 上算计划，
-  不碰设备、不认识"暂停"）、`Publishing`（`JobListDto` 推送、E40 / E94 回调）。
-  单写者：命令（`IJobManager`，本地服务和以后的 EAP 共用）进队列，扫描里刷新环境后一拍六步：① 执行命令（请求号去重）→ ② 收搬运 / 工艺结果 →
-  ③ 核对片位 → ④ 跑规则直到不再转 → ⑤ 派单（Manual、暂停派单时不派）→ ⑥ 有变化就推（留存，开机先推一份）。
-  出执行故障（动过手的搬运失败、加工没做成、片不在该在的地方）暂停自动派单，`RecoverAsync` 恢复：片位说不准的片按账上现在的位置认回来（来源槽里没动的回到待投，别处的不再做、直接回片，账上没了的算被拿走），
-  还有留着锁的搬运单、还在机械手手上认不回来的片回 `job.recovery_pending`。
-  上报 `E40Callback` / `E94Callback`（在 `IJobManager` 上，EAP 的 E40 / E94 接上时挂）走组件层的 `Components\Eap\EapNotifier`（单读者派发线程）。SC：`MaxActiveControlJobs`、`ControlJobCapacity`、`ProcessJobCapacity`、
-  `IsPersistent`、`Database`；EC：`CommandTimeoutMs`、`HistoryKeepCount`、`RequestKeepCount`；调度 EC `MaxWafersInMachine`（0 = 不限）。服务 `IJobService`（`xyz.Service\Jobs`）。
-  **存盘与重启**：每次发布的全貌交给 `JobStore`（一条写库线程，只写最新一份，表 `job_snapshot` 一行 JSON）；`Bind` 时读回上一份，
-  `JobRestart.CloseOut`：**重启后 Job 不接着跑**——上次没删的 CJ 一律记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true）进历史
-  （`JobBook.Restored`，DTO，排在本次历史后面，一起按 `HistoryKeepCount` 留），上次的历史接着留；机内的片由人全部回片后重新建 Job。
+- **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的扫描线程；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
+  `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
+  - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：CJ 队列、历史、E94 状态机、CJ 命令）和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、
+    E40 状态机、PJ 命令）。两个管理**不拿 JobManager**（只有 CJ 管理拿着 PJ 管理：CJ 的 Stop / Abort 要往下传给 PJ），转换表是各自里的一个 switch
+    （带 SEMI 转换号，推动转换的是 `ControlStateAction` / `ProcessStateAction`），转了发 `Transitioned` 事件。牵扯别处的事都在 JobManager：
+    建 PJ（查 LoadPort、载具、片、流程配方，任务组件建任务表）、建 CJ 前查名字；PJ 进 ABORTING 撤单 + 腔体中止、PJ 结束任务表收场、CJ 完成告诉 LoadPort；
+    CJ 自动转换要的载具好没好、拿没拿走由它查设备给；建好、每条转换、片开始 / 结束加工都由它经 `E94Callback` / `E40Callback` 报
+    （走组件层 `Components\Eap\EapNotifier` 单读者派发线程，PJ 结束先于 CJ 完成报）。
+  - 任务组件 `Task\BaseTaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
+    每一站放片、站内任务、取片 → 回片 LoadPort 放片（回片槽建 PJ 时定）。中间的路线整个 PJ 算一次（`BuildRoute`）：这一站的工艺配方取快照、站点组去掉用不了的
+    （没装、停用、机械手到不了、跑不了这个配方）、剩下的每个站点都要声明支持用到的任务（`job.station_task_unsupported`）。每一格（`WaferTask`）记状态
+    （`WaferTaskState` Waiting / Running / Done / Error / Cancelled）、实际站点和槽、机械手和手、出错原因（改状态给调度用：`Start` / `Done` / `Fail` / `Reset` / `Cancel`）；
+    每拍核对片位（不对记 `job.wafer_moved`）。**只管任务表，不碰搬运单、站内操作**。出错停住等人：`Retry`（退回等着做）、`Complete`（人做完了；取放要片在账上正好在这一步做完该在的地方，
+    不在回 `job.task_position_mismatch`）。片做没做成看晶圆账（`WaferInfo.ProcessState`），任务表不另记。机型规则不一样就重写 `BuildRoute` / `TasksAt`。
+  - 调度引擎 `Scheduling\SchedulerComponent`：照任务表派——站内任务交给站点（`ITransferStation.CheckTask` 只问不动设备、`StartTask` 真起），取片连同后面的放片下一张搬运单；
+    先起站内任务、再走机内的片、最后投新片（EC `MaxWafersInMachine`，0 = 不限），站点组按 sc.xml 先后挑第一个能放的；派不出去的下一拍再看。
+    执行着的（交给搬运管理的取放、交给站点的站内操作）自己记着，每拍 `Collect` 看做完没有、结果记回任务表：取放没碰到片就失败都退回等着做，
+    碰过片才失败按结果的 `Picked` 把出错记在取片或放片上；站内操作被 PJ 中止打断的记未执行。
+    只看每一行的许可（`TaskPermission`，PJ 状态定的：暂停、停止就体现在这上面）。
+  - 站点任务：`TransferStation\StationTaskAction`（Pick / Place / Process，字符串常量，新站点要新的站内任务自己起名字）、`ITransferStation.SupportedTasks`（默认取放，腔体加工艺）。
+
+  命令（`IJobManager`：建 PJ、建 CJ、CJ / PJ 命令；本地服务和 EAP 调的是同样几个方法、过同一套检查）在调用方线程上当场执行，跟扫描线程用同一把锁
+  （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），做完当场发布。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
+  再建 CJ，中途被拒撤掉已建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ PJ、CJ 管理自动转状态（先 PJ 后 CJ，转到不再转）、按 PJ 状态给行定许可 →
+  ④ 调度派任务（Manual 不派）→ ⑤ 有变化才发布（`JobListDto` 推送，留存，开机先推一份）。
+  不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
+  EAP 按载具号找：`IJobManager.FindControlJobByCarrier` / `FindProcessJobsByCarrier`（从全貌里找，任意线程可调）；PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
+  SC：`IsEnable`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`、`HistoryKeepCount`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
+  **存盘与重启**：每次发布的全貌交给 Job 管理里的一条写库线程（只写最新一份，表 `job_snapshot` 一行 JSON）；`Bind` 时读回上一份，
+  CJ 管理 `CloseOutLastRun`：**重启后 Job 不接着跑**——上次没删的 CJ 一律记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true）进历史
+  （DTO，排在本次历史后面，一起按 `HistoryKeepCount` 留），上次的历史接着留；机内的片由人确认片位收回后重新建 Job。
   重启收场的 Job 不补报 E40 / E94 事件：开机时 Host 还没连上，报了也发不出去（不算断线，不进缓存）；Host 连上后用 S16F19、S14F1 查得到哪些还在。
   Host 的 S16 / S14 由 EAP 的 E40 / E94 翻成 `IJobManager` 的命令（见 §4「EAP」）。
 
@@ -301,10 +312,9 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   （`TransferManager.TryGetStation` 拿到的是 `BaseLoadPortModule` / `BaseChamberModule` / 别的），表没绑好或不在表里算 Other；变了算状态变化。
 - 设备总状态 `EquipmentStatusDto.IsAuto` = 搬运管理的自动派单开着（`TransferManager.IsAutoDispatch`），`EquipmentStatusPublisher.Snapshot(modules)` 算一次。
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`AutoAsync` 开自动派单（没配搬运管理回 `transfer.not_installed`，
-  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动派单 + 撤单），
-  Job 全部走中止（`AbortAllAsync`，不等），在给 Job 做工艺的腔体（`JobManager.IsJobProcess`）、在搬运的机械手不直接发 Abort（由 Job / 搬运管理收场），
-  别的正在执行动作的模块发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个）。`GetReturnPlanAsync` / `ReturnAllAsync`：全部回片的计划 / 开始
-  （Data 都是 `ReturnPlanDto`：要回的、回不去的带错误码 + 参数），见上面「全部回片」。
+  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动派单 + 撤单）；正在执行动作的模块直接发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个），
+  在给 Job 做工艺的腔体（`JobManager.IsJobProcess`）、在搬运的机械手除外（由 Job / 搬运管理收场）；最后 Job 全部走中止（`AbortAllAsync`）——
+  要先认出哪些腔体在给 Job 做工艺：Job 的中止当场就给它们发中止，之后就认不出来了。
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →

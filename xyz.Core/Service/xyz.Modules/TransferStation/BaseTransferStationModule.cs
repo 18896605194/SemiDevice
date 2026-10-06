@@ -1,5 +1,7 @@
 ﻿using xyz.Components.Components;
 using xyz.Modules.Enums;
+using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
@@ -89,6 +91,27 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 
         OnTransferCancelled(state);
         return true;
+    }
+
+    /// <summary>
+    /// 支持的任务：默认只能取放（LoadPort 这类）。有站内任务的站点重写，比如腔体加上工艺。
+    /// </summary>
+    public virtual IReadOnlyList<string> SupportedTasks => StationTaskAction.PickPlace;
+
+    /// <summary>
+    /// 站内任务能不能起：默认没有站内任务，一律回不支持。有站内任务的站点重写。
+    /// </summary>
+    public virtual HandleResult CheckTask(StationTaskRequest request)
+    {
+        return HandleResult.Fail(ErrorCodes.StationTaskUnsupported, Name, request.Kind);
+    }
+
+    /// <summary>
+    /// 起站内任务：默认没有站内任务，返回 null。
+    /// </summary>
+    public virtual ModuleOperation? StartTask(StationTaskRequest request)
+    {
+        return null;
     }
 
     #endregion

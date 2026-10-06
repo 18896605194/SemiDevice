@@ -12,9 +12,6 @@ public interface IProcessStation
     /// <summary>模块名（sc.xml 原样）。</summary>
     string Name { get; }
 
-    /// <summary>工艺是不是模拟的（设备驱动还没接，计时就算做完）：Job 把它记进结果，别当成真做过。</summary>
-    bool IsProcessSimulated { get; }
-
     /// <summary>正在跑的工艺请求；没在跑为 null。</summary>
     ProcessRequest? CurrentProcess { get; }
 

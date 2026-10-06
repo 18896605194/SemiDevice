@@ -1,9 +1,9 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 推动 PJ 状态转换的事：命令和设备侧的进展都在这儿，每个对应 E40 的一条（或几条）转换。
+/// 推动 PJ 状态转换的动作（跟 LoadPort 的 LoadPortAction 一个意思）：命令和设备侧的进展都在这儿，每个对应 E40 的一条（或几条）转换。
 /// </summary>
-public enum PrJobTrigger
+public enum ProcessStateAction
 {
     /// <summary>#2：CJ 启动这个 PJ。</summary>
     Setup,

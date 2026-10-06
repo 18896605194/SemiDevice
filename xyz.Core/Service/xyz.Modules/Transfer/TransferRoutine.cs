@@ -84,6 +84,12 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// </summary>
     public bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
 
+    /// <summary>
+    /// 取片做完了：片在机械手手上、账上记好了，还没放。记进结果（<see cref="TransferResult.Picked"/>），没搬成时分得清出错的是取片还是放片。
+    /// 只放片的搬运（源是机械手）没有这一步。
+    /// </summary>
+    public bool HasPicked { get; private set; }
+
     public TransferRoutine(
         TransferOrigin origin,
         IRobot robot,
@@ -319,6 +325,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
+        HasPicked = true;
         if (_sameStation)
         {
             SetStep(TransferStep.Place);

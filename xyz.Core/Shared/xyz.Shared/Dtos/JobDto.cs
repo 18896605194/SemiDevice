@@ -3,8 +3,8 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没结束的 CJ、PJ（状态值照 SEMI E94 / E40），最近结束的 CJ，
-/// 以及自动派单是不是因为出错暂停了。版本号每变一次加 1，客户端重连后拿到的就是最新的一份。
+/// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没结束的 CJ、PJ（状态值照 SEMI E94 / E40，每片带它的一行任务），
+/// 最近结束的 CJ。版本号每变一次加 1，客户端重连后拿到的就是最新的一份。
 /// </summary>
 public class JobListDto
 {
@@ -21,14 +21,6 @@ public class JobListDto
 
     /// <summary>最近删掉的 CJ（结束后转历史），新的在前。</summary>
     public List<ControlJobDto> History { get; set; } = [];
-
-    /// <summary>出过执行故障，自动派单暂停了：人工确认后恢复。</summary>
-    public bool IsHeld { get; set; }
-
-    /// <summary>为什么暂停派单（错误码，界面查语言包）。</summary>
-    public string HoldCode { get; set; } = string.Empty;
-
-    public List<string> HoldArgs { get; set; } = [];
 }
 
 /// <summary>
@@ -73,6 +65,7 @@ public class ControlJobDto
 
     public DateTime? EndedAt { get; set; }
 
+    /// <summary>下面有片的任务出错，停住等人处理（重做或标记完成）。</summary>
     public bool NeedsRecovery { get; set; }
 
     /// <summary>设备重启时还没结束：开机后不接着跑，记成中止（CompletedBy 12）进历史。</summary>
@@ -88,6 +81,9 @@ public class ProcessJobDto
 
     /// <summary>所属 CJ；还不归任何 CJ 为空。</summary>
     public string ControlJob { get; set; } = string.Empty;
+
+    /// <summary>载具号（建 PJ 时 LoadPort 上那个载具的；没读到为空）。</summary>
+    public string CarrierId { get; set; } = string.Empty;
 
     /// <summary>流程配方名（快照的）。</summary>
     public string Sequence { get; set; } = string.Empty;
@@ -117,11 +113,12 @@ public class ProcessJobDto
     /// <summary>结束走的转换号：7 正常、16 中止、17 停止、18 排队时删；没结束为 0。</summary>
     public int EndedBy { get; set; }
 
+    /// <summary>下面有片的任务出错，停住等人处理（重做或标记完成）。</summary>
     public bool NeedsRecovery { get; set; }
 }
 
 /// <summary>
-/// PJ 里的一片：从哪来回哪去、走到路线第几步、在哪、在等什么、每一站的结果。
+/// PJ 里的一片：从哪来回哪去，以及它的一行任务（取片、放片、工艺……按顺序走）。做没做成看晶圆账（片的工艺状态）。
 /// </summary>
 public class JobWaferDto
 {
@@ -135,53 +132,48 @@ public class JobWaferDto
 
     public int ReturnSlot { get; set; }
 
-    /// <summary>路线上第几步：-1 还在来源槽；0 起是中间那一站；等于 PJ 的 StepCount 表示回片。</summary>
+    /// <summary>当前任务的序号（第一个还没做完的，从 0 开始）；都做完了为 -1。</summary>
+    public int Current { get; set; }
+
+    /// <summary>这一片的任务，按顺序。</summary>
+    public List<JobTaskDto> Tasks { get; set; } = [];
+}
+
+/// <summary>
+/// 一片的一个任务（任务表里的一格）。
+/// </summary>
+public class JobTaskDto
+{
+    /// <summary>Pick / Place / Process（站点自己声明的站内任务也可能是别的名字）。</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>属于路线的第几站（从 0 开始）；等于 PJ 的 StepCount 是回片。</summary>
     public int Step { get; set; }
 
-    /// <summary>Waiting / Moving / Arrived / Processing / Processed / Done / Lost。</summary>
-    public string Phase { get; set; } = string.Empty;
+    /// <summary>候选站点（站点组）；取片为空。</summary>
+    public List<string> Stations { get; set; } = [];
 
-    /// <summary>None / Completed / Failed / NotRun / Aborted。</summary>
-    public string Outcome { get; set; } = string.Empty;
-
-    /// <summary>到站后所在的站点（在途时是要去的站点）。</summary>
+    /// <summary>实际的站点：取片从哪取、放片放到哪、站内任务在哪做；还没定为空。</summary>
     public string Station { get; set; } = string.Empty;
 
     public int Slot { get; set; }
 
-    /// <summary>在等什么（错误码，界面查语言包）；不在等为空。</summary>
-    public string WaitCode { get; set; } = string.Empty;
-
-    public List<string> WaitArgs { get; set; } = [];
-
-    public List<JobStepResultDto> Results { get; set; } = [];
-}
-
-/// <summary>
-/// 一片在一站的加工结果。
-/// </summary>
-public class JobStepResultDto
-{
-    public int Step { get; set; }
-
-    public string Station { get; set; } = string.Empty;
-
+    /// <summary>工艺配方名（工艺才有）。</summary>
     public string Recipe { get; set; } = string.Empty;
 
     public int RecipeRevision { get; set; }
 
-    public bool Success { get; set; }
+    /// <summary>Waiting / Running / Done / Error / Cancelled。</summary>
+    public string State { get; set; } = string.Empty;
 
+    public string Robot { get; set; } = string.Empty;
+
+    public int Arm { get; set; }
+
+    /// <summary>出错的原因（错误码，界面查语言包）；没出错为空。</summary>
     public string Code { get; set; } = string.Empty;
 
     public List<string> Args { get; set; } = [];
-
-    /// <summary>模拟加工（设备驱动没接，计时就算做完）。</summary>
-    public bool Simulated { get; set; }
-
-    public DateTime StartedAt { get; set; }
-
-    public DateTime EndedAt { get; set; }
 }
 
 /// <summary>
@@ -204,10 +196,6 @@ public class JobCreateRequest
     /// <summary>建好、料到了直接开始；false = 等"启动 Job"。</summary>
     [ProtoMember(4)]
     public bool AutoStart { get; set; }
-
-    /// <summary>请求号：同一个请求重发回同一个结果，不会建两份。</summary>
-    [ProtoMember(5)]
-    public string RequestId { get; set; } = string.Empty;
 
     [ProtoMember(6)]
     public string Operator { get; set; } = string.Empty;
@@ -244,10 +232,22 @@ public class JobCommandRequest
 
     [ProtoMember(3)]
     public int Action { get; set; }
+}
 
-    /// <summary>请求号：同一个请求重发回同一个结果。</summary>
-    [ProtoMember(4)]
-    public string RequestId { get; set; } = string.Empty;
+/// <summary>
+/// 出错任务的人工处理（重做 / 标记完成）：哪个 PJ、哪一片（来源槽号）、这一片的第几个任务（从 0 开始）。只给本地界面，Host 不碰。
+/// </summary>
+[ProtoContract]
+public class JobTaskRequest
+{
+    [ProtoMember(1)]
+    public string ProcessJob { get; set; } = string.Empty;
+
+    [ProtoMember(2)]
+    public int Slot { get; set; }
+
+    [ProtoMember(3)]
+    public int Task { get; set; }
 }
 
 /// <summary>

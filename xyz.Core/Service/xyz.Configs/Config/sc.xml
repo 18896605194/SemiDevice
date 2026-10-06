@@ -431,15 +431,15 @@
 	</Setting>
 	<!-- Job 管理（SEMI E94 CJ / E40 PJ）：建 Job、控 Job（启动、暂停、恢复、停止、中止）、按 Job 自动调度，状态照 SEMI 标准。
 	     Job 数据只有它改：本地界面和以后的 EAP 调的是同一个命令接口。模块、搬运管理、配方库全起来后统一绑，跟本节点在 sc.xml 里的位置无关。
-	     Scheduler 子节点是调度策略：只算这一拍起哪些工艺、下哪些搬运单，不碰设备；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
+	     Task 子节点是机型的任务组件（必须配）：建 Job 时给每片生成任务表（取片、放片、工艺……按顺序），记每个任务做到哪、出错停住等人处理；
+	       规则跟平台不一样的机型继承 BaseTaskComponent 自己写一个，Type 指过去。
+	     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片连同放片下搬运单）；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
 	     IsPersistent：Job 存盘，重启后不接着跑，上次没结束的记成中止进历史 -->
 	<Setting Name="Job" Type="xyz.Modules.JobManager">
 		<Value Name="IsEnable" Value="True" />
-		<Value Name="MaxActiveControlJobs" Value="1" />
-		<Value Name="ControlJobCapacity" Value="10" />
-		<Value Name="ProcessJobCapacity" Value="50" />
 		<Value Name="IsPersistent" Value="True" />
 		<Value Name="Database" Value="Default" />
+		<Setting Name="Task" Type="xyz._35021.Module.Job.TaskComponent" />
 		<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
 	</Setting>
 	<!-- EAP（SECS/GEM）：Hsms 是链路，下面每个 SEMI 标准一个组件。没接 EAP 的机器保持 Hsms 的 IsEnable=False

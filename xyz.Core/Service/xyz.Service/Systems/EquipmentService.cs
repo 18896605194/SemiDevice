@@ -11,8 +11,7 @@ using xyz.Tools;
 namespace xyz.Service.Systems;
 
 /// <summary>
-/// 整机操作 gRPC 服务（主界面的系统操作）：Auto / Manual 就是开、关搬运管理的自动派单；Stop 关自动派单并中止所有在做的动作；
-/// 全部回片把机内的片按来源槽送回去（搬运管理一张一张做）。
+/// 整机操作 gRPC 服务（主界面的系统操作）：Auto / Manual 就是开、关搬运管理的自动派单；Stop 关自动派单并中止所有在做的动作。
 /// 模式、系统状态由设备总状态推送带给界面（EquipmentStatusPublisher），这里只管改。
 /// </summary>
 public class EquipmentService : BaseService, IEquipmentService
@@ -56,13 +55,8 @@ public class EquipmentService : BaseService, IEquipmentService
         var transfers = TransferManager.Current;
         transfers?.Abort();
 
-        // 不等受理：Job 管理下一拍执行，中止的进展看 Job 推送
-        var jobs = JobManager.Current;
-        if (jobs is not null)
-        {
-            _ = jobs.AbortAllAsync(JobCommandSource.Local);
-        }
-
+        // 手动动作直接发中止；在搬运的机械手（上面撤单管）、在给 Job 做工艺的腔体（下面 Job 中止管）不在这里发。
+        // 要先认再让 Job 中止：Job 的中止当场就给它的腔体发中止，之后就认不出那是 Job 的工艺了
         int aborted = 0;
         foreach (var module in Roots.OfType<BaseModule>())
         {
@@ -81,65 +75,14 @@ public class EquipmentService : BaseService, IEquipmentService
             aborted++;
         }
 
+        // Job 走中止：当场执行（等设备确认、核对片位），进展看 Job 推送
+        var jobs = JobManager.Current;
+        if (jobs is not null)
+        {
+            _ = jobs.AbortAllAsync(JobCommandSource.Local);
+        }
+
         LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运单已撤，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(aborted)));
-    }
-
-    public Task<RpcResponse> GetReturnPlanAsync(RpcRequest request, CallContext context = default)
-    {
-        var transfers = TransferManager.Current;
-        if (transfers is null)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(transfers.PlanReturnAll()))));
-    }
-
-    public Task<RpcResponse> ReturnAllAsync(RpcRequest request, CallContext context = default)
-    {
-        var transfers = TransferManager.Current;
-        if (transfers is null)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
-        }
-
-        if (!transfers.IsEnable)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferDisabled, []));
-        }
-
-        var plan = transfers.StartReturnAll();
-        if (plan is null)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferReturnRunning, []));
-        }
-
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(ToDto(plan))));
-    }
-
-    private static ReturnPlanDto ToDto(ReturnPlan plan)
-    {
-        return new ReturnPlanDto
-        {
-            Moves = plan.Moves.Select(move => new ReturnMoveDto
-            {
-                WaferId = move.WaferName,
-                Source = move.Source,
-                SourceSlot = move.SourceSlot,
-                SourceIsArm = move.SourceIsArm,
-                Target = move.Target,
-                TargetSlot = move.TargetSlot,
-            }).ToList(),
-            Skipped = plan.Skipped.Select(skip => new ReturnSkipDto
-            {
-                WaferId = skip.WaferName,
-                Source = skip.Source,
-                SourceSlot = skip.SourceSlot,
-                SourceIsArm = skip.SourceIsArm,
-                Code = skip.Code,
-                Args = skip.Args.ToList(),
-            }).ToList(),
-        };
     }
 }

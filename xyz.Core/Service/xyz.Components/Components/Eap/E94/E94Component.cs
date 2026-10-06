@@ -167,7 +167,7 @@ public class E94Component : ComponentBase, IE94Callback
         else
         {
             var result = await _jobs.CommandControlJobAsync(id, command.Value, action, JobCommandSource.Host).ConfigureAwait(false);
-            if (!result.Accepted)
+            if (!result.IsSuccess)
             {
                 error = JobErrors.Of(result);
             }
@@ -308,13 +308,13 @@ public class E94Component : ComponentBase, IE94Callback
             ProcessJobs = processJobs,
             AutoStart = autoStart,
         }, JobCommandSource.Host).ConfigureAwait(false);
-        if (!result.Accepted)
+        if (!result.IsSuccess)
         {
             return E39Created.Fail(JobErrors.Of(result));
         }
 
-        LogHelper.Info(Name, $"Host 建了 CJ {result.JobId}：{string.Join("、", processJobs)}");
-        return E39Created.Ok(result.JobId);
+        LogHelper.Info(Name, $"Host 建了 CJ {id}：{string.Join("、", processJobs)}");
+        return E39Created.Ok(id);
     }
 
     #endregion

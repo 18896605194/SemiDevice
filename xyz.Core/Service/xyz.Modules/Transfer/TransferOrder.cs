@@ -61,7 +61,7 @@ internal sealed class TransferOrder
         return $"{SourceName}.{SourceSlot:00} → {Target.Name}.{TargetSlot:00}（{Robot.Name} 手 {Arm}）";
     }
 
-    public TransferResult ToResult(TransferOutcome outcome, string code, IReadOnlyList<string> args, bool needsRecovery)
+    public TransferResult ToResult(TransferOutcome outcome, string code, IReadOnlyList<string> args, bool needsRecovery, bool picked)
     {
         return new TransferResult
         {
@@ -79,6 +79,7 @@ internal sealed class TransferOrder
             Code = outcome == TransferOutcome.Completed ? string.Empty : code,
             Args = outcome == TransferOutcome.Completed ? [] : args.ToList(),
             NeedsRecovery = needsRecovery,
+            Picked = picked,
             CreatedAt = CreatedAt,
             StartedAt = StartedAt,
             EndedAt = DateTime.Now,

@@ -58,6 +58,9 @@ public sealed record TransferResult
     /// <summary>片位说不准，锁留着等人工确认。</summary>
     public bool NeedsRecovery { get; init; }
 
+    /// <summary>取片做完了（片到过机械手手上）：没搬成时用它分出错的是取片还是放片。只放片的单（源是机械手）为 false。</summary>
+    public bool Picked { get; init; }
+
     public DateTime CreatedAt { get; init; }
 
     /// <summary>开始执行的时刻；还没开始就被撤的为 null。</summary>

@@ -274,7 +274,7 @@ public class E40Component : ComponentBase, IE40Callback
             Sequence = sequence,
             AutoStart = SecsRead.Flag(autoStart, "PRPROCESSSTART"),
         }, JobCommandSource.Host).ConfigureAwait(false);
-        if (!result.Accepted)
+        if (!result.IsSuccess)
         {
             return [JobErrors.Of(result)];
         }
@@ -351,7 +351,7 @@ public class E40Component : ComponentBase, IE40Callback
         }
 
         var result = await jobs.CommandProcessJobAsync(id, command, JobCommandSource.Host).ConfigureAwait(false);
-        if (!result.Accepted)
+        if (!result.IsSuccess)
         {
             return [JobErrors.Of(result)];
         }
@@ -397,11 +397,12 @@ public class E40Component : ComponentBase, IE40Callback
             .Select(job => SecsItem.L(SecsItem.A(GemValue.Ascii(job.Id)), SecsItem.U1((byte)job.State)))));
     }
 
-    /// <summary>S16F21 还能建几个 PJ → S16F22 U2。</summary>
+    /// <summary>
+    /// S16F21 还能建几个 PJ → S16F22 U2。Job 管理不限 PJ 个数（一片只能归一个 PJ，个数自然有数），答 U2 最大值；没接 Job 管理答 0。
+    /// </summary>
     private SecsReply JobSpace(HsmsMessage message)
     {
-        int space = _jobs?.ProcessJobSpace ?? 0;
-        return SecsReply.Of(SecsItem.U2((ushort)Math.Clamp(space, 0, ushort.MaxValue)));
+        return SecsReply.Of(SecsItem.U2(_jobs is null ? (ushort)0 : ushort.MaxValue));
     }
 
     /// <summary>L[2]{ACKA, 错误表}：没错 ACKA = TRUE。</summary>
@@ -414,15 +415,16 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region 料、E39 对象
 
-    /// <summary>PJ 的料 L{L[2]{载具号, L{槽号}}}：按片的来源端口分组，载具号取那个端口现在的载具。</summary>
-    private SecsItem MaterialOf(ProcessJobDto job)
+    /// <summary>PJ 的料 L{L[2]{载具号, L{槽号}}}：一个 PJ 的片都在一个载具上，载具号用 PJ 建的时候记下的。</summary>
+    private static SecsItem MaterialOf(ProcessJobDto job)
     {
-        return SecsItem.L(job.Wafers.GroupBy(wafer => wafer.SourcePort, StringComparer.OrdinalIgnoreCase).Select(group =>
+        if (job.Wafers.Count == 0)
         {
-            string carrierId = _ports.FirstOrDefault(port => string.Equals(port.Name, group.Key, StringComparison.OrdinalIgnoreCase))?.CarrierId ?? string.Empty;
-            return SecsItem.L(SecsItem.A(GemValue.Ascii(carrierId)),
-                SecsItem.L(group.Select(wafer => SecsItem.U1((byte)Math.Clamp(wafer.SourceSlot, 0, byte.MaxValue)))));
-        }));
+            return SecsItem.L();
+        }
+
+        return SecsItem.L(SecsItem.L(SecsItem.A(GemValue.Ascii(job.CarrierId)),
+            SecsItem.L(job.Wafers.Select(wafer => SecsItem.U1((byte)Math.Clamp(wafer.SourceSlot, 0, byte.MaxValue))))));
     }
 
     private IReadOnlyList<string> JobIds()

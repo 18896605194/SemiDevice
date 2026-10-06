@@ -494,11 +494,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     /// <summary>正在跑的工艺操作；只在模块锁里读写。</summary>
     private ModuleOperation? _processOperation;
 
-    /// <summary>
-    /// 工艺是不是模拟的：默认不是；驱动还没接、计时空转的机型重写成 true，Job 结果里会标出来。
-    /// </summary>
-    public virtual bool IsProcessSimulated => false;
-
     /// <summary>正在跑的工艺请求；没在跑为 null。</summary>
     public ProcessRequest? CurrentProcess => _process;
 
@@ -622,6 +617,47 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             ? WaferProcessState.Completed
             : operation.State == OperationState.Aborted ? WaferProcessState.Aborted : WaferProcessState.Failed;
         ledger.SetProcessState(Name, request.Slot, state);
+    }
+
+    #endregion
+
+    #region 站内任务（Job 任务表里的工艺走这里，转给上面的加工口）
+
+    private static readonly IReadOnlyList<string> ChamberTasks = [StationTaskAction.Pick, StationTaskAction.Place, StationTaskAction.Process];
+
+    /// <summary>腔体支持取片、放片、工艺。</summary>
+    public override IReadOnlyList<string> SupportedTasks => ChamberTasks;
+
+    /// <summary>工艺转给 <see cref="CheckProcess"/>；别的站内任务腔体没有。</summary>
+    public override HandleResult CheckTask(StationTaskRequest request)
+    {
+        if (request.Kind != StationTaskAction.Process)
+        {
+            return base.CheckTask(request);
+        }
+
+        var rejection = CheckProcess(ToProcessRequest(request));
+        return rejection is null ? HandleResult.Success() : HandleResult.Fail(rejection.Code, [.. rejection.Args]);
+    }
+
+    /// <summary>工艺转给 <see cref="StartProcess"/>。</summary>
+    public override ModuleOperation? StartTask(StationTaskRequest request)
+    {
+        return request.Kind == StationTaskAction.Process ? StartProcess(ToProcessRequest(request)) : base.StartTask(request);
+    }
+
+    private static ProcessRequest ToProcessRequest(StationTaskRequest request)
+    {
+        return new ProcessRequest
+        {
+            Origin = ProcessOrigin.Job,
+            Owner = request.Owner,
+            WaferId = request.WaferId,
+            Slot = request.Slot,
+            Step = request.Step,
+            RecipeName = request.RecipeName,
+            Recipe = request.Recipe,
+        };
     }
 
     #endregion

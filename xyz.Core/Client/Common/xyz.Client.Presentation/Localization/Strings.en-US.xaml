@@ -6,6 +6,7 @@
     <sys:String x:Key="module.not_found">Module not found: {0}</sys:String>
     <sys:String x:Key="module.action_rejected">{0} action rejected (state {1} not allowed, or another action in flight)</sys:String>
     <sys:String x:Key="module.wait_timeout">{0} result wait timed out ({1}ms). The outcome is not yet confirmed; check the device state.</sys:String>
+    <sys:String x:Key="module.task_unsupported">{0} does not support the {1} task</sys:String>
     <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
 
@@ -75,10 +76,6 @@
     <sys:String x:Key="transfer.cancelled">Transfer {0} was cancelled before it started; the wafer was not moved</sys:String>
     <sys:String x:Key="transfer.not_held">Transfer {0} holds no locks (already released, or wrong number)</sys:String>
     <sys:String x:Key="transfer.wait_timeout">Transfer {0} did not finish within {1} ms: it is still running, result not yet confirmed</sys:String>
-    <sys:String x:Key="transfer.return_no_source">No source LoadPort (added to the ledger inside the tool), so it cannot go back to its slot</sys:String>
-    <sys:String x:Key="transfer.return_port_not_ready">Its source {1} has no carrier ready to take wafers (none placed, not loaded, or removed)</sys:String>
-    <sys:String x:Key="transfer.return_carrier_changed">Came from carrier {2}, but {1} now holds {3}: the carrier was changed, so it cannot go into another carrier</sys:String>
-    <sys:String x:Key="transfer.return_running">Return all is already running</sys:String>
     <sys:String x:Key="job.not_installed">No Job node in sc.xml (job manager not installed)</sys:String>
     <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in sc.xml)</sys:String>
     <sys:String x:Key="job.command_timeout">The command was not accepted within {0} ms; it may still be applied, check the job state</sys:String>
@@ -88,7 +85,6 @@
     <sys:String x:Key="job.not_auto">Jobs can only be started in Auto</sys:String>
     <sys:String x:Key="job.id_invalid">Name {0} is invalid: use 1-80 letters, digits, symbols or spaces, without ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">Name {0} is already used by a job that has not ended</sys:String>
-    <sys:String x:Key="job.queue_full">There are already {0} unfinished jobs; no new job can be created</sys:String>
     <sys:String x:Key="job.loadport_not_found">LoadPort {0} not found</sys:String>
     <sys:String x:Key="job.carrier_not_ready">{0} has no carrier ready for picking (not placed, not loaded, or not mapped)</sys:String>
     <sys:String x:Key="job.loadport_busy">{0} already has an unfinished job {1}</sys:String>
@@ -105,18 +101,11 @@
     <sys:String x:Key="job.recipe_not_found">Recipe {1} used by sequence {0} is not in the recipe library</sys:String>
     <sys:String x:Key="job.carrier_not_found">Carrier {0} is not on any LoadPort</sys:String>
     <sys:String x:Key="job.process_job_unavailable">PJ {0} does not exist or already belongs to another CJ</sys:String>
-    <sys:String x:Key="job.not_held">Automatic dispatching is not on hold; nothing to recover</sys:String>
-    <sys:String x:Key="job.recovery_pending">{0} wafer position(s) still need confirming (a failed transfer still holds its locks, or a wafer is still on a robot arm); check on site and correct the ledger first</sys:String>
-    <sys:String x:Key="job.hold.transfer_failed">{0} ({1}) failed during a transfer; confirm the wafer position on site</sys:String>
-    <sys:String x:Key="job.hold.process_failed">{0} ({2}) failed processing in {1}</sys:String>
-    <sys:String x:Key="job.hold.wafer_lost">{0} ({1}) is not where it should be (ledger changed, carrier removed, or re-mapped)</sys:String>
-    <sys:String x:Key="job.wait.manual">Manual mode: no new actions</sys:String>
-    <sys:String x:Key="job.wait.held">Automatic dispatching is on hold after a fault</sys:String>
-    <sys:String x:Key="job.wait.station">Waiting for a free station: {0}</sys:String>
-    <sys:String x:Key="job.wait.robot">Waiting for a robot to move {0}</sys:String>
-    <sys:String x:Key="job.wait.return_slot">Waiting for return slot {1} on {0}</sys:String>
-    <sys:String x:Key="job.wait.limit">The number of wafers in the tool reached the limit {0}</sys:String>
-    <sys:String x:Key="job.wait.not_feeding">{0} is not feeding wafers (paused, stopping, or the CJ is not executing)</sys:String>
+    <sys:String x:Key="job.station_task_unsupported">Step {1} of sequence {0}: station {2} does not support the {3} task</sys:String>
+    <sys:String x:Key="job.task_not_found">PJ {0} has no wafer from source slot {1}, or no task {2}</sys:String>
+    <sys:String x:Key="job.task_not_error">Task {2} of {1} in PJ {0} has not failed; nothing to handle</sys:String>
+    <sys:String x:Key="job.task_position_mismatch">Cannot mark {1} done for {0}: the ledger has it at {2}, not where this step leaves it</sys:String>
+    <sys:String x:Key="job.wafer_moved">{0} is not where it should be (expected at {1}; ledger changed, carrier removed, or re-mapped)</sys:String>
 
     <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
@@ -549,18 +538,6 @@
     <sys:String x:Key="main.stop_failed">Stop failed: {0}</sys:String>
     <sys:String x:Key="main.reset_done">Reset {0} alarm source(s)</sys:String>
     <sys:String x:Key="main.reset_failed">Reset failed: {0}</sys:String>
-    <sys:String x:Key="main.return_all">Return All</sys:String>
-    <sys:String x:Key="main.return_all_tip">Send every wafer inside the tool (in chambers and on robot arms) back to its source slot: first lists what will move and what cannot; after you confirm, one recovery transfer per wafer, worked through by the robot in order; wafers in running jobs are left alone</sys:String>
-    <sys:String x:Key="main.return_all_ok">Return</sys:String>
-    <sys:String x:Key="main.return_all_moves">{0} wafer(s) to return:</sys:String>
-    <sys:String x:Key="main.return_all_move">{0} – {1} → {2}</sys:String>
-    <sys:String x:Key="main.return_all_skipped">{0} wafer(s) cannot be returned (handle them manually: check the ledger, or place them with the Robot manual page):</sys:String>
-    <sys:String x:Key="main.return_all_skip">{0} – {1}: {2}</sys:String>
-    <sys:String x:Key="main.return_all_none">No wafers inside the tool; nothing to return</sys:String>
-    <sys:String x:Key="main.return_all_started">Return all started: {0} wafer(s)</sys:String>
-    <sys:String x:Key="main.return_all_failed">Return all failed: {0}</sys:String>
-    <sys:String x:Key="main.position.slot">{0} · slot {1}</sys:String>
-    <sys:String x:Key="main.position.arm">{0} · arm {1}</sys:String>
     <sys:String x:Key="main.dispatch">Equipment</sys:String>
     <sys:String x:Key="main.no_robot">No robot to show: the backend was not reachable at startup, or there is no Robot in sc.xml</sys:String>
     <sys:String x:Key="main.no_loadport">No LoadPort: the backend was not reachable at startup, or there is no LoadPort in sc.xml</sys:String>

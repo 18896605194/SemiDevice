@@ -1,4 +1,5 @@
 ﻿using xyz.Components.Components;
+using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
@@ -48,4 +49,16 @@ public interface ITransferStation
     /// 已经在交互（Transferring）或收尾的不撤——片可能动过，留着等人工确认；本来就在锚点态（没占着）返回 true。
     /// </summary>
     bool CancelTransfer();
+
+    /// <summary>
+    /// 这个站点支持的任务（<see cref="StationTaskAction"/>）：取片、放片，再加上站内任务（腔体的工艺）。
+    /// Job 建任务表时按它查，要用到的这个站点不支持就不建。
+    /// </summary>
+    IReadOnlyList<string> SupportedTasks { get; }
+
+    /// <summary>站内任务现在能不能起（不动设备，调度每拍都会问）：能起返回成功，不能返回原因（错误码 + 参数）。</summary>
+    HandleResult CheckTask(StationTaskRequest request);
+
+    /// <summary>起站内任务：查过了才发；被拒返回 null（原因用 <see cref="CheckTask"/> 查）。</summary>
+    ModuleOperation? StartTask(StationTaskRequest request);
 }

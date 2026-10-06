@@ -7,6 +7,7 @@
     <sys:String x:Key="module.not_found">模块不存在：{0}</sys:String>
     <sys:String x:Key="module.action_rejected">{0} 动作被拒（当前状态 {1} 不允许，或已有动作在途）</sys:String>
     <sys:String x:Key="module.wait_timeout">{0} 等待结果超时（{1}ms），操作结果尚未确认，请查询设备状态</sys:String>
+    <sys:String x:Key="module.task_unsupported">{0} 不支持任务 {1}</sys:String>
     <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
 
@@ -76,10 +77,6 @@
     <sys:String x:Key="transfer.cancelled">搬运单 {0} 还没开始就撤了，片没动过</sys:String>
     <sys:String x:Key="transfer.not_held">没有搬运单 {0} 留着的锁（已经放开了，或单号不对）</sys:String>
     <sys:String x:Key="transfer.wait_timeout">搬运单 {0} 等了 {1} ms 还没做完：搬运还在跑，结果待确认</sys:String>
-    <sys:String x:Key="transfer.return_no_source">不知道是从哪个 LoadPort 来的（在机内补账建的片），回不了原槽</sys:String>
-    <sys:String x:Key="transfer.return_port_not_ready">来源 {1} 上没有能放片的载具（没放、没 Load，或载具拿走了）</sys:String>
-    <sys:String x:Key="transfer.return_carrier_changed">原来在载具 {2} 里，{1} 上现在是 {3}：载具换过了，不能放进别的载具</sys:String>
-    <sys:String x:Key="transfer.return_running">全部回片已经在做了</sys:String>
     <sys:String x:Key="job.not_installed">sc.xml 没配 Job 节点（没有 Job 管理）</sys:String>
     <sys:String x:Key="job.disabled">Job 管理停用了（sc.xml Job 节点 IsEnable=False）</sys:String>
     <sys:String x:Key="job.command_timeout">命令等了 {0} ms 还没被受理，可能稍后还会执行，请看 Job 状态</sys:String>
@@ -89,7 +86,6 @@
     <sys:String x:Key="job.not_auto">启动 Job 要在 Auto 下</sys:String>
     <sys:String x:Key="job.id_invalid">名字 {0} 不合规：要 1~80 个英文、数字、符号或空格，不能有 ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">名字 {0} 已经在用（有同名的 Job 还没结束）</sys:String>
-    <sys:String x:Key="job.queue_full">没结束的 Job 已经有 {0} 个，建不了新的</sys:String>
     <sys:String x:Key="job.loadport_not_found">没有 LoadPort {0}</sys:String>
     <sys:String x:Key="job.carrier_not_ready">{0} 上没有能取片的载具（没放、没 Load 或没 Mapping）</sys:String>
     <sys:String x:Key="job.loadport_busy">{0} 上已经有没结束的 Job {1}</sys:String>
@@ -106,18 +102,11 @@
     <sys:String x:Key="job.recipe_not_found">流程配方 {0} 用的工艺配方 {1} 不在工艺配方库里</sys:String>
     <sys:String x:Key="job.carrier_not_found">载具 {0} 不在任何 LoadPort 上</sys:String>
     <sys:String x:Key="job.process_job_unavailable">PJ {0} 不存在，或已经归了别的 CJ</sys:String>
-    <sys:String x:Key="job.not_held">自动派单没在暂停，没有要恢复的</sys:String>
-    <sys:String x:Key="job.recovery_pending">还有 {0} 处片位没确认（出错的搬运单留着锁，或片还在机械手手上），先到现场确认、对好账再恢复</sys:String>
-    <sys:String x:Key="job.hold.transfer_failed">{0}（{1}）搬运时出错，片位要到现场确认</sys:String>
-    <sys:String x:Key="job.hold.process_failed">{0}（{2}）在 {1} 加工没做成</sys:String>
-    <sys:String x:Key="job.hold.wafer_lost">{0}（{1}）不在该在的地方（被改了账、载具被拿走或重新 Mapping 过）</sys:String>
-    <sys:String x:Key="job.wait.manual">Manual 模式，不派新动作</sys:String>
-    <sys:String x:Key="job.wait.held">出过故障，自动派单暂停中</sys:String>
-    <sys:String x:Key="job.wait.station">等站点空出来：{0}</sys:String>
-    <sys:String x:Key="job.wait.robot">等机械手搬 {0}</sys:String>
-    <sys:String x:Key="job.wait.return_slot">等回片槽 {0} 第 {1} 槽空出来</sys:String>
-    <sys:String x:Key="job.wait.limit">机内片数到上限 {0} 了</sys:String>
-    <sys:String x:Key="job.wait.not_feeding">{0} 没在投片（暂停、停止中，或 CJ 没在执行）</sys:String>
+    <sys:String x:Key="job.station_task_unsupported">流程配方 {0} 的第 {1} 步：站点 {2} 不支持任务 {3}</sys:String>
+    <sys:String x:Key="job.task_not_found">PJ {0} 里没有来源槽 {1} 的片，或没有第 {2} 个任务</sys:String>
+    <sys:String x:Key="job.task_not_error">PJ {0} 的 {1} 第 {2} 个任务没出错，不用处理</sys:String>
+    <sys:String x:Key="job.task_position_mismatch">{0} 标记不了 {1} 完成：账上它在 {2}，不在这一步做完该在的地方</sys:String>
+    <sys:String x:Key="job.wafer_moved">{0} 不在该在的地方（应该在 {1}；被改了账、载具被拿走或重新 Mapping 过）</sys:String>
 
     <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
@@ -549,18 +538,6 @@
     <sys:String x:Key="main.stop_failed">停止失败：{0}</sys:String>
     <sys:String x:Key="main.reset_done">已复位 {0} 个报警来源</sys:String>
     <sys:String x:Key="main.reset_failed">复位失败：{0}</sys:String>
-    <sys:String x:Key="main.return_all">全部回片</sys:String>
-    <sys:String x:Key="main.return_all_tip">把机内（腔体、机械手上）的片都送回各自的来源槽：先列出要回的和回不去的，确认后每片一张恢复单，机械手按顺序搬；在跑 Job 的片不动</sys:String>
-    <sys:String x:Key="main.return_all_ok">回片</sys:String>
-    <sys:String x:Key="main.return_all_moves">要回的 {0} 片：</sys:String>
-    <sys:String x:Key="main.return_all_move">{0}　{1} → {2}</sys:String>
-    <sys:String x:Key="main.return_all_skipped">回不去的 {0} 片（要人工处理：在账单调整里核对，或用 Robot 手动页放到指定位置）：</sys:String>
-    <sys:String x:Key="main.return_all_skip">{0}　{1}：{2}</sys:String>
-    <sys:String x:Key="main.return_all_none">机内没有片，不用回片</sys:String>
-    <sys:String x:Key="main.return_all_started">已开始全部回片：{0} 片</sys:String>
-    <sys:String x:Key="main.return_all_failed">全部回片失败：{0}</sys:String>
-    <sys:String x:Key="main.position.slot">{0} · 槽 {1}</sys:String>
-    <sys:String x:Key="main.position.arm">{0} · 手指 {1}</sys:String>
     <sys:String x:Key="main.dispatch">整机调度</sys:String>
     <sys:String x:Key="main.no_robot">没有机械手可画：启动时没连上后端，或 sc.xml 没配 Robot</sys:String>
     <sys:String x:Key="main.no_loadport">没有 LoadPort：启动时没连上后端，或 sc.xml 没配 LoadPort</sys:String>

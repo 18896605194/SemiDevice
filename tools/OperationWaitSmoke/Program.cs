@@ -2018,6 +2018,12 @@ sealed class ProbeStation(string name) : ITransferStation
         Cancels++;
         return true;
     }
+
+    public IReadOnlyList<string> SupportedTasks => StationTaskAction.PickPlace;
+
+    public HandleResult CheckTask(StationTaskRequest request) => HandleResult.Fail(ErrorCodes.StationTaskUnsupported, Name, request.Kind);
+
+    public ModuleOperation? StartTask(StationTaskRequest request) => null;
 }
 
 // 探针机械手（搬运用）：只占个名字，动作一律发不出去——验的几种出错都停在站点准备，走不到取放片。

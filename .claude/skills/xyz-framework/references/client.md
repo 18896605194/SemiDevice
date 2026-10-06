@@ -68,14 +68,12 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 系统状态（`ModuleStateBadge` 整条色块）：没连上 / 还没收到设备总状态 = 未连接（灰），有报警 = 报警（红），有模块在动 = 运行中（蓝），
   只有警告 = 警告（黄），否则空闲（绿）。模式取设备总状态 `EquipmentStatusDto.IsAuto`。四个按钮连上且收到状态后才能点。
   Auto / Manual / Stop 走 `IEquipmentService`，Reset 跟右上角一样走 `IAlarmService.ResetAllAsync`；结果写顶栏日志。
-  下面一整行**全部回片**：`GetReturnPlanAsync` 拉计划 → `DialogService.ShowConfirm` 列出每一片从哪回哪、回不去的为什么（位置写法跟账单调整页一样：
-  Chamber1 · 槽 01、Robot1 · 手指 1）→ 确认后 `ReturnAllAsync`；一片都回不去时只告知。进展看调度图，结果和回不去的写顶栏日志。
 - 槽位表（`DenseDataGridStyle`，行高 24，25 槽一屏放下，大号在上）：片以晶圆账为准（`LoadPortDto.LedgerSlots`，账上没登记才按 Mapping）；
   状态列 `JobWaferStateDataGridTextStyle`（物理状态不正常的先显示交叉片 / 叠片 / 状态不明，否则显示工艺状态）。
   Sequence 是界面上选的（点创建 Job 时交给后端）：上面的 Sequence 框一选给全篮能做的片套上，⊕ 弹公共选择弹窗给这一片单独选，⊖ 清空（这片不做）；
   后来才放上 / Mapping 出来的片也套上面选的那个；交叉片、叠片、状态不明的没有 ⊕ ⊖。
 - **创建 / 启动 Job**（2026-10-05 接上）：订 Job 全貌推送（`JobListDto`，token "Job"，留存），每个页签认自己 LoadPort 上没删的 CJ（`LoadPortJobModel.ControlJob`），
-  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽，AutoStart 关、带请求号和操作人），有要做的片、这个 LoadPort 上没 CJ 才能点；
+  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽，AutoStart 关、带操作人；后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
   启动 Job = `ControlJobCommandAsync`（CJStart），Auto 下、CJ 是 WAITINGFORSTART（`ControlJobDto.StateWaitingForStart`）才能点。结果写顶栏日志。
   Job 的列表、详情、暂停 / 停止 / 中止这些按钮还没有界面（要先给参考图或出样稿）。
 
@@ -210,7 +208,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **公共选择弹窗** `DialogService.ShowPicker(标题, 列, 数据, 当前值, 值属性)`：一个普通模态窗口（不是 DialogHost，不动主窗口），
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - **公共确认弹窗** `DialogService.ShowConfirm(标题, 说明, 确定按钮字, danger, showCancel)`：跟选择弹窗一个样子，说明多行、长了滚动；
-  danger = 确定按钮红色（中止、删除这类），showCancel = false 只有一个按钮（只是告知）。主界面全部回片用它，以后 Job 页的停止 / 中止也用它。
+  danger = 确定按钮红色（中止、删除这类），showCancel = false 只有一个按钮（只是告知）。以后 Job 页的停止 / 中止用它。
 - LogBar / AlarmBar 只在主窗口顶栏用。
 - **DispatchMap**（调度图，Robot 手动页左边和主界面中间共用）：给 `RobotName`（机械手模块名）就自己建 `DispatchMapViewModel`、订机械手和各站点的推送
   （都是留存消息，不用另外拉）；机械手在中间，站点按它 sc.xml `Stations` 的方向摆四周，每个站点一张 `StationCard`

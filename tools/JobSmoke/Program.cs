@@ -22,10 +22,11 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// Job 冒烟：搬运管理（受理时的各项检查、两张单抢一个槽、执行、没动手就失败放锁、动过手才失败留锁、撤单）
-// 和 Job（SEMI E94 CJ / E40 PJ）：建 Job 的各项检查和整个不留、一篮两个 Sequence 跑完（两步加工、转换号顺序、请求号去重）、
-// 配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、CJ 停止、PJ 中止、加工失败暂停派单再恢复、
-// 片位不对、Host 先建 PJ 再建 CJ、整机停止走 Job 中止、服务层错误码。
+// Job 冒烟：搬运管理（受理时的各项检查、两张单抢一个槽、结果记着取片做完没有、执行、没动手就失败放锁、动过手才失败留锁、撤单）
+// 和 Job（SEMI E94 CJ / E40 PJ）：建 Job 的各项检查和整个不留（含站点不支持要用的任务、一站的站点都用不了、工艺配方不在库里）、任务表（一片一行：取片、放片、工艺……）、
+// 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
+// CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、整机停止走 Job 中止、
+// 服务层错误码、重启收场。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 var checks = 0;
 void Check(bool condition, string message)
@@ -37,6 +38,14 @@ void Check(bool condition, string message)
 
     checks++;
 }
+
+// 任务表里的几种情况（推送里的一片：一行任务）
+static bool IsProcessing(JobWaferDto wafer) => wafer.Tasks.Any(task => task.Kind == StationTaskAction.Process && task.State == "Running");
+static bool IsWaiting(JobWaferDto wafer) => wafer.Tasks.Count > 0 && wafer.Tasks[0].State == "Waiting";
+static bool IsReturned(JobWaferDto wafer) => wafer.Tasks.Count > 0 && wafer.Tasks[^1].State == "Done";
+static JobTaskDto? ErrorOf(JobWaferDto wafer) => wafer.Tasks.FirstOrDefault(task => task.State == "Error");
+static bool IsDone(JobWaferDto wafer) => wafer.Tasks.All(task => task.State == "Done");
+static bool IsNotRun(JobWaferDto wafer) => wafer.Tasks.All(task => task.State == "Cancelled");
 
 // EC 只放在本进程内存里：不读也不写 ec.xml。
 var ec = new EcComponent();
@@ -82,8 +91,9 @@ try
 
     var jobNode = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Job", StringComparison.OrdinalIgnoreCase));
     Check(jobNode is not null && jobNode.Type == typeof(JobManager).FullName
+          && jobNode.Children.Any(child => child.Name == "Task" && child.Type == "xyz._35021.Module.Job.TaskComponent")
           && jobNode.Children.Any(child => child.Name == "Scheduler" && child.Type == typeof(SchedulerComponent).FullName),
-        "sc.xml 里应有 Job 节点（JobManager），下面挂 Scheduler 子节点（SchedulerComponent）");
+        "sc.xml 里应有 Job 节点（JobManager），下面挂 Task（35021 的任务组件）和 Scheduler（SchedulerComponent）");
 
     var libraryRoots = ComponentLoader.Load([Node("Sequence"), Node("ProcessRecipe")]);
     var sequences = libraryRoots.OfType<SequenceComponent>().Single();
@@ -125,6 +135,22 @@ try
     Sequence(3, "SEQ_C", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1", "PM2"), Step("LoadPort", "", "LP2"));
     Sequence(4, "SEQ_D", Step("LoadPort", "", "LP2"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP2"));
 
+    // Job 节点下没配 Task（机型的任务组件）是配错了：开机就抛，不能悄悄没有任务表
+    var bare = new BareJobs();
+    Probe.Name(bare, "Job");
+    bare.IsPersistent = false;
+    bool bareThrew = false;
+    try
+    {
+        bare.Bind(modules);
+    }
+    catch (InvalidOperationException)
+    {
+        bareThrew = true;
+    }
+
+    Check(bareThrew, "Job 节点下没配 Task 子节点：装配时就抛");
+
     // Job 存盘写临时库（第 18 节"重启"时读回来），冒烟结束删掉
     XyzDb.Register("JobSmoke", $"DataSource={jobDb}", SqlSugar.DbType.Sqlite);
     var jobs = new SmokeJobs();
@@ -134,7 +160,6 @@ try
     var events = new RecordingJobEvents();
     jobs.E40Callback = events;
     jobs.E94Callback = events;
-    Check(ReferenceEquals(transfers.Ownership, jobs), "Job 管理绑上之后搬运管理按它查晶圆归属");
 
     void Tick()
     {
@@ -167,7 +192,7 @@ try
         return false;
     }
 
-    JobCommandResult Do(Task<JobCommandResult> task)
+    HandleResult Do(Task<HandleResult> task)
     {
         for (int tick = 0; tick < 50 && !task.IsCompleted; tick++)
         {
@@ -218,16 +243,23 @@ try
         return jobs.Snapshot.ProcessJobs.FirstOrDefault(job => job.Id == id);
     }
 
-    LocalJobRequest Local(string lot, string port, bool autoStart, params (int Slot, string Sequence)[] slots)
+    // 本地建 Job 走 Job 服务，跟界面一样（先建 PJ、再建 CJ，跟 Host 同一套方法）；回包翻回 HandleResult，跟别的命令一样查
+    var jobService = new JobService(modules);
+    HandleResult Create(string lot, string port, bool autoStart, params (int Slot, string Sequence)[] slots)
     {
-        return new LocalJobRequest
+        var task = jobService.CreateAsync(new JobCreateRequest
         {
             LoadPort = port,
             LotId = lot,
-            SlotSequences = slots.ToDictionary(item => item.Slot, item => item.Sequence),
+            Slots = slots.Select(item => new JobSlotDto { Slot = item.Slot, Sequence = item.Sequence }).ToList(),
             AutoStart = autoStart,
             Operator = "Smoke",
-        };
+        });
+        Check(task.IsCompleted, "建 Job 应当场做完");
+        var response = task.Result;
+        return response.Success
+            ? HandleResult.Success(response.DeserializeData<JobCreatedDto>())
+            : HandleResult.Fail(response.Code, [.. response.Args]);
     }
 
     // 1. 搬运管理：受理时的检查——站点、槽、片、机械手、手臂，不收的不占锁。
@@ -273,8 +305,8 @@ try
     Check(view.IsSlotLocked("LP1", 1) && view.IsSlotLocked("pm1", 1) && view.IsWaferLocked(first.Id) && view.IsRobotBusy("Robot1"),
         "受理就锁源槽、目标槽、片、机械手（站点名不分大小写）");
     var moved = Finish(winner);
-    Check(moved.IsSuccess && moved.Robot == "Robot1" && moved.Arm == 1 && moved.Origin == TransferOrigin.Manual,
-        "搬完：结果带机械手和手");
+    Check(moved.IsSuccess && moved.Picked && moved.Robot == "Robot1" && moved.Arm == 1 && moved.Origin == TransferOrigin.Manual,
+        "搬完：结果带机械手和手，记着取片做完了");
     Check(ledger.Get("PM1", 1)?.Id == first.Id && ledger.Get("LP1", 1) is null, "账跟着走：片在 PM1");
     Check(!transfers.GetView().IsSlotLocked("LP1", 1) && !transfers.GetView().IsSlotLocked("PM1", 1) && !transfers.GetView().IsRobotBusy("Robot1"),
         "搬完放锁");
@@ -296,7 +328,7 @@ try
     robot.FailNextPick = true;
     var picked = Finish(Submit("LP1", 1, "PM1", 1));
     Check(!picked.IsSuccess && picked.Code == ErrorCodes.TransferFailed && picked.Args.SequenceEqual(new[] { "Robot1", "Pick" })
-          && picked.NeedsRecovery, "取片失败：transfer.failed，要人工确认");
+          && picked.NeedsRecovery && !picked.Picked, "取片失败：transfer.failed，要人工确认，结果记着没取到（Job 据此把出错记在取片上）");
     Check(transfers.HeldResults.Count == 1 && transfers.GetView().IsSlotLocked("LP1", 1) && transfers.GetView().IsSlotLocked("PM1", 1)
           && lp1.State == TransferModuleState.Transferring, "锁留着，源站点停在交互中挡住后续动作");
     Rejects(Submit("LP1", 1, "PM2", 1), ErrorCodes.TransferSlotLocked, ["LP1", "1"], "留着锁的槽不收新单");
@@ -318,39 +350,69 @@ try
     Check(Finish(running).IsSuccess && Finish(Submit("PM1", 1, "LP1", 1)).IsSuccess, "在跑的那张照常跑完，再搬回去");
 
     // 6. 建 Job 的检查：不建就什么都不留（不建 CJ / PJ、不占片）。
-    void Refuses(JobCommandResult result, string code, string[] args, string message)
+    void Refuses(HandleResult result, string code, string[] args, string message)
     {
-        Check(!result.Accepted && result.Code == code && result.Args.SequenceEqual(args),
-            $"{message}，实际 {result.Code} [{string.Join(",", result.Args)}]");
+        Check(!result.IsSuccess && result.ErrorMessage == code && result.Args.SequenceEqual(args),
+            $"{message}，实际 {result.ErrorMessage} [{string.Join(",", result.Args)}]");
     }
 
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-X", "LPX", false, (1, "SEQ_A")))), ErrorCodes.JobLoadPortNotFound, ["LPX"], "没有这个 LoadPort");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-X", "LP2", false, (1, "SEQ_D")))), ErrorCodes.JobCarrierNotReady, ["LP2"], "LoadPort 上没载具");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-X", "LP1", false))), ErrorCodes.JobNoWafers, ["LP1"], "没选片");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-X", "LP1", false, (1, "SEQ_A"), (10, "SEQ_A")))), ErrorCodes.JobSlotEmpty, ["LP1", "10"],
+    Refuses(Create("LOT-X", "LPX", false, (1, "SEQ_A")), ErrorCodes.JobLoadPortNotFound, ["LPX"], "没有这个 LoadPort");
+    Refuses(Create("LOT-X", "LP2", false, (1, "SEQ_D")), ErrorCodes.JobCarrierNotReady, ["LP2"], "LoadPort 上没载具");
+    Refuses(Create("LOT-X", "LP1", false), ErrorCodes.JobNoWafers, ["LP1"], "没选片");
+    Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_A"), (10, "SEQ_A")), ErrorCodes.JobSlotEmpty, ["LP1", "10"],
         "有一槽没片：整个不建");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-X", "LP1", false, (1, "NOPE")))), ErrorCodes.JobSequenceNotFound, ["NOPE"], "流程配方不在库里");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-X", "LP1", false, (1, "SEQ_D")))), ErrorCodes.JobSequenceSourceMismatch, ["SEQ_D", "LP1"],
+    Refuses(Create("LOT-X", "LP1", false, (1, "NOPE")), ErrorCodes.JobSequenceNotFound, ["NOPE"], "流程配方不在库里");
+    Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_D")), ErrorCodes.JobSequenceSourceMismatch, ["SEQ_D", "LP1"],
         "流程配方第 1 步没勾这个 LoadPort");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("BAD:ID", "LP1", false, (1, "SEQ_A")))), ErrorCodes.JobIdInvalid, ["BAD:ID"], "名字里有冒号");
+    Refuses(Create("BAD:ID", "LP1", false, (1, "SEQ_A")), ErrorCodes.JobIdInvalid, ["BAD:ID-1"], "名字里有冒号（先建 PJ，报的是 PJ 名）");
+    pm2.NoProcess = true;
+    Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_A")), ErrorCodes.JobStationTaskUnsupported,
+        ["SEQ_A", "2", "PM2", StationTaskAction.Process], "站点组里有个站点不能做工艺（站点声明的任务里没有）：整个不建");
+    pm2.NoProcess = false;
+    Probe.Enabled(pm1, false);
+    Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_B")), ErrorCodes.JobStepNoStation, ["SEQ_B", "2", "R1"],
+        "这一站能去的站点都用不了（PM1 停用）：整个不建");
+    Probe.Enabled(pm1, true);
+    Check(recipes.Create(9, "R9", "Smoke").IsOk, "建工艺配方 R9");
+    Sequence(5, "SEQ_E", Step("LoadPort", "", "LP1"), Step("Chamber", "R9", "PM1"), Step("LoadPort", "", "LP1"));
+    Check(recipes.Delete(9, "Smoke").IsOk, "流程配方存好以后，R9 从工艺配方库里删掉");
+    Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_E")), ErrorCodes.JobRecipeNotFound, ["SEQ_E", "R9"],
+        "流程配方用的工艺配方不在库里：整个不建");
     Check(jobs.Snapshot.ControlJobs.Count == 0 && jobs.Snapshot.ProcessJobs.Count == 0 && jobs.OwnerOf(first.Id) is null,
         "不建就什么都不留：没有 CJ / PJ，片不归任何 Job");
 
-    // 7. 一篮两个 Sequence：1、2 槽 SEQ_A、3 槽 SEQ_B（两步加工）→ 一个 CJ 两个 PJ；请求号相同的重发回同一个结果。
-    var create = Local("LOT-A", "LP1", false, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_B")) with { RequestId = "req-1" };
-    var created = Do(jobs.CreateLocalJobAsync(create));
-    Check(created.Accepted && created.JobId == "LOT-A" && created.ProcessJobs.SequenceEqual(new[] { "LOT-A-1", "LOT-A-2" }),
+    // 7. 一篮两个 Sequence：1、2 槽 SEQ_A、3 槽 SEQ_B（两步加工）→ 一个 CJ 两个 PJ（跟 Host 一样先建 PJ、再建 CJ）；
+    //    同一个建 Job 重发被正常的检查拦住（名字已经在用）；建 CJ 那一步被拒，已经建好的 PJ 撤掉。
+    var created = Create("LOT-A", "LP1", false, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_B"));
+    Check(created.IsSuccess && created.Result is JobCreatedDto createdJob && createdJob.ControlJob == "LOT-A" && createdJob.ProcessJobs.SequenceEqual(new[] { "LOT-A-1", "LOT-A-2" }),
         "建好：CJ LOT-A，PJ 按投片顺序 LOT-A-1（SEQ_A）、LOT-A-2（SEQ_B）");
-    var again = Do(jobs.CreateLocalJobAsync(create));
-    Check(again == created && jobs.Snapshot.ControlJobs.Count == 1, "同一个请求号重发：回同一个结果，不建第二份");
-    IJobManager forHost = jobs;
-    Check(forHost.ProcessJobSpace == jobs.ProcessJobCapacity - 2, "还能建几个 PJ（Host 的 S16F21 问它）= 上限减去没结束的 2 个");
-    Refuses(Do(jobs.CreateLocalJobAsync(Local("LOT-B", "LP1", false, (4, "SEQ_A")))), ErrorCodes.JobLoadPortBusy, ["LP1", "LOT-A"],
-        "一个 LoadPort 同时只有一个没结束的 CJ");
+    Check(CjOf("LOT-A")?.LotId == "LOT-A" && CjOf("LOT-A")!.ProcessJobs.SequenceEqual(new[] { "LOT-A-1", "LOT-A-2" })
+          && PjOf("LOT-A-2")?.ControlJob == "LOT-A", "CJ 记着批次号，按顺序收下两个 PJ（命令做完当场发布）");
+    Refuses(Create("LOT-A", "LP1", false, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_B")), ErrorCodes.JobIdDuplicate, ["LOT-A-1"],
+        "同一个建 Job 重发：名字已经在用，拒");
+    Check(jobs.Snapshot.ControlJobs.Count == 1 && jobs.Snapshot.ProcessJobs.Count == 2, "重发没建出第二份");
+    var slot4 = ledger.Get("LP1", 4);
+    Check(slot4 is not null, "LP1 第 4 槽有片");
+    Refuses(Create("LOT-B", "LP1", false, (4, "SEQ_A")), ErrorCodes.JobLoadPortBusy, ["LP1", "LOT-A"],
+        "一个 LoadPort 同时只有一个没结束的 CJ（建 CJ 那一步拒）");
+    Check(PjOf("LOT-B-1") is null && jobs.OwnerOf(slot4!.Id) is null && events.WaitFor("PJ LOT-B-1 #18"),
+        "CJ 没建成：已经建好的 PJ LOT-B-1 撤掉（#18），片放开");
     Check(jobs.OwnerOf(first.Id) == "LOT-A-1", "片归到 PJ 名下");
     Rejects(Submit("LP1", 1, "PM1", 1), ErrorCodes.TransferWaferOwned, [first.WaferId, "LOT-A-1"], "手动搬 Job 的片：拒，带片号和 Job");
 
-    Check(RunUntil(() => CjOf("LOT-A")?.State == (int)CtrlJobState.WaitingForStart, 20), "CJ 排到队首选中（#3），料到了等启动（#6）");
+    // 任务表：一片一行，按流程配方一站一站拼——来源 LoadPort 取片 → 每一站放片、工艺、取片 → 回片 LoadPort 放片
+    var rowA = PjOf("LOT-A-1")!.Wafers[0];
+    Check(rowA.Tasks.Select(task => task.Kind).SequenceEqual(new[] { "Pick", "Place", "Process", "Pick", "Place" })
+          && rowA.Tasks[1].Stations.SequenceEqual(new[] { "PM1", "PM2" }) && rowA.Tasks[2].Recipe == "R1"
+          && rowA.Tasks[4].Stations.SequenceEqual(new[] { "LP1" }) && rowA.Tasks.All(task => task.State == "Waiting" && task.Station.Length == 0)
+          && rowA.Current == 0,
+        "SEQ_A 一行：取片 → 放片（站点组 PM1、PM2，到时候再挑）→ 工艺 R1 → 取片 → 放片回 LP1，都是待做");
+    var rowB = PjOf("LOT-A-2")!.Wafers[0];
+    Check(rowB.Tasks.Select(task => task.Kind).SequenceEqual(new[] { "Pick", "Place", "Process", "Pick", "Place", "Process", "Pick", "Place" })
+          && rowB.Tasks[2].Recipe == "R1" && rowB.Tasks[5].Recipe == "R2" && rowB.Tasks.Select(task => task.Step).SequenceEqual(new[] { 0, 0, 0, 1, 1, 1, 2, 2 }),
+        "SEQ_B 两站：每一站放片、工艺、取片，最后回片（任务记着属于路线第几站）");
+
+    Check(RunUntil(() => CjOf("LOT-A")?.State == (int)CtrlJobState.WaitingForStart, 20), "CJ 选中（#3，不限同时跑几个），料到了等启动（#6）");
     Check(PjOf("LOT-A-1")?.State == (int)PrJobState.QueuedPooled && PjOf("LOT-A-2")?.State == (int)PrJobState.QueuedPooled,
         "CJ 没启动前 PJ 都排着");
     Refuses(Do(jobs.CommandControlJobAsync("LOT-A", CtrlJobCommand.Start, CtrlJobAction.SaveJobs, JobCommandSource.Local)),
@@ -358,7 +420,7 @@ try
     Refuses(Do(jobs.CommandControlJobAsync("LOT-A", CtrlJobCommand.Resume, CtrlJobAction.SaveJobs, JobCommandSource.Local)),
         ErrorCodes.JobCommandNotAllowed, ["LOT-A", "CJResume", "WAITINGFORSTART"], "转换表里没有的命令：拒，带当前状态");
     transfers.StartAutoDispatch();
-    Check(Do(jobs.CommandControlJobAsync("LOT-A", CtrlJobCommand.Start, CtrlJobAction.SaveJobs, JobCommandSource.Local)).Accepted
+    Check(Do(jobs.CommandControlJobAsync("LOT-A", CtrlJobCommand.Start, CtrlJobAction.SaveJobs, JobCommandSource.Local)).IsSuccess
           && CjOf("LOT-A")?.State == (int)CtrlJobState.Executing, "Auto 下启动：EXECUTING（#7）");
 
     Check(RunUntil(() => CjOf("LOT-A")?.State == (int)CtrlJobState.Completed), "跑完：CJ 进 COMPLETED");
@@ -371,10 +433,18 @@ try
     }
 
     var twoStep = PjOf("LOT-A-2")!.Wafers.Single();
-    Check(twoStep.Outcome == "Completed" && twoStep.Results.Count == 2 && twoStep.Results[0].Station == "PM1" && twoStep.Results[1].Station == "PM2"
-          && twoStep.Results.All(result => result.Success && !result.Simulated) && twoStep.Results[1].Recipe == "R2",
-        "两步加工：PM1（R1）、PM2（R2）都做了，第一步做完没跳过第二步");
-    Check(PjOf("LOT-A-1")!.Wafers.All(wafer => wafer.Outcome == "Completed" && wafer.Results.Count == 1), "SEQ_A 的片各做一站");
+    var twoStepProcesses = twoStep.Tasks.Where(task => task.Kind == "Process").ToList();
+    Check(twoStep.Current == -1 && twoStep.Tasks.All(task => task.State == "Done")
+          && twoStepProcesses.Count == 2 && twoStepProcesses[0].Station == "PM1" && twoStepProcesses[1].Station == "PM2"
+          && twoStepProcesses[1].Recipe == "R2",
+        "两步加工：PM1（R1）、PM2（R2）都做了，第一站做完没跳过第二站；每一格都完成");
+    Check(twoStep.Tasks[0].Station == "LP1" && twoStep.Tasks[0].Slot == 3 && twoStep.Tasks[0].Robot == "Robot1"
+          && twoStep.Tasks[1].Station == "PM1" && twoStep.Tasks[^1].Station == "LP1" && twoStep.Tasks[^1].Slot == 3,
+        "每一格记下实际的站点、槽、机械手：从 LP1 第 3 槽取、放进 PM1，最后放回 LP1 第 3 槽");
+    Check(PjOf("LOT-A-1")!.Wafers.All(wafer => IsDone(wafer)
+          && wafer.Tasks.Count(task => task.Kind == "Process" && task.State == "Done") == 1), "SEQ_A 的片各做一站");
+    Check(PjOf("LOT-A-1")!.Wafers.Select(wafer => wafer.Tasks[1].Station).Distinct().Count() == 2,
+        "站点组：两片分到了 PM1、PM2 两个腔（放片那一刻在组里挑空的）");
     Check(lp1.Carrier?.AccessStatus == CarrierAccessStatus.Complete, "CJ 完成告诉 LoadPort 载具干完了（E87 CarrierComplete）");
     Check(events.WaitFor("CJ LOT-A #10"), "上报口收到 CJ 完成");
     Check(events.Numbers("PJ LOT-A-1").SequenceEqual(new[] { 1, 2, 4, 6, 7 }) && events.Numbers("PJ LOT-A-2").SequenceEqual(new[] { 1, 2, 4, 6, 7 }),
@@ -391,8 +461,8 @@ try
     // 8. 配方快照 + 回到别的 LoadPort：建好之后流程配方改名、删掉都不影响；最后一步只勾了 LP2，片放到 LP2 同号槽。
     LoadCarrier(lp1, 1, 2);
     LoadCarrier(lp2);
-    var snapshotJob = Do(jobs.CreateLocalJobAsync(Local("LOT-C", "LP1", true, (1, "SEQ_C"), (2, "SEQ_C"))));
-    Check(snapshotJob.Accepted, $"建 LOT-C：{snapshotJob.Code}");
+    var snapshotJob = Create("LOT-C", "LP1", true, (1, "SEQ_C"), (2, "SEQ_C"));
+    Check(snapshotJob.IsSuccess, $"建 LOT-C：{snapshotJob.ErrorMessage}");
     Check(sequences.Rename(3, "SEQ_C2", "Smoke").IsOk && sequences.Delete(3, "Smoke").IsOk, "库里改名、再删掉");
     var movedIds = new[] { ledger.Get("LP1", 1)!.Id, ledger.Get("LP1", 2)!.Id };
     Check(RunUntil(() => CjOf("LOT-C")?.State == (int)CtrlJobState.Completed), "自动启动（#5）跑完");
@@ -406,19 +476,19 @@ try
 
     // 9. PJ 暂停：停投新片，机内的照常做完回片，机内没这个 PJ 的片了才 PAUSED；恢复接着投。
     LoadCarrier(lp1, 1, 2, 3, 4);
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-P", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A"), (4, "SEQ_A")))).Accepted, "建 LOT-P");
-    Check(RunUntil(() => PjOf("LOT-P-1")?.Wafers.Any(wafer => wafer.Phase == "Processing") == true), "跑到有片在加工");
-    Check(Do(jobs.CommandProcessJobAsync("LOT-P-1", PrJobCommand.Pause, JobCommandSource.Local)).Accepted
+    Check(Create("LOT-P", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A"), (4, "SEQ_A")).IsSuccess, "建 LOT-P");
+    Check(RunUntil(() => PjOf("LOT-P-1")?.Wafers.Any(IsProcessing) == true), "跑到有片在加工");
+    Check(Do(jobs.CommandProcessJobAsync("LOT-P-1", PrJobCommand.Pause, JobCommandSource.Local)).IsSuccess
           && PjOf("LOT-P-1")?.State == (int)PrJobState.Pausing, "PJ 暂停：PAUSING（#8）");
-    int fedAtPause = PjOf("LOT-P-1")!.Wafers.Count(wafer => wafer.Phase != "Waiting");
+    int fedAtPause = PjOf("LOT-P-1")!.Wafers.Count(wafer => !IsWaiting(wafer));
     Check(RunUntil(() => PjOf("LOT-P-1")?.State == (int)PrJobState.Paused), "机内的片做完回来了：PAUSED（#9）");
     var paused = PjOf("LOT-P-1")!;
-    Check(paused.Wafers.Count(wafer => wafer.Phase != "Waiting") == fedAtPause && paused.Wafers.Any(wafer => wafer.Phase == "Waiting")
-          && paused.Wafers.Where(wafer => wafer.Phase != "Waiting").All(wafer => wafer.Phase == "Done"),
+    Check(paused.Wafers.Count(wafer => !IsWaiting(wafer)) == fedAtPause && paused.Wafers.Any(IsWaiting)
+          && paused.Wafers.Where(wafer => !IsWaiting(wafer)).All(IsReturned),
         "暂停后没再投新片，投出去的都回片了");
-    Check(paused.Wafers.Where(wafer => wafer.Phase == "Waiting").All(wafer => wafer.WaitCode == ErrorCodes.JobWaitNotFeeding),
-        "没投的片写着在等什么：没在投片");
-    Check(Do(jobs.CommandProcessJobAsync("LOT-P-1", PrJobCommand.Resume, JobCommandSource.Local)).Accepted
+    Check(paused.Wafers.Where(IsWaiting).All(wafer => ledger.Get(wafer.SourcePort, wafer.SourceSlot)?.WaferId == wafer.WaferId),
+        "没投的片还在来源槽（账上）");
+    Check(Do(jobs.CommandProcessJobAsync("LOT-P-1", PrJobCommand.Resume, JobCommandSource.Local)).IsSuccess
           && PjOf("LOT-P-1")?.State == (int)PrJobState.Processing, "恢复：回到 PROCESSING（#10）");
     Check(RunUntil(() => CjOf("LOT-P")?.State == (int)CtrlJobState.Completed), "恢复后接着投，跑完");
     Check(events.Numbers("PJ LOT-P-1").SequenceEqual(new[] { 1, 2, 4, 8, 9, 10, 6, 7 }), "转换号：#8 暂停、#9 暂停到位、#10 恢复");
@@ -427,15 +497,15 @@ try
 
     // 10. CJ 暂停（E94）：只是不再启动新的 PJ，在跑的 PJ 照常投片做完；恢复后再启动下一个 PJ。
     LoadCarrier(lp1, 1, 2, 3);
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-Q", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_B")))).Accepted, "建 LOT-Q");
+    Check(Create("LOT-Q", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_B")).IsSuccess, "建 LOT-Q");
     Check(RunUntil(() => PjOf("LOT-Q-1")?.State == (int)PrJobState.Processing), "第一个 PJ 在跑");
-    Check(Do(jobs.CommandControlJobAsync("LOT-Q", CtrlJobCommand.Pause, CtrlJobAction.SaveJobs, JobCommandSource.Local)).Accepted
+    Check(Do(jobs.CommandControlJobAsync("LOT-Q", CtrlJobCommand.Pause, CtrlJobAction.SaveJobs, JobCommandSource.Local)).IsSuccess
           && CjOf("LOT-Q")?.State == (int)CtrlJobState.Paused, "CJ 暂停：PAUSED（#8）");
     Check(RunUntil(() => PjOf("LOT-Q-1")?.EndedBy == 7), "在跑的 PJ 照常投片、做完（#7）");
     Tick();
     Check(PjOf("LOT-Q-2")?.State == (int)PrJobState.QueuedPooled && CjOf("LOT-Q")?.State == (int)CtrlJobState.Paused,
         "下一个 PJ 不启动，CJ 还是 PAUSED");
-    Check(Do(jobs.CommandControlJobAsync("LOT-Q", CtrlJobCommand.Resume, CtrlJobAction.SaveJobs, JobCommandSource.Local)).Accepted,
+    Check(Do(jobs.CommandControlJobAsync("LOT-Q", CtrlJobCommand.Resume, CtrlJobAction.SaveJobs, JobCommandSource.Local)).IsSuccess,
         "CJ 恢复（#9）");
     Check(RunUntil(() => CjOf("LOT-Q")?.State == (int)CtrlJobState.Completed) && CjOf("LOT-Q")?.CompletedBy == 10,
         "恢复后启动下一个 PJ，都做完 #10");
@@ -444,18 +514,21 @@ try
 
     // 11. CJ 停止：不再投片，机内的走完回片；没投的记未执行；PJ 停完（#17）后 CJ 进 COMPLETED（#11）。
     LoadCarrier(lp1, 1, 2, 3, 4);
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-S", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A"), (4, "SEQ_A")))).Accepted, "建 LOT-S");
-    Check(RunUntil(() => PjOf("LOT-S-1")?.Wafers.Any(wafer => wafer.Phase == "Processing") == true), "跑到有片在加工");
-    Check(Do(jobs.CommandControlJobAsync("LOT-S", CtrlJobCommand.Stop, CtrlJobAction.SaveJobs, JobCommandSource.Local)).Accepted
+    Check(Create("LOT-S", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A"), (4, "SEQ_A")).IsSuccess, "建 LOT-S");
+    Check(RunUntil(() => PjOf("LOT-S-1")?.Wafers.Any(IsProcessing) == true), "跑到有片在加工");
+    Check(Do(jobs.CommandControlJobAsync("LOT-S", CtrlJobCommand.Stop, CtrlJobAction.SaveJobs, JobCommandSource.Local)).IsSuccess
           && PjOf("LOT-S-1")?.State == (int)PrJobState.Stopping && CjOf("LOT-S")?.Ending == "Stop"
           && CjOf("LOT-S")?.State == (int)CtrlJobState.Executing, "CJ 停止：PJ 进 STOPPING（#11），CJ 状态值不变、标着停止中");
     Refuses(Do(jobs.CommandControlJobAsync("LOT-S", CtrlJobCommand.Pause, CtrlJobAction.SaveJobs, JobCommandSource.Local)),
         ErrorCodes.JobEnding, ["LOT-S", "CJPause"], "停止中不收暂停");
     Check(RunUntil(() => CjOf("LOT-S")?.State == (int)CtrlJobState.Completed), "停完");
     var stopped = PjOf("LOT-S-1")!;
-    Check(CjOf("LOT-S")?.CompletedBy == 11 && stopped.EndedBy == 17 && stopped.Wafers.Any(wafer => wafer.Outcome == "NotRun")
-          && stopped.Wafers.Where(wafer => wafer.Outcome != "NotRun").All(wafer => wafer.Outcome == "Completed"),
-        "CJ #11、PJ #17；投出去的做完，没投的记未执行");
+    Check(CjOf("LOT-S")?.CompletedBy == 11 && stopped.EndedBy == 17 && stopped.Wafers.Any(IsNotRun)
+          && stopped.Wafers.Where(wafer => !IsNotRun(wafer)).All(IsDone),
+        "CJ #11、PJ #17；投出去的片任务都做完，没投的片任务都记未执行");
+    Check(stopped.Wafers.All(wafer => ledger.Get(wafer.SourcePort, wafer.SourceSlot)?.ProcessState
+          == (IsNotRun(wafer) ? WaferProcessState.Idle : WaferProcessState.Completed)),
+        "做没做成看晶圆账（都回原槽）：投出去的工艺完成，没投的还是没做");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-S") is null, 20), "LOT-S 删掉");
 
@@ -463,20 +536,21 @@ try
     //     PM2 离线：片都去 PM1，加工时机械手闲着（手臂在动时中止，片位要人工确认，那条路在第 4 节验过）。
     LoadCarrier(lp1, 1, 2, 3);
     pm2.Offline();
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-T", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")))).Accepted, "建 LOT-T");
-    Check(RunUntil(() => PjOf("LOT-T-1")?.Wafers.Any(wafer => wafer.Phase == "Processing") == true), "跑到有片在加工");
-    var processingIn = PjOf("LOT-T-1")!.Wafers.First(wafer => wafer.Phase == "Processing").Station;
+    Check(Create("LOT-T", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-T");
+    Check(RunUntil(() => PjOf("LOT-T-1")?.Wafers.Any(IsProcessing) == true), "跑到有片在加工");
+    var processingIn = PjOf("LOT-T-1")!.Wafers.SelectMany(wafer => wafer.Tasks).First(task => task.Kind == StationTaskAction.Process && task.State == "Running").Station;
     var processingChamber = processingIn == "PM1" ? pm1 : pm2;
     int abortsBefore = processingChamber.Aborts;
-    Check(Do(jobs.CommandProcessJobAsync("LOT-T-1", PrJobCommand.Abort, JobCommandSource.Local)).Accepted
+    Check(Do(jobs.CommandProcessJobAsync("LOT-T-1", PrJobCommand.Abort, JobCommandSource.Local)).IsSuccess
           && PjOf("LOT-T-1")?.State == (int)PrJobState.Aborting, "PJ 中止：ABORTING（#13）");
     Check(processingChamber.Aborts == abortsBefore + 1, "给在做这个 PJ 工艺的腔体发了中止");
     jobs.Tick();
     Check(PjOf("LOT-T-1")?.State == (int)PrJobState.Aborting, "腔体的中止动作还没做完：PJ 还在 ABORTING");
     Check(RunUntil(() => CjOf("LOT-T")?.State == (int)CtrlJobState.Completed), "中止做完");
     var aborted = PjOf("LOT-T-1")!;
-    Check(aborted.EndedBy == 16 && aborted.Wafers.Any(wafer => wafer.Outcome == "Aborted") && aborted.Wafers.Any(wafer => wafer.Outcome == "NotRun"),
-        "PJ #16：机内的片记中止，没投的记未执行");
+    Check(aborted.EndedBy == 16 && aborted.Wafers.Any(wafer => !IsNotRun(wafer) && !IsReturned(wafer)) && aborted.Wafers.Any(IsNotRun),
+        "PJ #16：机内的片停在半路（后面的任务记未执行），没投的片任务都记未执行");
+    Check(ledger.Get(processingIn, 1)?.ProcessState == WaferProcessState.Aborted, "腔里那片的工艺被中止：晶圆账记着中止");
     Check(events.Numbers("PJ LOT-T-1").Contains(13) && events.Numbers("PJ LOT-T-1").Last() == 16, "转换号：#13 中止、#16 中止做完");
     // 中止后留在腔里的片人工收回（账跟着挪），腔体恢复待命
     foreach (var chamber in new[] { pm1, pm2 })
@@ -496,84 +570,138 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-T") is null, 20), "LOT-T 删掉");
 
-    // 13. 加工没做成：暂停自动派单、保留现场（别的片不再派）；腔体复位后恢复派单，没做成的片不再做后面的步骤直接回片。
+    // 13. 工艺没做成：那一格出错停住（不跳过），这片后面的任务都等着；别的片照常用组里别的腔跑完，整机不停。
+    //     人把腔体复位后点"重做"：工艺重新起，做成了接着回片。人工处理只认出错的任务。
     LoadCarrier(lp1, 1, 2);
-    pm2.Offline();
     pm1.FailNextProcess = true;
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-F", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")))).Accepted, "建 LOT-F（PM2 离线，都去 PM1）");
-    Check(RunUntil(() => jobs.Snapshot.IsHeld), "加工没做成：自动派单暂停");
-    Check(jobs.Snapshot.HoldCode == ErrorCodes.JobHoldProcessFailed && pm1.State == ModuleState.Error, "暂停原因是加工没做成，腔体报错停着");
-    for (int tick = 0; tick < 20; tick++)
-    {
-        Tick();
-    }
-
-    var held = PjOf("LOT-F-1")!;
-    Check(held.Wafers.Count(wafer => wafer.Phase == "Waiting") == 1
-          && held.Wafers.Single(wafer => wafer.Phase == "Waiting").WaitCode == ErrorCodes.JobWaitHeld,
-        "暂停派单期间不投新片，等待原因写着派单暂停");
-    var failedWafer = held.Wafers.Single(wafer => wafer.Phase != "Waiting");
-    Check(failedWafer.Results.Count == 1 && !failedWafer.Results[0].Success && ledger.Get("PM1", 1)?.ProcessState == WaferProcessState.Failed,
-        "这一站的结果记成没做成，账上工艺状态是失败");
+    Check(Create("LOT-F", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-F（PM1、PM2 都在线）");
+    Check(RunUntil(() => PjOf("LOT-F-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "PM1 的工艺没做成：那一格记成出错");
+    var failedRow = PjOf("LOT-F-1")!.Wafers.Single(wafer => ErrorOf(wafer) is not null);
+    var failedTask = ErrorOf(failedRow)!;
+    int failedIndex = failedRow.Tasks.IndexOf(failedTask);
+    Check(failedTask.Kind == StationTaskAction.Process && failedTask.Station == "PM1" && failedTask.Code == ErrorCodes.DeviceFailed && failedIndex == 2
+          && failedRow.Current == 2 && failedRow.Tasks.Skip(3).All(task => task.State == "Waiting")
+          && pm1.State == ModuleState.Error && ledger.Get("PM1", 1)?.ProcessState == WaferProcessState.Failed,
+        "停在工艺那一格（带错误码），后面的取片、回片都等着，没跳过；腔体报错停着，账上工艺状态是失败");
+    string otherName = PjOf("LOT-F-1")!.Wafers.Single(wafer => ErrorOf(wafer) is null).WaferId;
+    Check(RunUntil(() => PjOf("LOT-F-1")?.Wafers.Single(wafer => wafer.WaferId == otherName) is JobWaferDto other && IsReturned(other)),
+        "另一片照常用 PM2 做完回片（整机不停）");
+    Check(PjOf("LOT-F-1")?.State == (int)PrJobState.Processing && PjOf("LOT-F-1")!.NeedsRecovery && CjOf("LOT-F")!.NeedsRecovery,
+        "PJ 还在 PROCESSING，标着有片的任务出错等人处理");
+    var otherRow = PjOf("LOT-F-1")!.Wafers.Single(wafer => wafer.WaferId == otherName);
+    Refuses(Do(jobs.RetryTaskAsync("LOT-F-1", otherRow.SourceSlot, 2)), ErrorCodes.JobTaskNotError, ["LOT-F-1", otherName, "3"],
+        "没出错的任务不用处理：拒");
+    Refuses(Do(jobs.RetryTaskAsync("LOT-F-1", 99, 0)), ErrorCodes.JobTaskNotFound, ["LOT-F-1", "99", "1"], "没有这一片：拒");
     pm1.NoteState(ModuleState.Idle);
-    Check(Do(jobs.RecoverAsync(JobCommandSource.Local)).Accepted && !jobs.Snapshot.IsHeld, "到现场把腔体复位、确认过之后恢复派单");
-    Check(RunUntil(() => CjOf("LOT-F")?.State == (int)CtrlJobState.Completed), "恢复后跑完");
-    var failedJob = PjOf("LOT-F-1")!;
-    Check(failedJob.EndedBy == 7 && failedJob.Wafers.Count(wafer => wafer.Outcome == "Failed") == 1
-          && failedJob.Wafers.Count(wafer => wafer.Outcome == "Completed") == 1,
-        "没做成的那片不再做、回片，记失败；另一片照常做完");
-    Refuses(Do(jobs.RecoverAsync(JobCommandSource.Local)), ErrorCodes.JobNotHeld, [], "没在暂停时恢复：job.not_held");
-    pm2.Online();
+    Check(Do(jobs.RetryTaskAsync("LOT-F-1", failedRow.SourceSlot, failedIndex)).IsSuccess, "腔体复位后重做");
+    Check(RunUntil(() => CjOf("LOT-F")?.State == (int)CtrlJobState.Completed), "重做的工艺做成了，接着回片，跑完");
+    var retried = PjOf("LOT-F-1")!;
+    var retriedTask = retried.Wafers.Single(wafer => wafer.WaferId == failedRow.WaferId).Tasks[failedIndex];
+    Check(retried.EndedBy == 7 && !retried.NeedsRecovery && retried.Wafers.All(IsDone)
+          && retriedTask.State == "Done" && retriedTask.Code.Length == 0
+          && ledger.Get("LP1", failedRow.SourceSlot)?.ProcessState == WaferProcessState.Completed,
+        "两片都做完：重做的那一格完成、出错原因清掉；设备重做成了，账上工艺状态是完成");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-F") is null, 20), "LOT-F 删掉");
 
-    // 14. 片不在该在的地方（人工改了账）：认成片位说不准、暂停派单；恢复时按账上现在的位置认回来，不再做、送回它的回片槽。
-    //     顺带：Manual 下自动启动的 Job 也会开始，只是不派动作；同一个 LoadPort 里换槽的搬运只抢一次环。
+    // 13b. 再来一次没做成，这回人在腔体手动页把工艺做完了：点"标记完成"，这一格算完成（手动），接着回片。
+    LoadCarrier(lp1, 1);
+    pm2.Offline();
+    pm1.FailNextProcess = true;
+    Check(Create("LOT-G", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-G（PM2 离线，去 PM1）");
+    Check(RunUntil(() => PjOf("LOT-G-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "工艺没做成：出错停住");
+    pm1.NoteState(ModuleState.Idle);
+    Check(Do(jobs.CompleteTaskAsync("LOT-G-1", 1, failedIndex)).IsSuccess, "人工做完了：标记完成");
+    Check(RunUntil(() => CjOf("LOT-G")?.State == (int)CtrlJobState.Completed), "接着回片，跑完");
+    var manualTask = PjOf("LOT-G-1")!.Wafers[0].Tasks[failedIndex];
+    Check(manualTask.State == "Done" && IsDone(PjOf("LOT-G-1")!.Wafers[0]), "那一格记成完成，这片照常回片");
+    Check(ledger.Get("LP1", 1)?.ProcessState == WaferProcessState.Failed,
+        "标记完成不改账：片的工艺状态跟着腔体走（这里没人真做，还是失败）");
+    pm2.Online();
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("LOT-G") is null, 20), "LOT-G 删掉");
+
+    // 14. 片不在该在的地方（人改了账）：那一行的当前任务出错停住，别的片不受影响；标记完成要片真在这一步做完的地方；
+    //     人用恢复单把片搬回原槽（同一个 LoadPort 里换槽，只抢一次环），点重做，接着走。顺带：Manual 下自动启动的 Job 也会开始，只是不派动作。
     LoadCarrier(lp1, 1, 2);
     transfers.StopAutoDispatch();
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-L", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")))).Accepted, "建 LOT-L");
+    Check(Create("LOT-L", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-L");
     Check(RunUntil(() => PjOf("LOT-L-1")?.State == (int)PrJobState.Processing, 20), "Manual 下 PJ 也会开始（#4），只是不派动作");
-    Check(PjOf("LOT-L-1")!.Wafers.All(wafer => wafer.WaitCode == ErrorCodes.JobWaitManual), "等待原因：Manual 模式");
+    Check(PjOf("LOT-L-1")!.Wafers.All(IsWaiting), "Manual 下没派动作：片都还没投");
     string lostName = ledger.Get("LP1", 2)!.WaferId;
     Check(ledger.ManualMove("LP1", 2, "LP1", 10, "Smoke", "smoke") == WaferAdjustResult.Ok, "人工把第 2 槽的片挪到第 10 槽");
     Tick();
-    var lostJob = PjOf("LOT-L-1")!;
-    Check(jobs.Snapshot.IsHeld && jobs.Snapshot.HoldCode == ErrorCodes.JobHoldWaferLost && lostJob.NeedsRecovery
-          && lostJob.Wafers.Single(wafer => wafer.WaferId == lostName).Phase == "Lost",
-        "片不在该在的地方：认成说不准、暂停派单、PJ 要人工恢复确认");
-    Check(Do(jobs.RecoverAsync(JobCommandSource.Local)).Accepted && !jobs.Snapshot.IsHeld && !PjOf("LOT-L-1")!.NeedsRecovery,
-        "恢复：按账上现在的位置认回来");
+    var lostRow = PjOf("LOT-L-1")!.Wafers.Single(wafer => wafer.WaferId == lostName);
+    var lostTask = ErrorOf(lostRow);
+    Check(lostTask is not null && lostRow.Tasks.IndexOf(lostTask) == 0 && lostTask.Code == ErrorCodes.JobWaferMoved
+          && lostTask.Args.SequenceEqual(new[] { lostName, "LP1.02" }) && PjOf("LOT-L-1")!.NeedsRecovery
+          && PjOf("LOT-L-1")!.Wafers.Count(wafer => ErrorOf(wafer) is not null) == 1,
+        "片不在该在的地方：那一行的当前任务（取片）出错，写着该在 LP1.02；另一片不受影响");
+    Refuses(Do(jobs.CompleteTaskAsync("LOT-L-1", 2, 0)), ErrorCodes.JobTaskPositionMismatch, [lostName, StationTaskAction.Pick, "LP1.10"],
+        "片不在这一步做完该在的地方（不在机械手上，也不在放片能去的站点）：标记不了完成");
+    var back = Finish(Submit("LP1", 10, "LP1", 2, origin: TransferOrigin.Recovery));
+    Check(back.IsSuccess && ledger.Get("LP1", 2)?.WaferId == lostName && lp1.State == LoadPortState.Loaded,
+        "恢复单把片搬回第 2 槽（同一个 LoadPort 里换槽），LoadPort 回到待命");
+    Check(Do(jobs.RetryTaskAsync("LOT-L-1", 2, 0)).IsSuccess && !PjOf("LOT-L-1")!.NeedsRecovery, "片放回去以后重做：出错清掉");
     transfers.StartAutoDispatch();
     Check(RunUntil(() => CjOf("LOT-L")?.State == (int)CtrlJobState.Completed), "跑完");
     var lost = PjOf("LOT-L-1")!.Wafers.Single(wafer => wafer.WaferId == lostName);
-    Check(lost.Outcome == "Failed" && lost.Results.Count == 0 && ledger.Get("LP1", 2)?.WaferId == lostName && ledger.Get("LP1", 10) is null,
-        "认回来的片不再做（记失败），从第 10 槽送回它的回片槽第 2 槽");
+    Check(IsDone(lost) && ledger.Get("LP1", 2)?.WaferId == lostName && ledger.Get("LP1", 10) is null
+          && ledger.Get("LP1", 2)?.ProcessState == WaferProcessState.Completed,
+        "放回去的那片照常做完，回到第 2 槽");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-L") is null, 20), "LOT-L 删掉");
+
+    // 14b. Job 的搬运动过手才失败（取片失败）：出错记在取片上（搬运结果说没取到），放片退回等着做，搬运单的锁留着；
+    //      人确认片还在源槽、放锁、设备复位后点重做，接着跑完。
+    LoadCarrier(lp1, 1);
+    robot.FailNextPick = true;
+    Check(Create("LOT-K", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-K");
+    Check(RunUntil(() => PjOf("LOT-K-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "取片动过手才失败：那一格出错");
+    var pickRow = PjOf("LOT-K-1")!.Wafers[0];
+    var pickError = ErrorOf(pickRow)!;
+    Check(pickRow.Tasks.IndexOf(pickError) == 0 && pickError.Code == ErrorCodes.TransferFailed && pickRow.Tasks[1].State == "Waiting"
+          && transfers.HeldResults.Count == 1 && PjOf("LOT-K-1")!.NeedsRecovery,
+        "出错记在取片上（结果说没取到），放片退回等着做；搬运单的锁留着等人确认");
+    Check(transfers.ReleaseHold(transfers.HeldResults.Single().Id), "人确认片还在源槽，放锁");
+    robot.NoteState(ModuleState.Idle);
+    lp1.NoteState(LoadPortState.Loaded);
+    pm1.NoteState(ModuleState.Idle);
+    pm2.NoteState(ModuleState.Idle);
+    Check(Do(jobs.RetryTaskAsync("LOT-K-1", 1, 0)).IsSuccess, "重做取片");
+    Check(RunUntil(() => CjOf("LOT-K")?.State == (int)CtrlJobState.Completed) && IsDone(PjOf("LOT-K-1")!.Wafers[0]), "接着跑完");
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("LOT-K") is null, 20), "LOT-K 删掉");
 
     // 15. Host 的做法：先建 PJ（不归任何 CJ，排着），再建 CJ 把 PJ 按顺序收进来。
     LoadCarrier(lp1, 1, 2);
     lp1.SetCarrierId("CAR-1");
     var hostPj = new ProcessJobSpec { Id = "PJ-H1", CarrierId = "CAR-1", Slots = [1], Sequence = "SEQ_A" };
-    Check(Do(jobs.CreateProcessJobAsync(hostPj, JobCommandSource.Host)).Accepted, "Host 建 PJ-H1");
+    Check(Do(jobs.CreateProcessJobAsync(hostPj, JobCommandSource.Host)).IsSuccess, "Host 建 PJ-H1");
     Check(PjOf("PJ-H1")?.ControlJob == string.Empty && PjOf("PJ-H1")?.State == (int)PrJobState.QueuedPooled, "PJ 先建：不归任何 CJ，排着");
     Refuses(Do(jobs.CreateProcessJobAsync(hostPj with { Id = "PJ-H9", CarrierId = "NOPE" }, JobCommandSource.Host)),
         ErrorCodes.JobCarrierNotFound, ["NOPE"], "载具不在任何 LoadPort 上");
     Refuses(Do(jobs.CreateProcessJobAsync(hostPj with { Slots = [2] }, JobCommandSource.Host)), ErrorCodes.JobIdDuplicate, ["PJ-H1"], "PJ 名重了");
-    Check(Do(jobs.CreateProcessJobAsync(hostPj with { Id = "PJ-H2", Slots = [2] }, JobCommandSource.Host)).Accepted, "Host 建 PJ-H2");
+    Check(Do(jobs.CreateProcessJobAsync(hostPj with { Id = "PJ-H2", Slots = [2] }, JobCommandSource.Host)).IsSuccess, "Host 建 PJ-H2");
     Refuses(Do(jobs.CreateControlJobAsync(new ControlJobSpec { Id = "CJ-H", ProcessJobs = ["PJ-H1", "NOPE"], AutoStart = true }, JobCommandSource.Host)),
         ErrorCodes.JobProcessJobUnavailable, ["NOPE"], "CJ 收的 PJ 不存在：整个不建");
     Check(PjOf("PJ-H1")?.ControlJob == string.Empty, "没建成的 CJ 不占 PJ");
-    Check(Do(jobs.CreateControlJobAsync(new ControlJobSpec { Id = "CJ-H", ProcessJobs = ["PJ-H1", "PJ-H2"], AutoStart = true }, JobCommandSource.Host)).Accepted,
+    Check(Do(jobs.CreateControlJobAsync(new ControlJobSpec { Id = "CJ-H", ProcessJobs = ["PJ-H1", "PJ-H2"], AutoStart = true }, JobCommandSource.Host)).IsSuccess,
         "Host 建 CJ-H，收下两个 PJ");
+    IJobManager forEap = jobs;
+    Check(forEap.FindControlJobByCarrier("car-1")?.Id == "CJ-H"
+          && forEap.FindProcessJobsByCarrier("CAR-1").Select(job => job.Id).SequenceEqual(new[] { "PJ-H1", "PJ-H2" })
+          && forEap.FindControlJobByCarrier("NOPE") is null && forEap.FindProcessJobsByCarrier(" ").Count == 0
+          && PjOf("PJ-H1")?.CarrierId == "CAR-1",
+        "EAP 按载具号找 CJ、PJ（不分大小写，找不到为空）；PJ 记着建的时候的载具号");
     Check(RunUntil(() => CjOf("CJ-H")?.State == (int)CtrlJobState.Completed) && CjOf("CJ-H")?.CompletedBy == 10, "Host 建的照样跑完");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("CJ-H") is null, 20), "CJ-H 删掉");
 
     // 16. 整机停止：关自动派单、撤搬运单，Job 走中止（等设备确认、核对片位），不是直接删 Job。
     LoadCarrier(lp1, 1, 2, 3);
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-E", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")))).Accepted, "建 LOT-E");
-    Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(wafer => wafer.Phase == "Processing") == true && !transfers.GetView().IsRobotBusy("Robot1")),
+    Check(Create("LOT-E", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-E");
+    Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(IsProcessing) == true && !transfers.GetView().IsRobotBusy("Robot1")),
         "跑到有片在加工、机械手闲着");
     var equipment = new EquipmentService(modules);
     var stop = equipment.StopAsync(new RpcRequest()).Result;
@@ -609,13 +737,16 @@ try
         return task.Result;
     }
 
-    var jobService = new JobService(modules);
     var noPort = Pump(jobService.CreateAsync(new JobCreateRequest { LoadPort = "LPX", Slots = [new JobSlotDto { Slot = 1, Sequence = "SEQ_A" }] }));
     Check(!noPort.Success && noPort.Code == ErrorCodes.JobLoadPortNotFound && noPort.Args.SequenceEqual(new[] { "LPX" }), "建 Job 不成：错误码带 LoadPort");
     var unknown = Pump(jobService.ControlJobCommandAsync(new JobCommandRequest { JobId = "NOPE", Command = (int)CtrlJobCommand.Start }));
     Check(!unknown.Success && unknown.Code == ErrorCodes.JobNotFound && unknown.Args.SequenceEqual(new[] { "NOPE" }), "没有这个 Job");
     var badCommand = Pump(jobService.ControlJobCommandAsync(new JobCommandRequest { JobId = "NOPE", Command = 99 }));
     Check(!badCommand.Success && badCommand.Code == ErrorCodes.JobCommandNotAllowed, "命令值不认识：拒");
+    var noRetry = Pump(jobService.RetryTaskAsync(new JobTaskRequest { ProcessJob = "NOPE", Slot = 1, Task = 0 }));
+    var noComplete = Pump(jobService.CompleteTaskAsync(new JobTaskRequest { ProcessJob = "NOPE", Slot = 1, Task = 0 }));
+    Check(!noRetry.Success && noRetry.Code == ErrorCodes.JobNotFound && noRetry.Args.SequenceEqual(new[] { "NOPE" })
+          && !noComplete.Success && noComplete.Code == ErrorCodes.JobNotFound, "重做、标记完成找不到 PJ：job.not_found");
     var list = Pump(jobService.GetJobsAsync(new RpcRequest())).DeserializeData<JobListDto>();
     Check(list.Version > 0 && list.History.Count > 0 && list.History[0].Id == "LOT-E", "查全貌：带版本号，历史新的在前");
 
@@ -658,8 +789,8 @@ try
     pm1.ProcessTicks = 200;
     pm2.ProcessTicks = 200;
     transfers.StartAutoDispatch();
-    Check(Do(jobs.CreateLocalJobAsync(Local("LOT-R", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")))).Accepted, "建 LOT-R");
-    Check(RunUntil(() => PjOf("LOT-R-1")?.Wafers.Count(wafer => wafer.Phase == "Processing") == 2 && !transfers.GetView().IsRobotBusy("Robot1")),
+    Check(Create("LOT-R", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-R");
+    Check(RunUntil(() => PjOf("LOT-R-1")?.Wafers.Count(IsProcessing) == 2 && !transfers.GetView().IsRobotBusy("Robot1")),
         "跑到两片在加工、机械手闲着");
     Check(WaitSaved(jobs.Snapshot.Version), "Job 全貌存进库了");
     transfers.StopAutoDispatch();
@@ -675,51 +806,6 @@ try
         "上次没做完的记成中止（#12）、标着重启，进历史");
     Check(afterRestart.History.Any(job => job.Id == "LOT-E" && !job.Restarted), "上次的历史接着留");
     Check(lotR.All(id => jobs.OwnerOf(id) is null), "片不再归任何 Job");
-
-    // 19. 全部回片（重启后、中止后机内留着片时用）：机内每片回它的来源 LoadPort 同号槽，机械手手上的先回（只放片），
-    //     一台机械手一张一张做；在做的时候再点回"已经在做"；回不去的（不知道从哪来、载具换过了）写原因不动；整机停止就不再往下下单。
-    Check(RunUntil(() => pm1.State == ModuleState.Idle && pm2.State == ModuleState.Idle), "腔体做完手上的工艺");
-    pm1.ProcessTicks = 3;
-    pm2.ProcessTicks = 3;
-    Check(ledger.ManualMove("LP1", 3, "Robot1", 1, "Smoke", "重启前取了没放") == WaferAdjustResult.Ok, "摆一片在机械手手上");
-    var returnPlan = transfers.PlanReturnAll();
-    Check(returnPlan.Moves.Count == 3 && returnPlan.Skipped.Count == 0 && returnPlan.Moves[0].SourceIsArm && returnPlan.Moves[0].Source == "Robot1"
-          && returnPlan.Moves[0].Target == "LP1" && returnPlan.Moves[0].TargetSlot == 3, "计划：机械手手上的先回，三片都回来源槽");
-    var returnStarted = equipment.ReturnAllAsync(new RpcRequest()).Result;
-    var returnAgain = equipment.ReturnAllAsync(new RpcRequest()).Result;
-    Check(returnStarted.Success && returnStarted.DeserializeData<ReturnPlanDto>().Moves.Count == 3 && transfers.IsReturning
-          && !returnAgain.Success && returnAgain.Code == ErrorCodes.TransferReturnRunning,
-        "开始全部回片；在做的时候再点：已经在做了");
-    Check(RunUntil(() => !transfers.IsReturning), "全部回片做完");
-    Check(Enumerable.Range(1, 3).All(slot => ledger.Get("LP1", slot)?.Id == lotR[slot - 1]) && ledger.Get("Robot1", 1) is null
-          && ledger.Get("PM1", 1) is null && ledger.Get("PM2", 1) is null, "都回到来源槽（手上那片只放片），手上、腔体里都空了");
-
-    var orphan = ledger.Create("PM2", 1)!;
-    Check(ledger.Move("LP1", 1, "PM1", 1) && ledger.SetCarrierId("PM1", 1, "CAR-OLD"), "摆两片回不去的：腔体上补账建的一片、载具换过了的一片");
-    lp1.SetCarrierId("CAR-NEW");
-    var stuck = transfers.PlanReturnAll();
-    var noSource = stuck.Skipped.FirstOrDefault(skip => skip.Source == "PM2");
-    var carrierChanged = stuck.Skipped.FirstOrDefault(skip => skip.Source == "PM1");
-    Check(stuck.Moves.Count == 0 && stuck.Skipped.Count == 2
-          && noSource is not null && noSource.Code == ErrorCodes.TransferReturnNoSource && noSource.Args.SequenceEqual(new[] { orphan.WaferId })
-          && carrierChanged is not null && carrierChanged.Code == ErrorCodes.TransferReturnCarrierChanged
-          && carrierChanged.Args.SequenceEqual(new[] { carrierChanged.WaferName, "LP1", "CAR-OLD", "CAR-NEW" }),
-        "回不去的写原因：不知道从哪来、载具换过了");
-    var nothingToReturn = transfers.StartReturnAll();
-    Check(nothingToReturn is not null && nothingToReturn.Moves.Count == 0 && nothingToReturn.Skipped.Count == 2 && !transfers.IsReturning,
-        "没有能回的：不开始，回不去的照样报出来");
-    Check(ledger.Delete("PM2", 1) && ledger.SetCarrierId("PM1", 1, "CAR-NEW"), "补账的那片删掉，那片的载具号改对");
-    Check(transfers.StartReturnAll()?.Moves.Count == 1 && transfers.IsReturning, "再开始全部回片");
-    var stopReturn = equipment.StopAsync(new RpcRequest()).Result;
-    for (int tick = 0; tick < 20; tick++)
-    {
-        Tick();
-    }
-
-    Check(stopReturn.Success && !transfers.IsReturning && ledger.Get("PM1", 1) is not null, "整机停止：全部回片不再往下下单，片还在腔体里");
-    Check(transfers.StartReturnAll()?.Moves.Count == 1 && RunUntil(() => !transfers.IsReturning)
-          && ledger.Get("LP1", 1) is not null && ledger.Get("PM1", 1) is null, "停了以后再点一次，回去了");
-    UnloadCarrier(lp1);
 }
 finally
 {
@@ -738,13 +824,15 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission checks, two orders racing for one slot, locks released only after the station rings and the ledger settle, " +
-    "failures without motion releasing locks and failures after motion holding them for manual recovery, cancelling a queued order; " +
-    "jobs per SEMI E94/E40: creation checks with nothing left behind, one carrier with two sequences and a two-step route, transition numbers in order, " +
-    "request-id de-duplication, sequence snapshots, returning to another LoadPort, PJ pause/resume, CJ pause that only stops starting new PJs, " +
-    "CJ stop, PJ abort, process failure holding dispatch until recovery, a wafer moved behind the job's back, host-style PJ-then-CJ creation, " +
-    "the equipment stop going through job abort, the job and transfer services, a restart that closes unfinished jobs into history instead of resuming them, " +
-    "and return-all: wafers on robot arms placed first, chamber wafers back to their source slots, skip reasons and stopping)");
+Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission checks, two orders racing for one slot, results telling whether the pick was done, " +
+    "locks released only after the station rings and the ledger settle, failures without motion releasing locks and failures after motion holding them " +
+    "for manual recovery, cancelling a queued order; jobs per SEMI E94/E40: creation checks with nothing left behind (including a station that does not " +
+    "support a needed task, a step with no usable station and a missing process recipe), local creation going through PJ-then-CJ like the host " +
+    "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
+    "station groups, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
+    "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
+    "a wafer moved behind the job's back, a job transfer failing after touching the wafer, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, the equipment stop going through job abort, the job and transfer services, " +
+    "and a restart that closes unfinished jobs into history instead of resuming them)");
 
 // ── 假件 ─────────────────────────────────────────────────────────────
 
@@ -756,6 +844,11 @@ static class Probe
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
     }
+
+    public static void Enabled(ComponentBase component, bool enabled)
+    {
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(component, enabled);
+    }
 }
 
 // 搬运管理、Job 管理：顶替扫描线程推一拍。
@@ -764,9 +857,27 @@ sealed class SmokeTransfers : TransferManager
     public void Tick() => OnScan();
 }
 
+// Job 管理下面挂冒烟的任务组件（生产里是 sc.xml 的 Task 子节点）。
 sealed class SmokeJobs : JobManager
 {
+    public SmokeJobs()
+    {
+        var tasks = new SmokeTasks();
+        Probe.Name(tasks, "Task");
+        AddChild(tasks);
+    }
+
     public void Tick() => OnScan();
+}
+
+// 没挂任务组件的 Job 管理：装配时应该就抛。
+sealed class BareJobs : JobManager
+{
+}
+
+// 冒烟的任务组件：全用平台的生成规则（跟 35021 的 TaskComponent 一样）。
+sealed class SmokeTasks : BaseTaskComponent
+{
 }
 
 // 假动作：按扫描拍数做完；要失败的到点报失败。
@@ -889,12 +1000,17 @@ sealed class SmokePortShell : FcdLoadPortComponent
 }
 
 // 假腔体：工艺默认三拍做完（ProcessTicks 可调长），可以故意失败一次；记下收到几次中止。
+// NoProcess 打开时声明成只能取放（不能做工艺），验"站点不支持要用的任务就不建 Job"。
 sealed class SmokeChamber : BaseChamberModule
 {
     public SmokeChamber(string name)
     {
         Probe.Name(this, name);
     }
+
+    public bool NoProcess { get; set; }
+
+    public override IReadOnlyList<string> SupportedTasks => NoProcess ? StationTaskAction.PickPlace : base.SupportedTasks;
 
     public bool FailNextProcess { get; set; }
 

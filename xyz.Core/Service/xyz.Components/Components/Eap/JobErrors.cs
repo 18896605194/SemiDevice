@@ -1,4 +1,4 @@
-﻿using xyz.Components.Models;
+﻿using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 namespace xyz.Components.Components;
@@ -15,14 +15,11 @@ internal static class JobErrors
         [ErrorCodes.JobDisabled] = E5Error.NotAvailable,
         [ErrorCodes.WaferLedgerDisabled] = E5Error.NotAvailable,
         [ErrorCodes.JobCommandTimeout] = E5Error.Busy,
-        [ErrorCodes.JobQueueFull] = E5Error.Busy,
         [ErrorCodes.JobNotFound] = E5Error.UnknownObject,
         [ErrorCodes.JobProcessJobUnavailable] = E5Error.UnknownObject,
         [ErrorCodes.JobCommandNotAllowed] = E5Error.InvalidState,
         [ErrorCodes.JobEnding] = E5Error.InvalidState,
         [ErrorCodes.JobNotAuto] = E5Error.InvalidState,
-        [ErrorCodes.JobNotHeld] = E5Error.InvalidState,
-        [ErrorCodes.JobRecoveryPending] = E5Error.InvalidState,
         [ErrorCodes.JobLoadPortBusy] = E5Error.InvalidState,
         [ErrorCodes.JobIdInvalid] = E5Error.InvalidAttributeValue,
         [ErrorCodes.JobIdDuplicate] = E5Error.IdentifierInUse,
@@ -40,14 +37,15 @@ internal static class JobErrors
         [ErrorCodes.JobSequenceNoReturn] = E5Error.RecipeError,
         [ErrorCodes.JobRecipeNotFound] = E5Error.RecipeError,
         [ErrorCodes.JobStepNoStation] = E5Error.RecipeError,
+        [ErrorCodes.JobStationTaskUnsupported] = E5Error.RecipeError,
         [ErrorCodes.OperationFaulted] = E5Error.FailedDuringProcessing,
     };
 
     /// <summary>被拒的结果 → 一条 E5 错误；没收录的码记成"现在不能处理"。</summary>
-    public static E5Error Of(JobCommandResult result)
+    public static E5Error Of(HandleResult result)
     {
-        ushort code = Codes.TryGetValue(result.Code, out var known) ? known : E5Error.NotAvailable;
-        string text = result.Args.Count == 0 ? result.Code : $"{result.Code} {string.Join(' ', result.Args)}";
+        ushort code = Codes.TryGetValue(result.ErrorMessage, out var known) ? known : E5Error.NotAvailable;
+        string text = result.Args.Count == 0 ? result.ErrorMessage : $"{result.ErrorMessage} {string.Join(' ', result.Args)}";
         return E5Error.Of(code, text);
     }
 }

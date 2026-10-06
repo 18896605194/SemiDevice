@@ -41,54 +41,6 @@ public class TransferReleaseRequest
 }
 
 /// <summary>
-/// 全部回片的计划，或开始后实际下了的（走 JSON）：要回的每一片从哪回哪，回不去的写原因（错误码 + 参数，界面查语言包）。
-/// </summary>
-public class ReturnPlanDto
-{
-    public List<ReturnMoveDto> Moves { get; set; } = [];
-
-    public List<ReturnSkipDto> Skipped { get; set; } = [];
-}
-
-/// <summary>
-/// 一片怎么回：从机内的位置回来源 LoadPort 的同号槽。
-/// </summary>
-public class ReturnMoveDto
-{
-    public string WaferId { get; set; } = string.Empty;
-
-    public string Source { get; set; } = string.Empty;
-
-    public int SourceSlot { get; set; }
-
-    /// <summary>源是机械手（SourceSlot 是手指号）。</summary>
-    public bool SourceIsArm { get; set; }
-
-    public string Target { get; set; } = string.Empty;
-
-    public int TargetSlot { get; set; }
-}
-
-/// <summary>
-/// 回不去的一片和原因，要人工处理。
-/// </summary>
-public class ReturnSkipDto
-{
-    public string WaferId { get; set; } = string.Empty;
-
-    public string Source { get; set; } = string.Empty;
-
-    public int SourceSlot { get; set; }
-
-    /// <summary>源是机械手（SourceSlot 是手指号）。</summary>
-    public bool SourceIsArm { get; set; }
-
-    public string Code { get; set; } = string.Empty;
-
-    public List<string> Args { get; set; } = [];
-}
-
-/// <summary>
 /// 搬完的一趟（手动传片成功时回给界面，走 JSON）：用了哪台机械手、哪只手。
 /// </summary>
 public class TransferDoneDto

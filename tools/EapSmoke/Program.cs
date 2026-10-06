@@ -585,7 +585,7 @@ Check(spec.CarrierId == "CAR-C" && spec.Slots.SequenceEqual([1, 2]) && spec.Sequ
 var withParameters = await Send(16, 11, CreatePj("PJ-2", Material("CAR-C", 1), Recipe("SEQ-1", SecsItem.L(SecsItem.A("Temp"), SecsItem.U4(80)))));
 Check(!Acka(withParameters.Body!.Items[1]) && withParameters.Body.Items[1].Items[1].Items[0].Items[0].GetUInt64() == 21,
     "带配方参数：ACKA=FALSE、ERRCODE 21");
-jobs.NextResult = JobCommandResult.Reject(ErrorCodes.JobIdDuplicate, "PJ-1");
+jobs.NextResult = HandleResult.Fail(ErrorCodes.JobIdDuplicate, "PJ-1");
 var duplicateJob = await Send(16, 11, CreatePj("PJ-1", Material("CAR-C", 1), Recipe("SEQ-1")));
 var duplicateError = duplicateJob.Body!.Items[1].Items[1].Items[0];
 Check(duplicateError.Items[0].GetUInt64() == 11 && duplicateError.Items[1].GetString().StartsWith(ErrorCodes.JobIdDuplicate, StringComparison.Ordinal),
@@ -605,7 +605,7 @@ jobs.Snapshot = new JobListDto
 {
     ProcessJobs =
     [
-        new ProcessJobDto { Id = "PJ-1", State = (int)PrJobState.Processing, Sequence = "SEQ-1", AutoStart = true,
+        new ProcessJobDto { Id = "PJ-1", State = (int)PrJobState.Processing, Sequence = "SEQ-1", AutoStart = true, CarrierId = "CAR-C",
             Wafers = [new JobWaferDto { WaferId = "C1", SourcePort = "LP2", SourceSlot = 1 }] },
         new ProcessJobDto { Id = "PJ-3", State = (int)PrJobState.QueuedPooled, Sequence = "SEQ-1" },
     ],
@@ -615,8 +615,7 @@ var s16f18 = await Send(16, 17, SecsItem.L());
 Check(s16f18.Body!.Items[0].Count == 1 && jobs.ProcessCommands.Last() == ("PJ-3", PrJobCommand.Cancel), "S16F17 撤掉排队、还不归 CJ 的 PJ");
 var s16f20 = await Send(16, 19);
 Check(s16f20.Body!.Count == 2 && s16f20.Body.Items[0].Items[1].GetUInt64() == 3, "S16F19 列 PJ 和状态");
-jobs.Space = 17;
-Check((await Send(16, 21)).Body!.GetUInt64() == 17, "S16F21 还能建几个 PJ");
+Check((await Send(16, 21)).Body!.GetUInt64() == ushort.MaxValue, "S16F21 还能建几个 PJ：Job 管理不限个数，答 U2 最大值");
 
 SecsItem CreateCj(params SecsItem[] attributes) => SecsItem.L(SecsItem.A(string.Empty), SecsItem.A("ControlJob"), SecsItem.L(attributes));
 SecsItem Attribute(string name, SecsItem value) => SecsItem.L(SecsItem.A(name), value);
@@ -651,7 +650,7 @@ gem.RequestRemote(true);
 var pjAttributes = await Send(14, 1, GetAttr("ProcessJob", ["PJ-1"], SecsItem.L(), "PrJobState", "RecID", "PrMtlNameList"));
 var pj = pjAttributes.Body!.Items[0].Items[0].Items[1];
 Check(pj.Items[0].Items[1].GetUInt64() == 3 && pj.Items[1].Items[1].GetString() == "SEQ-1"
-      && pj.Items[2].Items[1].Items[0].Items[0].GetString() == "CAR-C", "S14F1 查 PJ：状态、配方、料（载具号取端口上的）");
+      && pj.Items[2].Items[1].Items[0].Items[0].GetString() == "CAR-C", "S14F1 查 PJ：状态、配方、料（载具号用 PJ 建的时候记下的）");
 var cjAttributes = await Send(14, 1, GetAttr("ControlJob", [], SecsItem.L(), "State", "CurrentPrJob"));
 var cj = cjAttributes.Body!.Items[0].Items[0].Items[1];
 Check(cj.Items[0].Items[1].GetUInt64() == 3 && cj.Items[1].Items[1].Items[0].GetString() == "PJ-1", "S14F1 查 CJ：状态、在跑的 PJ");
@@ -969,7 +968,7 @@ sealed class FakePort : ILoadPort
     }
 }
 
-/// <summary>假的 Job 管理：EAP 翻过来的命令都记下来，按 NextResult 回（不给就收下）；全貌、剩余空间由测试给。</summary>
+/// <summary>假的 Job 管理：EAP 翻过来的命令都记下来，按 NextResult 回（不给就收下）；全貌由测试给。</summary>
 sealed class FakeJobs : IJobManager
 {
     public List<ProcessJobSpec> ProcessJobs { get; } = [];
@@ -980,49 +979,50 @@ sealed class FakeJobs : IJobManager
 
     public List<(string Id, CtrlJobCommand Command, CtrlJobAction Action)> ControlCommands { get; } = [];
 
-    public JobCommandResult? NextResult { get; set; }
+    public HandleResult? NextResult { get; set; }
 
     public JobListDto Snapshot { get; set; } = new();
 
-    public int Space { get; set; }
+    public ControlJobDto? FindControlJobByCarrier(string carrierId)
+    {
+        return Snapshot.ControlJobs.FirstOrDefault(job => string.Equals(job.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
+    }
 
-    public int ProcessJobSpace => Space;
+    public IReadOnlyList<ProcessJobDto> FindProcessJobsByCarrier(string carrierId)
+    {
+        return Snapshot.ProcessJobs.Where(job => string.Equals(job.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
 
     public IE40Callback? E40Callback { get; set; }
 
     public IE94Callback? E94Callback { get; set; }
 
-    private Task<JobCommandResult> Result(string id)
+    private Task<HandleResult> Result(string id)
     {
-        return Task.FromResult(NextResult ?? JobCommandResult.Ok(id));
+        return Task.FromResult(NextResult ?? HandleResult.Success(id));
     }
 
-    public Task<JobCommandResult> CreateLocalJobAsync(LocalJobRequest request) => Result(request.LotId ?? string.Empty);
-
-    public Task<JobCommandResult> CreateProcessJobAsync(ProcessJobSpec spec, JobCommandSource source)
+    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec, JobCommandSource source)
     {
         ProcessJobs.Add(spec);
         return Result(spec.Id);
     }
 
-    public Task<JobCommandResult> CreateControlJobAsync(ControlJobSpec spec, JobCommandSource source)
+    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec, JobCommandSource source)
     {
         ControlJobs.Add(spec);
         return Result(spec.Id);
     }
 
-    public Task<JobCommandResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action, JobCommandSource source,
-        string? requestId = null)
+    public Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action, JobCommandSource source)
     {
         ControlCommands.Add((id, command, action));
         return Result(id);
     }
 
-    public Task<JobCommandResult> CommandProcessJobAsync(string id, PrJobCommand command, JobCommandSource source, string? requestId = null)
+    public Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command, JobCommandSource source)
     {
         ProcessCommands.Add((id, command));
         return Result(id);
     }
-
-    public Task<JobCommandResult> RecoverAsync(JobCommandSource source) => Result(string.Empty);
 }

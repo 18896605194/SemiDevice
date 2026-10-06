@@ -14,6 +14,9 @@ public static class ErrorCodes
     /// <summary>等待操作结果超时，最终结果尚未确认。Args: [操作名, 等待ms]</summary>
     public const string WaitTimeout = "module.wait_timeout";
 
+    /// <summary>站点不支持这个任务（没有这种站内任务）。Args: [站点, 任务名]</summary>
+    public const string StationTaskUnsupported = "module.task_unsupported";
+
     #endregion
 
     #region LoadPort
@@ -147,18 +150,6 @@ public static class ErrorCodes
     /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [搬运单号, 等待ms]</summary>
     public const string TransferWaitTimeout = "transfer.wait_timeout";
 
-    /// <summary>全部回片：这片不知道从哪个 LoadPort 来（在机内补账建的），回不了原槽。Args: [片号]</summary>
-    public const string TransferReturnNoSource = "transfer.return_no_source";
-
-    /// <summary>全部回片：来源 LoadPort 上没有能放片的载具（没放、没 Load，或载具拿走了）。Args: [片号, LoadPort]</summary>
-    public const string TransferReturnPortNotReady = "transfer.return_port_not_ready";
-
-    /// <summary>全部回片：载具换过了，片记着的载具跟 LoadPort 上现在的对不上，不能放进别的载具。Args: [片号, LoadPort, 片记着的载具, 现在的载具]</summary>
-    public const string TransferReturnCarrierChanged = "transfer.return_carrier_changed";
-
-    /// <summary>全部回片已经在做了。Args: []</summary>
-    public const string TransferReturnRunning = "transfer.return_running";
-
     #endregion
 
     #region Job（SEMI E94 CJ / E40 PJ）
@@ -189,9 +180,6 @@ public static class ErrorCodes
 
     /// <summary>Job 名已经在用（没结束的 Job 里有同名的）。Args: [名字]</summary>
     public const string JobIdDuplicate = "job.id_duplicate";
-
-    /// <summary>没结束的 Job 太多了，建不了新的。Args: [上限]</summary>
-    public const string JobQueueFull = "job.queue_full";
 
     /// <summary>没有这个 LoadPort。Args: [LoadPort]</summary>
     public const string JobLoadPortNotFound = "job.loadport_not_found";
@@ -241,41 +229,20 @@ public static class ErrorCodes
     /// <summary>建 CJ 时引用的 PJ 不存在，或已经归了别的 CJ。Args: [PJ 名]</summary>
     public const string JobProcessJobUnavailable = "job.process_job_unavailable";
 
-    /// <summary>自动派单没在暂停，没有要恢复的。Args: []</summary>
-    public const string JobNotHeld = "job.not_held";
+    /// <summary>流程配方这一步用到的站点不支持要做的任务（比如这一步要做工艺，组里有个站点不能做工艺）。Args: [流程配方名, 第几步, 站点, 任务名]</summary>
+    public const string JobStationTaskUnsupported = "job.station_task_unsupported";
 
-    /// <summary>还有片位没确认，恢复不了：出错的搬运单留着锁，或片还在机械手手上认不回来。Args: [几处]</summary>
-    public const string JobRecoveryPending = "job.recovery_pending";
+    /// <summary>没有这个任务（PJ 里没有这个来源槽的片，或任务序号不对）。Args: [PJ 名, 来源槽, 第几个任务]</summary>
+    public const string JobTaskNotFound = "job.task_not_found";
 
-    /// <summary>暂停派单的原因：搬运动过手才失败，片位要人工确认。Args: [片号, Job 名]</summary>
-    public const string JobHoldTransferFailed = "job.hold.transfer_failed";
+    /// <summary>这个任务没出错，不用人工处理。Args: [PJ 名, 片号, 第几个任务]</summary>
+    public const string JobTaskNotError = "job.task_not_error";
 
-    /// <summary>暂停派单的原因：加工没做成。Args: [片号, 站点, Job 名]</summary>
-    public const string JobHoldProcessFailed = "job.hold.process_failed";
+    /// <summary>标记完成不了：片在账上不在这一步做完该在的地方。Args: [片号, 任务名, 账上的位置]</summary>
+    public const string JobTaskPositionMismatch = "job.task_position_mismatch";
 
-    /// <summary>暂停派单的原因：片不在该在的地方（被改了账、载具被拿走、重新 Mapping 过）。Args: [片号, Job 名]</summary>
-    public const string JobHoldWaferLost = "job.hold.wafer_lost";
-
-    /// <summary>等待：Manual 模式，不派新动作。Args: []</summary>
-    public const string JobWaitManual = "job.wait.manual";
-
-    /// <summary>等待：出过执行故障，自动派单暂停中。Args: []</summary>
-    public const string JobWaitHeld = "job.wait.held";
-
-    /// <summary>等待：这一步能去的站点都没空（有片、没在待命、离线、被占着）。Args: [站点（逗号分隔）]</summary>
-    public const string JobWaitStation = "job.wait.station";
-
-    /// <summary>等待：这一趟没有机械手接得了（机械手忙，或没有空着、两边都许用的手）。Args: [搬运（源→目标，逗号分隔）]</summary>
-    public const string JobWaitRobot = "job.wait.robot";
-
-    /// <summary>等待：回片槽现在放不了（有片或被占着）。Args: [LoadPort, 槽号]</summary>
-    public const string JobWaitReturnSlot = "job.wait.return_slot";
-
-    /// <summary>等待：机内片数到上限了（调度的 EC MaxWafersInMachine）。Args: [上限]</summary>
-    public const string JobWaitLimit = "job.wait.limit";
-
-    /// <summary>等待：PJ 暂停、停止中或 CJ 没在执行，不投新片。Args: [Job 名]</summary>
-    public const string JobWaitNotFeeding = "job.wait.not_feeding";
+    /// <summary>任务出错的原因：片不在该在的地方（被改了账、载具被拿走、重新 Mapping 过）。Args: [片号, 该在的位置]</summary>
+    public const string JobWaferMoved = "job.wafer_moved";
 
     #endregion
 

@@ -41,11 +41,6 @@ public class ChamberModule : BaseChamberModule
         return Begin(ChamberAction.Abort, new TimedOperation("Abort", SimulateActionMs));
     }
 
-    /// <summary>
-    /// 驱动没接，工艺是计时空转的：Job 结果里标成模拟，别当成真做过。
-    /// </summary>
-    public override bool IsProcessSimulated => true;
-
     protected override ModuleOperation? CreateProcessOperation(ProcessRequest request)
     {
         return new TimedOperation($"Process {request.RecipeName}", SimulateProcessMs);

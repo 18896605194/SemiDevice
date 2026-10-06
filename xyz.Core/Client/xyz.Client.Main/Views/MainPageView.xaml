@@ -105,14 +105,6 @@
                                 Style="{DynamicResource CompactButtonStyle}"
                                 ToolTip="{DynamicResource main.reset_tip}" />
                         </UniformGrid>
-
-                        <!--  全部回片（一键回片）：机内（腔体、机械手上）的片都送回来源槽；先弹窗列出要回的、回不去的，确认后开始  -->
-                        <Button
-                            Margin="0,3,0,0"
-                            Command="{Binding ReturnAllCommand}"
-                            Content="{DynamicResource main.return_all}"
-                            Style="{DynamicResource CompactButtonStyle}"
-                            ToolTip="{DynamicResource main.return_all_tip}" />
                     </StackPanel>
                 </DockPanel>
             </Border>
