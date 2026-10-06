@@ -23,7 +23,7 @@ public sealed class UnclampOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.Unclamp();
+                _command = _module._driver!.Unclamp();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

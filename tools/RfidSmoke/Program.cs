@@ -8,7 +8,7 @@ using xyz.Drivers.Rfid.FCD.Commands;
 using xyz.Components.Components;
 using xyz.Modules;
 
-// FCD RFID 读头冒烟：不开硬件，用假读头按真实握手时序对话。
+// FCD _rfid 读头冒烟：不开硬件，用假读头按真实握手时序对话。
 // 覆盖帧编解码、ENQ/EOT/ACK/NAK 双向握手、块校验、载具 ID 切片、在途位管理与超时。
 var checks = 0;
 void Check(bool condition, string message)
@@ -213,7 +213,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     Check(status.Response is not null && status.Response.IsSuccess, "取状态应成功");
 }
 
-Console.WriteLine($"PASS: {checks} RFID checks (FCD RFT-200S 协议、双向握手、切片、在途位与超时；不连硬件)。");
+Console.WriteLine($"PASS: {checks} _rfid checks (FCD RFT-200S 协议、双向握手、切片、在途位与超时；不连硬件)。");
 
 // ── 辅助 ───────────────────────────────────────────────────────────────
 
@@ -221,8 +221,8 @@ static (SmokeRfidReader Reader, FakeFcdReader Device) Build()
 {
     var device = new FakeFcdReader();
     var reader = new SmokeRfidReader(device);
-    typeof(ComponentBase).GetProperty("Name")!.SetValue(reader, "RFID");
-    typeof(ComponentBase).GetProperty("FullPath")!.SetValue(reader, "SmokeLoadPort.RFID");
+    typeof(ComponentBase).GetProperty("Name")!.SetValue(reader, "_rfid");
+    typeof(ComponentBase).GetProperty("FullPath")!.SetValue(reader, "SmokeLoadPort._rfid");
     return (reader, device);
 }
 

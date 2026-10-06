@@ -1,4 +1,5 @@
-﻿using System.Threading.Channels;
+﻿using System.Diagnostics;
+using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -17,22 +18,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
     #region SV 
 
-    /// <summary>
-    /// LoadPort 当前状态（SV）。既可以保存平台公共状态，也可以保存 LoadPort 专属状态。
-    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
     public override int State { get; protected set; } = ModuleState.NotInit;
 
     /// <summary>
-    /// FOUP 是否在位（SV）。驱动 PODON/PODOF 主动事件刷新。
+    /// FOUP 是否在位（SV）：按 SC PresenceSource 判出来的（Query 看状态查询的在位、到位两位，Event 看 PODON/PODOF），
+    /// 只在扫描线程上改。载具到达、拿走、E84 交接、Job、回片、E87 用的都是它，推给界面的"在位"也是它。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "FOUP 是否在位")]
     public bool IsPodPlaced { get; private set; }
 
     /// <summary>
-    /// Auto/Manual（SV）：LoadPort 独有的 Access Mode，Auto = 搬运车经 E84 自动交接，Manual = 人工放取。
-    /// 内部控制位，不经设备协议：SetAutoMode 置位；默认 Manual，掉电不保持。
-    /// 跟模块的 Online/Offline（Mode）互不影响；E84 组件按它决定跟不跟搬运车交接。
+    /// Auto/Manual
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "Auto/Manual（true=Auto，false=Manual）")]
     public bool IsAutoMode { get; private set; }
@@ -40,7 +37,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private volatile string? _carrierId;
 
     /// <summary>
-    /// 当前载具 ID（SV）：读卡成功或 Host 改写后有值；未读或载具已移走为 null。
+    /// 载具 ID
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "当前载具 ID")]
     public string? CarrierId
@@ -60,10 +57,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         private set => _slotMap = value;
     }
 
+    /// <summary>
+    /// loapdort 状态数据，从驱动读取
+    /// </summary>
     private volatile LoadPortStatus? _status;
 
     /// <summary>
-    /// 最近一次成功查询的设备状态；尚未查询成功或查询超时时为 null。
+    /// 最近一次成功查询的设备状态
     /// </summary>
     public LoadPortStatus? Status
     {
@@ -80,11 +80,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [SCEditor("25", "LoadPort", "花篮槽数")]
     public override int SlotCount { get; set; } = 25;
 
-    [SCEditor("1", "LoadPort", "机械手从本 LoadPort 取片用的手臂")]
-    public int UseArm { get; set; } = 1;
-
     [SCEditor("True", "LoadPort", "载具到位后自动读码（False=只由上层/EAP 显式触发）")]
     public bool AutoReadCarrierId { get; set; } = true;
+
+    [SCEditor("Query", "LoadPort",
+        "载具在位以什么为准：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化）；Event = 设备主动上报（PODON 放上 / PODOF 拿走）")]
+    public PodPresenceSource PresenceSource { get; set; } = PodPresenceSource.Query;
 
     #endregion
 
@@ -188,22 +189,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Alarm
 
-    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout,
-        AlarmLevel = AlarmLevel.Alarm1,
-        Description = "LoadPort 初始化未在指定时间内完成",
-        Solution = "检查串口连接、LoadPort 硬件状态及供电")]
+    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1,Description = "LoadPort 初始化未在指定时间内完成", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
     public string InitTimeoutAlarm = nameof(InitTimeoutAlarm);
 
-    [Alarm("LoadPort 受控停止", AlarmCategory.ProcessError,
-        AlarmLevel = AlarmLevel.Alarm1,
-        Description = "LoadPort 进入受控停止状态",
-        Solution = "检查 LoadPort 当前状态并复位")]
+    [Alarm("LoadPort 受控停止", AlarmCategory.ProcessError,AlarmLevel = AlarmLevel.Alarm1,Description = "LoadPort 进入受控停止状态",Solution = "检查 LoadPort 当前状态并复位")]
     public string ControlledStopAlarm = nameof(ControlledStopAlarm);
 
-    [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError,
-        AlarmLevel = AlarmLevel.Alarm1,
-        Description = "LoadPort 设备本身报警",
-        Solution = "检查 LoadPort 硬件/通讯状态")]
+    [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError,AlarmLevel = AlarmLevel.Alarm1,Description = "LoadPort 设备本身报警",Solution = "检查 LoadPort 硬件/通讯状态")]
     public string LoadPortDeviceAlarm = nameof(LoadPortDeviceAlarm);
 
     #endregion
@@ -221,16 +213,24 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region Component
 
     /// <summary>
-    /// 品牌驱动组件（sc.xml 挂在本模块下的 Driver 子节点，换 Type 即换品牌）；Open 时按类型找到并挂上。
+    /// 品牌驱动组件（sc.xml 挂在本模块下的 _driver 子节点，换 Type 即换品牌）；Open 时按类型找到并挂上。
     /// </summary>
-    public LoadPortDriverComponent? Driver { get; private set; }
+    public LoadPortDriverComponent? _driver { get; private set; }
 
-    public RfidDriverComponent? RFID => FindChild<RfidDriverComponent>();
+    public RfidDriverComponent? _rfid => FindChild<RfidDriverComponent>();
 
     /// <summary>
-    /// E84 交接组件；没配（本机型没有 E84）为 null。
+    /// E84 交接组件；没配（本机型没有 E84）或 sc.xml 里 IsEnable=False（本机没接搬运车）为 null——
+    /// 端口就当没有 E84：不打开、不每拍推、不读写 IO。
     /// </summary>
-    public IE84? E84 => FindChild<IE84>();
+    public IE84? E84
+    {
+        get
+        {
+            var e84 = FindChild<IE84>();
+            return e84 is not null && e84.IsEnable ? e84 : null;
+        }
+    }
 
     #endregion
 
@@ -269,10 +269,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 驱动连接
 
-    /// <summary>
-    /// 打开驱动连接并订阅主动事件；由装配在 Start 之前调用。
-    /// 装机停用（IsEnable=False）的模块视为打开成功，空转。
-    /// </summary>
     public override bool Open()
     {
         if (!IsEnable)
@@ -280,10 +276,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return true;
         }
 
-        var rfid = RFID;
-        if (rfid is not null && !rfid.Open())
+        var rfid = _rfid;
+        bool rfidOpened = rfid is null || rfid.Open();
+        if (!rfidOpened)
         {
-            return false;
+            LogHelper.Warn(Name, "_rfid 读头连不上：LoadPort 照常能用，读码先读不了，读头在后台按间隔重连");
         }
 
         var e84 = E84;
@@ -292,45 +289,153 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return false;
         }
 
-        // 先在晶圆账上占好槽位，Mapping 一到就能直接落账。
         WaferManager.Current?.RegisterLoadPort(Name, SlotCount);
 
         var driver = FindChild<LoadPortDriverComponent>();
         if (driver is null)
         {
-            LogHelper.Error(Name, "sc.xml 未挂品牌驱动组件（Driver 子节点），无法打开");
+            LogHelper.Error(Name, "sc.xml 未挂品牌驱动组件（_driver 子节点），无法打开");
             return false;
         }
 
         // 先摘后挂：Open 可重入，保证只挂一份。
         driver.DeviceEvent -= OnDeviceEvent;
         driver.DeviceEvent += OnDeviceEvent;
-        Driver = driver;
-        return driver.Open();
+        _driver = driver;
+        bool driverOpened = driver.Open();
+        return driverOpened && rfidOpened;
     }
 
     /// <summary>
-    /// 关闭 RFID 读头与驱动连接，并结束 EAP 派发线程；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// 关闭 _rfid 读头与驱动连接，并结束 EAP 派发线程；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
     /// </summary>
     public void Close()
     {
-        RFID?.Close();
-        Driver?.Close();
+        _rfid?.Close();
+        _driver?.Close();
         _eapNotifications.Writer.TryComplete();
     }
 
     private void OnDeviceEvent(LoadPortDeviceEvent evt)
     {
-        // 在驱动路由线程回调，只做轻量状态翻转。
+        // 在驱动路由线程回调，只记下设备说的放上 / 拿走；认不认、算不算到达拿走，由扫描线程按 SC PresenceSource 判。
         switch (evt.Kind)
         {
             case LoadPortDeviceEventKind.PodPresent:
-                IsPodPlaced = true;
+                NotePodEvent(true);
                 break;
 
             case LoadPortDeviceEventKind.PodRemoved:
-                IsPodPlaced = false;
+                NotePodEvent(false);
                 break;
+        }
+    }
+
+    #endregion
+
+    #region 在位判断（SC PresenceSource：状态查询 / 设备上报，二选一）
+
+    private volatile bool _eventPodPlaced;
+
+    protected void NotePodEvent(bool placed)
+    {
+        _eventPodPlaced = placed;
+    }
+
+    private bool SensePodPlaced()
+    {
+        //事件
+        if (PresenceSource == PodPresenceSource.Event)
+        {
+            return _eventPodPlaced;
+        }
+
+        var status = Status;
+        if (status is null)
+        {
+            return IsPodPlaced;
+        }
+
+        if (status.PodPresent && status.PodPlaced)
+        {
+            return true;
+        }
+
+        if (!status.PodPresent && !status.PodPlaced)
+        {
+            return false;
+        }
+
+        return IsPodPlaced;
+    }
+
+    #endregion
+
+    #region 设备状态查询（每拍一条：Query 判在位、设备报警、界面的设备反馈都靠它）
+
+    private LoadPortCommand? _statusQuery;
+    private readonly Stopwatch _statusQueryWatch = new();
+
+    private bool _isStatusQueryLate;
+
+    private void PollStatus()
+    {
+        var driver = _driver;
+        if (!IsEnable || driver is null)
+        {
+            return;
+        }
+
+        if (!driver.IsConnected)
+        {
+            Status = null;
+            _statusQuery = null;
+            return;
+        }
+
+        var query = _statusQuery;
+        if (query is null)
+        {
+            query = driver.QueryStatus();
+            if (query is not null)
+            {
+                _statusQuery = query;
+                _statusQueryWatch.Restart();
+            }
+
+            return;
+        }
+
+        if (query.IsCompleted)
+        {
+            _statusQuery = null;
+            var response = query.Response;
+            if (response is not null && response.IsSuccess && response.Status is not null)
+            {
+                Status = response.Status;
+                if (_isStatusQueryLate)
+                {
+                    _isStatusQueryLate = false;
+                    LogHelper.Info(Name, "状态查询恢复");
+                }
+            }
+
+            return;
+        }
+
+        int timeout = QueryDataTimeOut;
+        if (_statusQueryWatch.ElapsedMilliseconds < timeout)
+        {
+            return;
+        }
+
+        driver.Abandon(query, "Timeout");
+        _statusQuery = null;
+        Status = null;
+        if (!_isStatusQueryLate)
+        {
+            _isStatusQueryLate = true;
+            LogHelper.Warn(Name, $"状态查询超时（{timeout}ms）：这一条作废、接着查，查到之前在位保持原判断");
         }
     }
 
@@ -340,10 +445,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     private LoadPortDto? _lastPublishedState;
 
-    /// <summary>
-    /// 当前状态快照，状态发布与 GetState 查询共用。
-    /// 未连接或停用时查询反馈（在位、门、报警）不可信，置 null；载具 ID 与 Mapping 结果取模块当前值（载具移走时已清空）。
-    /// </summary>
     public LoadPortDto CreateStateDto()
     {
         var carrier = Carrier;
@@ -365,7 +466,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             CarrierAccessStatus = carrier?.AccessStatus ?? CarrierAccessStatus.NotAccessed,
         };
 
-        var driver = Driver;
+        var driver = _driver;
         if (driver is not null)
         {
             dto.IsConnected = driver.IsConnected;
@@ -384,7 +485,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         if (status is not null)
         {
-            dto.IsPodPlaced = status.PodPresent;
             dto.PodPresent = status.PodPresent;
             dto.PodPlaced = status.PodPlaced;
             dto.DoorOpen = status.DoorOpen;
@@ -446,7 +546,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     public bool ReadCarrierId()
     {
-        var reader = RFID;
+        var reader = _rfid;
         return reader is not null && reader.BeginRead();
     }
 
@@ -456,7 +556,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void CheckCarrierIdRead()
     {
-        var result = RFID?.TakeResult();
+        var result = _rfid?.TakeResult();
         if (result is null)
         {
             return;
@@ -574,7 +674,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public abstract ModuleOperation? Home();
 
     /// <summary>
-    /// 初始化（重写组件基类的 Init）：先初始化子组件（E84、RFID），再回原点——Home 就是 LoadPort 的初始化，
+    /// 初始化（重写组件基类的 Init）：先初始化子组件（E84、_rfid），再回原点——Home 就是 LoadPort 的初始化，
     /// 超时报的也是"初始化超时"。返回 Home 操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
     public override ModuleOperation? Init()
@@ -584,7 +684,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（E84、RFID），再发设备复位清错。
+    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（E84、_rfid），再发设备复位清错。
     /// 返回设备复位操作，调用方等它做完；状态不允许时为 null，报警照样已经清了。
     /// </summary>
     public override ModuleOperation? Reset()
@@ -674,7 +774,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 装机停用、或驱动还没建起来（装配里 Open 失败）都不发动作。
     /// </summary>
-    protected override bool CanBeginAction => IsEnable && Driver is not null;
+    protected override bool CanBeginAction => IsEnable && _driver is not null;
 
     /// <summary>
     /// 发起动作：发起这件事走基类，这儿只多记一笔"这趟发的是什么动作"——终结时按它回调 EAP。
@@ -697,6 +797,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 操作终结（状态已由基类落好）：失败的动作报警，
     /// 成功的动作与失败的原因都回调 EAP（在模块锁内只入队，派发在扫描线程锁外进行）。
+    /// 没做成（失败、超时、被中止顶替）的，把驱动上还在等回复的指令全部作废：它的回复多半丢了，
+    /// 不作废的话同名指令一直占着在途位，以后再也发不出去。在途的状态查询一起作废也没关系，下一拍重发。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
@@ -704,6 +806,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         if (!operation.IsSuccess)
         {
+            _driver?.AbandonAll("Abandoned");
             string reason = operation.Reason;
 
             // 取放途中出错：这个载具算没干完，落 Stopped（还没开始取放的就不动它）。
@@ -760,7 +863,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     private int _eapDispatchStarted;
     private int _eapPending;
-    private bool _lastPodPlaced;
 
     /// <summary>
     /// E87 载具管理回调；null 表示未接 EAP，模块照常运行。装配时由 EAP 侧挂上。
@@ -872,12 +974,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机也在里面），
-    /// 再判载具在位边沿、推 E84、收读码结果；EAP 回调由专用派发线程发，不占扫描线程。
+    /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机、驱动的断线重连也在里面），
+    /// 再查设备状态、判载具在位边沿、推 E84、收读码结果、查设备报警；EAP 回调由专用派发线程发，不占扫描线程。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
+        PollStatus();
         CheckCarrierPresence();
         StepE84();
         CheckCarrierIdRead();
@@ -917,17 +1020,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 在位边沿：放上回调 CarrierArrived；移走先清载具 ID 与 Mapping，再回调 CarrierRemoved。
-    /// 在位位由驱动路由线程翻转，这里在扫描线程判边沿，保证回调顺序。
+    /// 这一拍按 SC PresenceSource 判出在位（SensePodPlaced），跟上一拍不一样才算放上 / 拿走；只在扫描线程判，保证回调顺序。
     /// </summary>
     private void CheckCarrierPresence()
     {
-        bool placed = IsPodPlaced;
-        if (placed == _lastPodPlaced)
+        bool placed = SensePodPlaced();
+        if (placed == IsPodPlaced)
         {
             return;
         }
 
-        _lastPodPlaced = placed;
+        IsPodPlaced = placed;
         if (placed)
         {
             lock (_carrierGate)

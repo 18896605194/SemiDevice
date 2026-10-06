@@ -135,7 +135,7 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
     /// <summary>
-    /// 读码（读 RFID）只发起不等结果：读头握手要几百毫秒，读到的 ID 随状态推送刷新；
+    /// 读码（读 _rfid）只发起不等结果：读头握手要几百毫秒，读到的 ID 随状态推送刷新；
     /// 读码失败的原因由模块记警告日志（客户端日志栏可见）。
     /// </summary>
     public Task<RpcResponse> ReadCarrierIdAsync(string module)

@@ -125,21 +125,24 @@ public sealed class JobSlotModel : ObservableObject
     }
 
     /// <summary>
-    /// 账上没登记这个 LoadPort 时退回按 Mapping 结果：叠片、交叉片照实显示，其他有片的算待处理，空槽、认不出的算没片。
+    /// 账上没登记这个 LoadPort 时退回按 Mapping 结果：空槽算没片，正常有片的算待处理，叠片、交叉片照实显示，
+    /// 认不出的（以后新加的状态也一样）算状态不明——跟按账显示一样，不当成空槽。
     /// </summary>
     public static JobWaferState StateOf(LoadPortSlotState state)
     {
         switch (state)
         {
+            case LoadPortSlotState.Empty:
+                return JobWaferState.None;
+            case LoadPortSlotState.NotEmpty:
+            case LoadPortSlotState.CorrectlyOccupied:
+                return JobWaferState.Idle;
             case LoadPortSlotState.DoubleSlotted:
                 return JobWaferState.Double;
             case LoadPortSlotState.CrossSlotted:
                 return JobWaferState.Crossed;
-            case LoadPortSlotState.NotEmpty:
-            case LoadPortSlotState.CorrectlyOccupied:
-                return JobWaferState.Idle;
             default:
-                return JobWaferState.None;
+                return JobWaferState.Unknown;
         }
     }
 }

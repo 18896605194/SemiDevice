@@ -1,12 +1,14 @@
 ﻿using xyz.Components.Attributes;
+using xyz.Components.Enums;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// LoadPort 驱动组件基座：传输配置、驱动生命周期、主动事件转发、统一触发口。
+/// LoadPort 驱动组件基座：传输配置、驱动生命周期（断线重连）、主动事件转发、统一触发口、在途指令作废。
 /// 品牌只补两件事——建驱动、建指令；sc.xml 换品牌壳 Type 即换品牌，机型代码不动。
+/// 挂在 LoadPort 模块下面，OnScan 由父模块的扫描线程递归带着跑。
 /// </summary>
 public abstract class LoadPortDriverComponent : ComponentBase
 {
@@ -38,7 +40,21 @@ public abstract class LoadPortDriverComponent : ComponentBase
 
     #endregion
 
+    #region EC
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "5000", description: "通讯断开后隔多久重连一次")]
+    public int ReconnectIntervalMs
+    {
+        get { return GetEcInt(nameof(ReconnectIntervalMs)); }
+        set { SetEcInt(nameof(ReconnectIntervalMs), value); }
+    }
+
+    #endregion
+
     #region 驱动连接
+
+    private readonly DriverReconnector _reconnector = new();
 
     public ILoadPortDriver? Driver { get; private set; }
 
@@ -52,7 +68,9 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// </summary>
     public event Action<LoadPortDeviceEvent>? DeviceEvent;
 
-
+    /// <summary>
+    /// 建驱动（首次）并打开连接。这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
+    /// </summary>
     public bool Open()
     {
         var driver = Driver;
@@ -63,12 +81,52 @@ public abstract class LoadPortDriverComponent : ComponentBase
             Driver = driver;
         }
 
+        _reconnector.Enable();
         return driver.Open();
     }
 
+    /// <summary>
+    /// 关连接（在途指令作废），不再重连。
+    /// </summary>
     public void Close()
     {
+        _reconnector.Disable();
         Driver?.Close();
+    }
+
+    /// <summary>
+    /// 扫描（父模块的扫描线程带着跑）：断了按间隔在后台重连——先关（作废旧连接上的在途指令、收掉旧的收发任务）再开。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        var driver = Driver;
+        if (driver is null)
+        {
+            return;
+        }
+
+        _reconnector.Check(FullPath, driver.IsConnected, ReconnectIntervalMs, () =>
+        {
+            driver.Close();
+            driver.Open();
+        });
+    }
+
+    /// <summary>
+    /// 作废一条在途指令（回复丢了、等超时了）：让出它的在途位，同名指令能再发。
+    /// </summary>
+    public void Abandon(LoadPortCommand command, string reason)
+    {
+        Driver?.Abandon(command, reason);
+    }
+
+    /// <summary>
+    /// 作废全部在途指令（动作没做成时用）。
+    /// </summary>
+    public void AbandonAll(string reason)
+    {
+        Driver?.AbandonAll(reason);
     }
 
     private void OnDeviceEvent(LoadPortDeviceEvent evt)

@@ -66,7 +66,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     [SCEditor("True", "Robot", "是否启用本 Robot (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
 
-    // 品牌/网口/轴表在 Driver 子组件上配（RobotDriverComponent）：换品牌就是换那个节点的 Type。
+    // 品牌/网口/轴表在 _driver 子组件上配（RobotDriverComponent）：换品牌就是换那个节点的 Type。
 
     #endregion
 
@@ -186,7 +186,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     #region 驱动连接
 
     /// <summary>
-    /// 品牌驱动组件（sc.xml 本模块下的 Driver 子节点）：换 Type 即换品牌。
+    /// 品牌驱动组件（sc.xml 本模块下的 _driver 子节点）：换 Type 即换品牌。
     /// 打开成功后有值；装机停用或没挂驱动组件时为 null。
     /// </summary>
     public RobotDriverComponent? Robot { get; private set; }
@@ -213,7 +213,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         var robot = FindChild<RobotDriverComponent>();
         if (robot is null)
         {
-            LogHelper.Error(Name, "sc.xml 没挂驱动组件：本模块下要有 Driver 子节点（Type 指定品牌壳）");
+            LogHelper.Error(Name, "sc.xml 没挂驱动组件：本模块下要有 _driver 子节点（Type 指定品牌壳）");
             return false;
         }
 

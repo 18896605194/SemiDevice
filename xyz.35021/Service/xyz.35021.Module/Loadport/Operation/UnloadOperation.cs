@@ -23,7 +23,7 @@ public sealed class UnloadOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.Unload();
+                _command = _module._driver!.Unload();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

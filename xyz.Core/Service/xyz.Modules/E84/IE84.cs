@@ -2,18 +2,15 @@
 
 namespace xyz.Modules;
 
-/// <summary>
-/// E84 交接组件契约（本端口是被动方）：LoadPort 只依赖本接口，信号接在哪、怎么读写由实现决定。
-///
-/// 时序照 SEMI E84 与 CTC 的 E84Passiver：端口可交接时亮 HO_AVBL；搬运车 CS_0+VALID 选中本端口后，
-/// 按 L_REQ/U_REQ → TR_REQ → READY → BUSY → 载具放上/取走 → COMPT → 撤信号 走完一次交接；
-/// 任一段（TP1–TP5）超时就把输出全灭并锁住，等人工 Retry 或 Complete。
-///
-/// 组件不认识端口，由 LoadPort 驱动（和 RFID 一样）：端口每个扫描周期调 <see cref="Step"/>，
-/// 给出这一拍的许可和载具在位；交接进展由 Step 返回，端口转给 EAP。
-/// </summary>
+
 public interface IE84
 {
+    /// <summary>
+    /// 装没装（SC，改了重启生效）：False = 本机没接搬运车，端口当没有 E84——不打开、不扫、不读写 IO。
+    /// 跟 E84Enabled（EC，现场在线开关交接）不是一回事。
+    /// </summary>
+    bool IsEnable { get; }
+
     /// <summary>
     /// 打开：输出全灭、回初始；端口 Open 时调用。
     /// </summary>

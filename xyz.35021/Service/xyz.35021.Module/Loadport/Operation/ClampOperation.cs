@@ -23,7 +23,7 @@ public sealed class ClampOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.Clamp();
+                _command = _module._driver!.Clamp();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

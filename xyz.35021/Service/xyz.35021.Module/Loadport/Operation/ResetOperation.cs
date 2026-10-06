@@ -24,7 +24,7 @@ public sealed class ResetOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.ResetDrive();
+                _command = _module._driver!.ResetDrive();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

@@ -2,18 +2,16 @@
 
 /// <summary>
 /// LoadPort 标准状态快照（E87 载具管理语义，厂商无关）：
-/// 各品牌协议（如 FCD 的 GET:STATE）归一化到这里，随 LoadPortResponse.Status 交给上层。
-/// 未映射的位保留在 Raw 原文中，待各品牌协议手册确认后补充。
 /// </summary>
 public class LoadPortStatus
 {
     /// <summary>
-    /// FOUP 在位（E87 Carrier Presence）。
+    /// 在位
     /// </summary>
     public bool PodPresent { get; init; }
 
     /// <summary>
-    /// FOUP 放置到位（在位且放好，E87 Placed）。
+    /// 放平
     /// </summary>
     public bool PodPlaced { get; init; }
 

@@ -20,7 +20,7 @@ public sealed class LoadOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.Load();
+                _command = _module._driver!.Load();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

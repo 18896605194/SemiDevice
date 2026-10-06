@@ -14,6 +14,7 @@ public abstract class LoadPortCommand
 
     private volatile LoadPortResponse? _response;
     private volatile bool _isCompleted;
+    private readonly object _completeGate = new();
     private readonly ManualResetEventSlim _replied = new(false);
 
     /// <summary>
@@ -37,20 +38,37 @@ public abstract class LoadPortCommand
     }
 
     /// <summary>
-    /// 落终态：先写结果，再置完成并唤醒 WaitReply 的等待方；已完成时忽略（保留首个终态）。
-    /// 品牌指令解析到终结帧时调用（在驱动路由消费任务上，单线程）。
+    /// 落终态：先写结果，再置完成并唤醒 WaitReply 的等待方；已完成时忽略（保留首个终态，先到先得）。
+    /// 品牌指令解析到终结帧时在驱动路由任务上调；作废（Abandon）可能同时从别的线程来，所以加锁。
     /// </summary>
     protected void Complete(LoadPortResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
-        if (_isCompleted)
+        lock (_completeGate)
         {
-            return;
+            if (_isCompleted)
+            {
+                return;
+            }
+
+            _response = response;
+            _isCompleted = true;
         }
 
-        _response = response;
-        _isCompleted = true;
         _replied.Set();
+    }
+
+    /// <summary>
+    /// 作废：以失败落终态（等它的人马上醒），之后这条指令的回复再来也没人认了。
+    /// 驱动让出在途位时调（回复超时、动作没做成、断线、关连接）；reason 写进 Response.Error。
+    /// </summary>
+    internal void Abandon(string reason)
+    {
+        Complete(new LoadPortResponse
+        {
+            IsSuccess = false,
+            Error = reason,
+        });
     }
 
     /// <summary>

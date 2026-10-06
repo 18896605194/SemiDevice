@@ -16,7 +16,20 @@ public class FrameCommunication : IFrameCommunication, IDisposable
     private readonly IFrameCodec _codec;
     private readonly Encoding _encoding;
     private readonly object _sendGate = new();
-    private volatile bool _pumping;
+    private readonly object _sessionGate = new();
+
+    /// <summary>
+    /// 当前这一轮接收泵；没打开或已关为 null。每打开一次起一轮新的，关的时候只停当前这一轮。
+    /// 不用一个全局"在收"标志：断线重连时旧泵可能在新连接起来以后才醒（卡在收包上），
+    /// 它退出时只能停自己那一轮，不能把新的一轮也停了。
+    /// </summary>
+    private PumpSession? _session;
+
+    /// <summary>一轮接收泵的停止标记。</summary>
+    private sealed class PumpSession
+    {
+        public volatile bool IsStopped;
+    }
 
     /// <summary>
     /// 收到一条完整帧体（已去壳），在接收泵线程触发；订阅方应及时返回，异常不会拖垮接收泵。
@@ -40,26 +53,33 @@ public class FrameCommunication : IFrameCommunication, IDisposable
     public bool IsConnected => _transport.IsConnected;
 
     /// <summary>
-    /// 打开连接并启动接收泵。
+    /// 打开连接并起一轮接收泵；已经连着、泵也在收就直接返回。可重复调（断线后重连就是再调一次）。
     /// </summary>
     public bool Open()
     {
         try
         {
-            if (IsConnected)
+            lock (_sessionGate)
             {
-                return true;
+                var current = _session;
+                if (IsConnected && current is not null && !current.IsStopped)
+                {
+                    return true;
+                }
+
+                _transport.Connect();
+
+                // 上一轮（断线留下的）作废，起新的一轮。
+                if (current is not null)
+                {
+                    current.IsStopped = true;
+                }
+
+                var session = new PumpSession();
+                _session = session;
+                Task.Factory.StartNew(() => PumpLoop(session), TaskCreationOptions.LongRunning);
+                return IsConnected;
             }
-
-            _transport.Connect();
-
-            if (!_pumping)
-            {
-                _pumping = true;
-                Task.Factory.StartNew(PumpLoop, TaskCreationOptions.LongRunning);
-            }
-
-            return IsConnected;
         }
         catch
         {
@@ -68,12 +88,21 @@ public class FrameCommunication : IFrameCommunication, IDisposable
     }
 
     /// <summary>
-    /// 停止接收泵并关闭连接。
+    /// 停掉当前这一轮接收泵并关闭连接。
     /// </summary>
     public void Close()
     {
-        _pumping = false;
-        _transport.Close();
+        lock (_sessionGate)
+        {
+            var session = _session;
+            _session = null;
+            if (session is not null)
+            {
+                session.IsStopped = true;
+            }
+
+            _transport.Close();
+        }
     }
 
     #endregion
@@ -95,9 +124,9 @@ public class FrameCommunication : IFrameCommunication, IDisposable
 
     #region 接收泵
 
-    private void PumpLoop()
+    private void PumpLoop(PumpSession session)
     {
-        while (_pumping)
+        while (!session.IsStopped)
         {
             byte[] data;
             try
@@ -111,8 +140,14 @@ public class FrameCommunication : IFrameCommunication, IDisposable
             }
             catch
             {
-                // 传输故障：泵退出，由上层决定恢复（重新 Open 会起新泵）。
-                _pumping = false;
+                // 传输故障：这一轮泵退出（只停自己），由上层重新 Open 起新的一轮。
+                session.IsStopped = true;
+                return;
+            }
+
+            // 收的时候这一轮已经被关了：这批数据不归它（可能已经是新连接的），丢掉退出。
+            if (session.IsStopped)
+            {
                 return;
             }
 
@@ -121,7 +156,7 @@ public class FrameCommunication : IFrameCommunication, IDisposable
             {
                 if (!IsConnected)
                 {
-                    _pumping = false;
+                    session.IsStopped = true;
                 }
 
                 continue;

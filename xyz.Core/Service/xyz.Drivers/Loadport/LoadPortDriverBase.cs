@@ -20,8 +20,9 @@ public abstract class LoadPortDriverBase : ILoadPortDriver
     private readonly object _gate = new();
     private readonly Dictionary<string, LoadPortCommand> _inflight = new(StringComparer.OrdinalIgnoreCase);
 
-    private Channel<string>? _rxChannel;
-    private Channel<string>? _txChannel;
+    // 收发队列：一轮连接一套，接收泵线程、扫描线程、重连任务都会碰，换的时候整个替换。
+    private volatile Channel<string>? _rxChannel;
+    private volatile Channel<string>? _txChannel;
 
     /// <summary>
     /// 设备主动上报事件：无在途指令认领的帧经 ParseSpontaneousEvent 归一化后触发，
@@ -58,11 +59,15 @@ public abstract class LoadPortDriverBase : ILoadPortDriver
                 return true;
             }
 
-            // 每个连接周期一套内存队列与消费任务；Close 后不可复用。
-            _rxChannel = Channel.CreateUnbounded<string>();
-            _txChannel = Channel.CreateUnbounded<string>();
-            _ = Task.Run(() => RouteFramesAsync(_rxChannel.Reader));
-            _ = Task.Run(() => SendFramesAsync(_txChannel.Reader));
+            // 每个连接周期一套内存队列与消费任务；上一轮的（断线、没连上留下的）先收掉，免得旧任务一直挂着。
+            _rxChannel?.Writer.TryComplete();
+            _txChannel?.Writer.TryComplete();
+            var rx = Channel.CreateUnbounded<string>();
+            var tx = Channel.CreateUnbounded<string>();
+            _rxChannel = rx;
+            _txChannel = tx;
+            _ = Task.Run(() => RouteFramesAsync(rx.Reader));
+            _ = Task.Run(() => SendFramesAsync(tx.Reader));
 
             return Communication.Open();
         }
@@ -73,13 +78,14 @@ public abstract class LoadPortDriverBase : ILoadPortDriver
     }
 
     /// <summary>
-    /// 停止收发并关闭帧通讯。
+    /// 停止收发并关闭帧通讯；在途指令全部作废——旧连接上的回复不会再来了，不作废的话同名指令再也发不出去。
     /// </summary>
     public virtual void Close()
     {
         _rxChannel?.Writer.TryComplete();
         _txChannel?.Writer.TryComplete();
         Communication.Close();
+        AbandonAll("PortClosed");
     }
 
     #endregion
@@ -89,6 +95,7 @@ public abstract class LoadPortDriverBase : ILoadPortDriver
     /// <summary>
     /// 受理一条指令：占在途槽位并下发（经发送队列串行写出）。
     /// 返回 false 表示被拒绝：未连接、同名指令前一条未到终态或该实例已在途。
+    /// 前一条的回复丢了就一直"未到终态"，要发起方等超时了用 Abandon 作废它，让出槽位。
     /// 通常由指令的 Execute 调用，不直接从外部调。
     /// </summary>
     public bool Submit(LoadPortCommand command)
@@ -116,7 +123,56 @@ public abstract class LoadPortDriverBase : ILoadPortDriver
         }
 
         var tx = _txChannel;
-        return tx is not null && tx.Writer.TryWrite(command.BuildMsg());
+        if (tx is not null && tx.Writer.TryWrite(command.BuildMsg()))
+        {
+            return true;
+        }
+
+        // 发送队列已经收了（正在关、正在重连）：这条没发出去，占的槽位让出来。
+        Abandon(command, "PortClosed");
+        return false;
+    }
+
+    /// <summary>
+    /// 作废一条在途指令：从在途表摘掉（同名指令能再发），指令以失败落终态。
+    /// 发起方等回复超时了调；之后这条的回复要是迟到了，没有在途指令认它，当无主帧丢掉。任意线程可调。
+    /// </summary>
+    public void Abandon(LoadPortCommand command, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        lock (_gate)
+        {
+            if (_inflight.TryGetValue(command.Key, out var current) && ReferenceEquals(current, command))
+            {
+                _inflight.Remove(command.Key);
+            }
+
+            command.IsInFlight = false;
+        }
+
+        command.Abandon(reason);
+    }
+
+    /// <summary>
+    /// 作废全部在途指令（动作没做成、断线、关连接时用）。任意线程可调。
+    /// </summary>
+    public void AbandonAll(string reason)
+    {
+        LoadPortCommand[] commands;
+        lock (_gate)
+        {
+            commands = _inflight.Values.ToArray();
+            _inflight.Clear();
+            foreach (var command in commands)
+            {
+                command.IsInFlight = false;
+            }
+        }
+
+        foreach (var command in commands)
+        {
+            command.Abandon(reason);
+        }
     }
 
     /// <summary>
@@ -213,8 +269,13 @@ public abstract class LoadPortDriverBase : ILoadPortDriver
             }
             catch
             {
-                // 通讯故障：收尾退出，由上层决定恢复策略。
-                Close();
+                // 通讯故障：收掉这一轮连接退出，由上层（驱动组件）重连。
+                // 只收自己这一轮：重连以后才醒过来的旧发送任务不能把新连接关了。
+                if (ReferenceEquals(_txChannel?.Reader, reader))
+                {
+                    Close();
+                }
+
                 break;
             }
         }

@@ -24,7 +24,7 @@ public sealed class AbortOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.Stop();
+                _command = _module._driver!.Stop();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

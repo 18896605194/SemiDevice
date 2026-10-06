@@ -11,6 +11,8 @@ using xyz.Configs.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 using xyz.Drivers.Loadport.FCD;
+using xyz.Drivers.Rfid;
+using xyz.Drivers.Rfid.FCD;
 using xyz.Drivers.Robot;
 using xyz.Drivers.Robot.Reje;
 using xyz.Modules;
@@ -244,6 +246,11 @@ Check(snapshot.Slots.Count == 3
       && snapshot.Slots[2].State == LoadPortSlotState.CrossSlotted && snapshot.Slots[2].HasWafer,
     "The state snapshot must carry the slot map.");
 Check(!port.CreateStateDto().HasStateChanged(snapshot), "An unchanged snapshot must not count as a change.");
+Check(new LoadPortSlotDto { State = LoadPortSlotState.Undefined }.HasWafer
+      && new LoadPortSlotDto { State = LoadPortSlotState.NotEmpty }.HasWafer
+      && new LoadPortSlotDto { State = LoadPortSlotState.DoubleSlotted }.HasWafer
+      && !new LoadPortSlotDto { State = LoadPortSlotState.Empty }.HasWafer,
+    "槽位有没有片：不是空槽就算有，认不出的也算（跟记账一样，宁可多记不可漏记）");
 port.NoteMap([SlotState.Empty, SlotState.Empty, SlotState.CrossSlotted]);
 Check(port.CreateStateDto().HasStateChanged(snapshot), "A slot map change must count as a change.");
 
@@ -719,6 +726,21 @@ port.E87Callback = null;
     offPort.Tick();
     Check(offE84.State == E84State.NotAvailable && offE84.Outputs == default, "E84 没开（EC）不该理搬运车");
 
+    // 没装（SC IsEnable=False，本机没接搬运车）：端口当没有 E84——不打开、不每拍推、不读写 IO
+    var noE84Port = new ProbePort("E84NotInstalledPort");
+    var noE84 = new ProbeE84(noE84Port.Name) { IsEnable = false };
+    noE84Port.AddChild(noE84);
+    Check(noE84Port.E84 is null, "E84 没装时端口按没有 E84 处理（E84 为 null）");
+    Check(noE84Port.Open() && noE84.Writes == 0, "E84 没装时端口照常打开，不去打开 E84（一次 IO 都不写）");
+    noE84Port.NoteState(ModuleState.Idle);
+    noE84Port.Online();
+    noE84Port.SetAutoMode(true);
+    noE84.Set(cs0: true, valid: true);
+    noE84Port.Tick();
+    noE84Port.Tick();
+    Check(noE84.Writes == 0 && noE84.State == E84State.NotAvailable && noE84.Inputs == default,
+        "E84 没装时每拍也不推它：不读输入、不写输出");
+
     // 超时：计时调短；TP1 没等到 TR_REQ → 锁住、撤输出、报警；Retry 解锁
     var tpPort = new ProbePort("E84TimeoutPort");
     var tpE84 = new ProbeE84(tpPort.Name, timeoutMs: 100);
@@ -766,6 +788,8 @@ port.E87Callback = null;
     Check(tpEvents.Wait("HandoffTimeout:True:TP3"), "TP3 超时应上报");
     tpE84.Set();
     tpPort.NotePodPlaced(true);
+    tpPort.Tick();  // 在位下一拍扫描才判出来；锁住的交接这一拍不动
+    Check(tpE84.State == E84State.TimedOut, "人工恢复之前交接一直锁着");
     Check(tpE84.Complete(tpPort.IsPodPlaced), "载具确实放上了，Complete 应按完成收尾");
     tpPort.Tick();
     Check(tpEvents.Wait("HandoffCompleted:True"), "人工 Complete 应在下一拍随进展上报交接完成");
@@ -1193,17 +1217,228 @@ port.E87Callback = null;
     TransferManager.Current = previousTransfers;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service).");
+// ── LoadPort 在位来源（SC PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
+//    断线按间隔重连、_rfid 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己那一轮 ─────────────────────────
+{
+    var previousLedger = WaferManager.Current;
+    var presenceLedger = new WaferManager();
+
+    bool WaitUntil(Func<bool> condition, int timeoutMs = 3000)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < timeoutMs)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            Thread.Sleep(10);
+        }
+
+        return false;
+    }
+
+    // 一拍一拍推扫描，直到条件成立（驱动的收发在后台任务上，要等）
+    bool TickUntil(ProbePort target, Func<bool> condition, int timeoutMs = 3000)
+    {
+        return WaitUntil(() =>
+        {
+            target.Tick();
+            return condition();
+        }, timeoutMs);
+    }
+
+    // FCD 状态查询的回复：64 位状态串，第 1 位在位、第 2 位到位
+    string StateReply(bool present, bool placed)
+    {
+        var bits = new string('0', 64).ToCharArray();
+        bits[0] = present ? '1' : '0';
+        bits[1] = placed ? '1' : '0';
+        return "ACK:STATE/" + new string(bits);
+    }
+
+    // 1) Query：两位都亮算放好（开机时盒子已在端口上，第一次查到就认），一亮一灭、查不到都不算变化，两位都灭才算拿走；PODON/PODOF 不认
+    var queryPort = new ProbePort("PresenceQueryPort", PodPresenceSource.Query);
+    queryPort.NoteState(ModuleState.Idle);
+    queryPort.Tick();
+    Check(!queryPort.IsPodPlaced && queryPort.Carrier is null, "Query：还没查到状态时当没有载具");
+    queryPort.NoteStatus(new LoadPortStatus { PodPresent = true, PodPlaced = true });
+    queryPort.Tick();
+    Check(queryPort.IsPodPlaced && queryPort.Carrier is not null && queryPort.CreateStateDto().IsPodPlaced,
+        "Query：在位、到位都亮算放好（开机时已在端口上的也认），建载具对象，推给界面的在位跟着变");
+    queryPort.NoteStatus(new LoadPortStatus { PodPresent = true, PodPlaced = false });
+    queryPort.Tick();
+    Check(queryPort.IsPodPlaced && queryPort.Carrier is not null, "Query：一亮一灭不算拿走");
+    queryPort.NoteStatus(null);
+    queryPort.Tick();
+    Check(queryPort.IsPodPlaced, "Query：查不到状态保持原判断");
+    queryPort.NotePodPlaced(false);
+    queryPort.Tick();
+    Check(queryPort.IsPodPlaced, "Query：PODOF 事件不认");
+    queryPort.NoteStatus(new LoadPortStatus { PodPresent = false, PodPlaced = false });
+    queryPort.Tick();
+    Check(!queryPort.IsPodPlaced && queryPort.Carrier is null && !queryPort.CreateStateDto().IsPodPlaced,
+        "Query：在位、到位都灭算拿走，载具对象清掉");
+    queryPort.NoteStatus(new LoadPortStatus { PodPresent = false, PodPlaced = true });
+    queryPort.Tick();
+    Check(!queryPort.IsPodPlaced && queryPort.Carrier is null, "Query：一亮一灭不算放上");
+
+    // 2) Event：只认 PODON / PODOF，状态查询说什么都不管
+    var eventPort = new ProbePort("PresenceEventPort", PodPresenceSource.Event);
+    eventPort.NoteStatus(new LoadPortStatus { PodPresent = true, PodPlaced = true });
+    eventPort.Tick();
+    Check(!eventPort.IsPodPlaced && eventPort.Carrier is null, "Event：状态查询说有盒也不认");
+    eventPort.NotePodPlaced(true);
+    eventPort.Tick();
+    Check(eventPort.IsPodPlaced && eventPort.Carrier is not null, "Event：PODON 算放上");
+    eventPort.NoteStatus(new LoadPortStatus { PodPresent = false, PodPlaced = false });
+    eventPort.Tick();
+    Check(eventPort.IsPodPlaced, "Event：状态查询说没盒也不认");
+    eventPort.NotePodPlaced(false);
+    eventPort.Tick();
+    Check(!eventPort.IsPodPlaced && eventPort.Carrier is null, "Event：PODOF 算拿走");
+
+    // 3) 状态查询走真驱动：回来了接着发下一条；一条没回就超时作废、接着发（以前同名查询一直占着在途位，再也查不了）
+    var pollPort = new ProbePort("PollPort", PodPresenceSource.Query);
+    pollPort.QueryDataTimeOut = 100;
+    var pollComm = pollPort.Shell.Comm;
+    Check(pollPort.Open(), "状态查询用的端口应能打开");
+    pollPort.Tick();
+    Check(WaitUntil(() => pollComm.SentCount("GET:STATE") == 1), "连上后扫描一拍就发出第一条状态查询");
+    pollComm.Push(StateReply(present: true, placed: true));
+    Check(TickUntil(pollPort, () => pollPort.IsPodPlaced && pollPort.Carrier is not null),
+        "查询回来在位、到位都亮：判放上（盒子开机前就在端口上也认得）");
+    Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 2), "上一条回来了，接着发下一条");
+    Thread.Sleep(150);
+    pollPort.Tick();
+    Check(pollPort.Status is null && pollPort.IsPodPlaced, "查询超时：Status 清空，在位保持原判断");
+    Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 3), "超时的那一条作废了，同名查询还能接着发");
+    pollComm.Push(StateReply(present: false, placed: false));
+    Check(TickUntil(pollPort, () => !pollPort.IsPodPlaced && pollPort.Carrier is null), "查询回来两位都灭：判拿走");
+
+    // 4) 动作没做成（失败、超时、被顶替）：驱动上还在等回复的指令全部作废，同名指令能再发
+    var stuckLoad = pollPort.Shell.Load();
+    Check(stuckLoad is not null, "发一条 Load 指令（假通道不回它）");
+    Check(pollPort.Shell.Load() is null, "同名指令还在途时再发被拒");
+    pollPort.NoteState(ModuleState.Idle);
+    var failedLoad = new ProbeOperation();
+    Check(pollPort.BeginAction(LoadPortAction.Load, failedLoad) is not null, "Idle 应能发起 Load");
+    failedLoad.TimeOut();
+    pollPort.Tick();
+    Check(stuckLoad!.IsCompleted && stuckLoad.Response is not null && !stuckLoad.Response.IsSuccess,
+        "动作没做成：在途的指令作废，等它的人不会一直等");
+    var retriedLoad = pollPort.Shell.Load();
+    Check(retriedLoad is not null, "作废之后同名指令能再发");
+
+    // 5) 关连接：在途的指令全部作废
+    pollPort.Close();
+    Check(retriedLoad!.IsCompleted && retriedLoad.Response is not null && !retriedLoad.Response.IsSuccess,
+        "关连接：在途指令全部作废");
+
+    // 6) 断线：按 EC 间隔在后台重连（先关后开），连上以后接着查状态
+    var linkPort = new ProbePort("ReconnectPort", PodPresenceSource.Query);
+    linkPort.Shell.ReconnectIntervalMs = 10;
+    var linkComm = linkPort.Shell.Comm;
+    Check(linkPort.Open() && linkComm.Opens == 1, "重连用的端口应能打开");
+    linkPort.Tick();
+    Check(WaitUntil(() => linkComm.SentCount("GET:STATE") == 1), "连着时照常查状态");
+    linkComm.Drop();
+    Check(TickUntil(linkPort, () => linkComm.Opens >= 2 && linkComm.IsConnected), "断了按间隔在后台重连上");
+    int sentBeforeReconnect = linkComm.SentCount("GET:STATE");
+    Check(TickUntil(linkPort, () => linkComm.SentCount("GET:STATE") > sentBeforeReconnect),
+        "重连上以后接着查状态（断线前在途的那条已经作废，同名查询能再发）");
+    linkPort.Close();
+    int opensAfterClose = linkComm.Opens;
+    linkComm.Drop();
+    for (int tick = 0; tick < 5; tick++)
+    {
+        linkPort.Tick();
+        Thread.Sleep(15);
+    }
+
+    Check(linkComm.Opens == opensAfterClose, "Close 以后不再重连");
+
+    // 7) _rfid 读头连不上：LoadPort 照样开驱动、登记晶圆账槽位（以前整台 LoadPort 都不能动）；读头之后按间隔重连上
+    var rfidPort = new ProbePort("RfidDownPort", PodPresenceSource.Query);
+    var rfidShell = new ProbeRfidShell();
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(rfidShell, "_rfid");
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(rfidShell, "RfidDownPort._rfid");
+    rfidShell.ReconnectIntervalMs = 10;
+    rfidShell.Comm.FailOpen = true;
+    rfidPort.AddChild(rfidShell);
+    Check(!rfidPort.Open(), "_rfid 连不上时 Open 返回 false（开机日志看得到）");
+    Check(rfidPort.Shell.IsConnected, "_rfid 连不上也照样打开 LoadPort 驱动");
+    Check(presenceLedger.GetSlots(rfidPort.Name).Count == rfidPort.SlotCount, "_rfid 连不上也照样在晶圆账上登记槽位");
+    rfidShell.Comm.FailOpen = false;
+    Check(TickUntil(rfidPort, () => rfidShell.IsConnected), "读头能连了：按间隔在后台重连上");
+    rfidPort.Close();
+
+    // 8) 帧通讯重连：旧接收泵在新连接起来以后才出错，只停它自己那一轮，新的一轮照样收（以前一个全局标志会把新泵也停了）
+    var transport = new GatedTransport();
+    var codec = new FcdFrameCodec();
+    var frameLink = new FrameCommunication(transport, new FcdFrameCodec());
+    var received = new ConcurrentQueue<string>();
+    frameLink.FrameReceived += received.Enqueue;
+    Check(frameLink.Open() && WaitUntil(() => transport.Waiting == 1), "打开后第一轮接收泵在等数据");
+    frameLink.Close();
+    Check(WaitUntil(() => transport.Stale == 1), "关了以后旧泵醒了，卡在出错之前");
+    Check(frameLink.Open() && WaitUntil(() => transport.Waiting == 1), "重新打开，新一轮接收泵在等数据");
+    transport.ReleaseStale.Set();
+    Check(WaitUntil(() => transport.Stale == 0), "旧泵这时才出错退出");
+    Thread.Sleep(50);
+    transport.Feed(codec.Wrap("INF:PODON"));
+    Check(WaitUntil(() => received.Count == 1), "新一轮收到第一帧");
+    transport.Feed(codec.Wrap("INF:PODOF"));
+    Check(WaitUntil(() => received.Count == 2) && received.SequenceEqual(new[] { "INF:PODON", "INF:PODOF" }),
+        "旧泵退出没把新的一轮停掉：第二帧照样收到");
+    frameLink.Close();
+
+    WaferManager.Current = previousLedger;
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
 {
+    private readonly ConcurrentQueue<string> _sent = new();
+    private int _opens;
+    private volatile bool _isConnected;
+
     public event Action<string>? FrameReceived;
-    public bool IsConnected { get; private set; }
-    public bool Open() { IsConnected = true; return true; }
-    public void Close() => IsConnected = false;
-    public void Send(string body) { }
+
+    public bool IsConnected => _isConnected;
+
+    /// <summary>为 true 时打不开（模拟设备没接、串口不存在）。</summary>
+    public bool FailOpen { get; set; }
+
+    /// <summary>打开过几次（重连也算）。</summary>
+    public int Opens => Volatile.Read(ref _opens);
+
+    public bool Open()
+    {
+        Interlocked.Increment(ref _opens);
+        if (FailOpen)
+        {
+            return false;
+        }
+
+        _isConnected = true;
+        return true;
+    }
+
+    public void Close() => _isConnected = false;
+
+    /// <summary>模拟连接自己断了（传输出错自己关了）。</summary>
+    public void Drop() => _isConnected = false;
+
+    public void Send(string body) => _sent.Enqueue(body);
+
     public void Push(string body) => FrameReceived?.Invoke(body);
+
+    /// <summary>发出去的帧里以 prefix 开头的有几条。</summary>
+    public int SentCount(string prefix) => _sent.Count(body => body.StartsWith(prefix, StringComparison.Ordinal));
 }
 
 sealed class ProbeOperation() : ModuleOperation("Probe")
@@ -1250,12 +1485,22 @@ sealed class ProbePort : BaseLoadPortModule
 {
     public ProbeOperation? Next { get; set; }
     public int Calls { get; private set; }
-    public ProbePort(string name = "WaitSmokePort")
+
+    /// <summary>挂在下面的探针品牌壳：真 FCD 驱动，传输换成假通道。</summary>
+    public ProbePortShell Shell { get; }
+
+    public ProbePort(string name = "WaitSmokePort", PodPresenceSource presence = PodPresenceSource.Event)
     {
         // Production names are assigned by ComponentLoader through internal setters.
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
-        AddChild(new ProbePortShell());
+        Shell = new ProbePortShell();
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(Shell, "_driver");
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(Shell, $"{name}._driver");
+        AddChild(Shell);
+
+        // 在位默认走设备上报（测试用 NotePodPlaced 摆）；测状态查询的传 Query，用 NoteStatus 或假通道回状态摆。
+        PresenceSource = presence;
 
         // Seed only the in-memory EC component created at the top; never load or flush a configuration file.
         LoadTimeout = 0;
@@ -1263,12 +1508,14 @@ sealed class ProbePort : BaseLoadPortModule
         HomeTimeout = 0;
         ResetTimeout = 0;
         AbortTimeout = 0;
+
+        // 假通道不回状态查询：超时给到最长，免得查询超时把测试摆的 Status 清掉。
+        QueryDataTimeOut = 600000;
     }
     public void NoteMap(IReadOnlyList<SlotState> slotMap) => UpdateSlotMap(slotMap);
 
-    /// <summary>顶替驱动的 PODON/PODOF 主动事件翻在位位（生产里由驱动路由线程翻）。</summary>
-    public void NotePodPlaced(bool placed) =>
-        typeof(BaseLoadPortModule).GetProperty(nameof(IsPodPlaced))!.SetValue(this, placed);
+    /// <summary>顶替驱动的 PODON/PODOF 主动事件（生产里由驱动路由线程报），下一拍扫描生效。</summary>
+    public void NotePodPlaced(bool placed) => NotePodEvent(placed);
 
     /// <summary>顶替扫描线程推一拍（本工具不跑扫描循环）。</summary>
     public void Tick() => OnScan();
@@ -1294,7 +1541,129 @@ sealed class ProbePort : BaseLoadPortModule
 // 探针 LoadPort 品牌壳：只把传输换成假通道，编解码/驱动/指令都是生产代码。
 sealed class ProbePortShell : FcdLoadPortComponent
 {
-    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
+    /// <summary>驱动底下的假通道：测试看发出去的帧、往里推回复、模拟断线。</summary>
+    public FakeFrameCommunication Comm { get; } = new();
+
+    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(Comm);
+}
+
+// 探针 _rfid 品牌壳：真 FCD 读头驱动，传输换成假通道（测读头连不上、重连）。
+sealed class ProbeRfidShell : FcdRfidComponent
+{
+    public FakeFrameCommunication Comm { get; } = new();
+
+    protected override IRfidDriver CreateDriver() => new FcdRfidDriver(Comm);
+}
+
+// 字节级的假传输，专测帧通讯的接收泵：收包一直等到有数据或连接被关；等的时候被关了，要测试放行才出错，
+// 模拟断线重连时旧泵在新连接起来以后才醒。
+sealed class GatedTransport : ICommunication
+{
+    private readonly object _gate = new();
+    private readonly Queue<byte[]> _incoming = new();
+    private int _generation;
+    private int _waiting;
+    private int _stale;
+
+    /// <summary>放行"等的时候连接被关了"的旧泵，让它出错退出。</summary>
+    public ManualResetEventSlim ReleaseStale { get; } = new(false);
+
+    public bool IsConnected { get; private set; }
+
+    /// <summary>正在等数据的接收泵个数。</summary>
+    public int Waiting
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _waiting;
+            }
+        }
+    }
+
+    /// <summary>等的时候连接被关了、在等放行的旧泵个数。</summary>
+    public int Stale
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _stale;
+            }
+        }
+    }
+
+    public void Connect()
+    {
+        lock (_gate)
+        {
+            IsConnected = true;
+        }
+    }
+
+    public void Close()
+    {
+        lock (_gate)
+        {
+            IsConnected = false;
+            _generation++;
+            Monitor.PulseAll(_gate);
+        }
+    }
+
+    public void Send(byte[] data)
+    {
+    }
+
+    /// <summary>往线上塞一段字节（已经按协议包好壳的帧）。</summary>
+    public void Feed(string text)
+    {
+        lock (_gate)
+        {
+            _incoming.Enqueue(System.Text.Encoding.ASCII.GetBytes(text));
+            Monitor.PulseAll(_gate);
+        }
+    }
+
+    public byte[] Receive()
+    {
+        lock (_gate)
+        {
+            int generation = _generation;
+            _waiting++;
+            try
+            {
+                while (_generation == generation && _incoming.Count == 0)
+                {
+                    Monitor.Wait(_gate);
+                }
+
+                if (_generation == generation)
+                {
+                    return _incoming.Dequeue();
+                }
+            }
+            finally
+            {
+                _waiting--;
+            }
+
+            _stale++;
+        }
+
+        ReleaseStale.Wait(5000);
+        lock (_gate)
+        {
+            _stale--;
+        }
+
+        throw new IOException("连接已关");
+    }
+
+    public void Dispose()
+    {
+    }
 }
 
 // 探针 E84：IO 读写层还没接，输入由测试直接摆，输出只记次数；EC 只在本进程内存里种，不落盘。

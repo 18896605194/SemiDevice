@@ -5,21 +5,31 @@
 /// </summary>
 public enum LoadPortSlotState
 {
-    /// <summary>无法识别。</summary>
+    /// <summary>
+    /// 识别不了
+    /// </summary>
     Undefined = 0,
 
-    /// <summary>空槽。</summary>
+    /// <summary>
+    /// 空
+    /// </summary>
     Empty = 1,
 
     /// <summary>有片（设备分辨不出放置是否正确时使用）。</summary>
     NotEmpty = 2,
 
-    /// <summary>有片且放置正确。</summary>
+    /// <summary>
+    /// 有片且放置正确
+    /// </summary>
     CorrectlyOccupied = 3,
 
-    /// <summary>双片（叠片）。</summary>
+    /// <summary>
+    /// 叠片
+    /// </summary>
     DoubleSlotted = 4,
 
-    /// <summary>交叉片（跨槽）。</summary>
+    /// <summary>
+    /// 斜片
+    /// </summary>
     CrossSlotted = 5,
 }

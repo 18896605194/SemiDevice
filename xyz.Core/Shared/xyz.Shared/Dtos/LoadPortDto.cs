@@ -15,7 +15,7 @@ public class LoadPortDto
     /// <summary>驱动串口连接是否可用。</summary>
     public bool IsConnected { get; set; }
 
-    /// <summary>兼容的 FOUP 在位值，来自状态查询或 PODON/PODOF 事件。</summary>
+    /// <summary>FOUP 在位：后台按 sc.xml PresenceSource 判出来的（状态查询或 PODON/PODOF），跟后台判载具到达、拿走用的是同一个。</summary>
     public bool IsPodPlaced { get; set; }
 
     /// <summary>查询反馈：FOUP 在位；null 表示反馈不可用。</summary>
@@ -159,21 +159,4 @@ public class LoadPortDto
 
         return !WaferSlotDto.SameSlots(LedgerSlots, previous.LedgerSlots);
     }
-}
-
-/// <summary>
-/// LoadPort 单个槽位的契约对象，与前端 Presentation 的 LoadPortSlot 对应。
-/// </summary>
-public class LoadPortSlotDto
-{
-    /// <summary>槽位号，从 1 开始。</summary>
-    public int Slot { get; set; }
-
-    /// <summary>该槽位的 Mapping 结果。</summary>
-    public LoadPortSlotState State { get; set; }
-
-    /// <summary>该槽位有没有片（叠片、交叉片也算有片）。</summary>
-    public bool HasWafer =>
-        State is LoadPortSlotState.NotEmpty or LoadPortSlotState.CorrectlyOccupied
-            or LoadPortSlotState.DoubleSlotted or LoadPortSlotState.CrossSlotted;
 }

@@ -12,6 +12,13 @@ public class E84Component : ComponentBase, IE84
 {
     #region SC
 
+    /// <summary>
+    /// 装没装：False 时端口当没有 E84（不打开、不扫、不读写 IO），本机没接搬运车时这么配。
+    /// 现场临时不跟搬运车交接用 EC E84Enabled，不用改这个。
+    /// </summary>
+    [SCEditor("True", "E84", "是否装了 E84（False = 本机没接搬运车：端口当没有 E84，不打开、不扫、不读写 IO；现场临时停交接用 EC E84Enabled）")]
+    public bool IsEnable { get; set; } = true;
+
     [SCEditor("-1", "IO", "VALID 输入 DI 索引")]
     public int DiValidIndex { get; set; } = -1;
 

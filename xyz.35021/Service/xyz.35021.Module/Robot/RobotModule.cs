@@ -11,7 +11,7 @@ namespace xyz._35021.Module.Robot;
 
 /// <summary>
 /// 35021 机台 Robot 模块：设备状态轮询 + 各动作操作（操作类在 Operation 文件夹）。
-/// 品牌指令由 Driver 组件选（sc.xml 换 Type 即换品牌），机型代码不碰具体品牌。
+/// 品牌指令由 _driver 组件选（sc.xml 换 Type 即换品牌），机型代码不碰具体品牌。
 /// </summary>
 [Component(description: "35021 Robot 模块")]
 public class RobotModule : BaseRobotModule, IRobot

@@ -23,7 +23,7 @@ public sealed class HomeOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Driver!.Home();
+                _command = _module._driver!.Home();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

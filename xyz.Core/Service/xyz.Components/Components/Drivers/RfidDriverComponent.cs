@@ -7,35 +7,6 @@ using xyz.Drivers.Rfid;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// 一次读码的结果。
-/// </summary>
-/// <param name="IsSuccess">是否读到。</param>
-/// <param name="CarrierId">载具 ID，失败时为空。</param>
-/// <param name="Error">失败原因，成功时为空。</param>
-public sealed record RfidReadResult(bool IsSuccess, string CarrierId, string Error)
-{
-    public static RfidReadResult Success(string carrierId)
-    {
-        return new RfidReadResult(true, carrierId, string.Empty);
-    }
-
-    public static RfidReadResult Failure(string error)
-    {
-        return new RfidReadResult(false, string.Empty, error);
-    }
-}
-
-/// <summary>
-/// RFID 读头驱动组件基座：传输配置、读码步进机（非阻塞）。
-/// 品牌只补两件事——建驱动、建读码指令；sc.xml 换品牌壳 Type 即换品牌，机型代码不动。
-///
-/// 读码是**非阻塞**的：BeginRead 只发起，结果由所属模块在扫描周期里 TakeResult 取。
-/// 不做成同步返回是因为读头收发要走好几轮握手（几百毫秒），而模块扫描线程 50ms 一拍，
-/// 阻塞在这儿会把整个 LoadPort 的轮询连同在途操作一起卡住。
-///
-/// 本组件挂在 LoadPort 模块下面，OnScan 由父模块的扫描线程递归带着跑，不自己起线程。
-/// </summary>
 public abstract class RfidDriverComponent : ComponentBase
 {
     #region SC
@@ -82,9 +53,19 @@ public abstract class RfidDriverComponent : ComponentBase
         set { SetEcInt(nameof(ReadCarrierIdTimeout), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "5000", description: "通讯断开后隔多久重连一次")]
+    public int ReconnectIntervalMs
+    {
+        get { return GetEcInt(nameof(ReconnectIntervalMs)); }
+        set { SetEcInt(nameof(ReconnectIntervalMs), value); }
+    }
+
     #endregion
 
     #region 驱动连接
+
+    private readonly DriverReconnector _reconnector = new();
 
     public IRfidDriver? Driver { get; private set; }
 
@@ -95,6 +76,7 @@ public abstract class RfidDriverComponent : ComponentBase
 
     /// <summary>
     /// 建驱动（首次）并打开连接。可重复调用：已建好的驱动只重开连接。
+    /// 这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
     /// </summary>
     public bool Open()
     {
@@ -105,12 +87,14 @@ public abstract class RfidDriverComponent : ComponentBase
             Driver = driver;
         }
 
+        _reconnector.Enable();
         return driver.Open();
     }
 
-    /// <summary>关闭连接；驱动保留，重开走 Open。</summary>
+    /// <summary>关闭连接（在途的读码作废），不再重连；驱动保留，重开走 Open。</summary>
     public void Close()
     {
+        _reconnector.Disable();
         Driver?.Close();
     }
 
@@ -186,12 +170,24 @@ public abstract class RfidDriverComponent : ComponentBase
     }
 
     /// <summary>
-    /// 扫描周期：推进读码步进机（父模块的扫描线程带着跑）。
+    /// 扫描周期（父模块的扫描线程带着跑）：推进读码步进机；断了按间隔在后台重连（先关再开，关的时候在途的读码作废）。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
         ScanRead();
+
+        var driver = Driver;
+        if (driver is null)
+        {
+            return;
+        }
+
+        _reconnector.Check(FullPath, driver.IsConnected, ReconnectIntervalMs, () =>
+        {
+            driver.Close();
+            driver.Open();
+        });
     }
 
     private void ScanRead()
@@ -241,4 +237,24 @@ public abstract class RfidDriverComponent : ComponentBase
     protected abstract RfidCommand CreateReadCarrierIdCommand();
 
     #endregion
+}
+
+
+/// <summary>
+/// 一次读码的结果。
+/// </summary>
+/// <param name="IsSuccess">是否读到。</param>
+/// <param name="CarrierId">载具 ID，失败时为空。</param>
+/// <param name="Error">失败原因，成功时为空。</param>
+public sealed record RfidReadResult(bool IsSuccess, string CarrierId, string Error)
+{
+    public static RfidReadResult Success(string carrierId)
+    {
+        return new RfidReadResult(true, carrierId, string.Empty);
+    }
+
+    public static RfidReadResult Failure(string error)
+    {
+        return new RfidReadResult(false, string.Empty, error);
+    }
 }

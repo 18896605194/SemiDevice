@@ -35,7 +35,7 @@
 
 | 工程 | 管什么 |
 |---|---|
-| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop） |
+| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop）；LoadPort 在位二选一（Query 两位、Event）、状态查询超时作废重发、动作没做成作废在途指令、关连接作废、LoadPort / RFID 断线重连、RFID 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己（假通道 + 真 FCD 驱动，`GatedTransport` 测接收泵） |
 | WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务、存盘和开机恢复（恢复前不写、LoadPort 不恢复、加工中记中止、退出最后存一次） |
 | JobSmoke | 搬运管理（受理时的各项检查、两张单抢一个槽、站点和账都收尾才出结果放锁、没动手失败放锁 / 动过手失败留锁等确认、撤单）和 Job（E94 CJ / E40 PJ：建 Job 的检查和整个不留、一篮两个 Sequence 和两步加工、转换号顺序、请求号去重、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停只不启动新 PJ、CJ 停止、PJ 中止等设备确认、加工失败暂停派单再恢复、片位被人改了、Host 先建 PJ 再建 CJ、整机停止走 Job 中止、Job / 搬运服务的错误码、重启后 Job 不接着跑记成中止进历史）、全部回片（手上的先回只放片、腔体的回来源槽、回不去的原因、在做时再点、整机停止就停）；机械手、LoadPort、腔体都是假的，扫描由测试一拍一拍推 |
 | SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码、工艺步骤的配方要在工艺配方库里 |
@@ -69,7 +69,8 @@
 - 机型 DLL 要先部署（编译机型工程会自动部署），否则 sc.xml 里 `xyz._35021.*` 的 Type 找不到，后端起不来。
 - PLC 仿真：本机没装 TwinCAT 时要有 `xyzAdsRouter` 服务（`tools\AdsRouter\install-service.ps1`，真机上别装），
   再起 `D:\仿真\统一仿真器\Start-35021.cmd`；顺序：路由 → 仿真器 → 后端 → 客户端。没有仿真器后端也能起，PLC 报通讯断开。
-- 没有真设备时：LoadPort 的 RFID 开不了，它的晶圆账槽位也不登记；机械手、腔体照常有。
+- 没有真设备时：LoadPort 的驱动、RFID 都连不上，开机日志各报一次，之后每 5 s（EC `ReconnectIntervalMs`）在后台重连、不刷日志；
+  晶圆账槽位照登记（2026-10-06 起；以前 RFID 开不了整台 LoadPort 都不能动）。发动作会因为没连上失败、落 Error。机械手、腔体照常有。
 - 看英文界面：语言取后端 sc.xml `System/Language`，**改运行目录那份**（`bin\...\Config\sc.xml`），起完后端立刻改回去；不要改源 sc.xml。
 - 用 UI 自动化点菜单：底部导航两个 ListBox 的 AutomationId 是 `PrimaryMenuList`、`SecondaryMenuList`，用 `SelectionItemPattern.Select()` 选项。
 

@@ -178,6 +178,9 @@
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
+			<!-- 载具在位以什么为准（二选一）：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化；开机已在端口上的盒子也认得）；
+			     Event = 设备主动上报（PODON 放上 / PODOF 拿走） -->
+			<Value Name="PresenceSource" Value="Query" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
@@ -200,8 +203,11 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
-			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84；是否启用走 EC E84Enabled（默认关） -->
+			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84。
+			     IsEnable：装没装（False = 本机没接搬运车，端口当没有 E84，不打开、不扫、不读写 IO；真机装了改 True，重启生效）；
+			     装了以后跟不跟搬运车交接走 EC E84Enabled（默认关，在线改） -->
 			<Setting Name="E84" Type="xyz.Modules.E84Component">
+				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="34" />
 				<Value Name="DiCs0Index" Value="32" />
 				<Value Name="DiCs1Index" Value="33" />
@@ -221,6 +227,9 @@
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
+			<!-- 载具在位以什么为准（二选一）：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化；开机已在端口上的盒子也认得）；
+			     Event = 设备主动上报（PODON 放上 / PODOF 拿走） -->
+			<Value Name="PresenceSource" Value="Query" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
@@ -243,8 +252,11 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
-			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84；是否启用走 EC E84Enabled（默认关） -->
+			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84。
+			     IsEnable：装没装（False = 本机没接搬运车，端口当没有 E84，不打开、不扫、不读写 IO；真机装了改 True，重启生效）；
+			     装了以后跟不跟搬运车交接走 EC E84Enabled（默认关，在线改） -->
 			<Setting Name="E84" Type="xyz.Modules.E84Component">
+				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="50" />
 				<Value Name="DiCs0Index" Value="48" />
 				<Value Name="DiCs1Index" Value="49" />

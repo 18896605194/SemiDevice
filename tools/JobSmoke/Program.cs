@@ -850,18 +850,19 @@ sealed class SmokeRobotShell : RejeRobotComponent
 }
 
 // 假 LoadPort：在位、Mapping、状态由测试直接摆；不做 Load / Unload 这些动作。
+// 在位走设备上报（Event），下一拍扫描生效；假驱动不回状态查询，用 Query 的话在位永远判不出来。
 sealed class SmokePort : BaseLoadPortModule
 {
     public SmokePort(string name)
     {
         Probe.Name(this, name);
+        PresenceSource = PodPresenceSource.Event;
         AddChild(new SmokePortShell());
     }
 
     public void NoteMap(IReadOnlyList<SlotState> map) => UpdateSlotMap(map);
 
-    public void NotePodPlaced(bool placed) =>
-        typeof(BaseLoadPortModule).GetProperty(nameof(IsPodPlaced))!.SetValue(this, placed);
+    public void NotePodPlaced(bool placed) => NotePodEvent(placed);
 
     public void NoteState(int state) => State = state;
 

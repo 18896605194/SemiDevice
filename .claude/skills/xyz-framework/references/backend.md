@@ -118,7 +118,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   RPC 线程用 `WaitReply(ms)` 等结果，**不能在扫描线程等**。超时时间取模块的 EC 属性。
 - 动作失败（非 Abort）模块报 `ControlledStopAlarm`；设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
-  `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；Open 里先开 RFID、E84，再登记晶圆账槽位、开驱动）、
+  `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；Open 里先开 RFID、E84，再登记晶圆账槽位、开驱动——RFID、驱动这一次没连上也照样往下走，
+  返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；**设备状态查询在平台**：每拍一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
+  Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**在位二选一**（SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位，
+  都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（`NotePodEvent`，机型有别的上报路子也调它），只在扫描线程判边沿，
+  推给界面的 `IsPodPlaced` 就是这个判出来的值；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；
+  E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不打开、不每拍推、不读写 IO——
+  跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
   `BaseRobotModule`（sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
   `BaseChamberModule`（Open 只登记晶圆账）。
 - **手动部件是通用的**（组件自己声明，模块不认具体硬件）：组件类标 `[PartKind("Axis")]`（派生类继承；现有 `Axis` 轴、`TwoState`
@@ -210,6 +216,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   和触发方法；品牌壳（`RejeRobotComponent`、`FcdLoadPortComponent`、`FcdRfidComponent`）只实现 `CreateDriver()` 和命令工厂。换品牌 = 改 sc.xml 的 Type。
 - `xyz.Drivers`：`ICommunication`（串口 / TCP，`CommunicationFactory`）、`IFrameCodec` + `FrameCommunication`（收包泵 + 发送锁）、
   品牌协议放 `Robot\Reje\`、`Loadport\FCD\`、`Rfid\FCD\`（Protocol、FrameCodec、Commands）。驱动回调只改状态，动作由模块扫描线程推进。
+- **在途指令要能作废**（2026-10-06）：LoadPort 驱动按指令名占在途位、RFID 驱动只有一个在途位，回复丢了就一直占着，同名指令再也发不出去。
+  所以：等回复超时的发起方调 `Abandon`（LoadPort）/ `AbandonInflight`（RFID）让出来；`Close` 作废全部在途；LoadPort 模块动作没做成时 `AbandonAll`。
+  作废的指令以失败落终态（Error 写 `Timeout` / `PortClosed` / `Abandoned` 这类英文标记，跟 RFID 一样）；迟到的回复没人认，当无主帧丢掉。
+- **断线重连**（2026-10-06）：LoadPort、RFID 驱动组件 Open 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
+  （`Components\Drivers\DriverReconnector`，网口 Connect 会卡几秒，不能在扫描线程上做），断开、恢复各记一次日志；Close 以后不再重连。机械手驱动还没接。
+  `FrameCommunication` 一次打开一轮接收泵（`PumpSession`），旧泵出错只停自己那一轮——以前一个全局"在收"标志，旧泵在重连以后才醒会把新泵也停了。
+  `LoadPortDriverBase.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
 - HSMS 协议（`xyz.Secs`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync
   （`HsmsComponent` 已经把 Host 的报文挪到自己的派发线程上，处理方不用操心这个）。
 - 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性 + 专用派发线程）、反查口（provider，为 null 走本地规则），
