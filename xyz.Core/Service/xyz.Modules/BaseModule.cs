@@ -240,6 +240,7 @@ public abstract class BaseModule : ComponentBase
                 return;
             }
 
+            //动作扫描
             operation.Scan();
 
             if (operation.IsTerminal)

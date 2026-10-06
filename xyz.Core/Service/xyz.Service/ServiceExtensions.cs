@@ -57,12 +57,10 @@ public static class ServiceExtensions
         var settings = SC.Load();
         services.AddSingleton<IReadOnlyList<ModuleConfig>>(settings);
 
-        // 驱动接入后在此处补 Open（先连接后启动）。
         var roots = ComponentLoader.Load(settings);
         services.AddSingleton<IReadOnlyList<ComponentBase>>(roots);
 
-        // EC 组件把组件树 [VariableMark(EC)] 声明合并进 ec.xml（没有这个文件就生成，缺的补建，已有值不动，层级先后跟 sc.xml 一样）。
-        var ec = EcComponent.Current;
+        var ec = EcComponent.Current; //EC
         if (ec is not null)
         {
             ec.Merge(roots);
@@ -76,20 +74,25 @@ public static class ServiceExtensions
             LogHelper.Warn("EC", "sc.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
         }
 
-        // 编号：EC/SV/报警/CEID/DV 五个采集器按代码声明生成编号表（EcDefinitions.xml 等，跟 sc.xml 同目录）：
-        // 已有的保号、新增的在号段里接着分、代码里删掉的停用保号；报警另配报出/清除事件；一键采集走 CollectAll。
+        #region 采集EAP数据
+
         var collectors = new GemCollectors();
         collectors.Merge(roots, SC.ConfigDirectory);
         services.AddSingleton(collectors);
 
-        // 报警转推客户端：报警组件在组件层（不引用契约层），所以这条桥搭在这儿，跟日志那条一个路子。
+        #endregion
+
+        #region 报警组件
         var alarms = AlarmComponent.Current;
         if (alarms is not null)
         {
             alarms.AlarmChanged += item => EventBus.Send(item.ToDto(), AlarmDto.EventToken, retain: false);
         }
 
-        // 晶圆账一变就通知客户端：只说哪个位置变了，不带账（整篮 Mapping 会一下来一串），账单调整页收到后合并着重拉一次。
+        #endregion
+
+        #region 晶圆账单管理
+
         var wafers = WaferManager.Current;
         if (wafers is not null)
         {
@@ -102,9 +105,9 @@ public static class ServiceExtensions
             wafers.WaferMoved += (wafer, _, _) => NotifyLedger(wafer.Module);
         }
 
-        // PLC 是全机 IO 底座（气缸的 DI/DO、轴的数据块都从它走），所以先于模块连上并起扫描：
-        // 模块 Open 时可能就要登记自己的数据块。它不是模块，不在下面的模块列表里，自己就是一棵扫描树的根。
-        // 这儿按组件类型取而不是走 PlcComponent.Current——Current 是给上层读写用的 IPlc，不带装配这一面。
+        #endregion
+
+        //plc连接
         foreach (var plc in roots.OfType<PlcComponent>())
         {
             if (!plc.Open())
@@ -115,14 +118,13 @@ public static class ServiceExtensions
             plc.Start();
         }
 
-        // IO 表：读点表。排在 PLC 之后、模块之前，供上层按索引取点；值直接从 PLC 缓存解出来，不另起采集。
+        //IO 表 初始化
         foreach (var io in roots.OfType<IoComponent>())
         {
             io.Open();
         }
 
-        // 安全信号（Safety 节点下的急停、维修门、漏液、厂务气源/排风这些）：不是模块，给它单起一条扫描线程监控。
-        // 排在 IO 表之后：子节点读点要走点表。
+        //ComponentBase 里面就是安全的开启线程扫描
         foreach (var safety in roots.OfType<SafetyComponent>())
         {
             safety.Start();
@@ -130,7 +132,7 @@ public static class ServiceExtensions
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 
-        // 各轴把收发两块登记进 PLC 缓存，与 Init（回零）分开；断线重连由轴自身扫描处理。
+        // 各个轴手法登记进入 SendPlcDataPath、SendPlcDataPath
         var axisPlc = PlcComponent.Current;
         if (axisPlc is not null)
         {
@@ -150,7 +152,7 @@ public static class ServiceExtensions
             }
         }
 
-        // 先连接后启动：模块在此打开驱动连接。
+        //模块里面的open或者初始化
         foreach (var module in modules)
         {
             if (!module.Open())
@@ -159,14 +161,15 @@ public static class ServiceExtensions
             }
         }
 
-        // 晶圆账开机恢复：模块 Open 时各自登记好槽位（机械手按手指、腔体按槽）之后、开始扫描之前，把上次存盘的账放回腔体、机械手上；
-        // LoadPort 不恢复，以开机 Mapping 为准；重启前在加工的片记成中止。恢复完账本才开始存盘。
+        //晶圆账开机恢复
         wafers?.Restore();
 
         foreach (var module in modules)
         {
             module.Start();
         }
+
+        #region 搬运管理
 
         // 搬运管理：模块全起来之后再绑表启动——它一转就会执行搬运单，
         // 不能在模块还没连上驱动、还没 Home 的时候就开始派机械手。
@@ -180,9 +183,10 @@ public static class ServiceExtensions
         {
             LogHelper.Warn("Transfer", "sc.xml 没配 Transfer 节点：手动传片与自动派单都不可用");
         }
+        #endregion
 
-        // 流程配方库：可选站点按 sc.xml 的分组节点和装起来的模块生成（机械手站点表里有的才算），所以等模块全起来再绑。
-        // 内容一变就通知客户端（只带编号），流程配方页收到后重拉。库在模块层（这边才认得 EventBus 和契约），桥搭在这儿。
+        #region 流程配方库
+
         var sequences = SequenceComponent.Current;
         if (sequences is not null)
         {
@@ -195,8 +199,10 @@ public static class ServiceExtensions
             LogHelper.Warn("Sequence", "sc.xml 没配 Sequence 节点：流程配方页用不了");
         }
 
-        // 工艺配方库：能选的摆臂、药液按腔体下装的摆臂轴和喷嘴生成，合计时长的上限跟腔体的工艺超时走，所以也等模块全起来再绑。
-        // 内容一变就通知客户端（只带编号），工艺配方页、流程配方页、腔体手动页收到后重拉列表。
+        #endregion
+
+        #region 工艺配方库
+
         var processRecipes = ProcessRecipeComponent.Current;
         if (processRecipes is not null)
         {
@@ -209,8 +215,10 @@ public static class ServiceExtensions
             LogHelper.Warn("ProcessRecipe", "sc.xml 没配 ProcessRecipe 节点：工艺配方页用不了，流程配方、腔体起工艺不查配方在不在库里");
         }
 
-        // Job 管理（SEMI E94 CJ / E40 PJ）：模块、搬运管理、两个配方库都起来以后再绑——建 Job 要取配方快照、调度要用搬运管理；
-        // 绑完起它自己的扫描线程（命令、规则、调度都在这条线程上）。
+        #endregion
+
+        #region Job 管理
+
         var jobs = JobManager.Current;
         if (jobs is not null)
         {
@@ -222,9 +230,10 @@ public static class ServiceExtensions
             LogHelper.Warn("Job", "sc.xml 没配 Job 节点：建不了 Job，主界面的创建 / 启动 Job 用不了");
         }
 
-        // EAP（SECS/GEM，sc.xml 的 Eap 节点）：设备侧都起来以后再接——E87 挂到 LoadPort 上、E90 挂到晶圆账上、E40 / E94 挂到 Job 管理上，
-        // 都接好了最后才开链路，免得 Host 连进来时还有标准没接上。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备照常跑。
-        // 退出时的 Separate 优雅断开挂在宿主的 ApplicationStopping。
+        #endregion
+
+        #region EAP（SECS/GEM，sc.xml 的 Eap 节点）：设备侧都起来以后再接
+
         var eap = EapComponent.Current;
         if (eap is not null)
         {
@@ -235,15 +244,17 @@ public static class ServiceExtensions
             LogHelper.Error("Eap", "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
         }
 
+        #endregion
+
+
         // 设备总状态（红 = 报警、黄 = 警告、绿 = 运行）：点亮四色灯并推给客户端顶栏。
         EquipmentStatusPublisher.Start(roots, modules);
 
         // IO 点位：按周期整包推给 IO 界面，界面只订阅不拉。
         IoPublisher.Start();
 
-        // 数据曲线：每秒采一整行入库——只记 sc.xml 里配置了的（组件上的 SV + 组件绑的 IO）；
-        // 实时曲线订阅同一份采样，留最近一段、推给界面。
-        // 放在最后：采样要读 SV 编号表和 IO 点表，都得先备好。
+        #region 曲线
+
         var dataChart = DataChartComponent.Current;
         if (dataChart is not null)
         {
@@ -257,6 +268,8 @@ public static class ServiceExtensions
         }
 
         LogHelper.Info($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
+
+        #endregion
 
         #endregion
 

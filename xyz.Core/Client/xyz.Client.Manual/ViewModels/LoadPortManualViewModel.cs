@@ -18,10 +18,13 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
     #region Column
 
     /// <summary>
-    /// 模块实例名，与 EventBus token / gRPC 参数一致，如 "LoadPort1"。
+    /// 如 "LoadPort1"
     /// </summary>
     public string ModuleName { get; }
 
+    /// <summary>
+    /// 留给界面展示的模型
+    /// </summary>
     private LoadPortModel _model = new();
 
     public LoadPortModel Model
@@ -58,6 +61,9 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     #region Service
 
+    /// <summary>
+    /// 后台Loadport 服务
+    /// </summary>
     private readonly ILoadPortService _service;
 
     private IDisposable? _stateSubscription;
@@ -104,14 +110,12 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         }
 
         _stateSubscription?.Dispose();
+
+        //订阅后台loadport数据
         _stateSubscription = EventBus.Register<LoadPortDto>(ModuleName, OnStateReceived);
     }
 
-    public void Dispose()
-    {
-        _stateSubscription?.Dispose();
-        _stateSubscription = null;
-    }
+
 
     private void OnStateReceived(LoadPortDto dto)
     {
@@ -206,5 +210,11 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         {
             ClientLog.Error(ModuleName, $"Abort 失败：{L10n.Get(response.Code, response.Args)}");
         }
+    }
+
+    public void Dispose()
+    {
+        _stateSubscription?.Dispose();
+        _stateSubscription = null;
     }
 }

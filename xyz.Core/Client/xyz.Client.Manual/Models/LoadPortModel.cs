@@ -4,9 +4,7 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Client.Manual.Models;
 
-/// <summary>
-/// LoadPort 手动界面的显示模型，由 LoadPortDto 经 Mapster 映射，字段与 DTO 同名对齐。
-/// </summary>
+
 public class LoadPortModel : ObservableObject
 {
     private int _state;

@@ -4,10 +4,7 @@ using xyz.Client.Manual.ViewModels;
 
 namespace xyz.Client.Manual.Views;
 
-/// <summary>
-/// LoadPort 手动操作面板：花篮图 + 状态栏 + 五个动作按钮。
-/// 通过 ModuleName 依赖属性实例化，每个 LoadPort 一个实例。
-/// </summary>
+
 public partial class LoadPortManualControl : UserControl
 {
     public static readonly DependencyProperty ModuleNameProperty =

@@ -10,16 +10,12 @@ using xyz.Tools;
 namespace xyz._35021.Client.Manual.ViewModels;
 
 /// <summary>
-/// 35021 大手动界面 ViewModel：启动时从后端读取 sc.xml 里配置的全部 LoadPort，
-/// 有几个就组装几个平台的手动操作面板。
+/// loadport 手动大界面，包含多个loadport
 /// </summary>
 public class LoadPortsManualViewModel : BaseViewModel
 {
     #region Column
 
-    /// <summary>
-    /// 全部 LoadPort 的模块名（如 LoadPort1 / LoadPort2），顺序即后端返回顺序。
-    /// </summary>
     public ObservableCollection<string> Ports { get; } = new();
 
     #endregion
@@ -45,7 +41,7 @@ public class LoadPortsManualViewModel : BaseViewModel
 
         try
         {
-            // module 传空串 = 返回全部 LoadPort。注意后端约定：只有一个时返回单对象，其余返回数组。
+            //页面刚起来主动获取一次
             var response = _service.GetStateAsync(string.Empty).GetAwaiter().GetResult();
             response.EnsureSuccess();
 

@@ -6,26 +6,29 @@ namespace xyz.Components.Components;
 
 public abstract class ModuleOperation
 {
-    private volatile OperationState _state = OperationState.Running;
-    private readonly object _terminalGate = new();
-    private bool _completionDeferred;
-
+    #region Column
     /// <summary>
-    /// 操作名（如 "Load"），诊断用。
+    /// 4种状态， 运行，成功，失败，停止
     /// </summary>
-    public string Name { get; }
-
+    private volatile OperationState _state = OperationState.Running;
     /// <summary>
     /// 当前状态。
     /// </summary>
     public OperationState State => _state;
 
+    private readonly object _terminalGate = new();
+    private bool _completionDeferred;
+
     /// <summary>
-    /// 是否已达终态。
+    /// 动作名eg：Load
     /// </summary>
-    public bool IsTerminal => _state is OperationState.Completed
-        or OperationState.Failed
-        or OperationState.Aborted;
+    public string Name { get; }
+    
+
+    /// <summary>
+    /// 是否已达终态。 成功失败，停止
+    /// </summary>
+    public bool IsTerminal => _state is OperationState.Completed or OperationState.Failed or OperationState.Aborted;
 
     /// <summary>
     /// 终态是否成功（Completed）。
@@ -45,12 +48,12 @@ public abstract class ModuleOperation
     public string Reason { get; private set; } = string.Empty;
 
     /// <summary>
-    /// 失败错误码（见 xyz.Shared.Errors.ErrorCodes），前端查语言包渲染；无码为空。
+    /// 失败错误码
     /// </summary>
     public string Code { get; private set; } = string.Empty;
 
     /// <summary>
-    /// 错误码参数，顺序见错误码定义注释。
+    /// 错误码参数
     /// </summary>
     public IReadOnlyList<string> ErrorArgs { get; private set; } = Array.Empty<string>();
 
@@ -58,6 +61,8 @@ public abstract class ModuleOperation
     /// 超时账本：构造时启动，终结时停止；等待步据此判超时。
     /// </summary>
     protected Stopwatch Watch { get; } = Stopwatch.StartNew();
+
+    #endregion
 
     protected ModuleOperation(string name)
     {
@@ -85,6 +90,12 @@ public abstract class ModuleOperation
     }
 
     /// <summary>
+    /// 步进逻辑（switch(Step) 推进）；只由模块扫描线程执行，内部无需加锁。
+    /// </summary>
+    protected abstract void OnScan();
+
+    #region Abort
+    /// <summary>
     /// 宿主（RPC 线程）同步打断：直接落 Aborted 并触发钩子，用于 Abort 顶替在途操作。
     /// </summary>
     public void AbortByHost(string reason)
@@ -105,17 +116,14 @@ public abstract class ModuleOperation
     }
 
     /// <summary>
-    /// 步进逻辑（switch(Step) 推进）；只由模块扫描线程执行，内部无需加锁。
-    /// </summary>
-    protected abstract void OnScan();
-
-    /// <summary>
     /// 操作被打断后的钩子（如向设备发 ABORT 指令）。
     /// </summary>
     protected virtual void OnAborted(string reason)
     {
     }
 
+    #endregion
+  
     /// <summary>
     /// 成功终结。
     /// </summary>
@@ -132,10 +140,13 @@ public abstract class ModuleOperation
         TrySetTerminal(OperationState.Failed, reason, code, args);
     }
 
+
     /// <summary>
     /// 等待操作完成收尾（阻塞，完成事件唤醒不空转）；false 只表示等待超时。
-    /// 用于 RPC/工具等需要结果的同步调用方；模块扫描线程不要用（等待发生在状态机里）。
     /// </summary>
+    /// <param name="timeoutMilliseconds"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public bool WaitReply(int timeoutMilliseconds, CancellationToken cancellationToken = default)
     {
         return _terminal.Wait(timeoutMilliseconds, cancellationToken);
