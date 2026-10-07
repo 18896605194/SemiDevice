@@ -3,8 +3,8 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没结束的 CJ、PJ（状态值照 SEMI E94 / E40，每片带它的一行任务），
-/// 最近结束的 CJ。版本号每变一次加 1，客户端重连后拿到的就是最新的一份。
+/// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没删的 CJ、界面要看的 PJ（状态值照 SEMI E94 / E40，每片带它的一行任务）。
+/// 版本号每变一次加 1，客户端重连后拿到的就是最新的一份。删掉的 CJ、结束的 PJ 在库里（control_job、process_job 两张表）。
 /// </summary>
 public class JobListDto
 {
@@ -18,9 +18,6 @@ public class JobListDto
 
     /// <summary>没结束的 PJ（含还不归任何 CJ 的），按建的先后。</summary>
     public List<ProcessJobDto> ProcessJobs { get; set; } = [];
-
-    /// <summary>最近删掉的 CJ（结束后转历史），新的在前。</summary>
-    public List<ControlJobDto> History { get; set; } = [];
 }
 
 /// <summary>
@@ -64,9 +61,6 @@ public class ControlJobDto
     public int EndedBy { get; set; }
 
     public DateTime? EndedAt { get; set; }
-
-    /// <summary>设备重启时还没结束：开机后不接着跑，记成中止（CompletedBy 12）进历史。</summary>
-    public bool Restarted { get; set; }
 }
 
 /// <summary>

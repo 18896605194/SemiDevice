@@ -434,7 +434,7 @@
 	     Task 子节点是机型的任务组件（必须配）：建 Job 时给每片生成任务表（取片、放片、工艺……按顺序），记每个任务做到哪、出错停住等人处理；
 	       规则跟平台不一样的机型继承 BaseTaskComponent 自己写一个，Type 指过去。
 	     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片连同放片下搬运单）；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
-	     IsPersistent：Job 存盘，重启后不接着跑，上次没结束的记成中止进历史 -->
+	     IsPersistent：Job 记进库（control_job、process_job 两张表，CJ、PJ 各一行，每片的任务明细跟着 PJ）；重启后不接着跑，库里上次没做完的记成中止 -->
 	<Setting Name="Job" Type="xyz.Modules.JobManager">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="IsPersistent" Value="True" />

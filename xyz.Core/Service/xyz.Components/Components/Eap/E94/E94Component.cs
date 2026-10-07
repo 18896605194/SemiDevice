@@ -24,7 +24,7 @@ public class E94Component : ComponentBase, IE94Callback
     #region DV、事件
 
     private const string DvJobId = "CtrlJobID";
-    private const string DvJobState = "CtrlJobState";
+    private const string DvJobState = "ControlJobState";
     private const string DvCarrierId = "CtrlJobCarrierID";
     private const string DvProcessJobs = "CtrlJobPRJobs";
 
@@ -122,7 +122,7 @@ public class E94Component : ComponentBase, IE94Callback
 
     #region 上报（IE94Callback）
 
-    void IE94Callback.ControlJobTransitioned(ControlJobDto job, int transition)
+    void IE94Callback.ControlJobStateChanged(ControlJobDto job, int transition)
     {
         if (transition is < 1 or > 13)
         {
@@ -166,7 +166,7 @@ public class E94Component : ComponentBase, IE94Callback
         }
         else
         {
-            var result = await _jobs.CommandControlJobAsync(id, command.Value, action).ConfigureAwait(false);
+            var result = await _jobs.ExecuteControlJobCommandAsync(id, command.Value, action).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 error = JobErrors.Of(result);
@@ -204,7 +204,7 @@ public class E94Component : ComponentBase, IE94Callback
         return Enum.IsDefined(typeof(ControlJobCommand), (int)value) ? (ControlJobCommand)value : null;
     }
 
-    private static CtrlJobAction ReadAction(SecsItem item)
+    private static ControlJobAction ReadAction(SecsItem item)
     {
         var parts = SecsRead.List(item, "Action 参数");
         if (parts.Count == 1)
@@ -214,18 +214,18 @@ public class E94Component : ComponentBase, IE94Callback
 
         if (parts.Count < 2)
         {
-            return CtrlJobAction.SaveJobs;
+            return ControlJobAction.SaveJobs;
         }
 
         var value = parts[1];
         if (value.Format is SecsFormat.Ascii or SecsFormat.Jis8)
         {
             return string.Equals(value.GetString().Trim(), "RemoveJobs", StringComparison.OrdinalIgnoreCase)
-                ? CtrlJobAction.RemoveJobs
-                : CtrlJobAction.SaveJobs;
+                ? ControlJobAction.RemoveJobs
+                : ControlJobAction.SaveJobs;
         }
 
-        return SecsRead.Code(value, "Action") == (byte)CtrlJobAction.RemoveJobs ? CtrlJobAction.RemoveJobs : CtrlJobAction.SaveJobs;
+        return SecsRead.Code(value, "Action") == (byte)ControlJobAction.RemoveJobs ? ControlJobAction.RemoveJobs : ControlJobAction.SaveJobs;
     }
 
     #endregion

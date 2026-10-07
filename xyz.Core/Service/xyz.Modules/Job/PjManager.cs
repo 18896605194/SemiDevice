@@ -15,7 +15,7 @@ internal sealed class PjManager : IPjManager
 
     private readonly ConcurrentDictionary<Guid, string> _owners = new();
 
-    public event Action<ProcessJob, int>? Transitioned;
+    public event Action<ProcessJob, int>? StateChanged;
 
     public ProcessJob? Find(string id)
     {
@@ -377,8 +377,8 @@ internal sealed class PjManager : IPjManager
 
     #region PJ 命令（E40）
 
-    /// <summary>PJ 命令（先查 E40 转换表，表里没有的一律拒，回当前状态）。排队的 PJ 收到 Stop / Abort 就是撤掉（#18）。</summary>
-    public HandleResult Command(string id, ProcessJobCommand command)
+    /// <summary>执行 PJ 命令（先查 E40 转换表，表里没有的一律拒，回当前状态）。排队的 PJ 收到 Stop / Abort 就是撤掉（#18）。</summary>
+    public HandleResult Execute(string id, ProcessJobCommand command)
     {
         var job = Find(id.Trim());
         if (job is null || job.IsEnded)
@@ -442,6 +442,6 @@ internal sealed class PjManager : IPjManager
     private void Report(ProcessJob job, int number, ProcessJobState? from, ProcessJobState? to)
     {
         LogHelper.Info(LogModule, $"PJ {job.Id} E40 #{number}：{JobNames.Of(from)} → {JobNames.Of(to)}");
-        Transitioned?.Invoke(job, number);
+        StateChanged?.Invoke(job, number);
     }
 }

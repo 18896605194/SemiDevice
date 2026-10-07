@@ -45,6 +45,9 @@ public sealed class ProcessJob
     /// <summary>中止时发给腔体的设备中止动作：都做完了（设备确认了）中止才算做完。</summary>
     public List<ModuleOperation> DeviceAborts { get; } = [];
 
+    /// <summary>库里 process_job 表那一行的 Id（第一次写进去之后才有，0 = 还没写）。只有 Job 管理的存盘线程读写。</summary>
+    internal long RowId { get; set; }
+
     public bool IsEnded => EndedBy is not null;
 
     /// <summary>还有没投的片。</summary>

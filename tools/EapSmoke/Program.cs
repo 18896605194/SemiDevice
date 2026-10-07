@@ -634,10 +634,10 @@ var redirect = await Send(14, 9, CreateCj(Attribute("ObjID", SecsItem.A("CJ-3"))
 Check(redirect.Body!.Items[2].Items[1].Items[0].Items[0].GetUInt64() == 14, "改回片地方不支持：ERRCODE 14");
 
 var s16f28 = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.U1(1), SecsItem.L()));
-Check(s16f28.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Start, CtrlJobAction.SaveJobs),
+Check(s16f28.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Start, ControlJobAction.SaveJobs),
     "S16F27 CjStart 翻成 CJ 启动");
 await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A("CjStop"), SecsItem.L(SecsItem.A("Action"), SecsItem.U1(1))));
-Check(jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Stop, CtrlJobAction.RemoveJobs), "CjStop 带 RemoveJobs（名字写法也认）");
+Check(jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Stop, ControlJobAction.RemoveJobs), "CjStop 带 RemoveJobs（名字写法也认）");
 var badCommand = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.U1(9), SecsItem.L()));
 Check(!badCommand.Body!.Items[0].GetBooleanArray()[0] && badCommand.Body.Items[1].Count == 2, "不认识的 CJ 命令：ACKA=FALSE 带一条错误");
 gem.RequestRemote(false);
@@ -656,9 +656,9 @@ var cj = cjAttributes.Body!.Items[0].Items[0].Items[1];
 Check(cj.Items[0].Items[1].GetUInt64() == 3 && cj.Items[1].Items[1].Items[0].GetString() == "PJ-1", "S14F1 查 CJ：状态、在跑的 PJ");
 
 mark = host.EventCount;
-jobs.E40Callback!.ProcessJobTransitioned(jobs.Snapshot.ProcessJobs[0], 5);
+jobs.E40Callback!.ProcessJobStateChanged(jobs.Snapshot.ProcessJobs[0], 5);
 await Event("Eap.E40.PrJobSMTrans05", mark, "PJ 状态转换报事件（#5）");
-jobs.E94Callback!.ControlJobTransitioned(jobs.Snapshot.ControlJobs[0], 7);
+jobs.E94Callback!.ControlJobStateChanged(jobs.Snapshot.ControlJobs[0], 7);
 await Event("Eap.E94.CtrlJobSMTrans07", mark, "CJ 状态转换报事件（#7）");
 
 // ── 收 ───────────────────────────────────────────────────────────────────────
@@ -977,7 +977,7 @@ sealed class FakeJobs : IJobManager
 
     public List<(string Id, ProcessJobCommand Command)> ProcessCommands { get; } = [];
 
-    public List<(string Id, ControlJobCommand Command, CtrlJobAction Action)> ControlCommands { get; } = [];
+    public List<(string Id, ControlJobCommand Command, ControlJobAction Action)> ControlCommands { get; } = [];
 
     public HandleResult? NextResult { get; set; }
 
@@ -1014,13 +1014,13 @@ sealed class FakeJobs : IJobManager
         return Result(spec.Id);
     }
 
-    public Task<HandleResult> CommandControlJobAsync(string id, ControlJobCommand command, CtrlJobAction action)
+    public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
     {
         ControlCommands.Add((id, command, action));
         return Result(id);
     }
 
-    public Task<HandleResult> CommandProcessJobAsync(string id, ProcessJobCommand command)
+    public Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command)
     {
         ProcessCommands.Add((id, command));
         return Result(id);

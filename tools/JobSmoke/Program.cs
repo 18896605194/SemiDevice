@@ -192,6 +192,31 @@ try
         return false;
     }
 
+    // Job 记录（control_job、process_job）由 Job 管理的写库线程写：查库要等它写到，最多等 3 秒
+    bool WaitDb(Func<SqlSugar.ISqlSugarClient, bool> written)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < 3000)
+        {
+            using (var db = XyzDb.Create("JobSmoke"))
+            {
+                if (written(db))
+                {
+                    return true;
+                }
+            }
+
+            Thread.Sleep(20);
+        }
+
+        return false;
+    }
+
+    List<JobWaferDto> WafersOf(ProcessJobEntity row)
+    {
+        return JsonHelper.Deserialize<List<JobWaferDto>>(row.Wafers) ?? [];
+    }
+
     HandleResult Do(Task<HandleResult> task)
     {
         for (int tick = 0; tick < 50 && !task.IsCompleted; tick++)
@@ -411,18 +436,18 @@ try
           && rowB.Tasks[2].Recipe == "R1" && rowB.Tasks[5].Recipe == "R2" && rowB.Tasks.Select(task => task.Step).SequenceEqual(new[] { 0, 0, 0, 1, 1, 1, 2, 2 }),
         "SEQ_B 两站：每一站放片、工艺、取片，最后回片（任务记着属于路线第几站）");
 
-    Check(RunUntil(() => CjOf("LOT-A")?.State == (int)CtrlJobState.WaitingForStart, 20), "CJ 选中（#3，不限同时跑几个），料到了等启动（#6）");
+    Check(RunUntil(() => CjOf("LOT-A")?.State == (int)ControlJobState.WaitingForStart, 20), "CJ 选中（#3，不限同时跑几个），料到了等启动（#6）");
     Check(PjOf("LOT-A-1")?.State == (int)ProcessJobState.QueuedPooled && PjOf("LOT-A-2")?.State == (int)ProcessJobState.QueuedPooled,
         "CJ 没启动前 PJ 都排着");
-    Refuses(Do(jobs.CommandControlJobAsync("LOT-A", ControlJobCommand.Start, CtrlJobAction.SaveJobs)),
+    Refuses(Do(jobs.ExecuteControlJobCommandAsync("LOT-A", ControlJobCommand.Start, ControlJobAction.SaveJobs)),
         ErrorCodes.JobNotAuto, [], "Manual 下启动不了");
-    Refuses(Do(jobs.CommandControlJobAsync("LOT-A", ControlJobCommand.Resume, CtrlJobAction.SaveJobs)),
+    Refuses(Do(jobs.ExecuteControlJobCommandAsync("LOT-A", ControlJobCommand.Resume, ControlJobAction.SaveJobs)),
         ErrorCodes.JobCommandNotAllowed, ["LOT-A", "CJResume", "WAITINGFORSTART"], "转换表里没有的命令：拒，带当前状态");
     transfers.StartAutoDispatch();
-    Check(Do(jobs.CommandControlJobAsync("LOT-A", ControlJobCommand.Start, CtrlJobAction.SaveJobs)).IsSuccess
-          && CjOf("LOT-A")?.State == (int)CtrlJobState.Executing, "Auto 下启动：EXECUTING（#7）");
+    Check(Do(jobs.ExecuteControlJobCommandAsync("LOT-A", ControlJobCommand.Start, ControlJobAction.SaveJobs)).IsSuccess
+          && CjOf("LOT-A")?.State == (int)ControlJobState.Executing, "Auto 下启动：EXECUTING（#7）");
 
-    Check(RunUntil(() => CjOf("LOT-A")?.State == (int)CtrlJobState.Completed), "跑完：CJ 进 COMPLETED");
+    Check(RunUntil(() => CjOf("LOT-A")?.State == (int)ControlJobState.Completed), "跑完：CJ 进 COMPLETED");
     var cjA = CjOf("LOT-A")!;
     Check(cjA.CompletedBy == 10 && PjOf("LOT-A-1")?.EndedBy == 7 && PjOf("LOT-A-2")?.EndedBy == 7, "正常完成：CJ #10，PJ #7");
     for (int slot = 1; slot <= 3; slot++)
@@ -454,8 +479,19 @@ try
     Check(jobs.OwnerOf(first.Id) is null, "PJ 结束放开它名下的片");
 
     UnloadCarrier(lp1);
-    Check(RunUntil(() => CjOf("LOT-A") is null, 20) && jobs.Snapshot.History.Any(job => job.Id == "LOT-A" && job.EndedBy == 13),
-        "载具拿走：完成的 CJ 删掉（#13）转进历史");
+    Check(RunUntil(() => CjOf("LOT-A") is null, 20), "载具拿走：完成的 CJ 删掉（#13）");
+    Check(WaitDb(db => db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-A").ToList()
+            .Any(row => row.CompletedBy == 10 && row.EndedBy == 13 && row.LoadPort == "LP1" && !row.Restarted)),
+        "CJ 记进库：control_job 一个 CJ 一行，#10 完成、#13 删掉");
+    Check(WaitDb(db =>
+        {
+            var control = db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-A").ToList();
+            var rows = db.Queryable<ProcessJobEntity>().Where(row => row.ControlJob == "LOT-A").ToList();
+            return control.Count == 1 && rows.Count == 2
+                && rows.All(row => row.EndedBy == 7 && row.ControlJobRowId == control[0].Id
+                    && WafersOf(row).Count > 0 && WafersOf(row).All(wafer => wafer.Tasks.All(task => task.State == "Done")));
+        }),
+        "PJ 记进库：process_job 一个 PJ 一行，记着 CJ 的行号，#7 结束，每片的任务明细（都做完了）跟着进库");
 
     // 8. 配方快照 + 回到别的 LoadPort：建好之后流程配方改名、删掉都不影响；最后一步只勾了 LP2，片放到 LP2 同号槽。
     LoadCarrier(lp1, 1, 2);
@@ -464,7 +500,7 @@ try
     Check(snapshotJob.IsSuccess, $"建 LOT-C：{snapshotJob.ErrorMessage}");
     Check(sequences.Rename(3, "SEQ_C2", "Smoke").IsOk && sequences.Delete(3, "Smoke").IsOk, "库里改名、再删掉");
     var movedIds = new[] { ledger.Get("LP1", 1)!.Id, ledger.Get("LP1", 2)!.Id };
-    Check(RunUntil(() => CjOf("LOT-C")?.State == (int)CtrlJobState.Completed), "自动启动（#5）跑完");
+    Check(RunUntil(() => CjOf("LOT-C")?.State == (int)ControlJobState.Completed), "自动启动（#5）跑完");
     Check(PjOf("LOT-C-1")?.Sequence == "SEQ_C" && events.Numbers("CJ LOT-C").SequenceEqual(new[] { 1, 3, 5, 10 }),
         "照快照跑：PJ 记的还是 SEQ_C；CJ 自动启动 #5");
     Check(ledger.Get("LP2", 1)?.Id == movedIds[0] && ledger.Get("LP2", 2)?.Id == movedIds[1] && ledger.Get("LP1", 1) is null,
@@ -477,7 +513,7 @@ try
     LoadCarrier(lp1, 1, 2, 3, 4);
     Check(Create("LOT-P", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A"), (4, "SEQ_A")).IsSuccess, "建 LOT-P");
     Check(RunUntil(() => PjOf("LOT-P-1")?.Wafers.Any(IsProcessing) == true), "跑到有片在加工");
-    Check(Do(jobs.CommandProcessJobAsync("LOT-P-1", ProcessJobCommand.Pause)).IsSuccess
+    Check(Do(jobs.ExecuteProcessJobCommandAsync("LOT-P-1", ProcessJobCommand.Pause)).IsSuccess
           && PjOf("LOT-P-1")?.State == (int)ProcessJobState.Pausing, "PJ 暂停：PAUSING（#8）");
     int fedAtPause = PjOf("LOT-P-1")!.Wafers.Count(wafer => !IsWaiting(wafer));
     Check(RunUntil(() => PjOf("LOT-P-1")?.State == (int)ProcessJobState.Paused), "机内的片做完回来了：PAUSED（#9）");
@@ -487,9 +523,9 @@ try
         "暂停后没再投新片，投出去的都回片了");
     Check(paused.Wafers.Where(IsWaiting).All(wafer => ledger.Get(wafer.SourcePort, wafer.SourceSlot)?.WaferId == wafer.WaferId),
         "没投的片还在来源槽（账上）");
-    Check(Do(jobs.CommandProcessJobAsync("LOT-P-1", ProcessJobCommand.Resume)).IsSuccess
+    Check(Do(jobs.ExecuteProcessJobCommandAsync("LOT-P-1", ProcessJobCommand.Resume)).IsSuccess
           && PjOf("LOT-P-1")?.State == (int)ProcessJobState.Processing, "恢复：回到 PROCESSING（#10）");
-    Check(RunUntil(() => CjOf("LOT-P")?.State == (int)CtrlJobState.Completed), "恢复后接着投，跑完");
+    Check(RunUntil(() => CjOf("LOT-P")?.State == (int)ControlJobState.Completed), "恢复后接着投，跑完");
     Check(events.Numbers("PJ LOT-P-1").SequenceEqual(new[] { 1, 2, 4, 8, 9, 10, 6, 7 }), "转换号：#8 暂停、#9 暂停到位、#10 恢复");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-P") is null, 20), "LOT-P 删掉");
@@ -498,15 +534,15 @@ try
     LoadCarrier(lp1, 1, 2, 3);
     Check(Create("LOT-Q", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_B")).IsSuccess, "建 LOT-Q");
     Check(RunUntil(() => PjOf("LOT-Q-1")?.State == (int)ProcessJobState.Processing), "第一个 PJ 在跑");
-    Check(Do(jobs.CommandControlJobAsync("LOT-Q", ControlJobCommand.Pause, CtrlJobAction.SaveJobs)).IsSuccess
-          && CjOf("LOT-Q")?.State == (int)CtrlJobState.Paused, "CJ 暂停：PAUSED（#8）");
+    Check(Do(jobs.ExecuteControlJobCommandAsync("LOT-Q", ControlJobCommand.Pause, ControlJobAction.SaveJobs)).IsSuccess
+          && CjOf("LOT-Q")?.State == (int)ControlJobState.Paused, "CJ 暂停：PAUSED（#8）");
     Check(RunUntil(() => PjOf("LOT-Q-1")?.EndedBy == 7), "在跑的 PJ 照常投片、做完（#7）");
     Tick();
-    Check(PjOf("LOT-Q-2")?.State == (int)ProcessJobState.QueuedPooled && CjOf("LOT-Q")?.State == (int)CtrlJobState.Paused,
+    Check(PjOf("LOT-Q-2")?.State == (int)ProcessJobState.QueuedPooled && CjOf("LOT-Q")?.State == (int)ControlJobState.Paused,
         "下一个 PJ 不启动，CJ 还是 PAUSED");
-    Check(Do(jobs.CommandControlJobAsync("LOT-Q", ControlJobCommand.Resume, CtrlJobAction.SaveJobs)).IsSuccess,
+    Check(Do(jobs.ExecuteControlJobCommandAsync("LOT-Q", ControlJobCommand.Resume, ControlJobAction.SaveJobs)).IsSuccess,
         "CJ 恢复（#9）");
-    Check(RunUntil(() => CjOf("LOT-Q")?.State == (int)CtrlJobState.Completed) && CjOf("LOT-Q")?.CompletedBy == 10,
+    Check(RunUntil(() => CjOf("LOT-Q")?.State == (int)ControlJobState.Completed) && CjOf("LOT-Q")?.CompletedBy == 10,
         "恢复后启动下一个 PJ，都做完 #10");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-Q") is null, 20), "LOT-Q 删掉");
@@ -515,12 +551,12 @@ try
     LoadCarrier(lp1, 1, 2, 3, 4);
     Check(Create("LOT-S", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A"), (4, "SEQ_A")).IsSuccess, "建 LOT-S");
     Check(RunUntil(() => PjOf("LOT-S-1")?.Wafers.Any(IsProcessing) == true), "跑到有片在加工");
-    Check(Do(jobs.CommandControlJobAsync("LOT-S", ControlJobCommand.Stop, CtrlJobAction.SaveJobs)).IsSuccess
+    Check(Do(jobs.ExecuteControlJobCommandAsync("LOT-S", ControlJobCommand.Stop, ControlJobAction.SaveJobs)).IsSuccess
           && PjOf("LOT-S-1")?.State == (int)ProcessJobState.Stopping && CjOf("LOT-S")?.Ending == "Stop"
-          && CjOf("LOT-S")?.State == (int)CtrlJobState.Executing, "CJ 停止：PJ 进 STOPPING（#11），CJ 状态值不变、标着停止中");
-    Refuses(Do(jobs.CommandControlJobAsync("LOT-S", ControlJobCommand.Pause, CtrlJobAction.SaveJobs)),
+          && CjOf("LOT-S")?.State == (int)ControlJobState.Executing, "CJ 停止：PJ 进 STOPPING（#11），CJ 状态值不变、标着停止中");
+    Refuses(Do(jobs.ExecuteControlJobCommandAsync("LOT-S", ControlJobCommand.Pause, ControlJobAction.SaveJobs)),
         ErrorCodes.JobEnding, ["LOT-S", "CJPause"], "停止中不收暂停");
-    Check(RunUntil(() => CjOf("LOT-S")?.State == (int)CtrlJobState.Completed), "停完");
+    Check(RunUntil(() => CjOf("LOT-S")?.State == (int)ControlJobState.Completed), "停完");
     var stopped = PjOf("LOT-S-1")!;
     Check(CjOf("LOT-S")?.CompletedBy == 11 && stopped.EndedBy == 17 && stopped.Wafers.Any(IsNotRun)
           && stopped.Wafers.Where(wafer => !IsNotRun(wafer)).All(IsDone),
@@ -540,12 +576,12 @@ try
     var processingIn = PjOf("LOT-T-1")!.Wafers.SelectMany(wafer => wafer.Tasks).First(task => task.Kind == StationTaskAction.Process && task.State == "Running").Station;
     var processingChamber = processingIn == "PM1" ? pm1 : pm2;
     int abortsBefore = processingChamber.Aborts;
-    Check(Do(jobs.CommandProcessJobAsync("LOT-T-1", ProcessJobCommand.Abort)).IsSuccess
+    Check(Do(jobs.ExecuteProcessJobCommandAsync("LOT-T-1", ProcessJobCommand.Abort)).IsSuccess
           && PjOf("LOT-T-1")?.State == (int)ProcessJobState.Aborting, "PJ 中止：ABORTING（#13）");
     Check(processingChamber.Aborts == abortsBefore + 1, "给在做这个 PJ 工艺的腔体发了中止");
     jobs.Tick();
     Check(PjOf("LOT-T-1")?.State == (int)ProcessJobState.Aborting, "腔体的中止动作还没做完：PJ 还在 ABORTING");
-    Check(RunUntil(() => CjOf("LOT-T")?.State == (int)CtrlJobState.Completed), "中止做完");
+    Check(RunUntil(() => CjOf("LOT-T")?.State == (int)ControlJobState.Completed), "中止做完");
     var aborted = PjOf("LOT-T-1")!;
     Check(aborted.EndedBy == 16 && aborted.Wafers.Any(wafer => !IsNotRun(wafer) && !IsReturned(wafer)) && aborted.Wafers.Any(IsNotRun),
         "PJ #16：机内的片停在半路（后面的任务记未执行），没投的片任务都记未执行");
@@ -593,7 +629,7 @@ try
     Refuses(Do(jobs.RetryTaskAsync("LOT-F-1", 99, 0)), ErrorCodes.JobTaskNotFound, ["LOT-F-1", "99", "1"], "没有这一片：拒");
     pm1.NoteState(ModuleState.Idle);
     Check(Do(jobs.RetryTaskAsync("LOT-F-1", failedRow.SourceSlot, failedIndex)).IsSuccess, "腔体复位后重做");
-    Check(RunUntil(() => CjOf("LOT-F")?.State == (int)CtrlJobState.Completed), "重做的工艺做成了，接着回片，跑完");
+    Check(RunUntil(() => CjOf("LOT-F")?.State == (int)ControlJobState.Completed), "重做的工艺做成了，接着回片，跑完");
     var retried = PjOf("LOT-F-1")!;
     var retriedTask = retried.Wafers.Single(wafer => wafer.WaferId == failedRow.WaferId).Tasks[failedIndex];
     Check(retried.EndedBy == 7 && retried.Wafers.All(IsDone)
@@ -611,7 +647,7 @@ try
     Check(RunUntil(() => PjOf("LOT-G-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "工艺没做成：出错停住");
     pm1.NoteState(ModuleState.Idle);
     Check(Do(jobs.CompleteTaskAsync("LOT-G-1", 1, failedIndex)).IsSuccess, "人工做完了：标记完成");
-    Check(RunUntil(() => CjOf("LOT-G")?.State == (int)CtrlJobState.Completed), "接着回片，跑完");
+    Check(RunUntil(() => CjOf("LOT-G")?.State == (int)ControlJobState.Completed), "接着回片，跑完");
     var manualTask = PjOf("LOT-G-1")!.Wafers[0].Tasks[failedIndex];
     Check(manualTask.State == "Done" && IsDone(PjOf("LOT-G-1")!.Wafers[0]), "那一格记成完成，这片照常回片");
     Check(ledger.Get("LP1", 1)?.ProcessState == WaferProcessState.Failed,
@@ -643,7 +679,7 @@ try
         "恢复单把片搬回第 2 槽（同一个 LoadPort 里换槽），LoadPort 回到待命");
     Check(Do(jobs.RetryTaskAsync("LOT-L-1", 2, 0)).IsSuccess && PjOf("LOT-L-1")!.Wafers.All(wafer => ErrorOf(wafer) is null), "片放回去以后重做：出错清掉");
     transfers.StartAutoDispatch();
-    Check(RunUntil(() => CjOf("LOT-L")?.State == (int)CtrlJobState.Completed), "跑完");
+    Check(RunUntil(() => CjOf("LOT-L")?.State == (int)ControlJobState.Completed), "跑完");
     var lost = PjOf("LOT-L-1")!.Wafers.Single(wafer => wafer.WaferId == lostName);
     Check(IsDone(lost) && ledger.Get("LP1", 2)?.WaferId == lostName && ledger.Get("LP1", 10) is null
           && ledger.Get("LP1", 2)?.ProcessState == WaferProcessState.Completed,
@@ -668,7 +704,7 @@ try
     pm1.NoteState(ModuleState.Idle);
     pm2.NoteState(ModuleState.Idle);
     Check(Do(jobs.RetryTaskAsync("LOT-K-1", 1, 0)).IsSuccess, "重做取片");
-    Check(RunUntil(() => CjOf("LOT-K")?.State == (int)CtrlJobState.Completed) && IsDone(PjOf("LOT-K-1")!.Wafers[0]), "接着跑完");
+    Check(RunUntil(() => CjOf("LOT-K")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-K-1")!.Wafers[0]), "接着跑完");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-K") is null, 20), "LOT-K 删掉");
 
@@ -693,7 +729,7 @@ try
           && forEap.FindControlJobByCarrier("NOPE") is null && forEap.FindProcessJobsByCarrier(" ").Count == 0
           && PjOf("PJ-H1")?.CarrierId == "CAR-1",
         "EAP 按载具号找 CJ、PJ（不分大小写，找不到为空）；PJ 记着建的时候的载具号");
-    Check(RunUntil(() => CjOf("CJ-H")?.State == (int)CtrlJobState.Completed) && CjOf("CJ-H")?.CompletedBy == 10, "Host 建的照样跑完");
+    Check(RunUntil(() => CjOf("CJ-H")?.State == (int)ControlJobState.Completed) && CjOf("CJ-H")?.CompletedBy == 10, "Host 建的照样跑完");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("CJ-H") is null, 20), "CJ-H 删掉");
 
@@ -706,7 +742,7 @@ try
     var stop = equipment.StopAsync(new RpcRequest()).Result;
     Check(stop.Success && stop.DeserializeData<int>() == 0 && !transfers.IsAutoDispatch,
         "整机停止：关自动派单；在给 Job 做工艺的腔体不在这里直接发中止");
-    Check(RunUntil(() => CjOf("LOT-E")?.State == (int)CtrlJobState.Completed) && CjOf("LOT-E")?.CompletedBy == 12
+    Check(RunUntil(() => CjOf("LOT-E")?.State == (int)ControlJobState.Completed) && CjOf("LOT-E")?.CompletedBy == 12
           && PjOf("LOT-E-1")?.EndedBy == 16, "Job 走中止：PJ #16、CJ #12");
     foreach (var chamber in new[] { pm1, pm2 })
     {
@@ -747,7 +783,7 @@ try
     Check(!noRetry.Success && noRetry.Code == ErrorCodes.JobNotFound && noRetry.Args.SequenceEqual(new[] { "NOPE" })
           && !noComplete.Success && noComplete.Code == ErrorCodes.JobNotFound, "重做、标记完成找不到 PJ：job.not_found");
     var list = Pump(jobService.GetJobsAsync(new RpcRequest())).DeserializeData<JobListDto>();
-    Check(list.Version > 0 && list.History.Count > 0 && list.History[0].Id == "LOT-E", "查全貌：带版本号，历史新的在前");
+    Check(list.Version > 0, "查全貌：带版本号");
 
     LoadCarrier(lp1, 1);
     var transferService = new TransferService(modules);
@@ -761,28 +797,8 @@ try
     Check(ledger.Move("PM1", 1, "LP1", 1), "手动传过去的那片人工收回");
     UnloadCarrier(lp1);
 
-    // 18. 重启：Job 存了盘（每次发布交给写库线程，只写最新的），"断电"后新的一个 Job 管理开机读回来——
-    //     没结束的不接着跑，记成中止（E94 #12，标着重启）进历史，上次的历史接着留；片不再归任何 Job。
-    bool WaitSaved(long version)
-    {
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        while (watch.ElapsedMilliseconds < 3000)
-        {
-            using (var db = XyzDb.Create("JobSmoke"))
-            {
-                var row = db.Queryable<JobSnapshotEntity>().InSingle(1);
-                if (row is not null && row.Version >= version)
-                {
-                    return true;
-                }
-            }
-
-            Thread.Sleep(20);
-        }
-
-        return false;
-    }
-
+    // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
+    //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
     LoadCarrier(lp1, 1, 2, 3);
     var lotR = Enumerable.Range(1, 3).Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
     pm1.ProcessTicks = 200;
@@ -791,7 +807,12 @@ try
     Check(Create("LOT-R", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-R");
     Check(RunUntil(() => PjOf("LOT-R-1")?.Wafers.Count(IsProcessing) == 2 && !transfers.GetView().IsRobotBusy("Robot1")),
         "跑到两片在加工、机械手闲着");
-    Check(WaitSaved(jobs.Snapshot.Version), "Job 全貌存进库了");
+    // 等写库线程把最后一次发布的进度写完（写的就是全貌里的那份），旧的 Job 管理之后不再写
+    string lotRWafers = JsonHelper.Serialize(PjOf("LOT-R-1")!.Wafers);
+    Check(WaitDb(db => db.Queryable<ProcessJobEntity>().Where(row => row.Name == "LOT-R-1").ToList()
+            .Any(row => row.State == (int)ProcessJobState.Processing && row.Wafers == lotRWafers && WafersOf(row).Count(IsProcessing) == 2)),
+        "Job 进度跟着进库（两片在加工）");
+    Thread.Sleep(200);
     transfers.StopAutoDispatch();
     var restarted = new SmokeJobs();
     Probe.Name(restarted, "Job");
@@ -800,10 +821,22 @@ try
     jobs = restarted;
     var afterRestart = jobs.Snapshot;
     Check(afterRestart.ControlJobs.Count == 0 && afterRestart.ProcessJobs.Count == 0, "重启后没有接着跑的 Job");
-    Check(afterRestart.History.Count > 1 && afterRestart.History[0].Id == "LOT-R" && afterRestart.History[0].Restarted
-          && afterRestart.History[0].CompletedBy == 12 && afterRestart.History[0].EndedBy == 13,
-        "上次没做完的记成中止（#12）、标着重启，进历史");
-    Check(afterRestart.History.Any(job => job.Id == "LOT-E" && !job.Restarted), "上次的历史接着留");
+    Check(WaitDb(db =>
+        {
+            var rows = db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-R").ToList();
+            return rows.Count == 1 && rows[0].Restarted && rows[0].CompletedBy == 12 && rows[0].EndedBy == 13
+                && rows[0].State == (int)ControlJobState.Completed;
+        }),
+        "上次没做完的 CJ 库里记成中止（#12）、标着重启、删掉（#13）");
+    Check(WaitDb(db =>
+        {
+            var rows = db.Queryable<ProcessJobEntity>().Where(row => row.ControlJob == "LOT-R").ToList();
+            return rows.Count == 1 && rows[0].EndedBy == 16 && rows[0].State == (int)ProcessJobState.Aborted && WafersOf(rows[0]).Count(IsProcessing) == 2;
+        }),
+        "它下面的 PJ 记成中止（#16），任务明细留着重启前做到哪");
+    Check(WaitDb(db => db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-E").ToList()
+            .Any(row => row.EndedBy == 13 && !row.Restarted)),
+        "早先做完的不受影响");
     Check(lotR.All(id => jobs.OwnerOf(id) is null), "片不再归任何 Job");
 }
 finally
@@ -831,7 +864,8 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "station groups, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
     "a wafer moved behind the job's back, a job transfer failing after touching the wafer, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, the equipment stop going through job abort, the job and transfer services, " +
-    "and a restart that closes unfinished jobs into history instead of resuming them)");
+    "every CJ and PJ recorded as one database row with each wafer's tasks, " +
+    "and a restart that marks unfinished jobs aborted in the database instead of resuming them)");
 
 // ── 假件 ─────────────────────────────────────────────────────────────
 
@@ -1066,7 +1100,7 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
 {
     private readonly ConcurrentQueue<string> _events = new();
 
-    public void ProcessJobTransitioned(ProcessJobDto job, int transition) =>
+    public void ProcessJobStateChanged(ProcessJobDto job, int transition) =>
         _events.Enqueue($"PJ {job.Id} #{transition}");
 
     public void WaferProcessStarted(ProcessJobDto job, JobWaferDto wafer, string station)
@@ -1077,7 +1111,7 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
     {
     }
 
-    public void ControlJobTransitioned(ControlJobDto job, int transition) =>
+    public void ControlJobStateChanged(ControlJobDto job, int transition) =>
         _events.Enqueue($"CJ {job.Id} #{transition}");
 
     public bool WaitFor(string item, int timeoutMs = 3000)

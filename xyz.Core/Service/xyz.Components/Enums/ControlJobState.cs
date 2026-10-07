@@ -5,7 +5,7 @@
 /// SELECTED、WAITING FOR START、EXECUTING、PAUSED 合称 ACTIVE。CJ 没有"停止中""中止中"：
 /// Stop / Abort 之后等下面的 PJ 都结束，再从 ACTIVE 进 COMPLETED（#11 / #12）。
 /// </summary>
-public enum CtrlJobState
+public enum ControlJobState
 {
     /// <summary>QUEUED：建好了，排队。</summary>
     Queued = 0,

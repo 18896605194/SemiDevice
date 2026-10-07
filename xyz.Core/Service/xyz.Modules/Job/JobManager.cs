@@ -8,6 +8,7 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Database;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
 using xyz.Modules.Enums;
@@ -17,12 +18,6 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// Job 管理（sc.xml 顶层 Job 节点，自己一条扫描线程）：里面有 CJ 管理（<see cref="ICjManager"/>，E94）和 PJ 管理（<see cref="IPjManager"/>，E40），
-/// 它们各管自己的队列、状态机、命令，转了经事件告诉这里；牵扯别处的事都在这里做——建 Job（查设备、片、配方，任务组件建任务表）、
-/// PJ 中止时给设备发中止、PJ 结束时任务表收场、CJ 完成时告诉 LoadPort、往 EAP 报。下面挂任务组件（Task）和调度引擎（Scheduler）。
-/// 本地界面和 EAP 的命令（<see cref="IJobManager"/>）当场执行，跟扫描线程用同一把锁；每拍收结果、核对片位、转状态、派任务，有变化才发布、存盘。
-/// </summary>
 [Component(description: "Job 管理：里面有 CJ 管理（E94）、PJ 管理（E40），下面挂任务组件（任务表）和调度引擎")]
 public class JobManager : ComponentBase, IJobManager
 {
@@ -30,15 +25,6 @@ public class JobManager : ComponentBase, IJobManager
     /// 当前 Job 管理；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
     /// </summary>
     public static JobManager? Current { get; set; }
-
-    /// <summary>每拍自动转换最多转几轮：转了再问一遍直到不再转，这个数只是防配错了的死循环。</summary>
-    private const int MaxAdvancePasses = 16;
-
-    /// <summary>E39 ObjID 最长 80 个字符。</summary>
-    private const int MaxIdLength = 80;
-
-    /// <summary>E39 ObjID 不能用的字符。</summary>
-    private const string ForbiddenIdChars = "?*~>:";
 
     /// <summary>命令和扫描线程共用的锁：CJ / PJ 管理、任务表同一时刻只有一个在改。</summary>
     private readonly object _gate = new();
@@ -66,8 +52,8 @@ public class JobManager : ComponentBase, IJobManager
         _notifier = new EapNotifier(() => Name);
         _processJobs = new PjManager();
         _controlJobs = new CjManager(_processJobs);
-        _processJobs.Transitioned += OnProcessJobTransitioned;
-        _controlJobs.Transitioned += OnControlJobTransitioned;
+        _processJobs.StateChanged += OnProcessJobStateChanged;
+        _controlJobs.StateChanged += OnControlJobStateChanged;
     }
 
     #region SC
@@ -75,10 +61,10 @@ public class JobManager : ComponentBase, IJobManager
     [SCEditor("True", "Job", "是否启用 Job 管理（False = 不收 Job 命令、不按 Job 调度）")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("True", "Job", "是否把 Job 存盘：开机把上次没结束的 Job 记成中止进历史（重启后不接着跑），历史接着留")]
+    [SCEditor("True", "Job", "是否把 Job 记进库（CJ、PJ 各一行，每片的任务明细跟着 PJ）：开机把上次没做完的记成中止（重启后不接着跑）")]
     public bool IsPersistent { get; set; } = true;
 
-    [SCEditor("Default", "Job", "存盘落哪个库（sc.xml 的 Database 节点名）")]
+    [SCEditor("Default", "Job", "Job 记录落哪个库（sc.xml 的 Database 节点名）")]
     public string Database { get; set; } = XyzDb.DefaultName;
 
     #endregion
@@ -91,14 +77,6 @@ public class JobManager : ComponentBase, IJobManager
     {
         get { return GetEcInt(nameof(CommandTimeoutMs)); }
         set { SetEcInt(nameof(CommandTimeoutMs), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, min: "0", max: "1000",
-        @default: "20", description: "最近结束的 CJ 留几个给界面看")]
-    public int HistoryKeepCount
-    {
-        get { return GetEcInt(nameof(HistoryKeepCount)); }
-        set { SetEcInt(nameof(HistoryKeepCount), value); }
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
@@ -137,7 +115,7 @@ public class JobManager : ComponentBase, IJobManager
 
     /// <summary>
     /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：sc.xml Job 节点下的 Task（机型的任务组件）必须配，
-    /// Scheduler 没配用默认策略。开了存盘的读回上次的 Job：不接着跑，没结束的记成中止进历史。
+    /// Scheduler 没配用默认策略。开了存库的先把库里上次没做完的 Job 记成中止（重启后不接着跑），再起写库线程。
     /// </summary>
     public void Bind(IEnumerable<BaseModule> modules)
     {
@@ -162,8 +140,8 @@ public class JobManager : ComponentBase, IJobManager
             if (IsPersistent && !_storeStarted)
             {
                 _storeStarted = true;
+                CloseOutLastRun();
                 _ = Task.Run(StoreLoopAsync);
-                _controlJobs.CloseOutLastRun(LoadStored());
             }
 
             _dirty = true;
@@ -211,18 +189,7 @@ public class JobManager : ComponentBase, IJobManager
 
     public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec)
     {
-        return Execute(() =>
-        {
-            var rejected = TryBuildProcessJob(spec, out var job);
-            if (rejected is not null)
-            {
-                return rejected;
-            }
-
-            Tasks.Add(job);
-            _processJobs.Add(job);
-            return HandleResult.Success(job.Id);
-        });
+        return Execute(() => CreateProcessJob(spec));
     }
 
     public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec)
@@ -235,18 +202,11 @@ public class JobManager : ComponentBase, IJobManager
                 return idError;
             }
 
-            var rejected = _controlJobs.TryBuild(spec, out var job, out var processes);
-            if (rejected is not null)
-            {
-                return rejected;
-            }
-
-            _controlJobs.Add(job, processes);
-            return HandleResult.Success(job.Id);
+            return _controlJobs.Create(spec);
         });
     }
 
-    public Task<HandleResult> CommandControlJobAsync(string id, ControlJobCommand command, CtrlJobAction action)
+    public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
     {
         return Execute(() =>
         {
@@ -256,11 +216,11 @@ public class JobManager : ComponentBase, IJobManager
                 return HandleResult.Fail(ErrorCodes.JobNotAuto);
             }
 
-            return _controlJobs.Command(id, command, action);
+            return _controlJobs.Execute(id, command, action);
         });
     }
 
-    public Task<HandleResult> CommandProcessJobAsync(string id, ProcessJobCommand command)
+    public Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command)
     {
         return Execute(() =>
         {
@@ -269,7 +229,7 @@ public class JobManager : ComponentBase, IJobManager
                 return HandleResult.Fail(ErrorCodes.JobNotAuto);
             }
 
-            return _processJobs.Command(id, command);
+            return _processJobs.Execute(id, command);
         });
     }
 
@@ -352,13 +312,12 @@ public class JobManager : ComponentBase, IJobManager
     #region 建 PJ
 
     /// <summary>
-    /// 造一个 PJ（本地、Host 一样）：名字合规、没人用；给了 LoadPort 按它找，没给按载具号找，载具要能取片；每一片查过
+    /// 建 PJ（本地、Host 一样）：名字合规、没人用；给了 LoadPort 按它找，没给按载具号找，载具要能取片；每一片查过
     /// （有片、正常、没做过、不归别的 PJ）、回片槽定好；流程配方取快照；任务组件给每片生成一行任务。有一项不过回原因，什么都不留。
-    /// 造出来还没进队列。
+    /// 都过了挂进任务表、进 PJ 队列（报 E40 #1），回 PJ 名。
     /// </summary>
-    private HandleResult? TryBuildProcessJob(ProcessJobSpec spec, out ProcessJob job)
+    private HandleResult CreateProcessJob(ProcessJobSpec spec)
     {
-        job = null!;
         string id = spec.Id.Trim();
         var idError = CheckNewId(id);
         if (idError is not null)
@@ -391,7 +350,7 @@ public class JobManager : ComponentBase, IJobManager
             return sequenceError;
         }
 
-        var built = new ProcessJob
+        var job = new ProcessJob
         {
             Id = id,
             Sequence = sequence,
@@ -431,7 +390,7 @@ public class JobManager : ComponentBase, IJobManager
                 return returnError;
             }
 
-            built.Rows.Add(new TaskRow
+            job.Rows.Add(new TaskRow
             {
                 Owner = id,
                 WaferId = wafer.Id,
@@ -444,14 +403,15 @@ public class JobManager : ComponentBase, IJobManager
         }
 
         // 每片的任务行照流程配方生成（任务组件管）
-        var taskError = Tasks.Build(built);
+        var taskError = Tasks.Build(job);
         if (taskError is not null)
         {
             return taskError;
         }
 
-        job = built;
-        return null;
+        Tasks.Add(job);
+        _processJobs.Add(job);
+        return HandleResult.Success(job.Id);
     }
 
     /// <summary>
@@ -459,8 +419,8 @@ public class JobManager : ComponentBase, IJobManager
     /// </summary>
     private HandleResult? CheckNewId(string id)
     {
-        bool valid = id.Length >= 1 && id.Length <= MaxIdLength
-            && id.All(ch => ch >= ' ' && ch <= '~' && !ForbiddenIdChars.Contains(ch));
+        bool valid = id.Length >= 1 && id.Length <= 80
+            && id.All(ch => ch >= ' ' && ch <= '~' && !"?*~>:".Contains(ch));
         if (!valid)
         {
             return HandleResult.Fail(ErrorCodes.JobIdInvalid, id);
@@ -573,10 +533,10 @@ public class JobManager : ComponentBase, IJobManager
     #region CJ / PJ 转了之后（牵扯别处的事）
 
     /// <summary>
-    /// PJ 转了：刚进 ABORTING（只有 #13 / #14 / #15 转到它）给设备发中止（<see cref="AbortDevices"/>）；结束了它的行从任务表拿掉；
-    /// 往 EAP 报（E40，派发线程上按先后发，PJ 结束一定先于 CJ 完成）。
+    /// PJ 转了：刚进 ABORTING（只有 #13 / #14 / #15 转到它）给设备发中止（<see cref="AbortDevices"/>）；结束了它的行从任务表拿掉、
+    /// 写最后一遍库（不归 CJ 的结束了就不在全貌里了）；往 EAP 报（E40，派发线程上按先后发，PJ 结束一定先于 CJ 完成）。
     /// </summary>
-    private void OnProcessJobTransitioned(ProcessJob job, int number)
+    private void OnProcessJobStateChanged(ProcessJob job, int number)
     {
         if (job.State == ProcessJobState.Aborting)
         {
@@ -586,13 +546,14 @@ public class JobManager : ComponentBase, IJobManager
         if (job.IsEnded)
         {
             Tasks.Close(job);
+            Store(job, JobDtos.Of(job));
         }
 
         var callback = E40Callback;
         if (callback is not null)
         {
             var dto = JobDtos.Of(job);
-            _notifier.Post(() => callback.ProcessJobTransitioned(dto, number));
+            _notifier.Post(() => callback.ProcessJobStateChanged(dto, number));
         }
 
         _dirty = true;
@@ -622,20 +583,26 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// CJ 转了：刚完成（#10 / #11 / #12 转进 COMPLETED，还没删）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；往 EAP 报（E94）。
+    /// CJ 转了：刚完成（#10 / #11 / #12 转进 COMPLETED，还没删）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；
+    /// 删掉了（#2 / #13）写最后一遍库（之后就不在全貌里了）；往 EAP 报（E94）。
     /// </summary>
-    private void OnControlJobTransitioned(ControlJob job, int number)
+    private void OnControlJobStateChanged(ControlJob job, int number)
     {
-        if (job.State == CtrlJobState.Completed && !job.IsEnded)
+        if (job.State == ControlJobState.Completed && !job.IsEnded)
         {
             LoadPort(job.LoadPort)?.NoteCarrierComplete();
+        }
+
+        if (job.IsEnded)
+        {
+            Store(job, JobDtos.Of(job));
         }
 
         var callback = E94Callback;
         if (callback is not null)
         {
             var dto = JobDtos.Of(job);
-            _notifier.Post(() => callback.ControlJobTransitioned(dto, number));
+            _notifier.Post(() => callback.ControlJobStateChanged(dto, number));
         }
 
         _dirty = true;
@@ -721,19 +688,17 @@ public class JobManager : ComponentBase, IJobManager
 
     /// <summary>
     /// ③ 自动转换：先 PJ 后 CJ（PJ 结束先报，CJ 完成后报），转了就再问一遍，直到不再转；最后按 PJ 状态给它的行定许可。
-    /// CJ 要知道的载具好没好、拿没拿走，这里查设备给它。
+    /// 自动转换都是往前走（不会自己转回去），转几轮就停。CJ 要知道的载具好没好、拿没拿走，这里查设备给它。
     /// </summary>
     private void Advance()
     {
-        for (int pass = 0; pass < MaxAdvancePasses; pass++)
+        bool changed;
+        do
         {
-            bool changed = _processJobs.Advance();
+            changed = _processJobs.Advance();
             changed |= _controlJobs.Advance(IsCarrierReady, IsCarrierGone);
-            if (!changed)
-            {
-                break;
-            }
         }
+        while (changed);
 
         _processJobs.UpdatePermissions();
     }
@@ -758,8 +723,8 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// ⑤ 有变化才发布：换一份新的全貌（版本加 1）——没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）、
-    /// 历史（本次的在前，上次开机留下的在后，按 EC HistoryKeepCount 留）；推给界面（留存，重连就能拿到最新的），交给存盘。
+    /// ⑤ 有变化才发布：换一份新的全貌（版本加 1）——没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）；
+    /// 推给界面（留存，重连就能拿到最新的）；里面的每个 CJ、PJ 交给写库线程更新库里那一行（任务进度也跟着进库）。
     /// </summary>
     private void Publish()
     {
@@ -776,9 +741,9 @@ public class JobManager : ComponentBase, IJobManager
         }
 
         _dirty = false;
-        _controlJobs.TrimHistory(HistoryKeepCount);
+        var controlJobs = _controlJobs.Jobs.ToList();
         var processJobs = new List<ProcessJob>();
-        foreach (var control in _controlJobs.Jobs)
+        foreach (var control in controlJobs)
         {
             processJobs.AddRange(control.ProcessJobs);
         }
@@ -794,14 +759,18 @@ public class JobManager : ComponentBase, IJobManager
         var snapshot = new JobListDto
         {
             Version = ++_version,
-            ControlJobs = _controlJobs.Jobs.Select(JobDtos.Of).ToList(),
+            ControlJobs = controlJobs.Select(JobDtos.Of).ToList(),
             ProcessJobs = processJobs.Select(JobDtos.Of).ToList(),
-            History = _controlJobs.History.Select(JobDtos.Of).Concat(_controlJobs.Restored).ToList(),
         };
         _snapshot = snapshot;
-        if (_storeStarted)
+        for (int index = 0; index < controlJobs.Count; index++)
         {
-            Store(snapshot);
+            Store(controlJobs[index], snapshot.ControlJobs[index]);
+        }
+
+        for (int index = 0; index < processJobs.Count; index++)
+        {
+            Store(processJobs[index], snapshot.ProcessJobs[index]);
         }
 
         try
@@ -816,45 +785,115 @@ public class JobManager : ComponentBase, IJobManager
 
     #endregion
 
-    #region 存盘
+    #region 存库
 
-    // 每次发布的全貌交给一条写库线程，只写最新的一份（来不及写的旧版本直接跳过）；开机读回上一份交给 CJ 管理收场。
-    // 写库不在扫描线程上做——磁盘一卡，扫描就卡。写不进去只记日志，Job 照跑。
+    // CJ、PJ 各一张表，一个 Job 一行（control_job、process_job）：第一次写插一行、记下行号（RowId），之后按行号更新。
+    // 每次发布把全貌里的 CJ、PJ 交给一条写库线程，同一个 Job 只写最新的一份；删掉的 CJ、结束的 PJ 由转换那里单独交最后一次。
+    // 写库不在扫描线程上做——磁盘一卡，扫描就卡。写不进去只记日志，Job 照跑，下一次变化再写。
 
     private readonly Channel<bool> _storeSignal = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
 
-    private JobListDto? _pendingSnapshot;
+    /// <summary>等着写的：每个 CJ / PJ 只留最新一份。扫描线程放、写库线程取，换手用 <see cref="_pendingGate"/>。</summary>
+    private readonly object _pendingGate = new();
+    private Dictionary<ControlJob, ControlJobDto> _pendingControlJobs = [];
+    private Dictionary<ProcessJob, (ControlJob? Owner, ProcessJobDto Dto)> _pendingProcessJobs = [];
+
     private bool _storeStarted;
     private bool _storeTableReady;
     private bool _storeFailing;
 
-    /// <summary>读回上一份全貌；没存过返回 null，读不出来也返回 null（记日志，当没有上次的 Job）。</summary>
-    private JobListDto? LoadStored()
+    /// <summary>
+    /// 重启收场（开机时，写库线程起来之前）：库里还没删的 CJ、没结束的 PJ 就是上次没做完的。不接着跑——重启前在途的搬运、工艺做没做完说不准，
+    /// 接着派只会把错放大：CJ 记成中止结束（E94 #12，标着重启；完成了还没删的只补上删掉），PJ 记成中止（E40 #16）。
+    /// 机内的片由人确认片位后收回，再重新建 Job（行业里也是这么收场：回片、记异常结束、由 MES / 工程师决定返工还是重做）。读写不了只记日志。
+    /// </summary>
+    private void CloseOutLastRun()
     {
         try
         {
             using var db = XyzDb.Create(Database);
-            EnsureStoreTable(db);
-            var row = db.Queryable<JobSnapshotEntity>().InSingle(1);
-            if (row is null || string.IsNullOrWhiteSpace(row.Json))
+            EnsureStoreTables(db);
+            var now = DateTime.Now;
+            var interrupted = new List<string>();
+            var controls = db.Queryable<ControlJobEntity>().Where(row => row.EndedBy == 0).ToList();
+            foreach (var row in controls)
             {
-                return null;
+                if (row.State != (int)ControlJobState.Completed)
+                {
+                    row.State = (int)ControlJobState.Completed;
+                    row.CompletedBy = 12; // E94 #12：中止做完进 COMPLETED
+                    row.Ending = ControlJobEnding.Abort.ToString();
+                    row.CompletedAt = now;
+                    row.Restarted = true;
+                    interrupted.Add($"{row.Name}（{row.LoadPort}）");
+                }
+
+                row.EndedBy = 13; // E94 #13：完成后删掉
+                row.EndedAt = now;
+                row.UpdatedTime = now;
             }
 
-            return JsonHelper.Deserialize<JobListDto>(row.Json);
+            var processes = db.Queryable<ProcessJobEntity>().Where(row => row.EndedBy == 0).ToList();
+            foreach (var row in processes)
+            {
+                row.State = (int)ProcessJobState.Aborted;
+                row.EndedBy = 16; // E40 #16：中止做完
+                row.EndedAt = now;
+                row.UpdatedTime = now;
+            }
+
+            if (controls.Count > 0)
+            {
+                db.Updateable(controls).ExecuteCommand();
+            }
+
+            if (processes.Count > 0)
+            {
+                db.Updateable(processes).ExecuteCommand();
+            }
+
+            if (interrupted.Count > 0)
+            {
+                LogHelper.Warn(Name, $"上次有 {interrupted.Count} 个 Job 没做完就重启了：{string.Join("、", interrupted)}。重启后不接着跑，库里已记成中止；"
+                    + "机内的片到现场确认片位后收回，再重新建 Job");
+            }
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"读上次的 Job 存盘失败（当没有上次的 Job）：{exception.Message}");
-            return null;
+            LogHelper.Error(Name, $"重启收场写库失败（上次没做完的 Job 在库里还是原来的状态）：{exception.Message}");
         }
     }
 
-    /// <summary>交一份全貌去存：只留最新的，写库线程空了就写。</summary>
-    private void Store(JobListDto snapshot)
+    /// <summary>交一个 CJ 去写库（同一个 CJ 只留最新的一份）。在 Job 的锁里调。</summary>
+    private void Store(ControlJob job, ControlJobDto dto)
     {
-        Volatile.Write(ref _pendingSnapshot, snapshot);
+        if (!_storeStarted)
+        {
+            return;
+        }
+
+        lock (_pendingGate)
+        {
+            _pendingControlJobs[job] = dto;
+        }
+
+        _storeSignal.Writer.TryWrite(true);
+    }
+
+    /// <summary>交一个 PJ 去写库（同一个 PJ 只留最新的一份），连同它现在归的 CJ（写的时候要那个 CJ 的行号）。在 Job 的锁里调。</summary>
+    private void Store(ProcessJob job, ProcessJobDto dto)
+    {
+        if (!_storeStarted)
+        {
+            return;
+        }
+
+        lock (_pendingGate)
+        {
+            _pendingProcessJobs[job] = (job.ControlJob, dto);
+        }
+
         _storeSignal.Writer.TryWrite(true);
     }
 
@@ -863,35 +902,78 @@ public class JobManager : ComponentBase, IJobManager
         while (await _storeSignal.Reader.WaitToReadAsync().ConfigureAwait(false))
         {
             _storeSignal.Reader.TryRead(out _);
-            var snapshot = Interlocked.Exchange(ref _pendingSnapshot, null);
-            if (snapshot is not null)
+            Dictionary<ControlJob, ControlJobDto> controls;
+            Dictionary<ProcessJob, (ControlJob? Owner, ProcessJobDto Dto)> processes;
+            lock (_pendingGate)
             {
-                WriteStored(snapshot);
+                controls = _pendingControlJobs;
+                processes = _pendingProcessJobs;
+                _pendingControlJobs = [];
+                _pendingProcessJobs = [];
+            }
+
+            if (controls.Count > 0 || processes.Count > 0)
+            {
+                WriteRows(controls, processes);
             }
         }
     }
 
-    private void WriteStored(JobListDto snapshot)
+    /// <summary>写一批：先写 CJ（PJ 要记它的行号），没写过的插一行、记下行号，写过的按行号更新。</summary>
+    private void WriteRows(Dictionary<ControlJob, ControlJobDto> controls, Dictionary<ProcessJob, (ControlJob? Owner, ProcessJobDto Dto)> processes)
     {
         try
         {
             using var db = XyzDb.Create(Database);
-            EnsureStoreTable(db);
-            var row = new JobSnapshotEntity
+            EnsureStoreTables(db);
+            foreach (var (job, dto) in controls)
             {
-                Id = 1,
-                Version = snapshot.Version,
-                Json = JsonHelper.Serialize(snapshot),
-                SavedAt = DateTime.Now,
-            };
-            db.Storageable(row).ExecuteCommand();
+                var row = new ControlJobEntity
+                {
+                    Name = dto.Id,
+                    LoadPort = dto.LoadPort,
+                    CarrierId = dto.CarrierId,
+                    LotId = dto.LotId,
+                    State = dto.State,
+                    AutoStart = dto.AutoStart,
+                    Ending = dto.Ending,
+                    CreatedTime = dto.CreatedAt,
+                    StartedAt = dto.StartedAt,
+                    CompletedAt = dto.CompletedAt,
+                    CompletedBy = dto.CompletedBy,
+                    EndedBy = dto.EndedBy,
+                    EndedAt = dto.EndedAt,
+                };
+                job.RowId = SaveRow(db, row, job.RowId);
+            }
+
+            foreach (var (job, (owner, dto)) in processes)
+            {
+                var row = new ProcessJobEntity
+                {
+                    Name = dto.Id,
+                    ControlJob = dto.ControlJob,
+                    ControlJobRowId = owner?.RowId ?? 0,
+                    CarrierId = dto.CarrierId,
+                    Sequence = dto.Sequence,
+                    SequenceRevision = dto.SequenceRevision,
+                    State = dto.State,
+                    AutoStart = dto.AutoStart,
+                    CreatedTime = dto.CreatedAt,
+                    StartedAt = dto.StartedAt,
+                    EndedAt = dto.EndedAt,
+                    EndedBy = dto.EndedBy,
+                    Wafers = JsonHelper.Serialize(dto.Wafers),
+                };
+                job.RowId = SaveRow(db, row, job.RowId);
+            }
         }
         catch (Exception exception)
         {
             if (!_storeFailing)
             {
                 _storeFailing = true;
-                LogHelper.Warn(Name, $"Job 存盘失败（Job 照跑，下一次变化再存）：{exception.Message}");
+                LogHelper.Warn(Name, $"Job 写库失败（Job 照跑，下一次变化再写）：{exception.Message}");
             }
 
             return;
@@ -900,19 +982,33 @@ public class JobManager : ComponentBase, IJobManager
         if (_storeFailing)
         {
             _storeFailing = false;
-            LogHelper.Info(Name, "Job 存盘恢复正常");
+            LogHelper.Info(Name, "Job 写库恢复正常");
         }
     }
 
+    /// <summary>没写过（行号 0）插一行、回新行号；写过的按行号整行更新。</summary>
+    private static long SaveRow<TEntity>(ISqlSugarClient db, TEntity row, long rowId) where TEntity : BaseEntity, new()
+    {
+        row.UpdatedTime = DateTime.Now;
+        if (rowId == 0)
+        {
+            return db.Insertable(row).ExecuteReturnBigIdentity();
+        }
+
+        row.Id = rowId;
+        db.Updateable(row).ExecuteCommand();
+        return rowId;
+    }
+
     /// <summary>表第一次用到时建（已有就只补列）。</summary>
-    private void EnsureStoreTable(ISqlSugarClient db)
+    private void EnsureStoreTables(ISqlSugarClient db)
     {
         if (_storeTableReady)
         {
             return;
         }
 
-        db.CodeFirst.InitTables<JobSnapshotEntity>();
+        db.CodeFirst.InitTables<ControlJobEntity, ProcessJobEntity>();
         _storeTableReady = true;
     }
 

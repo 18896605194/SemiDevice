@@ -151,7 +151,7 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region 上报（IE40Callback，在 Job 管理的 EAP 派发线程上）
 
-    void IE40Callback.ProcessJobTransitioned(ProcessJobDto job, int transition)
+    void IE40Callback.ProcessJobStateChanged(ProcessJobDto job, int transition)
     {
         if (transition is < 1 or > 18)
         {
@@ -350,7 +350,7 @@ public class E40Component : ComponentBase, IE40Callback
             return [E5Error.Of(E5Error.NotAvailable, "Job manager not installed")];
         }
 
-        var result = await jobs.CommandProcessJobAsync(id, command).ConfigureAwait(false);
+        var result = await jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return [JobErrors.Of(result)];

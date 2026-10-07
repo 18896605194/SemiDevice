@@ -189,9 +189,9 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 下手动单等结果、`ReleaseAsync` 放留着的锁（`transfer.not_held`）。
 - **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的扫描线程；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
   `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
-  - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：CJ 队列、历史、E94 状态机、CJ 命令）和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、
+  - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：CJ 队列、E94 状态机、CJ 命令）和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、
     E40 状态机、PJ 命令）。两个管理**不拿 JobManager**（只有 CJ 管理拿着 PJ 管理：CJ 的 Stop / Abort 要往下传给 PJ），转换表是各自里的一个 switch
-    （带 SEMI 转换号，推动转换的是 `ControlStateAction` / `ProcessStateAction`），转了发 `Transitioned` 事件。牵扯别处的事都在 JobManager：
+    （带 SEMI 转换号，推动转换的是 `ControlStateAction` / `ProcessStateAction`），转了发 `StateChanged` 事件。牵扯别处的事都在 JobManager：
     建 PJ（查 LoadPort、载具、片、流程配方，任务组件建任务表）、建 CJ 前查名字；PJ 进 ABORTING 撤单 + 腔体中止、PJ 结束任务表收场、CJ 完成告诉 LoadPort；
     CJ 自动转换要的载具好没好、拿没拿走由它查设备给；建好、每条转换、片开始 / 结束加工都由它经 `E94Callback` / `E40Callback` 报
     （走组件层 `Components\Eap\EapNotifier` 单读者派发线程，PJ 结束先于 CJ 完成报）。
@@ -214,10 +214,14 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ④ 调度派任务（Manual 不派）→ ⑤ 有变化才发布（`JobListDto` 推送，留存，开机先推一份）。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
   EAP 按载具号找：`IJobManager.FindControlJobByCarrier` / `FindProcessJobsByCarrier`（从全貌里找，任意线程可调）；PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
-  SC：`IsEnable`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`、`HistoryKeepCount`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
-  **存盘与重启**：每次发布的全貌交给 Job 管理里的一条写库线程（只写最新一份，表 `job_snapshot` 一行 JSON）；`Bind` 时读回上一份，
-  CJ 管理 `CloseOutLastRun`：**重启后 Job 不接着跑**——上次没删的 CJ 一律记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true）进历史
-  （DTO，排在本次历史后面，一起按 `HistoryKeepCount` 留），上次的历史接着留；机内的片由人确认片位收回后重新建 Job。
+  SC：`IsEnable`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
+  **存库与重启**（2026-10-07 用户："界面上显示的就是数据库的数据，该存库就存库"）：CJ、PJ 各一张表，一个 Job 一行（`control_job` / `process_job`，
+  实体 `ControlJobEntity` / `ProcessJobEntity` 继承 `BaseEntity`：自增行号、CreatedTime = 建的时刻、UpdatedTime = 最后写的时刻；PJ 行记着 CJ 的行号 `ControlJobRowId`，
+  每片的任务明细是 `JobWaferDto` 列表的 JSON 放在 `Wafers` 列）。每次发布把全貌里的 CJ、PJ 交给 Job 管理里的一条写库线程（同一个 Job 只写最新一份；
+  第一次插一行、行号记在 `ControlJob.RowId` / `ProcessJob.RowId` 上，之后按行号更新），删掉的 CJ、结束的 PJ 在转换那里单独交最后一次。
+  内存里不留历史、全貌里没有历史，界面看历史查库（查询服务等 Job 页定了再加）。`Bind` 时 `CloseOutLastRun`：**重启后 Job 不接着跑**——
+  库里还没删的 CJ 记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true；完成了还没删的只补 #13），没结束的 PJ 记成中止（#16），
+  任务明细留着重启前做到哪；机内的片由人确认片位收回后重新建 Job。两张表不清理（量小）。
   重启收场的 Job 不补报 E40 / E94 事件：开机时 Host 还没连上，报了也发不出去（不算断线，不进缓存）；Host 连上后用 S16F19、S14F1 查得到哪些还在。
   Host 的 S16 / S14 由 EAP 的 E40 / E94 翻成 `IJobManager` 的命令（见 §4「EAP」）。
 
@@ -349,7 +353,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   账一变（都走 `RecordHistory`）标脏，存盘线程隔一会儿整张重写（事务里删了再插）；**开机恢复之前不写**（开机那一刻的空账不能冲掉上次的）。
   `Restore()`（启动顺序里模块 Open 之后、Start 之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
-- Job 存盘同理：`job_snapshot` 一行最新全貌（见 §3 Job）。
+- Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新（见 §3 Job）。
 - GEM（E30）掉电保持：`gem_config` 一行 JSON（Host 定的报告、链接、关掉的事件和报警、缓存范围、缓存状态），Host 改了就同步写；
   `gem_spool` 缓存的报文一条一行（雪花号主键 = 先后，体是 SECS-II 编码的字节），断了通讯才写。见 §4「EAP」。
 

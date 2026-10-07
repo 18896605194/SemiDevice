@@ -40,7 +40,7 @@ public static class JobNames
         }
     }
 
-    public static string Of(CtrlJobState? state)
+    public static string Of(ControlJobState? state)
     {
         if (state is null)
         {
@@ -49,17 +49,17 @@ public static class JobNames
 
         switch (state.Value)
         {
-            case CtrlJobState.Queued:
+            case ControlJobState.Queued:
                 return "QUEUED";
-            case CtrlJobState.Selected:
+            case ControlJobState.Selected:
                 return "SELECTED";
-            case CtrlJobState.WaitingForStart:
+            case ControlJobState.WaitingForStart:
                 return "WAITINGFORSTART";
-            case CtrlJobState.Executing:
+            case ControlJobState.Executing:
                 return "EXECUTING";
-            case CtrlJobState.Paused:
+            case ControlJobState.Paused:
                 return "PAUSED";
-            case CtrlJobState.Completed:
+            case ControlJobState.Completed:
                 return "COMPLETED";
             default:
                 return state.Value.ToString();

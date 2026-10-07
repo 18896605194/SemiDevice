@@ -115,14 +115,14 @@ public class JobService : BaseService, IJobService
 
         string id = (request.JobId ?? string.Empty).Trim();
         var command = (ControlJobCommand)request.Command;
-        var action = (CtrlJobAction)request.Action;
+        var action = (ControlJobAction)request.Action;
         if (!Enum.IsDefined(command) || !Enum.IsDefined(action))
         {
             return RpcResponse.Fail(ErrorCodes.JobCommandNotAllowed,
                 [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
-        var result = await jobs.CommandControlJobAsync(id, command, action).ConfigureAwait(false);
+        var result = await jobs.ExecuteControlJobCommandAsync(id, command, action).ConfigureAwait(false);
         return Reply(result);
     }
 
@@ -142,7 +142,7 @@ public class JobService : BaseService, IJobService
                 [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
-        var result = await jobs.CommandProcessJobAsync(id, command).ConfigureAwait(false);
+        var result = await jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
         return Reply(result);
     }
 
@@ -197,7 +197,7 @@ public class JobService : BaseService, IJobService
     {
         foreach (string id in processJobs)
         {
-            var result = await jobs.CommandProcessJobAsync(id, ProcessJobCommand.Cancel).ConfigureAwait(false);
+            var result = await jobs.ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Cancel).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 LogHelper.Warn(LogModule, $"建 Job 没成，已经建好的 PJ {id} 没撤掉（{result.ErrorMessage}），要手动取消");

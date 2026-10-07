@@ -17,10 +17,10 @@ public interface IJobManager
     Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec);
 
     /// <summary>CJ 命令（E94 CJStart / CJPause / CJResume / CJCancel / CJDeselect / CJStop / CJAbort / CJHOQ）。</summary>
-    Task<HandleResult> CommandControlJobAsync(string id, ControlJobCommand command, CtrlJobAction action);
+    Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action);
 
     /// <summary>PJ 命令（E40 Start / Pause / Resume / Stop / Abort / Cancel）。</summary>
-    Task<HandleResult> CommandProcessJobAsync(string id, ProcessJobCommand command);
+    Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command);
 
     /// <summary>当前 Job 全貌（拿到就不变；每次变化换一份新的）。</summary>
     JobListDto Snapshot { get; }

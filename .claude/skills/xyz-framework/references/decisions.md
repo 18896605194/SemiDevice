@@ -230,7 +230,12 @@
   搬运管理 `TransferManager` 还是手动、Job、人工恢复共用的唯一执行口，**不学 CTC 拆 AutoTransfer / ManualTransfer**。
   **JobManager 里面有 CJ 管理、PJ 管理**（用户："应该是 jobmanager 里面有 PjManager 和 cjmanager，你的设计反了"）：两个管理不拿 JobManager，只管自己的队列、状态机、命令，转了发事件；
   建 Job、给设备发中止、任务表收场、告诉 LoadPort、报 EAP 这些牵扯别处的事都在 JobManager。推动转换的枚举叫 `ControlStateAction` / `ProcessStateAction`
-  （用户定的名，跟 LoadPortAction 一个意思；CJ 的状态还是 `CtrlJobState`）。
+  （用户定的名，跟 LoadPortAction 一个意思）。
+- **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
+  `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
+  执行命令叫 `Execute`（CJ / PJ 管理）/ `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
+  报 EAP 的叫 `ProcessJobStateChanged` / `ControlJobStateChanged`（原来都叫 Transitioned）。写法：转换表等一律传统 switch 语句（不用 switch 表达式）；
+  转换号、E39 名字的 80 / `?*~>:` 直接写数字加注释，不另起常量；自动转换转到不再转为止，不设轮数上限。
 - **任务表**（用户的设计）：建 PJ 时照流程配方给每片生成一行任务，一行 = 一片的整个周期——从 LoadPort 取片、放进腔体、腔体做工艺、从腔体取回、放回 LoadPort，
   每个都是一个任务，按顺序走。**取和放一起定**：一趟搬运 = 取 + 放（目标空着、占住了才取）。多个站点的是**站点组**，放片那一刻在组里挑一个能放的。
   **站点自己声明支持的任务**（`ITransferStation.SupportedTasks`；框架给基础任务 `StationTaskAction` Pick / Place / Process：LoadPort 取放，腔体取放 + 工艺），
@@ -263,7 +268,9 @@
   不在就放最后一步勾的、载具在的第一个 LoadPort 的同号槽）。
 - **Job 页不另开一级菜单**（2026-10-05 用户定的）：放在主界面下面做二级菜单——总览（就是原来的主界面，开机还是先到它）、Job。
   页面样稿 v2 在桌面 `Job页样稿-v2`（CJ → PJ → 晶圆 三块从上到下，按钮在各自标题条上），等用户确认；样稿里的"出故障红条 + 恢复入口"要改成每一格任务的重做 / 标记完成。
-- **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；上次没结束的记成中止（标着重启）进历史；机内的片人到现场确认片位后收回，
+- **Job 存库**（2026-10-07 用户："界面上都是显示的数据库的数据……该存库就存库"）：CJ、PJ 各一张表一个 Job 一行，实体继承现成的 `BaseEntity`（用户："目前的应该有可以给你用的"），
+  每片的任务明细放 PJ 那一行的 JSON 里（不另开一片一行的表）；内存里不留历史（`TrimHistory`、EC `HistoryKeepCount`、全貌里的 History、`job_snapshot` 都删了），历史查库。
+- **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；库里上次没做完的记成中止（标着重启）；机内的片人到现场确认片位后收回，
   再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。**全部回片 2026-10-06 删了**（用户："整体回片先不做"）。
 - E87 的核对（载具号、槽图）以后再说（用户）。EAP 的 SECS 翻译层（S16 / S14）见「EAP 各标准」。还没做：Job 页（样稿 v2 等确认）、救片任务、
   设备动作中禁止改账的联锁（用户押后）。腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。
