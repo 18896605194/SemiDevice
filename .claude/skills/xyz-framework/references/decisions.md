@@ -246,7 +246,7 @@
   （用户定的名，跟 LoadPortAction 一个意思）。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
   `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
-  CJ 管理按后续参考工程使用对象状态动作，PJ 管理暂保留 `Execute`；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
+  CJ / PJ 管理按后续参考工程使用对象状态动作；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
   报 EAP 的叫 `ProcessJobStateChanged` / `ControlJobStateChanged`（原来都叫 Transitioned）。CJ 后续按用户要求改为字典状态表，其他分支用传统 switch 语句（不用 switch 表达式）；
   转换号、E39 名字的 80 / `?*~>:` 直接写数字加注释，不另起常量；自动转换转到不再转为止，不设轮数上限。
 - **任务表**（用户的设计）：建 PJ 时照流程配方给每片生成一行任务，一行 = 一片的整个周期——从 LoadPort 取片、放进腔体、腔体做工艺、从腔体取回、放回 LoadPort，
@@ -304,3 +304,4 @@
 - **CJ 内部与 E94 状态（2026-10-07 用户同意一起统一）**：内部枚举按参考 Created=0、Queued=1、Selected=2、Executing=3、Paused=4、Aborting=5、Aborted=6、Completed=7、WaitingForStart=8；补全本设备的等待 Start、Stop 收尾、排队删除及终态删除路径。Created / Aborting / Aborted 为业务状态，不能据此认定更符合 E94。DTO.State 用内部编号，DTO.E94State 单独映射标准六状态：中止收尾期间保持原 ACTIVE 状态，Aborted 报 COMPLETED=5；事件转换号、历史数据库保持原 E94 编号。保留 ControlStateAction 用户命名。
 - **CJ 顺序（2026-10-07 用户明确）**：CJ 字典保持 Add 顺序，删除 HeadOfQueue 接口及重排逻辑，不主动调整；外部 HOQ 命令明确拒绝，不伪装成执行成功。
 - **CJ 转换号（2026-10-07 用户明确）**：删除 ControlJob.TransitionNumber；转换号属于本次转换通知，不缓存进 CJ 对象。CjManager 在通知时用局部变量确定编号，通过 StateChanged(ControlJob, ControlJobState, int e94TransitionNumber) 传给 JobManager 上报；不新增事件参数类。CompletedBy / EndedBy 仍记录完成及删除原因。
+- **PJ 与 CJ 风格统一（2026-10-07 用户授权修改）**：PjManager 使用 Dictionary<string,PjEntity> 保存 PJ 与独立 PjStateMachine；私有实体不对外暴露，接口用 Add / Remove / Get / ProcessJobs，动作接收 ProcessJob 对象。Add 只登记，Queue 入队并登记晶圆归属，Remove 检查对象引用并释放归属。状态机继承同一个 BaseStateMachine，转换表写在类内，保留现有 E40 状态数值与手动启动、暂停、停止、中止收尾行为；新增内部 Created=-1，不上报 Host。暂停恢复目标留在独立状态机，不存进 ProcessJob。删除 PjManager 的 Execute、公开 Fire、Advance、NextTrigger、AbortLoose、UpdatePermissions；任务进度、PJ 启动条件、设备收尾与行许可由 JobManager 处理。StateChanged 传 (ProcessJob,ProcessJobState,int e40TransitionNumber)，编号只随本次通知传递，不存成运行对象字段。

@@ -242,6 +242,108 @@ try
     controls.Remove(controlB);
     Check(controls.ControlJobs.Count == 0, "Remove 后所有实体都从字典移除");
 
+    // PJ 与 CJ 一样按字典登记，每个 PJ 有独立状态机，登记不自动入队。
+    IPjManager processes = new PjManager();
+    var processEvents = new List<(string Id, ProcessJobState State, int Number)>();
+    processes.StateChanged += (process, state, number) => processEvents.Add((process.Id, state, number));
+    ProcessJob ProcessForStateMachine(string id)
+    {
+        var process = new ProcessJob { Id = id, Sequence = new SequenceData { Name = "SMOKE" } };
+        process.Rows.Add(new TaskRow
+        {
+            Owner = id,
+            WaferId = Guid.NewGuid(),
+            WaferName = id + "-W1",
+            SourcePort = "LP1",
+            SourceSlot = 1,
+            ReturnPort = "LP1",
+            ReturnSlot = 1,
+        });
+        return process;
+    }
+    var processA = ProcessForStateMachine("PJ-DICT-A");
+    var processB = ProcessForStateMachine("PJ-DICT-B");
+    processes.Add(processA);
+    processes.Add(processB);
+    processes.Add(processA);
+    Check(processA.State == ProcessJobState.Created && processB.State == ProcessJobState.Created
+          && processEvents.Count == 0 && processes.ProcessJobs.Count == 2
+          && processes.OwnerOf(processA.Rows[0].WaferId) is null,
+        "PJ Add 只登记，同一对象重复 Add 不重建状态机、不入队或占片");
+    bool duplicateProcessRejected = false;
+    try
+    {
+        processes.Add(ProcessForStateMachine("pj-dict-a"));
+    }
+    catch (InvalidOperationException)
+    {
+        duplicateProcessRejected = true;
+    }
+    Check(duplicateProcessRejected && ReferenceEquals(processes.Get("pj-dict-a"), processA),
+        "PJ 同 ID 的不同对象拒绝覆盖，查询忽略大小写");
+    Check(processes.Queue(processA).IsSuccess && processes.Queue(processB).IsSuccess
+          && processes.OwnerOf(processA.Rows[0].WaferId) == processA.Id
+          && processes.OwnerOf(processB.Rows[0].WaferId) == processB.Id
+          && processEvents.Select(item => item.Number).SequenceEqual([1, 1]),
+        "Queue 入队时登记晶圆归属并通知 E40 #1");
+    Check(!processes.Start(processA).IsSuccess && processA.State == ProcessJobState.QueuedPooled,
+        "PJ 状态表拒绝排队时直接 Start");
+    Check(processes.Setup(processA).IsSuccess && processes.Setup(processB).IsSuccess
+          && processes.Pause(processA).IsSuccess && processes.FinishPause(processA).IsSuccess,
+        "独立 PJ 可以准备，并在准备时暂停到位");
+    processes.Add(processA);
+    Check(processes.Resume(processA).IsSuccess && processA.State == ProcessJobState.SettingUp
+          && processB.State == ProcessJobState.SettingUp && processEvents.Last().Number == 10,
+        "重复登记保留原状态机，准备时暂停后恢复 SettingUp");
+    Check(processes.WaitForStart(processB).IsSuccess && processes.Pause(processB).IsSuccess
+          && processes.FinishPause(processB).IsSuccess && processes.Resume(processB).IsSuccess
+          && processB.State == ProcessJobState.WaitingForStart,
+        "等待启动时暂停后恢复 WaitingForStart，不错误启动处理");
+    Check(processes.Activate(processA).IsSuccess && processes.Start(processB).IsSuccess
+          && processes.Pause(processA).IsSuccess && processes.Resume(processA).IsSuccess
+          && processA.State == ProcessJobState.Processing && processB.State == ProcessJobState.Processing,
+        "处理时在 Pausing 阶段即可恢复，各 PJ 的恢复目标互不影响");
+    Check(processes.Complete(processB).IsSuccess && processB.State == ProcessJobState.ProcessComplete
+          && !processB.IsEnded && processEvents.Last().Number == 6,
+        "PJ 工艺完成先进入 ProcessComplete，回片之前保留登记和归属");
+    Check(processes.Finish(processB).IsSuccess && processB.EndedBy == 7
+          && processEvents.Last() == (processB.Id, ProcessJobState.ProcessComplete, 7),
+        "回片完成通过事件传 E40 #7，不缓存最近一次转换号");
+    processes.Remove(processB);
+    Check(processes.Get(processB.Id) is null && processes.OwnerOf(processB.Rows[0].WaferId) is null,
+        "PJ Remove 移除指定实体并释放其晶圆归属");
+    var replacementProcess = ProcessForStateMachine(processB.Id);
+    processes.Add(replacementProcess);
+    processes.Queue(replacementProcess);
+    processes.Remove(processB);
+    Check(ReferenceEquals(processes.Get(processB.Id), replacementProcess)
+          && processes.OwnerOf(replacementProcess.Rows[0].WaferId) == replacementProcess.Id
+          && !processes.Pause(processB).IsSuccess,
+        "旧 PJ 对象不能移除或操作同 ID 的新对象，也不能释放新对象的归属");
+    Check(processes.Dequeue(replacementProcess).IsSuccess && replacementProcess.EndedBy == 18,
+        "排队取消仍走 E40 #18");
+    processes.Remove(replacementProcess);
+    Check(processes.Pause(processA).IsSuccess && processes.FinishPause(processA).IsSuccess
+          && processes.Stop(processA).IsSuccess && processEvents.Last().Number == 12,
+        "暂停中的 PJ Stop 走 E40 #12，进入 Stopping");
+    Check(processes.Abort(processA).IsSuccess && processEvents.Last().Number == 14
+          && processes.FinishAbort(processA).IsSuccess && processA.State == ProcessJobState.Aborted
+          && processA.EndedBy == 16, "Stopping 升级 Abort 走 #14，收尾后通过 #16 中止结束");
+    int processEventCount = processEvents.Count;
+    var processEndedAt = processA.EndedAt;
+    Check(!processes.FinishAbort(processA).IsSuccess && processEvents.Count == processEventCount
+          && processA.EndedAt == processEndedAt, "已结束 PJ 拒绝重复收尾，不重复事件或覆盖结束时间");
+    processes.Remove(processA);
+    var processStopped = ProcessForStateMachine("PJ-DICT-S");
+    processes.Add(processStopped);
+    Check(processes.Queue(processStopped).IsSuccess && processes.Setup(processStopped).IsSuccess
+          && processes.Activate(processStopped).IsSuccess && processes.Stop(processStopped).IsSuccess
+          && processEvents.Last().Number == 11 && processes.FinishStop(processStopped).IsSuccess
+          && processStopped.State == ProcessJobState.Stopped && processStopped.EndedBy == 17,
+        "处理中的 Stop 走 #11，停止收尾走 #17");
+    processes.Remove(processStopped);
+    Check(processes.ProcessJobs.Count == 0, "PJ 清理后字典不保留结束实体");
+
     // 泛型状态机验证检查失败、动作顺序、执行错误和收尾错误；规则可复用于其他模块。
     var stateFlow = new SmokeStateMachine();
     var flowTrace = new List<string>();

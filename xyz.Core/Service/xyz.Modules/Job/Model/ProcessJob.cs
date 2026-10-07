@@ -20,10 +20,7 @@ public sealed class ProcessJob
 
     public string? LotId { get; init; }
 
-    public ProcessJobState State { get; internal set; } = ProcessJobState.QueuedPooled;
-
-    /// <summary>暂停前的执行子状态：恢复（#10）回到这里。</summary>
-    public ProcessJobState ResumeState { get; internal set; } = ProcessJobState.Processing;
+    public ProcessJobState State { get; internal set; } = ProcessJobState.Created;
 
     /// <summary>这个 PJ 的片，一片一行任务，按投片顺序（取片顺序在建 PJ 时排好）。</summary>
     public List<TaskRow> Rows { get; } = [];

@@ -6,6 +6,9 @@
 /// </summary>
 public enum ProcessJobState
 {
+    /// <summary>内部初始状态：对象已创建，尚未入队；不向 Host 上报。</summary>
+    Created = -1,
+
     /// <summary>QUEUED/POOLED：建好了，等 CJ 启动它。</summary>
     QueuedPooled = 0,
 

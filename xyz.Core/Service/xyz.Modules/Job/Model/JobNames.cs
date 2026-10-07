@@ -13,6 +13,8 @@ public static class JobNames
 
         switch (state.Value)
         {
+            case ProcessJobState.Created:
+                return "CREATED";
             case ProcessJobState.QueuedPooled:
                 return "QUEUED/POOLED";
             case ProcessJobState.SettingUp:

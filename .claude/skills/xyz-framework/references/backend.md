@@ -198,7 +198,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的扫描线程；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
   `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
   - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：`Dictionary<string, CjEntity>`，key 为 CJ ID，每个实体包含 `ControlJob` 和自己的 `CjStateMachine`）
-    和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、E40 状态机、PJ 命令）。CJ 管理不依赖 PJ 管理，不处理 PJ。
+    和 PJ 管理（`IPjManager` / `PjManager`：`Dictionary<string, PjEntity>`，key 为 PJ ID，实体包含 PJ 对象及独立状态机，并管理晶圆归属）。CJ 管理不依赖 PJ 管理，不处理 PJ。
     结构按用户提供的参考工程统一：`CjEntity` 是私有实体，`ControlJobs` 只返回 CJ 对象；`Add(ControlJob)` 只注册，`Queue(ControlJob)` 才入队，
     `Remove(ControlJob)` 检查 ID 和对象引用，旧对象不能移除同 ID 的新对象；`Get(id)` 从字典查找。
     `CjStateMachine` 继承 `BaseStateMachine<ControlJobState, ControlStateAction>`，不持有 Job；类内 BuildTransitions 建字典，
@@ -206,7 +206,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
     基类提供 CurrentState / OnStateChanged / StateChange，执行检查与动作；管理器订阅状态变化，同步 CJ 状态和时间并发送 StateChanged。
     StateChanged 传 (ControlJob, ControlJobState, int e94TransitionNumber)，转换号在转换发生时作为局部变量计算并传给上报；ControlJob 不保存 TransitionNumber。
     管理器提供以 ControlJob 对象为参数的 Queue / Select / Activate / Pause / Resume / Complete / Abort / FinishAbort / Rollback 等动作，
-    统一查注册实体再调用 StateChange；不提供 Advance / NextTrigger，不向外暴露实体状态机。PJ 状态机暂时保持原有实现。
+    统一查注册实体再调用 StateChange；不提供 Advance / NextTrigger，不向外暴露实体状态机。
+    PJ 同样用 Add / Remove / Get / ProcessJobs 管理字典；Add 只登记，Queue 才入队并登记晶圆归属，Remove 检查对象引用并释放归属。
+    PjStateMachine 同样继承 BaseStateMachine，类内 BuildTransitions 定义 E40 转换表；保留原 E40 数值，新增内部 Created=-1（不向 Host 上报）。
+    PJ 的准备、等待 Start、处理完成后回片、暂停 / Stop / Abort 收尾路径保留；暂停前的恢复目标保存在各自状态机的转换表，不存进 ProcessJob。
+    PjManager 提供以 ProcessJob 为参数的 Queue / Setup / WaitForStart / Activate / Start / Complete / Finish / Pause / FinishPause / Resume / Stop / FinishStop / Abort / FinishAbort / Dequeue，
+    不再提供字符串 Execute、公开 Fire 或自动推进。StateChanged 传 (ProcessJob, ProcessJobState, int e40TransitionNumber)，编号只作为本次通知参数。
+    JobManager 根据任务与设备收尾进度提交 PJ 动作，按 PJ 状态设置行的许可；PJ 结束时在 JobManager 中移除登记、关闭任务表并存盘。
     内部状态与参考一致：Created=0、Queued=1、Selected=2、Executing=3、Paused=4、Aborting=5、Aborted=6、Completed=7、WaitingForStart=8。
     本设备补全 WaitingForStart 手动启动、Stop 收尾和 E94 删除路径；JobManager 负责外部命令及 PJ 协调。
     CJ 字典保持添加顺序，不提供 HeadOfQueue 或主动重排；外部 HOQ 命令明确拒绝。
@@ -238,7 +244,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   载具是否可取放片由 `BaseLoadPortModule.IsCarrierReady` 判断（模块启用、载具到位、IsLoaded）；Job 创建、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
   `CreateControlJobAsync(loadPort, processJobs, ...)` 用 PJ 名称集合关联 CJ，指定口与任何 PJ 不匹配时整个拒绝、PJ 不受影响；
   `CreateJobAsync(loadPort, processJobs, ...)` 使用已有 PJ，内部调用创建 CJ，回 `JobCreatedDto`，不再新建 PJ 或任务行。
-  `IPjManager` 提供 Start / Pause / Resume / Stop / Abort / Cancel；`ICjManager` 提供对象状态动作；对外 `IJobManager` 提供 CJ/PJ 明确命令方法。CJ 的 Stop / Abort / Cancel 可选择 SaveJobs / RemoveJobs，
+  `IPjManager` / `ICjManager` 提供对象状态动作；对外 `IJobManager` 提供 CJ/PJ 明确命令方法。CJ 的 Stop / Abort / Cancel 可选择 SaveJobs / RemoveJobs，
   PJ 的 Cancel 只取消未开始的 PJ、释放晶圆归属。`IJobManager` 对应有异步入口，枚举命令方法供 EAP 适配，最终走同一状态机。
   命令（本地服务和 EAP 过同一套检查）在调用方线程上当场执行，跟扫描线程用同一把锁
   （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），做完当场发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
