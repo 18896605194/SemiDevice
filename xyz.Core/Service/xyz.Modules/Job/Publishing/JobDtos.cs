@@ -25,7 +25,6 @@ internal static class JobDtos
             CompletedBy = job.CompletedBy ?? 0,
             EndedBy = job.EndedBy ?? 0,
             EndedAt = job.EndedAt,
-            NeedsRecovery = job.NeedsRecovery,
         };
     }
 
@@ -38,7 +37,6 @@ internal static class JobDtos
             CarrierId = job.CarrierId ?? string.Empty,
             Sequence = job.Sequence.Name,
             SequenceRevision = job.Sequence.Revision,
-            StepCount = job.Sequence.Steps.Count - 2,
             State = (int)job.State,
             AutoStart = job.AutoStart,
             Wafers = job.Rows.Select(Of).ToList(),
@@ -46,13 +44,11 @@ internal static class JobDtos
             StartedAt = job.StartedAt,
             EndedAt = job.EndedAt,
             EndedBy = job.EndedBy ?? 0,
-            NeedsRecovery = job.HasErrors,
         };
     }
 
     public static JobWaferDto Of(TaskRow row)
     {
-        var current = row.Current;
         return new JobWaferDto
         {
             WaferId = row.WaferName,
@@ -60,7 +56,6 @@ internal static class JobDtos
             SourceSlot = row.SourceSlot,
             ReturnPort = row.ReturnPort,
             ReturnSlot = row.ReturnSlot,
-            Current = current is null ? -1 : row.Tasks.IndexOf(current),
             Tasks = row.Tasks.Select(Of).ToList(),
         };
     }

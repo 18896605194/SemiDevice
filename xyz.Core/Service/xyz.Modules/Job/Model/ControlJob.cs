@@ -26,8 +26,6 @@ public sealed class ControlJob
     /// <summary>收下的 Stop / Abort：CJ 没有停止中、中止中的状态，状态值不变，等 PJ 都结束再进 COMPLETED（#11 / #12）。</summary>
     public CtrlJobEnding Ending { get; set; } = CtrlJobEnding.None;
 
-    public JobCommandSource CreatedBy { get; init; }
-
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
     /// <summary>开始执行（#5 / #7）的时刻。</summary>
@@ -45,9 +43,6 @@ public sealed class ControlJob
     public DateTime? EndedAt { get; internal set; }
 
     public bool IsEnded => EndedBy is not null;
-
-    /// <summary>下面有片出错等人处理。</summary>
-    public bool NeedsRecovery => ProcessJobs.Any(job => job.HasErrors);
 
     /// <summary>
     /// 能不能启动下面新的 PJ：在执行、没收 Stop / Abort。CJ 暂停（E94）就是这里关上——在跑的 PJ 不受影响。

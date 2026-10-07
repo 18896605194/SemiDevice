@@ -21,7 +21,7 @@ public interface ICjManager
     ControlJob? On(string loadPort);
 
     /// <summary>建 CJ（本地、Host 一样）：引用的 PJ 都要已经建好、还没归别的 CJ、在同一个 LoadPort 上，这个 LoadPort 上还没有 CJ。造出来还没进队列。</summary>
-    HandleResult? TryBuild(ControlJobSpec spec, JobCommandSource source, out ControlJob job, out List<ProcessJob> processes);
+    HandleResult? TryBuild(ControlJobSpec spec, out ControlJob job, out List<ProcessJob> processes);
 
     /// <summary>造好的 CJ 进队列（排在队尾），收下它的 PJ，报 E94 #1。</summary>
     void Add(ControlJob job, IReadOnlyList<ProcessJob> processes);

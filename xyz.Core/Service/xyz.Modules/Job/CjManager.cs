@@ -54,7 +54,7 @@ internal sealed class CjManager : ICjManager
 
     #region 建 CJ
 
-    public HandleResult? TryBuild(ControlJobSpec spec, JobCommandSource source, out ControlJob job, out List<ProcessJob> processes)
+    public HandleResult? TryBuild(ControlJobSpec spec, out ControlJob job, out List<ProcessJob> processes)
     {
         job = null!;
         processes = [];
@@ -99,7 +99,6 @@ internal sealed class CjManager : ICjManager
             CarrierInstance = processes[0].CarrierInstance,
             LotId = spec.LotId,
             AutoStart = spec.AutoStart,
-
         };
         return null;
     }
@@ -442,7 +441,6 @@ internal sealed class CjManager : ICjManager
                 job.EndedAt = now;
             }
 
-            job.NeedsRecovery = false;
             _restored.Add(job);
         }
 

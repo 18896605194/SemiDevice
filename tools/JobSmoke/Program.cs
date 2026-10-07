@@ -404,8 +404,7 @@ try
     var rowA = PjOf("LOT-A-1")!.Wafers[0];
     Check(rowA.Tasks.Select(task => task.Kind).SequenceEqual(new[] { "Pick", "Place", "Process", "Pick", "Place" })
           && rowA.Tasks[1].Stations.SequenceEqual(new[] { "PM1", "PM2" }) && rowA.Tasks[2].Recipe == "R1"
-          && rowA.Tasks[4].Stations.SequenceEqual(new[] { "LP1" }) && rowA.Tasks.All(task => task.State == "Waiting" && task.Station.Length == 0)
-          && rowA.Current == 0,
+          && rowA.Tasks[4].Stations.SequenceEqual(new[] { "LP1" }) && rowA.Tasks.All(task => task.State == "Waiting" && task.Station.Length == 0),
         "SEQ_A 一行：取片 → 放片（站点组 PM1、PM2，到时候再挑）→ 工艺 R1 → 取片 → 放片回 LP1，都是待做");
     var rowB = PjOf("LOT-A-2")!.Wafers[0];
     Check(rowB.Tasks.Select(task => task.Kind).SequenceEqual(new[] { "Pick", "Place", "Process", "Pick", "Place", "Process", "Pick", "Place" })
@@ -434,7 +433,7 @@ try
 
     var twoStep = PjOf("LOT-A-2")!.Wafers.Single();
     var twoStepProcesses = twoStep.Tasks.Where(task => task.Kind == "Process").ToList();
-    Check(twoStep.Current == -1 && twoStep.Tasks.All(task => task.State == "Done")
+    Check(twoStep.Tasks.All(task => task.State == "Done")
           && twoStepProcesses.Count == 2 && twoStepProcesses[0].Station == "PM1" && twoStepProcesses[1].Station == "PM2"
           && twoStepProcesses[1].Recipe == "R2",
         "两步加工：PM1（R1）、PM2（R2）都做了，第一站做完没跳过第二站；每一格都完成");
@@ -580,13 +579,13 @@ try
     var failedTask = ErrorOf(failedRow)!;
     int failedIndex = failedRow.Tasks.IndexOf(failedTask);
     Check(failedTask.Kind == StationTaskAction.Process && failedTask.Station == "PM1" && failedTask.Code == ErrorCodes.DeviceFailed && failedIndex == 2
-          && failedRow.Current == 2 && failedRow.Tasks.Skip(3).All(task => task.State == "Waiting")
+          && failedRow.Tasks.Skip(3).All(task => task.State == "Waiting")
           && pm1.State == ModuleState.Error && ledger.Get("PM1", 1)?.ProcessState == WaferProcessState.Failed,
         "停在工艺那一格（带错误码），后面的取片、回片都等着，没跳过；腔体报错停着，账上工艺状态是失败");
     string otherName = PjOf("LOT-F-1")!.Wafers.Single(wafer => ErrorOf(wafer) is null).WaferId;
     Check(RunUntil(() => PjOf("LOT-F-1")?.Wafers.Single(wafer => wafer.WaferId == otherName) is JobWaferDto other && IsReturned(other)),
         "另一片照常用 PM2 做完回片（整机不停）");
-    Check(PjOf("LOT-F-1")?.State == (int)PrJobState.Processing && PjOf("LOT-F-1")!.NeedsRecovery && CjOf("LOT-F")!.NeedsRecovery,
+    Check(PjOf("LOT-F-1")?.State == (int)PrJobState.Processing && PjOf("LOT-F-1")!.Wafers.Count(wafer => ErrorOf(wafer) is not null) == 1,
         "PJ 还在 PROCESSING，标着有片的任务出错等人处理");
     var otherRow = PjOf("LOT-F-1")!.Wafers.Single(wafer => wafer.WaferId == otherName);
     Refuses(Do(jobs.RetryTaskAsync("LOT-F-1", otherRow.SourceSlot, 2)), ErrorCodes.JobTaskNotError, ["LOT-F-1", otherName, "3"],
@@ -597,7 +596,7 @@ try
     Check(RunUntil(() => CjOf("LOT-F")?.State == (int)CtrlJobState.Completed), "重做的工艺做成了，接着回片，跑完");
     var retried = PjOf("LOT-F-1")!;
     var retriedTask = retried.Wafers.Single(wafer => wafer.WaferId == failedRow.WaferId).Tasks[failedIndex];
-    Check(retried.EndedBy == 7 && !retried.NeedsRecovery && retried.Wafers.All(IsDone)
+    Check(retried.EndedBy == 7 && retried.Wafers.All(IsDone)
           && retriedTask.State == "Done" && retriedTask.Code.Length == 0
           && ledger.Get("LP1", failedRow.SourceSlot)?.ProcessState == WaferProcessState.Completed,
         "两片都做完：重做的那一格完成、出错原因清掉；设备重做成了，账上工艺状态是完成");
@@ -634,7 +633,7 @@ try
     var lostRow = PjOf("LOT-L-1")!.Wafers.Single(wafer => wafer.WaferId == lostName);
     var lostTask = ErrorOf(lostRow);
     Check(lostTask is not null && lostRow.Tasks.IndexOf(lostTask) == 0 && lostTask.Code == ErrorCodes.JobWaferMoved
-          && lostTask.Args.SequenceEqual(new[] { lostName, "LP1.02" }) && PjOf("LOT-L-1")!.NeedsRecovery
+          && lostTask.Args.SequenceEqual(new[] { lostName, "LP1.02" })
           && PjOf("LOT-L-1")!.Wafers.Count(wafer => ErrorOf(wafer) is not null) == 1,
         "片不在该在的地方：那一行的当前任务（取片）出错，写着该在 LP1.02；另一片不受影响");
     Refuses(Do(jobs.CompleteTaskAsync("LOT-L-1", 2, 0)), ErrorCodes.JobTaskPositionMismatch, [lostName, StationTaskAction.Pick, "LP1.10"],
@@ -642,7 +641,7 @@ try
     var back = Finish(Submit("LP1", 10, "LP1", 2, origin: TransferOrigin.Recovery));
     Check(back.IsSuccess && ledger.Get("LP1", 2)?.WaferId == lostName && lp1.State == LoadPortState.Loaded,
         "恢复单把片搬回第 2 槽（同一个 LoadPort 里换槽），LoadPort 回到待命");
-    Check(Do(jobs.RetryTaskAsync("LOT-L-1", 2, 0)).IsSuccess && !PjOf("LOT-L-1")!.NeedsRecovery, "片放回去以后重做：出错清掉");
+    Check(Do(jobs.RetryTaskAsync("LOT-L-1", 2, 0)).IsSuccess && PjOf("LOT-L-1")!.Wafers.All(wafer => ErrorOf(wafer) is null), "片放回去以后重做：出错清掉");
     transfers.StartAutoDispatch();
     Check(RunUntil(() => CjOf("LOT-L")?.State == (int)CtrlJobState.Completed), "跑完");
     var lost = PjOf("LOT-L-1")!.Wafers.Single(wafer => wafer.WaferId == lostName);
@@ -661,7 +660,7 @@ try
     var pickRow = PjOf("LOT-K-1")!.Wafers[0];
     var pickError = ErrorOf(pickRow)!;
     Check(pickRow.Tasks.IndexOf(pickError) == 0 && pickError.Code == ErrorCodes.TransferFailed && pickRow.Tasks[1].State == "Waiting"
-          && transfers.HeldResults.Count == 1 && PjOf("LOT-K-1")!.NeedsRecovery,
+          && transfers.HeldResults.Count == 1,
         "出错记在取片上（结果说没取到），放片退回等着做；搬运单的锁留着等人确认");
     Check(transfers.ReleaseHold(transfers.HeldResults.Single().Id), "人确认片还在源槽，放锁");
     robot.NoteState(ModuleState.Idle);

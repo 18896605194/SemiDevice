@@ -65,9 +65,6 @@ public class ControlJobDto
 
     public DateTime? EndedAt { get; set; }
 
-    /// <summary>下面有片的任务出错，停住等人处理（重做或标记完成）。</summary>
-    public bool NeedsRecovery { get; set; }
-
     /// <summary>设备重启时还没结束：开机后不接着跑，记成中止（CompletedBy 12）进历史。</summary>
     public bool Restarted { get; set; }
 }
@@ -90,9 +87,6 @@ public class ProcessJobDto
 
     public int SequenceRevision { get; set; }
 
-    /// <summary>路线上中间要经过几站。</summary>
-    public int StepCount { get; set; }
-
     /// <summary>
     /// E40 状态值：0 QUEUED/POOLED、1 SETTING UP、2 WAITING FOR START、3 PROCESSING、4 PROCESS COMPLETE、
     /// 6 PAUSING、7 PAUSED、8 STOPPING、9 ABORTING、10 STOPPED、11 ABORTED。
@@ -112,9 +106,6 @@ public class ProcessJobDto
 
     /// <summary>结束走的转换号：7 正常、16 中止、17 停止、18 排队时删；没结束为 0。</summary>
     public int EndedBy { get; set; }
-
-    /// <summary>下面有片的任务出错，停住等人处理（重做或标记完成）。</summary>
-    public bool NeedsRecovery { get; set; }
 }
 
 /// <summary>
@@ -132,9 +123,6 @@ public class JobWaferDto
 
     public int ReturnSlot { get; set; }
 
-    /// <summary>当前任务的序号（第一个还没做完的，从 0 开始）；都做完了为 -1。</summary>
-    public int Current { get; set; }
-
     /// <summary>这一片的任务，按顺序。</summary>
     public List<JobTaskDto> Tasks { get; set; } = [];
 }
@@ -147,7 +135,7 @@ public class JobTaskDto
     /// <summary>Pick / Place / Process（站点自己声明的站内任务也可能是别的名字）。</summary>
     public string Kind { get; set; } = string.Empty;
 
-    /// <summary>属于路线的第几站（从 0 开始）；等于 PJ 的 StepCount 是回片。</summary>
+    /// <summary>属于路线的第几站（从 0 开始）；最大的那个是回片那一趟。</summary>
     public int Step { get; set; }
 
     /// <summary>候选站点（站点组）；取片为空。</summary>

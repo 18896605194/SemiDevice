@@ -32,9 +32,6 @@ public sealed class ProcessJob
     /// <summary>这个 PJ 的片，一片一行任务，按投片顺序（取片顺序在建 PJ 时排好）。</summary>
     public List<TaskRow> Rows { get; } = [];
 
-    /// <summary>谁建的。</summary>
-    public JobCommandSource CreatedBy { get; init; }
-
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
     /// <summary>开始执行（#4 / #5）的时刻。</summary>

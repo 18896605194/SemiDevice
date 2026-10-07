@@ -356,7 +356,7 @@ public class JobManager : ComponentBase, IJobManager
     /// （有片、正常、没做过、不归别的 PJ）、回片槽定好；流程配方取快照；任务组件给每片生成一行任务。有一项不过回原因，什么都不留。
     /// 造出来还没进队列。
     /// </summary>
-    private HandleResult? TryBuildProcessJob(ProcessJobSpec spec, JobCommandSource source, out ProcessJob job)
+    private HandleResult? TryBuildProcessJob(ProcessJobSpec spec, out ProcessJob job)
     {
         job = null!;
         string id = spec.Id.Trim();
@@ -398,7 +398,6 @@ public class JobManager : ComponentBase, IJobManager
             CarrierId = port.CarrierId,
             CarrierInstance = port.Carrier?.Id,
             AutoStart = spec.AutoStart,
-
         };
 
         foreach (int slot in slots)
