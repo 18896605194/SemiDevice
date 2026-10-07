@@ -5,6 +5,9 @@
 /// </summary>
 public enum ControlStateAction
 {
+    /// <summary>#1：创建后加入 CJ 管理。</summary>
+    Create,
+
     /// <summary>#2：排队时被 Cancel / Stop / Abort。</summary>
     Dequeue,
 

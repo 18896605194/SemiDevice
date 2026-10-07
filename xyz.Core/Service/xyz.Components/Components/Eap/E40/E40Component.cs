@@ -257,14 +257,15 @@ public class E40Component : ComponentBase, IE40Callback
             }
         }
 
-        var result = await jobs.CreateProcessJobAsync(new ProcessJobSpec
-        {
-            Id = id,
-            CarrierId = carrierId,
-            Slots = slots,
-            Sequence = sequence,
-            AutoStart = SecsRead.Flag(autoStart, "PRPROCESSSTART"),
-        }).ConfigureAwait(false);
+        // 保留报文格式校验；PJ 启动方式统一由设备的 SC 配置决定。
+        SecsRead.Flag(autoStart, "PRPROCESSSTART");
+        var result = await jobs.CreateProcessJobAsync(
+            loadPort: null,
+            pjName: id,
+            slots: slots,
+            sequence: sequence,
+            lotId: null,
+            carrierId: carrierId).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return [JobErrors.Of(result)];

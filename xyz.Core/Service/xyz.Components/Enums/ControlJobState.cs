@@ -1,12 +1,15 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// CJ（Control Job）状态，照 SEMI E94。数值就是 E94.1 的 State（0~5），上报 Host 用这个数。
+/// CJ（Control Job）状态。Create 是内部初始状态；Queued 到 Completed 的数值（0~5）用于 E94 上报。
 /// SELECTED、WAITING FOR START、EXECUTING、PAUSED 合称 ACTIVE。CJ 没有"停止中""中止中"：
 /// Stop / Abort 之后等下面的 PJ 都结束，再从 ACTIVE 进 COMPLETED（#11 / #12）。
 /// </summary>
 public enum ControlJobState
 {
+    /// <summary>对象已创建，尚未加入 CJ 管理。</summary>
+    Create = -1,
+
     /// <summary>QUEUED：建好了，排队。</summary>
     Queued = 0,
 

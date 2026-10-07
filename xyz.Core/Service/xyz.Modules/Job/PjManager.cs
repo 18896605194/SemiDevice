@@ -222,12 +222,12 @@ internal sealed class PjManager : IPjManager
         return null;
     }
 
-    public bool Advance()
+    public bool Advance(bool autoStart)
     {
         bool changed = false;
         foreach (var job in _jobs.ToList())
         {
-            var trigger = NextTrigger(job);
+            var trigger = NextTrigger(job, autoStart);
             if (trigger is not null && Fire(job, trigger.Value))
             {
                 changed = true;
@@ -238,7 +238,7 @@ internal sealed class PjManager : IPjManager
     }
 
     /// <summary>自动转换：按任务进度，这个 PJ 现在该不该自己往下转、转哪条（不该转返回 null）。</summary>
-    private static ProcessStateAction? NextTrigger(ProcessJob job)
+    private static ProcessStateAction? NextTrigger(ProcessJob job, bool autoStart)
     {
         bool idle = !job.HasRowsInMachine && !job.HasRunning;
         switch (job.State)
@@ -256,7 +256,7 @@ internal sealed class PjManager : IPjManager
                 // #3 / #4：片都还在该在的地方（没出错），自动启动的直接开始，手动启动的等 Start
                 if (!job.HasErrors)
                 {
-                    return job.AutoStart ? ProcessStateAction.SetupDoneStart : ProcessStateAction.SetupDoneWait;
+                    return autoStart ? ProcessStateAction.SetupDoneStart : ProcessStateAction.SetupDoneWait;
                 }
 
                 break;
@@ -377,8 +377,15 @@ internal sealed class PjManager : IPjManager
 
     #region PJ 命令（E40）
 
+    public HandleResult Start(string id) => Execute(id, ProcessJobCommand.Start);
+    public HandleResult Pause(string id) => Execute(id, ProcessJobCommand.Pause);
+    public HandleResult Resume(string id) => Execute(id, ProcessJobCommand.Resume);
+    public HandleResult Stop(string id) => Execute(id, ProcessJobCommand.Stop);
+    public HandleResult Abort(string id) => Execute(id, ProcessJobCommand.Abort);
+    public HandleResult Cancel(string id) => Execute(id, ProcessJobCommand.Cancel);
+
     /// <summary>执行 PJ 命令（先查 E40 转换表，表里没有的一律拒，回当前状态）。排队的 PJ 收到 Stop / Abort 就是撤掉（#18）。</summary>
-    public HandleResult Execute(string id, ProcessJobCommand command)
+    private HandleResult Execute(string id, ProcessJobCommand command)
     {
         var job = Find(id.Trim());
         if (job is null || job.IsEnded)

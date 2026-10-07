@@ -49,6 +49,8 @@ public static class JobNames
 
         switch (state.Value)
         {
+            case ControlJobState.Create:
+                return "CREATE";
             case ControlJobState.Queued:
                 return "QUEUED";
             case ControlJobState.Selected:

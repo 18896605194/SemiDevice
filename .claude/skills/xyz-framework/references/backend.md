@@ -197,11 +197,15 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
 - **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的扫描线程；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
   `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
-  - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：CJ 队列、E94 状态机、CJ 命令）和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、
-    E40 状态机、PJ 命令）。两个管理**不拿 JobManager**（只有 CJ 管理拿着 PJ 管理：CJ 的 Stop / Abort 要往下传给 PJ），转换表是各自里的一个 switch
-    （带 SEMI 转换号，推动转换的是 `ControlStateAction` / `ProcessStateAction`），转了发 `StateChanged` 事件。牵扯别处的事都在 JobManager：
-    建 PJ（查 LoadPort、载具、片、流程配方，任务组件建任务表）、建 CJ 前查名字；PJ 进 ABORTING 中止搬运和腔体操作、PJ 结束任务表收场、CJ 完成告诉 LoadPort；
-    CJ 自动转换要的载具好没好、拿没拿走由它查设备给；建好、每条转换都由它经 `E94Callback` / `E40Callback`（片开始 / 结束加工 E40 没有事件，由 E90 照晶圆账报） 报
+  - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：`Dictionary<string, CjEntity>`，key 为 CJ ID，每个实体包含 `ControlJob` 和自己的 `CjStateMachine`）
+    和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、E40 状态机、PJ 命令）。CJ 管理不依赖 PJ 管理，不处理 PJ；`Add(ControlJob)` 添加实体，
+    `Remove(ControlJob)` 按 ID 移除实体并解绑状态机事件。`ControlJob` 初始状态为 `Create = -1`，Add 后走 #1 到 Queued，原 E94 状态数值 0~5 保持不变。
+    CJ 的 `StateChanged` 参数是 `ControlJob` 和 `ControlJobState`；EAP 转换编号单独记录。`CjStateMachine` 继承 `StateMachine<ControlJobState, ControlStateAction>`，
+    基类通过 `ControlJobStateTable` 的字典查表转换，key 为 `(state, action)`，value 为 `StateTransition<ControlJobState>`（目标状态、转换编号、是否结束）。
+    CjManager 不再提供 Advance / NextTrigger；需要转换时直接调用对应实体状态机的 Fire(action)。PJ 状态机暂时保持原有实现。
+    CJ 的 Start / Pause / Resume / Stop / Abort / Cancel / Deselect / HeadOfQueue 各自直接查字典并执行，不再经 CjManager.Execute 转发；错误处理用传统 if / return。
+    JobManager 负责建 PJ、解析和关联 CJ 的 PJ 集合，以及 CJ 取消 / Stop / Abort 时协调 PJ；PJ 进 ABORTING 中止设备、PJ 结束任务表收场、CJ 完成通知 LoadPort；
+    载具就绪、PJ 执行结束、载具离位时由 JobManager 提交相应 action，当前状态是否允许转换由状态表决定；建好、每条转换都由它经 `E94Callback` / `E40Callback`（片开始 / 结束加工 E40 没有事件，由 E90 照晶圆账报） 报
     （放进 EAP 的上报派发组件 `EapNotifierComponent.Current`，跟所有上报一条线程按先后发，PJ 结束先于 CJ 完成报）。
   - 任务组件 `Task\BaseTaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
     每一站放片、站内任务、取片 → 回片 LoadPort 放片（回片槽建 PJ 时定）。中间的路线整个 PJ 算一次（`BuildRoute`）：这一站的工艺配方取快照、站点组去掉用不了的
@@ -219,13 +223,24 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
     只看每一行的许可（`TaskPermission`，PJ 状态定的：暂停、停止就体现在这上面）。
   - 站点任务：`TransferStation\StationTaskAction`（Pick / Place / Process，字符串常量，新站点要新的站内任务自己起名字）、`ITransferStation.SupportedTasks`（默认取放，腔体加工艺）。
 
-  命令（`IJobManager`：建 PJ、建 CJ、CJ / PJ 命令；本地服务和 EAP 调的是同样几个方法、过同一套检查）在调用方线程上当场执行，跟扫描线程用同一把锁
-  （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），做完当场发布。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
+  创建入口：`CreateProcessJobAsync(loadPort, pjName, slots, sequence, lotId)` 独立创建 PJ，LotId 跟着 PJ 进入快照和 `process_job` 记录；
+  创建方法直接接收参数，不再使用 `ProcessJobSpec` / `ControlJobSpec`；服务通信仍用请求 DTO。CJ / PJ 创建参数、请求 DTO 和运行对象不存 AutoStart，
+  启动方式由 Job 节点的 SC `ProcessJobAutoStart`（默认 True）和 `ControlJobAutoStart`（默认 False）决定：True 准备好直接开始，False 等待对应的 Start 命令。
+  E40 建 PJ 报文的 PRPROCESSSTART、E94 建 CJ 的 StartMethod 只校验格式、不覆盖 SC；查询、上报和历史记录中的 AutoStart 反映设备配置。
+  CJ / PJ 不保存 CarrierInstance，CJ 完成后检测到来源 LoadPort 的 IsCarrierArrived=False 才删除；载具仍在位时保留结果。
+  载具是否可取放片由 `BaseLoadPortModule.IsCarrierReady` 判断（模块启用、载具到位、IsLoaded）；Job 创建、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
+  `CreateControlJobAsync(loadPort, processJobs, ...)` 用 PJ 名称集合关联 CJ，指定口与任何 PJ 不匹配时整个拒绝、PJ 不受影响；
+  `CreateJobAsync(loadPort, processJobs, ...)` 使用已有 PJ，内部调用创建 CJ，回 `JobCreatedDto`，不再新建 PJ 或任务行。
+  `IPjManager` / `ICjManager` 提供 Start / Pause / Resume / Stop / Abort / Cancel 明确方法；CJ 的 Stop / Abort / Cancel 可选择 SaveJobs / RemoveJobs，
+  PJ 的 Cancel 只取消未开始的 PJ、释放晶圆归属。`IJobManager` 对应有异步入口，枚举命令方法供 EAP 适配，最终走同一状态机。
+  命令（本地服务和 EAP 过同一套检查）在调用方线程上当场执行，跟扫描线程用同一把锁
+  （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），做完当场发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
+  不再使用 Execute / WithProcessJob 委托包装；PJ 创建逻辑直接在 CreateProcessJobAsync 内。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
   再建 CJ，中途被拒撤掉已建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ PJ、CJ 管理自动转状态（先 PJ 后 CJ，转到不再转）、按 PJ 状态给行定许可 →
-  ④ 调度派任务（Manual 不派）→ ⑤ 有变化才发布（`JobListDto` 推送，留存，开机先推一份）。
+  ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布并交给存库线程合并写入。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
-  EAP 按载具号找：`IJobManager.FindControlJobByCarrier` / `FindProcessJobsByCarrier`（从全貌里找，任意线程可调）；PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
-  SC：`IsEnable`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
+  EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 从全貌里找。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
+  SC：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
   **存库与重启**（2026-10-07 用户："界面上显示的就是数据库的数据，该存库就存库"）：CJ、PJ 各一张表，一个 Job 一行（`control_job` / `process_job`，
   实体 `ControlJobEntity` / `ProcessJobEntity` 继承 `BaseEntity`：自增行号、CreatedTime = 建的时刻、UpdatedTime = 最后写的时刻；PJ 行记着 CJ 的行号 `ControlJobRowId`，
   每片的任务明细是 `JobWaferDto` 列表的 JSON 放在 `Wafers` 列）。每次发布把全貌里的 CJ、PJ 交给 Job 管理里的一条写库线程（同一个 Job 只写最新一份；

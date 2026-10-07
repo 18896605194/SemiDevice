@@ -4,13 +4,24 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Shared.Services;
 
-/// <summary>
-/// Job 服务契约：本地建 Job、CJ / PJ 命令（照 SEMI E94 / E40）、出错任务的人工处理、查全貌。
-/// Job 的进展不用轮询：JobListDto 推送（token = JobListDto.EventToken，留存）。没装 Job 管理时都回 job.not_installed。
-/// </summary>
 [ServiceContract]
 public interface IJobService
 {
+    [OperationContract]
+    Task<RpcResponse> CreateProcessJobAsync(ProcessJobCreateRequest request, CallContext context = default);
+
+    [OperationContract]
+    Task<RpcResponse> CancelProcessJobAsync(JobCommandRequest request, CallContext context = default);
+
+    [OperationContract]
+    Task<RpcResponse> CreateControlJobAsync(ControlJobCreateRequest request, CallContext context = default);
+
+    /// <summary>使用已有 PJ 名称集合创建 Job，内部创建 CJ 并关联这些 PJ。Data 为 JobCreatedDto。</summary>
+    [OperationContract]
+    Task<RpcResponse> CreateJobAsync(ControlJobCreateRequest request, CallContext context = default);
+
+    /// <summary>取消尚未开始的 PJ；只使用 request.JobId。</summary>
+
     /// <summary>Job 全貌（跟推送是同一份）。Data 为 JobListDto 的 JSON。</summary>
     [OperationContract]
     Task<RpcResponse> GetJobsAsync(RpcRequest request, CallContext context = default);

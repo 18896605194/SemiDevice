@@ -27,14 +27,19 @@ public interface IPjManager
     /// <summary>按 E40 转换表转（表里没有的不转）。转成了返回 true。</summary>
     bool Fire(ProcessJob job, ProcessStateAction trigger);
 
-    /// <summary>执行 PJ 命令（E40 Start / Pause / Resume / Stop / Abort / Cancel）。</summary>
-    HandleResult Execute(string id, ProcessJobCommand command);
+    HandleResult Start(string id);
+    HandleResult Pause(string id);
+    HandleResult Resume(string id);
+    HandleResult Stop(string id);
+    HandleResult Abort(string id);
+    /// <summary>取消尚未开始的 PJ，释放其晶圆归属。</summary>
+    HandleResult Cancel(string id);
 
     /// <summary>整机停止：不归 CJ 的 PJ 都中止（排队的撤掉）。归 CJ 的由 CJ 管理按 CJ 中止。</summary>
     void AbortLoose();
 
     /// <summary>按任务进度把每个 PJ 该自动转的转一轮；转了返回 true。</summary>
-    bool Advance();
+    bool Advance(bool autoStart);
 
     /// <summary>按状态给每个 PJ 的行定调度许可（暂停、停止就体现在这上面）。</summary>
     void UpdatePermissions();

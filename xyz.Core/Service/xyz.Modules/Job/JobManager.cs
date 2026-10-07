@@ -1,17 +1,15 @@
-﻿using System.Globalization;
+﻿using SqlSugar;
+using System.Globalization;
 using System.Threading.Channels;
-using SqlSugar;
 using xyz.Common.Log;
-using xyz.Components.Interfaces;
-using xyz.Components.Models;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Database;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
-using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -29,20 +27,16 @@ public class JobManager : ComponentBase, IJobManager
     private BaseTaskComponent? _tasks;
     private SchedulerComponent? _scheduler;
 
-    /// <summary>有改动，这一拍要发布。开机先算有改动：第一拍就发一份（空的也发），界面重连拿到的是这次开机的全貌。</summary>
-    private bool _dirty = true;
-
-    private long _version;
-    private long _publishedTasks = -1;
     private volatile JobListDto _snapshot = new();
 
     private readonly IPjManager _processJobs;
     private readonly ICjManager _controlJobs;
+
     public JobManager()
     {
         Current = this;
         _processJobs = new PjManager();
-        _controlJobs = new CjManager(_processJobs);
+        _controlJobs = new CjManager();
         _processJobs.StateChanged += OnProcessJobStateChanged;
         _controlJobs.StateChanged += OnControlJobStateChanged;
     }
@@ -51,6 +45,12 @@ public class JobManager : ComponentBase, IJobManager
 
     [SCEditor("True", "Job", "是否启用 Job 管理（False = 不收 Job 命令、不按 Job 调度）")]
     public bool IsEnable { get; set; } = true;
+
+    [SCEditor("True", "Job", "PJ 准备好后直接开始；False = 等待 PJ Start 命令")]
+    public bool ProcessJobAutoStart { get; set; } = true;
+
+    [SCEditor("False", "Job", "CJ 的载具准备好后直接开始；False = 等待 CJ Start 命令")]
+    public bool ControlJobAutoStart { get; set; }
 
     [SCEditor("True", "Job", "是否把 Job 记进库（CJ、PJ 各一行，每片的任务明细跟着 PJ）：开机把上次没做完的记成中止（重启后不接着跑）")]
     public bool IsPersistent { get; set; } = true;
@@ -130,7 +130,6 @@ public class JobManager : ComponentBase, IJobManager
                 _ = Task.Run(StoreLoopAsync);
             }
 
-            _dirty = true;
             Publish();
         }
 
@@ -143,7 +142,7 @@ public class JobManager : ComponentBase, IJobManager
 
     public JobListDto Snapshot => _snapshot;
 
-    /// <summary>按载具号找 CJ：从当前全貌里找（任意线程可调，不占锁）。</summary>
+    /// <summary>按载具号从 CJ 队列查找，在 Job 锁内读取并返回 DTO 副本。</summary>
     public ControlJobDto? FindControlJobByCarrier(string carrierId)
     {
         string wanted = carrierId.Trim();
@@ -152,7 +151,16 @@ public class JobManager : ComponentBase, IJobManager
             return null;
         }
 
-        return _snapshot.ControlJobs.FirstOrDefault(job => string.Equals(job.CarrierId, wanted, StringComparison.OrdinalIgnoreCase));
+        lock (_gate)
+        {
+            var job = _controlJobs.FindByCarrier(wanted);
+            if (job is null)
+            {
+                return null;
+            }
+
+            return JobDtos.Of(job, ControlJobAutoStart);
+        }
     }
 
     /// <summary>按载具号找 PJ：从当前全貌里找（任意线程可调，不占锁）。</summary>
@@ -173,86 +181,8 @@ public class JobManager : ComponentBase, IJobManager
         return _processJobs.OwnerOf(waferId);
     }
 
-    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec)
-    {
-        return Execute(() => CreateProcessJob(spec));
-    }
 
-    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec)
-    {
-        return Execute(() =>
-        {
-            var idError = CheckNewId(spec.Id.Trim());
-            if (idError is not null)
-            {
-                return idError;
-            }
-
-            return _controlJobs.Create(spec);
-        });
-    }
-
-    public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
-    {
-        return Execute(() =>
-        {
-            // 启动要 Auto：Manual 下不派动作，启动了也跑不起来
-            if (command == ControlJobCommand.Start && !IsAuto && _controlJobs.Find(id.Trim()) is not null)
-            {
-                return HandleResult.Fail(ErrorCodes.JobNotAuto);
-            }
-
-            return _controlJobs.Execute(id, command, action);
-        });
-    }
-
-    public Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command)
-    {
-        return Execute(() =>
-        {
-            if (command == ProcessJobCommand.Start && !IsAuto && _processJobs.Find(id.Trim()) is not null)
-            {
-                return HandleResult.Fail(ErrorCodes.JobNotAuto);
-            }
-
-            return _processJobs.Execute(id, command);
-        });
-    }
-
-    /// <summary>
-    /// 整机停止：所有没结束的 Job 走中止（等设备确认、核对片位），不直接给模块发中止。
-    /// </summary>
-    public Task<HandleResult> AbortAllAsync()
-    {
-        return Execute(() =>
-        {
-            _controlJobs.AbortAll();
-            _processJobs.AbortLoose();
-            return HandleResult.Success(string.Empty);
-        });
-    }
-
-    /// <summary>
-    /// 出错的任务重做（本地界面用，Host 不碰）：任务退回等着做，调度按片现在在哪重新派。片按 PJ 和来源槽认，任务按这一行里的序号（从 0 开始）。
-    /// </summary>
-    public Task<HandleResult> RetryTaskAsync(string processJob, int slot, int task)
-    {
-        return Execute(() => WithProcessJob(processJob, job => Tasks.Retry(job, slot, task)));
-    }
-
-    /// <summary>
-    /// 出错的任务标记完成（本地界面用，Host 不碰）：人已经把这一步做完了，接着走。取放要片在账上正好在这一步做完该在的地方。
-    /// </summary>
-    public Task<HandleResult> CompleteTaskAsync(string processJob, int slot, int task)
-    {
-        return Execute(() => WithProcessJob(processJob, job => Tasks.Complete(job, slot, task)));
-    }
-
-    /// <summary>
-    /// 执行一条命令：在调用方的线程上直接做，跟扫描线程用同一把锁；锁等不到（扫描线程卡了）回超时。
-    /// 做成了当场发布（界面、调用方马上看得到结果）。出异常回错误，不往外抛。
-    /// </summary>
-    private Task<HandleResult> Execute(Func<HandleResult> command)
+    public Task<HandleResult> CreateProcessJobAsync(string? loadPort, string pjName, IReadOnlyList<int> slots, string sequence, string? lotId, string? carrierId = null)
     {
         if (!IsEnable || _tasks is null)
         {
@@ -267,10 +197,308 @@ public class JobManager : ComponentBase, IJobManager
 
         try
         {
-            var result = command();
-            if (result.IsSuccess)
+            string id = pjName.Trim();
+            var idError = CheckNewId(id);
+            if (idError is not null)
             {
-                _dirty = true;
+                Publish();
+                return Task.FromResult(idError);
+            }
+
+            var portError = FindLoadPort(loadPort, carrierId, out var port);
+            if (portError is not null)
+            {
+                Publish();
+                return Task.FromResult(portError);
+            }
+
+            string sourceName = port.Name;
+            var selectedSlots = slots.Distinct().ToList();
+            if (selectedSlots.Count == 0)
+            {
+                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, sourceName));
+            }
+
+            var ledger = WaferManagerComponent.Current;
+            if (ledger is null || !ledger.IsEnable)
+            {
+                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.WaferLedgerDisabled));
+            }
+
+            var sequenceError = TryTakeSequence(sequence.Trim(), sourceName, out var sequenceSnapshot);
+            if (sequenceError is not null)
+            {
+                Publish();
+                return Task.FromResult(sequenceError);
+            }
+
+            var job = new ProcessJob
+            {
+                Id = id,
+                Sequence = sequenceSnapshot,
+                CarrierId = port.CarrierId,
+                LotId = string.IsNullOrWhiteSpace(lotId) ? null : lotId.Trim(),
+            };
+
+            foreach (int slot in selectedSlots)
+            {
+                string slotText = slot.ToString(CultureInfo.InvariantCulture);
+                var wafer = ledger.Get(sourceName, slot);
+                if (wafer is null)
+                {
+                    Publish();
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobSlotEmpty, sourceName, slotText));
+                }
+
+                if (wafer.Status != WaferStatus.Normal)
+                {
+                    Publish();
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferNotNormal, sourceName, slotText, wafer.WaferId, wafer.Status.ToString()));
+                }
+
+                if (wafer.ProcessState != WaferProcessState.Idle)
+                {
+                    Publish();
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferProcessed, sourceName, slotText, wafer.WaferId, wafer.ProcessState.ToString()));
+                }
+
+                string? owner = _processJobs.OwnerOf(wafer.Id);
+                if (owner is not null)
+                {
+                    Publish();
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferOwned, wafer.WaferId, owner));
+                }
+
+                var returnError = PickReturnSlot(sequenceSnapshot, sourceName, slot, out string returnPort);
+                if (returnError is not null)
+                {
+                    Publish();
+                    return Task.FromResult(returnError);
+                }
+
+                job.Rows.Add(new TaskRow
+                {
+                    Owner = id,
+                    WaferId = wafer.Id,
+                    WaferName = wafer.WaferId,
+                    SourcePort = sourceName,
+                    SourceSlot = slot,
+                    ReturnPort = returnPort,
+                    ReturnSlot = slot,
+                });
+            }
+
+            // 每片的任务行照流程配方生成（任务组件管）
+            var taskError = Tasks.Build(job);
+            if (taskError is not null)
+            {
+                Publish();
+                return Task.FromResult(taskError);
+            }
+
+            Tasks.Add(job);
+            _processJobs.Add(job);
+            Publish();
+            return Task.FromResult(HandleResult.Success(job.Id));
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> CreateControlJobAsync(string? loadPort, IReadOnlyList<string> processJobs, string? cjName = null, string? lotId = null)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            string name = cjName?.Trim() ?? string.Empty;
+            string? lot = lotId?.Trim();
+            if (string.IsNullOrEmpty(lot))
+            {
+                lot = null;
+            }
+
+            if (name.Length == 0)
+            {
+                if (lot is not null)
+                {
+                    name = lot;
+                }
+                else
+                {
+                    name = $"CJ-{loadPort?.Trim()}-{DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture)}";
+                }
+            }
+
+            var idError = CheckNewId(name);
+            if (idError is not null)
+            {
+                Publish();
+                return Task.FromResult(idError);
+            }
+
+            var processes = new List<ProcessJob>();
+            string id = name;
+            string? portName = loadPort?.Trim();
+            foreach (string processId in processJobs)
+            {
+                var process = _processJobs.Find(processId.Trim());
+                if (process is null || process.ControlJob is not null || process.State != ProcessJobState.QueuedPooled
+                    || processes.Contains(process))
+                {
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
+                }
+
+                string port = process.Rows.Count > 0 ? process.Rows[0].SourcePort : string.Empty;
+                if (portName is not null && !string.Equals(portName, port, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
+                }
+
+                portName = port;
+                processes.Add(process);
+            }
+
+            if (processes.Count == 0 || portName is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, id));
+            }
+
+            var busy = _controlJobs.FindByLoadPort(portName);
+            if (busy is not null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobLoadPortBusy, portName, busy.Id));
+            }
+
+            // 载具跟着 PJ：PJ 建的时候 LoadPort 上那个载具
+            var job = new ControlJob
+            {
+                Id = id,
+                LoadPort = portName,
+                CarrierId = processes[0].CarrierId,
+                LotId = lot ?? processes[0].LotId,
+            };
+
+            // 收下它的 PJ
+            foreach (var process in processes)
+            {
+                process.ControlJob = job;
+                job.ProcessJobs.Add(process);
+            }
+
+            _controlJobs.Add(job);
+
+            Publish();
+            return Task.FromResult(HandleResult.Success(job.Id));
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public async Task<HandleResult> CreateJobAsync(string? loadPort, IReadOnlyList<string> processJobs, string? cjName = null, string? lotId = null)
+    {
+        var result = await CreateControlJobAsync(loadPort, processJobs, cjName, lotId).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return result;
+        }
+
+        return HandleResult.Success(new JobCreatedDto
+        {
+            ControlJob = (string)result.Result!,
+            ProcessJobs = processJobs.Select(id => id.Trim()).ToList(),
+        });
+    }
+
+    public Task<HandleResult> StartProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Start);
+    public Task<HandleResult> PauseProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Pause);
+    public Task<HandleResult> ResumeProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Resume);
+    public Task<HandleResult> StopProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Stop);
+    public Task<HandleResult> AbortProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Abort);
+    public Task<HandleResult> CancelProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Cancel);
+    public Task<HandleResult> StartControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Start, ControlJobAction.SaveJobs);
+    public Task<HandleResult> PauseControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Pause, ControlJobAction.SaveJobs);
+    public Task<HandleResult> ResumeControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Resume, ControlJobAction.SaveJobs);
+    public Task<HandleResult> StopControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Stop, action);
+    public Task<HandleResult> AbortControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Abort, action);
+    public Task<HandleResult> CancelControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Cancel, action);
+
+
+    public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            // 启动要 Auto：Manual 下不派动作，启动了也跑不起来
+            if (command == ControlJobCommand.Start && !IsAuto && _controlJobs.Find(id.Trim()) is not null)
+            {
+                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotAuto));
+            }
+
+            var controlJob = _controlJobs.Find(id.Trim());
+            var previousEnding = controlJob?.Ending ?? ControlJobEnding.None;
+            bool endingCommand = command == ControlJobCommand.Stop || command == ControlJobCommand.Abort
+                || command == ControlJobCommand.Cancel;
+            if (controlJob is not null && controlJob.State == ControlJobState.Queued
+                && controlJob.Ending == ControlJobEnding.None && endingCommand)
+            {
+                EndControlJobProcesses(controlJob, command, action);
+            }
+
+            var result = command switch
+            {
+                ControlJobCommand.Start => _controlJobs.Start(id),
+                ControlJobCommand.Pause => _controlJobs.Pause(id),
+                ControlJobCommand.Resume => _controlJobs.Resume(id),
+                ControlJobCommand.Stop => _controlJobs.Stop(id),
+                ControlJobCommand.Abort => _controlJobs.Abort(id),
+                ControlJobCommand.Cancel => _controlJobs.Cancel(id),
+                ControlJobCommand.Deselect => _controlJobs.Deselect(id),
+                ControlJobCommand.HeadOfQueue => _controlJobs.HeadOfQueue(id),
+                _ => HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, id.Trim(), command.ToString(), string.Empty),
+            };
+
+            if (result.IsSuccess && controlJob is not null && !controlJob.IsEnded
+                && controlJob.Ending != previousEnding
+                && (command == ControlJobCommand.Stop || command == ControlJobCommand.Abort))
+            {
+                EndControlJobProcesses(controlJob, command, action);
             }
 
             Publish();
@@ -287,118 +515,187 @@ public class JobManager : ComponentBase, IJobManager
         }
     }
 
-    private HandleResult WithProcessJob(string id, Func<ProcessJob, HandleResult> run)
+    public Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command)
     {
-        var job = _processJobs.Find(id.Trim());
-        return job is null ? HandleResult.Fail(ErrorCodes.JobNotFound, id.Trim()) : run(job);
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            if (command == ProcessJobCommand.Start && !IsAuto && _processJobs.Find(id.Trim()) is not null)
+            {
+                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotAuto));
+            }
+
+            var result = command switch
+            {
+                ProcessJobCommand.Start => _processJobs.Start(id),
+                ProcessJobCommand.Pause => _processJobs.Pause(id),
+                ProcessJobCommand.Resume => _processJobs.Resume(id),
+                ProcessJobCommand.Stop => _processJobs.Stop(id),
+                ProcessJobCommand.Abort => _processJobs.Abort(id),
+                ProcessJobCommand.Cancel => _processJobs.Cancel(id),
+                _ => HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, id.Trim(), command.ToString(), string.Empty),
+            };
+
+            Publish();
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    /// <summary>
+    /// 整机停止：所有没结束的 Job 走中止（等设备确认、核对片位），不直接给模块发中止。
+    /// </summary>
+    public Task<HandleResult> AbortAllAsync()
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            foreach (var entity in _controlJobs.Jobs.Values.ToList())
+            {
+                var controlJob = entity.ControlJob;
+                if (controlJob.IsEnded || controlJob.State == ControlJobState.Completed)
+                {
+                    continue;
+                }
+
+                if (controlJob.State == ControlJobState.Queued)
+                {
+                    EndControlJobProcesses(controlJob, ControlJobCommand.Abort, ControlJobAction.RemoveJobs);
+                }
+
+                var result = _controlJobs.Abort(controlJob.Id);
+                if (result.IsSuccess && !controlJob.IsEnded)
+                {
+                    EndControlJobProcesses(controlJob, ControlJobCommand.Abort, ControlJobAction.RemoveJobs);
+                }
+            }
+            _processJobs.AbortLoose();
+            Publish();
+            return Task.FromResult(HandleResult.Success(string.Empty));
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    /// <summary>
+    /// 出错的任务重做（本地界面用，Host 不碰）：任务退回等着做，调度按片现在在哪重新派。片按 PJ 和来源槽认，任务按这一行里的序号（从 0 开始）。
+    /// </summary>
+    public Task<HandleResult> RetryTaskAsync(string processJob, int slot, int task)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            var job = _processJobs.Find(processJob.Trim());
+            if (job is null)
+            {
+                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, processJob.Trim()));
+            }
+
+            var result = Tasks.Retry(job, slot, task);
+            Publish();
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    /// <summary>
+    /// 出错的任务标记完成（本地界面用，Host 不碰）：人已经把这一步做完了，接着走。取放要片在账上正好在这一步做完该在的地方。
+    /// </summary>
+    public Task<HandleResult> CompleteTaskAsync(string processJob, int slot, int task)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            var job = _processJobs.Find(processJob.Trim());
+            if (job is null)
+            {
+                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, processJob.Trim()));
+            }
+
+            var result = Tasks.Complete(job, slot, task);
+            Publish();
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
     }
 
     #endregion
 
-    #region 建 PJ
-
-    /// <summary>
-    /// 建 PJ（本地、Host 一样）：名字合规、没人用；给了 LoadPort 按它找，没给按载具号找，载具要能取片；每一片查过
-    /// （有片、正常、没做过、不归别的 PJ）、回片槽定好；流程配方取快照；任务组件给每片生成一行任务。有一项不过回原因，什么都不留。
-    /// 都过了挂进任务表、进 PJ 队列（报 E40 #1），回 PJ 名。
-    /// </summary>
-    private HandleResult CreateProcessJob(ProcessJobSpec spec)
-    {
-        string id = spec.Id.Trim();
-        var idError = CheckNewId(id);
-        if (idError is not null)
-        {
-            return idError;
-        }
-
-        var portError = FindLoadPort(spec, out var port);
-        if (portError is not null)
-        {
-            return portError;
-        }
-
-        string loadPort = port.Name;
-        var slots = spec.Slots.Distinct().ToList();
-        if (slots.Count == 0)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNoWafers, loadPort);
-        }
-
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null || !ledger.IsEnable)
-        {
-            return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
-        }
-
-        var sequenceError = TryTakeSequence(spec.Sequence.Trim(), loadPort, out var sequence);
-        if (sequenceError is not null)
-        {
-            return sequenceError;
-        }
-
-        var job = new ProcessJob
-        {
-            Id = id,
-            Sequence = sequence,
-            CarrierId = port.CarrierId,
-            CarrierInstance = port.Carrier?.Id,
-            AutoStart = spec.AutoStart,
-        };
-
-        foreach (int slot in slots)
-        {
-            string slotText = slot.ToString(CultureInfo.InvariantCulture);
-            var wafer = ledger.Get(loadPort, slot);
-            if (wafer is null)
-            {
-                return HandleResult.Fail(ErrorCodes.JobSlotEmpty, loadPort, slotText);
-            }
-
-            if (wafer.Status != WaferStatus.Normal)
-            {
-                return HandleResult.Fail(ErrorCodes.JobWaferNotNormal, loadPort, slotText, wafer.WaferId, wafer.Status.ToString());
-            }
-
-            if (wafer.ProcessState != WaferProcessState.Idle)
-            {
-                return HandleResult.Fail(ErrorCodes.JobWaferProcessed, loadPort, slotText, wafer.WaferId, wafer.ProcessState.ToString());
-            }
-
-            string? owner = _processJobs.OwnerOf(wafer.Id);
-            if (owner is not null)
-            {
-                return HandleResult.Fail(ErrorCodes.JobWaferOwned, wafer.WaferId, owner);
-            }
-
-            var returnError = PickReturnSlot(sequence, loadPort, slot, out string returnPort);
-            if (returnError is not null)
-            {
-                return returnError;
-            }
-
-            job.Rows.Add(new TaskRow
-            {
-                Owner = id,
-                WaferId = wafer.Id,
-                WaferName = wafer.WaferId,
-                SourcePort = loadPort,
-                SourceSlot = slot,
-                ReturnPort = returnPort,
-                ReturnSlot = slot,
-            });
-        }
-
-        // 每片的任务行照流程配方生成（任务组件管）
-        var taskError = Tasks.Build(job);
-        if (taskError is not null)
-        {
-            return taskError;
-        }
-
-        Tasks.Add(job);
-        _processJobs.Add(job);
-        return HandleResult.Success(job.Id);
-    }
+    #region Job 创建检查
 
     /// <summary>
     /// 新名字：E39 的 ObjID（1~80 个 ASCII 可见字符和空格，不能有 ? * ~ &gt; :），而且没结束的 CJ、PJ 里没人用。
@@ -420,10 +717,10 @@ public class JobManager : ComponentBase, IJobManager
     /// 料在哪个 LoadPort：给了 LoadPort 就按它（本地建，载具号可能没读到），没给按载具号找（Host 建，载具要已经在 LoadPort 上）；
     /// 载具要能取片（放着、Load 好）。
     /// </summary>
-    private HandleResult? FindLoadPort(ProcessJobSpec spec, out BaseLoadPortModule port)
+    private HandleResult? FindLoadPort(string? loadPort, string? carrierId, out BaseLoadPortModule port)
     {
         port = null!;
-        string name = (spec.LoadPort ?? string.Empty).Trim();
+        string name = (loadPort ?? string.Empty).Trim();
         BaseLoadPortModule? found;
         if (name.Length > 0)
         {
@@ -435,7 +732,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         else
         {
-            string carrier = spec.CarrierId.Trim();
+            string carrier = (carrierId ?? string.Empty).Trim();
             found = carrier.Length == 0
                 ? null
                 : LoadPorts.FirstOrDefault(item => string.Equals(item.CarrierId, carrier, StringComparison.OrdinalIgnoreCase) && item.IsCarrierArrived);
@@ -446,7 +743,12 @@ public class JobManager : ComponentBase, IJobManager
         }
 
         port = found;
-        return IsCarrierReady(found.Name) ? null : HandleResult.Fail(ErrorCodes.JobCarrierNotReady, found.Name);
+        if (!found.IsCarrierReady)
+        {
+            return HandleResult.Fail(ErrorCodes.JobCarrierNotReady, found.Name);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -496,7 +798,7 @@ public class JobManager : ComponentBase, IJobManager
             return null;
         }
 
-        string? port = returnPorts.FirstOrDefault(IsCarrierReady);
+        string? port = returnPorts.FirstOrDefault(name => LoadPort(name)?.IsCarrierReady == true);
         if (port is null)
         {
             return HandleResult.Fail(ErrorCodes.JobReturnSlotUnavailable, returnPorts[0], slotText);
@@ -518,6 +820,44 @@ public class JobManager : ComponentBase, IJobManager
 
     #region CJ / PJ 转了之后（牵扯别处的事）
 
+    /// <summary>CJ 取消、停止或中止时，由 JobManager 协调下属 PJ。</summary>
+    private void EndControlJobProcesses(ControlJob controlJob, ControlJobCommand command, ControlJobAction action)
+    {
+        foreach (var process in controlJob.ProcessJobs.ToList())
+        {
+            if (process.IsEnded)
+            {
+                continue;
+            }
+
+            if (process.State == ProcessJobState.QueuedPooled)
+            {
+                if (action == ControlJobAction.RemoveJobs)
+                {
+                    _processJobs.Fire(process, ProcessStateAction.Dequeue);
+                }
+                else
+                {
+                    process.ControlJob = null;
+                    controlJob.ProcessJobs.Remove(process);
+                }
+
+                continue;
+            }
+
+            // 已经 PROCESS COMPLETE 的 PJ 不接受 Stop / Abort，回片后自然结束。
+            if (command == ControlJobCommand.Stop)
+            {
+                _processJobs.Fire(process, ProcessStateAction.Stop);
+            }
+            else if (command == ControlJobCommand.Abort)
+            {
+                _processJobs.Fire(process, ProcessStateAction.Abort);
+            }
+        }
+    }
+
+
     /// <summary>
     /// PJ 转了：刚进 ABORTING（只有 #13 / #14 / #15 转到它）给设备发中止（<see cref="AbortDevices"/>）；结束了它的行从任务表拿掉、
     /// 写最后一遍库（不归 CJ 的结束了就不在全貌里了）；往 EAP 报（E40，派发线程上按先后发，PJ 结束一定先于 CJ 完成）。
@@ -532,17 +872,15 @@ public class JobManager : ComponentBase, IJobManager
         if (job.IsEnded)
         {
             Tasks.Close(job);
-            Store(job, JobDtos.Of(job));
+            Store(job, JobDtos.Of(job, ProcessJobAutoStart));
         }
 
         var callback = E40Callback;
         if (callback is not null)
         {
-            var dto = JobDtos.Of(job);
+            var dto = JobDtos.Of(job, ProcessJobAutoStart);
             EapNotifierComponent.Current?.Post(() => callback.ProcessJobStateChanged(dto, number));
         }
-
-        _dirty = true;
     }
 
     /// <summary>
@@ -572,26 +910,26 @@ public class JobManager : ComponentBase, IJobManager
     /// CJ 转了：刚完成（#10 / #11 / #12 转进 COMPLETED，还没删）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；
     /// 删掉了（#2 / #13）写最后一遍库（之后就不在全貌里了）；往 EAP 报（E94）。
     /// </summary>
-    private void OnControlJobStateChanged(ControlJob job, int number)
+    private void OnControlJobStateChanged(ControlJob job, ControlJobState state)
     {
-        if (job.State == ControlJobState.Completed && !job.IsEnded)
+        int number = job.TransitionNumber;
+        if (state == ControlJobState.Completed && !job.IsEnded)
         {
             LoadPort(job.LoadPort)?.NoteCarrierComplete();
         }
 
         if (job.IsEnded)
         {
-            Store(job, JobDtos.Of(job));
+            Store(job, JobDtos.Of(job, ControlJobAutoStart));
         }
 
         var callback = E94Callback;
         if (callback is not null)
         {
-            var dto = JobDtos.Of(job);
+            var dto = JobDtos.Of(job, ControlJobAutoStart);
             EapNotifierComponent.Current?.Post(() => callback.ControlJobStateChanged(dto, number));
         }
 
-        _dirty = true;
     }
 
     #endregion
@@ -600,7 +938,7 @@ public class JobManager : ComponentBase, IJobManager
 
     /// <summary>
     /// 每拍固定五步：① 调度引擎收做完的（搬运、站内任务），结果记回任务表 → ② 任务组件核对片位 → ③ PJ、CJ 管理按任务进度自动转状态、定许可 →
-    /// ④ 调度引擎派新任务 → ⑤ 有变化才发布。整拍拿着命令那把锁，命令和扫描不会交叉着改。
+    /// ④ 调度引擎派新任务 → ⑤ 发布当前快照。整拍拿着命令那把锁，命令和扫描不会交叉着改。
     /// </summary>
     protected override void OnScan()
     {
@@ -625,15 +963,57 @@ public class JobManager : ComponentBase, IJobManager
 
     /// <summary>
     /// ③ 自动转换：先 PJ 后 CJ（PJ 结束先报，CJ 完成后报），转了就再问一遍，直到不再转；最后按 PJ 状态给它的行定许可。
-    /// 自动转换都是往前走（不会自己转回去），转几轮就停。CJ 要知道的载具好没好、拿没拿走，这里查设备给它。
+    /// CJ 根据载具和 PJ 进度提交 action，状态表决定能否转换及目标状态。
     /// </summary>
     private void Advance()
     {
         bool changed;
         do
         {
-            changed = _processJobs.Advance();
-            changed |= _controlJobs.Advance(IsCarrierReady, IsCarrierGone);
+            changed = _processJobs.Advance(ProcessJobAutoStart);
+            foreach (var entity in _controlJobs.Jobs.Values.ToList())
+            {
+                var job = entity.ControlJob;
+                var stateMachine = entity.StateMachine;
+                var port = LoadPort(job.LoadPort);
+
+                // 状态表只允许 Queued 收到 Select 时转换。
+                changed |= stateMachine.Fire(ControlStateAction.Select);
+
+                if (port?.IsCarrierReady == true)
+                {
+                    if (ControlJobAutoStart)
+                    {
+                        changed |= stateMachine.Fire(ControlStateAction.MaterialReadyStart);
+                    }
+                    else
+                    {
+                        changed |= stateMachine.Fire(ControlStateAction.MaterialReadyWait);
+                    }
+                }
+
+                if ((job.ProcessJobs.Count > 0 || job.Ending != ControlJobEnding.None)
+                    && job.ProcessJobs.All(process => process.IsEnded))
+                {
+                    switch (job.Ending)
+                    {
+                        case ControlJobEnding.None:
+                            changed |= stateMachine.Fire(ControlStateAction.AllDone);
+                            break;
+                        case ControlJobEnding.Stop:
+                            changed |= stateMachine.Fire(ControlStateAction.Stopped);
+                            break;
+                        case ControlJobEnding.Abort:
+                            changed |= stateMachine.Fire(ControlStateAction.Aborted);
+                            break;
+                    }
+                }
+
+                if (port?.IsCarrierArrived != true)
+                {
+                    changed |= stateMachine.Fire(ControlStateAction.Delete);
+                }
+            }
         }
         while (changed);
 
@@ -651,8 +1031,8 @@ public class JobManager : ComponentBase, IJobManager
             return;
         }
 
-        var rows = _controlJobs.Jobs
-            .SelectMany(control => control.ProcessJobs)
+        var rows = _controlJobs.Jobs.Values
+            .SelectMany(entity => entity.ControlJob.ProcessJobs)
             .Where(process => !process.IsEnded)
             .SelectMany(process => process.Rows)
             .ToList();
@@ -660,33 +1040,20 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// ⑤ 有变化才发布：换一份新的全貌（版本加 1）——没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）；
+    /// ⑤ 发布当前快照：换一份新的全貌——没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）；
     /// 推给界面（留存，重连就能拿到最新的）；里面的每个 CJ、PJ 交给写库线程更新库里那一行（任务进度也跟着进库）。
     /// </summary>
     private void Publish()
     {
-        long taskVersion = _tasks?.Version ?? 0;
-        if (taskVersion != _publishedTasks)
-        {
-            _publishedTasks = taskVersion;
-            _dirty = true;
-        }
-
-        if (!_dirty)
-        {
-            return;
-        }
-
-        _dirty = false;
-        var controlJobs = _controlJobs.Jobs.ToList();
+        var controlJobs = _controlJobs.Jobs.Values
+            .Select(entity => entity.ControlJob).ToList();
         var processJobs = controlJobs.SelectMany(control => control.ProcessJobs)
             .Concat(_processJobs.Jobs).Distinct().ToList();
 
         var snapshot = new JobListDto
         {
-            Version = ++_version,
-            ControlJobs = controlJobs.Select(JobDtos.Of).ToList(),
-            ProcessJobs = processJobs.Select(JobDtos.Of).ToList(),
+            ControlJobs = controlJobs.Select(job => JobDtos.Of(job, ControlJobAutoStart)).ToList(),
+            ProcessJobs = processJobs.Select(job => JobDtos.Of(job, ProcessJobAutoStart)).ToList(),
         };
         _snapshot = snapshot;
         for (int index = 0; index < controlJobs.Count; index++)
@@ -715,7 +1082,7 @@ public class JobManager : ComponentBase, IJobManager
 
     // CJ、PJ 各一张表，一个 Job 一行（control_job、process_job）：第一次写插一行、记下行号（RowId），之后按行号更新。
     // 每次发布把全貌里的 CJ、PJ 交给一条写库线程，同一个 Job 只写最新的一份；删掉的 CJ、结束的 PJ 由转换那里单独交最后一次。
-    // 写库不在扫描线程上做——磁盘一卡，扫描就卡。写不进去只记日志，Job 照跑，下一次变化再写。
+    // 写库不在扫描线程上做——磁盘一卡，扫描就卡。写不进去只记日志，Job 照跑，下一次发布再写。
 
     private readonly Channel<bool> _storeSignal = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
@@ -882,6 +1249,7 @@ public class JobManager : ComponentBase, IJobManager
                     ControlJobRowId = owner?.RowId ?? 0,
                     CarrierId = dto.CarrierId,
                     Sequence = dto.Sequence,
+                    LotId = dto.LotId,
                     SequenceRevision = dto.SequenceRevision,
                     State = dto.State,
                     AutoStart = dto.AutoStart,
@@ -959,32 +1327,6 @@ public class JobManager : ComponentBase, IJobManager
     private BaseLoadPortModule? LoadPort(string name)
     {
         return Module(name) as BaseLoadPortModule;
-    }
-
-    /// <summary>
-    /// LoadPort 上有能取片的载具：放着、Load 好了（在待命，或正在被机械手服务）。
-    /// </summary>
-    private bool IsCarrierReady(string loadPort)
-    {
-        var port = LoadPort(loadPort);
-        if (port is null || !port.IsEnabled || !port.IsCarrierArrived)
-        {
-            return false;
-        }
-
-        int state = port.State;
-        return state == LoadPortState.Loaded
-            || (state >= TransferModuleState.PreTransfer && state <= TransferModuleState.TransferComplete);
-    }
-
-    /// <summary>CJ 的载具从 LoadPort 拿走了（或换了一个）：完成的 CJ 可以删了（#13）。</summary>
-    private bool IsCarrierGone(ControlJob job)
-    {
-        var port = LoadPort(job.LoadPort);
-        var carrier = port?.Carrier;
-        bool sameCarrier = port is not null && port.IsCarrierArrived && carrier is not null
-            && (job.CarrierInstance is null || carrier.Id == job.CarrierInstance.Value);
-        return !sameCarrier;
     }
 
     /// <summary>这个腔体正在给 Job 做工艺（整机停止时由 Job 的中止去停它，不直接发中止）。</summary>

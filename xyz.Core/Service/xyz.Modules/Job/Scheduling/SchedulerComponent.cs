@@ -151,8 +151,10 @@ public class SchedulerComponent : ComponentBase
         return current;
     }
 
+    #region 启动任务 
+
     /// <summary>
-    /// 起站内任务：片要在站点上（上一个放片放到的地方），站点自己先查一遍能不能起（不动设备），起不了下一拍再看。
+    /// 启动站点内的任务
     /// </summary>
     protected virtual void StartStationTask(TaskRow row, WaferTask task, BaseTaskComponent tasks)
     {
@@ -178,11 +180,14 @@ public class SchedulerComponent : ComponentBase
             tasks.Start(row, task, location.Module, location.Slot, operation: operation);
         }
     }
-
+     
     /// <summary>
-    /// 从当前任务确定搬运参数：取片时先选定并占住后续放片的目标；片已经在机械手上时只放片。
-    /// 源站点要能服务；目标要空着、没被占用（回片槽是建 Job 时定好的）；要有机械手接得了。启动返回 true。
+    /// 启动传输
     /// </summary>
+    /// <param name="row"></param>
+    /// <param name="task"></param>
+    /// <param name="tasks"></param>
+    /// <returns></returns>
     protected virtual bool StartTransfer(TaskRow row, WaferTask task, BaseTaskComponent tasks)
     {
         var source = row.ExpectedLocation;
@@ -225,6 +230,8 @@ public class SchedulerComponent : ComponentBase
 
         return false;
     }
+
+    #endregion
 
     /// <summary>
     /// 站点组里按什么先后挑：默认 sc.xml 的先后（流程配方里勾的先后），挑第一个能放的。机型要轮着用、挑最先空出来的就重写。
@@ -303,7 +310,7 @@ public class SchedulerComponent : ComponentBase
     /// 目标槽和机械手在启动时一起占住，避免取片后没有位置可放。
     /// 只放片（片在机械手手上）就用拿着片的那台。
     /// </summary>
-    private bool StartTransfer(TaskRow row, WaferTask task, TaskLocation source, string target, int targetSlot, BaseTaskComponent tasks)
+    private bool StartTransfer(TaskRow row, WaferTask task, (string Module, int Slot, bool IsArm) source, string target, int targetSlot, BaseTaskComponent tasks)
     {
         var transfers = _transfers!;
         foreach (var robot in transfers.Robots)

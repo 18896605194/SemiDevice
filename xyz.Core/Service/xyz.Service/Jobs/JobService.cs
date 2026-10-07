@@ -13,12 +13,10 @@ using xyz.Tools;
 
 namespace xyz.Service.Jobs;
 
-/// <summary>
-/// Job gRPC 服务：把界面的请求转成 Job 管理的命令（IJobManager，跟 EAP 调的是同样几个方法、过同一套检查），结果翻成回包。
-/// 校验、状态转换都在 Job 管理里做，这里只管分 PJ、起名、转请求、转结果。
-/// </summary>
 public class JobService : BaseService, IJobService
 {
+    #region 基础成员
+
     /// <summary>客户端没带操作人时记成这个。</summary>
     private const string UnknownOperator = "Unknown";
 
@@ -28,24 +26,126 @@ public class JobService : BaseService, IJobService
     {
     }
 
+    #endregion
+
+    #region Job 查询
+
     public Task<RpcResponse> GetJobsAsync(RpcRequest request, CallContext context = default)
     {
         var jobs = JobManager.Current;
-        return Task.FromResult(jobs is null
-            ? NotInstalled()
-            : RpcResponse.Ok(JsonHelper.Serialize(jobs.Snapshot)));
+        if (jobs is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
+        }
+
+        string json = JsonHelper.Serialize(jobs.Snapshot);
+        return Task.FromResult(RpcResponse.Ok(json));
+    }
+
+    #endregion
+
+    #region Job 创建
+
+    /// <summary>
+    /// 创建pj
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    public async Task<RpcResponse> CreateProcessJobAsync(ProcessJobCreateRequest request, CallContext context = default)
+    {
+        var _jobManger = JobManager.Current;
+        if (_jobManger is null)
+        {
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+        }
+
+        var result = await _jobManger.CreateProcessJobAsync(
+            request.LoadPort ?? string.Empty,
+            request.Name ?? string.Empty,
+            request.Slots ?? [],
+            request.Sequence ?? string.Empty,
+            request.LotId).ConfigureAwait(false);
+
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
     /// <summary>
-    /// 本地建 Job，跟 Host 一样先建 PJ、再建 CJ 把 PJ 收进来：相同流程配方的槽分成一个 PJ（PJ 的先后、PJ 里片的先后都按 LoadPort 的取片顺序），
-    /// 整篮一个 CJ。CJ 名用批次号，没填就自动起（CJ-LoadPort-时间）；PJ 名是 CJ 名加序号。中途哪一步被拒，已经建好的 PJ 撤掉，回被拒的原因。
+    /// 创建cj
     /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    public async Task<RpcResponse> CreateControlJobAsync(ControlJobCreateRequest request, CallContext context = default)
+    {
+        var jobs = JobManager.Current;
+        if (jobs is null)
+        {
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+        }
+
+        var result = await jobs.CreateControlJobAsync(
+            request.LoadPort ?? string.Empty,
+            request.ProcessJobs ?? [],
+            request.Name,
+            request.LotId).ConfigureAwait(false);
+
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+    }
+
+    /// <summary>
+    /// 创建job
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    public async Task<RpcResponse> CreateJobAsync(ControlJobCreateRequest request, CallContext context = default)
+    {
+        var jobs = JobManager.Current;
+        if (jobs is null)
+        {
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+        }
+
+        var result = await jobs.CreateJobAsync(
+            request.LoadPort ?? string.Empty,
+            request.ProcessJobs ?? [],
+            request.Name,
+            request.LotId).ConfigureAwait(false);
+
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
+    }
+
+    /// <summary>
+    /// 创建job
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public async Task<RpcResponse> CreateAsync(JobCreateRequest request, CallContext context = default)
     {
         var jobs = JobManager.Current;
         if (jobs is null)
         {
-            return NotInstalled();
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
         // protobuf 传输省略默认值字段，空字符串、空列表在接收端可能为 null。
@@ -69,40 +169,53 @@ public class JobService : BaseService, IJobService
         var created = new List<string>();
         foreach (var (sequence, slots) in groups)
         {
-            var spec = new ProcessJobSpec
-            {
-                Id = $"{controlId}-{(created.Count + 1).ToString(CultureInfo.InvariantCulture)}",
-                LoadPort = port.Name,
-                Slots = slots,
-                Sequence = sequence,
-            };
-            var process = await jobs.CreateProcessJobAsync(spec).ConfigureAwait(false);
+            string processId = $"{controlId}-{(created.Count + 1).ToString(CultureInfo.InvariantCulture)}";
+            var process = await jobs.CreateProcessJobAsync(
+                port.Name, processId, slots, sequence, lotId).ConfigureAwait(false);
             if (!process.IsSuccess)
             {
                 await CancelAsync(jobs, created).ConfigureAwait(false);
-                return Reply(process);
+                return RpcResponse.Fail(process.ErrorMessage, process.Args);
             }
 
-            created.Add(spec.Id);
+            created.Add(processId);
         }
 
-        var control = await jobs.CreateControlJobAsync(new ControlJobSpec
-        {
-            Id = controlId,
-            ProcessJobs = created,
-            AutoStart = request.AutoStart,
-            LotId = lotId.Length > 0 ? lotId : null,
-        }).ConfigureAwait(false);
+        var control = await jobs.CreateJobAsync(
+            port.Name, created, controlId, lotId).ConfigureAwait(false);
         if (!control.IsSuccess)
         {
             await CancelAsync(jobs, created).ConfigureAwait(false);
-            return Reply(control);
+            return RpcResponse.Fail(control.ErrorMessage, control.Args);
         }
 
         string operatorName = (request.Operator ?? string.Empty).Trim();
         LogHelper.Info(LogModule, $"建 Job {controlId}（{port.Name}，{created.Count} 个 PJ，{groups.Sum(group => group.Slots.Count)} 片，"
             + $"操作人 {(operatorName.Length == 0 ? UnknownOperator : operatorName)}）");
-        return RpcResponse.Ok(JsonHelper.Serialize(new JobCreatedDto { ControlJob = controlId, ProcessJobs = created }));
+        string json = JsonHelper.Serialize(control.Result);
+        return RpcResponse.Ok(json);
+    }
+
+    #endregion
+
+    #region CJ 与 PJ 控制
+
+    public async Task<RpcResponse> CancelProcessJobAsync(JobCommandRequest request, CallContext context = default)
+    {
+        var jobs = JobManager.Current;
+        if (jobs is null)
+        {
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
+        }
+
+        var result = await jobs.CancelProcessJobAsync(request.JobId ?? string.Empty).ConfigureAwait(false);
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
     public async Task<RpcResponse> ControlJobCommandAsync(JobCommandRequest request, CallContext context = default)
@@ -110,7 +223,7 @@ public class JobService : BaseService, IJobService
         var jobs = JobManager.Current;
         if (jobs is null)
         {
-            return NotInstalled();
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
         string id = (request.JobId ?? string.Empty).Trim();
@@ -123,7 +236,13 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await jobs.ExecuteControlJobCommandAsync(id, command, action).ConfigureAwait(false);
-        return Reply(result);
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
     public async Task<RpcResponse> ProcessJobCommandAsync(JobCommandRequest request, CallContext context = default)
@@ -131,7 +250,7 @@ public class JobService : BaseService, IJobService
         var jobs = JobManager.Current;
         if (jobs is null)
         {
-            return NotInstalled();
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
         string id = (request.JobId ?? string.Empty).Trim();
@@ -143,18 +262,35 @@ public class JobService : BaseService, IJobService
         }
 
         var result = await jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
-        return Reply(result);
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
+
+    #endregion
+
+    #region 任务恢复
 
     public async Task<RpcResponse> RetryTaskAsync(JobTaskRequest request, CallContext context = default)
     {
         var jobs = JobManager.Current;
         if (jobs is null)
         {
-            return NotInstalled();
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        return Reply(await jobs.RetryTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false));
+        var result = await jobs.RetryTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
     public async Task<RpcResponse> CompleteTaskAsync(JobTaskRequest request, CallContext context = default)
@@ -162,11 +298,22 @@ public class JobService : BaseService, IJobService
         var jobs = JobManager.Current;
         if (jobs is null)
         {
-            return NotInstalled();
+            return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        return Reply(await jobs.CompleteTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false));
+        var result = await jobs.CompleteTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
+        if (result.IsSuccess)
+        {
+            string json = JsonHelper.Serialize(result.Result);
+            return RpcResponse.Ok(json);
+        }
+
+        return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
+
+    #endregion
+
+    #region 辅助方法
 
     /// <summary>
     /// 选了流程配方的槽按配方分组（不分大小写），按 LoadPort 的取片顺序：组的先后看组里最先取的那槽，组里的槽也照这个顺序。
@@ -197,7 +344,7 @@ public class JobService : BaseService, IJobService
     {
         foreach (string id in processJobs)
         {
-            var result = await jobs.ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Cancel).ConfigureAwait(false);
+            var result = await jobs.CancelProcessJobAsync(id).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 LogHelper.Warn(LogModule, $"建 Job 没成，已经建好的 PJ {id} 没撤掉（{result.ErrorMessage}），要手动取消");
@@ -205,13 +352,5 @@ public class JobService : BaseService, IJobService
         }
     }
 
-    private static RpcResponse Reply(HandleResult result)
-    {
-        return result.IsSuccess ? RpcResponse.Ok(JsonHelper.Serialize(result.Result)) : RpcResponse.Fail(result.ErrorMessage, result.Args);
-    }
-
-    private static RpcResponse NotInstalled()
-    {
-        return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
-    }
+    #endregion
 }

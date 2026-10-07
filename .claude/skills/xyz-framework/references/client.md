@@ -73,7 +73,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   Sequence 是界面上选的（点创建 Job 时交给后端）：上面的 Sequence 框一选给全篮能做的片套上，⊕ 弹公共选择弹窗给这一片单独选，⊖ 清空（这片不做）；
   后来才放上 / Mapping 出来的片也套上面选的那个；交叉片、叠片、状态不明的没有 ⊕ ⊖。
 - **创建 / 启动 Job**（2026-10-05 接上）：订 Job 全貌推送（`JobListDto`，token "Job"，留存），每个页签认自己 LoadPort 上没删的 CJ（`LoadPortJobModel.ControlJob`），
-  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽，AutoStart 关、带操作人；后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
+  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽、操作人；启动方式由设备 SC 决定，后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
   启动 Job = `ControlJobCommandAsync`（CJStart），Auto 下、CJ 是 WAITINGFORSTART（`ControlJobDto.StateWaitingForStart`）才能点。结果写顶栏日志。
   Job 的列表、详情、暂停 / 停止 / 中止这些按钮还没有界面（要先给参考图或出样稿）。
 

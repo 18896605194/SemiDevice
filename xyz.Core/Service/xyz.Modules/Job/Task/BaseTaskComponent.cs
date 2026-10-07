@@ -15,9 +15,6 @@ public abstract class BaseTaskComponent : ComponentBase
 
     #endregion
 
-    /// <summary>内容版本：任务表每改一次加 1，Job 组件据此决定要不要发布。</summary>
-    internal long Version { get; private set; }
-
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
     protected static ITransferStation? Station(string name)
     {
@@ -184,7 +181,6 @@ public abstract class BaseTaskComponent : ComponentBase
     internal void Add(ProcessJob job)
     {
         _rows.AddRange(job.Rows);
-        Touch();
     }
 
     /// <summary>
@@ -207,7 +203,6 @@ public abstract class BaseTaskComponent : ComponentBase
             _rows.Remove(row);
         }
 
-        Touch();
     }
 
     /// <summary>PJ 进中止：它的行标上，之后被中止打断的站内任务记成未执行（不是出错，片就停在站点上）。</summary>
@@ -218,7 +213,6 @@ public abstract class BaseTaskComponent : ComponentBase
             row.IsAborting = true;
         }
 
-        Touch();
     }
 
     #endregion
@@ -235,7 +229,6 @@ public abstract class BaseTaskComponent : ComponentBase
         task.Robot = robot;
         task.Code = string.Empty;
         task.Args = [];
-        Touch();
         if (task.Kind == StationTaskAction.Process)
         {
             LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {station} 开始加工（第 {task.Step + 1} 站，{task.RecipeName}）");
@@ -246,7 +239,6 @@ public abstract class BaseTaskComponent : ComponentBase
     public void Done(TaskRow row, WaferTask task, int arm = 0)
     {
         SetDone(task, task.Robot, arm);
-        Touch();
         if (task.Kind == StationTaskAction.Process)
         {
             LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工完成");
@@ -257,14 +249,12 @@ public abstract class BaseTaskComponent : ComponentBase
     public void Fail(TaskRow row, WaferTask task, string code, IReadOnlyList<string> args)
     {
         SetError(row, task, code, args);
-        Touch();
     }
 
     /// <summary>退回等着做：没做成、也没碰到片（搬运没动手就失败、被撤），下一拍按片现在在哪重新派。</summary>
     public void Reset(WaferTask task)
     {
         SetWaiting(task);
-        Touch();
     }
 
     /// <summary>不做了：PJ 中止时被打断的站内任务记成未执行（片停在站点上，不算出错）。</summary>
@@ -272,7 +262,6 @@ public abstract class BaseTaskComponent : ComponentBase
     {
         task.State = WaferTaskState.Cancelled;
         task.Operation = null;
-        Touch();
         if (task.Kind == StationTaskAction.Process)
         {
             LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工已中止");
@@ -310,8 +299,8 @@ public abstract class BaseTaskComponent : ComponentBase
                 continue;
             }
 
-            SetError(row, current, ErrorCodes.JobWaferMoved, [row.WaferName, expected.ToString()]);
-            Touch();
+            SetError(row, current, ErrorCodes.JobWaferMoved,
+                [row.WaferName, string.Create(CultureInfo.InvariantCulture, $"{expected.Module}.{expected.Slot:00}")]);
         }
     }
 
@@ -329,7 +318,6 @@ public abstract class BaseTaskComponent : ComponentBase
         }
 
         SetWaiting(task);
-        Touch();
         LogHelper.Info(Name, $"{job.Id} {row.WaferName} 第 {index + 1} 个任务（{task.Kind}）人工重做");
         return HandleResult.Success(job.Id);
     }
@@ -349,7 +337,7 @@ public abstract class BaseTaskComponent : ComponentBase
         if (task.IsRobotTask)
         {
             var found = WaferManagerComponent.Current?.FindById(row.WaferId);
-            string actual = found is null ? "-" : new TaskLocation(found.Module, found.Slot, IsArm: false).ToString();
+            string actual = found is null ? "-" : string.Create(CultureInfo.InvariantCulture, $"{found.Module}.{found.Slot:00}");
             var place = task.Kind == StationTaskAction.Pick ? row.NextPlace(task) : task;
             if (found is not null && task.Kind == StationTaskAction.Pick && TransferManager.Current?.TryGetRobot(found.Module, out _) == true)
             {
@@ -376,7 +364,6 @@ public abstract class BaseTaskComponent : ComponentBase
             SetDone(task, task.Robot, task.Arm);
         }
 
-        Touch();
         LogHelper.Info(Name, $"{job.Id} {row.WaferName} 第 {index + 1} 个任务（{task.Kind}）人工标记完成");
         return HandleResult.Success(job.Id);
     }
@@ -445,8 +432,4 @@ public abstract class BaseTaskComponent : ComponentBase
         LogHelper.Warn(Name, $"{row.Owner} {row.WaferName} 的任务 {task.Kind} 出错，停住等人处理：{code} [{string.Join(", ", args)}]");
     }
 
-    private void Touch()
-    {
-        Version++;
-    }
 }

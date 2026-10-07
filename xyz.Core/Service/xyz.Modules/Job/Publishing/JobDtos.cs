@@ -7,7 +7,7 @@ namespace xyz.Modules;
 /// </summary>
 internal static class JobDtos
 {
-    public static ControlJobDto Of(ControlJob job)
+    public static ControlJobDto Of(ControlJob job, bool autoStart)
     {
         return new ControlJobDto
         {
@@ -16,7 +16,7 @@ internal static class JobDtos
             CarrierId = job.CarrierId ?? string.Empty,
             LotId = job.LotId ?? string.Empty,
             State = (int)job.State,
-            AutoStart = job.AutoStart,
+            AutoStart = autoStart,
             Ending = job.Ending.ToString(),
             ProcessJobs = job.ProcessJobs.Select(process => process.Id).ToList(),
             CreatedAt = job.CreatedAt,
@@ -28,17 +28,18 @@ internal static class JobDtos
         };
     }
 
-    public static ProcessJobDto Of(ProcessJob job)
+    public static ProcessJobDto Of(ProcessJob job, bool autoStart)
     {
         return new ProcessJobDto
         {
             Id = job.Id,
             ControlJob = job.ControlJob?.Id ?? string.Empty,
+            LotId = job.LotId ?? string.Empty,
             CarrierId = job.CarrierId ?? string.Empty,
             Sequence = job.Sequence.Name,
             SequenceRevision = job.Sequence.Revision,
             State = (int)job.State,
-            AutoStart = job.AutoStart,
+            AutoStart = autoStart,
             Wafers = job.Rows.Select(Of).ToList(),
             CreatedAt = job.CreatedAt,
             StartedAt = job.StartedAt,

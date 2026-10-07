@@ -12,13 +12,10 @@ public sealed class ControlJob
 
     public string? LotId { get; init; }
 
-    /// <summary>建 CJ 时 LoadPort 上那个载具对象的标识：载具拿走（或换了一个）之后，完成的 CJ 就可以删了（#13）。</summary>
-    public Guid? CarrierInstance { get; init; }
+    public ControlJobState State { get; internal set; } = ControlJobState.Create;
 
-    /// <summary>StartMethod：料到了直接开始（true），还是等 Start 命令（false）。</summary>
-    public bool AutoStart { get; init; }
-
-    public ControlJobState State { get; internal set; } = ControlJobState.Queued;
+    /// <summary>最近一次 E94 转换编号，供上报使用。</summary>
+    internal int TransitionNumber { get; set; }
 
     /// <summary>下面的 PJ，按执行顺序（ProcessingCtrlSpec 的顺序）。</summary>
     public List<ProcessJob> ProcessJobs { get; } = [];

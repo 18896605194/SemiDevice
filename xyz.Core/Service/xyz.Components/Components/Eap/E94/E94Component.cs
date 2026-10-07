@@ -246,7 +246,6 @@ public class E94Component : ComponentBase, IE94Callback
 
         string id = objectSpec.Trim();
         var processJobs = new List<string>();
-        bool autoStart = true;
         bool hasSpec = false;
         foreach (var (name, value) in attributes)
         {
@@ -266,7 +265,8 @@ public class E94Component : ComponentBase, IE94Callback
                     break;
 
                 case "STARTMETHOD":
-                    autoStart = SecsRead.Flag(value, "StartMethod");
+                    // 保留报文格式校验；CJ 启动方式统一由设备的 SC 配置决定。
+                    SecsRead.Flag(value, "StartMethod");
                     break;
 
                 case "PROCESSORDERMGMT":
@@ -302,12 +302,10 @@ public class E94Component : ComponentBase, IE94Callback
             return E39Created.Fail(E5Error.Of(E5Error.InsufficientParameters, "ProcessingCtrlSpec required"));
         }
 
-        var result = await jobs.CreateControlJobAsync(new ControlJobSpec
-        {
-            Id = id,
-            ProcessJobs = processJobs,
-            AutoStart = autoStart,
-        }).ConfigureAwait(false);
+        var result = await jobs.CreateControlJobAsync(
+            loadPort: null,
+            processJobs: processJobs,
+            cjName: id).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return E39Created.Fail(JobErrors.Of(result));

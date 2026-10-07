@@ -26,7 +26,7 @@ public class ControlJobEntity : BaseEntity
     /// <summary>E94 状态值：0 QUEUED、1 SELECTED、2 WAITINGFORSTART、3 EXECUTING、4 PAUSED、5 COMPLETED。</summary>
     public int State { get; set; }
 
-    /// <summary>StartMethod：料到了直接开始。</summary>
+    /// <summary>记录当时设备 SC 的 CJ 自动启动配置值。</summary>
     public bool AutoStart { get; set; }
 
     /// <summary>收下的 Stop / Abort：None / Stop / Abort。</summary>

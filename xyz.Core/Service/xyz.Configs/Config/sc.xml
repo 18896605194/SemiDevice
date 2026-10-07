@@ -437,6 +437,10 @@
 	     IsPersistent：Job 记进库（control_job、process_job 两张表，CJ、PJ 各一行，每片的任务明细跟着 PJ）；重启后不接着跑，库里上次没做完的记成中止 -->
 	<Setting Name="Job" Type="xyz.Modules.JobManager">
 		<Value Name="IsEnable" Value="True" />
+		<!-- PJ 准备好后直接开始；False = 等待 PJ Start，创建请求不指定启动方式 -->
+		<Value Name="ProcessJobAutoStart" Value="True" />
+		<!-- CJ 的载具准备好后直接开始；False = 等待 CJ Start -->
+		<Value Name="ControlJobAutoStart" Value="False" />
 		<Value Name="IsPersistent" Value="True" />
 		<Value Name="Database" Value="Default" />
 		<Setting Name="Task" Type="xyz._35021.Module.Job.TaskComponent" />

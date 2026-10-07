@@ -585,8 +585,8 @@ bool Acka(SecsItem ack) => ack.Items[0].GetBooleanArray()[0];
 var s16f12 = await Send(16, 11, CreatePj("PJ-1", Material("CAR-C"), Recipe("SEQ-1")));
 Check(s16f12.Body!.Items[0].GetString() == "PJ-1" && Acka(s16f12.Body.Items[1]), "S16F11 建 PJ：ACKA=TRUE");
 var spec = jobs.ProcessJobs.Last();
-Check(spec.CarrierId == "CAR-C" && spec.Slots.SequenceEqual([1, 2]) && spec.Sequence == "SEQ-1" && spec.AutoStart,
-    "翻成 Job 管理的建 PJ：载具、槽（槽表空 = 载具上的片都做）、流程配方、自动开始");
+Check(spec.CarrierId == "CAR-C" && spec.Slots.SequenceEqual([1, 2]) && spec.Sequence == "SEQ-1",
+    "翻成 Job 管理的建 PJ：载具、槽（槽表空 = 载具上的片都做）、流程配方");
 var withParameters = await Send(16, 11, CreatePj("PJ-2", Material("CAR-C", 1), Recipe("SEQ-1", SecsItem.L(SecsItem.A("Temp"), SecsItem.U4(80)))));
 Check(!Acka(withParameters.Body!.Items[1]) && withParameters.Body.Items[1].Items[1].Items[0].Items[0].GetUInt64() == 21,
     "带配方参数：ACKA=FALSE、ERRCODE 21");
@@ -629,7 +629,7 @@ var s14f10 = await Send(14, 9, CreateCj(Attribute("ObjID", SecsItem.A("CJ-1")),
     Attribute("StartMethod", SecsItem.Boolean(false))));
 Check(s14f10.Body!.Items[0].GetString() == "CJ-1" && s14f10.Body.Items[2].Items[0].GetUInt64() == 0, "S14F9 建 CJ：OBJSPEC 是新 CJ、OBJACK=0");
 var cjSpec = jobs.ControlJobs.Last();
-Check(cjSpec.Id == "CJ-1" && cjSpec.ProcessJobs.SequenceEqual(["PJ-1"]) && !cjSpec.AutoStart, "翻成 Job 管理的建 CJ：PJ、手动启动");
+Check(cjSpec.Id == "CJ-1" && cjSpec.ProcessJobs.SequenceEqual(["PJ-1"]), "翻成 Job 管理的建 CJ：关联 PJ，启动方式由设备 SC 决定");
 var noSpec = await Send(14, 9, CreateCj(Attribute("ObjID", SecsItem.A("CJ-2"))));
 Check(noSpec.Body!.Items[2].Items[0].GetUInt64() == 1 && noSpec.Body.Items[2].Items[1].Items[0].Items[0].GetUInt64() == 13,
     "没给 ProcessingCtrlSpec：OBJACK=1、ERRCODE 13");
@@ -1028,9 +1028,9 @@ sealed class FakePort : ILoadPort
 /// <summary>假的 Job 管理：EAP 翻过来的命令都记下来，按 NextResult 回（不给就收下）；全貌由测试给。</summary>
 sealed class FakeJobs : IJobManager
 {
-    public List<ProcessJobSpec> ProcessJobs { get; } = [];
+    public List<(string Id, string? LoadPort, string? CarrierId, IReadOnlyList<int> Slots, string Sequence, string? LotId)> ProcessJobs { get; } = [];
 
-    public List<ControlJobSpec> ControlJobs { get; } = [];
+    public List<(string Id, string? LoadPort, IReadOnlyList<string> ProcessJobs, string? LotId)> ControlJobs { get; } = [];
 
     public List<(string Id, ProcessJobCommand Command)> ProcessCommands { get; } = [];
 
@@ -1059,17 +1059,47 @@ sealed class FakeJobs : IJobManager
         return Task.FromResult(NextResult ?? HandleResult.Success(id));
     }
 
-    public Task<HandleResult> CreateProcessJobAsync(ProcessJobSpec spec)
+
+    public Task<HandleResult> CreateProcessJobAsync(string? loadPort, string pjName, IReadOnlyList<int> slots, string sequence, string? lotId, string? carrierId = null)
     {
-        ProcessJobs.Add(spec);
-        return Result(spec.Id);
+        ProcessJobs.Add((pjName, loadPort, carrierId, slots.ToList(), sequence, lotId));
+        return Result(pjName);
     }
 
-    public Task<HandleResult> CreateControlJobAsync(ControlJobSpec spec)
+    public Task<HandleResult> CreateControlJobAsync(string? loadPort, IReadOnlyList<string> processJobs, string? cjName = null, string? lotId = null)
     {
-        ControlJobs.Add(spec);
-        return Result(spec.Id);
+        string id = cjName ?? lotId ?? "CJ";
+        ControlJobs.Add((id, loadPort, processJobs.ToList(), lotId));
+        return Result(id);
     }
+
+    public async Task<HandleResult> CreateJobAsync(string? loadPort, IReadOnlyList<string> processJobs, string? cjName = null, string? lotId = null)
+    {
+        var result = await CreateControlJobAsync(loadPort, processJobs, cjName, lotId).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return result;
+        }
+
+        return HandleResult.Success(new JobCreatedDto
+        {
+            ControlJob = (string)result.Result!,
+            ProcessJobs = processJobs.ToList(),
+        });
+    }
+    public Task<HandleResult> StartProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Start);
+    public Task<HandleResult> PauseProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Pause);
+    public Task<HandleResult> ResumeProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Resume);
+    public Task<HandleResult> StopProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Stop);
+    public Task<HandleResult> AbortProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Abort);
+    public Task<HandleResult> CancelProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Cancel);
+    public Task<HandleResult> StartControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Start, ControlJobAction.SaveJobs);
+    public Task<HandleResult> PauseControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Pause, ControlJobAction.SaveJobs);
+    public Task<HandleResult> ResumeControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Resume, ControlJobAction.SaveJobs);
+    public Task<HandleResult> StopControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Stop, action);
+    public Task<HandleResult> AbortControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Abort, action);
+    public Task<HandleResult> CancelControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Cancel, action);
+
 
     public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
     {

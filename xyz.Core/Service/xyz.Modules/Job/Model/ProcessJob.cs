@@ -18,11 +18,7 @@ public sealed class ProcessJob
     /// <summary>载具号：建 PJ 时来源 LoadPort 上那个载具的（没读到为 null）。EAP 按它找 PJ、报料。</summary>
     public string? CarrierId { get; init; }
 
-    /// <summary>建 PJ 时 LoadPort 上那个载具对象的标识：CJ 跟着记，载具拿走（或换了一个）之后完成的 CJ 才删（#13）。</summary>
-    public Guid? CarrierInstance { get; init; }
-
-    /// <summary>PRProcessStart：准备好了直接开始（true），还是等 Start 命令（false）。</summary>
-    public bool AutoStart { get; init; } = true;
+    public string? LotId { get; init; }
 
     public ProcessJobState State { get; internal set; } = ProcessJobState.QueuedPooled;
 

@@ -487,7 +487,7 @@ public class MainPageViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 创建 Job：当前页签选了 Sequence 的片交给后端（同一个 Sequence 的片一个 PJ，整篮一个 CJ，名字用 LotID），建好等启动。
+    /// 创建 Job：当前页签选了 Sequence 的片交给后端（同一个 Sequence 的片一个 PJ，整篮一个 CJ，名字用 LotID），启动方式由设备 SC 配置决定。
     /// 建没建成看回包；之后的进展看 Job 推送。
     /// </summary>
     private async Task DoCreateJob()
@@ -503,7 +503,6 @@ public class MainPageViewModel : BaseViewModel
             LoadPort = port.Name,
             LotId = port.LotId.Trim(),
             Slots = port.SelectedSlots.Select(slot => new JobSlotDto { Slot = slot.Slot, Sequence = slot.Sequence }).ToList(),
-            AutoStart = false,
             Operator = ClientSession.UserName,
         };
         try

@@ -4,14 +4,11 @@ namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没删的 CJ、界面要看的 PJ（状态值照 SEMI E94 / E40，每片带它的一行任务）。
-/// 版本号每变一次加 1，客户端重连后拿到的就是最新的一份。删掉的 CJ、结束的 PJ 在库里（control_job、process_job 两张表）。
+/// 客户端重连后拿到当前快照。删掉的 CJ、结束的 PJ 在库里（control_job、process_job 两张表）。
 /// </summary>
 public class JobListDto
 {
     public const string EventToken = "Job";
-
-    /// <summary>版本：内容每变一次加 1。</summary>
-    public long Version { get; set; }
 
     /// <summary>没删的 CJ，按队列顺序（在跑的在前、排队的按队列先后）。</summary>
     public List<ControlJobDto> ControlJobs { get; set; } = [];
@@ -39,7 +36,7 @@ public class ControlJobDto
     /// <summary>E94 状态值：0 QUEUED、1 SELECTED、2 WAITINGFORSTART、3 EXECUTING、4 PAUSED、5 COMPLETED。</summary>
     public int State { get; set; }
 
-    /// <summary>StartMethod：料到了直接开始。</summary>
+    /// <summary>StartMethod：设备 SC 的 CJ 自动启动配置值，用于查询和上报。</summary>
     public bool AutoStart { get; set; }
 
     /// <summary>收下的 Stop / Abort，等 PJ 都结束：None / Stop / Abort。</summary>
@@ -70,6 +67,8 @@ public class ProcessJobDto
 {
     public string Id { get; set; } = string.Empty;
 
+    public string LotId { get; set; } = string.Empty;
+
     /// <summary>所属 CJ；还不归任何 CJ 为空。</summary>
     public string ControlJob { get; set; } = string.Empty;
 
@@ -87,7 +86,7 @@ public class ProcessJobDto
     /// </summary>
     public int State { get; set; }
 
-    /// <summary>PRProcessStart：准备好了直接开始。</summary>
+    /// <summary>PRProcessStart：设备 SC 的 PJ 自动启动配置值，用于查询和上报。</summary>
     public bool AutoStart { get; set; }
 
     public List<JobWaferDto> Wafers { get; set; } = [];
@@ -159,6 +158,29 @@ public class JobTaskDto
 }
 
 /// <summary>
+/// 创建独立 PJ，建好后等待 CJ 关联。
+/// </summary>
+[ProtoContract]
+public class ProcessJobCreateRequest
+{
+    [ProtoMember(1)] public string LoadPort { get; set; } = string.Empty;
+    [ProtoMember(2)] public string Name { get; set; } = string.Empty;
+    [ProtoMember(3)] public List<int> Slots { get; set; } = [];
+    [ProtoMember(4)] public string Sequence { get; set; } = string.Empty;
+    [ProtoMember(5)] public string LotId { get; set; } = string.Empty;
+}
+
+/// <summary>关联已经创建的 PJ；不会按槽位或流程配方重新创建 PJ。Name 为空时用 LotId 或自动生成 CJ 名。</summary>
+[ProtoContract]
+public class ControlJobCreateRequest
+{
+    [ProtoMember(1)] public string LoadPort { get; set; } = string.Empty;
+    [ProtoMember(2)] public string Name { get; set; } = string.Empty;
+    [ProtoMember(3)] public List<string> ProcessJobs { get; set; } = [];
+    [ProtoMember(5)] public string LotId { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// 本地建 Job：一个 LoadPort 上的一篮，每槽一个流程配方（相同流程配方的槽分成一个 PJ），整篮一个 CJ。
 /// </summary>
 [ProtoContract]
@@ -174,10 +196,6 @@ public class JobCreateRequest
     /// <summary>要做的槽和各自的流程配方。</summary>
     [ProtoMember(3)]
     public List<JobSlotDto> Slots { get; set; } = [];
-
-    /// <summary>建好、料到了直接开始；false = 等"启动 Job"。</summary>
-    [ProtoMember(4)]
-    public bool AutoStart { get; set; }
 
     [ProtoMember(6)]
     public string Operator { get; set; } = string.Empty;

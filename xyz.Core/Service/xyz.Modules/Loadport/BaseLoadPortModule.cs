@@ -966,7 +966,21 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         {
             int state = State;
             return state == LoadPortState.Loaded
-                || (state >= TransferModuleState.PreTransfer && state <= TransferModuleState.TransferComplete);
+                || (state >= LoadPortState.PreTransfer && state <= LoadPortState.TransferComplete);
+        }
+    }
+
+    /// <summary>载具可以取放片：模块已启用、载具已到位且 Load 完成；正被机械手服务时仍然可用。</summary>
+    public bool IsCarrierReady
+    {
+        get
+        {
+            if (!IsEnabled || !IsCarrierArrived)
+            {
+                return false;
+            }
+
+            return IsLoaded;
         }
     }
 

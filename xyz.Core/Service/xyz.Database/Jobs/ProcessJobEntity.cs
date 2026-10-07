@@ -24,6 +24,9 @@ public class ProcessJobEntity : BaseEntity
     [SugarColumn(Length = 80)]
     public string CarrierId { get; set; } = string.Empty;
 
+    [SugarColumn(Length = 80, IsNullable = true)]
+    public string? LotId { get; set; }
+
     /// <summary>流程配方名（快照的）。</summary>
     [SugarColumn(Length = 128)]
     public string Sequence { get; set; } = string.Empty;
@@ -36,7 +39,7 @@ public class ProcessJobEntity : BaseEntity
     /// </summary>
     public int State { get; set; }
 
-    /// <summary>PRProcessStart：准备好了直接开始。</summary>
+    /// <summary>记录当时设备 SC 的 PJ 自动启动配置值。</summary>
     public bool AutoStart { get; set; }
 
     [SugarColumn(IsNullable = true)]

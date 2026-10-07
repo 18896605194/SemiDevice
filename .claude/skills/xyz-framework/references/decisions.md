@@ -151,7 +151,7 @@
 - 用户点名的重点：**以后变的是中间的调度界面和右边几个 LoadPort**。所以右边页签照 sc.xml 的 LoadPort 生成；中间默认照机械手站点表自动摆
   （公共控件 DispatchMap，Robot 手动页也换成了它），机型要别的摆法按 `ClientViewKeys.MainDispatch` 注册自己的整块换掉，主界面别处不动。
 - 系统状态用**整条色块徽标**（不照图写"空闲 ●"，用户选的，跟腔体页一样）。
-- **Job 先只做界面**（2026-10-04 用户选的），2026-10-05 后端 Job 做好后接上：创建 Job 把这一页签的 LotID 和各槽的 Sequence 交给后端（AutoStart 关，建好等启动），
+- **Job 先只做界面**（2026-10-04 用户选的），2026-10-05 后端 Job 做好后接上：创建 Job 把这一页签的 LotID 和各槽的 Sequence 交给后端（2026-10-07 改为 SC 配置 CJ 启动方式，默认建好等启动），
   这个 LoadPort 上有没删的 CJ 时点不了；启动 Job 在 Auto 下、这个 LoadPort 上的 CJ 是 WAITINGFORSTART 时能点（发 CJStart）。按钮位置、样子没动，
   Job 列表 / 详情界面还没做（要先给参考图或出样稿）。
 - **⊕ ⊖ 的意思**（用户讲的）：⊕ 给这一槽单独选一个 Sequence（公共选择弹窗），⊖ 把这一槽的 Sequence 清空。上面的 Sequence 框一选就给全篮能做的片套上
@@ -246,8 +246,8 @@
   （用户定的名，跟 LoadPortAction 一个意思）。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
   `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
-  执行命令叫 `Execute`（CJ / PJ 管理）/ `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
-  报 EAP 的叫 `ProcessJobStateChanged` / `ControlJobStateChanged`（原来都叫 Transitioned）。写法：转换表等一律传统 switch 语句（不用 switch 表达式）；
+  CJ 管理的命令使用独立 Start / Pause 等实现，PJ 管理暂保留 `Execute`；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
+  报 EAP 的叫 `ProcessJobStateChanged` / `ControlJobStateChanged`（原来都叫 Transitioned）。CJ 后续按用户要求改为字典状态表，其他分支用传统 switch 语句（不用 switch 表达式）；
   转换号、E39 名字的 80 / `?*~>:` 直接写数字加注释，不另起常量；自动转换转到不再转为止，不设轮数上限。
 - **任务表**（用户的设计）：建 PJ 时照流程配方给每片生成一行任务，一行 = 一片的整个周期——从 LoadPort 取片、放进腔体、腔体做工艺、从腔体取回、放回 LoadPort，
   每个都是一个任务，按顺序走。**取和放一起定**：一趟搬运 = 取 + 放（目标空着、占住了才取）。多个站点的是**站点组**，放片那一刻在组里挑一个能放的。
@@ -275,7 +275,7 @@
 - **Auto / Manual / Stop**（用户定的）：Job 随时能建，启动要 Auto；运行中切 Manual 不派新动作（在途的做完）；主界面 Stop 走 Job 中止（见主界面一节）。
 - **本地和 Host 一样建**（用户："host 那边和本机自己就是调用的方法还不一样？……如果是这样的话，你的肯定是错的"）：都是先建 PJ（不归任何 CJ，排着）、
   再建 CJ 按顺序收进来，调同样的方法、过同一套检查；PJ 给了 LoadPort 按它找、没给按载具号找。本地一篮按 Sequence 分 PJ（同一个 Sequence 的片一个 PJ），
-  整篮一个 CJ，名字用 LotID；中途被拒撤掉已建的 PJ。一个 LoadPort 同时一个没删的 CJ，载具拿走（或换了）才删（#13）。
+  整篮一个 CJ，名字用 LotID；中途被拒撤掉已建的 PJ。一个 LoadPort 同时一个没删的 CJ，完成后检测到载具拿走才删（#13）。
 - **CJ / PJ 按载具号查**（用户："肯定是按照载具号查询""这个是给那个 eap 用的"）：`IJobManager` 上加按载具号找 CJ / PJ；CJ / PJ 管理里按 Job 名找的还留着（Host、界面下命令带的是 Job 名）。
 - **别再加回来的东西**（2026-10-06 用户逐条否掉的，"过度了"）：命令队列类（命令当场执行，跟扫描线程用同一把锁）、请求号去重（重发靠正常的检查拦：名字在用、
   LoadPort 上有 Job、状态不收这个命令）、自己的结果类（用 `HandleResult`）、`IWaferOwnership` 这种接口、Factory / Environment / Book / Store / Restart
@@ -292,3 +292,13 @@
   再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。**全部回片 2026-10-06 删了**（用户："整体回片先不做"）。
 - E87 的核对（载具号、槽图）以后再说（用户）。EAP 的 SECS 翻译层（S16 / S14）见「EAP 各标准」。还没做：Job 页（样稿 v2 等确认）、救片任务、
   设备动作中禁止改账的联锁（用户押后）。腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。
+- **Job 创建接口（2026-10-07 用户明确）**：PJ 独立创建，参数包含 LoadPort、PJ 名、槽位集合、Sequence、LotId；提供独立取消 PJ。CJ 创建接收 LoadPort 和已有 PJ 的名称集合（一个 CJ 可以有多个 PJ）。CreateJob 使用已经创建的 PJ，内部创建 CJ 并关联，不重新生成 PJ 和任务。CJ/PJ 管理提供明确的停止、中止、暂停、恢复方法，仍使用各自状态机；Pick、Place 保持独立 WaferTask。
+- **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 SC `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply。
+- **Job 命令入口（2026-10-07 用户：重复就重复先，没关系）**：去掉 Execute / WithProcessJob 的委托包装，各入口直接写检查、锁超时、执行、发布、异常处理；PJ 创建合并到 CreateProcessJobAsync，不为减少重复增加调用层次。保留原有锁和状态机行为。
+- **设备状态判断归模块（2026-10-07 用户明确）**：载具是否可取放片由 BaseLoadPortModule.IsCarrierReady 判断（模块启用、载具到位、IsLoaded）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
+- **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 SC ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 SC。
+- **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
+- **CJ 按载具号查询（2026-10-07 用户明确）**：从 CjManager 管理的真实 CJ 对象查，不能查发布快照；JobManager 加锁调用 FindByCarrier 并返回 DTO 副本。
+- **CJ 管理结构（2026-10-07 用户明确）**：使用 `Dictionary<string, CjEntity>`，key 是 CJ ID，实体包含 `ControlJob` 和独立状态机；提供 `Add(ControlJob)` 和 `Remove(ControlJob)`，不保留 `_nextOrder` / Order 计数。CjManager 不依赖 IPjManager，不处理 PJ；创建关联和 CJ 取消、停止、中止时的 PJ 协调在 JobManager。CJ 的 StateChanged 传 ControlJobState；对象初始为内部 Create 状态，加入管理后转 Queued，E94 数值 0~5 保持不变。
+- **CJ 字典状态表和基类（2026-10-07 用户明确）**：删除 CjManager 的 CJ 自动推进、Advance 和 NextTrigger。新增基础 `StateMachine<TState, TAction>`，CjStateMachine 继承它，按 `(ControlJobState, ControlStateAction)` 查字典；value 使用泛型 `StateTransition<ControlJobState>`。状态表保存转换规则，基类负责 Fire(action) 查表和切换状态，CJ 派生类负责运行对象的时间、EAP 转换编号及事件。JobManager 确认载具 / PJ 条件后直接提交 action。
+- **CJ 独立命令实现（2026-10-07 用户明确）**：删除 CjManager.Execute 及 Start / Pause 等向它转发的表达式方法；各命令自己查字典、检查结束请求并提交状态机 action。Stop / Abort 保留等待执行结束的行为，HOQ 保留调整待执行顺序的行为。使用传统 if / return，不再用 End / Dequeue / NotAllowed 等私有方法包装命令。

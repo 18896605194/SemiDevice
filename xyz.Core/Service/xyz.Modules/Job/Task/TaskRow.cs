@@ -1,17 +1,4 @@
-﻿using System.Globalization;
-
-namespace xyz.Modules;
-
-/// <summary>
-/// 片在哪：站点和槽，或机械手和手指（取片做完、还没放的时候）。
-/// </summary>
-public readonly record struct TaskLocation(string Module, int Slot, bool IsArm)
-{
-    public override string ToString()
-    {
-        return string.Create(CultureInfo.InvariantCulture, $"{Module}.{Slot:00}");
-    }
-}
+﻿namespace xyz.Modules;
 
 /// <summary>
 /// 任务表里的一行：一片从来源槽取出到放回回片槽要做的全部任务，按顺序走（当前任务 = 第一个还没做完的）。
@@ -70,7 +57,7 @@ public sealed class TaskRow
     /// <summary>
     /// 片现在该在哪：最后一个做完的取放说了算（取片做完在机械手手上，放片做完在放到的站点）；一个都没做在来源槽。
     /// </summary>
-    public TaskLocation ExpectedLocation
+    public (string Module, int Slot, bool IsArm) ExpectedLocation
     {
         get
         {
@@ -83,11 +70,11 @@ public sealed class TaskRow
                 }
 
                 return task.Kind == StationTaskAction.Pick
-                    ? new TaskLocation(task.Robot ?? string.Empty, task.Arm, IsArm: true)
-                    : new TaskLocation(task.Station ?? string.Empty, task.Slot, IsArm: false);
+                    ? (task.Robot ?? string.Empty, task.Arm, true)
+                    : (task.Station ?? string.Empty, task.Slot, false);
             }
 
-            return new TaskLocation(SourcePort, SourceSlot, IsArm: false);
+            return (SourcePort, SourceSlot, false);
         }
     }
 
