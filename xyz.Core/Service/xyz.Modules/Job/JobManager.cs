@@ -27,8 +27,6 @@ public class JobManager : ComponentBase, IJobManager
     private BaseTaskComponent? _tasks;
     private SchedulerComponent? _scheduler;
 
-    
-
     private readonly IPjManager _processJobs;
     private readonly ICjManager _controlJobs;
 
@@ -86,9 +84,15 @@ public class JobManager : ComponentBase, IJobManager
         set { SetEcInt(nameof(SlowScanAlarmMs), value); }
     }
 
-    protected override int SlowScanWarnMilliseconds => SlowScanWarnMs;
+    protected override int SlowScanWarnMilliseconds
+    {
+        get { return SlowScanWarnMs; }
+    }
 
-    protected override int SlowScanAlarmMilliseconds => SlowScanAlarmMs;
+    protected override int SlowScanAlarmMilliseconds
+    {
+        get { return SlowScanAlarmMs; }
+    }
 
     #endregion
 
@@ -138,7 +142,7 @@ public class JobManager : ComponentBase, IJobManager
 
     #endregion
 
-    #region 命令（IJobManager，加上本地界面才有的出错任务处理）
+    #region Job 查询
 
     /// <summary>在 Job 锁内读取当前 CJ、PJ，生成独立的查询结果。</summary>
     public JobListDto Snapshot
@@ -208,6 +212,11 @@ public class JobManager : ComponentBase, IJobManager
     }
 
 
+
+    #endregion
+
+    #region 创建 PJ、CJ 和 Job
+
     public Task<HandleResult> CreateProcessJobAsync(string? loadPort, string pjName, IReadOnlyList<int> slots, string sequence, string? lotId, string? carrierId = null)
     {
         if (!IsEnable || _tasks is null)
@@ -227,14 +236,12 @@ public class JobManager : ComponentBase, IJobManager
             var idError = CheckNewId(id);
             if (idError is not null)
             {
-                Publish();
                 return Task.FromResult(idError);
             }
 
             var portError = FindLoadPort(loadPort, carrierId, out var port);
             if (portError is not null)
             {
-                Publish();
                 return Task.FromResult(portError);
             }
 
@@ -242,21 +249,18 @@ public class JobManager : ComponentBase, IJobManager
             var selectedSlots = slots.Distinct().ToList();
             if (selectedSlots.Count == 0)
             {
-                Publish();
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, sourceName));
             }
 
             var ledger = WaferManagerComponent.Current;
             if (ledger is null || !ledger.IsEnable)
             {
-                Publish();
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.WaferLedgerDisabled));
             }
 
             var sequenceError = TryTakeSequence(sequence.Trim(), sourceName, out var sequenceSnapshot);
             if (sequenceError is not null)
             {
-                Publish();
                 return Task.FromResult(sequenceError);
             }
 
@@ -274,33 +278,28 @@ public class JobManager : ComponentBase, IJobManager
                 var wafer = ledger.Get(sourceName, slot);
                 if (wafer is null)
                 {
-                    Publish();
                     return Task.FromResult(HandleResult.Fail(ErrorCodes.JobSlotEmpty, sourceName, slotText));
                 }
 
                 if (wafer.Status != WaferStatus.Normal)
                 {
-                    Publish();
                     return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferNotNormal, sourceName, slotText, wafer.WaferId, wafer.Status.ToString()));
                 }
 
                 if (wafer.ProcessState != WaferProcessState.Idle)
                 {
-                    Publish();
                     return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferProcessed, sourceName, slotText, wafer.WaferId, wafer.ProcessState.ToString()));
                 }
 
                 string? owner = _processJobs.OwnerOf(wafer.Id);
                 if (owner is not null)
                 {
-                    Publish();
                     return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferOwned, wafer.WaferId, owner));
                 }
 
                 var returnError = PickReturnSlot(sequenceSnapshot, sourceName, slot, out string returnPort);
                 if (returnError is not null)
                 {
-                    Publish();
                     return Task.FromResult(returnError);
                 }
 
@@ -320,13 +319,28 @@ public class JobManager : ComponentBase, IJobManager
             var taskError = Tasks.Build(job);
             if (taskError is not null)
             {
-                Publish();
                 return Task.FromResult(taskError);
             }
 
-            Tasks.Add(job);
             _processJobs.Add(job);
-            _processJobs.Queue(job);
+            try
+            {
+                Tasks.Add(job);
+                var queued = _processJobs.Queue(job);
+                if (!queued.IsSuccess)
+                {
+                    _processJobs.Remove(job);
+                    Tasks.Close(job);
+                    return Task.FromResult(queued);
+                }
+            }
+            catch
+            {
+                _processJobs.Remove(job);
+                Tasks.Close(job);
+                throw;
+            }
+
             Publish();
             return Task.FromResult(HandleResult.Success(job.Id));
         }
@@ -378,7 +392,6 @@ public class JobManager : ComponentBase, IJobManager
             var idError = CheckNewId(name);
             if (idError is not null)
             {
-                Publish();
                 return Task.FromResult(idError);
             }
 
@@ -424,15 +437,41 @@ public class JobManager : ComponentBase, IJobManager
                 LotId = lot ?? processes[0].LotId,
             };
 
-            // 收下它的 PJ
-            foreach (var process in processes)
+            _controlJobs.Add(job);
+            try
             {
-                process.ControlJob = job;
-                job.ProcessJobs.Add(process);
+                // 收下已创建的 PJ，按传入名称的顺序关联。
+                foreach (var process in processes)
+                {
+                    process.ControlJob = job;
+                    job.ProcessJobs.Add(process);
+                }
+
+                var queued = _controlJobs.Queue(job);
+                if (!queued.IsSuccess)
+                {
+                    foreach (var process in processes)
+                    {
+                        process.ControlJob = null;
+                    }
+
+                    job.ProcessJobs.Clear();
+                    _controlJobs.Remove(job);
+                    return Task.FromResult(queued);
+                }
+            }
+            catch
+            {
+                foreach (var process in processes)
+                {
+                    process.ControlJob = null;
+                }
+
+                job.ProcessJobs.Clear();
+                _controlJobs.Remove(job);
+                throw;
             }
 
-            _controlJobs.Add(job);
-            _controlJobs.Queue(job);
 
             Publish();
             return Task.FromResult(HandleResult.Success(job.Id));
@@ -463,21 +502,11 @@ public class JobManager : ComponentBase, IJobManager
         });
     }
 
-    public Task<HandleResult> StartProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Start);
-    public Task<HandleResult> PauseProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Pause);
-    public Task<HandleResult> ResumeProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Resume);
-    public Task<HandleResult> StopProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Stop);
-    public Task<HandleResult> AbortProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Abort);
-    public Task<HandleResult> CancelProcessJobAsync(string id) => ExecuteProcessJobCommandAsync(id, ProcessJobCommand.Cancel);
-    public Task<HandleResult> StartControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Start, ControlJobAction.SaveJobs);
-    public Task<HandleResult> PauseControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Pause, ControlJobAction.SaveJobs);
-    public Task<HandleResult> ResumeControlJobAsync(string id) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Resume, ControlJobAction.SaveJobs);
-    public Task<HandleResult> StopControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Stop, action);
-    public Task<HandleResult> AbortControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Abort, action);
-    public Task<HandleResult> CancelControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs) => ExecuteControlJobCommandAsync(id, ControlJobCommand.Cancel, action);
+    #endregion
 
+    #region PJ 命令
 
-    public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
+    public Task<HandleResult> StartProcessJobAsync(string id)
     {
         if (!IsEnable || _tasks is null)
         {
@@ -492,13 +521,313 @@ public class JobManager : ComponentBase, IJobManager
 
         try
         {
-            // 启动要 Auto：Manual 下不派动作，启动了也跑不起来
-            if (command == ControlJobCommand.Start && !IsAuto && _controlJobs.Get(id.Trim()) is not null)
+            id = id.Trim();
+            var processJob = _processJobs.Get(id);
+            if (processJob is null)
             {
-                Publish();
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            if (!IsAuto)
+            {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotAuto));
             }
 
+            var result = _processJobs.Start(processJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Start), JobNames.Of(processJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> PauseProcessJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var processJob = _processJobs.Get(id);
+            if (processJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            var result = _processJobs.Pause(processJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Pause), JobNames.Of(processJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> ResumeProcessJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var processJob = _processJobs.Get(id);
+            if (processJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            var result = _processJobs.Resume(processJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Resume), JobNames.Of(processJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> StopProcessJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var processJob = _processJobs.Get(id);
+            if (processJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            HandleResult result;
+            if (processJob.State == ProcessJobState.QueuedPooled)
+            {
+                result = _processJobs.Dequeue(processJob);
+            }
+            else
+            {
+                result = _processJobs.Stop(processJob);
+            }
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Stop), JobNames.Of(processJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> AbortProcessJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var processJob = _processJobs.Get(id);
+            if (processJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            HandleResult result;
+            if (processJob.State == ProcessJobState.QueuedPooled)
+            {
+                result = _processJobs.Dequeue(processJob);
+            }
+            else
+            {
+                result = _processJobs.Abort(processJob);
+            }
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Abort), JobNames.Of(processJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> CancelProcessJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var processJob = _processJobs.Get(id);
+            if (processJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            var result = _processJobs.Dequeue(processJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ProcessJobCommand.Cancel), JobNames.Of(processJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    #endregion
+
+    #region CJ 命令
+
+    public Task<HandleResult> StartControlJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
             id = id.Trim();
             var controlJob = _controlJobs.Get(id);
             if (controlJob is null)
@@ -506,98 +835,444 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
             }
 
-            if (controlJob.Ending != ControlJobEnding.None
-                && command != ControlJobCommand.Stop && command != ControlJobCommand.Abort)
+            if (!IsAuto)
             {
-                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(command)));
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotAuto));
+            }
+
+            if (controlJob.Ending != ControlJobEnding.None)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(ControlJobCommand.Start)));
+            }
+
+            if (controlJob.State != ControlJobState.WaitingForStart)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                    id, JobNames.Of(ControlJobCommand.Start), JobNames.Of(controlJob.State)));
+            }
+
+            var result = _controlJobs.Activate(controlJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ControlJobCommand.Start), JobNames.Of(controlJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> PauseControlJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            if (controlJob.Ending != ControlJobEnding.None)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(ControlJobCommand.Pause)));
+            }
+
+            var result = _controlJobs.Pause(controlJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ControlJobCommand.Pause), JobNames.Of(controlJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> ResumeControlJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            if (controlJob.Ending != ControlJobEnding.None)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(ControlJobCommand.Resume)));
+            }
+
+            var result = _controlJobs.Resume(controlJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ControlJobCommand.Resume), JobNames.Of(controlJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> StopControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
             }
 
             HandleResult result;
-            switch (command)
+            if (controlJob.State == ControlJobState.Queued)
             {
-                case ControlJobCommand.Start:
-                    if (controlJob.State != ControlJobState.WaitingForStart)
-                    {
-                        result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                            id, JobNames.Of(command), JobNames.Of(controlJob.State));
-                        break;
-                    }
+                EndControlJobProcesses(controlJob, ControlJobCommand.Stop, action);
+                result = _controlJobs.Dequeue(controlJob);
+            }
+            else if (!controlJob.IsActive)
+            {
+                result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                    id, JobNames.Of(ControlJobCommand.Stop), JobNames.Of(controlJob.State));
+            }
+            else
+            {
+                if (controlJob.Ending == ControlJobEnding.None)
+                {
+                    controlJob.Ending = ControlJobEnding.Stop;
+                    EndControlJobProcesses(controlJob, ControlJobCommand.Stop, action);
+                }
 
-                    result = _controlJobs.Activate(controlJob);
-                    break;
-                case ControlJobCommand.Pause:
-                    result = _controlJobs.Pause(controlJob);
-                    break;
-                case ControlJobCommand.Resume:
-                    result = _controlJobs.Resume(controlJob);
-                    break;
-                case ControlJobCommand.Cancel:
-                    if (controlJob.State == ControlJobState.Queued)
-                    {
-                        EndControlJobProcesses(controlJob, command, action);
-                    }
-
-                    result = _controlJobs.Dequeue(controlJob);
-                    break;
-                case ControlJobCommand.Stop:
-                    if (controlJob.State == ControlJobState.Queued)
-                    {
-                        EndControlJobProcesses(controlJob, command, action);
-                        result = _controlJobs.Dequeue(controlJob);
-                    }
-                    else if (!controlJob.IsActive)
-                    {
-                        result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                            id, JobNames.Of(command), JobNames.Of(controlJob.State));
-                    }
-                    else
-                    {
-                        if (controlJob.Ending == ControlJobEnding.None)
-                        {
-                            controlJob.Ending = ControlJobEnding.Stop;
-                            EndControlJobProcesses(controlJob, command, action);
-                        }
-
-                        result = HandleResult.Success(id);
-                    }
-
-                    break;
-                case ControlJobCommand.Abort:
-                    if (controlJob.State == ControlJobState.Queued)
-                    {
-                        EndControlJobProcesses(controlJob, command, action);
-                        result = _controlJobs.Dequeue(controlJob);
-                    }
-                    else if (controlJob.State == ControlJobState.Aborting)
-                    {
-                        result = HandleResult.Success(id);
-                    }
-                    else
-                    {
-                        result = _controlJobs.Abort(controlJob);
-                        if (result.IsSuccess)
-                        {
-                            EndControlJobProcesses(controlJob, command, action);
-                        }
-                    }
-
-                    break;
-                case ControlJobCommand.Deselect:
-                    result = _controlJobs.Deselect(controlJob);
-                    break;
-                default:
-                    result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                        id, command.ToString(), JobNames.Of(controlJob.State));
-                    break;
+                result = HandleResult.Success(id);
             }
 
             if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
             {
-                result.Args = [id, JobNames.Of(command), JobNames.Of(controlJob.State)];
+                result.Args = [id, JobNames.Of(ControlJobCommand.Stop), JobNames.Of(controlJob.State)];
             }
 
-            Publish();
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
             return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> AbortControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            HandleResult result;
+            if (controlJob.State == ControlJobState.Queued)
+            {
+                EndControlJobProcesses(controlJob, ControlJobCommand.Abort, action);
+                result = _controlJobs.Dequeue(controlJob);
+            }
+            else if (controlJob.State == ControlJobState.Aborting)
+            {
+                result = HandleResult.Success(id);
+            }
+            else
+            {
+                result = _controlJobs.Abort(controlJob);
+                if (result.IsSuccess)
+                {
+                    EndControlJobProcesses(controlJob, ControlJobCommand.Abort, action);
+                }
+            }
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ControlJobCommand.Abort), JobNames.Of(controlJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> CancelControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            if (controlJob.Ending != ControlJobEnding.None)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(ControlJobCommand.Cancel)));
+            }
+
+            if (controlJob.State != ControlJobState.Queued)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                    id, JobNames.Of(ControlJobCommand.Cancel), JobNames.Of(controlJob.State)));
+            }
+
+            EndControlJobProcesses(controlJob, ControlJobCommand.Cancel, action);
+            var result = _controlJobs.Dequeue(controlJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ControlJobCommand.Cancel), JobNames.Of(controlJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    public Task<HandleResult> DeselectControlJobAsync(string id)
+    {
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            if (controlJob.Ending != ControlJobEnding.None)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(ControlJobCommand.Deselect)));
+            }
+
+            var result = _controlJobs.Deselect(controlJob);
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(ControlJobCommand.Deselect), JobNames.Of(controlJob.State)];
+            }
+
+            if (result.IsSuccess)
+            {
+                Publish();
+            }
+
+            return Task.FromResult(result);
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
+        }
+        finally
+        {
+            Monitor.Exit(_gate);
+        }
+    }
+
+    #endregion
+
+    #region EAP 命令编号适配
+
+    public Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action)
+    {
+        switch (command)
+        {
+            case ControlJobCommand.Start:
+                return StartControlJobAsync(id);
+            case ControlJobCommand.Pause:
+                return PauseControlJobAsync(id);
+            case ControlJobCommand.Resume:
+                return ResumeControlJobAsync(id);
+            case ControlJobCommand.Cancel:
+                return CancelControlJobAsync(id, action);
+            case ControlJobCommand.Deselect:
+                return DeselectControlJobAsync(id);
+            case ControlJobCommand.Stop:
+                return StopControlJobAsync(id, action);
+            case ControlJobCommand.Abort:
+                return AbortControlJobAsync(id, action);
+        }
+
+        if (!IsEnable || _tasks is null)
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
+        }
+
+        int timeout = CommandTimeoutMs;
+        if (!Monitor.TryEnter(_gate, timeout))
+        {
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandTimeout, timeout.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        try
+        {
+            id = id.Trim();
+            var job = _controlJobs.Get(id);
+            if (job is null)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
+            }
+
+            if (job.Ending != ControlJobEnding.None)
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(command)));
+            }
+
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                id, JobNames.Of(command), JobNames.Of(job.State)));
         }
         catch (Exception exception)
         {
@@ -612,6 +1287,22 @@ public class JobManager : ComponentBase, IJobManager
 
     public Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command)
     {
+        switch (command)
+        {
+            case ProcessJobCommand.Start:
+                return StartProcessJobAsync(id);
+            case ProcessJobCommand.Pause:
+                return PauseProcessJobAsync(id);
+            case ProcessJobCommand.Resume:
+                return ResumeProcessJobAsync(id);
+            case ProcessJobCommand.Stop:
+                return StopProcessJobAsync(id);
+            case ProcessJobCommand.Abort:
+                return AbortProcessJobAsync(id);
+            case ProcessJobCommand.Cancel:
+                return CancelProcessJobAsync(id);
+        }
+
         if (!IsEnable || _tasks is null)
         {
             return Task.FromResult(HandleResult.Fail(ErrorCodes.JobDisabled));
@@ -625,69 +1316,15 @@ public class JobManager : ComponentBase, IJobManager
 
         try
         {
-            if (command == ProcessJobCommand.Start && !IsAuto && _processJobs.Get(id.Trim()) is not null)
-            {
-                Publish();
-                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotAuto));
-            }
-
             id = id.Trim();
-            var processJob = _processJobs.Get(id);
-            if (processJob is null)
+            var job = _processJobs.Get(id);
+            if (job is null)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
             }
 
-            HandleResult result;
-            switch (command)
-            {
-                case ProcessJobCommand.Start:
-                    result = _processJobs.Start(processJob);
-                    break;
-                case ProcessJobCommand.Pause:
-                    result = _processJobs.Pause(processJob);
-                    break;
-                case ProcessJobCommand.Resume:
-                    result = _processJobs.Resume(processJob);
-                    break;
-                case ProcessJobCommand.Stop:
-                    if (processJob.State == ProcessJobState.QueuedPooled)
-                    {
-                        result = _processJobs.Dequeue(processJob);
-                    }
-                    else
-                    {
-                        result = _processJobs.Stop(processJob);
-                    }
-
-                    break;
-                case ProcessJobCommand.Abort:
-                    if (processJob.State == ProcessJobState.QueuedPooled)
-                    {
-                        result = _processJobs.Dequeue(processJob);
-                    }
-                    else
-                    {
-                        result = _processJobs.Abort(processJob);
-                    }
-
-                    break;
-                case ProcessJobCommand.Cancel:
-                    result = _processJobs.Dequeue(processJob);
-                    break;
-                default:
-                    result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
-                        id, command.ToString(), JobNames.Of(processJob.State));
-                    break;
-            }
-
-            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
-            {
-                result.Args = [id, JobNames.Of(command), JobNames.Of(processJob.State)];
-            }
-
-            Publish();
-            return Task.FromResult(result);
+            return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                id, JobNames.Of(command), JobNames.Of(job.State)));
         }
         catch (Exception exception)
         {
@@ -699,6 +1336,10 @@ public class JobManager : ComponentBase, IJobManager
             Monitor.Exit(_gate);
         }
     }
+
+    #endregion
+
+    #region 整机中止与任务处理
 
     /// <summary>
     /// 整机停止：所有没结束的 Job 走中止（等设备确认、核对片位），不直接给模块发中止。
@@ -867,7 +1508,12 @@ public class JobManager : ComponentBase, IJobManager
         }
 
         bool inUse = _controlJobs.Get(id) is not null || _processJobs.Get(id) is not null;
-        return inUse ? HandleResult.Fail(ErrorCodes.JobIdDuplicate, id) : null;
+        if (inUse)
+        {
+            return HandleResult.Fail(ErrorCodes.JobIdDuplicate, id);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -1095,7 +1741,7 @@ public class JobManager : ComponentBase, IJobManager
     #region 扫描
 
     /// <summary>
-    /// 每拍固定五步：① 调度引擎收做完的（搬运、站内任务），结果记回任务表 → ② 任务组件核对片位 → ③ PJ、CJ 管理按任务进度自动转状态、定许可 →
+    /// 每拍固定五步：① 调度引擎收做完的（搬运、站内任务），结果记回任务表 → ② 任务组件核对片位 → ③ 按任务进度提交 PJ、CJ 状态动作、定许可 →
     /// ④ 调度引擎派新任务 → ⑤ 发布当前快照。整拍拿着命令那把锁，命令和扫描不会交叉着改。
     /// </summary>
     protected override void OnScan()
@@ -1153,120 +1799,145 @@ public class JobManager : ComponentBase, IJobManager
         bool changed;
         do
         {
-            changed = false;
-            foreach (var job in _processJobs.ProcessJobs)
+            changed = AdvanceProcessJobs();
+            if (AdvanceControlJobs())
             {
-                bool idle = !job.HasRowsInMachine && !job.HasRunning;
-                switch (job.State)
-                {
-                    case ProcessJobState.QueuedPooled:
-                        if (MayStartProcessJob(job))
-                        {
-                            changed |= _processJobs.Setup(job).IsSuccess;
-                        }
-
-                        break;
-                    case ProcessJobState.SettingUp:
-                        if (!job.HasErrors)
-                        {
-                            if (ProcessJobAutoStart)
-                            {
-                                changed |= _processJobs.Activate(job).IsSuccess;
-                            }
-                            else
-                            {
-                                changed |= _processJobs.WaitForStart(job).IsSuccess;
-                            }
-                        }
-
-                        break;
-                    case ProcessJobState.Processing:
-                        if (job.Rows.All(row => row.IsProcessFinished))
-                        {
-                            changed |= _processJobs.Complete(job).IsSuccess;
-                        }
-
-                        break;
-                    case ProcessJobState.ProcessComplete:
-                        if (!job.HasRunning && job.Rows.All(row => row.IsReturned))
-                        {
-                            changed |= _processJobs.Finish(job).IsSuccess;
-                        }
-
-                        break;
-                    case ProcessJobState.Pausing:
-                        if (idle)
-                        {
-                            changed |= _processJobs.FinishPause(job).IsSuccess;
-                        }
-
-                        break;
-                    case ProcessJobState.Stopping:
-                        if (idle)
-                        {
-                            changed |= _processJobs.FinishStop(job).IsSuccess;
-                        }
-
-                        break;
-                    case ProcessJobState.Aborting:
-                        if (!job.HasRunning && job.DeviceAborts.All(abort => abort.IsSettled) && !job.HasErrors
-                            && TransferManager.Current?.HeldOperations.Any(operation =>
-                                string.Equals(operation.Owner, job.Id, StringComparison.Ordinal)) != true)
-                        {
-                            changed |= _processJobs.FinishAbort(job).IsSuccess;
-                        }
-
-                        break;
-                }
-            }
-
-            foreach (var job in _controlJobs.ControlJobs)
-            {
-                var port = LoadPort(job.LoadPort);
-                if (job.State == ControlJobState.Queued)
-                {
-                    changed |= _controlJobs.Select(job).IsSuccess;
-                }
-
-                if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
-                    && port?.IsCarrierReady == true)
-                {
-                    if (ControlJobAutoStart)
-                    {
-                        changed |= _controlJobs.Activate(job).IsSuccess;
-                    }
-                    else
-                    {
-                        changed |= _controlJobs.WaitForStart(job).IsSuccess;
-                    }
-                }
-
-                if ((job.ProcessJobs.Count > 0 || job.Ending != ControlJobEnding.None)
-                    && job.ProcessJobs.All(process => process.IsEnded))
-                {
-                    if (job.State == ControlJobState.Aborting)
-                    {
-                        changed |= _controlJobs.FinishAbort(job).IsSuccess;
-                    }
-                    else if (job.IsActive && job.Ending == ControlJobEnding.Stop)
-                    {
-                        changed |= _controlJobs.FinishStop(job).IsSuccess;
-                    }
-                    else if (job.State is ControlJobState.Executing or ControlJobState.Paused)
-                    {
-                        changed |= _controlJobs.Complete(job).IsSuccess;
-                    }
-                }
-
-                if (job.State is ControlJobState.Completed or ControlJobState.Aborted
-                    && port?.IsCarrierArrived != true)
-                {
-                    changed |= _controlJobs.Delete(job).IsSuccess;
-                }
+                changed = true;
             }
         }
         while (changed);
 
+        UpdateTaskPermissions();
+    }
+
+    /// <summary>按任务进度提交 PJ 动作，目标状态由 PJ 状态表决定。</summary>
+    private bool AdvanceProcessJobs()
+    {
+        bool changed = false;
+        foreach (var job in _processJobs.ProcessJobs)
+        {
+            bool idle = !job.HasRowsInMachine && !job.HasRunning;
+            switch (job.State)
+            {
+                case ProcessJobState.QueuedPooled:
+                    if (MayStartProcessJob(job))
+                    {
+                        changed |= _processJobs.Setup(job).IsSuccess;
+                    }
+
+                    break;
+                case ProcessJobState.SettingUp:
+                    if (!job.HasErrors)
+                    {
+                        if (ProcessJobAutoStart)
+                        {
+                            changed |= _processJobs.Activate(job).IsSuccess;
+                        }
+                        else
+                        {
+                            changed |= _processJobs.WaitForStart(job).IsSuccess;
+                        }
+                    }
+
+                    break;
+                case ProcessJobState.Processing:
+                    if (job.Rows.All(row => row.IsProcessFinished))
+                    {
+                        changed |= _processJobs.Complete(job).IsSuccess;
+                    }
+
+                    break;
+                case ProcessJobState.ProcessComplete:
+                    if (!job.HasRunning && job.Rows.All(row => row.IsReturned))
+                    {
+                        changed |= _processJobs.Finish(job).IsSuccess;
+                    }
+
+                    break;
+                case ProcessJobState.Pausing:
+                    if (idle)
+                    {
+                        changed |= _processJobs.FinishPause(job).IsSuccess;
+                    }
+
+                    break;
+                case ProcessJobState.Stopping:
+                    if (idle)
+                    {
+                        changed |= _processJobs.FinishStop(job).IsSuccess;
+                    }
+
+                    break;
+                case ProcessJobState.Aborting:
+                    if (!job.HasRunning && job.DeviceAborts.All(abort => abort.IsSettled) && !job.HasErrors
+                        && TransferManager.Current?.HeldOperations.Any(operation =>
+                            string.Equals(operation.Owner, job.Id, StringComparison.Ordinal)) != true)
+                    {
+                        changed |= _processJobs.FinishAbort(job).IsSuccess;
+                    }
+
+                    break;
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>按载具状态及下属 PJ 的完成情况提交 CJ 动作。</summary>
+    private bool AdvanceControlJobs()
+    {
+        bool changed = false;
+        foreach (var job in _controlJobs.ControlJobs)
+        {
+            var port = LoadPort(job.LoadPort);
+            if (job.State == ControlJobState.Queued)
+            {
+                changed |= _controlJobs.Select(job).IsSuccess;
+            }
+
+            if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
+                && port?.IsCarrierReady == true)
+            {
+                if (ControlJobAutoStart)
+                {
+                    changed |= _controlJobs.Activate(job).IsSuccess;
+                }
+                else
+                {
+                    changed |= _controlJobs.WaitForStart(job).IsSuccess;
+                }
+            }
+
+            if ((job.ProcessJobs.Count > 0 || job.Ending != ControlJobEnding.None)
+                && job.ProcessJobs.All(process => process.IsEnded))
+            {
+                if (job.State == ControlJobState.Aborting)
+                {
+                    changed |= _controlJobs.FinishAbort(job).IsSuccess;
+                }
+                else if (job.IsActive && job.Ending == ControlJobEnding.Stop)
+                {
+                    changed |= _controlJobs.FinishStop(job).IsSuccess;
+                }
+                else if (job.State is ControlJobState.Executing or ControlJobState.Paused)
+                {
+                    changed |= _controlJobs.Complete(job).IsSuccess;
+                }
+            }
+
+            if (job.State is ControlJobState.Completed or ControlJobState.Aborted
+                && port?.IsCarrierArrived != true)
+            {
+                changed |= _controlJobs.Delete(job).IsSuccess;
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>根据 PJ 状态设置任务行的投片和机内推进许可。</summary>
+    private void UpdateTaskPermissions()
+    {
         foreach (var job in _processJobs.ProcessJobs)
         {
             TaskPermission permission;
@@ -1581,17 +2252,39 @@ public class JobManager : ComponentBase, IJobManager
     #region 设备
 
     /// <summary>任务组件（装配时从 sc.xml 的 Task 子节点取）。</summary>
-    private BaseTaskComponent Tasks => _tasks ?? throw new InvalidOperationException($"{Name}：还没装配，没有任务组件");
+    private BaseTaskComponent Tasks
+    {
+        get
+        {
+            if (_tasks is null)
+            {
+                throw new InvalidOperationException($"{Name}：还没装配，没有任务组件");
+            }
+
+            return _tasks;
+        }
+    }
 
     /// <summary>Auto 模式（自动派单开着）：Manual 下不派新动作，启动 Job 也要 Auto。</summary>
-    private static bool IsAuto => TransferManager.Current?.IsAutoDispatch == true;
+    private static bool IsAuto
+    {
+        get { return TransferManager.Current?.IsAutoDispatch == true; }
+    }
 
     /// <summary>装了的 LoadPort（按 sc.xml 先后）。</summary>
-    private IEnumerable<BaseLoadPortModule> LoadPorts => _modules.Values.OfType<BaseLoadPortModule>();
+    private IEnumerable<BaseLoadPortModule> LoadPorts
+    {
+        get { return _modules.Values.OfType<BaseLoadPortModule>(); }
+    }
 
     private BaseModule? Module(string name)
     {
-        return _modules.TryGetValue(name.Trim(), out var module) ? module : null;
+        if (_modules.TryGetValue(name.Trim(), out var module))
+        {
+            return module;
+        }
+
+        return null;
     }
 
     private BaseLoadPortModule? LoadPort(string name)

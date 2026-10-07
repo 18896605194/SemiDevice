@@ -395,8 +395,23 @@ try
     [
         ("创建 PJ", () => jobs.CreateProcessJobAsync("LP1", "PJ-GUARD", [1], "SEQ_A", null)),
         ("创建 CJ", () => jobs.CreateControlJobAsync("LP1", ["PJ-GUARD"], "CJ-GUARD")),
-        ("CJ 命令", () => jobs.PauseControlJobAsync("CJ-GUARD")),
-        ("PJ 命令", () => jobs.PauseProcessJobAsync("PJ-GUARD")),
+        ("CJ 启动", () => jobs.StartControlJobAsync("CJ-GUARD")),
+        ("CJ 暂停", () => jobs.PauseControlJobAsync("CJ-GUARD")),
+        ("CJ 恢复", () => jobs.ResumeControlJobAsync("CJ-GUARD")),
+        ("CJ 停止", () => jobs.StopControlJobAsync("CJ-GUARD")),
+        ("CJ 中止", () => jobs.AbortControlJobAsync("CJ-GUARD")),
+        ("CJ 取消", () => jobs.CancelControlJobAsync("CJ-GUARD")),
+        ("CJ 取消选中", () => jobs.DeselectControlJobAsync("CJ-GUARD")),
+        ("PJ 启动", () => jobs.StartProcessJobAsync("PJ-GUARD")),
+        ("PJ 暂停", () => jobs.PauseProcessJobAsync("PJ-GUARD")),
+        ("PJ 恢复", () => jobs.ResumeProcessJobAsync("PJ-GUARD")),
+        ("PJ 停止", () => jobs.StopProcessJobAsync("PJ-GUARD")),
+        ("PJ 中止", () => jobs.AbortProcessJobAsync("PJ-GUARD")),
+        ("PJ 取消", () => jobs.CancelProcessJobAsync("PJ-GUARD")),
+        ("CJ 编号入口", () => jobs.ExecuteControlJobCommandAsync("CJ-GUARD", ControlJobCommand.Start, ControlJobAction.SaveJobs)),
+        ("PJ 编号入口", () => jobs.ExecuteProcessJobCommandAsync("PJ-GUARD", ProcessJobCommand.Start)),
+        ("CJ 不支持的编号", () => jobs.ExecuteControlJobCommandAsync("CJ-GUARD", ControlJobCommand.HeadOfQueue, ControlJobAction.SaveJobs)),
+        ("PJ 不支持的编号", () => jobs.ExecuteProcessJobCommandAsync("PJ-GUARD", (ProcessJobCommand)99)),
         ("整机中止", () => jobs.AbortAllAsync()),
         ("任务重试", () => jobs.RetryTaskAsync("PJ-GUARD", 1, 0)),
         ("任务完成", () => jobs.CompleteTaskAsync("PJ-GUARD", 1, 0)),
@@ -710,6 +725,59 @@ try
         "流程配方用的工艺配方不在库里：整个不建");
     Check(jobs.Snapshot.ControlJobs.Count == 0 && jobs.Snapshot.ProcessJobs.Count == 0 && jobs.OwnerOf(first.Id) is null,
         "不建就什么都不留：没有 CJ / PJ，片不归任何 Job");
+
+    // 入队通知异常被状态机转换成失败结果；创建入口必须撤销本次注册、任务和关联。
+    var processManager = (IPjManager)typeof(JobManager).GetField("_processJobs",
+        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(jobs)!;
+    var controlManager = (ICjManager)typeof(JobManager).GetField("_controlJobs",
+        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(jobs)!;
+    void RejectProcessQueue(ProcessJob job, ProcessJobState state, int transition)
+    {
+        if (job.Id == "PJ-QUEUE-FAIL" && transition == 1)
+        {
+            throw new InvalidOperationException("模拟 PJ 入队通知失败");
+        }
+    }
+    processManager.StateChanged += RejectProcessQueue;
+    try
+    {
+        var rejectedQueue = Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null));
+        Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.OperationFaulted
+              && processManager.Get("PJ-QUEUE-FAIL") is null && jobs.OwnerOf(first.Id) is null
+              && !jobs.FindChild<SmokeTasks>()!.Rows.Any(row => row.Owner == "PJ-QUEUE-FAIL"),
+            "PJ 入队失败返回失败并移除注册、任务行和晶圆归属");
+    }
+    finally
+    {
+        processManager.StateChanged -= RejectProcessQueue;
+    }
+    Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null)).IsSuccess,
+        "PJ 入队失败后可用相同名称和晶圆重新创建");
+    void RejectControlQueue(ControlJob job, ControlJobState state, int transition)
+    {
+        if (job.Id == "CJ-QUEUE-FAIL" && transition == 1)
+        {
+            throw new InvalidOperationException("模拟 CJ 入队通知失败");
+        }
+    }
+    controlManager.StateChanged += RejectControlQueue;
+    try
+    {
+        var rejectedQueue = Do(jobs.CreateControlJobAsync("LP1", ["PJ-QUEUE-FAIL"], "CJ-QUEUE-FAIL"));
+        Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.OperationFaulted
+              && controlManager.Get("CJ-QUEUE-FAIL") is null
+              && processManager.Get("PJ-QUEUE-FAIL")?.ControlJob is null
+              && jobs.OwnerOf(first.Id) == "PJ-QUEUE-FAIL",
+            "CJ 入队失败移除本次 CJ、解除关联，保留之前创建的 PJ 和晶圆归属");
+    }
+    finally
+    {
+        controlManager.StateChanged -= RejectControlQueue;
+    }
+    Check(Do(jobs.CreateControlJobAsync("LP1", ["PJ-QUEUE-FAIL"], "CJ-QUEUE-FAIL")).IsSuccess
+          && Do(jobs.CancelControlJobAsync("CJ-QUEUE-FAIL")).IsSuccess
+          && jobs.OwnerOf(first.Id) is null,
+        "CJ 入队失败后可重新关联原 PJ，取消时释放晶圆归属");
 
     // 7. 一篮两个 Sequence：1、2 槽 SEQ_A、3 槽 SEQ_B（两步加工）→ 一个 CJ 两个 PJ（跟 Host 一样先建 PJ、再建 CJ）；
     //    同一个建 Job 重发被正常的检查拦住（名字已经在用）；建 CJ 那一步被拒，已经建好的 PJ 撤掉。

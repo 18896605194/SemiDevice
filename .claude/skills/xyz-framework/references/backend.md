@@ -245,14 +245,14 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `CreateControlJobAsync(loadPort, processJobs, ...)` 用 PJ 名称集合关联 CJ，指定口与任何 PJ 不匹配时整个拒绝、PJ 不受影响；
   `CreateJobAsync(loadPort, processJobs, ...)` 使用已有 PJ，内部调用创建 CJ，回 `JobCreatedDto`，不再新建 PJ 或任务行。
   `IPjManager` / `ICjManager` 提供对象状态动作；对外 `IJobManager` 提供 CJ/PJ 明确命令方法。CJ 的 Stop / Abort / Cancel 可选择 SaveJobs / RemoveJobs，
-  PJ 的 Cancel 只取消未开始的 PJ、释放晶圆归属。`IJobManager` 对应有异步入口，枚举命令方法供 EAP 适配，最终走同一状态机。
+  PJ 的 Cancel 只取消未开始的 PJ、释放晶圆归属。Start / Pause / Resume / Stop / Abort / Cancel 异步方法各自直接处理对应动作；枚举命令入口只负责选择这些方法，不作为内部公共执行入口。
   命令（本地服务和 EAP 过同一套检查）在调用方线程上当场执行，跟扫描线程用同一把锁
-  （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），做完当场发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
+  （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），成功执行后当场发布；创建校验或状态命令被拒不发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
   不再使用 Execute / WithProcessJob 委托包装；PJ 创建逻辑直接在 CreateProcessJobAsync 内。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
-  再建 CJ，中途被拒撤掉已建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ PJ、CJ 管理自动转状态（先 PJ 后 CJ，转到不再转）、按 PJ 状态给行定许可 →
+  再建 CJ，中途被拒撤掉已建的 PJ。PJ / CJ 创建检查 Queue 结果，失败撤销本次登记及任务或关联；CJ 失败保留先前独立创建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ JobManager 分别检查 PJ、CJ 推进条件，提交状态动作（先 PJ 后 CJ，转到不再转），再按 PJ 状态给行定许可 →
   ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布并交给存库线程合并写入。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
-  EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 从全貌里找。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
+  EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 在锁内读取当前 PJ，包括保留在 CJ 下的已结束 PJ。Snapshot 查询在锁内生成 DTO，不缓存 `_snapshot`。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
   SC：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
   **存库与重启**（2026-10-07 用户："界面上显示的就是数据库的数据，该存库就存库"）：CJ、PJ 各一张表，一个 Job 一行（`control_job` / `process_job`，
   实体 `ControlJobEntity` / `ProcessJobEntity` 继承 `BaseEntity`：自增行号、CreatedTime = 建的时刻、UpdatedTime = 最后写的时刻；PJ 行记着 CJ 的行号 `ControlJobRowId`，
