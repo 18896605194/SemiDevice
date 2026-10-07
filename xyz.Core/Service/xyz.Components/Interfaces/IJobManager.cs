@@ -38,6 +38,7 @@ public interface IJobManager
     ControlJobDto? FindControlJobByCarrier(string carrierId);
     IReadOnlyList<ProcessJobDto> FindProcessJobsByCarrier(string carrierId);
 
+    /// <summary>根据当前运行对象生成独立的 CJ、PJ 查询结果。</summary>
     JobListDto Snapshot { get; }
 
     IE40Callback? E40Callback { get; set; }

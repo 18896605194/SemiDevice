@@ -5,7 +5,7 @@ using xyz.Components.Enums;
 namespace xyz.Modules;
 
 /// <summary>
-/// Job 运行对象 → DTO（推送、查询、EAP 上报都用这一份）。在 Job 的扫描线程上转，转出来的是副本，拿到就不变。
+/// Job 运行对象 → DTO（推送、查询、EAP 上报）。在 Job 锁内转换，返回独立副本。
 /// </summary>
 internal static class JobDtos
 {

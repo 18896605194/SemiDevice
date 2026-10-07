@@ -1085,12 +1085,34 @@ try
     foundControl.CarrierId = "EDITED";
     Check(forEap.FindControlJobByCarrier("CAR-1")?.Id == "CJ-H"
           && forEap.FindControlJobByCarrier("EDITED") is null && CjOf("CJ-H")?.CarrierId == "CAR-1",
-        "CJ 按载具号从队列查询，返回独立 DTO；修改查询结果不影响队列或发布快照");
+        "CJ 按载具号从队列查询，返回独立 DTO；修改查询结果不影响队列或后续查询");
+    var previousQuery = forEap.Snapshot;
+    bool previousAutoStart = jobs.ProcessJobAutoStart;
+    jobs.ProcessJobAutoStart = !previousAutoStart;
+    Check(forEap.Snapshot.ProcessJobs.Where(job => job.Id is "PJ-H1" or "PJ-H2")
+              .All(job => job.AutoStart == !previousAutoStart)
+          && forEap.FindProcessJobsByCarrier("CAR-1").All(job => job.AutoStart == !previousAutoStart)
+          && previousQuery.ProcessJobs.First(job => job.Id == "PJ-H1").AutoStart == previousAutoStart,
+        "查询读取当前配置，无需先发布；之前取得的 DTO 不随运行对象改变");
+    jobs.ProcessJobAutoStart = previousAutoStart;
+    previousQuery.ControlJobs.First(job => job.Id == "CJ-H").ProcessJobs.Clear();
+    previousQuery.ProcessJobs.First(job => job.Id == "PJ-H1").Wafers[0].Tasks.Clear();
+    var foundProcess = forEap.FindProcessJobsByCarrier("CAR-1").First(job => job.Id == "PJ-H1");
+    foundProcess.CarrierId = "EDITED";
+    foundProcess.Wafers.Clear();
+    Check(forEap.Snapshot.ControlJobs.First(job => job.Id == "CJ-H").ProcessJobs.Count == 2
+          && forEap.Snapshot.ProcessJobs.First(job => job.Id == "PJ-H1").Wafers[0].Tasks.Count > 0
+          && forEap.FindProcessJobsByCarrier("CAR-1").First(job => job.Id == "PJ-H1").Wafers.Count == 1,
+        "全量和载具查询均返回独立 DTO，修改嵌套集合不影响实际任务");
     Check(RunUntil(() => CjOf("CJ-H")?.State == (int)ControlJobState.Completed) && CjOf("CJ-H")?.CompletedBy == 10, "Host 建的照样跑完");
     Check(CjOf("CJ-H")?.AutoStart == true, "SC 开启 CJ 自动启动，创建后无需 CJ Start 即执行完成");
+    Check(forEap.FindProcessJobsByCarrier("CAR-1").Select(job => job.Id).SequenceEqual(new[] { "PJ-H1", "PJ-H2" })
+          && forEap.FindProcessJobsByCarrier("CAR-1").All(job => job.EndedBy == 7),
+        "CJ 保留期间按载具查询仍包含其已结束的 PJ");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("CJ-H") is null, 20), "CJ-H 删掉");
     Check(forEap.FindControlJobByCarrier("CAR-1") is null, "CJ 从队列删除后按载具号查找为空");
+    Check(forEap.FindProcessJobsByCarrier("CAR-1").Count == 0, "CJ 删除后按载具查询不再返回已结束的 PJ");
 
     // 15b. 独立 PJ 的创建、取消，再用名称集合创建 Job；不重新创建 PJ 或任务行。
     using (var requestStream = new MemoryStream())

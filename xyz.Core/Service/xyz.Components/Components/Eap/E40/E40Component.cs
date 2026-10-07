@@ -151,7 +151,7 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region 上报（IE40Callback，在 EAP 的上报派发线程上）
 
-    void IE40Callback.ProcessJobStateChanged(ProcessJobDto job, int transition)
+    public void ProcessJobStateChanged(ProcessJobDto job, int transition)
     {
         if (transition is < 1 or > 18)
         {

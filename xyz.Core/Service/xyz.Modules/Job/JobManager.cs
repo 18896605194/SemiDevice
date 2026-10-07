@@ -140,7 +140,25 @@ public class JobManager : ComponentBase, IJobManager
 
     #region 命令（IJobManager，加上本地界面才有的出错任务处理）
 
-    public JobListDto Snapshot => _snapshot;
+    /// <summary>在 Job 锁内读取当前 CJ、PJ，生成独立的查询结果。</summary>
+    public JobListDto Snapshot
+    {
+        get
+        {
+            lock (_gate)
+            {
+                var controlJobs = _controlJobs.ControlJobs;
+                var processJobs = controlJobs.SelectMany(control => control.ProcessJobs)
+                    .Concat(_processJobs.ProcessJobs).Distinct().ToList();
+
+                return new JobListDto
+                {
+                    ControlJobs = controlJobs.Select(job => JobDtos.Of(job, ControlJobAutoStart)).ToList(),
+                    ProcessJobs = processJobs.Select(job => JobDtos.Of(job, ProcessJobAutoStart)).ToList(),
+                };
+            }
+        }
+    }
 
     /// <summary>按载具号从 CJ 队列查找，在 Job 锁内读取并返回 DTO 副本。</summary>
     public ControlJobDto? FindControlJobByCarrier(string carrierId)
@@ -163,7 +181,7 @@ public class JobManager : ComponentBase, IJobManager
         }
     }
 
-    /// <summary>按载具号找 PJ：从当前全貌里找（任意线程可调，不占锁）。</summary>
+    /// <summary>按载具号找 PJ，在 Job 锁内读取并返回 DTO 副本；包含保留在 CJ 下的已结束 PJ。</summary>
     public IReadOnlyList<ProcessJobDto> FindProcessJobsByCarrier(string carrierId)
     {
         string wanted = carrierId.Trim();
@@ -172,7 +190,15 @@ public class JobManager : ComponentBase, IJobManager
             return [];
         }
 
-        return _snapshot.ProcessJobs.Where(job => string.Equals(job.CarrierId, wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+        lock (_gate)
+        {
+            var processJobs = _controlJobs.ControlJobs.SelectMany(control => control.ProcessJobs)
+                .Concat(_processJobs.ProcessJobs).Distinct();
+
+            return processJobs
+                .Where(job => string.Equals(job.CarrierId, wanted, StringComparison.OrdinalIgnoreCase))
+                .Select(job => JobDtos.Of(job, ProcessJobAutoStart)).ToList();
+        }
     }
 
     /// <summary>这一片现在归哪个 PJ；不归任何没结束的 PJ 返回 null。任意线程可调（搬运管理受理手动单时问）。</summary>
@@ -1286,7 +1312,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// ⑤ 发布当前快照：换一份新的全貌——没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）；
+    /// ⑤ 发布当前快照：本次生成没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）对应的 DTO；
     /// 推给界面（留存，重连就能拿到最新的）；里面的每个 CJ、PJ 交给写库线程更新库里那一行（任务进度也跟着进库）。
     /// </summary>
     private void Publish()
@@ -1300,7 +1326,6 @@ public class JobManager : ComponentBase, IJobManager
             ControlJobs = controlJobs.Select(job => JobDtos.Of(job, ControlJobAutoStart)).ToList(),
             ProcessJobs = processJobs.Select(job => JobDtos.Of(job, ProcessJobAutoStart)).ToList(),
         };
-        _snapshot = snapshot;
         for (int index = 0; index < controlJobs.Count; index++)
         {
             Store(controlJobs[index], snapshot.ControlJobs[index]);
