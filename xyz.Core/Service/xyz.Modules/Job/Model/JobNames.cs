@@ -49,8 +49,8 @@ public static class JobNames
 
         switch (state.Value)
         {
-            case ControlJobState.Create:
-                return "CREATE";
+            case ControlJobState.Created:
+                return "CREATED";
             case ControlJobState.Queued:
                 return "QUEUED";
             case ControlJobState.Selected:
@@ -61,6 +61,10 @@ public static class JobNames
                 return "EXECUTING";
             case ControlJobState.Paused:
                 return "PAUSED";
+            case ControlJobState.Aborting:
+                return "ABORTING";
+            case ControlJobState.Aborted:
+                return "ABORTED";
             case ControlJobState.Completed:
                 return "COMPLETED";
             default:

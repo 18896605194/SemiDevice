@@ -1,41 +1,56 @@
 ﻿using xyz.Common.Log;
 using xyz.Components.Enums;
-using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-internal sealed class CjManager : ICjManager
+/// <summary>保存 CJ 及各自状态机；PJ 协调由 JobManager 处理。</summary>
+public sealed class CjManager : ICjManager
 {
-    private const string LogModule = "Job";
-
     #region CJ 字典
 
     private readonly Dictionary<string, CjEntity> _jobs = new(StringComparer.OrdinalIgnoreCase);
-    public IReadOnlyDictionary<string, CjEntity> Jobs => _jobs;
 
-    public event Action<ControlJob, ControlJobState>? StateChanged;
+    public IReadOnlyList<ControlJob> ControlJobs => _jobs.Values.Select(entity => entity.ControlJob).ToList();
+
+    /// <summary>状态变化及本次 E94 转换编号；内部转换的编号为 0，不上报 E94。</summary>
+    public event Action<ControlJob, ControlJobState, int>? StateChanged;
 
     public void Add(ControlJob controlJob)
     {
-        var entity = new CjEntity(controlJob);
+        ArgumentNullException.ThrowIfNull(controlJob);
+        if (string.IsNullOrWhiteSpace(controlJob.Id))
+        {
+            throw new ArgumentException("CJ ID 不能为空。", nameof(controlJob));
+        }
+
+        if (_jobs.TryGetValue(controlJob.Id, out var existing))
+        {
+            if (!ReferenceEquals(existing.ControlJob, controlJob))
+            {
+                throw new InvalidOperationException($"CJ {controlJob.Id} 已存在。");
+            }
+
+            return;
+        }
+
+        var stateMachine = new CjStateMachine();
+        stateMachine.CurrentState = controlJob.State;
+        var entity = new CjEntity(controlJob, stateMachine);
+        stateMachine.OnStateChanged += (previous, current) => OnStateChanged(entity, previous, current);
         _jobs.Add(controlJob.Id, entity);
-        entity.StateMachine.StateChanged += OnStateChanged;
-        entity.StateMachine.Fire(ControlStateAction.Create);
     }
 
     public void Remove(ControlJob controlJob)
     {
-        if (_jobs.Remove(controlJob.Id, out var entity))
+        if (_jobs.TryGetValue(controlJob.Id, out var entity)&& ReferenceEquals(entity.ControlJob, controlJob))
         {
-            entity.StateMachine.StateChanged -= OnStateChanged;
+            _jobs.Remove(controlJob.Id);
         }
     }
 
-    #endregion
-
-    public ControlJob? Find(string id)
+    public ControlJob? Get(string id)
     {
         if (_jobs.TryGetValue(id, out var entity))
         {
@@ -71,244 +86,187 @@ internal sealed class CjManager : ICjManager
         return null;
     }
 
-    #region CJ 命令（E94）
+    #endregion
 
-    public HandleResult Start(string id)
+    #region CJ 状态动作
+
+    public HandleResult Queue(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Start);
-        if (job.Ending != ControlJobEnding.None)
-        {
-            return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
-        }
-
-        if (!entity.StateMachine.Fire(ControlStateAction.Start))
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Queue);
     }
 
-    public HandleResult Pause(string id)
+    public HandleResult Select(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Pause);
-        if (job.Ending != ControlJobEnding.None)
-        {
-            return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
-        }
-
-        if (!entity.StateMachine.Fire(ControlStateAction.Pause))
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Select);
     }
 
-    public HandleResult Resume(string id)
+    public HandleResult Activate(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Resume);
-        if (job.Ending != ControlJobEnding.None)
-        {
-            return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
-        }
-
-        if (!entity.StateMachine.Fire(ControlStateAction.Resume))
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Activate);
     }
 
-    /// <summary>Stop：排队时删除；已激活则记录请求，等待执行结束。</summary>
-    public HandleResult Stop(string id)
+    public HandleResult Deselect(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Stop);
-        if (job.State == ControlJobState.Queued)
-        {
-            if (!entity.StateMachine.Fire(ControlStateAction.Dequeue))
-            {
-                return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-            }
-
-            return HandleResult.Success(job.Id);
-        }
-
-        if (job.State == ControlJobState.Completed)
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        if (job.Ending == ControlJobEnding.Abort || job.Ending == ControlJobEnding.Stop)
-        {
-            return HandleResult.Success(job.Id);
-        }
-
-        job.Ending = ControlJobEnding.Stop;
-        LogHelper.Info(LogModule, $"CJ {job.Id} 收下 {name}，等待执行结束");
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Deselect);
     }
 
-    /// <summary>Abort：排队时删除；已激活则记录请求，等待执行结束。</summary>
-    public HandleResult Abort(string id)
+    public HandleResult Pause(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Abort);
-        if (job.State == ControlJobState.Queued)
-        {
-            if (!entity.StateMachine.Fire(ControlStateAction.Dequeue))
-            {
-                return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-            }
-
-            return HandleResult.Success(job.Id);
-        }
-
-        if (job.State == ControlJobState.Completed)
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        if (job.Ending == ControlJobEnding.Abort)
-        {
-            return HandleResult.Success(job.Id);
-        }
-
-        job.Ending = ControlJobEnding.Abort;
-        LogHelper.Info(LogModule, $"CJ {job.Id} 收下 {name}，等待执行结束");
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Pause);
     }
 
-    public HandleResult Cancel(string id)
+    public HandleResult Resume(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Cancel);
-        if (job.Ending != ControlJobEnding.None)
-        {
-            return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
-        }
-
-        if (!entity.StateMachine.Fire(ControlStateAction.Dequeue))
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Resume);
     }
 
-    public HandleResult Deselect(string id)
+    public HandleResult Complete(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
-        {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
-        }
-
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.Deselect);
-        if (job.Ending != ControlJobEnding.None)
-        {
-            return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
-        }
-
-        if (!entity.StateMachine.Fire(ControlStateAction.Deselect))
-        {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
-        }
-
-        return HandleResult.Success(job.Id);
+        return Fire(controlJob, ControlStateAction.Complete);
     }
 
-    public HandleResult HeadOfQueue(string id)
+    public HandleResult Abort(ControlJob controlJob)
     {
-        id = id.Trim();
-        if (!_jobs.TryGetValue(id, out var entity) || entity.ControlJob.IsEnded)
+        return Fire(controlJob, ControlStateAction.Abort);
+    }
+
+    public HandleResult FinishAbort(ControlJob controlJob)
+    {
+        return Fire(controlJob, ControlStateAction.FinishAbort);
+    }
+
+    public HandleResult Rollback(ControlJob controlJob)
+    {
+        return Fire(controlJob, ControlStateAction.Rollback);
+    }
+
+    public HandleResult WaitForStart(ControlJob controlJob)
+    {
+        return Fire(controlJob, ControlStateAction.WaitForStart);
+    }
+
+    public HandleResult FinishStop(ControlJob controlJob)
+    {
+        return Fire(controlJob, ControlStateAction.FinishStop);
+    }
+
+    public HandleResult Dequeue(ControlJob controlJob)
+    {
+        return Fire(controlJob, ControlStateAction.Dequeue);
+    }
+
+    public HandleResult Delete(ControlJob controlJob)
+    {
+        return Fire(controlJob, ControlStateAction.Delete);
+    }
+
+    private HandleResult Fire(ControlJob controlJob, ControlStateAction action)
+    {
+        if (controlJob is null)
         {
-            return HandleResult.Fail(ErrorCodes.JobNotFound, id);
+            return HandleResult.Fail(ErrorCodes.JobNotFound, string.Empty);
         }
 
-        var job = entity.ControlJob;
-        string name = JobNames.Of(ControlJobCommand.HeadOfQueue);
-        if (job.Ending != ControlJobEnding.None)
+        if (!_jobs.TryGetValue(controlJob.Id, out var entity)
+            || !ReferenceEquals(entity.ControlJob, controlJob) || controlJob.IsEnded)
         {
-            return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
+            return HandleResult.Fail(ErrorCodes.JobNotFound, controlJob.Id);
         }
 
-        if (job.State != ControlJobState.Queued)
+        entity.Action = action;
+        var result = entity.StateMachine.StateChange(action);
+        if (!result.IsSuccess)
         {
-            return HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, job.Id, name, JobNames.Of(job.State));
+            return HandleResult.Fail(result.ErrorMessage,
+                controlJob.Id, action.ToString(), JobNames.Of(controlJob.State));
         }
 
-        var ordered = _jobs.Values.ToList();
-        ordered.Remove(entity);
-        int head = ordered.FindIndex(current => current.ControlJob.State == ControlJobState.Queued);
-        ordered.Insert(head < 0 ? ordered.Count : head, entity);
-        _jobs.Clear();
-        foreach (var current in ordered)
-        {
-            _jobs.Add(current.ControlJob.Id, current);
-        }
-
-        return HandleResult.Success(job.Id);
+        return HandleResult.Success(controlJob.Id);
     }
 
     #endregion
 
-    private void OnStateChanged(ControlJob job, ControlJobState from, ControlJobState to)
+    #region CJ 状态通知
+
+    private void OnStateChanged(CjEntity entity, ControlJobState previous, ControlJobState current)
     {
-        if (job.IsEnded)
+        var job = entity.ControlJob;
+        job.State = current;
+        int e94TransitionNumber = 0;
+        switch (entity.Action)
         {
-            Remove(job);
+            case ControlStateAction.Queue:
+                e94TransitionNumber = 1;
+                break;
+            case ControlStateAction.Dequeue:
+                e94TransitionNumber = 2;
+                break;
+            case ControlStateAction.Select:
+                e94TransitionNumber = 3;
+                break;
+            case ControlStateAction.Deselect:
+                e94TransitionNumber = 4;
+                break;
+            case ControlStateAction.Activate:
+                e94TransitionNumber = previous == ControlJobState.WaitingForStart ? 7 : 5;
+                break;
+            case ControlStateAction.WaitForStart:
+                e94TransitionNumber = 6;
+                break;
+            case ControlStateAction.Pause:
+                e94TransitionNumber = 8;
+                break;
+            case ControlStateAction.Resume:
+                e94TransitionNumber = 9;
+                break;
+            case ControlStateAction.Complete:
+                e94TransitionNumber = 10;
+                break;
+            case ControlStateAction.FinishStop:
+                e94TransitionNumber = 11;
+                break;
+            case ControlStateAction.FinishAbort:
+                e94TransitionNumber = 12;
+                break;
+            case ControlStateAction.Delete:
+                e94TransitionNumber = 13;
+                break;
         }
 
-        Report(job, job.TransitionNumber, from, job.IsEnded ? null : to);
+        var now = DateTime.Now;
+        if (current == ControlJobState.Executing && job.StartedAt is null)
+        {
+            job.StartedAt = now;
+        }
+
+        if (current == ControlJobState.Aborting)
+        {
+            job.StateBeforeAbort = previous;
+            job.Ending = ControlJobEnding.Abort;
+        }
+
+        if (current is ControlJobState.Completed or ControlJobState.Aborted && job.CompletedAt is null)
+        {
+            job.CompletedAt = now;
+            job.CompletedBy = e94TransitionNumber;
+        }
+
+        if (entity.Action is ControlStateAction.Dequeue or ControlStateAction.Delete)
+        {
+            job.EndedBy = e94TransitionNumber;
+            job.EndedAt = now;
+        }
+
+        LogHelper.Info("Job", $"CJ {job.Id}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
+        StateChanged?.Invoke(job, current, e94TransitionNumber);
     }
 
-    /// <summary>CJ 转了（含刚建好的 #1）：记一行日志，告诉 Job 组件。</summary>
-    private void Report(ControlJob job, int number, ControlJobState? from, ControlJobState? to)
+    #endregion
+
+    private sealed class CjEntity(ControlJob controlJob, CjStateMachine stateMachine)
     {
-        LogHelper.Info(LogModule, $"CJ {job.Id} E94 #{number}：{JobNames.Of(from)} → {JobNames.Of(to)}");
-        StateChanged?.Invoke(job, job.State);
+        public ControlJob ControlJob { get; } = controlJob;
+        public CjStateMachine StateMachine { get; } = stateMachine;
+        public ControlStateAction Action { get; set; }
     }
 }

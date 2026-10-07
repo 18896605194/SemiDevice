@@ -1,34 +1,32 @@
 ﻿using xyz.Components.Enums;
-using xyz.Components.Models;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
-
 public interface ICjManager
 {
-    event Action<ControlJob, ControlJobState>? StateChanged;
+    event Action<ControlJob, ControlJobState, int>? StateChanged;
 
-    /// <summary>按 CJ ID 保存对应的运行实体。</summary>
-    IReadOnlyDictionary<string, CjEntity> Jobs { get; }
+    IReadOnlyList<ControlJob> ControlJobs { get; }
 
     void Add(ControlJob controlJob);
-
     void Remove(ControlJob controlJob);
-
-    ControlJob? Find(string id);
-
+    ControlJob? Get(string id);
     ControlJob? FindByCarrier(string carrierId);
-
     ControlJob? FindByLoadPort(string loadPort);
 
-    HandleResult Start(string id);
-    HandleResult Pause(string id);
-    HandleResult Resume(string id);
-    HandleResult Stop(string id);
-    HandleResult Abort(string id);
-    HandleResult Cancel(string id);
-    HandleResult Deselect(string id);
-    HandleResult HeadOfQueue(string id);
-
+    HandleResult Queue(ControlJob controlJob);
+    HandleResult Select(ControlJob controlJob);
+    HandleResult Activate(ControlJob controlJob);
+    HandleResult Deselect(ControlJob controlJob);
+    HandleResult Pause(ControlJob controlJob);
+    HandleResult Resume(ControlJob controlJob);
+    HandleResult Complete(ControlJob controlJob);
+    HandleResult Abort(ControlJob controlJob);
+    HandleResult FinishAbort(ControlJob controlJob);
+    HandleResult Rollback(ControlJob controlJob);
+    HandleResult WaitForStart(ControlJob controlJob);
+    HandleResult FinishStop(ControlJob controlJob);
+    HandleResult Dequeue(ControlJob controlJob);
+    HandleResult Delete(ControlJob controlJob);
 }

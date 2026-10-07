@@ -161,59 +161,132 @@ try
     jobs.Database = "JobSmoke";
     jobs.Bind(modules);
 
-    // CJ 管理只依赖自己的字典与状态机，多 CJ 的状态独立；Remove 只移除实体。
-    var controls = (ICjManager)Activator.CreateInstance(
-        typeof(JobManager).Assembly.GetType("xyz.Modules.CjManager")!, nonPublic: true)!;
+    // CJ 管理按参考用对象提交事件，注册与入队分开，实体和状态机不对外暴露。
+    ICjManager controls = new CjManager();
     var controlEvents = new List<(string Id, ControlJobState State)>();
-    controls.StateChanged += (job, state) => controlEvents.Add((job.Id, state));
+    var controlTransitions = new List<(string Id, ControlJobState State, int Number)>();
+    controls.StateChanged += (job, state, number) =>
+    {
+        controlEvents.Add((job.Id, state));
+        controlTransitions.Add((job.Id, state, number));
+    };
     var controlA = new ControlJob { Id = "CJ-DICT-A", LoadPort = "LP1" };
     var controlB = new ControlJob { Id = "CJ-DICT-B", LoadPort = "LP2" };
-    Check(controlA.State == ControlJobState.Create && controlB.State == ControlJobState.Create,
-        "ControlJob 对象初始为 Create");
     controls.Add(controlA);
     controls.Add(controlB);
-    Check(controlEvents.SequenceEqual(new[]
-        {
-            ("CJ-DICT-A", ControlJobState.Queued), ("CJ-DICT-B", ControlJobState.Queued),
-        }), "Add 后各自进入 Queued，事件参数为 ControlJobState");
-    Check(controls.HeadOfQueue("cj-dict-b").IsSuccess
-          && controls.Jobs.Values.Select(entity => entity.ControlJob.Id)
-              .SequenceEqual(new[] { "CJ-DICT-B", "CJ-DICT-A" }), "按名称查字典，HOQ 调整待执行 CJ 顺序");
-    Check(!controls.Jobs[controlA.Id].StateMachine.Fire(ControlStateAction.Start)
-          && controlA.State == ControlJobState.Queued, "状态表拒绝 Queued 直接 Start");
-    foreach (var entity in controls.Jobs.Values)
+    controls.Add(controlA);
+    Check(controlA.State == ControlJobState.Created && controlB.State == ControlJobState.Created
+          && controlEvents.Count == 0 && controls.ControlJobs.Count == 2,
+        "Add 只注册；重复添加同一对象不重复注册、不自动入队");
+    bool duplicateRejected = false;
+    try
     {
-        entity.StateMachine.Fire(ControlStateAction.Select);
-        entity.StateMachine.Fire(ControlStateAction.MaterialReadyWait);
+        controls.Add(new ControlJob { Id = controlA.Id.ToLowerInvariant(), LoadPort = "LP1" });
     }
-    Check(controls.Start("cj-dict-a").IsSuccess && controlA.State == ControlJobState.Executing
-          && controlB.State == ControlJobState.WaitingForStart, "按 ID 启动自己的状态机，不影响另一个 CJ");
-    Check(controls.Pause(controlA.Id).IsSuccess && controls.Resume(controlA.Id).IsSuccess
-          && controlB.State == ControlJobState.WaitingForStart, "暂停恢复的状态机互相独立");
-    Check(controls.Stop(controlA.Id).IsSuccess && controlA.State == ControlJobState.Executing,
-        "CJ 收到 Stop 后等待 JobManager 确认执行结束");
-    controls.Jobs[controlA.Id].StateMachine.Fire(ControlStateAction.Stopped);
-    Check(controlA.State == ControlJobState.Completed && controlA.CompletedBy == 11,
-        "JobManager 确认后 CJ 走停止完成转换");
+    catch (InvalidOperationException)
+    {
+        duplicateRejected = true;
+    }
+    Check(duplicateRejected && ReferenceEquals(controls.Get("cj-dict-a"), controlA),
+        "同 ID 的不同对象拒绝覆盖，字典按名称忽略大小写查询");
+    Check(controls.Queue(controlA).IsSuccess && controls.Queue(controlB).IsSuccess
+          && controlEvents.SequenceEqual(new[]
+          {
+              ("CJ-DICT-A", ControlJobState.Queued), ("CJ-DICT-B", ControlJobState.Queued),
+          }), "Queue 提交独立动作入队，状态通知同步更新 CJ");
+    Check(controls.ControlJobs.Select(control => control.Id).SequenceEqual(new[] { "CJ-DICT-A", "CJ-DICT-B" }),
+        "CJ 保持添加顺序，不主动调整字典");
+    Check(!controls.Activate(controlA).IsSuccess && controlA.State == ControlJobState.Queued,
+        "状态表拒绝 Queued 直接 Activate");
+    foreach (var control in controls.ControlJobs)
+    {
+        Check(controls.Select(control).IsSuccess && controls.WaitForStart(control).IsSuccess,
+            "每个 CJ 可以独立选中并等待手动启动");
+    }
+    Check(controls.Activate(controlA).IsSuccess && controlA.State == ControlJobState.Executing
+          && controlB.State == ControlJobState.WaitingForStart, "按对象启动独立状态机，不影响另一个 CJ");
+    Check(controlTransitions.Last() == (controlA.Id, ControlJobState.Executing, 7),
+        "手动启动时直接通过事件传 E94 #7，不从 CJ 对象读取转换编号");
+    Check(controls.Pause(controlA).IsSuccess && controls.Resume(controlA).IsSuccess,
+        "执行中的 CJ 暂停后可以恢复");
+    Check(controls.Rollback(controlA).IsSuccess && controlA.State == ControlJobState.Selected
+          && controls.Activate(controlA).IsSuccess, "启动失败可回滚 Selected 后重新激活");
+    Check(controlTransitions.Last() == (controlA.Id, ControlJobState.Executing, 5),
+        "同样进入 Executing，Selected 激活通过事件传 E94 #5");
+    Check(controls.Pause(controlA).IsSuccess && controls.Complete(controlA).IsSuccess
+          && controlA.State == ControlJobState.Completed && controlA.CompletedBy == 10,
+        "最后一行完成与 Pause 相遇时，CJ 仍能完成收口");
     controls.Remove(controlA);
-    Check(controls.Find(controlA.Id) is null && controlA.State == ControlJobState.Completed
-          && controls.Find(controlB.Id) == controlB, "Remove 只移除指定实体，保留对象状态及其他 CJ");
+    Check(controls.Get(controlA.Id) is null && controlA.State == ControlJobState.Completed
+          && ReferenceEquals(controls.Get(controlB.Id), controlB), "Remove 只移除指定对象，不改变状态或其他 CJ");
     var replacementControl = new ControlJob { Id = controlA.Id, LoadPort = "LP1" };
     controls.Add(replacementControl);
-    Check(replacementControl.State == ControlJobState.Queued && controls.Cancel(replacementControl.Id).IsSuccess
-          && controls.Find(controlB.Id) == controlB, "移除后可添加同 ID 的新实体，取消不影响其他 CJ");
-    Check(controls.Start(controlB.Id).IsSuccess && controls.Abort(controlB.Id).IsSuccess,
-        "剩余实体仍可启动和中止");
-    var endedControlMachine = controls.Jobs[controlB.Id].StateMachine;
-    endedControlMachine.Fire(ControlStateAction.Aborted);
-    endedControlMachine.Fire(ControlStateAction.Delete);
-    Check(controls.Jobs.Count == 0 && controlB.CompletedBy == 12 && controlB.EndedBy == 13,
-        "中止完成和载具离位删除仍走对应转换");
+    controls.Remove(controlA);
+    Check(ReferenceEquals(controls.Get(controlA.Id), replacementControl)
+          && !controls.Queue(controlA).IsSuccess, "旧对象的 Remove 或动作不能操作同 ID 的新对象");
+    Check(controls.Queue(replacementControl).IsSuccess && controls.Dequeue(replacementControl).IsSuccess
+          && replacementControl.EndedBy == 2, "排队删除保留 E94 #2 记录");
+    controls.Remove(replacementControl);
+    Check(controls.Activate(controlB).IsSuccess && controls.Abort(controlB).IsSuccess
+          && controlB.State == ControlJobState.Aborting && !controlB.CanStartProcessJobs,
+        "Abort 立即进入 Aborting，并停止启动新 PJ");
+    Check(!controls.Complete(controlB).IsSuccess && controls.FinishAbort(controlB).IsSuccess
+          && controlB.State == ControlJobState.Aborted && controlB.CompletedBy == 12
+          && controlB.CompletedAt is not null, "中止收尾进入 Aborted，完成时间及 E94 #12 保留");
+    Check(controls.Delete(controlB).IsSuccess && controlB.EndedBy == 13,
+        "中止后的载具离位删除走 E94 #13");
     int endedControlEvents = controlEvents.Count;
     var endedControlAt = controlB.EndedAt;
-    Check(!endedControlMachine.Fire(ControlStateAction.Delete)
-          && controlEvents.Count == endedControlEvents && controlB.EndedAt == endedControlAt,
-        "已删除 CJ 即使保留状态机引用，也拒绝重复转换，不重报事件或覆盖结束时间");
+    Check(!controls.Delete(controlB).IsSuccess && controlEvents.Count == endedControlEvents
+          && controlB.EndedAt == endedControlAt, "结束对象拒绝重复动作，不覆盖结束时间或重报事件");
+    controls.Remove(controlB);
+    Check(controls.ControlJobs.Count == 0, "Remove 后所有实体都从字典移除");
+
+    // 泛型状态机验证检查失败、动作顺序、执行错误和收尾错误；规则可复用于其他模块。
+    var stateFlow = new SmokeStateMachine();
+    var flowTrace = new List<string>();
+    bool ready = false;
+    var flowTransition = new xyz.Modules.StateMachines.StateTransition<ControlJobState>
+    {
+        TargetState = ControlJobState.Queued,
+        ProcessState = ControlJobState.Selected,
+        OnEntry = _ => flowTrace.Add("Entry"),
+        PreCheck = _ => { flowTrace.Add("Check"); return ready; },
+        Execute = _ => { flowTrace.Add("Execute"); return HandleResult.Success("payload"); },
+        OnExit = _ => { flowTrace.Add("Exit"); return HandleResult.Success(); },
+        ErrorHandler = (_, _) => flowTrace.Add("Error"),
+    };
+    stateFlow.Transitions[(ControlJobState.Created, ControlStateAction.Queue)] = flowTransition;
+    stateFlow.OnStateChanged += (_, current) => flowTrace.Add("State:" + current);
+    Check(!stateFlow.StateChange(ControlStateAction.Queue).IsSuccess
+          && stateFlow.CurrentState == ControlJobState.Created && flowTrace.SequenceEqual(["Entry", "Check"]),
+        "PreCheck 未通过时不执行动作，也不进入中间或目标状态");
+    ready = true;
+    flowTrace.Clear();
+    var flowResult = stateFlow.StateChange(ControlStateAction.Queue);
+    Check(flowResult.IsSuccess && (string?)flowResult.Result == "payload"
+          && flowTrace.SequenceEqual(["Entry", "Check", "State:Selected", "Execute", "State:Queued", "Exit"]),
+        "成功转换按 Entry、Check、中间状态、Execute、目标状态、Exit 顺序，保留动作结果");
+    stateFlow.CurrentState = ControlJobState.Created;
+    flowTrace.Clear();
+    flowTransition.Execute = _ => HandleResult.Fail(ErrorCodes.JobDisabled);
+    Check(!stateFlow.StateChange(ControlStateAction.Queue).IsSuccess
+          && stateFlow.CurrentState == ControlJobState.Aborted
+          && flowTrace.Last() == "Error" && !flowTrace.Contains("Exit"),
+        "Execute 失败进入派生类的错误状态并调用错误处理，不执行正常收尾");
+    stateFlow.CurrentState = ControlJobState.Created;
+    flowTrace.Clear();
+    flowTransition.Execute = _ => throw new InvalidOperationException("smoke failure");
+    Check(stateFlow.StateChange(ControlStateAction.Queue).ErrorMessage == ErrorCodes.OperationFaulted
+          && stateFlow.CurrentState == ControlJobState.Aborted && flowTrace.Count(item => item == "Error") == 1,
+        "动作异常返回失败，进入错误状态并调用一次错误处理");
+    stateFlow.CurrentState = ControlJobState.Created;
+    flowTrace.Clear();
+    flowTransition.Execute = _ => HandleResult.Success();
+    flowTransition.OnExit = _ => HandleResult.Fail(ErrorCodes.JobDisabled);
+    Check(!stateFlow.StateChange(ControlStateAction.Queue).IsSuccess
+          && stateFlow.CurrentState == ControlJobState.Queued && flowTrace.Last() == "Error",
+        "目标状态已到达但收尾失败时返回失败并调用错误处理");
 
     // 展开命令公共处理后，所有入口仍检查禁用状态，并在与扫描争用锁时返回超时。
     (string Name, Func<Task<HandleResult>> Run)[] guardedCommands =
@@ -567,6 +640,11 @@ try
         "SEQ_B 两站：每一站放片、工艺、取片，最后回片（任务记着属于路线第几站）");
 
     Check(RunUntil(() => CjOf("LOT-A")?.State == (int)ControlJobState.WaitingForStart, 20), "CJ 选中（#3，不限同时跑几个），料到了等启动（#6）");
+    Refuses(Do(jobs.ExecuteControlJobCommandAsync("LOT-A", ControlJobCommand.HeadOfQueue, ControlJobAction.SaveJobs)),
+        ErrorCodes.JobCommandNotAllowed, ["LOT-A", "CJHeadOfQueue", "WAITINGFORSTART"],
+        "HOQ 明确拒绝，不更改 CJ 状态或字典顺序");
+    Check(CjOf("LOT-A")?.E94State == 2 && CjOf("LOT-A")?.State == ControlJobDto.StateWaitingForStart,
+        "手动启动的内部状态编号与界面一致，E94 仍上报 WAITINGFORSTART = 2");
     Check(CjOf("LOT-A")?.AutoStart == false, "SC 关闭 CJ 自动启动时，查询与上报也反映等待 Start");
     Check(PjOf("LOT-A-1")?.State == (int)ProcessJobState.QueuedPooled && PjOf("LOT-A-2")?.State == (int)ProcessJobState.QueuedPooled,
         "CJ 没启动前 PJ 都排着");
@@ -994,8 +1072,10 @@ try
     var stop = equipment.StopAsync(new RpcRequest()).Result;
     Check(stop.Success && stop.DeserializeData<int>() == 0 && !transfers.IsAutoDispatch,
         "整机停止：关自动派单；在给 Job 做工艺的腔体不在这里直接发中止");
-    Check(RunUntil(() => CjOf("LOT-E")?.State == (int)ControlJobState.Completed) && CjOf("LOT-E")?.CompletedBy == 12
-          && PjOf("LOT-E-1")?.EndedBy == 16, "Job 走中止：PJ #16、CJ #12");
+    Check(CjOf("LOT-E")?.State == (int)ControlJobState.Aborting && CjOf("LOT-E")?.E94State == 3,
+        "内部进入 Aborting，E94 收尾期间仍上报 EXECUTING");
+    Check(RunUntil(() => CjOf("LOT-E")?.State == (int)ControlJobState.Aborted) && CjOf("LOT-E")?.CompletedBy == 12
+          && PjOf("LOT-E-1")?.EndedBy == 16 && CjOf("LOT-E")?.E94State == 5, "Job 走中止：PJ #16、CJ #12，内部 Aborted 上报 E94 COMPLETED");
     foreach (var chamber in new[] { pm1, pm2 })
     {
         if (ledger.Get(chamber.Name, 1) is not null)
@@ -1114,7 +1194,7 @@ try
         {
             var rows = db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-R").ToList();
             return rows.Count == 1 && rows[0].Restarted && rows[0].CompletedBy == 12 && rows[0].EndedBy == 13
-                && rows[0].State == (int)ControlJobState.Completed;
+                && rows[0].State == 5; // 历史记录保留 E94 状态编号。
         }),
         "上次没做完的 CJ 库里记成中止（#12）、标着重启、删掉（#13）");
     Check(WaitDb(db =>
@@ -1430,5 +1510,13 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
     public int IndexOf(string item)
     {
         return _events.ToList().IndexOf(item);
+    }
+}
+
+sealed class SmokeStateMachine : xyz.Modules.StateMachines.BaseStateMachine<ControlJobState, ControlStateAction>
+{
+    protected override ControlJobState? GetErrorState()
+    {
+        return ControlJobState.Aborted;
     }
 }

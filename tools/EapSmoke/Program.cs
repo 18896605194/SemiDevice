@@ -666,6 +666,38 @@ await Event("Eap.E40.PrJobSMTrans05", mark, "PJ 状态转换报事件（#5）");
 jobs.E94Callback!.ControlJobStateChanged(jobs.Snapshot.ControlJobs[0], 7);
 await Event("Eap.E94.CtrlJobSMTrans07", mark, "CJ 状态转换报事件（#7）");
 
+// CJ 内部状态改成参考定义后，属性查询和事件中的状态仍使用 E94 值。
+Check((await Send(2, 33, DefineReport(10, (uint)Dvid("Eap.E94.ControlJobState")))).Body!.GetBinary()[0] == 0
+      && (await Send(2, 35, LinkReport((uint)Ceid("Eap.E94.CtrlJobSMTrans12"), 10))).Body!.GetBinary()[0] == 0,
+    "CJ 中止完成事件挂状态报告");
+var mappedControl = jobs.Snapshot.ControlJobs[0];
+(ControlJobState Internal, int Wire)[] controlStateMappings =
+[
+    (ControlJobState.Queued, 0),
+    (ControlJobState.Selected, 1),
+    (ControlJobState.WaitingForStart, 2),
+    (ControlJobState.Aborting, 3),
+    (ControlJobState.Aborted, 5),
+    (ControlJobState.Completed, 5),
+];
+foreach (var mapping in controlStateMappings)
+{
+    mappedControl.State = (int)mapping.Internal;
+    mappedControl.E94State = mapping.Wire;
+    var mappedAttributes = await Send(14, 1, GetAttr("ControlJob", ["CJ-1"], SecsItem.L(), "State"));
+    Check(mappedAttributes.Body!.Items[0].Items[0].Items[1].Items[0].Items[1].GetUInt64() == (ulong)mapping.Wire,
+        $"内部 {mapping.Internal} 的 S14F1 状态查询使用 E94 {mapping.Wire}");
+}
+mappedControl.State = (int)ControlJobState.Aborted;
+mappedControl.E94State = 5;
+mark = host.EventCount;
+jobs.E94Callback!.ControlJobStateChanged(mappedControl, 12);
+var abortCompleted = await Event("Eap.E94.CtrlJobSMTrans12", mark, "内部 Aborted 仍报 E94 #12");
+Check(abortCompleted.Body!.Items[2].Items[0].Items[1].Items[0].GetUInt64() == 5,
+    "CJ 中止完成事件报告 COMPLETED = 5，不报告内部 Aborted = 6");
+mappedControl.State = 3;
+mappedControl.E94State = null;
+
 // ── 配方管理（E30 工艺程序管理，S7）：配方号就是配方名，按名字到两个库里找；新名字看 JSON 的样子分库 ─────────────
 var recipes = eap.FindChild<E30RecipeComponent>()!;
 Check(ReferenceEquals(sequences.E30Callback, recipes) && ReferenceEquals(processRecipes.E30Callback, recipes), "配方管理挂到两个独立的配方库接口上");

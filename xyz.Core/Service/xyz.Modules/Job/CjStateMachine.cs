@@ -3,57 +3,78 @@ using xyz.Modules.StateMachines;
 
 namespace xyz.Modules;
 
-/// <summary>一个 CJ 的状态机；状态直接保存在对应的 ControlJob 中。</summary>
-public sealed class CjStateMachine : StateMachine<ControlJobState, ControlStateAction>
+/// <summary>CJ 状态机；只维护状态和转换表，不持有 ControlJob 或 PJ。</summary>
+public sealed class CjStateMachine : BaseStateMachine<ControlJobState, ControlStateAction>
 {
-    private readonly ControlJob _job;
-
-    public CjStateMachine(ControlJob job) : base(ControlJobStateTable.Transitions)
+    public CjStateMachine()
     {
-        _job = job;
+        CurrentState = ControlJobState.Created;
+        Transitions = BuildTransitions();
     }
 
-    public override ControlJobState State
+    #region CJ 状态表
+
+    private static Dictionary<(ControlJobState, ControlStateAction), StateTransition<ControlJobState>> BuildTransitions()
     {
-        get { return _job.State; }
-        protected set { _job.State = value; }
-    }
-
-    internal event Action<ControlJob, ControlJobState, ControlJobState>? StateChanged;
-
-    #region CJ 状态转换
-
-    protected override bool CanFire(ControlStateAction action)
-    {
-        return !_job.IsEnded;
-    }
-
-    protected override void OnTransition(ControlJobState from, StateTransition<ControlJobState> transition)
-    {
-        var job = _job;
-        var to = transition.State;
-        int number = transition.Number;
-        job.TransitionNumber = number;
-
-        var now = DateTime.Now;
-        if (to == ControlJobState.Executing && job.StartedAt is null)
+        return new Dictionary<(ControlJobState, ControlStateAction), StateTransition<ControlJobState>>
         {
-            job.StartedAt = now;
-        }
+            [(ControlJobState.Created, ControlStateAction.Queue)] =
+                new() { TargetState = ControlJobState.Queued },
+            [(ControlJobState.Queued, ControlStateAction.Select)] =
+                new() { TargetState = ControlJobState.Selected },
+            [(ControlJobState.Selected, ControlStateAction.Activate)] =
+                new() { TargetState = ControlJobState.Executing },
+            [(ControlJobState.Selected, ControlStateAction.Deselect)] =
+                new() { TargetState = ControlJobState.Queued },
+            [(ControlJobState.Executing, ControlStateAction.Rollback)] =
+                new() { TargetState = ControlJobState.Selected },
+            [(ControlJobState.Executing, ControlStateAction.Pause)] =
+                new() { TargetState = ControlJobState.Paused },
+            [(ControlJobState.Paused, ControlStateAction.Resume)] =
+                new() { TargetState = ControlJobState.Executing },
+            [(ControlJobState.Executing, ControlStateAction.Complete)] =
+                new() { TargetState = ControlJobState.Completed },
+            [(ControlJobState.Paused, ControlStateAction.Complete)] =
+                new() { TargetState = ControlJobState.Completed },
 
-        if (to == ControlJobState.Completed && from != ControlJobState.Completed)
-        {
-            job.CompletedAt = now;
-            job.CompletedBy = number;
-        }
+            // 中止：先停止推进，执行收尾后进入独立的 Aborted 终态。
+            [(ControlJobState.Created, ControlStateAction.Abort)] =
+                new() { TargetState = ControlJobState.Aborting },
+            [(ControlJobState.Queued, ControlStateAction.Abort)] =
+                new() { TargetState = ControlJobState.Aborting },
+            [(ControlJobState.Selected, ControlStateAction.Abort)] =
+                new() { TargetState = ControlJobState.Aborting },
+            [(ControlJobState.WaitingForStart, ControlStateAction.Abort)] =
+                new() { TargetState = ControlJobState.Aborting },
+            [(ControlJobState.Executing, ControlStateAction.Abort)] =
+                new() { TargetState = ControlJobState.Aborting },
+            [(ControlJobState.Paused, ControlStateAction.Abort)] =
+                new() { TargetState = ControlJobState.Aborting },
+            [(ControlJobState.Aborting, ControlStateAction.FinishAbort)] =
+                new() { TargetState = ControlJobState.Aborted },
 
-        if (transition.Ends)
-        {
-            job.EndedBy = number;
-            job.EndedAt = now;
-        }
+            // 参考表未接入 WaitingForStart；保留本设备由 SC 决定的手动启动路径。
+            [(ControlJobState.Selected, ControlStateAction.WaitForStart)] =
+                new() { TargetState = ControlJobState.WaitingForStart },
+            [(ControlJobState.WaitingForStart, ControlStateAction.Activate)] =
+                new() { TargetState = ControlJobState.Executing },
 
-        StateChanged?.Invoke(job, from, to);
+            // Stop 收尾以及 E94 #2 / #13 删除。
+            [(ControlJobState.Selected, ControlStateAction.FinishStop)] =
+                new() { TargetState = ControlJobState.Completed },
+            [(ControlJobState.WaitingForStart, ControlStateAction.FinishStop)] =
+                new() { TargetState = ControlJobState.Completed },
+            [(ControlJobState.Executing, ControlStateAction.FinishStop)] =
+                new() { TargetState = ControlJobState.Completed },
+            [(ControlJobState.Paused, ControlStateAction.FinishStop)] =
+                new() { TargetState = ControlJobState.Completed },
+            [(ControlJobState.Queued, ControlStateAction.Dequeue)] =
+                new() { TargetState = ControlJobState.Queued },
+            [(ControlJobState.Completed, ControlStateAction.Delete)] =
+                new() { TargetState = ControlJobState.Completed },
+            [(ControlJobState.Aborted, ControlStateAction.Delete)] =
+                new() { TargetState = ControlJobState.Aborted },
+        };
     }
 
     #endregion

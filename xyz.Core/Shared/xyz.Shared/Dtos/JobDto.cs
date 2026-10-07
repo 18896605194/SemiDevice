@@ -3,7 +3,7 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没删的 CJ、界面要看的 PJ（状态值照 SEMI E94 / E40，每片带它的一行任务）。
+/// Job 全貌（推送，留存；token = <see cref="EventToken"/>）：没删的 CJ、界面要看的 PJ（CJ 状态为内部状态，PJ 状态照 E40，每片带它的一行任务）。
 /// 客户端重连后拿到当前快照。删掉的 CJ、结束的 PJ 在库里（control_job、process_job 两张表）。
 /// </summary>
 public class JobListDto
@@ -22,8 +22,8 @@ public class JobListDto
 /// </summary>
 public class ControlJobDto
 {
-    /// <summary>E94 状态值 WAITINGFORSTART：料到了，等启动命令。</summary>
-    public const int StateWaitingForStart = 2;
+    /// <summary>内部 WaitingForStart 状态：料到了，等启动命令。</summary>
+    public const int StateWaitingForStart = 8;
 
     public string Id { get; set; } = string.Empty;
 
@@ -33,8 +33,11 @@ public class ControlJobDto
 
     public string LotId { get; set; } = string.Empty;
 
-    /// <summary>E94 状态值：0 QUEUED、1 SELECTED、2 WAITINGFORSTART、3 EXECUTING、4 PAUSED、5 COMPLETED。</summary>
+    /// <summary>内部 CJ 状态：0 Created、1 Queued、2 Selected、3 Executing、4 Paused、5 Aborting、6 Aborted、7 Completed、8 WaitingForStart。</summary>
     public int State { get; set; }
+
+    /// <summary>E94 上报状态（0~5）；旧 DTO 未提供此字段时沿用 State。</summary>
+    public int? E94State { get; set; }
 
     /// <summary>StartMethod：设备 SC 的 CJ 自动启动配置值，用于查询和上报。</summary>
     public bool AutoStart { get; set; }

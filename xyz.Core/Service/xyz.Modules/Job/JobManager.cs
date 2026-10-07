@@ -405,6 +405,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             _controlJobs.Add(job);
+            _controlJobs.Queue(job);
 
             Publish();
             return Task.FromResult(HandleResult.Success(job.Id));
@@ -465,40 +466,107 @@ public class JobManager : ComponentBase, IJobManager
         try
         {
             // 启动要 Auto：Manual 下不派动作，启动了也跑不起来
-            if (command == ControlJobCommand.Start && !IsAuto && _controlJobs.Find(id.Trim()) is not null)
+            if (command == ControlJobCommand.Start && !IsAuto && _controlJobs.Get(id.Trim()) is not null)
             {
                 Publish();
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotAuto));
             }
 
-            var controlJob = _controlJobs.Find(id.Trim());
-            var previousEnding = controlJob?.Ending ?? ControlJobEnding.None;
-            bool endingCommand = command == ControlJobCommand.Stop || command == ControlJobCommand.Abort
-                || command == ControlJobCommand.Cancel;
-            if (controlJob is not null && controlJob.State == ControlJobState.Queued
-                && controlJob.Ending == ControlJobEnding.None && endingCommand)
+            id = id.Trim();
+            var controlJob = _controlJobs.Get(id);
+            if (controlJob is null)
             {
-                EndControlJobProcesses(controlJob, command, action);
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNotFound, id));
             }
 
-            var result = command switch
+            if (controlJob.Ending != ControlJobEnding.None
+                && command != ControlJobCommand.Stop && command != ControlJobCommand.Abort)
             {
-                ControlJobCommand.Start => _controlJobs.Start(id),
-                ControlJobCommand.Pause => _controlJobs.Pause(id),
-                ControlJobCommand.Resume => _controlJobs.Resume(id),
-                ControlJobCommand.Stop => _controlJobs.Stop(id),
-                ControlJobCommand.Abort => _controlJobs.Abort(id),
-                ControlJobCommand.Cancel => _controlJobs.Cancel(id),
-                ControlJobCommand.Deselect => _controlJobs.Deselect(id),
-                ControlJobCommand.HeadOfQueue => _controlJobs.HeadOfQueue(id),
-                _ => HandleResult.Fail(ErrorCodes.JobCommandNotAllowed, id.Trim(), command.ToString(), string.Empty),
-            };
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobEnding, id, JobNames.Of(command)));
+            }
 
-            if (result.IsSuccess && controlJob is not null && !controlJob.IsEnded
-                && controlJob.Ending != previousEnding
-                && (command == ControlJobCommand.Stop || command == ControlJobCommand.Abort))
+            HandleResult result;
+            switch (command)
             {
-                EndControlJobProcesses(controlJob, command, action);
+                case ControlJobCommand.Start:
+                    if (controlJob.State != ControlJobState.WaitingForStart)
+                    {
+                        result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                            id, JobNames.Of(command), JobNames.Of(controlJob.State));
+                        break;
+                    }
+
+                    result = _controlJobs.Activate(controlJob);
+                    break;
+                case ControlJobCommand.Pause:
+                    result = _controlJobs.Pause(controlJob);
+                    break;
+                case ControlJobCommand.Resume:
+                    result = _controlJobs.Resume(controlJob);
+                    break;
+                case ControlJobCommand.Cancel:
+                    if (controlJob.State == ControlJobState.Queued)
+                    {
+                        EndControlJobProcesses(controlJob, command, action);
+                    }
+
+                    result = _controlJobs.Dequeue(controlJob);
+                    break;
+                case ControlJobCommand.Stop:
+                    if (controlJob.State == ControlJobState.Queued)
+                    {
+                        EndControlJobProcesses(controlJob, command, action);
+                        result = _controlJobs.Dequeue(controlJob);
+                    }
+                    else if (!controlJob.IsActive)
+                    {
+                        result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                            id, JobNames.Of(command), JobNames.Of(controlJob.State));
+                    }
+                    else
+                    {
+                        if (controlJob.Ending == ControlJobEnding.None)
+                        {
+                            controlJob.Ending = ControlJobEnding.Stop;
+                            EndControlJobProcesses(controlJob, command, action);
+                        }
+
+                        result = HandleResult.Success(id);
+                    }
+
+                    break;
+                case ControlJobCommand.Abort:
+                    if (controlJob.State == ControlJobState.Queued)
+                    {
+                        EndControlJobProcesses(controlJob, command, action);
+                        result = _controlJobs.Dequeue(controlJob);
+                    }
+                    else if (controlJob.State == ControlJobState.Aborting)
+                    {
+                        result = HandleResult.Success(id);
+                    }
+                    else
+                    {
+                        result = _controlJobs.Abort(controlJob);
+                        if (result.IsSuccess)
+                        {
+                            EndControlJobProcesses(controlJob, command, action);
+                        }
+                    }
+
+                    break;
+                case ControlJobCommand.Deselect:
+                    result = _controlJobs.Deselect(controlJob);
+                    break;
+                default:
+                    result = HandleResult.Fail(ErrorCodes.JobCommandNotAllowed,
+                        id, command.ToString(), JobNames.Of(controlJob.State));
+                    break;
+            }
+
+            if (result.ErrorMessage == ErrorCodes.JobCommandNotAllowed)
+            {
+                result.Args = [id, JobNames.Of(command), JobNames.Of(controlJob.State)];
             }
 
             Publish();
@@ -579,10 +647,9 @@ public class JobManager : ComponentBase, IJobManager
 
         try
         {
-            foreach (var entity in _controlJobs.Jobs.Values.ToList())
+            foreach (var controlJob in _controlJobs.ControlJobs)
             {
-                var controlJob = entity.ControlJob;
-                if (controlJob.IsEnded || controlJob.State == ControlJobState.Completed)
+                if (controlJob.IsEnded || controlJob.State is ControlJobState.Completed or ControlJobState.Aborted)
                 {
                     continue;
                 }
@@ -590,11 +657,15 @@ public class JobManager : ComponentBase, IJobManager
                 if (controlJob.State == ControlJobState.Queued)
                 {
                     EndControlJobProcesses(controlJob, ControlJobCommand.Abort, ControlJobAction.RemoveJobs);
+                    _controlJobs.Dequeue(controlJob);
                 }
-
-                var result = _controlJobs.Abort(controlJob.Id);
-                if (result.IsSuccess && !controlJob.IsEnded)
+                else
                 {
+                    if (controlJob.State != ControlJobState.Aborting)
+                    {
+                        _controlJobs.Abort(controlJob);
+                    }
+
                     EndControlJobProcesses(controlJob, ControlJobCommand.Abort, ControlJobAction.RemoveJobs);
                 }
             }
@@ -709,7 +780,7 @@ public class JobManager : ComponentBase, IJobManager
             return HandleResult.Fail(ErrorCodes.JobIdInvalid, id);
         }
 
-        bool inUse = _controlJobs.Find(id) is not null || _processJobs.Find(id) is not null;
+        bool inUse = _controlJobs.Get(id) is not null || _processJobs.Find(id) is not null;
         return inUse ? HandleResult.Fail(ErrorCodes.JobIdDuplicate, id) : null;
     }
 
@@ -907,13 +978,12 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// CJ 转了：刚完成（#10 / #11 / #12 转进 COMPLETED，还没删）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；
+    /// CJ 转了：完成或中止收尾（内部 Completed / Aborted，上报 E94 COMPLETED）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；
     /// 删掉了（#2 / #13）写最后一遍库（之后就不在全貌里了）；往 EAP 报（E94）。
     /// </summary>
-    private void OnControlJobStateChanged(ControlJob job, ControlJobState state)
+    private void OnControlJobStateChanged(ControlJob job, ControlJobState state, int e94TransitionNumber)
     {
-        int number = job.TransitionNumber;
-        if (state == ControlJobState.Completed && !job.IsEnded)
+        if (state is ControlJobState.Completed or ControlJobState.Aborted && !job.IsEnded)
         {
             LoadPort(job.LoadPort)?.NoteCarrierComplete();
         }
@@ -921,13 +991,14 @@ public class JobManager : ComponentBase, IJobManager
         if (job.IsEnded)
         {
             Store(job, JobDtos.Of(job, ControlJobAutoStart));
+            _controlJobs.Remove(job);
         }
 
         var callback = E94Callback;
-        if (callback is not null)
+        if (callback is not null && e94TransitionNumber != 0)
         {
             var dto = JobDtos.Of(job, ControlJobAutoStart);
-            EapNotifierComponent.Current?.Post(() => callback.ControlJobStateChanged(dto, number));
+            EapNotifierComponent.Current?.Post(() => callback.ControlJobStateChanged(dto, e94TransitionNumber));
         }
 
     }
@@ -971,47 +1042,48 @@ public class JobManager : ComponentBase, IJobManager
         do
         {
             changed = _processJobs.Advance(ProcessJobAutoStart);
-            foreach (var entity in _controlJobs.Jobs.Values.ToList())
+            foreach (var job in _controlJobs.ControlJobs)
             {
-                var job = entity.ControlJob;
-                var stateMachine = entity.StateMachine;
                 var port = LoadPort(job.LoadPort);
+                if (job.State == ControlJobState.Queued)
+                {
+                    changed |= _controlJobs.Select(job).IsSuccess;
+                }
 
-                // 状态表只允许 Queued 收到 Select 时转换。
-                changed |= stateMachine.Fire(ControlStateAction.Select);
-
-                if (port?.IsCarrierReady == true)
+                if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
+                    && port?.IsCarrierReady == true)
                 {
                     if (ControlJobAutoStart)
                     {
-                        changed |= stateMachine.Fire(ControlStateAction.MaterialReadyStart);
+                        changed |= _controlJobs.Activate(job).IsSuccess;
                     }
                     else
                     {
-                        changed |= stateMachine.Fire(ControlStateAction.MaterialReadyWait);
+                        changed |= _controlJobs.WaitForStart(job).IsSuccess;
                     }
                 }
 
                 if ((job.ProcessJobs.Count > 0 || job.Ending != ControlJobEnding.None)
                     && job.ProcessJobs.All(process => process.IsEnded))
                 {
-                    switch (job.Ending)
+                    if (job.State == ControlJobState.Aborting)
                     {
-                        case ControlJobEnding.None:
-                            changed |= stateMachine.Fire(ControlStateAction.AllDone);
-                            break;
-                        case ControlJobEnding.Stop:
-                            changed |= stateMachine.Fire(ControlStateAction.Stopped);
-                            break;
-                        case ControlJobEnding.Abort:
-                            changed |= stateMachine.Fire(ControlStateAction.Aborted);
-                            break;
+                        changed |= _controlJobs.FinishAbort(job).IsSuccess;
+                    }
+                    else if (job.IsActive && job.Ending == ControlJobEnding.Stop)
+                    {
+                        changed |= _controlJobs.FinishStop(job).IsSuccess;
+                    }
+                    else if (job.State is ControlJobState.Executing or ControlJobState.Paused)
+                    {
+                        changed |= _controlJobs.Complete(job).IsSuccess;
                     }
                 }
 
-                if (port?.IsCarrierArrived != true)
+                if (job.State is ControlJobState.Completed or ControlJobState.Aborted
+                    && port?.IsCarrierArrived != true)
                 {
-                    changed |= stateMachine.Fire(ControlStateAction.Delete);
+                    changed |= _controlJobs.Delete(job).IsSuccess;
                 }
             }
         }
@@ -1031,8 +1103,8 @@ public class JobManager : ComponentBase, IJobManager
             return;
         }
 
-        var rows = _controlJobs.Jobs.Values
-            .SelectMany(entity => entity.ControlJob.ProcessJobs)
+        var rows = _controlJobs.ControlJobs
+            .SelectMany(controlJob => controlJob.ProcessJobs)
             .Where(process => !process.IsEnded)
             .SelectMany(process => process.Rows)
             .ToList();
@@ -1045,8 +1117,7 @@ public class JobManager : ComponentBase, IJobManager
     /// </summary>
     private void Publish()
     {
-        var controlJobs = _controlJobs.Jobs.Values
-            .Select(entity => entity.ControlJob).ToList();
+        var controlJobs = _controlJobs.ControlJobs;
         var processJobs = controlJobs.SelectMany(control => control.ProcessJobs)
             .Concat(_processJobs.Jobs).Distinct().ToList();
 
@@ -1112,9 +1183,9 @@ public class JobManager : ComponentBase, IJobManager
             var controls = db.Queryable<ControlJobEntity>().Where(row => row.EndedBy == 0).ToList();
             foreach (var row in controls)
             {
-                if (row.State != (int)ControlJobState.Completed)
+                if (row.State != 5) // 历史库保留 E94 COMPLETED = 5。
                 {
-                    row.State = (int)ControlJobState.Completed;
+                    row.State = 5;
                     row.CompletedBy = 12; // E94 #12：中止做完进 COMPLETED
                     row.Ending = ControlJobEnding.Abort.ToString();
                     row.CompletedAt = now;
@@ -1227,7 +1298,7 @@ public class JobManager : ComponentBase, IJobManager
                     LoadPort = dto.LoadPort,
                     CarrierId = dto.CarrierId,
                     LotId = dto.LotId,
-                    State = dto.State,
+                    State = dto.E94State ?? dto.State,
                     AutoStart = dto.AutoStart,
                     Ending = dto.Ending,
                     CreatedTime = dto.CreatedAt,

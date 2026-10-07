@@ -1,5 +1,7 @@
 ﻿using xyz.Shared.Dtos;
 
+using xyz.Components.Enums;
+
 namespace xyz.Modules;
 
 /// <summary>
@@ -16,6 +18,7 @@ internal static class JobDtos
             CarrierId = job.CarrierId ?? string.Empty,
             LotId = job.LotId ?? string.Empty,
             State = (int)job.State,
+            E94State = E94StateOf(job),
             AutoStart = autoStart,
             Ending = job.Ending.ToString(),
             ProcessJobs = job.ProcessJobs.Select(process => process.Id).ToList(),
@@ -26,6 +29,35 @@ internal static class JobDtos
             EndedBy = job.EndedBy ?? 0,
             EndedAt = job.EndedAt,
         };
+    }
+
+    private static int E94StateOf(ControlJob job)
+    {
+        var state = job.State;
+        if (state == ControlJobState.Aborting)
+        {
+            state = job.StateBeforeAbort;
+        }
+
+        switch (state)
+        {
+            case ControlJobState.Created:
+            case ControlJobState.Queued:
+                return 0;
+            case ControlJobState.Selected:
+                return 1;
+            case ControlJobState.WaitingForStart:
+                return 2;
+            case ControlJobState.Executing:
+                return 3;
+            case ControlJobState.Paused:
+                return 4;
+            case ControlJobState.Aborted:
+            case ControlJobState.Completed:
+                return 5;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(job), state, "未知 CJ 状态。");
+        }
     }
 
     public static ProcessJobDto Of(ProcessJob job, bool autoStart)

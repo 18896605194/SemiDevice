@@ -246,7 +246,7 @@
   （用户定的名，跟 LoadPortAction 一个意思）。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
   `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
-  CJ 管理的命令使用独立 Start / Pause 等实现，PJ 管理暂保留 `Execute`；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
+  CJ 管理按后续参考工程使用对象状态动作，PJ 管理暂保留 `Execute`；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
   报 EAP 的叫 `ProcessJobStateChanged` / `ControlJobStateChanged`（原来都叫 Transitioned）。CJ 后续按用户要求改为字典状态表，其他分支用传统 switch 语句（不用 switch 表达式）；
   转换号、E39 名字的 80 / `?*~>:` 直接写数字加注释，不另起常量；自动转换转到不再转为止，不设轮数上限。
 - **任务表**（用户的设计）：建 PJ 时照流程配方给每片生成一行任务，一行 = 一片的整个周期——从 LoadPort 取片、放进腔体、腔体做工艺、从腔体取回、放回 LoadPort，
@@ -299,6 +299,8 @@
 - **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 SC ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 SC。
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
 - **CJ 按载具号查询（2026-10-07 用户明确）**：从 CjManager 管理的真实 CJ 对象查，不能查发布快照；JobManager 加锁调用 FindByCarrier 并返回 DTO 副本。
-- **CJ 管理结构（2026-10-07 用户明确）**：使用 `Dictionary<string, CjEntity>`，key 是 CJ ID，实体包含 `ControlJob` 和独立状态机；提供 `Add(ControlJob)` 和 `Remove(ControlJob)`，不保留 `_nextOrder` / Order 计数。CjManager 不依赖 IPjManager，不处理 PJ；创建关联和 CJ 取消、停止、中止时的 PJ 协调在 JobManager。CJ 的 StateChanged 传 ControlJobState；对象初始为内部 Create 状态，加入管理后转 Queued，E94 数值 0~5 保持不变。
-- **CJ 字典状态表和基类（2026-10-07 用户明确）**：删除 CjManager 的 CJ 自动推进、Advance 和 NextTrigger。新增基础 `StateMachine<TState, TAction>`，CjStateMachine 继承它，按 `(ControlJobState, ControlStateAction)` 查字典；value 使用泛型 `StateTransition<ControlJobState>`。状态表保存转换规则，基类负责 Fire(action) 查表和切换状态，CJ 派生类负责运行对象的时间、EAP 转换编号及事件。JobManager 确认载具 / PJ 条件后直接提交 action。
-- **CJ 独立命令实现（2026-10-07 用户明确）**：删除 CjManager.Execute 及 Start / Pause 等向它转发的表达式方法；各命令自己查字典、检查结束请求并提交状态机 action。Stop / Abort 保留等待执行结束的行为，HOQ 保留调整待执行顺序的行为。使用传统 if / return，不再用 End / Dequeue / NotAllowed 等私有方法包装命令。
+- **CJ 参考结构统一（2026-10-07 用户明确）**：按桌面参考工程 ControlJobManager / ControlJobStateMachine / BaseStateMachine 统一，替代之前的逐命令查字典设计。`Dictionary<string, CjEntity>` 保存私有实体（CJ + 独立状态机），外部只拿 ControlJobs；Add 只注册、Queue 入队、Get 按 ID 查询、Remove 检查 ID 和对象引用，旧对象不能操作同 ID 新对象。不保留订单计数，不依赖 PJ；外部命令及 PJ 协调在 JobManager。
+- **CJ 状态表和基类（2026-10-07 用户确认参考）**：CjStateMachine 不持有 Job，继承 BaseStateMachine<TState,TAction>，类内 BuildTransitions 建立字典，key=(state,action)，value=StateTransition<TState>。基类提供 CurrentState、OnStateChanged、StateChange，并执行 OnEntry / PreCheck / ProcessState / Execute / TargetState / OnExit / ErrorHandler；管理器用对象参数提交 Queue / Select / Activate / Pause / Resume / Complete / Abort / FinishAbort / Rollback 等动作，订阅通知同步 CJ 状态和时间。不向 JobManager 暴露状态机，不提供自动 Advance。
+- **CJ 内部与 E94 状态（2026-10-07 用户同意一起统一）**：内部枚举按参考 Created=0、Queued=1、Selected=2、Executing=3、Paused=4、Aborting=5、Aborted=6、Completed=7、WaitingForStart=8；补全本设备的等待 Start、Stop 收尾、排队删除及终态删除路径。Created / Aborting / Aborted 为业务状态，不能据此认定更符合 E94。DTO.State 用内部编号，DTO.E94State 单独映射标准六状态：中止收尾期间保持原 ACTIVE 状态，Aborted 报 COMPLETED=5；事件转换号、历史数据库保持原 E94 编号。保留 ControlStateAction 用户命名。
+- **CJ 顺序（2026-10-07 用户明确）**：CJ 字典保持 Add 顺序，删除 HeadOfQueue 接口及重排逻辑，不主动调整；外部 HOQ 命令明确拒绝，不伪装成执行成功。
+- **CJ 转换号（2026-10-07 用户明确）**：删除 ControlJob.TransitionNumber；转换号属于本次转换通知，不缓存进 CJ 对象。CjManager 在通知时用局部变量确定编号，通过 StateChanged(ControlJob, ControlJobState, int e94TransitionNumber) 传给 JobManager 上报；不新增事件参数类。CompletedBy / EndedBy 仍记录完成及删除原因。

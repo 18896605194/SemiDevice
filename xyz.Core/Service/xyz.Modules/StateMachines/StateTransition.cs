@@ -1,20 +1,15 @@
 namespace xyz.Modules.StateMachines;
 
-/// <summary>状态表中的一次转换。</summary>
+using xyz.Shared.Dtos;
+
+/// <summary>状态表中的一次转换，定义检查、执行和收尾动作。</summary>
 public sealed class StateTransition<TState> where TState : struct, Enum
 {
-    public TState State { get; }
-
-    /// <summary>用于 EAP 上报的转换编号。</summary>
-    public int Number { get; }
-
-    /// <summary>转换后是否移除运行对象。</summary>
-    public bool Ends { get; }
-
-    public StateTransition(TState state, int number, bool ends = false)
-    {
-        State = state;
-        Number = number;
-        Ends = ends;
-    }
+    public TState TargetState { get; set; }
+    public TState? ProcessState { get; set; }
+    public Action<object[]>? OnEntry { get; set; }
+    public Func<object[], bool>? PreCheck { get; set; }
+    public Func<object[], HandleResult>? Execute { get; set; }
+    public Func<object[], HandleResult>? OnExit { get; set; }
+    public Action<HandleResult, object[]>? ErrorHandler { get; set; }
 }

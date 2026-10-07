@@ -12,15 +12,15 @@ public sealed class ControlJob
 
     public string? LotId { get; init; }
 
-    public ControlJobState State { get; internal set; } = ControlJobState.Create;
+    public ControlJobState State { get; internal set; } = ControlJobState.Created;
 
-    /// <summary>最近一次 E94 转换编号，供上报使用。</summary>
-    internal int TransitionNumber { get; set; }
+    /// <summary>中止前的状态，供 E94 在收尾期间继续上报原 ACTIVE 状态。</summary>
+    internal ControlJobState StateBeforeAbort { get; set; }
 
     /// <summary>下面的 PJ，按执行顺序（ProcessingCtrlSpec 的顺序）。</summary>
     public List<ProcessJob> ProcessJobs { get; } = [];
 
-    /// <summary>收下的 Stop / Abort：CJ 没有停止中、中止中的状态，状态值不变，等 PJ 都结束再进 COMPLETED（#11 / #12）。</summary>
+    /// <summary>结束请求：Stop 等待完成；Abort 进入 Aborting，收尾后进入 Aborted。</summary>
     public ControlJobEnding Ending { get; set; } = ControlJobEnding.None;
 
     public DateTime CreatedAt { get; init; } = DateTime.Now;
@@ -28,10 +28,10 @@ public sealed class ControlJob
     /// <summary>开始执行（#5 / #7）的时刻。</summary>
     public DateTime? StartedAt { get; internal set; }
 
-    /// <summary>进 COMPLETED 的时刻。</summary>
+    /// <summary>完成或中止收尾的时刻。</summary>
     public DateTime? CompletedAt { get; internal set; }
 
-    /// <summary>进 COMPLETED 走的转换号（#10 正常、#11 停止、#12 中止）。</summary>
+    /// <summary>完成或中止收尾走的 E94 转换号（#10 正常、#11 停止、#12 中止）。</summary>
     public int? CompletedBy { get; internal set; }
 
     /// <summary>删掉走的转换号（#2 排队时删、#13 完成后删）；没删为 null。</summary>
@@ -49,8 +49,8 @@ public sealed class ControlJob
     /// </summary>
     public bool CanStartProcessJobs => State == ControlJobState.Executing && Ending == ControlJobEnding.None;
 
-    /// <summary>在 ACTIVE 超状态里（选中、等启动、执行、暂停）：算"在跑的 CJ"。</summary>
-    public bool IsActive => State is ControlJobState.Selected or ControlJobState.WaitingForStart or ControlJobState.Executing or ControlJobState.Paused;
+    /// <summary>已选中、等待启动、执行、暂停或中止收尾中的 CJ。</summary>
+    public bool IsActive => State is ControlJobState.Selected or ControlJobState.WaitingForStart or ControlJobState.Executing or ControlJobState.Paused or ControlJobState.Aborting;
 }
 
 public enum ControlJobEnding

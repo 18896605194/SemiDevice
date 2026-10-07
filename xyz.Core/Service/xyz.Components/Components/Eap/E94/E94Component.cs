@@ -131,7 +131,7 @@ public class E94Component : ComponentBase, IE94Callback
 
         _gem?.Report(this, $"CtrlJobSMTrans{transition:00}",
             new GemData(DvJobId, GemValue.Ascii(job.Id)),
-            new GemData(DvJobState, (byte)job.State),
+            new GemData(DvJobState, (byte)(job.E94State ?? job.State)),
             new GemData(DvCarrierId, GemValue.Ascii(job.CarrierId)),
             new GemData(DvProcessJobs, SecsItem.L(job.ProcessJobs.Select(id => SecsItem.A(GemValue.Ascii(id))))));
     }
@@ -354,7 +354,7 @@ public class E94Component : ComponentBase, IE94Callback
             "PRJobStatusList" => SecsItem.L(job.ProcessJobs.Select(processId => SecsItem.L(SecsItem.A(GemValue.Ascii(processId)),
                 StateOf(processes, processId)))),
             "StartMethod" => SecsItem.Boolean(job.AutoStart),
-            "State" => SecsItem.U1((byte)job.State),
+            "State" => SecsItem.U1((byte)(job.E94State ?? job.State)),
             _ => SecsItem.L(),
         };
         return true;
