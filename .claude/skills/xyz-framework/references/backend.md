@@ -84,8 +84,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
   `OperationState` 在 `Enums`——2026-10-05 从模块层挪下来，好让设备侧接口放进组件层。
 - `Interfaces` 下除了组件自己的（IPlc、IActionComponent……），还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`IE87Callback`、`IE84Callback`、
-  `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `WaferManager.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令、
-  `JobCommandSource` 在 `Enums`，Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
+  `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `WaferManager.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
+  Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
   实现还在模块层（`BaseLoadPortModule`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
 

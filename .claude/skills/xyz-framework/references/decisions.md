@@ -258,7 +258,7 @@
   LoadPort 上有 Job、状态不收这个命令）、自己的结果类（用 `HandleResult`）、`IWaferOwnership` 这种接口、Factory / Environment / Book / Store / Restart
   这些拆出去的类（并回 JobManager、CJ / PJ 管理）、partial 拆文件、通用转换表类、同时跑几个 CJ 的上限和 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，
   个数自然有数）、"在等什么"的原因、每片的结果（看晶圆账 `WaferInfo.ProcessState`）、任务的开始 / 结束时间、手动标记、模拟标记、任务组件里收搬运单结果（单号对任务、"取片做完"事件）、
-  PJ 自己的配方结构（直接存流程配方快照 `SequenceData`）。
+  PJ 自己的配方结构（直接存流程配方快照 `SequenceData`）、记谁建的（Local / Host，存了没人看）、能从任务表推出来的显示字段（有没有出错、当前第几个任务、路线几站）。
 - 自己定的（交付时说了）：腔体要 Online 才派片（LoadPort、机械手不看）；回片槽建 PJ 时定（源 LoadPort 在最后一步里回原槽，
   不在就放最后一步勾的、载具在的第一个 LoadPort 的同号槽）。
 - **Job 页不另开一级菜单**（2026-10-05 用户定的）：放在主界面下面做二级菜单——总览（就是原来的主界面，开机还是先到它）、Job。

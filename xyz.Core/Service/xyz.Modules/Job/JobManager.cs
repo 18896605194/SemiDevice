@@ -213,7 +213,7 @@ public class JobManager : ComponentBase, IJobManager
     {
         return Execute(() =>
         {
-            var rejected = TryBuildProcessJob(spec, source, out var job);
+            var rejected = TryBuildProcessJob(spec, out var job);
             if (rejected is not null)
             {
                 return rejected;
@@ -235,7 +235,7 @@ public class JobManager : ComponentBase, IJobManager
                 return idError;
             }
 
-            var rejected = _controlJobs.TryBuild(spec, source, out var job, out var processes);
+            var rejected = _controlJobs.TryBuild(spec, out var job, out var processes);
             if (rejected is not null)
             {
                 return rejected;
