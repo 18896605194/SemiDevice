@@ -366,6 +366,49 @@ try
     Fails(library.Get(0), ErrorCodes.ProcessRecipeIndexOutOfRange, ["0", "99"], "取编号 0");
     Check(changed.SequenceEqual(new[] { 3 }), "删除发一次变更事件");
 
+    // 11b. Host 远程管配方（IRecipeLibrary，EAP 的 S7 走它）：按名字列、取（JSON，每一步是字段名 → 值）、存（没有就新建、有就覆盖，
+    //      检查、规整跟本地保存一样）、删；变化经 EAP 的派发组件报上报口。这一节建的最后删掉，后面接着是 1、2 两个。
+    _ = new EapNotifierComponent();
+    var eapChanges = new RecordingRecipeCallback();
+    xyz.Components.Interfaces.IRecipeLibrary remote = library;
+    remote.E30RecipeCallback = eapChanges;
+    Check(remote.RecipeNames.SequenceEqual(new[] { "SC1_45S", "DIW_RINSE" }), "按名字列（按编号）");
+    string? exported = remote.ExportRecipe("sc1_45s");
+    Check(exported is not null && exported.Contains("\"values\"", StringComparison.Ordinal) && !exported.Contains("attributes", StringComparison.OrdinalIgnoreCase),
+        "取出来是 JSON：每一步是字段名 → 值，不带存文件用的 XML 属性");
+    var exportedData = exported is null ? null : JsonHelper.Deserialize<ProcessRecipeData>(exported);
+    Check(exportedData is not null && exportedData.Steps.Count == 1 && exportedData.Steps[0].Values.Count == 9 && exportedData.Steps[0].Get("Chemical") == "HF",
+        "JSON 读回来跟库里一样");
+
+    var imported = remote.ImportRecipe("HOST_RECIPE", exported!, "Host");
+    var hostRecipe = library.Find("HOST_RECIPE");
+    Check(imported.IsSuccess && hostRecipe is not null && hostRecipe.Index == 3 && hostRecipe.Revision == 1 && hostRecipe.CreatedBy == "Host"
+          && hostRecipe.Steps[0].Get("Chemical") == "HF", "Host 下一个新名字：放在第一个空编号上，版本 1，建的人记 Host");
+    string loose = JsonHelper.Serialize(new ProcessRecipeData { Name = "IGNORED", Revision = 77, Description = " 远程 ", Steps = [Step("5", "+300", "arm1", "diw", "1.50")] });
+    var overwriteResult = remote.ImportRecipe("host_recipe", loose, "Host");
+    var overwritten = library.Find("HOST_RECIPE");
+    Check(overwriteResult.IsSuccess && overwritten is not null && overwritten.Name == "HOST_RECIPE" && overwritten.Revision == 2 && overwritten.Description == "远程"
+          && overwritten.Steps[0].Get("Rpm") == "300" && overwritten.Steps[0].Get("Arm") == "Arm1" && overwritten.Steps[0].Get("Chemical") == "DIW",
+        "同名再下：覆盖（版本加 1），跟本地保存一样规整写法；JSON 里的名字、版本不管");
+    var tooLong = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
+    Check(!tooLong.IsSuccess && tooLong.ErrorMessage == ErrorCodes.ProcessRecipeTotalTooLong && library.Find("HOST_BAD") is null,
+        "步骤没过检查（合计超过腔体工艺超时）：跟本地保存一样拒，什么都不存");
+    var notJson = remote.ImportRecipe("HOST_BAD", "{", "Host");
+    Check(!notJson.IsSuccess && notJson.ErrorMessage == ErrorCodes.ProcessRecipeBodyInvalid && notJson.Args.SequenceEqual(new[] { "HOST_BAD" }),
+        "内容不是 JSON：process_recipe.body_invalid 带名字");
+    var nullValues = remote.ImportRecipe("HOST_BAD", "{\"steps\":[{\"values\":null},{\"values\":[{\"name\":null,\"value\":null}]}]}", "Host");
+    Check(!nullValues.IsSuccess && nullValues.ErrorMessage == ErrorCodes.ProcessRecipeValueRequired, "JSON 里空着的值补成空的再查：必填的没填，不会出异常");
+    var removedByHost = remote.DeleteRecipe("host_recipe", "Host");
+    Check(removedByHost.IsSuccess && library.Find("HOST_RECIPE") is null && library.List().Count == 2, "按名字删（不分大小写）");
+    Check(remote.DeleteRecipe("HOST_RECIPE", "Host").ErrorMessage == ErrorCodes.ProcessRecipeNameNotFound, "再删说没有：process_recipe.name_not_found");
+    Check(eapChanges.WaitFor(3) && eapChanges.Changes.SequenceEqual(new[]
+    {
+        ("HOST_RECIPE", xyz.Components.Enums.RecipeChange.Created),
+        ("HOST_RECIPE", xyz.Components.Enums.RecipeChange.Edited),
+        ("HOST_RECIPE", xyz.Components.Enums.RecipeChange.Deleted),
+    }), "上报口按先后收到新建、覆盖、删除；没成的不报");
+    remote.E30RecipeCallback = null;
+
     // 12. 工艺配方服务（直接调 gRPC 服务类，不起网络）：列表带个数、说明、合计时长；字段表带类型、范围、默认值和取好的下拉选项；
     //     步骤按"字段名 → 值"来回；错误码和参数原样回给界面；没带操作人记成 Unknown；没装库回 process_recipe.not_installed。
     var service = new ProcessRecipeService([]);
@@ -452,7 +495,7 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} process recipe checks (sc.xml node and field table, field table mistakes rejected at load, dropdown options from fixed lists and chamber parts merged across chambers, create/rename/save/delete with every field rule, normalizing, every field written to the file with defaults filled in for old recipes, bad files skipped, revision conflicts, change events, recipes checked against a specific chamber, the process recipe service, and chamber process requiring a recipe that fits the chamber).");
+Console.WriteLine($"PASS: {checks} process recipe checks (sc.xml node and field table, host recipe management by name (JSON export without the XML-only attributes, import as new or overwrite through the same checks, delete, change reports), field table mistakes rejected at load, dropdown options from fixed lists and chamber parts merged across chambers, create/rename/save/delete with every field rule, normalizing, every field written to the file with defaults filled in for old recipes, bad files skipped, revision conflicts, change events, recipes checked against a specific chamber, the process recipe service, and chamber process requiring a recipe that fits the chamber).");
 
 /// <summary>
 /// 探针用：生产里名字由装配器经 internal setter 设，这里反射设。
@@ -481,4 +524,34 @@ sealed class ProbeChamber : BaseChamberModule
     protected override ModuleOperation? AbortDevice() => null;
 
     protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
+}
+
+// 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。
+sealed class RecordingRecipeCallback : xyz.Components.Interfaces.IE30RecipeCallback
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(string Name, xyz.Components.Enums.RecipeChange Change)> _changes = new();
+
+    public IEnumerable<(string Name, xyz.Components.Enums.RecipeChange Change)> Changes => _changes;
+
+    public void RecipeChanged(xyz.Components.Interfaces.IRecipeLibrary library, string name, xyz.Components.Enums.RecipeChange change)
+    {
+        _changes.Enqueue((name, change));
+    }
+
+    public bool WaitFor(int count, int timeoutMs = 3000)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < timeoutMs)
+        {
+            if (_changes.Count >= count)
+            {
+                Thread.Sleep(100);
+                return _changes.Count == count;
+            }
+
+            Thread.Sleep(20);
+        }
+
+        return false;
+    }
 }

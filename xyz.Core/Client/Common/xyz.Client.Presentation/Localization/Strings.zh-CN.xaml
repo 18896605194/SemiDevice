@@ -149,6 +149,10 @@
     <sys:String x:Key="sequence.recipe_not_found">第 {0} 步的工艺配方 {1} 不在工艺配方库里（可能被删了或改名了）</sys:String>
     <sys:String x:Key="sequence.recipe_option_missing">第 {0} 步勾的 {1} 没有{3} {4}（工艺配方 {2} 里用了）</sys:String>
     <sys:String x:Key="sequence.save_failed">{0} 号流程配方文件写不进去：{1}</sys:String>
+    <sys:String x:Key="sequence.full">流程配方编号都用完了（最多 {0} 个），放不下新的</sys:String>
+    <sys:String x:Key="sequence.name_not_found">流程配方库里没有 {0}</sys:String>
+    <sys:String x:Key="sequence.body_invalid">流程配方 {0} 的内容读不出来（要这边给出去的那种 JSON）</sys:String>
+    <sys:String x:Key="recipe.locked_by_host">在线远程（ON-LINE REMOTE）时配方只能由 Host 改，本机改不了</sys:String>
     <sys:String x:Key="process_recipe.not_installed">工艺配方库没装（sc.xml 没配 ProcessRecipe 节点）</sys:String>
     <sys:String x:Key="process_recipe.index_out_of_range">没有 {0} 号（编号 1 ~ {1}）</sys:String>
     <sys:String x:Key="process_recipe.not_found">{0} 号没有工艺配方（可能刚被别处删了）</sys:String>
@@ -168,6 +172,9 @@
     <sys:String x:Key="process_recipe.value_not_in_options">第 {0} 步{1}没有 {2} 这一项</sys:String>
     <sys:String x:Key="process_recipe.total_too_long">合计 {0} s，超过腔体的工艺超时 {1} s</sys:String>
     <sys:String x:Key="process_recipe.save_failed">{0} 号工艺配方文件写不进去：{1}</sys:String>
+    <sys:String x:Key="process_recipe.full">工艺配方编号都用完了（最多 {0} 个），放不下新的</sys:String>
+    <sys:String x:Key="process_recipe.name_not_found">工艺配方库里没有 {0}</sys:String>
+    <sys:String x:Key="process_recipe.body_invalid">工艺配方 {0} 的内容读不出来（要这边给出去的那种 JSON）</sys:String>
 
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。

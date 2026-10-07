@@ -1,10 +1,13 @@
 ﻿using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
+using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -19,10 +22,10 @@ namespace xyz.Modules;
 /// 下拉从腔体部件取的选项在模块全起来后 Bind 一次，按每个腔体装的部件取；几个腔体装的不一样时给界面合起来的，
 /// 用到具体腔体（流程配方、腔体起工艺）时再按那个腔体查（<see cref="FindMismatch"/>）。
 /// 合计时长的上限跟腔体的工艺超时（EC，现查）走。流程配方的工艺步骤、腔体起工艺都按名字引用这里的配方。
-/// 只有 gRPC 线程调它（设备扫描线程不碰），所以读写文件放在锁里也卡不到设备，还省得两次保存交叉写坏文件。
+/// 只有 gRPC 线程和 EAP（Host 远程管配方，经 IRecipeLibrary）调它（设备扫描线程不碰），所以读写文件放在锁里也卡不到设备，还省得两次保存交叉写坏文件。
 /// </summary>
 [Component(description: "工艺配方库：编号 1~N 的工艺配方，一个编号一个文件；每一步的字段按下面 Fields 的字段表")]
-public class ProcessRecipeComponent : ComponentBase
+public class ProcessRecipeComponent : ComponentBase, IRecipeLibrary
 {
     /// <summary>
     /// 当前工艺配方库；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
@@ -478,10 +481,9 @@ public class ProcessRecipeComponent : ComponentBase
     /// </summary>
     public ProcessRecipeData? Find(string name)
     {
-        string wanted = name.Trim();
         lock (_gate)
         {
-            return _items.Values.FirstOrDefault(item => string.Equals(item.Name, wanted, StringComparison.OrdinalIgnoreCase))?.Clone();
+            return FindByName(name.Trim())?.Clone();
         }
     }
 
@@ -560,7 +562,7 @@ public class ProcessRecipeComponent : ComponentBase
             });
         }
 
-        Report(result, index, $"新建工艺配方 {index} 号 {name}（操作人 {operatorName}）");
+        Report(result, index, $"新建工艺配方 {index} 号 {name}（操作人 {operatorName}）", (name, RecipeChange.Created));
         return result;
     }
 
@@ -571,12 +573,20 @@ public class ProcessRecipeComponent : ComponentBase
     {
         name = name.Trim();
         ProcessRecipeResult result;
+        string oldName = string.Empty;
         lock (_gate)
         {
-            result = CheckExists(index) ?? CheckName(name, index) ?? Store(Touch(_items[index], operatorName, next => next.Name = name));
+            var rejected = CheckExists(index) ?? CheckName(name, index);
+            if (rejected is null)
+            {
+                oldName = _items[index].Name;
+            }
+
+            result = rejected ?? Store(Touch(_items[index], operatorName, next => next.Name = name));
         }
 
-        Report(result, index, $"工艺配方 {index} 号改名为 {name}（操作人 {operatorName}）");
+        // Host 那边按名字认配方：改名 = 旧名删了、新名建了
+        Report(result, index, $"工艺配方 {index} 号改名为 {name}（操作人 {operatorName}）", (oldName, RecipeChange.Deleted), (name, RecipeChange.Created));
         return result;
     }
 
@@ -592,7 +602,7 @@ public class ProcessRecipeComponent : ComponentBase
             result = CheckExists(index) ?? Remove(index, out name);
         }
 
-        Report(result, index, $"删除工艺配方 {index} 号 {name}（操作人 {operatorName}）");
+        Report(result, index, $"删除工艺配方 {index} 号 {name}（操作人 {operatorName}）", (name, RecipeChange.Deleted));
         return result;
     }
 
@@ -619,14 +629,15 @@ public class ProcessRecipeComponent : ComponentBase
                 }));
         }
 
-        Report(result, index, $"保存工艺配方 {index} 号（操作人 {operatorName}）");
+        Report(result, index, $"保存工艺配方 {index} 号（操作人 {operatorName}）", (result.Recipe?.Name ?? string.Empty, RecipeChange.Edited));
         return result;
     }
 
     /// <summary>
-    /// 成了记一条日志、发变更事件（锁外）；没成不记（原因回给界面，写文件失败的在写的地方已经记过）。
+    /// 成了记一条日志、发变更事件（锁外），接着 EAP 的话把配方怎么变的报给 Host（放进 EAP 的派发组件）；
+    /// 没成不记（原因回给界面，写文件失败的在写的地方已经记过）。
     /// </summary>
-    private void Report(ProcessRecipeResult result, int index, string message)
+    private void Report(ProcessRecipeResult result, int index, string message, params (string Name, RecipeChange Change)[] changes)
     {
         if (!result.IsOk)
         {
@@ -636,6 +647,188 @@ public class ProcessRecipeComponent : ComponentBase
         var saved = result.Recipe;
         LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
         Changed?.Invoke(index);
+
+        var callback = E30RecipeCallback;
+        if (callback is null)
+        {
+            return;
+        }
+
+        foreach (var (name, change) in changes)
+        {
+            EapNotifierComponent.Current?.Post(() => callback.RecipeChanged(this, name, change));
+        }
+    }
+
+    #region EAP 口子（IRecipeLibrary：Host 远程按名字列、取、存、删，跟本地过同一套检查）
+
+    /// <summary>上报口：配方建、改、删了经 EAP 的派发组件报给 Host；null = 没接 EAP。</summary>
+    public IE30RecipeCallback? E30RecipeCallback { get; set; }
+
+    /// <summary>全部工艺配方的名字，按编号。</summary>
+    public IReadOnlyList<string> RecipeNames
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _items.Values.Select(item => item.Name).ToList();
+            }
+        }
+    }
+
+    /// <summary>一个工艺配方转成 JSON（库里那份原样，每一步是字段名 → 值）；没有返回 null。</summary>
+    public string? ExportRecipe(string name)
+    {
+        var found = Find(name);
+        return found is null ? null : JsonHelper.Serialize(found);
+    }
+
+    /// <summary>
+    /// Host 下的工艺配方：库里没有就在第一个空编号上新建（版本 1），有就把说明和步骤整个换掉（版本加 1）；
+    /// 名字、每一步的检查（按字段表、合计时长）跟本地新建、保存一样，JSON 里的编号、版本、建 / 改的人和时间不管。
+    /// </summary>
+    public HandleResult ImportRecipe(string name, string json, string operatorName)
+    {
+        name = name.Trim();
+        var body = ParseBody(json);
+        if (body is null)
+        {
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeBodyInvalid, name);
+        }
+
+        double maxTotal = MaxTotalSeconds;
+        string? language = SystemComponent.Current?.Language;
+        ProcessRecipeResult result;
+        int index;
+        string reported;
+        bool created;
+        lock (_gate)
+        {
+            var fields = _fields;
+            var choices = _choices;
+            var existing = FindByName(name);
+            created = existing is null;
+            if (existing is null)
+            {
+                index = FirstFreeIndex();
+                reported = name;
+                var now = DateTime.Now;
+                result = (index == 0 ? ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeFull, Text(Capacity)) : null)
+                    ?? CheckName(name, index)
+                    ?? CheckSteps(body.Steps, fields, choices, maxTotal, language)
+                    ?? Store(new ProcessRecipeData
+                    {
+                        Index = index,
+                        Name = name,
+                        Description = body.Description.Trim(),
+                        CreatedBy = operatorName,
+                        CreatedAt = now,
+                        ModifiedBy = operatorName,
+                        ModifiedAt = now,
+                        Revision = 1,
+                        Steps = Normalize(body.Steps, fields, choices),
+                    });
+            }
+            else
+            {
+                index = existing.Index;
+                reported = existing.Name;
+                result = CheckSteps(body.Steps, fields, choices, maxTotal, language) ?? Store(Touch(existing, operatorName, next =>
+                {
+                    next.Description = body.Description.Trim();
+                    next.Steps = Normalize(body.Steps, fields, choices);
+                }));
+            }
+        }
+
+        Report(result, index, $"{(created ? "远程新建" : "远程覆盖")}工艺配方 {index} 号 {reported}（操作人 {operatorName}）",
+            (reported, created ? RecipeChange.Created : RecipeChange.Edited));
+        return ToHandleResult(result);
+    }
+
+    /// <summary>按名字删一个工艺配方（Host 删）。</summary>
+    public HandleResult DeleteRecipe(string name, string operatorName)
+    {
+        name = name.Trim();
+        ProcessRecipeResult result;
+        int index;
+        string removed;
+        lock (_gate)
+        {
+            var existing = FindByName(name);
+            if (existing is null)
+            {
+                return HandleResult.Fail(ErrorCodes.ProcessRecipeNameNotFound, name);
+            }
+
+            index = existing.Index;
+            result = Remove(index, out removed);
+        }
+
+        Report(result, index, $"远程删除工艺配方 {index} 号 {removed}（操作人 {operatorName}）", (removed, RecipeChange.Deleted));
+        return ToHandleResult(result);
+    }
+
+    /// <summary>
+    /// Host 给的 JSON 转成工艺配方（只用说明和步骤）；读不出来返回 null。空着的说明、步骤、字段名、值补成空的，后面按字段表照常查。
+    /// </summary>
+    private static ProcessRecipeData? ParseBody(string json)
+    {
+        ProcessRecipeData? body;
+        try
+        {
+            body = JsonHelper.Deserialize<ProcessRecipeData>(json);
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException or ArgumentException)
+        {
+            return null;
+        }
+
+        if (body is null)
+        {
+            return null;
+        }
+
+        body.Description = body.Description ?? string.Empty;
+        body.Steps = (body.Steps ?? [])
+            .Where(step => step is not null)
+            .Select(step => new ProcessRecipeStep
+            {
+                Values = (step.Values ?? [])
+                    .Where(value => value is not null)
+                    .Select(value => new ProcessRecipeValue(value.Name ?? string.Empty, value.Value ?? string.Empty))
+                    .ToList(),
+            })
+            .ToList();
+        return body;
+    }
+
+    private static HandleResult ToHandleResult(ProcessRecipeResult result)
+    {
+        return result.IsOk ? HandleResult.Success() : HandleResult.Fail(result.Code, [.. result.Args]);
+    }
+
+    #endregion
+
+    /// <summary>按名字找（不分大小写）；必须在 _gate 里调。</summary>
+    private ProcessRecipeData? FindByName(string name)
+    {
+        return _items.Values.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>第一个空着的编号；都用了返回 0。必须在 _gate 里调。</summary>
+    private int FirstFreeIndex()
+    {
+        for (int index = 1; index <= Capacity; index++)
+        {
+            if (!_items.ContainsKey(index))
+            {
+                return index;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>

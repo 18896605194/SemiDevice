@@ -1,5 +1,6 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Components;
+using xyz.Components.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -70,19 +71,19 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     public Task<RpcResponse> CreateAsync(ProcessRecipeCreateRequest request, CallContext context = default)
     {
         var library = ProcessRecipeComponent.Current;
-        return library is null ? NotInstalled() : Reply(library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> RenameAsync(ProcessRecipeRenameRequest request, CallContext context = default)
     {
         var library = ProcessRecipeComponent.Current;
-        return library is null ? NotInstalled() : Reply(library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> DeleteAsync(ProcessRecipeDeleteRequest request, CallContext context = default)
     {
         var library = ProcessRecipeComponent.Current;
-        return library is null ? NotInstalled() : Reply(library.Delete(request.Index, OperatorOf(request.Operator)));
+        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Delete(request.Index, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> SaveAsync(ProcessRecipeSaveRequest request, CallContext context = default)
@@ -98,7 +99,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         {
             Values = (step.Values ?? []).Select(pair => new ProcessRecipeValue(pair.Key, pair.Value ?? string.Empty)).ToList(),
         }).ToList();
-        return Reply(library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
     }
 
     private static Task<RpcResponse> Reply(ProcessRecipeResult result)
@@ -170,5 +171,13 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     private static Task<RpcResponse> NotInstalled()
     {
         return Task.FromResult(RpcResponse.Fail(ErrorCodes.ProcessRecipeNotInstalled, []));
+    }
+
+    /// <summary>ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包；没锁返回 null。</summary>
+    private static Task<RpcResponse>? LockedByHost()
+    {
+        return E30RecipeComponent.Current?.IsLocalEditLocked == true
+            ? Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []))
+            : null;
     }
 }

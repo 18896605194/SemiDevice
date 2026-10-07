@@ -13,7 +13,7 @@ public enum E84ReportKind
 }
 
 /// <summary>
-/// E84 组件交给端口的一条交接进展；端口放进 EAP 派发队列，原样转成 IE84Callback 调用。
+/// E84 组件交给端口的一条交接进展；端口放进 EAP 的派发组件，原样转成 IE84Callback 调用。
 /// </summary>
 public sealed record E84Report(
     E84ReportKind Kind,
@@ -38,7 +38,7 @@ public sealed record E84Report(
     public static E84Report AvailabilityChanged(bool available) => new(E84ReportKind.AvailabilityChanged, Available: available);
 
     /// <summary>
-    /// 转成 EAP 的 IE84Callback 调用（在端口的 EAP 派发线程上执行）。
+    /// 转成 EAP 的 IE84Callback 调用（在 EAP 的上报派发线程上执行）。
     /// </summary>
     public void DispatchTo(IE84Callback callback, ILoadPort port)
     {

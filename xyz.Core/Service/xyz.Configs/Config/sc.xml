@@ -446,9 +446,12 @@
 	     （不监听端口、各标准不接到设备上，照常跑）。开机时设备侧（LoadPort、晶圆账、Job）都起来以后才接、最后才开链路，跟本节点在 sc.xml 里的位置无关。
 	     Hsms：接 EAP 时 IsEnable 改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口：同端口时 EAP 链路不启动、日志记错误）；
 	     DeviceId、T3~T8 按 EAP 侧要求对齐。
+	     Notifier：上报派发（必须配）。LoadPort、晶圆账、Job 报给 EAP 的事都放进它，一条线程按发生先后发给各标准，EAP 发报文卡住也不拖住设备。
 	     E30（GEM）：MDLN / SOFTREV 报给 Host；开机离线还是在线、在线时本地还是远程、缓存这些在 EC 里调；Host 定的报告、开关、缓存存在 Database 指的库里。
 	     ApplyHostTime：Host 对时（S2F31）是不是真改本机时钟（False = 只答收下）。
 	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
+	     Recipe（E30 工艺程序管理）：Host 用 S7 列、取、下、删流程配方和工艺配方，内容是 JSON，跟本地配方页过同一套检查；配方变了报事件。
+	     Host 那边的配方号 = 前缀 + 配方名（SequencePrefix / ProcessRecipePrefix，两个不能一样）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
 	     E87：载具 ID、槽图跟 Host 核对，端口搬运状态、预约、绑定；AutoLoad / AutoUnload：认定后自动 Load、干完或不要了自动 Unload。
 	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
 	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
@@ -460,6 +463,7 @@
 			<Value Name="DeviceId" Value="0" />
 			<Value Name="LogMessages" Value="True" />
 		</Setting>
+		<Setting Name="Notifier" Type="xyz.Components.Components.EapNotifierComponent" />
 		<Setting Name="E30" Type="xyz.Components.Components.E30Component">
 			<Value Name="EquipmentModel" Value="xyz" />
 			<Value Name="SoftwareRevision" Value="1.0.0" />
@@ -467,6 +471,11 @@
 			<Value Name="ApplyHostTime" Value="False" />
 		</Setting>
 		<Setting Name="E39" Type="xyz.Components.Components.E39Component" />
+		<Setting Name="Recipe" Type="xyz.Components.Components.E30RecipeComponent">
+			<Value Name="SequencePrefix" Value="SEQ/" />
+			<Value Name="ProcessRecipePrefix" Value="PR/" />
+			<Value Name="LockLocalEditInRemote" Value="False" />
+		</Setting>
 		<Setting Name="E87" Type="xyz.Components.Components.E87Component">
 			<Value Name="AutoLoad" Value="True" />
 			<Value Name="AutoUnload" Value="True" />

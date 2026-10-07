@@ -170,6 +170,11 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   按名字被引用：流程配方查配方在不在库里（`sequence.recipe_not_found`），腔体起工艺查（`chamber.recipe_not_found`）；库没装都不查。
   锁的先后：`SequenceComponent` 锁里可以调 `ProcessRecipeComponent.Contains` / `FindMismatch`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`），
   `GetOptionsAsync` 给字段表（带取好的下拉选项，跟着别的字段走的按那个字段的值分开给）。两个库的 `Find(名字)` 给的是克隆（配方快照，库里再改不影响）。
+  **Host 远程管配方**：两个库都实现 `Interfaces\IRecipeLibrary`（EAP 的命令接口，两个口子一样共用一个）：`RecipeNames`、`ExportRecipe(名字)`（库里那份转 JSON，
+  工艺配方步骤是字段名 → 值，`ProcessRecipeStep.Attributes` 是存 XML 用的、JSON 里不带）、`ImportRecipe(名字, JSON, 操作人)`（没有就在第一个空编号新建、有就覆盖说明和步骤，
+  检查、规整跟本地一样，JSON 里的编号 / 版本 / 人和时间不管；满了 `*.full`、读不出来 `*.body_invalid`）、`DeleteRecipe(名字)`（没有 `*.name_not_found`）。
+  上报口 `E30RecipeCallback`（`IE30RecipeCallback`）：建、改、删、改名（旧名删 + 新名建）都在 `Report` 里经 `EapNotifierComponent` 报。
+  配方服务改配方（建、改名、存、删）之前先问 `E30RecipeComponent.Current?.IsLocalEditLocked`，锁着回 `recipe.locked_by_host`。
   还没做：腔体按工艺配方的步骤真的去转、去喷（35021 的 Process 还是定时模拟，只认名字）；字段作用到哪个设备（AO 等，本来就配在 sc 腔体下面）到时再定。
 - **加工口** `Process\IProcessStation`（`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。`CheckProcess(ProcessRequest)` 只问不动设备
   （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected`），
@@ -193,8 +198,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
     E40 状态机、PJ 命令）。两个管理**不拿 JobManager**（只有 CJ 管理拿着 PJ 管理：CJ 的 Stop / Abort 要往下传给 PJ），转换表是各自里的一个 switch
     （带 SEMI 转换号，推动转换的是 `ControlStateAction` / `ProcessStateAction`），转了发 `StateChanged` 事件。牵扯别处的事都在 JobManager：
     建 PJ（查 LoadPort、载具、片、流程配方，任务组件建任务表）、建 CJ 前查名字；PJ 进 ABORTING 撤单 + 腔体中止、PJ 结束任务表收场、CJ 完成告诉 LoadPort；
-    CJ 自动转换要的载具好没好、拿没拿走由它查设备给；建好、每条转换、片开始 / 结束加工都由它经 `E94Callback` / `E40Callback` 报
-    （走组件层 `Components\Eap\EapNotifier` 单读者派发线程，PJ 结束先于 CJ 完成报）。
+    CJ 自动转换要的载具好没好、拿没拿走由它查设备给；建好、每条转换都由它经 `E94Callback` / `E40Callback`（片开始 / 结束加工 E40 没有事件，由 E90 照晶圆账报） 报
+    （放进 EAP 的上报派发组件 `EapNotifierComponent.Current`，跟所有上报一条线程按先后发，PJ 结束先于 CJ 完成报）。
   - 任务组件 `Task\BaseTaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
     每一站放片、站内任务、取片 → 回片 LoadPort 放片（回片槽建 PJ 时定）。中间的路线整个 PJ 算一次（`BuildRoute`）：这一站的工艺配方取快照、站点组去掉用不了的
     （没装、停用、机械手到不了、跑不了这个配方）、剩下的每个站点都要声明支持用到的任务（`job.station_task_unsupported`）。每一格（`WaferTask`）记状态
@@ -240,16 +245,16 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `LoadPortDriverBase.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
 - HSMS 协议（`xyz.Secs`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync
   （`HsmsComponent` 已经把 Host 的报文挪到自己的派发线程上，处理方不用操心这个）。
-- 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性 + 专用派发线程）、反查口（provider，为 null 走本地规则），
+- 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性；报的时候放进 `EapNotifierComponent.Current`，不自己起线程）、反查口（provider，为 null 走本地规则），
   照 `BaseLoadPortModule` 的 E87 / E84 写；接口放 `xyz.Components\Interfaces`（EAP 组件在组件层，看得到）；细则见 decisions.md「EAP 接入的统一做法」。
 
 ### EAP（SECS/GEM，`xyz.Components\Components\Eap`，sc.xml 的 `Eap` 节点）
-- **一个 SEMI 标准一个组件**，都是 `EapComponent`（`Eap` 节点）的子节点：`Hsms`（E37 链路）、`E30`（GEM）、`E39`（对象服务 S14）、`E87`（载具）、
+- **一个 SEMI 标准一个组件**，都是 `EapComponent`（`Eap` 节点）的子节点：`Hsms`（E37 链路）、`Notifier`（`EapNotifierComponent`，上报派发，必须配）、`E30`（GEM）、`E39`（对象服务 S14）、`E87`（载具）、
   `E90`（片跟踪）、`E40`（PJ）、`E94`（CJ）。每个标准一个子目录（`Eap\E30` …），命名空间照旧 `xyz.Components.Components`；
   几个标准共用的直接放 `Eap` 下：`SecsRead`（读 Host 报文，结构不对抛 SecsException → 链路回 S9F7）、`GemValue`（值 ↔ SECS 格式、时间格式）、
-  `E5Error`（ERRCODE + ERRTEXT，只用 E5 的码）、`JobErrors`（Job 的错误码 → E5）、`EapNotifier`。
-- **开机**：设备侧都起来以后宿主调 `EapComponent.Bind(LoadPort 们, JobManager)`：链路没启用（`Hsms.IsEnable=False`）什么都不接；
-  启用了按 E30 → E39 → E90 → E87 → E40 / E94 接好（各自 `Attach`：登记处理方、挂设备侧上报口），**最后才 `Hsms.Open`**。退出 `EapComponent.Close`（先 Separate，再摘回调）。
+  `E5Error`（ERRCODE + ERRTEXT，只用 E5 的码）、`JobErrors`（Job 的错误码 → E5）。
+- **开机**：设备侧都起来以后宿主调 `EapComponent.Bind(LoadPort 们, JobManager, 流程配方库, 工艺配方库)`：链路没启用（`Hsms.IsEnable=False`）什么都不接；
+  启用了按 E30 → E39 → Recipe → E90 → E87 → E40 / E94 接好（各自 `Attach`：登记处理方、挂设备侧上报口），**最后才 `Hsms.Open`**。退出 `EapComponent.Close`（先 Separate，再摘回调）。
 - **链路 `HsmsComponent`**：只管连接和分发。`Handle(stream, function, 处理方)` 登记（重复登记开机就抛），Host 的 primary 放进一条派发线程
   按先后处理——处理方可以 await 设备侧的命令；返回 `SecsReply`（`Of(体)` / `Abort`（SxF0）/ `Error(n)`（S9Fn）/ `None`），
   `.Then(动作)` 是回复发出去以后接着做的（先让 Host 看到回复再报事件）。没人登记：整个 Stream 都没人管回 S9F3，否则 S9F5；
@@ -263,6 +268,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   Host 定的报告、开关、缓存范围存 `gem_config`（一行 JSON），缓存报文存 `gem_spool`（SC `Database` 指的库）。
 - **E39**：各标准把对象类型登记进来（`IE39ObjectType`：类型名、属性名先后 = 属性号、对象 ID、取属性；建、删、改可选）——Carrier、Port（E87）、
   Substrate、SubstLoc（E90）、ProcessJob（E40）、ControlJob（E94，S14F9 建 CJ 走它）。查要 ON-LINE，改 / 建 / 删要 REMOTE。
+- **Recipe**（`Eap\Recipe\E30RecipeComponent`，E30 的工艺程序管理）：挂到两个配方库上（`IRecipeLibrary` + 上报口 `IE30RecipeCallback`）。
+  Host 的配方号 = 前缀 + 配方名（SC `SequencePrefix` 默认 `SEQ/`、`ProcessRecipePrefix` 默认 `PR/`，一样开机就抛；前缀长的先认，空前缀收剩下的）。
+  S7F1 → PPGNT（0 可以、3 配方号不对、5 不在 REMOTE）；S7F3 下配方（PPBODY 收 A / B 的 JSON）→ ACKC7（0、1 不让：不在 REMOTE 或库没过检查，原因记日志、4 配方号不对）；
+  S7F5 → S7F6 PPBODY 用 B（UTF-8），没有回空表；S7F17 删（空表 = 全删；有一个没有就都不删回 4）；S7F19 列（流程配方在前）。下、删要 REMOTE。
+  配方变了报 `ProcessProgramChange`（DV `PPChangeName` = 配方号、`PPChangeStatus` 1 建 / 2 改 / 3 删；本地和 Host 改的都报）。
+  SC `LockLocalEditInRemote`（默认 False）：True 时 ON-LINE REMOTE 下 `IsLocalEditLocked` 为真，本地配方服务拒改。
+  E40 认带 `SEQ/` 的 RCPSPEC（不带也认），报给 Host 的 RecID 带前缀（`SequenceNameOf` / `SequenceIdOf`）。
 - **E87**：挂到每个 LoadPort 上（`IE87Callback` + `IE84Provider`，PortID 按传进来的先后从 1 编）；ID 核对：有 Bind / CarrierNotification 预告且号对上由设备认定，
   没预告的等 Host ProceedWithCarrier，读码失败的等 Host 带端口号给号；认定后 SC `AutoLoad` 自动 Load；槽图跟 Host 给的一样由设备认定，否则等 Host；
   槽图认定 = 料到了：Host 给的片号表写进晶圆账，再通知 E90 建片对象；Host 取消的、核对不过的不要了（卸下来等取），干完 / 中断 SC `AutoUnload` 自动 Unload。
@@ -273,7 +285,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - **E40 / E94**：Host 的 S16F11 / 15 / 5 / 17 / 19 / 21 / 27、S14F9 翻成 `IJobManager` 的命令（来源 Host），被拒的错误码经 `JobErrors` 翻成 E5；
   建 PJ 的料只收一个载具加槽号（槽表空 = 载具上正常的片），载具要已经在端口上；不支持配方参数、暂停事件、改回片地方。
   PJ / CJ 的状态转换（`IE40Callback` / `IE94Callback`）报 PrJobSMTrans01~18 / CtrlJobSMTrans01~13。
-- 冒烟：`HsmsSmoke`（链路和分发）、`EapSmoke`（各标准对假 Host、假 LoadPort、真晶圆账、假 Job 管理）。
+- 冒烟：`HsmsSmoke`（链路和分发）、`EapSmoke`（各标准对假 Host、假 LoadPort、真晶圆账、假 Job 管理、假配方库）；
+  两个真配方库的按名字列、取、存、删和上报在 `SequenceSmoke` / `ProcessRecipeSmoke` 里测。
 
 ## 5. 服务（gRPC code-first）
 

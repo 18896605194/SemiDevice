@@ -194,6 +194,71 @@ try
     Fails(library.Get(0), ErrorCodes.SequenceIndexOutOfRange, ["0", "99"], "取编号 0");
     Check(changed.SequenceEqual(new[] { 2 }), "删除发一次变更事件");
 
+    // 7b. Host 远程管配方（IRecipeLibrary，EAP 的 S7 走它）：按名字列、取（JSON）、存（没有就新建、有就覆盖，检查跟本地一样）、删；
+    //     建、改、删、改名都经 EAP 的派发组件报上报口（改名报旧名删了、新名建了）。这一节建的最后都删掉，后面接着只剩 1 号。
+    _ = new EapNotifierComponent();
+    var eapChanges = new RecordingRecipeCallback();
+    xyz.Components.Interfaces.IRecipeLibrary remote = library;
+    remote.E30RecipeCallback = eapChanges;
+    Check(remote.RecipeNames.SequenceEqual(new[] { "SC1_LP1_TO_LP2" }), "按名字列");
+    string? exported = remote.ExportRecipe("sc1_lp1_to_lp2");
+    var exportedData = exported is null ? null : JsonHelper.Deserialize<SequenceData>(exported);
+    Check(exportedData is not null && exportedData.Name == "SC1_LP1_TO_LP2" && exportedData.Revision == 4 && exportedData.Steps.Count == 4
+          && exportedData.Steps[1].Recipe == "R1", "取出来是 JSON（名字不分大小写），内容跟库里一样");
+    Check(remote.ExportRecipe("NOPE") is null, "没有的名字取不到");
+
+    var imported = remote.ImportRecipe("HOST_NEW", exported!, "Host");
+    var hostNew = library.Find("HOST_NEW");
+    Check(imported.IsSuccess && hostNew is not null && hostNew.Index == 2 && hostNew.Revision == 1 && hostNew.CreatedBy == "Host"
+          && hostNew.Steps.Count == 4 && hostNew.Steps[2].Stations.SequenceEqual(new[] { "SmokeAligner" }),
+        "Host 下一个新名字：放在第一个空编号上，版本 1，建的人记 Host，步骤照 JSON");
+    string overwrite = JsonHelper.Serialize(new SequenceData
+    {
+        Name = "IGNORED",
+        Index = 50,
+        Revision = 99,
+        Description = " 远程改的 ",
+        Steps = [new("loadport", ["smokelp1"]), new("Chamber", ["SmokePM2"], " R2 "), new("LoadPort", ["SmokeLP1"])],
+    });
+    var overwriteResult = remote.ImportRecipe("host_new", overwrite, "Host");
+    var overwritten = library.Find("HOST_NEW");
+    Check(overwriteResult.IsSuccess && overwritten is not null && overwritten.Index == 2 && overwritten.Name == "HOST_NEW" && overwritten.Revision == 2
+          && overwritten.Description == "远程改的" && overwritten.ModifiedBy == "Host" && overwritten.Steps[0].Group == "LoadPort"
+          && overwritten.Steps[0].Stations.SequenceEqual(new[] { "SmokeLP1" }) && overwritten.Steps[1].Recipe == "R2",
+        "同名再下：覆盖说明和步骤（版本加 1、照本地一样规整写法），JSON 里的名字、编号、版本不管");
+    var tooFew = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new SequenceData { Steps = [new("LoadPort", ["SmokeLP1"])] }), "Host");
+    Check(!tooFew.IsSuccess && tooFew.ErrorMessage == ErrorCodes.SequenceTooFewSteps && library.Find("HOST_BAD") is null,
+        "步骤没过检查：跟本地保存一样拒，什么都不存");
+    var notJson = remote.ImportRecipe("HOST_BAD", "not json", "Host");
+    Check(!notJson.IsSuccess && notJson.ErrorMessage == ErrorCodes.SequenceBodyInvalid && notJson.Args.SequenceEqual(new[] { "HOST_BAD" }),
+        "内容不是 JSON：sequence.body_invalid 带名字");
+    var nullSteps = remote.ImportRecipe("HOST_BAD", "{\"steps\":[{\"group\":null,\"stations\":null}]}", "Host");
+    Check(!nullSteps.IsSuccess && nullSteps.ErrorMessage == ErrorCodes.SequenceTooFewSteps, "JSON 里空着的步骤内容补成空的再查，不会出异常");
+    var badName = remote.ImportRecipe("HOST BAD", overwrite, "Host");
+    Check(!badName.IsSuccess && badName.ErrorMessage == ErrorCodes.SequenceNameInvalid, "名字不合规：跟本地新建一样拒");
+
+    var tinyFolder = Path.Combine(folder, "tiny");
+    var tiny = new SequenceComponent { Folder = tinyFolder, Capacity = 1 };
+    SequenceComponent.Current = library;
+    tiny.Load();
+    var full = tiny.Create(1, "ONLY", "Tester").IsOk ? ((xyz.Components.Interfaces.IRecipeLibrary)tiny).ImportRecipe("SECOND", exported!, "Host") : null;
+    Check(full is not null && full.ErrorMessage == ErrorCodes.SequenceFull && full.Args.SequenceEqual(new[] { "1" }), "编号都用完了：sequence.full 带个数");
+    Directory.Delete(tinyFolder, recursive: true);
+
+    Check(library.Rename(2, "HOST_RENAMED", "Tester").IsOk, "本地改名");
+    var removedByHost = remote.DeleteRecipe("host_renamed", "Host");
+    Check(removedByHost.IsSuccess && library.Find("HOST_RENAMED") is null && !File.Exists(Path.Combine(folder, "002.xml")), "按名字删（不分大小写）");
+    Check(remote.DeleteRecipe("HOST_RENAMED", "Host").ErrorMessage == ErrorCodes.SequenceNameNotFound, "再删说没有：sequence.name_not_found");
+    Check(eapChanges.WaitFor(5) && eapChanges.Changes.SequenceEqual(new[]
+    {
+        ("HOST_NEW", xyz.Components.Enums.RecipeChange.Created),
+        ("HOST_NEW", xyz.Components.Enums.RecipeChange.Edited),
+        ("HOST_NEW", xyz.Components.Enums.RecipeChange.Deleted),
+        ("HOST_RENAMED", xyz.Components.Enums.RecipeChange.Created),
+        ("HOST_RENAMED", xyz.Components.Enums.RecipeChange.Deleted),
+    }), "上报口按先后收到：新建、覆盖、改名（旧名删了、新名建了）、删除；没成的不报");
+    remote.E30RecipeCallback = null;
+
     // 8. 流程配方服务（直接调 gRPC 服务类，不起网络）：列表带个数，分组照库里的，错误码和参数原样回给界面；
     //    没带操作人记成 Unknown；没装库回 sequence.not_installed。
     var service = new SequenceService([]);
@@ -329,7 +394,7 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library and to fit every chamber picked).");
+Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, host recipe management by name (export as JSON, import as new or overwrite through the same checks, delete, change reports), files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library and to fit every chamber picked).");
 
 /// <summary>
 /// 探针用：生产里名字由装配器经 internal setter 设，这里反射设。
@@ -437,4 +502,34 @@ sealed class ProbeRobot : BaseModule, IRobot
     ModuleOperation? IRobot.PowerOn() => null;
 
     ModuleOperation? IRobot.PowerOff() => null;
+}
+
+// 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。
+sealed class RecordingRecipeCallback : xyz.Components.Interfaces.IE30RecipeCallback
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(string Name, xyz.Components.Enums.RecipeChange Change)> _changes = new();
+
+    public IEnumerable<(string Name, xyz.Components.Enums.RecipeChange Change)> Changes => _changes;
+
+    public void RecipeChanged(xyz.Components.Interfaces.IRecipeLibrary library, string name, xyz.Components.Enums.RecipeChange change)
+    {
+        _changes.Enqueue((name, change));
+    }
+
+    public bool WaitFor(int count, int timeoutMs = 3000)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < timeoutMs)
+        {
+            if (_changes.Count >= count)
+            {
+                Thread.Sleep(100);
+                return _changes.Count == count;
+            }
+
+            Thread.Sleep(20);
+        }
+
+        return false;
+    }
 }

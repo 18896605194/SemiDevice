@@ -219,7 +219,7 @@ public class E90Component : ComponentBase, IE90Callback
 
     #endregion
 
-    #region 账本回调（IE90Callback，在账本的 EAP 派发线程上）
+    #region 账本回调（IE90Callback，在 EAP 的上报派发线程上）
 
     void IE90Callback.WaferCreated(WaferInfo wafer)
     {

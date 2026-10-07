@@ -237,7 +237,7 @@ public static class ServiceExtensions
         var eap = EapComponent.Current;
         if (eap is not null)
         {
-            eap.Bind(modules.OfType<ILoadPort>().ToList(), jobs);
+            eap.Bind(modules.OfType<ILoadPort>().ToList(), jobs, SequenceComponent.Current, ProcessRecipeComponent.Current);
         }
         else if (HsmsComponent.Current is not null)
         {

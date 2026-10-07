@@ -21,19 +21,11 @@ namespace xyz.Modules;
 [Component(description: "Job 管理：里面有 CJ 管理（E94）、PJ 管理（E40），下面挂任务组件（任务表）和调度引擎")]
 public class JobManager : ComponentBase, IJobManager
 {
-    /// <summary>
-    /// 当前 Job 管理；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
-    /// </summary>
     public static JobManager? Current { get; set; }
 
-    /// <summary>命令和扫描线程共用的锁：CJ / PJ 管理、任务表同一时刻只有一个在改。</summary>
     private readonly object _gate = new();
 
-    private readonly IPjManager _processJobs;
-    private readonly ICjManager _controlJobs;
-
-    /// <summary>EAP 派发线程：E40、E94 的上报按发生先后在这一条线程上发，不占扫描线程。</summary>
-    private readonly EapNotifier _notifier;
+    
 
     private IReadOnlyDictionary<string, BaseModule> _modules = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
     private BaseTaskComponent? _tasks;
@@ -46,10 +38,11 @@ public class JobManager : ComponentBase, IJobManager
     private long _publishedTasks = -1;
     private volatile JobListDto _snapshot = new();
 
+    private readonly IPjManager _processJobs;
+    private readonly ICjManager _controlJobs;
     public JobManager()
     {
         Current = this;
-        _notifier = new EapNotifier(() => Name);
         _processJobs = new PjManager();
         _controlJobs = new CjManager(_processJobs);
         _processJobs.StateChanged += OnProcessJobStateChanged;
@@ -106,7 +99,7 @@ public class JobManager : ComponentBase, IJobManager
     /// <summary>E40（PJ）上报口；null 表示没接 EAP，照常跑。装配时由 EAP 侧挂上。</summary>
     public IE40Callback? E40Callback { get; set; }
 
-    /// <summary>E94（CJ）上报口；null 表示没接 EAP。跟 E40 共用一条派发线程。</summary>
+    /// <summary>E94（CJ）上报口；null 表示没接 EAP。上报都放进 EAP 的派发组件（EapNotifierComponent），按发生先后发。</summary>
     public IE94Callback? E94Callback { get; set; }
 
     #endregion
@@ -553,7 +546,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null)
         {
             var dto = JobDtos.Of(job);
-            _notifier.Post(() => callback.ProcessJobStateChanged(dto, number));
+            EapNotifierComponent.Current?.Post(() => callback.ProcessJobStateChanged(dto, number));
         }
 
         _dirty = true;
@@ -602,13 +595,13 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null)
         {
             var dto = JobDtos.Of(job);
-            _notifier.Post(() => callback.ControlJobStateChanged(dto, number));
+            EapNotifierComponent.Current?.Post(() => callback.ControlJobStateChanged(dto, number));
         }
 
         _dirty = true;
     }
 
-    /// <summary>站内任务开始：是工艺的记日志、往 EAP 报片开始加工（E40）。</summary>
+    /// <summary>站内任务开始：是工艺的记日志（片开始加工报 Host 由 E90 照晶圆账报）。</summary>
     private void OnStationTaskBegan(TaskRow row, WaferTask task)
     {
         var job = _processJobs.Find(row.Owner);
@@ -619,16 +612,9 @@ public class JobManager : ComponentBase, IJobManager
 
         string station = task.Station ?? string.Empty;
         LogHelper.Info(Name, $"PJ {job.Id} {row.WaferName} 在 {station} 开始加工（第 {task.Step + 1} 站，{task.RecipeName}）");
-        var callback = E40Callback;
-        if (callback is not null)
-        {
-            var jobDto = JobDtos.Of(job);
-            var waferDto = JobDtos.Of(row);
-            _notifier.Post(() => callback.WaferProcessStarted(jobDto, waferDto, station));
-        }
     }
 
-    /// <summary>站内任务结束：是工艺的记日志、往 EAP 报片加工结束（成没成看任务状态）。</summary>
+    /// <summary>站内任务结束：是工艺的记日志，成没成看任务状态（报 Host 由 E90 照晶圆账报）。</summary>
     private void OnStationTaskFinished(TaskRow row, WaferTask task)
     {
         var job = _processJobs.Find(row.Owner);
@@ -646,14 +632,6 @@ public class JobManager : ComponentBase, IJobManager
         else
         {
             LogHelper.Warn(Name, $"PJ {job.Id} {row.WaferName} 在 {station} 加工没做成：这一步停住等人处理，别的片照常走");
-        }
-
-        var callback = E40Callback;
-        if (callback is not null)
-        {
-            var jobDto = JobDtos.Of(job);
-            var waferDto = JobDtos.Of(row);
-            _notifier.Post(() => callback.WaferProcessEnded(jobDto, waferDto, station, success));
         }
     }
 

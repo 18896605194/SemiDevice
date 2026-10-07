@@ -148,6 +148,10 @@
     <sys:String x:Key="sequence.recipe_not_found">Step {0}: process recipe {1} is not in the process recipe library (it may have been deleted or renamed)</sys:String>
     <sys:String x:Key="sequence.recipe_option_missing">Step {0}: {1} has no {3} {4} (used by process recipe {2})</sys:String>
     <sys:String x:Key="sequence.save_failed">Could not write the file of sequence No. {0}: {1}</sys:String>
+    <sys:String x:Key="sequence.full">All sequence numbers are in use (at most {0}); there is no room for a new one</sys:String>
+    <sys:String x:Key="sequence.name_not_found">Sequence {0} not found in the sequence library</sys:String>
+    <sys:String x:Key="sequence.body_invalid">The content of sequence {0} cannot be read (it must be JSON in the format this equipment exports)</sys:String>
+    <sys:String x:Key="recipe.locked_by_host">In ON-LINE REMOTE recipes can only be changed by the host, not on this equipment</sys:String>
     <sys:String x:Key="process_recipe.not_installed">The process recipe library is not installed (no ProcessRecipe node in sc.xml)</sys:String>
     <sys:String x:Key="process_recipe.index_out_of_range">No. {0} does not exist (1 ~ {1})</sys:String>
     <sys:String x:Key="process_recipe.not_found">No. {0} has no process recipe (it may have just been deleted elsewhere)</sys:String>
@@ -167,6 +171,9 @@
     <sys:String x:Key="process_recipe.value_not_in_options">Step {0}: {1} has no option {2}</sys:String>
     <sys:String x:Key="process_recipe.total_too_long">Total {0} s exceeds the chamber process timeout of {1} s</sys:String>
     <sys:String x:Key="process_recipe.save_failed">Could not write the file of process recipe No. {0}: {1}</sys:String>
+    <sys:String x:Key="process_recipe.full">All process recipe numbers are in use (at most {0}); there is no room for a new one</sys:String>
+    <sys:String x:Key="process_recipe.name_not_found">Process recipe {0} not found in the process recipe library</sys:String>
+    <sys:String x:Key="process_recipe.body_invalid">The content of process recipe {0} cannot be read (it must be JSON in the format this equipment exports)</sys:String>
 
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.

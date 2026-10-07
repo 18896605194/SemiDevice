@@ -226,7 +226,8 @@ modeResponse = await service.OfflineAsync(port.Name);
 Check(modeResponse.Success && port.Mode == ModuleMode.Offline && port.Calls == callsBeforeMode,
     "Offline must clear the module mode without starting a device action.");
 
-// EAP 口子：回调走专用派发线程（本工具不跑扫描循环，正好证明派发不再依赖扫描）。
+// EAP 口子：回调走 EAP 的派发组件（宿主里是 sc.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
+_ = new EapNotifierComponent();
 var eap = new RecordingE87Callback();
 port.E87Callback = eap;
 port.SetAutoMode(true);

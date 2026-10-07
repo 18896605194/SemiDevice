@@ -157,6 +157,8 @@ try
     Probe.Name(jobs, "Job");
     jobs.Database = "JobSmoke";
     jobs.Bind(modules);
+    // 上报口直接挂假的 EAP；上报都经 EAP 的派发组件发（宿主里是 sc.xml Eap 下的 Notifier）
+    _ = new EapNotifierComponent();
     var events = new RecordingJobEvents();
     jobs.E40Callback = events;
     jobs.E94Callback = events;
@@ -1102,14 +1104,6 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
 
     public void ProcessJobStateChanged(ProcessJobDto job, int transition) =>
         _events.Enqueue($"PJ {job.Id} #{transition}");
-
-    public void WaferProcessStarted(ProcessJobDto job, JobWaferDto wafer, string station)
-    {
-    }
-
-    public void WaferProcessEnded(ProcessJobDto job, JobWaferDto wafer, string station, bool success)
-    {
-    }
 
     public void ControlJobStateChanged(ControlJobDto job, int transition) =>
         _events.Enqueue($"CJ {job.Id} #{transition}");

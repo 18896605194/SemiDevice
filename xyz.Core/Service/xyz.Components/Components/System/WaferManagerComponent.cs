@@ -33,9 +33,8 @@ public class WaferManagerComponent : ComponentBase
     public WaferManagerComponent()
     {
         Current = this;
-        _eapNotifier = new EapNotifier(() => Name);
 
-        // 账一变就给 EAP 报一份（E90）：放进 EAP 派发线程按先后报，不占改账的线程。没挂 EAP 时不入队
+        // 账一变就给 EAP 报一份（E90）：放进 EAP 的派发组件按先后报，不占改账的线程。没挂 EAP 时不入队
         WaferCreated += wafer => NotifyE90(callback => callback.WaferCreated(wafer));
         WaferDeleted += wafer => NotifyE90(callback => callback.WaferDeleted(wafer));
         WaferMoved += (wafer, fromModule, fromSlot) => NotifyE90(callback => callback.WaferMoved(wafer, fromModule, fromSlot));
@@ -43,8 +42,6 @@ public class WaferManagerComponent : ComponentBase
     }
 
     #region EAP 口子（E90 片跟踪）
-
-    private readonly EapNotifier _eapNotifier;
 
     /// <summary>E90 片跟踪上报口；null 表示没接 EAP，照常记账。装配时由 EAP 侧挂上。</summary>
     public IE90Callback? E90Callback { get; set; }
@@ -56,7 +53,7 @@ public class WaferManagerComponent : ComponentBase
             return;
         }
 
-        _eapNotifier.Post(() =>
+        EapNotifierComponent.Current?.Post(() =>
         {
             var callback = E90Callback;
             if (callback is not null)

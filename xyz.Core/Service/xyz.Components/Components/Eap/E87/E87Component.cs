@@ -379,7 +379,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #endregion
 
-    #region 设备回调（IE87Callback，在各 LoadPort 的 EAP 派发线程上）
+    #region 设备回调（IE87Callback，在 EAP 的上报派发线程上）
 
     void IE87Callback.CarrierArrived(ILoadPort device)
     {

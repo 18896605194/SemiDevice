@@ -1,4 +1,5 @@
-﻿using System.Xml;
+﻿using System.Text.Json.Serialization;
+using System.Xml;
 using System.Xml.Serialization;
 
 namespace xyz.Modules;
@@ -17,9 +18,10 @@ public class ProcessRecipeStep
     public List<ProcessRecipeValue> Values { get; set; } = [];
 
     /// <summary>
-    /// 给 XmlSerializer 用的：每个值写成一个属性，读的时候所有属性都收进来。
+    /// 给 XmlSerializer 用的：每个值写成一个属性，读的时候所有属性都收进来。转 JSON（Host 远程取、下配方）时不要它，值在 <see cref="Values"/> 里。
     /// </summary>
     [XmlAnyAttribute]
+    [JsonIgnore]
     public XmlAttribute[] Attributes
     {
         get

@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -308,13 +307,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 关闭 _rfid 读头与驱动连接，并结束 EAP 派发线程；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// 关闭 _rfid 读头与驱动连接；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
     /// </summary>
     public void Close()
     {
         _rfid?.Close();
         _driver?.Close();
-        _eapNotifications.Writer.TryComplete();
     }
 
     private void OnDeviceEvent(LoadPortDeviceEvent evt)
@@ -878,17 +876,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region EAP 口子（设备侧上报给 EAP，EAP 经 ILoadPort 反向下发动作）
 
     /// <summary>
-    /// EAP 回调积压到这个条数的整数倍时记一次告警。
-    /// </summary>
-    private const int EapBacklogWarning = 500;
-
-    private readonly Channel<Action> _eapNotifications =
-        Channel.CreateUnbounded<Action>(new UnboundedChannelOptions { SingleReader = true });
-
-    private int _eapDispatchStarted;
-    private int _eapPending;
-
-    /// <summary>
     /// E87 载具管理回调；null 表示未接 EAP，模块照常运行。装配时由 EAP 侧挂上。
     /// </summary>
     public IE87Callback? E87Callback { get; set; }
@@ -906,7 +893,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region E84（端口驱动 E84 组件：每拍给许可与载具在位，交接进展转给 EAP）
 
     /// <summary>
-    /// 推 E84 一拍，交接进展放进 EAP 派发队列（和 E87 回调同一条，先后不乱）；没配 E84 组件什么都不做。
+    /// 推 E84 一拍，交接进展放进 EAP 的派发组件（跟所有上报同一条，先后不乱）；没配 E84 组件什么都不做。
     /// </summary>
     private void StepE84()
     {
@@ -1000,7 +987,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机、驱动的断线重连也在里面），
     /// 再查设备状态、判载具在位边沿、推 E84、收读码结果、查设备报警，最后有变化就推给界面；
-    /// EAP 回调由专用派发线程发，不占扫描线程。机型重写时先调 base.OnScan()。
+    /// EAP 上报放进 EAP 的派发组件发，不占扫描线程。机型重写时先调 base.OnScan()。
     /// </summary>
     protected override void OnScan()
     {
@@ -1088,7 +1075,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 入队一条 E87 回调；未挂 EAP 时直接丢弃。任意线程可调。
+    /// 一条 E87 上报放进 EAP 的派发组件；未挂 EAP 时直接丢弃。任意线程可调。
     /// </summary>
     private void EnqueueE87(Action<IE87Callback> notification)
     {
@@ -1097,7 +1084,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        Enqueue(() =>
+        EapNotifierComponent.Current?.Post(() =>
         {
             var callback = E87Callback;
             if (callback is not null)
@@ -1108,7 +1095,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 入队一条 E84 回调；未挂 EAP 时直接丢弃。任意线程可调（E84 信号由 IO 线程翻转）。
+    /// 一条 E84 上报放进 EAP 的派发组件；未挂 EAP 时直接丢弃。任意线程可调（E84 信号由 IO 线程翻转）。
     /// </summary>
     protected void EnqueueE84(Action<IE84Callback> notification)
     {
@@ -1117,7 +1104,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        Enqueue(() =>
+        EapNotifierComponent.Current?.Post(() =>
         {
             var callback = E84Callback;
             if (callback is not null)
@@ -1125,55 +1112,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 notification(callback);
             }
         });
-    }
-
-    /// <summary>
-    /// 投递一条回调并确保派发线程已起；积压超过水位只记日志，不丢事件（EAP 事件丢了比慢更糟）。
-    /// </summary>
-    private void Enqueue(Action notification)
-    {
-        EnsureDispatchRunning();
-        if (!_eapNotifications.Writer.TryWrite(notification))
-        {
-            return;
-        }
-
-        int pending = Interlocked.Increment(ref _eapPending);
-        if (pending > 0 && pending % EapBacklogWarning == 0)
-        {
-            LogHelper.Warn(Name, $"EAP 回调积压 {pending} 条，检查 EAP 侧是否卡住");
-        }
-    }
-
-    /// <summary>
-    /// 第一次真正入队时才起派发线程：没接 EAP 的机台不会多出这个线程。
-    /// </summary>
-    private void EnsureDispatchRunning()
-    {
-        if (Interlocked.CompareExchange(ref _eapDispatchStarted, 1, 0) == 0)
-        {
-            _ = Task.Run(DispatchEapLoopAsync);
-        }
-    }
-
-    /// <summary>
-    /// 专用线程按入队顺序派发，不持模块锁也不占扫描线程：EAP 侧发 SECS 阻塞时不会卡住设备轮询。
-    /// 单条异常只记日志；Close 后队列关闭、循环自然结束。
-    /// </summary>
-    private async Task DispatchEapLoopAsync()
-    {
-        await foreach (var notification in _eapNotifications.Reader.ReadAllAsync())
-        {
-            Interlocked.Decrement(ref _eapPending);
-            try
-            {
-                notification();
-            }
-            catch (Exception exception)
-            {
-                LogHelper.Warn(Name, $"EAP 回调异常: {exception.Message}");
-            }
-        }
     }
 
     #endregion

@@ -372,6 +372,15 @@ public static class ErrorCodes
     /// <summary>流程配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>
     public const string SequenceSaveFailed = "sequence.save_failed";
 
+    /// <summary>Host 下的新流程配方放不下：编号都用完了。Args: [个数]</summary>
+    public const string SequenceFull = "sequence.full";
+
+    /// <summary>按名字找不到流程配方（Host 删、取的时候）。Args: [名称]</summary>
+    public const string SequenceNameNotFound = "sequence.name_not_found";
+
+    /// <summary>Host 下的流程配方内容读不出来（不是这边给出去的那种 JSON）。Args: [名称]</summary>
+    public const string SequenceBodyInvalid = "sequence.body_invalid";
+
     #endregion
 
     #region 工艺配方
@@ -432,6 +441,22 @@ public static class ErrorCodes
 
     /// <summary>工艺配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>
     public const string ProcessRecipeSaveFailed = "process_recipe.save_failed";
+
+    /// <summary>Host 下的新工艺配方放不下：编号都用完了。Args: [个数]</summary>
+    public const string ProcessRecipeFull = "process_recipe.full";
+
+    /// <summary>按名字找不到工艺配方（Host 删、取的时候）。Args: [名称]</summary>
+    public const string ProcessRecipeNameNotFound = "process_recipe.name_not_found";
+
+    /// <summary>Host 下的工艺配方内容读不出来（不是这边给出去的那种 JSON）。Args: [名称]</summary>
+    public const string ProcessRecipeBodyInvalid = "process_recipe.body_invalid";
+
+    #endregion
+
+    #region 配方管理（Host 远程管配方）
+
+    /// <summary>ON-LINE REMOTE 时配方只能由 Host 改（sc.xml Eap.Recipe 的 LockLocalEditInRemote 开着），本地新建、改名、保存、删除都拒。Args: []</summary>
+    public const string RecipeLockedByHost = "recipe.locked_by_host";
 
     #endregion
 

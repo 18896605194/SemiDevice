@@ -5,10 +5,11 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// EAP（SECS/GEM，sc.xml 的 Eap 节点）：链路 Hsms 加上每个 SEMI 标准一个组件（E30、E39、E87、E90、E40、E94），都是它的子节点。
+/// EAP（SECS/GEM，sc.xml 的 Eap 节点）：链路 Hsms、上报派发 Notifier，加上每个 SEMI 标准一个组件（E30、E39、E87、E90、E40、E94）
+/// 和 E30 里的配方管理 Recipe，都是它的子节点。
 /// 开机时设备侧（LoadPort、晶圆账、Job 管理）都起来以后，由它按顺序把各标准接到链路和设备上，最后才打开链路——
 /// Host 一连进来就可能发报文，处理方得先在。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备侧的上报口保持 null，照常跑。
-/// 子节点哪个没配就不接哪个（E30 和 Hsms 是必须的；E87 / E90 / E40 / E94 按机台需要配，E94 建 CJ 要 E39）。
+/// 子节点哪个没配就不接哪个（Hsms、Notifier、E30 是必须的；Recipe / E87 / E90 / E40 / E94 按机台需要配，E94 建 CJ 要 E39）。
 /// </summary>
 [Component(description: "EAP（SECS/GEM）：链路加各 SEMI 标准，开机按顺序接到设备上再开链路")]
 public class EapComponent : ComponentBase
@@ -26,9 +27,10 @@ public class EapComponent : ComponentBase
 
     /// <summary>
     /// 接设备、开链路（宿主在设备侧都起来以后调一次）：E30 先接（别的标准报事件、判控制状态都经它），再 E39（对象服务，别的标准往里登记对象），
-    /// 再 E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理），最后打开链路。
+    /// 再配方管理（两个配方库）、E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理），最后打开链路。
+    /// 配方库没装的传 null，那个库就不给 Host 管。
     /// </summary>
-    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs)
+    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, IRecipeLibrary? sequences, IRecipeLibrary? processRecipes)
     {
         var link = FindChild<HsmsComponent>();
         if (link is null)
@@ -43,6 +45,12 @@ public class EapComponent : ComponentBase
             return;
         }
 
+        if (FindChild<EapNotifierComponent>() is null)
+        {
+            LogHelper.Error(Name, "Eap 下没配 Notifier 节点：设备侧报给 EAP 的事没有派发线程，EAP 不接");
+            return;
+        }
+
         var gem = FindChild<E30Component>();
         if (gem is null)
         {
@@ -53,6 +61,9 @@ public class EapComponent : ComponentBase
         gem.Attach(link);
         var objects = FindChild<E39Component>();
         objects?.Attach(link, gem);
+
+        var recipes = FindChild<E30RecipeComponent>();
+        recipes?.Attach(link, gem, sequences, processRecipes);
 
         var substrates = FindChild<E90Component>();
         var carriers = FindChild<E87Component>();
@@ -83,7 +94,7 @@ public class EapComponent : ComponentBase
         }
         else
         {
-            processJobs?.Attach(link, gem, objects, jobs, ports);
+            processJobs?.Attach(link, gem, objects, jobs, ports, recipes);
             controlJobs?.Attach(link, gem, objects, jobs);
         }
 
@@ -105,6 +116,7 @@ public class EapComponent : ComponentBase
         FindChild<E40Component>()?.Detach();
         FindChild<E87Component>()?.Detach();
         FindChild<E90Component>()?.Detach();
+        FindChild<E30RecipeComponent>()?.Detach();
         FindChild<E30Component>()?.Detach();
         IsBound = false;
     }

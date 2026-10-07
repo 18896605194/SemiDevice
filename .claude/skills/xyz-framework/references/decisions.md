@@ -191,7 +191,7 @@
      跟本地界面的服务调同一个接口、过同一套检查，不给 EAP 另开一条进设备的路。调用当场回受理结果（被拒带错误码），后面的进展走回调和状态。
   2. **上报口**：设备侧挂回调接口属性，**按 SEMI 标准号起名**：`IE87Callback` / `E87Callback`、`IE84Callback` / `E84Callback`；
      Job 是 `IE40Callback` / `E40Callback`（PJ）和 `IE94Callback` / `E94Callback`（CJ）。没接 EAP 时为 null，设备照常跑；
-     同一个对象的几个回调共用一条专用派发线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢）。
+     所有上报共用 EAP 的派发组件 `EapNotifierComponent`（sc.xml Eap 下的 `Notifier`，单例 `Current`）一条线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢），设备侧不再各自 new、各起线程（2026-10-07 用户："做成组件，直接拿他的单例"；原来每个对象一条线程，不同来源报给 Host 的先后会乱）。
   3. **反查口**：要 Host 拿主意的事，设备侧问 provider，同样按标准号起名（`IE84Provider` / `E84Provider`），为 null 时按本地规则自己判断。
      没有要问的就不开（Job 现在不开：载具核验归 E87 → LoadPort，Host 命令收不收归 E30 控制状态）。
 - 真正的状态只在设备侧存一份，EAP 侧不另记一份当真；Host 的决定（确认载具 ID、确认槽图、Job 命令）都经设备侧接口写回（例：`SetCarrierId` 后 ID 状态为已核验）。
@@ -222,6 +222,16 @@
 - LoadPort 上原来声明了没人报的"FOUP 到达 / 移除"事件，现在经 E30 真的报了（组件基类加了 `RaiseEvent`）。
 - **还没做**：GEM 控制状态的界面（E30 要求操作员看得到在线 / 离线、本地 / 远程，能切；后端接口 `RequestOnline` / `RequestOffline` / `RequestRemote` 有了），
   要先出样稿；E116。
+
+## Host 远程管配方（E30 工艺程序管理 S7，2026-10-07，用户："因为远程 eap 肯定会控制的"）
+- **用户定的三条**：流程配方、工艺配方**都归 Host 管**；配方内容**原样传 JSON**（不做 S7F23 / F25 带格式的参数）；
+  REMOTE 时锁不锁本地编辑**做成 SC**（用户："这个做成一个 sc 不就好了"）——`Eap.Recipe.LockLocalEditInRemote`，默认 False（本地照样改、改了报 Host）。
+- **SEMI 分工**（用户问过"谁管"）：E94 管 CJ、E40 管 PJ、E87 管载具、E90 管片的路径转移和片的工艺状态、E30 管配方增删改（S7）；
+  腔体一级的工艺过程（哪个腔、哪一步）是 E157，还没做，客户 GEM 要求里有再做。
+- 我定的（交付时说了）：Eap 下单独一个组件 `Recipe`（`E30RecipeComponent`，E30 已经 1800 行不再往里塞）；两个库共用一个命令接口 `IRecipeLibrary`
+  （没按"I + 组件名"拆两个：口子一模一样）；配方号 = 前缀 + 名字（`SEQ/`、`PR/`，SC 可改，名字里不能有 / 所以不会撞）；PPBODY 发 B（UTF-8），收 A / B；
+  S7F17 空表照标准全删；"配方变了"本地、Host 改的都报；改名报旧名删了 + 新名建了；E40 的 RCPSPEC 带不带 `SEQ/` 都认，报出去的 RecID 带前缀。
+- 库里配方文件还是 XML（`001.xml`），JSON 只是给 Host 的格式；Job、腔体用的是配方快照，Host 改了配方不影响在跑的。
 
 ## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05 做的，2026-10-06 按用户的设计重做，需求文档《通用 Job 组件功能需求文档》v0.1）
 - **结构**（2026-10-06 用户定的）：Job 组件 `JobManager` 管着 CJ 管理、PJ 管理（各有接口 `ICjManager` / `IPjManager`，各管自己的队列和 SEMI 状态机；
