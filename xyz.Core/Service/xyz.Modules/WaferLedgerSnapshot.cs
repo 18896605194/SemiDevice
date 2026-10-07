@@ -16,7 +16,7 @@ public static class WaferLedgerSnapshot
     /// </summary>
     public static List<WaferSlotDto> SlotsOf(string module)
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
             return [];

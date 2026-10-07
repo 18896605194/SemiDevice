@@ -17,7 +17,7 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 // EAP 冒烟（SECS/GEM 各标准组件对假 Host）：Eap 节点按 sc.xml 同款结构装配（Hsms + E30 + E39 + E87 + E90 + E40 + E94），
-// 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（WaferManager）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
+// 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（WaferManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
 // E39 查类型 / 属性名 / 属性（带条件）；E87 载具核对（没预告等 Host、Host 让继续、Host 给片号、取消、Bind 设备认定、读槽图核对）、
@@ -94,7 +94,7 @@ collectors.Merge(roots, directory);
 var eap = roots.OfType<EapComponent>().Single();
 var gem = eap.FindChild<E30Component>()!;
 var probe = roots.OfType<AlarmProbe>().Single();
-var ledger = new WaferManager();
+var ledger = new WaferManagerComponent();
 ledger.RegisterLoadPort("LP1", 5);
 ledger.RegisterLoadPort("LP2", 5);
 ledger.RegisterLocation("Robot", 2);
@@ -790,11 +790,11 @@ sealed class HostLog
 /// </summary>
 sealed class FakePort : ILoadPort
 {
-    private readonly WaferManager _ledger;
+    private readonly WaferManagerComponent _ledger;
     private bool _loaded;
     private bool _complete;
 
-    public FakePort(string name, WaferManager ledger)
+    public FakePort(string name, WaferManagerComponent ledger)
     {
         Name = name;
         _ledger = ledger;

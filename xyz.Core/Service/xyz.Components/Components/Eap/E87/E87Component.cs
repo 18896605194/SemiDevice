@@ -746,7 +746,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         actions.Add(() =>
         {
             device.UpdateCarrierStatus(null, CarrierSlotMapStatus.Verified);
-            var ledger = WaferManager.Current;
+            var ledger = WaferManagerComponent.Current;
             if (ledger is not null && content is not null)
             {
                 for (int index = 0; index < content.Count; index++)
@@ -1027,7 +1027,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     private static SecsItem ContentMapItem(E87Carrier carrier)
     {
         var port = carrier.Port;
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (carrier.SlotMapStatus == E87Codes.MapVerified && port is not null && ledger is not null)
         {
             return SecsItem.L(ledger.GetSlots(port.Device.Name).Select(wafer => SecsItem.L(

@@ -72,7 +72,7 @@ internal sealed class ChamberHoldOperation : ModuleOperation
     {
         if (!_released)
         {
-            if (ChamberPartOperation.ActionStateOf(Part) == ActionState.Failed)
+            if (Part.ActionState == ActionState.Failed)
             {
                 _release();
                 Fail(ErrorCodes.ChamberPartActionFailed, $"{Name}：部件报失败（设备报错）", Part.FullPath, Action);
@@ -94,7 +94,7 @@ internal sealed class ChamberHoldOperation : ModuleOperation
             _releasedAt = Watch.ElapsedMilliseconds;
         }
 
-        switch (ChamberPartOperation.ActionStateOf(Part))
+        switch (Part.ActionState)
         {
             case ActionState.Completed:
                 Complete();

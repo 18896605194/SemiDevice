@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Configs.Models;
 
 namespace xyz.Components;
@@ -260,6 +261,16 @@ public abstract class ComponentBase
         AlarmComponent.Current?.Clear(this);
         return null;
     }
+
+    #endregion
+
+    #region 动作状态
+
+    /// <summary>
+    /// 当前动作的状态，组件自己说做完没有：指令写进 PLC 即 Running，做完 Completed，超时或设备报错 Failed，被中止回到 Idle。
+    /// 基类没有自己管的动作，就是已经做完；自己管动作到完成的组件（轴、气缸、阀）重写。调用方发完指令看它等结果，手动页的部件动作也靠它判做完没有。
+    /// </summary>
+    public virtual ActionState ActionState => ActionState.Completed;
 
     #endregion
 

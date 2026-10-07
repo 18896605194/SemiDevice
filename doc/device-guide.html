@@ -798,7 +798,7 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
 
       <!-- ===================== 11 Job ===================== -->
       <section id="lp-job">
-        <div class="eyebrow">xyz.Modules / Job · Transfer · xyz.Components / System / WaferManager</div>
+        <div class="eyebrow">xyz.Modules / Job · Transfer · xyz.Components / System / WaferManagerComponent</div>
         <h2>跟 Job、搬运管理、全部回片的关系</h2>
         <ul>
           <li><b>Job</b>：建 Job 要求载具能取片（载具到了，并且是 Loaded 或正在被机械手服务）；取片顺序看 EC <code>PickOrder</code>；CJ 结束时调 <code>NoteCarrierComplete</code>，告诉 LoadPort 这一盒干完了；载具拿走（或换了一个）以后，完成的 CJ 才删。</li>

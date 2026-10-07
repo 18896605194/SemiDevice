@@ -30,7 +30,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public Task<RpcResponse> GetLedgerAsync(RpcRequest request, CallContext context = default)
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         var dto = new WaferLedgerDto { IsEnabled = ledger is not null && ledger.IsEnable };
         if (ledger is not null && ledger.IsEnable)
         {
@@ -52,7 +52,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public Task<RpcResponse> MoveAsync(WaferMoveRequest request, CallContext context = default)
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
@@ -74,7 +74,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public Task<RpcResponse> DeleteAsync(WaferDeleteRequest request, CallContext context = default)
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
@@ -94,7 +94,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public Task<RpcResponse> CreateAsync(WaferCreateRequest request, CallContext context = default)
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
@@ -126,7 +126,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public Task<RpcResponse> GetAdjustmentsAsync(RpcRequest request, CallContext context = default)
     {
-        var rows = WaferManager.Current?.GetRecentAdjustments() ?? [];
+        var rows = WaferManagerComponent.Current?.GetRecentAdjustments() ?? [];
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(rows.Select(ToDto).ToList())));
     }
 
@@ -222,7 +222,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// <summary>
     /// 槽号超范围：说清楚是源还是目标的哪一个槽超了。
     /// </summary>
-    private static Task<RpcResponse> SlotOutOfRange(WaferManager ledger, string from, int fromSlot, string to, int toSlot)
+    private static Task<RpcResponse> SlotOutOfRange(WaferManagerComponent ledger, string from, int fromSlot, string to, int toSlot)
     {
         int fromCount = ledger.GetSlots(from).Count;
         return fromSlot < 1 || fromSlot > fromCount

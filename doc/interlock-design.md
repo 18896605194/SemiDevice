@@ -18,7 +18,7 @@
 | 整层 | `Interlock` | 文件夹、命名空间、配置文件 interlock.xml |
 | 布尔点 | `Condition` | 一个条件，不是互锁本身。"机械手 Idle"是条件 |
 | 规则 | `InterlockRule` | 守哪个动作、要求哪个条件、不满足报什么 |
-| 表 | `InterlockTable` | 读条件、查规则的统一入口，静态 `Current` 单例（与 WaferManager 等一致） |
+| 表 | `InterlockTable` | 读条件、查规则的统一入口，静态 `Current` 单例（与 WaferManagerComponent 等一致） |
 
 ## 分层
 
@@ -59,7 +59,7 @@ public abstract class Condition
 | DI 电平 | DiLevelCondition | Di, ActiveHigh | 读 DI，等于有效电平为 true |
 | AI 区间 | AiRangeCondition | Ai, Min, Max, Hysteresis | 在 [Min, Max] 内为 true，带迟滞 |
 | 组件状态 | StateCondition | Path, Property, Equals | 按 FullPath 找组件，反射读属性，比较 |
-| 晶圆账 | WaferCondition | Location, Slot, Present | 调 WaferManager.HasWafer，Present=false 时取反 |
+| 晶圆账 | WaferCondition | Location, Slot, Present | 调 WaferManagerComponent.HasWafer，Present=false 时取反 |
 | 报警 | AlarmCondition | Path, Active | 调 AlarmComponent.HasAlarmUnder，Active=false 时取反 |
 | 组合 | AndCondition / OrCondition / NotCondition | Inputs | 引用其他条件名，三值逻辑 |
 

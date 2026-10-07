@@ -58,7 +58,7 @@
   （if 后面也要大括号，见 SKILL.md 硬规矩 4）；
   按 `// N. 说明` 分节；会改静态 `X.Current` 的用完还原；最后一行 `PASS: N xxx checks (...)`；探针 / 假驱动写成文件末尾的 `sealed class`。
   失败就是未处理异常、退出码非 0。
-- 数据：内存里造组件（`new WaferManager()`、`ComponentLoader.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
+- 数据：内存里造组件（`new WaferManagerComponent()`、`ComponentLoader.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
 - 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；IoIndexSmoke 单独编）。HsmsSmoke、EapSmoke 随机用 5600~5999 的端口，
   真宿主开着 EAP 链路（Hsms 启用、端口落在这一段）时别同时跑。
 - **新功能、改了行为都要在对应冒烟里加检查**；冒烟测试里的代码也守同样的编码规范（不写花括号模式匹配等）。

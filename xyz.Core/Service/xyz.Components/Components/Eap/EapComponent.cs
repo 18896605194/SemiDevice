@@ -56,7 +56,7 @@ public class EapComponent : ComponentBase
 
         var substrates = FindChild<E90Component>();
         var carriers = FindChild<E87Component>();
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (substrates is not null)
         {
             if (ledger is null)

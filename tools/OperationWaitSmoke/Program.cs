@@ -260,7 +260,7 @@ Check(port.Carrier is null, "还没放 FOUP 时不该有载具对象");
 port.SetCarrierId("GHOST");
 Check(port.Carrier is null, "没有载具时改 ID 不该凭空造出一个载具对象");
 
-var ledger = new WaferManager();
+var ledger = new WaferManagerComponent();
 port.NotePodPlaced(true);
 port.Tick();
 
@@ -390,12 +390,12 @@ Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放过、�
 port.NotePodPlaced(false);
 port.Tick();
 
-WaferManager.Current = null;
+WaferManagerComponent.Current = null;
 port.E87Callback = null;
 
 // ── 机械手取放写晶圆账 ──────────────────────────────────────────────────
 {
-    var robotLedger = new WaferManager();
+    var robotLedger = new WaferManagerComponent();
     var robot = new ProbeRobot();
     robot.NoteSettings(new ModuleConfig
     {
@@ -487,7 +487,7 @@ port.E87Callback = null;
     robot.Tick();
     Check(robotLedger.Get(robot.Name, 1) is null, "源上没片时不该凭空在手指上造出一片（上面那条 Error 日志是预期的）");
 
-    WaferManager.Current = null;
+    WaferManagerComponent.Current = null;
 }
 
 // ── 报警：LoadPort / Robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
@@ -1220,8 +1220,8 @@ port.E87Callback = null;
 // ── LoadPort 在位来源（SC PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
 //    断线按间隔重连、_rfid 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己那一轮 ─────────────────────────
 {
-    var previousLedger = WaferManager.Current;
-    var presenceLedger = new WaferManager();
+    var previousLedger = WaferManagerComponent.Current;
+    var presenceLedger = new WaferManagerComponent();
 
     bool WaitUntil(Func<bool> condition, int timeoutMs = 3000)
     {
@@ -1434,7 +1434,7 @@ port.E87Callback = null;
         "没连上：指令发不出去，判被拒（command_rejected）");
     plain.Close();
 
-    WaferManager.Current = previousLedger;
+    WaferManagerComponent.Current = previousLedger;
 }
 
 Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects).");

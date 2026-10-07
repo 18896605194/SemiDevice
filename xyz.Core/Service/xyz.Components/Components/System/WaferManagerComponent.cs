@@ -15,12 +15,12 @@ namespace xyz.Components.Components;
 /// 晶圆账：全系统唯一一本"哪个位置上有哪片"的账。位置用 (模块名, 槽位) 表达，机械手的手臂也算槽位。
 /// </summary>
 [Component(description: "晶圆账：记录每个位置上的片与流转")]
-public class WaferManager : ComponentBase
+public class WaferManagerComponent : ComponentBase
 {
     /// <summary>
     /// 当前账本；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
     /// </summary>
-    public static WaferManager? Current { get; set; }
+    public static WaferManagerComponent? Current { get; set; }
 
     private readonly object _gate = new();
 
@@ -30,7 +30,7 @@ public class WaferManager : ComponentBase
     /// <summary>按 LoadPort 注册的位置：在这些位置上建的片记下来源 LoadPort（WaferInfo.OriginLoadPort）。</summary>
     private readonly HashSet<string> _loadPorts = new(StringComparer.OrdinalIgnoreCase);
 
-    public WaferManager()
+    public WaferManagerComponent()
     {
         Current = this;
         _eapNotifier = new EapNotifier(() => Name);

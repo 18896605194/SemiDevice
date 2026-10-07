@@ -82,7 +82,7 @@ public class ChamberService : BaseService, IChamberService
         }
 
         // 腔里的片正在 Job 里：工艺归 Job 起，手动不能插一脚
-        var wafer = WaferManager.Current?.Get(chamber.Name, 1);
+        var wafer = WaferManagerComponent.Current?.Get(chamber.Name, 1);
         string? owner = wafer is null ? null : JobManager.Current?.OwnerOf(wafer.Id);
         if (wafer is not null && owner is not null)
         {

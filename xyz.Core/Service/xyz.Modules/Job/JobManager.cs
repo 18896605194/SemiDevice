@@ -338,7 +338,7 @@ public class JobManager : ComponentBase, IJobManager
             return HandleResult.Fail(ErrorCodes.JobNoWafers, loadPort);
         }
 
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -519,7 +519,7 @@ public class JobManager : ComponentBase, IJobManager
         var target = LoadPort(port);
         bool claimed = _processJobs.Jobs.Any(job => job.Rows.Any(row =>
             !row.IsReturned && string.Equals(row.ReturnPort, port, StringComparison.OrdinalIgnoreCase) && row.ReturnSlot == slot));
-        if (target is null || slot > target.SlotCount || WaferManager.Current?.Get(port, slot) is not null || claimed)
+        if (target is null || slot > target.SlotCount || WaferManagerComponent.Current?.Get(port, slot) is not null || claimed)
         {
             return HandleResult.Fail(ErrorCodes.JobReturnSlotUnavailable, port, slotText);
         }

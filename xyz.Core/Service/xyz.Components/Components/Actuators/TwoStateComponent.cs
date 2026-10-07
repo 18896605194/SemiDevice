@@ -1,7 +1,6 @@
 ﻿using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
-using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
@@ -14,7 +13,7 @@ namespace xyz.Components.Components;
 /// 手动页上是气缸表的一行：Position 显示升到位 / 降到位 / 未知，两个按钮发 Open / Close。
 /// </summary>
 [PartKind("TwoState")]
-public abstract class TwoStateComponent : ComponentBase, IActionComponent
+public abstract class TwoStateComponent : ComponentBase
 {
     #region SC 
 
@@ -65,7 +64,7 @@ public abstract class TwoStateComponent : ComponentBase, IActionComponent
     /// <summary>
     /// 当前动作的状态：DO 写进 PLC 即 Running，到位反馈来了 Completed，超时 Failed；没接反馈的一侧写完即 Completed。
     /// </summary>
-    public ActionState ActionState
+    public override ActionState ActionState
     {
         get
         {

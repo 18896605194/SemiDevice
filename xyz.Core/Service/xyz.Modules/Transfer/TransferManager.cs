@@ -206,7 +206,7 @@ public class TransferManager : ComponentBase
             return TransferTicket.Reject(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
             return TransferTicket.Reject(ErrorCodes.WaferLedgerDisabled);
@@ -278,7 +278,7 @@ public class TransferManager : ComponentBase
     }
 
     /// <summary>源是机械手时：手指号要在晶圆账给它登记的手指数以内。</summary>
-    private static TransferTicket? CheckArmSlot(string robot, int arm, WaferManager ledger)
+    private static TransferTicket? CheckArmSlot(string robot, int arm, WaferManagerComponent ledger)
     {
         int armCount = ledger.GetSlots(robot).Count;
         if (arm >= 1 && arm <= armCount)
@@ -294,7 +294,7 @@ public class TransferManager : ComponentBase
     /// 锁里的那部分校验：片、目标、归属、锁、机械手、手臂。通过返回 null 并给出要排队的单。
     /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手。
     /// </summary>
-    private TransferTicket? Admit(TransferRequest request, WaferManager ledger, ITransferStation? source, IRobot? holder, string sourceName,
+    private TransferTicket? Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
         ITransferStation target, out TransferOrder order)
     {
         order = null!;
@@ -448,7 +448,7 @@ public class TransferManager : ComponentBase
     /// 挑手臂：两个站点都许用、账上空着、没被别的单占着。点了名的不行就拒，没点名的从 1 号手往上挑。
     /// 手指数按晶圆账给机械手登记的槽数（机械手 Open 时按驱动轴表登记）。
     /// </summary>
-    private TransferTicket? PickArm(IRobot robot, int wanted, string source, string target, WaferManager ledger, out int arm)
+    private TransferTicket? PickArm(IRobot robot, int wanted, string source, string target, WaferManagerComponent ledger, out int arm)
     {
         arm = 0;
         int armCount = ledger.GetSlots(robot.Name).Count;

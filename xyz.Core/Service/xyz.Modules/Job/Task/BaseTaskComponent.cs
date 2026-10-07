@@ -300,7 +300,7 @@ public abstract class BaseTaskComponent : ComponentBase
     /// </summary>
     internal void CheckPositions()
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null)
         {
             return;
@@ -359,7 +359,7 @@ public abstract class BaseTaskComponent : ComponentBase
 
         if (task.IsRobotTask)
         {
-            var found = WaferManager.Current?.FindById(row.WaferId);
+            var found = WaferManagerComponent.Current?.FindById(row.WaferId);
             string actual = found is null ? "-" : new TaskLocation(found.Module, found.Slot, IsArm: false).ToString();
             var place = task.Kind == StationTaskAction.Pick ? row.NextPlace(task) : task;
             if (found is not null && task.Kind == StationTaskAction.Pick && TransferManager.Current?.TryGetRobot(found.Module, out _) == true)

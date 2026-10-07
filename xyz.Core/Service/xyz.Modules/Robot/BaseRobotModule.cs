@@ -236,7 +236,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         robot.DeviceEvent += OnDeviceEvent;
 
         // 手指在晶圆账里也是槽位：片停在手上算在途，跟停在花篮里一样要有位置。
-        WaferManager.Current?.RegisterLocation(Name, robot.ArmCount);
+        WaferManagerComponent.Current?.RegisterLocation(Name, robot.ArmCount);
         return robot.Open();
     }
 
@@ -617,7 +617,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return;
         }
 
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null)
         {
             return;

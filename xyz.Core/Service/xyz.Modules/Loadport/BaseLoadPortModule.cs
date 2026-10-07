@@ -290,7 +290,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return false;
         }
 
-        WaferManager.Current?.RegisterLoadPort(Name, SlotCount);
+        WaferManagerComponent.Current?.RegisterLoadPort(Name, SlotCount);
 
         var driver = FindChild<LoadPortDriverComponent>();
         if (driver is null)
@@ -576,7 +576,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
         UpdateCarrier(carrier => carrier with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Read });
-        WaferManager.Current?.SetCarrierIdOn(Name, carrierId);
+        WaferManagerComponent.Current?.SetCarrierIdOn(Name, carrierId);
         EnqueueE87(callback => callback.CarrierIdRead(this, carrierId));
     }
 
@@ -590,7 +590,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         // Host 改写即认定：读到什么不重要了，以 Host 为准。
         UpdateCarrier(carrier => carrier with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Verified });
-        WaferManager.Current?.SetCarrierIdOn(Name, carrierId);
+        WaferManagerComponent.Current?.SetCarrierIdOn(Name, carrierId);
     }
 
     /// <summary>
@@ -632,7 +632,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private void ApplySlotMapToLedger(IReadOnlyList<SlotState> slotMap)
     {
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null)
         {
             return;
@@ -1082,7 +1082,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         // 载具走了，这个端口上的片也一起走：晶圆账上清掉，免得留一堆幽灵片。
-        WaferManager.Current?.Clear(Name);
+        WaferManagerComponent.Current?.Clear(Name);
         EnqueueE87(callback => callback.CarrierRemoved(this, carrierId));
         RaiseEvent(FoupRemovedEvent);
     }

@@ -1,7 +1,6 @@
 ﻿using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
-using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
@@ -10,7 +9,7 @@ namespace xyz.Components.Components;
 /// 手动页现在不放阀；IsOn 推给三维图画出液。
 /// </summary>
 [PartKind("OneState")]
-public abstract class OneStateComponent : ComponentBase, IActionComponent
+public abstract class OneStateComponent : ComponentBase
 {
     #region 
 
@@ -54,7 +53,7 @@ public abstract class OneStateComponent : ComponentBase, IActionComponent
     /// <summary>
     /// 当前动作的状态：DO 写进 PLC 即 Running，到位反馈来了 Completed，超时 Failed；没接 DI 或断电回位写完即 Completed。
     /// </summary>
-    public ActionState ActionState
+    public override ActionState ActionState
     {
         get
         {

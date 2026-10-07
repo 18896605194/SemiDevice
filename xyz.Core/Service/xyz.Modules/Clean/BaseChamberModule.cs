@@ -171,7 +171,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         }
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
-        WaferManager.Current?.RegisterLocation(Name, SlotCount);
+        WaferManagerComponent.Current?.RegisterLocation(Name, SlotCount);
         return true;
     }
 
@@ -212,7 +212,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     private List<ChamberSlotDto> CreateSlotDtos()
     {
         IReadOnlyList<WaferInfo?> wafers = [];
-        var manager = WaferManager.Current;
+        var manager = WaferManagerComponent.Current;
         if (manager is not null)
         {
             wafers = manager.GetSlots(Name);
@@ -530,7 +530,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         var expected = request.WaferId;
         if (expected is not null)
         {
-            var wafer = WaferManager.Current?.Get(Name, request.Slot);
+            var wafer = WaferManagerComponent.Current?.Get(Name, request.Slot);
             if (wafer is null || wafer.Id != expected.Value)
             {
                 return new ProcessRejection(ErrorCodes.ChamberWaferMismatch, [Name, slot]);
@@ -579,7 +579,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             _processOperation = operation;
             Recipe = request.RecipeName.Trim();
 
-            var ledger = WaferManager.Current;
+            var ledger = WaferManagerComponent.Current;
             if (ledger is not null && ledger.HasWafer(Name, request.Slot))
             {
                 ledger.SetProcessState(Name, request.Slot, WaferProcessState.InProcess);
@@ -607,7 +607,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             return;
         }
 
-        var ledger = WaferManager.Current;
+        var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.HasWafer(Name, request.Slot))
         {
             return;

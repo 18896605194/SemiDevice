@@ -19,7 +19,7 @@ public class SchedulerComponent : ComponentBase
 {
     /// <summary>这一次派单用的搬运管理、晶圆账、锁快照（每次 <see cref="Dispatch"/> 开头取，只在 Job 的扫描线程上用）。</summary>
     private TransferManager? _transfers;
-    private WaferManager? _ledger;
+    private WaferManagerComponent? _ledger;
     private TransferView _locks = TransferView.Empty;
 
     /// <summary>交给搬运管理还没结束的取放（取片、放片一趟）。</summary>
@@ -52,7 +52,7 @@ public class SchedulerComponent : ComponentBase
     public virtual void Dispatch(IReadOnlyList<TaskRow> rows, BaseTaskComponent tasks)
     {
         _transfers = TransferManager.Current;
-        _ledger = WaferManager.Current;
+        _ledger = WaferManagerComponent.Current;
         if (_transfers is null || _ledger is null)
         {
             return;

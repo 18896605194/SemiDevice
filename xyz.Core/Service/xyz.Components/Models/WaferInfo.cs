@@ -4,7 +4,7 @@ namespace xyz.Components.Models;
 
 /// <summary>
 /// 账上的一片：身份、当前在哪、从哪来、状态。
-/// 只有 WaferManager 能改（属性都是 internal set），外部查询拿到的是快照副本。
+/// 只有 WaferManagerComponent 能改（属性都是 internal set），外部查询拿到的是快照副本。
 /// </summary>
 public sealed class WaferInfo
 {

@@ -32,7 +32,7 @@ void Check(bool condition, string message)
 var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
 Check(scConfig is not null, "sc.xml 解析失败");
 var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "WaferManager", StringComparison.OrdinalIgnoreCase));
-Check(node is not null && node.Type == typeof(WaferManager).FullName, "sc.xml 里应有指向 WaferManager 的顶层节点");
+Check(node is not null && node.Type == typeof(WaferManagerComponent).FullName, "sc.xml 里应有指向 WaferManagerComponent 的顶层节点");
 var databaseGroup = scConfig.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Database", StringComparison.OrdinalIgnoreCase));
 Check(databaseGroup is not null, "sc.xml 应有 Database 节点");
 
@@ -43,14 +43,14 @@ Check(XyzDb.IsRegistered("Default") && XyzDb.IsRegistered("Io"),
 Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
                                 && string.Equals(value.Value, "Default", StringComparison.OrdinalIgnoreCase)),
     "晶圆流水属业务数据，应配在默认库");
-var assembled = roots.OfType<WaferManager>().SingleOrDefault();
-Check(assembled is not null && assembled.IsEnable && assembled.Name == "WaferManager", "sc.xml 应装出一个启用的 WaferManager");
-Check(ReferenceEquals(WaferManager.Current, assembled), "装配出来即成为 Current");
+var assembled = roots.OfType<WaferManagerComponent>().SingleOrDefault();
+Check(assembled is not null && assembled.IsEnable && assembled.Name == "WaferManager", "sc.xml 应装出一个启用的 WaferManagerComponent");
+Check(ReferenceEquals(WaferManagerComponent.Current, assembled), "装配出来即成为 Current");
 // 启动时只对 roots 里的 BaseModule 调 Start()，账本不在其中，所以没有扫描线程。
 Check(!roots.OfType<BaseModule>().Any(module => ReferenceEquals(module, assembled)), "账本不该出现在会被 Start 的模块清单里");
 
 // 后面用独立实例，不动装配出来的那本账。
-var ledger = new WaferManager();
+var ledger = new WaferManagerComponent();
 ledger.RegisterLoadPort("LoadPort1", 25);
 ledger.RegisterLocation("Robot1", 2);
 Check(ledger.IsRegistered("LoadPort1") && !ledger.IsRegistered("Chamber1"), "注册过的位置才认");
@@ -119,7 +119,7 @@ Check(!ledger.Verify("Robot1", 1, false), "账上有片设备没有 → 不一�
 Check(!ledger.Verify("Robot1", 2, true), "设备有片账上没有 → 不一致");
 
 // 8. 并发抢同一个槽：两个线程同时放片，只能成一个，账上不丢片也不覆盖。
-var race = new WaferManager();
+var race = new WaferManagerComponent();
 race.RegisterLocation("A", 2);
 race.RegisterLocation("B", 1);
 for (int round = 0; round < 50; round++)
@@ -158,7 +158,7 @@ for (int round = 0; round < 50; round++)
 }
 
 // 9. 关掉记账：不建账，设备照常动作。
-var off = new WaferManager { IsEnable = false };
+var off = new WaferManagerComponent { IsEnable = false };
 off.RegisterLocation("X", 1);
 Check(off.Create("X", 1) is null && off.CountWafers("X") == 0 && !off.Move("X", 1, "X", 1), "IsEnable=False 时不记账");
 
@@ -186,7 +186,7 @@ var recorded = ComponentLoader.Load([
     new ModuleConfig
     {
         Name = "WaferLedgerSmoke",
-        Type = typeof(WaferManager).FullName,
+        Type = typeof(WaferManagerComponent).FullName,
         Values =
         [
             new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -195,7 +195,7 @@ var recorded = ComponentLoader.Load([
             new ValueConfig { Name = "HistoryKeepDays", Value = "90" },
         ],
     },
-]).OfType<WaferManager>().Single();
+]).OfType<WaferManagerComponent>().Single();
 recorded.RegisterLocation("SmokeLP", 2);
 recorded.RegisterLocation("SmokeRB", 1);
 var tracked = recorded.Create("SmokeLP", 1, WaferStatus.Normal, "FOUP-SMOKE")!;
@@ -313,7 +313,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         }
     };
 
-    var faulty = new WaferManager();
+    var faulty = new WaferManagerComponent();
     typeof(ComponentBase).GetProperty("Name")!.SetValue(faulty, "SmokeLedger");
     typeof(ComponentBase).GetProperty("FullPath")!.SetValue(faulty, "SmokeLedger");
     faulty.RegisterLocation("AlarmLp", 2);
@@ -396,7 +396,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 //     改成了照常发事件、记流水，另记一条调整记录（操作人、原因）；流水落库时调整记录也落库。
 {
     var manualGuard = new AlarmComponent();
-    var manual = new WaferManager();
+    var manual = new WaferManagerComponent();
     manual.RegisterLocation("ManualPM", 1);
     manual.RegisterLocation("ManualRB", 2);
     manual.RegisterLoadPort("ManualLP", 2);
@@ -485,9 +485,9 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         manual.ManualMove("ManualRB", 2, "ManualPM", 1, "Tester", null);
     }
 
-    Check(manual.GetRecentAdjustments().Count == WaferManager.RecentAdjustmentCount, "不落库时内存里只留最近 50 条");
+    Check(manual.GetRecentAdjustments().Count == WaferManagerComponent.RecentAdjustmentCount, "不落库时内存里只留最近 50 条");
 
-    var disabledLedger = new WaferManager { IsEnable = false };
+    var disabledLedger = new WaferManagerComponent { IsEnable = false };
     Check(disabledLedger.ManualMove("A", 1, "B", 1, "Tester", null) == WaferAdjustResult.Disabled
           && disabledLedger.ManualDelete("A", 1, "Tester", null) == WaferAdjustResult.Disabled
           && disabledLedger.ManualCreate("A", 1, "W-1", "Tester", null) == WaferAdjustResult.Disabled,
@@ -498,7 +498,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         new ModuleConfig
         {
             Name = "ManualLedger",
-            Type = typeof(WaferManager).FullName,
+            Type = typeof(WaferManagerComponent).FullName,
             Values =
             [
                 new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -507,7 +507,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
                 new ValueConfig { Name = "HistoryKeepDays", Value = "90" },
             ],
         },
-    ]).OfType<WaferManager>().Single();
+    ]).OfType<WaferManagerComponent>().Single();
     persisted.RegisterLocation("DbPM", 1);
     persisted.RegisterLocation("DbRB", 1);
     var dbWafer = persisted.Create("DbPM", 1, WaferStatus.Normal, "FOUP-DB")!;
@@ -554,7 +554,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 //     几台机械手共用的站点只列一次，没登记槽位的站点不列；移账、删账的结果翻成错误码；没带操作人记成 Unknown。
 {
     var serviceGuard = new AlarmComponent();
-    var serviceLedger = new WaferManager();
+    var serviceLedger = new WaferManagerComponent();
     var robot1 = new LedgerProbeRobot("SvcRobot1", "SvcLP1", "SvcPM1");
     var robot2 = new LedgerProbeRobot("SvcRobot2", "SvcPM1", "SvcBuffer", "SvcGhost");
     serviceLedger.RegisterLocation("SvcRobot1", 2);
@@ -661,7 +661,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && !disabledCreate.Success && disabledCreate.Code == ErrorCodes.WaferLedgerDisabled,
         "账没开：位置表是空的，调账给错误码");
 
-    WaferManager.Current = null;
+    WaferManagerComponent.Current = null;
     var noLedgerView = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     var noLedgerRecords = (await service.GetAdjustmentsAsync(new RpcRequest())).DeserializeData<List<WaferAdjustmentDto>>();
     Check(!noLedgerView.IsEnabled && noLedgerView.Locations.Count == 0 && noLedgerRecords.Count == 0, "没装账本也不出错");
@@ -678,13 +678,13 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         db.Ado.ExecuteCommand("DELETE FROM wafer_current");
     }
 
-    WaferManager Assemble()
+    WaferManagerComponent Assemble()
     {
         var assembledLedger = ComponentLoader.Load([
             new ModuleConfig
             {
                 Name = "PersistSmoke",
-                Type = typeof(WaferManager).FullName,
+                Type = typeof(WaferManagerComponent).FullName,
                 Values =
                 [
                     new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -693,7 +693,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
                     new ValueConfig { Name = "HistoryDatabase", Value = "SmokeWafer" },
                 ],
             },
-        ]).OfType<WaferManager>().Single();
+        ]).OfType<WaferManagerComponent>().Single();
         assembledLedger.RegisterLoadPort("PLP", 3);
         assembledLedger.RegisterLocation("PRB", 2);
         assembledLedger.RegisterLocation("PPM", 1);
@@ -745,7 +745,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     Check(savedAfterRestore, "恢复完存盘线程接着存：存的是这一轮的账（中止、开机 Mapping 的新片）");
     after.StopSnapshot();
-    WaferManager.Current = null;
+    WaferManagerComponent.Current = null;
 }
 
 Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");

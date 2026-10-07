@@ -99,7 +99,7 @@ public static class Program
             DataChartComponent.Current?.StopSampling();
 
             // 晶圆账最后存一次盘：下次开机按它把腔体、机械手上的片放回去。
-            WaferManager.Current?.StopSnapshot();
+            WaferManagerComponent.Current?.StopSnapshot();
 
             var roots = app.Services.GetRequiredService<IReadOnlyList<ComponentBase>>();
             foreach (var plc in roots.OfType<PlcComponent>())

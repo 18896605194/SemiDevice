@@ -93,7 +93,7 @@ public static class ServiceExtensions
 
         #region 晶圆账单管理
 
-        var wafers = WaferManager.Current;
+        var wafers = WaferManagerComponent.Current;
         if (wafers is not null)
         {
             void NotifyLedger(string module) =>

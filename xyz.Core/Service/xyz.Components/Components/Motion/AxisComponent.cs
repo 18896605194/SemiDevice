@@ -1,6 +1,5 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
-using xyz.Components.Interfaces;
 using xyz.Components.Models;
 
 namespace xyz.Components.Components;
@@ -11,7 +10,7 @@ namespace xyz.Components.Components;
 /// </summary>
 [Component(description: "运动轴组件")]
 [PartKind("Axis")]
-public partial class AxisComponent : ComponentBase, IActionComponent
+public partial class AxisComponent : ComponentBase
 {
     #region SC 
 
@@ -137,7 +136,7 @@ public partial class AxisComponent : ComponentBase, IActionComponent
     }
 
     /// <summary>当前动作的状态：写进 PLC 即 Running，完成/失败由扫描判定；断线时在途动作直接 Failed。</summary>
-    public ActionState ActionState
+    public override ActionState ActionState
     {
         get
         {

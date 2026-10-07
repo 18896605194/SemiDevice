@@ -4,7 +4,7 @@ namespace xyz.Components.Attributes;
 
 /// <summary>
 /// 手动页能做的动作：标在组件的公开方法上，界面按"组件路径 + 方法名 + 参数"调，模块统一把关（模块正忙不发、做完回原来的状态）。
-/// 方法返回 bool：true 只表示指令发出去了，做没做完看组件的 <see cref="Interfaces.IActionComponent.ActionState"/>。
+/// 方法返回 bool：true 只表示指令发出去了，做没做完看组件的 <see cref="ComponentBase.ActionState"/>。
 /// 参数按方法签名从字符串转（不变区域性），可选参数不给就用默认值。
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
