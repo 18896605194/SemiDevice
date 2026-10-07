@@ -4,7 +4,7 @@
 /// PJ（Process Job）状态，照 SEMI E40。数值就是 E40-1101 起的 PRJobState，上报 Host 用这个数（5 是标准里保留的）。
 /// SETTING UP、WAITING FOR START、PROCESSING 合称"执行中"（EXECUTING）；PAUSING、PAUSED 合称"暂停"（PAUSE）。
 /// </summary>
-public enum PrJobState
+public enum ProcessJobState
 {
     /// <summary>QUEUED/POOLED：建好了，等 CJ 启动它。</summary>
     QueuedPooled = 0,

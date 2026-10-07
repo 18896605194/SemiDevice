@@ -151,7 +151,7 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region 上报（IE40Callback，在 Job 管理的 EAP 派发线程上）
 
-    void IE40Callback.ProcessJobTransitioned(ProcessJobDto job, int transition, PrJobState? from, PrJobState? to)
+    void IE40Callback.ProcessJobTransitioned(ProcessJobDto job, int transition)
     {
         if (transition is < 1 or > 18)
         {
@@ -160,7 +160,7 @@ public class E40Component : ComponentBase, IE40Callback
 
         _gem?.Report(this, $"PrJobSMTrans{transition:00}",
             new GemData(DvJobId, GemValue.Ascii(job.Id)),
-            new GemData(DvJobState, (byte)(to ?? (PrJobState)job.State)),
+            new GemData(DvJobState, (byte)job.State),
             new GemData(DvRecipe, GemValue.Ascii(job.Sequence)),
             new GemData(DvControlJob, GemValue.Ascii(job.ControlJob)),
             new GemData(DvMaterial, MaterialOf(job)));
@@ -313,14 +313,14 @@ public class E40Component : ComponentBase, IE40Callback
         var body = SecsRead.List(SecsRead.Body(message), "S16F5", 4);
         string id = SecsRead.Text(body[1], "PRJOBID").Trim();
         string name = SecsRead.Text(body[2], "PRCMDNAME").Trim().ToUpperInvariant();
-        PrJobCommand? command = name switch
+        ProcessJobCommand? command = name switch
         {
-            "START" or "STARTPROCESS" => PrJobCommand.Start,
-            "PAUSE" => PrJobCommand.Pause,
-            "RESUME" => PrJobCommand.Resume,
-            "STOP" => PrJobCommand.Stop,
-            "ABORT" => PrJobCommand.Abort,
-            "CANCEL" => PrJobCommand.Cancel,
+            "START" or "STARTPROCESS" => ProcessJobCommand.Start,
+            "PAUSE" => ProcessJobCommand.Pause,
+            "RESUME" => ProcessJobCommand.Resume,
+            "STOP" => ProcessJobCommand.Stop,
+            "ABORT" => ProcessJobCommand.Abort,
+            "CANCEL" => ProcessJobCommand.Cancel,
             _ => null,
         };
 
@@ -337,7 +337,7 @@ public class E40Component : ComponentBase, IE40Callback
         return SecsReply.Of(SecsItem.L(SecsItem.A(GemValue.Ascii(id)), Ack(errors)));
     }
 
-    private async Task<List<E5Error>> RunCommandAsync(string id, PrJobCommand command)
+    private async Task<List<E5Error>> RunCommandAsync(string id, ProcessJobCommand command)
     {
         var jobs = _jobs;
         if (_gem is null || !_gem.IsRemote)
@@ -369,7 +369,7 @@ public class E40Component : ComponentBase, IE40Callback
         if (requested.Count == 0)
         {
             requested = (_jobs?.Snapshot.ProcessJobs ?? [])
-                .Where(job => job.State == (int)PrJobState.QueuedPooled && job.ControlJob.Length == 0)
+                .Where(job => job.State == (int)ProcessJobState.QueuedPooled && job.ControlJob.Length == 0)
                 .Select(job => job.Id).ToList();
         }
 
@@ -377,7 +377,7 @@ public class E40Component : ComponentBase, IE40Callback
         var errors = new List<E5Error>();
         foreach (string id in requested)
         {
-            var failed = await RunCommandAsync(id, PrJobCommand.Cancel).ConfigureAwait(false);
+            var failed = await RunCommandAsync(id, ProcessJobCommand.Cancel).ConfigureAwait(false);
             if (failed.Count == 0)
             {
                 removed.Add(SecsItem.A(GemValue.Ascii(id)));
@@ -393,7 +393,7 @@ public class E40Component : ComponentBase, IE40Callback
     private SecsReply ListJobs(HsmsMessage message)
     {
         var jobs = _jobs?.Snapshot.ProcessJobs ?? [];
-        return SecsReply.Of(SecsItem.L(jobs.Where(job => job.State != (int)PrJobState.ProcessComplete)
+        return SecsReply.Of(SecsItem.L(jobs.Where(job => job.State != (int)ProcessJobState.ProcessComplete)
             .Select(job => SecsItem.L(SecsItem.A(GemValue.Ascii(job.Id)), SecsItem.U1((byte)job.State)))));
     }
 
@@ -446,7 +446,7 @@ public class E40Component : ComponentBase, IE40Callback
             "ObjType" => SecsItem.A("ProcessJob"),
             "ObjID" => SecsItem.A(GemValue.Ascii(job.Id)),
             "PauseEvent" => SecsItem.L(),
-            "PrJobState" => SecsItem.U1((byte)job.State),
+            "ProcessJobState" => SecsItem.U1((byte)job.State),
             "PrMtlNameList" => MaterialOf(job),
             "PrMtlType" => SecsItem.B(MaterialCarriers),
             "PrProcessStart" => SecsItem.Boolean(job.AutoStart),
@@ -472,7 +472,7 @@ public class E40Component : ComponentBase, IE40Callback
 
         public IReadOnlyList<string> AttributeNames { get; } =
         [
-            "ObjType", "ObjID", "PauseEvent", "PrJobState", "PrMtlNameList", "PrMtlType", "PrProcessStart", "PrRecipeMethod", "RecID",
+            "ObjType", "ObjID", "PauseEvent", "ProcessJobState", "PrMtlNameList", "PrMtlType", "PrProcessStart", "PrRecipeMethod", "RecID",
             "RecVariableList",
         ];
 

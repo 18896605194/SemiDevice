@@ -4,47 +4,74 @@ namespace xyz.Modules;
 
 public static class JobNames
 {
-    public static string Of(PrJobState? state)
+    public static string Of(ProcessJobState? state)
     {
-        return state switch
+        if (state is null)
         {
-            null => "(no state)",
-            PrJobState.QueuedPooled => "QUEUED/POOLED",
-            PrJobState.SettingUp => "SETTING UP",
-            PrJobState.WaitingForStart => "WAITING FOR START",
-            PrJobState.Processing => "PROCESSING",
-            PrJobState.ProcessComplete => "PROCESS COMPLETE",
-            PrJobState.Pausing => "PAUSING",
-            PrJobState.Paused => "PAUSED",
-            PrJobState.Stopping => "STOPPING",
-            PrJobState.Aborting => "ABORTING",
-            PrJobState.Stopped => "STOPPED",
-            PrJobState.Aborted => "ABORTED",
-            _ => state.Value.ToString(),
-        };
+            return "(no state)";
+        }
+
+        switch (state.Value)
+        {
+            case ProcessJobState.QueuedPooled:
+                return "QUEUED/POOLED";
+            case ProcessJobState.SettingUp:
+                return "SETTING UP";
+            case ProcessJobState.WaitingForStart:
+                return "WAITING FOR START";
+            case ProcessJobState.Processing:
+                return "PROCESSING";
+            case ProcessJobState.ProcessComplete:
+                return "PROCESS COMPLETE";
+            case ProcessJobState.Pausing:
+                return "PAUSING";
+            case ProcessJobState.Paused:
+                return "PAUSED";
+            case ProcessJobState.Stopping:
+                return "STOPPING";
+            case ProcessJobState.Aborting:
+                return "ABORTING";
+            case ProcessJobState.Stopped:
+                return "STOPPED";
+            case ProcessJobState.Aborted:
+                return "ABORTED";
+            default:
+                return state.Value.ToString();
+        }
     }
 
     public static string Of(CtrlJobState? state)
     {
-        return state switch
+        if (state is null)
         {
-            null => "(no state)",
-            CtrlJobState.Queued => "QUEUED",
-            CtrlJobState.Selected => "SELECTED",
-            CtrlJobState.WaitingForStart => "WAITINGFORSTART",
-            CtrlJobState.Executing => "EXECUTING",
-            CtrlJobState.Paused => "PAUSED",
-            CtrlJobState.Completed => "COMPLETED",
-            _ => state.Value.ToString(),
-        };
+            return "(no state)";
+        }
+
+        switch (state.Value)
+        {
+            case CtrlJobState.Queued:
+                return "QUEUED";
+            case CtrlJobState.Selected:
+                return "SELECTED";
+            case CtrlJobState.WaitingForStart:
+                return "WAITINGFORSTART";
+            case CtrlJobState.Executing:
+                return "EXECUTING";
+            case CtrlJobState.Paused:
+                return "PAUSED";
+            case CtrlJobState.Completed:
+                return "COMPLETED";
+            default:
+                return state.Value.ToString();
+        }
     }
 
-    public static string Of(CtrlJobCommand command)
+    public static string Of(ControlJobCommand command)
     {
         return "CJ" + command;
     }
 
-    public static string Of(PrJobCommand command)
+    public static string Of(ProcessJobCommand command)
     {
         return command.ToString().ToUpperInvariant();
     }

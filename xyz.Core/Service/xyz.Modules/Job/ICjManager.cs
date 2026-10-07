@@ -7,8 +7,8 @@ namespace xyz.Modules;
 
 public interface ICjManager
 {
-    /// <summary>CJ 转了（含建好的 #1）：CJ、转换号、从哪个状态、到哪个状态（删掉了为 null）。Job 组件据此报 EAP、做牵扯别处的事。</summary>
-    event Action<ControlJob, int, CtrlJobState?, CtrlJobState?>? Transitioned;
+    /// <summary>CJ 转了（含建好的 #1）：哪个 CJ、E94 第几号转换（CJ 现在的状态就是转到的状态）。Job 组件据此报 EAP、做牵扯别处的事。</summary>
+    event Action<ControlJob, int>? Transitioned;
 
     IReadOnlyList<ControlJob> Jobs { get; }
 
@@ -27,7 +27,7 @@ public interface ICjManager
     void Add(ControlJob job, IReadOnlyList<ProcessJob> processes);
 
     /// <summary>CJ 命令（E94 CJStart / CJPause / CJResume / CJCancel / CJDeselect / CJStop / CJAbort / CJHOQ）。</summary>
-    HandleResult Command(string id, CtrlJobCommand command, CtrlJobAction action);
+    HandleResult Command(string id, ControlJobCommand command, CtrlJobAction action);
 
     /// <summary>整机停止：没结束的 CJ 都走中止（排队的 PJ 一起删）。</summary>
     void AbortAll();

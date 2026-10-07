@@ -3,7 +3,7 @@
 /// <summary>
 /// CJ 命令（E94 的 S16F27 CTLJOBCMD，数值照 E94.1；本地界面一样用）。
 /// </summary>
-public enum CtrlJobCommand
+public enum ControlJobCommand
 {
     /// <summary>CJStart：WAITINGFORSTART → EXECUTING（#7）。</summary>
     Start = 1,

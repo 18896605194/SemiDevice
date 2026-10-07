@@ -11,10 +11,10 @@ namespace xyz.Components.Interfaces;
 public interface IE40Callback
 {
     /// <summary>
-    /// PJ 状态转换（E40 #1~#18）：from 为 null 是刚建好（#1）；to 为 null 是转完 PJ 就结束了（标准里的 no state，#7 / #16 / #17 / #18），
-    /// 这时 job.State 是结束前的最后状态值。
+    /// PJ 状态转换（E40 #1~#18）：transition 是第几号转换，job.State 是转到的状态（#7 / #16 / #17 / #18 转完 PJ 就结束了，
+    /// 这时是结束前的最后状态值）。
     /// </summary>
-    void ProcessJobTransitioned(ProcessJobDto job, int transition, PrJobState? from, PrJobState? to);
+    void ProcessJobTransitioned(ProcessJobDto job, int transition);
 
     /// <summary>一片在某站开始加工。</summary>
     void WaferProcessStarted(ProcessJobDto job, JobWaferDto wafer, string station);

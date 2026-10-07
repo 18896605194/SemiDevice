@@ -246,12 +246,12 @@ public class JobManager : ComponentBase, IJobManager
         });
     }
 
-    public Task<HandleResult> CommandControlJobAsync(string id, CtrlJobCommand command, CtrlJobAction action)
+    public Task<HandleResult> CommandControlJobAsync(string id, ControlJobCommand command, CtrlJobAction action)
     {
         return Execute(() =>
         {
             // 启动要 Auto：Manual 下不派动作，启动了也跑不起来
-            if (command == CtrlJobCommand.Start && !IsAuto && _controlJobs.Find(id.Trim()) is not null)
+            if (command == ControlJobCommand.Start && !IsAuto && _controlJobs.Find(id.Trim()) is not null)
             {
                 return HandleResult.Fail(ErrorCodes.JobNotAuto);
             }
@@ -260,11 +260,11 @@ public class JobManager : ComponentBase, IJobManager
         });
     }
 
-    public Task<HandleResult> CommandProcessJobAsync(string id, PrJobCommand command)
+    public Task<HandleResult> CommandProcessJobAsync(string id, ProcessJobCommand command)
     {
         return Execute(() =>
         {
-            if (command == PrJobCommand.Start && !IsAuto && _processJobs.Find(id.Trim()) is not null)
+            if (command == ProcessJobCommand.Start && !IsAuto && _processJobs.Find(id.Trim()) is not null)
             {
                 return HandleResult.Fail(ErrorCodes.JobNotAuto);
             }
@@ -573,12 +573,12 @@ public class JobManager : ComponentBase, IJobManager
     #region CJ / PJ 转了之后（牵扯别处的事）
 
     /// <summary>
-    /// PJ 转了：进 ABORTING 给设备发中止（<see cref="AbortDevices"/>）；结束了它的行从任务表拿掉；往 EAP 报（E40，派发线程上按先后发，
-    /// PJ 结束一定先于 CJ 完成）。
+    /// PJ 转了：刚进 ABORTING（只有 #13 / #14 / #15 转到它）给设备发中止（<see cref="AbortDevices"/>）；结束了它的行从任务表拿掉；
+    /// 往 EAP 报（E40，派发线程上按先后发，PJ 结束一定先于 CJ 完成）。
     /// </summary>
-    private void OnProcessJobTransitioned(ProcessJob job, int number, PrJobState? from, PrJobState? to)
+    private void OnProcessJobTransitioned(ProcessJob job, int number)
     {
-        if (to == PrJobState.Aborting && from != PrJobState.Aborting)
+        if (job.State == ProcessJobState.Aborting)
         {
             AbortDevices(job);
         }
@@ -592,7 +592,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null)
         {
             var dto = JobDtos.Of(job);
-            _notifier.Post(() => callback.ProcessJobTransitioned(dto, number, from, to));
+            _notifier.Post(() => callback.ProcessJobTransitioned(dto, number));
         }
 
         _dirty = true;
@@ -621,10 +621,12 @@ public class JobManager : ComponentBase, IJobManager
         }
     }
 
-    /// <summary>CJ 转了：完成了告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；往 EAP 报（E94）。</summary>
-    private void OnControlJobTransitioned(ControlJob job, int number, CtrlJobState? from, CtrlJobState? to)
+    /// <summary>
+    /// CJ 转了：刚完成（#10 / #11 / #12 转进 COMPLETED，还没删）告诉 LoadPort 这个载具的活干完了（转成 E87 的 CarrierComplete）；往 EAP 报（E94）。
+    /// </summary>
+    private void OnControlJobTransitioned(ControlJob job, int number)
     {
-        if (to == CtrlJobState.Completed && from != CtrlJobState.Completed)
+        if (job.State == CtrlJobState.Completed && !job.IsEnded)
         {
             LoadPort(job.LoadPort)?.NoteCarrierComplete();
         }
@@ -633,7 +635,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null)
         {
             var dto = JobDtos.Of(job);
-            _notifier.Post(() => callback.ControlJobTransitioned(dto, number, from, to));
+            _notifier.Post(() => callback.ControlJobTransitioned(dto, number));
         }
 
         _dirty = true;

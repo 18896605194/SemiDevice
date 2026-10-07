@@ -11,7 +11,7 @@ namespace xyz.Components.Interfaces;
 public interface IE94Callback
 {
     /// <summary>
-    /// CJ 状态转换（E94 #1~#13）：from 为 null 是刚建好（#1）；to 为 null 是转完 CJ 就删了（#2 / #13）。
+    /// CJ 状态转换（E94 #1~#13）：transition 是第几号转换，job.State 是转到的状态（#2 / #13 转完 CJ 就删了，这时是删之前的最后状态值）。
     /// </summary>
-    void ControlJobTransitioned(ControlJobDto job, int transition, CtrlJobState? from, CtrlJobState? to);
+    void ControlJobTransitioned(ControlJobDto job, int transition);
 }

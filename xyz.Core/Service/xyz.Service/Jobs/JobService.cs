@@ -114,7 +114,7 @@ public class JobService : BaseService, IJobService
         }
 
         string id = (request.JobId ?? string.Empty).Trim();
-        var command = (CtrlJobCommand)request.Command;
+        var command = (ControlJobCommand)request.Command;
         var action = (CtrlJobAction)request.Action;
         if (!Enum.IsDefined(command) || !Enum.IsDefined(action))
         {
@@ -135,7 +135,7 @@ public class JobService : BaseService, IJobService
         }
 
         string id = (request.JobId ?? string.Empty).Trim();
-        var command = (PrJobCommand)request.Command;
+        var command = (ProcessJobCommand)request.Command;
         if (!Enum.IsDefined(command))
         {
             return RpcResponse.Fail(ErrorCodes.JobCommandNotAllowed,
@@ -197,7 +197,7 @@ public class JobService : BaseService, IJobService
     {
         foreach (string id in processJobs)
         {
-            var result = await jobs.CommandProcessJobAsync(id, PrJobCommand.Cancel).ConfigureAwait(false);
+            var result = await jobs.CommandProcessJobAsync(id, ProcessJobCommand.Cancel).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 LogHelper.Warn(LogModule, $"建 Job 没成，已经建好的 PJ {id} 没撤掉（{result.ErrorMessage}），要手动取消");

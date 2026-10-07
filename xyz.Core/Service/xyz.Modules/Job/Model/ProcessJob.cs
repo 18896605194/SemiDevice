@@ -24,10 +24,10 @@ public sealed class ProcessJob
     /// <summary>PRProcessStart：准备好了直接开始（true），还是等 Start 命令（false）。</summary>
     public bool AutoStart { get; init; } = true;
 
-    public PrJobState State { get; internal set; } = PrJobState.QueuedPooled;
+    public ProcessJobState State { get; internal set; } = ProcessJobState.QueuedPooled;
 
     /// <summary>暂停前的执行子状态：恢复（#10）回到这里。</summary>
-    public PrJobState ResumeState { get; internal set; } = PrJobState.Processing;
+    public ProcessJobState ResumeState { get; internal set; } = ProcessJobState.Processing;
 
     /// <summary>这个 PJ 的片，一片一行任务，按投片顺序（取片顺序在建 PJ 时排好）。</summary>
     public List<TaskRow> Rows { get; } = [];

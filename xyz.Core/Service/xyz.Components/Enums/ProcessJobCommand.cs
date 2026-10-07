@@ -3,7 +3,7 @@
 /// <summary>
 /// PJ 命令（E40 PRJobCommand，Host 的 S16F5 PRCMDNAME；本地界面一样用）。
 /// </summary>
-public enum PrJobCommand
+public enum ProcessJobCommand
 {
     /// <summary>START：WAITING FOR START → PROCESSING（#5）。</summary>
     Start,

@@ -9,8 +9,8 @@ namespace xyz.Modules;
 /// </summary>
 public interface IPjManager
 {
-    /// <summary>PJ 转了（含建好的 #1）：PJ、转换号、从哪个状态、到哪个状态（结束了为 null）。Job 组件据此报 EAP、做牵扯别处的事。</summary>
-    event Action<ProcessJob, int, PrJobState?, PrJobState?>? Transitioned;
+    /// <summary>PJ 转了（含建好的 #1）：哪个 PJ、E40 第几号转换（PJ 现在的状态就是转到的状态）。Job 组件据此报 EAP、做牵扯别处的事。</summary>
+    event Action<ProcessJob, int>? Transitioned;
 
     /// <summary>PJ 队列：没结束的 PJ，按建的先后（含还不归任何 CJ 的）。</summary>
     IReadOnlyList<ProcessJob> Jobs { get; }
@@ -28,7 +28,7 @@ public interface IPjManager
     bool Fire(ProcessJob job, ProcessStateAction trigger);
 
     /// <summary>PJ 命令（E40 Start / Pause / Resume / Stop / Abort / Cancel）。</summary>
-    HandleResult Command(string id, PrJobCommand command);
+    HandleResult Command(string id, ProcessJobCommand command);
 
     /// <summary>整机停止：不归 CJ 的 PJ 都中止（排队的撤掉）。归 CJ 的由 CJ 管理按 CJ 中止。</summary>
     void AbortLoose();

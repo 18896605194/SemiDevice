@@ -6,11 +6,6 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// CJ 管理（SEMI E94）：CJ 队列、历史、E94 状态机（转换表、转、自动往下转）、CJ 命令。
-/// CJ 的 Stop / Abort 照 E94 往下传给它的 PJ（经 PJ 管理）。Job 组件建它、管它，只在 Job 组件的锁里用；
-/// 转了经 <see cref="Transitioned"/> 告诉 Job 组件，报 EAP、告诉 LoadPort 载具干完了这些牵扯别处的事由 Job 组件做。
-/// </summary>
 internal sealed class CjManager : ICjManager
 {
     /// <summary>E94 #1：建好，进 QUEUED（没有出发状态，建 CJ 时直接报）。</summary>
@@ -24,23 +19,25 @@ internal sealed class CjManager : ICjManager
 
     private const string LogModule = "Job";
 
-    private readonly IPjManager _processJobs;
     private readonly List<ControlJob> _jobs = [];
-    private readonly List<ControlJob> _history = [];
-    private readonly List<ControlJobDto> _restored = [];
+    public IReadOnlyList<ControlJob> Jobs => _jobs;
 
+    private readonly List<ControlJob> _history = [];
+    public IReadOnlyList<ControlJob> History => _history;
+
+    private readonly List<ControlJobDto> _restored = [];
+    public IReadOnlyList<ControlJobDto> Restored => _restored;
+
+
+    private readonly IPjManager _processJobs;
     public CjManager(IPjManager processJobs)
     {
         _processJobs = processJobs;
     }
 
-    public event Action<ControlJob, int, CtrlJobState?, CtrlJobState?>? Transitioned;
+    public event Action<ControlJob, int>? Transitioned;
 
-    public IReadOnlyList<ControlJob> Jobs => _jobs;
-
-    public IReadOnlyList<ControlJob> History => _history;
-
-    public IReadOnlyList<ControlJobDto> Restored => _restored;
+    
 
     public ControlJob? Find(string id)
     {
@@ -63,7 +60,7 @@ internal sealed class CjManager : ICjManager
         foreach (string processId in spec.ProcessJobs)
         {
             var process = _processJobs.Find(processId.Trim());
-            if (process is null || process.ControlJob is not null || process.State != PrJobState.QueuedPooled
+            if (process is null || process.ControlJob is not null || process.State != ProcessJobState.QueuedPooled
                 || processes.Contains(process))
             {
                 return HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim());
@@ -112,7 +109,9 @@ internal sealed class CjManager : ICjManager
         }
 
         _jobs.Add(job);
-        Report(job, CreatedTransition, null, job.State);
+
+        // E94 #1：建好进 QUEUED，没有出发状态
+        Report(job, 1, null, job.State);
     }
 
     #endregion
@@ -166,22 +165,106 @@ internal sealed class CjManager : ICjManager
     private static (int Number, CtrlJobState To, bool Ends)? Find(ControlJob job, ControlStateAction trigger)
     {
         var state = job.State;
-        return trigger switch
+        switch (trigger)
         {
-            ControlStateAction.Dequeue when state == CtrlJobState.Queued => (2, CtrlJobState.Queued, true),
-            ControlStateAction.Select when state == CtrlJobState.Queued => (3, CtrlJobState.Selected, false),
-            ControlStateAction.Deselect when state == CtrlJobState.Selected => (4, CtrlJobState.Queued, false),
-            ControlStateAction.MaterialReadyStart when state == CtrlJobState.Selected => (5, CtrlJobState.Executing, false),
-            ControlStateAction.MaterialReadyWait when state == CtrlJobState.Selected => (6, CtrlJobState.WaitingForStart, false),
-            ControlStateAction.Start when state == CtrlJobState.WaitingForStart => (7, CtrlJobState.Executing, false),
-            ControlStateAction.Pause when state == CtrlJobState.Executing => (8, CtrlJobState.Paused, false),
-            ControlStateAction.Resume when state == CtrlJobState.Paused => (9, CtrlJobState.Executing, false),
-            ControlStateAction.AllDone when state == CtrlJobState.Executing => (10, CtrlJobState.Completed, false),
-            ControlStateAction.Stopped when job.IsActive => (11, CtrlJobState.Completed, false),
-            ControlStateAction.Aborted when job.IsActive => (AbortedTransition, CtrlJobState.Completed, false),
-            ControlStateAction.Delete when state == CtrlJobState.Completed => (DeletedTransition, CtrlJobState.Completed, true),
-            _ => null,
-        };
+            case ControlStateAction.Dequeue:
+                if (state == CtrlJobState.Queued)
+                {
+                    return (2, CtrlJobState.Queued, true);
+                }
+
+                break;
+
+            case ControlStateAction.Select:
+                if (state == CtrlJobState.Queued)
+                {
+                    return (3, CtrlJobState.Selected, false);
+                }
+
+                break;
+
+            case ControlStateAction.Deselect:
+                if (state == CtrlJobState.Selected)
+                {
+                    return (4, CtrlJobState.Queued, false);
+                }
+
+                break;
+
+            case ControlStateAction.MaterialReadyStart:
+                if (state == CtrlJobState.Selected)
+                {
+                    return (5, CtrlJobState.Executing, false);
+                }
+
+                break;
+
+            case ControlStateAction.MaterialReadyWait:
+                if (state == CtrlJobState.Selected)
+                {
+                    return (6, CtrlJobState.WaitingForStart, false);
+                }
+
+                break;
+
+            case ControlStateAction.Start:
+                if (state == CtrlJobState.WaitingForStart)
+                {
+                    return (7, CtrlJobState.Executing, false);
+                }
+
+                break;
+
+            case ControlStateAction.Pause:
+                if (state == CtrlJobState.Executing)
+                {
+                    return (8, CtrlJobState.Paused, false);
+                }
+
+                break;
+
+            case ControlStateAction.Resume:
+                if (state == CtrlJobState.Paused)
+                {
+                    return (9, CtrlJobState.Executing, false);
+                }
+
+                break;
+
+            case ControlStateAction.AllDone:
+                if (state == CtrlJobState.Executing)
+                {
+                    return (10, CtrlJobState.Completed, false);
+                }
+
+                break;
+
+            case ControlStateAction.Stopped:
+                if (job.IsActive)
+                {
+                    return (11, CtrlJobState.Completed, false);
+                }
+
+                break;
+
+            case ControlStateAction.Aborted:
+                if (job.IsActive)
+                {
+                    return (12, CtrlJobState.Completed, false);
+                }
+
+                break;
+
+            case ControlStateAction.Delete:
+                if (state == CtrlJobState.Completed)
+                {
+                    return (13, CtrlJobState.Completed, true);
+                }
+
+                break;
+        }
+
+        return null;
     }
 
     public bool Advance(Func<string, bool> isCarrierReady, Func<ControlJob, bool> isCarrierGone)
@@ -245,7 +328,7 @@ internal sealed class CjManager : ICjManager
     /// CJ 命令（先查 E94 转换表，表里没有的一律拒，回当前状态）。Stop / Abort 照 E94：排队的 PJ 按 Action 留下或删掉，
     /// 在跑的 PJ 各自停止 / 中止，CJ 的状态值不变，等 PJ 都结束再自己转 COMPLETED（#11 / #12）。
     /// </summary>
-    public HandleResult Command(string id, CtrlJobCommand command, CtrlJobAction action)
+    public HandleResult Command(string id, ControlJobCommand command, CtrlJobAction action)
     {
         var job = Find(id.Trim());
         if (job is null || job.IsEnded)
@@ -254,28 +337,28 @@ internal sealed class CjManager : ICjManager
         }
 
         string name = JobNames.Of(command);
-        if (job.Ending != CtrlJobEnding.None && command is not (CtrlJobCommand.Stop or CtrlJobCommand.Abort))
+        if (job.Ending != CtrlJobEnding.None && command is not (ControlJobCommand.Stop or ControlJobCommand.Abort))
         {
             return HandleResult.Fail(ErrorCodes.JobEnding, job.Id, name);
         }
 
         switch (command)
         {
-            case CtrlJobCommand.Start:
+            case ControlJobCommand.Start:
                 return Command(job, ControlStateAction.Start, name);
-            case CtrlJobCommand.Pause:
+            case ControlJobCommand.Pause:
                 return Command(job, ControlStateAction.Pause, name);
-            case CtrlJobCommand.Resume:
+            case ControlJobCommand.Resume:
                 return Command(job, ControlStateAction.Resume, name);
-            case CtrlJobCommand.Deselect:
+            case ControlJobCommand.Deselect:
                 return Command(job, ControlStateAction.Deselect, name);
-            case CtrlJobCommand.HeadOfQueue:
+            case ControlJobCommand.HeadOfQueue:
                 return HeadOfQueue(job, name);
-            case CtrlJobCommand.Cancel:
+            case ControlJobCommand.Cancel:
                 return job.State == CtrlJobState.Queued ? Dequeue(job, action) : NotAllowed(job, name);
-            case CtrlJobCommand.Stop:
-            case CtrlJobCommand.Abort:
-                return End(job, command == CtrlJobCommand.Stop ? CtrlJobEnding.Stop : CtrlJobEnding.Abort, action, name);
+            case ControlJobCommand.Stop:
+            case ControlJobCommand.Abort:
+                return End(job, command == ControlJobCommand.Stop ? CtrlJobEnding.Stop : CtrlJobEnding.Abort, action, name);
             default:
                 return NotAllowed(job, name);
         }
@@ -287,7 +370,7 @@ internal sealed class CjManager : ICjManager
         {
             if (!job.IsEnded && job.State != CtrlJobState.Completed)
             {
-                End(job, CtrlJobEnding.Abort, CtrlJobAction.RemoveJobs, JobNames.Of(CtrlJobCommand.Abort));
+                End(job, CtrlJobEnding.Abort, CtrlJobAction.RemoveJobs, JobNames.Of(ControlJobCommand.Abort));
             }
         }
     }
@@ -321,7 +404,7 @@ internal sealed class CjManager : ICjManager
                 continue;
             }
 
-            if (process.State == PrJobState.QueuedPooled)
+            if (process.State == ProcessJobState.QueuedPooled)
             {
                 DropQueued(job, process, action);
                 continue;
@@ -427,7 +510,7 @@ internal sealed class CjManager : ICjManager
             if (job.State != (int)CtrlJobState.Completed)
             {
                 job.State = (int)CtrlJobState.Completed;
-                job.CompletedBy = AbortedTransition;
+                job.CompletedBy = 12; // E94 #12：中止做完进 COMPLETED
                 job.Ending = CtrlJobEnding.Abort.ToString();
                 job.CompletedAt = now;
                 job.Restarted = true;
@@ -437,7 +520,7 @@ internal sealed class CjManager : ICjManager
             // 完成了还没删的（载具还在）也一样：重启后从队列里拿掉，进历史
             if (job.EndedBy == 0)
             {
-                job.EndedBy = DeletedTransition;
+                job.EndedBy = 13; // E94 #13：完成后删掉
                 job.EndedAt = now;
             }
 
@@ -459,6 +542,6 @@ internal sealed class CjManager : ICjManager
     private void Report(ControlJob job, int number, CtrlJobState? from, CtrlJobState? to)
     {
         LogHelper.Info(LogModule, $"CJ {job.Id} E94 #{number}：{JobNames.Of(from)} → {JobNames.Of(to)}");
-        Transitioned?.Invoke(job, number, from, to);
+        Transitioned?.Invoke(job, number);
     }
 }

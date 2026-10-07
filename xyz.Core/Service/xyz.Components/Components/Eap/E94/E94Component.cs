@@ -122,7 +122,7 @@ public class E94Component : ComponentBase, IE94Callback
 
     #region 上报（IE94Callback）
 
-    void IE94Callback.ControlJobTransitioned(ControlJobDto job, int transition, CtrlJobState? from, CtrlJobState? to)
+    void IE94Callback.ControlJobTransitioned(ControlJobDto job, int transition)
     {
         if (transition is < 1 or > 13)
         {
@@ -131,7 +131,7 @@ public class E94Component : ComponentBase, IE94Callback
 
         _gem?.Report(this, $"CtrlJobSMTrans{transition:00}",
             new GemData(DvJobId, GemValue.Ascii(job.Id)),
-            new GemData(DvJobState, (byte)(to ?? (CtrlJobState)job.State)),
+            new GemData(DvJobState, (byte)job.State),
             new GemData(DvCarrierId, GemValue.Ascii(job.CarrierId)),
             new GemData(DvProcessJobs, SecsItem.L(job.ProcessJobs.Select(id => SecsItem.A(GemValue.Ascii(id))))));
     }
@@ -181,27 +181,27 @@ public class E94Component : ComponentBase, IE94Callback
         return SecsReply.Of(SecsItem.L(SecsItem.Boolean(error is null), errorItem));
     }
 
-    private static CtrlJobCommand? ReadCommand(SecsItem item)
+    private static ControlJobCommand? ReadCommand(SecsItem item)
     {
         if (item.Format is SecsFormat.Ascii or SecsFormat.Jis8)
         {
             string name = item.GetString().Trim().ToUpperInvariant();
             return name switch
             {
-                "CJSTART" => CtrlJobCommand.Start,
-                "CJPAUSE" => CtrlJobCommand.Pause,
-                "CJRESUME" => CtrlJobCommand.Resume,
-                "CJCANCEL" => CtrlJobCommand.Cancel,
-                "CJDESELECT" => CtrlJobCommand.Deselect,
-                "CJSTOP" => CtrlJobCommand.Stop,
-                "CJABORT" => CtrlJobCommand.Abort,
-                "CJHOQ" => CtrlJobCommand.HeadOfQueue,
+                "CJSTART" => ControlJobCommand.Start,
+                "CJPAUSE" => ControlJobCommand.Pause,
+                "CJRESUME" => ControlJobCommand.Resume,
+                "CJCANCEL" => ControlJobCommand.Cancel,
+                "CJDESELECT" => ControlJobCommand.Deselect,
+                "CJSTOP" => ControlJobCommand.Stop,
+                "CJABORT" => ControlJobCommand.Abort,
+                "CJHOQ" => ControlJobCommand.HeadOfQueue,
                 _ => null,
             };
         }
 
         byte value = SecsRead.Code(item, "CTLJOBCMD");
-        return Enum.IsDefined(typeof(CtrlJobCommand), (int)value) ? (CtrlJobCommand)value : null;
+        return Enum.IsDefined(typeof(ControlJobCommand), (int)value) ? (ControlJobCommand)value : null;
     }
 
     private static CtrlJobAction ReadAction(SecsItem item)
@@ -365,7 +365,7 @@ public class E94Component : ComponentBase, IE94Callback
     /// <summary>PJ 在 ACTIVE 里（准备、等启动、在做、暂停、停止中、中止中；做完不算）。</summary>
     private static bool IsActive(int state)
     {
-        return state >= (int)PrJobState.SettingUp && state <= (int)PrJobState.Aborting && state != (int)PrJobState.ProcessComplete;
+        return state >= (int)ProcessJobState.SettingUp && state <= (int)ProcessJobState.Aborting && state != (int)ProcessJobState.ProcessComplete;
     }
 
     /// <summary>一个 PJ 的状态 U1；已经结束（不在没结束的表里）的报空。</summary>

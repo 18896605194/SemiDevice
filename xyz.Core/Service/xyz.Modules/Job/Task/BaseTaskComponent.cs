@@ -2,7 +2,6 @@
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Components;
-using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
@@ -16,11 +15,14 @@ public abstract class BaseTaskComponent : ComponentBase
 
     #endregion
 
+    #region 一个任务开始加上一个任务结束 事件
     /// <summary>站内任务开始了（Job 组件据此往 EAP 报）。</summary>
     internal event Action<TaskRow, WaferTask>? StationTaskBegan;
 
     /// <summary>站内任务结束了（成没成看任务状态）。</summary>
     internal event Action<TaskRow, WaferTask>? StationTaskFinished;
+
+    #endregion
 
     /// <summary>内容版本：任务表每改一次加 1，Job 组件据此决定要不要发布。</summary>
     internal long Version { get; private set; }
