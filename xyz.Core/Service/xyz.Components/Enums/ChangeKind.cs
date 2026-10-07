@@ -1,9 +1,9 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// 配方怎么变的（报给 Host 的"配方变了"事件里带的，值照 SEMI E30 的 PPChangeStatus）。
+/// 流程配方、工艺配方怎么变的（报给 Host 的"配方变了"事件里带的，值照 SEMI E30 的 PPChangeStatus）。
 /// </summary>
-public enum RecipeChange
+public enum ChangeKind
 {
     /// <summary>新建了。</summary>
     Created = 1,

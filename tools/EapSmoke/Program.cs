@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -105,8 +105,8 @@ ledger.RegisterLocation("PM1", 1);
 var lp1 = new FakePort("LP1", ledger);
 var lp2 = new FakePort("LP2", ledger);
 var jobs = new FakeJobs();
-var sequences = new FakeRecipes();
-var processRecipes = new FakeRecipes();
+var sequences = new FakeSequences();
+var processRecipes = new FakeProcessRecipes();
 
 int Ceid(string name)
 {
@@ -654,8 +654,8 @@ gem.RequestRemote(true);
 
 var pjAttributes = await Send(14, 1, GetAttr("ProcessJob", ["PJ-1"], SecsItem.L(), "ProcessJobState", "RecID", "PrMtlNameList"));
 var pj = pjAttributes.Body!.Items[0].Items[0].Items[1];
-Check(pj.Items[0].Items[1].GetUInt64() == 3 && pj.Items[1].Items[1].GetString() == "SEQ/SEQ-1"
-      && pj.Items[2].Items[1].Items[0].Items[0].GetString() == "CAR-C", "S14F1 查 PJ：状态、配方（Host 那边的配方号，带流程配方前缀）、料（载具号用 PJ 建的时候记下的）");
+Check(pj.Items[0].Items[1].GetUInt64() == 3 && pj.Items[1].Items[1].GetString() == "SEQ-1"
+      && pj.Items[2].Items[1].Items[0].Items[0].GetString() == "CAR-C", "S14F1 查 PJ：状态、配方、料（载具号用 PJ 建的时候记下的）");
 var cjAttributes = await Send(14, 1, GetAttr("ControlJob", [], SecsItem.L(), "State", "CurrentPrJob"));
 var cj = cjAttributes.Body!.Items[0].Items[0].Items[1];
 Check(cj.Items[0].Items[1].GetUInt64() == 3 && cj.Items[1].Items[1].Items[0].GetString() == "PJ-1", "S14F1 查 CJ：状态、在跑的 PJ");
@@ -666,57 +666,60 @@ await Event("Eap.E40.PrJobSMTrans05", mark, "PJ 状态转换报事件（#5）");
 jobs.E94Callback!.ControlJobStateChanged(jobs.Snapshot.ControlJobs[0], 7);
 await Event("Eap.E94.CtrlJobSMTrans07", mark, "CJ 状态转换报事件（#7）");
 
-var prefixed = await Send(16, 11, CreatePj("PJ-P", Material("CAR-C", 1), Recipe("SEQ/SEQ-1")));
-Check(Acka(prefixed.Body!.Items[1]) && jobs.ProcessJobs.Last().Sequence == "SEQ-1", "Host 建 PJ 给带前缀的配方号：去掉前缀交给 Job 管理");
-
-// ── 配方管理（E30 工艺程序管理，S7）─────────────────────────────────────────
+// ── 配方管理（E30 工艺程序管理，S7）：配方号就是配方名，按名字到两个库里找；新名字看 JSON 的样子分库 ─────────────
 var recipes = eap.FindChild<E30RecipeComponent>()!;
-Check(ReferenceEquals(sequences.E30RecipeCallback, recipes) && ReferenceEquals(processRecipes.E30RecipeCallback, recipes), "配方管理挂到两个配方库上");
-sequences.Items["SEQ-1"] = "{\"steps\":[]}";
-processRecipes.Items["R1"] = "{\"steps\":[{\"values\":[{\"name\":\"Seconds\",\"value\":\"5\"}]}]}";
-SecsItem Program(string id, SecsItem body) => SecsItem.L(SecsItem.A(id), body);
+Check(ReferenceEquals(sequences.E30Callback, recipes) && ReferenceEquals(processRecipes.E30Callback, recipes), "配方管理挂到两个独立的配方库接口上");
+const string SequenceShape = "{\"steps\":[{\"group\":\"LoadPort\"}]}";
+const string RecipeShape = "{\"steps\":[{\"values\":[{\"name\":\"Seconds\",\"value\":\"5\"}]}]}";
+sequences.Items["SEQ-1"] = SequenceShape;
+processRecipes.Items["R1"] = RecipeShape;
+SecsItem Program(string name, SecsItem body) => SecsItem.L(SecsItem.A(name), body);
 byte Ackc7(HsmsMessage reply) => reply.Body!.GetBinary()[0];
 
 var s7f20 = await Send(7, 19);
-Check(s7f20.Body!.Items.Select(item => item.GetString()).SequenceEqual(["SEQ/SEQ-1", "PR/R1"]), "S7F19 列配方：两个库的配方号带前缀，流程配方在前");
-var s7f6 = await Send(7, 5, SecsItem.A("PR/R1"));
-Check(s7f6.Body!.Items[0].GetString() == "PR/R1" && Encoding.UTF8.GetString(s7f6.Body.Items[1].GetBinary()) == processRecipes.Items["R1"],
-    "S7F5 取配方：PPBODY 是库给的 JSON（B，UTF-8）");
-Check((await Send(7, 5, SecsItem.A("PR/NOPE"))).Body!.Count == 0, "没有的配方：S7F6 回空表");
-Check((await Send(7, 1, SecsItem.L(SecsItem.A("SEQ/NEW"), SecsItem.U4(10)))).Body!.GetBinary()[0] == 0, "S7F1 问能不能下：PPGNT=0");
-Check((await Send(7, 1, SecsItem.L(SecsItem.A("XX/NEW"), SecsItem.U4(10)))).Body!.GetBinary()[0] == 3, "认不出的配方号：PPGNT=3");
+Check(s7f20.Body!.Items.Select(item => item.GetString()).SequenceEqual(["SEQ-1", "R1"]), "S7F19 列配方：两个库的配方名，流程配方在前");
+var s7f6 = await Send(7, 5, SecsItem.A("r1"));
+Check(s7f6.Body!.Items[0].GetString() == "r1" && Encoding.UTF8.GetString(s7f6.Body.Items[1].GetBinary()) == RecipeShape,
+    "S7F5 取配方（名字不分大小写）：PPBODY 是库给的 JSON（B，UTF-8）");
+Check((await Send(7, 5, SecsItem.A("NOPE"))).Body!.Count == 0, "没有的配方：S7F6 回空表");
+Check((await Send(7, 1, SecsItem.L(SecsItem.A("NEW"), SecsItem.U4(10)))).Body!.GetBinary()[0] == 0, "S7F1 问能不能下：PPGNT=0");
 
 Check((await Send(2, 33, DefineReport(9, (uint)Dvid("Eap.Recipe.PPChangeName"), (uint)Dvid("Eap.Recipe.PPChangeStatus")))).Body!.GetBinary()[0] == 0
-      && (await Send(2, 35, LinkReport((uint)Ceid("Eap.Recipe.ProcessProgramChange"), 9))).Body!.GetBinary()[0] == 0, "配方变了事件挂上报告（配方号、怎么变的）");
+      && (await Send(2, 35, LinkReport((uint)Ceid("Eap.Recipe.ProcessProgramChange"), 9))).Body!.GetBinary()[0] == 0, "配方变了事件挂上报告（配方名、怎么变的）");
 mark = host.EventCount;
-var s7f4 = await Send(7, 3, Program("SEQ/NEW", SecsItem.B(Encoding.UTF8.GetBytes("{\"steps\":[]}"))));
-Check(Ackc7(s7f4) == 0 && sequences.Items["NEW"] == "{\"steps\":[]}" && sequences.LastOperator == "Host", "S7F3 下配方（B）：ACKC7=0，交给流程配方库存（操作人 Host）");
+var s7f4 = await Send(7, 3, Program("NEW", SecsItem.B(Encoding.UTF8.GetBytes(SequenceShape))));
+Check(Ackc7(s7f4) == 0 && sequences.Items["NEW"] == SequenceShape && sequences.LastOperator == "Host",
+    "S7F3 下一个两个库都没有的名字（B）：JSON 是流程配方的样子，存进流程配方库（操作人 Host）");
 var recipeChanged = await Event("Eap.Recipe.ProcessProgramChange", mark, "库报配方变了 → 报事件");
 var changeValues = recipeChanged.Body!.Items[2].Items[0].Items[1];
-Check(changeValues.Items[0].GetString() == "SEQ/NEW" && changeValues.Items[1].GetUInt64() == (ulong)RecipeChange.Created, "事件带配方号（带前缀）和怎么变的（1 新建）");
-Check(Ackc7(await Send(7, 3, Program("PR/R1", SecsItem.A("{\"steps\":[]}")))) == 0 && processRecipes.Items["R1"] == "{\"steps\":[]}", "S7F3 下配方（A）：覆盖同名的工艺配方");
-Check(Ackc7(await Send(7, 3, Program("PR/R2", SecsItem.A("bad")))) == 1 && !processRecipes.Items.ContainsKey("R2"), "库没收下（内容不对）：ACKC7=1，什么都不存");
-Check(Ackc7(await Send(7, 3, Program("XX/R2", SecsItem.A("{}")))) == 4, "认不出的配方号：ACKC7=4");
-Check(Ackc7(await Send(7, 17, SecsItem.L(SecsItem.A("PR/R1"), SecsItem.A("PR/NOPE")))) == 4 && processRecipes.Items.ContainsKey("R1"),
+Check(changeValues.Items[0].GetString() == "NEW" && changeValues.Items[1].GetUInt64() == (ulong)ChangeKind.Created, "事件带配方名和怎么变的（1 新建）");
+Check(Ackc7(await Send(7, 3, Program("R2", SecsItem.A(RecipeShape)))) == 0 && processRecipes.Items.ContainsKey("R2") && !sequences.Items.ContainsKey("R2"),
+    "JSON 是工艺配方的样子：存进工艺配方库");
+const string RecipeEdited = "{\"steps\":[{\"values\":[{\"name\":\"Seconds\",\"value\":\"9\"}]}]}";
+Check(Ackc7(await Send(7, 3, Program("R1", SecsItem.A(RecipeEdited)))) == 0 && processRecipes.Items["R1"] == RecipeEdited, "已有的名字：覆盖它所在的库");
+Check(Ackc7(await Send(7, 3, Program("R3", SecsItem.A("{}")))) == 1 && !processRecipes.Items.ContainsKey("R3") && !sequences.Items.ContainsKey("R3"),
+    "新名字、内容看不出是哪种配方：ACKC7=1，什么都不存");
+Check(Ackc7(await Send(7, 3, Program("R1", SecsItem.A("bad")))) == 1 && processRecipes.Items["R1"] == RecipeEdited, "库没收下（内容不对）：ACKC7=1，原来的不动");
+Check(Ackc7(await Send(7, 17, SecsItem.L(SecsItem.A("R1"), SecsItem.A("NOPE")))) == 4 && processRecipes.Items.ContainsKey("R1"),
     "S7F17 删配方：有一个没有就一个都不删（ACKC7=4）");
-Check(Ackc7(await Send(7, 17, SecsItem.L(SecsItem.A("PR/R1")))) == 0 && !processRecipes.Items.ContainsKey("R1"), "S7F17 删工艺配方：ACKC7=0");
+Check(Ackc7(await Send(7, 17, SecsItem.L(SecsItem.A("R1")))) == 0 && !processRecipes.Items.ContainsKey("R1"), "S7F17 删工艺配方：ACKC7=0");
 
 Check(!recipes.IsLocalEditLocked, "SC 没开：REMOTE 时本地照样能改配方");
 recipes.LockLocalEditInRemote = true;
 Check(recipes.IsLocalEditLocked, "SC 开了、ON-LINE REMOTE：本地改配方锁住");
 gem.RequestRemote(false);
 Check(!recipes.IsLocalEditLocked, "LOCAL 时不锁本地");
-Check(Ackc7(await Send(7, 3, Program("SEQ/NEW", SecsItem.A("{}")))) == 1 && Ackc7(await Send(7, 17, SecsItem.L())) == 1
-      && (await Send(7, 1, SecsItem.L(SecsItem.A("SEQ/NEW"), SecsItem.U4(10)))).Body!.GetBinary()[0] == 5 && sequences.Items.Count == 2,
+Check(Ackc7(await Send(7, 3, Program("NEW", SecsItem.A(SequenceShape)))) == 1 && Ackc7(await Send(7, 17, SecsItem.L())) == 1
+      && (await Send(7, 1, SecsItem.L(SecsItem.A("NEW"), SecsItem.U4(10)))).Body!.GetBinary()[0] == 5 && sequences.Items.Count == 2,
     "LOCAL 时 Host 下、删配方都不收（ACKC7=1、PPGNT=5）");
-Check((await Send(7, 19)).Body!.Count == 2, "LOCAL 时照样能列配方");
+Check((await Send(7, 19)).Body!.Count == 3, "LOCAL 时照样能列配方");
 gem.RequestRemote(true);
 recipes.LockLocalEditInRemote = false;
 Check(Ackc7(await Send(7, 17, SecsItem.L())) == 0 && sequences.Items.Count == 0 && processRecipes.Items.Count == 0, "S7F17 空表 = 两个库全删");
 
 // ── 收 ───────────────────────────────────────────────────────────────────────
 eap.Close();
-Check(lp1.E87Callback is null && ledger.E90Callback is null && jobs.E40Callback is null && sequences.E30RecipeCallback is null,
+Check(lp1.E87Callback is null && ledger.E90Callback is null && jobs.E40Callback is null && sequences.E30Callback is null && processRecipes.E30Callback is null,
     "Close 后各标准从设备上摘下来");
 connector.Dispose();
 Console.WriteLine($"PASS: {checks} 项检查全部通过");
@@ -1081,20 +1084,26 @@ sealed class FakeJobs : IJobManager
     }
 }
 
-// 假配方库：名字 → JSON；内容是 "bad" 当没过库的检查。跟真的库一样，变了经 EAP 的派发组件调上报口。
-sealed class FakeRecipes : IRecipeLibrary
+// 假配方库：名字 → JSON；内容是 "bad" 当没过库的检查；每一步带 stepKey 这个属性的 JSON 认作自己的（流程配方 group、工艺配方 values）。
+// 跟真的库一样，变了经 EAP 的派发组件调上报口。
+abstract class FakeRecipes(string stepKey)
 {
     public Dictionary<string, string> Items { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public string LastOperator { get; private set; } = string.Empty;
 
-    public IE30RecipeCallback? E30RecipeCallback { get; set; }
+    public IE30Callback? E30Callback { get; set; }
 
     public IReadOnlyList<string> RecipeNames => Items.Keys.ToList();
 
     public string? ExportRecipe(string name)
     {
         return Items.TryGetValue(name, out string? json) ? json : null;
+    }
+
+    public bool AcceptsRecipe(string json)
+    {
+        return json.Contains($"\"{stepKey}\"", StringComparison.Ordinal);
     }
 
     public HandleResult ImportRecipe(string name, string json, string operatorName)
@@ -1107,7 +1116,7 @@ sealed class FakeRecipes : IRecipeLibrary
         bool created = !Items.ContainsKey(name);
         Items[name] = json;
         LastOperator = operatorName;
-        Notify(name, created ? RecipeChange.Created : RecipeChange.Edited);
+        Notify(name, created ? ChangeKind.Created : ChangeKind.Edited);
         return HandleResult.Success();
     }
 
@@ -1119,16 +1128,53 @@ sealed class FakeRecipes : IRecipeLibrary
         }
 
         LastOperator = operatorName;
-        Notify(name, RecipeChange.Deleted);
+        Notify(name, ChangeKind.Deleted);
         return HandleResult.Success();
     }
 
-    private void Notify(string name, RecipeChange change)
+    protected abstract void Notify(string name, ChangeKind change);
+}
+
+sealed class FakeSequences() : FakeRecipes("group"), ISequenceComponent
+{
+    public IReadOnlyList<string> SequenceNames => RecipeNames;
+
+    public string? ExportSequence(string name) => ExportRecipe(name);
+
+    public bool AcceptsSequence(string json) => AcceptsRecipe(json);
+
+    public HandleResult ImportSequence(string name, string json, string operatorName) => ImportRecipe(name, json, operatorName);
+
+    public HandleResult DeleteSequence(string name, string operatorName) => DeleteRecipe(name, operatorName);
+
+    protected override void Notify(string name, ChangeKind change)
     {
-        var callback = E30RecipeCallback;
+        var callback = E30Callback;
         if (callback is not null)
         {
-            EapNotifierComponent.Current?.Post(() => callback.RecipeChanged(this, name, change));
+            EapNotifierComponent.Current?.Post(() => callback.SequenceChanged(name, change));
+        }
+    }
+}
+
+sealed class FakeProcessRecipes() : FakeRecipes("values"), IProcessRecipeComponent
+{
+    public IReadOnlyList<string> ProcessRecipeNames => RecipeNames;
+
+    public string? ExportProcessRecipe(string name) => ExportRecipe(name);
+
+    public bool AcceptsProcessRecipe(string json) => AcceptsRecipe(json);
+
+    public HandleResult ImportProcessRecipe(string name, string json, string operatorName) => ImportRecipe(name, json, operatorName);
+
+    public HandleResult DeleteProcessRecipe(string name, string operatorName) => DeleteRecipe(name, operatorName);
+
+    protected override void Notify(string name, ChangeKind change)
+    {
+        var callback = E30Callback;
+        if (callback is not null)
+        {
+            EapNotifierComponent.Current?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
     }
 }

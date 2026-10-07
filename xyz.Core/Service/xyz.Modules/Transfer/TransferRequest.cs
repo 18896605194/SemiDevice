@@ -1,20 +1,20 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 一张搬运单：把哪片从哪儿搬到哪儿、谁下的。手动单、Job 下的单、恢复用的单都是它，区别只在 <see cref="Origin"/> 和 <see cref="Owner"/>。
+/// 搬运操作的输入参数：哪片从哪儿搬到哪儿。手动、Job、人工恢复共用，区别在 <see cref="Origin"/> 和 <see cref="Owner"/>。
 /// 站点名就是模块名（sc.xml 原样），槽号从 1 开始。
 /// </summary>
 public sealed record TransferRequest
 {
-    /// <summary>谁下的单：手动、自动（Job）、恢复。</summary>
+    /// <summary>调用来源：手动、自动（Job）、恢复。</summary>
     public TransferOrigin Origin { get; init; } = TransferOrigin.Manual;
 
-    /// <summary>下单的 Job（PJ 名）；手动单为空。Job 只能搬自己的片，中止时也按它撤单。</summary>
+    /// <summary>任务所属 Job（PJ 名）；手动传片为空。Job 只能搬自己的片，中止时按归属停止操作。</summary>
     public string? Owner { get; init; }
 
     /// <summary>
     /// 要搬的那一片（晶圆账的内部标识）；空 = 源槽上现在那一片。
-    /// Job 下单必给：槽上的片被人换过时宁可拒单，也不能搬错片。
+    /// Job 执行任务时必给，用来校验源槽上仍是这片晶圆。
     /// </summary>
     public Guid? WaferId { get; init; }
 

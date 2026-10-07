@@ -31,13 +31,13 @@ public class TransferRequestDto
 }
 
 /// <summary>
-/// 放开一张出错搬运单留着的锁（人到现场确认过片位、在账单调整页对好账之后）。
+/// 按晶圆标识放开搬运失败保留的资源（人到现场确认片位、对好账之后）。
 /// </summary>
 [ProtoContract]
 public class TransferReleaseRequest
 {
     [ProtoMember(1)]
-    public long Id { get; set; }
+    public Guid WaferId { get; set; }
 }
 
 /// <summary>
@@ -45,8 +45,6 @@ public class TransferReleaseRequest
 /// </summary>
 public class TransferDoneDto
 {
-    public long Id { get; set; }
-
     public string Robot { get; set; } = string.Empty;
 
     public int Arm { get; set; }

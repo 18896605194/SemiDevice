@@ -1,4 +1,4 @@
-# 后端
+﻿# 后端
 
 路径相对 `xyz.Core`。.NET 10（`net10.0`），Nullable、ImplicitUsings 全开；`D:\Code\Directory.Build.props` 统一 win-x64、x64。
 
@@ -170,10 +170,12 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   按名字被引用：流程配方查配方在不在库里（`sequence.recipe_not_found`），腔体起工艺查（`chamber.recipe_not_found`）；库没装都不查。
   锁的先后：`SequenceComponent` 锁里可以调 `ProcessRecipeComponent.Contains` / `FindMismatch`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`），
   `GetOptionsAsync` 给字段表（带取好的下拉选项，跟着别的字段走的按那个字段的值分开给）。两个库的 `Find(名字)` 给的是克隆（配方快照，库里再改不影响）。
-  **Host 远程管配方**：两个库都实现 `Interfaces\IRecipeLibrary`（EAP 的命令接口，两个口子一样共用一个）：`RecipeNames`、`ExportRecipe(名字)`（库里那份转 JSON，
-  工艺配方步骤是字段名 → 值，`ProcessRecipeStep.Attributes` 是存 XML 用的、JSON 里不带）、`ImportRecipe(名字, JSON, 操作人)`（没有就在第一个空编号新建、有就覆盖说明和步骤，
-  检查、规整跟本地一样，JSON 里的编号 / 版本 / 人和时间不管；满了 `*.full`、读不出来 `*.body_invalid`）、`DeleteRecipe(名字)`（没有 `*.name_not_found`）。
-  上报口 `E30RecipeCallback`（`IE30RecipeCallback`）：建、改、删、改名（旧名删 + 新名建）都在 `Report` 里经 `EapNotifierComponent` 报。
+  **Host 远程管配方**：流程配方库实现 `Interfaces\ISequenceComponent`：`SequenceNames`、`ExportSequence`、`AcceptsSequence`、`ImportSequence`、`DeleteSequence`；
+  工艺配方库实现 `Interfaces\IProcessRecipeComponent`：`ProcessRecipeNames`、`ExportProcessRecipe`、`AcceptsProcessRecipe`、`ImportProcessRecipe`、`DeleteProcessRecipe`。
+  导出按名字取库里的副本转 JSON（工艺配方步骤是字段名 → 值，`ProcessRecipeStep.Attributes` 是存 XML 用的、JSON 里不带）；导入按名字新建或覆盖说明和步骤，
+  检查、规整跟本地一样，JSON 里的编号 / 版本 / 人和时间不管；满了 `*.full`、读不出来 `*.body_invalid`，删除时没有名字回 `*.name_not_found`。
+  两个 `Accepts` 方法只看 JSON 的样子，Host 下新名字时分库用。
+  上报口 `E30Callback`（`IE30Callback`）：分别调用 `SequenceChanged` / `ProcessRecipeChanged`；建、改、删、改名（旧名删 + 新名建）都在 `Report` 里经 `EapNotifierComponent` 报。
   配方服务改配方（建、改名、存、删）之前先问 `E30RecipeComponent.Current?.IsLocalEditLocked`，锁着回 `recipe.locked_by_host`。
   还没做：腔体按工艺配方的步骤真的去转、去喷（35021 的 Process 还是定时模拟，只认名字）；字段作用到哪个设备（AO 等，本来就配在 sc 腔体下面）到时再定。
 - **加工口** `Process\IProcessStation`（`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。`CheckProcess(ProcessRequest)` 只问不动设备
@@ -182,34 +184,38 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
 - **搬运管理** `Transfer\TransferManager`（sc.xml `Transfer`，自己的扫描线程）：手动、Job、人工恢复共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
-  `Submit(TransferRequest)` 当场回 `TransferTicket`（受理带单号和 `Completion` 任务，拒带错误码 + 参数），受理时依次查：没开、没账、站点、槽号、同槽、
-  源槽有没有片 / 是不是那一片、目标槽空不空、片归别的 Job（`transfer.wafer_owned`，人工恢复单 Recovery 不查）、槽被别的单锁着、有没有两边都到得了的机械手、手。
-  受理就锁源槽、目标槽、片、手；一台机械手一次一单，站点跟在跑的单不重叠的才开始。`TransferRoutine` **先抢目标站点再抢源**，等 `IsSettled`
-  （模块收完尾、记完账）才往下走；结果在站点环、晶圆账都收尾之后才出（回执的 `Completion`；结果里 `Picked` 记着取片做完没有，没搬成时分得清错在取片还是放片）。没动手就失败（等不到站点、被撤）：
-  把抢到的环撤回锚点（`ITransferStation.CancelTransfer`）、放锁；**动过手才失败：锁留着、站点停在交互中**（`HeldResults`，`NeedsRecovery`），
-  人工确认片位、对好账后 `ReleaseHold(单号)`。`Cancel` / `CancelOwner` / `CancelAll`（在动手的发机械手中止）；`Abort()` = 关自动派单 + 全撤。
+  `Start(TransferRequest)` 当场回 `HandleResult<TransferRoutine>`（成功给实际设备操作，拒绝给错误码 + 参数）；请求只是参数，不建立搬运单、单号、回执或结果历史。
+  启动时查：启用、晶圆账、站点、槽号、同槽、源片标识、目标槽空闲、Job 归属（人工恢复 Recovery 可搬 Job 的片）、资源占用、机械手可达与手臂可用。
+  调度直接查搬运管理的 `IsSlotLocked` / `IsRobotInTransfer`，手臂占用在搬运启动时内部校验，不另建占用快照类。
+  源槽、目标槽、片、手一起占用；机械手忙或站点与正在执行的操作重叠就拒绝，不另排搬运队列。自动任务仍在原任务表等待下一拍。
+  `TransferRoutine` **先抢目标站点再抢源**，子操作 `IsSettled`（模块收完尾、记完账）才继续；取片确认记 `HasPicked`，整趟资源收尾及设备中止确认后才置自身 `IsSettled`。
+  没动手就失败：把抢到的环撤回锚点（`ITransferStation.CancelTransfer`）、释放资源；**动过手才失败：保留资源、站点停在交互中**（`HeldOperations`、`NeedsRecovery`）。
+  人工确认片位、对好账后 `ReleaseHold(晶圆内部标识)`。`Cancel(操作)` / `CancelOwner` / `CancelAll` 请求由搬运扫描线程执行中止；`Abort()` = 关自动调度 + 全部中止。
   **源可以是机械手**（片已经在手上：重启前搬到一半、手动取了没放）：`Source` 写机械手名、`SourceSlot` 写手指号，就用拿着它的那只手，只放片
-  （`TransferRoutine` 抢目标 → 准备二 → 放；`TransferOrder.Source` 为 null、`SourceName` 是机械手名）。
-  受理时问片归哪个 Job：`JobManager.Current?.OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等结果）、`ResultKeepCount`。
-  服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 下手动单等结果、`ReleaseAsync` 放留着的锁（`transfer.not_held`）。
+  （`TransferRoutine` 抢目标 → 准备二 → 放；`Source` 为 null、`SourceName` 是机械手名）。
+  启动时问片归哪个 Job：`JobManager.Current?.OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
+  服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
 - **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的扫描线程；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
   `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
   - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：CJ 队列、E94 状态机、CJ 命令）和 PJ 管理（`IPjManager` / `PjManager`：PJ 队列、片归属、
     E40 状态机、PJ 命令）。两个管理**不拿 JobManager**（只有 CJ 管理拿着 PJ 管理：CJ 的 Stop / Abort 要往下传给 PJ），转换表是各自里的一个 switch
     （带 SEMI 转换号，推动转换的是 `ControlStateAction` / `ProcessStateAction`），转了发 `StateChanged` 事件。牵扯别处的事都在 JobManager：
-    建 PJ（查 LoadPort、载具、片、流程配方，任务组件建任务表）、建 CJ 前查名字；PJ 进 ABORTING 撤单 + 腔体中止、PJ 结束任务表收场、CJ 完成告诉 LoadPort；
+    建 PJ（查 LoadPort、载具、片、流程配方，任务组件建任务表）、建 CJ 前查名字；PJ 进 ABORTING 中止搬运和腔体操作、PJ 结束任务表收场、CJ 完成告诉 LoadPort；
     CJ 自动转换要的载具好没好、拿没拿走由它查设备给；建好、每条转换都由它经 `E94Callback` / `E40Callback`（片开始 / 结束加工 E40 没有事件，由 E90 照晶圆账报） 报
     （放进 EAP 的上报派发组件 `EapNotifierComponent.Current`，跟所有上报一条线程按先后发，PJ 结束先于 CJ 完成报）。
   - 任务组件 `Task\BaseTaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
     每一站放片、站内任务、取片 → 回片 LoadPort 放片（回片槽建 PJ 时定）。中间的路线整个 PJ 算一次（`BuildRoute`）：这一站的工艺配方取快照、站点组去掉用不了的
     （没装、停用、机械手到不了、跑不了这个配方）、剩下的每个站点都要声明支持用到的任务（`job.station_task_unsupported`）。每一格（`WaferTask`）记状态
     （`WaferTaskState` Waiting / Running / Done / Error / Cancelled）、实际站点和槽、机械手和手、出错原因（改状态给调度用：`Start` / `Done` / `Fail` / `Reset` / `Cancel`）；
-    每拍核对片位（不对记 `job.wafer_moved`）。**只管任务表，不碰搬运单、站内操作**。出错停住等人：`Retry`（退回等着做）、`Complete`（人做完了；取放要片在账上正好在这一步做完该在的地方，
+    当前设备操作直接挂在 `WaferTask.Operation`（不序列化，结束时清空），不另建执行任务表；任务组件管状态，调度负责启动和收进度。
+    每拍核对片位（不对记 `job.wafer_moved`）。出错停住等人：`Retry`（退回等着做）、`Complete`（人做完了；取放要片在账上正好在这一步做完该在的地方，
     不在回 `job.task_position_mismatch`）。片做没做成看晶圆账（`WaferInfo.ProcessState`），任务表不另记。机型规则不一样就重写 `BuildRoute` / `TasksAt`。
-  - 调度引擎 `Scheduling\SchedulerComponent`：照任务表派——站内任务交给站点（`ITransferStation.CheckTask` 只问不动设备、`StartTask` 真起），取片连同后面的放片下一张搬运单；
-    先起站内任务、再走机内的片、最后投新片（EC `MaxWafersInMachine`，0 = 不限），站点组按 sc.xml 先后挑第一个能放的；派不出去的下一拍再看。
-    执行着的（交给搬运管理的取放、交给站点的站内操作）自己记着，每拍 `Collect` 看做完没有、结果记回任务表：取放没碰到片就失败都退回等着做，
-    碰过片才失败按结果的 `Picked` 把出错记在取片或放片上；站内操作被 PJ 中止打断的记未执行。
+  - 调度引擎 `Scheduling\SchedulerComponent`：从每行当前 `WaferTask` 执行；站内任务直接交给站点 `StartTask`（内部校验，拒绝就等待；`CheckTask` 只供单独询问），取片先选定并占住后续放片目标，再启动实际搬运操作。
+    先起站内任务、再走机内的片、最后投新片；并发由目标槽、机械手和站点占用自然限制，不设机内片数上限。站点组按 sc.xml 先后挑第一个能放的，派不出去下一拍再看。
+    每拍 `Collect` 直接读当前任务的 `Operation`，没有 `_moves` / `_works` 或 `Move` / `Work` 执行记录。取片确认后完成取片格，操作引用转到放片格，整行同时只有一格 Running。
+    没碰到片就失败退回等待；动过片才失败将当前取片或放片格记 Error；站内操作被 PJ 中止打断的记未执行。
+    不维护每拍槽位、机械手的重复占用集合，直接查询搬运管理；调度按先后尝试空闲且可达的机械手，手臂选择和资源校验只在搬运执行口做一次。
+    工艺日志在任务状态方法里直接写，不再经任务开始 / 结束事件转发到 JobManager；EAP 片加工上报仍由 E90 照晶圆账报。
     只看每一行的许可（`TaskPermission`，PJ 状态定的：暂停、停止就体现在这上面）。
   - 站点任务：`TransferStation\StationTaskAction`（Pick / Place / Process，字符串常量，新站点要新的站内任务自己起名字）、`ITransferStation.SupportedTasks`（默认取放，腔体加工艺）。
 
@@ -268,13 +274,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   Host 定的报告、开关、缓存范围存 `gem_config`（一行 JSON），缓存报文存 `gem_spool`（SC `Database` 指的库）。
 - **E39**：各标准把对象类型登记进来（`IE39ObjectType`：类型名、属性名先后 = 属性号、对象 ID、取属性；建、删、改可选）——Carrier、Port（E87）、
   Substrate、SubstLoc（E90）、ProcessJob（E40）、ControlJob（E94，S14F9 建 CJ 走它）。查要 ON-LINE，改 / 建 / 删要 REMOTE。
-- **Recipe**（`Eap\Recipe\E30RecipeComponent`，E30 的工艺程序管理）：挂到两个配方库上（`IRecipeLibrary` + 上报口 `IE30RecipeCallback`）。
-  Host 的配方号 = 前缀 + 配方名（SC `SequencePrefix` 默认 `SEQ/`、`ProcessRecipePrefix` 默认 `PR/`，一样开机就抛；前缀长的先认，空前缀收剩下的）。
-  S7F1 → PPGNT（0 可以、3 配方号不对、5 不在 REMOTE）；S7F3 下配方（PPBODY 收 A / B 的 JSON）→ ACKC7（0、1 不让：不在 REMOTE 或库没过检查，原因记日志、4 配方号不对）；
+- **Recipe**（`Eap\Recipe\E30RecipeComponent`，E30 的工艺程序管理）：分别挂到 `ISequenceComponent`、`IProcessRecipeComponent`，上报口是 `IE30Callback`。
+  **配方号就是配方名**（不加前缀，用户定的；两个库的名字不会重），按名字到两个库里找（流程配方库先）；Host 下一个两个库都没有的新名字，
+  看 JSON 的样子由库自己认（`AcceptsSequence` / `AcceptsProcessRecipe`：流程配方每步带 group、工艺配方每步带 values，`Recipe\JsonSteps.AllHave`）。
+  S7F1 → PPGNT（0 可以、5 不在 REMOTE）；S7F3 下配方（PPBODY 收 A / B 的 JSON）→ ACKC7（0、1 不让：不在 REMOTE、新名字看不出是哪种、库没过检查，原因记日志）；
   S7F5 → S7F6 PPBODY 用 B（UTF-8），没有回空表；S7F17 删（空表 = 全删；有一个没有就都不删回 4）；S7F19 列（流程配方在前）。下、删要 REMOTE。
-  配方变了报 `ProcessProgramChange`（DV `PPChangeName` = 配方号、`PPChangeStatus` 1 建 / 2 改 / 3 删；本地和 Host 改的都报）。
-  SC `LockLocalEditInRemote`（默认 False）：True 时 ON-LINE REMOTE 下 `IsLocalEditLocked` 为真，本地配方服务拒改。
-  E40 认带 `SEQ/` 的 RCPSPEC（不带也认），报给 Host 的 RecID 带前缀（`SequenceNameOf` / `SequenceIdOf`）。
+  配方变了报 `ProcessProgramChange`（DV `PPChangeName` = 配方名、`PPChangeStatus` 1 建 / 2 改 / 3 删；本地和 Host 改的都报）。
+  SC 只有 `LockLocalEditInRemote`（默认 False）：True 时 ON-LINE REMOTE 下 `IsLocalEditLocked` 为真，本地配方服务拒改。以后要前缀再加在这个组件的 SC 里。
 - **E87**：挂到每个 LoadPort 上（`IE87Callback` + `IE84Provider`，PortID 按传进来的先后从 1 编）；ID 核对：有 Bind / CarrierNotification 预告且号对上由设备认定，
   没预告的等 Host ProceedWithCarrier，读码失败的等 Host 带端口号给号；认定后 SC `AutoLoad` 自动 Load；槽图跟 Host 给的一样由设备认定，否则等 Host；
   槽图认定 = 料到了：Host 给的片号表写进晶圆账，再通知 E90 建片对象；Host 取消的、核对不过的不要了（卸下来等取），干完 / 中断 SC `AutoUnload` 自动 Unload。
@@ -329,7 +335,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   （`TransferManager.TryGetStation` 拿到的是 `BaseLoadPortModule` / `BaseChamberModule` / 别的），表没绑好或不在表里算 Other；变了算状态变化。
 - 设备总状态 `EquipmentStatusDto.IsAuto` = 搬运管理的自动派单开着（`TransferManager.IsAutoDispatch`），`EquipmentStatusPublisher.Snapshot(modules)` 算一次。
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`AutoAsync` 开自动派单（没配搬运管理回 `transfer.not_installed`，
-  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动派单 + 撤单）；正在执行动作的模块直接发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个），
+  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动调度 + 中止当前搬运操作）；正在执行动作的模块直接发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个），
   在给 Job 做工艺的腔体（`JobManager.IsJobProcess`）、在搬运的机械手除外（由 Job / 搬运管理收场）；最后 Job 全部走中止（`AbortAllAsync`）——
   要先认出哪些腔体在给 Job 做工艺：Job 的中止当场就给它们发中止，之后就认不出来了。
 

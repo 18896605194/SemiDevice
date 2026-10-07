@@ -10,7 +10,7 @@ using xyz.Tools;
 namespace xyz.Service.Transfers;
 
 /// <summary>
-/// 搬运 gRPC 服务：手动传片下单并等结果、出错后人工放锁。校验、锁、执行都在搬运管理里，这里只管翻成回包。
+/// 搬运 gRPC 服务：启动手动传片并等操作收尾、出错后人工放锁。校验、锁、执行都在搬运管理里，这里只管翻成回包。
 /// </summary>
 public class TransferService : BaseService, ITransferService
 {
@@ -28,7 +28,7 @@ public class TransferService : BaseService, ITransferService
 
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         string robot = (request.Robot ?? string.Empty).Trim();
-        var ticket = transfers.Submit(new TransferRequest
+        var started = transfers.Start(new TransferRequest
         {
             Origin = TransferOrigin.Manual,
             Source = request.Source ?? string.Empty,
@@ -39,35 +39,32 @@ public class TransferService : BaseService, ITransferService
             Arm = request.Arm,
         });
 
-        var completion = ticket.Completion;
-        if (!ticket.Accepted || completion is null)
+        var operation = started.Result;
+        if (!started.IsSuccess || operation is null)
         {
-            return RpcResponse.Fail(ticket.Code, ticket.Args);
+            return RpcResponse.Fail(started.ErrorMessage, started.Args);
         }
 
         int timeout = transfers.ManualWaitTimeoutMs;
-        var finished = await Task.WhenAny(completion, Task.Delay(timeout)).ConfigureAwait(false);
-        if (finished != completion)
+        if (!await Task.Run(() => operation.WaitReply(timeout, context.CancellationToken)).ConfigureAwait(false))
         {
             return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout,
-                [ticket.Id.ToString(CultureInfo.InvariantCulture), timeout.ToString(CultureInfo.InvariantCulture)]);
+                [operation.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
         }
 
-        var result = await completion.ConfigureAwait(false);
-        if (!result.IsSuccess)
+        if (!operation.IsSuccess)
         {
-            return RpcResponse.Fail(result.Code, result.Args);
+            return RpcResponse.Fail(operation.Code, operation.ErrorArgs);
         }
 
         return RpcResponse.Ok(JsonHelper.Serialize(new TransferDoneDto
         {
-            Id = result.Id,
-            Robot = result.Robot,
-            Arm = result.Arm,
-            Source = result.Source,
-            SourceSlot = result.SourceSlot,
-            Target = result.Target,
-            TargetSlot = result.TargetSlot,
+            Robot = operation.Robot.Name,
+            Arm = operation.Arm,
+            Source = operation.SourceName,
+            SourceSlot = operation.SourceSlot,
+            Target = operation.Target.Name,
+            TargetSlot = operation.TargetSlot,
         }));
     }
 
@@ -79,8 +76,8 @@ public class TransferService : BaseService, ITransferService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
         }
 
-        return Task.FromResult(transfers.ReleaseHold(request.Id)
+        return Task.FromResult(transfers.ReleaseHold(request.WaferId)
             ? RpcResponse.Ok()
-            : RpcResponse.Fail(ErrorCodes.TransferNotHeld, [request.Id.ToString(CultureInfo.InvariantCulture)]));
+            : RpcResponse.Fail(ErrorCodes.TransferNotHeld, [request.WaferId.ToString()]));
     }
 }

@@ -25,8 +25,6 @@ public class JobManager : ComponentBase, IJobManager
 
     private readonly object _gate = new();
 
-    
-
     private IReadOnlyDictionary<string, BaseModule> _modules = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
     private BaseTaskComponent? _tasks;
     private SchedulerComponent? _scheduler;
@@ -114,11 +112,6 @@ public class JobManager : ComponentBase, IJobManager
     {
         var tasks = FindChild<BaseTaskComponent>()
             ?? throw new InvalidOperationException($"{Name}：sc.xml 的 Job 节点下没配 Task 子节点（机型的任务组件，继承 BaseTaskComponent）");
-        tasks.StationTaskBegan -= OnStationTaskBegan;
-        tasks.StationTaskBegan += OnStationTaskBegan;
-        tasks.StationTaskFinished -= OnStationTaskFinished;
-        tasks.StationTaskFinished += OnStationTaskFinished;
-
         var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
         {
@@ -553,7 +546,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// PJ 进 ABORTING：任务组件把它的行标上中止，撤这个 PJ 还没开始的搬运单、中止它在跑的搬运（手臂在动的由搬运管理发设备中止），
+    /// PJ 进 ABORTING：任务组件把它的行标上中止，中止这个 PJ 正在执行的搬运（手臂在动的由搬运管理发设备中止），
     /// 再给正在给它做站内任务的站点发中止，记下发出去的中止动作。设备中止做完、在途的都结束、片位都确定，PJ 管理才转成结束（#16）。
     /// </summary>
     private void AbortDevices(ProcessJob job)
@@ -599,40 +592,6 @@ public class JobManager : ComponentBase, IJobManager
         }
 
         _dirty = true;
-    }
-
-    /// <summary>站内任务开始：是工艺的记日志（片开始加工报 Host 由 E90 照晶圆账报）。</summary>
-    private void OnStationTaskBegan(TaskRow row, WaferTask task)
-    {
-        var job = _processJobs.Find(row.Owner);
-        if (task.Kind != StationTaskAction.Process || job is null)
-        {
-            return;
-        }
-
-        string station = task.Station ?? string.Empty;
-        LogHelper.Info(Name, $"PJ {job.Id} {row.WaferName} 在 {station} 开始加工（第 {task.Step + 1} 站，{task.RecipeName}）");
-    }
-
-    /// <summary>站内任务结束：是工艺的记日志，成没成看任务状态（报 Host 由 E90 照晶圆账报）。</summary>
-    private void OnStationTaskFinished(TaskRow row, WaferTask task)
-    {
-        var job = _processJobs.Find(row.Owner);
-        if (task.Kind != StationTaskAction.Process || job is null)
-        {
-            return;
-        }
-
-        string station = task.Station ?? string.Empty;
-        bool success = task.State == WaferTaskState.Done;
-        if (success)
-        {
-            LogHelper.Info(Name, $"PJ {job.Id} {row.WaferName} 在 {station} 加工完成");
-        }
-        else
-        {
-            LogHelper.Warn(Name, $"PJ {job.Id} {row.WaferName} 在 {station} 加工没做成：这一步停住等人处理，别的片照常走");
-        }
     }
 
     #endregion
@@ -720,19 +679,8 @@ public class JobManager : ComponentBase, IJobManager
 
         _dirty = false;
         var controlJobs = _controlJobs.Jobs.ToList();
-        var processJobs = new List<ProcessJob>();
-        foreach (var control in controlJobs)
-        {
-            processJobs.AddRange(control.ProcessJobs);
-        }
-
-        foreach (var process in _processJobs.Jobs)
-        {
-            if (!processJobs.Contains(process))
-            {
-                processJobs.Add(process);
-            }
-        }
+        var processJobs = controlJobs.SelectMany(control => control.ProcessJobs)
+            .Concat(_processJobs.Jobs).Distinct().ToList();
 
         var snapshot = new JobListDto
         {

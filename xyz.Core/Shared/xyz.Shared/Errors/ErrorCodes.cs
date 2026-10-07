@@ -111,13 +111,13 @@ public static class ErrorCodes
     /// <summary>sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto。Args: []</summary>
     public const string TransferNotInstalled = "transfer.not_installed";
 
-    /// <summary>搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto、下不了搬运单。Args: []</summary>
+    /// <summary>搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto、启动不了搬运操作。Args: []</summary>
     public const string TransferDisabled = "transfer.disabled";
 
-    /// <summary>搬运单里的站点不在搬运模块表里（没装、或不是能放片的站点）。Args: [站点名]</summary>
+    /// <summary>搬运参数里的站点不在搬运模块表里（没装、或不是能放片的站点）。Args: [站点名]</summary>
     public const string TransferStationNotFound = "transfer.station_not_found";
 
-    /// <summary>搬运单里的槽号超出站点的槽数。Args: [站点名, 槽号, 槽数]</summary>
+    /// <summary>搬运参数里的槽号超出站点的槽数。Args: [站点名, 槽号, 槽数]</summary>
     public const string TransferSlotOutOfRange = "transfer.slot_out_of_range";
 
     /// <summary>源和目标是同一个槽。Args: []</summary>
@@ -129,25 +129,22 @@ public static class ErrorCodes
     /// <summary>这片正被一个没结束的 Job 占着，手动搬不了。Args: [片号, Job 名]</summary>
     public const string TransferWaferOwned = "transfer.wafer_owned";
 
-    /// <summary>这个槽（或槽上的片）已经在别的搬运单里。Args: [站点名, 槽号]</summary>
+    /// <summary>这个槽（或槽上的片）已被别的搬运操作占用。Args: [站点名, 槽号]</summary>
     public const string TransferSlotLocked = "transfer.slot_locked";
 
     /// <summary>没有一台机械手两个站点都到得了（站点表里没配）。Args: [源站点, 目标站点]</summary>
     public const string TransferNoRobot = "transfer.no_robot";
 
-    /// <summary>点名的这只手用不了：两个站点不都许用、手上有片，或正被别的单占着。Args: [机械手模块名, 手指号]</summary>
+    /// <summary>点名的这只手用不了：两个站点不都许用、手上有片，或正被别的操作占用。Args: [机械手模块名, 手指号]</summary>
     public const string TransferArmUnavailable = "transfer.arm_unavailable";
 
     /// <summary>机械手没有一只能用的手（都有片、都被占着，或站点不许用）。Args: [机械手模块名]</summary>
     public const string TransferNoArm = "transfer.no_arm";
 
-    /// <summary>搬运单还没开始就被撤了（片没动过）。Args: [搬运单号]</summary>
-    public const string TransferCancelled = "transfer.cancelled";
-
-    /// <summary>没有这张留着锁等人工确认的搬运单（已经放开了，或单号不对）。Args: [搬运单号]</summary>
+    /// <summary>这片晶圆没有搬运失败保留的资源（已经释放，或标识不对）。Args: [晶圆内部标识]</summary>
     public const string TransferNotHeld = "transfer.not_held";
 
-    /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [搬运单号, 等待ms]</summary>
+    /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [操作名称, 等待ms]</summary>
     public const string TransferWaitTimeout = "transfer.wait_timeout";
 
     #endregion

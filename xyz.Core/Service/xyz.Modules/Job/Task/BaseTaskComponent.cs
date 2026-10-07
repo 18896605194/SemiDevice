@@ -15,15 +15,6 @@ public abstract class BaseTaskComponent : ComponentBase
 
     #endregion
 
-    #region 一个任务开始加上一个任务结束 事件
-    /// <summary>站内任务开始了（Job 组件据此往 EAP 报）。</summary>
-    internal event Action<TaskRow, WaferTask>? StationTaskBegan;
-
-    /// <summary>站内任务结束了（成没成看任务状态）。</summary>
-    internal event Action<TaskRow, WaferTask>? StationTaskFinished;
-
-    #endregion
-
     /// <summary>内容版本：任务表每改一次加 1，Job 组件据此决定要不要发布。</summary>
     internal long Version { get; private set; }
 
@@ -235,18 +226,19 @@ public abstract class BaseTaskComponent : ComponentBase
     #region 改任务状态（调度引擎执行任务时调）
 
     /// <summary>任务开始了：进行中，记下在哪个站点、哪一槽（取片是从哪取、放片是放到哪），取放还记下机械手。</summary>
-    public void Start(TaskRow row, WaferTask task, string station, int slot, string? robot = null)
+    public void Start(TaskRow row, WaferTask task, string station, int slot, string? robot = null, ModuleOperation? operation = null)
     {
         task.State = WaferTaskState.Running;
+        task.Operation = operation;
         task.Station = station;
         task.Slot = slot;
         task.Robot = robot;
         task.Code = string.Empty;
         task.Args = [];
         Touch();
-        if (!task.IsRobotTask)
+        if (task.Kind == StationTaskAction.Process)
         {
-            StationTaskBegan?.Invoke(row, task);
+            LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {station} 开始加工（第 {task.Step + 1} 站，{task.RecipeName}）");
         }
     }
 
@@ -255,9 +247,9 @@ public abstract class BaseTaskComponent : ComponentBase
     {
         SetDone(task, task.Robot, arm);
         Touch();
-        if (!task.IsRobotTask)
+        if (task.Kind == StationTaskAction.Process)
         {
-            StationTaskFinished?.Invoke(row, task);
+            LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工完成");
         }
     }
 
@@ -266,10 +258,6 @@ public abstract class BaseTaskComponent : ComponentBase
     {
         SetError(row, task, code, args);
         Touch();
-        if (!task.IsRobotTask)
-        {
-            StationTaskFinished?.Invoke(row, task);
-        }
     }
 
     /// <summary>退回等着做：没做成、也没碰到片（搬运没动手就失败、被撤），下一拍按片现在在哪重新派。</summary>
@@ -283,10 +271,11 @@ public abstract class BaseTaskComponent : ComponentBase
     public void Cancel(TaskRow row, WaferTask task)
     {
         task.State = WaferTaskState.Cancelled;
+        task.Operation = null;
         Touch();
-        if (!task.IsRobotTask)
+        if (task.Kind == StationTaskAction.Process)
         {
-            StationTaskFinished?.Invoke(row, task);
+            LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工已中止");
         }
     }
 
@@ -427,6 +416,7 @@ public abstract class BaseTaskComponent : ComponentBase
     private static void SetDone(WaferTask task, string? robot, int arm)
     {
         task.State = WaferTaskState.Done;
+        task.Operation = null;
         task.Robot = robot;
         task.Arm = arm;
         task.Code = string.Empty;
@@ -437,6 +427,7 @@ public abstract class BaseTaskComponent : ComponentBase
     private static void SetWaiting(WaferTask task)
     {
         task.State = WaferTaskState.Waiting;
+        task.Operation = null;
         task.Station = null;
         task.Slot = 0;
         task.Robot = null;
@@ -448,6 +439,7 @@ public abstract class BaseTaskComponent : ComponentBase
     private void SetError(TaskRow row, WaferTask task, string code, IReadOnlyList<string> args)
     {
         task.State = WaferTaskState.Error;
+        task.Operation = null;
         task.Code = code;
         task.Args = args.ToList();
         LogHelper.Warn(Name, $"{row.Owner} {row.WaferName} 的任务 {task.Kind} 出错，停住等人处理：{code} [{string.Join(", ", args)}]");

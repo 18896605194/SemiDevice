@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using xyz.Common.Log;
@@ -19,10 +19,10 @@ namespace xyz.Modules;
 /// 流程配方说的是片在设备里怎么走：第 1 步从哪些 LoadPort 取片，中间按顺序经过哪些站点（同一步勾几个 = 哪个空去哪个）、
 /// 每步跑哪个工艺配方，最后一步放回哪些 LoadPort（默认从哪来回哪去）。
 /// 可选站点不写死：模块全起来后 Bind 一次，按 sc.xml 的分组节点（LoadPort、Chamber……）和下面装的模块生成。
-/// 只有 gRPC 线程和 EAP（Host 远程管配方，经 IRecipeLibrary）调它（设备扫描线程不碰），所以读写文件放在锁里也卡不到设备，还省得两次保存交叉写坏文件。
+/// 只有 gRPC 线程和 EAP（Host 远程管配方，经 ISequenceComponent）调它（设备扫描线程不碰），所以读写文件放在锁里也卡不到设备，还省得两次保存交叉写坏文件。
 /// </summary>
 [Component(description: "流程配方库：编号 1~N 的流程配方，一个编号一个文件")]
-public class SequenceComponent : ComponentBase, IRecipeLibrary
+public class SequenceComponent : ComponentBase, ISequenceComponent
 {
     /// <summary>
     /// 当前流程配方库；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
@@ -277,7 +277,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
             });
         }
 
-        Report(result, index, $"新建流程配方 {index} 号 {name}（操作人 {operatorName}）", (name, RecipeChange.Created));
+        Report(result, index, $"新建流程配方 {index} 号 {name}（操作人 {operatorName}）", (name, ChangeKind.Created));
         return result;
     }
 
@@ -301,7 +301,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
         }
 
         // Host 那边按名字认配方：改名 = 旧名删了、新名建了
-        Report(result, index, $"流程配方 {index} 号改名为 {name}（操作人 {operatorName}）", (oldName, RecipeChange.Deleted), (name, RecipeChange.Created));
+        Report(result, index, $"流程配方 {index} 号改名为 {name}（操作人 {operatorName}）", (oldName, ChangeKind.Deleted), (name, ChangeKind.Created));
         return result;
     }
 
@@ -317,7 +317,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
             result = CheckExists(index) ?? Remove(index, out name);
         }
 
-        Report(result, index, $"删除流程配方 {index} 号 {name}（操作人 {operatorName}）", (name, RecipeChange.Deleted));
+        Report(result, index, $"删除流程配方 {index} 号 {name}（操作人 {operatorName}）", (name, ChangeKind.Deleted));
         return result;
     }
 
@@ -343,7 +343,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
                 }));
         }
 
-        Report(result, index, $"保存流程配方 {index} 号（操作人 {operatorName}）", (result.Sequence?.Name ?? string.Empty, RecipeChange.Edited));
+        Report(result, index, $"保存流程配方 {index} 号（操作人 {operatorName}）", (result.Sequence?.Name ?? string.Empty, ChangeKind.Edited));
         return result;
     }
 
@@ -351,7 +351,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
     /// 成了记一条日志、发变更事件（锁外），接着 EAP 的话把配方怎么变的报给 Host（放进 EAP 的派发组件）；
     /// 没成不记（原因回给界面，写文件失败的在写的地方已经记过）。
     /// </summary>
-    private void Report(SequenceResult result, int index, string message, params (string Name, RecipeChange Change)[] changes)
+    private void Report(SequenceResult result, int index, string message, params (string Name, ChangeKind Change)[] changes)
     {
         if (!result.IsOk)
         {
@@ -362,7 +362,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
         LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
         Changed?.Invoke(index);
 
-        var callback = E30RecipeCallback;
+        var callback = E30Callback;
         if (callback is null)
         {
             return;
@@ -370,17 +370,17 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
 
         foreach (var (name, change) in changes)
         {
-            EapNotifierComponent.Current?.Post(() => callback.RecipeChanged(this, name, change));
+            EapNotifierComponent.Current?.Post(() => callback.SequenceChanged(name, change));
         }
     }
 
-    #region EAP 口子（IRecipeLibrary：Host 远程按名字列、取、存、删，跟本地过同一套检查）
+    #region EAP 口子（ISequenceComponent：Host 远程按名字列、取、存、删，跟本地过同一套检查）
 
     /// <summary>上报口：配方建、改、删了经 EAP 的派发组件报给 Host；null = 没接 EAP。</summary>
-    public IE30RecipeCallback? E30RecipeCallback { get; set; }
+    public IE30Callback? E30Callback { get; set; }
 
     /// <summary>全部流程配方的名字，按编号。</summary>
-    public IReadOnlyList<string> RecipeNames
+    public IReadOnlyList<string> SequenceNames
     {
         get
         {
@@ -392,17 +392,23 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
     }
 
     /// <summary>一个流程配方转成 JSON（库里那份原样）；没有返回 null。</summary>
-    public string? ExportRecipe(string name)
+    public string? ExportSequence(string name)
     {
         var found = Find(name);
         return found is null ? null : JsonHelper.Serialize(found);
+    }
+
+    /// <summary>JSON 看样子是不是流程配方：每一步都带 group（分组）。</summary>
+    public bool AcceptsSequence(string json)
+    {
+        return JsonSteps.AllHave(json, "group");
     }
 
     /// <summary>
     /// Host 下的流程配方：库里没有就在第一个空编号上新建（版本 1），有就把说明和步骤整个换掉（版本加 1）；
     /// 名字、步骤的检查跟本地新建、保存一样，JSON 里的编号、版本、建 / 改的人和时间不管。
     /// </summary>
-    public HandleResult ImportRecipe(string name, string json, string operatorName)
+    public HandleResult ImportSequence(string name, string json, string operatorName)
     {
         name = name.Trim();
         var body = ParseBody(json);
@@ -456,12 +462,12 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
         }
 
         Report(result, index, $"{(created ? "远程新建" : "远程覆盖")}流程配方 {index} 号 {reported}（操作人 {operatorName}）",
-            (reported, created ? RecipeChange.Created : RecipeChange.Edited));
+            (reported, created ? ChangeKind.Created : ChangeKind.Edited));
         return ToHandleResult(result);
     }
 
     /// <summary>按名字删一个流程配方（Host 删）。</summary>
-    public HandleResult DeleteRecipe(string name, string operatorName)
+    public HandleResult DeleteSequence(string name, string operatorName)
     {
         name = name.Trim();
         SequenceResult result;
@@ -479,7 +485,7 @@ public class SequenceComponent : ComponentBase, IRecipeLibrary
             result = Remove(index, out removed);
         }
 
-        Report(result, index, $"远程删除流程配方 {index} 号 {removed}（操作人 {operatorName}）", (removed, RecipeChange.Deleted));
+        Report(result, index, $"远程删除流程配方 {index} 号 {removed}（操作人 {operatorName}）", (removed, ChangeKind.Deleted));
         return ToHandleResult(result);
     }
 

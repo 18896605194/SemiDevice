@@ -1,4 +1,4 @@
-﻿using xyz.Components;
+using xyz.Components;
 using xyz.Components.Components;
 using xyz.Configs.Models;
 using xyz.Modules;
@@ -366,48 +366,50 @@ try
     Fails(library.Get(0), ErrorCodes.ProcessRecipeIndexOutOfRange, ["0", "99"], "取编号 0");
     Check(changed.SequenceEqual(new[] { 3 }), "删除发一次变更事件");
 
-    // 11b. Host 远程管配方（IRecipeLibrary，EAP 的 S7 走它）：按名字列、取（JSON，每一步是字段名 → 值）、存（没有就新建、有就覆盖，
+    // 11b. Host 远程管配方（IProcessRecipeComponent，EAP 的 S7 走它）：按名字列、取（JSON，每一步是字段名 → 值）、存（没有就新建、有就覆盖，
     //      检查、规整跟本地保存一样）、删；变化经 EAP 的派发组件报上报口。这一节建的最后删掉，后面接着是 1、2 两个。
     _ = new EapNotifierComponent();
     var eapChanges = new RecordingRecipeCallback();
-    xyz.Components.Interfaces.IRecipeLibrary remote = library;
-    remote.E30RecipeCallback = eapChanges;
-    Check(remote.RecipeNames.SequenceEqual(new[] { "SC1_45S", "DIW_RINSE" }), "按名字列（按编号）");
-    string? exported = remote.ExportRecipe("sc1_45s");
+    xyz.Components.Interfaces.IProcessRecipeComponent remote = library;
+    remote.E30Callback = eapChanges;
+    Check(remote.ProcessRecipeNames.SequenceEqual(new[] { "SC1_45S", "DIW_RINSE" }), "按名字列（按编号）");
+    string? exported = remote.ExportProcessRecipe("sc1_45s");
     Check(exported is not null && exported.Contains("\"values\"", StringComparison.Ordinal) && !exported.Contains("attributes", StringComparison.OrdinalIgnoreCase),
         "取出来是 JSON：每一步是字段名 → 值，不带存文件用的 XML 属性");
+    Check(exported is not null && remote.AcceptsProcessRecipe(exported) && !remote.AcceptsProcessRecipe("{\"steps\":[{\"group\":\"LoadPort\",\"stations\":[]}]}")
+          && !remote.AcceptsProcessRecipe("{\"steps\":[]}") && !remote.AcceptsProcessRecipe("{"), "认 JSON 的样子：每一步带字段值的是工艺配方；流程配方的样子、没有步骤、读不出来的都不认");
     var exportedData = exported is null ? null : JsonHelper.Deserialize<ProcessRecipeData>(exported);
     Check(exportedData is not null && exportedData.Steps.Count == 1 && exportedData.Steps[0].Values.Count == 9 && exportedData.Steps[0].Get("Chemical") == "HF",
         "JSON 读回来跟库里一样");
 
-    var imported = remote.ImportRecipe("HOST_RECIPE", exported!, "Host");
+    var imported = remote.ImportProcessRecipe("HOST_RECIPE", exported!, "Host");
     var hostRecipe = library.Find("HOST_RECIPE");
     Check(imported.IsSuccess && hostRecipe is not null && hostRecipe.Index == 3 && hostRecipe.Revision == 1 && hostRecipe.CreatedBy == "Host"
           && hostRecipe.Steps[0].Get("Chemical") == "HF", "Host 下一个新名字：放在第一个空编号上，版本 1，建的人记 Host");
     string loose = JsonHelper.Serialize(new ProcessRecipeData { Name = "IGNORED", Revision = 77, Description = " 远程 ", Steps = [Step("5", "+300", "arm1", "diw", "1.50")] });
-    var overwriteResult = remote.ImportRecipe("host_recipe", loose, "Host");
+    var overwriteResult = remote.ImportProcessRecipe("host_recipe", loose, "Host");
     var overwritten = library.Find("HOST_RECIPE");
     Check(overwriteResult.IsSuccess && overwritten is not null && overwritten.Name == "HOST_RECIPE" && overwritten.Revision == 2 && overwritten.Description == "远程"
           && overwritten.Steps[0].Get("Rpm") == "300" && overwritten.Steps[0].Get("Arm") == "Arm1" && overwritten.Steps[0].Get("Chemical") == "DIW",
         "同名再下：覆盖（版本加 1），跟本地保存一样规整写法；JSON 里的名字、版本不管");
-    var tooLong = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
+    var tooLong = remote.ImportProcessRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
     Check(!tooLong.IsSuccess && tooLong.ErrorMessage == ErrorCodes.ProcessRecipeTotalTooLong && library.Find("HOST_BAD") is null,
         "步骤没过检查（合计超过腔体工艺超时）：跟本地保存一样拒，什么都不存");
-    var notJson = remote.ImportRecipe("HOST_BAD", "{", "Host");
+    var notJson = remote.ImportProcessRecipe("HOST_BAD", "{", "Host");
     Check(!notJson.IsSuccess && notJson.ErrorMessage == ErrorCodes.ProcessRecipeBodyInvalid && notJson.Args.SequenceEqual(new[] { "HOST_BAD" }),
         "内容不是 JSON：process_recipe.body_invalid 带名字");
-    var nullValues = remote.ImportRecipe("HOST_BAD", "{\"steps\":[{\"values\":null},{\"values\":[{\"name\":null,\"value\":null}]}]}", "Host");
+    var nullValues = remote.ImportProcessRecipe("HOST_BAD", "{\"steps\":[{\"values\":null},{\"values\":[{\"name\":null,\"value\":null}]}]}", "Host");
     Check(!nullValues.IsSuccess && nullValues.ErrorMessage == ErrorCodes.ProcessRecipeValueRequired, "JSON 里空着的值补成空的再查：必填的没填，不会出异常");
-    var removedByHost = remote.DeleteRecipe("host_recipe", "Host");
+    var removedByHost = remote.DeleteProcessRecipe("host_recipe", "Host");
     Check(removedByHost.IsSuccess && library.Find("HOST_RECIPE") is null && library.List().Count == 2, "按名字删（不分大小写）");
-    Check(remote.DeleteRecipe("HOST_RECIPE", "Host").ErrorMessage == ErrorCodes.ProcessRecipeNameNotFound, "再删说没有：process_recipe.name_not_found");
+    Check(remote.DeleteProcessRecipe("HOST_RECIPE", "Host").ErrorMessage == ErrorCodes.ProcessRecipeNameNotFound, "再删说没有：process_recipe.name_not_found");
     Check(eapChanges.WaitFor(3) && eapChanges.Changes.SequenceEqual(new[]
     {
-        ("HOST_RECIPE", xyz.Components.Enums.RecipeChange.Created),
-        ("HOST_RECIPE", xyz.Components.Enums.RecipeChange.Edited),
-        ("HOST_RECIPE", xyz.Components.Enums.RecipeChange.Deleted),
+        ("HOST_RECIPE", xyz.Components.Enums.ChangeKind.Created),
+        ("HOST_RECIPE", xyz.Components.Enums.ChangeKind.Edited),
+        ("HOST_RECIPE", xyz.Components.Enums.ChangeKind.Deleted),
     }), "上报口按先后收到新建、覆盖、删除；没成的不报");
-    remote.E30RecipeCallback = null;
+    remote.E30Callback = null;
 
     // 12. 工艺配方服务（直接调 gRPC 服务类，不起网络）：列表带个数、说明、合计时长；字段表带类型、范围、默认值和取好的下拉选项；
     //     步骤按"字段名 → 值"来回；错误码和参数原样回给界面；没带操作人记成 Unknown；没装库回 process_recipe.not_installed。
@@ -527,15 +529,20 @@ sealed class ProbeChamber : BaseChamberModule
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。
-sealed class RecordingRecipeCallback : xyz.Components.Interfaces.IE30RecipeCallback
+sealed class RecordingRecipeCallback : xyz.Components.Interfaces.IE30Callback
 {
-    private readonly System.Collections.Concurrent.ConcurrentQueue<(string Name, xyz.Components.Enums.RecipeChange Change)> _changes = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(string Name, xyz.Components.Enums.ChangeKind Change)> _changes = new();
 
-    public IEnumerable<(string Name, xyz.Components.Enums.RecipeChange Change)> Changes => _changes;
+    public IEnumerable<(string Name, xyz.Components.Enums.ChangeKind Change)> Changes => _changes;
 
-    public void RecipeChanged(xyz.Components.Interfaces.IRecipeLibrary library, string name, xyz.Components.Enums.RecipeChange change)
+    public void ProcessRecipeChanged(string name, xyz.Components.Enums.ChangeKind change)
     {
         _changes.Enqueue((name, change));
+    }
+
+    public void SequenceChanged(string name, xyz.Components.Enums.ChangeKind change)
+    {
+        throw new InvalidOperationException("Unexpected recipe callback");
     }
 
     public bool WaitFor(int count, int timeoutMs = 3000)

@@ -56,9 +56,9 @@ public interface ITransferStation
     /// </summary>
     IReadOnlyList<string> SupportedTasks { get; }
 
-    /// <summary>站内任务现在能不能起（不动设备，调度每拍都会问）：能起返回成功，不能返回原因（错误码 + 参数）。</summary>
+    /// <summary>单独询问站内任务能不能起（不动设备）：能起返回成功，不能返回原因（错误码 + 参数）。</summary>
     HandleResult CheckTask(StationTaskRequest request);
 
-    /// <summary>起站内任务：查过了才发；被拒返回 null（原因用 <see cref="CheckTask"/> 查）。</summary>
+    /// <summary>校验并启动站内任务；被拒返回 null（原因用 <see cref="CheckTask"/> 查），调用方无需重复预检。</summary>
     ModuleOperation? StartTask(StationTaskRequest request);
 }

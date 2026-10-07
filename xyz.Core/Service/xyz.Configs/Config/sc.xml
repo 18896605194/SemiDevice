@@ -327,7 +327,7 @@
 			</Setting>
 		</Setting>
 	</Setting>
-	<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动派单下的是同一种搬运单，
+	<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动任务启动的是同一种搬运操作，
 	     都完整走站点交互环（准备→取放→收尾）；设备点动不走这儿。
 	     模块表在装配全部完成后统一绑，跟本节点在 sc.xml 里的位置无关 -->
 	<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
@@ -433,7 +433,7 @@
 	     Job 数据只有它改：本地界面和以后的 EAP 调的是同一个命令接口。模块、搬运管理、配方库全起来后统一绑，跟本节点在 sc.xml 里的位置无关。
 	     Task 子节点是机型的任务组件（必须配）：建 Job 时给每片生成任务表（取片、放片、工艺……按顺序），记每个任务做到哪、出错停住等人处理；
 	       规则跟平台不一样的机型继承 BaseTaskComponent 自己写一个，Type 指过去。
-	     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片连同放片下搬运单）；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
+	     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片时先占住放片目标，再顺序执行取放）；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
 	     IsPersistent：Job 记进库（control_job、process_job 两张表，CJ、PJ 各一行，每片的任务明细跟着 PJ）；重启后不接着跑，库里上次没做完的记成中止 -->
 	<Setting Name="Job" Type="xyz.Modules.JobManager">
 		<Value Name="IsEnable" Value="True" />
@@ -451,7 +451,7 @@
 	     ApplyHostTime：Host 对时（S2F31）是不是真改本机时钟（False = 只答收下）。
 	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
 	     Recipe（E30 工艺程序管理）：Host 用 S7 列、取、下、删流程配方和工艺配方，内容是 JSON，跟本地配方页过同一套检查；配方变了报事件。
-	     Host 那边的配方号 = 前缀 + 配方名（SequencePrefix / ProcessRecipePrefix，两个不能一样）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
+	     Host 那边的配方号就是配方名（两个库的名字不重）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
 	     E87：载具 ID、槽图跟 Host 核对，端口搬运状态、预约、绑定；AutoLoad / AutoUnload：认定后自动 Load、干完或不要了自动 Unload。
 	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
 	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
@@ -472,8 +472,6 @@
 		</Setting>
 		<Setting Name="E39" Type="xyz.Components.Components.E39Component" />
 		<Setting Name="Recipe" Type="xyz.Components.Components.E30RecipeComponent">
-			<Value Name="SequencePrefix" Value="SEQ/" />
-			<Value Name="ProcessRecipePrefix" Value="PR/" />
 			<Value Name="LockLocalEditInRemote" Value="False" />
 		</Setting>
 		<Setting Name="E87" Type="xyz.Components.Components.E87Component">

@@ -8,7 +8,7 @@ public enum WaferTaskState
     /// <summary>等着做：还没轮到，或轮到了还没派出去。</summary>
     Waiting,
 
-    /// <summary>进行中：搬运单或站内任务在跑。</summary>
+    /// <summary>进行中：当前设备操作在执行。</summary>
     Running,
 
     /// <summary>完成（设备做完的，或人标记完成的）。</summary>

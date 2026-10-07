@@ -73,8 +73,7 @@
     <sys:String x:Key="transfer.no_robot">No robot can reach both {0} and {1} (not configured in the robot station tables)</sys:String>
     <sys:String x:Key="transfer.arm_unavailable">Arm {1} of {0} cannot be used (not allowed at both stations, holding a wafer, or taken by another transfer)</sys:String>
     <sys:String x:Key="transfer.no_arm">{0} has no usable arm right now (all hold wafers, are taken, or are not allowed at these stations)</sys:String>
-    <sys:String x:Key="transfer.cancelled">Transfer {0} was cancelled before it started; the wafer was not moved</sys:String>
-    <sys:String x:Key="transfer.not_held">Transfer {0} holds no locks (already released, or wrong number)</sys:String>
+    <sys:String x:Key="transfer.not_held">Wafer {0} has no resources retained after a failed transfer (already released, or wrong wafer ID)</sys:String>
     <sys:String x:Key="transfer.wait_timeout">Transfer {0} did not finish within {1} ms: it is still running, result not yet confirmed</sys:String>
     <sys:String x:Key="job.not_installed">No Job node in sc.xml (job manager not installed)</sys:String>
     <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in sc.xml)</sys:String>

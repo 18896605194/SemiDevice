@@ -8,43 +8,19 @@ using xyz.Shared.Dtos;
 namespace xyz.Modules;
 
 /// <summary>
-/// 调度引擎（sc.xml Job 节点下的 Scheduler 子节点，跟着 Job 的扫描线程）：从任务表拿任务、执行——每片看当前任务，
-/// 站内任务交给站点自己做，取片连同它后面的放片交给搬运管理（目标空着、占住了才取），派不出去的下一拍再看；
-/// 执行着的自己记着，做完了把结果记回任务表（完成、出错、退回等着做）。只看 Job 给每一行的许可，不认识暂停、停止。
-/// 默认策略：先起站内任务，再走机内的片（先腾地方），最后投新片；站点组按 sc.xml 先后挑第一个能放的。
-/// 不认机型名字：机型要别的策略，写个子类重写这里的方法，sc.xml 里把 Type 换掉。
+/// 调度引擎
 /// </summary>
 [Component(description: "调度引擎：从任务表拿任务执行（站内任务交给站点、取放交给搬运管理），做完记回任务表")]
 public class SchedulerComponent : ComponentBase
 {
-    /// <summary>这一次派单用的搬运管理、晶圆账、锁快照（每次 <see cref="Dispatch"/> 开头取，只在 Job 的扫描线程上用）。</summary>
+    /// <summary>
+    /// 搬运管理
+    /// </summary>
     private TransferManager? _transfers;
-    private WaferManagerComponent? _ledger;
-    private TransferView _locks = TransferView.Empty;
-
-    /// <summary>交给搬运管理还没结束的取放（取片、放片一趟）。</summary>
-    private readonly List<Move> _moves = [];
-
-    /// <summary>交给站点还没做完的站内任务。</summary>
-    private readonly List<Work> _works = [];
-
-    /// <summary>一趟取放：哪一行的取片（只放片时为 null）、放片，等搬运管理的结果。</summary>
-    private sealed record Move(TaskRow Row, WaferTask? Pick, WaferTask Place, Task<TransferResult> Completion);
-
-    /// <summary>一个站内任务：等站点的操作做完（收完尾、记完账）。</summary>
-    private sealed record Work(TaskRow Row, WaferTask Task, ModuleOperation Operation);
-
-    #region EC
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, min: "0", max: "100", @default: "0",
-        description: "机内最多同时几片（投新片前查）；0 = 不限，靠目标站点空不空自然限住")]
-    public int MaxWafersInMachine
-    {
-        get { return GetEcInt(nameof(MaxWafersInMachine)); }
-        set { SetEcInt(nameof(MaxWafersInMachine), value); }
-    }
-
-    #endregion
+    /// <summary>
+    /// 晶圆账
+    /// </summary>
+    private WaferManagerComponent? _waferManager;
 
     /// <summary>
     /// 派这一拍的任务。rows 是有许可的行，按优先级排好（CJ 队列先后、PJ 在 CJ 里的先后、PJ 里的投片顺序）。Manual 下 Job 组件不调。
@@ -52,15 +28,11 @@ public class SchedulerComponent : ComponentBase
     public virtual void Dispatch(IReadOnlyList<TaskRow> rows, BaseTaskComponent tasks)
     {
         _transfers = TransferManager.Current;
-        _ledger = WaferManagerComponent.Current;
-        if (_transfers is null || _ledger is null)
+        _waferManager = WaferManagerComponent.Current;
+        if (_transfers is null || _waferManager is null)
         {
             return;
         }
-
-        _locks = _transfers.GetView();
-        var claimedSlots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var claimedRobots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // 先起站内任务：片已经在站点上了
         foreach (var row in rows)
@@ -78,111 +50,93 @@ public class SchedulerComponent : ComponentBase
             var task = NextTask(row, TaskPermission.Advance);
             if (task is not null && task.IsRobotTask && !row.IsWaiting)
             {
-                PlanMove(row, task, tasks, claimedSlots, claimedRobots);
+                StartTransfer(row, task, tasks);
             }
         }
 
         // 最后投新片
-        int limit = MaxWafersInMachine;
-        int inMachine = rows.Count(row => row.IsInMachine);
         foreach (var row in rows)
         {
             var task = NextTask(row, TaskPermission.Feed);
-            if (task is null || !row.IsWaiting || (limit > 0 && inMachine >= limit))
+            if (task is null || !row.IsWaiting)
             {
                 continue;
             }
 
-            if (PlanMove(row, task, tasks, claimedSlots, claimedRobots))
-            {
-                inMachine++;
-            }
+            StartTransfer(row, task, tasks);
         }
     }
 
     /// <summary>
-    /// 收这一拍做完的（Job 每拍先调这里，再核对片位、派新任务）：站内操作收完尾的——做成了完成，PJ 中止时被打断的记未执行，别的没做成记出错；
-    /// 搬运单结束了的看 <see cref="Finish"/>。
+    /// 按每行当前的 WaferTask 收执行进度。取片确认后转到放片任务，沿用已占好目标的搬运操作；
+    /// 站内操作收尾后完成这一格。执行记录只挂在当前任务上。
     /// </summary>
     public virtual void Collect(BaseTaskComponent tasks)
     {
-        foreach (var work in _works.ToList())
+        foreach (var row in tasks.Rows)
         {
-            var operation = work.Operation;
-            if (!operation.IsSettled)
+            var task = row.Current;
+            var operation = task?.Operation;
+            if (task is null || task.State != WaferTaskState.Running || operation is null)
             {
                 continue;
             }
 
-            _works.Remove(work);
-            if (operation.IsSuccess)
+            if (operation is TransferRoutine transfer)
             {
-                tasks.Done(work.Row, work.Task);
+                CollectTransfer(row, task, transfer, tasks);
             }
-            else if (work.Row.IsAborting && operation.State == OperationState.Aborted)
+            else if (operation.IsSettled)
             {
-                tasks.Cancel(work.Row, work.Task);
-            }
-            else
-            {
-                tasks.Fail(work.Row, work.Task, operation.Code, operation.ErrorArgs);
-            }
-        }
-
-        foreach (var move in _moves.ToList())
-        {
-            if (move.Completion.IsCompleted)
-            {
-                _moves.Remove(move);
-                Finish(move, move.Completion.Result, tasks);
+                if (operation.IsSuccess)
+                {
+                    tasks.Done(row, task);
+                }
+                else if (row.IsAborting && operation.State == OperationState.Aborted)
+                {
+                    tasks.Cancel(row, task);
+                }
+                else
+                {
+                    tasks.Fail(row, task, operation.Code, operation.ErrorArgs);
+                }
             }
         }
     }
 
-    /// <summary>
-    /// 一趟取放结束：做完了取放都完成（记下用的哪只手）；没碰到片就失败（等不到站点、被撤），都退回等着做、下一拍重新派；
-    /// 碰过片才失败，片在哪说不准，正在做的那一格记出错（取片没做完是取片，做完了是放片），停住等人处理。
-    /// </summary>
-    private static void Finish(Move move, TransferResult result, BaseTaskComponent tasks)
+    /// <summary>取片后开始放片格；没动手就失败退回等待，动过手才失败则当前格记出错。</summary>
+    private static void CollectTransfer(TaskRow row, WaferTask task, TransferRoutine operation, BaseTaskComponent tasks)
     {
-        var row = move.Row;
-        var pick = move.Pick;
-        var place = move.Place;
-        if (result.IsSuccess)
+        if (task.Kind == StationTaskAction.Pick && operation.HasPicked)
         {
-            if (pick is not null)
+            var place = row.NextPlace(task);
+            if (place is null)
             {
-                tasks.Done(row, pick, result.Arm);
+                return;
             }
 
-            tasks.Done(row, place, result.Arm);
+            tasks.Done(row, task, operation.Arm);
+            tasks.Start(row, place, operation.Target.Name, operation.TargetSlot, operation.Robot.Name, operation);
+            task = place;
+        }
+
+        if (!operation.IsSettled)
+        {
             return;
         }
 
-        if (!result.NeedsRecovery)
+        if (operation.IsSuccess)
         {
-            if (pick is not null)
-            {
-                tasks.Reset(pick);
-            }
-
-            tasks.Reset(place);
-            return;
+            tasks.Done(row, task, operation.Arm);
         }
-
-        if (pick is not null && !result.Picked)
+        else if (!operation.NeedsRecovery)
         {
-            tasks.Fail(row, pick, result.Code, result.Args);
-            tasks.Reset(place);
-            return;
+            tasks.Reset(task);
         }
-
-        if (pick is not null)
+        else
         {
-            tasks.Done(row, pick, result.Arm);
+            tasks.Fail(row, task, operation.Code, operation.ErrorArgs);
         }
-
-        tasks.Fail(row, place, result.Code, result.Args);
     }
 
     /// <summary>这一行轮到的、等着做的任务（有这个许可才算）；不该派返回 null。</summary>
@@ -209,7 +163,7 @@ public class SchedulerComponent : ComponentBase
             return;
         }
 
-        var request = new StationTaskRequest
+        var operation = station.StartTask(new StationTaskRequest
         {
             Kind = task.Kind,
             Owner = row.Owner,
@@ -218,25 +172,18 @@ public class SchedulerComponent : ComponentBase
             Step = task.Step,
             RecipeName = task.RecipeName,
             Recipe = task.Recipe,
-        };
-        if (!station.CheckTask(request).IsSuccess)
-        {
-            return;
-        }
-
-        var operation = station.StartTask(request);
+        });
         if (operation is not null)
         {
-            tasks.Start(row, task, location.Module, location.Slot);
-            _works.Add(new Work(row, task, operation));
+            tasks.Start(row, task, location.Module, location.Slot, operation: operation);
         }
     }
 
     /// <summary>
-    /// 排一趟搬运：取片连同它后面的放片（片在站点上），或只放片（取片做完了、片在机械手手上）。
-    /// 源站点要能服务；目标要空着、没被锁、这一拍没被别的片挑走（回片槽是建 Job 时定好的）；要有机械手接得了。排上返回 true。
+    /// 从当前任务确定搬运参数：取片时先选定并占住后续放片的目标；片已经在机械手上时只放片。
+    /// 源站点要能服务；目标要空着、没被占用（回片槽是建 Job 时定好的）；要有机械手接得了。启动返回 true。
     /// </summary>
-    protected virtual bool PlanMove(TaskRow row, WaferTask task, BaseTaskComponent tasks, ISet<string> claimedSlots, ISet<string> claimedRobots)
+    protected virtual bool StartTransfer(TaskRow row, WaferTask task, BaseTaskComponent tasks)
     {
         var source = row.ExpectedLocation;
         var pick = task.Kind == StationTaskAction.Pick ? task : null;
@@ -258,8 +205,8 @@ public class SchedulerComponent : ComponentBase
             // 回片：回片槽是建 Job 时定好的
             string port = place.Stations[0];
             int slot = place.FixedSlot;
-            return IsStationReady(port) && IsSlotFree(port, slot) && !claimedSlots.Contains(TransferManager.SlotKey(port, slot))
-                && Submit(row, pick, place, source, port, slot, tasks, claimedSlots, claimedRobots);
+            return IsStationReady(port) && IsSlotFree(port, slot)
+                && StartTransfer(row, task, source, port, slot, tasks);
         }
 
         foreach (string station in OrderTargets(row, place))
@@ -269,8 +216,8 @@ public class SchedulerComponent : ComponentBase
                 continue;
             }
 
-            int slot = FreeSlot(station, claimedSlots);
-            if (slot > 0 && Submit(row, pick, place, source, station, slot, tasks, claimedSlots, claimedRobots))
+            int slot = FreeSlot(station);
+            if (slot > 0 && StartTransfer(row, task, source, station, slot, tasks))
             {
                 return true;
             }
@@ -287,7 +234,7 @@ public class SchedulerComponent : ComponentBase
         return place.Stations;
     }
 
-    #region 设备查询（每次派单开头取的锁快照）
+    #region 设备与资源占用查询
 
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
     protected ITransferStation? Station(string name)
@@ -316,19 +263,20 @@ public class SchedulerComponent : ComponentBase
         return current is null || current.IsTerminal;
     }
 
-    /// <summary>这一槽账上空着、也没被搬运单锁着。</summary>
+    /// <summary>这一槽账上空着、也没被搬运操作占用。</summary>
     protected bool IsSlotFree(string station, int slot)
     {
-        return _ledger is not null && _ledger.Get(station, slot) is null && !_locks.IsSlotLocked(station, slot);
+        return _waferManager is not null && _transfers is not null
+            && _waferManager.Get(station, slot) is null && !_transfers.IsSlotLocked(station, slot);
     }
 
-    /// <summary>站点上第一个空着、没被锁、这一拍没被挑走的槽；没有返回 0。</summary>
-    protected int FreeSlot(string station, ISet<string> claimedSlots)
+    /// <summary>站点上第一个空着、没被占用的槽；没有返回 0。</summary>
+    protected int FreeSlot(string station)
     {
         int count = Station(station)?.SlotCount ?? 0;
         for (int slot = 1; slot <= count; slot++)
         {
-            if (IsSlotFree(station, slot) && !claimedSlots.Contains(TransferManager.SlotKey(station, slot)))
+            if (IsSlotFree(station, slot))
             {
                 return slot;
             }
@@ -337,42 +285,10 @@ public class SchedulerComponent : ComponentBase
         return 0;
     }
 
-    /// <summary>
-    /// 哪台机械手现在能接这一趟：两个站点都在它的站点表里、能接单（<see cref="IsRobotFree"/>）、有一只空着且两边都许用的手；没有返回 null。
-    /// </summary>
-    protected virtual string? RobotFor(string source, string target, ISet<string> claimedRobots)
+    /// <summary>机械手可执行任务：启用、空闲、没有搬运操作。</summary>
+    protected bool IsRobotFree(IRobot robot)
     {
-        var transfers = _transfers;
-        var ledger = _ledger;
-        if (transfers is null || ledger is null)
-        {
-            return null;
-        }
-
-        foreach (var robot in transfers.Robots)
-        {
-            if (!IsRobotFree(robot, claimedRobots) || !robot.TryGetStation(source, out var from) || !robot.TryGetStation(target, out var to))
-            {
-                continue;
-            }
-
-            int arms = ledger.GetSlots(robot.Name).Count;
-            for (int arm = 1; arm <= arms; arm++)
-            {
-                if (from.AllowsArm(arm) && to.AllowsArm(arm) && ledger.Get(robot.Name, arm) is null && !_locks.IsArmLocked(robot.Name, arm))
-                {
-                    return robot.Name;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>机械手能接单：启用、空闲、手上没单、这一拍还没派过。</summary>
-    protected bool IsRobotFree(IRobot robot, ISet<string> claimedRobots)
-    {
-        if (claimedRobots.Contains(robot.Name) || _locks.IsRobotBusy(robot.Name) || robot.State != ModuleState.Idle)
+        if (_transfers?.IsRobotInTransfer(robot.Name) == true || robot.State != ModuleState.Idle)
         {
             return false;
         }
@@ -383,54 +299,50 @@ public class SchedulerComponent : ComponentBase
     #endregion
 
     /// <summary>
-    /// 找机械手、交给搬运管理：受理了就把取片、放片记成进行中、记下这一趟等结果，占住目标槽和机械手，返回 true。
+    /// 找机械手、启动实际搬运操作并挂到当前任务上；取片确认后才进入放片任务。
+    /// 目标槽和机械手在启动时一起占住，避免取片后没有位置可放。
     /// 只放片（片在机械手手上）就用拿着片的那台。
     /// </summary>
-    private bool Submit(TaskRow row, WaferTask? pick, WaferTask place, TaskLocation source, string target, int targetSlot,
-        BaseTaskComponent tasks, ISet<string> claimedSlots, ISet<string> claimedRobots)
+    private bool StartTransfer(TaskRow row, WaferTask task, TaskLocation source, string target, int targetSlot, BaseTaskComponent tasks)
     {
         var transfers = _transfers!;
-        string? robot;
-        if (source.IsArm)
+        foreach (var robot in transfers.Robots)
         {
-            robot = transfers.TryGetRobot(source.Module, out var holder) && IsRobotFree(holder, claimedRobots) ? holder.Name : null;
-        }
-        else
-        {
-            robot = RobotFor(source.Module, target, claimedRobots);
+            if (!IsRobotFree(robot) || !robot.TryGetStation(target, out _))
+            {
+                continue;
+            }
+
+            if (source.IsArm
+                ? !string.Equals(robot.Name, source.Module, StringComparison.OrdinalIgnoreCase)
+                : !robot.TryGetStation(source.Module, out _))
+            {
+                continue;
+            }
+
+            // 手臂选择、片位与资源校验统一由搬运执行口做；当前机械手不能接就尝试下一台。
+            var started = transfers.Start(new TransferRequest
+            {
+                Origin = TransferOrigin.Auto,
+                Owner = row.Owner,
+                WaferId = row.WaferId,
+                Source = source.Module,
+                SourceSlot = source.Slot,
+                Target = target,
+                TargetSlot = targetSlot,
+                Robot = robot.Name,
+            });
+            var operation = started.Result;
+            if (!started.IsSuccess || operation is null)
+            {
+                continue;
+            }
+
+            bool pick = task.Kind == StationTaskAction.Pick;
+            tasks.Start(row, task, pick ? source.Module : target, pick ? source.Slot : targetSlot, robot.Name, operation);
+            return true;
         }
 
-        if (robot is null)
-        {
-            return false;
-        }
-
-        var ticket = transfers.Submit(new TransferRequest
-        {
-            Origin = TransferOrigin.Auto,
-            Owner = row.Owner,
-            WaferId = row.WaferId,
-            Source = source.Module,
-            SourceSlot = source.Slot,
-            Target = target,
-            TargetSlot = targetSlot,
-            Robot = robot,
-        });
-        var completion = ticket.Completion;
-        if (!ticket.Accepted || completion is null)
-        {
-            return false;
-        }
-
-        if (pick is not null)
-        {
-            tasks.Start(row, pick, source.Module, source.Slot, robot);
-        }
-
-        tasks.Start(row, place, target, targetSlot, robot);
-        _moves.Add(new Move(row, pick, place, completion));
-        claimedSlots.Add(TransferManager.SlotKey(target, targetSlot));
-        claimedRobots.Add(robot);
-        return true;
+        return false;
     }
 }

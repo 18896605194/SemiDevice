@@ -24,7 +24,7 @@ public interface IEquipmentService
     Task<RpcResponse> ManualAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
-    /// 整机停止：关自动派单、撤搬运单，在跑的 Job 走中止（等设备确认、核对片位）；
+    /// 整机停止：关自动调度、中止搬运操作，在跑的 Job 走中止（等设备确认、核对片位）；
     /// 别的正在执行手动动作的模块发中止（不等中止做完）。Data 为这里直接发了中止的模块个数。
     /// </summary>
     [OperationContract]

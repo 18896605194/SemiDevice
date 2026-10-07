@@ -171,7 +171,7 @@ public static class ServiceExtensions
 
         #region 搬运管理
 
-        // 搬运管理：模块全起来之后再绑表启动——它一转就会执行搬运单，
+        // 搬运管理：模块全起来之后再绑表启动——它负责推进搬运操作，
         // 不能在模块还没连上驱动、还没 Home 的时候就开始派机械手。
         var transfers = TransferManager.Current;
         if (transfers is not null)

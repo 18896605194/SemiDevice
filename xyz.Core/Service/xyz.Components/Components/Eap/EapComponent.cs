@@ -30,7 +30,7 @@ public class EapComponent : ComponentBase
     /// 再配方管理（两个配方库）、E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理），最后打开链路。
     /// 配方库没装的传 null，那个库就不给 Host 管。
     /// </summary>
-    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, IRecipeLibrary? sequences, IRecipeLibrary? processRecipes)
+    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, ISequenceComponent? sequences, IProcessRecipeComponent? processRecipes)
     {
         var link = FindChild<HsmsComponent>();
         if (link is null)
@@ -94,7 +94,7 @@ public class EapComponent : ComponentBase
         }
         else
         {
-            processJobs?.Attach(link, gem, objects, jobs, ports, recipes);
+            processJobs?.Attach(link, gem, objects, jobs, ports);
             controlJobs?.Attach(link, gem, objects, jobs);
         }
 

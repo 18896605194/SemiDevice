@@ -1,4 +1,4 @@
-﻿using xyz.Components.Enums;
+using xyz.Components.Enums;
 
 namespace xyz.Components.Interfaces;
 

@@ -6,10 +6,11 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Shared.Errors;
+using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
-[Component(description: "搬运管理：受理搬运单、锁槽位和手臂、驱动站点交互环与机械手取放")]
+[Component(description: "搬运执行：校验参数、占用槽位和手臂、驱动站点交互与机械手取放")]
 public class TransferManager : ComponentBase
 {
     /// <summary>
@@ -18,30 +19,15 @@ public class TransferManager : ComponentBase
     public static TransferManager? Current { get; set; }
 
     private readonly object _gate = new();
-    private long _nextId;
+    /// <summary>每台机械手当前执行的搬运操作。</summary>
+    private readonly Dictionary<string, TransferRoutine> _running = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>排着还没开始的单，先来先跑。</summary>
-    private readonly List<TransferOrder> _queue = [];
+    /// <summary>动过手才失败的操作，人工确认片位后按晶圆放锁。</summary>
+    private readonly Dictionary<Guid, TransferRoutine> _held = new();
 
-    /// <summary>在跑的单：机械手名 → 单（一台机械手一次一张）。只有扫描线程增删。</summary>
-    private readonly Dictionary<string, TransferOrder> _running = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>动过手才失败的单：锁不放，等人工确认片位后 <see cref="ReleaseHold"/>。</summary>
-    private readonly Dictionary<long, TransferOrder> _held = new();
-
-    /// <summary>锁住的槽（站点#槽号）→ 单号。</summary>
-    private readonly Dictionary<string, long> _slotLocks = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>锁住的手臂（机械手#手指号）→ 单号。</summary>
-    private readonly Dictionary<string, long> _armLocks = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>在单子里的片 → 单号。</summary>
-    private readonly Dictionary<Guid, long> _waferLocks = new();
-
-    /// <summary>最近的结果（单号 → 结果），按 ResultKeepCount 留。</summary>
-    private readonly Dictionary<long, TransferResult> _results = new();
-
-    private readonly Queue<long> _resultOrder = new();
+    private readonly Dictionary<string, TransferRoutine> _slotLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TransferRoutine> _armLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Guid, TransferRoutine> _waferLocks = new();
 
     public TransferManager()
     {
@@ -50,7 +36,7 @@ public class TransferManager : ComponentBase
 
     #region SC
 
-    [SCEditor("True", "Transfer", "是否启用搬运（False=不执行任何搬运单，设备照常点动）")]
+    [SCEditor("True", "Transfer", "是否启用搬运（False=不启动搬运操作，设备照常点动）")]
     public bool IsEnable { get; set; } = true;
 
     #endregion
@@ -58,14 +44,13 @@ public class TransferManager : ComponentBase
     #region SV
 
     /// <summary>
-    /// 自动派单是否开启（SV）：只管"Job 要不要自己生成搬运单"，不管"要不要执行搬运单"。
-    /// 关掉之后手动下的单照跑——执行搬运单是本组件的本职，自动派单只是其中一路输入。
+    /// 是否允许 Job 自动启动任务；关闭后正在执行的操作与手动传片仍正常推进。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动派单是否开启")]
     public bool IsAutoDispatch { get; private set; }
 
     /// <summary>
-    /// 开自动派单：Job 开始按工艺自己生成搬运单。
+    /// 开自动调度：Job 按任务表启动设备操作。
     /// </summary>
     public void StartAutoDispatch()
     {
@@ -73,7 +58,7 @@ public class TransferManager : ComponentBase
     }
 
     /// <summary>
-    /// 关自动派单：Job 不再生成新单；已经在跑的单跑完自己那一趟。
+    /// 关自动调度：Job 不再启动新任务；正在执行的操作继续完成。
     /// </summary>
     public void StopAutoDispatch()
     {
@@ -107,7 +92,7 @@ public class TransferManager : ComponentBase
 
     /// <summary>
     /// 绑定模块表（装配完、模块起扫描之后调一次）。
-    /// 搬运单里的站点名就是模块名，靠这张表把名字解析成站点和机械手。
+    /// 搬运参数里的站点名就是模块名，靠这张表把名字解析成站点和机械手。
     /// </summary>
     public void Bind(IEnumerable<BaseModule> modules)
     {
@@ -182,40 +167,30 @@ public class TransferManager : ComponentBase
         set { SetEcInt(nameof(ManualWaitTimeoutMs), value); }
     }
 
-    [VariableMark(VariableType.EC, ValueFormat.Int, min: "10", max: "10000",
-        @default: "200", description: "留最近多少张搬运单的结果供查询")]
-    public int ResultKeepCount
-    {
-        get { return GetEcInt(nameof(ResultKeepCount)); }
-        set { SetEcInt(nameof(ResultKeepCount), value); }
-    }
-
     #endregion
 
-    #region 下单
+    #region 执行搬运
 
     /// <summary>
-    /// 下一张搬运单：在锁里校验（站点、槽位、片、归属、锁、机械手、手臂），通过就把源槽、目标槽、手臂、片锁上、排进队列。
-    /// 任意线程可调，当场回受理结果；搬没搬成看回执里的 Completion。
+    /// 校验并启动一次搬运，返回实际执行的操作。资源被占用就拒绝，自动任务留在任务表里等下一拍。
+    /// 手动与自动共用同一套检查、资源占用和取放流程。
     /// </summary>
-    public TransferTicket Submit(TransferRequest request)
+    public HandleResult<TransferRoutine> Start(TransferRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (!IsEnable)
         {
-            return TransferTicket.Reject(ErrorCodes.TransferDisabled);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferDisabled);
         }
 
         var ledger = WaferManagerComponent.Current;
         if (ledger is null || !ledger.IsEnable)
         {
-            return TransferTicket.Reject(ErrorCodes.WaferLedgerDisabled);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
         string sourceName = request.Source.Trim();
         string targetName = request.Target.Trim();
-
-        // 源一般是站点；片已经在机械手手上（重启前搬到一半、手动取了没放）时源是机械手、源槽是手指号，只放片
         ITransferStation? source = null;
         IRobot? holder = null;
         if (TryGetStation(sourceName, out var station))
@@ -228,57 +203,58 @@ public class TransferManager : ComponentBase
         }
         else
         {
-            return TransferTicket.Reject(ErrorCodes.TransferStationNotFound, sourceName);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferStationNotFound, sourceName);
         }
 
         if (!TryGetStation(targetName, out var target))
         {
-            return TransferTicket.Reject(ErrorCodes.TransferStationNotFound, targetName);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferStationNotFound, targetName);
         }
 
-        var sourceError = source is not null ? CheckSlot(source, request.SourceSlot) : CheckArmSlot(sourceName, request.SourceSlot, ledger);
-        var slotError = sourceError ?? CheckSlot(target, request.TargetSlot);
-        if (slotError is not null)
+        var rejected = source is not null ? CheckSlot(source, request.SourceSlot) : CheckArmSlot(sourceName, request.SourceSlot, ledger);
+        rejected ??= CheckSlot(target, request.TargetSlot);
+        if (rejected is not null)
         {
-            return slotError;
+            return rejected;
         }
 
         if (source is not null && string.Equals(source.Name, target.Name, StringComparison.OrdinalIgnoreCase)
             && request.SourceSlot == request.TargetSlot)
         {
-            return TransferTicket.Reject(ErrorCodes.TransferSameSlot);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSameSlot);
         }
 
-        TransferOrder order;
+        TransferRoutine operation;
         lock (_gate)
         {
-            var rejected = Admit(request, ledger, source, holder, sourceName, target, out order);
+            rejected = Admit(request, ledger, source, holder, sourceName, target, out operation);
             if (rejected is not null)
             {
                 return rejected;
             }
 
-            Lock(order);
-            _queue.Add(order);
+            operation.DeferCompletion();
+            Lock(operation);
+            _running[operation.Robot.Name] = operation;
         }
 
-        LogHelper.Info(Name, $"受理搬运单 #{order.Id}：{order.WaferName} {order.Describe()}（{order.Origin}{OwnerText(order.Owner)}）");
-        return TransferTicket.Accept(order.Id, order.Completion.Task);
+        LogHelper.Info(Name, $"开始搬运：{operation.WaferName} {operation.Name}（{operation.Origin}）");
+        return HandleResult<TransferRoutine>.Success(operation);
     }
 
-    private static TransferTicket? CheckSlot(ITransferStation station, int slot)
+    private static HandleResult<TransferRoutine>? CheckSlot(ITransferStation station, int slot)
     {
         if (slot >= 1 && slot <= station.SlotCount)
         {
             return null;
         }
 
-        return TransferTicket.Reject(ErrorCodes.TransferSlotOutOfRange,
+        return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotOutOfRange,
             station.Name, slot.ToString(CultureInfo.InvariantCulture), station.SlotCount.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>源是机械手时：手指号要在晶圆账给它登记的手指数以内。</summary>
-    private static TransferTicket? CheckArmSlot(string robot, int arm, WaferManagerComponent ledger)
+    private static HandleResult<TransferRoutine>? CheckArmSlot(string robot, int arm, WaferManagerComponent ledger)
     {
         int armCount = ledger.GetSlots(robot).Count;
         if (arm >= 1 && arm <= armCount)
@@ -286,54 +262,54 @@ public class TransferManager : ComponentBase
             return null;
         }
 
-        return TransferTicket.Reject(ErrorCodes.TransferSlotOutOfRange,
+        return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotOutOfRange,
             robot, arm.ToString(CultureInfo.InvariantCulture), armCount.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>
-    /// 锁里的那部分校验：片、目标、归属、锁、机械手、手臂。通过返回 null 并给出要排队的单。
+    /// 在资源锁内校验片、目标、归属、机械手和手臂；通过后创建实际执行的操作。
     /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手。
     /// </summary>
-    private TransferTicket? Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
-        ITransferStation target, out TransferOrder order)
+    private HandleResult<TransferRoutine>? Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
+        ITransferStation target, out TransferRoutine operation)
     {
-        order = null!;
+        operation = null!;
         string sourceSlot = request.SourceSlot.ToString(CultureInfo.InvariantCulture);
         string targetSlot = request.TargetSlot.ToString(CultureInfo.InvariantCulture);
 
         var wafer = ledger.Get(sourceName, request.SourceSlot);
         if (wafer is null)
         {
-            return TransferTicket.Reject(ErrorCodes.WaferNoWafer, sourceName, sourceSlot);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferNoWafer, sourceName, sourceSlot);
         }
 
         if (request.WaferId is Guid expected && wafer.Id != expected)
         {
-            return TransferTicket.Reject(ErrorCodes.TransferWaferMismatch, sourceName, sourceSlot, wafer.WaferId);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferMismatch, sourceName, sourceSlot, wafer.WaferId);
         }
 
         var occupant = ledger.Get(target.Name, request.TargetSlot);
         if (occupant is not null)
         {
-            return TransferTicket.Reject(ErrorCodes.WaferSlotOccupied, target.Name, targetSlot, occupant.WaferId);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferSlotOccupied, target.Name, targetSlot, occupant.WaferId);
         }
 
-        // 被 Job 占着的片：Job 只能搬自己的，手动单一律拒，恢复单人工确认过才下得来所以放行
+        // 被 Job 占着的片：Job 只能搬自己的；手动传片拒绝；人工确认片位后的恢复操作放行。
         string? owner = JobManager.Current?.OwnerOf(wafer.Id);
         if (owner is not null && request.Origin != TransferOrigin.Recovery
             && !string.Equals(owner, request.Owner, StringComparison.Ordinal))
         {
-            return TransferTicket.Reject(ErrorCodes.TransferWaferOwned, wafer.WaferId, owner);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferOwned, wafer.WaferId, owner);
         }
 
         if (_waferLocks.ContainsKey(wafer.Id) || _slotLocks.ContainsKey(SlotKey(sourceName, request.SourceSlot)))
         {
-            return TransferTicket.Reject(ErrorCodes.TransferSlotLocked, sourceName, sourceSlot);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotLocked, sourceName, sourceSlot);
         }
 
         if (_slotLocks.ContainsKey(SlotKey(target.Name, request.TargetSlot)))
         {
-            return TransferTicket.Reject(ErrorCodes.TransferSlotLocked, target.Name, targetSlot);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotLocked, target.Name, targetSlot);
         }
 
         IRobot robot;
@@ -363,21 +339,32 @@ public class TransferManager : ComponentBase
             }
         }
 
-        order = new TransferOrder
+        if (_running.ContainsKey(robot.Name))
         {
-            Id = ++_nextId,
-            Origin = request.Origin,
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, robot.Name, robot.State.ToString(CultureInfo.InvariantCulture));
+        }
+
+        foreach (var active in _running.Values)
+        {
+            if (string.Equals(active.SourceName, sourceName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(active.Target.Name, sourceName, StringComparison.OrdinalIgnoreCase))
+            {
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, (source as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (string.Equals(active.SourceName, target.Name, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(active.Target.Name, target.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, target.Name, (target as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+            }
+        }
+
+        operation = new TransferRoutine(request.Origin, robot, source, request.SourceSlot,
+            target, request.TargetSlot, arm, StationWaitTimeoutMs)
+        {
             Owner = request.Owner,
             WaferId = wafer.Id,
             WaferName = wafer.WaferId,
-            Robot = robot,
-            Source = source,
-            SourceName = sourceName,
-            SourceSlot = request.SourceSlot,
-            Target = target,
-            TargetSlot = request.TargetSlot,
-            Arm = arm,
-            CreatedAt = DateTime.Now,
         };
         return null;
     }
@@ -385,19 +372,19 @@ public class TransferManager : ComponentBase
     /// <summary>
     /// 挑机械手：点了名的要两个站点都到得了；没点名的按 sc.xml 先后挑第一台到得了的。
     /// </summary>
-    private TransferTicket? PickRobot(string? wanted, string source, string target, out IRobot robot)
+    private HandleResult<TransferRoutine>? PickRobot(string? wanted, string source, string target, out IRobot robot)
     {
         robot = null!;
         if (!string.IsNullOrWhiteSpace(wanted))
         {
             if (!TryGetRobot(wanted.Trim(), out var named))
             {
-                return TransferTicket.Reject(ErrorCodes.ModuleNotFound, wanted.Trim());
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ModuleNotFound, wanted.Trim());
             }
 
             if (!Reaches(named, source, target))
             {
-                return TransferTicket.Reject(ErrorCodes.TransferNoRobot, source, target);
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, source, target);
             }
 
             robot = named;
@@ -413,7 +400,7 @@ public class TransferManager : ComponentBase
             }
         }
 
-        return TransferTicket.Reject(ErrorCodes.TransferNoRobot, source, target);
+        return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, source, target);
     }
 
     private static bool Reaches(IRobot robot, string source, string target)
@@ -423,9 +410,9 @@ public class TransferManager : ComponentBase
 
     /// <summary>
     /// 片已经在手上（只放片）：就用拿着它的那台、那只手。点了名的机械手要是这台、点了名的手要是这只；
-    /// 目标站点要到得了、许用这只手，这只手没被别的单占着。
+    /// 目标站点要到得了、许用这只手，这只手没被别的操作占用。
     /// </summary>
-    private TransferTicket? UseHoldingArm(TransferRequest request, IRobot holder, string target, out int arm)
+    private HandleResult<TransferRoutine>? UseHoldingArm(TransferRequest request, IRobot holder, string target, out int arm)
     {
         arm = request.SourceSlot;
         string armText = arm.ToString(CultureInfo.InvariantCulture);
@@ -433,22 +420,22 @@ public class TransferManager : ComponentBase
         if ((!string.IsNullOrEmpty(wanted) && !string.Equals(wanted, holder.Name, StringComparison.OrdinalIgnoreCase))
             || !holder.TryGetStation(target, out var to))
         {
-            return TransferTicket.Reject(ErrorCodes.TransferNoRobot, holder.Name, target);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, holder.Name, target);
         }
 
         if ((request.Arm > 0 && request.Arm != arm) || !to.AllowsArm(arm) || _armLocks.ContainsKey(ArmKey(holder.Name, arm)))
         {
-            return TransferTicket.Reject(ErrorCodes.TransferArmUnavailable, holder.Name, armText);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferArmUnavailable, holder.Name, armText);
         }
 
         return null;
     }
 
     /// <summary>
-    /// 挑手臂：两个站点都许用、账上空着、没被别的单占着。点了名的不行就拒，没点名的从 1 号手往上挑。
+    /// 挑手臂：两个站点都许用、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
     /// 手指数按晶圆账给机械手登记的槽数（机械手 Open 时按驱动轴表登记）。
     /// </summary>
-    private TransferTicket? PickArm(IRobot robot, int wanted, string source, string target, WaferManagerComponent ledger, out int arm)
+    private HandleResult<TransferRoutine>? PickArm(IRobot robot, int wanted, string source, string target, WaferManagerComponent ledger, out int arm)
     {
         arm = 0;
         int armCount = ledger.GetSlots(robot.Name).Count;
@@ -468,7 +455,7 @@ public class TransferManager : ComponentBase
         {
             if (!Usable(wanted))
             {
-                return TransferTicket.Reject(ErrorCodes.TransferArmUnavailable, robot.Name, wanted.ToString(CultureInfo.InvariantCulture));
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, wanted.ToString(CultureInfo.InvariantCulture));
             }
 
             arm = wanted;
@@ -484,125 +471,76 @@ public class TransferManager : ComponentBase
             }
         }
 
-        return TransferTicket.Reject(ErrorCodes.TransferNoArm, robot.Name);
+        return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoArm, robot.Name);
     }
 
     #endregion
 
-    #region 撤单、恢复、查询
+    #region 中止、恢复、占用查询
 
-    /// <summary>
-    /// 撤一张单：还没开始的直接撤掉（片没动过，锁放开）；在跑的标记中止，扫描线程下一拍撤（手臂在动的先发设备中止）。
-    /// 返回撤了几张（含标记的）。
-    /// </summary>
-    public int Cancel(long id, string reason)
+    /// <summary>请求中止这个操作，由搬运扫描线程执行设备中止和收尾。</summary>
+    public bool Cancel(TransferRoutine operation, string reason)
     {
-        return Cancel(order => order.Id == id, reason);
+        return Cancel(active => ReferenceEquals(active, operation), reason) > 0;
     }
 
-    /// <summary>
-    /// 撤一个 Job（PJ 名）下的所有单：Job 中止时用。
-    /// </summary>
     public int CancelOwner(string owner, string reason)
     {
-        return Cancel(order => string.Equals(order.Owner, owner, StringComparison.Ordinal), reason);
+        return Cancel(operation => string.Equals(operation.Owner, owner, StringComparison.Ordinal), reason);
     }
 
-    /// <summary>
-    /// 撤全部单：整机停止、搬运管理中止时用。
-    /// </summary>
     public int CancelAll(string reason)
     {
         return Cancel(_ => true, reason);
     }
 
-    private int Cancel(Func<TransferOrder, bool> match, string reason)
+    private int Cancel(Func<TransferRoutine, bool> match, string reason)
     {
-        var dropped = new List<(TransferOrder Order, TransferResult Result)>();
         int marked = 0;
         lock (_gate)
         {
-            foreach (var order in _queue.Where(match).ToList())
+            foreach (var operation in _running.Values.Where(match))
             {
-                _queue.Remove(order);
-                Unlock(order);
-                var result = order.ToResult(TransferOutcome.Cancelled, ErrorCodes.TransferCancelled,
-                    [order.Id.ToString(CultureInfo.InvariantCulture)], needsRecovery: false, picked: false);
-                Remember(result);
-                dropped.Add((order, result));
-            }
-
-            foreach (var order in _running.Values.Where(match))
-            {
-                if (!order.AbortRequested)
+                if (!operation.IsTerminal && !operation.AbortRequested)
                 {
-                    order.AbortReason = reason;
-                    order.AbortRequested = true;
+                    operation.RequestAbort(reason);
                     marked++;
                 }
             }
         }
 
-        foreach (var (order, result) in dropped)
-        {
-            LogHelper.Info(Name, $"搬运单 #{order.Id} 还没开始就撤了（{reason}）：{order.WaferName} 没动过");
-            order.Completion.TrySetResult(result);
-        }
-
-        return dropped.Count + marked;
+        return marked;
     }
 
-    /// <summary>
-    /// 人工确认过片位，放开一张出错单留着的锁（设置 → 账单调整页把账对好之后）。没这张留着的单返回 false。
-    /// </summary>
-    public bool ReleaseHold(long id)
+    /// <summary>人工确认片位后，释放这片晶圆因搬运失败保留的资源。</summary>
+    public bool ReleaseHold(Guid waferId)
     {
         lock (_gate)
         {
-            if (!_held.Remove(id, out var order))
+            if (!_held.Remove(waferId, out var operation))
             {
                 return false;
             }
 
-            Unlock(order);
+            Unlock(operation);
         }
 
-        LogHelper.Info(Name, $"搬运单 #{id} 的锁已人工放开（片位已确认）");
+        LogHelper.Info(Name, $"晶圆 {waferId} 的搬运占用已人工放开（片位已确认）");
         return true;
     }
 
-    /// <summary>
-    /// 出错后留着锁、等人工确认的单（结果）。
-    /// </summary>
-    public IReadOnlyList<TransferResult> HeldResults
+    /// <summary>动过手才失败，等待人工确认的操作；已完成的操作不留历史。</summary>
+    public IReadOnlyList<TransferRoutine> HeldOperations
     {
         get
         {
             lock (_gate)
             {
-                return _held.Keys
-                    .Select(id => _results.TryGetValue(id, out var result) ? result : null)
-                    .Where(result => result is not null)
-                    .Select(result => result!)
-                    .ToList();
+                return _held.Values.ToList();
             }
         }
     }
 
-    /// <summary>
-    /// 查一张单的结果（留最近 ResultKeepCount 张）；还没结束或太老了返回 false。
-    /// </summary>
-    public bool TryGetResult(long id, [MaybeNullWhen(false)] out TransferResult result)
-    {
-        lock (_gate)
-        {
-            return _results.TryGetValue(id, out result);
-        }
-    }
-
-    /// <summary>
-    /// 这台机械手正在跑搬运单（整机停止时由搬运管理撤单、手臂在动的发设备中止，不另外直接发）。
-    /// </summary>
     public bool IsRobotInTransfer(string robot)
     {
         lock (_gate)
@@ -611,15 +549,12 @@ public class TransferManager : ComponentBase
         }
     }
 
-    /// <summary>
-    /// 此刻的占用快照：调度每拍取一份，挑目标、挑手臂时避开锁着的。
-    /// </summary>
-    public TransferView GetView()
+    /// <summary>槽位是否已被搬运操作占用；站点名不分大小写。</summary>
+    public bool IsSlotLocked(string station, int slot)
     {
         lock (_gate)
         {
-            var busy = _queue.Select(order => order.Robot.Name).Concat(_running.Keys).ToList();
-            return new TransferView(_slotLocks.Keys.ToList(), _armLocks.Keys.ToList(), _waferLocks.Keys.ToList(), busy);
+            return _slotLocks.ContainsKey(SlotKey(station, slot));
         }
     }
 
@@ -627,163 +562,71 @@ public class TransferManager : ComponentBase
 
     #region 扫描
 
-    /// <summary>
-    /// 扫描周期：先推进在跑的单（收尾的出结果），再给闲着的机械手开下一张。
-    /// 本组件有自己的扫描线程，在所有模块起来之后由装配显式 Start。
-    /// </summary>
+    /// <summary>推进当前搬运操作；调用设备在锁外做，避免与模块锁互等。</summary>
     protected override void OnScan()
     {
         base.OnScan();
-
-        if (!IsEnable)
-        {
-            return;
-        }
-
-        StepRunning();
-        StartQueued();
-    }
-
-    /// <summary>
-    /// 推进在跑的单。推进在锁外做：一趟搬运会调到机械手、站点（它们有自己的锁），别拿着本组件的锁去等它们。
-    /// </summary>
-    private void StepRunning()
-    {
-        List<TransferOrder> running;
+        List<TransferRoutine> running;
         lock (_gate)
         {
             running = _running.Values.ToList();
         }
 
-        foreach (var order in running)
+        foreach (var operation in running)
         {
-            var routine = order.Routine;
-            if (routine is null)
+            if (operation.AbortRequested && !operation.IsTerminal)
             {
-                continue;
+                operation.AbortByHost(operation.AbortReason);
             }
 
-            if (order.AbortRequested && !routine.IsTerminal)
+            if (!operation.IsTerminal && IsEnable)
             {
-                // 手臂正在取放：光撤软件上的操作停不住手臂，先给机械手发设备中止（它会顶掉在途的取放）。
-                if (routine.IsMoving)
-                {
-                    routine.Robot.Abort();
-                }
-
-                routine.AbortByHost(order.AbortReason);
+                operation.Scan();
             }
 
-            if (!routine.IsTerminal)
+            if (operation.ReadyToFinish)
             {
-                routine.Scan();
-            }
-
-            if (routine.IsTerminal)
-            {
-                Finish(order, routine);
+                Finish(operation);
             }
         }
     }
 
-    /// <summary>
-    /// 一张单结束：成功或没动过手 → 放锁；动过手才失败 → 锁留着等人工确认。出结果（锁外）。
-    /// </summary>
-    private void Finish(TransferOrder order, TransferRoutine routine)
+    private void Finish(TransferRoutine operation)
     {
-        bool hold = !routine.IsSuccess && routine.MotionStarted;
-        var outcome = routine.IsSuccess
-            ? TransferOutcome.Completed
-            : routine.State == OperationState.Aborted ? TransferOutcome.Aborted : TransferOutcome.Failed;
-        var result = order.ToResult(outcome, routine.Code, routine.ErrorArgs, hold, routine.HasPicked);
-
         lock (_gate)
         {
-            _running.Remove(order.Robot.Name);
-            if (hold)
-            {
-                _held[order.Id] = order;
-            }
-            else
-            {
-                Unlock(order);
-            }
-
-            Remember(result);
-        }
-
-        if (result.IsSuccess)
-        {
-            LogHelper.Info(Name, $"搬运单 #{order.Id} 完成：{order.WaferName} {order.Describe()}");
-        }
-        else if (hold)
-        {
-            LogHelper.Error(Name, $"搬运单 #{order.Id} {outcome}，动过手了，片位说不准：锁留着，到现场确认片在哪、对好账再放（{routine.Reason}）");
-        }
-        else
-        {
-            LogHelper.Warn(Name, $"搬运单 #{order.Id} {outcome}，片没动过，锁已放开（{routine.Reason}）");
-        }
-
-        order.Completion.TrySetResult(result);
-    }
-
-    /// <summary>
-    /// 给闲着的机械手开下一张单（先来先跑）。跟在跑的单用到同一个站点的先等着：
-    /// 两台机械手各抢一个站点再去抢对方那个会死等，所以站点不重叠才开。
-    /// </summary>
-    private void StartQueued()
-    {
-        var started = new List<TransferOrder>();
-        lock (_gate)
-        {
-            if (_queue.Count == 0)
+            if (!_running.TryGetValue(operation.Robot.Name, out var active) || !ReferenceEquals(active, operation))
             {
                 return;
             }
 
-            var busyStations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var running in _running.Values)
+            _running.Remove(operation.Robot.Name);
+            if (operation.NeedsRecovery)
             {
-                busyStations.Add(running.SourceName);
-                busyStations.Add(running.Target.Name);
+                _held[operation.WaferId] = operation;
             }
-
-            int waitTimeout = StationWaitTimeoutMs;
-            foreach (var order in _queue.ToList())
+            else
             {
-                if (_running.ContainsKey(order.Robot.Name)
-                    || busyStations.Contains(order.SourceName)
-                    || busyStations.Contains(order.Target.Name))
-                {
-                    continue;
-                }
-
-                order.Routine = new TransferRoutine(order.Origin, order.Robot, order.Source, order.SourceSlot,
-                    order.Target, order.TargetSlot, order.Arm, waitTimeout);
-                order.StartedAt = DateTime.Now;
-                _queue.Remove(order);
-                _running[order.Robot.Name] = order;
-                busyStations.Add(order.SourceName);
-                busyStations.Add(order.Target.Name);
-                started.Add(order);
+                Unlock(operation);
             }
         }
 
-        foreach (var order in started)
+        if (operation.IsSuccess)
         {
-            LogHelper.Info(Name, $"开始搬运单 #{order.Id}：{order.WaferName} {order.Describe()}");
+            LogHelper.Info(Name, $"搬运完成：{operation.WaferName} {operation.Name}");
         }
+        else if (operation.NeedsRecovery)
+        {
+            LogHelper.Error(Name, $"搬运失败，动过手了，资源保留到人工确认片位：{operation.WaferName} {operation.Name}（{operation.Reason}）");
+        }
+        else
+        {
+            LogHelper.Warn(Name, $"搬运未完成，片没动过，资源已释放：{operation.Name}（{operation.Reason}）");
+        }
+
+        operation.NotifyCompletion();
     }
 
-    #endregion
-
-    #region 中止
-
-    /// <summary>
-    /// 中止：先关自动派单（急停之后不能再派出新的一趟），再撤全部单——没开始的直接撤，在跑的下一拍撤（手臂在动的发设备中止）。
-    /// 出错留着锁的单不动，等人工确认。
-    /// </summary>
     public override object? Abort()
     {
         base.Abort();
@@ -794,72 +637,43 @@ public class TransferManager : ComponentBase
 
     #endregion
 
-    #region 锁
+    #region 资源占用
 
-    /// <summary>槽锁的键（站点名不分大小写，交给字典的比较器）。</summary>
     internal static string SlotKey(string station, int slot)
     {
         return $"{station}#{slot.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    /// <summary>手臂锁的键。</summary>
     internal static string ArmKey(string robot, int arm)
     {
         return $"{robot}#{arm.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    /// <summary>锁上这张单要用的槽、手臂、片（在锁里调）。</summary>
-    private void Lock(TransferOrder order)
+    private void Lock(TransferRoutine operation)
     {
-        _slotLocks[SlotKey(order.SourceName, order.SourceSlot)] = order.Id;
-        _slotLocks[SlotKey(order.Target.Name, order.TargetSlot)] = order.Id;
-        _armLocks[ArmKey(order.Robot.Name, order.Arm)] = order.Id;
-        _waferLocks[order.WaferId] = order.Id;
+        _slotLocks[SlotKey(operation.SourceName, operation.SourceSlot)] = operation;
+        _slotLocks[SlotKey(operation.Target.Name, operation.TargetSlot)] = operation;
+        _armLocks[ArmKey(operation.Robot.Name, operation.Arm)] = operation;
+        _waferLocks[operation.WaferId] = operation;
     }
 
-    /// <summary>放开这张单的锁（在锁里调）；只放还记在这张单名下的。</summary>
-    private void Unlock(TransferOrder order)
+    private void Unlock(TransferRoutine operation)
     {
-        RemoveIfOwned(_slotLocks, SlotKey(order.SourceName, order.SourceSlot), order.Id);
-        RemoveIfOwned(_slotLocks, SlotKey(order.Target.Name, order.TargetSlot), order.Id);
-        RemoveIfOwned(_armLocks, ArmKey(order.Robot.Name, order.Arm), order.Id);
-        if (_waferLocks.TryGetValue(order.WaferId, out long holder) && holder == order.Id)
+        RemoveIfOwned(_slotLocks, SlotKey(operation.SourceName, operation.SourceSlot), operation);
+        RemoveIfOwned(_slotLocks, SlotKey(operation.Target.Name, operation.TargetSlot), operation);
+        RemoveIfOwned(_armLocks, ArmKey(operation.Robot.Name, operation.Arm), operation);
+        if (_waferLocks.TryGetValue(operation.WaferId, out var holder) && ReferenceEquals(holder, operation))
         {
-            _waferLocks.Remove(order.WaferId);
+            _waferLocks.Remove(operation.WaferId);
         }
     }
 
-    private static void RemoveIfOwned(Dictionary<string, long> locks, string key, long id)
+    private static void RemoveIfOwned(Dictionary<string, TransferRoutine> locks, string key, TransferRoutine operation)
     {
-        if (locks.TryGetValue(key, out long holder) && holder == id)
+        if (locks.TryGetValue(key, out var holder) && ReferenceEquals(holder, operation))
         {
             locks.Remove(key);
         }
-    }
-
-    /// <summary>记下结果，超出保留条数的最老的扔掉（留着锁的单的结果不扔，人工确认时还要看）。在锁里调。</summary>
-    private void Remember(TransferResult result)
-    {
-        _results[result.Id] = result;
-        _resultOrder.Enqueue(result.Id);
-        int keep = Math.Max(1, ResultKeepCount);
-        int guard = _resultOrder.Count;
-        while (_resultOrder.Count > keep && guard-- > 0)
-        {
-            long oldest = _resultOrder.Dequeue();
-            if (_held.ContainsKey(oldest))
-            {
-                _resultOrder.Enqueue(oldest);
-                continue;
-            }
-
-            _results.Remove(oldest);
-        }
-    }
-
-    private static string OwnerText(string? owner)
-    {
-        return string.IsNullOrEmpty(owner) ? string.Empty : $"，{owner}";
     }
 
     #endregion

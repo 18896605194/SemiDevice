@@ -15,7 +15,7 @@ namespace xyz.Components.Components;
 /// PJ 管理（SEMI E40，sc.xml 的 Eap 下的 E40 节点）：Host 的 S16 翻成 Job 管理的命令（IJobManager，跟本地界面同一套检查），
 /// PJ 的状态转换（Job 管理经 IE40Callback 报过来）翻成事件。PJ 的状态只在 Job 管理里有一份。
 /// ① S16F11 / S16F15 建 PJ：料要写成一个载具加槽号（槽表空 = 这个载具上正常的片都做），载具要已经在端口上；
-///    配方（RCPSPEC）是流程配方在 Host 那边的配方号（前缀 + 名字，见 Recipe 节点；不带前缀直接给名字也认），不支持配方参数和暂停事件；
+///    配方（RCPSPEC）就是流程配方名，不支持配方参数和暂停事件；
 /// ② S16F5 PJ 命令（Start / Pause / Resume / Stop / Abort / Cancel）、S16F17 撤掉排队的 PJ；
 /// ③ S16F19 列 PJ、S16F21 还能建几个、S16F1 多块询问；E39 对象 ProcessJob。
 /// 建、命令要 ON-LINE REMOTE；查在 ON-LINE 就行。
@@ -46,7 +46,7 @@ public class E40Component : ComponentBase, IE40Callback
     [DataVariable(ValueFormat.Int, "PJ 状态：0 排队、1 准备、2 等启动、3 在做、4 做完、6 暂停中、7 暂停、8 停止中、9 中止中、10 停止、11 中止")]
     public readonly string JobStateData = DvJobState;
 
-    [DataVariable(ValueFormat.String, "PJ 的配方（流程配方在 Host 那边的配方号）")]
+    [DataVariable(ValueFormat.String, "PJ 的配方（流程配方名）")]
     public readonly string RecipeData = DvRecipe;
 
     [DataVariable(ValueFormat.String, "PJ 归哪个 CJ（还不归任何 CJ 为空）")]
@@ -114,16 +114,11 @@ public class E40Component : ComponentBase, IE40Callback
     private E30Component? _gem;
     private IJobManager? _jobs;
     private IReadOnlyList<ILoadPort> _ports = [];
-    private E30RecipeComponent? _recipes;
 
     #region 接设备
 
-    /// <summary>
-    /// 接到链路和 Job 管理上（EAP 组件在链路打开之前调）：挂 E40 上报口，登记 S16 的 PJ 报文和 E39 对象类型 ProcessJob。
-    /// recipes 是配方管理（配方号的前缀在它那里）；没配就按流程配方名原样收、原样报。
-    /// </summary>
-    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs, IReadOnlyList<ILoadPort> ports,
-        E30RecipeComponent? recipes)
+    /// <summary>接到链路和 Job 管理上（EAP 组件在链路打开之前调）：挂 E40 上报口，登记 S16 的 PJ 报文和 E39 对象类型 ProcessJob。</summary>
+    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs, IReadOnlyList<ILoadPort> ports)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -131,7 +126,6 @@ public class E40Component : ComponentBase, IE40Callback
         _gem = gem;
         _jobs = jobs;
         _ports = ports;
-        _recipes = recipes;
         jobs.E40Callback = this;
         link.Handle(16, 1, Inquire);
         link.Handle(16, 5, CommandAsync);
@@ -167,7 +161,7 @@ public class E40Component : ComponentBase, IE40Callback
         _gem?.Report(this, $"PrJobSMTrans{transition:00}",
             new GemData(DvJobId, GemValue.Ascii(job.Id)),
             new GemData(DvJobState, (byte)job.State),
-            new GemData(DvRecipe, GemValue.Ascii(RecipeIdOf(job.Sequence))),
+            new GemData(DvRecipe, GemValue.Ascii(job.Sequence)),
             new GemData(DvControlJob, GemValue.Ascii(job.ControlJob)),
             new GemData(DvMaterial, MaterialOf(job)));
     }
@@ -234,8 +228,7 @@ public class E40Component : ComponentBase, IE40Callback
         }
 
         var recipeParts = SecsRead.List(recipe, "配方", 3);
-        string recipeId = SecsRead.Text(recipeParts[1], "RCPSPEC").Trim();
-        string sequence = _recipes is null ? recipeId : _recipes.SequenceNameOf(recipeId);
+        string sequence = SecsRead.Text(recipeParts[1], "RCPSPEC").Trim();
         if (recipeParts[2].Count > 0)
         {
             return [E5Error.Of(E5Error.RecipeError, "Recipe variables not supported")];
@@ -425,12 +418,6 @@ public class E40Component : ComponentBase, IE40Callback
             SecsItem.L(job.Wafers.Select(wafer => SecsItem.U1((byte)Math.Clamp(wafer.SourceSlot, 0, byte.MaxValue))))));
     }
 
-    /// <summary>PJ 的流程配方名在 Host 那边的配方号（带前缀，跟 Host 建 PJ、S7 列配方用的一样）；没配配方管理就是名字本身。</summary>
-    private string RecipeIdOf(string sequence)
-    {
-        return _recipes is null ? sequence : _recipes.SequenceIdOf(sequence);
-    }
-
     private IReadOnlyList<string> JobIds()
     {
         return (_jobs?.Snapshot.ProcessJobs ?? []).Select(job => job.Id).ToList();
@@ -455,7 +442,7 @@ public class E40Component : ComponentBase, IE40Callback
             "PrMtlType" => SecsItem.B(MaterialCarriers),
             "PrProcessStart" => SecsItem.Boolean(job.AutoStart),
             "PrRecipeMethod" => SecsItem.U1(RecipeOnly),
-            "RecID" => SecsItem.A(GemValue.Ascii(RecipeIdOf(job.Sequence))),
+            "RecID" => SecsItem.A(GemValue.Ascii(job.Sequence)),
             "RecVariableList" => SecsItem.L(),
             _ => SecsItem.L(),
         };

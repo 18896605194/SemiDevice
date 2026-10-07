@@ -46,9 +46,9 @@ public class EquipmentService : BaseService, IEquipmentService
     }
 
     /// <summary>
-    /// 整机停止：先关自动派单、撤掉所有搬运单（搬运管理撤：手臂正在取放的由它发设备中止），所有没结束的 Job 走中止流程
+    /// 整机停止：先关自动派单、中止所有搬运操作（搬运管理负责：手臂正在取放的由它发设备中止），所有没结束的 Job 走中止流程
     /// （等设备确认、核对片位，不是直接删 Job）；再给正在做别的动作（手动动作）的模块发中止——
-    /// 在跑搬运单的机械手、在给 Job 做工艺的腔体归上面两路去停，这里不直接发。闲着的模块不碰。Data 为这里直接发了中止的模块个数。
+    /// 正在搬运的机械手、在给 Job 做工艺的腔体归上面两路去停，这里不直接发。闲着的模块不碰。Data 为这里直接发了中止的模块个数。
     /// </summary>
     public Task<RpcResponse> StopAsync(RpcRequest request, CallContext context = default)
     {
@@ -82,7 +82,7 @@ public class EquipmentService : BaseService, IEquipmentService
             _ = jobs.AbortAllAsync();
         }
 
-        LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运单已撤，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");
+        LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运操作已请求中止，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(aborted)));
     }
 }

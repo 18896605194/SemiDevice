@@ -298,7 +298,7 @@ internal sealed class PjManager : IPjManager
                 break;
 
             case ProcessJobState.Aborting:
-                // #16：在跑的都结束了、发给腔体的中止都做完了、片位都确定（没有出错等处理的、没有留着锁等确认的搬运单）
+                // #16：在跑的都结束了、发给腔体的中止都做完了、片位都确定（没有出错等处理的、没有保留资源等确认的搬运操作）
                 if (!job.HasRunning && job.DeviceAborts.All(abort => abort.IsSettled) && !job.HasErrors && !HasHeldTransfers(job))
                 {
                     return ProcessStateAction.AbortDone;
@@ -335,10 +335,10 @@ internal sealed class PjManager : IPjManager
         return true;
     }
 
-    /// <summary>这个 PJ 有碰过片才失败、锁还留着等人确认的搬运单。</summary>
+    /// <summary>这个 PJ 有动过片才失败、资源仍保留等人工确认的搬运操作。</summary>
     private static bool HasHeldTransfers(ProcessJob job)
     {
-        return TransferManager.Current?.HeldResults.Any(result => string.Equals(result.Owner, job.Id, StringComparison.Ordinal)) == true;
+        return TransferManager.Current?.HeldOperations.Any(operation => string.Equals(operation.Owner, job.Id, StringComparison.Ordinal)) == true;
     }
 
     /// <summary>

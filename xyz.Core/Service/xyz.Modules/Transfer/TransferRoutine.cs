@@ -8,8 +8,7 @@ namespace xyz.Modules;
 
 /// <summary>
 /// 一趟搬运：把片从源站点的槽位搬到目标站点的槽位。
-/// 手动传片和自动派单下的都是这个东西，执行完全一样，区别只在谁下的单（Origin）。
-/// 这不是 CJ/PJ——那两层在上面（Job），带自己的状态机、可暂停、跨整盒片；这儿就是一次物理搬运，跑完即弃。
+/// 手动传片和 Job 的取放任务共用这一操作，调度直接跟踪它的状态；完成后释放执行资源。
 /// 由搬运管理的扫描线程一拍一拍推进（不挂在哪个模块上）。每一步等的是 IsSettled：模块落好状态、记完账才算这一步完。
 /// 先抢目标站点再取片：目标准备不好就不取。没动手（还没落"交互中"标记）就失败或被撤时，把占着的环还回去；
 /// 动了手再失败，片在哪说不准，环留在原地等人工确认（站点卡住正好挡住后续自动动作）。
@@ -51,9 +50,37 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     private bool _holdingTarget;
 
     /// <summary>
-    /// 这一趟是谁下的单。执行不看它，失败怎么收场看它。
+    /// 这一趟搬运的来源，用于检查晶圆归属。
     /// </summary>
     public TransferOrigin Origin { get; }
+
+    /// <summary>所属 PJ；手动传片为空。</summary>
+    public string? Owner { get; internal init; }
+
+    /// <summary>这一趟搬的晶圆，用于资源占用和人工确认后放锁。</summary>
+    public Guid WaferId { get; internal init; }
+
+    internal string WaferName { get; init; } = string.Empty;
+
+    public string SourceName => _source?.Name ?? _robot.Name;
+
+    /// <summary>动过手才失败，资源保留到人工确认片位。</summary>
+    public bool NeedsRecovery => IsTerminal && !IsSuccess && MotionStarted;
+
+    private volatile bool _abortRequested;
+    internal bool AbortRequested => _abortRequested;
+    internal string AbortReason { get; private set; } = string.Empty;
+    private ModuleOperation? _abortOperation;
+
+    internal void RequestAbort(string reason)
+    {
+        AbortReason = reason;
+        _abortRequested = true;
+    }
+
+    /// <summary>当前设备动作和设备中止都收尾后，搬运管理才释放资源、唤醒等待方。</summary>
+    internal bool ReadyToFinish => IsTerminal && (_current is null || _current.IsSettled)
+        && (_abortOperation is null || _abortOperation.IsSettled);
 
     /// <summary>搬片的机械手。</summary>
     public IRobot Robot => _robot;
@@ -84,11 +111,13 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// </summary>
     public bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
 
+    private volatile bool _hasPicked;
+
     /// <summary>
-    /// 取片做完了：片在机械手手上、账上记好了，还没放。记进结果（<see cref="TransferResult.Picked"/>），没搬成时分得清出错的是取片还是放片。
+    /// 取片做完了：片在机械手手上、账上记好了。调度据此分清出错的是取片还是放片。
     /// 只放片的搬运（源是机械手）没有这一步。
     /// </summary>
-    public bool HasPicked { get; private set; }
+    public bool HasPicked => _hasPicked;
 
     public TransferRoutine(
         TransferOrigin origin,
@@ -325,7 +354,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        HasPicked = true;
+        _hasPicked = true;
         if (_sameStation)
         {
             SetStep(TransferStep.Place);
@@ -395,13 +424,17 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 被撤单（急停、人工取消、Job 中止）：在途的那一步操作跟着撤；没动手就把环还回去。
+    /// 被中止（急停、人工取消、Job 中止）：在途的那一步操作跟着中止；没动手就把环还回去。
     /// 动过手的环不动——跟失败时一个道理，片在哪说不准，留着卡住等人工。
     /// </summary>
     protected override void OnAborted(string reason)
     {
+        if (IsMoving)
+        {
+            _abortOperation = _robot.Abort();
+        }
+
         _current?.AbortByHost(reason);
-        _current = null;
         ReleaseRings();
     }
 

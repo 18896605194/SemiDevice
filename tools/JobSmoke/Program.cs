@@ -22,7 +22,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// Job 冒烟：搬运管理（受理时的各项检查、两张单抢一个槽、结果记着取片做完没有、执行、没动手就失败放锁、动过手才失败留锁、撤单）
+// Job 冒烟：搬运管理（受理时的各项检查、两次操作抢一个槽、取片确认、任务顺序执行、没动手失败放锁、动过手失败留锁、中止收尾）
 // 和 Job（SEMI E94 CJ / E40 PJ）：建 Job 的各项检查和整个不留（含站点不支持要用的任务、一站的站点都用不了、工艺配方不在库里）、任务表（一片一行：取片、放片、工艺……）、
 // 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
 // CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、整机停止走 Job 中止、
@@ -163,9 +163,12 @@ try
     jobs.E40Callback = events;
     jobs.E94Callback = events;
 
+    SmokeRobot? secondRobot = null;
+
     void Tick()
     {
         robot.Tick();
+        secondRobot?.Tick();
         pm1.Tick();
         pm2.Tick();
         lp1.Tick();
@@ -231,12 +234,12 @@ try
         return task.Result;
     }
 
-    TransferResult Finish(TransferTicket ticket, int maxTicks = 3000, int sleepMs = 0)
+    TransferRoutine Finish(HandleResult<TransferRoutine> started, int maxTicks = 3000, int sleepMs = 0)
     {
-        var completion = ticket.Completion;
-        Check(ticket.Accepted && completion is not null, $"搬运单应受理：{ticket.Code} [{string.Join(",", ticket.Args)}]");
-        Check(RunUntil(() => completion!.IsCompleted, maxTicks, sleepMs), "搬运单应跑完");
-        return completion!.Result;
+        var operation = started.Result;
+        Check(started.IsSuccess && operation is not null, $"搬运应启动：{started.ErrorMessage} [{string.Join(",", started.Args)}]");
+        Check(RunUntil(() => operation!.IsSettled, maxTicks, sleepMs), "搬运操作应收尾完成");
+        return operation!;
     }
 
     void LoadCarrier(SmokePort port, params int[] slots)
@@ -292,10 +295,10 @@ try
     // 1. 搬运管理：受理时的检查——站点、槽、片、机械手、手臂，不收的不占锁。
     LoadCarrier(lp1, 1, 2, 3, 4, 5);
     var first = ledger.Get("LP1", 1)!;
-    TransferTicket Submit(string source, int sourceSlot, string target, int targetSlot, Guid? wafer = null, int arm = 0,
+    HandleResult<TransferRoutine> StartTransfer(string source, int sourceSlot, string target, int targetSlot, Guid? wafer = null, int arm = 0,
         TransferOrigin origin = TransferOrigin.Manual)
     {
-        return transfers.Submit(new TransferRequest
+        return transfers.Start(new TransferRequest
         {
             Origin = origin,
             Source = source,
@@ -307,74 +310,86 @@ try
         });
     }
 
-    void Rejects(TransferTicket ticket, string code, string[] args, string message)
+    void Rejects(HandleResult<TransferRoutine> started, string code, string[] args, string message)
     {
-        Check(!ticket.Accepted && ticket.Code == code && ticket.Args.SequenceEqual(args),
-            $"{message}，实际 {ticket.Code} [{string.Join(",", ticket.Args)}]");
+        Check(!started.IsSuccess && started.ErrorMessage == code && started.Args.SequenceEqual(args),
+            $"{message}，实际 {started.ErrorMessage} [{string.Join(",", started.Args)}]");
     }
 
-    Rejects(Submit("NOPE", 1, "PM1", 1), ErrorCodes.TransferStationNotFound, ["NOPE"], "站点不在搬运模块表里");
-    Rejects(Submit("LP1", 26, "PM1", 1), ErrorCodes.TransferSlotOutOfRange, ["LP1", "26", "25"], "槽号超出槽数");
-    Rejects(Submit("LP1", 1, "LP1", 1), ErrorCodes.TransferSameSlot, [], "源和目标同一个槽");
-    Rejects(Submit("LP1", 10, "PM1", 1), ErrorCodes.WaferNoWafer, ["LP1", "10"], "源槽上没片");
-    Rejects(Submit("LP1", 1, "PM1", 1, Guid.NewGuid()), ErrorCodes.TransferWaferMismatch, ["LP1", "1", first.WaferId], "源槽上不是要搬的那一片");
-    Rejects(Submit("LP1", 1, "LP1", 2), ErrorCodes.WaferSlotOccupied, ["LP1", "2", ledger.Get("LP1", 2)!.WaferId], "目标槽上有片");
-    Rejects(Submit("LP1", 1, "PM9", 1), ErrorCodes.TransferNoRobot, ["LP1", "PM9"], "没有机械手两边都到得了");
-    Rejects(Submit("LP1", 1, "PM1", 1, arm: 3), ErrorCodes.TransferArmUnavailable, ["Robot1", "3"], "没有 3 号手");
-    Check(!transfers.GetView().IsSlotLocked("LP1", 1) && !transfers.GetView().IsRobotBusy("Robot1"), "不收的单不占锁");
+    Rejects(StartTransfer("NOPE", 1, "PM1", 1), ErrorCodes.TransferStationNotFound, ["NOPE"], "站点不在搬运模块表里");
+    Rejects(StartTransfer("LP1", 26, "PM1", 1), ErrorCodes.TransferSlotOutOfRange, ["LP1", "26", "25"], "槽号超出槽数");
+    Rejects(StartTransfer("LP1", 1, "LP1", 1), ErrorCodes.TransferSameSlot, [], "源和目标同一个槽");
+    Rejects(StartTransfer("LP1", 10, "PM1", 1), ErrorCodes.WaferNoWafer, ["LP1", "10"], "源槽上没片");
+    Rejects(StartTransfer("LP1", 1, "PM1", 1, Guid.NewGuid()), ErrorCodes.TransferWaferMismatch, ["LP1", "1", first.WaferId], "源槽上不是要搬的那一片");
+    Rejects(StartTransfer("LP1", 1, "LP1", 2), ErrorCodes.WaferSlotOccupied, ["LP1", "2", ledger.Get("LP1", 2)!.WaferId], "目标槽上有片");
+    Rejects(StartTransfer("LP1", 1, "PM9", 1), ErrorCodes.TransferNoRobot, ["LP1", "PM9"], "没有机械手两边都到得了");
+    Rejects(StartTransfer("LP1", 1, "PM1", 1, arm: 3), ErrorCodes.TransferArmUnavailable, ["Robot1", "3"], "没有 3 号手");
+    Check(!transfers.IsSlotLocked("LP1", 1) && !transfers.IsRobotInTransfer("Robot1"), "不收的单不占锁");
 
-    // 2. 两张单抢同一个目标槽、同一片：只有一张拿得到；拿到的那张跑完（设备、站点、晶圆账都收尾）才出结果、放锁。
-    var winner = Submit("LP1", 1, "PM1", 1);
-    Check(winner.Accepted && winner.Id > 0, "第一张单受理");
-    Rejects(Submit("LP1", 2, "PM1", 1), ErrorCodes.TransferSlotLocked, ["PM1", "1"], "目标槽已经被别的单锁着");
-    Rejects(Submit("LP1", 1, "PM2", 1), ErrorCodes.TransferSlotLocked, ["LP1", "1"], "这一片已经在别的单里");
-    var view = transfers.GetView();
-    Check(view.IsSlotLocked("LP1", 1) && view.IsSlotLocked("pm1", 1) && view.IsWaferLocked(first.Id) && view.IsRobotBusy("Robot1"),
+    // 2. 两次操作抢同一个目标槽、同一片：只有一次能启动；设备操作完成（设备、站点、晶圆账都收尾）才确认完成、放锁。
+    var winner = StartTransfer("LP1", 1, "PM1", 1);
+    Check(winner.IsSuccess && winner.Result is not null, "第一张单受理");
+    Rejects(StartTransfer("LP1", 2, "PM1", 1), ErrorCodes.TransferSlotLocked, ["PM1", "1"], "目标槽已经被别的单锁着");
+    Rejects(StartTransfer("LP1", 1, "PM2", 1), ErrorCodes.TransferSlotLocked, ["LP1", "1"], "这一片已经在别的单里");
+    Check(transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("pm1", 1)
+          && transfers.IsRobotInTransfer("robot1"),
         "受理就锁源槽、目标槽、片、机械手（站点名不分大小写）");
     var moved = Finish(winner);
-    Check(moved.IsSuccess && moved.Picked && moved.Robot == "Robot1" && moved.Arm == 1 && moved.Origin == TransferOrigin.Manual,
+    Check(moved.IsSuccess && moved.HasPicked && moved.Robot.Name == "Robot1" && moved.Arm == 1 && moved.Origin == TransferOrigin.Manual,
         "搬完：结果带机械手和手，记着取片做完了");
     Check(ledger.Get("PM1", 1)?.Id == first.Id && ledger.Get("LP1", 1) is null, "账跟着走：片在 PM1");
-    Check(!transfers.GetView().IsSlotLocked("LP1", 1) && !transfers.GetView().IsSlotLocked("PM1", 1) && !transfers.GetView().IsRobotBusy("Robot1"),
+    Check(!transfers.IsSlotLocked("LP1", 1) && !transfers.IsSlotLocked("PM1", 1) && !transfers.IsRobotInTransfer("Robot1"),
         "搬完放锁");
     Check(lp1.State == LoadPortState.Loaded && pm1.State == ModuleState.Idle && robot.State == ModuleState.Idle,
         "两个站点都收尾回到待命，机械手空闲");
-    Check(Finish(Submit("PM1", 1, "LP1", 1)).IsSuccess && ledger.Get("LP1", 1)?.Id == first.Id, "搬回原槽");
+    Check(Finish(StartTransfer("PM1", 1, "LP1", 1)).IsSuccess && ledger.Get("LP1", 1)?.Id == first.Id, "搬回原槽");
 
     // 3. 没动手就失败（目标一直不在待命，等站点超时）：片没动过，锁放开，不用人工确认。
     pm1.NoteState(ModuleState.NotInit);
-    var notReady = Finish(Submit("LP1", 1, "PM1", 1), sleepMs: 5);
-    Check(!notReady.IsSuccess && notReady.Outcome == TransferOutcome.Failed && notReady.Code == ErrorCodes.StationBusy
-          && notReady.Args.SequenceEqual(new[] { "PM1", "1000" }) && !notReady.NeedsRecovery,
+    var notReady = Finish(StartTransfer("LP1", 1, "PM1", 1), sleepMs: 5);
+    Check(!notReady.IsSuccess && notReady.State == OperationState.Failed && notReady.Code == ErrorCodes.StationBusy
+          && notReady.ErrorArgs.SequenceEqual(new[] { "PM1", "1000" }) && !notReady.NeedsRecovery,
         $"目标等不到：transfer.station_busy，参数是站点和等待毫秒数，不用人工确认，实际 {notReady.Code}");
-    Check(ledger.Get("LP1", 1)?.Id == first.Id && !transfers.GetView().IsSlotLocked("LP1", 1) && lp1.State == LoadPortState.Loaded,
+    Check(ledger.Get("LP1", 1)?.Id == first.Id && !transfers.IsSlotLocked("LP1", 1) && lp1.State == LoadPortState.Loaded,
         "片还在源槽，锁放开，源站点也没被碰");
     pm1.NoteState(ModuleState.Idle);
 
     // 4. 动过手才失败（取片失败）：片在哪说不准，锁留着、站点停在交互中，等人工确认后 ReleaseHold。
     robot.FailNextPick = true;
-    var picked = Finish(Submit("LP1", 1, "PM1", 1));
-    Check(!picked.IsSuccess && picked.Code == ErrorCodes.TransferFailed && picked.Args.SequenceEqual(new[] { "Robot1", "Pick" })
-          && picked.NeedsRecovery && !picked.Picked, "取片失败：transfer.failed，要人工确认，结果记着没取到（Job 据此把出错记在取片上）");
-    Check(transfers.HeldResults.Count == 1 && transfers.GetView().IsSlotLocked("LP1", 1) && transfers.GetView().IsSlotLocked("PM1", 1)
+    var picked = Finish(StartTransfer("LP1", 1, "PM1", 1));
+    Check(!picked.IsSuccess && picked.Code == ErrorCodes.TransferFailed && picked.ErrorArgs.SequenceEqual(new[] { "Robot1", "Pick" })
+          && picked.NeedsRecovery && !picked.HasPicked, "取片失败：transfer.failed，要人工确认，结果记着没取到（Job 据此把出错记在取片上）");
+    Check(transfers.HeldOperations.Count == 1 && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1)
           && lp1.State == TransferModuleState.Transferring, "锁留着，源站点停在交互中挡住后续动作");
-    Rejects(Submit("LP1", 1, "PM2", 1), ErrorCodes.TransferSlotLocked, ["LP1", "1"], "留着锁的槽不收新单");
-    Check(transfers.ReleaseHold(picked.Id) && !transfers.ReleaseHold(picked.Id) && transfers.HeldResults.Count == 0
-          && !transfers.GetView().IsSlotLocked("LP1", 1), "人工确认后放锁（只放一次）");
+    Rejects(StartTransfer("LP1", 1, "PM2", 1), ErrorCodes.TransferSlotLocked, ["LP1", "1"], "保留占用的槽不接受新搬运");
+    Check(transfers.ReleaseHold(picked.WaferId) && !transfers.ReleaseHold(picked.WaferId) && transfers.HeldOperations.Count == 0
+          && !transfers.IsSlotLocked("LP1", 1), "人工确认后放锁（只放一次）");
     robot.NoteState(ModuleState.Idle);
     lp1.NoteState(LoadPortState.Loaded);
     pm1.NoteState(ModuleState.Idle);
 
-    // 5. 撤单：一台机械手一次一张，第二张排着；排着的撤掉片没动过、锁放开，在跑的照常跑完。
-    var running = Submit("LP1", 1, "PM1", 1);
-    var queued = Submit("LP1", 2, "PM2", 1);
-    Check(running.Accepted && queued.Accepted, "两张单都受理（不抢同一个槽）");
-    Tick();
-    Check(transfers.Cancel(queued.Id, "smoke") == 1 && queued.Completion!.IsCompleted
-          && queued.Completion.Result.Outcome == TransferOutcome.Cancelled && queued.Completion.Result.Code == ErrorCodes.TransferCancelled,
-        "排着的单撤掉：transfer.cancelled");
-    Check(!transfers.GetView().IsSlotLocked("LP1", 2) && !transfers.GetView().IsSlotLocked("PM2", 1), "撤掉的单放锁");
-    Check(Finish(running).IsSuccess && Finish(Submit("PM1", 1, "LP1", 1)).IsSuccess, "在跑的那张照常跑完，再搬回去");
+    // 5. 不另排搬运队列：机械手占着时拒绝下一次搬运，原任务等待资源；未动手中止后放开资源。
+    var running = StartTransfer("LP1", 1, "PM1", 1);
+    Check(running.IsSuccess && running.Result is not null, "开始一次搬运");
+    Rejects(StartTransfer("LP1", 2, "PM2", 1), ErrorCodes.ActionRejected, ["Robot1", robot.State.ToString()], "机械手正执行，新的请求不排队");
+    Check(!transfers.IsSlotLocked("LP1", 2) && !transfers.IsSlotLocked("PM2", 1), "被拒的请求不占资源");
+    Check(transfers.Cancel(running.Result!, "smoke"), "请求中止当前搬运");
+    var cancelled = Finish(running);
+    Check(cancelled.State == OperationState.Aborted && !cancelled.MotionStarted && !cancelled.NeedsRecovery, "未动手中止，不需要人工确认");
+    Check(!transfers.IsSlotLocked("LP1", 1) && !transfers.IsRobotInTransfer("Robot1"), "中止收尾后释放资源");
+    Check(Finish(StartTransfer("LP1", 1, "PM1", 1)).IsSuccess && Finish(StartTransfer("PM1", 1, "LP1", 1)).IsSuccess, "资源空出来后重新执行并搬回");
+
+    // 设备取片中止后，等设备 Abort 收尾再唤醒调用方；片位不确定时保留资源。
+    var moving = StartTransfer("LP1", 1, "PM1", 1).Result!;
+    Check(RunUntil(() => moving.IsMoving), "机械手进入取片阶段");
+    Check(transfers.Cancel(moving, "smoke motion abort"), "中止正在取片的操作");
+    transfers.Tick();
+    Check(moving.IsTerminal && !moving.IsSettled && transfers.IsRobotInTransfer("Robot1"), "设备中止未收尾，搬运不能提前完成或释放机械手");
+    Check(RunUntil(() => moving.IsSettled) && moving.NeedsRecovery, "设备中止收尾后完成搬运，仍等待人工确认片位");
+    Check(transfers.ReleaseHold(moving.WaferId), "人工确认后按晶圆释放资源");
+    robot.NoteState(ModuleState.Idle);
+    lp1.NoteState(LoadPortState.Loaded);
+    pm1.NoteState(ModuleState.Idle);
 
     // 6. 建 Job 的检查：不建就什么都不留（不建 CJ / PJ、不占片）。
     void Refuses(HandleResult result, string code, string[] args, string message)
@@ -425,7 +440,7 @@ try
     Check(PjOf("LOT-B-1") is null && jobs.OwnerOf(slot4!.Id) is null && events.WaitFor("PJ LOT-B-1 #18"),
         "CJ 没建成：已经建好的 PJ LOT-B-1 撤掉（#18），片放开");
     Check(jobs.OwnerOf(first.Id) == "LOT-A-1", "片归到 PJ 名下");
-    Rejects(Submit("LP1", 1, "PM1", 1), ErrorCodes.TransferWaferOwned, [first.WaferId, "LOT-A-1"], "手动搬 Job 的片：拒，带片号和 Job");
+    Rejects(StartTransfer("LP1", 1, "PM1", 1), ErrorCodes.TransferWaferOwned, [first.WaferId, "LOT-A-1"], "手动搬 Job 的片：拒，带片号和 Job");
 
     // 任务表：一片一行，按流程配方一站一站拼——来源 LoadPort 取片 → 每一站放片、工艺、取片 → 回片 LoadPort 放片
     var rowA = PjOf("LOT-A-1")!.Wafers[0];
@@ -449,7 +464,19 @@ try
     Check(Do(jobs.ExecuteControlJobCommandAsync("LOT-A", ControlJobCommand.Start, ControlJobAction.SaveJobs)).IsSuccess
           && CjOf("LOT-A")?.State == (int)ControlJobState.Executing, "Auto 下启动：EXECUTING（#7）");
 
+    var liveRow = jobs.FindChild<SmokeTasks>()!.Rows.First(row => row.Owner == "LOT-A-1" && row.SourceSlot == 1);
+    Check(RunUntil(() => liveRow.Current?.Kind == StationTaskAction.Pick && liveRow.Current.State == WaferTaskState.Running), "执行器开始当前取片任务");
+    var liveTransfer = liveRow.Tasks[0].Operation;
+    Check(liveTransfer is TransferRoutine && liveRow.Tasks[1].State == WaferTaskState.Waiting
+          && liveRow.Tasks.Count(task => task.State == WaferTaskState.Running) == 1, "操作直接挂在取片格上，放片仍等待，同一行只有当前格运行");
+    Check(RunUntil(() => liveRow.Tasks[0].State == WaferTaskState.Done && liveRow.Tasks[1].State == WaferTaskState.Running), "取片确认后进入放片格");
+    Check(liveRow.Tasks[0].Operation is null && ReferenceEquals(liveRow.Tasks[1].Operation, liveTransfer)
+          && liveRow.Current == liveRow.Tasks[1] && ledger.FindById(liveRow.WaferId)?.Module == "Robot1", "片在机械手上，操作沿用到放片格，取片格清掉执行引用");
+    Check(RunUntil(() => liveRow.Tasks[2].State == WaferTaskState.Running)
+          && liveRow.Tasks[2].Operation is not null && liveRow.Tasks[1].Operation is null, "工艺同样直接挂在当前任务上，放片已完成并清掉引用");
+
     Check(RunUntil(() => CjOf("LOT-A")?.State == (int)ControlJobState.Completed), "跑完：CJ 进 COMPLETED");
+    Check(liveRow.Tasks.All(task => task.Operation is null), "整行完成后不留执行操作或第二份执行记录");
     var cjA = CjOf("LOT-A")!;
     Check(cjA.CompletedBy == 10 && PjOf("LOT-A-1")?.EndedBy == 7 && PjOf("LOT-A-2")?.EndedBy == 7, "正常完成：CJ #10，PJ #7");
     for (int slot = 1; slot <= 3; slot++)
@@ -569,7 +596,7 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-S") is null, 20), "LOT-S 删掉");
 
-    // 12. PJ 中止：撤单、给在做工艺的腔体发中止；设备中止做完、在途动作都结束、片位都确定才结束（#16）。机内的片记中止，没投的记未执行。
+    // 12. PJ 中止：中止搬运、给在做工艺的腔体发中止；设备中止做完、在途动作都结束、片位都确定才结束（#16）。机内的片记中止，没投的记未执行。
     //     PM2 离线：片都去 PM1，加工时机械手闲着（手臂在动时中止，片位要人工确认，那条路在第 4 节验过）。
     LoadCarrier(lp1, 1, 2, 3);
     pm2.Offline();
@@ -659,7 +686,7 @@ try
     Check(RunUntil(() => CjOf("LOT-G") is null, 20), "LOT-G 删掉");
 
     // 14. 片不在该在的地方（人改了账）：那一行的当前任务出错停住，别的片不受影响；标记完成要片真在这一步做完的地方；
-    //     人用恢复单把片搬回原槽（同一个 LoadPort 里换槽，只抢一次环），点重做，接着走。顺带：Manual 下自动启动的 Job 也会开始，只是不派动作。
+    //     人用恢复操作把片搬回原槽（同一个 LoadPort 里换槽，只抢一次环），点重做，接着走。顺带：Manual 下自动启动的 Job 也会开始，只是不派动作。
     LoadCarrier(lp1, 1, 2);
     transfers.StopAutoDispatch();
     Check(Create("LOT-L", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-L");
@@ -676,9 +703,9 @@ try
         "片不在该在的地方：那一行的当前任务（取片）出错，写着该在 LP1.02；另一片不受影响");
     Refuses(Do(jobs.CompleteTaskAsync("LOT-L-1", 2, 0)), ErrorCodes.JobTaskPositionMismatch, [lostName, StationTaskAction.Pick, "LP1.10"],
         "片不在这一步做完该在的地方（不在机械手上，也不在放片能去的站点）：标记不了完成");
-    var back = Finish(Submit("LP1", 10, "LP1", 2, origin: TransferOrigin.Recovery));
+    var back = Finish(StartTransfer("LP1", 10, "LP1", 2, origin: TransferOrigin.Recovery));
     Check(back.IsSuccess && ledger.Get("LP1", 2)?.WaferId == lostName && lp1.State == LoadPortState.Loaded,
-        "恢复单把片搬回第 2 槽（同一个 LoadPort 里换槽），LoadPort 回到待命");
+        "恢复操作把片搬回第 2 槽（同一个 LoadPort 里换槽），LoadPort 回到待命");
     Check(Do(jobs.RetryTaskAsync("LOT-L-1", 2, 0)).IsSuccess && PjOf("LOT-L-1")!.Wafers.All(wafer => ErrorOf(wafer) is null), "片放回去以后重做：出错清掉");
     transfers.StartAutoDispatch();
     Check(RunUntil(() => CjOf("LOT-L")?.State == (int)ControlJobState.Completed), "跑完");
@@ -689,7 +716,7 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-L") is null, 20), "LOT-L 删掉");
 
-    // 14b. Job 的搬运动过手才失败（取片失败）：出错记在取片上（搬运结果说没取到），放片退回等着做，搬运单的锁留着；
+    // 14b. Job 的搬运动过手才失败（取片失败）：出错记在取片上（操作未确认取片），放片退回等着做，搬运资源保留；
     //      人确认片还在源槽、放锁、设备复位后点重做，接着跑完。
     LoadCarrier(lp1, 1);
     robot.FailNextPick = true;
@@ -698,9 +725,9 @@ try
     var pickRow = PjOf("LOT-K-1")!.Wafers[0];
     var pickError = ErrorOf(pickRow)!;
     Check(pickRow.Tasks.IndexOf(pickError) == 0 && pickError.Code == ErrorCodes.TransferFailed && pickRow.Tasks[1].State == "Waiting"
-          && transfers.HeldResults.Count == 1,
-        "出错记在取片上（结果说没取到），放片退回等着做；搬运单的锁留着等人确认");
-    Check(transfers.ReleaseHold(transfers.HeldResults.Single().Id), "人确认片还在源槽，放锁");
+          && transfers.HeldOperations.Count == 1,
+        "出错记在取片上（操作未确认取片），放片退回等着做；搬运资源保留等人确认");
+    Check(transfers.ReleaseHold(transfers.HeldOperations.Single().WaferId), "人确认片还在源槽，放锁");
     robot.NoteState(ModuleState.Idle);
     lp1.NoteState(LoadPortState.Loaded);
     pm1.NoteState(ModuleState.Idle);
@@ -709,6 +736,32 @@ try
     Check(RunUntil(() => CjOf("LOT-K")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-K-1")!.Wafers[0]), "接着跑完");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-K") is null, 20), "LOT-K 删掉");
+
+    // 放片失败：取片格已完成，错误留在当前放片格；恢复后只放片，不重复取片。
+    LoadCarrier(lp1, 1);
+    robot.FailNextPlace = true;
+    Check(Create("LOT-V", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-V");
+    Check(RunUntil(() => PjOf("LOT-V-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "放片失败后当前任务出错");
+    var placeRow = jobs.FindChild<SmokeTasks>()!.Rows.Single(row => row.Owner == "LOT-V-1");
+    Check(placeRow.Tasks[0].State == WaferTaskState.Done && placeRow.Tasks[1].State == WaferTaskState.Error
+          && placeRow.Tasks[1].Code == ErrorCodes.TransferFailed && placeRow.Tasks[1].Args.SequenceEqual(new[] { "Robot1", "Place" })
+          && placeRow.Tasks[2].State == WaferTaskState.Waiting && placeRow.Tasks.All(task => task.Operation is null),
+        "取片完成，放片记错，工艺等待，设备操作引用已收尾清空");
+    var heldPlace = transfers.HeldOperations.Single();
+    Check(heldPlace.HasPicked && ledger.Get("Robot1", heldPlace.Arm)?.Id == placeRow.WaferId
+          && ledger.Get("LP1", 1) is null && ledger.Get("PM1", 1) is null, "取片已记账，失败后片仍在手上");
+    Check(transfers.ReleaseHold(placeRow.WaferId), "人工确认片在手上后释放资源");
+    robot.NoteState(ModuleState.Idle);
+    pm1.NoteState(ModuleState.Idle);
+    pm2.NoteState(ModuleState.Idle);
+    Check(Do(jobs.RetryTaskAsync("LOT-V-1", 1, 1)).IsSuccess, "只重做当前放片任务");
+    Check(RunUntil(() => placeRow.Tasks[1].State == WaferTaskState.Running), "重新启动放片");
+    Check(placeRow.Tasks[1].Operation is TransferRoutine { Source: null, SourceName: "Robot1" }
+          && placeRow.Tasks[0].State == WaferTaskState.Done, "片在手上时直接放片，取片保持完成");
+    Check(RunUntil(() => CjOf("LOT-V")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-V-1")!.Wafers[0])
+          && ledger.Get("LP1", 1)?.Id == placeRow.WaferId, "恢复后工艺和回片正常完成");
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("LOT-V") is null, 20), "LOT-V 删掉");
 
     // 15. Host 的做法：先建 PJ（不归任何 CJ，排着），再建 CJ 把 PJ 按顺序收进来。
     LoadCarrier(lp1, 1, 2);
@@ -735,10 +788,10 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("CJ-H") is null, 20), "CJ-H 删掉");
 
-    // 16. 整机停止：关自动派单、撤搬运单，Job 走中止（等设备确认、核对片位），不是直接删 Job。
+    // 16. 整机停止：关自动派单、中止搬运操作，Job 走中止（等设备确认、核对片位），不是直接删 Job。
     LoadCarrier(lp1, 1, 2, 3);
     Check(Create("LOT-E", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-E");
-    Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(IsProcessing) == true && !transfers.GetView().IsRobotBusy("Robot1")),
+    Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(IsProcessing) == true && !transfers.IsRobotInTransfer("Robot1")),
         "跑到有片在加工、机械手闲着");
     var equipment = new EquipmentService(modules);
     var stop = equipment.StopAsync(new RpcRequest()).Result;
@@ -794,10 +847,47 @@ try
         "手动传片走搬运管理：搬完回机械手和手");
     var occupied = Pump(transferService.TransferAsync(new TransferRequestDto { Source = "LP1", SourceSlot = 2, Target = "PM1", TargetSlot = 1 }));
     Check(!occupied.Success && occupied.Code == ErrorCodes.WaferNoWafer, "手动传片受理不了：错误码照搬");
-    var notHeld = Pump(transferService.ReleaseAsync(new TransferReleaseRequest { Id = 12345 }));
-    Check(!notHeld.Success && notHeld.Code == ErrorCodes.TransferNotHeld && notHeld.Args.SequenceEqual(new[] { "12345" }), "没有留着锁的单：transfer.not_held");
+    var notHeld = Pump(transferService.ReleaseAsync(new TransferReleaseRequest { WaferId = Guid.Empty }));
+    Check(!notHeld.Success && notHeld.Code == ErrorCodes.TransferNotHeld && notHeld.Args.SequenceEqual(new[] { Guid.Empty.ToString() }), "没有留着锁的单：transfer.not_held");
     Check(ledger.Move("PM1", 1, "LP1", 1), "手动传过去的那片人工收回");
     UnloadCarrier(lp1);
+
+    // 17b. 调度只用搬运管理的实时占用：第一台无空手时尝试下一台；两台同时工作也不能抢同一站点。
+    secondRobot = new SmokeRobot("Robot2", "LP1", "LP2", "PM1", "PM2");
+    Check(secondRobot.Open(), "第二台机械手打开");
+    secondRobot.NoteState(ModuleState.Idle);
+    transfers.Bind([.. modules, secondRobot]);
+    transfers.StartAutoDispatch();
+    LoadCarrier(lp1, 1, 2, 3);
+    Check(ledger.Move("LP1", 2, "Robot1", 1) && ledger.Move("LP1", 3, "Robot1", 2), "第一台手臂都已持片");
+    Check(Create("LOT-M0", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-M0");
+    Check(RunUntil(() => PjOf("LOT-M0-1")?.Wafers[0].Tasks[0].State == "Running"), "取片开始");
+    Check(PjOf("LOT-M0-1")!.Wafers[0].Tasks[0].Robot == "Robot2" && !transfers.IsRobotInTransfer("Robot1"),
+        "第一台没有空手，直接尝试第二台，失败尝试不占资源");
+    Check(RunUntil(() => CjOf("LOT-M0")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-M0-1")!.Wafers[0]),
+        "第二台机械手完成工艺和回片");
+    Check(ledger.Move("Robot1", 1, "LP1", 2) && ledger.Move("Robot1", 2, "LP1", 3), "收回第一台手上的片");
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("LOT-M0") is null, 20), "LOT-M0 删掉");
+
+    Sequence(6, "SEQ_F", Step("LoadPort", "", "LP2"), Step("Chamber", "R1", "PM2"), Step("LoadPort", "", "LP2"));
+    LoadCarrier(lp1, 1, 2);
+    LoadCarrier(lp2, 1);
+    Check(Create("LOT-M1", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-M1");
+    Check(Create("LOT-M2", "LP2", true, (1, "SEQ_F")).IsSuccess, "建 LOT-M2");
+    Check(RunUntil(() => transfers.IsRobotInTransfer("Robot1") && transfers.IsRobotInTransfer("Robot2")), "不同站点可由两台机械手并行执行");
+    var parallelRows = jobs.FindChild<SmokeTasks>()!.Rows;
+    Check(parallelRows.Count(row => row.HasRunning) == 2
+          && parallelRows.Single(row => row.Owner == "LOT-M1-1" && row.SourceSlot == 2).IsWaiting
+          && !transfers.IsSlotLocked("LP1", 2), "同一来源站点的第二片等待，不会因没有本拍占用集合而重复派出");
+    Check(RunUntil(() => CjOf("LOT-M1")?.State == (int)ControlJobState.Completed && CjOf("LOT-M2")?.State == (int)ControlJobState.Completed)
+          && PjOf("LOT-M1-1")!.Wafers.All(IsDone) && PjOf("LOT-M2-1")!.Wafers.All(IsDone), "两台机械手正常完成全部任务");
+    UnloadCarrier(lp1);
+    UnloadCarrier(lp2);
+    Check(RunUntil(() => CjOf("LOT-M1") is null && CjOf("LOT-M2") is null, 20), "两个 CJ 删掉");
+    transfers.Bind(modules);
+    secondRobot.Close();
+    secondRobot = null;
 
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
@@ -807,7 +897,7 @@ try
     pm2.ProcessTicks = 200;
     transfers.StartAutoDispatch();
     Check(Create("LOT-R", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-R");
-    Check(RunUntil(() => PjOf("LOT-R-1")?.Wafers.Count(IsProcessing) == 2 && !transfers.GetView().IsRobotBusy("Robot1")),
+    Check(RunUntil(() => PjOf("LOT-R-1")?.Wafers.Count(IsProcessing) == 2 && !transfers.IsRobotInTransfer("Robot1")),
         "跑到两片在加工、机械手闲着");
     // 等写库线程把最后一次发布的进度写完（写的就是全貌里的那份），旧的 Job 管理之后不再写
     string lotRWafers = JsonHelper.Serialize(PjOf("LOT-R-1")!.Wafers);
@@ -858,14 +948,14 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission checks, two orders racing for one slot, results telling whether the pick was done, " +
+Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission checks, competing transfers for one slot, pick confirmation and sequential wafer task execution, " +
     "locks released only after the station rings and the ledger settle, failures without motion releasing locks and failures after motion holding them " +
-    "for manual recovery, cancelling a queued order; jobs per SEMI E94/E40: creation checks with nothing left behind (including a station that does not " +
+    "for manual recovery, rejecting a busy robot, aborting and waiting for device confirmation; jobs per SEMI E94/E40: creation checks with nothing left behind (including a station that does not " +
     "support a needed task, a step with no usable station and a missing process recipe), local creation going through PJ-then-CJ like the host " +
     "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
-    "station groups, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
+    "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
-    "a wafer moved behind the job's back, a job transfer failing after touching the wafer, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, the equipment stop going through job abort, the job and transfer services, " +
+    "a wafer moved behind the job's back, job pick/place failures and retrying place without repeating pick, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, the equipment stop going through job abort, the job and transfer services, " +
     "every CJ and PJ recorded as one database row with each wafer's tasks, " +
     "and a restart that marks unfinished jobs aborted in the database instead of resuming them)");
 
@@ -946,7 +1036,7 @@ sealed class SmokeMotion : ModuleOperation
     }
 }
 
-// 假机械手：取放两拍做完（成功后基类照常记账），取片可以故意失败一次。
+// 假机械手：取放两拍做完（成功后基类照常记账），取放都可以故意失败一次。
 sealed class SmokeRobot : BaseRobotModule
 {
     public SmokeRobot(string name, params string[] stations)
@@ -964,6 +1054,8 @@ sealed class SmokeRobot : BaseRobotModule
     }
 
     public bool FailNextPick { get; set; }
+
+    public bool FailNextPlace { get; set; }
 
     public void NoteState(int state) => State = state;
 
@@ -986,7 +1078,12 @@ sealed class SmokeRobot : BaseRobotModule
         return new SmokeMotion("Pick", 2, fail);
     }
 
-    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot) => new SmokeMotion("Place", 2);
+    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
+    {
+        bool fail = FailNextPlace;
+        FailNextPlace = false;
+        return new SmokeMotion("Place", 2, fail);
+    }
 }
 
 // 假机械手的品牌壳：驱动走假传输，只为把"驱动已连接"这道门打开。

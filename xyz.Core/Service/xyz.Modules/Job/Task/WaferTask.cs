@@ -1,4 +1,7 @@
-﻿namespace xyz.Modules;
+﻿using System.Text.Json.Serialization;
+using xyz.Components.Components;
+
+namespace xyz.Modules;
 
 /// <summary>
 /// 任务表里的一格：一片要做的一件事（取片、放片、工艺……）。生成时定下任务名、候选站点、配方；
@@ -27,6 +30,10 @@ public sealed class WaferTask
     public ProcessRecipeData? Recipe { get; init; }
 
     public WaferTaskState State { get; internal set; } = WaferTaskState.Waiting;
+
+    /// <summary>当前执行的设备操作；调度直接从这一格收进度，不另建执行任务表。</summary>
+    [JsonIgnore]
+    public ModuleOperation? Operation { get; internal set; }
 
     /// <summary>实际的站点：取片是从哪取、放片是放到哪、站内任务是在哪做。</summary>
     public string? Station { get; internal set; }
