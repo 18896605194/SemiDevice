@@ -3,6 +3,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Configs.Models;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 using xyz.Shared.Dtos;
@@ -10,16 +11,112 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// CJ 管理（SEMI E94，sc.xml 的 Eap 下的 E94 节点）：Host 用 S14F9 建 CJ（E39 Create Object，对象类型 ControlJob）、
-/// S16F27 下 CJ 命令，翻成 Job 管理的命令（IJobManager）；CJ 的状态转换（经 IE94Callback 报过来）翻成事件。CJ 的状态只在 Job 管理里有一份。
-/// 建 CJ：ProcessingCtrlSpec 列的 PJ 要已经建好（S16F11 / S16F15），按列的先后做；不支持改回片地方（MtrlOutSpec 只能空，回原槽）、暂停事件；
-/// StartMethod 不给默认自动开始。建、命令要 ON-LINE REMOTE。
+/// CJ 管理（SEMI E94，sc.xml 的 Eap 下的 E94 节点）：Host 用 S14F9 建 CJ（E39 Create Object，对象类型 ControlJob）
 /// </summary>
 [Component(description: "CJ 管理（SEMI E94）：S14F9 建 CJ、S16F27 CJ 命令，CJ 状态转换报事件")]
 public class E94Component : ComponentBase, IE94Callback
 {
-    /// <summary>ProcessOrderMgmt：按 ProcessingCtrlSpec 的先后（本机只这么做）。</summary>
     private const byte OrderByList = 3;
+
+    /// <summary>E39/E94 的 CJ 对象类型及属性名，统一保留协议中的名称写法。</summary>
+    
+
+    #region SC
+
+    [SCEditor("CJSTART", "E94", "S16F27 的 CJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
+    public string StartCommandName { get; set; } = "CJSTART";
+
+    [SCEditor("CJPAUSE", "E94", "S16F27 的 CJ 暂停命令字符串")]
+    public string PauseCommandName { get; set; } = "CJPAUSE";
+
+    [SCEditor("CJRESUME", "E94", "S16F27 的 CJ 恢复命令字符串")]
+    public string ResumeCommandName { get; set; } = "CJRESUME";
+
+    [SCEditor("CJCANCEL", "E94", "S16F27 的 CJ 取消命令字符串")]
+    public string CancelCommandName { get; set; } = "CJCANCEL";
+
+    [SCEditor("CJDESELECT", "E94", "S16F27 的 CJ 取消选中命令字符串")]
+    public string DeselectCommandName { get; set; } = "CJDESELECT";
+
+    [SCEditor("CJSTOP", "E94", "S16F27 的 CJ 停止命令字符串")]
+    public string StopCommandName { get; set; } = "CJSTOP";
+
+    [SCEditor("CJABORT", "E94", "S16F27 的 CJ 中止命令字符串")]
+    public string AbortCommandName { get; set; } = "CJABORT";
+
+    [SCEditor("CJHOQ", "E94", "S16F27 的 CJ 插到队首命令字符串（Job 管理当前不支持执行此命令）")]
+    public string HeadOfQueueCommandName { get; set; } = "CJHOQ";
+
+    #endregion
+
+    /// <summary>
+    /// 默认兼容命令名：用于兜底，并检查 SC 是否占用了其他命令的名称  只是局限于字符串
+    /// </summary>
+    private static readonly (string Name, ControlJobCommand Command)[] StandardCommands =
+    [
+        ("CJSTART", ControlJobCommand.Start),
+        ("CJPAUSE", ControlJobCommand.Pause),
+        ("CJRESUME", ControlJobCommand.Resume),
+        ("CJCANCEL", ControlJobCommand.Cancel),
+        ("CJDESELECT", ControlJobCommand.Deselect),
+        ("CJSTOP", ControlJobCommand.Stop),
+        ("CJABORT", ControlJobCommand.Abort),
+        ("CJHOQ", ControlJobCommand.HeadOfQueue),
+    ];
+
+    /// <summary>
+    /// 装配钩子：SC 命令名字符串加载完先查一遍不能为空、不能互相重复、不能占用其他命令的默认名称；
+    /// 配置错了装配即失败（开机就暴露），运行期的 ParseCommand 另有一层冲突拒绝兜底。
+    /// </summary>
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
+    {
+        base.OnSettingLoaded(setting);
+
+        (string Name, ControlJobCommand Command)[] commands =
+        [
+            (StartCommandName, ControlJobCommand.Start),
+            (PauseCommandName, ControlJobCommand.Pause),
+            (ResumeCommandName, ControlJobCommand.Resume),
+            (CancelCommandName, ControlJobCommand.Cancel),
+            (DeselectCommandName, ControlJobCommand.Deselect),
+            (StopCommandName, ControlJobCommand.Stop),
+            (AbortCommandName, ControlJobCommand.Abort),
+            (HeadOfQueueCommandName, ControlJobCommand.HeadOfQueue),
+        ];
+
+        foreach (var entry in commands)
+        {
+            string name = entry.Name?.Trim() ?? string.Empty;
+            if (name.Length == 0)
+            {
+                throw new InvalidOperationException($"{Name}：{entry.Command} 的命令字符串不能为空");
+            }
+
+            foreach (var standard in StandardCommands)
+            {
+                if (string.Equals(name, standard.Name, StringComparison.OrdinalIgnoreCase)
+                    && standard.Command != entry.Command)
+                {
+                    throw new InvalidOperationException(
+                        $"{Name}：{entry.Command} 的命令字符串 {name} 占用了 {standard.Command} 的默认名称 {standard.Name}");
+                }
+            }
+        }
+
+        for (int first = 0; first < commands.Length; first++)
+        {
+            for (int second = first + 1; second < commands.Length; second++)
+            {
+                string firstName = commands[first].Name?.Trim() ?? string.Empty;
+                string secondName = commands[second].Name?.Trim() ?? string.Empty;
+                if (string.Equals(firstName, secondName, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"{Name}：{commands[first].Command} 和 {commands[second].Command} 的命令字符串都是 {firstName}");
+                }
+            }
+        }
+    }
 
     #region DV、事件
 
@@ -81,8 +178,12 @@ public class E94Component : ComponentBase, IE94Callback
 
     #endregion
 
+    #region 组件+服务
+
     private E30Component? _gem;
     private IJobManager? _jobs;
+
+    #endregion
 
     #region 接设备
 
@@ -142,14 +243,14 @@ public class E94Component : ComponentBase, IE94Callback
 
     /// <summary>
     /// S16F27 CJ 命令 → S16F28 L[2]{ACKA, L[0 或 2]{ERRCODE, ERRTEXT}}：L[3]{CTLJOBID, CTLJOBCMD, L[0 或 2]{"Action", CPVAL}}。
-    /// CTLJOBCMD 给数（1 Start … 8 HOQ）或名字（CjStart…）都认；Action 给数（0 SaveJobs、1 RemoveJobs）或名字都认，
+    /// CTLJOBCMD 的标准格式是 U1（1 Start … 8 HOQ）；兼容 SC 配置的字符串（默认 CjStart…）。Action 给数（0 SaveJobs、1 RemoveJobs）或名字都认，
     /// 也认多包一层的 L[1]{L[2]{...}}；不给 Action 按 SaveJobs。
     /// </summary>
     private async Task<SecsReply> CommandAsync(HsmsMessage message)
     {
         var body = SecsRead.List(SecsRead.Body(message), "S16F27", 3);
         string id = SecsRead.Text(body[0], "CTLJOBID").Trim();
-        var command = ReadCommand(body[1]);
+        var command = ParseCommand(body[1]); //解析指令
         var action = ReadAction(body[2]);
         E5Error? error = null;
         if (command is null)
@@ -181,26 +282,71 @@ public class E94Component : ComponentBase, IE94Callback
         return SecsReply.Of(SecsItem.L(SecsItem.Boolean(error is null), errorItem));
     }
 
-    private static ControlJobCommand? ReadCommand(SecsItem item)
+    private ControlJobCommand? ParseCommand(SecsItem item)
     {
+        #region 走字符串
+
         if (item.Format is SecsFormat.Ascii or SecsFormat.Jis8)
         {
-            string name = item.GetString().Trim().ToUpperInvariant();
-            return name switch
+            string name = item.GetString().Trim();
+            if (name.Length == 0)
             {
-                "CJSTART" => ControlJobCommand.Start,
-                "CJPAUSE" => ControlJobCommand.Pause,
-                "CJRESUME" => ControlJobCommand.Resume,
-                "CJCANCEL" => ControlJobCommand.Cancel,
-                "CJDESELECT" => ControlJobCommand.Deselect,
-                "CJSTOP" => ControlJobCommand.Stop,
-                "CJABORT" => ControlJobCommand.Abort,
-                "CJHOQ" => ControlJobCommand.HeadOfQueue,
-                _ => null,
-            };
+                return null;
+            }
+
+            (string Name, ControlJobCommand Command)[] commands =
+            [
+                (StartCommandName, ControlJobCommand.Start),
+                (PauseCommandName, ControlJobCommand.Pause),
+                (ResumeCommandName, ControlJobCommand.Resume),
+                (CancelCommandName, ControlJobCommand.Cancel),
+                (DeselectCommandName, ControlJobCommand.Deselect),
+                (StopCommandName, ControlJobCommand.Stop),
+                (AbortCommandName, ControlJobCommand.Abort),
+                (HeadOfQueueCommandName, ControlJobCommand.HeadOfQueue),
+            ];
+            ControlJobCommand? matched = null;
+            foreach (var entry in commands)
+            {
+                if (!string.Equals(name, entry.Name?.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // 同名配置无法确定 Host 要执行哪条命令，拒绝而不是取第一个。
+                if (matched is not null)
+                {
+                    return null;
+                }
+
+                matched = entry.Command;
+            }
+
+            // 默认名称兜底；SC 同时命中时必须含义一致，避免把停止请求解析成启动等其他命令。
+            foreach (var entry in StandardCommands)
+            {
+                if (string.Equals(name, entry.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (matched is not null && matched != entry.Command)
+                    {
+                        LogHelper.Warn(Name, $"CJ 命令字符串配置冲突：{name} 在 SC 中表示 {matched}，默认名称表示 {entry.Command}，拒绝执行");
+                        return null;
+                    }
+
+                    return entry.Command;
+                }
+            }
+
+            return matched;
         }
+        #endregion
+
+        #region 走数字
 
         byte value = SecsRead.Code(item, "CTLJOBCMD");
+
+        #endregion
+
         return Enum.IsDefined(typeof(ControlJobCommand), (int)value) ? (ControlJobCommand)value : null;
     }
 
@@ -233,7 +379,7 @@ public class E94Component : ComponentBase, IE94Callback
     #region 建 CJ（S14F9，经 E39）
 
     /// <summary>
-    /// 建 CJ：属性 ObjID（不给就用 OBJSPEC）、ProcessingCtrlSpec（必须，L{L[3]{PRJOBID, 规则, 阈值}}）、StartMethod（BOOLEAN，默认 TRUE）、
+    /// 建 CJ：属性 ObjID（不给就用 OBJSPEC）、ProcessingCtrlSpec（必须，L{L[3]{PRJOBID, 规则, 阈值}}）、StartMethod（BOOLEAN，启动方式由 SC 决定）、
     /// ProcessOrderMgmt（1/2/3 都收，本机按列表先后做）；MtrlOutSpec、MtrlOutByStatus、PauseEvent 只能空；CarrierInputSpec、DataCollectionPlan 不看。
     /// </summary>
     private async Task<E39Created> CreateAsync(string objectSpec, IReadOnlyList<(string Name, SecsItem Value)> attributes)
@@ -249,38 +395,40 @@ public class E94Component : ComponentBase, IE94Callback
         bool hasSpec = false;
         foreach (var (name, value) in attributes)
         {
-            switch (name.Trim().ToUpperInvariant())
+            string? attribute = ControlJobNames.Attributes.FirstOrDefault(candidate =>
+                string.Equals(candidate, name.Trim(), StringComparison.OrdinalIgnoreCase));
+            switch (attribute)
             {
-                case "OBJID":
-                    id = SecsRead.Text(value, "ObjID").Trim();
+                case ControlJobNames.ObjId:
+                    id = SecsRead.Text(value, ControlJobNames.ObjId).Trim();
                     break;
 
-                case "PROCESSINGCTRLSPEC":
+                case ControlJobNames.ProcessingCtrlSpec:
                     hasSpec = true;
-                    foreach (var entry in SecsRead.List(value, "ProcessingCtrlSpec"))
+                    foreach (var entry in SecsRead.List(value, ControlJobNames.ProcessingCtrlSpec))
                     {
                         processJobs.Add(SecsRead.Text(SecsRead.List(entry, "L{PRJOBID, 规则, 阈值}", 3)[0], "PRJOBID").Trim());
                     }
 
                     break;
 
-                case "STARTMETHOD":
+                case ControlJobNames.StartMethod:
                     // 保留报文格式校验；CJ 启动方式统一由设备的 SC 配置决定。
-                    SecsRead.Flag(value, "StartMethod");
+                    SecsRead.Flag(value, ControlJobNames.StartMethod);
                     break;
 
-                case "PROCESSORDERMGMT":
-                    byte order = SecsRead.Code(value, "ProcessOrderMgmt");
+                case ControlJobNames.ProcessOrderMgmt:
+                    byte order = SecsRead.Code(value, ControlJobNames.ProcessOrderMgmt);
                     if (order is < 1 or > OrderByList)
                     {
-                        return E39Created.Fail(E5Error.Of(E5Error.InvalidAttributeValue, "ProcessOrderMgmt must be 1, 2 or 3"));
+                        return E39Created.Fail(E5Error.Of(E5Error.InvalidAttributeValue, $"{ControlJobNames.ProcessOrderMgmt} must be 1, 2 or 3"));
                     }
 
                     break;
 
-                case "MTRLOUTSPEC":
-                case "MTRLOUTBYSTATUS":
-                case "PAUSEEVENT":
+                case ControlJobNames.MtrlOutSpec:
+                case ControlJobNames.MtrlOutByStatus:
+                case ControlJobNames.PauseEvent:
                     if (value.Count > 0)
                     {
                         return E39Created.Fail(E5Error.Of(E5Error.UnsupportedOption, $"{name} not supported"));
@@ -288,18 +436,18 @@ public class E94Component : ComponentBase, IE94Callback
 
                     break;
 
-                case "CARRIERINPUTSPEC":
-                case "DATACOLLECTIONPLAN":
+                case ControlJobNames.CarrierInputSpec:
+                case ControlJobNames.DataCollectionPlan:
                     break;
 
                 default:
-                    return E39Created.Fail(E5Error.Of(E5Error.UnknownAttribute, $"ControlJob attribute {name} not allowed"));
+                    return E39Created.Fail(E5Error.Of(E5Error.UnknownAttribute, $"{ControlJobNames.ObjectType} attribute {name} not allowed"));
             }
         }
 
         if (!hasSpec || processJobs.Count == 0)
         {
-            return E39Created.Fail(E5Error.Of(E5Error.InsufficientParameters, "ProcessingCtrlSpec required"));
+            return E39Created.Fail(E5Error.Of(E5Error.InsufficientParameters, $"{ControlJobNames.ProcessingCtrlSpec} required"));
         }
 
         var result = await jobs.CreateControlJobAsync(
@@ -339,22 +487,22 @@ public class E94Component : ComponentBase, IE94Callback
             .ToList();
         value = attribute switch
         {
-            "ObjType" => SecsItem.A("ControlJob"),
-            "ObjID" => SecsItem.A(GemValue.Ascii(job.Id)),
-            "CarrierInputSpec" => job.CarrierId.Length == 0 ? SecsItem.L() : SecsItem.L(SecsItem.A(GemValue.Ascii(job.CarrierId))),
-            "CurrentPrJob" => SecsItem.L(processes.Where(process => IsActive(process.State))
+            ControlJobNames.ObjType => SecsItem.A(ControlJobNames.ObjectType),
+            ControlJobNames.ObjId => SecsItem.A(GemValue.Ascii(job.Id)),
+            ControlJobNames.CarrierInputSpec => job.CarrierId.Length == 0 ? SecsItem.L() : SecsItem.L(SecsItem.A(GemValue.Ascii(job.CarrierId))),
+            ControlJobNames.CurrentPrJob => SecsItem.L(processes.Where(process => IsActive(process.State))
                 .Select(process => SecsItem.A(GemValue.Ascii(process.Id)))),
-            "DataCollectionPlan" => SecsItem.A(string.Empty),
-            "MtrlOutByStatus" => SecsItem.L(),
-            "MtrlOutSpec" => SecsItem.L(),
-            "PauseEvent" => SecsItem.L(),
-            "ProcessingCtrlSpec" => SecsItem.L(job.ProcessJobs.Select(processId =>
+            ControlJobNames.DataCollectionPlan => SecsItem.A(string.Empty),
+            ControlJobNames.MtrlOutByStatus => SecsItem.L(),
+            ControlJobNames.MtrlOutSpec => SecsItem.L(),
+            ControlJobNames.PauseEvent => SecsItem.L(),
+            ControlJobNames.ProcessingCtrlSpec => SecsItem.L(job.ProcessJobs.Select(processId =>
                 SecsItem.L(SecsItem.A(GemValue.Ascii(processId)), SecsItem.L(), SecsItem.L()))),
-            "ProcessOrderMgmt" => SecsItem.U1(OrderByList),
-            "PRJobStatusList" => SecsItem.L(job.ProcessJobs.Select(processId => SecsItem.L(SecsItem.A(GemValue.Ascii(processId)),
+            ControlJobNames.ProcessOrderMgmt => SecsItem.U1(OrderByList),
+            ControlJobNames.PrJobStatusList => SecsItem.L(job.ProcessJobs.Select(processId => SecsItem.L(SecsItem.A(GemValue.Ascii(processId)),
                 StateOf(processes, processId)))),
-            "StartMethod" => SecsItem.Boolean(job.AutoStart),
-            "State" => SecsItem.U1((byte)(job.E94State ?? job.State)),
+            ControlJobNames.StartMethod => SecsItem.Boolean(job.AutoStart),
+            ControlJobNames.State => SecsItem.U1((byte)(job.E94State ?? job.State)),
             _ => SecsItem.L(),
         };
         return true;
@@ -383,13 +531,9 @@ public class E94Component : ComponentBase, IE94Callback
             _owner = owner;
         }
 
-        public string TypeName => "ControlJob";
+        public string TypeName => ControlJobNames.ObjectType;
 
-        public IReadOnlyList<string> AttributeNames { get; } =
-        [
-            "ObjType", "ObjID", "CarrierInputSpec", "CurrentPrJob", "DataCollectionPlan", "MtrlOutByStatus", "MtrlOutSpec", "PauseEvent",
-            "ProcessingCtrlSpec", "ProcessOrderMgmt", "PRJobStatusList", "StartMethod", "State",
-        ];
+        public IReadOnlyList<string> AttributeNames => ControlJobNames.Attributes;
 
         public IReadOnlyList<string> ObjectIds()
         {
@@ -408,4 +552,29 @@ public class E94Component : ComponentBase, IE94Callback
     }
 
     #endregion
+}
+
+public static class ControlJobNames
+{
+    public const string ObjectType = "ControlJob";
+    public const string ObjType = "ObjType";
+    public const string ObjId = "ObjID";
+    public const string CarrierInputSpec = "CarrierInputSpec";
+    public const string CurrentPrJob = "CurrentPrJob";
+    public const string DataCollectionPlan = "DataCollectionPlan";
+    public const string MtrlOutByStatus = "MtrlOutByStatus";
+    public const string MtrlOutSpec = "MtrlOutSpec";
+    public const string PauseEvent = "PauseEvent";
+    public const string ProcessingCtrlSpec = "ProcessingCtrlSpec";
+    public const string ProcessOrderMgmt = "ProcessOrderMgmt";
+    public const string PrJobStatusList = "PRJobStatusList";
+    public const string StartMethod = "StartMethod";
+    public const string State = "State";
+
+    // 保持原有顺序，Host 使用数字 ATTRID 时按此顺序定位属性。
+    public static IReadOnlyList<string> Attributes { get; } =
+    [
+        ObjType, ObjId, CarrierInputSpec, CurrentPrJob, DataCollectionPlan, MtrlOutByStatus, MtrlOutSpec, PauseEvent,
+            ProcessingCtrlSpec, ProcessOrderMgmt, PrJobStatusList, StartMethod, State,
+        ];
 }

@@ -218,6 +218,12 @@ public class JobService : BaseService, IJobService
         return RpcResponse.Fail(result.ErrorMessage, result.Args);
     }
 
+    /// <summary>
+    /// CJ 指令操作
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public async Task<RpcResponse> ControlJobCommandAsync(JobCommandRequest request, CallContext context = default)
     {
         var jobs = JobManager.Current;

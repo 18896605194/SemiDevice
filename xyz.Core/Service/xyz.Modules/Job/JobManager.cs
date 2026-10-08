@@ -24,11 +24,27 @@ public class JobManager : ComponentBase, IJobManager
     private readonly object _gate = new();
 
     private IReadOnlyDictionary<string, BaseModule> _modules = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+
+    #region 任务+调度 组件
     private BaseTaskComponent? _tasks;
     private SchedulerComponent? _scheduler;
+    #endregion
 
+    #region CJ / PJ 管理
     private readonly IPjManager _processJobs;
     private readonly ICjManager _controlJobs;
+
+    #endregion
+
+    #region EAP 上报口
+
+    /// <summary>E40（PJ）上报口；null 表示没接 EAP，照常跑。装配时由 EAP 侧挂上。</summary>
+    public IE40Callback? E40Callback { get; set; }
+
+    /// <summary>E94（CJ）上报口；null 表示没接 EAP。上报放进 EAP 的派发组件（EapNotifierComponent），按发生先后发。</summary>
+    public IE94Callback? E94Callback { get; set; }
+
+    #endregion
 
     public JobManager()
     {
@@ -96,15 +112,6 @@ public class JobManager : ComponentBase, IJobManager
 
     #endregion
 
-    #region EAP 口子（上报；命令走 IJobManager）
-
-    /// <summary>E40（PJ）上报口；null 表示没接 EAP，照常跑。装配时由 EAP 侧挂上。</summary>
-    public IE40Callback? E40Callback { get; set; }
-
-    /// <summary>E94（CJ）上报口；null 表示没接 EAP。上报都放进 EAP 的派发组件（EapNotifierComponent），按发生先后发。</summary>
-    public IE94Callback? E94Callback { get; set; }
-
-    #endregion
 
     #region 装配
 

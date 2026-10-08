@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -84,8 +84,26 @@ var eapNode = new ModuleConfig
         new ModuleConfig { Name = "Recipe", Type = typeof(E30RecipeComponent).FullName! },
         new ModuleConfig { Name = "E87", Type = typeof(E87Component).FullName! },
         new ModuleConfig { Name = "E90", Type = typeof(E90Component).FullName! },
-        new ModuleConfig { Name = "E40", Type = typeof(E40Component).FullName! },
-        new ModuleConfig { Name = "E94", Type = typeof(E94Component).FullName! },
+        new ModuleConfig
+        {
+            Name = "E40",
+            Type = typeof(E40Component).FullName!,
+            Values =
+            {
+                new ValueConfig { Name = "StartCommandName", Value = "HOST_PJ_START" },
+                new ValueConfig { Name = "PauseCommandName", Value = "HOST_PJ_PAUSE" },
+                new ValueConfig { Name = "ResumeCommandName", Value = "HOST_PJ_RESUME" },
+                new ValueConfig { Name = "StopCommandName", Value = "HOST_PJ_STOP" },
+                new ValueConfig { Name = "AbortCommandName", Value = "HOST_PJ_ABORT" },
+                new ValueConfig { Name = "CancelCommandName", Value = "HOST_PJ_CANCEL" },
+            },
+        },
+        new ModuleConfig
+        {
+            Name = "E94",
+            Type = typeof(E94Component).FullName!,
+            Values = { new ValueConfig { Name = "StartCommandName", Value = "HOST_START" } },
+        },
     },
 };
 var roots = ComponentLoader.Load([alarmNode, probeNode, eapNode]);
@@ -606,6 +624,81 @@ var s16f6 = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"), Sec
 Check(Acka(s16f6.Body!.Items[1]) && jobs.ProcessCommands.Last() == ("PJ-1", ProcessJobCommand.Start), "S16F5 START 翻成 PJ 启动");
 var unknownCommand = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"), SecsItem.A("Jump"), SecsItem.L()));
 Check(!Acka(unknownCommand.Body!.Items[1]), "不认识的 PJ 命令：ACKA=FALSE");
+
+// PJ 的 SC 别名与默认命令名（含两个启动名称）都通过真实 S16F5 入口解析。
+var e40 = eap.FindChild<E40Component>()!;
+Check(e40.StartCommandName == "HOST_PJ_START" && e40.StopCommandName == "HOST_PJ_STOP", "E40 命令字符串从 SC 加载");
+foreach (var command in new[]
+{
+    ("HOST_PJ_START", ProcessJobCommand.Start), ("HOST_PJ_PAUSE", ProcessJobCommand.Pause),
+    ("HOST_PJ_RESUME", ProcessJobCommand.Resume), ("HOST_PJ_STOP", ProcessJobCommand.Stop),
+    ("HOST_PJ_ABORT", ProcessJobCommand.Abort), ("HOST_PJ_CANCEL", ProcessJobCommand.Cancel),
+    ("START", ProcessJobCommand.Start), ("STARTPROCESS", ProcessJobCommand.Start),
+    ("PAUSE", ProcessJobCommand.Pause), ("RESUME", ProcessJobCommand.Resume),
+    ("STOP", ProcessJobCommand.Stop), ("ABORT", ProcessJobCommand.Abort), ("CANCEL", ProcessJobCommand.Cancel),
+})
+{
+    var reply = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"),
+        SecsItem.A($" {command.Item1.ToLowerInvariant()} "), SecsItem.L()));
+    Check(Acka(reply.Body!.Items[1]) && jobs.ProcessCommands.Last() == ("PJ-1", command.Item2),
+        $"PJ 的 SC 别名或默认名称 {command.Item1} 正确解析，忽略大小写与首尾空格");
+}
+int pjCommandCount = jobs.ProcessCommands.Count;
+Check((await SendExpectingAbort(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"), SecsItem.U1(1), SecsItem.L())))
+      .Contains("S9F7", StringComparison.Ordinal) && jobs.ProcessCommands.Count == pjCommandCount,
+    "PJ 的 PRCMDNAME 仍只收字符串，数字命令不调用 Job 管理");
+
+e40.StartCommandName = " stop ";
+pjCommandCount = jobs.ProcessCommands.Count;
+var pjConflict = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"), SecsItem.A("STOP"), SecsItem.L()));
+Check(!Acka(pjConflict.Body!.Items[1]) && jobs.ProcessCommands.Count == pjCommandCount,
+    "运行期间 Start 占用默认 Stop 名称时，拒绝而不误启动");
+e40.StartCommandName = "HOST_PJ_START";
+e40.PauseCommandName = " host_pj_start ";
+var pjDuplicate = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"), SecsItem.A("HOST_PJ_START"), SecsItem.L()));
+Check(!Acka(pjDuplicate.Body!.Items[1]) && jobs.ProcessCommands.Count == pjCommandCount,
+    "运行期间 PJ 的 SC 名称重复时拒绝执行");
+e40.PauseCommandName = "HOST_PJ_PAUSE";
+e40.StartCommandName = string.Empty;
+var pjEmpty = await Send(16, 5, SecsItem.L(SecsItem.U4(0), SecsItem.A("PJ-1"), SecsItem.A(" "), SecsItem.L()));
+Check(!Acka(pjEmpty.Body!.Items[1]) && jobs.ProcessCommands.Count == pjCommandCount,
+    "运行期间 PJ 的空名称不接受空字符串命令");
+e40.StartCommandName = "HOST_PJ_START";
+
+E40Component LoadPjSettings(params (string Name, string Value)[] values)
+{
+    var node = new ModuleConfig { Name = "E40", Type = typeof(E40Component).FullName! };
+    foreach (var value in values)
+    {
+        node.Values.Add(new ValueConfig { Name = value.Name, Value = value.Value });
+    }
+
+    return ComponentLoader.Load([node]).OfType<E40Component>().Single();
+}
+
+void RejectPjSettings(string reason, params (string Name, string Value)[] values)
+{
+    bool rejected = false;
+    try
+    {
+        LoadPjSettings(values);
+    }
+    catch (InvalidOperationException exception)
+    {
+        rejected = exception.Message.Contains(reason, StringComparison.Ordinal);
+    }
+
+    Check(rejected, $"PJ 装配时拒绝错误 SC：{reason}");
+}
+
+Check(LoadPjSettings().StartCommandName == "START", "PJ 未配置命令名时默认值通过装配校验");
+Check(LoadPjSettings(("StartCommandName", " startprocess ")).StartCommandName.Trim() == "startprocess",
+    "PJ 的 STARTPROCESS 用作启动名称时含义一致，允许装配");
+RejectPjSettings("不能为空", ("StartCommandName", " "));
+RejectPjSettings("都是", ("StartCommandName", "HOST_TASK"), ("PauseCommandName", " host_task "));
+RejectPjSettings("占用了", ("StartCommandName", " stop "), ("StopCommandName", "HOST_STOP"));
+RejectPjSettings("占用了", ("StartCommandName", "HOST_START"), ("PauseCommandName", "STARTPROCESS"));
+
 jobs.Snapshot = new JobListDto
 {
     ProcessJobs =
@@ -645,6 +738,80 @@ await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A("CjStop"), SecsItem
 Check(jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Stop, ControlJobAction.RemoveJobs), "CjStop 带 RemoveJobs（名字写法也认）");
 var badCommand = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.U1(9), SecsItem.L()));
 Check(!badCommand.Body!.Items[0].GetBooleanArray()[0] && badCommand.Body.Items[1].Count == 2, "不认识的 CJ 命令：ACKA=FALSE 带一条错误");
+var e94 = eap.FindChild<E94Component>()!;
+Check(e94.StartCommandName == "HOST_START" && e94.PauseCommandName == "CJPAUSE", "E94 命令字符串从 SC 加载，未配置的使用默认名称");
+var customStart = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A(" host_start "), SecsItem.L()));
+Check(customStart.Body!.Items[0].GetBooleanArray()[0]
+      && jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Start, ControlJobAction.SaveJobs),
+    "SC 自定义启动字符串：忽略大小写与首尾空格，翻成 Start");
+var standardFallback = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A("CJSTART"), SecsItem.L()));
+Check(standardFallback.Body!.Items[0].GetBooleanArray()[0]
+      && jobs.ControlCommands.Last() == ("CJ-1", ControlJobCommand.Start, ControlJobAction.SaveJobs),
+    "SC 改掉标准名后，标准命令名兜底仍能启动");
+
+e94.StartCommandName = "CJSTART";
+foreach (var command in new[]
+{
+    ("CJSTART", ControlJobCommand.Start), ("CJPAUSE", ControlJobCommand.Pause),
+    ("CJRESUME", ControlJobCommand.Resume), ("CJCANCEL", ControlJobCommand.Cancel),
+    ("CJDESELECT", ControlJobCommand.Deselect), ("CJSTOP", ControlJobCommand.Stop),
+    ("CJABORT", ControlJobCommand.Abort), ("CJHOQ", ControlJobCommand.HeadOfQueue),
+})
+{
+    var reply = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A(command.Item1), SecsItem.L()));
+    Check(reply.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Last().Command == command.Item2,
+        $"E94 默认命令字符串 {command.Item1} 保持原映射（假 Job 管理只记录命令）");
+}
+
+e94.StartCommandName = " cjstop ";
+int commandCount = jobs.ControlCommands.Count;
+var ambiguous = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A("CJSTOP"), SecsItem.L()));
+Check(!ambiguous.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Count == commandCount,
+    "SC 命令字符串重复时拒绝歧义命令，不误启动或停止");
+var numericStart = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.U1(1), SecsItem.L()));
+Check(numericStart.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Last().Command == ControlJobCommand.Start,
+    "数字命令 1 不受 SC 字符串配置影响");
+
+// SC 名称互不重复，但 Start 占用了默认 Stop 名称：不能把 Host 的停止请求变成启动。
+e94.StopCommandName = "HOST_STOP";
+commandCount = jobs.ControlCommands.Count;
+var reservedNameConflict = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A(" cJsToP "), SecsItem.L()));
+Check(!reservedNameConflict.Body!.Items[0].GetBooleanArray()[0]
+      && reservedNameConflict.Body.Items[1].Count == 2 && jobs.ControlCommands.Count == commandCount,
+    "SC 名称互不重复但与其他命令的默认名称冲突时，返回错误且不调用 Job 管理");
+var customStop = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A("HOST_STOP"), SecsItem.L()));
+Check(customStop.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Last().Command == ControlJobCommand.Stop,
+    "一个 SC 名称冲突不影响其他合法自定义名称");
+var numericStop = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.U1(6), SecsItem.L()));
+Check(numericStop.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Last().Command == ControlJobCommand.Stop,
+    "SC 名称与默认名称冲突不影响数字命令 6 的 Stop 含义");
+e94.StopCommandName = "CJSTOP";
+
+e94.StartCommandName = string.Empty;
+commandCount = jobs.ControlCommands.Count;
+var emptyCommand = await Send(16, 27, SecsItem.L(SecsItem.A("CJ-1"), SecsItem.A(" "), SecsItem.L()));
+Check(!emptyCommand.Body!.Items[0].GetBooleanArray()[0] && jobs.ControlCommands.Count == commandCount,
+    "空的 SC 命令名称不接受空字符串指令");
+e94.StartCommandName = "CJSTART";
+
+// 装配钩子：命令名占用其他命令默认名时直接拒绝启动（配置错开机暴露）。
+var badE94 = new ProbeE94
+{
+    StartCommandName = "CJSTOP",
+    StopCommandName = "HOST_STOP",
+};
+bool settingRejected = false;
+try
+{
+    badE94.LoadSetting(new ModuleConfig());
+}
+catch (InvalidOperationException)
+{
+    settingRejected = true;
+}
+
+Check(settingRejected, "装配钩子：SC 命令名占用其他命令默认名时拒绝启动");
+
 gem.RequestRemote(false);
 var local1 = await Send(16, 11, CreatePj("PJ-9", Material("CAR-C", 1), Recipe("SEQ-1")));
 var local2 = await Send(14, 9, CreateCj(Attribute("ObjID", SecsItem.A("CJ-9")),
@@ -1238,5 +1405,14 @@ sealed class FakeProcessRecipes() : FakeRecipes("values"), IProcessRecipeCompone
         {
             EapNotifierComponent.Current?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
+    }
+}
+
+/// <summary>冒烟用：把 protected internal 的装配钩子露出来，验证 SC 命令名配置校验。</summary>
+sealed class ProbeE94 : E94Component
+{
+    public void LoadSetting(ModuleConfig setting)
+    {
+        OnSettingLoaded(setting);
     }
 }

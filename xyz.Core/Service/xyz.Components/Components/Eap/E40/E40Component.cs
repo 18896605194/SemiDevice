@@ -3,6 +3,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Configs.Models;
 using xyz.Drivers.Loadport;
 using xyz.Secs;
 using xyz.Secs.Hsms;
@@ -12,13 +13,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// PJ 管理（SEMI E40，sc.xml 的 Eap 下的 E40 节点）：Host 的 S16 翻成 Job 管理的命令（IJobManager，跟本地界面同一套检查），
-/// PJ 的状态转换（Job 管理经 IE40Callback 报过来）翻成事件。PJ 的状态只在 Job 管理里有一份。
-/// ① S16F11 / S16F15 建 PJ：料要写成一个载具加槽号（槽表空 = 这个载具上正常的片都做），载具要已经在端口上；
-///    配方（RCPSPEC）就是流程配方名，不支持配方参数和暂停事件；
-/// ② S16F5 PJ 命令（Start / Pause / Resume / Stop / Abort / Cancel）、S16F17 撤掉排队的 PJ；
-/// ③ S16F19 列 PJ、S16F21 还能建几个、S16F1 多块询问；E39 对象 ProcessJob。
-/// 建、命令要 ON-LINE REMOTE；查在 ON-LINE 就行。
+/// PJ 管理（SEMI E40，sc.xml 的 Eap 下的 E40 节点）：Host 的 S16 翻成 Job 管理的命令
 /// </summary>
 [Component(description: "PJ 管理（SEMI E40）：S16 建 PJ、PJ 命令、查 PJ，PJ 状态转换报事件")]
 public class E40Component : ComponentBase, IE40Callback
@@ -31,6 +26,95 @@ public class E40Component : ComponentBase, IE40Callback
 
     /// <summary>GRANT：可以发。</summary>
     private const byte Granted = 0;
+
+    #region SC
+
+    [SCEditor("START", "E40", "S16F5 的 PJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
+    public string StartCommandName { get; set; } = "START";
+
+    [SCEditor("PAUSE", "E40", "S16F5 的 PJ 暂停命令字符串")]
+    public string PauseCommandName { get; set; } = "PAUSE";
+
+    [SCEditor("RESUME", "E40", "S16F5 的 PJ 恢复命令字符串")]
+    public string ResumeCommandName { get; set; } = "RESUME";
+
+    [SCEditor("STOP", "E40", "S16F5 的 PJ 停止命令字符串")]
+    public string StopCommandName { get; set; } = "STOP";
+
+    [SCEditor("ABORT", "E40", "S16F5 的 PJ 中止命令字符串")]
+    public string AbortCommandName { get; set; } = "ABORT";
+
+    [SCEditor("CANCEL", "E40", "S16F5 的 PJ 取消命令字符串")]
+    public string CancelCommandName { get; set; } = "CANCEL";
+
+    #endregion
+
+    /// <summary>
+    /// 装配校验
+    /// </summary>
+    /// <param name="setting"></param>
+    /// <exception cref="InvalidOperationException"></exception>
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
+    {
+        base.OnSettingLoaded(setting);
+
+        (string Name, ProcessJobCommand Command)[] commands =
+        [
+            (StartCommandName, ProcessJobCommand.Start),
+            (PauseCommandName, ProcessJobCommand.Pause),
+            (ResumeCommandName, ProcessJobCommand.Resume),
+            (StopCommandName, ProcessJobCommand.Stop),
+            (AbortCommandName, ProcessJobCommand.Abort),
+            (CancelCommandName, ProcessJobCommand.Cancel),
+        ];
+
+        foreach (var entry in commands)
+        {
+            string name = entry.Name?.Trim() ?? string.Empty;
+            if (name.Length == 0)
+            {
+                throw new InvalidOperationException($"{Name}：{entry.Command} 的命令字符串不能为空");
+            }
+
+            foreach (var standard in StandardCommands)
+            {
+                if (string.Equals(name, standard.Name, StringComparison.OrdinalIgnoreCase)
+                    && standard.Command != entry.Command)
+                {
+                    throw new InvalidOperationException(
+                        $"{Name}：{entry.Command} 的命令字符串 {name} 占用了 {standard.Command} 的默认名称 {standard.Name}");
+                }
+            }
+        }
+
+        for (int first = 0; first < commands.Length; first++)
+        {
+            for (int second = first + 1; second < commands.Length; second++)
+            {
+                string firstName = commands[first].Name?.Trim() ?? string.Empty;
+                string secondName = commands[second].Name?.Trim() ?? string.Empty;
+                if (string.Equals(firstName, secondName, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"{Name}：{commands[first].Command} 和 {commands[second].Command} 的命令字符串都是 {firstName}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 默认命令名：用于兜底，并检查 SC 是否占用了其他命令的名称
+    /// </summary>
+    private static readonly (string Name, ProcessJobCommand Command)[] StandardCommands =
+    [
+        ("START", ProcessJobCommand.Start),
+        ("STARTPROCESS", ProcessJobCommand.Start),
+        ("PAUSE", ProcessJobCommand.Pause),
+        ("RESUME", ProcessJobCommand.Resume),
+        ("STOP", ProcessJobCommand.Stop),
+        ("ABORT", ProcessJobCommand.Abort),
+        ("CANCEL", ProcessJobCommand.Cancel),
+    ];
 
     #region DV、事件
 
@@ -111,13 +195,24 @@ public class E40Component : ComponentBase, IE40Callback
 
     #endregion
 
+    #region 组件+服务
+
     private E30Component? _gem;
     private IJobManager? _jobs;
     private IReadOnlyList<ILoadPort> _ports = [];
 
+    #endregion
+
     #region 接设备
 
-    /// <summary>接到链路和 Job 管理上（EAP 组件在链路打开之前调）：挂 E40 上报口，登记 S16 的 PJ 报文和 E39 对象类型 ProcessJob。</summary>
+    /// <summary>
+    /// 挂载eap
+    /// </summary>
+    /// <param name="link"></param>
+    /// <param name="gem"></param>
+    /// <param name="objects"></param>
+    /// <param name="jobs"></param>
+    /// <param name="ports"></param>
     public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs, IReadOnlyList<ILoadPort> ports)
     {
         ArgumentNullException.ThrowIfNull(link);
@@ -137,7 +232,9 @@ public class E40Component : ComponentBase, IE40Callback
         objects?.Register(new ProcessJobType(this));
     }
 
-    /// <summary>从 Job 管理上摘下来（宿主退出时）。</summary>
+    /// <summary>
+    /// 宿主退出时
+    /// </summary>
     public void Detach()
     {
         var jobs = _jobs;
@@ -170,7 +267,11 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region S16 报文
 
-    /// <summary>S16F1 多块询问 → S16F2 GRANT=0。</summary>
+    /// <summary>
+    /// S16F1 多块询问 → S16F2 GRANT=0。
+    /// </summary>
+    /// <param name="message"></param>
+    /// <returns></returns>
     private SecsReply Inquire(HsmsMessage message)
     {
         return SecsReply.Of(SecsItem.B(Granted));
@@ -298,23 +399,14 @@ public class E40Component : ComponentBase, IE40Callback
 
     /// <summary>
     /// S16F5 PJ 命令 → S16F6 L[2]{PRJOBID, L[2]{ACKA, 错误表}}：L[4]{DATAID, PRJOBID, PRCMDNAME, L{参数}}。
-    /// PRCMDNAME：START（也认 STARTPROCESS）/ PAUSE / RESUME / STOP / ABORT / CANCEL，不分大小写。
+    /// PRCMDNAME 只收命令字符串：优先识别 SC 名称，默认 START（也认 STARTPROCESS）/ PAUSE / RESUME / STOP / ABORT / CANCEL 兜底。
     /// </summary>
     private async Task<SecsReply> CommandAsync(HsmsMessage message)
     {
         var body = SecsRead.List(SecsRead.Body(message), "S16F5", 4);
         string id = SecsRead.Text(body[1], "PRJOBID").Trim();
-        string name = SecsRead.Text(body[2], "PRCMDNAME").Trim().ToUpperInvariant();
-        ProcessJobCommand? command = name switch
-        {
-            "START" or "STARTPROCESS" => ProcessJobCommand.Start,
-            "PAUSE" => ProcessJobCommand.Pause,
-            "RESUME" => ProcessJobCommand.Resume,
-            "STOP" => ProcessJobCommand.Stop,
-            "ABORT" => ProcessJobCommand.Abort,
-            "CANCEL" => ProcessJobCommand.Cancel,
-            _ => null,
-        };
+        string name = SecsRead.Text(body[2], "PRCMDNAME").Trim();
+        var command = ParseCommand(name);
 
         List<E5Error> errors;
         if (command is null)
@@ -327,6 +419,57 @@ public class E40Component : ComponentBase, IE40Callback
         }
 
         return SecsReply.Of(SecsItem.L(SecsItem.A(GemValue.Ascii(id)), Ack(errors)));
+    }
+
+    /// <summary>解析 PJ 命令名；运行期间 SC 被修改后，仍拒绝重复名称或与默认名称含义冲突的命令。</summary>
+    private ProcessJobCommand? ParseCommand(string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0)
+        {
+            return null;
+        }
+
+        (string Name, ProcessJobCommand Command)[] commands =
+        [
+            (StartCommandName, ProcessJobCommand.Start),
+            (PauseCommandName, ProcessJobCommand.Pause),
+            (ResumeCommandName, ProcessJobCommand.Resume),
+            (StopCommandName, ProcessJobCommand.Stop),
+            (AbortCommandName, ProcessJobCommand.Abort),
+            (CancelCommandName, ProcessJobCommand.Cancel),
+        ];
+        ProcessJobCommand? matched = null;
+        foreach (var entry in commands)
+        {
+            if (!string.Equals(name, entry.Name?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (matched is not null)
+            {
+                return null;
+            }
+
+            matched = entry.Command;
+        }
+
+        foreach (var entry in StandardCommands)
+        {
+            if (string.Equals(name, entry.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                if (matched is not null && matched != entry.Command)
+                {
+                    LogHelper.Warn(Name, $"PJ 命令字符串配置冲突：{name} 在 SC 中表示 {matched}，默认名称表示 {entry.Command}，拒绝执行");
+                    return null;
+                }
+
+                return entry.Command;
+            }
+        }
+
+        return matched;
     }
 
     private async Task<List<E5Error>> RunCommandAsync(string id, ProcessJobCommand command)
@@ -435,16 +578,16 @@ public class E40Component : ComponentBase, IE40Callback
 
         value = attribute switch
         {
-            "ObjType" => SecsItem.A("ProcessJob"),
-            "ObjID" => SecsItem.A(GemValue.Ascii(job.Id)),
-            "PauseEvent" => SecsItem.L(),
-            "ProcessJobState" => SecsItem.U1((byte)job.State),
-            "PrMtlNameList" => MaterialOf(job),
-            "PrMtlType" => SecsItem.B(MaterialCarriers),
-            "PrProcessStart" => SecsItem.Boolean(job.AutoStart),
-            "PrRecipeMethod" => SecsItem.U1(RecipeOnly),
-            "RecID" => SecsItem.A(GemValue.Ascii(job.Sequence)),
-            "RecVariableList" => SecsItem.L(),
+            ProcessJobNames.ObjType => SecsItem.A(ProcessJobNames.ObjectType),
+            ProcessJobNames.ObjId => SecsItem.A(GemValue.Ascii(job.Id)),
+            ProcessJobNames.PauseEvent => SecsItem.L(),
+            ProcessJobNames.ProcessJobState => SecsItem.U1((byte)job.State),
+            ProcessJobNames.PrMtlNameList => MaterialOf(job),
+            ProcessJobNames.PrMtlType => SecsItem.B(MaterialCarriers),
+            ProcessJobNames.PrProcessStart => SecsItem.Boolean(job.AutoStart),
+            ProcessJobNames.PrRecipeMethod => SecsItem.U1(RecipeOnly),
+            ProcessJobNames.RecId => SecsItem.A(GemValue.Ascii(job.Sequence)),
+            ProcessJobNames.RecVariableList => SecsItem.L(),
             _ => SecsItem.L(),
         };
         return true;
@@ -460,13 +603,9 @@ public class E40Component : ComponentBase, IE40Callback
             _owner = owner;
         }
 
-        public string TypeName => "ProcessJob";
+        public string TypeName => ProcessJobNames.ObjectType;
 
-        public IReadOnlyList<string> AttributeNames { get; } =
-        [
-            "ObjType", "ObjID", "PauseEvent", "ProcessJobState", "PrMtlNameList", "PrMtlType", "PrProcessStart", "PrRecipeMethod", "RecID",
-            "RecVariableList",
-        ];
+        public IReadOnlyList<string> AttributeNames => ProcessJobNames.Attributes;
 
         public IReadOnlyList<string> ObjectIds()
         {
@@ -480,4 +619,27 @@ public class E40Component : ComponentBase, IE40Callback
     }
 
     #endregion
+}
+
+/// <summary>E39/E40 的 PJ 对象类型及属性名，统一保留协议中的名称写法。</summary>
+public static class ProcessJobNames
+{
+    public const string ObjectType = "ProcessJob";
+    public const string ObjType = "ObjType";
+    public const string ObjId = "ObjID";
+    public const string PauseEvent = "PauseEvent";
+    public const string ProcessJobState = "ProcessJobState";
+    public const string PrMtlNameList = "PrMtlNameList";
+    public const string PrMtlType = "PrMtlType";
+    public const string PrProcessStart = "PrProcessStart";
+    public const string PrRecipeMethod = "PrRecipeMethod";
+    public const string RecId = "RecID";
+    public const string RecVariableList = "RecVariableList";
+
+    // 保持原有顺序，Host 使用数字 ATTRID 时按此顺序定位属性。
+    public static IReadOnlyList<string> Attributes { get; } =
+    [
+        ObjType, ObjId, PauseEvent, ProcessJobState, PrMtlNameList, PrMtlType, PrProcessStart, PrRecipeMethod, RecId,
+        RecVariableList,
+    ];
 }

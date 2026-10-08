@@ -483,8 +483,26 @@
 			<Value Name="AutoUnload" Value="True" />
 		</Setting>
 		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />
-		<Setting Name="E40" Type="xyz.Components.Components.E40Component" />
-		<Setting Name="E94" Type="xyz.Components.Components.E94Component" />
+		<!-- PJ 命令名称按 EAP 约定配置；默认名称（含 STARTPROCESS）保留兜底，名称不能重复或占用其他命令的默认名称 -->
+		<Setting Name="E40" Type="xyz.Components.Components.E40Component">
+			<Value Name="StartCommandName" Value="START" />
+			<Value Name="PauseCommandName" Value="PAUSE" />
+			<Value Name="ResumeCommandName" Value="RESUME" />
+			<Value Name="StopCommandName" Value="STOP" />
+			<Value Name="AbortCommandName" Value="ABORT" />
+			<Value Name="CancelCommandName" Value="CANCEL" />
+		</Setting>
+		<!-- CJ 命令字符串按 EAP 约定配置（忽略大小写及首尾空格，名称不能重复或占用其他命令的默认名称）；数值命令 1~8 保持固定 -->
+		<Setting Name="E94" Type="xyz.Components.Components.E94Component">
+			<Value Name="StartCommandName" Value="CJSTART" />
+			<Value Name="PauseCommandName" Value="CJPAUSE" />
+			<Value Name="ResumeCommandName" Value="CJRESUME" />
+			<Value Name="CancelCommandName" Value="CJCANCEL" />
+			<Value Name="DeselectCommandName" Value="CJDESELECT" />
+			<Value Name="StopCommandName" Value="CJSTOP" />
+			<Value Name="AbortCommandName" Value="CJABORT" />
+			<Value Name="HeadOfQueueCommandName" Value="CJHOQ" />
+		</Setting>
 	</Setting>
 	<!-- 清洗腔：驱动还没接，四个动作在机型代码里按常量计时假装完成。
 	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。
