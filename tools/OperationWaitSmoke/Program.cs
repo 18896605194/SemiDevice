@@ -520,7 +520,9 @@ port.E87Callback = null;
         "界面按来源复位应走到组件的 Reset、清掉报警");
     Check(!alarms.Reset("NoSuchSource"), "没报过报警的来源复位返回 false");
 
-    // LoadPort 动作失败 → 受控停止
+    // LoadPort 动作失败 → 受控停止（先放上载具，没载具 Load 发不起来）
+    port.NotePodPlaced(true);
+    port.Tick();
     port.NoteState(ModuleState.Idle);
     var failedLoad = new ProbeOperation();
     Check(port.BeginAction(LoadPortAction.Load, failedLoad) is not null, "Idle 应能发起 Load");
@@ -1190,6 +1192,8 @@ port.E87Callback = null;
     // Stop：关自动派单，只给正在执行动作的模块发中止（闲着的不碰）；Data 是发了中止的个数
     Check(equipment.AutoAsync(new RpcRequest()).Result.Success, "再切回 Auto");
     mainPort.Open();
+    mainPort.NotePodPlaced(true);
+    mainPort.Tick();
     mainPort.NoteState(ModuleState.Idle);
     var running = new ProbeOperation();
     Check(mainPort.BeginAction(LoadPortAction.Load, running) is not null && mainPort.CurrentOperation is not null,
@@ -1320,10 +1324,11 @@ port.E87Callback = null;
     var stuckLoad = pollPort.Shell.Load();
     Check(stuckLoad is not null, "发一条 Load 指令（假通道不回它）");
     Check(pollPort.Shell.Load() is null, "同名指令还在途时再发被拒");
+    // 端口上这时没载具（上面判拿走了），Load 发不起来，用 Home 当那个没做成的动作
     pollPort.NoteState(ModuleState.Idle);
-    var failedLoad = new ProbeOperation();
-    Check(pollPort.BeginAction(LoadPortAction.Load, failedLoad) is not null, "Idle 应能发起 Load");
-    failedLoad.TimeOut();
+    var failedHome = new ProbeOperation();
+    Check(pollPort.BeginAction(LoadPortAction.Home, failedHome) is not null, "Idle 应能发起 Home");
+    failedHome.TimeOut();
     pollPort.Tick();
     Check(stuckLoad!.IsCompleted && stuckLoad.Response is not null && !stuckLoad.Response.IsSuccess,
         "动作没做成：在途的指令作废，等它的人不会一直等");
@@ -1408,6 +1413,10 @@ port.E87Callback = null;
     var plainComm = plain.Shell.Comm;
     Check(plain.Open(), "平台默认动作用的端口应能打开");
     plain.NoteState(ModuleState.Idle);
+    Check(plain.Load() is null && plain.State == ModuleState.Idle && plainComm.SentCount("MOV:CLOAD") == 0,
+        "端口上没载具：平台默认 Load 不发");
+    plain.NotePodPlaced(true);
+    plain.Tick();
     var plainLoad = plain.Load();
     Check(plainLoad is not null && plain.State == LoadPortState.Loading, "平台默认 Load：空闲能发起，进 Loading");
     Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 发的是 FCD 的 CLOAD");
@@ -1433,10 +1442,91 @@ port.E87Callback = null;
         "没连上：指令发不出去，判被拒（command_rejected）");
     plain.Close();
 
+    // 10) 复位只清错、中止只停：没初始化、出过错的复位完是 NotInit（要再 Home，照老 CTC），中止也绕不过复位和 Home；
+    //     门开着没在动（Loaded、正被机械手取放）的复位 / 中止完照状态查询的门位落回 Loaded，门关着、查不到、载具不在，
+    //     或者打断的是门在动的动作（Load / Unload / Home），落 Idle
+    var resetPort = new ProbePort("ResetStatePort");
+    Check(resetPort.Open(), "复位用的端口应能打开");
+    var doorOpen = new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorOpen = true };
+    var doorClosed = new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorClosed = true };
+
+    // 从 from 状态发一个动作、做成，返回做完落的状态
+    int StateAfter(int from, LoadPortAction action, LoadPortStatus? status)
+    {
+        resetPort.NoteState(from);
+        resetPort.NoteStatus(status);
+        var operation = new ProbeOperation();
+        Check(resetPort.BeginAction(action, operation) is not null, $"状态 {from} 应能发起 {action}");
+        operation.Succeed();
+        resetPort.Tick();
+        return resetPort.State;
+    }
+
+    resetPort.NoteState(ModuleState.Idle);
+    Check(resetPort.BeginAction(LoadPortAction.Load, new ProbeOperation()) is null && resetPort.State == ModuleState.Idle,
+        "端口上没载具：Load 发不起来（模块自己拦，机型重写了 Load 也走这一关）");
+    resetPort.NotePodPlaced(true);
+    resetPort.Tick();
+    resetPort.LoadInterlocked = true;
+    Check(resetPort.BeginAction(LoadPortAction.Load, new ProbeOperation()) is null && resetPort.State == ModuleState.Idle,
+        "机型重写了 Load 联锁（LoadInterlock）：载具在也不让 Load");
+    resetPort.LoadInterlocked = false;
+
+    Check(StateAfter(ModuleState.Error, LoadPortAction.Reset, doorOpen) == ModuleState.NotInit,
+        "出过错的复位完是 NotInit，要再 Home（门开着也一样）");
+    Check(StateAfter(ModuleState.NotInit, LoadPortAction.Reset, null) == ModuleState.NotInit,
+        "没初始化的复位完还是没初始化：不能拿复位跳过 Home");
+    Check(StateAfter(ModuleState.NotInit, LoadPortAction.Abort, null) == ModuleState.NotInit,
+        "没初始化的中止完还是没初始化");
+    Check(StateAfter(ModuleState.Error, LoadPortAction.Abort, doorOpen) == ModuleState.Error,
+        "出过错的中止完还是出错：中止绕不过复位");
+    Check(StateAfter(ModuleState.Idle, LoadPortAction.Reset, doorOpen) == ModuleState.Idle,
+        "空闲的复位完还是空闲");
+
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorOpen) == LoadPortState.Loaded && resetPort.IsLoaded,
+        "Load 好了、门开着：复位完还是 Loaded（不掉成 Idle，机械手接着能进，不用再 Load 重建账）");
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorClosed) == ModuleState.Idle,
+        "Load 好了但状态查询说门关着：复位完落 Idle");
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, null) == ModuleState.Idle,
+        "查不到门位：复位完落 Idle");
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Abort, doorOpen) == LoadPortState.Loaded,
+        "Load 好了、门开着：中止完还是 Loaded");
+    Check(StateAfter(TransferModuleState.Transferring, LoadPortAction.Abort, doorOpen) == LoadPortState.Loaded
+          && resetPort.CanPrepare,
+        "机械手取片失败卡在取放中：人确认后中止，门开着回 Loaded，机械手又能来取");
+    Check(StateAfter(TransferModuleState.Transferring, LoadPortAction.Abort, doorClosed) == ModuleState.Idle,
+        "卡在取放中、门却关着：中止完落 Idle");
+
+    // 打断的是门在动的动作：门可能停在半路、状态查询可能还是打断前的，一律不回 Loaded
+    resetPort.NoteState(ModuleState.Idle);
+    resetPort.NoteStatus(doorOpen);
+    var movingLoad = new ProbeOperation();
+    var stopLoad = new ProbeOperation();
+    Check(resetPort.BeginAction(LoadPortAction.Load, movingLoad) is not null
+          && resetPort.BeginAction(LoadPortAction.Abort, stopLoad) is not null, "Load 做到一半被中止顶替");
+    stopLoad.Succeed();
+    resetPort.Tick();
+    Check(resetPort.State == ModuleState.Idle, "打断的是 Load（门在动）：状态查询说门开着也落 Idle，让人 Home");
+
+    resetPort.NoteState(ModuleState.Idle);
+    var movingHome = new ProbeOperation();
+    var stopHome = new ProbeOperation();
+    Check(resetPort.BeginAction(LoadPortAction.Home, movingHome) is not null
+          && resetPort.BeginAction(LoadPortAction.Abort, stopHome) is not null, "Home 做到一半被中止顶替");
+    stopHome.Succeed();
+    resetPort.Tick();
+    Check(resetPort.State == ModuleState.NotInit, "Home 被中止打断：还是没初始化");
+
+    resetPort.NotePodPlaced(false);
+    resetPort.Tick();
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorOpen) == ModuleState.Idle,
+        "载具不在了：门开着也不回 Loaded");
+    resetPort.Close();
+
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error or an interrupted Home, Loaded while the door stays open, and Load refused without a carrier).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -1567,6 +1657,11 @@ sealed class ProbePort : BaseLoadPortModule
 
     /// <summary>走真路径发起动作（状态表 + 操作登记），不是 Load() 那种直接返回。</summary>
     public ModuleOperation? BeginAction(LoadPortAction action, ModuleOperation operation) => Begin(action, operation);
+
+    /// <summary>顶替机型自己加的 Load 联锁条件（光幕、机械手缩回这类）：为真时不让 Load。</summary>
+    public bool LoadInterlocked { get; set; }
+
+    protected override bool LoadInterlock() => base.LoadInterlock() && !LoadInterlocked;
     private ModuleOperation? Take() { Calls++; return Next; }
     public override ModuleOperation? Load() => Take();
     public override ModuleOperation? Unload() => Take();
@@ -1601,6 +1696,9 @@ sealed class PlainPort : BaseLoadPortModule
 
     /// <summary>直接摆状态，省去先跑一遍 Home。</summary>
     public void NoteState(int state) => State = state;
+
+    /// <summary>顶替驱动的 PODON/PODOF 主动事件，下一拍扫描生效。</summary>
+    public void NotePodPlaced(bool placed) => NotePodEvent(placed);
 }
 
 // 探针 LoadPort 品牌壳：只把传输换成假通道，编解码/驱动/指令都是生产代码。

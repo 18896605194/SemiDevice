@@ -538,6 +538,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     private LoadPortAction _action;
 
+    /// <summary>这趟动作发起前模块在什么状态：复位、中止做完按它判门有没有在动（见 KeepLoadedIfDoorOpen）。</summary>
+    private int _actionFrom;
+
     /// <summary>
     /// 发起一次读码。读码要走好几轮握手（几百毫秒），所以这里只发起、不等结果——
     /// 读完之后 CarrierId 会更新，并回调 EAP 的 CarrierIdRead / CarrierIdReadFailed。
@@ -659,7 +662,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 发起 Load（开门 + Mapping）：平台默认发驱动的 Load 指令，成功后把 Mapping 结果落下来（UpdateSlotMap）。
-    /// 机型的 Load 要多做别的步骤就重写。
+    /// Load 联锁（LoadInterlock，默认要载具到了）不让发时返回 null。机型的 Load 要多做别的步骤就重写。
     /// </summary>
     public virtual ModuleOperation? Load()
     {
@@ -696,6 +699,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（E84、_rfid），再发设备复位清错。
     /// 返回设备复位操作，调用方等它做完；状态不允许时为 null，报警照样已经清了。
+    /// 复位只清错：没初始化、出过错的复位完是 NotInit，要再 Home；Load 好了的复位完门还开着就还是 Loaded。
     /// </summary>
     public override ModuleOperation? Reset()
     {
@@ -713,7 +717,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 中止（重写组件基类的 Abort）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
-    /// 返回设备中止操作；状态不允许时为 null。
+    /// 返回设备中止操作；状态不允许时为 null。中止只停：没初始化、Home 被打断的中止完是 NotInit，出错的还是 Error，
+    /// 门开着没在动的（Loaded、正被机械手取放）还是 Loaded，其余落 Idle。
     /// </summary>
     public override ModuleOperation? Abort()
     {
@@ -786,17 +791,35 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override bool CanBeginAction => IsEnable && _driver is not null;
 
     /// <summary>
-    /// 发起动作：发起这件事走基类，这儿只多记一笔"这趟发的是什么动作"——终结时按它回调 EAP。
+    /// Load 联锁：现在能不能发 Load。平台默认看载具到了没有（IsCarrierArrived）——没载具设备只会回错，白白落 Error、报受控停止。
+    /// 机型有别的条件（光幕、机械手缩回……）就重写，先调 base。在 Begin 里查，手动、E87 自动 Load、机型重写的 Load 都过这一关。
+    /// 在模块锁里调：里面只读状态，别等待、别去拿别的模块的锁。
+    /// </summary>
+    protected virtual bool LoadInterlock()
+    {
+        return IsCarrierArrived;
+    }
+
+    /// <summary>
+    /// 发起动作：发起这件事走基类，这儿多记两笔——这趟发的是什么动作（终结时按它回调 EAP）、发之前模块在什么状态（复位、中止做完按它落状态）。
     /// 记在同一把锁里：否则扫描线程可能在记上之前就把操作终结了，回调就发错。
+    /// Load 先过联锁（LoadInterlock），不让发返回 null。
     /// </summary>
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
     {
         lock (OperationGate)
         {
+            if (action == LoadPortAction.Load && !LoadInterlock())
+            {
+                return null;
+            }
+
+            int from = State;
             var started = base.Begin(action, operation);
             if (started is not null)
             {
                 _action = action;
+                _actionFrom = from;
             }
 
             return started;
@@ -843,6 +866,31 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 EnqueueE87(callback => callback.AccessStopped(this));
                 EnqueueE87(callback => callback.UnloadCompleted(this));
                 break;
+
+            case LoadPortAction.Reset:
+            case LoadPortAction.Abort:
+                KeepLoadedIfDoorOpen();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 复位只清错、中止只停，门不会因为它们动：动作前门开着没在动（Loaded，或正被机械手取放），做完状态查询看门还开着、载具还在，
+    /// 就落回 Loaded，不照状态表落 Idle。落 Idle 的话门开着却点不了 Unload、机械手也进不来，只能再 Load 一遍——
+    /// 重新 Mapping 整篮重建账，片换了标识，Job 里这一盒剩下的片都对不上了。机械手取片失败后端口卡在取放中，人确认后点中止就走这条回 Loaded。
+    /// 打断的是 Load / Unload / Home 这种门在动的，门可能停在半路、状态查询也可能还是打断前的，照旧落 Idle，让人 Home。
+    /// </summary>
+    private void KeepLoadedIfDoorOpen()
+    {
+        if (State != ModuleState.Idle || !IsLoadedState(_actionFrom))
+        {
+            return;
+        }
+
+        var status = Status;
+        if (status is not null && status.IsDoorOpen && IsCarrierArrived)
+        {
+            State = LoadPortState.Loaded;
         }
     }
 
@@ -935,14 +983,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>载具 Load 好了：Loaded，或者正被机械手服务（交互环的几个状态）。</summary>
-    public bool IsLoaded
+    public bool IsLoaded => IsLoadedState(State);
+
+    /// <summary>这个状态码算不算 Load 好了（门开着、没在动）：Loaded，或者交互环的几个状态。</summary>
+    private static bool IsLoadedState(int state)
     {
-        get
-        {
-            int state = State;
-            return state == LoadPortState.Loaded
-                || (state >= LoadPortState.PreTransfer && state <= LoadPortState.TransferComplete);
-        }
+        return state == LoadPortState.Loaded
+            || (state >= LoadPortState.PreTransfer && state <= LoadPortState.TransferComplete);
     }
 
     /// <summary>
@@ -970,7 +1017,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>端口空闲（Idle）：不在做动作、不在被机械手服务。</summary>
-    public bool IsIdle => State == ModuleState.Idle;
+    public bool IsIdle => State == LoadPortState.Idle;
 
     #endregion
 

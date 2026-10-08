@@ -21,17 +21,24 @@ public static class LoadPortStateTable
             [(ModuleState.Error, LoadPortAction.Home)] = (LoadPortState.Homing, ModuleState.Idle),
             [(LoadPortState.Loaded, LoadPortAction.Home)] = (LoadPortState.Homing, ModuleState.Idle),
 
-            // Reset 不占用独立执行状态。
-            [(ModuleState.NotInit, LoadPortAction.Reset)] = (ModuleState.NotInit, ModuleState.Idle),
+            // Reset 只清错、不动机构，不占用独立执行状态。没初始化、出过错的复位完还是没初始化，要再 Home 一次（照老 CTC）；
+            // Loaded 复位完先落 Idle，门其实开着的由模块按状态查询改回 Loaded（BaseLoadPortModule.OnOperationCompleted）。
+            [(ModuleState.NotInit, LoadPortAction.Reset)] = (ModuleState.NotInit, ModuleState.NotInit),
             [(ModuleState.Idle, LoadPortAction.Reset)] = (ModuleState.Idle, ModuleState.Idle),
-            [(ModuleState.Error, LoadPortAction.Reset)] = (ModuleState.Error, ModuleState.Idle),
+            [(ModuleState.Error, LoadPortAction.Reset)] = (ModuleState.Error, ModuleState.NotInit),
             [(LoadPortState.Loaded, LoadPortAction.Reset)] = (LoadPortState.Loaded, ModuleState.Idle),
 
             // Clamp/Unclamp 只在空闲（门关）时允许；Loaded（门开）不允许松开。
             [(ModuleState.Idle, LoadPortAction.Clamp)] = (LoadPortState.Clamping, ModuleState.Idle),
             [(ModuleState.Idle, LoadPortAction.Unclamp)] = (LoadPortState.Unclamping, ModuleState.Idle),
 
-            // null 表示任意当前状态。
+            // Abort 只停、能顶替任何在途动作。没初始化、Home 被打断的中止完还是没初始化；出错的中止完还是出错——
+            // 不然点一下中止就绕过了复位和 Home。
+            [(ModuleState.NotInit, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.NotInit),
+            [(LoadPortState.Homing, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.NotInit),
+            [(ModuleState.Error, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.Error),
+
+            // 其余（null 表示任意当前状态）先落 Idle，门开着、没在动的由模块按状态查询改回 Loaded。
             [(null, LoadPortAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle)
         };
 

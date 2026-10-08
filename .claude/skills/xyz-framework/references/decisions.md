@@ -178,8 +178,23 @@
   **35021 的 `LoadPortModule` 留着（空类），给机型自己的设备、动作扩展**（用户定的）。机械手、腔体以后多机型时照这个收。
 - 改名（2026-10-06，用户提的）：合成的在位叫 `IsCarrierArrived`（载具到了），状态查询的原始位叫 `IsPresent` / `IsPlaced`，
   `LoadPortStatus` 的开关量一律 `Is` 开头（设备自己的自动模式位叫 `IsDeviceAutoMode`，跟模块的 `IsAutoMode` 分开）。
-- 还押着的：复位 / 中止后一律落 Idle（门其实还开着）这条，用户说后面再说；开着 EAP 时，开机已在端口上的盒子在 EAP 接上之前就判到了，
+- 还押着的：开着 EAP 时，开机已在端口上的盒子在 EAP 接上之前就判到了，
   到达、读码回调会丢（E87 只知道端口有盒、没有载具对象），开 EAP 之前要补"EAP 接上时把端口上已有的载具补报一遍"。
+
+## LoadPort 复位 / 中止落的状态、没载具不 Load（2026-10-08，对照老 CTC 后用户定的）
+- **手动动作不跟 Job 挂钩**（用户："我只是手动为啥要和 job 关联"）：手动页的 Load / Unload / Home / Reset / Abort 不看有没有 Job，
+  服务层不加卡控（用户："LoadPortService 卡控肯定不是加在这里，这里只是手动的"），检查都在模块里。CTC 后台也不认 Job。
+- **复位只清错、中止只停，落的状态照实际**（以前一律落 Idle，门开着却点不了 Unload、机械手也进不来，只能再 Load 重建账，Job 里这一盒的片就对不上了；
+  机械手从 LoadPort 取片失败卡在取放中，也只能这样出来）。用户选的"a1 小改"：状态表照旧管大部分，模块 `Begin` 记下动作前的状态，
+  Reset / Abort 做成后在 `OnOperationCompleted` 里——动作前在 Loaded 或交互环（门没在动）、状态查询门开、载具在位，就落回 Loaded，否则照表落 Idle。
+  打断的是 Load / Unload / Home（门在动，查询可能是旧的）不回 Loaded。CTC 的做法是 Loaded 不当模块状态、直接读门 / Dock / 夹紧传感器（a2），用户没选。
+- **没初始化、出过错的复位完是 NotInit，要再 Home**（用户："reset 之后状态应该是未初始化"，照 CTC Error + Reset → Init）；
+  中止跟着不能绕：NotInit / Homing 中止完 NotInit，Error 中止完还是 Error。这几条写在状态表里。
+- **没载具不 Load**（用户："其实就是那个到位信号"）：做成 Load 联锁虚方法 `LoadInterlock()`（用户提的"搞一个 LoadInterlock 虚方法给默认实现"；
+  我改过一次 CanLoad，用户要改回 LoadInterlock，别再改名），返回 true = 放行，默认看 `IsCarrierArrived`，机型重写加条件；在 `Begin` 里调（不放 `Load()` 里，
+  机型重写 Load 忘了调就漏了），手动、E87、机型的 Load 都过。手动点了回笼统的"动作被拒"，没另加错误码。
+- 我自己定的（交付时说了）：没加"有搬运在用这个口就不回 Loaded"——要查搬运管理会跟模块锁互相拿锁，35021 只有一台机械手，
+  两台机械手共用一个 LoadPort 又在对方手伸在盒里时点中止才会撞。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。
