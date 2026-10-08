@@ -15,6 +15,9 @@ public interface IPjManager
     ProcessJob? Get(string id);
     string? OwnerOf(Guid wafer);
 
+    /// <summary>料到了才定片的 PJ：任务行生成以后登记这些片归它（Queue 的时候还没有片）。</summary>
+    void RegisterWafers(ProcessJob processJob);
+
     HandleResult Queue(ProcessJob processJob);
     HandleResult Setup(ProcessJob processJob);
     HandleResult WaitForStart(ProcessJob processJob);

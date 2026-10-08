@@ -645,8 +645,11 @@ bool Acka(SecsItem ack) => ack.Items[0].GetBooleanArray()[0];
 var s16f12 = await Send(16, 11, CreatePj("PJ-1", Material("CAR-C"), Recipe("SEQ-1")));
 Check(s16f12.Body!.Items[0].GetString() == "PJ-1" && Acka(s16f12.Body.Items[1]), "S16F11 建 PJ：ACKA=TRUE");
 var spec = jobs.ProcessJobs.Last();
-Check(spec.CarrierId == "CAR-C" && spec.Slots.SequenceEqual([1, 2]) && spec.Sequence == "SEQ-1",
-    "翻成 Job 管理的建 PJ：载具、槽（槽表空 = 载具上的片都做）、流程配方");
+Check(spec.CarrierId == "CAR-C" && spec.LoadPort is null && spec.Slots.Count == 0 && spec.Sequence == "SEQ-1",
+    "翻成 Job 管理的建 PJ：按载具号、流程配方；槽表空原样交过去（料到了由 Job 管理照槽图取全部有片的槽）");
+var notArrived = await Send(16, 11, CreatePj("PJ-W", Material("CAR-W", 3, 4), Recipe("SEQ-1")));
+Check(Acka(notArrived.Body!.Items[1]) && jobs.ProcessJobs.Last().CarrierId == "CAR-W" && jobs.ProcessJobs.Last().Slots.SequenceEqual([3, 4]),
+    "载具还不在任何端口上也照样交给 Job 管理建（料没到先建 PJ），不在 EAP 这边拒");
 var withParameters = await Send(16, 11, CreatePj("PJ-2", Material("CAR-C", 1), Recipe("SEQ-1", SecsItem.L(SecsItem.A("Temp"), SecsItem.U4(80)))));
 Check(!Acka(withParameters.Body!.Items[1]) && withParameters.Body.Items[1].Items[1].Items[0].Items[0].GetUInt64() == 21,
     "带配方参数：ACKA=FALSE、ERRCODE 21");
@@ -865,6 +868,15 @@ var pjAttributes = await Send(14, 1, GetAttr("ProcessJob", ["PJ-1"], SecsItem.L(
 var pj = pjAttributes.Body!.Items[0].Items[0].Items[1];
 Check(pj.Items[0].Items[1].GetUInt64() == 3 && pj.Items[1].Items[1].GetString() == "SEQ-1"
       && pj.Items[2].Items[1].Items[0].Items[0].GetString() == "CAR-C", "S14F1 查 PJ：状态、配方、料（载具号用 PJ 建的时候记下的）");
+jobs.Snapshot.ProcessJobs.Add(new ProcessJobDto
+{
+    Id = "PJ-W", State = (int)ProcessJobState.QueuedPooled, Sequence = "SEQ-1", CarrierId = "CAR-W", Slots = [3, 4], ControlJob = "CJ-W",
+});
+var waitingMaterial = (await Send(14, 1, GetAttr("ProcessJob", ["PJ-W"], SecsItem.L(), "PrMtlNameList"))).Body!.Items[0].Items[0].Items[1].Items[0].Items[1];
+Check(waitingMaterial.Items[0].Items[0].GetString() == "CAR-W"
+      && waitingMaterial.Items[0].Items[1].Items.Select(slot => slot.GetUInt64()).SequenceEqual(new ulong[] { 3, 4 }),
+    "料没到的 PJ 查料：报载具号和建的时候要的槽号");
+jobs.Snapshot.ProcessJobs.RemoveAt(jobs.Snapshot.ProcessJobs.Count - 1);
 var cjAttributes = await Send(14, 1, GetAttr("ControlJob", [], SecsItem.L(), "State", "CurrentPrJob"));
 var cj = cjAttributes.Body!.Items[0].Items[0].Items[1];
 Check(cj.Items[0].Items[1].GetUInt64() == 3 && cj.Items[1].Items[1].Items[0].GetString() == "PJ-1", "S14F1 查 CJ：状态、在跑的 PJ");

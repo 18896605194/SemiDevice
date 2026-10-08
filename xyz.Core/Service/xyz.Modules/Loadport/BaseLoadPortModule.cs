@@ -945,17 +945,27 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
     }
 
-    /// <summary>载具可以取放片：模块已启用、载具已到位且 Load 完成；正被机械手服务时仍然可用。</summary>
+    /// <summary>
+    /// 载具可以取放片：模块已启用、载具已到位且 Load 完成，槽图也认定了；正被机械手服务时仍然可用。
+    /// 接了 EAP（E87）的槽图要等 Host 认定（E87 写回 Verified）才能动片，免得 Host 还没核对完、或者核对不过就已经取走了；
+    /// 没接 EAP 没人核对，Load 好（槽图读了）就算。
+    /// </summary>
     public bool IsCarrierReady
     {
         get
         {
-            if (!IsEnabled || !IsCarrierArrived)
+            if (!IsEnabled || !IsCarrierArrived || !IsLoaded)
             {
                 return false;
             }
 
-            return IsLoaded;
+            if (E87Callback is null)
+            {
+                return true;
+            }
+
+            var carrier = _carrier;
+            return carrier is not null && carrier.SlotMapStatus == CarrierSlotMapStatus.Verified;
         }
     }
 

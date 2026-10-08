@@ -241,8 +241,11 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   启动方式由 Job 节点的 SC `ProcessJobAutoStart`（默认 True）和 `ControlJobAutoStart`（默认 False）决定：True 准备好直接开始，False 等待对应的 Start 命令。
   E40 建 PJ 报文的 PRPROCESSSTART、E94 建 CJ 的 StartMethod 只校验格式、不覆盖 SC；查询、上报和历史记录中的 AutoStart 反映设备配置。
   CJ / PJ 不保存 CarrierInstance，CJ 完成后检测到来源 LoadPort 的 IsCarrierArrived=False 才删除；载具仍在位时保留结果。
-  载具是否可取放片由 `BaseLoadPortModule.IsCarrierReady` 判断（模块启用、载具到位、IsLoaded）；Job 创建、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
-  `CreateControlJobAsync(loadPort, processJobs, ...)` 用 PJ 名称集合关联 CJ，指定口与任何 PJ 不匹配时整个拒绝、PJ 不受影响；
+  载具是否可取放片由 `BaseLoadPortModule.IsCarrierReady` 判断（模块启用、载具到位、IsLoaded，接了 EAP 时槽图被 Host 认定）；Job 创建、定片、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
+  **料没到先建 PJ**：Host 按载具号建（不给 loadPort）时载具不在口上或还不能取片，PJ 照样建、排队，只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），
+  任务行空着（`IsWaitingForMaterial`）；扫描每拍先定片（`AssignWaitingProcessJobs` → `AssignWafers`，跟当场建同一段检查），定好挂任务表、`IPjManager.RegisterWafers` 登记片归属、
+  给 CJ 填口；定不了报 `MaterialUnusableAlarm`、日志写原因、PJ 留在排队。CJ 收没定片的 PJ 时口空着、按载具号查重（`job.carrier_busy`），要下面的 PJ 都定了片才转执行。
+  `CreateControlJobAsync(loadPort, processJobs, ...)` 用 PJ 名称集合关联 CJ，指定口与任何 PJ 不匹配（或 PJ 还没定片）时整个拒绝、PJ 不受影响；
   `CreateJobAsync(loadPort, processJobs, ...)` 使用已有 PJ，内部调用创建 CJ，回 `JobCreatedDto`，不再新建 PJ 或任务行。
   `IPjManager` / `ICjManager` 提供对象状态动作；对外 `IJobManager` 提供 CJ/PJ 明确命令方法。CJ 的 Stop / Abort / Cancel 可选择 SaveJobs / RemoveJobs，
   PJ 的 Cancel 只取消未开始的 PJ、释放晶圆归属。Start / Pause / Resume / Stop / Abort / Cancel 异步方法各自直接处理对应动作；枚举命令入口只负责选择这些方法，不作为内部公共执行入口。
@@ -325,7 +328,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - **E90**：挂在晶圆账上（`IE90Callback`），按账报片的位置（在来源 / 机内 / 回到载具）和工艺（要做 / 在做 / 做完 / 中止 / 没做成 / 跳过）、片位有没有片；
   接了 E87 时 LoadPort 上的片等槽图认定才建片对象。片位号：单槽的位置用模块名，多槽的用"模块名.两位槽号"。没有读片号的设备，片号核对不做。
 - **E40 / E94**：Host 的 S16F11 / 15 / 5 / 17 / 19 / 21 / 27、S14F9 翻成 `IJobManager` 的命令（来源 Host），被拒的错误码经 `JobErrors` 翻成 E5；
-  建 PJ 的料只收一个载具加槽号（槽表空 = 载具上正常的片），载具要已经在端口上；不支持配方参数、暂停事件、改回片地方。
+  建 PJ 的料只收一个载具加槽号（槽表空原样交给 Job 管理 = 料到了取载具上正常的片），料可以还没到（Job 管理先建着等）；料没到时报料报要的槽号；
+  不支持配方参数、暂停事件、改回片地方。
   PJ / CJ 的状态转换（`IE40Callback` / `IE94Callback`）报 PrJobSMTrans01~18 / CtrlJobSMTrans01~13。
 - 冒烟：`HsmsSmoke`（链路和分发）、`EapSmoke`（各标准对假 Host、假 LoadPort、真晶圆账、假 Job 管理、假配方库）；
   两个真配方库的按名字列、取、存、删和上报在 `SequenceSmoke` / `ProcessRecipeSmoke` 里测。

@@ -94,7 +94,7 @@ public class EapComponent : ComponentBase
         }
         else
         {
-            processJobs?.Attach(link, gem, objects, jobs, ports);
+            processJobs?.Attach(link, gem, objects, jobs);
             controlJobs?.Attach(link, gem, objects, jobs);
         }
 

@@ -15,15 +15,28 @@ public sealed class ProcessJob
     /// <summary>流程配方快照（建 PJ 时从库里取的副本：之后库里改名、改内容、删掉都不影响这个 PJ）。</summary>
     public required SequenceData Sequence { get; init; }
 
-    /// <summary>载具号：建 PJ 时来源 LoadPort 上那个载具的（没读到为 null）。EAP 按它找 PJ、报料。</summary>
+    /// <summary>
+    /// 载具号：Host 建的是 Host 给的（料可能还没到）；本地建的是来源 LoadPort 上那个载具的（没读到为 null）。EAP 按它找 PJ、报料，料没到时按它认载具。
+    /// </summary>
     public string? CarrierId { get; init; }
+
+    /// <summary>
+    /// 要做的槽号，按投片顺序（建 PJ 时给的）。Host 没给槽号为空：料到了取载具上全部有片的槽。
+    /// 料到之前任务行还没有，报料（E40 的 PRMtlNameList）就报这个。
+    /// </summary>
+    public IReadOnlyList<int> Slots { get; init; } = [];
 
     public string? LotId { get; init; }
 
     public ProcessJobState State { get; internal set; } = ProcessJobState.Created;
 
-    /// <summary>这个 PJ 的片，一片一行任务，按投片顺序（取片顺序在建 PJ 时排好）。</summary>
+    /// <summary>这个 PJ 的片，一片一行任务，按投片顺序。料到了（载具 Load 好、接了 EAP 时槽图也认定了）才定片、生成；在这之前是空的。</summary>
     public List<TaskRow> Rows { get; } = [];
+
+    /// <summary>
+    /// 上次定片没成的原因（错误码和参数）：料到了但用不了时记下，同样的原因不重复记日志；定片成了清掉。只由 Job 的扫描线程读写。
+    /// </summary>
+    internal string? MaterialError { get; set; }
 
     public DateTime CreatedAt { get; init; } = DateTime.Now;
 
@@ -42,6 +55,9 @@ public sealed class ProcessJob
     internal long RowId { get; set; }
 
     public bool IsEnded => EndedBy is not null;
+
+    /// <summary>料还没到：还没定片（任务行没生成）。定了片的 PJ 至少有一片。</summary>
+    public bool IsWaitingForMaterial => Rows.Count == 0;
 
     /// <summary>还有没投的片。</summary>
     public bool HasWaitingRows => Rows.Any(row => row.IsWaiting);

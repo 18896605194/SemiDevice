@@ -85,7 +85,7 @@
     <sys:String x:Key="job.id_invalid">Name {0} is invalid: use 1-80 letters, digits, symbols or spaces, without ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">Name {0} is already used by a job that has not ended</sys:String>
     <sys:String x:Key="job.loadport_not_found">LoadPort {0} not found</sys:String>
-    <sys:String x:Key="job.carrier_not_ready">{0} has no carrier ready for picking (not placed, not loaded, or not mapped)</sys:String>
+    <sys:String x:Key="job.carrier_not_ready">{0} has no carrier ready for picking (not placed, not loaded, not mapped, or slot map not yet verified by the host when EAP is connected)</sys:String>
     <sys:String x:Key="job.loadport_busy">{0} already has an unfinished job {1}</sys:String>
     <sys:String x:Key="job.no_wafers">{0}: no wafers selected (no slot has a Sequence)</sys:String>
     <sys:String x:Key="job.slot_empty">{0} slot {1} is empty</sys:String>
@@ -100,6 +100,8 @@
     <sys:String x:Key="job.recipe_not_found">Recipe {1} used by sequence {0} is not in the recipe library</sys:String>
     <sys:String x:Key="job.carrier_not_found">Carrier {0} is not on any LoadPort</sys:String>
     <sys:String x:Key="job.process_job_unavailable">PJ {0} does not exist or already belongs to another CJ</sys:String>
+    <sys:String x:Key="job.slot_claimed">Wafers requested on carrier {0} already belong to PJ {1} (overlapping slots, or one of them takes the whole carrier)</sys:String>
+    <sys:String x:Key="job.carrier_busy">Carrier {0} already has an unfinished job {1}</sys:String>
     <sys:String x:Key="job.station_task_unsupported">Step {1} of sequence {0}: station {2} does not support the {3} task</sys:String>
     <sys:String x:Key="job.task_not_found">PJ {0} has no wafer from source slot {1}, or no task {2}</sys:String>
     <sys:String x:Key="job.task_not_error">Task {2} of {1} in PJ {0} has not failed; nothing to handle</sys:String>

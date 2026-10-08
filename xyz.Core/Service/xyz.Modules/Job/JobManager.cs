@@ -10,6 +10,7 @@ using xyz.Components.Interfaces;
 using xyz.Database;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
+using xyz.Drivers.Loadport;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
@@ -109,6 +110,18 @@ public class JobManager : ComponentBase, IJobManager
     {
         get { return SlowScanAlarmMs; }
     }
+
+    #endregion
+
+    #region 报警
+
+    [Alarm("PJ 等的载具到了，但定不了片", AlarmCategory.ProcessError,
+        AlarmLevel = AlarmLevel.Alarm1,
+        Description = "Host 先建的 PJ 等的载具到了 LoadPort、也能取片了，但片用不了：槽里没片、片不正常或已经做过、片归了别的 PJ、"
+            + "流程配方第 1 步没勾这个 LoadPort、回片槽用不了、这个口被别的 Job 占着等。PJ 留在排队不动，哪个 PJ、什么原因看 Job 的日志",
+        Solution = "核对载具和 PJ 要做的槽：不做了让 Host 停止 / 中止它的 CJ（排队的 PJ 一起删掉），没归 CJ 的取消这个 PJ；"
+            + "要做就这样收场后按实际的片重新建")]
+    public string MaterialUnusableAlarm = nameof(MaterialUnusableAlarm);
 
     #endregion
 
@@ -252,11 +265,12 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(portError);
             }
 
-            string sourceName = port.Name;
+            // 本地建（给了 LoadPort）要挑片；Host 建（按载具号）没给槽号 = 料到了取载具上全部有片的槽
+            bool byCarrier = string.IsNullOrWhiteSpace(loadPort);
             var selectedSlots = slots.Distinct().ToList();
-            if (selectedSlots.Count == 0)
+            if (!byCarrier && selectedSlots.Count == 0)
             {
-                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, sourceName));
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, port!.Name));
             }
 
             var ledger = WaferManagerComponent.Current;
@@ -265,68 +279,39 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.WaferLedgerDisabled));
             }
 
-            var sequenceError = TryTakeSequence(sequence.Trim(), sourceName, out var sequenceSnapshot);
+            var sequenceError = TryTakeSequence(sequence.Trim(), out var sequenceSnapshot);
             if (sequenceError is not null)
             {
                 return Task.FromResult(sequenceError);
+            }
+
+            string? carrier = port is not null ? port.CarrierId : carrierId!.Trim();
+            if (byCarrier)
+            {
+                var claimError = CheckSlotsFree(carrier!, selectedSlots);
+                if (claimError is not null)
+                {
+                    return Task.FromResult(claimError);
+                }
             }
 
             var job = new ProcessJob
             {
                 Id = id,
                 Sequence = sequenceSnapshot,
-                CarrierId = port.CarrierId,
+                CarrierId = carrier,
+                Slots = selectedSlots,
                 LotId = string.IsNullOrWhiteSpace(lotId) ? null : lotId.Trim(),
             };
 
-            foreach (int slot in selectedSlots)
+            // 料已经在、能取片了就当场定片（查片、定回片槽、生成任务行），不行整个不建；料没到先建着，扫描里等料到了再定
+            if (port is not null && port.IsCarrierReady)
             {
-                string slotText = slot.ToString(CultureInfo.InvariantCulture);
-                var wafer = ledger.Get(sourceName, slot);
-                if (wafer is null)
+                var assignError = AssignWafers(job, port);
+                if (assignError is not null)
                 {
-                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobSlotEmpty, sourceName, slotText));
+                    return Task.FromResult(assignError);
                 }
-
-                if (wafer.Status != WaferStatus.Normal)
-                {
-                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferNotNormal, sourceName, slotText, wafer.WaferId, wafer.Status.ToString()));
-                }
-
-                if (wafer.ProcessState != WaferProcessState.Idle)
-                {
-                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferProcessed, sourceName, slotText, wafer.WaferId, wafer.ProcessState.ToString()));
-                }
-
-                string? owner = _processJobs.OwnerOf(wafer.Id);
-                if (owner is not null)
-                {
-                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobWaferOwned, wafer.WaferId, owner));
-                }
-
-                var returnError = PickReturnSlot(sequenceSnapshot, sourceName, slot, out string returnPort);
-                if (returnError is not null)
-                {
-                    return Task.FromResult(returnError);
-                }
-
-                job.Rows.Add(new TaskRow
-                {
-                    Owner = id,
-                    WaferId = wafer.Id,
-                    WaferName = wafer.WaferId,
-                    SourcePort = sourceName,
-                    SourceSlot = slot,
-                    ReturnPort = returnPort,
-                    ReturnSlot = slot,
-                });
-            }
-
-            // 每片的任务行照流程配方生成（任务组件管）
-            var taskError = Tasks.Build(job);
-            if (taskError is not null)
-            {
-                return Task.FromResult(taskError);
             }
 
             _processJobs.Add(job);
@@ -346,6 +331,11 @@ public class JobManager : ComponentBase, IJobManager
                 _processJobs.Remove(job);
                 Tasks.Close(job);
                 throw;
+            }
+
+            if (job.IsWaitingForMaterial)
+            {
+                LogHelper.Info(Name, $"PJ {id} 建好了，等载具 {carrier} 到 LoadPort、能取片（Load 好，接了 EAP 时槽图认定）再定片");
             }
 
             Publish();
@@ -402,9 +392,18 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(idError);
             }
 
+            // 下面的 PJ 要是同一个载具的：定了片的在同一个 LoadPort；料没到的按载具号认，口等它们定片时再填。
+            // 指定了 LoadPort（本地建）的只收已经定了片的 PJ，免得口对不上。
             var processes = new List<ProcessJob>();
             string id = name;
-            string? portName = loadPort?.Trim();
+            string? givenPort = loadPort?.Trim();
+            if (string.IsNullOrEmpty(givenPort))
+            {
+                givenPort = null;
+            }
+
+            string? portName = givenPort;
+            string? carrier = null;
             foreach (string processId in processJobs)
             {
                 var process = _processJobs.Get(processId.Trim());
@@ -414,33 +413,68 @@ public class JobManager : ComponentBase, IJobManager
                     return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
                 }
 
-                string port = process.Rows.Count > 0 ? process.Rows[0].SourcePort : string.Empty;
-                if (portName is not null && !string.Equals(portName, port, StringComparison.OrdinalIgnoreCase))
+                if (process.IsWaitingForMaterial)
                 {
-                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
+                    if (givenPort is not null)
+                    {
+                        return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
+                    }
+                }
+                else
+                {
+                    string port = process.Rows[0].SourcePort;
+                    if (portName is not null && !string.Equals(portName, port, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
+                    }
+
+                    portName = port;
                 }
 
-                portName = port;
+                if (!string.IsNullOrEmpty(process.CarrierId))
+                {
+                    if (carrier is null)
+                    {
+                        carrier = process.CarrierId;
+                    }
+                    else if (!string.Equals(carrier, process.CarrierId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
+                    }
+                }
+
                 processes.Add(process);
             }
 
-            if (processes.Count == 0 || portName is null)
+            if (processes.Count == 0)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, id));
             }
 
-            var busy = _controlJobs.FindByLoadPort(portName);
-            if (busy is not null)
+            if (portName is not null)
             {
-                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobLoadPortBusy, portName, busy.Id));
+                var busy = _controlJobs.FindByLoadPort(portName);
+                if (busy is not null)
+                {
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobLoadPortBusy, portName, busy.Id));
+                }
+            }
+            else
+            {
+                // 料都没到：同一个载具已经有没删的 CJ 就不收（到了也只能有一个 CJ 占那个口）
+                var busy = _controlJobs.FindByCarrier(carrier!);
+                if (busy is not null)
+                {
+                    return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCarrierBusy, carrier!, busy.Id));
+                }
             }
 
-            // 载具跟着 PJ：PJ 建的时候 LoadPort 上那个载具
+            // 载具跟着 PJ：本地建的是 PJ 建的时候 LoadPort 上那个载具，Host 建的是 Host 给的载具号
             var job = new ControlJob
             {
                 Id = id,
-                LoadPort = portName,
-                CarrierId = processes[0].CarrierId,
+                LoadPort = portName ?? string.Empty,
+                CarrierId = carrier,
                 LotId = lot ?? processes[0].LotId,
             };
 
@@ -1524,59 +1558,58 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// 料在哪个 LoadPort：给了 LoadPort 就按它（本地建，载具号可能没读到），没给按载具号找（Host 建，载具要已经在 LoadPort 上）；
-    /// 载具要能取片（放着、Load 好）。
+    /// 料在哪个 LoadPort：给了 LoadPort 就按它（本地建，载具号可能没读到），载具要能取片（放着、Load 好，接了 EAP 时槽图认定）；
+    /// 没给按载具号找（Host 建）：载具在哪个口上就是哪个，还没到为 null（先建着，料到了再定片）。
     /// </summary>
-    private HandleResult? FindLoadPort(string? loadPort, string? carrierId, out BaseLoadPortModule port)
+    private HandleResult? FindLoadPort(string? loadPort, string? carrierId, out BaseLoadPortModule? port)
     {
-        port = null!;
+        port = null;
         string name = (loadPort ?? string.Empty).Trim();
-        BaseLoadPortModule? found;
         if (name.Length > 0)
         {
-            found = LoadPort(name);
+            var found = LoadPort(name);
             if (found is null)
             {
                 return HandleResult.Fail(ErrorCodes.JobLoadPortNotFound, name);
             }
-        }
-        else
-        {
-            string carrier = (carrierId ?? string.Empty).Trim();
-            found = carrier.Length == 0
-                ? null
-                : LoadPorts.FirstOrDefault(item => string.Equals(item.CarrierId, carrier, StringComparison.OrdinalIgnoreCase) && item.IsCarrierArrived);
-            if (found is null)
+
+            if (!found.IsCarrierReady)
             {
-                return HandleResult.Fail(ErrorCodes.JobCarrierNotFound, carrier);
+                return HandleResult.Fail(ErrorCodes.JobCarrierNotReady, found.Name);
             }
+
+            port = found;
+            return null;
         }
 
-        port = found;
-        if (!found.IsCarrierReady)
+        string carrier = (carrierId ?? string.Empty).Trim();
+        if (carrier.Length == 0)
         {
-            return HandleResult.Fail(ErrorCodes.JobCarrierNotReady, found.Name);
+            return HandleResult.Fail(ErrorCodes.JobCarrierNotFound, carrier);
         }
 
+        port = FindCarrierPort(carrier);
         return null;
     }
 
+    /// <summary>这个载具在哪个 LoadPort 上（载具号不分大小写）；不在任何口上为 null。</summary>
+    private BaseLoadPortModule? FindCarrierPort(string carrierId)
+    {
+        return LoadPorts.FirstOrDefault(item => item.IsCarrierArrived
+            && string.Equals(item.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
-    /// 取流程配方快照（库里的副本）：要在库里、至少三步；第 1 步勾了来源 LoadPort；最后一步有回片的 LoadPort。
-    /// 中间每一站的工艺配方、能去的站点由任务组件生成任务表时查。
+    /// 取流程配方快照（库里的副本）：要在库里、至少三步；最后一步有回片的 LoadPort。
+    /// 第 1 步勾没勾来源 LoadPort 等定片时查（Host 先建的 PJ 这时候还不知道料在哪个口）；中间每一站的工艺配方、能去的站点由任务组件生成任务表时查。
     /// </summary>
-    private HandleResult? TryTakeSequence(string name, string loadPort, out SequenceData sequence)
+    private HandleResult? TryTakeSequence(string name, out SequenceData sequence)
     {
         sequence = null!;
         var found = SequenceComponent.Current?.Find(name);
         if (found is null || found.Steps.Count < 3)
         {
             return HandleResult.Fail(ErrorCodes.JobSequenceNotFound, name);
-        }
-
-        if (!found.Steps[0].Stations.Contains(loadPort, StringComparer.OrdinalIgnoreCase))
-        {
-            return HandleResult.Fail(ErrorCodes.JobSequenceSourceMismatch, found.Name, loadPort);
         }
 
         if (ReturnPorts(found).Count == 0)
@@ -1586,6 +1619,139 @@ public class JobManager : ComponentBase, IJobManager
 
         sequence = found;
         return null;
+    }
+
+    /// <summary>
+    /// Host 按载具号建 PJ：同一个载具上要做的片不能归两个没结束的 PJ——槽号重了，或者其中一个没给槽号（= 整个载具）。
+    /// 料没到的 PJ 还没有片，只能这样按载具号、槽号查；定片时再按片查一遍归属（<see cref="AssignWafers"/>）。
+    /// </summary>
+    private HandleResult? CheckSlotsFree(string carrierId, IReadOnlyList<int> slots)
+    {
+        foreach (var other in _processJobs.ProcessJobs)
+        {
+            if (!string.Equals(other.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var taken = other.IsWaitingForMaterial ? other.Slots : other.Rows.Select(row => row.SourceSlot).ToList();
+            if (slots.Count == 0 || taken.Count == 0 || slots.Intersect(taken).Any())
+            {
+                return HandleResult.Fail(ErrorCodes.JobSlotClaimed, carrierId, other.Id);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 给 PJ 定片（料在这个 LoadPort 上、能取片了）：流程配方第 1 步要勾这个口；没给槽号的取载具上全部有片的槽；
+    /// PJ 归了 CJ 而 CJ 还没定口的，这个口不能被别的 CJ 占着；每槽要有片、片正常、没做过、不归别的 PJ，定好回片槽，再照流程配方生成任务行。
+    /// 有一项不行就回原因，任务行一行不留。建 PJ 时料已经在就当场定；料没到的扫描里等料到了定（<see cref="AssignWaitingProcessJobs"/>）。
+    /// 这里只生成行；挂进任务表、登记片归属由调用方做。
+    /// </summary>
+    private HandleResult? AssignWafers(ProcessJob job, BaseLoadPortModule port)
+    {
+        string sourceName = port.Name;
+        var sequence = job.Sequence;
+        if (!sequence.Steps[0].Stations.Contains(sourceName, StringComparer.OrdinalIgnoreCase))
+        {
+            return HandleResult.Fail(ErrorCodes.JobSequenceSourceMismatch, sequence.Name, sourceName);
+        }
+
+        var ledger = WaferManagerComponent.Current;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
+        }
+
+        var slots = job.Slots.Count > 0 ? job.Slots : OccupiedSlots(port);
+        if (slots.Count == 0)
+        {
+            return HandleResult.Fail(ErrorCodes.JobNoWafers, sourceName);
+        }
+
+        var control = job.ControlJob;
+        if (control is not null && control.LoadPort.Length == 0)
+        {
+            var busy = _controlJobs.FindByLoadPort(sourceName);
+            if (busy is not null)
+            {
+                return HandleResult.Fail(ErrorCodes.JobLoadPortBusy, sourceName, busy.Id);
+            }
+        }
+
+        var rows = new List<TaskRow>();
+        foreach (int slot in slots)
+        {
+            string slotText = slot.ToString(CultureInfo.InvariantCulture);
+            var wafer = ledger.Get(sourceName, slot);
+            if (wafer is null)
+            {
+                return HandleResult.Fail(ErrorCodes.JobSlotEmpty, sourceName, slotText);
+            }
+
+            if (wafer.Status != WaferStatus.Normal)
+            {
+                return HandleResult.Fail(ErrorCodes.JobWaferNotNormal, sourceName, slotText, wafer.WaferId, wafer.Status.ToString());
+            }
+
+            if (wafer.ProcessState != WaferProcessState.Idle)
+            {
+                return HandleResult.Fail(ErrorCodes.JobWaferProcessed, sourceName, slotText, wafer.WaferId, wafer.ProcessState.ToString());
+            }
+
+            string? owner = _processJobs.OwnerOf(wafer.Id);
+            if (owner is not null)
+            {
+                return HandleResult.Fail(ErrorCodes.JobWaferOwned, wafer.WaferId, owner);
+            }
+
+            var returnError = PickReturnSlot(sequence, sourceName, slot, out string returnPort);
+            if (returnError is not null)
+            {
+                return returnError;
+            }
+
+            rows.Add(new TaskRow
+            {
+                Owner = job.Id,
+                WaferId = wafer.Id,
+                WaferName = wafer.WaferId,
+                SourcePort = sourceName,
+                SourceSlot = slot,
+                ReturnPort = returnPort,
+                ReturnSlot = slot,
+            });
+        }
+
+        // 每片的任务行照流程配方生成（任务组件管）；生成不了就一行不留，PJ 还是没定片
+        job.Rows.AddRange(rows);
+        var taskError = Tasks.Build(job);
+        if (taskError is not null)
+        {
+            job.Rows.Clear();
+            return taskError;
+        }
+
+        return null;
+    }
+
+    /// <summary>载具上有片的槽（槽图里正常和有片说不准的），从下往上：Host 没给槽号时就做这些。</summary>
+    private static List<int> OccupiedSlots(BaseLoadPortModule port)
+    {
+        var slots = new List<int>();
+        var map = port.SlotMap;
+        for (int index = 0; index < map.Count; index++)
+        {
+            var state = map[index];
+            if (state == SlotState.CorrectlyOccupied || state == SlotState.NotEmpty)
+            {
+                slots.Add(index + 1);
+            }
+        }
+
+        return slots;
     }
 
     /// <summary>流程配方最后一步勾的、装了的 LoadPort：回片从这里定。</summary>
@@ -1748,8 +1914,8 @@ public class JobManager : ComponentBase, IJobManager
     #region 扫描
 
     /// <summary>
-    /// 每拍固定五步：① 调度引擎收做完的（搬运、站内任务），结果记回任务表 → ② 任务组件核对片位 → ③ 按任务进度提交 PJ、CJ 状态动作、定许可 →
-    /// ④ 调度引擎派新任务 → ⑤ 发布当前快照。整拍拿着命令那把锁，命令和扫描不会交叉着改。
+    /// 每拍固定六步：① 调度引擎收做完的（搬运、站内任务），结果记回任务表 → ② 任务组件核对片位 → ③ 料没到先建的 PJ，料到了定片 →
+    /// ④ 按任务进度提交 PJ、CJ 状态动作、定许可 → ⑤ 调度引擎派新任务 → ⑥ 发布当前快照。整拍拿着命令那把锁，命令和扫描不会交叉着改。
     /// </summary>
     protected override void OnScan()
     {
@@ -1766,9 +1932,58 @@ public class JobManager : ComponentBase, IJobManager
         {
             scheduler.Collect(tasks);
             tasks.CheckPositions();
+            AssignWaitingProcessJobs();
             Advance();
             Dispatch(scheduler, tasks);
             Publish();
+        }
+    }
+
+    /// <summary>
+    /// ③ 料没到先建的 PJ（还在排队）：载具到了某个 LoadPort、能取片了（Load 好，接了 EAP 时槽图也被 Host 认定了）就定片——
+    /// 任务行挂进任务表、登记片归属，归了 CJ 而 CJ 还没定口的把口填上。定不了（槽里没片、片不正常、流程配方没勾这个口……）就报警、
+    /// 日志写清哪个 PJ、什么原因（同样的原因只记一次），PJ 留在排队等人或 Host 收场（停掉 CJ，或取消没归 CJ 的 PJ）；
+    /// 每拍还会再试（账改对了就接着定），报警复位了还没解决会再报。
+    /// </summary>
+    private void AssignWaitingProcessJobs()
+    {
+        foreach (var job in _processJobs.ProcessJobs)
+        {
+            if (!job.IsWaitingForMaterial || job.State != ProcessJobState.QueuedPooled || string.IsNullOrEmpty(job.CarrierId))
+            {
+                continue;
+            }
+
+            var port = FindCarrierPort(job.CarrierId);
+            if (port is null || !port.IsCarrierReady)
+            {
+                continue;
+            }
+
+            var error = AssignWafers(job, port);
+            if (error is not null)
+            {
+                RaiseAlarm(MaterialUnusableAlarm);
+                string reason = $"{error.ErrorMessage} [{string.Join(", ", error.Args)}]";
+                if (reason != job.MaterialError)
+                {
+                    job.MaterialError = reason;
+                    LogHelper.Warn(Name, $"PJ {job.Id} 等的载具 {job.CarrierId} 到了 {port.Name}，但定不了片：{reason}。PJ 留在排队，核对后取消或重新建");
+                }
+
+                continue;
+            }
+
+            job.MaterialError = null;
+            Tasks.Add(job);
+            _processJobs.RegisterWafers(job);
+            var control = job.ControlJob;
+            if (control is not null && control.LoadPort.Length == 0)
+            {
+                control.LoadPort = port.Name;
+            }
+
+            LogHelper.Info(Name, $"PJ {job.Id} 的料到了：{port.Name} 槽 {string.Join(",", job.Rows.Select(row => row.SourceSlot))}");
         }
     }
 
@@ -1890,7 +2105,10 @@ public class JobManager : ComponentBase, IJobManager
         return changed;
     }
 
-    /// <summary>按载具状态及下属 PJ 的完成情况提交 CJ 动作。</summary>
+    /// <summary>
+    /// 按载具状态及下属 PJ 的完成情况提交 CJ 动作。料到了（E94 #5 / #6）= 载具能取片、下面没结束的 PJ 都定了片；
+    /// 料没到的 CJ 还没定口（LoadPort 为空），找不到口就一直等在选中。
+    /// </summary>
     private bool AdvanceControlJobs()
     {
         bool changed = false;
@@ -1903,7 +2121,8 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
-                && port?.IsCarrierReady == true)
+                && port?.IsCarrierReady == true
+                && job.ProcessJobs.All(process => process.IsEnded || !process.IsWaitingForMaterial))
             {
                 if (ControlJobAutoStart)
                 {

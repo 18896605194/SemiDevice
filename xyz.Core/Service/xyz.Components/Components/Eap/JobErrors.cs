@@ -21,6 +21,8 @@ internal static class JobErrors
         [ErrorCodes.JobEnding] = E5Error.InvalidState,
         [ErrorCodes.JobNotAuto] = E5Error.InvalidState,
         [ErrorCodes.JobLoadPortBusy] = E5Error.InvalidState,
+        [ErrorCodes.JobCarrierBusy] = E5Error.InvalidState,
+        [ErrorCodes.JobSlotClaimed] = E5Error.InvalidAttributeValue,
         [ErrorCodes.JobIdInvalid] = E5Error.InvalidAttributeValue,
         [ErrorCodes.JobIdDuplicate] = E5Error.IdentifierInUse,
         [ErrorCodes.JobWaferNotNormal] = E5Error.InvalidAttributeValue,

@@ -68,6 +68,7 @@ internal static class JobDtos
             ControlJob = job.ControlJob?.Id ?? string.Empty,
             LotId = job.LotId ?? string.Empty,
             CarrierId = job.CarrierId ?? string.Empty,
+            Slots = job.Slots.ToList(),
             Sequence = job.Sequence.Name,
             SequenceRevision = job.Sequence.Revision,
             State = (int)job.State,

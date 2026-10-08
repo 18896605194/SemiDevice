@@ -25,7 +25,8 @@ using xyz.Tools;
 // Job 冒烟：搬运管理（受理时的各项检查、两次操作抢一个槽、取片确认、任务顺序执行、没动手失败放锁、动过手失败留锁、中止收尾）
 // 和 Job（SEMI E94 CJ / E40 PJ）：建 Job 的各项检查和整个不留（含站点不支持要用的任务、一站的站点都用不了、工艺配方不在库里）、任务表（一片一行：取片、放片、工艺……）、
 // 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
-// CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、整机停止走 Job 中止、
+// CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、
+// 料没到先建 PJ（载具到了、Load 好、接了 EAP 时槽图被认定才定片；同一载具的槽和 CJ 不能重；定不了片报警、PJ 留在排队）、整机停止走 Job 中止、
 // 服务层错误码、重启收场。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 var checks = 0;
@@ -1134,8 +1135,12 @@ try
     lp1.SetCarrierId("CAR-1");
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-H1", [1], "SEQ_A", null, "CAR-1")).IsSuccess, "Host 建 PJ-H1");
     Check(PjOf("PJ-H1")?.ControlJob == string.Empty && PjOf("PJ-H1")?.State == (int)ProcessJobState.QueuedPooled, "PJ 先建：不归任何 CJ，排着");
-    Refuses(Do(jobs.CreateProcessJobAsync(null, "PJ-H9", [1], "SEQ_A", null, "NOPE")),
-        ErrorCodes.JobCarrierNotFound, ["NOPE"], "载具不在任何 LoadPort 上");
+    Check(Do(jobs.CreateProcessJobAsync(null, "PJ-H9", [1], "SEQ_A", null, "NOPE")).IsSuccess
+          && PjOf("PJ-H9")?.Wafers.Count == 0 && PjOf("PJ-H9")?.Slots.SequenceEqual(new[] { 1 }) == true,
+        "载具还不在任何 LoadPort 上：照样建（料没到先建 PJ），片等料到了再定，先记着要的槽");
+    Check(Do(jobs.CancelProcessJobAsync("PJ-H9")).IsSuccess && PjOf("PJ-H9") is null, "料没到的 PJ 可以直接取消");
+    Refuses(Do(jobs.CreateProcessJobAsync(null, "PJ-H9", [1], "SEQ_A", null, " ")),
+        ErrorCodes.JobCarrierNotFound, [""], "没给 LoadPort 也没给载具号：不建");
     Refuses(Do(jobs.CreateProcessJobAsync(null, "PJ-H1", [2], "SEQ_A", null, "CAR-1")), ErrorCodes.JobIdDuplicate, ["PJ-H1"], "PJ 名重了");
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-H2", [2], "SEQ_A", null, "CAR-1")).IsSuccess, "Host 建 PJ-H2");
     Refuses(Do(jobs.CreateControlJobAsync(null, ["PJ-H1", "NOPE"], "CJ-H")),
@@ -1254,6 +1259,81 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("CJ-SC") is null, 20), "SC 手动启动的 Job 随载具移走结束");
     jobs.ProcessJobAutoStart = true;
+
+    // 15c. 料没到先建 PJ（Host）：PJ、CJ 先建着排队，CJ 选中后等料；载具到了、Load 好，接了 EAP 时槽图还要被 Host 认定，才定片、开始。
+    //      同一载具的槽不能两个 PJ 要、不能有两个 CJ；定不了片（槽里没片……）报警、PJ 留在排队、CJ 等着，Host 停掉 CJ 收场。
+    bool savedControlAutoStart = jobs.ControlJobAutoStart;
+    jobs.ControlJobAutoStart = true;
+    Check(Do(jobs.CreateProcessJobAsync(null, "PJ-EARLY", [1], "SEQ_A", "LOT-EARLY", "CAR-E")).IsSuccess
+          && PjOf("PJ-EARLY")?.State == (int)ProcessJobState.QueuedPooled && PjOf("PJ-EARLY")?.Wafers.Count == 0
+          && PjOf("PJ-EARLY")?.CarrierId == "CAR-E" && events.WaitFor("PJ PJ-EARLY #1"),
+        "载具没到：PJ 照样建、排队（报 #1），还没有片");
+    Check(Do(jobs.CreateProcessJobAsync(null, "PJ-EARLY2", [2], "SEQ_A", null, "CAR-E")).IsSuccess, "同一载具的另一槽可以给另一个 PJ");
+    Refuses(Do(jobs.CreateProcessJobAsync(null, "PJ-EARLY3", [1, 3], "SEQ_A", null, "car-e")), ErrorCodes.JobSlotClaimed,
+        ["car-e", "PJ-EARLY"], "同一载具的槽号重了：不收（载具号不分大小写）");
+    Refuses(Do(jobs.CreateProcessJobAsync(null, "PJ-EARLY3", [], "SEQ_A", null, "CAR-E")), ErrorCodes.JobSlotClaimed,
+        ["CAR-E", "PJ-EARLY"], "不给槽号 = 整个载具，载具上已经有 PJ 要了片：不收");
+    Check(Do(jobs.CreateControlJobAsync(null, ["PJ-EARLY"], "CJ-EARLY")).IsSuccess
+          && CjOf("CJ-EARLY")?.LoadPort == string.Empty && CjOf("CJ-EARLY")?.CarrierId == "CAR-E",
+        "CJ 收下料没到的 PJ：口先空着，按载具号认");
+    Refuses(Do(jobs.CreateControlJobAsync(null, ["PJ-EARLY2"], "CJ-EARLY2")), ErrorCodes.JobCarrierBusy,
+        ["CAR-E", "CJ-EARLY"], "同一载具已经有 CJ：不再建第二个");
+    Refuses(Do(jobs.CreateControlJobAsync("LP1", ["PJ-EARLY2"], "CJ-EARLY2")), ErrorCodes.JobProcessJobUnavailable,
+        ["PJ-EARLY2"], "指定了 LoadPort 的 CJ 不收料没到的 PJ（口对不上说不准）");
+    Check(Do(jobs.CancelProcessJobAsync("PJ-EARLY2")).IsSuccess && PjOf("PJ-EARLY2") is null && events.WaitFor("PJ PJ-EARLY2 #18"),
+        "料没到就取消：排队的直接删（#18）");
+    Check(RunUntil(() => CjOf("CJ-EARLY")?.State == (int)ControlJobState.Selected, 20)
+          && !RunUntil(() => CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 20),
+        "CJ 选中（#3）后等料，料没到不往下走");
+
+    // 接了 EAP：槽图读了但 Host 还没认定，料到了也不定片、不能本地建要动这盒片的 PJ
+    lp1.E87Callback = new SilentE87();
+    LoadCarrier(lp1, 1, 2);
+    lp1.SetCarrierId("CAR-E");
+    Check(!lp1.IsCarrierReady && lp1.Carrier?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具不算能取片");
+    Check(!RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count > 0 || CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 20)
+          && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
+        "槽图没被 Host 认定：PJ 不定片、不占片，CJ 还在选中");
+    Refuses(Do(jobs.CreateProcessJobAsync("LP1", "PJ-LOCAL", [2], "SEQ_A", null)), ErrorCodes.JobCarrierNotReady, ["LP1"],
+        "槽图没被认定：本地也建不了要动这盒片的 PJ");
+    lp1.UpdateCarrierStatus(null, CarrierSlotMapStatus.Verified);
+    Check(lp1.IsCarrierReady, "Host 认定槽图（E87 写回 Verified）以后载具能取片");
+    Check(RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count == 1, 5) && PjOf("PJ-EARLY")!.Wafers[0].SourceSlot == 1
+          && CjOf("CJ-EARLY")?.LoadPort == "LP1" && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) == "PJ-EARLY"
+          && jobs.OwnerOf(ledger.Get("LP1", 2)!.Id) is null,
+        "料到了定片：只做要的那一槽，登记片归属，CJ 定口 LP1");
+    Check(RunUntil(() => CjOf("CJ-EARLY")?.State == (int)ControlJobState.Completed) && PjOf("PJ-EARLY")?.EndedBy == 7
+          && IsDone(PjOf("PJ-EARLY")!.Wafers[0]) && CjOf("CJ-EARLY")?.CompletedBy == 10, "料到了照常跑完（#7、#10）");
+    lp1.E87Callback = null;
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("CJ-EARLY") is null, 20), "载具拿走 CJ 删掉（#13）");
+
+    // 定不了片：报警，PJ 留在排队、CJ 等着，片一片不动；问题还在复位了会再报；Host 停掉 CJ（连带删掉排队的 PJ）收场
+    var materialAlarms = new AlarmComponent();
+    bool MaterialAlarm() => materialAlarms.ActiveAlarms.Any(alarm => alarm.AlarmCode == jobs.MaterialUnusableAlarm);
+    Check(Do(jobs.CreateProcessJobAsync(null, "PJ-BAD", [5], "SEQ_A", null, "CAR-B")).IsSuccess
+          && Do(jobs.CreateControlJobAsync(null, ["PJ-BAD"], "CJ-BAD")).IsSuccess, "Host 建好 PJ-BAD（要第 5 槽）、CJ-BAD");
+    LoadCarrier(lp1, 1);
+    lp1.SetCarrierId("CAR-B");
+    Check(RunUntil(MaterialAlarm, 20) && PjOf("PJ-BAD")?.Wafers.Count == 0 && PjOf("PJ-BAD")?.State == (int)ProcessJobState.QueuedPooled
+          && CjOf("CJ-BAD")?.State == (int)ControlJobState.Selected && CjOf("CJ-BAD")?.LoadPort == string.Empty
+          && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
+        "料到了但第 5 槽没片：报警，PJ 留在排队，CJ 等着不定口，片不占");
+    Check(materialAlarms.ResetAll() >= 1 && RunUntil(MaterialAlarm, 5), "问题还在：复位以后下一拍再报");
+    Check(Do(jobs.StopControlJobAsync("CJ-BAD")).IsSuccess && RunUntil(() => CjOf("CJ-BAD") is null, 20)
+          && PjOf("PJ-BAD") is null && events.WaitFor("PJ PJ-BAD #18") && events.WaitFor("CJ CJ-BAD #11"),
+        "Host 停掉 CJ：排队的 PJ 删掉（#18），CJ 停完（#11）；没定口的 CJ 不等载具拿走就删");
+    Check(materialAlarms.ResetAll() >= 1 && !RunUntil(MaterialAlarm, 5), "收场以后复位就清了，不再报");
+    AlarmComponent.Current = null;
+
+    // Host 不给槽号、料已经在而且能取片：当场定片，做载具上全部有片的槽
+    Check(Do(jobs.CreateProcessJobAsync(null, "PJ-ALL", [], "SEQ_A", null, "CAR-B")).IsSuccess
+          && PjOf("PJ-ALL")?.Wafers.Select(wafer => wafer.SourceSlot).SequenceEqual(new[] { 1 }) == true
+          && PjOf("PJ-ALL")?.Slots.Count == 0,
+        "Host 不给槽号、料在：当场定片，取载具上有片的槽");
+    Check(Do(jobs.CancelProcessJobAsync("PJ-ALL")).IsSuccess, "取消 PJ-ALL");
+    UnloadCarrier(lp1);
+    jobs.ControlJobAutoStart = savedControlAutoStart;
 
     // 16. 整机停止：关自动派单、中止搬运操作，Job 走中止（等设备确认、核对片位），不是直接删 Job。
     LoadCarrier(lp1, 1, 2, 3);
@@ -1424,7 +1504,10 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
     "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
-    "a wafer moved behind the job's back, job pick/place failures and retrying place without repeating pick, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, the equipment stop going through job abort, the job and transfer services, " +
+    "a wafer moved behind the job's back, job pick/place failures and retrying place without repeating pick, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, " +
+    "creating PJs and CJs before the carrier arrives (wafers assigned once the carrier is loaded and, with EAP, its slot map verified by the host; " +
+    "overlapping slots and a second CJ on one carrier refused; an unusable carrier raising an alarm and leaving the PJ queued), " +
+    "the equipment stop going through job abort, the job and transfer services, " +
     "every CJ and PJ recorded as one database row with each wafer's tasks, " +
     "and a restart that marks unfinished jobs aborted in the database instead of resuming them)");
 
@@ -1710,5 +1793,57 @@ sealed class SmokeStateMachine : xyz.Modules.StateMachines.BaseStateMachine<Cont
     protected override ControlJobState? GetErrorState()
     {
         return ControlJobState.Aborted;
+    }
+}
+
+// 假 EAP 的 E87 上报口：挂上它 LoadPort 就算接了 EAP（槽图要等 Host 认定才能取片），回调什么都不做。
+sealed class SilentE87 : IE87Callback
+{
+    public void CarrierArrived(ILoadPort port)
+    {
+    }
+
+    public void CarrierRemoved(ILoadPort port, string? carrierId)
+    {
+    }
+
+    public void CarrierIdRead(ILoadPort port, string carrierId)
+    {
+    }
+
+    public void CarrierIdReadFailed(ILoadPort port)
+    {
+    }
+
+    public void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap)
+    {
+    }
+
+    public void LoadCompleted(ILoadPort port)
+    {
+    }
+
+    public void UnloadCompleted(ILoadPort port)
+    {
+    }
+
+    public void AutoModeChanged(ILoadPort port, bool autoMode)
+    {
+    }
+
+    public void AccessStarted(ILoadPort port)
+    {
+    }
+
+    public void AccessStopped(ILoadPort port)
+    {
+    }
+
+    public void CarrierComplete(ILoadPort port)
+    {
+    }
+
+    public void PortError(ILoadPort port, string error)
+    {
     }
 }

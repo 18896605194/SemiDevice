@@ -6,7 +6,11 @@ namespace xyz.Components.Interfaces;
 
 public interface IJobManager
 {
-    /// <summary>创建独立 PJ：来源口、名字、槽位、流程配方和批次号；建好后等待 CJ 关联。Host 未指定来源口时按 carrierId 找载具。</summary>
+    /// <summary>
+    /// 创建独立 PJ：来源口、名字、槽位、流程配方和批次号；建好后等待 CJ 关联。给了来源口（本地建）载具要已经能取片、当场定片。
+    /// Host 不给来源口按 carrierId 认载具：载具在口上、能取片了（Load 好，接了 EAP 时槽图认定）当场定片；还没到就先建着排队，
+    /// 料到了再定片（slots 为空 = 取载具上全部有片的槽），定不了报警、PJ 留在排队等收场（停掉它的 CJ，或取消没归 CJ 的 PJ）。
+    /// </summary>
     Task<HandleResult> CreateProcessJobAsync(string? loadPort, string pjName, IReadOnlyList<int> slots, string sequence, string? lotId, string? carrierId = null);
 
     /// <summary>创建 CJ，按名称集合关联已有 PJ。</summary>

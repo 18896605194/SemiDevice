@@ -4,7 +4,6 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
-using xyz.Drivers.Loadport;
 using xyz.Secs;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
@@ -199,7 +198,6 @@ public class E40Component : ComponentBase, IE40Callback
 
     private E30Component? _gem;
     private IJobManager? _jobs;
-    private IReadOnlyList<ILoadPort> _ports = [];
 
     #endregion
 
@@ -212,15 +210,13 @@ public class E40Component : ComponentBase, IE40Callback
     /// <param name="gem"></param>
     /// <param name="objects"></param>
     /// <param name="jobs"></param>
-    /// <param name="ports"></param>
-    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs, IReadOnlyList<ILoadPort> ports)
+    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
         ArgumentNullException.ThrowIfNull(jobs);
         _gem = gem;
         _jobs = jobs;
-        _ports = ports;
         jobs.E40Callback = this;
         link.Handle(16, 1, Inquire);
         link.Handle(16, 5, CommandAsync);
@@ -346,17 +342,10 @@ public class E40Component : ComponentBase, IE40Callback
             return [E5Error.Of(E5Error.UnsupportedOption, "Material must be exactly one carrier with slots")];
         }
 
+        // 槽号表空 = 载具上的片都做：料到了由 Job 管理照槽图定（料可以还没到，到了再定片）
         var entry = SecsRead.List(carriers[0], "L{CARRIERID, L{SLOTID}}", 2);
         string carrierId = SecsRead.Text(entry[0], "CARRIERID").Trim();
         var slots = SecsRead.List(entry[1], "SLOTID 表").Select(slot => (int)SecsRead.Code(slot, "SLOTID")).ToList();
-        if (slots.Count == 0)
-        {
-            slots = OccupiedSlots(carrierId);
-            if (slots.Count == 0)
-            {
-                return [E5Error.Of(E5Error.LackOfMaterial, $"Carrier {carrierId} not at a port or has no wafer")];
-            }
-        }
 
         // 保留报文格式校验；PJ 启动方式统一由设备的 SC 配置决定。
         SecsRead.Flag(autoStart, "PRPROCESSSTART");
@@ -372,29 +361,8 @@ public class E40Component : ComponentBase, IE40Callback
             return [JobErrors.Of(result)];
         }
 
-        LogHelper.Info(Name, $"Host 建了 PJ {id}：{carrierId} 槽 {string.Join(",", slots)}，流程配方 {sequence}");
+        LogHelper.Info(Name, $"Host 建了 PJ {id}：{carrierId} 槽 {(slots.Count == 0 ? "全部" : string.Join(",", slots))}，流程配方 {sequence}");
         return [];
-    }
-
-    /// <summary>这个载具（在端口上的）里正常有片的槽（槽图里正常和有片说不准的）。</summary>
-    private List<int> OccupiedSlots(string carrierId)
-    {
-        var port = _ports.FirstOrDefault(item => item.IsCarrierArrived && string.Equals(item.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
-        if (port is null)
-        {
-            return [];
-        }
-
-        var slots = new List<int>();
-        for (int index = 0; index < port.SlotMap.Count; index++)
-        {
-            if (port.SlotMap[index] is SlotState.CorrectlyOccupied or SlotState.NotEmpty)
-            {
-                slots.Add(index + 1);
-            }
-        }
-
-        return slots;
     }
 
     /// <summary>
@@ -550,16 +518,20 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region 料、E39 对象
 
-    /// <summary>PJ 的料 L{L[2]{载具号, L{槽号}}}：一个 PJ 的片都在一个载具上，载具号用 PJ 建的时候记下的。</summary>
+    /// <summary>
+    /// PJ 的料 L{L[2]{载具号, L{槽号}}}：一个 PJ 的片都在一个载具上，载具号用 PJ 建的时候记下的。
+    /// 定了片报实际的片；料还没到报建的时候要的槽号（Host 没给槽号就是空表，跟建的时候一样）。
+    /// </summary>
     private static SecsItem MaterialOf(ProcessJobDto job)
     {
-        if (job.Wafers.Count == 0)
+        if (job.Wafers.Count == 0 && job.CarrierId.Length == 0)
         {
             return SecsItem.L();
         }
 
+        var slots = job.Wafers.Count > 0 ? job.Wafers.Select(wafer => wafer.SourceSlot) : job.Slots;
         return SecsItem.L(SecsItem.L(SecsItem.A(GemValue.Ascii(job.CarrierId)),
-            SecsItem.L(job.Wafers.Select(wafer => SecsItem.U1((byte)Math.Clamp(wafer.SourceSlot, 0, byte.MaxValue))))));
+            SecsItem.L(slots.Select(slot => SecsItem.U1((byte)Math.Clamp(slot, 0, byte.MaxValue))))));
     }
 
     private IReadOnlyList<string> JobIds()

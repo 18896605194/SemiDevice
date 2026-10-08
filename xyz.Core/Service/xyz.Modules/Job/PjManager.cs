@@ -78,6 +78,19 @@ public sealed class PjManager : IPjManager
         return null;
     }
 
+    public void RegisterWafers(ProcessJob processJob)
+    {
+        if (!_jobs.TryGetValue(processJob.Id, out var entity) || !ReferenceEquals(entity.ProcessJob, processJob))
+        {
+            return;
+        }
+
+        foreach (var row in processJob.Rows)
+        {
+            _owners[row.WaferId] = processJob.Id;
+        }
+    }
+
     #endregion
 
     #region PJ 状态动作

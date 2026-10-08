@@ -86,7 +86,7 @@
     <sys:String x:Key="job.id_invalid">名字 {0} 不合规：要 1~80 个英文、数字、符号或空格，不能有 ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">名字 {0} 已经在用（有同名的 Job 还没结束）</sys:String>
     <sys:String x:Key="job.loadport_not_found">没有 LoadPort {0}</sys:String>
-    <sys:String x:Key="job.carrier_not_ready">{0} 上没有能取片的载具（没放、没 Load 或没 Mapping）</sys:String>
+    <sys:String x:Key="job.carrier_not_ready">{0} 上没有能取片的载具（没放、没 Load、没 Mapping，或接了 EAP 时槽图还没被 Host 认定）</sys:String>
     <sys:String x:Key="job.loadport_busy">{0} 上已经有没结束的 Job {1}</sys:String>
     <sys:String x:Key="job.no_wafers">{0} 没有选要做的片（槽位都没配 Sequence）</sys:String>
     <sys:String x:Key="job.slot_empty">{0} 第 {1} 槽没片</sys:String>
@@ -101,6 +101,8 @@
     <sys:String x:Key="job.recipe_not_found">流程配方 {0} 用的工艺配方 {1} 不在工艺配方库里</sys:String>
     <sys:String x:Key="job.carrier_not_found">载具 {0} 不在任何 LoadPort 上</sys:String>
     <sys:String x:Key="job.process_job_unavailable">PJ {0} 不存在，或已经归了别的 CJ</sys:String>
+    <sys:String x:Key="job.slot_claimed">载具 {0} 上要做的片已经归了 PJ {1}（槽号重了，或者其中一个没给槽号 = 整个载具都做）</sys:String>
+    <sys:String x:Key="job.carrier_busy">载具 {0} 已经有没结束的 Job {1}</sys:String>
     <sys:String x:Key="job.station_task_unsupported">流程配方 {0} 的第 {1} 步：站点 {2} 不支持任务 {3}</sys:String>
     <sys:String x:Key="job.task_not_found">PJ {0} 里没有来源槽 {1} 的片，或没有第 {2} 个任务</sys:String>
     <sys:String x:Key="job.task_not_error">PJ {0} 的 {1} 第 {2} 个任务没出错，不用处理</sys:String>

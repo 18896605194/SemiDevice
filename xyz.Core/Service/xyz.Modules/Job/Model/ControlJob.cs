@@ -6,7 +6,10 @@ public sealed class ControlJob
 {
     public required string Id { get; init; }
 
-    public required string LoadPort { get; init; }
+    /// <summary>
+    /// 来源 LoadPort：建 CJ 时下面的 PJ 已经定了片就是那个口；料还没到为空，等下面的 PJ 定片时填上。
+    /// </summary>
+    public string LoadPort { get; set; } = string.Empty;
 
     public string? CarrierId { get; init; }
 

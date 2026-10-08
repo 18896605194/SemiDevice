@@ -75,8 +75,11 @@ public class ProcessJobDto
     /// <summary>所属 CJ；还不归任何 CJ 为空。</summary>
     public string ControlJob { get; set; } = string.Empty;
 
-    /// <summary>载具号（建 PJ 时 LoadPort 上那个载具的；没读到为空）。</summary>
+    /// <summary>载具号（Host 建的是 Host 给的，料可能还没到；本地建的是 LoadPort 上那个载具的，没读到为空）。</summary>
     public string CarrierId { get; set; } = string.Empty;
+
+    /// <summary>要做的槽号（建 PJ 时给的；Host 没给为空 = 料到了取载具上全部有片的槽）。料到之前 Wafers 是空的，看这个。</summary>
+    public List<int> Slots { get; set; } = [];
 
     /// <summary>流程配方名（快照的）。</summary>
     public string Sequence { get; set; } = string.Empty;

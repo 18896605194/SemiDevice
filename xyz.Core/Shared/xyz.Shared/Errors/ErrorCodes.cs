@@ -226,6 +226,12 @@ public static class ErrorCodes
     /// <summary>建 CJ 时引用的 PJ 不存在，或已经归了别的 CJ。Args: [PJ 名]</summary>
     public const string JobProcessJobUnavailable = "job.process_job_unavailable";
 
+    /// <summary>建 PJ 时这个载具上要做的片已经归了别的没结束的 PJ（槽号重了，或者其中一个没给槽号 = 整个载具）。Args: [载具号, PJ 名]</summary>
+    public const string JobSlotClaimed = "job.slot_claimed";
+
+    /// <summary>建 CJ 时这个载具已经有没删的 CJ（料还没到、按载具号认的时候查）。Args: [载具号, CJ 名]</summary>
+    public const string JobCarrierBusy = "job.carrier_busy";
+
     /// <summary>流程配方这一步用到的站点不支持要做的任务（比如这一步要做工艺，组里有个站点不能做工艺）。Args: [流程配方名, 第几步, 站点, 任务名]</summary>
     public const string JobStationTaskUnsupported = "job.station_task_unsupported";
 
