@@ -21,8 +21,8 @@ using xyz.Shared.Errors;
 // 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（WaferManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
-// E39 查类型 / 属性名 / 属性（带条件）；E87 载具核对（没预告等 Host、Host 让继续、Host 给片号、取消、Bind 设备认定、读槽图核对）、
-// 端口搬运状态、启停用、存取方式；E90 片对象跟着账走（建、挪、做、跳过、删）；E40 / E94 的建、命令、查询翻成 Job 管理的命令、状态转换报事件。
+// E39 查类型 / 属性名 / 属性（带条件）；E87 载具核对（读到号等 Host、Host 让继续、槽图一律等 Host、第二次 PWC 比对槽图和给片号、
+// 取消、ReCreate、读码失败 Host 给号、AutoUnload 关着时 CarrierRelease）、端口搬运状态、Host 启停用、存取方式；E90 片对象跟着账走（建、挪、做、跳过、删）；E40 / E94 的建、命令、查询翻成 Job 管理的命令、状态转换报事件。
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -453,14 +453,11 @@ await Send(2, 43, SecsItem.L());
 
 // ── E39 ─────────────────────────────────────────────────────────────────────
 var types = (await Send(14, 5, SecsItem.A(string.Empty))).Body!.Items[0].Items.Select(item => item.GetString()).ToList();
-Check(new[] { "Carrier", "Port", "Substrate", "SubstLoc", "ProcessJob", "ControlJob" }.All(types.Contains), "S14F5 列出各标准登记的对象类型");
-var names = await Send(14, 7, SecsItem.L(SecsItem.A(string.Empty), SecsItem.L(SecsItem.A("Port"))));
-Check(names.Body!.Items[0].Items[0].Items[1].Items.Any(item => item.GetString() == "PortTransferState"), "S14F7 列出 Port 的属性名");
+Check(new[] { "Substrate", "SubstLoc", "ProcessJob", "ControlJob" }.All(types.Contains), "S14F5 列出各标准登记的对象类型");
+var names = await Send(14, 7, SecsItem.L(SecsItem.A(string.Empty), SecsItem.L(SecsItem.A("ProcessJob"))));
+Check(names.Body!.Items[0].Items[0].Items[1].Items.Any(item => item.GetString() == "ProcessJobState"), "S14F7 列出 ProcessJob 的属性名");
 SecsItem GetAttr(string type, string[] ids, SecsItem qualifiers, params string[] attributes) =>
     SecsItem.L(SecsItem.A(string.Empty), SecsItem.A(type), SecsItem.L(ids.Select(SecsItem.A)), qualifiers, SecsItem.L(attributes.Select(SecsItem.A)));
-var ports = await Send(14, 1, GetAttr("Port", [], SecsItem.L(), "PortTransferState"));
-Check(ports.Body!.Items[0].Count == 2 && ports.Body.Items[0].Items[0].Items[1].Items[0].Items[1].GetUInt64() == 2,
-    "S14F1 查两个端口的搬运状态（空的端口等送 = 2）");
 var unknownType = await Send(14, 1, GetAttr("Robot", [], SecsItem.L()));
 Check(unknownType.Body!.Items[1].Items[0].GetUInt64() == 1 && unknownType.Body.Items[1].Items[1].Items[0].Items[0].GetUInt64() == 2,
     "不认识的对象类型：OBJACK=1、ERRCODE=2");
@@ -471,7 +468,7 @@ lp1.Arrive();
 await Event("Eap.E87.MaterialReceived", mark, "载具放上报 MaterialReceived");
 await Event("Eap.E87.PortTransferSMTrans06", mark, "端口等送 → 挡着（#6）");
 lp1.ReadId("CAR-A");
-await Event("Eap.E87.CarrierSMTrans03", mark, "没预告的载具读到号：等 Host 核对（#3）");
+await Event("Eap.E87.CarrierSMTrans03", mark, "载具读到号：等 Host 核对（#3）");
 await Event("Eap.E87.AssocSMGoAssoc", mark, "端口关联了载具");
 Check(lp1.Statuses.Contains("Id:WaitingForHost"), "设备侧的载具 ID 状态写成等 Host");
 
@@ -488,15 +485,22 @@ await Event("Eap.E87.CarrierSMTrans08", mark, "ID 认定（#8）");
 await WaitUntil(() => lp1.CarrierIdsSet.Contains("CAR-A") && lp1.LoadRequested, "认定的号写回设备，自动 Load");
 
 mark = host.EventCount;
-lp1.LoadDone();
 lp1.Map(SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty);
-var waiting = await Event("Eap.E87.CarrierSMTrans14", mark, "读到槽图、没给期望：等 Host 核对（#14）");
+await Event("Eap.E87.CarrierSMTrans14", mark, "读到槽图：一律等 Host 核对（#14）");
+Check(lp1.Statuses.Contains("Map:WaitingForHost"), "设备侧的槽图状态写成等 Host");
+lp1.LoadDone();
 await Event("Eap.E87.CarrierOpened", mark, "Load 好了报门打开");
+await Event("Eap.E87.CarrierSMTrans18", mark, "Load 好了就算开始取放（#18，照 CTC）");
 SecsItem Content(params (string Lot, string Substrate)[] slots) =>
     SecsItem.L(SecsItem.A("ContentMap"), SecsItem.L(slots.Select(slot => SecsItem.L(SecsItem.A(slot.Lot), SecsItem.A(slot.Substrate)))));
+SecsItem SlotMapAttribute(params byte[] slots) => SecsItem.L(SecsItem.A("SlotMap"), SecsItem.L(slots.Select(slot => SecsItem.U1(slot))));
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-A", 1, SlotMapAttribute(3, 3, 3, 1, 1)))) == 3,
+    "Host 给的槽图跟读到的对不上：CAACK=3");
+Check(Caack(await Send(3, 17, CarrierAction("CancelCarrier", "CAR-A", 1))) == 5, "在取放的载具不能取消：CAACK=5");
+Check(Caack(await Send(3, 17, CarrierAction("CarrierRelease", "CAR-A", 1))) == 5, "在取放的载具不能放行：CAACK=5");
 mark = host.EventCount;
-Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-A", 1,
-    Content(("LOT1", "W1"), ("", ""), ("LOT1", "W3"), ("", ""), ("", ""))))) == 0, "Host 给片号表让继续：CAACK=0");
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-A", 1, SlotMapAttribute(3, 1, 3, 1, 1),
+    Content(("LOT1", "W1"), ("", ""), ("LOT1", "W3"), ("", ""), ("", ""))))) == 0, "Host 带一致的槽图和片号表让继续：CAACK=0");
 await Event("Eap.E87.CarrierSMTrans15", mark, "槽图认定（#15）");
 await Event("Eap.E90.SubstSMTrans01", mark, "料到了：E90 建片对象（#1）");
 Check(ledger.Get("LP1", 1)?.WaferId == "W1" && ledger.Get("LP1", 3)?.LotId == "LOT1", "Host 给的片号、批次号写进晶圆账");
@@ -507,8 +511,6 @@ Check(substrates.Body!.Items[0].Count == 2 && substrates.Body.Items[0].Items.Any
 mark = host.EventCount;
 ledger.Move("LP1", 1, "Robot", 1);
 await Event("Eap.E90.SubstSMTrans02", mark, "片离开来源载具（#2）");
-lp1.AccessStarted();
-await Event("Eap.E87.CarrierSMTrans18", mark, "载具开始取放（#18）");
 ledger.Move("Robot", 1, "PM1", 1);
 await Event("Eap.E90.SubstSMTrans04", mark, "片在机内换位置（#4）");
 ledger.SetProcessState("PM1", 1, WaferProcessState.InProcess);
@@ -541,55 +543,95 @@ await Event("Eap.E87.CarrierSMTrans21", mark, "载具拿走删对象（#21）");
 await Event("Eap.E87.PortTransferSMTrans08", mark, "端口挡着 → 等送（#8）");
 await Event("Eap.E90.SubstSMTrans07", mark, "片跟着载具走了，片对象删掉（#7）");
 
-// 取消：没预告的载具，Host 不要
+// 取消：Host 不要这一盒
 mark = host.EventCount;
 lp2.Arrive();
 lp2.ReadId("CAR-B");
 await Event("Eap.E87.CarrierSMTrans03", mark, "LP2 载具等 Host 核对");
 Check(Caack(await Send(3, 17, CarrierAction("CancelCarrier", "CAR-B", null))) == 0, "Host 取消载具：CAACK=0");
-var cancelled = await Event("Eap.E87.CarrierSMTrans09", mark, "ID 核对不过（#9）");
+await Event("Eap.E87.CarrierSMTrans09", mark, "ID 核对不过（#9）");
+await Event("Eap.E87.AssocSMGoNotAssoc", mark, "取消了就取消关联（照 CTC）");
 await Event("Eap.E87.PortTransferSMTrans09", mark, "不要的载具：端口转等取");
+Check(lp2.E84Provider!.GetTransferState(lp2) == LoadPortTransferState.ReadyToUnload, "E84 反查：取消的载具放行取走");
 Check(Caack(await Send(3, 17, CarrierAction("CancelCarrier", "CAR-B", null))) == 5, "已经取消的再取消回 CAACK=5");
+
+// CarrierReCreate：取消了的载具重来一遍——删对象、重新读码、重新等 Host
+mark = host.EventCount;
+Check(Caack(await Send(3, 17, CarrierAction("CarrierReCreate", "CAR-B", 2))) == 0, "等取的载具 ReCreate：CAACK=0");
+await Event("Eap.E87.CarrierSMTrans21", mark, "ReCreate 先删原来的对象（#21）");
+await Event("Eap.E87.PortTransferSMTrans07", mark, "不再放行：端口等取 → 挡着（#7）");
+await WaitUntil(() => lp2.ReadRequested, "ReCreate 重新读码");
+lp2.ReadId("CAR-B2");
+await Event("Eap.E87.CarrierSMTrans03", mark, "重新读到号：等 Host 核对（#3）");
+Check(Caack(await Send(3, 17, CarrierAction("CarrierReCreate", "CAR-B2", 2))) == 5, "不在等取的不能 ReCreate：CAACK=5");
 lp2.Remove();
 
-// Bind：Host 预告，号对上由设备认定，读到的槽图跟 Host 给的一样也由设备认定
-SecsItem SlotMapAttribute(params byte[] slots) => SecsItem.L(SecsItem.A("SlotMap"), SecsItem.L(slots.Select(slot => SecsItem.U1(slot))));
-mark = host.EventCount;
-Check(Caack(await Send(3, 17, CarrierAction("Bind", "CAR-C", 2, SecsItem.L(SecsItem.A("Capacity"), SecsItem.U1(5)),
-    SlotMapAttribute(3, 3, 1, 1, 1)))) == 0, "Bind：CAACK=0");
-await Event("Eap.E87.CarrierSMTrans02", mark, "Bind 建对象，ID 没读（#2）");
-await Event("Eap.E87.ReservationSMGoReserved", mark, "Bind 预约端口");
-Check(Caack(await Send(3, 17, CarrierAction("Bind", "CAR-D", 2))) == 5, "端口已经预约了再 Bind 回 CAACK=5");
-var reserved = await Send(14, 1, GetAttr("Port", ["2"], SecsItem.L(), "PortReservationState", "PortAssociationState"));
-Check(reserved.Body!.Items[0].Items[0].Items[1].Items[0].Items[1].GetUInt64() == 1, "S14F1 Port 2 预约了");
+// 读码失败：Host 带端口号给号，直接认定（#1、#4）并 Load
 mark = host.EventCount;
 lp2.Arrive();
-await Event("Eap.E87.ReservationSMGoNotReserved", mark, "载具到了取消预约");
-lp2.ReadId("CAR-C");
-await Event("Eap.E87.CarrierSMTrans06", mark, "号对上预告：设备认定（#6）");
-await WaitUntil(() => lp2.LoadRequested, "设备认定后自动 Load");
+lp2.ReadFail();
+await Event("Eap.E87.CarrierIDReadFail", mark, "读码失败报给 Host");
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", null))) == 3, "读码失败的端口不带端口号给号：找不到载具，CAACK=3");
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", 2))) == 0, "Host 带端口号给号：CAACK=0");
+await Event("Eap.E87.CarrierSMTrans04", mark, "Host 给号直接认定（#4）");
+await WaitUntil(() => lp2.CarrierIdsSet.Contains("CAR-D") && lp2.LoadRequested, "Host 给的号写回设备，自动 Load");
+lp2.Map(SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty, SlotState.Empty, SlotState.Empty);
 lp2.LoadDone();
-lp2.Map(SlotState.CorrectlyOccupied, SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty, SlotState.Empty);
-await Event("Eap.E87.CarrierSMTrans13", mark, "槽图跟 Host 给的一样：设备认定（#13）");
+await Event("Eap.E87.CarrierSMTrans18", mark, "Load 好了开始取放（#18）");
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", 2))) == 0, "槽图不带也能认定：CAACK=0");
+await Event("Eap.E87.CarrierSMTrans15", mark, "槽图认定（#15）");
 
-// 端口启停用、存取方式
-SecsItem PortAction(string action, byte ptn) => SecsItem.L(SecsItem.A(action), SecsItem.U1(ptn), SecsItem.L());
+// AutoUnload 关着：干完不自动卸，等 Host CarrierRelease
+var carriers = eap.FindChild<E87Component>()!;
+carriers.AutoUnload = false;
+mark = host.EventCount;
+lp2.Complete();
+await Event("Eap.E87.CarrierSMTrans19", mark, "载具干完（#19）");
+Check(!lp2.UnloadRequested, "AutoUnload 关着：干完不自动卸");
+Check(Caack(await Send(3, 17, CarrierAction("CarrierRelease", "CAR-D", 2))) == 0, "Host 放行载具：CAACK=0");
+await WaitUntil(() => lp2.UnloadRequested, "放行就 Unload");
+lp2.UnloadDone();
+await Event("Eap.E87.PortTransferSMTrans09", mark, "卸好了：端口转等取（#9）");
+carriers.AutoUnload = true;
+lp2.Remove();
+
+// Host 启停用端口（S3F25）
+SecsItem PortAction(string action, byte ptn, params SecsItem[] parameters) => SecsItem.L(SecsItem.A(action), SecsItem.U1(ptn), SecsItem.L(parameters));
 mark = host.EventCount;
 Check(Caack(await Send(3, 25, PortAction("OutOfService", 1))) == 0, "S3F25 停用端口 1");
 await Event("Eap.E87.PortTransferSMTrans03", mark, "端口停用（#3）");
 Check(lp1.E84Provider!.GetTransferState(lp1) == LoadPortTransferState.OutOfService, "停用的端口 E84 不交接");
 Check(Caack(await Send(3, 25, PortAction("In Service", 1))) == 0, "S3F25 启用（带空格的写法也认）");
 await Event("Eap.E87.PortTransferSMTrans02", mark, "端口启用（#2）");
+await Event("Eap.E87.PortTransferSMTrans05", mark, "启用后空端口进等送（#5）");
+mark = host.EventCount;
+Check(Caack(await Send(3, 25, PortAction("ChangeServiceStatus", 1, SecsItem.L(SecsItem.A("ServiceStatus"), SecsItem.U1(0))))) == 0,
+    "ChangeServiceStatus 0 = 停用");
+await Event("Eap.E87.PortTransferSMTrans03", mark, "ChangeServiceStatus 停用（#3）");
+Check(Caack(await Send(3, 25, PortAction("ChangeServiceStatus", 1, SecsItem.L(SecsItem.A("ServiceStatus"), SecsItem.U1(1))))) == 0,
+    "ChangeServiceStatus 1 = 启用");
+await Event("Eap.E87.PortTransferSMTrans02", mark, "ChangeServiceStatus 启用（#2）");
+Check(Caack(await Send(3, 25, PortAction("ReserveAtPort", 1))) == 1, "预约本机不支持：CAACK=1");
+
+// LP2 放一盒 CAR-C 走完核对（槽 1、2 有片），留给后面 E40 建 PJ 用
+mark = host.EventCount;
+lp2.Arrive();
+lp2.ReadId("CAR-C");
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-C", 2))) == 0, "CAR-C 认定 ID：CAACK=0");
+await WaitUntil(() => lp2.LoadRequested, "CAR-C 认定后自动 Load");
+lp2.Map(SlotState.CorrectlyOccupied, SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty, SlotState.Empty);
+lp2.LoadDone();
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-C", 2, SlotMapAttribute(3, 3, 1, 1, 1)))) == 0,
+    "CAR-C 带一致的槽图认定：CAACK=0");
+await Event("Eap.E87.CarrierSMTrans15", mark, "CAR-C 槽图认定（#15）");
+
+// 存取方式
 mark = host.EventCount;
 var s3f28 = await Send(3, 27, SecsItem.L(SecsItem.U1(1), SecsItem.L(SecsItem.U1(1))));
 Check(Caack(s3f28) == 0, "S3F27 端口 1 改自动：CAACK=0");
 await Event("Eap.E87.AccessSMGoAuto", mark, "端口转自动存取");
 Check(lp1.IsAutoMode, "设备侧切到自动");
-Check(Caack(await Send(3, 25, PortAction("ReserveAtPort", 1))) == 0, "S3F25 预约端口 1");
-var frozen = await Send(3, 27, SecsItem.L(SecsItem.U1(0), SecsItem.L(SecsItem.U1(1))));
-Check(Caack(frozen) == 5 && frozen.Body!.Items[1].Count == 1 && lp1.IsAutoMode, "预约着的端口不能改存取方式");
-Check(Caack(await Send(3, 25, PortAction("CancelReservationAtPort", 1))) == 0, "取消预约");
-Check(Caack(await Send(3, 17, CarrierAction("CarrierRelease", "CAR-C", 2))) == 1, "不支持的载具动作回 CAACK=1");
+Check(Caack(await Send(3, 17, CarrierAction("Bind", "CAR-C", 2))) == 1, "预告/绑定这些本机没做的动作回 CAACK=1");
 Check(Caack(await Send(3, 17, CarrierAction("Fly", "CAR-C", 2))) == 1, "不认识的载具动作回 CAACK=1");
 
 // ── E40 / E94 ───────────────────────────────────────────────────────────────
@@ -1102,6 +1144,8 @@ sealed class FakePort : ILoadPort
 
     public bool UnloadRequested { get; private set; }
 
+    public bool ReadRequested { get; private set; }
+
     public ConcurrentBag<string> CarrierIdsSet { get; } = [];
 
     public ConcurrentBag<string> Statuses { get; } = [];
@@ -1141,7 +1185,11 @@ sealed class FakePort : ILoadPort
         E87Callback?.AutoModeChanged(this, autoMode);
     }
 
-    public bool ReadCarrierId() => false;
+    public bool ReadCarrierId()
+    {
+        ReadRequested = true;
+        return true;
+    }
 
     public void SetCarrierId(string carrierId)
     {
@@ -1173,6 +1221,7 @@ sealed class FakePort : ILoadPort
         _complete = false;
         LoadRequested = false;
         UnloadRequested = false;
+        ReadRequested = false;
         E87Callback?.CarrierArrived(this);
     }
 
@@ -1182,10 +1231,17 @@ sealed class FakePort : ILoadPort
         E87Callback?.CarrierIdRead(this, carrierId);
     }
 
+    public void ReadFail()
+    {
+        E87Callback?.CarrierIdReadFailed(this);
+    }
+
+    /// <summary>Load 好了：跟真端口一样，报 Load 完成，接着就算开始取放。</summary>
     public void LoadDone()
     {
         _loaded = true;
         E87Callback?.LoadCompleted(this);
+        E87Callback?.AccessStarted(this);
     }
 
     public void Map(params SlotState[] slots)
@@ -1193,11 +1249,6 @@ sealed class FakePort : ILoadPort
         SlotMap = slots;
         _ledger.ApplySlotMap(Name, slots.Select(slot => slot == SlotState.Empty ? (WaferStatus?)null : WaferStatus.Normal).ToList(), CarrierId);
         E87Callback?.SlotMapRead(this, slots);
-    }
-
-    public void AccessStarted()
-    {
-        E87Callback?.AccessStarted(this);
     }
 
     public void Complete()

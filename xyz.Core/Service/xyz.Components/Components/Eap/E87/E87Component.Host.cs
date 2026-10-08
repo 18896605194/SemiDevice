@@ -4,13 +4,13 @@ using xyz.Components.Models;
 using xyz.Secs;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
-using xyz.Shared.Dtos;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// E87 的 Host 报文：S3F17 载具动作（ProceedWithCarrier、CancelCarrier、Bind……）、S3F25 端口动作（预约、启停用、改存取方式）、
-/// S3F27 改存取方式、S3F15 多块询问。都要 ON-LINE REMOTE；在链路的派发线程上跑。
+/// E87 的 Host 报文：S3F17 载具动作（ProceedWithCarrier、CancelCarrier、CancelCarrierAtPort、CarrierRelease、CarrierReCreate）、
+/// S3F25 端口动作（启停用、改存取方式）、S3F27 改存取方式、S3F15 多块询问。都要 ON-LINE REMOTE；在链路的派发线程上跑。
+/// 先查能不能做（回 CAACK），能做就给端口的状态机发消息（照老 CTC）。
 /// </summary>
 public partial class E87Component
 {
@@ -37,17 +37,11 @@ public partial class E87Component
 
     private const string ForbiddenIdChars = "?*~>:";
 
-    /// <summary>Host 在 S3F17 里能给的载具属性（照 Carrier 对象的属性号）。</summary>
+    /// <summary>Host 在 S3F17 里能给的载具属性（照 Carrier 对象的属性号）；只用槽图和片号表，别的认得、不用。</summary>
     private static readonly string[] CarrierAttributeNames =
     [
         "ObjType", "ObjID", "Capacity", "CarrierAccessingStatus", "CarrierIDStatus", "ContentMap", "LocationID", "SlotMap",
         "SlotMapStatus", "SubstrateCount", "Usage",
-    ];
-
-    /// <summary>E87 定义了、本机不支持的载具动作（内部缓冲设备用的、读写标签的）。</summary>
-    private static readonly string[] UnsupportedActions =
-    [
-        "CarrierReCreate", "CarrierRelease", "CancelCarrierOut", "CarrierIn", "CarrierOut", "CancelAllCarrierOut",
     ];
 
     /// <summary>S3F15 多块询问 → S3F16 GRANT=0。</summary>
@@ -58,18 +52,12 @@ public partial class E87Component
 
     #region S3F17 载具动作
 
-    /// <summary>Host 给的载具属性（没给的为 null）。</summary>
+    /// <summary>Host 给的载具属性里用得上的（没给的为 null）。</summary>
     private sealed class CarrierAttributes
     {
-        public byte? Capacity { get; set; }
-
-        public byte? SubstrateCount { get; set; }
-
         public byte[]? SlotMap { get; set; }
 
         public List<(string LotId, string SubstrateId)>? ContentMap { get; set; }
-
-        public string? Usage { get; set; }
     }
 
     /// <summary>
@@ -93,38 +81,38 @@ public partial class E87Component
             return Ack(CaackCannotPerformNow, [E5Error.NotRemote()]);
         }
 
-        if (UnsupportedActions.Any(name => string.Equals(name, action, StringComparison.OrdinalIgnoreCase)))
+        var reply = Locked(() =>
         {
-            return Ack(CaackInvalidCommand, [E5Error.Of(E5Error.UnsupportedOption, $"{action} not supported")]);
-        }
-
-        var actions = new List<Action>();
-        SecsReply reply;
-        lock (_gate)
-        {
-            reply = action.ToUpperInvariant() switch
+            switch (action.ToUpperInvariant())
             {
-                "PROCEEDWITHCARRIER" => ProceedWithCarrier(carrierId, ptn, attributes, actions),
-                "CANCELCARRIER" => CancelCarrier(carrierId, ptn, actions),
-                "CANCELCARRIERATPORT" => CancelCarrierAtPort(ptn, actions),
-                "BIND" => Bind(carrierId, ptn, attributes),
-                "CANCELBIND" => CancelBind(carrierId, ptn),
-                "CARRIERNOTIFICATION" => CarrierNotification(carrierId, attributes),
-                "CANCELCARRIERNOTIFICATION" => CancelCarrierNotification(carrierId),
-                _ => Ack(CaackInvalidCommand, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"CARRIERACTION {action} unknown")]),
-            };
-        }
+                case "PROCEEDWITHCARRIER":
+                    return ProceedWithCarrier(carrierId, ptn, attributes);
 
-        Run(actions);
+                case "CANCELCARRIER":
+                    return CancelCarrier(carrierId, ptn);
+
+                case "CANCELCARRIERATPORT":
+                    return CancelCarrierAtPort(ptn);
+
+                case "CARRIERRELEASE":
+                    return CarrierRelease(carrierId, ptn);
+
+                case "CARRIERRECREATE":
+                    return CarrierReCreate(carrierId, ptn);
+
+                default:
+                    return Ack(CaackInvalidCommand, [E5Error.Of(E5Error.UnsupportedOption, $"CARRIERACTION {action} not supported")]);
+            }
+        });
         LogHelper.Info(Name, $"Host 载具动作 {action} {carrierId} 端口 {ptn?.ToString() ?? "-"}");
         return reply;
     }
 
     /// <summary>
-    /// ProceedWithCarrier：ID 等 Host 的 → 认定（#8），Load；槽图等 Host 的 → 认定（#15），料到了；
-    /// 没预告、读码失败的端口（带 PTN）→ Host 给的号建对象并认定（#4），Load。
+    /// ProceedWithCarrier 分两次（照 CTC）：ID 等 Host 的 → 认定（#8），Load；读码失败的端口（带 PTN）→ Host 给的号建对象并认定（#1、#4），Load。
+    /// 槽图等 Host 的 → 带了槽图就跟读到的比，对不上拒掉；片号表写进晶圆账，槽图认定（#15，料到了）。
     /// </summary>
-    private SecsReply ProceedWithCarrier(string carrierId, byte? ptn, CarrierAttributes attributes, List<Action> actions)
+    private SecsReply ProceedWithCarrier(string carrierId, byte? ptn, CarrierAttributes attributes)
     {
         var idError = CheckCarrierId(carrierId);
         if (idError is not null)
@@ -132,60 +120,46 @@ public partial class E87Component
             return Ack(CaackInvalidData, [idError]);
         }
 
-        if (!_carriers.TryGetValue(carrierId, out var carrier))
+        var port = FindCarrier(carrierId);
+        if (port is null)
         {
-            var port = ptn is null ? null : _ports.FirstOrDefault(item => item.Id == ptn.Value);
-            if (port is null || !port.ReadFailed || !port.Present || port.Carrier is not null)
+            // 读码失败、Host 带端口号给号（PWC Type 4）
+            var target = PortById(ptn);
+            if (target is null || target.HasCarrier || !target.Device.IsCarrierArrived)
             {
                 return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Carrier {carrierId} not found")]);
             }
 
-            // 读码失败、Host 给号（PWC Type 4）：建对象（#1、#4、#12、#17）、关联、认定
-            carrier = new E87Carrier { Id = carrierId, Port = port, Arrived = true };
-            var applied = Apply(carrier, attributes, slotMapAllowed: true);
-            if (applied is not null)
-            {
-                return Ack(CaackInvalidData, [applied]);
-            }
-
-            _carriers[carrierId] = carrier;
-            port.Carrier = carrier;
-            port.ReadFailed = false;
-            ReportCarrier(CarrierTrans01, carrier, port);
-            ReportCarrier(CarrierTrans12, carrier, port);
-            ReportCarrier(CarrierTrans17, carrier, port);
-            ReportAssociation(port);
-            Verify(port, carrier, CarrierTrans04, actions);
+            CreateCarrier(target, carrierId, E87CarrierIdMessage.HostProceed);
             return Ack(CaackOk, []);
         }
 
-        var at = carrier.Port;
-        if (ptn is not null && (at is null || at.Id != ptn.Value))
+        if (ptn is not null && port.Id != ptn.Value)
         {
             return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"Carrier {carrierId} is not at port {ptn}")]);
         }
 
-        if (at is not null && carrier.IdStatus == E87Codes.IdWaitingForHost)
+        if (port.CarrierIdMachine.State == E87CarrierIdState.WaitingForHost)
         {
-            var applied = Apply(carrier, attributes, slotMapAllowed: carrier.ExpectedSlotMap is null);
-            if (applied is not null)
+            if (attributes.SlotMap is not null || attributes.ContentMap is not null)
             {
-                return Ack(CaackInvalidData, [applied]);
+                LogHelper.Info(Name, $"载具 {carrierId} 认定 ID 时带的槽图 / 片号表不用（照 CTC），等槽图读到后第二次 ProceedWithCarrier 再给");
             }
 
-            Verify(at, carrier, CarrierTrans08, actions);
+            port.CarrierIdMachine.Post(E87CarrierIdMessage.HostProceed);
             return Ack(CaackOk, []);
         }
 
-        if (at is not null && carrier.SlotMapStatus == E87Codes.MapWaitingForHost)
+        if (port.SlotMapMachine.State == E87SlotMapState.WaitingForHost)
         {
-            if (attributes.Capacity is not null || attributes.SlotMap is not null || attributes.SubstrateCount is not null)
+            var error = CheckHostSlotMap(port, attributes);
+            if (error is not null)
             {
-                return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, "Only ContentMap and Usage allowed now")]);
+                return Ack(CaackInvalidData, [error]);
             }
 
-            Apply(carrier, attributes, slotMapAllowed: false);
-            MaterialVerified(at, carrier, CarrierTrans15, actions);
+            WriteContentMap(port, attributes.ContentMap);
+            port.SlotMapMachine.Post(E87SlotMapMessage.HostProceed);
             return Ack(CaackOk, []);
         }
 
@@ -193,202 +167,210 @@ public partial class E87Component
     }
 
     /// <summary>
-    /// CancelCarrier：取放开始以后不能取消；只是预告的直接删（#21）；在端口上的按等 Host 的那一步记核对不过（#9 / #16，原因 5），卸下来等取走。
+    /// 第二次 PWC 带的槽图、片号表对不对（照 CTC）：槽图要跟设备读到的一样，片号表要一槽一项；没带的不查。返回 null 是对的。
     /// </summary>
-    private SecsReply CancelCarrier(string carrierId, byte? ptn, List<Action> actions)
+    private static E5Error? CheckHostSlotMap(E87Port port, CarrierAttributes attributes)
     {
-        if (!_carriers.TryGetValue(carrierId, out var carrier))
+        var read = port.Device.SlotMap;
+        var expected = attributes.SlotMap;
+        if (expected is not null && !expected.SequenceEqual(read.Select(slot => (byte)slot)))
+        {
+            return E5Error.Of(E5Error.InvalidAttributeValue, "SlotMap does not match");
+        }
+
+        var content = attributes.ContentMap;
+        if (content is not null && content.Count != read.Count)
+        {
+            return E5Error.Of(E5Error.InvalidAttributeValue, "ContentMap length differs from slot count");
+        }
+
+        return null;
+    }
+
+    /// <summary>Host 给的片号表写进晶圆账（片号、批次号），空槽、空项跳过（CTC 也是这样）。</summary>
+    private static void WriteContentMap(E87Port port, List<(string LotId, string SubstrateId)>? content)
+    {
+        var ledger = WaferManagerComponent.Current;
+        if (ledger is null || content is null)
+        {
+            return;
+        }
+
+        string name = port.Device.Name;
+        for (int index = 0; index < content.Count; index++)
+        {
+            var (lotId, substrateId) = content[index];
+            if (ledger.Get(name, index + 1) is null)
+            {
+                continue;
+            }
+
+            if (substrateId.Length > 0)
+            {
+                ledger.SetWaferId(name, index + 1, substrateId);
+            }
+
+            if (lotId.Length > 0)
+            {
+                ledger.SetLotId(name, index + 1, lotId);
+            }
+        }
+    }
+
+    /// <summary>CancelCarrier：按载具号找，取消（照 CTC）。</summary>
+    private SecsReply CancelCarrier(string carrierId, byte? ptn)
+    {
+        var port = FindCarrier(carrierId);
+        if (port is null)
         {
             return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Carrier {carrierId} not found")]);
         }
 
-        if (ptn is not null && (carrier.Port is null || carrier.Port.Id != ptn.Value))
+        if (ptn is not null && port.Id != ptn.Value)
         {
             return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"Carrier {carrierId} is not at port {ptn}")]);
         }
 
-        return Cancel(carrier, actions);
+        return Cancel(port);
     }
 
-    private SecsReply Cancel(E87Carrier carrier, List<Action> actions)
+    /// <summary>CancelCarrierAtPort：取消这个端口上的载具；没有载具对象（读码失败的）直接放行这一盒。</summary>
+    private SecsReply CancelCarrierAtPort(byte? ptn)
     {
-        if (carrier.Accessing != E87Codes.NotAccessed)
+        var port = PortById(ptn);
+        if (port is null)
         {
-            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {carrier.Id} is already accessed")]);
+            return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"PTN {ptn?.ToString() ?? "missing"} invalid")]);
         }
 
-        if (carrier.IdStatus == E87Codes.IdVerifyFailed || carrier.SlotMapStatus == E87Codes.MapVerifyFailed)
+        if (port.HasCarrier)
         {
-            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {carrier.Id} is already cancelled")]);
+            return Cancel(port);
         }
 
-        var port = carrier.Port;
-        if (port is null || !carrier.Arrived)
+        if (!port.Device.IsCarrierArrived || port.Released)
         {
-            Remove(carrier);
-            return Ack(CaackOk, []);
+            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"No carrier to cancel at port {port.Id}")]);
         }
 
+        port.Released = true;
+        port.TransferMachine.Refresh();
+        return Ack(CaackOk, []);
+    }
+
+    /// <summary>端口正在动作（Load、Unload 中）：这时候取消、放行，动作完了盒子还会被 Load 着卡住，先不收。返回 null 是可以。</summary>
+    private static SecsReply? RejectIfMoving(E87Port port)
+    {
         var device = port.Device;
-        if (carrier.IdStatus != E87Codes.IdVerified)
-        {
-            carrier.IdStatus = E87Codes.IdVerifyFailed;
-            ReportCarrier(CarrierTrans09, carrier, port, E87Codes.ReasonHostCancel);
-            actions.Add(() => device.UpdateCarrierStatus(CarrierIdStatus.VerifyFailed, null));
-        }
-        else if (carrier.SlotMapStatus != E87Codes.MapVerified)
-        {
-            carrier.SlotMapStatus = E87Codes.MapVerifyFailed;
-            ReportCarrier(CarrierTrans16, carrier, port, E87Codes.ReasonHostCancel);
-            actions.Add(() => device.UpdateCarrierStatus(null, CarrierSlotMapStatus.VerifyFailed));
-        }
-
-        Reject(port, actions);
-        return Ack(CaackOk, []);
-    }
-
-    /// <summary>CancelCarrierAtPort：取消这个端口上的载具；没有载具对象（读码失败、等 Host 给号的）直接不要这一盒。</summary>
-    private SecsReply CancelCarrierAtPort(byte? ptn, List<Action> actions)
-    {
-        var port = ptn is null ? null : _ports.FirstOrDefault(item => item.Id == ptn.Value);
-        if (port is null)
-        {
-            return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"PTN {ptn?.ToString() ?? "missing"} invalid")]);
-        }
-
-        var carrier = port.Carrier;
-        if (carrier is not null)
-        {
-            return Cancel(carrier, actions);
-        }
-
-        if (!port.Present)
-        {
-            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"No carrier at port {port.Id}")]);
-        }
-
-        port.ReadFailed = false;
-        Reject(port, actions);
-        return Ack(CaackOk, []);
+        return device.IsIdle || device.IsLoaded
+            ? null
+            : Ack(CaackCannotPerformNow, [E5Error.Of(E5Error.Busy, $"Port {port.Id} is busy")]);
     }
 
     /// <summary>
-    /// Bind：Host 预告这个载具会到这个端口——端口要空着、没关联、没预约；建对象（#1、#2、#12、#17），端口关联、预约。
+    /// 取消（照 CTC）：开始取放以后不能取消；ID、槽图哪个在等 Host 就记哪个核对不过（#9 / #16，原因 5），取消关联，
+    /// Load 着的卸下来，这一盒放行（卸好、空闲了端口转等取）。
     /// </summary>
-    private SecsReply Bind(string carrierId, byte? ptn, CarrierAttributes attributes)
+    private SecsReply Cancel(E87Port port)
     {
-        var idError = CheckCarrierId(carrierId);
-        if (idError is not null)
+        if (port.AccessMachine.State != E87AccessState.NotAccessed)
         {
-            return Ack(CaackInvalidData, [idError]);
+            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {port.CarrierId} is already accessed")]);
         }
 
-        var port = ptn is null ? null : _ports.FirstOrDefault(item => item.Id == ptn.Value);
-        if (port is null)
+        if (port.Released)
         {
-            return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"PTN {ptn?.ToString() ?? "missing"} invalid")]);
+            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {port.CarrierId} is already cancelled")]);
         }
 
-        if (_carriers.ContainsKey(carrierId))
+        var moving = RejectIfMoving(port);
+        if (moving is not null)
         {
-            return Ack(CaackInvalidData, [E5Error.Of(E5Error.IdentifierInUse, $"Carrier {carrierId} already exists")]);
+            return moving;
         }
 
-        if (port.Present || port.Carrier is not null || port.Reserved || !port.InService)
-        {
-            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Port {port.Id} is not free")]);
-        }
-
-        var carrier = new E87Carrier { Id = carrierId, Port = port, Bound = true };
-        var applied = Apply(carrier, attributes, slotMapAllowed: true);
-        if (applied is not null)
-        {
-            return Ack(CaackInvalidData, [applied]);
-        }
-
-        _carriers[carrierId] = carrier;
-        port.Carrier = carrier;
-        port.Reserved = true;
-        ReportCarrier(CarrierTrans01, carrier, port);
-        ReportCarrier(CarrierTrans02, carrier, port);
-        ReportCarrier(CarrierTrans12, carrier, port);
-        ReportCarrier(CarrierTrans17, carrier, port);
-        ReportAssociation(port);
-        ReportPort(ReservationGo, port);
-        return Ack(CaackOk, []);
-    }
-
-    /// <summary>CancelBind：撤掉还没到的 Bind（按载具号或端口号找），删对象（#21），端口取消关联、预约。</summary>
-    private SecsReply CancelBind(string carrierId, byte? ptn)
-    {
-        E87Carrier? carrier = null;
-        if (carrierId.Length > 0)
-        {
-            _carriers.TryGetValue(carrierId, out carrier);
-        }
-        else if (ptn is not null)
-        {
-            carrier = _ports.FirstOrDefault(item => item.Id == ptn.Value)?.Carrier;
-        }
-
-        if (carrier is null || !carrier.Bound || (ptn is not null && carrier.Port?.Id != ptn.Value))
-        {
-            return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, "Bound carrier not found")]);
-        }
-
-        if (carrier.Arrived)
-        {
-            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {carrier.Id} already arrived")]);
-        }
-
-        Remove(carrier);
-        return Ack(CaackOk, []);
-    }
-
-    /// <summary>CarrierNotification：Host 预告这个载具会来（不定端口），建对象（#1、#2、#12、#17）；读码对上时关联端口。</summary>
-    private SecsReply CarrierNotification(string carrierId, CarrierAttributes attributes)
-    {
-        var idError = CheckCarrierId(carrierId);
-        if (idError is not null)
-        {
-            return Ack(CaackInvalidData, [idError]);
-        }
-
-        if (_carriers.ContainsKey(carrierId))
-        {
-            return Ack(CaackInvalidData, [E5Error.Of(E5Error.IdentifierInUse, $"Carrier {carrierId} already exists")]);
-        }
-
-        var carrier = new E87Carrier { Id = carrierId };
-        var applied = Apply(carrier, attributes, slotMapAllowed: true);
-        if (applied is not null)
-        {
-            return Ack(CaackInvalidData, [applied]);
-        }
-
-        _carriers[carrierId] = carrier;
-        ReportCarrier(CarrierTrans01, carrier, null);
-        ReportCarrier(CarrierTrans02, carrier, null);
-        ReportCarrier(CarrierTrans12, carrier, null);
-        ReportCarrier(CarrierTrans17, carrier, null);
-        return Ack(CaackOk, []);
-    }
-
-    /// <summary>CancelCarrierNotification：撤掉还没到端口的预告（#21）。</summary>
-    private SecsReply CancelCarrierNotification(string carrierId)
-    {
-        if (!_carriers.TryGetValue(carrierId, out var carrier) || carrier.Port is not null)
-        {
-            return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Notified carrier {carrierId} not found")]);
-        }
-
-        Remove(carrier);
+        port.CarrierIdMachine.Post(E87CarrierIdMessage.Cancel);
+        port.SlotMapMachine.Post(E87SlotMapMessage.Cancel);
+        port.AssociationMachine.Post(E87AssociationMessage.Dissociate);
+        port.Released = true;
+        port.UnloadLater("载具被 Host 取消了");
+        port.TransferMachine.Refresh();
         return Ack(CaackOk, []);
     }
 
     /// <summary>
-    /// 读 S3F17 带的属性：Capacity、SubstrateCount（U1）、SlotMap（L{U1}）、ContentMap（L{L[2]{A, A}}）、Usage（A），
-    /// ATTRID 可以是名字或 Carrier 对象的属性号；别的属性、格式不对的记错误。
+    /// CarrierRelease：Host 叫把这一盒放出去（照 CTC）——在取放的不行；Load 着的卸下来，卸好、空闲了端口转等取。
+    /// AutoUnload 关着时，干完的载具靠它卸。
+    /// </summary>
+    private SecsReply CarrierRelease(string carrierId, byte? ptn)
+    {
+        var port = FindCarrier(carrierId);
+        if (port is null || (ptn is not null && port.Id != ptn.Value))
+        {
+            return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Carrier {carrierId} not found at port {ptn?.ToString() ?? "-"}")]);
+        }
+
+        if (port.AccessMachine.State == E87AccessState.InAccess)
+        {
+            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {carrierId} is in access")]);
+        }
+
+        var moving = RejectIfMoving(port);
+        if (moving is not null)
+        {
+            return moving;
+        }
+
+        port.Released = true;
+        port.UnloadLater("Host 放行载具");
+        port.TransferMachine.Refresh();
+        return Ack(CaackOk, []);
+    }
+
+    /// <summary>
+    /// CarrierReCreate：等取的载具重来一遍（照 CTC）——删掉原来的对象（#21），重新读码，读到号重新等 Host 核对。
+    /// 端口要在等取；取放过的载具不行（设备那边的取放进度回不去）。
+    /// </summary>
+    private SecsReply CarrierReCreate(string carrierId, byte? ptn)
+    {
+        var port = PortById(ptn) ?? FindCarrier(carrierId);
+        if (port is null || !port.Device.IsCarrierArrived)
+        {
+            return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Carrier {carrierId} not found")]);
+        }
+
+        if (port.TransferMachine.State != E87TransferState.ReadyToUnload)
+        {
+            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Port {port.Id} is not ready to unload")]);
+        }
+
+        if (port.HasCarrier && port.AccessMachine.State != E87AccessState.NotAccessed)
+        {
+            return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Carrier {port.CarrierId} is already accessed")]);
+        }
+
+        DeleteCarrier(port);
+        port.Released = false;
+        var device = port.Device;
+        Later(() =>
+        {
+            if (!device.ReadCarrierId())
+            {
+                LogHelper.Warn(Name, $"{device.Name} CarrierReCreate 重新读码没发起来，等 Host 带端口号给号");
+            }
+        });
+        port.TransferMachine.Refresh();
+        return Ack(CaackOk, []);
+    }
+
+    private E87Port? PortById(byte? ptn)
+    {
+        return ptn is null ? null : _ports.FirstOrDefault(port => port.Id == ptn.Value);
+    }
+
+    /// <summary>
+    /// 读 S3F17 带的属性：SlotMap（L{U1}）、ContentMap（L{L[2]{A, A}}）用得上；Carrier 对象别的属性认得、不用；
+    /// ATTRID 可以是名字或 Carrier 对象的属性号；不认识的、格式不对的记错误。
     /// </summary>
     private static CarrierAttributes ReadAttributes(IReadOnlyList<SecsItem> items, List<E5Error> errors)
     {
@@ -399,40 +381,28 @@ public partial class E87Component
             string? name = pair[0].Format is SecsFormat.Ascii or SecsFormat.Jis8
                 ? CarrierAttributeNames.FirstOrDefault(candidate => string.Equals(candidate, pair[0].GetString().Trim(), StringComparison.OrdinalIgnoreCase))
                 : AttributeByNumber(SecsRead.Id(pair[0], "ATTRID"));
+            if (name is null)
+            {
+                errors.Add(E5Error.Of(E5Error.UnknownAttribute, $"Carrier attribute {SecsTextOf(pair[0])} not allowed"));
+                continue;
+            }
+
             var value = pair[1];
             try
             {
-                switch (name)
+                if (name == "SlotMap")
                 {
-                    case "Capacity":
-                        result.Capacity = SecsRead.Code(value, "Capacity");
-                        break;
-
-                    case "SubstrateCount":
-                        result.SubstrateCount = SecsRead.Code(value, "SubstrateCount");
-                        break;
-
-                    case "SlotMap":
-                        result.SlotMap = SecsRead.List(value, "SlotMap").Select(slot => SecsRead.Code(slot, "SlotStatus")).ToArray();
-                        break;
-
-                    case "ContentMap":
-                        result.ContentMap = SecsRead.List(value, "ContentMap").Select(slot =>
-                        {
-                            var entry = SecsRead.List(slot, "ContentMap 一槽");
-                            return entry.Count < 2
-                                ? (string.Empty, string.Empty)
-                                : (SecsRead.Text(entry[0], "LotID").Trim(), SecsRead.Text(entry[1], "SubstrateID").Trim());
-                        }).ToList();
-                        break;
-
-                    case "Usage":
-                        result.Usage = SecsRead.Text(value, "Usage").Trim();
-                        break;
-
-                    default:
-                        errors.Add(E5Error.Of(E5Error.UnknownAttribute, $"Carrier attribute {SecsTextOf(pair[0])} not allowed"));
-                        break;
+                    result.SlotMap = SecsRead.List(value, "SlotMap").Select(slot => SecsRead.Code(slot, "SlotStatus")).ToArray();
+                }
+                else if (name == "ContentMap")
+                {
+                    result.ContentMap = SecsRead.List(value, "ContentMap").Select(slot =>
+                    {
+                        var entry = SecsRead.List(slot, "ContentMap 一槽");
+                        return entry.Count < 2
+                            ? (string.Empty, string.Empty)
+                            : (SecsRead.Text(entry[0], "LotID").Trim(), SecsRead.Text(entry[1], "SubstrateID").Trim());
+                    }).ToList();
                 }
             }
             catch (SecsException exception)
@@ -454,35 +424,6 @@ public partial class E87Component
         return item.Format is SecsFormat.Ascii or SecsFormat.Jis8 ? item.GetString() : item.ToString();
     }
 
-    /// <summary>
-    /// 把 Host 给的属性记到载具上：槽图只能给一次（给过了再给算错）；槽数跟槽图、片号表长度对不上算错。返回 null 是记好了。
-    /// </summary>
-    private static E5Error? Apply(E87Carrier carrier, CarrierAttributes attributes, bool slotMapAllowed)
-    {
-        if (attributes.SlotMap is not null && !slotMapAllowed)
-        {
-            return E5Error.Of(E5Error.InvalidAttributeValue, "SlotMap already given");
-        }
-
-        byte? capacity = attributes.Capacity ?? carrier.Capacity;
-        if (capacity is not null && attributes.SlotMap is not null && attributes.SlotMap.Length != capacity.Value)
-        {
-            return E5Error.Of(E5Error.InvalidAttributeValue, "SlotMap length differs from Capacity");
-        }
-
-        if (capacity is not null && attributes.ContentMap is not null && attributes.ContentMap.Count != capacity.Value)
-        {
-            return E5Error.Of(E5Error.InvalidAttributeValue, "ContentMap length differs from Capacity");
-        }
-
-        carrier.Capacity = capacity;
-        carrier.SubstrateCount = attributes.SubstrateCount ?? carrier.SubstrateCount;
-        carrier.ExpectedSlotMap = attributes.SlotMap ?? carrier.ExpectedSlotMap;
-        carrier.ContentMap = attributes.ContentMap ?? carrier.ContentMap;
-        carrier.Usage = attributes.Usage ?? carrier.Usage;
-        return null;
-    }
-
     /// <summary>载具号是 E39 的 ObjID：1~80 个可见 ASCII，不能有 ? * ~ &gt; :。</summary>
     private static E5Error? CheckCarrierId(string carrierId)
     {
@@ -502,13 +443,13 @@ public partial class E87Component
 
     /// <summary>
     /// S3F25 端口动作 → S3F26 L[2]{CAACK, 错误表}：L[3]{PORTACTION, PTN, L{L[2]{PARAMNAME, PARAMVAL}}}。
-    /// ReserveAtPort / CancelReservationAtPort、InService / OutOfService（带不带空格都认）、ChangeServiceStatus（ServiceStatus 0/1）、
-    /// ChangeAccess（AccessMode 0 手动 / 1 自动）。
+    /// InService / OutOfService（带不带空格都认）、ChangeServiceStatus（ServiceStatus 0 停用 / 1 启用）、ChangeAccess（AccessMode 0 手动 / 1 自动）；
+    /// 别的（预约这些）回 CAACK=1。
     /// </summary>
     private SecsReply PortAction(HsmsMessage message)
     {
         var body = SecsRead.List(SecsRead.Body(message), "S3F25", 3);
-        string action = SecsRead.Text(body[0], "PORTACTION").Replace(" ", string.Empty).Trim();
+        string action = SecsRead.Text(body[0], "PORTACTION").Replace(" ", string.Empty).Trim().ToUpperInvariant();
         byte ptn = SecsRead.Code(body[1], "PTN");
         var parameters = SecsRead.List(body[2], "参数表").Select(item =>
         {
@@ -521,94 +462,64 @@ public partial class E87Component
             return Ack(CaackCannotPerformNow, [E5Error.NotRemote()]);
         }
 
-        bool? auto = null;
-        SecsReply reply;
-        lock (_gate)
+        SecsItem? Parameter(string name)
         {
-            var port = _ports.FirstOrDefault(item => item.Id == ptn);
+            return parameters.FirstOrDefault(parameter => string.Equals(parameter.Name, name, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+
+        var reply = Locked(() =>
+        {
+            var port = PortById(ptn);
             if (port is null)
             {
                 return Ack(CaackInvalidData, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"PTN {ptn} invalid")]);
             }
 
-            string upper = action.ToUpperInvariant();
-            if (upper == "CHANGESERVICESTATUS")
+            switch (action)
             {
-                var status = parameters.FirstOrDefault(parameter => string.Equals(parameter.Name, "ServiceStatus", StringComparison.OrdinalIgnoreCase));
-                if (status.Value is null)
-                {
-                    return Ack(CaackInvalidData, [E5Error.Of(E5Error.InsufficientParameters, "ServiceStatus missing")]);
-                }
-
-                upper = SecsRead.Code(status.Value, "ServiceStatus") == 0 ? "OUTOFSERVICE" : "INSERVICE";
-            }
-
-            switch (upper)
-            {
-                case "RESERVEATPORT":
-                    if (port.Reserved || port.Present || port.Carrier is not null || !port.InService)
-                    {
-                        return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Port {port.Id} cannot be reserved")]);
-                    }
-
-                    port.Reserved = true;
-                    ReportPort(ReservationGo, port);
-                    reply = Ack(CaackOk, []);
-                    break;
-
-                case "CANCELRESERVATIONATPORT":
-                    if (!port.Reserved)
-                    {
-                        return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Port {port.Id} is not reserved")]);
-                    }
-
-                    port.Reserved = false;
-                    ReportPort(ReservationGoNot, port);
-                    reply = Ack(CaackOk, []);
-                    break;
-
                 case "INSERVICE":
                 case "OUTOFSERVICE":
-                    port.InService = upper == "INSERVICE";
-                    RefreshTransferState(port);
-                    reply = Ack(CaackOk, []);
-                    break;
+                    return ChangeService(port, action == "INSERVICE");
+
+                case "CHANGESERVICESTATUS":
+                    var status = Parameter("ServiceStatus");
+                    if (status is null)
+                    {
+                        return Ack(CaackInvalidData, [E5Error.Of(E5Error.InsufficientParameters, "ServiceStatus missing")]);
+                    }
+
+                    return ChangeService(port, SecsRead.Code(status, "ServiceStatus") != 0);
 
                 case "CHANGEACCESS":
-                    var mode = parameters.FirstOrDefault(parameter => string.Equals(parameter.Name, "AccessMode", StringComparison.OrdinalIgnoreCase));
-                    if (mode.Value is null)
+                    var mode = Parameter("AccessMode");
+                    if (mode is null)
                     {
                         return Ack(CaackInvalidData, [E5Error.Of(E5Error.InsufficientParameters, "AccessMode missing")]);
                     }
 
-                    if (port.Reserved)
-                    {
-                        return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"Port {port.Id} is reserved")]);
-                    }
-
-                    auto = SecsRead.Code(mode.Value, "AccessMode") != 0;
-                    reply = Ack(CaackOk, []);
-                    break;
+                    bool auto = SecsRead.Code(mode, "AccessMode") != 0;
+                    var device = port.Device;
+                    return Ack(CaackOk, []).Then(() => device.SetAutoMode(auto));
 
                 default:
                     return Ack(CaackInvalidCommand, [E5Error.Of(E5Error.ParametersImproperlySpecified, $"PORTACTION {action} unknown")]);
             }
-
-            if (auto is not null)
-            {
-                bool value = auto.Value;
-                var device = port.Device;
-                reply = reply.Then(() => device.SetAutoMode(value));
-            }
-        }
-
+        });
         LogHelper.Info(Name, $"Host 端口动作 {action} 端口 {ptn}");
         return reply;
     }
 
+    /// <summary>Host 启用 / 停用端口：搬运状态机跟着转（#2、#4 / #3）；停用的端口 E84 不交接。</summary>
+    private static SecsReply ChangeService(E87Port port, bool inService)
+    {
+        port.TransferMachine.InService = inService;
+        port.TransferMachine.Refresh();
+        return Ack(CaackOk, []);
+    }
+
     /// <summary>
     /// S3F27 改存取方式 → S3F28 L[2]{CAACK, L{L[3]{PTN, ERRCODE, ERRTEXT}}}：L[2]{ACCESSMODE（0 手动 / 1 自动）, L{PTN}}，端口表空 = 全部端口。
-    /// 预约着的端口不能改（E87：预约期间存取方式冻结）；已经是这个方式的照收不报事件。
+    /// 已经是这个方式的照收不报事件。
     /// </summary>
     private SecsReply ChangeAccess(HsmsMessage message)
     {
@@ -629,14 +540,10 @@ public partial class E87Component
             var ids = requested.Count == 0 ? _ports.Select(port => port.Id).ToList() : requested;
             foreach (byte ptn in ids)
             {
-                var port = _ports.FirstOrDefault(item => item.Id == ptn);
+                var port = PortById(ptn);
                 if (port is null)
                 {
                     failures.Add(SecsItem.L(SecsItem.U1(ptn), SecsItem.U2(E5Error.ParametersImproperlySpecified), SecsItem.A("Invalid PTN")));
-                }
-                else if (port.Reserved)
-                {
-                    failures.Add(SecsItem.L(SecsItem.U1(ptn), SecsItem.U2(E5Error.InvalidState), SecsItem.A("Port is reserved")));
                 }
                 else
                 {
@@ -645,7 +552,7 @@ public partial class E87Component
             }
         }
 
-        byte caack = failures.Count == 0 ? CaackOk : CaackInvalidState;
+        byte caack = failures.Count == 0 ? CaackOk : CaackInvalidData;
         return SecsReply.Of(SecsItem.L(SecsItem.U1(caack), SecsItem.L(failures))).Then(() =>
         {
             foreach (var device in targets)

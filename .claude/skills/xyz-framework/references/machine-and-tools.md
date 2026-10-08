@@ -46,7 +46,7 @@
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
 | DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
 | HsmsSmoke / SecsSmoke | HSMS 链路组件对假 EAP（按 S/F 分发、S9F3 / F5 / F7、SxF0、闸门、回完再做、断线重连、端口冲突）；SECS-II 编解码、HSMS 握手和计时器 |
-| EapSmoke | EAP 各标准对假 Host：配方管理 S7（列、取、问能不能下、下、删、全删、新名字按 JSON 样子分库、REMOTE 才收、配方变了的事件和 DV、本地编辑锁）、E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、E39（类型、属性名、带条件查属性）、E87（没预告等 Host、Host 给片号、取消、Bind 设备认定、读槽图核对、端口启停用、存取方式）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort、Job 管理是假的，晶圆账是真的 |
+| EapSmoke | EAP 各标准对假 Host：配方管理 S7（列、取、问能不能下、下、删、全删、新名字按 JSON 样子分库、REMOTE 才收、配方变了的事件和 DV、本地编辑锁）、E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、E39（类型、属性名、带条件查属性）、E87（读到号等 Host、槽图一律等 Host、第二次 PWC 比对槽图和给片号、Load 好就在取放、取消、ReCreate、读码失败 Host 给号、AutoUnload 关着时 CarrierRelease、Host 启停用、存取方式、预告 / 绑定这些不支持的回 CAACK=1）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort、Job 管理是假的，晶圆账是真的 |
 | RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
 | ChamberSmoke | 腔体部件：照 sc 生成的通用部件清单（[PartKind] / [LiveValue]）、气缸三态、喷嘴 / 旋转 / 摆臂 Reach、有变化才推；部件手动动作（找不到、没有这个动作、参数不对、指令没发出去、Manual 状态、在途拒绝、停止类忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用），假 PLC 模拟气缸和轴 |

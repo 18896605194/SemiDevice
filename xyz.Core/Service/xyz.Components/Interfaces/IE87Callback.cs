@@ -1,4 +1,4 @@
-using xyz.Drivers.Loadport;
+﻿using xyz.Drivers.Loadport;
 
 namespace xyz.Components.Interfaces;
 
@@ -22,12 +22,6 @@ public interface IE87Callback
     void LoadCompleted(ILoadPort port);
 
     void UnloadCompleted(ILoadPort port);
-
-    void Homed(ILoadPort port);
-
-    void ClampCompleted(ILoadPort port);
-
-    void UnclampCompleted(ILoadPort port);
 
     void AutoModeChanged(ILoadPort port, bool autoMode);
 

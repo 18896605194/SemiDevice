@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -760,20 +760,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         EnqueueE87(callback => callback.AutoModeChanged(this, autoMode));
     }
 
-    /// <summary>
-    /// 机械手要来取放片（交互环的准备一）：这个载具第一次被取放时进 E87 的 IN ACCESS，回调 EAP AccessStarted。
-    /// </summary>
-    public override ModuleOperation? PrepareTransfer()
-    {
-        var operation = base.PrepareTransfer();
-        if (operation is not null)
-        {
-            MarkInAccess();
-        }
-
-        return operation;
-    }
-
+    /// <summary>Load 好了：这个载具进 E87 的 IN ACCESS（照老 CTC，Load 好就算开始取放），回调 EAP AccessStarted；已经取放过的不动。</summary>
     private void MarkInAccess()
     {
         bool started = false;
@@ -842,9 +829,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         switch (_action)
         {
             case LoadPortAction.Load:
-                // 门已开、槽图读了。还不算开始取放（E87 IN ACCESS 是机械手第一次来取放片，见 PrepareTransfer）：
-                // 这时候 Host 核对槽图不通过还能取消这个载具。
+                // 门已开、槽图读了，就算开始取放（照老 CTC）。
                 EnqueueE87(callback => callback.LoadCompleted(this));
+                MarkInAccess();
                 break;
 
             case LoadPortAction.Unload:
@@ -855,18 +842,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                     : carrier);
                 EnqueueE87(callback => callback.AccessStopped(this));
                 EnqueueE87(callback => callback.UnloadCompleted(this));
-                break;
-
-            case LoadPortAction.Home:
-                EnqueueE87(callback => callback.Homed(this));
-                break;
-
-            case LoadPortAction.Clamp:
-                EnqueueE87(callback => callback.ClampCompleted(this));
-                break;
-
-            case LoadPortAction.Unclamp:
-                EnqueueE87(callback => callback.UnclampCompleted(this));
                 break;
         }
     }

@@ -211,10 +211,23 @@
 - **E30 默认**：开机 OFF-LINE / HOST OFF-LINE（等 Host 发 S1F17 上线），上线进 REMOTE；缓存默认什么都不缓存（Host 用 S2F43 指定才缓存，
   免得不懂缓存的 Host 重连后收不到事件）；S2F31 对时默认只答收下、不改本机时钟（SC `ApplyHostTime`）；S2F41 本机没有远程命令，一律回 HCACK=1；
   Host 的动作命令（载具动作、建 Job、Job 命令、改 / 建 / 删对象）要 ON-LINE REMOTE，查询 ON-LINE 就行，S2F15 改 EC 在 LOCAL 也收。
-- **E87**：认定后自动 Load、干完 / 中断 / 不要了自动 Unload（SC `AutoLoad` / `AutoUnload` 默认开）。
-  **设备侧改了一处语义**：LoadPort 的载具"在取放"（E87 IN ACCESS）原来是 Load 好就算，改成**机械手第一次来取放才算**（Load 好以后 Host 核对槽图不通过还要能取消，
-  E87 规定在取放的载具不能取消）；取放过、没判完成就 Unload 的记**中断**（原来退回"没取放"，E87 里没有这条回头路）。
-  不支持：CarrierReCreate、CarrierRelease、读写载具标签、内部缓冲设备才有的动作。
+- **E87 照老 CTC 重写**（2026-10-08，用户："按照老的 CTC 那种来写"，参考微信文件夹 CTC 的 `FrameworkLocal\FACore_GTX\E87FA`）：
+  - **结构**（用户选"拆成几个状态机类"）：每个 LoadPort 一个 `E87Port`，挂 6 个小状态机（搬运、存取方式、关联、载具 ID、槽图、取放），
+    共用 E87 里的小基类 `E87StateMachine`（转换表 + 进状态时按"从哪来"报事件；框架的 BaseStateMachine 在模块层，组件层用不到）。
+    载具状态就是端口上这几个状态机的状态，没有单独的载具对象和载具表；设备的事实（在位、槽图、槽数、忙闲）直接问 LoadPort。
+    E87 只自己记载具号（拿走时 LoadPort 已清号，#21 还要带）和"Host 取消 / 放行了这一盒"。
+  - **流程照 CTC**：读到号一律等 Host；ID 认定就 Load（没有开关，`AutoLoad` SC 删了）；槽图一律等 Host，设备不自己认定（#13 删了）；
+    第二次 ProceedWithCarrier 带了槽图就跟读到的比，对不上回 CAACK=3，片号表当场写晶圆账；ID 阶段带的槽图 / 片号表不用（记日志）。
+  - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块里 `MarkInAccess` 挪到 Load 完成）：后果是 Load 以后 Host 不能取消，
+    槽图核对不过要操作员 Unload（CTC 也这样）。取放过、没判完成就 Unload 的记中断，这条不变。
+  - **Host 动作**：ProceedWithCarrier、CancelCarrier / CancelCarrierAtPort（不在取放才收，卸下来、放行、取消关联）、
+    CarrierRelease（不在取放才收；AutoUnload 关着时干完的靠它卸）、CarrierReCreate（等取、没取放过的才收：删对象、重新读码）、
+    S3F25 启停用 + 改存取方式、S3F27。端口在动作（Load 中）时取消、放行回 CAACK=2。
+  - **三处保留我们自己的做法**（用户比过 CTC 后同意）：状态机不开线程，在 E87 锁里同步转；E84 来问搬运状态（`IE84Provider`），不在状态机里开关 HO_AVBL；
+    EC `PortPollMs` 定时查，每个状态都查（CTC 只在两个状态里查，会卡住）。设备停用、出错在 E87 里报挡着，停用只由 Host 说了算（CTC 一样）。
+  - **删掉的不要加回去**（2026-10-08 用户砍的）：Bind / CancelBind、CarrierNotification / CancelCarrierNotification、端口预约、载具号重复检查（改成记日志不建）、
+    E39 的 Carrier / Port 对象、端口 SV、夹紧 / 松开事件和 Homed 回调、用途属性。E84 的东西保留（用户："E84的东西要保留的"）。
+  - 不支持：读写载具标签（S3F29 / 31）、内部缓冲设备才有的动作。还没做：EAP 起来时端口上已有的盒子补报（见上面 LoadPort 那条）。
 - **E90**：片对象在槽图认定（料到了）以后才建，Host 给的片号先写进晶圆账再建；工艺状态照账：完成 → PROCESSED、没做成 → REJECTED、中止 → ABORTED，
   出去转了一圈没做就回来的 → SKIPPED。Job 结束时没投的片**不**写成跳过（账上一改，这些片就建不了新 Job 了）。没有读片号的设备，片号核对不做。
 - **E40 / E94**：建 PJ 的料只收一个载具加槽号，**载具要已经在端口上**（Host 先等料到、核对完再建 PJ；"料没到先建 PJ"要动 Job 的建法，没做）；

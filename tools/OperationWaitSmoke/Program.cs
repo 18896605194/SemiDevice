@@ -304,7 +304,7 @@ Check(ledger.Get(port.Name, 1)?.CarrierId == "FOUP-777", "读码回来后应补�
 Check(ledger.Get(port.Name, 4)?.CarrierId == "FOUP-777", "补载具号应覆盖整个模块");
 
 // 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnOperationCompleted）。
-// E87 的 IN ACCESS 是"开始取放片"：Load 好了还不算（这时 Host 核对槽图不通过还能取消载具），机械手第一次来取放才算。
+// E87 的 IN ACCESS 照老 CTC：Load 好了就算开始取放。
 port.Open();
 port.NoteState(ModuleState.Idle);
 Check(port.LocalTransferState == LoadPortTransferState.OutOfService, "端口下线（不参与自动调度）时自己判停用");
@@ -318,13 +318,11 @@ loadOp.Succeed();
 port.Tick();
 Check(port.State == LoadPortState.Loaded, $"Load 成功应落 Loaded，实际 {port.State}");
 Check(port.IsLoaded && !port.IsIdle, "Loaded 时 IsLoaded 为真、IsIdle 为假");
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.NotAccessed, "Load 好了还没取放片，载具应还是 NotAccessed");
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "Load 好了载具就进 InAccess");
 Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
+Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
-Check(port.PrepareTransfer() is not null && port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess,
-    "机械手第一次来取放，载具进 InAccess");
-Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "开始取放应上报 AccessStarted");
-Check(port.CancelTransfer() && port.State == LoadPortState.Loaded, "撤回准备应回到 Loaded");
+Check(port.PrepareTransfer() is not null && port.CancelTransfer() && port.State == LoadPortState.Loaded, "机械手准备再撤回应回到 Loaded");
 
 // 取放途中出错：载具算没干完，落 Stopped
 var brokenUnload = new ProbeOperation();
@@ -382,7 +380,7 @@ var secondLoad = new ProbeOperation();
 port.BeginAction(LoadPortAction.Load, secondLoad);
 secondLoad.Succeed();
 port.Tick();
-Check(port.PrepareTransfer() is not null && port.CancelTransfer(), "第二个载具：机械手来取放过");
+Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "第二个载具：Load 好了就在取放");
 var secondUnload = new ProbeOperation();
 port.BeginAction(LoadPortAction.Unload, secondUnload);
 secondUnload.Succeed();
@@ -1861,9 +1859,6 @@ sealed class RecordingE87Callback : IE87Callback
     public void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap) => Note();
     public void LoadCompleted(ILoadPort port) => Note();
     public void UnloadCompleted(ILoadPort port) => Note();
-    public void Homed(ILoadPort port) => Note();
-    public void ClampCompleted(ILoadPort port) => Note();
-    public void UnclampCompleted(ILoadPort port) => Note();
     public void AutoModeChanged(ILoadPort port, bool autoMode) => Note();
     public void AccessStarted(ILoadPort port) => Note();
     public void AccessStopped(ILoadPort port) => Note();

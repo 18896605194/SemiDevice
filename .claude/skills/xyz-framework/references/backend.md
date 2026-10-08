@@ -300,7 +300,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   时间（EC `TimeFormat`；S2F31 默认只答收下，SC `ApplyHostTime` 为 True 才改本机时钟）、缓存（S2F43 指定缓存哪些——默认什么都不缓存；
   断了通讯开缓存，开着时新报文也进缓存，Host S6F23 要了按先后发或清掉；状态和报文存库，重启接着开着）。S2F41 本机没有远程命令，回 HCACK=1。
   Host 定的报告、开关、缓存范围存 `gem_config`（一行 JSON），缓存报文存 `gem_spool`（SC `Database` 指的库）。
-- **E39**：各标准把对象类型登记进来（`IE39ObjectType`：类型名、属性名先后 = 属性号、对象 ID、取属性；建、删、改可选）——Carrier、Port（E87）、
+- **E39**：各标准把对象类型登记进来（`IE39ObjectType`：类型名、属性名先后 = 属性号、对象 ID、取属性；建、删、改可选）——
   Substrate、SubstLoc（E90）、ProcessJob（E40）、ControlJob（E94，S14F9 建 CJ 走它）。查要 ON-LINE，改 / 建 / 删要 REMOTE。
 - **Recipe**（`Eap\Recipe\E30RecipeComponent`，E30 的工艺程序管理）：分别挂到 `ISequenceComponent`、`IProcessRecipeComponent`，上报口是 `IE30Callback`。
   **配方号就是配方名**（不加前缀，用户定的；两个库的名字不会重），按名字到两个库里找（流程配方库先）；Host 下一个两个库都没有的新名字，
@@ -309,11 +309,19 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   S7F5 → S7F6 PPBODY 用 B（UTF-8），没有回空表；S7F17 删（空表 = 全删；有一个没有就都不删回 4）；S7F19 列（流程配方在前）。下、删要 REMOTE。
   配方变了报 `ProcessProgramChange`（DV `PPChangeName` = 配方名、`PPChangeStatus` 1 建 / 2 改 / 3 删；本地和 Host 改的都报）。
   SC 只有 `LockLocalEditInRemote`（默认 False）：True 时 ON-LINE REMOTE 下 `IsLocalEditLocked` 为真，本地配方服务拒改。以后要前缀再加在这个组件的 SC 里。
-- **E87**：挂到每个 LoadPort 上（`IE87Callback` + `IE84Provider`，PortID 按传进来的先后从 1 编）；ID 核对：有 Bind / CarrierNotification 预告且号对上由设备认定，
-  没预告的等 Host ProceedWithCarrier，读码失败的等 Host 带端口号给号；认定后 SC `AutoLoad` 自动 Load；槽图跟 Host 给的一样由设备认定，否则等 Host；
-  槽图认定 = 料到了：Host 给的片号表写进晶圆账，再通知 E90 建片对象；Host 取消的、核对不过的不要了（卸下来等取），干完 / 中断 SC `AutoUnload` 自动 Unload。
-  端口搬运状态按设备的 `LocalTransferState` 加 Host 的停用、不要了的载具算，EC `PortPollMs` 定时重算；预约期间不能改存取方式。
-  不支持：CarrierReCreate、CarrierRelease、读写标签（S3F29 / 31）、内部缓冲设备的动作。
+- **E87**（照老 CTC 写，定法见 decisions.md「EAP 各标准」E87 一条）：挂到每个 LoadPort 上（`IE87Callback` + `IE84Provider`，PortID 按传进来的先后从 1 编）。
+  - 文件：`E87Component`（声明 DV / 事件、收设备回调、E84 反查、报事件）、`.Host`（S3 报文）、`E87Port`（一个端口：6 个状态机 + 载具号 + 放行标记）、
+    `E87StateMachine`（小基类：转换表、发消息、进状态时带上原来的状态）和 6 个状态机类（搬运、存取方式、关联、载具 ID、槽图、取放，各自的状态枚举数值照 SEMI，没有载具 = 255）。
+  - 写法：设备回调、Host 报文只做"翻成消息发给状态机"（`OnPort` 在锁里找端口、做事、最后刷搬运状态）；事件在状态机进状态时报，
+    要设备动的（Load、Unload、重新读码、通知 E90）用 `Later` 攒着，出锁再做；写回设备的核对状态、载具号、片号表在锁里直接写（只拿设备的小锁）。
+  - 流程：读到号建对象等 Host（#1、#3），读码失败的 Host 带端口号给号（#1、#4）；ID 认定就 Load；读到槽图一律等 Host（#14）；
+    第二次 ProceedWithCarrier 带槽图就比、对不上回 CAACK=3，片号表写晶圆账，槽图认定（#15）通知 E90 建片对象；Load 好就算在取放（#18）；
+    干完 / 中断 SC `AutoUnload` 自动 Unload，关着的等 Host CarrierRelease；取消、放行的卸好了端口转等取。
+  - 搬运状态：`E87TransferStateMachine.Compute` 按 Host 启停用、设备 `LocalTransferState`、放行标记算，`Refresh` 转过去（等送、等取互换中间补挡着）；
+    EC `PortPollMs` 定时、每次回调和 Host 动作后都刷；E84 每拍问 `Compute`。
+  - S3F17：ProceedWithCarrier、CancelCarrier、CancelCarrierAtPort、CarrierRelease、CarrierReCreate；S3F25：InService / OutOfService / ChangeServiceStatus / ChangeAccess；S3F27。
+  - 不支持（回 CAACK=1）：Bind / CancelBind、CarrierNotification / CancelCarrierNotification、端口预约、读写标签（S3F29 / 31）、内部缓冲设备的动作；
+    也没有 E39 的 Carrier / Port 对象、端口 SV、夹紧 / 松开事件。
 - **E90**：挂在晶圆账上（`IE90Callback`），按账报片的位置（在来源 / 机内 / 回到载具）和工艺（要做 / 在做 / 做完 / 中止 / 没做成 / 跳过）、片位有没有片；
   接了 E87 时 LoadPort 上的片等槽图认定才建片对象。片位号：单槽的位置用模块名，多槽的用"模块名.两位槽号"。没有读片号的设备，片号核对不做。
 - **E40 / E94**：Host 的 S16F11 / 15 / 5 / 17 / 19 / 21 / 27、S14F9 翻成 `IJobManager` 的命令（来源 Host），被拒的错误码经 `JobErrors` 翻成 E5；

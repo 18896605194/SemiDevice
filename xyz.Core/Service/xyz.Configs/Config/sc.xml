@@ -456,7 +456,7 @@
 	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
 	     Recipe（E30 工艺程序管理）：Host 用 S7 列、取、下、删流程配方和工艺配方，内容是 JSON，跟本地配方页过同一套检查；配方变了报事件。
 	     Host 那边的配方号就是配方名（两个库的名字不重）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
-	     E87：载具 ID、槽图跟 Host 核对，端口搬运状态、预约、绑定；AutoLoad / AutoUnload：认定后自动 Load、干完或不要了自动 Unload。
+	     E87：载具 ID、槽图跟 Host 核对（照老 CTC：ID 认定就 Load，槽图一律等 Host），端口搬运状态、启停用；AutoUnload：干完或中断后自动 Unload。
 	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
 	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
 		<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
@@ -479,7 +479,6 @@
 			<Value Name="LockLocalEditInRemote" Value="False" />
 		</Setting>
 		<Setting Name="E87" Type="xyz.Components.Components.E87Component">
-			<Value Name="AutoLoad" Value="True" />
 			<Value Name="AutoUnload" Value="True" />
 		</Setting>
 		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />

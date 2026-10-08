@@ -81,7 +81,7 @@ public class EapComponent : ComponentBase
             }
         }
 
-        carriers?.Attach(link, gem, objects, ports, substrates is null ? null : substrates.MaterialArrived);
+        carriers?.Attach(link, gem, ports, substrates is null ? null : substrates.MaterialArrived);
 
         var processJobs = FindChild<E40Component>();
         var controlJobs = FindChild<E94Component>();

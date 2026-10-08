@@ -5,20 +5,13 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Drivers.Loadport;
 using xyz.Secs.SecsII;
-using xyz.Shared.Dtos;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 载具管理（SEMI E87，sc.xml 的 Eap 下的 E87 节点）：跟 Host 核对载具的过程和端口在 Host 眼里的状态，都在 EAP 这一侧。
-/// ① 载具：到了读码 → 有预告（Bind / CarrierNotification）且号对上由设备认定，没预告的等 Host ProceedWithCarrier；
-///    认定后自动 Load（夹紧、开门、读槽图）；槽图跟 Host 给的一样由设备认定，否则等 Host；认定了就是"料到了"（E90 建片对象）；
-///    Host 取消（CancelCarrier）的、核对不过的卸下来等取走；干完（CJ 完成）自动 Unload。
-/// ② 端口：搬运状态（停用 / 挡着 / 等送 / 等取，也是 E84 交接的许可）、存取方式（手动 / 自动）、关联、预约。
-/// ③ 报文：S3F17 载具动作、S3F25 端口动作、S3F27 改存取方式；E39 对象 Carrier、Port。每个状态转换报一个事件。
-/// 设备侧的事实（在位、读码、槽图、Load / Unload）由 LoadPort 经 IE87Callback 报过来，Host 的决定经 ILoadPort 写回（认定的载具号、核对状态）。
+/// 载具管理
 /// </summary>
-[Component(description: "载具管理（SEMI E87）：载具 ID / 槽图跟 Host 核对、端口搬运状态、预约和绑定，S3 报文")]
+[Component(description: "载具管理（SEMI E87）：载具 ID / 槽图跟 Host 核对、端口搬运状态，S3 报文")]
 public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 {
     #region DV 代码（事件带的数据）
@@ -32,12 +25,10 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     private const string DvSubstrateCount = "SubstrateCount";
     private const string DvSlotMap = "SlotMap";
     private const string DvContentMap = "ContentMap";
-    private const string DvUsage = "Usage";
     private const string DvLocationId = "LocationID";
     private const string DvTransferState = "PortTransferState";
     private const string DvAccessMode = "PortAccessMode";
     private const string DvAssociationState = "PortAssociationState";
-    private const string DvReservationState = "PortReservationState";
     private const string DvReason = "Reason";
 
     [DataVariable(ValueFormat.String, "载具号")]
@@ -46,7 +37,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     [DataVariable(ValueFormat.Int, "端口号（PortID，按 LoadPort 先后从 1 开始）")]
     public readonly string PortIdData = DvPortId;
 
-    [DataVariable(ValueFormat.Int, "载具 ID 状态：0 没读、1 等 Host、2 认定、3 核对不过")]
+    [DataVariable(ValueFormat.Int, "载具 ID 状态：1 等 Host、2 认定、3 核对不过")]
     public readonly string CarrierIdStatusData = DvCarrierIdStatus;
 
     [DataVariable(ValueFormat.Int, "槽图状态：0 没读、1 等 Host、2 认定、3 核对不过")]
@@ -67,9 +58,6 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     [DataVariable(ValueFormat.String, "片号表：L[槽数]{L[2]{批次号, 片号}}")]
     public readonly string ContentMapData = DvContentMap;
 
-    [DataVariable(ValueFormat.String, "载具用途（Host 给的）")]
-    public readonly string UsageData = DvUsage;
-
     [DataVariable(ValueFormat.String, "载具在哪（端口名）")]
     public readonly string LocationIdData = DvLocationId;
 
@@ -82,36 +70,21 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     [DataVariable(ValueFormat.Int, "端口关联：0 没关联、1 关联了载具")]
     public readonly string AssociationStateData = DvAssociationState;
 
-    [DataVariable(ValueFormat.Int, "端口预约：0 没预约、1 预约了")]
-    public readonly string ReservationStateData = DvReservationState;
-
-    [DataVariable(ValueFormat.Int, "原因：0 等 Host 核对槽图、1 槽图核对不过、2 读码失败、5 Host 取消、6 载具号重了")]
+    [DataVariable(ValueFormat.Int, "原因：0 等 Host 核对槽图、5 Host 取消")]
     public readonly string ReasonData = DvReason;
 
     #endregion
 
-    #region 事件：载具（E87 Carrier 状态机 #1~#21）
+    #region 事件：载具（E87 Carrier 状态机，由载具 ID、槽图、取放三个状态机报）
 
     [EventAttribut("载具对象建了（#1）", Data = new[] { DvCarrierId, DvLocationId })]
     public readonly string CarrierTrans01 = "CarrierSMTrans01";
 
-    [EventAttribut("载具 ID 没读（#2，Host 预告的载具）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvCapacity, DvSubstrateCount, DvUsage })]
-    public readonly string CarrierTrans02 = "CarrierSMTrans02";
-
     [EventAttribut("载具 ID 等 Host 核对（#3）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId })]
     public readonly string CarrierTrans03 = "CarrierSMTrans03";
 
-    [EventAttribut("载具 ID 认定（#4，Host 给号）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId })]
+    [EventAttribut("载具 ID 认定（#4，读码失败、Host 给号）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId })]
     public readonly string CarrierTrans04 = "CarrierSMTrans04";
-
-    [EventAttribut("载具 ID 核对不过（#5）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId, DvReason })]
-    public readonly string CarrierTrans05 = "CarrierSMTrans05";
-
-    [EventAttribut("载具 ID 认定（#6，号对上预告）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId })]
-    public readonly string CarrierTrans06 = "CarrierSMTrans06";
-
-    [EventAttribut("载具 ID 等 Host（#7，预告的载具读码失败）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId, DvReason })]
-    public readonly string CarrierTrans07 = "CarrierSMTrans07";
 
     [EventAttribut("载具 ID 认定（#8，Host 让继续）", Data = new[] { DvCarrierId, DvCarrierIdStatus, DvLocationId, DvPortId })]
     public readonly string CarrierTrans08 = "CarrierSMTrans08";
@@ -121,9 +94,6 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     [EventAttribut("载具槽图没读（#12）", Data = new[] { DvCarrierId, DvSlotMapStatus })]
     public readonly string CarrierTrans12 = "CarrierSMTrans12";
-
-    [EventAttribut("载具槽图认定（#13，跟 Host 给的一样）", Data = new[] { DvCarrierId, DvSlotMapStatus, DvSlotMap, DvCapacity, DvSubstrateCount, DvLocationId, DvPortId })]
-    public readonly string CarrierTrans13 = "CarrierSMTrans13";
 
     [EventAttribut("载具槽图等 Host 核对（#14）", Data = new[] { DvCarrierId, DvSlotMapStatus, DvSlotMap, DvCapacity, DvSubstrateCount, DvLocationId, DvPortId, DvReason })]
     public readonly string CarrierTrans14 = "CarrierSMTrans14";
@@ -146,12 +116,12 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     [EventAttribut("载具中断（#20）", Data = new[] { DvCarrierId, DvAccessingStatus, DvLocationId, DvPortId })]
     public readonly string CarrierTrans20 = "CarrierSMTrans20";
 
-    [EventAttribut("载具对象删了（#21：取走、取消预告）", Data = new[] { DvCarrierId, DvLocationId, DvPortId })]
+    [EventAttribut("载具对象删了（#21：载具取走、Host CarrierReCreate）", Data = new[] { DvCarrierId, DvLocationId, DvPortId })]
     public readonly string CarrierTrans21 = "CarrierSMTrans21";
 
     #endregion
 
-    #region 事件：端口搬运状态（E87 Load Port Transfer 状态机 #1~#10）
+    #region 事件：端口搬运状态（E87 Load Port Transfer 状态机 #1~#9）
 
     [EventAttribut("端口搬运状态初始（#1）", Data = new[] { DvPortId, DvTransferState })]
     public readonly string PortTrans01 = "PortTransferSMTrans01";
@@ -180,12 +150,9 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     [EventAttribut("端口挡着 → 等取（#9，载具卸好了）", Data = new[] { DvPortId, DvTransferState, DvCarrierId })]
     public readonly string PortTrans09 = "PortTransferSMTrans09";
 
-    [EventAttribut("端口挡着 → 可交接（#10）", Data = new[] { DvPortId, DvTransferState })]
-    public readonly string PortTrans10 = "PortTransferSMTrans10";
-
     #endregion
 
-    #region 事件：存取方式、关联、预约、其它
+    #region 事件：存取方式、关联、其它
 
     [EventAttribut("端口转自动存取（AMHS）", Data = new[] { DvPortId, DvAccessMode })]
     public readonly string AccessGoAuto = "AccessSMGoAuto";
@@ -199,23 +166,8 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     [EventAttribut("端口取消关联", Data = new[] { DvPortId, DvAssociationState })]
     public readonly string AssociationGoNot = "AssocSMGoNotAssoc";
 
-    [EventAttribut("端口预约了", Data = new[] { DvPortId, DvReservationState, DvCarrierId })]
-    public readonly string ReservationGo = "ReservationSMGoReserved";
-
-    [EventAttribut("端口取消预约", Data = new[] { DvPortId, DvReservationState })]
-    public readonly string ReservationGoNot = "ReservationSMGoNotReserved";
-
-    [EventAttribut("读码失败（没有预告，等 Host 给号）", Data = new[] { DvPortId })]
+    [EventAttribut("读码失败（等 Host 带端口号给号或取消）", Data = new[] { DvPortId })]
     public readonly string CarrierIdReadFailEvent = "CarrierIDReadFail";
-
-    [EventAttribut("载具号跟机内另一个载具重了", Data = new[] { DvCarrierId, DvPortId })]
-    public readonly string DuplicateCarrierIdEvent = "DuplicateCarrierID";
-
-    [EventAttribut("载具夹紧", Data = new[] { DvCarrierId, DvPortId })]
-    public readonly string CarrierClampedEvent = "CarrierClamped";
-
-    [EventAttribut("载具松开", Data = new[] { DvCarrierId, DvPortId })]
-    public readonly string CarrierUnclampedEvent = "CarrierUnclamped";
 
     [EventAttribut("载具门打开（Load 好了）", Data = new[] { DvCarrierId, DvPortId })]
     public readonly string CarrierOpenedEvent = "CarrierOpened";
@@ -233,10 +185,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #region SC / EC
 
-    [SCEditor("True", "E87", "载具 ID 认定后自动 Load（夹紧、开门、读槽图）；False = 等操作员点 Load")]
-    public bool AutoLoad { get; set; } = true;
-
-    [SCEditor("True", "E87", "载具干完、中断、被取消或核对不过后自动 Unload（关门、松开），端口转等取；False = 等操作员点 Unload")]
+    [SCEditor("True", "E87", "载具干完或中断后自动 Unload（关门、松开），端口转等取；False = 等 Host CarrierRelease 或操作员点 Unload")]
     public bool AutoUnload { get; set; } = true;
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "10000", @default: "500",
@@ -249,51 +198,9 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #endregion
 
-    #region SV
-
-    /// <summary>各端口搬运状态（按 PortID 先后）。</summary>
-    [VariableMark(VariableType.SV, ValueFormat.String, description: "各端口搬运状态（L{U1}，0 停用、1 挡着、2 等送、3 等取）")]
-    public SecsItem PortTransferStateList => PortList(port => port.TransferState ?? E87Codes.TransferBlocked);
-
-    /// <summary>各端口存取方式。</summary>
-    [VariableMark(VariableType.SV, ValueFormat.String, description: "各端口存取方式（L{U1}，0 手动、1 自动）")]
-    public SecsItem PortAccessModeList => PortList(port => port.AccessMode);
-
-    /// <summary>各端口关联状态。</summary>
-    [VariableMark(VariableType.SV, ValueFormat.String, description: "各端口关联状态（L{U1}，0 没关联、1 关联了）")]
-    public SecsItem PortAssociationStateList => PortList(port => port.AssociationState);
-
-    /// <summary>各端口预约状态。</summary>
-    [VariableMark(VariableType.SV, ValueFormat.String, description: "各端口预约状态（L{U1}，0 没预约、1 预约了）")]
-    public SecsItem PortReservationStateList => PortList(port => port.ReservationState);
-
-    /// <summary>载具在哪（E87 CarrierLocationMatrix）：只列已经到了、认出号的。</summary>
-    [VariableMark(VariableType.SV, ValueFormat.String, description: "载具在哪（L{L[2]{位置, 载具号}}）")]
-    public SecsItem CarrierLocationMatrix
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return SecsItem.L(_ports.Select(port => SecsItem.L(SecsItem.A(GemValue.Ascii(port.Device.Name)),
-                    SecsItem.A(port.Carrier is not null && port.Carrier.Arrived ? GemValue.Ascii(port.Carrier.Id) : string.Empty))));
-            }
-        }
-    }
-
-    private SecsItem PortList(Func<E87Port, byte> value)
-    {
-        lock (_gate)
-        {
-            return SecsItem.L(_ports.Select(port => SecsItem.U1(value(port))));
-        }
-    }
-
-    #endregion
-
     private readonly object _gate = new();
     private readonly List<E87Port> _ports = [];
-    private readonly Dictionary<string, E87Carrier> _carriers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<Action> _later = [];
     private E30Component? _gem;
     private Action<string>? _materialVerified;
     private Timer? _poll;
@@ -301,12 +208,10 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     #region 接设备
 
     /// <summary>
-    /// 接到链路和设备上（EAP 组件在链路打开之前调）：端口按给的先后编 PortID，挂上 E87 回调和 E84 反查口，
-    /// 登记 S3 处理方和 E39 对象类型；materialVerified 是槽图认定（料到了）时通知的（E90 据此建片对象）。
-    /// 开始按 EC PortPollMs 查端口状态。
+    /// 接到链路和设备上（EAP 组件在链路打开之前调）：每个 LoadPort 建一个端口对象（PortID 按给的先后编），挂上 E87 回调和 E84 反查口，
+    /// 登记 S3 处理方；materialVerified 是槽图认定（料到了）时通知的（E90 据此建片对象）。开始按 EC PortPollMs 查端口状态。
     /// </summary>
-    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IReadOnlyList<ILoadPort> ports,
-        Action<string>? materialVerified)
+    public void Attach(HsmsComponent link, E30Component gem, IReadOnlyList<ILoadPort> ports, Action<string>? materialVerified)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -317,15 +222,14 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
             byte id = 1;
             foreach (var device in ports)
             {
-                var port = new E87Port { Device = device, Id = id++, Present = device.IsCarrierArrived };
-                _ports.Add(port);
+                _ports.Add(new E87Port(this, device, id++));
                 device.E87Callback = this;
                 device.E84Provider = this;
             }
 
             foreach (var port in _ports)
             {
-                RefreshTransferState(port);
+                port.TransferMachine.Refresh();
             }
         }
 
@@ -333,8 +237,6 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         link.Handle(3, 17, CarrierAction);
         link.Handle(3, 25, PortAction);
         link.Handle(3, 27, ChangeAccess);
-        objects?.Register(new E87CarrierType(this));
-        objects?.Register(new E87PortType(this));
         _poll = new Timer(_ => Poll(), null, Math.Max(100, PortPollMs), Math.Max(100, PortPollMs));
         LogHelper.Info(Name, $"E87 接上 {_ports.Count} 个端口：{string.Join("、", _ports.Select(port => $"{port.Id}={port.Device.Name}"))}");
     }
@@ -358,13 +260,13 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     {
         try
         {
-            lock (_gate)
+            Locked(() =>
             {
                 foreach (var port in _ports)
                 {
-                    RefreshTransferState(port);
+                    port.TransferMachine.Refresh();
                 }
-            }
+            });
         }
         catch (Exception exception)
         {
@@ -379,295 +281,111 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #endregion
 
-    #region 设备回调（IE87Callback，在 EAP 的上报派发线程上）
+    #region 设备回调（IE87Callback，在 EAP 的上报派发线程上）：翻成状态机的消息
 
     void IE87Callback.CarrierArrived(ILoadPort device)
     {
-        lock (_gate)
+        OnPort(device, port =>
         {
-            var port = PortOf(device);
-            if (port is null)
-            {
-                return;
-            }
-
-            port.Present = true;
-            port.ReadFailed = false;
-            port.Rejected = false;
-            if (port.Reserved)
-            {
-                port.Reserved = false;
-                ReportPort(ReservationGoNot, port);
-            }
-
-            var bound = port.Carrier;
-            if (bound is not null)
-            {
-                bound.Arrived = true;
-            }
-
+            port.Released = false;
             ReportPort(MaterialReceivedEvent, port);
-            RefreshTransferState(port);
-        }
+        });
     }
 
     void IE87Callback.CarrierIdRead(ILoadPort device, string carrierId)
     {
-        var actions = new List<Action>();
-        lock (_gate)
+        OnPort(device, port =>
         {
-            var port = PortOf(device);
-            if (port is not null)
+            // 已经有载具对象（Host 先给了号、重复上报）的不理
+            if (port.HasCarrier)
             {
-                IdRead(port, carrierId, actions);
-            }
-        }
-
-        Run(actions);
-    }
-
-    /// <summary>读到载具号：对上预告的设备认定；没预告的建对象等 Host；跟机内的重了这一盒不收。</summary>
-    private void IdRead(E87Port port, string carrierId, List<Action> actions)
-    {
-        var device = port.Device;
-        var bound = port.Carrier;
-        if (bound is not null && bound.IdStatus == E87Codes.IdNotRead)
-        {
-            if (string.Equals(bound.Id, carrierId, StringComparison.OrdinalIgnoreCase))
-            {
-                // 号对上 Bind 的预告：设备认定（#6）
-                Verify(port, bound, CarrierTrans06, actions);
                 return;
             }
 
-            // 来的不是 Bind 预告的那个：预告作废（#21），按没预告的处理
-            LogHelper.Warn(Name, $"端口 {port.Id} 绑定的是 {bound.Id}，来的是 {carrierId}：绑定作废");
-            Remove(bound);
-        }
-
-        if (_carriers.TryGetValue(carrierId, out var existing))
-        {
-            if (existing.Port is null)
+            var other = FindCarrier(carrierId);
+            if (other is not null)
             {
-                // CarrierNotification 预告过的号：关联上端口，设备认定（#6）
-                existing.Port = port;
-                existing.Arrived = true;
-                port.Carrier = existing;
-                ReportAssociation(port);
-                Verify(port, existing, CarrierTrans06, actions);
+                LogHelper.Warn(Name, $"端口 {port.Id} 读到的载具号 {carrierId} 端口 {other.Id} 上已有，不重复建对象");
                 return;
             }
 
-            // 号跟机内另一个载具重了：这一盒不要，卸下来等取走
-            LogHelper.Warn(Name, $"端口 {port.Id} 读到的载具号 {carrierId} 跟端口 {existing.Port.Id} 上的重了，这一盒不收");
-            port.Rejected = true;
-            Report(DuplicateCarrierIdEvent, new GemData(DvCarrierId, carrierId), new GemData(DvPortId, port.Id));
-            actions.Add(() => device.UpdateCarrierStatus(CarrierIdStatus.VerifyFailed, null));
-            RefreshTransferState(port);
-            return;
-        }
-
-        // 没预告：建载具对象（#1、#3、#12、#17），关联端口，等 Host 核对
-        var carrier = new E87Carrier
-        {
-            Id = carrierId,
-            Port = port,
-            Arrived = true,
-            IdStatus = E87Codes.IdWaitingForHost,
-            Capacity = (byte)Math.Min(byte.MaxValue, device.SlotCount),
-        };
-        _carriers[carrierId] = carrier;
-        port.Carrier = carrier;
-        ReportCarrier(CarrierTrans01, carrier, port);
-        ReportCarrier(CarrierTrans03, carrier, port);
-        ReportCarrier(CarrierTrans12, carrier, port);
-        ReportCarrier(CarrierTrans17, carrier, port);
-        ReportAssociation(port);
-        actions.Add(() => device.UpdateCarrierStatus(CarrierIdStatus.WaitingForHost, null));
+            CreateCarrier(port, carrierId, E87CarrierIdMessage.IdRead);
+        });
     }
 
     void IE87Callback.CarrierIdReadFailed(ILoadPort device)
     {
-        var actions = new List<Action>();
-        lock (_gate)
+        // 读不出号、也没有载具对象：报读码失败，等 Host 带端口号给号（ProceedWithCarrier）或取消
+        OnPort(device, port =>
         {
-            var port = PortOf(device);
-            if (port is null)
+            if (!port.HasCarrier)
             {
-                return;
-            }
-
-            var bound = port.Carrier;
-            if (bound is not null && bound.IdStatus == E87Codes.IdNotRead)
-            {
-                // Bind 预告的载具读码失败：等 Host（#7，原因 2）
-                bound.IdStatus = E87Codes.IdWaitingForHost;
-                ReportCarrier(CarrierTrans07, bound, port, E87Codes.ReasonReadFail);
-                actions.Add(() => device.UpdateCarrierStatus(CarrierIdStatus.WaitingForHost, null));
-            }
-            else if (bound is null)
-            {
-                // 没预告又读不出号：没有载具对象，报读码失败，等 Host 带端口号给 ID（ProceedWithCarrier）或取消
-                port.ReadFailed = true;
                 ReportPort(CarrierIdReadFailEvent, port);
             }
-        }
-
-        Run(actions);
+        });
     }
 
     void IE87Callback.SlotMapRead(ILoadPort device, IReadOnlyList<SlotState> slotMap)
     {
-        var actions = new List<Action>();
-        lock (_gate)
-        {
-            var port = PortOf(device);
-            var carrier = port?.Carrier;
-            if (port is not null && carrier is not null && carrier.SlotMapStatus == E87Codes.MapNotRead)
-            {
-                SlotMapRead(port, carrier, slotMap, actions);
-            }
-        }
-
-        Run(actions);
-    }
-
-    /// <summary>读到槽图：跟 Host 给的一样由设备认定（#13，料到了），否则等 Host 核对（#14）。</summary>
-    private void SlotMapRead(E87Port port, E87Carrier carrier, IReadOnlyList<SlotState> slotMap, List<Action> actions)
-    {
-        var codes = slotMap.Select(slot => (byte)slot).ToArray();
-        carrier.SlotMap = codes;
-        carrier.Capacity = (byte)Math.Min(byte.MaxValue, codes.Length);
-        carrier.SubstrateCount = (byte)codes.Count(code => code is E87Codes.SlotCorrectlyOccupied or E87Codes.SlotNotEmpty);
-        var expected = carrier.ExpectedSlotMap;
-        if (expected is not null && expected.SequenceEqual(codes))
-        {
-            MaterialVerified(port, carrier, CarrierTrans13, actions);
-            return;
-        }
-
-        carrier.SlotMapStatus = E87Codes.MapWaitingForHost;
-        ReportCarrier(CarrierTrans14, carrier, port,
-            expected is null ? E87Codes.ReasonVerificationNeeded : E87Codes.ReasonVerificationUnsuccessful);
-        var device = port.Device;
-        actions.Add(() => device.UpdateCarrierStatus(null, CarrierSlotMapStatus.WaitingForHost));
+        OnPort(device, port => port.SlotMapMachine.Post(E87SlotMapMessage.Read));
     }
 
     void IE87Callback.LoadCompleted(ILoadPort device)
     {
-        PortEvent(device, CarrierOpenedEvent);
+        OnPort(device, port => ReportDoor(CarrierOpenedEvent, port));
     }
 
     void IE87Callback.UnloadCompleted(ILoadPort device)
     {
-        PortEvent(device, CarrierClosedEvent);
-    }
-
-    void IE87Callback.Homed(ILoadPort device)
-    {
-        PortEvent(device, null);
-    }
-
-    void IE87Callback.ClampCompleted(ILoadPort device)
-    {
-        PortEvent(device, CarrierClampedEvent);
-    }
-
-    void IE87Callback.UnclampCompleted(ILoadPort device)
-    {
-        PortEvent(device, CarrierUnclampedEvent);
+        OnPort(device, port => ReportDoor(CarrierClosedEvent, port));
     }
 
     void IE87Callback.AutoModeChanged(ILoadPort device, bool autoMode)
     {
-        lock (_gate)
-        {
-            var port = PortOf(device);
-            if (port is null)
-            {
-                return;
-            }
-
-            ReportPort(autoMode ? AccessGoAuto : AccessGoManual, port);
-            RefreshTransferState(port);
-        }
+        OnPort(device, port => port.AccessModeMachine.Post(autoMode ? E87AccessModeMessage.GoAuto : E87AccessModeMessage.GoManual));
     }
 
     void IE87Callback.AccessStarted(ILoadPort device)
     {
-        AccessChanged(device, E87Codes.NotAccessed, E87Codes.InAccess, CarrierTrans18);
+        OnPort(device, port => port.AccessMachine.Post(E87AccessMessage.Start));
     }
 
     void IE87Callback.AccessStopped(ILoadPort device)
     {
-        // Unload 了：取放过、没干完的算中断（#20）；Unload 好了能不能取走看搬运状态
-        AccessChanged(device, E87Codes.InAccess, E87Codes.CarrierStopped, CarrierTrans20);
+        OnPort(device, port => port.AccessMachine.Post(E87AccessMessage.Stop));
     }
 
     void IE87Callback.CarrierComplete(ILoadPort device)
     {
-        var actions = new List<Action>();
-        lock (_gate)
+        OnPort(device, port =>
         {
-            var port = PortOf(device);
-            var carrier = port?.Carrier;
-            if (port is null || carrier is null)
-            {
-                return;
-            }
-
-            if (carrier.Accessing == E87Codes.NotAccessed)
-            {
-                carrier.Accessing = E87Codes.InAccess;
-                ReportCarrier(CarrierTrans18, carrier, port);
-            }
-
-            if (carrier.Accessing == E87Codes.InAccess)
-            {
-                carrier.Accessing = E87Codes.CarrierComplete;
-                ReportCarrier(CarrierTrans19, carrier, port);
-            }
-
-            UnloadIfDone(port, actions);
-        }
-
-        Run(actions);
+            // 没报过开始取放的先补一个，再报干完
+            port.AccessMachine.Post(E87AccessMessage.Start);
+            port.AccessMachine.Post(E87AccessMessage.Complete);
+        });
     }
 
     void IE87Callback.PortError(ILoadPort device, string error)
     {
         // 取放途中出错：设备侧已经把载具记成中断，这边跟着报 #20
-        AccessChanged(device, E87Codes.InAccess, E87Codes.CarrierStopped, CarrierTrans20);
+        OnPort(device, port => port.AccessMachine.Post(E87AccessMessage.Stop));
     }
 
     void IE87Callback.CarrierRemoved(ILoadPort device, string? carrierId)
     {
-        lock (_gate)
+        OnPort(device, port =>
         {
-            var port = PortOf(device);
-            if (port is null)
-            {
-                return;
-            }
-
-            port.Present = false;
-            port.ReadFailed = false;
-            port.Rejected = false;
-            var carrier = port.Carrier;
-            string removedId = carrier?.Id ?? carrierId ?? string.Empty;
-            if (carrier is not null)
-            {
-                Remove(carrier);
-            }
-
+            string removedId = port.HasCarrier ? port.CarrierId : carrierId ?? string.Empty;
+            DeleteCarrier(port);
+            port.Released = false;
             Report(MaterialRemovedEvent, new GemData(DvPortId, port.Id), new GemData(DvCarrierId, GemValue.Ascii(removedId)));
-            RefreshTransferState(port);
-        }
+        });
     }
 
-    private void PortEvent(ILoadPort device, string? code)
+    /// <summary>回调的公共部分：在锁里找到端口、做事，最后按设备现在的样子刷一下搬运状态。</summary>
+    private void OnPort(ILoadPort device, Action<E87Port> work)
     {
-        lock (_gate)
+        Locked(() =>
         {
             var port = PortOf(device);
             if (port is null)
@@ -675,165 +393,89 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
                 return;
             }
 
-            if (code is not null)
-            {
-                Report(code, new GemData(DvCarrierId, GemValue.Ascii(port.Carrier?.Id ?? device.CarrierId ?? string.Empty)),
-                    new GemData(DvPortId, port.Id));
-            }
-
-            RefreshTransferState(port);
-        }
-    }
-
-    private void AccessChanged(ILoadPort device, byte from, byte to, string code)
-    {
-        var actions = new List<Action>();
-        lock (_gate)
-        {
-            var port = PortOf(device);
-            var carrier = port?.Carrier;
-            if (port is null || carrier is null || carrier.Accessing != from)
-            {
-                return;
-            }
-
-            carrier.Accessing = to;
-            ReportCarrier(code, carrier, port);
-            if (to == E87Codes.CarrierStopped)
-            {
-                UnloadIfDone(port, actions);
-            }
-
-            RefreshTransferState(port);
-        }
-
-        Run(actions);
+            work(port);
+            port.TransferMachine.Refresh();
+        });
     }
 
     #endregion
 
-    #region 核对、收尾（都在锁里调，设备动作攒到锁外做）
-
-    /// <summary>载具 ID 认定（#4 / #6 / #8）：写回设备（认定的号），Load 起来读槽图。</summary>
-    private void Verify(E87Port port, E87Carrier carrier, string code, List<Action> actions)
-    {
-        carrier.IdStatus = E87Codes.IdVerified;
-        ReportCarrier(code, carrier, port);
-        var device = port.Device;
-        string id = carrier.Id;
-        actions.Add(() => device.SetCarrierId(id));
-        if (AutoLoad)
-        {
-            actions.Add(() =>
-            {
-                if (device.IsIdle && device.IsCarrierArrived && device.Load() is null)
-                {
-                    LogHelper.Warn(Name, $"{device.Name} 载具 {id} 认定了，但现在 Load 不了（端口状态不允许），等操作员处理");
-                }
-            });
-        }
-    }
+    #region 载具对象（在锁里调）
 
     /// <summary>
-    /// 槽图认定（#13 / #15）：料到了。Host 给了片号表的写进晶圆账（片号、批次号），再通知 E90 建片对象。
+    /// 建载具对象：记下号，ID 状态机按怎么来的转（读到号等 Host #1、#3；Host 给号直接认定 #1、#4），槽图进没读（#12）、取放进没取放（#17），端口关联。
     /// </summary>
-    private void MaterialVerified(E87Port port, E87Carrier carrier, string code, List<Action> actions)
+    private void CreateCarrier(E87Port port, string carrierId, E87CarrierIdMessage how)
     {
-        carrier.SlotMapStatus = E87Codes.MapVerified;
-        ReportCarrier(code, carrier, port);
-        var device = port.Device;
-        var content = carrier.ContentMap?.ToList();
-        actions.Add(() =>
+        port.CarrierId = carrierId;
+        port.CarrierIdMachine.Post(how);
+        port.SlotMapMachine.Post(E87SlotMapMessage.Create);
+        port.AccessMachine.Post(E87AccessMessage.Create);
+        port.AssociationMachine.Post(E87AssociationMessage.Associate);
+    }
+
+    /// <summary>删载具对象（#21）：几个状态机回到没有载具，取消关联。</summary>
+    private void DeleteCarrier(E87Port port)
+    {
+        port.CarrierIdMachine.Post(E87CarrierIdMessage.Delete);
+        port.SlotMapMachine.Post(E87SlotMapMessage.Delete);
+        port.AccessMachine.Post(E87AccessMessage.Delete);
+        port.AssociationMachine.Post(E87AssociationMessage.Dissociate);
+        port.CarrierId = string.Empty;
+    }
+
+    /// <summary>按载具号找它在哪个端口上；没有为 null。</summary>
+    private E87Port? FindCarrier(string carrierId)
+    {
+        return _ports.FirstOrDefault(port => port.HasCarrier && string.Equals(port.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>槽图认定了（料到了）：出锁后通知 E90 建片对象。</summary>
+    internal void NotifyMaterialVerifiedLater(E87Port port)
+    {
+        string name = port.Device.Name;
+        var notify = _materialVerified;
+        Later(() => notify?.Invoke(name));
+    }
+
+    #endregion
+
+    #region 锁和设备动作
+
+    /// <summary>攒一个设备动作，出锁再做（只在锁里调）：动作发起会拿模块的锁，别跟这边的锁绞在一起。</summary>
+    internal void Later(Action action)
+    {
+        _later.Add(action);
+    }
+
+    /// <summary>在锁里改状态，攒下的设备动作出锁再做。</summary>
+    private void Locked(Action work)
+    {
+        Locked(() =>
         {
-            device.UpdateCarrierStatus(null, CarrierSlotMapStatus.Verified);
-            var ledger = WaferManagerComponent.Current;
-            if (ledger is not null && content is not null)
-            {
-                for (int index = 0; index < content.Count; index++)
-                {
-                    var (lotId, substrateId) = content[index];
-                    if (ledger.Get(device.Name, index + 1) is null)
-                    {
-                        continue;
-                    }
-
-                    if (substrateId.Length > 0)
-                    {
-                        ledger.SetWaferId(device.Name, index + 1, substrateId);
-                    }
-
-                    if (lotId.Length > 0)
-                    {
-                        ledger.SetLotId(device.Name, index + 1, lotId);
-                    }
-                }
-            }
-
-            _materialVerified?.Invoke(device.Name);
+            work();
+            return true;
         });
     }
 
-    /// <summary>
-    /// 这一盒不要了（Host 取消、核对不过）：Load 着的卸下来，端口转等取走。
-    /// </summary>
-    private void Reject(E87Port port, List<Action> actions)
+    private T Locked<T>(Func<T> work)
     {
-        port.Rejected = true;
-        var device = port.Device;
-        if (AutoUnload)
+        T result;
+        List<Action> later;
+        lock (_gate)
         {
-            actions.Add(() =>
+            try
             {
-                if (device.IsLoaded && device.Unload() is null)
-                {
-                    LogHelper.Warn(Name, $"{device.Name} 载具不要了，但现在 Unload 不了（端口状态不允许），等操作员处理");
-                }
-            });
-        }
-
-        RefreshTransferState(port);
-    }
-
-    /// <summary>干完、中断了：Load 着的卸下来（AutoUnload 开着时）。</summary>
-    private void UnloadIfDone(E87Port port, List<Action> actions)
-    {
-        if (!AutoUnload)
-        {
-            return;
-        }
-
-        var device = port.Device;
-        actions.Add(() =>
-        {
-            if (device.IsLoaded && device.Unload() is null)
-            {
-                LogHelper.Warn(Name, $"{device.Name} 载具干完了，但现在 Unload 不了（还在被机械手服务或端口状态不允许），等操作员处理");
+                result = work();
             }
-        });
-    }
-
-    /// <summary>删载具对象（#21），摘掉关联、预约。</summary>
-    private void Remove(E87Carrier carrier)
-    {
-        var port = carrier.Port;
-        ReportCarrier(CarrierTrans21, carrier, port);
-        _carriers.Remove(carrier.Id);
-        if (port is not null && ReferenceEquals(port.Carrier, carrier))
-        {
-            port.Carrier = null;
-            ReportPort(AssociationGoNot, port);
-            if (carrier.Bound && port.Reserved)
+            finally
             {
-                port.Reserved = false;
-                ReportPort(ReservationGoNot, port);
+                later = _later.ToList();
+                _later.Clear();
             }
         }
-    }
 
-    /// <summary>设备动作在锁外做：动作发起会拿模块的锁，别跟这边的锁绞在一起。</summary>
-    private void Run(List<Action> actions)
-    {
-        foreach (var action in actions)
+        foreach (var action in later)
         {
             try
             {
@@ -844,88 +486,13 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
                 LogHelper.Warn(Name, $"E87 设备动作出错：{exception.Message}");
             }
         }
+
+        return result;
     }
 
     #endregion
 
-    #region 端口搬运状态（也是 E84 的许可）
-
-    /// <summary>
-    /// 端口在 Host 眼里的搬运状态：Host 停用 → 停用；设备说等送 / 等取就是；空闲、有载具、这一盒不要了 → 等取；别的都是挡着
-    /// （设备没初始化、出错这类在 E87 里也算挡着——停用只由 Host 说了算）。
-    /// </summary>
-    private static byte ComputeTransferState(E87Port port)
-    {
-        if (!port.InService)
-        {
-            return E87Codes.OutOfService;
-        }
-
-        var local = port.Device.LocalTransferState;
-        if (local == LoadPortTransferState.ReadyToLoad)
-        {
-            return E87Codes.ReadyToLoad;
-        }
-
-        if (local == LoadPortTransferState.ReadyToUnload)
-        {
-            return E87Codes.ReadyToUnload;
-        }
-
-        return port.Rejected && port.Device.IsIdle && port.Device.IsCarrierArrived ? E87Codes.ReadyToUnload : E87Codes.TransferBlocked;
-    }
-
-    /// <summary>
-    /// 重算一个端口的搬运状态，变了按 E87 的转换报事件：停用 ↔ 启用（#2 / #3，启用后进挡着或可交接 #4、#5），
-    /// 等送 / 等取 → 挡着（#6 / #7），挡着 → 等送 / 等取（#8 / #9），等送、等取直接互换的中间补一个挡着。第一次报 #1。
-    /// </summary>
-    private void RefreshTransferState(E87Port port)
-    {
-        byte next = ComputeTransferState(port);
-        byte? last = port.TransferState;
-        if (last == next)
-        {
-            return;
-        }
-
-        port.TransferState = next;
-        if (last is null)
-        {
-            ReportPort(PortTrans01, port);
-            return;
-        }
-
-        if (next == E87Codes.OutOfService)
-        {
-            ReportPort(PortTrans03, port);
-            return;
-        }
-
-        if (last == E87Codes.OutOfService)
-        {
-            ReportPort(PortTrans02, port);
-            ReportPort(PortTrans04, port);
-            if (next != E87Codes.TransferBlocked)
-            {
-                ReportPort(PortTrans05, port);
-            }
-
-            return;
-        }
-
-        if (next == E87Codes.TransferBlocked)
-        {
-            ReportPort(last == E87Codes.ReadyToLoad ? PortTrans06 : PortTrans07, port);
-            return;
-        }
-
-        if (last != E87Codes.TransferBlocked)
-        {
-            ReportPort(last == E87Codes.ReadyToLoad ? PortTrans06 : PortTrans07, port);
-        }
-
-        ReportPort(next == E87Codes.ReadyToLoad ? PortTrans08 : PortTrans09, port);
-    }
+    #region E84 反查（E84 每一拍问一次端口能不能交接）
 
     LoadPortTransferState IE84Provider.GetTransferState(ILoadPort device)
     {
@@ -937,17 +504,28 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
                 return device.LocalTransferState;
             }
 
-            if (!port.InService || device.LocalTransferState == LoadPortTransferState.OutOfService)
+            if (device.LocalTransferState == LoadPortTransferState.OutOfService)
             {
                 return LoadPortTransferState.OutOfService;
             }
 
-            return ComputeTransferState(port) switch
+            var state = port.TransferMachine.Compute();
+            if (state == E87TransferState.OutOfService)
             {
-                E87Codes.ReadyToLoad => LoadPortTransferState.ReadyToLoad,
-                E87Codes.ReadyToUnload => LoadPortTransferState.ReadyToUnload,
-                _ => LoadPortTransferState.TransferBlocked,
-            };
+                return LoadPortTransferState.OutOfService;
+            }
+
+            if (state == E87TransferState.ReadyToLoad)
+            {
+                return LoadPortTransferState.ReadyToLoad;
+            }
+
+            if (state == E87TransferState.ReadyToUnload)
+            {
+                return LoadPortTransferState.ReadyToUnload;
+            }
+
+            return LoadPortTransferState.TransferBlocked;
         }
     }
 
@@ -958,32 +536,29 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #endregion
 
-    #region 报事件
+    #region 报事件（状态机进状态时调）
 
-    private void ReportAssociation(E87Port port)
+    internal void ReportPort(string code, E87Port port)
     {
-        Report(AssociationGo, PortData(port).Append(new GemData(DvCarrierId, GemValue.Ascii(port.Carrier?.Id ?? string.Empty))).ToArray());
+        Report(code, PortData(port).Append(new GemData(DvCarrierId, GemValue.Ascii(port.CarrierId))).ToArray());
     }
 
-    private void ReportPort(string code, E87Port port)
+    internal void ReportCarrier(string code, E87Port port, byte? reason = null)
     {
-        Report(code, PortData(port).Append(new GemData(DvCarrierId, GemValue.Ascii(port.Carrier?.Id ?? string.Empty))).ToArray());
-    }
-
-    private void ReportCarrier(string code, E87Carrier carrier, E87Port? port, byte? reason = null)
-    {
-        var data = CarrierData(carrier).ToList();
-        if (port is not null)
-        {
-            data.AddRange(PortData(port));
-        }
-
+        var data = CarrierData(port).Concat(PortData(port)).ToList();
         if (reason is not null)
         {
             data.Add(new GemData(DvReason, reason.Value));
         }
 
         Report(code, data.ToArray());
+    }
+
+    /// <summary>开门、关门：载具号没有 E87 对象时用设备读到的。</summary>
+    private void ReportDoor(string code, E87Port port)
+    {
+        string carrierId = port.HasCarrier ? port.CarrierId : port.Device.CarrierId ?? string.Empty;
+        Report(code, new GemData(DvCarrierId, GemValue.Ascii(carrierId)), new GemData(DvPortId, port.Id));
     }
 
     private void Report(string code, params GemData[] data)
@@ -993,125 +568,50 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     private static IEnumerable<GemData> PortData(E87Port port)
     {
+        var transfer = port.TransferMachine.State;
         yield return new GemData(DvPortId, port.Id);
-        yield return new GemData(DvTransferState, port.TransferState ?? E87Codes.TransferBlocked);
-        yield return new GemData(DvAccessMode, port.AccessMode);
-        yield return new GemData(DvAssociationState, port.AssociationState);
-        yield return new GemData(DvReservationState, port.ReservationState);
-    }
-
-    private static IEnumerable<GemData> CarrierData(E87Carrier carrier)
-    {
-        yield return new GemData(DvCarrierId, GemValue.Ascii(carrier.Id));
-        yield return new GemData(DvCarrierIdStatus, carrier.IdStatus);
-        yield return new GemData(DvSlotMapStatus, carrier.SlotMapStatus);
-        yield return new GemData(DvAccessingStatus, carrier.Accessing);
-        yield return new GemData(DvCapacity, carrier.Capacity is null ? SecsItem.U1() : SecsItem.U1(carrier.Capacity.Value));
-        yield return new GemData(DvSubstrateCount, carrier.SubstrateCount is null ? SecsItem.U1() : SecsItem.U1(carrier.SubstrateCount.Value));
-        yield return new GemData(DvSlotMap, SlotMapItem(carrier));
-        yield return new GemData(DvContentMap, ContentMapItem(carrier));
-        yield return new GemData(DvUsage, GemValue.Ascii(carrier.Usage));
-        yield return new GemData(DvLocationId, GemValue.Ascii(carrier.LocationId));
-    }
-
-    /// <summary>槽图 L[槽数]{U1}：读到了报读到的，没读报 Host 给的，都没有报空表。</summary>
-    private static SecsItem SlotMapItem(E87Carrier carrier)
-    {
-        var map = carrier.SlotMap ?? carrier.ExpectedSlotMap ?? [];
-        return SecsItem.L(map.Select(code => SecsItem.U1(code)));
+        yield return new GemData(DvTransferState, (byte)(transfer == E87TransferState.NoState ? E87TransferState.TransferBlocked : transfer));
+        yield return new GemData(DvAccessMode, (byte)port.AccessModeMachine.State);
+        yield return new GemData(DvAssociationState, (byte)port.AssociationMachine.State);
     }
 
     /// <summary>
-    /// 片号表 L[槽数]{L[2]{批次号, 片号}}：槽图认定后按晶圆账报（片号、批次号以账为准）；没认定报 Host 给的；都没有报空表。
+    /// 载具的数据：几个状态取状态机的（没有载具报空 U1）；槽数、槽图、片数直接问 LoadPort；片号表槽图认定后按晶圆账报。
     /// </summary>
-    private static SecsItem ContentMapItem(E87Carrier carrier)
+    private static IEnumerable<GemData> CarrierData(E87Port port)
     {
-        var port = carrier.Port;
+        var device = port.Device;
+        var slots = device.SlotMap;
+        yield return new GemData(DvCarrierId, GemValue.Ascii(port.CarrierId));
+        yield return new GemData(DvCarrierIdStatus, StatusItem((byte)port.CarrierIdMachine.State));
+        yield return new GemData(DvSlotMapStatus, StatusItem((byte)port.SlotMapMachine.State));
+        yield return new GemData(DvAccessingStatus, StatusItem((byte)port.AccessMachine.State));
+        yield return new GemData(DvCapacity, SecsItem.U1((byte)Math.Min(byte.MaxValue, device.SlotCount)));
+        yield return new GemData(DvSubstrateCount, slots.Count == 0
+            ? SecsItem.U1()
+            : SecsItem.U1((byte)slots.Count(slot => slot is SlotState.CorrectlyOccupied or SlotState.NotEmpty)));
+        yield return new GemData(DvSlotMap, SecsItem.L(slots.Select(slot => SecsItem.U1((byte)slot))));
+        yield return new GemData(DvContentMap, ContentMapItem(port));
+        yield return new GemData(DvLocationId, GemValue.Ascii(device.Name));
+    }
+
+    /// <summary>状态值：没有载具（255）报空 U1。</summary>
+    private static SecsItem StatusItem(byte state)
+    {
+        return state == byte.MaxValue ? SecsItem.U1() : SecsItem.U1(state);
+    }
+
+    /// <summary>片号表 L[槽数]{L[2]{批次号, 片号}}：槽图认定后按晶圆账报（Host 给的片号已经写进账了）；没认定报空表。</summary>
+    private static SecsItem ContentMapItem(E87Port port)
+    {
         var ledger = WaferManagerComponent.Current;
-        if (carrier.SlotMapStatus == E87Codes.MapVerified && port is not null && ledger is not null)
+        if (port.SlotMapMachine.State != E87SlotMapState.Verified || ledger is null)
         {
-            return SecsItem.L(ledger.GetSlots(port.Device.Name).Select(wafer => SecsItem.L(
-                SecsItem.A(GemValue.Ascii(wafer?.LotId ?? string.Empty)), SecsItem.A(GemValue.Ascii(wafer?.WaferId ?? string.Empty)))));
+            return SecsItem.L();
         }
 
-        return SecsItem.L((carrier.ContentMap ?? []).Select(entry =>
-            SecsItem.L(SecsItem.A(GemValue.Ascii(entry.LotId)), SecsItem.A(GemValue.Ascii(entry.SubstrateId)))));
-    }
-
-    #endregion
-
-    #region E39 对象
-
-    internal IReadOnlyList<string> CarrierIds()
-    {
-        lock (_gate)
-        {
-            return _carriers.Keys.ToList();
-        }
-    }
-
-    internal IReadOnlyList<string> PortIds()
-    {
-        lock (_gate)
-        {
-            return _ports.Select(port => port.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToList();
-        }
-    }
-
-    internal bool TryGetCarrierAttribute(string carrierId, string attribute, out SecsItem value)
-    {
-        lock (_gate)
-        {
-            value = SecsItem.L();
-            if (!_carriers.TryGetValue(carrierId, out var carrier))
-            {
-                return false;
-            }
-
-            value = attribute switch
-            {
-                "ObjType" => SecsItem.A("Carrier"),
-                "ObjID" => SecsItem.A(GemValue.Ascii(carrier.Id)),
-                "Capacity" => carrier.Capacity is null ? SecsItem.U1() : SecsItem.U1(carrier.Capacity.Value),
-                "CarrierAccessingStatus" => SecsItem.U1(carrier.Accessing),
-                "CarrierIDStatus" => SecsItem.U1(carrier.IdStatus),
-                "ContentMap" => ContentMapItem(carrier),
-                "LocationID" => SecsItem.A(GemValue.Ascii(carrier.LocationId)),
-                "SlotMap" => SlotMapItem(carrier),
-                "SlotMapStatus" => SecsItem.U1(carrier.SlotMapStatus),
-                "SubstrateCount" => carrier.SubstrateCount is null ? SecsItem.U1() : SecsItem.U1(carrier.SubstrateCount.Value),
-                "Usage" => SecsItem.A(GemValue.Ascii(carrier.Usage)),
-                _ => SecsItem.L(),
-            };
-            return true;
-        }
-    }
-
-    internal bool TryGetPortAttribute(string portId, string attribute, out SecsItem value)
-    {
-        lock (_gate)
-        {
-            value = SecsItem.L();
-            var port = _ports.FirstOrDefault(item => item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) == portId.Trim());
-            if (port is null)
-            {
-                return false;
-            }
-
-            byte transfer = port.TransferState ?? E87Codes.TransferBlocked;
-            value = attribute switch
-            {
-                "ObjType" => SecsItem.A("Port"),
-                "ObjID" => SecsItem.U1(port.Id),
-                "PortAccessMode" => SecsItem.U1(port.AccessMode),
-                "PortAssociationState" => SecsItem.U1(port.AssociationState),
-                "PortReservationState" => SecsItem.U1(port.ReservationState),
-                "PortStateInfo" => SecsItem.L(SecsItem.U1(port.AssociationState), SecsItem.U1(transfer)),
-                "PortTransferState" => SecsItem.U1(transfer),
-                _ => SecsItem.L(),
-            };
-            return true;
-        }
+        return SecsItem.L(ledger.GetSlots(port.Device.Name).Select(wafer => SecsItem.L(
+            SecsItem.A(GemValue.Ascii(wafer?.LotId ?? string.Empty)), SecsItem.A(GemValue.Ascii(wafer?.WaferId ?? string.Empty)))));
     }
 
     #endregion
