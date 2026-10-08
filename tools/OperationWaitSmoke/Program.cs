@@ -1442,9 +1442,9 @@ port.E87Callback = null;
         "没连上：指令发不出去，判被拒（command_rejected）");
     plain.Close();
 
-    // 10) 复位只清错、中止只停：没初始化、出过错的复位完是 NotInit（要再 Home，照老 CTC），中止也绕不过复位和 Home；
-    //     门开着没在动（Loaded、正被机械手取放）的复位 / 中止完照状态查询的门位落回 Loaded，门关着、查不到、载具不在，
-    //     或者打断的是门在动的动作（Load / Unload / Home），落 Idle
+    // 10) 复位只清错、中止只停，Idle 一律当"门关好、没 Load"：没初始化、出过错的复位完是 NotInit（要再 Home，照老 CTC），
+    //     中止也绕不过复位和 Home；门开着没在动（Loaded、正被机械手取放）的复位 / 中止完按状态查询的门位落 Loaded / Idle，
+    //     查不到、门在半路、载具不在，或者打断的是机构在动的动作（Load / Unload / Home / 夹紧），落 NotInit
     var resetPort = new ProbePort("ResetStatePort");
     Check(resetPort.Open(), "复位用的端口应能打开");
     var doorOpen = new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorOpen = true };
@@ -1482,51 +1482,59 @@ port.E87Callback = null;
         "出过错的中止完还是出错：中止绕不过复位");
     Check(StateAfter(ModuleState.Idle, LoadPortAction.Reset, doorOpen) == ModuleState.Idle,
         "空闲的复位完还是空闲");
+    Check(StateAfter(ModuleState.Idle, LoadPortAction.Abort, doorClosed) == ModuleState.Idle && resetPort.IsIdle,
+        "空闲的中止完还是空闲");
 
     Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorOpen) == LoadPortState.Loaded && resetPort.IsLoaded,
         "Load 好了、门开着：复位完还是 Loaded（不掉成 Idle，机械手接着能进，不用再 Load 重建账）");
     Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorClosed) == ModuleState.Idle,
         "Load 好了但状态查询说门关着：复位完落 Idle");
-    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, null) == ModuleState.Idle,
-        "查不到门位：复位完落 Idle");
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, null) == ModuleState.NotInit && !resetPort.IsIdle,
+        "查不到门位：复位完落 NotInit，不当门关好了（Idle 会被判成能取走）");
     Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Abort, doorOpen) == LoadPortState.Loaded,
         "Load 好了、门开着：中止完还是 Loaded");
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Abort, new LoadPortStatus { IsPresent = true, IsPlaced = true })
+          == ModuleState.NotInit,
+        "门开、门关两位都不亮（停在半路）：中止完落 NotInit");
     Check(StateAfter(TransferModuleState.Transferring, LoadPortAction.Abort, doorOpen) == LoadPortState.Loaded
           && resetPort.CanPrepare,
         "机械手取片失败卡在取放中：人确认后中止，门开着回 Loaded，机械手又能来取");
     Check(StateAfter(TransferModuleState.Transferring, LoadPortAction.Abort, doorClosed) == ModuleState.Idle,
         "卡在取放中、门却关着：中止完落 Idle");
 
-    // 打断的是门在动的动作：门可能停在半路、状态查询可能还是打断前的，一律不回 Loaded
-    resetPort.NoteState(ModuleState.Idle);
-    resetPort.NoteStatus(doorOpen);
-    var movingLoad = new ProbeOperation();
-    var stopLoad = new ProbeOperation();
-    Check(resetPort.BeginAction(LoadPortAction.Load, movingLoad) is not null
-          && resetPort.BeginAction(LoadPortAction.Abort, stopLoad) is not null, "Load 做到一半被中止顶替");
-    stopLoad.Succeed();
-    resetPort.Tick();
-    Check(resetPort.State == ModuleState.Idle, "打断的是 Load（门在动）：状态查询说门开着也落 Idle，让人 Home");
+    // 打断的是机构在动的动作：门、夹爪可能停在半路，状态查询可能还是打断前的，一律 NotInit，要人 Home
+    int StateAfterAbortDuring(int from, LoadPortAction moving)
+    {
+        resetPort.NoteState(from);
+        resetPort.NoteStatus(doorOpen);
+        var movingOperation = new ProbeOperation();
+        var abort = new ProbeOperation();
+        Check(resetPort.BeginAction(moving, movingOperation) is not null
+              && resetPort.BeginAction(LoadPortAction.Abort, abort) is not null, $"{moving} 做到一半被中止顶替");
+        abort.Succeed();
+        resetPort.Tick();
+        return resetPort.State;
+    }
 
-    resetPort.NoteState(ModuleState.Idle);
-    var movingHome = new ProbeOperation();
-    var stopHome = new ProbeOperation();
-    Check(resetPort.BeginAction(LoadPortAction.Home, movingHome) is not null
-          && resetPort.BeginAction(LoadPortAction.Abort, stopHome) is not null, "Home 做到一半被中止顶替");
-    stopHome.Succeed();
-    resetPort.Tick();
-    Check(resetPort.State == ModuleState.NotInit, "Home 被中止打断：还是没初始化");
+    Check(StateAfterAbortDuring(ModuleState.Idle, LoadPortAction.Load) == ModuleState.NotInit && !resetPort.IsIdle,
+        "打断的是 Load：状态查询说门开着也落 NotInit，不当门关好了");
+    Check(StateAfterAbortDuring(LoadPortState.Loaded, LoadPortAction.Unload) == ModuleState.NotInit,
+        "打断的是 Unload：落 NotInit");
+    Check(StateAfterAbortDuring(ModuleState.Idle, LoadPortAction.Clamp) == ModuleState.NotInit,
+        "打断的是夹紧：落 NotInit");
+    Check(StateAfterAbortDuring(ModuleState.Idle, LoadPortAction.Home) == ModuleState.NotInit,
+        "Home 被中止打断：还是没初始化");
 
     resetPort.NotePodPlaced(false);
     resetPort.Tick();
-    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorOpen) == ModuleState.Idle,
-        "载具不在了：门开着也不回 Loaded");
+    Check(StateAfter(LoadPortState.Loaded, LoadPortAction.Reset, doorOpen) == ModuleState.NotInit,
+        "载具不在了：门开着也不回 Loaded，落 NotInit");
     resetPort.Close();
 
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error or an interrupted Home, Loaded while the door stays open, and Load refused without a carrier).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication

@@ -123,8 +123,9 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；**设备状态查询在平台**：每拍一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
   Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**在位二选一**（SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位，
   都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（`NotePodEvent`，机型有别的上报路子也调它），只在扫描线程判边沿，
-  判出来的叫 `IsCarrierArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；`Begin` 记下动作前的状态，Reset / Abort 做成后
-动作前门没在动（Loaded、交互环）、状态查询门开、载具在位就落回 Loaded（状态表落的是 Idle），没初始化 / 出过错的复位完是 NotInit（状态表）；
+  判出来的叫 `IsCarrierArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
+状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
+`SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
 Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `IsCarrierArrived`，机型有别的条件重写、先调 base）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`），每拍最后 `PublishState`，机型类只在动作不一样时重写；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不打开、不每拍推、不读写 IO——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、

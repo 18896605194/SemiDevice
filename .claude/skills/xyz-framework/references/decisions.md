@@ -185,11 +185,13 @@
 - **手动动作不跟 Job 挂钩**（用户："我只是手动为啥要和 job 关联"）：手动页的 Load / Unload / Home / Reset / Abort 不看有没有 Job，
   服务层不加卡控（用户："LoadPortService 卡控肯定不是加在这里，这里只是手动的"），检查都在模块里。CTC 后台也不认 Job。
 - **复位只清错、中止只停，落的状态照实际**（以前一律落 Idle，门开着却点不了 Unload、机械手也进不来，只能再 Load 重建账，Job 里这一盒的片就对不上了；
-  机械手从 LoadPort 取片失败卡在取放中，也只能这样出来）。用户选的"a1 小改"：状态表照旧管大部分，模块 `Begin` 记下动作前的状态，
-  Reset / Abort 做成后在 `OnOperationCompleted` 里——动作前在 Loaded 或交互环（门没在动）、状态查询门开、载具在位，就落回 Loaded，否则照表落 Idle。
-  打断的是 Load / Unload / Home（门在动，查询可能是旧的）不回 Loaded。CTC 的做法是 Loaded 不当模块状态、直接读门 / Dock / 夹紧传感器（a2），用户没选。
-- **没初始化、出过错的复位完是 NotInit，要再 Home**（用户："reset 之后状态应该是未初始化"，照 CTC Error + Reset → Init）；
-  中止跟着不能绕：NotInit / Homing 中止完 NotInit，Error 中止完还是 Error。这几条写在状态表里。
+  机械手从 LoadPort 取片失败卡在取放中，也只能这样出来）。用户选的"a1 小改"，CTC 的做法（Loaded 不当模块状态、直接读门 / Dock / 夹紧传感器，a2）没选。
+- **Idle 一律当"门关好、没 Load"**（用户："这里的 idle 其实是 unload 状态"；E87 放行后 Idle + 有盒报可以取走，本地 `LocalTransferState` 也按它判等取走），
+  门不确定就不能落 Idle → **落 NotInit 要人 Home**（用户："这两种都落 NotInit""直接修改状态机就好了"）。写法：
+  状态表写最保守的——Error / NotInit 复位 → NotInit（用户："reset 之后状态应该是未初始化"，照 CTC Error + Reset → Init）；Loaded 复位 → NotInit；
+  中止只有 Idle → Idle、Error → Error，其余（NotInit、打断 Load / Unload / Home / 夹紧松开、Loaded、交互环）→ NotInit。
+  模块 `Begin` 记下动作前的状态，Reset / Abort 做成后 `SetStateByDoor` 只往松里改：动作前在 Loaded 或交互环（门没在动）的，状态查询门开且载具在 → Loaded，
+  门关 → Idle，查不到 / 门在半路 / 载具不在 → 保持 NotInit。
 - **没载具不 Load**（用户："其实就是那个到位信号"）：做成 Load 联锁虚方法 `LoadInterlock()`（用户提的"搞一个 LoadInterlock 虚方法给默认实现"；
   我改过一次 CanLoad，用户要改回 LoadInterlock，别再改名），返回 true = 放行，默认看 `IsCarrierArrived`，机型重写加条件；在 `Begin` 里调（不放 `Load()` 里，
   机型重写 Load 忘了调就漏了），手动、E87、机型的 Load 都过。手动点了回笼统的"动作被拒"，没另加错误码。

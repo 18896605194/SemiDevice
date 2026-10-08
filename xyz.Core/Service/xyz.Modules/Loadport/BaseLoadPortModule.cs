@@ -538,7 +538,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     private LoadPortAction _action;
 
-    /// <summary>这趟动作发起前模块在什么状态：复位、中止做完按它判门有没有在动（见 KeepLoadedIfDoorOpen）。</summary>
+    /// <summary>这趟动作发起前模块在什么状态：复位、中止做完按它判门有没有在动（见 SetStateByDoor）。</summary>
     private int _actionFrom;
 
     /// <summary>
@@ -699,7 +699,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（E84、_rfid），再发设备复位清错。
     /// 返回设备复位操作，调用方等它做完；状态不允许时为 null，报警照样已经清了。
-    /// 复位只清错：没初始化、出过错的复位完是 NotInit，要再 Home；Load 好了的复位完门还开着就还是 Loaded。
+    /// 复位只清错：没初始化、出过错的复位完是 NotInit，要再 Home；Load 好了的复位完按门位落 Loaded / Idle，查不到是 NotInit。
     /// </summary>
     public override ModuleOperation? Reset()
     {
@@ -717,8 +717,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     /// <summary>
     /// 中止（重写组件基类的 Abort）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
-    /// 返回设备中止操作；状态不允许时为 null。中止只停：没初始化、Home 被打断的中止完是 NotInit，出错的还是 Error，
-    /// 门开着没在动的（Loaded、正被机械手取放）还是 Loaded，其余落 Idle。
+    /// 返回设备中止操作；状态不允许时为 null。中止只停：空闲的还是 Idle，出错的还是 Error；门开着没在动的（Loaded、正被机械手取放）
+    /// 按门位落 Loaded / Idle；其余（没初始化、打断了 Load / Unload / Home / 夹紧松开、查不到门位）落 NotInit，要人 Home。
     /// </summary>
     public override ModuleOperation? Abort()
     {
@@ -869,28 +869,40 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
             case LoadPortAction.Reset:
             case LoadPortAction.Abort:
-                KeepLoadedIfDoorOpen();
+                SetStateByDoor();
                 break;
         }
     }
 
     /// <summary>
-    /// 复位只清错、中止只停，门不会因为它们动：动作前门开着没在动（Loaded，或正被机械手取放），做完状态查询看门还开着、载具还在，
-    /// 就落回 Loaded，不照状态表落 Idle。落 Idle 的话门开着却点不了 Unload、机械手也进不来，只能再 Load 一遍——
-    /// 重新 Mapping 整篮重建账，片换了标识，Job 里这一盒剩下的片都对不上了。机械手取片失败后端口卡在取放中，人确认后点中止就走这条回 Loaded。
-    /// 打断的是 Load / Unload / Home 这种门在动的，门可能停在半路、状态查询也可能还是打断前的，照旧落 Idle，让人 Home。
+    /// 复位只清错、中止只停，门不会因为它们动。动作前门开着没在动（Loaded，或正被机械手取放）的，状态表落的是最保守的 NotInit，
+    /// 这里按状态查询的门位改：门开着、载具还在 → Loaded（机械手接着能进，不用再 Load 一遍——重新 Mapping 整篮重建账，片换了标识，
+    /// Job 里这一盒剩下的片都对不上了；机械手取片失败卡在取放中，人确认后点中止就走这条回 Loaded）；门关着 → Idle；
+    /// 查不到、门停在半路 → 保持 NotInit，要人 Home。Idle 一律当"门关好、没 Load"用，门不确定不能落 Idle。
+    /// 打断的是 Load / Unload / Home 这种门在动的，不归这里管，状态表直接落 NotInit。
     /// </summary>
-    private void KeepLoadedIfDoorOpen()
+    private void SetStateByDoor()
     {
-        if (State != ModuleState.Idle || !IsLoadedState(_actionFrom))
+        if (State != ModuleState.NotInit || !IsLoadedState(_actionFrom))
         {
             return;
         }
 
         var status = Status;
-        if (status is not null && status.IsDoorOpen && IsCarrierArrived)
+        if (status is null)
+        {
+            return;
+        }
+
+        if (status.IsDoorOpen && IsCarrierArrived)
         {
             State = LoadPortState.Loaded;
+            return;
+        }
+
+        if (status.IsDoorClosed)
+        {
+            State = ModuleState.Idle;
         }
     }
 
