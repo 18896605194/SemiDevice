@@ -791,7 +791,7 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
         <h3>E84（天车交接，IO 版）</h3>
         <ul>
           <li>握手：天车选中本口 → L_REQ / U_REQ → TR_REQ → READY → BUSY → 盒子放上 / 取走 → COMPT → 撤信号。任一段超过 TP1~TP5 就把输出全灭、锁住，等人工 Retry 或 Complete。</li>
-          <li>端口每拍算一个许可交给 E84：要 Auto、在线、搬运状态是等送或等取才交接。</li>
+          <li>端口每拍把 Auto/Manual、搬运状态、载具到没到交给 E84，能不能交接由 E84 自己判：要 Auto、在线、搬运状态是等送或等取才交接。</li>
           <li>SC <code>IsEnable</code> 管装没装（False 时端口当没有 E84）；EC <code>E84Enabled</code> 管装了以后交不交接。</li>
         </ul>
       </section>

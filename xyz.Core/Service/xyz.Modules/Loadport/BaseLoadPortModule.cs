@@ -193,6 +193,27 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     protected override int StandbyState => LoadPortState.Loaded;
 
+    /// <summary>
+    /// 机械手能不能进站：在待命态（Loaded，没有别的机械手正在取放），并且载具在、载具这边认可了（接了 EAP 要 Host 认定槽图）。
+    /// 调度派机械手前查它；手动传片不经过 Job，也靠 PrepareTransfer 里的同一关挡住。
+    /// 不用 IsCarrierReady：那个在机械手正在取放时也是 true，是给 Job 判断"这盒能不能用"的。
+    /// </summary>
+    public override bool CanPrepare => base.CanPrepare && _carrier.IsArrived && _carrier.IsAccepted;
+
+    /// <summary>
+    /// 机械手进站（准备一）：载具不在、或者 Host 还没认定槽图就不让进，返回 null（搬运那边按站点忙接着等，等到超时判负）。
+    /// 在不在待命态由基类在锁里判，两台机械手抢同一个口只有一台进得去。
+    /// </summary>
+    public override ModuleOperation? PrepareTransfer()
+    {
+        if (!_carrier.IsArrived || !_carrier.IsAccepted)
+        {
+            return null;
+        }
+
+        return base.PrepareTransfer();
+    }
+
     #region 组件初始化与驱动连接
 
     /// <summary>
@@ -289,7 +310,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    #region 设备状态查询（每拍一条：Query 判在位、设备报警、界面的设备反馈都靠它）
+    #region 设备状态查询
 
     private LoadPortCommand? _loadPortQuery;
     private readonly Stopwatch _statusQueryWatch = new();
@@ -303,6 +324,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
+        #region 没连上：状态清空
+
         if (!_driver.IsConnected)
         {
             Status = null;
@@ -310,23 +333,26 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        var query = _loadPortQuery;
-        if (query is null)
-        {
-            query = _driver.QueryStatus();
-            if (query is not null)
-            {
-                _loadPortQuery = query;
-                _statusQueryWatch.Restart();
-            }
+        #endregion
 
+        #region 发查询
+
+        // 手上没有在途的查询就发一条；发不出去（驱动正忙）是 null，下一拍再发。
+        if (_loadPortQuery is null)
+        {
+            _loadPortQuery = _driver.QueryStatus();
+            _statusQueryWatch.Restart();
             return;
         }
 
-        if (query.IsCompleted)
+        #endregion
+
+        #region 收结果
+
+        if (_loadPortQuery.IsCompleted)
         {
+            var response = _loadPortQuery.Response;
             _loadPortQuery = null;
-            var response = query.Response;
             if (response is not null && response.IsSuccess && response.Status is not null)
             {
                 Status = response.Status;
@@ -340,13 +366,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
+        #endregion
+
+        #region 超时：作废这一条，下一拍重发
+
         int timeout = QueryDataTimeOut;
         if (_statusQueryWatch.ElapsedMilliseconds < timeout)
         {
             return;
         }
 
-        _driver.Abandon(query, "Timeout");
+        _driver.Abandon(_loadPortQuery, "Timeout");
         _loadPortQuery = null;
         Status = null;
         if (!_isStatusQueryLate)
@@ -354,6 +384,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             _isStatusQueryLate = true;
             LogHelper.Warn(Name, $"状态查询超时（{timeout}ms）：这一条作废、接着查，查到之前在位保持原判断");
         }
+
+        #endregion
     }
 
     #endregion
@@ -364,18 +396,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public LoadPortDto CreateStateDto()
     {
-        var carrier = _carrier;
-        var info = carrier.Info;
+        var info = _carrier.Info;
         var dto = new LoadPortDto
         {
             Name = Name,
             State = State,
             Mode = Mode,
-            IsCarrierArrived = carrier.IsArrived,
+            IsCarrierArrived = _carrier.IsArrived,
             AutoMode = IsAutoMode,
-            CarrierId = carrier.CarrierId ?? string.Empty,
+            CarrierId = _carrier.CarrierId ?? string.Empty,
             SlotCount = SlotCount,
-            Slots = ToSlotDtos(carrier.SlotMap),
+            Slots = ToSlotDtos(_carrier.SlotMap),
             LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
             HasCarrier = info is not null,
             LotId = info?.LotId ?? string.Empty,
@@ -423,19 +454,38 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             slots.Add(new LoadPortSlotDto
             {
                 Slot = index + 1,
-                State = slotMap[index] switch
-                {
-                    SlotState.Empty => LoadPortSlotState.Empty,
-                    SlotState.NotEmpty => LoadPortSlotState.NotEmpty,
-                    SlotState.CorrectlyOccupied => LoadPortSlotState.CorrectlyOccupied,
-                    SlotState.DoubleSlotted => LoadPortSlotState.DoubleSlotted,
-                    SlotState.CrossSlotted => LoadPortSlotState.CrossSlotted,
-                    _ => LoadPortSlotState.Undefined,
-                },
+                State = ToSlotState(slotMap[index]),
             });
         }
 
         return slots;
+    }
+
+    /// <summary>
+    /// 驱动的槽位状态换成契约的；认不出的算 Undefined。
+    /// </summary>
+    private static LoadPortSlotState ToSlotState(SlotState state)
+    {
+        switch (state)
+        {
+            case SlotState.Empty:
+                return LoadPortSlotState.Empty;
+
+            case SlotState.NotEmpty:
+                return LoadPortSlotState.NotEmpty;
+
+            case SlotState.CorrectlyOccupied:
+                return LoadPortSlotState.CorrectlyOccupied;
+
+            case SlotState.DoubleSlotted:
+                return LoadPortSlotState.DoubleSlotted;
+
+            case SlotState.CrossSlotted:
+                return LoadPortSlotState.CrossSlotted;
+
+            default:
+                return LoadPortSlotState.Undefined;
+        }
     }
 
     protected override void PublishState()
@@ -452,115 +502,84 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    #region Action（ILoadPort 契约：平台给默认实现——一条驱动指令一个动作；机型有特殊动作再重写）
+    #region ILoadPort 契约
 
     private LoadPortAction _action;
 
-    /// <summary>这趟动作发起前模块在什么状态：复位、中止做完按它判门有没有在动（见 SetStateByDoor）。</summary>
+    /// <summary>
+    /// 动作之前的状态
+    /// </summary>
     private int _actionFrom;
 
     /// <summary>
-    /// Mapping 数据到达时调用：交给载具更新槽图、整篮落晶圆账、报 EAP 的 SlotMapRead，空列表忽略。
-    /// 平台默认的 Load 成功后调它；机型自己重写 Load 的话，拿到 Mapping 结果也调它。
+    /// Mapping 数据到达时调用,给载具对象
     /// </summary>
+    /// <param name="slotMap"></param>
     protected void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
     {
-        _carrier.NoteMapped(slotMap);
+        _carrier.UpdateSlotMap(slotMap);
     }
 
     /// <summary>
-    /// 发起 Load（开门 + Mapping）：平台默认发驱动的 Load 指令，成功后把 Mapping 结果落下来（UpdateSlotMap）。
-    /// Load 联锁（LoadInterlock，默认要载具到了）不让发时返回 null。机型的 Load 要多做别的步骤就重写。
+    /// 模块初始化
     /// </summary>
+    /// <returns></returns>
+    public override ModuleOperation? InitModule()
+    {
+        return Home();
+    }
+
+    public virtual ModuleOperation? Home()
+    {
+        return Begin(LoadPortAction.Home, new LoadPortCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout));
+    }
+
     public virtual ModuleOperation? Load()
     {
         return Begin(LoadPortAction.Load, new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout,
             response => UpdateSlotMap(response.SlotMap)));
     }
 
-    /// <summary>
-    /// 发起 Unload（关门）：平台默认发驱动的 Unload 指令。
-    /// </summary>
     public virtual ModuleOperation? Unload()
     {
         return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout));
     }
 
-    /// <summary>
-    /// 发起 Home（整机回零）：平台默认发驱动的 Home 指令。
-    /// </summary>
-    public virtual ModuleOperation? Home()
+    public virtual ModuleOperation? Clamp()
     {
-        return Begin(LoadPortAction.Home, new LoadPortCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout));
+        return Begin(LoadPortAction.Clamp, new LoadPortCommandOperation("Clamp", () => _driver?.Clamp(), () => ClampTimeout));
     }
 
-    /// <summary>
-    /// 模块初始化（动硬件，重写 BaseModule 的 InitModule）：回原点——Home 就是 LoadPort 的初始化，
-    /// 超时报的也是"初始化超时"。人或调度才调，开机不调。返回 Home 操作，调用方等它做完；状态不允许时为 null。
-    /// </summary>
-    public override ModuleOperation? InitModule()
+    public virtual ModuleOperation? Unclamp()
     {
-        return Home();
+        return Begin(LoadPortAction.Unclamp, new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout));
     }
 
-    /// <summary>
-    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（E84、_rfid），再发设备复位清错。
-    /// 返回设备复位操作，调用方等它做完；状态不允许时为 null，报警照样已经清了。
-    /// 复位只清错：没初始化、出过错的复位完是 NotInit，要再 Home；Load 好了的复位完按门位落 Loaded / Idle，查不到是 NotInit。
-    /// </summary>
     public override ModuleOperation? Reset()
     {
         base.Reset();
         return ResetDevice();
     }
-
-    /// <summary>
-    /// 发设备复位清错：平台默认发驱动的 ResetDrive 指令。
-    /// </summary>
     protected virtual ModuleOperation? ResetDevice()
     {
         return Begin(LoadPortAction.Reset, new LoadPortCommandOperation("Reset", () => _driver?.ResetDrive(), () => ResetTimeout));
     }
 
-    /// <summary>
-    /// 中止（重写组件基类的 Abort）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
-    /// 返回设备中止操作；状态不允许时为 null。中止只停：空闲的还是 Idle，出错的还是 Error；门开着没在动的（Loaded、正被机械手取放）
-    /// 按门位落 Loaded / Idle；其余（没初始化、打断了 Load / Unload / Home / 夹紧松开、查不到门位）落 NotInit，要人 Home。
-    /// </summary>
     public override ModuleOperation? Abort()
     {
         base.Abort();
         return AbortDevice();
     }
 
-    /// <summary>
-    /// 发设备中止（急停）：平台默认发驱动的 Stop 指令。
-    /// </summary>
     protected virtual ModuleOperation? AbortDevice()
     {
         return Begin(LoadPortAction.Abort, new LoadPortCommandOperation("Abort", () => _driver?.Stop(), () => AbortTimeout));
     }
 
     /// <summary>
-    /// 发起 Clamp（夹紧 FOUP），状态表只允许空闲时发起：平台默认发驱动的 Clamp 指令。
+    ///  切 Auto/Manual 并且和E84有关系
     /// </summary>
-    public virtual ModuleOperation? Clamp()
-    {
-        return Begin(LoadPortAction.Clamp, new LoadPortCommandOperation("Clamp", () => _driver?.Clamp(), () => ClampTimeout));
-    }
-
-    /// <summary>
-    /// 发起 Unclamp（松开 FOUP），状态表只允许空闲时发起：平台默认发驱动的 Unclamp 指令。
-    /// </summary>
-    public virtual ModuleOperation? Unclamp()
-    {
-        return Begin(LoadPortAction.Unclamp, new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout));
-    }
-
-    /// <summary>
-    /// 切 Auto/Manual（LoadPort 的 Access Mode，内部模式位，不经设备协议）；置位后由下一次扫描随状态事件发布，
-    /// E84 组件下一拍按它开关与搬运车的交接。模式有变化时回调 EAP AutoModeChanged。
-    /// </summary>
+    /// <param name="autoMode"></param>
     public void SetAutoMode(bool autoMode)
     {
         if (IsAutoMode == autoMode)
@@ -573,32 +592,56 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 装机停用、或驱动还没建起来（装配里组件初始化没做成）都不发动作。
+    /// 执行动作之前的基础前提
     /// </summary>
     protected override bool CanBeginAction => IsEnable && _driver is not null;
 
-    /// <summary>
-    /// Load 联锁：现在能不能发 Load。平台默认看载具到了没有（_carrier.IsArrived）——没载具设备只会回错，白白落 Error、报受控停止。
-    /// 机型有别的条件（光幕、机械手缩回……）就重写，先调 base。在 Begin 里查，手动、E87 自动 Load、机型重写的 Load 都过这一关。
-    /// 在模块锁里调：里面只读状态，别等待、别去拿别的模块的锁。
-    /// </summary>
-    protected virtual bool LoadInterlock()
-    {
-        return _carrier.IsArrived;
-    }
-
-    /// <summary>
-    /// 发起动作：发起这件事走基类，这儿多记两笔——这趟发的是什么动作（终结时按它回调 EAP）、发之前模块在什么状态（复位、中止做完按它落状态）。
-    /// 记在同一把锁里：否则扫描线程可能在记上之前就把操作终结了，回调就发错。
-    /// Load 先过联锁（LoadInterlock），不让发返回 null。
-    /// </summary>
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
     {
         lock (OperationGate)
         {
-            if (action == LoadPortAction.Load && !LoadInterlock())
+            // 各动作自己的联锁（见 Interlock 区），不让发返回 null；复位、中止不设联锁。
+            switch (action)
             {
-                return null;
+                case LoadPortAction.Load:
+                    if (!LoadInterlock())
+                    {
+                        return null;
+                    }
+
+                    break;
+
+                case LoadPortAction.Unload:
+                    if (!UnloadInterlock())
+                    {
+                        return null;
+                    }
+
+                    break;
+
+                case LoadPortAction.Home:
+                    if (!HomeInterlock())
+                    {
+                        return null;
+                    }
+
+                    break;
+
+                case LoadPortAction.Clamp:
+                    if (!ClampInterlock())
+                    {
+                        return null;
+                    }
+
+                    break;
+
+                case LoadPortAction.Unclamp:
+                    if (!UnclampInterlock())
+                    {
+                        return null;
+                    }
+
+                    break;
             }
 
             int from = State;
@@ -613,39 +656,83 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
     }
 
+    #region Interlock
+
+    // 各动作发起前的联锁，在 Begin 里查：手动、自动、机型重写的动作都过这一关。
+    // 机型有别的条件（光幕、机械手缩回……）就重写，先调 base。在模块锁里调：只读状态，别等待、别去拿别的模块的锁。
+
     /// <summary>
-    /// 操作终结（状态已由基类落好）：失败的动作报警，
-    /// 成功的动作与失败的原因都回调 EAP（在模块锁内只入队，派发在扫描线程锁外进行）。
-    /// 没做成（失败、超时、被中止顶替）的，把驱动上还在等回复的指令全部作废：它的回复多半丢了，
-    /// 不作废的话同名指令一直占着在途位，以后再也发不出去。在途的状态查询一起作废也没关系，下一拍重发。
+    /// Load 联锁：平台默认要载具到了——没载具设备只会回错，白白落 Error、报受控停止
     /// </summary>
+    protected virtual bool LoadInterlock()
+    {
+        return _carrier.IsArrived;
+    }
+
+    /// <summary>
+    /// Unload 联锁：平台默认不拦
+    /// </summary>
+    protected virtual bool UnloadInterlock()
+    {
+        return true;
+    }
+
+    /// <summary>
+    /// Home 联锁：平台默认不拦
+    /// </summary>
+    protected virtual bool HomeInterlock()
+    {
+        return true;
+    }
+
+    /// <summary>
+    /// Clamp 联锁：平台默认不拦
+    /// </summary>
+    protected virtual bool ClampInterlock()
+    {
+        return true;
+    }
+
+    /// <summary>
+    /// Unclamp 联锁：平台默认不拦
+    /// </summary>
+    protected virtual bool UnclampInterlock()
+    {
+        return true;
+    }
+
+    #endregion
+
+    /// <summary>
+    /// 动作完成之后的钩子
+    /// </summary>
+    /// <param name="operation"></param>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
         UpdateActionAlarms(operation);
 
+        //动作失败
         if (!operation.IsSuccess)
         {
-            _driver?.AbandonAll("Abandoned");
+            _driver?.AbandonAll("Abandoned");  //作废指令
             string reason = operation.Reason;
 
             // 取放途中出错：这个载具算没干完，记中断（还没开始取放的载具不动）。
-            _carrier.NoteFault();
+            _carrier.MarkAccessStopped();
             EnqueueE87(callback => callback.PortError(this, reason));
             return;
         }
 
         switch (_action)
         {
-            case LoadPortAction.Load:
-                // 门已开、槽图读了，就算开始取放（照老 CTC）。
+            case LoadPortAction.Load:           
                 EnqueueE87(callback => callback.LoadCompleted(this));
-                _carrier.NoteLoaded();
+                _carrier.StartAccess(); //告诉EAP这个是可以  开始取放的
                 break;
 
             case LoadPortAction.Unload:
-                // 门已关，取放结束。干完没干完不由这里判——上层作业调 _carrier.NoteComplete 才算完成；
-                // 取放过、没判完成就 Unload 了，载具算中断（E87 CARRIER STOPPED），已经 Complete/Stopped 的保持原样。
-                _carrier.NoteUnloaded();
+               
+                _carrier.EndAccess();  //结束取放
                 EnqueueE87(callback => callback.UnloadCompleted(this));
                 break;
 
@@ -657,11 +744,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 复位只清错、中止只停，门不会因为它们动。动作前门开着没在动（Loaded，或正被机械手取放）的，状态表落的是最保守的 NotInit，
-    /// 这里按状态查询的门位改：门开着、载具还在 → Loaded（机械手接着能进，不用再 Load 一遍——重新 Mapping 整篮重建账，片换了标识，
-    /// Job 里这一盒剩下的片都对不上了；机械手取片失败卡在取放中，人确认后点中止就走这条回 Loaded）；门关着 → Idle；
-    /// 查不到、门停在半路 → 保持 NotInit，要人 Home。Idle 一律当"门关好、没 Load"用，门不确定不能落 Idle。
-    /// 打断的是 Load / Unload / Home 这种门在动的，不归这里管，状态表直接落 NotInit。
+    /// 只是清楚错误
     /// </summary>
     private void SetStateByDoor()
     {
@@ -692,26 +775,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region EAP 口子（设备侧上报给 EAP，EAP 经 ILoadPort 反向下发动作）
 
-    /// <summary>
-    /// E87 载具管理回调；null 表示未接 EAP，模块照常运行。装配时由 EAP 侧挂上。
-    /// </summary>
     public IE87Callback? E87Callback { get; set; }
 
-    /// <summary>
-    /// E84 自动交接回调；null 表示未接 EAP 或本机没有 E84 硬件。
-    /// </summary>
     public IE84Callback? E84Callback { get; set; }
 
-    /// <summary>
-    /// E84 握手期间反查 EAP 的口子；null 时设备侧按本地开关自行决定。
-    /// </summary>
     public IE84Provider? E84Provider { get; set; }
 
-    #region E84（端口驱动 E84 组件：每拍给许可与载具在位，交接进展转给 EAP）
+    #region E84
 
-    /// <summary>
-    /// 推 E84 一拍，交接进展放进 EAP 的派发组件（跟所有上报同一条，先后不乱）；没配 E84 组件什么都不做。
-    /// </summary>
     private void StepE84()
     {
         var e84 = E84;
@@ -720,30 +791,19 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        foreach (var report in e84.Step(CurrentE84Permit(), _carrier.IsArrived))
+        // 端口只给事实，能不能交接由 E84 自己判。没接 EAP 用端口自己的 Auto/Manual 和搬运状态，接了 EAP 以 EAP 的为准。
+        bool auto = IsAutoMode;
+        var transferState = LocalTransferState;
+        if (E84Provider is not null)
+        {
+            auto = E84Provider.IsAutoAccessMode(this);
+            transferState = E84Provider.GetTransferState(this);
+        }
+
+        foreach (var report in e84.Step(auto, transferState, _carrier.IsArrived))
         {
             EnqueueE84(callback => report.DispatchTo(callback, this));
         }
-    }
-
-    /// <summary>
-    /// 这一拍能不能交接、往哪个方向：接了 EAP 以 EAP 的 Access Mode 与搬运状态为准，没接由端口本地判断。
-    /// </summary>
-    private E84Permit CurrentE84Permit()
-    {
-        bool auto = E84Provider?.IsAutoAccessMode(this) ?? IsAutoMode;
-        if (!auto)
-        {
-            return E84Permit.NotAvailable;
-        }
-
-        return (E84Provider?.GetTransferState(this) ?? LocalTransferState) switch
-        {
-            LoadPortTransferState.OutOfService => E84Permit.NotAvailable,
-            LoadPortTransferState.ReadyToLoad => E84Permit.ReadyToLoad,
-            LoadPortTransferState.ReadyToUnload => E84Permit.ReadyToUnload,
-            _ => E84Permit.Blocked,
-        };
     }
 
     /// <summary>
@@ -765,42 +825,29 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return LoadPortTransferState.TransferBlocked;
             }
 
-            var carrier = _carrier;
-            if (!carrier.IsArrived)
+            if (!_carrier.IsArrived)
             {
                 return LoadPortTransferState.ReadyToLoad;
             }
 
-            return carrier.Info?.AccessStatus is CarrierAccessStatus.Complete or CarrierAccessStatus.Stopped
+            return _carrier.Info?.AccessStatus is CarrierAccessStatus.Complete or CarrierAccessStatus.Stopped
                 ? LoadPortTransferState.ReadyToUnload
                 : LoadPortTransferState.TransferBlocked;
         }
     }
 
-    /// <summary>载具 Load 好了：Loaded，或者正被机械手服务（交互环的几个状态）。</summary>
     public bool IsLoaded => IsLoadedState(State);
 
-    /// <summary>这个状态码算不算 Load 好了（门开着、没在动）：Loaded，或者交互环的几个状态。</summary>
     private static bool IsLoadedState(int state)
     {
-        return state == LoadPortState.Loaded
-            || (state >= LoadPortState.PreTransfer && state <= LoadPortState.TransferComplete);
+        return state == LoadPortState.Loaded|| (state >= LoadPortState.PreTransfer && state <= LoadPortState.TransferComplete);
     }
+
+    public bool IsCarrierReady => IsEnabled && _carrier.IsArrived && IsLoaded && _carrier.IsAccepted;
 
     /// <summary>
-    /// 载具可以取放片：模块已启用、载具已到位且 Load 完成（门开着，端口的事），载具这边也认可了（_carrier.IsAccepted：
-    /// 接了 EAP 的槽图要等 Host 认定，没接 EAP 没人核对，Load 好就算）；正被机械手服务时仍然可用。
+    /// 空闲，也就是Unload状态
     /// </summary>
-    public bool IsCarrierReady
-    {
-        get
-        {
-            var carrier = _carrier;
-            return IsEnabled && carrier.IsArrived && IsLoaded && carrier.IsAccepted;
-        }
-    }
-
-    /// <summary>端口空闲（Idle）：不在做动作、不在被机械手服务。</summary>
     public bool IsIdle => State == LoadPortState.Idle;
 
     #endregion

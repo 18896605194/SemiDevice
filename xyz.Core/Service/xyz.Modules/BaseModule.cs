@@ -11,35 +11,36 @@ namespace xyz.Modules;
 
 public abstract class BaseModule : ComponentBase
 {
-    #region 模块初始化
+    public abstract int State { get; protected set; }
+
+    [VariableMark(VariableType.SV, ValueFormat.Enum, description: "模块模式（Online/Offline）")]
+    public ModuleMode Mode { get; private set; } = ModuleMode.Offline;
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
+        @default: "200", description: "单周期慢扫描警告阈值")]
+    public int SlowScanWarnMs
+    {
+        get { return GetEcInt(nameof(SlowScanWarnMs)); }
+        set { SetEcInt(nameof(SlowScanWarnMs), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
+        @default: "300", description: "单周期慢扫描报警阈值")]
+    public int SlowScanAlarmMs
+    {
+        get { return GetEcInt(nameof(SlowScanAlarmMs)); }
+        set { SetEcInt(nameof(SlowScanAlarmMs), value); }
+    }
+
+    protected override int SlowScanWarnMilliseconds => SlowScanWarnMs;
+
+    protected override int SlowScanAlarmMilliseconds => SlowScanAlarmMs;
 
     public virtual ModuleOperation? InitModule()
     {
         return null;
     }
 
-    #endregion
-
-    #region 模块状态
-
-    /// <summary>
-    /// 模块状态码；子类重写并挂 [VariableMark(SV)]——状态码表各类模块自己定。
-    /// </summary>
-    public abstract int State { get; protected set; }
-
-    #endregion
-
-    #region 模块模式
-
-    /// <summary>
-    /// 模块模式（SV）：是否参与自动调度。Online()/Offline() 只改它，不动设备；默认 Offline，掉电不保持。
-    /// </summary>
-    [VariableMark(VariableType.SV, ValueFormat.Enum, description: "模块模式（Online/Offline）")]
-    public ModuleMode Mode { get; private set; } = ModuleMode.Offline;
-
-    /// <summary>
-    /// 上线：参与自动调度。
-    /// </summary>
     public void Online()
     {
         SetMode(ModuleMode.Online);
@@ -64,7 +65,6 @@ public abstract class BaseModule : ComponentBase
         LogHelper.Info($"[{Name}] {mode}");
     }
 
-    #endregion
 
     #region 状态迁移表
 
@@ -101,36 +101,6 @@ public abstract class BaseModule : ComponentBase
 
         return _transitions.TryGetValue((null, action), out transition);
     }
-
-    #endregion
-
-    #region EC 在线参数（扫描）
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
-        @default: "200", description: "单周期慢扫描警告阈值")]
-    public int SlowScanWarnMs
-    {
-        get { return GetEcInt(nameof(SlowScanWarnMs)); }
-        set { SetEcInt(nameof(SlowScanWarnMs), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
-        @default: "300", description: "单周期慢扫描报警阈值")]
-    public int SlowScanAlarmMs
-    {
-        get { return GetEcInt(nameof(SlowScanAlarmMs)); }
-        set { SetEcInt(nameof(SlowScanAlarmMs), value); }
-    }
-
-    /// <summary>
-    /// 慢扫描警告阈值（组件基类的口子，转发到 EC 属性，在线改完即生效）。
-    /// </summary>
-    protected override int SlowScanWarnMilliseconds => SlowScanWarnMs;
-
-    /// <summary>
-    /// 慢扫描报警阈值（组件基类的口子，转发到 EC 属性，在线改完即生效）。
-    /// </summary>
-    protected override int SlowScanAlarmMilliseconds => SlowScanAlarmMs;
 
     #endregion
 
@@ -197,10 +167,12 @@ public abstract class BaseModule : ComponentBase
     protected virtual bool CanBeginAction => true;
 
     /// <summary>
-    /// 发起一个动作：查迁移表 → 挂操作 → 落执行态，三类模块一套流程。
-    /// 动作枚举各模块自己定（ChamberAction/LoadPortAction/RobotAction），这里只按名字查表，所以收成泛型。
-    /// 发不出去返回 null：模块不可发、当前状态不允许这个动作、已有动作在途（Abort 除外，它顶替）。
+    /// 发起一个动作：查迁移表 → 挂操作 → 落执行态
     /// </summary>
+    /// <typeparam name="TAction"></typeparam>
+    /// <param name="action"></param>
+    /// <param name="operation"></param>
+    /// <returns></returns>
     protected ModuleOperation? Begin<TAction>(TAction action, ModuleOperation operation)
         where TAction : struct, Enum
     {

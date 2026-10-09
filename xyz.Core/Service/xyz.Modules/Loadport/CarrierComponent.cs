@@ -187,7 +187,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// 槽图认定状态只往前走：还没读过才转 Read，Host 已经认定（或在等、或判了不过）的，再 Map 一次只更新槽图和账、不动认定状态；
     /// 重置只靠载具拿走或 Host 的 CarrierReCreate。
     /// </summary>
-    public void NoteMapped(IReadOnlyList<SlotState> slotMap)
+    public void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
     {
         ArgumentNullException.ThrowIfNull(slotMap);
         if (slotMap.Count == 0)
@@ -207,7 +207,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// <summary>
     /// Load 好了：这个载具进 E87 的 IN ACCESS（照老 CTC，Load 好就算开始取放），报 AccessStarted；已经取放过的不动。
     /// </summary>
-    public void NoteLoaded()
+    public void StartAccess()
     {
         bool started = false;
         lock (_gate)
@@ -230,7 +230,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// Unload 好了，取放结束：取放过、没判完成的记中断（E87 CARRIER STOPPED），已经 Complete / Stopped 的保持原样；报 AccessStopped。
     /// 干完没干完不由这里判——上层作业调 <see cref="NoteComplete"/> 才算完成。
     /// </summary>
-    public void NoteUnloaded()
+    public void EndAccess()
     {
         MarkStopped();
         NotifyE87((callback, port) => callback.AccessStopped(port));
@@ -240,7 +240,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// 端口的动作没做成（失败、超时、被顶替）：取放途中出错，这个载具算没干完，记中断；还没开始取放的不动它。
     /// 不报 AccessStopped——端口紧接着报 PortError，E87 据此转中断。
     /// </summary>
-    public void NoteFault()
+    public void MarkAccessStopped()
     {
         MarkStopped();
     }
@@ -495,20 +495,37 @@ public class CarrierComponent : ComponentBase, ICarrier
         var statuses = new WaferStatus?[slotMap.Count];
         for (int index = 0; index < slotMap.Count; index++)
         {
-            statuses[index] = slotMap[index] switch
-            {
-                SlotState.Empty => null,
-                SlotState.CorrectlyOccupied => WaferStatus.Normal,
-                SlotState.NotEmpty => WaferStatus.Normal,
-                SlotState.DoubleSlotted => WaferStatus.Double,
-                SlotState.CrossSlotted => WaferStatus.Crossed,
-                _ => WaferStatus.Unknown,
-            };
+            statuses[index] = ToWaferStatus(slotMap[index]);
         }
 
         var info = _info;
         int created = ledger.ApplySlotMap(port.Name, statuses, info?.CarrierId, info?.LotId);
         LogHelper.Info($"[{port.Name}] Mapping 落账：{created} 片");
+    }
+
+    /// <summary>
+    /// 槽位状态换成账上的片状态：空槽为 null（不建片）；认不出的按有片记 Unknown（见上面宁可多记不可漏记）。
+    /// </summary>
+    private static WaferStatus? ToWaferStatus(SlotState state)
+    {
+        switch (state)
+        {
+            case SlotState.Empty:
+                return null;
+
+            case SlotState.CorrectlyOccupied:
+            case SlotState.NotEmpty:
+                return WaferStatus.Normal;
+
+            case SlotState.DoubleSlotted:
+                return WaferStatus.Double;
+
+            case SlotState.CrossSlotted:
+                return WaferStatus.Crossed;
+
+            default:
+                return WaferStatus.Unknown;
+        }
     }
 
     /// <summary>

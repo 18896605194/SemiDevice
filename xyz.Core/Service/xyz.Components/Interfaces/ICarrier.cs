@@ -54,22 +54,22 @@ public interface ICarrier
     /// <summary>
     /// Load 带回了 Mapping 结果
     /// </summary>
-    void NoteMapped(IReadOnlyList<SlotState> slotMap);
+    void UpdateSlotMap(IReadOnlyList<SlotState> slotMap);
 
     /// <summary>
     /// Load 好了，开始取放
     /// </summary>
-    void NoteLoaded();
+    void StartAccess();
 
     /// <summary>
     /// Unload 好了，取放结束
     /// </summary>
-    void NoteUnloaded();
+    void EndAccess();
 
     /// <summary>
     /// 端口动作没做成，取放途中出错
     /// </summary>
-    void NoteFault();
+    void MarkAccessStopped();
 
     #endregion
 }

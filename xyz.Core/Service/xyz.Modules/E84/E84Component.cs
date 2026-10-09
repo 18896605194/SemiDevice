@@ -284,12 +284,12 @@ public class E84Component : ComponentBase, IE84
 
     #region 推进
 
-    public IReadOnlyList<E84Report> Step(E84Permit permit, bool carrierPlaced)
+    public IReadOnlyList<E84Report> Step(bool autoMode, LoadPortTransferState transferState, bool carrierPlaced)
     {
         lock (_gate)
         {
             _inputs = ReadInputs();
-            Advance(permit, carrierPlaced);
+            Advance(autoMode, transferState, carrierPlaced);
             Flush();
 
             if (_reports.Count == 0)
@@ -303,11 +303,15 @@ public class E84Component : ComponentBase, IE84
         }
     }
 
-    private void Advance(E84Permit permit, bool carrierPlaced)
+    /// <summary>
+    /// 走一步。能不能交接、往哪个方向看端口给的两样：Manual 或 Out Of Service 关闸门；
+    /// 搬运状态是等送盒 / 等取走才开对应方向，其余（端口在忙、这一盒还没干完）亮着 HO_AVBL 但先挡着。
+    /// </summary>
+    private void Advance(bool autoMode, LoadPortTransferState transferState, bool carrierPlaced)
     {
         // 闸门：E84 没开、端口不可交接、光幕被挡 → 输出全灭，进行中的交接按中止处理。
         // 超时锁存不因此解开（跟 CTC 一样），仍等人工恢复。
-        string? closed = GateClosedReason(permit);
+        string? closed = GateClosedReason(autoMode, transferState);
         if (closed is not null)
         {
             CloseGate(closed);
@@ -333,11 +337,11 @@ public class E84Component : ComponentBase, IE84
             case E84State.NotAvailable:
             case E84State.Available:
                 // 搬运车 CS_0+VALID 选中本端口：等送盒且没载具就亮 L_REQ，等取盒且有载具就亮 U_REQ。
-                if (selected && permit == E84Permit.ReadyToLoad && !carrierPlaced)
+                if (selected && transferState == LoadPortTransferState.ReadyToLoad && !carrierPlaced)
                 {
                     Request(isLoad: true);
                 }
-                else if (selected && permit == E84Permit.ReadyToUnload && carrierPlaced)
+                else if (selected && transferState == LoadPortTransferState.ReadyToUnload && carrierPlaced)
                 {
                     Request(isLoad: false);
                 }
@@ -409,16 +413,21 @@ public class E84Component : ComponentBase, IE84
         CheckTimeout();
     }
 
-    private string? GateClosedReason(E84Permit permit)
+    private string? GateClosedReason(bool autoMode, LoadPortTransferState transferState)
     {
         if (!E84Enabled)
         {
             return "E84 未启用";
         }
 
-        if (permit == E84Permit.NotAvailable)
+        if (!autoMode)
         {
-            return "端口不可交接（Manual / 下线 / Out Of Service）";
+            return "端口是 Manual";
+        }
+
+        if (transferState == LoadPortTransferState.OutOfService)
+        {
+            return "端口 Out Of Service（停用 / 下线 / 没初始化 / 出错）";
         }
 
         bool lightCurtainBlocked = LightCurtainReverse ? _inputs.LightCurtain : !_inputs.LightCurtain;

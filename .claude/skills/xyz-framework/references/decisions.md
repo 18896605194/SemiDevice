@@ -235,7 +235,7 @@
   门开没开是端口的事）、`LocalTransferState`、E84 桥、`E87Callback` / `E84Callback` / `E84Provider` 三个口子属性（回调都带 `ILoadPort port`，E87 按引用认端口；
   Carrier 的上报经端口在 `Attach` 时交给它的入队口发，跟端口自己的上报同一条线，先后不乱）、读头和驱动的连接（打开、重连）。
 - **端口喂给 Carrier 的口只有这几个**（在 `ICarrier` 的"端口调的"那段里，别再加）：`Attach(port, 读码器, E87 入队口)`（读码器是端口 InitComponent 里 `FindChild<ICarrierIdReader>()` 找到的，没配为 null）、`Sense(isPresent, isPlaced)`（每拍两个传感器位，null = 没查到）、
-  `SetDeviceReportedPlaced(placed)`、`NoteMapped(slotMap)`、`NoteLoaded()`、`NoteUnloaded()`、`NoteFault()`。端口的 `SetDeviceReportedPlaced`、`UpdateSlotMap` 保留，只是一行转发
+  `SetDeviceReportedPlaced(placed)`、`UpdateSlotMap(slotMap)`、`StartAccess()`、`EndAccess()`、`MarkAccessStopped()`。端口的 `SetDeviceReportedPlaced`、`UpdateSlotMap` 保留，只是一行转发
   （机型有别的上报路子、自己重写 Load 的，照旧调它们）。Carrier 没有父引用，跟 E84 一样由端口驱动；锁序固定：模块锁在外、载具锁在内，Carrier 持锁时不调模块。
 - **槽图认定状态只往前走**（用户：同一载具 Verified 后再 Map，**保持已认定**）：还没读过（NotRead）才转 Read，Host 已经认定（或在等、或判了不过）的，
   再 Map 一次（比如 Unload 之后又 Load）只更新槽图和账，不动认定状态；重置只靠载具拿走或 Host 的 CarrierReCreate。
@@ -289,7 +289,7 @@
     E87 只自己记载具号（拿走时 LoadPort 已清号，#21 还要带）和"Host 取消 / 放行了这一盒"。
   - **流程照 CTC**：读到号一律等 Host；ID 认定就 Load（没有开关，`AutoLoad` SC 删了）；槽图一律等 Host，设备不自己认定（#13 删了）；
     第二次 ProceedWithCarrier 带了槽图就跟读到的比，对不上回 CAACK=3，片号表当场写晶圆账；ID 阶段带的槽图 / 片号表不用（记日志）。
-  - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块在 Load 完成时调 `Carrier.NoteLoaded`，原来叫 `MarkInAccess`）：后果是 Load 以后 Host 不能取消，
+  - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块在 Load 完成时调 `Carrier.StartAccess`，原来叫 `MarkInAccess`）：后果是 Load 以后 Host 不能取消，
     槽图核对不过要操作员 Unload（CTC 也这样）。取放过、没判完成就 Unload 的记中断，这条不变。
   - **Host 动作**：ProceedWithCarrier、CancelCarrier / CancelCarrierAtPort（不在取放才收，卸下来、放行、取消关联）、
     CarrierRelease（不在取放才收；AutoUnload 关着时干完的靠它卸）、CarrierReCreate（等取、没取放过的才收：删对象、重新读码）、

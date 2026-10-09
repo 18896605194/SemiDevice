@@ -323,7 +323,13 @@ Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess, "Load �
 Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
 Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
-Check(port.PrepareTransfer() is not null && port.CancelTransfer() && port.State == LoadPortState.Loaded, "机械手准备再撤回应回到 Loaded");
+// 机械手进站要载具能取放片（IsCarrierReady）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
+Check(!port.CanPrepare && port.PrepareTransfer() is null && port.State == LoadPortState.Loaded,
+    "接了 EAP、槽图没认定：机械手不能进站");
+port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
+Check(port.CanPrepare && port.PrepareTransfer() is not null && port.CancelTransfer() && port.State == LoadPortState.Loaded,
+    "槽图认定后机械手能进站；准备再撤回应回到 Loaded");
+port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
 
 // 取放途中出错：载具算没干完，落 Stopped
 var brokenUnload = new ProbeOperation();
@@ -1583,10 +1589,40 @@ port.E87Callback = null;
         "端口上没载具：Load 发不起来（模块自己拦，机型重写了 Load 也走这一关）");
     resetPort.NotePodPlaced(true);
     resetPort.Tick();
-    resetPort.LoadInterlocked = true;
+    resetPort.BlockedAction = LoadPortAction.Load;
     Check(resetPort.BeginAction(LoadPortAction.Load, new ProbeOperation()) is null && resetPort.State == ModuleState.Idle,
         "机型重写了 Load 联锁（LoadInterlock）：载具在也不让 Load");
-    resetPort.LoadInterlocked = false;
+    resetPort.BlockedAction = null;
+
+    // 其余动作的联锁：平台默认不拦；机型重写了哪个动作的联锁，就只拦那个动作（复位、中止不设联锁）
+    foreach (var (action, from) in new[]
+             {
+                 (LoadPortAction.Unload, LoadPortState.Loaded),
+                 (LoadPortAction.Home, ModuleState.Idle),
+                 (LoadPortAction.Clamp, ModuleState.Idle),
+                 (LoadPortAction.Unclamp, ModuleState.Idle),
+             })
+    {
+        resetPort.NoteState(from);
+        resetPort.BlockedAction = action;
+        Check(resetPort.BeginAction(action, new ProbeOperation()) is null && resetPort.State == from,
+            $"机型重写了 {action} 联锁：不让发，状态不动");
+        resetPort.BlockedAction = null;
+        var allowed = new ProbeOperation();
+        Check(resetPort.BeginAction(action, allowed) is not null, $"{action} 联锁没拦（平台默认）：照常能发");
+        allowed.Succeed();
+        resetPort.Tick();
+    }
+
+    // 机械手进站要载具在：状态还是 Loaded、载具却不在了，不让进，免得往空口放片
+    resetPort.NoteState(LoadPortState.Loaded);
+    Check(resetPort.CanPrepare, "Loaded、载具在、没接 EAP：机械手能进站");
+    resetPort.NotePodPlaced(false);
+    resetPort.Tick();
+    Check(!resetPort.CanPrepare && resetPort.PrepareTransfer() is null && resetPort.State == LoadPortState.Loaded,
+        "Loaded 但载具不在：机械手不能进站");
+    resetPort.NotePodPlaced(true);
+    resetPort.Tick();
 
     Check(StateAfter(ModuleState.Error, LoadPortAction.Reset, doorOpen) == ModuleState.NotInit,
         "出过错的复位完是 NotInit，要再 Home（门开着也一样）");
@@ -1795,10 +1831,14 @@ sealed class ProbePort : BaseLoadPortModule
     /// <summary>走真路径发起动作（状态表 + 操作登记），不是 Load() 那种直接返回。</summary>
     public ModuleOperation? BeginAction(LoadPortAction action, ModuleOperation operation) => Begin(action, operation);
 
-    /// <summary>顶替机型自己加的 Load 联锁条件（光幕、机械手缩回这类）：为真时不让 Load。</summary>
-    public bool LoadInterlocked { get; set; }
+    /// <summary>顶替机型自己加的联锁条件（光幕、机械手缩回这类）：摆哪个动作就拦哪个动作，null 不拦。</summary>
+    public LoadPortAction? BlockedAction { get; set; }
 
-    protected override bool LoadInterlock() => base.LoadInterlock() && !LoadInterlocked;
+    protected override bool LoadInterlock() => base.LoadInterlock() && BlockedAction != LoadPortAction.Load;
+    protected override bool UnloadInterlock() => base.UnloadInterlock() && BlockedAction != LoadPortAction.Unload;
+    protected override bool HomeInterlock() => base.HomeInterlock() && BlockedAction != LoadPortAction.Home;
+    protected override bool ClampInterlock() => base.ClampInterlock() && BlockedAction != LoadPortAction.Clamp;
+    protected override bool UnclampInterlock() => base.UnclampInterlock() && BlockedAction != LoadPortAction.Unclamp;
     private ModuleOperation? Take() { Calls++; return Next; }
     public override ModuleOperation? Load() => Take();
     public override ModuleOperation? Unload() => Take();

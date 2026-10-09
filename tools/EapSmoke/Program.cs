@@ -1330,19 +1330,19 @@ sealed class FakePort : ILoadPort
         {
         }
 
-        public void NoteMapped(IReadOnlyList<SlotState> slotMap)
+        public void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
         {
         }
 
-        public void NoteLoaded()
+        public void StartAccess()
         {
         }
 
-        public void NoteUnloaded()
+        public void EndAccess()
         {
         }
 
-        public void NoteFault()
+        public void MarkAccessStopped()
         {
         }
     }

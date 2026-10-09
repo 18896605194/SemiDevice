@@ -3,7 +3,7 @@
 namespace xyz.Components.Interfaces;
 
 /// <summary>
-/// E84 握手期间设备侧反查 EAP 的口子：LoadPort 每拍按这里的结果算给 E84 的许可 (E84Permit)。
+/// E84 握手期间设备侧反查 EAP 的口子：LoadPort 每拍把这里查到的 Access Mode 和搬运状态交给 E84，E84 自己判能不能交接。
 /// 实现由 EAP 侧提供并挂到 ILoadPort.E84Provider；未接 EAP 时为 null，LoadPort 按本地状态自行判断。
 /// </summary>
 public interface IE84Provider

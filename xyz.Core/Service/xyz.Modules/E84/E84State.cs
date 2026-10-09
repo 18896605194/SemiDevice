@@ -6,7 +6,7 @@
 public enum E84State
 {
     /// <summary>
-    /// 不可交接：E84 没开（EC）、端口许可 NotAvailable（Manual、下线、Out Of Service）或光幕被挡；输出全灭。
+    /// 不可交接：E84 没开（EC）、端口是 Manual 或 Out Of Service（停用、下线、没初始化、出错）、光幕被挡；输出全灭。
     /// </summary>
     NotAvailable,
 
