@@ -51,13 +51,10 @@ public partial class AxisComponent
 
     #endregion
 
-    #region 组件初始化、中止与复位
+    #region 组件中止与复位
 
-    public override object? Init()
-    {
-        base.Init();
-        return Home();
-    }
+    // 轴不重写 InitComponent：开机登记 PLC 数据块是装配层调的 Open(IPlc)；回零是 Home()，
+    // 由所在模块的初始化操作按机型的先后去驱动，组件初始化不动轴。
 
     public override object? Abort()
     {

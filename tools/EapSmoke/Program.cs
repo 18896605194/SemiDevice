@@ -1180,7 +1180,7 @@ sealed class FakePort : ILoadPort
 
     public ModuleOperation? Home() => new NoOpOperation("Home");
 
-    public ModuleOperation? Init() => new NoOpOperation("Init");
+    public ModuleOperation? InitModule() => new NoOpOperation("InitModule");
 
     public ModuleOperation? Reset() => new NoOpOperation("Reset");
 

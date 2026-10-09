@@ -12,11 +12,6 @@ public interface IE84
     bool IsEnable { get; }
 
     /// <summary>
-    /// 打开：输出全灭、回初始；端口 Open 时调用。
-    /// </summary>
-    bool Open();
-
-    /// <summary>
     /// 推一拍：读输入、走一步、写输出；在端口扫描线程上调。
     /// 返回这一拍（含上一拍之后 Retry/Complete）产生的交接进展，没有为空。
     /// </summary>

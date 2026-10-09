@@ -75,11 +75,12 @@ public abstract class RfidDriverComponent : ComponentBase
     }
 
     /// <summary>
-    /// 建驱动（首次）并打开连接。可重复调用：已建好的驱动只重开连接。
+    /// 组件初始化（开机）：建驱动（首次）并打开连接。可重复调用：已建好的驱动只重开连接。
     /// 这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
     /// </summary>
-    public bool Open()
+    public override bool InitComponent()
     {
+        bool childrenInitialized = base.InitComponent();
         var driver = Driver;
         if (driver is null)
         {
@@ -88,10 +89,11 @@ public abstract class RfidDriverComponent : ComponentBase
         }
 
         _reconnector.Enable();
-        return driver.Open();
+        bool opened = driver.Open();
+        return opened && childrenInitialized;
     }
 
-    /// <summary>关闭连接（在途的读码作废），不再重连；驱动保留，重开走 Open。</summary>
+    /// <summary>关闭连接（在途的读码作废），不再重连；驱动保留，重开走 InitComponent。</summary>
     public void Close()
     {
         _reconnector.Disable();

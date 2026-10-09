@@ -59,11 +59,12 @@ public abstract class RobotDriverComponent : ComponentBase
     public event Action<RobotDeviceEvent>? DeviceEvent;
 
     /// <summary>
-    /// 建驱动（首次）并打开连接。驱动建好先挂事件转发再开连：连上之后设备可能立刻推事件，晚订阅会漏。
+    /// 组件初始化（开机）：建驱动（首次）并打开连接。驱动建好先挂事件转发再开连：连上之后设备可能立刻推事件，晚订阅会漏。
     /// 可重复调用：已建好的驱动只重开连接。
     /// </summary>
-    public bool Open()
+    public override bool InitComponent()
     {
+        bool childrenInitialized = base.InitComponent();
         var driver = Driver;
         if (driver is null)
         {
@@ -72,10 +73,11 @@ public abstract class RobotDriverComponent : ComponentBase
             Driver = driver;
         }
 
-        return driver.Open();
+        bool opened = driver.Open();
+        return opened && childrenInitialized;
     }
 
-    /// <summary>关闭连接；驱动保留，重开走 Open。</summary>
+    /// <summary>关闭连接；驱动保留，重开走 InitComponent。</summary>
     public void Close()
     {
         Driver?.Close();

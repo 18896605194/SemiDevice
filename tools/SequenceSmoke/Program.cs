@@ -491,7 +491,7 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     ModuleOperation? IRobot.Home() => null;
 
-    ModuleOperation? IRobot.Init() => null;
+    ModuleOperation? IRobot.InitModule() => null;
 
     ModuleOperation? IRobot.Reset() => null;
 

@@ -49,7 +49,10 @@ public interface IRobot
 
     ModuleOperation? Home();
 
-    ModuleOperation? Init();
+    /// <summary>
+    /// 模块初始化（动硬件）：回原点（Home）。人或调度才调，开机不调。
+    /// </summary>
+    ModuleOperation? InitModule();
 
     ModuleOperation? Reset();
 

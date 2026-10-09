@@ -152,12 +152,12 @@ public static class ServiceExtensions
             }
         }
 
-        //模块里面的open或者初始化
+        //各模块的组件初始化：连驱动、登记晶圆账槽位这类不动硬件的开机准备，子组件由基类递归带着做；回原点不在这里
         foreach (var module in modules)
         {
-            if (!module.Open())
+            if (!module.InitComponent())
             {
-                LogHelper.Error(module.Name, "驱动连接失败");
+                LogHelper.Error(module.Name, "组件初始化没全做成（驱动连接失败等，原因见前面的日志）");
             }
         }
 

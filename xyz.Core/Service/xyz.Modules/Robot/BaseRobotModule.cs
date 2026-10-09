@@ -199,10 +199,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 打开驱动连接并订阅主动事件；由装配在 Start 之前调用。
-    /// 装机停用（IsEnable=False）的模块视为打开成功，空转。
+    /// 组件初始化（开机，由装配在 Start 之前调用）：登记手指的晶圆账槽位、订阅驱动的主动事件，
+    /// 然后基类把子组件（品牌驱动）各自初始化，驱动的连接在它自己的 InitComponent 里。
+    /// 装机停用（IsEnable=False）的模块视为成功，空转；没挂驱动组件开机日志报错、返回 false。
     /// </summary>
-    public override bool Open()
+    public override bool InitComponent()
     {
         if (!IsEnable)
         {
@@ -230,17 +231,17 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             }
         }
 
-        // 先摘后挂：Open 可能不止一次（重开），保证只挂一份。
+        // 先摘后挂：初始化可能不止一次（重开），保证只挂一份。
         robot.DeviceEvent -= OnDeviceEvent;
         robot.DeviceEvent += OnDeviceEvent;
 
         // 手指在晶圆账里也是槽位：片停在手上算在途，跟停在花篮里一样要有位置。
         WaferManagerComponent.Current?.RegisterLocation(Name, robot.ArmCount);
-        return robot.Open();
+        return base.InitComponent();
     }
 
     /// <summary>
-    /// 关闭驱动连接；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// 关闭驱动连接；与组件初始化成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
     /// </summary>
     public void Close()
     {
@@ -430,12 +431,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public abstract ModuleOperation? Home();
 
     /// <summary>
-    /// 初始化（重写组件基类的 Init）：先初始化子组件，再回原点——Home 就是机械手的初始化（NotInit → Idle）。
-    /// 返回 Home 操作，调用方等它做完；状态不允许时为 null。
+    /// 模块初始化（动硬件，重写 BaseModule 的 InitModule）：回原点——Home 就是机械手的初始化（NotInit → Idle）。
+    /// 人或调度才调，开机不调。返回 Home 操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
-    public override ModuleOperation? Init()
+    public override ModuleOperation? InitModule()
     {
-        base.Init();
         return Home();
     }
 
@@ -542,7 +542,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public abstract ModuleOperation? PowerOff();
 
     /// <summary>
-    /// 装机停用、或驱动组件没挂起来（装配里 Open 失败）都不发动作。
+    /// 装机停用、或驱动组件没挂起来（装配里组件初始化没做成）都不发动作。
     /// </summary>
     protected override bool CanBeginAction => IsEnable && _robot is not null;
 

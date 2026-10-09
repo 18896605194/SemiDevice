@@ -70,7 +70,7 @@ void Check(bool condition, string message)
 
 // ── 3. 读码正常路径 ─────────────────────────────────────────────────────
 var (reader, device) = Build();
-Check(reader.Open(), "假读头应能打开");
+Check(reader.InitComponent(), "假读头的组件初始化应成功（连接写在它自己的 InitComponent 里）");
 Check(reader.Driver is not null && reader.Driver.IsConnected, "驱动应处于已连接");
 
 Check(reader.BeginRead(), "应能发起读码");
@@ -100,7 +100,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     sliced.IdStart = 5;
     sliced.IdLength = 4;
     tag.TagMemory = Encoding.ASCII.GetBytes("FOUP-0001       ");
-    sliced.Open();
+    sliced.InitComponent();
     sliced.BeginRead();
     var slicedResult = PumpUntilResult(sliced);
     Check(slicedResult is not null && slicedResult.IsSuccess && slicedResult.CarrierId == "0001",
@@ -111,7 +111,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 {
     var (padded, tag) = Build();
     tag.TagMemory = Encoding.ASCII.GetBytes("ABC\0\0\0\0\0\0\0\0\0\0\0\0\0");
-    padded.Open();
+    padded.InitComponent();
     padded.BeginRead();
     var paddedResult = PumpUntilResult(padded);
     Check(paddedResult is not null && paddedResult.IsSuccess && paddedResult.CarrierId == "ABC",
@@ -122,7 +122,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 {
     var (failing, tag) = Build();
     tag.ErrorCode = 0x02;
-    failing.Open();
+    failing.InitComponent();
     failing.BeginRead();
     var errorResult = PumpUntilResult(failing);
     Check(errorResult is not null && !errorResult.IsSuccess, "错误块应落读码失败");
@@ -135,7 +135,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 {
     var (rejected, tag) = Build();
     tag.RejectCommand = true;
-    rejected.Open();
+    rejected.InitComponent();
     rejected.BeginRead();
     var nakResult = PumpUntilResult(rejected);
     Check(nakResult is not null && !nakResult.IsSuccess && nakResult.Error == "NAK",
@@ -146,7 +146,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 {
     var (corrupt, tag) = Build();
     tag.CorruptChecksum = true;
-    corrupt.Open();
+    corrupt.InitComponent();
     corrupt.BeginRead();
     Pump(corrupt, 500);
     Check(Volatile.Read(ref tag.HostNakCount) > 0, "校验不过的块主机应回 NAK");
@@ -158,7 +158,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 {
     var (listening, tag) = Build();
     var events = new List<RfidResponse>();
-    listening.Open();
+    listening.InitComponent();
     listening.Driver!.OnSpontaneousEvent += response =>
     {
         lock (events)
@@ -182,7 +182,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 {
     var (silent, tag) = Build();
     tag.SwallowResult = true;
-    silent.Open();
+    silent.InitComponent();
     Check(silent.BeginRead(), "应能发起读码");
 
     int timeout = silent.ReadCarrierIdTimeout;
@@ -198,7 +198,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
 // ── 10. 其它指令：版本与状态 ────────────────────────────────────────────
 {
     var (other, _) = Build();
-    other.Open();
+    other.InitComponent();
     var driver = other.Driver!;
 
     var version = new FcdGetVersionCommand();

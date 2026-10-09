@@ -155,15 +155,15 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         _parts = new Lazy<PartCatalog>(() => new PartCatalog(this));
     }
 
-    #region 启动前准备
+    #region 组件初始化
 
     /// <summary>
-    /// 启动前准备；由装配在 Start 之前调用。腔体这儿只占晶圆账的槽位，不连设备——
+    /// 组件初始化（开机，由装配在 Start 之前调用）：腔体自己只占晶圆账的槽位，不连设备——
     /// 多个腔体通常挂在同一个 PLC 上，连接是那个 PLC 组件的事（它 Open 一次，腔体按地址读写），
-    /// 摊到每个腔体里连就变成一台机器开 N 条连接了。
-    /// 装机停用（IsEnable=False）的腔体连账都不占，空转。
+    /// 摊到每个腔体里连就变成一台机器开 N 条连接了。子组件照基类的规矩跟着初始化。
+    /// 装机停用（IsEnable=False）的腔体连账都不占，子组件也不动，空转。
     /// </summary>
-    public override bool Open()
+    public override bool InitComponent()
     {
         if (!IsEnable)
         {
@@ -172,7 +172,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
         WaferManagerComponent.Current?.RegisterLocation(Name, SlotCount);
-        return true;
+        return base.InitComponent();
     }
 
     #endregion
@@ -428,16 +428,16 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     /// <summary>
     /// 发起回原点。机型实现：Begin(ChamberAction.Home, new ...Operation(...))。
+    /// 腔体里各部件（轴、气缸）怎么回零、按什么先后，是机型的事，写在这个操作里去驱动；基类不会替它逐个发回零。
     /// </summary>
     public abstract ModuleOperation? Home();
 
     /// <summary>
-    /// 初始化（重写组件基类的 Init）：先初始化子组件，再回原点——Home 就是腔体的初始化。
-    /// 返回 Home 操作，调用方等它做完；状态不允许时为 null。
+    /// 模块初始化（动硬件，重写 BaseModule 的 InitModule）：回原点——Home 就是腔体的初始化。
+    /// 人或调度才调，开机不调。返回 Home 操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
-    public override ModuleOperation? Init()
+    public override ModuleOperation? InitModule()
     {
-        base.Init();
         return Home();
     }
 

@@ -47,9 +47,9 @@ public interface ILoadPort
     ModuleOperation? Home();
 
     /// <summary>
-    /// 初始化：子组件先初始化，再 Home。
+    /// 模块初始化（动硬件）：回原点（Home）。人或调度才调，开机不调。
     /// </summary>
-    ModuleOperation? Init();
+    ModuleOperation? InitModule();
 
     ModuleOperation? Reset();
 

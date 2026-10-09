@@ -195,10 +195,21 @@ public class E84Component : ComponentBase, IE84
 
     #endregion
 
-    #region 打开与人工恢复
+    #region 初始化与人工恢复
 
-    public bool Open()
+    /// <summary>
+    /// 组件初始化（开机，端口的基类递归带着调）：输出全灭、回初始。
+    /// 装没装（SC IsEnable=False，本机没接搬运车）的什么都不做、不读写 IO——端口当没有 E84，
+    /// 这一条挂在基类的递归上，端口拦不住它，所以在这里自己拦。
+    /// </summary>
+    public override bool InitComponent()
     {
+        if (!IsEnable)
+        {
+            return true;
+        }
+
+        bool childrenInitialized = base.InitComponent();
         lock (_gate)
         {
             Clear();
@@ -207,9 +218,9 @@ public class E84Component : ComponentBase, IE84
             {
                 _written = _outputs;
             }
-
-            return true;
         }
+
+        return childrenInitialized;
     }
 
     public void Retry()

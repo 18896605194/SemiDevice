@@ -65,7 +65,7 @@ try
     BaseModule[] modules = [lp1, lp2, robot, pm1, pm2, pm9];
     foreach (var module in modules)
     {
-        Check(module.Open(), $"{module.Name} 应能打开");
+        Check(module.InitComponent(), $"{module.Name} 的组件初始化应成功");
     }
 
     robot.NoteState(ModuleState.Idle);
@@ -1403,7 +1403,7 @@ try
 
     // 17b. 调度只用搬运管理的实时占用：第一台无空手时尝试下一台；两台同时工作也不能抢同一站点。
     secondRobot = new SmokeRobot("Robot2", "LP1", "LP2", "PM1", "PM2");
-    Check(secondRobot.Open(), "第二台机械手打开");
+    Check(secondRobot.InitComponent(), "第二台机械手的组件初始化");
     secondRobot.NoteState(ModuleState.Idle);
     transfers.Bind([.. modules, secondRobot]);
     transfers.StartAutoDispatch();

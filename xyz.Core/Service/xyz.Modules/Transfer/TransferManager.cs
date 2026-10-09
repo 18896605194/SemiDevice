@@ -433,7 +433,7 @@ public class TransferManager : ComponentBase
 
     /// <summary>
     /// 挑手臂：两个站点都许用、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
-    /// 手指数按晶圆账给机械手登记的槽数（机械手 Open 时按驱动轴表登记）。
+    /// 手指数按晶圆账给机械手登记的槽数（机械手组件初始化时按驱动轴表登记）。
     /// </summary>
     private HandleResult<TransferRoutine>? PickArm(IRobot robot, int wanted, string source, string target, WaferManagerComponent ledger, out int arm)
     {

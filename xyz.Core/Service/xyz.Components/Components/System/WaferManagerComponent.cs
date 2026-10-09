@@ -279,7 +279,7 @@ public class WaferManagerComponent : ComponentBase
     private bool _currentTableReady;
 
     /// <summary>
-    /// 开机恢复（各模块 Open 登记完槽位之后、开始扫描之前调一次）：把上次存的账放回腔体、机械手这些位置。
+    /// 开机恢复（各模块组件初始化登记完槽位之后、开始扫描之前调一次）：把上次存的账放回腔体、机械手这些位置。
     /// LoadPort 上的不恢复，以开机 Mapping 为准；位置没装、槽号越界、槽上已经有片的丢掉；
     /// 重启前在加工的片记成中止（工艺被打断了，做没做完说不准）。恢复完才开始存盘。返回恢复了几片。
     /// </summary>
@@ -556,7 +556,7 @@ public class WaferManagerComponent : ComponentBase
 
     /// <summary>
     /// 注册一个位置有多少槽（LoadPort 按花篮槽数、机械手按手指数、腔体 1 个）。
-    /// 装配或 Open 时调一次；重复注册同样的槽数是空操作，槽数变了会重建该模块的账。
+    /// 装配或组件初始化时调一次；重复注册同样的槽数是空操作，槽数变了会重建该模块的账。
     /// </summary>
     public void RegisterLocation(string module, int slotCount)
     { 

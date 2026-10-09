@@ -11,10 +11,14 @@ namespace xyz.Modules;
 
 public abstract class BaseModule : ComponentBase
 {
-    public virtual bool Open()
+    #region 模块初始化
+
+    public virtual ModuleOperation? InitModule()
     {
-        return true;
+        return null;
     }
+
+    #endregion
 
     #region 模块状态
 
@@ -188,7 +192,7 @@ public abstract class BaseModule : ComponentBase
 
     /// <summary>
     /// 动作能不能发；默认没限制。
-    /// 装机停用、驱动没建起来的模块重写成 false——装配里 Open 失败了就不该还能发指令。
+    /// 装机停用、驱动没建起来的模块重写成 false——装配里组件初始化没做成就不该还能发指令。
     /// </summary>
     protected virtual bool CanBeginAction => true;
 

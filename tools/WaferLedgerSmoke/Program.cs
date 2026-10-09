@@ -779,7 +779,7 @@ sealed class LedgerProbeRobot : BaseModule, IRobot
 
     ModuleOperation? IRobot.Home() => null;
 
-    ModuleOperation? IRobot.Init() => null;
+    ModuleOperation? IRobot.InitModule() => null;
 
     ModuleOperation? IRobot.Reset() => null;
 

@@ -165,7 +165,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region Component
 
     /// <summary>
-    /// 品牌驱动组件（sc.xml 挂在本模块下的 _driver 子节点，换 Type 即换品牌）；Open 时按类型找到并挂上。
+    /// 品牌驱动组件（sc.xml 挂在本模块下的 _driver 子节点，换 Type 即换品牌）；组件初始化时按类型找到并挂上。
     /// </summary>
     public LoadPortDriverComponent? _driver { get; private set; }
 
@@ -230,9 +230,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     protected override int AnchorState => LoadPortState.Loaded;
 
-    #region 驱动连接
+    #region 组件初始化与驱动连接
 
-    public override bool Open()
+    /// <summary>
+    /// 组件初始化（开机，由装配在 Start 之前调用）：载具组件没配就抛；登记晶圆账槽位、挂上驱动的主动事件，
+    /// 然后基类按 InitOrder 把子组件（驱动、读头、E84）各自初始化——连接、E84 输出回初始都在它们自己的 InitComponent 里，
+    /// 这里不再点名。读头、驱动这一次没连上也照样往下走，返回 false 只为开机日志看得到，之后由它们按间隔在后台重连。
+    /// 装机停用（IsEnable=False）的端口什么都不做。
+    /// </summary>
+    public override bool InitComponent()
     {
         // 载具组件没配就在这儿抛，开机就暴露（停用的端口也一样：状态推送要用它）。
         _ = Carrier;
@@ -242,38 +248,27 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return true;
         }
 
-        var rfid = _rfid;
-        bool rfidOpened = rfid is null || rfid.Open();
-        if (!rfidOpened)
-        {
-            LogHelper.Warn(Name, "_rfid 读头连不上：LoadPort 照常能用，读码先读不了，读头在后台按间隔重连");
-        }
-
-        var e84 = E84;
-        if (e84 is not null && !e84.Open())
-        {
-            return false;
-        }
-
         WaferManagerComponent.Current?.RegisterLoadPort(Name, SlotCount);
 
         var driver = FindChild<LoadPortDriverComponent>();
-        if (driver is null)
+        if (driver is not null)
+        {
+            // 先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报。
+            driver.DeviceEvent -= OnDeviceEvent;
+            driver.DeviceEvent += OnDeviceEvent;
+            _driver = driver;
+        }
+        else
         {
             LogHelper.Error(Name, "sc.xml 未挂品牌驱动组件（_driver 子节点），无法打开");
-            return false;
         }
 
-        // 先摘后挂：Open 可重入，保证只挂一份。
-        driver.DeviceEvent -= OnDeviceEvent;
-        driver.DeviceEvent += OnDeviceEvent;
-        _driver = driver;
-        bool driverOpened = driver.Open();
-        return driverOpened && rfidOpened;
+        bool childrenInitialized = base.InitComponent();
+        return driver is not null && childrenInitialized;
     }
 
     /// <summary>
-    /// 关闭 _rfid 读头与驱动连接；与 Open 成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// 关闭 _rfid 读头与驱动连接；与组件初始化成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
     /// </summary>
     public void Close()
     {
@@ -519,12 +514,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 初始化（重写组件基类的 Init）：先初始化子组件（E84、_rfid），再回原点——Home 就是 LoadPort 的初始化，
-    /// 超时报的也是"初始化超时"。返回 Home 操作，调用方等它做完；状态不允许时为 null。
+    /// 模块初始化（动硬件，重写 BaseModule 的 InitModule）：回原点——Home 就是 LoadPort 的初始化，
+    /// 超时报的也是"初始化超时"。人或调度才调，开机不调。返回 Home 操作，调用方等它做完；状态不允许时为 null。
     /// </summary>
-    public override ModuleOperation? Init()
+    public override ModuleOperation? InitModule()
     {
-        base.Init();
         return Home();
     }
 
@@ -598,7 +592,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 装机停用、或驱动还没建起来（装配里 Open 失败）都不发动作。
+    /// 装机停用、或驱动还没建起来（装配里组件初始化没做成）都不发动作。
     /// </summary>
     protected override bool CanBeginAction => IsEnable && _driver is not null;
 

@@ -41,7 +41,7 @@ public abstract class ComponentBase
     public string FullPath { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// 初始化顺序，默认 10000，越小越先（Init 时同一层的子组件按它依次初始化；sc.xml 节点的 InitOrder 属性配）。
+    /// 初始化顺序，默认 10000，越小越先（InitComponent 时同一层的子组件按它依次初始化；sc.xml 节点的 InitOrder 属性配）。
     /// </summary>
     public int InitOrder { get; internal set; } = 10000;
 
@@ -215,25 +215,31 @@ public abstract class ComponentBase
     #region 初始化、中止与复位（都不是必须重写的：组件有自己的处理才重写，记得调 base）
 
     /// <summary>
-    /// 初始化：先按 InitOrder 从小到大初始化子组件，再初始化自己。基类自己没有要做的，
-    /// 组件有初始化要做就重写，记得调 base.Init()。由人或调度显式调用，开机不自动做（开机只连驱动）。
-    /// 返回值给要等结果的调用方：普通组件当场做完，返回 null；
-    /// 模块（LoadPort、Robot）重写时把返回类型收窄成 ModuleOperation?，交出初始化操作让调用方等它做完。
+    /// 组件初始化（不动硬件）：开机该做的软事——连接设备、登记晶圆账、挂事件、输出回安全态……
+    /// 先按 InitOrder 从小到大初始化子组件，再初始化自己；一个子组件没做成不耽误别的，都做完再汇总返回。
+    /// 基类自己没有要做的，组件有就重写，记得调 base.InitComponent()（要赶在子组件前做的事写在调 base 之前）。
+    /// 开机由宿主对每个模块调一次，子组件跟着基类递归走，父组件不用点名；
+    /// 回原点这类要动硬件的不放这里，归模块的 InitModule（人或调度显式调用，开机不做）。
+    /// 返回 true = 都做成了；false = 有没做成的（各组件已自己记了日志），宿主据此在开机日志里提示。
     /// </summary>
-    public virtual object? Init()
+    public virtual bool InitComponent()
     {
+        bool succeeded = true;
         foreach (var child in _children.OrderBy(child => child.InitOrder))
         {
-            child.Init();
+            if (!child.InitComponent())
+            {
+                succeeded = false;
+            }
         }
 
-        return null;
+        return succeeded;
     }
 
     /// <summary>
     /// 中止：先中止子组件，再中止自己。基类自己没有要做的，组件有要停下的（在途动作、运动、握手）就重写，
     /// 记得调 base.Abort()。只停不清报警（报警只能 Reset 清）；要立即返回，不等结果。
-    /// 返回值同 Init：普通组件返回 null；模块重写时收窄成 ModuleOperation?，交出设备中止操作。
+    /// 返回值给要等结果的调用方：普通组件当场停下，返回 null；模块重写时收窄成 ModuleOperation?，交出设备中止操作。
     /// </summary>
     public virtual object? Abort()
     {

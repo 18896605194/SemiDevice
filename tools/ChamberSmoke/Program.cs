@@ -443,10 +443,35 @@ try
     var disabledResponse = disabledService.PartActionAsync(Request("Chamber8", "Chamber8.Door", "Open", [])).Result;
     Check(!disabledResponse.Success && disabledResponse.Code == ErrorCodes.ActionRejected, "停用的腔体部件动作被拒");
 
+    // 15. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有部件，不碰任何一根轴；
+    //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
+    var previousLedger = WaferManagerComponent.Current;
+    var ledger = new WaferManagerComponent();
+    try
+    {
+        var armBefore = arm.ActionState;
+        var spinBefore = spin.ActionState;
+        Check(chamber.InitComponent(), "腔体的组件初始化应成功（部件都没有自己的开机动作）");
+        Check(ledger.IsRegistered("Chamber9") && ledger.GetSlots("Chamber9").Count == chamber.SlotCount,
+            "腔体的组件初始化登记了晶圆账槽位");
+        Check(arm.ActionState == armBefore && spin.ActionState == spinBefore && chamber.CurrentOperation is null,
+            "组件初始化一路递归下去也不动轴：摆臂和旋转电机的动作状态没变，腔体没挂操作");
+        Check(disabled.InitComponent() && !ledger.IsRegistered("Chamber8"), "停用的腔体：组件初始化连账都不占");
+
+        var fresh = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber7", enabled: true)]).Single();
+        var home = fresh.InitModule();
+        Check(home is not null && fresh.State == ChamberState.Homing, "腔体的模块初始化 InitModule = Home：回原点操作挂上，进 Homing");
+    }
+    finally
+    {
+        WaferManagerComponent.Current = previousLedger;
+    }
+
     Console.WriteLine($"PASS: {checks} chamber parts checks (generic part list from sc, cylinder tri-state, nozzle/spin/arm values, "
         + "push on change with retained replay, part actions: not found, unsupported, invalid args, command rejected, Manual state, "
         + "busy rejection, priority stop while busy, abort replacement, failure to Error, axis end to end, jog hold/renew/release, "
-        + "hold timeout auto stop, cylinders and nozzles by method name, disabled chamber)");
+        + "hold timeout auto stop, cylinders and nozzles by method name, disabled chamber, component init registering the ledger "
+        + "without moving any axis and module init = Home)");
     return 0;
 }
 finally

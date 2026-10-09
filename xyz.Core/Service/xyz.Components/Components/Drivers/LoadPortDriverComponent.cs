@@ -69,10 +69,12 @@ public abstract class LoadPortDriverComponent : ComponentBase
     public event Action<LoadPortDeviceEvent>? DeviceEvent;
 
     /// <summary>
-    /// 建驱动（首次）并打开连接。这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
+    /// 组件初始化（开机）：建驱动（首次）并打开连接。可重复调用：已建好的驱动只重开连接。
+    /// 这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
     /// </summary>
-    public bool Open()
+    public override bool InitComponent()
     {
+        bool childrenInitialized = base.InitComponent();
         var driver = _driver;
         if (driver is null)
         {
@@ -82,7 +84,8 @@ public abstract class LoadPortDriverComponent : ComponentBase
         }
 
         _reconnector.Enable();
-        return driver.Open();
+        bool opened = driver.Open();
+        return opened && childrenInitialized;
     }
 
     /// <summary>
