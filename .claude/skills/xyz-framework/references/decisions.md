@@ -251,6 +251,21 @@
 - **别做大**：一个端口一个，只管"这个端口上的这一盒"；不做载具表、工厂、ID 生成器，也不是 E39 的 Carrier 对象（那个用户砍过，别借机加回来）。
 - **写法**（用户："用一个变量接收一下"）：用到载具的地方取一次存起来——端口里是缓存的 `_carrier` 字段，`E87Port.Carrier` 建端口时取一次，E87 三个状态机构造时接成 `_carrier`，
   其它地方用局部变量；别到处写 `device.Carrier.Xxx` 一长串。
+- **停用的端口也挂载具**（2026-10-09 修）：`InitComponent` 先找载具、挂上，再判 `IsEnable`。停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
+  整理时把判 `IsEnable` 挪到了前面，停用的口 `_carrier` 一直为 null，扫描每拍抛、有一个口停用就建不了 Job。冒烟 OperationWaitSmoke 7d 盯着。
+
+## LoadPort 对照老 CTC 补的三处（2026-10-09，用户定的）
+- **Mapping 异常**（用户："这个肯定是要报警的"、"一样用一个报警就行了"）：Load 回来的槽数 ≠ SC `SlotCount` → 不落账，Load 判失败（`loadport.slot_map_length_mismatch`）；
+  有交叉片、叠片、认不出的槽 → 账照落（界面看得到哪几槽），Load 判失败（`loadport.slot_map_abnormal`，参数带槽号）。两种都报同一条 `SlotMapAlarm`，不报笼统的动作失败；
+  端口落 Error，机械手进不来（交叉片占两槽，取放相邻槽、往账上空着的槽回片都会碰片）。处理：复位、Home、理好片再 Load。
+  做法：`LoadPortCommandOperation` 的成功后处理返回 `HandleResult`，失败就按它判动作失败。CTC 是报警但照样落账、端口靠报警进 Error。
+- **Job 做完自动 Unload**（用户："做成 SC，接不接 EAP 都生效"）：LoadPort 的 SC `AutoUnload`（默认 True）；E87 原来的 `AutoUnload` SC 删了，E87 不再自己卸，CarrierRelease 照旧。
+  端口每拍看载具取放状态，**刚变成 Complete 那一下**才记要卸（干完的又手动 Load 起来不再卸）；机械手还在取放就等它回 Loaded；
+  **从这个口取出去的片还有在腔体、机械手上的先不卸**（我加的：CJ 中止也调 `NoteComplete`，门一关片就回不来，Auto 下天车还可能把盒子取走），回到别的 LoadPort 的算回来了；
+  等的时候端口不再是 Load 着的（出错、被人卸了、Home 了）就不卸了，交给人。只认 Complete，不认 Stopped（中断都伴着端口出错，卸不了）。
+- **Auto 下没走 E84 交接就放上 / 拿走载具**（用户："有人拿走盒子，我们也得报错的"）：E84 组件每拍比上一拍载具在不在；变了、是 Auto、不在交接中（给了 READY 到交接完）、
+  没超时锁住 → 报 `UnexpectedCarrierAlarm`。只报警，不锁交接、不改端口状态（交接本来就按载具在不在开方向，人手动放拿撞不上天车；CTC 是端口进 Error）。
+  第一拍只记不比；开机端口是 Manual（Auto/Manual 不存盘），不会误报。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。
