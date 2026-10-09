@@ -163,7 +163,8 @@
 - **全部回片按钮**（2026-10-05 加的）2026-10-06 删了（用户："回片这个你先把现有的也删除吧，整体回片先不做"）。腔体卡片没有值的字段整行不显示（图上就是空的，Robot 手动页跟着一样）；LoadPort 卡片的六盏灯改成真数据（以前写死）。
 
 ## LoadPort 在位和驱动恢复（2026-10-06，用户定的）
-- **在位二选一做成 SC**（用户："事件和这个状态查询的结果，二选一"）：`PresenceSource` = Query（状态查询）/ Event（PODON / PODOF），**默认 Query**。
+- **在位二选一做成 SC**（用户："事件和这个状态查询的结果，二选一"）：`PresenceSource` = Query（状态查询）/ Event（PODON / PODOF），**默认 Query**
+  （2026-10-09 起这个 SC 在 `Carrier` 子组件上，见下面「载具收进 CarrierComponent」）。
   以前只认事件、状态查询只给界面看：开机时盒子已经在端口上就认不到（重启后要收片、建 Job 都走不通）。
 - **Query 怎么判**（用户："这两个都是亮的才是放好了，这两个都灭了，才是被拿走了"）：在位、到位两位都亮 = 放好，都灭 = 拿走，
   一亮一灭不算变化（保持原判断），查不到也保持。所以不另加防抖（读错一位不会被当成拿走）。界面上的"在位"跟后台用同一个判出来的值。
@@ -176,7 +177,7 @@
   没拆的原因：通信层机械手、RFID 也在用；Job、机械手、流程配方、E87 直接用 `BaseLoadPortModule` / `ILoadPort`，单拆会循环引用；驱动到通信底层
   本来就是独立的 `xyz.Drivers.dll`（不引用任何工程）。真正挡复用的是每个机型要抄一份 LoadPort 动作——所以 7 个动作收进平台（默认实现），
   **35021 的 `LoadPortModule` 留着（空类），给机型自己的设备、动作扩展**（用户定的）。机械手、腔体以后多机型时照这个收。
-- 改名（2026-10-06，用户提的）：合成的在位叫 `IsCarrierArrived`（载具到了），状态查询的原始位叫 `IsPresent` / `IsPlaced`，
+- 改名（2026-10-06，用户提的）：合成的在位叫 `IsCarrierArrived`（载具到了，现在是 `Carrier.IsArrived`，DTO 里仍叫 `IsCarrierArrived`），状态查询的原始位叫 `IsPresent` / `IsPlaced`，
   `LoadPortStatus` 的开关量一律 `Is` 开头（设备自己的自动模式位叫 `IsDeviceAutoMode`，跟模块的 `IsAutoMode` 分开）。
 - 还押着的：开着 EAP 时，开机已在端口上的盒子在 EAP 接上之前就判到了，
   到达、读码回调会丢（E87 只知道端口有盒、没有载具对象），开 EAP 之前要补"EAP 接上时把端口上已有的载具补报一遍"。
@@ -193,10 +194,40 @@
   模块 `Begin` 记下动作前的状态，Reset / Abort 做成后 `SetStateByDoor` 只往松里改：动作前在 Loaded 或交互环（门没在动）的，状态查询门开且载具在 → Loaded，
   门关 → Idle，查不到 / 门在半路 / 载具不在 → 保持 NotInit。
 - **没载具不 Load**（用户："其实就是那个到位信号"）：做成 Load 联锁虚方法 `LoadInterlock()`（用户提的"搞一个 LoadInterlock 虚方法给默认实现"；
-  我改过一次 CanLoad，用户要改回 LoadInterlock，别再改名），返回 true = 放行，默认看 `IsCarrierArrived`，机型重写加条件；在 `Begin` 里调（不放 `Load()` 里，
+  我改过一次 CanLoad，用户要改回 LoadInterlock，别再改名），返回 true = 放行，默认看 `Carrier.IsArrived`，机型重写加条件；在 `Begin` 里调（不放 `Load()` 里，
   机型重写 Load 忘了调就漏了），手动、E87、机型的 Load 都过。手动点了回笼统的"动作被拒"，没另加错误码。
 - 我自己定的（交付时说了）：没加"有搬运在用这个口就不回 Loaded"——要查搬运管理会跟模块锁互相拿锁，35021 只有一台机械手，
   两台机械手共用一个 LoadPort 又在对方手伸在盒里时点中止才会撞。
+
+## LoadPort 的载具收进 CarrierComponent（2026-10-09，用户："专门搞一个 Carrier 的组件，LoadPort 里关于载具的东西都放进去，实现 ICarrier"）
+- **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，sc.xml 每个 LoadPort 下一个 `Carrier` 节点
+  （`Type="xyz.Modules.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：模块第一次用到 `Carrier` 时找不到就抛
+  `InvalidOperationException`，`Open()` 开头就会碰它，开机就暴露（停用的端口也一样）。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
+  `ILoadPort` 里原来的 `IsCarrierArrived` / `CarrierId` / `SlotMap` / `ReadCarrierId` / `SetCarrierId` / `UpdateCarrierStatus` / `NoteCarrierComplete` 删了（不留重复）。
+- **分工的标准：主语是载具的进 Carrier，主语是端口的留下，两边都沾的由端口组合**。进 Carrier 的有：载具快照 `CarrierInfo`（`Info`）和它的锁、
+  在位判断的**规则**（SC `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（SC `AutoReadCarrierId`、
+  收读头结果）、改号和核对进度写回（`SetId` / `UpdateStatus`）、Mapping 落晶圆账、取放状态（Load 好进取放、Unload 好 / 动作失败记中断、`NoteComplete`）、
+  载具这一半的 E87 上报（到达、拿走、读码成功 / 失败、槽图读到、取放开始 / 结束、干完）、SV `IsArrived` / `CarrierId`、事件 `FoupArrived` / `FoupRemoved`。
+  留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`IsCarrierReady`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
+  门开没开是端口的事）、`LocalTransferState`、E84 桥、`E87Callback` / `E84Callback` / `E84Provider` 三个口子属性（回调都带 `ILoadPort port`，E87 按引用认端口；
+  Carrier 的上报经端口在 `Attach` 时交给它的入队口发，跟端口自己的上报同一条线，先后不乱）、读头和驱动的连接（打开、重连）。
+- **端口喂给 Carrier 的口只有这几个**（`internal`，别再加）：`Attach(port, 找读头的办法, E87 入队口)`、`Sense(isPresent, isPlaced)`（每拍两个传感器位，null = 没查到）、
+  `NoteDeviceEvent(placed)`、`NoteMapped(slotMap)`、`NoteLoaded()`、`NoteUnloaded()`、`NoteFault()`。端口的 `NotePodEvent`、`UpdateSlotMap` 保留，只是一行转发
+  （机型有别的上报路子、自己重写 Load 的，照旧调它们）。Carrier 没有父引用，跟 E84 一样由端口驱动；锁序固定：模块锁在外、载具锁在内，Carrier 持锁时不调模块。
+- **槽图认定状态只往前走**（用户：同一载具 Verified 后再 Map，**保持已认定**）：还没读过（NotRead）才转 Read，Host 已经认定（或在等、或判了不过）的，
+  再 Map 一次（比如 Unload 之后又 Load）只更新槽图和账，不动认定状态；重置只靠载具拿走或 Host 的 CarrierReCreate。
+  以前每次 Load 都写回 Read，而 E87 槽图机在 Verified 收 Read 不转换，两边对不上，`IsCarrierReady` 会永久为 false。
+  已知后果：再 Map 会整篮重建晶圆账，E90 的片对象只在槽图认定那一刻按账建，重建出来的新片不会补建（没处理，用到再说）。
+- **读码没发起成功不再静默**：到位后自动读码，读头断线重连中、或上一次还没读完时 `BeginRead` 返回 false——以前就这么算了，Host 干等一个永远不来的 ID。
+  现在接着每拍试，试到读头的 EC `ReadCarrierIdTimeout` 还不行，记中断日志、按读码失败报 `CarrierIdReadFailed`（Host 就能带端口号给号或取消）；
+  载具走了、别处已经有读码结果就不试了。**没配读头的端口不算失败**（本来就不读码，ID 由 Host 给）。
+- **搬家换号**（用户："这个肯定是一起搬"）：SV、事件按组件路径采集编号，现在是 `LoadPortN.Carrier.IsArrived` / `.CarrierId` / `.FoupArrived` / `.FoupRemoved`，
+  生成了新编号，原来 `LoadPortN.CarrierId` 等的老编号停用保号。数据曲线里这两列换成新列。EAP 当时还没上线，所以趁那时候搬。
+- **留着不动**（用户："后续要支持 cyclerun"）：`IsCycle`、`CycleRunTotal` 两个 EC 没人用，但**不删**，连同 `PickOrder` 一起原样留在 LoadPort 上、没搬
+  （它们是"怎么处理这一盒的片"的策略，不是载具生命周期）。
+- **别做大**：一个端口一个，只管"这个端口上的这一盒"；不做载具表、工厂、ID 生成器，也不是 E39 的 Carrier 对象（那个用户砍过，别借机加回来）。
+- **写法**（用户："用一个变量接收一下"）：用到载具的地方取一次存起来——端口里是缓存的 `_carrier` 字段，`E87Port.Carrier` 建端口时取一次，E87 三个状态机构造时接成 `_carrier`，
+  其它地方用局部变量；别到处写 `device.Carrier.Xxx` 一长串。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。
@@ -211,7 +242,7 @@
      所有上报共用 EAP 的派发组件 `EapNotifierComponent`（sc.xml Eap 下的 `Notifier`，单例 `Current`）一条线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢），设备侧不再各自 new、各起线程（2026-10-07 用户："做成组件，直接拿他的单例"；原来每个对象一条线程，不同来源报给 Host 的先后会乱）。
   3. **反查口**：要 Host 拿主意的事，设备侧问 provider，同样按标准号起名（`IE84Provider` / `E84Provider`），为 null 时按本地规则自己判断。
      没有要问的就不开（Job 现在不开：载具核验归 E87 → LoadPort，Host 命令收不收归 E30 控制状态）。
-- 真正的状态只在设备侧存一份，EAP 侧不另记一份当真；Host 的决定（确认载具 ID、确认槽图、Job 命令）都经设备侧接口写回（例：`SetCarrierId` 后 ID 状态为已核验）。
+- 真正的状态只在设备侧存一份，EAP 侧不另记一份当真；Host 的决定（确认载具 ID、确认槽图、Job 命令）都经设备侧接口写回（例：`Carrier.SetId` 后 ID 状态为已核验）。
 - SEMI 状态机放哪看它是什么：设备自己的执行状态（E40 的 PJ、E94 的 CJ）放在设备侧（JobManager），不接 EAP 本地也要用；
   纯粹跟 Host 核对的过程（E87 的 ID / 槽图核验、端口搬运状态等）放在 EAP 侧，由回调推进。
 - 不学 CTC：它 FA 层、调度层各一套 Job，靠轮询加 `Task.Delay` 同步，Host 的 PJ 暂停 / 恢复都没接通。
@@ -235,7 +266,7 @@
     E87 只自己记载具号（拿走时 LoadPort 已清号，#21 还要带）和"Host 取消 / 放行了这一盒"。
   - **流程照 CTC**：读到号一律等 Host；ID 认定就 Load（没有开关，`AutoLoad` SC 删了）；槽图一律等 Host，设备不自己认定（#13 删了）；
     第二次 ProceedWithCarrier 带了槽图就跟读到的比，对不上回 CAACK=3，片号表当场写晶圆账；ID 阶段带的槽图 / 片号表不用（记日志）。
-  - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块里 `MarkInAccess` 挪到 Load 完成）：后果是 Load 以后 Host 不能取消，
+  - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块在 Load 完成时调 `Carrier.NoteLoaded`，原来叫 `MarkInAccess`）：后果是 Load 以后 Host 不能取消，
     槽图核对不过要操作员 Unload（CTC 也这样）。取放过、没判完成就 Unload 的记中断，这条不变。
   - **Host 动作**：ProceedWithCarrier、CancelCarrier / CancelCarrierAtPort（不在取放才收，卸下来、放行、取消关联）、
     CarrierRelease（不在取放才收；AutoUnload 关着时干完的靠它卸）、CarrierReCreate（等取、没取放过的才收：删对象、重新读码）、

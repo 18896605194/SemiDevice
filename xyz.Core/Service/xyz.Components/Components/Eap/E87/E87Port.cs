@@ -14,6 +14,7 @@ internal sealed class E87Port
     {
         Owner = owner;
         Device = device;
+        Carrier = device.Carrier;
         Id = id;
         TransferMachine = new E87TransferStateMachine(this);
         AccessModeMachine = new E87AccessModeStateMachine(this);
@@ -26,6 +27,9 @@ internal sealed class E87Port
     public E87Component Owner { get; }
 
     public ILoadPort Device { get; }
+
+    /// <summary>端口上这一盒载具（设备侧的载具事实和 E87 能下的命令），建端口时取一次，状态机和 Host 报文都从这儿用。</summary>
+    public ICarrier Carrier { get; }
 
     /// <summary>PortID：按 sc.xml 里 LoadPort 的先后，从 1 开始。</summary>
     public byte Id { get; }
@@ -58,10 +62,11 @@ internal sealed class E87Port
     public void LoadLater()
     {
         var device = Device;
+        var carrier = Carrier;
         string carrierId = CarrierId;
         Owner.Later(() =>
         {
-            if (device.IsIdle && device.IsCarrierArrived && device.Load() is null)
+            if (device.IsIdle && carrier.IsArrived && device.Load() is null)
             {
                 LogHelper.Warn(Owner.Name, $"{device.Name} 载具 {carrierId} 认定了，但现在 Load 不了（端口状态不允许），等操作员处理");
             }

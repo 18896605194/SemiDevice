@@ -1,4 +1,5 @@
 ﻿using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
@@ -29,10 +30,12 @@ internal enum E87TransferMessage
 internal sealed class E87TransferStateMachine : E87StateMachine<E87TransferState, E87TransferMessage>
 {
     private readonly E87Port _port;
+    private readonly ICarrier _carrier;
 
     public E87TransferStateMachine(E87Port port) : base(E87TransferState.NoState)
     {
         _port = port;
+        _carrier = port.Carrier;
 
         // 第一次定状态（#1）
         Add(E87TransferState.NoState, E87TransferMessage.GoOutOfService, E87TransferState.OutOfService, EnterFirst);
@@ -85,7 +88,7 @@ internal sealed class E87TransferStateMachine : E87StateMachine<E87TransferState
             return E87TransferState.ReadyToUnload;
         }
 
-        if (_port.Released && device.IsIdle && device.IsCarrierArrived)
+        if (_port.Released && device.IsIdle && _carrier.IsArrived)
         {
             return E87TransferState.ReadyToUnload;
         }

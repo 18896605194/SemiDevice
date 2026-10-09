@@ -1,4 +1,5 @@
-﻿using xyz.Shared.Dtos;
+﻿using xyz.Components.Interfaces;
+using xyz.Shared.Dtos;
 
 namespace xyz.Components.Components;
 
@@ -44,10 +45,12 @@ internal sealed class E87SlotMapStateMachine : E87StateMachine<E87SlotMapState, 
     private const byte ReasonHostCancel = 5;
 
     private readonly E87Port _port;
+    private readonly ICarrier _carrier;
 
     public E87SlotMapStateMachine(E87Port port) : base(E87SlotMapState.NoCarrier)
     {
         _port = port;
+        _carrier = port.Carrier;
         Add(E87SlotMapState.NoCarrier, E87SlotMapMessage.Create, E87SlotMapState.NotRead, EnterNotRead);
         Add(E87SlotMapState.NotRead, E87SlotMapMessage.Read, E87SlotMapState.WaitingForHost, EnterWaitingForHost);
         Add(E87SlotMapState.WaitingForHost, E87SlotMapMessage.HostProceed, E87SlotMapState.Verified, EnterVerified);
@@ -63,19 +66,19 @@ internal sealed class E87SlotMapStateMachine : E87StateMachine<E87SlotMapState, 
     private void EnterWaitingForHost(E87SlotMapState from)
     {
         _port.Owner.ReportCarrier(_port.Owner.CarrierTrans14, _port, ReasonVerificationNeeded);
-        _port.Device.UpdateCarrierStatus(null, CarrierSlotMapStatus.WaitingForHost);
+        _carrier.UpdateStatus(null, CarrierSlotMapStatus.WaitingForHost);
     }
 
     private void EnterVerified(E87SlotMapState from)
     {
         _port.Owner.ReportCarrier(_port.Owner.CarrierTrans15, _port);
-        _port.Device.UpdateCarrierStatus(null, CarrierSlotMapStatus.Verified);
+        _carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
         _port.Owner.NotifyMaterialVerifiedLater(_port);
     }
 
     private void EnterVerifyFailed(E87SlotMapState from)
     {
         _port.Owner.ReportCarrier(_port.Owner.CarrierTrans16, _port, ReasonHostCancel);
-        _port.Device.UpdateCarrierStatus(null, CarrierSlotMapStatus.VerifyFailed);
+        _carrier.UpdateStatus(null, CarrierSlotMapStatus.VerifyFailed);
     }
 }

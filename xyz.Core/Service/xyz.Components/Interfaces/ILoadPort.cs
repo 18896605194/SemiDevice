@@ -1,7 +1,5 @@
 ﻿using xyz.Components.Components;
 using xyz.Components.Enums;
-using xyz.Drivers.Loadport;
-using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
@@ -14,18 +12,14 @@ public interface ILoadPort
     int State { get; }
 
     /// <summary>
-    /// 载具到了：后台按 sc.xml PresenceSource 判出来的结果（状态查询的在位、到位两位，或设备上报的 PODON/PODOF），不是传感器原始值。
+    /// 端口上这一盒载具：到了没有、ID、槽图，以及读码、核对进展、干完了这几条命令。载具的事都在它那儿，端口不再另放一份。
     /// </summary>
-    bool IsCarrierArrived { get; }
+    ICarrier Carrier { get; }
 
     /// <summary>
     /// Auto/Manual（LoadPort 的 Access Mode）：Auto = 搬运车经 E84 自动交接，Manual = 人工放取。
     /// </summary>
     bool IsAutoMode { get; }
-
-    string? CarrierId { get; }
-
-    IReadOnlyList<SlotState> SlotMap { get; }
 
     /// <summary>花篮槽数（E87 载具的 Capacity）。</summary>
     int SlotCount { get; }
@@ -70,18 +64,6 @@ public interface ILoadPort
     /// </summary>
     void SetAutoMode(bool autoMode);
 
-    /// <summary>
-    /// 发起一次读码（非阻塞）；结果经 CarrierId 与 E87 的 CarrierIdRead/CarrierIdReadFailed 出。
-    /// </summary>
-    bool ReadCarrierId();
-
-    void SetCarrierId(string carrierId);
-
-    /// <summary>
-    /// EAP 把 Host 核对载具的进展写回设备侧（给了的才改）：等 Host、核对通过、没通过。界面上看到的 ID / 槽图状态跟 Host 那边一致。
-    /// </summary>
-    void UpdateCarrierStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus);
-
     #endregion
 
     #region EAP 口子
@@ -101,11 +83,6 @@ public interface ILoadPort
     /// HO_AVBL 由 E84 组件按端口给的许可自己开关，EAP 不直接置。
     /// </summary>
     IE84Provider? E84Provider { get; set; }
-
-    /// <summary>
-    /// 上层作业判定这个载具干完了，转成 E87 的 CarrierComplete 上报。
-    /// </summary>
-    void NoteCarrierComplete();
 
     #endregion
 }

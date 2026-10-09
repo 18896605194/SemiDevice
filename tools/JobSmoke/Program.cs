@@ -861,7 +861,7 @@ try
           && wafer.Tasks.Count(task => task.Kind == "Process" && task.State == "Done") == 1), "SEQ_A 的片各做一站");
     Check(PjOf("LOT-A-1")!.Wafers.Select(wafer => wafer.Tasks[1].Station).Distinct().Count() == 2,
         "站点组：两片分到了 PM1、PM2 两个腔（放片那一刻在组里挑空的）");
-    Check(lp1.Carrier?.AccessStatus == CarrierAccessStatus.Complete, "CJ 完成告诉 LoadPort 载具干完了（E87 CarrierComplete）");
+    Check(lp1.Carrier.Info?.AccessStatus == CarrierAccessStatus.Complete, "CJ 完成告诉 LoadPort 载具干完了（E87 CarrierComplete）");
     Check(events.WaitFor("CJ LOT-A #10"), "上报口收到 CJ 完成");
     Check(events.Numbers("PJ LOT-A-1").SequenceEqual(new[] { 1, 2, 4, 6, 7 }) && events.Numbers("PJ LOT-A-2").SequenceEqual(new[] { 1, 2, 4, 6, 7 }),
         "PJ 转换号照 E40：#1 建、#2 准备、#4 自动开始、#6 加工完、#7 结束，实际 " + string.Join(",", events.Numbers("PJ LOT-A-2")));
@@ -871,7 +871,7 @@ try
     Check(jobs.OwnerOf(first.Id) is null, "PJ 结束放开它名下的片");
 
     Tick();
-    Check(CjOf("LOT-A")?.State == (int)ControlJobState.Completed && lp1.IsCarrierArrived,
+    Check(CjOf("LOT-A")?.State == (int)ControlJobState.Completed && lp1.Carrier.IsArrived,
         "CJ 完成但载具仍在位时保留，等待载具移走");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-A") is null, 20), "载具拿走：完成的 CJ 删掉（#13）");
@@ -1132,7 +1132,7 @@ try
     // 15. Host 的做法：先建 PJ（不归任何 CJ，排着），再建 CJ 把 PJ 按顺序收进来。
     jobs.ControlJobAutoStart = true;
     LoadCarrier(lp1, 1, 2);
-    lp1.SetCarrierId("CAR-1");
+    lp1.Carrier.SetId("CAR-1");
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-H1", [1], "SEQ_A", null, "CAR-1")).IsSuccess, "Host 建 PJ-H1");
     Check(PjOf("PJ-H1")?.ControlJob == string.Empty && PjOf("PJ-H1")?.State == (int)ProcessJobState.QueuedPooled, "PJ 先建：不归任何 CJ，排着");
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-H9", [1], "SEQ_A", null, "NOPE")).IsSuccess
@@ -1289,14 +1289,14 @@ try
     // 接了 EAP：槽图读了但 Host 还没认定，料到了也不定片、不能本地建要动这盒片的 PJ
     lp1.E87Callback = new SilentE87();
     LoadCarrier(lp1, 1, 2);
-    lp1.SetCarrierId("CAR-E");
-    Check(!lp1.IsCarrierReady && lp1.Carrier?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具不算能取片");
+    lp1.Carrier.SetId("CAR-E");
+    Check(!lp1.IsCarrierReady && lp1.Carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具不算能取片");
     Check(!RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count > 0 || CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 20)
           && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
         "槽图没被 Host 认定：PJ 不定片、不占片，CJ 还在选中");
     Refuses(Do(jobs.CreateProcessJobAsync("LP1", "PJ-LOCAL", [2], "SEQ_A", null)), ErrorCodes.JobCarrierNotReady, ["LP1"],
         "槽图没被认定：本地也建不了要动这盒片的 PJ");
-    lp1.UpdateCarrierStatus(null, CarrierSlotMapStatus.Verified);
+    lp1.Carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
     Check(lp1.IsCarrierReady, "Host 认定槽图（E87 写回 Verified）以后载具能取片");
     Check(RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count == 1, 5) && PjOf("PJ-EARLY")!.Wafers[0].SourceSlot == 1
           && CjOf("CJ-EARLY")?.LoadPort == "LP1" && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) == "PJ-EARLY"
@@ -1314,7 +1314,7 @@ try
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-BAD", [5], "SEQ_A", null, "CAR-B")).IsSuccess
           && Do(jobs.CreateControlJobAsync(null, ["PJ-BAD"], "CJ-BAD")).IsSuccess, "Host 建好 PJ-BAD（要第 5 槽）、CJ-BAD");
     LoadCarrier(lp1, 1);
-    lp1.SetCarrierId("CAR-B");
+    lp1.Carrier.SetId("CAR-B");
     Check(RunUntil(MaterialAlarm, 20) && PjOf("PJ-BAD")?.Wafers.Count == 0 && PjOf("PJ-BAD")?.State == (int)ProcessJobState.QueuedPooled
           && CjOf("CJ-BAD")?.State == (int)ControlJobState.Selected && CjOf("CJ-BAD")?.LoadPort == string.Empty
           && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
@@ -1526,6 +1526,16 @@ static class Probe
     {
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(component, enabled);
     }
+
+    // 端口下挂的载具组件：生产里是 sc.xml 的 Carrier 节点。
+    public static CarrierComponent Carrier(ComponentBase port, PodPresenceSource presence)
+    {
+        var carrier = new CarrierComponent { PresenceSource = presence };
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(carrier, "Carrier");
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(carrier, $"{port.FullPath}.Carrier");
+        port.AddChild(carrier);
+        return carrier;
+    }
 }
 
 // 搬运管理、Job 管理：顶替扫描线程推一拍。
@@ -1651,7 +1661,7 @@ sealed class SmokePort : BaseLoadPortModule
     public SmokePort(string name)
     {
         Probe.Name(this, name);
-        PresenceSource = PodPresenceSource.Event;
+        Probe.Carrier(this, PodPresenceSource.Event);
         AddChild(new SmokePortShell());
     }
 

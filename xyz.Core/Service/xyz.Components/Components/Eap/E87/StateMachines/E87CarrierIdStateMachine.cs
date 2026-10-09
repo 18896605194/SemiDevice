@@ -1,4 +1,5 @@
-﻿using xyz.Shared.Dtos;
+﻿using xyz.Components.Interfaces;
+using xyz.Shared.Dtos;
 
 namespace xyz.Components.Components;
 
@@ -38,10 +39,12 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
     private const byte ReasonHostCancel = 5;
 
     private readonly E87Port _port;
+    private readonly ICarrier _carrier;
 
     public E87CarrierIdStateMachine(E87Port port) : base(E87CarrierIdState.NoCarrier)
     {
         _port = port;
+        _carrier = port.Carrier;
         Add(E87CarrierIdState.NoCarrier, E87CarrierIdMessage.IdRead, E87CarrierIdState.WaitingForHost, EnterWaitingForHost);
         Add(E87CarrierIdState.NoCarrier, E87CarrierIdMessage.HostProceed, E87CarrierIdState.Verified, EnterVerified);
         Add(E87CarrierIdState.WaitingForHost, E87CarrierIdMessage.HostProceed, E87CarrierIdState.Verified, EnterVerified);
@@ -54,7 +57,7 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
         var owner = _port.Owner;
         owner.ReportCarrier(owner.CarrierTrans01, _port);
         owner.ReportCarrier(owner.CarrierTrans03, _port);
-        _port.Device.UpdateCarrierStatus(CarrierIdStatus.WaitingForHost, null);
+        _carrier.UpdateStatus(CarrierIdStatus.WaitingForHost, null);
     }
 
     private void EnterVerified(E87CarrierIdState from)
@@ -70,14 +73,14 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
             owner.ReportCarrier(owner.CarrierTrans08, _port);
         }
 
-        _port.Device.SetCarrierId(_port.CarrierId);
+        _carrier.SetId(_port.CarrierId);
         _port.LoadLater();
     }
 
     private void EnterVerifyFailed(E87CarrierIdState from)
     {
         _port.Owner.ReportCarrier(_port.Owner.CarrierTrans09, _port, ReasonHostCancel);
-        _port.Device.UpdateCarrierStatus(CarrierIdStatus.VerifyFailed, null);
+        _carrier.UpdateStatus(CarrierIdStatus.VerifyFailed, null);
     }
 
     private void EnterNoCarrier(E87CarrierIdState from)

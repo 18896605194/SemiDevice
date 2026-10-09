@@ -237,7 +237,7 @@ port.SetAutoMode(false);
 // 载具 ID 与 Mapping 结果要能进状态快照（DTO），否则出不了服务进程。
 port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CrossSlotted]);
 Check(eap.Wait(nameof(IE87Callback.SlotMapRead)), "Mapping must report SlotMapRead.");
-port.SetCarrierId("FOUP-001");
+port.Carrier.SetId("FOUP-001");
 
 var snapshot = port.CreateStateDto();
 Check(snapshot.CarrierId == "FOUP-001", "The state snapshot must carry the carrier id.");
@@ -257,15 +257,15 @@ Check(port.CreateStateDto().HasStateChanged(snapshot), "A slot map change must c
 
 // ── 载具对象：放上到取走这一程 ──────────────────────────────────────────
 // 载具 ID 是空的不等于没载具——这就是要有载具对象的原因。
-Check(port.Carrier is null, "还没放 FOUP 时不该有载具对象");
-port.SetCarrierId("GHOST");
-Check(port.Carrier is null, "没有载具时改 ID 不该凭空造出一个载具对象");
+Check(port.Carrier.Info is null, "还没放 FOUP 时不该有载具对象");
+port.Carrier.SetId("GHOST");
+Check(port.Carrier.Info is null, "没有载具时改 ID 不该凭空造出一个载具对象");
 
 var ledger = new WaferManagerComponent();
 port.NotePodPlaced(true);
 port.Tick();
 
-var carrier = port.Carrier;
+var carrier = port.Carrier.Info;
 Check(carrier is not null, "FOUP 放上后应建出载具对象");
 Check(carrier!.Location == port.Name && carrier.Capacity == port.SlotCount,
     "载具应记住在哪个端口、几个槽");
@@ -277,7 +277,7 @@ Check(eap.Wait(nameof(IE87Callback.CarrierArrived)), "FOUP 放上应上报 Carri
 
 // Mapping：载具状态推进，同时落到晶圆账
 port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CrossSlotted, SlotState.Undefined]);
-Check(port.Carrier!.SlotMapStatus == CarrierSlotMapStatus.Read, "Mapping 后槽图状态应转 Read");
+Check(port.Carrier.Info!.SlotMapStatus == CarrierSlotMapStatus.Read, "Mapping 后槽图状态应转 Read");
 Check(ledger.CountWafers(port.Name) == 3, $"Mapping 应落账 3 片，实际 {ledger.CountWafers(port.Name)}");
 Check(ledger.Get(port.Name, 1)?.Status == WaferStatus.Normal, "正常片应记 Normal");
 Check(ledger.Get(port.Name, 2) is null, "空槽不该建片");
@@ -297,8 +297,8 @@ ledger.SetProcessState(port.Name, 1, WaferProcessState.Idle);
 
 // 读码晚于 Mapping：账上的片要能补上载具号
 Check(string.IsNullOrEmpty(ledger.Get(port.Name, 1)?.CarrierId), "Mapping 时还没读码，载具号应为空");
-port.SetCarrierId("FOUP-777");
-Check(port.Carrier!.CarrierId == "FOUP-777" && port.Carrier.IdStatus == CarrierIdStatus.Verified,
+port.Carrier.SetId("FOUP-777");
+Check(port.Carrier.Info!.CarrierId == "FOUP-777" && port.Carrier.Info.IdStatus == CarrierIdStatus.Verified,
     "Host 改写载具 ID 即认定");
 Check(ledger.Get(port.Name, 1)?.CarrierId == "FOUP-777", "读码回来后应补上账上所有片的载具号");
 Check(ledger.Get(port.Name, 4)?.CarrierId == "FOUP-777", "补载具号应覆盖整个模块");
@@ -318,7 +318,7 @@ loadOp.Succeed();
 port.Tick();
 Check(port.State == LoadPortState.Loaded, $"Load 成功应落 Loaded，实际 {port.State}");
 Check(port.IsLoaded && !port.IsIdle, "Loaded 时 IsLoaded 为真、IsIdle 为假");
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "Load 好了载具就进 InAccess");
+Check(port.Carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess, "Load 好了载具就进 InAccess");
 Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
 Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
@@ -329,13 +329,13 @@ var brokenUnload = new ProbeOperation();
 Check(port.BeginAction(LoadPortAction.Unload, brokenUnload) is not null, "Loaded 状态应能发起 Unload");
 brokenUnload.Reject();
 port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放途中出错应落 Stopped");
+Check(port.Carrier.Info!.AccessStatus == CarrierAccessStatus.Stopped, "取放途中出错应落 Stopped");
 Check(eap.Wait(nameof(IE87Callback.PortError)), "动作失败应上报 PortError");
 
 // 上层判完成：Complete 之后 Unload 不能把它改掉；Unload 好了端口自己判等取走
 port.NoteState(ModuleState.Idle);
-port.NoteCarrierComplete();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete, "上层判完成后应转 Complete");
+port.Carrier.NoteComplete();
+Check(port.Carrier.Info!.AccessStatus == CarrierAccessStatus.Complete, "上层判完成后应转 Complete");
 var reloadOp = new ProbeOperation();
 port.BeginAction(LoadPortAction.Load, reloadOp);
 reloadOp.Succeed();
@@ -344,16 +344,22 @@ var lastUnload = new ProbeOperation();
 port.BeginAction(LoadPortAction.Unload, lastUnload);
 lastUnload.Succeed();
 port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Complete,
+Check(port.Carrier.Info!.AccessStatus == CarrierAccessStatus.Complete,
     "已经判完成的载具，Unload 不该把它改掉");
 Check(port.IsIdle && port.LocalTransferState == LoadPortTransferState.ReadyToUnload, "干完了、Unload 好了：端口自己判等取走");
 port.Offline();
 
 // Host 核对的进展写回设备侧（EAP 的 E87 用）：给了的那一项才改
-port.UpdateCarrierStatus(null, CarrierSlotMapStatus.WaitingForHost);
-Check(port.Carrier!.IdStatus == CarrierIdStatus.Verified && port.Carrier.SlotMapStatus == CarrierSlotMapStatus.WaitingForHost,
-    "UpdateCarrierStatus 只改给了的槽图状态");
-port.UpdateCarrierStatus(null, CarrierSlotMapStatus.Read);
+port.Carrier.UpdateStatus(null, CarrierSlotMapStatus.WaitingForHost);
+Check(port.Carrier.Info!.IdStatus == CarrierIdStatus.Verified && port.Carrier.Info.SlotMapStatus == CarrierSlotMapStatus.WaitingForHost,
+    "UpdateStatus 只改给了的槽图状态");
+
+// 槽图认定状态只往前走：Host 已经认定的载具再 Map 一次（比如 Unload 之后又 Load），只更新槽图和账，不用重新等 Host
+port.Carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
+port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CorrectlyOccupied]);
+Check(port.Carrier.Info!.SlotMapStatus == CarrierSlotMapStatus.Verified, "已认定的槽图再 Map 一次，认定状态保持（不回 Read）");
+Check(port.Carrier.SlotMap.Count == 3 && port.Carrier.SlotMap[2] == SlotState.CorrectlyOccupied, "再 Map 一次，槽图照常更新");
+port.Carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
 
 // 载具状态要能出到 DTO，并且被 HasStateChanged 认出来
 var carrierSnapshot = port.CreateStateDto();
@@ -367,7 +373,7 @@ Check(!port.CreateStateDto().HasStateChanged(carrierSnapshot), "载具没变时�
 // 取走：载具对象与这个端口的晶圆账一起清掉
 port.NotePodPlaced(false);
 port.Tick();
-Check(port.Carrier is null, "FOUP 取走后载具对象应清掉");
+Check(port.Carrier.Info is null, "FOUP 取走后载具对象应清掉");
 Check(ledger.CountWafers(port.Name) == 0, "FOUP 取走后端口上的片也应从账上清掉，不能留幽灵片");
 Check(port.CreateStateDto().HasStateChanged(carrierSnapshot), "载具走了应算状态变化");
 Check(eap.Wait(nameof(IE87Callback.CarrierRemoved)), "FOUP 取走应上报 CarrierRemoved");
@@ -380,12 +386,12 @@ var secondLoad = new ProbeOperation();
 port.BeginAction(LoadPortAction.Load, secondLoad);
 secondLoad.Succeed();
 port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.InAccess, "第二个载具：Load 好了就在取放");
+Check(port.Carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess, "第二个载具：Load 好了就在取放");
 var secondUnload = new ProbeOperation();
 port.BeginAction(LoadPortAction.Unload, secondUnload);
 secondUnload.Succeed();
 port.Tick();
-Check(port.Carrier!.AccessStatus == CarrierAccessStatus.Stopped, "取放过、没判完成就 Unload，载具应落 Stopped");
+Check(port.Carrier.Info!.AccessStatus == CarrierAccessStatus.Stopped, "取放过、没判完成就 Unload，载具应落 Stopped");
 port.NotePodPlaced(false);
 port.Tick();
 
@@ -668,7 +674,7 @@ port.E87Callback = null;
     Check(e84.State == E84State.Available && !e84.Outputs.UReq, "这一盒还没干完，不该亮 U_REQ");
 
     // 取盒：干完了才亮 U_REQ；载具被取走 → 撤 U_REQ；COMPT → 撤 READY；信号全撤 → 完成
-    lp.NoteCarrierComplete();
+    lp.Carrier.NoteComplete();
     lp.Tick();
     outputs = e84.Outputs;
     Check(e84.State == E84State.Requesting && outputs.UReq && !outputs.LReq, "这一盒干完了应亮 U_REQ");
@@ -767,7 +773,7 @@ port.E87Callback = null;
     tpE84.Set();
     tpPort.Tick();
     Check(tpE84.State == E84State.TimedOut, "搬运车撤了也不自动解锁，得人工恢复");
-    Check(!tpE84.Complete(tpPort.IsCarrierArrived), "送盒没放上载具，Complete 应被拒");
+    Check(!tpE84.Complete(tpPort.Carrier.IsArrived), "送盒没放上载具，Complete 应被拒");
     tpE84.Retry();
     tpPort.Tick();
     Check(tpE84.State == E84State.Available && tpE84.Outputs.HoAvbl && tpE84.TimedOutTimer is null,
@@ -791,7 +797,7 @@ port.E87Callback = null;
     tpPort.NotePodPlaced(true);
     tpPort.Tick();  // 在位下一拍扫描才判出来；锁住的交接这一拍不动
     Check(tpE84.State == E84State.TimedOut, "人工恢复之前交接一直锁着");
-    Check(tpE84.Complete(tpPort.IsCarrierArrived), "载具确实放上了，Complete 应按完成收尾");
+    Check(tpE84.Complete(tpPort.Carrier.IsArrived), "载具确实放上了，Complete 应按完成收尾");
     tpPort.Tick();
     Check(tpEvents.Wait("HandoffCompleted:True"), "人工 Complete 应在下一拍随进展上报交接完成");
     Check(tpE84.State == E84State.Available && Active(tpE84, tpE84.E84TimeoutAlarm, alarms),
@@ -1265,42 +1271,42 @@ port.E87Callback = null;
     var queryPort = new ProbePort("PresenceQueryPort", PodPresenceSource.Query);
     queryPort.NoteState(ModuleState.Idle);
     queryPort.Tick();
-    Check(!queryPort.IsCarrierArrived && queryPort.Carrier is null, "Query：还没查到状态时当没有载具");
+    Check(!queryPort.Carrier.IsArrived && queryPort.Carrier.Info is null, "Query：还没查到状态时当没有载具");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true });
     queryPort.Tick();
-    Check(queryPort.IsCarrierArrived && queryPort.Carrier is not null && queryPort.CreateStateDto().IsCarrierArrived,
+    Check(queryPort.Carrier.IsArrived && queryPort.Carrier.Info is not null && queryPort.CreateStateDto().IsCarrierArrived,
         "Query：在位、到位都亮算放好（开机时已在端口上的也认），建载具对象，推给界面的在位跟着变");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = false });
     queryPort.Tick();
-    Check(queryPort.IsCarrierArrived && queryPort.Carrier is not null, "Query：一亮一灭不算拿走");
+    Check(queryPort.Carrier.IsArrived && queryPort.Carrier.Info is not null, "Query：一亮一灭不算拿走");
     queryPort.NoteStatus(null);
     queryPort.Tick();
-    Check(queryPort.IsCarrierArrived, "Query：查不到状态保持原判断");
+    Check(queryPort.Carrier.IsArrived, "Query：查不到状态保持原判断");
     queryPort.NotePodPlaced(false);
     queryPort.Tick();
-    Check(queryPort.IsCarrierArrived, "Query：PODOF 事件不认");
+    Check(queryPort.Carrier.IsArrived, "Query：PODOF 事件不认");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = false });
     queryPort.Tick();
-    Check(!queryPort.IsCarrierArrived && queryPort.Carrier is null && !queryPort.CreateStateDto().IsCarrierArrived,
+    Check(!queryPort.Carrier.IsArrived && queryPort.Carrier.Info is null && !queryPort.CreateStateDto().IsCarrierArrived,
         "Query：在位、到位都灭算拿走，载具对象清掉");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = true });
     queryPort.Tick();
-    Check(!queryPort.IsCarrierArrived && queryPort.Carrier is null, "Query：一亮一灭不算放上");
+    Check(!queryPort.Carrier.IsArrived && queryPort.Carrier.Info is null, "Query：一亮一灭不算放上");
 
     // 2) Event：只认 PODON / PODOF，状态查询说什么都不管
     var eventPort = new ProbePort("PresenceEventPort", PodPresenceSource.Event);
     eventPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true });
     eventPort.Tick();
-    Check(!eventPort.IsCarrierArrived && eventPort.Carrier is null, "Event：状态查询说有盒也不认");
+    Check(!eventPort.Carrier.IsArrived && eventPort.Carrier.Info is null, "Event：状态查询说有盒也不认");
     eventPort.NotePodPlaced(true);
     eventPort.Tick();
-    Check(eventPort.IsCarrierArrived && eventPort.Carrier is not null, "Event：PODON 算放上");
+    Check(eventPort.Carrier.IsArrived && eventPort.Carrier.Info is not null, "Event：PODON 算放上");
     eventPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = false });
     eventPort.Tick();
-    Check(eventPort.IsCarrierArrived, "Event：状态查询说没盒也不认");
+    Check(eventPort.Carrier.IsArrived, "Event：状态查询说没盒也不认");
     eventPort.NotePodPlaced(false);
     eventPort.Tick();
-    Check(!eventPort.IsCarrierArrived && eventPort.Carrier is null, "Event：PODOF 算拿走");
+    Check(!eventPort.Carrier.IsArrived && eventPort.Carrier.Info is null, "Event：PODOF 算拿走");
 
     // 3) 状态查询走真驱动：回来了接着发下一条；一条没回就超时作废、接着发（以前同名查询一直占着在途位，再也查不了）
     var pollPort = new ProbePort("PollPort", PodPresenceSource.Query);
@@ -1310,15 +1316,15 @@ port.E87Callback = null;
     pollPort.Tick();
     Check(WaitUntil(() => pollComm.SentCount("GET:STATE") == 1), "连上后扫描一拍就发出第一条状态查询");
     pollComm.Push(StateReply(present: true, placed: true));
-    Check(TickUntil(pollPort, () => pollPort.IsCarrierArrived && pollPort.Carrier is not null),
+    Check(TickUntil(pollPort, () => pollPort.Carrier.IsArrived && pollPort.Carrier.Info is not null),
         "查询回来在位、到位都亮：判放上（盒子开机前就在端口上也认得）");
     Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 2), "上一条回来了，接着发下一条");
     Thread.Sleep(150);
     pollPort.Tick();
-    Check(pollPort.Status is null && pollPort.IsCarrierArrived, "查询超时：Status 清空，在位保持原判断");
+    Check(pollPort.Status is null && pollPort.Carrier.IsArrived, "查询超时：Status 清空，在位保持原判断");
     Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 3), "超时的那一条作废了，同名查询还能接着发");
     pollComm.Push(StateReply(present: false, placed: false));
-    Check(TickUntil(pollPort, () => !pollPort.IsCarrierArrived && pollPort.Carrier is null), "查询回来两位都灭：判拿走");
+    Check(TickUntil(pollPort, () => !pollPort.Carrier.IsArrived && pollPort.Carrier.Info is null), "查询回来两位都灭：判拿走");
 
     // 4) 动作没做成（失败、超时、被顶替）：驱动上还在等回复的指令全部作废，同名指令能再发
     var stuckLoad = pollPort.Shell.Load();
@@ -1379,6 +1385,75 @@ port.E87Callback = null;
     Check(TickUntil(rfidPort, () => rfidShell.IsConnected), "读头能连了：按间隔在后台重连上");
     rfidPort.Close();
 
+    // 7b) 到位后自动读码，读头这会儿没连上：以前读码没发起成功就这么算了，Host 干等一个永远不来的 ID。
+    //     现在接着试，读头连上就发起读码；一直连不上，到读头的读码超时就按读码失败报给 E87
+    ProbeRfidShell AddReader(ProbePort target, string path)
+    {
+        var reader = new ProbeRfidShell();
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(reader, "RFID");
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(reader, path);
+        target.AddChild(reader);
+        return reader;
+    }
+
+    var autoPort = new ProbePort("AutoReadPort", PodPresenceSource.Event);
+    var autoReader = AddReader(autoPort, "AutoReadPort.RFID");
+    autoReader.ReconnectIntervalMs = 10;
+    autoReader.ReadCarrierIdTimeout = 60000;
+    autoReader.Comm.FailOpen = true;
+    var autoEvents = new RecordingE87Callback();
+    autoPort.E87Callback = autoEvents;
+    autoPort.Open();
+    autoPort.NotePodPlaced(true);
+    autoPort.Tick();
+    Check(autoPort.Carrier.IsArrived && !autoReader.IsReading, "到位了、读头没连上：读码发不起来");
+    autoPort.Tick();
+    Check(!autoReader.IsReading && !autoEvents.Wait(nameof(IE87Callback.CarrierIdReadFailed), 100),
+        "读头没连上、还没到读码超时：接着等，不报失败");
+    autoReader.Comm.FailOpen = false;
+    Check(TickUntil(autoPort, () => autoReader.IsReading), "读头连上以后自动读码接着发起（以前没发起成功就算了）");
+    autoPort.Close();
+
+    var failPort = new ProbePort("AutoReadFailPort", PodPresenceSource.Event);
+    var failReader = AddReader(failPort, "AutoReadFailPort.RFID");
+    failReader.ReconnectIntervalMs = 600000;
+    failReader.ReadCarrierIdTimeout = 100;
+    failReader.Comm.FailOpen = true;
+    var failEvents = new RecordingE87Callback();
+    failPort.E87Callback = failEvents;
+    failPort.Open();
+    failPort.NotePodPlaced(true);
+    failPort.Tick();
+    Thread.Sleep(150);
+    failPort.Tick();
+    Check(failEvents.Wait(nameof(IE87Callback.CarrierIdReadFailed)) && failPort.Carrier.Info!.IdStatus == CarrierIdStatus.ReadFailed,
+        "读头一直连不上：到读码超时按读码失败报给 E87（Host 就能带端口号给号或取消）");
+    failPort.Close();
+
+    // 没配读头的端口本来就不读码，不算失败：到位后什么都不报
+    var noReaderPort = new ProbePort("NoReaderPort", PodPresenceSource.Event);
+    var noReaderEvents = new RecordingE87Callback();
+    noReaderPort.E87Callback = noReaderEvents;
+    noReaderPort.NotePodPlaced(true);
+    noReaderPort.Tick();
+    noReaderPort.Tick();
+    Check(noReaderPort.Carrier.Info is not null && !noReaderEvents.Wait(nameof(IE87Callback.CarrierIdReadFailed), 100),
+        "没配读头：本来就不读码，到位后不报读码失败");
+
+    // 7c) 端口下没配 Carrier 子组件：装配错了，Open 要抛（开机就暴露），不让端口带着缺口跑
+    var barePort = new BarePort("BarePort");
+    bool bareThrown = false;
+    try
+    {
+        barePort.Open();
+    }
+    catch (InvalidOperationException exception)
+    {
+        bareThrown = exception.Message.Contains("Carrier", StringComparison.Ordinal);
+    }
+
+    Check(bareThrown, "端口下没配 Carrier 子组件：Open 抛 InvalidOperationException（开机就暴露）");
+
     // 8) 帧通讯重连：旧接收泵在新连接起来以后才出错，只停它自己那一轮，新的一轮照样收（以前一个全局标志会把新泵也停了）
     var transport = new GatedTransport();
     var codec = new FcdFrameCodec();
@@ -1422,8 +1497,8 @@ port.E87Callback = null;
     Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 发的是 FCD 的 CLOAD");
     plainComm.Push("INF:CLOAD/PEC");
     Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
-          && plain.SlotMap.Count == 3 && plain.SlotMap[0] == SlotState.CorrectlyOccupied && plain.SlotMap[1] == SlotState.Empty
-          && plain.SlotMap[2] == SlotState.CrossSlotted,
+          && plain.Carrier.SlotMap.Count == 3 && plain.Carrier.SlotMap[0] == SlotState.CorrectlyOccupied && plain.Carrier.SlotMap[1] == SlotState.Empty
+          && plain.Carrier.SlotMap[2] == SlotState.CrossSlotted,
         "平台默认 Load：设备回完成就落 Loaded，Mapping 结果落进 SlotMap");
     var plainUnload = plain.Unload();
     Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
@@ -1534,7 +1609,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its Carrier node refusing to open,and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -1618,6 +1693,19 @@ sealed class ProbeModule : BaseModule
     }
 }
 
+// 探针端口下挂的载具组件：生产里是 sc.xml 的 Carrier 节点，名字由装配器经 internal setter 设，这里反射设。
+static class ProbeCarrier
+{
+    public static CarrierComponent Add(ComponentBase port, PodPresenceSource presence)
+    {
+        var carrier = new CarrierComponent { PresenceSource = presence };
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(carrier, "Carrier");
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(carrier, $"{port.FullPath}.Carrier");
+        port.AddChild(carrier);
+        return carrier;
+    }
+}
+
 sealed class ProbePort : BaseLoadPortModule
 {
     public ProbeOperation? Next { get; set; }
@@ -1637,7 +1725,7 @@ sealed class ProbePort : BaseLoadPortModule
         AddChild(Shell);
 
         // 在位默认走设备上报（测试用 NotePodPlaced 摆）；测状态查询的传 Query，用 NoteStatus 或假通道回状态摆。
-        PresenceSource = presence;
+        ProbeCarrier.Add(this, presence);
 
         // Seed only the in-memory EC component created at the top; never load or flush a configuration file.
         LoadTimeout = 0;
@@ -1680,6 +1768,16 @@ sealed class ProbePort : BaseLoadPortModule
     public override ModuleOperation? Unclamp() => Take();
 }
 
+// 没挂 Carrier 子组件的端口：验装配错了开机就暴露。
+sealed class BarePort : BaseLoadPortModule
+{
+    public BarePort(string name)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+    }
+}
+
 // 平台默认动作的探针 LoadPort：一个动作都不重写，走 BaseLoadPortModule 自带的那一套（真 FCD 驱动 + 假通道）。
 sealed class PlainPort : BaseLoadPortModule
 {
@@ -1693,7 +1791,7 @@ sealed class PlainPort : BaseLoadPortModule
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(Shell, "Driver");
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(Shell, $"{name}.Driver");
         AddChild(Shell);
-        PresenceSource = PodPresenceSource.Event;
+        ProbeCarrier.Add(this, PodPresenceSource.Event);
 
         // 假通道不回状态查询：超时给到最长，别让查询超时的日志掺和
         QueryDataTimeOut = 600000;

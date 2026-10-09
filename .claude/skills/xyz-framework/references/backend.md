@@ -83,11 +83,11 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
   `OperationState` 在 `Enums`——2026-10-05 从模块层挪下来，好让设备侧接口放进组件层。
-- `Interfaces` 下除了组件自己的（IPlc……），还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`IE87Callback`、`IE84Callback`、
+- `Interfaces` 下除了组件自己的（IPlc……），还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`ICarrier`（经 `ILoadPort.Carrier` 拿到，一个端口一个载具组件）、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `WaferManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
   Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
-  实现还在模块层（`BaseLoadPortModule`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
+  实现还在模块层（`BaseLoadPortModule`、`CarrierComponent`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
 
 ## 3. 模块（`xyz.Modules`）
 
@@ -121,12 +121,12 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；Open 里先开 RFID、E84，再登记晶圆账槽位、开驱动——RFID、驱动这一次没连上也照样往下走，
   返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；**设备状态查询在平台**：每拍一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
-  Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**在位二选一**（SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位，
-  都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（`NotePodEvent`，机型有别的上报路子也调它），只在扫描线程判边沿，
-  判出来的叫 `IsCarrierArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
+  Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**载具交给子组件 `CarrierComponent`**（sc.xml 每个 LoadPort 下必配一个 `Carrier` 节点，缺了开机抛 `InvalidOperationException`；`ILoadPort.Carrier` 是它的 `ICarrier` 口，读码、槽图认定状态、取放状态、E87 载具上报都在它里面，见 decisions.md「LoadPort 的载具收进 CarrierComponent」）：**在位二选一**（Carrier 的 SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位（端口每拍用 `Carrier.Sense` 喂进去），
+  都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（端口的 `NotePodEvent` 转给 `Carrier.NoteDeviceEvent`，机型有别的上报路子也调它），只在扫描线程判边沿，
+  判出来的叫 `Carrier.IsArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
-Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `IsCarrierArrived`，机型有别的条件重写、先调 base）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`），每拍最后 `PublishState`，机型类只在动作不一样时重写；
+Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `Carrier.IsArrived`，机型有别的条件重写、先调 base）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.NoteMapped`；动作做成 / 失败时端口再告诉 Carrier：`NoteLoaded` / `NoteUnloaded` / `NoteFault`），每拍最后 `PublishState`，机型类只在动作不一样时重写；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不打开、不每拍推、不读写 IO——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
   `BaseRobotModule`（sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
@@ -243,7 +243,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `I
   创建方法直接接收参数，不再使用 `ProcessJobSpec` / `ControlJobSpec`；服务通信仍用请求 DTO。CJ / PJ 创建参数、请求 DTO 和运行对象不存 AutoStart，
   启动方式由 Job 节点的 SC `ProcessJobAutoStart`（默认 True）和 `ControlJobAutoStart`（默认 False）决定：True 准备好直接开始，False 等待对应的 Start 命令。
   E40 建 PJ 报文的 PRPROCESSSTART、E94 建 CJ 的 StartMethod 只校验格式、不覆盖 SC；查询、上报和历史记录中的 AutoStart 反映设备配置。
-  CJ / PJ 不保存 CarrierInstance，CJ 完成后检测到来源 LoadPort 的 IsCarrierArrived=False 才删除；载具仍在位时保留结果。
+  CJ / PJ 不保存 CarrierInstance，CJ 完成后检测到来源 LoadPort 的 Carrier.IsArrived=False 才删除；载具仍在位时保留结果。
   载具是否可取放片由 `BaseLoadPortModule.IsCarrierReady` 判断（模块启用、载具到位、IsLoaded，接了 EAP 时槽图被 Host 认定）；Job 创建、定片、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
   **料没到先建 PJ**：Host 按载具号建（不给 loadPort）时载具不在口上或还不能取片，PJ 照样建、排队，只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），
   任务行空着（`IsWaitingForMaterial`）；扫描每拍先定片（`AssignWaitingProcessJobs` → `AssignWafers`，跟当场建同一段检查），定好挂任务表、`IPjManager.RegisterWafers` 登记片归属、
@@ -316,10 +316,12 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `I
   配方变了报 `ProcessProgramChange`（DV `PPChangeName` = 配方名、`PPChangeStatus` 1 建 / 2 改 / 3 删；本地和 Host 改的都报）。
   SC 只有 `LockLocalEditInRemote`（默认 False）：True 时 ON-LINE REMOTE 下 `IsLocalEditLocked` 为真，本地配方服务拒改。以后要前缀再加在这个组件的 SC 里。
 - **E87**（照老 CTC 写，定法见 decisions.md「EAP 各标准」E87 一条）：挂到每个 LoadPort 上（`IE87Callback` + `IE84Provider`，PortID 按传进来的先后从 1 编）。
-  - 文件：`E87Component`（声明 DV / 事件、收设备回调、E84 反查、报事件）、`.Host`（S3 报文）、`E87Port`（一个端口：6 个状态机 + 载具号 + 放行标记）、
+  - 文件：`E87Component`（声明 DV / 事件、收设备回调、E84 反查、报事件）、`.Host`（S3 报文）、`E87Port`（一个端口：6 个状态机 + 载具号 + 放行标记 + 建的时候取一次的 `Carrier`）、
     `E87StateMachine`（小基类：转换表、发消息、进状态时带上原来的状态）和 6 个状态机类（搬运、存取方式、关联、载具 ID、槽图、取放，各自的状态枚举数值照 SEMI，没有载具 = 255）。
   - 写法：设备回调、Host 报文只做"翻成消息发给状态机"（`OnPort` 在锁里找端口、做事、最后刷搬运状态）；事件在状态机进状态时报，
-    要设备动的（Load、Unload、重新读码、通知 E90）用 `Later` 攒着，出锁再做；写回设备的核对状态、载具号、片号表在锁里直接写（只拿设备的小锁）。
+    要设备动的（Load、Unload、重新读码、通知 E90）用 `Later` 攒着，出锁再做；写回设备的核对状态、载具号（`Carrier.UpdateStatus` / `SetId`）、片号表在锁里直接写（只拿设备的小锁）。
+  - 设备侧的载具（到达、读码、槽图、取放）全在 `ICarrier`：`E87Port` 建的时候取一次存成 `Carrier`，载具 ID、槽图、取放三个状态机构造时接成 `_carrier`，
+    别每处都写 `device.Carrier.Xxx`；Host 要重读码走 `Carrier.ReadId()`。载具这一半的上报由 Carrier 经端口交给的入队口发，跟端口自己的上报同一条线。
   - 流程：读到号建对象等 Host（#1、#3），读码失败的 Host 带端口号给号（#1、#4）；ID 认定就 Load；读到槽图一律等 Host（#14）；
     第二次 ProceedWithCarrier 带槽图就比、对不上回 CAACK=3，片号表写晶圆账，槽图认定（#15）通知 E90 建片对象；Load 好就算在取放（#18）；
     干完 / 中断 SC `AutoUnload` 自动 Unload，关着的等 Host CarrierRelease；取消、放行的卸好了端口转等取。

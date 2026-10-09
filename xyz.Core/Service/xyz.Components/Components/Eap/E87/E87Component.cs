@@ -557,7 +557,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     /// <summary>开门、关门：载具号没有 E87 对象时用设备读到的。</summary>
     private void ReportDoor(string code, E87Port port)
     {
-        string carrierId = port.HasCarrier ? port.CarrierId : port.Device.CarrierId ?? string.Empty;
+        string carrierId = port.HasCarrier ? port.CarrierId : port.Carrier.CarrierId ?? string.Empty;
         Report(code, new GemData(DvCarrierId, GemValue.Ascii(carrierId)), new GemData(DvPortId, port.Id));
     }
 
@@ -581,7 +581,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     private static IEnumerable<GemData> CarrierData(E87Port port)
     {
         var device = port.Device;
-        var slots = device.SlotMap;
+        var slots = port.Carrier.SlotMap;
         yield return new GemData(DvCarrierId, GemValue.Ascii(port.CarrierId));
         yield return new GemData(DvCarrierIdStatus, StatusItem((byte)port.CarrierIdMachine.State));
         yield return new GemData(DvSlotMapStatus, StatusItem((byte)port.SlotMapMachine.State));

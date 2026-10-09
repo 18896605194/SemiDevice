@@ -285,7 +285,7 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(sequenceError);
             }
 
-            string? carrier = port is not null ? port.CarrierId : carrierId!.Trim();
+            string? carrier = port is not null ? port.Carrier.CarrierId : carrierId!.Trim();
             if (byCarrier)
             {
                 var claimError = CheckSlotsFree(carrier!, selectedSlots);
@@ -1595,8 +1595,11 @@ public class JobManager : ComponentBase, IJobManager
     /// <summary>这个载具在哪个 LoadPort 上（载具号不分大小写）；不在任何口上为 null。</summary>
     private BaseLoadPortModule? FindCarrierPort(string carrierId)
     {
-        return LoadPorts.FirstOrDefault(item => item.IsCarrierArrived
-            && string.Equals(item.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
+        return LoadPorts.FirstOrDefault(item =>
+        {
+            var carrier = item.Carrier;
+            return carrier.IsArrived && string.Equals(carrier.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     /// <summary>
@@ -1741,7 +1744,7 @@ public class JobManager : ComponentBase, IJobManager
     private static List<int> OccupiedSlots(BaseLoadPortModule port)
     {
         var slots = new List<int>();
-        var map = port.SlotMap;
+        var map = port.Carrier.SlotMap;
         for (int index = 0; index < map.Count; index++)
         {
             var state = map[index];
@@ -1891,7 +1894,7 @@ public class JobManager : ComponentBase, IJobManager
     {
         if (state is ControlJobState.Completed or ControlJobState.Aborted && !job.IsEnded)
         {
-            LoadPort(job.LoadPort)?.NoteCarrierComplete();
+            LoadPort(job.LoadPort)?.Carrier.NoteComplete();
         }
 
         if (job.IsEnded)
@@ -2152,7 +2155,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             if (job.State is ControlJobState.Completed or ControlJobState.Aborted
-                && port?.IsCarrierArrived != true)
+                && port?.Carrier.IsArrived != true)
             {
                 changed |= _controlJobs.Delete(job).IsSuccess;
             }

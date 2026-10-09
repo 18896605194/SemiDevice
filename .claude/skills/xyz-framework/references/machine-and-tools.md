@@ -38,7 +38,7 @@
 
 | 工程 | 管什么 |
 |---|---|
-| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop）；LoadPort 在位二选一（Query 两位、Event）、状态查询超时作废重发、动作没做成作废在途指令、关连接作废、LoadPort / RFID 断线重连、RFID 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己（假通道 + 真 FCD 驱动，`GatedTransport` 测接收泵）；LoadPort 复位 / 中止落的状态（出错复位、打断 Load / Unload / Home / 夹紧、查不到门位是 NotInit，门开着没在动回 Loaded、门关落 Idle）、Load 联锁（没载具、机型重写 `LoadInterlock`） |
+| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、Init/Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop）；LoadPort 载具组件（`Carrier` 节点必配、缺了开机抛；在位二选一 Query 两位 / Event；同一载具已认定后再 Map 保持认定；自动读码发起不成功接着试、到读码超时报读码失败；没配读头不算失败）、状态查询超时作废重发、动作没做成作废在途指令、关连接作废、LoadPort / RFID 断线重连、RFID 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己（假通道 + 真 FCD 驱动，`GatedTransport` 测接收泵）；LoadPort 复位 / 中止落的状态（出错复位、打断 Load / Unload / Home / 夹紧、查不到门位是 NotInit，门开着没在动回 Loaded、门关落 Idle）、Load 联锁（没载具、机型重写 `LoadInterlock`） |
 | WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务、存盘和开机恢复（恢复前不写、LoadPort 不恢复、加工中记中止、退出最后存一次） |
 | JobSmoke | 搬运管理（受理时的各项检查、两次操作抢一个槽、取片确认、WaferTask 顺序执行、站点和账都收尾才确认完成放锁、忙时拒绝不排队、没动手失败放锁 / 动过手失败留锁等确认、中止等待设备确认）和 Job（E94 CJ / E40 PJ：建 Job 的检查和整个不留（含站点不支持要用的任务、一站的站点都用不了、工艺配方不在库里）、本地建 Job 跟 Host 一样先建 PJ 再建 CJ（建 CJ 被拒撤掉已建的 PJ、重发被正常的检查拦住）、任务表（一片一行：取片、放片、工艺……回片）、一篮两个 Sequence 和两步加工、站点组、转换号顺序、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停只不启动新 PJ、CJ 停止、PJ 中止等设备确认、工艺没做成只停那一片（重做 / 标记完成，别的片照常跑）、片位被人改了、Job 的取片 / 放片失败（错误落在当前任务，放锁后从该任务继续，放片重做不重复取片）、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、料没到先建 PJ（载具 Load 好、接了 EAP 时槽图被认定才定片，同一载具的槽 / CJ 不能重，定不了报警、PJ 留在排队）、整机停止走 Job 中止、Job / 搬运服务的错误码、CJ / PJ 一行进库带每片任务明细、重启后 Job 不接着跑库里记成中止）；机械手、LoadPort、腔体都是假的，扫描由测试一拍一拍推 |
 | SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码、工艺步骤的配方要在工艺配方库里、Host 按名字列 / 取（JSON）/ 认 JSON 样子 / 存（新建或覆盖，检查跟本地一样）/ 删和上报口（改名报旧名删 + 新名建） |
@@ -46,7 +46,7 @@
 | GemCollectorSmoke | SV/EC/ALID/CEID/DV 编号表生成、保号、停用、恢复 |
 | DataCenterSmoke | 日志文件解析和历史查询、报警复位和报警历史 |
 | HsmsSmoke / SecsSmoke | HSMS 链路组件对假 EAP（按 S/F 分发、S9F3 / F5 / F7、SxF0、闸门、回完再做、断线重连、端口冲突）；SECS-II 编解码、HSMS 握手和计时器 |
-| EapSmoke | EAP 各标准对假 Host：配方管理 S7（列、取、问能不能下、下、删、全删、新名字按 JSON 样子分库、REMOTE 才收、配方变了的事件和 DV、本地编辑锁）、E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、E39（类型、属性名、带条件查属性）、E87（读到号等 Host、槽图一律等 Host、第二次 PWC 比对槽图和给片号、Load 好就在取放、取消、ReCreate、读码失败 Host 给号、AutoUnload 关着时 CarrierRelease、Host 启停用、存取方式、预告 / 绑定这些不支持的回 CAACK=1）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort、Job 管理是假的，晶圆账是真的 |
+| EapSmoke | EAP 各标准对假 Host：配方管理 S7（列、取、问能不能下、下、删、全删、新名字按 JSON 样子分库、REMOTE 才收、配方变了的事件和 DV、本地编辑锁）、E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、E39（类型、属性名、带条件查属性）、E87（读到号等 Host、槽图一律等 Host、第二次 PWC 比对槽图和给片号、Load 好就在取放、取消、ReCreate、读码失败 Host 给号、AutoUnload 关着时 CarrierRelease、Host 启停用、存取方式、预告 / 绑定这些不支持的回 CAACK=1）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort（带一个假的 `ICarrier`）、Job 管理是假的，晶圆账是真的 |
 | RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
 | ChamberSmoke | 腔体部件：照 sc 生成的通用部件清单（[PartKind] / [LiveValue]）、气缸三态、喷嘴 / 旋转 / 摆臂 Reach、有变化才推；部件手动动作（找不到、没有这个动作、参数不对、指令没发出去、Manual 状态、在途拒绝、停止类忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用），假 PLC 模拟气缸和轴 |

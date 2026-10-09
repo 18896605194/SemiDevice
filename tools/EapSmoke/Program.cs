@@ -1108,9 +1108,13 @@ sealed class FakePort : ILoadPort
     {
         Name = name;
         _ledger = ledger;
+        Carrier = new FakeCarrier(this);
     }
 
     public string Name { get; }
+
+    /// <summary>端口上这一盒载具：状态和记录都还在 FakePort 的字段里，这里只是把 ICarrier 的口子转过去。</summary>
+    public ICarrier Carrier { get; }
 
     public int State => _loaded ? 110 : 30;
 
@@ -1284,6 +1288,30 @@ sealed class FakePort : ILoadPort
         SlotMap = [];
         _ledger.Clear(Name);
         E87Callback?.CarrierRemoved(this, carrierId);
+    }
+
+    private sealed class FakeCarrier : ICarrier
+    {
+        private readonly FakePort _port;
+
+        public FakeCarrier(FakePort port)
+        {
+            _port = port;
+        }
+
+        public bool IsArrived => _port.IsCarrierArrived;
+
+        public string? CarrierId => _port.CarrierId;
+
+        public IReadOnlyList<SlotState> SlotMap => _port.SlotMap;
+
+        public bool ReadId() => _port.ReadCarrierId();
+
+        public void SetId(string carrierId) => _port.SetCarrierId(carrierId);
+
+        public void UpdateStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus) => _port.UpdateCarrierStatus(idStatus, slotMapStatus);
+
+        public void NoteComplete() => _port.NoteCarrierComplete();
     }
 }
 

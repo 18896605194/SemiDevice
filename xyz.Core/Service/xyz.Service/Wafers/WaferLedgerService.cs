@@ -193,7 +193,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
                 BaseChamberModule => WaferLocationKind.Chamber,
                 _ => WaferLocationKind.Other,
             },
-            CarrierId = (module as BaseLoadPortModule)?.CarrierId,
+            CarrierId = (module as BaseLoadPortModule)?.Carrier.CarrierId,
             Slots = WaferLedgerSnapshot.ToSlots(slots),
         };
     }

@@ -125,7 +125,7 @@ public partial class E87Component
         {
             // 读码失败、Host 带端口号给号（PWC Type 4）
             var target = PortById(ptn);
-            if (target is null || target.HasCarrier || !target.Device.IsCarrierArrived)
+            if (target is null || target.HasCarrier || !target.Carrier.IsArrived)
             {
                 return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Carrier {carrierId} not found")]);
             }
@@ -171,7 +171,7 @@ public partial class E87Component
     /// </summary>
     private static E5Error? CheckHostSlotMap(E87Port port, CarrierAttributes attributes)
     {
-        var read = port.Device.SlotMap;
+        var read = port.Carrier.SlotMap;
         var expected = attributes.SlotMap;
         if (expected is not null && !expected.SequenceEqual(read.Select(slot => (byte)slot)))
         {
@@ -248,7 +248,7 @@ public partial class E87Component
             return Cancel(port);
         }
 
-        if (!port.Device.IsCarrierArrived || port.Released)
+        if (!port.Carrier.IsArrived || port.Released)
         {
             return Ack(CaackInvalidState, [E5Error.Of(E5Error.InvalidState, $"No carrier to cancel at port {port.Id}")]);
         }
@@ -334,7 +334,7 @@ public partial class E87Component
     private SecsReply CarrierReCreate(string carrierId, byte? ptn)
     {
         var port = PortById(ptn) ?? FindCarrier(carrierId);
-        if (port is null || !port.Device.IsCarrierArrived)
+        if (port is null || !port.Carrier.IsArrived)
         {
             return Ack(CaackInvalidData, [E5Error.Of(E5Error.UnknownObject, $"Carrier {carrierId} not found")]);
         }
@@ -352,9 +352,10 @@ public partial class E87Component
         DeleteCarrier(port);
         port.Released = false;
         var device = port.Device;
+        var carrier = port.Carrier;
         Later(() =>
         {
-            if (!device.ReadCarrierId())
+            if (!carrier.ReadId())
             {
                 LogHelper.Warn(Name, $"{device.Name} CarrierReCreate 重新读码没发起来，等 Host 带端口号给号");
             }
