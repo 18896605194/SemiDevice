@@ -292,7 +292,7 @@
   - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块在 Load 完成时调 `Carrier.StartAccess`，原来叫 `MarkInAccess`）：后果是 Load 以后 Host 不能取消，
     槽图核对不过要操作员 Unload（CTC 也这样）。取放过、没判完成就 Unload 的记中断，这条不变。
   - **Host 动作**：ProceedWithCarrier、CancelCarrier / CancelCarrierAtPort（不在取放才收，卸下来、放行、取消关联）、
-    CarrierRelease（不在取放才收；AutoUnload 关着时干完的靠它卸）、CarrierReCreate（等取、没取放过的才收：删对象、重新读码）、
+    CarrierRelease（不在取放才收；LoadPort 的 AutoUnload 关着时干完的靠它卸）、CarrierReCreate（等取、没取放过的才收：删对象、重新读码）、
     S3F25 启停用 + 改存取方式、S3F27。端口在动作（Load 中）时取消、放行回 CAACK=2。
   - **三处保留我们自己的做法**（用户比过 CTC 后同意）：状态机不开线程，在 E87 锁里同步转；E84 来问搬运状态（`IE84Provider`），不在状态机里开关 HO_AVBL；
     EC `PortPollMs` 定时查，每个状态都查（CTC 只在两个状态里查，会卡住）。设备停用、出错在 E87 里报挡着，停用只由 Host 说了算（CTC 一样）。
