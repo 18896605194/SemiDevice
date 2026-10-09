@@ -23,7 +23,7 @@ public sealed class HomeOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Robot!.Home();
+                _command = _module._robot!.Home();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

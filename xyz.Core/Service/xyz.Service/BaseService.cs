@@ -50,12 +50,12 @@ public abstract class BaseService
     }
 
     /// <summary>
-    /// 下发 Robot 动作并同步等终态（回包规则见私有重载）。
+    /// 下发 _robot 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
     protected static Task<RpcResponse> RunOperation(string module, BaseRobotModule robot,
         ModuleOperation? operation, int timeout)
     {
-        return RunOperation("Robot", module, robot.State, operation, timeout);
+        return RunOperation("_robot", module, robot.State, operation, timeout);
     }
 
     /// <summary>

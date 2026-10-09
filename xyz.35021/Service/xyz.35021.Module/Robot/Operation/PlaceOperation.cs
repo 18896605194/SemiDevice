@@ -29,7 +29,7 @@ public sealed class PlaceOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Robot!.Place(_arm, _station, _slot);
+                _command = _module._robot!.Place(_arm, _station, _slot);
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

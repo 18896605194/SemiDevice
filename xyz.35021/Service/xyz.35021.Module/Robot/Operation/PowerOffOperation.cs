@@ -23,7 +23,7 @@ public sealed class PowerOffOperation : ModuleOperation<ActionStep>
         switch (Step)
         {
             case ActionStep.SendCommand:
-                _command = _module.Robot!.PowerOff();
+                _command = _module._robot!.PowerOff();
                 if (_command is not null)
                 {
                     SetStep(ActionStep.WaitCommand);

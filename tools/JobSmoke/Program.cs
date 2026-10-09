@@ -116,7 +116,7 @@ try
     sequences.Bind(
         [
             Group("LoadPort", Module("LP1"), Module("LP2")),
-            Group("Robot", Module("Robot1")),
+            Group("_robot", Module("Robot1")),
             Group("Chamber", Module("PM1"), Module("PM2")),
         ],
         modules);

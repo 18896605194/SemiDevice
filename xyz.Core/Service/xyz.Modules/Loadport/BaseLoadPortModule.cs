@@ -236,10 +236,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 载具
 
-    private readonly object _carrierGate = new();
     private volatile CarrierInfo? _carrier;
-
     public CarrierInfo? Carrier => _carrier;
+
+    private readonly object _carrierGate = new();
 
     private void UpdateCarrier(Func<CarrierInfo, CarrierInfo> change)
     {

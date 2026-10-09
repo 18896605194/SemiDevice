@@ -63,7 +63,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region SC
 
-    [SCEditor("True", "Robot", "是否启用本 Robot (False=装机未接/停用)")]
+    [SCEditor("True", "_robot", "是否启用本 _robot (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
 
     // 品牌/网口/轴表在 _driver 子组件上配（RobotDriverComponent）：换品牌就是换那个节点的 Type。
@@ -132,15 +132,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region Alarm
 
-    [Alarm("Robot 设备报警", AlarmCategory.HardwareError,
+    [Alarm("_robot 设备报警", AlarmCategory.HardwareError,
         AlarmLevel = AlarmLevel.Alarm1,
-        Description = "Robot 控制器上报报错",
+        Description = "_robot 控制器上报报错",
         Solution = "查询报错内容，排除故障后复位并重新回原点")]
     public string RobotDeviceAlarm = nameof(RobotDeviceAlarm);
 
-    [Alarm("Robot 受控停止", AlarmCategory.MotionError,
+    [Alarm("_robot 受控停止", AlarmCategory.MotionError,
         AlarmLevel = AlarmLevel.Alarm1,
-        Description = "取放片、回原点等动作失败或超时，Robot 进入错误状态",
+        Description = "取放片、回原点等动作失败或超时，_robot 进入错误状态",
         Solution = "先确认手指与站点上的实际片位，再复位并重新回原点")]
     public string ControlledStopAlarm = nameof(ControlledStopAlarm);
 
@@ -189,14 +189,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 品牌驱动组件（sc.xml 本模块下的 _driver 子节点）：换 Type 即换品牌。
     /// 打开成功后有值；装机停用或没挂驱动组件时为 null。
     /// </summary>
-    public RobotDriverComponent? Robot { get; private set; }
+    public RobotDriverComponent? _robot { get; private set; }
 
     /// <summary>
     /// 手指数：驱动组件轴表里 Arm* 的个数（手指号从 1 开始；晶圆账按手指注册槽位）。
     /// </summary>
     public int ArmCount
     {
-        get { return Robot?.ArmCount ?? 0; }
+        get { return _robot?.ArmCount ?? 0; }
     }
 
     /// <summary>
@@ -217,7 +217,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return false;
         }
 
-        Robot = robot;
+        _robot = robot;
 
         // 站点表里配的手指号不能超出轴表的手指数：配了 Arm3 却只有两只手，界面会给出一只用不了的手。
         foreach (var station in _stations.Values)
@@ -245,7 +245,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     public void Close()
     {
-        Robot?.Close();
+        _robot?.Close();
     }
 
     /// <summary>
@@ -317,7 +317,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
         };
 
-        var robot = Robot;
+        var robot = _robot;
         if (robot is not null)
         {
             dto.IsConnected = robot.IsConnected;
@@ -545,7 +545,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 装机停用、或驱动组件没挂起来（装配里 Open 失败）都不发动作。
     /// </summary>
-    protected override bool CanBeginAction => IsEnable && Robot is not null;
+    protected override bool CanBeginAction => IsEnable && _robot is not null;
 
     /// <summary>
     /// 操作终结（状态已由基类落好）：记晶圆账，失败的动作报警。
@@ -575,7 +575,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     private void CheckDeviceAlarm()
     {
-        var robot = Robot;
+        var robot = _robot;
         if (robot is not null && robot.IsConnected && !string.IsNullOrEmpty(DeviceError))
         {
             RaiseAlarm(RobotDeviceAlarm);

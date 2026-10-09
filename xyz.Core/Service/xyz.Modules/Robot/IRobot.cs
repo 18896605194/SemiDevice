@@ -4,7 +4,7 @@ using xyz.Components.Components;
 namespace xyz.Modules;
 
 /// <summary>
-/// Robot 模块对外公开的统一操作契约（与 ILoadPort 同一写法）。
+/// _robot 模块对外公开的统一操作契约（与 ILoadPort 同一写法）。
 /// 动作为下发即返回（返回操作实例，null=被拒）；结果两条路：
 /// 手动/同步调用方用 WaitReply 等终态后读 IsSuccess；事件驱动调用方看模块状态。
 /// </summary>
@@ -39,7 +39,7 @@ public interface IRobot
     #region 站点
 
     /// <summary>
-    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置（站点号 Number、伸出距离 Y、伸出方向 Direction），来自 sc.xml 本 Robot 节点下的 Stations。
+    /// 本机械手的站点表：模块名（如 LoadPort1）→ 站点配置（站点号 Number、伸出距离 Y、伸出方向 Direction），来自 sc.xml 本 _robot 节点下的 Stations。
     /// </summary>
     IReadOnlyDictionary<string, RobotStation> Stations { get; }
 

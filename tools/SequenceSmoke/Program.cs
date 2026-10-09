@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Components;
 using xyz.Components.Components;
 using xyz.Configs.Models;
@@ -63,7 +63,7 @@ try
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
 
     // 1. 可选站点分组：按 sc.xml 的分组节点和下面装的模块，只留能放片、机械手站点表里有的；顶层直接装的站点自成一组；
-    //    Robot 分组、不是模块的节点（Database）、机械手到不了的站点（SmokePM3）都不算。
+    //    _robot 分组、不是模块的节点（Database）、机械手到不了的站点（SmokePM3）都不算。
     var lp1 = new ProbePort("SmokeLP1");
     var lp2 = new ProbePort("SmokeLP2");
     var pm1 = new ProbeChamber("SmokePM1");
@@ -75,7 +75,7 @@ try
     {
         Group("Database", Module("Default")),
         Group("LoadPort", Module("SmokeLP1"), Module("SmokeLP2")),
-        Group("Robot", Module("SmokeRobot")),
+        Group("_robot", Module("SmokeRobot")),
         Group("Chamber", Module("SmokePM1"), Module("SmokePM2"), Module("SmokePM3")),
         Module("SmokeAligner"),
     };
@@ -138,8 +138,8 @@ try
         ErrorCodes.SequenceStepNotLoadPort, ["1"], "第 1 步不是 LoadPort");
     Fails(library.Save(1, 2, string.Empty, [good[0], good[1], new("Chamber", ["SmokePM1"], "R")], "Saver"),
         ErrorCodes.SequenceStepNotLoadPort, ["3"], "最后一步不是 LoadPort");
-    Fails(library.Save(1, 2, string.Empty, [good[0], new("Robot", ["SmokeRobot"]), good[2]], "Saver"),
-        ErrorCodes.SequenceGroupNotFound, ["2", "Robot"], "Robot 不是可选分组");
+    Fails(library.Save(1, 2, string.Empty, [good[0], new("_robot", ["SmokeRobot"]), good[2]], "Saver"),
+        ErrorCodes.SequenceGroupNotFound, ["2", "_robot"], "_robot 不是可选分组");
     Fails(library.Save(1, 2, string.Empty, [good[0], new("Chamber", [], "R"), good[2]], "Saver"),
         ErrorCodes.SequenceStationRequired, ["2"], "一个站点都没勾");
     Fails(library.Save(1, 2, string.Empty, [good[0], new("Chamber", ["SmokeLP1"], "R"), good[2]], "Saver"),

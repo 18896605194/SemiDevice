@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -489,7 +489,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = null;
 }
 
-// ── 报警：LoadPort / Robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
+// ── 报警：LoadPort / _robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
 {
     var alarms = new AlarmComponent();
     bool Active(ComponentBase source, string code) =>
@@ -556,21 +556,21 @@ port.E87Callback = null;
     port.Tick();
     Check(!Active(port, port.ControlledStopAlarm), "操作员急停顶掉的动作不该报受控停止");
 
-    // Robot 设备报警：有报错就报；报错没了也不清
+    // _robot 设备报警：有报错就报；报错没了也不清
     var robot = new ProbeRobot();
     Check(robot.Open(), "探针机械手应能打开");
     robot.NoteDeviceError("40010006#Arm2 No Wafer When Put");
     robot.Tick();
-    Check(Active(robot, robot.RobotDeviceAlarm), "设备报错应报 Robot 设备报警");
+    Check(Active(robot, robot.RobotDeviceAlarm), "设备报错应报 _robot 设备报警");
     robot.NoteDeviceError(null);
     robot.Tick();
     Check(Active(robot, robot.RobotDeviceAlarm), "报错没了也不自动清——报警只能人工 Reset 清");
 
-    // Robot 的 Reset 重写了组件基类的 Reset：先清报警，再发设备复位清错，把操作交出去等
+    // _robot 的 Reset 重写了组件基类的 Reset：先清报警，再发设备复位清错，把操作交出去等
     robot.Next = new ProbeOperation();
     var robotReset = robot.Reset();
     Check(robotReset is not null && ReferenceEquals(robotReset, robot.Next) && !Active(robot, robot.RobotDeviceAlarm),
-        "Robot Reset 应清掉报警并交出设备复位操作");
+        "_robot Reset 应清掉报警并交出设备复位操作");
     robot.Next!.Succeed();
     robot.Tick();
     Check(robot.State == ModuleState.NotInit, "复位后是 NotInit（位置不可信，还得回原点）");
@@ -580,7 +580,7 @@ port.E87Callback = null;
     robot.Tick();
     Check(!Active(robot, robot.RobotDeviceAlarm), "没连上时 DeviceError 是旧值，不该据此报警");
 
-    // Robot 动作失败 → 受控停止；Home 成功回到 Idle 也不清，只有人工复位清
+    // _robot 动作失败 → 受控停止；Home 成功回到 Idle 也不清，只有人工复位清
     Check(robot.Open(), "重新打开");
     robot.NoteDeviceError(null);
     robot.NoteState(ModuleState.Idle);
@@ -588,7 +588,7 @@ port.E87Callback = null;
     robot.Home();
     robot.Next!.Reject();
     robot.Tick();
-    Check(Active(robot, robot.ControlledStopAlarm), "Robot 动作失败应报受控停止");
+    Check(Active(robot, robot.ControlledStopAlarm), "_robot 动作失败应报受控停止");
 
     robot.Next = new ProbeOperation();
     robot.Home();
@@ -1534,7 +1534,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/Robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier lifecycle from arrival to removal, and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the Init/Abort hooks: children first with Init by InitOrder, optional overrides, module Init = Home and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
