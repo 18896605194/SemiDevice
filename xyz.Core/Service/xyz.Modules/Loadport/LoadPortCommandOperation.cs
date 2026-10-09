@@ -4,11 +4,6 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// LoadPort 一条驱动指令的动作：发指令 → 等它完结，超过超时就判失败。
-/// Load、Unload、Home、Reset、Abort、Clamp、Unclamp 都是这一种，平台的默认动作都用它；机型加别的单条指令动作也直接用它。
-/// 只在模块扫描线程上推，不加锁、不等待。
-/// </summary>
 public sealed class LoadPortCommandOperation : ModuleOperation<LoadPortCommandStep>
 {
     private readonly Func<LoadPortCommand?> _send;

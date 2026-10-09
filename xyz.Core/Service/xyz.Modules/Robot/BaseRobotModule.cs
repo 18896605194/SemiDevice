@@ -39,7 +39,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     #endregion
 
     private readonly ConcurrentDictionary<int, bool> _armWafers = new();
-
     private readonly ConcurrentDictionary<string, double> _axisPositions = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>

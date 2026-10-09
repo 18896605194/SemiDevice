@@ -7,9 +7,7 @@ namespace xyz.Modules.StateMachines;
 /// </summary>
 public static class LoadPortStateTable
 {
-    public static IReadOnlyDictionary<
-        (int? State, LoadPortAction Action),
-        (int ExecutingState, int SuccessState)> Transitions { get; } =
+    public static IReadOnlyDictionary<(int? State, LoadPortAction Action),(int ExecutingState, int SuccessState)> Transitions { get; } =
         new Dictionary<(int? State, LoadPortAction Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
