@@ -42,6 +42,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [SCEditor("True", "LoadPort", "Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；False = 等操作员点 Unload 或 Host CarrierRelease")]
     public bool AutoUnload { get; set; } = true;
 
+    [SCEditor("False", "LoadPort", "Unload 时带 Mapping（关门时再扫一遍槽）跟晶圆账对一遍，多片、少片、交叉片、叠片都报警；设备得支持带 Mapping 的卸载")]
+    public bool MapOnUnload { get; set; }
+
     #endregion
 
     #region EC
@@ -173,8 +176,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 设备本身报警", Solution = "检查 LoadPort 硬件/通讯状态")]
     public string LoadPortDeviceAlarm = nameof(LoadPortDeviceAlarm);
 
-    // 设备 Load 做完了、但 Mapping 结果不能用：槽数对不上，或者有交叉片、叠片、认不出的槽，都报这一条
-    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上（没落账），或者有交叉片、叠片、认不出的槽；Load 判失败，LoadPort 停在错误状态，机械手不会来取放", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load")]
+    // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条
+    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（或带 Mapping 的 Unload）回来的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home")]
     public string SlotMapAlarm = nameof(SlotMapAlarm);
 
     #endregion
@@ -223,7 +226,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 
     /// </summary>
-    public override bool CanPrepare => base.CanPrepare && _carrier.IsArrived && _carrier.IsAccepted&& StandbyState== LoadPortState.Loaded;
+    public override bool CanPrepare => base.CanPrepare && _carrier.IsArrived && _carrier.IsAccepted;
 
     /// <summary>
     /// 机械手进站（准备一）：载具不在、或者 Host 还没认定槽图就不让进，返回 null（搬运那边按站点忙接着等，等到超时判负）。
@@ -602,9 +605,63 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return HandleResult.Success();
     }
 
+    /// <summary>
+    /// Unload：关门。SC MapOnUnload 开着就发带 Mapping 的卸载，关门时再扫一遍槽跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）。
+    /// </summary>
     public virtual ModuleOperation? Unload()
     {
+        if (MapOnUnload)
+        {
+            return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.UnloadWithMap(), () => UnloadTimeout,
+                CheckUnloadSlotMap));
+        }
+
         return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout));
+    }
+
+    /// <summary>
+    /// 带 Mapping 的 Unload 回来的槽图跟晶圆账对（照老 CTC 的卸载对账）：槽数对不上没法对，判失败；
+    /// 每一槽按"有没有片"走晶圆账的 Verify（对不上晶圆账自己报账实不符、写清楚哪一槽多了还是少了），交叉片、叠片、认不出的也算对不上。
+    /// 有对不上的 Unload 判失败、端口停在 Error：盒子里的片跟账不一样，不能就这么让人或天车取走。账不在这儿改，等人按实物在账单调整页改。
+    /// 不碰载具的槽图——载具的 UpdateSlotMap 会整篮重建账，片的标识就丢了。没装晶圆账只查交叉片、叠片。
+    /// </summary>
+    private HandleResult CheckUnloadSlotMap(LoadPortResponse response)
+    {
+        var slotMap = response.SlotMap;
+        if (slotMap.Count != SlotCount)
+        {
+            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：设备回了 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（原文 {response.Content}），没法对账");
+            return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
+        }
+
+        var ledger = WaferManagerComponent.Current;
+        var mismatchedSlots = new List<string>();
+        for (int index = 0; index < slotMap.Count; index++)
+        {
+            int slot = index + 1;
+            var state = slotMap[index];
+            bool abnormal = state is SlotState.CrossSlotted or SlotState.DoubleSlotted or SlotState.Undefined;
+            bool matched = true;
+            if (ledger is not null && ledger.IsEnable)
+            {
+                matched = ledger.Verify(Name, slot, state != SlotState.Empty);
+            }
+
+            if (abnormal || !matched)
+            {
+                mismatchedSlots.Add(slot.ToString());
+            }
+        }
+
+        if (mismatchedSlots.Count > 0)
+        {
+            string slots = string.Join(",", mismatchedSlots);
+            LogHelper.Error(Name, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽（原文 {response.Content}）");
+            return HandleResult.Fail(ErrorCodes.UnloadSlotMapMismatch, Name, slots);
+        }
+
+        LogHelper.Info(Name, "Unload 对账：盒子里的片跟晶圆账一致");
+        return HandleResult.Success();
     }
 
     public virtual ModuleOperation? Clamp()
@@ -1054,7 +1111,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         // 设备做完了、Mapping 不能用：报专门的一条，看报警就知道去查槽数、理片
-        if (operation.Code == ErrorCodes.SlotMapLengthMismatch || operation.Code == ErrorCodes.SlotMapAbnormal)
+        if (operation.Code == ErrorCodes.SlotMapLengthMismatch || operation.Code == ErrorCodes.SlotMapAbnormal
+            || operation.Code == ErrorCodes.UnloadSlotMapMismatch)
         {
             RaiseAlarm(SlotMapAlarm);
             return;

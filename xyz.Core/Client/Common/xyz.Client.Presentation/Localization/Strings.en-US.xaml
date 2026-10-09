@@ -38,6 +38,7 @@
     <sys:String x:Key="loadport.read_carrier_id_rejected">{0} carrier ID read not started (no reader, reader disconnected, or previous read still in progress)</sys:String>
     <sys:String x:Key="loadport.slot_map_length_mismatch">{0} invalid mapping data: the device reported {1} slots but {2} are configured; the wafer ledger was not updated</sys:String>
     <sys:String x:Key="loadport.slot_map_abnormal">{0} mapping found crossed, double or unrecognized wafers in slot(s) {1}</sys:String>
+    <sys:String x:Key="loadport.unload_slot_map_mismatch">{0} unload mapping does not match the wafer ledger in slot(s) {1}</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
     <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} (see Arms of the station node in sc.xml)</sys:String>

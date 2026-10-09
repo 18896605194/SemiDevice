@@ -254,7 +254,7 @@
 - **停用的端口也挂载具**（2026-10-09 修）：`InitComponent` 先找载具、挂上，再判 `IsEnable`。停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
   整理时把判 `IsEnable` 挪到了前面，停用的口 `_carrier` 一直为 null，扫描每拍抛、有一个口停用就建不了 Job。冒烟 OperationWaitSmoke 7d 盯着。
 
-## LoadPort 对照老 CTC 补的三处（2026-10-09，用户定的）
+## LoadPort 对照老 CTC 补的几处（2026-10-09 ~ 10-10，用户定的）
 - **Mapping 异常**（用户："这个肯定是要报警的"、"一样用一个报警就行了"）：Load 回来的槽数 ≠ SC `SlotCount` → 不落账，Load 判失败（`loadport.slot_map_length_mismatch`）；
   有交叉片、叠片、认不出的槽 → 账照落（界面看得到哪几槽），Load 判失败（`loadport.slot_map_abnormal`，参数带槽号）。两种都报同一条 `SlotMapAlarm`，不报笼统的动作失败；
   端口落 Error，机械手进不来（交叉片占两槽，取放相邻槽、往账上空着的槽回片都会碰片）。处理：复位、Home、理好片再 Load。
@@ -266,6 +266,12 @@
 - **Auto 下没走 E84 交接就放上 / 拿走载具**（用户："有人拿走盒子，我们也得报错的"）：E84 组件每拍比上一拍载具在不在；变了、是 Auto、不在交接中（给了 READY 到交接完）、
   没超时锁住 → 报 `UnexpectedCarrierAlarm`。只报警，不锁交接、不改端口状态（交接本来就按载具在不在开方向，人手动放拿撞不上天车；CTC 是端口进 Error）。
   第一拍只记不比；开机端口是 Manual（Auto/Manual 不存盘），不会误报。
+- **Unload 时带 Mapping 对账**（2026-10-10，用户："做成 sc 配置，unload 的时候需不需要再 map 一下，然后再对一下账"）：LoadPort SC `MapOnUnload`（默认 False）。
+  开着时 Unload 发带 Mapping 的卸载（驱动 `UnloadWithMap`，FCD 是 `MOV:CUDMP`——指令名照 TDK 系、老 CTC Hirata-II 用的，FCD 手册待核对；槽位串跟 Load 一样两种形状都收，
+  抽成 `FcdMappingCommand`）。回来的槽图逐槽走晶圆账 `Verify`（对不上晶圆账自己报账实不符、写清是多是少），交叉片、叠片、认不出的也算对不上；
+  有对不上的 Unload 判失败（`loadport.unload_slot_map_mismatch`，带槽号）、报 `SlotMapAlarm`、端口落 Error——盒子里的片跟账不一样不能就这么取走。
+  **账不改**（CTC 会把对不上的片改成 Unknown / 补建，我们等人按实物在账单调整页改），**不碰载具槽图**（载具的 UpdateSlotMap 会整篮重建账，片标识就丢了）。
+  没装晶圆账只查交叉片、叠片；槽数对不上没法对账，按 `slot_map_length_mismatch` 判失败。CTC 是 Hirata-II 驱动的 SC `IsNeedMapOnUnload`，发 CUDMP 后再 GET:MAPRD 取槽图。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。

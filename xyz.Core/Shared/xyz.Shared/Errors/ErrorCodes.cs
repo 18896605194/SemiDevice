@@ -39,6 +39,9 @@ public static class ErrorCodes
     /// <summary>Load 回来的 Mapping 有交叉片、叠片或认不出的槽。Args: [模块名, 槽号（逗号隔开）]</summary>
     public const string SlotMapAbnormal = "loadport.slot_map_abnormal";
 
+    /// <summary>带 Mapping 的 Unload 扫到的跟晶圆账对不上（多片、少片，或交叉片、叠片、认不出）。Args: [模块名, 槽号（逗号隔开）]</summary>
+    public const string UnloadSlotMapMismatch = "loadport.unload_slot_map_mismatch";
+
     /// <summary>操作被 Abort 顶替。Args: [操作名]</summary>
     public const string Aborted = "module.action_aborted";
 

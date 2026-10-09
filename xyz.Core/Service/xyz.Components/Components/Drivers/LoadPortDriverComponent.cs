@@ -156,6 +156,9 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// <summary>Unload：关门。</summary>
     public LoadPortCommand? Unload() => CreateUnload().Execute();
 
+    /// <summary>带 Mapping 的 Unload：关门时再扫一遍槽（结果在 Response.SlotMap），端口 SC MapOnUnload 开着时用来对账。</summary>
+    public LoadPortCommand? UnloadWithMap() => CreateUnloadWithMap().Execute();
+
     /// <summary>Home：整机回零。</summary>
     public LoadPortCommand? Home() => CreateHome().Execute();
 
@@ -187,6 +190,8 @@ public abstract class LoadPortDriverComponent : ComponentBase
     protected abstract LoadPortCommand CreateLoad();
 
     protected abstract LoadPortCommand CreateUnload();
+
+    protected abstract LoadPortCommand CreateUnloadWithMap();
 
     protected abstract LoadPortCommand CreateHome();
 

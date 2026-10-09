@@ -455,6 +455,7 @@ ol.steps h4 { margin: 2px 0 4px; font-size: 15px; }
             <tr><th>动作</th><th>发出去</th><th>完结帧</th><th>结果</th></tr>
             <tr><td>Load</td><td><code>MOV:CLOAD</code></td><td><code>INF:CLOAD/槽位串</code>（或先来一帧 <code>INF:MAPDT/槽位串</code>）</td><td>槽图 SlotMap</td></tr>
             <tr><td>Unload</td><td><code>MOV:CULOD</code></td><td><code>INF:CULOD</code></td><td>—</td></tr>
+            <tr><td>Unload 带 Mapping（SC <code>MapOnUnload</code>）</td><td><code>MOV:CUDMP</code></td><td><code>INF:CUDMP/槽位串</code>（或先来一帧 <code>INF:MAPDT/槽位串</code>）</td><td>槽图，跟晶圆账对（指令名照 TDK 系，FCD 手册待核对）</td></tr>
             <tr><td>Home</td><td><code>MOV:ORGSH</code></td><td><code>INF:ORGSH</code></td><td>—</td></tr>
             <tr><td>Abort（急停）</td><td><code>MOV:ABORT</code></td><td><code>INF:ABORT</code></td><td>—</td></tr>
             <tr><td>Reset（清错）</td><td><code>SET:RESET</code></td><td><code>INF:RESET</code></td><td>—</td></tr>
