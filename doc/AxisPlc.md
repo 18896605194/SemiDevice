@@ -31,7 +31,8 @@ if (axis.ActionState == ActionState.Completed)
 ```
 
 可用操作：`Home`、`MoveTo`、`MoveBy`、`Jog`、`Spin`、`Stop`、`EmergencyStop`、`ResetDrive`、`SetServo`。
-`Init()` 请求回零；`Abort()` 请求停止；`Reset()` 请求驱动复位并调用基类清警。
+轴不重写 `InitComponent()`（组件初始化不动硬件）；回零是 `Home()`，由所在模块的初始化操作按机型的先后去驱动。
+`Abort()` 请求停止；`Reset()` 请求驱动复位并调用基类清警。
 停止/急停/下使能可以打断在途动作，其他指令要等上一条完成。模块仍负责工艺互锁和自身故障处理。
 
 读 `Status`、`CurrentPosition` 等数值时先看 `HasPlcData`；断线时旧数值只作显示。

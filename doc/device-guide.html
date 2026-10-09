@@ -563,7 +563,7 @@ ol.steps h4 { margin: 2px 0 4px; font-size: 15px; }
             <tr><th>动作</th><th>驱动触发口</th><th>超时（EC）</th><th>另外做的</th></tr>
             <tr><td>Load</td><td><code>Load()</code></td><td><code>LoadTimeout</code></td><td>成功后 <code>UpdateSlotMap</code>：存槽图、整篮落晶圆账、回调 E87</td></tr>
             <tr><td>Unload</td><td><code>Unload()</code></td><td><code>UnloadTimeout</code></td><td>载具取放过、没判完成的记中断</td></tr>
-            <tr><td>Home</td><td><code>Home()</code></td><td><code>HomeTimeout</code></td><td><code>Init()</code> = 子组件初始化 + Home</td></tr>
+            <tr><td>Home</td><td><code>Home()</code></td><td><code>HomeTimeout</code></td><td><code>InitModule()</code> = Home（动硬件，人或调度才调）；开机的 <code>InitComponent()</code> 另管连接和登记，不动硬件</td></tr>
             <tr><td>Reset</td><td><code>ResetDrive()</code></td><td><code>ResetTimeout</code></td><td><code>Reset()</code> = 清报警 + 子组件复位 + 设备清错</td></tr>
             <tr><td>Abort</td><td><code>Stop()</code></td><td><code>AbortTimeout</code></td><td>顶替在跑的动作，不清报警</td></tr>
             <tr><td>Clamp</td><td><code>Clamp()</code></td><td><code>ClampTimeout</code></td><td>—</td></tr>

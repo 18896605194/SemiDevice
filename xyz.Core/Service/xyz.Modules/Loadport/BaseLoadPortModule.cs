@@ -15,8 +15,13 @@ namespace xyz.Modules;
 
 public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
+
+
     #region SV 
 
+    /// <summary>
+    /// 状态
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
     public override int State { get; protected set; } = ModuleState.NotInit;
 
@@ -26,19 +31,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "Auto/Manual（true=Auto，false=Manual）")]
     public bool IsAutoMode { get; private set; }
 
-    /// <summary>
-    /// loapdort 状态数据，从驱动读取
-    /// </summary>
-    private volatile LoadPortStatus? _status;
-
-    /// <summary>
-    /// 最近一次成功查询的设备状态
-    /// </summary>
-    public LoadPortStatus? Status
-    {
-        get => _status;
-        protected set => _status = value;
-    }
     #endregion
 
     #region SC 
@@ -164,9 +156,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Component
 
-    /// <summary>
-    /// 品牌驱动组件（sc.xml 挂在本模块下的 _driver 子节点，换 Type 即换品牌）；组件初始化时按类型找到并挂上。
-    /// </summary>
+    private CarrierComponent? _carrier;
+
     public LoadPortDriverComponent? _driver { get; private set; }
 
     public RfidDriverComponent? _rfid => FindChild<RfidDriverComponent>();
@@ -186,9 +177,25 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
+    /// <summary>
+    /// loapdort 状态数据，从驱动读取
+    /// </summary>
+    private volatile LoadPortStatus? _status;
+
+    /// <summary>
+    /// 最近一次成功查询的设备状态
+    /// </summary>
+    public LoadPortStatus? Status
+    {
+        get => _status;
+        protected set => _status = value;
+    }
+
+
+
     #region 载具
 
-    private CarrierComponent? _carrier;
+    
 
     /// <summary>
     /// 端口上这一盒载具（sc.xml 挂在本模块下的 Carrier 子节点）：到了没有、ID、槽图、取放状态都在它那儿，端口不再另放一份。

@@ -27,7 +27,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 ```
 
 - 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `EventBus.Send` → 客户端 `EventBus.Register`）。
-- 设备树：sc.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树、按顺序 Open/Start。
+- 设备树：sc.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树、按顺序做组件初始化（InitComponent）和 Start。
 - 设备动作 = `ModuleOperation`，在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 
 ### 依赖铁律

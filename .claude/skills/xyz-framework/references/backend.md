@@ -31,8 +31,13 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
 - 扫描：根组件（模块、PLC、Safety、TransferManager、JobManager）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
   `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。
-- 生命周期：`Init()`（先子后己、按 InitOrder，开机不自动调）、`Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）。
-  模块把返回类型收窄成 `ModuleOperation?`。`Open()` 不在基类，各类型自己定义（模块、PLC、IO、HSMS、驱动、轴）。
+- 生命周期：`InitComponent()`（**不动硬件**的开机初始化：连接、登记晶圆账、挂事件、输出回安全态；先子后己、按 InitOrder 递归到每一层子组件，
+  一个子组件没做成不耽误别的、汇总返回 `bool`；开机由宿主对每个模块调一次，子组件跟着基类走，**父组件不点名**，组件有事就重写、记得调 base）、
+  `Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）；Abort / Reset 模块把返回类型收窄成 `ModuleOperation?`。
+  **要动硬件的初始化（回原点）是模块的 `InitModule()`**（`BaseModule`，返回 `ModuleOperation?`，人或调度才调，开机不调，不递归子组件；
+  LoadPort / Robot / Chamber 基类里 = `Home()`，机型要多做别的步骤就重写）。组件初始化里不放会动轴、动气缸的事——部件怎么回零、什么先后，
+  写在所在模块的 Home 操作里去驱动。`BaseModule.Open()` 已经没有了；PLC、IO、HSMS、轴（`Open(IPlc)`）各自的 `Open` 还是装配层按类型调；
+  气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManagerComponent、Io、Safety、
   Eap、Hsms、E30、DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
@@ -91,7 +96,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 
 ## 3. 模块（`xyz.Modules`）
 
-- `BaseModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`Open()`、
+- `BaseModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`InitModule()`（动硬件的模块初始化，默认返回 null）、
   `Online()/Offline()`、动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
 - 状态码（`public const int`，有继承）：`ModuleState` NotInit 10 / Initing 20 / Idle 30 / Aborting 35 / Error 40；
   `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110 / Manual 120（部件手动动作中）；`RobotState` 200/210/220。
@@ -119,18 +124,20 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   RPC 线程用 `WaitReply(ms)` 等结果，**不能在扫描线程等**。超时时间取模块的 EC 属性。
 - 动作失败（非 Abort）模块报 `ControlledStopAlarm`；设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
-  `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；Open 里先开 RFID、E84，再登记晶圆账槽位、开驱动——RFID、驱动这一次没连上也照样往下走，
-  返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；**设备状态查询在平台**：每拍一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
+  `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
+  连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、驱动这一次没连上也照样往下走，
+  返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；`InitModule()` = `Home()`；**设备状态查询在平台**：每拍一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
   Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**载具交给子组件 `CarrierComponent`**（sc.xml 每个 LoadPort 下必配一个 `Carrier` 节点，缺了开机抛 `InvalidOperationException`；`ILoadPort.Carrier` 是它的 `ICarrier` 口，读码、槽图认定状态、取放状态、E87 载具上报都在它里面，见 decisions.md「LoadPort 的载具收进 CarrierComponent」）：**在位二选一**（Carrier 的 SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位（端口每拍用 `Carrier.Sense` 喂进去），
   都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（端口的 `NotePodEvent` 转给 `Carrier.NoteDeviceEvent`，机型有别的上报路子也调它），只在扫描线程判边沿，
   判出来的叫 `Carrier.IsArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
 Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `Carrier.IsArrived`，机型有别的条件重写、先调 base）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.NoteMapped`；动作做成 / 失败时端口再告诉 Carrier：`NoteLoaded` / `NoteUnloaded` / `NoteFault`），每拍最后 `PublishState`，机型类只在动作不一样时重写；
-  E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不打开、不每拍推、不读写 IO——
+  E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
+  （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
   `BaseRobotModule`（sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
-  `BaseChamberModule`（Open 只登记晶圆账）。
+  `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`，部件回零的先后写在机型的 Home 操作里）。
 - **手动部件是通用的**（组件自己声明，模块不认具体硬件）：组件类标 `[PartKind("Axis")]`（派生类继承；现有 `Axis` 轴、`TwoState`
   双作用气缸、`OneState` 阀 / 喷嘴），属性标 `[LiveValue]`（推给界面的实时数据，浮点按 `Decimals` 位取整，默认 3），
   方法标 `[ManualAction]`（返回 bool = 指令发没发出去；`Priority = true` 停止类，`Release = "Stop"` 按住类）。
@@ -279,7 +286,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
 - **在途指令要能作废**（2026-10-06）：LoadPort 驱动按指令名占在途位、RFID 驱动只有一个在途位，回复丢了就一直占着，同名指令再也发不出去。
   所以：等回复超时的发起方调 `Abandon`（LoadPort）/ `AbandonInflight`（RFID）让出来；`Close` 作废全部在途；LoadPort 模块动作没做成时 `AbandonAll`。
   作废的指令以失败落终态（Error 写 `Timeout` / `PortClosed` / `Abandoned` 这类英文标记，跟 RFID 一样）；迟到的回复没人认，当无主帧丢掉。
-- **断线重连**（2026-10-06）：LoadPort、RFID 驱动组件 Open 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
+- **断线重连**（2026-10-06）：LoadPort、RFID 驱动组件 `InitComponent` 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
   （`Components\Drivers\DriverReconnector`，网口 Connect 会卡几秒，不能在扫描线程上做），断开、恢复各记一次日志；Close 以后不再重连。机械手驱动还没接。
   `FrameCommunication` 一次打开一轮接收泵（`PumpSession`），旧泵出错只停自己那一轮——以前一个全局"在收"标志，旧泵在重连以后才醒会把新泵也停了。
   `LoadPortDriverBase.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
@@ -386,11 +393,12 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
-IO 表 Open → Safety Start → 轴 Open → 各模块 Open → **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→ 各模块 Start →
+IO 表 Open → Safety Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→ 各模块 Start →
 TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
 JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ **EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，最后开 HSMS 链路）→ 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
-新组件要 Open/Start 的，按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
+新组件要连接、登记的，写在自己的 `InitComponent` 里（挂在模块下的子组件跟着基类递归走，模块里不用点名）；要在装配层单独 Open/Start 的根组件（PLC、IO 这类），
+按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
 
 ## 6. 错误码（`Shared\xyz.Shared\Errors\ErrorCodes.cs`）
 
@@ -415,7 +423,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - 量小、要马上查到的（人工调整记录）直接同步写一张不分表的表，用到时 `CodeFirst.InitTables` 建表。
 - **晶圆账存盘**（SC `IsPersistent`，EC `SnapshotIntervalMs` 默认 500）：表 `wafer_current` 存"现在"每片一行（内部标识、位置、来处、载具、状态），
   账一变（都走 `RecordHistory`）标脏，存盘线程隔一会儿整张重写（事务里删了再插）；**开机恢复之前不写**（开机那一刻的空账不能冲掉上次的）。
-  `Restore()`（启动顺序里模块 Open 之后、Start 之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
+  `Restore()`（启动顺序里模块 InitComponent 之后、Start 之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
 - Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新（见 §3 Job）。
 - GEM（E30）掉电保持：`gem_config` 一行 JSON（Host 定的报告、链接、关掉的事件和报警、缓存范围、缓存状态），Host 改了就同步写；

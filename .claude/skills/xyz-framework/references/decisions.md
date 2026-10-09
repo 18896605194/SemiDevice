@@ -17,6 +17,22 @@
 - **组件 DLL 目录**（2026-10-02）：顶层只有 Attributes / Collectors / Components / Enums / Interfaces / Models；顶层目录 = 命名空间；
   `Components\<类别>` 只归类，命名空间固定 `xyz.Components.Components`；纯数据类进 Models；不建按领域的顶层目录。
 
+## 组件初始化 InitComponent 和模块初始化 InitModule（2026-10-09，用户定的名和分工）
+- **起因**（用户："组件调用子组件的时候，不需要什么写死声明，应该就是通过框架获取所有的子组件"）：LoadPort / Robot 的 `Open()` 里手写找读头、E84、驱动再逐个开，
+  子组件清单散在好几处；sc.xml 里多挂一个要连接的设备，没人去开它也不报错。腔体早就是框架走树的写法（部件表照组件树扫），LoadPort / Robot 补成一样。
+- **两个名字，两档事**：`ComponentBase.InitComponent()` = **不动硬件**的开机初始化（连接、登记晶圆账、挂事件、E84 输出回安全态）；
+  `BaseModule.InitModule()` = **动硬件**的模块初始化（回原点，返回 `ModuleOperation?`），人或调度才调、开机不调。
+  原来的 `Init()` 一个名字两件事（组件递归 + 模块 = Home），拆开了；`BaseModule.Open()`、`IE84.Open()`、三个驱动组件上的 `Open()` 都没有了，连接写进各自的 `InitComponent()`。
+  （没直接拿原来的 `Init()` 装连接：它开机不调、模块里等于 Home 会动硬件；`Open/Close` 这个名字又被气缸、阀的开合动作占着，所以另起名。）
+- **InitComponent 的规矩**：按 InitOrder 先子后己、递归到每一层，一个子组件没做成不耽误别的、汇总返回 bool；开机由宿主对每个模块调一次，
+  **父组件不点名子组件**；组件有事就重写并调 base（要赶在子组件前做的写在调 base 之前，如 LoadPort 先挂驱动事件、登记槽位，再让基类去连）。
+  装机停用的组件自己拦（模块的 `IsEnable`、E84 的 `IsEnable`），因为基类递归会带着它。读头、驱动这一次没连上返回 false 只为开机日志看得到，之后后台重连。
+- **InitModule 的规矩**：`BaseModule` 里默认返回 null；LoadPort / Robot / Chamber 基类里 = `Home()`（Home 就是它们的初始化）；不递归子组件。
+  部件（轴、气缸）怎么回零、什么先后是机型的事，写在 Home 操作里去驱动。`ILoadPort` / `IRobot` 里的 `Init()` 改叫 `InitModule()`。
+- **轴不重写 InitComponent**（用户："轴的不需要重写 init，后面即使写也是写 InitComponent，然后也不会有动作的"）：原来轴的 `Init()` 是回零，删了；以后轴的组件初始化也不带动作。
+- **没动的**：模块的 `Close()` 还是手写（`_rfid?.Close(); _driver?.Close();`，现在宿主没有调用点）；PLC、IO、HSMS、轴的 `Open(IPlc)` 仍由装配层按类型调；
+  `_driver` / `_rfid` / `E84` / `Carrier` 这些模块要用它能力的子组件，模块还是要取一个句柄（只能点名，框架没法代劳）；`InitModule` 还没有界面或服务入口（服务调的是 `Home()`）。
+
 ## 界面
 - **模块状态徽标**（2026-09-29）：模块状态一律用 `ModuleStateBadge` 整条圆角色块（灰未初始化 / 蓝动作中 / 绿就绪 / 黄中止中 / 红报错），
   不写"状态：xxx"文字；小卡片用 `IsCompact`。色调由各模块显示模型按自己的状态码归类（`ModuleStates`），控件不认码。
@@ -202,7 +218,7 @@
 ## LoadPort 的载具收进 CarrierComponent（2026-10-09，用户："专门搞一个 Carrier 的组件，LoadPort 里关于载具的东西都放进去，实现 ICarrier"）
 - **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，sc.xml 每个 LoadPort 下一个 `Carrier` 节点
   （`Type="xyz.Modules.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：模块第一次用到 `Carrier` 时找不到就抛
-  `InvalidOperationException`，`Open()` 开头就会碰它，开机就暴露（停用的端口也一样）。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
+  `InvalidOperationException`，`InitComponent()` 开头就会碰它，开机就暴露（停用的端口也一样）。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
   `ILoadPort` 里原来的 `IsCarrierArrived` / `CarrierId` / `SlotMap` / `ReadCarrierId` / `SetCarrierId` / `UpdateCarrierStatus` / `NoteCarrierComplete` 删了（不留重复）。
 - **分工的标准：主语是载具的进 Carrier，主语是端口的留下，两边都沾的由端口组合**。进 Carrier 的有：载具快照 `CarrierInfo`（`Info`）和它的锁、
   在位判断的**规则**（SC `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（SC `AutoReadCarrierId`、
