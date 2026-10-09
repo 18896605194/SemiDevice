@@ -300,7 +300,7 @@ public partial class E87Component
 
     /// <summary>
     /// CarrierRelease：Host 叫把这一盒放出去（照 CTC）——在取放的不行；Load 着的卸下来，卸好、空闲了端口转等取。
-    /// AutoUnload 关着时，干完的载具靠它卸。
+    /// LoadPort 的 SC AutoUnload 关着时，干完的载具靠它卸。
     /// </summary>
     private SecsReply CarrierRelease(string carrierId, byte? ptn)
     {

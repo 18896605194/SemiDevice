@@ -696,6 +696,7 @@ port.E87Callback = null;
     outputs = e84.Outputs;
     Check(e84.State == E84State.Available && outputs.HoAvbl && !outputs.LReq && !outputs.UReq,
         "送盒完成后回到可交接");
+    Check(!Active(e84, e84.UnexpectedCarrierAlarm, alarms), "正常送盒交接：载具放上不算意外");
 
     // 盒子刚到、还没干完：搬运车再来也不给取
     e84.Set(cs0: true, valid: true);
@@ -727,6 +728,7 @@ port.E87Callback = null;
     lp.Tick();
     Check(events.Wait("HandoffCompleted:False"), "取盒完成应上报");
     Check(e84.State == E84State.Available, "取盒完成后空端口回到可交接");
+    Check(!Active(e84, e84.UnexpectedCarrierAlarm, alarms), "正常取盒交接：载具拿走不算意外");
 
     // 送盒中途切 Manual：输出全灭，按中止上报；切回 Auto 重新可交接
     e84.Set(cs0: true, valid: true);
@@ -749,6 +751,39 @@ port.E87Callback = null;
     e84.Set();
     lp.Tick();
     Check(e84.State == E84State.Available && !e84.Outputs.LReq, "搬运车撤销选中应收回 L_REQ");
+
+    // Auto 下没走交接就放上、拿走载具（人手动放拿）：报"意外放上 / 拿走载具"，交接不锁；Manual 下不管
+    lp.NotePodPlaced(true);
+    lp.Tick();
+    Check(Active(e84, e84.UnexpectedCarrierAlarm, alarms) && e84.State == E84State.Available,
+        "Auto 下没走交接放上载具：报意外放上，交接不锁");
+    Check(alarms.Reset(e84.FullPath) && !Active(e84, e84.UnexpectedCarrierAlarm, alarms), "意外放上的报警人工复位能清");
+    lp.NotePodPlaced(false);
+    lp.Tick();
+    Check(Active(e84, e84.UnexpectedCarrierAlarm, alarms), "Auto 下没走交接拿走载具：报意外拿走");
+    alarms.Reset(e84.FullPath);
+    lp.SetAutoMode(false);
+    lp.Tick();
+    lp.NotePodPlaced(true);
+    lp.Tick();
+    lp.NotePodPlaced(false);
+    lp.Tick();
+    Check(!Active(e84, e84.UnexpectedCarrierAlarm, alarms), "Manual 下人工放、拿载具不报");
+    lp.SetAutoMode(true);
+    lp.Tick();
+
+    // 第一拍载具就在（端口已经是 Auto）：只记下来，不算意外放上
+    var bootPort = new ProbePort("E84BootPort");
+    var bootE84 = new ProbeE84(bootPort.Name, timeoutMs: 60000);
+    bootPort.AddChild(bootE84);
+    Check(bootPort.InitComponent(), "第一拍用的端口的组件初始化应成功");
+    bootPort.NoteState(ModuleState.Idle);
+    bootPort.Online();
+    bootPort.SetAutoMode(true);
+    bootPort.NotePodPlaced(true);
+    bootPort.Tick();
+    bootPort.Tick();
+    Check(!Active(bootE84, bootE84.UnexpectedCarrierAlarm, alarms), "E84 第一拍载具就在：不算意外放上");
 
     // EC 没开：什么都不亮
     var offPort = new ProbePort("E84OffPort");
@@ -832,6 +867,7 @@ port.E87Callback = null;
     tpPort.NotePodPlaced(true);
     tpPort.Tick();  // 在位下一拍扫描才判出来；锁住的交接这一拍不动
     Check(tpE84.State == E84State.TimedOut, "人工恢复之前交接一直锁着");
+    Check(!Active(tpE84, tpE84.UnexpectedCarrierAlarm, alarms), "交接超时锁住时载具到了：已经报过超时，不再报意外放上");
     Check(tpE84.Complete(tpPort._carrier.IsArrived), "载具确实放上了，Complete 应按完成收尾");
     tpPort.Tick();
     Check(tpEvents.Wait("HandoffCompleted:True"), "人工 Complete 应在下一拍随进展上报交接完成");
@@ -1523,6 +1559,29 @@ port.E87Callback = null;
 
     Check(bareThrown, "端口下没配 _carrier 子组件：组件初始化抛 InvalidOperationException（开机就暴露）");
 
+    // 7d) 装机停用（SC IsEnable=False）的端口：载具照样挂上——停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
+    //     不连驱动、不发动作
+    var disabledPort = new PlainPort("DisabledPort") { IsEnable = false };
+    Check(disabledPort.InitComponent(), "停用的端口：组件初始化直接算成功");
+    Check(disabledPort._carrier is not null && !disabledPort._carrier.IsArrived, "停用的端口：载具照样挂上，上面没载具");
+    bool disabledScanned = true;
+    try
+    {
+        disabledPort.Tick();
+        disabledPort.Tick();
+    }
+    catch (NullReferenceException)
+    {
+        disabledScanned = false;
+    }
+
+    Check(disabledScanned, "停用的端口：扫描不抛空引用");
+    var disabledDto = disabledPort.CreateStateDto();
+    Check(!disabledDto.IsCarrierArrived && !disabledDto.HasCarrier && !disabledPort.CanAssignCarrierToJob
+          && disabledPort.LocalTransferState == LoadPortTransferState.OutOfService,
+        "停用的端口：状态推得出来，没载具、不能分给 Job、搬运状态是 Out Of Service");
+    Check(disabledPort.Load() is null && !disabledPort.Shell.IsConnected, "停用的端口：不连驱动、不发动作");
+
     // 8) 帧通讯重连：旧接收泵在新连接起来以后才出错，只停它自己那一轮，新的一轮照样收（以前一个全局标志会把新泵也停了）
     var transport = new GatedTransport();
     var codec = new FcdFrameCodec();
@@ -1564,10 +1623,9 @@ port.E87Callback = null;
     var plainLoad = plain.Load();
     Check(plainLoad is not null && plain.State == LoadPortState.Loading, "平台默认 Load：空闲能发起，进 Loading");
     Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 发的是 FCD 的 CLOAD");
-    plainComm.Push("INF:CLOAD/PEC");
+    plainComm.Push($"INF:CLOAD/PE{new string('E', 23)}");
     Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
-          && plain._carrier.SlotMap.Count == 3 && plain._carrier.SlotMap[0] == SlotState.CorrectlyOccupied && plain._carrier.SlotMap[1] == SlotState.Empty
-          && plain._carrier.SlotMap[2] == SlotState.CrossSlotted,
+          && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.CorrectlyOccupied && plain._carrier.SlotMap[1] == SlotState.Empty,
         "平台默认 Load：设备回完成就落 Loaded，Mapping 结果落进 SlotMap");
     var plainUnload = plain.Unload();
     Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
@@ -1585,6 +1643,94 @@ port.E87Callback = null;
     Check(droppedHome is not null && TickPlainUntil(plain, () => droppedHome!.IsTerminal) && droppedHome!.Code == ErrorCodes.CommandRejected,
         "没连上：指令发不出去，判被拒（command_rejected）");
     plain.Close();
+
+    // 9b) Load 回来的 Mapping 不能用：槽数跟 sc 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
+    //     Load 判失败、落 Error，机械手进不来，报"Mapping 异常"（不报笼统的动作失败）
+    var mapAlarms = new AlarmComponent();
+    bool MapAlarmActive(BaseLoadPortModule port, string code) =>
+        mapAlarms.ActiveAlarms.Any(alarm => alarm.SourcePath == port.FullPath && alarm.AlarmCode == code);
+
+    ModuleOperation LoadWithMap(PlainPort port, string mapData)
+    {
+        Check(port.InitComponent(), $"{port.Name} 的组件初始化应成功");
+        port.NoteState(ModuleState.Idle);
+        port.NotePodPlaced(true);
+        port.Tick();
+        var load = port.Load();
+        Check(load is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CLOAD") == 1), $"{port.Name} 发了 CLOAD");
+        port.Shell.Comm.Push($"INF:CLOAD/{mapData}");
+        Check(TickPlainUntil(port, () => load!.IsTerminal), $"{port.Name} 的 Load 做完了");
+        return load!;
+    }
+
+    var shortPort = new PlainPort("ShortMapPort");
+    var shortLoad = LoadWithMap(shortPort, new string('P', 24));
+    Check(shortLoad.Code == ErrorCodes.SlotMapLengthMismatch && shortLoad.ErrorArgs.SequenceEqual(new[] { "ShortMapPort", "24", "25" })
+          && shortPort.State == ModuleState.Error,
+        "设备回了 24 槽、sc 配的 25 槽：Load 判失败（slot_map_length_mismatch），落 Error");
+    Check(shortPort._carrier.SlotMap.Count == 0 && presenceLedger.CountWafers("ShortMapPort") == 0, "槽数对不上：不落账（载具没槽图，账上没片）");
+    Check(MapAlarmActive(shortPort, shortPort.SlotMapAlarm) && !MapAlarmActive(shortPort, shortPort.ControlledStopAlarm),
+        "槽数对不上：报 Mapping 异常，不报笼统的动作失败");
+    shortPort.Close();
+
+    var crossPort = new PlainPort("CrossMapPort");
+    var crossLoad = LoadWithMap(crossPort, $"PPCPD{new string('E', 20)}");
+    Check(crossLoad.Code == ErrorCodes.SlotMapAbnormal && crossLoad.ErrorArgs.SequenceEqual(new[] { "CrossMapPort", "3,5" })
+          && crossPort.State == ModuleState.Error && !crossPort.CanPrepare,
+        "3 槽交叉片、5 槽叠片：Load 判失败（slot_map_abnormal），落 Error，机械手进不来");
+    Check(crossPort._carrier.SlotMap.Count == 25 && crossPort._carrier.SlotMap[2] == SlotState.CrossSlotted
+          && presenceLedger.Get("CrossMapPort", 3)?.Status == WaferStatus.Crossed && presenceLedger.Get("CrossMapPort", 5)?.Status == WaferStatus.Double,
+        "交叉片、叠片：账照落，看得到是哪几槽");
+    Check(MapAlarmActive(crossPort, crossPort.SlotMapAlarm), "交叉片、叠片：报 Mapping 异常");
+    crossPort.Close();
+    AlarmComponent.Current = null;
+
+    // 9c) Job 做完自动 Unload（SC AutoUnload，接不接 EAP 都一样）：载具刚干完就卸；机械手还在取放就等它回 Loaded；
+    //     只认刚干完这一下（之后还在 Loaded，比如人又手动 Load 起来，不再卸）；从这个口取出去的片没回齐先不卸；关着不卸
+    ProbePort CompletedCarrierPort(string name, bool autoUnload)
+    {
+        var port = new ProbePort(name) { AutoUnload = autoUnload, Next = new ProbeOperation() };
+        Check(port.InitComponent(), $"{name} 的组件初始化应成功");
+        port.NotePodPlaced(true);
+        port.Tick();
+        port.NoteState(LoadPortState.Loaded);
+        return port;
+    }
+
+    var unloadPort = CompletedCarrierPort("AutoUnloadPort", autoUnload: true);
+    unloadPort.NoteState(TransferModuleState.PreTransfer);
+    int unloadCalls = unloadPort.Calls;
+    unloadPort._carrier.NoteComplete();
+    unloadPort.Tick();
+    Check(unloadPort.Calls == unloadCalls, "载具干完了、机械手还在取放：先不卸");
+    unloadPort.NoteState(LoadPortState.Loaded);
+    unloadPort.Tick();
+    Check(unloadPort.Calls == unloadCalls + 1, "机械手回到 Loaded：自动 Unload");
+    unloadPort.Tick();
+    unloadPort.Tick();
+    Check(unloadPort.Calls == unloadCalls + 1, "只认刚干完这一下：之后还在 Loaded（人又手动 Load 起来）也不再卸");
+    unloadPort.Close();
+
+    var outPort = CompletedCarrierPort("AutoUnloadOutPort", autoUnload: true);
+    presenceLedger.RegisterLocation("AutoUnloadChamber", 1);
+    Check(presenceLedger.Create("AutoUnloadOutPort", 1) is not null && presenceLedger.Move("AutoUnloadOutPort", 1, "AutoUnloadChamber", 1),
+        "摆一片从这个口取出去、还在腔体上的片");
+    int outCalls = outPort.Calls;
+    outPort._carrier.NoteComplete();
+    outPort.Tick();
+    Check(outPort.Calls == outCalls, "从这个口取出去的片还在腔体上（Job 中止会有）：先不卸，门一关片就回不来了");
+    Check(presenceLedger.Move("AutoUnloadChamber", 1, "AutoUnloadOutPort", 1), "片回到口上");
+    outPort.Tick();
+    Check(outPort.Calls == outCalls + 1, "片回齐了：自动 Unload");
+    outPort.Close();
+
+    var offPort = CompletedCarrierPort("AutoUnloadOffPort", autoUnload: false);
+    int offCalls = offPort.Calls;
+    offPort._carrier.NoteComplete();
+    offPort.Tick();
+    offPort.Tick();
+    Check(offPort.Calls == offCalls, "SC AutoUnload 关着：干完不自动卸，等操作员或 Host CarrierRelease");
+    offPort.Close();
 
     // 10) 复位只清错、中止只停，Idle 一律当"门关好、没 Load"：没初始化、出过错的复位完是 NotInit（要再 Home，照老 CTC），
     //     中止也绕不过复位和 Home；门开着没在动（Loaded、正被机械手取放）的复位 / 中止完按状态查询的门位落 Loaded / Idle，
@@ -1708,7 +1854,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open,and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication

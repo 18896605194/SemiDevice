@@ -33,6 +33,12 @@ public static class ErrorCodes
     /// <summary>读码没发起（没挂读头、读头未连接或上一次还没读完）。Args: [模块名]</summary>
     public const string ReadCarrierIdRejected = "loadport.read_carrier_id_rejected";
 
+    /// <summary>Load 回来的 Mapping 槽数跟 sc 配的槽数对不上，没落账。Args: [模块名, 设备回的槽数, sc 配的槽数]</summary>
+    public const string SlotMapLengthMismatch = "loadport.slot_map_length_mismatch";
+
+    /// <summary>Load 回来的 Mapping 有交叉片、叠片或认不出的槽。Args: [模块名, 槽号（逗号隔开）]</summary>
+    public const string SlotMapAbnormal = "loadport.slot_map_abnormal";
+
     /// <summary>操作被 Abort 顶替。Args: [操作名]</summary>
     public const string Aborted = "module.action_aborted";
 

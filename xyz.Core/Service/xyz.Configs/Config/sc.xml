@@ -178,6 +178,8 @@
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
+			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
+			<Value Name="AutoUnload" Value="True" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
@@ -231,6 +233,8 @@
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
+			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
+			<Value Name="AutoUnload" Value="True" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
@@ -461,7 +465,7 @@
 	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
 	     Recipe（E30 工艺程序管理）：Host 用 S7 列、取、下、删流程配方和工艺配方，内容是 JSON，跟本地配方页过同一套检查；配方变了报事件。
 	     Host 那边的配方号就是配方名（两个库的名字不重）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
-	     E87：载具 ID、槽图跟 Host 核对（照老 CTC：ID 认定就 Load，槽图一律等 Host），端口搬运状态、启停用；AutoUnload：干完或中断后自动 Unload。
+	     E87：载具 ID、槽图跟 Host 核对（照老 CTC：ID 认定就 Load，槽图一律等 Host），端口搬运状态、启停用（干完自动 Unload 是 LoadPort 节点的 AutoUnload）。
 	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
 	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
 		<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
@@ -483,9 +487,7 @@
 		<Setting Name="Recipe" Type="xyz.Components.Components.E30RecipeComponent">
 			<Value Name="LockLocalEditInRemote" Value="False" />
 		</Setting>
-		<Setting Name="E87" Type="xyz.Components.Components.E87Component">
-			<Value Name="AutoUnload" Value="True" />
-		</Setting>
+		<Setting Name="E87" Type="xyz.Components.Components.E87Component" />
 		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />
 		<!-- PJ 命令名称按 EAP 约定配置；默认名称（含 STARTPROCESS）保留兜底，名称不能重复或占用其他命令的默认名称 -->
 		<Setting Name="E40" Type="xyz.Components.Components.E40Component">

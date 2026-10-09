@@ -126,6 +126,12 @@ public class E84Component : ComponentBase, IE84
         Solution = "检查搬运车与端口的 E84 信号和光幕；确认载具实际位置后 Retry 或 Complete，再复位报警")]
     public string E84TimeoutAlarm = nameof(E84TimeoutAlarm);
 
+    [Alarm("E84 意外放上 / 拿走载具", AlarmCategory.SafetyInterlock,
+        AlarmLevel = AlarmLevel.Alarm1,
+        Description = "端口在 Auto（搬运车交接）模式下，没走 E84 交接，载具被放上或拿走了（多半是有人手动放、拿）",
+        Solution = "Auto 模式下别手动放、拿载具，要手动操作先把端口切到 Manual；确认载具实际在不在、晶圆账对不对，再复位报警")]
+    public string UnexpectedCarrierAlarm = nameof(UnexpectedCarrierAlarm);
+
     #endregion
 
     #region 状态
@@ -148,6 +154,12 @@ public class E84Component : ComponentBase, IE84
     /// 超时锁住期间保留，Complete 要按它核对载具位置。
     /// </summary>
     private bool? _isLoad;
+
+    /// <summary>
+    /// 上一拍载具在不在，看载具有没有没走交接就变了；第一拍还没有，为 null（只记下来不比较）。
+    /// 开机时端口是 Manual（Auto/Manual 不存盘），状态查询回来、认出盒子在这一下不会被当成意外放上。
+    /// </summary>
+    private bool? _lastCarrierPlaced;
 
     public E84State State
     {
@@ -289,6 +301,7 @@ public class E84Component : ComponentBase, IE84
         lock (_gate)
         {
             _inputs = ReadInputs();
+            CheckUnexpectedCarrier(autoMode, carrierPlaced);
             Advance(autoMode, transferState, carrierPlaced);
             Flush();
 
@@ -411,6 +424,29 @@ public class E84Component : ComponentBase, IE84
         }
 
         CheckTimeout();
+    }
+
+    /// <summary>
+    /// Auto 模式下载具没走交接就变了（放上或拿走）：报警（照 CTC 的 Unexpected carrier placed / removed on access auto）。
+    /// 交接进行中（给了 READY 以后）载具本来就该变；交接超时锁住的已经报过超时，不重复报；Manual 是人工放取，不管。
+    /// 只报警、不锁交接：交接本来就按载具在不在开方向（有盒不亮 L_REQ、没盒不亮 U_REQ），人手动放、拿不会让搬运车撞上。
+    /// </summary>
+    private void CheckUnexpectedCarrier(bool autoMode, bool carrierPlaced)
+    {
+        bool? last = _lastCarrierPlaced;
+        _lastCarrierPlaced = carrierPlaced;
+        if (last is null || last.Value == carrierPlaced || !autoMode)
+        {
+            return;
+        }
+
+        if (IsHandoffStarted(_state) || _state == E84State.TimedOut)
+        {
+            return;
+        }
+
+        LogHelper.Warn(FullPath, $"E84 Auto 模式下载具没走交接就被{(carrierPlaced ? "放上" : "拿走")}了（E84 在 {_state}）");
+        RaiseAlarm(UnexpectedCarrierAlarm);
     }
 
     private string? GateClosedReason(bool autoMode, LoadPortTransferState transferState)

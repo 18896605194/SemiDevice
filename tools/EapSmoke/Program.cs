@@ -22,7 +22,7 @@ using xyz.Shared.Errors;
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
 // E39 查类型 / 属性名 / 属性（带条件）；E87 载具核对（读到号等 Host、Host 让继续、槽图一律等 Host、第二次 PWC 比对槽图和给片号、
-// 取消、ReCreate、读码失败 Host 给号、AutoUnload 关着时 CarrierRelease）、端口搬运状态、Host 启停用、存取方式；E90 片对象跟着账走（建、挪、做、跳过、删）；E40 / E94 的建、命令、查询翻成 Job 管理的命令、状态转换报事件。
+// 取消、ReCreate、读码失败 Host 给号、E87 不自己卸、干完靠 CarrierRelease）、端口搬运状态、Host 启停用、存取方式；E90 片对象跟着账走（建、挪、做、跳过、删）；E40 / E94 的建、命令、查询翻成 Job 管理的命令、状态转换报事件。
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -532,7 +532,8 @@ Check(w3Attributes.Items[0].Items[1].GetUInt64() == 7 && w3Attributes.Items[1].I
 mark = host.EventCount;
 lp1.Complete();
 await Event("Eap.E87.CarrierSMTrans19", mark, "载具干完（#19）");
-await WaitUntil(() => lp1.UnloadRequested, "干完了自动 Unload");
+Check(!lp1.UnloadRequested, "E87 不自己卸：干完自动 Unload 归 LoadPort（SC AutoUnload），接不接 EAP 都一样");
+lp1.Unload();
 lp1.UnloadDone();
 await Event("Eap.E87.CarrierClosed", mark, "Unload 好了报门关上");
 await Event("Eap.E87.PortTransferSMTrans09", mark, "端口挡着 → 等取（#9）");
@@ -581,18 +582,15 @@ await Event("Eap.E87.CarrierSMTrans18", mark, "Load 好了开始取放（#18）"
 Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", 2))) == 0, "槽图不带也能认定：CAACK=0");
 await Event("Eap.E87.CarrierSMTrans15", mark, "槽图认定（#15）");
 
-// AutoUnload 关着：干完不自动卸，等 Host CarrierRelease
-var carriers = eap.FindChild<E87Component>()!;
-carriers.AutoUnload = false;
+// 端口的 AutoUnload 关着：干完没人卸，等 Host CarrierRelease
 mark = host.EventCount;
 lp2.Complete();
 await Event("Eap.E87.CarrierSMTrans19", mark, "载具干完（#19）");
-Check(!lp2.UnloadRequested, "AutoUnload 关着：干完不自动卸");
+Check(!lp2.UnloadRequested, "E87 不自己卸：干完等 Host CarrierRelease");
 Check(Caack(await Send(3, 17, CarrierAction("CarrierRelease", "CAR-D", 2))) == 0, "Host 放行载具：CAACK=0");
 await WaitUntil(() => lp2.UnloadRequested, "放行就 Unload");
 lp2.UnloadDone();
 await Event("Eap.E87.PortTransferSMTrans09", mark, "卸好了：端口转等取（#9）");
-carriers.AutoUnload = true;
 lp2.Remove();
 
 // Host 启停用端口（S3F25）

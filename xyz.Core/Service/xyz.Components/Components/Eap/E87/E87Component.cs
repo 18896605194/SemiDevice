@@ -183,10 +183,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #endregion
 
-    #region SC / EC
-
-    [SCEditor("True", "E87", "载具干完或中断后自动 Unload（关门、松开），端口转等取；False = 等 Host CarrierRelease 或操作员点 Unload")]
-    public bool AutoUnload { get; set; } = true;
+    #region EC
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "10000", @default: "500",
         description: "多久查一次端口状态：端口忙闲、报警这些没有回调，搬运状态的变化靠它发现")]
