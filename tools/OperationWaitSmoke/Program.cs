@@ -323,7 +323,7 @@ Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess, "Load �
 Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
 Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
-// 机械手进站要载具能取放片（IsCarrierReady）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
+// 机械手进站要载具在、Host 认可了槽图（CanPrepare）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
 Check(!port.CanPrepare && port.PrepareTransfer() is null && port.State == LoadPortState.Loaded,
     "接了 EAP、槽图没认定：机械手不能进站");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
@@ -533,7 +533,7 @@ port.E87Callback = null;
         "界面按来源复位应走到组件的 Reset、清掉报警");
     Check(!alarms.Reset("NoSuchSource"), "没报过报警的来源复位返回 false");
 
-    // LoadPort 动作失败 → 受控停止（先放上载具，没载具 Load 发不起来）
+    // LoadPort 动作失败 → 报动作失败（先放上载具，没载具 Load 发不起来）
     port.NotePodPlaced(true);
     port.Tick();
     port.NoteState(ModuleState.Idle);
@@ -541,24 +541,46 @@ port.E87Callback = null;
     Check(port.BeginAction(LoadPortAction.Load, failedLoad) is not null, "Idle 应能发起 Load");
     failedLoad.Reject();
     port.Tick();
-    Check(Active(port, port.ControlledStopAlarm), "Load 失败应报受控停止");
+    Check(Active(port, port.ControlledStopAlarm), "Load 失败应报动作失败");
     Check(!Active(port, port.InitTimeoutAlarm), "不是 Home 超时，不该报初始化超时");
+    Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, "人工复位清掉动作失败");
 
-    // Home 超时 → 再加报初始化超时
+    // Home 超时 → 只报初始化超时，不再另报动作失败（一次失败一条报警）
     var slowHome = new ProbeOperation();
     Check(port.BeginAction(LoadPortAction.Home, slowHome) is not null, "Error 状态应允许 Home");
     slowHome.TimeOut();
     port.Tick();
-    Check(Active(port, port.InitTimeoutAlarm) && Active(port, port.ControlledStopAlarm), "Home 超时应报初始化超时");
+    Check(Active(port, port.InitTimeoutAlarm) && !Active(port, port.ControlledStopAlarm), "Home 超时只报初始化超时，不重复报动作失败");
 
     // Home 成功回到 Idle 也不清，等人工复位；全部复位清掉
     var goodHome = new ProbeOperation();
     port.BeginAction(LoadPortAction.Home, goodHome);
     goodHome.Succeed();
     port.Tick();
-    Check(port.State == ModuleState.Idle && Active(port, port.ControlledStopAlarm) && Active(port, port.InitTimeoutAlarm),
+    Check(port.State == ModuleState.Idle && Active(port, port.InitTimeoutAlarm),
         "Home 成功回到 Idle 也不自动清，等人工复位");
     Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, "全部复位应清掉所有报警");
+
+    // 每个动作超时都报自己那一条（跟 EC 里各动作的超时一一对应），不另报动作失败
+    foreach (var (action, from, alarm) in new[]
+             {
+                 (LoadPortAction.Load, ModuleState.Idle, port.LoadTimeoutAlarm),
+                 (LoadPortAction.Unload, LoadPortState.Loaded, port.UnloadTimeoutAlarm),
+                 (LoadPortAction.Home, ModuleState.Idle, port.InitTimeoutAlarm),
+                 (LoadPortAction.Clamp, ModuleState.Idle, port.ClampTimeoutAlarm),
+                 (LoadPortAction.Unclamp, ModuleState.Idle, port.UnclampTimeoutAlarm),
+                 (LoadPortAction.Reset, ModuleState.Idle, port.ResetTimeoutAlarm),
+                 (LoadPortAction.Abort, ModuleState.Idle, port.AbortTimeoutAlarm),
+             })
+    {
+        port.NoteState(from);
+        var slow = new ProbeOperation();
+        Check(port.BeginAction(action, slow) is not null, $"{from} 应能发起 {action}");
+        slow.TimeOut();
+        port.Tick();
+        Check(Active(port, alarm) && !Active(port, port.ControlledStopAlarm), $"{action} 超时应报它自己的超时报警，不另报动作失败");
+        Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, $"复位清掉 {action} 超时报警");
+    }
 
     // 操作员急停顶掉的动作不报
     var interrupted = new ProbeOperation();
@@ -567,7 +589,7 @@ port.E87Callback = null;
     port.BeginAction(LoadPortAction.Abort, abort);
     abort.Succeed();
     port.Tick();
-    Check(!Active(port, port.ControlledStopAlarm), "操作员急停顶掉的动作不该报受控停止");
+    Check(!Active(port, port.ControlledStopAlarm), "操作员急停顶掉的动作不该报动作失败");
 
     // _robot 设备报警：有报错就报；报错没了也不清
     var robot = new ProbeRobot();

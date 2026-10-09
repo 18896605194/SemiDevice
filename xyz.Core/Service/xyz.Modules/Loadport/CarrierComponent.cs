@@ -103,7 +103,7 @@ public class CarrierComponent : ComponentBase, ICarrier
 
     /// <summary>
     /// 载具这边认可了，能取放片：没接 EAP 没人核对，读到就算；接了 EAP 槽图要被 Host 认定（E87 写回 Verified）才行，
-    /// 免得 Host 还没核对完、或者核对不过就已经取走了。门开没开是端口的事，端口的 IsCarrierReady 再加上它。
+    /// 免得 Host 还没核对完、或者核对不过就已经取走了。门开没开是端口的事，端口的 CanAssignCarrierToJob（排活）、CanPrepare（机械手进站）再加上它。
     /// </summary>
     public bool IsAccepted
     {

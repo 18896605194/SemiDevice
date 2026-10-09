@@ -126,7 +126,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ```
   `Complete()` / `Fail(code, reason, args)` / `AbortByHost(reason)`；`Reason` 只进日志，`Code + ErrorArgs` 给界面；OnScan 抛异常自动 `Fail(OperationFaulted)`。
   RPC 线程用 `WaitReply(ms)` 等结果，**不能在扫描线程等**。超时时间取模块的 EC 属性。
-- 动作失败（非 Abort）模块报 `ControlledStopAlarm`；设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
+- 动作失败（被人中止顶掉的不算）在操作终结时由 `RaiseActionFailedAlarm`（`protected virtual`，机型可重写：自己要管的情况先判、报了就 return，其余交给 base，整套换掉不调 base；在模块锁里，只报警不等待）报警，一次失败只报一条：机械手、腔体报 `ControlledStopAlarm`；LoadPort 超时按动作报各自的超时报警（Load / Unload / Home=初始化 / 夹紧 / 松开 / 复位 / 中止，跟 EC 各动作超时一一对应），不是超时的报 `ControlledStopAlarm`（显示为"LoadPort 动作失败"）。设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
   连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、驱动这一次没连上也照样往下走，
@@ -255,7 +255,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
   启动方式由 Job 节点的 SC `ProcessJobAutoStart`（默认 True）和 `ControlJobAutoStart`（默认 False）决定：True 准备好直接开始，False 等待对应的 Start 命令。
   E40 建 PJ 报文的 PRPROCESSSTART、E94 建 CJ 的 StartMethod 只校验格式、不覆盖 SC；查询、上报和历史记录中的 AutoStart 反映设备配置。
   CJ / PJ 不保存 CarrierInstance，CJ 完成后检测到来源 LoadPort 的 Carrier.IsArrived=False 才删除；载具仍在位时保留结果。
-  载具是否可取放片由 `BaseLoadPortModule.IsCarrierReady` 判断（模块启用、载具到位、IsLoaded，接了 EAP 时槽图被 Host 认定）；Job 创建、定片、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
+  载具能不能分给 Job 由 `BaseLoadPortModule.CanAssignCarrierToJob` 判断（模块启用、载具到位、IsLoaded（正被机械手取放也算），接了 EAP 时槽图被 Host 认定；只管排活，机械手能不能进站看 `CanPrepare`）；Job 创建、定片、回片目标选择、CJ 启动直接读取该属性，不在 Job 内解释 LoadPort 状态码。
   **料没到先建 PJ**：Host 按载具号建（不给 loadPort）时载具不在口上或还不能取片，PJ 照样建、排队，只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），
   任务行空着（`IsWaitingForMaterial`）；扫描每拍先定片（`AssignWaitingProcessJobs` → `AssignWafers`，跟当场建同一段检查），定好挂任务表、`IPjManager.RegisterWafers` 登记片归属、
   给 CJ 填口；定不了报 `MaterialUnusableAlarm`、日志写原因、PJ 留在排队。CJ 收没定片的 PJ 时口空着、按载具号查重（`job.carrier_busy`），要下面的 PJ 都定了片才转执行。

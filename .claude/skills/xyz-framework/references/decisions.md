@@ -231,7 +231,7 @@
   在位判断的**规则**（SC `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（SC `AutoReadCarrierId`、
   收读头结果）、改号和核对进度写回（`SetId` / `UpdateStatus`）、Mapping 落晶圆账、取放状态（Load 好进取放、Unload 好 / 动作失败记中断、`NoteComplete`）、
   载具这一半的 E87 上报（到达、拿走、读码成功 / 失败、槽图读到、取放开始 / 结束、干完）、SV `IsArrived` / `CarrierId`、事件 `FoupArrived` / `FoupRemoved`。
-  留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`IsCarrierReady`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
+  留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`CanAssignCarrierToJob`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
   门开没开是端口的事）、`LocalTransferState`、E84 桥、`E87Callback` / `E84Callback` / `E84Provider` 三个口子属性（回调都带 `ILoadPort port`，E87 按引用认端口；
   Carrier 的上报经端口在 `Attach` 时交给它的入队口发，跟端口自己的上报同一条线，先后不乱）、读头和驱动的连接（打开、重连）。
 - **端口喂给 Carrier 的口只有这几个**（在 `ICarrier` 的"端口调的"那段里，别再加）：`Attach(port, 读码器, E87 入队口)`（读码器是端口 InitComponent 里 `FindChild<ICarrierIdReader>()` 找到的，没配为 null）、`Sense(isPresent, isPlaced)`（每拍两个传感器位，null = 没查到）、
@@ -239,7 +239,7 @@
   （机型有别的上报路子、自己重写 Load 的，照旧调它们）。Carrier 没有父引用，跟 E84 一样由端口驱动；锁序固定：模块锁在外、载具锁在内，Carrier 持锁时不调模块。
 - **槽图认定状态只往前走**（用户：同一载具 Verified 后再 Map，**保持已认定**）：还没读过（NotRead）才转 Read，Host 已经认定（或在等、或判了不过）的，
   再 Map 一次（比如 Unload 之后又 Load）只更新槽图和账，不动认定状态；重置只靠载具拿走或 Host 的 CarrierReCreate。
-  以前每次 Load 都写回 Read，而 E87 槽图机在 Verified 收 Read 不转换，两边对不上，`IsCarrierReady` 会永久为 false。
+  以前每次 Load 都写回 Read，而 E87 槽图机在 Verified 收 Read 不转换，两边对不上，`CanAssignCarrierToJob` 会永久为 false。
   已知后果：再 Map 会整篮重建晶圆账，E90 的片对象只在槽图认定那一刻按账建，重建出来的新片不会补建（没处理，用到再说）。
 - **读码没发起成功不再静默**：到位后自动读码，读头断线重连中、或上一次还没读完时 `StartReadCarrierId` 返回 false——以前就这么算了，Host 干等一个永远不来的 ID。
   现在接着每拍试，试到读头的 EC `ReadCarrierIdTimeout` 还不行，记中断日志、按读码失败报 `CarrierIdReadFailed`（Host 就能带端口号给号或取消）；
@@ -377,17 +377,17 @@
 - **料没到先建 PJ + 等 E87 槽图认定**（2026-10-08 用户定的，对标 CTC，两件一起做）：Host 按载具号建 PJ 时载具不在端口上、或还不能取片，
   PJ 照样建、排队（报 #1），只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），任务行先空着；CJ 能收这种 PJ，口（`ControlJob.LoadPort`）先空着、
   按载具号认，同一载具不能有两个 CJ（`job.carrier_busy`）、同一载具的槽不能两个 PJ 要（`job.slot_claimed`）；指定了 LoadPort 的 CJ 不收没定片的 PJ。
-  扫描里每拍：载具到了、`IsCarrierReady` 就定片（跟当场建同一段检查，生成任务行、登记片归属、给 CJ 填口）；CJ 要下面的 PJ 都定了片才转执行 / 等启动。
+  扫描里每拍：载具到了、`CanAssignCarrierToJob` 就定片（跟当场建同一段检查，生成任务行、登记片归属、给 CJ 填口）；CJ 要下面的 PJ 都定了片才转执行 / 等启动。
   **定不了片**（用户选 A）：PJ 留在排队、报警（JobManager 的 `MaterialUnusableAlarm`，报警文字固定，哪个 PJ、什么原因写 Job 日志，同样的原因只记一次），
   等人或 Host 收场（停掉 CJ 连带删排队的 PJ，或取消没归 CJ 的 PJ）；每拍还会再试，复位了没解决会再报。
-  **槽图认定**：`BaseLoadPortModule.IsCarrierReady` 加一条——接了 EAP（`E87Callback` 不为空）时槽图要被 Host 认定（`SlotMapStatus == Verified`）才能取放，
+  **槽图认定**：`BaseLoadPortModule.CanAssignCarrierToJob` 加一条——接了 EAP（`E87Callback` 不为空）时槽图要被 Host 认定（`SlotMapStatus == Verified`）才能取放，
   没接 EAP 读到就算。后果：Hsms 启用但 Host 没连上时 E87 一直等 Host，Job 也跟着等（本地跑把 Hsms 关掉）。EAP 的 SECS 翻译层（S16 / S14）见「EAP 各标准」。
   还没做：Job 页（样稿 v2 等确认）、救片任务、
   设备动作中禁止改账的联锁（用户押后）。腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。
 - **Job 创建接口（2026-10-07 用户明确）**：PJ 独立创建，参数包含 LoadPort、PJ 名、槽位集合、Sequence、LotId；提供独立取消 PJ。CJ 创建接收 LoadPort 和已有 PJ 的名称集合（一个 CJ 可以有多个 PJ）。CreateJob 使用已经创建的 PJ，内部创建 CJ 并关联，不重新生成 PJ 和任务。CJ/PJ 管理提供明确的停止、中止、暂停、恢复方法，仍使用各自状态机；Pick、Place 保持独立 WaferTask。
 - **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 SC `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply。
 - **Job 命令入口（2026-10-07 用户：重复就重复先，没关系）**：去掉 Execute / WithProcessJob 的委托包装，各入口直接写检查、锁超时、执行、发布、异常处理；PJ 创建合并到 CreateProcessJobAsync，不为减少重复增加调用层次。保留原有锁和状态机行为。
-- **设备状态判断归模块（2026-10-07 用户明确）**：载具是否可取放片由 BaseLoadPortModule.IsCarrierReady 判断（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
+- **设备状态判断归模块（2026-10-07 用户明确）**：载具能不能分给 Job 由 BaseLoadPortModule.CanAssignCarrierToJob 判断（2026-10-09 由 IsCarrierReady 改名：它在机械手正在取放时也是 true，只管排活，机械手进站看 CanPrepare）（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
 - **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 SC ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 SC。
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
 - **CJ 按载具号查询（2026-10-07 用户明确）**：从 CjManager 管理的真实 CJ 对象查，不能查发布快照；JobManager 加锁调用 FindByCarrier 并返回 DTO 副本。

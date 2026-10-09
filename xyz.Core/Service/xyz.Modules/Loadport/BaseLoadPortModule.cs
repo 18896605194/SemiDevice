@@ -141,10 +141,30 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Alarm
 
-    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 初始化未在指定时间内完成", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
+    // 动作超时：一个动作一条，跟 EC 里各动作的超时一一对应；Home 就是初始化
+    [Alarm("LoadPort Load 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（开门 + Mapping）没在 EC LoadTimeout 内做完", Solution = "检查门、Mapping 传感器和 FOUP 有没有放好，看 LoadPort 有没有报错；处理好后复位，再 Home")]
+    public string LoadTimeoutAlarm = nameof(LoadTimeoutAlarm);
+
+    [Alarm("LoadPort Unload 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门）没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
+    public string UnloadTimeoutAlarm = nameof(UnloadTimeoutAlarm);
+
+    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Home（初始化回原点）没在 EC HomeTimeout 内做完", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
     public string InitTimeoutAlarm = nameof(InitTimeoutAlarm);
 
-    [Alarm("LoadPort 受控停止", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 进入受控停止状态", Solution = "检查 LoadPort 当前状态并复位")]
+    [Alarm("LoadPort 夹紧超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "夹紧 FOUP 没在 EC ClampTimeout 内做完", Solution = "检查 FOUP 有没有放到位、夹爪有没有卡住；处理好后复位，再 Home")]
+    public string ClampTimeoutAlarm = nameof(ClampTimeoutAlarm);
+
+    [Alarm("LoadPort 松开超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "松开 FOUP 没在 EC UnclampTimeout 内做完", Solution = "检查夹爪有没有卡住；处理好后复位，再 Home")]
+    public string UnclampTimeoutAlarm = nameof(UnclampTimeoutAlarm);
+
+    [Alarm("LoadPort 复位超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "复位（清设备报错）没在 EC ResetTimeout 内做完", Solution = "检查串口 / 网口连接和 LoadPort 供电，再复位")]
+    public string ResetTimeoutAlarm = nameof(ResetTimeoutAlarm);
+
+    [Alarm("LoadPort 中止超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "中止（急停）没在 EC AbortTimeout 内做完", Solution = "检查串口 / 网口连接和 LoadPort 状态；处理好后复位，再 Home")]
+    public string AbortTimeoutAlarm = nameof(AbortTimeoutAlarm);
+
+    // 不是超时的失败：设备回了错、指令发不出去
+    [Alarm("LoadPort 动作失败", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load、Unload、Home、夹紧、松开等动作被设备回错或指令发不出去，LoadPort 停在错误状态", Solution = "看报警前后的日志找失败原因，处理好后复位，再 Home")]
     public string ControlledStopAlarm = nameof(ControlledStopAlarm);
 
     [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 设备本身报警", Solution = "检查 LoadPort 硬件/通讯状态")]
@@ -194,11 +214,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override int StandbyState => LoadPortState.Loaded;
 
     /// <summary>
-    /// 机械手能不能进站：在待命态（Loaded，没有别的机械手正在取放），并且载具在、载具这边认可了（接了 EAP 要 Host 认定槽图）。
-    /// 调度派机械手前查它；手动传片不经过 Job，也靠 PrepareTransfer 里的同一关挡住。
-    /// 不用 IsCarrierReady：那个在机械手正在取放时也是 true，是给 Job 判断"这盒能不能用"的。
+    /// 
     /// </summary>
-    public override bool CanPrepare => base.CanPrepare && _carrier.IsArrived && _carrier.IsAccepted;
+    public override bool CanPrepare => base.CanPrepare && _carrier.IsArrived && _carrier.IsAccepted&& StandbyState== LoadPortState.Loaded;
 
     /// <summary>
     /// 机械手进站（准备一）：载具不在、或者 Host 还没认定槽图就不让进，返回 null（搬运那边按站点忙接着等，等到超时判负）。
@@ -709,7 +727,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <param name="operation"></param>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        UpdateActionAlarms(operation);
+        RaiseActionFailedAlarm(_action, operation);
 
         //动作失败
         if (!operation.IsSuccess)
@@ -807,9 +825,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 端口自己判的搬运状态（没接 EAP 时 E84 就按它；接了 EAP 由 E87 在它上面加 Host 的设定）：
-    /// 停用、下线、未初始化或出错 → Out Of Service；不在空闲 → 挡住；
-    /// 空闲且没载具 → 等送盒；有载具且这一盒已经干完或中断（Complete/Stopped）→ 等取走；其余挡住。
+    /// 给E84使用
     /// </summary>
     public LoadPortTransferState LocalTransferState
     {
@@ -843,7 +859,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return state == LoadPortState.Loaded|| (state >= LoadPortState.PreTransfer && state <= LoadPortState.TransferComplete);
     }
 
-    public bool IsCarrierReady => IsEnabled && _carrier.IsArrived && IsLoaded && _carrier.IsAccepted;
+    /// <summary>
+    /// 载具可以分给 Job（定片、选回片口、开始 CJ）：启用、载具在、门开着（正被机械手取放也算）、Host 认可了槽图。
+    /// 只管账面上排活，不管机械手现在能不能进站——那个看 CanPrepare。
+    /// </summary>
+    public bool CanAssignCarrierToJob => IsEnabled && _carrier.IsArrived && IsLoaded && _carrier.IsAccepted;
 
     /// <summary>
     /// 空闲，也就是Unload状态
@@ -853,23 +873,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #endregion
 
     /// <summary>
-    /// 扫描周期：先扫子组件与操作（基类，读头的读码步进机、驱动的断线重连、载具收读码结果也在里面），
-    /// 再查设备状态、把在位的两位传感器喂给载具、推 E84、查设备报警，最后有变化就推给界面；
-    /// EAP 上报放进 EAP 的派发组件发，不占扫描线程。机型重写时先调 base.OnScan()。
+    /// 扫描周期
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
-        LoopQueryStatus();
-        _carrier.Sense(Status?.IsPresent, Status?.IsPlaced);
-        StepE84();
-        CheckDeviceAlarm();
-        PublishState();
+        LoopQueryStatus(); //Loadport 数据轮训
+        _carrier.Sense(Status?.IsPresent, Status?.IsPlaced); //盒子到哦没有
+        StepE84(); //E84的推进
+        CheckDeviceAlarm();  //检查报警
+        PublishState();  //推送状态
     }
 
     /// <summary>
-    /// 设备报警跟着状态查询走：报警位亮就报。灭了也不清——报警只能人工 Reset 清。
-    /// 查不到（没连上/查询超时，Status 为 null）不判。
+    /// 设备报警跟着状态查询走
     /// </summary>
     private void CheckDeviceAlarm()
     {
@@ -881,27 +898,66 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 动作类报警：失败就报，Home 超时再加报初始化超时；动作成功也不清，只能人工 Reset 清。
-    /// 人为急停顶掉的不报——那是操作员自己按的，不是故障。
+    /// 动作做完以后报警
     /// </summary>
-    private void UpdateActionAlarms(ModuleOperation operation)
+    /// <param name="action"></param>
+    /// <param name="operation"></param>
+    protected virtual void RaiseActionFailedAlarm(LoadPortAction action, ModuleOperation operation)
     {
+       
         if (operation.IsSuccess || operation.Code == ErrorCodes.Aborted)
         {
             return;
         }
 
-        RaiseAlarm(ControlledStopAlarm);
-        if (_action == LoadPortAction.Home && operation.Code == ErrorCodes.Timeout)
+        // 不是超时：报动作失败，端口停在 Error，等人处理、复位
+        if (operation.Code != ErrorCodes.Timeout)
         {
-            RaiseAlarm(InitTimeoutAlarm);
+            RaiseAlarm(ControlledStopAlarm);
+            return;
+        }
+
+        // 超时：哪个动作超时就报哪一条
+        switch (action)
+        {
+            case LoadPortAction.Load:
+                RaiseAlarm(LoadTimeoutAlarm);
+                break;
+
+            case LoadPortAction.Unload:
+                RaiseAlarm(UnloadTimeoutAlarm);
+                break;
+
+            case LoadPortAction.Home:
+                RaiseAlarm(InitTimeoutAlarm);
+                break;
+
+            case LoadPortAction.Clamp:
+                RaiseAlarm(ClampTimeoutAlarm);
+                break;
+
+            case LoadPortAction.Unclamp:
+                RaiseAlarm(UnclampTimeoutAlarm);
+                break;
+
+            case LoadPortAction.Reset:
+                RaiseAlarm(ResetTimeoutAlarm);
+                break;
+
+            case LoadPortAction.Abort:
+                RaiseAlarm(AbortTimeoutAlarm);
+                break;
+
+            default:
+                RaiseAlarm(ControlledStopAlarm);
+                break;
         }
     }
 
     /// <summary>
-    /// 一条 E87 上报放进 EAP 的派发组件；未挂 EAP 时直接丢弃。任意线程可调。
-    /// 端口自己的上报用它，载具那一半（到达、拿走、读码、槽图、取放开始 / 结束、干完）由载具经挂上时交给它的入队口发，走的是同一条。
+    /// E87 上报放进 EAP 的派发组件
     /// </summary>
+    /// <param name="notification"></param>
     private void EnqueueE87(Action<IE87Callback> notification)
     {
         if (E87Callback is null)
@@ -920,8 +976,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 一条 E84 上报放进 EAP 的派发组件；未挂 EAP 时直接丢弃。任意线程可调（E84 信号由 IO 线程翻转）。
+    /// E84 上报放进 EAP 的派发组件
     /// </summary>
+    /// <param name="notification"></param>
     protected void EnqueueE84(Action<IE84Callback> notification)
     {
         if (E84Callback is null)

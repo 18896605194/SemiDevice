@@ -305,7 +305,7 @@ public class JobManager : ComponentBase, IJobManager
             };
 
             // 料已经在、能取片了就当场定片（查片、定回片槽、生成任务行），不行整个不建；料没到先建着，扫描里等料到了再定
-            if (port is not null && port.IsCarrierReady)
+            if (port is not null && port.CanAssignCarrierToJob)
             {
                 var assignError = AssignWafers(job, port);
                 if (assignError is not null)
@@ -1573,7 +1573,7 @@ public class JobManager : ComponentBase, IJobManager
                 return HandleResult.Fail(ErrorCodes.JobLoadPortNotFound, name);
             }
 
-            if (!found.IsCarrierReady)
+            if (!found.CanAssignCarrierToJob)
             {
                 return HandleResult.Fail(ErrorCodes.JobCarrierNotReady, found.Name);
             }
@@ -1777,7 +1777,7 @@ public class JobManager : ComponentBase, IJobManager
             return null;
         }
 
-        string? port = returnPorts.FirstOrDefault(name => LoadPort(name)?.IsCarrierReady == true);
+        string? port = returnPorts.FirstOrDefault(name => LoadPort(name)?.CanAssignCarrierToJob == true);
         if (port is null)
         {
             return HandleResult.Fail(ErrorCodes.JobReturnSlotUnavailable, returnPorts[0], slotText);
@@ -1958,7 +1958,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             var port = FindCarrierPort(job.CarrierId);
-            if (port is null || !port.IsCarrierReady)
+            if (port is null || !port.CanAssignCarrierToJob)
             {
                 continue;
             }
@@ -2124,7 +2124,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
-                && port?.IsCarrierReady == true
+                && port?.CanAssignCarrierToJob == true
                 && job.ProcessJobs.All(process => process.IsEnded || !process.IsWaitingForMaterial))
             {
                 if (ControlJobAutoStart)

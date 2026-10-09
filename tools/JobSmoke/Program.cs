@@ -1290,14 +1290,14 @@ try
     lp1.E87Callback = new SilentE87();
     LoadCarrier(lp1, 1, 2);
     lp1._carrier.SetId("CAR-E");
-    Check(!lp1.IsCarrierReady && lp1._carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具不算能取片");
+    Check(!lp1.CanAssignCarrierToJob && lp1._carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具还不能分给 Job");
     Check(!RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count > 0 || CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 20)
           && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
         "槽图没被 Host 认定：PJ 不定片、不占片，CJ 还在选中");
     Refuses(Do(jobs.CreateProcessJobAsync("LP1", "PJ-LOCAL", [2], "SEQ_A", null)), ErrorCodes.JobCarrierNotReady, ["LP1"],
         "槽图没被认定：本地也建不了要动这盒片的 PJ");
     lp1._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
-    Check(lp1.IsCarrierReady, "Host 认定槽图（E87 写回 Verified）以后载具能取片");
+    Check(lp1.CanAssignCarrierToJob, "Host 认定槽图（E87 写回 Verified）以后载具能分给 Job");
     Check(RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count == 1, 5) && PjOf("PJ-EARLY")!.Wafers[0].SourceSlot == 1
           && CjOf("CJ-EARLY")?.LoadPort == "LP1" && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) == "PJ-EARLY"
           && jobs.OwnerOf(ledger.Get("LP1", 2)!.Id) is null,

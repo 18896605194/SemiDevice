@@ -552,7 +552,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
         UpdateLedger(operation);
-        UpdateActionAlarms(operation);
+        RaiseActionFailedAlarm(operation);
     }
 
     #endregion
@@ -583,9 +583,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     /// <summary>
     /// 动作类报警：失败就报；动作成功也不清，只能人工 Reset 清。
-    /// 人为急停顶掉的动作不报——那是操作员自己按的，不是故障。
+    /// 人为急停顶掉的动作不报——那是操作员自己按的，不是故障。机型有自己的报警分法就重写（自己要管的情况先判、报了就 return，其余交给 base；整套换掉不调 base）；
+    /// 在操作终结的回调里调、在模块锁里：只报警，别等待、别去拿别的模块的锁。
     /// </summary>
-    private void UpdateActionAlarms(ModuleOperation operation)
+    protected virtual void RaiseActionFailedAlarm(ModuleOperation operation)
     {
         if (!operation.IsSuccess && operation.Code != ErrorCodes.Aborted)
         {
