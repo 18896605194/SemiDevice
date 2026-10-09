@@ -2,14 +2,9 @@
 
 namespace xyz.Modules.StateMachines;
 
-/// <summary>
-/// _robot 动作与状态迁移规则表。
-/// </summary>
 public static class RobotStateTable
 {
-    public static IReadOnlyDictionary<
-        (int? State, RobotAction Action),
-        (int ExecutingState, int SuccessState)> Transitions { get; } =
+    public static IReadOnlyDictionary< (int? State, RobotAction Action), (int ExecutingState, int SuccessState)> Transitions { get; } =
         new Dictionary<(int? State, RobotAction Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
@@ -37,10 +32,6 @@ public static class RobotStateTable
             [(null, RobotAction.Abort)] = (ModuleState.Aborting, ModuleState.NotInit)
         };
 
-    /// <summary>
-    /// 转成基类迁移表的注册键（动作名 = 枚举 ToString），供 _robot 模块实例注册自己的表；
-    /// 机型可在返回值基础上增删后经 RegisterTransitions/AddTransition 定制。
-    /// </summary>
     public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
     {
         return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()),kv => kv.Value);

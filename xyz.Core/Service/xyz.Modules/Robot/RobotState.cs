@@ -1,8 +1,5 @@
 ﻿namespace xyz.Modules.Enums;
 
-/// <summary>
-/// _robot 状态码；公共状态继承自 <see cref="ModuleState"/>。
-/// </summary>
 public class RobotState : ModuleState
 {
     public const int Homing = 200;
