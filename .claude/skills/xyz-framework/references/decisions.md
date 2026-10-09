@@ -217,8 +217,15 @@
 
 ## LoadPort 的载具收进 CarrierComponent（2026-10-09，用户："专门搞一个 Carrier 的组件，LoadPort 里关于载具的东西都放进去，实现 ICarrier"）
 - **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，sc.xml 每个 LoadPort 下一个 `Carrier` 节点
-  （`Type="xyz.Modules.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：模块第一次用到 `Carrier` 时找不到就抛
-  `InvalidOperationException`，`InitComponent()` 开头就会碰它，开机就暴露（停用的端口也一样）。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
+  （`Type="xyz.Modules.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：端口 `InitComponent()` 开头 `FindChild<ICarrier>()`、
+  `Attach` 后存进 `Carrier`，找不到抛 `InvalidOperationException`，开机就暴露（停用的端口也一样）。2026-10-09 用户定：不在属性 getter 里懒找，写在 InitComponent 里
+  （开机先组件初始化、再起扫描和服务，所以别处用到时已经挂好；冒烟里的探针端口也要先 InitComponent 再用 Carrier）。
+  **端口只认 `ICarrier`、对外也只给 `ICarrier`**（用户："万一以后换了这个组件"、"不要再搞一个接口"）：端口要调的那几个口和 `Info`、`IsAccepted` 都在 `ICarrier` 里
+  （`CarrierInfo` 因此在 `xyz.Components\Models`），换载具组件就是写一个实现 `ICarrier` 的组件、改 sc.xml 的 Type，端口不动；代价是 EAP 也看得见端口专用的口，
+  接口里分了一段注明"EAP 别调"。读码器同理（2026-10-09 用户："这个确实得抽取出来"，名字用户定）：端口和载具只认 `ICarrierIdReader`
+  （`ReadCarrierIdTimeout` / `StartReadCarrierId` / `GetCarrierIdResult` / `Close`，在 `xyz.Components\Interfaces`），平台的 `RfidDriverComponent` 实现它；
+  换 RFID 牌子写品牌壳，换扫码枪这类非 RFID 的就实现这个接口，都只改 sc.xml 的 Type。端口的组件引用（`_driver`、`_rfid`、`_carrier`）一律在 InitComponent 里找出来存下，
+  不写每次现找的属性。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
   `ILoadPort` 里原来的 `IsCarrierArrived` / `CarrierId` / `SlotMap` / `ReadCarrierId` / `SetCarrierId` / `UpdateCarrierStatus` / `NoteCarrierComplete` 删了（不留重复）。
 - **分工的标准：主语是载具的进 Carrier，主语是端口的留下，两边都沾的由端口组合**。进 Carrier 的有：载具快照 `CarrierInfo`（`Info`）和它的锁、
   在位判断的**规则**（SC `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（SC `AutoReadCarrierId`、
@@ -227,14 +234,14 @@
   留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`IsCarrierReady`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
   门开没开是端口的事）、`LocalTransferState`、E84 桥、`E87Callback` / `E84Callback` / `E84Provider` 三个口子属性（回调都带 `ILoadPort port`，E87 按引用认端口；
   Carrier 的上报经端口在 `Attach` 时交给它的入队口发，跟端口自己的上报同一条线，先后不乱）、读头和驱动的连接（打开、重连）。
-- **端口喂给 Carrier 的口只有这几个**（`internal`，别再加）：`Attach(port, 找读头的办法, E87 入队口)`、`Sense(isPresent, isPlaced)`（每拍两个传感器位，null = 没查到）、
-  `NoteDeviceEvent(placed)`、`NoteMapped(slotMap)`、`NoteLoaded()`、`NoteUnloaded()`、`NoteFault()`。端口的 `NotePodEvent`、`UpdateSlotMap` 保留，只是一行转发
+- **端口喂给 Carrier 的口只有这几个**（在 `ICarrier` 的"端口调的"那段里，别再加）：`Attach(port, 读码器, E87 入队口)`（读码器是端口 InitComponent 里 `FindChild<ICarrierIdReader>()` 找到的，没配为 null）、`Sense(isPresent, isPlaced)`（每拍两个传感器位，null = 没查到）、
+  `SetDeviceReportedPlaced(placed)`、`NoteMapped(slotMap)`、`NoteLoaded()`、`NoteUnloaded()`、`NoteFault()`。端口的 `SetDeviceReportedPlaced`、`UpdateSlotMap` 保留，只是一行转发
   （机型有别的上报路子、自己重写 Load 的，照旧调它们）。Carrier 没有父引用，跟 E84 一样由端口驱动；锁序固定：模块锁在外、载具锁在内，Carrier 持锁时不调模块。
 - **槽图认定状态只往前走**（用户：同一载具 Verified 后再 Map，**保持已认定**）：还没读过（NotRead）才转 Read，Host 已经认定（或在等、或判了不过）的，
   再 Map 一次（比如 Unload 之后又 Load）只更新槽图和账，不动认定状态；重置只靠载具拿走或 Host 的 CarrierReCreate。
   以前每次 Load 都写回 Read，而 E87 槽图机在 Verified 收 Read 不转换，两边对不上，`IsCarrierReady` 会永久为 false。
   已知后果：再 Map 会整篮重建晶圆账，E90 的片对象只在槽图认定那一刻按账建，重建出来的新片不会补建（没处理，用到再说）。
-- **读码没发起成功不再静默**：到位后自动读码，读头断线重连中、或上一次还没读完时 `BeginRead` 返回 false——以前就这么算了，Host 干等一个永远不来的 ID。
+- **读码没发起成功不再静默**：到位后自动读码，读头断线重连中、或上一次还没读完时 `StartReadCarrierId` 返回 false——以前就这么算了，Host 干等一个永远不来的 ID。
   现在接着每拍试，试到读头的 EC `ReadCarrierIdTimeout` 还不行，记中断日志、按读码失败报 `CarrierIdReadFailed`（Host 就能带端口号给号或取消）；
   载具走了、别处已经有读码结果就不试了。**没配读头的端口不算失败**（本来就不读码，ID 由 Host 给）。
 - **搬家换号**（用户："这个肯定是一起搬"）：SV、事件按组件路径采集编号，现在是 `LoadPortN.Carrier.IsArrived` / `.CarrierId` / `.FoupArrived` / `.FoupRemoved`，

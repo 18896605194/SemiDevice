@@ -11,7 +11,7 @@ namespace xyz.Client.Presentation.Models;
 public static class ModuleStates
 {
     /// <summary>
-    /// LoadPort：已装载是它的锚点态（可被机械手服务），跟空闲一样算就绪；装卸、回零、夹紧/松开、传片环都算动作中。
+    /// LoadPort：已装载是它的待命态（可被机械手服务），跟空闲一样算就绪；装卸、回零、夹紧/松开、传片环都算动作中。
     /// </summary>
     public static string LoadPortText(int state)
     {

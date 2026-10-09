@@ -39,14 +39,14 @@ public interface ITransferStation
     bool Transferring();
 
     /// <summary>
-    /// 标记本轮完成：先落 TransferComplete 并发布，随即回落锚点态，并回调 OnTransferFinished。
+    /// 标记本轮完成：先落 TransferComplete 并发布，随即回落待命态，并回调 OnTransferFinished。
     /// 状态不符返回 false。
     /// </summary>
     bool TransferComplete();
 
     /// <summary>
-    /// 撤回本轮：准备做了（PreTransfer / TransferReady）但机械手还没伸手，这一趟不搬了，站点回锚点态、可以再被服务。
-    /// 已经在交互（Transferring）或收尾的不撤——片可能动过，留着等人工确认；本来就在锚点态（没占着）返回 true。
+    /// 撤回本轮：准备做了（PreTransfer / TransferReady）但机械手还没伸手，这一趟不搬了，站点回待命态、可以再被服务。
+    /// 已经在交互（Transferring）或收尾的不撤——片可能动过，留着等人工确认；本来就在待命态（没占着）返回 true。
     /// </summary>
     bool CancelTransfer();
 

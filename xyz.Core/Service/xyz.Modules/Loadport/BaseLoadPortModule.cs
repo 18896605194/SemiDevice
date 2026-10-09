@@ -15,8 +15,6 @@ namespace xyz.Modules;
 
 public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 {
-
-
     #region SV 
 
     /// <summary>
@@ -156,16 +154,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Component
 
-    private CarrierComponent? _carrier;
-
     public LoadPortDriverComponent? _driver { get; private set; }
 
-    public RfidDriverComponent? _rfid => FindChild<RfidDriverComponent>();
+    public ICarrierIdReader? _rfid { get; private set; }
 
-    /// <summary>
-    /// E84 交接组件；没配（本机型没有 E84）或 sc.xml 里 IsEnable=False（本机没接搬运车）为 null——
-    /// 端口就当没有 E84：不打开、不每拍推、不读写 IO。
-    /// </summary>
+    public ICarrier _carrier { get; private set; } = null!;
+
     public IE84? E84
     {
         get
@@ -177,53 +171,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #endregion
 
-    /// <summary>
-    /// loapdort 状态数据，从驱动读取
-    /// </summary>
+    #region 状态信息
+
     private volatile LoadPortStatus? _status;
 
-    /// <summary>
-    /// 最近一次成功查询的设备状态
-    /// </summary>
     public LoadPortStatus? Status
     {
         get => _status;
         protected set => _status = value;
     }
-
-
-
-    #region 载具
-
-    
-
-    /// <summary>
-    /// 端口上这一盒载具（sc.xml 挂在本模块下的 Carrier 子节点）：到了没有、ID、槽图、取放状态都在它那儿，端口不再另放一份。
-    /// 第一次用到时找到并挂上（把自己、读头和 E87 上报的入队口交给它）；没配就抛——端口不能带着缺口跑，开机就让人看到。
-    /// </summary>
-    public CarrierComponent Carrier
-    {
-        get
-        {
-            var carrier = _carrier;
-            if (carrier is not null)
-            {
-                return carrier;
-            }
-
-            carrier = FindChild<CarrierComponent>();
-            if (carrier is null)
-            {
-                throw new InvalidOperationException($"LoadPort {Name} 的 sc.xml 节点下没配 Carrier 子组件（Type=xyz.Modules.CarrierComponent）。");
-            }
-
-            carrier.Attach(this, () => _rfid, EnqueueE87);
-            _carrier = carrier;
-            return carrier;
-        }
-    }
-
-    ICarrier ILoadPort.Carrier => Carrier;
 
     #endregion
 
@@ -233,29 +189,40 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 传片环锚点态：LoadPort 已装载（Loaded）即可被机械手服务。
+    /// 传片环待命态：LoadPort 已装载（Loaded）即可被机械手服务。
     /// </summary>
-    protected override int AnchorState => LoadPortState.Loaded;
+    protected override int StandbyState => LoadPortState.Loaded;
 
     #region 组件初始化与驱动连接
 
     /// <summary>
-    /// 组件初始化（开机，由装配在 Start 之前调用）：载具组件没配就抛；登记晶圆账槽位、挂上驱动的主动事件，
-    /// 然后基类按 InitOrder 把子组件（驱动、读头、E84）各自初始化——连接、E84 输出回初始都在它们自己的 InitComponent 里，
-    /// 这里不再点名。读头、驱动这一次没连上也照样往下走，返回 false 只为开机日志看得到，之后由它们按间隔在后台重连。
-    /// 装机停用（IsEnable=False）的端口什么都不做。
+    /// 组件初始化
     /// </summary>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
     public override bool InitComponent()
     {
-        // 载具组件没配就在这儿抛，开机就暴露（停用的端口也一样：状态推送要用它）。
-        _ = Carrier;
-
         if (!IsEnable)
         {
             return true;
         }
 
-        WaferManagerComponent.Current?.RegisterLoadPort(Name, SlotCount);
+        #region 载具
+
+        var carrier = FindChild<ICarrier>();
+        if (carrier is null)
+        {
+            throw new InvalidOperationException($"LoadPort {Name} 的 sc.xml 节点下没配 _carrier 子组件（实现 ICarrier 的组件，平台默认 Type=xyz.Modules.CarrierComponent）。");
+        }
+
+        // 读头交给载具读码用；没配读头为 null（这个端口不读码，ID 由 Host 给）。
+        _rfid = FindChild<ICarrierIdReader>();
+        carrier.Attach(this, _rfid, EnqueueE87);
+        _carrier = carrier;
+
+        #endregion
+
+        #region LoadPort 驱动
 
         var driver = FindChild<LoadPortDriverComponent>();
         if (driver is not null)
@@ -270,12 +237,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             LogHelper.Error(Name, "sc.xml 未挂品牌驱动组件（_driver 子节点），无法打开");
         }
 
+        #endregion
+
+        ///晶圆账注册
+        WaferManagerComponent.Current?.RegisterLoadPort(Name, SlotCount);
+
         bool childrenInitialized = base.InitComponent();
         return driver is not null && childrenInitialized;
     }
 
     /// <summary>
-    /// 关闭 _rfid 读头与驱动连接；与组件初始化成对，宿主退出时调用（当前宿主常驻，暂无调用点）。
+    /// 关闭 _rfid 和loadport
     /// </summary>
     public void Close()
     {
@@ -283,17 +255,21 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         _driver?.Close();
     }
 
+    /// <summary>
+    /// 在位和移除事件回调
+    /// </summary>
+    /// <param name="evt"></param>
     private void OnDeviceEvent(LoadPortDeviceEvent evt)
     {
-        // 在驱动路由线程回调，只记下设备说的放上 / 拿走；认不认、算不算到达拿走，由载具在扫描线程上按 SC PresenceSource 判。
+        
         switch (evt.Kind)
         {
             case LoadPortDeviceEventKind.PodPresent:
-                NotePodEvent(true);
+                SetDeviceReportedPlaced(true);
                 break;
 
             case LoadPortDeviceEventKind.PodRemoved:
-                NotePodEvent(false);
+                SetDeviceReportedPlaced(false);
                 break;
         }
     }
@@ -303,45 +279,44 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region 设备上报的放上 / 拿走（转给载具）
 
     /// <summary>
-    /// 设备主动报的放上 / 拿走（PODON / PODOF）转给载具；机型有别的上报路子也调它。
-    /// 在位怎么判（状态查询的两位、还是设备上报）是载具的事，见 CarrierComponent 的 SC PresenceSource。
+    /// 记录到位
     /// </summary>
-    protected void NotePodEvent(bool placed)
+    /// <param name="placed"></param>
+    protected void SetDeviceReportedPlaced(bool placed)
     {
-        Carrier.NoteDeviceEvent(placed);
+        _carrier.SetDeviceReportedPlaced(placed);
     }
 
     #endregion
 
     #region 设备状态查询（每拍一条：Query 判在位、设备报警、界面的设备反馈都靠它）
 
-    private LoadPortCommand? _statusQuery;
+    private LoadPortCommand? _loadPortQuery;
     private readonly Stopwatch _statusQueryWatch = new();
 
     private bool _isStatusQueryLate;
 
-    private void PollStatus()
+    private void LoopQueryStatus()
     {
-        var driver = _driver;
-        if (!IsEnable || driver is null)
+        if (!IsEnable || _driver is null)
         {
             return;
         }
 
-        if (!driver.IsConnected)
+        if (!_driver.IsConnected)
         {
             Status = null;
-            _statusQuery = null;
+            _loadPortQuery = null;
             return;
         }
 
-        var query = _statusQuery;
+        var query = _loadPortQuery;
         if (query is null)
         {
-            query = driver.QueryStatus();
+            query = _driver.QueryStatus();
             if (query is not null)
             {
-                _statusQuery = query;
+                _loadPortQuery = query;
                 _statusQueryWatch.Restart();
             }
 
@@ -350,7 +325,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         if (query.IsCompleted)
         {
-            _statusQuery = null;
+            _loadPortQuery = null;
             var response = query.Response;
             if (response is not null && response.IsSuccess && response.Status is not null)
             {
@@ -371,8 +346,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        driver.Abandon(query, "Timeout");
-        _statusQuery = null;
+        _driver.Abandon(query, "Timeout");
+        _loadPortQuery = null;
         Status = null;
         if (!_isStatusQueryLate)
         {
@@ -389,7 +364,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public LoadPortDto CreateStateDto()
     {
-        var carrier = Carrier;
+        var carrier = _carrier;
         var info = carrier.Info;
         var dto = new LoadPortDto
         {
@@ -409,10 +384,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             CarrierAccessStatus = info?.AccessStatus ?? CarrierAccessStatus.NotAccessed,
         };
 
-        var driver = _driver;
-        if (driver is not null)
+        if (_driver is not null)
         {
-            dto.IsConnected = driver.IsConnected;
+            dto.IsConnected = _driver.IsConnected;
         }
 
         var status = Status;
@@ -491,7 +465,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     protected void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
     {
-        Carrier.NoteMapped(slotMap);
+        _carrier.NoteMapped(slotMap);
     }
 
     /// <summary>
@@ -604,13 +578,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override bool CanBeginAction => IsEnable && _driver is not null;
 
     /// <summary>
-    /// Load 联锁：现在能不能发 Load。平台默认看载具到了没有（Carrier.IsArrived）——没载具设备只会回错，白白落 Error、报受控停止。
+    /// Load 联锁：现在能不能发 Load。平台默认看载具到了没有（_carrier.IsArrived）——没载具设备只会回错，白白落 Error、报受控停止。
     /// 机型有别的条件（光幕、机械手缩回……）就重写，先调 base。在 Begin 里查，手动、E87 自动 Load、机型重写的 Load 都过这一关。
     /// 在模块锁里调：里面只读状态，别等待、别去拿别的模块的锁。
     /// </summary>
     protected virtual bool LoadInterlock()
     {
-        return Carrier.IsArrived;
+        return _carrier.IsArrived;
     }
 
     /// <summary>
@@ -655,7 +629,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             string reason = operation.Reason;
 
             // 取放途中出错：这个载具算没干完，记中断（还没开始取放的载具不动）。
-            Carrier.NoteFault();
+            _carrier.NoteFault();
             EnqueueE87(callback => callback.PortError(this, reason));
             return;
         }
@@ -665,13 +639,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             case LoadPortAction.Load:
                 // 门已开、槽图读了，就算开始取放（照老 CTC）。
                 EnqueueE87(callback => callback.LoadCompleted(this));
-                Carrier.NoteLoaded();
+                _carrier.NoteLoaded();
                 break;
 
             case LoadPortAction.Unload:
-                // 门已关，取放结束。干完没干完不由这里判——上层作业调 Carrier.NoteComplete 才算完成；
+                // 门已关，取放结束。干完没干完不由这里判——上层作业调 _carrier.NoteComplete 才算完成；
                 // 取放过、没判完成就 Unload 了，载具算中断（E87 CARRIER STOPPED），已经 Complete/Stopped 的保持原样。
-                Carrier.NoteUnloaded();
+                _carrier.NoteUnloaded();
                 EnqueueE87(callback => callback.UnloadCompleted(this));
                 break;
 
@@ -702,7 +676,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        if (status.IsDoorOpen && Carrier.IsArrived)
+        if (status.IsDoorOpen && _carrier.IsArrived)
         {
             State = LoadPortState.Loaded;
             return;
@@ -746,7 +720,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        foreach (var report in e84.Step(CurrentE84Permit(), Carrier.IsArrived))
+        foreach (var report in e84.Step(CurrentE84Permit(), _carrier.IsArrived))
         {
             EnqueueE84(callback => report.DispatchTo(callback, this));
         }
@@ -791,7 +765,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
                 return LoadPortTransferState.TransferBlocked;
             }
 
-            var carrier = Carrier;
+            var carrier = _carrier;
             if (!carrier.IsArrived)
             {
                 return LoadPortTransferState.ReadyToLoad;
@@ -814,14 +788,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 载具可以取放片：模块已启用、载具已到位且 Load 完成（门开着，端口的事），载具这边也认可了（Carrier.IsAccepted：
+    /// 载具可以取放片：模块已启用、载具已到位且 Load 完成（门开着，端口的事），载具这边也认可了（_carrier.IsAccepted：
     /// 接了 EAP 的槽图要等 Host 认定，没接 EAP 没人核对，Load 好就算）；正被机械手服务时仍然可用。
     /// </summary>
     public bool IsCarrierReady
     {
         get
         {
-            var carrier = Carrier;
+            var carrier = _carrier;
             return IsEnabled && carrier.IsArrived && IsLoaded && carrier.IsAccepted;
         }
     }
@@ -839,8 +813,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override void OnScan()
     {
         base.OnScan();
-        PollStatus();
-        Carrier.Sense(Status?.IsPresent, Status?.IsPlaced);
+        LoopQueryStatus();
+        _carrier.Sense(Status?.IsPresent, Status?.IsPlaced);
         StepE84();
         CheckDeviceAlarm();
         PublishState();

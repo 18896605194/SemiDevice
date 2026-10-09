@@ -505,7 +505,7 @@ ol.steps h4 { margin: 2px 0 4px; font-size: 15px; }
             <tr><th>组件</th><th>给模块用的</th></tr>
             <tr><td><code>LoadPortDriverComponent</code></td><td><code>Load()</code>、<code>Unload()</code>、<code>Home()</code>、<code>Clamp()</code>、<code>Unclamp()</code>、<code>Stop()</code>、<code>ResetDrive()</code>、<code>QueryStatus()</code>、<code>QueryVersion()</code>：发一条指令，受理了返回指令对象，被拒返回 null；<code>DeviceEvent</code> 设备主动事件；<code>Abandon</code> / <code>AbandonAll</code></td></tr>
             <tr><td><code>FcdLoadPortComponent</code></td><td>FCD 品牌壳，只决定造哪条 FCD 指令</td></tr>
-            <tr><td><code>RfidDriverComponent</code> / <code>FcdRfidComponent</code></td><td><code>BeginRead()</code> 只发起，结果模块每拍 <code>TakeResult()</code> 取；读码超时（EC）作废在途</td></tr>
+            <tr><td><code>RfidDriverComponent</code> / <code>FcdRfidComponent</code></td><td><code>StartReadCarrierId()</code> 只发起，结果模块每拍 <code>GetCarrierIdResult()</code> 取；读码超时（EC）作废在途</td></tr>
             <tr><td><code>DriverReconnector</code></td><td>LoadPort 驱动和 RFID 共用的断线重连</td></tr>
           </table>
         </div>
@@ -590,7 +590,7 @@ ol.steps h4 { margin: 2px 0 4px; font-size: 15px; }
 
         <h3>站点环和端口搬运状态</h3>
         <ul>
-          <li>LoadPort 是机械手的站点，锚点状态是 Loaded（门开着才能取放）。机械手第一次来取放，载具进 IN ACCESS（E87 的"在取放"）。</li>
+          <li>LoadPort 是机械手的站点，待命态是 Loaded（门开着才能取放）。机械手第一次来取放，载具进 IN ACCESS（E87 的"在取放"）。</li>
           <li><code>LocalTransferState</code> 是端口自己判的搬运状态，E84 和 E87 都看它：停用、下线、没初始化、出错 → 停用；在忙 → 挡着；空闲没盒 → 等送盒；空闲有盒且这一盒干完或中断 → 等取走。</li>
         </ul>
 
@@ -802,7 +802,7 @@ public class LoadPortModule : BaseLoadPortModule, ILoadPort
         <h2>跟 Job、搬运管理、全部回片的关系</h2>
         <ul>
           <li><b>Job</b>：建 Job 要求载具能取片（载具到了，并且是 Loaded 或正在被机械手服务）；取片顺序看 EC <code>PickOrder</code>；CJ 结束时调 <code>NoteCarrierComplete</code>，告诉 LoadPort 这一盒干完了；载具拿走（或换了一个）以后，完成的 CJ 才删。</li>
-          <li><b>搬运管理</b>：LoadPort 是一个站点，取放片走站点环，锚点是 Loaded；整机 Stop 时由搬运管理收场。</li>
+          <li><b>搬运管理</b>：LoadPort 是一个站点，取放片走站点环，待命态是 Loaded；整机 Stop 时由搬运管理收场。</li>
           <li><b>全部回片</b>：片回它来源 LoadPort 的同号槽，要求那个口载具到了且是 Loaded；片记着的载具号跟现在的对不上就不放。</li>
           <li><b>晶圆账</b>：Open 时登记这个口的槽位；Load 成功整篮重建；载具拿走清掉；重启后不恢复 LoadPort 上的片，以开机 Mapping 为准。</li>
         </ul>

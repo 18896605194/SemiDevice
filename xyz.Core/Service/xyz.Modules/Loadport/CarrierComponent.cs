@@ -5,6 +5,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Drivers.Loadport;
 using xyz.Shared.Dtos;
 
@@ -18,11 +19,11 @@ public class CarrierComponent : ComponentBase, ICarrier
 {
     #region SC
 
-    [SCEditor("Query", "Carrier",
+    [SCEditor("Query", "_carrier",
         "载具在位以什么为准：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化）；Event = 设备主动上报（PODON 放上 / PODOF 拿走）")]
     public PodPresenceSource PresenceSource { get; set; } = PodPresenceSource.Query;
 
-    [SCEditor("True", "Carrier", "载具到位后自动读码（False=只由上层/EAP 显式触发）")]
+    [SCEditor("True", "_carrier", "载具到位后自动读码（False=只由上层/EAP 显式触发）")]
     public bool AutoReadCarrierId { get; set; } = true;
 
     #endregion
@@ -78,10 +79,15 @@ public class CarrierComponent : ComponentBase, ICarrier
 
     private readonly object _gate = new();
     private volatile CarrierInfo? _info;
-    private volatile bool _eventArrived;
+
+    /// <summary>设备最近一次主动报的是放上（PODON）还是拿走（PODOF）；只是记下，算不算到达由扫描线程按 PresenceSource 判。</summary>
+    private volatile bool _deviceReportedPlaced;
 
     private ILoadPort? _port;
-    private Func<RfidDriverComponent?>? _findRfid;
+
+    /// <summary>读码器（端口下的兄弟节点，端口挂载时交过来）；没配为 null，这个端口不读码，ID 由 Host 给。</summary>
+    private ICarrierIdReader? _reader;
+
     private Action<Action<IE87Callback>>? _enqueue;
 
     /// <summary>到位后要自动读码，但读头这会儿没发起成功（没连上、或上一次还没读完）：下一拍接着试。只在扫描线程上读写。</summary>
@@ -89,9 +95,6 @@ public class CarrierComponent : ComponentBase, ICarrier
 
     /// <summary>从到位、发现没发起成功起算，等读头的时间；超过读头的读码超时（EC ReadCarrierIdTimeout）就当读码失败。</summary>
     private readonly Stopwatch _autoReadWatch = new();
-
-    /// <summary>读码用的读头（端口下的兄弟节点）；每次现找，不依赖挂载的先后。没配为 null。</summary>
-    private RfidDriverComponent? Rfid => _findRfid?.Invoke();
 
     /// <summary>
     /// 这一盒载具的快照（记录类型，改的时候整个换掉，读的人拿到的不会半截变）；端口上没载具为 null。
@@ -136,27 +139,26 @@ public class CarrierComponent : ComponentBase, ICarrier
         }
     }
 
-    #region 端口调的口（internal，只有 LoadPort 模块调）
+    #region 端口调的口（只有 LoadPort 模块调，EAP 别调）
 
     /// <summary>
-    /// 端口把自己、找读头的办法和 E87 上报的入队口交给它（Carrier 没有父引用，跟 E84 一样由端口驱动）。可以重复调。
+    /// 端口把自己、读码器（没配为 null）和 E87 上报的入队口交给它（载具没有父引用，跟 E84 一样由端口驱动）。可以重复调。
     /// 上报都放进端口给的入队口，跟端口自己的上报走同一条线，先后不乱。
     /// </summary>
-    internal void Attach(ILoadPort port, Func<RfidDriverComponent?> findRfid, Action<Action<IE87Callback>> enqueue)
+    public void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
     {
         ArgumentNullException.ThrowIfNull(port);
-        ArgumentNullException.ThrowIfNull(findRfid);
         ArgumentNullException.ThrowIfNull(enqueue);
         _port = port;
-        _findRfid = findRfid;
+        _reader = reader;
         _enqueue = enqueue;
     }
 
     /// <summary>
     /// 每拍把状态查询的两个传感器位喂进来（null = 这次没查到）：Query 模式两位都亮算放好、都灭算拿走、一亮一灭或查不到保持原判断；
-    /// Event 模式只认 PODON/PODOF（<see cref="NoteDeviceEvent"/>），传感器位不管。判出变化就建 / 清载具并上报，只在端口的扫描线程上调。
+    /// Event 模式只认 PODON/PODOF（<see cref="SetDeviceReportedPlaced"/>），传感器位不管。判出变化就建 / 清载具并上报，只在端口的扫描线程上调。
     /// </summary>
-    internal void Sense(bool? isPresent, bool? isPlaced)
+    public void Sense(bool? isPresent, bool? isPlaced)
     {
         bool arrived = Judge(isPresent, isPlaced);
         if (arrived == IsArrived)
@@ -174,12 +176,10 @@ public class CarrierComponent : ComponentBase, ICarrier
         Remove();
     }
 
-    /// <summary>
-    /// 设备主动报的放上 / 拿走（PODON / PODOF）：在驱动路由线程回调，只记下设备说的；认不认、算不算到达拿走，由扫描线程按 PresenceSource 判。
-    /// </summary>
-    internal void NoteDeviceEvent(bool placed)
+  
+    public void SetDeviceReportedPlaced(bool placed)
     {
-        _eventArrived = placed;
+        _deviceReportedPlaced = placed;
     }
 
     /// <summary>
@@ -187,7 +187,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// 槽图认定状态只往前走：还没读过才转 Read，Host 已经认定（或在等、或判了不过）的，再 Map 一次只更新槽图和账、不动认定状态；
     /// 重置只靠载具拿走或 Host 的 CarrierReCreate。
     /// </summary>
-    internal void NoteMapped(IReadOnlyList<SlotState> slotMap)
+    public void NoteMapped(IReadOnlyList<SlotState> slotMap)
     {
         ArgumentNullException.ThrowIfNull(slotMap);
         if (slotMap.Count == 0)
@@ -207,7 +207,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// <summary>
     /// Load 好了：这个载具进 E87 的 IN ACCESS（照老 CTC，Load 好就算开始取放），报 AccessStarted；已经取放过的不动。
     /// </summary>
-    internal void NoteLoaded()
+    public void NoteLoaded()
     {
         bool started = false;
         lock (_gate)
@@ -230,7 +230,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// Unload 好了，取放结束：取放过、没判完成的记中断（E87 CARRIER STOPPED），已经 Complete / Stopped 的保持原样；报 AccessStopped。
     /// 干完没干完不由这里判——上层作业调 <see cref="NoteComplete"/> 才算完成。
     /// </summary>
-    internal void NoteUnloaded()
+    public void NoteUnloaded()
     {
         MarkStopped();
         NotifyE87((callback, port) => callback.AccessStopped(port));
@@ -240,7 +240,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// 端口的动作没做成（失败、超时、被顶替）：取放途中出错，这个载具算没干完，记中断；还没开始取放的不动它。
     /// 不报 AccessStopped——端口紧接着报 PortError，E87 据此转中断。
     /// </summary>
-    internal void NoteFault()
+    public void NoteFault()
     {
         MarkStopped();
     }
@@ -251,8 +251,8 @@ public class CarrierComponent : ComponentBase, ICarrier
 
     public bool ReadId()
     {
-        var reader = Rfid;
-        return reader is not null && reader.BeginRead();
+        var reader = _reader;
+        return reader is not null && reader.StartReadCarrierId();
     }
 
     public void SetId(string carrierId)
@@ -298,7 +298,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     private void TakeReadResult()
     {
-        var result = Rfid?.TakeResult();
+        var result = _reader?.GetCarrierIdResult();
         if (result is null)
         {
             return;
@@ -306,13 +306,13 @@ public class CarrierComponent : ComponentBase, ICarrier
 
         if (!result.IsSuccess)
         {
-            LogHelper.Warn(Port.Name, $"读码失败: {result.Error}");
+            LogHelper.Warn(Port.Name, $"读码失败: {result.ErrorMessage}");
             UpdateInfo(info => info with { IdStatus = CarrierIdStatus.ReadFailed });
             NotifyE87((callback, port) => callback.CarrierIdReadFailed(port));
             return;
         }
 
-        string carrierId = result.CarrierId;
+        string carrierId = result.Result ?? string.Empty;
         CarrierId = carrierId;
 
         // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
@@ -328,7 +328,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     {
         if (PresenceSource == PodPresenceSource.Event)
         {
-            return _eventArrived;
+            return _deviceReportedPlaced;
         }
 
         if (isPresent is null || isPlaced is null)
@@ -375,8 +375,8 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     private void StartAutoRead()
     {
-        var reader = Rfid;
-        if (reader is null || reader.BeginRead())
+        var reader = _reader;
+        if (reader is null || reader.StartReadCarrierId())
         {
             return;
         }
@@ -403,14 +403,14 @@ public class CarrierComponent : ComponentBase, ICarrier
             return;
         }
 
-        var reader = Rfid;
+        var reader = _reader;
         if (reader is null)
         {
             _autoReadPending = false;
             return;
         }
 
-        if (reader.BeginRead())
+        if (reader.StartReadCarrierId())
         {
             _autoReadPending = false;
             return;

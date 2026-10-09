@@ -231,7 +231,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 抢站点（发准备一）。站点不在锚点态——正被另一台机械手服务、或上一轮还没收尾完——
+    /// 抢站点（发准备一）。站点不在待命态——正被另一台机械手服务、或上一轮还没收尾完——
     /// 会返回 null，这不算失败：下一拍接着抢，等到超时才判负。抢到返回 true。
     /// 两台机械手抢同一个站点靠的就是这个：站点环在锁里校验当前态，只有一台能抢进去。
     /// </summary>
@@ -337,7 +337,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 等取片收尾完成（机械手记完账）。成功后源站点收尾回锚点态；同站点换槽不收尾，接着放。
+    /// 等取片收尾完成（机械手记完账）。成功后源站点收尾回待命态；同站点换槽不收尾，接着放。
     /// 失败不收尾——片可能半挂在手上，这时候关门会撞。站点就卡在 Transferring，挡住后续自动动作，逼人到现场确认。
     /// </summary>
     private void WaitPicked()
@@ -367,7 +367,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 等放片收尾完成。成功后目标站点收尾回锚点态，整趟结束。
+    /// 等放片收尾完成。成功后目标站点收尾回待命态，整趟结束。
     /// </summary>
     private void WaitPlaced()
     {

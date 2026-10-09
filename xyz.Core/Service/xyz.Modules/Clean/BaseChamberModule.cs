@@ -145,7 +145,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     #region 站点环
 
-    protected override int AnchorState => ModuleState.Idle;
+    protected override int StandbyState => ModuleState.Idle;
 
     #endregion
 

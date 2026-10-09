@@ -1,6 +1,6 @@
 ﻿using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Models;
 
 /// <summary>
 /// 载具（FOUP）对象

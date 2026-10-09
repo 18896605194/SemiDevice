@@ -14,7 +14,7 @@ internal sealed class E87Port
     {
         Owner = owner;
         Device = device;
-        Carrier = device.Carrier;
+        Carrier = device._carrier;
         Id = id;
         TransferMachine = new E87TransferStateMachine(this);
         AccessModeMachine = new E87AccessModeStateMachine(this);

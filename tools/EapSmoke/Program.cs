@@ -1108,13 +1108,13 @@ sealed class FakePort : ILoadPort
     {
         Name = name;
         _ledger = ledger;
-        Carrier = new FakeCarrier(this);
+        _carrier = new FakeCarrier(this);
     }
 
     public string Name { get; }
 
     /// <summary>端口上这一盒载具：状态和记录都还在 FakePort 的字段里，这里只是把 ICarrier 的口子转过去。</summary>
-    public ICarrier Carrier { get; }
+    public ICarrier _carrier { get; }
 
     public int State => _loaded ? 110 : 30;
 
@@ -1312,6 +1312,39 @@ sealed class FakePort : ILoadPort
         public void UpdateStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus) => _port.UpdateCarrierStatus(idStatus, slotMapStatus);
 
         public void NoteComplete() => _port.NoteCarrierComplete();
+
+        // 下面是端口那一半：EAP 不读也不调，假端口也不跑端口的扫描，都空着。
+        public CarrierInfo? Info => null;
+
+        public bool IsAccepted => false;
+
+        public void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
+        {
+        }
+
+        public void Sense(bool? isPresent, bool? isPlaced)
+        {
+        }
+
+        public void SetDeviceReportedPlaced(bool placed)
+        {
+        }
+
+        public void NoteMapped(IReadOnlyList<SlotState> slotMap)
+        {
+        }
+
+        public void NoteLoaded()
+        {
+        }
+
+        public void NoteUnloaded()
+        {
+        }
+
+        public void NoteFault()
+        {
+        }
     }
 }
 

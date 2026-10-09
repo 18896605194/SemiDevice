@@ -116,7 +116,7 @@ public abstract class Condition
 
 以"手动取放片要求机械手 Idle"为例：
 
-1. **代码层硬约束**：站点的 `CanPrepare`（State 等于锚点态）、机械手 Pick/Place 的迁移表。设备自身的安全边界，写死，现场改不掉。
+1. **代码层硬约束**：站点的 `CanPrepare`（State 等于待命态 `StandbyState`）、机械手 Pick/Place 的迁移表。设备自身的安全边界，写死，现场改不掉。
 2. **配置层互锁**：Interlock 规则。在硬约束之上加现场规则，可按机型不同配置，价值是在接单处提前挡下并给出清楚原因，
    而不是单子跑到一半被设备拒绝。
 

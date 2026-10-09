@@ -2,12 +2,14 @@
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Rfid;
+using xyz.Shared.Dtos;
 
 namespace xyz.Components.Components;
 
-public abstract class RfidDriverComponent : ComponentBase
+public abstract class RfidDriverComponent : ComponentBase, ICarrierIdReader
 {
     #region SC
 
@@ -114,7 +116,7 @@ public abstract class RfidDriverComponent : ComponentBase
     private readonly Stopwatch _watch = new();
 
     private RfidCommand? _reading;
-    private RfidReadResult? _result;
+    private HandleResult<string>? _result;
 
     public bool IsReading
     {
@@ -131,7 +133,7 @@ public abstract class RfidDriverComponent : ComponentBase
     /// 发起一次读码：只提交指令就返回，结果在后续扫描周期里出。
     /// 任意线程可调（RPC 线程发起、扫描线程收结果）。未连接或上一次还没读完返回 false。
     /// </summary>
-    public bool BeginRead()
+    public bool StartReadCarrierId()
     {
         var driver = Driver;
         if (driver is null || !driver.IsConnected)
@@ -160,8 +162,9 @@ public abstract class RfidDriverComponent : ComponentBase
 
     /// <summary>
     /// 取走最近一次读码结果；还没出结果返回 null。取走即清，同一个结果只会拿到一次。
+    /// 读到了 Result 是载具号，没读到 ErrorMessage 是原因。
     /// </summary>
-    public RfidReadResult? TakeResult()
+    public HandleResult<string>? GetCarrierIdResult()
     {
         lock (_gate)
         {
@@ -204,10 +207,7 @@ public abstract class RfidDriverComponent : ComponentBase
 
             if (command.IsCompleted)
             {
-                var response = command.Response;
-                _result = response is not null && response.IsSuccess
-                    ? RfidReadResult.Success(response.CarrierId ?? string.Empty)
-                    : RfidReadResult.Failure(response?.Error ?? "NoResponse");
+                _result = ToResult(command.Response);
                 _reading = null;
                 _watch.Reset();
                 return;
@@ -221,11 +221,30 @@ public abstract class RfidDriverComponent : ComponentBase
 
             // 超时必须让出驱动的在途位，否则这条指令永远占着，之后再也读不了。
             Driver?.AbandonInflight("Timeout");
-            _result = RfidReadResult.Failure($"读码超时（{timeout}ms）");
+            _result = HandleResult<string>.Fail($"读码超时（{timeout}ms）");
             _reading = null;
             _watch.Reset();
             LogHelper.Warn(Name, $"读码超时（{timeout}ms）");
         }
+    }
+
+    /// <summary>
+    /// 读码指令的回复转成结果：读到了 Result 是载具号，没读到 ErrorMessage 是原因。
+    /// 原因不能是空串：HandleResult 看 ErrorMessage 空不空判成败，空着会被当成读到了。
+    /// </summary>
+    private static HandleResult<string> ToResult(RfidResponse? response)
+    {
+        if (response is null)
+        {
+            return HandleResult<string>.Fail("读头没回复");
+        }
+
+        if (response.IsSuccess)
+        {
+            return HandleResult<string>.Success(response.CarrierId ?? string.Empty);
+        }
+
+        return HandleResult<string>.Fail(string.IsNullOrEmpty(response.Error) ? "读头回了失败，没带原因" : response.Error);
     }
 
     #endregion
@@ -239,24 +258,4 @@ public abstract class RfidDriverComponent : ComponentBase
     protected abstract RfidCommand CreateReadCarrierIdCommand();
 
     #endregion
-}
-
-
-/// <summary>
-/// 一次读码的结果。
-/// </summary>
-/// <param name="IsSuccess">是否读到。</param>
-/// <param name="CarrierId">载具 ID，失败时为空。</param>
-/// <param name="Error">失败原因，成功时为空。</param>
-public sealed record RfidReadResult(bool IsSuccess, string CarrierId, string Error)
-{
-    public static RfidReadResult Success(string carrierId)
-    {
-        return new RfidReadResult(true, carrierId, string.Empty);
-    }
-
-    public static RfidReadResult Failure(string error)
-    {
-        return new RfidReadResult(false, string.Empty, error);
-    }
 }

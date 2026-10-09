@@ -90,7 +90,7 @@ public static class ErrorCodes
 
     #region 搬运
 
-    /// <summary>站点等不到可服务（一直没回到锚点态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>
+    /// <summary>站点等不到可服务（一直没回到待命态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>
     public const string StationBusy = "transfer.station_busy";
 
     /// <summary>站点准备被拒（状态不允许）。Args: [站点名, 第几步准备（1 粗准备、2 开门放行）]</summary>

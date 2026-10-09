@@ -146,7 +146,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return Task.FromResult(port.Carrier.ReadId()
+        return Task.FromResult(port._carrier.ReadId()
             ? RpcResponse.Ok()
             : RpcResponse.Fail(ErrorCodes.ReadCarrierIdRejected, [module]));
     }

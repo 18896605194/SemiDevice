@@ -7,6 +7,7 @@ using xyz.Drivers.Rfid.FCD;
 using xyz.Drivers.Rfid.FCD.Commands;
 using xyz.Components.Components;
 using xyz.Modules;
+using xyz.Shared.Dtos;
 
 // FCD _rfid 读头冒烟：不开硬件，用假读头按真实握手时序对话。
 // 覆盖帧编解码、ENQ/EOT/ACK/NAK 双向握手、块校验、载具 ID 切片、在途位管理与超时。
@@ -73,14 +74,14 @@ var (reader, device) = Build();
 Check(reader.InitComponent(), "假读头的组件初始化应成功（连接写在它自己的 InitComponent 里）");
 Check(reader.Driver is not null && reader.Driver.IsConnected, "驱动应处于已连接");
 
-Check(reader.BeginRead(), "应能发起读码");
+Check(reader.StartReadCarrierId(), "应能发起读码");
 Check(reader.IsReading, "发起后应处于读码在途");
-Check(!reader.BeginRead(), "同一时刻不该受理第二条读码");
+Check(!reader.StartReadCarrierId(), "同一时刻不该受理第二条读码");
 
 var result = PumpUntilResult(reader);
-Check(result is not null && result.IsSuccess, "读码应成功，实际: " + (result?.Error ?? "无结果"));
-Check(result!.CarrierId == "FOUP-0001", $"应切出载具 ID，实际 \"{result.CarrierId}\"");
-Check(reader.TakeResult() is null, "结果取走即清，不该拿到第二次");
+Check(result is not null && result.IsSuccess, "读码应成功，实际: " + (result?.ErrorMessage ?? "无结果"));
+Check(result!.Result == "FOUP-0001", $"应切出载具 ID，实际 \"{result.Result}\"");
+Check(reader.GetCarrierIdResult() is null, "结果取走即清，不该拿到第二次");
 Check(!reader.IsReading, "读完应让出在途位");
 
 // 主机确实按协议发了 0xA0 读标签指令
@@ -90,9 +91,9 @@ Check(FcdRfidProtocol.TryUnwrapBlock(sent!, out byte sentId, out byte[] sentData
     "读码指令应是 0xA0 + 起始页 0");
 
 // 在途位已让出：第二次读码照样能走
-Check(reader.BeginRead(), "第一次读完后应能再读");
+Check(reader.StartReadCarrierId(), "第一次读完后应能再读");
 result = PumpUntilResult(reader);
-Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001", "第二次读码也应成功");
+Check(result is not null && result.IsSuccess && result.Result == "FOUP-0001", "第二次读码也应成功");
 
 // ── 4. 载具 ID 切片：起始偏移与长度 ──────────────────────────────────────
 {
@@ -101,10 +102,10 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     sliced.IdLength = 4;
     tag.TagMemory = Encoding.ASCII.GetBytes("FOUP-0001       ");
     sliced.InitComponent();
-    sliced.BeginRead();
+    sliced.StartReadCarrierId();
     var slicedResult = PumpUntilResult(sliced);
-    Check(slicedResult is not null && slicedResult.IsSuccess && slicedResult.CarrierId == "0001",
-        $"应按 IdStart/IdLength 切片，实际 \"{slicedResult?.CarrierId}\"");
+    Check(slicedResult is not null && slicedResult.IsSuccess && slicedResult.Result == "0001",
+        $"应按 IdStart/IdLength 切片，实际 \"{slicedResult?.Result}\"");
 }
 
 // 尾部填充要去掉
@@ -112,10 +113,10 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     var (padded, tag) = Build();
     tag.TagMemory = Encoding.ASCII.GetBytes("ABC\0\0\0\0\0\0\0\0\0\0\0\0\0");
     padded.InitComponent();
-    padded.BeginRead();
+    padded.StartReadCarrierId();
     var paddedResult = PumpUntilResult(padded);
-    Check(paddedResult is not null && paddedResult.IsSuccess && paddedResult.CarrierId == "ABC",
-        $"标签尾部的空格与 NUL 应去掉，实际 \"{paddedResult?.CarrierId}\"");
+    Check(paddedResult is not null && paddedResult.IsSuccess && paddedResult.Result == "ABC",
+        $"标签尾部的空格与 NUL 应去掉，实际 \"{paddedResult?.Result}\"");
 }
 
 // ── 5. 设备回错误块 0x63 ────────────────────────────────────────────────
@@ -123,12 +124,12 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     var (failing, tag) = Build();
     tag.ErrorCode = 0x02;
     failing.InitComponent();
-    failing.BeginRead();
+    failing.StartReadCarrierId();
     var errorResult = PumpUntilResult(failing);
     Check(errorResult is not null && !errorResult.IsSuccess, "错误块应落读码失败");
-    Check(errorResult!.Error == "ERR02", $"应带出设备错误码，实际 \"{errorResult.Error}\"");
+    Check(errorResult!.ErrorMessage == "ERR02", $"应带出设备错误码，实际 \"{errorResult.ErrorMessage}\"");
     Check(!failing.IsReading, "失败后也要让出在途位");
-    Check(failing.BeginRead(), "失败之后应还能再读");
+    Check(failing.StartReadCarrierId(), "失败之后应还能再读");
 }
 
 // ── 6. 读头拒收（NAK）──────────────────────────────────────────────────
@@ -136,10 +137,10 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     var (rejected, tag) = Build();
     tag.RejectCommand = true;
     rejected.InitComponent();
-    rejected.BeginRead();
+    rejected.StartReadCarrierId();
     var nakResult = PumpUntilResult(rejected);
-    Check(nakResult is not null && !nakResult.IsSuccess && nakResult.Error == "NAK",
-        $"读头拒收应立刻落失败而不是干等超时，实际 \"{nakResult?.Error}\"");
+    Check(nakResult is not null && !nakResult.IsSuccess && nakResult.ErrorMessage == "NAK",
+        $"读头拒收应立刻落失败而不是干等超时，实际 \"{nakResult?.ErrorMessage}\"");
 }
 
 // ── 7. 结果块校验和坏掉：主机应回 NAK，不能把坏数据当 ID ──────────────────
@@ -147,10 +148,10 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     var (corrupt, tag) = Build();
     tag.CorruptChecksum = true;
     corrupt.InitComponent();
-    corrupt.BeginRead();
+    corrupt.StartReadCarrierId();
     Pump(corrupt, 500);
     Check(Volatile.Read(ref tag.HostNakCount) > 0, "校验不过的块主机应回 NAK");
-    Check(corrupt.TakeResult() is null, "坏块不该产生读码结果");
+    Check(corrupt.GetCarrierIdResult() is null, "坏块不该产生读码结果");
     Check(corrupt.IsReading, "坏块不终结指令，应继续等到超时");
 }
 
@@ -175,7 +176,7 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
             $"0x66 应走主动事件上抛，实际 {events.Count} 条");
     }
 
-    Check(listening.TakeResult() is null, "主动事件不该产生读码结果");
+    Check(listening.GetCarrierIdResult() is null, "主动事件不该产生读码结果");
 }
 
 // ── 9. 超时：读头不回结果 ───────────────────────────────────────────────
@@ -183,16 +184,16 @@ Check(result is not null && result.IsSuccess && result.CarrierId == "FOUP-0001",
     var (silent, tag) = Build();
     tag.SwallowResult = true;
     silent.InitComponent();
-    Check(silent.BeginRead(), "应能发起读码");
+    Check(silent.StartReadCarrierId(), "应能发起读码");
 
     int timeout = silent.ReadCarrierIdTimeout;
     Check(timeout == 5000, $"读码超时默认应为 5000ms，实际 {timeout}");
 
     var timedOut = PumpUntilResult(silent, timeout + 1500);
     Check(timedOut is not null && !timedOut.IsSuccess, "读头不回结果应落超时失败");
-    Check(timedOut!.Error.Contains("超时"), $"失败原因应说明是超时，实际 \"{timedOut.Error}\"");
+    Check(timedOut!.ErrorMessage.Contains("超时"), $"失败原因应说明是超时，实际 \"{timedOut.ErrorMessage}\"");
     Check(!silent.IsReading, "超时后必须让出在途位");
-    Check(silent.BeginRead(), "超时之后应还能再发起读码——在途位没让出来的话这里会挂");
+    Check(silent.StartReadCarrierId(), "超时之后应还能再发起读码——在途位没让出来的话这里会挂");
 }
 
 // ── 10. 其它指令：版本与状态 ────────────────────────────────────────────
@@ -236,13 +237,13 @@ static void Pump(SmokeRfidReader reader, int milliseconds)
     }
 }
 
-static RfidReadResult? PumpUntilResult(SmokeRfidReader reader, int milliseconds = 2000)
+static HandleResult<string>? PumpUntilResult(SmokeRfidReader reader, int milliseconds = 2000)
 {
     var deadline = Environment.TickCount + milliseconds;
     while (Environment.TickCount < deadline)
     {
         reader.Tick();
-        var result = reader.TakeResult();
+        var result = reader.GetCarrierIdResult();
         if (result is not null)
         {
             return result;

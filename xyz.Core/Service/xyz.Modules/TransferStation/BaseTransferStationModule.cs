@@ -10,12 +10,13 @@ namespace xyz.Modules;
 /// </summary>
 public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 {
-    #region 锚点（环的起终点定义）
+    #region 待命态（传片环的起点和终点）
 
     /// <summary>
-    /// 工位就绪、可被机械手服务的状态 ,有的是idle，有的是loaded类似这种
+    /// 待命态：站点空着、机械手可以来取放片的状态，传片环从这里出发、做完回到这里。
+    /// 各站点不一样：腔体是 Idle，LoadPort 是 Loaded（载具装好了才能取放）。
     /// </summary>
-    protected virtual int AnchorState => ModuleState.Idle;
+    protected virtual int StandbyState => ModuleState.Idle;
 
     #endregion
 
@@ -26,14 +27,14 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     /// </summary>
     public abstract int SlotCount { get; set; }
 
-    public virtual bool CanPrepare => State == AnchorState;
+    public virtual bool CanPrepare => State == StandbyState;
 
     /// <summary>
     /// 准备一
     /// </summary>
     public virtual ModuleOperation? PrepareTransfer()
     {
-        return TransferStep(AnchorState, TransferModuleState.PreTransfer)
+        return TransferStep(StandbyState, TransferModuleState.PreTransfer)
             ? new NoOpOperation("PrepareTransfer")
             : null;
     }
@@ -61,8 +62,8 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     /// </summary>
     public bool TransferComplete()
     {
-        // 只落到 TransferComplete 就交给钩子。收尾期间不能是锚点态——
-        // 锚点态的意思是"我空闲、可以被服务"，门还在关就说这句话，调度器会把机械手再派过来。
+        // 只落到 TransferComplete 就交给钩子。收尾期间不能是待命态——
+        // 待命态的意思是"我空闲、可以被服务"，门还在关就说这句话，调度器会把机械手再派过来。
         if (!TransferStep(TransferModuleState.Transferring, TransferModuleState.TransferComplete))
         {
             return false;
@@ -74,12 +75,12 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
 
     /// <summary>
     /// 撤回本轮：只在准备阶段（PreTransfer / TransferReady）撤，交给钩子收回准备做过的事；
-    /// 在锚点态说明没占着，直接算撤好了；交互中、收尾中、报错的都不撤。
+    /// 在待命态说明没占着，直接算撤好了；交互中、收尾中、报错的都不撤。
     /// </summary>
     public bool CancelTransfer()
     {
         int state = State;
-        if (state == AnchorState)
+        if (state == StandbyState)
         {
             return true;
         }
@@ -119,21 +120,21 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     #region 钩子（子类扩展点）
 
     /// <summary>
-    /// 一轮传片完成后的收尾钩子。默认没有收尾动作，直接回锚点态。
+    /// 一轮传片完成后的收尾钩子。默认没有收尾动作，直接回待命态。
     /// 腔体重写：关门、起工艺，收尾真做完了再自己落状态——在那之前一直停在 TransferComplete。
     /// </summary>
     protected virtual void OnTransferFinished()
     {
-        TransferStep(TransferModuleState.TransferComplete, AnchorState);
+        TransferStep(TransferModuleState.TransferComplete, StandbyState);
     }
 
     /// <summary>
-    /// 撤回本轮的钩子（from 是撤之前的状态）。默认准备阶段什么都没动过，直接回锚点态；
-    /// 准备时开过门、抽过气的站点重写成先收回去，收好了再自己落锚点态。
+    /// 撤回本轮的钩子（from 是撤之前的状态）。默认准备阶段什么都没动过，直接回待命态；
+    /// 准备时开过门、抽过气的站点重写成先收回去，收好了再自己落待命态。
     /// </summary>
     protected virtual void OnTransferCancelled(int from)
     {
-        TransferStep(from, AnchorState);
+        TransferStep(from, StandbyState);
     }
 
     #endregion
