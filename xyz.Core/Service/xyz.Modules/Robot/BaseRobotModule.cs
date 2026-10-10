@@ -125,8 +125,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     private IReadOnlyList<RobotAxisComponent> _axes = [];
     private IReadOnlyList<RobotArmComponent> _arms = [];
-    private readonly Dictionary<string, RobotAxisComponent> _axisByName = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<int, RobotArmComponent> _armByNumber = new();
 
     /// <summary>
     /// 本机械手的轴组件：sc.xml 轴节点的先后就是轴表顺序（查询轮询、界面轴位表都用它）。
@@ -140,22 +138,17 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public IReadOnlyList<RobotArmComponent> Arms => _arms;
 
     /// <summary>
-    /// 手指上是否有片：驱动手指在位主动推送刷新；尚未收到该手指的推送为 null。
-    /// </summary>
-    public bool? HasWafer(int arm)
-    {
-        return _armByNumber.TryGetValue(arm, out var part) ? part.HasWafer : null;
-    }
-
-    /// <summary>
     /// 记下轴坐标。扫描查询回包时调：按轴名写进轴组件，只写缓存不做重活。
     /// </summary>
     protected void NoteAxisPos(string axis, double position)
     {
-        if (_axisByName.TryGetValue(axis, out var part))
+        foreach (var part in _axes)
         {
-            part.NotePosition(position);
-            return;
+            if (string.Equals(part.Name, axis, StringComparison.OrdinalIgnoreCase))
+            {
+                part.NotePosition(position);
+                return;
+            }
         }
 
         LogHelper.Warn(Name, $"轴 {axis} 不在 sc.xml 轴节点里，坐标被忽略");
@@ -255,10 +248,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     private void ResolveParts()
     {
         _axes = [.. FindChildren<RobotAxisComponent>()];
-        _axisByName.Clear();
+        var axisNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var axis in _axes)
         {
-            if (!_axisByName.TryAdd(axis.Name, axis))
+            if (!axisNames.Add(axis.Name))
             {
                 throw new InvalidOperationException($"sc.xml 节点 {FullPath} 下有重名轴 {axis.Name}。");
             }
@@ -269,11 +262,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             LogHelper.Error(Name, "sc.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
         }
 
+        // 手指号 = 列表里的位置（1 起）：唯一、从 1 连续（晶圆账槽位 = 手指号），列表本身就是手指号索引。
         _arms = [.. _axes.OfType<RobotArmComponent>().OrderBy(arm => arm.Number)];
-        _armByNumber.Clear();
-        foreach (var arm in _arms)
+        for (int index = 0; index < _arms.Count; index++)
         {
-            if (arm.Number < 1 || arm.Number > _arms.Count || !_armByNumber.TryAdd(arm.Number, arm))
+            var arm = _arms[index];
+            if (arm.Number != index + 1)
             {
                 throw new InvalidOperationException(
                     $"sc.xml 节点 {arm.FullPath} 的手指号 {arm.Number} 不合法：手指号要唯一、从 1 连续到 {_arms.Count}（晶圆账槽位 = 手指号）。");
@@ -287,7 +281,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         {
             foreach (int arm in station.Arms)
             {
-                if (!_armByNumber.ContainsKey(arm))
+                if (arm < 1 || arm > _arms.Count)
                 {
                     LogHelper.Error(Name, $"sc.xml 站点 {station.Name} 的 Arms 配了 Arm{arm}，但没配这个手指节点");
                 }
@@ -311,9 +305,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         switch (evt.Kind)
         {
             case RobotDeviceEventKind.WaferPresence:
-                if (_armByNumber.TryGetValue(evt.Arm, out var arm))
+                if (evt.Arm >= 1 && evt.Arm <= _arms.Count)
                 {
-                    arm.NoteWaferPresence(evt.HasWafer);
+                    _arms[evt.Arm - 1].NoteWaferPresence(evt.HasWafer);
                 }
                 else
                 {

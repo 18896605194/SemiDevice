@@ -483,8 +483,6 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     public string? DeviceError => null;
 
-    public bool? HasWafer(int arm) => null;
-
     public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);

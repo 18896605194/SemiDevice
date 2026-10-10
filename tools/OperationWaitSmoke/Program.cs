@@ -2591,7 +2591,6 @@ sealed class ProbeTransferRobot : IRobot
     public bool? IsServoOn => null;
     public string? DeviceError => null;
     public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
-    public bool? HasWafer(int arm) => null;
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
     {

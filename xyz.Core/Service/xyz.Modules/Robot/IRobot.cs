@@ -24,11 +24,6 @@ public interface IRobot
     /// </summary>
     string? DeviceError { get; }
 
-    /// <summary>
-    /// 手指上是否有片
-    /// </summary>
-    bool? HasWafer(int arm);
-
     #endregion
 
     #region 站点
