@@ -336,7 +336,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
     别每处都写 `device.Carrier.Xxx`；Host 要重读码走 `Carrier.ReadId()`。载具这一半的上报由 Carrier 经端口交给的入队口发，跟端口自己的上报同一条线。
   - 流程：读到号建对象等 Host（#1、#3），读码失败的 Host 带端口号给号（#1、#4）；ID 认定就 Load；读到槽图一律等 Host（#14）；
     第二次 ProceedWithCarrier 带槽图就比、对不上回 CAACK=3，片号表写晶圆账，槽图认定（#15）通知 E90 建片对象；Load 好就算在取放（#18）；
-    干完了 E87 不自己卸（2026-10-09 起自动 Unload 归 LoadPort 的 SC `AutoUnload`，接不接 EAP 都生效），关着的等 Host CarrierRelease；取消、放行的卸好了端口转等取。
+    干完了 E87 不自己卸（2026-10-09 起自动 Unload 归 LoadPort 的 EC `AutoUnload`，接不接 EAP 都生效），关着的等 Host CarrierRelease；取消、放行的卸好了端口转等取。
   - 搬运状态：`E87TransferStateMachine.Compute` 按 Host 启停用、设备 `LocalTransferState`、放行标记算，`Refresh` 转过去（等送、等取互换中间补挡着）；
     EC `PortPollMs` 定时、每次回调和 Host 动作后都刷；E84 每拍问 `Compute`。
   - S3F17：ProceedWithCarrier、CancelCarrier、CancelCarrierAtPort、CarrierRelease、CarrierReCreate；S3F25：InService / OutOfService / ChangeServiceStatus / ChangeAccess；S3F27。

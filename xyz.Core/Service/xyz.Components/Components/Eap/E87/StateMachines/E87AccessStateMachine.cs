@@ -31,7 +31,7 @@ internal enum E87AccessMessage
 
 /// <summary>
 /// 载具取放状态机（E87 Carrier Accessing Status）：建对象进没取放（#17）、开始取放（#18）、干完（#19）、中断（#20）。
-/// 干完了自动 Unload 不归这里：LoadPort 自己按它的 SC AutoUnload 卸（接不接 EAP 都一样）；关着的等 Host CarrierRelease 或操作员 Unload。
+/// 干完了自动 Unload 不归这里：LoadPort 自己按它的 EC AutoUnload 卸（接不接 EAP 都一样）；关着的等 Host CarrierRelease 或操作员 Unload。
 /// </summary>
 internal sealed class E87AccessStateMachine : E87StateMachine<E87AccessState, E87AccessMessage>
 {

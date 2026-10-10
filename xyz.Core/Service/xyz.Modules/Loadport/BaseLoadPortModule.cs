@@ -39,9 +39,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [SCEditor("25", "LoadPort", "花篮槽数")]
     public override int SlotCount { get; set; } = 25;
 
-    [SCEditor("True", "LoadPort", "Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；False = 等操作员点 Unload 或 Host CarrierRelease")]
-    public bool AutoUnload { get; set; } = true;
-
     [SCEditor("False", "LoadPort",
         "自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：True = 关好门后主动扫一遍（FCD 发 CLDMP）核对，对不上 Unload 判失败、报警；False = 关门就完，不扫、不对账。" +
         "Mapping 是 LoadPort 硬件自带的，这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账")]
@@ -115,6 +112,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         set { SetEcInt(nameof(UnclampTimeout), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "True",
+        description: "Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；False = 等操作员点 Unload 或 Host CarrierRelease")]
+    public bool AutoUnload
+    {
+        get { return bool.TryParse(GetEcString(nameof(AutoUnload)), out var autoUnload) && autoUnload; }
+        set { SetEc(nameof(AutoUnload), value.ToString()); }
+    }
+
     [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "False",
         description: "是否循环跑片（False = 跑完一轮就停）")]
     public bool IsCycle
@@ -178,8 +183,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 设备本身报警", Solution = "检查 LoadPort 硬件/通讯状态")]
     public string LoadPortDeviceAlarm = nameof(LoadPortDeviceAlarm);
 
-    // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条
-    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的、或 Unload 关好门后扫的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home")]
+    // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条；
+    // EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条（只报警）
+    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的、或 Unload 关好门后扫的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
     public string SlotMapAlarm = nameof(SlotMapAlarm);
 
     #endregion
@@ -1010,45 +1016,47 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         _carrier.Sense(Status?.IsPresent, Status?.IsPlaced); //盒子到哦没有
         StepE84(); //E84的推进
         CheckDeviceAlarm();  //检查报警
-        CheckAutoUnload();  //干完了自动 Unload
+        CheckCarrierComplete();  //干完了：自动 Unload，或者只对账
         PublishState();  //推送状态
     }
 
-    #region 自动 Unload
+    #region 干完收尾（自动 Unload / 对账）
 
     /// <summary>上一拍载具的取放状态（没载具为 null），看它从别的变成 Complete 才算"刚干完"。只在扫描线程上读写。</summary>
     private CarrierAccessStatus? _lastAccessStatus;
 
-    /// <summary>载具刚干完、要自动 Unload，还没卸成（机械手在收尾、片没回齐）。只在扫描线程上读写。</summary>
-    private bool _autoUnloadPending;
+    /// <summary>载具刚干完、收尾还没做（机械手在收尾、片没回齐）。只在扫描线程上读写。</summary>
+    private bool _completePending;
 
-    /// <summary>片没回齐、等着卸这件事记过日志了，免得每拍记一条。只在扫描线程上读写。</summary>
-    private bool _autoUnloadWaitLogged;
+    /// <summary>片没回齐、等着收尾这件事记过日志了，免得每拍记一条。只在扫描线程上读写。</summary>
+    private bool _completeWaitLogged;
 
     /// <summary>
-    /// SC AutoUnload 开着时，载具刚干完（Job 做完，Job 管理调载具的 NoteComplete）就 Unload，接不接 EAP 都一样。
-    /// 只认"刚变成干完"这一下：操作员把干完的载具又手动 Load 起来，不会马上又被卸掉。
-    /// 机械手还在取放就等它回到 Loaded；从这个口取出去的片还有在腔体、机械手上的（Job 中止时会有），门一关片就回不来了，等回齐再卸；
-    /// 等的时候端口不再是 Load 着的（出错、被人卸了、Home 了、载具拿走了）就不卸了，交给人处理。
+    /// 载具刚干完（Job 做完或中止，Job 管理调载具的 NoteComplete）的收尾，接不接 EAP 都一样（照 CTC）：
+    /// EC AutoUnload 开着就 Unload；关着不卸，拿 Load 时的槽图跟晶圆账对一遍（<see cref="CheckCompletedSlotMap"/>），盒子等操作员或 Host CarrierRelease。
+    /// 只认"刚变成干完"这一下：操作员把干完的载具又手动 Load 起来，不会马上又被卸掉、又对一遍账。
+    /// 两样都先等：机械手还在取放就等它回到 Loaded；从这个口取出去的片还有在腔体、机械手上的（Job 中止时会有），
+    /// 门一关片就回不来了、账也必然对不上，等回齐。等完了按那时的 EC 定卸还是对账；干完以后才打开 EC 的不补卸。
+    /// 等的时候端口不再是 Load 着的（出错、被人卸了、Home 了、载具拿走了）就不管了，交给人处理。
     /// </summary>
-    private void CheckAutoUnload()
+    private void CheckCarrierComplete()
     {
         var accessStatus = _carrier.Info?.AccessStatus;
-        if (AutoUnload && accessStatus == CarrierAccessStatus.Complete && _lastAccessStatus != CarrierAccessStatus.Complete)
+        if (accessStatus == CarrierAccessStatus.Complete && _lastAccessStatus != CarrierAccessStatus.Complete)
         {
-            _autoUnloadPending = true;
-            _autoUnloadWaitLogged = false;
+            _completePending = true;
+            _completeWaitLogged = false;
         }
 
         _lastAccessStatus = accessStatus;
-        if (!_autoUnloadPending)
+        if (!_completePending)
         {
             return;
         }
 
         if (!IsLoaded || accessStatus != CarrierAccessStatus.Complete)
         {
-            _autoUnloadPending = false;
+            _completePending = false;
             return;
         }
 
@@ -1060,16 +1068,22 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         int outside = CountWafersOutside();
         if (outside > 0)
         {
-            if (!_autoUnloadWaitLogged)
+            if (!_completeWaitLogged)
             {
-                _autoUnloadWaitLogged = true;
-                LogHelper.Warn(Name, $"载具干完了，但从这个口取出去的片还有 {outside} 片不在 LoadPort 上，先不自动 Unload，片回齐了再卸");
+                _completeWaitLogged = true;
+                LogHelper.Warn(Name, $"载具干完了，但从这个口取出去的片还有 {outside} 片不在 LoadPort 上，片回齐了再收尾（自动 Unload 或对账）");
             }
 
             return;
         }
 
-        _autoUnloadPending = false;
+        _completePending = false;
+        if (!AutoUnload)
+        {
+            CheckCompletedSlotMap();
+            return;
+        }
+
         if (Unload() is null)
         {
             LogHelper.Warn(Name, "载具干完了，但现在 Unload 不了（联锁不让或端口在做别的动作），等操作员处理");
@@ -1107,6 +1121,83 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// EC AutoUnload 关着时干完的对账（照 CTC：参数关着时干完不卸，拿 Load 时的槽图跟账对一遍）：不发设备指令，
+    /// 拿 Load 时扫的槽图（载具上存着，取放片不改它）跟晶圆账逐槽对。按片的来处认，流程配方让片回别的 LoadPort 不算错：
+    /// ① Load 时有片的槽，那一片要么还在这一槽，要么在别的 LoadPort 上；② 账上这一槽有片，要么是 Load 时就在这一槽的那一片，要么是别的 LoadPort 来的片
+    /// （别的 Job 把这盒当回片的口）。对不上的（片丢了、换了槽、多出来的）记日志写清是哪几槽，报 Mapping 异常。
+    /// 只报警：端口不落 Error、账不改，等人按实物在账单调整页改。没装晶圆账不对；没有 Load 时的槽图（槽数对不上）没法对，只记日志。
+    /// </summary>
+    private void CheckCompletedSlotMap()
+    {
+        var waferManager = _waferManager;
+        if (waferManager is null || !waferManager.IsEnable)
+        {
+            return;
+        }
+
+        var loadedMap = _carrier.SlotMap;
+        if (loadedMap.Count != SlotCount)
+        {
+            LogHelper.Warn(Name, $"载具干完了，但 Load 时的槽图是 {loadedMap.Count} 槽、sc 配的是 {SlotCount} 槽，没法对账");
+            return;
+        }
+
+        // 从这个口出去、回到别的 LoadPort 上的片，按来处的槽号记下
+        var returnedElsewhere = new HashSet<int>();
+        foreach (var location in waferManager.Locations)
+        {
+            if (!waferManager.IsLoadPort(location.Module) || string.Equals(location.Module, Name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var wafer in waferManager.GetSlots(location.Module))
+            {
+                if (wafer is not null && string.Equals(wafer.SourceLoadPort, Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    returnedElsewhere.Add(wafer.SourceSlot);
+                }
+            }
+        }
+
+        var slots = waferManager.GetSlots(Name);
+        var mismatched = new List<string>();
+        for (int index = 0; index < loadedMap.Count; index++)
+        {
+            int slot = index + 1;
+            var wafer = index < slots.Count ? slots[index] : null;
+            bool hadWafer = loadedMap[index] != SlotState.Empty;
+            bool fromHere = wafer is not null && string.Equals(wafer.SourceLoadPort, Name, StringComparison.OrdinalIgnoreCase);
+            bool isOriginal = fromHere && wafer is not null && wafer.SourceSlot == slot;
+            bool fromOtherPort = wafer is not null && wafer.SourceLoadPort is not null && !fromHere;
+
+            // ① Load 时这一槽的片：还在这一槽，或者回到了别的 LoadPort
+            if (hadWafer && !isOriginal && !returnedElsewhere.Contains(slot))
+            {
+                mismatched.Add($"第 {slot} 槽 Load 时有片、账上找不到这一片");
+                continue;
+            }
+
+            // ② 账上这一槽的片说得清来路：Load 时就在这一槽的那一片，或者别的 LoadPort 来的片
+            if (wafer is not null && !(hadWafer && isOriginal) && !fromOtherPort)
+            {
+                mismatched.Add(fromHere
+                    ? $"第 {slot} 槽账上多了片（是这盒第 {wafer.SourceSlot} 槽的 {wafer.WaferId}）"
+                    : $"第 {slot} 槽账上多了片（{wafer.WaferId}，不是从 LoadPort 来的）");
+            }
+        }
+
+        if (mismatched.Count == 0)
+        {
+            LogHelper.Info(Name, "载具干完了（EC AutoUnload 关着，不卸）：Load 时的槽图跟晶圆账一致");
+            return;
+        }
+
+        LogHelper.Error(Name, $"载具干完了，Load 时的槽图跟晶圆账对不上：{string.Join("；", mismatched)}");
+        RaiseAlarm(SlotMapAlarm);
     }
 
     #endregion

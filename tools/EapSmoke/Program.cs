@@ -532,7 +532,7 @@ Check(w3Attributes.Items[0].Items[1].GetUInt64() == 7 && w3Attributes.Items[1].I
 mark = host.EventCount;
 lp1.Complete();
 await Event("Eap.E87.CarrierSMTrans19", mark, "载具干完（#19）");
-Check(!lp1.UnloadRequested, "E87 不自己卸：干完自动 Unload 归 LoadPort（SC AutoUnload），接不接 EAP 都一样");
+Check(!lp1.UnloadRequested, "E87 不自己卸：干完自动 Unload 归 LoadPort（EC AutoUnload），接不接 EAP 都一样");
 lp1.Unload();
 lp1.UnloadDone();
 await Event("Eap.E87.CarrierClosed", mark, "Unload 好了报门关上");

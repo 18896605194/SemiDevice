@@ -259,7 +259,16 @@
   有交叉片、叠片、认不出的槽 → 账照落（界面看得到哪几槽），Load 判失败（`loadport.slot_map_abnormal`，参数带槽号）。两种都报同一条 `SlotMapAlarm`，不报笼统的动作失败；
   端口落 Error，机械手进不来（交叉片占两槽，取放相邻槽、往账上空着的槽回片都会碰片）。处理：复位、Home、理好片再 Load。
   做法：`LoadPortCommandOperation` 的成功后处理返回 `HandleResult`，失败就按它判动作失败。CTC 是报警但照样落账、端口靠报警进 Error。
-- **Job 做完自动 Unload**（用户："做成 SC，接不接 EAP 都生效"）：LoadPort 的 SC `AutoUnload`（默认 True）；E87 原来的 `AutoUnload` SC 删了，E87 不再自己卸，CarrierRelease 照旧。
+- **Job 做完自动 Unload**（用户："做成 SC，接不接 EAP 都生效"；2026-10-10 用户又要"增加一个 ec"，改成 LoadPort 的 **EC** `AutoUnload`（默认 True），SC 删了）：
+  现场在线开关、Host 也能经 S2F13 / S2F15 读改（CTC 是 SC `LoadPort.IsAutoUnloadWhenJobComplete`，也登记成 ECID 给 Host）；E87 原来的 `AutoUnload` SC 删了，E87 不再自己卸，CarrierRelease 照旧。
+  **EC 关着时干完对账**（2026-10-10，用户："你先补这个"，照 CTC：参数关着时走 `LPAutoCloseDoorRoutine`——名字叫关门，实际不动门，
+  拿 PLC 里 Load 时的槽图跟账对、再给 Host 报 DoorClosed；我们只照搬对账，"门关了"事件不报，门开着报就是假消息）：
+  收尾（`CheckCarrierComplete`）跟自动卸共用等待（机械手回 Loaded、片回齐），等完了按那时的 EC 定：开着 Unload，关着 `CheckCompletedSlotMap`——
+  不发设备指令，拿载具上 Load 时的槽图跟晶圆账逐槽对，**按片的来处认**（流程配方让片回别的 LoadPort 不能误报）：Load 时那一片还在原槽或在别的 LoadPort 上算对，
+  账上的片是 Load 时原槽那一片或别的 LoadPort 来的算对；其余报 `SlotMapAlarm`。**只报警**，端口落不落 Error 用户说"后面再说"；账不改。
+  干完以后才打开 EC 的不补卸。
+  已知漏报、用户定了**先不管**：认"回到别的口"的片只看来处是本口、没分哪一盒，上一盒回到别的口的片那盒还没拿走时，可能把这一盒同一槽少的片遮过去
+  （只漏报不误报；要补就加 `OriginCarrierId` 等于这一盒载具号，载具号为空退回现在的认法）。CTC 只比 0/1 串、不认片，没这个问题，但片回别的口会误报、两槽对调查不出。
   端口每拍看载具取放状态，**刚变成 Complete 那一下**才记要卸（干完的又手动 Load 起来不再卸）；机械手还在取放就等它回 Loaded；
   **从这个口取出去的片还有在腔体、机械手上的先不卸**（我加的：CJ 中止也调 `NoteComplete`，门一关片就回不来，Auto 下天车还可能把盒子取走），回到别的 LoadPort 的算回来了；
   等的时候端口不再是 Load 着的（出错、被人卸了、Home 了）就不卸了，交给人。只认 Complete，不认 Stopped（中断都伴着端口出错，卸不了）。

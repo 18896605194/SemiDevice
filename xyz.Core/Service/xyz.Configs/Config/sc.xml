@@ -178,8 +178,6 @@
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
-			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
-			<Value Name="AutoUnload" Value="True" />
 			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：
 			     True = 关好门后主动扫一遍（FCD 没有带图卸载的指令，先 CULOD 关门、再 CLDMP 扫），对不上判失败、报警；False = 关门就完，不扫、不对账。
 			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账 -->
@@ -237,8 +235,6 @@
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
-			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
-			<Value Name="AutoUnload" Value="True" />
 			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：
 			     True = 关好门后主动扫一遍（FCD 没有带图卸载的指令，先 CULOD 关门、再 CLDMP 扫），对不上判失败、报警；False = 关门就完，不扫、不对账。
 			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账 -->
@@ -489,7 +485,7 @@
 	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
 	     Recipe（E30 工艺程序管理）：Host 用 S7 列、取、下、删流程配方和工艺配方，内容是 JSON，跟本地配方页过同一套检查；配方变了报事件。
 	     Host 那边的配方号就是配方名（两个库的名字不重）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
-	     E87：载具 ID、槽图跟 Host 核对（照老 CTC：ID 认定就 Load，槽图一律等 Host），端口搬运状态、启停用（干完自动 Unload 是 LoadPort 节点的 AutoUnload）。
+	     E87：载具 ID、槽图跟 Host 核对（照老 CTC：ID 认定就 Load，槽图一律等 Host），端口搬运状态、启停用（干完自动 Unload 是 LoadPort 的 EC AutoUnload）。
 	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
 	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
 		<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">

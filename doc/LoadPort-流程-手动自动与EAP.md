@@ -34,7 +34,7 @@
 │  扫描线程（ComponentBase.ScanLoop，50ms 一拍，OnScan 递归子组件）：          │
 │    ① LoopQueryStatus  每拍 GET:STATE，超时作废重发（EC QueryDataTimeOut）   │
 │    ② Carrier.Sense(在位/到位)  ③ StepE84 推一拍  ④ CheckDeviceAlarm        │
-│    ⑤ CheckAutoUnload（Job 干完自动卸）  ⑥ PublishState（事件流推界面）      │
+│    ⑤ CheckCarrierComplete（卸/对账）    ⑥ PublishState（事件流推界面）      │
 │  动作：Begin(动作) → 状态表 LoadPortStateTable + 联锁 → LoadPortCommandOperation│
 ├──────────────┬──────────────────────────┬────────────────────────────────┤
 │CarrierComponent│LoadPortDriverComponent │ E84Component                    │
@@ -116,12 +116,13 @@ sequenceDiagram
 - `JobManager` 建 PJ/CJ → 任务表（一片一行）→ `TransferManager` → 机械手 `Pick/Place` 改晶圆账；
 - CJ 完成或中止收尾时：`JobManager.OnControlJobStateChanged` → `LoadPort(job.LoadPort)?._carrier.NoteComplete()` → `AccessStatus=Complete`、报 E87 `CarrierComplete`（#19）。
 
-**⑦ 自动卸载（AutoUnload）**
-- 端口每拍 `CheckAutoUnload()`：
-  - 只在 `AutoUnload=true` 且**刚变成 Complete 那一下**记要卸（之后人又手动 Load 起来不再卸）；
+**⑦ 干完收尾：自动卸载 / 对账（EC AutoUnload）**
+- 端口每拍 `CheckCarrierComplete()`：
+  - **刚变成 Complete 那一下**记要收尾（之后人又手动 Load 起来不再管）；
   - 等机械手回 `Loaded`；
-  - **从这个口取出去、还在腔体/机械手上的片没回齐就先不卸**（`CountWafersOutside`，Job 中止会有）；
-  - 满足才 `Unload()`。
+  - **从这个口取出去、还在腔体/机械手上的片没回齐就先等**（`CountWafersOutside`，Job 中止会有）；
+  - 等完了看那时的 EC：`AutoUnload=true` → `Unload()`；`= false` → 不卸，`CheckCompletedSlotMap()` 拿 Load 时的槽图跟晶圆账逐槽对（照 CTC 参数关着时的干完对账，不发设备指令）。
+    按片的来处认：Load 时那一片还在原槽、或回到了别的 LoadPort 算对；账上多出来的是别的 LoadPort 来的片也算对；其余报 `SlotMapAlarm`，**只报警**，端口不落 Error、账不改。
 - `Unload()`（自动跑货口径）：
   - SC `AutoRunMapOnUnload = true` → 先 `MOV:CULOD` 关门，关好再 `MOV:CLDMP` 主动扫一遍（FCD 没有带图卸载的指令，两条串在同一个 Unload 动作里：关门没成不扫，扫图没成判失败）→ `CheckUnloadSlotMap()` 逐槽跟晶圆账 `Verify`，对不上判失败 + `SlotMapAlarm` + 端口 Error，**盒子不能就这么被取走**；
   - `= false` → `MOV:CULOD`（直接关门，不扫不对账）。
