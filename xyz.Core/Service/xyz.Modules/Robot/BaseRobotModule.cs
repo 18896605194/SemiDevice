@@ -160,7 +160,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     protected void NoteAxisPos(string axis, double position)
     {
-        foreach (var part in _axes)
+        foreach (var part in Axes)
         {
             if (string.Equals(part.Name, axis, StringComparison.OrdinalIgnoreCase))
             {
@@ -305,8 +305,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
                 break;
 
-                break;
-
             case RobotDeviceEventKind.DeviceError:
                 DeviceError = evt.Content;
                 break;
@@ -323,7 +321,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     private const int SubscribeRetryInterval = 20;
 
     private RobotCommand? _queryCommand;
-    private QueryKind _queryKind;
+    private RobotQueryKind _queryKind;
     private int _queryCount;
     private bool _waferEventSubscribed;
     private string? _queryAxis;
@@ -332,16 +330,6 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     /// <summary>超时 / 恢复只记一次日志：true = 上一次查询超时后还没查到（查到一次就清）。</summary>
     private bool _isStatusQueryLate;
-
-    /// <summary>当前这条只读查询问的是什么；回包按它落模块状态，不认品牌指令类型。</summary>
-    private enum QueryKind
-    {
-        SubscribeWaferEvent,
-        ServoOn,
-        DeviceError,
-        Speed,
-        AxisPos,
-    }
 
     /// <summary>
     /// 设备状态轮询：先订阅手指在位推送，之后轮流查设备报错、伺服使能、速度与轴位；
@@ -422,27 +410,27 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         int count = _queryCount++;
         if (!_waferEventSubscribed && count % SubscribeRetryInterval == 0)
         {
-            _queryKind = QueryKind.SubscribeWaferEvent;
+            _queryKind = RobotQueryKind.SubscribeWaferEvent;
             return robot.SubscribeWaferEvent();
         }
 
         switch (count % 5)
         {
             case 0:
-                _queryKind = QueryKind.DeviceError;
+                _queryKind = RobotQueryKind.DeviceError;
                 return robot.QueryDeviceError();
 
             case 1:
-                _queryKind = QueryKind.ServoOn;
+                _queryKind = RobotQueryKind.ServoOn;
                 return robot.QueryServoOn();
 
             case 2:
-                _queryKind = QueryKind.Speed;
+                _queryKind = RobotQueryKind.Speed;
                 return robot.QuerySpeed();
 
             case 3:
             case 4:
-                _queryKind = QueryKind.AxisPos;
+                _queryKind = RobotQueryKind.AxisPos;
                 var axes = Axes;
                 if (axes.Count == 0)
                 {
@@ -465,7 +453,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         var response = command.Response!;
         switch (_queryKind)
         {
-            case QueryKind.SubscribeWaferEvent:
+            case RobotQueryKind.SubscribeWaferEvent:
                 _waferEventSubscribed = response.IsSuccess;
                 if (!response.IsSuccess)
                 {
@@ -474,7 +462,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
                 break;
 
-            case QueryKind.ServoOn:
+            case RobotQueryKind.ServoOn:
                 if (response.IsSuccess)
                 {
                     IsServoOn = response.ServoOn;
@@ -482,7 +470,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
                 break;
 
-            case QueryKind.DeviceError:
+            case RobotQueryKind.DeviceError:
                 if (response.IsSuccess)
                 {
                     DeviceError = response.DeviceError;
@@ -490,7 +478,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
                 break;
 
-            case QueryKind.Speed:
+            case RobotQueryKind.Speed:
                 if (response.IsSuccess)
                 {
                     Speed = response.Speed;
@@ -498,7 +486,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
                 break;
 
-            case QueryKind.AxisPos:
+            case RobotQueryKind.AxisPos:
                 if (response.IsSuccess && response.Position.HasValue && _queryAxis is not null)
                 {
                     NoteAxisPos(_queryAxis, response.Position.Value);
