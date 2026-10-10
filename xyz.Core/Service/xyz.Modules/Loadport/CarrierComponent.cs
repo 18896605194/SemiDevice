@@ -88,6 +88,9 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// <summary>读码器（端口下的兄弟节点，端口挂载时交过来）；没配为 null，这个端口不读码，ID 由 Host 给。</summary>
     private ICarrierIdReader? _reader;
 
+    /// <summary>晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不给子组件做初始化）为 null。</summary>
+    private WaferManagerComponent? _waferManager;
+
     private Action<Action<IE87Callback>>? _enqueue;
 
     /// <summary>到位后要自动读码，但读头这会儿没发起成功（没连上、或上一次还没读完）：下一拍接着试。只在扫描线程上读写。</summary>
@@ -262,7 +265,7 @@ public class CarrierComponent : ComponentBase, ICarrier
 
         // Host 改写即认定：读到什么不重要了，以 Host 为准。
         UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Verified });
-        WaferManagerComponent.Current?.SetCarrierIdOn(Port.Name, carrierId);
+        _waferManager?.SetCarrierIdOn(Port.Name, carrierId);
     }
 
     public void UpdateStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus)
@@ -281,6 +284,15 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     #endregion
+
+    /// <summary>
+    /// 组件初始化（开机，端口初始化时跟着递归进来）：晶圆账取一次存着，落账、补载具号、清账都用它。
+    /// </summary>
+    public override bool InitComponent()
+    {
+        _waferManager = WaferManagerComponent.Current;
+        return base.InitComponent();
+    }
 
     /// <summary>
     /// 扫描周期：先扫子组件，再收读头读码的结果。读头是端口下的兄弟节点、在 sc.xml 里排在本组件前面，
@@ -317,7 +329,7 @@ public class CarrierComponent : ComponentBase, ICarrier
 
         // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
         UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Read });
-        WaferManagerComponent.Current?.SetCarrierIdOn(Port.Name, carrierId);
+        _waferManager?.SetCarrierIdOn(Port.Name, carrierId);
         NotifyE87((callback, port) => callback.CarrierIdRead(port, carrierId));
     }
 
@@ -442,7 +454,7 @@ public class CarrierComponent : ComponentBase, ICarrier
             _info = null;
         }
 
-        WaferManagerComponent.Current?.Clear(Port.Name);
+        _waferManager?.Clear(Port.Name);
         NotifyE87((callback, port) => callback.CarrierRemoved(port, carrierId));
         RaiseEvent(FoupRemovedEvent);
     }
@@ -483,14 +495,13 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     private void ApplySlotMapToLedger(IReadOnlyList<SlotState> slotMap)
     {
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null)
+        if (_waferManager is null)
         {
             return;
         }
 
         var port = Port;
-        ledger.RegisterLocation(port.Name, port.SlotCount);
+        _waferManager.RegisterLocation(port.Name, port.SlotCount);
 
         var statuses = new WaferStatus?[slotMap.Count];
         for (int index = 0; index < slotMap.Count; index++)
@@ -499,7 +510,7 @@ public class CarrierComponent : ComponentBase, ICarrier
         }
 
         var info = _info;
-        int created = ledger.ApplySlotMap(port.Name, statuses, info?.CarrierId, info?.LotId);
+        int created = _waferManager.ApplySlotMap(port.Name, statuses, info?.CarrierId, info?.LotId);
         LogHelper.Info($"[{port.Name}] Mapping 落账：{created} 片");
     }
 

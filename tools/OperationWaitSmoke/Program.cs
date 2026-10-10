@@ -149,7 +149,9 @@ for (var i = 0; i < 200; i++)
     }, "Concurrent terminal paths produced a mixed result.");
 }
 
-// 跟开机装配一样先做组件初始化：载具组件在这里挂到端口上
+// 跟开机装配一样：晶圆账先装出来，再做组件初始化——端口和载具在组件初始化时取一次账本（_waferManager），
+// 载具组件也在这里挂到端口上
+var ledger = new WaferManagerComponent();
 var port = new ProbePort();
 port.InitComponent();
 var service = new LoadPortService(new ComponentBase[] { port });
@@ -263,7 +265,6 @@ Check(port._carrier.Info is null, "还没放 FOUP 时不该有载具对象");
 port._carrier.SetId("GHOST");
 Check(port._carrier.Info is null, "没有载具时改 ID 不该凭空造出一个载具对象");
 
-var ledger = new WaferManagerComponent();
 port.NotePodPlaced(true);
 port.Tick();
 

@@ -158,6 +158,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     #region 组件初始化
 
     /// <summary>
+    /// 晶圆账：组件初始化时取一次；没配晶圆账、或腔体停用（不登记账）为 null。
+    /// </summary>
+    private WaferManagerComponent? _waferManager;
+
+    /// <summary>
     /// 组件初始化（开机，由装配在 Start 之前调用）：腔体自己只占晶圆账的槽位，不连设备——
     /// 多个腔体通常挂在同一个 PLC 上，连接是那个 PLC 组件的事（它 Open 一次，腔体按地址读写），
     /// 摊到每个腔体里连就变成一台机器开 N 条连接了。子组件照基类的规矩跟着初始化。
@@ -171,7 +176,8 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         }
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
-        WaferManagerComponent.Current?.RegisterLocation(Name, SlotCount);
+        _waferManager = WaferManagerComponent.Current;
+        _waferManager?.RegisterLocation(Name, SlotCount);
         return base.InitComponent();
     }
 
@@ -212,10 +218,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     private List<ChamberSlotDto> CreateSlotDtos()
     {
         IReadOnlyList<WaferInfo?> wafers = [];
-        var manager = WaferManagerComponent.Current;
-        if (manager is not null)
+        if (_waferManager is not null)
         {
-            wafers = manager.GetSlots(Name);
+            wafers = _waferManager.GetSlots(Name);
         }
 
         var slots = new List<ChamberSlotDto>();
@@ -530,7 +535,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         var expected = request.WaferId;
         if (expected is not null)
         {
-            var wafer = WaferManagerComponent.Current?.Get(Name, request.Slot);
+            var wafer = _waferManager?.Get(Name, request.Slot);
             if (wafer is null || wafer.Id != expected.Value)
             {
                 return new ProcessRejection(ErrorCodes.ChamberWaferMismatch, [Name, slot]);
@@ -579,10 +584,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             _processOperation = operation;
             Recipe = request.RecipeName.Trim();
 
-            var ledger = WaferManagerComponent.Current;
-            if (ledger is not null && ledger.HasWafer(Name, request.Slot))
+            if (_waferManager is not null && _waferManager.HasWafer(Name, request.Slot))
             {
-                ledger.SetProcessState(Name, request.Slot, WaferProcessState.InProcess);
+                _waferManager.SetProcessState(Name, request.Slot, WaferProcessState.InProcess);
             }
 
             return operation;
@@ -607,8 +611,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             return;
         }
 
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null || !ledger.HasWafer(Name, request.Slot))
+        if (_waferManager is null || !_waferManager.HasWafer(Name, request.Slot))
         {
             return;
         }
@@ -616,7 +619,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         var state = operation.IsSuccess
             ? WaferProcessState.Completed
             : operation.State == OperationState.Aborted ? WaferProcessState.Aborted : WaferProcessState.Failed;
-        ledger.SetProcessState(Name, request.Slot, state);
+        _waferManager.SetProcessState(Name, request.Slot, state);
     }
 
     #endregion

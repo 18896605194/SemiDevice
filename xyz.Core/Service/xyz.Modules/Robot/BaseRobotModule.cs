@@ -132,6 +132,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public IReadOnlyList<RobotAxisComponent> Axes { get; private set; } = Array.Empty<RobotAxisComponent>();
     public IReadOnlyList<RobotArmComponent> Arms { get; private set; } = Array.Empty<RobotArmComponent>();
 
+    /// <summary>
+    /// 晶圆账：组件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
+    /// </summary>
+    private WaferManagerComponent? _waferManager;
+
     #endregion
 
     #region 站点表
@@ -241,7 +246,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         #endregion
 
         // 晶圆账注册：手指在账里也是槽位，槽号 = 手指号
-        WaferManagerComponent.Current?.RegisterLocation(Name, Arms.Count);
+        _waferManager = WaferManagerComponent.Current;
+        _waferManager?.RegisterLocation(Name, Arms.Count);
 
         bool childrenInitialized = base.InitComponent();
         return robot is not null && childrenInitialized;
@@ -634,7 +640,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             }
 
             _currentStation = config;
-            _intent = new TransferIntent(action, arm, station, slot);
+            _transferIntent = new TransferIntent(action, arm, station, slot);
             return operation;
         }
     }
@@ -692,26 +698,20 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     private sealed record TransferIntent(RobotAction Action, int Arm, string Station, int Slot);
 
-    private TransferIntent? _intent;
+    private TransferIntent? _transferIntent;
 
     private void UpdateLedger(ModuleOperation operation)
     {
-        var intent = _intent;
-        _intent = null;
-        if (intent is null || !operation.IsSuccess)
-        {
-            return;
-        }
-
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null)
+        var intent = _transferIntent;
+        _transferIntent = null;
+        if (intent is null || !operation.IsSuccess || _waferManager is null)
         {
             return;
         }
 
         bool moved = intent.Action == RobotAction.Pick
-            ? ledger.Move(intent.Station, intent.Slot, Name, intent.Arm)
-            : ledger.Move(Name, intent.Arm, intent.Station, intent.Slot);
+            ? _waferManager.Move(intent.Station, intent.Slot, Name, intent.Arm)
+            : _waferManager.Move(Name, intent.Arm, intent.Station, intent.Slot);
 
         // 设备说取放成功，账却移不动（源上没片/目标已有片）：账实不符。
         // 账本自己已经报警了，这里补一条带动作的日志，方便现场对着流水查。

@@ -192,6 +192,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public ICarrier _carrier { get; private set; } = null!;
 
+    /// <summary>
+    /// 晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不登记账）为 null。
+    /// </summary>
+    private WaferManagerComponent? _waferManager;
+
     public IE84? E84
     {
         get
@@ -294,7 +299,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         #endregion
 
         ///晶圆账注册
-        WaferManagerComponent.Current?.RegisterLoadPort(Name, SlotCount);
+        _waferManager = WaferManagerComponent.Current;
+        _waferManager?.RegisterLoadPort(Name, SlotCount);
 
         bool childrenInitialized = base.InitComponent();
         return driver is not null && childrenInitialized;
@@ -656,7 +662,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
-        var ledger = WaferManagerComponent.Current;
         var mismatchedSlots = new List<string>();
         for (int index = 0; index < slotMap.Count; index++)
         {
@@ -664,9 +669,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             var state = slotMap[index];
             bool abnormal = state is SlotState.CrossSlotted or SlotState.DoubleSlotted or SlotState.Undefined;
             bool matched = true;
-            if (ledger is not null && ledger.IsEnable)
+            if (_waferManager is not null && _waferManager.IsEnable)
             {
-                matched = ledger.Verify(Name, slot, state != SlotState.Empty);
+                matched = _waferManager.Verify(Name, slot, state != SlotState.Empty);
             }
 
             if (abnormal || !matched)
@@ -1079,21 +1084,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private int CountWafersOutside()
     {
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null)
+        if (_waferManager is null)
         {
             return 0;
         }
 
         int count = 0;
-        foreach (var location in ledger.Locations)
+        foreach (var location in _waferManager.Locations)
         {
-            if (ledger.IsLoadPort(location.Module))
+            if (_waferManager.IsLoadPort(location.Module))
             {
                 continue;
             }
 
-            foreach (var wafer in ledger.GetSlots(location.Module))
+            foreach (var wafer in _waferManager.GetSlots(location.Module))
             {
                 if (wafer is not null && string.Equals(wafer.SourceLoadPort, Name, StringComparison.OrdinalIgnoreCase))
                 {
