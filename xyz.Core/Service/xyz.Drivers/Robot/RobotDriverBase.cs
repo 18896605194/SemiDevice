@@ -61,13 +61,14 @@ public abstract class RobotDriverBase : IRobotDriver
     }
 
     /// <summary>
-    /// 停止收发并关闭帧通讯。
+    /// 停止收发并关闭帧通讯；在途指令全部作废——旧连接上的回复不会再来了，不作废的话同名指令再也发不出去。
     /// </summary>
     public virtual void Close()
     {
         _rxChannel?.Writer.TryComplete();
         _txChannel?.Writer.TryComplete();
         Communication.Close();
+        AbandonAll("PortClosed");
     }
 
     #endregion
@@ -77,6 +78,7 @@ public abstract class RobotDriverBase : IRobotDriver
     /// <summary>
     /// 受理一条指令：占在途槽位并下发（经发送队列串行写出）。
     /// 返回 false 表示被拒绝：未连接、同键指令前一条未到终态或该实例已在途。
+    /// 前一条的回复丢了就一直"未到终态"，要发起方等超时了用 Abandon 作废它，让出槽位。
     /// 通常由指令的 Execute 调用，不直接从外部调。
     /// </summary>
     public bool Submit(RobotCommand command)
@@ -104,7 +106,56 @@ public abstract class RobotDriverBase : IRobotDriver
         }
 
         var tx = _txChannel;
-        return tx is not null && tx.Writer.TryWrite(command.BuildMsg());
+        if (tx is not null && tx.Writer.TryWrite(command.BuildMsg()))
+        {
+            return true;
+        }
+
+        // 发送队列已经收了（正在关）：这条没发出去，占的槽位让出来。
+        Abandon(command, "PortClosed");
+        return false;
+    }
+
+    /// <summary>
+    /// 作废一条在途指令：从在途表摘掉（同名指令能再发），指令以失败落终态。
+    /// 发起方等回复超时了调；之后这条的回复要是迟到了，没有在途指令认它，当无主帧处理。任意线程可调。
+    /// </summary>
+    public void Abandon(RobotCommand command, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        lock (_gate)
+        {
+            if (_inflight.TryGetValue(command.Key, out var current) && ReferenceEquals(current, command))
+            {
+                _inflight.Remove(command.Key);
+            }
+
+            command.IsInFlight = false;
+        }
+
+        command.Abandon(reason);
+    }
+
+    /// <summary>
+    /// 作废全部在途指令（关连接时用）。
+    /// </summary>
+    private void AbandonAll(string reason)
+    {
+        RobotCommand[] commands;
+        lock (_gate)
+        {
+            commands = _inflight.Values.ToArray();
+            _inflight.Clear();
+            foreach (var command in commands)
+            {
+                command.IsInFlight = false;
+            }
+        }
+
+        foreach (var command in commands)
+        {
+            command.Abandon(reason);
+        }
     }
 
     /// <summary>
@@ -131,7 +182,7 @@ public abstract class RobotDriverBase : IRobotDriver
                 .ToList();
             foreach (var command in interrupted)
             {
-                command.Interrupt(reason);
+                command.Abandon(reason);
             }
 
             RemoveCompleted();

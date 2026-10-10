@@ -51,10 +51,18 @@ public abstract class RobotDriverComponent : ComponentBase
         return opened && childrenInitialized;
     }
 
-    /// <summary>关闭连接；驱动保留，重开走 InitComponent。</summary>
+    /// <summary>关闭连接（在途指令作废）；驱动保留，重开走 InitComponent。</summary>
     public void Close()
     {
         Driver?.Close();
+    }
+
+    /// <summary>
+    /// 作废一条在途指令（回复丢了、等超时了）：让出它的在途位，同名指令能再发。
+    /// </summary>
+    public void Abandon(RobotCommand command, string reason)
+    {
+        Driver?.Abandon(command, reason);
     }
 
     private void OnDeviceEvent(RobotDeviceEvent evt)

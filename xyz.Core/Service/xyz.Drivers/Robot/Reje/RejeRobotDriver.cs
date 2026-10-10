@@ -31,6 +31,12 @@ public class RejeRobotDriver : RobotDriverBase
 
         if (string.Equals(name, RejeProtocol.ErrorName, StringComparison.OrdinalIgnoreCase))
         {
+            // 成功码的 Error 帧是"没有报错"，不是报错推送：多半是查报错超时作废以后迟到的回复，丢掉，免得当成报错。
+            if (code == RejeProtocol.SuccessCode)
+            {
+                return null;
+            }
+
             return new RobotDeviceEvent
             {
                 Kind = RobotDeviceEventKind.DeviceError,

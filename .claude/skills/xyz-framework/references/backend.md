@@ -141,7 +141,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 是设备推送的在位，`Wafer` 是晶圆账的只读视图）；设备状态轮询（报错 / 伺服 / 速度 / 轴位 + 订阅手指在位推送）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 是设备推送的在位）；设备状态轮询（订阅手指在位推送 / 报错 / 伺服 / 速度 / 轴位按 `QueryOrder` 表轮，发的时候连同回来写到哪一起记下；SC `WaferEventEnabled` 关掉不订阅；超时调驱动 `Abandon` 作废那一条）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
   `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`，部件回零的先后写在机型的 Home 操作里）。
 - **手动部件是通用的**（组件自己声明，模块不认具体硬件）：组件类标 `[PartKind("Axis")]`（派生类继承；现有 `Axis` 轴、`TwoState`
   双作用气缸、`OneState` 阀 / 喷嘴），属性标 `[LiveValue]`（推给界面的实时数据，浮点按 `Decimals` 位取整，默认 3），

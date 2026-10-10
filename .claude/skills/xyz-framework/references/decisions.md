@@ -432,16 +432,22 @@
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV + LiveValue；不接 PLC、没有手动动作），X/Z/Theta 直接配它；
-  `RobotArmComponent : RobotAxisComponent` 是手指节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`HasWafer` 是设备推送的在位（null = 还没收到），
-  `Wafer` 是晶圆账的**只读视图**（`WaferManagerComponent.Get(模块名, 手指号)`，`BindLedger` 由模块装配时灌；账还是唯一权威，人工调账、开机恢复、Job 照旧改账），
-  手指上的传感器（缩回到位、真空）作为子组件挂在手指节点下。
+  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`HasWafer` 是设备推送的在位（null = 还没收到）；
+  手指上的传感器（缩回到位、真空……）作为子组件挂在手指节点下。
 - **轴表单一来源**：删掉 `RobotDriverComponent.Axes/AxisList/ArmCount` 和 `BaseRobotModule._axisPositions/_armWafers`；
-  轴的先后 = sc.xml 轴节点的先后，`FindChildren<RobotAxisComponent>()` = 整张轴表（含 Arm），`FindChildren<RobotArmComponent>()` = 手指；
-  `ArmCount` = Arm 节点个数，晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
-- **不抽接口**：同族组件走基类（跟 `AxisComponent` / `ArmAxisComponent` 一个路子）；模块要调 `NotePosition` / `NoteWaferPresence` / `BindLedger` 这些 internal 写入口，
+  轴的先后 = sc.xml 轴节点的先后；`Axes` / `Arms` 是普通属性（不写 `=>` 懒加载），在 `InitComponent` 开头赋值：
+  `Axes` = `FindChildren<RobotAxisComponent>()` = 整张轴表（含 Arm），`Arms` = 从 `Axes` 里挑出 `RobotArmComponent`、按手指号排；
+  `ArmCount` = `Arms.Count`（DTO 照填，界面画几只手臂按它），晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
+- **不抽接口**：同族组件走基类（跟 `AxisComponent` / `ArmAxisComponent` 一个路子）；模块要调 `UpdatePosition` / `UpdateWaferPresence` 这些 internal 写入口，
   接口放不下，模块也只依赖这两个具体基类；派生类要自己再标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
 - **事件路由**：手指在位推送按手指号找 Arm 节点，找不到只记 WARN 忽略（设备推了没配的手指，不再凭空长出一只手）。
-- **设备状态查询收进平台**（照 LoadPort "设备状态查询在平台"的做法，2026-10-10）：原来 35021 `RobotModule` 里的轮询（订阅手指在位推送  轮流查设备报错、伺服、速度、轴位；超时作废这条、下拍重试）移进 `BaseRobotModule`，
-  `OnScan` 统一按 `base.OnScan  CheckDeviceAlarm  ScanDeviceStatus  PublishState` 走；机型只留动作（Home/Reset/Abort/Pick/Place/PowerOn/PowerOff），以后新机械手不用抄轮询。
-- **InitComponent 照 LoadPort 的分工**（2026-10-10）：模块只做装配期的事`ResolveParts` 收轴/手指并校验、`arm.BindLedger`、找驱动挂 `DeviceEvent`、`RegisterLocation`；
+- **设备状态查询收进平台**（照 LoadPort "设备状态查询在平台"的做法，2026-10-10）：原来 35021 `RobotModule` 里的轮询（订阅手指在位推送 -> 轮流查设备报错、伺服、速度、轴位；超时作废这条、下拍重试）移进 `BaseRobotModule`，
+  `OnScan` 统一按 `base.OnScan -> LoopQueryStatus -> CheckDeviceAlarm -> PublishState` 走；机型只留动作（Home/Reset/Abort/Pick/Place/PowerOn/PowerOff），以后新机械手不用抄轮询。
+- **轮询顺序查表、查询超时作废**（2026-10-10，用户："count % 5 这种写法不好，加一个还得改"；又嫌"罗里吧嗦"，同日收成一个 switch）：
+  顺序写在 `QueryOrder` 表里（订阅、报错、伺服、速度、轴位 ×2，轴位每格轮一根轴），不再写 `count % N`；`SendNextQuery` 发的时候连同"回来了写到哪"
+  （`_onQueryReply`，轴位直接记住那根轴组件）一起定，不再一个 switch 发、一个 switch 按 `_queryKind` 对号收，也不再按轴名找轴；加一种查询 = 表里加一格 + 一个 case。
+  订阅那格：模块 SC `WaferEventEnabled` 关着（机械手不带在位推送）或已经订上就空过，没订上每圈试一次；失败的回复一律不写（订阅被拒也不再记日志）。
+  查询超时照 LoadPort 调驱动 `Abandon` 让出在途位（以前只丢句柄，回复丢了这一种就再也查不了）；驱动关连接时在途指令全部作废；
+  Reje 成功码的 `@Error` 帧不当报错推送（作废以后迟到的"没有报错"回复会变成无主帧）。
+- **InitComponent 照 LoadPort 的分工**（2026-10-10）：模块只做装配期的事：`Axes`/`Arms` 直接查子组件、校验手指号、找驱动挂 `DeviceEvent`、`RegisterLocation`；
   连接和各自的开机初始化归子组件自己的 `InitComponent`（驱动建连接、轴/手指/传感器照基类递归）。没挂驱动不再提前 return，子组件照样初始化，最后 `return 驱动有 && childrenInitialized`。

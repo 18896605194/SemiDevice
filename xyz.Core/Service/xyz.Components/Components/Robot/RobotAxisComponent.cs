@@ -5,7 +5,7 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// 机械手控制器轴：坐标由机械手驱动协议查询（不是 PLC 轴），只出数据、不动硬件、没有手动动作。
-/// 节点名就是轴名；模块扫描查询回来后按轴名把坐标灌进 <see cref="Position"/>。
+/// 节点名就是轴名；模块轮询查回来后把坐标灌进 <see cref="Position"/>。
 /// X / Z / Theta 直接用本类；手指（Arm）继承它，见 <see cref="RobotArmComponent"/>。
 /// </summary>
 [Component(description: "机械手控制器轴（只出数据，不接 PLC、无手动动作）")]
@@ -32,9 +32,9 @@ public class RobotAxisComponent : ComponentBase
     }
 
     /// <summary>
-    /// 记下查询回来的坐标。扫描线程调，只写缓存不做重活。
+    /// 记下查询回来的坐标（回包里没带坐标就是 null，算没查到）。扫描线程调，只写缓存不做重活。
     /// </summary>
-    internal void NotePosition(double position)
+    internal void UpdatePosition(double? position)
     {
         lock (_positionGate)
         {

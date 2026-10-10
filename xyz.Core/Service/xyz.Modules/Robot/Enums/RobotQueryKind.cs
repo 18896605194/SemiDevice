@@ -1,7 +1,7 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 设备状态轮询这一条查询问的是什么；回包按它落模块状态，不认品牌指令类型。
+/// 设备状态轮询表里的一格查什么（见 BaseRobotModule.QueryOrder）。
 /// </summary>
 public enum RobotQueryKind
 {
