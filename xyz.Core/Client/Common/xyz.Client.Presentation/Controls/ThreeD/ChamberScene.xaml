@@ -5,7 +5,7 @@
     xmlns:local="clr-namespace:xyz.Client.Presentation.Controls.ThreeD"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
 
-    <!--  腔体三维图：灯光、相机、底座写在这儿；Bowl、旋转盘、门、各条摆臂由代码按 Parts（sc 里配了什么）搭到底座上  -->
+    <!--  腔体三维图：灯光、相机、底座写在这儿；Bowl、旋转盘、门、各条摆臂由代码按 Devices（sc 里配了什么）搭到底座上  -->
     <!--  三维对象不在逻辑树里，灯光颜色用 StaticResource 在加载时取 token  -->
     <Grid ClipToBounds="True">
         <Grid.RowDefinitions>

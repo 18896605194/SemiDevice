@@ -13,7 +13,7 @@ using xyz.Tools;
 namespace xyz.Modules;
 
 /// <summary>
-/// 腔体模块基类：可服务工位（机械手取放片）+ 能加工的站点（<see cref="IProcessStation"/>，Job 和手动起工艺走同一个口子）。
+/// 腔体模块基类
 /// </summary>
 public abstract class BaseChamberModule : BaseTransferStationModule, IProcessStation
 {
@@ -110,11 +110,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "60000", description: "部件手动动作超时（等轴、气缸这些部件做完的上限；点动是松手后等停下的上限）")]
-    public int PartActionTimeout
+        @default: "60000", description: "设备手动动作超时（等轴、气缸这些设备做完的上限；点动是松手后等停下的上限）")]
+    public int DeviceActionTimeout
     {
-        get { return GetEcInt(nameof(PartActionTimeout)); }
-        set { SetEcInt(nameof(PartActionTimeout), value); }
+        get { return GetEcInt(nameof(DeviceActionTimeout)); }
+        set { SetEcInt(nameof(DeviceActionTimeout), value); }
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "500", max: "10000",
@@ -145,29 +145,19 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     #region 站点环
 
-    protected override int StandbyState => ModuleState.Idle;
+    protected override int StandbyState => ChamberState.Idle;
 
     #endregion
 
     protected BaseChamberModule()
     {
         RegisterTransitions(ChamberStateTable.ToModuleTable());
-        _parts = new Lazy<PartCatalog>(() => new PartCatalog(this));
     }
 
     #region 组件初始化
 
-    /// <summary>
-    /// 晶圆账：组件初始化时取一次；没配晶圆账、或腔体停用（不登记账）为 null。
-    /// </summary>
     private WaferManagerComponent? _waferManager;
 
-    /// <summary>
-    /// 组件初始化（开机，由装配在 Start 之前调用）：腔体自己只占晶圆账的槽位，不连设备——
-    /// 多个腔体通常挂在同一个 PLC 上，连接是那个 PLC 组件的事（它 Open 一次，腔体按地址读写），
-    /// 摊到每个腔体里连就变成一台机器开 N 条连接了。子组件照基类的规矩跟着初始化。
-    /// 装机停用（IsEnable=False）的腔体连账都不占，子组件也不动，空转。
-    /// </summary>
     public override bool InitComponent()
     {
         if (!IsEnable)
@@ -272,7 +262,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     /// <summary>
     /// 发布当前状态（机型扫描周期调用，状态环改完状态也会立即调）：首次发布，之后只在状态变化时发布。
-    /// 模块状态和部件状态各推各的，都留存（供界面晚订阅或重连时补发）。
+    /// 模块状态和设备状态各推各的，都留存（供界面晚订阅或重连时补发）。
     /// </summary>
     protected override void PublishState()
     {
@@ -283,148 +273,393 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             EventBus.Send(dto, Name);
         }
 
-        PublishParts();
+        PublishDeviceData();
     }
 
     #endregion
 
-    #region 部件（sc.xml 里标了 [PartKind] 的组件：轴、气缸、阀……）
+    #region 腔体里装的（sc.xml 这个腔体节点下面挂的）
 
-    /// <summary>手动部件表：第一次用时按组件树建（装配时子组件是构造之后才挂上的，不能在构造里建）。</summary>
-    private readonly Lazy<PartCatalog> _parts;
+    /// <summary>腔门的节点名：门和 Bowl 都是气缸，只能按名字认。</summary>
+    private const string DoorName = "Door";
 
-    private volatile ModulePartsDto? _lastPublishedParts;
+    /// <summary>Bowl 节点名的开头（Bowl1、Bowl2……）。</summary>
+    private const string BowlPrefix = "Bowl";
 
-    /// <summary>
-    /// 部件快照（腔体手动页的轴页签、气缸表、三维图用）：sc.xml 里标了种类的组件和它们标了 [LiveValue] 的数据，按 sc 的先后。
-    /// 部件、数据都是组件自己声明的，这里不认具体是什么硬件。
-    /// </summary>
-    public ModulePartsDto CreatePartsDto()
+    /// <summary>腔门：腔体下名叫 Door 的气缸；sc 里没配为 null。</summary>
+    public TwoStateComponent? Door
     {
-        return _parts.Value.CreateDto();
+        get
+        {
+            return Children.OfType<TwoStateComponent>()
+                .FirstOrDefault(cylinder => string.Equals(cylinder.Name, DoorName, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
-    /// <summary>部件数据有变化才推；token 是模块名，跟 ChamberDto 类型不同、互不覆盖。</summary>
-    private void PublishParts()
+    /// <summary>Bowl：腔体下名字以 Bowl 开头的气缸（可以几层），按 sc 的先后。</summary>
+    public IReadOnlyList<TwoStateComponent> Bowls
     {
-        var parts = CreatePartsDto();
-        if (!parts.HasStateChanged(_lastPublishedParts))
+        get
+        {
+            return Children.OfType<TwoStateComponent>()
+                .Where(cylinder => cylinder.Name.StartsWith(BowlPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    /// <summary>卡盘：第一个旋转电机；sc 里没配为 null。</summary>
+    public SpinMotorComponent? SpinMotor => FindChild<SpinMotorComponent>();
+
+    /// <summary>摆臂（它上面的 Lift、喷嘴在摆臂组件上），按 sc 的先后。</summary>
+    public IReadOnlyList<SwingArmComponent> Arms => FindChildren<SwingArmComponent>();
+
+    /// <summary>所有轴（卡盘、摆臂……）。</summary>
+    public IReadOnlyList<AxisComponent> Axes => FindChildren<AxisComponent>();
+
+    /// <summary>所有双作用气缸（门、Bowl、Lift……）。</summary>
+    public IReadOnlyList<TwoStateComponent> Cylinders => FindChildren<TwoStateComponent>();
+
+    /// <summary>所有喷嘴。</summary>
+    public IReadOnlyList<NozzleComponent> Nozzles => FindChildren<NozzleComponent>();
+
+    /// <summary>按节点名找摆臂（配方里选的就是节点名，如 "Arm1"，忽略大小写）；没有为 null。</summary>
+    public SwingArmComponent? FindArm(string name)
+    {
+        return Arms.FirstOrDefault(arm => string.Equals(arm.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>按全路径找轴（手动页按推送里的 Path 发，忽略大小写）；没有为 null。</summary>
+    private AxisComponent? FindAxis(string path)
+    {
+        return Axes.FirstOrDefault(axis => string.Equals(axis.FullPath, path, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>按全路径找气缸；没有为 null。</summary>
+    private TwoStateComponent? FindCylinder(string path)
+    {
+        return Cylinders.FirstOrDefault(cylinder => string.Equals(cylinder.FullPath, path, StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region 设备状态推送（手动页的轴页签、气缸表、三维图）
+
+    /// <summary>位置、速度、摆幅推几位小数：编码器在这一位以下抖不会一直推。</summary>
+    private const int PushDecimals = 3;
+
+    private volatile ChamberDeviceDataDto? _lastPublishedDeviceData;
+
+    /// <summary>
+    /// 设备状态快照，结构跟 sc 一样：门、Bowl、卡盘、各条摆臂（摆臂下面是它的 Lift 和喷嘴）。
+    /// </summary>
+    public ChamberDeviceDataDto CreateDeviceDataDto()
+    {
+        var dto = new ChamberDeviceDataDto { Module = Name };
+        var door = Door;
+        if (door is not null)
+        {
+            dto.Door = CylinderDtoOf(door);
+        }
+
+        foreach (var bowl in Bowls)
+        {
+            dto.Bowls.Add(CylinderDtoOf(bowl));
+        }
+
+        var spin = SpinMotor;
+        if (spin is not null)
+        {
+            var spinDto = AxisDtoOf<ChamberSpinDto>(spin);
+            spinDto.IsSpinning = spin.IsSpinning;
+            dto.Spin = spinDto;
+        }
+
+        foreach (var arm in Arms)
+        {
+            var armDto = AxisDtoOf<ChamberArmDto>(arm);
+            armDto.Reach = RoundForPush(arm.Reach);
+            armDto.EdgeReach = RoundForPush(arm.EdgeReach);
+            var lift = arm.Lift;
+            armDto.Lift = lift is null ? null : CylinderDtoOf(lift);
+            foreach (var nozzle in arm.Nozzles)
+            {
+                armDto.Nozzles.Add(new ChamberNozzleDto
+                {
+                    Path = nozzle.FullPath,
+                    Chemical = nozzle.Chemical,
+                    IsOn = nozzle.IsOn,
+                });
+            }
+
+            dto.Arms.Add(armDto);
+        }
+
+        return dto;
+    }
+
+    /// <summary>设备状态有变化才推；token 是模块名，跟 ChamberDto 类型不同、互不覆盖。</summary>
+    private void PublishDeviceData()
+    {
+        var data = CreateDeviceDataDto();
+        if (!data.HasStateChanged(_lastPublishedDeviceData))
         {
             return;
         }
 
-        _lastPublishedParts = parts;
-        EventBus.Send(parts, Name);
+        _lastPublishedDeviceData = data;
+        EventBus.Send(data, Name);
     }
 
-    /// <summary>
-    /// 发起部件手动动作：找部件 → 找动作（组件上标了 [ManualAction] 的同名方法）→ 转参数 → 按动作类别发：
-    /// <list type="bullet">
-    /// <item>停止类（如轴停止）：不看腔体忙不忙、不挂操作，发出去就回 Sent；正按住的点动算松手。</item>
-    /// <item>普通动作：锁内确认状态允许、没有在途动作 → 发指令 → 挂上等部件做完的操作，回 Started。</item>
-    /// <item>按住类（如点动）：同普通动作，挂的是等松手的操作，回 Holding；按住期间界面调 RenewPartAction 续。</item>
-    /// </list>
-    /// 指令在这儿就发：发不出去（PLC 没连、轴没回零……）直接回 CommandRejected，模块状态不动、也不报警。
-    /// 先确认能挂上再发，别的动作在途时发出去的指令就没人等了。执行中落 ChamberState.Manual，做完回原来的状态。
-    /// 还没做联锁（比如 Bowl 升着不许摆臂），操作员自己看着点。
-    /// </summary>
-    public ChamberPartActionResult TryPartAction(string path, string action, IReadOnlyList<string> args, out ModuleOperation? operation)
+    /// <summary>一根轴的位置、速度、五盏灯（卡盘、摆臂共用这一段，各自的再另外填）。</summary>
+    private static T AxisDtoOf<T>(AxisComponent axis) where T : ChamberAxisDto, new()
     {
-        operation = null;
-        var part = _parts.Value.Find(path);
-        if (part is null)
+        return new T
         {
-            return ChamberPartActionResult.NotFound;
-        }
-
-        if (!part.TryGetAction(action, out var entry))
-        {
-            return ChamberPartActionResult.Unsupported;
-        }
-
-        if (!entry.TryBind(args, out var values))
-        {
-            return ChamberPartActionResult.InvalidArgs;
-        }
-
-        if (entry.IsPriority)
-        {
-            if (!entry.Invoke(part.Component, values))
-            {
-                return ChamberPartActionResult.CommandRejected;
-            }
-
-            if (CurrentOperation is ChamberHoldOperation hold && hold.Part == part.Component)
-            {
-                hold.Release();
-            }
-
-            return ChamberPartActionResult.Sent;
-        }
-
-        // 按住类先确认松手动作在，免得点动发出去了却停不下来。
-        ManualPartAction? release = null;
-        if (entry.Release is not null && (!part.TryGetAction(entry.Release, out release) || !release.TryBind([], out _)))
-        {
-            return ChamberPartActionResult.Unsupported;
-        }
-
-        lock (OperationGate)
-        {
-            var current = CurrentOperation;
-            bool busy = current is not null && !current.IsTerminal;
-            if (!CanBeginAction || busy || !TryGetTransition(State, nameof(ChamberAction.Manual), out _))
-            {
-                return ChamberPartActionResult.Rejected;
-            }
-
-            if (!entry.Invoke(part.Component, values))
-            {
-                return ChamberPartActionResult.CommandRejected;
-            }
-
-            if (release is null)
-            {
-                operation = Begin(ChamberAction.Manual, new ChamberPartOperation(part.Component, entry.Name, PartActionTimeout));
-                return operation is null ? ChamberPartActionResult.Rejected : ChamberPartActionResult.Started;
-            }
-
-            var component = part.Component;
-            ManualPartAction releaseAction = release;
-            Func<bool> stop = () => releaseAction.Invoke(component, []);
-            operation = Begin(ChamberAction.Manual,
-                new ChamberHoldOperation(component, entry.Name, stop, HoldTimeoutMs, PartActionTimeout));
-            if (operation is null)
-            {
-                // 状态在锁里查过，挂不上只是防万一；点动已经发出去了，先停下来。
-                stop();
-                return ChamberPartActionResult.Rejected;
-            }
-
-            return ChamberPartActionResult.Holding;
-        }
+            Path = axis.FullPath,
+            HasPlcData = axis.HasPlcData,
+            CurrentPosition = RoundForPush(axis.CurrentPosition),
+            CurrentSpeed = RoundForPush(axis.CurrentSpeed),
+            IsServoOn = axis.IsServoOn,
+            IsHomed = axis.IsHomed,
+            IsBusy = axis.IsBusy,
+            IsInPosition = axis.IsInPosition,
+            IsError = axis.IsError,
+        };
     }
 
-    /// <summary>
-    /// 续按住类动作：正在按住的就是这个部件的这个动作才续上（重新计时），否则返回 false——已经松手、被停止或中止顶掉了。
-    /// </summary>
-    public bool RenewPartAction(string path, string action)
+    private static ChamberCylinderDto CylinderDtoOf(TwoStateComponent cylinder)
     {
-        var part = _parts.Value.Find(path);
-        if (part is null)
+        CylinderPosition position;
+        switch (cylinder.Position)
         {
-            return false;
+            case TwoStatePosition.Opened:
+                position = CylinderPosition.Opened;
+                break;
+            case TwoStatePosition.Closed:
+                position = CylinderPosition.Closed;
+                break;
+            default:
+                position = CylinderPosition.Unknown;
+                break;
         }
 
-        return CurrentOperation is ChamberHoldOperation hold
-            && hold.Part == part.Component
-            && string.Equals(hold.Action, action, StringComparison.OrdinalIgnoreCase)
-            && hold.Renew();
+        return new ChamberCylinderDto { Path = cylinder.FullPath, Position = position };
+    }
+
+    /// <summary>按推的位数四舍五入（-0 记成 0）；不是有限数记 0。</summary>
+    private static double RoundForPush(double value)
+    {
+        if (!double.IsFinite(value))
+        {
+            return 0;
+        }
+
+        double rounded = Math.Round(value, PushDecimals, MidpointRounding.AwayFromZero);
+        return rounded == 0 ? 0 : rounded;
     }
 
     #endregion
 
-    #region Action（动作体由机型实现——直接创建操作）
+    #region 设备手动动作（手动页：轴回零 / 移动 / 步进 / 点动 / 停止 / 复位，气缸升 / 降）
+
+    // 指令在这儿就发：发不出去（PLC 没连、轴没回零……）直接回 CommandRejected，模块状态不动、也不报警。
+    // 先确认能挂上再发，别的动作在途时发出去的指令就没人等了。执行中落 ChamberState.Manual，做完回原来的状态。
+    // 还没做联锁（比如 Bowl 升着不许摆臂），操作员自己看着点。
+
+    /// <summary>轴回零。</summary>
+    public ChamberDeviceActionResult AxisHome(string path, out ModuleOperation? operation)
+    {
+        operation = null;
+        var axis = FindAxis(path);
+        if (axis is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        return StartDeviceAction(axis, ChamberDeviceAction.Home, axis.Home, out operation);
+    }
+
+    /// <summary>轴走到绝对位置；speed 为 0 按这根轴的 EC MoveSpeed。</summary>
+    public ChamberDeviceActionResult AxisMove(string path, double position, double speed, out ModuleOperation? operation)
+    {
+        operation = null;
+        var axis = FindAxis(path);
+        if (axis is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        if (!double.IsFinite(position) || !IsSpeed(speed))
+        {
+            return ChamberDeviceActionResult.InvalidArgs;
+        }
+
+        return StartDeviceAction(axis, ChamberDeviceAction.Move, () => axis.MoveTo(position, SpeedOrDefault(speed)), out operation);
+    }
+
+    /// <summary>轴走一段（正负是方向，不能是 0）；speed 为 0 按这根轴的 EC MoveSpeed。</summary>
+    public ChamberDeviceActionResult AxisStep(string path, double distance, double speed, out ModuleOperation? operation)
+    {
+        operation = null;
+        var axis = FindAxis(path);
+        if (axis is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        if (!double.IsFinite(distance) || distance == 0 || !IsSpeed(speed))
+        {
+            return ChamberDeviceActionResult.InvalidArgs;
+        }
+
+        return StartDeviceAction(axis, ChamberDeviceAction.Step, () => axis.MoveBy(distance, SpeedOrDefault(speed)), out operation);
+    }
+
+    /// <summary>轴复位清错。</summary>
+    public ChamberDeviceActionResult AxisReset(string path, out ModuleOperation? operation)
+    {
+        operation = null;
+        var axis = FindAxis(path);
+        if (axis is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        return StartDeviceAction(axis, ChamberDeviceAction.Reset, axis.ResetDrive, out operation);
+    }
+
+    /// <summary>气缸升（true，开侧）或降。</summary>
+    public ChamberDeviceActionResult MoveCylinder(string path, bool up, out ModuleOperation? operation)
+    {
+        operation = null;
+        var cylinder = FindCylinder(path);
+        if (cylinder is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        return up
+            ? StartDeviceAction(cylinder, ChamberDeviceAction.Up, cylinder.Open, out operation)
+            : StartDeviceAction(cylinder, ChamberDeviceAction.Down, cylinder.Close, out operation);
+    }
+
+    /// <summary>
+    /// 轴停止：不看腔体忙不忙、不挂操作，发出去就回 Sent；正按着的点动算松手（之后等轴停下就退出"手动中"）。
+    /// </summary>
+    public ChamberDeviceActionResult AxisStop(string path)
+    {
+        var axis = FindAxis(path);
+        if (axis is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        if (!axis.Stop())
+        {
+            return ChamberDeviceActionResult.CommandRejected;
+        }
+
+        if (CurrentOperation is ChamberHoldOperation hold && hold.Axis == axis)
+        {
+            hold.Release();
+        }
+
+        return ChamberDeviceActionResult.Sent;
+    }
+
+    /// <summary>
+    /// 轴点动（速度正负是方向，不能是 0）：发起就回 Holding；按住期间界面调 <see cref="AxisJogRenew"/> 续，
+    /// 松手发 <see cref="AxisStop"/>；EC HoldTimeoutMs 内没续上模块自己停。
+    /// </summary>
+    public ChamberDeviceActionResult AxisJog(string path, double speed)
+    {
+        var axis = FindAxis(path);
+        if (axis is null)
+        {
+            return ChamberDeviceActionResult.NotFound;
+        }
+
+        if (!double.IsFinite(speed) || speed == 0)
+        {
+            return ChamberDeviceActionResult.InvalidArgs;
+        }
+
+        lock (OperationGate)
+        {
+            if (!CanStartDeviceAction())
+            {
+                return ChamberDeviceActionResult.Rejected;
+            }
+
+            if (!axis.Jog(speed))
+            {
+                return ChamberDeviceActionResult.CommandRejected;
+            }
+
+            if (Begin(ChamberAction.Manual, new ChamberHoldOperation(axis, HoldTimeoutMs, DeviceActionTimeout)) is null)
+            {
+                // 状态在锁里查过，挂不上只是防万一；点动已经发出去了，先停下来。
+                axis.Stop();
+                return ChamberDeviceActionResult.Rejected;
+            }
+
+            return ChamberDeviceActionResult.Holding;
+        }
+    }
+
+    /// <summary>续点动：正在点动的就是这根轴才续上（重新计时），否则返回 false——已经松手、被停止或中止顶掉了。</summary>
+    public bool AxisJogRenew(string path)
+    {
+        var axis = FindAxis(path);
+        return axis is not null
+            && CurrentOperation is ChamberHoldOperation hold
+            && hold.Axis == axis
+            && hold.Renew();
+    }
+
+    /// <summary>锁内确认状态允许、没有在途动作 → 发指令 → 挂上等设备做完的操作，回 Started。</summary>
+    private ChamberDeviceActionResult StartDeviceAction(ComponentBase part, ChamberDeviceAction action, Func<bool> send, out ModuleOperation? operation)
+    {
+        operation = null;
+        lock (OperationGate)
+        {
+            if (!CanStartDeviceAction())
+            {
+                return ChamberDeviceActionResult.Rejected;
+            }
+
+            if (!send())
+            {
+                return ChamberDeviceActionResult.CommandRejected;
+            }
+
+            operation = Begin(ChamberAction.Manual, new ChamberDeviceOperation(part, action, DeviceActionTimeout));
+            return operation is null ? ChamberDeviceActionResult.Rejected : ChamberDeviceActionResult.Started;
+        }
+    }
+
+    /// <summary>能不能起设备动作（在模块锁里调）：腔体启用、没有在途动作、当前状态允许手动。</summary>
+    private bool CanStartDeviceAction()
+    {
+        var current = CurrentOperation;
+        bool busy = current is not null && !current.IsTerminal;
+        return CanBeginAction && !busy && TryGetTransition(State, nameof(ChamberAction.Manual), out _);
+    }
+
+    /// <summary>速度：0 = 用 EC 默认值，不能是负的、不能不是有限数。</summary>
+    private static bool IsSpeed(double speed)
+    {
+        return double.IsFinite(speed) && speed >= 0;
+    }
+
+    private static double? SpeedOrDefault(double speed)
+    {
+        return speed > 0 ? speed : null;
+    }
+
+    #endregion
+
+    #region Action（平台默认做法：照 sc 里挂的设备发；机型不一样就重写）
 
     /// <summary>
     /// 装机停用的腔体不发动作（腔体不持驱动，能不能发只看这一条）。
@@ -432,10 +667,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     protected override bool CanBeginAction => IsEnable;
 
     /// <summary>
-    /// 发起回原点。机型实现：Begin(ChamberAction.Home, new ...Operation(...))。
-    /// 腔体里各部件（轴、气缸）怎么回零、按什么先后，是机型的事，写在这个操作里去驱动；基类不会替它逐个发回零。
+    /// 回原点：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂（和别的轴）回零 → Bowl 降，门不动（<see cref="ChamberHomeOperation"/>）。
+    /// 机型的先后不一样就重写：Begin(ChamberAction.Home, new ...Operation(...))。
     /// </summary>
-    public abstract ModuleOperation? Home();
+    public virtual ModuleOperation? Home()
+    {
+        return Begin(ChamberAction.Home, new ChamberHomeOperation(this, HomeTimeout));
+    }
 
     /// <summary>
     /// 模块初始化（动硬件，重写 BaseModule 的 InitModule）：回原点——Home 就是腔体的初始化。
@@ -447,7 +685,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     /// <summary>
-    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件，再发设备复位清错。
+    /// 复位（重写组件基类的 Reset）：先清报警、复位子组件（轴在这一步发驱动器复位），再等设备复位做完。
     /// 卡在交互环里（取放片失败停在 Transferring）时也能发，落 Idle 等于强制脱离这一轮交互。
     /// </summary>
     public override ModuleOperation? Reset()
@@ -457,12 +695,15 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     /// <summary>
-    /// 发设备复位清错。机型实现：Begin(ChamberAction.Reset, new ...Operation(...))。
+    /// 设备复位：等每根轴把驱动器复位做完（<see cref="ChamberResetOperation"/>）。机型不一样就重写：Begin(ChamberAction.Reset, ...)。
     /// </summary>
-    protected abstract ModuleOperation? ResetDevice();
+    protected virtual ModuleOperation? ResetDevice()
+    {
+        return Begin(ChamberAction.Reset, new ChamberResetOperation(this, ResetTimeout));
+    }
 
     /// <summary>
-    /// 中止（重写组件基类的 Abort，急停）：先中止子组件，再发设备中止；Abort 可顶替在途动作，不清报警。
+    /// 中止（重写组件基类的 Abort，急停）：先中止子组件（轴在这一步发停止），再做设备中止；Abort 可顶替在途动作，不清报警。
     /// </summary>
     public override ModuleOperation? Abort()
     {
@@ -471,15 +712,21 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     /// <summary>
-    /// 发设备中止。机型实现：Begin(ChamberAction.Abort, new ...Operation(...))。
+    /// 设备中止：喷嘴全部停液、等所有轴停下（<see cref="ChamberAbortOperation"/>）。机型不一样就重写：Begin(ChamberAction.Abort, ...)。
     /// </summary>
-    protected abstract ModuleOperation? AbortDevice();
+    protected virtual ModuleOperation? AbortDevice()
+    {
+        return Begin(ChamberAction.Abort, new ChamberAbortOperation(this, AbortTimeout));
+    }
 
     /// <summary>
-    /// 做出一次工艺的操作（机型实现：按请求里的配方快照去转、去喷，做完 Complete，出错 Fail）。
-    /// 只管造操作，发不发得出去（状态、片、配方）基类已经查过、Begin 也由基类做；造不出来（驱动没连上）返回 null。
+    /// 做出一次工艺的操作：按请求里的配方快照一步一步转、摆、喷（<see cref="ChamberProcessOperation"/>，上限 EC ProcessTimeout）。
+    /// 只管造操作，发不发得出去（状态、片、配方）基类已经查过、Begin 也由基类做。机型做法不一样就重写。
     /// </summary>
-    protected abstract ModuleOperation? CreateProcessOperation(ProcessRequest request);
+    protected virtual ModuleOperation? CreateProcessOperation(ProcessRequest request)
+    {
+        return new ChamberProcessOperation(this, request, ProcessTimeout);
+    }
 
     /// <summary>
     /// 操作终结（状态已由基类落好）：失败的动作报警；工艺做完把账上的片标成完成 / 失败 / 中止。
@@ -514,7 +761,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             return new ProcessRejection(ErrorCodes.RecipeRequired, [Name]);
         }
 
-        // 配方里下拉选的（摆臂、药液这类从腔体部件取的）这个腔体也得有：几个腔体装的不一样时，别的腔体的配方起不了
+        // 配方里下拉选的（摆臂、药液这类从腔体设备取的）这个腔体也得有：几个腔体装的不一样时，别的腔体的配方起不了
         var recipe = request.Recipe;
         var library = ProcessRecipeComponent.Current;
         if (recipe is not null && library is not null)
@@ -606,6 +853,16 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         var request = _process;
         _process = null;
         _processOperation = null;
+
+        // 工艺做到一半失败、超时：先把喷嘴停了，别一直喷（中止由中止操作自己停液）
+        if (!operation.IsSuccess && operation.State != OperationState.Aborted)
+        {
+            foreach (var nozzle in Nozzles)
+            {
+                nozzle.Stop();
+            }
+        }
+
         if (request is null)
         {
             return;
@@ -668,12 +925,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     #region 报警
 
     /// <summary>
-    /// 扫描周期：先扫子组件与操作（基类），再按设备报错刷新报警。
+    /// 扫描周期：先扫子组件与操作（基类），再按设备报错刷新报警，最后发布状态（有变化才发）。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
         CheckDeviceAlarm();
+        PublishState();
     }
 
     /// <summary>

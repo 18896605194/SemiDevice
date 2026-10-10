@@ -99,7 +99,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - **目录**（2026-10-09，用户："该归类就是归类用文件夹"）：模块的域目录（`Loadport`、`Clean`、`Robot`……）里，本体（`Base*Module`、`*Component`）留在根，其余按类别放子文件夹
   `Enums\`、`Models\`、`Operations\`、`StateMachines\`（`Job` 下的 `Model\`、`Task\` 是同一个做法）；**只归类，命名空间不改**（一般 `xyz.Modules`，状态码和动作枚举 `xyz.Modules.Enums`，状态表 `xyz.Modules.StateMachines`）。
   `Loadport` 已分好：`Enums\`（SlotPickOrder、PodPresenceSource、LoadPortCommandStep、LoadPortState 加 LoadPortAction）、`Operations\`（LoadPortCommandOperation）、`StateMachines\`（LoadPortStateTable）；
-  `Robot` 也已分（`Enums\`：RobotState 加 RobotAction、RobotQueryKind；`Models\`：RobotStation；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根）；
+  `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`Models\`：RobotStation；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根）；
   `Clean`、`E84` 还平铺，改到那一块时照这个分。
 - `BaseModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`InitModule()`（动硬件的模块初始化，默认返回 null）、
   `Online()/Offline()`、动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
@@ -141,22 +141,32 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 是设备推送的在位）；设备状态轮询（订阅手指在位推送 / 报错 / 伺服 / 速度 / 轴位按 `QueryOrder` 表轮，发的时候连同回来写到哪一起记下；SC `WaferEventEnabled` 关掉不订阅；超时调驱动 `Abandon` 作废那一条）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
-  `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`，部件回零的先后写在机型的 Home 操作里）。
-- **手动部件是通用的**（组件自己声明，模块不认具体硬件）：组件类标 `[PartKind("Axis")]`（派生类继承；现有 `Axis` 轴、`TwoState`
-  双作用气缸、`OneState` 阀 / 喷嘴），属性标 `[LiveValue]`（推给界面的实时数据，浮点按 `Decimals` 位取整，默认 3），
-  方法标 `[ManualAction]`（返回 bool = 指令发没发出去；`Priority = true` 停止类，`Release = "Stop"` 按住类）。
-  做没做完由组件自己说：`ComponentBase.ActionState`（基类默认已做完，自己管动作到完成的轴、气缸、阀重写；2026-10-07 用户："为什么是腔体判断，不应该"，去掉了 `IActionComponent`）。`xyz.Modules\Parts\PartCatalog` 照模块的组件树（先父后子）
-  收标了种类的组件，反射结果按类缓存；`CreateDto()` 出 `ModulePartsDto`（每个部件：Path、Kind、Type = 组件类名、Values 字典，
-  值都是不变区域性字符串），`Find(路径)` → `ManualPart.TryGetAction(方法名)` → `ManualPartAction.TryBind(参数字符串)` / `Invoke`。
-  新硬件要上手动页：类上标种类、属性和方法上标特性，推送、动作接口都不用改；界面按 Kind 选模板（不认识的种类只收数据）。
-- 腔体部件（`BaseChamberModule`）：`PublishState()` 里顺带推 `ModulePartsDto`（token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖）。
-  `TryPartAction(路径, 动作名, 参数)` → `ChamberService.PartActionAsync(PartActionRequest)`：普通动作走迁移表 `Manual`
-  （未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内发，发不出去回 `chamber.part_command_rejected`
-  不改状态、不报警，`ChamberPartOperation` 只看部件的 ActionState（没有就发出去算完），EC `PartActionTimeout` 兜底；
-  停止类不看忙不忙、不挂操作，发出去就回；按住类（点动）挂 `ChamberHoldOperation` 等松手——界面按住期间调 `RenewPartActionAsync` 续，
-  EC `HoldTimeoutMs`（默认 1000）内没续上就自己发松手动作，松手后等部件停下才退出 Manual。错误码：`chamber.part_not_found`、
-  `chamber.part_action_unsupported`（组件上没有这个 [ManualAction] 方法）、`chamber.part_action_args_invalid`、`chamber.part_not_held`。
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 是设备推送的在位）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
+  `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台，机型类留空、只在不一样时重写 `Home` / `ResetDevice` / `AbortDevice` / `CreateProcessOperation`），每拍最后 `PublishState`）。
+- **腔体部件照 sc 认、强类型**（2026-10-10 用户："未来其他项目直接修改 sc 文件就行，代码基本不要修改"；原来的 `[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典整套删了）：
+  `Clean\ChamberParts`（`BaseChamberModule.Parts`，第一次用时按组件树建一次）收轴（`AxisComponent`）、气缸（`TwoStateComponent`）、喷嘴（`NozzleComponent`），按 sc 先后（先父后子），
+  并认出整腔动作要用的：腔体下名叫 `Door` 的气缸是门、名字以 `Bowl` 开头的是 Bowl（可多层）、第一个 `SpinMotorComponent` 是卡盘、每条 `ArmAxisComponent` 一条摆臂
+  （`ChamberArm`：它下面第一个气缸是 Lift、下面的喷嘴是它的喷嘴，`FindNozzle(药液)`；`FindArm(节点名)` 给配方用）。认法只有这一处，界面不再按名字猜。
+  推送 `ChamberPartsDto`（token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖）：`Axes`（Kind = Axis / Arm / Spin，位置、速度、五盏灯、摆臂 Reach / EdgeReach、卡盘 IsSpinning）、
+  `Cylinders`（Role = Door / Bowl / Lift / Other、Arm = 所在摆臂路径、Position = `CylinderPosition`）、`Nozzles`（Arm、Chemical、IsOn），条目是 record，浮点按 3 位取整（编码器抖不推）。
+  加新种类的硬件（加热、真空……）：写组件 + 在 `ChamberParts` / DTO / 服务 / 界面各加一处，这是平台一次性的活；之后各项目 sc 里挂就行。
+  做没做完由组件自己说：`ComponentBase.ActionState`（基类默认已做完，自己管动作到完成的轴、气缸、阀重写；2026-10-07 用户："为什么是腔体判断，不应该"，去掉了 `IActionComponent`）。
+- 腔体部件手动动作（手动页）：服务是具体方法 `AxisHomeAsync` / `AxisMoveAsync`（位置、速度 0 = EC MoveSpeed）/ `AxisStepAsync`（步距不能 0）/ `AxisJogAsync` + `AxisJogRenewAsync` / `AxisStopAsync` / `AxisResetAsync`、
+  `CylinderUpAsync` / `CylinderDownAsync`（请求 `ChamberPartRequest` / `ChamberAxisMoveRequest` / `ChamberAxisStepRequest` / `ChamberAxisJogRequest`），模块上对应 `AxisHome`……`MoveCylinder`：
+  普通动作走迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内发，发不出去回 `chamber.part_command_rejected`
+  不改状态、不报警，`ChamberPartOperation` 只看部件的 ActionState，EC `PartActionTimeout` 兜底；
+  停止不看忙不忙、不挂操作，发出去就回；点动挂 `ChamberHoldOperation` 等松手——界面按住期间调 `AxisJogRenewAsync` 续，
+  EC `HoldTimeoutMs`（默认 1000）内没续上就自己停，停下才退出 Manual。错误码：`chamber.part_not_found`（这个路径不是这种部件）、
+  `chamber.part_action_args_invalid`（不是有限数、速度负、点动速度 / 步距 0）、`chamber.part_not_held`；第二个参数是动作名 `ChamberPartAction`（Shared 枚举），界面按 `part.action.*` 翻。
+- 腔体整腔动作（`Clean\Operations`，底座 `ChamberStepOperation`：一段一段走，每段同时发、都做完再走下一段；指令发不出去 `chamber.part_command_rejected`、部件失败 `chamber.part_action_failed`、
+  整个动作超过 EC 超时 `chamber.action_timeout`[模块, ms]）：
+  - 回零 `ChamberHomeOperation`（用户定的先后）：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂（和卡盘以外别的轴）回零 → Bowl 降，门不动（门归站点交互环）。Lift 先升，摆臂回零才不刮 Bowl 壁。
+  - 复位：轴的驱动器复位在组件基类 `Reset` 递归时就发了，`ChamberResetOperation` 只等每根轴做完；中止：轴停止同理在组件 `Abort` 里发了，`ChamberAbortOperation` 把喷嘴全停液（气缸、阀的中止输出保持原样）再等轴停下。
+  - 工艺 `ChamberProcessOperation`（上限 EC `ProcessTimeout`）：喷嘴全关、Lift 升、Bowl 升 → 每一步：转速给卡盘（0 停转、跟上一步一样不重发）→ 关掉这一步不用的喷嘴 → 别的摆臂回 Home（轴 0 位）、
+    这一步的摆臂摆到"位置"（晶圆坐标，`ArmAxisComponent.ToAxisPosition` 按示教 Edge / Center 换）→ 有流量设定 AO 的先给流量再开药液对得上的喷嘴 → Time 停着喷 / Scan 在位置和"到"之间按"速度"（`ToAxisSpeed`）来回扫，
+    到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，
+    字段表里没配、这一步没填的跳过。配方选的摆臂 / 药液这个腔体没有 `chamber.recipe_option_missing`；没有配方步骤（没装工艺配方库）`chamber.recipe_steps_missing`。工艺失败、超时（不是中止）`FinishProcess` 先把喷嘴停了。
+  - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），所以卡盘 EC `MaxSpeed` 要不小于配方里的转速（默认 100，35021 联调时改过）。喷嘴 SC `FlowAoIndex`（-1 不接）：`SetFlow(L/min)` 写 AO，`Stop()` = 关阀 + 设定清零。
   气缸 `TwoStateComponent.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
   摆臂 `ArmAxisComponent.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
   示教位 `Edge` = 配方 0（第一个边缘）、`Center` = 配方 150（晶圆中心）的实际轴位置，默认 0 / 150；旋转电机 `IsSpinning`。
@@ -192,7 +202,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
   两个 `Accepts` 方法只看 JSON 的样子，Host 下新名字时分库用。
   上报口 `E30Callback`（`IE30Callback`）：分别调用 `SequenceChanged` / `ProcessRecipeChanged`；建、改、删、改名（旧名删 + 新名建）都在 `Report` 里经 `EapNotifierComponent` 报。
   配方服务改配方（建、改名、存、删）之前先问 `E30RecipeComponent.Current?.IsLocalEditLocked`，锁着回 `recipe.locked_by_host`。
-  还没做：腔体按工艺配方的步骤真的去转、去喷（35021 的 Process 还是定时模拟，只认名字）；字段作用到哪个设备（AO 等，本来就配在 sc 腔体下面）到时再定。
+  腔体按工艺配方的步骤执行（2026-10-10）见上面"腔体整腔动作"：执行按字段名认（Seconds、Rpm、Arm、Chemical、Flow、Mode、Position、ScanTo、ScanSpeed），流量下发到喷嘴的 `FlowAoIndex`。
 - **加工口** `Process\IProcessStation`（`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。`CheckProcess(ProcessRequest)` 只问不动设备
   （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected`），
   `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
@@ -380,7 +390,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
   - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"WaferLedger"）；
-  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的部件推送 `ModulePartsDto`）也用模块名，类型不同互不覆盖；
+  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的部件推送 `ChamberPartsDto`）也用模块名，类型不同互不覆盖；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManagerComponent.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。

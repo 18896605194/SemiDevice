@@ -18,10 +18,10 @@ using xyz.Tools;
 namespace xyz.Client.Manual.ViewModels;
 
 /// <summary>
-/// 腔体手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；启用、模式、片位、当前配方、部件状态都是后端推的，这里不写死。
+/// 腔体手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；启用、模式、片位、当前配方、设备状态都是后端推的，这里不写死。
 /// 整腔：Start 按配方框里的配方名起工艺（Process，只在空闲时允许）；Abort = 急停（可顶替在途动作）、Reset = 清报警 + 设备复位清错。
-/// 部件：后端按 sc.xml 推来的部件里，轴一根一个页签（Axes），双作用气缸一行一个（Cylinders），三维图也用同一份推送（Parts）。
-/// 部件动作都走 PartActionAsync（部件路径 + 动作名 + 参数）：点动按住期间每 200 ms 续一次，松手发停止。
+/// 设备：后端按 sc.xml 推来的轴表一根一个页签（Axes），气缸表一行一个（Cylinders），三维图也用同一份推送（Devices）。
+/// 设备动作按设备路径调腔体服务的具体方法（轴回零 / 移动 / 步进 / 点动 / 停止 / 复位，气缸升 / 降）：点动按住期间每 200 ms 续一次，松手发停止。
 /// </summary>
 public class ChamberManualViewModel : BaseViewModel, IDisposable
 {
@@ -38,21 +38,21 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     public ChamberModel Model { get; } = new();
 
     /// <summary>
-    /// 三维图的部件显示模型：部件推送来就地刷新。
+    /// 三维图的设备显示模型：设备推送来就地刷新。
     /// </summary>
-    public ChamberPartsModel Parts { get; } = new();
+    public ChamberDeviceDataModel Devices { get; } = new();
 
     /// <summary>
     /// 轴页签：sc 里这个腔体下的轴（摆臂、旋转电机……），按 sc 的先后；加了轴自动多一个页签。
     /// </summary>
-    public ObservableCollection<AxisPartModel> Axes { get; } = [];
+    public ObservableCollection<AxisTabModel> Axes { get; } = [];
 
-    private AxisPartModel? _selectedAxis;
+    private AxisTabModel? _selectedAxis;
 
     /// <summary>
     /// 选中的轴：下面的状态、参数、按钮都对它。
     /// </summary>
-    public AxisPartModel? SelectedAxis
+    public AxisTabModel? SelectedAxis
     {
         get => _selectedAxis;
         set => SetProperty(ref _selectedAxis, value);
@@ -61,7 +61,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// <summary>
     /// 气缸表：sc 里这个腔体下的双作用气缸（Door、Bowl1、Arm1.Lift……），按 sc 的先后。
     /// </summary>
-    public ObservableCollection<CylinderPartModel> Cylinders { get; } = [];
+    public ObservableCollection<CylinderRowModel> Cylinders { get; } = [];
 
     private string _recipe = string.Empty;
 
@@ -135,23 +135,22 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     public IRelayCommand NextAxisCommand { get; }
 
     /// <summary>气缸升（开侧），参数是那一行。</summary>
-    public IAsyncRelayCommand<CylinderPartModel> CylinderOpenCommand { get; }
+    public IAsyncRelayCommand<CylinderRowModel> CylinderOpenCommand { get; }
 
     /// <summary>气缸降（关侧），参数是那一行。</summary>
-    public IAsyncRelayCommand<CylinderPartModel> CylinderCloseCommand { get; }
+    public IAsyncRelayCommand<CylinderRowModel> CylinderCloseCommand { get; }
 
     #endregion
 
     #region Service
 
-    /// <summary>第二个参数是动作名的部件错误码（chamber.part_not_found 的参数是模块和路径，不在里面）。</summary>
-    private static readonly HashSet<string> PartActionCodes =
+    /// <summary>第二个参数是动作名（ChamberDeviceAction）的设备错误码（chamber.device_not_found 的参数是模块和路径，不在里面）。</summary>
+    private static readonly HashSet<string> DeviceActionCodes =
     [
-        ErrorCodes.ChamberPartActionUnsupported,
-        ErrorCodes.ChamberPartCommandRejected,
-        ErrorCodes.ChamberPartActionFailed,
-        ErrorCodes.ChamberPartActionArgsInvalid,
-        ErrorCodes.ChamberPartNotHeld,
+        ErrorCodes.ChamberDeviceCommandRejected,
+        ErrorCodes.ChamberDeviceActionFailed,
+        ErrorCodes.ChamberDeviceArgsInvalid,
+        ErrorCodes.ChamberJogNotHeld,
     ];
 
     private readonly IChamberService _service;
@@ -160,7 +159,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     private IDisposable? _stateSubscription;
 
-    private IDisposable? _partsSubscription;
+    private IDisposable? _deviceDataSubscription;
 
     private IDisposable? _recipeSubscription;
 
@@ -170,7 +169,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     private int _recipeVersion;
 
     /// <summary>正在点动的轴（按下时选中的那根）；松手、点动没发出去、续不上了置空。</summary>
-    private AxisPartModel? _jogAxis;
+    private AxisTabModel? _jogAxis;
 
     /// <summary>点动请求本身：松手先等它回来再发停止，免得停止比点动先到后台。</summary>
     private Task? _jogStart;
@@ -198,8 +197,8 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         JogRenewCommand = new RelayCommand<string>(DoJogRenew);
         JogReleaseCommand = new RelayCommand<string>(DoJogRelease);
         NextAxisCommand = new RelayCommand(DoNextAxis);
-        CylinderOpenCommand = new AsyncRelayCommand<CylinderPartModel>(row => DoCylinder(row, true));
-        CylinderCloseCommand = new AsyncRelayCommand<CylinderPartModel>(row => DoCylinder(row, false));
+        CylinderOpenCommand = new AsyncRelayCommand<CylinderRowModel>(row => DoCylinder(row, true));
+        CylinderCloseCommand = new AsyncRelayCommand<CylinderRowModel>(row => DoCylinder(row, false));
     }
 
     public override void Init()
@@ -227,9 +226,9 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         _stateSubscription?.Dispose();
         _stateSubscription = EventBus.Register<ChamberDto>(ModuleName, OnStateReceived);
 
-        // 部件推送是留存消息：订上就补发最后一条，不用另外拉。
-        _partsSubscription?.Dispose();
-        _partsSubscription = EventBus.Register<ModulePartsDto>(ModuleName, OnPartsReceived);
+        // 设备推送是留存消息：订上就补发最后一条，不用另外拉。
+        _deviceDataSubscription?.Dispose();
+        _deviceDataSubscription = EventBus.Register<ChamberDeviceDataDto>(ModuleName, OnDeviceDataReceived);
 
         // 轴参数的默认值取 EC：EC 拉到（或改了）时把还空着的补上
         ClientEc.Changed -= OnEcChanged;
@@ -247,8 +246,8 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     {
         _stateSubscription?.Dispose();
         _stateSubscription = null;
-        _partsSubscription?.Dispose();
-        _partsSubscription = null;
+        _deviceDataSubscription?.Dispose();
+        _deviceDataSubscription = null;
         _recipeSubscription?.Dispose();
         _recipeSubscription = null;
         ClientEc.Changed -= OnEcChanged;
@@ -317,10 +316,10 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         Model.Update(dto);
     }
 
-    /// <summary>部件推送：三维图、轴页签、气缸表各取各的。</summary>
-    private void OnPartsReceived(ModulePartsDto dto)
+    /// <summary>设备推送：三维图、轴页签、气缸表各取各的。</summary>
+    private void OnDeviceDataReceived(ChamberDeviceDataDto dto)
     {
-        Parts.Update(dto);
+        Devices.Update(dto);
         SyncAxes(dto);
         SyncCylinders(dto);
     }
@@ -328,14 +327,21 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// <summary>
     /// 轴页签跟推送对齐：组成没变只刷新；变了按新的先后重排，已有的轴保留（页面上填的参数不丢），选中的轴还在就接着选它。
     /// </summary>
-    private void SyncAxes(ModulePartsDto dto)
+    private void SyncAxes(ChamberDeviceDataDto dto)
     {
-        var parts = dto.Parts.Where(part => part.Kind == PartKinds.Axis).ToList();
-        if (parts.Select(part => part.Path).SequenceEqual(Axes.Select(axis => axis.Path)))
+        // 卡盘 + 各条摆臂（摆臂自己就是摆动轴）
+        var devices = new List<ChamberAxisDto>();
+        if (dto.Spin is not null)
         {
-            for (int i = 0; i < parts.Count; i++)
+            devices.Add(dto.Spin);
+        }
+
+        devices.AddRange(dto.Arms);
+        if (devices.Select(part => part.Path).SequenceEqual(Axes.Select(axis => axis.Path)))
+        {
+            for (int i = 0; i < devices.Count; i++)
             {
-                Axes[i].Update(parts[i]);
+                Axes[i].Update(devices[i]);
             }
 
             return;
@@ -344,7 +350,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         var existing = Axes.ToDictionary(axis => axis.Path, StringComparer.OrdinalIgnoreCase);
         string? selected = SelectedAxis?.Path;
         Axes.Clear();
-        foreach (var part in parts)
+        foreach (var part in devices)
         {
             if (existing.TryGetValue(part.Path, out var axis))
             {
@@ -352,7 +358,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
             }
             else
             {
-                axis = new AxisPartModel(ModuleName, part);
+                axis = new AxisTabModel(ModuleName, part);
             }
 
             Axes.Add(axis);
@@ -363,23 +369,37 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>气缸表跟推送对齐：组成没变只刷新，变了重建。</summary>
-    private void SyncCylinders(ModulePartsDto dto)
+    private void SyncCylinders(ChamberDeviceDataDto dto)
     {
-        var parts = dto.Parts.Where(part => part.Kind == PartKinds.TwoState).ToList();
-        if (parts.Select(part => part.Path).SequenceEqual(Cylinders.Select(row => row.Path)))
+        // 门、Bowl、各条摆臂的 Lift
+        var devices = new List<ChamberCylinderDto>();
+        if (dto.Door is not null)
         {
-            for (int i = 0; i < parts.Count; i++)
+            devices.Add(dto.Door);
+        }
+
+        devices.AddRange(dto.Bowls);
+        foreach (var arm in dto.Arms)
+        {
+            if (arm.Lift is not null)
             {
-                Cylinders[i].Update(parts[i]);
+                devices.Add(arm.Lift);
+            }
+        }
+        if (devices.Select(part => part.Path).SequenceEqual(Cylinders.Select(row => row.Path)))
+        {
+            for (int i = 0; i < devices.Count; i++)
+            {
+                Cylinders[i].Update(devices[i]);
             }
 
             return;
         }
 
         Cylinders.Clear();
-        foreach (var part in parts)
+        foreach (var part in devices)
         {
-            Cylinders.Add(new CylinderPartModel(ModuleName, part));
+            Cylinders.Add(new CylinderRowModel(ModuleName, part));
         }
     }
 
@@ -434,7 +454,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         var axis = SelectedAxis;
         if (axis is not null)
         {
-            await RunPart(axis.Path, axis.Name, PartActionNames.Home, [], "action.home");
+            await RunDeviceAction(axis.Name, "action.home", () => _service.AxisHomeAsync(DeviceRequest(axis.Path)));
         }
     }
 
@@ -453,13 +473,14 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
             return;
         }
 
-        var args = new List<string> { Text(target) };
-        if (TryNumber(axis.MoveSpeed, out double speed))
+        var request = new ChamberAxisMoveRequest
         {
-            args.Add(Text(Math.Abs(speed)));
-        }
-
-        await RunPart(axis.Path, axis.Name, PartActionNames.MoveTo, args, "chambermanual.axis.move");
+            Module = ModuleName,
+            Axis = axis.Path,
+            Position = target,
+            Speed = TryNumber(axis.MoveSpeed, out double speed) ? Math.Abs(speed) : 0,
+        };
+        await RunDeviceAction(axis.Name, "chambermanual.axis.move", () => _service.AxisMoveAsync(request));
     }
 
     private async Task DoAxisStop()
@@ -467,7 +488,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         var axis = SelectedAxis;
         if (axis is not null)
         {
-            await RunPart(axis.Path, axis.Name, PartActionNames.Stop, [], "action.abort");
+            await RunDeviceAction(axis.Name, "action.abort", () => _service.AxisStopAsync(DeviceRequest(axis.Path)));
         }
     }
 
@@ -476,7 +497,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         var axis = SelectedAxis;
         if (axis is not null)
         {
-            await RunPart(axis.Path, axis.Name, PartActionNames.ResetDrive, [], "action.reset");
+            await RunDeviceAction(axis.Name, "action.reset", () => _service.AxisResetAsync(DeviceRequest(axis.Path)));
         }
     }
 
@@ -496,14 +517,15 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
 
         int sign = SignOf(direction);
-        var args = new List<string> { Text(sign * Math.Abs(step)) };
-        if (TryNumber(axis.JogSpeed, out double speed) && speed != 0)
+        var request = new ChamberAxisStepRequest
         {
-            args.Add(Text(Math.Abs(speed)));
-        }
-
-        await RunPart(axis.Path, axis.Name, PartActionNames.MoveBy, args,
-            sign > 0 ? "chambermanual.axis.step_plus" : "chambermanual.axis.step_minus");
+            Module = ModuleName,
+            Axis = axis.Path,
+            Distance = sign * Math.Abs(step),
+            Speed = TryNumber(axis.JogSpeed, out double speed) ? Math.Abs(speed) : 0,
+        };
+        await RunDeviceAction(axis.Name, sign > 0 ? "chambermanual.axis.step_plus" : "chambermanual.axis.step_minus",
+            () => _service.AxisStepAsync(request));
     }
 
     /// <summary>点动按下：点动速度必填（取绝对值，方向看按钮），发出去就回，之后续、松手停。</summary>
@@ -526,9 +548,10 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         _jogStart = StartJog(axis, sign * Math.Abs(speed), sign > 0 ? "chambermanual.axis.jog_plus" : "chambermanual.axis.jog_minus");
     }
 
-    private async Task StartJog(AxisPartModel axis, double speed, string actionKey)
+    private async Task StartJog(AxisTabModel axis, double speed, string actionKey)
     {
-        bool started = await RunPart(axis.Path, axis.Name, PartActionNames.Jog, [Text(speed)], actionKey);
+        var request = new ChamberAxisJogRequest { Module = ModuleName, Axis = axis.Path, Speed = speed };
+        bool started = await RunDeviceAction(axis.Name, actionKey, () => _service.AxisJogAsync(request));
         if (!started && ReferenceEquals(_jogAxis, axis))
         {
             _jogAxis = null;
@@ -545,16 +568,11 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
     }
 
-    private async Task RenewJog(AxisPartModel axis)
+    private async Task RenewJog(AxisTabModel axis)
     {
         try
         {
-            var response = await _service.RenewPartActionAsync(new PartActionRequest
-            {
-                Module = ModuleName,
-                Part = axis.Path,
-                Action = PartActionNames.Jog,
-            });
+            var response = await _service.AxisJogRenewAsync(DeviceRequest(axis.Path));
             if (!response.Success && ReferenceEquals(_jogAxis, axis))
             {
                 _jogAxis = null;
@@ -579,7 +597,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
     }
 
-    private async Task StopJog(AxisPartModel axis, Task? start)
+    private async Task StopJog(AxisTabModel axis, Task? start)
     {
         try
         {
@@ -588,11 +606,11 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
                 await start;
             }
 
-            await RunPart(axis.Path, axis.Name, PartActionNames.Stop, [], "action.abort");
+            await RunDeviceAction(axis.Name, "action.abort", () => _service.AxisStopAsync(DeviceRequest(axis.Path)));
         }
         catch (Exception exception)
         {
-            ClientLog.Error(ModuleName, L10n.Get("chambermanual.part_failed", axis.Name, L10n.Get("action.abort"), exception.Message));
+            ClientLog.Error(ModuleName, L10n.Get("chambermanual.device_failed", axis.Name, L10n.Get("action.abort"), exception.Message));
         }
     }
 
@@ -611,41 +629,47 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     #region 气缸
 
-    private async Task DoCylinder(CylinderPartModel? row, bool open)
+    private async Task DoCylinder(CylinderRowModel? row, bool up)
     {
         if (row is null)
         {
             return;
         }
 
-        await RunPart(row.Path, row.Name, open ? PartActionNames.Open : PartActionNames.Close, [],
-            open ? "chambermanual.cylinder.up" : "chambermanual.cylinder.down");
+        var request = DeviceRequest(row.Path);
+        if (up)
+        {
+            await RunDeviceAction(row.Name, "chambermanual.cylinder.up", () => _service.CylinderUpAsync(request));
+        }
+        else
+        {
+            await RunDeviceAction(row.Name, "chambermanual.cylinder.down", () => _service.CylinderDownAsync(request));
+        }
     }
 
     #endregion
 
-    /// <summary>
-    /// 发部件动作：普通动作同步等部件做完才回包（上限是腔体的 EC PartActionTimeout），结果随部件推送刷到页面和三维图上；
-    /// 停止、点动发出去就回。失败在顶栏日志里写"部件 动作 失败：原因"。返回成没成。
-    /// </summary>
-    private async Task<bool> RunPart(string path, string name, string action, IReadOnlyList<string> args, string actionKey)
+    private ChamberDeviceRequest DeviceRequest(string path)
     {
-        var response = await _service.PartActionAsync(new PartActionRequest
-        {
-            Module = ModuleName,
-            Part = path,
-            Action = action,
-            Args = [.. args],
-        });
+        return new ChamberDeviceRequest { Module = ModuleName, Device = path };
+    }
+
+    /// <summary>
+    /// 发设备动作：普通动作同步等设备做完才回包（上限是腔体的 EC DeviceActionTimeout），结果随设备推送刷到页面和三维图上；
+    /// 停止、点动发出去就回。失败在顶栏日志里写"设备 动作 失败：原因"。返回成没成。
+    /// </summary>
+    private async Task<bool> RunDeviceAction(string name, string actionKey, Func<Task<RpcResponse>> call)
+    {
+        var response = await call();
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, L10n.Get("chambermanual.part_failed", name, L10n.Get(actionKey), ReasonOf(response)));
+            ClientLog.Error(ModuleName, L10n.Get("chambermanual.device_failed", name, L10n.Get(actionKey), ReasonOf(response)));
         }
 
         return response.Success;
     }
 
-    private void LogInputRequired(AxisPartModel axis, string fieldKey)
+    private void LogInputRequired(AxisTabModel axis, string fieldKey)
     {
         ClientLog.Error(ModuleName, L10n.Get("chambermanual.input_required", axis.Name, L10n.Get(fieldKey)));
     }
@@ -654,12 +678,6 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     private static bool TryNumber(string text, out double value)
     {
         return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) && double.IsFinite(value);
-    }
-
-    /// <summary>参数按不变区域性写给后端（小数点是点号）。</summary>
-    private static string Text(double value)
-    {
-        return value.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>按钮参数 "-1" 是反向，其余正向。</summary>
@@ -679,8 +697,8 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     /// <summary>
     /// 失败原因：有错误码按语言包翻，老接口没码才用 Message。
-    /// 部件动作的错误码第二个参数是动作名（组件上的方法名，如 MoveTo），先换成语言包里的叫法，中文界面不露英文方法名；
-    /// 部件路径照 sc 原样显示，不翻。
+    /// 设备动作的错误码第二个参数是动作名（ChamberDeviceAction，如 Move），先换成语言包里的叫法，中文界面不露英文；
+    /// 设备路径照 sc 原样显示，不翻。
     /// </summary>
     private static string ReasonOf(RpcResponse response)
     {
@@ -690,9 +708,9 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         }
 
         var args = response.Args.ToList();
-        if (PartActionCodes.Contains(response.Code) && args.Count > 1)
+        if (DeviceActionCodes.Contains(response.Code) && args.Count > 1)
         {
-            args[1] = PartActionNames.LabelOf(args[1]);
+            args[1] = DeviceActionText.Of(args[1]);
         }
 
         return L10n.Get(response.Code, args);

@@ -2,17 +2,16 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Client.Common.Ec;
 using xyz.Client.Presentation.Localization;
-using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
 namespace xyz.Client.Manual.Models;
 
 /// <summary>
-/// 腔体手动页上的一根轴（一个页签）：位置、速度和五盏灯来自部件推送；目标位置、移动速度、点动速度、步距是页面上的输入。
+/// 腔体手动页上的一根轴（一个页签）：位置、速度和五盏灯来自设备推送；目标位置、移动速度、点动速度、步距是页面上的输入。
 /// 输入的默认值取这根轴的 EC（MoveSpeed、JogSpeed、JogStep；EC 还没拉到就先空着，拉到了再补），目标位置第一次收到数据时取当前位置；
 /// 页面上改了只管这次，不写回 EC。
 /// </summary>
-public class AxisPartModel : ObservableObject
+public class AxisTabModel : ObservableObject
 {
     /// <summary>位置、速度显示几位小数（跟后端推的位数一样）。</summary>
     private const string NumberFormat = "F3";
@@ -23,7 +22,7 @@ public class AxisPartModel : ObservableObject
 
     /// <param name="module">腔体模块名，页签上的名字去掉它（"Chamber1.Arm1" → "Arm1"）。</param>
     /// <param name="dto">这根轴的推送。</param>
-    public AxisPartModel(string module, PartDto dto)
+    public AxisTabModel(string module, ChamberAxisDto dto)
     {
         Path = dto.Path;
         string prefix = module + ".";
@@ -32,7 +31,7 @@ public class AxisPartModel : ObservableObject
         Update(dto);
     }
 
-    /// <summary>组件全路径，如 "Chamber1.Arm1"；动作按它找部件。</summary>
+    /// <summary>组件全路径，如 "Chamber1.Arm1"；动作按它找设备。</summary>
     public string Path { get; }
 
     /// <summary>页签上的名字：sc 路径去掉腔体名，照 sc 原样显示。</summary>
@@ -147,21 +146,18 @@ public class AxisPartModel : ObservableObject
     }
 
     /// <summary>用推送就地刷新（界面线程调用）；目标位置还空着时取第一次拿到的当前位置。</summary>
-    public void Update(PartDto dto)
+    public void Update(ChamberAxisDto dto)
     {
-        bool hasData = dto.GetBool(PartValueNames.HasPlcData);
-        double? position = dto.GetDouble(PartValueNames.CurrentPosition);
-        double? speed = dto.GetDouble(PartValueNames.CurrentSpeed);
-        PositionText = Format(hasData, position);
-        SpeedText = Format(hasData, speed);
-        IsServoOn = dto.GetBool(PartValueNames.IsServoOn);
-        IsHomed = dto.GetBool(PartValueNames.IsHomed);
-        IsBusy = dto.GetBool(PartValueNames.IsBusy);
-        IsInPosition = dto.GetBool(PartValueNames.IsInPosition);
-        IsError = dto.GetBool(PartValueNames.IsError);
-        if (hasData && position is not null && string.IsNullOrEmpty(TargetPosition))
+        PositionText = Format(dto.HasPlcData, dto.CurrentPosition);
+        SpeedText = Format(dto.HasPlcData, dto.CurrentSpeed);
+        IsServoOn = dto.IsServoOn;
+        IsHomed = dto.IsHomed;
+        IsBusy = dto.IsBusy;
+        IsInPosition = dto.IsInPosition;
+        IsError = dto.IsError;
+        if (dto.HasPlcData && string.IsNullOrEmpty(TargetPosition))
         {
-            TargetPosition = position.Value.ToString(NumberFormat, CultureInfo.InvariantCulture);
+            TargetPosition = dto.CurrentPosition.ToString(NumberFormat, CultureInfo.InvariantCulture);
         }
     }
 
@@ -189,13 +185,13 @@ public class AxisPartModel : ObservableObject
         return ClientEc.TryGet(key, out var item) ? item.Value ?? string.Empty : string.Empty;
     }
 
-    private static string Format(bool hasData, double? value)
+    private static string Format(bool hasData, double value)
     {
-        if (!hasData || value is null)
+        if (!hasData)
         {
             return L10n.Get("chambermanual.na");
         }
 
-        return value.Value.ToString(NumberFormat, CultureInfo.InvariantCulture);
+        return value.ToString(NumberFormat, CultureInfo.InvariantCulture);
     }
 }

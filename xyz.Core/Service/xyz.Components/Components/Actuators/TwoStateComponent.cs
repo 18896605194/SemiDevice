@@ -12,7 +12,6 @@ namespace xyz.Components.Components;
 /// 动作由组件自己管到完成：调用方 Open()/Close() 后看 ActionState，到位超时由组件自报；新指令随时可以顶替在途动作。
 /// 手动页上是气缸表的一行：Position 显示升到位 / 降到位 / 未知，两个按钮发 Open / Close。
 /// </summary>
-[PartKind("TwoState")]
 public abstract class TwoStateComponent : ComponentBase
 {
     #region SC 
@@ -88,7 +87,6 @@ public abstract class TwoStateComponent : ComponentBase
     /// 在哪一侧（手动页气缸表、三维图用）：命令发到哪一侧（哪个线圈通着）就看那一侧到没到位，到了是开到位 / 关到位，
     /// 没到（命令发了、到位信号还没亮）就是未知；两个线圈一样（刚上电都没通）时只看到位反馈。PLC 没连是未知。
     /// </summary>
-    [LiveValue]
     public TwoStatePosition Position
     {
         get
@@ -144,13 +142,11 @@ public abstract class TwoStateComponent : ComponentBase
 
     #region 动作（返回 true 只表示 DO 已写进 PLC，完成看 ActionState）
 
-    [ManualAction]
     public bool Open()
     {
         return Move(true);
     }
 
-    [ManualAction]
     public bool Close()
     {
         return Move(false);

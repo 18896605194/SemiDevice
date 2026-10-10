@@ -287,143 +287,154 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region 设备状态查询
 
-    /// <summary>
-    /// 轮询表：一格一条查询，轮完从头来。订阅那格在 SC 关着或已经订上时空过；轴位占两格，每格轮一根轴。
-    /// 加一种查询：表里加一格，SendNextQuery 里加一个 case。
-    /// </summary>
-    private static readonly RobotQueryKind[] QueryOrder =
-    {
-        RobotQueryKind.SubscribeWaferEvent,
-        RobotQueryKind.DeviceError,
-        RobotQueryKind.ServoOn,
-        RobotQueryKind.Speed,
-        RobotQueryKind.AxisPos,
-        RobotQueryKind.AxisPos,
-    };
+    /// <summary>这一圈查到哪了；一圈查完为 null，下一拍从头再查一圈。</summary>
+    private IEnumerator<RobotCommand?>? _queryRound;
 
+    /// <summary>在途的那条查询：跟 LoadPort 一样同一时间只有一条，回来了（或超时作废了）才发下一条。</summary>
     private RobotCommand? _query;
 
-    /// <summary>在途这条回来了、成功了写到哪（发的时候一起定）。</summary>
-    private Action<RobotResponse>? _onQueryReply;
-
-    private int _queryIndex;
-    private int _axisIndex;
-    private bool _waferEventSubscribed;
     private readonly Stopwatch _queryWatch = new();
     private bool _isStatusQueryLate;
+    private bool _waferEventSubscribed;
 
     /// <summary>
-    /// 设备状态轮询：同一时间只有一条在途，按轮询表轮着发；回来了成功就写到模块上，超时就作废这一条、接着查下一条。
+    /// 设备状态轮询（扫描线程，跟 LoadPort 一个路子）：在途那条没回来、没超时就等，超时就作废它；
+    /// 回来了或作废了，就往下走一步——写上一条的结果、发这一圈的下一条；一圈查完，下一拍从头再查。
+    /// 查什么、什么顺序、回来写到哪，都在 <see cref="QueryRound"/> 里。
     /// </summary>
     private void LoopQueryStatus()
     {
         var robot = _robot;
-        if (!IsEnable || robot is null || !robot.IsConnected)
+        if (!IsEnable || robot is null)
         {
             return;
         }
 
-        #region 发查询
+        #region 没连上：这一圈作废
 
-        // 手上没有在途的就发下一条；发不出去（驱动正忙）_query 还是 null，下一拍再发。
-        if (_query is null)
+        // 连上以后从头查；在位推送的订阅跟着连接走，也要重新订。
+        if (!robot.IsConnected)
         {
-            SendNextQuery(robot);
+            _queryRound = null;
+            _query = null;
+            _waferEventSubscribed = false;
+            return;
+        }
+
+        #endregion
+
+        #region 等在途那条：没回来、没超时就等；超时作废
+
+        var query = _query;
+        if (query is not null && !query.IsCompleted)
+        {
+            int timeout = QueryDataTimeOut;
+            if (_queryWatch.ElapsedMilliseconds < timeout)
+            {
+                return;
+            }
+
+            // 回复丢了的话，这条会一直占着驱动的在途位，同名查询再也发不出去，所以要作废。
+            robot.Abandon(query, "Timeout");
+            if (!_isStatusQueryLate)
+            {
+                _isStatusQueryLate = true;
+                LogHelper.Warn(Name, $"设备状态查询超时（{timeout}ms）：这一条作废、接着查");
+            }
+        }
+        else if (_isStatusQueryLate && ReplyOf(query) is not null)
+        {
+            _isStatusQueryLate = false;
+            LogHelper.Info(Name, "设备状态查询恢复");
+        }
+
+        #endregion
+
+        #region 往下走一步：写上一条的结果、发下一条
+
+        _queryRound ??= QueryRound(robot).GetEnumerator();
+        if (_queryRound.MoveNext())
+        {
+            _query = _queryRound.Current;
             _queryWatch.Restart();
             return;
         }
 
-        #endregion
-
-        #region 收结果
-
-        if (_query.IsCompleted)
-        {
-            var response = _query.Response;
-            _query = null;
-            if (response is not null && response.IsSuccess)
-            {
-                _onQueryReply?.Invoke(response);
-                if (_isStatusQueryLate)
-                {
-                    _isStatusQueryLate = false;
-                    LogHelper.Info(Name, "设备状态查询恢复");
-                }
-            }
-
-            return;
-        }
-
-        #endregion
-
-        #region 超时：作废这一条，下一拍接着查
-
-        int timeout = QueryDataTimeOut;
-        if (_queryWatch.ElapsedMilliseconds < timeout)
-        {
-            return;
-        }
-
-        // 回复丢了的话，这条会一直占着驱动的在途位，同名查询再也发不出去，所以要作废。
-        robot.Abandon(_query, "Timeout");
+        // 一圈查完：下一拍从头再查
+        _queryRound = null;
         _query = null;
-        if (!_isStatusQueryLate)
-        {
-            _isStatusQueryLate = true;
-            LogHelper.Warn(Name, $"设备状态查询超时（{timeout}ms）：这一条作废、接着查");
-        }
 
         #endregion
     }
 
     /// <summary>
-    /// 按轮询表发下一条，连同回来了写到哪一起记下。
+    /// 一圈查什么、什么顺序、回来写到哪，从上往下写：yield return 一条 = 发出去，等它回来（或超时作废）了再往下走。
+    /// 发不出去、没查成的那一项这圈不写，接着查下一项。加一种查询：照着加一段。
     /// </summary>
-    private void SendNextQuery(RobotDriverComponent robot)
+    private IEnumerable<RobotCommand?> QueryRound(RobotDriverComponent robot)
     {
-        var kind = QueryOrder[_queryIndex];
-        _queryIndex = (_queryIndex + 1) % QueryOrder.Length;
-
-        switch (kind)
+        // 手指在位推送：SC 开着又还没订上，每圈开头订一次，订上为止
+        if (WaferEventEnabled && !_waferEventSubscribed)
         {
-            case RobotQueryKind.SubscribeWaferEvent:
-                // SC 关着（这台机械手不带在位推送）或已经订上了：这一格空过
-                if (WaferEventEnabled && !_waferEventSubscribed)
-                {
-                    _query = robot.SubscribeWaferEvent();
-                    _onQueryReply = response => _waferEventSubscribed = true;
-                }
-
-                break;
-
-            case RobotQueryKind.DeviceError:
-                _query = robot.QueryDeviceError();
-                _onQueryReply = response => DeviceError = response.DeviceError;
-                break;
-
-            case RobotQueryKind.ServoOn:
-                _query = robot.QueryServoOn();
-                _onQueryReply = response => IsServoOn = response.ServoOn;
-                break;
-
-            case RobotQueryKind.Speed:
-                _query = robot.QuerySpeed();
-                _onQueryReply = response => Speed = response.Speed;
-                break;
-
-            case RobotQueryKind.AxisPos:
-                // 每格轮一根轴：X、Z、Theta、Arm1、Arm2……按 sc.xml 轴节点顺序滚
-                var axes = Axes;
-                if (axes.Count > 0)
-                {
-                    var axis = axes[_axisIndex % axes.Count];
-                    _axisIndex = (_axisIndex + 1) % axes.Count;
-                    _query = robot.QueryAxisPos(axis.Name);
-                    _onQueryReply = response => axis.UpdatePosition(response.Position);
-                }
-
-                break;
+            var subscribe = robot.SubscribeWaferEvent();
+            yield return subscribe;
+            _waferEventSubscribed = ReplyOf(subscribe) is not null;
         }
+
+        var error = robot.QueryDeviceError();
+        yield return error;
+        var errorReply = ReplyOf(error);
+        if (errorReply is not null)
+        {
+            DeviceError = errorReply.DeviceError;
+        }
+
+        var servo = robot.QueryServoOn();
+        yield return servo;
+        var servoReply = ReplyOf(servo);
+        if (servoReply is not null)
+        {
+            IsServoOn = servoReply.ServoOn;
+        }
+
+        var speed = robot.QuerySpeed();
+        yield return speed;
+        var speedReply = ReplyOf(speed);
+        if (speedReply is not null)
+        {
+            Speed = speedReply.Speed;
+        }
+
+        // 每根轴（含手指）查一次坐标，按 sc.xml 轴节点的先后
+        foreach (var axis in Axes)
+        {
+            var position = robot.QueryAxisPos(axis.Name);
+            yield return position;
+            var positionReply = ReplyOf(position);
+            if (positionReply is not null)
+            {
+                axis.UpdatePosition(positionReply.Position);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 查成了的回复；没发出去、还没回来、失败、超时作废的都是 null。
+    /// </summary>
+    private static RobotResponse? ReplyOf(RobotCommand? command)
+    {
+        if (command is null || !command.IsCompleted)
+        {
+            return null;
+        }
+
+        var response = command.Response;
+        if (response is null || !response.IsSuccess)
+        {
+            return null;
+        }
+
+        return response;
     }
 
     #endregion

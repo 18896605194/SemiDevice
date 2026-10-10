@@ -7,9 +7,7 @@ namespace xyz.Modules.StateMachines;
 /// </summary>
 public static class ChamberStateTable
 {
-    public static IReadOnlyDictionary<
-        (int? State, ChamberAction Action),
-        (int ExecutingState, int SuccessState)> Transitions { get; } =
+    public static IReadOnlyDictionary<(int? State, ChamberAction Action),(int ExecutingState, int SuccessState)> Transitions { get; } =
         new Dictionary<(int? State, ChamberAction Action), (int ExecutingState, int SuccessState)>
         {
             // (当前状态, 动作) = (执行状态, 成功状态)
@@ -33,7 +31,7 @@ public static class ChamberStateTable
             [(TransferModuleState.Transferring, ChamberAction.Reset)] = (TransferModuleState.Transferring, ModuleState.Idle),
             [(TransferModuleState.TransferComplete, ChamberAction.Reset)] = (TransferModuleState.TransferComplete, ModuleState.Idle),
 
-            // 部件手动动作：没初始化、空闲、报错时都能点（报错后常要手动把部件挪回去），
+            // 设备手动动作：没初始化、空闲、报错时都能点（报错后常要手动把设备挪回去），
             // 执行中落 Manual——不是待命态，调度不会趁这时候派机械手；做完回到原来的状态，不顺带清错。
             [(ModuleState.NotInit, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.NotInit),
             [(ModuleState.Idle, ChamberAction.Manual)] = (ChamberState.Manual, ModuleState.Idle),
@@ -43,10 +41,6 @@ public static class ChamberStateTable
             [(null, ChamberAction.Abort)] = (ModuleState.Aborting, ModuleState.Idle),
         };
 
-    /// <summary>
-    /// 转成基类迁移表的注册键（动作名 = 枚举 ToString），供腔体模块实例注册自己的表；
-    /// 机型可在返回值基础上增删后经 RegisterTransitions/AddTransition 定制。
-    /// </summary>
     public static IReadOnlyDictionary<(int? State, string Action), (int ExecutingState, int SuccessState)> ToModuleTable()
     {
         return Transitions.ToDictionary(kv => (kv.Key.State, kv.Key.Action.ToString()), kv => kv.Value);

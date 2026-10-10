@@ -75,28 +75,24 @@ public partial class AxisComponent
 
     #endregion
 
-    #region 轴操作（标了 [ManualAction] 的手动页能直接调：回零、移动、步进、点动、停止、复位）
+    #region 轴操作（回零、移动、步进、点动、转、停止、复位）
 
-    [ManualAction]
     public bool Home()
     {
         return Send(MotionCommandId.Home, 0, HomeSpeed);
     }
 
-    [ManualAction]
     public bool MoveTo(double position, double? speed = null)
     {
         return Send(MotionCommandId.MoveTo, position, speed ?? MoveSpeed);
     }
 
-    [ManualAction]
     public bool MoveBy(double offset, double? speed = null)
     {
         return Send(MotionCommandId.MoveBy, offset, speed ?? MoveSpeed);
     }
 
     /// <summary>点动：按 speed 一直走（正负是方向），到速即算完成；手动页按住期间一直走、松手发 Stop。</summary>
-    [ManualAction(Release = nameof(Stop))]
     public bool Jog(double speed)
     {
         return Send(MotionCommandId.Jog, 0, speed);
@@ -108,7 +104,6 @@ public partial class AxisComponent
     }
 
     /// <summary>停止：可以打断在途动作，手动页上别的动作在途时也照发。</summary>
-    [ManualAction(Priority = true)]
     public bool Stop()
     {
         return Send(MotionCommandId.Stop, 0, 0, priority: true);
@@ -120,7 +115,6 @@ public partial class AxisComponent
     }
 
     /// <summary>驱动器复位清错。</summary>
-    [ManualAction]
     public bool ResetDrive()
     {
         return Send(MotionCommandId.Reset, 0, 0);
@@ -243,18 +237,21 @@ public partial class AxisComponent
                 return speed > 0 && _status.Is_Homed == 1 && CanStartMotion(speed, accel, maxSpeed);
 
             case MotionCommandId.Jog:
-            case MotionCommandId.Spin:
                 return CanStartMotion(speed, accel, maxSpeed);
+
+            case MotionCommandId.Spin:
+                // 转着换转速：上一条就是连续旋转时 PLC 报忙也照收（工艺换一步转速不用先停下来），别的运动在走就不行
+                return CanStartMotion(speed, accel, maxSpeed, allowBusy: (MotionCommandId)_command.Axis_Command == MotionCommandId.Spin);
 
             default:
                 return true;
         }
     }
 
-    private bool CanStartMotion(double speed, double accel, double maxSpeed)
+    private bool CanStartMotion(double speed, double accel, double maxSpeed, bool allowBusy = false)
     {
-        // 设备条件：没报错、就绪、使能、不忙。
-        if (_status.Is_Err != 0 || _status.Is_Ready != 1 || _status.Is_Servo_On != 1 || _status.Is_Busy != 0)
+        // 设备条件：没报错、就绪、使能、不忙（allowBusy 时忙也行）。
+        if (_status.Is_Err != 0 || _status.Is_Ready != 1 || _status.Is_Servo_On != 1 || (_status.Is_Busy != 0 && !allowBusy))
         {
             return false;
         }

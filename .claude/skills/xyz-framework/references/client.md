@@ -222,18 +222,17 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `ChamberScene` 把它们装成腔体手动页的三维图（`Parts` 绑 `ChamberPartsModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
   三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
 - **腔体手动页**（`xyz.Client.Manual\Views\ChamberManualControl`，布局照用户给的参考图，见 decisions.md）：部件都来自后端的
-  `ModulePartsDto`——`ChamberPartsModel.Update` 从里面认出三维要画的门 / Bowl / 卡盘 / 摆臂，VM 按 `PartDto.Kind` 分出轴页签
-  （`AxisPartModel`，Kind = Axis）和气缸表（`CylinderPartModel`，Kind = TwoState），都按 sc 的先后。数据名、动作名、种类名的常量在
-  `Presentation\Models\PartValueNames / PartActionNames / PartKinds`（就是后端的属性名、方法名、[PartKind]）。
-  动作都走 `IChamberService.PartActionAsync`（部件路径 + 方法名 + 不变区域性参数）；点动用 HoldButton：按下 Jog、续 `RenewPartActionAsync`、
-  松手先等点动请求回来再发 Stop。轴参数（移动速度、点动速度、步距）默认值取这根轴的 EC，`ClientEc` 拉到后补上空着的。
+  `ChamberPartsDto`（强类型：轴表、气缸表、喷嘴表，门 / Bowl / Lift 的角色、喷嘴在哪条臂后端认好了）——`ChamberPartsModel.Update` 按 Kind / Role / Arm 挑出三维要画的门 / Bowl / 卡盘 / 摆臂，
+  VM 拿 `Axes` 做轴页签（`AxisPartModel`）、`Cylinders` 做气缸表（`CylinderPartModel`），都按 sc 的先后。界面不再抄后端的属性名、方法名（2026-10-10 删了 PartValueNames / PartActionNames / PartKinds）。
+  动作调 `IChamberService` 的具体方法（`AxisHomeAsync` / `AxisMoveAsync` / `AxisStepAsync` / `AxisJogAsync` / `AxisStopAsync` / `AxisResetAsync`、`CylinderUpAsync` / `CylinderDownAsync`）；
+  点动用 HoldButton：按下 Jog、续 `AxisJogRenewAsync`、松手先等点动请求回来再发 Stop。轴参数（移动速度、点动速度、步距）默认值取这根轴的 EC，`ClientEc` 拉到后补上空着的。
 
 ## 8. 语言包（`Common\xyz.Client.Presentation\Localization`）
 
 - `Strings.zh-CN.xaml`、`Strings.en-US.xaml`，`<sys:String x:Key="...">`，**两份的 key 必须一一对应**（加一条就两边都加）。
 - **界面上显示的都要多语言**（标题、按钮、状态、提示、报错，用户 2026-10-04 定的）；从数据库、配置查出来的数据
   （sc 里的模块 / 部件名、配方名、日志内容、片号）原样显示，不翻。后端报错参数里带的固定标识也要换成叫法再显示，
-  比如部件动作名（= 组件方法名 MoveTo）走 `PartActionNames.LabelOf` → `part.action.{方法名转小写下划线}`，中文界面不露英文方法名。
+  比如部件动作名（Shared 枚举 `ChamberPartAction`，如 ValveOn）走 `PartActionText.Of` → `part.action.{转小写下划线}`，中文界面不露英文。
 - key 小写点分、叶子 snake_case：错误码（= `xyz.Shared\Errors\ErrorCodes.cs` 的常量值，如 `wafer.slot_occupied`）、`module.state.*`、
   `common.*`、`shell.*`、`setting.ledger.*`、`menu.{Code}`（Code 保留大小写）；枚举值做叶子时保留原样（`setting.ledger.process.InProcess`）；提示文字 `_tip` 结尾。
 - XAML 用 `{DynamicResource key}`；C# 用 `L10n.Get(key, 参数...)`（`string.Format`，可写 `{0:00}`）、`L10n.Get(code, response.Args)`；没有这个 key 时返回 key 本身。

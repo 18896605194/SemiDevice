@@ -15,7 +15,7 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
 /// 腔体三维图：底座上装 Bowl、旋转盘、腔门和每条摆臂（Lift 立柱、摆臂、喷嘴管、Home 接液杯）。
-/// 装哪些部件看 Parts（后端按 sc.xml 推来的部件组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
+/// 装哪些设备看 Devices（后端按 sc.xml 推来的设备组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
 /// 摆臂收到新位置后 0.2 s 过渡过去。门、Bowl、Lift 跟到位反馈走：到位画在那一头，未知（命令发了、到位信号还没亮）画在行程中间并高亮。
 /// 不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，只有动画进行中角度和高度才会逐帧变，停下来就一点不算。
 /// 左键拖动旋转视角、滚轮缩放，图下面一条工具栏：默认视角、俯视。
@@ -166,15 +166,15 @@ public partial class ChamberScene : UserControl
 
     #region 依赖属性
 
-    /// <summary>部件显示模型（门、Bowl、旋转电机、摆臂）；组成变了（Revision）重搭三维图。</summary>
-    public ChamberPartsModel? Parts
+    /// <summary>设备显示模型（门、Bowl、旋转电机、摆臂）；组成变了（Revision）重搭三维图。</summary>
+    public ChamberDeviceDataModel? Devices
     {
-        get => (ChamberPartsModel?)GetValue(PartsProperty);
-        set => SetValue(PartsProperty, value);
+        get => (ChamberDeviceDataModel?)GetValue(DevicesProperty);
+        set => SetValue(DevicesProperty, value);
     }
 
-    public static readonly DependencyProperty PartsProperty = DependencyProperty.Register(
-        nameof(Parts), typeof(ChamberPartsModel), typeof(ChamberScene), new PropertyMetadata(null, OnPartsChanged));
+    public static readonly DependencyProperty DevicesProperty = DependencyProperty.Register(
+        nameof(Devices), typeof(ChamberDeviceDataModel), typeof(ChamberScene), new PropertyMetadata(null, OnDevicesChanged));
 
     /// <summary>盘上的片（晶圆账，WaferModel）；null 显示空盘。</summary>
     public object? Wafer
@@ -186,26 +186,26 @@ public partial class ChamberScene : UserControl
     public static readonly DependencyProperty WaferProperty = DependencyProperty.Register(
         nameof(Wafer), typeof(object), typeof(ChamberScene), new PropertyMetadata(null));
 
-    private static void OnPartsChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    private static void OnDevicesChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         var scene = (ChamberScene)sender;
-        if (args.OldValue is ChamberPartsModel old)
+        if (args.OldValue is ChamberDeviceDataModel old)
         {
-            old.PropertyChanged -= scene.OnPartsPropertyChanged;
+            old.PropertyChanged -= scene.OnDevicesPropertyChanged;
         }
 
-        if (args.NewValue is ChamberPartsModel parts)
+        if (args.NewValue is ChamberDeviceDataModel devices)
         {
-            parts.PropertyChanged += scene.OnPartsPropertyChanged;
+            devices.PropertyChanged += scene.OnDevicesPropertyChanged;
         }
 
-        scene.BindFixedParts();
+        scene.BindFixedDevices();
         scene.Rebuild();
     }
 
-    private void OnPartsPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private void OnDevicesPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(ChamberPartsModel.Revision))
+        if (args.PropertyName == nameof(ChamberDeviceDataModel.Revision))
         {
             Rebuild();
         }
@@ -215,20 +215,20 @@ public partial class ChamberScene : UserControl
 
     #region 搭场景
 
-    /// <summary>门、Bowl、旋转盘一直是这几个实例，换 Parts 时重新绑到新模型上；Parts 为空就解绑。</summary>
-    private void BindFixedParts()
+    /// <summary>门、Bowl、旋转盘一直是这几个实例，换 Devices 时重新绑到新模型上；Devices 为空就解绑。</summary>
+    private void BindFixedDevices()
     {
-        var parts = Parts;
-        Bind(_door, DoorVisual3D.IsOpenProperty, parts, "Door.IsOpen");
-        Bind(_door, DoorVisual3D.IsUnknownProperty, parts, "Door.IsUnknown");
-        Bind(_bowl, BowlVisual3D.IsRaisedProperty, parts, "Bowl.IsOpen");
-        Bind(_bowl, BowlVisual3D.IsUnknownProperty, parts, "Bowl.IsUnknown");
-        Bind(_disk, DiskVisual3D.RotationSpeedProperty, parts, "Spin.IsSpinning", SpinSpeedConverter.Instance);
-        Bind(_disk, DiskVisual3D.RotateClockwiseProperty, parts, "Spin.IsClockwise");
+        var devices = Devices;
+        Bind(_door, DoorVisual3D.IsOpenProperty, devices, "Door.IsOpen");
+        Bind(_door, DoorVisual3D.IsUnknownProperty, devices, "Door.IsUnknown");
+        Bind(_bowl, BowlVisual3D.IsRaisedProperty, devices, "Bowl.IsOpen");
+        Bind(_bowl, BowlVisual3D.IsUnknownProperty, devices, "Bowl.IsUnknown");
+        Bind(_disk, DiskVisual3D.RotationSpeedProperty, devices, "Spin.IsSpinning", SpinSpeedConverter.Instance);
+        Bind(_disk, DiskVisual3D.RotateClockwiseProperty, devices, "Spin.IsClockwise");
     }
 
     /// <summary>
-    /// 按现在的部件组成重搭：sc 里配了门、Bowl 才装，旋转盘一直在；摆臂按先后放右、左两个安装位。
+    /// 按现在的设备组成重搭：sc 里配了门、Bowl 才装，旋转盘一直在；摆臂按先后放右、左两个安装位。
     /// 旧摆臂先解绑、停动画，再整个拆掉。
     /// </summary>
     private void Rebuild()
@@ -240,32 +240,32 @@ public partial class ChamberScene : UserControl
 
         _rigs.Clear();
         Base.Attachments.Clear();
-        var parts = Parts;
-        if (parts is not null && parts.Bowl.IsPresent)
+        var devices = Devices;
+        if (devices is not null && devices.Bowl.IsPresent)
         {
             Base.Attachments.Add(_bowl);
         }
 
         Base.Attachments.Add(_disk);
-        if (parts is null)
+        if (devices is null)
         {
             return;
         }
 
-        if (parts.Door.IsPresent)
+        if (devices.Door.IsPresent)
         {
             Base.Attachments.Add(_door);
         }
 
-        if (parts.Arms.Count > MaxArms)
+        if (devices.Arms.Count > MaxArms)
         {
-            ClientLog.Warn(LogModule, L10n.Get("chamberscene.too_many_arms", parts.Module, parts.Arms.Count, MaxArms));
+            ClientLog.Warn(LogModule, L10n.Get("chamberscene.too_many_arms", devices.Module, devices.Arms.Count, MaxArms));
         }
 
-        int count = Math.Min(parts.Arms.Count, MaxArms);
+        int count = Math.Min(devices.Arms.Count, MaxArms);
         for (int i = 0; i < count; i++)
         {
-            _rigs.Add(new ArmRig(this, parts.Arms[i], i == 0 ? 1 : -1));
+            _rigs.Add(new ArmRig(this, devices.Arms[i], i == 0 ? 1 : -1));
         }
     }
 

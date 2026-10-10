@@ -48,7 +48,7 @@ ProbeChamber Chamber(string name, params (string Arm, string[] Chemicals)[] arms
     var chamber = new ProbeChamber(name);
     foreach (var (armName, chemicals) in arms)
     {
-        var arm = new ArmAxisComponent();
+        var arm = new SwingArmComponent();
         Probe.Name(arm, armName);
         chamber.AddChild(arm);
         foreach (string chemical in chemicals)
@@ -135,7 +135,7 @@ try
         "时间：小数、必填、0.1 ~ 3600 s、一位小数、默认 10");
     Check(F("Rpm").Type == ProcessRecipeFieldType.Int && F("Rpm").Min == 0 && F("Rpm").Max == 3000 && F("Rpm").Default == "500" && F("Rpm").Decimals is null,
         "转速：整数、0 ~ 3000、默认 500");
-    Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").Source!.IsParts && F("Arm").Source!.PartType == "ArmAxisComponent"
+    Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").Source!.IsParts && F("Arm").Source!.PartType == "SwingArmComponent"
           && F("Arm").Source!.Property.Length == 0 && !F("Arm").Required, "摆臂：下拉，从腔体里的摆臂轴取名字");
     Check(F("Chemical").Source!.PartType == "NozzleComponent" && F("Chemical").Source!.Property == "Chemical" && F("Chemical").Source!.ParentKey == "Arm",
         "药液：下拉，取所选摆臂下面喷嘴的 Chemical");

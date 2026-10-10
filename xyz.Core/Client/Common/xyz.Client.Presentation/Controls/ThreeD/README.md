@@ -318,7 +318,7 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 
 | 依赖属性 | 含义 |
 | --- | --- |
-| `Parts` | `ChamberPartsModel`：后端的通用部件推送（`ModulePartsDto`）就地刷新，里面认出门、Bowl、卡盘、摆臂 |
+| `Parts` | `ChamberPartsModel`：后端的部件推送（`ChamberPartsDto`）就地刷新，按角色挑出门、Bowl、卡盘、摆臂 |
 | `Wafer` | 盘上的片（晶圆账，`WaferModel`）；null 显示空盘 |
 
 ```xml
@@ -327,7 +327,7 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 
 - 装哪些部件看 sc.xml（`ChamberPartsModel` 从推送里认）：腔体下名叫 Door 的气缸、名字以 Bowl 开头的第一个气缸（Bowl1）配了才装，
   旋转盘一直在（架在主轴上，比 Bowl 降下时的上沿高、比升起时低：降下露出盘面好取放片，升起围住盘面挡液）；
-  类名 ArmAxisComponent 的轴是摆臂，它下面第一个气缸是 Lift、阀按 sc 先后是喷嘴，摆臂按 sc 先后放在 Bowl 右、左两个安装位，
+  类名 SwingArmComponent 的轴是摆臂，它下面第一个气缸是 Lift、阀按 sc 先后是喷嘴，摆臂按 sc 先后放在 Bowl 右、左两个安装位，
   最多两条（多配的在日志里提示）。`Revision` 变了（部件组成变了）才整套重搭，平时只改绑定的状态。
 - 状态都是绑定：门 `IsOpen`、Bowl / Lift `IsRaised` 跟到位反馈（开到位 / 关到位），未知（命令发了、到位信号还没亮）绑 `IsUnknown`
   画在行程中间并高亮；喷嘴出液跟 `IsOn`；旋转盘在转就按固定的显示转速转（不跟实际转速，几百转画出来只会频闪），转向跟实际转速正负。

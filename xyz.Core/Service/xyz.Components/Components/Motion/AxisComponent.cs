@@ -9,7 +9,6 @@ namespace xyz.Components.Components;
 /// 手动页上一根轴一个页签：显示位置、速度和五盏灯，按钮发回零、移动、停止、复位、点动、步进。
 /// </summary>
 [Component(description: "运动轴组件")]
-[PartKind("Axis")]
 public partial class AxisComponent : ComponentBase
 {
     #region SC 
@@ -111,7 +110,6 @@ public partial class AxisComponent : ComponentBase
     /// PLC 状态是否有效：状态块这一拍读到了、命令块基线也拿到了。false 时下面的数值是断线前的旧值，只能留着显示。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "轴 PLC 状态是否有效")]
-    [LiveValue]
     public bool HasPlcData
     {
         get
@@ -148,25 +146,18 @@ public partial class AxisComponent : ComponentBase
     }
 
     [VariableMark(VariableType.SV, ValueFormat.Double, description: "轴实际位置（HasPlcData 为 false 时无效）")]
-    [LiveValue]
     public double CurrentPosition => Status.Current_Position;
 
-    [LiveValue]
     public double CurrentSpeed => Status.Current_Speed;
 
-    [LiveValue]
     public bool IsHomed => HasPlcData && Status.Is_Homed == 1;
 
-    [LiveValue]
     public bool IsInPosition => HasPlcData && Status.Is_In_Position == 1;
 
-    [LiveValue]
     public bool IsBusy => HasPlcData && Status.Is_Busy == 1;
 
-    [LiveValue]
     public bool IsServoOn => HasPlcData && Status.Is_Servo_On == 1;
 
-    [LiveValue]
     public bool IsError => HasPlcData && Status.Is_Err == 1;
 
     #endregion

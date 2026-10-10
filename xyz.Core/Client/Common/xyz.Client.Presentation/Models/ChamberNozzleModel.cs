@@ -8,13 +8,13 @@ namespace xyz.Client.Presentation.Models;
 /// </summary>
 public class ChamberNozzleModel : ObservableObject
 {
-    public ChamberNozzleModel(PartDto dto)
+    public ChamberNozzleModel(ChamberNozzleDto dto)
     {
         Path = dto.Path;
         Update(dto);
     }
 
-    /// <summary>组件全路径，如 "Chamber1.Arm1.Nozzle_DIW"（部件组成没变就不会变）。</summary>
+    /// <summary>组件全路径，如 "Chamber1.Arm1.Nozzle_DIW"（设备组成没变就不会变）。</summary>
     public string Path { get; }
 
     private bool _isOn;
@@ -27,8 +27,8 @@ public class ChamberNozzleModel : ObservableObject
     }
 
     /// <summary>用推送就地刷新（界面线程调用）。</summary>
-    public void Update(PartDto dto)
+    public void Update(ChamberNozzleDto dto)
     {
-        IsOn = dto.GetBool(PartValueNames.IsOn);
+        IsOn = dto.IsOn;
     }
 }

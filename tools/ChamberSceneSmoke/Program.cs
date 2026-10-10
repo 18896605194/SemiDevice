@@ -11,10 +11,11 @@ using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using xyz.Client.Common.Log;
 using xyz.Client.Presentation.Controls.ThreeD;
+using xyz.Client.Presentation.Localization;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
-// 腔体三维图冒烟：从后端的通用部件推送（ModulePartsDto）认出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
+// 腔体三维图冒烟：从后端的设备推送（ChamberPartsDto 的轴表、气缸表、喷嘴表）挑出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
 // 液柱落点、0.2 s 过渡（中途换目标不跳、隐藏时直接落位）、Lift 升降带动摆臂和液柱、门 / Bowl / Lift 跟到位反馈（未知停在行程中间并高亮）、
 // 旋转跟状态、组成变化重搭、多于两条摆臂只画两条、视角工具栏（默认视角、俯视）、解绑。不连后端，推送直接喂显示模型。
 internal static class Program
@@ -59,17 +60,17 @@ internal static class Program
             Pump(60);
             var plate = (ChamberBaseVisual3D)scene.FindName("Base");
 
-            // 1. 还没有部件组成：只画旋转盘
-            Check(plate.Attachments.Count == 1 && plate.Attachments[0] is DiskVisual3D, "没收到部件组成时只画旋转盘");
+            // 1. 还没有设备组成：只画旋转盘
+            Check(plate.Attachments.Count == 1 && plate.Attachments[0] is DiskVisual3D, "没收到设备组成时只画旋转盘");
             var disk = (DiskVisual3D)plate.Attachments[0];
 
-            // 2. 从通用推送里认部件：门（腔体下叫 Door 的气缸）、Bowl（Bowl 开头的第一个气缸）、卡盘、两条摆臂各一套 Lift / 摆臂（两路喷嘴管）/ 接液杯
-            var parts = new ChamberPartsModel();
-            scene.Parts = parts;
+            // 2. 从通用推送里认设备：门（腔体下叫 Door 的气缸）、Bowl（Bowl 开头的第一个气缸）、卡盘、两条摆臂各一套 Lift / 摆臂（两路喷嘴管）/ 接液杯
+            var devices = new ChamberDeviceDataModel();
+            scene.Devices = devices;
             var state = State(arms: 2);
             state.Arms[0].Reach = 1;
             state.Arms[1].Reach = 1;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(30);
             var bowl = plate.Attachments.OfType<BowlVisual3D>().Single();
             var door = plate.Attachments.OfType<DoorVisual3D>().Single();
@@ -80,11 +81,11 @@ internal static class Program
                 "门、Bowl、旋转盘 + 两套 Lift / 摆臂 / 接液杯");
             Check(arms.All(arm => arm.Attachments.OfType<FluidPipeVisual3D>().Count() == 2), "每条摆臂两路喷嘴两根管");
             Check(Pivot(arms[0], plate).X > bowl.Radius && Pivot(arms[1], plate).X < -bowl.Radius, "第 1 条装在 Bowl 右侧，第 2 条在左侧");
-            Check(parts.Revision == 1 && parts.Module == "Chamber1" && parts.Door.Path == "Chamber1.Door"
-                && parts.Bowl.Path == "Chamber1.Bowl1" && parts.Spin.Path == "Chamber1.SpinMotor", "门按名字、Bowl 按名字开头、卡盘按类名认");
-            Check(parts.Arms.Select(arm => arm.Path).SequenceEqual(["Chamber1.Arm1", "Chamber1.Arm2"])
-                && parts.Arms[0].Lift.Path == "Chamber1.Arm1.Lift"
-                && parts.Arms[1].Nozzles.Select(nozzle => nozzle.Path).SequenceEqual(["Chamber1.Arm2.Nozzle_DIW", "Chamber1.Arm2.Nozzle_SC1"]),
+            Check(devices.Revision == 1 && devices.Module == "Chamber1" && devices.Door.Path == "Chamber1.Door"
+                && devices.Bowl.Path == "Chamber1.Bowl1" && devices.Spin.Path == "Chamber1.SpinMotor", "门按名字、Bowl 按名字开头、卡盘按类名认");
+            Check(devices.Arms.Select(arm => arm.Path).SequenceEqual(["Chamber1.Arm1", "Chamber1.Arm2"])
+                && devices.Arms[0].Lift.Path == "Chamber1.Arm1.Lift"
+                && devices.Arms[1].Nozzles.Select(nozzle => nozzle.Path).SequenceEqual(["Chamber1.Arm2.Nozzle_DIW", "Chamber1.Arm2.Nozzle_SC1"]),
                 "摆臂按类名认，它下面的气缸是 Lift、阀按 sc 先后是喷嘴");
 
             // 3. 工艺位：两路喷嘴的中点正对盘心，液柱落到盘面
@@ -103,7 +104,7 @@ internal static class Program
             // 4. 回 Home：0.2 s 过渡；到 Home 喷嘴在自己的接液杯正上方，液柱落进杯里，有出液时杯亮
             state = State(arms: 2);
             state.Arms[0].Nozzles[0].IsOn = true;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Check(arms[0].HasAnimatedProperties && arms[1].HasAnimatedProperties, "收到新位置开始过渡");
             Pump(120);
             Check(arms[0].Angle > processAngle && arms[0].Angle < HomeAngle, "过渡中角度在两头之间");
@@ -124,12 +125,12 @@ internal static class Program
             // 5. 中途换目标：从当前显示位置接着走，不跳
             state = State(arms: 2);
             state.Arms[0].Reach = 1;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(100);
             double midway = arms[0].Angle;
             state = State(arms: 2);
             state.Arms[0].Reach = 0.5;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Check(Near(arms[0].Angle, midway), "中途换目标不跳");
             Pump(450);
             Check(Near(arms[0].Angle, HomeAngle + 0.5 * (processAngle - HomeAngle)) && !arms[0].HasAnimatedProperties, "Reach 0.5 落在 Home 和工艺位中间");
@@ -138,7 +139,7 @@ internal static class Program
             state = State(arms: 2);
             state.Arms[0].Reach = 0.5;
             state.Arms[0].EdgeReach = 0.5;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(450);
             double edgeAngle = arms[0].Angle;
             var edgeMiddle = Middle(Nozzle(Pipes(arms[0])[0], plate), Nozzle(Pipes(arms[0])[1], plate));
@@ -148,23 +149,23 @@ internal static class Program
             state = State(arms: 2);
             state.Arms[0].Reach = 0.25;
             state.Arms[0].EdgeReach = 0.5;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(450);
             Check(Near(arms[0].Angle, (HomeAngle + edgeAngle) / 2), "Home 到边缘之间按轴位置线性");
             state = State(arms: 2);
             state.Arms[0].Reach = 0.75;
             state.Arms[0].EdgeReach = 0.5;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(450);
             Check(Near(arms[0].Angle, (edgeAngle + processAngle) / 2), "边缘到中心之间按轴位置线性");
             state = State(arms: 2);
             state.Arms[0].Reach = 1;
             state.Arms[0].EdgeReach = 0.5;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(450);
             var centerMiddle = Middle(Nozzle(Pipes(arms[0])[0], plate), Nozzle(Pipes(arms[0])[1], plate));
             Check(Near(arms[0].Angle, processAngle) && Horizontal(centerMiddle, center) < 1e-6, "轴在 Center 仍正对盘心");
-            parts.Update(State(arms: 2).ToDto());
+            devices.Update(State(arms: 2).ToDto());
             Pump(450);
 
             // 6. 页面隐藏：收到新位置直接落位；过渡中被隐藏也直接落到目标
@@ -172,11 +173,11 @@ internal static class Program
             Pump(30);
             state = State(arms: 2);
             state.Arms[0].Reach = 1;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Check(Near(arms[0].Angle, processAngle) && !arms[0].HasAnimatedProperties, "隐藏时直接落位、不起动画");
             scene.Visibility = Visibility.Visible;
             Pump(30);
-            parts.Update(State(arms: 2).ToDto());
+            devices.Update(State(arms: 2).ToDto());
             Pump(100);
             Check(arms[0].HasAnimatedProperties, "显示时又有过渡");
             scene.Visibility = Visibility.Hidden;
@@ -188,20 +189,20 @@ internal static class Program
             // 7. Lift 跟到位反馈：未知（命令发了、到位信号还没亮）停在行程中间并高亮，升到位后摆臂抬高、工艺位液柱长一个行程
             state = State(arms: 2);
             state.Arms[0].Reach = 1;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Pump(450);
             var firstPipe = Pipes(arms[0])[0];
             double lowered = firstPipe.StreamLength;
             double pivotLowered = Pivot(arms[0], plate).Y;
             state = State(arms: 2);
             state.Arms[0].Reach = 1;
-            state.Arms[0].Lift.Position = TwoStatePosition.Unknown;
-            parts.Update(state.ToDto());
+            state.Arms[0].Lift.Position = CylinderPosition.Unknown;
+            devices.Update(state.ToDto());
             Pump(550);
             Check(lifts[0].IsUnknown && !lifts[0].IsRaised && Near(firstPipe.StreamLength - lowered, LiftStroke / 2),
                 "Lift 未知：停在行程中间，液柱长半个行程");
-            state.Arms[0].Lift.Position = TwoStatePosition.Opened;
-            parts.Update(state.ToDto());
+            state.Arms[0].Lift.Position = CylinderPosition.Opened;
+            devices.Update(state.ToDto());
             Check(lifts[0].IsRaised && !lifts[0].IsUnknown, "升到位信号来了：Lift 往上位走");
             Pump(550);
             Check(Pivot(arms[0], plate).Y > pivotLowered && Near(firstPipe.StreamLength - lowered, LiftStroke),
@@ -211,14 +212,14 @@ internal static class Program
             // 8. 门、Bowl 跟到位反馈（未知停中间）、旋转跟实际转速的正负、摆臂在动时高亮；盘上的片跟 Wafer
             state = State(arms: 2);
             state.Arms[0].IsMoving = true;
-            state.Door!.Position = TwoStatePosition.Unknown;
-            state.Bowl.Position = TwoStatePosition.Opened;
+            state.Door!.Position = CylinderPosition.Unknown;
+            state.Bowl.Position = CylinderPosition.Opened;
             state.Spin.Speed = -100;
-            parts.Update(state.ToDto());
+            devices.Update(state.ToDto());
             Check(door.IsUnknown && !door.IsOpen && bowl.IsRaised && !bowl.IsUnknown, "门未知（画在中间、高亮）、Bowl 升到位");
             Check(disk.RotationSpeed > 1 && !disk.RotateClockwise, "在转就按显示转速转，转向看实际转速的正负");
             Check(arms[0].IsMoving && !arms[1].IsMoving, "摆臂在动时高亮");
-            parts.Update(State(arms: 2).ToDto());
+            devices.Update(State(arms: 2).ToDto());
             Check(disk.RotationSpeed == 0 && !door.IsOpen && !door.IsUnknown && !bowl.IsRaised, "停了、关到位了跟着变");
             var wafer = new WaferModel { LpSlot = "LP1-03", State = "Process" };
             scene.Wafer = wafer;
@@ -231,11 +232,11 @@ internal static class Program
             Check(Bounds(bowl).Y + Bounds(bowl).SizeY < diskBottom, "Bowl 降下：上沿比旋转盘低，露出盘面");
             Check(Near(Bounds(disk).Y, 0), "旋转盘下面的主轴撑到底座面，不悬空");
             state = State(arms: 2);
-            state.Bowl.Position = TwoStatePosition.Opened;
-            parts.Update(state.ToDto());
+            state.Bowl.Position = CylinderPosition.Opened;
+            devices.Update(state.ToDto());
             Pump(300);
             Check(Bounds(bowl).Y + Bounds(bowl).SizeY > diskTop && Near(Bounds(bowl).Y, 0), "Bowl 升起：上沿比盘面高、底边还在底座面上");
-            parts.Update(State(arms: 2).ToDto());
+            devices.Update(State(arms: 2).ToDto());
             Pump(300);
 
             // 9. 视角工具栏在图下面，只有默认视角、俯视（左转、右转、放大用户说不要；不叫"复位"，免得跟设备复位重名）；俯视改视角和视野，默认视角回来
@@ -249,14 +250,16 @@ internal static class Program
             Check(camera.LookDirection.Y < defaultLook.Y && camera.Width > defaultWidth, "俯视：相机几乎垂直朝下、视野放宽看全");
             buttons[0].RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Check(Near(camera.Width, defaultWidth) && (camera.LookDirection - defaultLook).Length < 1e-6, "默认视角：视角和视野回到默认");
-            Check(PartActionNames.LabelOf("MoveTo") == "移动" && PartActionNames.LabelOf("ResetDrive") == "复位"
-                && PartActionNames.LabelOf("Open") == "升" && PartActionNames.LabelOf("Spin") == "Spin",
-                "报错里的动作名（组件方法名）按语言包换成叫法，语言包里没有的原样给");
+            Check(DeviceActionText.Of("Move") == "移动" && DeviceActionText.Of("Reset") == "复位" && DeviceActionText.Of("Up") == "升"
+                && DeviceActionText.Of("ValveOn") == "开阀" && DeviceActionText.Of("MoveTo") == "MoveTo",
+                "报错里的动作名（ChamberDeviceAction）按语言包换成叫法，不认识的原样给");
+            Check(Enum.GetNames<ChamberDeviceAction>().All(action => DeviceActionText.Of(action) != action),
+                "每个设备动作在语言包里都有叫法");
 
-            // 10. 部件组成变了重搭：一条摆臂、没有门
-            parts.Update(State(arms: 1, door: false).ToDto());
+            // 10. 设备组成变了重搭：一条摆臂、没有门
+            devices.Update(State(arms: 1, door: false).ToDto());
             Pump(30);
-            Check(parts.Revision == 2 && plate.Attachments.Count == 5 && !plate.Attachments.OfType<DoorVisual3D>().Any()
+            Check(devices.Revision == 2 && plate.Attachments.Count == 5 && !plate.Attachments.OfType<DoorVisual3D>().Any()
                 && plate.Attachments.OfType<ArmVisual3D>().Count() == 1, "组成变了重搭：sc 没配门就不画门，只剩一条摆臂");
             Check(!plate.Attachments.Contains(arms[1]) && !BindingOperations.IsDataBound(arms[1], HardwareVisual3D.IsMovingProperty),
                 "拆掉的摆臂解了绑定");
@@ -266,7 +269,7 @@ internal static class Program
             {
             }
 
-            parts.Update(State(arms: 3).ToDto());
+            devices.Update(State(arms: 3).ToDto());
             Pump(30);
             Check(plate.Attachments.OfType<ArmVisual3D>().Count() == 2, "多于两条摆臂只画两条");
             Check(ClientLog.Reader.TryRead(out var warning) && warning.Message.Contains("Chamber1"), "多配的摆臂在日志里提示");
@@ -276,8 +279,8 @@ internal static class Program
             state.Arms[0].Reach = 1;
             state.Arms[0].Nozzles[0].IsOn = true;
             state.Arms[1].Nozzles[1].IsOn = true;
-            state.Bowl.Position = TwoStatePosition.Opened;
-            parts.Update(state.ToDto());
+            state.Bowl.Position = CylinderPosition.Opened;
+            devices.Update(state.ToDto());
             Pump(650);
             if (args.Length > 0)
             {
@@ -295,15 +298,15 @@ internal static class Program
                 Console.WriteLine($"Preview: {output}");
             }
 
-            // 13. 解绑：Parts 置空只剩旋转盘，门和 Bowl 不再绑旧模型
-            scene.Parts = null;
+            // 13. 解绑：Devices 置空只剩旋转盘，门和 Bowl 不再绑旧模型
+            scene.Devices = null;
             Check(plate.Attachments.Count == 1 && !BindingOperations.IsDataBound(door, DoorVisual3D.IsOpenProperty)
                 && !BindingOperations.IsDataBound(door, DoorVisual3D.IsUnknownProperty)
-                && !BindingOperations.IsDataBound(bowl, BowlVisual3D.IsRaisedProperty), "Parts 置空：只剩旋转盘，门和 Bowl 解绑");
+                && !BindingOperations.IsDataBound(bowl, BowlVisual3D.IsRaisedProperty), "Devices 置空：只剩旋转盘，门和 Bowl 解绑");
 
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine($"PASS: {_checks} chamber scene checks (parts recognized from generic push, process/home alignment, stream landing, "
+            Console.WriteLine($"PASS: {_checks} chamber scene checks (devices picked from the devices push by role, part action labels, process/home alignment, stream landing, "
                 + "0.2 s transition with retarget and hidden settle, lift/door/bowl follow feedback with unknown mid-stroke, spin direction, "
                 + "default-view / top-view toolbar below the view, rebuild, arm limit, unbind)");
             return 0;
@@ -423,7 +426,7 @@ internal static class Program
 }
 
 /// <summary>
-/// 冒烟用的部件状态：一项项改，ToDto() 换成后端推的通用部件（路径、种类、类名、数据），跟 sc 里 Chamber1 的结构一样：
+/// 冒烟用的设备状态：一项项改，ToDto() 换成后端推的设备表（轴表、气缸表、喷嘴表，门 / Bowl / Lift 标好角色），跟 sc 里 Chamber1 的结构一样：
 /// Door、Bowl1、SpinMotor、ArmN（下面 Lift、Nozzle_DIW、Nozzle_SC1）。
 /// </summary>
 internal sealed class SceneState
@@ -438,50 +441,42 @@ internal sealed class SceneState
 
     public List<ArmState> Arms { get; } = [];
 
-    public ModulePartsDto ToDto()
+    public ChamberPartsDto ToDto()
     {
-        var dto = new ModulePartsDto { Module = Module };
+        var dto = new ChamberPartsDto { Module = Module };
         if (Door is not null)
         {
-            dto.Parts.Add(Cylinder($"{Module}.Door", Door));
+            dto.Cylinders.Add(Cylinder($"{Module}.Door", Door, ChamberCylinderRole.Door, string.Empty));
         }
 
-        dto.Parts.Add(Cylinder($"{Module}.Bowl1", Bowl));
-        dto.Parts.Add(new PartDto
+        dto.Cylinders.Add(Cylinder($"{Module}.Bowl1", Bowl, ChamberCylinderRole.Bowl, string.Empty));
+        dto.Axes.Add(new ChamberAxisDto
         {
             Path = $"{Module}.SpinMotor",
-            Kind = PartKinds.Axis,
-            Type = PartKinds.SpinMotorType,
-            Values =
-            {
-                [PartValueNames.CurrentSpeed] = Spin.Speed.ToString(CultureInfo.InvariantCulture),
-                [PartValueNames.IsSpinning] = (Spin.Speed != 0).ToString(),
-            },
+            Kind = ChamberAxisKind.Spin,
+            CurrentSpeed = Spin.Speed,
+            IsSpinning = Spin.Speed != 0,
         });
         foreach (var arm in Arms)
         {
             string path = $"{Module}.{arm.Name}";
-            dto.Parts.Add(new PartDto
+            dto.Axes.Add(new ChamberAxisDto
             {
                 Path = path,
-                Kind = PartKinds.Axis,
-                Type = PartKinds.ArmAxisType,
-                Values =
-                {
-                    [PartValueNames.Reach] = arm.Reach.ToString(CultureInfo.InvariantCulture),
-                    [PartValueNames.EdgeReach] = arm.EdgeReach.ToString(CultureInfo.InvariantCulture),
-                    [PartValueNames.IsBusy] = arm.IsMoving.ToString(),
-                },
+                Kind = ChamberAxisKind.Arm,
+                Reach = arm.Reach,
+                EdgeReach = arm.EdgeReach,
+                IsBusy = arm.IsMoving,
             });
-            dto.Parts.Add(Cylinder($"{path}.Lift", arm.Lift));
+            dto.Cylinders.Add(Cylinder($"{path}.Lift", arm.Lift, ChamberCylinderRole.Lift, path));
             for (int i = 0; i < arm.Nozzles.Count; i++)
             {
-                dto.Parts.Add(new PartDto
+                dto.Nozzles.Add(new ChamberNozzleDto
                 {
                     Path = $"{path}.{(i == 0 ? "Nozzle_DIW" : "Nozzle_SC1")}",
-                    Kind = PartKinds.OneState,
-                    Type = "NozzleComponent",
-                    Values = { [PartValueNames.IsOn] = arm.Nozzles[i].IsOn.ToString() },
+                    Arm = path,
+                    Chemical = i == 0 ? "DIW" : "SC1",
+                    IsOn = arm.Nozzles[i].IsOn,
                 });
             }
         }
@@ -489,21 +484,21 @@ internal sealed class SceneState
         return dto;
     }
 
-    private static PartDto Cylinder(string path, CylinderState cylinder)
+    private static ChamberCylinderDto Cylinder(string path, CylinderState cylinder, ChamberCylinderRole role, string arm)
     {
-        return new PartDto
+        return new ChamberCylinderDto
         {
             Path = path,
-            Kind = PartKinds.TwoState,
-            Type = "CylinderComponent",
-            Values = { [PartValueNames.Position] = cylinder.Position.ToString() },
+            Role = role,
+            Arm = arm,
+            Position = cylinder.Position,
         };
     }
 }
 
 internal sealed class CylinderState
 {
-    public TwoStatePosition Position { get; set; } = TwoStatePosition.Closed;
+    public CylinderPosition Position { get; set; } = CylinderPosition.Closed;
 }
 
 internal sealed class SpinState

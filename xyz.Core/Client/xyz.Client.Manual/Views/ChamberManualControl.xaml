@@ -40,7 +40,7 @@
                     BorderBrush="{DynamicResource DarkBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6">
-                    <threeD:ChamberScene Parts="{Binding Parts}" Wafer="{Binding Model.Wafer}" />
+                    <threeD:ChamberScene Devices="{Binding Devices}" Wafer="{Binding Model.Wafer}" />
                 </Border>
 
                 <!--  轴页签：一根轴一个（照 sc 的先后，名字照 sc），右边"&gt;"切下一根  -->

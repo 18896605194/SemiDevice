@@ -3,9 +3,7 @@
 namespace xyz.Modules;
 
 /// <summary>
-/// 能加工的站点（腔体这类）：Job 和手动起工艺走同一个口子。
-/// 先 <see cref="CheckProcess"/> 问能不能起（不动设备，调度每拍都会问），再 <see cref="StartProcess"/> 真起；
-/// 起工艺时把账上的片标成加工中，做完标成完成 / 失败 / 中止——Job 判"这一站做完了"看的是操作收尾完成，不靠猜。
+/// 能加工的站点
 /// </summary>
 public interface IProcessStation
 {

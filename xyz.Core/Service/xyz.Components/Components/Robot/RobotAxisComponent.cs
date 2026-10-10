@@ -19,7 +19,6 @@ public class RobotAxisComponent : ComponentBase
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Double,
         description: "机械手轴最近一次查询坐标（null=还没查到；断线时可能是旧值）")]
-    [LiveValue]
     public double? Position
     {
         get

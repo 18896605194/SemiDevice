@@ -2009,7 +2009,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = previousLedger;
 }
 
-// ── 机械手设备状态查询：按轮询表轮着查（没订上每圈订一次，订上了那格空过）；一条没回就超时作废，同名查询还能再发；
+// ── 机械手设备状态查询：一圈从上往下查（没订上每圈开头订一次，订上了不再订）；一条没回就超时作废，同名查询还能再发；
 //    回来了写到查的那根轴 / 那个状态上、接着查下一条；迟到的"没有报错"回复不当报错推送；关连接作废在途指令 ─────────
 {
     bool WaitUntil(Func<bool> condition, int timeoutMs = 3000)
@@ -2028,29 +2028,25 @@ port.E87Callback = null;
         return false;
     }
 
-    // 探针机械手的查询超时是 0：没回的查询下一拍就作废，一条查询正好两拍（一拍发、一拍作废）
+    // 探针机械手的查询超时是 0：没回的查询下一拍就作废、同一拍接着发下一条，一条一拍；一圈查完空一拍，下一拍重开一圈。
+    // 探针有 X / Z / Theta / Arm1 四根轴：没订上时一圈 8 条（订阅、报错、伺服、速度、4 根轴）+ 空一拍 = 9 拍
     var pollRobot = new ProbeRobot();
     var robotComm = pollRobot.Shell.Comm;
     Check(pollRobot.InitComponent(), "状态查询用的机械手的组件初始化应成功");
 
     // 1) 假通道一条都不回：每条都超时作废，下一圈同名查询照样发得出去
     //    （以前超时只丢句柄，驱动里同名查询一直占着在途位，这一种再也查不了）
-    for (int tick = 0; tick < 44; tick++)
+    for (int tick = 0; tick < 18; tick++)
     {
         pollRobot.Tick();
     }
 
-    var expected = new[]
-    {
-        "SubWafer1", "Error", "QEnable", "QSpeed", "XPos", "ZPos",
-        "SubWafer1", "Error", "QEnable", "QSpeed", "ThetaPos", "Arm1Pos",
-        "SubWafer1", "Error", "QEnable", "QSpeed", "XPos", "ZPos",
-        "SubWafer1", "Error", "QEnable", "QSpeed",
-    };
+    var oneRound = new[] { "SubWafer1", "Error", "QEnable", "QSpeed", "XPos", "ZPos", "ThetaPos", "Arm1Pos" };
+    var expected = oneRound.Concat(oneRound).ToArray();
     Check(WaitUntil(() => robotComm.Sent.Count == expected.Length),
-        $"44 拍应发出 22 条查询（超时的作废了，同名的还能再发），实际 {robotComm.Sent.Count} 条");
+        $"18 拍应发出两圈 16 条查询（超时的作废了，同名的还能再发），实际 {robotComm.Sent.Count} 条");
     Check(robotComm.Sent.SequenceEqual(expected),
-        "按轮询表轮：订阅 → 报错 → 伺服 → 速度 → 两格轴位（逐轴轮），没订上每圈都订一次；实际 "
+        "一圈的顺序：订阅 → 报错 → 伺服 → 速度 → 每根轴一条（按 sc.xml 轴节点先后），没订上每圈都订一次；实际 "
         + string.Join(",", robotComm.Sent));
 
     // 2) 回来了就写到查的那根轴 / 那个状态上，接着查下一条（超时拉长，免得等回复时被作废）
@@ -2069,28 +2065,40 @@ port.E87Callback = null;
     }
 
     pollRobot.QueryDataTimeOut = 600000;
-    var theta = pollRobot.Axes.First(axis => axis.Name == "Theta");
-    Check(TickUntil(() => LastSent(23, "ThetaPos")), "接着轮：下一条查 Theta 的坐标");
-    robotComm.Push(">00000000#12.5@ThetaPos");
-    Check(TickUntil(() => theta.Position == 12.5), "轴位回来了：坐标写到查的那根轴（Theta）上");
-    Check(TickUntil(() => LastSent(24, "Arm1Pos")), "上一条回来了，接着查下一条（Arm1 的坐标）");
-    robotComm.Push(">00000000#-3@Arm1Pos");
-    Check(TickUntil(() => pollRobot.Arms[0].Position == -3), "手指也是轴：Arm1 的坐标写到手指上");
-    Check(TickUntil(() => LastSent(25, "SubWafer1")), "一圈轮完从头来：还没订上，先订阅");
+    Check(TickUntil(() => LastSent(17, "SubWafer1")), "一圈查完从头来：还没订上，先订阅");
     robotComm.Push(">00000000#@SubWafer1");
-    Check(TickUntil(() => LastSent(26, "Error")), "订阅回来了，接着查报错");
+    Check(TickUntil(() => LastSent(18, "Error")), "订阅回来了，接着查报错");
     robotComm.Push(">40010006#Arm2 No Wafer When Put@Error");
     Check(TickUntil(() => pollRobot.DeviceError == "40010006#Arm2 No Wafer When Put"), "查报错回来了：设备报错写到模块上");
+    Check(TickUntil(() => LastSent(19, "QEnable")), "上一条回来了，接着查伺服");
+    robotComm.Push(">00000000#YES@QEnable");
+    Check(TickUntil(() => pollRobot.IsServoOn == true), "伺服回来了：写到模块上");
+    Check(TickUntil(() => LastSent(20, "QSpeed")), "接着查速度");
+    robotComm.Push(">00000000#80@QSpeed");
+    Check(TickUntil(() => pollRobot.Speed == 80), "速度回来了：写到模块上");
+    Check(TickUntil(() => LastSent(21, "XPos")), "接着查第一根轴 X 的坐标");
+    robotComm.Push(">00000000#1@XPos");
+    Check(TickUntil(() => LastSent(22, "ZPos")), "接着查 Z 的坐标");
+    robotComm.Push(">00000000#2@ZPos");
+    var theta = pollRobot.Axes.First(axis => axis.Name == "Theta");
+    Check(TickUntil(() => LastSent(23, "ThetaPos")), "接着查 Theta 的坐标");
+    robotComm.Push(">00000000#12.5@ThetaPos");
+    Check(TickUntil(() => theta.Position == 12.5), "轴位回来了：坐标写到查的那根轴（Theta）上");
+    Check(TickUntil(() => LastSent(24, "Arm1Pos")), "接着查 Arm1 的坐标");
+    robotComm.Push(">00000000#-3@Arm1Pos");
+    Check(TickUntil(() => pollRobot.Arms[0].Position == -3), "手指也是轴：Arm1 的坐标写到手指上");
+    Check(TickUntil(() => LastSent(25, "Error")), "一圈查完从头来：已经订上了，第一条直接查报错");
 
-    // 订上以后订阅那格空过：一圈 5 条查询 + 1 拍空过 = 11 拍，44 拍正好 4 圈 20 条，一条订阅都没有
+    // 订上以后不再订：一圈 7 条 + 空一拍 = 8 拍。在途的那条报错先作废，再走 15 拍：
+    // 这一圈剩下 6 条 + 空一拍，下一圈 7 条 + 空一拍，正好停在两圈之间（手上没有在途的查询，下面第 3 段要用）
     pollRobot.QueryDataTimeOut = 0;
-    for (int tick = 0; tick < 44; tick++)
+    for (int tick = 0; tick < 15; tick++)
     {
         pollRobot.Tick();
     }
 
-    Check(WaitUntil(() => robotComm.Sent.Count == 46), $"订上以后 44 拍应再发 20 条查询，实际共 {robotComm.Sent.Count} 条");
-    Check(!robotComm.Sent.Skip(26).Contains("SubWafer1"), "订上了就不再订阅；实际 " + string.Join(",", robotComm.Sent.Skip(26)));
+    Check(WaitUntil(() => robotComm.Sent.Count == 38), $"订上以后 15 拍应再发 13 条查询，实际共 {robotComm.Sent.Count} 条");
+    Check(!robotComm.Sent.Skip(18).Contains("SubWafer1"), "订上了就不再订阅；实际 " + string.Join(",", robotComm.Sent.Skip(18)));
 
     // 3) 没有查报错在途时来了一帧成功码的 Error（作废以后迟到的"没有报错"回复）：不当报错推送，设备报错不变
     //    后面跟一帧手指在位推送，它落下来了，说明前面那帧也处理过了（同一条路由队列，按先后处理）
@@ -2110,22 +2118,22 @@ port.E87Callback = null;
     Check(pollRobot.InitComponent() && pollRobot.Shell.Home() is not null, "重新连上以后同名指令能再发");
     pollRobot.Close();
 
-    // 5) 这台机械手不带手指在位推送（SC WaferEventEnabled = False）：订阅那格每圈都空过，一条订阅都不发
+    // 5) 这台机械手不带手指在位推送（SC WaferEventEnabled = False）：一圈不订阅，一条订阅都不发
     var plainRobot = new ProbeRobot { WaferEventEnabled = false };
     var plainComm = plainRobot.Shell.Comm;
     Check(plainRobot.InitComponent(), "不带手指在位推送的机械手组件初始化应成功");
-    for (int tick = 0; tick < 44; tick++)
+    for (int tick = 0; tick < 16; tick++)
     {
         plainRobot.Tick();
     }
 
-    Check(WaitUntil(() => plainComm.Sent.Count == 20), $"44 拍应发出 20 条查询（每圈订阅那格空过一拍），实际 {plainComm.Sent.Count} 条");
+    Check(WaitUntil(() => plainComm.Sent.Count == 14), $"16 拍应发出两圈 14 条查询（一圈 7 条 + 空一拍），实际 {plainComm.Sent.Count} 条");
     Check(!plainComm.Sent.Contains("SubWafer1") && plainComm.Sent[0] == "Error",
         "SC 关了就不订阅：第一条直接查报错；实际 " + string.Join(",", plainComm.Sent));
     plainRobot.Close();
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (the polling table order with the subscription retried each round until it succeeds, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication

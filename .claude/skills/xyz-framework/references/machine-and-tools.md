@@ -17,7 +17,9 @@
 - 命名空间 `xyz._35021.*`（数字开头前面加下划线）。
 - 后端 `Service\xyz.35021.Module`（→ xyz.Modules、xyz.Shared）：
   - `Loadport\LoadPortModule : BaseLoadPortModule, ILoadPort`、`Robot\RobotModule : BaseRobotModule, IRobot`、`Clean\ChamberModule : BaseChamberModule`，
-    类上 `[Component(description: "...")]`；机械手、腔体的动作在各自 `Operation\` 目录（`XxxOperation : ModuleOperation<ActionStep>`，步骤 SendCommand / WaitCommand）。
+    类上 `[Component(description: "...")]`；机械手的动作在 `Operation\` 目录（`XxxOperation : ModuleOperation<ActionStep>`，步骤 SendCommand / WaitCommand）。
+  - **腔体的回零、复位、中止、工艺也在平台**（2026-10-10，照 sc 里挂的部件发轴和 IO，见 backend.md「腔体整腔动作」）：35021 的 `ChamberModule` 是空类，
+    新机型照样建一个空类继承 `BaseChamberModule`，腔体里装什么只改 sc。
   - **LoadPort 的动作、状态查询、在位、重连、推送都在平台**（2026-10-06，用户："以后很多设备都要用"）：`BaseLoadPortModule` 的 7 个动作有默认实现
     （`LoadPortCommandOperation`：一条驱动指令一个动作），35021 的 `LoadPortModule` 是空的，**留着给机型扩展**（用户定的）——
     哪个动作不一样就重写那一个，平台没有的设备在这儿加。新机型照样建一个空类继承 `BaseLoadPortModule`。
@@ -38,7 +40,7 @@
 
 | 工程 | 管什么 |
 |---|---|
-| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、InitComponent（不动硬件、逐级递归、一个失败不耽误别的、E84 和驱动自己连）/ InitModule（= Home，不碰子组件）/ Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop）；LoadPort 载具组件（`Carrier` 节点必配、缺了开机抛；在位二选一 Query 两位 / Event；同一载具已认定后再 Map 保持认定；自动读码发起不成功接着试、到读码超时报读码失败；没配读头不算失败）、状态查询超时作废重发、动作没做成作废在途指令、关连接作废、LoadPort / RFID 断线重连、RFID 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己（假通道 + 真 FCD 驱动，`GatedTransport` 测接收泵）；机械手设备状态查询（假通道 + 真锐洁驱动：按 `QueryOrder` 表的顺序、没订上每圈订一次、订上了不再订、超时作废后同名查询还能再发、回来了写到查的那根轴 / 那个状态上并接着查、迟到的"没有报错"回复不当报错推送、关连接作废在途指令、SC `WaferEventEnabled` 关了不订阅）；LoadPort 复位 / 中止落的状态（出错复位、打断 Load / Unload / Home / 夹紧、查不到门位是 NotInit，门开着没在动回 Loaded、门关落 Idle）、Load 联锁（没载具、机型重写 `LoadInterlock`）；停用的端口也挂载具（扫描、推状态不抛）；Load 的 Mapping 检查（槽数对不上不落账、交叉 / 叠片 / 认不出的槽账照落，都判失败报 Mapping 异常）；Job 做完自动 Unload（等机械手回 Loaded、片没回齐不卸、只认刚干完、EC 关着不卸改成拿 Load 时的槽图对账——片回别的口不误报、换槽多片报 Mapping 异常）；E84 Auto 下没走交接放上 / 拿走载具报警（正常交接、Manual、第一拍、超时锁住都不报）；Unload 带 Mapping 对账（SC AutoRunMapOnUnload 只管自动跑货：先发 CULOD 关门、关好再主动发 CLDMP 扫，一致就成功；少片、多片、交叉片判失败、报 Mapping 异常和账实不符、账不动；关门没成不扫、扫图没成 Unload 判失败；手动 Unload 不吃这个 SC，只发 CULOD、不扫不判账） |
+| OperationWaitSmoke | 模块操作等待/超时/中止、LoadPort 动作和模式、E87/E84 交接、机械手取放改账、报警只能人工复位、DI/AI 防抖、EC、InitComponent（不动硬件、逐级递归、一个失败不耽误别的、E84 和驱动自己连）/ InitModule（= Home，不碰子组件）/ Abort、一趟搬运出错时报的错误码和参数；主界面要的后端（系统设置的 LoadPort / 机械手名单、站点类型、设备总状态的模式、整机 Auto / Manual / Stop）；LoadPort 载具组件（`Carrier` 节点必配、缺了开机抛；在位二选一 Query 两位 / Event；同一载具已认定后再 Map 保持认定；自动读码发起不成功接着试、到读码超时报读码失败；没配读头不算失败）、状态查询超时作废重发、动作没做成作废在途指令、关连接作废、LoadPort / RFID 断线重连、RFID 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己（假通道 + 真 FCD 驱动，`GatedTransport` 测接收泵）；机械手设备状态查询（假通道 + 真锐洁驱动：一圈的顺序（订阅、报错、伺服、速度、每根轴）、没订上每圈订一次、订上了不再订、超时作废后同名查询还能再发、回来了写到查的那根轴 / 那个状态上并接着查、迟到的"没有报错"回复不当报错推送、关连接作废在途指令、SC `WaferEventEnabled` 关了不订阅）；LoadPort 复位 / 中止落的状态（出错复位、打断 Load / Unload / Home / 夹紧、查不到门位是 NotInit，门开着没在动回 Loaded、门关落 Idle）、Load 联锁（没载具、机型重写 `LoadInterlock`）；停用的端口也挂载具（扫描、推状态不抛）；Load 的 Mapping 检查（槽数对不上不落账、交叉 / 叠片 / 认不出的槽账照落，都判失败报 Mapping 异常）；Job 做完自动 Unload（等机械手回 Loaded、片没回齐不卸、只认刚干完、EC 关着不卸改成拿 Load 时的槽图对账——片回别的口不误报、换槽多片报 Mapping 异常）；E84 Auto 下没走交接放上 / 拿走载具报警（正常交接、Manual、第一拍、超时锁住都不报）；Unload 带 Mapping 对账（SC AutoRunMapOnUnload 只管自动跑货：先发 CULOD 关门、关好再主动发 CLDMP 扫，一致就成功；少片、多片、交叉片判失败、报 Mapping 异常和账实不符、账不动；关门没成不扫、扫图没成 Unload 判失败；手动 Unload 不吃这个 SC，只发 CULOD、不扫不判账） |
 | WaferLedgerSmoke | 晶圆账装配、原子操作、事件、并发抢槽、流水落库、报警、人工移账/删账、账单调整服务、存盘和开机恢复（恢复前不写、LoadPort 不恢复、加工中记中止、退出最后存一次） |
 | JobSmoke | 搬运管理（受理时的各项检查、两次操作抢一个槽、取片确认、WaferTask 顺序执行、站点和账都收尾才确认完成放锁、忙时拒绝不排队、没动手失败放锁 / 动过手失败留锁等确认、中止等待设备确认）和 Job（E94 CJ / E40 PJ：建 Job 的检查和整个不留（含站点不支持要用的任务、一站的站点都用不了、工艺配方不在库里）、本地建 Job 跟 Host 一样先建 PJ 再建 CJ（建 CJ 被拒撤掉已建的 PJ、重发被正常的检查拦住）、任务表（一片一行：取片、放片、工艺……回片）、一篮两个 Sequence 和两步加工、站点组、转换号顺序、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停只不启动新 PJ、CJ 停止、PJ 中止等设备确认、工艺没做成只停那一片（重做 / 标记完成，别的片照常跑）、片位被人改了、Job 的取片 / 放片失败（错误落在当前任务，放锁后从该任务继续，放片重做不重复取片）、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、料没到先建 PJ（载具 Load 好、接了 EAP 时槽图被认定才定片，同一载具的槽 / CJ 不能重，定不了报警、PJ 留在排队）、整机停止走 Job 中止、Job / 搬运服务的错误码、CJ / PJ 一行进库带每片任务明细、重启后 Job 不接着跑库里记成中止）；机械手、LoadPort、腔体都是假的，扫描由测试一拍一拍推 |
 | SequenceSmoke | 流程配方库：sc.xml 节点和参数、站点分组（sc 分组节点 + 机械手站点表）、新建/改名/保存/删除的各项检查、文件读写（坏文件跳过）、版本冲突、变更事件、服务错误码、工艺步骤的配方要在工艺配方库里、Host 按名字列 / 取（JSON）/ 认 JSON 样子 / 存（新建或覆盖，检查跟本地一样）/ 删和上报口（改名报旧名删 + 新名建） |
@@ -49,9 +51,9 @@
 | EapSmoke | EAP 各标准对假 Host：配方管理 S7（列、取、问能不能下、下、删、全删、新名字按 JSON 样子分库、REMOTE 才收、配方变了的事件和 DV、本地编辑锁）、E30（通讯建立、控制状态、SV / EC / DV / 事件名单、Host 改 EC、报告定义和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存断线进缓存 / 按先后发 / 清掉）、E39（类型、属性名、带条件查属性）、E87（读到号等 Host、槽图一律等 Host、第二次 PWC 比对槽图和给片号、Load 好就在取放、取消、ReCreate、读码失败 Host 给号、E87 不自己卸、干完靠 CarrierRelease、Host 启停用、存取方式、预告 / 绑定这些不支持的回 CAACK=1）、E90（片对象跟着账建、挪、做、跳过、删）、E40 / E94（建、命令、查询翻成 Job 管理的命令，状态转换报事件）；LoadPort（带一个假的 `ICarrier`）、Job 管理是假的，晶圆账是真的 |
 | RfidSmoke | FCD RFID 协议、握手、超时（假读头） |
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
-| ChamberSmoke | 腔体部件：照 sc 生成的通用部件清单（[PartKind] / [LiveValue]）、气缸三态、喷嘴 / 旋转 / 摆臂 Reach、有变化才推；部件手动动作（找不到、没有这个动作、参数不对、指令没发出去、Manual 状态、在途拒绝、停止类忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用），假 PLC 模拟气缸和轴 |
+| ChamberSmoke | 腔体：照 sc 认部件（轴表、气缸表、喷嘴表，门 / Bowl / Lift / 卡盘 / 摆臂和它上面的喷嘴）、气缸三态、喷嘴流量 AO、卡盘 / 摆臂 Reach 和配方坐标换算、有变化才推；部件手动动作（找不到、参数不对、指令没发出去、Manual 状态、在途拒绝、停止忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用）；平台默认整腔动作：回零先后、复位、中止停液停轴、按配方做工艺（Lift / Bowl 升、转速、摆到位置、按药液开喷嘴给流量、Time / Scan、收尾，没步骤 / 配方对不上 / 转速超限 / 超时 / 中止），假 PLC 模拟气缸、阀、AO 和轴 |
 | IoIndexSmoke（不在 sln） | IO 点表下标和换算、PLC 门控、单点写、轴和执行器命令 |
-| `*Visual3DSmoke`、ChamberSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间并高亮）和腔体三维图（ChamberScene：从通用部件推送认部件并搭建、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；`-- 路径.png` 出图 |
+| `*Visual3DSmoke`、ChamberSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间并高亮）和腔体三维图（ChamberScene：从部件推送按角色挑出部件并搭建、部件动作名的叫法、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；`-- 路径.png` 出图 |
 | EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
 
 - 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`

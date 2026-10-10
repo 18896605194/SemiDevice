@@ -6,23 +6,21 @@ namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 一条摆臂的显示模型：摆到哪、在不在动，以及装在它上面的 Lift 和喷嘴。腔体三维图绑它摆臂、升降、出液。
-/// 部件组成（路径、Lift、喷嘴）变了由 ChamberPartsModel 整条重建，这里只就地刷新状态。
+/// 设备组成（路径、Lift、喷嘴）变了由 ChamberDeviceDataModel 整条重建，这里只就地刷新状态。
 /// </summary>
 public class ChamberArmModel : ObservableObject
 {
-    /// <param name="arm">摆臂轴。</param>
-    /// <param name="lift">它下面的升降气缸；没配为 null。</param>
-    /// <param name="nozzles">它下面的喷嘴，按 sc.xml 里的先后。</param>
-    public ChamberArmModel(PartDto arm, PartDto? lift, IReadOnlyList<PartDto> nozzles)
+    /// <param name="arm">这条摆臂的推送（带它的 Lift 和喷嘴）。</param>
+    public ChamberArmModel(ChamberArmDto arm)
     {
         Path = arm.Path;
-        Nozzles = nozzles.Select(nozzle => new ChamberNozzleModel(nozzle)).ToList();
+        Nozzles = arm.Nozzles.Select(nozzle => new ChamberNozzleModel(nozzle)).ToList();
         foreach (var nozzle in Nozzles)
         {
             nozzle.PropertyChanged += OnNozzleChanged;
         }
 
-        Update(arm, lift, nozzles);
+        Update(arm);
     }
 
     /// <summary>组件全路径，如 "Chamber1.Arm1"。</summary>
@@ -64,16 +62,16 @@ public class ChamberArmModel : ObservableObject
     /// <summary>有喷嘴在出液：在 Home 时接液杯据此亮起来。</summary>
     public bool IsAnyNozzleOn => Nozzles.Any(nozzle => nozzle.IsOn);
 
-    /// <summary>用推送就地刷新（界面线程调用）；调用方保证部件组成跟建这条臂时一样。</summary>
-    public void Update(PartDto arm, PartDto? lift, IReadOnlyList<PartDto> nozzles)
+    /// <summary>用推送就地刷新（界面线程调用）；调用方保证设备组成跟建这条臂时一样。</summary>
+    public void Update(ChamberArmDto arm)
     {
-        Reach = arm.GetDouble(PartValueNames.Reach) ?? 0;
-        EdgeReach = arm.GetDouble(PartValueNames.EdgeReach) ?? 0;
-        IsMoving = arm.GetBool(PartValueNames.IsBusy);
-        Lift.Update(lift);
+        Reach = arm.Reach;
+        EdgeReach = arm.EdgeReach;
+        IsMoving = arm.IsBusy;
+        Lift.Update(arm.Lift);
         for (int i = 0; i < Nozzles.Count; i++)
         {
-            Nozzles[i].Update(nozzles[i]);
+            Nozzles[i].Update(arm.Nozzles[i]);
         }
     }
 

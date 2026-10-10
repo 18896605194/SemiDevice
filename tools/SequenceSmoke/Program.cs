@@ -335,7 +335,7 @@ try
                     Children =
                     [
                         FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Default", "10"), ("Required", "true")),
-                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Parts:ArmAxisComponent")),
+                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Parts:SwingArmComponent")),
                         FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Chemical@Arm")),
                     ],
                 },
@@ -344,7 +344,7 @@ try
         var recipes = (ProcessRecipeComponent)ComponentLoader.Load([recipeNode]).Single();
         void Mount(ProbeChamber chamber, params string[] chemicals)
         {
-            var arm = new ArmAxisComponent();
+            var arm = new SwingArmComponent();
             Probe.Name(arm, "Arm1");
             chamber.AddChild(arm);
             foreach (string chemical in chemicals)

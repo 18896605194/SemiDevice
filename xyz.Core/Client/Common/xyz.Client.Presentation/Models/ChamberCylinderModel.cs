@@ -20,7 +20,7 @@ public class ChamberCylinderModel : ObservableObject
 
     private bool _isPresent;
 
-    /// <summary>sc.xml 里配了这个部件。</summary>
+    /// <summary>sc.xml 里配了这个设备。</summary>
     public bool IsPresent
     {
         get => _isPresent;
@@ -33,10 +33,10 @@ public class ChamberCylinderModel : ObservableObject
         }
     }
 
-    private TwoStatePosition _position;
+    private CylinderPosition _position;
 
     /// <summary>在哪一侧：开到位、关到位、未知。</summary>
-    public TwoStatePosition Position
+    public CylinderPosition Position
     {
         get => _position;
         private set
@@ -50,32 +50,26 @@ public class ChamberCylinderModel : ObservableObject
     }
 
     /// <summary>开到位（门开、Bowl 升、Lift 升）。</summary>
-    public bool IsOpen => Position == TwoStatePosition.Opened;
+    public bool IsOpen => Position == CylinderPosition.Opened;
 
     /// <summary>未知：三维图画在行程中间、高亮。</summary>
-    public bool IsUnknown => IsPresent && Position == TwoStatePosition.Unknown;
+    public bool IsUnknown => IsPresent && Position == CylinderPosition.Unknown;
 
     /// <summary>
-    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配这个部件。
+    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配这个设备。
     /// </summary>
-    public void Update(PartDto? dto)
+    public void Update(ChamberCylinderDto? dto)
     {
         if (dto is null)
         {
             IsPresent = false;
             Path = string.Empty;
-            Position = TwoStatePosition.Unknown;
+            Position = CylinderPosition.Unknown;
             return;
         }
 
         IsPresent = true;
         Path = dto.Path;
-        Position = ParsePosition(dto.Get(PartValueNames.Position));
-    }
-
-    /// <summary>推送里的 Position 原文转枚举；认不出来算未知。</summary>
-    public static TwoStatePosition ParsePosition(string text)
-    {
-        return Enum.TryParse(text, out TwoStatePosition position) ? position : TwoStatePosition.Unknown;
+        Position = dto.Position;
     }
 }

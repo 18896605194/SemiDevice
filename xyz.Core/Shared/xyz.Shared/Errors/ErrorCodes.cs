@@ -72,22 +72,25 @@ public static class ErrorCodes
     public const string ChamberRecipeOptionMissing = "chamber.recipe_option_missing";
 
     /// <summary>腔体下没有这个部件。Args: [模块名, 部件路径]</summary>
-    public const string ChamberPartNotFound = "chamber.part_not_found";
+    public const string ChamberDeviceNotFound = "chamber.device_not_found";
 
-    /// <summary>部件没有这个手动动作（组件上没有标 [ManualAction] 的同名方法）。Args: [部件路径, 动作]</summary>
-    public const string ChamberPartActionUnsupported = "chamber.part_action_unsupported";
+    /// <summary>部件动作的参数不对：不是有限数、速度是负的、点动速度或步距是 0。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    public const string ChamberDeviceArgsInvalid = "chamber.device_args_invalid";
 
-    /// <summary>部件动作的参数不对：个数不对，或者转不成方法要的类型（数字写错）。Args: [部件路径, 动作]</summary>
-    public const string ChamberPartActionArgsInvalid = "chamber.part_action_args_invalid";
+    /// <summary>续点动时没有在按住的点动（已经松手、被停止或中止顶掉了）。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    public const string ChamberJogNotHeld = "chamber.jog_not_held";
 
-    /// <summary>续按住类动作时没有在按住的这个动作（已经松手、被停止或中止顶掉了）。Args: [部件路径, 动作]</summary>
-    public const string ChamberPartNotHeld = "chamber.part_not_held";
+    /// <summary>部件指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    public const string ChamberDeviceCommandRejected = "chamber.device_command_rejected";
 
-    /// <summary>部件指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [部件路径, 动作]</summary>
-    public const string ChamberPartCommandRejected = "chamber.part_command_rejected";
+    /// <summary>部件动作没做成：到位超时、轴报错，或等过了 EC DeviceActionTimeout。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    public const string ChamberDeviceActionFailed = "chamber.device_action_failed";
 
-    /// <summary>部件动作没做成：到位超时、轴报错，或等过了 EC PartActionTimeout。Args: [部件路径, 动作]</summary>
-    public const string ChamberPartActionFailed = "chamber.part_action_failed";
+    /// <summary>整腔动作（回零、复位、中止、工艺）超过它的 EC 超时还没做完。Args: [模块名, 超时 ms]</summary>
+    public const string ChamberActionTimeout = "chamber.action_timeout";
+
+    /// <summary>起工艺拿不到配方步骤（没装工艺配方库，只给了名字），腔体不知道怎么做。Args: [模块名, 配方名]</summary>
+    public const string ChamberRecipeStepsMissing = "chamber.recipe_steps_missing";
 
     /// <summary>起工艺时腔里不是要做的那一片（没片，或换过片）。Args: [模块名, 槽号]</summary>
     public const string ChamberWaferMismatch = "chamber.wafer_mismatch";

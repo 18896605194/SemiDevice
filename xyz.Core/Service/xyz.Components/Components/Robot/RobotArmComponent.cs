@@ -27,7 +27,6 @@ public class RobotArmComponent : RobotAxisComponent
     /// 传感器/控制器推送的物理在位；null = 还没收到该手指的推送（不是"没片"）。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "手指上是否有片（设备推送，null=还没收到）")]
-    [LiveValue]
     public bool? HasWafer
     {
         get
