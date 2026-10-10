@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -494,6 +494,12 @@ port.E87Callback = null;
     robot.Next!.Succeed();
     robot.Tick();
     Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id, "Home 不该动账");
+
+    // 换片平台默认不支持：直接被拒，不起操作、不改状态、不动账
+    robot.NoteState(ModuleState.Idle);
+    Check(robot.Swap(1, 2, "SmokeLP", 5) is null && robot.State == ModuleState.Idle
+          && robotLedger.Get("SmokeLP", 5)?.Id == carried.Id,
+        "机械手默认不支持换片：Swap 返回 null，状态和账都不动");
 
     // 账实不符：设备说取成功，但账上那个槽位本来就没片
     robot.NoteState(ModuleState.Idle);
@@ -2785,6 +2791,7 @@ sealed class ProbeTransferRobot : IRobot
     public ModuleOperation? Abort() => null;
     public ModuleOperation? Pick(int arm, string station, int slot) => null;
     public ModuleOperation? Place(int arm, string station, int slot) => null;
+    public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
     public ModuleOperation? PowerOn() => null;
     public ModuleOperation? PowerOff() => null;
 }

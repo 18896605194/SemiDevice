@@ -59,6 +59,12 @@ public interface IRobot
 
     ModuleOperation? Place(int arm, string station, int slot);
 
+    /// <summary>
+    /// 换片：在同一个站点槽位上，先用 pickArm 把槽里的片取出来，再把 placeArm 上的片放进去，中间不离开站点。
+    /// 不支持换片的机械手返回 null（被拒）。
+    /// </summary>
+    ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot);
+
     ModuleOperation? PowerOn();
 
     ModuleOperation? PowerOff();

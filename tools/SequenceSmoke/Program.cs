@@ -499,6 +499,8 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     ModuleOperation? IRobot.Place(int arm, string station, int slot) => null;
 
+    ModuleOperation? IRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
+
     ModuleOperation? IRobot.PowerOn() => null;
 
     ModuleOperation? IRobot.PowerOff() => null;

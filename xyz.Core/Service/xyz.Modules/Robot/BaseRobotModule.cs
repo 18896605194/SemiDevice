@@ -616,6 +616,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     protected abstract ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot);
 
+    /// <summary>
+    /// 换片：默认不支持，返回 null（被拒）。机械手支持换片的，在机型里重写。
+    /// </summary>
+    public virtual ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot)
+    {
+        return null;
+    }
+
     private ModuleOperation? BeginAtStation(
         RobotAction action, int arm, string station, int slot, Func<RobotStation, ModuleOperation?> begin)
     {
