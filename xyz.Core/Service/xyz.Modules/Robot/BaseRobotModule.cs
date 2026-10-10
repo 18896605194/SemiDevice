@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
@@ -19,7 +19,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     #region SV 
 
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
-    public override int State { get; protected set; } = ModuleState.NotInit;
+    public override int State { get; protected set; } = RobotState.NotInit;
 
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "伺服是否上使能")]
     public bool? IsServoOn { get; protected set; }
@@ -38,34 +38,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #endregion
 
-    private readonly ConcurrentDictionary<int, bool> _armWafers = new();
-    private readonly ConcurrentDictionary<string, double> _axisPositions = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// 手指上是否有片：驱动手指在位主动推送刷新；尚未收到该手指的推送为 null。
-    /// </summary>
-    public bool? HasWafer(int arm)
-    {
-        return _armWafers.TryGetValue(arm, out bool hasWafer) ? hasWafer : null;
-    }
-
-    /// <summary>
-    /// 记下轴坐标。扫描查询回包时调，只写缓存不做重活。
-    /// </summary>
-    protected void NoteAxisPos(string axis, double position)
-    {
-        _axisPositions[axis] = position;
-    }
-
-
-
-
     #region SC
 
     [SCEditor("True", "_robot", "是否启用本 _robot (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
-
-    // 品牌/网口/轴表在 _driver 子组件上配（RobotDriverComponent）：换品牌就是换那个节点的 Type。
 
     #endregion
 
@@ -145,6 +121,48 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #endregion
 
+    #region 轴与手指（sc.xml 组件树）
+
+    private IReadOnlyList<RobotAxisComponent> _axes = [];
+    private IReadOnlyList<RobotArmComponent> _arms = [];
+    private readonly Dictionary<string, RobotAxisComponent> _axisByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, RobotArmComponent> _armByNumber = new();
+
+    /// <summary>
+    /// 本机械手的轴组件：sc.xml 轴节点的先后就是轴表顺序（查询轮询、界面轴位表都用它）。
+    /// 手指（Arm1/Arm2）本身也是轴，在表里。
+    /// </summary>
+    public IReadOnlyList<RobotAxisComponent> Axes => _axes;
+
+    /// <summary>
+    /// 手指组件，按手指号升序；晶圆账按它注册槽位（槽号 = 手指号）。
+    /// </summary>
+    public IReadOnlyList<RobotArmComponent> Arms => _arms;
+
+    /// <summary>
+    /// 手指上是否有片：驱动手指在位主动推送刷新；尚未收到该手指的推送为 null。
+    /// </summary>
+    public bool? HasWafer(int arm)
+    {
+        return _armByNumber.TryGetValue(arm, out var part) ? part.HasWafer : null;
+    }
+
+    /// <summary>
+    /// 记下轴坐标。扫描查询回包时调：按轴名写进轴组件，只写缓存不做重活。
+    /// </summary>
+    protected void NoteAxisPos(string axis, double position)
+    {
+        if (_axisByName.TryGetValue(axis, out var part))
+        {
+            part.NotePosition(position);
+            return;
+        }
+
+        LogHelper.Warn(Name, $"轴 {axis} 不在 sc.xml 轴节点里，坐标被忽略");
+    }
+
+    #endregion
+
     #region 站点表
 
     private IReadOnlyDictionary<string, RobotStation> _stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
@@ -191,53 +209,90 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     public RobotDriverComponent? _robot { get; private set; }
 
     /// <summary>
-    /// 手指数：驱动组件轴表里 Arm* 的个数（手指号从 1 开始；晶圆账按手指注册槽位）。
+    /// 手指数：sc.xml 里 RobotArmComponent 节点的个数（手指号从 1 开始；晶圆账按手指注册槽位）。
     /// </summary>
-    public int ArmCount
-    {
-        get { return _robot?.ArmCount ?? 0; }
-    }
+    public int ArmCount => _arms.Count;
 
     /// <summary>
-    /// 组件初始化（开机，由装配在 Start 之前调用）：登记手指的晶圆账槽位、订阅驱动的主动事件，
-    /// 然后基类把子组件（品牌驱动）各自初始化，驱动的连接在它自己的 InitComponent 里。
-    /// 装机停用（IsEnable=False）的模块视为成功，空转；没挂驱动组件开机日志报错、返回 false。
+    /// 组件初始化（开机，由装配在 Start 之前调用）：先把轴与手指从组件树里收出来并校验、注册手指的晶圆账槽位、订阅驱动的主动事件，
+    /// 然后基类把子组件（驱动、轴、手指、传感器）各自初始化——驱动连接写在它自己的 InitComponent 里，模块只挂事件。
+    /// 装机停用（IsEnable=False）的模块视为成功，空转；没挂驱动组件开机日志报错，子组件照样初始化，返回 false。
     /// </summary>
     public override bool InitComponent()
     {
+        // 轴与手指是 sc.xml 的节点：停用、没驱动也要能列出轴表和手指，先收出来。
+        ResolveParts();
+
         if (!IsEnable)
         {
             return true;
         }
 
         var robot = FindChild<RobotDriverComponent>();
-        if (robot is null)
+        if (robot is not null)
         {
-            LogHelper.Error(Name, "sc.xml 没挂驱动组件：本模块下要有 _driver 子节点（Type 指定品牌壳）");
-            return false;
+            // 先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送。
+            robot.DeviceEvent -= OnDeviceEvent;
+            robot.DeviceEvent += OnDeviceEvent;
+            _robot = robot;
+        }
+        else
+        {
+            LogHelper.Error(Name, "sc.xml 没挂驱动组件：本模块下要有 Driver 子节点（Type 指定品牌壳）");
         }
 
-        _robot = robot;
+        // 手指在晶圆账里也是槽位：片停在手上算在途，跟停在花篮里一样要有位置。
+        WaferManagerComponent.Current?.RegisterLocation(Name, ArmCount);
 
-        // 站点表里配的手指号不能超出轴表的手指数：配了 Arm3 却只有两只手，界面会给出一只用不了的手。
+        bool childrenInitialized = base.InitComponent();
+        return robot is not null && childrenInitialized;
+    }
+
+    /// <summary>
+    /// 从组件树里收轴和手指，并校验 sc.xml：轴名不重复；手指号唯一、从 1 连续（晶圆账槽位 = 手指号）；
+    /// 站点表里配的手指必须存在。配错就抛——装配即失败，比运行到一半发现账对不上强。
+    /// </summary>
+    private void ResolveParts()
+    {
+        _axes = [.. FindChildren<RobotAxisComponent>()];
+        _axisByName.Clear();
+        foreach (var axis in _axes)
+        {
+            if (!_axisByName.TryAdd(axis.Name, axis))
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {FullPath} 下有重名轴 {axis.Name}。");
+            }
+        }
+
+        if (_axes.Count == 0)
+        {
+            LogHelper.Error(Name, "sc.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
+        }
+
+        _arms = [.. _axes.OfType<RobotArmComponent>().OrderBy(arm => arm.Number)];
+        _armByNumber.Clear();
+        foreach (var arm in _arms)
+        {
+            if (arm.Number < 1 || arm.Number > _arms.Count || !_armByNumber.TryAdd(arm.Number, arm))
+            {
+                throw new InvalidOperationException(
+                    $"sc.xml 节点 {arm.FullPath} 的手指号 {arm.Number} 不合法：手指号要唯一、从 1 连续到 {_arms.Count}（晶圆账槽位 = 手指号）。");
+            }
+
+            arm.BindLedger(Name);
+        }
+
+        // 站点表里配的手指号必须存在：配了 Arm3 却没配这个手指节点，界面会给出一只用不了的手。
         foreach (var station in _stations.Values)
         {
             foreach (int arm in station.Arms)
             {
-                if (arm > robot.ArmCount)
+                if (!_armByNumber.ContainsKey(arm))
                 {
-                    LogHelper.Error(Name, $"sc.xml 站点 {station.Name} 的 Arms 配了 Arm{arm}，但驱动轴表只有 {robot.ArmCount} 只手");
+                    LogHelper.Error(Name, $"sc.xml 站点 {station.Name} 的 Arms 配了 Arm{arm}，但没配这个手指节点");
                 }
             }
         }
-
-        // 先摘后挂：初始化可能不止一次（重开），保证只挂一份。
-        robot.DeviceEvent -= OnDeviceEvent;
-        robot.DeviceEvent += OnDeviceEvent;
-
-        // 手指在晶圆账里也是槽位：片停在手上算在途，跟停在花篮里一样要有位置。
-        WaferManagerComponent.Current?.RegisterLocation(Name, robot.ArmCount);
-        return base.InitComponent();
     }
 
     /// <summary>
@@ -256,7 +311,16 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         switch (evt.Kind)
         {
             case RobotDeviceEventKind.WaferPresence:
-                NoteWaferPresence(evt.Arm, evt.HasWafer);
+                if (_armByNumber.TryGetValue(evt.Arm, out var arm))
+                {
+                    arm.NoteWaferPresence(evt.HasWafer);
+                }
+                else
+                {
+                    // 设备推了 sc.xml 里没配的手指：不凭空长一只手，记日志忽略。
+                    LogHelper.Warn(Name, $"收到手指 {evt.Arm} 的在位推送，但没配这个手指节点");
+                }
+
                 break;
 
             case RobotDeviceEventKind.DeviceError:
@@ -265,12 +329,190 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         }
     }
 
+    #endregion
+
+    #region 设备状态查询（平台收口，机型不用写）
+
     /// <summary>
-    /// 记下手指在位。在驱动路由线程上调，只翻标志不做重活。
+    /// 手指在位推送未订阅成功时，每隔多少次查询重试一次订阅（首次查询即订阅）。
     /// </summary>
-    protected void NoteWaferPresence(int arm, bool hasWafer)
+    private const int SubscribeRetryInterval = 20;
+
+    private QueryStep _queryStep = QueryStep.SendCommand;
+    private RobotCommand? _queryCommand;
+    private QueryKind _queryKind;
+    private int _queryCount;
+    private bool _waferEventSubscribed;
+    private string? _queryAxis;
+    private int _axisScan;
+    private readonly Stopwatch _queryWatch = new();
+
+    /// <summary>只读查询的两步：发一条、等它回。</summary>
+    private enum QueryStep
     {
-        _armWafers[arm] = hasWafer;
+        SendCommand,
+        WaitCommand,
+    }
+
+    /// <summary>当前这条只读查询问的是什么；回包按它落模块状态，不认品牌指令类型。</summary>
+    private enum QueryKind
+    {
+        SubscribeWaferEvent,
+        ServoOn,
+        DeviceError,
+        Speed,
+        AxisPos,
+    }
+
+    /// <summary>
+    /// 分周期下发查询并读取结果，不阻塞扫描线程：先订阅手指在位推送，之后轮流查设备报错、伺服使能、速度与轴位。
+    /// </summary>
+    private void ScanDeviceStatus()
+    {
+        if (!IsEnable)
+        {
+            return;
+        }
+
+        var robot = _robot;
+        if (robot is null)
+        {
+            return;
+        }
+
+        switch (_queryStep)
+        {
+            case QueryStep.SendCommand:
+                if (!robot.IsConnected)
+                {
+                    break;
+                }
+
+                _queryCommand = CreateQueryCommand(robot);
+                if (_queryCommand is not null)
+                {
+                    _queryWatch.Restart();
+                    _queryStep = QueryStep.WaitCommand;
+                }
+
+                break;
+
+            case QueryStep.WaitCommand:
+                if (!_queryCommand!.IsCompleted)
+                {
+                    var timeout = QueryDataTimeOut;
+                    if (_queryWatch.ElapsedMilliseconds >= timeout)
+                    {
+                        // 驱动保留旧查询的在途项，旧回复到达前不会受理同名查询。
+                        LogHelper.Warn(Name, $"{_queryCommand.Key} 查询超时（{timeout}ms）");
+                        _queryCommand = null;
+                        _queryWatch.Reset();
+                        _queryStep = QueryStep.SendCommand;
+                    }
+
+                    break;
+                }
+
+                ApplyQueryResponse(_queryCommand);
+                _queryCommand = null;
+                _queryWatch.Reset();
+                _queryStep = QueryStep.SendCommand;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 轮流查：订阅（没成前）→ 报错 → 伺服 → 速度 → 轴位（按轴节点逐轴轮，占两拍）。查询被拒就跳过这条，下拍再试。
+    /// </summary>
+    private RobotCommand? CreateQueryCommand(RobotDriverComponent robot)
+    {
+        int count = _queryCount++;
+        if (!_waferEventSubscribed && count % SubscribeRetryInterval == 0)
+        {
+            _queryKind = QueryKind.SubscribeWaferEvent;
+            return robot.SubscribeWaferEvent();
+        }
+
+        switch (count % 5)
+        {
+            case 0:
+                _queryKind = QueryKind.DeviceError;
+                return robot.QueryDeviceError();
+
+            case 1:
+                _queryKind = QueryKind.ServoOn;
+                return robot.QueryServoOn();
+
+            case 2:
+                _queryKind = QueryKind.Speed;
+                return robot.QuerySpeed();
+
+            case 3:
+            case 4:
+                _queryKind = QueryKind.AxisPos;
+                var axes = Axes;
+                if (axes.Count == 0)
+                {
+                    return null;
+                }
+
+                // 每拍轮一根轴：X、Z、Theta、Arm1、Arm2……按 sc.xml 轴节点顺序滚。
+                _queryAxis = axes[_axisScan++ % axes.Count].Name;
+                return robot.QueryAxisPos(_queryAxis);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 只读查询的 Response 刷新模块状态。
+    /// </summary>
+    private void ApplyQueryResponse(RobotCommand command)
+    {
+        var response = command.Response!;
+        switch (_queryKind)
+        {
+            case QueryKind.SubscribeWaferEvent:
+                _waferEventSubscribed = response.IsSuccess;
+                if (!response.IsSuccess)
+                {
+                    LogHelper.Warn(Name, $"订阅手指在位推送失败：{response.Error}");
+                }
+
+                break;
+
+            case QueryKind.ServoOn:
+                if (response.IsSuccess)
+                {
+                    IsServoOn = response.ServoOn;
+                }
+
+                break;
+
+            case QueryKind.DeviceError:
+                if (response.IsSuccess)
+                {
+                    DeviceError = response.DeviceError;
+                }
+
+                break;
+
+            case QueryKind.Speed:
+                if (response.IsSuccess)
+                {
+                    Speed = response.Speed;
+                }
+
+                break;
+
+            case QueryKind.AxisPos:
+                if (response.IsSuccess && response.Position.HasValue && _queryAxis is not null)
+                {
+                    NoteAxisPos(_queryAxis, response.Position.Value);
+                }
+
+                break;
+        }
     }
 
     #endregion
@@ -283,7 +525,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 当前状态快照，状态发布与 GetState 查询共用。
     /// 未连接或停用时查询反馈（伺服使能、设备报错、速度）不可信，置 null；手指在位保留最后一次推送值；
     /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
-    /// 站点表（含各站点槽数、允许的手指）与轴坐标整表下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
+    /// 站点表（含各站点槽数、允许的手指）与轴坐标（sc.xml 轴节点整表）下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
@@ -296,6 +538,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             Station = station?.Name,
             Direction = station?.Direction ?? RobotDirection.North,
             Y = station?.Y ?? 0,
+            ArmCount = ArmCount,
             Stations = _stations.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
             StationInfos = _stations.Values
                 .OrderBy(station => station.Number)
@@ -310,32 +553,25 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     Kind = KindOf(station.Name),
                 })
                 .ToList(),
-            Arms = _armWafers
-                .OrderBy(pair => pair.Key)
-                .Select(pair => new RobotArmDto { Arm = pair.Key, HasWafer = pair.Value })
+            Arms = _arms
+                .Select(arm => new RobotArmDto { Arm = arm.Number, HasWafer = arm.HasWafer ?? false })
                 .ToList(),
             LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
         };
 
         var robot = _robot;
-        if (robot is not null)
+        dto.IsConnected = robot?.IsConnected ?? false;
+
+        // 轴位表按 sc.xml 轴节点整表下发（轴名总在，界面没数据也列得出轴）：
+        // 连上了才带坐标，还没查到或没连上的轴坐标为 null——组件里存的是断线前的旧值，不作数。
+        bool trusted = dto.IsConnected && IsEnable;
+        foreach (var axis in _axes)
         {
-            dto.IsConnected = robot.IsConnected;
-            dto.ArmCount = robot.ArmCount;
-
-            // 轴位表按 sc.xml 轴表整表下发（轴名总在，界面没数据也列得出轴）：
-            // 连上了才带坐标，还没查到或没连上的轴坐标为 null——断线时缓存的是旧值，不作数。
-            bool trusted = dto.IsConnected && IsEnable;
-            foreach (var axis in robot.AxisList)
+            dto.AxisPositions.Add(new RobotAxisPositionDto
             {
-                double? position = null;
-                if (trusted && _axisPositions.TryGetValue(axis, out double value))
-                {
-                    position = value;
-                }
-
-                dto.AxisPositions.Add(new RobotAxisPositionDto { Name = axis, Position = position });
-            }
+                Name = axis.Name,
+                Position = trusted ? axis.Position : null,
+            });
         }
 
         if (dto.IsConnected && IsEnable)
@@ -393,7 +629,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 站点允许的手指：sc.xml 站点节点配了 Arms 就按它；没配就是所有手指（1~ArmCount，驱动没起来时为空）。
+    /// 站点允许的手指：sc.xml 站点节点配了 Arms 就按它；没配就是所有手指（sc.xml 里配的 Arm 节点）。
     /// </summary>
     private List<int> ArmsOf(RobotStation station)
     {
@@ -402,7 +638,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return [.. station.Arms];
         }
 
-        return [.. Enumerable.Range(1, ArmCount)];
+        return [.. _arms.Select(arm => arm.Number)];
     }
 
     /// <summary>
@@ -560,12 +796,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     #region 报警
 
     /// <summary>
-    /// 扫描周期：先扫子组件与操作（基类），再按设备报错刷新报警。
+    /// 扫描周期：先扫子组件与操作（基类），再按设备报错刷新报警、轮询设备状态，最后发布状态。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
         CheckDeviceAlarm();
+        ScanDeviceStatus();
+        PublishState();
     }
 
     /// <summary>

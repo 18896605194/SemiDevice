@@ -1,4 +1,4 @@
-using xyz.Common.Log;
+﻿using xyz.Common.Log;
 using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;

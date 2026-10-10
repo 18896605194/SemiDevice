@@ -1,4 +1,4 @@
-using xyz.Components.Attributes;
+﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
@@ -156,8 +156,11 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// <summary>Unload：关门。</summary>
     public LoadPortCommand? Unload() => CreateUnload().Execute();
 
-    /// <summary>带 Mapping 的 Unload：关门时再扫一遍槽（结果在 Response.SlotMap），端口 SC AutoRunMapOnUnload 开着时用来对账。</summary>
-    public LoadPortCommand? UnloadWithMap() => CreateUnloadWithMap().Execute();
+    /// <summary>
+    /// Map：原地扫一遍槽，不装载（结果在 Response.SlotMap）。端口 SC AutoRunMapOnUnload 开着时，
+    /// 自动跑货的 Unload 关好门后用它再扫一遍跟晶圆账对——设备没有一条指令就带图卸载的，所以单独一条。
+    /// </summary>
+    public LoadPortCommand? Map() => CreateMap().Execute();
 
     /// <summary>Home：整机回零。</summary>
     public LoadPortCommand? Home() => CreateHome().Execute();
@@ -191,7 +194,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
 
     protected abstract LoadPortCommand CreateUnload();
 
-    protected abstract LoadPortCommand CreateUnloadWithMap();
+    protected abstract LoadPortCommand CreateMap();
 
     protected abstract LoadPortCommand CreateHome();
 

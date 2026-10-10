@@ -180,10 +180,9 @@
 			<Value Name="SlotCount" Value="25" />
 			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
 			<Value Name="AutoUnload" Value="True" />
-			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行）要不要带 Mapping 跟晶圆账对一遍：
-			     True = 关门前扫一遍核对，对不上判失败、报警；False = 直接关门，不扫、不对账。
-			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不带图、不对账。
-			     FCD 的带图卸载指令名（CUDMP）上机前要核对 -->
+			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：
+			     True = 关好门后主动扫一遍（FCD 没有带图卸载的指令，先 CULOD 关门、再 CLDMP 扫），对不上判失败、报警；False = 关门就完，不扫、不对账。
+			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账 -->
 			<Value Name="AutoRunMapOnUnload" Value="False" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
@@ -240,10 +239,9 @@
 			<Value Name="SlotCount" Value="25" />
 			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
 			<Value Name="AutoUnload" Value="True" />
-			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行）要不要带 Mapping 跟晶圆账对一遍：
-			     True = 关门前扫一遍核对，对不上判失败、报警；False = 直接关门，不扫、不对账。
-			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不带图、不对账。
-			     FCD 的带图卸载指令名（CUDMP）上机前要核对 -->
+			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：
+			     True = 关好门后主动扫一遍（FCD 没有带图卸载的指令，先 CULOD 关门、再 CLDMP 扫），对不上判失败、报警；False = 关门就完，不扫、不对账。
+			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账 -->
 			<Value Name="AutoRunMapOnUnload" Value="False" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
@@ -297,11 +295,27 @@
 	<Setting Name="Robot">
 		<Setting Type="xyz._35021.Module.Robot.RobotModule" Name="Robot1">
 			<!-- 品牌驱动组件：换 Type 即换品牌（RejeRobotComponent / 其他品牌壳），机型代码不动。
-			     Axes 轴表决定手指数（Arm* 个数）：2 指机型 Arm1,Arm2，4 指再加 Arm3,Arm4 -->
+			     轴表不在这儿了：模块下 X/Z/Theta 用 RobotAxisComponent、Arm1/Arm2 用 RobotArmComponent 节点，
+			     节点名即轴名，先后就是查询轮询与界面轴位表的顺序 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.RejeRobotComponent">
 				<Value Name="Host" Value="127.0.0.1" />
 				<Value Name="NetPort" Value="9000" />
-				<Value Name="Axes" Value="X,Z,Theta,Arm1,Arm2" />
+			</Setting>
+			<!-- 轴表：一根轴一个节点，按顺序配。手指上的传感器（缩回到位、真空）作为手指节点的子节点挂，例如：
+			     <Setting Name="Retracted" Type="xyz.Components.Components.DiSensorComponent">
+			             <Value Name="DiIndex" Value="66" />
+			             <Value Name="TriggerLevel" Value="True" />
+			     </Setting> -->
+			<Setting Name="Axes">
+				<Setting Name="X" Type="xyz.Components.Components.RobotAxisComponent" />
+				<Setting Name="Z" Type="xyz.Components.Components.RobotAxisComponent" />
+				<Setting Name="Theta" Type="xyz.Components.Components.RobotAxisComponent" />
+				<Setting Name="Arm1" Type="xyz.Components.Components.RobotArmComponent">
+					<Value Name="Number" Value="1" />
+				</Setting>
+				<Setting Name="Arm2" Type="xyz.Components.Components.RobotArmComponent">
+					<Value Name="Number" Value="2" />
+				</Setting>
 			</Setting>
 			<!-- 站点表：每个站点一个子节点（LoadPort / 腔体各编站点号）。
 			     Number 设备站点号（正整数）；Y 机械手伸出距离（数值）；Direction 伸出方向（RobotDirection 枚举：North/East/South/West）；

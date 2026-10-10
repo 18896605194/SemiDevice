@@ -39,10 +39,10 @@ public class RobotDto
     /// <summary>站点明细（含站点号 Number / 伸出距离 Y / 伸出方向 Direction），调度图与站点角标用；与 Stations 同源。</summary>
     public List<RobotStationDto> StationInfos { get; set; } = [];
 
-    /// <summary>手指数：sc.xml 本机械手 Driver 节点轴表（Axes）里 Arm* 的个数；界面画几只手臂按它（取放能用哪只手按站点的 Arms）。驱动没配时为 0。</summary>
+    /// <summary>手指数：sc.xml 本机械手下的 RobotArmComponent 节点个数；界面画几只手臂按它（取放能用哪只手按站点的 Arms）。</summary>
     public int ArmCount { get; set; }
 
-    /// <summary>各手指在位（设备推送），按手指号升序；尚未收到推送的手指不在列表中。</summary>
+    /// <summary>各手指（sc.xml 的 Arm 节点），按手指号升序；HasWafer 是设备推送的在位，还没收到推送时为 false。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
 
     /// <summary>

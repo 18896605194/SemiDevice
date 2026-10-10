@@ -37,7 +37,7 @@
 
 ### 2.1 设备动作与硬能力覆盖（权重 18%）
 - **CTC 9.0**：`LPModule` 的 FSM 覆盖到 Dock/Undock、门开/关门（独立动作）、Latch/UnLatch、真空开/关、Z 轴升降/Map 起止、Mapping 正/反向、UnloadAndLoad、AutoCloseDoor；`IoLP` 直接接满 DO/DI/AI（20 路状态字、25 槽 Mapping、20 路 FOUP ID）；`PncLoadPort` 有 `IsWaferProtrude` 片突出检查和 `IsEnableTransferWafer` 交叉/叠片/认不出拦截；指示灯（Busy/Complete）会控。
-- **本平台 6.0**：一个动作 = 一条驱动指令（`LoadPortCommandOperation`），平台给了 7 个动作 + 状态轮询 + 读码 + 带图卸载；FCD 驱动只有 `CLOAD`（Load）/`CULOD`（Unload）/`CUDMP`（带图卸载）/`ORGSH`（Home）/`PODCL`（夹紧）/`PODOP`（松开）/`ABORT`/`RESET`/`STATE`/`VERSN` 共 10 条。**没有** Dock/Undock、独立的开门/关门、Latch、真空、Z 轴、Mapping 正反向、UnloadAndLoad、片突出检查、指示灯控制。`LoadPortStatus` 里定义了 `IsLocked / IsTableIn / IsTableOut / IsDeviceAutoMode`，但 `FcdGetStateCommand` 只解析了在位/到位/报警/门开/门关 5 位（注释写明"其余位待协议手册确认"）。
+- **本平台 6.0**：一个动作 = 一条驱动指令（`LoadPortCommandOperation`），平台给了 7 个动作 + 状态轮询 + 读码 + Unload 后扫图对账（同一个 Unload 动作里先 CULOD 再 CLDMP）；FCD 驱动只有 `CLOAD`（Load）/`CULOD`（Unload）/`CLDMP`（原地扫图）/`ORGSH`（Home）/`PODCL`（夹紧）/`PODOP`（松开）/`ABORT`/`RESET`/`STATE`/`VERSN` 共 10 条。**没有** Dock/Undock、独立的开门/关门、Latch、真空、Z 轴、Mapping 正反向、UnloadAndLoad、片突出检查、指示灯控制。`LoadPortStatus` 里定义了 `IsLocked / IsTableIn / IsTableOut / IsDeviceAutoMode`，但 `FcdGetStateCommand` 只解析了在位/到位/报警/门开/门关 5 位（注释写明"其余位待协议手册确认"）。
 - 结论：硬能力覆盖是当前最大短板，CTC 领先 3 分。
 
 ### 2.2 架构分层与可扩展性（权重 12%）
@@ -108,7 +108,7 @@
 ## 4. 相对 CTC 的差距清单（按优先级）
 
 ### P0（上机前必须闭环）
-1. **FCD 协议上机核对**：指令名（LOAD/UNLOAD/CUDMP/HOM/CLMP/UCLP/ABS/RST/STATE/VERSN）与真实 LP300 手册对齐；`GET:STATE` 64 字符串把 `IsLocked / IsTableIn / IsTableOut / IsDeviceAutoMode` 的位定义补全（现在注释写着"其余位待协议手册确认"，模型有字段、驱动没填）。
+1. **FCD 协议上机核对**：指令名（LOAD/UNLOAD/CLDMP/HOM/CLMP/UCLP/ABS/RST/STATE/VERSN）与真实 LP300 手册对齐；`GET:STATE` 64 字符串把 `IsLocked / IsTableIn / IsTableOut / IsDeviceAutoMode` 的位定义补全（现在注释写着"其余位待协议手册确认"，模型有字段、驱动没填）。
 2. **动作覆盖面补齐（按现场设备能力）**：Dock/Undock、独立 OpenDoor/CloseDoor、Latch/UnLatch、真空、Z 轴、Mapping 正/反向——驱动加指令、模块加动作与状态表项。若某些 LP300 型号确实没有这些机构，也要在 sc.xml/文档里写清"该机型不支持"，避免与 CTC 对照时被误判为缺失。
 3. **片突出（protrude）检查**：CTC `CheckReadyForTransfer` 用 `_lpDevice.IsWaferProtrude` 挡机械手；本平台 `CanPrepare` 只看载具到位/认定，没有该项（FCD 状态串里是否有突出位需确认）。
 
@@ -116,7 +116,7 @@
 4. **指示灯控制**：CTC 有 `SetIndicator(Busy/Complete)`；确认 LP300 是否支持，支持就补进驱动与模块（JobManager/Job 状态驱动）。
 5. **EAP 起来时端口上已有盒子补报**（decisions.md 已记为"还没做"）。
 6. **CTC 侧几个现场习惯参数**：自动夹紧（`IsAutoClampWhenFoupPlacement`）、卸载后自动夹紧、卸载后自动关门的等效语义，逐条决定"要/不要/做成 SC"。
-7. **AutoRunMapOnUnload 语义已收敛（2026-10-10 落地）**：SC 只管自动跑货（Job 干完自动卸、Host 放行），True = 带图+对账、False = 不扫不对账；**手动卸载不吃这个 SC**（`UnloadManually()` 恒纯卸载）——对齐 CTC 的手动行为。剩下要上机确认的只有 FCD 带图卸载的指令名（CUDMP），以及按机型把 SC 值打开。
+7. **AutoRunMapOnUnload 语义已收敛（2026-10-10 落地）**：SC 只管自动跑货（Job 干完自动卸、Host 放行），True = 带图+对账、False = 不扫不对账；**手动卸载不吃这个 SC**（`UnloadManually()` 恒纯卸载）——对齐 CTC 的手动行为。FCD 没有带图卸载的指令，CUDMP 那一套已删，True 时是先 CULOD 关门、再主动 CLDMP 扫一遍对账；剩下要上机确认的是卸载后发 CLDMP 的实际行为（扫完门是关的、槽图怎么回），以及按机型把 SC 值打开。
 
 ### P2（排期优化）
 8. **E84 双载具位/连续交接**：`CS_1`、`CONT` 当前"本流程不看"；双位端口机型要补。

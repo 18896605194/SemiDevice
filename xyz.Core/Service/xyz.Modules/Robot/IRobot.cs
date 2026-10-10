@@ -47,12 +47,14 @@ public interface IRobot
 
     #region 动作
 
-    ModuleOperation? Home();
-
     /// <summary>
-    /// 模块初始化（动硬件）：回原点（Home）。人或调度才调，开机不调。
+    /// 模块初始化（动硬件）
     /// </summary>
+    /// <returns></returns>
+
     ModuleOperation? InitModule();
+
+    ModuleOperation? Home();
 
     ModuleOperation? Reset();
 

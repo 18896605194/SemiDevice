@@ -24,9 +24,9 @@ public class FcdLoadPortComponent : LoadPortDriverComponent
         return new FcdUnloadCommand(_driver!);
     }
 
-    protected override LoadPortCommand CreateUnloadWithMap()
+    protected override LoadPortCommand CreateMap()
     {
-        return new FcdUnloadWithMapCommand(_driver!);
+        return new FcdMapCommand(_driver!);
     }
 
     protected override LoadPortCommand CreateHome()

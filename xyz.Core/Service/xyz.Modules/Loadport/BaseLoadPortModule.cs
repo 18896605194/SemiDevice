@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -43,8 +43,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public bool AutoUnload { get; set; } = true;
 
     [SCEditor("False", "LoadPort",
-        "自动跑货的 Unload（Job 干完自动卸、Host 放行）要不要带 Mapping 跟晶圆账对一遍：True = 关门前扫一遍核对，对不上 Unload 判失败、报警；False = 直接关门，不扫、不对账。" +
-        "Mapping 是 LoadPort 硬件自带的，这个开关只管自动跑货用不用它；手动卸载不受影响，一律不带图、不对账")]
+        "自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：True = 关好门后主动扫一遍（FCD 发 CLDMP）核对，对不上 Unload 判失败、报警；False = 关门就完，不扫、不对账。" +
+        "Mapping 是 LoadPort 硬件自带的，这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账")]
     public bool AutoRunMapOnUnload { get; set; }
 
     #endregion
@@ -68,7 +68,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "30000", description: "Unload 动作超时（关门）")]
+        @default: "30000", description: "Unload 动作超时（关门；自动跑货带图对账时，关门后的扫图另按它算一次）")]
     public int UnloadTimeout
     {
         get { return GetEcInt(nameof(UnloadTimeout)); }
@@ -153,7 +153,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [Alarm("LoadPort Load 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（开门 + Mapping）没在 EC LoadTimeout 内做完", Solution = "检查门、Mapping 传感器和 FOUP 有没有放好，看 LoadPort 有没有报错；处理好后复位，再 Home")]
     public string LoadTimeoutAlarm = nameof(LoadTimeoutAlarm);
 
-    [Alarm("LoadPort Unload 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门）没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
+    [Alarm("LoadPort Unload 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门，或自动跑货对账时关门后的扫图）没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
     public string UnloadTimeoutAlarm = nameof(UnloadTimeoutAlarm);
 
     [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Home（初始化回原点）没在 EC HomeTimeout 内做完", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
@@ -179,7 +179,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public string LoadPortDeviceAlarm = nameof(LoadPortDeviceAlarm);
 
     // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条
-    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（或带 Mapping 的 Unload）回来的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home")]
+    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的、或 Unload 关好门后扫的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home")]
     public string SlotMapAlarm = nameof(SlotMapAlarm);
 
     #endregion
@@ -608,8 +608,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// Unload：关门，自动跑货口径（Job 干完自动卸、E87 Host 放行都走这条）。SC AutoRunMapOnUnload 开着就发带 Mapping 的卸载，
-    /// 关门时再扫一遍槽跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）；关着直接关门，不扫、不对账。
+    /// Unload：关门，自动跑货口径（Job 干完自动卸、E87 Host 放行 / 取消都走这条）。SC AutoRunMapOnUnload 开着就关好门再主动扫一遍槽，
+    /// 跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）；关着关门就完，不扫、不对账。
     /// 手动卸载走 <see cref="UnloadManually"/>——不吃这个 SC。
     /// </summary>
     public virtual ModuleOperation? Unload()
@@ -627,21 +627,22 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 卸载动作本体：mapAndVerify = true 发带 Mapping 的卸载（FCD 是 CUDMP）并对账；false 发普通卸载（CULOD）。
+    /// 卸载动作本体：先发普通卸载（FCD 是 CULOD）关门；mapAndVerify = true 时关好了再主动扫一遍图（驱动的 Map，FCD 是 CLDMP）跟晶圆账对。
+    /// 设备没有一条指令就带图卸载的（FCD 没有），所以是两条指令串在一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败。
     /// </summary>
     private ModuleOperation? UnloadCore(bool mapAndVerify)
     {
+        var operation = new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout);
         if (mapAndVerify)
         {
-            return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.UnloadWithMap(), () => UnloadTimeout,
-                CheckUnloadSlotMap));
+            operation.Then("Unload 后扫图", () => _driver?.Map(), CheckUnloadSlotMap);
         }
 
-        return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout));
+        return Begin(LoadPortAction.Unload, operation);
     }
 
     /// <summary>
-    /// 带 Mapping 的 Unload 回来的槽图跟晶圆账对（照老 CTC 的卸载对账）：槽数对不上没法对，判失败；
+    /// Unload 关好门后主动扫回来的槽图跟晶圆账对（照老 CTC 的卸载对账）：槽数对不上没法对，判失败；
     /// 每一槽按"有没有片"走晶圆账的 Verify（对不上晶圆账自己报账实不符、写清楚哪一槽多了还是少了），交叉片、叠片、认不出的也算对不上。
     /// 有对不上的 Unload 判失败、端口停在 Error：盒子里的片跟账不一样，不能就这么让人或天车取走。账不在这儿改，等人按实物在账单调整页改。
     /// 不碰载具的槽图——载具的 UpdateSlotMap 会整篮重建账，片的标识就丢了。没装晶圆账只查交叉片、叠片。

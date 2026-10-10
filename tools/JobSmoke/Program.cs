@@ -1605,6 +1605,12 @@ sealed class SmokeRobot : BaseRobotModule
     {
         Probe.Name(this, name);
         AddChild(new SmokeRobotShell());
+        // sc.xml 的轴节点：本冒烟装两指（生产里由 ComponentLoader 建，这里直接挂）。
+        AddChild(Named(new RobotAxisComponent(), "X"));
+        AddChild(Named(new RobotAxisComponent(), "Z"));
+        AddChild(Named(new RobotAxisComponent(), "Theta"));
+        AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
+        AddChild(Named(new RobotArmComponent { Number = 2 }, "Arm2"));
         var nodes = stations
             .Select((station, index) => new ModuleConfig
             {
@@ -1613,6 +1619,12 @@ sealed class SmokeRobot : BaseRobotModule
             })
             .ToList();
         OnSettingLoaded(new ModuleConfig { Name = name, Children = [new ModuleConfig { Name = "Stations", Children = nodes }] });
+    }
+
+    private static T Named<T>(T component, string name) where T : ComponentBase
+    {
+        Probe.Name(component, name);
+        return component;
     }
 
     public bool FailNextPick { get; set; }

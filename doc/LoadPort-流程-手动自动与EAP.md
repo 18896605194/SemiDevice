@@ -77,7 +77,7 @@ sequenceDiagram
     JOB->>D: ③ 机械手取放片（账随取放走）
     JOB->>LP: ④ CJ 完成/中止 → _carrier.NoteComplete()
     LP->>E87: #19 干完
-    LP->>D: ⑤ AutoUnload：按 SC AutoRunMapOnUnload<br/>true=CUDMP+对账 / false=CULOD
+    LP->>D: ⑤ AutoUnload：按 SC AutoRunMapOnUnload<br/>true=CULOD→CLDMP+对账 / false=CULOD
     LP->>E87: 关门（CarrierClosed、#20 若无中断）
     D->>LP: ⑥ 取盒（E84 取盒 / 人拿走）→ PODOF
     LP->>E87: CarrierRemoved → #21 删对象 + MaterialRemoved
@@ -123,7 +123,7 @@ sequenceDiagram
   - **从这个口取出去、还在腔体/机械手上的片没回齐就先不卸**（`CountWafersOutside`，Job 中止会有）；
   - 满足才 `Unload()`。
 - `Unload()`（自动跑货口径）：
-  - SC `AutoRunMapOnUnload = true` → FCD `MOV:CUDMP`（带图）→ `CheckUnloadSlotMap()` 逐槽跟晶圆账 `Verify`，对不上判失败 + `SlotMapAlarm` + 端口 Error，**盒子不能就这么被取走**；
+  - SC `AutoRunMapOnUnload = true` → 先 `MOV:CULOD` 关门，关好再 `MOV:CLDMP` 主动扫一遍（FCD 没有带图卸载的指令，两条串在同一个 Unload 动作里：关门没成不扫，扫图没成判失败）→ `CheckUnloadSlotMap()` 逐槽跟晶圆账 `Verify`，对不上判失败 + `SlotMapAlarm` + 端口 Error，**盒子不能就这么被取走**；
   - `= false` → `MOV:CULOD`（直接关门，不扫不对账）。
 - 成功 → `Carrier.EndAccess()`（取放过没判完成记中断）+ 报 E87 `UnloadCompleted`（关门事件）；端口空闲后搬运状态转 **ReadyToUnload（等取）**。
 

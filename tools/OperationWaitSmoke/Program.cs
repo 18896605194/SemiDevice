@@ -443,6 +443,8 @@ port.E87Callback = null;
     Check(robot.InitComponent(), "探针机械手的组件初始化应成功");
     Check(robotLedger.GetSlots(robot.Name).Count == robot.ArmCount,
         $"开机应把手指注册成账本槽位，实际 {robotLedger.GetSlots(robot.Name).Count} 个");
+    Check(robot.ArmCount == 1 && robot.Axes.Count == 4 && robot.Arms[0].Number == 1,
+        "轴/手指应从组件树收出来：X/Z/Theta 三根轴加 Arm1 一只手指");
 
     robot.NoteState(ModuleState.Idle);
     Check(robot.Pick(1, "NoSuchStation", 1) is null, "没配在站点表里的站点应被拒");
@@ -453,7 +455,8 @@ port.E87Callback = null;
     robot.Next!.Succeed();
     robot.Tick();
     Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
-    Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id, "Pick 成功后片应在手指上，且还是同一片");
+    Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id && robot.Arms[0].Wafer?.Id == carried.Id,
+        "Pick 成功后片应在手指上，且还是同一片（Arm 组件能读到账上这片）");
 
     // 状态推送带着账：手指上的片（片号、状态）跟着账走，界面不用另外通知
     var pickedState = robot.CreateStateDto();
@@ -1732,8 +1735,9 @@ port.E87Callback = null;
     Check(offPort.Calls == offCalls, "SC AutoUnload 关着：干完不自动卸，等操作员或 Host CarrierRelease");
     offPort.Close();
 
-    // 9d) 自动跑货的 Unload 带 Mapping 对账（SC AutoRunMapOnUnload，照老 CTC 的卸载对账）：发 CUDMP；扫到的跟账一致 Unload 成功；
-    //     少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error，报 Mapping 异常和晶圆账的账实不符，账不动；关着发普通的 CULOD（第 9 节）
+    // 9d) 自动跑货的 Unload 带 Mapping 对账（SC AutoRunMapOnUnload，照老 CTC 的卸载对账）：FCD 没有带图卸载的指令，先发 CULOD 关门，
+    //     关好了再主动发 CLDMP 扫一遍；扫到的跟账一致 Unload 成功；少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error，
+    //     报 Mapping 异常和晶圆账的账实不符，账不动；关门没成就不扫；扫图没成 Unload 判失败；SC 关着只发 CULOD（第 9 节）
     var unloadMapAlarms = new AlarmComponent();
     PlainPort LoadedMapPort(string name)
     {
@@ -1749,14 +1753,17 @@ port.E87Callback = null;
         return port;
     }
 
-    ModuleOperation UnloadWithMap(PlainPort port, params string[] replies)
+    ModuleOperation UnloadThenMap(PlainPort port, params string[] mapReplies)
     {
+        var comm = port.Shell.Comm;
         var unload = port.Unload();
-        Check(unload is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CUDMP") == 1)
-              && port.Shell.Comm.SentCount("MOV:CULOD") == 0, $"{port.Name}：AutoRunMapOnUnload 开着，Unload 发的是带 Mapping 的 CUDMP");
-        foreach (string reply in replies)
+        Check(unload is not null && TickPlainUntil(port, () => comm.SentCount("MOV:CULOD") == 1) && comm.SentCount("MOV:CLDMP") == 0,
+            $"{port.Name}：AutoRunMapOnUnload 开着，Unload 先发普通的 CULOD 关门，门没关好不扫");
+        comm.Push("INF:CULOD");
+        Check(TickPlainUntil(port, () => comm.SentCount("MOV:CLDMP") == 1), $"{port.Name}：门关好了，再主动发 CLDMP 扫一遍");
+        foreach (string reply in mapReplies)
         {
-            port.Shell.Comm.Push(reply);
+            comm.Push(reply);
         }
 
         Check(TickPlainUntil(port, () => unload!.IsTerminal), $"{port.Name} 的 Unload 做完了");
@@ -1764,13 +1771,13 @@ port.E87Callback = null;
     }
 
     var matchPort = LoadedMapPort("UnloadMapOkPort");
-    var matchUnload = UnloadWithMap(matchPort, $"INF:CUDMP/PPE{new string('E', 22)}");
-    Check(matchUnload.IsSuccess && matchPort.State == ModuleState.Idle && !matchPort.HasAlarm, "Unload 扫到的跟账一致：Unload 成功、落 Idle，不报警");
+    var matchUnload = UnloadThenMap(matchPort, $"INF:CLDMP/PPE{new string('E', 22)}");
+    Check(matchUnload.IsSuccess && matchPort.State == ModuleState.Idle && !matchPort.HasAlarm, "关门后扫到的跟账一致：Unload 成功、落 Idle，不报警");
     matchPort.Close();
 
     // 1 槽账上有、没扫到（少片），3 槽扫到、账上没有（多片），4 槽交叉片；槽图走单独的 MAPDT 帧、终结帧不带数据也收
     var mismatchPort = LoadedMapPort("UnloadMapBadPort");
-    var mismatchUnload = UnloadWithMap(mismatchPort, $"INF:MAPDT/EPPC{new string('E', 21)}", "INF:CUDMP");
+    var mismatchUnload = UnloadThenMap(mismatchPort, $"INF:MAPDT/EPPC{new string('E', 21)}", "INF:CLDMP");
     Check(mismatchUnload.Code == ErrorCodes.UnloadSlotMapMismatch && mismatchUnload.ErrorArgs.SequenceEqual(new[] { "UnloadMapBadPort", "1,3,4" })
           && mismatchPort.State == ModuleState.Error,
         "少片、多片、交叉片：Unload 判失败（unload_slot_map_mismatch，带槽号），落 Error，不能就这么取走");
@@ -1781,17 +1788,35 @@ port.E87Callback = null;
         "Unload 对账不符：账不动，等人按实物在账单调整页改");
     mismatchPort.Close();
 
-    // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要带图对账）时，手动卸载照样发普通 CULOD、不带图、不对账——
-    //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货那两条路）
+    // 关门没成（设备回 ABS）：Unload 判失败、落 Error，不再发 CLDMP 扫图
+    var closeFailPort = LoadedMapPort("UnloadMapCloseFailPort");
+    var closeFailComm = closeFailPort.Shell.Comm;
+    var closeFailUnload = closeFailPort.Unload();
+    Check(closeFailUnload is not null && TickPlainUntil(closeFailPort, () => closeFailComm.SentCount("MOV:CULOD") == 1),
+        "关门没成用的端口：Unload 先发了 CULOD");
+    closeFailComm.Push("ABS:CULOD/0301");
+    Check(TickPlainUntil(closeFailPort, () => closeFailUnload!.IsTerminal) && closeFailUnload!.Code == ErrorCodes.DeviceFailed
+          && closeFailPort.State == ModuleState.Error && closeFailComm.SentCount("MOV:CLDMP") == 0,
+        "关门没成：Unload 判失败（device_failed）、落 Error，不再发 CLDMP 扫图");
+    closeFailPort.Close();
+
+    // 门关好了、扫图没成（设备回 NAK）：Unload 判失败、落 Error——没扫成就对不了账，不能当卸好了让人取走
+    var scanFailPort = LoadedMapPort("UnloadMapScanFailPort");
+    var scanFailUnload = UnloadThenMap(scanFailPort, "NAK:CLDMP/0103");
+    Check(scanFailUnload.Code == ErrorCodes.DeviceFailed && scanFailPort.State == ModuleState.Error,
+        "门关好了、扫图没成：Unload 判失败（device_failed）、落 Error，不当卸好了");
+    scanFailPort.Close();
+
+    // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要关门后扫图对账）时，手动卸载照样只发普通 CULOD，关好门也不扫、不对账——
+    //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货的 Unload）
     var manualPort = LoadedMapPort("ManualUnloadPort");
     var manualUnload = manualPort.UnloadManually();
-    Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Shell.Comm.SentCount("MOV:CULOD") == 1)
-          && manualPort.Shell.Comm.SentCount("MOV:CUDMP") == 0,
-        "手动 Unload：SC AutoRunMapOnUnload 开着也不带图，发的是 CULOD");
+    Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Shell.Comm.SentCount("MOV:CULOD") == 1),
+        "手动 Unload：SC AutoRunMapOnUnload 开着也发普通的 CULOD");
     manualPort.Shell.Comm.Push("INF:CULOD");
     Check(TickPlainUntil(manualPort, () => manualUnload!.IsTerminal) && manualUnload!.IsSuccess
-          && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm,
-        "手动 Unload：不对账——账上 1、2 槽有片也不拦，卸成功、落 Idle、不报警");
+          && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm && manualPort.Shell.Comm.SentCount("MOV:CLDMP") == 0,
+        "手动 Unload：关好门不扫、不对账——账上 1、2 槽有片也不拦，卸成功、落 Idle、不报警");
     Check(presenceLedger.Get("ManualUnloadPort", 1) is not null && presenceLedger.Get("ManualUnloadPort", 2) is not null,
         "手动 Unload：账不动");
     manualPort.Close();
@@ -1922,7 +1947,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (CUDMP when AutoRunMapOnUnload is on: missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, while the manual unload ignores that switch: plain CULOD, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -2405,6 +2430,18 @@ sealed class ProbeRobot : BaseRobotModule
         AbortTimeout = 0;
         PowerTimeout = 0;
         AddChild(new ProbeRobotShell());
+        // sc.xml 的轴节点：本冒烟装一指（生产里由 ComponentLoader 建，这里直接挂）。
+        AddChild(Named(new RobotAxisComponent(), "X"));
+        AddChild(Named(new RobotAxisComponent(), "Z"));
+        AddChild(Named(new RobotAxisComponent(), "Theta"));
+        AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
+    }
+
+    private static T Named<T>(T component, string name) where T : ComponentBase
+    {
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
+        return component;
     }
 
     /// <summary>直接摆状态，省去为了进 Idle 先跑一遍 Home。</summary>

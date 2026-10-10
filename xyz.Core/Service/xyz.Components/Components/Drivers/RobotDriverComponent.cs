@@ -16,33 +16,7 @@ public abstract class RobotDriverComponent : ComponentBase
     [SCEditor("9000", "Robot", "机械手网口端口")]
     public int NetPort { get; set; } = 9000;
 
-    [SCEditor("X,Z,Theta,Arm1,Arm2", "Robot", "轴表（逗号分隔）：Arm* 个数 = 手指数，2 指机型 Arm1,Arm2，4 指再加 Arm3,Arm4")]
-    public string Axes { get; set; } = "X,Z,Theta,Arm1,Arm2";
-
-    #endregion
-
-    #region 轴表
-
-    private List<string>? _axisList;
-
-    /// <summary>轴名列表（轴表配置解析）；查轴位置等按轴名触发。</summary>
-    public IReadOnlyList<string> AxisList
-    {
-        get
-        {
-            if (_axisList is null)
-            {
-                _axisList = Axes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            }
-
-            return _axisList;
-        }
-    }
-
-    public int ArmCount
-    {
-        get { return AxisList.Count(axis => axis.StartsWith("Arm", StringComparison.OrdinalIgnoreCase)); }
-    }
+    // 轴表不在这儿配：模块下 X/Z/Theta 用 RobotAxisComponent、手指用 RobotArmComponent 节点，节点名即轴名。
 
     #endregion
 
@@ -133,7 +107,7 @@ public abstract class RobotDriverComponent : ComponentBase
         return Run(CreateResetDrive());
     }
 
-    /// <summary>QueryAxisPos：查指定轴当前坐标（轴名取 AxisList，结果在 Response.Position）。</summary>
+    /// <summary>QueryAxisPos：查指定轴当前坐标（轴名取 sc.xml 轴节点名，结果在 Response.Position）。</summary>
     public RobotCommand? QueryAxisPos(string axis)
     {
         return Run(CreateQueryAxisPos(axis));

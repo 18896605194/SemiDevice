@@ -267,17 +267,21 @@
   没超时锁住 → 报 `UnexpectedCarrierAlarm`。只报警，不锁交接、不改端口状态（交接本来就按载具在不在开方向，人手动放拿撞不上天车；CTC 是端口进 Error）。
   第一拍只记不比；开机端口是 Manual（Auto/Manual 不存盘），不会误报。
 - **Unload 时带 Mapping 对账 + 手动豁免**（2026-10-10，用户："unload 的时候是都要 map"、"这个应该是在 AutoRun 的时候进行这个判定，手动的这种不会用到这个配置"）：
-  SC `AutoRunMapOnUnload`（默认 False）**只管自动跑货的 Unload**（Job 干完自动卸、E87 Host 放行）：True = 关门前扫一遍跟晶圆账对，对不上判失败、报警；False = 直接关门，不扫、不对账。
+  SC `AutoRunMapOnUnload`（默认 False）**只管自动跑货的 Unload**（Job 干完自动卸、E87 Host 放行 / 取消）：True = 关好门后再主动扫一遍跟晶圆账对，对不上判失败、报警；False = 关门就完，不扫、不对账。
   **手动卸载不吃这个 SC**：`BaseLoadPortModule.UnloadManually()`（手动服务 `LoadPortService.UnloadAsync` 走它）一律发普通卸载，不扫图、不对账——账乱了也得能让操作员把盒子放出去。
-  Mapping 是 LoadPort 硬件自带的（门还开着就能扫），所以**不做能力开关**；协议差异（一条指令带图 CUDMP vs 先取图再卸）由驱动内部消化，对模块都表现为"`Unload` 带回 SlotMap"。
-  开着时 Unload 发带 Mapping 的卸载（驱动 `UnloadWithMap`，FCD 是 `MOV:CUDMP`——指令名照 TDK 系、老 CTC Hirata-II 用的，FCD 手册待核对；槽位串跟 Load 一样两种形状都收，
-  抽成 `FcdMappingCommand`）。回来的槽图逐槽走晶圆账 `Verify`（对不上晶圆账自己报账实不符、写清是多是少），交叉片、叠片、认不出的也算对不上；
+  Mapping 是 LoadPort 硬件自带的，所以**不做能力开关**。
+  **先 Unload、再主动 Map**（同日改，用户："CUDMP 没有依据，这个功能其实是没有的，直接 unload 然后 map"）：FCD 没有带图卸载的指令，原来照 TDK 系写的 `MOV:CUDMP`
+  （驱动组件 `UnloadWithMap` / `CreateUnloadWithMap`、`FcdUnloadWithMapCommand`、冒烟里测它的用例）整套删了——仿真器不认 CUDMP，XM.Core 实机 Fortrend 驱动也没有。
+  现在开着时 `UnloadCore` 先发普通卸载（CULOD），做成了再发驱动组件的 `Map()`（FCD 是 `MOV:CLDMP`，原地扫、不装载，XM.Core 实机驱动和仿真器都这么用；
+  槽位串跟 Load 一样两种形状都收，`FcdMappingCommand`），两条用 `LoadPortCommandOperation.Then` 串在同一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败，
+  超时每条各按 EC `UnloadTimeout` 算（后一条从它自己发出去算起）。扫回来的槽图逐槽走晶圆账 `Verify`（对不上晶圆账自己报账实不符、写清是多是少），交叉片、叠片、认不出的也算对不上；
   有对不上的 Unload 判失败（`loadport.unload_slot_map_mismatch`，带槽号）、报 `SlotMapAlarm`、端口落 Error——盒子里的片跟账不一样不能就这么取走。
   **账不改**（CTC 会把对不上的片改成 Unknown / 补建，我们等人按实物在账单调整页改），**不碰载具槽图**（载具的 UpdateSlotMap 会整篮重建账，片标识就丢了）。
   没装晶圆账只查交叉片、叠片；槽数对不上没法对账，按 `slot_map_length_mismatch` 判失败。
   CTC 对照（2026-10-10 查的）：CTC 的 `Unload`（手动 / Host 的 FAUnload）是纯卸载；对账挂在 `LPAutoCloseDoorRoutine`（`QueryWaferMap → CheckMap → OnDoorClosed`）上，
   而且只有 `AutoTransfer` 里 `IsAutoUnloadWhenJobComplete=false` 那条分支才走到（默认 true 那条反而是纯卸载）；老 FinalClean 的 `LPUnloadRoutine` 本来有完整的"Map → 对账 → Unload"，
-  FinalClean2 整段注释掉了。IO 表里的 `DO_UnloadAndMap` / `DI_UnLoadMapFinish` FinalClean2 代码一处不引用（留给仓库外的 Hirata-II 驱动，那边是 SC `IsNeedAutoRunMapOnUnload` + CUDMP + GET:MAPRD）。
+  FinalClean2 整段注释掉了。IO 表里的 `DO_UnloadAndMap` / `DI_UnLoadMapFinish` FinalClean2 代码一处不引用。框架里的 Hirata-II / HirataIII 驱动（FinalClean2 不用）是 SC `IsNeedMapOnUnload`
+  （`LoadPortBaseDevice` 读 `LoadPort.LPx.IsNeedMapOnUnload`），开着每次 Unload（手动的也算）都发 CUDMP 再 GET:MAPRD 取图。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。
@@ -425,3 +429,19 @@
 - **CJ 转换号（2026-10-07 用户明确）**：删除 ControlJob.TransitionNumber；转换号属于本次转换通知，不缓存进 CJ 对象。CjManager 在通知时用局部变量确定编号，通过 StateChanged(ControlJob, ControlJobState, int e94TransitionNumber) 传给 JobManager 上报；不新增事件参数类。CompletedBy / EndedBy 仍记录完成及删除原因。
 - **PJ 与 CJ 风格统一（2026-10-07 用户授权修改）**：PjManager 使用 Dictionary<string,PjEntity> 保存 PJ 与独立 PjStateMachine；私有实体不对外暴露，接口用 Add / Remove / Get / ProcessJobs，动作接收 ProcessJob 对象。Add 只登记，Queue 入队并登记晶圆归属，Remove 检查对象引用并释放归属。状态机继承同一个 BaseStateMachine，转换表写在类内，保留现有 E40 状态数值与手动启动、暂停、停止、中止收尾行为；新增内部 Created=-1，不上报 Host。暂停恢复目标留在独立状态机，不存进 ProcessJob。删除 PjManager 的 Execute、公开 Fire、Advance、NextTrigger、AbortLoose、UpdatePermissions；任务进度、PJ 启动条件、设备收尾与行许可由 JobManager 处理。StateChanged 传 (ProcessJob,ProcessJobState,int e40TransitionNumber)，编号只随本次通知传递，不存成运行对象字段。
 - **JobManager 跟随优化（2026-10-07 用户授权）**：使用传统方法体和区域管理，明确命令方法各自直接执行 CJ/PJ 对象动作，EAP 编号入口仅选择对应方法；不增加委托执行包装或 partial 拆文件。扫描分为 PJ 推进、CJ 推进、任务许可，保留先 PJ 后 CJ 及设备收尾判据。创建检查 Queue 结果，失败撤销本次登记、任务或关联，保留先前创建的 PJ；无数据变化的创建校验失败不发布。删除 `_snapshot` 缓存，查询在 Job 锁内生成独立 DTO。
+
+## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
+- **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV + LiveValue；不接 PLC、没有手动动作），X/Z/Theta 直接配它；
+  `RobotArmComponent : RobotAxisComponent` 是手指节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`HasWafer` 是设备推送的在位（null = 还没收到），
+  `Wafer` 是晶圆账的**只读视图**（`WaferManagerComponent.Get(模块名, 手指号)`，`BindLedger` 由模块装配时灌；账还是唯一权威，人工调账、开机恢复、Job 照旧改账），
+  手指上的传感器（缩回到位、真空）作为子组件挂在手指节点下。
+- **轴表单一来源**：删掉 `RobotDriverComponent.Axes/AxisList/ArmCount` 和 `BaseRobotModule._axisPositions/_armWafers`；
+  轴的先后 = sc.xml 轴节点的先后，`FindChildren<RobotAxisComponent>()` = 整张轴表（含 Arm），`FindChildren<RobotArmComponent>()` = 手指；
+  `ArmCount` = Arm 节点个数，晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
+- **不抽接口**：同族组件走基类（跟 `AxisComponent` / `ArmAxisComponent` 一个路子）；模块要调 `NotePosition` / `NoteWaferPresence` / `BindLedger` 这些 internal 写入口，
+  接口放不下，模块也只依赖这两个具体基类；派生类要自己再标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
+- **事件路由**：手指在位推送按手指号找 Arm 节点，找不到只记 WARN 忽略（设备推了没配的手指，不再凭空长出一只手）。
+- **设备状态查询收进平台**（照 LoadPort "设备状态查询在平台"的做法，2026-10-10）：原来 35021 `RobotModule` 里的轮询（订阅手指在位推送  轮流查设备报错、伺服、速度、轴位；超时作废这条、下拍重试）移进 `BaseRobotModule`，
+  `OnScan` 统一按 `base.OnScan  CheckDeviceAlarm  ScanDeviceStatus  PublishState` 走；机型只留动作（Home/Reset/Abort/Pick/Place/PowerOn/PowerOff），以后新机械手不用抄轮询。
+- **InitComponent 照 LoadPort 的分工**（2026-10-10）：模块只做装配期的事`ResolveParts` 收轴/手指并校验、`arm.BindLedger`、找驱动挂 `DeviceEvent`、`RegisterLocation`；
+  连接和各自的开机初始化归子组件自己的 `InitComponent`（驱动建连接、轴/手指/传感器照基类递归）。没挂驱动不再提前 return，子组件照样初始化，最后 `return 驱动有 && childrenInitialized`。
