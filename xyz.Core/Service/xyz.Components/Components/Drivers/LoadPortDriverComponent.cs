@@ -1,4 +1,4 @@
-﻿using xyz.Components.Attributes;
+using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
@@ -156,7 +156,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
     /// <summary>Unload：关门。</summary>
     public LoadPortCommand? Unload() => CreateUnload().Execute();
 
-    /// <summary>带 Mapping 的 Unload：关门时再扫一遍槽（结果在 Response.SlotMap），端口 SC MapOnUnload 开着时用来对账。</summary>
+    /// <summary>带 Mapping 的 Unload：关门时再扫一遍槽（结果在 Response.SlotMap），端口 SC AutoRunMapOnUnload 开着时用来对账。</summary>
     public LoadPortCommand? UnloadWithMap() => CreateUnloadWithMap().Execute();
 
     /// <summary>Home：整机回零。</summary>

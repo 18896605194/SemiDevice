@@ -1,4 +1,4 @@
-﻿using xyz.Components;
+using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -28,6 +28,10 @@ public class LoadPortService : BaseService, ILoadPortService
         return RunOperation(module, port, port.Load(), port.LoadTimeout);
     }
 
+    /// <summary>
+    /// 手动卸载：不扫图、不对账（SC AutoRunMapOnUnload 只管自动跑货的 Unload）——操作员要把盒子放出去就能放出去，
+    /// 账对不对不拦手动这一下。
+    /// </summary>
     public Task<RpcResponse> UnloadAsync(string module)
     {
         var port = FindModule<BaseLoadPortModule>(module);
@@ -36,7 +40,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Unload(), port.UnloadTimeout);
+        return RunOperation(module, port, port.UnloadManually(), port.UnloadTimeout);
     }
 
     public Task<RpcResponse> HomeAsync(string module)

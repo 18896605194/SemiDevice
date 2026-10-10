@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -42,8 +42,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     [SCEditor("True", "LoadPort", "Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；False = 等操作员点 Unload 或 Host CarrierRelease")]
     public bool AutoUnload { get; set; } = true;
 
-    [SCEditor("False", "LoadPort", "Unload 时带 Mapping（关门时再扫一遍槽）跟晶圆账对一遍，多片、少片、交叉片、叠片都报警；设备得支持带 Mapping 的卸载")]
-    public bool MapOnUnload { get; set; }
+    [SCEditor("False", "LoadPort",
+        "自动跑货的 Unload（Job 干完自动卸、Host 放行）要不要带 Mapping 跟晶圆账对一遍：True = 关门前扫一遍核对，对不上 Unload 判失败、报警；False = 直接关门，不扫、不对账。" +
+        "Mapping 是 LoadPort 硬件自带的，这个开关只管自动跑货用不用它；手动卸载不受影响，一律不带图、不对账")]
+    public bool AutoRunMapOnUnload { get; set; }
 
     #endregion
 
@@ -606,11 +608,30 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// Unload：关门。SC MapOnUnload 开着就发带 Mapping 的卸载，关门时再扫一遍槽跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）。
+    /// Unload：关门，自动跑货口径（Job 干完自动卸、E87 Host 放行都走这条）。SC AutoRunMapOnUnload 开着就发带 Mapping 的卸载，
+    /// 关门时再扫一遍槽跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）；关着直接关门，不扫、不对账。
+    /// 手动卸载走 <see cref="UnloadManually"/>——不吃这个 SC。
     /// </summary>
     public virtual ModuleOperation? Unload()
     {
-        if (MapOnUnload)
+        return UnloadCore(AutoRunMapOnUnload);
+    }
+
+    /// <summary>
+    /// 手动 Unload（手动页面）：不扫图、不对账——操作员要手动卸就别拿账卡他（账乱了怪账不怪盒子，
+    /// 也得能把盒子放出去，跟 CTC 的手动卸载一致）。SC AutoRunMapOnUnload 只管自动跑货，管不到这里。
+    /// </summary>
+    public virtual ModuleOperation? UnloadManually()
+    {
+        return UnloadCore(false);
+    }
+
+    /// <summary>
+    /// 卸载动作本体：mapAndVerify = true 发带 Mapping 的卸载（FCD 是 CUDMP）并对账；false 发普通卸载（CULOD）。
+    /// </summary>
+    private ModuleOperation? UnloadCore(bool mapAndVerify)
+    {
+        if (mapAndVerify)
         {
             return Begin(LoadPortAction.Unload, new LoadPortCommandOperation("Unload", () => _driver?.UnloadWithMap(), () => UnloadTimeout,
                 CheckUnloadSlotMap));

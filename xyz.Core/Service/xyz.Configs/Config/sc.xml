@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
 	<!-- 系统设置：界面语言（zh-CN 简体中文 / en-US 英文），客户端启动时按它显示，改了重启客户端生效 -->
 	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
@@ -180,8 +180,11 @@
 			<Value Name="SlotCount" Value="25" />
 			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
 			<Value Name="AutoUnload" Value="True" />
-			<!-- MapOnUnload：Unload 时带 Mapping（关门时再扫一遍槽）跟晶圆账对一遍，对不上 Unload 判失败、报警；设备得支持带 Mapping 的卸载（FCD 的指令名上机前要核对） -->
-			<Value Name="MapOnUnload" Value="False" />
+			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行）要不要带 Mapping 跟晶圆账对一遍：
+			     True = 关门前扫一遍核对，对不上判失败、报警；False = 直接关门，不扫、不对账。
+			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不带图、不对账。
+			     FCD 的带图卸载指令名（CUDMP）上机前要核对 -->
+			<Value Name="AutoRunMapOnUnload" Value="False" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
@@ -237,8 +240,11 @@
 			<Value Name="SlotCount" Value="25" />
 			<!-- AutoUnload：Job 做完（载具干完）自动 Unload，接不接 EAP 都生效；从这个口取出去的片没回齐（Job 中止时会有）先不卸 -->
 			<Value Name="AutoUnload" Value="True" />
-			<!-- MapOnUnload：Unload 时带 Mapping（关门时再扫一遍槽）跟晶圆账对一遍，对不上 Unload 判失败、报警；设备得支持带 Mapping 的卸载（FCD 的指令名上机前要核对） -->
-			<Value Name="MapOnUnload" Value="False" />
+			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行）要不要带 Mapping 跟晶圆账对一遍：
+			     True = 关门前扫一遍核对，对不上判失败、报警；False = 直接关门，不扫、不对账。
+			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不带图、不对账。
+			     FCD 的带图卸载指令名（CUDMP）上机前要核对 -->
+			<Value Name="AutoRunMapOnUnload" Value="False" />
 			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />

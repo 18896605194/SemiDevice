@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -1732,12 +1732,12 @@ port.E87Callback = null;
     Check(offPort.Calls == offCalls, "SC AutoUnload 关着：干完不自动卸，等操作员或 Host CarrierRelease");
     offPort.Close();
 
-    // 9d) Unload 时带 Mapping 对账（SC MapOnUnload，照老 CTC 的卸载对账）：发 CUDMP；扫到的跟账一致 Unload 成功；
+    // 9d) 自动跑货的 Unload 带 Mapping 对账（SC AutoRunMapOnUnload，照老 CTC 的卸载对账）：发 CUDMP；扫到的跟账一致 Unload 成功；
     //     少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error，报 Mapping 异常和晶圆账的账实不符，账不动；关着发普通的 CULOD（第 9 节）
     var unloadMapAlarms = new AlarmComponent();
     PlainPort LoadedMapPort(string name)
     {
-        var port = new PlainPort(name) { MapOnUnload = true };
+        var port = new PlainPort(name) { AutoRunMapOnUnload = true };
         Check(port.InitComponent(), $"{name} 的组件初始化应成功");
         port.NoteState(ModuleState.Idle);
         port.NotePodPlaced(true);
@@ -1753,7 +1753,7 @@ port.E87Callback = null;
     {
         var unload = port.Unload();
         Check(unload is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CUDMP") == 1)
-              && port.Shell.Comm.SentCount("MOV:CULOD") == 0, $"{port.Name}：MapOnUnload 开着，Unload 发的是带 Mapping 的 CUDMP");
+              && port.Shell.Comm.SentCount("MOV:CULOD") == 0, $"{port.Name}：AutoRunMapOnUnload 开着，Unload 发的是带 Mapping 的 CUDMP");
         foreach (string reply in replies)
         {
             port.Shell.Comm.Push(reply);
@@ -1780,6 +1780,21 @@ port.E87Callback = null;
     Check(presenceLedger.Get("UnloadMapBadPort", 1) is not null && presenceLedger.Get("UnloadMapBadPort", 3) is null,
         "Unload 对账不符：账不动，等人按实物在账单调整页改");
     mismatchPort.Close();
+
+    // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要带图对账）时，手动卸载照样发普通 CULOD、不带图、不对账——
+    //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货那两条路）
+    var manualPort = LoadedMapPort("ManualUnloadPort");
+    var manualUnload = manualPort.UnloadManually();
+    Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Shell.Comm.SentCount("MOV:CULOD") == 1)
+          && manualPort.Shell.Comm.SentCount("MOV:CUDMP") == 0,
+        "手动 Unload：SC AutoRunMapOnUnload 开着也不带图，发的是 CULOD");
+    manualPort.Shell.Comm.Push("INF:CULOD");
+    Check(TickPlainUntil(manualPort, () => manualUnload!.IsTerminal) && manualUnload!.IsSuccess
+          && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm,
+        "手动 Unload：不对账——账上 1、2 槽有片也不拦，卸成功、落 Idle、不报警");
+    Check(presenceLedger.Get("ManualUnloadPort", 1) is not null && presenceLedger.Get("ManualUnloadPort", 2) is not null,
+        "手动 Unload：账不动");
+    manualPort.Close();
     AlarmComponent.Current = null;
 
     static bool MapAlarmActiveIn(AlarmComponent alarms, BaseLoadPortModule port, string code) =>
@@ -1907,7 +1922,7 @@ port.E87Callback = null;
     WaferManagerComponent.Current = previousLedger;
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (CUDMP when MapOnUnload is on: missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, five device RPC actions, the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (CUDMP when AutoRunMapOnUnload is on: missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, while the manual unload ignores that switch: plain CULOD, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load interlock).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -2063,6 +2078,7 @@ sealed class ProbePort : BaseLoadPortModule
     private ModuleOperation? Take() { Calls++; return Next; }
     public override ModuleOperation? Load() => Take();
     public override ModuleOperation? Unload() => Take();
+    public override ModuleOperation? UnloadManually() => Take();
     public override ModuleOperation? Home() => Take();
     protected override ModuleOperation? ResetDevice() => Take();
     protected override ModuleOperation? AbortDevice() => Take();

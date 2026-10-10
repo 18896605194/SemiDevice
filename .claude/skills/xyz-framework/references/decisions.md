@@ -1,4 +1,4 @@
-﻿# 已经跟用户定下来的设计（不要改回去）
+# 已经跟用户定下来的设计（不要改回去）
 
 改到相关功能前先看这里。每条后面是定下来的日期。
 
@@ -266,12 +266,18 @@
 - **Auto 下没走 E84 交接就放上 / 拿走载具**（用户："有人拿走盒子，我们也得报错的"）：E84 组件每拍比上一拍载具在不在；变了、是 Auto、不在交接中（给了 READY 到交接完）、
   没超时锁住 → 报 `UnexpectedCarrierAlarm`。只报警，不锁交接、不改端口状态（交接本来就按载具在不在开方向，人手动放拿撞不上天车；CTC 是端口进 Error）。
   第一拍只记不比；开机端口是 Manual（Auto/Manual 不存盘），不会误报。
-- **Unload 时带 Mapping 对账**（2026-10-10，用户："做成 sc 配置，unload 的时候需不需要再 map 一下，然后再对一下账"）：LoadPort SC `MapOnUnload`（默认 False）。
+- **Unload 时带 Mapping 对账 + 手动豁免**（2026-10-10，用户："unload 的时候是都要 map"、"这个应该是在 AutoRun 的时候进行这个判定，手动的这种不会用到这个配置"）：
+  SC `AutoRunMapOnUnload`（默认 False）**只管自动跑货的 Unload**（Job 干完自动卸、E87 Host 放行）：True = 关门前扫一遍跟晶圆账对，对不上判失败、报警；False = 直接关门，不扫、不对账。
+  **手动卸载不吃这个 SC**：`BaseLoadPortModule.UnloadManually()`（手动服务 `LoadPortService.UnloadAsync` 走它）一律发普通卸载，不扫图、不对账——账乱了也得能让操作员把盒子放出去。
+  Mapping 是 LoadPort 硬件自带的（门还开着就能扫），所以**不做能力开关**；协议差异（一条指令带图 CUDMP vs 先取图再卸）由驱动内部消化，对模块都表现为"`Unload` 带回 SlotMap"。
   开着时 Unload 发带 Mapping 的卸载（驱动 `UnloadWithMap`，FCD 是 `MOV:CUDMP`——指令名照 TDK 系、老 CTC Hirata-II 用的，FCD 手册待核对；槽位串跟 Load 一样两种形状都收，
   抽成 `FcdMappingCommand`）。回来的槽图逐槽走晶圆账 `Verify`（对不上晶圆账自己报账实不符、写清是多是少），交叉片、叠片、认不出的也算对不上；
   有对不上的 Unload 判失败（`loadport.unload_slot_map_mismatch`，带槽号）、报 `SlotMapAlarm`、端口落 Error——盒子里的片跟账不一样不能就这么取走。
   **账不改**（CTC 会把对不上的片改成 Unknown / 补建，我们等人按实物在账单调整页改），**不碰载具槽图**（载具的 UpdateSlotMap 会整篮重建账，片标识就丢了）。
-  没装晶圆账只查交叉片、叠片；槽数对不上没法对账，按 `slot_map_length_mismatch` 判失败。CTC 是 Hirata-II 驱动的 SC `IsNeedMapOnUnload`，发 CUDMP 后再 GET:MAPRD 取槽图。
+  没装晶圆账只查交叉片、叠片；槽数对不上没法对账，按 `slot_map_length_mismatch` 判失败。
+  CTC 对照（2026-10-10 查的）：CTC 的 `Unload`（手动 / Host 的 FAUnload）是纯卸载；对账挂在 `LPAutoCloseDoorRoutine`（`QueryWaferMap → CheckMap → OnDoorClosed`）上，
+  而且只有 `AutoTransfer` 里 `IsAutoUnloadWhenJobComplete=false` 那条分支才走到（默认 true 那条反而是纯卸载）；老 FinalClean 的 `LPUnloadRoutine` 本来有完整的"Map → 对账 → Unload"，
+  FinalClean2 整段注释掉了。IO 表里的 `DO_UnloadAndMap` / `DI_UnLoadMapFinish` FinalClean2 代码一处不引用（留给仓库外的 Hirata-II 驱动，那边是 SC `IsNeedAutoRunMapOnUnload` + CUDMP + GET:MAPRD）。
 
 ## SECS / HSMS / E84（2026-10-02）
 - S9 只由设备端发；主机端收到不认识的消息回 SxF0 中止事务；被动端独占绑定，HSMS 端口不能和 Rpc 端口相同。

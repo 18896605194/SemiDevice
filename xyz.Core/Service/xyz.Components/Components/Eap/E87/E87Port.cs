@@ -1,4 +1,4 @@
-﻿using xyz.Common.Log;
+using xyz.Common.Log;
 using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
@@ -73,7 +73,7 @@ internal sealed class E87Port
         });
     }
 
-    /// <summary>Load 着的卸下来（关门、松开）；没 Load 的不用动。动作攒到锁外做。</summary>
+    /// <summary>Load 着的卸下来（关门、松开）；没 Load 的不用动。走自动跑货口径：SC AutoRunMapOnUnload 生效（带图对账）。动作攒到锁外做。</summary>
     public void UnloadLater(string why)
     {
         var device = Device;
