@@ -475,7 +475,9 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
 
-    ModuleOperation? IRobot.Home() => null;
+    private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+
+    HandleResult<ModuleOperation> IRobot.Home() => Refused();
 
     ModuleOperation? IRobot.InitModule() => null;
 
@@ -483,15 +485,19 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     ModuleOperation? IRobot.Abort() => null;
 
-    ModuleOperation? IRobot.Pick(int arm, string station, int slot) => null;
+    HandleResult<ModuleOperation> IRobot.Pick(int arm, string station, int slot) => Refused();
 
-    ModuleOperation? IRobot.Place(int arm, string station, int slot) => null;
+    HandleResult<ModuleOperation> IRobot.Place(int arm, string station, int slot) => Refused();
+
+    HandleResult? IRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+
+    HandleResult? IRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
     ModuleOperation? IRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
 
-    ModuleOperation? IRobot.PowerOn() => null;
+    HandleResult<ModuleOperation> IRobot.PowerOn() => Refused();
 
-    ModuleOperation? IRobot.PowerOff() => null;
+    HandleResult<ModuleOperation> IRobot.PowerOff() => Refused();
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。

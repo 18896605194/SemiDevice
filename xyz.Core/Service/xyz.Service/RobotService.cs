@@ -1,4 +1,5 @@
-﻿using xyz.Components;
+﻿using System.Globalization;
+using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -36,7 +37,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.Reset(), robot.ResetTimeout);
+        return RunOperation(module, robot, robot.Reset(), robot.CheckReset, robot.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(string module)
@@ -47,9 +48,13 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.Abort(), robot.AbortTimeout);
+        return RunOperation(module, robot, robot.Abort(), robot.CheckAbort, robot.AbortTimeout);
     }
 
+    /// <summary>
+    /// 手动取片：站点这个槽 → 这台机械手的这只手。跟自动跑货一样交给搬运管理（只取片）：先准备站点（腔体开门、LoadPort 要 Load 着），
+    /// 再让机械手取；手、槽、片都上锁，自动在跑时不会撞车。被拒、失败都回具体原因。
+    /// </summary>
     public Task<RpcResponse> PickAsync(RobotPickPlaceRequest request)
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
@@ -60,20 +65,21 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        var station = request.Station ?? string.Empty;
-        if (!robot.TryGetStation(station, out var config))
+        return RunTransfer(new TransferRequest
         {
-            return StationNotFound(module, station);
-        }
-
-        if (!config.AllowsArm(request.Arm))
-        {
-            return ArmNotAllowed(module, station, request.Arm);
-        }
-
-        return RunOperation(module, robot, robot.Pick(request.Arm, station, request.Slot), robot.PickTimeout);
+            Origin = TransferOrigin.Manual,
+            Source = request.Station ?? string.Empty,
+            SourceSlot = request.Slot,
+            Target = robot.Name,
+            TargetSlot = request.Arm,
+            Robot = robot.Name,
+            Arm = request.Arm,
+        });
     }
 
+    /// <summary>
+    /// 手动放片：这台机械手这只手上的片 → 站点这个槽。同 <see cref="PickAsync"/>，交给搬运管理（只放片）。
+    /// </summary>
     public Task<RpcResponse> PlaceAsync(RobotPickPlaceRequest request)
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
@@ -84,18 +90,43 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        var station = request.Station ?? string.Empty;
-        if (!robot.TryGetStation(station, out var config))
+        return RunTransfer(new TransferRequest
         {
-            return StationNotFound(module, station);
+            Origin = TransferOrigin.Manual,
+            Source = robot.Name,
+            SourceSlot = request.Arm,
+            Target = request.Station ?? string.Empty,
+            TargetSlot = request.Slot,
+            Robot = robot.Name,
+            Arm = request.Arm,
+        });
+    }
+
+    /// <summary>
+    /// 交给搬运管理跑这一趟、等它做完（等的上限跟手动传片一样，EC ManualWaitTimeoutMs；等不到界面先回超时，搬运照样跑完）。
+    /// </summary>
+    private static async Task<RpcResponse> RunTransfer(TransferRequest request)
+    {
+        var transfers = TransferManager.Current;
+        if (transfers is null)
+        {
+            return RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []);
         }
 
-        if (!config.AllowsArm(request.Arm))
+        var started = transfers.Start(request);
+        var operation = started.Result;
+        if (!started.IsSuccess || operation is null)
         {
-            return ArmNotAllowed(module, station, request.Arm);
+            return RpcResponse.Fail(started.ErrorMessage, started.Args);
         }
 
-        return RunOperation(module, robot, robot.Place(request.Arm, station, request.Slot), robot.PlaceTimeout);
+        int timeout = transfers.ManualWaitTimeoutMs;
+        if (!await Task.Run(() => operation.WaitReply(timeout)).ConfigureAwait(false))
+        {
+            return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout, [operation.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
+        }
+
+        return operation.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(operation.Code, operation.ErrorArgs);
     }
 
     public Task<RpcResponse> PowerOnAsync(string module)
@@ -133,21 +164,5 @@ public class RobotService : BaseService, IRobotService
 
         var data = dto.Count == 1 ? JsonHelper.Serialize(dto[0]) : JsonHelper.Serialize(dto);
         return Task.FromResult(RpcResponse.Ok(data));
-    }
-
-    /// <summary>
-    /// 站点未在该机械手站点表中配置回包（robot.station_not_found）。
-    /// </summary>
-    private static Task<RpcResponse> StationNotFound(string module, string station)
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.StationNotFound, [module, station]));
-    }
-
-    /// <summary>
-    /// 站点不许用这只手回包（robot.arm_not_allowed）：站点允许的手指在 sc.xml 站点节点的 Arms 里配。
-    /// </summary>
-    private static Task<RpcResponse> ArmNotAllowed(string module, string station, int arm)
-    {
-        return Task.FromResult(RpcResponse.Fail(ErrorCodes.ArmNotAllowed, [module, station, arm.ToString()]));
     }
 }

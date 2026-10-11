@@ -51,6 +51,8 @@
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
     <sys:String x:Key="robot.arm_not_allowed">{0} 的站点 {1} 不允许用 Arm{2} 取放（见 sc.xml 站点节点的 Arms）</sys:String>
+    <sys:String x:Key="robot.arm_has_wafer">{0} 的 Arm{1} 上已经有片：{2}，不能再取片（账不对先到账单调整页按实物改账）</sys:String>
+    <sys:String x:Key="robot.arm_no_wafer">{0} 的 Arm{1} 上没有片，不能放片（账不对先到账单调整页按实物改账）</sys:String>
     <sys:String x:Key="robot.direction.north">北</sys:String>
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>
@@ -72,7 +74,6 @@
     <sys:String x:Key="transfer.station_busy">{0} 等了 {1} ms 还没空出来（没回到待命状态，或一直被别的机械手占着）</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0} 搬运准备（第 {1} 步）被拒：站点当前状态不允许，可能被人工动过</sys:String>
     <sys:String x:Key="transfer.station_prepare_failed">{0} 搬运准备（第 {1} 步）没做成（超时或设备报错）</sys:String>
-    <sys:String x:Key="transfer.rejected">{0} {1} 发不出去（机械手状态不允许、没连上，或站点没配置）</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} 没做成：站点会停在搬运中，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} 落不下 {1} 标记（站点状态跟搬运进度对不上，可能被人工动过）</sys:String>
     <sys:String x:Key="transfer.not_installed">sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto</sys:String>

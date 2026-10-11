@@ -6,14 +6,6 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 一趟搬运：把片从源站点的槽位搬到目标站点的槽位。
-/// 手动传片和 Job 的取放任务共用这一操作，调度直接跟踪它的状态；完成后释放执行资源。
-/// 由搬运管理的扫描线程一拍一拍推进（不挂在哪个模块上）。每一步等的是 IsSettled：模块落好状态、记完账才算这一步完。
-/// 先抢目标站点再取片：目标准备不好就不取。没动手（还没落"交互中"标记）就失败或被撤时，把占着的环还回去；
-/// 动了手再失败，片在哪说不准，环留在原地等人工确认（站点卡住正好挡住后续自动动作）。
-/// 片已经在机械手手上（源是机械手）时只放片：抢目标站点 → 准备二 → 放片。
-/// </summary>
 public sealed class TransferRoutine : ModuleOperation<TransferStep>
 {
     /// <summary>
@@ -28,7 +20,9 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     private readonly IRobot _robot;
     /// <summary>源站点；片已经在手上（只放片）时为 null。</summary>
     private readonly ITransferStation? _source;
-    private readonly ITransferStation _target;
+
+    /// <summary>目标站点；片取到手上就完（只取片）时为 null。</summary>
+    private readonly ITransferStation? _target;
     private readonly int _sourceSlot;
     private readonly int _targetSlot;
     private readonly int _arm;
@@ -64,6 +58,9 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
     public string SourceName => _source?.Name ?? _robot.Name;
 
+    /// <summary>目标站点名；只取片时是机械手名（目标槽号就是手指号）。</summary>
+    public string TargetName => _target?.Name ?? _robot.Name;
+
     /// <summary>动过手才失败，资源保留到人工确认片位。</summary>
     public bool NeedsRecovery => IsTerminal && !IsSuccess && MotionStarted;
 
@@ -88,8 +85,8 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// <summary>源站点；片已经在机械手手上（只放片）时为 null。</summary>
     public ITransferStation? Source => _source;
 
-    /// <summary>目标站点。</summary>
-    public ITransferStation Target => _target;
+    /// <summary>目标站点；只取片时为 null。</summary>
+    public ITransferStation? Target => _target;
 
     /// <summary>源槽号（从 1 开始）。</summary>
     public int SourceSlot => _sourceSlot;
@@ -124,13 +121,18 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         IRobot robot,
         ITransferStation? source,
         int sourceSlot,
-        ITransferStation target,
+        ITransferStation? target,
         int targetSlot,
         int arm,
         int stationWaitTimeout)
-        : base($"Transfer {source?.Name ?? robot.Name}.{sourceSlot:00}→{target.Name}.{targetSlot:00}",
-            IsSameStation(source, target) ? TransferStep.PrepareSource : TransferStep.PrepareTarget)
+        : base($"Transfer {source?.Name ?? robot.Name}.{sourceSlot:00}→{target?.Name ?? robot.Name}.{targetSlot:00}",
+            IsSameStation(source, target) || target is null ? TransferStep.PrepareSource : TransferStep.PrepareTarget)
     {
+        if (source is null && target is null)
+        {
+            throw new ArgumentException("源和目标不能都是机械手：至少有一头是站点");
+        }
+
         Origin = origin;
         _robot = robot;
         _source = source;
@@ -143,14 +145,17 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         _grabSince = Stopwatch.GetTimestamp();
     }
 
-    private static bool IsSameStation(ITransferStation? source, ITransferStation target)
+    private static bool IsSameStation(ITransferStation? source, ITransferStation? target)
     {
-        return source is not null
+        return source is not null && target is not null
             && (ReferenceEquals(source, target) || string.Equals(source.Name, target.Name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>取片那几步用的源站点；只放片的搬运走不到那几步（真走到了说明步骤乱了，抛出去由操作落 OperationFaulted）。</summary>
     private ITransferStation SourceStation => _source ?? throw new InvalidOperationException("只放片的搬运没有源站点");
+
+    /// <summary>放片那几步用的目标站点；只取片的搬运走不到那几步。</summary>
+    private ITransferStation TargetStation => _target ?? throw new InvalidOperationException("只取片的搬运没有目标站点");
 
     protected override void OnScan()
     {
@@ -159,7 +164,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             // —— 先抢目标站点：放不下就不取 ——
 
             case TransferStep.PrepareTarget:
-                if (GrabStation(_target, TransferStep.WaitPrepareTarget))
+                if (GrabStation(TargetStation, TransferStep.WaitPrepareTarget))
                 {
                     _holdingTarget = true;
                 }
@@ -168,7 +173,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
             case TransferStep.WaitPrepareTarget:
                 // 片已经在手上：不用取，直接去目标站点的准备二、放片
-                if (WaitPrepare(_target, FirstPreparePhase, _source is null ? TransferStep.PrepareTarget2 : TransferStep.PrepareSource))
+                if (WaitPrepare(TargetStation, FirstPreparePhase, _source is null ? TransferStep.PrepareTarget2 : TransferStep.PrepareSource))
                 {
                     // 换到源站点，抢站点的等待重新计时。
                     _grabSince = Stopwatch.GetTimestamp();
@@ -209,15 +214,15 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             // —— 目标站点：准备二 → 放片 ——
 
             case TransferStep.PrepareTarget2:
-                BeginPrepare(_target, _target.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareTarget2);
+                BeginPrepare(TargetStation, TargetStation.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareTarget2);
                 break;
 
             case TransferStep.WaitPrepareTarget2:
-                WaitPrepare(_target, SecondPreparePhase, TransferStep.Place);
+                WaitPrepare(TargetStation, SecondPreparePhase, TransferStep.Place);
                 break;
 
             case TransferStep.Place:
-                BeginTransfer(_target, _targetSlot, pick: false, TransferStep.WaitPlace);
+                BeginTransfer(TargetStation, _targetSlot, pick: false, TransferStep.WaitPlace);
                 break;
 
             case TransferStep.WaitPlace:
@@ -304,9 +309,20 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// <summary>
     /// 落"交互中"标记并发起取/放片。标记必须先落：机械手要伸手进去了，这期间站点不能被别人动。
     /// 从落标记起就算动过手了；同站点换槽时取片已经落过标记，放片不再落。
+    /// 落标记之前先问机械手能不能做（没连上、正忙、账不对……）：不能就算没动手，把占着的环还回去、带上机械手给的原因，不留着等人工。
     /// </summary>
     private void BeginTransfer(ITransferStation station, int slot, bool pick, TransferStep next)
     {
+        string action = pick ? "Pick" : "Place";
+        var refused = pick
+            ? _robot.CheckPick(_arm, station.Name, slot)
+            : _robot.CheckPlace(_arm, station.Name, slot);
+        if (refused is not null)
+        {
+            Abandon(refused.ErrorMessage, $"{_robot.Name} {action} 被拒：{refused.ErrorMessage}", [.. refused.Args]);
+            return;
+        }
+
         bool marked = !pick && _sameStation;
         if (!marked)
         {
@@ -321,14 +337,13 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             }
         }
 
-        string action = pick ? "Pick" : "Place";
-        var operation = pick
+        var started = pick
             ? _robot.Pick(_arm, station.Name, slot)
             : _robot.Place(_arm, station.Name, slot);
-
-        if (operation is null)
+        var operation = started.Result;
+        if (!started.IsSuccess || operation is null)
         {
-            Fail(ErrorCodes.TransferRejected, $"{_robot.Name} {action} 被拒", _robot.Name, action);
+            Fail(started.ErrorMessage, $"{_robot.Name} {action} 被拒：{started.ErrorMessage}", [.. started.Args]);
             return;
         }
 
@@ -363,6 +378,14 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
         SourceStation.TransferComplete();
         _holdingSource = false;
+
+        // 只取片：片留在手上，这一趟到这儿就做完了
+        if (_target is null)
+        {
+            Complete();
+            return;
+        }
+
         SetStep(TransferStep.PrepareTarget2);
     }
 
@@ -379,11 +402,11 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
         if (!operation.IsSuccess)
         {
-            ReportMotionFailure(_target, "Place", operation);
+            ReportMotionFailure(TargetStation, "Place", operation);
             return;
         }
 
-        _target.TransferComplete();
+        TargetStation.TransferComplete();
         _holdingTarget = false;
         _holdingSource = false;
         Complete();
@@ -456,7 +479,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
         if (_holdingTarget && !_sameStation)
         {
-            _target.CancelTransfer();
+            _target?.CancelTransfer();
             _holdingTarget = false;
         }
     }

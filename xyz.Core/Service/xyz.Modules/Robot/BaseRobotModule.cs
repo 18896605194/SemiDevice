@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -606,49 +607,239 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region IRobot 契约
 
-    public abstract ModuleOperation? PowerOn();
-
-    public abstract ModuleOperation? PowerOff();
-
-    public abstract ModuleOperation? Home();
-
+    /// <summary>
+    /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null。
+    /// </summary>
     public override ModuleOperation? InitModule()
     {
-        return Home();
+        var started = Home();
+        if (!started.IsSuccess)
+        {
+            LogHelper.Warn(Name, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+        }
+
+        return started.Result;
     }
 
-    public override ModuleOperation? Reset()
+    #region 动作入口：状态 → 资源 → 互锁
+
+    // 跟 LoadPort 同一套：每个动作的入口在模块锁里按 状态 → 资源 → 互锁 查（三项怎么分见 BaseModule"动作检查"区），
+    // 哪项不过就带原因返回、机械手不动，都过了才挂上设备动作。设备动作平台给默认（RobotCommandOperation），机型动作不一样才重写 CreateXxxOperation。
+    // 取放之前站点要先准备好（腔体开门、LoadPort 要 Load 着），那一段在搬运管理里：手动页、自动跑货的取放都经搬运管理走到这里。
+
+    /// <summary>
+    /// 检查都过了，挂上设备动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态。
+    /// </summary>
+    private HandleResult<ModuleOperation> Started(RobotAction action, ModuleOperation operation)
     {
-        base.Reset();
-        return ResetDevice();
+        var started = Begin(action, operation);
+        if (started is null)
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return HandleResult<ModuleOperation>.Success(started);
     }
 
-    protected abstract ModuleOperation? ResetDevice();
+    #region Home
 
-    public override ModuleOperation? Abort()
+    /// <summary>
+    /// Home：全轴回原点。调用方：手动页、模块初始化。
+    /// </summary>
+    public HandleResult<ModuleOperation> Home()
     {
-        base.Abort();
-        return AbortDevice();
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.Home) ?? HomeInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(RobotAction.Home, CreateHomeOperation());
+        }
     }
 
-    protected abstract ModuleOperation? AbortDevice();
-
-    public ModuleOperation? Pick(int arm, string station, int slot)
+    protected virtual ModuleOperation CreateHomeOperation()
     {
-        return BeginAtStation(RobotAction.Pick, arm, station, slot,
-            config => Begin(RobotAction.Pick, CreatePickOperation(arm, config.Number, slot)));
+        return new RobotCommandOperation("Home", () => _robot?.Home(), () => HomeTimeout);
     }
 
-    protected abstract ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot);
+    #endregion
 
+    #region Pick / Place
 
-    public ModuleOperation? Place(int arm, string station, int slot)
+    /// <summary>
+    /// Pick：用这只手从站点的这个槽取片。调用方：搬运管理（手动页的取片、自动跑货都经它，站点先准备好）。
+    /// </summary>
+    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot)
     {
-        return BeginAtStation(RobotAction.Place, arm, station, slot,
-            config => Begin(RobotAction.Place, CreatePlaceOperation(arm, config.Number, slot)));
+        lock (OperationGate)
+        {
+            var rejected = CheckPick(arm, station, slot);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return StartTransfer(RobotAction.Pick, arm, station, slot);
+        }
     }
 
-    protected abstract ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot);
+    /// <summary>
+    /// Pick 能不能做（只查不动）：状态 → 资源 → 互锁。搬运管理在给站点落"取放中"标记之前先问它——
+    /// 机械手这时候不能动（没连上、正忙、账不对）就当没动手处理，把准备好的站点还回去，不留着等人工。
+    /// </summary>
+    public HandleResult? CheckPick(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            return CheckState(RobotAction.Pick) ?? CheckPickResource(arm, station, slot) ?? PickInterlock(arm, station, slot);
+        }
+    }
+
+    /// <summary>
+    /// Place：把这只手上的片放到站点的这个槽。调用方同 <see cref="Pick"/>。
+    /// </summary>
+    public HandleResult<ModuleOperation> Place(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckPlace(arm, station, slot);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return StartTransfer(RobotAction.Place, arm, station, slot);
+        }
+    }
+
+    /// <summary>
+    /// Place 能不能做（只查不动）：状态 → 资源 → 互锁。用法同 <see cref="CheckPick"/>。
+    /// </summary>
+    public HandleResult? CheckPlace(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            return CheckState(RobotAction.Place) ?? CheckPlaceResource(arm, station, slot) ?? PlaceInterlock(arm, station, slot);
+        }
+    }
+
+    /// <summary>
+    /// Pick 的资源检查：站点、手指能用，晶圆账上这个槽有片、这只手上没片。
+    /// 账不对就不动——去空槽取片、拿着片再去取都会碰片；要先在账单调整页按实物改账。
+    /// </summary>
+    private HandleResult? CheckPickResource(int arm, string station, int slot)
+    {
+        var rejected = CheckStationArm(arm, station);
+        if (rejected is not null)
+        {
+            return rejected;
+        }
+
+        var ledger = _waferManager;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        if (ledger.Get(station, slot) is null)
+        {
+            return HandleResult.Fail(ErrorCodes.WaferNoWafer, station, slot.ToString(CultureInfo.InvariantCulture));
+        }
+
+        var held = ledger.Get(Name, arm);
+        if (held is not null)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmHasWafer, Name, arm.ToString(CultureInfo.InvariantCulture), held.WaferId);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Place 的资源检查：站点、手指能用，晶圆账上这只手有片、这个槽上没片（往有片的槽上放会叠片）。
+    /// </summary>
+    private HandleResult? CheckPlaceResource(int arm, string station, int slot)
+    {
+        var rejected = CheckStationArm(arm, station);
+        if (rejected is not null)
+        {
+            return rejected;
+        }
+
+        var ledger = _waferManager;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        if (ledger.Get(Name, arm) is null)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture));
+        }
+
+        var occupant = ledger.Get(station, slot);
+        if (occupant is not null)
+        {
+            return HandleResult.Fail(ErrorCodes.WaferSlotOccupied, station, slot.ToString(CultureInfo.InvariantCulture), occupant.WaferId);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 站点在本机械手的站点表里、这只手存在而且这个站点许用它（sc.xml 站点节点的 Arms）。
+    /// </summary>
+    private HandleResult? CheckStationArm(int arm, string station)
+    {
+        if (!TryGetStation(station, out var config))
+        {
+            return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
+        }
+
+        if (!config.AllowsArm(arm) || Arms.All(item => item.Number != arm))
+        {
+            return HandleResult.Fail(ErrorCodes.ArmNotAllowed, Name, station, arm.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 挂上取 / 放片，同时记下去了哪个站点（推给界面画机械手朝向）和这一趟的意图（做完按它记账）。
+    /// 挂操作和记意图在同一把锁里：否则扫描线程可能在意图记上之前就把操作终结了，这一趟就不记账。
+    /// </summary>
+    private HandleResult<ModuleOperation> StartTransfer(RobotAction action, int arm, string station, int slot)
+    {
+        if (!TryGetStation(station, out var config))
+        {
+            return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
+        }
+
+        var operation = action == RobotAction.Pick
+            ? CreatePickOperation(arm, config.Number, slot)
+            : CreatePlaceOperation(arm, config.Number, slot);
+        var started = Started(action, operation);
+        if (started.IsSuccess)
+        {
+            _currentStation = config;
+            _transferIntent = new TransferIntent(action, arm, station, slot);
+        }
+
+        return started;
+    }
+
+    protected virtual ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
+    {
+        return new RobotCommandOperation("Pick", () => _robot?.Pick(arm, stationNumber, slot), () => PickTimeout);
+    }
+
+    protected virtual ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
+    {
+        return new RobotCommandOperation("Place", () => _robot?.Place(arm, stationNumber, slot), () => PlaceTimeout);
+    }
 
     /// <summary>
     /// 换片：默认不支持，返回 null（被拒）。机械手支持换片的，在机型里重写。
@@ -658,40 +849,166 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         return null;
     }
 
-    private ModuleOperation? BeginAtStation(
-        RobotAction action, int arm, string station, int slot, Func<RobotStation, ModuleOperation?> begin)
+    #endregion
+
+    #region PowerOn / PowerOff
+
+    public HandleResult<ModuleOperation> PowerOn()
     {
-        if (!TryGetStation(station, out var config))
-        {
-            return null;
-        }
-
-        // 这个站点不许用这只手：手动、自动下的单一样拒。
-        if (!config.AllowsArm(arm))
-        {
-            return null;
-        }
-
-        // 挂操作和记意图必须在同一把锁里：否则扫描线程可能在意图记上之前就把操作终结了，这一趟就不记账。
         lock (OperationGate)
         {
-            var operation = begin(config);
-            if (operation is null)
+            var rejected = CheckState(RobotAction.PowerOn) ?? PowerOnInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(RobotAction.PowerOn, CreatePowerOnOperation());
+        }
+    }
+
+    public HandleResult<ModuleOperation> PowerOff()
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.PowerOff) ?? PowerOffInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(RobotAction.PowerOff, CreatePowerOffOperation());
+        }
+    }
+
+    protected virtual ModuleOperation CreatePowerOnOperation()
+    {
+        return new RobotCommandOperation("PowerOn", () => _robot?.PowerOn(), () => PowerTimeout);
+    }
+
+    protected virtual ModuleOperation CreatePowerOffOperation()
+    {
+        return new RobotCommandOperation("PowerOff", () => _robot?.PowerOff(), () => PowerTimeout);
+    }
+
+    #endregion
+
+    #region Reset / Abort
+
+    /// <summary>
+    /// 复位：清设备报错。签名跟着组件基类（报警复位、整机复位按返回的动作等设备做完）；只查状态，被拒的原因用 <see cref="CheckReset"/> 问。
+    /// </summary>
+    public override ModuleOperation? Reset()
+    {
+        base.Reset();
+        lock (OperationGate)
+        {
+            if (CheckReset() is not null)
             {
                 return null;
             }
 
-            _currentStation = config;
-            _transferIntent = new TransferIntent(action, arm, station, slot);
-            return operation;
+            return Begin(RobotAction.Reset, CreateResetOperation());
         }
     }
 
-    
+    public HandleResult? CheckReset()
+    {
+        return CheckState(RobotAction.Reset);
+    }
+
+    /// <summary>
+    /// 急停：签名跟着组件基类（整机停止、搬运中止按返回的动作等设备停下）；只查状态、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>）。
+    /// 被拒的原因用 <see cref="CheckAbort"/> 问。
+    /// </summary>
+    public override ModuleOperation? Abort()
+    {
+        base.Abort();
+        lock (OperationGate)
+        {
+            if (CheckAbort() is not null)
+            {
+                return null;
+            }
+
+            return Begin(RobotAction.Abort, CreateAbortOperation());
+        }
+    }
+
+    public HandleResult? CheckAbort()
+    {
+        return CheckState(RobotAction.Abort);
+    }
+
+    protected virtual ModuleOperation CreateResetOperation()
+    {
+        return new RobotCommandOperation("Reset", () => _robot?.ResetDrive(), () => ResetTimeout);
+    }
+
+    protected virtual ModuleOperation CreateAbortOperation()
+    {
+        return new RobotCommandOperation("Abort", () => _robot?.Stop(), () => AbortTimeout);
+    }
+
+    #endregion
+
+    #region Interlock
+
+    // 互锁：周围条件允不允许动。平台默认放行，机型重写加自己的条件（先调 base）。
+
+    protected virtual HandleResult? HomeInterlock()
+    {
+        return null;
+    }
+
+    protected virtual HandleResult? PickInterlock(int arm, string station, int slot)
+    {
+        return null;
+    }
+
+    protected virtual HandleResult? PlaceInterlock(int arm, string station, int slot)
+    {
+        return null;
+    }
+
+    protected virtual HandleResult? PowerOnInterlock()
+    {
+        return null;
+    }
+
+    protected virtual HandleResult? PowerOffInterlock()
+    {
+        return null;
+    }
+
+    #endregion
+
+    #endregion
+
     /// <summary>
     /// 装机停用、或驱动组件没挂起来（装配里组件初始化没做成）都不发动作。
     /// </summary>
     protected override bool CanBeginAction => IsEnable && _robot is not null;
+
+    /// <summary>
+    /// 能不能动作：停用、驱动没装好之外，驱动没连上也不发——没连上照样发，指令发不出去会落 Error、报受控停止，要复位再 Home。
+    /// </summary>
+    protected override HandleResult? CheckAvailable()
+    {
+        var unavailable = base.CheckAvailable();
+        if (unavailable is not null)
+        {
+            return unavailable;
+        }
+
+        var robot = _robot;
+        if (robot is null || !robot.IsConnected)
+        {
+            return HandleResult.Fail(ErrorCodes.ModuleNotConnected, Name);
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// 操作终结（状态已由基类落好）：记晶圆账，失败的动作报警。

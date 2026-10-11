@@ -1663,15 +1663,11 @@ sealed class SmokeRobot : BaseRobotModule
 
     public void Tick() => OnScan();
 
-    public override ModuleOperation? Home() => Begin(RobotAction.Home, new SmokeMotion("Home", 1));
+    protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
 
-    protected override ModuleOperation? ResetDevice() => Begin(RobotAction.Reset, new SmokeMotion("Reset", 1));
+    protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
 
-    protected override ModuleOperation? AbortDevice() => Begin(RobotAction.Abort, new SmokeMotion("Abort", 1));
-
-    public override ModuleOperation? PowerOn() => null;
-
-    public override ModuleOperation? PowerOff() => null;
+    protected override ModuleOperation CreateAbortOperation() => new SmokeMotion("Abort", 1);
 
     protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
     {

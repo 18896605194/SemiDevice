@@ -82,6 +82,12 @@ public static class ErrorCodes
     /// <summary>站点不许用这只手取放（sc.xml 机械手站点节点的 Arms）。Args: [机械手模块名, 站点名, 手指号]</summary>
     public const string ArmNotAllowed = "robot.arm_not_allowed";
 
+    /// <summary>取片被拒：晶圆账上这只手已经有片。Args: [机械手模块名, 手指号, 片号]</summary>
+    public const string RobotArmHasWafer = "robot.arm_has_wafer";
+
+    /// <summary>放片被拒：晶圆账上这只手没有片。Args: [机械手模块名, 手指号]</summary>
+    public const string RobotArmNoWafer = "robot.arm_no_wafer";
+
     #endregion
 
     #region 腔体
@@ -134,9 +140,6 @@ public static class ErrorCodes
 
     /// <summary>站点准备失败。Args: [站点名, 第几步准备（1 粗准备、2 开门放行）]</summary>
     public const string StationPrepareFailed = "transfer.station_prepare_failed";
-
-    /// <summary>取放片发起被拒（机械手状态不允许、未连接、或站点未配置）。Args: [机械手模块名, 动作]</summary>
-    public const string TransferRejected = "transfer.rejected";
 
     /// <summary>取放片失败。Args: [机械手模块名, 动作]</summary>
     public const string TransferFailed = "transfer.failed";

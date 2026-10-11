@@ -206,19 +206,31 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferStationNotFound, sourceName);
         }
 
-        if (!TryGetStation(targetName, out var target))
+        // 目标写机械手 = 只取片（机械手手动页点取片）：片取到这台机械手的这只手上就完，目标槽号就是手指号。
+        // 源和目标不能都是机械手。
+        ITransferStation? target = null;
+        IRobot? receiver = null;
+        if (TryGetStation(targetName, out var targetStation))
+        {
+            target = targetStation;
+        }
+        else if (holder is null && TryGetRobot(targetName, out var robotTarget))
+        {
+            receiver = robotTarget;
+        }
+        else
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferStationNotFound, targetName);
         }
 
         var rejected = source is not null ? CheckSlot(source, request.SourceSlot) : CheckArmSlot(sourceName, request.SourceSlot, ledger);
-        rejected ??= CheckSlot(target, request.TargetSlot);
+        rejected ??= target is not null ? CheckSlot(target, request.TargetSlot) : CheckArmSlot(targetName, request.TargetSlot, ledger);
         if (rejected is not null)
         {
             return rejected;
         }
 
-        if (source is not null && string.Equals(source.Name, target.Name, StringComparison.OrdinalIgnoreCase)
+        if (source is not null && target is not null && string.Equals(source.Name, target.Name, StringComparison.OrdinalIgnoreCase)
             && request.SourceSlot == request.TargetSlot)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSameSlot);
@@ -227,7 +239,7 @@ public class TransferManager : ComponentBase
         TransferRoutine operation;
         lock (_gate)
         {
-            rejected = Admit(request, ledger, source, holder, sourceName, target, out operation);
+            rejected = Admit(request, ledger, source, holder, sourceName, target, receiver, targetName, out operation);
             if (rejected is not null)
             {
                 return rejected;
@@ -253,7 +265,7 @@ public class TransferManager : ComponentBase
             station.Name, slot.ToString(CultureInfo.InvariantCulture), station.SlotCount.ToString(CultureInfo.InvariantCulture));
     }
 
-    /// <summary>源是机械手时：手指号要在晶圆账给它登记的手指数以内。</summary>
+    /// <summary>源或目标是机械手时：手指号要在晶圆账给它登记的手指数以内。</summary>
     private static HandleResult<TransferRoutine>? CheckArmSlot(string robot, int arm, WaferManagerComponent ledger)
     {
         int armCount = ledger.GetSlots(robot).Count;
@@ -268,10 +280,11 @@ public class TransferManager : ComponentBase
 
     /// <summary>
     /// 在资源锁内校验片、目标、归属、机械手和手臂；通过后创建实际执行的操作。
-    /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手。
+    /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手；
+    /// 目标是机械手（receiver 不为 null，只取片）时就用点了名的那台、目标槽号那只手。
     /// </summary>
     private HandleResult<TransferRoutine>? Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
-        ITransferStation target, out TransferRoutine operation)
+        ITransferStation? target, IRobot? receiver, string targetName, out TransferRoutine operation)
     {
         operation = null!;
         string sourceSlot = request.SourceSlot.ToString(CultureInfo.InvariantCulture);
@@ -288,10 +301,10 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferMismatch, sourceName, sourceSlot, wafer.WaferId);
         }
 
-        var occupant = ledger.Get(target.Name, request.TargetSlot);
+        var occupant = ledger.Get(targetName, request.TargetSlot);
         if (occupant is not null)
         {
-            return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferSlotOccupied, target.Name, targetSlot, occupant.WaferId);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferSlotOccupied, targetName, targetSlot, occupant.WaferId);
         }
 
         // 被 Job 占着的片：Job 只能搬自己的；手动传片拒绝；人工确认片位后的恢复操作放行。
@@ -307,16 +320,16 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotLocked, sourceName, sourceSlot);
         }
 
-        if (_slotLocks.ContainsKey(SlotKey(target.Name, request.TargetSlot)))
+        if (_slotLocks.ContainsKey(SlotKey(targetName, request.TargetSlot)))
         {
-            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotLocked, target.Name, targetSlot);
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotLocked, targetName, targetSlot);
         }
 
         IRobot robot;
         int arm;
         if (holder is not null)
         {
-            var heldError = UseHoldingArm(request, holder, target.Name, out arm);
+            var heldError = UseHoldingArm(request, holder, targetName, out arm);
             if (heldError is not null)
             {
                 return heldError;
@@ -324,15 +337,25 @@ public class TransferManager : ComponentBase
 
             robot = holder;
         }
+        else if (receiver is not null)
+        {
+            var receiveError = UseReceivingArm(request, receiver, sourceName, out arm);
+            if (receiveError is not null)
+            {
+                return receiveError;
+            }
+
+            robot = receiver;
+        }
         else
         {
-            var robotError = PickRobot(request.Robot, sourceName, target.Name, out robot);
+            var robotError = PickRobot(request.Robot, sourceName, targetName, out robot);
             if (robotError is not null)
             {
                 return robotError;
             }
 
-            var armError = PickArm(robot, request.Arm, sourceName, target.Name, ledger, out arm);
+            var armError = PickArm(robot, request.Arm, sourceName, targetName, ledger, out arm);
             if (armError is not null)
             {
                 return armError;
@@ -347,15 +370,15 @@ public class TransferManager : ComponentBase
         foreach (var active in _running.Values)
         {
             if (string.Equals(active.SourceName, sourceName, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(active.Target.Name, sourceName, StringComparison.OrdinalIgnoreCase))
+                || string.Equals(active.TargetName, sourceName, StringComparison.OrdinalIgnoreCase))
             {
                 return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, (source as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (string.Equals(active.SourceName, target.Name, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(active.Target.Name, target.Name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(active.SourceName, targetName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(active.TargetName, targetName, StringComparison.OrdinalIgnoreCase))
             {
-                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, target.Name, (target as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, targetName, (target as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
         }
 
@@ -426,6 +449,29 @@ public class TransferManager : ComponentBase
         if ((request.Arm > 0 && request.Arm != arm) || !to.AllowsArm(arm) || _armLocks.ContainsKey(ArmKey(holder.Name, arm)))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferArmUnavailable, holder.Name, armText);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 片要取到机械手手上（只取片）：就用目标这台、目标槽号那只手。点了名的机械手要是这台、点了名的手要是这只；
+    /// 源站点要到得了、许用这只手，这只手没被别的操作占用（账上空着已经在前面按目标槽查过）。
+    /// </summary>
+    private HandleResult<TransferRoutine>? UseReceivingArm(TransferRequest request, IRobot receiver, string source, out int arm)
+    {
+        arm = request.TargetSlot;
+        string armText = arm.ToString(CultureInfo.InvariantCulture);
+        string? wanted = request.Robot?.Trim();
+        if ((!string.IsNullOrEmpty(wanted) && !string.Equals(wanted, receiver.Name, StringComparison.OrdinalIgnoreCase))
+            || !receiver.TryGetStation(source, out var from))
+        {
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, source, receiver.Name);
+        }
+
+        if ((request.Arm > 0 && request.Arm != arm) || !from.AllowsArm(arm) || _armLocks.ContainsKey(ArmKey(receiver.Name, arm)))
+        {
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferArmUnavailable, receiver.Name, armText);
         }
 
         return null;
@@ -652,7 +698,7 @@ public class TransferManager : ComponentBase
     private void Lock(TransferRoutine operation)
     {
         _slotLocks[SlotKey(operation.SourceName, operation.SourceSlot)] = operation;
-        _slotLocks[SlotKey(operation.Target.Name, operation.TargetSlot)] = operation;
+        _slotLocks[SlotKey(operation.TargetName, operation.TargetSlot)] = operation;
         _armLocks[ArmKey(operation.Robot.Name, operation.Arm)] = operation;
         _waferLocks[operation.WaferId] = operation;
     }
@@ -660,7 +706,7 @@ public class TransferManager : ComponentBase
     private void Unlock(TransferRoutine operation)
     {
         RemoveIfOwned(_slotLocks, SlotKey(operation.SourceName, operation.SourceSlot), operation);
-        RemoveIfOwned(_slotLocks, SlotKey(operation.Target.Name, operation.TargetSlot), operation);
+        RemoveIfOwned(_slotLocks, SlotKey(operation.TargetName, operation.TargetSlot), operation);
         RemoveIfOwned(_armLocks, ArmKey(operation.Robot.Name, operation.Arm), operation);
         if (_waferLocks.TryGetValue(operation.WaferId, out var holder) && ReferenceEquals(holder, operation))
         {

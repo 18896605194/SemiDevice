@@ -1353,13 +1353,14 @@ port.E87Callback = null;
     Check(secondFailed.Code == ErrorCodes.StationPrepareFailed && secondFailed.ErrorArgs.SequenceEqual(new[] { "Src3", "2" }),
         "搬运第 2 步准备没做成：参数是站点名和步号 2");
 
-    // 落了"交互中"标记、机械手却发不出取片：算动过手，环不还（留着等人工确认）
+    // 机械手这时候不能取片（没连上、正忙、账不对……）：落"交互中"标记之前先问它（CheckPick），不能就算没动手——
+    // 带上机械手给的原因，两个环都还回去，不留着等人工（以前先落标记再发，被拒就算动过手、站点卡在交互中）
     var pickSource = new ProbeStation("Src4") { First = Succeeded, Second = Succeeded };
     var pickTarget = new ProbeStation("T4") { First = Succeeded };
     var pickRejected = RunTransfer(pickSource, pickTarget, 1000);
-    Check(pickRejected.Code == ErrorCodes.TransferRejected && pickRejected.ErrorArgs.SequenceEqual(new[] { "TransferRobot", "Pick" })
-          && pickRejected.MotionStarted && pickSource.Cancels == 0 && pickTarget.Cancels == 0,
-        "取片发不出去：transfer.rejected，参数是机械手和动作；落过交互中标记就算动过手，环不还");
+    Check(pickRejected.Code == ErrorCodes.ActionRejected && pickRejected.ErrorArgs.SequenceEqual(new[] { "TransferRobot", "0" })
+          && !pickRejected.MotionStarted && pickSource.Cancels == 1 && pickTarget.Cancels == 1,
+        "取片被机械手拒：落交互中标记之前就问过，带机械手给的原因（module.action_rejected），没动过手，两个环都还回去");
 }
 
 // ── 主界面要的后端：系统设置带上 LoadPort / 机械手名单（右栏页签、默认调度图照它生成），机械手站点带上类型（调度图按它选卡片），
@@ -2863,13 +2864,12 @@ sealed class ProbeRobot : BaseRobotModule
     /// <summary>摆一个设备报错（生产里由查询或主动推送刷新）。</summary>
     public void NoteDeviceError(string? error) => DeviceError = error;
 
-    private ModuleOperation? Take(RobotAction action) => Next is null ? null : Begin(action, Next);
-
-    public override ModuleOperation? Home() => Take(RobotAction.Home);
-    protected override ModuleOperation? ResetDevice() => Take(RobotAction.Reset);
-    protected override ModuleOperation? AbortDevice() => Take(RobotAction.Abort);
-    public override ModuleOperation? PowerOn() => Take(RobotAction.PowerOn);
-    public override ModuleOperation? PowerOff() => Take(RobotAction.PowerOff);
+    // 入口检查（状态 → 资源 → 互锁）走平台的；过了以后挂上去的设备动作换成用例摆的 Next
+    protected override ModuleOperation CreateHomeOperation() => Supply();
+    protected override ModuleOperation CreateResetOperation() => Supply();
+    protected override ModuleOperation CreateAbortOperation() => Supply();
+    protected override ModuleOperation CreatePowerOnOperation() => Supply();
+    protected override ModuleOperation CreatePowerOffOperation() => Supply();
     protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot) => Supply();
     protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot) => Supply();
 
@@ -3008,13 +3008,17 @@ sealed class ProbeTransferRobot : IRobot
         return false;
     }
 
-    public ModuleOperation? Home() => null;
+    private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, "0");
+
+    public HandleResult<ModuleOperation> Home() => Refused();
     public ModuleOperation? InitModule() => null;
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
-    public ModuleOperation? Pick(int arm, string station, int slot) => null;
-    public ModuleOperation? Place(int arm, string station, int slot) => null;
+    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => Refused();
+    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => Refused();
+    public HandleResult? CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
+    public HandleResult? CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
     public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
-    public ModuleOperation? PowerOn() => null;
-    public ModuleOperation? PowerOff() => null;
+    public HandleResult<ModuleOperation> PowerOn() => Refused();
+    public HandleResult<ModuleOperation> PowerOff() => Refused();
 }

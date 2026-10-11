@@ -26,10 +26,10 @@ public sealed record TransferRequest
     /// <summary>源槽号（源是机械手时是手指号）。</summary>
     public int SourceSlot { get; init; }
 
-    /// <summary>目标站点（模块名）。</summary>
+    /// <summary>目标站点（模块名）。写机械手名 = 只取片（机械手手动页点取片）：片取到这台机械手手上就完，目标槽写手指号。</summary>
     public string Target { get; init; } = string.Empty;
 
-    /// <summary>目标槽号。</summary>
+    /// <summary>目标槽号（目标是机械手时是手指号）。</summary>
     public int TargetSlot { get; init; }
 
     /// <summary>用哪台机械手；空 = 挑第一台两个站点都到得了的（按 sc.xml 先后）。</summary>

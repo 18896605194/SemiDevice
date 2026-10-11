@@ -116,7 +116,7 @@ public class SchedulerComponent : ComponentBase
             }
 
             tasks.Done(row, task, operation.Arm);
-            tasks.Start(row, place, operation.Target.Name, operation.TargetSlot, operation.Robot.Name, operation);
+            tasks.Start(row, place, operation.TargetName, operation.TargetSlot, operation.Robot.Name, operation);
             task = place;
         }
 

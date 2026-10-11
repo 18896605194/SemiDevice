@@ -19,6 +19,9 @@ public enum ChamberAction
 
     /// <summary>设备手动动作。</summary>
     Manual,
+
+    /// <summary>取放准备二：开腔门（搬运管理在机械手伸手之前发，手动页的取放也经它）。</summary>
+    OpenDoor,
 }
 
 /// <summary>

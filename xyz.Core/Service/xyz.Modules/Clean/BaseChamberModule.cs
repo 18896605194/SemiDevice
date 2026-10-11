@@ -147,6 +147,38 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     protected override int StandbyState => ChamberState.Idle;
 
+    /// <summary>
+    /// 取放准备二：开腔门，等门开到位才算准备好（进 TransferReady），机械手才伸手进来。sc 里没配门的照旧直接准备好。
+    /// 自动跑货、机械手手动页的取放都经搬运管理走到这里。门开不了（气缸到位超时、PLC 断了）准备判失败、腔体落 Error，
+    /// 搬运那边按"第 2 步准备失败"收场；腔门气缸自己报到位超时。
+    /// </summary>
+    public override ModuleOperation? PrepareTransfer2()
+    {
+        var door = Door;
+        if (door is null)
+        {
+            return base.PrepareTransfer2();
+        }
+
+        lock (OperationGate)
+        {
+            // 先确认挂得上（在准备一里、没有在途动作），再发开门：免得门开了、操作却没挂上，没人等它
+            var current = CurrentOperation;
+            bool busy = current is not null && !current.IsTerminal;
+            if (State != TransferModuleState.PreTransfer || !CanBeginAction || busy)
+            {
+                return null;
+            }
+
+            if (!door.Open())
+            {
+                return null;
+            }
+
+            return Begin(ChamberAction.OpenDoor, new ChamberDeviceOperation(door, ChamberDeviceAction.Up, DeviceActionTimeout));
+        }
+    }
+
     #endregion
 
     protected BaseChamberModule()

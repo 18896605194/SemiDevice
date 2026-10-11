@@ -320,7 +320,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         });
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Pick 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Pick 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 
@@ -335,7 +335,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         });
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Place 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Place 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 
@@ -344,7 +344,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.HomeAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Home 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Home 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 
@@ -354,7 +354,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.AbortAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Abort 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Abort 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 
@@ -364,7 +364,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.ResetAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Reset 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Reset 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 
@@ -373,7 +373,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.PowerOnAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"PowerOn 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"PowerOn 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 
@@ -382,7 +382,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         var response = await _service.PowerOffAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"PowerOff 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"PowerOff 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 }

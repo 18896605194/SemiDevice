@@ -63,7 +63,7 @@ public class TransferService : BaseService, ITransferService
             Arm = operation.Arm,
             Source = operation.SourceName,
             SourceSlot = operation.SourceSlot,
-            Target = operation.Target.Name,
+            Target = operation.TargetName,
             TargetSlot = operation.TargetSlot,
         }));
     }

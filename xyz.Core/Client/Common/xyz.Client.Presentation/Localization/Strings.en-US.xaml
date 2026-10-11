@@ -50,6 +50,8 @@
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
     <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} (see Arms of the station node in sc.xml)</sys:String>
+    <sys:String x:Key="robot.arm_has_wafer">{0} Arm{1} already holds a wafer: {2}; cannot pick another (if the ledger is wrong, fix it on the wafer ledger adjustment page first)</sys:String>
+    <sys:String x:Key="robot.arm_no_wafer">{0} Arm{1} holds no wafer; nothing to place (if the ledger is wrong, fix it on the wafer ledger adjustment page first)</sys:String>
     <sys:String x:Key="robot.direction.north">North</sys:String>
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>
@@ -71,7 +73,6 @@
     <sys:String x:Key="transfer.station_busy">{0} did not become available within {1} ms (it never returned to idle, or another robot kept it busy)</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0}: transfer preparation step {1} was rejected (the station state does not allow it; it may have been operated manually)</sys:String>
     <sys:String x:Key="transfer.station_prepare_failed">{0}: transfer preparation step {1} did not complete (timeout or device error)</sys:String>
-    <sys:String x:Key="transfer.rejected">{0} {1} could not be started (robot state does not allow it, not connected, or the station is not configured)</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} failed: the station stays in Transferring; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} could not be marked {1} (the station state does not match the transfer progress; it may have been operated manually)</sys:String>
     <sys:String x:Key="transfer.not_installed">Cannot switch to Auto: no Transfer node in sc.xml (transfer manager not installed)</sys:String>
