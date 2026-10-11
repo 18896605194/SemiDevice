@@ -3,25 +3,39 @@
 
 public class ChamberDto
 {
-    /// <summary>模块实例名，与 EventBus token 一致，如 "Chamber1"。</summary>
+    /// <summary>
+    /// Chamber1
+    /// </summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>模块状态码，取值见 ModuleState/TransferModuleState/ChamberState。</summary>
+    /// <summary>
+    /// State
+    /// </summary>
     public int State { get; set; }
 
-    /// <summary>模块模式（Online/Offline）：是否参与自动调度。</summary>
+    /// <summary>
+    /// Online/Offline
+    /// </summary>
     public ModuleMode Mode { get; set; }
 
-    /// <summary>是否启用（sc.xml 腔体节点的 IsEnable）：False = 装机未接/停用，动作一律发不出去。</summary>
+    /// <summary>
+    /// 是否启用
+    /// </summary>
     public bool IsEnable { get; set; }
 
-    /// <summary>设备当前报错（错误码#内容）；无报错或腔体停用为 null。</summary>
+    /// <summary>
+    /// 设备当前报错
+    /// </summary>
     public string? DeviceError { get; set; }
 
-    /// <summary>最近一次发起成功的工艺配方名；还没做过工艺为 null。</summary>
+    /// <summary>
+    /// 最近一次发起成功的工艺配方名
+    /// </summary>
     public string? Recipe { get; set; }
 
-    /// <summary>片位数（sc.xml 腔体节点的 SlotCount，一般 1），界面按它画片位。</summary>
+    /// <summary>
+    /// 片位数
+    /// </summary>
     public int SlotCount { get; set; }
 
     /// <summary>各片位上的片（晶圆账），下标顺序即片位顺序。</summary>
@@ -98,7 +112,9 @@ public class ChamberDto
 /// </summary>
 public class ChamberSlotDto
 {
-    /// <summary>片位号，从 1 开始。</summary>
+    /// <summary>
+    /// 片位号，从 1 开始
+    /// </summary>
     public int Slot { get; set; }
 
     /// <summary>这个片位上的片（晶圆账）。</summary>

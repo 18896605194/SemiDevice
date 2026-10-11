@@ -177,10 +177,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     private ChamberDto? _lastPublishedState;
 
-    /// <summary>
-    /// 当前状态快照，状态发布与 GetState 查询共用。
-    /// 停用的腔体不连设备，设备报错不可信，置 null；片位按晶圆账逐位取（片号 + 工艺状态）。
-    /// </summary>
     public ChamberDto CreateStateDto()
     {
         var dto = new ChamberDto
