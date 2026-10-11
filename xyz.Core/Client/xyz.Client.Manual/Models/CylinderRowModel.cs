@@ -9,17 +9,18 @@ namespace xyz.Client.Manual.Models;
 /// </summary>
 public class CylinderRowModel : ObservableObject
 {
-    /// <param name="module">腔体模块名，行名去掉它（"Chamber1.Arm1.Lift" → "Arm1.Lift"）。</param>
+    /// <param name="module">腔体模块名，行名取它后面那段（"Chamber.Chamber1.Arm1.Lift" → "Arm1.Lift"）。</param>
     /// <param name="dto">这个气缸的推送。</param>
     public CylinderRowModel(string module, ChamberCylinderDto dto)
     {
         Path = dto.Path;
-        string prefix = module + ".";
-        Name = Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? Path[prefix.Length..] : Path;
+        string[] parts = Path.Split('.');
+        int index = Array.FindIndex(parts, part => string.Equals(part, module, StringComparison.OrdinalIgnoreCase));
+        Name = index < 0 || index == parts.Length - 1 ? Path : string.Join('.', parts[(index + 1)..]);
         Update(dto);
     }
 
-    /// <summary>组件全路径，如 "Chamber1.Bowl1"；气缸动作按它找气缸。</summary>
+    /// <summary>组件全路径，如 "Chamber.Chamber1.Bowl1"；气缸动作按它找气缸。</summary>
     public string Path { get; }
 
     /// <summary>行名：sc 路径去掉腔体名，照 sc 原样显示。</summary>

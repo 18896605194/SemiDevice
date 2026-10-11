@@ -12,7 +12,7 @@ public class EcItemDto
     public const string EventToken = "Ec";
 
     /// <summary>
-    /// 键："组件全路径.参数名"，如 LoadPort1.LoadTimeout、Chamber1.Door.ActionTimeoutMs。
+    /// 键："组件全路径.参数名"，如 LoadPort.LoadPort1.LoadTimeout、Chamber.Chamber1.Door.ActionTimeoutMs。
     /// 层级跟 sc.xml 的组件层级一样，界面照它长出左边的组件树。
     /// </summary>
     public string Key { get; set; } = string.Empty;

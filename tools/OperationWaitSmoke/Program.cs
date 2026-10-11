@@ -1214,6 +1214,15 @@ port.E87Callback = null;
         File.Delete(file);
         EcComponent.Current = ec;
     }
+
+    // 分组节点（不写 Type）不生成组件，但名字进组件全路径：EC 的键、EC 页的树都跟 sc.xml 的层级一样
+    var grouped = ComponentLoader.Load([new ModuleConfig
+    {
+        Name = "EcGroupSmoke",
+        Children = [new ModuleConfig { Name = "EcGroupedDi", Type = typeof(DiSensorComponent).FullName }]
+    }]);
+    Check(grouped.Count == 1 && grouped[0] is DiSensorComponent && grouped[0].FullPath == "EcGroupSmoke.EcGroupedDi",
+        "分组节点不生成组件，名字进组件全路径");
 }
 
 // ── 组件初始化、模块初始化、中止：组件初始化（不动硬件）先处理子组件（按 InitOrder），基类默认什么都不做、不强制重写，

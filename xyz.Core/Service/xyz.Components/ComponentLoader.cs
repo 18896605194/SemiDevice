@@ -20,10 +20,10 @@ public static class ComponentLoader
 
         foreach (var setting in settings)
         {
-            Build(setting, catalog, parent: null, roots);
+            Build(setting, catalog, parent: null, parentPath: string.Empty, roots);
         }
 
-        // 构造时挂好的子组件（sc.xml 里不写 Type 的那种）原本只有本级名，这里按树补全层级路径。
+        // 构造时挂好的子组件（sc.xml 里不写 Type 的那种）还没有路径，这里接在父组件后面补上。
         foreach (var root in roots)
         {
             AssignFullPath(root, parentPath: string.Empty);
@@ -34,11 +34,20 @@ public static class ComponentLoader
 
     private static void AssignFullPath(ComponentBase component, string parentPath)
     {
-        component.FullPath = parentPath.Length == 0 ? component.Name : parentPath + "." + component.Name;
+        if (component.FullPath.Length == 0)
+        {
+            component.FullPath = Join(parentPath, component.Name);
+        }
+
         foreach (var child in component.Children)
         {
             AssignFullPath(child, component.FullPath);
         }
+    }
+
+    private static string Join(string parent, string name)
+    {
+        return parent.Length == 0 ? name : parent + "." + name;
     }
 
     /// <summary>
@@ -113,9 +122,15 @@ public static class ComponentLoader
         }
     }
 
-    private static void Build(ModuleConfig setting, Dictionary<string, Type> catalog, ComponentBase? parent, List<ComponentBase> roots)
+    /// <summary>
+    /// 装一个节点和它下面的节点。parentPath 是上一级节点的路径：分组节点（不写 Type）不生成组件，
+    /// 但名字照样进路径，组件全路径跟 sc.xml 的层级一样（Chamber.Chamber1.Door）。
+    /// </summary>
+    private static void Build(ModuleConfig setting, Dictionary<string, Type> catalog, ComponentBase? parent, string parentPath,
+        List<ComponentBase> roots)
     {
         ComponentBase? component = null;
+        string path = Join(parentPath, setting.Name);
 
         if (string.IsNullOrWhiteSpace(setting.Type))
         {
@@ -142,7 +157,7 @@ public static class ComponentLoader
 
             component = (ComponentBase)Activator.CreateInstance(type)!;
             component.Name = setting.Name;
-            component.FullPath = parent is null ? setting.Name : $"{parent.FullPath}.{setting.Name}";
+            component.FullPath = path;
             if (setting.InitOrder > 0)
             {
                 component.InitOrder = setting.InitOrder;
@@ -164,7 +179,7 @@ public static class ComponentLoader
         // 分组节（如 LoadPort 包装节）继续下钻子节点。
         foreach (var child in setting.Children)
         {
-            Build(child, catalog, component ?? parent, roots);
+            Build(child, catalog, component ?? parent, path, roots);
         }
     }
 

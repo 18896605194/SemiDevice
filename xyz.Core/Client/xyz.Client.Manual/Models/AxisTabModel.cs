@@ -20,18 +20,19 @@ public class AxisTabModel : ObservableObject
     private const string JogSpeedEc = "JogSpeed";
     private const string JogStepEc = "JogStep";
 
-    /// <param name="module">腔体模块名，页签上的名字去掉它（"Chamber1.Arm1" → "Arm1"）。</param>
+    /// <param name="module">腔体模块名，页签上的名字取它后面那段（"Chamber.Chamber1.Arm1" → "Arm1"）。</param>
     /// <param name="dto">这根轴的推送。</param>
     public AxisTabModel(string module, ChamberAxisDto dto)
     {
         Path = dto.Path;
-        string prefix = module + ".";
-        Name = Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? Path[prefix.Length..] : Path;
+        string[] parts = Path.Split('.');
+        int index = Array.FindIndex(parts, part => string.Equals(part, module, StringComparison.OrdinalIgnoreCase));
+        Name = index < 0 || index == parts.Length - 1 ? Path : string.Join('.', parts[(index + 1)..]);
         FillDefaults();
         Update(dto);
     }
 
-    /// <summary>组件全路径，如 "Chamber1.Arm1"；动作按它找设备。</summary>
+    /// <summary>组件全路径，如 "Chamber.Chamber1.Arm1"；动作按它找设备。</summary>
     public string Path { get; }
 
     /// <summary>页签上的名字：sc 路径去掉腔体名，照 sc 原样显示。</summary>

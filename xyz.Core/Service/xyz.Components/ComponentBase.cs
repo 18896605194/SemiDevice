@@ -36,7 +36,7 @@ public abstract class ComponentBase
     public string? Role { get; internal set; }
 
     /// <summary>
-    /// 完整层级路径，比如 Chamber1.Valve1。
+    /// 完整层级路径，sc.xml 的分组节点（不写 Type 的 LoadPort、Chamber）也算上，比如 Chamber.Chamber1.Door。
     /// </summary>
     public string FullPath { get; internal set; } = string.Empty;
 

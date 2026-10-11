@@ -167,7 +167,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     /// <summary>
     /// 生成可选站点分组（装配完、模块起来之后调一次）。按 sc.xml 的分组节点（不带 Type 的节点，如 LoadPort、Chamber）和下面装的模块，
     /// 只留能放片的站点、并且有机械手的站点表配了它（机械手到不了的地方，写进流程也走不了）；顶层直接装的站点自己成一组。
-    /// 分组节点装配时不生成组件、名字也不进组件路径，所以分组名只能从配置树里拿。
+    /// 分组节点装配时不生成组件（名字只进组件全路径），所以分组名只能从配置树里拿。
     /// </summary>
     public void Bind(IEnumerable<ModuleConfig> settings, IEnumerable<BaseModule> modules)
     {

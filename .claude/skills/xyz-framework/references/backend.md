@@ -27,7 +27,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 ## 2. 组件（`xyz.Components\ComponentBase.cs`）
 
-- 属性：`Name`、`FullPath`（"Chamber1.Door"，纯分组节点不进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
+- 属性：`Name`、`FullPath`（"Chamber.Chamber1.Door"：sc.xml 的分组节点不生成组件，但名字进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
 - 扫描：根组件（模块、PLC、Safety、TransferManager、JobManager）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
   `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。

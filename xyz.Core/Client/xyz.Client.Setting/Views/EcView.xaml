@@ -49,7 +49,7 @@
                 <DataGrid ItemsSource="{Binding ItemsView}" Style="{DynamicResource CompactDataGridStyle}">
                     <DataGrid.Columns>
                         <DataGridTextColumn
-                            Width="200"
+                            Width="280"
                             Binding="{Binding Path, Mode=OneWay}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                             Header="{DynamicResource setting.ec.component}" />
