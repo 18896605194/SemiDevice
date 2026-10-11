@@ -4,17 +4,17 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// E87 的一个端口（照老 CTC：一个 LoadPort 一个对象，载具的状态就记在端口上）：挂 6 个状态机——
+/// E87 的一个端口挂 6 个状态机——
 /// 搬运、存取方式、关联、载具 ID、槽图、取放。设备上的事实（在位、槽图、槽数、忙闲）都直接问 LoadPort，不另记。
 /// 只在 E87 的锁里改。
 /// </summary>
-internal sealed class E87Port
+internal sealed class E87LoadPort
 {
-    public E87Port(E87Component owner, ILoadPort device, byte id)
+    public E87LoadPort(E87Component owner, ILoadPort device, byte id)
     {
-        Owner = owner;
-        Device = device;
-        Carrier = device._carrier;
+        _e87Component = owner;
+        _loadport = device;
+        _carrier = device._carrier;
         Id = id;
         TransferMachine = new E87TransferStateMachine(this);
         AccessModeMachine = new E87AccessModeStateMachine(this);
@@ -24,12 +24,12 @@ internal sealed class E87Port
         AccessMachine = new E87AccessStateMachine(this);
     }
 
-    public E87Component Owner { get; }
+    public E87Component _e87Component { get; }
 
-    public ILoadPort Device { get; }
+    public ILoadPort _loadport { get; }
 
     /// <summary>端口上这一盒载具（设备侧的载具事实和 E87 能下的命令），建端口时取一次，状态机和 Host 报文都从这儿用。</summary>
-    public ICarrier Carrier { get; }
+    public ICarrier _carrier { get; }
 
     /// <summary>PortID：按 sc.xml 里 LoadPort 的先后，从 1 开始。</summary>
     public byte Id { get; }
@@ -64,9 +64,9 @@ internal sealed class E87Port
     /// </summary>
     public void LoadLater()
     {
-        var device = Device;
+        var device = _loadport;
         string carrierId = CarrierId;
-        Owner.Later(() =>
+        _e87Component.Later(() =>
         {
             // 等 Host 认定的时候操作员已经手动 Load 好了：要的就是 Load 着，不用再发
             if (device.IsLoaded)
@@ -77,7 +77,7 @@ internal sealed class E87Port
             var result = device.Load();
             if (!result.IsSuccess)
             {
-                LogHelper.Warn(Owner.Name,
+                LogHelper.Warn(_e87Component.Name,
                     $"{device.Name} 载具 {carrierId} 认定了，但 Load 被拒（{result.ErrorMessage}：{string.Join(", ", result.Args)}），等操作员处理");
             }
         });
@@ -86,12 +86,12 @@ internal sealed class E87Port
     /// <summary>Load 着的卸下来（关门、松开）；没 Load 的不用动。走自动跑货口径：SC AutoRunMapOnUnload 生效（带图对账）。动作攒到锁外做。</summary>
     public void UnloadLater(string why)
     {
-        var device = Device;
-        Owner.Later(() =>
+        var device = _loadport;
+        _e87Component.Later(() =>
         {
             if (device.IsLoaded && device.Unload() is null)
             {
-                LogHelper.Warn(Owner.Name, $"{device.Name} {why}，但现在 Unload 不了（还在被机械手服务或端口状态不允许），等操作员处理");
+                LogHelper.Warn(_e87Component.Name, $"{device.Name} {why}，但现在 Unload 不了（还在被机械手服务或端口状态不允许），等操作员处理");
             }
         });
     }

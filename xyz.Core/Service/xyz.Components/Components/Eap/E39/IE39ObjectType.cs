@@ -3,7 +3,7 @@
 namespace xyz.Components.Components;
 
 /// <summary>
-/// E39 的一种对象（OBJTYPE）：各标准组件把自己管的对象登记给 E39——E87 的载具（Carrier）和端口（Port）、
+/// E39 的一种对象（OBJTYPE）：各标准组件把自己管的对象登记给 E39——E87 的载具（_carrier）和端口（Port）、
 /// E90 的片（Substrate）和片位（SubstLoc）、E40 的 PJ（ProcessJob）、E94 的 CJ（ControlJob）。
 /// Host 用 S14 按类型查属性、改属性、建对象、删对象，E39 统一解析报文、拼回复，具体的值由这里给。
 /// 都在链路的派发线程上调。

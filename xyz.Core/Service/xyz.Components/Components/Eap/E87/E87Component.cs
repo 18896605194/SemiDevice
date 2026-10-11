@@ -196,7 +196,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     #endregion
 
     private readonly object _gate = new();
-    private readonly List<E87Port> _ports = [];
+    private readonly List<E87LoadPort> _ports = [];
     private readonly List<Action> _later = [];
     private E30Component? _gem;
     private Action<string>? _materialVerified;
@@ -219,7 +219,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
             byte id = 1;
             foreach (var device in ports)
             {
-                _ports.Add(new E87Port(this, device, id++));
+                _ports.Add(new E87LoadPort(this, device, id++));
                 device.E87Callback = this;
                 device.E84Provider = this;
             }
@@ -235,7 +235,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         link.Handle(3, 25, PortAction);
         link.Handle(3, 27, ChangeAccess);
         _poll = new Timer(_ => Poll(), null, Math.Max(100, PortPollMs), Math.Max(100, PortPollMs));
-        LogHelper.Info(Name, $"E87 接上 {_ports.Count} 个端口：{string.Join("、", _ports.Select(port => $"{port.Id}={port.Device.Name}"))}");
+        LogHelper.Info(Name, $"E87 接上 {_ports.Count} 个端口：{string.Join("、", _ports.Select(port => $"{port.Id}={port._loadport.Name}"))}");
     }
 
     /// <summary>从设备上摘下来（宿主退出时）。</summary>
@@ -247,8 +247,8 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         {
             foreach (var port in _ports)
             {
-                port.Device.E87Callback = null;
-                port.Device.E84Provider = null;
+                port._loadport.E87Callback = null;
+                port._loadport.E84Provider = null;
             }
         }
     }
@@ -271,9 +271,9 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         }
     }
 
-    private E87Port? PortOf(ILoadPort device)
+    private E87LoadPort? PortOf(ILoadPort device)
     {
-        return _ports.FirstOrDefault(port => ReferenceEquals(port.Device, device));
+        return _ports.FirstOrDefault(port => ReferenceEquals(port._loadport, device));
     }
 
     #endregion
@@ -379,8 +379,12 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         });
     }
 
-    /// <summary>回调的公共部分：在锁里找到端口、做事，最后按设备现在的样子刷一下搬运状态。</summary>
-    private void OnPort(ILoadPort device, Action<E87Port> work)
+    /// <summary>
+    /// 回调的公共部分
+    /// </summary>
+    /// <param name="device"></param>
+    /// <param name="work"></param>
+    private void OnPort(ILoadPort device, Action<E87LoadPort> work)
     {
         Locked(() =>
         {
@@ -402,7 +406,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     /// <summary>
     /// 建载具对象：记下号，ID 状态机按怎么来的转（读到号等 Host #1、#3；Host 给号直接认定 #1、#4），槽图进没读（#12）、取放进没取放（#17），端口关联。
     /// </summary>
-    private void CreateCarrier(E87Port port, string carrierId, E87CarrierIdMessage how)
+    private void CreateCarrier(E87LoadPort port, string carrierId, E87CarrierIdMessage how)
     {
         port.CarrierId = carrierId;
         port.CarrierIdMachine.Post(how);
@@ -412,7 +416,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     }
 
     /// <summary>删载具对象（#21）：几个状态机回到没有载具，取消关联。</summary>
-    private void DeleteCarrier(E87Port port)
+    private void DeleteCarrier(E87LoadPort port)
     {
         port.CarrierIdMachine.Post(E87CarrierIdMessage.Delete);
         port.SlotMapMachine.Post(E87SlotMapMessage.Delete);
@@ -422,15 +426,15 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     }
 
     /// <summary>按载具号找它在哪个端口上；没有为 null。</summary>
-    private E87Port? FindCarrier(string carrierId)
+    private E87LoadPort? FindCarrier(string carrierId)
     {
         return _ports.FirstOrDefault(port => port.HasCarrier && string.Equals(port.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>槽图认定了（料到了）：出锁后通知 E90 建片对象。</summary>
-    internal void NotifyMaterialVerifiedLater(E87Port port)
+    internal void NotifyMaterialVerifiedLater(E87LoadPort port)
     {
-        string name = port.Device.Name;
+        string name = port._loadport.Name;
         var notify = _materialVerified;
         Later(() => notify?.Invoke(name));
     }
@@ -535,26 +539,27 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
 
     #region 报事件（状态机进状态时调）
 
-    internal void ReportPort(string code, E87Port port)
+    internal void ReportPort(string code, E87LoadPort port)
     {
         Report(code, PortData(port).Append(new GemData(DvCarrierId, GemValue.Ascii(port.CarrierId))).ToArray());
     }
 
-    internal void ReportCarrier(string code, E87Port port, byte? reason = null)
+    internal void ReportCarrier(string code, E87LoadPort port, E87Reason? reason = null)
     {
         var data = CarrierData(port).Concat(PortData(port)).ToList();
         if (reason is not null)
         {
-            data.Add(new GemData(DvReason, reason.Value));
+            // 照原来按单字节报（U1），不按枚举
+            data.Add(new GemData(DvReason, (byte)reason.Value));
         }
 
         Report(code, data.ToArray());
     }
 
     /// <summary>开门、关门：载具号没有 E87 对象时用设备读到的。</summary>
-    private void ReportDoor(string code, E87Port port)
+    private void ReportDoor(string code, E87LoadPort port)
     {
-        string carrierId = port.HasCarrier ? port.CarrierId : port.Carrier.CarrierId ?? string.Empty;
+        string carrierId = port.HasCarrier ? port.CarrierId : port._carrier.CarrierId ?? string.Empty;
         Report(code, new GemData(DvCarrierId, GemValue.Ascii(carrierId)), new GemData(DvPortId, port.Id));
     }
 
@@ -563,7 +568,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
         _gem?.Report(this, code, data);
     }
 
-    private static IEnumerable<GemData> PortData(E87Port port)
+    private static IEnumerable<GemData> PortData(E87LoadPort port)
     {
         var transfer = port.TransferMachine.State;
         yield return new GemData(DvPortId, port.Id);
@@ -575,10 +580,10 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     /// <summary>
     /// 载具的数据：几个状态取状态机的（没有载具报空 U1）；槽数、槽图、片数直接问 LoadPort；片号表槽图认定后按晶圆账报。
     /// </summary>
-    private static IEnumerable<GemData> CarrierData(E87Port port)
+    private static IEnumerable<GemData> CarrierData(E87LoadPort port)
     {
-        var device = port.Device;
-        var slots = port.Carrier.SlotMap;
+        var device = port._loadport;
+        var slots = port._carrier.SlotMap;
         yield return new GemData(DvCarrierId, GemValue.Ascii(port.CarrierId));
         yield return new GemData(DvCarrierIdStatus, StatusItem((byte)port.CarrierIdMachine.State));
         yield return new GemData(DvSlotMapStatus, StatusItem((byte)port.SlotMapMachine.State));
@@ -599,7 +604,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     }
 
     /// <summary>片号表 L[槽数]{L[2]{批次号, 片号}}：槽图认定后按晶圆账报（Host 给的片号已经写进账了）；没认定报空表。</summary>
-    private static SecsItem ContentMapItem(E87Port port)
+    private static SecsItem ContentMapItem(E87LoadPort port)
     {
         var ledger = WaferManagerComponent.Current;
         if (port.SlotMapMachine.State != E87SlotMapState.Verified || ledger is null)
@@ -607,7 +612,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
             return SecsItem.L();
         }
 
-        return SecsItem.L(ledger.GetSlots(port.Device.Name).Select(wafer => SecsItem.L(
+        return SecsItem.L(ledger.GetSlots(port._loadport.Name).Select(wafer => SecsItem.L(
             SecsItem.A(GemValue.Ascii(wafer?.LotId ?? string.Empty)), SecsItem.A(GemValue.Ascii(wafer?.WaferId ?? string.Empty)))));
     }
 

@@ -68,7 +68,7 @@ var failed = new ProbeOperation();
 failed.Reject();
 Check(!failed.Wait(0) && failed.Code == ErrorCodes.DeviceFailed
     && failed.ErrorArgs.SequenceEqual(new[] { "Probe", "device error" }),
-    "Device failure must preserve its error code and arguments.");
+    "_loadport failure must preserve its error code and arguments.");
 
 var actionTimeout = new ProbeOperation();
 actionTimeout.TimeOut();

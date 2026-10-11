@@ -29,22 +29,19 @@ internal enum E87CarrierIdMessage
 }
 
 /// <summary>
-/// 载具 ID 状态机（E87 Carrier ID Status），载具对象的有无也在这里（NoCarrier = 没有）：
+/// 载具 ID 状态机（E87 _carrier ID Status），载具对象的有无也在这里（NoCarrier = 没有）：
 /// 读到号 → 建对象、等 Host（#1、#3）；Host 给号 → 建对象、认定（#1、#4）；等 Host 时认定（#8）或取消（#9）；删对象（#21）。
 /// 一认定就写回设备、Load 起来读槽图（CTC 就是在进"认定"时调 Load）。
 /// </summary>
 internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdState, E87CarrierIdMessage>
 {
-    /// <summary>Reason 5：Host 取消了这个载具（跟 #9 一起报）。</summary>
-    private const byte ReasonHostCancel = 5;
-
-    private readonly E87Port _port;
+    private readonly E87LoadPort _port;
     private readonly ICarrier _carrier;
 
-    public E87CarrierIdStateMachine(E87Port port) : base(E87CarrierIdState.NoCarrier)
+    public E87CarrierIdStateMachine(E87LoadPort port) : base(E87CarrierIdState.NoCarrier)
     {
         _port = port;
-        _carrier = port.Carrier;
+        _carrier = port._carrier;
         Add(E87CarrierIdState.NoCarrier, E87CarrierIdMessage.IdRead, E87CarrierIdState.WaitingForHost, EnterWaitingForHost);
         Add(E87CarrierIdState.NoCarrier, E87CarrierIdMessage.HostProceed, E87CarrierIdState.Verified, EnterVerified);
         Add(E87CarrierIdState.WaitingForHost, E87CarrierIdMessage.HostProceed, E87CarrierIdState.Verified, EnterVerified);
@@ -54,7 +51,7 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
 
     private void EnterWaitingForHost(E87CarrierIdState from)
     {
-        var owner = _port.Owner;
+        var owner = _port._e87Component;
         owner.ReportCarrier(owner.CarrierTrans01, _port);
         owner.ReportCarrier(owner.CarrierTrans03, _port);
         _carrier.UpdateStatus(CarrierIdStatus.WaitingForHost, null);
@@ -62,7 +59,7 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
 
     private void EnterVerified(E87CarrierIdState from)
     {
-        var owner = _port.Owner;
+        var owner = _port._e87Component;
         if (from == E87CarrierIdState.NoCarrier)
         {
             owner.ReportCarrier(owner.CarrierTrans01, _port);
@@ -79,7 +76,7 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
 
     private void EnterVerifyFailed(E87CarrierIdState from)
     {
-        _port.Owner.ReportCarrier(_port.Owner.CarrierTrans09, _port, ReasonHostCancel);
+        _port._e87Component.ReportCarrier(_port._e87Component.CarrierTrans09, _port, E87Reason.HostCancel);
         _carrier.UpdateStatus(CarrierIdStatus.VerifyFailed, null);
     }
 
@@ -87,7 +84,7 @@ internal sealed class E87CarrierIdStateMachine : E87StateMachine<E87CarrierIdSta
     {
         if (from != E87CarrierIdState.NoCarrier)
         {
-            _port.Owner.ReportCarrier(_port.Owner.CarrierTrans21, _port);
+            _port._e87Component.ReportCarrier(_port._e87Component.CarrierTrans21, _port);
         }
     }
 }

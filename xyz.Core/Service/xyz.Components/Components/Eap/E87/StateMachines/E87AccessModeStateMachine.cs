@@ -20,9 +20,9 @@ internal enum E87AccessModeMessage
 /// </summary>
 internal sealed class E87AccessModeStateMachine : E87StateMachine<E87AccessMode, E87AccessModeMessage>
 {
-    private readonly E87Port _port;
+    private readonly E87LoadPort _port;
 
-    public E87AccessModeStateMachine(E87Port port) : base(port.Device.IsAutoMode ? E87AccessMode.Auto : E87AccessMode.Manual)
+    public E87AccessModeStateMachine(E87LoadPort port) : base(port._loadport.IsAutoMode ? E87AccessMode.Auto : E87AccessMode.Manual)
     {
         _port = port;
         Add(E87AccessMode.Manual, E87AccessModeMessage.GoAuto, E87AccessMode.Auto, EnterAuto);
@@ -31,11 +31,11 @@ internal sealed class E87AccessModeStateMachine : E87StateMachine<E87AccessMode,
 
     private void EnterAuto(E87AccessMode from)
     {
-        _port.Owner.ReportPort(_port.Owner.AccessGoAuto, _port);
+        _port._e87Component.ReportPort(_port._e87Component.AccessGoAuto, _port);
     }
 
     private void EnterManual(E87AccessMode from)
     {
-        _port.Owner.ReportPort(_port.Owner.AccessGoManual, _port);
+        _port._e87Component.ReportPort(_port._e87Component.AccessGoManual, _port);
     }
 }

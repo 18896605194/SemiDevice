@@ -25,7 +25,7 @@
 | 指标 | 本平台 | CTC（FinalClean2） |
 |---|---|---|
 | LoadPort 核心代码 | **4846 行 / 44 文件**（Modules\Loadport 1958 + E84 916 + Drivers\Loadport 1125 + 驱动组件/接口 518 + Service/工位基类 329） | **8066 行 / 28 文件**（LPs 6589 + IoLP 1231 + Scheduler 105 + UI 141） |
-| E87（Host 侧） | 1813 行 / 10 文件（E87Component、Host、E87Port + 6 个状态机） | LPModule 里的 `IE87CallBack` 方法体基本为空；真实交互靠 `EV.Notify` 事件 + 仓库外 FAJobController |
+| E87（Host 侧） | 1813 行 / 10 文件（E87Component、Host、E87LoadPort + 6 个状态机） | LPModule 里的 `IE87CallBack` 方法体基本为空；真实交互靠 `EV.Notify` 事件 + 仓库外 FAJobController |
 | 注释率 | 13.9% / 16.3% / 23.6% / 23.2%（分模块） | 3.7% / 1.1% / 0% / 6.4% |
 | 动作/状态数 | 动作 7 个（Home/Load/Unload/Clamp/Unclamp/Reset/Abort）+ 状态查询、版本查询、读码、带图卸载（SC 开关），状态码 6 个 | 动作 ≈25 个（含 Dock/Undock/OpenDoor/CloseDoor/Map/Latch/UnLatch/VacuumOn/Off/MappingForward/Backward/ZMapStart/End/ZAxisUp/Down/UnloadAndLoad/AutoCloseDoor），状态 30 个 |
 | 机型适配方式 | sc.xml 装组件、Type 换品牌；机型模块类可空 | sccfg 每机型一份（16k 行 × 8 套），设备类用 `E39Top.ToolType != "PXWHKWFM"` 之类硬编码分支 |
@@ -53,7 +53,7 @@
 - **CTC 7.0**：`DeviceModelEfem.xml` 里每口一组 `E84Passiver`（L_REQ/U_REQ/READY/HO_AVBL/ES + 输入），`ToolLoader` 把 `RorzeE84.Provider` 接到 FAJobController；具体握手实现在仓库外的 `MECF.Framework...LoadPorts.PNCRorze` 库，本仓库看不到，只能按现场已用给分（±1）。LPModule 侧只留了空的 `OnE84HandoffStart/Complete` 回调。
 
 ### 2.5 EAP / E87 对接（权重 8%）
-- **本平台 9.5**：每个端口一个 `E87Port`，6 个小状态机（搬运、存取方式、关联、载具 ID、槽图、取放）；读到号等 Host、槽图一律等 Host、第二次 PWC 比对不一致回 CAACK=3；Cancel/CarrierRelease/CarrierReCreate/S3F25 启停用+改存取方式；`PortPollMs` 每状态轮询（注释指出 CTC 只在两个状态查会卡住）；`IE87Callback` 上报 11 类事件（到达/移除/读码/读码失败/槽图/Load/Unload/Access 起停/干完/端口错）；EapSmoke 对假 Host 全流程验证。
+- **本平台 9.5**：每个端口一个 `E87LoadPort`，6 个小状态机（搬运、存取方式、关联、载具 ID、槽图、取放）；读到号等 Host、槽图一律等 Host、第二次 PWC 比对不一致回 CAACK=3；Cancel/CarrierRelease/CarrierReCreate/S3F25 启停用+改存取方式；`PortPollMs` 每状态轮询（注释指出 CTC 只在两个状态查会卡住）；`IE87Callback` 上报 11 类事件（到达/移除/读码/读码失败/槽图/Load/Unload/Access 起停/干完/端口错）；EapSmoke 对假 Host 全流程验证。
 - **CTC 6.0**：`LPModule : IE87CallBack` 的 `CarrierIDReadSuccess / MappingComplete / LoadComplete / UnloadComplete / CarrierComplete / StartAccessingLP / StopAccessingLP` **方法体是空的**，真实语义散在 `EV.Notify(...)`（CARRIER_LOCKED/UNLOCKED、SlotMapAvailable、CarrierUnloaded…）与仓库外的 FAJobController；E39 端口/载具对象、夹紧松开事件是 CTC 有、本平台明确砍掉的（decisions.md 记录，属有意取舍）。
 
 ### 2.6 Mapping 与晶圆账一致性（权重 8%）

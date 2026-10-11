@@ -15,13 +15,13 @@ internal enum E87AssociationMessage
 }
 
 /// <summary>
-/// 端口关联状态机（E87 Load Port / Carrier Association）：读到号或 Host 给了号就关联；Host 取消、载具拿走就取消关联（跟 CTC 一样）。
+/// 端口关联状态机（E87 Load Port / _carrier Association）：读到号或 Host 给了号就关联；Host 取消、载具拿走就取消关联（跟 CTC 一样）。
 /// </summary>
 internal sealed class E87AssociationStateMachine : E87StateMachine<E87AssociationState, E87AssociationMessage>
 {
-    private readonly E87Port _port;
+    private readonly E87LoadPort _port;
 
-    public E87AssociationStateMachine(E87Port port) : base(E87AssociationState.NotAssociated)
+    public E87AssociationStateMachine(E87LoadPort port) : base(E87AssociationState.NotAssociated)
     {
         _port = port;
         Add(E87AssociationState.NotAssociated, E87AssociationMessage.Associate, E87AssociationState.Associated, EnterAssociated);
@@ -30,11 +30,11 @@ internal sealed class E87AssociationStateMachine : E87StateMachine<E87Associatio
 
     private void EnterAssociated(E87AssociationState from)
     {
-        _port.Owner.ReportPort(_port.Owner.AssociationGo, _port);
+        _port._e87Component.ReportPort(_port._e87Component.AssociationGo, _port);
     }
 
     private void EnterNotAssociated(E87AssociationState from)
     {
-        _port.Owner.ReportPort(_port.Owner.AssociationGoNot, _port);
+        _port._e87Component.ReportPort(_port._e87Component.AssociationGoNot, _port);
     }
 }

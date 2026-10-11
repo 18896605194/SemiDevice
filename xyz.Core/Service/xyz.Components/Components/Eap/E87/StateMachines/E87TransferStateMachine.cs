@@ -29,13 +29,13 @@ internal enum E87TransferMessage
 /// </summary>
 internal sealed class E87TransferStateMachine : E87StateMachine<E87TransferState, E87TransferMessage>
 {
-    private readonly E87Port _port;
+    private readonly E87LoadPort _port;
     private readonly ICarrier _carrier;
 
-    public E87TransferStateMachine(E87Port port) : base(E87TransferState.NoState)
+    public E87TransferStateMachine(E87LoadPort port) : base(E87TransferState.NoState)
     {
         _port = port;
-        _carrier = port.Carrier;
+        _carrier = port._carrier;
 
         // 第一次定状态（#1）
         Add(E87TransferState.NoState, E87TransferMessage.GoOutOfService, E87TransferState.OutOfService, EnterFirst);
@@ -76,7 +76,7 @@ internal sealed class E87TransferStateMachine : E87StateMachine<E87TransferState
             return E87TransferState.OutOfService;
         }
 
-        var device = _port.Device;
+        var device = _port._loadport;
         var local = device.LocalTransferState;
         if (local == LoadPortTransferState.ReadyToLoad)
         {
@@ -135,17 +135,17 @@ internal sealed class E87TransferStateMachine : E87StateMachine<E87TransferState
 
     private void EnterFirst(E87TransferState from)
     {
-        _port.Owner.ReportPort(_port.Owner.PortTrans01, _port);
+        _port._e87Component.ReportPort(_port._e87Component.PortTrans01, _port);
     }
 
     private void EnterOutOfService(E87TransferState from)
     {
-        _port.Owner.ReportPort(_port.Owner.PortTrans03, _port);
+        _port._e87Component.ReportPort(_port._e87Component.PortTrans03, _port);
     }
 
     private void EnterInService(E87TransferState from)
     {
-        var owner = _port.Owner;
+        var owner = _port._e87Component;
         owner.ReportPort(owner.PortTrans02, _port);
         owner.ReportPort(owner.PortTrans04, _port);
         if (State != E87TransferState.TransferBlocked)
@@ -156,13 +156,13 @@ internal sealed class E87TransferStateMachine : E87StateMachine<E87TransferState
 
     private void EnterBlocked(E87TransferState from)
     {
-        var owner = _port.Owner;
+        var owner = _port._e87Component;
         owner.ReportPort(from == E87TransferState.ReadyToLoad ? owner.PortTrans06 : owner.PortTrans07, _port);
     }
 
     private void EnterReady(E87TransferState from)
     {
-        var owner = _port.Owner;
+        var owner = _port._e87Component;
         owner.ReportPort(State == E87TransferState.ReadyToLoad ? owner.PortTrans08 : owner.PortTrans09, _port);
     }
 }

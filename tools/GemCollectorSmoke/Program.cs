@@ -55,7 +55,7 @@ try
     Check(gem.Ec.Definitions.Any(row => row.Name == "Tool1.ActionTimeout" && row.Format == "Int" && row.Unit == "ms"
                                         && row.Min == "100" && row.Max == "60000" && row.Default == "3000"),
         "EC 全名 = 组件路径.属性名，元数据取自 [VariableMark]");
-    Check(gem.Sv.Definitions.Any(row => row.Name == "Tool1.Carrier"), "SV 用 [VariableMark] 的 Name 覆盖采集名");
+    Check(gem.Sv.Definitions.Any(row => row.Name == "Tool1._carrier"), "SV 用 [VariableMark] 的 Name 覆盖采集名");
     Check(gem.Alarm.Definitions.Any(row => row.Name == "Tool1.TimeoutAlarm" && row.AlarmText == "动作超时"
                                            && row.AlarmLevel == "Alarm1" && row.Category == "Timeout"),
         "报警全名 = 组件路径.报警代码，文本、等级、分类取自 [Alarm]");
@@ -164,8 +164,8 @@ try
     Check(snapshot.Ecs.Single(item => item.Name == "Tool3.ActionTimeout").Value == "3000", "没改过的 EC 取默认值");
     Check(snapshot.Ecs.Single(item => item.Name == "Tool1.AutoRun").Value == "False", "Bool 按 True/False 采");
     Check(snapshot.Svs.Single(item => item.Name == "Tool1.State").Value == "42", "SV 采集带当前值");
-    Check(snapshot.Svs.Single(item => item.Name == "Tool1.Carrier").Value == "FOUP01", "SV 按覆盖后的采集名取值");
-    Check(snapshot.Svs.Single(item => item.Name == "Tool3.Carrier").Value.Length == 0, "null 采成空串");
+    Check(snapshot.Svs.Single(item => item.Name == "Tool1._carrier").Value == "FOUP01", "SV 按覆盖后的采集名取值");
+    Check(snapshot.Svs.Single(item => item.Name == "Tool3._carrier").Value.Length == 0, "null 采成空串");
     Check(snapshot.Alarms.Single(item => item.Name == "Tool1.TimeoutAlarm").SetEventId == setEvent.Id
           && snapshot.Alarms.Single(item => item.Name == "Tool1.HotWarn").SetEventId == 0, "报警采集带报出/清除 CEID");
     Check(snapshot.Events.Single(item => item.Ceid == setEvent.Id).Dvids.SequenceEqual(Enumerable.Range(90000, 6)),
@@ -261,7 +261,7 @@ public sealed class ProbeTool : ComponentBase
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "状态码")]
     public int State { get; set; } = 7;
 
-    [VariableMark(VariableType.SV, ValueFormat.String, description: "当前载具号", Name = "Carrier")]
+    [VariableMark(VariableType.SV, ValueFormat.String, description: "当前载具号", Name = "_carrier")]
     public string? CarrierId { get; set; }
 
     [Alarm("动作超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1,

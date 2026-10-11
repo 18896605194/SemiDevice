@@ -43,7 +43,7 @@
        │ IE87Callback        │ E87Callback/E84Provider 由 EAP 挂
 ┌──────▼─────────────────────▼──────────────────────────────────────────────┐
 │ EAP：EapComponent → E30(GEM)/E39/E87/E90/E40/E94 + Hsms + Notifier         │
-│      E87Component：每端口一个 E87Port + 6 个状态机，EC PortPollMs 轮询状态   │
+│      E87Component：每端口一个 E87LoadPort + 6 个状态机，EC PortPollMs 轮询状态   │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -95,7 +95,7 @@ sequenceDiagram
 - 读码成功 → `NotifyE87(CarrierIdRead)` → E87 建载具对象（#1）、进“等 Host”（#3）。
 
 **③ Host 认定 ID → 自动 Load**
-- `E87CarrierIdStateMachine.EnterVerified`：报 #4/#8 → `_carrier.SetId(...)` → `E87Port.LoadLater()`；
+- `E87CarrierIdStateMachine.EnterVerified`：报 #4/#8 → `_carrier.SetId(...)` → `E87LoadPort.LoadLater()`；
 - `LoadLater` 在锁外做：`device.IsIdle && carrier.IsArrived` 才 `port.Load()`，不然记一条警告等操作员。
 - **没接 EAP 时没有这一步**：`E87Callback` 为 null，Load 由操作员在手动页点，或机型自己重写。
 
@@ -130,7 +130,7 @@ sequenceDiagram
 
 **⑧ 取盒**
 - E84 取盒（`U_REQ`）或人拿走 → `PODOF` → `Carrier.Remove()`：清载具对象、槽图，**清这个端口的晶圆账** → E87 `CarrierRemoved` → #21 删对象 + MaterialRemoved。
-- `E87Port.Released` 复位，等下一盒。
+- `E87LoadPort.Released` 复位，等下一盒。
 
 ### 2.3 E84 交接与"意外放取"
 - 开闸条件（`E84Component.GateClosedReason`）：EC `E84Enabled`、端口 `IsAutoMode`、搬运状态不是 OutOfService、光幕没被挡；
@@ -191,7 +191,7 @@ sequenceDiagram
 ## 4. EAP（E87）怎么和 LoadPort 咬合
 
 ### 4.1 结构
-- 每台机一个 `E87Component`；每接一个 `ILoadPort` 建一个 `E87Port`（PortID 按 sc.xml 先后 1..N），并挂上 `E87Callback` / `E84Provider`；
+- 每台机一个 `E87Component`；每接一个 `ILoadPort` 建一个 `E87LoadPort`（PortID 按 sc.xml 先后 1..N），并挂上 `E87Callback` / `E84Provider`；
 - 每个端口 **6 个小状态机**：搬运（Transfer）、存取方式（AccessMode）、关联（Association）、载具 ID（CarrierId）、槽图（SlotMap）、取放（Access）；
 - `EC PortPollMs`（默认 500ms）定时 `Refresh()`，另外每个设备回调、每个 Host 动作后也刷——CTC 只在两个状态定时查，会卡住；
 - 设备侧上报走 `EapNotifierComponent` 派发线程（`EnqueueE87`），不拖设备扫描。
@@ -290,7 +290,7 @@ stateDiagram-v2
 | 驱动组件（重连、触发口） | `xyz.Components\Components\Drivers\LoadPortDriverComponent*.cs` |
 | E84 交接 | `xyz.Modules\E84\E84Component.cs` |
 | 手动命令服务 | `xyz.Service\LoadPortService.cs`、`xyz.Client.Manual\...LoadPortManualControl.xaml` |
-| EAP/E87 | `xyz.Components\Components\Eap\E87\**`（`E87Component*.cs` + `StateMachines\**` + `E87Port.cs`） |
+| EAP/E87 | `xyz.Components\Components\Eap\E87\**`（`E87Component*.cs` + `StateMachines\**` + `E87LoadPort.cs`） |
 | EAP 装配顺序 | `xyz.Components\Components\Eap\EapComponent.cs` |
 | Job 干完通知载具 | `xyz.Modules\Job\JobManager.cs`（`OnControlJobStateChanged` → `_carrier.NoteComplete()`） |
 | 冒烟用例 | `tools\OperationWaitSmoke`（动作/E84/E87 路径）、`tools\EapSmoke`（对假 Host） |
