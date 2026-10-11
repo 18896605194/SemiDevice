@@ -26,36 +26,24 @@
                         FontSize="{DynamicResource Size12}"
                         Foreground="{DynamicResource DarkSecondaryText}"
                         Text="{Binding SourceText}" />
+                    <!--  等级后面的模块、消息跟等级同色：Warn 一行黄、Error 一行红  -->
                     <TextBlock
                         Margin="6,0,0,0"
                         VerticalAlignment="Center"
                         FontSize="{DynamicResource Size12}"
-                        Text="{Binding Level}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Level}" Value="Warn">
-                                        <Setter Property="Foreground" Value="{DynamicResource DarkWarningStatus}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Level}" Value="Error">
-                                        <Setter Property="Foreground" Value="{DynamicResource DarkAlarmStatus}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                        Style="{DynamicResource LogLevelTextStyle}"
+                        Text="{Binding Level}" />
                     <TextBlock
                         Margin="6,0,0,0"
                         VerticalAlignment="Center"
                         FontSize="{DynamicResource Size12}"
-                        Foreground="{DynamicResource DarkSecondaryText}"
+                        Style="{DynamicResource LogLevelTextStyle}"
                         Text="{Binding Module}" />
                     <TextBlock
                         Margin="8,0,0,0"
                         VerticalAlignment="Center"
                         FontSize="{DynamicResource Size12}"
-                        Foreground="{DynamicResource DarkPrimaryText}"
+                        Style="{DynamicResource LogMessageTextStyle}"
                         Text="{Binding Message}" />
                 </StackPanel>
             </DataTemplate>

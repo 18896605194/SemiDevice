@@ -5,11 +5,6 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// LoadPort 平台默认动作：发驱动指令 → 等完结 → 超时判失败。一般一个动作一条指令；
-/// 设备没有一条指令就做完的（比如 FCD 没有带图卸载，要关好门再主动扫一遍图），用 <see cref="Then"/> 把后面的指令串上，
-/// 前一条做成了才发下一条，全做成才算动作完成。
-/// </summary>
 public sealed class LoadPortCommandOperation : ModuleOperation<LoadPortCommandStep>
 {
     private readonly List<Stage> _stages = [];
@@ -18,11 +13,6 @@ public sealed class LoadPortCommandOperation : ModuleOperation<LoadPortCommandSt
     private long _sentAtMs;
     private LoadPortCommand? _command;
 
-    /// <param name="name">动作名（错误参数、日志里用，如 "Load"）。</param>
-    /// <param name="send">发指令：返回受理了的指令；被拒（没连上、同名指令在途）返回 null。</param>
-    /// <param name="timeoutMs">超时，每拍现取（取模块的 EC，在线改了下一拍就生效）；串了好几条的，每条各按它算。</param>
-    /// <param name="onSuccess">指令成功之后、动作算完成之前要做的事（比如 Load 查 Mapping 结果、落账）；
-    /// 返回失败（错误码 + 参数）就按它判动作失败——设备做完了、但结果不能用。没有为 null。</param>
     public LoadPortCommandOperation(string name, Func<LoadPortCommand?> send, Func<int> timeoutMs,
         Func<LoadPortResponse, HandleResult>? onSuccess = null) : base(name, LoadPortCommandStep.SendCommand)
     {
@@ -30,10 +20,6 @@ public sealed class LoadPortCommandOperation : ModuleOperation<LoadPortCommandSt
         _stages.Add(new Stage(name, send, onSuccess));
     }
 
-    /// <summary>
-    /// 前一条指令做成了（连同它的成功后处理）再接着发一条；前一条没做成整个动作就判失败，后面的不发——比如 Unload 关门没成就不扫图。
-    /// 错误码参数仍用动作名（界面、报警按动作认），stageName 只进日志，好分清是哪一条出的事。
-    /// </summary>
     public LoadPortCommandOperation Then(string stageName, Func<LoadPortCommand?> send,
         Func<LoadPortResponse, HandleResult>? onSuccess = null)
     {

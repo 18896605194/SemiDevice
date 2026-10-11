@@ -1548,9 +1548,10 @@ port.E87Callback = null;
     eventPort.Tick();
     Check(!eventPort._carrier.IsArrived && eventPort._carrier.Info is null, "Event：PODOF 算拿走");
 
-    // 3) 状态查询走真驱动：回来了接着发下一条；一条没回就超时作废、接着发（以前同名查询一直占着在途位，再也查不了）
+    // 3) 状态查询走真驱动：按 EC 周期一条条发（回来了也要等满一个周期）；一条没回就超时作废、接着发（以前同名查询一直占着在途位，再也查不了）
     var pollPort = new ProbePort("PollPort", PodPresenceSource.Query);
     pollPort.QueryDataTimeOut = 100;
+    pollPort.QueryStatusIntervalMs = 500;
     var pollComm = pollPort.Shell.Comm;
     Check(pollPort.InitComponent(), "状态查询用的端口的组件初始化应成功");
     pollPort.Tick();
@@ -1558,7 +1559,10 @@ port.E87Callback = null;
     pollComm.Push(StateReply(present: true, placed: true));
     Check(TickUntil(pollPort, () => pollPort._carrier.IsArrived && pollPort._carrier.Info is not null),
         "查询回来在位、到位都亮：判放上（盒子开机前就在端口上也认得）");
-    Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 2), "上一条回来了，接着发下一条");
+    pollPort.Tick();
+    Thread.Sleep(50);
+    Check(pollComm.SentCount("GET:STATE") == 1, "上一条回来了，但离它发出去不满一个周期（EC QueryStatusIntervalMs）：这一拍不发");
+    Check(TickUntil(pollPort, () => pollComm.SentCount("GET:STATE") == 2), "满一个周期发下一条");
     Thread.Sleep(150);
     pollPort.Tick();
     Check(pollPort.Status is null && pollPort._carrier.IsArrived, "查询超时：Status 清空，在位保持原判断");

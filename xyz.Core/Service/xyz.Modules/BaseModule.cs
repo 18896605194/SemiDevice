@@ -209,6 +209,8 @@ public abstract class BaseModule : ComponentBase
         {
             string name = action.ToString();
 
+            #region 能不能动作
+
             // 急停只看模块能不能用（停用、驱动没装好），不看设备连没连上：没连上也要能把在途的动作顶掉，免得它一直等到超时
             var unavailable = name == AbortAction ? CheckEnabled() : CheckAvailable();
             if (unavailable is not null)
@@ -216,17 +218,27 @@ public abstract class BaseModule : ComponentBase
                 return unavailable;
             }
 
+            #endregion
+
+            #region 状态表允不允许
+
             int state = State;
             if (!TryGetTransition(state, name, out _))
             {
                 return HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
             }
 
+            #endregion
+
+            #region 有没有正在做的动作（急停可以顶替，不查）
+
             var current = _operation;
             if (current is not null && !current.IsTerminal && name != AbortAction)
             {
                 return HandleResult.Fail(ErrorCodes.ModuleBusy, Name);
             }
+
+            #endregion
 
             return null;
         }

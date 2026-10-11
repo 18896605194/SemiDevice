@@ -181,7 +181,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
   连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、驱动这一次没连上也照样往下走，
-  返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；`InitModule()` = `Home()`；**设备状态查询在平台**：每拍一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
+  返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；`InitModule()` = `Home()`；**设备状态查询在平台**：按 EC `QueryStatusIntervalMs`（默认 1000 ms，从上一条发出去算）发一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
   Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**载具交给子组件 `CarrierComponent`**（sc.xml 每个 LoadPort 下必配一个 `Carrier` 节点，缺了开机抛 `InvalidOperationException`；`ILoadPort.Carrier` 是它的 `ICarrier` 口，读码、槽图认定状态、取放状态、E87 载具上报都在它里面，见 decisions.md「LoadPort 的载具收进 CarrierComponent」）：**在位二选一**（Carrier 的 SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位（端口每拍用 `Carrier.Sense` 喂进去），
   都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（端口的 `SetDeviceReportedPlaced` 转给 `Carrier.SetDeviceReportedPlaced`，机型有别的上报路子也调它），只在扫描线程判边沿，
   判出来的叫 `Carrier.IsArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
