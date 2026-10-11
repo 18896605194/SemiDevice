@@ -64,9 +64,7 @@
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         BorderBrush="{DynamicResource DarkDisabledText}"
-                                        BorderThickness="2"
-                                        CreateEnable="False"
-                                        DeleteEnable="False" />
+                                        BorderThickness="2" />
                                 </Grid>
                             </Border>
                             <Border
@@ -219,8 +217,6 @@
                             <controls:LoadPortInfoCard
                                 Alarm="False"
                                 AutoMode="True"
-                                CreateEnable="False"
-                                DeleteEnable="False"
                                 IsConnected="False"
                                 IsOnline="OFFLINE"
                                 Placed="False"

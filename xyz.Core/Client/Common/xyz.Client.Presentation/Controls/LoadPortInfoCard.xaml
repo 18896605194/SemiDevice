@@ -38,7 +38,7 @@
                 <ContentPresenter />
             </ControlTemplate>
 
-            <!--  花篮一槽一条细线：空槽暗线，有片按片的状态上色（颜色同 HorizontalWafer）  -->
+            <!--  花篮一槽一条细线：空槽暗线，有片按片的状态上色（颜色同圆片控件 Wafer）  -->
             <Style x:Key="SlotLineStyle" TargetType="Border">
                 <Setter Property="Background" Value="{DynamicResource DarkBorderBrush}" />
                 <Style.Triggers>
@@ -331,12 +331,7 @@
                         FillColor="{DynamicResource DarkSurfaceBackground}"
                         IsDiskVisible="True"
                         Template="{StaticResource DiskWaferTemplate}"
-                        CommandParameter="{Binding Title, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
-                        CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
-                        CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
                         Data="{Binding Wafer, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
-                        DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
-                        DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}"
                         RotationSpeed="{Binding RotationSpeed, RelativeSource={RelativeSource AncestorType=local:LoadPortInfoCard}}" />
 
                     <StackPanel

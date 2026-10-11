@@ -620,12 +620,7 @@
                                             Height="84"
                                             BorderBrush="{DynamicResource DarkDisabledText}"
                                             BorderThickness="2"
-                                            CommandParameter="{Binding Arm}"
-                                            CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:Robot}}"
-                                            CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:Robot}}"
                                             Data="{Binding Wafer}"
-                                            DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:Robot}}"
-                                            DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:Robot}}"
                                             RenderTransformOrigin="0.5,0.5"
                                             Template="{StaticResource ArmWaferTemplate}">
                                             <local:Wafer.RenderTransform>

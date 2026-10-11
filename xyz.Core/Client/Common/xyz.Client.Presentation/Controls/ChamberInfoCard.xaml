@@ -166,12 +166,7 @@
                         FillColor="{DynamicResource DarkSurfaceBackground}"
                         IsDiskVisible="True"
                         Template="{StaticResource DiskWaferTemplate}"
-                        CommandParameter="{Binding Title, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                        CreateCommand="{Binding CreateCommand, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                        CreateEnable="{Binding CreateEnable, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         Data="{Binding Wafer, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                        DeleteCommand="{Binding DeleteCommand, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
-                        DeleteEnable="{Binding DeleteEnable, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}"
                         RotationSpeed="{Binding RotationSpeed, RelativeSource={RelativeSource AncestorType=local:ChamberInfoCard}}" />
 
                     <!--  配方状态：没有就不显示  -->

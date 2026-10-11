@@ -1,4 +1,4 @@
-<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
       xmlns:hardware="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation"
@@ -34,6 +34,6 @@
             </hardware:ChamberBaseVisual3D.Attachments>
         </hardware:ChamberBaseVisual3D>
     </Viewport3D>
-    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="22,6,0,0" Text="共用片数据和状态色 · 三维盘保留建片 / 删片交互"
+    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="22,6,0,0" Text="共用片数据和状态色"
                FontSize="{StaticResource Size12}" Foreground="{StaticResource DarkDisabledText}" />
 </Grid>

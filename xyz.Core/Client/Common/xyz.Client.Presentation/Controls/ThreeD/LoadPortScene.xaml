@@ -1,0 +1,136 @@
+﻿<UserControl
+    x:Class="xyz.Client.Presentation.Controls.ThreeD.LoadPortScene"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls.ThreeD"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <!--  LoadPort 三维图：LoadPort（LoadPortVisual3D）+ 托板上的载具（CarrierVisual3D，有载具才装上），图下面一条视角工具栏，框外一行槽位信息  -->
+    <!--  三维对象不在逻辑树里，灯光颜色用 StaticResource 在加载时取 token  -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Style="{DynamicResource SceneFrameBorderStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  鼠标挂 Preview 事件：片的盘面是可交互的二维 Wafer，点在盘面上也要先到这里  -->
+                <Viewport3D
+                    x:Name="Viewport"
+                    ClipToBounds="True"
+                    LostMouseCapture="OnViewportLostMouseCapture"
+                    MouseMove="OnViewportMouseMove"
+                    PreviewMouseLeftButtonDown="OnViewportMouseLeftButtonDown"
+                    PreviewMouseLeftButtonUp="OnViewportMouseLeftButtonUp"
+                    PreviewMouseWheel="OnViewportMouseWheel">
+                    <Viewport3D.Camera>
+                        <OrthographicCamera x:Name="Camera" UpDirection="0,1,0" />
+                    </Viewport3D.Camera>
+                    <!--  环境光打底；主光从左前上方，补光从右前、轮廓光从右后（转到背面也看得清）  -->
+                    <ModelVisual3D>
+                        <ModelVisual3D.Content>
+                            <Model3DGroup>
+                                <AmbientLight Color="{StaticResource DarkHardwareAmbientLightColor}" />
+                                <DirectionalLight Direction="5,-8,-7" Color="{StaticResource DarkHardwareKeyLightColor}" />
+                                <DirectionalLight Direction="-3,-2,-8" Color="{StaticResource DarkHardwareFillLightColor}" />
+                                <DirectionalLight Direction="-5,-4,3" Color="{StaticResource DarkHardwareFillLightColor}" />
+                            </Model3DGroup>
+                        </ModelVisual3D.Content>
+                    </ModelVisual3D>
+                    <local:LoadPortVisual3D x:Name="Port" />
+                </Viewport3D>
+
+                <!--  左上角标题、右上角片数（有载具才显示）  -->
+                <TextBlock
+                    Margin="12,10,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False"
+                    Style="{DynamicResource MetaLabelTextStyle}"
+                    Text="{DynamicResource lpscene.title}" />
+                <StackPanel
+                    x:Name="Counter"
+                    Margin="0,8,12,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        x:Name="WaferCount"
+                        VerticalAlignment="Bottom"
+                        Style="{DynamicResource SceneCountTextStyle}" />
+                    <TextBlock
+                        x:Name="SlotTotal"
+                        Margin="0,0,0,1"
+                        VerticalAlignment="Bottom"
+                        Style="{DynamicResource MetaLabelTextStyle}" />
+                </StackPanel>
+
+                <!--  视角工具栏（图下面一条）：默认视角、俯视、背面；在图上左键拖动旋转、滚轮缩放、点晶圆看槽位  -->
+                <Border Grid.Row="1" Style="{DynamicResource SceneToolStripBorderStyle}">
+                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                        <Button x:Name="DefaultViewButton" Click="OnDefaultViewClick" Style="{DynamicResource SceneToolButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Kind="CubeOutline" />
+                                <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.default_view}" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="TopViewButton" Click="OnTopViewClick" Style="{DynamicResource SceneToolButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Kind="EyeOutline" />
+                                <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.top_view}" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BackViewButton" Click="OnBackViewClick" Style="{DynamicResource SceneToolButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Kind="Rotate3dVariant" />
+                                <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.back_view}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!--  框外一行：左边点中的槽位（没点时提示），右边空槽（有载具才显示）  -->
+        <Grid
+            x:Name="InfoRow"
+            Grid.Row="1"
+            Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                x:Name="ClickHint"
+                Style="{DynamicResource MetaLabelTextStyle}"
+                Text="{DynamicResource lpscene.click_hint}" />
+            <TextBlock
+                x:Name="SelectedSlotText"
+                Style="{DynamicResource MetaLabelTextStyle}"
+                Visibility="Collapsed" />
+            <TextBlock
+                x:Name="EmptySlotsText"
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                HorizontalAlignment="Right"
+                Style="{DynamicResource MetaLabelTextStyle}"
+                TextTrimming="CharacterEllipsis" />
+        </Grid>
+    </Grid>
+</UserControl>

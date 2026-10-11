@@ -53,7 +53,7 @@
 | LogPipelineSmoke | 日志队列、LogHelper、LogViewModel（WPF） |
 | ChamberSmoke | 腔体：照 sc 认设备（门、Bowl、卡盘、摆臂和它下面的 Lift、喷嘴）、推送跟 sc 一样的结构、气缸三态、喷嘴流量 AO、卡盘 / 摆臂 Reach 和配方坐标换算、有变化才推；设备手动动作（找不到、参数不对、指令没发出去、Manual 状态、在途拒绝、停止忙时照发、Abort 顶替、失败落 Error、轴走一遍、点动按住 / 续 / 松手 / 没续上自己停、停用）；平台默认整腔动作：回零先后、复位、中止停液停轴、按配方做工艺（Lift / Bowl 升、转速、摆到位置、按药液开喷嘴给流量、Time / Scan、收尾，没步骤 / 配方对不上 / 转速超限 / 超时 / 中止），假 PLC 模拟气缸、阀、AO 和轴 |
 | IoIndexSmoke（不在 sln） | IO 点表下标和换算、PLC 门控、单点写、轴和执行器命令 |
-| `*Visual3DSmoke`、ChamberSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间并高亮）和腔体三维图（ChamberScene：从部件推送按角色挑出部件并搭建、部件动作名的叫法、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；`-- 路径.png` 出图 |
+| `*Visual3DSmoke`、ChamberSceneSmoke、LoadPortSceneSmoke（不在 sln，WPF） | 三维硬件组件（门 / Bowl / Lift 未知时停在行程中间并高亮；Disk 没有右键菜单）和腔体三维图（ChamberScene：从部件推送按角色挑出部件并搭建、部件动作名的叫法、对盘心 / 接液杯、液柱落点、0.2 s 过渡、Bowl 和卡盘的高低、图下面的视角工具栏（默认视角、俯视）、重搭）；LoadPort 三维图（LoadPortScene：槽数跟 sc、片用 Disk 且就地换数据、点片选中、每个动作 0.5 s 且有先后、只亮在动的那块、门在半路、手动页显示模型的对接 / 门推法）；`-- 路径.png` 出图 |
 | EventBusSmoke | 跨进程事件总线（`-- server` / `-- client` / `-- probe`，看输出） |
 
 - 写法：顶层语句 `Program.cs`；`var checks = 0; void Check(bool condition, string message) { if (!condition) { throw new InvalidOperationException("FAIL: " + message); } checks++; }`

@@ -88,6 +88,24 @@
         <Setter Property="CornerRadius" Value="4" />
     </Style>
 
+    <!--  三维图的外框（LoadPort 三维图）：比卡片亮一档的底、细边圆角，视角工具栏贴在框里最下面一条  -->
+    <Style x:Key="SceneFrameBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+
+    <!--  三维图框里最下面一条视角工具栏：上面一道细线，按钮居中、不加框  -->
+    <Style x:Key="SceneToolStripBorderStyle" TargetType="Border">
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="Background" Value="{StaticResource DarkSurfaceVariantBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="CornerRadius" Value="0,0,6,6" />
+    </Style>
+
     <!--  工具栏里按钮之间的竖线  -->
     <Style x:Key="ToolbarSeparatorBorderStyle" TargetType="Border">
         <Setter Property="Width" Value="1" />

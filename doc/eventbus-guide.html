@@ -355,10 +355,8 @@
     <div class="group-items">
       <a class="item" href="#comp-overview" data-target="comp-overview">总览与机制</a>
       <div class="subhead">界面控件 · Presentation</div>
-      <a class="item" href="#comp-loadport"  data-target="comp-loadport">LoadPort 花篮槽位</a>
       <a class="item" href="#comp-foup"      data-target="comp-foup">Foup 花篮壳</a>
       <a class="item" href="#comp-wafer"     data-target="comp-wafer">Wafer 晶圆（圆盘）</a>
-      <a class="item" href="#comp-hwafer"    data-target="comp-hwafer">HorizontalWafer 晶圆（水平）</a>
       <a class="item" href="#comp-chamber"   data-target="comp-chamber">ChamberInfoCard 腔体卡片</a>
       <a class="item" href="#comp-bchamber"  data-target="comp-bchamber">BottomChamberInfoCard 底部腔体</a>
       <div class="subhead">设备组件 · xyz.Components</div>
@@ -653,10 +651,8 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
   <p>纯展示型 WPF UserControl，用 <strong>DependencyProperty</strong> 驱动、可 XAML 直接使用，配合 Styles 目录的样式资源构成暗色主题界面。</p>
   <table>
     <tr><th>控件</th><th>用途</th><th>核心属性</th></tr>
-    <tr><td><a href="#comp-loadport" onclick="show('comp-loadport');return false;">LoadPort</a></td><td>LoadPort 花篮槽位图（默认 25 槽，可等比缩放）</td><td>Title / SlotCount / Wafers / StatusOn</td></tr>
     <tr><td><a href="#comp-foup" onclick="show('comp-foup');return false;">Foup</a></td><td>花篮外壳造型（纯视觉装饰，无属性）</td><td>—</td></tr>
     <tr><td><a href="#comp-wafer" onclick="show('comp-wafer');return false;">Wafer</a></td><td>晶圆（圆盘，可旋转动画）</td><td>Label / FillColor / RotationSpeed / Data</td></tr>
-    <tr><td><a href="#comp-hwafer" onclick="show('comp-hwafer');return false;">HorizontalWafer</a></td><td>晶圆（水平条状，用于流程图/机械手示意）</td><td>Label / Data</td></tr>
     <tr><td><a href="#comp-chamber" onclick="show('comp-chamber');return false;">ChamberInfoCard</a></td><td>腔体卡片（工艺腔状态一览）</td><td>Title / State / Recipe / Step / ShutterState / Wafer</td></tr>
     <tr><td><a href="#comp-bchamber" onclick="show('comp-bchamber');return false;">BottomChamberInfoCard</a></td><td>腔体卡片（底部布局变体，属性同上）</td><td>同 ChamberInfoCard</td></tr>
   </table>
@@ -687,28 +683,6 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
 </section>
 
 <!-- ================================================================ -->
-<section class="page" id="comp-loadport">
-  <h1 class="page-title">LoadPort 花篮槽位</h1>
-  <p class="page-sub">xyz.Client.Presentation.Controls.LoadPort —— 垂直花篮槽位图，默认 25 槽，可等比缩放</p>
-
-  <table>
-    <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
-    <tr><td><code>Title</code></td><td>string</td><td>"LOAD PORT"</td><td>标题文字</td></tr>
-    <tr><td><code>SlotCount</code></td><td>int</td><td>25</td><td>槽数量（变化自动重建槽位）</td></tr>
-    <tr><td><code>Wafers</code></td><td>IEnumerable</td><td>null</td><td>晶圆数据集合（ WaferModel 列表），自动映射到槽位</td></tr>
-    <tr><td><code>StatusOn</code></td><td>bool</td><td>false</td><td>通讯状态灯</td></tr>
-    <tr><td><code>CreateCommand</code> / <code>CreateEnable</code></td><td>ICommand / bool</td><td>null / —</td><td>创建动作按钮</td></tr>
-    <tr><td><code>DeleteCommand</code> / <code>DeleteEnable</code></td><td>ICommand / bool</td><td>null / —</td><td>删除动作按钮</td></tr>
-  </table>
-
-  <pre><code><span class="codelabel">XAML（xmlns 见项目里现有页面的写法）</span>&lt;presentationControls:LoadPort
-    Title="{Binding Name}"
-    SlotCount="{Binding SlotCount}"
-    StatusOn="{Binding IsConnected}"
-    Wafers="{Binding Wafers}" /&gt;</code></pre>
-</section>
-
-<!-- ================================================================ -->
 <section class="page" id="comp-foup">
   <h1 class="page-title">Foup 花篮壳</h1>
   <p class="page-sub">xyz.Client.Presentation.Controls.Foup —— 纯视觉花篮外壳造型</p>
@@ -733,8 +707,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
     <tr><td><code>IsDiskVisible</code></td><td>bool</td><td>是否显示圆盘</td></tr>
     <tr><td><code>RotateClockwise</code></td><td>bool</td><td>旋转方向（true=顺时针）</td></tr>
     <tr><td><code>RotationSpeed</code></td><td>double</td><td>旋转速度（0 = 静止）</td></tr>
-    <tr><td><code>Data</code> / <code>CommandParameter</code></td><td>object</td><td>挂业务数据 / 命令参数</td></tr>
-    <tr><td><code>CreateCommand</code> / <code>DeleteCommand</code> + Enable</td><td>ICommand / bool</td><td>创建/删除命令</td></tr>
+    <tr><td><code>Data</code></td><td>object</td><td>挂业务数据（片）</td></tr>
   </table>
 
   <h3>配套数据模型 WaferModel</h3>
@@ -746,21 +719,6 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
     <tr><td><code>LoadPort</code> / <code>LpSlot</code></td><td>string</td><td>来源 LoadPort 与槽位</td></tr>
     <tr><td><code>Time</code></td><td>string</td><td>时间</td></tr>
     <tr><td><code>IsCurrent</code></td><td>bool</td><td>是否当前片（高亮）</td></tr>
-  </table>
-</section>
-
-<!-- ================================================================ -->
-<section class="page" id="comp-hwafer">
-  <h1 class="page-title">HorizontalWafer 晶圆（水平）</h1>
-  <p class="page-sub">xyz.Client.Presentation.Controls.HorizontalWafer —— 水平条状晶圆示意</p>
-
-  <p>用于流程图、机械手传送示意等<strong>横向布局</strong>场景，属性集是 Wafer 的子集（无圆盘/旋转相关）：</p>
-
-  <table>
-    <tr><th>属性</th><th>类型</th><th>说明</th></tr>
-    <tr><td><code>Label</code></td><td>string</td><td>晶圆标签文字</td></tr>
-    <tr><td><code>Data</code> / <code>CommandParameter</code></td><td>object</td><td>挂业务数据 / 命令参数</td></tr>
-    <tr><td><code>CreateCommand</code> / <code>DeleteCommand</code> + Enable</td><td>ICommand / bool</td><td>创建/删除命令</td></tr>
   </table>
 </section>
 

@@ -249,6 +249,14 @@
         <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
     </Style>
 
+    <!--  三维图右上角的数（如 LoadPort 花篮里有几片）：强调色、比旁边的小字大一档  -->
+    <Style x:Key="SceneCountTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,4,0" />
+        <Setter Property="FontSize" Value="{StaticResource Size15}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+    </Style>
+
     <!--  只读字段的值：正文大小，数字等宽，放不下省略  -->
     <Style x:Key="MetaValueTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,3,8,0" />

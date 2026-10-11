@@ -35,6 +35,8 @@
     <!-- 腔体三维图的灯光：环境光打底、斜上方一盏主光，金属灰的明暗层次靠它 -->
     <Color x:Key="DarkHardwareAmbientLightColor">#707070</Color>
     <Color x:Key="DarkHardwareKeyLightColor">#C0C0C0</Color>
+    <!-- LoadPort 三维图又高又直的侧面多：右前补光、右后轮廓光，主光照不到的那面和转到背面时不发黑 -->
+    <Color x:Key="DarkHardwareFillLightColor">#404040</Color>
     <!-- 腔体三维图的旋转盘：没片时的盘面、盘边线 -->
     <SolidColorBrush x:Key="DarkHardwareDiskFill" Color="#484848" />
     <SolidColorBrush x:Key="DarkHardwareDiskBorder" Color="#747474" />
@@ -72,13 +74,5 @@
         <Color>#E0E0E0</Color>
         <Color>#CE93D8</Color>
     </x:Array>
-
-    <!-- 暗色右键菜单 -->
-    <SolidColorBrush x:Key="RightMenuBackground" Color="#252525" />
-    <SolidColorBrush x:Key="RightMenuBorder" Color="#424242" />
-    <SolidColorBrush x:Key="RightMenuForeground" Color="#F5F5F5" />
-    <SolidColorBrush x:Key="RightMenuDisabledForeground" Color="#757575" />
-    <SolidColorBrush x:Key="RightMenuItemHover" Color="#383838" />
-    <SolidColorBrush x:Key="RightMenuItemPressed" Color="#454545" />
 
 </ResourceDictionary>

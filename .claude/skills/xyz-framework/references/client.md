@@ -140,7 +140,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 
 ## 6. 样式（`Common\xyz.Client.Presentation\Styles`）
 
-- 文件：Border / Button / Card / ComboBox / ContextMenu / DataGrid / DatePicker / ListBox / TextBlock / TextBox / TreeView `Styles.xaml`，
+- 文件：Border / Button / Card / ComboBox / DataGrid / DatePicker / ListBox / TextBlock / TextBox / TreeView `Styles.xaml`，
   加 `Color.xaml`（老调色板，含 `Wafer*` 晶圆色）、`DarkColors.xaml`（暗色主题 token）、`FontSize.xaml`（Size10~Size28）。
 - 合并在 `xyz.Client\App.xaml`，**顺序有意义**：后面的样式用 `StaticResource` 取前面的颜色、字号。新加样式文件要同时加进 App.xaml
   和各模块 `Properties\DesignTimeResources.xaml`（设计时用，各模块的列表目前不全）。`Theme\MaterialDesignTheme.xaml` 没人用。
@@ -220,7 +220,10 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   松开 / 拖出按钮 / 禁用 / 藏起来发 `ReleaseCommand`，三个命令共用 `CommandParameter`；不用 `Command`。样式照普通按钮套。
 - **三维硬件**（`Controls\ThreeD`，说明见那儿的 README）：Arm / Lift / FluidPipe / Bowl / HomeCup / Door / Disk / ChamberBase 组件，
   `ChamberScene` 把它们装成腔体手动页的三维图（`Devices` 绑 `ChamberDeviceDataModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
+  LoadPort（`LoadPortVisual3D`）和花篮（`CarrierVisual3D`，片用 Disk）两个公共组件由 `LoadPortScene` 组合成 LoadPort 手动页中间的三维图
+  （槽数跟 sc 的 SlotCount、每个动作 0.5 s，见 decisions.md「LoadPort 手动页（三维）」）；原来的二维花篮控件 `LoadPort` 删了。
   三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
+- **圆片没有右键菜单**：右键建片 / 删片 2026-10-10 删了（二维 `Wafer`、三维 Disk、机械手、各站点卡片、Transfer 页），建片统一在账单调整页做。
 - **腔体手动页**（`xyz.Client.Manual\Views\ChamberManualControl`，布局照用户给的参考图，见 decisions.md）：数据都来自后端的设备状态推送
   `ChamberDeviceDataDto`（结构跟 sc 一样：门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴）——`ChamberDeviceDataModel.Update` 照树取三维要画的；
   VM 从同一份推送取轴页签（卡盘 + 各条摆臂，`AxisTabModel`）和气缸表（门、Bowl、各臂的 Lift，`CylinderRowModel`）。界面不再抄后端的属性名、方法名（2026-10-10 删了 PartValueNames / PartActionNames / PartKinds，Part 的叫法也去掉了）。

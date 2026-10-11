@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using xyz.Client.Presentation.Models;
@@ -234,56 +233,6 @@ public partial class Robot : UserControl
         DependencyProperty.Register(
             nameof(Arms), typeof(IEnumerable), typeof(Robot),
             new PropertyMetadata(null, OnArmsChanged));
-
-    /// <summary>
-    /// 手臂上的片右键"建片"命令，命令参数为手臂号。
-    /// </summary>
-    public ICommand? CreateCommand
-    {
-        get => (ICommand?)GetValue(CreateCommandProperty);
-        set => SetValue(CreateCommandProperty, value);
-    }
-
-    public static readonly DependencyProperty CreateCommandProperty =
-        DependencyProperty.Register(
-            nameof(CreateCommand), typeof(ICommand), typeof(Robot),
-            new PropertyMetadata(null));
-
-    /// <summary>
-    /// 手臂上的片右键"删片"命令，命令参数为手臂号。
-    /// </summary>
-    public ICommand? DeleteCommand
-    {
-        get => (ICommand?)GetValue(DeleteCommandProperty);
-        set => SetValue(DeleteCommandProperty, value);
-    }
-
-    public static readonly DependencyProperty DeleteCommandProperty =
-        DependencyProperty.Register(
-            nameof(DeleteCommand), typeof(ICommand), typeof(Robot),
-            new PropertyMetadata(null));
-
-    public bool CreateEnable
-    {
-        get => (bool)GetValue(CreateEnableProperty);
-        set => SetValue(CreateEnableProperty, value);
-    }
-
-    public static readonly DependencyProperty CreateEnableProperty =
-        DependencyProperty.Register(
-            nameof(CreateEnable), typeof(bool), typeof(Robot),
-            new PropertyMetadata(true));
-
-    public bool DeleteEnable
-    {
-        get => (bool)GetValue(DeleteEnableProperty);
-        set => SetValue(DeleteEnableProperty, value);
-    }
-
-    public static readonly DependencyProperty DeleteEnableProperty =
-        DependencyProperty.Register(
-            nameof(DeleteEnable), typeof(bool), typeof(Robot),
-            new PropertyMetadata(true));
 
     /// <summary>
     /// 是否播放运动动画；false 时姿态直接跳到目标（设计器、截图用）。

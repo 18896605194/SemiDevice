@@ -50,7 +50,16 @@ internal static class HardwareMesh3D
 
     public static MeshGeometry3D ChamferedBox(Point3D origin, double length, double height, double width)
     {
-        double cut = Math.Min(length, width) * 0.12;
+        return ChamferedBox(origin, length, height, width, Math.Min(length, width) * 0.12);
+    }
+
+    /// <summary>
+    /// 指定倒角的切角方块：大平板（背板、承载台）按比例切角会切出很大的斜角，用一个小的固定倒角保住机加件的直边；
+    /// 倒角不超过短边的三成，细条也不会切穿。
+    /// </summary>
+    public static MeshGeometry3D ChamferedBox(Point3D origin, double length, double height, double width, double chamfer)
+    {
+        double cut = Math.Min(chamfer, Math.Min(length, width) * 0.3);
         // 从 +Y 看按朝外法线排列；每个侧面保留独立法线，呈现清晰的机械棱边。
         (double X, double Z)[] outline =
         [

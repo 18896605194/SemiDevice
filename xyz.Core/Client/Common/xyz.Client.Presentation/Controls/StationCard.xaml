@@ -13,8 +13,6 @@
                     <Setter.Value>
                         <DataTemplate>
                             <local:ChamberInfoCard
-                                CreateEnable="False"
-                                DeleteEnable="False"
                                 DiskSize="{Binding DiskSize, RelativeSource={RelativeSource AncestorType=local:StationCard}}"
                                 Number="{Binding NumberText}"
                                 Recipe="{Binding Recipe}"
@@ -33,8 +31,6 @@
                                     <local:LoadPortInfoCard
                                         Alarm="{Binding HasDeviceAlarm}"
                                         AutoMode="{Binding IsAutoMode}"
-                                        CreateEnable="False"
-                                        DeleteEnable="False"
                                         DiskSize="{Binding DiskSize, RelativeSource={RelativeSource AncestorType=local:StationCard}}"
                                         IsConnected="{Binding IsConnected}"
                                         Number="{Binding NumberText}"

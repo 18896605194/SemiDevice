@@ -7,6 +7,11 @@ namespace xyz.Client.Manual.Models;
 
 public class LoadPortModel : ObservableObject
 {
+    /// <summary>装载中、已装载的状态码（同 xyz.Modules 的 LoadPortState）。</summary>
+    private const int LoadingState = 100;
+
+    private const int LoadedState = 110;
+
     private int _state;
 
     /// <summary>模块状态码，取值见 ModuleState/LoadPortState。</summary>
@@ -60,6 +65,36 @@ public class LoadPortModel : ObservableObject
         get => _isPlaced;
         set => SetProperty(ref _isPlaced, value);
     }
+
+    private bool? _isDoorOpen;
+
+    /// <summary>查询反馈：门开到位；null 表示反馈不可用。</summary>
+    public bool? IsDoorOpen
+    {
+        get => _isDoorOpen;
+        set => SetProperty(ref _isDoorOpen, value);
+    }
+
+    private bool? _isDoorClosed;
+
+    /// <summary>查询反馈：门关到位；null 表示反馈不可用。</summary>
+    public bool? IsDoorClosed
+    {
+        get => _isDoorClosed;
+        set => SetProperty(ref _isDoorClosed, value);
+    }
+
+    /// <summary>三维图：门在半路——开到位、关到位两个反馈都灭（命令发了还没到位）；查不到反馈不算。</summary>
+    public bool IsDoorUnknown => IsDoorOpen == false && IsDoorClosed == false;
+
+    /// <summary>三维图：门画成开着——有门开到位反馈就照反馈；查不到反馈（没连上、停用）按状态，已装载 = 门开。</summary>
+    public bool IsDoorShownOpen => IsDoorOpen ?? State == LoadedState;
+
+    /// <summary>
+    /// 三维图：托板推进去了（对接）。设备没有对接到位反馈，按状态和门推：装载中、已装载算推进去；门开着或在半路一定是推进去的。
+    /// 所以卸载时门关到位以后才画退出，跟设备"先关门、再退出"的先后一样。
+    /// </summary>
+    public bool IsDocked => State == LoadingState || State == LoadedState || IsDoorShownOpen || IsDoorUnknown;
 
     private bool? _isDeviceAlarm;
 

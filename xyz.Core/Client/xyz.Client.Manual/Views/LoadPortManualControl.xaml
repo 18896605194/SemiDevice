@@ -2,9 +2,10 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
+             xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+             xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation">
 
-    <!--  一个 LoadPort 一整张卡：状态信号 / 花篮 / 操作三段上下相连，段与段之间一条细线分开（三块是一个整体，不拆成三张卡）  -->
+    <!--  一个 LoadPort 一整张卡：状态信号 / 三维设备视图 / 操作三段上下相连，段与段之间一条细线分开（三块是一个整体，不拆成三张卡）  -->
     <!--  DataContext 由代码后置设在这个根节点上（不设控件自身的 DataContext，避免模板绑定二次求值）  -->
     <materialDesign:Card
         x:Name="Root"
@@ -245,12 +246,18 @@
             </Grid>
             <Border Grid.Row="1" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-            <!--  ② 花篮：槽数按后端 sc.xml 的 LoadPort 节点 SlotCount；控件内部 Viewbox 等比缩放，占满中间这一段；载具 ID 只在状态段显示  -->
-            <presentationControls:LoadPort
+            <!--  ② 三维设备视图：LoadPort + 托板上的花篮，占满中间这一段。门跟开到位 / 关到位反馈走，对接按状态和门推（见 LoadPortModel）；
+                 槽数按后端 sc.xml 的 LoadPort 节点 SlotCount，片以晶圆账为准  -->
+            <threeD:LoadPortScene
                 Grid.Row="2"
+                IsAutoMode="{Binding Model.AutoMode}"
+                IsCarrierPresent="{Binding Model.IsCarrierArrived}"
+                IsDocked="{Binding Model.IsDocked}"
+                IsDoorOpen="{Binding Model.IsDoorShownOpen}"
+                IsDoorUnknown="{Binding Model.IsDoorUnknown}"
+                IsPlaced="{Binding Model.IsPlaced}"
+                IsPresent="{Binding Model.IsPresent}"
                 SlotCount="{Binding Model.SlotCount}"
-                StatusText="{Binding Model.StateText}"
-                Title="{DynamicResource lpmanual.cassette}"
                 Wafers="{Binding Model.Wafers}" />
 
             <Border Grid.Row="3" Style="{DynamicResource SectionDividerBorderStyle}" />

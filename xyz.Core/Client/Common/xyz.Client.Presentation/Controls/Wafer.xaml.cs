@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using xyz.Client.Presentation.Models;
@@ -21,21 +20,6 @@ namespace xyz.Client.Presentation.Controls
             _rotateAnimation = new DoubleAnimation();
             _rotateAnimation.RepeatBehavior = RepeatBehavior.Forever;
             rotateTransform.BeginAnimation(RotateTransform.AngleProperty, _rotateAnimation);
-
-            rootGrid.ContextMenu.DataContext = this;
-        }
-
-        private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
-        {
-            if (CreateCommand is null && DeleteCommand is null)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            bool hasWafer = Data is not null;
-            createMenuItem.Visibility = hasWafer ? Visibility.Collapsed : Visibility.Visible;
-            deleteMenuItem.Visibility = hasWafer ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public object? Data
@@ -47,70 +31,6 @@ namespace xyz.Client.Presentation.Controls
         public static readonly DependencyProperty DataProperty = DependencyProperty.Register(
                 nameof(Data), typeof(object), typeof(Wafer),
                 new PropertyMetadata(null));
-
-        public ICommand CreateCommand
-        {
-            get { return (ICommand)GetValue(CreateCommandProperty); }
-            set { SetValue(CreateCommandProperty, value); }
-        }
-
-        public static readonly DependencyProperty CreateCommandProperty =
-            DependencyProperty.Register(
-                nameof(CreateCommand), typeof(ICommand), typeof(Wafer),
-                new PropertyMetadata(null));
-
-        public ICommand DeleteCommand
-        {
-            get { return (ICommand)GetValue(DeleteCommandProperty); }
-            set { SetValue(DeleteCommandProperty, value); }
-        }
-
-        public static readonly DependencyProperty DeleteCommandProperty =
-            DependencyProperty.Register(
-                nameof(DeleteCommand), typeof(ICommand), typeof(Wafer),
-                new PropertyMetadata(null));
-
-        /// <summary>
-        /// 建片/删片命令参数。
-        /// </summary>
-        public object CommandParameter
-        {
-            get { return GetValue(CommandParameterProperty); }
-            set { SetValue(CommandParameterProperty, value); }
-        }
-
-        public static readonly DependencyProperty CommandParameterProperty =
-            DependencyProperty.Register(
-                nameof(CommandParameter), typeof(object), typeof(Wafer),
-                new PropertyMetadata(null));
-
-        /// <summary>
-        /// "建片"菜单项使能。
-        /// </summary>
-        public bool CreateEnable
-        {
-            get { return (bool)GetValue(CreateEnableProperty); }
-            set { SetValue(CreateEnableProperty, value); }
-        }
-
-        public static readonly DependencyProperty CreateEnableProperty =
-            DependencyProperty.Register(
-                nameof(CreateEnable), typeof(bool), typeof(Wafer),
-                new PropertyMetadata(true));
-
-        /// <summary>
-        /// "删片"菜单项使能。
-        /// </summary>
-        public bool DeleteEnable
-        {
-            get { return (bool)GetValue(DeleteEnableProperty); }
-            set { SetValue(DeleteEnableProperty, value); }
-        }
-
-        public static readonly DependencyProperty DeleteEnableProperty =
-            DependencyProperty.Register(
-                nameof(DeleteEnable), typeof(bool), typeof(Wafer),
-                new PropertyMetadata(true));
 
         /// <summary>
         /// 无业务数据时是否仍显示 Wafer 图形。

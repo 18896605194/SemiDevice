@@ -49,7 +49,7 @@
                             Margin="0,0,6,0"
                             VerticalAlignment="Center"
                             Kind="CubeOutline" />
-                        <TextBlock VerticalAlignment="Center" Text="{DynamicResource chamberscene.default_view}" />
+                        <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.default_view}" />
                     </StackPanel>
                 </Button>
                 <Border Style="{DynamicResource ToolbarSeparatorBorderStyle}" />
@@ -59,7 +59,7 @@
                             Margin="0,0,6,0"
                             VerticalAlignment="Center"
                             Kind="EyeOutline" />
-                        <TextBlock VerticalAlignment="Center" Text="{DynamicResource chamberscene.top_view}" />
+                        <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.top_view}" />
                     </StackPanel>
                 </Button>
             </StackPanel>

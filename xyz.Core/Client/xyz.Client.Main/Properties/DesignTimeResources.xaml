@@ -22,7 +22,6 @@
         <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/DataGridStyles.xaml" />
         <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ListBoxStyles.xaml" />
         <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/TreeViewStyles.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Styles/ContextMenuStyles.xaml" />
         <ResourceDictionary Source="pack://application:,,,/xyz.Client.Presentation;component/Localization/Strings.zh-CN.xaml" />
     </ResourceDictionary.MergedDictionaries>
 

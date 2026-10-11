@@ -1,16 +1,17 @@
 ﻿using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using xyz.Client.Presentation.Models;
 
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 标题栏位于底部的近方形 LoadPort 信息卡片：底栏标题 + 状态灯；主体左花篮（槽数跟 sc 的 SlotCount，一槽一条细线）右 disk 圆片 + 槽数。
-/// 按真实字号排版、随给定尺寸伸缩，不整卡缩放。槽位重建逻辑与手动页的 <see cref="LoadPort"/> 同源；调度图下排两颗 LP 用它。
+/// 按真实字号排版、随给定尺寸伸缩，不整卡缩放。调度图下排两颗 LP 用它。
 /// </summary>
 public partial class LoadPortInfoCard : UserControl
 {
@@ -183,46 +184,6 @@ public partial class LoadPortInfoCard : UserControl
         DependencyProperty.Register(nameof(Wafer), typeof(WaferModel), typeof(LoadPortInfoCard),
             new PropertyMetadata(null));
 
-    public ICommand? CreateCommand
-    {
-        get => (ICommand?)GetValue(CreateCommandProperty);
-        set => SetValue(CreateCommandProperty, value);
-    }
-
-    public static readonly DependencyProperty CreateCommandProperty =
-        DependencyProperty.Register(nameof(CreateCommand), typeof(ICommand), typeof(LoadPortInfoCard),
-            new PropertyMetadata(null));
-
-    public ICommand? DeleteCommand
-    {
-        get => (ICommand?)GetValue(DeleteCommandProperty);
-        set => SetValue(DeleteCommandProperty, value);
-    }
-
-    public static readonly DependencyProperty DeleteCommandProperty =
-        DependencyProperty.Register(nameof(DeleteCommand), typeof(ICommand), typeof(LoadPortInfoCard),
-            new PropertyMetadata(null));
-
-    public bool CreateEnable
-    {
-        get => (bool)GetValue(CreateEnableProperty);
-        set => SetValue(CreateEnableProperty, value);
-    }
-
-    public static readonly DependencyProperty CreateEnableProperty =
-        DependencyProperty.Register(nameof(CreateEnable), typeof(bool), typeof(LoadPortInfoCard),
-            new PropertyMetadata(true));
-
-    public bool DeleteEnable
-    {
-        get => (bool)GetValue(DeleteEnableProperty);
-        set => SetValue(DeleteEnableProperty, value);
-    }
-
-    public static readonly DependencyProperty DeleteEnableProperty =
-        DependencyProperty.Register(nameof(DeleteEnable), typeof(bool), typeof(LoadPortInfoCard),
-            new PropertyMetadata(true));
-
     public double RotationSpeed
     {
         get => (double)GetValue(RotationSpeedProperty);
@@ -335,5 +296,45 @@ public partial class LoadPortInfoCard : UserControl
         }
 
         return fallbackSlot <= slotCount ? fallbackSlot : 0;
+    }
+}
+
+/// <summary>
+/// Load Port 中单个物理槽位的显示数据。
+/// </summary>
+public sealed class LoadPortSlot : INotifyPropertyChanged
+{
+    private int _slot;
+    public int Slot
+    {
+        get => _slot;
+        set => SetProperty(ref _slot, value);
+    }
+
+    private string _slotText = string.Empty;
+    public string SlotText
+    {
+        get => _slotText;
+        set => SetProperty(ref _slotText, value);
+    }
+
+    private WaferModel? _wafer;
+    public WaferModel? Wafer
+    {
+        get => _wafer;
+        set => SetProperty(ref _wafer, value);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

@@ -412,7 +412,6 @@
     <sys:String x:Key="lpmanual.auto_tip">Auto: hand off with the vehicle over E84</sys:String>
     <sys:String x:Key="lpmanual.manual_tip">Manual: load and unload by hand</sys:String>
     <sys:String x:Key="lpmanual.slots">Slots</sys:String>
-    <sys:String x:Key="lpmanual.cassette">Cassette</sys:String>
     <sys:String x:Key="chambercard.state">State</sys:String>
     <sys:String x:Key="chambercard.recipe">Recipe</sys:String>
     <sys:String x:Key="chambercard.step">Step</sys:String>
@@ -529,8 +528,16 @@
     <sys:String x:Key="device.action.valve_on">Valve on</sys:String>
     <sys:String x:Key="device.action.valve_off">Stop dispense</sys:String>
     <sys:String x:Key="device.action.flow">Flow setpoint</sys:String>
-    <sys:String x:Key="chamberscene.default_view">Default view</sys:String>
-    <sys:String x:Key="chamberscene.top_view">Top view</sys:String>
+    <sys:String x:Key="scene.default_view">Default</sys:String>
+    <sys:String x:Key="scene.top_view">Top</sys:String>
+    <sys:String x:Key="scene.back_view">Back</sys:String>
+    <sys:String x:Key="lpscene.title">Equipment view</sys:String>
+    <sys:String x:Key="lpscene.slot_total">/ {0} wafers</sys:String>
+    <sys:String x:Key="lpscene.click_hint">Click a wafer to see its slot</sys:String>
+    <sys:String x:Key="lpscene.selected_slot">Slot {0:00}</sys:String>
+    <sys:String x:Key="lpscene.empty_slots">Empty {0}</sys:String>
+    <sys:String x:Key="lpscene.full">Full · {0} wafers</sys:String>
+    <sys:String x:Key="lpscene.no_wafer">Empty cassette</sys:String>
     <sys:String x:Key="chamberscene.too_many_arms">{0} has {1} arms; the 3D view only draws the first {2}</sys:String>
 
     <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。

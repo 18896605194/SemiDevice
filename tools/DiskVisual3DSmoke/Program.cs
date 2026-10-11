@@ -1,9 +1,7 @@
 using System.IO;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -98,51 +96,11 @@ internal static class Program
             Check(disk.HasAnimatedProperties, "reattaching base resumes nested disk animation");
             feedback.Speed = 0;
 
-            var create = new TestCommand();
-            var delete = new TestCommand();
-            var parameter = new object();
-            disk.CreateCommand = create;
-            disk.DeleteCommand = delete;
-            disk.CommandParameter = parameter;
-            Pump(20);
-            var createItem = (MenuItem)face.FindName("createMenuItem");
-            var deleteItem = (MenuItem)face.FindName("deleteMenuItem");
-            void OpenMenuLogic() => typeof(Wafer).GetMethod("OnContextMenuOpening", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)!.Invoke(face, new object?[] { faceRoot, null });
-            OpenMenuLogic();
-            Pump(20);
-            Check(createItem.Visibility == Visibility.Collapsed && deleteItem.Visibility == Visibility.Visible, "wafer present offers delete");
-            Check(ReferenceEquals(deleteItem.Command, delete) && ReferenceEquals(deleteItem.CommandParameter, parameter), "delete menu binds the external command and parameter");
-            disk.DeleteEnable = false;
-            Pump(20);
-            Check(!deleteItem.IsEnabled, "delete enable is respected");
-            disk.DeleteEnable = true;
-            delete.Allowed = false;
-            delete.Refresh();
-            Pump(20);
-            Check(!deleteItem.IsEnabled, "command CanExecute is respected");
-            delete.Allowed = true;
-            delete.Refresh();
-            Pump(20);
-            typeof(MenuItem).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(deleteItem, null);
-            Pump(30);
-            Check(delete.Count == 1 && ReferenceEquals(delete.Parameter, parameter), "menu invokes delete command without implementing device logic");
+            // 右键建片 / 删片已经删了（建片统一在账单调整页做）：盘面上没有右键菜单；没片、也不常显时整个盘连盘面都不画。
+            Check(faceRoot.ContextMenu is null && face.ContextMenu is null, "no right-click create/delete menu on the face");
             feedback.Wafer = null;
             Pump(20);
-            OpenMenuLogic();
-            Pump(20);
-            Check(disk.Content is null && surface.Visual == face && createItem.Visibility == Visibility.Visible && deleteItem.Visibility == Visibility.Collapsed,
-                "empty slot hides disk but retains create interaction");
-            disk.CreateEnable = false;
-            Pump(20);
-            Check(!createItem.IsEnabled, "create enable is respected");
-            disk.CreateEnable = true;
-            Pump(20);
-            typeof(MenuItem).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(createItem, null);
-            Pump(30);
-            Check(create.Count == 1 && ReferenceEquals(create.Parameter, parameter), "create command receives parameter");
-            disk.CreateCommand = null;
-            Pump(20);
-            Check(surface.Visual is null, "empty slot with no create action is fully hidden");
+            Check(disk.Content is null && surface.Visual is null, "empty slot hides the whole disk including the face");
             disk.IsDiskVisible = true;
             Pump(20);
             Check(ReferenceEquals(disk.Content, model) && ReferenceEquals(surface.Visual, face), "always-visible disk remains without wafer data");
@@ -186,7 +144,7 @@ internal static class Program
             }
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine("PASS: Disk 2D parity, state colors, labels, menu commands, CanExecute, 3D rotation/hit testing, visibility and assembly lifecycle.");
+            Console.WriteLine("PASS: Disk 2D parity, state colors, labels, no right-click menu, 3D rotation/hit testing, visibility and assembly lifecycle.");
             return 0;
         }
         catch (Exception ex)
@@ -220,16 +178,6 @@ internal static class Program
             throw new InvalidOperationException(description);
         }
     }
-}
-internal sealed class TestCommand : ICommand
-{
-    public bool Allowed { get; set; } = true;
-    public int Count { get; private set; }
-    public object? Parameter { get; private set; }
-    public event EventHandler? CanExecuteChanged;
-    public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-    public bool CanExecute(object? parameter) => Allowed;
-    public void Execute(object? parameter) { Count++; Parameter = parameter; }
 }
 internal sealed class Feedback : DependencyObject
 {

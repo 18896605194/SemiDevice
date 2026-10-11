@@ -2,6 +2,7 @@
 
 `ArmVisual3D`、`LiftVisual3D`、`FluidPipeVisual3D`、`BowlVisual3D` 和 `HomeCupVisual3D` 是平台的摆臂、升降气缸、管子、Bowl 和 Home 排液杯组件，共用页面的 `Viewport3D`。
 多个硬件共用相机、灯光和三维空间；`ChamberScene` 把它们连同底座、旋转盘、腔门装成腔体手动页的三维图（见下文）。
+`LoadPortVisual3D`（LoadPort 本体）和 `CarrierVisual3D`（上面的花篮，片用 `DiskVisual3D`）是两个公共组件，`LoadPortScene` 把它们组合成 LoadPort 手动页的三维图（见文末）。
 组件内部不创建独立视口、不连接服务、不发送设备指令。
 
 ## ChamberBase 底座与整体装配
@@ -104,7 +105,7 @@ Attachments 是底座的子 Visual3D 集合；每个硬件使用自己的 Transf
 ```
 
 `LiftIsRaised` 由调用方提供；不要把设备 Open/Close、上下位反馈的业务映射放进外观组件。
-组件在场景内收到状态切换后，用 0.2 s 完成全行程视觉过渡（三维里的动画一律 0.2 s，写死）；中途反向会从当前显示位置继续。
+组件在场景内收到状态切换后，用 0.2 s 完成全行程视觉过渡（腔体三维里的动画一律 0.2 s，写死；LoadPort 的动作是 0.5 s，见文末）；中途反向会从当前显示位置继续。
 动画期间自动高亮，无需另外设置 `IsMoving`；到位后取消动画高亮。
 这段动画是状态变化的视觉提示，不代表气缸的实际运动时间或连续位置测量。
 装入场景前赋值时直接显示对应初始状态。动画完成后清除时钟，不保留逐帧事件或后台计时器。
@@ -155,16 +156,14 @@ HeightLevel 是外观规格，不是升降挡位。IsRaised 变化时底边一�
 
 ## Disk：基于二维 Wafer 的三维盘
 
-`DiskVisual3D` 使用自己的 Wafer 实例作为可交互三维盘面，复用二维的状态色、右键菜单及悬停逻辑。
+`DiskVisual3D` 使用自己的 Wafer 实例作为三维盘面，复用二维的状态色和片号。腔体的旋转盘、LoadPort 花篮里的片都用它。
 原有 `Wafer.xaml`、`Wafer.xaml.cs` 和调度界面保持不变。实例之间只通过调用方绑定共享业务数据，视觉状态独立。
 三维实体补充厚度、边缘高亮与方向标记；颜色高亮位于侧壁/外圈，保留盘面的业务状态色。
+右键建片 / 删片已经删了（2026-10-10，用户："创建片统一会在晶圆账单转移里面做"），二维、三维圆片和带圆片的卡片都没有右键菜单。
 
 | 二维接口 | 三维对应行为 |
 | --- | --- |
 | `Data` | 接收同一片数据对象，动态跟踪 Data.State、Data.LpSlot |
-| `CreateCommand` / `DeleteCommand` | 沿用右键建片/删片菜单，调用外部命令 |
-| `CommandParameter` | 原样传给外部命令 |
-| `CreateEnable` / `DeleteEnable` | 控制菜单使能，同时尊重命令 CanExecute |
 | `IsDiskVisible` | 无片数据时仍显示圆盘；默认 false |
 | `FillColor` | 无匹配业务状态时的盘面 Brush；默认 Gray |
 | `BorderBrush` / `BorderThickness` | 盘面边线 Brush 和 Thickness，沿用二维逻辑单位 |
@@ -187,11 +186,6 @@ IsMoving / IsSelected 保留公共硬件高亮约定，不向设备发指令。
     Data="{Binding DataContext.Wafer, ElementName=ChamberScene}"
     RotationSpeed="{Binding DataContext.SpinDisplaySpeed, ElementName=ChamberScene}"
     RotateClockwise="{Binding DataContext.SpinClockwise, ElementName=ChamberScene}"
-    CreateCommand="{Binding DataContext.CreateWaferCommand, ElementName=ChamberScene}"
-    DeleteCommand="{Binding DataContext.DeleteWaferCommand, ElementName=ChamberScene}"
-    CommandParameter="{Binding DataContext.Slot, ElementName=ChamberScene}"
-    CreateEnable="{Binding DataContext.CanCreateWafer, ElementName=ChamberScene}"
-    DeleteEnable="{Binding DataContext.CanDeleteWafer, ElementName=ChamberScene}"
     IsDiskVisible="True" Radius="1.32" Thickness="0.045">
     <hardware:DiskVisual3D.Transform>
         <TranslateTransform3D OffsetX="-0.5" OffsetY="0.12" />
@@ -199,9 +193,8 @@ IsMoving / IsSelected 保留公共硬件高亮约定，不向设备发指令。
 </hardware:DiskVisual3D>
 ```
 
-宿主 Viewport3D 必须允许命中测试（不要设置 IsHitTestVisible=false），才能操作三维盘面右键菜单。
-交互位于盘的上表面，侧壁只显示三维外观。应用继续提供 common.create / common.delete 本地化资源。
-无 Data、无 IsDiskVisible 且无 CreateCommand 时隐藏；有 CreateCommand 时保留透明的空片建片区域。
+盘面是可交互的二维表面：鼠标点在盘面上，事件先进到盘面里的 Wafer，所以装配层要收点击就挂 Viewport3D 的 Preview 事件（LoadPortScene 就是这样）。
+无 Data、无 IsDiskVisible 时整个盘（含盘面）都不画。
 整个装配直接挂在 Viewport3D 或硬件父节点下，遵守前述生命周期约定。
 实现采用 WPF [Viewport2DVisual3D 可交互三维表面](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.media3d.viewport2dvisual3d)。
 
@@ -342,6 +335,58 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
   回到默认视角的按钮不叫"复位"——手动页上整腔操作和轴都有"复位"（设备清错），重名容易点错（用户要求改的）。
   正交相机的视野按宽高比 2.3 定，图比它更矮更宽（手动页就是）时按高度撑开，腔体上下不会被切。灯光、盘面颜色取 `DarkHardware*` token。
 
+## LoadPort：LoadPortVisual3D + CarrierVisual3D
+
+LoadPort 和上面的花篮是**两个公共组件，组合起来用**（用户定的）：花篮放进 LoadPort 的 `Attachments`，坐在托板的定位销上、跟着对接前后走。
+样子照 Codex 的 LoadPort 预览软件（仓库外 `C:\Users\Administrator\.codex\visualizations\2026\10\11\…\LoadPort预览软件`，只当样子参考），全部用 WPF 三维重写。
+
+`LoadPortVisual3D`：背板（门洞、信号灯面板）、背板门、驱动柜、承载台、托板。原点在承载台面中心，+Z 朝操作员，背板在 -Z。
+
+| 依赖属性 | 含义 |
+| --- | --- |
+| `IsDocked` | 托板推进去了（对接）；false = 退出，人可以放取载具 |
+| `IsDoorOpen` / `IsDoorUnknown` | 门开到位 / 门在半路（停在行程中间、一直高亮）；没推进去时门一定画成关着 |
+| `IsPresent` / `IsPlaced` / `IsAutoMode` | 面板上的灯：在位、放置到位亮绿，AUTO 亮绿 / MANUAL 亮黄（二选一）；灯不写字（太小看不清，手动页上面那排信号灯就是同样的内容） |
+| `Attachments` | 装在托板上的东西（花篮），原点在定位销上 |
+
+- **动作有先后，每个动作全行程 0.5 s（用户定的，写死）**：要开门先推进去再开门，要退出先关门再退；中途换目标从当前位置接着走。
+  开门是先往后让开门框、再往下收进背板后面的门腔（从背面看得到门洞和晶圆）。
+- 只有在动的那块高亮（门、托板各一套材质）；页面藏起来、还没挂进视口时直接落到目标，不留动画。
+
+`CarrierVisual3D`（花篮）：底板、两侧带槽齿的侧壁、前后立柱、顶梁、提手，前左立柱上标槽号（第 1 槽、每 5 槽、最后一槽，字是几何图形贴的，自发光）。
+开口朝 +Z 露出晶圆，原点在底面中心。
+
+| 依赖属性 | 含义 |
+| --- | --- |
+| `SlotCount` | 槽数，**照 sc.xml 的 LoadPort SlotCount**（用户："未来可能会有不是 25 片的"）：槽距不变，槽数多花篮就高；0 = 还不知道，什么都不画（不兜底 25） |
+| `Wafers` | 花篮里的片（`WaferModel`，按 Slot 放）；超出槽数的不画 |
+| `SelectedSlot` | 选中的槽，那一片高亮；那一槽没片了自动取消 |
+
+- **片用 `DiskVisual3D`**（用户："里面的片子要用 disk 那个组件"，跟腔体旋转盘同一个，盘面状态色、片号、`DarkHardwareDisk*` 颜色都沿用）。
+  推送来了有片的槽没变就只换每片的 `Data`，变了才按槽号从下往上重摆（盘面四角透明，下面的先画）。
+- `SlotOf(点到的东西)`：从命中的三维件或盘面上的二维元素往上找是哪一槽的片。
+
+## LoadPortScene LoadPort 三维图
+
+`LoadPortScene`（UserControl）是 LoadPort 手动页中间那张三维图：LoadPort + 托板上的花篮（有载具、槽数已知才装上）、灯光相机、
+左上角"设备视图"、右上角片数（`22 / 25 片`）、图下面一条视角工具栏（默认视角、俯视、背面）、框外一行（点中的槽位 / "点击晶圆查看槽位"，空槽 / 满载 / 空花篮）。
+
+```xml
+<threeD:LoadPortScene
+    IsCarrierPresent="{Binding Model.IsCarrierArrived}"
+    IsDocked="{Binding Model.IsDocked}"
+    IsDoorOpen="{Binding Model.IsDoorShownOpen}"
+    IsDoorUnknown="{Binding Model.IsDoorUnknown}"
+    IsPresent="{Binding Model.IsPresent}" IsPlaced="{Binding Model.IsPlaced}" IsAutoMode="{Binding Model.AutoMode}"
+    SlotCount="{Binding Model.SlotCount}" Wafers="{Binding Model.Wafers}" />
+```
+
+- 状态的业务换算不在三维图里：手动页的 `LoadPortModel` 按状态和门反馈推——门跟开到位 / 关到位走（两个都灭 = 门在半路；查不到反馈时已装载算门开）；
+  设备**没有对接到位反馈**，对接按状态推（装载中、已装载）再加"门开着或在半路一定是推进去的"，所以卸载时门关到位后才画退出。
+- 取景按整台（含花篮）的实际高低：花篮槽数多、高出背板时视野跟着放大，不会切掉。拖动旋转、滚轮缩放、点一下晶圆选中（挡在前面的立柱不算）。
+- 鼠标挂 Viewport3D 的 Preview 事件：片的盘面是可交互的二维 Wafer，点在盘面上也先到这里。
+- 灯光比腔体多一盏右前补光、一盏右后轮廓光（token `DarkHardwareFillLightColor`），又高又直的侧面和背面不发黑。
+
 ## 动作与高亮约定
 
 - `IsMoving=true`、`IsSelected=true` 或组件内部过渡动画进行中时使用相同蓝色材质；三者都结束时恢复默认材质。
@@ -402,7 +447,7 @@ Door 开关、反向、自动高亮、固定门框和整套拆卸检查，输出
 dotnet run --project tools/DoorVisual3DSmoke -- D:\Code\artifacts\door-wpf-states.png
 ```
 
-Disk 二维/三维功能对照、十种状态色、菜单命令、旋转及生命周期检查：
+Disk 二维/三维功能对照、十种状态色、没有右键菜单、旋转及生命周期检查：
 
 ```powershell
 dotnet run --project tools/DiskVisual3DSmoke -- D:\Code\artifacts\disk-wpf-parity.png
@@ -413,6 +458,13 @@ ChamberScene 按部件组成搭建、摆臂对盘心和接液杯、液柱落点�
 
 ```powershell
 dotnet run --project tools/ChamberSceneSmoke -- D:\Code\artifacts\chamber-scene.png
+```
+
+LoadPortScene 槽数跟 sc（13 / 25 / 26 / 40 槽的花篮高度、槽号、取景）、片用 DiskVisual3D 且就地换数据、点片选中、每个动作 0.5 s 且有先后、
+只亮在动的那块、门在半路停中间、中途反向、藏起来直接落位、面板灯、视角工具栏、片数和空槽的字，以及手动页显示模型的对接 / 门推法，附带装载完成图：
+
+```powershell
+dotnet run --project tools/LoadPortSceneSmoke -- D:\Code\artifacts\loadport-scene.png
 ```
 
 WPF 机制参考：[自定义依赖属性](https://learn.microsoft.com/zh-cn/dotnet/desktop/wpf/properties/custom-dependency-properties)、

@@ -1,7 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
@@ -9,7 +8,7 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// Wafer/Disk 的三维版本。复用独立 Wafer 实例的盘面、状态色及右键交互，原二维控件不变。
+/// Wafer/Disk 的三维版本。复用独立 Wafer 实例的盘面和状态色，原二维控件不变；腔体的旋转盘、LoadPort 花篮里的片都用它。
 /// 局部 Y 向上，底面中心为原点。旋转速度沿用二维控件的度/秒语义（大于 1 时旋转）。
 /// </summary>
 public sealed class DiskVisual3D : HardwareVisual3D
@@ -37,9 +36,7 @@ public sealed class DiskVisual3D : HardwareVisual3D
         Children.Add(_surface);
         foreach (var (target, path) in new (DependencyProperty, string)[]
         {
-            (Wafer.DataProperty, nameof(Data)), (Wafer.CreateCommandProperty, nameof(CreateCommand)),
-            (Wafer.DeleteCommandProperty, nameof(DeleteCommand)), (Wafer.CommandParameterProperty, nameof(CommandParameter)),
-            (Wafer.CreateEnableProperty, nameof(CreateEnable)), (Wafer.DeleteEnableProperty, nameof(DeleteEnable)),
+            (Wafer.DataProperty, nameof(Data)),
             (Wafer.IsDiskVisibleProperty, nameof(IsDiskVisible)), (Wafer.FillColorProperty, nameof(FillColor)),
             (Control.BorderBrushProperty, nameof(BorderBrush)), (Control.BorderThicknessProperty, nameof(BorderThickness)),
             (Wafer.LabelProperty, nameof(Label))
@@ -55,21 +52,6 @@ public sealed class DiskVisual3D : HardwareVisual3D
     public object? Data { get => GetValue(DataProperty); set => SetValue(DataProperty, value); }
     public static readonly DependencyProperty DataProperty = DependencyProperty.Register(
         nameof(Data), typeof(object), typeof(DiskVisual3D), new PropertyMetadata(null, OnDisplayChanged));
-    public ICommand? CreateCommand { get => (ICommand?)GetValue(CreateCommandProperty); set => SetValue(CreateCommandProperty, value); }
-    public static readonly DependencyProperty CreateCommandProperty = DependencyProperty.Register(
-        nameof(CreateCommand), typeof(ICommand), typeof(DiskVisual3D), new PropertyMetadata(null, OnDisplayChanged));
-    public ICommand? DeleteCommand { get => (ICommand?)GetValue(DeleteCommandProperty); set => SetValue(DeleteCommandProperty, value); }
-    public static readonly DependencyProperty DeleteCommandProperty = DependencyProperty.Register(
-        nameof(DeleteCommand), typeof(ICommand), typeof(DiskVisual3D), new PropertyMetadata(null));
-    public object? CommandParameter { get => GetValue(CommandParameterProperty); set => SetValue(CommandParameterProperty, value); }
-    public static readonly DependencyProperty CommandParameterProperty = DependencyProperty.Register(
-        nameof(CommandParameter), typeof(object), typeof(DiskVisual3D), new PropertyMetadata(null));
-    public bool CreateEnable { get => (bool)GetValue(CreateEnableProperty); set => SetValue(CreateEnableProperty, value); }
-    public static readonly DependencyProperty CreateEnableProperty = DependencyProperty.Register(
-        nameof(CreateEnable), typeof(bool), typeof(DiskVisual3D), new PropertyMetadata(true));
-    public bool DeleteEnable { get => (bool)GetValue(DeleteEnableProperty); set => SetValue(DeleteEnableProperty, value); }
-    public static readonly DependencyProperty DeleteEnableProperty = DependencyProperty.Register(
-        nameof(DeleteEnable), typeof(bool), typeof(DiskVisual3D), new PropertyMetadata(true));
     public bool IsDiskVisible { get => (bool)GetValue(IsDiskVisibleProperty); set => SetValue(IsDiskVisibleProperty, value); }
     public static readonly DependencyProperty IsDiskVisibleProperty = DependencyProperty.Register(
         nameof(IsDiskVisible), typeof(bool), typeof(DiskVisual3D), new PropertyMetadata(false, OnDisplayChanged));
@@ -167,9 +149,9 @@ public sealed class DiskVisual3D : HardwareVisual3D
 
     private void UpdateDisplay()
     {
+        // 没有片、也不常显时整个盘（含盘面）都不画。
         Content = Data is not null || IsDiskVisible ? Model : null;
-        // 保留二维控件的空片建片命中区域；没有数据/常显/建片命令时完全隐藏。
-        _surface.Visual = Data is not null || IsDiskVisible || CreateCommand is not null ? _face : null;
+        _surface.Visual = Data is not null || IsDiskVisible ? _face : null;
     }
 
     private void UpdateLabel()

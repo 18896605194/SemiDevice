@@ -1,6 +1,5 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using xyz.Client.Presentation.Models;
 
 namespace xyz.Client.Presentation.Controls;
@@ -124,46 +123,6 @@ public partial class BottomChamberInfoCard : UserControl
     public static readonly DependencyProperty WaferProperty =
         DependencyProperty.Register(nameof(Wafer), typeof(WaferModel), typeof(BottomChamberInfoCard),
             new PropertyMetadata(null));
-
-    public ICommand? CreateCommand
-    {
-        get => (ICommand?)GetValue(CreateCommandProperty);
-        set => SetValue(CreateCommandProperty, value);
-    }
-
-    public static readonly DependencyProperty CreateCommandProperty =
-        DependencyProperty.Register(nameof(CreateCommand), typeof(ICommand), typeof(BottomChamberInfoCard),
-            new PropertyMetadata(null));
-
-    public ICommand? DeleteCommand
-    {
-        get => (ICommand?)GetValue(DeleteCommandProperty);
-        set => SetValue(DeleteCommandProperty, value);
-    }
-
-    public static readonly DependencyProperty DeleteCommandProperty =
-        DependencyProperty.Register(nameof(DeleteCommand), typeof(ICommand), typeof(BottomChamberInfoCard),
-            new PropertyMetadata(null));
-
-    public bool CreateEnable
-    {
-        get => (bool)GetValue(CreateEnableProperty);
-        set => SetValue(CreateEnableProperty, value);
-    }
-
-    public static readonly DependencyProperty CreateEnableProperty =
-        DependencyProperty.Register(nameof(CreateEnable), typeof(bool), typeof(BottomChamberInfoCard),
-            new PropertyMetadata(true));
-
-    public bool DeleteEnable
-    {
-        get => (bool)GetValue(DeleteEnableProperty);
-        set => SetValue(DeleteEnableProperty, value);
-    }
-
-    public static readonly DependencyProperty DeleteEnableProperty =
-        DependencyProperty.Register(nameof(DeleteEnable), typeof(bool), typeof(BottomChamberInfoCard),
-            new PropertyMetadata(true));
 
     public double RotationSpeed
     {
