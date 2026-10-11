@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Controls.ThreeD;
 using xyz.Client.Presentation.Models;
+using xyz.Shared.Dtos;
 
 // LoadPort 三维图冒烟：LoadPort（LoadPortVisual3D）+ 托板上的花篮（CarrierVisual3D，片用 DiskVisual3D）组合起来的 LoadPortScene。
 // 槽数照 sc（花篮高度、槽号、片数、取景跟着变）、片的数据就地换、点片选中、每个动作 0.5 s 且有先后（先推进去再开门 / 先关门再退出）、
@@ -242,6 +243,16 @@ internal static class Program
             var noFeedback = new LoadPortModel { State = 110 };
             Check(noFeedback.IsDocked && noFeedback.IsDoorShownOpen && !noFeedback.IsDoorUnknown, "查不到门反馈：已装载按门开画");
 
+            // 14. 片的颜色对应状态，跟账单调整页的图例一样：Load 完 Mapping 落账的片是"未处理"（灰白），不是浅绿
+            Check(WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "Idle" }) == "IdleNojob", "未处理 → 灰白（账单调整页图例的未处理）");
+            Check(WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "InProcess" }) == "Process"
+                && WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "Completed" }) == "Completed"
+                && WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "Aborted" }) == "Error", "工艺中 / 已完成 / 失败或中止各自的颜色");
+            Check(new[] { "Crossed", "Double", "Dummy", "Unknown" }.All(status => WaferStates.Of(new WaferDto { Status = status, ProcessState = "Completed" }) == status),
+                "交叉片、叠片、陪片、状态不明按物理状态上色");
+            var mapped = StationWafers.OfLoadPort([], [new LoadPortSlotDto { Slot = 1, State = LoadPortSlotState.CorrectlyOccupied }]);
+            Check(mapped.Single().State == "IdleNojob", "账上还没登记、按 Mapping 画的片也是未处理");
+
             if (args.Length > 0)
             {
                 scene.IsCarrierPresent = true;
@@ -274,7 +285,7 @@ internal static class Program
     private static List<WaferModel> Wafers(int slots, int[] empty)
     {
         return Enumerable.Range(1, slots).Where(slot => !empty.Contains(slot))
-            .Select(slot => new WaferModel { Slot = slot, LpSlot = slot.ToString("00"), State = "IdleHasjob" }).ToList();
+            .Select(slot => new WaferModel { Slot = slot, LpSlot = slot.ToString("00"), State = WaferStates.Idle }).ToList();
     }
 
     private static List<DiskVisual3D> Disks(CarrierVisual3D carrier)

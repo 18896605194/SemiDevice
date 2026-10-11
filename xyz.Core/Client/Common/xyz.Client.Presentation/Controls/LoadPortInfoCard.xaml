@@ -75,6 +75,12 @@
                     <DataTrigger Binding="{Binding Wafer.State}" Value="Double">
                         <Setter Property="Background" Value="{DynamicResource WaferDouble}" />
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding Wafer.State}" Value="Dummy">
+                        <Setter Property="Background" Value="{DynamicResource WaferDummy}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Wafer.State}" Value="Unknown">
+                        <Setter Property="Background" Value="{DynamicResource Gray}" />
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
 

@@ -56,7 +56,8 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 没注册页面的菜单显示占位页。
 
 ### 主界面（菜单 Main，`xyz.Client.Main`，布局照用户 2026-10-04 给的图，见 decisions.md）
-- 三块：左 **系统操作**（平台固定：系统状态徽标、当前模式、报警条数，Auto / Manual / Stop / Reset）| 中 **整机调度**（可替换）|
+- 三块：左 **系统操作**（平台固定：系统状态徽标、当前模式、报警条数，Auto / Manual / Stop / Reset；左栏最底下是 **晶圆颜色** 说明，
+  `WaferLegendDotStyle` 圆点 + `WaferLegendTextStyle`，颜色跟圆片控件同一套 `Wafer*`，圆片加了新颜色这里也要加一项）| 中 **整机调度**（可替换）|
   右 **LoadPort 页签**（`UnderlineTabListBoxStyle`，一个 LoadPort 一个：载具 / 槽图状态 / 槽数、LotID、Sequence 选择框、创建 / 启动 Job、槽位表）。
 - **以后机台变了，要动的就是中间和右边，都不用改主界面**：
   - 右边页签照后端系统设置的 `SystemSettingsDto.LoadPorts`（sc.xml 装了的 LoadPort，先后同 sc）生成，3 个、4 个都不改代码。
@@ -153,7 +154,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   悬停 `DarkHoverBackground`、遮罩 `DarkOverlayBackground`。新颜色先加 token 再用。
 - Tag 驱动的公共样式（数据绑到 `Tag`，样式按值换外观）：`ShowWhenTagTrueStyle`（FrameworkElement，Tag=True 才显示）、
   `NullContentHintTextStyle`（Tag 为 null 才显示，做占位提示）、`PageOverlayBorderStyle`、`StatusDotBorderStyle`、
-  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Dummy/Unknown，其他=空槽虚线）、
+  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Dummy/Unknown，其他=空槽虚线；
+  `WaferLegendDotStyle` 是它的圆点版，多一个 Unledgered = 账上没有）、
   `AlarmCountTextStyle`（Tag=True 红字，报警条数）、`MapStatusTextStyle`（Tag = CarrierSlotMapStatus，写"映射完成"这类字并换色）。
   DataTrigger 的 `Value="Move"` 这种字符串能直接匹配枚举。
 - 表单一行"标签 + 值"（主界面系统操作、LoadPort 栏）：`FormLabelTextStyle` / `FormValueTextStyle`。表格行里的小图标按钮（⊕ ⊖）：`RowIconButtonStyle`。

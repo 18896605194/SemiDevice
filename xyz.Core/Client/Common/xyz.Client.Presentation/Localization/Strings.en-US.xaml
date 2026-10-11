@@ -609,10 +609,16 @@
     <sys:String x:Key="main.wafer.Crossed">Cross-slotted</sys:String>
     <sys:String x:Key="main.wafer.Double">Double-slotted</sys:String>
     <sys:String x:Key="main.wafer.Unknown">Unknown</sys:String>
+    <!-- Wafer color legend at the bottom of the left column; the other items reuse the slot table's state texts (main.wafer.*) -->
+    <sys:String x:Key="main.legend">Wafer Colors</sys:String>
+    <sys:String x:Key="main.legend.error">Failed / aborted</sys:String>
+    <sys:String x:Key="main.legend.dummy">Dummy</sys:String>
+    <sys:String x:Key="main.legend.unledgered">Not in ledger</sys:String>
+    <sys:String x:Key="main.legend.unledgered_tip">A wafer is sensed here but not recorded in the wafer ledger. Reconcile it in Settings → Wafer Ledger.</sys:String>
 
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
          Per-module menus (IO, chamber manual) show the module name from sc.xml and are not configured here.
-         Framework menus (including LoadPort Manual and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
+         Framework menus (including LoadPort and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
     <sys:String x:Key="menu.Main">Main</sys:String>
     <sys:String x:Key="menu.Manual">Manual</sys:String>
     <sys:String x:Key="menu.Recipe">Recipe</sys:String>
@@ -620,9 +626,9 @@
     <sys:String x:Key="menu.DataCenter">Data Center</sys:String>
     <sys:String x:Key="menu.Setting">Settings</sys:String>
     <sys:String x:Key="menu.Io">IO</sys:String>
-    <sys:String x:Key="menu.Manual.LoadPorts">LoadPort Manual</sys:String>
+    <sys:String x:Key="menu.Manual.LoadPorts">LoadPort</sys:String>
     <sys:String x:Key="menu.Manual.Transfer">Transfer</sys:String>
-    <sys:String x:Key="menu.Manual.Robot">Robot Manual</sys:String>
+    <sys:String x:Key="menu.Manual.Robot">Robot</sys:String>
     <sys:String x:Key="menu.Alarm.Realtime">Live Alarms</sys:String>
     <sys:String x:Key="menu.Alarm.History">Alarm History</sys:String>
     <sys:String x:Key="menu.DataCenter.LogRealtime">Live Log</sys:String>

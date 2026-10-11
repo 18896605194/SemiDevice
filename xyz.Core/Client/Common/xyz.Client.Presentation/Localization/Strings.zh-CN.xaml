@@ -609,6 +609,12 @@
     <sys:String x:Key="main.wafer.Crossed">交叉片</sys:String>
     <sys:String x:Key="main.wafer.Double">叠片</sys:String>
     <sys:String x:Key="main.wafer.Unknown">状态不明</sys:String>
+    <!-- 左栏最底下的晶圆颜色说明：其余几项跟槽位表状态列用同一套字（main.wafer.*） -->
+    <sys:String x:Key="main.legend">晶圆颜色</sys:String>
+    <sys:String x:Key="main.legend.error">失败 / 中止</sys:String>
+    <sys:String x:Key="main.legend.dummy">陪片</sys:String>
+    <sys:String x:Key="main.legend.unledgered">账上没有</sys:String>
+    <sys:String x:Key="main.legend.unledgered_tip">传感器检测到有片，晶圆账上却没有登记，请到 设置 → 账单调整 对账</sys:String>
 
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
          按模块生成的菜单（IO、腔体手动）直接显示 sc.xml 里的模块名，不在这里配。

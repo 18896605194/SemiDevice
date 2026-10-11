@@ -22,92 +22,149 @@
                 <ColumnDefinition Width="590" />
             </Grid.ColumnDefinitions>
 
-            <!--  ① 系统操作：系统状态（色块徽标）、当前模式、报警条数，下面 Auto / Manual / Stop / Reset 两行两列，再下面一整行全部回片；块只有内容那么高  -->
-            <Border
-                Grid.Column="0"
-                VerticalAlignment="Top"
-                Style="{DynamicResource ZoneBorderStyle}">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
-                        <StackPanel Orientation="Horizontal">
-                            <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
-                            <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource main.system}" />
+            <!--  ① 左栏：上面系统操作，最底下晶圆颜色说明；两块都只有内容那么高  -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  系统操作：系统状态（色块徽标）、当前模式、报警条数，下面 Auto / Manual / Stop / Reset 两行两列  -->
+                <Border Grid.Row="0" Style="{DynamicResource ZoneBorderStyle}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource main.system}" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Margin="14,12,14,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="28" />
+                                    <RowDefinition Height="28" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Style="{DynamicResource FormLabelTextStyle}"
+                                    Text="{DynamicResource main.system_state}" />
+                                <controls:ModuleStateBadge
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Text="{Binding SystemStateText}"
+                                    Tone="{Binding SystemStateTone}" />
+
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Style="{DynamicResource FormLabelTextStyle}"
+                                    Text="{DynamicResource main.mode}" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Style="{DynamicResource FormValueTextStyle}"
+                                    Text="{Binding ModeText}" />
+
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Style="{DynamicResource FormLabelTextStyle}"
+                                    Text="{DynamicResource main.alarms}" />
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Style="{DynamicResource AlarmCountTextStyle}"
+                                    Tag="{Binding HasAlarms}"
+                                    Text="{Binding AlarmCount}" />
+                            </Grid>
+
+                            <!--  Stop 是整机停止（中止所有在做的动作），用红色  -->
+                            <UniformGrid
+                                Margin="-3,10,-3,0"
+                                Columns="2">
+                                <Button
+                                    Command="{Binding AutoCommand}"
+                                    Content="{DynamicResource main.auto}"
+                                    Style="{DynamicResource CompactButtonStyle}"
+                                    ToolTip="{DynamicResource main.auto_tip}" />
+                                <Button
+                                    Command="{Binding ManualCommand}"
+                                    Content="{DynamicResource main.manual}"
+                                    Style="{DynamicResource CompactButtonStyle}"
+                                    ToolTip="{DynamicResource main.manual_tip}" />
+                                <Button
+                                    Command="{Binding StopCommand}"
+                                    Content="{DynamicResource main.stop}"
+                                    Style="{DynamicResource CompactDangerButtonStyle}"
+                                    ToolTip="{DynamicResource main.stop_tip}" />
+                                <Button
+                                    Command="{Binding ResetCommand}"
+                                    Content="{DynamicResource main.reset}"
+                                    Style="{DynamicResource CompactButtonStyle}"
+                                    ToolTip="{DynamicResource main.reset_tip}" />
+                            </UniformGrid>
                         </StackPanel>
-                    </Border>
+                    </DockPanel>
+                </Border>
 
-                    <StackPanel Margin="14,12,14,14">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="10" />
-                                <RowDefinition Height="28" />
-                                <RowDefinition Height="28" />
-                            </Grid.RowDefinitions>
+                <!--  晶圆颜色：调度图上圆片每种颜色的意思，两列；颜色跟圆片控件一致（WaferStates 把账上的片换成颜色）  -->
+                <Border Grid.Row="2" Style="{DynamicResource ZoneBorderStyle}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource main.legend}" />
+                            </StackPanel>
+                        </Border>
 
-                            <TextBlock
-                                Grid.Row="0"
-                                Style="{DynamicResource FormLabelTextStyle}"
-                                Text="{DynamicResource main.system_state}" />
-                            <controls:ModuleStateBadge
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                Text="{Binding SystemStateText}"
-                                Tone="{Binding SystemStateTone}" />
-
-                            <TextBlock
-                                Grid.Row="2"
-                                Style="{DynamicResource FormLabelTextStyle}"
-                                Text="{DynamicResource main.mode}" />
-                            <TextBlock
-                                Grid.Row="2"
-                                Grid.Column="1"
-                                Style="{DynamicResource FormValueTextStyle}"
-                                Text="{Binding ModeText}" />
-
-                            <TextBlock
-                                Grid.Row="3"
-                                Style="{DynamicResource FormLabelTextStyle}"
-                                Text="{DynamicResource main.alarms}" />
-                            <TextBlock
-                                Grid.Row="3"
-                                Grid.Column="1"
-                                Style="{DynamicResource AlarmCountTextStyle}"
-                                Tag="{Binding HasAlarms}"
-                                Text="{Binding AlarmCount}" />
-                        </Grid>
-
-                        <!--  Stop 是整机停止（中止所有在做的动作），用红色  -->
-                        <UniformGrid
-                            Margin="-3,10,-3,0"
-                            Columns="2">
-                            <Button
-                                Command="{Binding AutoCommand}"
-                                Content="{DynamicResource main.auto}"
-                                Style="{DynamicResource CompactButtonStyle}"
-                                ToolTip="{DynamicResource main.auto_tip}" />
-                            <Button
-                                Command="{Binding ManualCommand}"
-                                Content="{DynamicResource main.manual}"
-                                Style="{DynamicResource CompactButtonStyle}"
-                                ToolTip="{DynamicResource main.manual_tip}" />
-                            <Button
-                                Command="{Binding StopCommand}"
-                                Content="{DynamicResource main.stop}"
-                                Style="{DynamicResource CompactDangerButtonStyle}"
-                                ToolTip="{DynamicResource main.stop_tip}" />
-                            <Button
-                                Command="{Binding ResetCommand}"
-                                Content="{DynamicResource main.reset}"
-                                Style="{DynamicResource CompactButtonStyle}"
-                                ToolTip="{DynamicResource main.reset_tip}" />
+                        <UniformGrid Margin="14,8,14,10" Columns="2">
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Idle" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Idle}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="InProcess" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.InProcess}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Completed" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Completed}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Error" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.legend.error}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Crossed" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Crossed}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Double" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Double}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Dummy" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.legend.dummy}" />
+                            </DockPanel>
+                            <DockPanel>
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Unknown" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Unknown}" />
+                            </DockPanel>
+                            <DockPanel ToolTip="{DynamicResource main.legend.unledgered_tip}">
+                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Unledgered" />
+                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.legend.unledgered}" />
+                            </DockPanel>
                         </UniformGrid>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+                    </DockPanel>
+                </Border>
+            </Grid>
 
             <!--  ② 整机调度：内容由代码后置按 ClientViewKeys.MainDispatch 从 DI 取（平台默认 DispatchView，机型可以顶掉）  -->
             <Border Grid.Column="2" Style="{DynamicResource ZoneBorderStyle}">

@@ -39,14 +39,14 @@ public static class StationWafers
                 {
                     LoadPortSlotState.DoubleSlotted => "Double",
                     LoadPortSlotState.CrossSlotted => "Crossed",
-                    _ => "IdleHasjob",
+                    _ => WaferStates.Idle,
                 },
             })
             .ToList();
     }
 
     /// <summary>
-    /// 腔体片位上的片：颜色沿用圆片控件的状态色——未做 = 待加工、工艺中、做完、失败 / 中止 = 报错；片上写它从哪个 LoadPort 的第几槽来。
+    /// 腔体片位上的片：颜色跟账单调整页的图例一样——未处理（灰白）、工艺中、已完成、失败 / 中止 = 报错；片上写它从哪个 LoadPort 的第几槽来。
     /// </summary>
     public static WaferModel OfChamber(ChamberSlotDto slot)
     {
@@ -64,7 +64,7 @@ public static class StationWafers
                 state = "Error";
                 break;
             default:
-                state = "IdleHasjob";
+                state = WaferStates.Idle;
                 break;
         }
 

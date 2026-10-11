@@ -357,6 +357,15 @@
         <Setter Property="Foreground" Value="{StaticResource DarkSecondaryText}" />
     </Style>
 
+    <!--  主界面"晶圆颜色"里圆点后面的字：比表单标签小一号，一行一项上下留开  -->
+    <Style x:Key="WaferLegendTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="8,5,0,5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkSecondaryText}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
     <!--  表单一行的值：正文大小、半粗，数字等宽，放不下省略  -->
     <Style x:Key="FormValueTextStyle" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />

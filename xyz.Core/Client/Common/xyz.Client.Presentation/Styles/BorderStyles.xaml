@@ -310,6 +310,23 @@
         <Setter Property="Margin" Value="14,0,0,0" />
     </Style>
 
+    <!--  主界面"晶圆颜色"里的小圆点：跟调度图上的圆片一个样子。比色条多一个 Unledgered（传感器有片、账上没有，圆片画成 Transfer 色）  -->
+    <Style
+        x:Key="WaferLegendDotStyle"
+        BasedOn="{StaticResource WaferBarStyle}"
+        TargetType="Rectangle">
+        <Setter Property="Width" Value="14" />
+        <Setter Property="Height" Value="14" />
+        <Setter Property="RadiusX" Value="7" />
+        <Setter Property="RadiusY" Value="7" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Unledgered">
+                <Setter Property="Fill" Value="{DynamicResource WaferTransfer}" />
+                <Setter Property="Stroke" Value="{x:Null}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!--  通用：Tag=True 才显示的一块（如确认框里只有移动时才有的"→ 目标"）  -->
     <Style x:Key="ShowWhenTagTrueStyle" TargetType="FrameworkElement">
         <Setter Property="Visibility" Value="Collapsed" />
