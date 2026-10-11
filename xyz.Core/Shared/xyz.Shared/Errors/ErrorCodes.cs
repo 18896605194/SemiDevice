@@ -17,6 +17,18 @@ public static class ErrorCodes
     /// <summary>站点不支持这个任务（没有这种站内任务）。Args: [站点, 任务名]</summary>
     public const string StationTaskUnsupported = "module.task_unsupported";
 
+    /// <summary>状态检查：模块停用，或驱动没装好。Args: [模块名]</summary>
+    public const string ModuleDisabled = "module.disabled";
+
+    /// <summary>状态检查：模块的设备没连上。Args: [模块名]</summary>
+    public const string ModuleNotConnected = "module.not_connected";
+
+    /// <summary>状态检查：当前状态不能做这个动作（状态表里没有这一行）。Args: [模块名, 当前状态码]</summary>
+    public const string ModuleStateNotAllowed = "module.state_not_allowed";
+
+    /// <summary>状态检查：模块正在做别的动作。Args: [模块名]</summary>
+    public const string ModuleBusy = "module.busy";
+
     #endregion
 
     #region LoadPort
@@ -41,6 +53,15 @@ public static class ErrorCodes
 
     /// <summary>带 Mapping 的 Unload 扫到的跟晶圆账对不上（多片、少片，或交叉片、叠片、认不出）。Args: [模块名, 槽号（逗号隔开）]</summary>
     public const string UnloadSlotMapMismatch = "loadport.unload_slot_map_mismatch";
+
+    /// <summary>Load 资源检查：这个口账上的片归还没结束的 Job（Load 会重建这个口的账），要先中止 Job。Args: [模块名, PJ 名]</summary>
+    public const string PortWafersInJob = "loadport.wafers_in_job";
+
+    /// <summary>Load 联锁：载具没放到位。Args: [模块名]</summary>
+    public const string CarrierNotArrived = "loadport.carrier_not_arrived";
+
+    /// <summary>Load 联锁：跟搬运车的 E84 交接还没走完，或交接超时锁着等人处理。Args: [模块名]</summary>
+    public const string E84HandoffRunning = "loadport.handoff_running";
 
     /// <summary>操作被 Abort 顶替。Args: [操作名]</summary>
     public const string Aborted = "module.action_aborted";
@@ -71,19 +92,19 @@ public static class ErrorCodes
     /// <summary>配方里下拉选的值这个腔体没有（几个腔体装的不一样时）。Args: [模块名, 配方名, 字段, 值]</summary>
     public const string ChamberRecipeOptionMissing = "chamber.recipe_option_missing";
 
-    /// <summary>腔体下没有这个部件。Args: [模块名, 部件路径]</summary>
+    /// <summary>腔体下没有这个设备。Args: [模块名, 设备路径]</summary>
     public const string ChamberDeviceNotFound = "chamber.device_not_found";
 
-    /// <summary>部件动作的参数不对：不是有限数、速度是负的、点动速度或步距是 0。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    /// <summary>设备动作的参数不对：不是有限数、速度是负的、点动速度或步距是 0。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
     public const string ChamberDeviceArgsInvalid = "chamber.device_args_invalid";
 
-    /// <summary>续点动时没有在按住的点动（已经松手、被停止或中止顶掉了）。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    /// <summary>续点动时没有在按住的点动（已经松手、被停止或中止顶掉了）。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
     public const string ChamberJogNotHeld = "chamber.jog_not_held";
 
-    /// <summary>部件指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    /// <summary>设备指令没发出去：PLC 没连上、IO 点没配、轴没回零 / 没使能 / 正忙。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
     public const string ChamberDeviceCommandRejected = "chamber.device_command_rejected";
 
-    /// <summary>部件动作没做成：到位超时、轴报错，或等过了 EC DeviceActionTimeout。Args: [部件路径, 动作（ChamberDeviceAction）]</summary>
+    /// <summary>设备动作没做成：到位超时、轴报错，或等过了 EC DeviceActionTimeout。Args: [设备路径, 动作（ChamberDeviceAction）]</summary>
     public const string ChamberDeviceActionFailed = "chamber.device_action_failed";
 
     /// <summary>整腔动作（回零、复位、中止、工艺）超过它的 EC 超时还没做完。Args: [模块名, 超时 ms]</summary>

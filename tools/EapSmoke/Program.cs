@@ -1164,10 +1164,10 @@ sealed class FakePort : ILoadPort
 
     public ConcurrentBag<string> Statuses { get; } = [];
 
-    public ModuleOperation? Load()
+    public HandleResult<ModuleOperation> Load()
     {
         LoadRequested = true;
-        return new NoOpOperation("Load");
+        return HandleResult<ModuleOperation>.Success(new NoOpOperation("Load"));
     }
 
     public ModuleOperation? Unload()

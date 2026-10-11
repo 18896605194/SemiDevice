@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using xyz.Common.Log;
@@ -731,7 +731,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     /// <summary>
     /// 步骤：至少 3 步；第 1 步、最后一步是 LoadPort 分组；每步的分组要在可选分组里、至少勾一个站点、勾的站点在这个分组里、
-    /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且配方里下拉选的（摆臂、药液这类从腔体部件取的）勾的每个腔体都有
+    /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且配方里下拉选的（摆臂、药液这类从腔体设备取的）勾的每个腔体都有
     /// （几个腔体装的不一样时才会对不上）。步号从 1 数，跟界面上一样。
     /// </summary>
     private static SequenceResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, ProcessRecipeComponent? recipes)

@@ -50,6 +50,20 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 下发已经改成"状态 → 资源 → 互锁"入口的 LoadPort 动作：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
+    /// </summary>
+    protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,
+        HandleResult<ModuleOperation> started, int timeout)
+    {
+        if (!started.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
+        }
+
+        return RunOperation("LoadPort", module, port.State, started.Result, timeout);
+    }
+
+    /// <summary>
     /// 下发 _robot 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
     protected static Task<RpcResponse> RunOperation(string module, BaseRobotModule robot,

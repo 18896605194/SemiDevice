@@ -7,6 +7,10 @@
     <sys:String x:Key="module.action_rejected">{0} action rejected (state {1} not allowed, or another action in flight)</sys:String>
     <sys:String x:Key="module.wait_timeout">{0} result wait timed out ({1}ms). The outcome is not yet confirmed; check the device state.</sys:String>
     <sys:String x:Key="module.task_unsupported">{0} does not support the {1} task</sys:String>
+    <sys:String x:Key="module.disabled">{0} is disabled or its driver is not set up; no actions can run</sys:String>
+    <sys:String x:Key="module.not_connected">{0} device is not connected</sys:String>
+    <sys:String x:Key="module.state_not_allowed">{0} is "{1}"; this action is not allowed now</sys:String>
+    <sys:String x:Key="module.busy">{0} is busy with another action; try again when it finishes</sys:String>
     <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
 
@@ -39,6 +43,9 @@
     <sys:String x:Key="loadport.slot_map_length_mismatch">{0} invalid mapping data: the device reported {1} slots but {2} are configured; the wafer ledger was not updated</sys:String>
     <sys:String x:Key="loadport.slot_map_abnormal">{0} mapping found crossed, double or unrecognized wafers in slot(s) {1}</sys:String>
     <sys:String x:Key="loadport.unload_slot_map_mismatch">{0} unload mapping does not match the wafer ledger in slot(s) {1}</sys:String>
+    <sys:String x:Key="loadport.wafers_in_job">{0} wafers belong to unfinished job {1}; loading would rebuild this port's wafer ledger. Abort the job before loading</sys:String>
+    <sys:String x:Key="loadport.carrier_not_arrived">{0} has no carrier in place; cannot load</sys:String>
+    <sys:String x:Key="loadport.handoff_running">{0} handoff with the transport vehicle is not finished (or timed out and waiting for the operator); cannot load</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
     <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} (see Arms of the station node in sc.xml)</sys:String>

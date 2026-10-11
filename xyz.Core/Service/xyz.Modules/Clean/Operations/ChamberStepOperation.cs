@@ -17,7 +17,7 @@ internal abstract class ChamberStepOperation : ModuleOperation
     private readonly int _timeout;
 
     /// <summary>这一段在等的设备、发给它的动作、是不是这里发的。</summary>
-    private readonly List<(ComponentBase Part, ChamberDeviceAction Action, bool Sent)> _waiting = [];
+    private readonly List<(ComponentBase Device, ChamberDeviceAction Action, bool Sent)> _waiting = [];
 
     /// <param name="name">操作名（日志用），如 "Chamber1 Home"。</param>
     /// <param name="module">腔体模块名（超时的错误码参数）。</param>
@@ -31,24 +31,24 @@ internal abstract class ChamberStepOperation : ModuleOperation
     /// <summary>
     /// 发一条设备指令，这一段等它做完；没发出去就失败、返回 false（调用方直接 return）。
     /// </summary>
-    protected bool Send(ComponentBase part, ChamberDeviceAction action, Func<bool> command)
+    protected bool Send(ComponentBase device, ChamberDeviceAction action, Func<bool> command)
     {
         if (!command())
         {
-            Fail(ErrorCodes.ChamberDeviceCommandRejected, $"{Name}：{part.FullPath} {action} 指令没发出去", part.FullPath, action.ToString());
+            Fail(ErrorCodes.ChamberDeviceCommandRejected, $"{Name}：{device.FullPath} {action} 指令没发出去", device.FullPath, action.ToString());
             return false;
         }
 
-        _waiting.Add((part, action, true));
+        _waiting.Add((device, action, true));
         return true;
     }
 
     /// <summary>
     /// 指令别处已经发了（中止、复位时组件自己停轴、清错），这一段只等它做完；设备手上没有动作（Idle，从没发过指令）算做完。
     /// </summary>
-    protected void Await(ComponentBase part, ChamberDeviceAction action)
+    protected void Await(ComponentBase device, ChamberDeviceAction action)
     {
-        _waiting.Add((part, action, false));
+        _waiting.Add((device, action, false));
     }
 
     protected sealed override void OnScan()
@@ -81,21 +81,21 @@ internal abstract class ChamberStepOperation : ModuleOperation
     {
         for (int i = _waiting.Count - 1; i >= 0; i--)
         {
-            var (part, action, sent) = _waiting[i];
-            switch (part.ActionState)
+            var (device, action, sent) = _waiting[i];
+            switch (device.ActionState)
             {
                 case ActionState.Completed:
                     _waiting.RemoveAt(i);
                     break;
 
                 case ActionState.Failed:
-                    Fail(ErrorCodes.ChamberDeviceActionFailed, $"{Name}：{part.FullPath} {action} 没做成", part.FullPath, action.ToString());
+                    Fail(ErrorCodes.ChamberDeviceActionFailed, $"{Name}：{device.FullPath} {action} 没做成", device.FullPath, action.ToString());
                     return false;
 
                 case ActionState.Idle:
                     if (sent)
                     {
-                        Fail(ErrorCodes.Aborted, $"{Name}：{part.FullPath} 被中止", Name);
+                        Fail(ErrorCodes.Aborted, $"{Name}：{device.FullPath} 被中止", Name);
                         return false;
                     }
 

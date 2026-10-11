@@ -44,7 +44,7 @@
 
     <!--  时间里的"时""分"下拉（DateTimePicker 日期框右边那两个，只用在工具栏里）：跟日期框同高，窄一点，下拉列表限高、滚着选  -->
     <Style
-        x:Key="TimePartComboBoxStyle"
+        x:Key="TimeComboBoxStyle"
         BasedOn="{StaticResource ToolbarComboBoxStyle}"
         TargetType="ComboBox">
         <Setter Property="Padding" Value="10,0" />

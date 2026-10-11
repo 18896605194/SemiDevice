@@ -16,17 +16,17 @@
         </Grid.ColumnDefinitions>
 
         <DatePicker
-            x:Name="DatePart"
+            x:Name="DateBox"
             Grid.Column="0"
             Margin="0"
             materialDesign:HintAssist.Hint="{Binding Hint, ElementName=Root}"
             SelectedDateChanged="OnDateChanged"
             Style="{DynamicResource ToolbarDatePickerStyle}" />
         <ComboBox
-            x:Name="HourPart"
+            x:Name="HourBox"
             Grid.Column="2"
             SelectionChanged="OnTimeChanged"
-            Style="{DynamicResource TimePartComboBoxStyle}" />
+            Style="{DynamicResource TimeComboBoxStyle}" />
         <TextBlock
             Grid.Column="3"
             Margin="4,0"
@@ -34,9 +34,9 @@
             FontSize="{DynamicResource Size14}"
             Text=":" />
         <ComboBox
-            x:Name="MinutePart"
+            x:Name="MinuteBox"
             Grid.Column="4"
             SelectionChanged="OnTimeChanged"
-            Style="{DynamicResource TimePartComboBoxStyle}" />
+            Style="{DynamicResource TimeComboBoxStyle}" />
     </Grid>
 </UserControl>

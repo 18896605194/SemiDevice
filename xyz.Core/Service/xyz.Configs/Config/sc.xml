@@ -69,7 +69,7 @@
 	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv）是机型的东西，源文件在 xyz.35021\Service\xyz.35021.Module\Config\IO，
 	     编译时由机型项目部署到宿主输出目录里本文件同目录的 IO\ 下；仿真器 Machines\35021\IO 里是同一份，改了两边一起改。Module 列就是模块名（LoadPort1、Chamber1……），IO 界面按它分页；
 	     点位分段：Safety（整机安全信号）DI 从 0 起、AI 从 0 起；LoadPort1/2 从 32/48 起（E84 + 光幕），Robot1 从 64 起，
-	     Chamber1~4 的 DI/DO 从 100/140/180/220 起、每段 40 点，AI 从 100/120/140/160 起、每段 20 点；同一部件的 DO 与 DI 偏移对齐。
+	     Chamber1~4 的 DI/DO 从 100/140/180/220 起、每段 40 点，AI 从 100/120/140/160 起、每段 20 点；同一设备的 DO 与 DI 偏移对齐。
 	     每拍从 PLC 缓存刷一遍；上层按索引取点，界面订阅后端推来的整包 -->
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
@@ -374,7 +374,7 @@
 	     每一步有哪些字段按下面的 Fields 字段表：一个子节点一个字段（配方页上的一列），节点名就是字段名（存进配方文件），从上到下就是从左到右。
 	     Text / TextEn 列名；Type：Int 整数、Double 小数、Choice 下拉、Bool 开关、Text 文本；Unit 单位、Min / Max 上下限、Decimals 最多几位小数（数字才填）；
 	     Default 新加一步时填的值；Required 必填（true / false）；Source 下拉的数据源：直接写选项用英文逗号隔开（如 Time,Scan），
-	     或 Parts:类型[.属性][@字段名] 从腔体里装的部件取（Parts:SwingArmComponent 取摆臂名，Parts:NozzleComponent.Chemical@Arm 取所选摆臂上喷嘴的药液）。
+	     或 Devices:类型[.属性][@字段名] 从腔体里装的设备取（Devices:SwingArmComponent 取摆臂名，Devices:NozzleComponent.Chemical@Arm 取所选摆臂上喷嘴的药液）。
 	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长的上限是腔体 EC 的工艺超时。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
 	     喷嘴喷的东西（DIW、SC1、N2、背面冲洗……）都是在药液里选、流量填在流量里，不单独加字段 -->
 	<Setting Name="ProcessRecipe" Type="xyz.Modules.ProcessRecipeComponent">
@@ -407,13 +407,13 @@
 				<Value Name="Text" Value="摆臂" />
 				<Value Name="TextEn" Value="Arm" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Parts:SwingArmComponent" />
+				<Value Name="Source" Value="Devices:SwingArmComponent" />
 			</Setting>
 			<Setting Name="Chemical">
 				<Value Name="Text" Value="药液" />
 				<Value Name="TextEn" Value="Chemical" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Parts:NozzleComponent.Chemical@Arm" />
+				<Value Name="Source" Value="Devices:NozzleComponent.Chemical@Arm" />
 			</Setting>
 			<Setting Name="Flow">
 				<Value Name="Text" Value="流量" />
@@ -530,16 +530,16 @@
 			<Value Name="HeadOfQueueCommandName" Value="CJHOQ" />
 		</Setting>
 	</Setting>
-	<!-- 清洗腔：回零、复位、中止、按工艺配方做工艺都是平台的默认做法，照下面挂的部件发轴和 IO（机型类留空）；
-	     换机型改这里的部件，不改代码。回零：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂回零 → Bowl 降，门不动；
+	<!-- 清洗腔：回零、复位、中止、按工艺配方做工艺都是平台的默认做法，照下面挂的设备发轴和 IO（机型类留空）；
+	     换机型改这里的设备，不改代码。回零：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂回零 → Bowl 降，门不动；
 	     工艺：Lift 升、Bowl 升 → 每步转速给卡盘、选的摆臂摆到位置、开药液对得上的喷嘴（配了 FlowAoIndex 的先给流量），Time 停着喷 / Scan 来回扫 → 收尾停液、摆臂回 Home、停转、Bowl 降。
 	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。
 	     子组件层级按物理装配走：一条摆臂（SwingArmComponent，它自己就是摆动轴）和装在它上面的升降气缸、喷嘴是一套，
 	     升降、喷嘴都是现成的组件，挂在摆臂节点下面——一眼看出哪条臂能升降、上面有哪些药液，报警也按路径自动算到摆臂、再算到腔体。
-	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一部件 DO 与 DI 同号；-1 = 接线未定）；
+	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一设备 DO 与 DI 同号；-1 = 接线未定）；
 	     气缸开侧 = 门开 / Bowl 升 / 升降气缸升。轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
 	     摆臂条数、喷嘴路数按实际增减，下面只是骨架。
-	     部件按这里的结构认（腔体手动页的轴页签、气缸表、三维图也照它）：腔体下名叫 Door 的气缸是门，名字以 Bowl 开头的气缸是 Bowl（三维图只画第一个），
+	     设备按这里的结构认（腔体手动页的轴页签、气缸表、三维图也照它）：腔体下名叫 Door 的气缸是门，名字以 Bowl 开头的气缸是 Bowl（三维图只画第一个），
 	     第一个 SpinMotor 是卡盘（速度单位 rpm），每条摆臂下面第一个气缸是它的升降、下面的喷嘴是它的喷嘴（FlowAoIndex = 流量设定 AO，-1 不接） -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">

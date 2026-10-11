@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media.Media3D;
 
@@ -94,29 +94,29 @@ public sealed class ArmVisual3D : HardwareVisual3D
 
     private void RebuildGeometry()
     {
-        ClearParts();
+        ClearMeshes();
         double length = Length;
         double width = Width;
         double thickness = Thickness;
 
         // 回转座和薄盖；气缸属于独立的 Lift 组件。
-        AddPart(HardwareMesh3D.Cylinder(PivotRadius, thickness, -thickness * 1.5), 0.64);
-        AddPart(HardwareMesh3D.Cylinder(PivotRadius, thickness * 0.5, -thickness * 0.5), 1.22);
+        AddMesh(HardwareMesh3D.Cylinder(PivotRadius, thickness, -thickness * 1.5), 0.64);
+        AddMesh(HardwareMesh3D.Cylinder(PivotRadius, thickness * 0.5, -thickness * 0.5), 1.22);
 
-        AddPart(HardwareMesh3D.ChamferedBox(
+        AddMesh(HardwareMesh3D.ChamferedBox(
             new Point3D(0, -thickness * 0.5, -width * 0.5), length, thickness, width), 1);
 
         // 两条笔直的上沿增强立体层次，不包含未确认的供液弯管。
         double inset = Math.Min(width * 0.3, length * 0.1);
         foreach (double side in new[] { -1d, 1d })
         {
-            AddPart(HardwareMesh3D.ChamferedBox(
+            AddMesh(HardwareMesh3D.ChamferedBox(
                 new Point3D(inset, thickness * 0.5, side * width * 0.34 - width * 0.06),
                 length - inset * 2, thickness * 0.18, width * 0.12), 1.28);
         }
 
         double tipLength = Math.Min(width * 0.8, length * 0.3);
-        AddPart(HardwareMesh3D.ChamferedBox(
+        AddMesh(HardwareMesh3D.ChamferedBox(
             new Point3D(length - tipLength * 0.5, -thickness, -width * 0.6),
             tipLength, thickness * 1.45, width * 1.2), 1.12);
     }

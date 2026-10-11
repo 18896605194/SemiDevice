@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
@@ -53,7 +53,7 @@ public sealed class HomeCupVisual3D : HardwareVisual3D
 
     private void RebuildGeometry()
     {
-        ClearParts();
+        ClearMeshes();
         // 沿实体截面闭合：外排液口→外壁→杯沿→内壁→收液锥面→内排液口。
         // 底部也只封闭环形管壁，保留贯通孔，避免把排液管画成实心柱。
         (double Radius, double Y, double Brightness)[] profile =
@@ -68,7 +68,7 @@ public sealed class HomeCupVisual3D : HardwareVisual3D
         {
             var a = profile[i];
             var b = profile[(i + 1) % profile.Length];
-            AddPart(HardwareMesh3D.RevolvedBand(a.Radius * radialScale, a.Y * heightScale,
+            AddMesh(HardwareMesh3D.RevolvedBand(a.Radius * radialScale, a.Y * heightScale,
                 b.Radius * radialScale, b.Y * heightScale), a.Brightness);
         }
     }

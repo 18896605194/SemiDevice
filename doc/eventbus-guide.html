@@ -363,7 +363,7 @@
       <a class="item" href="#comp-bchamber"  data-target="comp-bchamber">BottomChamberInfoCard 底部腔体</a>
       <div class="subhead">设备组件 · xyz.Components</div>
       <a class="item" href="#comp-axis"   data-target="comp-axis">AxisComponent 运动轴</a>
-      <a class="item" href="#comp-armaxis" data-target="comp-armaxis">ArmAxisComponent 手臂轴</a>
+      <a class="item" href="#comp-armaxis" data-target="comp-armaxis">SwingArmComponent 摆臂</a>
       <a class="item" href="#comp-spin"   data-target="comp-spin">SpinMotorComponent 旋转电机</a>
       <a class="item" href="#comp-cyl"    data-target="comp-cyl">CylinderComponent 气缸</a>
       <a class="item" href="#comp-valve"  data-target="comp-valve">ValveComponent 阀门</a>
@@ -671,7 +671,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
   <table>
     <tr><th>组件</th><th>继承</th><th>用途</th></tr>
     <tr><td>AxisComponent</td><td>ComponentBase</td><td>运动轴（速度/加减速/超时/到位容差）</td></tr>
-    <tr><td>ArmAxisComponent</td><td>AxisComponent</td><td>机械手臂轴（心位 Center / 边位 Edge）</td></tr>
+    <tr><td>SwingArmComponent</td><td>AxisComponent</td><td>腔体摆臂：自己是摆动轴，下面挂升降气缸和喷嘴（示教位 Center / Edge）</td></tr>
     <tr><td>SpinMotorComponent</td><td>AxisComponent</td><td>旋转电机（交接位 TransferPosition）</td></tr>
     <tr><td>CylinderComponent</td><td>ComponentBase</td><td>气缸（双/单线圈 DO + 开关到位 DI + 超时报警）</td></tr>
     <tr><td>ValveComponent</td><td>ComponentBase</td><td>阀门（DO 驱动 + 可选开到位反馈）</td></tr>
@@ -805,7 +805,7 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
   <h1 class="page-title">AxisComponent 运动轴</h1>
   <p class="page-sub">xyz.Components.Components.AxisComponent —— 继承 ComponentBase</p>
 
-  <p>单轴运动参数组件。ArmAxisComponent 与 SpinMotorComponent 都从它继承。</p>
+  <p>单轴运动参数组件。SwingArmComponent 与 SpinMotorComponent 都从它继承。</p>
 
   <table>
     <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
@@ -823,15 +823,15 @@ EventBus.Register&lt;T&gt;(token, handler);  // 订阅，返回 IDisposable 用�
 
 <!-- ================================================================ -->
 <section class="page" id="comp-armaxis">
-  <h1 class="page-title">ArmAxisComponent 手臂轴</h1>
-  <p class="page-sub">xyz.Components.Components.ArmAxisComponent —— 继承 AxisComponent</p>
+  <h1 class="page-title">SwingArmComponent 摆臂</h1>
+  <p class="page-sub">xyz.Components.Components.SwingArmComponent —— 继承 AxisComponent</p>
 
-  <p>机械手臂轴：在运动轴参数之上增加手臂专用位置常量。</p>
+  <p>腔体里的一条摆臂：自己就是摆动轴；硬件上装在它上面的升降（一个气缸组件）、喷嘴（几个喷嘴组件）在 sc.xml 里挂在它下面。示教位把配方的晶圆坐标（0 = 第一个边缘，150 = 中心）换成轴位置。</p>
 
   <table>
     <tr><th>属性</th><th>类型</th><th>默认</th><th>说明</th></tr>
-    <tr><td><code>Center</code></td><td>double</td><td>0</td><td>中心位（取放片的心位）</td></tr>
-    <tr><td><code>Edge</code></td><td>double</td><td>150</td><td>边位（避让/换道位置）</td></tr>
+    <tr><td><code>Center</code></td><td>double</td><td>150</td><td>EC：晶圆中心（配方 150）对应的实际轴位置</td></tr>
+    <tr><td><code>Edge</code></td><td>double</td><td>0</td><td>EC：第一个边缘（配方 0）对应的实际轴位置</td></tr>
   </table>
   <p class="muted">另继承 AxisComponent 全部速度/超时/容差参数。</p>
 </section>

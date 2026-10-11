@@ -7,7 +7,7 @@
 
     <!--  一个腔体一整张卡：左边 腔体视图（三维图 + 视角工具栏）→ 轴页签 → 选中轴的状态 / 参数 / 按钮；
          右栏 腔体状态 → 工艺 → 整腔操作 → 气缸表，中间一条细线（整体一块，不拆成多张卡）。
-         轴页签、气缸表都照 sc.xml 生成（后端部件推送），sc 里加了轴、气缸自动多一个页签、一行  -->
+         轴页签、气缸表都照 sc.xml 生成（后端设备状态推送），sc 里加了轴、气缸自动多一个页签、一行  -->
     <!--  DataContext 由代码后置设在这个根节点上（不设控件自身的 DataContext，避免模板绑定二次求值）  -->
     <materialDesign:Card
         x:Name="Root"
@@ -33,7 +33,7 @@
                     Style="{DynamicResource PanelTitleTextStyle}"
                     Text="{DynamicResource chambermanual.view}" />
 
-                <!--  三维图：部件按 sc.xml 搭、状态跟部件推送走，盘上的片来自晶圆账；视角工具栏在图下面  -->
+                <!--  三维图：设备按 sc.xml 搭、状态跟设备状态推送走，盘上的片来自晶圆账；视角工具栏在图下面  -->
                 <Border
                     Grid.Row="1"
                     Background="{DynamicResource DarkControlBackground}"

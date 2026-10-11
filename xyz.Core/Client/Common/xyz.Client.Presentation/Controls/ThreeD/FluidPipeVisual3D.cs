@@ -118,13 +118,13 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
 
     private void RebuildGeometry()
     {
-        ClearParts();
+        ClearMeshes();
         _liquid.Children.Clear();
         _trails.Clear();
         var horizontal = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), -90));
         horizontal.Freeze();
-        AddPart(HardwareMesh3D.Cylinder(PipeRadius, Length, 0), 1.12).Transform = horizontal;
-        AddPart(HardwareMesh3D.Cylinder(PipeRadius * 1.35, OutletDrop, -OutletDrop), 1.18)
+        AddMesh(HardwareMesh3D.Cylinder(PipeRadius, Length, 0), 1.12).Transform = horizontal;
+        AddMesh(HardwareMesh3D.Cylinder(PipeRadius * 1.35, OutletDrop, -OutletDrop), 1.18)
             .Transform = new TranslateTransform3D(Length, 0, 0);
 
         // 静态液柱打底，上面叠加位置实际变化的亮段和液滴。
@@ -248,12 +248,12 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
         trailMaterial.Freeze();
         foreach (var trail in _trails)
         {
-            trail.Part.Material = trailMaterial;
+            trail.Model.Material = trailMaterial;
         }
 
         UpdateTrails();
     }
 
-    private sealed record Trail(GeometryModel3D Part, ScaleTransform3D Scale, TranslateTransform3D Translation,
+    private sealed record Trail(GeometryModel3D Model, ScaleTransform3D Scale, TranslateTransform3D Translation,
         double Distance, int Index, int Count, bool Falling);
 }

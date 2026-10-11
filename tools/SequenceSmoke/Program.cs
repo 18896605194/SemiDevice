@@ -312,7 +312,7 @@ try
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.SequenceNotInstalled && notInstalled.Args.Count == 0, "没装库：sequence.not_installed");
 
     // 9. 装了工艺配方库（按字段表装：时间、摆臂、药液跟着摆臂走）：工艺步骤选的配方要在库里（不分大小写），不在的存不进去，
-    //    错误码带步号和配方名；配方里从腔体部件取的下拉，勾的每个腔体都要有（SmokePM1 的 Arm1 只有 DIW，SmokePM2 的还有 HF），
+    //    错误码带步号和配方名；配方里从腔体设备取的下拉，勾的每个腔体都要有（SmokePM1 的 Arm1 只有 DIW，SmokePM2 的还有 HF），
     //    没有的存不进去，错误码带步号、腔体、配方、字段和值（上面几节没装库，不查）。
     string recipeFolder = Path.Combine(Path.GetTempPath(), "xyz-sequence-smoke-recipes-" + Guid.NewGuid().ToString("N"));
     try
@@ -335,8 +335,8 @@ try
                     Children =
                     [
                         FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Default", "10"), ("Required", "true")),
-                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Parts:SwingArmComponent")),
-                        FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Chemical@Arm")),
+                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Devices:SwingArmComponent")),
+                        FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Chemical@Arm")),
                     ],
                 },
             ],
@@ -417,8 +417,6 @@ sealed class ProbePort : BaseLoadPortModule
     {
         Probe.Name(this, name);
     }
-
-    public override ModuleOperation? Load() => null;
 
     public override ModuleOperation? Unload() => null;
 

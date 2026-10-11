@@ -12,7 +12,7 @@ dotnet run --project tools/ChamberSceneSmoke
 dotnet run --project tools/ChamberSceneSmoke -- D:\Code\artifacts\chamber-scene.png
 ```
 
-不连后端，部件推送直接喂 `ChamberPartsModel`（跟后端推的 `ChamberPartsDto` 一样：轴表、气缸表、喷嘴表，门 / Bowl / Lift 标好角色、喷嘴带摆臂）。
+不连后端，设备状态推送直接喂 `ChamberDeviceDataModel`（跟后端推的 `ChamberDeviceDataDto` 一样，结构跟 sc 一样：门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴）。
 检查使用隐藏窗口宿主，验证：从推送里认出门 / Bowl / 卡盘 / 摆臂（Lift、喷嘴）并搭建（左右两条摆臂）、工艺位两路喷嘴中点正对盘心并落到盘面、
 Home 喷嘴在自己的接液杯内并落进杯里（出液时杯亮）、0.2 s 过渡（中途换目标不跳、隐藏时直接落位、不留动画时钟）、
 Lift / 门 / Bowl 跟到位反馈（未知停在行程中间并高亮、升到位带动摆臂和液柱）、旋转转向看实际转速正负、摆臂动作高亮、

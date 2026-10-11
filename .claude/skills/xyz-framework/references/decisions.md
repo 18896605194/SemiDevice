@@ -99,7 +99,7 @@
 - 工艺步骤标题条最右：`[合计 N s] [有没保存的修改] [添加] [删除] [保存]`；合计不能超过腔体的工艺超时（EC ProcessTimeout）。
 - **字段可以自己配（2026-10-04）**：每一步有哪些列、每列叫什么、什么类型（整数、小数、下拉、开关、文本）、单位、上下限、小数位、默认值、必填、
   下拉的选项，都在 sc.xml 的字段表（`ProcessRecipe.Fields`）里配，用 ScEdit 的「配方字段」页改；工艺配方页按它生成，不改代码。
-  - 下拉要绑数据源，数据源可以直接输入：写选项（`Time,Scan`），或从腔体部件取（`Parts:ArmAxisComponent`、`Parts:NozzleComponent.Chemical@Arm`）；
+  - 下拉要绑数据源，数据源可以直接输入：写选项（`Time,Scan`），或从腔体里装的设备取（`Devices:SwingArmComponent`、`Devices:NozzleComponent.Chemical@Arm`）；
     ScEdit 里格子旁边的"…"帮着选。摆臂、药液不是单独的类型，就是绑了数据源的下拉。
   - **字段之间不配关系**（用户："这个不需要"）：每一步所有列都显示，不出液的步骤药液、流量那几格空着（不是必填）；原来写死的跨字段检查（Scan 两头不能一样）不要了。
   - **字段表全机一份**：8 个腔、1–4 一样、5–8 一样时，页面、字段表都一样，"本质上也就是数据源不一样"——编辑时下拉列所有腔合起来的，
@@ -147,11 +147,15 @@
 - 照图时用户选的：**阀（喷嘴）和传感器这页先不放**；按钮字**走语言包**（中文界面显示中文，不照图用英文）；参数框**加一个步距**
   （步进要用，图上没有）；腔体状态**保持整条色块徽标**（不照图改成"● 空闲"）。图上没有的也不做：示教、伺服开关；
   图的标题"布局示意"、底下"当前部件：Chamber1.Arm1"当成示意图外框。页签、气缸表按 sc 的先后（图上是按字母排的）。
-- **部件照 sc 认、强类型**（2026-10-10 改的，取代原来的"通用部件"：`[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典，
+- **腔体里装什么照 sc 认、强类型**（2026-10-10 改的，取代原来的"通用部件"：`[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典，
   用户："搞成了部件 part 这种模式……感觉有点麻烦，未来其他项目的时候直接修改 sc 文件就行，代码基本不要修改"）：
-  后端 `ChamberParts` 照 sc 树收轴、气缸、喷嘴，推 `ChamberPartsDto`（轴表、气缸表、喷嘴表，属性写明），服务是具体方法（轴回零 / 移动 / 步进 / 点动 / 停止 / 复位，气缸升 / 降），
-  前后端名字编译时对得上；门、Bowl、Lift、摆臂上的喷嘴后端认好写在推送里。sc 里加 Arm2、Bowl2、喷嘴照样自动多页签、多一行，不改代码。
-  **不要改回特性 + 反射那套。**
+  腔体模块直接从子节点认门、Bowl、卡盘、摆臂（不另建"部件表"类，用户问过"ChamberParts 怎么还有这个东西"）；
+  推送 `ChamberDeviceDataDto`（名字用户定的）结构跟 sc 一样（门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴），不拆成几张表再靠角色字段连（用户："一个表就行了吧"）；
+  服务是具体方法（轴回零 / 移动 / 步进 / 点动 / 停止 / 复位，气缸升 / 降），前后端名字编译时对得上。**代码里不再用 Part 这个叫法**（用户："这些没有什么就是关于 Part 这个东西了吧"），统一叫 Device（设备）。
+  sc 里加 Arm2、Bowl2、喷嘴照样自动多页签、多一行，不改代码。**不要改回特性 + 反射那套。**
+- **摆臂是一个组件 `SwingArmComponent`**（2026-10-10，名字用户选的；用户："arm 轴上面有哪些喷嘴药液，然后这个 arm 可以升降，组合起来搞一个"）：
+  它自己就是摆动轴，升降和喷嘴是挂在它下面的现成组件——升降用普通气缸组件（用户："这个不能直接用那个就是气缸组件吗"，不把升降的 IO 摊成摆臂的配置项），
+  喷嘴有几路挂几个。sc 样子见 sc.xml 的 Chamber1。
 - **气缸三态**（用户定义："命令下去了，到位信号没有亮……那就是 unknown 状态"）：命令发到哪一侧就看那一侧到没到位，没到是未知，
   上电两个线圈都没通时只看到位反馈。气缸表显示升到位 / 降到位 / 未知；**三维跟反馈走，未知画在行程中间并高亮**，到位后再走到头
   （不是命令一发出去就画到头——那样没到位也画成到位了）。
@@ -223,10 +227,26 @@
   模块 `Begin` 记下动作前的状态，Reset / Abort 做成后 `SetStateByDoor` 只往松里改：动作前在 Loaded 或交互环（门没在动）的，状态查询门开且载具在 → Loaded，
   门关 → Idle，查不到 / 门在半路 / 载具不在 → 保持 NotInit。
 - **没载具不 Load**（用户："其实就是那个到位信号"）：做成 Load 联锁虚方法 `LoadInterlock()`（用户提的"搞一个 LoadInterlock 虚方法给默认实现"；
-  我改过一次 CanLoad，用户要改回 LoadInterlock，别再改名），返回 true = 放行，默认看 `Carrier.IsArrived`，机型重写加条件；在 `Begin` 里调（不放 `Load()` 里，
-  机型重写 Load 忘了调就漏了），手动、E87、机型的 Load 都过。手动点了回笼统的"动作被拒"，没另加错误码。
+  我改过一次 CanLoad，用户要改回 LoadInterlock，别再改名），默认看 `Carrier.IsArrived`，机型重写加条件。
+  2026-10-10 改成"状态 → 资源 → 互锁"入口（见下面"动作入口"）：`LoadInterlock()` 返回 `HandleResult?`（null = 放行）、在 `Load()` 入口里调；
+  `Load()` 不再 virtual，机型换设备动作重写 `CreateLoadOperation`，所以"机型重写 Load 忘了调就漏了"的问题没了。被拒回具体原因（`loadport.carrier_not_arrived`）。
 - 我自己定的（交付时说了）：没加"有搬运在用这个口就不回 Loaded"——要查搬运管理会跟模块锁互相拿锁，35021 只有一台机械手，
   两台机械手共用一个 LoadPort 又在对方手伸在盒里时点中止才会撞。
+
+## 动作入口：状态 → 资源 → 互锁（2026-10-10，用户提的结构，先拿 LoadPort 的 Load 做样板）
+- 用户的图：手动操作 / 自动任务 / EAP 指令 → 统一动作入口 → 检查状态 → 检查资源 → 检查互锁 → 通过：占用资源并启动；拒绝：返回具体原因。
+  要"有明显的开发流程和规范，让人看这个就知道怎么写"。写法和怎么分三项见 backend.md §3"动作入口"。
+- **只跟"谁发的"有关的检查留在发起方**（用户问"有些卡控只是 EAP 下发的时候需要卡控，这个咋整"）：EAP 的 ON-LINE REMOTE、E87 状态机、Host 认定了载具号才 Load
+  留在 EAP 层，EAP 先过自己那层再调模块同一个入口；模块入口不带"来源"参数。判断法：换成手动页点同一个按钮该不该拦。
+- **Job 正在用的口不让 Load**（用户选的："这次先拒绝，并把原因写清楚。操作员要先中止 Job 才能 Load"）：Load 会清掉这个口的旧账、按扫图重建，片的内部标识全换新，
+  Job 按内部标识认片就认不出了。资源检查：这个口账上的片归没结束的 Job → `loadport.wafers_in_job`；有片的槽被搬运占着 → `transfer.slot_locked`。
+  手动 Load 也拦——跟上面 10-08 的"手动动作不跟 Job 挂钩"不一样，这条是用户这次明确选的，检查在模块里、不在服务层。
+  **下一件事（还没做）**：Job 正在用的口重新 Load 时只核对、不重建账（像 Unload 对账那样），做了以后 Job 中途端口出错、复位 Home 关了门也能接着回片。
+- 我自己定的（交付时说了）：Load 互锁加了"E84 交接没走完不 Load"（给了 READY 到交接完成、或超时锁着；E87 认定载具号就 Load，这时搬运车可能还挂着载具）；
+  状态检查加了"驱动没连上不发"（以前没连上照样发，指令发不出去落 Error、报"动作失败"，要复位再 Home）；E87 `LoadLater` 删了自己查的 `IsIdle && IsArrived`，
+  留了"已经 Load 着就不发"（等 Host 认定时操作员先手动 Load 了，不该报被拒）。模块锁里查搬运管理的占用不会互相等锁：搬运管理拿着自己的锁时不碰模块。
+- 界面翻失败原因用 Presentation 公共的 `ErrorText.Of(response, ModuleStates.XxxText)`（用户："不能放在客户端的公共类库里面吗？这样大家都能使用"），
+  `module.state_not_allowed` 的状态码按模块种类翻成状态字。
 
 ## LoadPort 的载具收进 CarrierComponent（2026-10-09，用户："专门搞一个 Carrier 的组件，LoadPort 里关于载具的东西都放进去，实现 ICarrier"）
 - **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，sc.xml 每个 LoadPort 下一个 `Carrier` 节点
@@ -460,7 +480,7 @@
   轴的先后 = sc.xml 轴节点的先后；`Axes` / `Arms` 是普通属性（不写 `=>` 懒加载），在 `InitComponent` 开头赋值：
   `Axes` = `FindChildren<RobotAxisComponent>()` = 整张轴表（含 Arm），`Arms` = 从 `Axes` 里挑出 `RobotArmComponent`、按手指号排；
   `ArmCount` = `Arms.Count`（DTO 照填，界面画几只手臂按它），晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
-- **不抽接口**：同族组件走基类（跟 `AxisComponent` / `ArmAxisComponent` 一个路子）；模块要调 `UpdatePosition` / `UpdateWaferPresence` 这些 internal 写入口，
+- **不抽接口**：同族组件走基类（跟 `AxisComponent` / `SwingArmComponent` 一个路子）；模块要调 `UpdatePosition` / `UpdateWaferPresence` 这些 internal 写入口，
   接口放不下，模块也只依赖这两个具体基类；派生类要自己再标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
 - **事件路由**：手指在位推送按手指号找 Arm 节点，找不到只记 WARN 忽略（设备推了没配的手指，不再凭空长出一只手）。
 - **设备状态查询收进平台**（照 LoadPort "设备状态查询在平台"的做法，2026-10-10）：原来 35021 `RobotModule` 里的轮询（订阅手指在位推送 -> 轮流查设备报错、伺服、速度、轴位；超时作废这条、下拍重试）移进 `BaseRobotModule`，

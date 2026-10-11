@@ -189,17 +189,17 @@ public sealed class DiskVisual3D : HardwareVisual3D
 
     private void RebuildGeometry()
     {
-        ClearParts();
-        AddPart(HardwareMesh3D.Cylinder(Radius, Thickness, 0), 0.8);
+        ClearMeshes();
+        AddMesh(HardwareMesh3D.Cylinder(Radius, Thickness, 0), 0.8);
         if (SpindleHeight > 0)
         {
-            AddPart(HardwareMesh3D.Cylinder(Radius * SpindleRadiusRatio, SpindleHeight, -SpindleHeight), 0.7);
+            AddMesh(HardwareMesh3D.Cylinder(Radius * SpindleRadiusRatio, SpindleHeight, -SpindleHeight), 0.7);
         }
 
-        AddPart(HardwareMesh3D.Annulus(Radius * 1.005, Radius * 1.025), 1.3)
+        AddMesh(HardwareMesh3D.Annulus(Radius * 1.005, Radius * 1.025), 1.3)
             .Transform = new TranslateTransform3D(0, Thickness, 0);
         // 边缘方向标记让没有文字的盘面也能看出旋转。
-        AddPart(HardwareMesh3D.ChamferedBox(new Point3D(Radius * 0.86, Thickness + 0.003, -Radius * 0.025),
+        AddMesh(HardwareMesh3D.ChamferedBox(new Point3D(Radius * 0.86, Thickness + 0.003, -Radius * 0.025),
             Radius * 0.1, 0.006, Radius * 0.05), 1.4);
         // Wafer 内部 100×100 画布有 2 单位留白，使可见圆盘半径与实体侧壁对齐。
         double r = Radius / 0.96;

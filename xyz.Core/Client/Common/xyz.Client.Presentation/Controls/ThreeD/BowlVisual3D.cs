@@ -149,7 +149,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
 
     private void RebuildGeometry()
     {
-        ClearParts();
+        ClearMeshes();
         _bands.Clear();
         double height = LevelOneHeight * HeightLevel;
         double scale = Radius / 1.59;
@@ -164,7 +164,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
         {
             var a = profile[i];
             var b = profile[(i + 1) % profile.Length];
-            var part = AddPart(HardwareMesh3D.RevolvedBand(a.Radius * scale, a.Y, b.Radius * scale, b.Y), a.Brightness);
+            var part = AddMesh(HardwareMesh3D.RevolvedBand(a.Radius * scale, a.Y, b.Radius * scale, b.Y), a.Brightness);
             var stretch = new ScaleTransform3D(1, 1, 1);
             var offset = new TranslateTransform3D();
             var transform = new Transform3DGroup();

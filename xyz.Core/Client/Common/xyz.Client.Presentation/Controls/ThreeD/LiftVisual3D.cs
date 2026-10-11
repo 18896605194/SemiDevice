@@ -110,20 +110,20 @@ public sealed class LiftVisual3D : HardwareVisual3D
     private void BuildGeometry()
     {
         double capHeight = BodyHeight * 0.08;
-        AddPart(HardwareMesh3D.ChamferedBox(
+        AddMesh(HardwareMesh3D.ChamferedBox(
             new Point3D(-BodyRadius * 1.4, 0, -BodyRadius * 1.4),
             BodyRadius * 2.8, BaseHeight, BodyRadius * 2.8), 0.55);
-        AddPart(HardwareMesh3D.Cylinder(BodyRadius * 1.06, capHeight, BaseHeight), 0.8);
-        AddPart(HardwareMesh3D.Cylinder(BodyRadius, BodyHeight - capHeight * 2, BaseHeight + capHeight), 1);
-        AddPart(HardwareMesh3D.Cylinder(BodyRadius * 1.06, capHeight,
+        AddMesh(HardwareMesh3D.Cylinder(BodyRadius * 1.06, capHeight, BaseHeight), 0.8);
+        AddMesh(HardwareMesh3D.Cylinder(BodyRadius, BodyHeight - capHeight * 2, BaseHeight + capHeight), 1);
+        AddMesh(HardwareMesh3D.Cylinder(BodyRadius * 1.06, capHeight,
             BaseHeight + BodyHeight - capHeight), 1.22);
 
         // 固定网格只构建一次；伸缩只改变杆的 Y 缩放和安装面的平移。
         var rodTransform = new Transform3DGroup();
         rodTransform.Children.Add(_rodScale);
         rodTransform.Children.Add(new TranslateTransform3D(0, BaseHeight + BodyHeight, 0));
-        AddPart(HardwareMesh3D.Cylinder(RodRadius, 1, 0), 1.35).Transform = rodTransform;
-        AddPart(HardwareMesh3D.Cylinder(BodyRadius * 0.78, MountThickness, 0), 1.12)
+        AddMesh(HardwareMesh3D.Cylinder(RodRadius, 1, 0), 1.35).Transform = rodTransform;
+        AddMesh(HardwareMesh3D.Cylinder(BodyRadius * 0.78, MountThickness, 0), 1.12)
             .Transform = _mountTranslation;
     }
 

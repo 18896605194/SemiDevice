@@ -15,7 +15,7 @@ using xyz.Client.Presentation.Localization;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
-// 腔体三维图冒烟：从后端的设备推送（ChamberPartsDto 的轴表、气缸表、喷嘴表）挑出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
+// 腔体三维图冒烟：从后端的设备状态推送（ChamberDeviceDataDto，结构跟 sc 一样）取出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
 // 液柱落点、0.2 s 过渡（中途换目标不跳、隐藏时直接落位）、Lift 升降带动摆臂和液柱、门 / Bowl / Lift 跟到位反馈（未知停在行程中间并高亮）、
 // 旋转跟状态、组成变化重搭、多于两条摆臂只画两条、视角工具栏（默认视角、俯视）、解绑。不连后端，推送直接喂显示模型。
 internal static class Program
@@ -306,7 +306,7 @@ internal static class Program
 
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine($"PASS: {_checks} chamber scene checks (devices picked from the devices push by role, part action labels, process/home alignment, stream landing, "
+            Console.WriteLine($"PASS: {_checks} chamber scene checks (devices taken from the sc-shaped device push, device action labels, process/home alignment, stream landing, "
                 + "0.2 s transition with retarget and hidden settle, lift/door/bowl follow feedback with unknown mid-stroke, spin direction, "
                 + "default-view / top-view toolbar below the view, rebuild, arm limit, unbind)");
             return 0;
@@ -426,7 +426,7 @@ internal static class Program
 }
 
 /// <summary>
-/// 冒烟用的设备状态：一项项改，ToDto() 换成后端推的设备表（轴表、气缸表、喷嘴表，门 / Bowl / Lift 标好角色），跟 sc 里 Chamber1 的结构一样：
+/// 冒烟用的设备状态：一项项改，ToDto() 换成后端推的设备状态（结构跟 sc 里 Chamber1 一样）：
 /// Door、Bowl1、SpinMotor、ArmN（下面 Lift、Nozzle_DIW、Nozzle_SC1）。
 /// </summary>
 internal sealed class SceneState
@@ -441,58 +441,50 @@ internal sealed class SceneState
 
     public List<ArmState> Arms { get; } = [];
 
-    public ChamberPartsDto ToDto()
+    public ChamberDeviceDataDto ToDto()
     {
-        var dto = new ChamberPartsDto { Module = Module };
-        if (Door is not null)
+        var dto = new ChamberDeviceDataDto
         {
-            dto.Cylinders.Add(Cylinder($"{Module}.Door", Door, ChamberCylinderRole.Door, string.Empty));
-        }
-
-        dto.Cylinders.Add(Cylinder($"{Module}.Bowl1", Bowl, ChamberCylinderRole.Bowl, string.Empty));
-        dto.Axes.Add(new ChamberAxisDto
-        {
-            Path = $"{Module}.SpinMotor",
-            Kind = ChamberAxisKind.Spin,
-            CurrentSpeed = Spin.Speed,
-            IsSpinning = Spin.Speed != 0,
-        });
+            Module = Module,
+            Door = Door is null ? null : Cylinder($"{Module}.Door", Door),
+            Bowls = [Cylinder($"{Module}.Bowl1", Bowl)],
+            Spin = new ChamberSpinDto
+            {
+                Path = $"{Module}.SpinMotor",
+                CurrentSpeed = Spin.Speed,
+                IsSpinning = Spin.Speed != 0,
+            },
+        };
         foreach (var arm in Arms)
         {
             string path = $"{Module}.{arm.Name}";
-            dto.Axes.Add(new ChamberAxisDto
+            var armDto = new ChamberArmDto
             {
                 Path = path,
-                Kind = ChamberAxisKind.Arm,
                 Reach = arm.Reach,
                 EdgeReach = arm.EdgeReach,
                 IsBusy = arm.IsMoving,
-            });
-            dto.Cylinders.Add(Cylinder($"{path}.Lift", arm.Lift, ChamberCylinderRole.Lift, path));
+                Lift = Cylinder($"{path}.Lift", arm.Lift),
+            };
             for (int i = 0; i < arm.Nozzles.Count; i++)
             {
-                dto.Nozzles.Add(new ChamberNozzleDto
+                armDto.Nozzles.Add(new ChamberNozzleDto
                 {
                     Path = $"{path}.{(i == 0 ? "Nozzle_DIW" : "Nozzle_SC1")}",
-                    Arm = path,
                     Chemical = i == 0 ? "DIW" : "SC1",
                     IsOn = arm.Nozzles[i].IsOn,
                 });
             }
+
+            dto.Arms.Add(armDto);
         }
 
         return dto;
     }
 
-    private static ChamberCylinderDto Cylinder(string path, CylinderState cylinder, ChamberCylinderRole role, string arm)
+    private static ChamberCylinderDto Cylinder(string path, CylinderState cylinder)
     {
-        return new ChamberCylinderDto
-        {
-            Path = path,
-            Role = role,
-            Arm = arm,
-            Position = cylinder.Position,
-        };
+        return new ChamberCylinderDto { Path = path, Position = cylinder.Position };
     }
 }
 

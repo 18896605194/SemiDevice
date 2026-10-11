@@ -58,17 +58,27 @@ internal sealed class E87Port
     /// <summary>端口上有 E87 载具对象（读到号或 Host 给了号）。</summary>
     public bool HasCarrier => CarrierIdMachine.State != E87CarrierIdState.NoCarrier;
 
-    /// <summary>认定了载具号：Load 起来读槽图（CTC 也是 ID 一认定就 Load）。动作攒到锁外做。</summary>
+    /// <summary>
+    /// 认定了载具号：Load 起来读槽图（CTC 也是 ID 一认定就 Load）。动作攒到锁外做。
+    /// "认定了才 Load"是 EAP 自己的条件，留在这里；端口能不能 Load（状态、账、载具在不在）由端口自己查、被拒带原因。
+    /// </summary>
     public void LoadLater()
     {
         var device = Device;
-        var carrier = Carrier;
         string carrierId = CarrierId;
         Owner.Later(() =>
         {
-            if (device.IsIdle && carrier.IsArrived && device.Load() is null)
+            // 等 Host 认定的时候操作员已经手动 Load 好了：要的就是 Load 着，不用再发
+            if (device.IsLoaded)
             {
-                LogHelper.Warn(Owner.Name, $"{device.Name} 载具 {carrierId} 认定了，但现在 Load 不了（端口状态不允许），等操作员处理");
+                return;
+            }
+
+            var result = device.Load();
+            if (!result.IsSuccess)
+            {
+                LogHelper.Warn(Owner.Name,
+                    $"{device.Name} 载具 {carrierId} 认定了，但 Load 被拒（{result.ErrorMessage}：{string.Join(", ", result.Args)}），等操作员处理");
             }
         });
     }

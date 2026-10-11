@@ -5,6 +5,7 @@ using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Manual.Models;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
@@ -136,7 +137,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         var response = await _service.LoadAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Load 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Load 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
         }
     }
 

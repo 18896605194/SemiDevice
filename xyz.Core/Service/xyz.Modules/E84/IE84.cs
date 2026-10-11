@@ -29,6 +29,11 @@ public interface IE84
     E84State State { get; }
 
     /// <summary>
+    /// 交接走到一半（给了 READY 以后、交接完成以前），或者超时锁着等人处理：搬运车可能还挂着载具，端口这时别动机构（Load 联锁看它）。
+    /// </summary>
+    bool IsHandoffRunning { get; }
+
+    /// <summary>
     /// 最近一次读到的输入。
     /// </summary>
     E84Inputs Inputs { get; }

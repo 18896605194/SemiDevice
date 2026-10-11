@@ -274,12 +274,12 @@ public sealed class ProcessRecipeField
             throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
         }
 
-        if (source is not null && !source.IsParts && !source.Options.Contains(defaultText, StringComparer.OrdinalIgnoreCase))
+        if (source is not null && !source.IsDevices && !source.Options.Contains(defaultText, StringComparer.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不在 Source 的选项里");
         }
 
-        string canonical = source is not null && !source.IsParts
+        string canonical = source is not null && !source.IsDevices
             ? source.Options.First(option => string.Equals(option, defaultText, StringComparison.OrdinalIgnoreCase))
             : field.Canonical(defaultText);
         return new ProcessRecipeField

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -19,7 +19,7 @@ namespace xyz.Modules;
 /// 工艺配方库（配方 → 工艺配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……）。
 /// 工艺配方说的是片进了腔体以后一步一步怎么做。每一步有哪些字段不写死，按 sc.xml 本节点下 Fields 的字段表来
 /// （一个子节点一个字段：类型、上下限、默认值、下拉的数据源……），界面按它生成步骤表，这里按它查、按它存。
-/// 下拉从腔体部件取的选项在模块全起来后 Bind 一次，按每个腔体装的部件取；几个腔体装的不一样时给界面合起来的，
+/// 下拉从腔体设备取的选项在模块全起来后 Bind 一次，按每个腔体装的设备取；几个腔体装的不一样时给界面合起来的，
 /// 用到具体腔体（流程配方、腔体起工艺）时再按那个腔体查（<see cref="FindMismatch"/>）。
 /// 合计时长的上限跟腔体的工艺超时（EC，现查）走。流程配方的工艺步骤、腔体起工艺都按名字引用这里的配方。
 /// 只有 gRPC 线程和 EAP（Host 远程管配方，经 IProcessRecipeComponent）调它（设备扫描线程不碰），所以读写文件放在锁里也卡不到设备，还省得两次保存交叉写坏文件。
@@ -80,7 +80,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     private IReadOnlyList<ProcessRecipeField> _fields = [];
 
     /// <summary>
-    /// 从腔体部件取选项的下拉：字段名 → 所有腔体合起来能选的。
+    /// 从腔体设备取选项的下拉：字段名 → 所有腔体合起来能选的。
     /// </summary>
     private IReadOnlyDictionary<string, ProcessRecipeChoices> _choices = NoChoices;
 
@@ -182,7 +182,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
 
     /// <summary>
     /// 读字段表：字段名不能重复；必须有 Seconds（步骤时长，小数）；数据源里 @ 跟的字段要在表里，
-    /// 而且是从腔体部件取名字的下拉（这样"它选中的部件下面"才说得通）。
+    /// 而且是从腔体设备取名字的下拉（这样"它选中的设备下面"才说得通）。
     /// </summary>
     private static List<ProcessRecipeField> ReadFields(ModuleConfig setting)
     {
@@ -222,10 +222,10 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
 
             var parent = FindField(fields, source.ParentKey);
             var parentSource = parent?.Source;
-            if (parent is null || ReferenceEquals(parent, field) || parentSource is null || !parentSource.IsParts || parentSource.Property.Length > 0)
+            if (parent is null || ReferenceEquals(parent, field) || parentSource is null || !parentSource.IsDevices || parentSource.Property.Length > 0)
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {setting.Name}.{FieldsNodeName}.{field.Key} 的 Source=\"{source.Text}\"：@ 后面要是表里别的、从腔体部件取名字的下拉字段（Parts:类型，不带属性）");
+                    $"sc.xml 节点 {setting.Name}.{FieldsNodeName}.{field.Key} 的 Source=\"{source.Text}\"：@ 后面要是表里别的、从腔体设备取名字的下拉字段（Devices:类型，不带属性）");
             }
         }
 
@@ -286,20 +286,20 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     }
 
     /// <summary>
-    /// 取下拉从腔体部件来的选项（装配完、模块起来之后调一次）：按每个腔体下装的部件取，几个腔体合起来给界面；
+    /// 取下拉从腔体设备来的选项（装配完、模块起来之后调一次）：按每个腔体下装的设备取，几个腔体合起来给界面；
     /// 每个腔体自己的也记下来，配方用到具体腔体时按它查。腔体也记下来，合计时长的上限按它们的工艺超时现查。
-    /// 数据源里写的属性部件上没有（sc.xml 写错了）就抛，开机就报出来。
+    /// 数据源里写的属性设备上没有（sc.xml 写错了）就抛，开机就报出来。
     /// </summary>
     public void Bind(IEnumerable<BaseModule> modules)
     {
         var chambers = modules.OfType<BaseChamberModule>().ToList();
         var fields = Fields;
-        var partFields = fields.Where(field => field.Source is not null && field.Source.IsParts).ToList();
+        var deviceFields = fields.Where(field => field.Source is not null && field.Source.IsDevices).ToList();
         var perChamber = new Dictionary<string, IReadOnlyDictionary<string, ProcessRecipeChoices>>(StringComparer.OrdinalIgnoreCase);
         foreach (var chamber in chambers)
         {
             var byField = new Dictionary<string, ProcessRecipeChoices>(StringComparer.OrdinalIgnoreCase);
-            foreach (var field in partFields)
+            foreach (var field in deviceFields)
             {
                 byField[field.Key] = Collect(chamber, field.Source!, fields);
             }
@@ -307,7 +307,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             perChamber[chamber.Name] = byField;
         }
 
-        var merged = partFields.ToDictionary(
+        var merged = deviceFields.ToDictionary(
             field => field.Key,
             field => ProcessRecipeChoices.Merge(perChamber.Values.Select(byField => byField[field.Key])),
             StringComparer.OrdinalIgnoreCase);
@@ -318,7 +318,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             _choices = merged;
         }
 
-        foreach (var field in partFields)
+        foreach (var field in deviceFields)
         {
             var choices = merged[field.Key];
             string text = field.Source!.ParentKey.Length == 0
@@ -327,14 +327,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             LogHelper.Info(Name, $"字段 {field.Key} 能选的（{field.Source.Text}）：{(text.Length == 0 ? "没有" : text)}");
             if (field.Default.Length > 0 && field.Source.ParentKey.Length == 0 && !choices.Values.Contains(field.Default, StringComparer.OrdinalIgnoreCase))
             {
-                LogHelper.Warn(Name, $"字段 {field.Key} 的默认值 {field.Default} 在腔体部件里找不到，新加的步骤这一格会报错");
+                LogHelper.Warn(Name, $"字段 {field.Key} 的默认值 {field.Default} 在腔体设备里找不到，新加的步骤这一格会报错");
             }
         }
     }
 
     /// <summary>
-    /// 一个腔体里，一个从部件取选项的下拉能选的：不跟别的字段走的在整个腔体里找；
-    /// 跟着别的字段走的，按那个字段能选的每个部件，在它下面找。
+    /// 一个腔体里，一个从设备取选项的下拉能选的：不跟别的字段走的在整个腔体里找；
+    /// 跟着别的字段走的，按那个字段能选的每个设备，在它下面找。
     /// </summary>
     private static ProcessRecipeChoices Collect(BaseChamberModule chamber, ProcessRecipeSource source, IReadOnlyList<ProcessRecipeField> fields)
     {
@@ -345,18 +345,18 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
 
         var parentSource = FindField(fields, source.ParentKey)!.Source!;
         var byParent = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var part in PartsUnder(chamber, parentSource.PartType))
+        foreach (var device in DevicesUnder(chamber, parentSource.DeviceType))
         {
-            byParent.TryAdd(part.Name, ValuesUnder(part, source));
+            byParent.TryAdd(device.Name, ValuesUnder(device, source));
         }
 
         return new ProcessRecipeChoices([], byParent);
     }
 
     /// <summary>
-    /// root 下面（不含自己）这种类型的部件，按 sc.xml 里的先后。类型按类名认，基类名也算（机型自己派生的喷嘴也是喷嘴）。
+    /// root 下面（不含自己）这种类型的设备，按 sc.xml 里的先后。类型按类名认，基类名也算（机型自己派生的喷嘴也是喷嘴）。
     /// </summary>
-    private static IEnumerable<ComponentBase> PartsUnder(ComponentBase root, string typeName)
+    private static IEnumerable<ComponentBase> DevicesUnder(ComponentBase root, string typeName)
     {
         foreach (var child in root.Children)
         {
@@ -365,7 +365,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                 yield return child;
             }
 
-            foreach (var inner in PartsUnder(child, typeName))
+            foreach (var inner in DevicesUnder(child, typeName))
             {
                 yield return inner;
             }
@@ -386,14 +386,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     }
 
     /// <summary>
-    /// root 下面这种部件的名字（或属性的值），去掉空的、重复的。
+    /// root 下面这种设备的名字（或属性的值），去掉空的、重复的。
     /// </summary>
     private static List<string> ValuesUnder(ComponentBase root, ProcessRecipeSource source)
     {
         var values = new List<string>();
-        foreach (var part in PartsUnder(root, source.PartType))
+        foreach (var device in DevicesUnder(root, source.DeviceType))
         {
-            string value = source.Property.Length == 0 ? part.Name : PropertyText(part, source);
+            string value = source.Property.Length == 0 ? device.Name : PropertyText(device, source);
             if (value.Length > 0)
             {
                 ProcessRecipeChoices.AddDistinct(values, [value]);
@@ -403,19 +403,19 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         return values;
     }
 
-    private static string PropertyText(ComponentBase part, ProcessRecipeSource source)
+    private static string PropertyText(ComponentBase device, ProcessRecipeSource source)
     {
-        var property = part.GetType().GetProperty(source.Property, BindingFlags.Public | BindingFlags.Instance);
+        var property = device.GetType().GetProperty(source.Property, BindingFlags.Public | BindingFlags.Instance);
         if (property is null)
         {
-            throw new InvalidOperationException($"sc.xml 工艺配方字段的数据源 {source.Text}：部件 {part.FullPath} 没有属性 {source.Property}");
+            throw new InvalidOperationException($"sc.xml 工艺配方字段的数据源 {source.Text}：设备 {device.FullPath} 没有属性 {source.Property}");
         }
 
-        return (property.GetValue(part)?.ToString() ?? string.Empty).Trim();
+        return (property.GetValue(device)?.ToString() ?? string.Empty).Trim();
     }
 
     /// <summary>
-    /// 一个下拉字段能选的（所有腔体合起来）：直接写选项的就是写的那些；从部件取的按 Bind 取到的；不是下拉的为空。
+    /// 一个下拉字段能选的（所有腔体合起来）：直接写选项的就是写的那些；从设备取的按 Bind 取到的；不是下拉的为空。
     /// </summary>
     public ProcessRecipeChoices ChoicesOf(ProcessRecipeField field)
     {
@@ -425,7 +425,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         }
     }
 
-    private static ProcessRecipeChoices ChoicesOf(ProcessRecipeField field, IReadOnlyDictionary<string, ProcessRecipeChoices> parts)
+    private static ProcessRecipeChoices ChoicesOf(ProcessRecipeField field, IReadOnlyDictionary<string, ProcessRecipeChoices> devices)
     {
         var source = field.Source;
         if (source is null)
@@ -433,12 +433,12 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             return ProcessRecipeChoices.Empty;
         }
 
-        if (!source.IsParts)
+        if (!source.IsDevices)
         {
             return new ProcessRecipeChoices(source.Options, ProcessRecipeChoices.Empty.ByParent);
         }
 
-        return parts.TryGetValue(field.Key, out var choices) ? choices : ProcessRecipeChoices.Empty;
+        return devices.TryGetValue(field.Key, out var choices) ? choices : ProcessRecipeChoices.Empty;
     }
 
     /// <summary>
@@ -488,7 +488,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     }
 
     /// <summary>
-    /// 这个配方用在这个腔体上对不对得上：配方里从腔体部件取选项的下拉，选的值这个腔体有没有（几个腔体装的不一样时才会对不上）。
+    /// 这个配方用在这个腔体上对不对得上：配方里从腔体设备取选项的下拉，选的值这个腔体有没有（几个腔体装的不一样时才会对不上）。
     /// 对得上、腔体不认识（不是腔体，或没绑上）、配方不在库里（那是另一个错，由 <see cref="Contains"/> 那一步报）都返回 null。
     /// </summary>
     public ProcessRecipeMismatch? FindMismatch(string recipeName, string chamber)
@@ -522,7 +522,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                 {
                     var source = field.Source;
                     string value = step.Get(field.Key).Trim();
-                    if (source is null || !source.IsParts || value.Length == 0)
+                    if (source is null || !source.IsDevices || value.Length == 0)
                     {
                         continue;
                     }

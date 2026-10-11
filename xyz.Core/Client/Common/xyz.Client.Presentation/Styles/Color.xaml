@@ -74,7 +74,6 @@
 
     <!--  ==================== CUP 控件 ====================  -->
     <SolidColorBrush x:Key="CUPFill" Color="#ADF1CC" />
-    <SolidColorBrush x:Key="CUPPartFill" Color="#C4C7CE" />
 
     <!--  ==================== ToggleSwitch ====================  -->
     <SolidColorBrush x:Key="ToggleActiveFill" Color="#2B8FFF" />

@@ -32,8 +32,8 @@ public partial class DateTimePicker : UserControl
     public DateTimePicker()
     {
         InitializeComponent();
-        HourPart.ItemsSource = Hours;
-        MinutePart.ItemsSource = Minutes;
+        HourBox.ItemsSource = Hours;
+        MinuteBox.ItemsSource = Minutes;
     }
 
     /// <summary>
@@ -59,9 +59,9 @@ public partial class DateTimePicker : UserControl
         _showing = true;
         try
         {
-            DatePart.SelectedDate = Value?.Date;
-            HourPart.SelectedIndex = Value?.Hour ?? -1;
-            MinutePart.SelectedIndex = Value?.Minute ?? -1;
+            DateBox.SelectedDate = Value?.Date;
+            HourBox.SelectedIndex = Value?.Hour ?? -1;
+            MinuteBox.SelectedIndex = Value?.Minute ?? -1;
         }
         finally
         {
@@ -89,7 +89,7 @@ public partial class DateTimePicker : UserControl
             return;
         }
 
-        var date = DatePart.SelectedDate;
+        var date = DateBox.SelectedDate;
         if (date is null)
         {
             SetCurrentValue(ValueProperty, null);
@@ -97,8 +97,8 @@ public partial class DateTimePicker : UserControl
         }
 
         var value = date.Value.Date
-            .AddHours(Math.Max(0, HourPart.SelectedIndex))
-            .AddMinutes(Math.Max(0, MinutePart.SelectedIndex));
+            .AddHours(Math.Max(0, HourBox.SelectedIndex))
+            .AddMinutes(Math.Max(0, MinuteBox.SelectedIndex));
         if (Value != value)
         {
             SetCurrentValue(ValueProperty, value);

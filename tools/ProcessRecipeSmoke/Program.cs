@@ -1,4 +1,4 @@
-using xyz.Components;
+﻿using xyz.Components;
 using xyz.Components.Components;
 using xyz.Configs.Models;
 using xyz.Modules;
@@ -9,7 +9,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 工艺配方冒烟：sc.xml 节点和字段表、字段表配错开机就报、下拉按数据源取选项（直接写的、从腔体部件取的、跟着别的字段走的，
+// 工艺配方冒烟：sc.xml 节点和字段表、字段表配错开机就报、下拉按数据源取选项（直接写的、从腔体设备取的、跟着别的字段走的，
 // 几个腔体装的不一样时合起来）、新建 / 改名 / 保存 / 删除和按字段表的每一条检查、规整（数字、开关、下拉的写法，只留字段表里的字段）、
 // 文件读写（字段都写进文件、老配方缺的字段按默认值补、坏文件跳过）、版本冲突、变更事件、配方用到具体腔体时对不对得上、
 // gRPC 服务的列表 / 字段表 / 错误码，腔体起工艺时配方要在库里、选的这个腔体要有。不连设备，文件写在临时目录，跑完删掉。
@@ -135,11 +135,11 @@ try
         "时间：小数、必填、0.1 ~ 3600 s、一位小数、默认 10");
     Check(F("Rpm").Type == ProcessRecipeFieldType.Int && F("Rpm").Min == 0 && F("Rpm").Max == 3000 && F("Rpm").Default == "500" && F("Rpm").Decimals is null,
         "转速：整数、0 ~ 3000、默认 500");
-    Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").Source!.IsParts && F("Arm").Source!.PartType == "SwingArmComponent"
+    Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").Source!.IsDevices && F("Arm").Source!.DeviceType == "SwingArmComponent"
           && F("Arm").Source!.Property.Length == 0 && !F("Arm").Required, "摆臂：下拉，从腔体里的摆臂轴取名字");
-    Check(F("Chemical").Source!.PartType == "NozzleComponent" && F("Chemical").Source!.Property == "Chemical" && F("Chemical").Source!.ParentKey == "Arm",
+    Check(F("Chemical").Source!.DeviceType == "NozzleComponent" && F("Chemical").Source!.Property == "Chemical" && F("Chemical").Source!.ParentKey == "Arm",
         "药液：下拉，取所选摆臂下面喷嘴的 Chemical");
-    Check(!F("Mode").Source!.IsParts && F("Mode").Source!.Options.SequenceEqual(new[] { "Time", "Scan" }) && F("Mode").Default == "Time",
+    Check(!F("Mode").Source!.IsDevices && F("Mode").Source!.Options.SequenceEqual(new[] { "Time", "Scan" }) && F("Mode").Default == "Time",
         "方式：下拉，直接写的 Time、Scan，默认 Time");
     Check(F("Position").Unit.Length == 0 && F("Position").Min == 0 && F("Position").Max == 150, "位置：0 ~ 150，没单位");
 
@@ -160,12 +160,12 @@ try
     Rejects(LibraryNode(SecondsNode(), FieldNode("Flow", ("Text", "流量"), ("Type", "Double"), ("Required", "yes"))), "必填写成 yes");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Mode", ("Text", "方式"), ("Type", "Choice"))), "下拉没配数据源");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Mode", ("Text", "方式"), ("Type", "Choice"), ("Source", "Time,time"))), "选项写了两遍");
-    Rejects(LibraryNode(SecondsNode(), FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Parts:Arm Axis"))), "部件类型写法不对");
-    Rejects(LibraryNode(SecondsNode(), FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Chemical@Arm"))), "@ 跟的字段不存在");
+    Rejects(LibraryNode(SecondsNode(), FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Devices:Arm Axis"))), "设备类型写法不对");
+    Rejects(LibraryNode(SecondsNode(), FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Chemical@Arm"))), "@ 跟的字段不存在");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Mode", ("Text", "方式"), ("Type", "Choice"), ("Source", "Time,Scan")),
-        FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Chemical@Mode"))), "@ 跟的是直接写选项的下拉");
-    Rejects(LibraryNode(SecondsNode(), FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Chemical")),
-        FieldNode("Flow", ("Text", "流量"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Flow@Chem"))), "@ 跟的下拉取的是属性、不是部件名");
+        FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Chemical@Mode"))), "@ 跟的是直接写选项的下拉");
+    Rejects(LibraryNode(SecondsNode(), FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Chemical")),
+        FieldNode("Flow", ("Text", "流量"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Flow@Chem"))), "@ 跟的下拉取的是属性、不是设备名");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Rpm", ("Text", "转速"), ("Type", "Int"), ("Default", "abc"))), "默认值不是整数");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Rpm", ("Text", "转速"), ("Type", "Int"), ("Max", "3000"), ("Default", "5000"))), "默认值超过上限");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Flow", ("Text", "流量"), ("Type", "Double"), ("Decimals", "1"), ("Default", "1.25"))), "默认值小数位多了");
@@ -173,7 +173,7 @@ try
     Rejects(LibraryNode(SecondsNode(), FieldNode("Flag", ("Text", "开关"), ("Type", "Bool"), ("Default", "yes"))), "开关的默认值不是 true / false");
     ProcessRecipeComponent.Current = library;
 
-    // 2. 下拉按数据源取选项（模块全起来后 Bind）：从腔体部件取的按每个腔体取，几个腔体合起来给界面（同名不分大小写合并、按先后）；
+    // 2. 下拉按数据源取选项（模块全起来后 Bind）：从腔体设备取的按每个腔体取，几个腔体合起来给界面（同名不分大小写合并、按先后）；
     //    跟着摆臂走的药液按摆臂分开；没有喷嘴的摆臂也列（选了它药液就没得选）；合计时长的上限 = 腔体工艺超时（EC 没装取默认 600 s）。
     var pm1 = Chamber("SmokePM1", ("Arm1", ["DIW", "SC1"]), ("Arm2", []));
     var pm2 = Chamber("SmokePM2", ("arm1", ["diw", "HF"]), ("Arm3", ["SC1"]));
@@ -188,11 +188,11 @@ try
         "直接写的选项照写的；不是下拉的没有选项");
     Check(library.MaxTotalSeconds == 600, "合计上限 = 腔体工艺超时 600 s");
     var wrongProperty = (ProcessRecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
-        FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Parts:NozzleComponent.Liquid")))]).Single();
+        FieldNode("Chem", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Liquid")))]).Single();
     try
     {
         wrongProperty.Bind([pm1]);
-        Check(false, "数据源写的属性部件上没有，Bind 时应报出来");
+        Check(false, "数据源写的属性设备上没有，Bind 时应报出来");
     }
     catch (InvalidOperationException)
     {
@@ -347,7 +347,7 @@ try
     Check(library.Get(1).Recipe?.Name == "SC1_45S" && library.Get(1).Recipe?.Steps.Count == 2 && library.Get(1).Recipe!.Steps[0].Values.Count == 9,
         "拿到的是副本");
 
-    // 10. 配方用到具体腔体：配方里从腔体部件取的下拉，选的值这个腔体要有（几个腔体装的不一样时）；直接写的选项不分腔体。
+    // 10. 配方用到具体腔体：配方里从腔体设备取的下拉，选的值这个腔体要有（几个腔体装的不一样时）；直接写的选项不分腔体。
     Check(library.Save(1, 4, string.Empty, [Step("5", "300", "Arm1", "HF", "1", "Time", "150")], "Saver").IsOk, "存一个用 HF 的（只有 SmokePM2 的 Arm1 有）");
     var noHf = library.FindMismatch(" sc1_45s ", "SmokePM1");
     Check(noHf is not null && noHf.Field == "药液" && noHf.Value == "HF", "SmokePM1 没有 HF：对不上，报字段和值");

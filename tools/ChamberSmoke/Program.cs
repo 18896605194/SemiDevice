@@ -637,8 +637,8 @@ try
         WaferManagerComponent.Current = previousLedger;
     }
 
-    Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: axes / cylinders / nozzles with door, bowl, lift, spin, arm roles, "
-        + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, part actions: not found, invalid args, "
+    Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
+        + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
         + "command rejected, Manual state, busy rejection, stop while busy, abort replacement, failure to Error, axis end to end, "
         + "jog hold / renew / release, hold timeout auto stop, cylinders up / down; platform Home order, Reset, Abort; "
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "

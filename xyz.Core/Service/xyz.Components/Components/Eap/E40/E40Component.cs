@@ -324,9 +324,9 @@ public class E40Component : ComponentBase, IE40Callback
             return [E5Error.Of(E5Error.NotAvailable, "Job manager not installed")];
         }
 
-        var recipeParts = SecsRead.List(recipe, "配方", 3);
-        string sequence = SecsRead.Text(recipeParts[1], "RCPSPEC").Trim();
-        if (recipeParts[2].Count > 0)
+        var recipeItems = SecsRead.List(recipe, "配方", 3);
+        string sequence = SecsRead.Text(recipeItems[1], "RCPSPEC").Trim();
+        if (recipeItems[2].Count > 0)
         {
             return [E5Error.Of(E5Error.RecipeError, "Recipe variables not supported")];
         }

@@ -172,6 +172,17 @@ public class E84Component : ComponentBase, IE84
         }
     }
 
+    public bool IsHandoffRunning
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return IsHandoffStarted(_state) || _state == E84State.TimedOut;
+            }
+        }
+    }
+
     public E84Inputs Inputs
     {
         get

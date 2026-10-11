@@ -656,6 +656,18 @@ try
         $"目标等不到：transfer.station_busy，参数是站点和等待毫秒数，不用人工确认，实际 {notReady.Code}");
     Check(ledger.Get("LP1", 1)?.Id == first.Id && !transfers.IsSlotLocked("LP1", 1) && lp1.State == LoadPortState.Loaded,
         "片还在源槽，锁放开，源站点也没被碰");
+
+    // 3b. Load 的资源检查：Load 会清掉这个口的旧账、按扫图重建，账上有片的槽被搬运占着就不让 Load，端口不动
+    var waiting = StartTransfer("LP1", 1, "PM1", 1);
+    Check(waiting.IsSuccess && transfers.IsSlotLocked("LP1", 1), "目标不在待命：搬运受理了、占着 LP1 第 1 槽，在等目标");
+    lp1.NoteState(ModuleState.Idle);
+    var lockedLoad = lp1.Load();
+    Check(!lockedLoad.IsSuccess && lockedLoad.ErrorMessage == ErrorCodes.TransferSlotLocked && lockedLoad.Args.SequenceEqual(new[] { "LP1", "1" })
+          && lp1.State == ModuleState.Idle && ledger.Get("LP1", 1)?.Id == first.Id,
+        $"LP1 第 1 槽被搬运占着：Load 被拒（transfer.slot_locked），端口和账都不动，实际 {lockedLoad.ErrorMessage} [{string.Join(",", lockedLoad.Args)}]");
+    lp1.NoteState(LoadPortState.Loaded);
+    Check(transfers.Cancel(waiting.Result!, "smoke"), "撤掉这次搬运");
+    Check(!Finish(waiting).MotionStarted && !transfers.IsSlotLocked("LP1", 1), "没动手就撤了，锁放开");
     pm1.NoteState(ModuleState.Idle);
 
     // 4. 动过手才失败（取片失败）：片在哪说不准，锁留着、站点停在交互中，等人工确认后 ReleaseHold。
@@ -797,6 +809,15 @@ try
     Check(PjOf("LOT-B-1") is null && jobs.OwnerOf(slot4!.Id) is null && events.WaitFor("PJ LOT-B-1 #18"),
         "CJ 没建成：已经建好的 PJ LOT-B-1 撤掉（#18），片放开");
     Check(jobs.OwnerOf(first.Id) == "LOT-A-1", "片归到 PJ 名下");
+
+    // Load 的资源检查：这个口账上的片归还没结束的 Job，不让 Load（会重建这个口的账，Job 就认不出自己的片了），要 Load 先中止 Job。
+    // 模拟 Job 跑到一半端口出错、复位 Home 关了门（Idle），操作员想重新 Load
+    lp1.NoteState(ModuleState.Idle);
+    var ownedLoad = lp1.Load();
+    Check(!ownedLoad.IsSuccess && ownedLoad.ErrorMessage == ErrorCodes.PortWafersInJob && ownedLoad.Args.SequenceEqual(new[] { "LP1", "LOT-A-1" })
+          && lp1.State == ModuleState.Idle && ledger.Get("LP1", 1)?.Id == first.Id && jobs.OwnerOf(first.Id) == "LOT-A-1",
+        $"LP1 的片归 Job：Load 被拒（loadport.wafers_in_job，带端口和 PJ 名），端口、账、归属都不动，实际 {ownedLoad.ErrorMessage} [{string.Join(",", ownedLoad.Args)}]");
+    lp1.NoteState(LoadPortState.Loaded);
     Rejects(StartTransfer("LP1", 1, "PM1", 1), ErrorCodes.TransferWaferOwned, [first.WaferId, "LOT-A-1"], "手动搬 Job 的片：拒，带片号和 Job");
 
     // 任务表：一片一行，按流程配方一站一站拼——来源 LoadPort 取片 → 每一站放片、工艺、取片 → 回片 LoadPort 放片
@@ -1684,8 +1705,6 @@ sealed class SmokePort : BaseLoadPortModule
     public void NoteState(int state) => State = state;
 
     public void Tick() => OnScan();
-
-    public override ModuleOperation? Load() => null;
 
     public override ModuleOperation? Unload() => null;
 

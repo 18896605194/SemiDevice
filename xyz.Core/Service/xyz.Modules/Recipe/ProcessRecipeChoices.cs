@@ -21,7 +21,7 @@ public sealed class ProcessRecipeChoices
     public IReadOnlyList<string> Values { get; }
 
     /// <summary>
-    /// 跟着别的字段走时：那个字段的值（部件名，不分大小写）→ 能选的。
+    /// 跟着别的字段走时：那个字段的值（设备名，不分大小写）→ 能选的。
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ByParent { get; }
 

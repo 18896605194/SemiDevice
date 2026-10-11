@@ -127,6 +127,41 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ```
   `Complete()` / `Fail(code, reason, args)` / `AbortByHost(reason)`；`Reason` 只进日志，`Code + ErrorArgs` 给界面；OnScan 抛异常自动 `Fail(OperationFaulted)`。
   RPC 线程用 `WaitReply(ms)` 等结果，**不能在扫描线程等**。超时时间取模块的 EC 属性。
+- **动作入口：状态 → 资源 → 互锁**（2026-10-10 用户定的统一结构，先拿 LoadPort 的 Load 做样板，Unload / Home / 夹紧松开、机械手取放、腔体照着改）：
+  手动页、自动任务、EAP 都调模块的**同一个入口**，入口在模块锁里按顺序查三项，哪项不过就带原因（错误码 + 参数）返回、模块不动；都过了才 `Begin`（占住模块、落执行态、发指令）。
+  调用方不先查、也不重复查。入口不带"谁发的"参数，模块里不写 `if (来自 EAP)`。
+  ```csharp
+  public HandleResult<ModuleOperation> Load()               // 入口不 virtual：三项检查谁都绕不过
+  {
+      lock (OperationGate)
+      {
+          var rejected = CheckState(LoadPortAction.Load)   // ① 状态：BaseModule 写好
+                      ?? CheckLoadResource()                // ② 资源：模块里写
+                      ?? LoadInterlock();                   // ③ 互锁：protected virtual，平台默认，机型重写先调 base
+          if (rejected is not null)
+          {
+              return HandleResult<ModuleOperation>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
+          }
+
+          var operation = Begin(LoadPortAction.Load, CreateLoadOperation());   // 通过：占住、落执行态
+          ...（operation 为 null 只可能是 Begin 跟 CheckState 改得不一致，回 module.action_rejected）
+          return HandleResult<ModuleOperation>.Success(operation);
+      }
+  }
+  protected virtual ModuleOperation CreateLoadOperation() { ... }   // 机型只在设备动作不一样时重写这个
+  ```
+  每项检查返回 `HandleResult?`：null = 过，不过 = 错误码 + 参数（一种原因一个错误码，中英文语言包各一条）。三项怎么分：
+  - **状态**（只看自己）：`BaseModule.CheckState(action)` = `CheckAvailable()`（默认看 `CanBeginAction` → `module.disabled`；有驱动的模块重写加"没连上" → `module.not_connected`）
+    → 状态表没这一行 `module.state_not_allowed` [模块, 状态码] → 有在途动作 `module.busy`（Abort 不查）。跟 `Begin` 查的是同一套，只是带原因。
+  - **资源**（这个动作要独占的东西有没有被别人占）：直接问晶圆账、`TransferManager.IsSlotLocked`、`JobManager.OwnerOf`，不另建占用表。
+  - **互锁**（周围条件、传感器、别的模块、搬运车）：平台给默认，机型的光幕之类重写、先调 base，用机型自己的错误码。
+  - 只跟"谁发的"有关的检查（EAP 要 ON-LINE REMOTE、E87 状态机、Host 认定了载具号才 Load）留在发命令那一层（E87 回 Host 的 CAACK 也在那层翻）；
+    判断法：换成操作员在手动页点同一个按钮，这条还该不该拦——该拦放模块入口，不该放发起方。"接了 EAP 才拦、但谁发都拦"（槽图要 Host 认定才让机械手进）看的是设备状态，放模块。
+  - 服务层被拒照原样回入口的码和参数（`BaseService.RunOperation` 收 `HandleResult<ModuleOperation>` 的重载）；界面用 `ErrorText.Of(response, ModuleStates.XxxText)`（Presentation 公共的），状态码翻成状态字。
+  - 加一个动作照这个顺序：状态表加行 → 资源检查 → 互锁虚方法 → 错误码 + 两个语言包 → 入口照上面写 → 服务只翻结果 → 冒烟每种拒绝原因一项检查。
+  LoadPort 的 Load（已改）：资源 = 这个口账上的片不归没结束的 Job（`loadport.wafers_in_job` [模块, PJ]，Load 会清账重建、片的内部标识全换新，要 Load 先中止 Job）、
+  有片的槽没被搬运占着（`transfer.slot_locked`）；互锁 = 载具到位（`loadport.carrier_not_arrived`）、E84 交接没在走（`IE84.IsHandoffRunning`：给了 READY 到交接完成、或超时锁着 → `loadport.handoff_running`）。
+  其余 LoadPort 动作还走旧的：`Begin(LoadPortAction)` 里按动作调 bool 联锁（`UnloadInterlock` 等），被拒回 null → `module.action_rejected`。
 - 动作失败（被人中止顶掉的不算）在操作终结时由 `RaiseActionFailedAlarm`（`protected virtual`，机型可重写：自己要管的情况先判、报了就 return，其余交给 base，整套换掉不调 base；在模块锁里，只报警不等待）报警，一次失败只报一条：机械手、腔体报 `ControlledStopAlarm`；LoadPort 超时按动作报各自的超时报警（Load / Unload / Home=初始化 / 夹紧 / 松开 / 复位 / 中止，跟 EC 各动作超时一一对应），不是超时的报 `ControlledStopAlarm`（显示为"LoadPort 动作失败"）。设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
@@ -137,38 +172,40 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   判出来的叫 `Carrier.IsArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
-Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `Carrier.IsArrived`，机型有别的条件重写、先调 base）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.UpdateSlotMap`；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时先发普通卸载、关好门再主动 `Map()`（FCD `CLDMP`；设备没有带图卸载的指令）扫一遍跟晶圆账对，两条指令用 `LoadPortCommandOperation.Then` 串在同一个动作里、前一条做成才发下一条；手动页面走 `UnloadManually()`，一律不扫图、不对账——Mapping 是 LoadPort 硬件自带的，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在动作不一样时重写；
+Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.UpdateSlotMap`；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时先发普通卸载、关好门再主动 `Map()`（FCD `CLDMP`；设备没有带图卸载的指令）扫一遍跟晶圆账对，两条指令用 `LoadPortCommandOperation.Then` 串在同一个动作里、前一条做成才发下一条；手动页面走 `UnloadManually()`，一律不扫图、不对账——Mapping 是 LoadPort 硬件自带的，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在动作不一样时重写；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
   `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 是设备推送的在位）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
   `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台，机型类留空、只在不一样时重写 `Home` / `ResetDevice` / `AbortDevice` / `CreateProcessOperation`），每拍最后 `PublishState`）。
-- **腔体部件照 sc 认、强类型**（2026-10-10 用户："未来其他项目直接修改 sc 文件就行，代码基本不要修改"；原来的 `[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典整套删了）：
-  `Clean\ChamberParts`（`BaseChamberModule.Parts`，第一次用时按组件树建一次）收轴（`AxisComponent`）、气缸（`TwoStateComponent`）、喷嘴（`NozzleComponent`），按 sc 先后（先父后子），
-  并认出整腔动作要用的：腔体下名叫 `Door` 的气缸是门、名字以 `Bowl` 开头的是 Bowl（可多层）、第一个 `SpinMotorComponent` 是卡盘、每条 `ArmAxisComponent` 一条摆臂
-  （`ChamberArm`：它下面第一个气缸是 Lift、下面的喷嘴是它的喷嘴，`FindNozzle(药液)`；`FindArm(节点名)` 给配方用）。认法只有这一处，界面不再按名字猜。
-  推送 `ChamberPartsDto`（token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖）：`Axes`（Kind = Axis / Arm / Spin，位置、速度、五盏灯、摆臂 Reach / EdgeReach、卡盘 IsSpinning）、
-  `Cylinders`（Role = Door / Bowl / Lift / Other、Arm = 所在摆臂路径、Position = `CylinderPosition`）、`Nozzles`（Arm、Chemical、IsOn），条目是 record，浮点按 3 位取整（编码器抖不推）。
-  加新种类的硬件（加热、真空……）：写组件 + 在 `ChamberParts` / DTO / 服务 / 界面各加一处，这是平台一次性的活；之后各项目 sc 里挂就行。
+- **腔体里装什么照 sc 认、强类型**（2026-10-10 用户："未来其他项目直接修改 sc 文件就行，代码基本不要修改"；原来的 `[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典整套删了，"Part"这个叫法也不用了）：
+  sc 里一个腔体下挂门、Bowl、卡盘、摆臂（`SwingArmComponent`，它自己就是摆动轴；硬件上装在它上面的升降是一个 `CylinderComponent`、喷嘴是几个 `NozzleComponent`，都挂在摆臂节点下面）。
+  `BaseChamberModule` 直接从子节点认：`Door`（名叫 Door 的气缸）、`Bowls`（名字以 Bowl 开头的气缸，可多层）、`SpinMotor`（第一个 `SpinMotorComponent`）、`Arms`、`FindArm(节点名)`（配方用），
+  另有 `Axes` / `Cylinders` / `Nozzles` 全量（手动页按路径找、整腔动作逐个发）。摆臂自己给 `Lift`（下面第一个气缸）、`Nozzles`、`FindNozzle(药液)`。没有另外的"部件表"类。
+  推送 `ChamberDeviceDataDto`（结构跟 sc 一样：`Door`、`Bowls`、`Spin`（`ChamberSpinDto`）、`Arms`（`ChamberArmDto`：摆动轴的状态 + Reach / EdgeReach + `Lift` + `Nozzles`）；
+  token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖；条目是 record，浮点按 3 位取整）。门、Bowl、卡盘、摆臂以外的东西不在推送里（35021 没有，真有了再加一个位置）。
+  加新种类的硬件（加热、真空……）：写组件 + 在模块 / DTO / 服务 / 界面各加一处，这是平台一次性的活；之后各项目 sc 里挂就行。
   做没做完由组件自己说：`ComponentBase.ActionState`（基类默认已做完，自己管动作到完成的轴、气缸、阀重写；2026-10-07 用户："为什么是腔体判断，不应该"，去掉了 `IActionComponent`）。
-- 腔体部件手动动作（手动页）：服务是具体方法 `AxisHomeAsync` / `AxisMoveAsync`（位置、速度 0 = EC MoveSpeed）/ `AxisStepAsync`（步距不能 0）/ `AxisJogAsync` + `AxisJogRenewAsync` / `AxisStopAsync` / `AxisResetAsync`、
-  `CylinderUpAsync` / `CylinderDownAsync`（请求 `ChamberPartRequest` / `ChamberAxisMoveRequest` / `ChamberAxisStepRequest` / `ChamberAxisJogRequest`），模块上对应 `AxisHome`……`MoveCylinder`：
-  普通动作走迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内发，发不出去回 `chamber.part_command_rejected`
-  不改状态、不报警，`ChamberPartOperation` 只看部件的 ActionState，EC `PartActionTimeout` 兜底；
+- 腔体设备手动动作（手动页）：服务是具体方法 `AxisHomeAsync` / `AxisMoveAsync`（位置、速度 0 = EC MoveSpeed）/ `AxisStepAsync`（步距不能 0）/ `AxisJogAsync` + `AxisJogRenewAsync` / `AxisStopAsync` / `AxisResetAsync`、
+  `CylinderUpAsync` / `CylinderDownAsync`（请求 `ChamberDeviceRequest`（Module + Device 路径）/ `ChamberAxisMoveRequest` / `ChamberAxisStepRequest` / `ChamberAxisJogRequest`），模块上对应 `AxisHome`……`MoveCylinder`：
+  普通动作走迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内发，发不出去回 `chamber.device_command_rejected`
+  不改状态、不报警，`ChamberDeviceOperation` 只看设备的 ActionState，EC `DeviceActionTimeout` 兜底；
   停止不看忙不忙、不挂操作，发出去就回；点动挂 `ChamberHoldOperation` 等松手——界面按住期间调 `AxisJogRenewAsync` 续，
-  EC `HoldTimeoutMs`（默认 1000）内没续上就自己停，停下才退出 Manual。错误码：`chamber.part_not_found`（这个路径不是这种部件）、
-  `chamber.part_action_args_invalid`（不是有限数、速度负、点动速度 / 步距 0）、`chamber.part_not_held`；第二个参数是动作名 `ChamberPartAction`（Shared 枚举），界面按 `part.action.*` 翻。
-- 腔体整腔动作（`Clean\Operations`，底座 `ChamberStepOperation`：一段一段走，每段同时发、都做完再走下一段；指令发不出去 `chamber.part_command_rejected`、部件失败 `chamber.part_action_failed`、
-  整个动作超过 EC 超时 `chamber.action_timeout`[模块, ms]）：
-  - 回零 `ChamberHomeOperation`（用户定的先后）：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂（和卡盘以外别的轴）回零 → Bowl 降，门不动（门归站点交互环）。Lift 先升，摆臂回零才不刮 Bowl 壁。
+  EC `HoldTimeoutMs`（默认 1000）内没续上就自己停，停下才退出 Manual。错误码：`chamber.device_not_found`（这个路径不是这种设备）、
+  `chamber.device_args_invalid`（不是有限数、速度负、点动速度 / 步距 0）、`chamber.jog_not_held`；第二个参数是动作名 `ChamberDeviceAction`（Shared 枚举），界面按 `device.action.*` 翻（`DeviceActionText.Of`）。
+- 腔体整腔动作（`Clean\Operations`，底座 `ChamberStepOperation`：一段一段走，每段同时发、都做完再走下一段；指令发不出去 `chamber.device_command_rejected`、设备失败 `chamber.device_action_failed`、
+  整个动作超过 EC 超时 `chamber.action_timeout`[模块, ms]；四个操作都直接拿腔体模块）：
+  - 回零 `ChamberHomeOperation`（用户定的先后）：喷嘴全关 → 卡盘停转 → 各臂 Lift 升 → 摆臂（和卡盘以外别的轴）回零 → Bowl 降，门不动（门归站点交互环）。Lift 先升，摆臂回零才不刮 Bowl 壁。
   - 复位：轴的驱动器复位在组件基类 `Reset` 递归时就发了，`ChamberResetOperation` 只等每根轴做完；中止：轴停止同理在组件 `Abort` 里发了，`ChamberAbortOperation` 把喷嘴全停液（气缸、阀的中止输出保持原样）再等轴停下。
-  - 工艺 `ChamberProcessOperation`（上限 EC `ProcessTimeout`）：喷嘴全关、Lift 升、Bowl 升 → 每一步：转速给卡盘（0 停转、跟上一步一样不重发）→ 关掉这一步不用的喷嘴 → 别的摆臂回 Home（轴 0 位）、
-    这一步的摆臂摆到"位置"（晶圆坐标，`ArmAxisComponent.ToAxisPosition` 按示教 Edge / Center 换）→ 有流量设定 AO 的先给流量再开药液对得上的喷嘴 → Time 停着喷 / Scan 在位置和"到"之间按"速度"（`ToAxisSpeed`）来回扫，
-    到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，
-    字段表里没配、这一步没填的跳过。配方选的摆臂 / 药液这个腔体没有 `chamber.recipe_option_missing`；没有配方步骤（没装工艺配方库）`chamber.recipe_steps_missing`。工艺失败、超时（不是中止）`FinishProcess` 先把喷嘴停了。
-  - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），所以卡盘 EC `MaxSpeed` 要不小于配方里的转速（默认 100，35021 联调时改过）。喷嘴 SC `FlowAoIndex`（-1 不接）：`SetFlow(L/min)` 写 AO，`Stop()` = 关阀 + 设定清零。
+  - 工艺 `ChamberProcessOperation`（上限 EC `ProcessTimeout`）：喷嘴全关、Lift 升、Bowl 升 → 每一步：先关掉这一步不用的喷嘴（卡盘加减速时不让上一步的药液接着喷）→ 转速给卡盘（0 停转、跟上一步一样不重发）→
+    别的摆臂回 Home（轴 0 位）、这一步的摆臂摆到"位置"（晶圆坐标，`SwingArmComponent.ToAxisPosition` 按示教 Edge / Center 换）→ 有流量设定 AO 的先给流量再开药液对得上的喷嘴 →
+    Time 停着喷 / Scan 在位置和"到"之间按"速度"（`ToAxisSpeed`）来回扫，到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。
+    认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，字段表里没配、这一步没填的跳过。
+    配方选的摆臂 / 药液这个腔体没有 `chamber.recipe_option_missing`；没有配方步骤（没装工艺配方库）`chamber.recipe_steps_missing`。工艺失败、超时（不是中止）`FinishProcess` 先把喷嘴停了。
+  - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），卡盘 EC `MaxSpeed` 要不小于配方里的转速（轴的通用默认是 100）。转着换转速：上一条就是 Spin 时 PLC 报忙也照收（2026-10-10 仿真器上发现转着改不了转速）。
+    喷嘴 SC `FlowAoIndex`（-1 不接）：`SetFlow(L/min)` 写 AO，`Stop()` = 关阀 + 设定清零。
   气缸 `TwoStateComponent.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
-  摆臂 `ArmAxisComponent.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
+  摆臂 `SwingArmComponent.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
   示教位 `Edge` = 配方 0（第一个边缘）、`Center` = 配方 150（晶圆中心）的实际轴位置，默认 0 / 150；旋转电机 `IsSpinning`。
   轴手动页参数默认值 EC：`MoveSpeed`、`JogSpeed`（点动 / 步进速度）、`JogStep`（步距）。
   轴的"目标已在到位容差里就不发"只用于绝对定位（MoveTo）；相对移动（MoveBy，步进）照发——步距默认 1 跟到位容差默认 1 一样大，
@@ -185,7 +222,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
   编号、文件、版本号、`Changed(编号)` 跟流程配方库一样。**每一步有哪些字段不写死**，按本节点下 `Fields` 分组的字段表（一个子节点一个字段 = 配方页一列，
   节点名就是字段名；值：`Text` / `TextEn` 列名、`Type` Int / Double / Choice / Bool / Text、`Unit`、`Min` / `Max`、`Decimals`、`Default`、`Required`、`Source`），
   `OnSettingLoaded` 里读（`ProcessRecipeField.FromConfig`），配错就抛（字段名格式、重复、必须有 `Seconds` 且是 Double、上下限、默认值、数据源写法……）。
-  下拉的数据源 `ProcessRecipeSource`：直接写选项（`Time,Scan`），或 `Parts:类型[.属性][@字段名]` 从腔体部件取（类名或基类名认部件，属性反射取值；
+  下拉的数据源 `ProcessRecipeSource`：直接写选项（`Time,Scan`），或 `Devices:类型[.属性][@字段名]` 从腔体设备取（类名或基类名认设备，属性反射取值；
   @ 跟的字段要是从部件取名字的下拉，只在它选中的部件下面找）。`Bind(modules)` 按每个腔体取一遍（数据源写的属性部件上没有就抛），
   界面拿所有腔体合起来的（`ChoicesOf`），每个腔体自己的留着给 `FindMismatch(配方, 腔体)`：流程配方保存（`sequence.recipe_option_missing`）、
   腔体起工艺（`chamber.recipe_option_missing`）时查勾的腔体有没有配方里选的值。检查按字段表（`process_recipe.value_*` 一组通用错误码，
@@ -390,7 +427,7 @@ Load 先过联锁虚方法 `LoadInterlock()`（在 `Begin` 里查，默认要 `C
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
   - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"WaferLedger"）；
-  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的部件推送 `ChamberPartsDto`）也用模块名，类型不同互不覆盖；
+  - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManagerComponent.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。

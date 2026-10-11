@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -64,8 +64,8 @@ public sealed class ChamberBaseVisual3D : HardwareVisual3D
     private void RebuildGeometry()
     {
         // 仅更新底板 Content，保留已挂载的硬件、变换和所有外部绑定。
-        ClearParts();
-        AddPart(HardwareMesh3D.ChamferedBox(new Point3D(-Length / 2, -Thickness, -Width / 2),
+        ClearMeshes();
+        AddMesh(HardwareMesh3D.ChamferedBox(new Point3D(-Length / 2, -Thickness, -Width / 2),
             Length, Thickness, Width));
     }
 }

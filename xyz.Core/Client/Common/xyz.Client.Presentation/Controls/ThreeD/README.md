@@ -318,17 +318,17 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 
 | 依赖属性 | 含义 |
 | --- | --- |
-| `Parts` | `ChamberPartsModel`：后端的部件推送（`ChamberPartsDto`）就地刷新，按角色挑出门、Bowl、卡盘、摆臂 |
+| `Devices` | `ChamberDeviceDataModel`：后端的设备状态推送（`ChamberDeviceDataDto`，结构跟 sc 一样）就地刷新，照树取门、Bowl、卡盘、摆臂 |
 | `Wafer` | 盘上的片（晶圆账，`WaferModel`）；null 显示空盘 |
 
 ```xml
-<threeD:ChamberScene Parts="{Binding Parts}" Wafer="{Binding Model.Wafer}" />
+<threeD:ChamberScene Devices="{Binding Devices}" Wafer="{Binding Model.Wafer}" />
 ```
 
-- 装哪些部件看 sc.xml（`ChamberPartsModel` 从推送里认）：腔体下名叫 Door 的气缸、名字以 Bowl 开头的第一个气缸（Bowl1）配了才装，
+- 装哪些设备看 sc.xml（`ChamberDeviceDataModel` 照推送的树取，认法在后端腔体模块）：腔体下名叫 Door 的气缸、名字以 Bowl 开头的第一个气缸（Bowl1）配了才装，
   旋转盘一直在（架在主轴上，比 Bowl 降下时的上沿高、比升起时低：降下露出盘面好取放片，升起围住盘面挡液）；
-  类名 SwingArmComponent 的轴是摆臂，它下面第一个气缸是 Lift、阀按 sc 先后是喷嘴，摆臂按 sc 先后放在 Bowl 右、左两个安装位，
-  最多两条（多配的在日志里提示）。`Revision` 变了（部件组成变了）才整套重搭，平时只改绑定的状态。
+  摆臂是 SwingArmComponent，它下面第一个气缸是 Lift、下面的喷嘴按 sc 先后排，摆臂按 sc 先后放在 Bowl 右、左两个安装位，
+  最多两条（多配的在日志里提示）。`Revision` 变了（设备组成变了）才整套重搭，平时只改绑定的状态。
 - 状态都是绑定：门 `IsOpen`、Bowl / Lift `IsRaised` 跟到位反馈（开到位 / 关到位），未知（命令发了、到位信号还没亮）绑 `IsUnknown`
   画在行程中间并高亮；喷嘴出液跟 `IsOn`；旋转盘在转就按固定的显示转速转（不跟实际转速，几百转画出来只会频闪），转向跟实际转速正负。
 - 摆角：摆臂组件推 `Reach`（0 = Home 即回零的 0 位，1 = EC Center 晶圆中心）和 `EdgeReach`（EC Edge 第一个边缘在 Reach 上的位置），
@@ -352,7 +352,7 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 - `Content` 由组件管理；页面通过公开依赖属性和 `Transform` 组合，不直接替换内部模型。
 
 公共的 `HardwareVisual3D` 负责动作/选中高亮，`SetVisualActive` 提供独立的内部动作高亮入口。
-后续硬件组件继承它并用 `AddPart` 注册网格，
+后续硬件组件继承它并用 `AddMesh` 注册网格，
 即可获得同一套材质行为。机械连接通过挂载集合或装配层位置绑定实现，各组件的设备状态仍独立。
 静态网格、材质冻结；动作只更新变换/材质，不注册全局逐帧事件。
 

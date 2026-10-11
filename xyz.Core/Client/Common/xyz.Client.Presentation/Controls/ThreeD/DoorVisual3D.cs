@@ -136,17 +136,17 @@ public sealed class DoorVisual3D : HardwareVisual3D
 
     private void RebuildGeometry()
     {
-        ClearParts();
+        ClearMeshes();
         // 仅显示门框与升降门板；气缸、活塞杆和外侧连接件不参与外观。
         // 门板沿门框前侧滑动，与横梁保留间隙，避免开门时穿过横梁。
-        AddPart(HardwareMesh3D.ChamferedBox(new Point3D(-Width / 2, 0.18, 0.1), Width, Height, 0.1), 1.05)
+        AddMesh(HardwareMesh3D.ChamferedBox(new Point3D(-Width / 2, 0.18, 0.1), Width, Height, 0.1), 1.05)
             .Transform = _panelTranslation;
         foreach (double x in new[] { -Width / 2 - 0.12, Width / 2 })
         {
-            AddPart(HardwareMesh3D.ChamferedBox(new Point3D(x, 0, -0.08), 0.12, Height + 0.28, 0.16), 0.65);
+            AddMesh(HardwareMesh3D.ChamferedBox(new Point3D(x, 0, -0.08), 0.12, Height + 0.28, 0.16), 0.65);
         }
 
-        AddPart(HardwareMesh3D.ChamferedBox(new Point3D(-Width / 2 - 0.12, Height + 0.18, -0.08), Width + 0.24, 0.1, 0.16), 0.8);
+        AddMesh(HardwareMesh3D.ChamferedBox(new Point3D(-Width / 2 - 0.12, Height + 0.18, -0.08), Width + 0.24, 0.1, 0.16), 0.8);
         UpdatePosition();
     }
 

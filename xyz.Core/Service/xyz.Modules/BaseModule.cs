@@ -1,10 +1,12 @@
-﻿using xyz.Common.Log;
+﻿using System.Globalization;
+using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
@@ -165,6 +167,62 @@ public abstract class BaseModule : ComponentBase
     /// 装机停用、驱动没建起来的模块重写成 false——装配里组件初始化没做成就不该还能发指令。
     /// </summary>
     protected virtual bool CanBeginAction => true;
+
+    #region 动作检查：状态 → 资源 → 互锁
+
+    // 每个动作的入口在模块锁里按这个先后查，哪项不过就带原因返回、模块不动，都过了才 Begin：
+    //   状态：只看模块自己（能不能动作、状态表允不允许、有没有正在做的动作），这里写好，各动作共用；
+    //   资源：这个动作要独占的东西有没有被别人占着（晶圆账、搬运占用、Job 归属），写在模块里；
+    //   互锁：周围条件允不允许动（传感器、别的模块、搬运车），平台给默认、机型重写先调 base。
+    // 只跟"谁发的命令"有关的检查（EAP 要 ON-LINE REMOTE 这类）不放这里，留在发命令的那一层。
+
+    /// <summary>
+    /// 能不能动作：默认看 <see cref="CanBeginAction"/>（停用、驱动没装好）。
+    /// 有驱动的模块重写，再加上"设备没连上"——没连上照样发，指令发不出去会落 Error、报警。不通过返回原因，通过返回 null。
+    /// </summary>
+    protected virtual HandleResult? CheckAvailable()
+    {
+        if (!CanBeginAction)
+        {
+            return HandleResult.Fail(ErrorCodes.ModuleDisabled, Name);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 状态检查（三项检查的第一项）：能不能动作 → 状态表允不允许 → 有没有正在做的动作（急停可以顶替，不查）。
+    /// 跟 <see cref="Begin{TAction}"/> 查的是同一套，只是带上原因。不通过返回原因，通过返回 null。
+    /// </summary>
+    protected HandleResult? CheckState<TAction>(TAction action)
+        where TAction : struct, Enum
+    {
+        lock (OperationGate)
+        {
+            var unavailable = CheckAvailable();
+            if (unavailable is not null)
+            {
+                return unavailable;
+            }
+
+            string name = action.ToString();
+            int state = State;
+            if (!TryGetTransition(state, name, out _))
+            {
+                return HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
+            }
+
+            var current = _operation;
+            if (current is not null && !current.IsTerminal && name != AbortAction)
+            {
+                return HandleResult.Fail(ErrorCodes.ModuleBusy, Name);
+            }
+
+            return null;
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// 发起一个动作：查迁移表 → 挂操作 → 落执行态

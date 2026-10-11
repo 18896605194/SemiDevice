@@ -12,7 +12,7 @@ public abstract class HardwareVisual3D : ModelVisual3D
     /// <summary>两态件（门、Bowl、Lift）位置未知（命令发了、到位信号还没亮）时画在行程的哪儿：正中间，一眼看出没到位。</summary>
     protected const double UnknownProgress = 0.5;
 
-    private readonly List<(GeometryModel3D Model, double Brightness)> _parts = [];
+    private readonly List<(GeometryModel3D Model, double Brightness)> _meshes = [];
     private bool _isVisualActive;
 
     protected Model3DGroup Model { get; } = new();
@@ -98,18 +98,18 @@ public abstract class HardwareVisual3D : ModelVisual3D
         new PropertyMetadata(0.42, OnAppearanceChanged),
         value => value is double strength && double.IsFinite(strength) && strength is >= 0 and <= 1);
 
-    protected void ClearParts()
+    protected void ClearMeshes()
     {
-        _parts.Clear();
+        _meshes.Clear();
         Model.Children.Clear();
     }
 
-    protected GeometryModel3D AddPart(MeshGeometry3D mesh, double brightness = 1)
+    protected GeometryModel3D AddMesh(MeshGeometry3D mesh, double brightness = 1)
     {
-        var part = new GeometryModel3D(mesh, CreateMaterial(brightness));
-        _parts.Add((part, brightness));
-        Model.Children.Add(part);
-        return part;
+        var model = new GeometryModel3D(mesh, CreateMaterial(brightness));
+        _meshes.Add((model, brightness));
+        Model.Children.Add(model);
+        return model;
     }
 
     /// <summary>内部动作（升降过渡、持续出液等）的高亮，不修改外部绑定的 IsMoving。</summary>
@@ -131,9 +131,9 @@ public abstract class HardwareVisual3D : ModelVisual3D
 
     private void RefreshMaterials()
     {
-        foreach (var (part, brightness) in _parts)
+        foreach (var (model, brightness) in _meshes)
         {
-            part.Material = CreateMaterial(brightness);
+            model.Material = CreateMaterial(brightness);
         }
     }
 

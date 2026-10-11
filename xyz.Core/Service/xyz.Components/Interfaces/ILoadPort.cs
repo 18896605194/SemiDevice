@@ -1,5 +1,6 @@
 ﻿using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
@@ -47,7 +48,10 @@ public interface ILoadPort
 
     ModuleOperation? InitModule();
 
-    ModuleOperation? Load();
+    /// <summary>
+    /// Load：端口自己按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）返回、端口不动，调用方不用先查；通过就是发起的动作。
+    /// </summary>
+    HandleResult<ModuleOperation> Load();
 
     ModuleOperation? Unload();
 
