@@ -44,7 +44,8 @@
     <sys:String x:Key="loadport.slot_map_length_mismatch">{0} Mapping 数据不对：设备回了 {1} 槽，配置是 {2} 槽，没落账</sys:String>
     <sys:String x:Key="loadport.slot_map_abnormal">{0} Mapping 有交叉片、叠片或认不出的槽：第 {1} 槽</sys:String>
     <sys:String x:Key="loadport.unload_slot_map_mismatch">{0} Unload 时扫到的片跟晶圆账对不上：第 {1} 槽</sys:String>
-    <sys:String x:Key="loadport.wafers_in_job">{0} 上的片属于还没结束的 Job（{1}），装载会重建这个口的晶圆账；要装载先中止这个 Job</sys:String>
+    <sys:String x:Key="loadport.wafers_in_job">{0} 上的片属于还没结束的 Job（{1}），要先中止这个 Job</sys:String>
+    <sys:String x:Key="loadport.wafers_outside">{0} 取出去的片还有 {1} 片没回来（在腔体或机械手上），关门片就回不来了；先把片放回来</sys:String>
     <sys:String x:Key="loadport.carrier_not_arrived">{0} 上没有载具（没放到位），不能装载</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} 跟搬运车的交接还没走完（或交接超时等人处理），不能装载</sys:String>
 

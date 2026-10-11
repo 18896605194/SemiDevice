@@ -233,7 +233,7 @@
 - 我自己定的（交付时说了）：没加"有搬运在用这个口就不回 Loaded"——要查搬运管理会跟模块锁互相拿锁，35021 只有一台机械手，
   两台机械手共用一个 LoadPort 又在对方手伸在盒里时点中止才会撞。
 
-## 动作入口：状态 → 资源 → 互锁（2026-10-10，用户提的结构，先拿 LoadPort 的 Load 做样板）
+## 动作入口：状态 → 资源 → 互锁（2026-10-10，用户提的结构，先拿 LoadPort 的 Load 做样板，同天 LoadPort 全部动作照改："直接改吧，仿照 load"）
 - 用户的图：手动操作 / 自动任务 / EAP 指令 → 统一动作入口 → 检查状态 → 检查资源 → 检查互锁 → 通过：占用资源并启动；拒绝：返回具体原因。
   要"有明显的开发流程和规范，让人看这个就知道怎么写"。写法和怎么分三项见 backend.md §3"动作入口"。
 - **只跟"谁发的"有关的检查留在发起方**（用户问"有些卡控只是 EAP 下发的时候需要卡控，这个咋整"）：EAP 的 ON-LINE REMOTE、E87 状态机、Host 认定了载具号才 Load
@@ -245,6 +245,14 @@
 - 我自己定的（交付时说了）：Load 互锁加了"E84 交接没走完不 Load"（给了 READY 到交接完成、或超时锁着；E87 认定载具号就 Load，这时搬运车可能还挂着载具）；
   状态检查加了"驱动没连上不发"（以前没连上照样发，指令发不出去落 Error、报"动作失败"，要复位再 Home）；E87 `LoadLater` 删了自己查的 `IsIdle && IsArrived`，
   留了"已经 Load 着就不发"（等 Host 认定时操作员先手动 Load 了，不该报被拒）。模块锁里查搬运管理的占用不会互相等锁：搬运管理拿着自己的锁时不碰模块。
+- **片在外面一律不让关门，Job 在用也不让**（用户同意："这个是可以的"，也说了这种情况很少见）：Unload（自动、Host 放行、手动都算）、门开着的 Home，
+  从这个口取出去的片没回齐 → `loadport.wafers_outside`、片归没结束的 Job → `loadport.wafers_in_job`（提示先中止 Job）。
+  10-08 定的"手动卸载不对账"说的是扫图对账，这条是另一件事；账不对（账上记着片在外面、实际没有）就先在账单调整页改账。
+  **Home 只在 Loaded 出发时查**（我定的，交付时说了）：没初始化 / 出错 / 空闲出发的不查——出错复位完是 NotInit，机械手进不了站、片回不来，Home 再被拦就卡死了。
+- 复位、中止跟着组件基类的 `Reset()` / `Abort()`，签名不改（报警复位、整机停止、PJ 中止按返回的动作等设备停下都靠它）：只查状态，被拒的原因另外问（`CheckReset` / `CheckAbort`）。
+  中止不查设备连没连上：没连上也要能把在途的动作顶掉，免得它一直等到超时。Clamp / Unclamp 没有调用方，只把入口改成新写法，不加新条件。
+- E87 取消 / 放行回 Host 之前先问端口 `CheckUnload()`，不能卸回 CAACK=2 带原因（以前先回 CAACK=0、真卸的时候被拒只记日志）。
+  模块锁里没有反过来拿 E87 锁的路（LoadPort 往 E87 的回调都丢到 EAP 派发线程上排队），所以在 E87 锁里问端口不会互相等锁。
 - 界面翻失败原因用 Presentation 公共的 `ErrorText.Of(response, ModuleStates.XxxText)`（用户："不能放在客户端的公共类库里面吗？这样大家都能使用"），
   `module.state_not_allowed` 的状态码按模块种类翻成状态字。
 
@@ -314,7 +322,7 @@
   Mapping 是 LoadPort 硬件自带的，所以**不做能力开关**。
   **先 Unload、再主动 Map**（同日改，用户："CUDMP 没有依据，这个功能其实是没有的，直接 unload 然后 map"）：FCD 没有带图卸载的指令，原来照 TDK 系写的 `MOV:CUDMP`
   （驱动组件 `UnloadWithMap` / `CreateUnloadWithMap`、`FcdUnloadWithMapCommand`、冒烟里测它的用例）整套删了——仿真器不认 CUDMP，XM.Core 实机 Fortrend 驱动也没有。
-  现在开着时 `UnloadCore` 先发普通卸载（CULOD），做成了再发驱动组件的 `Map()`（FCD 是 `MOV:CLDMP`，原地扫、不装载，XM.Core 实机驱动和仿真器都这么用；
+  现在开着时 Unload 的设备动作（`CreateUnloadOperation(mapAndVerify)`）先发普通卸载（CULOD），做成了再发驱动组件的 `Map()`（FCD 是 `MOV:CLDMP`，原地扫、不装载，XM.Core 实机驱动和仿真器都这么用；
   槽位串跟 Load 一样两种形状都收，`FcdMappingCommand`），两条用 `LoadPortCommandOperation.Then` 串在同一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败，
   超时每条各按 EC `UnloadTimeout` 算（后一条从它自己发出去算起）。扫回来的槽图逐槽走晶圆账 `Verify`（对不上晶圆账自己报账实不符、写清是多是少），交叉片、叠片、认不出的也算对不上；
   有对不上的 Unload 判失败（`loadport.unload_slot_map_mismatch`，带槽号）、报 `SlotMapAlarm`、端口落 Error——盒子里的片跟账不一样不能就这么取走。

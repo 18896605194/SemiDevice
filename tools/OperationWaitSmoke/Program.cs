@@ -155,49 +155,115 @@ var ledger = new WaferManagerComponent();
 var port = new ProbePort();
 port.InitComponent();
 var service = new LoadPortService(new ComponentBase[] { port });
-// Load 已经改成"状态 → 资源 → 互锁"入口（被拒带原因），单独测，见下面
-var actions = new Func<string, Task<RpcResponse>>[]
+// 服务回包（Unload、Home、复位、中止）：入口被拒原样回原因；发起了就等终态，成功 / 设备报错 / 超时 / 被顶替 / 等待超时都翻成对应的码。
+// 走真路径（挂操作、落状态、扫描线程收尾才唤醒等的人），所以用单独的端口，动作挂上以后再收尾、推一拍。Load 见下面一节。
 {
-    service.UnloadAsync, service.HomeAsync, service.ResetAsync, service.AbortAsync
-};
-foreach (var action in actions)
-{
-    var response = await action("missing");
-    Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "Missing module response changed.");
+    var servicePort = new ProbePort("ServicePort");
+    Check(servicePort.InitComponent(), "服务回包用的端口的组件初始化应成功");
+    servicePort.HomeTimeout = 5000;
+    servicePort.UnloadTimeout = 5000;
+    servicePort.ResetTimeout = 5000;
+    servicePort.AbortTimeout = 5000;
+    var portService = new LoadPortService(new ComponentBase[] { servicePort });
 
-    port.Next = null;
-    response = await action(port.Name);
-    Check(!response.Success && response.Code == ErrorCodes.ActionRejected, "Rejected action response changed.");
+    bool Mounted(ModuleOperation operation)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < 3000)
+        {
+            if (ReferenceEquals(servicePort.CurrentOperation, operation))
+            {
+                return true;
+            }
 
-    port.Next = new ProbeOperation();
-    port.Next.Succeed();
-    response = await action(port.Name);
-    Check(response.Success, "RPC did not return a successful operation.");
+            Thread.Sleep(1);
+        }
 
-    port.Next = new ProbeOperation();
-    port.Next.Reject();
-    response = await action(port.Name);
-    Check(!response.Success && response.Code == ErrorCodes.DeviceFailed && response.Args.Count == 2,
-        "RPC lost device failure details.");
+        return false;
+    }
 
-    port.Next = new ProbeOperation();
-    port.Next.TimeOut();
-    response = await action(port.Name);
-    Check(!response.Success && response.Code == ErrorCodes.Timeout, "RPC lost action timeout details.");
+    // 发一个动作：摆一个探针动作，等它挂上了按 finish 收尾、推一拍，回服务的回包
+    async Task<RpcResponse> Run(Func<string, Task<RpcResponse>> call, Action<ProbeOperation> finish)
+    {
+        var probe = new ProbeOperation();
+        servicePort.Next = probe;
+        var pending = Task.Run(() => call(servicePort.Name));
+        Check(Mounted(probe), "动作应挂上");
+        finish(probe);
+        servicePort.Tick();
+        return await pending;
+    }
 
-    port.Next = new ProbeOperation();
-    port.Next.AbortByHost("replacement");
-    response = await action(port.Name);
-    Check(!response.Success && response.Code == ErrorCodes.Aborted, "RPC returned an empty Abort error.");
+    foreach (var call in new Func<string, Task<RpcResponse>>[]
+             {
+                 portService.UnloadAsync, portService.HomeAsync, portService.ResetAsync, portService.AbortAsync,
+             })
+    {
+        var missing = await call("missing");
+        Check(!missing.Success && missing.Code == ErrorCodes.ModuleNotFound, "没有这个模块：module.not_found");
+    }
 
-    port.Next = new ProbeOperation();
-    response = await action(port.Name);
-    Check(!response.Success && response.Code == ErrorCodes.WaitTimeout
-        && response.Args.SequenceEqual(new[] { "Probe", "0" })
-        && port.Next.State == OperationState.Running,
-        "RPC must report wait timeout without changing device operation state.");
-    port.Next.Succeed();
-    Check(port.Next.Wait(0), "RPC timeout prevented later completion.");
+    // 被拒原样回入口的原因
+    servicePort.NoteState(ModuleState.Idle);
+    var refused = await portService.UnloadAsync(servicePort.Name);
+    Check(!refused.Success && refused.Code == ErrorCodes.ModuleStateNotAllowed
+          && refused.Args.SequenceEqual(new[] { servicePort.Name, ModuleState.Idle.ToString() }),
+        $"空闲（门关着）点 Unload：回状态不允许带状态码，实际 {refused.Code}");
+    servicePort.NoteState(LoadPortState.Loading);
+    refused = await portService.ResetAsync(servicePort.Name);
+    Check(!refused.Success && refused.Code == ErrorCodes.ModuleStateNotAllowed
+          && refused.Args.SequenceEqual(new[] { servicePort.Name, LoadPortState.Loading.ToString() }),
+        $"复位：跟着组件基类回 null 的，服务再问原因（CheckReset），回状态不允许，实际 {refused.Code}");
+    servicePort.BlockedAction = LoadPortAction.Home;
+    servicePort.NoteState(ModuleState.Idle);
+    refused = await portService.HomeAsync(servicePort.Name);
+    Check(!refused.Success && refused.Code == ProbePort.BlockedCode, $"机型的 Home 联锁不过：回机型自己的原因，实际 {refused.Code}");
+    servicePort.BlockedAction = null;
+
+    // 发起了：终态翻成回包（翻法几个动作共用，拿 Home 走一遍）
+    servicePort.NoteState(ModuleState.Idle);
+    var response = await Run(portService.HomeAsync, probe => probe.Succeed());
+    Check(response.Success && servicePort.State == ModuleState.Idle, "Home 做成：回成功，落 Idle");
+    response = await Run(portService.HomeAsync, probe => probe.Reject());
+    Check(!response.Success && response.Code == ErrorCodes.DeviceFailed && response.Args.Count == 2 && servicePort.State == ModuleState.Error,
+        "设备报错：回 device_failed 带参数，落 Error");
+    response = await Run(portService.HomeAsync, probe => probe.TimeOut());
+    Check(!response.Success && response.Code == ErrorCodes.Timeout, "动作超时：回 timeout");
+    response = await Run(portService.HomeAsync, probe => probe.AbortByHost("replacement"));
+    Check(!response.Success && response.Code == ErrorCodes.Aborted, "被顶替：回 action_aborted");
+
+    servicePort.HomeTimeout = 0;
+    var waiting = new ProbeOperation();
+    servicePort.Next = waiting;
+    response = await portService.HomeAsync(servicePort.Name);
+    Check(!response.Success && response.Code == ErrorCodes.WaitTimeout && response.Args.SequenceEqual(new[] { "Probe", "0" })
+          && waiting.State == OperationState.Running,
+        "等不到结果：回 wait_timeout，动作照样在跑");
+    waiting.Succeed();
+    servicePort.Tick();
+    Check(waiting.Wait(0) && servicePort.State == ModuleState.Idle, "等待超时不耽误动作之后做完");
+
+    // Unload（手动）、复位、中止：发起了照样等终态
+    servicePort.NoteState(LoadPortState.Loaded);
+    response = await Run(portService.UnloadAsync, probe => probe.Succeed());
+    Check(response.Success && servicePort.State == ModuleState.Idle, "手动 Unload：Loaded 能发，做成落 Idle");
+    response = await Run(portService.ResetAsync, probe => probe.Succeed());
+    Check(response.Success, "复位：空闲能发，做成回成功");
+    response = await Run(portService.AbortAsync, probe => probe.Succeed());
+    Check(response.Success, "中止：做成回成功");
+
+    // 中止不看连没连上：没连上也能把在途的动作顶掉，不让它一直等到超时
+    servicePort.NoteState(ModuleState.Idle);
+    var inflight = new ProbeOperation();
+    servicePort.Next = inflight;
+    Check(servicePort.Home().IsSuccess, "Home 发起、在途");
+    servicePort.Shell.Close();
+    var homeOffline = servicePort.Home();
+    Check(!homeOffline.IsSuccess && homeOffline.ErrorMessage == ErrorCodes.ModuleNotConnected, "没连上：Home 当场被拒（回设备没连上）");
+    var abortOperation = new ProbeOperation();
+    servicePort.Next = abortOperation;
+    Check(ReferenceEquals(servicePort.Abort(), abortOperation) && inflight.State == OperationState.Aborted,
+        "没连上也能中止：顶掉在途的 Home");
 }
 
 // Load 入口：按 状态 → 资源 → 互锁 查，被拒照原样回入口给的错误码 + 参数（状态码由界面翻成状态字），端口不动；
@@ -392,11 +458,15 @@ Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.Complete, "上层�
 var reloadOp = new ProbeOperation();
 port.BeginAction(LoadPortAction.Load, reloadOp);
 reloadOp.Succeed();
-port.Tick();
+// Load 好的这一拍，载具已经判干完：EC AutoUnload（默认开）当场走 Unload 入口发起卸载，用的就是摆好的 lastUnload
 var lastUnload = new ProbeOperation();
-port.BeginAction(LoadPortAction.Unload, lastUnload);
+port.Next = lastUnload;
+port.Tick();
+Check(ReferenceEquals(port.CurrentOperation, lastUnload) && port.State == LoadPortState.Unloading,
+    "干完的载具 Load 好了：自动 Unload 走入口发起，进 Unloading");
 lastUnload.Succeed();
 port.Tick();
+port.Next = null;
 Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.Complete,
     "已经判完成的载具，Unload 不该把它改掉");
 Check(port.IsIdle && port.LocalTransferState == LoadPortTransferState.ReadyToUnload, "干完了、Unload 好了：端口自己判等取走");
@@ -600,9 +670,13 @@ port.E87Callback = null;
     Check(!Active(port, port.InitTimeoutAlarm), "不是 Home 超时，不该报初始化超时");
     Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, "人工复位清掉动作失败");
 
+    // 报警复位走到端口的 Reset()，发了设备复位（探针动作下一拍做完）：出错复位完落 NotInit，要再 Home
+    port.Tick();
+    Check(port.State == ModuleState.NotInit && port.CurrentOperation is null, "报警复位带的设备复位做完：出错复位完是 NotInit");
+
     // Home 超时 → 只报初始化超时，不再另报动作失败（一次失败一条报警）
     var slowHome = new ProbeOperation();
-    Check(port.BeginAction(LoadPortAction.Home, slowHome) is not null, "Error 状态应允许 Home");
+    Check(port.BeginAction(LoadPortAction.Home, slowHome) is not null, "NotInit 状态应允许 Home");
     slowHome.TimeOut();
     port.Tick();
     Check(Active(port, port.InitTimeoutAlarm) && !Active(port, port.ControlledStopAlarm), "Home 超时只报初始化超时，不重复报动作失败");
@@ -615,8 +689,10 @@ port.E87Callback = null;
     Check(port.State == ModuleState.Idle && Active(port, port.InitTimeoutAlarm),
         "Home 成功回到 Idle 也不自动清，等人工复位");
     Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, "全部复位应清掉所有报警");
+    port.Tick();
 
     // 每个动作超时都报自己那一条（跟 EC 里各动作的超时一一对应），不另报动作失败
+    // （报警复位会走到端口的 Reset()、发设备复位，每次复位完推一拍让它做完）
     foreach (var (action, from, alarm) in new[]
              {
                  (LoadPortAction.Load, ModuleState.Idle, port.LoadTimeoutAlarm),
@@ -635,6 +711,7 @@ port.E87Callback = null;
         port.Tick();
         Check(Active(port, alarm) && !Active(port, port.ControlledStopAlarm), $"{action} 超时应报它自己的超时报警，不另报动作失败");
         Check(alarms.ResetAll() == 1 && alarms.ActiveAlarms.Count == 0, $"复位清掉 {action} 超时报警");
+        port.Tick();
     }
 
     // 操作员急停顶掉的动作不报
@@ -1690,21 +1767,23 @@ port.E87Callback = null;
     Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
           && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.CorrectlyOccupied && plain._carrier.SlotMap[1] == SlotState.Empty,
         "平台默认 Load：设备回完成就落 Loaded，Mapping 结果落进 SlotMap");
-    var plainUnload = plain.Unload();
+    var plainUnload = plain.Unload().Result;
     Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
     plainComm.Push("NAK:CULOD/BUSY");
     Check(TickPlainUntil(plain, () => plainUnload!.IsTerminal) && plainUnload!.Code == ErrorCodes.DeviceFailed
           && plain.State == ModuleState.Error,
         "设备回 NAK：动作判失败（device_failed），落 Error");
     plain.HomeTimeout = 100;
-    var plainHome = plain.Home();
+    var plainHome = plain.Home().Result;
     Check(plainHome is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:ORGSH") == 1), "出错后能 Home，发 ORGSH");
     Thread.Sleep(150);
     Check(TickPlainUntil(plain, () => plainHome!.IsTerminal) && plainHome!.Code == ErrorCodes.Timeout, "设备不回：超时判失败（timeout）");
     plainComm.Drop();
+    int stateBeforeDrop = plain.State;
     var droppedHome = plain.Home();
-    Check(droppedHome is not null && TickPlainUntil(plain, () => droppedHome!.IsTerminal) && droppedHome!.Code == ErrorCodes.CommandRejected,
-        "没连上：指令发不出去，判被拒（command_rejected）");
+    Check(!droppedHome.IsSuccess && droppedHome.ErrorMessage == ErrorCodes.ModuleNotConnected && plain.State == stateBeforeDrop
+          && plainComm.SentCount("MOV:ORGSH") == 1,
+        "没连上：Home 当场被拒（module.not_connected），不发指令、状态不动（以前是发出去判 command_rejected、落 Error）");
     plain.Close();
 
     // 9b) Load 回来的 Mapping 不能用：槽数跟 sc 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
@@ -1783,10 +1862,32 @@ port.E87Callback = null;
     outPort._carrier.NoteComplete();
     outPort.Tick();
     Check(outPort.Calls == outCalls, "从这个口取出去的片还在腔体上（Job 中止会有）：先不卸，门一关片就回不来了");
+
+    // 关门的动作在入口里也查这一条（手动、Host 放行都拦）：手动 Unload、门开着的 Home 当场被拒，带片数，端口不动
+    var outUnload = outPort.UnloadManually();
+    Check(!outUnload.IsSuccess && outUnload.ErrorMessage == ErrorCodes.PortWafersOutside
+          && outUnload.Args.SequenceEqual(new[] { "AutoUnloadOutPort", "1" }) && outPort.State == LoadPortState.Loaded && outPort.Calls == outCalls,
+        $"片还在腔体上：手动 Unload 被拒（loadport.wafers_outside，带片数），端口不动，实际 {outUnload.ErrorMessage}");
+    var outHome = outPort.Home();
+    Check(!outHome.IsSuccess && outHome.ErrorMessage == ErrorCodes.PortWafersOutside && outPort.State == LoadPortState.Loaded,
+        $"片还在腔体上、门开着：Home 也被拒（回原点会关门），实际 {outHome.ErrorMessage}");
+    Check(outPort.CheckUnload()?.ErrorMessage == ErrorCodes.PortWafersOutside, "只查不动的 CheckUnload 给的是同一个原因（E87 回 Host 前用）");
+
     Check(presenceLedger.Move("AutoUnloadChamber", 1, "AutoUnloadOutPort", 1), "片回到口上");
     outPort.Tick();
     Check(outPort.Calls == outCalls + 1, "片回齐了：自动 Unload");
     outPort.Close();
+
+    // 门本来就关着、或者位置不明（出错复位后没初始化）出发的 Home 不查片：拦住就卡死了——端口回不到 Loaded，机械手进不来，片也回不来
+    var lostPort = CompletedCarrierPort("HomeNotInitPort", autoUnload: false);
+    presenceLedger.RegisterLocation("HomeNotInitChamber", 1);
+    Check(presenceLedger.Create("HomeNotInitPort", 1) is not null && presenceLedger.Move("HomeNotInitPort", 1, "HomeNotInitChamber", 1),
+        "摆一片从这个口取出去、还在腔体上的片");
+    lostPort.NoteState(ModuleState.NotInit);
+    var lostHome = lostPort.Home();
+    Check(lostHome.IsSuccess && lostPort.State == LoadPortState.Homing,
+        $"片还在外面、端口没初始化：Home 不查片，照常能发，实际 {lostHome.ErrorMessage}");
+    lostPort.Close();
 
     var offPort = CompletedCarrierPort("AutoUnloadOffPort", autoUnload: false);
     int offCalls = offPort.Calls;
@@ -1871,7 +1972,7 @@ port.E87Callback = null;
     ModuleOperation UnloadThenMap(PlainPort port, params string[] mapReplies)
     {
         var comm = port.Shell.Comm;
-        var unload = port.Unload();
+        var unload = port.Unload().Result;
         Check(unload is not null && TickPlainUntil(port, () => comm.SentCount("MOV:CULOD") == 1) && comm.SentCount("MOV:CLDMP") == 0,
             $"{port.Name}：AutoRunMapOnUnload 开着，Unload 先发普通的 CULOD 关门，门没关好不扫");
         comm.Push("INF:CULOD");
@@ -1906,7 +2007,7 @@ port.E87Callback = null;
     // 关门没成（设备回 ABS）：Unload 判失败、落 Error，不再发 CLDMP 扫图
     var closeFailPort = LoadedMapPort("UnloadMapCloseFailPort");
     var closeFailComm = closeFailPort.Shell.Comm;
-    var closeFailUnload = closeFailPort.Unload();
+    var closeFailUnload = closeFailPort.Unload().Result;
     Check(closeFailUnload is not null && TickPlainUntil(closeFailPort, () => closeFailComm.SentCount("MOV:CULOD") == 1),
         "关门没成用的端口：Unload 先发了 CULOD");
     closeFailComm.Push("ABS:CULOD/0301");
@@ -1925,7 +2026,7 @@ port.E87Callback = null;
     // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要关门后扫图对账）时，手动卸载照样只发普通 CULOD，关好门也不扫、不对账——
     //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货的 Unload）
     var manualPort = LoadedMapPort("ManualUnloadPort");
-    var manualUnload = manualPort.UnloadManually();
+    var manualUnload = manualPort.UnloadManually().Result;
     Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Shell.Comm.SentCount("MOV:CULOD") == 1),
         "手动 Unload：SC AutoRunMapOnUnload 开着也发普通的 CULOD");
     manualPort.Shell.Comm.Push("INF:CULOD");
@@ -1974,25 +2075,29 @@ port.E87Callback = null;
         "机型重写了 Load 联锁（LoadInterlock）：载具在也不让 Load，回机型自己的原因");
     resetPort.BlockedAction = null;
 
-    // 其余动作的联锁：平台默认不拦；机型重写了哪个动作的联锁，就只拦那个动作（复位、中止不设联锁）
-    foreach (var (action, from) in new[]
+    // 其余动作的联锁（在各自的入口里查）：平台默认不拦；机型重写了哪个动作的联锁，就只拦那个动作，回机型自己的原因（复位、中止不设联锁）
+    foreach (var (action, from, start) in new (LoadPortAction, int, Func<HandleResult<ModuleOperation>>)[]
              {
-                 (LoadPortAction.Unload, LoadPortState.Loaded),
-                 (LoadPortAction.Home, ModuleState.Idle),
-                 (LoadPortAction.Clamp, ModuleState.Idle),
-                 (LoadPortAction.Unclamp, ModuleState.Idle),
+                 (LoadPortAction.Unload, LoadPortState.Loaded, resetPort.Unload),
+                 (LoadPortAction.Home, ModuleState.Idle, resetPort.Home),
+                 (LoadPortAction.Clamp, ModuleState.Idle, resetPort.Clamp),
+                 (LoadPortAction.Unclamp, ModuleState.Idle, resetPort.Unclamp),
              })
     {
         resetPort.NoteState(from);
         resetPort.BlockedAction = action;
-        Check(resetPort.BeginAction(action, new ProbeOperation()) is null && resetPort.State == from,
-            $"机型重写了 {action} 联锁：不让发，状态不动");
+        var blockedStart = start();
+        Check(!blockedStart.IsSuccess && blockedStart.ErrorMessage == ProbePort.BlockedCode && resetPort.State == from,
+            $"机型重写了 {action} 联锁：不让发，回机型自己的原因，状态不动");
         resetPort.BlockedAction = null;
         var allowed = new ProbeOperation();
-        Check(resetPort.BeginAction(action, allowed) is not null, $"{action} 联锁没拦（平台默认）：照常能发");
+        resetPort.Next = allowed;
+        Check(start().IsSuccess && ReferenceEquals(resetPort.CurrentOperation, allowed), $"{action} 联锁没拦（平台默认）：照常能发");
         allowed.Succeed();
         resetPort.Tick();
     }
+
+    resetPort.Next = null;
 
     // 机械手进站要载具在：状态还是 Loaded、载具却不在了，不让进，免得往空口放片
     resetPort.NoteState(LoadPortState.Loaded);
@@ -2190,7 +2295,7 @@ port.E87Callback = null;
     plainRobot.Close();
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, four device RPC actions plus the Load entry (state, resource and interlock reasons passed through, a disconnected driver refused up front), the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the Load entry checks: no carrier, a machine-specific interlock with its own reason, and no Load while an E84 handoff is still running).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status query timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -2341,28 +2446,38 @@ sealed class ProbePort : BaseLoadPortModule
     /// <summary>顶替机型自己加的联锁条件（光幕、机械手缩回这类）：摆哪个动作就拦哪个动作，null 不拦。</summary>
     public LoadPortAction? BlockedAction { get; set; }
 
-    /// <summary>机型自己加的 Load 联锁不过时回的原因（机型用自己的错误码）。</summary>
-    public const string BlockedCode = "smoke.load_blocked";
+    /// <summary>机型自己加的联锁不过时回的原因（机型用自己的错误码）。</summary>
+    public const string BlockedCode = "smoke.blocked";
 
-    protected override HandleResult? LoadInterlock()
+    private HandleResult? Blocked(LoadPortAction action)
     {
-        return base.LoadInterlock() ?? (BlockedAction == LoadPortAction.Load ? HandleResult.Fail(BlockedCode, Name) : null);
+        return BlockedAction == action ? HandleResult.Fail(BlockedCode, Name) : null;
     }
 
-    protected override bool UnloadInterlock() => base.UnloadInterlock() && BlockedAction != LoadPortAction.Unload;
-    protected override bool HomeInterlock() => base.HomeInterlock() && BlockedAction != LoadPortAction.Home;
-    protected override bool ClampInterlock() => base.ClampInterlock() && BlockedAction != LoadPortAction.Clamp;
-    protected override bool UnclampInterlock() => base.UnclampInterlock() && BlockedAction != LoadPortAction.Unclamp;
-    private ModuleOperation? Take() { Calls++; return Next; }
-    // Load 的入口固定（三项检查都在里面），机型只能换设备动作；没摆 Next 就给一个不会自己结束的探针动作
-    protected override ModuleOperation CreateLoadOperation() => Take() ?? new ProbeOperation();
-    public override ModuleOperation? Unload() => Take();
-    public override ModuleOperation? UnloadManually() => Take();
-    public override ModuleOperation? Home() => Take();
-    protected override ModuleOperation? ResetDevice() => Take();
-    protected override ModuleOperation? AbortDevice() => Take();
-    public override ModuleOperation? Clamp() => Take();
-    public override ModuleOperation? Unclamp() => Take();
+    protected override HandleResult? LoadInterlock() => base.LoadInterlock() ?? Blocked(LoadPortAction.Load);
+    protected override HandleResult? UnloadInterlock() => base.UnloadInterlock() ?? Blocked(LoadPortAction.Unload);
+    protected override HandleResult? HomeInterlock() => base.HomeInterlock() ?? Blocked(LoadPortAction.Home);
+    protected override HandleResult? ClampInterlock() => base.ClampInterlock() ?? Blocked(LoadPortAction.Clamp);
+    protected override HandleResult? UnclampInterlock() => base.UnclampInterlock() ?? Blocked(LoadPortAction.Unclamp);
+
+    /// <summary>
+    /// 建设备动作：记一次，给摆好的 Next；没摆就给一个下一拍就做完的探针动作（像一台马上做完的设备——
+    /// 复位、报警复位这类测试不关心动作本身，别让它一直挂着挡住后面的动作）。
+    /// </summary>
+    private ModuleOperation Take()
+    {
+        Calls++;
+        return Next ?? new ProbeOperation { FinishOnScan = true };
+    }
+
+    // 动作入口固定（三项检查都在里面），机型只能换设备动作
+    protected override ModuleOperation CreateLoadOperation() => Take();
+    protected override ModuleOperation CreateUnloadOperation(bool mapAndVerify) => Take();
+    protected override ModuleOperation CreateHomeOperation() => Take();
+    protected override ModuleOperation CreateResetOperation() => Take();
+    protected override ModuleOperation CreateAbortOperation() => Take();
+    protected override ModuleOperation CreateClampOperation() => Take();
+    protected override ModuleOperation CreateUnclampOperation() => Take();
 }
 
 // 没挂 _carrier 子组件的端口：验装配错了开机就暴露。

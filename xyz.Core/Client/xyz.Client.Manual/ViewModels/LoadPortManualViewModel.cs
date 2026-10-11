@@ -128,7 +128,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         var response = await _service.HomeAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Home 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Home 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
         }
     }
 
@@ -146,7 +146,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         var response = await _service.UnloadAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Unload 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Unload 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
         }
     }
 
@@ -155,7 +155,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         var response = await _service.ResetAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Reset 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Reset 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
         }
     }
 
@@ -209,7 +209,7 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         var response = await _service.AbortAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Abort 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"Abort 失败：{ErrorText.Of(response, ModuleStates.LoadPortText)}");
         }
     }
 

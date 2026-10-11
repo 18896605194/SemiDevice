@@ -64,6 +64,25 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 下发 LoadPort 的复位、中止：这两个跟着组件基类返回动作或 null，被拒了再问端口原因（whyRejected，就是端口的 CheckReset / CheckAbort）回给界面；
+    /// 问的时候状态已经变了、问不出原因的，回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
+    /// </summary>
+    protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,
+        ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
+    {
+        if (operation is null)
+        {
+            var rejected = whyRejected();
+            if (rejected is not null)
+            {
+                return Task.FromResult(RpcResponse.Fail(rejected.ErrorMessage, [.. rejected.Args]));
+            }
+        }
+
+        return RunOperation("LoadPort", module, port.State, operation, timeout);
+    }
+
+    /// <summary>
     /// 下发 _robot 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
     protected static Task<RpcResponse> RunOperation(string module, BaseRobotModule robot,

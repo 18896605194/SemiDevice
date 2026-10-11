@@ -83,15 +83,25 @@ internal sealed class E87LoadPort
         });
     }
 
-    /// <summary>Load 着的卸下来（关门、松开）；没 Load 的不用动。走自动跑货口径：SC AutoRunMapOnUnload 生效（带图对账）。动作攒到锁外做。</summary>
+    /// <summary>
+    /// Load 着的卸下来（关门、松开）；没 Load 的不用动。走自动跑货口径：SC AutoRunMapOnUnload 生效（带图对账）。动作攒到锁外做。
+    /// 端口能不能卸由端口自己查（状态 → 资源 → 互锁），被拒带原因记日志；回 Host 之前已经用 CheckUnload 问过一次。
+    /// </summary>
     public void UnloadLater(string why)
     {
         var device = _loadport;
         _e87Component.Later(() =>
         {
-            if (device.IsLoaded && device.Unload() is null)
+            if (!device.IsLoaded)
             {
-                LogHelper.Warn(_e87Component.Name, $"{device.Name} {why}，但现在 Unload 不了（还在被机械手服务或端口状态不允许），等操作员处理");
+                return;
+            }
+
+            var result = device.Unload();
+            if (!result.IsSuccess)
+            {
+                LogHelper.Warn(_e87Component.Name,
+                    $"{device.Name} {why}，但 Unload 被拒（{result.ErrorMessage}：{string.Join(", ", result.Args)}），等操作员处理");
             }
         });
     }

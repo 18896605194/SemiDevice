@@ -818,6 +818,13 @@ try
           && lp1.State == ModuleState.Idle && ledger.Get("LP1", 1)?.Id == first.Id && jobs.OwnerOf(first.Id) == "LOT-A-1",
         $"LP1 的片归 Job：Load 被拒（loadport.wafers_in_job，带端口和 PJ 名），端口、账、归属都不动，实际 {ownedLoad.ErrorMessage} [{string.Join(",", ownedLoad.Args)}]");
     lp1.NoteState(LoadPortState.Loaded);
+
+    // 关门的动作（手动 Unload、门开着的 Home）也一样：Job 在用就拒，提示先中止 Job
+    var ownedUnload = lp1.UnloadManually();
+    var ownedHome = lp1.Home();
+    Check(!ownedUnload.IsSuccess && ownedUnload.ErrorMessage == ErrorCodes.PortWafersInJob && ownedUnload.Args.SequenceEqual(new[] { "LP1", "LOT-A-1" })
+          && !ownedHome.IsSuccess && ownedHome.ErrorMessage == ErrorCodes.PortWafersInJob && lp1.State == LoadPortState.Loaded,
+        $"LP1 的片归 Job：手动 Unload、门开着的 Home 都被拒（loadport.wafers_in_job），实际 {ownedUnload.ErrorMessage} / {ownedHome.ErrorMessage}");
     Rejects(StartTransfer("LP1", 1, "PM1", 1), ErrorCodes.TransferWaferOwned, [first.WaferId, "LOT-A-1"], "手动搬 Job 的片：拒，带片号和 Job");
 
     // 任务表：一片一行，按流程配方一站一站拼——来源 LoadPort 取片 → 每一站放片、工艺、取片 → 回片 LoadPort 放片
@@ -1706,17 +1713,18 @@ sealed class SmokePort : BaseLoadPortModule
 
     public void Tick() => OnScan();
 
-    public override ModuleOperation? Unload() => null;
+    /// <summary>假端口不发设备动作：前两项检查（状态、资源）照常查，最后的互锁一律不放行，回这个码。</summary>
+    public const string NoDevice = "smoke.no_device";
 
-    public override ModuleOperation? Home() => null;
+    protected override HandleResult? LoadInterlock() => HandleResult.Fail(NoDevice, Name);
 
-    protected override ModuleOperation? ResetDevice() => null;
+    protected override HandleResult? UnloadInterlock() => HandleResult.Fail(NoDevice, Name);
 
-    protected override ModuleOperation? AbortDevice() => null;
+    protected override HandleResult? HomeInterlock() => HandleResult.Fail(NoDevice, Name);
 
-    public override ModuleOperation? Clamp() => null;
+    protected override HandleResult? ClampInterlock() => HandleResult.Fail(NoDevice, Name);
 
-    public override ModuleOperation? Unclamp() => null;
+    protected override HandleResult? UnclampInterlock() => HandleResult.Fail(NoDevice, Name);
 }
 
 sealed class SmokePortShell : FcdLoadPortComponent

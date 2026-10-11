@@ -54,8 +54,11 @@ public static class ErrorCodes
     /// <summary>带 Mapping 的 Unload 扫到的跟晶圆账对不上（多片、少片，或交叉片、叠片、认不出）。Args: [模块名, 槽号（逗号隔开）]</summary>
     public const string UnloadSlotMapMismatch = "loadport.unload_slot_map_mismatch";
 
-    /// <summary>Load 资源检查：这个口账上的片归还没结束的 Job（Load 会重建这个口的账），要先中止 Job。Args: [模块名, PJ 名]</summary>
+    /// <summary>资源检查：这个口账上的片归还没结束的 Job（Load 会重建这个口的账、Unload / 门开着的 Home 会关门），要先中止 Job。Args: [模块名, PJ 名]</summary>
     public const string PortWafersInJob = "loadport.wafers_in_job";
+
+    /// <summary>资源检查：从这个口取出去的片还有没回来的（在腔体、机械手上），Unload / 门开着的 Home 一关门就回不来了。Args: [模块名, 片数]</summary>
+    public const string PortWafersOutside = "loadport.wafers_outside";
 
     /// <summary>Load 联锁：载具没放到位。Args: [模块名]</summary>
     public const string CarrierNotArrived = "loadport.carrier_not_arrived";

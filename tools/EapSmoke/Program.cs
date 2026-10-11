@@ -587,6 +587,11 @@ mark = host.EventCount;
 lp2.Complete();
 await Event("Eap.E87.CarrierSMTrans19", mark, "载具干完（#19）");
 Check(!lp2.UnloadRequested, "E87 不自己卸：干完等 Host CarrierRelease");
+// 端口自己说现在不能卸（片没回齐、Job 在用……）：回 Host 之前就问过，CAACK=2，不发 Unload
+lp2.UnloadRejection = HandleResult.Fail(ErrorCodes.PortWafersOutside, "LP2", "1");
+Check(Caack(await Send(3, 17, CarrierAction("CarrierRelease", "CAR-D", 2))) == 2 && !lp2.UnloadRequested,
+    "端口不能卸（片没回齐）：放行回 CAACK=2，不发 Unload");
+lp2.UnloadRejection = null;
 Check(Caack(await Send(3, 17, CarrierAction("CarrierRelease", "CAR-D", 2))) == 0, "Host 放行载具：CAACK=0");
 await WaitUntil(() => lp2.UnloadRequested, "放行就 Unload");
 lp2.UnloadDone();
@@ -1170,13 +1175,18 @@ sealed class FakePort : ILoadPort
         return HandleResult<ModuleOperation>.Success(new NoOpOperation("Load"));
     }
 
-    public ModuleOperation? Unload()
+    public HandleResult<ModuleOperation> Unload()
     {
         UnloadRequested = true;
-        return new NoOpOperation("Unload");
+        return HandleResult<ModuleOperation>.Success(new NoOpOperation("Unload"));
     }
 
-    public ModuleOperation? Home() => new NoOpOperation("Home");
+    /// <summary>测试摆的"端口现在不能卸"的原因；null = 能卸。</summary>
+    public HandleResult? UnloadRejection { get; set; }
+
+    public HandleResult? CheckUnload() => UnloadRejection;
+
+    public HandleResult<ModuleOperation> Home() => HandleResult<ModuleOperation>.Success(new NoOpOperation("Home"));
 
     public ModuleOperation? InitModule() => new NoOpOperation("InitModule");
 
@@ -1184,9 +1194,9 @@ sealed class FakePort : ILoadPort
 
     public ModuleOperation? Abort() => new NoOpOperation("Abort");
 
-    public ModuleOperation? Clamp() => new NoOpOperation("Clamp");
+    public HandleResult<ModuleOperation> Clamp() => HandleResult<ModuleOperation>.Success(new NoOpOperation("Clamp"));
 
-    public ModuleOperation? Unclamp() => new NoOpOperation("Unclamp");
+    public HandleResult<ModuleOperation> Unclamp() => HandleResult<ModuleOperation>.Success(new NoOpOperation("Unclamp"));
 
     public void SetAutoMode(bool autoMode)
     {

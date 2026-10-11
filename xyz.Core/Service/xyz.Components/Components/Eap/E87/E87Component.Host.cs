@@ -276,11 +276,27 @@ public partial class E87Component
         return Ack(E87Caack.Ok, []);
     }
 
-    /// <summary>端口正在动作（Load、Unload 中）：这时候取消、放行，动作完了盒子还会被 Load 着卡住，先不收。返回 null 是可以。</summary>
-    private static SecsReply? RejectIfMoving(E87LoadPort port)
+    /// <summary>
+    /// 取消、放行之前先问端口能不能卸（回 Host 之前就要知道，不能先回 CAACK=0 再卸不了）。返回 null 是可以。
+    /// Load 着的问端口自己的 CheckUnload（状态 → 资源 → 互锁：在被机械手服务、片没回齐、Job 在用……），不能卸回 CAACK=2，带上端口给的原因；
+    /// 端口正在动作（Load、Home 中）也先不收：动作完了盒子还会被 Load 着卡住。空闲（门关着）的不用卸，直接收。
+    /// </summary>
+    private static SecsReply? RejectIfCannotUnload(E87LoadPort port)
     {
         var device = port._loadport;
-        return device.IsIdle || device.IsLoaded
+        if (device.IsLoaded)
+        {
+            var rejected = device.CheckUnload();
+            if (rejected is null)
+            {
+                return null;
+            }
+
+            return Ack(E87Caack.CannotPerformNow,
+                [E5Error.Of(E5Error.InvalidState, $"Port {port.Id} cannot unload now: {rejected.ErrorMessage} [{string.Join(", ", rejected.Args)}]")]);
+        }
+
+        return device.IsIdle
             ? null
             : Ack(E87Caack.CannotPerformNow, [E5Error.Of(E5Error.Busy, $"Port {port.Id} is busy")]);
     }
@@ -301,10 +317,10 @@ public partial class E87Component
             return Ack(E87Caack.InvalidState, [E5Error.Of(E5Error.InvalidState, $"_carrier {port.CarrierId} is already cancelled")]);
         }
 
-        var moving = RejectIfMoving(port);
-        if (moving is not null)
+        var cannotUnload = RejectIfCannotUnload(port);
+        if (cannotUnload is not null)
         {
-            return moving;
+            return cannotUnload;
         }
 
         port.CarrierIdMachine.Post(E87CarrierIdMessage.Cancel);
@@ -333,10 +349,10 @@ public partial class E87Component
             return Ack(E87Caack.InvalidState, [E5Error.Of(E5Error.InvalidState, $"_carrier {carrierId} is in access")]);
         }
 
-        var moving = RejectIfMoving(port);
-        if (moving is not null)
+        var cannotUnload = RejectIfCannotUnload(port);
+        if (cannotUnload is not null)
         {
-            return moving;
+            return cannotUnload;
         }
 
         port.Released = true;

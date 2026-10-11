@@ -127,7 +127,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ```
   `Complete()` / `Fail(code, reason, args)` / `AbortByHost(reason)`；`Reason` 只进日志，`Code + ErrorArgs` 给界面；OnScan 抛异常自动 `Fail(OperationFaulted)`。
   RPC 线程用 `WaitReply(ms)` 等结果，**不能在扫描线程等**。超时时间取模块的 EC 属性。
-- **动作入口：状态 → 资源 → 互锁**（2026-10-10 用户定的统一结构，先拿 LoadPort 的 Load 做样板，Unload / Home / 夹紧松开、机械手取放、腔体照着改）：
+- **动作入口：状态 → 资源 → 互锁**（2026-10-10 用户定的统一结构；LoadPort 的动作全部改完，机械手取放、腔体还没改，照着改）：
   手动页、自动任务、EAP 都调模块的**同一个入口**，入口在模块锁里按顺序查三项，哪项不过就带原因（错误码 + 参数）返回、模块不动；都过了才 `Begin`（占住模块、落执行态、发指令）。
   调用方不先查、也不重复查。入口不带"谁发的"参数，模块里不写 `if (来自 EAP)`。
   ```csharp
@@ -135,33 +135,48 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   {
       lock (OperationGate)
       {
-          var rejected = CheckState(LoadPortAction.Load)   // ① 状态：BaseModule 写好
-                      ?? CheckLoadResource()                // ② 资源：模块里写
-                      ?? LoadInterlock();                   // ③ 互锁：protected virtual，平台默认，机型重写先调 base
+          var rejected = CheckLoad();
           if (rejected is not null)
           {
-              return HandleResult<ModuleOperation>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
+              return Rejected(rejected);                    // BaseModule：原因原样转成入口结果
           }
 
-          var operation = Begin(LoadPortAction.Load, CreateLoadOperation());   // 通过：占住、落执行态
-          ...（operation 为 null 只可能是 Begin 跟 CheckState 改得不一致，回 module.action_rejected）
-          return HandleResult<ModuleOperation>.Success(operation);
+          return Started(LoadPortAction.Load, CreateLoadOperation());   // 通过：Begin 占住、落执行态；万一被拒回 module.action_rejected
       }
   }
+
+  private HandleResult? CheckLoad()                          // 只查不动；要给外面问的（E87 回 Host 前）做成 public，如 CheckUnload
+  {
+      return CheckState(LoadPortAction.Load)                 // ① 状态：BaseModule 写好
+          ?? CheckLoadResource()                             // ② 资源：模块里写
+          ?? LoadInterlock();                                // ③ 互锁：protected virtual，平台默认，机型重写先调 base
+  }
+
   protected virtual ModuleOperation CreateLoadOperation() { ... }   // 机型只在设备动作不一样时重写这个
   ```
   每项检查返回 `HandleResult?`：null = 过，不过 = 错误码 + 参数（一种原因一个错误码，中英文语言包各一条）。三项怎么分：
-  - **状态**（只看自己）：`BaseModule.CheckState(action)` = `CheckAvailable()`（默认看 `CanBeginAction` → `module.disabled`；有驱动的模块重写加"没连上" → `module.not_connected`）
-    → 状态表没这一行 `module.state_not_allowed` [模块, 状态码] → 有在途动作 `module.busy`（Abort 不查）。跟 `Begin` 查的是同一套，只是带原因。
+  - **状态**（只看自己）：`BaseModule.CheckState(action)` = `CheckAvailable()`（默认看 `CanBeginAction` → `module.disabled`；有驱动的模块重写加"没连上" → `module.not_connected`；
+    **Abort 只查停用、不查连没连上**——没连上也要能把在途动作顶掉）→ 状态表没这一行 `module.state_not_allowed` [模块, 状态码] → 有在途动作 `module.busy`（Abort 不查）。跟 `Begin` 查的是同一套，只是带原因。
+  - **复位、中止**是组件基类的 `Reset()` / `Abort()`（子组件递归、报警复位、整机停止、PJ 中止按 `Abort() is ModuleOperation` 等设备停下都靠它们），签名不动、返回动作或 null，
+    只查状态（恢复动作不能被资源、互锁卡住）；被拒的原因用 `CheckReset()` / `CheckAbort()` 问，服务层用 `RunOperation(..., port.Reset(), port.CheckReset, ...)` 被拒了再问。
   - **资源**（这个动作要独占的东西有没有被别人占）：直接问晶圆账、`TransferManager.IsSlotLocked`、`JobManager.OwnerOf`，不另建占用表。
   - **互锁**（周围条件、传感器、别的模块、搬运车）：平台给默认，机型的光幕之类重写、先调 base，用机型自己的错误码。
   - 只跟"谁发的"有关的检查（EAP 要 ON-LINE REMOTE、E87 状态机、Host 认定了载具号才 Load）留在发命令那一层（E87 回 Host 的 CAACK 也在那层翻）；
     判断法：换成操作员在手动页点同一个按钮，这条还该不该拦——该拦放模块入口，不该放发起方。"接了 EAP 才拦、但谁发都拦"（槽图要 Host 认定才让机械手进）看的是设备状态，放模块。
   - 服务层被拒照原样回入口的码和参数（`BaseService.RunOperation` 收 `HandleResult<ModuleOperation>` 的重载）；界面用 `ErrorText.Of(response, ModuleStates.XxxText)`（Presentation 公共的），状态码翻成状态字。
   - 加一个动作照这个顺序：状态表加行 → 资源检查 → 互锁虚方法 → 错误码 + 两个语言包 → 入口照上面写 → 服务只翻结果 → 冒烟每种拒绝原因一项检查。
-  LoadPort 的 Load（已改）：资源 = 这个口账上的片不归没结束的 Job（`loadport.wafers_in_job` [模块, PJ]，Load 会清账重建、片的内部标识全换新，要 Load 先中止 Job）、
-  有片的槽没被搬运占着（`transfer.slot_locked`）；互锁 = 载具到位（`loadport.carrier_not_arrived`）、E84 交接没在走（`IE84.IsHandoffRunning`：给了 READY 到交接完成、或超时锁着 → `loadport.handoff_running`）。
-  其余 LoadPort 动作还走旧的：`Begin(LoadPortAction)` 里按动作调 bool 联锁（`UnloadInterlock` 等），被拒回 null → `module.action_rejected`。
+  **LoadPort 各动作**（入口都在 `BaseLoadPortModule` 的"动作入口"区，`Begin(LoadPortAction)` 只记动作和出发状态、不再查联锁）：
+
+  | 动作 | 资源 | 互锁（平台默认） | 设备动作（机型重写） |
+  |---|---|---|---|
+  | `Load()` | 账上的片不归没结束的 Job（`loadport.wafers_in_job` [模块, PJ]，Load 会清账重建、片的内部标识全换新）；有片的槽没被搬运占着（`transfer.slot_locked`） | 载具到位（`loadport.carrier_not_arrived`）；E84 交接没在走（`IE84.IsHandoffRunning` → `loadport.handoff_running`） | `CreateLoadOperation` |
+  | `Unload()`（自动口径）/ `UnloadManually()`；只查：`CheckUnload()` | 关门的资源（`CheckCloseDoorResource`）：取出去的片都回来了（`loadport.wafers_outside` [模块, 片数]）、片不归没结束的 Job | 不拦 | `CreateUnloadOperation(mapAndVerify)` |
+  | `Home()`（`InitModule` = Home，被拒记日志） | **只在 Loaded（门开着）时**查关门的资源；没初始化 / 出错 / 空闲出发不查——拦住就卡死（端口回不到 Loaded、片也回不来） | 不拦 | `CreateHomeOperation` |
+  | `Clamp()` / `Unclamp()` | 不碰片和账，不查 | 不拦（现在没有调用方，手动页没按钮） | `CreateClampOperation` / `CreateUnclampOperation` |
+  | `Reset()` / `Abort()` | 不查 | 不设 | `CreateResetOperation` / `CreateAbortOperation` |
+
+  EAP：E87 取消 / 放行回 Host 之前先问 `ILoadPort.CheckUnload()`（Load 着的；在动作中的照旧回忙），不能卸回 CAACK=2 带端口给的原因；
+  `LoadLater` / `UnloadLater` 被拒带原因记日志。Job 干完自动卸（`CheckCarrierComplete`）照旧先等片回齐再调 `Unload()`，被拒带原因记日志。
 - 动作失败（被人中止顶掉的不算）在操作终结时由 `RaiseActionFailedAlarm`（`protected virtual`，机型可重写：自己要管的情况先判、报了就 return，其余交给 base，整套换掉不调 base；在模块锁里，只报警不等待）报警，一次失败只报一条：机械手、腔体报 `ControlledStopAlarm`；LoadPort 超时按动作报各自的超时报警（Load / Unload / Home=初始化 / 夹紧 / 松开 / 复位 / 中止，跟 EC 各动作超时一一对应），不是超时的报 `ControlledStopAlarm`（显示为"LoadPort 动作失败"）。设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
@@ -172,7 +187,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   判出来的叫 `Carrier.IsArrived`（载具到了，推给界面的"在位"也是它；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
-Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.UpdateSlotMap`；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时先发普通卸载、关好门再主动 `Map()`（FCD `CLDMP`；设备没有带图卸载的指令）扫一遍跟晶圆账对，两条指令用 `LoadPortCommandOperation.Then` 串在同一个动作里、前一条做成才发下一条；手动页面走 `UnloadManually()`，一律不扫图、不对账——Mapping 是 LoadPort 硬件自带的，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在动作不一样时重写；
+Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.UpdateSlotMap`；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时先发普通卸载、关好门再主动 `Map()`（FCD `CLDMP`；设备没有带图卸载的指令）扫一遍跟晶圆账对，两条指令用 `LoadPortCommandOperation.Then` 串在同一个动作里、前一条做成才发下一条；手动页面走 `UnloadManually()`，一律不扫图、不对账——Mapping 是 LoadPort 硬件自带的，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在设备动作不一样时重写对应的 `CreateXxxOperation`（动作入口不 virtual，见"动作入口"）；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、

@@ -29,8 +29,8 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
     /// <summary>
-    /// 手动卸载：不扫图、不对账（SC AutoRunMapOnUnload 只管自动跑货的 Unload）——操作员要把盒子放出去就能放出去，
-    /// 账对不对不拦手动这一下。
+    /// 手动卸载：不扫图、不对账（SC AutoRunMapOnUnload 只管自动跑货的 Unload）——账对不对不拦手动这一下；
+    /// 片没回齐、Job 在用照样拦（端口入口查，被拒原样回原因）。
     /// </summary>
     public Task<RpcResponse> UnloadAsync(string module)
     {
@@ -62,7 +62,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Reset(), port.ResetTimeout);
+        return RunOperation(module, port, port.Reset(), port.CheckReset, port.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(string module)
@@ -73,7 +73,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Abort(), port.AbortTimeout);
+        return RunOperation(module, port, port.Abort(), port.CheckAbort, port.AbortTimeout);
     }
 
     /// <summary>

@@ -46,24 +46,28 @@ public interface ILoadPort
 
     #region 动作
 
+    // 动作入口：端口自己按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）返回、端口不动，调用方不用先查；通过就是发起的动作。
+    // 复位、中止跟着组件基类，返回动作或 null。
+
     ModuleOperation? InitModule();
 
-    /// <summary>
-    /// Load：端口自己按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）返回、端口不动，调用方不用先查；通过就是发起的动作。
-    /// </summary>
     HandleResult<ModuleOperation> Load();
 
-    ModuleOperation? Unload();
+    /// <summary>Unload（自动跑货口径：SC AutoRunMapOnUnload 开着就带图对账）。</summary>
+    HandleResult<ModuleOperation> Unload();
 
-    ModuleOperation? Home();
+    /// <summary>Unload 能不能做（只查不动，回 Host 之前用）；null = 能。</summary>
+    HandleResult? CheckUnload();
+
+    HandleResult<ModuleOperation> Home();
 
     ModuleOperation? Reset();
 
     ModuleOperation? Abort();
 
-    ModuleOperation? Clamp();
+    HandleResult<ModuleOperation> Clamp();
 
-    ModuleOperation? Unclamp();
+    HandleResult<ModuleOperation> Unclamp();
 
     void SetAutoMode(bool autoMode);
 

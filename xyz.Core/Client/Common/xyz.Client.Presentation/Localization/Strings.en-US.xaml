@@ -43,7 +43,8 @@
     <sys:String x:Key="loadport.slot_map_length_mismatch">{0} invalid mapping data: the device reported {1} slots but {2} are configured; the wafer ledger was not updated</sys:String>
     <sys:String x:Key="loadport.slot_map_abnormal">{0} mapping found crossed, double or unrecognized wafers in slot(s) {1}</sys:String>
     <sys:String x:Key="loadport.unload_slot_map_mismatch">{0} unload mapping does not match the wafer ledger in slot(s) {1}</sys:String>
-    <sys:String x:Key="loadport.wafers_in_job">{0} wafers belong to unfinished job {1}; loading would rebuild this port's wafer ledger. Abort the job before loading</sys:String>
+    <sys:String x:Key="loadport.wafers_in_job">{0} wafers belong to unfinished job {1}; abort the job first</sys:String>
+    <sys:String x:Key="loadport.wafers_outside">{0} still has {1} wafer(s) out (in a chamber or on the robot); closing the door would strand them. Return them first</sys:String>
     <sys:String x:Key="loadport.carrier_not_arrived">{0} has no carrier in place; cannot load</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} handoff with the transport vehicle is not finished (or timed out and waiting for the operator); cannot load</sys:String>
 

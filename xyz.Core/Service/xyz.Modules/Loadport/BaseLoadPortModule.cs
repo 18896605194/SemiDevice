@@ -567,43 +567,75 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 模块初始化
+    /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null。
     /// </summary>
-    /// <returns></returns>
     public override ModuleOperation? InitModule()
     {
-        return Home();
+        var started = Home();
+        if (!started.IsSuccess)
+        {
+            LogHelper.Warn(Name, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+        }
+
+        return started.Result;
     }
 
-    public virtual ModuleOperation? Home()
-    {
-        return Begin(LoadPortAction.Home, new LoadPortCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout));
-    }
+    #region 动作入口：状态 → 资源 → 互锁
+
+    // 每个动作一个入口（不 virtual，三项检查谁都绕不过）：手动页、自动、EAP 都调它，调用方不用先查。
+    // 在模块锁里按 状态 → 资源 → 互锁 查（CheckXxx，只查不动），哪项不过就带原因返回、端口不动；都过了才发起：占住端口、落执行态、发指令。
+    // 机型的设备动作不一样就重写 CreateXxxOperation，多出来的条件重写 XxxInterlock（先调 base）。
+    // 复位、中止是组件基类的 Reset() / Abort()（子组件递归、报警复位、整机停止、PJ 中止都调它们），签名不动，只查状态。
 
     /// <summary>
-    /// Load 唯一入口：手动页、E87 都调它，调用方不用先查。在模块锁里按 状态 → 资源 → 互锁 查，
-    /// 哪项不过就带原因返回、端口不动；都过了才发起：占住端口、进 Loading、发指令。
-    /// 机型的 Load 设备动作不一样就重写 <see cref="CreateLoadOperation"/>，多出来的条件加在 <see cref="LoadInterlock"/>。
+    /// 三项都过了才调：占住端口、落执行态、发指令。Begin 跟 CheckState 查的是同一套，不该再被拒；
+    /// 万一被拒（两边改得不一致了）回笼统的 module.action_rejected。
+    /// </summary>
+    private HandleResult<ModuleOperation> Started(LoadPortAction action, ModuleOperation operation)
+    {
+        var started = Begin(action, operation);
+        if (started is null)
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return HandleResult<ModuleOperation>.Success(started);
+    }
+
+    #region Load
+
+    /// <summary>
+    /// Load：开门 + Mapping。调用方：手动页、E87（Host 认定载具号后）。
     /// </summary>
     public HandleResult<ModuleOperation> Load()
     {
         lock (OperationGate)
         {
-            var rejected = CheckState(LoadPortAction.Load) ?? CheckLoadResource() ?? LoadInterlock();
+            var rejected = CheckLoad();
             if (rejected is not null)
             {
-                return HandleResult<ModuleOperation>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
+                return Rejected(rejected);
             }
 
-            var operation = Begin(LoadPortAction.Load, CreateLoadOperation());
-            if (operation is null)
-            {
-                // 三项都过了还发不起来：Begin 跟 CheckState 查的是同一套，走到这儿是两边改得不一致了
-                return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
-            }
-
-            return HandleResult<ModuleOperation>.Success(operation);
+            return Started(LoadPortAction.Load, CreateLoadOperation());
         }
+    }
+
+    /// <summary>
+    /// Load 能不能做（只查不动）：状态 → 资源 → 互锁。
+    /// </summary>
+    private HandleResult? CheckLoad()
+    {
+        return CheckState(LoadPortAction.Load) ?? CheckLoadResource() ?? LoadInterlock();
+    }
+
+    /// <summary>
+    /// Load 的资源检查：Load 会把这个口的旧账清掉、按扫图重建（片的内部标识全换新），所以这个口账上的片得没被别人占着——
+    /// 归还没结束的 Job 的不行（Job 按内部标识认片，重建后就认不出了；要 Load 先中止这个 Job），被搬运占着的槽也不行。
+    /// </summary>
+    private HandleResult? CheckLoadResource()
+    {
+        return CheckWafersInJob() ?? CheckSlotsInTransfer();
     }
 
     /// <summary>
@@ -614,15 +646,294 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout, TakeSlotMap);
     }
 
+    #endregion
+
+    #region Unload
+
     /// <summary>
-    /// Load 的资源检查：Load 会把这个口的旧账清掉、按扫图重建（片的内部标识全换新），所以这个口账上的片得没被别人占着——
-    /// 归还没结束的 Job 的不行（Job 按内部标识认片，重建后就认不出了；要 Load 先中止这个 Job），
-    /// 被搬运占着的槽也不行。没装晶圆账不查。不通过返回原因，通过返回 null。
+    /// Unload：关门，自动跑货口径（Job 干完自动卸、E87 Host 放行 / 取消都走这条）。SC AutoRunMapOnUnload 开着就关好门再主动扫一遍槽，
+    /// 跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）；关着关门就完，不扫、不对账。手动卸载走 <see cref="UnloadManually"/>——不吃这个 SC。
     /// </summary>
-    private HandleResult? CheckLoadResource()
+    public HandleResult<ModuleOperation> Unload()
+    {
+        return StartUnload(AutoRunMapOnUnload);
+    }
+
+    /// <summary>
+    /// 手动 Unload（手动页面）：不扫图、不对账——操作员要手动卸就别拿账卡他（账乱了怪账不怪盒子，跟 CTC 的手动卸载一致）。
+    /// SC AutoRunMapOnUnload 只管自动跑货，管不到这里。片在外面、Job 在用照样拦（检查跟自动口径一样，见 <see cref="CheckUnload"/>）。
+    /// </summary>
+    public HandleResult<ModuleOperation> UnloadManually()
+    {
+        return StartUnload(false);
+    }
+
+    /// <summary>
+    /// Unload 能不能做（只查不动；E87 回 Host 之前用，两个口径的检查一样）：状态 → 资源 → 互锁。
+    /// </summary>
+    public HandleResult? CheckUnload()
+    {
+        lock (OperationGate)
+        {
+            return CheckState(LoadPortAction.Unload) ?? CheckCloseDoorResource() ?? UnloadInterlock();
+        }
+    }
+
+    private HandleResult<ModuleOperation> StartUnload(bool mapAndVerify)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckUnload();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(LoadPortAction.Unload, CreateUnloadOperation(mapAndVerify));
+        }
+    }
+
+    /// <summary>
+    /// Unload 的设备动作：先发普通卸载（FCD 是 CULOD）关门；mapAndVerify = true 时关好了再主动扫一遍图（驱动的 Map，FCD 是 CLDMP）跟晶圆账对。
+    /// 设备没有一条指令就带图卸载的（FCD 没有），所以是两条指令串在一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败。机型动作不一样才重写。
+    /// </summary>
+    protected virtual ModuleOperation CreateUnloadOperation(bool mapAndVerify)
+    {
+        var operation = new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout);
+        if (mapAndVerify)
+        {
+            operation.Then("Unload 后扫图", () => _driver?.Map(), CheckUnloadSlotMap);
+        }
+
+        return operation;
+    }
+
+    #endregion
+
+    #region Home
+
+    /// <summary>
+    /// Home：回原点（门关上、松开）。调用方：手动页、模块初始化（<see cref="InitModule"/>）。
+    /// </summary>
+    public HandleResult<ModuleOperation> Home()
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckHome();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(LoadPortAction.Home, CreateHomeOperation());
+        }
+    }
+
+    /// <summary>
+    /// Home 能不能做（只查不动）：状态 → 资源 → 互锁。
+    /// </summary>
+    private HandleResult? CheckHome()
+    {
+        return CheckState(LoadPortAction.Home) ?? CheckHomeResource() ?? HomeInterlock();
+    }
+
+    /// <summary>
+    /// Home 的资源检查：只在 Loaded（门开着、Home 会把它关上）时查，跟 Unload 一样（<see cref="CheckCloseDoorResource"/>）。
+    /// 没初始化、出错、空闲出发的不查：门本来就关着或者不知道在哪，这时候拦住，端口回不到 Loaded、片也回不来，就卡死了。
+    /// </summary>
+    private HandleResult? CheckHomeResource()
+    {
+        if (State != LoadPortState.Loaded)
+        {
+            return null;
+        }
+
+        return CheckCloseDoorResource();
+    }
+
+    /// <summary>
+    /// Home 的设备动作：平台默认发驱动的 Home（FCD 是 ORGSH）。机型动作不一样才重写。
+    /// </summary>
+    protected virtual ModuleOperation CreateHomeOperation()
+    {
+        return new LoadPortCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout);
+    }
+
+    #endregion
+
+    #region Clamp / Unclamp
+
+    /// <summary>
+    /// 夹紧。夹紧、松开不碰片也不碰账，没有要独占的东西，不查资源。
+    /// </summary>
+    public HandleResult<ModuleOperation> Clamp()
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(LoadPortAction.Clamp) ?? ClampInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(LoadPortAction.Clamp, CreateClampOperation());
+        }
+    }
+
+    /// <summary>
+    /// 松开。不查资源（同夹紧）。
+    /// </summary>
+    public HandleResult<ModuleOperation> Unclamp()
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(LoadPortAction.Unclamp) ?? UnclampInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(LoadPortAction.Unclamp, CreateUnclampOperation());
+        }
+    }
+
+    /// <summary>夹紧的设备动作；机型动作不一样才重写。</summary>
+    protected virtual ModuleOperation CreateClampOperation()
+    {
+        return new LoadPortCommandOperation("Clamp", () => _driver?.Clamp(), () => ClampTimeout);
+    }
+
+    /// <summary>松开的设备动作；机型动作不一样才重写。</summary>
+    protected virtual ModuleOperation CreateUnclampOperation()
+    {
+        return new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout);
+    }
+
+    #endregion
+
+    #region Reset / Abort
+
+    /// <summary>
+    /// 复位：组件基类的 Reset()（先递归复位子组件、清报警），再发设备复位。调用方：手动页、报警复位。
+    /// 签名跟着组件基类（返回动作或 null）；只查状态——恢复动作不能被资源、互锁卡住。被拒的原因用 <see cref="CheckReset"/> 问。
+    /// </summary>
+    public override ModuleOperation? Reset()
+    {
+        base.Reset();
+        lock (OperationGate)
+        {
+            if (CheckReset() is not null)
+            {
+                return null;
+            }
+
+            return Begin(LoadPortAction.Reset, CreateResetOperation());
+        }
+    }
+
+    /// <summary>
+    /// 复位能不能做（只查不动）：只查状态。
+    /// </summary>
+    public HandleResult? CheckReset()
+    {
+        return CheckState(LoadPortAction.Reset);
+    }
+
+    /// <summary>
+    /// 中止：组件基类的 Abort()（先递归中止子组件），再发设备停止、顶掉在途的动作。调用方：手动页、整机停止、PJ 中止（按返回的动作等设备停下）。
+    /// 签名跟着组件基类；只查状态，而且不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>）。被拒的原因用 <see cref="CheckAbort"/> 问。
+    /// </summary>
+    public override ModuleOperation? Abort()
+    {
+        base.Abort();
+        lock (OperationGate)
+        {
+            if (CheckAbort() is not null)
+            {
+                return null;
+            }
+
+            return Begin(LoadPortAction.Abort, CreateAbortOperation());
+        }
+    }
+
+    /// <summary>
+    /// 中止能不能做（只查不动）：只查状态（停用、驱动没装好才拒）。
+    /// </summary>
+    public HandleResult? CheckAbort()
+    {
+        return CheckState(LoadPortAction.Abort);
+    }
+
+    /// <summary>复位的设备动作：平台默认发驱动的复位清错；机型动作不一样才重写。</summary>
+    protected virtual ModuleOperation CreateResetOperation()
+    {
+        return new LoadPortCommandOperation("Reset", () => _driver?.ResetDrive(), () => ResetTimeout);
+    }
+
+    /// <summary>中止的设备动作：平台默认发驱动的停止；机型动作不一样才重写。</summary>
+    protected virtual ModuleOperation CreateAbortOperation()
+    {
+        return new LoadPortCommandOperation("Abort", () => _driver?.Stop(), () => AbortTimeout);
+    }
+
+    #endregion
+
+    #region 资源检查（几个动作共用）
+
+    /// <summary>
+    /// 关门的动作（Unload、门开着时的 Home）的资源检查：门一关，这个口出去的片就回不来了——
+    /// 从这个口取出去的片还有不在 LoadPort 上的（在腔体、机械手上）不行，先把片放回来；
+    /// 这个口账上的片归还没结束的 Job 也不行，要先中止这个 Job。没装晶圆账不查。
+    /// </summary>
+    private HandleResult? CheckCloseDoorResource()
+    {
+        int outside = CountWafersOutside();
+        if (outside > 0)
+        {
+            return HandleResult.Fail(ErrorCodes.PortWafersOutside, Name, outside.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return CheckWafersInJob();
+    }
+
+    /// <summary>
+    /// 这个口账上的片有没有归还没结束的 Job 的（Load 会重建账、Unload / Home 会关门，都会打乱 Job）。没装晶圆账不查。
+    /// </summary>
+    private HandleResult? CheckWafersInJob()
     {
         var ledger = _waferManager;
-        if (ledger is null || !ledger.IsEnable)
+        var jobs = JobManager.Current;
+        if (ledger is null || !ledger.IsEnable || jobs is null)
+        {
+            return null;
+        }
+
+        foreach (var wafer in ledger.GetSlots(Name))
+        {
+            if (wafer is null)
+            {
+                continue;
+            }
+
+            string? owner = jobs.OwnerOf(wafer.Id);
+            if (owner is not null)
+            {
+                return HandleResult.Fail(ErrorCodes.PortWafersInJob, Name, owner);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 这个口有片的槽有没有被搬运占着（Load 会重建账，搬运记着的片就对不上了）。没装晶圆账不查。
+    /// </summary>
+    private HandleResult? CheckSlotsInTransfer()
+    {
+        var ledger = _waferManager;
+        var transfers = TransferManager.Current;
+        if (ledger is null || !ledger.IsEnable || transfers is null)
         {
             return null;
         }
@@ -630,20 +941,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         var slots = ledger.GetSlots(Name);
         for (int index = 0; index < slots.Count; index++)
         {
-            var wafer = slots[index];
-            if (wafer is null)
-            {
-                continue;
-            }
-
-            string? owner = JobManager.Current?.OwnerOf(wafer.Id);
-            if (owner is not null)
-            {
-                return HandleResult.Fail(ErrorCodes.PortWafersInJob, Name, owner);
-            }
-
             int slot = index + 1;
-            if (TransferManager.Current?.IsSlotLocked(Name, slot) == true)
+            if (slots[index] is not null && transfers.IsSlotLocked(Name, slot))
             {
                 return HandleResult.Fail(ErrorCodes.TransferSlotLocked, Name, slot.ToString(CultureInfo.InvariantCulture));
             }
@@ -651,6 +950,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         return null;
     }
+
+    #endregion
+
+    #endregion
 
     /// <summary>
     /// Load 回来的 Mapping。槽数跟 SC SlotCount 对不上就不落账、Load 判失败：少了的槽会当空槽、往有片的槽上放片，
@@ -685,40 +988,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         return HandleResult.Success();
-    }
-
-    /// <summary>
-    /// Unload：关门，自动跑货口径（Job 干完自动卸、E87 Host 放行 / 取消都走这条）。SC AutoRunMapOnUnload 开着就关好门再主动扫一遍槽，
-    /// 跟晶圆账对（<see cref="CheckUnloadSlotMap"/>）；关着关门就完，不扫、不对账。
-    /// 手动卸载走 <see cref="UnloadManually"/>——不吃这个 SC。
-    /// </summary>
-    public virtual ModuleOperation? Unload()
-    {
-        return UnloadCore(AutoRunMapOnUnload);
-    }
-
-    /// <summary>
-    /// 手动 Unload（手动页面）：不扫图、不对账——操作员要手动卸就别拿账卡他（账乱了怪账不怪盒子，
-    /// 也得能把盒子放出去，跟 CTC 的手动卸载一致）。SC AutoRunMapOnUnload 只管自动跑货，管不到这里。
-    /// </summary>
-    public virtual ModuleOperation? UnloadManually()
-    {
-        return UnloadCore(false);
-    }
-
-    /// <summary>
-    /// 卸载动作本体：先发普通卸载（FCD 是 CULOD）关门；mapAndVerify = true 时关好了再主动扫一遍图（驱动的 Map，FCD 是 CLDMP）跟晶圆账对。
-    /// 设备没有一条指令就带图卸载的（FCD 没有），所以是两条指令串在一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败。
-    /// </summary>
-    private ModuleOperation? UnloadCore(bool mapAndVerify)
-    {
-        var operation = new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout);
-        if (mapAndVerify)
-        {
-            operation.Then("Unload 后扫图", () => _driver?.Map(), CheckUnloadSlotMap);
-        }
-
-        return Begin(LoadPortAction.Unload, operation);
     }
 
     /// <summary>
@@ -765,37 +1034,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return HandleResult.Success();
     }
 
-    public virtual ModuleOperation? Clamp()
-    {
-        return Begin(LoadPortAction.Clamp, new LoadPortCommandOperation("Clamp", () => _driver?.Clamp(), () => ClampTimeout));
-    }
-
-    public virtual ModuleOperation? Unclamp()
-    {
-        return Begin(LoadPortAction.Unclamp, new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout));
-    }
-
-    public override ModuleOperation? Reset()
-    {
-        base.Reset();
-        return ResetDevice();
-    }
-    protected virtual ModuleOperation? ResetDevice()
-    {
-        return Begin(LoadPortAction.Reset, new LoadPortCommandOperation("Reset", () => _driver?.ResetDrive(), () => ResetTimeout));
-    }
-
-    public override ModuleOperation? Abort()
-    {
-        base.Abort();
-        return AbortDevice();
-    }
-
-    protected virtual ModuleOperation? AbortDevice()
-    {
-        return Begin(LoadPortAction.Abort, new LoadPortCommandOperation("Abort", () => _driver?.Stop(), () => AbortTimeout));
-    }
-
     /// <summary>
     ///  切 Auto/Manual 并且和E84有关系
     /// </summary>
@@ -836,47 +1074,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return null;
     }
 
+    /// <summary>
+    /// 发起动作（查状态表、挂操作、落执行态），记下是哪个动作、从哪个状态出发（做完按它收尾、复位 / 中止按它判门位）。
+    /// 检查都在各动作的入口里（见"动作入口"区），这里不再查联锁。
+    /// </summary>
     protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
     {
         lock (OperationGate)
         {
-            // 还没改成"状态 → 资源 → 互锁"入口的动作，联锁在这里查（见 Interlock 区），不让发返回 null；
-            // Load 已经在自己的入口里查过，复位、中止不设联锁。
-            switch (action)
-            {
-                case LoadPortAction.Unload:
-                    if (!UnloadInterlock())
-                    {
-                        return null;
-                    }
-
-                    break;
-
-                case LoadPortAction.Home:
-                    if (!HomeInterlock())
-                    {
-                        return null;
-                    }
-
-                    break;
-
-                case LoadPortAction.Clamp:
-                    if (!ClampInterlock())
-                    {
-                        return null;
-                    }
-
-                    break;
-
-                case LoadPortAction.Unclamp:
-                    if (!UnclampInterlock())
-                    {
-                        return null;
-                    }
-
-                    break;
-            }
-
             int from = State;
             var started = base.Begin(action, operation);
             if (started is not null)
@@ -891,8 +1096,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Interlock
 
-    // 各动作发起前的联锁：Load 在它的入口里查（带原因），其余的还在 Begin 里查：手动、自动、机型重写的动作都过这一关。
-    // 机型有别的条件（光幕、机械手缩回……）就重写，先调 base。在模块锁里调：只读状态，别等待、别去拿别的模块的锁。
+    // 各动作的联锁（三项检查的第三项），在各动作的入口里查：手动、自动、EAP 都过这一关。不通过返回原因，通过返回 null。
+    // 机型有别的条件（光幕、机械手缩回……）就重写，先调 base，用机型自己的错误码。在模块锁里调：只读状态，别等待、别去拿别的模块的锁。
+    // 复位、中止不设联锁。
 
     /// <summary>
     /// Load 联锁：平台默认要载具到了（没载具设备只会回错，白白落 Error、报受控停止）；
@@ -915,35 +1121,35 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// Unload 联锁：平台默认不拦
+    /// Unload 联锁：平台默认不拦。
     /// </summary>
-    protected virtual bool UnloadInterlock()
+    protected virtual HandleResult? UnloadInterlock()
     {
-        return true;
+        return null;
     }
 
     /// <summary>
-    /// Home 联锁：平台默认不拦
+    /// Home 联锁：平台默认不拦。
     /// </summary>
-    protected virtual bool HomeInterlock()
+    protected virtual HandleResult? HomeInterlock()
     {
-        return true;
+        return null;
     }
 
     /// <summary>
-    /// Clamp 联锁：平台默认不拦
+    /// Clamp 联锁：平台默认不拦。
     /// </summary>
-    protected virtual bool ClampInterlock()
+    protected virtual HandleResult? ClampInterlock()
     {
-        return true;
+        return null;
     }
 
     /// <summary>
-    /// Unclamp 联锁：平台默认不拦
+    /// Unclamp 联锁：平台默认不拦。
     /// </summary>
-    protected virtual bool UnclampInterlock()
+    protected virtual HandleResult? UnclampInterlock()
     {
-        return true;
+        return null;
     }
 
     #endregion
@@ -1177,9 +1383,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        if (Unload() is null)
+        var unload = Unload();
+        if (!unload.IsSuccess)
         {
-            LogHelper.Warn(Name, "载具干完了，但现在 Unload 不了（联锁不让或端口在做别的动作），等操作员处理");
+            LogHelper.Warn(Name, $"载具干完了，但 Unload 被拒（{unload.ErrorMessage}：{string.Join(", ", unload.Args)}），等操作员处理");
             return;
         }
 

@@ -96,11 +96,11 @@ sequenceDiagram
 
 **③ Host 认定 ID → 自动 Load**
 - `E87CarrierIdStateMachine.EnterVerified`：报 #4/#8 → `_carrier.SetId(...)` → `E87LoadPort.LoadLater()`；
-- `LoadLater` 在锁外做：`device.IsIdle && carrier.IsArrived` 才 `port.Load()`，不然记一条警告等操作员。
+- `LoadLater` 在锁外做：已经 Load 着就不发；否则调 `port.Load()`（端口自己按 状态 → 资源 → 互锁 查），被拒带原因记一条警告等操作员。
 - **没接 EAP 时没有这一步**：`E87Callback` 为 null，Load 由操作员在手动页点，或机型自己重写。
 
 **④ Load 动作本体（自动 / 手动同一条）**
-- `BaseLoadPortModule.Load()` → `Begin(Load)`：状态表要求 `Idle → Loading → Loaded`，联锁 `LoadInterlock()`（默认要载具到位）；
+- `BaseLoadPortModule.Load()`（统一入口）：状态（`Idle → Loading → Loaded`、驱动连着）→ 资源（账上的片不归没结束的 Job、有片的槽没被搬运占着）→ 互锁 `LoadInterlock()`（载具到位、E84 交接没在走），都过了才 `Begin(Load)`；
 - `LoadPortCommandOperation`：`_driver.Load()`（FCD `MOV:CLOAD`，开门 + Mapping）→ 等终态 → 成功回调 `TakeSlotMap()`：
   - 槽数 ≠ SC `SlotCount` → **不落账**、判失败（`slot_map_length_mismatch`）、报 Mapping 异常；
   - 有交叉/叠片/认不出 → 账照落（界面看得到）、判失败（`slot_map_abnormal`）；
@@ -149,9 +149,9 @@ sequenceDiagram
 | Online/Offline | `OnlineAsync/OfflineAsync` | `Mode = Online/Offline` | 只改模块模式；Offline 时搬运状态 = OutOfService（E84 不交接） |
 | Auto/Manual | `AutoAsync/ManualAsync` | `SetAutoMode()` | 端口存取方式；E84 闸门 + E87 报 AccessMode 变化事件 |
 | Read ID | `ReadCarrierIdAsync` | `_carrier.ReadId()` | 只发起，结果随扫描/事件流回来 |
-| Home | `HomeAsync` | `Home()` → `ORGSH` | 整机回零 |
-| Load | `LoadAsync` | `Load()` → `CLOAD` | 要过 `LoadInterlock`（默认要载具到位） |
-| **Unload** | `UnloadAsync` | **`UnloadManually()`** → `CULOD` | **不扫图、不对账**（SC `AutoRunMapOnUnload` 管不到这里） |
+| Home | `HomeAsync` | `Home()` → `ORGSH` | 整机回零；门开着（Loaded）时片没回齐、Job 在用不让回零 |
+| Load | `LoadAsync` | `Load()` → `CLOAD` | 状态 → 资源 → 互锁（载具到位、Job 不在用、E84 交接没在走） |
+| **Unload** | `UnloadAsync` | **`UnloadManually()`** → `CULOD` | **不扫图、不对账**（SC `AutoRunMapOnUnload` 管不到这里）；片没回齐、Job 在用照样拦 |
 | Reset | `ResetAsync` | `Reset()` + `ResetDrive()` → `RESET` | 清报警 + 清设备错；做完按门位回 Loaded/Idle，查不到门位落 NotInit |
 | Abort | `AbortAsync` | `Abort()` + `Stop()` → `ABORT` | 中止在途动作；除 Idle/Error 外一律落 NotInit（要重新 Home） |
 | 状态 | `GetStateAsync` | `CreateStateDto()` | 拉一次全量，之后靠事件流推送 |
@@ -168,8 +168,8 @@ sequenceDiagram
     participant DRV as 驱动/设备
     OP->>VM: 点 Load / Unload / Home / Reset / Abort …
     VM->>SVC: ILoadPortService.XxxAsync(module)
-    SVC->>M: port.Xxx()（被拒返回 null → action_rejected）
-    M->>M: lock(OperationGate)：状态表查 (State, Action) + 各自联锁
+    SVC->>M: port.Xxx()（被拒带原因：错误码 + 参数原样回界面；复位 / 中止回 null 的再问 CheckReset / CheckAbort）
+    M->>M: lock(OperationGate)：状态 → 资源 → 互锁，都过了才 Begin
     M->>DRV: LoadPortCommandOperation：发指令 → 等终态（超时用 EC 各自的值）
     DRV-->>M: INF / NAK / ABS /（没回复→超时）
     M->>M: 成功/失败后处理（Mapping 检查、StartAccess/EndAccess、报警、状态迁移）

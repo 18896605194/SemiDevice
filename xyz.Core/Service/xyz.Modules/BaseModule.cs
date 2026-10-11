@@ -182,6 +182,14 @@ public abstract class BaseModule : ComponentBase
     /// </summary>
     protected virtual HandleResult? CheckAvailable()
     {
+        return CheckEnabled();
+    }
+
+    /// <summary>
+    /// 模块停用、驱动没装好（<see cref="CanBeginAction"/> 为 false）不能动作。急停只查这个，见 <see cref="CheckState{TAction}"/>。
+    /// </summary>
+    private HandleResult? CheckEnabled()
+    {
         if (!CanBeginAction)
         {
             return HandleResult.Fail(ErrorCodes.ModuleDisabled, Name);
@@ -199,13 +207,15 @@ public abstract class BaseModule : ComponentBase
     {
         lock (OperationGate)
         {
-            var unavailable = CheckAvailable();
+            string name = action.ToString();
+
+            // 急停只看模块能不能用（停用、驱动没装好），不看设备连没连上：没连上也要能把在途的动作顶掉，免得它一直等到超时
+            var unavailable = name == AbortAction ? CheckEnabled() : CheckAvailable();
             if (unavailable is not null)
             {
                 return unavailable;
             }
 
-            string name = action.ToString();
             int state = State;
             if (!TryGetTransition(state, name, out _))
             {
@@ -220,6 +230,14 @@ public abstract class BaseModule : ComponentBase
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// 检查没过：把原因（错误码 + 参数）原样转成动作入口的结果。
+    /// </summary>
+    protected static HandleResult<ModuleOperation> Rejected(HandleResult rejected)
+    {
+        return HandleResult<ModuleOperation>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
     }
 
     #endregion

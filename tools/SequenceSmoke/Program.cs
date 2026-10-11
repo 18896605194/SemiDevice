@@ -418,17 +418,7 @@ sealed class ProbePort : BaseLoadPortModule
         Probe.Name(this, name);
     }
 
-    public override ModuleOperation? Unload() => null;
-
-    public override ModuleOperation? Home() => null;
-
-    protected override ModuleOperation? ResetDevice() => null;
-
-    protected override ModuleOperation? AbortDevice() => null;
-
-    public override ModuleOperation? Clamp() => null;
-
-    public override ModuleOperation? Unclamp() => null;
+    // 没挂驱动：动作入口一律回"停用或驱动没装好"，不用再一个个改成回 null
 }
 
 // 探针腔体：要工艺配方的那一类站点。
