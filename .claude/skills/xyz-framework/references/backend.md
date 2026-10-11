@@ -367,8 +367,10 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `E90`（片跟踪）、`E40`（PJ）、`E94`（CJ）。每个标准一个子目录（`Eap\E30` …），命名空间照旧 `xyz.Components.Components`；
   几个标准共用的直接放 `Eap` 下：`SecsRead`（读 Host 报文，结构不对抛 SecsException → 链路回 S9F7）、`GemValue`（值 ↔ SECS 格式、时间格式）、
   `E5Error`（ERRCODE + ERRTEXT，只用 E5 的码）、`JobErrors`（Job 的错误码 → E5）。
-- **开机**：设备侧都起来以后宿主调 `EapComponent.Bind(LoadPort 们, JobManager, 流程配方库, 工艺配方库)`：链路没启用（`Hsms.IsEnable=False`）什么都不接；
-  启用了按 E30 → E39 → Recipe → E90 → E87 → E40 / E94 接好（各自 `Attach`：登记处理方、挂设备侧上报口），**最后才 `Hsms.Open`**。退出 `EapComponent.Close`（先 Separate，再摘回调）。
+- **开机分两步**：模块开始扫描之前宿主调 `EapComponent.Bind(LoadPort 们, JobManager, 流程配方库, 工艺配方库)`：链路没启用（`Hsms.IsEnable=False`）什么都不接；
+  启用了按 E30 → E39 → Recipe → E90 → E87 → E40 / E94 接好（各自 `Attach`：登记处理方、挂设备侧上报口），**不开链路**；设备侧都起来以后宿主调 `EapComponent.Open()` 才 `Hsms.Open`。
+  Bind 要赶在扫描之前，是因为开机时端口上已有的载具第一拍就判到、自动读码，上报口没挂上的话到达和读码就丢了，E87 没有载具对象、Host 没法认定（2026-10-11 改的）；
+  这时报的事 Host 收不收得到由 E30 管（没在线不报、没通讯按缓存设置），设备侧照常报。退出 `EapComponent.Close`（先 Separate，再摘回调）。
 - **链路 `HsmsComponent`**：只管连接和分发。`Handle(stream, function, 处理方)` 登记（重复登记开机就抛），Host 的 primary 放进一条派发线程
   按先后处理——处理方可以 await 设备侧的命令；返回 `SecsReply`（`Of(体)` / `Abort`（SxF0）/ `Error(n)`（S9Fn）/ `None`），
   `.Then(动作)` 是回复发出去以后接着做的（先让 Host 看到回复再报事件）。没人登记：整个 Stream 都没人管回 S9F3，否则 S9F5；
@@ -460,9 +462,10 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
-IO 表 Open → Safety Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→ 各模块 Start →
+IO 表 Open → Safety Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
+**EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 各模块 Start →
 TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
-JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ **EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，最后开 HSMS 链路）→ 设备总状态 / IO 推送 →
+JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ **EAP Open**（开 HSMS 链路，Host 连进来时处理方、设备都在）→ 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要连接、登记的，写在自己的 `InitComponent` 里（挂在模块下的子组件跟着基类递归走，模块里不用点名）；要在装配层单独 Open/Start 的根组件（PLC、IO 这类），
 按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。

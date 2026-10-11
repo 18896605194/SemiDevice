@@ -164,6 +164,22 @@ public static class ServiceExtensions
         //晶圆账开机恢复
         wafers?.Restore();
 
+        #region EAP 接设备（SECS/GEM，sc.xml 的 Eap 节点）：赶在模块开始扫描之前挂上上报口，链路等设备侧都起来以后再开
+
+        // 开机时端口上已有的载具第一拍扫描就判到、自动读码，这时上报口没挂上，到达和读码结果就丢了：
+        // E87 不知道这个载具，Host 没法认定，这一盒一直取不了片。所以先接设备，链路放到最后开（Host 连进来时处理方、设备都在）。
+        var eap = EapComponent.Current;
+        if (eap is not null)
+        {
+            eap.Bind(modules.OfType<ILoadPort>().ToList(), JobManager.Current, SequenceComponent.Current, ProcessRecipeComponent.Current);
+        }
+        else if (HsmsComponent.Current is not null)
+        {
+            LogHelper.Error("Eap", "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
+        }
+
+        #endregion
+
         foreach (var module in modules)
         {
             module.Start();
@@ -232,17 +248,9 @@ public static class ServiceExtensions
 
         #endregion
 
-        #region EAP（SECS/GEM，sc.xml 的 Eap 节点）：设备侧都起来以后再接
+        #region EAP 开链路：设备侧都起来以后再开
 
-        var eap = EapComponent.Current;
-        if (eap is not null)
-        {
-            eap.Bind(modules.OfType<ILoadPort>().ToList(), jobs, SequenceComponent.Current, ProcessRecipeComponent.Current);
-        }
-        else if (HsmsComponent.Current is not null)
-        {
-            LogHelper.Error("Eap", "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
-        }
+        eap?.Open();
 
         #endregion
 

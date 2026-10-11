@@ -160,6 +160,11 @@ Check(ReferenceEquals(lp1.E87Callback, eap.FindChild<E87Component>()) && lp1.E84
 Check(ledger.E90Callback is not null && jobs.E40Callback is not null && jobs.E94Callback is not null, "E90 挂到晶圆账、E40 / E94 挂到 Job 管理上");
 Check(gem.CurrentControlState == GemControlState.HostOffline, "开机控制状态按 EC 默认进 HOST OFF-LINE");
 
+// 开机顺序：宿主在模块开始扫描之前 Bind（只挂上报口、不开链路），设备侧都起来以后才 Open。
+// 这期间端口上已有的盒子（开机第一拍就判到、自动读码）照样报给 E87、建出载具对象；Host 这时收不到（HOST OFF-LINE、链路没开），E87 那一节再让 Host 按载具号接着走。
+lp2.Arrive();
+lp2.ReadId("CAR-BOOT");
+
 // ── 假 Host ────────────────────────────────────────────────────────────────
 var host = new HostLog();
 var connector = new HsmsConnector(new HsmsSettings
@@ -197,6 +202,9 @@ connector.SessionEstablished += session =>
     };
 };
 connector.Start();
+await Task.Delay(300);
+Check(connector.Current is null, "Bind 不开链路：Open 之前假 Host 连不进来");
+eap.Open();
 
 async Task WaitUntil(Func<bool> condition, string message, int timeoutMs = 5000)
 {
@@ -463,6 +471,12 @@ Check(unknownType.Body!.Items[1].Items[0].GetUInt64() == 1 && unknownType.Body.I
     "不认识的对象类型：OBJACK=1、ERRCODE=2");
 
 // ── E87 ─────────────────────────────────────────────────────────────────────
+// 开机前就在端口上的盒子：链路打开之前报的到达、读码 Host 没收到，但 E87 已经有载具对象，Host 连上后按载具号让继续就能接着走
+Check(gem.IsRemote, "E87 开测前在 ON-LINE REMOTE");
+Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-BOOT", null))) == 0, "开机前就在端口上的盒子：Host 连上后按载具号让继续，CAACK=0");
+await WaitUntil(() => lp2.CarrierIdsSet.Contains("CAR-BOOT") && lp2.LoadRequested, "开机前就在的盒子认定后写回号、自动 Load");
+lp2.Remove();
+
 mark = host.EventCount;
 lp1.Arrive();
 await Event("Eap.E87.MaterialReceived", mark, "载具放上报 MaterialReceived");

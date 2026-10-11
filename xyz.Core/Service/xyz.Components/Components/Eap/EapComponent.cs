@@ -7,11 +7,11 @@ namespace xyz.Components.Components;
 /// <summary>
 /// EAP（SECS/GEM，sc.xml 的 Eap 节点）：链路 Hsms、上报派发 Notifier，加上每个 SEMI 标准一个组件（E30、E39、E87、E90、E40、E94）
 /// 和 E30 里的配方管理 Recipe，都是它的子节点。
-/// 开机时设备侧（LoadPort、晶圆账、Job 管理）都起来以后，由它按顺序把各标准接到链路和设备上，最后才打开链路——
-/// Host 一连进来就可能发报文，处理方得先在。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备侧的上报口保持 null，照常跑。
+/// 开机分两步：模块开始扫描之前 <see cref="Bind"/>，按顺序把各标准接到链路和设备上（只挂上报口、登记处理方）；设备侧都起来以后 <see cref="Open"/> 打开链路——
+/// Host 一连进来就可能发报文，处理方和设备都得先在。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备侧的上报口保持 null，照常跑。
 /// 子节点哪个没配就不接哪个（Hsms、Notifier、E30 是必须的；Recipe / E87 / E90 / E40 / E94 按机台需要配，E94 建 CJ 要 E39）。
 /// </summary>
-[Component(description: "EAP（SECS/GEM）：链路加各 SEMI 标准，开机按顺序接到设备上再开链路")]
+[Component(description: "EAP（SECS/GEM）：链路加各 SEMI 标准，开机先接到设备上、设备起来后再开链路")]
 public class EapComponent : ComponentBase
 {
     /// <summary>当前 EAP 组件；sc.xml 没配 Eap 节点时为 null。</summary>
@@ -22,12 +22,14 @@ public class EapComponent : ComponentBase
         Current = this;
     }
 
-    /// <summary>接上了（链路启用、各标准接好、链路打开了）。</summary>
+    /// <summary>各标准接到设备上了（链路启用、必需的节点都在）；链路由 <see cref="Open"/> 另开。</summary>
     public bool IsBound { get; private set; }
 
     /// <summary>
-    /// 接设备、开链路（宿主在设备侧都起来以后调一次）：E30 先接（别的标准报事件、判控制状态都经它），再 E39（对象服务，别的标准往里登记对象），
-    /// 再配方管理（两个配方库）、E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理），最后打开链路。
+    /// 接设备（宿主在模块开始扫描之前调一次）：E30 先接（别的标准报事件、判控制状态都经它），再 E39（对象服务，别的标准往里登记对象），
+    /// 再配方管理（两个配方库）、E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理）。不开链路。
+    /// 要赶在扫描之前：开机时端口上已有的载具第一拍扫描就判到、自动读码，上报口没挂上的话到达和读码结果就丢了，
+    /// E87 不知道这个载具，Host 没法认定，这一盒一直取不了片。这时报的事 Host 收不收得到由 E30 管（没在线不报、没通讯按缓存设置）。
     /// 配方库没装的传 null，那个库就不给 Host 管。
     /// </summary>
     public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, ISequenceComponent? sequences, IProcessRecipeComponent? processRecipes)
@@ -98,9 +100,20 @@ public class EapComponent : ComponentBase
             controlJobs?.Attach(link, gem, objects, jobs);
         }
 
-        link.Open();
         IsBound = true;
-        LogHelper.Info(Name, "EAP 接好了：" + string.Join("、", Children.Select(child => child.Name)));
+        LogHelper.Info(Name, "EAP 接到设备上了：" + string.Join("、", Children.Select(child => child.Name)));
+    }
+
+    /// <summary>打开链路（宿主在设备侧都起来以后调一次）：Host 一连进来就可能发报文，得等处理方和设备都在。没接上（<see cref="Bind"/> 没接成）的不开。</summary>
+    public void Open()
+    {
+        if (!IsBound)
+        {
+            return;
+        }
+
+        FindChild<HsmsComponent>()?.Open();
+        LogHelper.Info(Name, "EAP 链路打开");
     }
 
     /// <summary>收：先断链路（发 Separate），再把各标准从设备上摘下来。宿主退出时调。</summary>

@@ -23,7 +23,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     #region ITransferStation 实现
 
     /// <summary>
-    /// 槽位数：各类工位在自己的 SC 里配（LoadPort 花篮槽数、腔体片位数），默认值各自带。
+    /// 槽位数
     /// </summary>
     public abstract int SlotCount { get; set; }
 
@@ -61,9 +61,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     /// 机械手和站点传输完成
     /// </summary>
     public bool TransferComplete()
-    {
-        // 只落到 TransferComplete 就交给钩子。收尾期间不能是待命态——
-        // 待命态的意思是"我空闲、可以被服务"，门还在关就说这句话，调度器会把机械手再派过来。
+    {    
         if (!TransferStep(TransferModuleState.Transferring, TransferModuleState.TransferComplete))
         {
             return false;
@@ -74,9 +72,9 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     }
 
     /// <summary>
-    /// 撤回本轮：只在准备阶段（PreTransfer / TransferReady）撤，交给钩子收回准备做过的事；
-    /// 在待命态说明没占着，直接算撤好了；交互中、收尾中、报错的都不撤。
+    /// 撤回本轮
     /// </summary>
+    /// <returns></returns>
     public bool CancelTransfer()
     {
         int state = State;
@@ -100,7 +98,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
     public virtual IReadOnlyList<string> SupportedTasks => StationTaskAction.PickPlace;
 
     /// <summary>
-    /// 站内任务能不能起：默认没有站内任务，一律回不支持。有站内任务的站点重写。
+    /// 站内任务能不能起：
     /// </summary>
     public virtual HandleResult CheckTask(StationTaskRequest request)
     {
