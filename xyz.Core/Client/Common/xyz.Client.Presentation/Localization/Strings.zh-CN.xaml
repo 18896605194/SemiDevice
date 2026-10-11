@@ -323,7 +323,6 @@
     <sys:String x:Key="setting.ledger.process.Aborted">中止</sys:String>
     <sys:String x:Key="setting.ledger.status.Crossed">交叉片</sys:String>
     <sys:String x:Key="setting.ledger.status.Double">叠片</sys:String>
-    <sys:String x:Key="setting.ledger.status.Dummy">陪片</sys:String>
     <sys:String x:Key="setting.ledger.status.Unknown">状态不明</sys:String>
     <sys:String x:Key="setting.ledger.status_with_process">{0} · {1}</sys:String>
     <sys:String x:Key="setting.ledger.legend.error">失败 / 中止</sys:String>
@@ -612,7 +611,6 @@
     <!-- 左栏最底下的晶圆颜色说明：其余几项跟槽位表状态列用同一套字（main.wafer.*） -->
     <sys:String x:Key="main.legend">晶圆颜色</sys:String>
     <sys:String x:Key="main.legend.error">失败 / 中止</sys:String>
-    <sys:String x:Key="main.legend.dummy">陪片</sys:String>
     <sys:String x:Key="main.legend.unledgered">账上没有</sys:String>
     <sys:String x:Key="main.legend.unledgered_tip">传感器检测到有片，晶圆账上却没有登记，请到 设置 → 账单调整 对账</sys:String>
 

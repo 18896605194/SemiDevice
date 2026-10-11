@@ -150,10 +150,6 @@
                                 <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Double}" />
                             </DockPanel>
                             <DockPanel>
-                                <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Dummy" />
-                                <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.legend.dummy}" />
-                            </DockPanel>
-                            <DockPanel>
                                 <Rectangle Style="{DynamicResource WaferLegendDotStyle}" Tag="Unknown" />
                                 <TextBlock Style="{DynamicResource WaferLegendTextStyle}" Text="{DynamicResource main.wafer.Unknown}" />
                             </DockPanel>

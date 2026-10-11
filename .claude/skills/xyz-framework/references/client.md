@@ -154,7 +154,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   悬停 `DarkHoverBackground`、遮罩 `DarkOverlayBackground`。新颜色先加 token 再用。
 - Tag 驱动的公共样式（数据绑到 `Tag`，样式按值换外观）：`ShowWhenTagTrueStyle`（FrameworkElement，Tag=True 才显示）、
   `NullContentHintTextStyle`（Tag 为 null 才显示，做占位提示）、`PageOverlayBorderStyle`、`StatusDotBorderStyle`、
-  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Dummy/Unknown，其他=空槽虚线；
+  `TopBarStackAccentButtonStyle`（有报警变红）、`WaferBarStyle`（Tag = 晶圆色调 Idle/InProcess/Completed/Error/Crossed/Double/Unknown，其他=空槽虚线；
   `WaferLegendDotStyle` 是它的圆点版，多一个 Unledgered = 账上没有）、
   `AlarmCountTextStyle`（Tag=True 红字，报警条数）、`MapStatusTextStyle`（Tag = CarrierSlotMapStatus，写"映射完成"这类字并换色）。
   DataTrigger 的 `Value="Move"` 这种字符串能直接匹配枚举。

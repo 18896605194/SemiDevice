@@ -323,7 +323,6 @@
     <sys:String x:Key="setting.ledger.process.Aborted">Aborted</sys:String>
     <sys:String x:Key="setting.ledger.status.Crossed">Crossed</sys:String>
     <sys:String x:Key="setting.ledger.status.Double">Double</sys:String>
-    <sys:String x:Key="setting.ledger.status.Dummy">Dummy</sys:String>
     <sys:String x:Key="setting.ledger.status.Unknown">Unknown</sys:String>
     <sys:String x:Key="setting.ledger.status_with_process">{0} · {1}</sys:String>
     <sys:String x:Key="setting.ledger.legend.error">Failed / aborted</sys:String>
@@ -612,7 +611,6 @@
     <!-- Wafer color legend at the bottom of the left column; the other items reuse the slot table's state texts (main.wafer.*) -->
     <sys:String x:Key="main.legend">Wafer Colors</sys:String>
     <sys:String x:Key="main.legend.error">Failed / aborted</sys:String>
-    <sys:String x:Key="main.legend.dummy">Dummy</sys:String>
     <sys:String x:Key="main.legend.unledgered">Not in ledger</sys:String>
     <sys:String x:Key="main.legend.unledgered_tip">A wafer is sensed here but not recorded in the wafer ledger. Reconcile it in Settings → Wafer Ledger.</sys:String>
 

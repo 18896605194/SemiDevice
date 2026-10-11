@@ -53,7 +53,7 @@ public class WaferHistoryEntity
     [SugarColumn(Length = 64, IsNullable = true)]
     public string? LotId { get; set; }
 
-    /// <summary>物理状态（正常/交叉/叠片/陪片）。</summary>
+    /// <summary>物理状态（正常/交叉/叠片/不明）。</summary>
     [SugarColumn(Length = 16)]
     public string Status { get; set; } = string.Empty;
 

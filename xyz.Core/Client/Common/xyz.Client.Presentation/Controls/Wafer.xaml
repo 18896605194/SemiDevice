@@ -94,9 +94,6 @@
                             <DataTrigger Binding="{Binding Data.State, RelativeSource={RelativeSource AncestorType=local:Wafer}}" Value="Double">
                                 <Setter Property="Fill" Value="{DynamicResource WaferDouble}" />
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding Data.State, RelativeSource={RelativeSource AncestorType=local:Wafer}}" Value="Dummy">
-                                <Setter Property="Fill" Value="{DynamicResource WaferDummy}" />
-                            </DataTrigger>
                             <DataTrigger Binding="{Binding Data.State, RelativeSource={RelativeSource AncestorType=local:Wafer}}" Value="Unknown">
                                 <Setter Property="Fill" Value="{DynamicResource Gray}" />
                             </DataTrigger>

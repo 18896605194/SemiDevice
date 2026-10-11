@@ -250,7 +250,7 @@
     </Style>
 
     <!--  晶圆色条（如账单调整页槽位表的"晶圆"列、工具栏的颜色说明）。Tag 是片的色调：
-          Idle 未处理 / InProcess 工艺中 / Completed 已完成 / Error 失败或中止 / Crossed 交叉片 / Double 叠片 / Dummy 陪片 / Unknown 状态不明；
+          Idle 未处理 / InProcess 工艺中 / Completed 已完成 / Error 失败或中止 / Crossed 交叉片 / Double 叠片 / Unknown 状态不明；
           其他值（Empty）是空槽，画虚线框。用 Rectangle 是因为空槽要虚线，Border 画不了  -->
     <Style x:Key="WaferBarStyle" TargetType="Rectangle">
         <Setter Property="Width" Value="44" />
@@ -285,10 +285,6 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Double">
                 <Setter Property="Fill" Value="{DynamicResource WaferDouble}" />
-                <Setter Property="Stroke" Value="{x:Null}" />
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Dummy">
-                <Setter Property="Fill" Value="{DynamicResource WaferDummy}" />
                 <Setter Property="Stroke" Value="{x:Null}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Unknown">

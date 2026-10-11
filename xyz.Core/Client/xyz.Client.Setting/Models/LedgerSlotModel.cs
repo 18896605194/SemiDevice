@@ -55,7 +55,7 @@ public sealed class LedgerSlotModel
     public string StateText { get; } = string.Empty;
 
     /// <summary>
-    /// 色条的色调（WaferBarStyle 的 Tag）：Idle / InProcess / Completed / Error / Crossed / Double / Dummy / Unknown，空槽 Empty。
+    /// 色条的色调（WaferBarStyle 的 Tag）：Idle / InProcess / Completed / Error / Crossed / Double / Unknown，空槽 Empty。
     /// </summary>
     public string Tone { get; } = "Empty";
 
@@ -86,7 +86,7 @@ public sealed class LedgerSlotModel
     }
 
     /// <summary>
-    /// 物理状态不正常的（交叉、叠片、陪片、不明）按物理状态上色，正常片按工艺状态上色。
+    /// 物理状态不正常的（交叉、叠片、不明）按物理状态上色，正常片按工艺状态上色。
     /// </summary>
     private static string ToneOf(WaferDto wafer)
     {
@@ -94,7 +94,6 @@ public sealed class LedgerSlotModel
         {
             case "Crossed":
             case "Double":
-            case "Dummy":
             case "Unknown":
                 return wafer.Status;
         }

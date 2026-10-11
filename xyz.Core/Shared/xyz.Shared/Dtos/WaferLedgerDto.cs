@@ -110,7 +110,7 @@ public class WaferDto
     public string? CarrierId { get; set; }
 
     /// <summary>
-    /// 物理状态：Normal / Crossed / Double / Dummy / Unknown。
+    /// 物理状态：Normal / Crossed / Double / Unknown。
     /// </summary>
     public string Status { get; set; } = string.Empty;
 

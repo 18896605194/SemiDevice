@@ -14,9 +14,6 @@ public enum WaferStatus
     /// <summary>叠片（一个槽两片）。</summary>
     Double = 2,
 
-    /// <summary>陪片。</summary>
-    Dummy = 3,
-
     /// <summary>有片但状态不明。</summary>
     Unknown = 4,
 }

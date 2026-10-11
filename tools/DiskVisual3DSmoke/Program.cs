@@ -49,7 +49,7 @@ internal static class Program
             Brush Fill(Wafer wafer) => ((Ellipse)wafer.FindName("diskEllipse")).Fill;
             Check(ReferenceEquals(face.Data, flat.Data) && faceText.Text == "LP1-03", "same wafer data and slot text reach both controls");
             var processPreview = Render(scene);
-            foreach (string state in new[] { "IdleNojob", "IdleHasjob", "Process", "Completed", "Error", "RcmCompleted", "Soaking", "Transfer", "Crossed", "Double", "Dummy", "Unknown" })
+            foreach (string state in new[] { "IdleNojob", "IdleHasjob", "Process", "Completed", "Error", "RcmCompleted", "Soaking", "Transfer", "Crossed", "Double", "Unknown" })
             {
                 feedback.Wafer!.State = state;
                 Pump(20);

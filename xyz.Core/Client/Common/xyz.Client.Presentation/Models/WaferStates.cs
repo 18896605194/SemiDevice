@@ -4,7 +4,7 @@ namespace xyz.Client.Presentation.Models;
 
 /// <summary>
 /// 晶圆账上的片（WaferDto）→ 圆片控件的状态色（WaferModel.State）。手动页的机械手手指、LoadPort 花篮、腔体、调度图卡片都用这一份，
-/// 颜色跟账单调整页的色条和图例一一对应（用户："颜色对应状态"）：交叉片、叠片、陪片、状态不明按物理状态上色，
+/// 颜色跟账单调整页的色条和图例一一对应（用户："颜色对应状态"）：交叉片、叠片、状态不明按物理状态上色，
 /// 正常片按工艺状态——未处理（灰白，Load 完 Mapping 落账的片就是它）/ 工艺中 / 已完成 / 失败或中止。
 /// </summary>
 public static class WaferStates
@@ -23,7 +23,6 @@ public static class WaferStates
         {
             case "Crossed":
             case "Double":
-            case "Dummy":
             case "Unknown":
                 return wafer.Status;
         }

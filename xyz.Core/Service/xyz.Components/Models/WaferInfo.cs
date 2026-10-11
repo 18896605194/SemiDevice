@@ -105,7 +105,7 @@ public sealed class WaferInfo
     /// <summary>批次号。</summary>
     public string? LotId { get; internal set; }
 
-    /// <summary>物理状态（正常/交叉/叠片/陪片）。</summary>
+    /// <summary>物理状态（正常/交叉/叠片/不明）。</summary>
     public WaferStatus Status { get; internal set; }
 
     /// <summary>工艺状态。</summary>

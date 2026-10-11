@@ -248,8 +248,8 @@ internal static class Program
             Check(WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "InProcess" }) == "Process"
                 && WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "Completed" }) == "Completed"
                 && WaferStates.Of(new WaferDto { Status = "Normal", ProcessState = "Aborted" }) == "Error", "工艺中 / 已完成 / 失败或中止各自的颜色");
-            Check(new[] { "Crossed", "Double", "Dummy", "Unknown" }.All(status => WaferStates.Of(new WaferDto { Status = status, ProcessState = "Completed" }) == status),
-                "交叉片、叠片、陪片、状态不明按物理状态上色");
+            Check(new[] { "Crossed", "Double", "Unknown" }.All(status => WaferStates.Of(new WaferDto { Status = status, ProcessState = "Completed" }) == status),
+                "交叉片、叠片、状态不明按物理状态上色");
             var mapped = StationWafers.OfLoadPort([], [new LoadPortSlotDto { Slot = 1, State = LoadPortSlotState.CorrectlyOccupied }]);
             Check(mapped.Single().State == "IdleNojob", "账上还没登记、按 Mapping 画的片也是未处理");
 
