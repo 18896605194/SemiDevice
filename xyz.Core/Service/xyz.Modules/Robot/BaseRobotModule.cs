@@ -59,6 +59,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         set { SetEcInt(nameof(QueryDataTimeOut), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "100", max: "600000",
+        @default: "1000", description: "设备状态查询周期（一圈：报错、伺服、速度、各轴坐标）")]
+    public int QueryStatusIntervalMs
+    {
+        get { return GetEcInt(nameof(QueryStatusIntervalMs)); }
+        set { SetEcInt(nameof(QueryStatusIntervalMs), value); }
+    }
+
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
         @default: "60000", description: "Home 动作超时（全轴回原点）")]
     public int HomeTimeout
@@ -294,12 +302,16 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     private RobotCommand? _query;
 
     private readonly Stopwatch _queryWatch = new();
+
+    /// <summary>这一圈从什么时候开始查的：新的一圈要离上一圈开始满一个周期（EC QueryStatusIntervalMs）。</summary>
+    private readonly Stopwatch _roundWatch = new();
+
     private bool _isStatusQueryLate;
     private bool _waferEventSubscribed;
 
     /// <summary>
     /// 设备状态轮询（扫描线程，跟 LoadPort 一个路子）：在途那条没回来、没超时就等，超时就作废它；
-    /// 回来了或作废了，就往下走一步——写上一条的结果、发这一圈的下一条；一圈查完，下一拍从头再查。
+    /// 回来了或作废了，就往下走一步——写上一条的结果、发这一圈的下一条；一圈查完，离这一圈开始满一个周期（EC QueryStatusIntervalMs）再从头查。
     /// 查什么、什么顺序、回来写到哪，都在 <see cref="QueryRound"/> 里。
     /// </summary>
     private void LoopQueryStatus()
@@ -352,7 +364,18 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
         #region 往下走一步：写上一条的结果、发下一条
 
-        _queryRound ??= QueryRound(robot).GetEnumerator();
+        // 新的一圈离上一圈开始不满一个周期就先不查；一圈里的各条照旧一条回来接着发下一条
+        if (_queryRound is null)
+        {
+            if (_roundWatch.IsRunning && _roundWatch.ElapsedMilliseconds < QueryStatusIntervalMs)
+            {
+                return;
+            }
+
+            _queryRound = QueryRound(robot).GetEnumerator();
+            _roundWatch.Restart();
+        }
+
         if (_queryRound.MoveNext())
         {
             _query = _queryRound.Current;
@@ -360,7 +383,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return;
         }
 
-        // 一圈查完：下一拍从头再查
+        // 一圈查完：满一个周期再从头查
         _queryRound = null;
         _query = null;
 
