@@ -3,6 +3,9 @@
 改到相关功能前先看这里。每条后面是定下来的日期。
 
 ## 代码
+- **子组件每拍做事只重写 OnScan，用大组件的线程**（2026-10-12，用户："只要规定就是子组件想要扫描的话，直接重写 OnScan 就好了，用的还是大的组件那一个线程"）：
+  一个大组件（LoadPort1、Chamber1、Robot1、PLC、Safety、Dispatch）一条扫描线程，下面所有子组件的 `OnScan()` 都由它递归带着跑；
+  子组件不调 `Start()`、不自己起线程或定时器做每拍的事，重写时先调 `base.OnScan()`，`OnScan()` 里不等待。只立规矩，没在 `Start()` 里加检查（用户没要）。
 - **大括号一律不省略**（2026-10-03）：`if` / `else` / `for` / `foreach` / `while` 后面只有一句（`return`、`continue`、`throw`、赋值）也要换行加大括号，
   不写 `if (version != _transitionVersion) return;` 这种单行（用户点名）；lambda 里的 if、冒烟测试的 Check 也一样。
   2026-10-03 用户说"全部改掉"：全仓清了一遍（不带括号 53 处 + 挤在一行的 `{ ... }` 27 处，含 `lock`、`try/catch/finally`）；
@@ -19,6 +22,7 @@
 - **分组节点名进组件全路径**（2026-10-11，用户："sc 应该就是把没写 type 的也算进去"）：sc.xml 里不写 Type 的分组节点（LoadPort、Robot、Chamber、
   Robot1 下的 Axes）照旧不生成组件，但名字进 `FullPath`：`Chamber.Chamber1.Door`，EC 的键、报警来源、GEM 采集名、数据曲线列名都跟着带分组，
   EC 页左边的树自然跟 sc 一样。不另加"sc 路径"字段（试过 `ScPath`，用户嫌绕），也不把分组做成组件（模块就不在根上了）。
+  要几个组件共用一条扫描线程的，写 Type 做成父组件（像腔体带部件），见「指挥层 Dispatch」；设备模块仍在根上。
   界面要短名的（腔体手动页的页签、气缸行）取模块名那一段后面的，不能假设路径以模块名开头。
 
 ## 组件初始化 InitComponent 和模块初始化 InitModule（2026-10-09，用户定的名和分工）
@@ -511,6 +515,21 @@
 - **CJ 转换号（2026-10-07 用户明确）**：删除 ControlJob.TransitionNumber；转换号属于本次转换通知，不缓存进 CJ 对象。CjManager 在通知时用局部变量确定编号，通过 StateChanged(ControlJob, ControlJobState, int e94TransitionNumber) 传给 JobManager 上报；不新增事件参数类。CompletedBy / EndedBy 仍记录完成及删除原因。
 - **PJ 与 CJ 风格统一（2026-10-07 用户授权修改）**：PjManager 使用 Dictionary<string,PjEntity> 保存 PJ 与独立 PjStateMachine；私有实体不对外暴露，接口用 Add / Remove / Get / ProcessJobs，动作接收 ProcessJob 对象。Add 只登记，Queue 入队并登记晶圆归属，Remove 检查对象引用并释放归属。状态机继承同一个 BaseStateMachine，转换表写在类内，保留现有 E40 状态数值与手动启动、暂停、停止、中止收尾行为；新增内部 Created=-1，不上报 Host。暂停恢复目标留在独立状态机，不存进 ProcessJob。删除 PjManager 的 Execute、公开 Fire、Advance、NextTrigger、AbortLoose、UpdatePermissions；任务进度、PJ 启动条件、设备收尾与行许可由 JobManager 处理。StateChanged 传 (ProcessJob,ProcessJobState,int e40TransitionNumber)，编号只随本次通知传递，不存成运行对象字段。
 - **JobManager 跟随优化（2026-10-07 用户授权）**：使用传统方法体和区域管理，明确命令方法各自直接执行 CJ/PJ 对象动作，EAP 编号入口仅选择对应方法；不增加委托执行包装或 partial 拆文件。扫描分为 PJ 推进、CJ 推进、任务许可，保留先 PJ 后 CJ 及设备收尾判据。创建检查 Queue 结果，失败撤销本次登记、任务或关联，保留先前创建的 PJ；无数据变化的创建校验失败不发布。删除 `_snapshot` 缓存，查询在 Job 锁内生成独立 DTO。
+
+## 指挥层 Dispatch：Job 和搬运管理共用一条扫描线程（2026-10-12，用户定的）
+- **起因**：讲搬运管理和工单的关系时，用户问"这三个没有线程竞争吗"，随后定："把这几个放到一个大的下面去，共用一个线程""这样的 sc 就得改一下"。
+  我一开始把机械手也放了进去，用户纠正"这个 robot 怎么能在下面呢"——机械手是设备，跟 LoadPort、腔体一样在根上、各自一条线程。
+- **做法**：sc.xml 顶层 `Dispatch`（Type `xyz.Modules.DispatchComponent`），下面先挂 `Job`（带 Task、Scheduler）、再挂 `Transfer`。Dispatch 一条线程，
+  一拍里按 sc.xml 先后逐个 `ScanChild`：先 Job（收结果、派单）后 Transfer（推工单），新派的单当拍就走第一步；每个子组件单独兜异常、单独计慢扫描，
+  Job 一直出错也不耽误搬运推工单。工单（TransferRoutine）没有自己的线程，跟着搬运管理在这条线程上走。
+- **名字、放法是用户选的**：父节点叫 Dispatch（我提的 Handling 没用）；选"加父组件"，没选"Transfer 挂到 Job 下面"（那样 sc 里拿掉 Job，搬运也没了，可手动传片用不到 Job）。
+- **跟 10-11「分组节点不做成组件」不冲突**：那条说的是不写 Type 的分组节点；要共用线程就写 Type 做成父组件（用户："这个也不是一定的，腔体不就是那样的么"）。
+  设备模块仍在根上，所以服务层找模块、开机装配的模块表、客户端都不用改。
+- **开机**：`AddXyzServices` 里搬运管理、Job 照旧绑表；挂在 Dispatch 下面的不再各自 `Start()`（不然会被扫两遍），两边都绑完表后 `Dispatch.Start()`；
+  单独挂在根上的照旧自己 Start（老 sc 照样能跑）。
+- **跟着变的**：全路径 `Transfer` → `Dispatch.Transfer`、`Job` → `Dispatch.Job`（Task、Scheduler 跟着）；EC 键、报警来源、GEM 采集名、数据曲线列名跟着变，
+  ec.xml 里旧路径的值不自动搬（开机提示"组件树上没有了"，这几项回默认值）。
+- **合线程不解决的**：界面请求线程（机械手页的 Home / 上下使能、账单调整）插进搬运空档的那几处，跟合不合线程无关，要另外补。
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV；不接 PLC、没有手动动作），X/Z/Theta 直接配它；

@@ -8,10 +8,6 @@ using xyz.Tools;
 
 namespace xyz.Service;
 
-/// <summary>
-/// _robot 手动操作 gRPC 服务（命令通道）：下发 → 同步等终态 → 码+参数回包。
-/// 公共流程（找模块、被拒/超时/终态回包）在 <see cref="BaseService"/>。
-/// </summary>
 public class RobotService : BaseService, IRobotService
 {
     public RobotService(IReadOnlyList<ComponentBase> roots) : base(roots)

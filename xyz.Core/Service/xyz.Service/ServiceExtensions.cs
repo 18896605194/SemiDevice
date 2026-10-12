@@ -189,11 +189,15 @@ public static class ServiceExtensions
 
         // 搬运管理：模块全起来之后再绑表启动——它负责推进搬运操作，
         // 不能在模块还没连上驱动、还没 Home 的时候就开始派机械手。
+        // 挂在 Dispatch 下面的（sc.xml 的常规配法）这里只绑表，扫描由 Dispatch 带着，见下面"指挥层"；单独起会被扫两遍。
         var transfers = TransferManager.Current;
         if (transfers is not null)
         {
             transfers.Bind(modules);
-            transfers.Start();
+            if (roots.Contains(transfers))
+            {
+                transfers.Start();
+            }
         }
         else
         {
@@ -235,15 +239,29 @@ public static class ServiceExtensions
 
         #region Job 管理
 
+        // 跟搬运管理一样：挂在 Dispatch 下面的只绑表，扫描由 Dispatch 带着。
         var jobs = JobManager.Current;
         if (jobs is not null)
         {
             jobs.Bind(modules);
-            jobs.Start();
+            if (roots.Contains(jobs))
+            {
+                jobs.Start();
+            }
         }
         else
         {
             LogHelper.Warn("Job", "sc.xml 没配 Job 节点：建不了 Job，主界面的创建 / 启动 Job 用不了");
+        }
+
+        #endregion
+
+        #region 指挥层（sc.xml 的 Dispatch 节点）
+
+        // Job、搬运管理挂在 Dispatch 下面，共用它的一条扫描线程：两边都绑完表才起，一拍里按 sc.xml 先后扫（先 Job 后 Transfer）。
+        foreach (var dispatch in roots.OfType<DispatchComponent>())
+        {
+            dispatch.Start();
         }
 
         #endregion

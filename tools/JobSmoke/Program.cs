@@ -27,7 +27,7 @@ using xyz.Tools;
 // 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
 // CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、
 // 料没到先建 PJ（载具到了、Load 好、接了 EAP 时槽图被认定才定片；同一载具的槽和 CJ 不能重；定不了片报警、PJ 留在排队）、整机停止走 Job 中止、
-// 服务层错误码、重启收场。
+// 服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 var checks = 0;
 void Check(bool condition, string message)
@@ -90,7 +90,15 @@ try
         return node;
     }
 
-    var jobNode = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Job", StringComparison.OrdinalIgnoreCase));
+    // 指挥层：Job、搬运管理挂在 Dispatch 下面共用一条扫描线程，先 Job 后 Transfer；顶层不再单独挂这两个
+    var dispatchNode = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Dispatch", StringComparison.OrdinalIgnoreCase));
+    Check(dispatchNode is not null && dispatchNode.Type == typeof(DispatchComponent).FullName
+          && dispatchNode.Children.Select(child => child.Name).SequenceEqual(["Job", "Transfer"])
+          && dispatchNode.Children[1].Type == typeof(TransferManager).FullName
+          && scConfig.Modules.All(setting => setting.Name != "Job" && setting.Name != "Transfer"),
+        "sc.xml 里应有 Dispatch 节点（DispatchComponent），下面先挂 Job、再挂 Transfer（TransferManager），顶层不再单独挂这两个");
+
+    var jobNode = dispatchNode!.Children.FirstOrDefault(setting => string.Equals(setting.Name, "Job", StringComparison.OrdinalIgnoreCase));
     Check(jobNode is not null && jobNode.Type == typeof(JobManager).FullName
           && jobNode.Children.Any(child => child.Name == "Task" && child.Type == "xyz._35021.Module.Job.TaskComponent")
           && jobNode.Children.Any(child => child.Name == "Scheduler" && child.Type == typeof(SchedulerComponent).FullName),
@@ -1525,6 +1533,19 @@ finally
     }
 }
 
+// ── 指挥层 Dispatch：每拍按挂上的先后逐个扫子组件，前一个抛异常也照扫后一个 ──────────
+{
+    // 下面会有两条"[Job] OnScan 异常"的 WARN，是探针故意抛的，预期内
+    var trace = new List<string>();
+    var dispatch = new ProbeDispatch();
+    dispatch.AddChild(new ScanProbe("Job", trace, fail: true));
+    dispatch.AddChild(new ScanProbe("Transfer", trace));
+    dispatch.Tick();
+    dispatch.Tick();
+    Check(trace.SequenceEqual(["Job", "Transfer", "Job", "Transfer"]),
+        $"Dispatch 应每拍先扫 Job 再扫 Transfer，Job 抛异常也照扫 Transfer，实际 {string.Join(",", trace)}");
+}
+
 Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission checks, competing transfers for one slot, pick confirmation and sequential wafer task execution, " +
     "locks released only after the station rings and the ledger settle, failures without motion releasing locks and failures after motion holding them " +
     "for manual recovery, rejecting a busy robot, aborting and waiting for device confirmation; jobs per SEMI E94/E40: creation checks with nothing left behind (including a station that does not " +
@@ -1537,9 +1558,39 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "overlapping slots and a second CJ on one carrier refused; an unusable carrier raising an alarm and leaving the PJ queued), " +
     "the equipment stop going through job abort, the job and transfer services, " +
     "every CJ and PJ recorded as one database row with each wafer's tasks, " +
+    "the Dispatch node scanning Job then Transfer on one thread without one child's exception skipping the other, " +
     "and a restart that marks unfinished jobs aborted in the database instead of resuming them)");
 
 // ── 假件 ─────────────────────────────────────────────────────────────
+
+// 探针指挥层：顶替扫描线程推一拍。
+sealed class ProbeDispatch : DispatchComponent
+{
+    public void Tick() => OnScan();
+}
+
+// 探针子组件：被扫到就记下名字；Fail 为真时记完就抛异常，看 Dispatch 会不会因此漏扫后面的。
+sealed class ScanProbe : ComponentBase
+{
+    private readonly List<string> _trace;
+    private readonly bool _fail;
+
+    public ScanProbe(string name, List<string> trace, bool fail = false)
+    {
+        Probe.Name(this, name);
+        _trace = trace;
+        _fail = fail;
+    }
+
+    protected override void OnScan()
+    {
+        _trace.Add(Name);
+        if (_fail)
+        {
+            throw new InvalidOperationException("探针故意抛的异常");
+        }
+    }
+}
 
 // 名字、路径：生产里由 ComponentLoader 经内部 setter 填。
 static class Probe

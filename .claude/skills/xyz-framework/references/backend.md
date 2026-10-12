@@ -29,8 +29,12 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 - 属性：`Name`、`FullPath`（"Chamber.Chamber1.Door"：sc.xml 的分组节点不生成组件，但名字进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
-- 扫描：根组件（模块、PLC、Safety、TransferManager、JobManager）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
-  `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。
+- 扫描：根组件（模块、PLC、Safety、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
+  `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。子组件之间要互不耽误的父组件重写 `OnScan`、逐个调 `ScanChild(子组件)`：
+  每个子组件的异常、慢扫描记在它自己名下，一个抛异常不会让这一拍排在后面的漏扫（基类的直接递归会）。现在只有 `DispatchComponent` 这么用。
+  **子组件要每拍做事就重写 `OnScan()`，跟着大组件那一条线程走**（LoadPort1 下的驱动、读头、载具，Chamber1 下的气缸、电机、DI 都是这样）：
+  只有大组件开机时调一次 `Start()`，子组件不调 `Start()`、不自己起线程或定时器做每拍的事；`OnScan()` 里不等待（不 Sleep、不同步等回复），
+  要等的（连网口、写库、发报文）交给后台任务，扫描线程每拍只看结果（如驱动重连）。驱动收数据、后台写库这类 IO 线程不算扫描，回调里只记状态、下一拍由扫描线程处理。
 - 生命周期：`InitComponent()`（**不动硬件**的开机初始化：连接、登记晶圆账、挂事件、输出回安全态；先子后己、按 InitOrder 递归到每一层子组件，
   一个子组件没做成不耽误别的、汇总返回 `bool`；开机由宿主对每个模块调一次，子组件跟着基类走，**父组件不点名**，组件有事就重写、记得调 base）、
   `Abort()`（只停，不清报警）、`Reset()`（先子，再清本组件报警）；Abort / Reset 模块把返回类型收窄成 `ModuleOperation?`。
@@ -260,7 +264,10 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
   机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
-- **搬运管理** `Transfer\TransferManager`（sc.xml `Transfer`，自己的扫描线程）：手动、Job、人工恢复共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
+- **指挥层** `Dispatch\DispatchComponent`（sc.xml 顶层 `Dispatch`，下面先挂 `Job`、再挂 `Transfer`）：Job 派单、搬运管理推工单共用它这一条扫描线程，
+  一拍里按 sc.xml 先后逐个 `ScanChild`（先收结果、派单，新派的单当拍就走第一步），彼此之间没有线程交叉；工单（TransferRoutine）没有自己的线程，跟着搬运管理走。
+  设备（机械手、LoadPort、腔体）不挂这里，各自在根上一条线程，指挥层经设备的动作入口下令（设备锁里检查完就挂上动作）、看 `IsSettled` 收结果。决定见 decisions.md「指挥层 Dispatch」。
+- **搬运管理** `Transfer\TransferManager`（sc.xml `Dispatch.Transfer`，扫描由 Dispatch 带着）：手动、Job、人工恢复共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
   `Start(TransferRequest)` 当场回 `HandleResult<TransferRoutine>`（成功给实际设备操作，拒绝给错误码 + 参数）；请求只是参数，不建立搬运单、单号、回执或结果历史。
   启动时查：启用、晶圆账、站点、槽号、同槽、源片标识、目标槽空闲、Job 归属（人工恢复 Recovery 可搬 Job 的片）、资源占用、机械手可达与手臂可用。
   调度直接查搬运管理的 `IsSlotLocked` / `IsRobotInTransfer`，手臂占用在搬运启动时内部校验，不另建占用快照类。
@@ -272,7 +279,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （`TransferRoutine` 抢目标 → 准备二 → 放；`Source` 为 null、`SourceName` 是机械手名）。
   启动时问片归哪个 Job：`JobManager.Current?.OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
-- **Job** `Job\JobManager`（sc.xml 顶层 `Job`，自己的扫描线程；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
+- **Job** `Job\JobManager`（sc.xml `Dispatch.Job`，扫描由 Dispatch 带着；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
   `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
   - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：`Dictionary<string, CjEntity>`，key 为 CJ ID，每个实体包含 `ControlJob` 和自己的 `CjStateMachine`）
     和 PJ 管理（`IPjManager` / `PjManager`：`Dictionary<string, PjEntity>`，key 为 PJ ID，实体包含 PJ 对象及独立状态机，并管理晶圆归属）。CJ 管理不依赖 PJ 管理，不处理 PJ。
@@ -464,8 +471,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
 IO 表 Open → Safety Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
 **EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 各模块 Start →
-TransferManager Bind + Start → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
-JobManager Bind + Start（模块、搬运管理、配方库都起来之后）→ **EAP Open**（开 HSMS 链路，Host 连进来时处理方、设备都在）→ 设备总状态 / IO 推送 →
+TransferManager Bind → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
+JobManager Bind（模块、搬运管理、配方库都起来之后）→ **Dispatch Start**（Job、搬运管理都绑完表才起这条线程；挂在 Dispatch 下面的这两个不再各自 Start，
+单独挂在根上的照旧自己 Start）→ **EAP Open**（开 HSMS 链路，Host 连进来时处理方、设备都在）→ 设备总状态 / IO 推送 →
 数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
 新组件要连接、登记的，写在自己的 `InitComponent` 里（挂在模块下的子组件跟着基类递归走，模块里不用点名）；要在装配层单独 Open/Start 的根组件（PLC、IO 这类），
 按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。

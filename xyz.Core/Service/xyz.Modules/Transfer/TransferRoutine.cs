@@ -8,20 +8,13 @@ namespace xyz.Modules;
 
 public sealed class TransferRoutine : ModuleOperation<TransferStep>
 {
-    /// <summary>
-    /// 站点准备第 1 步（准备一：粗准备，排气、预热、机构到位）。出错时步号作为错误参数报给界面，
-    /// 界面按语言包写成"第 1 步"——不把中文阶段名当参数传，英文界面里才不会夹中文。
-    /// </summary>
-    private const int FirstPreparePhase = 1;
 
-    /// <summary>站点准备第 2 步（准备二：最终准备，开门、放行），做完站点进 TransferReady。</summary>
+    private const int FirstPreparePhase = 1;
     private const int SecondPreparePhase = 2;
 
     private readonly IRobot _robot;
-    /// <summary>源站点；片已经在手上（只放片）时为 null。</summary>
     private readonly ITransferStation? _source;
 
-    /// <summary>目标站点；片取到手上就完（只取片）时为 null。</summary>
     private readonly ITransferStation? _target;
     private readonly int _sourceSlot;
     private readonly int _targetSlot;

@@ -1,9 +1,6 @@
-﻿using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -173,28 +170,35 @@ public abstract class ComponentBase
     {
         while (true)
         {
-            var watch = Stopwatch.StartNew();
-            try
-            {
-                OnScan();
-            }
-            catch (Exception exception)
-            {
-                // 单周期异常不杀扫描线程：记录后继续下一周期。
-                LogHelper.Warn("Scan", $"[{FullPath}] OnScan 异常: {exception.Message}");
-            }
-
-            var elapsed = watch.ElapsedMilliseconds;
-            if (elapsed > SlowScanAlarmMilliseconds)
-            {
-                LogHelper.Error("Scan", $"[{FullPath}] 慢扫描报警 {elapsed}ms（阈值 {SlowScanAlarmMilliseconds}ms）");
-            }
-            else if (elapsed > SlowScanWarnMilliseconds)
-            {
-                LogHelper.Warn("Scan", $"[{FullPath}] 慢扫描警告 {elapsed}ms（阈值 {SlowScanWarnMilliseconds}ms）");
-            }
-
+            ScanOnce();
             Thread.Sleep(50);
+        }
+    }
+
+    /// <summary>
+    /// 扫一拍：这一拍抛的异常记日志、不往外抛（单周期异常不杀扫描线程），超过慢扫描阈值记日志。
+    /// </summary>
+    private void ScanOnce()
+    {
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            OnScan();
+        }
+        catch (Exception exception)
+        {
+            // 单周期异常不杀扫描线程：记录后继续下一周期。
+            LogHelper.Warn("Scan", $"[{FullPath}] OnScan 异常: {exception.Message}");
+        }
+
+        var elapsed = watch.ElapsedMilliseconds;
+        if (elapsed > SlowScanAlarmMilliseconds)
+        {
+            LogHelper.Error("Scan", $"[{FullPath}] 慢扫描报警 {elapsed}ms（阈值 {SlowScanAlarmMilliseconds}ms）");
+        }
+        else if (elapsed > SlowScanWarnMilliseconds)
+        {
+            LogHelper.Warn("Scan", $"[{FullPath}] 慢扫描警告 {elapsed}ms（阈值 {SlowScanWarnMilliseconds}ms）");
         }
     }
 
@@ -207,6 +211,16 @@ public abstract class ComponentBase
         {
             child.OnScan();
         }
+    }
+
+    /// <summary>
+    /// 单独扫一个子组件：它这一拍抛的异常、扫得慢都记在它自己名下，不往上抛，后面的子组件照扫。
+    /// 默认的 OnScan 是直接递归，一个子组件抛异常，这一拍排在它后面的就都不扫了；
+    /// 子组件之间要互不耽误的父组件（如 Dispatch 下的 Job 和搬运管理）重写 OnScan、逐个调它。
+    /// </summary>
+    protected void ScanChild(ComponentBase child)
+    {
+        child.ScanOnce();
     }
 
     #endregion

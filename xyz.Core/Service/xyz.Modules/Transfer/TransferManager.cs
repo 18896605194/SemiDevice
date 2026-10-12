@@ -13,123 +13,8 @@ namespace xyz.Modules;
 [Component(description: "搬运执行：校验参数、占用槽位和手臂、驱动站点交互与机械手取放")]
 public class TransferManager : ComponentBase
 {
-    /// <summary>
-    /// 当前搬运管理；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
-    /// </summary>
-    public static TransferManager? Current { get; set; }
 
-    private readonly object _gate = new();
-    /// <summary>每台机械手当前执行的搬运操作。</summary>
-    private readonly Dictionary<string, TransferRoutine> _running = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>动过手才失败的操作，人工确认片位后按晶圆放锁。</summary>
-    private readonly Dictionary<Guid, TransferRoutine> _held = new();
-
-    private readonly Dictionary<string, TransferRoutine> _slotLocks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, TransferRoutine> _armLocks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<Guid, TransferRoutine> _waferLocks = new();
-
-    public TransferManager()
-    {
-        Current = this;
-    }
-
-    #region SC
-
-    [SCEditor("True", "Transfer", "是否启用搬运（False=不启动搬运操作，设备照常点动）")]
-    public bool IsEnable { get; set; } = true;
-
-    #endregion
-
-    #region SV
-
-    /// <summary>
-    /// 是否允许 Job 自动启动任务；关闭后正在执行的操作与手动传片仍正常推进。
-    /// </summary>
-    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动派单是否开启")]
-    public bool IsAutoDispatch { get; private set; }
-
-    /// <summary>
-    /// 开自动调度：Job 按任务表启动设备操作。
-    /// </summary>
-    public void StartAutoDispatch()
-    {
-        SetAutoDispatch(true);
-    }
-
-    /// <summary>
-    /// 关自动调度：Job 不再启动新任务；正在执行的操作继续完成。
-    /// </summary>
-    public void StopAutoDispatch()
-    {
-        SetAutoDispatch(false);
-    }
-
-    private void SetAutoDispatch(bool enabled)
-    {
-        if (IsAutoDispatch == enabled)
-        {
-            return;
-        }
-
-        IsAutoDispatch = enabled;
-        LogHelper.Info(Name, enabled ? "自动派单已开启" : "自动派单已关闭");
-    }
-
-    #endregion
-
-    #region 模块表（装配后灌）
-
-    private IReadOnlyDictionary<string, BaseModule> _modules =
-        new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
-
-    private IReadOnlyList<IRobot> _robots = [];
-
-    public IReadOnlyList<IRobot> Robots => _robots;
-
-    /// <summary>模块表里的可服务工位（LoadPort、腔体、别的站点），先后同 sc.xml。</summary>
-    public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
-
-    /// <summary>
-    /// 绑定模块表（装配完、模块起扫描之后调一次）。
-    /// 搬运参数里的站点名就是模块名，靠这张表把名字解析成站点和机械手。
-    /// </summary>
-    public void Bind(IEnumerable<BaseModule> modules)
-    {
-        var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
-        foreach (var module in modules)
-        {
-            table[module.Name] = module;
-        }
-
-        _modules = table;
-        _robots = table.Values.OfType<IRobot>().ToList();
-
-        LogHelper.Info(Name,
-            $"搬运模块表 {table.Count} 个，机械手 {_robots.Count} 台：{string.Join(", ", _robots.Select(r => r.Name))}");
-    }
-
-    /// <summary>
-    /// 按模块名取可服务工位；名字不在表里、或那个模块不是可服务工位，返回 false。
-    /// </summary>
-    public bool TryGetStation(string name, [MaybeNullWhen(false)] out ITransferStation station)
-    {
-        station = _modules.TryGetValue(name, out var module) ? module as ITransferStation : null;
-        return station is not null;
-    }
-
-    /// <summary>
-    /// 按模块名取机械手；名字不在表里、或那个模块不是机械手，返回 false。
-    /// </summary>
-    public bool TryGetRobot(string name, [MaybeNullWhen(false)] out IRobot robot)
-    {
-        robot = _modules.TryGetValue(name, out var module) ? module as IRobot : null;
-        return robot is not null;
-    }
-
-    #endregion
-
-    #region EC 在线参数
+    #region EC
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "10", max: "5000",
         @default: "200", description: "单周期慢扫描警告阈值")]
@@ -169,35 +54,134 @@ public class TransferManager : ComponentBase
 
     #endregion
 
-    #region 执行搬运
+    #region SC
+
+    [SCEditor("True", "Transfer", "是否启用搬运（False=不启动搬运操作，设备照常点动）")]
+    public bool IsEnable { get; set; } = true;
+
+    #endregion
+
+    #region SV
 
     /// <summary>
-    /// 校验并启动一次搬运，返回实际执行的操作。资源被占用就拒绝，自动任务留在任务表里等下一拍。
-    /// 手动与自动共用同一套检查、资源占用和取放流程。
+
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "自动派单是否开启")]
+    public bool IsAutoDispatch { get; private set; }
+
+    /// <summary>
+
+    public void StartAutoDispatch()
+    {
+        SetAutoDispatch(true);
+    }
+
+    /// <summary>
+    /// 关自动调度：Job 不再启动新任务；正在执行的操作继续完成。
     /// </summary>
+    public void StopAutoDispatch()
+    {
+        SetAutoDispatch(false);
+    }
+
+    private void SetAutoDispatch(bool enabled)
+    {
+        if (IsAutoDispatch == enabled)
+        {
+            return;
+        }
+
+        IsAutoDispatch = enabled;
+        LogHelper.Info(Name, enabled ? "自动派单已开启" : "自动派单已关闭");
+    }
+
+    #endregion
+
+    public static TransferManager? Current { get; set; }
+    private readonly object _gate = new();
+    private readonly Dictionary<string, TransferRoutine> _running = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<Guid, TransferRoutine> _held = new();
+
+    private readonly Dictionary<string, TransferRoutine> _slotLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TransferRoutine> _armLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Guid, TransferRoutine> _waferLocks = new();
+
+    public TransferManager()
+    {
+        Current = this;
+    }
+
+
+    #region 模块装配
+
+    private IReadOnlyDictionary<string, BaseModule> _modules =new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+
+    private IReadOnlyList<IRobot> _robots = [];
+
+    public IReadOnlyList<IRobot> Robots => _robots;
+
+    public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
+
+    public void Bind(IEnumerable<BaseModule> modules)
+    {
+        var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+        foreach (var module in modules)
+        {
+            table[module.Name] = module;
+        }
+
+        _modules = table;
+        _robots = table.Values.OfType<IRobot>().ToList();
+
+        LogHelper.Info(Name,
+            $"搬运模块表 {table.Count} 个，机械手 {_robots.Count} 台：{string.Join(", ", _robots.Select(r => r.Name))}");
+    }
+
+    public bool TryGetStation(string name, [MaybeNullWhen(false)] out ITransferStation station)
+    {
+        station = _modules.TryGetValue(name, out var module) ? module as ITransferStation : null;
+        return station is not null;
+    }
+
+    public bool TryGetRobot(string name, [MaybeNullWhen(false)] out IRobot robot)
+    {
+        robot = _modules.TryGetValue(name, out var module) ? module as IRobot : null;
+        return robot is not null;
+    }
+
+    #endregion
+
+    #region 执行搬运
+
     public HandleResult<TransferRoutine> Start(TransferRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        #region 前提：搬运、晶圆账 组件都开着
+
         if (!IsEnable)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = WaferManagerComponent.Current;
+        var ledger = WaferManagerComponent.Current;  //晶圆账单管理
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
-        string sourceName = request.Source.Trim();
-        string targetName = request.Target.Trim();
+        #endregion
+
+        #region 源：站点，或者拿着片的机械手（只放片）
+
+        string sourceName = request.Source.Trim(); //源头站点
         ITransferStation? source = null;
         IRobot? holder = null;
-        if (TryGetStation(sourceName, out var station))
+        if (TryGetStation(sourceName, out var station))  //获取源头站点对象
         {
             source = station;
         }
-        else if (TryGetRobot(sourceName, out var robot))
+        else if (TryGetRobot(sourceName, out var robot)) //获取这个robot对象
         {
             holder = robot;
         }
@@ -206,15 +190,18 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferStationNotFound, sourceName);
         }
 
-        // 目标写机械手 = 只取片（机械手手动页点取片）：片取到这台机械手的这只手上就完，目标槽号就是手指号。
-        // 源和目标不能都是机械手。
+        #endregion
+
+        #region 目标：站点，或者机械手（只取片，源不能也是机械手）
+
+        string targetName = request.Target.Trim();//目标站点
         ITransferStation? target = null;
         IRobot? receiver = null;
-        if (TryGetStation(targetName, out var targetStation))
+        if (TryGetStation(targetName, out var targetStation)) //获取目标站点对象
         {
             target = targetStation;
         }
-        else if (holder is null && TryGetRobot(targetName, out var robotTarget))
+        else if (holder is null && TryGetRobot(targetName, out var robotTarget))  //要是同一个robot
         {
             receiver = robotTarget;
         }
@@ -222,6 +209,10 @@ public class TransferManager : ComponentBase
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferStationNotFound, targetName);
         }
+
+        #endregion
+
+        #region 槽号：在范围内，源和目标不是同一个槽
 
         var rejected = source is not null ? CheckSlot(source, request.SourceSlot) : CheckArmSlot(sourceName, request.SourceSlot, ledger);
         rejected ??= target is not null ? CheckSlot(target, request.TargetSlot) : CheckArmSlot(targetName, request.TargetSlot, ledger);
@@ -236,6 +227,10 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSameSlot);
         }
 
+        #endregion
+
+        #region 准入并占资源：检查和占锁在同一把锁里，两趟不会同时通过
+
         TransferRoutine operation;
         lock (_gate)
         {
@@ -249,6 +244,8 @@ public class TransferManager : ComponentBase
             Lock(operation);
             _running[operation.Robot.Name] = operation;
         }
+
+        #endregion
 
         LogHelper.Info(Name, $"开始搬运：{operation.WaferName} {operation.Name}（{operation.Origin}）");
         return HandleResult<TransferRoutine>.Success(operation);

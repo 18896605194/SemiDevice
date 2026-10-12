@@ -356,12 +356,6 @@
 			</Setting>
 		</Setting>
 	</Setting>
-	<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动任务启动的是同一种搬运操作，
-	     都完整走站点交互环（准备→取放→收尾）；设备点动不走这儿。
-	     模块表在装配全部完成后统一绑，跟本节点在 sc.xml 里的位置无关 -->
-	<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
-		<Value Name="IsEnable" Value="True" />
-	</Setting>
 	<!-- 流程配方库（配方 → 流程配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……），Folder 相对宿主运行目录。
 	     可选站点不在这儿配：按本文件的分组节点（LoadPort、Chamber……）和下面装的模块生成，只留机械手 Stations 里有的；
 	     模块全起来后统一绑，跟本节点在 sc.xml 里的位置无关 -->
@@ -458,22 +452,33 @@
 			</Setting>
 		</Setting>
 	</Setting>
-	<!-- Job 管理（SEMI E94 CJ / E40 PJ）：建 Job、控 Job（启动、暂停、恢复、停止、中止）、按 Job 自动调度，状态照 SEMI 标准。
-	     Job 数据只有它改：本地界面和以后的 EAP 调的是同一个命令接口。模块、搬运管理、配方库全起来后统一绑，跟本节点在 sc.xml 里的位置无关。
-	     Task 子节点是机型的任务组件（必须配）：建 Job 时给每片生成任务表（取片、放片、工艺……按顺序），记每个任务做到哪、出错停住等人处理；
-	       规则跟平台不一样的机型继承 BaseTaskComponent 自己写一个，Type 指过去。
-	     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片时先占住放片目标，再顺序执行取放）；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
-	     IsPersistent：Job 记进库（control_job、process_job 两张表，CJ、PJ 各一行，每片的任务明细跟着 PJ）；重启后不接着跑，库里上次没做完的记成中止 -->
-	<Setting Name="Job" Type="xyz.Modules.JobManager">
-		<Value Name="IsEnable" Value="True" />
-		<!-- PJ 准备好后直接开始；False = 等待 PJ Start，创建请求不指定启动方式 -->
-		<Value Name="ProcessJobAutoStart" Value="True" />
-		<!-- CJ 的载具准备好后直接开始；False = 等待 CJ Start -->
-		<Value Name="ControlJobAutoStart" Value="False" />
-		<Value Name="IsPersistent" Value="True" />
-		<Value Name="Database" Value="Default" />
-		<Setting Name="Task" Type="xyz._35021.Module.Job.TaskComponent" />
-		<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
+	<!-- 指挥层：Job 派单、搬运管理推工单挂在 Dispatch 下面，共用它的一条扫描线程，彼此之间没有线程交叉。
+	     一拍里按下面的先后扫：先 Job 后 Transfer（先收结果、派单，新派的单当拍就能走第一步）；一个出错不耽误另一个。
+	     设备（LoadPort、腔体、机械手）不挂这里，各自在根上、各一条线程。开机时 Job、搬运管理都绑完表才起这条线程 -->
+	<Setting Name="Dispatch" Type="xyz.Modules.DispatchComponent">
+		<!-- Job 管理（SEMI E94 CJ / E40 PJ）：建 Job、控 Job（启动、暂停、恢复、停止、中止）、按 Job 自动调度，状态照 SEMI 标准。
+		     Job 数据只有它改：本地界面和以后的 EAP 调的是同一个命令接口。模块、搬运管理、配方库全起来后统一绑，跟本节点在 sc.xml 里的位置无关。
+		     Task 子节点是机型的任务组件（必须配）：建 Job 时给每片生成任务表（取片、放片、工艺……按顺序），记每个任务做到哪、出错停住等人处理；
+		       规则跟平台不一样的机型继承 BaseTaskComponent 自己写一个，Type 指过去。
+		     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片时先占住放片目标，再顺序执行取放）；机型要别的策略写个子类、把 Type 换掉。不配就用默认策略。
+		     IsPersistent：Job 记进库（control_job、process_job 两张表，CJ、PJ 各一行，每片的任务明细跟着 PJ）；重启后不接着跑，库里上次没做完的记成中止 -->
+		<Setting Name="Job" Type="xyz.Modules.JobManager">
+			<Value Name="IsEnable" Value="True" />
+			<!-- PJ 准备好后直接开始；False = 等待 PJ Start，创建请求不指定启动方式 -->
+			<Value Name="ProcessJobAutoStart" Value="True" />
+			<!-- CJ 的载具准备好后直接开始；False = 等待 CJ Start -->
+			<Value Name="ControlJobAutoStart" Value="False" />
+			<Value Name="IsPersistent" Value="True" />
+			<Value Name="Database" Value="Default" />
+			<Setting Name="Task" Type="xyz._35021.Module.Job.TaskComponent" />
+			<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
+		</Setting>
+		<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动任务启动的是同一种搬运操作，
+		     都完整走站点交互环（准备→取放→收尾）；设备点动不走这儿。
+		     模块表在装配全部完成后统一绑，跟本节点在 sc.xml 里的位置无关 -->
+		<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
+			<Value Name="IsEnable" Value="True" />
+		</Setting>
 	</Setting>
 	<!-- EAP（SECS/GEM）：Hsms 是链路，下面每个 SEMI 标准一个组件。没接 EAP 的机器保持 Hsms 的 IsEnable=False
 	     （不监听端口、各标准不接到设备上，照常跑）。开机时设备侧（LoadPort、晶圆账、Job）都起来以后才接、最后才开链路，跟本节点在 sc.xml 里的位置无关。
