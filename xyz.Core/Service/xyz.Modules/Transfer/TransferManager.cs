@@ -234,12 +234,13 @@ public class TransferManager : ComponentBase
         TransferRoutine operation;
         lock (_gate)
         {
-            rejected = Admit(request, ledger, source, holder, sourceName, target, receiver, targetName, out operation);
-            if (rejected is not null)
+            var admitted = Admit(request, ledger, source, holder, sourceName, target, receiver, targetName);
+            if (!admitted.IsSuccess || admitted.Result is null)
             {
-                return rejected;
+                return admitted;
             }
 
+            operation = admitted.Result;
             operation.DeferCompletion();
             Lock(operation);
             _running[operation.Robot.Name] = operation;
@@ -276,18 +277,19 @@ public class TransferManager : ComponentBase
     }
 
     /// <summary>
-    /// 在资源锁内校验片、目标、归属、机械手和手臂；通过后创建实际执行的操作。
+    /// 在资源锁内校验片、目标、归属、机械手和手臂；都过了返回造好的搬运工单，有一项不过返回原因（错误码 + 参数）。
     /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手；
     /// 目标是机械手（receiver 不为 null，只取片）时就用点了名的那台、目标槽号那只手。
     /// </summary>
-    private HandleResult<TransferRoutine>? Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
-        ITransferStation? target, IRobot? receiver, string targetName, out TransferRoutine operation)
+    private HandleResult<TransferRoutine> Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
+        ITransferStation? target, IRobot? receiver, string targetName)
     {
-        operation = null!;
         string sourceSlot = request.SourceSlot.ToString(CultureInfo.InvariantCulture);
         string targetSlot = request.TargetSlot.ToString(CultureInfo.InvariantCulture);
 
-        var wafer = ledger.Get(sourceName, request.SourceSlot);
+        #region 片：源槽上有片、就是要搬的那一片，目标槽空着
+
+        var wafer = ledger.Get(sourceName, request.SourceSlot);  //账单上面就是这个源头是不是有片
         if (wafer is null)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferNoWafer, sourceName, sourceSlot);
@@ -298,19 +300,25 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferMismatch, sourceName, sourceSlot, wafer.WaferId);
         }
 
-        var occupant = ledger.Get(targetName, request.TargetSlot);
+        var occupant = ledger.Get(targetName, request.TargetSlot); //账单上面就是这个目标站点不能有片
         if (occupant is not null)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferSlotOccupied, targetName, targetSlot, occupant.WaferId);
         }
 
-        // 被 Job 占着的片：Job 只能搬自己的；手动传片拒绝；人工确认片位后的恢复操作放行。
-        string? owner = JobManager.Current?.OwnerOf(wafer.Id);
-        if (owner is not null && request.Origin != TransferOrigin.Recovery
-            && !string.Equals(owner, request.Owner, StringComparison.Ordinal))
+        #endregion
+
+        #region 归属：被 Job 占着的片只能由那个 Job 搬（人工恢复放行）
+
+        string? owner = JobManager.Current?.OwnerOf(wafer.Id); //这个wafer有没有被job占用
+        if (owner is not null && request.Origin != TransferOrigin.Recovery&& !string.Equals(owner, request.Owner, StringComparison.Ordinal))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferOwned, wafer.WaferId, owner);
         }
+
+        #endregion
+
+        #region 占用：这一片、源槽、目标槽没被别的搬运占着
 
         if (_waferLocks.ContainsKey(wafer.Id) || _slotLocks.ContainsKey(SlotKey(sourceName, request.SourceSlot)))
         {
@@ -321,6 +329,10 @@ public class TransferManager : ComponentBase
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferSlotLocked, targetName, targetSlot);
         }
+
+        #endregion
+
+        #region 机械手和手：只放片用拿着片的那只，只取片用点名的那只，取放一趟自己挑
 
         IRobot robot;
         int arm;
@@ -359,6 +371,10 @@ public class TransferManager : ComponentBase
             }
         }
 
+        #endregion
+
+        #region 没在忙：这台机械手、这两个站点都没在跑别的搬运
+
         if (_running.ContainsKey(robot.Name))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, robot.Name, robot.State.ToString(CultureInfo.InvariantCulture));
@@ -379,14 +395,16 @@ public class TransferManager : ComponentBase
             }
         }
 
-        operation = new TransferRoutine(request.Origin, robot, source, request.SourceSlot,
+        #endregion
+
+        var operation = new TransferRoutine(request.Origin, robot, source, request.SourceSlot,
             target, request.TargetSlot, arm, StationWaitTimeoutMs)
         {
             Owner = request.Owner,
             WaferId = wafer.Id,
             WaferName = wafer.WaferId,
         };
-        return null;
+        return HandleResult<TransferRoutine>.Success(operation);
     }
 
     /// <summary>
