@@ -563,11 +563,28 @@ port.E87Callback = null;
         "轴/手指应从组件树收出来：X/Z/Theta 三根轴加 Arm1 一只手指");
 
     robot.NoteState(ModuleState.Idle);
-    Check(robot.Pick(1, "NoSuchStation", 1) is null, "没配在站点表里的站点应被拒");
+
+    // 入口按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）、不起操作：资源这一步查站点、手指和晶圆账
+    bool RejectedWith(HandleResult<ModuleOperation> started, string code, params string[] args)
+    {
+        return !started.IsSuccess && started.Result is null && started.ErrorMessage == code && started.Args.SequenceEqual(args)
+            && robot.State == ModuleState.Idle;
+    }
+
+    Check(RejectedWith(robot.Pick(1, "NoSuchStation", 1), ErrorCodes.StationNotFound, "SmokeRobot", "NoSuchStation"),
+        "没配在站点表里的站点：robot.station_not_found [机械手, 站点]");
+    Check(RejectedWith(robot.Pick(2, "SmokeLP", 3), ErrorCodes.ArmNotAllowed, "SmokeRobot", "SmokeLP", "2"),
+        "没有这只手（只配了 Arm1）：robot.arm_not_allowed [机械手, 站点, 手指号]");
+    Check(RejectedWith(robot.Pick(1, "SmokeLP", 2), ErrorCodes.WaferNoWafer, "SmokeLP", "2"),
+        "账上源槽没片：不去空槽取，wafer.no_wafer [站点, 槽号]（以前设备做完才发现账移不动）");
+    Check(RejectedWith(robot.Place(1, "SmokeLP", 4), ErrorCodes.RobotArmNoWafer, "SmokeRobot", "1"),
+        "账上手上没片：放不了，robot.arm_no_wafer [机械手, 手指号]");
+    Check(robot.CheckPick(1, "SmokeLP", 3) is null && robot.CheckPlace(1, "SmokeLP", 4) is not null,
+        "只查不动的 CheckPick / CheckPlace 跟入口查的是同一套");
 
     // Pick 成功：片从花篮槽位挪到手指上
     robot.Next = new ProbeOperation();
-    Check(robot.Pick(1, "SmokeLP", 3) is not null, "Idle 状态应能发起 Pick");
+    Check(robot.Pick(1, "SmokeLP", 3).Result == robot.Next, "Idle 状态应能发起 Pick");
     robot.Next!.Succeed();
     robot.Tick();
     Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
@@ -585,9 +602,18 @@ port.E87Callback = null;
     Check(robot.CreateStateDto().HasStateChanged(beforeLedgerChange), "账一变（改片号）状态推送就该算变化，下一拍推给界面");
     robotLedger.SetWaferId(robot.Name, 1, carried.WaferId);
 
+    // 手上有片：不能再取（拿着片去取会碰片）；往有片的槽上放也不行（会叠片）
+    robotLedger.Create("SmokeLP", 4, WaferStatus.Normal, "FOUP-ROBOT");
+    var occupiedBy = robotLedger.Get("SmokeLP", 4)!.WaferId;
+    Check(RejectedWith(robot.Pick(1, "SmokeLP", 4), ErrorCodes.RobotArmHasWafer, "SmokeRobot", "1", carried.WaferId),
+        "账上手上已有片：robot.arm_has_wafer [机械手, 手指号, 片号]");
+    Check(RejectedWith(robot.Place(1, "SmokeLP", 4), ErrorCodes.WaferSlotOccupied, "SmokeLP", "4", occupiedBy),
+        "账上目标槽有片：wafer.slot_occupied [站点, 槽号, 片号]");
+    robotLedger.Delete("SmokeLP", 4);
+
     // Place 成功：片从手指放回另一个槽位
     robot.Next = new ProbeOperation();
-    Check(robot.Place(1, "SmokeLP", 5) is not null, "应能发起 Place");
+    Check(robot.Place(1, "SmokeLP", 5).Result == robot.Next, "应能发起 Place");
     robot.Next!.Succeed();
     robot.Tick();
     Check(robotLedger.Get(robot.Name, 1) is null, "Place 成功后手指应空");
@@ -616,13 +642,12 @@ port.E87Callback = null;
           && robotLedger.Get("SmokeLP", 5)?.Id == carried.Id,
         "机械手默认不支持换片：Swap 返回 null，状态和账都不动");
 
-    // 账实不符：设备说取成功，但账上那个槽位本来就没片
+    // 驱动没连上：动作不发（发出去也到不了设备，只会落 Error），module.not_connected；急停不看连接，照样能把在途的顶掉
     robot.NoteState(ModuleState.Idle);
+    robot.Close();
+    Check(RejectedWith(robot.Home(), ErrorCodes.ModuleNotConnected, "SmokeRobot"), "驱动没连上：Home 被拒，module.not_connected [机械手]");
     robot.Next = new ProbeOperation();
-    robot.Pick(1, "SmokeLP", 2);
-    robot.Next!.Succeed();
-    robot.Tick();
-    Check(robotLedger.Get(robot.Name, 1) is null, "源上没片时不该凭空在手指上造出一片（上面那条 Error 日志是预期的）");
+    Check(robot.Abort() == robot.Next, "驱动没连上照样能急停");
 
     WaferManagerComponent.Current = null;
 }
