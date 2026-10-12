@@ -279,8 +279,10 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （`TransferRoutine` 抢目标 → 准备二 → 放；`Source` 为 null、`SourceName` 是机械手名）。
   启动时问片归哪个 Job：`JobManager.Current?.OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
-- **Job** `Job\JobManager`（sc.xml `Dispatch.Job`，扫描由 Dispatch 带着；子节点 `Task` = 机型的任务组件（必须配，继承 `BaseTaskComponent`，35021 是 `TaskComponent`），
-  `Scheduler` = `SchedulerComponent`（换 Type 换策略））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
+- **Job** `Job\JobManager`（sc.xml `Dispatch.Job`，扫描由 Dispatch 带着；子节点 `Task` = 任务组件 `TaskComponent`（必须配），
+  `Scheduler` = `SchedulerComponent`（不配自己建一个））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
+  **Job 是标准件**：CJ / PJ 管理、任务组件、调度引擎全在平台，机型不写 Job 代码、不换 Type，这几个类不开 `abstract` / `virtual`（JobSmoke 盯着）；
+  站点的差别靠站点自己声明、执行任务（`SupportedTasks` / `StartTask`），走哪些站点靠流程配方，规则要变就改平台。
   - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：`Dictionary<string, CjEntity>`，key 为 CJ ID，每个实体包含 `ControlJob` 和自己的 `CjStateMachine`）
     和 PJ 管理（`IPjManager` / `PjManager`：`Dictionary<string, PjEntity>`，key 为 PJ ID，实体包含 PJ 对象及独立状态机，并管理晶圆归属）。CJ 管理不依赖 PJ 管理，不处理 PJ。
     结构按用户提供的参考工程统一：`CjEntity` 是私有实体，`ControlJobs` 只返回 CJ 对象；`Add(ControlJob)` 只注册，`Queue(ControlJob)` 才入队，
@@ -304,13 +306,13 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
     JobManager 负责建 PJ、解析和关联 CJ 的 PJ 集合，以及 CJ 取消 / Stop / Abort 时协调 PJ；PJ 进 ABORTING 中止设备、PJ 结束任务表收场、CJ 完成通知 LoadPort；
     载具就绪、PJ 执行结束、载具离位时由 JobManager 提交相应 action，当前状态是否允许转换由状态表决定；建好、每条转换都由它经 `E94Callback` / `E40Callback`（片开始 / 结束加工 E40 没有事件，由 E90 照晶圆账报） 报
     （放进 EAP 的上报派发组件 `EapNotifierComponent.Current`，跟所有上报一条线程按先后发，PJ 结束先于 CJ 完成报）。
-  - 任务组件 `Task\BaseTaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
+  - 任务组件 `Task\TaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
     每一站放片、站内任务、取片 → 回片 LoadPort 放片（回片槽建 PJ 时定）。中间的路线整个 PJ 算一次（`BuildRoute`）：这一站的工艺配方取快照、站点组去掉用不了的
     （没装、停用、机械手到不了、跑不了这个配方）、剩下的每个站点都要声明支持用到的任务（`job.station_task_unsupported`）。每一格（`WaferTask`）记状态
     （`WaferTaskState` Waiting / Running / Done / Error / Cancelled）、实际站点和槽、机械手和手、出错原因（改状态给调度用：`Start` / `Done` / `Fail` / `Reset` / `Cancel`）；
     当前设备操作直接挂在 `WaferTask.Operation`（不序列化，结束时清空），不另建执行任务表；任务组件管状态，调度负责启动和收进度。
     每拍核对片位（不对记 `job.wafer_moved`）。出错停住等人：`Retry`（退回等着做）、`Complete`（人做完了；取放要片在账上正好在这一步做完该在的地方，
-    不在回 `job.task_position_mismatch`）。片做没做成看晶圆账（`WaferInfo.ProcessState`），任务表不另记。机型规则不一样就重写 `BuildRoute` / `TasksAt`。
+    不在回 `job.task_position_mismatch`）。片做没做成看晶圆账（`WaferInfo.ProcessState`），任务表不另记。
   - 调度引擎 `Scheduling\SchedulerComponent`：从每行当前 `WaferTask` 执行；站内任务直接交给站点 `StartTask`（内部校验，拒绝就等待；`CheckTask` 只供单独询问），取片先选定并占住后续放片目标，再启动实际搬运操作。
     先起站内任务、再走机内的片、最后投新片；并发由目标槽、机械手和站点占用自然限制，不设机内片数上限。站点组按 sc.xml 先后挑第一个能放的，派不出去下一拍再看。
     每拍 `Collect` 直接读当前任务的 `Operation`，没有 `_moves` / `_works` 或 `Move` / `Work` 执行记录。取片确认后完成取片格，操作引用转到放片格，整行同时只有一格 Running。

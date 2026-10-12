@@ -440,11 +440,16 @@
 ## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05 做的，2026-10-06 按用户的设计重做，需求文档《通用 Job 组件功能需求文档》v0.1）
 - **结构**（2026-10-06 用户定的）：Job 组件 `JobManager` 管着 CJ 管理、PJ 管理（各有接口 `ICjManager` / `IPjManager`，各管自己的队列和 SEMI 状态机；
   转换表就写在各自里面，跟 LoadPort 的状态表一个写法，不另造通用转换表类），CJ / PJ 建好、状态变化都报 EAP；下面挂**任务组件**
-  （sc.xml `Task`，平台给基类 `BaseTaskComponent`，**机型自己写一个继承它**，35021 是 `TaskComponent`）和**调度引擎**（`Scheduler`，换 Type 换策略）。
+  （sc.xml `Task`，平台的 `TaskComponent`）和**调度引擎**（`Scheduler`，`SchedulerComponent`）——原来写的"机型自己继承任务组件、调度换 Type 换策略"2026-10-12 作废，见下一条。
   搬运管理 `TransferManager` 还是手动、Job、人工恢复共用的唯一执行口，**不学 CTC 拆 AutoTransfer / ManualTransfer**。
   **JobManager 里面有 CJ 管理、PJ 管理**（用户："应该是 jobmanager 里面有 PjManager 和 cjmanager，你的设计反了"）：两个管理不拿 JobManager，只管自己的队列、状态机、命令，转了发事件；
   建 Job、给设备发中止、任务表收场、告诉 LoadPort、报 EAP 这些牵扯别处的事都在 JobManager。推动转换的枚举叫 `ControlStateAction` / `ProcessStateAction`
   （用户定的名，跟 LoadPortAction 一个意思）。
+- **Job 是标准件**（2026-10-12，用户："job 这个东西本质上来说是标准化的东西，不会留给项目去做啥的"）：CJ / PJ 管理、任务组件、调度引擎全在平台，
+  机型不写 Job 代码、不换 Type。原来 35021 有个空的 `TaskComponent : BaseTaskComponent`（sc.xml 的 Task 指向它），调度引擎开着一串 virtual——都收了：
+  `BaseTaskComponent` 改成平台的具体类 `TaskComponent`，sc.xml `Task` 指 `xyz.Modules.TaskComponent`，两个类里的 virtual 全去掉
+  （JobSmoke 查任务组件、调度引擎、Job 管理不是抽象类、没有自己开的 virtual）。机型、站点的差别只从两处进来：站点自己声明、执行任务
+  （`ITransferStation.SupportedTasks` / `StartTask`），走哪些站点由流程配方定；平台规则不够用就补平台，不给机型开口子。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
   `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
   CJ / PJ 管理按后续参考工程使用对象状态动作；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
@@ -453,7 +458,7 @@
 - **任务表**（用户的设计）：建 PJ 时照流程配方给每片生成一行任务，一行 = 一片的整个周期——从 LoadPort 取片、放进腔体、腔体做工艺、从腔体取回、放回 LoadPort，
   每个都是一个任务，按顺序走。**取和放一起定**：一趟搬运 = 取 + 放（目标空着、占住了才取）。多个站点的是**站点组**，放片那一刻在组里挑一个能放的。
   **站点自己声明支持的任务**（`ITransferStation.SupportedTasks`；框架给基础任务 `StationTaskAction` Pick / Place / Process：LoadPort 取放，腔体取放 + 工艺），
-  要用到的站点不支持就不建；以后加新站点（对准器、冷却台）模块自己声明、自己执行，生成规则不一样在机型的任务组件里重写。
+  要用到的站点不支持就不建；以后加新站点（对准器、冷却台）模块自己声明、自己执行，生成规则要变就改平台（Job 是标准件，见上）。
   任务的状态 `WaferTaskState`：Waiting（用户把 Pending 改的名）/ Running / Done / Error / Cancelled。
   **直接按 WaferTask 执行**（2026-10-07 用户继续简化）：当前设备操作挂在任务本身的 `Operation` 上，调度从每行当前任务收进度，不再维护 `Move` / `Work` 及两份执行列表。
   取片先定好并占住放片目标，实际取片确认后取片格完成、操作引用转到放片格，工艺收尾后工艺格完成；一行同时只有一个任务 Running。

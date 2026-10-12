@@ -1,13 +1,20 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components;
+using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-public abstract class BaseTaskComponent : ComponentBase
+/// <summary>
+/// 任务组件：建 PJ 时照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理。
+/// Job 是标准件，任务表的规则全在平台、机型不另写；站点之间的差别由站点自己声明支持的任务（<see cref="ITransferStation.SupportedTasks"/>）、
+/// 自己执行，走哪些站点由流程配方定，所以这里不留给机型重写的口子。
+/// </summary>
+[Component(description: "任务组件：照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理")]
+public class TaskComponent : ComponentBase
 {
     #region 任务表
     private readonly List<TaskRow> _rows = [];
@@ -16,7 +23,7 @@ public abstract class BaseTaskComponent : ComponentBase
     #endregion
 
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
-    protected static ITransferStation? Station(string name)
+    private static ITransferStation? Station(string name)
     {
         var transfers = TransferManager.Current;
         return transfers is not null && transfers.TryGetStation(name, out var station) ? station : null;
@@ -61,11 +68,11 @@ public abstract class BaseTaskComponent : ComponentBase
     }
 
     /// <summary>
-    /// 中间的路线（平台默认的规则）：流程配方第 2 步到倒数第 2 步，每一站：放片 → 站内任务（<see cref="TasksAt"/>）→ 取片。
+    /// 中间的路线：流程配方第 2 步到倒数第 2 步，每一站：放片 → 站内任务（<see cref="TasksAt"/>）→ 取片。
     /// 这一站的工艺配方在这里取快照（之后库里改了、删了都不影响）；能去的站点去掉用不了的（<see cref="IsUsable"/>），至少剩一个；
-    /// 剩下的每个站点都要支持用到的任务，有一个不支持就整个不建（报出是哪个站点）。机型规则不一样就重写。
+    /// 剩下的每个站点都要支持用到的任务，有一个不支持就整个不建（报出是哪个站点）。
     /// </summary>
-    protected virtual HandleResult? BuildRoute(SequenceData sequence, List<WaferTask> route)
+    private static HandleResult? BuildRoute(SequenceData sequence, List<WaferTask> route)
     {
         var library = ProcessRecipeComponent.Current;
         for (int index = 1; index < sequence.Steps.Count - 1; index++)
@@ -124,8 +131,8 @@ public abstract class BaseTaskComponent : ComponentBase
         return null;
     }
 
-    /// <summary>一站里做什么（平台默认）：这一步选了工艺配方就做工艺，没选就只取放。</summary>
-    protected virtual IReadOnlyList<string> TasksAt(SequenceStep step)
+    /// <summary>一站里做什么：这一步选了工艺配方就做工艺，没选就只取放。</summary>
+    private static IReadOnlyList<string> TasksAt(SequenceStep step)
     {
         return step.Recipe.Trim().Length > 0 ? [StationTaskAction.Process] : [];
     }
@@ -133,7 +140,7 @@ public abstract class BaseTaskComponent : ComponentBase
     /// <summary>
     /// 站点能用：装了（搬运管理的站点表里有）、启用、有机械手到得了；有工艺配方的腔体还要跑得了这个配方。
     /// </summary>
-    protected static bool IsUsable(string name, ProcessRecipeData? recipe)
+    private static bool IsUsable(string name, ProcessRecipeData? recipe)
     {
         var transfers = TransferManager.Current;
         if (transfers is null || !transfers.TryGetStation(name, out var station) || station is not BaseModule module || !module.IsEnabled
@@ -147,7 +154,7 @@ public abstract class BaseTaskComponent : ComponentBase
     }
 
     /// <summary>这个站点支持这个任务；不支持回原因（流程配方名、第几步、站点、任务）。</summary>
-    protected static HandleResult? Require(SequenceData sequence, int sequenceStep, string station, string kind)
+    private static HandleResult? Require(SequenceData sequence, int sequenceStep, string station, string kind)
     {
         var found = Station(station);
         if (found is not null && found.SupportedTasks.Contains(kind, StringComparer.Ordinal))

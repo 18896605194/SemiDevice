@@ -23,6 +23,8 @@
   - **LoadPort 的动作、状态查询、在位、重连、推送都在平台**（2026-10-06，用户："以后很多设备都要用"）：`BaseLoadPortModule` 的 7 个动作有默认实现
     （`LoadPortCommandOperation`：一条驱动指令一个动作），35021 的 `LoadPortModule` 是空的，**留着给机型扩展**（用户定的）——
     哪个动作不一样就重写那一个，平台没有的设备在这儿加。新机型照样建一个空类继承 `BaseLoadPortModule`。
+  - **Job 不归机型**（2026-10-12 用户定的）：CJ / PJ、任务组件、调度引擎都是平台标准件，机型里没有 Job 目录；sc.xml 的 `Dispatch.Job`
+    照抄（`Task` 指 `xyz.Modules.TaskComponent`、`Scheduler` 指 `xyz.Modules.SchedulerComponent`），见 decisions.md「Job 是标准件」。
   - `Config\IO\{DI,DO,AI,AO}.csv` 点表（表头 `Index,Module,Component,Name,Tag,Description`，AI/AO 加量程列）；跟 PLC 仿真器的
     `Machines\35021\IO` 是同一份，改了两边一起改。
   - `DeployToHost`（AfterBuild）：把 DLL 拷到 `GrpcHost\bin\<配置>\net10.0\Modules\35021`，点表拷到宿主 `Config\IO`。

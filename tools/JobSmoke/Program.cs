@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Reflection;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Components;
@@ -27,7 +28,8 @@ using xyz.Tools;
 // 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
 // CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、
 // 料没到先建 PJ（载具到了、Load 好、接了 EAP 时槽图被认定才定片；同一载具的槽和 CJ 不能重；定不了片报警、PJ 留在排队）、整机停止走 Job 中止、
-// 服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）。
+// 服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
+// Job 是标准件（任务组件、调度引擎都是平台的，不给机型留重写的口子）。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 var checks = 0;
 void Check(bool condition, string message)
@@ -100,9 +102,25 @@ try
 
     var jobNode = dispatchNode!.Children.FirstOrDefault(setting => string.Equals(setting.Name, "Job", StringComparison.OrdinalIgnoreCase));
     Check(jobNode is not null && jobNode.Type == typeof(JobManager).FullName
-          && jobNode.Children.Any(child => child.Name == "Task" && child.Type == "xyz._35021.Module.Job.TaskComponent")
+          && jobNode.Children.Any(child => child.Name == "Task" && child.Type == typeof(TaskComponent).FullName)
           && jobNode.Children.Any(child => child.Name == "Scheduler" && child.Type == typeof(SchedulerComponent).FullName),
-        "sc.xml 里应有 Job 节点（JobManager），下面挂 Task（35021 的任务组件）和 Scheduler（SchedulerComponent）");
+        "sc.xml 里应有 Job 节点（JobManager），下面挂 Task（平台的 TaskComponent）和 Scheduler（SchedulerComponent）");
+
+    // Job 是标准件：任务组件、调度引擎、Job 管理都不给机型留重写的口子（不是抽象类，没有自己开的 virtual）
+    static bool IsStandard(Type type)
+    {
+        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        return !type.IsAbstract
+            && !type.GetMethods(flags).Any(method => method.IsVirtual && !method.IsFinal && method.GetBaseDefinition().DeclaringType == type);
+    }
+
+    Check(IsStandard(typeof(TaskComponent)) && IsStandard(typeof(SchedulerComponent)) && IsStandard(typeof(JobManager)),
+        "Job 是标准件：任务组件、调度引擎、Job 管理不是抽象类，也没有自己开的 virtual");
+
+    // 宿主开机就是装配器照 sc.xml 的 Type 建组件：这两个节点要认得出平台类（认不出开机就抛"未找到组件类"）
+    var jobParts = ComponentLoader.Load(jobNode!.Children.Where(child => child.Name is "Task" or "Scheduler"));
+    Check(jobParts.Count == 2 && jobParts.OfType<TaskComponent>().Count() == 1 && jobParts.OfType<SchedulerComponent>().Count() == 1,
+        "装配器照 sc.xml 建得出 Task（TaskComponent）、Scheduler（SchedulerComponent）");
     Check(jobNode!.Values.Any(value => value.Name == nameof(JobManager.ProcessJobAutoStart) && value.Value == "True")
           && jobNode.Values.Any(value => value.Name == nameof(JobManager.ControlJobAutoStart) && value.Value == "False"),
         "sc.xml 配置 PJ 自动开始、CJ 等待 Start，创建请求不传启动方式");
@@ -147,7 +165,7 @@ try
     Sequence(3, "SEQ_C", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1", "PM2"), Step("LoadPort", "", "LP2"));
     Sequence(4, "SEQ_D", Step("LoadPort", "", "LP2"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP2"));
 
-    // Job 节点下没配 Task（机型的任务组件）是配错了：开机就抛，不能悄悄没有任务表
+    // Job 节点下没配 Task（任务组件）是配错了：开机就抛，不能悄悄没有任务表
     var bare = new BareJobs();
     Probe.Name(bare, "Job");
     bare.IsPersistent = false;
@@ -765,7 +783,7 @@ try
         var rejectedQueue = Do(jobs.CreateProcessJobAsync("LP1", "PJ-QUEUE-FAIL", [1], "SEQ_A", null));
         Check(!rejectedQueue.IsSuccess && rejectedQueue.ErrorMessage == ErrorCodes.OperationFaulted
               && processManager.Get("PJ-QUEUE-FAIL") is null && jobs.OwnerOf(first.Id) is null
-              && !jobs.FindChild<SmokeTasks>()!.Rows.Any(row => row.Owner == "PJ-QUEUE-FAIL"),
+              && !jobs.FindChild<TaskComponent>()!.Rows.Any(row => row.Owner == "PJ-QUEUE-FAIL"),
             "PJ 入队失败返回失败并移除注册、任务行和晶圆归属");
     }
     finally
@@ -863,7 +881,7 @@ try
     Check(Do(jobs.StartControlJobAsync("LOT-A")).IsSuccess
           && CjOf("LOT-A")?.State == (int)ControlJobState.Executing, "Auto 下启动：EXECUTING（#7）");
 
-    var liveRow = jobs.FindChild<SmokeTasks>()!.Rows.First(row => row.Owner == "LOT-A-1" && row.SourceSlot == 1);
+    var liveRow = jobs.FindChild<TaskComponent>()!.Rows.First(row => row.Owner == "LOT-A-1" && row.SourceSlot == 1);
     Check(RunUntil(() => liveRow.Current?.Kind == StationTaskAction.Pick && liveRow.Current.State == WaferTaskState.Running), "执行器开始当前取片任务");
     var liveTransfer = liveRow.Tasks[0].Operation;
     Check(liveTransfer is TransferRoutine && liveRow.Tasks[1].State == WaferTaskState.Waiting
@@ -932,7 +950,9 @@ try
     Check(sequences.Rename(3, "SEQ_C2", "Smoke").IsOk && sequences.Delete(3, "Smoke").IsOk, "库里改名、再删掉");
     var movedIds = new[] { ledger.Get("LP1", 1)!.Id, ledger.Get("LP1", 2)!.Id };
     Check(RunUntil(() => CjOf("LOT-C")?.State == (int)ControlJobState.Completed), "自动启动（#5）跑完");
-    Check(PjOf("LOT-C-1")?.Sequence == "SEQ_C" && events.Numbers("CJ LOT-C").SequenceEqual(new[] { 1, 3, 5, 10 }),
+    // 上报走派发线程，先等 #10 送到再数转换号（跟第 7 节一样），不然偶尔少一个
+    Check(PjOf("LOT-C-1")?.Sequence == "SEQ_C" && events.WaitFor("CJ LOT-C #10")
+          && events.Numbers("CJ LOT-C").SequenceEqual(new[] { 1, 3, 5, 10 }),
         "照快照跑：PJ 记的还是 SEQ_C；CJ 自动启动 #5");
     Check(ledger.Get("LP2", 1)?.Id == movedIds[0] && ledger.Get("LP2", 2)?.Id == movedIds[1] && ledger.Get("LP1", 1) is null,
         "回到 LP2 的同号槽，不回原槽");
@@ -957,7 +977,8 @@ try
     Check(Do(jobs.ResumeProcessJobAsync("LOT-P-1")).IsSuccess
           && PjOf("LOT-P-1")?.State == (int)ProcessJobState.Processing, "恢复：回到 PROCESSING（#10）");
     Check(RunUntil(() => CjOf("LOT-P")?.State == (int)ControlJobState.Completed), "恢复后接着投，跑完");
-    Check(events.Numbers("PJ LOT-P-1").SequenceEqual(new[] { 1, 2, 4, 8, 9, 10, 6, 7 }), "转换号：#8 暂停、#9 暂停到位、#10 恢复");
+    Check(events.WaitFor("PJ LOT-P-1 #7") && events.Numbers("PJ LOT-P-1").SequenceEqual(new[] { 1, 2, 4, 8, 9, 10, 6, 7 }),
+        "转换号：#8 暂停、#9 暂停到位、#10 恢复");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-P") is null, 20), "LOT-P 删掉");
 
@@ -1017,7 +1038,8 @@ try
     Check(aborted.EndedBy == 16 && aborted.Wafers.Any(wafer => !IsNotRun(wafer) && !IsReturned(wafer)) && aborted.Wafers.Any(IsNotRun),
         "PJ #16：机内的片停在半路（后面的任务记未执行），没投的片任务都记未执行");
     Check(ledger.Get(processingIn, 1)?.ProcessState == WaferProcessState.Aborted, "腔里那片的工艺被中止：晶圆账记着中止");
-    Check(events.Numbers("PJ LOT-T-1").Contains(13) && events.Numbers("PJ LOT-T-1").Last() == 16, "转换号：#13 中止、#16 中止做完");
+    Check(events.WaitFor("PJ LOT-T-1 #16") && events.Numbers("PJ LOT-T-1").Contains(13) && events.Numbers("PJ LOT-T-1").Last() == 16,
+        "转换号：#13 中止、#16 中止做完");
     // 中止后留在腔里的片人工收回（账跟着挪），腔体恢复待命
     foreach (var chamber in new[] { pm1, pm2 })
     {
@@ -1144,7 +1166,7 @@ try
     robot.FailNextPlace = true;
     Check(Create("LOT-V", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-V");
     Check(RunUntil(() => PjOf("LOT-V-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "放片失败后当前任务出错");
-    var placeRow = jobs.FindChild<SmokeTasks>()!.Rows.Single(row => row.Owner == "LOT-V-1");
+    var placeRow = jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.Owner == "LOT-V-1");
     Check(placeRow.Tasks[0].State == WaferTaskState.Done && placeRow.Tasks[1].State == WaferTaskState.Error
           && placeRow.Tasks[1].Code == ErrorCodes.TransferFailed && placeRow.Tasks[1].Args.SequenceEqual(new[] { "Robot1", "Place" })
           && placeRow.Tasks[2].State == WaferTaskState.Waiting && placeRow.Tasks.All(task => task.Operation is null),
@@ -1244,7 +1266,7 @@ try
     Check(Pump(jobService.CreateProcessJobAsync(manualPj)).Success, "取消后可以再次创建同名 PJ");
     Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-M2", new[] { 2 }, "SEQ_B", "LOT-MANUAL")).IsSuccess,
         "参数形式创建第二个 PJ");
-    var manualRows = jobs.FindChild<SmokeTasks>()!.Rows.Where(row => row.Owner is "PJ-M1" or "PJ-M2").ToList();
+    var manualRows = jobs.FindChild<TaskComponent>()!.Rows.Where(row => row.Owner is "PJ-M1" or "PJ-M2").ToList();
     var manualTasks = manualRows.SelectMany(row => row.Tasks).ToList();
     var assembled = new ControlJobCreateRequest { LoadPort = "LP1", Name = "CJ-MANUAL", ProcessJobs = ["PJ-M1", "PJ-M2"] };
     var wrongPort = Pump(jobService.CreateControlJobAsync(new ControlJobCreateRequest
@@ -1258,7 +1280,7 @@ try
     Check(assembledReply.Success && assembledReply.DeserializeData<JobCreatedDto>() is JobCreatedDto assembledJob
           && assembledJob.ControlJob == "CJ-MANUAL" && assembledJob.ProcessJobs.SequenceEqual(new[] { "PJ-M1", "PJ-M2" })
           && CjOf("CJ-MANUAL")?.LotId == "LOT-MANUAL", "CreateJob 使用 PJ 名称集合创建 CJ，批次号可从 PJ 取得");
-    Check(manualRows.All(row => jobs.FindChild<SmokeTasks>()!.Rows.Contains(row))
+    Check(manualRows.All(row => jobs.FindChild<TaskComponent>()!.Rows.Contains(row))
           && manualTasks.SequenceEqual(manualRows.SelectMany(row => row.Tasks))
           && PjOf("PJ-M1")?.ControlJob == "CJ-MANUAL" && PjOf("PJ-M2")?.ControlJob == "CJ-MANUAL",
         "已有 PJ 和每片任务原样复用，一个 CJ 关联多个 PJ");
@@ -1461,7 +1483,7 @@ try
     Check(Create("LOT-M1", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-M1");
     Check(Create("LOT-M2", "LP2", true, (1, "SEQ_F")).IsSuccess, "建 LOT-M2");
     Check(RunUntil(() => transfers.IsRobotInTransfer("Robot1") && transfers.IsRobotInTransfer("Robot2")), "不同站点可由两台机械手并行执行");
-    var parallelRows = jobs.FindChild<SmokeTasks>()!.Rows;
+    var parallelRows = jobs.FindChild<TaskComponent>()!.Rows;
     Check(parallelRows.Count(row => row.HasRunning) == 2
           && parallelRows.Single(row => row.Owner == "LOT-M1-1" && row.SourceSlot == 2).IsWaiting
           && !transfers.IsSlotLocked("LP1", 2), "同一来源站点的第二片等待，不会因没有本拍占用集合而重复派出");
@@ -1623,12 +1645,12 @@ sealed class SmokeTransfers : TransferManager
     public void Tick() => OnScan();
 }
 
-// Job 管理下面挂冒烟的任务组件（生产里是 sc.xml 的 Task 子节点）。
+// Job 管理下面挂任务组件（生产里是 sc.xml 的 Task 子节点）。
 sealed class SmokeJobs : JobManager
 {
     public SmokeJobs()
     {
-        var tasks = new SmokeTasks();
+        var tasks = new TaskComponent();
         Probe.Name(tasks, "Task");
         AddChild(tasks);
     }
@@ -1638,11 +1660,6 @@ sealed class SmokeJobs : JobManager
 
 // 没挂任务组件的 Job 管理：装配时应该就抛。
 sealed class BareJobs : JobManager
-{
-}
-
-// 冒烟的任务组件：全用平台的生成规则（跟 35021 的 TaskComponent 一样）。
-sealed class SmokeTasks : BaseTaskComponent
 {
 }
 

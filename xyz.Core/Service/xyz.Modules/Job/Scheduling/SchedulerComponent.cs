@@ -8,7 +8,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Modules;
 
 /// <summary>
-/// 调度引擎
+/// 调度引擎：从任务表拿任务执行，做完记回任务表。Job 是标准件，派单规则全在平台，机型不另写、不换 Type。
 /// </summary>
 [Component(description: "调度引擎：从任务表拿任务执行（站内任务交给站点、取放交给搬运管理），做完记回任务表")]
 public class SchedulerComponent : ComponentBase
@@ -25,7 +25,7 @@ public class SchedulerComponent : ComponentBase
     /// <summary>
     /// 派这一拍的任务。rows 是有许可的行，按优先级排好（CJ 队列先后、PJ 在 CJ 里的先后、PJ 里的投片顺序）。Manual 下 Job 组件不调。
     /// </summary>
-    public virtual void Dispatch(IReadOnlyList<TaskRow> rows, BaseTaskComponent tasks)
+    public void Dispatch(IReadOnlyList<TaskRow> rows, TaskComponent tasks)
     {
         _transfers = TransferManager.Current;
         _waferManager = WaferManagerComponent.Current;
@@ -71,7 +71,7 @@ public class SchedulerComponent : ComponentBase
     /// 按每行当前的 WaferTask 收执行进度。取片确认后转到放片任务，沿用已占好目标的搬运操作；
     /// 站内操作收尾后完成这一格。执行记录只挂在当前任务上。
     /// </summary>
-    public virtual void Collect(BaseTaskComponent tasks)
+    public void Collect(TaskComponent tasks)
     {
         foreach (var row in tasks.Rows)
         {
@@ -105,7 +105,7 @@ public class SchedulerComponent : ComponentBase
     }
 
     /// <summary>取片后开始放片格；没动手就失败退回等待，动过手才失败则当前格记出错。</summary>
-    private static void CollectTransfer(TaskRow row, WaferTask task, TransferRoutine operation, BaseTaskComponent tasks)
+    private static void CollectTransfer(TaskRow row, WaferTask task, TransferRoutine operation, TaskComponent tasks)
     {
         if (task.Kind == StationTaskAction.Pick && operation.HasPicked)
         {
@@ -140,7 +140,7 @@ public class SchedulerComponent : ComponentBase
     }
 
     /// <summary>这一行轮到的、等着做的任务（有这个许可才算）；不该派返回 null。</summary>
-    protected static WaferTask? NextTask(TaskRow row, TaskPermission needed)
+    private static WaferTask? NextTask(TaskRow row, TaskPermission needed)
     {
         var current = row.Current;
         if (current is null || current.State != WaferTaskState.Waiting || (row.Permission & needed) == 0)
@@ -156,7 +156,7 @@ public class SchedulerComponent : ComponentBase
     /// <summary>
     /// 启动站点内的任务
     /// </summary>
-    protected virtual void StartStationTask(TaskRow row, WaferTask task, BaseTaskComponent tasks)
+    private void StartStationTask(TaskRow row, WaferTask task, TaskComponent tasks)
     {
         var location = row.ExpectedLocation;
         var station = location.IsArm ? null : Station(location.Module);
@@ -188,7 +188,7 @@ public class SchedulerComponent : ComponentBase
     /// <param name="task"></param>
     /// <param name="tasks"></param>
     /// <returns></returns>
-    protected virtual bool StartTransfer(TaskRow row, WaferTask task, BaseTaskComponent tasks)
+    private bool StartTransfer(TaskRow row, WaferTask task, TaskComponent tasks)
     {
         var source = row.ExpectedLocation;
         var pick = task.Kind == StationTaskAction.Pick ? task : null;
@@ -214,7 +214,8 @@ public class SchedulerComponent : ComponentBase
                 && StartTransfer(row, task, source, port, slot, tasks);
         }
 
-        foreach (string station in OrderTargets(row, place))
+        // 站点组按流程配方里勾的先后挑，第一个能放的就用
+        foreach (string station in place.Stations)
         {
             if (!IsStationReady(station))
             {
@@ -233,18 +234,10 @@ public class SchedulerComponent : ComponentBase
 
     #endregion
 
-    /// <summary>
-    /// 站点组里按什么先后挑：默认 sc.xml 的先后（流程配方里勾的先后），挑第一个能放的。机型要轮着用、挑最先空出来的就重写。
-    /// </summary>
-    protected virtual IEnumerable<string> OrderTargets(TaskRow row, WaferTask place)
-    {
-        return place.Stations;
-    }
-
     #region 设备与资源占用查询
 
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
-    protected ITransferStation? Station(string name)
+    private ITransferStation? Station(string name)
     {
         var transfers = _transfers;
         return transfers is not null && transfers.TryGetStation(name, out var station) ? station : null;
@@ -253,7 +246,7 @@ public class SchedulerComponent : ComponentBase
     /// <summary>
     /// 站点现在能不能服务机械手：装了、启用、在待命、没在做别的动作；腔体这类可选的站点还要在线（参与自动调度），LoadPort 是 Job 自己的载具，不看在线。
     /// </summary>
-    protected virtual bool IsStationReady(string name)
+    private bool IsStationReady(string name)
     {
         var station = Station(name);
         if (station is not BaseModule module || !module.IsEnabled || !station.CanPrepare)
@@ -271,14 +264,14 @@ public class SchedulerComponent : ComponentBase
     }
 
     /// <summary>这一槽账上空着、也没被搬运操作占用。</summary>
-    protected bool IsSlotFree(string station, int slot)
+    private bool IsSlotFree(string station, int slot)
     {
         return _waferManager is not null && _transfers is not null
             && _waferManager.Get(station, slot) is null && !_transfers.IsSlotLocked(station, slot);
     }
 
     /// <summary>站点上第一个空着、没被占用的槽；没有返回 0。</summary>
-    protected int FreeSlot(string station)
+    private int FreeSlot(string station)
     {
         int count = Station(station)?.SlotCount ?? 0;
         for (int slot = 1; slot <= count; slot++)
@@ -293,7 +286,7 @@ public class SchedulerComponent : ComponentBase
     }
 
     /// <summary>机械手可执行任务：启用、空闲、没有搬运操作。</summary>
-    protected bool IsRobotFree(IRobot robot)
+    private bool IsRobotFree(IRobot robot)
     {
         if (_transfers?.IsRobotInTransfer(robot.Name) == true || robot.State != ModuleState.Idle)
         {
@@ -310,7 +303,7 @@ public class SchedulerComponent : ComponentBase
     /// 目标槽和机械手在启动时一起占住，避免取片后没有位置可放。
     /// 只放片（片在机械手手上）就用拿着片的那台。
     /// </summary>
-    private bool StartTransfer(TaskRow row, WaferTask task, (string Module, int Slot, bool IsArm) source, string target, int targetSlot, BaseTaskComponent tasks)
+    private bool StartTransfer(TaskRow row, WaferTask task, (string Module, int Slot, bool IsArm) source, string target, int targetSlot, TaskComponent tasks)
     {
         var transfers = _transfers!;
         foreach (var robot in transfers.Robots)

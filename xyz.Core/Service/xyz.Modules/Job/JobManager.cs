@@ -27,7 +27,7 @@ public class JobManager : ComponentBase, IJobManager
     private IReadOnlyDictionary<string, BaseModule> _modules = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
 
     #region 任务+调度 组件
-    private BaseTaskComponent? _tasks;
+    private TaskComponent? _tasks;
     private SchedulerComponent? _scheduler;
     #endregion
 
@@ -129,13 +129,13 @@ public class JobManager : ComponentBase, IJobManager
     #region 装配
 
     /// <summary>
-    /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：sc.xml Job 节点下的 Task（机型的任务组件）必须配，
-    /// Scheduler 没配用默认策略。开了存库的先把库里上次没做完的 Job 记成中止（重启后不接着跑），再起写库线程。
+    /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：sc.xml Job 节点下的 Task（任务组件）必须配，Scheduler 没配就自己建一个；
+    /// 两个都是平台的标准件，机型不另写。开了存库的先把库里上次没做完的 Job 记成中止（重启后不接着跑），再起写库线程。
     /// </summary>
     public void Bind(IEnumerable<BaseModule> modules)
     {
-        var tasks = FindChild<BaseTaskComponent>()
-            ?? throw new InvalidOperationException($"{Name}：sc.xml 的 Job 节点下没配 Task 子节点（机型的任务组件，继承 BaseTaskComponent）");
+        var tasks = FindChild<TaskComponent>()
+            ?? throw new InvalidOperationException($"{Name}：sc.xml 的 Job 节点下没配 Task 子节点（任务组件 {typeof(TaskComponent).FullName}）");
         var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
         {
@@ -157,7 +157,7 @@ public class JobManager : ComponentBase, IJobManager
             Publish();
         }
 
-        LogHelper.Info(Name, $"Job 管理已绑定：任务组件 {tasks.GetType().Name}，调度 {_scheduler.GetType().Name}");
+        LogHelper.Info(Name, "Job 管理已绑定");
     }
 
     #endregion
@@ -2196,7 +2196,7 @@ public class JobManager : ComponentBase, IJobManager
     /// ④ 派任务：Manual 下不派新动作（在途的照常做完）。Auto 下把 CJ 里没结束的 PJ 的行按优先级（CJ 队列先后、PJ 在 CJ 里的先后、
     /// PJ 里的投片顺序）交给调度引擎；能派什么看每一行的许可（PJ 状态定的，暂停、停止就体现在这上面）。不归 CJ 的 PJ 没开始，不派。
     /// </summary>
-    private void Dispatch(SchedulerComponent scheduler, BaseTaskComponent tasks)
+    private void Dispatch(SchedulerComponent scheduler, TaskComponent tasks)
     {
         if (!IsAuto)
         {
@@ -2481,7 +2481,7 @@ public class JobManager : ComponentBase, IJobManager
     #region 设备
 
     /// <summary>任务组件（装配时从 sc.xml 的 Task 子节点取）。</summary>
-    private BaseTaskComponent Tasks
+    private TaskComponent Tasks
     {
         get
         {
