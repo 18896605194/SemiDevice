@@ -4,6 +4,8 @@ using xyz.Components.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Modules;
 
 /// <summary>
@@ -17,7 +19,7 @@ internal abstract class ChamberStepOperation : ModuleOperation
     private readonly int _timeout;
 
     /// <summary>这一段在等的设备、发给它的动作、是不是这里发的。</summary>
-    private readonly List<(ComponentBase Device, ChamberDeviceAction Action, bool Sent)> _waiting = [];
+    private readonly List<(IDeviceComponent Device, ChamberDeviceAction Action, bool Sent)> _waiting = [];
 
     /// <param name="name">操作名（日志用），如 "Chamber1 Home"。</param>
     /// <param name="module">腔体模块名（超时的错误码参数）。</param>
@@ -31,7 +33,7 @@ internal abstract class ChamberStepOperation : ModuleOperation
     /// <summary>
     /// 发一条设备指令，这一段等它做完；没发出去就失败、返回 false（调用方直接 return）。
     /// </summary>
-    protected bool Send(ComponentBase device, ChamberDeviceAction action, Func<bool> command)
+    protected bool Send(IDeviceComponent device, ChamberDeviceAction action, Func<bool> command)
     {
         if (!command())
         {
@@ -46,7 +48,7 @@ internal abstract class ChamberStepOperation : ModuleOperation
     /// <summary>
     /// 指令别处已经发了（中止、复位时组件自己停轴、清错），这一段只等它做完；设备手上没有动作（Idle，从没发过指令）算做完。
     /// </summary>
-    protected void Await(ComponentBase device, ChamberDeviceAction action)
+    protected void Await(IDeviceComponent device, ChamberDeviceAction action)
     {
         _waiting.Add((device, action, false));
     }

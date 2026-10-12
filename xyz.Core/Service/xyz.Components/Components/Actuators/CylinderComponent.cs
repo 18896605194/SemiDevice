@@ -1,5 +1,7 @@
 ﻿using xyz.Components.Attributes;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Components.Components;
 
 /// <summary>
@@ -8,6 +10,6 @@ namespace xyz.Components.Components;
 /// 单作用气缸（一个 DO、靠自重/弹簧回位）不用这个，从 <see cref="OneStateComponent"/> 派生。
 /// </summary>
 [Component(description: "气缸组件 (双 DO 驱动，两侧到位反馈各自可选)")]
-public class CylinderComponent : TwoStateComponent
+public class CylinderComponent : TwoStateComponent, ICylinder
 {
 }

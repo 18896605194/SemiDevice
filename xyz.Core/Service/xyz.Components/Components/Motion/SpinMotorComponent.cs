@@ -2,6 +2,8 @@
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Components.Components;
 
 /// <summary>
@@ -11,7 +13,7 @@ namespace xyz.Components.Components;
 /// 速度单位按 rpm：腔体按工艺配方转时，配方的转速原样当速度下发（Spin），所以 EC MaxSpeed 要不小于配方里用到的转速。
 /// </summary>
 [Component(description: "卡盘/旋钮轴组件")]
-public class SpinMotorComponent : AxisComponent
+public class SpinMotorComponent : AxisComponent, ISpinMotor
 {
     #region EC 可调参数
 

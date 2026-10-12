@@ -2,6 +2,8 @@
 using xyz.Components.Enums;
 using xyz.Components.Models;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Components.Components;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace xyz.Components.Components;
 /// 手动页上一根轴一个页签：显示位置、速度和五盏灯，按钮发回零、移动、停止、复位、点动、步进。
 /// </summary>
 [Component(description: "运动轴组件")]
-public partial class AxisComponent : ComponentBase
+public partial class AxisComponent : ComponentBase, IAxis
 {
     #region SC 
 

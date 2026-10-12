@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
@@ -69,8 +70,8 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     private bool _isScan;
 
     /// <summary>这一步用的摆臂、喷嘴；不喷为 null。</summary>
-    private SwingArmComponent? _arm;
-    private NozzleComponent? _nozzle;
+    private ISwingArm? _arm;
+    private INozzle? _nozzle;
 
     /// <summary>上一次给卡盘的转速（一样就不重发）；还没给过为 null。</summary>
     private double? _lastRpm;
@@ -287,7 +288,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     }
 
     /// <summary>喷嘴停液，留下 keep（这一步接着用的那个，不关了再开）。</summary>
-    private bool StopNozzles(NozzleComponent? keep)
+    private bool StopNozzles(INozzle? keep)
     {
         foreach (var nozzle in _chamber.Nozzles)
         {
@@ -383,7 +384,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         foreach (var arm in _chamber.Arms)
         {
             var lift = arm.Lift;
-            if (lift is not null && !Send(lift, ChamberDeviceAction.Up, lift.Open))
+            if (lift is not null && !Send(lift, ChamberDeviceAction.Up, lift.Up))
             {
                 return false;
             }
@@ -397,7 +398,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     {
         foreach (var bowl in _chamber.Bowls)
         {
-            if (!Send(bowl, up ? ChamberDeviceAction.Up : ChamberDeviceAction.Down, up ? bowl.Open : bowl.Close))
+            if (!Send(bowl, up ? ChamberDeviceAction.Up : ChamberDeviceAction.Down, up ? bowl.Up : bowl.Down))
             {
                 return false;
             }

@@ -4,6 +4,8 @@ using xyz.Components.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Modules;
 
 /// <summary>
@@ -31,7 +33,7 @@ internal sealed class ChamberHoldOperation : ModuleOperation
     /// <param name="axis">点动的轴。</param>
     /// <param name="holdTimeout">多久没续上就自己停（EC HoldTimeoutMs）。</param>
     /// <param name="releaseTimeout">松手后等轴停下的上限（EC DeviceActionTimeout）。</param>
-    public ChamberHoldOperation(AxisComponent axis, int holdTimeout, int releaseTimeout)
+    public ChamberHoldOperation(IAxis axis, int holdTimeout, int releaseTimeout)
         : base($"{axis.FullPath} {ChamberDeviceAction.Jog}")
     {
         Axis = axis;
@@ -40,7 +42,7 @@ internal sealed class ChamberHoldOperation : ModuleOperation
     }
 
     /// <summary>点动的轴。</summary>
-    public AxisComponent Axis { get; }
+    public IAxis Axis { get; }
 
     /// <summary>界面还按着：重新计时；已经松手或结束了返回 false（界面就不用再续了）。</summary>
     public bool Renew()

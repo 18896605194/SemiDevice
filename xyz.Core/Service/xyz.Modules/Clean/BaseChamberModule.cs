@@ -3,6 +3,7 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -192,6 +193,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     public override bool InitComponent()
     {
+        // 配置树已装好，先检查只能装一个的部件；停用也不能掩盖重复配置。
+        _ = Door;
+        _ = SpinMotor;
         if (!IsEnable)
         {
             return true;
@@ -308,62 +312,53 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     #region 腔体里装的（sc.xml 这个腔体节点下面挂的）
 
-    /// <summary>腔门的节点名：门和 Bowl 都是气缸，只能按名字认。</summary>
-    private const string DoorName = "Door";
+    /// <summary>腔体下面实现腔门接口的部件；节点名只标识实例，不决定用途。</summary>
+    public IChamberDoor? Door => FindSingleDevice<IChamberDoor>();
 
-    /// <summary>Bowl 节点名的开头（Bowl1、Bowl2……）。</summary>
-    private const string BowlPrefix = "Bowl";
+    /// <summary>腔体下面实现接液杯接口的部件，可以多层，按 sc 的先后。</summary>
+    public IReadOnlyList<IChamberBowl> Bowls => Children.OfType<IChamberBowl>().ToList();
 
-    /// <summary>腔门：腔体下名叫 Door 的气缸；sc 里没配为 null。</summary>
-    public TwoStateComponent? Door
+    /// <summary>腔体下面实现卡盘接口的部件；没装时为 null。</summary>
+    public ISpinMotor? SpinMotor => FindSingleDevice<ISpinMotor>();
+
+    /// <summary>只允许装一个的设备不取“第一个”，重复配置直接报错。</summary>
+    private T? FindSingleDevice<T>() where T : class, IDeviceComponent
     {
-        get
+        var devices = Children.OfType<T>().ToList();
+        if (devices.Count > 1)
         {
-            return Children.OfType<TwoStateComponent>()
-                .FirstOrDefault(cylinder => string.Equals(cylinder.Name, DoorName, StringComparison.OrdinalIgnoreCase));
+            throw new InvalidOperationException($"{FullPath}：只能装一个 {typeof(T).Name} 设备，实际配置了 {devices.Count} 个");
         }
-    }
 
-    /// <summary>Bowl：腔体下名字以 Bowl 开头的气缸（可以几层），按 sc 的先后。</summary>
-    public IReadOnlyList<TwoStateComponent> Bowls
-    {
-        get
-        {
-            return Children.OfType<TwoStateComponent>()
-                .Where(cylinder => cylinder.Name.StartsWith(BowlPrefix, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
+        return devices.FirstOrDefault();
     }
-
-    /// <summary>卡盘：第一个旋转电机；sc 里没配为 null。</summary>
-    public SpinMotorComponent? SpinMotor => FindChild<SpinMotorComponent>();
 
     /// <summary>摆臂（它上面的 Lift、喷嘴在摆臂组件上），按 sc 的先后。</summary>
-    public IReadOnlyList<SwingArmComponent> Arms => FindChildren<SwingArmComponent>();
+    public IReadOnlyList<ISwingArm> Arms => Children.OfType<ISwingArm>().ToList();
 
     /// <summary>所有轴（卡盘、摆臂……）。</summary>
-    public IReadOnlyList<AxisComponent> Axes => FindChildren<AxisComponent>();
+    public IReadOnlyList<IAxis> Axes => FindChildren<IAxis>();
 
     /// <summary>所有双作用气缸（门、Bowl、Lift……）。</summary>
-    public IReadOnlyList<TwoStateComponent> Cylinders => FindChildren<TwoStateComponent>();
+    public IReadOnlyList<ICylinder> Cylinders => FindChildren<ICylinder>();
 
     /// <summary>所有喷嘴。</summary>
-    public IReadOnlyList<NozzleComponent> Nozzles => FindChildren<NozzleComponent>();
+    public IReadOnlyList<INozzle> Nozzles => FindChildren<INozzle>();
 
     /// <summary>按节点名找摆臂（配方里选的就是节点名，如 "Arm1"，忽略大小写）；没有为 null。</summary>
-    public SwingArmComponent? FindArm(string name)
+    public ISwingArm? FindArm(string name)
     {
         return Arms.FirstOrDefault(arm => string.Equals(arm.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>按全路径找轴（手动页按推送里的 Path 发，忽略大小写）；没有为 null。</summary>
-    private AxisComponent? FindAxis(string path)
+    private IAxis? FindAxis(string path)
     {
         return Axes.FirstOrDefault(axis => string.Equals(axis.FullPath, path, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>按全路径找气缸；没有为 null。</summary>
-    private TwoStateComponent? FindCylinder(string path)
+    private ICylinder? FindCylinder(string path)
     {
         return Cylinders.FirstOrDefault(cylinder => string.Equals(cylinder.FullPath, path, StringComparison.OrdinalIgnoreCase));
     }
@@ -439,7 +434,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     /// <summary>一根轴的位置、速度、五盏灯（卡盘、摆臂共用这一段，各自的再另外填）。</summary>
-    private static T AxisDtoOf<T>(AxisComponent axis) where T : ChamberAxisDto, new()
+    private static T AxisDtoOf<T>(IAxis axis) where T : ChamberAxisDto, new()
     {
         return new T
         {
@@ -455,7 +450,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         };
     }
 
-    private static ChamberCylinderDto CylinderDtoOf(TwoStateComponent cylinder)
+    private static ChamberCylinderDto CylinderDtoOf(ICylinder cylinder)
     {
         CylinderPosition position;
         switch (cylinder.Position)
@@ -646,7 +641,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     /// <summary>锁内确认状态允许、没有在途动作 → 发指令 → 挂上等设备做完的操作，回 Started。</summary>
-    private ChamberDeviceActionResult StartDeviceAction(ComponentBase part, ChamberDeviceAction action, Func<bool> send, out ModuleOperation? operation)
+    private ChamberDeviceActionResult StartDeviceAction(IDeviceComponent part, ChamberDeviceAction action, Func<bool> send, out ModuleOperation? operation)
     {
         operation = null;
         lock (OperationGate)

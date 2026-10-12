@@ -1,6 +1,8 @@
 ﻿using xyz.Components.Components;
 using xyz.Shared.Dtos;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Modules;
 
 /// <summary>
@@ -48,7 +50,7 @@ internal sealed class ChamberHomeOperation : ChamberStepOperation
                 foreach (var arm in _chamber.Arms)
                 {
                     var lift = arm.Lift;
-                    if (lift is not null && !Send(lift, ChamberDeviceAction.Up, lift.Open))
+                    if (lift is not null && !Send(lift, ChamberDeviceAction.Up, lift.Up))
                     {
                         return;
                     }
@@ -59,7 +61,7 @@ internal sealed class ChamberHomeOperation : ChamberStepOperation
             case 3:
                 foreach (var axis in _chamber.Axes)
                 {
-                    if (axis is not SpinMotorComponent && !Send(axis, ChamberDeviceAction.Home, axis.Home))
+                    if (axis is not ISpinMotor && !Send(axis, ChamberDeviceAction.Home, axis.Home))
                     {
                         return;
                     }
@@ -70,7 +72,7 @@ internal sealed class ChamberHomeOperation : ChamberStepOperation
             case 4:
                 foreach (var bowl in _chamber.Bowls)
                 {
-                    if (!Send(bowl, ChamberDeviceAction.Down, bowl.Close))
+                    if (!Send(bowl, ChamberDeviceAction.Down, bowl.Down))
                     {
                         return;
                     }

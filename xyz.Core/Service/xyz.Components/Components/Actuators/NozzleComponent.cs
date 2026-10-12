@@ -1,5 +1,7 @@
 ﻿using xyz.Components.Attributes;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Components.Components;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace xyz.Components.Components;
 /// 不认 DO 索引也不认节点名——管路改接线只改 sc.xml，配方不动。
 /// </summary>
 [Component(description: "喷嘴组件 (一路药液的通断阀，可选流量设定 AO)")]
-public class NozzleComponent : ValveComponent
+public class NozzleComponent : ValveComponent, INozzle
 {
     #region SC 装机常量
 

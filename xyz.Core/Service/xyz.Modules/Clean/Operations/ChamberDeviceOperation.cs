@@ -4,20 +4,22 @@ using xyz.Components.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Modules;
 
 /// <summary>
-/// 手动页上一个设备动作的等待：指令已经由腔体发出去了（发不出去根本不会挂这个操作），这里每拍看设备自己说的动作状态（ComponentBase.ActionState）——
+/// 手动页上一个设备动作的等待：指令已经由腔体发出去了（发不出去根本不会挂这个操作），这里每拍读取设备接口的 ActionState——
 /// 做完就成功；设备判失败（到位超时、轴报错、PLC 断了）就失败；设备被中止回到 Idle 算中止。
 /// 设备都有自己的超时，EC DeviceActionTimeout 只是兜底，免得腔体一直停在"手动中"。
 /// </summary>
 internal sealed class ChamberDeviceOperation : ModuleOperation
 {
-    private readonly ComponentBase _part;
+    private readonly IDeviceComponent _part;
     private readonly ChamberDeviceAction _action;
     private readonly int _timeout;
 
-    public ChamberDeviceOperation(ComponentBase part, ChamberDeviceAction action, int timeout)
+    public ChamberDeviceOperation(IDeviceComponent part, ChamberDeviceAction action, int timeout)
         : base($"{part.FullPath} {action}")
     {
         _part = part;

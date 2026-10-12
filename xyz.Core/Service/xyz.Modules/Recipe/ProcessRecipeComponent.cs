@@ -382,7 +382,9 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             }
         }
 
-        return false;
+        // 同一能力可以有不同实现，配方数据源也能按组件实现的接口取设备。
+        return component.GetType().GetInterfaces()
+            .Any(type => string.Equals(type.Name, typeName, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -406,6 +408,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     private static string PropertyText(ComponentBase device, ProcessRecipeSource source)
     {
         var property = device.GetType().GetProperty(source.Property, BindingFlags.Public | BindingFlags.Instance);
+        if (property is null)
+        {
+            // 显式实现的接口属性不在具体类的公共属性里，从接口读取同一份数据。
+            property = device.GetType().GetInterfaces()
+                .Select(type => type.GetProperty(source.Property))
+                .FirstOrDefault(item => item is not null);
+        }
+
         if (property is null)
         {
             throw new InvalidOperationException($"sc.xml 工艺配方字段的数据源 {source.Text}：设备 {device.FullPath} 没有属性 {source.Property}");

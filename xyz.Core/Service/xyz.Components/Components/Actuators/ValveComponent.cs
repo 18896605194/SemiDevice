@@ -1,5 +1,7 @@
 ﻿using xyz.Components.Attributes;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Components.Components;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace xyz.Components.Components;
 /// 通电开、断电靠弹簧回关位，关那一侧不受控。这儿只把通/断电叫成开/关。
 /// </summary>
 [Component(description: "阀门组件 (单 DO 驱动，可选到位反馈)")]
-public class ValveComponent : OneStateComponent
+public class ValveComponent : OneStateComponent, IValve
 {
     /// <summary>开阀（通电）；返回 true 只表示 DO 已写进 PLC，到位看 ActionState。</summary>
     public bool Open()

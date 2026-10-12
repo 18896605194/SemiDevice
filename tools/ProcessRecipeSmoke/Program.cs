@@ -1,5 +1,6 @@
 ﻿using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Service;
@@ -135,9 +136,9 @@ try
         "时间：小数、必填、0.1 ~ 3600 s、一位小数、默认 10");
     Check(F("Rpm").Type == ProcessRecipeFieldType.Int && F("Rpm").Min == 0 && F("Rpm").Max == 3000 && F("Rpm").Default == "500" && F("Rpm").Decimals is null,
         "转速：整数、0 ~ 3000、默认 500");
-    Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").Source!.IsDevices && F("Arm").Source!.DeviceType == "SwingArmComponent"
+    Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").Source!.IsDevices && F("Arm").Source!.DeviceType == "ISwingArm"
           && F("Arm").Source!.Property.Length == 0 && !F("Arm").Required, "摆臂：下拉，从腔体里的摆臂轴取名字");
-    Check(F("Chemical").Source!.DeviceType == "NozzleComponent" && F("Chemical").Source!.Property == "Chemical" && F("Chemical").Source!.ParentKey == "Arm",
+    Check(F("Chemical").Source!.DeviceType == "INozzle" && F("Chemical").Source!.Property == "Chemical" && F("Chemical").Source!.ParentKey == "Arm",
         "药液：下拉，取所选摆臂下面喷嘴的 Chemical");
     Check(!F("Mode").Source!.IsDevices && F("Mode").Source!.Options.SequenceEqual(new[] { "Time", "Scan" }) && F("Mode").Default == "Time",
         "方式：下拉，直接写的 Time、Scan，默认 Time");
@@ -198,6 +199,18 @@ try
     {
         checks++;
     }
+
+    // 接口数据源也能读取另一种喷嘴实现，显式实现的属性不会被具体类反射漏掉。
+    var interfaceChamber = new ProbeChamber("InterfaceChamber");
+    var interfaceNozzle = new InterfaceNozzleProbe();
+    Probe.Name(interfaceNozzle, "SupplyLine");
+    interfaceChamber.AddChild(interfaceNozzle);
+    var interfaceLibrary = ComponentLoader.Load([LibraryNode(SecondsNode(),
+        FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:INozzle.Chemical")))])
+        .OfType<ProcessRecipeComponent>().Single();
+    interfaceLibrary.Bind([interfaceChamber]);
+    Check(interfaceLibrary.ChoicesOf(interfaceLibrary.Fields.Single(field => field.Key == "Chemical")).Values.SequenceEqual(["DIW"]),
+        "按喷嘴接口取设备，显式接口的 Chemical 属性也能生成配方选项");
 
     ProcessRecipeComponent.Current = library;
 
@@ -526,6 +539,46 @@ sealed class ProbeChamber : BaseChamberModule
     protected override ModuleOperation? AbortDevice() => null;
 
     protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
+}
+
+/// <summary>不继承喷嘴具体类的接口实现，用于检查配方数据源。</summary>
+sealed class InterfaceNozzleProbe : ComponentBase, INozzle
+{
+    /// <summary>显式实现药液名，具体类公共属性里看不到它。</summary>
+    string INozzle.Chemical => "DIW";
+
+    /// <summary>没有硬件，始终不在喷液。</summary>
+    public bool IsOn => false;
+
+    /// <summary>没有硬件，始终不在开到位。</summary>
+    public bool IsOpened => false;
+
+    /// <summary>没有流量设定。</summary>
+    public bool HasFlowControl => false;
+
+    /// <summary>不接收流量命令。</summary>
+    public bool SetFlow(double litersPerMinute)
+    {
+        return false;
+    }
+
+    /// <summary>不接收开阀命令。</summary>
+    public bool Open()
+    {
+        return false;
+    }
+
+    /// <summary>停液始终成功。</summary>
+    public bool Close()
+    {
+        return true;
+    }
+
+    /// <summary>停液始终成功。</summary>
+    public bool Stop()
+    {
+        return true;
+    }
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。

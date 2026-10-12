@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
 	<!-- 系统设置：界面语言（zh-CN 简体中文 / en-US 英文），客户端启动时按它显示，改了重启客户端生效 -->
 	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
@@ -368,7 +368,7 @@
 	     每一步有哪些字段按下面的 Fields 字段表：一个子节点一个字段（配方页上的一列），节点名就是字段名（存进配方文件），从上到下就是从左到右。
 	     Text / TextEn 列名；Type：Int 整数、Double 小数、Choice 下拉、Bool 开关、Text 文本；Unit 单位、Min / Max 上下限、Decimals 最多几位小数（数字才填）；
 	     Default 新加一步时填的值；Required 必填（true / false）；Source 下拉的数据源：直接写选项用英文逗号隔开（如 Time,Scan），
-	     或 Devices:类型[.属性][@字段名] 从腔体里装的设备取（Devices:SwingArmComponent 取摆臂名，Devices:NozzleComponent.Chemical@Arm 取所选摆臂上喷嘴的药液）。
+	     或 Devices:类型[.属性][@字段名] 从腔体里装的设备取（Devices:ISwingArm 取摆臂名，Devices:INozzle.Chemical@Arm 取所选摆臂上喷嘴的药液）。
 	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长的上限是腔体 EC 的工艺超时。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
 	     喷嘴喷的东西（DIW、SC1、N2、背面冲洗……）都是在药液里选、流量填在流量里，不单独加字段 -->
 	<Setting Name="ProcessRecipe" Type="xyz.Modules.ProcessRecipeComponent">
@@ -401,13 +401,13 @@
 				<Value Name="Text" Value="摆臂" />
 				<Value Name="TextEn" Value="Arm" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Devices:SwingArmComponent" />
+				<Value Name="Source" Value="Devices:ISwingArm" />
 			</Setting>
 			<Setting Name="Chemical">
 				<Value Name="Text" Value="药液" />
 				<Value Name="TextEn" Value="Chemical" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Devices:NozzleComponent.Chemical@Arm" />
+				<Value Name="Source" Value="Devices:INozzle.Chemical@Arm" />
 			</Setting>
 			<Setting Name="Flow">
 				<Value Name="Text" Value="流量" />
@@ -544,21 +544,21 @@
 	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一设备 DO 与 DI 同号；-1 = 接线未定）；
 	     气缸开侧 = 门开 / Bowl 升 / 升降气缸升。轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
 	     摆臂条数、喷嘴路数按实际增减，下面只是骨架。
-	     设备按这里的结构认（腔体手动页的轴页签、气缸表、三维图也照它）：腔体下名叫 Door 的气缸是门，名字以 Bowl 开头的气缸是 Bowl（三维图只画第一个），
-	     第一个 SpinMotor 是卡盘（速度单位 rpm），每条摆臂下面第一个气缸是它的升降、下面的喷嘴是它的喷嘴（FlowAoIndex = 流量设定 AO，-1 不接） -->
+	     设备按这里的结构认（腔体手动页的轴页签、气缸表、三维图也照它）：腔体按接口识别门和 Bowl，名字可以任意配置（三维图只画第一个 Bowl），
+	     ISpinMotor 是卡盘（速度单位 rpm），每条摆臂按 IChamberLift 接口找升降、按 INozzle 接口找喷嘴（FlowAoIndex = 流量设定 AO，-1 不接） -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<!-- 腔体门：归站点交互环管（开门放行机械手、关门收尾），不归工艺 -->
-			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="100" />
 				<Value Name="DoCloseIndex" Value="101" />
 				<Value Name="DiOpenedIndex" Value="100" />
 				<Value Name="DiClosedIndex" Value="101" />
 			</Setting>
 			<!-- Bowl：先只配一层，一个气缸整体升降（升 = 开侧）；叫 Bowl1 跟点表、仿真器同名，点表里 Bowl2、Bowl3 的点留着没接组件 -->
-			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="102" />
 				<Value Name="DoCloseIndex" Value="103" />
 				<Value Name="DiOpenedIndex" Value="102" />
@@ -575,7 +575,7 @@
 			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[11]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[11]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="108" />
 					<Value Name="DoCloseIndex" Value="109" />
 					<Value Name="DiOpenedIndex" Value="108" />
@@ -603,13 +603,13 @@
 		<Setting Name="Chamber2" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="140" />
 				<Value Name="DoCloseIndex" Value="141" />
 				<Value Name="DiOpenedIndex" Value="140" />
 				<Value Name="DiClosedIndex" Value="141" />
 			</Setting>
-			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="142" />
 				<Value Name="DoCloseIndex" Value="143" />
 				<Value Name="DiOpenedIndex" Value="142" />
@@ -622,7 +622,7 @@
 			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[21]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[21]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="148" />
 					<Value Name="DoCloseIndex" Value="149" />
 					<Value Name="DiOpenedIndex" Value="148" />
@@ -649,13 +649,13 @@
 		<Setting Name="Chamber3" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="180" />
 				<Value Name="DoCloseIndex" Value="181" />
 				<Value Name="DiOpenedIndex" Value="180" />
 				<Value Name="DiClosedIndex" Value="181" />
 			</Setting>
-			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="182" />
 				<Value Name="DoCloseIndex" Value="183" />
 				<Value Name="DiOpenedIndex" Value="182" />
@@ -668,7 +668,7 @@
 			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[31]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[31]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="188" />
 					<Value Name="DoCloseIndex" Value="189" />
 					<Value Name="DiOpenedIndex" Value="188" />
@@ -695,13 +695,13 @@
 		<Setting Name="Chamber4" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<Setting Name="Door" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="220" />
 				<Value Name="DoCloseIndex" Value="221" />
 				<Value Name="DiOpenedIndex" Value="220" />
 				<Value Name="DiClosedIndex" Value="221" />
 			</Setting>
-			<Setting Name="Bowl1" Type="xyz.Components.Components.CylinderComponent">
+			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="222" />
 				<Value Name="DoCloseIndex" Value="223" />
 				<Value Name="DiOpenedIndex" Value="222" />
@@ -714,7 +714,7 @@
 			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[41]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[41]" />
-				<Setting Name="Lift" Type="xyz.Components.Components.CylinderComponent">
+				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="228" />
 					<Value Name="DoCloseIndex" Value="229" />
 					<Value Name="DiOpenedIndex" Value="228" />

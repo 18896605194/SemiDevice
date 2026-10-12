@@ -2,18 +2,20 @@
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 
+using xyz.Components.Interfaces;
+
 namespace xyz.Components.Components;
 
 /// <summary>
 /// 摆臂组件：腔体里的一条摆臂。它自己就是摆动轴（继承 AxisComponent，走 PLC 数据块）；
-/// 硬件上跟它装在一起的升降、喷嘴在 sc.xml 里挂在它下面——升降是一个气缸组件（第一个气缸），喷嘴是几个喷嘴组件（这条臂上有哪些药液）。
+/// 硬件上跟它装在一起的升降、喷嘴在 sc.xml 里挂在它下面，按各自的接口识别，名称和节点先后不决定用途。
 /// 回零后轴在 0 位就是 Home；配方里的位置是晶圆坐标——从 Home 摆过去先碰到的第一个边缘是 0、晶圆中心是 150，
 /// 按 Edge、Center 两个示教位（实际轴位置，比如 Edge = 100、Center = 200）线性换成轴位置。
 /// 没示教时默认 Edge = 0、Center = 150，即轴位置就按晶圆坐标走。
 /// 手动页跟别的轴一样一个页签；另外推 Reach / EdgeReach 给三维图画摆角。
 /// </summary>
 [Component(description: "摆臂组件 (摆动轴；下面挂升降气缸和喷嘴)")]
-public class SwingArmComponent : AxisComponent
+public class SwingArmComponent : AxisComponent, ISwingArm
 {
     #region EC 可调参数
 
@@ -35,14 +37,33 @@ public class SwingArmComponent : AxisComponent
 
     #region 装在这条臂上的（sc.xml 里摆臂节点下面挂的）
 
-    /// <summary>这条臂的升降气缸：摆臂节点下第一个气缸；sc 里没配为 null。</summary>
-    public TwoStateComponent? Lift => FindChild<TwoStateComponent>();
+    /// <summary>这条臂下面声明了升降接口的部件；没有为 null，多装一个会报配置错误。</summary>
+    public IChamberLift? Lift
+    {
+        get
+        {
+            var lifts = Children.OfType<IChamberLift>().ToList();
+            if (lifts.Count > 1)
+            {
+                throw new InvalidOperationException($"{FullPath}：摆臂下面只能装一个升降部件（{nameof(IChamberLift)}）");
+            }
+
+            return lifts.FirstOrDefault();
+        }
+    }
+
+    /// <summary>开机时检查升降部件的数量，避免运行中才发现配置重复。</summary>
+    public override bool InitComponent()
+    {
+        _ = Lift;
+        return base.InitComponent();
+    }
 
     /// <summary>这条臂上的喷嘴，按 sc 的先后。</summary>
-    public IReadOnlyList<NozzleComponent> Nozzles => FindChildren<NozzleComponent>();
+    public IReadOnlyList<INozzle> Nozzles => FindChildren<INozzle>();
 
     /// <summary>按药液名找这条臂上的喷嘴（照 sc 的 Chemical，忽略大小写）；没有为 null。</summary>
-    public NozzleComponent? FindNozzle(string chemical)
+    public INozzle? FindNozzle(string chemical)
     {
         return Nozzles.FirstOrDefault(nozzle => string.Equals(nozzle.Chemical, chemical, StringComparison.OrdinalIgnoreCase));
     }

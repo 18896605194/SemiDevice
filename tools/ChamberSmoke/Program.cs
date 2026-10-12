@@ -61,9 +61,9 @@ try
     plc.AddAxis("Arm.Command", "Arm.Status");
 
     var chamber = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber9", enabled: true)]).Single();
-    var door = Find<CylinderComponent>(chamber, "Door");
-    var bowl = Find<CylinderComponent>(chamber, "Bowl1");
-    var lift = Find<CylinderComponent>(chamber, "Lift");
+    var door = Find<ChamberDoorComponent>(chamber, "Door");
+    var bowl = Find<ChamberBowlComponent>(chamber, "Bowl1");
+    var lift = Find<ChamberLiftComponent>(chamber, "Lift");
     var spin = Find<SpinMotorComponent>(chamber, "SpinMotor");
     var arm = Find<SwingArmComponent>(chamber, "Arm1");
     var diw = Find<NozzleComponent>(chamber, "Nozzle_DIW");
@@ -193,12 +193,79 @@ try
     Tick(2);
     Check(arm.HasPlcData && spin.HasPlcData, "扫两拍后轴拿到 PLC 数据");
 
+    // 接口识别：改名、插入普通气缸不会改变部件用途，设备图继续使用配置中的真实路径。
+    var flexibleConfig = ChamberConfig("Flexible", enabled: true);
+    flexibleConfig.Children[0].Name = "FrontGate";
+    flexibleConfig.Children[1].Name = "OuterCup";
+    var flexibleArm = flexibleConfig.Children[3];
+    flexibleArm.Children[0].Name = "VerticalMount";
+    flexibleArm.Children.Insert(0, Node("Lift", typeof(CylinderComponent)));
+    flexibleConfig.Children.Insert(0, Node("Door", typeof(CylinderComponent)));
+    flexibleConfig.Children.Add(Node("Bowl99", typeof(CylinderComponent)));
+    flexibleConfig.Children.Add(Node("InnerCup", typeof(ChamberBowlComponent)));
+    var flexible = (SmokeChamber)ComponentLoader.Load([flexibleConfig]).Single();
+    Check(flexible.Door?.Name == "FrontGate", "改名的腔门按接口识别，普通气缸叫 Door 也不会被认成腔门");
+    Check(flexible.Bowls.Select(item => item.Name).SequenceEqual(["OuterCup", "InnerCup"]),
+        "多层接液杯按接口识别，普通气缸叫 Bowl99 也不会混进来");
+    Check(flexible.Arms.Single().Lift?.Name == "VerticalMount", "升降按接口识别，不取摆臂下面第一个气缸");
+    var flexibleDto = flexible.CreateDeviceDataDto();
+    Check(flexibleDto.Door?.Path == "Flexible.FrontGate"
+        && flexibleDto.Arms.Single().Lift?.Path == "Flexible.Arm1.VerticalMount",
+        "设备图推送跟着真实实例路径，改名不改变部件位置");
+    Check(flexible.Cylinders.Count == 7, "普通气缸仍在手动气缸表里，只是不冒充门、Bowl 或 Lift");
+
+    // 同一接口允许另一种实现：这两个探针不继承 CylinderComponent，动作执行器仍能发、等和推送。
+    var interfaceConfig = Node("InterfaceOnly", typeof(SmokeChamber));
+    interfaceConfig.Children = [Node("AccessGate", typeof(InterfaceDoorProbe)), Node("Collector", typeof(InterfaceBowlProbe))];
+    var interfaceChamber = (SmokeChamber)ComponentLoader.Load([interfaceConfig]).Single();
+    Check(interfaceChamber.InitComponent(), "只提供部件接口的腔体初始化成功");
+    var interfaceHome = interfaceChamber.Home();
+    for (int index = 0; index < 8; index++)
+    {
+        interfaceChamber.Tick();
+    }
+
+    Check(interfaceHome is not null && interfaceHome.IsSuccess
+        && interfaceChamber.State == ModuleState.Idle, "回零流程通过接口控制不同实现的接液杯");
+    Check(interfaceChamber.PrepareTransfer() is not null, "不同实现的腔门进入取放准备一");
+    var interfaceOpen = interfaceChamber.PrepareTransfer2();
+    interfaceChamber.Tick();
+    Check(interfaceOpen is not null && interfaceOpen.IsSuccess && interfaceChamber.Door!.IsOpened,
+        "取放开门和动作等待只依赖接口，不要求气缸具体类");
+    Check(interfaceChamber.CreateDeviceDataDto().Door?.Position == CylinderPosition.Opened,
+        "不同接口实现的腔门也能生成设备状态推送");
+
+    // 单实例部件配重了开机就拒绝，不能悄悄取第一个。
+    void RejectDuplicate(ModuleConfig config, string expected, string message)
+    {
+        var rejected = (SmokeChamber)ComponentLoader.Load([config]).Single();
+        try
+        {
+            rejected.InitComponent();
+            Check(false, message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            Check(exception.Message.Contains(expected, StringComparison.Ordinal), message);
+        }
+    }
+
+    var duplicateDoor = ChamberConfig("DuplicateDoor", enabled: true);
+    duplicateDoor.Children.Add(Node("OtherGate", typeof(ChamberDoorComponent)));
+    RejectDuplicate(duplicateDoor, nameof(IChamberDoor), "同一腔体配置两个腔门，开机报错");
+    var duplicateSpin = ChamberConfig("DuplicateSpin", enabled: true);
+    duplicateSpin.Children.Add(Node("OtherSpin", typeof(SpinMotorComponent)));
+    RejectDuplicate(duplicateSpin, nameof(ISpinMotor), "同一腔体配置两个卡盘，开机报错");
+    var duplicateLift = ChamberConfig("DuplicateLift", enabled: true);
+    duplicateLift.Children[3].Children.Add(Node("OtherLift", typeof(ChamberLiftComponent)));
+    RejectDuplicate(duplicateLift, nameof(IChamberLift), "同一摆臂配置两个升降部件，开机报错");
+
     // 1. 照 sc 认设备：轴表、气缸表、喷嘴表按 sc 先后（先父后子）；门、Bowl、Lift、卡盘、摆臂和它上面的喷嘴都认出来；WaferSensor 不在里面
     Check(chamber.Door == door && chamber.Bowls.SequenceEqual([bowl]) && chamber.SpinMotor == spin,
-        "腔体自己认：门按名字 Door、Bowl 按名字开头、卡盘是 SpinMotorComponent");
+        "腔体按各部件接口认门、Bowl 和卡盘");
     Check(chamber.Arms.SequenceEqual([arm]) && arm.Lift == lift && arm.Nozzles.SequenceEqual([diw, sc1]),
-        "摆臂组件自己认：下面第一个气缸是 Lift，下面的喷嘴是它的喷嘴");
-    Check(chamber.Axes.SequenceEqual<AxisComponent>([spin, arm]) && chamber.Cylinders.SequenceEqual<TwoStateComponent>([door, bowl, lift])
+        "摆臂按升降接口认 Lift，按喷嘴接口认药液");
+    Check(chamber.Axes.SequenceEqual<IAxis>([spin, arm]) && chamber.Cylinders.SequenceEqual<ICylinder>([door, bowl, lift])
         && chamber.Nozzles.SequenceEqual([diw, sc1]), "轴、气缸、喷嘴照 sc 的先后（先父后子）");
     Check(chamber.FindArm("arm1") == arm && arm.FindNozzle("sc1") == sc1 && chamber.FindArm("Arm2") is null,
         "摆臂按节点名找、喷嘴按药液找，忽略大小写");
@@ -679,7 +746,7 @@ static ModuleConfig ChamberConfig(string name, bool enabled)
     var arm = Node("Arm1", typeof(SwingArmComponent), Value("SendPlcDataPath", "Arm.Command"), Value("ReceivePlcDataPath", "Arm.Status"));
     arm.Children =
     [
-        Node("Lift", typeof(CylinderComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5"),
+        Node("Lift", typeof(ChamberLiftComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5"),
             Value("DiOpenedIndex", "4"), Value("DiClosedIndex", "5")),
         Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("Chemical", "DIW"), Value("FlowAoIndex", "0")),
         Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("DiIndex", "7"), Value("Chemical", "SC1"), Value("FlowAoIndex", "1")),
@@ -687,9 +754,9 @@ static ModuleConfig ChamberConfig(string name, bool enabled)
     var chamber = Node(name, typeof(SmokeChamber), Value("IsEnable", enabled ? "True" : "False"));
     chamber.Children =
     [
-        Node("Door", typeof(CylinderComponent), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1"),
+        Node("Door", typeof(ChamberDoorComponent), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1"),
             Value("DiOpenedIndex", "0"), Value("DiClosedIndex", "1")),
-        Node("Bowl1", typeof(CylinderComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3"),
+        Node("Bowl1", typeof(ChamberBowlComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3"),
             Value("DiOpenedIndex", "2"), Value("DiClosedIndex", "3")),
         Node("SpinMotor", typeof(SpinMotorComponent), Value("SendPlcDataPath", "Spin.Command"), Value("ReceivePlcDataPath", "Spin.Status")),
         arm,
@@ -705,6 +772,58 @@ public sealed class SmokeChamber : BaseChamberModule
     public void Tick()
     {
         OnScan();
+    }
+}
+
+/// <summary>只实现气缸接口的探针，不借用气缸具体类，动作立即完成。</summary>
+public abstract class InterfaceCylinderProbe : ComponentBase, ICylinder
+{
+    private bool _opened;
+
+    /// <summary>开侧到位。</summary>
+    public bool IsOpened => _opened;
+
+    /// <summary>关侧到位。</summary>
+    public bool IsClosed => !_opened;
+
+    /// <summary>当前到位状态。</summary>
+    public TwoStatePosition Position => _opened ? TwoStatePosition.Opened : TwoStatePosition.Closed;
+
+    /// <summary>直接模拟开到位。</summary>
+    public bool Open()
+    {
+        _opened = true;
+        return true;
+    }
+
+    /// <summary>直接模拟关到位。</summary>
+    public bool Close()
+    {
+        _opened = false;
+        return true;
+    }
+}
+
+/// <summary>腔门的另一种实现，证明模块按接口而不是具体类执行。</summary>
+[Component(description: "接口腔门探针")]
+public sealed class InterfaceDoorProbe : InterfaceCylinderProbe, IChamberDoor
+{
+}
+
+/// <summary>接液杯的另一种实现，证明整腔操作按接口控制升降。</summary>
+[Component(description: "接口接液杯探针")]
+public sealed class InterfaceBowlProbe : InterfaceCylinderProbe, IChamberBowl
+{
+    /// <summary>模拟升到位。</summary>
+    public bool Up()
+    {
+        return Open();
+    }
+
+    /// <summary>模拟降到位。</summary>
+    public bool Down()
+    {
+        return Close();
     }
 }
 
