@@ -44,7 +44,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManagerComponent、Io、Safety、
-  Eap、Hsms、E30、DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、ProcessRecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
+  Eap、Hsms、E30、DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、RecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
@@ -239,7 +239,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   保存带版本号（对不上回 `sequence.revision_mismatch`，防两个人同时改）；不限步数、名称不限字符（2026-10-13 用户去掉的，只查必填、长度、不重名）；
   `Changed(编号)` 在锁外发。两个配方库的操作结果都直接用不带泛型的 `HandleResult`（不另造结果类，配方放在 `Result` 里，
   用的地方 `result.Result as SequenceData` 取；EAP 口子直接回同一个结果）。服务 `ISequenceService`（`xyz.Service\Recipes`）。
-- 工艺配方库 `Recipe\ProcessRecipeComponent`（sc.xml `ProcessRecipe` 节点，SC：`Capacity` 99、`Folder` `Recipe\Process`、`NameMaxLength` 32）：
+- 工艺配方库 `Recipe\RecipeComponent`（sc.xml `ProcessRecipe` 节点，SC：`Capacity` 99、`Folder` `Recipe\Process`、`NameMaxLength` 32）：
   编号、文件、版本号、`Changed(编号)` 跟流程配方库一样。一份配方 = **配方头 + 步骤，两部分有哪些项都不写死**，按本节点下两张字段表：
   `Head`（配方头，一个子节点一项）、`Fields`（步骤，一个子节点一个字段 = 配方页一列），节点名就是字段名；值：`Text` / `TextEn` 名字、`Type` Int / Double / Choice / Bool / Text、
   `Unit`、`Min` / `Max`、`Decimals`、`Default`、`Required`、下拉的选项。`OnSettingLoaded` 里读（`ProcessRecipeField.FromConfig`），配错就抛（字段名格式、重复、
@@ -249,14 +249,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   步骤下拉的选项按腔体 Type 分开写：`Source.A`（腔体没配 Type 的写 `Source`），`ProcessRecipeField.OptionsFor(type)`，按配方头的 Type 取；
   `Bind` 时查每种 Type 都写了、默认值在里面（配错开机就抛），老配方没写 Type 的补第一种，没写超时时间的读文件时补默认值。
   配方对不对得上具体腔体由腔体自己查：`IProcessStation.FindRecipeMismatch(配方)`（`BaseChamberModule` 实现：先比 Type，再跟执行共用
-  `ChamberProcessOperation.FindDevices` 照名字找 `Arm`、`Chemical`）——流程配方保存经 `ProcessRecipeComponent.FindMismatch(配方名, 腔体名)`
+  `ChamberProcessOperation.FindDevices` 照名字找 `Arm`、`Chemical`）——流程配方保存经 `RecipeComponent.FindMismatch(配方名, 腔体名)`
   （`sequence.recipe_option_missing`），Job 挑腔体（`TaskComponent`），腔体起工艺（`chamber.recipe_option_missing`）。检查按字段表（步骤用 `process_recipe.value_*`、
   配方头用 `process_recipe.head_value_*` 两组通用错误码，字段名按 System 语言取中文名或英文名），字段之间不互相管；合计时长（`Seconds` 加起来）不超过配方头的超时时间。
   至少 1 步，新建时配方头填默认值（Type 取第一种）、带一步默认值。保存 `Save(编号, 版本, 内容, 操作人)`，内容就是一份 `ProcessRecipeData`（只看配方头能填的项和步骤）。
   文件：一步一个 `Step`，每个字段写成一个属性（`XmlAnyAttribute`），**字段表里的字段都写、空的也写**——读的时候没有这个属性就是字段表后来加的，
   按默认值补；字段表里没有的属性先留着、下次保存丢掉。存之前规整写法（整数、小数去多余写法，开关小写，下拉按选项的大小写）。
   按名字被引用：流程配方查配方在不在库里（`sequence.recipe_not_found`），腔体起工艺查（`chamber.recipe_not_found`）；库没装都不查。
-  锁的先后：`SequenceComponent` 锁里可以调 `ProcessRecipeComponent.Contains` / `FindMismatch`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`），
+  锁的先后：`SequenceComponent` 锁里可以调 `RecipeComponent.Contains` / `FindMismatch`，反过来不行。服务 `IProcessRecipeService`（`xyz.Service\Recipes`），
   `GetOptionsAsync` 给两张字段表（配方头标出程序算的、Type 带腔体配的几种；步骤带按 Type 分开的下拉选项）。两个库的 `Find(名字)` 给的是克隆（配方快照，库里再改不影响）。
   **Host 远程管配方**：流程配方库实现 `Interfaces\ISequenceComponent`：`SequenceNames`、`ExportSequence`、`AcceptsSequence`、`ImportSequence`、`DeleteSequence`；
   工艺配方库实现 `Interfaces\IProcessRecipeComponent`：`ProcessRecipeNames`、`ExportProcessRecipe`、`AcceptsProcessRecipe`、`ImportProcessRecipe`、`DeleteProcessRecipe`。

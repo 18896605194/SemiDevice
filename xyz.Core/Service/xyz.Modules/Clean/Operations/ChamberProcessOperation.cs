@@ -19,7 +19,7 @@ namespace xyz.Modules;
 /// </summary>
 internal sealed class ChamberProcessOperation : ChamberStepOperation
 {
-    // 配方字段名（sc.xml ProcessRecipe → Fields 下的节点名）：执行认这几个名字。时间是 ProcessRecipeField.SecondsKey。
+    // 配方字段名（sc.xml ProcessRecipe → Fields 下的节点名）：执行认这几个名字。时间是 RecipeField.SecondsKey。
     private const string RpmKey = "Rpm";
     private const string ArmKey = "Arm";
     private const string ChemicalKey = "Chemical";

@@ -333,14 +333,14 @@ try
         var recipeNode = new ModuleConfig
         {
             Name = "ProcessRecipe",
-            Type = typeof(ProcessRecipeComponent).FullName,
+            Type = typeof(RecipeComponent).FullName,
             Values = [new ValueConfig { Name = "Folder", Value = recipeFolder }],
             Children =
             [
-                new ModuleConfig { Name = ProcessRecipeComponent.HeadNodeName, Children = headItems },
+                new ModuleConfig { Name = RecipeComponent.HeadNodeName, Children = headItems },
                 new ModuleConfig
                 {
-                    Name = ProcessRecipeComponent.FieldsNodeName,
+                    Name = RecipeComponent.FieldsNodeName,
                     Children =
                     [
                         FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Default", "10"), ("Required", "true")),
@@ -350,7 +350,7 @@ try
                 },
             ],
         };
-        var recipes = (ProcessRecipeComponent)ComponentLoader.Load([recipeNode]).Single();
+        var recipes = (RecipeComponent)ComponentLoader.Load([recipeNode]).Single();
         void Mount(ProbeChamber chamber, params string[] chemicals)
         {
             var arm = new SwingArmComponent();
@@ -377,7 +377,7 @@ try
             return new ProcessRecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
         }
 
-        Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
+        Check(ReferenceEquals(RecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
               && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsSuccess, "工艺配方库里建一个 SC1_60S（用 DIW）");
         Check(recipes.Create(2, "HF_ONLY", "Tester").IsSuccess && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsSuccess,
             "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
@@ -394,7 +394,7 @@ try
     }
     finally
     {
-        ProcessRecipeComponent.Current = null;
+        RecipeComponent.Current = null;
         if (Directory.Exists(recipeFolder))
         {
             Directory.Delete(recipeFolder, recursive: true);

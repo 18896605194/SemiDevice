@@ -795,7 +795,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     /// </summary>
     private static string FieldText(string key)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         if (library is null)
         {
             return key;

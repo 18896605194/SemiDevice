@@ -171,7 +171,7 @@ public static class ServiceExtensions
         var eap = EapComponent.Current;
         if (eap is not null)
         {
-            eap.Bind(modules.OfType<ILoadPort>().ToList(), JobManager.Current, SequenceComponent.Current, ProcessRecipeComponent.Current);
+            eap.Bind(modules.OfType<ILoadPort>().ToList(), JobManager.Current, SequenceComponent.Current, RecipeComponent.Current);
         }
         else if (HsmsComponent.Current is not null)
         {
@@ -223,7 +223,7 @@ public static class ServiceExtensions
 
         #region 工艺配方库
 
-        var processRecipes = ProcessRecipeComponent.Current;
+        var processRecipes = RecipeComponent.Current;
         if (processRecipes is not null)
         {
             processRecipes.Bind(modules);

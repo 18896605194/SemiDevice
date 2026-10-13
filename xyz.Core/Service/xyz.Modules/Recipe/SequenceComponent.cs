@@ -341,7 +341,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     public HandleResult Save(int index, int revision, string description, IReadOnlyList<SequenceStep> steps, string operatorName)
     {
         // 工艺配方要在工艺配方库里（没装库就不查）。库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = ProcessRecipeComponent.Current;
+        var recipes = RecipeComponent.Current;
         HandleResult result;
         lock (_gate)
         {
@@ -428,7 +428,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
 
         // 工艺配方库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = ProcessRecipeComponent.Current;
+        var recipes = RecipeComponent.Current;
         HandleResult result;
         int index;
         string reported;
@@ -758,7 +758,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     /// 每一步：分组要在可选的里面，第 1 步、最后一步是 LoadPort 分组；至少勾一个站点、勾的站点在这个分组里；
     /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且勾的每个腔体都跑得了（Type、选的摆臂和药液）。步号从 1 数，跟界面上一样。
     /// </summary>
-    private static HandleResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, ProcessRecipeComponent? recipes)
+    private static HandleResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, RecipeComponent? recipes)
     {
         for (int position = 0; position < steps.Count; position++)
         {

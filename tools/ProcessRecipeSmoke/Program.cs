@@ -117,7 +117,7 @@ ModuleConfig LibraryWith(ModuleConfig head, params ModuleConfig[] fields)
     return new ModuleConfig
     {
         Name = "ProcessRecipe",
-        Type = typeof(ProcessRecipeComponent).FullName,
+        Type = typeof(RecipeComponent).FullName,
         Values = [new ValueConfig { Name = "Folder", Value = otherFolder }],
         Children = [head, new ModuleConfig { Name = "Fields", Children = fields.ToList() }],
     };
@@ -149,7 +149,7 @@ try
     var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
     Check(scConfig is not null, "sc.xml 解析失败");
     var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "ProcessRecipe", StringComparison.OrdinalIgnoreCase));
-    Check(node is not null && node.Type == typeof(ProcessRecipeComponent).FullName, "sc.xml 里应有指向 ProcessRecipeComponent 的 ProcessRecipe 节点");
+    Check(node is not null && node.Type == typeof(RecipeComponent).FullName, "sc.xml 里应有指向 RecipeComponent 的 ProcessRecipe 节点");
     string ValueOf(string name)
     {
         return node!.Values.First(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase)).Value ?? string.Empty;
@@ -160,14 +160,14 @@ try
     node!.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = folder;
 
     var roots = ComponentLoader.Load([node]);
-    var library = roots.OfType<ProcessRecipeComponent>().Single();
+    var library = roots.OfType<RecipeComponent>().Single();
     Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个工艺配方库，参数按 sc.xml");
-    Check(ReferenceEquals(ProcessRecipeComponent.Current, library), "装配出来即成为 Current");
+    Check(ReferenceEquals(RecipeComponent.Current, library), "装配出来即成为 Current");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
     var fields = library.Fields;
     Check(fields.Select(field => field.Key).SequenceEqual(new[] { "Seconds", "Rpm", "Arm", "Chemical", "Flow", "Mode", "Position", "ScanTo", "ScanSpeed" }),
         "字段表：9 个字段，按 sc.xml 的先后，实际 " + string.Join(",", fields.Select(field => field.Key)));
-    ProcessRecipeField F(string key)
+    RecipeField F(string key)
     {
         return fields.First(field => field.Key == key);
     }
@@ -201,7 +201,7 @@ try
     Check(library.StationTypes.SequenceEqual(new[] { string.Empty }), "还没 Bind（没有腔体）时只有空 Type 一种");
 
     // 1. 字段表配错了装配时就抛（报清楚哪个节点），不留到编辑配方时才发现。
-    Rejects(new ModuleConfig { Name = "ProcessRecipe", Type = typeof(ProcessRecipeComponent).FullName, Values = [new ValueConfig { Name = "Folder", Value = otherFolder }] },
+    Rejects(new ModuleConfig { Name = "ProcessRecipe", Type = typeof(RecipeComponent).FullName, Values = [new ValueConfig { Name = "Folder", Value = otherFolder }] },
         "没配 Fields");
     Rejects(LibraryNode(FieldNode("Rpm", ("Text", "转速"), ("Type", "Int"))), "没有 Seconds");
     Rejects(LibraryNode(FieldNode("Seconds", ("Text", "时间"), ("Type", "Int"))), "Seconds 不是小数");
@@ -222,7 +222,7 @@ try
     Rejects(LibraryNode(SecondsNode(), FieldNode("Rpm", ("Text", "转速"), ("Type", "Int"), ("Max", "3000"), ("Default", "5000"))), "默认值超过上限");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Flow", ("Text", "流量"), ("Type", "Double"), ("Decimals", "1"), ("Default", "1.25"))), "默认值小数位多了");
     // 下拉的默认值在不在选项里，要知道有哪几种 Type 才查得了：Bind 时报（还是开机就报）
-    var badDefault = (ProcessRecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
+    var badDefault = (RecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
         FieldNode("Mode", ("Text", "方式"), ("Type", "Choice"), ("Source", "Time,Scan"), ("Default", "Spin")))]).Single();
     try
     {
@@ -241,7 +241,7 @@ try
     Rejects(LibraryWith(HeadNode(without: "Timeout"), SecondsNode()), "配方头少了固定的超时时间");
     Rejects(LibraryWith(HeadNode(wrongType: "Type"), SecondsNode()), "配方头固定的 Type 类型写错（不是 Choice）");
     Rejects(LibraryWith(HeadNode(extra: FieldNode("name", ("Text", "又一个"), ("Type", "Text"))), SecondsNode()), "配方头字段名重复（不分大小写）");
-    ProcessRecipeComponent.Current = library;
+    RecipeComponent.Current = library;
 
     // 2. 模块全起来后 Bind：记下腔体和它们配的 Type（配方头 Type 的选项）。三个探针腔体都是 Type A，装的不一样：
     //    SmokePM1 的 Arm1 上有 DIW、SC1；SmokePM2 的 arm1（名字大小写不同）上只有 diw；SmokePM3 只有 Arm2。
@@ -371,7 +371,7 @@ try
           && Data(library.Get(1))!.Steps[1].Get("Arm") == "Arm1", "下拉的写法跟选项一样");
 
     // 5. 开关、文本字段（自己拼的字段表）：开关只认 true / false（存成小写），文本去掉首尾空白；字段之间不互相管。
-    var flags = (ProcessRecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
+    var flags = (RecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
         FieldNode("Flag", ("Text", "开关"), ("Type", "Bool"), ("Default", "false")),
         FieldNode("Note", ("Text", "备注"), ("Type", "Text")))]).Single();
     Check(flags.Create(1, "FLAGS", "Tester").IsSuccess && Data(flags.Get(1))!.Steps[0].Get("Flag") == "false", "开关默认 false");
@@ -383,7 +383,7 @@ try
     var flagSaved = flags.Save(1, 1, Content(string.Empty, [FlagStep("TRUE", "  hello  ")], type: string.Empty), "Tester");
     Check(flagSaved.IsSuccess && Data(flagSaved)!.Steps[0].Get("Flag") == "true" && Data(flagSaved)!.Steps[0].Get("Note") == "hello", "开关存成小写，文本去掉首尾空白");
     Fails(flags.Save(1, 2, Content(string.Empty, [FlagStep("yes", string.Empty)], type: string.Empty), "Tester"), ErrorCodes.ProcessRecipeValueNotInOptions, ["1", "开关", "yes"], "开关不认 yes");
-    ProcessRecipeComponent.Current = library;
+    RecipeComponent.Current = library;
 
     // 6. 改名：版本加 1、记修改人；跟别的编号重了不行。
     Check(library.Create(2, "DIW_RINSE", "Tester").IsSuccess, "再建一个");
@@ -403,8 +403,8 @@ try
     File.WriteAllText(Path.Combine(folder, "005.xml"), "<ProcessRecipe Name=");
     File.WriteAllText(Path.Combine(folder, "notes.xml"), "<ProcessRecipe Name=\"NOTES\" />");
     File.WriteAllText(Path.Combine(folder, "120.xml"), "<ProcessRecipe Name=\"TOO_BIG\" />");
-    var reopened = (ProcessRecipeComponent)ComponentLoader.Load([node]).Single();
-    ProcessRecipeComponent.Current = library;
+    var reopened = (RecipeComponent)ComponentLoader.Load([node]).Single();
+    RecipeComponent.Current = library;
     var reloaded = reopened.List();
     Check(reloaded.Select(item => item.Index).SequenceEqual(new[] { 1, 2, 3 }), "坏文件、不是编号的、超出个数的都跳过");
     var back = reloaded[0];
@@ -418,7 +418,7 @@ try
         "老配方里没有的字段按默认值补（方式 Time，摆臂空着），字段表里没有的先留着");
     Check(reloaded[2].Type.Length == 0 && reloaded[2].Timeout == "600", "老配方读进来：超时时间补默认 600，Type 等 Bind 再补");
     reopened.Bind([pm1, pm2, pm3]);
-    ProcessRecipeComponent.Current = library;
+    RecipeComponent.Current = library;
     var oldFilled = Data(reopened.Get(3))!;
     Check(oldFilled.Type == "A" && Data(reopened.Get(1))!.Type == "A", "Bind 之后老配方的 Type 补成腔体的第一种 A，写了的不动");
     var oldSaved = reopened.Save(3, 1, Content(string.Empty, oldFilled.Steps), "Tester");
@@ -460,23 +460,23 @@ try
     Fails(library.Get(0), ErrorCodes.ProcessRecipeIndexOutOfRange, ["0", "99"], "取编号 0");
     Check(changed.SequenceEqual(new[] { 3 }), "删除发一次变更事件");
 
-    // 11b. Host 远程管配方（IProcessRecipeComponent，EAP 的 S7 走它）：按名字列、取（JSON，每一步是字段名 → 值）、存（没有就新建、有就覆盖，
+    // 11b. Host 远程管配方（IRecipeComponent，EAP 的 S7 走它）：按名字列、取（JSON，每一步是字段名 → 值）、存（没有就新建、有就覆盖，
     //      检查、规整跟本地保存一样）、删；变化经 EAP 的派发组件报上报口。这一节建的最后删掉，后面接着是 1、2 两个。
     _ = new EapNotifierComponent();
     var eapChanges = new RecordingRecipeCallback();
-    xyz.Components.Interfaces.IProcessRecipeComponent remote = library;
+    xyz.Components.Interfaces.IRecipeComponent remote = library;
     remote.E30Callback = eapChanges;
-    Check(remote.ProcessRecipeNames.SequenceEqual(new[] { "SC1_45S", "DIW_RINSE" }), "按名字列（按编号）");
-    string? exported = remote.ExportProcessRecipe("sc1_45s");
+    Check(remote.RecipeNames.SequenceEqual(new[] { "SC1_45S", "DIW_RINSE" }), "按名字列（按编号）");
+    string? exported = remote.GetRecipe("sc1_45s");
     Check(exported is not null && exported.Contains("\"values\"", StringComparison.Ordinal) && !exported.Contains("attributes", StringComparison.OrdinalIgnoreCase),
         "取出来是 JSON：每一步是字段名 → 值，不带存文件用的 XML 属性");
-    Check(exported is not null && remote.AcceptsProcessRecipe(exported) && !remote.AcceptsProcessRecipe("{\"steps\":[{\"group\":\"LoadPort\",\"stations\":[]}]}")
-          && !remote.AcceptsProcessRecipe("{\"steps\":[]}") && !remote.AcceptsProcessRecipe("{"), "认 JSON 的样子：每一步带字段值的是工艺配方；流程配方的样子、没有步骤、读不出来的都不认");
+    Check(exported is not null && remote.AcceptsRecipe(exported) && !remote.AcceptsRecipe("{\"steps\":[{\"group\":\"LoadPort\",\"stations\":[]}]}")
+          && !remote.AcceptsRecipe("{\"steps\":[]}") && !remote.AcceptsRecipe("{"), "认 JSON 的样子：每一步带字段值的是工艺配方；流程配方的样子、没有步骤、读不出来的都不认");
     var exportedData = exported is null ? null : JsonHelper.Deserialize<ProcessRecipeData>(exported);
     Check(exportedData is not null && exportedData.Steps.Count == 1 && exportedData.Steps[0].Values.Count == 9 && exportedData.Steps[0].Get("Chemical") == "SC1"
           && exportedData.Type == "A" && exportedData.Timeout == "600", "JSON 读回来跟库里一样（带配方头的 Type、超时时间）");
 
-    var imported = remote.ImportProcessRecipe("HOST_RECIPE", exported!, "Host");
+    var imported = remote.ImportRecipe("HOST_RECIPE", exported!, "Host");
     var hostRecipe = library.Find("HOST_RECIPE");
     Check(imported.IsSuccess && hostRecipe is not null && hostRecipe.Index == 3 && hostRecipe.Revision == 1 && hostRecipe.CreatedBy == "Host"
           && hostRecipe.Steps[0].Get("Chemical") == "SC1", "Host 下一个新名字：放在第一个空编号上，版本 1，建的人记 Host");
@@ -484,27 +484,27 @@ try
     {
         Name = "IGNORED", Revision = 77, Type = "a", Description = " 远程 ", Steps = [Step("5", "+300", "arm1", "diw", "1.50")],
     });
-    var overwriteResult = remote.ImportProcessRecipe("host_recipe", loose, "Host");
+    var overwriteResult = remote.ImportRecipe("host_recipe", loose, "Host");
     var overwritten = library.Find("HOST_RECIPE");
     Check(overwriteResult.IsSuccess && overwritten is not null && overwritten.Name == "HOST_RECIPE" && overwritten.Revision == 2 && overwritten.Description == "远程"
           && overwritten.Steps[0].Get("Rpm") == "300" && overwritten.Steps[0].Get("Arm") == "Arm1" && overwritten.Steps[0].Get("Chemical") == "DIW"
           && overwritten.Type == "A" && overwritten.Timeout == "600",
         "同名再下：覆盖（版本加 1），跟本地保存一样规整写法；JSON 里的名字、版本不管，没带超时时间的补默认 600");
-    var noType = remote.ImportProcessRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Steps = [Step("5", "300")] }), "Host");
+    var noType = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Steps = [Step("5", "300")] }), "Host");
     Check(!noType.IsSuccess && noType.ErrorMessage == ErrorCodes.ProcessRecipeHeadValueRequired && library.Find("HOST_BAD") is null,
         "JSON 里没带 Type：不补、不收（不知道给哪种腔体用）");
-    var tooLong = remote.ImportProcessRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Type = "A", Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
+    var tooLong = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Type = "A", Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
     Check(!tooLong.IsSuccess && tooLong.ErrorMessage == ErrorCodes.ProcessRecipeTotalTooLong && library.Find("HOST_BAD") is null,
         "步骤没过检查（合计超过超时时间）：跟本地保存一样拒，什么都不存");
-    var notJson = remote.ImportProcessRecipe("HOST_BAD", "{", "Host");
+    var notJson = remote.ImportRecipe("HOST_BAD", "{", "Host");
     Check(!notJson.IsSuccess && notJson.ErrorMessage == ErrorCodes.ProcessRecipeBodyInvalid && notJson.Args.SequenceEqual(new[] { "HOST_BAD" }),
         "内容不是 JSON：process_recipe.body_invalid 带名字");
-    var nullValues = remote.ImportProcessRecipe("HOST_BAD",
+    var nullValues = remote.ImportRecipe("HOST_BAD",
         "{\"type\":\"A\",\"head\":null,\"description\":null,\"steps\":[{\"values\":null},{\"values\":[{\"name\":null,\"value\":null}]}]}", "Host");
     Check(!nullValues.IsSuccess && nullValues.ErrorMessage == ErrorCodes.ProcessRecipeValueRequired, "JSON 里空着的值补成空的再查：必填的没填，不会出异常");
-    var removedByHost = remote.DeleteProcessRecipe("host_recipe", "Host");
+    var removedByHost = remote.DeleteRecipe("host_recipe", "Host");
     Check(removedByHost.IsSuccess && library.Find("HOST_RECIPE") is null && library.List().Count == 2, "按名字删（不分大小写）");
-    Check(remote.DeleteProcessRecipe("HOST_RECIPE", "Host").ErrorMessage == ErrorCodes.ProcessRecipeNameNotFound, "再删说没有：process_recipe.name_not_found");
+    Check(remote.DeleteRecipe("HOST_RECIPE", "Host").ErrorMessage == ErrorCodes.ProcessRecipeNameNotFound, "再删说没有：process_recipe.name_not_found");
     Check(eapChanges.WaitFor(3) && eapChanges.Changes.SequenceEqual(new[]
     {
         ("HOST_RECIPE", xyz.Components.Enums.ChangeKind.Created),
@@ -594,7 +594,7 @@ try
     var gone = await service.GetAsync(new ProcessRecipeIndexRequest { Index = 3 });
     Check(!gone.Success && gone.Code == ErrorCodes.ProcessRecipeNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
-    ProcessRecipeComponent.Current = null;
+    RecipeComponent.Current = null;
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.ProcessRecipeNotInstalled && notInstalled.Args.Count == 0,
         "没装库：process_recipe.not_installed");
@@ -604,7 +604,7 @@ try
 }
 finally
 {
-    ProcessRecipeComponent.Current = null;
+    RecipeComponent.Current = null;
     SystemComponent.Current = null;
     foreach (string path in new[] { folder, otherFolder })
     {

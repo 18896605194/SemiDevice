@@ -6,13 +6,8 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 工艺配方字段表里的一个字段（sc.xml ProcessRecipe → Fields 或 Head 下一个子节点，节点名就是字段名），也就是步骤表的一列、配方头的一项。
-/// 类型决定界面用什么控件、怎么查：整数、小数按下限、上限、小数位查；下拉只能选 sc.xml 里写的选项（步骤的按站点 Type 分开写）；
-/// 开关只认 true / false；文本只管必填。
-/// 配错了（类型写错、上下限反了、默认值不合规、下拉没写选项……）开机就抛，报清楚哪个节点哪个值。
-/// </summary>
-public sealed class ProcessRecipeField
+
+public sealed class RecipeField
 {
     /// <summary>
     /// 步骤时长那个字段的名字：合计时长、腔体工艺超时的检查都靠它，字段表里必须有，类型是小数。
@@ -220,7 +215,7 @@ public sealed class ProcessRecipeField
     /// optionsInSc：下拉的选项写在 sc.xml 里（Source、Source.类型）；配方头的 Type 那一项传 false，它的选项是站点配的几种 Type。
     /// 下拉的默认值在不在选项里，要知道有哪几种站点才查得了，由工艺配方库 Bind 时查。
     /// </summary>
-    public static ProcessRecipeField FromConfig(ModuleConfig node, string path, bool optionsInSc = true)
+    public static RecipeField FromConfig(ModuleConfig node, string path, bool optionsInSc = true)
     {
         string Read(string name)
         {
@@ -277,7 +272,7 @@ public sealed class ProcessRecipeField
         var optionsByType = choice && optionsInSc
             ? ReadOptions(node, path)
             : new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        var field = new ProcessRecipeField
+        var field = new RecipeField
         {
             Key = key,
             Text = text,
@@ -307,7 +302,7 @@ public sealed class ProcessRecipeField
             }
         }
 
-        return new ProcessRecipeField
+        return new RecipeField
         {
             Key = field.Key,
             Text = field.Text,

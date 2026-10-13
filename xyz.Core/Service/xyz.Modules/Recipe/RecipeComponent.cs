@@ -14,22 +14,13 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 工艺配方库（配方 → 工艺配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……）。
-/// 工艺配方说的是片进了腔体以后一步一步怎么做，分配方头（整份一组值）和步骤两部分。两部分有哪些项都不写死，
-/// 按 sc.xml 本节点下 Head、Fields 两张字段表来（一个子节点一项：类型、上下限、默认值、下拉的选项……），界面按它们生成，这里按它们查、按它们存。
-/// 配方头的 Type 定这份配方给哪种站点用（选项是 sc 里腔体配的几种 Type），步骤下拉的选项按 Type 分开写（ScEdit 里配）；
-/// 只能在 Type 一样的腔体上跑，选的摆臂、药液用到具体腔体（流程配方、Job、腔体起工艺）时也由腔体照名字核对（<see cref="FindMismatch"/>）。
-/// 合计时长不能超过配方头的超时时间。流程配方的工艺步骤、腔体起工艺都按名字引用这里的配方。
-/// 只有 gRPC 线程和 EAP（Host 远程管配方，经 IProcessRecipeComponent）调它（设备扫描线程不碰），所以读写文件放在锁里也卡不到设备，还省得两次保存交叉写坏文件。
-/// </summary>
 [Component(description: "工艺配方库：编号 1~N 的工艺配方，一个编号一个文件；配方头、每一步的项按下面 Head、Fields 的字段表")]
-public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
+public class RecipeComponent : ComponentBase, IRecipeComponent
 {
     /// <summary>
     /// 当前工艺配方库；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
     /// </summary>
-    public static ProcessRecipeComponent? Current { get; set; }
+    public static RecipeComponent? Current { get; set; }
 
     /// <summary>
     /// 步骤字段表在本节点下的分组名：一个子节点一个字段，节点名就是字段名。
@@ -61,7 +52,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 名称只能用字母、数字、_ 和 -：Host、流程配方按名字选配方，文件里、日志里也不出怪字符。
     /// </summary>
-    private static readonly Regex NameRule = new("^[A-Za-z0-9_-]+$", RegexOptions.Compiled);
+    //private static readonly Regex NameRule = new("^[A-Za-z0-9_-]+$", RegexOptions.Compiled);
 
     private readonly object _gate = new();
 
@@ -73,12 +64,12 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 步骤字段表，按 sc.xml 里的先后（就是步骤表从左到右）。
     /// </summary>
-    private IReadOnlyList<ProcessRecipeField> _fields = [];
+    private IReadOnlyList<RecipeField> _fields = [];
 
     /// <summary>
     /// 配方头字段表，按 sc.xml 里的先后。
     /// </summary>
-    private IReadOnlyList<ProcessRecipeField> _headFields = [];
+    private IReadOnlyList<RecipeField> _headFields = [];
 
     /// <summary>
     /// 装起来的腔体：配方用到具体腔体时按名字找它核对。
@@ -91,7 +82,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// </summary>
     private IReadOnlyList<string> _stationTypes = [string.Empty];
 
-    public ProcessRecipeComponent()
+    public RecipeComponent()
     {
         Current = this;
     }
@@ -110,14 +101,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     #endregion
 
     /// <summary>
-    /// 内容变了（新建、改名、删除、保存），参数是编号。在锁外发。
+    /// 内容变了
     /// </summary>
     public event Action<int>? Changed;
 
     /// <summary>
     /// 步骤字段表（装配时从 sc.xml 读的，之后不变）。
     /// </summary>
-    public IReadOnlyList<ProcessRecipeField> Fields
+    public IReadOnlyList<RecipeField> Fields
     {
         get
         {
@@ -131,7 +122,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 配方头字段表（装配时从 sc.xml 读的，之后不变）。
     /// </summary>
-    public IReadOnlyList<ProcessRecipeField> HeadFields
+    public IReadOnlyList<RecipeField> HeadFields
     {
         get
         {
@@ -192,7 +183,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 读字段表：字段名不能重复；必须有 Seconds（步骤时长，小数）。
     /// </summary>
-    private static List<ProcessRecipeField> ReadFields(ModuleConfig setting)
+    private static List<RecipeField> ReadFields(ModuleConfig setting)
     {
         var node = setting.Children.FirstOrDefault(child => string.Equals(child.Name, FieldsNodeName, StringComparison.OrdinalIgnoreCase));
         if (node is null)
@@ -200,11 +191,11 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 下没配 {FieldsNodeName}（工艺配方每一步有哪些字段，一个子节点一个）");
         }
 
-        var fields = new List<ProcessRecipeField>();
+        var fields = new List<RecipeField>();
         foreach (var fieldNode in node.Children)
         {
             string path = $"{setting.Name}.{FieldsNodeName}.{fieldNode.Name}";
-            var field = ProcessRecipeField.FromConfig(fieldNode, path);
+            var field = RecipeField.FromConfig(fieldNode, path);
             if (FindField(fields, field.Key) is not null)
             {
                 throw new InvalidOperationException($"sc.xml 节点 {path}：字段名 {field.Key} 重复了");
@@ -213,11 +204,11 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             fields.Add(field);
         }
 
-        var seconds = FindField(fields, ProcessRecipeField.SecondsKey);
+        var seconds = FindField(fields, RecipeField.SecondsKey);
         if (seconds is null || seconds.Type != ProcessRecipeFieldType.Double)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {setting.Name}.{FieldsNodeName} 里要有 {ProcessRecipeField.SecondsKey}（步骤时长，Type 为 Double）：合计时长和工艺超时靠它");
+                $"sc.xml 节点 {setting.Name}.{FieldsNodeName} 里要有 {RecipeField.SecondsKey}（步骤时长，Type 为 Double）：合计时长和工艺超时靠它");
         }
 
         return fields;
@@ -227,7 +218,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 读配方头字段表：字段名不能重复；固定的几项（<see cref="ProcessRecipeHead"/>）都要有，类型跟固定的一样。
     /// Type 那一项的选项是腔体配的几种 Type，不在 sc.xml 里写；自己加的下拉只写一套 Source。
     /// </summary>
-    private static List<ProcessRecipeField> ReadHeadFields(ModuleConfig setting)
+    private static List<RecipeField> ReadHeadFields(ModuleConfig setting)
     {
         var node = setting.Children.FirstOrDefault(child => string.Equals(child.Name, HeadNodeName, StringComparison.OrdinalIgnoreCase));
         if (node is null)
@@ -235,12 +226,12 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 下没配 {HeadNodeName}（工艺配方的配方头有哪些项，一个子节点一项）");
         }
 
-        var fields = new List<ProcessRecipeField>();
+        var fields = new List<RecipeField>();
         foreach (var fieldNode in node.Children)
         {
             string path = $"{setting.Name}.{HeadNodeName}.{fieldNode.Name}";
             bool isType = string.Equals(fieldNode.Name.Trim(), ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
-            var field = ProcessRecipeField.FromConfig(fieldNode, path, optionsInSc: !isType);
+            var field = RecipeField.FromConfig(fieldNode, path, optionsInSc: !isType);
             if (FindField(fields, field.Key) is not null)
             {
                 throw new InvalidOperationException($"sc.xml 节点 {path}：字段名 {field.Key} 重复了");
@@ -261,7 +252,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         return fields;
     }
 
-    private static ProcessRecipeField? FindField(IEnumerable<ProcessRecipeField> fields, string key)
+    private static RecipeField? FindField(IEnumerable<RecipeField> fields, string key)
     {
         return fields.FirstOrDefault(field => string.Equals(field.Key, key, StringComparison.OrdinalIgnoreCase));
     }
@@ -366,7 +357,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 按腔体的几种 Type 查字段表里的下拉（见 <see cref="Bind"/>）；写了某种 Type 的选项、却没有腔体是这种 Type 的，记一条提醒。
     /// </summary>
-    private void CheckOptions(IReadOnlyList<ProcessRecipeField> fields, IReadOnlyList<ProcessRecipeField> headFields, IReadOnlyList<string> types)
+    private void CheckOptions(IReadOnlyList<RecipeField> fields, IReadOnlyList<RecipeField> headFields, IReadOnlyList<string> types)
     {
         foreach (var field in fields.Where(item => item.Type == ProcessRecipeFieldType.Choice))
         {
@@ -395,7 +386,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 一套下拉选项不能是空的，默认值（写了的话）要在里面。
     /// </summary>
-    private static void CheckChoice(ProcessRecipeField field, IReadOnlyList<string> options, string path, string what)
+    private static void CheckChoice(RecipeField field, IReadOnlyList<string> options, string path, string what)
     {
         if (options.Count == 0)
         {
@@ -421,7 +412,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// </summary>
     private static string SourceOf(string type)
     {
-        return type.Length == 0 ? ProcessRecipeField.SourceName : $"{ProcessRecipeField.SourceName}.{type}";
+        return type.Length == 0 ? RecipeField.SourceName : $"{RecipeField.SourceName}.{type}";
     }
 
     /// <summary>
@@ -614,7 +605,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     public IE30Callback? E30Callback { get; set; }
 
     /// <summary>全部工艺配方的名字，按编号。</summary>
-    public IReadOnlyList<string> ProcessRecipeNames
+    public IReadOnlyList<string> RecipeNames
     {
         get
         {
@@ -626,14 +617,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     }
 
     /// <summary>一个工艺配方转成 JSON（库里那份原样，每一步是字段名 → 值）；没有返回 null。</summary>
-    public string? ExportProcessRecipe(string name)
+    public string? GetRecipe(string name)
     {
         var found = Find(name);
         return found is null ? null : JsonHelper.Serialize(found);
     }
 
     /// <summary>JSON 看样子是不是工艺配方：每一步都带 values（字段名 → 值）。</summary>
-    public bool AcceptsProcessRecipe(string json)
+    public bool AcceptsRecipe(string json)
     {
         return JsonSteps.AllHave(json, "values");
     }
@@ -643,7 +634,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 名字、配方头、每一步的检查（按字段表、合计时长）跟本地新建、保存一样，JSON 里的编号、版本、建 / 改的人和时间不管。
     /// JSON 里没带超时时间、自己加的项的按默认值补（跟读老配方一样）；Type 不补，没带就不收。
     /// </summary>
-    public HandleResult ImportProcessRecipe(string name, string json, string operatorName)
+    public HandleResult ImportRecipe(string name, string json, string operatorName)
     {
         name = name.Trim();
         var body = ParseBody(json);
@@ -700,7 +691,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     }
 
     /// <summary>按名字删一个工艺配方（Host 删）。</summary>
-    public HandleResult DeleteProcessRecipe(string name, string operatorName)
+    public HandleResult DeleteRecipe(string name, string operatorName)
     {
         name = name.Trim();
         HandleResult result;
@@ -892,7 +883,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 字段表里有、这一步里没有的字段（字段表后来加的）按默认值补上；这一步里有、字段表里没有的（后来删了）先留着，保存时丢掉。
     /// </summary>
-    private static void FillDefaults(ProcessRecipeStep step, IReadOnlyList<ProcessRecipeField> fields)
+    private static void FillDefaults(ProcessRecipeStep step, IReadOnlyList<RecipeField> fields)
     {
         foreach (var field in fields)
         {
@@ -907,7 +898,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 配方头没写的项按默认值补：超时时间空着的补默认值（老配方里还没有这一项），自己加的项没有的补默认值（字段表后来加的）。
     /// Type 不在这儿补：要知道有哪几种腔体，Bind 时补。说明空着就是空着。
     /// </summary>
-    private static void FillHeadDefaults(ProcessRecipeData data, IReadOnlyList<ProcessRecipeField> headFields)
+    private static void FillHeadDefaults(ProcessRecipeData data, IReadOnlyList<RecipeField> headFields)
     {
         var timeout = FindField(headFields, ProcessRecipeHead.TimeoutKey);
         if (timeout is not null && data.Timeout.Trim().Length == 0)
@@ -921,7 +912,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 新加的一步：每个字段填默认值。
     /// </summary>
-    private static ProcessRecipeStep NewStep(IReadOnlyList<ProcessRecipeField> fields)
+    private static ProcessRecipeStep NewStep(IReadOnlyList<RecipeField> fields)
     {
         return new ProcessRecipeStep { Values = fields.Select(field => new ProcessRecipeValue(field.Key, field.Default)).ToList() };
     }
@@ -963,11 +954,6 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         if (name.Length > NameMaxLength)
         {
             return HandleResult.Fail(ErrorCodes.ProcessRecipeNameTooLong, Text(NameMaxLength));
-        }
-
-        if (!NameRule.IsMatch(name))
-        {
-            return HandleResult.Fail(ErrorCodes.ProcessRecipeNameInvalid, name);
         }
 
         foreach (var pair in _items)
@@ -1098,7 +1084,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 下拉的值要在配方这种 Type 的选项里；合计不超过配方头的超时时间（没填不限）。
     /// 字段之间不互相管。步号从 1 数，跟界面上一样；提示里的字段名按界面语言。
     /// </summary>
-    private static HandleResult? CheckSteps(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<ProcessRecipeField> fields,
+    private static HandleResult? CheckSteps(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<RecipeField> fields,
         string stationType, double timeoutSeconds, string? language)
     {
         if (steps.Count == 0)
@@ -1145,7 +1131,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 规整步骤（检查通过之后调）：只留字段表里的字段、按字段表的先后（空的也写，见 <see cref="ProcessRecipeStep"/>），
     /// 数字、开关换成统一写法，下拉换成这种 Type 选项里的写法（大小写跟 sc.xml 一样）。
     /// </summary>
-    private static List<ProcessRecipeStep> Normalize(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<ProcessRecipeField> fields, string stationType)
+    private static List<ProcessRecipeStep> Normalize(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<RecipeField> fields, string stationType)
     {
         var result = new List<ProcessRecipeStep>();
         foreach (var step in steps)

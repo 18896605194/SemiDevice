@@ -93,7 +93,7 @@ public class ProcessRecipeData
     /// </summary>
     public static double SecondsOf(ProcessRecipeStep step)
     {
-        return double.TryParse(step.Get(ProcessRecipeField.SecondsKey), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+        return double.TryParse(step.Get(RecipeField.SecondsKey), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
             CultureInfo.InvariantCulture, out double seconds) && seconds > 0
             ? seconds
             : 0;

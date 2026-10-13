@@ -127,7 +127,7 @@ try
 
     var libraryRoots = ComponentLoader.Load([Node("Sequence"), Node("ProcessRecipe")]);
     var sequences = libraryRoots.OfType<SequenceComponent>().Single();
-    var recipes = libraryRoots.OfType<ProcessRecipeComponent>().Single();
+    var recipes = libraryRoots.OfType<RecipeComponent>().Single();
     recipes.Bind(modules);
     ModuleConfig Module(string name)
     {

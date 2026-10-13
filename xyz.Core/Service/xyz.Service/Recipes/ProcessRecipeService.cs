@@ -10,7 +10,7 @@ using xyz.Tools;
 namespace xyz.Service.Recipes;
 
 /// <summary>
-/// 工艺配方 gRPC 服务（配方 → 工艺配方页；流程配方页、腔体手动页选工艺配方也用它的列表）：把工艺配方库（ProcessRecipeComponent）的结果翻成回包。
+/// 工艺配方 gRPC 服务（配方 → 工艺配方页；流程配方页、腔体手动页选工艺配方也用它的列表）：把工艺配方库（RecipeComponent）的结果翻成回包。
 /// 检查都在库里做（编号、名称、版本、步骤），这里只管取库、转 DTO、带上操作人。字段表（每一步有哪些字段）也从库里取，界面按它生成步骤表。
 /// </summary>
 public class ProcessRecipeService : BaseService, IProcessRecipeService
@@ -26,7 +26,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         if (library is null)
         {
             return NotInstalled();
@@ -48,13 +48,13 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
     public Task<RpcResponse> GetAsync(ProcessRecipeIndexRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         return library is null ? NotInstalled() : Reply(library.Get(request.Index));
     }
 
     public Task<RpcResponse> GetOptionsAsync(RpcRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         if (library is null)
         {
             return NotInstalled();
@@ -71,25 +71,25 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
     public Task<RpcResponse> CreateAsync(ProcessRecipeCreateRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> RenameAsync(ProcessRecipeRenameRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> DeleteAsync(ProcessRecipeDeleteRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Delete(request.Index, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> SaveAsync(ProcessRecipeSaveRequest request, CallContext context = default)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         if (library is null)
         {
             return NotInstalled();
@@ -159,7 +159,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// <summary>
     /// 步骤的一个字段给界面：下拉带上 sc.xml 里按站点 Type 分开写的选项。
     /// </summary>
-    private static ProcessRecipeFieldDto ToDto(ProcessRecipeField field)
+    private static ProcessRecipeFieldDto ToDto(RecipeField field)
     {
         var dto = ToFieldDto(field);
         dto.OptionsByType = field.OptionsByType.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
@@ -170,7 +170,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// 配方头的一项给界面：程序算的标出来；Type 的选项是腔体配的几种 Type，自己加的下拉是 sc.xml 里写的那一套。
     /// Type 必不必填看腔体：有腔体没配 Type（空着也是一种），Type 就能空着，跟后端保存时一样。
     /// </summary>
-    private static ProcessRecipeFieldDto ToHeadDto(ProcessRecipeField field, IReadOnlyList<string> stationTypes)
+    private static ProcessRecipeFieldDto ToHeadDto(RecipeField field, IReadOnlyList<string> stationTypes)
     {
         bool isType = string.Equals(field.Key, ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
         var dto = ToFieldDto(field);
@@ -184,7 +184,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         return dto;
     }
 
-    private static ProcessRecipeFieldDto ToFieldDto(ProcessRecipeField field)
+    private static ProcessRecipeFieldDto ToFieldDto(RecipeField field)
     {
         return new ProcessRecipeFieldDto
         {

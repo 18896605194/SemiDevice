@@ -375,7 +375,7 @@
 	     摆臂、药液写的就是那种腔体里摆臂的节点名、喷嘴的 Chemical，用到具体腔体时由腔体照名字核对。
 	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长不能超过配方头的超时时间。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
 	     喷嘴喷的东西（DIW、SC1、N2、背面冲洗……）都是在药液里选、流量填在流量里，不单独加字段 -->
-	<Setting Name="ProcessRecipe" Type="xyz.Modules.ProcessRecipeComponent">
+	<Setting Name="ProcessRecipe" Type="xyz.Modules.RecipeComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Process" />
 		<Value Name="NameMaxLength" Value="32" />

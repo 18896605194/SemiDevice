@@ -70,7 +70,7 @@ public class ChamberService : BaseService, IChamberService
 
         // 配方要在工艺配方库里：被删了、改名了的配方不让起（没装库只有名字，腔体会回拿不到配方步骤）；
         // 起工艺带的是这一刻的配方快照，跑的过程中库里改了也不影响这一次
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         ProcessRecipeData? snapshot = null;
         if (library is not null)
         {

@@ -74,7 +74,7 @@ public class TaskComponent : ComponentBase
     /// </summary>
     private static HandleResult? BuildRoute(SequenceData sequence, List<WaferTask> route)
     {
-        var library = ProcessRecipeComponent.Current;
+        var library = RecipeComponent.Current;
         for (int index = 1; index < sequence.Steps.Count - 1; index++)
         {
             var step = sequence.Steps[index];

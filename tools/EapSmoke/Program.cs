@@ -1532,17 +1532,17 @@ sealed class FakeSequences() : FakeRecipes("group"), ISequenceComponent
     }
 }
 
-sealed class FakeProcessRecipes() : FakeRecipes("values"), IProcessRecipeComponent
+sealed class FakeProcessRecipes() : FakeRecipes("values"), IRecipeComponent
 {
-    public IReadOnlyList<string> ProcessRecipeNames => RecipeNames;
+    public IReadOnlyList<string> RecipeNames => base.RecipeNames;
 
-    public string? ExportProcessRecipe(string name) => ExportRecipe(name);
+    public string? GetRecipe(string name) => ExportRecipe(name);
 
-    public bool AcceptsProcessRecipe(string json) => AcceptsRecipe(json);
+    public bool AcceptsRecipe(string json) => base.AcceptsRecipe(json);
 
-    public HandleResult ImportProcessRecipe(string name, string json, string operatorName) => ImportRecipe(name, json, operatorName);
+    public HandleResult ImportRecipe(string name, string json, string operatorName) => base.ImportRecipe(name, json, operatorName);
 
-    public HandleResult DeleteProcessRecipe(string name, string operatorName) => DeleteRecipe(name, operatorName);
+    public HandleResult DeleteRecipe(string name, string operatorName) => base.DeleteRecipe(name, operatorName);
 
     protected override void Notify(string name, ChangeKind change)
     {

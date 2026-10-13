@@ -12,7 +12,7 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// 配方管理（SEMI E30 工艺程序管理，sc.xml 的 Eap 下的 Recipe 节点）：Host 的 S7 翻成流程配方库（ISequenceComponent）、
-/// 工艺配方库（IProcessRecipeComponent）各自的命令（跟本地两个配方页同一套检查），两个库报上来的"变了"翻成事件。
+/// 工艺配方库（IRecipeComponent）各自的命令（跟本地两个配方页同一套检查），两个库报上来的"变了"翻成事件。
 /// 流程配方、工艺配方各在自己的库里，这里分开处理、不混在一起：Host 那边的配方号（PPID）就是名字，先看流程配方库有没有，再看工艺配方库
 /// （两个库的名字不会重）；Host 下一个两个库都还没有的名字，看 JSON 的样子由库自己认（流程配方每一步是分组 + 站点，工艺配方每一步是字段名 → 值）。
 /// 内容（PPBODY）是 JSON，发出去用 B（UTF-8），收的时候 A、B 都认。
@@ -59,7 +59,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
 
     private E30Component? _gem;
     private ISequenceComponent? _sequences;
-    private IProcessRecipeComponent? _processRecipes;
+    private IRecipeComponent? _processRecipes;
 
     /// <summary>当前配方管理组件；Eap 下没配 Recipe 节点时为 null（本地配方页就不会被锁）。</summary>
     public static E30RecipeComponent? Current { get; set; }
@@ -79,7 +79,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
     #region 接设备
 
     /// <summary>接到链路和两个配方库上（EAP 组件在链路打开之前调）：挂两个库的上报口，登记 S7 报文。库没装的那个不接。</summary>
-    public void Attach(HsmsComponent link, E30Component gem, ISequenceComponent? sequences, IProcessRecipeComponent? processRecipes)
+    public void Attach(HsmsComponent link, E30Component gem, ISequenceComponent? sequences, IRecipeComponent? processRecipes)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -183,10 +183,10 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
             what = "流程配方";
             result = sequences.ImportSequence(name, json, HostOperator);
         }
-        else if (processRecipes is not null && (HasProcessRecipe(name) || processRecipes.AcceptsProcessRecipe(json)))
+        else if (processRecipes is not null && (HasProcessRecipe(name) || processRecipes.AcceptsRecipe(json)))
         {
             what = "工艺配方";
-            result = processRecipes.ImportProcessRecipe(name, json, HostOperator);
+            result = processRecipes.ImportRecipe(name, json, HostOperator);
         }
         else
         {
@@ -208,7 +208,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
     private SecsReply RequestProgram(HsmsMessage message)
     {
         string name = SecsRead.Text(SecsRead.Body(message), "PPID").Trim();
-        string? json = HasSequence(name) ? _sequences?.GetSequenceData(name) : _processRecipes?.ExportProcessRecipe(name);
+        string? json = HasSequence(name) ? _sequences?.GetSequenceData(name) : _processRecipes?.GetRecipe(name);
         if (json is null)
         {
             return SecsReply.Of(SecsItem.L());
@@ -248,7 +248,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
         foreach (string name in names)
         {
             bool isSequence = HasSequence(name);
-            var result = isSequence ? _sequences!.DeleteSequence(name, HostOperator) : _processRecipes!.DeleteProcessRecipe(name, HostOperator);
+            var result = isSequence ? _sequences!.DeleteSequence(name, HostOperator) : _processRecipes!.DeleteRecipe(name, HostOperator);
             if (!result.IsSuccess)
             {
                 LogHelper.Warn(Name, $"Host 删{(isSequence ? "流程配方" : "工艺配方")} {name} 没删掉：{result.ErrorMessage} [{string.Join(", ", result.Args)}]");
@@ -283,7 +283,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
 
     private IReadOnlyList<string> ProcessRecipeNames()
     {
-        return _processRecipes?.ProcessRecipeNames ?? [];
+        return _processRecipes?.RecipeNames ?? [];
     }
 
     /// <summary>流程配方库里有没有这个名字（不分大小写）。</summary>
