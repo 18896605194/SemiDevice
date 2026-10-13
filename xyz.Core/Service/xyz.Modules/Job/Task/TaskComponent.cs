@@ -149,8 +149,7 @@ public class TaskComponent : ComponentBase
             return false;
         }
 
-        var library = ProcessRecipeComponent.Current;
-        return recipe is null || library is null || module is not IProcessStation || library.FindMismatch(recipe, name) is null;
+        return recipe is null || module is not IProcessStation process || process.FindRecipeMismatch(recipe) is null;
     }
 
     /// <summary>这个站点支持这个任务；不支持回原因（流程配方名、第几步、站点、任务）。</summary>

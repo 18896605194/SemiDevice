@@ -7,7 +7,7 @@ using xyz.Shared.Errors;
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 工艺步骤表的一列（后端字段表里的一个字段，来自 sc.xml）：列名、类型、范围、默认值、下拉的选项都按它来，界面不写死字段。
+/// 工艺步骤表的一列、配方头的一项（后端字段表里的一个字段，来自 sc.xml）：名字、类型、范围、默认值、下拉的选项都按它来，界面不写死字段。
 /// 一格怎么查也在这里，跟后端保存时的检查一样，提示文字用同一套错误码。
 /// </summary>
 public sealed class ProcessRecipeFieldModel
@@ -52,7 +52,7 @@ public sealed class ProcessRecipeFieldModel
     /// </summary>
     private const string LimitFormat = "0.##########";
 
-    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _optionsByParent;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _optionsByType;
 
     public ProcessRecipeFieldModel(ProcessRecipeFieldDto dto, string language)
     {
@@ -66,9 +66,9 @@ public sealed class ProcessRecipeFieldModel
         Decimals = dto.Decimals;
         Default = dto.Default ?? string.Empty;
         Required = dto.Required;
-        ParentKey = dto.ParentKey ?? string.Empty;
+        IsAuto = dto.IsAuto;
         Options = dto.Options ?? [];
-        _optionsByParent = (dto.OptionsByParent ?? []).ToDictionary(
+        _optionsByType = (dto.OptionsByType ?? []).ToDictionary(
             pair => pair.Key, pair => (IReadOnlyList<string>)(pair.Value ?? []), StringComparer.OrdinalIgnoreCase);
         Header = Unit.Length == 0 ? Text : $"{Text} {Unit}";
         Width = Type switch
@@ -120,14 +120,27 @@ public sealed class ProcessRecipeFieldModel
     public bool Required { get; }
 
     /// <summary>
-    /// 选项跟着哪个字段走；空 = 不跟。
+    /// 配方头里程序算的那几项：只显示、不能改。
     /// </summary>
-    public string ParentKey { get; }
+    public bool IsAuto { get; }
 
     /// <summary>
-    /// 不跟别的字段走时的选项。
+    /// 配方头下拉的选项（Type 那一项是腔体配的几种 Type）。
     /// </summary>
     public IReadOnlyList<string> Options { get; }
+
+    /// <summary>
+    /// 下拉能选的：步骤的按配方头选的 Type 取那一套（sc.xml 里按站点 Type 分开写的）；配方头的就是 <see cref="Options"/>。
+    /// </summary>
+    public IReadOnlyList<string> OptionsFor(string stationType)
+    {
+        if (_optionsByType.Count == 0)
+        {
+            return Options;
+        }
+
+        return _optionsByType.TryGetValue(stationType.Trim(), out var options) ? options : [];
+    }
 
     /// <summary>
     /// 这一列多宽（表头和每一格一样宽）。
@@ -154,28 +167,15 @@ public sealed class ProcessRecipeFieldModel
     public bool IsBool => Type == ProcessRecipeFieldType.Bool;
 
     /// <summary>
-    /// 这一步能选的：跟着别的字段走时按那个字段的值取，那个字段没选就什么都没有。
+    /// 查一格（跟后端保存时一样）：必填的不能空；整数、小数的写法、小数位、上下限；开关只认 true / false；下拉的值要在 options 里。
+    /// stepNumber 是步骤格子的步号；配方头的项传 null，提示用配方头那一组。没问题返回 null，有问题返回提示文字（步号、名字开头）。
     /// </summary>
-    public IReadOnlyList<string> OptionsFor(string parentValue)
-    {
-        if (ParentKey.Length == 0)
-        {
-            return Options;
-        }
-
-        return _optionsByParent.TryGetValue(parentValue.Trim(), out var list) ? list : [];
-    }
-
-    /// <summary>
-    /// 查一格（跟后端保存时一样）：必填的不能空；整数、小数的写法、小数位、上下限；开关只认 true / false；下拉的值要在能选的里面。
-    /// 没问题返回 null，有问题返回提示文字（步号、列名开头）。
-    /// </summary>
-    public string? Problem(string value, string number, IReadOnlyList<string> options)
+    public string? Problem(string value, string? stepNumber, IReadOnlyList<string> options)
     {
         string trimmed = value.Trim();
         if (trimmed.Length == 0)
         {
-            return Required ? L10n.Get(ErrorCodes.ProcessRecipeValueRequired, number, Text) : null;
+            return Required ? Message(stepNumber, ErrorCodes.ProcessRecipeValueRequired, ErrorCodes.ProcessRecipeHeadValueRequired) : null;
         }
 
         switch (Type)
@@ -183,49 +183,64 @@ public sealed class ProcessRecipeFieldModel
             case ProcessRecipeFieldType.Bool:
                 bool isBool = string.Equals(trimmed, TrueText, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(trimmed, FalseText, StringComparison.OrdinalIgnoreCase);
-                return isBool ? null : L10n.Get(ErrorCodes.ProcessRecipeValueNotInOptions, number, Text, trimmed);
+                return isBool
+                    ? null
+                    : Message(stepNumber, ErrorCodes.ProcessRecipeValueNotInOptions, ErrorCodes.ProcessRecipeHeadValueNotInOptions, trimmed);
             case ProcessRecipeFieldType.Choice:
                 return options.Contains(trimmed, StringComparer.OrdinalIgnoreCase)
                     ? null
-                    : L10n.Get(ErrorCodes.ProcessRecipeValueNotInOptions, number, Text, trimmed);
+                    : Message(stepNumber, ErrorCodes.ProcessRecipeValueNotInOptions, ErrorCodes.ProcessRecipeHeadValueNotInOptions, trimmed);
             case ProcessRecipeFieldType.Int:
                 return long.TryParse(trimmed, IntegerStyle, CultureInfo.InvariantCulture, out long integer)
-                    ? RangeProblem(integer, number)
-                    : L10n.Get(ErrorCodes.ProcessRecipeValueNotInteger, number, Text, trimmed);
+                    ? RangeProblem(integer, stepNumber)
+                    : Message(stepNumber, ErrorCodes.ProcessRecipeValueNotInteger, ErrorCodes.ProcessRecipeHeadValueNotInteger, trimmed);
             case ProcessRecipeFieldType.Double:
                 if (!decimal.TryParse(trimmed, DecimalStyle, CultureInfo.InvariantCulture, out decimal parsed))
                 {
-                    return L10n.Get(ErrorCodes.ProcessRecipeValueNotNumber, number, Text, trimmed);
+                    return Message(stepNumber, ErrorCodes.ProcessRecipeValueNotNumber, ErrorCodes.ProcessRecipeHeadValueNotNumber, trimmed);
                 }
 
                 int? decimals = Decimals;
                 if (decimals is not null && DecimalPlaces(trimmed) > decimals.Value)
                 {
-                    return L10n.Get(ErrorCodes.ProcessRecipeValueTooPrecise, number, Text, decimals.Value.ToString(CultureInfo.InvariantCulture));
+                    return Message(stepNumber, ErrorCodes.ProcessRecipeValueTooPrecise, ErrorCodes.ProcessRecipeHeadValueTooPrecise,
+                        decimals.Value.ToString(CultureInfo.InvariantCulture));
                 }
 
-                return RangeProblem((double)parsed, number);
+                return RangeProblem((double)parsed, stepNumber);
             default:
                 return null;
         }
     }
 
-    private string? RangeProblem(double value, string number)
+    private string? RangeProblem(double value, string? stepNumber)
     {
         string unit = Unit.Length == 0 ? string.Empty : " " + Unit;
         double? min = Min;
         if (min is not null && value < min.Value)
         {
-            return L10n.Get(ErrorCodes.ProcessRecipeValueBelowMin, number, Text, min.Value.ToString(LimitFormat, CultureInfo.InvariantCulture), unit);
+            return Message(stepNumber, ErrorCodes.ProcessRecipeValueBelowMin, ErrorCodes.ProcessRecipeHeadValueBelowMin,
+                min.Value.ToString(LimitFormat, CultureInfo.InvariantCulture), unit);
         }
 
         double? max = Max;
         if (max is not null && value > max.Value)
         {
-            return L10n.Get(ErrorCodes.ProcessRecipeValueAboveMax, number, Text, max.Value.ToString(LimitFormat, CultureInfo.InvariantCulture), unit);
+            return Message(stepNumber, ErrorCodes.ProcessRecipeValueAboveMax, ErrorCodes.ProcessRecipeHeadValueAboveMax,
+                max.Value.ToString(LimitFormat, CultureInfo.InvariantCulture), unit);
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 按语言包出提示：步骤的格子用步骤那一组（步号、名字开头），配方头的项（stepNumber 为 null）用配方头那一组（名字开头）。
+    /// </summary>
+    private string Message(string? stepNumber, string stepCode, string headCode, params string[] args)
+    {
+        return stepNumber is null
+            ? L10n.Get(headCode, [Text, .. args])
+            : L10n.Get(stepCode, [stepNumber, Text, .. args]);
     }
 
     /// <summary>

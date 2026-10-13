@@ -584,9 +584,14 @@ port.E87Callback = null;
 
     // Pick 成功：片从花篮槽位挪到手指上
     robot.Next = new ProbeOperation();
+    var beforePick = robot.CreateStateDto();
+    Check(!beforePick.Arms[0].IsExtended, "没在取放时手指是缩着的");
     Check(robot.Pick(1, "SmokeLP", 3).Result == robot.Next, "Idle 状态应能发起 Pick");
+    var picking = robot.CreateStateDto();
+    Check(picking.Arms[0].IsExtended && picking.HasStateChanged(beforePick), "发出取片指令：Arm1 伸出，推送算变化（界面画伸出）");
     robot.Next!.Succeed();
     robot.Tick();
+    Check(!robot.CreateStateDto().Arms[0].IsExtended, "取片做完：Arm1 缩回");
     Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
     Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id,
         "Pick 成功后片应在手指上，且还是同一片");
@@ -625,6 +630,7 @@ port.E87Callback = null;
     robot.Pick(1, "SmokeLP", 5);
     robot.Next!.Reject();
     robot.Tick();
+    Check(!robot.CreateStateDto().Arms[0].IsExtended, "取片失败也缩回：指令做完了，手不该一直画成伸着");
     Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id, "Pick 失败不该把片从账上挪走");
     Check(robotLedger.Get(robot.Name, 1) is null, "Pick 失败不该把片记到手指上");
 

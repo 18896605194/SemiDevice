@@ -55,7 +55,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
 
     private readonly BaseChamberModule _chamber;
     private readonly string _recipeName;
-    private readonly IReadOnlyList<ProcessRecipeStep>? _steps;
+    private readonly IReadOnlyList<ProcessRecipeStep> _steps;
 
     private Phase _phase;
     private int _index;
@@ -85,12 +85,15 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     /// <summary>Scan 到点时已经在半路发了停轴。</summary>
     private bool _scanStopped;
 
-    public ChamberProcessOperation(BaseChamberModule chamber, ProcessRequest request, int timeout)
-        : base($"{chamber.Name} Process {request.RecipeName}", chamber.Name, timeout)
+    /// <summary>
+    /// 按配方快照做工艺，整个动作的上限是配方头的超时时间。
+    /// </summary>
+    public ChamberProcessOperation(BaseChamberModule chamber, string recipeName, ProcessRecipeData recipe)
+        : base($"{chamber.Name} Process {recipeName}", chamber.Name, recipe.TimeoutMilliseconds)
     {
         _chamber = chamber;
-        _recipeName = request.RecipeName.Trim();
-        _steps = request.Recipe?.Steps;
+        _recipeName = recipeName.Trim();
+        _steps = recipe.Steps;
     }
 
     /// <summary>Scan 扫到一半到点了：当场停轴，停下来就进下一步（不等这一趟走完）。</summary>
@@ -112,11 +115,6 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     protected override void Advance()
     {
         var steps = _steps;
-        if (steps is null)
-        {
-            Fail(ErrorCodes.ChamberRecipeStepsMissing, $"{Name}：没有配方步骤（没装工艺配方库）", _chamber.Name, _recipeName);
-            return;
-        }
 
         switch (_phase)
         {
@@ -229,26 +227,10 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         _position = Number(step, PositionKey);
         _scanTo = Number(step, ScanToKey);
         _scanSpeed = Number(step, ScanSpeedKey);
-        _arm = null;
-        _nozzle = null;
-        string arm = step.Get(ArmKey).Trim();
-        string chemical = step.Get(ChemicalKey).Trim();
-        if (arm.Length > 0)
+        var missing = FindDevices(_chamber, step, out _arm, out _nozzle);
+        if (missing is not null)
         {
-            _arm = _chamber.FindArm(arm);
-            if (_arm is null)
-            {
-                return Mismatch(ArmKey, arm);
-            }
-
-            if (chemical.Length > 0)
-            {
-                _nozzle = _arm.FindNozzle(chemical);
-                if (_nozzle is null)
-                {
-                    return Mismatch(ChemicalKey, chemical);
-                }
-            }
+            return Mismatch(missing.Value.Key, missing.Value.Value);
         }
 
         // 来回扫要有两头；没填"到"就当 Time 停在位置上喷
@@ -258,6 +240,36 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
             && string.Equals(step.Get(ModeKey).Trim(), ScanMode, StringComparison.OrdinalIgnoreCase);
         _scanStopped = false;
         return true;
+    }
+
+    /// <summary>
+    /// 这一步选的摆臂、药液照名字在腔体里找：没选摆臂 arm 为 null（这一步不喷）；选了的找不到，回是哪个字段（字段名）、什么值。
+    /// 执行时按它认设备；起工艺前、流程配方保存、Job 挑腔体也按它把每一步先查一遍（<see cref="BaseChamberModule.FindRecipeMismatch"/>）。
+    /// </summary>
+    internal static (string Key, string Value)? FindDevices(BaseChamberModule chamber, ProcessRecipeStep step, out ISwingArm? arm, out INozzle? nozzle)
+    {
+        arm = null;
+        nozzle = null;
+        string armName = step.Get(ArmKey).Trim();
+        if (armName.Length == 0)
+        {
+            return null;
+        }
+
+        arm = chamber.FindArm(armName);
+        if (arm is null)
+        {
+            return (ArmKey, armName);
+        }
+
+        string chemical = step.Get(ChemicalKey).Trim();
+        if (chemical.Length == 0)
+        {
+            return null;
+        }
+
+        nozzle = arm.FindNozzle(chemical);
+        return nozzle is null ? (ChemicalKey, chemical) : null;
     }
 
     private bool Mismatch(string field, string value)

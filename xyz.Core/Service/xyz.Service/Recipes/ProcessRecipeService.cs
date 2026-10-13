@@ -60,10 +60,11 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return NotInstalled();
         }
 
+        var stationTypes = library.StationTypes;
         var dto = new ProcessRecipeOptionsDto
         {
-            Fields = library.Fields.Select(field => ToDto(field, library.ChoicesOf(field))).ToList(),
-            MaxTotalSeconds = library.MaxTotalSeconds,
+            HeadFields = library.HeadFields.Select(field => ToHeadDto(field, stationTypes)).ToList(),
+            Fields = library.Fields.Select(ToDto).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
@@ -95,11 +96,23 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         }
 
         // protobuf 收到的空列表、空字符串可能是 null，进库之前都换成空的
-        var steps = (request.Steps ?? []).Select(step => new ProcessRecipeStep
+        var content = new ProcessRecipeData
         {
-            Values = (step.Values ?? []).Select(pair => new ProcessRecipeValue(pair.Key, pair.Value ?? string.Empty)).ToList(),
-        }).ToList();
-        return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
+            Type = request.Type ?? string.Empty,
+            Timeout = request.Timeout ?? string.Empty,
+            Description = request.Description ?? string.Empty,
+            Head = ToValues(request.Head),
+            Steps = (request.Steps ?? []).Select(step => ToValues(step.Values)).ToList(),
+        };
+        return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, content, OperatorOf(request.Operator)));
+    }
+
+    private static ProcessRecipeStep ToValues(Dictionary<string, string>? values)
+    {
+        return new ProcessRecipeStep
+        {
+            Values = (values ?? []).Select(pair => new ProcessRecipeValue(pair.Key, pair.Value ?? string.Empty)).ToList(),
+        };
     }
 
     private static Task<RpcResponse> Reply(ProcessRecipeResult result)
@@ -119,7 +132,10 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         {
             Index = data.Index,
             Name = data.Name,
+            Type = data.Type,
+            Timeout = data.Timeout,
             Description = data.Description,
+            Head = ToDto(data.Head).Values,
             CreatedBy = data.CreatedBy,
             CreatedAt = data.CreatedAt,
             ModifiedBy = data.ModifiedBy,
@@ -141,9 +157,34 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     }
 
     /// <summary>
-    /// 一个字段给界面：下拉带上取好的选项（跟着别的字段走的按那个字段的值分开给）。
+    /// 步骤的一个字段给界面：下拉带上 sc.xml 里按站点 Type 分开写的选项。
     /// </summary>
-    private static ProcessRecipeFieldDto ToDto(ProcessRecipeField field, ProcessRecipeChoices choices)
+    private static ProcessRecipeFieldDto ToDto(ProcessRecipeField field)
+    {
+        var dto = ToFieldDto(field);
+        dto.OptionsByType = field.OptionsByType.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
+        return dto;
+    }
+
+    /// <summary>
+    /// 配方头的一项给界面：程序算的标出来；Type 的选项是腔体配的几种 Type，自己加的下拉是 sc.xml 里写的那一套。
+    /// Type 必不必填看腔体：有腔体没配 Type（空着也是一种），Type 就能空着，跟后端保存时一样。
+    /// </summary>
+    private static ProcessRecipeFieldDto ToHeadDto(ProcessRecipeField field, IReadOnlyList<string> stationTypes)
+    {
+        bool isType = string.Equals(field.Key, ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
+        var dto = ToFieldDto(field);
+        dto.IsAuto = ProcessRecipeHead.IsAuto(field.Key);
+        dto.Options = (isType ? stationTypes : field.OptionsFor(string.Empty)).ToList();
+        if (isType)
+        {
+            dto.Required = !stationTypes.Contains(string.Empty);
+        }
+
+        return dto;
+    }
+
+    private static ProcessRecipeFieldDto ToFieldDto(ProcessRecipeField field)
     {
         return new ProcessRecipeFieldDto
         {
@@ -157,9 +198,6 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Decimals = field.Decimals,
             Default = field.Default,
             Required = field.Required,
-            ParentKey = field.Source?.ParentKey ?? string.Empty,
-            Options = choices.Values.ToList(),
-            OptionsByParent = choices.ByParent.ToDictionary(pair => pair.Key, pair => pair.Value.ToList()),
         };
     }
 

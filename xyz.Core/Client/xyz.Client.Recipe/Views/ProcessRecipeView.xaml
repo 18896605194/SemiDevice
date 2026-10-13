@@ -17,7 +17,7 @@
     </UserControl.InputBindings>
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <!--  左边工艺配方列表（编号 1~N，个数由后端给），右边两块：基本信息、工艺步骤。每块带标题条，按钮放在各自的标题条上  -->
+        <!--  左边工艺配方列表（编号 1~N，个数由后端给），右边两块：配方头、工艺步骤。每块带标题条，按钮放在各自的标题条上  -->
         <Grid
             Margin="8"
             Style="{DynamicResource ShowWhenTagTrueStyle}"
@@ -119,7 +119,9 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!--  基本信息：编号、名称（改名走列表的重命名）、创建 / 修改记录、版本只读，说明可改（跟步骤一起，用工艺步骤标题条上的"保存"存）  -->
+                <!--  配方头：按后端的配方头字段表（sc.xml ProcessRecipe → Head）一项一项摆，左边名字、右边值，一行排几项（文本项三项宽）。
+                      程序算的（编号、名称、创建 / 修改记录、版本）只显示；能填的（Type、超时时间、说明、自己加的项）跟步骤的格子一样是输入框、下拉框、勾选框，
+                      跟步骤一起用工艺步骤标题条上的"保存"存。改名走列表的重命名。Type 换了，下面步骤里的下拉跟着换成那一套选项  -->
                 <Border Grid.Row="0" Style="{DynamicResource ZoneBorderStyle}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
@@ -130,58 +132,65 @@
                         </Border>
 
                         <Grid>
-                            <StackPanel
-                                Margin="14,12,14,14"
+                            <ItemsControl
+                                Margin="14,10,14,12"
+                                ItemsSource="{Binding HeadItems}"
                                 Style="{DynamicResource ShowWhenTagTrueStyle}"
                                 Tag="{Binding HasRecipe}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="80" />
-                                        <ColumnDefinition Width="1.6*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="1.4*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="1.4*" />
-                                        <ColumnDefinition Width="80" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.index}" />
-                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding IndexText}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.name}" />
-                                        <TextBlock
-                                            FontWeight="SemiBold"
-                                            Style="{DynamicResource MetaValueTextStyle}"
-                                            Text="{Binding NameText}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.created_by}" />
-                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding CreatedBy}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="3">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.created_at}" />
-                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding CreatedAtText}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="4">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.modified_by}" />
-                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding ModifiedBy}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="5">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.modified_at}" />
-                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding ModifiedAtText}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="6">
-                                        <TextBlock Style="{DynamicResource MetaLabelTextStyle}" Text="{DynamicResource recipe.process.revision}" />
-                                        <TextBlock Style="{DynamicResource MetaValueTextStyle}" Text="{Binding RevisionText}" />
-                                    </StackPanel>
-                                </Grid>
-                                <controls:InputTextBox
-                                    Margin="0,14,0,0"
-                                    materialDesign:HintAssist.Hint="{DynamicResource recipe.process.description}"
-                                    DataType="Text"
-                                    Value="{Binding Description}" />
-                            </StackPanel>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel
+                                            Width="{Binding Width}"
+                                            Margin="0,4"
+                                            Orientation="Horizontal">
+                                            <TextBlock
+                                                Width="{Binding LabelColumnWidth}"
+                                                VerticalAlignment="Center"
+                                                Style="{DynamicResource MetaLabelTextStyle}"
+                                                Text="{Binding Field.Header}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <!--  值：程序算的是文字；能填的按类型三选一，跟步骤的格子一样  -->
+                                            <Grid Width="{Binding ControlWidth}">
+                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsAuto}">
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        Style="{DynamicResource MetaValueTextStyle}"
+                                                        Text="{Binding AutoText}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                </Border>
+                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsInput}">
+                                                    <controls:InputTextBox
+                                                        materialDesign:ValidationAssist.UsePopup="True"
+                                                        DataType="{Binding Cell.Field.DataType}"
+                                                        HasError="{Binding Cell.HasInputError, Mode=OneWayToSource}"
+                                                        Maximum="{Binding Cell.Field.Max}"
+                                                        Minimum="{Binding Cell.Field.Min}"
+                                                        Style="{DynamicResource ToolbarTextBoxStyle}"
+                                                        Unit="{Binding Cell.Field.Unit}"
+                                                        Value="{Binding Cell.Value}" />
+                                                </Border>
+                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsChoice}">
+                                                    <ComboBox
+                                                        DisplayMemberPath="Text"
+                                                        ItemsSource="{Binding Cell.Choices}"
+                                                        SelectedValue="{Binding Cell.Value}"
+                                                        SelectedValuePath="Value"
+                                                        Style="{DynamicResource StepComboBoxStyle}"
+                                                        Tag="{Binding Cell.HasError}" />
+                                                </Border>
+                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsBool}">
+                                                    <CheckBox VerticalAlignment="Center" IsChecked="{Binding Cell.IsChecked}" />
+                                                </Border>
+                                            </Grid>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
                             <!--  选中空编号  -->
                             <TextBlock
@@ -195,9 +204,9 @@
                 </Border>
 
                 <!--  工艺步骤：步号就是普通数字。每一步有哪些列按后端的字段表（sc.xml ProcessRecipe → Fields）生成，不写死：
-                      整数、小数、文本是输入框，下拉是下拉框（选项按数据源取，跟着别的字段走的比如药液跟着摆臂），开关是勾选框。
+                      整数、小数、文本是输入框，下拉是下拉框（选项按配方头选的 Type 取那一套），开关是勾选框。
                       点一行（或点进这一行的输入框、下拉框）选中：添加插在它后面，删除删它。
-                      标题条最右：[合计] [有没保存的修改] [添加] [删除] [保存]——保存存的是整个工艺配方（说明 + 全部步骤）  -->
+                      标题条最右：[合计] [有没保存的修改] [添加] [删除] [保存]——保存存的是整个工艺配方（配方头能填的项 + 全部步骤）  -->
                 <Border Grid.Row="2" Style="{DynamicResource ZoneBorderStyle}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">

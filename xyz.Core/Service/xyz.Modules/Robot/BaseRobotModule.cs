@@ -471,11 +471,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 当前状态快照，状态发布与 GetState 查询共用。
     /// 未连接或停用时查询反馈（伺服使能、设备报错、速度）不可信，置 null；手指在位保留最后一次推送值；
     /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
+    /// 手指伸出 = 这一趟取放还没做完（发出指令时记下、做完清掉）的那只手；
     /// 站点表（含各站点槽数、允许的手指）与轴坐标（sc.xml 轴节点整表）下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
         var station = _currentStation;
+        var intent = _transferIntent;
         var dto = new RobotDto
         {
             Name = Name,
@@ -500,7 +502,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 })
                 .ToList(),
             Arms = Arms
-                .Select(arm => new RobotArmDto { Arm = arm.Number, HasWafer = arm.HasWafer ?? false })
+                .Select(arm => new RobotArmDto
+                {
+                    Arm = arm.Number,
+                    HasWafer = arm.HasWafer ?? false,
+                    IsExtended = intent is not null && intent.Arm == arm.Number,
+                })
                 .ToList(),
             LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
         };
@@ -808,7 +815,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 挂上取 / 放片，同时记下去了哪个站点（推给界面画机械手朝向）和这一趟的意图（做完按它记账）。
+    /// 挂上取 / 放片，同时记下去了哪个站点（推给界面画机械手朝向）和这一趟的意图（做完按它记账；没做完时界面画这只手伸出）。
     /// 挂操作和记意图在同一把锁里：否则扫描线程可能在意图记上之前就把操作终结了，这一趟就不记账。
     /// </summary>
     private HandleResult<ModuleOperation> StartTransfer(RobotAction action, int arm, string station, int slot)

@@ -68,7 +68,7 @@ public class ChamberService : BaseService, IChamberService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeRequired, [module]));
         }
 
-        // 配方要在工艺配方库里（没装库就不查、只认名字）：被删了、改名了的配方不让起；
+        // 配方要在工艺配方库里：被删了、改名了的配方不让起（没装库只有名字，腔体会回拿不到配方步骤）；
         // 起工艺带的是这一刻的配方快照，跑的过程中库里改了也不影响这一次
         var library = ProcessRecipeComponent.Current;
         ProcessRecipeData? snapshot = null;
@@ -89,7 +89,7 @@ public class ChamberService : BaseService, IChamberService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberWaferOwned, [module, wafer.WaferId, owner]));
         }
 
-        // 配方对不对得上这个腔体（摆臂、药液这类从腔体设备取的下拉）、腔体此刻能不能起，都由腔体自己查
+        // 配方对不对得上这个腔体（Type、选的摆臂和药液）、腔体此刻能不能起，都由腔体自己查
         var process = new ProcessRequest { Origin = ProcessOrigin.Manual, RecipeName = recipe, Recipe = snapshot };
         var rejection = chamber.CheckProcess(process);
         if (rejection is not null)
@@ -97,7 +97,9 @@ public class ChamberService : BaseService, IChamberService
             return Task.FromResult(RpcResponse.Fail(rejection.Code, rejection.Args));
         }
 
-        return RunOperation(module, chamber, chamber.StartProcess(process), chamber.ProcessTimeout);
+        // 等到做完为止，上限跟工艺操作一样是配方头的超时时间（查过了，这里一定有配方快照）
+        int timeout = snapshot is null ? 0 : snapshot.TimeoutMilliseconds;
+        return RunOperation(module, chamber, chamber.StartProcess(process), timeout);
     }
 
     #region 设备手动动作（轴、气缸按设备推送里的 Path 找）

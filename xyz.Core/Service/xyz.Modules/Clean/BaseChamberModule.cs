@@ -86,14 +86,6 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         set { SetEcInt(nameof(HomeTimeout), value); }
     }
 
-    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "3600000",
-        @default: "600000", description: "工艺超时（一支配方跑完的上限）")]
-    public int ProcessTimeout
-    {
-        get { return GetEcInt(nameof(ProcessTimeout)); }
-        set { SetEcInt(nameof(ProcessTimeout), value); }
-    }
-
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
         @default: "10000", description: "Reset 动作超时（清错）")]
     public int ResetTimeout
@@ -743,12 +735,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     }
 
     /// <summary>
-    /// 做出一次工艺的操作：按请求里的配方快照一步一步转、摆、喷（<see cref="ChamberProcessOperation"/>，上限 EC ProcessTimeout）。
+    /// 做出一次工艺的操作：按请求里的配方快照一步一步转、摆、喷（<see cref="ChamberProcessOperation"/>，上限是配方头的超时时间）。
     /// 只管造操作，发不发得出去（状态、片、配方）基类已经查过、Begin 也由基类做。机型做法不一样就重写。
     /// </summary>
     protected virtual ModuleOperation? CreateProcessOperation(ProcessRequest request)
     {
-        return new ChamberProcessOperation(this, request, ProcessTimeout);
+        var recipe = request.Recipe;
+        return recipe is null ? null : new ChamberProcessOperation(this, request.RecipeName, recipe);
     }
 
     /// <summary>
@@ -773,6 +766,46 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     public ProcessRequest? CurrentProcess => _process;
 
     /// <summary>
+    /// 这个配方在这个腔体上跑不跑得了：配方头的 Type 要跟这个腔体的 Type 一样（不分大小写）；
+    /// 每一步选的摆臂、药液照名字在这个腔体里找（跟执行时同一段，见 ChamberProcessOperation.FindDevices）。
+    /// 对得上返回 null；对不上回第一处的字段（按界面语言的名字，没装工艺配方库就用字段名）和值。
+    /// 起工艺前、流程配方保存、Job 挑腔体时查，免得做到一半才发现。
+    /// </summary>
+    public ProcessRecipeMismatch? FindRecipeMismatch(ProcessRecipeData recipe)
+    {
+        if (!string.Equals(recipe.Type.Trim(), Type.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return new ProcessRecipeMismatch(FieldText(ProcessRecipeHead.TypeKey), recipe.Type.Trim());
+        }
+
+        foreach (var step in recipe.Steps)
+        {
+            var missing = ChamberProcessOperation.FindDevices(this, step, out _, out _);
+            if (missing is not null)
+            {
+                return new ProcessRecipeMismatch(FieldText(missing.Value.Key), missing.Value.Value);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 配方里一项在界面上叫什么（按界面语言，步骤、配方头的字段表里找）；没装工艺配方库就用字段名。
+    /// </summary>
+    private static string FieldText(string key)
+    {
+        var library = ProcessRecipeComponent.Current;
+        if (library is null)
+        {
+            return key;
+        }
+
+        var field = library.Fields.Concat(library.HeadFields).FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+        return field is null ? key : field.DisplayText(SystemComponent.Current?.Language);
+    }
+
+    /// <summary>
     /// 现在能不能起这个工艺（不动设备）：先查请求本身（配方名、配方对不对得上这个腔体、腔里是不是要做的那一片），
     /// 再查腔体此刻的状态——配方不对这种问题不管腔体忙不忙都先报出来。
     /// </summary>
@@ -784,16 +817,18 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             return new ProcessRejection(ErrorCodes.RecipeRequired, [Name]);
         }
 
-        // 配方里下拉选的（摆臂、药液这类从腔体设备取的）这个腔体也得有：几个腔体装的不一样时，别的腔体的配方起不了
+        // 要有配方内容（快照）才知道怎么做；没装工艺配方库时只有名字，起不了
         var recipe = request.Recipe;
-        var library = ProcessRecipeComponent.Current;
-        if (recipe is not null && library is not null)
+        if (recipe is null)
         {
-            var mismatch = library.FindMismatch(recipe, Name);
-            if (mismatch is not null)
-            {
-                return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, request.RecipeName.Trim(), mismatch.Field, mismatch.Value]);
-            }
+            return new ProcessRejection(ErrorCodes.ChamberRecipeStepsMissing, [Name, request.RecipeName.Trim()]);
+        }
+
+        // 配方的 Type 要跟这个腔体一样，选的摆臂、药液这个腔体也得有（照名字找，跟执行时一样）
+        var mismatch = FindRecipeMismatch(recipe);
+        if (mismatch is not null)
+        {
+            return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, request.RecipeName.Trim(), mismatch.Field, mismatch.Value]);
         }
 
         if (request.Slot < 1 || request.Slot > SlotCount)

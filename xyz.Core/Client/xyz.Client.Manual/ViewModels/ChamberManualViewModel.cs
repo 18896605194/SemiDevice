@@ -411,7 +411,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
             return;
         }
 
-        // 同步等工艺做完才回包（上限是腔体的 EC ProcessTimeout），期间按钮保持不可用；要停就按 Abort。
+        // 同步等工艺做完才回包（上限是配方头的超时时间），期间按钮保持不可用；要停就按 Abort。
         var response = await _service.ProcessAsync(new ChamberProcessRequest
         {
             Module = ModuleName,

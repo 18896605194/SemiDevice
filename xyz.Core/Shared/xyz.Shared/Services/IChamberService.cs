@@ -19,7 +19,7 @@ public interface IChamberService
     Task<RpcResponse> AbortAsync(string module);
 
     /// <summary>
-    /// 按配方起工艺：只在空闲时允许，同步等工艺做完（上限是腔体的 EC ProcessTimeout）。
+    /// 按配方起工艺：只在空闲时允许，同步等工艺做完（上限是配方头的超时时间）。
     /// 配方没填回 chamber.recipe_required；装了工艺配方库而配方不在库里回 chamber.recipe_not_found。
     /// </summary>
     [OperationContract]

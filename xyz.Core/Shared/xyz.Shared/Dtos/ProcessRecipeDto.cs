@@ -39,7 +39,7 @@ public class ProcessRecipeSummaryDto
 }
 
 /// <summary>
-/// 一个工艺配方的全部内容：头信息 + 步骤。工艺配方说的是片进了腔体以后怎么做：一步一步转多快、喷什么、喷在哪。
+/// 一个工艺配方的全部内容：配方头 + 步骤。工艺配方说的是片进了腔体以后怎么做：一步一步转多快、喷什么、喷在哪。
 /// </summary>
 public class ProcessRecipeDto
 {
@@ -47,7 +47,22 @@ public class ProcessRecipeDto
 
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 这份配方给哪种站点用（sc.xml 里站点配的 Type）：只能在 Type 一样的腔体上跑，步骤里下拉的选项也按它取。
+    /// </summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 超时时间（秒，按文字传，跟字段值一样）：腔体跑这份配方的上限，合计时长不能超过它。
+    /// </summary>
+    public string Timeout { get; set; } = string.Empty;
+
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 配方头里自己在字段表加的那些项：字段名 → 值（固定的几项在上面各自的属性里）。
+    /// </summary>
+    public Dictionary<string, string> Head { get; set; } = new();
 
     public string CreatedBy { get; set; } = string.Empty;
 
@@ -89,21 +104,25 @@ public class ProcessRecipeStepDto
 }
 
 /// <summary>
-/// 编辑工艺配方用的字段表（sc.xml ProcessRecipe → Fields，一个字段一列）和合计时长的上限：界面按它生成步骤表，不写死字段。
+/// 编辑工艺配方用的两张字段表：配方头（sc.xml ProcessRecipe → Head，一项一行）和步骤（ProcessRecipe → Fields，一个字段一列），
+/// 界面按它们生成配方头和步骤表，不写死字段。
 /// </summary>
 public class ProcessRecipeOptionsDto
 {
-    public List<ProcessRecipeFieldDto> Fields { get; set; } = [];
+    /// <summary>
+    /// 配方头的项，按先后。
+    /// </summary>
+    public List<ProcessRecipeFieldDto> HeadFields { get; set; } = [];
 
     /// <summary>
-    /// 合计时长上限（秒）：腔体工艺超时里最短的那个；0 = 没有腔体，不限。
+    /// 步骤的列，按先后。
     /// </summary>
-    public double MaxTotalSeconds { get; set; }
+    public List<ProcessRecipeFieldDto> Fields { get; set; } = [];
 }
 
 /// <summary>
-/// 字段表里的一个字段（步骤表的一列）。下拉的选项已经按数据源取好：跟着别的字段走的（数据源写了 @字段名）按那个字段的值分开给；
-/// 几个腔体装的不一样时，给的是所有腔体合起来的选项（用到具体腔体时后端再查）。
+/// 字段表里的一个字段：步骤表的一列，或配方头的一项。下拉的选项就是 sc.xml 字段表里写的：
+/// 步骤的按站点的 Type 分开写（配方头选了哪种 Type 用哪一套），配方头的只有一套（Type 那一项的选项是 sc 里站点配的几种 Type）。
 /// </summary>
 public class ProcessRecipeFieldDto
 {
@@ -155,19 +174,19 @@ public class ProcessRecipeFieldDto
     public bool Required { get; set; }
 
     /// <summary>
-    /// 选项跟着哪个字段走（数据源里 @ 后面的字段名）；空 = 不跟。
-    /// </summary>
-    public string ParentKey { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 不跟别的字段走时的选项（下拉才有）。
+    /// 配方头下拉的选项（配方头的下拉才有），按先后。
     /// </summary>
     public List<string> Options { get; set; } = [];
 
     /// <summary>
-    /// 跟着 <see cref="ParentKey"/> 走时：那个字段的值 → 能选的。
+    /// 步骤下拉的选项（步骤的下拉才有）：站点的 Type → 选项，按 sc.xml 里写的先后；站点没配 Type 的那一套键是空字符串。
     /// </summary>
-    public Dictionary<string, List<string>> OptionsByParent { get; set; } = new();
+    public Dictionary<string, List<string>> OptionsByType { get; set; } = new();
+
+    /// <summary>
+    /// 配方头里程序算的那几项（编号、名称、创建人……）：页面上只显示、不能改。
+    /// </summary>
+    public bool IsAuto { get; set; }
 }
 
 /// <summary>
@@ -240,7 +259,7 @@ public class ProcessRecipeDeleteRequest
 }
 
 /// <summary>
-/// 保存说明和步骤（名称走重命名）。
+/// 保存配方头里能填的项和步骤（名称走重命名）。
 /// </summary>
 [ProtoContract]
 public class ProcessRecipeSaveRequest
@@ -262,4 +281,16 @@ public class ProcessRecipeSaveRequest
 
     [ProtoMember(5)]
     public string Operator { get; set; } = string.Empty;
+
+    [ProtoMember(6)]
+    public string Type { get; set; } = string.Empty;
+
+    [ProtoMember(7)]
+    public string Timeout { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 配方头里自己在字段表加的那些项：字段名 → 值。
+    /// </summary>
+    [ProtoMember(8)]
+    public Dictionary<string, string> Head { get; set; } = new();
 }

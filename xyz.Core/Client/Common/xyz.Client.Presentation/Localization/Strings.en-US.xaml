@@ -183,7 +183,14 @@
     <sys:String x:Key="process_recipe.value_above_max">Step {0}: {1} must be at most {2}{3}</sys:String>
     <sys:String x:Key="process_recipe.value_too_precise">Step {0}: {1} allows at most {2} decimal places</sys:String>
     <sys:String x:Key="process_recipe.value_not_in_options">Step {0}: {1} has no option {2}</sys:String>
-    <sys:String x:Key="process_recipe.total_too_long">Total {0} s exceeds the chamber process timeout of {1} s</sys:String>
+    <sys:String x:Key="process_recipe.head_value_required">Recipe header: {0} is required</sys:String>
+    <sys:String x:Key="process_recipe.head_value_not_integer">Recipe header: {0} must be a whole number (now {1})</sys:String>
+    <sys:String x:Key="process_recipe.head_value_not_number">Recipe header: {0} must be a number (now {1})</sys:String>
+    <sys:String x:Key="process_recipe.head_value_below_min">Recipe header: {0} must be at least {1}{2}</sys:String>
+    <sys:String x:Key="process_recipe.head_value_above_max">Recipe header: {0} must be at most {1}{2}</sys:String>
+    <sys:String x:Key="process_recipe.head_value_too_precise">Recipe header: {0} allows at most {1} decimal places</sys:String>
+    <sys:String x:Key="process_recipe.head_value_not_in_options">Recipe header: {0} has no option {1}</sys:String>
+    <sys:String x:Key="process_recipe.total_too_long">Total {0} s exceeds the recipe timeout of {1} s</sys:String>
     <sys:String x:Key="process_recipe.save_failed">Could not write the file of process recipe No. {0}: {1}</sys:String>
     <sys:String x:Key="process_recipe.full">All process recipe numbers are in use (at most {0}); there is no room for a new one</sys:String>
     <sys:String x:Key="process_recipe.name_not_found">Process recipe {0} not found in the process recipe library</sys:String>
@@ -712,12 +719,7 @@
     <sys:String x:Key="recipe.process.delete">Delete</sys:String>
     <sys:String x:Key="recipe.process.index">No.</sys:String>
     <sys:String x:Key="recipe.process.name">Name</sys:String>
-    <sys:String x:Key="recipe.process.info">Details</sys:String>
-    <sys:String x:Key="recipe.process.created_by">Created by</sys:String>
-    <sys:String x:Key="recipe.process.created_at">Created at</sys:String>
-    <sys:String x:Key="recipe.process.modified_by">Modified by</sys:String>
-    <sys:String x:Key="recipe.process.modified_at">Modified at</sys:String>
-    <sys:String x:Key="recipe.process.revision">Revision</sys:String>
+    <sys:String x:Key="recipe.process.info">Recipe header</sys:String>
     <sys:String x:Key="recipe.process.description">Description</sys:String>
     <sys:String x:Key="recipe.process.duration">Duration</sys:String>
     <sys:String x:Key="recipe.process.seconds">{0} s</sys:String>
@@ -733,6 +735,7 @@
     <sys:String x:Key="recipe.process.empty_steps">Steps appear here after you create a process recipe</sys:String>
     <sys:String x:Key="recipe.process.error_separator" xml:space="preserve">; </sys:String>
     <sys:String x:Key="recipe.process.cell_invalid">Step {0}: {1} is not valid (see the box)</sys:String>
+    <sys:String x:Key="recipe.process.head_cell_invalid">Recipe header: {0} is not valid (see the box)</sys:String>
     <sys:String x:Key="recipe.process.dialog_create">New process recipe {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_rename">Rename process recipe {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_delete">Delete process recipe</sys:String>

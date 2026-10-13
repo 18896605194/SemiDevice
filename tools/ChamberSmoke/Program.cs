@@ -552,9 +552,15 @@ try
         return new ProcessRecipeStep { Values = values.Select(item => new ProcessRecipeValue(item.Key, item.Value)).ToList() };
     }
 
+    // 配方快照：超时时间默认 600 s（配方头里的，工艺操作的上限）
     ProcessRequest Recipe(string name, params ProcessRecipeStep[] steps)
     {
-        return new ProcessRequest { RecipeName = name, Recipe = new ProcessRecipeData { Name = name, Steps = [.. steps] } };
+        return RecipeWithTimeout(name, "600", steps);
+    }
+
+    ProcessRequest RecipeWithTimeout(string name, string timeout, params ProcessRecipeStep[] steps)
+    {
+        return new ProcessRequest { RecipeName = name, Recipe = new ProcessRecipeData { Name = name, Timeout = timeout, Steps = [.. steps] } };
     }
 
     // 工艺跑起来，每拍记一下：DIW / SC1 同时开过没有、摆臂到过哪些位置
@@ -632,35 +638,41 @@ try
     Check(Near(arm.CurrentPosition, 0) && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Closed && !spin.IsSpinning,
         "收尾：摆臂回 Home、卡盘停转、Bowl 降");
 
-    // 工艺出错：配方步骤拿不到、选的摆臂 / 药液这个腔体没有、转速超出卡盘上限、超时；失败后喷嘴停液
+    // 工艺出错：转速超出卡盘上限、超过配方头的超时时间；失败后喷嘴停液。
+    // 拿不到配方步骤的、Type 跟腔体不一样的、选的摆臂 / 药液这个腔体没有的，起工艺前就挡下，腔体不动
     void ResetChamber()
     {
         var reset = Run(() => service.ResetAsync("Chamber9"));
         Check(reset.Success && chamber.State == ModuleState.Idle, "复位回空闲");
     }
 
-    var failed = RunProcess(new ProcessRequest { RecipeName = "NoLibrary" });
-    Check(!failed.IsSuccess && failed.Code == ErrorCodes.ChamberRecipeStepsMissing && failed.ErrorArgs.SequenceEqual(["Chamber9", "NoLibrary"])
-        && chamber.State == ModuleState.Error, "没有配方步骤（没装工艺配方库）：chamber.recipe_steps_missing，落 Error");
-    ResetChamber();
-    failed = RunProcess(Recipe("WrongArm", StepOf(("Seconds", "1"), ("Arm", "Arm2"))));
-    Check(failed.Code == ErrorCodes.ChamberRecipeOptionMissing && failed.ErrorArgs.SequenceEqual(["Chamber9", "WrongArm", "Arm", "Arm2"]),
-        "配方选的摆臂这个腔体没有：chamber.recipe_option_missing");
-    ResetChamber();
-    failed = RunProcess(Recipe("WrongChemical", StepOf(("Seconds", "1"), ("Arm", "Arm1"), ("Chemical", "HF"))));
-    Check(failed.Code == ErrorCodes.ChamberRecipeOptionMissing && failed.ErrorArgs[2] == "Chemical", "这条摆臂上没有这种药液的喷嘴");
-    ResetChamber();
-    failed = RunProcess(Recipe("TooFast", StepOf(("Seconds", "1"), ("Rpm", "5000"))));
+    var noSteps = new ProcessRequest { RecipeName = "NoLibrary" };
+    var rejected = chamber.CheckProcess(noSteps);
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeStepsMissing && rejected.Args.SequenceEqual(["Chamber9", "NoLibrary"])
+        && chamber.StartProcess(noSteps) is null && chamber.State == ModuleState.Idle,
+        "没有配方步骤（没装工艺配方库，只有名字）：起工艺前就挡下 chamber.recipe_steps_missing，腔体不动");
+    var otherType = Recipe("OtherType", StepOf(("Seconds", "1")));
+    otherType.Recipe!.Type = "B";
+    rejected = chamber.CheckProcess(otherType);
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args.SequenceEqual(["Chamber9", "OtherType", "Type", "B"]),
+        "配方的 Type（B）跟腔体的（没配）不一样：起工艺前就挡下，报字段 Type 和配方的 Type");
+    var wrongArm = Recipe("WrongArm", StepOf(("Seconds", "1"), ("Arm", "Arm2")));
+    rejected = chamber.CheckProcess(wrongArm);
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args.SequenceEqual(["Chamber9", "WrongArm", "Arm", "Arm2"]),
+        "配方选的摆臂这个腔体没有：起工艺前就挡下 chamber.recipe_option_missing（没装工艺配方库，报字段名）");
+    rejected = chamber.CheckProcess(Recipe("WrongChemical", StepOf(("Seconds", "1"), ("Arm", "Arm1"), ("Chemical", "HF"))));
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args[2] == "Chemical" && rejected.Args[3] == "HF",
+        "这条摆臂上没有这种药液的喷嘴：起工艺前就挡下");
+    Check(chamber.StartProcess(wrongArm) is null && chamber.State == ModuleState.Idle, "挡下的不起工艺，腔体不动");
+    var failed = RunProcess(Recipe("TooFast", StepOf(("Seconds", "1"), ("Rpm", "5000"))));
     Check(failed.Code == ErrorCodes.ChamberDeviceCommandRejected && failed.ErrorArgs.SequenceEqual(["Chamber9.SpinMotor", "Spin"]),
         "转速超出卡盘 EC MaxSpeed：转速指令发不出去");
     ResetChamber();
-    chamber.ProcessTimeout = 1000;
-    failed = RunProcess(Recipe("TooLong", StepOf(("Seconds", "30"), ("Arm", "Arm1"), ("Chemical", "DIW"), ("Position", "150"))));
+    failed = RunProcess(RecipeWithTimeout("TooLong", "1", StepOf(("Seconds", "30"), ("Arm", "Arm1"), ("Chemical", "DIW"), ("Position", "150"))));
     Check(failed.Code == ErrorCodes.ChamberActionTimeout && failed.ErrorArgs.SequenceEqual(["Chamber9", "1000"]),
-        "超过 EC ProcessTimeout：chamber.action_timeout [模块, ms]");
+        "超过配方头的超时时间（1 s）：chamber.action_timeout [模块, ms]");
     Check(!plc.ReadDo(6), "工艺失败先把喷嘴停了");
     ResetChamber();
-    chamber.ProcessTimeout = 600000;
     var aborting = chamber.StartProcess(Recipe("Abort", StepOf(("Seconds", "30"), ("Arm", "Arm1"), ("Chemical", "DIW"), ("Position", "150"))));
     var watchAbort = Stopwatch.StartNew();
     while (!plc.ReadDo(6) && watchAbort.ElapsedMilliseconds < 5000)

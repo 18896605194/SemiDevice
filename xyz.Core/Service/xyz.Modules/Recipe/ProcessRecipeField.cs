@@ -7,9 +7,10 @@ using xyz.Shared.Errors;
 namespace xyz.Modules;
 
 /// <summary>
-/// 工艺配方字段表里的一个字段（sc.xml ProcessRecipe → Fields 下一个子节点，节点名就是字段名），也就是步骤表的一列。
-/// 类型决定界面用什么控件、怎么查：整数、小数按下限、上限、小数位查；下拉按数据源取选项；开关只认 true / false；文本只管必填。
-/// 配错了（类型写错、上下限反了、默认值不合规、数据源写不对……）开机就抛，报清楚哪个节点哪个值。
+/// 工艺配方字段表里的一个字段（sc.xml ProcessRecipe → Fields 或 Head 下一个子节点，节点名就是字段名），也就是步骤表的一列、配方头的一项。
+/// 类型决定界面用什么控件、怎么查：整数、小数按下限、上限、小数位查；下拉只能选 sc.xml 里写的选项（步骤的按站点 Type 分开写）；
+/// 开关只认 true / false；文本只管必填。
+/// 配错了（类型写错、上下限反了、默认值不合规、下拉没写选项……）开机就抛，报清楚哪个节点哪个值。
 /// </summary>
 public sealed class ProcessRecipeField
 {
@@ -29,6 +30,14 @@ public sealed class ProcessRecipeField
     /// 字段名会写成配方文件里的属性名：字母开头，只用字母、数字、下划线。
     /// </summary>
     private static readonly Regex KeyRule = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// sc.xml 里写下拉选项的参数名：选项用英文逗号隔开，如 <c>Time,Scan</c>。
+    /// 步骤的下拉按站点的 Type 分开写：<c>Source.A</c> 是 Type 为 A 的站点那一套，<c>Source</c> 是站点没配 Type 的那一套。
+    /// </summary>
+    public const string SourceName = "Source";
+
+    private const string SourceTypeSeparator = ".";
 
     /// <summary>
     /// 整数、小数的写法跟界面的通用输入框一样：可以带正负号、小数点，不认千分位、科学计数法。
@@ -86,11 +95,21 @@ public sealed class ProcessRecipeField
     public bool Required { get; private init; }
 
     /// <summary>
-    /// 数据源（下拉才有）。
+    /// 下拉的选项（下拉才有）：站点的 Type → 选项，照 sc.xml 里写的先后；键是空字符串的是 <c>Source</c>（站点没配 Type、配方头的下拉用它）。
+    /// 摆臂、药液这类选腔体里设备的，写的就是 sc 里的设备名、药液名，腔体执行时照名字找设备（找不到这个腔体就跑不了这个配方）。
     /// </summary>
-    public ProcessRecipeSource? Source { get; private init; }
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> OptionsByType { get; private init; } =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
     public bool IsNumber => Type is ProcessRecipeFieldType.Int or ProcessRecipeFieldType.Double;
+
+    /// <summary>
+    /// 这种站点能选的（Type 不分大小写）；没写这一套的为空。
+    /// </summary>
+    public IReadOnlyList<string> OptionsFor(string stationType)
+    {
+        return OptionsByType.TryGetValue(stationType.Trim(), out var options) ? options : [];
+    }
 
     /// <summary>
     /// 按界面语言取显示名：英文界面取英文名（没配就用中文名）。
@@ -102,12 +121,16 @@ public sealed class ProcessRecipeField
     }
 
     /// <summary>
-    /// 按字段自己的规则查一个非空的值：整数、小数的写法、上下限、小数位，开关只认 true / false。
-    /// 下拉值在不在选项里要看数据源取出来的东西，由工艺配方库查。查过了返回 null；
-    /// 没过返回错误码和参数（不含步号、字段名，调用方在前面补上）。
+    /// 按字段自己的规则查一个非空的值：整数、小数的写法、上下限、小数位，下拉要在 options 里（不分大小写；步骤按配方的 Type 取那一套），
+    /// 开关只认 true / false。查过了返回 null；没过返回步骤那一组错误码和参数（不含步号、字段名，调用方在前面补上；配方头换成配方头那一组）。
     /// </summary>
-    public (string Code, string[] Args)? CheckFormat(string value)
+    public (string Code, string[] Args)? CheckFormat(string value, IReadOnlyList<string> options)
     {
+        if (Type == ProcessRecipeFieldType.Choice)
+        {
+            return options.Contains(value, StringComparer.OrdinalIgnoreCase) ? null : (ErrorCodes.ProcessRecipeValueNotInOptions, [value]);
+        }
+
         if (Type == ProcessRecipeFieldType.Bool)
         {
             bool ok = string.Equals(value, TrueText, StringComparison.OrdinalIgnoreCase)
@@ -162,10 +185,10 @@ public sealed class ProcessRecipeField
     }
 
     /// <summary>
-    /// 存进文件的写法（查过之后调）：整数、小数去掉多余的写法（+5 存 5、1.50 存 1.5），开关小写，文本去掉首尾空白。
-    /// 下拉的写法由工艺配方库按选项换（大小写跟数据源一样）。
+    /// 存进文件的写法（查过之后调）：整数、小数去掉多余的写法（+5 存 5、1.50 存 1.5），下拉换成 options 里的写法（大小写跟 sc.xml 一样），
+    /// 开关小写，文本去掉首尾空白。
     /// </summary>
-    public string Canonical(string value)
+    public string Canonical(string value, IReadOnlyList<string> options)
     {
         string trimmed = value.Trim();
         if (trimmed.Length == 0)
@@ -183,6 +206,8 @@ public sealed class ProcessRecipeField
                 return decimal.TryParse(trimmed, DecimalStyle, CultureInfo.InvariantCulture, out decimal number)
                     ? number.ToString(DecimalFormat, CultureInfo.InvariantCulture)
                     : trimmed;
+            case ProcessRecipeFieldType.Choice:
+                return options.FirstOrDefault(option => string.Equals(option, trimmed, StringComparison.OrdinalIgnoreCase)) ?? trimmed;
             case ProcessRecipeFieldType.Bool:
                 return trimmed.ToLowerInvariant();
             default:
@@ -192,8 +217,10 @@ public sealed class ProcessRecipeField
 
     /// <summary>
     /// 从 sc.xml 的字段节点读一个字段；配错就抛，path 是节点路径（报错用）。
+    /// optionsInSc：下拉的选项写在 sc.xml 里（Source、Source.类型）；配方头的 Type 那一项传 false，它的选项是站点配的几种 Type。
+    /// 下拉的默认值在不在选项里，要知道有哪几种站点才查得了，由工艺配方库 Bind 时查。
     /// </summary>
-    public static ProcessRecipeField FromConfig(ModuleConfig node, string path)
+    public static ProcessRecipeField FromConfig(ModuleConfig node, string path, bool optionsInSc = true)
     {
         string Read(string name)
         {
@@ -246,7 +273,10 @@ public sealed class ProcessRecipeField
             throw new InvalidOperationException($"sc.xml 节点 {path} 的 Required=\"{requiredText}\" 只能是 true 或 false");
         }
 
-        var source = type == ProcessRecipeFieldType.Choice ? ProcessRecipeSource.Parse(Read(nameof(Source)), path) : null;
+        bool choice = type == ProcessRecipeFieldType.Choice;
+        var optionsByType = choice && optionsInSc
+            ? ReadOptions(node, path)
+            : new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var field = new ProcessRecipeField
         {
             Key = key,
@@ -258,7 +288,7 @@ public sealed class ProcessRecipeField
             Max = max,
             Decimals = decimals,
             Required = required,
-            Source = source,
+            OptionsByType = optionsByType,
         };
 
         string defaultText = Read(nameof(Default));
@@ -267,21 +297,16 @@ public sealed class ProcessRecipeField
             return field;
         }
 
-        // 默认值也得合规：新加一步就填它，不合规的话一添加就报错
-        var problem = field.CheckFormat(defaultText);
-        if (problem is not null)
+        // 默认值也得合规：新加一步就填它，不合规的话一添加就报错。下拉的先原样留着，Bind 时按每种站点的选项查
+        if (!choice)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
+            var problem = field.CheckFormat(defaultText, []);
+            if (problem is not null)
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
+            }
         }
 
-        if (source is not null && !source.IsDevices && !source.Options.Contains(defaultText, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不在 Source 的选项里");
-        }
-
-        string canonical = source is not null && !source.IsDevices
-            ? source.Options.First(option => string.Equals(option, defaultText, StringComparison.OrdinalIgnoreCase))
-            : field.Canonical(defaultText);
         return new ProcessRecipeField
         {
             Key = field.Key,
@@ -293,9 +318,65 @@ public sealed class ProcessRecipeField
             Max = field.Max,
             Decimals = field.Decimals,
             Required = field.Required,
-            Source = field.Source,
-            Default = canonical,
+            OptionsByType = field.OptionsByType,
+            Default = choice ? defaultText : field.Canonical(defaultText, []),
         };
+    }
+
+    /// <summary>
+    /// 读下拉的选项：<c>Source</c>（站点没配 Type 的那一套）和 <c>Source.类型</c>（按站点的 Type 分开写的），每一套英文逗号隔开、
+    /// 去掉首尾空白、按写的先后。一套都没写、某一套是空的、选项写了两遍、同一种 Type 写了两遍（不分大小写）就抛。
+    /// </summary>
+    private static Dictionary<string, IReadOnlyList<string>> ReadOptions(ModuleConfig node, string path)
+    {
+        var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in node.Values)
+        {
+            string name = (value.Name ?? string.Empty).Trim();
+            string stationType;
+            if (string.Equals(name, SourceName, StringComparison.OrdinalIgnoreCase))
+            {
+                stationType = string.Empty;
+            }
+            else if (name.StartsWith(SourceName + SourceTypeSeparator, StringComparison.OrdinalIgnoreCase))
+            {
+                stationType = name[(SourceName.Length + SourceTypeSeparator.Length)..].Trim();
+            }
+            else
+            {
+                continue;
+            }
+
+            string text = (value.Value ?? string.Empty).Trim();
+            var options = new List<string>();
+            foreach (string option in text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (options.Contains(option, StringComparer.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name}=\"{text}\" 里选项 {option} 写了两遍");
+                }
+
+                options.Add(option);
+            }
+
+            if (options.Count == 0)
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name} 一个选项都没有（英文逗号隔开，如 Time,Scan）");
+            }
+
+            if (!result.TryAdd(stationType, options))
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name} 写了两遍（Type 不分大小写）");
+            }
+        }
+
+        if (result.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"sc.xml 节点 {path} 是下拉，要写选项：{SourceName}（站点没配 Type 时），或按站点的 Type 分开写 {SourceName}{SourceTypeSeparator}A、{SourceName}{SourceTypeSeparator}B……");
+        }
+
+        return result;
     }
 
     /// <summary>

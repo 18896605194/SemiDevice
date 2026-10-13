@@ -19,8 +19,10 @@ using xyz.Tools;
 namespace xyz.Client.Recipe.ViewModels;
 
 /// <summary>
-/// 工艺配方页 ViewModel（配方 → 工艺配方）：左边编号 1~N 的列表（个数由后端给），右边选中那一个的基本信息、工艺步骤。
-/// 每一步有哪些字段（列）不写死：按后端给的字段表（sc.xml ProcessRecipe → Fields）生成，类型、范围、默认值、下拉的选项都按它来。新建、重命名、删除是列表上的操作，马上生效；说明和步骤改完点"保存"才存，带上打开时的版本，别处改过就存不进去。
+/// 工艺配方页 ViewModel（配方 → 工艺配方）：左边编号 1~N 的列表（个数由后端给），右边选中那一个的配方头、工艺步骤。
+/// 配方头有哪些项、每一步有哪些字段（列）都不写死：按后端给的两张字段表（sc.xml ProcessRecipe → Head、Fields）生成，类型、范围、默认值、
+/// 下拉的选项都按它们来；步骤下拉的选项按配方头选的 Type 取那一套。新建、重命名、删除是列表上的操作，马上生效；
+/// 配方头能填的项和步骤改完点"保存"才存，带上打开时的版本，别处改过就存不进去。
 /// 后端推"变了"通知，这里攒一下再重拉；页面不在前台时只记一笔，切回来再拉。
 /// </summary>
 public class ProcessRecipeViewModel : BaseViewModel
@@ -48,6 +50,29 @@ public class ProcessRecipeViewModel : BaseViewModel
     /// 步骤时长那个字段的名字（后端字段表里必须有）：合计时长按它加。
     /// </summary>
     private const string SecondsKey = "Seconds";
+
+    /// <summary>
+    /// 配方头固定几项的字段名（跟后端 ProcessRecipeHead 一样）：程序算的按它们从配方里取值，能填的按它们放进保存请求。
+    /// </summary>
+    private const string IndexKey = "Index";
+
+    private const string NameKey = "Name";
+
+    private const string TypeKey = "Type";
+
+    private const string TimeoutKey = "Timeout";
+
+    private const string DescriptionKey = "Description";
+
+    private const string CreatedByKey = "CreatedBy";
+
+    private const string CreatedAtKey = "CreatedAt";
+
+    private const string ModifiedByKey = "ModifiedBy";
+
+    private const string ModifiedAtKey = "ModifiedAt";
+
+    private const string RevisionKey = "Revision";
 
     #region Column
 
@@ -110,39 +135,15 @@ public class ProcessRecipeViewModel : BaseViewModel
 
     public string IndexText => SelectedSlot?.IndexText ?? string.Empty;
 
-    public string NameText => Current?.Name ?? string.Empty;
-
-    public string CreatedBy => Current?.CreatedBy ?? string.Empty;
-
-    public string CreatedAtText => Current?.CreatedAt.ToString(TimeFormat, CultureInfo.InvariantCulture) ?? string.Empty;
-
-    public string ModifiedBy => Current?.ModifiedBy ?? string.Empty;
-
-    public string ModifiedAtText => Current?.ModifiedAt.ToString(TimeFormat, CultureInfo.InvariantCulture) ?? string.Empty;
-
-    public string RevisionText => Current?.Revision.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-
     /// <summary>
-    /// 选中空编号时基本信息里的那句话。
+    /// 选中空编号时配方头里的那句话。
     /// </summary>
     public string EmptyText => SelectedSlot is null ? string.Empty : L10n.Get("recipe.process.empty_slot", SelectedSlot.IndexText);
 
-    private string _description = string.Empty;
-
     /// <summary>
-    /// 说明（输入框提交后才写进来）；改了算"有没保存的修改"。
+    /// 配方头的项，按字段表的先后：程序算的只显示，能填的是一格。
     /// </summary>
-    public string Description
-    {
-        get => _description;
-        set
-        {
-            if (SetProperty(ref _description, value ?? string.Empty) && !_applying)
-            {
-                MarkDirty();
-            }
-        }
-    }
+    public ObservableCollection<ProcessRecipeHeadItemModel> HeadItems { get; } = [];
 
     /// <summary>
     /// 工艺步骤。
@@ -167,9 +168,14 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 字段表（步骤表的列，按先后）：表头和每一行的格子都按它摆。
+    /// 步骤字段表（步骤表的列，按先后）：表头和每一行的格子都按它摆。
     /// </summary>
     public ObservableCollection<ProcessRecipeFieldModel> Fields { get; } = [];
+
+    /// <summary>
+    /// 配方头字段表（按先后）。
+    /// </summary>
+    private readonly List<ProcessRecipeFieldModel> _headFields = [];
 
     private string _totalText = string.Empty;
 
@@ -185,7 +191,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     private bool _isDirty;
 
     /// <summary>
-    /// 说明或步骤改了还没保存。
+    /// 配方头或步骤改了还没保存。
     /// </summary>
     public bool IsDirty
     {
@@ -412,7 +418,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     public IRelayCommand DeleteCommand { get; }
 
     /// <summary>
-    /// 保存说明和步骤：改过、检查通过才能点。
+    /// 保存配方头和步骤：改过、检查通过才能点。
     /// </summary>
     public IAsyncRelayCommand SaveCommand { get; }
 
@@ -477,12 +483,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     private bool _isInstalled = true;
 
     /// <summary>
-    /// 合计时长上限（秒，腔体工艺超时）；0 = 不限。
-    /// </summary>
-    private double _maxTotalSeconds;
-
-    /// <summary>
-    /// 现在摆着的字段表（后端给的原样转成文字）：重拉时一样就不重建列，免得把正在输的格子换掉。
+    /// 现在摆着的两张字段表（后端给的原样转成文字）：重拉时一样就不重建，免得把正在输的格子换掉。
     /// </summary>
     private string _fieldsSignature = string.Empty;
 
@@ -639,20 +640,22 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 换上后端给的字段表（列名按界面语言）和合计时长上限。字段表只在后端重启时可能变（sc.xml 改了），
-    /// 别的时候重拉（谁存了配方都会触发）字段表一样，就不重建列。变了返回 true，打开着的工艺配方要按新字段表重摆。
+    /// 换上后端给的两张字段表（名字按界面语言）。字段表只在后端重启时可能变（sc.xml 改了），
+    /// 别的时候重拉（谁存了配方都会触发）字段表一样，就不重建。变了返回 true，打开着的工艺配方要按新字段表重摆。
     /// </summary>
     private bool ApplyOptions(ProcessRecipeOptionsDto options)
     {
-        _maxTotalSeconds = options.MaxTotalSeconds;
+        var headFields = options.HeadFields ?? [];
         var fields = options.Fields ?? [];
-        string signature = JsonHelper.Serialize(fields);
+        string signature = JsonHelper.Serialize(options);
         if (signature == _fieldsSignature)
         {
             return false;
         }
 
         _fieldsSignature = signature;
+        _headFields.Clear();
+        _headFields.AddRange(headFields.Select(field => new ProcessRecipeFieldModel(field, L10n.Language)));
         Fields.Clear();
         foreach (var field in fields)
         {
@@ -748,7 +751,7 @@ public class ProcessRecipeViewModel : BaseViewModel
         try
         {
             Current = dto;
-            Description = dto?.Description ?? string.Empty;
+            BuildHead(dto is null ? null : HeadValuesOf(dto));
             Steps.Clear();
             if (dto is not null)
             {
@@ -771,33 +774,158 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 改着没保存的时候后端换了字段表（改了 sc.xml 又重启）：按新字段表重摆每一步，不然表头换了、格子还是老的，对不齐。
-    /// 填过的值按字段名带过去，新加的字段填默认值（跟后端读老配方一样），去掉的字段丢掉；还算"有没保存的修改"，再查一遍。
+    /// 配方头里能填的项在配方里的值（字段名 → 值）：固定的几项在各自的属性上，自己加的在 Head 里。
+    /// </summary>
+    private static Dictionary<string, string> HeadValuesOf(ProcessRecipeDto dto)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in dto.Head ?? [])
+        {
+            values[pair.Key] = pair.Value ?? string.Empty;
+        }
+
+        values[TypeKey] = dto.Type ?? string.Empty;
+        values[TimeoutKey] = dto.Timeout ?? string.Empty;
+        values[DescriptionKey] = dto.Description ?? string.Empty;
+        return values;
+    }
+
+    /// <summary>
+    /// 按配方头字段表摆配方头（null = 没打开配方，清空）：程序算的从打开的配方里取；能填的按 values（字段名 → 值）建一格，没有的填默认值。
+    /// </summary>
+    private void BuildHead(IReadOnlyDictionary<string, string>? values)
+    {
+        HeadItems.Clear();
+        if (values is null)
+        {
+            return;
+        }
+
+        foreach (var field in _headFields)
+        {
+            if (field.IsAuto)
+            {
+                HeadItems.Add(new ProcessRecipeHeadItemModel(field, AutoText(field.Key)));
+                continue;
+            }
+
+            string value = values.TryGetValue(field.Key, out string? found) ? found : field.Default;
+            HeadItems.Add(new ProcessRecipeHeadItemModel(field, new ProcessRecipeCellModel(field, value, field.Options, OnHeadChanged)));
+        }
+    }
+
+    /// <summary>
+    /// 配方头里程序算的一项显示什么（从打开的配方里取）。
+    /// </summary>
+    private string AutoText(string key)
+    {
+        var current = Current;
+        if (current is null)
+        {
+            return string.Empty;
+        }
+
+        if (IsKey(key, IndexKey))
+        {
+            return IndexText;
+        }
+
+        if (IsKey(key, NameKey))
+        {
+            return current.Name;
+        }
+
+        if (IsKey(key, CreatedByKey))
+        {
+            return current.CreatedBy;
+        }
+
+        if (IsKey(key, CreatedAtKey))
+        {
+            return current.CreatedAt.ToString(TimeFormat, CultureInfo.InvariantCulture);
+        }
+
+        if (IsKey(key, ModifiedByKey))
+        {
+            return current.ModifiedBy;
+        }
+
+        if (IsKey(key, ModifiedAtKey))
+        {
+            return current.ModifiedAt.ToString(TimeFormat, CultureInfo.InvariantCulture);
+        }
+
+        return IsKey(key, RevisionKey) ? current.Revision.ToString(CultureInfo.InvariantCulture) : string.Empty;
+    }
+
+    private static bool IsKey(string key, string wanted)
+    {
+        return string.Equals(key, wanted, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 配方头里能填的那一格；没有这一项为 null。
+    /// </summary>
+    private ProcessRecipeCellModel? HeadCell(string key)
+    {
+        return HeadItems.Select(item => item.Cell).OfType<ProcessRecipeCellModel>().FirstOrDefault(cell => IsKey(cell.Field.Key, key));
+    }
+
+    /// <summary>
+    /// 配方头里一项现在的值（去掉首尾空白）。
+    /// </summary>
+    private string HeadValue(string key)
+    {
+        var cell = HeadCell(key);
+        return cell is null ? string.Empty : (cell.Value ?? string.Empty).Trim();
+    }
+
+    /// <summary>
+    /// 配方头选的 Type：步骤下拉按它取那一套选项。
+    /// </summary>
+    private string StationType => HeadValue(TypeKey);
+
+    /// <summary>
+    /// 配方头一项改了：Type 换了，步骤按那一套选项重摆（选过的值不动，不在新选项里的检查时标红）；记"有没保存的修改"、重新检查。
+    /// 重摆而不是只换下拉的选项：下拉框换了选项会把选中弄丢，新摆的格子按值重新选中。
+    /// </summary>
+    private void OnHeadChanged(ProcessRecipeCellModel cell)
+    {
+        if (_applying)
+        {
+            return;
+        }
+
+        if (IsKey(cell.Field.Key, TypeKey))
+        {
+            _applying = true;
+            try
+            {
+                RebuildSteps();
+            }
+            finally
+            {
+                _applying = false;
+            }
+        }
+
+        MarkDirty();
+        Validate();
+    }
+
+    /// <summary>
+    /// 改着没保存的时候后端换了字段表（改了 sc.xml 又重启）：按新字段表重摆配方头和每一步，不然表头换了、格子还是老的，对不齐。
+    /// 还算"有没保存的修改"，再查一遍。
     /// </summary>
     private void Relayout()
     {
-        var oldValues = Steps.Select(step => step.ToDto().Values).ToList();
-        int position = SelectedStep is null ? 0 : Steps.IndexOf(SelectedStep);
+        var headValues = HeadItems.Select(item => item.Cell).OfType<ProcessRecipeCellModel>()
+            .ToDictionary(cell => cell.Field.Key, cell => cell.Value ?? string.Empty, StringComparer.OrdinalIgnoreCase);
         _applying = true;
         try
         {
-            Steps.Clear();
-            foreach (var values in oldValues)
-            {
-                var filled = Fields.ToDictionary(field => field.Key, field => field.Default, StringComparer.OrdinalIgnoreCase);
-                foreach (var pair in values)
-                {
-                    if (filled.ContainsKey(pair.Key))
-                    {
-                        filled[pair.Key] = pair.Value;
-                    }
-                }
-
-                Steps.Add(CreateStep(filled));
-            }
-
-            Renumber();
-            SelectedStep = Steps.Count == 0 ? null : Steps[Math.Clamp(position, 0, Steps.Count - 1)];
+            BuildHead(Current is null ? null : headValues);
+            RebuildSteps();
         }
         finally
         {
@@ -807,9 +935,36 @@ public class ProcessRecipeViewModel : BaseViewModel
         Validate();
     }
 
+    /// <summary>
+    /// 按现在的字段表和配方头的 Type 重摆每一步（必须在 _applying 里调）：填过的值按字段名带过去，新加的字段填默认值
+    /// （跟后端读老配方一样），去掉的字段丢掉；选中的还是那一步。
+    /// </summary>
+    private void RebuildSteps()
+    {
+        var oldValues = Steps.Select(step => step.ToDto().Values).ToList();
+        int position = SelectedStep is null ? 0 : Steps.IndexOf(SelectedStep);
+        Steps.Clear();
+        foreach (var values in oldValues)
+        {
+            var filled = Fields.ToDictionary(field => field.Key, field => field.Default, StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in values)
+            {
+                if (filled.ContainsKey(pair.Key))
+                {
+                    filled[pair.Key] = pair.Value;
+                }
+            }
+
+            Steps.Add(CreateStep(filled));
+        }
+
+        Renumber();
+        SelectedStep = Steps.Count == 0 ? null : Steps[Math.Clamp(position, 0, Steps.Count - 1)];
+    }
+
     private ProcessRecipeStepModel CreateStep(IReadOnlyDictionary<string, string>? values)
     {
-        return new ProcessRecipeStepModel(Fields.ToList(), values, OnStepChanged);
+        return new ProcessRecipeStepModel(Fields.ToList(), values, StationType, OnStepChanged);
     }
 
     /// <summary>
@@ -844,17 +999,34 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 检查步骤（跟后端保存时的检查一样，提示文字也用同一套）：每一格按它那一列的字段查——必填、整数和小数的写法、小数位、上下限，
-    /// 开关只认 true / false，下拉的值要在能选的里面（跟着别的字段走的，按这一行那个字段的值取）；合计不超过腔体的工艺超时。
-    /// 输入框自己报了错的（格式不对、超了范围，还没提交进来）也算没过。有问题的行标红，标题条上列出来；全过了才能保存。
+    /// 检查配方头和步骤（跟后端保存时的检查一样，提示文字也用同一套）：每一格按它的字段查——必填、整数和小数的写法、小数位、上下限，
+    /// 开关只认 true / false，下拉的值要在能选的里面（步骤的按配方头选的 Type 取那一套）；合计不超过配方头的超时时间。
+    /// 输入框自己报了错的（格式不对、超了范围，还没提交进来）也算没过。有问题的格子、行标红，标题条上列出来；全过了才能保存。
     /// </summary>
     private void Validate()
     {
         var messages = new List<string>();
+        foreach (var cell in HeadItems.Select(item => item.Cell).OfType<ProcessRecipeCellModel>())
+        {
+            var field = cell.Field;
+            string? problem = field.Problem(cell.Value ?? string.Empty, null, field.Options);
+            if (problem is null && cell.HasInputError)
+            {
+                problem = L10n.Get("recipe.process.head_cell_invalid", field.Text);
+            }
+
+            cell.HasError = problem is not null;
+            if (problem is not null)
+            {
+                messages.Add(problem);
+            }
+        }
+
         double total = 0;
+        string stationType = StationType;
         foreach (var step in Steps)
         {
-            var problems = CheckStep(step);
+            var problems = CheckStep(step, stationType);
             messages.AddRange(problems);
             step.HasError = problems.Count > 0;
             if (double.TryParse(step.Get(SecondsKey), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
@@ -869,9 +1041,10 @@ public class ProcessRecipeViewModel : BaseViewModel
             messages.Add(L10n.Get(ErrorCodes.ProcessRecipeNoSteps));
         }
 
-        if (_maxTotalSeconds > 0 && total > _maxTotalSeconds)
+        if (double.TryParse(HeadValue(TimeoutKey), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double timeout)
+            && timeout > 0 && total > timeout)
         {
-            messages.Add(L10n.Get(ErrorCodes.ProcessRecipeTotalTooLong, Format(total), Format(_maxTotalSeconds)));
+            messages.Add(L10n.Get(ErrorCodes.ProcessRecipeTotalTooLong, Format(total), Format(timeout)));
         }
 
         TotalText = Current is null ? string.Empty : L10n.Get("recipe.process.total", Format(total));
@@ -880,7 +1053,7 @@ public class ProcessRecipeViewModel : BaseViewModel
         RefreshCommands();
     }
 
-    private static List<string> CheckStep(ProcessRecipeStepModel step)
+    private static List<string> CheckStep(ProcessRecipeStepModel step, string stationType)
     {
         var problems = new List<string>();
         string number = step.Number.ToString(CultureInfo.InvariantCulture);
@@ -888,7 +1061,7 @@ public class ProcessRecipeViewModel : BaseViewModel
         {
             // 先按提交进来的值查（能说出具体原因）；值没问题、但输入框里还有没提交的错字时，提示看框里的说明
             var field = cell.Field;
-            string? problem = field.Problem(cell.Value ?? string.Empty, number, field.OptionsFor(step.Get(field.ParentKey)));
+            string? problem = field.Problem(cell.Value ?? string.Empty, number, field.OptionsFor(stationType));
             if (problem is null && cell.HasInputError)
             {
                 problem = L10n.Get("recipe.process.cell_invalid", number, field.Text);
@@ -960,7 +1133,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 保存说明和步骤：带上打开时的版本；成了换成后端存好的那一份（版本加 1），没成把原因记到日志栏。
+    /// 保存配方头能填的项和步骤：带上打开时的版本；成了换成后端存好的那一份（版本加 1），没成把原因记到日志栏。
     /// </summary>
     private async Task DoSave()
     {
@@ -970,11 +1143,25 @@ public class ProcessRecipeViewModel : BaseViewModel
             return;
         }
 
+        // 配方头：固定的几项放进各自的字段，自己加的放进 Head
+        var head = new Dictionary<string, string>();
+        foreach (var cell in HeadItems.Select(item => item.Cell).OfType<ProcessRecipeCellModel>())
+        {
+            string key = cell.Field.Key;
+            if (!IsKey(key, TypeKey) && !IsKey(key, TimeoutKey) && !IsKey(key, DescriptionKey))
+            {
+                head[key] = (cell.Value ?? string.Empty).Trim();
+            }
+        }
+
         var request = new ProcessRecipeSaveRequest
         {
             Index = current.Index,
             Revision = current.Revision,
-            Description = Description.Trim(),
+            Type = HeadValue(TypeKey),
+            Timeout = HeadValue(TimeoutKey),
+            Description = HeadValue(DescriptionKey),
+            Head = head,
             Steps = Steps.Select(step => step.ToDto()).ToList(),
             Operator = ClientSession.UserName,
         };
@@ -1258,13 +1445,13 @@ public class ProcessRecipeViewModel : BaseViewModel
     {
         OnPropertyChanged(nameof(HasRecipe));
         OnPropertyChanged(nameof(IndexText));
-        OnPropertyChanged(nameof(NameText));
-        OnPropertyChanged(nameof(CreatedBy));
-        OnPropertyChanged(nameof(CreatedAtText));
-        OnPropertyChanged(nameof(ModifiedBy));
-        OnPropertyChanged(nameof(ModifiedAtText));
-        OnPropertyChanged(nameof(RevisionText));
         OnPropertyChanged(nameof(EmptyText));
+
+        // 配方头里程序算的那几项跟着打开的配方走（改名、保存后版本、修改记录变了）
+        foreach (var item in HeadItems.Where(item => item.IsAuto))
+        {
+            item.AutoText = AutoText(item.Field.Key);
+        }
     }
 
     private void RefreshCommands()

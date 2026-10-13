@@ -4,22 +4,16 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 工艺步骤的一行：一个字段一格，按字段表的先后（字段表来自 sc.xml，界面不写死字段）。
-/// 一格改了，跟着它走的下拉（数据源写了 @这个字段，比如药液跟着摆臂）换选项，原来选的不在新选项里就清掉；再告诉页面。
+/// 工艺步骤的一行：一个字段一格，按字段表的先后（字段表来自 sc.xml，界面不写死字段）。一格改了就告诉页面；字段之间不互相管。
+/// 下拉的选项按配方头选的 Type 取那一套（Type 换了页面整行重摆）。
 /// </summary>
 public sealed class ProcessRecipeStepModel : ObservableObject
 {
-    private readonly Action<ProcessRecipeStepModel> _changed;
-
-    public ProcessRecipeStepModel(IReadOnlyList<ProcessRecipeFieldModel> fields, IReadOnlyDictionary<string, string>? values,
+    public ProcessRecipeStepModel(IReadOnlyList<ProcessRecipeFieldModel> fields, IReadOnlyDictionary<string, string>? values, string stationType,
         Action<ProcessRecipeStepModel> changed)
     {
-        _changed = changed;
-        Cells = fields.Select(field => new ProcessRecipeCellModel(field, ValueOf(values, field.Key), OnCellChanged)).ToList();
-        foreach (var cell in Cells.Where(item => item.Field.IsChoice))
-        {
-            cell.RefreshChoices(cell.Field.OptionsFor(Get(cell.Field.ParentKey)), keepValue: true);
-        }
+        Cells = fields.Select(field => new ProcessRecipeCellModel(field, ValueOf(values, field.Key), field.OptionsFor(stationType), _ => changed(this)))
+            .ToList();
     }
 
     /// <summary>
@@ -70,16 +64,6 @@ public sealed class ProcessRecipeStepModel : ObservableObject
         }
 
         return dto;
-    }
-
-    private void OnCellChanged(ProcessRecipeCellModel cell)
-    {
-        foreach (var dependent in Cells.Where(item => item.Field.IsChoice && string.Equals(item.Field.ParentKey, cell.Field.Key, StringComparison.OrdinalIgnoreCase)))
-        {
-            dependent.RefreshChoices(dependent.Field.OptionsFor(cell.Value ?? string.Empty), keepValue: false);
-        }
-
-        _changed(this);
     }
 
     private static string ValueOf(IReadOnlyDictionary<string, string>? values, string key)

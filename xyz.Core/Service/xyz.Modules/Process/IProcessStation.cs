@@ -13,6 +13,9 @@ public interface IProcessStation
     /// <summary>正在跑的工艺请求；没在跑为 null。</summary>
     ProcessRequest? CurrentProcess { get; }
 
+    /// <summary>这个配方在这个站点上跑不跑得了（配方里选的设备这里有没有）：对得上返回 null，对不上回字段和值。不看状态，不动设备。</summary>
+    ProcessRecipeMismatch? FindRecipeMismatch(ProcessRecipeData recipe);
+
     /// <summary>现在能不能起这个工艺（状态、片、配方对不对得上这个腔体）：能起返回 null，不能返回原因。不动设备。</summary>
     ProcessRejection? CheckProcess(ProcessRequest request);
 

@@ -360,6 +360,7 @@ public class RobotModel : ObservableObject
         }
 
         // 手指上的片：先看账，账上没有再看传感器。片的实例能留就留（只改颜色和片上的字），手臂动画不会因为换实例被打断。
+        // 片先换、手后缩：取片做完那一下片落到伸着的手上再缩回，放片做完片在伸出的位置消失再缩回。
         for (int number = 1; number <= ArmCount; number++)
         {
             var arm = GetArm(number);
@@ -377,6 +378,9 @@ public class RobotModel : ObservableObject
             {
                 arm.Wafer = null;
             }
+
+            // 手臂伸缩跟后端的取放指令走：发出指令伸出、做完缩回；先转向平移再伸出的先后由 Robot 控件自己排。
+            arm.Extension = sensor is not null && sensor.IsExtended ? 1 : 0;
         }
     }
 

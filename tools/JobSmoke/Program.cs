@@ -1797,12 +1797,13 @@ sealed class SmokePortShell : FcdLoadPortComponent
 }
 
 // 假腔体：工艺默认三拍做完（ProcessTicks 可调长），可以故意失败一次；记下收到几次中止。
-// NoProcess 打开时声明成只能取放（不能做工艺），验"站点不支持要用的任务就不建 Job"。
+// NoProcess 打开时声明成只能取放（不能做工艺），验"站点不支持要用的任务就不建 Job"。Type 跟 sc.xml 里的腔体一样写 A（配方字段表只写了 A 的选项）。
 sealed class SmokeChamber : BaseChamberModule
 {
     public SmokeChamber(string name)
     {
         Probe.Name(this, name);
+        Type = "A";
     }
 
     public bool NoProcess { get; set; }

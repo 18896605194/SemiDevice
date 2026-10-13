@@ -184,7 +184,14 @@
     <sys:String x:Key="process_recipe.value_above_max">第 {0} 步{1}不能大于 {2}{3}</sys:String>
     <sys:String x:Key="process_recipe.value_too_precise">第 {0} 步{1}最多 {2} 位小数</sys:String>
     <sys:String x:Key="process_recipe.value_not_in_options">第 {0} 步{1}没有 {2} 这一项</sys:String>
-    <sys:String x:Key="process_recipe.total_too_long">合计 {0} s，超过腔体的工艺超时 {1} s</sys:String>
+    <sys:String x:Key="process_recipe.head_value_required">配方头{0}没填</sys:String>
+    <sys:String x:Key="process_recipe.head_value_not_integer">配方头{0}要填整数（现在是 {1}）</sys:String>
+    <sys:String x:Key="process_recipe.head_value_not_number">配方头{0}要填数字（现在是 {1}）</sys:String>
+    <sys:String x:Key="process_recipe.head_value_below_min">配方头{0}不能小于 {1}{2}</sys:String>
+    <sys:String x:Key="process_recipe.head_value_above_max">配方头{0}不能大于 {1}{2}</sys:String>
+    <sys:String x:Key="process_recipe.head_value_too_precise">配方头{0}最多 {1} 位小数</sys:String>
+    <sys:String x:Key="process_recipe.head_value_not_in_options">配方头{0}没有 {1} 这一项</sys:String>
+    <sys:String x:Key="process_recipe.total_too_long">合计 {0} s，超过配方的超时时间 {1} s</sys:String>
     <sys:String x:Key="process_recipe.save_failed">{0} 号工艺配方文件写不进去：{1}</sys:String>
     <sys:String x:Key="process_recipe.full">工艺配方编号都用完了（最多 {0} 个），放不下新的</sys:String>
     <sys:String x:Key="process_recipe.name_not_found">工艺配方库里没有 {0}</sys:String>
@@ -712,12 +719,7 @@
     <sys:String x:Key="recipe.process.delete">删除</sys:String>
     <sys:String x:Key="recipe.process.index">编号</sys:String>
     <sys:String x:Key="recipe.process.name">名称</sys:String>
-    <sys:String x:Key="recipe.process.info">基本信息</sys:String>
-    <sys:String x:Key="recipe.process.created_by">创建人</sys:String>
-    <sys:String x:Key="recipe.process.created_at">创建时间</sys:String>
-    <sys:String x:Key="recipe.process.modified_by">修改人</sys:String>
-    <sys:String x:Key="recipe.process.modified_at">修改时间</sys:String>
-    <sys:String x:Key="recipe.process.revision">版本</sys:String>
+    <sys:String x:Key="recipe.process.info">配方头</sys:String>
     <sys:String x:Key="recipe.process.description">说明</sys:String>
     <sys:String x:Key="recipe.process.duration">时长</sys:String>
     <sys:String x:Key="recipe.process.seconds">{0} s</sys:String>
@@ -733,6 +735,7 @@
     <sys:String x:Key="recipe.process.empty_steps">新建以后在这里编辑步骤</sys:String>
     <sys:String x:Key="recipe.process.error_separator">；</sys:String>
     <sys:String x:Key="recipe.process.cell_invalid">第 {0} 步{1}没填对（看框里的提示）</sys:String>
+    <sys:String x:Key="recipe.process.head_cell_invalid">配方头{0}没填对（看框里的提示）</sys:String>
     <sys:String x:Key="recipe.process.dialog_create">新建工艺配方 {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_rename">重命名工艺配方 {0}</sys:String>
     <sys:String x:Key="recipe.process.dialog_delete">删除工艺配方</sys:String>

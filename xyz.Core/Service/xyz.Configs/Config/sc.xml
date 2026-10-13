@@ -365,16 +365,79 @@
 		<Value Name="NameMaxLength" Value="32" />
 	</Setting>
 	<!-- 工艺配方库（配方 → 工艺配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……），Folder 相对宿主运行目录。
-	     每一步有哪些字段按下面的 Fields 字段表：一个子节点一个字段（配方页上的一列），节点名就是字段名（存进配方文件），从上到下就是从左到右。
-	     Text / TextEn 列名；Type：Int 整数、Double 小数、Choice 下拉、Bool 开关、Text 文本；Unit 单位、Min / Max 上下限、Decimals 最多几位小数（数字才填）；
-	     Default 新加一步时填的值；Required 必填（true / false）；Source 下拉的数据源：直接写选项用英文逗号隔开（如 Time,Scan），
-	     或 Devices:类型[.属性][@字段名] 从腔体里装的设备取（Devices:ISwingArm 取摆臂名，Devices:INozzle.Chemical@Arm 取所选摆臂上喷嘴的药液）。
-	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长的上限是腔体 EC 的工艺超时。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
+	     一份配方分配方头（整份一组值）和步骤两部分，各按下面一张字段表：Head 一个子节点一项（页面上左边名字、右边值），Fields 一个子节点一个字段（步骤表的一列），
+	     节点名就是字段名（存进配方文件），从上到下就是先后。
+	     Text / TextEn 名字；Type：Int 整数、Double 小数、Choice 下拉、Bool 开关、Text 文本；Unit 单位、Min / Max 上下限、Decimals 最多几位小数（数字才填）；
+	     Default 新加时填的值；Required 必填（true / false）；下拉的选项英文逗号隔开（如 Time,Scan）。
+	     Head 固定的几项不能删、字段名和类型不能改：Index、Name、CreatedBy、CreatedAt、ModifiedBy、ModifiedAt、Revision 由程序填；
+	     Type 是这份配方给哪种站点用，选项就是腔体配的 Type（腔体节点下 <Value Name="Type" />），不用写；Timeout 超时时间、Description 说明在页面上填。
+	     Fields 的下拉按腔体的 Type 分开写：Source.A 是 Type 为 A 的腔体那一套（腔体没配 Type 的写 Source），配方头选了哪种 Type 就列哪一套；
+	     摆臂、药液写的就是那种腔体里摆臂的节点名、喷嘴的 Chemical，用到具体腔体时由腔体照名字核对。
+	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长不能超过配方头的超时时间。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
 	     喷嘴喷的东西（DIW、SC1、N2、背面冲洗……）都是在药液里选、流量填在流量里，不单独加字段 -->
 	<Setting Name="ProcessRecipe" Type="xyz.Modules.ProcessRecipeComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Process" />
 		<Value Name="NameMaxLength" Value="32" />
+		<Setting Name="Head">
+			<Setting Name="Index">
+				<Value Name="Text" Value="编号" />
+				<Value Name="TextEn" Value="No." />
+				<Value Name="Type" Value="Int" />
+			</Setting>
+			<Setting Name="Name">
+				<Value Name="Text" Value="名称" />
+				<Value Name="TextEn" Value="Name" />
+				<Value Name="Type" Value="Text" />
+			</Setting>
+			<Setting Name="Type">
+				<Value Name="Text" Value="Type" />
+				<Value Name="TextEn" Value="Type" />
+				<Value Name="Type" Value="Choice" />
+				<Value Name="Required" Value="true" />
+			</Setting>
+			<Setting Name="Timeout">
+				<Value Name="Text" Value="超时时间" />
+				<Value Name="TextEn" Value="Timeout" />
+				<Value Name="Type" Value="Double" />
+				<Value Name="Unit" Value="s" />
+				<Value Name="Min" Value="1" />
+				<Value Name="Max" Value="3600" />
+				<Value Name="Decimals" Value="0" />
+				<Value Name="Default" Value="600" />
+				<Value Name="Required" Value="true" />
+			</Setting>
+			<Setting Name="CreatedBy">
+				<Value Name="Text" Value="创建人" />
+				<Value Name="TextEn" Value="Created by" />
+				<Value Name="Type" Value="Text" />
+			</Setting>
+			<Setting Name="CreatedAt">
+				<Value Name="Text" Value="创建时间" />
+				<Value Name="TextEn" Value="Created at" />
+				<Value Name="Type" Value="Text" />
+			</Setting>
+			<Setting Name="ModifiedBy">
+				<Value Name="Text" Value="修改人" />
+				<Value Name="TextEn" Value="Modified by" />
+				<Value Name="Type" Value="Text" />
+			</Setting>
+			<Setting Name="ModifiedAt">
+				<Value Name="Text" Value="修改时间" />
+				<Value Name="TextEn" Value="Modified at" />
+				<Value Name="Type" Value="Text" />
+			</Setting>
+			<Setting Name="Revision">
+				<Value Name="Text" Value="版本" />
+				<Value Name="TextEn" Value="Revision" />
+				<Value Name="Type" Value="Int" />
+			</Setting>
+			<Setting Name="Description">
+				<Value Name="Text" Value="说明" />
+				<Value Name="TextEn" Value="Description" />
+				<Value Name="Type" Value="Text" />
+			</Setting>
+		</Setting>
 		<Setting Name="Fields">
 			<Setting Name="Seconds">
 				<Value Name="Text" Value="时间" />
@@ -401,13 +464,13 @@
 				<Value Name="Text" Value="摆臂" />
 				<Value Name="TextEn" Value="Arm" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Devices:ISwingArm" />
+				<Value Name="Source.A" Value="Arm1" />
 			</Setting>
 			<Setting Name="Chemical">
 				<Value Name="Text" Value="药液" />
 				<Value Name="TextEn" Value="Chemical" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Devices:INozzle.Chemical@Arm" />
+				<Value Name="Source.A" Value="DIW,SC1" />
 			</Setting>
 			<Setting Name="Flow">
 				<Value Name="Text" Value="流量" />
@@ -422,7 +485,7 @@
 				<Value Name="Text" Value="方式" />
 				<Value Name="TextEn" Value="Mode" />
 				<Value Name="Type" Value="Choice" />
-				<Value Name="Source" Value="Time,Scan" />
+				<Value Name="Source.A" Value="Time,Scan" />
 				<Value Name="Default" Value="Time" />
 			</Setting>
 			<Setting Name="Position">
@@ -548,6 +611,7 @@
 	     ISpinMotor 是卡盘（速度单位 rpm），每条摆臂按 IChamberLift 接口找升降、按 INozzle 接口找喷嘴（FlowAoIndex = 流量设定 AO，-1 不接） -->
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<!-- 腔体门：归站点交互环管（开门放行机械手、关门收尾），不归工艺 -->
@@ -601,6 +665,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber2" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
@@ -647,6 +712,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber3" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
@@ -693,6 +759,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber4" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">

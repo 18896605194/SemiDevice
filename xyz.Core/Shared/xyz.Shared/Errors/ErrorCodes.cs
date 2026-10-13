@@ -475,10 +475,31 @@ public static class ErrorCodes
     /// <summary>小数位比字段表里配的多。Args: [步号, 字段, 最多几位]</summary>
     public const string ProcessRecipeValueTooPrecise = "process_recipe.value_too_precise";
 
-    /// <summary>下拉、开关的值不在能选的里面（数据源变了，或别处传来的值不对）。Args: [步号, 字段, 值]</summary>
+    /// <summary>下拉、开关的值不在能选的里面（选项变了，或别处传来的值不对）。Args: [步号, 字段, 值]</summary>
     public const string ProcessRecipeValueNotInOptions = "process_recipe.value_not_in_options";
 
-    /// <summary>合计时长超过腔体的工艺超时（腔体会在做完之前就判超时）。Args: [合计秒数, 上限秒数]</summary>
+    /// <summary>配方头必填的项没填。Args: [字段]</summary>
+    public const string ProcessRecipeHeadValueRequired = "process_recipe.head_value_required";
+
+    /// <summary>配方头整数项填的不是整数。Args: [字段, 填的]</summary>
+    public const string ProcessRecipeHeadValueNotInteger = "process_recipe.head_value_not_integer";
+
+    /// <summary>配方头小数项填的不是数字。Args: [字段, 填的]</summary>
+    public const string ProcessRecipeHeadValueNotNumber = "process_recipe.head_value_not_number";
+
+    /// <summary>配方头的值比下限小。Args: [字段, 下限, 单位（带前导空格，没有就空）]</summary>
+    public const string ProcessRecipeHeadValueBelowMin = "process_recipe.head_value_below_min";
+
+    /// <summary>配方头的值比上限大。Args: [字段, 上限, 单位（带前导空格，没有就空）]</summary>
+    public const string ProcessRecipeHeadValueAboveMax = "process_recipe.head_value_above_max";
+
+    /// <summary>配方头的值小数位比字段表里配的多。Args: [字段, 最多几位]</summary>
+    public const string ProcessRecipeHeadValueTooPrecise = "process_recipe.head_value_too_precise";
+
+    /// <summary>配方头下拉、开关的值不在能选的里面（比如 Type 不是 sc 里站点配的）。Args: [字段, 值]</summary>
+    public const string ProcessRecipeHeadValueNotInOptions = "process_recipe.head_value_not_in_options";
+
+    /// <summary>合计时长超过配方头的超时时间（腔体会在做完之前就判超时）。Args: [合计秒数, 超时秒数]</summary>
     public const string ProcessRecipeTotalTooLong = "process_recipe.total_too_long";
 
     /// <summary>工艺配方文件写不进去或删不掉（内存里的没改）。Args: [编号, 原因]</summary>

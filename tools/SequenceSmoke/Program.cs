@@ -322,6 +322,12 @@ try
             return new ModuleConfig { Name = key, Values = values.Select(value => new ValueConfig { Name = value.Name, Value = value.Value }).ToList() };
         }
 
+        // 配方头只放固定的几项（超时时间默认 600 s）；探针腔体没配 Type，步骤下拉写一套 Source
+        var headItems = ProcessRecipeHead.Fixed
+            .Select(pair => pair.Key == ProcessRecipeHead.TimeoutKey
+                ? FieldNode(pair.Key, ("Text", "超时时间"), ("Type", pair.Value.ToString()), ("Default", "600"))
+                : FieldNode(pair.Key, ("Text", pair.Key), ("Type", pair.Value.ToString())))
+            .ToList();
         var recipeNode = new ModuleConfig
         {
             Name = "ProcessRecipe",
@@ -329,14 +335,15 @@ try
             Values = [new ValueConfig { Name = "Folder", Value = recipeFolder }],
             Children =
             [
+                new ModuleConfig { Name = ProcessRecipeComponent.HeadNodeName, Children = headItems },
                 new ModuleConfig
                 {
                     Name = ProcessRecipeComponent.FieldsNodeName,
                     Children =
                     [
                         FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Default", "10"), ("Required", "true")),
-                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Devices:SwingArmComponent")),
-                        FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "Devices:NozzleComponent.Chemical@Arm")),
+                        FieldNode("Arm", ("Text", "摆臂"), ("Type", "Choice"), ("Source", "Arm1")),
+                        FieldNode("Chemical", ("Text", "药液"), ("Type", "Choice"), ("Source", "DIW,HF")),
                     ],
                 },
             ],
@@ -363,9 +370,14 @@ try
             return new ProcessRecipeStep { Values = [new("Seconds", "10"), new("Arm", "Arm1"), new("Chemical", chemical)] };
         }
 
+        ProcessRecipeData RecipeContent(string chemical)
+        {
+            return new ProcessRecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
+        }
+
         Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsOk
-              && recipes.Save(1, 1, string.Empty, [RecipeStep("DIW")], "Tester").IsOk, "工艺配方库里建一个 SC1_60S（用 DIW）");
-        Check(recipes.Create(2, "HF_ONLY", "Tester").IsOk && recipes.Save(2, 1, string.Empty, [RecipeStep("HF")], "Tester").IsOk,
+              && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsOk, "工艺配方库里建一个 SC1_60S（用 DIW）");
+        Check(recipes.Create(2, "HF_ONLY", "Tester").IsOk && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsOk,
             "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
         int revision = library.Get(1).Sequence!.Revision;
         Fails(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], " NOPE "), new("LoadPort", ["SmokeLP1"])], "Saver"),

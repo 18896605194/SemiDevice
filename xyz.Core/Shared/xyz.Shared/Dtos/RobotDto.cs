@@ -150,7 +150,9 @@ public class RobotDto
 
         for (int i = 0; i < Arms.Count; i++)
         {
-            if (Arms[i].Arm != previous.Arms[i].Arm || Arms[i].HasWafer != previous.Arms[i].HasWafer)
+            if (Arms[i].Arm != previous.Arms[i].Arm
+                || Arms[i].HasWafer != previous.Arms[i].HasWafer
+                || Arms[i].IsExtended != previous.Arms[i].IsExtended)
             {
                 return true;
             }
@@ -219,7 +221,7 @@ public class RobotAxisPositionDto
 }
 
 /// <summary>
-/// Robot 单个手指的在位契约对象。
+/// Robot 单个手指的在位、伸缩契约对象。
 /// </summary>
 public class RobotArmDto
 {
@@ -228,4 +230,7 @@ public class RobotArmDto
 
     /// <summary>该手指上是否有片。</summary>
     public bool HasWafer { get; set; }
+
+    /// <summary>该手指是否伸出：用它发出取放指令时伸出，指令做完（成功、失败、被中止）缩回；界面照它画手臂伸缩。</summary>
+    public bool IsExtended { get; set; }
 }
