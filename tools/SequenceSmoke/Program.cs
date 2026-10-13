@@ -325,8 +325,8 @@ try
         }
 
         // 配方头只放固定的几项（超时时间默认 600 s）；探针腔体没配 Type，步骤下拉写一套 Source
-        var headItems = ProcessRecipeHead.Fixed
-            .Select(pair => pair.Key == ProcessRecipeHead.TimeoutKey
+        var headItems = RecipeHead.Fixed
+            .Select(pair => pair.Key == RecipeHead.TimeoutKey
                 ? FieldNode(pair.Key, ("Text", "超时时间"), ("Type", pair.Value.ToString()), ("Default", "600"))
                 : FieldNode(pair.Key, ("Text", pair.Key), ("Type", pair.Value.ToString())))
             .ToList();
@@ -367,14 +367,14 @@ try
         Mount(pm1, "DIW");
         Mount(pm2, "DIW", "HF");
         recipes.Bind([pm1, pm2, pm3]);
-        ProcessRecipeStep RecipeStep(string chemical)
+        RecipeStep RecipeStep(string chemical)
         {
-            return new ProcessRecipeStep { Values = [new("Seconds", "10"), new("Arm", "Arm1"), new("Chemical", chemical)] };
+            return new RecipeStep { Values = [new("Seconds", "10"), new("Arm", "Arm1"), new("Chemical", chemical)] };
         }
 
-        ProcessRecipeData RecipeContent(string chemical)
+        RecipeData RecipeContent(string chemical)
         {
-            return new ProcessRecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
+            return new RecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
         }
 
         Check(ReferenceEquals(RecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess

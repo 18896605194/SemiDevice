@@ -59,7 +59,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 编号 → 工艺配方，按编号排好。
     /// </summary>
-    private readonly SortedDictionary<int, ProcessRecipeData> _items = new();
+    private readonly SortedDictionary<int, RecipeData> _items = new();
 
     /// <summary>
     /// 步骤字段表，按 sc.xml 里的先后（就是步骤表从左到右）。
@@ -215,7 +215,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 读配方头字段表：字段名不能重复；固定的几项（<see cref="ProcessRecipeHead"/>）都要有，类型跟固定的一样。
+    /// 读配方头字段表：字段名不能重复；固定的几项（<see cref="RecipeHead"/>）都要有，类型跟固定的一样。
     /// Type 那一项的选项是腔体配的几种 Type，不在 sc.xml 里写；自己加的下拉只写一套 Source。
     /// </summary>
     private static List<RecipeField> ReadHeadFields(ModuleConfig setting)
@@ -230,7 +230,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         foreach (var fieldNode in node.Children)
         {
             string path = $"{setting.Name}.{HeadNodeName}.{fieldNode.Name}";
-            bool isType = string.Equals(fieldNode.Name.Trim(), ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
+            bool isType = string.Equals(fieldNode.Name.Trim(), RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
             var field = RecipeField.FromConfig(fieldNode, path, optionsInSc: !isType);
             if (FindField(fields, field.Key) is not null)
             {
@@ -240,7 +240,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             fields.Add(field);
         }
 
-        foreach (var pair in ProcessRecipeHead.Fixed)
+        foreach (var pair in RecipeHead.Fixed)
         {
             var field = FindField(fields, pair.Key);
             if (field is null || field.Type != pair.Value)
@@ -267,7 +267,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         string folder = FolderPath();
         var fields = Fields;
         var headFields = HeadFields;
-        var loaded = new SortedDictionary<int, ProcessRecipeData>();
+        var loaded = new SortedDictionary<int, RecipeData>();
         try
         {
             Directory.CreateDirectory(folder);
@@ -377,7 +377,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         }
 
         foreach (var field in headFields.Where(item => item.Type == ProcessRecipeFieldType.Choice
-                     && !string.Equals(item.Key, ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase)))
+                     && !string.Equals(item.Key, RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase)))
         {
             CheckChoice(field, field.OptionsFor(string.Empty), $"{Name}.{HeadNodeName}.{field.Key}", $"选项（配方头只写一套 {SourceOf(string.Empty)}）");
         }
@@ -418,7 +418,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 全部工艺配方（副本），按编号从小到大。
     /// </summary>
-    public IReadOnlyList<ProcessRecipeData> List()
+    public IReadOnlyList<RecipeData> List()
     {
         lock (_gate)
         {
@@ -453,7 +453,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 按名字取一个工艺配方的快照（副本，不分大小写、去掉首尾空白）；没有返回 null。
     /// Job 建 PJ、腔体起工艺都拿快照：之后库里改了、删了，已经拿到的那一份不变。
     /// </summary>
-    public ProcessRecipeData? Find(string name)
+    public RecipeData? Find(string name)
     {
         lock (_gate)
         {
@@ -470,7 +470,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     {
         string wanted = recipeName.Trim();
         string chamberName = chamber.Trim();
-        ProcessRecipeData? recipe;
+        RecipeData? recipe;
         BaseChamberModule? found;
         lock (_gate)
         {
@@ -492,7 +492,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         lock (_gate)
         {
             var now = DateTime.Now;
-            var data = new ProcessRecipeData
+            var data = new RecipeData
             {
                 Index = index,
                 Name = name,
@@ -556,7 +556,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 保存配方头里能填的项（Type、超时时间、说明、字段表里自己加的项）和步骤：打开时读到的版本要对得上，配方头、步骤要按字段表检查通过；
     /// 存完版本加 1，记修改人、修改时间。存之前规整一下（见 <see cref="ApplyContent"/>）。content 里的编号、名称、建 / 改的人和时间、版本不管。
     /// </summary>
-    public HandleResult Save(int index, int revision, ProcessRecipeData content, string operatorName)
+    public HandleResult Save(int index, int revision, RecipeData content, string operatorName)
     {
         string? language = SystemComponent.Current?.Language;
         HandleResult result;
@@ -568,7 +568,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
                 ?? Store(Touch(_items[index], operatorName, next => ApplyContent(next, content)));
         }
 
-        Report(result, index, $"保存工艺配方 {index} 号（操作人 {operatorName}）", ((result.Result as ProcessRecipeData)?.Name ?? string.Empty, ChangeKind.Edited));
+        Report(result, index, $"保存工艺配方 {index} 号（操作人 {operatorName}）", ((result.Result as RecipeData)?.Name ?? string.Empty, ChangeKind.Edited));
         return result;
     }
 
@@ -583,7 +583,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             return;
         }
 
-        var saved = result.Result as ProcessRecipeData;
+        var saved = result.Result as RecipeData;
         LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
         Changed?.Invoke(index);
 
@@ -658,7 +658,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
                 index = FirstFreeIndex();
                 reported = name;
                 var now = DateTime.Now;
-                var data = new ProcessRecipeData
+                var data = new RecipeData
                 {
                     Index = index,
                     Name = name,
@@ -716,12 +716,12 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// Host 给的 JSON 转成工艺配方（只用说明和步骤）；读不出来返回 null。空着的说明、步骤、字段名、值补成空的，后面按字段表照常查。
     /// </summary>
-    private static ProcessRecipeData? ParseBody(string json)
+    private static RecipeData? ParseBody(string json)
     {
-        ProcessRecipeData? body;
+        RecipeData? body;
         try
         {
-            body = JsonHelper.Deserialize<ProcessRecipeData>(json);
+            body = JsonHelper.Deserialize<RecipeData>(json);
         }
         catch (Exception exception) when (exception is JsonException or NotSupportedException or ArgumentException)
         {
@@ -744,13 +744,13 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// JSON 里空着的一组值、字段名、值补成空的（后面按字段表照常查）。
     /// </summary>
-    private static ProcessRecipeStep CleanValues(ProcessRecipeStep? values)
+    private static RecipeStep CleanValues(RecipeStep? values)
     {
-        return new ProcessRecipeStep
+        return new RecipeStep
         {
             Values = (values?.Values ?? [])
                 .Where(value => value is not null)
-                .Select(value => new ProcessRecipeValue(value.Name ?? string.Empty, value.Value ?? string.Empty))
+                .Select(value => new RecipeValue(value.Name ?? string.Empty, value.Value ?? string.Empty))
                 .ToList(),
         };
     }
@@ -758,7 +758,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     #endregion
 
     /// <summary>按名字找（不分大小写）；必须在 _gate 里调。</summary>
-    private ProcessRecipeData? FindByName(string name)
+    private RecipeData? FindByName(string name)
     {
         return _items.Values.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
     }
@@ -780,7 +780,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 改一个工艺配方：在副本上改，版本加 1，记修改人、修改时间；写文件成了才换进库里。
     /// </summary>
-    private static ProcessRecipeData Touch(ProcessRecipeData current, string operatorName, Action<ProcessRecipeData> change)
+    private static RecipeData Touch(RecipeData current, string operatorName, Action<RecipeData> change)
     {
         var next = current.Clone();
         change(next);
@@ -793,7 +793,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 写文件（先写临时文件再换过去），成了才换进内存；写不进去内存里的不动，把原因回给界面。必须在 _gate 里调。
     /// </summary>
-    private HandleResult Store(ProcessRecipeData data)
+    private HandleResult Store(RecipeData data)
     {
         string file = FilePath(data.Index);
         string temp = file + TempExtension;
@@ -852,7 +852,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 读一个文件：文件名就是编号；名字不是 1~Capacity 的编号、或内容读不出来的跳过（返回 null）。
     /// </summary>
-    private ProcessRecipeData? ReadFile(string file)
+    private RecipeData? ReadFile(string file)
     {
         if (!int.TryParse(System.IO.Path.GetFileNameWithoutExtension(file), NumberStyles.None, CultureInfo.InvariantCulture, out int index)
             || index < 1 || index > Capacity)
@@ -863,7 +863,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
         try
         {
-            var data = XmlHelper.Deserialize<ProcessRecipeData>(file);
+            var data = XmlHelper.Deserialize<RecipeData>(file);
             if (data is null)
             {
                 LogHelper.Warn(Name, $"跳过 {file}：内容是空的");
@@ -883,13 +883,13 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 字段表里有、这一步里没有的字段（字段表后来加的）按默认值补上；这一步里有、字段表里没有的（后来删了）先留着，保存时丢掉。
     /// </summary>
-    private static void FillDefaults(ProcessRecipeStep step, IReadOnlyList<RecipeField> fields)
+    private static void FillDefaults(RecipeStep step, IReadOnlyList<RecipeField> fields)
     {
         foreach (var field in fields)
         {
             if (!step.Has(field.Key))
             {
-                step.Values.Add(new ProcessRecipeValue(field.Key, field.Default));
+                step.Values.Add(new RecipeValue(field.Key, field.Default));
             }
         }
     }
@@ -898,23 +898,23 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 配方头没写的项按默认值补：超时时间空着的补默认值（老配方里还没有这一项），自己加的项没有的补默认值（字段表后来加的）。
     /// Type 不在这儿补：要知道有哪几种腔体，Bind 时补。说明空着就是空着。
     /// </summary>
-    private static void FillHeadDefaults(ProcessRecipeData data, IReadOnlyList<RecipeField> headFields)
+    private static void FillHeadDefaults(RecipeData data, IReadOnlyList<RecipeField> headFields)
     {
-        var timeout = FindField(headFields, ProcessRecipeHead.TimeoutKey);
+        var timeout = FindField(headFields, RecipeHead.TimeoutKey);
         if (timeout is not null && data.Timeout.Trim().Length == 0)
         {
             data.Timeout = timeout.Default;
         }
 
-        FillDefaults(data.Head, headFields.Where(field => ProcessRecipeHead.IsCustom(field.Key)).ToList());
+        FillDefaults(data.Head, headFields.Where(field => RecipeHead.IsCustom(field.Key)).ToList());
     }
 
     /// <summary>
     /// 新加的一步：每个字段填默认值。
     /// </summary>
-    private static ProcessRecipeStep NewStep(IReadOnlyList<RecipeField> fields)
+    private static RecipeStep NewStep(IReadOnlyList<RecipeField> fields)
     {
-        return new ProcessRecipeStep { Values = fields.Select(field => new ProcessRecipeValue(field.Key, field.Default)).ToList() };
+        return new RecipeStep { Values = fields.Select(field => new RecipeValue(field.Key, field.Default)).ToList() };
     }
 
     private HandleResult? CheckIndex(int index)
@@ -970,7 +970,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 查一份配方的内容（必须在 _gate 里调）：先查配方头（步骤下拉的选项按配方头的 Type 取），再查步骤和合计时长。
     /// </summary>
-    private HandleResult? CheckContent(ProcessRecipeData content, string? language)
+    private HandleResult? CheckContent(RecipeData content, string? language)
     {
         return CheckHead(content, language) ?? CheckSteps(content.Steps, _fields, content.Type.Trim(), content.TimeoutSeconds, language);
     }
@@ -979,16 +979,16 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 配方头里能填的项（程序算的那几项不查）：Type 要是腔体配的几种之一（没配 Type 的腔体也算一种，那种就是空着）；
     /// 超时时间、说明、自己加的项按字段表查，规则跟步骤一样，提示用配方头那一组错误码、字段名按界面语言。必须在 _gate 里调。
     /// </summary>
-    private HandleResult? CheckHead(ProcessRecipeData content, string? language)
+    private HandleResult? CheckHead(RecipeData content, string? language)
     {
         foreach (var field in _headFields)
         {
-            if (ProcessRecipeHead.IsAuto(field.Key))
+            if (RecipeHead.IsAuto(field.Key))
             {
                 continue;
             }
 
-            bool isType = string.Equals(field.Key, ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
+            bool isType = string.Equals(field.Key, RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
             var options = isType ? _stationTypes : field.OptionsFor(string.Empty);
             string value = HeadValue(content, field.Key).Trim();
             string fieldText = field.DisplayText(language);
@@ -1016,19 +1016,19 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 配方头里一项的值：固定的几项在各自的属性上，自己加的在 Head 里。
     /// </summary>
-    private static string HeadValue(ProcessRecipeData content, string key)
+    private static string HeadValue(RecipeData content, string key)
     {
-        if (string.Equals(key, ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase))
         {
             return content.Type;
         }
 
-        if (string.Equals(key, ProcessRecipeHead.TimeoutKey, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, RecipeHead.TimeoutKey, StringComparison.OrdinalIgnoreCase))
         {
             return content.Timeout;
         }
 
-        if (string.Equals(key, ProcessRecipeHead.DescriptionKey, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, RecipeHead.DescriptionKey, StringComparison.OrdinalIgnoreCase))
         {
             return content.Description;
         }
@@ -1062,18 +1062,18 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 把查过的内容规整后放进 next（必须在 _gate 里调）：Type 换成腔体配的写法；超时时间、自己加的项换成统一写法，
     /// 自己加的项只留字段表里有的、按字段表的先后；说明去掉首尾空白；步骤见 <see cref="Normalize"/>（下拉按配方的 Type 取选项）。
     /// </summary>
-    private void ApplyContent(ProcessRecipeData next, ProcessRecipeData content)
+    private void ApplyContent(RecipeData next, RecipeData content)
     {
         string type = content.Type.Trim();
         next.Type = _stationTypes.FirstOrDefault(item => string.Equals(item, type, StringComparison.OrdinalIgnoreCase)) ?? type;
-        var timeout = FindField(_headFields, ProcessRecipeHead.TimeoutKey)!;
+        var timeout = FindField(_headFields, RecipeHead.TimeoutKey)!;
         next.Timeout = timeout.Canonical(content.Timeout, []);
         next.Description = content.Description.Trim();
-        next.Head = new ProcessRecipeStep
+        next.Head = new RecipeStep
         {
             Values = _headFields
-                .Where(field => ProcessRecipeHead.IsCustom(field.Key))
-                .Select(field => new ProcessRecipeValue(field.Key, field.Canonical(content.Head.Get(field.Key), field.OptionsFor(string.Empty))))
+                .Where(field => RecipeHead.IsCustom(field.Key))
+                .Select(field => new RecipeValue(field.Key, field.Canonical(content.Head.Get(field.Key), field.OptionsFor(string.Empty))))
                 .ToList(),
         };
         next.Steps = Normalize(content.Steps, _fields, next.Type);
@@ -1084,7 +1084,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 下拉的值要在配方这种 Type 的选项里；合计不超过配方头的超时时间（没填不限）。
     /// 字段之间不互相管。步号从 1 数，跟界面上一样；提示里的字段名按界面语言。
     /// </summary>
-    private static HandleResult? CheckSteps(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<RecipeField> fields,
+    private static HandleResult? CheckSteps(IReadOnlyList<RecipeStep> steps, IReadOnlyList<RecipeField> fields,
         string stationType, double timeoutSeconds, string? language)
     {
         if (steps.Count == 0)
@@ -1118,7 +1118,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             }
         }
 
-        double total = steps.Sum(ProcessRecipeData.SecondsOf);
+        double total = steps.Sum(RecipeData.SecondsOf);
         if (timeoutSeconds > 0 && total > timeoutSeconds)
         {
             return HandleResult.Fail(ErrorCodes.ProcessRecipeTotalTooLong, Number(total), Number(timeoutSeconds));
@@ -1128,21 +1128,21 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 规整步骤（检查通过之后调）：只留字段表里的字段、按字段表的先后（空的也写，见 <see cref="ProcessRecipeStep"/>），
+    /// 规整步骤（检查通过之后调）：只留字段表里的字段、按字段表的先后（空的也写，见 <see cref="RecipeStep"/>），
     /// 数字、开关换成统一写法，下拉换成这种 Type 选项里的写法（大小写跟 sc.xml 一样）。
     /// </summary>
-    private static List<ProcessRecipeStep> Normalize(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<RecipeField> fields, string stationType)
+    private static List<RecipeStep> Normalize(IReadOnlyList<RecipeStep> steps, IReadOnlyList<RecipeField> fields, string stationType)
     {
-        var result = new List<ProcessRecipeStep>();
+        var result = new List<RecipeStep>();
         foreach (var step in steps)
         {
-            var values = new List<ProcessRecipeValue>();
+            var values = new List<RecipeValue>();
             foreach (var field in fields)
             {
-                values.Add(new ProcessRecipeValue(field.Key, field.Canonical(step.Get(field.Key), field.OptionsFor(stationType))));
+                values.Add(new RecipeValue(field.Key, field.Canonical(step.Get(field.Key), field.OptionsFor(stationType))));
             }
 
-            result.Add(new ProcessRecipeStep { Values = values });
+            result.Add(new RecipeStep { Values = values });
         }
 
         return result;

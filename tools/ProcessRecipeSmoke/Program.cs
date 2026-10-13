@@ -31,27 +31,27 @@ void Fails(HandleResult result, string code, string[] args, string message)
 }
 
 // 库操作成了带回的配方（HandleResult 的 Result）；没带的为 null
-ProcessRecipeData? Data(HandleResult result)
+RecipeData? Data(HandleResult result)
 {
-    return result.Result as ProcessRecipeData;
+    return result.Result as RecipeData;
 }
 
 // 一步：按 sc.xml 字段表的字段名给值，不给的就是空的
-ProcessRecipeStep Step(string seconds, string rpm, string arm = "", string chemical = "", string flow = "", string mode = "",
+RecipeStep Step(string seconds, string rpm, string arm = "", string chemical = "", string flow = "", string mode = "",
     string position = "", string scanTo = "", string scanSpeed = "")
 {
-    var values = new List<ProcessRecipeValue>
+    var values = new List<RecipeValue>
     {
         new("Seconds", seconds), new("Rpm", rpm), new("Arm", arm), new("Chemical", chemical), new("Flow", flow),
         new("Mode", mode), new("Position", position), new("ScanTo", scanTo), new("ScanSpeed", scanSpeed),
     };
-    return new ProcessRecipeStep { Values = values };
+    return new RecipeStep { Values = values };
 }
 
 // 要保存的一份内容：配方头能填的项（Type、超时时间、说明）+ 步骤
-ProcessRecipeData Content(string description, List<ProcessRecipeStep> steps, string type = "A", string timeout = "600")
+RecipeData Content(string description, List<RecipeStep> steps, string type = "A", string timeout = "600")
 {
-    return new ProcessRecipeData { Type = type, Timeout = timeout, Description = description, Steps = steps };
+    return new RecipeData { Type = type, Timeout = timeout, Description = description, Steps = steps };
 }
 
 // 探针腔体：下面按给的装摆臂轴，摆臂下面按药液装喷嘴（跟 sc.xml 里的层级一样）；Type 跟 sc.xml 里的腔体一样写 A
@@ -196,7 +196,7 @@ try
         "配方头超时时间：小数、必填、1 ~ 3600 s、整秒、默认 600");
     Check(headFields.First(field => field.Key == "Type").Type == ProcessRecipeFieldType.Choice
           && headFields.First(field => field.Key == "Type").OptionsByType.Count == 0
-          && ProcessRecipeHead.IsAuto("revision") && !ProcessRecipeHead.IsAuto("Timeout") && ProcessRecipeHead.IsCustom("N2Purge"),
+          && RecipeHead.IsAuto("revision") && !RecipeHead.IsAuto("Timeout") && RecipeHead.IsCustom("N2Purge"),
         "配方头 Type：下拉，选项不在 sc.xml 里写（是腔体配的 Type）；版本这类是程序算的，自己加的项不是固定项");
     Check(library.StationTypes.SequenceEqual(new[] { string.Empty }), "还没 Bind（没有腔体）时只有空 Type 一种");
 
@@ -301,8 +301,8 @@ try
     // 4. 保存：版本对得上、按字段表检查通过才存，版本加 1、记修改人。规整：只留字段表里的字段、按字段表的先后，
     //    数字去掉多余的写法、下拉换成选项里的写法（大小写）。
     var extra = Step("5", "+300", "arm1", "diw", "1.50", "time", "150");
-    extra.Values.Add(new ProcessRecipeValue("Leftover", "x"));
-    var good = new List<ProcessRecipeStep>
+    extra.Values.Add(new RecipeValue("Leftover", "x"));
+    var good = new List<RecipeStep>
     {
         extra,
         Step("60", "500", "Arm1", "SC1", "1", "Scan", "150", "30", "20"),
@@ -324,7 +324,7 @@ try
     Check(changed.SequenceEqual(new[] { 1, 1 }), "保存发一次变更事件");
 
     var ok = Step("5", "300", "Arm1", "DIW", "1.5", "Time", "150");
-    HandleResult SaveOne(ProcessRecipeStep step)
+    HandleResult SaveOne(RecipeStep step)
     {
         return library.Save(1, 2, Content(string.Empty, [ok, step]), "Saver");
     }
@@ -375,9 +375,9 @@ try
         FieldNode("Flag", ("Text", "开关"), ("Type", "Bool"), ("Default", "false")),
         FieldNode("Note", ("Text", "备注"), ("Type", "Text")))]).Single();
     Check(flags.Create(1, "FLAGS", "Tester").IsSuccess && Data(flags.Get(1))!.Steps[0].Get("Flag") == "false", "开关默认 false");
-    ProcessRecipeStep FlagStep(string flag, string note)
+    RecipeStep FlagStep(string flag, string note)
     {
-        return new ProcessRecipeStep { Values = [new("Seconds", "1"), new("Flag", flag), new("Note", note)] };
+        return new RecipeStep { Values = [new("Seconds", "1"), new("Flag", flag), new("Note", note)] };
     }
 
     var flagSaved = flags.Save(1, 1, Content(string.Empty, [FlagStep("TRUE", "  hello  ")], type: string.Empty), "Tester");
@@ -449,7 +449,7 @@ try
         "不是腔体的、库里没有的配方不在这里报");
     Check(pmB.FindRecipeMismatch(library.Find("SC1_45S")!) == ("Type", "A"),
         "Type 为 B 的腔体：Type A 的配方先对不上的是 Type（摆臂、药液都有也不行）");
-    var typeless = new ProcessRecipeData { Type = " b ", Steps = [Step("5", "300", "Arm1", "SC1")] };
+    var typeless = new RecipeData { Type = " b ", Steps = [Step("5", "300", "Arm1", "SC1")] };
     Check(pmB.FindRecipeMismatch(typeless) is null, "Type 不分大小写、去掉首尾空白");
 
     // 11. 删除：文件删掉、编号空出来；再删、再取都说没有；没成的不发事件。
@@ -472,7 +472,7 @@ try
         "取出来是 JSON：每一步是字段名 → 值，不带存文件用的 XML 属性");
     Check(exported is not null && remote.AcceptsRecipe(exported) && !remote.AcceptsRecipe("{\"steps\":[{\"group\":\"LoadPort\",\"stations\":[]}]}")
           && !remote.AcceptsRecipe("{\"steps\":[]}") && !remote.AcceptsRecipe("{"), "认 JSON 的样子：每一步带字段值的是工艺配方；流程配方的样子、没有步骤、读不出来的都不认");
-    var exportedData = exported is null ? null : JsonHelper.Deserialize<ProcessRecipeData>(exported);
+    var exportedData = exported is null ? null : JsonHelper.Deserialize<RecipeData>(exported);
     Check(exportedData is not null && exportedData.Steps.Count == 1 && exportedData.Steps[0].Values.Count == 9 && exportedData.Steps[0].Get("Chemical") == "SC1"
           && exportedData.Type == "A" && exportedData.Timeout == "600", "JSON 读回来跟库里一样（带配方头的 Type、超时时间）");
 
@@ -480,7 +480,7 @@ try
     var hostRecipe = library.Find("HOST_RECIPE");
     Check(imported.IsSuccess && hostRecipe is not null && hostRecipe.Index == 3 && hostRecipe.Revision == 1 && hostRecipe.CreatedBy == "Host"
           && hostRecipe.Steps[0].Get("Chemical") == "SC1", "Host 下一个新名字：放在第一个空编号上，版本 1，建的人记 Host");
-    string loose = JsonHelper.Serialize(new ProcessRecipeData
+    string loose = JsonHelper.Serialize(new RecipeData
     {
         Name = "IGNORED", Revision = 77, Type = "a", Description = " 远程 ", Steps = [Step("5", "+300", "arm1", "diw", "1.50")],
     });
@@ -490,10 +490,10 @@ try
           && overwritten.Steps[0].Get("Rpm") == "300" && overwritten.Steps[0].Get("Arm") == "Arm1" && overwritten.Steps[0].Get("Chemical") == "DIW"
           && overwritten.Type == "A" && overwritten.Timeout == "600",
         "同名再下：覆盖（版本加 1），跟本地保存一样规整写法；JSON 里的名字、版本不管，没带超时时间的补默认 600");
-    var noType = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Steps = [Step("5", "300")] }), "Host");
+    var noType = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new RecipeData { Steps = [Step("5", "300")] }), "Host");
     Check(!noType.IsSuccess && noType.ErrorMessage == ErrorCodes.ProcessRecipeHeadValueRequired && library.Find("HOST_BAD") is null,
         "JSON 里没带 Type：不补、不收（不知道给哪种腔体用）");
-    var tooLong = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new ProcessRecipeData { Type = "A", Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
+    var tooLong = remote.ImportRecipe("HOST_BAD", JsonHelper.Serialize(new RecipeData { Type = "A", Steps = [Step("600", "300"), Step("1.5", "300")] }), "Host");
     Check(!tooLong.IsSuccess && tooLong.ErrorMessage == ErrorCodes.ProcessRecipeTotalTooLong && library.Find("HOST_BAD") is null,
         "步骤没过检查（合计超过超时时间）：跟本地保存一样拒，什么都不存");
     var notJson = remote.ImportRecipe("HOST_BAD", "{", "Host");

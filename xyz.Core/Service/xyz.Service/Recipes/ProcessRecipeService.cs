@@ -96,7 +96,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         }
 
         // protobuf 收到的空列表、空字符串可能是 null，进库之前都换成空的
-        var content = new ProcessRecipeData
+        var content = new RecipeData
         {
             Type = request.Type ?? string.Empty,
             Timeout = request.Timeout ?? string.Empty,
@@ -107,11 +107,11 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, content, OperatorOf(request.Operator)));
     }
 
-    private static ProcessRecipeStep ToValues(Dictionary<string, string>? values)
+    private static RecipeStep ToValues(Dictionary<string, string>? values)
     {
-        return new ProcessRecipeStep
+        return new RecipeStep
         {
-            Values = (values ?? []).Select(pair => new ProcessRecipeValue(pair.Key, pair.Value ?? string.Empty)).ToList(),
+            Values = (values ?? []).Select(pair => new RecipeValue(pair.Key, pair.Value ?? string.Empty)).ToList(),
         };
     }
 
@@ -122,11 +122,11 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
         }
 
-        var recipe = result.Result as ProcessRecipeData;
+        var recipe = result.Result as RecipeData;
         return Task.FromResult(recipe is null ? RpcResponse.Ok() : RpcResponse.Ok(JsonHelper.Serialize(ToDto(recipe))));
     }
 
-    private static ProcessRecipeDto ToDto(ProcessRecipeData data)
+    private static ProcessRecipeDto ToDto(RecipeData data)
     {
         return new ProcessRecipeDto
         {
@@ -145,7 +145,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         };
     }
 
-    private static ProcessRecipeStepDto ToDto(ProcessRecipeStep step)
+    private static ProcessRecipeStepDto ToDto(RecipeStep step)
     {
         var dto = new ProcessRecipeStepDto();
         foreach (var value in step.Values)
@@ -172,9 +172,9 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// </summary>
     private static ProcessRecipeFieldDto ToHeadDto(RecipeField field, IReadOnlyList<string> stationTypes)
     {
-        bool isType = string.Equals(field.Key, ProcessRecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
+        bool isType = string.Equals(field.Key, RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
         var dto = ToFieldDto(field);
-        dto.IsAuto = ProcessRecipeHead.IsAuto(field.Key);
+        dto.IsAuto = RecipeHead.IsAuto(field.Key);
         dto.Options = (isType ? stationTypes : field.OptionsFor(string.Empty)).ToList();
         if (isType)
         {

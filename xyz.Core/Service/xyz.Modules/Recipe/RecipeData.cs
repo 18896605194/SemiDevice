@@ -9,7 +9,7 @@ namespace xyz.Modules;
 /// 编号不进文件内容，由文件名定（001.xml 就是 1 号），免得文件名和内容对不上。
 /// </summary>
 [XmlRoot("ProcessRecipe")]
-public class ProcessRecipeData
+public class RecipeData
 {
     /// <summary>
     /// 超时时间的写法跟字段值一样（可以带小数点，不认千分位、科学计数法）。
@@ -46,7 +46,7 @@ public class ProcessRecipeData
     /// 配方头里自己在字段表加的项（字段名 → 值）。
     /// </summary>
     [XmlElement("Head")]
-    public ProcessRecipeStep Head { get; set; } = new();
+    public RecipeStep Head { get; set; } = new();
 
     [XmlAttribute]
     public string CreatedBy { get; set; } = string.Empty;
@@ -67,7 +67,7 @@ public class ProcessRecipeData
     public int Revision { get; set; }
 
     [XmlElement("Step")]
-    public List<ProcessRecipeStep> Steps { get; set; } = [];
+    public List<RecipeStep> Steps { get; set; } = [];
 
     /// <summary>
     /// 合计时长（各步时间加起来），秒；时间没填、填的不是数的那一步不算。
@@ -91,7 +91,7 @@ public class ProcessRecipeData
     /// <summary>
     /// 一步的时间（字段表里的 Seconds），秒；没填、不是数的算 0。
     /// </summary>
-    public static double SecondsOf(ProcessRecipeStep step)
+    public static double SecondsOf(RecipeStep step)
     {
         return double.TryParse(step.Get(RecipeField.SecondsKey), NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
             CultureInfo.InvariantCulture, out double seconds) && seconds > 0
@@ -102,16 +102,16 @@ public class ProcessRecipeData
     /// <summary>
     /// 深拷贝：给调用方的都是副本，拿不到库里的活对象。
     /// </summary>
-    public ProcessRecipeData Clone()
+    public RecipeData Clone()
     {
-        return new ProcessRecipeData
+        return new RecipeData
         {
             Index = Index,
             Name = Name,
             Type = Type,
             Timeout = Timeout,
             Description = Description,
-            Head = (Head ?? new ProcessRecipeStep()).Clone(),
+            Head = (Head ?? new RecipeStep()).Clone(),
             CreatedBy = CreatedBy,
             CreatedAt = CreatedAt,
             ModifiedBy = ModifiedBy,

@@ -547,20 +547,20 @@ try
 
     // 15. 工艺（平台默认）：按配方快照一步一步做
     spin.MaxSpeed = 3000;
-    ProcessRecipeStep StepOf(params (string Key, string Value)[] values)
+    RecipeStep StepOf(params (string Key, string Value)[] values)
     {
-        return new ProcessRecipeStep { Values = values.Select(item => new ProcessRecipeValue(item.Key, item.Value)).ToList() };
+        return new RecipeStep { Values = values.Select(item => new RecipeValue(item.Key, item.Value)).ToList() };
     }
 
     // 配方快照：超时时间默认 600 s（配方头里的，工艺操作的上限）
-    ProcessRequest Recipe(string name, params ProcessRecipeStep[] steps)
+    ProcessRequest Recipe(string name, params RecipeStep[] steps)
     {
         return RecipeWithTimeout(name, "600", steps);
     }
 
-    ProcessRequest RecipeWithTimeout(string name, string timeout, params ProcessRecipeStep[] steps)
+    ProcessRequest RecipeWithTimeout(string name, string timeout, params RecipeStep[] steps)
     {
-        return new ProcessRequest { RecipeName = name, Recipe = new ProcessRecipeData { Name = name, Timeout = timeout, Steps = [.. steps] } };
+        return new ProcessRequest { RecipeName = name, Recipe = new RecipeData { Name = name, Timeout = timeout, Steps = [.. steps] } };
     }
 
     // 工艺跑起来，每拍记一下：DIW / SC1 同时开过没有、摆臂到过哪些位置

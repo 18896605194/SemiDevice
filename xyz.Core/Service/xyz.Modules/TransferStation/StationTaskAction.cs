@@ -48,5 +48,5 @@ public sealed record StationTaskRequest
     public string RecipeName { get; init; } = string.Empty;
 
     /// <summary>工艺配方快照；没装工艺配方库时为 null（只认名字）。</summary>
-    public ProcessRecipeData? Recipe { get; init; }
+    public RecipeData? Recipe { get; init; }
 }

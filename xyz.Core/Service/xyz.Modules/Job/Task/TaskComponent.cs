@@ -79,7 +79,7 @@ public class TaskComponent : ComponentBase
         {
             var step = sequence.Steps[index];
             string recipeName = step.Recipe.Trim();
-            ProcessRecipeData? recipe = null;
+            RecipeData? recipe = null;
             if (recipeName.Length > 0 && library is not null)
             {
                 recipe = library.Find(recipeName);
@@ -140,7 +140,7 @@ public class TaskComponent : ComponentBase
     /// <summary>
     /// 站点能用：装了（搬运管理的站点表里有）、启用、有机械手到得了；有工艺配方的腔体还要跑得了这个配方。
     /// </summary>
-    private static bool IsUsable(string name, ProcessRecipeData? recipe)
+    private static bool IsUsable(string name, RecipeData? recipe)
     {
         var transfers = TransferManager.Current;
         if (transfers is null || !transfers.TryGetStation(name, out var station) || station is not BaseModule module || !module.IsEnabled

@@ -771,11 +771,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     /// 对得上返回 null；对不上回第一处的字段（按界面语言的名字，没装工艺配方库就用字段名）和值。
     /// 起工艺前、流程配方保存、Job 挑腔体时查，免得做到一半才发现。
     /// </summary>
-    public (string Field, string Value)? FindRecipeMismatch(ProcessRecipeData recipe)
+    public (string Field, string Value)? FindRecipeMismatch(RecipeData recipe)
     {
         if (!string.Equals(recipe.Type.Trim(), Type.Trim(), StringComparison.OrdinalIgnoreCase))
         {
-            return (FieldText(ProcessRecipeHead.TypeKey), recipe.Type.Trim());
+            return (FieldText(RecipeHead.TypeKey), recipe.Type.Trim());
         }
 
         foreach (var step in recipe.Steps)

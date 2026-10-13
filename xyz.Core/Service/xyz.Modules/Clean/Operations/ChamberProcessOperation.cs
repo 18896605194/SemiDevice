@@ -55,7 +55,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
 
     private readonly BaseChamberModule _chamber;
     private readonly string _recipeName;
-    private readonly IReadOnlyList<ProcessRecipeStep> _steps;
+    private readonly IReadOnlyList<RecipeStep> _steps;
 
     private Phase _phase;
     private int _index;
@@ -88,7 +88,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     /// <summary>
     /// 按配方快照做工艺，整个动作的上限是配方头的超时时间。
     /// </summary>
-    public ChamberProcessOperation(BaseChamberModule chamber, string recipeName, ProcessRecipeData recipe)
+    public ChamberProcessOperation(BaseChamberModule chamber, string recipeName, RecipeData recipe)
         : base($"{chamber.Name} Process {recipeName}", chamber.Name, recipe.TimeoutMilliseconds)
     {
         _chamber = chamber;
@@ -219,9 +219,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     }
 
     /// <summary>读这一步的字段，认出用哪条摆臂、哪个喷嘴；配方选的摆臂、药液这个腔体没有就失败（返回 false）。</summary>
-    private bool LoadStep(ProcessRecipeStep step)
+    private bool LoadStep(RecipeStep step)
     {
-        _seconds = ProcessRecipeData.SecondsOf(step);
+        _seconds = RecipeData.SecondsOf(step);
         _rpm = Number(step, RpmKey);
         _flow = Number(step, FlowKey);
         _position = Number(step, PositionKey);
@@ -246,7 +246,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     /// 这一步选的摆臂、药液照名字在腔体里找：没选摆臂 arm 为 null（这一步不喷）；选了的找不到，回是哪个字段（字段名）、什么值。
     /// 执行时按它认设备；起工艺前、流程配方保存、Job 挑腔体也按它把每一步先查一遍（<see cref="BaseChamberModule.FindRecipeMismatch"/>）。
     /// </summary>
-    internal static (string Key, string Value)? FindDevices(BaseChamberModule chamber, ProcessRecipeStep step, out ISwingArm? arm, out INozzle? nozzle)
+    internal static (string Key, string Value)? FindDevices(BaseChamberModule chamber, RecipeStep step, out ISwingArm? arm, out INozzle? nozzle)
     {
         arm = null;
         nozzle = null;
@@ -420,7 +420,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     }
 
     /// <summary>这一步某个数字字段的值（不变区域性）；没填、不是有限数为 null。</summary>
-    private static double? Number(ProcessRecipeStep step, string key)
+    private static double? Number(RecipeStep step, string key)
     {
         if (double.TryParse(step.Get(key).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && double.IsFinite(value))
         {

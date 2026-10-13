@@ -7,7 +7,7 @@ namespace xyz.Modules;
 /// 编号、名称、创建人、创建时间、修改人、修改时间、版本由程序算，页面上只显示；Type、超时时间、说明在页面上填。
 /// 字段表里别的项是自己加的，都在页面上填，值存在配方的 Head 里。
 /// </summary>
-public static class ProcessRecipeHead
+public static class RecipeHead
 {
     public const string IndexKey = "Index";
 
