@@ -1,10 +1,12 @@
 ﻿using xyz.Components.Attributes;
+using xyz.Components.Enums;
 using xyz.Drivers.Robot;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 机械手驱动组件基座
+/// 机械手驱动组件基座：通讯配置、驱动生命周期（断线重连）、主动事件转发、统一触发口、在途指令作废。
+/// 挂在机械手模块下面，OnScan 由父模块的扫描线程递归带着跑。
 /// </summary>
 public abstract class RobotDriverComponent : ComponentBase
 {
@@ -20,7 +22,21 @@ public abstract class RobotDriverComponent : ComponentBase
 
     #endregion
 
+    #region EC
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
+        @default: "5000", description: "通讯断开后隔多久重连一次")]
+    public int ReconnectIntervalMs
+    {
+        get { return GetEcInt(nameof(ReconnectIntervalMs)); }
+        set { SetEcInt(nameof(ReconnectIntervalMs), value); }
+    }
+
+    #endregion
+
     #region 驱动连接
+
+    private readonly DriverReconnector _reconnector = new();
 
     public IRobotDriver? Driver { get; private set; }
 
@@ -34,7 +50,7 @@ public abstract class RobotDriverComponent : ComponentBase
 
     /// <summary>
     /// 组件初始化（开机）：建驱动（首次）并打开连接。驱动建好先挂事件转发再开连：连上之后设备可能立刻推事件，晚订阅会漏。
-    /// 可重复调用：已建好的驱动只重开连接。
+    /// 可重复调用：已建好的驱动只重开连接。这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
     /// </summary>
     public override bool InitComponent()
     {
@@ -47,14 +63,36 @@ public abstract class RobotDriverComponent : ComponentBase
             Driver = driver;
         }
 
+        _reconnector.Enable();
         bool opened = driver.Open();
         return opened && childrenInitialized;
     }
 
-    /// <summary>关闭连接（在途指令作废）；驱动保留，重开走 InitComponent。</summary>
+    /// <summary>关闭连接（在途指令作废），不再重连；驱动保留，重开走 InitComponent。</summary>
     public void Close()
     {
+        _reconnector.Disable();
         Driver?.Close();
+    }
+
+    /// <summary>
+    /// 扫描（父模块的扫描线程带着跑）：断了按间隔在后台重连——先关（作废旧连接上的在途指令、收掉旧的收发任务）再开。
+    /// 机械手控制器断电重启、比后端晚上电时，不用再重启后端。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        var driver = Driver;
+        if (driver is null)
+        {
+            return;
+        }
+
+        _reconnector.Check(FullPath, driver.IsConnected, ReconnectIntervalMs, () =>
+        {
+            driver.Close();
+            driver.Open();
+        });
     }
 
     /// <summary>

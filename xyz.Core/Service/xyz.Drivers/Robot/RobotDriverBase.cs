@@ -46,11 +46,15 @@ public abstract class RobotDriverBase : IRobotDriver
                 return true;
             }
 
-            // 每个连接周期一套内存队列与消费任务；Close 后不可复用。
-            _rxChannel = Channel.CreateUnbounded<string>();
-            _txChannel = Channel.CreateUnbounded<string>();
-            _ = Task.Run(() => RouteFramesAsync(_rxChannel.Reader));
-            _ = Task.Run(() => SendFramesAsync(_txChannel.Reader));
+            // 每个连接周期一套内存队列与消费任务；上一轮的（断线、没连上留下的）先收掉，免得旧任务一直挂着。
+            _rxChannel?.Writer.TryComplete();
+            _txChannel?.Writer.TryComplete();
+            var rx = Channel.CreateUnbounded<string>();
+            var tx = Channel.CreateUnbounded<string>();
+            _rxChannel = rx;
+            _txChannel = tx;
+            _ = Task.Run(() => RouteFramesAsync(rx.Reader));
+            _ = Task.Run(() => SendFramesAsync(tx.Reader));
 
             return Communication.Open();
         }
@@ -303,8 +307,13 @@ public abstract class RobotDriverBase : IRobotDriver
             }
             catch
             {
-                // 通讯故障：收尾退出，由上层决定恢复策略。
-                Close();
+                // 通讯故障：收掉这一轮连接退出，由上层（驱动组件）重连。
+                // 只收自己这一轮：重连以后才醒过来的旧发送任务不能把新连接关了。
+                if (ReferenceEquals(_txChannel?.Reader, reader))
+                {
+                    Close();
+                }
+
                 break;
             }
         }

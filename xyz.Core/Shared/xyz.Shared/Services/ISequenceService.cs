@@ -52,7 +52,7 @@ public interface ISequenceService
 
     /// <summary>
     /// 保存说明和步骤：版本对得上、步骤检查通过才存，存完版本加 1。Data 为存好的 SequenceDto 的 JSON。
-    /// 失败回 sequence.index_out_of_range / sequence.not_found / sequence.revision_mismatch / sequence.too_few_steps /
+    /// 失败回 sequence.index_out_of_range / sequence.not_found / sequence.revision_mismatch /
     /// sequence.step_not_loadport / sequence.group_not_found / sequence.station_required / sequence.station_not_in_group /
     /// sequence.recipe_required / sequence.recipe_not_found / sequence.save_failed。
     /// </summary>

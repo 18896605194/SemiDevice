@@ -23,10 +23,16 @@ void Check(bool condition, string message)
     checks++;
 }
 
-void Fails(SequenceResult result, string code, string[] args, string message)
+void Fails(HandleResult result, string code, string[] args, string message)
 {
-    Check(!result.IsOk && result.Code == code && result.Args.SequenceEqual(args),
-        $"{message}，实际 {result.Code} [{string.Join(",", result.Args)}]");
+    Check(!result.IsSuccess && result.ErrorMessage == code && result.Args.SequenceEqual(args),
+        $"{message}，实际 {result.ErrorMessage} [{string.Join(",", result.Args)}]");
+}
+
+// 库操作成了带回的配方（HandleResult 的 Result）；没带的为 null
+SequenceData? Data(HandleResult result)
+{
+    return result.Result as SequenceData;
 }
 
 ModuleConfig Module(string name)
@@ -95,9 +101,9 @@ try
     var changed = new List<int>();
     library.Changed += index => changed.Add(index);
     var created = library.Create(1, "  SC1_CLEAN ", "Tester");
-    Check(created.IsOk && created.Sequence is not null && created.Sequence.Name == "SC1_CLEAN" && created.Sequence.Revision == 1
-          && created.Sequence.CreatedBy == "Tester" && created.Sequence.ModifiedBy == "Tester", "新建：版本 1，记创建人");
-    var defaults = created.Sequence!.Steps;
+    Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_CLEAN" && Data(created)!.Revision == 1
+          && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");
+    var defaults = Data(created)!.Steps;
     Check(defaults.Count == 3
           && defaults[0].Group == "LoadPort" && defaults[0].Stations.SequenceEqual(new[] { "SmokeLP1", "SmokeLP2" })
           && defaults[1].Group == "Chamber" && defaults[1].Stations.SequenceEqual(new[] { "SmokePM1", "SmokePM2" }) && defaults[1].Recipe == string.Empty
@@ -108,8 +114,6 @@ try
 
     Fails(library.Create(1, "OTHER", "Tester"), ErrorCodes.SequenceIndexOccupied, ["1", "SC1_CLEAN"], "编号已经有了");
     Fails(library.Create(2, "sc1_clean", "Tester"), ErrorCodes.SequenceNameDuplicate, ["sc1_clean", "1"], "名称重了（不分大小写）");
-    Fails(library.Create(2, "SC1 CLEAN", "Tester"), ErrorCodes.SequenceNameInvalid, ["SC1 CLEAN"], "名称里有空格");
-    Fails(library.Create(2, "流程一", "Tester"), ErrorCodes.SequenceNameInvalid, ["流程一"], "名称只能用字母、数字、_ 和 -");
     Fails(library.Create(2, "   ", "Tester"), ErrorCodes.SequenceNameRequired, [], "名称没填");
     Fails(library.Create(2, new string('A', 33), "Tester"), ErrorCodes.SequenceNameTooLong, ["32"], "名称超过 32 个字符");
     Fails(library.Create(0, "ZERO", "Tester"), ErrorCodes.SequenceIndexOutOfRange, ["0", "99"], "编号 0");
@@ -124,16 +128,15 @@ try
         new("LoadPort", ["SmokeLP1", "SmokeLP2"]),
     };
     var saved = library.Save(1, 1, " 药洗 ", good, "Saver");
-    Check(saved.IsOk && saved.Sequence is not null && saved.Sequence.Revision == 2 && saved.Sequence.ModifiedBy == "Saver"
-          && saved.Sequence.CreatedBy == "Tester" && saved.Sequence.Description == "药洗", "保存：版本 2，记修改人，说明去掉首尾空白");
-    var savedSteps = saved.Sequence!.Steps;
+    Check(saved.IsSuccess && Data(saved) is not null && Data(saved)!.Revision == 2 && Data(saved)!.ModifiedBy == "Saver"
+          && Data(saved)!.CreatedBy == "Tester" && Data(saved)!.Description == "药洗", "保存：版本 2，记修改人，说明去掉首尾空白");
+    var savedSteps = Data(saved)!.Steps;
     Check(savedSteps[0].Group == "LoadPort" && savedSteps[0].Stations.SequenceEqual(new[] { "SmokeLP1", "SmokeLP2" }) && savedSteps[0].Recipe == string.Empty
           && savedSteps[1].Stations.SequenceEqual(new[] { "SmokePM2" }) && savedSteps[1].Recipe == "SC1_60S",
         "规整：分组、站点按 sc 的写法和先后，LoadPort 不带配方，配方去掉空白");
     Check(changed.SequenceEqual(new[] { 1, 1 }), "保存发一次变更事件");
 
     Fails(library.Save(1, 1, string.Empty, good, "Saver"), ErrorCodes.SequenceRevisionMismatch, ["1"], "旧版本存不进去（别处改过）");
-    Fails(library.Save(1, 2, string.Empty, good.Take(2).ToList(), "Saver"), ErrorCodes.SequenceTooFewSteps, [], "少于 3 步");
     Fails(library.Save(1, 2, string.Empty, [new("Chamber", ["SmokePM1"], "R"), good[1], good[2]], "Saver"),
         ErrorCodes.SequenceStepNotLoadPort, ["1"], "第 1 步不是 LoadPort");
     Fails(library.Save(1, 2, string.Empty, [good[0], good[1], new("Chamber", ["SmokePM1"], "R")], "Saver"),
@@ -149,21 +152,21 @@ try
     Fails(library.Save(1, 2, string.Empty, [good[0], new("Chamber", ["SmokePM1"], "  "), good[2]], "Saver"),
         ErrorCodes.SequenceRecipeRequired, ["2"], "工艺腔那一步要选工艺配方");
     Fails(library.Save(7, 1, string.Empty, good, "Saver"), ErrorCodes.SequenceNotFound, ["7"], "没有的编号");
-    Check(library.Get(1).Sequence?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
+    Check(Data(library.Get(1))?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
 
     var lp1ToLp2 = library.Save(1, 2, string.Empty,
         [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], "R1"), new("SmokeAligner", ["SmokeAligner"]), new("LoadPort", ["SmokeLP2"])],
         "Saver");
-    Check(lp1ToLp2.IsOk && lp1ToLp2.Sequence is not null && lp1ToLp2.Sequence.Revision == 3 && lp1ToLp2.Sequence.Steps.Count == 4,
+    Check(lp1ToLp2.IsSuccess && Data(lp1ToLp2) is not null && Data(lp1ToLp2)!.Revision == 3 && Data(lp1ToLp2)!.Steps.Count == 4,
         "LoadPort1 取、放到 LoadPort2，中间还能经过别的站点分组");
 
     // 4. 改名：版本加 1、记修改人；跟别的编号重了不行。
-    Check(library.Create(2, "DIW_RINSE", "Tester").IsOk, "再建一个");
+    Check(library.Create(2, "DIW_RINSE", "Tester").IsSuccess, "再建一个");
     Fails(library.Rename(2, "SC1_CLEAN", "Tester"), ErrorCodes.SequenceNameDuplicate, ["SC1_CLEAN", "1"], "改名跟别的编号重了");
     Fails(library.Rename(9, "NOBODY", "Tester"), ErrorCodes.SequenceNotFound, ["9"], "改没有的编号");
     var renamed = library.Rename(1, "SC1_LP1_TO_LP2", "Renamer");
-    Check(renamed.IsOk && renamed.Sequence is not null && renamed.Sequence.Name == "SC1_LP1_TO_LP2" && renamed.Sequence.Revision == 4
-          && renamed.Sequence.ModifiedBy == "Renamer" && renamed.Sequence.Steps.Count == 4, "改名：版本加 1，步骤不动");
+    Check(renamed.IsSuccess && Data(renamed) is not null && Data(renamed)!.Name == "SC1_LP1_TO_LP2" && Data(renamed)!.Revision == 4
+          && Data(renamed)!.ModifiedBy == "Renamer" && Data(renamed)!.Steps.Count == 4, "改名：版本加 1，步骤不动");
 
     // 5. 文件读回来：新开一个库读同一个目录，内容、版本一样；读不出来的、文件名不是编号的、超出个数的都跳过，不连累别的。
     File.WriteAllText(Path.Combine(folder, "005.xml"), "<Sequence Name=");
@@ -181,14 +184,14 @@ try
     Check(!Directory.EnumerateFiles(folder, "*.tmp").Any(), "写完不留临时文件");
 
     // 6. 给出去的都是副本：改了不影响库里的。
-    var copy = library.Get(1).Sequence!;
+    var copy = Data(library.Get(1))!;
     copy.Name = "HACKED";
     copy.Steps.Clear();
-    Check(library.Get(1).Sequence?.Name == "SC1_LP1_TO_LP2" && library.Get(1).Sequence?.Steps.Count == 4, "拿到的是副本");
+    Check(Data(library.Get(1))?.Name == "SC1_LP1_TO_LP2" && Data(library.Get(1))?.Steps.Count == 4, "拿到的是副本");
 
     // 7. 删除：文件删掉、编号空出来；再删、再取都说没有；没成的不发事件。
     changed.Clear();
-    Check(library.Delete(2, "Tester").IsOk && !File.Exists(Path.Combine(folder, "002.xml")) && library.List().Count == 1, "删除");
+    Check(library.Delete(2, "Tester").IsSuccess && !File.Exists(Path.Combine(folder, "002.xml")) && library.List().Count == 1, "删除");
     Fails(library.Delete(2, "Tester"), ErrorCodes.SequenceNotFound, ["2"], "再删说没有");
     Fails(library.Get(2), ErrorCodes.SequenceNotFound, ["2"], "再取说没有");
     Fails(library.Get(0), ErrorCodes.SequenceIndexOutOfRange, ["0", "99"], "取编号 0");
@@ -201,11 +204,11 @@ try
     xyz.Components.Interfaces.ISequenceComponent remote = library;
     remote.E30Callback = eapChanges;
     Check(remote.SequenceNames.SequenceEqual(new[] { "SC1_LP1_TO_LP2" }), "按名字列");
-    string? exported = remote.ExportSequence("sc1_lp1_to_lp2");
+    string? exported = remote.GetSequenceData("sc1_lp1_to_lp2");
     var exportedData = exported is null ? null : JsonHelper.Deserialize<SequenceData>(exported);
     Check(exportedData is not null && exportedData.Name == "SC1_LP1_TO_LP2" && exportedData.Revision == 4 && exportedData.Steps.Count == 4
           && exportedData.Steps[1].Recipe == "R1", "取出来是 JSON（名字不分大小写），内容跟库里一样");
-    Check(remote.ExportSequence("NOPE") is null, "没有的名字取不到");
+    Check(remote.GetSequenceData("NOPE") is null, "没有的名字取不到");
     Check(remote.AcceptsSequence(exported!) && !remote.AcceptsSequence("{\"steps\":[{\"values\":[]}]}") && !remote.AcceptsSequence("{\"steps\":[]}")
           && !remote.AcceptsSequence("not json"), "认 JSON 的样子：每一步带分组的是流程配方；工艺配方的样子、没有步骤、读不出来的都不认");
 
@@ -228,26 +231,25 @@ try
           && overwritten.Description == "远程改的" && overwritten.ModifiedBy == "Host" && overwritten.Steps[0].Group == "LoadPort"
           && overwritten.Steps[0].Stations.SequenceEqual(new[] { "SmokeLP1" }) && overwritten.Steps[1].Recipe == "R2",
         "同名再下：覆盖说明和步骤（版本加 1、照本地一样规整写法），JSON 里的名字、编号、版本不管");
-    var tooFew = remote.ImportSequence("HOST_BAD", JsonHelper.Serialize(new SequenceData { Steps = [new("LoadPort", ["SmokeLP1"])] }), "Host");
-    Check(!tooFew.IsSuccess && tooFew.ErrorMessage == ErrorCodes.SequenceTooFewSteps && library.Find("HOST_BAD") is null,
-        "步骤没过检查：跟本地保存一样拒，什么都不存");
+    var notFromPort = remote.ImportSequence("HOST_BAD", JsonHelper.Serialize(new SequenceData { Steps = [new("Chamber", ["SmokePM1"], "R1")] }), "Host");
+    Check(!notFromPort.IsSuccess && notFromPort.ErrorMessage == ErrorCodes.SequenceStepNotLoadPort && library.Find("HOST_BAD") is null,
+        "步骤没过检查（第 1 步不是 LoadPort）：跟本地保存一样拒，什么都不存");
     var notJson = remote.ImportSequence("HOST_BAD", "not json", "Host");
     Check(!notJson.IsSuccess && notJson.ErrorMessage == ErrorCodes.SequenceBodyInvalid && notJson.Args.SequenceEqual(new[] { "HOST_BAD" }),
         "内容不是 JSON：sequence.body_invalid 带名字");
     var nullSteps = remote.ImportSequence("HOST_BAD", "{\"steps\":[{\"group\":null,\"stations\":null}]}", "Host");
-    Check(!nullSteps.IsSuccess && nullSteps.ErrorMessage == ErrorCodes.SequenceTooFewSteps, "JSON 里空着的步骤内容补成空的再查，不会出异常");
-    var badName = remote.ImportSequence("HOST BAD", overwrite, "Host");
-    Check(!badName.IsSuccess && badName.ErrorMessage == ErrorCodes.SequenceNameInvalid, "名字不合规：跟本地新建一样拒");
+    Check(!nullSteps.IsSuccess && nullSteps.ErrorMessage == ErrorCodes.SequenceGroupNotFound && nullSteps.Args.SequenceEqual(new[] { "1", "" }),
+        "JSON 里空着的步骤内容补成空的再查（分组空着：找不到分组），不会出异常");
 
     var tinyFolder = Path.Combine(folder, "tiny");
     var tiny = new SequenceComponent { Folder = tinyFolder, Capacity = 1 };
     SequenceComponent.Current = library;
     tiny.Load();
-    var full = tiny.Create(1, "ONLY", "Tester").IsOk ? ((xyz.Components.Interfaces.ISequenceComponent)tiny).ImportSequence("SECOND", exported!, "Host") : null;
+    var full = tiny.Create(1, "ONLY", "Tester").IsSuccess ? ((xyz.Components.Interfaces.ISequenceComponent)tiny).ImportSequence("SECOND", exported!, "Host") : null;
     Check(full is not null && full.ErrorMessage == ErrorCodes.SequenceFull && full.Args.SequenceEqual(new[] { "1" }), "编号都用完了：sequence.full 带个数");
     Directory.Delete(tinyFolder, recursive: true);
 
-    Check(library.Rename(2, "HOST_RENAMED", "Tester").IsOk, "本地改名");
+    Check(library.Rename(2, "HOST_RENAMED", "Tester").IsSuccess, "本地改名");
     var removedByHost = remote.DeleteSequence("host_renamed", "Host");
     Check(removedByHost.IsSuccess && library.Find("HOST_RENAMED") is null && !File.Exists(Path.Combine(folder, "002.xml")), "按名字删（不分大小写）");
     Check(remote.DeleteSequence("HOST_RENAMED", "Host").ErrorMessage == ErrorCodes.SequenceNameNotFound, "再删说没有：sequence.name_not_found");
@@ -375,19 +377,19 @@ try
             return new ProcessRecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
         }
 
-        Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsOk
-              && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsOk, "工艺配方库里建一个 SC1_60S（用 DIW）");
-        Check(recipes.Create(2, "HF_ONLY", "Tester").IsOk && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsOk,
+        Check(ReferenceEquals(ProcessRecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
+              && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsSuccess, "工艺配方库里建一个 SC1_60S（用 DIW）");
+        Check(recipes.Create(2, "HF_ONLY", "Tester").IsSuccess && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsSuccess,
             "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
-        int revision = library.Get(1).Sequence!.Revision;
+        int revision = Data(library.Get(1))!.Revision;
         Fails(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], " NOPE "), new("LoadPort", ["SmokeLP1"])], "Saver"),
             ErrorCodes.SequenceRecipeNotFound, ["2", "NOPE"], "工艺配方不在库里存不进去");
         var withRecipe = library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1"], "sc1_60s"), new("LoadPort", ["SmokeLP1"])], "Saver");
-        Check(withRecipe.IsOk && withRecipe.Sequence?.Steps[1].Recipe == "sc1_60s", "库里有的（不分大小写）存得进去");
-        revision = withRecipe.Sequence!.Revision;
+        Check(withRecipe.IsSuccess && Data(withRecipe)?.Steps[1].Recipe == "sc1_60s", "库里有的（不分大小写）存得进去");
+        revision = Data(withRecipe)!.Revision;
         Fails(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM1", "SmokePM2"], "hf_only"), new("LoadPort", ["SmokeLP1"])], "Saver"),
             ErrorCodes.SequenceRecipeOptionMissing, ["2", "SmokePM1", "hf_only", "药液", "HF"], "勾的 SmokePM1 没有 HF：存不进去");
-        Check(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM2"], "HF_ONLY"), new("LoadPort", ["SmokeLP1"])], "Saver").IsOk,
+        Check(library.Save(1, revision, string.Empty, [new("LoadPort", ["SmokeLP1"]), new("Chamber", ["SmokePM2"], "HF_ONLY"), new("LoadPort", ["SmokeLP1"])], "Saver").IsSuccess,
             "只勾有 HF 的 SmokePM2：存得进去");
     }
     finally

@@ -208,7 +208,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
     private SecsReply RequestProgram(HsmsMessage message)
     {
         string name = SecsRead.Text(SecsRead.Body(message), "PPID").Trim();
-        string? json = HasSequence(name) ? _sequences?.ExportSequence(name) : _processRecipes?.ExportProcessRecipe(name);
+        string? json = HasSequence(name) ? _sequences?.GetSequenceData(name) : _processRecipes?.ExportProcessRecipe(name);
         if (json is null)
         {
             return SecsReply.Of(SecsItem.L());

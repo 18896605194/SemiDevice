@@ -71,6 +71,15 @@ public abstract class RobotCommand
     }
 
     /// <summary>
+    /// 发起方等回复超时了，作废自己：经驱动从在途表摘掉、以失败落终态，同一条指令（同键）能再发。
+    /// 锐洁按整条指令认在途（Pick 带手指、站点、槽号），回复丢了不作废的话，复位、回零以后再取同一槽也发不出去。
+    /// </summary>
+    public void AbandonInFlight(string reason)
+    {
+        Driver.Abandon(this, reason);
+    }
+
+    /// <summary>
     /// 提交自己：经驱动占在途槽位并下发，立即返回。子类可重写以定制提交流程。
     /// </summary>
     public virtual bool Execute()

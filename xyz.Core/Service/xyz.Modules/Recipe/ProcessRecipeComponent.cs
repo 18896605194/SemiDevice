@@ -438,11 +438,11 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 按编号取一个（副本）。
     /// </summary>
-    public ProcessRecipeResult Get(int index)
+    public HandleResult Get(int index)
     {
         lock (_gate)
         {
-            return CheckExists(index) ?? ProcessRecipeResult.Ok(_items[index].Clone());
+            return CheckExists(index) ?? HandleResult.Success(_items[index].Clone());
         }
     }
 
@@ -475,7 +475,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// （<see cref="BaseChamberModule.FindRecipeMismatch"/>，几个腔体装的不一样时才会对不上）。
     /// 对得上、腔体不认识（不是腔体，或没绑上）、配方不在库里（那是另一个错，由 <see cref="Contains"/> 那一步报）都返回 null。
     /// </summary>
-    public ProcessRecipeMismatch? FindMismatch(string recipeName, string chamber)
+    public (string Field, string Value)? FindMismatch(string recipeName, string chamber)
     {
         string wanted = recipeName.Trim();
         string chamberName = chamber.Trim();
@@ -494,10 +494,10 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 新建：空编号上建一个，名称要合规、不重名。配方头填默认值（Type 取腔体的第一种），步骤先给一步（各字段的默认值），人再改。
     /// </summary>
-    public ProcessRecipeResult Create(int index, string name, string operatorName)
+    public HandleResult Create(int index, string name, string operatorName)
     {
         name = name.Trim();
-        ProcessRecipeResult result;
+        HandleResult result;
         lock (_gate)
         {
             var now = DateTime.Now;
@@ -524,10 +524,10 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 重命名：名称要合规、不跟别的编号重；版本加 1，记修改人、修改时间。
     /// </summary>
-    public ProcessRecipeResult Rename(int index, string name, string operatorName)
+    public HandleResult Rename(int index, string name, string operatorName)
     {
         name = name.Trim();
-        ProcessRecipeResult result;
+        HandleResult result;
         string oldName = string.Empty;
         lock (_gate)
         {
@@ -548,9 +548,9 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 删除：文件删掉、编号空出来。
     /// </summary>
-    public ProcessRecipeResult Delete(int index, string operatorName)
+    public HandleResult Delete(int index, string operatorName)
     {
-        ProcessRecipeResult result;
+        HandleResult result;
         string name = string.Empty;
         lock (_gate)
         {
@@ -565,10 +565,10 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 保存配方头里能填的项（Type、超时时间、说明、字段表里自己加的项）和步骤：打开时读到的版本要对得上，配方头、步骤要按字段表检查通过；
     /// 存完版本加 1，记修改人、修改时间。存之前规整一下（见 <see cref="ApplyContent"/>）。content 里的编号、名称、建 / 改的人和时间、版本不管。
     /// </summary>
-    public ProcessRecipeResult Save(int index, int revision, ProcessRecipeData content, string operatorName)
+    public HandleResult Save(int index, int revision, ProcessRecipeData content, string operatorName)
     {
         string? language = SystemComponent.Current?.Language;
-        ProcessRecipeResult result;
+        HandleResult result;
         lock (_gate)
         {
             result = CheckExists(index)
@@ -577,7 +577,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                 ?? Store(Touch(_items[index], operatorName, next => ApplyContent(next, content)));
         }
 
-        Report(result, index, $"保存工艺配方 {index} 号（操作人 {operatorName}）", (result.Recipe?.Name ?? string.Empty, ChangeKind.Edited));
+        Report(result, index, $"保存工艺配方 {index} 号（操作人 {operatorName}）", ((result.Result as ProcessRecipeData)?.Name ?? string.Empty, ChangeKind.Edited));
         return result;
     }
 
@@ -585,14 +585,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 成了记一条日志、发变更事件（锁外），接着 EAP 的话把配方怎么变的报给 Host（放进 EAP 的派发组件）；
     /// 没成不记（原因回给界面，写文件失败的在写的地方已经记过）。
     /// </summary>
-    private void Report(ProcessRecipeResult result, int index, string message, params (string Name, ChangeKind Change)[] changes)
+    private void Report(HandleResult result, int index, string message, params (string Name, ChangeKind Change)[] changes)
     {
-        if (!result.IsOk)
+        if (!result.IsSuccess)
         {
             return;
         }
 
-        var saved = result.Recipe;
+        var saved = result.Result as ProcessRecipeData;
         LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
         Changed?.Invoke(index);
 
@@ -653,7 +653,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         }
 
         string? language = SystemComponent.Current?.Language;
-        ProcessRecipeResult result;
+        HandleResult result;
         int index;
         string reported;
         bool created;
@@ -677,7 +677,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                     ModifiedAt = now,
                     Revision = 1,
                 };
-                result = (index == 0 ? ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeFull, Text(Capacity)) : null)
+                result = (index == 0 ? HandleResult.Fail(ErrorCodes.ProcessRecipeFull, Text(Capacity)) : null)
                     ?? CheckName(name, index)
                     ?? CheckContent(body, language);
                 if (result is null)
@@ -696,14 +696,14 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
 
         Report(result, index, $"{(created ? "远程新建" : "远程覆盖")}工艺配方 {index} 号 {reported}（操作人 {operatorName}）",
             (reported, created ? ChangeKind.Created : ChangeKind.Edited));
-        return ToHandleResult(result);
+        return result;
     }
 
     /// <summary>按名字删一个工艺配方（Host 删）。</summary>
     public HandleResult DeleteProcessRecipe(string name, string operatorName)
     {
         name = name.Trim();
-        ProcessRecipeResult result;
+        HandleResult result;
         int index;
         string removed;
         lock (_gate)
@@ -719,7 +719,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         }
 
         Report(result, index, $"远程删除工艺配方 {index} 号 {removed}（操作人 {operatorName}）", (removed, ChangeKind.Deleted));
-        return ToHandleResult(result);
+        return result;
     }
 
     /// <summary>
@@ -764,11 +764,6 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         };
     }
 
-    private static HandleResult ToHandleResult(ProcessRecipeResult result)
-    {
-        return result.IsOk ? HandleResult.Success() : HandleResult.Fail(result.Code, [.. result.Args]);
-    }
-
     #endregion
 
     /// <summary>按名字找（不分大小写）；必须在 _gate 里调。</summary>
@@ -807,7 +802,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 写文件（先写临时文件再换过去），成了才换进内存；写不进去内存里的不动，把原因回给界面。必须在 _gate 里调。
     /// </summary>
-    private ProcessRecipeResult Store(ProcessRecipeData data)
+    private HandleResult Store(ProcessRecipeData data)
     {
         string file = FilePath(data.Index);
         string temp = file + TempExtension;
@@ -821,17 +816,17 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         {
             LogHelper.Error(Name, $"{data.Index} 号工艺配方写文件失败，库里的没改：{exception.Message}");
             DeleteTemp(temp);
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeSaveFailed, Text(data.Index), exception.Message);
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeSaveFailed, Text(data.Index), exception.Message);
         }
 
         _items[data.Index] = data;
-        return ProcessRecipeResult.Ok(data.Clone());
+        return HandleResult.Success(data.Clone());
     }
 
     /// <summary>
     /// 删文件，成了才从内存里拿掉。必须在 _gate 里调。
     /// </summary>
-    private ProcessRecipeResult Remove(int index, out string name)
+    private HandleResult Remove(int index, out string name)
     {
         name = _items[index].Name;
         try
@@ -841,11 +836,11 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             LogHelper.Error(Name, $"{index} 号工艺配方文件删不掉，库里的没动：{exception.Message}");
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeSaveFailed, Text(index), exception.Message);
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeSaveFailed, Text(index), exception.Message);
         }
 
         _items.Remove(index);
-        return ProcessRecipeResult.Ok();
+        return HandleResult.Success();
     }
 
     /// <summary>
@@ -931,55 +926,55 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         return new ProcessRecipeStep { Values = fields.Select(field => new ProcessRecipeValue(field.Key, field.Default)).ToList() };
     }
 
-    private ProcessRecipeResult? CheckIndex(int index)
+    private HandleResult? CheckIndex(int index)
     {
         return index < 1 || index > Capacity
-            ? ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeIndexOutOfRange, Text(index), Text(Capacity))
+            ? HandleResult.Fail(ErrorCodes.ProcessRecipeIndexOutOfRange, Text(index), Text(Capacity))
             : null;
     }
 
-    private ProcessRecipeResult? CheckExists(int index)
+    private HandleResult? CheckExists(int index)
     {
-        return CheckIndex(index) ?? (_items.ContainsKey(index) ? null : ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeNotFound, Text(index)));
+        return CheckIndex(index) ?? (_items.ContainsKey(index) ? null : HandleResult.Fail(ErrorCodes.ProcessRecipeNotFound, Text(index)));
     }
 
-    private ProcessRecipeResult? CheckFree(int index)
+    private HandleResult? CheckFree(int index)
     {
         return _items.TryGetValue(index, out var existing)
-            ? ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeIndexOccupied, Text(index), existing.Name)
+            ? HandleResult.Fail(ErrorCodes.ProcessRecipeIndexOccupied, Text(index), existing.Name)
             : null;
     }
 
-    private ProcessRecipeResult? CheckRevision(int index, int revision)
+    private HandleResult? CheckRevision(int index, int revision)
     {
-        return _items[index].Revision == revision ? null : ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeRevisionMismatch, Text(index));
+        return _items[index].Revision == revision ? null : HandleResult.Fail(ErrorCodes.ProcessRecipeRevisionMismatch, Text(index));
     }
 
     /// <summary>
     /// 名称：必填、不超长、只用字母数字 _ -、不跟别的编号重（不分大小写）。
     /// </summary>
-    private ProcessRecipeResult? CheckName(string name, int selfIndex)
+    private HandleResult? CheckName(string name, int selfIndex)
     {
         if (name.Length == 0)
         {
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeNameRequired);
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeNameRequired);
         }
 
         if (name.Length > NameMaxLength)
         {
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeNameTooLong, Text(NameMaxLength));
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeNameTooLong, Text(NameMaxLength));
         }
 
         if (!NameRule.IsMatch(name))
         {
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeNameInvalid, name);
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeNameInvalid, name);
         }
 
         foreach (var pair in _items)
         {
             if (pair.Key != selfIndex && string.Equals(pair.Value.Name, name, StringComparison.OrdinalIgnoreCase))
             {
-                return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeNameDuplicate, name, Text(pair.Key));
+                return HandleResult.Fail(ErrorCodes.ProcessRecipeNameDuplicate, name, Text(pair.Key));
             }
         }
 
@@ -989,7 +984,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// <summary>
     /// 查一份配方的内容（必须在 _gate 里调）：先查配方头（步骤下拉的选项按配方头的 Type 取），再查步骤和合计时长。
     /// </summary>
-    private ProcessRecipeResult? CheckContent(ProcessRecipeData content, string? language)
+    private HandleResult? CheckContent(ProcessRecipeData content, string? language)
     {
         return CheckHead(content, language) ?? CheckSteps(content.Steps, _fields, content.Type.Trim(), content.TimeoutSeconds, language);
     }
@@ -998,7 +993,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 配方头里能填的项（程序算的那几项不查）：Type 要是腔体配的几种之一（没配 Type 的腔体也算一种，那种就是空着）；
     /// 超时时间、说明、自己加的项按字段表查，规则跟步骤一样，提示用配方头那一组错误码、字段名按界面语言。必须在 _gate 里调。
     /// </summary>
-    private ProcessRecipeResult? CheckHead(ProcessRecipeData content, string? language)
+    private HandleResult? CheckHead(ProcessRecipeData content, string? language)
     {
         foreach (var field in _headFields)
         {
@@ -1016,7 +1011,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                 bool required = isType ? !options.Contains(string.Empty) : field.Required;
                 if (required)
                 {
-                    return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeHeadValueRequired, fieldText);
+                    return HandleResult.Fail(ErrorCodes.ProcessRecipeHeadValueRequired, fieldText);
                 }
 
                 continue;
@@ -1025,7 +1020,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
             var problem = field.CheckFormat(value, options);
             if (problem is not null)
             {
-                return ProcessRecipeResult.Fail(HeadCode(problem.Value.Code), [fieldText, .. problem.Value.Args]);
+                return HandleResult.Fail(HeadCode(problem.Value.Code), [fieldText, .. problem.Value.Args]);
             }
         }
 
@@ -1103,12 +1098,12 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
     /// 下拉的值要在配方这种 Type 的选项里；合计不超过配方头的超时时间（没填不限）。
     /// 字段之间不互相管。步号从 1 数，跟界面上一样；提示里的字段名按界面语言。
     /// </summary>
-    private static ProcessRecipeResult? CheckSteps(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<ProcessRecipeField> fields,
+    private static HandleResult? CheckSteps(IReadOnlyList<ProcessRecipeStep> steps, IReadOnlyList<ProcessRecipeField> fields,
         string stationType, double timeoutSeconds, string? language)
     {
         if (steps.Count == 0)
         {
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeNoSteps);
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeNoSteps);
         }
 
         for (int position = 0; position < steps.Count; position++)
@@ -1123,7 +1118,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                 {
                     if (field.Required)
                     {
-                        return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeValueRequired, number, fieldText);
+                        return HandleResult.Fail(ErrorCodes.ProcessRecipeValueRequired, number, fieldText);
                     }
 
                     continue;
@@ -1132,7 +1127,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
                 var problem = field.CheckFormat(value, field.OptionsFor(stationType));
                 if (problem is not null)
                 {
-                    return ProcessRecipeResult.Fail(problem.Value.Code, [number, fieldText, .. problem.Value.Args]);
+                    return HandleResult.Fail(problem.Value.Code, [number, fieldText, .. problem.Value.Args]);
                 }
             }
         }
@@ -1140,7 +1135,7 @@ public class ProcessRecipeComponent : ComponentBase, IProcessRecipeComponent
         double total = steps.Sum(ProcessRecipeData.SecondsOf);
         if (timeoutSeconds > 0 && total > timeoutSeconds)
         {
-            return ProcessRecipeResult.Fail(ErrorCodes.ProcessRecipeTotalTooLong, Number(total), Number(timeoutSeconds));
+            return HandleResult.Fail(ErrorCodes.ProcessRecipeTotalTooLong, Number(total), Number(timeoutSeconds));
         }
 
         return null;

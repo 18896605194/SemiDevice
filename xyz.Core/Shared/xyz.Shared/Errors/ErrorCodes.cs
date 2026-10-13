@@ -378,17 +378,11 @@ public static class ErrorCodes
     /// <summary>名称太长。Args: [最多几个字符]</summary>
     public const string SequenceNameTooLong = "sequence.name_too_long";
 
-    /// <summary>名称里有不能用的字符（只能用字母、数字、_ 和 -）。Args: [名称]</summary>
-    public const string SequenceNameInvalid = "sequence.name_invalid";
-
     /// <summary>名称跟别的编号重了（不分大小写）。Args: [名称, 那个编号]</summary>
     public const string SequenceNameDuplicate = "sequence.name_duplicate";
 
     /// <summary>保存时版本对不上：打开以后别处改过（另一台客户端保存或改名了）。Args: [编号]</summary>
     public const string SequenceRevisionMismatch = "sequence.revision_mismatch";
-
-    /// <summary>步骤太少：第 1 步、最后一步是 LoadPort，中间至少要有一步。Args: []</summary>
-    public const string SequenceTooFewSteps = "sequence.too_few_steps";
 
     /// <summary>第 1 步或最后一步不是 LoadPort 分组。Args: [步号]</summary>
     public const string SequenceStepNotLoadPort = "sequence.step_not_loadport";

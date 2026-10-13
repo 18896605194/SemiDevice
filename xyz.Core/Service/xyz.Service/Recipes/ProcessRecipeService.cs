@@ -115,14 +115,14 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         };
     }
 
-    private static Task<RpcResponse> Reply(ProcessRecipeResult result)
+    private static Task<RpcResponse> Reply(HandleResult result)
     {
-        if (!result.IsOk)
+        if (!result.IsSuccess)
         {
-            return Task.FromResult(RpcResponse.Fail(result.Code, result.Args));
+            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
         }
 
-        var recipe = result.Recipe;
+        var recipe = result.Result as ProcessRecipeData;
         return Task.FromResult(recipe is null ? RpcResponse.Ok() : RpcResponse.Ok(JsonHelper.Serialize(ToDto(recipe))));
     }
 

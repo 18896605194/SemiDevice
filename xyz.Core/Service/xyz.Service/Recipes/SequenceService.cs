@@ -98,14 +98,14 @@ public class SequenceService : BaseService, ISequenceService
         return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
     }
 
-    private static Task<RpcResponse> Reply(SequenceResult result)
+    private static Task<RpcResponse> Reply(HandleResult result)
     {
-        if (!result.IsOk)
+        if (!result.IsSuccess)
         {
-            return Task.FromResult(RpcResponse.Fail(result.Code, result.Args));
+            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
         }
 
-        var sequence = result.Sequence;
+        var sequence = result.Result as SequenceData;
         return Task.FromResult(sequence is null ? RpcResponse.Ok() : RpcResponse.Ok(JsonHelper.Serialize(ToDto(sequence))));
     }
 

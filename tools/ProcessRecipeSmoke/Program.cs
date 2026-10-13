@@ -24,10 +24,16 @@ void Check(bool condition, string message)
     checks++;
 }
 
-void Fails(ProcessRecipeResult result, string code, string[] args, string message)
+void Fails(HandleResult result, string code, string[] args, string message)
 {
-    Check(!result.IsOk && result.Code == code && result.Args.SequenceEqual(args),
-        $"{message}，实际 {result.Code} [{string.Join(",", result.Args)}]");
+    Check(!result.IsSuccess && result.ErrorMessage == code && result.Args.SequenceEqual(args),
+        $"{message}，实际 {result.ErrorMessage} [{string.Join(",", result.Args)}]");
+}
+
+// 库操作成了带回的配方（HandleResult 的 Result）；没带的为 null
+ProcessRecipeData? Data(HandleResult result)
+{
+    return result.Result as ProcessRecipeData;
 }
 
 // 一步：按 sc.xml 字段表的字段名给值，不给的就是空的
@@ -264,11 +270,11 @@ try
     var changed = new List<int>();
     library.Changed += index => changed.Add(index);
     var created = library.Create(1, "  SC1_60S ", "Tester");
-    Check(created.IsOk && created.Recipe is not null && created.Recipe.Name == "SC1_60S" && created.Recipe.Revision == 1
-          && created.Recipe.CreatedBy == "Tester" && created.Recipe.ModifiedBy == "Tester", "新建：版本 1，记创建人");
-    Check(created.Recipe!.Type == "A" && created.Recipe.Timeout == "600" && created.Recipe.TimeoutMilliseconds == 600000,
+    Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_60S" && Data(created)!.Revision == 1
+          && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");
+    Check(Data(created)!.Type == "A" && Data(created)!.Timeout == "600" && Data(created)!.TimeoutMilliseconds == 600000,
         "新建的配方头：Type 取腔体的第一种 A，超时时间默认 600 s");
-    var first = created.Recipe!.Steps.Single();
+    var first = Data(created)!.Steps.Single();
     Check(first.Values.Count == 9 && first.Get("Seconds") == "10" && first.Get("Rpm") == "500" && first.Get("Mode") == "Time" && first.Get("Arm").Length == 0,
         "新建先给一步：各字段的默认值（时间 10、转速 500、方式 Time，摆臂空着）");
     int Count(string text, string part)
@@ -303,27 +309,27 @@ try
         Step("20.0", "2000"),
     };
     var saved = library.Save(1, 1, Content(" 药洗 ", good, type: " a ", timeout: "300.0"), "Saver");
-    Check(saved.IsOk && saved.Recipe is not null && saved.Recipe.Revision == 2 && saved.Recipe.ModifiedBy == "Saver"
-          && saved.Recipe.CreatedBy == "Tester" && saved.Recipe.Description == "药洗", "保存：版本 2，记修改人，说明去掉首尾空白");
-    Check(saved.Recipe!.Type == "A" && saved.Recipe.Timeout == "300", "规整配方头：Type 换成腔体配的写法（a → A），超时时间 300.0 存 300");
-    var savedSteps = saved.Recipe!.Steps;
+    Check(saved.IsSuccess && Data(saved) is not null && Data(saved)!.Revision == 2 && Data(saved)!.ModifiedBy == "Saver"
+          && Data(saved)!.CreatedBy == "Tester" && Data(saved)!.Description == "药洗", "保存：版本 2，记修改人，说明去掉首尾空白");
+    Check(Data(saved)!.Type == "A" && Data(saved)!.Timeout == "300", "规整配方头：Type 换成腔体配的写法（a → A），超时时间 300.0 存 300");
+    var savedSteps = Data(saved)!.Steps;
     Check(savedSteps[0].Values.Select(value => value.Name).SequenceEqual(fields.Select(field => field.Key)),
         "规整：只留字段表里的字段（Leftover 丢掉）、按字段表的先后");
     Check(savedSteps[0].Get("Rpm") == "300" && savedSteps[0].Get("Arm") == "Arm1" && savedSteps[0].Get("Chemical") == "DIW"
           && savedSteps[0].Get("Flow") == "1.5" && savedSteps[0].Get("Mode") == "Time" && savedSteps[2].Get("Seconds") == "20",
         "规整：+300 存 300、1.50 存 1.5、20.0 存 20，摆臂、药液、方式按选项的写法");
-    Check(saved.Recipe.TotalSeconds == 85, "合计时长 = 各步时间加起来");
+    Check(Data(saved)!.TotalSeconds == 85, "合计时长 = 各步时间加起来");
     string text = File.ReadAllText(Path.Combine(folder, "001.xml"));
     Check(Count(text, "<Step ") == 3 && Count(text, " Chemical=") == 3 && !text.Contains("Leftover"), "文件里每一步字段都写上，字段表里没有的不写");
     Check(changed.SequenceEqual(new[] { 1, 1 }), "保存发一次变更事件");
 
     var ok = Step("5", "300", "Arm1", "DIW", "1.5", "Time", "150");
-    ProcessRecipeResult SaveOne(ProcessRecipeStep step)
+    HandleResult SaveOne(ProcessRecipeStep step)
     {
         return library.Save(1, 2, Content(string.Empty, [ok, step]), "Saver");
     }
 
-    ProcessRecipeResult SaveHead(string type, string timeout)
+    HandleResult SaveHead(string type, string timeout)
     {
         return library.Save(1, 2, Content(string.Empty, [ok], type, timeout), "Saver");
     }
@@ -355,37 +361,37 @@ try
     Fails(library.Save(1, 2, Content(string.Empty, [Step("600", "300"), Step("1.5", "300")]), "Saver"), ErrorCodes.ProcessRecipeTotalTooLong, ["601.5", "600"],
         "合计超过超时时间 600 s");
     Fails(library.Save(7, 1, Content(string.Empty, good), "Saver"), ErrorCodes.ProcessRecipeNotFound, ["7"], "没有的编号");
-    Check(library.Get(1).Recipe?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
+    Check(Data(library.Get(1))?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
     // 系统组件构造即成为 Current：界面语言切成英文
     _ = new SystemComponent { Language = "en-US" };
     Fails(SaveOne(Step(" ", "300")), ErrorCodes.ProcessRecipeValueRequired, ["2", "Time"], "英文界面时提示里用英文字段名");
     SystemComponent.Current = null;
-    Check(SaveOne(Step("0.1", "0", "arm1", "sc1", "0.1", "SCAN", "0", "150", "0.1")).IsOk, "边界值都能存：时间 0.1、转速 0、流量 0.1、位置 0 和 150、速度 0.1");
-    Check(library.Get(1).Recipe!.Steps[1].Get("Mode") == "Scan" && library.Get(1).Recipe!.Steps[1].Get("Chemical") == "SC1"
-          && library.Get(1).Recipe!.Steps[1].Get("Arm") == "Arm1", "下拉的写法跟选项一样");
+    Check(SaveOne(Step("0.1", "0", "arm1", "sc1", "0.1", "SCAN", "0", "150", "0.1")).IsSuccess, "边界值都能存：时间 0.1、转速 0、流量 0.1、位置 0 和 150、速度 0.1");
+    Check(Data(library.Get(1))!.Steps[1].Get("Mode") == "Scan" && Data(library.Get(1))!.Steps[1].Get("Chemical") == "SC1"
+          && Data(library.Get(1))!.Steps[1].Get("Arm") == "Arm1", "下拉的写法跟选项一样");
 
     // 5. 开关、文本字段（自己拼的字段表）：开关只认 true / false（存成小写），文本去掉首尾空白；字段之间不互相管。
     var flags = (ProcessRecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
         FieldNode("Flag", ("Text", "开关"), ("Type", "Bool"), ("Default", "false")),
         FieldNode("Note", ("Text", "备注"), ("Type", "Text")))]).Single();
-    Check(flags.Create(1, "FLAGS", "Tester").IsOk && flags.Get(1).Recipe!.Steps[0].Get("Flag") == "false", "开关默认 false");
+    Check(flags.Create(1, "FLAGS", "Tester").IsSuccess && Data(flags.Get(1))!.Steps[0].Get("Flag") == "false", "开关默认 false");
     ProcessRecipeStep FlagStep(string flag, string note)
     {
         return new ProcessRecipeStep { Values = [new("Seconds", "1"), new("Flag", flag), new("Note", note)] };
     }
 
     var flagSaved = flags.Save(1, 1, Content(string.Empty, [FlagStep("TRUE", "  hello  ")], type: string.Empty), "Tester");
-    Check(flagSaved.IsOk && flagSaved.Recipe!.Steps[0].Get("Flag") == "true" && flagSaved.Recipe.Steps[0].Get("Note") == "hello", "开关存成小写，文本去掉首尾空白");
+    Check(flagSaved.IsSuccess && Data(flagSaved)!.Steps[0].Get("Flag") == "true" && Data(flagSaved)!.Steps[0].Get("Note") == "hello", "开关存成小写，文本去掉首尾空白");
     Fails(flags.Save(1, 2, Content(string.Empty, [FlagStep("yes", string.Empty)], type: string.Empty), "Tester"), ErrorCodes.ProcessRecipeValueNotInOptions, ["1", "开关", "yes"], "开关不认 yes");
     ProcessRecipeComponent.Current = library;
 
     // 6. 改名：版本加 1、记修改人；跟别的编号重了不行。
-    Check(library.Create(2, "DIW_RINSE", "Tester").IsOk, "再建一个");
+    Check(library.Create(2, "DIW_RINSE", "Tester").IsSuccess, "再建一个");
     Fails(library.Rename(2, "SC1_60S", "Tester"), ErrorCodes.ProcessRecipeNameDuplicate, ["SC1_60S", "1"], "改名跟别的编号重了");
     Fails(library.Rename(9, "NOBODY", "Tester"), ErrorCodes.ProcessRecipeNotFound, ["9"], "改没有的编号");
     var renamed = library.Rename(1, "SC1_45S", "Renamer");
-    Check(renamed.IsOk && renamed.Recipe is not null && renamed.Recipe.Name == "SC1_45S" && renamed.Recipe.Revision == 4
-          && renamed.Recipe.ModifiedBy == "Renamer" && renamed.Recipe.Steps.Count == 2, "改名：版本加 1，步骤不动");
+    Check(renamed.IsSuccess && Data(renamed) is not null && Data(renamed)!.Name == "SC1_45S" && Data(renamed)!.Revision == 4
+          && Data(renamed)!.ModifiedBy == "Renamer" && Data(renamed)!.Steps.Count == 2, "改名：版本加 1，步骤不动");
 
     // 7. 名字查库（流程配方、腔体起工艺用）：不分大小写、去掉首尾空白。
     Check(library.Contains(" sc1_45s ") && !library.Contains("SC1_60S") && !library.Contains(string.Empty), "按名字查库");
@@ -413,45 +419,42 @@ try
     Check(reloaded[2].Type.Length == 0 && reloaded[2].Timeout == "600", "老配方读进来：超时时间补默认 600，Type 等 Bind 再补");
     reopened.Bind([pm1, pm2, pm3]);
     ProcessRecipeComponent.Current = library;
-    var oldFilled = reopened.Get(3).Recipe!;
-    Check(oldFilled.Type == "A" && reopened.Get(1).Recipe!.Type == "A", "Bind 之后老配方的 Type 补成腔体的第一种 A，写了的不动");
+    var oldFilled = Data(reopened.Get(3))!;
+    Check(oldFilled.Type == "A" && Data(reopened.Get(1))!.Type == "A", "Bind 之后老配方的 Type 补成腔体的第一种 A，写了的不动");
     var oldSaved = reopened.Save(3, 1, Content(string.Empty, oldFilled.Steps), "Tester");
-    Check(oldSaved.IsOk && !oldSaved.Recipe!.Steps[0].Has("Retired") && !File.ReadAllText(Path.Combine(folder, "003.xml")).Contains("Retired"),
+    Check(oldSaved.IsSuccess && !Data(oldSaved)!.Steps[0].Has("Retired") && !File.ReadAllText(Path.Combine(folder, "003.xml")).Contains("Retired"),
         "字段表里没有的，下次保存时丢掉");
     Check(!Directory.EnumerateFiles(folder, "*.tmp").Any(), "写完不留临时文件");
     library.Load();
 
     // 9. 给出去的都是副本：改了不影响库里的。
-    var copy = library.Get(1).Recipe!;
+    var copy = Data(library.Get(1))!;
     copy.Name = "HACKED";
     copy.Steps[0].Values.Clear();
     copy.Steps.Clear();
-    Check(library.Get(1).Recipe?.Name == "SC1_45S" && library.Get(1).Recipe?.Steps.Count == 2 && library.Get(1).Recipe!.Steps[0].Values.Count == 9,
+    Check(Data(library.Get(1))?.Name == "SC1_45S" && Data(library.Get(1))?.Steps.Count == 2 && Data(library.Get(1))!.Steps[0].Values.Count == 9,
         "拿到的是副本");
 
     // 10. 配方用到具体腔体：腔体照名字找配方里选的摆臂、药液（跟执行时一样，名字不分大小写），几个腔体装的不一样时才会对不上。
     //     字段之间不互相管：没选摆臂也能选药液，这一步不喷，药液用不上，哪个腔体都不查它。
-    Check(library.Save(1, 4, Content(string.Empty, [Step("5", "300", "Arm1", "SC1", "1", "Time", "150")]), "Saver").IsOk, "存一个 Arm1 + SC1 的");
-    var noSc1 = library.FindMismatch(" sc1_45s ", "SmokePM2");
-    Check(noSc1 is not null && noSc1.Field == "药液" && noSc1.Value == "SC1", "SmokePM2 的 arm1 上没有 SC1：对不上，报字段和值");
+    Check(library.Save(1, 4, Content(string.Empty, [Step("5", "300", "Arm1", "SC1", "1", "Time", "150")]), "Saver").IsSuccess, "存一个 Arm1 + SC1 的");
+    Check(library.FindMismatch(" sc1_45s ", "SmokePM2") == ("药液", "SC1"), "SmokePM2 的 arm1 上没有 SC1：对不上，报字段和值");
     Check(library.FindMismatch("SC1_45S", " smokepm1 ") is null, "SmokePM1 的 Arm1 上有 SC1：对得上（腔体名不分大小写）");
-    var noArm1 = library.FindMismatch("SC1_45S", "SmokePM3");
-    Check(noArm1 is not null && noArm1.Field == "摆臂" && noArm1.Value == "Arm1", "SmokePM3 没有 Arm1：先对不上的是摆臂");
-    Check(library.Save(2, 1, Content(string.Empty, [Step("5", "300", "Arm1", "DIW"), Step("5", "300", "", "SC1")]), "Saver").IsOk,
+    Check(library.FindMismatch("SC1_45S", "SmokePM3") == ("摆臂", "Arm1"), "SmokePM3 没有 Arm1：先对不上的是摆臂");
+    Check(library.Save(2, 1, Content(string.Empty, [Step("5", "300", "Arm1", "DIW"), Step("5", "300", "", "SC1")]), "Saver").IsSuccess,
         "没选摆臂也能选药液：存得进去");
     Check(library.FindMismatch("DIW_RINSE", "SmokePM2") is null && library.FindMismatch("DIW_RINSE", "SmokePM3") is not null,
         "Arm1 + DIW：SmokePM2 的 arm1、diw 对得上（名字不分大小写），没选摆臂那一步的 SC1 不查；SmokePM3 没有 Arm1 对不上");
     Check(library.FindMismatch("DIW_RINSE", "LoadPort1") is null && library.FindMismatch("NOPE", "SmokePM1") is null,
         "不是腔体的、库里没有的配方不在这里报");
-    var typeMismatch = pmB.FindRecipeMismatch(library.Find("SC1_45S")!);
-    Check(typeMismatch is not null && typeMismatch.Field == "Type" && typeMismatch.Value == "A",
+    Check(pmB.FindRecipeMismatch(library.Find("SC1_45S")!) == ("Type", "A"),
         "Type 为 B 的腔体：Type A 的配方先对不上的是 Type（摆臂、药液都有也不行）");
     var typeless = new ProcessRecipeData { Type = " b ", Steps = [Step("5", "300", "Arm1", "SC1")] };
     Check(pmB.FindRecipeMismatch(typeless) is null, "Type 不分大小写、去掉首尾空白");
 
     // 11. 删除：文件删掉、编号空出来；再删、再取都说没有；没成的不发事件。
     changed.Clear();
-    Check(library.Delete(3, "Tester").IsOk && !File.Exists(Path.Combine(folder, "003.xml")) && library.List().Count == 2, "删除");
+    Check(library.Delete(3, "Tester").IsSuccess && !File.Exists(Path.Combine(folder, "003.xml")) && library.List().Count == 2, "删除");
     Fails(library.Delete(3, "Tester"), ErrorCodes.ProcessRecipeNotFound, ["3"], "再删说没有");
     Fails(library.Get(3), ErrorCodes.ProcessRecipeNotFound, ["3"], "再取说没有");
     Fails(library.Get(0), ErrorCodes.ProcessRecipeIndexOutOfRange, ["0", "99"], "取编号 0");

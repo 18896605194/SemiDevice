@@ -151,10 +151,8 @@
     <sys:String x:Key="sequence.index_occupied">{0} 号已经有流程配方了：{1}</sys:String>
     <sys:String x:Key="sequence.name_required">名称还没填</sys:String>
     <sys:String x:Key="sequence.name_too_long">名称最多 {0} 个字符</sys:String>
-    <sys:String x:Key="sequence.name_invalid">名称“{0}”里有不能用的字符：只能用字母、数字、_ 和 -</sys:String>
     <sys:String x:Key="sequence.name_duplicate">名称 {0} 跟 {1} 号重了</sys:String>
     <sys:String x:Key="sequence.revision_mismatch">{0} 号打开以后被别处改过，存不进去：先放弃修改，重新打开再改</sys:String>
-    <sys:String x:Key="sequence.too_few_steps">步骤太少：第 1 步、最后一步是 LoadPort，中间至少要有一步</sys:String>
     <sys:String x:Key="sequence.step_not_loadport">第 {0} 步要是 LoadPort</sys:String>
     <sys:String x:Key="sequence.group_not_found">第 {0} 步的分组 {1} 现在没有了（sc.xml 改过，或机械手到不了）</sys:String>
     <sys:String x:Key="sequence.station_required">第 {0} 步一个站点都没勾</sys:String>

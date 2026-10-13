@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,5 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 要核对 sc.xml 里的节点：sc.xml 归机型，链接 35021 那份进输出目录的 Config 目录 -->
+    <None Include="..\..\xyz.35021\Service\xyz.35021.Module\Config\sc.xml" Link="Config\sc.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

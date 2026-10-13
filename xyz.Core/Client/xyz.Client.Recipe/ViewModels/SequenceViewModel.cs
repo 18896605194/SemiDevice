@@ -41,11 +41,6 @@ public class SequenceViewModel : BaseViewModel
     private const int MinIndexDigits = 2;
 
     /// <summary>
-    /// 最少几步：第 1 步取片、中间至少一步、最后一步放片（跟后端的检查一样）。
-    /// </summary>
-    private const int MinSteps = 3;
-
-    /// <summary>
     /// "添加"弹窗里分组那一列的宽度，剩下的给模块列。
     /// </summary>
     private const double GroupColumnWidth = 180;
@@ -430,7 +425,7 @@ public class SequenceViewModel : BaseViewModel
     public IRelayCommand AddStepCommand { get; }
 
     /// <summary>
-    /// 删除选中的那一步（第 1 步、最后一步删不了，中间至少留一步）。
+    /// 删除选中的那一步（第 1 步、最后一步删不了）。
     /// </summary>
     public IRelayCommand DeleteStepCommand { get; }
 
@@ -953,7 +948,7 @@ public class SequenceViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 第 1 步、最后一步（取片、放片）删不了，中间至少留一步。
+    /// 第 1 步、最后一步（取片、放片）删不了，中间的都能删（后端不限步数）。
     /// </summary>
     private bool CanDeleteStep()
     {
@@ -964,7 +959,7 @@ public class SequenceViewModel : BaseViewModel
         }
 
         int position = Steps.IndexOf(step);
-        return position > 0 && position < Steps.Count - 1 && Steps.Count > MinSteps;
+        return position > 0 && position < Steps.Count - 1;
     }
 
     private void DoDeleteStep()

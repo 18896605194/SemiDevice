@@ -48,8 +48,7 @@ public static class SC
             Path.Combine(AppContext.BaseDirectory, "sc.xml"),
             Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"),
             Path.Combine(Directory.GetCurrentDirectory(), "sc.xml"),
-            Path.Combine(Directory.GetCurrentDirectory(), "Config", "sc.xml"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "xyz.Configs", "Config", "sc.xml")
+            Path.Combine(Directory.GetCurrentDirectory(), "Config", "sc.xml")
         };
 
         return candidates.FirstOrDefault(File.Exists)

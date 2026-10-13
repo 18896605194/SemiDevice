@@ -8,7 +8,7 @@
 Shared\xyz.Tools      EventBus、JsonHelper、XmlHelper、IocHelper（不引用任何工程）
 Shared\xyz.Shared     契约：Services\I*Service、Dtos\、Errors\ErrorCodes、Rpc\（→ Tools）
 Service\xyz.Common    日志：LogHelper、LogQueue、LogFileReader、NLog.config
-Service\xyz.Configs   SC（读 sc.xml）、配置模型、Config\sc.xml、Paths.json（→ Common、Tools）
+Service\xyz.Configs   SC（读 sc.xml）、配置模型、Paths.json（→ Common、Tools）；sc.xml 本身归机型（如 xyz.35021.Module\Config\sc.xml）
 Service\xyz.Database  SqlSugar：XyzDb、实体、分表
 Service\xyz.Drivers   纯协议/通讯（不引用 Components）
 Service\xyz.Secs      SECS-II / HSMS（零依赖）
@@ -236,7 +236,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   编号 1~Capacity，一个编号一个文件（`001.xml`，`SequenceData`，先写 `.tmp` 再整个替换）；坏文件、编号越界的文件跳过并记日志。
   可选站点分组由 `Bind(settings, modules)` 生成（模块全起来后调）：sc.xml 顶层没 Type 的分组节点下、机械手 `Stations` 到得了的站点模块，
   顶层直接装的站点自成一组；第 1 步和最后一步必须是 LoadPort 组（组里全是 LoadPort），有腔体的组每步要填工艺配方；名字一律照 sc.xml 原样。
-  保存带版本号（对不上回 `sequence.revision_mismatch`，防两个人同时改），至少 3 步；`Changed(编号)` 在锁外发。服务 `ISequenceService`（`xyz.Service\Recipes`）。
+  保存带版本号（对不上回 `sequence.revision_mismatch`，防两个人同时改）；不限步数、名称不限字符（2026-10-13 用户去掉的，只查必填、长度、不重名）；
+  `Changed(编号)` 在锁外发。两个配方库的操作结果都直接用不带泛型的 `HandleResult`（不另造结果类，配方放在 `Result` 里，
+  用的地方 `result.Result as SequenceData` 取；EAP 口子直接回同一个结果）。服务 `ISequenceService`（`xyz.Service\Recipes`）。
 - 工艺配方库 `Recipe\ProcessRecipeComponent`（sc.xml `ProcessRecipe` 节点，SC：`Capacity` 99、`Folder` `Recipe\Process`、`NameMaxLength` 32）：
   编号、文件、版本号、`Changed(编号)` 跟流程配方库一样。一份配方 = **配方头 + 步骤，两部分有哪些项都不写死**，按本节点下两张字段表：
   `Head`（配方头，一个子节点一项）、`Fields`（步骤，一个子节点一个字段 = 配方页一列），节点名就是字段名；值：`Text` / `TextEn` 名字、`Type` Int / Double / Choice / Bool / Text、
@@ -368,7 +370,11 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   所以：等回复超时的发起方调 `Abandon`（LoadPort）/ `AbandonInflight`（RFID）让出来；`Close` 作废全部在途；LoadPort 模块动作没做成时 `AbandonAll`。
   作废的指令以失败落终态（Error 写 `Timeout` / `PortClosed` / `Abandoned` 这类英文标记，跟 RFID 一样）；迟到的回复没人认，当无主帧丢掉。
 - **断线重连**（2026-10-06）：LoadPort、RFID 驱动组件 `InitComponent` 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
-  （`Components\Drivers\DriverReconnector`，网口 Connect 会卡几秒，不能在扫描线程上做），断开、恢复各记一次日志；Close 以后不再重连。机械手驱动还没接。
+  （`Components\Drivers\DriverReconnector`，网口 Connect 会卡几秒，不能在扫描线程上做），断开、恢复各记一次日志；Close 以后不再重连。
+  机械手驱动 2026-10-13 接上（`RobotDriverComponent`，EC `ReconnectIntervalMs` 同样默认 5000；以前控制器断电重启、比后端晚上电只能重启后端），
+  连上以后模块的状态查询从头查、手指在位推送重新订。同时补了 LoadPort 驱动 10-06 修过、机械手驱动没跟上的两处：`Open` 先收掉上一轮的收发任务；
+  发送任务出错只关自己那一轮连接。机械手动作等回复超时（`RobotCommandOperation`）先 `AbandonInFlight` 作废那条指令再判失败——
+  锐洁按整条指令认在途（Pick 带手指、站点、槽号），以前回复丢了就一直占着，复位、回零后再取同一槽也发不出去。
   `FrameCommunication` 一次打开一轮接收泵（`PumpSession`），旧泵出错只停自己那一轮——以前一个全局"在收"标志，旧泵在重连以后才醒会把新泵也停了。
   `LoadPortDriverBase.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
 - HSMS 协议（`xyz.Secs`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync
@@ -516,7 +522,11 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 
 ## 8. 配置文件
 
-- 源：`Service\xyz.Configs\Config\sc.xml`（只有这一个；UTF-8 BOM、Tab 缩进、节点带中文注释）。编译时拷到宿主 `bin\...\net10.0\Config\sc.xml`（**运行时读的是这份**）。
+- 源：**sc.xml 归机型**（2026-10-13 从平台 `xyz.Configs\Config` 挪过来，用户认可："这个确实是个问题"——平台里放 35021 的配置，第二个机型没处放）：
+  35021 的在 `xyz.35021\Service\xyz.35021.Module\Config\sc.xml`（跟 `Config\IO` 点表一起；UTF-8 BOM、Tab 缩进、节点带中文注释）。
+  机型工程编译后 `DeployScToHost` 拷到宿主 `bin\...\net10.0\Config\sc.xml`（**运行时读的是这份**，宿主旁 `Paths.json` 指 `./Config`），
+  只在源文件比宿主那份新时才拷：现场在运行目录改过的不会被编译冲掉。只编宿主不编机型工程，宿主没有 sc.xml、起不来（跟机型 DLL 一样）。
+  平台不再带 sc.xml；读 sc.xml 节点的冒烟（Job / ProcessRecipe / Sequence / WaferLedger）在 csproj 里把机型那份链接进输出目录的 `Config\`。新机型照这样在自己工程里放一份。
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
 - 节点顺序：System → Rpc → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →

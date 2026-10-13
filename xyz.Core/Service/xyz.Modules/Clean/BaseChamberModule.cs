@@ -771,11 +771,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     /// 对得上返回 null；对不上回第一处的字段（按界面语言的名字，没装工艺配方库就用字段名）和值。
     /// 起工艺前、流程配方保存、Job 挑腔体时查，免得做到一半才发现。
     /// </summary>
-    public ProcessRecipeMismatch? FindRecipeMismatch(ProcessRecipeData recipe)
+    public (string Field, string Value)? FindRecipeMismatch(ProcessRecipeData recipe)
     {
         if (!string.Equals(recipe.Type.Trim(), Type.Trim(), StringComparison.OrdinalIgnoreCase))
         {
-            return new ProcessRecipeMismatch(FieldText(ProcessRecipeHead.TypeKey), recipe.Type.Trim());
+            return (FieldText(ProcessRecipeHead.TypeKey), recipe.Type.Trim());
         }
 
         foreach (var step in recipe.Steps)
@@ -783,7 +783,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             var missing = ChamberProcessOperation.FindDevices(this, step, out _, out _);
             if (missing is not null)
             {
-                return new ProcessRecipeMismatch(FieldText(missing.Value.Key), missing.Value.Value);
+                return (FieldText(missing.Value.Key), missing.Value.Value);
             }
         }
 
@@ -828,7 +828,8 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         var mismatch = FindRecipeMismatch(recipe);
         if (mismatch is not null)
         {
-            return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, request.RecipeName.Trim(), mismatch.Field, mismatch.Value]);
+            var found = mismatch.Value;
+            return new ProcessRejection(ErrorCodes.ChamberRecipeOptionMissing, [Name, request.RecipeName.Trim(), found.Field, found.Value]);
         }
 
         if (request.Slot < 1 || request.Slot > SlotCount)

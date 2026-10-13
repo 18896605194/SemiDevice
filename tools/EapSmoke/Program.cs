@@ -1514,7 +1514,7 @@ sealed class FakeSequences() : FakeRecipes("group"), ISequenceComponent
 {
     public IReadOnlyList<string> SequenceNames => RecipeNames;
 
-    public string? ExportSequence(string name) => ExportRecipe(name);
+    public string? GetSequenceData(string name) => ExportRecipe(name);
 
     public bool AcceptsSequence(string json) => AcceptsRecipe(json);
 

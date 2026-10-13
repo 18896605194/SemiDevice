@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -11,8 +11,13 @@
     <ProjectReference Include="..\..\..\xyz.Core\Shared\xyz.Shared\xyz.Shared.csproj" />
   </ItemGroup>
 
-  <!-- 编译完自动部署进后端宿主（等同 tools\deploy-module.ps1 -Target Service），F5 跑的就是刚改的机型代码和点表：
-       DLL 进 Modules\35021；IO 点表（Config\IO\*.csv，跟仿真器 Machines\35021\IO 同一份）进宿主的 Config\IO。
+  <ItemGroup>
+    <!-- ScEdit 保存 sc.xml 前的备份（Config\backup），不进项目 -->
+    <None Remove="Config\backup\**" />
+  </ItemGroup>
+
+  <!-- 编译完自动部署进后端宿主（等同 tools\deploy-module.ps1 -Target Service），F5 跑的就是刚改的机型代码、sc.xml 和点表：
+       DLL 进 Modules\35021；IO 点表（Config\IO\*.csv，跟仿真器 Machines\35021\IO 同一份）进宿主的 Config\IO；sc.xml 见下面 DeployScToHost。
        宿主的输出目录 TFM 写死 net10.0：宿主升级 TFM 时这里一起改。 -->
   <Target Name="DeployToHost" AfterTargets="Build">
     <ItemGroup>
@@ -25,6 +30,15 @@
     <Copy SourceFiles="@(IoPointTable)"
           DestinationFolder="$(MSBuildThisFileDirectory)..\..\..\xyz.Core\Service\xyz.GrpcHost\bin\$(Configuration)\net10.0\Config\IO"
           SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- sc.xml（这台机的组件树和装机参数）跟点表一样归机型，编译完拷进宿主的 Config\（宿主旁的 Paths.json 指向它）。
+       只在源文件比宿主那份新时才拷（Inputs / Outputs 比时间）：现场在运行目录改过的（ScEdit 改、临时切英文）更新，编译不会把它冲掉。 -->
+  <Target Name="DeployScToHost" AfterTargets="Build"
+          Inputs="$(MSBuildThisFileDirectory)Config\sc.xml"
+          Outputs="$(MSBuildThisFileDirectory)..\..\..\xyz.Core\Service\xyz.GrpcHost\bin\$(Configuration)\net10.0\Config\sc.xml">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)Config\sc.xml"
+          DestinationFolder="$(MSBuildThisFileDirectory)..\..\..\xyz.Core\Service\xyz.GrpcHost\bin\$(Configuration)\net10.0\Config" />
   </Target>
 
 </Project>

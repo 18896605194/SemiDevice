@@ -146,7 +146,7 @@ try
             Group("Chamber", Module("PM1"), Module("PM2")),
         ],
         modules);
-    Check(recipes.Create(1, "R1", "Smoke").IsOk && recipes.Create(2, "R2", "Smoke").IsOk, "建两个工艺配方");
+    Check(recipes.Create(1, "R1", "Smoke").IsSuccess && recipes.Create(2, "R2", "Smoke").IsSuccess, "建两个工艺配方");
 
     SequenceStep Step(string group, string recipe, params string[] stations)
     {
@@ -155,9 +155,9 @@ try
 
     void Sequence(int index, string name, params SequenceStep[] steps)
     {
-        Check(sequences.Create(index, name, "Smoke").IsOk, $"建流程配方 {name}");
+        Check(sequences.Create(index, name, "Smoke").IsSuccess, $"建流程配方 {name}");
         var saved = sequences.Save(index, 1, string.Empty, steps, "Smoke");
-        Check(saved.IsOk, $"存流程配方 {name}：{saved.Code} [{string.Join(",", saved.Args)}]");
+        Check(saved.IsSuccess, $"存流程配方 {name}：{saved.ErrorMessage} [{string.Join(",", saved.Args)}]");
     }
 
     Sequence(1, "SEQ_A", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1", "PM2"), Step("LoadPort", "", "LP1"));
@@ -757,9 +757,9 @@ try
     Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_B")), ErrorCodes.JobStepNoStation, ["SEQ_B", "2", "R1"],
         "这一站能去的站点都用不了（PM1 停用）：整个不建");
     Probe.Enabled(pm1, true);
-    Check(recipes.Create(9, "R9", "Smoke").IsOk, "建工艺配方 R9");
+    Check(recipes.Create(9, "R9", "Smoke").IsSuccess, "建工艺配方 R9");
     Sequence(5, "SEQ_E", Step("LoadPort", "", "LP1"), Step("Chamber", "R9", "PM1"), Step("LoadPort", "", "LP1"));
-    Check(recipes.Delete(9, "Smoke").IsOk, "流程配方存好以后，R9 从工艺配方库里删掉");
+    Check(recipes.Delete(9, "Smoke").IsSuccess, "流程配方存好以后，R9 从工艺配方库里删掉");
     Refuses(Create("LOT-X", "LP1", false, (1, "SEQ_E")), ErrorCodes.JobRecipeNotFound, ["SEQ_E", "R9"],
         "流程配方用的工艺配方不在库里：整个不建");
     Check(jobs.Snapshot.ControlJobs.Count == 0 && jobs.Snapshot.ProcessJobs.Count == 0 && jobs.OwnerOf(first.Id) is null,
@@ -947,7 +947,7 @@ try
     LoadCarrier(lp2);
     var snapshotJob = Create("LOT-C", "LP1", true, (1, "SEQ_C"), (2, "SEQ_C"));
     Check(snapshotJob.IsSuccess, $"建 LOT-C：{snapshotJob.ErrorMessage}");
-    Check(sequences.Rename(3, "SEQ_C2", "Smoke").IsOk && sequences.Delete(3, "Smoke").IsOk, "库里改名、再删掉");
+    Check(sequences.Rename(3, "SEQ_C2", "Smoke").IsSuccess && sequences.Delete(3, "Smoke").IsSuccess, "库里改名、再删掉");
     var movedIds = new[] { ledger.Get("LP1", 1)!.Id, ledger.Get("LP1", 2)!.Id };
     Check(RunUntil(() => CjOf("LOT-C")?.State == (int)ControlJobState.Completed), "自动启动（#5）跑完");
     // 上报走派发线程，先等 #10 送到再数转换号（跟第 7 节一样），不然偶尔少一个

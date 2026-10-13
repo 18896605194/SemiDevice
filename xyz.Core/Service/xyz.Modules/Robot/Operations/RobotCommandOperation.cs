@@ -76,6 +76,8 @@ public sealed class RobotCommandOperation : ModuleOperation<RobotCommandStep>
         int timeout = _timeoutMs();
         if (Watch.ElapsedMilliseconds > timeout)
         {
+            // 回复丢了这条就一直占着在途位：先作废让出来，复位、回零以后同一条指令（比如再取同一槽）才发得出去
+            command.AbandonInFlight("Timeout");
             Fail(ErrorCodes.Timeout, $"{Name} 动作超时（{timeout}ms）", Name, timeout.ToString());
         }
     }

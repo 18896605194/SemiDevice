@@ -67,12 +67,28 @@ function Deploy-Module {
     Write-Host "已部署 $Label 机型模块 $Module -> $moduleDirectory"
 
     # 机型的 IO 点表（服务端才有）跟着部署进宿主的 Config\IO。
-    $pointTable = Join-Path (Split-Path -Parent (Split-Path -Parent $SourceBinRoot)) 'Config\IO'
+    $configSource = Join-Path (Split-Path -Parent (Split-Path -Parent $SourceBinRoot)) 'Config'
+    $pointTable = Join-Path $configSource 'IO'
     if (Test-Path $pointTable) {
         $ioDirectory = Join-Path $destinationOutput.FullName 'Config\IO'
         New-Item -ItemType Directory -Force -Path $ioDirectory | Out-Null
         Copy-Item -Path (Join-Path $pointTable '*.csv') -Destination $ioDirectory -Force
         Write-Host "已部署 $Label IO 点表 -> $ioDirectory"
+    }
+
+    # 机型的 sc.xml（服务端才有）部署进宿主的 Config：只在源文件比宿主那份新时才拷，现场在运行目录改过的不冲掉。
+    $scSource = Join-Path $configSource 'sc.xml'
+    if (Test-Path $scSource) {
+        $configDirectory = Join-Path $destinationOutput.FullName 'Config'
+        $scTarget = Join-Path $configDirectory 'sc.xml'
+        if ((Test-Path $scTarget) -and (Get-Item $scTarget).LastWriteTimeUtc -ge (Get-Item $scSource).LastWriteTimeUtc) {
+            Write-Host "宿主的 sc.xml 不比源文件旧（现场改过或已是最新），没覆盖：$scTarget"
+        }
+        else {
+            New-Item -ItemType Directory -Force -Path $configDirectory | Out-Null
+            Copy-Item -Path $scSource -Destination $scTarget -Force
+            Write-Host "已部署 $Label sc.xml -> $scTarget"
+        }
     }
 }
 

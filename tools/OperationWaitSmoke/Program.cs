@@ -795,8 +795,8 @@ port.E87Callback = null;
     Check(robot.State == ModuleState.Idle && Active(robot, robot.ControlledStopAlarm),
         "Home 成功回到 Idle 也不自动清");
 
-    // 界面按来源复位（这次不摆设备复位操作，只看报警）
-    robot.Next = null;
+    // 界面按来源复位：机械手复位（2026-10-12 起）走入口、要挂一个设备复位操作，这里摆一个不收尾的，只看报警
+    robot.Next = new ProbeOperation();
     Check(alarms.Reset(robot.FullPath) && !Active(robot, robot.ControlledStopAlarm), "人工复位才清");
 
     AlarmComponent.Current = null;
@@ -2351,16 +2351,66 @@ port.E87Callback = null;
     Check(WaitUntil(() => paceComm.Sent.Count == 7), $"一圈 7 条照旧一拍一条发完，实际 {paceComm.Sent.Count} 条");
     Thread.Sleep(100);
     Check(paceComm.Sent.Count == 7, $"一圈查完、离这一圈开始不满一个周期：后面几拍不开下一圈，实际 {paceComm.Sent.Count} 条");
+    // 发送在后台任务上，推一拍以后不一定马上数得到：等到"至少 8 条"再看第 8 条（等"正好 8 条"会被下一拍越过去，机器一忙就失败）
     Check(WaitUntil(() =>
         {
             paceRobot.Tick();
-            return paceComm.Sent.Count == 8;
+            return paceComm.Sent.Count >= 8;
         }) && paceComm.Sent[7] == "Error",
         "满一个周期开下一圈：第一条查报错；实际 " + string.Join(",", paceComm.Sent));
     paceRobot.Close();
+
+    // 7) 断线：按 EC 间隔在后台重连（先关后开），连上以后从头查、重新订手指在位推送；Close 以后不再重连
+    //    （以前机械手不重连：控制器断电重启、比后端晚上电，只能重启后端）
+    var linkRobot = new ProbeRobot { QueryDataTimeOut = 600000 };
+    linkRobot.Shell.ReconnectIntervalMs = 10;
+    var linkComm = linkRobot.Shell.Comm;
+    Check(linkRobot.InitComponent() && linkComm.Opens == 1, "重连用的机械手组件初始化应成功");
+    linkRobot.Tick();
+    Check(WaitUntil(() => linkComm.SentCount("SubWafer1") == 1), "连着时照常查状态：先订手指在位推送");
+    linkComm.Push(">00000000#@SubWafer1");
+    Check(WaitUntil(() =>
+        {
+            linkRobot.Tick();
+            return linkComm.SentCount("Error") == 1;
+        }), "订上了，接着查报错");
+    linkComm.Drop();
+    Check(WaitUntil(() =>
+        {
+            linkRobot.Tick();
+            return linkComm.Opens >= 2 && linkComm.IsConnected;
+        }), "断了按间隔在后台重连上");
+    Check(WaitUntil(() =>
+        {
+            linkRobot.Tick();
+            return linkComm.SentCount("SubWafer1") == 2;
+        }), "重连上以后从头查：订阅跟着连接走，重新订手指在位推送；实际 " + string.Join(",", linkComm.Sent));
+    linkRobot.Close();
+    int robotOpensAfterClose = linkComm.Opens;
+    linkComm.Drop();
+    for (int tick = 0; tick < 5; tick++)
+    {
+        linkRobot.Tick();
+        Thread.Sleep(15);
+    }
+
+    Check(linkComm.Opens == robotOpensAfterClose, "Close 以后不再重连");
+
+    // 8) 动作等回复超时：那条指令作废、让出在途位，复位、回零以后同一条指令（再取同一槽）还能发
+    //    （以前超时只判失败，锐洁按整条指令认在途，回复丢了就一直占着，只能急停或断线才放开）
+    var stuckRobot = new ProbeRobot { WaferEventEnabled = false };
+    Check(stuckRobot.InitComponent(), "测动作超时的机械手组件初始化应成功");
+    var stuckPick = new RobotCommandOperation("Pick", () => stuckRobot.Shell.Pick(1, 3, 5), () => 0);
+    stuckPick.Scan();
+    Check(!stuckPick.IsTerminal && stuckRobot.Shell.Pick(1, 3, 5) is null, "取片指令发出去了（假通道不回它），同一条还在途时再发被拒");
+    Thread.Sleep(5);
+    stuckPick.Scan();
+    Check(stuckPick.IsTerminal && stuckPick.Code == ErrorCodes.Timeout, "等回复超时：动作判失败（超时）");
+    Check(stuckRobot.Shell.Pick(1, 3, 5) is not null, "超时的那条作废了：同一条取片指令能再发");
+    stuckRobot.Close();
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, and the EC interval pacing whole rounds), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the Auto/Manual mode in the equipment status and the equipment Auto/Manual/Stop service, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect, an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication

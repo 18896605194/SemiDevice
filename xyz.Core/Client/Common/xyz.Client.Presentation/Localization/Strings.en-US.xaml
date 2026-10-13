@@ -150,10 +150,8 @@
     <sys:String x:Key="sequence.index_occupied">No. {0} already has a sequence: {1}</sys:String>
     <sys:String x:Key="sequence.name_required">Enter a name</sys:String>
     <sys:String x:Key="sequence.name_too_long">The name can have at most {0} characters</sys:String>
-    <sys:String x:Key="sequence.name_invalid">The name "{0}" has characters that are not allowed: use letters, digits, _ and - only</sys:String>
     <sys:String x:Key="sequence.name_duplicate">The name {0} is already used by No. {1}</sys:String>
     <sys:String x:Key="sequence.revision_mismatch">No. {0} was changed elsewhere after you opened it, so it can't be saved: discard your changes and open it again</sys:String>
-    <sys:String x:Key="sequence.too_few_steps">Too few steps: step 1 and the last step are LoadPort, with at least one step in between</sys:String>
     <sys:String x:Key="sequence.step_not_loadport">Step {0} must be a LoadPort</sys:String>
     <sys:String x:Key="sequence.group_not_found">Step {0}: group {1} no longer exists (sc.xml changed, or the robot can't reach it)</sys:String>
     <sys:String x:Key="sequence.station_required">Step {0}: no station ticked</sys:String>
