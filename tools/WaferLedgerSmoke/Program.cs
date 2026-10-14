@@ -35,9 +35,13 @@ var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Nam
 Check(node is not null && node.Type == typeof(WaferManagerComponent).FullName, "sc.xml 里应有指向 WaferManagerComponent 的顶层节点");
 var databaseGroup = scConfig.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Database", StringComparison.OrdinalIgnoreCase));
 Check(databaseGroup is not null, "sc.xml 应有 Database 节点");
+var mapperNode = scConfig.Modules.FirstOrDefault(setting => setting.Type == typeof(MapperComponent).FullName);
+Check(mapperNode is not null, "账本的存盘、流水、人工调整记录靠映射组件转，sc.xml 里应有 MapperComponent 节点");
 
-// 连库和账本一起装：账本的流水库名要能在这些连接里找到，否则会回落到默认库。
-var roots = ComponentLoader.Load([databaseGroup!, node!]);
+// 连库、映射组件和账本一起装：账本的流水库名要能在这些连接里找到，否则会回落到默认库。
+// 后面直接 new 出来的账本也用这里装出来的映射组件。
+var roots = ComponentLoader.Load([databaseGroup!, mapperNode!, node!]);
+Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && MapperComponent.Current is not null, "sc.xml 应装出映射组件");
 Check(XyzDb.IsRegistered("Default") && XyzDb.IsRegistered("Io"),
     "Database 节点应注册出业务库与设备数据库两路连接，实际: " + string.Join(",", XyzDb.RegisteredNames));
 Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
@@ -681,6 +685,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     WaferManagerComponent Assemble()
     {
         var assembledLedger = ComponentLoader.Load([
+            new ModuleConfig { Name = "Mapper", Type = typeof(MapperComponent).FullName },
             new ModuleConfig
             {
                 Name = "PersistSmoke",
@@ -706,6 +711,21 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         return db.Queryable<WaferCurrentEntity>().ToList();
     }
 
+    var noMapper = Assemble();
+    MapperComponent.Current = null;
+    bool refused = false;
+    try
+    {
+        noMapper.Restore();
+    }
+    catch (InvalidOperationException)
+    {
+        refused = true;
+    }
+
+    noMapper.StopSnapshot();
+    Check(refused, "开了存盘却没配映射组件：开机恢复就报出来");
+
     var before = Assemble();
     Check(before.Restore() == 0, "第一次开机：库里没存过账");
     var onPort = before.Create("PLP", 1, WaferStatus.Normal, "FOUP-P")!;
@@ -713,6 +733,30 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     var armWafer = before.Create("PLP", 3, WaferStatus.Normal, "FOUP-P")!;
     Check(before.Move("PLP", 2, "PPM", 1) && before.SetProcessState("PPM", 1, WaferProcessState.InProcess)
           && before.Move("PLP", 3, "PRB", 2), "摆好：一片在载具里、一片在腔体里加工、一片在机械手手上");
+    var mapper = MapperComponent.Current;
+    var armNow = before.Get("PRB", 2);
+    var armRow = mapper is not null && armNow is not null ? mapper.Map<WaferCurrentEntity>(armNow) : null;
+    Check(armRow is not null && armNow is not null && armRow.WaferGuid == armNow.Id.ToString() && armRow.WaferId == armNow.WaferId
+          && armRow.Module == armNow.Module && armRow.Slot == armNow.Slot && armRow.OriginModule == armNow.OriginModule
+          && armRow.OriginSlot == armNow.OriginSlot && armRow.SourceLoadPort == armNow.SourceLoadPort && armRow.SourceSlot == armNow.SourceSlot
+          && armRow.OriginCarrierId == armNow.OriginCarrierId && armRow.CarrierId == armNow.CarrierId && armRow.LotId == armNow.LotId
+          && armRow.Status == armNow.Status.ToString() && armRow.ProcessState == armNow.ProcessState.ToString()
+          && armRow.CreatedAt == armNow.CreatedAt && armRow.UpdatedAt == armNow.UpdatedAt,
+        "映射组件转出来的存盘行跟账上的片逐字段对得上（Id 存成 WaferGuid，枚举存成名字）");
+    var historyRow = mapper is not null && armNow is not null ? mapper.Map<WaferHistoryEntity>(armNow) : null;
+    var otherHistoryRow = mapper is not null && armNow is not null ? mapper.Map<WaferHistoryEntity>(armNow) : null;
+    Check(historyRow is not null && otherHistoryRow is not null && armNow is not null
+          && historyRow.Id != 0 && historyRow.Id != otherHistoryRow.Id && historyRow.WaferGuid == armNow.Id.ToString()
+          && historyRow.WaferId == armNow.WaferId && historyRow.Module == armNow.Module && historyRow.Slot == armNow.Slot
+          && historyRow.CarrierId == armNow.CarrierId && historyRow.LotId == armNow.LotId
+          && historyRow.Status == armNow.Status.ToString() && historyRow.ProcessState == armNow.ProcessState.ToString()
+          && historyRow.OccurredAt == armNow.UpdatedAt && historyRow.FromModule is null && historyRow.FromSlot is null,
+        "流水行：表自己的 Id 还是各自的雪花号（不拿片的 Id 填），发生时刻取片最后变动的时刻，动作、从哪来留给记流水的地方填");
+    var adjustmentRow = mapper is not null && armNow is not null ? mapper.Map<WaferAdjustmentEntity>(armNow) : null;
+    Check(adjustmentRow is not null && armNow is not null && adjustmentRow.Id != 0 && adjustmentRow.WaferGuid == armNow.Id.ToString()
+          && adjustmentRow.WaferId == armNow.WaferId && adjustmentRow.CarrierId == armNow.CarrierId && adjustmentRow.LotId == armNow.LotId
+          && adjustmentRow.FromModule == string.Empty && adjustmentRow.Operator == string.Empty,
+        "人工调整记录：表自己的 Id 是雪花号，片号、载具、批次照片上的，从哪到哪、操作人留给记录的地方填");
     before.StopSnapshot();
     var saved = Saved();
     Check(saved.Count == 3 && saved.Any(row => row.WaferGuid == inChamber.Id.ToString() && row.Module == "PPM"
@@ -746,6 +790,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     Check(savedAfterRestore, "恢复完存盘线程接着存：存的是这一轮的账（中止、开机 Mapping 的新片）");
     after.StopSnapshot();
     WaferManagerComponent.Current = null;
+    MapperComponent.Current = null;
 }
 
 Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");

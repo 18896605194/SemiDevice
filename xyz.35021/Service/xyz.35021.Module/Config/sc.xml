@@ -1,23 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
-	<!-- 系统设置：界面语言（zh-CN 简体中文 / en-US 英文），客户端启动时按它显示，改了重启客户端生效 -->
 	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
 		<Value Name="Language" Value="zh-CN" />
 	</Setting>
-	<!-- 对前端壳的 gRPC 服务端点：客户端壳连这个地址，默认 localhost:5000。
-	     端口规划注意：HSMS（EAP 链路）惯例端口也是 5000，接 EAP 时把其中一边挪开；
-	     改这里要同步改客户端 exe 旁的 client.json（GrpcAddress），没配 client.json 时客户端按 localhost:5000 连 -->
 	<Setting Name="Rpc" Type="xyz.Components.Components.RpcComponent">
 		<Value Name="Host" Value="localhost" />
 		<Value Name="Port" Value="5000" />
 	</Setting>
-	<!-- EC：全系统一本在线可调参数（ec.xml，跟 sc.xml 同目录），各组件的 EC 属性经它读写。
-	     ec.xml 不用手建：后端启动时照本文件的组件层级自动生成，层级、先后都跟这里一样；已经有了就只补新的，改过的值不动。
-	     界面上在 设置 → EC 设置 里改，改完立即生效。
-	     放最前面：后面的组件装配时就能读到 ec.xml 里的值 -->
 	<Setting Name="EC" Type="xyz.Components.Components.EcComponent" />
-	<!-- 数据库连接：只分两个。业务数据（含晶圆流水）走 Default；
-	     Io 单独一个，专门装设备采上来的点位数据——那是唯一一路秒级不停写的，跟业务分开免得互相拖慢 -->
 	<Setting Name="Database">
 		<Setting Name="Default" Type="xyz.Components.Components.DataBaseComponent">
 			<Value Name="ConnectionString" Value="DataSource=xyz.db" />
@@ -28,21 +18,19 @@
 			<Value Name="DbType" Value="Sqlite" />
 		</Setting>
 	</Setting>
-	<!-- 报警：全系统一本。组件经基类 RaiseAlarm/CheckAlarm 自己报，只能人工 Reset 清；报出、清除都入库 -->
 	<Setting Name="Alarm" Type="xyz.Components.Components.AlarmComponent">
 		<Value Name="EnableHistory" Value="True" />
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
 		<Value Name="HistoryQueryMaxCount" Value="1000" />
 	</Setting>
-	<!-- 日志：历史页一次最多返回多少条、后端保留最近多少条（客户端连上时补拉）、实时日志页和顶部日志栏最多显示多少条 -->
 	<Setting Name="Log" Type="xyz.Components.Components.LogComponent">
 		<Value Name="HistoryQueryMaxCount" Value="1000" />
 		<Value Name="RecentLogCount" Value="200" />
 		<Value Name="RealtimeDisplayMaxCount" Value="2000" />
 		<Value Name="LogBarDisplayMaxCount" Value="500" />
 	</Setting>
-	<!-- 晶圆账：全系统一本，事件驱动不参与扫描。IsPersistent：当前账存盘，开机放回腔体、机械手上的片（LoadPort 以开机 Mapping 为准） -->
+	<Setting Name="Mapper" Type="xyz.Components.Components.MapperComponent" />
 	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManagerComponent">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="EnableHistory" Value="True" />
@@ -50,44 +38,25 @@
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
 	</Setting>
-	<!-- PLC：全机 IO 底座——气缸的 DI/DO 点、轴的数据块都从它读写，每拍整块读回缓存。
-	     排在模块前面：模块装配时要向它登记自己的数据块。
-	     Host 留空 = 装机没接 PLC，组件空转不报警；Host 填 Local = 连本机的倍福运行时或仿真器（D:\仿真 统一仿真器，Start-35021.cmd）。
-	     本机要有 ADS 路由才连得上：真机由 TwinCAT 提供；开发机没装 TwinCAT 就装 tools\AdsRouter 服务（开机自启）。
-	     没有路由时填 Local，每次连接会卡 6 秒多再失败 -->
 	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
 		<Value Name="Brand" Value="Beckhoff" />
-		<Value Name="Host" Value="192.168.25.162.1.1" />
+		<Value Name="Host" Value="Local" />
 		<Value Name="Port" Value="851" />
-		<!-- 四个块在 PLC 里的变量名：倍福用全局别名那一套（GVL 全名写法是 IO_CSharp.DigIn，两种读写同一份过程映像） -->
 		<Value Name="DiDataPath" Value=".DigIn" />
 		<Value Name="DoDataPath" Value=".DigOut" />
 		<Value Name="AiDataPath" Value=".AnaIn" />
 		<Value Name="AoDataPath" Value=".AnaOut" />
 		<Value Name="IoPointCount" Value="1000" />
 	</Setting>
-	<!-- IO 表：全机点位的唯一出口。点表（DI/DO/AI/AO.csv）是机型的东西，源文件在 xyz.35021\Service\xyz.35021.Module\Config\IO，
-	     编译时由机型项目部署到宿主输出目录里本文件同目录的 IO\ 下；仿真器 Machines\35021\IO 里是同一份，改了两边一起改。Module 列就是模块名（LoadPort1、Chamber1……），IO 界面按它分页；
-	     点位分段：Safety（整机安全信号）DI 从 0 起、AI 从 0 起；LoadPort1/2 从 32/48 起（E84 + 光幕），Robot1 从 64 起，
-	     Chamber1~4 的 DI/DO 从 100/140/180/220 起、每段 40 点，AI 从 100/120/140/160 起、每段 20 点；同一设备的 DO 与 DI 偏移对齐。
-	     每拍从 PLC 缓存刷一遍；上层按索引取点，界面订阅后端推来的整包 -->
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
 	</Setting>
-	<!-- 安全：整机的安全信号（急停、维修门、漏液、烟感、厂务气源/排风……），不归哪个模块管，一个信号一个子节点。
-	     DI 用 DiSensorComponent：DiIndex 点号，TriggerLevel 触发电平（true = 高电平触发，false = 低电平触发），AlarmEnabled 是否报警；
-	     AI 用 AiSensorComponent：AiIndex 点号，上下限、预警带、防抖在 ec.xml（都为 0 = 没标定不判）。
-	     开机后自己一条扫描线程监控。点位在点表的 Safety 段。
-	     绑在这儿的点才进数据曲线（库里记、勾选树里有）；IO 页里 Safety 单独一页。
-	     报警先都关着（AlarmEnabled=False）：要报哪个，把它的 AlarmEnabled 改成 True -->
 	<Setting Name="Safety" Type="xyz.Components.Components.SafetyComponent">
-		<!-- 急停回路：1 = 正常，按下急停为 0 -->
 		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="0" />
 			<Value Name="TriggerLevel" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<!-- 维修门：1 = 关好，门开为 0 -->
 		<Setting Name="FrontDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="1" />
 			<Value Name="TriggerLevel" Value="false" />
@@ -108,7 +77,6 @@
 			<Value Name="TriggerLevel" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<!-- 漏液、烟感：1 = 有漏液 / 有烟 -->
 		<Setting Name="LeakTray" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="5" />
 			<Value Name="TriggerLevel" Value="true" />
@@ -124,7 +92,6 @@
 			<Value Name="TriggerLevel" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<!-- 厂务开关量：1 = 正常 -->
 		<Setting Name="CdaOk" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="8" />
 			<Value Name="TriggerLevel" Value="false" />
@@ -135,7 +102,6 @@
 			<Value Name="TriggerLevel" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
-		<!-- 整机模拟量：气源压力、厂务排风压力、真空压力、电控柜温度 -->
 		<Setting Name="CdaPressure" Type="xyz.Components.Components.AiSensorComponent">
 			<Value Name="AiIndex" Value="0" />
 			<Value Name="AlarmEnabled" Value="False" />
@@ -153,14 +119,6 @@
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 	</Setting>
-	<!-- 数据曲线：每个采样周期采一整行，值没变也记，读不到的存空不存 0。
-	     只记本文件里配置了的：组件上能画成曲线的 SV，加上组件绑的 IO（DiXxxIndex / DoXxxIndex / AiXxxIndex / AoXxxIndex 这类配置项，-1 不算）。
-	     点表里有、但没绑到组件上的点不记——想看哪个点，就把它绑到组件上（整机信号绑在上面的 Safety 里），重启后开始记。
-	     入 Io 库，按天一张宽表 DataRecord_yyyyMMdd：Time（UTC 毫秒）+ 每个信号一列，列名全部由本文件生成、跟这里的层级一一对应：
-	     SV = 组件全路径.属性名；IO = 组件全路径.配置项名去掉 Index（Chamber1.Door.DiOpened、Safety.LeakTray.Di）。开关量存 1/0。
-	     数据曲线、实时曲线页的勾选树列的就是这些，所以看得到的一定查得到。
-	     Exclude 写不记的信号，逗号分隔，可写上级路径整枝去掉（如 LoadPort1.E84）；
-	     入库批量、积压告警是 EC（RecordBatchSeconds / RecordBacklogWarning），在 ec.xml -->
 	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
 		<Value Name="EnableRecord" Value="True" />
 		<Value Name="Database" Value="Io" />
@@ -170,19 +128,13 @@
 		<Value Name="QueryMaxPoints" Value="4000" />
 		<Value Name="QueryMaxSignals" Value="20" />
 	</Setting>
-	<!-- 实时曲线：专管推送，自己不采样——订阅数据曲线的每一行推给实时曲线页，内存里留最近 WindowSeconds 秒，
-	     页面打开、新勾曲线时先补这一段 -->
 	<Setting Name="RealChart" Type="xyz.Components.Components.RealChartComponent">
 		<Value Name="WindowSeconds" Value="600" />
 	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
 			<Value Name="SlotCount" Value="25" />
-			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：
-			     True = 关好门后主动扫一遍（FCD 没有带图卸载的指令，先 CULOD 关门、再 CLDMP 扫），对不上判失败、报警；False = 关门就完，不扫、不对账。
-			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账 -->
 			<Value Name="AutoRunMapOnUnload" Value="False" />
-			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
 				<Value Name="PortName" Value="COM2" />
@@ -193,7 +145,6 @@
 				<Value Name="Host" Value="192.168.1.100" />
 				<Value Name="NetPort" Value="4004" />
 			</Setting>
-			<!-- RFID 读头：品牌壳，换 Type 即换品牌 -->
 			<Setting Name="RFID" Type="xyz.Components.Components.FcdRfidComponent">
 				<Value Name="CommType" Value="Serial" />
 				<Value Name="PortName" Value="COM6" />
@@ -204,16 +155,10 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
-			<!-- 载具（FOUP）：端口上这一盒的到达、读码、Host 核对进度、槽图和取放状态，向 E87 上报；每个 LoadPort 必须有一个，
-			     写在 RFID 后面（同一拍里读头先出读码结果，载具紧跟着取）。
-			     PresenceSource：载具在位以什么为准（二选一）：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化；开机已在端口上的盒子也认得）；
-			     Event = 设备主动上报（PODON 放上 / PODOF 拿走）。AutoReadCarrierId：载具到位后自动读码（默认 True，False 只由上层 / EAP 显式触发） -->
+		
 			<Setting Name="Carrier" Type="xyz.Modules.CarrierComponent">
 				<Value Name="PresenceSource" Value="Query" />
 			</Setting>
-			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84。
-			     IsEnable：装没装（False = 本机没接搬运车，端口当没有 E84，不打开、不扫、不读写 IO；真机装了改 True，重启生效）；
-			     装了以后跟不跟搬运车交接走 EC E84Enabled（默认关，在线改） -->
 			<Setting Name="E84" Type="xyz.Modules.E84Component">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="34" />
@@ -234,12 +179,8 @@
 			</Setting>
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
-			<Value Name="SlotCount" Value="25" />
-			<!-- AutoRunMapOnUnload：自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：
-			     True = 关好门后主动扫一遍（FCD 没有带图卸载的指令，先 CULOD 关门、再 CLDMP 扫），对不上判失败、报警；False = 关门就完，不扫、不对账。
-			     Mapping 是 LoadPort 硬件自带的（不设能力开关），这里只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账 -->
+			<Value Name="SlotCount" Value="25" />		
 			<Value Name="AutoRunMapOnUnload" Value="False" />
-			<!-- 品牌驱动组件：换 Type 即换品牌（FcdLoadPortComponent / 其他品牌壳），机型代码不动 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
 				<Value Name="CommType" Value="Serial" />
 				<Value Name="PortName" Value="COM4" />
@@ -250,7 +191,6 @@
 				<Value Name="Host" Value="192.168.1.101" />
 				<Value Name="NetPort" Value="4004" />
 			</Setting>
-			<!-- RFID 读头：品牌壳，换 Type 即换品牌 -->
 			<Setting Name="RFID" Type="xyz.Components.Components.FcdRfidComponent">
 				<Value Name="CommType" Value="Serial" />
 				<Value Name="PortName" Value="COM8" />
@@ -261,13 +201,9 @@
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
 			</Setting>
-			<!-- 载具（FOUP）：同 LoadPort1 -->
 			<Setting Name="Carrier" Type="xyz.Modules.CarrierComponent">
 				<Value Name="PresenceSource" Value="Query" />
 			</Setting>
-			<!-- E84：搬运车 PIO 信号走 IO 板，每个 LoadPort 一组，点表里 Module=LoadPortN、Component=E84。
-			     IsEnable：装没装（False = 本机没接搬运车，端口当没有 E84，不打开、不扫、不读写 IO；真机装了改 True，重启生效）；
-			     装了以后跟不跟搬运车交接走 EC E84Enabled（默认关，在线改） -->
 			<Setting Name="E84" Type="xyz.Modules.E84Component">
 				<Value Name="IsEnable" Value="False" />
 				<Value Name="DiValidIndex" Value="50" />
@@ -290,18 +226,11 @@
 	</Setting>
 	<Setting Name="Robot">
 		<Setting Type="xyz._35021.Module.Robot.RobotModule" Name="Robot1">
-			<!-- 品牌驱动组件：换 Type 即换品牌（RejeRobotComponent / 其他品牌壳），机型代码不动。
-			     轴表不在这儿了：模块下 X/Z/Theta 用 RobotAxisComponent、Arm1/Arm2 用 RobotArmComponent 节点，
-			     节点名即轴名，先后就是查询轮询与界面轴位表的顺序 -->
 			<Setting Name="Driver" Type="xyz.Components.Components.RejeRobotComponent">
 				<Value Name="Host" Value="127.0.0.1" />
 				<Value Name="NetPort" Value="9000" />
 			</Setting>
-			<!-- 轴表：一根轴一个节点，按顺序配。手指上的传感器（缩回到位、真空）作为手指节点的子节点挂，例如：
-			     <Setting Name="Retracted" Type="xyz.Components.Components.DiSensorComponent">
-			             <Value Name="DiIndex" Value="66" />
-			             <Value Name="TriggerLevel" Value="True" />
-			     </Setting> -->
+
 			<Setting Name="Axes">
 				<Setting Name="X" Type="xyz.Components.Components.RobotAxisComponent" />
 				<Setting Name="Z" Type="xyz.Components.Components.RobotAxisComponent" />
@@ -313,9 +242,7 @@
 					<Value Name="Number" Value="2" />
 				</Setting>
 			</Setting>
-			<!-- 站点表：每个站点一个子节点（LoadPort / 腔体各编站点号）。
-			     Number 设备站点号（正整数）；Y 机械手伸出距离（数值）；Direction 伸出方向（RobotDirection 枚举：North/East/South/West）；
-			     Arms 这个站点允许用哪几只手取放（手指号，逗号分隔，如 1,2；不配 = 所有手指都能用）——手动页选了站点，手臂下拉只列这几只，别的手发过来一律拒 -->
+		
 			<Setting Name="Stations">
 				<Setting Name="LoadPort1">
 					<Value Name="Number" Value="1" />
@@ -356,25 +283,13 @@
 			</Setting>
 		</Setting>
 	</Setting>
-	<!-- 流程配方库（配方 → 流程配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……），Folder 相对宿主运行目录。
-	     可选站点不在这儿配：按本文件的分组节点（LoadPort、Chamber……）和下面装的模块生成，只留机械手 Stations 里有的；
-	     模块全起来后统一绑，跟本节点在 sc.xml 里的位置无关 -->
+
 	<Setting Name="Sequence" Type="xyz.Modules.SequenceComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Sequence" />
 		<Value Name="NameMaxLength" Value="32" />
 	</Setting>
-	<!-- 工艺配方库（配方 → 工艺配方页）：编号 1~Capacity，一个编号一个文件（Folder 下 001.xml、002.xml……），Folder 相对宿主运行目录。
-	     一份配方分配方头（整份一组值）和步骤两部分，各按下面一张字段表：Head 一个子节点一项（页面上左边名字、右边值），Fields 一个子节点一个字段（步骤表的一列），
-	     节点名就是字段名（存进配方文件），从上到下就是先后。
-	     Text / TextEn 名字；Type：Int 整数、Double 小数、Choice 下拉、Bool 开关、Text 文本；Unit 单位、Min / Max 上下限、Decimals 最多几位小数（数字才填）；
-	     Default 新加时填的值；Required 必填（true / false）；下拉的选项英文逗号隔开（如 Time,Scan）。
-	     Head 固定的几项不能删、字段名和类型不能改：Index、Name、CreatedBy、CreatedAt、ModifiedBy、ModifiedAt、Revision 由程序填；
-	     Type 是这份配方给哪种站点用，选项就是腔体配的 Type（腔体节点下 <Value Name="Type" />），不用写；Timeout 超时时间、Description 说明在页面上填。
-	     Fields 的下拉按腔体的 Type 分开写：Source.A 是 Type 为 A 的腔体那一套（腔体没配 Type 的写 Source），配方头选了哪种 Type 就列哪一套；
-	     摆臂、药液写的就是那种腔体里摆臂的节点名、喷嘴的 Chemical，用到具体腔体时由腔体照名字核对。
-	     Seconds 是步骤时长，必须有、Type 为 Double；合计时长不能超过配方头的超时时间。位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，150 = 中心。
-	     喷嘴喷的东西（DIW、SC1、N2、背面冲洗……）都是在药液里选、流量填在流量里，不单独加字段 -->
+	
 	<Setting Name="ProcessRecipe" Type="xyz.Modules.RecipeComponent">
 		<Value Name="Capacity" Value="99" />
 		<Value Name="Folder" Value="Recipe\Process" />
@@ -515,46 +430,24 @@
 			</Setting>
 		</Setting>
 	</Setting>
-	<!-- 指挥层：Job 派单、搬运管理推工单挂在 Dispatch 下面，共用它的一条扫描线程，彼此之间没有线程交叉。
-	     一拍里按下面的先后扫：先 Job 后 Transfer（先收结果、派单，新派的单当拍就能走第一步）；一个出错不耽误另一个。
-	     设备（LoadPort、腔体、机械手）不挂这里，各自在根上、各一条线程。开机时 Job、搬运管理都绑完表才起这条线程 -->
+	
 	<Setting Name="Dispatch" Type="xyz.Modules.DispatchComponent">
-		<!-- Job 管理（SEMI E94 CJ / E40 PJ）：建 Job、控 Job（启动、暂停、恢复、停止、中止）、按 Job 自动调度，状态照 SEMI 标准。
-		     Job 数据只有它改：本地界面和以后的 EAP 调的是同一个命令接口。模块、搬运管理、配方库全起来后统一绑，跟本节点在 sc.xml 里的位置无关。
-		     Job 是标准件：下面两个子节点都是平台的，机型不写代码、不换 Type；站点之间的差别由站点自己声明支持的任务，走哪些站点由流程配方定。
-		     Task 子节点是任务组件（必须配）：建 Job 时给每片生成任务表（取片、放片、工艺……按顺序），记每个任务做到哪、出错停住等人处理。
-		     Scheduler 子节点是调度引擎：照任务表派任务（站内任务交给站点，取片时先占住放片目标，再顺序执行取放）；不配也会自己建一个。
-		     IsPersistent：Job 记进库（control_job、process_job 两张表，CJ、PJ 各一行，每片的任务明细跟着 PJ）；重启后不接着跑，库里上次没做完的记成中止 -->
+		
 		<Setting Name="Job" Type="xyz.Modules.JobManager">
 			<Value Name="IsEnable" Value="True" />
-			<!-- PJ 准备好后直接开始；False = 等待 PJ Start，创建请求不指定启动方式 -->
 			<Value Name="ProcessJobAutoStart" Value="True" />
-			<!-- CJ 的载具准备好后直接开始；False = 等待 CJ Start -->
 			<Value Name="ControlJobAutoStart" Value="False" />
 			<Value Name="IsPersistent" Value="True" />
 			<Value Name="Database" Value="Default" />
 			<Setting Name="Task" Type="xyz.Modules.TaskComponent" />
 			<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
 		</Setting>
-		<!-- 搬运：全系统唯一一个"把片从 A 搬到 B"的执行口。手动传片和自动任务启动的是同一种搬运操作，
-		     都完整走站点交互环（准备→取放→收尾）；设备点动不走这儿。
-		     模块表在装配全部完成后统一绑，跟本节点在 sc.xml 里的位置无关 -->
+
 		<Setting Name="Transfer" Type="xyz.Modules.TransferManager">
 			<Value Name="IsEnable" Value="True" />
 		</Setting>
 	</Setting>
-	<!-- EAP（SECS/GEM）：Hsms 是链路，下面每个 SEMI 标准一个组件。没接 EAP 的机器保持 Hsms 的 IsEnable=False
-	     （不监听端口、各标准不接到设备上，照常跑）。开机时设备侧（LoadPort、晶圆账、Job）都起来以后才接、最后才开链路，跟本节点在 sc.xml 里的位置无关。
-	     Hsms：接 EAP 时 IsEnable 改 True，端口用 SEMI 惯例 5000（此时把上面 Rpc 的 gRPC 端口挪开，两者不能同端口：同端口时 EAP 链路不启动、日志记错误）；
-	     DeviceId、T3~T8 按 EAP 侧要求对齐。
-	     Notifier：上报派发（必须配）。LoadPort、晶圆账、Job 报给 EAP 的事都放进它，一条线程按发生先后发给各标准，EAP 发报文卡住也不拖住设备。
-	     E30（GEM）：MDLN / SOFTREV 报给 Host；开机离线还是在线、在线时本地还是远程、缓存这些在 EC 里调；Host 定的报告、开关、缓存存在 Database 指的库里。
-	     ApplyHostTime：Host 对时（S2F31）是不是真改本机时钟（False = 只答收下）。
-	     E39：Host 用 S14 查对象（载具、端口、片、片位、PJ、CJ），Host 建 CJ 也走它。
-	     Recipe（E30 工艺程序管理）：Host 用 S7 列、取、下、删流程配方和工艺配方，内容是 JSON，跟本地配方页过同一套检查；配方变了报事件。
-	     Host 那边的配方号就是配方名（两个库的名字不重）；LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地改配方。
-	     E87：载具 ID、槽图跟 Host 核对（照老 CTC：ID 认定就 Load，槽图一律等 Host），端口搬运状态、启停用（干完自动 Unload 是 LoadPort 的 EC AutoUnload）。
-	     E90：按晶圆账报片的位置和工艺状态。E40 / E94：Host 建 PJ / CJ、下命令，跟本地界面走同一个 Job 管理 -->
+	
 	<Setting Name="Eap" Type="xyz.Components.Components.EapComponent">
 		<Setting Name="Hsms" Type="xyz.Components.Components.HsmsComponent">
 			<Value Name="IsEnable" Value="False" />
@@ -577,7 +470,6 @@
 		</Setting>
 		<Setting Name="E87" Type="xyz.Components.Components.E87Component" />
 		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />
-		<!-- PJ 命令名称按 EAP 约定配置；默认名称（含 STARTPROCESS）保留兜底，名称不能重复或占用其他命令的默认名称 -->
 		<Setting Name="E40" Type="xyz.Components.Components.E40Component">
 			<Value Name="StartCommandName" Value="START" />
 			<Value Name="PauseCommandName" Value="PAUSE" />
@@ -586,7 +478,6 @@
 			<Value Name="AbortCommandName" Value="ABORT" />
 			<Value Name="CancelCommandName" Value="CANCEL" />
 		</Setting>
-		<!-- CJ 命令字符串按 EAP 约定配置（忽略大小写及首尾空格，名称不能重复或占用其他命令的默认名称）；数值命令 1~8 保持固定 -->
 		<Setting Name="E94" Type="xyz.Components.Components.E94Component">
 			<Value Name="StartCommandName" Value="CJSTART" />
 			<Value Name="PauseCommandName" Value="CJPAUSE" />
@@ -598,44 +489,32 @@
 			<Value Name="HeadOfQueueCommandName" Value="CJHOQ" />
 		</Setting>
 	</Setting>
-	<!-- 清洗腔：回零、复位、中止、按工艺配方做工艺都是平台的默认做法，照下面挂的设备发轴和 IO（机型类留空）；
-	     换机型改这里的设备，不改代码。回零：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂回零 → Bowl 降，门不动；
-	     工艺：Lift 升、Bowl 升 → 每步转速给卡盘、选的摆臂摆到位置、开药液对得上的喷嘴（配了 FlowAoIndex 的先给流量），Time 停着喷 / Scan 来回扫 → 收尾停液、摆臂回 Home、停转、Bowl 降。
-	     站点号 / 伸出距离 Y / 伸出方向 Direction 不在这儿，在 Robot 的 Stations 里配。
-	     子组件层级按物理装配走：一条摆臂（SwingArmComponent，它自己就是摆动轴）和装在它上面的升降气缸、喷嘴是一套，
-	     升降、喷嘴都是现成的组件，挂在摆臂节点下面——一眼看出哪条臂能升降、上面有哪些药液，报警也按路径自动算到摆臂、再算到腔体。
-	     IO 索引按点表分段填（Chamber1 从 100 起，每个腔体 40 点，同一设备 DO 与 DI 同号；-1 = 接线未定）；
-	     气缸开侧 = 门开 / Bowl 升 / 升降气缸升。轴的速度/标定是 EC，在 ec.xml 里配，不在这儿。
-	     摆臂条数、喷嘴路数按实际增减，下面只是骨架。
-	     设备按这里的结构认（腔体手动页的轴页签、气缸表、三维图也照它）：腔体按接口识别门和 Bowl，名字可以任意配置（三维图只画第一个 Bowl），
-	     ISpinMotor 是卡盘（速度单位 rpm），每条摆臂按 IChamberLift 接口找升降、按 INozzle 接口找喷嘴（FlowAoIndex = 流量设定 AO，-1 不接） -->
+	
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
-			<!-- 腔体门：归站点交互环管（开门放行机械手、关门收尾），不归工艺 -->
+		
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="100" />
 				<Value Name="DoCloseIndex" Value="101" />
 				<Value Name="DiOpenedIndex" Value="100" />
 				<Value Name="DiClosedIndex" Value="101" />
 			</Setting>
-			<!-- Bowl：先只配一层，一个气缸整体升降（升 = 开侧）；叫 Bowl1 跟点表、仿真器同名，点表里 Bowl2、Bowl3 的点留着没接组件 -->
+		
 			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="102" />
 				<Value Name="DoCloseIndex" Value="103" />
 				<Value Name="DiOpenedIndex" Value="102" />
 				<Value Name="DiClosedIndex" Value="103" />
 			</Setting>
-			<!-- 轴不按轴号绑硬件，按 PLC 数据块的数组名绑：SendPlcDataPath 下发、ReceivePlcDataPath 回读。
-			     仿真器按 .Motor_*[下标] 给数据块，下标 = 腔体号×10（旋转电机）、+1（摆臂），跟仿真器 Axes.csv 一致；
-			     空 = 数据块还没定；速度/标定是 EC，在 ec.xml -->
+	
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[10]" />
 				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[10]" />
 			</Setting>
-			<!-- 摆臂：自己是摆动轴；下面挂它的升降气缸（Lift）和这条臂上的喷嘴（几路药液挂几个） -->
+			
 			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
 				<Value Name="SendPlcDataPath" Value="Motor_Csharp2Plc[31]" />
 				<Value Name="ReceivePlcDataPath" Value="Motor_Csharp2Plc[31]" />
@@ -658,7 +537,6 @@
 					<Value Name="FlowAoIndex" Value="101" />
 				</Setting>
 			</Setting>
-			<!-- 片在位检测：只给状态不报警，有没有片以晶圆账为准 -->
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
 				<Value Name="DiIndex" Value="112" />
 				<Value Name="AlarmEnabled" Value="False" />

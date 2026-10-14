@@ -301,8 +301,6 @@ public static class ServiceExtensions
 
         #region gRPC 服务注册
 
-        RoleMappingConfig.Register();
-
         services.AddTransient<IRoleService, RoleService>();
         services.AddTransient<IUserService, UserService>();
         services.AddTransient<ILoadPortService, LoadPortService>();

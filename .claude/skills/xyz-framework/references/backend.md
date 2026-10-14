@@ -5,7 +5,7 @@
 ## 1. 工程和依赖方向
 
 ```
-Shared\xyz.Tools      EventBus、JsonHelper、XmlHelper、IocHelper（不引用任何工程）
+Shared\xyz.Tools      EventBus、JsonHelper、XmlHelper、IocHelper（不引用任何工程）；Mapster 包只在这儿引用，前后端经 xyz.Shared 都带上
 Shared\xyz.Shared     契约：Services\I*Service、Dtos\、Errors\ErrorCodes、Rpc\（→ Tools）
 Service\xyz.Common    日志：LogHelper、LogQueue、LogFileReader、NLog.config
 Service\xyz.Configs   SC（读 sc.xml）、配置模型、Paths.json（→ Common、Tools）；sc.xml 本身归机型（如 xyz.35021.Module\Config\sc.xml）
@@ -43,7 +43,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   写在所在模块的 Home 操作里去驱动。`BaseModule.Open()` 已经没有了；PLC、IO、HSMS、轴（`Open(IPlc)`）各自的 `Open` 还是装配层按类型调；
   气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
-- 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、WaferManagerComponent、Io、Safety、
+- 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、Mapper、WaferManagerComponent、Io、Safety、
   Eap、Hsms、E30、DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、RecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）

@@ -3,9 +3,7 @@
 namespace xyz.Database.Wafers;
 
 /// <summary>
-/// 人工调整晶圆账的记录（设置 → 账单调整页的移动、删除）：谁、什么时候、把哪片从哪挪到哪或删掉、为什么。
-/// 人工调整很少，一张表就够，不分表；过期清理跟晶圆流水同一个保留天数。
-/// 晶圆流水照常记 Moved / Deleted，这张表只多记操作人和原因，方便事后追查。
+/// 人工调整晶圆账的记录
 /// </summary>
 [SugarTable("wafer_adjustment")]
 public class WaferAdjustmentEntity

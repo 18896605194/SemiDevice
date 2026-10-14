@@ -573,3 +573,11 @@
   Reje 成功码的 `@Error` 帧不当报错推送（作废以后迟到的"没有报错"回复会变成无主帧）。
 - **InitComponent 照 LoadPort 的分工**（2026-10-10）：模块只做装配期的事：`Axes`/`Arms` 直接查子组件、校验手指号、找驱动挂 `DeviceEvent`、`RegisterLocation`；
   连接和各自的开机初始化归子组件自己的 `InitComponent`（驱动建连接、轴/手指/传感器照基类递归）。没挂驱动不再提前 return，子组件照样初始化，最后 `return 驱动有 && childrenInitialized`。
+
+## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
+- **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
+- **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 构造里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局），
+  用的地方 `MapperComponent.Current.Map<T>(source)`；sc.xml 顶层配 `Mapper` 节点。
+- **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
+  动作、从哪到哪、操作人这些片上没有的，映射完再赋值。开机恢复（存盘行 → 片）有解析失败跳过、加工中记中止这些逻辑，照旧手写。
+- 账本开着却没配映射组件，开机恢复时抛 `InvalidOperationException`（开机就暴露）。原来空着的 `RoleMappingConfig.Register()` 删了。

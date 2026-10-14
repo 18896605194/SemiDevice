@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
@@ -12,22 +12,23 @@ using xyz.Database.Wafers;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 晶圆账：全系统唯一一本"哪个位置上有哪片"的账。位置用 (模块名, 槽位) 表达，机械手的手臂也算槽位。
+/// 晶圆账 应用到各个模块
 /// </summary>
 [Component(description: "晶圆账：记录每个位置上的片与流转")]
 public class WaferManagerComponent : ComponentBase
 {
-    /// <summary>
-    /// 当前账本；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
-    /// </summary>
     public static WaferManagerComponent? Current { get; set; }
 
     private readonly object _gate = new();
 
-    /// <summary>模块名 → 槽位数组，下标 0 即第 1 槽；null 表示空槽。容量在注册时定死，不随运行增删。</summary>
+    /// <summary>
+    /// 模块名 → 槽位数组
+    /// </summary>
     private readonly Dictionary<string, WaferInfo?[]> _locations = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>按 LoadPort 注册的位置：在这些位置上建的片记下来源 LoadPort（WaferInfo.OriginLoadPort）。</summary>
+    /// <summary>
+    /// 按 LoadPort 注册的位置
+    /// </summary>
     private readonly HashSet<string> _loadPorts = new(StringComparer.OrdinalIgnoreCase);
 
     public WaferManagerComponent()
@@ -43,7 +44,6 @@ public class WaferManagerComponent : ComponentBase
 
     #region EAP 口子（E90 片跟踪）
 
-    /// <summary>E90 片跟踪上报口；null 表示没接 EAP，照常记账。装配时由 EAP 侧挂上。</summary>
     public IE90Callback? E90Callback { get; set; }
 
     private void NotifyE90(Action<IE90Callback> notification)
@@ -63,7 +63,6 @@ public class WaferManagerComponent : ComponentBase
         });
     }
 
-    /// <summary>注册过的位置和各自的槽数（E90 的片位对象按它建），按模块名排序。</summary>
     public IReadOnlyList<(string Module, int SlotCount)> Locations
     {
         get
@@ -76,7 +75,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>这个位置是不是按 LoadPort 注册的（片的来源 / 回片的地方）。</summary>
     public bool IsLoadPort(string module)
     {
         lock (_gate)
@@ -131,22 +129,16 @@ public class WaferManagerComponent : ComponentBase
 
     #endregion
 
-    #region 流水入库（装配时按 SC 开；直接 new 出来的账本不碰数据库；批量、积压告警是 EC）
-
-    // ⚠ 这一段里凡是连数据库的（WriteHistoryLoopAsync / CleanupIfDayChanged / CleanupHistory）
-    //   一律不许在 lock (_gate) 里面调：磁盘一卡，所有设备线程就全堵在账本锁上。
-    //   写账的地方都是出了锁、拿到 snapshot 之后再 RecordHistory，只入队不写库。
-
-    /// <summary>null = 不落库（没装配，或 SC 里关了）。</summary>
+    #region 入库
+    
     private Channel<WaferHistoryEntity>? _historyRows;
 
     private int _historyPending;
 
     /// <summary>
-    /// 装配读完 SC 后开流水队列与写库线程、存盘线程；EnableHistory、IsPersistent 都是 False 就整个账本不碰数据库。
-    /// 这里不建表也不连库：日表由实体上的 [SplitTable] 让 ORM 插入时自动建；
-    /// sc.xml 里 Database 节点万一排在账本后面，这会儿连接还没注册，等真有流水要写（那时整棵树早装完了）再碰库。
+    /// 装配
     /// </summary>
+    /// <param name="setting"></param>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
@@ -171,7 +163,7 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 停止流水落库（宿主退出时调）：队列关闭、写完剩下的行后线程结束。
+    /// 停止写到数据库
     /// </summary>
     public void StopHistory()
     {
@@ -179,34 +171,24 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 记一条流水：只入队，不写库，所以写账线程不会被数据库拖住。必须在 _gate 之外调。
+    /// 记一条流水：只入队，不写库
     /// </summary>
     private void RecordHistory(WaferHistoryAction action, WaferInfo wafer, string? fromModule = null, int? fromSlot = null)
     {
-        // 写账的地方都走这儿：账变了，当前账下一轮要重新存盘
         Interlocked.Exchange(ref _snapshotDirty, 1);
 
+        // 映射组件开机恢复时已经查过在；只有冒烟把它拿掉了才会是 null
         var rows = _historyRows;
-        if (rows is null)
+        var mapper = MapperComponent.Current;
+        if (rows is null || mapper is null)
         {
             return;
         }
 
-        var row = new WaferHistoryEntity
-        {
-            Action = action.ToString(),
-            WaferGuid = wafer.Id.ToString(),
-            WaferId = wafer.WaferId,
-            Module = wafer.Module,
-            Slot = wafer.Slot,
-            FromModule = fromModule,
-            FromSlot = fromSlot,
-            CarrierId = wafer.CarrierId,
-            LotId = wafer.LotId,
-            Status = wafer.Status.ToString(),
-            ProcessState = wafer.ProcessState.ToString(),
-            OccurredAt = wafer.UpdatedAt,
-        };
+        var row = mapper.Map<WaferHistoryEntity>(wafer);
+        row.Action = action.ToString();
+        row.FromModule = fromModule;
+        row.FromSlot = fromSlot;
 
         // 队列已关（StopHistory 之后）就当没记，不报错。
         if (!rows.Writer.TryWrite(row))
@@ -223,7 +205,7 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 写库循环：攒一批写一次。库挂了只记日志丢这批，账照记、设备照跑；队列关了（StopHistory）写完剩下的就退出。
+    /// 写库
     /// </summary>
     private async Task WriteHistoryLoopAsync(Channel<WaferHistoryEntity> rows)
     {
@@ -246,13 +228,11 @@ public class WaferManagerComponent : ComponentBase
             try
             {
                 CleanupIfDayChanged();
-                // 当天的日表不用建：实体上的 [SplitTable] 让 ORM 按 OccurredAt 分流、缺表自动建。
                 using var db = XyzDb.Create(HistoryDatabase);
-                db.Insertable(batch).SplitTable().ExecuteCommand();
+                db.Insertable(batch).SplitTable().ExecuteCommand(); //插入数据库
             }
             catch (Exception exception)
             {
-                // 写库失败不能拖住设备：丢这一批并记日志，账本本身不受影响。
                 LogHelper.Warn(Name, $"晶圆流水写库失败，丢弃 {batch.Count} 行: {exception.Message}");
             }
         }
@@ -262,29 +242,40 @@ public class WaferManagerComponent : ComponentBase
 
     #region 存盘与开机恢复（当前账整张存一份；开机放回腔体、机械手上的片，LoadPort 以开机 Mapping 为准）
 
-    // ⚠ 跟流水一样：连库的只在存盘线程和开机恢复里做，不在 lock (_gate) 里碰库。
-
-    /// <summary>装配时 SC 开了存盘（直接 new 出来的账本不存盘）。</summary>
+    /// <summary>
+    /// 持久化
+    /// </summary>
     private bool _persisting;
 
-    /// <summary>开机恢复做完了才开始存盘：不然开机那一刻的空账会把上次存的冲掉。</summary>
+    /// <summary>
+    /// 开机恢复做完了才开始存盘
+    /// </summary>
     private volatile bool _restored;
 
-    /// <summary>账变过、还没存盘为 1。</summary>
+    /// <summary>
+    /// 账变过、还没存盘为 1
+    /// </summary>
     private int _snapshotDirty;
 
-    /// <summary>上一次存盘没成：再失败不重复记日志，存成了记一条恢复正常。</summary>
+    /// <summary>
+    /// 上一次存盘没成：再失败不重复记日志，存成了记一条恢复正常
+    /// </summary>
     private bool _snapshotFailing;
 
     private bool _currentTableReady;
 
     /// <summary>
-    /// 开机恢复（各模块组件初始化登记完槽位之后、开始扫描之前调一次）：把上次存的账放回腔体、机械手这些位置。
-    /// LoadPort 上的不恢复，以开机 Mapping 为准；位置没装、槽号越界、槽上已经有片的丢掉；
-    /// 重启前在加工的片记成中止（工艺被打断了，做没做完说不准）。恢复完才开始存盘。返回恢复了几片。
+    /// 开机恢复  从WaferCurrentEntity  实时最新的表恢复，这个表是和内存同步的
     /// </summary>
+    /// <returns></returns>
     public int Restore()
     {
+        // 存盘行、流水行、人工调整记录都靠映射组件转，账本开着却没配它：开机就报出来
+        if (IsEnable && MapperComponent.Current is null)
+        {
+            throw new InvalidOperationException($"{Name} 的存盘、流水、人工调整记录要靠映射组件转，但 sc.xml 里没配映射组件（MapperComponent）");
+        }
+
         if (!IsEnable || !_persisting)
         {
             _restored = true;
@@ -314,7 +305,7 @@ public class WaferManagerComponent : ComponentBase
         {
             foreach (var row in rows)
             {
-                if (_loadPorts.Contains(row.Module))
+                if (_loadPorts.Contains(row.Module)) //loadport跳过
                 {
                     onLoadPorts++;
                     continue;
@@ -337,7 +328,7 @@ public class WaferManagerComponent : ComponentBase
             }
         }
 
-        _restored = true;
+        _restored = true; //已经恢复了
         Interlocked.Exchange(ref _snapshotDirty, 1);
         foreach (var wafer in restored)
         {
@@ -372,7 +363,7 @@ public class WaferManagerComponent : ComponentBase
     private volatile bool _snapshotStopped;
 
     /// <summary>
-    /// 停止存盘（宿主退出时调）：存盘线程不再定时写，这里最后再存一次，退出前那一下的变动不丢。开机恢复还没做完就不存。
+    /// 停止存盘
     /// </summary>
     public void StopSnapshot()
     {
@@ -389,9 +380,9 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 存盘线程：每隔 SnapshotIntervalMs 看一眼，账变过就把当前账整张重写一遍（开机恢复做完之前不写）。
-    /// 写不进去只记日志、下一轮再写，账照记、设备照跑。
+    /// 存盘线程：每隔 SnapshotIntervalMs 看一眼
     /// </summary>
+    /// <returns></returns>
     private async Task SnapshotLoopAsync()
     {
         while (!_snapshotStopped)
@@ -410,10 +401,17 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 把当前账整张写一次库（锁里只拷一份，出了锁再碰库）；存盘线程隔一会儿调，冒烟里也可以直接调。写成返回 true。
+    /// 把当前账整张写一次库
     /// </summary>
     public bool SaveSnapshot()
     {
+        // 开机恢复时已经查过映射组件在；只有冒烟把它拿掉了才会是 null
+        var mapper = MapperComponent.Current;
+        if (mapper is null)
+        {
+            return false;
+        }
+
         var rows = new List<WaferCurrentEntity>();
         lock (_gate)
         {
@@ -423,7 +421,7 @@ public class WaferManagerComponent : ComponentBase
                 {
                     if (wafer is not null)
                     {
-                        rows.Add(ToEntity(wafer));
+                        rows.Add(mapper.Map<WaferCurrentEntity>(wafer));
                     }
                 }
             }
@@ -479,28 +477,6 @@ public class WaferManagerComponent : ComponentBase
         _currentTableReady = true;
     }
 
-    private static WaferCurrentEntity ToEntity(WaferInfo wafer)
-    {
-        return new WaferCurrentEntity
-        {
-            WaferGuid = wafer.Id.ToString(),
-            WaferId = wafer.WaferId,
-            Module = wafer.Module,
-            Slot = wafer.Slot,
-            OriginModule = wafer.OriginModule,
-            OriginSlot = wafer.OriginSlot,
-            SourceLoadPort = wafer.SourceLoadPort,
-            SourceSlot = wafer.SourceSlot,
-            OriginCarrierId = wafer.OriginCarrierId,
-            CarrierId = wafer.CarrierId,
-            LotId = wafer.LotId,
-            Status = wafer.Status.ToString(),
-            ProcessState = wafer.ProcessState.ToString(),
-            CreatedAt = wafer.CreatedAt,
-            UpdatedAt = wafer.UpdatedAt,
-        };
-    }
-
     /// <summary>
     /// 存盘的一行 → 账上的一片（内部标识、来处原样）；标识、状态认不出来的返回 null。
     /// 重启前在加工的记成中止；最后变动时刻记成恢复的这一刻（流水按它分表）。
@@ -538,16 +514,12 @@ public class WaferManagerComponent : ComponentBase
 
     #region 事件 
 
-    /// <summary>建片。</summary>
     public event Action<WaferInfo>? WaferCreated;
 
-    /// <summary>删片。</summary>
     public event Action<WaferInfo>? WaferDeleted;
 
-    /// <summary>移片，参数为片（已在新位置）、原模块、原槽位。</summary>
     public event Action<WaferInfo, string, int>? WaferMoved;
 
-    /// <summary>片的信息变了（片号、批次、载具、工艺状态）。</summary>
     public event Action<WaferInfo>? WaferUpdated;
 
     #endregion
@@ -555,9 +527,10 @@ public class WaferManagerComponent : ComponentBase
     #region 注册槽位
 
     /// <summary>
-    /// 注册一个位置有多少槽（LoadPort 按花篮槽数、机械手按手指数、腔体 1 个）。
-    /// 装配或组件初始化时调一次；重复注册同样的槽数是空操作，槽数变了会重建该模块的账。
+    /// 注册一个位置有多少槽
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slotCount"></param>
     public void RegisterLocation(string module, int slotCount)
     { 
         lock (_gate)
@@ -577,9 +550,10 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 注册一个 LoadPort 位置：槽位同 RegisterLocation，另外记下它是 LoadPort——
-    /// 账本不认模块类型，只有这样才知道在它上面建的片"从哪个 LoadPort 的第几槽来"。
+    /// 注册一个 LoadPort 位置
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slotCount"></param>
     public void RegisterLoadPort(string module, int slotCount)
     {
         RegisterLocation(module, slotCount);
@@ -605,7 +579,7 @@ public class WaferManagerComponent : ComponentBase
     #region 写账（建 / 删 / 移 / 改）
 
     /// <summary>
-    /// 建片；位置已有片或没注册时不建，记错误日志并返回 null。
+    /// 建片
     /// </summary>
     public WaferInfo? Create(string module, int slot, WaferStatus status = WaferStatus.Normal,
         string? carrierId = null, string? lotId = null)
@@ -641,7 +615,7 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 删片；位置没片时记错误日志并返回 false。
+    /// 删片
     /// </summary>
     public bool Delete(string module, int slot)
     {
@@ -677,7 +651,7 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 清掉一个模块上的全部片（载具移走、花篮整篮换掉时用），返回删了几片。
+    /// 清片
     /// </summary>
     public int Clear(string module)
     {
@@ -717,9 +691,13 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 移片：校验与搬运在同一把锁里做完，不会出现"两边都以为自己能放"的竞态。
-    /// 源无片或目标已有片都算账实不符：报警并返回 false，调用方应停下来让人对账。
+    /// 移片
     /// </summary>
+    /// <param name="fromModule"></param>
+    /// <param name="fromSlot"></param>
+    /// <param name="toModule"></param>
+    /// <param name="toSlot"></param>
+    /// <returns></returns>
     public bool Move(string fromModule, int fromSlot, string toModule, int toSlot)
     {
         if (!IsEnable)
@@ -769,9 +747,13 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 按 Mapping 结果整篮重建：先清掉这个模块的旧账，再按每槽状态建片（null 表示空槽）。
-    /// slots 下标 0 即第 1 槽；返回建了几片。
+    ///  按 Mapping 结果整篮重建
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slots"></param>
+    /// <param name="carrierId"></param>
+    /// <param name="lotId"></param>
+    /// <returns></returns>
     public int ApplySlotMap(string module, IReadOnlyList<WaferStatus?> slots, string? carrierId = null, string? lotId = null)
     {
         ArgumentNullException.ThrowIfNull(slots);
@@ -795,29 +777,48 @@ public class WaferManagerComponent : ComponentBase
         return created;
     }
 
-    /// <summary>改片号（读码成功或 Host 改写）。</summary>
+    /// <summary>
+    /// 改片号
+    /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="waferId"></param>
+    /// <returns></returns>
     public bool SetWaferId(string module, int slot, string waferId)
     {
         return Update(module, slot, wafer => wafer.WaferId = waferId);
     }
 
-    /// <summary>改批次号。</summary>
+    /// <summary>
+    /// 改批次号
+    /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="lotId"></param>
+    /// <returns></returns>
     public bool SetLotId(string module, int slot, string? lotId)
     {
         return Update(module, slot, wafer => wafer.LotId = lotId);
     }
 
-    /// <summary>改所属载具。</summary>
+    /// <summary>
+    /// 改所属载具
+    /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="carrierId"></param>
+    /// <returns></returns>
     public bool SetCarrierId(string module, int slot, string? carrierId)
     {
         return Update(module, slot, wafer => wafer.CarrierId = carrierId);
     }
 
     /// <summary>
-    /// 把一个模块上所有片的载具号一起改掉，返回改了几片。
-    /// 用在读码与 Mapping 先后顺序不定的场合：Mapping 先到就先建片（载具号还是空的），
-    /// 读码回来之后用这个补上。
+    /// 把一个模块上所有片的载具号一起改掉，返回改了几片
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="carrierId"></param>
+    /// <returns></returns>
     public int SetCarrierIdOn(string module, string? carrierId)
     {
         if (!IsEnable)
@@ -838,7 +839,13 @@ public class WaferManagerComponent : ComponentBase
         return count;
     }
 
-    /// <summary>改工艺状态。</summary>
+    /// <summary>
+    /// 改工艺状态。
+    /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="state"></param>
+    /// <returns></returns>
     public bool SetProcessState(string module, int slot, WaferProcessState state)
     {
         return Update(module, slot, wafer => wafer.ProcessState = state);
@@ -881,7 +888,6 @@ public class WaferManagerComponent : ComponentBase
 
     #region 查账
 
-    /// <summary>查一个位置上的片；空槽或没注册返回 null。</summary>
     public WaferInfo? Get(string module, int slot)
     {
         lock (_gate)
@@ -895,7 +901,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>查一个模块的全部槽位，下标 0 即第 1 槽，空槽为 null；没注册返回空表。</summary>
     public IReadOnlyList<WaferInfo?> GetSlots(string module)
     {
         lock (_gate)
@@ -915,7 +920,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>这个位置有没有片。</summary>
     public bool HasWafer(string module, int slot)
     {
         lock (_gate)
@@ -926,7 +930,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>这个位置是不是空的（没注册也算不可用，返回 false）。</summary>
     public bool IsEmpty(string module, int slot)
     {
         lock (_gate)
@@ -937,7 +940,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>这个模块上有几片。</summary>
     public int CountWafers(string module)
     {
         lock (_gate)
@@ -951,10 +953,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>
-    /// 按内部标识找片；找不到返回 null。内部标识从建片跟到删片，片号改了、片挪了都认得——
-    /// Job 认片、搬运认片都用它；整篮重新 Mapping 会重建片（换新标识），旧的就找不到了。
-    /// </summary>
     public WaferInfo? FindById(Guid id)
     {
         lock (_gate)
@@ -974,7 +972,6 @@ public class WaferManagerComponent : ComponentBase
         }
     }
 
-    /// <summary>按片号找片；找不到返回 null（同号取第一片）。</summary>
     public WaferInfo? Find(string waferId)
     {
         if (string.IsNullOrWhiteSpace(waferId))
@@ -1004,9 +1001,12 @@ public class WaferManagerComponent : ComponentBase
     #region 对账
 
     /// <summary>
-    /// 拿设备实际在位跟账核对（机械手手指在位、花篮槽位传感器）：一致返回 true；
-    /// 不一致报警并返回 false，由调用方决定是停下来还是按实际补账。
+    /// 拿设备实际在位跟账核对
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="deviceHasWafer"></param>
+    /// <returns></returns>
     public bool Verify(string module, int slot, bool deviceHasWafer)
     {
         bool onLedger = HasWafer(module, slot);
@@ -1015,9 +1015,7 @@ public class WaferManagerComponent : ComponentBase
             return true;
         }
 
-        Fault(onLedger
-            ? $"{module}.{slot:00} 账上有片，设备上没有"
-            : $"{module}.{slot:00} 设备上有片，账上没有");
+        Fault(onLedger? $"{module}.{slot:00} 账上有片，设备上没有": $"{module}.{slot:00} 设备上有片，账上没有");
         return false;
     }
 
@@ -1040,10 +1038,15 @@ public class WaferManagerComponent : ComponentBase
     private bool _adjustmentTableReady;
 
     /// <summary>
-    /// 人工移账：机械手出错时实物和账对不上（比如片子已经在手指上，账还在腔体里），人按实物把账挪过去。
-    /// 跟 Move 一样在一把锁里校验和搬；校验不过不报警——这是人在对账，不是设备流程出错——把原因返回给界面。
-    /// 改成了照常发 WaferMoved、记流水，另记一条调整记录（操作人、原因）。
+    /// 人工移账
     /// </summary>
+    /// <param name="fromModule"></param>
+    /// <param name="fromSlot"></param>
+    /// <param name="toModule"></param>
+    /// <param name="toSlot"></param>
+    /// <param name="operatorName"></param>
+    /// <param name="reason"></param>
+    /// <returns></returns>
     public WaferAdjustResult ManualMove(string fromModule, int fromSlot, string toModule, int toSlot, string operatorName, string? reason)
     {
         if (!IsEnable)
@@ -1098,10 +1101,14 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 人工补账：实物在、账上没有时（账被误删、丢了），在空槽上按实物建一片。片号由人填，其余按默认：正常片、未处理、没有批次和载具号。
-    /// 片号已经在账上别的槽里就拒绝——那是同一片，该用移动；校验不过同样不报警，把原因返回给界面。
-    /// 建成了照常发 WaferCreated、记流水，另记一条调整记录。
+    /// 人工补账
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="waferId"></param>
+    /// <param name="operatorName"></param>
+    /// <param name="reason"></param>
+    /// <returns></returns>
     public WaferAdjustResult ManualCreate(string module, int slot, string waferId, string operatorName, string? reason)
     {
         if (!IsEnable)
@@ -1159,9 +1166,13 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 人工删账：实物确实已经拿走（碎片、人工取出）时，把这片从账上删掉。校验不过同样不报警，把原因返回给界面。
-    /// 改成了照常发 WaferDeleted、记流水，另记一条调整记录。
+    /// 人工删账
     /// </summary>
+    /// <param name="module"></param>
+    /// <param name="slot"></param>
+    /// <param name="operatorName"></param>
+    /// <param name="reason"></param>
+    /// <returns></returns>
     public WaferAdjustResult ManualDelete(string module, int slot, string operatorName, string? reason)
     {
         if (!IsEnable)
@@ -1203,9 +1214,9 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 最近的人工调整记录，新的在前，最多 <see cref="RecentAdjustmentCount"/> 条。
-    /// 流水落库时从库里查（重启过也查得到）；不落库或库读不了时给本次运行里的。
+    /// 最近的人工调整记录
     /// </summary>
+    /// <returns></returns>
     public IReadOnlyList<WaferAdjustmentEntity> GetRecentAdjustments()
     {
         if (_historyRows is not null)
@@ -1232,26 +1243,35 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 记一条人工调整：内存里留最近的；流水落库时也写进库（人工调整很少，直接写，写完界面马上查得到）。必须在 _gate 之外调。
+    /// 记一条人工调整：内存里留最近的；流水落库时也写进库
     /// </summary>
+    /// <param name="action"></param>
+    /// <param name="wafer"></param>
+    /// <param name="fromModule"></param>
+    /// <param name="fromSlot"></param>
+    /// <param name="toModule"></param>
+    /// <param name="toSlot"></param>
+    /// <param name="operatorName"></param>
+    /// <param name="reason"></param>
     private void RecordAdjustment(string action, WaferInfo wafer, string fromModule, int fromSlot,
         string? toModule, int? toSlot, string operatorName, string? reason)
     {
-        var row = new WaferAdjustmentEntity
+        // 映射组件开机恢复时已经查过在；只有冒烟把它拿掉了才会是 null
+        var mapper = MapperComponent.Current;
+        if (mapper is null)
         {
-            Action = action,
-            WaferGuid = wafer.Id.ToString(),
-            WaferId = wafer.WaferId,
-            FromModule = fromModule,
-            FromSlot = fromSlot,
-            ToModule = toModule,
-            ToSlot = toSlot,
-            CarrierId = wafer.CarrierId,
-            LotId = wafer.LotId,
-            Operator = operatorName,
-            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
-            OccurredAt = DateTime.Now,
-        };
+            return;
+        }
+
+        var row = mapper.Map<WaferAdjustmentEntity>(wafer);
+        row.Action = action;
+        row.FromModule = fromModule;
+        row.FromSlot = fromSlot;
+        row.ToModule = toModule;
+        row.ToSlot = toSlot;
+        row.Operator = operatorName;
+        row.Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        row.OccurredAt = DateTime.Now;
 
         lock (_adjustmentGate)
         {
@@ -1316,21 +1336,21 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 账实不符：记日志并报警。不能只写日志——CTC 那边就是因为静默，现场表现成"片凭空消失"。
+    /// 账实不符：记日志并报警
     /// </summary>
+    /// <param name="message"></param>
     private void Fault(string message)
     {
         LogHelper.Error(Name, $"晶圆账: {message}");
         RaiseAlarm(WaferLedgerAlarm);
     }
 
-    #region 过期流水清理（一天一次：跨天后写第一批之前顺手清；平时不用看）
+    #region 过期清理 一天检测一次
 
     private DateTime _historyCleanedDay = DateTime.MinValue;
 
     /// <summary>
-    /// 跨天了（含开机第一批）就清一次过期日表；平时只是比一下日期，不碰库。
-    /// 不用定时器：有新流水要写、又跨了天，才在写之前清——没流水写就没表在长，也不用清。
+    /// 清理
     /// </summary>
     private void CleanupIfDayChanged()
     {
@@ -1349,13 +1369,13 @@ public class WaferManagerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 清理过期流水：按天分表，直接删整张过期的日表，不用逐行删；失败只记日志，下次跨天再试。
+    /// 清理过期：按天分表，直接删整张过期的日表
     /// </summary>
     private void CleanupHistory()
     {
         try
         {
-            var deadline = DateTime.Today.AddDays(-HistoryKeepDays);
+            var deadline = DateTime.Today.AddDays(-HistoryKeepDays); //SC 配置
             using var db = XyzDb.Create(HistoryDatabase);
             var expired = db.SplitHelper<WaferHistoryEntity>().GetTables()
                 .Where(table => table.Date < deadline)
@@ -1371,7 +1391,6 @@ public class WaferManagerComponent : ComponentBase
                 LogHelper.Info($"[{Name}] 清理晶圆流水 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
             }
 
-            // 人工调整记录不分表，按同一个保留天数逐行删（量很小）
             if (db.DbMaintenance.IsAnyTable("wafer_adjustment", false))
             {
                 db.Deleteable<WaferAdjustmentEntity>().Where(row => row.OccurredAt < deadline).ExecuteCommand();

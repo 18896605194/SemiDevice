@@ -3,9 +3,7 @@
 namespace xyz.Database.Wafers;
 
 /// <summary>
-/// 晶圆账的存盘（当前账）：账上现在的每一片一行。账一变，写库线程隔一小会儿把整张表重写一遍；
-/// 开机按它把腔体、机械手这些位置上的片放回去（LoadPort 上的不恢复，以开机 Mapping 为准）。
-/// 跟晶圆流水不同：流水是每次变动一行、按天分表，这张只留"现在"。
+/// 晶圆账的存盘（当前账）
 /// </summary>
 [SugarTable("wafer_current")]
 public class WaferCurrentEntity
