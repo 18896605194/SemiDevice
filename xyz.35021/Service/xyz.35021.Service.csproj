@@ -15,4 +15,10 @@
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Modules\xyz.Modules.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="xyz.35021.Module\Config\sc.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

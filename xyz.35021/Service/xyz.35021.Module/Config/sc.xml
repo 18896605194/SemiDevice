@@ -57,7 +57,7 @@
 	     没有路由时填 Local，每次连接会卡 6 秒多再失败 -->
 	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
 		<Value Name="Brand" Value="Beckhoff" />
-		<Value Name="Host" Value="Local" />
+		<Value Name="Host" Value="192.168.25.162.1.1" />
 		<Value Name="Port" Value="851" />
 		<!-- 四个块在 PLC 里的变量名：倍福用全局别名那一套（GVL 全名写法是 IO_CSharp.DigIn，两种读写同一份过程映像） -->
 		<Value Name="DiDataPath" Value=".DigIn" />
@@ -637,8 +637,8 @@
 			</Setting>
 			<!-- 摆臂：自己是摆动轴；下面挂它的升降气缸（Lift）和这条臂上的喷嘴（几路药液挂几个） -->
 			<Setting Name="Arm1" Type="xyz.Components.Components.SwingArmComponent">
-				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[11]" />
-				<Value Name="ReceivePlcDataPath" Value=".Motor_Plc2Csharp[11]" />
+				<Value Name="SendPlcDataPath" Value="Motor_Csharp2Plc[31]" />
+				<Value Name="ReceivePlcDataPath" Value="Motor_Csharp2Plc[31]" />
 				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="108" />
 					<Value Name="DoCloseIndex" Value="109" />
