@@ -15,7 +15,7 @@ namespace xyz.Client.Manual.ViewModels;
 /// <summary>
 /// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表（含各站点槽数、允许的手指）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
 /// Pick 用源手臂从源站点槽位取片、Place 用目标手臂往目标站点槽位放片——手臂和槽位下拉都跟着选中的站点走；
-/// Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）。
+/// Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）；上线 / 下线只改模块模式。
 /// 左边的调度图是公共控件 DispatchMap，它自己订机械手和各站点的推送，这里只管右栏。
 /// </summary>
 public class RobotManualViewModel : BaseViewModel, IDisposable
@@ -128,6 +128,10 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     public IAsyncRelayCommand PowerOffCommand { get; }
 
+    public IAsyncRelayCommand OnlineCommand { get; }
+
+    public IAsyncRelayCommand OfflineCommand { get; }
+
     #endregion
 
     #region Service
@@ -150,6 +154,8 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         ResetCommand = new AsyncRelayCommand(DoReset);
         PowerOnCommand = new AsyncRelayCommand(DoPowerOn);
         PowerOffCommand = new AsyncRelayCommand(DoPowerOff);
+        OnlineCommand = new AsyncRelayCommand(DoOnline);
+        OfflineCommand = new AsyncRelayCommand(DoOffline);
     }
 
     public override void Init()
@@ -383,6 +389,25 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         if (!response.Success)
         {
             ClientLog.Error(ModuleName, $"PowerOff 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
+        }
+    }
+
+    private async Task DoOnline()
+    {
+        // 上线 / 下线只改模块模式，结果随状态推送刷新到模块名右边的在线灯。
+        var response = await _service.OnlineAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Online 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
+        }
+    }
+
+    private async Task DoOffline()
+    {
+        var response = await _service.OfflineAsync(ModuleName);
+        if (!response.Success)
+        {
+            ClientLog.Error(ModuleName, $"Offline 失败：{ErrorText.Of(response, ModuleStates.RobotText)}");
         }
     }
 }

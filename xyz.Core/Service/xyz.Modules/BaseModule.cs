@@ -50,15 +50,19 @@ public abstract class BaseModule : ComponentBase
         return null;
     }
 
-    public void Online()
+    /// <summary>
+    /// 上线：参与自动调度。只改模块模式 Mode、不经设备；三类模块的手动页上线按钮都走这里。
+    /// 机型要在上线时多做事（比如先查设备能不能用）就重写，记得调 base。
+    /// </summary>
+    public virtual void Online()
     {
         SetMode(ModuleMode.Online);
     }
 
     /// <summary>
-    /// 下线：退出自动调度。
+    /// 下线：退出自动调度。只改模块模式 Mode、不经设备；重写同 <see cref="Online"/>。
     /// </summary>
-    public void Offline()
+    public virtual void Offline()
     {
         SetMode(ModuleMode.Offline);
     }

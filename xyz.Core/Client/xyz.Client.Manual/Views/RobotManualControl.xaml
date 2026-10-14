@@ -28,20 +28,57 @@
                 <presentationControls:DispatchMap Margin="12" RobotName="{Binding ModuleName}" />
             </Border>
 
-            <!--  ② 右栏：模块名 + 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 轴位 → 取放（源 / 目标 的站点·手臂·槽位 → Pick · Place）→ Home / Abort / Reset  -->
+            <!--  ② 右栏：模块名（右边在线灯）+ 状态色条 → 参数框（通讯 / 使能 / 报错 / 速度）→ 轴位 → 取放（源 / 目标 的站点·手臂·槽位 → Pick · Place）
+                 → 上线 / 下线 → Home / Abort / Reset  -->
             <Border
                 Grid.Column="1"
                 BorderBrush="{DynamicResource DarkBorderBrush}"
                 BorderThickness="1,0,0,0">
                 <StackPanel>
 
-                    <!--  模块名  -->
-                    <TextBlock
-                        Margin="14,12,14,0"
-                        FontSize="{DynamicResource Size22}"
-                        FontWeight="Bold"
-                        Foreground="{DynamicResource DarkPrimaryText}"
-                        Text="{Binding ModuleName}" />
+                    <!--  模块名，最右边一盏在线灯：Online 绿、Offline 灰，由下面的上线 / 下线按钮切换（跟 LoadPort 手动页一样）  -->
+                    <DockPanel Margin="14,12,14,0">
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            DockPanel.Dock="Right"
+                            Orientation="Horizontal"
+                            ToolTip="{DynamicResource robotmanual.online_tip}">
+                            <Ellipse Width="14" Height="14" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#555" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
+                                                <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size14}"
+                                Foreground="{DynamicResource DarkSecondaryText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{DynamicResource robotmanual.offline}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
+                                                <Setter Property="Text" Value="{DynamicResource robotmanual.online}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size22}"
+                            FontWeight="Bold"
+                            Foreground="{DynamicResource DarkPrimaryText}"
+                            Text="{Binding ModuleName}" />
+                    </DockPanel>
 
                     <!--  状态徽标：一眼看出机械手能不能动  -->
                     <presentationControls:ModuleStateBadge
@@ -369,6 +406,18 @@
                     </StackPanel>
 
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
+
+                    <!--  上线 / 下线：模块模式，刷新模块名右边的在线灯  -->
+                    <UniformGrid Margin="14,0,14,0" Columns="3">
+                        <Button
+                            Command="{Binding OnlineCommand}"
+                            Content="{DynamicResource action.online}"
+                            Style="{DynamicResource CompactSuccessButtonStyle}" />
+                        <Button
+                            Command="{Binding OfflineCommand}"
+                            Content="{DynamicResource action.offline}"
+                            Style="{DynamicResource CompactButtonStyle}" />
+                    </UniformGrid>
 
                     <!--  Home / Abort / Reset：Abort 是急停，用红色  -->
                     <UniformGrid Margin="14,0,14,14" Columns="3">

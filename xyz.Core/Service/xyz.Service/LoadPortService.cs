@@ -77,33 +77,16 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
     /// <summary>
-    /// 上线/下线只改模块模式 Mode（不经设备协议），置位即成功；界面经事件流刷新在线模式。
+    /// 上线/下线走模块基类（见 <see cref="BaseService.Online{TModule}"/>）。
     /// </summary>
     public Task<RpcResponse> OnlineAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
-        if (port is null)
-        {
-            return ModuleNotFound(module);
-        }
-
-        port.Online();
-        return Task.FromResult(RpcResponse.Ok());
+        return Online<BaseLoadPortModule>(module);
     }
 
-    /// <summary>
-    /// 上线/下线只改模块模式 Mode（不经设备协议），置位即成功；界面经事件流刷新在线模式。
-    /// </summary>
     public Task<RpcResponse> OfflineAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
-        if (port is null)
-        {
-            return ModuleNotFound(module);
-        }
-
-        port.Offline();
-        return Task.FromResult(RpcResponse.Ok());
+        return Offline<BaseLoadPortModule>(module);
     }
 
     /// <summary>

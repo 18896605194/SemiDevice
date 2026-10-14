@@ -106,7 +106,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`Models\`：RobotStation；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根）；
   `Clean`、`E84` 还平铺，改到那一块时照这个分。
 - `BaseModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`InitModule()`（动硬件的模块初始化，默认返回 null）、
-  `Online()/Offline()`、动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
+  `Online()/Offline()`（虚方法，只改 Mode；LoadPort、腔体、机械手的服务都调 `BaseService.Online<TModule>` / `Offline<TModule>` 走到这里，不各写一份）、
+  动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
 - 状态码（`public const int`，有继承）：`ModuleState` NotInit 10 / Initing 20 / Idle 30 / Aborting 35 / Error 40；
   `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110 / Manual 120（部件手动动作中）；`RobotState` 200/210/220。
   同一个码在不同模块意思不同，客户端按模块种类翻（`ModuleStates`）。

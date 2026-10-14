@@ -148,6 +148,19 @@ public class RobotService : BaseService, IRobotService
     }
 
     /// <summary>
+    /// 上线/下线走模块基类（见 <see cref="BaseService.Online{TModule}"/>）。
+    /// </summary>
+    public Task<RpcResponse> OnlineAsync(string module)
+    {
+        return Online<BaseRobotModule>(module);
+    }
+
+    public Task<RpcResponse> OfflineAsync(string module)
+    {
+        return Offline<BaseRobotModule>(module);
+    }
+
+    /// <summary>
     /// 状态快照与事件流发布的是同一份 RobotDto。
     /// </summary>
     public Task<RpcResponse> GetStateAsync(string module)

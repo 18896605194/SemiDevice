@@ -341,6 +341,25 @@ modeResponse = await service.OfflineAsync(port.Name);
 Check(modeResponse.Success && port.Mode == ModuleMode.Offline && port.Calls == callsBeforeMode,
     "Offline must clear the module mode without starting a device action.");
 
+// 机械手上线 / 下线：跟 LoadPort、腔体一样走服务基类 → 模块基类的 Online / Offline，只改 Mode；
+// 按模块类型找，机械手的服务拉不动同名的 LoadPort。
+{
+    var modeRobot = new ProbeRobot();
+    var robotService = new RobotService(new ComponentBase[] { modeRobot, port });
+    var robotMode = await robotService.OnlineAsync("missing");
+    Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound, "机械手上线：找不到模块要回 module.not_found");
+    robotMode = await robotService.OnlineAsync(port.Name);
+    Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound && port.Mode == ModuleMode.Offline,
+        "机械手的服务只找机械手，不能把 LoadPort 拉上线");
+    Check(modeRobot.Mode == ModuleMode.Offline, "机械手开机是下线");
+    robotMode = await robotService.OnlineAsync(modeRobot.Name);
+    Check(robotMode.Success && modeRobot.Mode == ModuleMode.Online && modeRobot.CreateStateDto().Mode == ModuleMode.Online,
+        "机械手上线：Mode 变 Online，状态推送里带上");
+    robotMode = await robotService.OfflineAsync(modeRobot.Name);
+    Check(robotMode.Success && modeRobot.Mode == ModuleMode.Offline && modeRobot.CreateStateDto().Mode == ModuleMode.Offline,
+        "机械手下线：Mode 变 Offline，状态推送里带上");
+}
+
 // EAP 口子：回调走 EAP 的派发组件（宿主里是 sc.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
 _ = new EapNotifierComponent();
 var eap = new RecordingE87Callback();

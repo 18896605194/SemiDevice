@@ -225,33 +225,16 @@ public class ChamberService : BaseService, IChamberService
     #endregion
 
     /// <summary>
-    /// 上线/下线只改模块模式 Mode（不经设备），置位即成功；界面经事件流刷新模式灯。
+    /// 上线/下线走模块基类（见 <see cref="BaseService.Online{TModule}"/>）。
     /// </summary>
     public Task<RpcResponse> OnlineAsync(string module)
     {
-        var chamber = FindModule<BaseChamberModule>(module);
-        if (chamber is null)
-        {
-            return ModuleNotFound(module);
-        }
-
-        chamber.Online();
-        return Task.FromResult(RpcResponse.Ok());
+        return Online<BaseChamberModule>(module);
     }
 
-    /// <summary>
-    /// 上线/下线只改模块模式 Mode（不经设备），置位即成功；界面经事件流刷新模式灯。
-    /// </summary>
     public Task<RpcResponse> OfflineAsync(string module)
     {
-        var chamber = FindModule<BaseChamberModule>(module);
-        if (chamber is null)
-        {
-            return ModuleNotFound(module);
-        }
-
-        chamber.Offline();
-        return Task.FromResult(RpcResponse.Ok());
+        return Offline<BaseChamberModule>(module);
     }
 
     /// <summary>

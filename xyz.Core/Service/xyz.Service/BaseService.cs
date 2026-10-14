@@ -41,6 +41,37 @@ public abstract class BaseService
     }
 
     /// <summary>
+    /// 上线：找到这类模块里叫这个名字的，调模块基类的 <see cref="BaseModule.Online"/>（只改 Mode、不经设备），置位即成功；
+    /// 界面经事件流刷新在线灯。按模块类型找，LoadPort 的服务不会把同名的别类模块拉上线。
+    /// </summary>
+    protected Task<RpcResponse> Online<TModule>(string module) where TModule : BaseModule
+    {
+        var target = FindModule<TModule>(module);
+        if (target is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        target.Online();
+        return Task.FromResult(RpcResponse.Ok());
+    }
+
+    /// <summary>
+    /// 下线：同 <see cref="Online{TModule}"/>，调模块基类的 <see cref="BaseModule.Offline"/>。
+    /// </summary>
+    protected Task<RpcResponse> Offline<TModule>(string module) where TModule : BaseModule
+    {
+        var target = FindModule<TModule>(module);
+        if (target is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        target.Offline();
+        return Task.FromResult(RpcResponse.Ok());
+    }
+
+    /// <summary>
     /// 下发 LoadPort 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
     protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,

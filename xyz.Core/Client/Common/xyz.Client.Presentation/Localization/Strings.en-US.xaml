@@ -437,6 +437,8 @@
     <sys:String x:Key="robotmanual.alarm">Alarm</sys:String>
     <sys:String x:Key="robotmanual.alarm_tip">Current device error</sys:String>
     <sys:String x:Key="robotmanual.online_tip">Online: joins automatic scheduling</sys:String>
+    <sys:String x:Key="robotmanual.online">Online</sys:String>
+    <sys:String x:Key="robotmanual.offline">Offline</sys:String>
     <sys:String x:Key="robotmanual.fact_state">State:</sys:String>
     <sys:String x:Key="robotmanual.fact_station">Station:</sys:String>
     <sys:String x:Key="robotmanual.fact_rotation">Direction:</sys:String>
@@ -478,8 +480,9 @@
     <!-- Chamber manual page (one sub-menu per chamber under Manual) -->
     <sys:String x:Key="chambermanual.enable">Enabled</sys:String>
     <sys:String x:Key="chambermanual.enable_tip">IsEnable in sc.xml: a disabled (not installed) chamber accepts no action</sys:String>
-    <sys:String x:Key="chambermanual.mode">Mode</sys:String>
-    <sys:String x:Key="chambermanual.mode_tip">Online: joins automatic scheduling</sys:String>
+    <sys:String x:Key="chambermanual.online">Online</sys:String>
+    <sys:String x:Key="chambermanual.offline">Offline</sys:String>
+    <sys:String x:Key="chambermanual.online_tip">Online: joins automatic scheduling</sys:String>
     <sys:String x:Key="chambermanual.device_error">Error</sys:String>
     <sys:String x:Key="chambermanual.device_error_tip">Current device error</sys:String>
     <sys:String x:Key="chambermanual.current_recipe">Current recipe</sys:String>

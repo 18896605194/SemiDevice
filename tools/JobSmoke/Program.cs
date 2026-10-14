@@ -75,7 +75,12 @@ try
     foreach (var chamber in new[] { pm1, pm2, pm9 })
     {
         chamber.NoteState(ModuleState.Idle);
-        chamber.Online();
+    }
+
+    // 调度用到的站点、机械手都得在线（开机默认下线），先都上线
+    foreach (var module in modules)
+    {
+        module.Online();
     }
 
     var transfers = new SmokeTransfers();
@@ -1110,6 +1115,33 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-G") is null, 20), "LOT-G 删掉");
 
+    // 13c. 调度用到的站点、机械手都得在线：下线的不派新任务，在做的照常做完，上线了接着派。
+    //      机械手下线、源 LoadPort 下线都一片不投；放片途中目标腔体下线：片照常放进去，工艺不起，腔体上线了才起。
+    LoadCarrier(lp1, 1);
+    pm2.Offline();
+    robot.Offline();
+    Check(Create("LOT-O", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-O（机械手、PM2 下线）");
+    Check(RunUntil(() => PjOf("LOT-O-1")?.State == (int)ProcessJobState.Processing, 20), "机械手下线：PJ 照样开始");
+    RunUntil(() => false, 30);
+    Check(PjOf("LOT-O-1")!.Wafers.All(IsWaiting), "机械手下线：一片都不投");
+    robot.Online();
+    lp1.Offline();
+    RunUntil(() => false, 30);
+    Check(PjOf("LOT-O-1")!.Wafers.All(IsWaiting), "源 LoadPort 下线：一片都不投");
+    lp1.Online();
+    Check(RunUntil(() => PjOf("LOT-O-1")!.Wafers[0].Tasks[1].State == "Running"), "都上线了：接着派，片往 PM1 放");
+    pm1.Offline();
+    Check(RunUntil(() => PjOf("LOT-O-1")!.Wafers[0].Tasks[1].State == "Done"), "放片途中 PM1 下线：在做的放片照常做完");
+    RunUntil(() => false, 30);
+    Check(PjOf("LOT-O-1")!.Wafers[0].Tasks[2].State == "Waiting" && ledger.Get("PM1", 1) is not null,
+        "PM1 下线：片在腔里，工艺不起");
+    pm1.Online();
+    Check(RunUntil(() => CjOf("LOT-O")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-O-1")!.Wafers[0]),
+        "PM1 上线：工艺起了，接着回片跑完");
+    pm2.Online();
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("LOT-O") is null, 20), "LOT-O 删掉");
+
     // 14. 片不在该在的地方（人改了账）：那一行的当前任务出错停住，别的片不受影响；标记完成要片真在这一步做完的地方；
     //     人用恢复操作把片搬回原槽（同一个 LoadPort 里换槽，只抢一次环），点重做，接着走。顺带：Manual 下自动启动的 Job 也会开始，只是不派动作。
     LoadCarrier(lp1, 1, 2);
@@ -1464,6 +1496,7 @@ try
     secondRobot = new SmokeRobot("Robot2", "LP1", "LP2", "PM1", "PM2");
     Check(secondRobot.InitComponent(), "第二台机械手的组件初始化");
     secondRobot.NoteState(ModuleState.Idle);
+    secondRobot.Online();
     transfers.Bind([.. modules, secondRobot]);
     transfers.StartAutoDispatch();
     LoadCarrier(lp1, 1, 2, 3);
@@ -1576,6 +1609,7 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
     "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
+    "nothing new dispatched to an offline robot, LoadPort or chamber while work already started finishes, " +
     "a wafer moved behind the job's back, job pick/place failures and retrying place without repeating pick, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, " +
     "creating PJs and CJs before the carrier arrives (wafers assigned once the carrier is loaded and, with EAP, its slot map verified by the host; " +
     "overlapping slots and a second CJ on one carrier refused; an unusable carrier raising an alarm and leaving the PJ queued), " +

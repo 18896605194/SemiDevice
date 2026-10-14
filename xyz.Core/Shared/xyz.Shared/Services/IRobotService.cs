@@ -43,6 +43,18 @@ public interface IRobotService
     Task<RpcResponse> PowerOffAsync(string module);
 
     /// <summary>
+    /// 上线：模块模式切 Online（只改 Mode，不经设备）。
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> OnlineAsync(string module);
+
+    /// <summary>
+    /// 下线：模块模式切 Offline（只改 Mode，不经设备）。
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> OfflineAsync(string module);
+
+    /// <summary>
     /// 查询当前状态。module 为空返回全部 Robot；Data 为 RobotDto（或其数组）的 JSON。
     /// </summary>
     [OperationContract]

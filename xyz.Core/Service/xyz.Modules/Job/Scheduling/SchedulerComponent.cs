@@ -160,7 +160,7 @@ public class SchedulerComponent : ComponentBase
     {
         var location = row.ExpectedLocation;
         var station = location.IsArm ? null : Station(location.Module);
-        if (station is null)
+        if (station is not BaseModule module || !IsOnline(module))
         {
             return;
         }
@@ -244,23 +244,27 @@ public class SchedulerComponent : ComponentBase
     }
 
     /// <summary>
-    /// 站点现在能不能服务机械手：装了、启用、在待命、没在做别的动作；腔体这类可选的站点还要在线（参与自动调度），LoadPort 是 Job 自己的载具，不看在线。
+    /// 站点现在能不能服务机械手：装了、启用、在线、在待命、没在做别的动作。
     /// </summary>
     private bool IsStationReady(string name)
     {
         var station = Station(name);
-        if (station is not BaseModule module || !module.IsEnabled || !station.CanPrepare)
-        {
-            return false;
-        }
-
-        if (module is not BaseLoadPortModule && module.Mode != ModuleMode.Online)
+        if (station is not BaseModule module || !module.IsEnabled || !IsOnline(module) || !station.CanPrepare)
         {
             return false;
         }
 
         var current = module.CurrentOperation;
         return current is null || current.IsTerminal;
+    }
+
+    /// <summary>
+    /// 调度用到的站点（LoadPort、腔体……）和机械手都得在线：下线的不派新任务，已经在做的照常做完；上线了下一拍接着派。
+    /// 手动页、手动取放不看这个，下线就是留给人手动操作的。
+    /// </summary>
+    private static bool IsOnline(BaseModule module)
+    {
+        return module.Mode == ModuleMode.Online;
     }
 
     /// <summary>这一槽账上空着、也没被搬运操作占用。</summary>
@@ -285,7 +289,7 @@ public class SchedulerComponent : ComponentBase
         return 0;
     }
 
-    /// <summary>机械手可执行任务：启用、空闲、没有搬运操作。</summary>
+    /// <summary>机械手可执行任务：启用、在线、空闲、没有搬运操作。</summary>
     private bool IsRobotFree(IRobot robot)
     {
         if (_transfers?.IsRobotInTransfer(robot.Name) == true || robot.State != ModuleState.Idle)
@@ -293,7 +297,7 @@ public class SchedulerComponent : ComponentBase
             return false;
         }
 
-        return robot is not BaseModule module || module.IsEnabled;
+        return robot is BaseModule module && module.IsEnabled && IsOnline(module);
     }
 
     #endregion

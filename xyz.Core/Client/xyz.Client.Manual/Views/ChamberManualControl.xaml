@@ -392,7 +392,7 @@
                 </Grid>
             </Grid>
 
-            <!--  ② 右栏：腔体名 + 状态色条 → 启用 / 模式 / 报错 / 当前配方 → 工艺 → 整腔操作 → 气缸表；放不下时右栏自己滚  -->
+            <!--  ② 右栏：腔体名（右边在线灯）+ 状态色条 → 启用 / 报错 / 当前配方 → 工艺 → 整腔操作（上线 / 下线、Home / Abort / Reset）→ 气缸表；放不下时右栏自己滚  -->
             <Border
                 Grid.Column="1"
                 BorderBrush="{DynamicResource DarkBorderBrush}"
@@ -400,12 +400,49 @@
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="14,12,14,14" Grid.IsSharedSizeScope="True">
 
-                        <!--  腔体名  -->
-                        <TextBlock
-                            FontSize="{DynamicResource Size22}"
-                            FontWeight="Bold"
-                            Foreground="{DynamicResource DarkPrimaryText}"
-                            Text="{Binding ModuleName}" />
+                        <!--  腔体名，最右边一盏在线灯：Online 绿、Offline 灰，由整腔操作里的上线 / 下线按钮切换（跟 LoadPort、机械手手动页一样）  -->
+                        <DockPanel>
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                ToolTip="{DynamicResource chambermanual.online_tip}">
+                                <Ellipse Width="14" Height="14" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#555" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Model.IsOnline}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="{DynamicResource Size14}"
+                                    Foreground="{DynamicResource DarkSecondaryText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{DynamicResource chambermanual.offline}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Model.IsOnline}" Value="True">
+                                                    <Setter Property="Text" Value="{DynamicResource chambermanual.online}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource Size22}"
+                                FontWeight="Bold"
+                                Foreground="{DynamicResource DarkPrimaryText}"
+                                Text="{Binding ModuleName}" />
+                        </DockPanel>
 
                         <!--  状态徽标：一眼看出腔体能不能用  -->
                         <presentationControls:ModuleStateBadge
@@ -413,14 +450,13 @@
                             Text="{Binding Model.StateText}"
                             Tone="{Binding Model.StateTone}" />
 
-                        <!--  启用 / 模式（带上线、下线按钮）/ 报错 / 当前配方：左边名字、右边值  -->
+                        <!--  启用 / 报错 / 当前配方：左边名字、右边值  -->
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" MinWidth="80" SharedSizeGroup="Label" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="34" />
                                 <RowDefinition Height="34" />
                                 <RowDefinition Height="34" />
                                 <RowDefinition Height="34" />
@@ -451,49 +487,9 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <!--  模式：当前模式 + 上线 / 下线按钮（只改 Mode，不经设备）  -->
-                            <TextBlock
-                                Grid.Row="1"
-                                Margin="0,0,16,0"
-                                VerticalAlignment="Center"
-                                FontSize="{DynamicResource Size14}"
-                                Foreground="{DynamicResource DarkSecondaryText}"
-                                Text="{DynamicResource chambermanual.mode}"
-                                ToolTip="{DynamicResource chambermanual.mode_tip}" />
-                            <DockPanel Grid.Row="1" Grid.Column="1">
-                                <StackPanel
-                                    VerticalAlignment="Center"
-                                    DockPanel.Dock="Right"
-                                    Orientation="Horizontal">
-                                    <Button
-                                        Command="{Binding OnlineCommand}"
-                                        Content="{DynamicResource action.online}"
-                                        Style="{DynamicResource MiniButtonStyle}" />
-                                    <Button
-                                        Command="{Binding OfflineCommand}"
-                                        Content="{DynamicResource action.offline}"
-                                        Style="{DynamicResource MiniButtonStyle}" />
-                                </StackPanel>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="{DynamicResource Size14}"
-                                    Foreground="{DynamicResource DarkPrimaryText}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="{DynamicResource action.offline}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Model.IsOnline}" Value="True">
-                                                    <Setter Property="Text" Value="{DynamicResource action.online}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </DockPanel>
-
                             <!--  报错：没有写"无"，有就写报错内容（错误码#内容），红字  -->
                             <TextBlock
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 Margin="0,0,16,0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
@@ -501,7 +497,7 @@
                                 Text="{DynamicResource chambermanual.device_error}"
                                 ToolTip="{DynamicResource chambermanual.device_error_tip}" />
                             <TextBlock
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 Grid.Column="1"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
@@ -523,14 +519,14 @@
 
                             <!--  当前配方：最近一次起的工艺  -->
                             <TextBlock
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 Margin="0,0,16,0"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
                                 Foreground="{DynamicResource DarkSecondaryText}"
                                 Text="{DynamicResource chambermanual.current_recipe}" />
                             <TextBlock
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 Grid.Column="1"
                                 VerticalAlignment="Center"
                                 FontSize="{DynamicResource Size14}"
@@ -592,9 +588,19 @@
 
                         <Border Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                        <!--  整腔操作：Home / Abort / Reset，Abort 是急停，用红色  -->
+                        <!--  整腔操作：上线 / 下线（只改 Mode，不经设备，刷新腔体名右边的在线灯）；Home / Abort / Reset，Abort 是急停，用红色  -->
                         <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.whole}" />
                         <UniformGrid Margin="-3,8,-3,0" Columns="3">
+                            <Button
+                                Command="{Binding OnlineCommand}"
+                                Content="{DynamicResource action.online}"
+                                Style="{DynamicResource CompactSuccessButtonStyle}" />
+                            <Button
+                                Command="{Binding OfflineCommand}"
+                                Content="{DynamicResource action.offline}"
+                                Style="{DynamicResource CompactButtonStyle}" />
+                        </UniformGrid>
+                        <UniformGrid Margin="-3,0,-3,0" Columns="3">
                             <Button
                                 Command="{Binding HomeCommand}"
                                 Content="{DynamicResource action.home}"

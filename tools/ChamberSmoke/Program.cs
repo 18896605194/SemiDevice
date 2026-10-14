@@ -388,8 +388,16 @@ try
     Check(bowl.Close(), "降 Bowl");
     Tick();
 
+    // 上线 / 下线走服务基类 → 模块基类的 Online / Offline，只改 Mode、不挂动作
+    var response = Run(() => service.OnlineAsync("Chamber404"));
+    Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "上线：找不到模块回 module.not_found");
+    response = Run(() => service.OnlineAsync("Chamber9"));
+    Check(response.Success && chamber.Mode == ModuleMode.Online && chamber.CurrentOperation is null, "腔体上线：Mode 变 Online，不挂动作");
+    response = Run(() => service.OfflineAsync("Chamber9"));
+    Check(response.Success && chamber.Mode == ModuleMode.Offline, "腔体下线：Mode 变 Offline");
+
     // 5. 设备动作出错：找不到（轴的动作给了气缸路径、不是轴也不是气缸的组件）、参数不对、模块不存在
-    var response = Run(() => service.CylinderUpAsync(Device("Chamber9.Nope")));
+    response = Run(() => service.CylinderUpAsync(Device("Chamber9.Nope")));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceNotFound
         && response.Args.SequenceEqual(["Chamber9", "Chamber9.Nope"]), "找不到设备：chamber.device_not_found [模块, 路径]");
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.WaferSensor")));
