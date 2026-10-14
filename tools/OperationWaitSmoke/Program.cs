@@ -1554,8 +1554,8 @@ port.E87Callback = null;
     Check(!queryPort._carrier.IsArrived && queryPort._carrier.Info is null, "Query：还没查到状态时当没有载具");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true });
     queryPort.Tick();
-    Check(queryPort._carrier.IsArrived && queryPort._carrier.Info is not null && queryPort.CreateStateDto().IsCarrierArrived,
-        "Query：在位、到位都亮算放好（开机时已在端口上的也认），建载具对象，推给界面的在位跟着变");
+    Check(queryPort._carrier.IsArrived && queryPort._carrier.Info is not null,
+        "Query：在位、到位都亮算放好（开机时已在端口上的也认），建载具对象");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = false });
     queryPort.Tick();
     Check(queryPort._carrier.IsArrived && queryPort._carrier.Info is not null, "Query：一亮一灭不算拿走");
@@ -1567,7 +1567,7 @@ port.E87Callback = null;
     Check(queryPort._carrier.IsArrived, "Query：PODOF 事件不认");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = false });
     queryPort.Tick();
-    Check(!queryPort._carrier.IsArrived && queryPort._carrier.Info is null && !queryPort.CreateStateDto().IsCarrierArrived,
+    Check(!queryPort._carrier.IsArrived && queryPort._carrier.Info is null,
         "Query：在位、到位都灭算拿走，载具对象清掉");
     queryPort.NoteStatus(new LoadPortStatus { IsPresent = false, IsPlaced = true });
     queryPort.Tick();
@@ -1758,7 +1758,7 @@ port.E87Callback = null;
 
     Check(disabledScanned, "停用的端口：扫描不抛空引用");
     var disabledDto = disabledPort.CreateStateDto();
-    Check(!disabledDto.IsCarrierArrived && !disabledDto.HasCarrier && !disabledPort.CanAssignCarrierToJob
+    Check(!disabledDto.HasCarrier && !disabledPort.CanAssignCarrierToJob
           && disabledPort.LocalTransferState == LoadPortTransferState.OutOfService,
         "停用的端口：状态推得出来，没载具、不能分给 Job、搬运状态是 Out Of Service");
     var disabledLoad = disabledPort.Load();

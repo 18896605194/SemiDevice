@@ -23,6 +23,9 @@ internal sealed class RouterService(ILogger<RouterService> logger, ILoggerFactor
     /// <summary>ADS 路由的固定端口；TwinCAT 的路由也占它，两个不能同时跑。</summary>
     private const int RouterPort = 48898;
 
+    /// <summary>起不来或中途退出后，隔多久再起一次。</summary>
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(5);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (IsPortInUse(RouterPort))
@@ -31,6 +34,36 @@ internal sealed class RouterService(ILogger<RouterService> logger, ILoggerFactor
             return;
         }
 
+        // 一直跑到服务停止：开机时网卡可能还没拿到 IPv4，路由会报 "No IPv4 address for server"，
+        // 以前异常一抛整个服务就停了、开机后路由一直没起来；现在隔几秒重试，路由中途退出也重新起。
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunRouterAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "ADS 路由没起来或意外退出，{Delay} 秒后重试", RetryDelay.TotalSeconds);
+            }
+
+            try
+            {
+                await Task.Delay(RetryDelay, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    private async Task RunRouterAsync(CancellationToken stoppingToken)
+    {
         var netId = ResolveNetId();
         var router = new AmsTcpIpRouter(netId, loggerFactory);
         router.RouterStatusChanged += (_, e) => logger.LogInformation("路由状态：{Status}", e.RouterStatus);
@@ -39,9 +72,6 @@ internal sealed class RouterService(ILogger<RouterService> logger, ILoggerFactor
         try
         {
             await router.StartAsync(stoppingToken);
-        }
-        catch (OperationCanceledException)
-        {
         }
         finally
         {

@@ -461,7 +461,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             Name = Name,
             State = State,
             Mode = Mode,
-            IsCarrierArrived = _carrier.IsArrived,
             AutoMode = IsAutoMode,
             CarrierId = _carrier.CarrierId ?? string.Empty,
             SlotCount = SlotCount,

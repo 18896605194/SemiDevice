@@ -10,6 +10,8 @@
     <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
     <!-- Override SqlSugar's transitive SQLite bundle to include the patched native library. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
+    <!-- Override the PKCS package pulled in by SqlSugar's Oracle provider with the patched version. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
 </Project>

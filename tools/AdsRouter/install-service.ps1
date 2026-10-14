@@ -62,7 +62,9 @@ New-Service -Name $serviceName `
     -StartupType Automatic | Out-Null
 
 # 挂了自动拉起：5 秒后重启，连续失败也一直拉。
+# failureflag 1：进程带错误码正常退出（不是崩溃）也算失败、照样拉起；不开的话只有崩溃才拉。
 & sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null
+& sc.exe failureflag $serviceName 1 | Out-Null
 
 Start-Service -Name $serviceName
 

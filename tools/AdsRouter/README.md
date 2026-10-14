@@ -13,7 +13,8 @@
 powershell -ExecutionPolicy Bypass -File .\tools\AdsRouter\install-service.ps1
 ```
 
-- 服务名 `xyzAdsRouter`，开机自动启动，挂了 5 秒后自动拉起。
+- 服务名 `xyzAdsRouter`，开机自动启动，挂了 5 秒后自动拉起。开机时网卡还没拿到 IPv4 也不会停，每 5 秒重试直到起来。
+- 路由没起来时仿真器会很卡（倍福页每 250 ms 在界面线程上查一次本机 AmsNetId，连不上路由每次卡 1~2 s），先看这个服务在不在跑。
 - 程序发布到 `C:\ProgramData\xyz\AdsRouter`（`-InstallDir` 可改）。
 - 改了代码再跑一遍就是重装。卸载加 `-Uninstall`。
 - 本机 AmsNetId 默认取本机 IPv4 + `.1.1`；要固定就在安装目录放 `appsettings.json`：`{ "NetId": "192.168.1.10.1.1" }`。

@@ -118,10 +118,11 @@ public static class ServiceExtensions
             plc.Start();
         }
 
-        //IO 表 初始化
+        //IO 表 初始化；扫描线程等 PLC 连上后下发开机 DO
         foreach (var io in roots.OfType<IoComponent>())
         {
             io.Open();
+            io.Start();
         }
 
         //ComponentBase 里面就是安全的开启线程扫描

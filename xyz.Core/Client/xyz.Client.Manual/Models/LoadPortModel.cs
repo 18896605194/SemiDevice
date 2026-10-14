@@ -39,15 +39,6 @@ public class LoadPortModel : ObservableObject
         set => SetProperty(ref _isConnected, value);
     }
 
-    private bool _isCarrierArrived;
-
-    /// <summary>FOUP 在位（状态查询或 PODON/PODOF 事件）。</summary>
-    public bool IsCarrierArrived
-    {
-        get => _isCarrierArrived;
-        set => SetProperty(ref _isCarrierArrived, value);
-    }
-
     private bool? _isPresent;
 
     /// <summary>查询反馈：FOUP 在位；null 表示反馈不可用。</summary>

@@ -423,8 +423,8 @@
     <sys:String x:Key="chambercard.shutter">Shutter</sys:String>
     <sys:String x:Key="chambercard.step_time">Step Time</sys:String>
     <sys:String x:Key="chambercard.recipe_time">Recipe Time</sys:String>
-    <sys:String x:Key="lpmanual.online_mode">Online mode:</sys:String>
     <sys:String x:Key="lpmanual.online">Online</sys:String>
+    <sys:String x:Key="lpmanual.online_tip">Online: joins automatic scheduling</sys:String>
     <sys:String x:Key="lpmanual.offline">Offline</sys:String>
     <sys:String x:Key="lpmanual.carrier_id">Carrier ID:</sys:String>
 

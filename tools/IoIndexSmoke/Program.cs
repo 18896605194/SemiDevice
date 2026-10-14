@@ -11,6 +11,7 @@ try
     SinglePointWrites.Run();
     AxisCommands.Run();
     ActuatorCommands.Run();
+    StartupDoWrites.Run(directory);
     var csv = Path.Combine(directory, "points.csv");
     File.WriteAllText(csv,
         "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +

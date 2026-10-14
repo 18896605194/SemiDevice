@@ -50,6 +50,7 @@
 	</Setting>
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="PointTableDirectory" Value="IO" />
+		<Value Name="StartupDo" Value="" />
 	</Setting>
 	<Setting Name="Safety" Type="xyz.Components.Components.SafetyComponent">
 		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">

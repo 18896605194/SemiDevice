@@ -20,24 +20,58 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!--  ① 状态信号：竖排五行 —— 模块名 / 状态徽标 / 信号灯（整行铺开） / 在线模式 / 载具 ID  -->
+            <!--  ① 状态信号：竖排四行 —— 模块名（右边带在线灯） / 状态徽标 / 信号灯（整行铺开） / 载具 ID  -->
             <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="34" />
                     <RowDefinition Height="26" />
-                    <RowDefinition Height="26" />
                 </Grid.RowDefinitions>
 
-                <!--  模块名（LoadPort1 / LoadPort2）  -->
-                <TextBlock
-                    Grid.Row="0"
-                    Margin="0,0,0,6"
-                    FontSize="{DynamicResource Size22}"
-                    FontWeight="Bold"
-                    Foreground="{DynamicResource DarkPrimaryText}"
-                    Text="{Binding ModuleName}" />
+                <!--  模块名（LoadPort1 / LoadPort2），最右边一盏在线灯：Online 绿、Offline 灰，由下面的上线 / 下线按钮切换  -->
+                <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        DockPanel.Dock="Right"
+                        Orientation="Horizontal"
+                        ToolTip="{DynamicResource lpmanual.online_tip}">
+                        <Ellipse Width="14" Height="14" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
+                                            <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="{DynamicResource Size14}"
+                            Foreground="{DynamicResource DarkSecondaryText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{DynamicResource lpmanual.offline}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
+                                            <Setter Property="Text" Value="{DynamicResource lpmanual.online}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size22}"
+                        FontWeight="Bold"
+                        Foreground="{DynamicResource DarkPrimaryText}"
+                        Text="{Binding ModuleName}" />
+                </DockPanel>
 
                 <!--  状态徽标：一眼看出 LoadPort 能不能用  -->
                 <presentationControls:ModuleStateBadge
@@ -203,34 +237,9 @@
                     </StackPanel>
                 </UniformGrid>
 
-                <!--  在线模式  -->
-                <StackPanel
-                    Grid.Row="3"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
-                    <TextBlock
-                        FontSize="{DynamicResource Size14}"
-                        Foreground="{DynamicResource DarkSecondaryText}"
-                        Text="{DynamicResource lpmanual.online_mode}" />
-                    <TextBlock FontSize="{DynamicResource Size14}" FontWeight="SemiBold">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{DynamicResource lpmanual.offline}" />
-                                <Setter Property="Foreground" Value="{DynamicResource DarkSecondaryText}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
-                                        <Setter Property="Text" Value="{DynamicResource lpmanual.online}" />
-                                        <Setter Property="Foreground" Value="{DynamicResource GreenHealthy}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
-
                 <!--  载具 ID（读 RFID 得到，没读到为空）  -->
                 <StackPanel
-                    Grid.Row="4"
+                    Grid.Row="3"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
                     <TextBlock
@@ -246,12 +255,11 @@
             </Grid>
             <Border Grid.Row="1" Style="{DynamicResource SectionDividerBorderStyle}" />
 
-            <!--  ② 三维设备视图：LoadPort + 托板上的花篮，占满中间这一段。门跟开到位 / 关到位反馈走，对接按状态和门推（见 LoadPortModel）；
-                 槽数按后端 sc.xml 的 LoadPort 节点 SlotCount，片以晶圆账为准  -->
+            <!--  ② 三维设备视图：LoadPort + 托板上的花篮，占满中间这一段。花篮跟在位、到位两盏灯走（都亮才画）；门跟开到位 / 关到位反馈走，
+                 对接按状态和门推（见 LoadPortModel）；槽数按后端 sc.xml 的 LoadPort 节点 SlotCount，片以晶圆账为准  -->
             <threeD:LoadPortScene
                 Grid.Row="2"
                 IsAutoMode="{Binding Model.AutoMode}"
-                IsCarrierPresent="{Binding Model.IsCarrierArrived}"
                 IsDocked="{Binding Model.IsDocked}"
                 IsDoorOpen="{Binding Model.IsDoorShownOpen}"
                 IsDoorUnknown="{Binding Model.IsDoorUnknown}"
@@ -272,7 +280,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!--  Online/Offline：模块模式（是否参与自动调度），刷新状态卡的在线模式  -->
+                <!--  Online/Offline：模块模式（是否参与自动调度），刷新模块名右边的在线灯  -->
                 <UniformGrid Grid.Row="0" Columns="3">
                     <Button
                         Command="{Binding OnlineCommand}"

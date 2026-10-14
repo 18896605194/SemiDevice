@@ -15,9 +15,6 @@ public class LoadPortDto
     /// <summary>驱动串口连接是否可用。</summary>
     public bool IsConnected { get; set; }
 
-    /// <summary>载具到了：后台按 sc.xml PresenceSource 判出来的（状态查询或 PODON/PODOF），跟后台判载具到达、拿走用的是同一个；原始的两位是 IsPresent / IsPlaced。</summary>
-    public bool IsCarrierArrived { get; set; }
-
     /// <summary>查询反馈：FOUP 在位；null 表示反馈不可用。</summary>
     public bool? IsPresent { get; set; }
 
@@ -91,11 +88,6 @@ public class LoadPortDto
         }
 
         if (IsConnected != previous.IsConnected)
-        {
-            return true;
-        }
-
-        if (IsCarrierArrived != previous.IsCarrierArrived)
         {
             return true;
         }

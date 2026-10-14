@@ -368,12 +368,11 @@ LoadPort 和上面的花篮是**两个公共组件，组合起来用**（用户�
 
 ## LoadPortScene LoadPort 三维图
 
-`LoadPortScene`（UserControl）是 LoadPort 手动页中间那张三维图：LoadPort + 托板上的花篮（有载具、槽数已知才装上）、灯光相机、
+`LoadPortScene`（UserControl）是 LoadPort 手动页中间那张三维图：LoadPort + 托板上的花篮（在位、到位两盏灯都亮、槽数已知才装上；灭一盏就卸下，跟后台判的"载具到了"无关）、灯光相机、
 左上角"设备视图"、右上角片数（`22 / 25 片`）、图下面一条视角工具栏（默认视角、俯视、背面）、框外一行（点中的槽位 / "点击晶圆查看槽位"，空槽 / 满载 / 空花篮）。
 
 ```xml
 <threeD:LoadPortScene
-    IsCarrierPresent="{Binding Model.IsCarrierArrived}"
     IsDocked="{Binding Model.IsDocked}"
     IsDoorOpen="{Binding Model.IsDoorShownOpen}"
     IsDoorUnknown="{Binding Model.IsDoorUnknown}"

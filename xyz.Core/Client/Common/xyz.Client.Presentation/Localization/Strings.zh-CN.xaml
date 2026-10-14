@@ -423,8 +423,8 @@
     <sys:String x:Key="chambercard.shutter">腔门</sys:String>
     <sys:String x:Key="chambercard.step_time">步骤时间</sys:String>
     <sys:String x:Key="chambercard.recipe_time">配方时间</sys:String>
-    <sys:String x:Key="lpmanual.online_mode">在线模式：</sys:String>
     <sys:String x:Key="lpmanual.online">在线</sys:String>
+    <sys:String x:Key="lpmanual.online_tip">Online：参与自动调度</sys:String>
     <sys:String x:Key="lpmanual.offline">下线</sys:String>
     <sys:String x:Key="lpmanual.carrier_id">载具 ID：</sys:String>
 

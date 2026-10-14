@@ -15,7 +15,7 @@ using xyz.Shared.Dtos;
 
 // LoadPort 三维图冒烟：LoadPort（LoadPortVisual3D）+ 托板上的花篮（CarrierVisual3D，片用 DiskVisual3D）组合起来的 LoadPortScene。
 // 槽数照 sc（花篮高度、槽号、片数、取景跟着变）、片的数据就地换、点片选中、每个动作 0.5 s 且有先后（先推进去再开门 / 先关门再退出）、
-// 只亮在动的那块、门在半路停中间一直亮、中途反向不跳、藏起来直接落位、面板灯、视角工具栏、片数和空槽的字，
+// 只亮在动的那块、门在半路停中间一直亮、中途反向不跳、藏起来直接落位、面板灯、盒子跟在位 / 到位两盏灯走（都亮才画）、视角工具栏、片数和空槽的字，
 // 以及手动页的显示模型按状态和门反馈推出对接 / 门开 / 门在半路。不连后端。
 internal static class Program
 {
@@ -80,7 +80,8 @@ internal static class Program
             // 1. 没载具、或者有载具但还不知道槽数（sc 的 SlotCount 还没推上来）：托板上不装花篮，片数和框外一行都不写
             Check(Carrier() is null && !Shown("Counter") && ((FrameworkElement)scene.FindName("InfoRow")).Visibility != Visibility.Visible,
                 "没载具：不装花篮、不写片数和空槽");
-            scene.IsCarrierPresent = true;
+            scene.IsPresent = true;
+            scene.IsPlaced = true;
             Pump(20);
             Check(Carrier() is null, "槽数还是 0（sc 没推上来）：不装花篮，也不按 25 槽兜底");
 
@@ -224,10 +225,25 @@ internal static class Program
             Click(scene, "DefaultViewButton");
             Check((camera.Position - defaultPosition).Length < 1e-6, "默认视角复原");
 
-            // 12. 卸下载具：花篮拿掉、片数和空槽不写
-            scene.IsCarrierPresent = false;
+            // 12. 盒子跟在位、到位两盏灯走：都亮才装花篮，灭一盏、反馈不可用都卸下，片数和空槽不写（后台一亮一灭保持原判断，图上不跟它）
+            Check(Carrier() is null && !Shown("Counter"), "在位亮、到位反馈不可用（上一步）：花篮卸下、片数不写");
+            scene.IsPlaced = true;
             Pump(20);
-            Check(Carrier() is null && !Shown("Counter"), "载具拿走：花篮卸下");
+            Check(Carrier() is not null && Shown("Counter"), "在位、到位都亮：花篮装上");
+            scene.IsPlaced = false;
+            Pump(20);
+            Check(Carrier() is null && !Shown("Counter"), "在位亮、到位灭：花篮卸下");
+            scene.IsPresent = false;
+            scene.IsPlaced = true;
+            Pump(20);
+            Check(Carrier() is null, "在位灭、到位亮：花篮卸下");
+            scene.IsPresent = true;
+            Pump(20);
+            Check(Carrier() is not null, "两盏又都亮：花篮装回去");
+            scene.IsPresent = false;
+            scene.IsPlaced = false;
+            Pump(20);
+            Check(Carrier() is null && !Shown("Counter"), "载具拿走（两盏都灭）：花篮卸下");
 
             // 13. 手动页的显示模型：设备没有对接反馈，按状态和门推；门跟开到位 / 关到位走
             var idle = new LoadPortModel { State = 30, IsDoorOpen = false, IsDoorClosed = true };
@@ -255,7 +271,8 @@ internal static class Program
 
             if (args.Length > 0)
             {
-                scene.IsCarrierPresent = true;
+                scene.IsPresent = true;
+                scene.IsPlaced = true;
                 scene.IsDocked = true;
                 scene.IsDoorOpen = true;
                 Pump(1200);
@@ -272,7 +289,7 @@ internal static class Program
 
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine($"PASS: {_checks} LoadPort scene checks (sc slot count, Disk wafers, selection, 0.5 s ordered motions, highlight, unknown door, lamps, views, model mapping).");
+            Console.WriteLine($"PASS: {_checks} LoadPort scene checks (sc slot count, Disk wafers, selection, 0.5 s ordered motions, highlight, unknown door, lamps, carrier follows lamps, views, model mapping).");
             return 0;
         }
         catch (Exception ex)

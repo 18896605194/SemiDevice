@@ -1,9 +1,11 @@
-﻿using xyz.Common.Log;
+﻿using System.Globalization;
+using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs;
+using xyz.Configs.Models;
 
 namespace xyz.Components.Components;
 
@@ -35,6 +37,9 @@ public class IoComponent : ComponentBase
     [SCEditor("IO", "Io", "点表目录（相对 sc.xml 所在目录），里面放 DI.csv / DO.csv / AI.csv / AO.csv")]
     public string PointTableDirectory { get; set; } = "IO";
 
+    [SCEditor("", "Io", "开机下发的 DO：连上 PLC 后按这里写一遍，如 DO12=false;DO13=true，多个用分号隔开，DO 不分大小写；空 = 不下发")]
+    public string StartupDo { get; set; } = string.Empty;
+
     #endregion
 
     #region EC
@@ -46,7 +51,40 @@ public class IoComponent : ComponentBase
         set { SetEcInt(nameof(PublishIntervalMs), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "60000", "1000", "连上 PLC 后隔多久下发开机 DO")]
+    public int StartupDoDelayMs
+    {
+        get { return GetEcInt(nameof(StartupDoDelayMs)); }
+        set { SetEcInt(nameof(StartupDoDelayMs), value); }
+    }
+
     #endregion
+
+    /// <summary>
+    /// 装配校验：开机 DO 写错了（如 DO12=flase）开机就报出来，不等连上 PLC 才发现没下发。
+    /// </summary>
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
+    {
+        base.OnSettingLoaded(setting);
+
+        var startupDo = new List<(int Index, bool On)>();
+        foreach (string item in StartupDo.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string[] parts = item.Split('=', StringSplitOptions.TrimEntries);
+            if (parts.Length != 2
+                || !parts[0].StartsWith("DO", StringComparison.OrdinalIgnoreCase)
+                || !int.TryParse(parts[0][2..].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int index)
+                || !bool.TryParse(parts[1], out bool on))
+            {
+                throw new InvalidOperationException(
+                    $"{Name}：StartupDo 里的“{item}”写得不对，要写成 DO12=false，多个用分号隔开");
+            }
+
+            startupDo.Add((index, on));
+        }
+
+        _startupDo = startupDo;
+    }
 
     #region SV
 
@@ -185,6 +223,74 @@ public class IoComponent : ComponentBase
         }
 
         return plc.WriteAo(point.Index, point.ToRaw(engineering));
+    }
+
+    #endregion
+
+    #region 开机下发 DO
+
+    private List<(int Index, bool On)> _startupDo = new();
+    private long _connectedAt;
+
+    private bool _startupDoWritten;
+
+    /// <summary>
+    /// 每拍看一下 PLC：连上满 <see cref="StartupDoDelayMs"/> 就把开机 DO 写一遍。
+    /// 本组件是一棵扫描树的根，由装配在 Open 之后 Start。
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        WriteStartupDo();
+    }
+
+    private void WriteStartupDo()
+    {
+        if (_startupDoWritten || _startupDo.Count == 0)
+        {
+            return;
+        }
+
+        var plc = Plc;
+        if (plc is null || !plc.IsConnected)
+        {
+            // 等的过程中掉线了，重连后重新计时。
+            _connectedAt = 0;
+            return;
+        }
+
+        long now = Environment.TickCount64;
+        if (_connectedAt == 0)
+        {
+            _connectedAt = now;
+        }
+
+        if (now - _connectedAt < StartupDoDelayMs)
+        {
+            return;
+        }
+
+        _startupDoWritten = true;
+        var written = new List<string>();
+        foreach (var (index, on) in _startupDo)
+        {
+            string text = $"DO{index}={(on ? "true" : "false")}";
+            if (Do.Find(index) is null)
+            {
+                LogHelper.Warn($"[{FullPath}] 开机下发 {text}：DO 点表里没有这个点，没下发");
+                continue;
+            }
+
+            if (!WriteDo(index, on))
+            {
+                LogHelper.Warn($"[{FullPath}] 开机下发 {text}：写 PLC 失败");
+                continue;
+            }
+
+            written.Add(text);
+        }
+
+        LogHelper.Info($"[{FullPath}] 开机下发 DO {written.Count}/{_startupDo.Count} 个：{string.Join(";", written)}");
     }
 
     #endregion

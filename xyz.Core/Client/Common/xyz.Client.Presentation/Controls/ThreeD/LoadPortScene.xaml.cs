@@ -10,7 +10,7 @@ using xyz.Client.Presentation.Localization;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// LoadPort 三维图：LoadPort（<see cref="LoadPortVisual3D"/>）托板上装一个载具（<see cref="CarrierVisual3D"/>），有载具才装上。
+/// LoadPort 三维图：LoadPort（<see cref="LoadPortVisual3D"/>）托板上装一个载具（<see cref="CarrierVisual3D"/>），在位、到位两盏灯都亮才装上。
 /// 状态都从依赖属性进来、原样转给两个组件：对接、门开 / 门在半路、面板上的灯，槽数和片（晶圆账）。
 /// 左键拖动旋转视角、滚轮缩放、点一下晶圆选中看槽位；图下面一条工具栏：默认视角、俯视、背面。
 /// 右上角写片数，框外一行写选中的槽位和空槽。
@@ -80,16 +80,6 @@ public partial class LoadPortScene : UserControl
 
     #region 依赖属性
 
-    /// <summary>端口上有载具：有才装上花篮。</summary>
-    public bool IsCarrierPresent
-    {
-        get => (bool)GetValue(IsCarrierPresentProperty);
-        set => SetValue(IsCarrierPresentProperty, value);
-    }
-
-    public static readonly DependencyProperty IsCarrierPresentProperty = DependencyProperty.Register(
-        nameof(IsCarrierPresent), typeof(bool), typeof(LoadPortScene), new PropertyMetadata(false, OnCarrierPresentChanged));
-
     /// <summary>托板推进去了（对接）。</summary>
     public bool IsDocked
     {
@@ -120,7 +110,7 @@ public partial class LoadPortScene : UserControl
     public static readonly DependencyProperty IsDoorUnknownProperty = DependencyProperty.Register(
         nameof(IsDoorUnknown), typeof(bool), typeof(LoadPortScene), new PropertyMetadata(false, OnPortChanged));
 
-    /// <summary>在位反馈；null = 反馈不可用，灯灭。</summary>
+    /// <summary>在位反馈；null = 反馈不可用，灯灭。跟到位一起定装不装花篮。</summary>
     public bool? IsPresent
     {
         get => (bool?)GetValue(IsPresentProperty);
@@ -128,9 +118,9 @@ public partial class LoadPortScene : UserControl
     }
 
     public static readonly DependencyProperty IsPresentProperty = DependencyProperty.Register(
-        nameof(IsPresent), typeof(bool?), typeof(LoadPortScene), new PropertyMetadata(null, OnPortChanged));
+        nameof(IsPresent), typeof(bool?), typeof(LoadPortScene), new PropertyMetadata(null, OnPresenceChanged));
 
-    /// <summary>放置到位反馈；null = 反馈不可用，灯灭。</summary>
+    /// <summary>放置到位反馈；null = 反馈不可用，灯灭。跟在位一起定装不装花篮。</summary>
     public bool? IsPlaced
     {
         get => (bool?)GetValue(IsPlacedProperty);
@@ -138,7 +128,7 @@ public partial class LoadPortScene : UserControl
     }
 
     public static readonly DependencyProperty IsPlacedProperty = DependencyProperty.Register(
-        nameof(IsPlaced), typeof(bool?), typeof(LoadPortScene), new PropertyMetadata(null, OnPortChanged));
+        nameof(IsPlaced), typeof(bool?), typeof(LoadPortScene), new PropertyMetadata(null, OnPresenceChanged));
 
     /// <summary>存取方式 Auto（AUTO 灯亮）/ Manual（MANUAL 灯亮）。</summary>
     public bool IsAutoMode
@@ -182,8 +172,9 @@ public partial class LoadPortScene : UserControl
         port.IsAutoMode = scene.IsAutoMode;
     }
 
-    private static void OnCarrierPresentChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    private static void OnPresenceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
+        OnPortChanged(sender, args);
         var scene = (LoadPortScene)sender;
         scene.AttachCarrier();
         scene.UpdateInfo();
@@ -206,10 +197,13 @@ public partial class LoadPortScene : UserControl
 
     #endregion
 
-    /// <summary>有载具、槽数也知道了才把花篮装到托板上；拿走就卸下、取消选中。装卸都重新取景。</summary>
+    /// <summary>
+    /// 在位、到位两盏灯都亮、槽数也知道了才把花篮装到托板上；灭一盏（或查不到反馈）就卸下、取消选中。装卸都重新取景。
+    /// 只管画不画（用户："其中有一个点位不亮，这个盒子就得不显示"）：后台判载具到达、拿走是一亮一灭保持原判断，那个不跟着改。
+    /// </summary>
     private void AttachCarrier()
     {
-        bool show = IsCarrierPresent && SlotCount > 0;
+        bool show = IsPresent == true && IsPlaced == true && SlotCount > 0;
         var attachments = Port.Attachments;
         if (show == attachments.Contains(_carrier))
         {
