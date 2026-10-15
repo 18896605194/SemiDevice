@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Components;
+using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -9,7 +10,8 @@ namespace xyz.Service;
 
 /// <summary>
 /// IO 输出点手动写入 gRPC 服务（IO 界面开关 DO、下发 AO）：写进 PLC 即回包，实际输出以下一包推送的回读为准。
-/// 每次手动写都记一条日志——强制输出是现场最容易出事的操作，事后要查得到什么时候动了哪个点。
+/// 每次手动写都记一条日志强制输出是现场最容易出事的操作，事后要查得到什么时候动了哪个点。
+/// DO 下发前由 IO 组件过安全联锁；被联锁拦下时回对应错误码和原因。
 /// </summary>
 public class IoService : IIoService
 {
@@ -17,9 +19,20 @@ public class IoService : IIoService
     {
         bool on = request.Value != 0;
         var io = IoComponent.Current;
-        if (io is null || !io.WriteDo(request.Index, on))
+        if (io is null)
         {
             return WriteFailed("DO", request.Index);
+        }
+
+        if (!io.TryWriteDo(request.Index, on, out var block))
+        {
+            if (block is null)
+            {
+                return WriteFailed("DO", request.Index);
+            }
+
+            LogHelper.Warn("Io", $"手动写 DO {request.Index}={(on ? 1 : 0)} 被安全联锁拒绝：{block.RuleText}");
+            return Task.FromResult(ToResponse(block));
         }
 
         LogHelper.Info("Io", $"手动写 DO {request.Index} = {(on ? 1 : 0)}");
@@ -54,6 +67,31 @@ public class IoService : IIoService
 
         LogHelper.Info("Io", $"手动下发 AO {request.Index} = {Format(request.Value)} {point.Unit}");
         return Task.FromResult(RpcResponse.Ok());
+    }
+
+    private static RpcResponse ToResponse(IoInterlockBlock block)
+    {
+        string doIndex = block.DoIndex.ToString(CultureInfo.InvariantCulture);
+        string requested = Bool(block.Requested);
+        return block.Kind switch
+        {
+            IoInterlockBlockKind.Unknown => RpcResponse.Fail(ErrorCodes.IoInterlockUnknown,
+                [doIndex, requested, block.DiName, block.RuleText]),
+            IoInterlockBlockKind.Conflict => RpcResponse.Fail(ErrorCodes.IoInterlockConflict,
+                [doIndex, requested, block.RuleText]),
+            _ => RpcResponse.Fail(ErrorCodes.IoInterlockBlocked,
+                [
+                    doIndex, requested, block.DiName,
+                    block.DiLevel is bool level ? Bool(level) : "?",
+                    block.Required is bool required ? Bool(required) : "?",
+                    block.RuleText,
+                ]),
+        };
+    }
+
+    private static string Bool(bool value)
+    {
+        return value ? "true" : "false";
     }
 
     private static Task<RpcResponse> WriteFailed(string type, int index)

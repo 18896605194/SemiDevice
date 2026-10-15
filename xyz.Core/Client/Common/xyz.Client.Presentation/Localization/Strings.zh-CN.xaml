@@ -808,6 +808,9 @@
     <sys:String x:Key="io.write_failed">{0} {1} 写入失败（PLC 没连上、点表里没有这个点，或写 PLC 出错）</sys:String>
     <sys:String x:Key="io.out_of_range">AO {0} 下发值超出范围 {1} ~ {2} {3}</sys:String>
 
+    <sys:String x:Key="io.interlock_blocked">DO{0} 下发 {1} 被安全联锁拒绝：{2} 当前 {3}，规则要求 DO{0}={4}（{5}）</sys:String>
+    <sys:String x:Key="io.interlock_unknown">DO{0} 下发 {1} 被安全联锁拒绝：{2} 当前值读不到，无法判断（{3}）</sys:String>
+    <sys:String x:Key="io.interlock_conflict">DO{0} 下发 {1} 被安全联锁拒绝：多条规则要求不一致（{2}）</sys:String>
     <!-- 通用输入框（InputTextBox）的默认错误提示；{0}{1} 是上下限，最后一个占位是单位（带前导空格，没有就空） -->
     <sys:String x:Key="input.integer_required">请输入整数</sys:String>
     <sys:String x:Key="input.number_required">请输入数字</sys:String>

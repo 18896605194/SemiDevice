@@ -10,7 +10,7 @@ namespace xyz.Components.Components;
 [Component(description: "DI 值监控组件")]
 public class DiSensorComponent : ComponentBase
 {
-    #region SC 
+    #region SC
 
     [SCEditor("-1", "IO", "监控的 DI 索引", Required = true)]
     public int DiIndex { get; set; } = -1;
@@ -23,7 +23,7 @@ public class DiSensorComponent : ComponentBase
 
     #endregion
 
-    #region EC 
+    #region EC
 
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "10000", "200", "报警防抖：处于报警电平持续满该时长才算触发、才报警")]
     public int DebounceMs
@@ -51,6 +51,36 @@ public class DiSensorComponent : ComponentBase
     /// </summary>
     public bool IsTriggered { get; private set; }
 
+    private volatile int _level = -1;
+
+    /// <summary>
+    /// 最近一次读到的原始电平（true=高电平、false=低电平）；还没读到、读失败或没配点时为 null。
+    /// 安全联锁按它判断 DI 条件，保证跟这个组件自身的读取路径一致，不再直接摸一遍 PLC。
+    /// </summary>
+    public bool? CurrentLevel => _level < 0 ? null : _level != 0;
+
+    #endregion
+
+    #region 按 DI 索引找组件（安全联锁用）
+
+    private static readonly List<DiSensorComponent> Instances = [];
+
+    /// <summary>
+    /// 按 DI 索引找正在监控该点的组件。同一个 DI 被多个组件监控时，优先给已经读到电平的那个；
+    /// 只看已装进组件树（FullPath 非空）的，冒烟里临时 new 出来、还没装配的不参与，免得串台。
+    /// </summary>
+    public static bool TryGetByIndex(int diIndex, out DiSensorComponent? component)
+    {
+        lock (Instances)
+        {
+            component = Instances
+                .Where(item => item.DiIndex == diIndex && item.FullPath.Length > 0)
+                .OrderByDescending(item => item.CurrentLevel.HasValue)
+                .FirstOrDefault();
+            return component is not null;
+        }
+    }
+
     #endregion
 
     #region 扫描
@@ -63,10 +93,12 @@ public class DiSensorComponent : ComponentBase
         base.OnScan();
         if (DiIndex < 0)
         {
+            _level = -1;
             return;
         }
 
         var level = ReadDi();
+        _level = level is null ? -1 : level.Value ? 1 : 0;
         if (level is null)
         {
             return;
@@ -91,4 +123,12 @@ public class DiSensorComponent : ComponentBase
     }
 
     #endregion
+
+    public DiSensorComponent()
+    {
+        lock (Instances)
+        {
+            Instances.Add(this);
+        }
+    }
 }

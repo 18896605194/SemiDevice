@@ -1,4 +1,4 @@
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 using xyz.Components.Interfaces;
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-io-index-" + Guid.NewGuid().ToString("N"));
@@ -12,6 +12,7 @@ try
     AxisCommands.Run();
     ActuatorCommands.Run();
     StartupDoWrites.Run(directory);
+    SafetyInterlockWrites.Run(directory);
     var csv = Path.Combine(directory, "points.csv");
     File.WriteAllText(csv,
         "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +

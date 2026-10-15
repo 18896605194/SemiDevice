@@ -808,6 +808,9 @@
     <sys:String x:Key="io.write_failed">{0} {1} write failed (PLC not connected, point not in the table, or PLC write error)</sys:String>
     <sys:String x:Key="io.out_of_range">AO {0}: value out of range {1} ~ {2} {3}</sys:String>
 
+    <sys:String x:Key="io.interlock_blocked">DO{0} write {1} blocked by safety interlock: {2} is {3}; rule requires DO{0}={4} ({5})</sys:String>
+    <sys:String x:Key="io.interlock_unknown">DO{0} write {1} blocked by safety interlock: {2} is unreadable, cannot decide ({3})</sys:String>
+    <sys:String x:Key="io.interlock_conflict">DO{0} write {1} blocked by safety interlock: rules conflict ({2})</sys:String>
     <!-- InputTextBox default error messages; {0}{1} are the limits, the last placeholder is the unit (with a leading space, or empty) -->
     <sys:String x:Key="input.integer_required">Enter an integer</sys:String>
     <sys:String x:Key="input.number_required">Enter a number</sys:String>

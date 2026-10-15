@@ -11,7 +11,8 @@ namespace xyz.Shared.Services;
 public interface IIoService
 {
     /// <summary>
-    /// 写一个 DO 点。失败回 io.write_failed（PLC 没连上、点表里没有这个 DO、写 PLC 出错）。
+    /// 写一个 DO 点。被安全联锁拦下回 io.interlock_blocked / io.interlock_unknown / io.interlock_conflict；
+    /// 其它失败回 io.write_failed（PLC 没连上、点表里没有这个 DO、写 PLC 出错）。
     /// </summary>
     [OperationContract]
     Task<RpcResponse> WriteDoAsync(IoWriteRequest request);

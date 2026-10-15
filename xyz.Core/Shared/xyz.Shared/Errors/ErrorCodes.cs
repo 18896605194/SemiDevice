@@ -341,6 +341,15 @@ public static class ErrorCodes
     /// <summary>AO 下发值超出点表标定的工程量范围。Args: [点号, 下限, 上限, 单位]</summary>
     public const string IoOutOfRange = "io.out_of_range";
 
+
+    /// <summary>DO 下发被安全联锁拒绝。Args: [DO点号, 下发值, DI名称, DI当前值, 规则要求值, 规则]</summary>
+    public const string IoInterlockBlocked = "io.interlock_blocked";
+
+    /// <summary>安全联锁的 DI 当前值读不到，无法判断（按安全优先拦截）。Args: [DO点号, 下发值, DI名称, 规则]</summary>
+    public const string IoInterlockUnknown = "io.interlock_unknown";
+
+    /// <summary>安全联锁多条规则同时要求同一个 DO 为不同值。Args: [DO点号, 下发值, 规则]</summary>
+    public const string IoInterlockConflict = "io.interlock_conflict";
     #endregion
 
     #region EC
