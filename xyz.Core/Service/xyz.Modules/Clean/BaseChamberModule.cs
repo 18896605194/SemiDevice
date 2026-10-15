@@ -141,35 +141,20 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     protected override int StandbyState => ChamberState.Idle;
 
     /// <summary>
-    /// 取放准备二：开腔门，等门开到位才算准备好（进 TransferReady），机械手才伸手进来。sc 里没配门的照旧直接准备好。
-    /// 自动跑货、机械手手动页的取放都经搬运管理走到这里。门开不了（气缸到位超时、PLC 断了）准备判失败、腔体落 Error，
-    /// 搬运那边按"第 2 步准备失败"收场；腔门气缸自己报到位超时。
+    /// 取放准备二：卡盘转到取放片示教位（卡盘 EC TransferPosition）、开腔门，都到位才算准备好（进 TransferReady），
+    /// 机械手才伸手进来（<see cref="ChamberPrepareTransferOperation"/>）。sc 里卡盘、门都没配的照旧直接准备好。
+    /// 自动跑货、机械手手动页的取放都经搬运管理走到这里。转不到位、门开不了（卡盘没回零、到位超时、PLC 断了）准备判失败、
+    /// 腔体落 Error，搬运那边按"第 2 步准备失败"收场；卡盘、腔门气缸自己报到位超时。
     /// </summary>
     public override ModuleOperation? PrepareTransfer2()
     {
-        var door = Door;
-        if (door is null)
+        if (Door is null && SpinMotor is null)
         {
             return base.PrepareTransfer2();
         }
 
-        lock (OperationGate)
-        {
-            // 先确认挂得上（在准备一里、没有在途动作），再发开门：免得门开了、操作却没挂上，没人等它
-            var current = CurrentOperation;
-            bool busy = current is not null && !current.IsTerminal;
-            if (State != TransferModuleState.PreTransfer || !CanBeginAction || busy)
-            {
-                return null;
-            }
-
-            if (!door.Open())
-            {
-                return null;
-            }
-
-            return Begin(ChamberAction.OpenDoor, new ChamberDeviceOperation(door, ChamberDeviceAction.Up, DeviceActionTimeout));
-        }
+        // 指令由操作挂上之后在扫描里发，不会出现门开了、操作却没挂上没人等的情况
+        return Begin(ChamberAction.PrepareTransfer2, new ChamberPrepareTransferOperation(this, DeviceActionTimeout));
     }
 
     #endregion
@@ -682,7 +667,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     protected override bool CanBeginAction => IsEnable;
 
     /// <summary>
-    /// 回原点：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂（和别的轴）回零 → Bowl 降，门不动（<see cref="ChamberHomeOperation"/>）。
+    /// 回原点：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂、卡盘（和别的轴）回零 → Bowl 降，门不动（<see cref="ChamberHomeOperation"/>）。
     /// 机型的先后不一样就重写：Begin(ChamberAction.Home, new ...Operation(...))。
     /// </summary>
     public virtual ModuleOperation? Home()

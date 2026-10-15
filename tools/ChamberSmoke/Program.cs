@@ -16,7 +16,8 @@ using xyz.Tools;
 
 // 腔体冒烟：照 sc 认设备（轴表、气缸表、喷嘴表，门 / Bowl / Lift / 卡盘 / 摆臂和它上面的喷嘴），气缸三态、喷嘴、卡盘、摆臂 Reach，有变化才推；
 // 设备手动动作（找不到、参数不对、指令没发出去、执行中 Manual、在途拒绝、Abort 顶替、失败、停用、停止腔体忙也照发、
-// 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走、复位等清错、中止停液停轴、
+// 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
+// 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件。
 
@@ -229,9 +230,14 @@ try
         && interfaceChamber.State == ModuleState.Idle, "回零流程通过接口控制不同实现的接液杯");
     Check(interfaceChamber.PrepareTransfer() is not null, "不同实现的腔门进入取放准备一");
     var interfaceOpen = interfaceChamber.PrepareTransfer2();
-    interfaceChamber.Tick();
-    Check(interfaceOpen is not null && interfaceOpen.IsSuccess && interfaceChamber.Door!.IsOpened,
-        "取放开门和动作等待只依赖接口，不要求气缸具体类");
+    for (int index = 0; index < 4; index++)
+    {
+        interfaceChamber.Tick();
+    }
+
+    Check(interfaceOpen is not null && interfaceOpen.IsSuccess && interfaceChamber.Door!.IsOpened
+        && interfaceChamber.State == TransferModuleState.TransferReady,
+        "取放开门和动作等待只依赖接口，不要求气缸具体类；没配卡盘就只开门");
     Check(interfaceChamber.CreateDeviceDataDto().Door?.Position == CylinderPosition.Opened,
         "不同接口实现的腔门也能生成设备状态推送");
 
@@ -329,7 +335,7 @@ try
     }
 
     Check(Near(arm.Center, 150) && Near(arm.Edge, 0), "示教位默认 Center = 150、Edge = 0（轴位置按晶圆坐标走）");
-    Check(Near(arm.ToAxisPosition(75), 75) && Near(arm.ToAxisSpeed(30), 30), "没示教：配方坐标就是轴位置");
+    Check(Near(arm.ToAxisPosition(75), 75), "没示教：配方坐标就是轴位置");
     Check(Reach() == 0 && EdgeReach() == 0, "0 位是 Home；默认 Edge 跟 Home 重合，不分段");
     SetArm(75);
     Check(Near(Reach(), 0.5), "默认示教位下按 Center 线性换算：75 / 150 = 0.5");
@@ -338,7 +344,6 @@ try
     arm.Center = 200;
     Check(Near(arm.ToAxisPosition(0), 100) && Near(arm.ToAxisPosition(150), 200) && Near(arm.ToAxisPosition(75), 150),
         "示教后配方坐标按 Edge、Center 换成轴位置：0 → 100，150 → 200");
-    Check(Near(arm.ToAxisSpeed(15), 10), "扫描速度按同一比例换：(200 - 100) / 150");
     SetArm(100);
     Check(Near(Reach(), 0.5) && Near(EdgeReach(), 0.5), "示教后轴在 Edge：Reach = 100 / 200，边缘在 Reach 上的位置 = Edge / Center");
     SetArm(150);
@@ -529,7 +534,7 @@ try
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Bowl1")));
     Check(response.Success && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Opened && chamber.State == ModuleState.Idle, "Bowl 升，做完回空闲");
 
-    // 14. 回零（平台默认）：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂回零 → Bowl 降，门不动；前一段没做完不走下一段
+    // 14. 回零（平台默认）：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂、卡盘回零 → Bowl 降，门不动；前一段没做完不走下一段
     Check(diw.Open() && sc1.Open(), "回零前开着两路喷嘴");
     SetArm(80);
     Check(door.Open(), "门开着");
@@ -546,12 +551,47 @@ try
     response = Finish(homing);
     Check(response.Success && chamber.State == ModuleState.Idle, "回零做完回空闲");
     Check(plc.LastCommand("Arm.Command") == MotionCommandId.Home && Near(arm.CurrentPosition, 0) && arm.IsHomed, "第四段：摆臂回零");
+    Check(plc.LastCommand("Spin.Command") == MotionCommandId.Home && Near(spin.CurrentPosition, 0) && spin.IsHomed,
+        "第四段：卡盘（第二段已经停稳）跟摆臂一起回零");
     Check(CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Closed && CylinderDto("Chamber9.Arm1.Lift").Position == CylinderPosition.Opened,
         "第五段：Bowl 降；Lift 留在升位");
-    Check(plc.LastCommand("Spin.Command") == MotionCommandId.Stop, "卡盘只停转，不回零");
     Check(CylinderDto("Chamber9.Door").Position == CylinderPosition.Opened, "门不动（归站点交互环管）");
     Check(door.Close(), "关门");
     Tick();
+
+    // 14b. 取放准备二（平台默认）：卡盘转到取放位（卡盘 EC TransferPosition）、开门，两样同时发，都到位才算准备好；
+    //      卡盘没回零（绝对定位发不出去）就失败，门不开，腔体落 Error
+    spin.TransferPosition = 90;
+    Check(chamber.PrepareTransfer() is not null && chamber.State == TransferModuleState.PreTransfer, "取放准备一：抢到腔体");
+    plc.HoldCylinders = true;
+    var prepare = chamber.PrepareTransfer2() ?? throw new InvalidOperationException("FAIL: 取放准备二应能发起");
+    Tick(3);
+    Check(plc.LastCommand("Spin.Command") == MotionCommandId.MoveTo && Near(spin.CurrentPosition, 90),
+        "卡盘按 EC TransferPosition 转到 90");
+    Check(plc.ReadDo(0) && !prepare.IsTerminal && chamber.State == TransferModuleState.PreTransfer,
+        "门跟卡盘同时发（开门线圈通了）；门没开到位还不算准备好，机械手不伸手");
+    plc.HoldCylinders = false;
+    Tick(3);
+    Check(prepare.IsSuccess && chamber.State == TransferModuleState.TransferReady
+        && CylinderDto("Chamber9.Door").Position == CylinderPosition.Opened, "卡盘到位、门开到位：准备好了");
+    Check(chamber.CancelTransfer() && chamber.State == ModuleState.Idle && door.Close(), "撤回这一轮，关门");
+    Tick();
+
+    var unhomed = plc.Read<MotionPlcToCSharpData>("Spin.Status");
+    unhomed.Is_Homed = 0;
+    plc.Put("Spin.Status", unhomed);
+    Tick();
+    Check(chamber.PrepareTransfer() is not null, "卡盘没回零时再抢腔体");
+    prepare = chamber.PrepareTransfer2() ?? throw new InvalidOperationException("FAIL: 卡盘没回零也应能发起取放准备二（发了才判失败）");
+    Tick(3);
+    Check(prepare.Code == ErrorCodes.ChamberDeviceCommandRejected
+        && prepare.ErrorArgs.SequenceEqual(["Chamber9.SpinMotor", "Move"]) && chamber.State == ModuleState.Error,
+        "卡盘没回零：转不到取放位，准备失败、腔体落 Error");
+    Check(!plc.ReadDo(0) && CylinderDto("Chamber9.Door").Position == CylinderPosition.Closed, "卡盘先发、发不出去就不开门");
+    unhomed.Is_Homed = 1;
+    plc.Put("Spin.Status", unhomed);
+    response = Run(() => service.ResetAsync("Chamber9"));
+    Check(response.Success && chamber.State == ModuleState.Idle, "复位回空闲");
 
     // 15. 工艺（平台默认）：按配方快照一步一步做
     spin.MaxSpeed = 3000;
@@ -637,7 +677,7 @@ try
     Check(processed.IsSuccess && chamber.State == ModuleState.Idle, "工艺做完回空闲");
     Check(diwOn && sc1On && !bothOn, "DIW、SC1 各喷过，换药液时先关上一路");
     Check(seenPositions.Contains(100) && seenPositions.Contains(200), "第 2 步 Scan：在位置 0（轴 100）和到 150（轴 200）之间来回扫");
-    Check(plc.Speeds("Arm.Command").Any(speed => Near(speed, 10)), "扫描速度 15 按示教换成轴速度 10");
+    Check(plc.Speeds("Arm.Command").Any(speed => Near(speed, 15)), "扫描速度 15 原样给轴（配方速度就是轴的设计速度，不按示教位换算）");
     Check(plc.Ao(1) == 0 && !plc.ReadDo(6) && !plc.ReadDo(7), "做完喷嘴全停、流量设定清零");
     Check(plc.CommandCount("Spin.Command") - spinCommands == 4 && plc.Speeds("Spin.Command").Contains(500),
         "卡盘：第 1 步转 300、第 2 步转着换 500（PLC 报忙也照收）、第 3 步转速一样不重发、第 4 步转速 0 停、收尾再停一次");
@@ -727,7 +767,8 @@ try
     Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
         + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
         + "command rejected, Manual state, busy rejection, stop while busy, abort replacement, failure to Error, axis end to end, "
-        + "jog hold / renew / release, hold timeout auto stop, cylinders up / down; platform Home order, Reset, Abort; "
+        + "jog hold / renew / release, hold timeout auto stop, cylinders up / down; platform Home order (spin homed too), "
+        + "prepare transfer 2 (spin to transfer position + door, unhomed spin fails), Reset, Abort; "
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "
         + "missing steps, recipe mismatch, rpm over limit, timeout, abort; disabled chamber, component init and module init = Home)");
     return 0;

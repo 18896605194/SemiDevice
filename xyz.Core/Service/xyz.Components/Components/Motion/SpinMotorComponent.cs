@@ -7,10 +7,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 卡盘/旋钮（SpinMotor）轴组件：继承 AxisComponent，额外带取放片示教位和到速超时 EC。
-/// 到速超时只有卡盘这种连续旋转的轴才有，定位轴（摆臂）用不上，所以不放基类。
-/// 手动页跟别的轴一样一个页签；另外推 IsSpinning 给三维图转盘面。
-/// 速度单位按 rpm：腔体按工艺配方转时，配方的转速原样当速度下发（Spin），所以 EC MaxSpeed 要不小于配方里用到的转速。
+/// SpinMotor
 /// </summary>
 [Component(description: "卡盘/旋钮轴组件")]
 public class SpinMotorComponent : AxisComponent, ISpinMotor
@@ -35,7 +32,6 @@ public class SpinMotorComponent : AxisComponent, ISpinMotor
 
     #region 三维图用的状态
 
-    /// <summary>在转（三维图转盘面）：PLC 有数据、实际转速超出速度容差（EC SpeedTolerance）；转向看 CurrentSpeed 的正负。</summary>
     public bool IsSpinning => HasPlcData && Math.Abs(CurrentSpeed) > SpeedTolerance;
 
     #endregion

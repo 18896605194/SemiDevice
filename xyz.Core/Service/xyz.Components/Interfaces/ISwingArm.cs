@@ -15,9 +15,6 @@ public interface ISwingArm : IAxis
     /// <summary>晶圆坐标换算成实际轴位置。</summary>
     double ToAxisPosition(double waferPosition);
 
-    /// <summary>晶圆坐标中的速度换算成轴速度。</summary>
-    double ToAxisSpeed(double waferSpeed);
-
     /// <summary>供设备图显示的当前摆幅。</summary>
     double Reach { get; }
 

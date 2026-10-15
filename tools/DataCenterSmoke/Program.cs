@@ -4,8 +4,10 @@ using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
+using xyz.Components.Collectors;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Configs.Models;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Service.Alarms;
@@ -14,8 +16,8 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 
-// 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）。
-// 不起宿主、不连设备；日志样本写在运行目录 Log 下一个不会跟真日志撞的日期，报警记录写临时库，跑完都删掉。
+// 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）、数据曲线（信号名、日表）。
+// 不起宿主、不连设备；日志样本写在运行目录 Log 下一个不会跟真日志撞的日期，报警记录、数据曲线写临时库，跑完都删掉。
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -161,9 +163,111 @@ finally
     SqliteCleanup(dbFile);
 }
 
+// ── 5. 数据曲线：信号名按 __ 分层；库表全走 SqlSugar（建表、写、查、开机补列、清过期日表）；名字不合规开机就报 ─────
+var chartDbFile = Path.Combine(Path.GetTempPath(), $"datachart-smoke-{Guid.NewGuid():N}.db");
+var chartGemDirectory = Path.Combine(Path.GetTempPath(), $"datachart-smoke-{Guid.NewGuid():N}");
+Directory.CreateDirectory(chartGemDirectory);
+try
+{
+    XyzDb.Register("ChartSmoke", $"DataSource={chartDbFile}", DbType.Sqlite);
+
+    // 一个模块带两个部件，每个都有一个模拟量 SV、一个开关量 SV；名字合规与否由部件名定。
+    List<ComponentBase> ChartTree(params string[] parts)
+    {
+        var root = new ModuleConfig { Name = "Chart1", Type = typeof(ChartProbe).FullName };
+        root.Children.AddRange(parts.Select(part => new ModuleConfig { Name = part, Type = typeof(ChartProbe).FullName }));
+        var roots = ComponentLoader.Load([root]);
+        new GemCollectors().Merge(roots, chartGemDirectory);
+        return roots;
+    }
+
+    // 跑一小会儿：200ms 采一行，停下时把攒着的一批写完。
+    DataChartComponent RunChart(List<ComponentBase> roots)
+    {
+        var chart = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
+        chart.StartSampling(roots);
+        Thread.Sleep(1300);
+        chart.StopSampling();
+        return chart;
+    }
+
+    using (var db = XyzDb.Create("ChartSmoke"))
+    {
+        db.DbMaintenance.CreateTable("DataRecord_20000101",
+        [
+            new DbColumnInfo { TableName = "DataRecord_20000101", DbColumnName = "Time", DataType = db.Ado.DbBind.GetDbTypeName("Int64"), IsPrimarykey = true },
+        ]);
+    }
+
+    var first = RunChart(ChartTree("Door"));
+    var names = first.Signals.Select(signal => signal.Name).ToList();
+    Check(names.ToHashSet().SetEquals(["Chart1__Speed", "Chart1__IsOn", "Chart1__Door__Speed", "Chart1__Door__IsOn"]),
+        $"信号名 = 组件路径 + 属性名，层级用 __ 隔开：{string.Join(",", names)}");
+    Check(first.Signals.Single(signal => signal.Name == "Chart1__Door__IsOn").IsDigital
+          && !first.Signals.Single(signal => signal.Name == "Chart1__Door__Speed").IsDigital, "布尔 SV 是开关量，浮点 SV 是模拟量");
+
+    string todayTable = $"DataRecord_{DateTime.Today:yyyyMMdd}";
+    using (var db = XyzDb.Create("ChartSmoke"))
+    {
+        var tables = db.DbMaintenance.GetTableInfoList(false).Select(table => table.Name).ToList();
+        Check(tables.Contains(todayTable), "当天的日表建出来了");
+        Check(!tables.Contains("DataRecord_20000101"), "写第一批之前把过期日表删了");
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(todayTable, false).Select(column => column.DbColumnName).ToList();
+        Check(columns.SequenceEqual(new[] { "Time" }.Concat(names)), $"列 = Time + 信号名，按信号顺序：{string.Join(",", columns)}");
+    }
+
+    var window = (Start: DateTime.Now.AddMinutes(-1), End: DateTime.Now.AddMinutes(1));
+    var queried = first.Query(names, window.Start, window.End, CancellationToken.None);
+    var speed = queried.Series.Single(series => series.Name == "Chart1__Door__Speed");
+    var isOn = queried.Series.Single(series => series.Name == "Chart1__Door__IsOn");
+    Check(speed.Count >= 3 && speed.Min == 12.5 && speed.Max == 12.5, $"模拟量写进去、按名字查得回来：{speed.Count} 行，值 {speed.Min}");
+    Check(isOn.Count == speed.Count && isOn.Min == 1 && isOn.Max == 1, "开关量存 1/0，查回来是 1");
+    Check(queried.Times.Zip(queried.Times.Skip(1)).All(pair => pair.First < pair.Second), "查出来按时间排好");
+
+    // 第二次开机多了一个部件：当天的表补上新列，之前写的行还在。
+    var second = RunChart(ChartTree("Door", "Lift"));
+    using (var db = XyzDb.Create("ChartSmoke"))
+    {
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(todayTable, false).Select(column => column.DbColumnName).ToList();
+        Check(columns.Contains("Chart1__Lift__Speed") && columns.Contains("Chart1__Lift__IsOn") && columns.Count == 7,
+            $"新部件的信号在当天的表上补了列：{string.Join(",", columns)}");
+    }
+
+    var again = second.Query(["Chart1__Door__Speed", "Chart1__Lift__Speed"], window.Start, DateTime.Now.AddMinutes(1), CancellationToken.None);
+    var oldSpeed = again.Series[0];
+    var newSpeed = again.Series[1];
+    Check(oldSpeed.Count > speed.Count && newSpeed.Count > 0 && newSpeed.Count < oldSpeed.Count,
+        $"老信号两次的行都在（{oldSpeed.Count}），新信号只有补列以后的（{newSpeed.Count}）");
+
+    bool rejected = false;
+    try
+    {
+        new DataChartComponent { Database = "ChartSmoke" }.StartSampling(ChartTree("Lift_"));
+    }
+    catch (InvalidOperationException exception)
+    {
+        rejected = exception.Message.Contains("Lift_");
+    }
+
+    Check(rejected, "部件名以下划线结尾（跟分隔符 __ 分不清）开机就报，报错里带名字");
+}
+finally
+{
+    DataChartComponent.Current = null;
+    GemCollectors.Current = null;
+    SqliteCleanup(chartDbFile);
+    try
+    {
+        Directory.Delete(chartGemDirectory, true);
+    }
+    catch (IOException)
+    {
+    }
+}
+
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
                   "log history filters and truncation, active alarms with reset / reset-all / not-installed error codes, " +
-                  "and alarm history over day-split tables).");
+                  "alarm history over day-split tables, and data chart signal names / day tables through SqlSugar).");
 
 static void SqliteCleanup(string path)
 {
@@ -192,4 +296,17 @@ sealed class ProbeDevice : ComponentBase
     public string ProbeFault = nameof(ProbeFault);
 
     public void Fault() => RaiseAlarm(ProbeFault);
+}
+
+/// <summary>
+/// 数据曲线探针：一个模拟量 SV、一个开关量 SV，值固定，好对查出来的数。
+/// </summary>
+[Component(description: "数据曲线冒烟用部件")]
+public sealed class ChartProbe : ComponentBase
+{
+    [VariableMark(VariableType.SV, ValueFormat.Double, unit: "rpm", description: "转速")]
+    public double Speed { get; set; } = 12.5;
+
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "开着")]
+    public bool IsOn { get; set; } = true;
 }

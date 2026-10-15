@@ -53,9 +53,6 @@ public partial class AxisComponent
 
     #region 组件中止与复位
 
-    // 轴不重写 InitComponent：开机登记 PLC 数据块是装配层调的 Open(IPlc)；回零是 Home()，
-    // 由所在模块的初始化操作按机型的先后去驱动，组件初始化不动轴。
-
     public override object? Abort()
     {
         base.Abort();
@@ -92,7 +89,6 @@ public partial class AxisComponent
         return Send(MotionCommandId.MoveBy, offset, speed ?? MoveSpeed);
     }
 
-    /// <summary>点动：按 speed 一直走（正负是方向），到速即算完成；手动页按住期间一直走、松手发 Stop。</summary>
     public bool Jog(double speed)
     {
         return Send(MotionCommandId.Jog, 0, speed);
@@ -103,7 +99,6 @@ public partial class AxisComponent
         return Send(MotionCommandId.Spin, 0, speed);
     }
 
-    /// <summary>停止：可以打断在途动作，手动页上别的动作在途时也照发。</summary>
     public bool Stop()
     {
         return Send(MotionCommandId.Stop, 0, 0, priority: true);
@@ -114,16 +109,11 @@ public partial class AxisComponent
         return Send(MotionCommandId.EStop, 0, 0, priority: true);
     }
 
-    /// <summary>驱动器复位清错。</summary>
     public bool ResetDrive()
     {
         return Send(MotionCommandId.Reset, 0, 0);
     }
 
-    /// <summary>
-    /// 伺服使能是命令块里跟命令码并行的电平字节，改了随一条 Stop 下发让 PLC 锁存（轴静止时 Stop 没副作用）。
-    /// 下使能可以打断在途动作，上使能要等上一条完成。
-    /// </summary>
     public bool SetServo(bool enabled)
     {
         return Send(MotionCommandId.Stop, 0, 0, priority: !enabled, servo: enabled ? (byte)1 : (byte)0);
@@ -131,12 +121,8 @@ public partial class AxisComponent
 
     #endregion
 
-    #region 发令
+    #region 下发指令
 
-    /// <summary>
-    /// 校验 → 组包 → 同步写进命令块。写成功即 Running，之后由扫描判完成/超时。
-    /// 停止类（priority）可以打断在途动作，其他指令要等上一条完成。
-    /// </summary>
     private bool Send(MotionCommandId command, double position, double speed, bool priority = false, byte? servo = null)
     {
         lock (_axisGate)
@@ -196,7 +182,7 @@ public partial class AxisComponent
                 Command_Sync_No = unchecked(_command.Command_Sync_No + 1),
             };
             byte[] data = new byte[Marshal.SizeOf<MotionCSharpToPlcCommand>()];
-            MemoryMarshal.Write(data, in next);
+            MemoryMarshal.Write(data, in next);  //二进制和结构体之间的转换
             if (!plc.WriteBlock(SendPlcDataPath, data))
             {
                 return false;
@@ -316,7 +302,7 @@ public partial class AxisComponent
                 CheckCompletion();
                 if (_action == ActionState.Running)
                 {
-                    alarm = CheckTimeout() ?? alarm;
+                    alarm = CheckTimeout() ?? alarm; //检查超时
                 }
             }
         }
@@ -327,9 +313,6 @@ public partial class AxisComponent
         }
     }
 
-    /// <summary>
-    /// 从 PLC 缓存取状态块；连上后的第一拍还要把命令块读回来当同步号基线。两块都到手才算有数据。
-    /// </summary>
     private bool ReadPlc()
     {
         var plc = _plc;
@@ -345,8 +328,6 @@ public partial class AxisComponent
                 return false;
             }
 
-            // 使能电平以驱动器实际状态为准：刚启动的 PLC / 仿真器命令块全是 0，照抄的话
-            // 第一条运动命令会顺手把正在使能的伺服关掉，轴就一直不动、等到超时。
             baseline.Axis_Servo = status.Is_Servo_On;
             _command = baseline;
             _baselined = true;
@@ -369,6 +350,9 @@ public partial class AxisComponent
         return true;
     }
 
+    /// <summary>
+    /// 检查是否完成
+    /// </summary>
     private void CheckCompletion()
     {
         var command = (MotionCommandId)_command.Axis_Command;

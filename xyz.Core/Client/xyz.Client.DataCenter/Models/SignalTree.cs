@@ -3,18 +3,23 @@
 namespace xyz.Client.DataCenter.Models;
 
 /// <summary>
-/// 信号勾选树：按信号名的点号分层长出来，数据曲线、实时曲线两页共用。
+/// 信号勾选树：按信号名的层级分隔符 __ 分层长出来，数据曲线、实时曲线两页共用。
 /// 同一层里先放属性（叶子）再放部件，各自按第一次出现的先后——后端给的顺序就是 SV 编号表、点表的顺序，基本跟 sc.xml 一致。
 /// </summary>
 public static class SignalTree
 {
+    /// <summary>
+    /// 信号名的层级分隔符，跟后端 DataSignal.Separator 一致（信号名就是库里的列名，不能带点号）。
+    /// </summary>
+    public const string Separator = "__";
+
     public static List<SignalNodeModel> Build(IEnumerable<DataChartSignalDto> signals, Action<SignalNodeModel, bool> onToggle)
     {
         var roots = new List<SignalNodeModel>();
         var groups = new Dictionary<string, SignalNodeModel>(StringComparer.OrdinalIgnoreCase);
         foreach (var signal in signals)
         {
-            var parts = signal.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            var parts = signal.Name.Split(Separator, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0)
             {
                 continue;
@@ -23,7 +28,7 @@ public static class SignalTree
             SignalNodeModel? parent = null;
             for (int level = 0; level < parts.Length - 1; level++)
             {
-                string path = string.Join('.', parts, 0, level + 1);
+                string path = string.Join(Separator, parts, 0, level + 1);
                 if (!groups.TryGetValue(path, out var group))
                 {
                     group = new SignalNodeModel(parts[level], path, parent, null, onToggle);

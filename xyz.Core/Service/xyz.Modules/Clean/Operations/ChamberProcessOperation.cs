@@ -15,7 +15,8 @@ namespace xyz.Modules;
 /// Time 停在位置上喷，Scan 在"位置"和"到"之间按"速度"来回扫；这一步时间到就进下一步，扫到一半到点了当场停轴。
 /// 没选摆臂的一步不喷，摆臂都回 Home。做完喷嘴全关、摆臂回 Home、卡盘停转、Bowl 降。
 /// 这一步跟上一步用同一个喷嘴就接着喷，不关了再开；转速跟上一步一样不重发。
-/// 字段表里没配、这一步没填的字段就跳过（没填转速就不动卡盘，没填位置摆臂就不动）。位置是晶圆坐标，按摆臂的示教位换成轴位置。
+/// 字段表里没配、这一步没填的字段就跳过（没填转速就不动卡盘，没填位置摆臂就不动）。位置是晶圆坐标，按摆臂的示教位换成轴位置；
+/// 速度就是轴的设计速度，原样给轴，不按示教位换算。
 /// </summary>
 internal sealed class ChamberProcessOperation : ChamberStepOperation
 {
@@ -381,7 +382,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         }
 
         double target = arm.ToAxisPosition(_towardScanTo ? to.Value : from.Value);
-        double? speed = _scanSpeed is null ? null : arm.ToAxisSpeed(_scanSpeed.Value);
+        double? speed = _scanSpeed;
         _towardScanTo = !_towardScanTo;
         Send(arm, ChamberDeviceAction.Move, () => arm.MoveTo(target, speed));
     }

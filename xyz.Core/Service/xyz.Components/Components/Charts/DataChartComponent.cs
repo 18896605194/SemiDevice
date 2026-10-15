@@ -39,7 +39,7 @@ public class DataChartComponent : ComponentBase
     [SCEditor("1000", "DataChart", "采样周期（毫秒），按整周期对齐；每个周期整行都记，值没变也记")]
     public int SampleIntervalMs { get; set; } = 1000;
 
-    [SCEditor("", "DataChart", "不采的信号，逗号分隔：写信号名，或写上级路径整枝不采（如 LoadPort1.E84）")]
+    [SCEditor("", "DataChart", "不采的信号，逗号分隔：写信号名，或写上级路径整枝不采（如 LoadPort1__E84，层级用两个下划线隔开）")]
     public string Exclude { get; set; } = string.Empty;
 
     [SCEditor("4000", "DataChart", "数据曲线页一次查询每条曲线最多返回多少点；时间段长了按时段取最小、最大值，峰谷不丢")]
@@ -150,7 +150,7 @@ public class DataChartComponent : ComponentBase
         void Add(DataSignal signal)
         {
             if (excludes.Any(pattern => signal.Name.Equals(pattern, StringComparison.OrdinalIgnoreCase)
-                                        || signal.Name.StartsWith(pattern + ".", StringComparison.OrdinalIgnoreCase)))
+                                        || signal.Name.StartsWith(pattern + DataSignal.Separator, StringComparison.OrdinalIgnoreCase)))
             {
                 return;
             }
@@ -172,7 +172,7 @@ public class DataChartComponent : ComponentBase
         {
             foreach (var sv in svs[component])
             {
-                Add(new DataSignal(sv.Name, sv.Format == ValueFormat.Bool, "SV", string.Empty, sv.Unit, sv.Description, sv.Read));
+                Add(new DataSignal(SignalName(sv.Name), sv.Format == ValueFormat.Bool, "SV", string.Empty, sv.Unit, sv.Description, sv.Read));
             }
 
             foreach (var binding in IoBindings(component))
@@ -208,7 +208,7 @@ public class DataChartComponent : ComponentBase
     private static readonly Regex BindingPattern = new("^[A-Za-z]*?(Di|Do|Ai|Ao)[A-Za-z0-9]*Index$", RegexOptions.Compiled);
 
     /// <summary>
-    /// 一个组件在 sc.xml 里绑的 IO：信号名 = 组件全路径.配置项名去掉 Index。
+    /// 一个组件在 sc.xml 里绑的 IO：信号名 = 组件全路径 + 配置项名去掉 Index，层级用 __ 隔开。
     /// </summary>
     private static IEnumerable<(string Name, string Type, int Index)> IoBindings(ComponentBase component)
     {
@@ -226,8 +226,32 @@ public class DataChartComponent : ComponentBase
             }
 
             string item = property.Name[..^"Index".Length];
-            yield return ($"{component.FullPath}.{item}", match.Groups[1].Value.ToUpperInvariant(), index);
+            yield return (SignalName($"{component.FullPath}.{item}"), match.Groups[1].Value.ToUpperInvariant(), index);
         }
+    }
+
+    /// <summary>
+    /// 每一层名字只许字母、数字和单个下划线，不许下划线开头、结尾——不然跟分隔符 __ 分不清，
+    /// SqlSugar 拿列名当参数名也会断在别的符号上。
+    /// </summary>
+    private static readonly Regex SegmentPattern = new("^[A-Za-z0-9]+(_[A-Za-z0-9]+)*$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// 点号分层的全名（组件路径、SV 全名）→ 信号名（__ 分层），信号名就是库里的列名。哪一层不合规开机就报。
+    /// </summary>
+    private static string SignalName(string path)
+    {
+        var parts = path.Split('.');
+        foreach (var part in parts)
+        {
+            if (!SegmentPattern.IsMatch(part))
+            {
+                throw new InvalidOperationException(
+                    $"数据曲线信号 {path} 里的“{part}”不能当列名：只能用字母、数字和单个下划线，不能以下划线开头或结尾（{DataSignal.Separator} 是层级分隔符）");
+            }
+        }
+
+        return string.Join(DataSignal.Separator, parts);
     }
 
     /// <summary>
@@ -417,7 +441,12 @@ public class DataChartComponent : ComponentBase
             LogHelper.Warn(Name, $"数据曲线库 {Database} 没在 sc.xml 的 Database 节点里配，落到默认库");
         }
 
-        db.Ado.ExecuteCommand("PRAGMA journal_mode=WAL");
+        // WAL 是 SQLite 自己的设置，SqlSugar 没有对应的接口；换了别的库就不用切
+        if (db.CurrentConnectionConfig.DbType == SqlSugar.DbType.Sqlite)
+        {
+            db.Ado.ExecuteCommand("PRAGMA journal_mode=WAL");
+        }
+
         _databasePrepared = true;
     }
 

@@ -214,12 +214,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   EC `HoldTimeoutMs`（默认 1000）内没续上就自己停，停下才退出 Manual。错误码：`chamber.device_not_found`（这个路径不是这种设备）、
   `chamber.device_args_invalid`（不是有限数、速度负、点动速度 / 步距 0）、`chamber.jog_not_held`；第二个参数是动作名 `ChamberDeviceAction`（Shared 枚举），界面按 `device.action.*` 翻（`DeviceActionText.Of`）。
 - 腔体整腔动作（`Clean\Operations`，底座 `ChamberStepOperation`：一段一段走，每段同时发、都做完再走下一段；指令发不出去 `chamber.device_command_rejected`、设备失败 `chamber.device_action_failed`、
-  整个动作超过 EC 超时 `chamber.action_timeout`[模块, ms]；四个操作都直接拿腔体模块）：
-  - 回零 `ChamberHomeOperation`（用户定的先后）：喷嘴全关 → 卡盘停转 → 各臂 Lift 升 → 摆臂（和卡盘以外别的轴）回零 → Bowl 降，门不动（门归站点交互环）。Lift 先升，摆臂回零才不刮 Bowl 壁。
+  整个动作超过 EC 超时 `chamber.action_timeout`[模块, ms]；这几个操作都直接拿腔体模块）：
+  - 回零 `ChamberHomeOperation`（用户定的先后）：喷嘴全关 → 卡盘停转 → 各臂 Lift 升 → 摆臂、卡盘（和别的轴）回零 → Bowl 降，门不动（门归站点交互环）。Lift 先升，摆臂回零才不刮 Bowl 壁。
+  - 取放准备二 `ChamberPrepareTransferOperation`（`PrepareTransfer2`，动作名 `ChamberAction.PrepareTransfer2`，上限 EC `DeviceActionTimeout`）：卡盘 `MoveTo` 卡盘 EC `TransferPosition`（取放片示教位）、
+    开门，同时发、都到位才进 TransferReady；卡盘先发，没回零（绝对定位要求已回零）就失败、门不开、腔体落 Error。卡盘、门都没配的直接准备好。
   - 复位：轴的驱动器复位在组件基类 `Reset` 递归时就发了，`ChamberResetOperation` 只等每根轴做完；中止：轴停止同理在组件 `Abort` 里发了，`ChamberAbortOperation` 把喷嘴全停液（气缸、阀的中止输出保持原样）再等轴停下。
   - 工艺 `ChamberProcessOperation`（上限是配方头的超时时间 `ProcessRecipeData.TimeoutMilliseconds`，腔体 EC 没有工艺超时了；请求里没带配方快照的 `CheckProcess` 就挡下 `chamber.recipe_steps_missing`）：喷嘴全关、Lift 升、Bowl 升 → 每一步：先关掉这一步不用的喷嘴（卡盘加减速时不让上一步的药液接着喷）→ 转速给卡盘（0 停转、跟上一步一样不重发）→
     别的摆臂回 Home（轴 0 位）、这一步的摆臂摆到"位置"（晶圆坐标，`SwingArmComponent.ToAxisPosition` 按示教 Edge / Center 换）→ 有流量设定 AO 的先给流量再开药液对得上的喷嘴 →
-    Time 停着喷 / Scan 在位置和"到"之间按"速度"（`ToAxisSpeed`）来回扫，到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。
+    Time 停着喷 / Scan 在位置和"到"之间按"速度"（轴的设计速度，原样当 MoveTo 速度，不按示教换算）来回扫，到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。
     认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，字段表里没配、这一步没填的跳过。
     配方选的摆臂 / 药液这个腔体没有 `chamber.recipe_option_missing`；没有配方步骤（没装工艺配方库）`chamber.recipe_steps_missing`。工艺失败、超时（不是中止）`FinishProcess` 先把喷嘴停了。
   - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），卡盘 EC `MaxSpeed` 要不小于配方里的转速（轴的通用默认是 100）。转着换转速：上一条就是 Spin 时 PLC 报忙也照收（2026-10-10 仿真器上发现转着改不了转速）。

@@ -7,12 +7,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 摆臂组件：腔体里的一条摆臂。它自己就是摆动轴（继承 AxisComponent，走 PLC 数据块）；
-/// 硬件上跟它装在一起的升降、喷嘴在 sc.xml 里挂在它下面，按各自的接口识别，名称和节点先后不决定用途。
-/// 回零后轴在 0 位就是 Home；配方里的位置是晶圆坐标——从 Home 摆过去先碰到的第一个边缘是 0、晶圆中心是 150，
-/// 按 Edge、Center 两个示教位（实际轴位置，比如 Edge = 100、Center = 200）线性换成轴位置。
-/// 没示教时默认 Edge = 0、Center = 150，即轴位置就按晶圆坐标走。
-/// 手动页跟别的轴一样一个页签；另外推 Reach / EdgeReach 给三维图画摆角。
+/// 摆臂组件：axis + 升降气缸+喷嘴
 /// </summary>
 [Component(description: "摆臂组件 (摆动轴；下面挂升降气缸和喷嘴)")]
 public class SwingArmComponent : AxisComponent, ISwingArm
@@ -37,7 +32,6 @@ public class SwingArmComponent : AxisComponent, ISwingArm
 
     #region 装在这条臂上的（sc.xml 里摆臂节点下面挂的）
 
-    /// <summary>这条臂下面声明了升降接口的部件；没有为 null，多装一个会报配置错误。</summary>
     public IChamberLift? Lift
     {
         get
@@ -52,17 +46,18 @@ public class SwingArmComponent : AxisComponent, ISwingArm
         }
     }
 
-    /// <summary>开机时检查升降部件的数量，避免运行中才发现配置重复。</summary>
+    public IReadOnlyList<INozzle> Nozzles => FindChildren<INozzle>();
+
+    /// <summary>
+    /// 初始化子组件
+    /// </summary>
+    /// <returns></returns>
     public override bool InitComponent()
     {
         _ = Lift;
         return base.InitComponent();
     }
 
-    /// <summary>这条臂上的喷嘴，按 sc 的先后。</summary>
-    public IReadOnlyList<INozzle> Nozzles => FindChildren<INozzle>();
-
-    /// <summary>按药液名找这条臂上的喷嘴（照 sc 的 Chemical，忽略大小写）；没有为 null。</summary>
     public INozzle? FindNozzle(string chemical)
     {
         return Nozzles.FirstOrDefault(nozzle => string.Equals(nozzle.Chemical, chemical, StringComparison.OrdinalIgnoreCase));
@@ -72,20 +67,17 @@ public class SwingArmComponent : AxisComponent, ISwingArm
 
     #region 配方坐标换算（腔体按工艺配方摆臂时用）
 
-    /// <summary>晶圆坐标里中心的位置：配方的位置 0 = 第一个边缘，150 = 中心。</summary>
     private const double WaferCenter = 150;
 
-    /// <summary>配方里的晶圆坐标换成轴位置：按 Edge、Center 两个示教位线性换算（Edge = 0 位、Center = 150 位）。</summary>
+    /// <summary>
+    /// 晶圆坐标换成轴位置
+    /// </summary>
+    /// <param name="waferPosition"></param>
+    /// <returns></returns>
     public double ToAxisPosition(double waferPosition)
     {
         double edge = Edge;
         return edge + (Center - edge) * waferPosition / WaferCenter;
-    }
-
-    /// <summary>配方里的扫描速度（晶圆坐标每秒）换成轴速度，比例跟位置一样；Edge、Center 一样（示教错了）时是 0，轴不会接这个指令。</summary>
-    public double ToAxisSpeed(double waferSpeed)
-    {
-        return Math.Abs(Center - Edge) * waferSpeed / WaferCenter;
     }
 
     #endregion
