@@ -130,6 +130,10 @@
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 	</Setting>
+	<Setting Name="Computer" Type="xyz.Components.Components.ComputerComponent">
+		<Setting Name="Program" Type="xyz.Components.Components.ProgramUsageComponent" />
+		<Setting Name="Total" Type="xyz.Components.Components.ComputerUsageComponent" />
+	</Setting>
 	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
 		<Value Name="EnableRecord" Value="True" />
 		<Value Name="Database" Value="Io" />
@@ -138,9 +142,10 @@
 		<Value Name="Exclude" Value="" />
 		<Value Name="QueryMaxPoints" Value="4000" />
 		<Value Name="QueryMaxSignals" Value="20" />
+		<Value Name="ScreenshotDirectory" Value="Screenshots" />
 	</Setting>
 	<Setting Name="RealChart" Type="xyz.Components.Components.RealChartComponent">
-		<Value Name="WindowSeconds" Value="600" />
+		<Value Name="WindowSeconds" Value="3600" />
 	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">

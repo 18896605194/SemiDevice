@@ -52,6 +52,13 @@ public partial class PlcComponent : ComponentBase, IPlc
         set { SetEcInt(nameof(ReconnectIntervalMs), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, null, "0", "1000", "10", "通讯断开后最多重连几次，还连不上就停下，人工复位后重新开始连；0 = 不自动重连")]
+    public int ReconnectMaxCount
+    {
+        get { return GetEcInt(nameof(ReconnectMaxCount)); }
+        set { SetEcInt(nameof(ReconnectMaxCount), value); }
+    }
+
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "30000", "1000", "掉线报警防抖（网络抖一下不立刻报）")]
     public int OfflineDebounceMs
     {
@@ -98,7 +105,7 @@ public partial class PlcComponent : ComponentBase, IPlc
     [Alarm("PLC 通讯断开", AlarmCategory.CommunicationError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "与 PLC 的连接断开或建立失败，所有 IO 读写停摆",
-        Solution = "检查网线、PLC 上电与地址配置（sc.xml 的 Host/Port）；恢复后复位清警")]
+        Solution = "检查网线、PLC 上电与地址配置（sc.xml 的 Host/Port）；恢复后复位清警（重连次数用完停下来的，复位会重新开始连）")]
     public string PlcOfflineAlarm = nameof(PlcOfflineAlarm);
 
     [Alarm("PLC 数据块读写失败", AlarmCategory.CommunicationError,
@@ -111,7 +118,10 @@ public partial class PlcComponent : ComponentBase, IPlc
 
     #region 连接
 
-    private int _reconnectCountdownMs;
+    /// <summary>
+    /// 断线重连：跟 LoadPort、RFID、机械手驱动同一套——后台重连、最多 EC ReconnectMaxCount 次、人工复位从头再来。
+    /// </summary>
+    private readonly DriverReconnector _reconnector = new();
 
     public bool Open()
     {
@@ -122,6 +132,7 @@ public partial class PlcComponent : ComponentBase, IPlc
             return true;
         }
 
+        _reconnector.Enable();
         IsConnected = ConnectDevice();
         return IsConnected;
     }
@@ -131,12 +142,22 @@ public partial class PlcComponent : ComponentBase, IPlc
     /// </summary>
     public void Close()
     {
+        _reconnector.Disable();
         lock (_scanGate)
         {
             _closed = true;
             IsConnected = false;
             DisconnectDevice();
         }
+    }
+
+    /// <summary>
+    /// 人工复位：重连次数清零、马上重新开始连（停下来的也接着连），再清本组件的报警。
+    /// </summary>
+    public override object? Reset()
+    {
+        _reconnector.Rearm();
+        return base.Reset();
     }
 
     /// <summary>
@@ -377,7 +398,7 @@ public partial class PlcComponent : ComponentBase, IPlc
     #region 扫描
 
     /// <summary>
-    /// 扫描周期：连着就把登记的块整块读回缓存，断了就按间隔重连。
+    /// 扫描周期：连着就把登记的块整块读回缓存，断了就按间隔在后台重连（满 EC ReconnectMaxCount 次停下，掉线报警一直在）。
     /// 本组件自己就是一棵扫描树的根，由装配显式 Start——它不是模块，不在模块列表里。
     /// </summary>
     protected override void OnScan()
@@ -397,32 +418,17 @@ public partial class PlcComponent : ComponentBase, IPlc
             return;
         }
 
-        if (!IsConnected)
+        // 停下来不另报警：下面的掉线报警断着就一直在，人看到了复位就会重新开始连。
+        _reconnector.Check(FullPath, IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
         {
-            Reconnect();
-        }
-        else
+            IsConnected = ConnectDevice();
+        });
+        if (IsConnected)
         {
             RefreshCache();
         }
+
         CheckAlarm(PlcOfflineAlarm, !IsConnected, OfflineDebounceMs);
-    }
-
-    private void Reconnect()
-    {
-        // ScanLoop 固定 50ms 一拍，按间隔倒计时，别每拍都去敲一次连不上的设备。
-        _reconnectCountdownMs -= 50;
-        if (_reconnectCountdownMs > 0)
-        {
-            return;
-        }
-
-        _reconnectCountdownMs = ReconnectIntervalMs;
-        IsConnected = ConnectDevice();
-        if (IsConnected)
-        {
-            LogHelper.Info($"[{FullPath}] PLC 重连上了");
-        }
     }
 
     private void RefreshCache()

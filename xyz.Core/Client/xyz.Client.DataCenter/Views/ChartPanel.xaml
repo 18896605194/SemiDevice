@@ -13,7 +13,8 @@
     mc:Ignorable="d">
 
     <!--  曲线 + 曲线信息（数据曲线、实时曲线两页共用，DataContext 是页面的 ViewModel）。
-          右上角"放大"把整块搬到单独的窗口里全屏显示，页面这儿留一句提示和"收回"；窗口关掉整块搬回来  -->
+          右上角"截图"把折线图那一块存成 PNG（存到 sc.xml 配的文件夹），旁边提示几秒存到哪了；
+          "放大"把整块搬到单独的窗口里全屏显示，页面这儿留一句提示和"收回"；窗口关掉整块搬回来  -->
     <Grid x:Name="Holder">
         <materialDesign:Card
             x:Name="Placeholder"
@@ -38,11 +39,13 @@
             </Grid.RowDefinitions>
 
             <materialDesign:Card
+                x:Name="ChartCard"
                 Grid.Row="0"
                 Padding="4"
                 Style="{DynamicResource DefaultCardStyle}">
                 <Grid>
                     <controls:TrendChart
+                        x:Name="Chart"
                         CursorTime="{Binding CursorTime}"
                         FollowRange="{Binding FollowRange}"
                         RangeEnd="{Binding RangeEnd}"
@@ -50,19 +53,41 @@
                         Series="{Binding Series}"
                         VisibleEnd="{Binding VisibleEnd}"
                         VisibleStart="{Binding VisibleStart}" />
-                    <Button
-                        x:Name="PopOutButton"
+                    <StackPanel
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
-                        Click="OnPopOutClick"
-                        Style="{DynamicResource ChartCornerButtonStyle}"
-                        ToolTip="{DynamicResource chart.popout}">
-                        <materialDesign:PackIcon
-                            x:Name="PopOutIcon"
-                            Width="20"
-                            Height="20"
-                            Kind="Fullscreen" />
-                    </Button>
+                        Orientation="Horizontal">
+                        <Border
+                            x:Name="ScreenshotHint"
+                            MaxWidth="560"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            IsHitTestVisible="False"
+                            Style="{DynamicResource ChartHoverCardBorderStyle}"
+                            Visibility="Collapsed">
+                            <TextBlock x:Name="ScreenshotHintText" TextWrapping="Wrap" />
+                        </Border>
+                        <Button
+                            Click="OnScreenshotClick"
+                            Style="{DynamicResource ChartCornerButtonStyle}"
+                            ToolTip="{DynamicResource chart.screenshot}">
+                            <materialDesign:PackIcon
+                                Width="20"
+                                Height="20"
+                                Kind="CameraOutline" />
+                        </Button>
+                        <Button
+                            x:Name="PopOutButton"
+                            Click="OnPopOutClick"
+                            Style="{DynamicResource ChartCornerButtonStyle}"
+                            ToolTip="{DynamicResource chart.popout}">
+                            <materialDesign:PackIcon
+                                x:Name="PopOutIcon"
+                                Width="20"
+                                Height="20"
+                                Kind="Fullscreen" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </materialDesign:Card>
 

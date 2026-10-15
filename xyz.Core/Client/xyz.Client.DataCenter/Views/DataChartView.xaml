@@ -70,6 +70,7 @@
 
                 <views:ChartPanel
                     Grid.Column="2"
+                    ScreenshotDirectory="{Binding ScreenshotDirectory}"
                     ValueHeader="{DynamicResource chart.cursor_value}"
                     WindowTitle="{DynamicResource menu.DataCenter.DataChart}" />
             </Grid>

@@ -35,12 +35,13 @@ public class BeckhoffPlcComponent : PlcComponent
 
     private bool ConnectAds()
     {
+        AdsClient? client = null;
         try
         {
             // 重连前先把上一条连接清干净，免得句柄和符号表串到新连接上。
             DisconnectDevice();
 
-            var client = new AdsClient();
+            client = new AdsClient();
 
             // Host 写 Local = 连本机的 PLC 运行时或仿真器，不用把本机 AmsNetId 写死进配置（换台机器就不对了）。
             if (string.Equals(Host, LocalHost, StringComparison.OrdinalIgnoreCase))
@@ -61,21 +62,41 @@ public class BeckhoffPlcComponent : PlcComponent
             // 连上不等于能用：PLC 停着的时候读回来的是上一轮的残值。
             if (client.ReadState().AdsState != AdsState.Run)
             {
-                LogHelper.Warn($"[{FullPath}] PLC 不在 Run 状态，暂不算连上");
+                NoteConnectFailed("PLC 不在 Run 状态，暂不算连上");
                 client.Dispose();
                 return false;
             }
 
             client.AdsStateChanged += OnAdsStateChanged;
-            _client = client;
             _symbols = SymbolLoaderFactory.Create(client, SymbolLoaderSettings.Default);
+            _client = client;
+            _lastConnectError = string.Empty;
             return true;
         }
         catch (Exception exception)
         {
-            LogHelper.Warn($"[{FullPath}] 连 PLC 失败: {exception.Message}");
+            // 路由连上了、PLC 却不应答（仿真器没开、PLC 没起来）时 ReadState 会抛异常：这条连接也得关掉，
+            // 不然它的接收线程一直挂着，每重连一次就漏两条线程。
+            client?.Dispose();
+            NoteConnectFailed($"连 PLC 失败: {exception.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// 上一次连不上的原因：一样的原因只记一次（断着的时候隔几秒就重连一次，不然一直刷屏），连上了清掉。
+    /// </summary>
+    private string _lastConnectError = string.Empty;
+
+    private void NoteConnectFailed(string reason)
+    {
+        if (reason == _lastConnectError)
+        {
+            return;
+        }
+
+        _lastConnectError = reason;
+        LogHelper.Warn($"[{FullPath}] {reason}");
     }
 
     protected override void DisconnectDevice()

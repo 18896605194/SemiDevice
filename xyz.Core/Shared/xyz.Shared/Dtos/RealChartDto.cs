@@ -24,6 +24,11 @@ public class RealChartLayoutDto
     /// </summary>
     public int MaxSignals { get; set; }
 
+    /// <summary>
+    /// 截图存到哪个文件夹（跟数据曲线同一个设置）。
+    /// </summary>
+    public string ScreenshotDirectory { get; set; } = string.Empty;
+
     public List<DataChartSignalDto> Signals { get; set; } = [];
 }
 

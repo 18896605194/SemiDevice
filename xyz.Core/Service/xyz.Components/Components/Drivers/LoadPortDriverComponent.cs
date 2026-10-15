@@ -50,6 +50,24 @@ public abstract class LoadPortDriverComponent : ComponentBase
         set { SetEcInt(nameof(ReconnectIntervalMs), value); }
     }
 
+    [VariableMark(VariableType.EC, ValueFormat.Int, min: "0", max: "1000",
+        @default: "10", description: "通讯断开后最多重连几次，还连不上就停下、报警，人工复位后重新开始连；0 = 不自动重连")]
+    public int ReconnectMaxCount
+    {
+        get { return GetEcInt(nameof(ReconnectMaxCount)); }
+        set { SetEcInt(nameof(ReconnectMaxCount), value); }
+    }
+
+    #endregion
+
+    #region Alarm
+
+    [Alarm("LoadPort 通讯断开，已停止重连", AlarmCategory.CommunicationError,
+        AlarmLevel = AlarmLevel.Alarm1,
+        Description = "通讯断开后按 EC ReconnectMaxCount 重连了几次都没连上，已停止重连，这一路指令都发不出去",
+        Solution = "检查线缆、设备电源和通讯配置（sc.xml 的串口 / IP）；好了以后复位，复位会重新开始连")]
+    public string ReconnectFailedAlarm = nameof(ReconnectFailedAlarm);
+
     #endregion
 
     #region 驱动连接
@@ -70,7 +88,7 @@ public abstract class LoadPortDriverComponent : ComponentBase
 
     /// <summary>
     /// 组件初始化（开机）：建驱动（首次）并打开连接。可重复调用：已建好的驱动只重开连接。
-    /// 这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs 在后台重连。
+    /// 这一次连没连上，之后断了都由扫描线程按 EC ReconnectIntervalMs、ReconnectMaxCount 在后台重连。
     /// </summary>
     public override bool InitComponent()
     {
@@ -98,7 +116,8 @@ public abstract class LoadPortDriverComponent : ComponentBase
     }
 
     /// <summary>
-    /// 扫描（父模块的扫描线程带着跑）：断了按间隔在后台重连——先关（作废旧连接上的在途指令、收掉旧的收发任务）再开。
+    /// 扫描（父模块的扫描线程带着跑）：断了按间隔在后台重连——先关（作废旧连接上的在途指令、收掉旧的收发任务）再开；
+    /// 重连满 EC ReconnectMaxCount 次还连不上就停下、报警。
     /// </summary>
     protected override void OnScan()
     {
@@ -109,11 +128,24 @@ public abstract class LoadPortDriverComponent : ComponentBase
             return;
         }
 
-        _reconnector.Check(FullPath, driver.IsConnected, ReconnectIntervalMs, () =>
+        bool gaveUp = _reconnector.Check(FullPath, driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
         {
             driver.Close();
             driver.Open();
         });
+        if (gaveUp)
+        {
+            RaiseAlarm(ReconnectFailedAlarm);
+        }
+    }
+
+    /// <summary>
+    /// 人工复位：重连次数清零、马上重新开始连（停下来的也接着连），再清本组件的报警。
+    /// </summary>
+    public override object? Reset()
+    {
+        _reconnector.Rearm();
+        return base.Reset();
     }
 
     /// <summary>

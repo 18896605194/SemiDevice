@@ -374,6 +374,10 @@
     <sys:String x:Key="chart.popout">放大：在单独的窗口里全屏显示</sys:String>
     <sys:String x:Key="chart.popin">收回到页面</sys:String>
     <sys:String x:Key="chart.popped_out">曲线已在单独的窗口里全屏显示</sys:String>
+    <sys:String x:Key="chart.screenshot">截图：把折线图存成图片</sys:String>
+    <sys:String x:Key="chart.screenshot_saved">截图已保存：{0}</sys:String>
+    <sys:String x:Key="chart.screenshot_failed">截图没保存成：{0}</sys:String>
+    <sys:String x:Key="chart.screenshot_no_directory">截图文件夹还没拿到（信号表加载好以后再截）</sys:String>
     <sys:String x:Key="chart.too_many">最多同时画 {0} 条曲线，先去掉几条再勾</sys:String>
     <sys:String x:Key="chart.load_failed">信号表没拿到：{0}</sys:String>
     <sys:String x:Key="chart.name">名称</sys:String>

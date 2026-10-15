@@ -51,6 +51,11 @@ public class DataChartSignalsDto
     /// 采样周期（毫秒）。
     /// </summary>
     public int SampleIntervalMs { get; set; }
+
+    /// <summary>
+    /// 截图存到哪个文件夹（sc.xml 的 DataChart 节点 ScreenshotDirectory；相对路径算客户端程序目录）。
+    /// </summary>
+    public string ScreenshotDirectory { get; set; } = string.Empty;
 }
 
 /// <summary>

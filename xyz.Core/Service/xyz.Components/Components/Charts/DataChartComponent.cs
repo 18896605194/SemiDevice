@@ -48,6 +48,9 @@ public class DataChartComponent : ComponentBase
     [SCEditor("20", "DataChart", "数据曲线、实时曲线页最多同时画几条曲线")]
     public int QueryMaxSignals { get; set; } = 20;
 
+    [SCEditor("Screenshots", "DataChart", "数据曲线、实时曲线页截图存到哪个文件夹（客户端那台电脑上）；写相对路径就在客户端程序目录下")]
+    public string ScreenshotDirectory { get; set; } = "Screenshots";
+
     #endregion
 
     #region EC

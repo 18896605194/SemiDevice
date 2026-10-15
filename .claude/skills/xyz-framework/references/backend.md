@@ -29,7 +29,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 - 属性：`Name`、`FullPath`（"Chamber.Chamber1.Door"：sc.xml 的分组节点不生成组件，但名字进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
-- 扫描：根组件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
+- 扫描：根组件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、Computer、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
   `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。子组件之间要互不耽误的父组件重写 `OnScan`、逐个调 `ScanChild(子组件)`：
   每个子组件的异常、慢扫描记在它自己名下，一个抛异常不会让这一拍排在后面的漏扫（基类的直接递归会）。现在只有 `DispatchComponent` 这么用。
   **子组件要每拍做事就重写 `OnScan()`，跟着大组件那一条线程走**（LoadPort1 下的驱动、读头、载具，Chamber1 下的气缸、电机、DI 都是这样）：
@@ -370,7 +370,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - **在途指令要能作废**（2026-10-06）：LoadPort 驱动按指令名占在途位、RFID 驱动只有一个在途位，回复丢了就一直占着，同名指令再也发不出去。
   所以：等回复超时的发起方调 `Abandon`（LoadPort）/ `AbandonInflight`（RFID）让出来；`Close` 作废全部在途；LoadPort 模块动作没做成时 `AbandonAll`。
   作废的指令以失败落终态（Error 写 `Timeout` / `PortClosed` / `Abandoned` 这类英文标记，跟 RFID 一样）；迟到的回复没人认，当无主帧丢掉。
-- **断线重连**（2026-10-06）：LoadPort、RFID 驱动组件 `InitComponent` 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
+- **断线重连**（2026-10-06；10-15 加了次数上限，见本条末尾）：LoadPort、RFID 驱动组件 `InitComponent` 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
   （`Components\Drivers\DriverReconnector`，网口 Connect 会卡几秒，不能在扫描线程上做），断开、恢复各记一次日志；Close 以后不再重连。
   机械手驱动 2026-10-13 接上（`RobotDriverComponent`，EC `ReconnectIntervalMs` 同样默认 5000；以前控制器断电重启、比后端晚上电只能重启后端），
   连上以后模块的状态查询从头查、手指在位推送重新订。同时补了 LoadPort 驱动 10-06 修过、机械手驱动没跟上的两处：`Open` 先收掉上一轮的收发任务；
@@ -378,6 +378,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   锐洁按整条指令认在途（Pick 带手指、站点、槽号），以前回复丢了就一直占着，复位、回零后再取同一槽也发不出去。
   `FrameCommunication` 一次打开一轮接收泵（`PumpSession`），旧泵出错只停自己那一轮——以前一个全局"在收"标志，旧泵在重连以后才醒会把新泵也停了。
   `LoadPortDriverBase.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
+  **重连有次数上限**（2026-10-15，用户："不需要一直重连"，所有驱动一起）：PLC、LoadPort、RFID、机械手都走 `DriverReconnector`，
+  按 EC `ReconnectIntervalMs` 隔一次、最多 EC `ReconnectMaxCount` 次（默认 10，0 = 不自动重连），**连着满一个间隔才算恢复**、次数清零
+  （串口打开就算连上：仿真器 / 设备不在时虚拟串口照样打得开，第一条指令写超时 1 s 又关掉，以前每 6 s 恢复、断开来回跳、次数一直清零停不下来）；用完还连不上就停下——
+  三个驱动报"通讯断开，已停止重连"（`ReconnectFailedAlarm`），PLC 不另报（掉线报警 `PlcOfflineAlarm` 一直在）；
+  组件 `Reset()` 里 `Rearm()`，人工复位就马上从头再连。日志只记断开、放弃、恢复各一条；倍福连不上的原因同样的只记一次。
+  PLC 以前在自己扫描线程上同步倒计时重连，现在也是后台重连，扫描不再被 ADS 连接卡住。
+  **连接没成要关掉**：倍福 `ConnectAds` 以前 `ReadState` 抛异常（路由连上、PLC 不应答）时没 Dispose 新建的 `AdsClient`，
+  每重连一次漏 2 条线程（ADS 接收线程 + 它的事件循环），Computer.Program 的线程数曲线一直涨才查出来。新写连接代码，每条失败路径都要释放。
 - HSMS 协议（`xyz.Secs`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync
   （`HsmsComponent` 已经把 Host 的报文挪到自己的派发线程上，处理方不用操心这个）。
 - 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性；报的时候放进 `EapNotifierComponent.Current`，不自己起线程）、反查口（provider，为 null 走本地规则），
@@ -483,7 +491,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
-IO 表 Open + Start（开机 DO）→ Safety Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
+IO 表 Open + Start（开机 DO）→ Safety Start → Computer Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
 **EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 各模块 Start →
 TransferManager Bind → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
 JobManager Bind（模块、搬运管理、配方库都起来之后）→ **Dispatch Start**（Job、搬运管理都绑完表才起这条线程；挂在 Dispatch 下面的这两个不再各自 Start，
@@ -530,7 +538,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   平台不再带 sc.xml；读 sc.xml 节点的冒烟（Job / ProcessRecipe / Sequence / WaferLedger）在 csproj 里把机型那份链接进输出目录的 `Config\`。新机型照这样在自己工程里放一份。
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
-- 节点顺序：System → Rpc → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → DataChart → RealChart →
+- 节点顺序：System → Rpc → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
   LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Eap（Hsms、E30、E39、E87、E90、E40、E94）→ Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`，源码不在本仓库）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；
   机械手站点表、工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）有专门的表格页。改了 ScEdit 要跑它的 build.ps1 发布到 app。

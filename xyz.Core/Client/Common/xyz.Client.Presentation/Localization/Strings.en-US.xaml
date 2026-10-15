@@ -374,6 +374,10 @@
     <sys:String x:Key="chart.popout">Enlarge: show in a separate full-screen window</sys:String>
     <sys:String x:Key="chart.popin">Back to the page</sys:String>
     <sys:String x:Key="chart.popped_out">The chart is shown in a separate full-screen window</sys:String>
+    <sys:String x:Key="chart.screenshot">Screenshot: save the chart as an image</sys:String>
+    <sys:String x:Key="chart.screenshot_saved">Screenshot saved: {0}</sys:String>
+    <sys:String x:Key="chart.screenshot_failed">Screenshot not saved: {0}</sys:String>
+    <sys:String x:Key="chart.screenshot_no_directory">Screenshot folder not loaded yet (take it after the signal list has loaded)</sys:String>
     <sys:String x:Key="chart.too_many">At most {0} curves at a time; uncheck some first</sys:String>
     <sys:String x:Key="chart.load_failed">Could not load the signal list: {0}</sys:String>
     <sys:String x:Key="chart.name">Name</sys:String>

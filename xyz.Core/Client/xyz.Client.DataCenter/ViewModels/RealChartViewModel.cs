@@ -193,6 +193,17 @@ public class RealChartViewModel : BaseViewModel
         private set => SetProperty(ref _maxSignals, value);
     }
 
+    private string _screenshotDirectory = string.Empty;
+
+    /// <summary>
+    /// 截图存到哪个文件夹（跟数据曲线同一个设置）；信号表没拿到之前是空的。
+    /// </summary>
+    public string ScreenshotDirectory
+    {
+        get => _screenshotDirectory;
+        private set => SetProperty(ref _screenshotDirectory, value);
+    }
+
     private string _status = L10n.Get("realchart.waiting");
 
     /// <summary>
@@ -337,6 +348,7 @@ public class RealChartViewModel : BaseViewModel
             _session = layout.Session;
             _keepSeconds = Math.Max(60, layout.WindowSeconds);
             MaxSignals = Math.Max(1, layout.MaxSignals);
+            ScreenshotDirectory = layout.ScreenshotDirectory;
             _indexByName = layout.Signals
                 .Select((signal, index) => (signal.Name, Index: index))
                 .ToDictionary(item => item.Name, item => item.Index, StringComparer.OrdinalIgnoreCase);

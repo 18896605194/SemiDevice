@@ -131,6 +131,12 @@ public static class ServiceExtensions
             safety.Start();
         }
 
+        //电脑的 CPU、内存占用率：扫描线程隔 EC 周期取一次
+        foreach (var computer in roots.OfType<ComputerComponent>())
+        {
+            computer.Start();
+        }
+
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
 
         // 各个轴手法登记进入 SendPlcDataPath、SendPlcDataPath

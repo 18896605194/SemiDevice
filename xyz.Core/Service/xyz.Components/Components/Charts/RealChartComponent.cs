@@ -23,8 +23,8 @@ public class RealChartComponent : ComponentBase
 
     #region SC
 
-    [SCEditor("600", "RealChart", "内存里留最近多少秒：实时曲线页打开、新勾曲线时先补这一段，也是页面上能选的最长显示范围")]
-    public int WindowSeconds { get; set; } = 600;
+    [SCEditor("3600", "RealChart", "内存里留最近多少秒：实时曲线页打开、新勾曲线时先补这一段，也是页面上能选的最长显示范围（页面有 1、2、5、10、30、60 分钟几档，超过这个的不给选）")]
+    public int WindowSeconds { get; set; } = 3600;
 
     #endregion
 

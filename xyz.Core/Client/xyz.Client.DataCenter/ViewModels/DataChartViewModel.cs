@@ -184,6 +184,17 @@ public class DataChartViewModel : BaseViewModel
         private set => SetProperty(ref _maxSignals, value);
     }
 
+    private string _screenshotDirectory = string.Empty;
+
+    /// <summary>
+    /// 截图存到哪个文件夹（后端 sc.xml 的 DataChart 节点 ScreenshotDirectory）；信号表没拿到之前是空的。
+    /// </summary>
+    public string ScreenshotDirectory
+    {
+        get => _screenshotDirectory;
+        private set => SetProperty(ref _screenshotDirectory, value);
+    }
+
     private string _summary = L10n.Get("common.query_hint");
 
     /// <summary>
@@ -344,6 +355,7 @@ public class DataChartViewModel : BaseViewModel
 
             var result = response.DeserializeData<DataChartSignalsDto>();
             MaxSignals = Math.Max(1, result.MaxSignals);
+            ScreenshotDirectory = result.ScreenshotDirectory;
             Signals.Clear();
             foreach (var root in SignalTree.Build(result.Signals, OnToggle))
             {

@@ -26,6 +26,7 @@ public class RealChartService : IRealChartService
             SampleIntervalMs = chart.SampleIntervalMs,
             WindowSeconds = chart.WindowSeconds,
             MaxSignals = Math.Max(1, DataChartComponent.Current?.QueryMaxSignals ?? 20),
+            ScreenshotDirectory = DataChartComponent.Current?.ScreenshotDirectory ?? string.Empty,
             Signals = chart.Signals.Select(signal => signal.ToDto()).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(layout)));

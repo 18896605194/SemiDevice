@@ -59,6 +59,14 @@
 - 图只有左边一根纵轴，所有曲线（模拟量、开关量）按真实数值画在这一根轴上，不分轴、不分道、不偏移；悬停弹数值框；中键框选放大；图上不放操作提示文字。
 - 最多同时画几条 = sc.xml DataChart 节点 `QueryMaxSignals`（20）。
 - Safety 组件（用户起的名）：整机安全信号（急停、门、漏液、烟感、气源/排风），一个信号一个 DiSensor/AiSensor 子节点；报警先都关着。
+- **没绑组件的点要看**（2026-10-15）：sc.xml 的 `Monitor` 分组节点（不写 Type）下挂 DiSensor / AiSensor，一个点一个节点、`AlarmEnabled=False`，
+  列名 `Monitor.节点名.Di/Ai`。只是分组、不扫描、不报警，只记值。**不加 `IncludeIo` 这类按点号记的配置**（列名就不是 sc 结构了）。
+  DO / AO 没有单点组件，真要看没绑的 DO / AO 时再照 DiSensor 加。
+- **Computer 组件**（2026-10-15，用户起的名）：本程序和整台电脑**两边都要**，分两个子节点（用户："自己程序节点下面三个，电脑节点下面三个"）：
+  `Computer.Program`（`ProgramUsageComponent`：后端进程的 CPU %（占整台电脑的）、内存 MB（工作集）、线程数，`Process.GetCurrentProcess()` 取）、
+  `Computer.Total`（`ComputerUsageComponent`：整台电脑的 CPU %、内存 %、线程数，kernel32 `GetSystemTimes` / `K32GetPerformanceInfo`）。
+  数据曲线照 SV 自动记。`Computer` 是根组件，开机在 Safety 之后 Start，带 EC `SampleIntervalMs`（默认 1000），到点才扫子节点、子节点扫一次取一次；CPU 是这段时间的平均、头一次是 null。
+  线程数曲线一直涨就是真漏线程（2026-10-15 就这么查出倍福 ADS 重连失败不关连接、每次漏 2 条线程）。
 
 ## 晶圆账 / 账单调整页（2026-10-02 ~ 10-03）
 - **所有画片的地方都以晶圆账为准**（2026-10-03，用户："这个是不是都得通知一下"）：腔体页、LoadPort 页、机械手页（手指和调度图卡片）、

@@ -30,6 +30,7 @@ public class DataChartService : IDataChartService
             Signals = chart.Signals.Select(signal => signal.ToDto()).ToList(),
             MaxSignals = Math.Max(1, chart.QueryMaxSignals),
             SampleIntervalMs = chart.SampleIntervalMs,
+            ScreenshotDirectory = chart.ScreenshotDirectory,
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result)));
     }
