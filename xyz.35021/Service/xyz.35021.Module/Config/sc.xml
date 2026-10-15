@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
 	<Setting Name="System" Type="xyz.Modules.SystemModule">
+		<Value Name="IsRun" Value="true" />
 		<Value Name="Language" Value="zh-CN" />
 		<Setting Name="WaferSize" Type="xyz.Components.Components.WaferSizeComponent">
 			<Value Name="Size" Value="12" />
@@ -42,6 +43,7 @@
 		<Value Name="HistoryKeepDays" Value="90" />
 	</Setting>
 	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
+		<Value Name="IsRun" Value="true" />
 		<Value Name="Brand" Value="Beckhoff" />
 		<Value Name="Host" Value="Local" />
 		<Value Name="Port" Value="851" />
@@ -52,11 +54,14 @@
 		<Value Name="IoPointCount" Value="1000" />
 	</Setting>
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
+		<Value Name="IsRun" Value="true" />
 		<Value Name="PointTableDirectory" Value="IO" />
 		<Value Name="StartupDo" Value="" />
-          <Value Name="SafetyInterlock" Value="" />
+		<!-- DI 触发时强制并锁定 DO；例：DI25=false:DO12=true,DO13=true;DI26=true:DO14=false -->
+		<Value Name="SaftyIoInterlock" Value="" />
 	</Setting>
 	<Setting Name="Safety" Type="xyz.Components.Components.SafetyComponent">
+		<Value Name="IsRun" Value="true" />
 		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="0" />
 			<Value Name="TriggerLevel" Value="false" />
@@ -135,6 +140,7 @@
 		</Setting>
 	</Setting>
 	<Setting Name="Computer" Type="xyz.Components.Components.ComputerComponent">
+		<Value Name="IsRun" Value="true" />
 		<Setting Name="Program" Type="xyz.Components.Components.ProgramUsageComponent" />
 		<Setting Name="Total" Type="xyz.Components.Components.ComputerUsageComponent" />
 	</Setting>
@@ -153,6 +159,7 @@
 	</Setting>
 	<Setting Name="LoadPort">
 		<Setting Name="LoadPort1" Type="xyz._35021.Module.Loadport.LoadPortModule">
+			<Value Name="IsRun" Value="true" />
 			<Value Name="SlotCount" Value="25" />
 			<Value Name="AutoRunMapOnUnload" Value="False" />
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
@@ -199,6 +206,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="LoadPort2" Type="xyz._35021.Module.Loadport.LoadPortModule">
+			<Value Name="IsRun" Value="true" />
 			<Value Name="SlotCount" Value="25" />		
 			<Value Name="AutoRunMapOnUnload" Value="False" />
 			<Setting Name="Driver" Type="xyz.Components.Components.FcdLoadPortComponent">
@@ -246,6 +254,7 @@
 	</Setting>
 	<Setting Name="Robot">
 		<Setting Type="xyz._35021.Module.Robot.RobotModule" Name="Robot1">
+			<Value Name="IsRun" Value="true" />
 			<Setting Name="Driver" Type="xyz.Components.Components.RejeRobotComponent">
 				<Value Name="Host" Value="127.0.0.1" />
 				<Value Name="NetPort" Value="9000" />
@@ -454,6 +463,7 @@
 	</Setting>
 	
 	<Setting Name="Dispatch" Type="xyz.Modules.DispatchComponent">
+		<Value Name="IsRun" Value="true" />
 		
 		<Setting Name="Job" Type="xyz.Modules.JobManager">
 			<Value Name="IsEnable" Value="True" />
@@ -514,6 +524,7 @@
 	
 	<Setting Name="Chamber">
 		<Setting Name="Chamber1" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsRun" Value="true" />
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
@@ -577,6 +588,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber2" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsRun" Value="true" />
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
@@ -636,6 +648,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber3" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsRun" Value="true" />
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />
@@ -695,6 +708,7 @@
 			</Setting>
 		</Setting>
 		<Setting Name="Chamber4" Type="xyz._35021.Module.Clean.ChamberModule">
+			<Value Name="IsRun" Value="true" />
 			<Value Name="Type" Value="A" />
 			<Value Name="IsEnable" Value="True" />
 			<Value Name="SlotCount" Value="1" />

@@ -114,27 +114,12 @@ public static class ServiceExtensions
             {
                 LogHelper.Error(plc.Name, "PLC 连接失败");
             }
-
-            plc.Start();
         }
 
-        //IO 表 初始化；扫描线程等 PLC 连上后下发开机 DO
+        // IO 点表先装载，扫描在全部初始化和依赖绑定完成后统一启动。
         foreach (var io in roots.OfType<IoComponent>())
         {
             io.Open();
-            io.Start();
-        }
-
-        //ComponentBase 里面就是安全的开启线程扫描
-        foreach (var safety in roots.OfType<SafetyComponent>())
-        {
-            safety.Start();
-        }
-
-        //电脑的 CPU、内存占用率：扫描线程隔 EC 周期取一次
-        foreach (var computer in roots.OfType<ComputerComponent>())
-        {
-            computer.Start();
         }
 
         var modules = roots.OfType<BaseModule>().Where(m => m.IsEnabled).ToList();
@@ -198,24 +183,13 @@ public static class ServiceExtensions
             LogHelper.Warn("System", "sc.xml 没配 System 节点：没有系统状态，全部初始化、Auto / Manual、整机停止、全部回片都用不了");
         }
 
-        foreach (var module in modules)
-        {
-            module.Start();
-        }
-
         #region 搬运管理
 
-        // 搬运管理：模块全起来之后再绑表启动——它负责推进搬运操作，
-        // 不能在模块还没连上驱动、还没 Home 的时候就开始派机械手。
-        // 挂在 Dispatch 下面的（sc.xml 的常规配法）这里只绑表，扫描由 Dispatch 带着，见下面"指挥层"；单独起会被扫两遍。
+        // 先绑定模块表，扫描由后面的统一入口启动；挂在 Dispatch 下时跟随父组件扫描。
         var transfers = TransferManager.Current;
         if (transfers is not null)
         {
             transfers.Bind(modules);
-            if (roots.Contains(transfers))
-            {
-                transfers.Start();
-            }
         }
         else
         {
@@ -270,10 +244,6 @@ public static class ServiceExtensions
         if (jobs is not null)
         {
             jobs.Bind(modules);
-            if (roots.Contains(jobs))
-            {
-                jobs.Start();
-            }
         }
         else
         {
@@ -282,13 +252,11 @@ public static class ServiceExtensions
 
         #endregion
 
-        #region 指挥层（sc.xml 的 Dispatch 节点）
+        #region 统一启动扫描
 
-        // Job、搬运管理挂在 Dispatch 下面，共用它的一条扫描线程：两边都绑完表才起，一拍里按 sc.xml 先后扫（先 Job 后 Transfer）。
-        foreach (var dispatch in roots.OfType<DispatchComponent>())
-        {
-            dispatch.Start();
-        }
+        // 根节点通过 SC Value 的 IsRun 开启独立扫描；新增根组件无需在这里按类型补 Start。
+        // 所有模块初始化、账本恢复和依赖绑定已完成；子组件由父组件递归扫描。
+        ComponentLoader.StartScanning(roots);
 
         #endregion
 
@@ -319,7 +287,9 @@ public static class ServiceExtensions
             LogHelper.Warn("DataChart", "sc.xml 没配 DataChart 节点：数据曲线、实时曲线都没有数据");
         }
 
-        LogHelper.Info($"组件装配 {roots.Count} 个，启动模块 {modules.Count} 个：{string.Join(", ", modules.Select(m => m.Name))}");
+        var scanningRoots = roots.Where(root => root.IsEnabled && root.IsRun).ToList();
+        LogHelper.Info($"根组件装配 {roots.Count} 个，模块 {modules.Count} 个，启动独立扫描 {scanningRoots.Count} 个："
+            + string.Join(", ", scanningRoots.Select(root => root.FullPath)));
 
         #endregion
 

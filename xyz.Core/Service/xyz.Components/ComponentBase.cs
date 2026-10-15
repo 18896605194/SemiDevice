@@ -48,6 +48,12 @@ public abstract class ComponentBase
     public bool IsEnabled { get; internal set; } = true;
 
     /// <summary>
+    /// 根组件是否由装配入口启动独立扫描线程；子组件随父组件扫描，不单独启动。
+    /// </summary>
+    [SCEditor("false", "Component", "根组件是否启动独立扫描线程；子组件跟随父组件扫描，无需开启")]
+    public bool IsRun { get; set; }
+
+    /// <summary>
     /// 子组件的集合
     /// </summary>
     private readonly List<ComponentBase> _children = new();
@@ -152,8 +158,15 @@ public abstract class ComponentBase
     /// </summary>
     public void Start()
     {
-        Task.Factory.StartNew(ScanLoop, TaskCreationOptions.LongRunning);
+        if (Interlocked.CompareExchange(ref _scanStarted, 1, 0) != 0)
+        {
+            return;
+        }
+
+        Task.Factory.StartNew(ScanLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
+
+    private int _scanStarted;
 
     /// <summary>
     /// 单周期慢扫描警告阈值（毫秒），默认 200；超过记警告日志。

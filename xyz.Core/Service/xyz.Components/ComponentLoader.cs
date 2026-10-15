@@ -11,6 +11,20 @@ namespace xyz.Components;
 public static class ComponentLoader
 {
     /// <summary>
+    /// 初始化和依赖绑定完成后统一启动根组件。子组件已在父组件的扫描树中，不能重复起线程。
+    /// </summary>
+    public static void StartScanning(IEnumerable<ComponentBase> roots)
+    {
+        foreach (var root in roots)
+        {
+            if (root.IsEnabled && root.IsRun)
+            {
+                root.Start();
+            }
+        }
+    }
+
+    /// <summary>
     /// 把 SC.Load() 的配置树装载为组件实例树，返回根组件列表（含模块）。
     /// </summary>
     public static List<ComponentBase> Load(IEnumerable<ModuleConfig> settings)
