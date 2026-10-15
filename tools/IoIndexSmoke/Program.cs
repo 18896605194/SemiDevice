@@ -11,7 +11,7 @@ try
     SinglePointWrites.Run();
     AxisCommands.Run();
     ActuatorCommands.Run();
-    VirtualIoWrites.Run(directory);
+    VirtualInputReads.Run(directory);
     IoInterlocks.Run(directory);
     StartupDoWrites.Run(directory);
     var csv = Path.Combine(directory, "points.csv");

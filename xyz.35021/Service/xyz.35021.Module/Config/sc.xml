@@ -60,15 +60,7 @@
 		<!-- DI 触发时强制并锁定 DO；例：DI25=false:DO12=true,DO13=true;DI26=true:DO14=false -->
 		<Value Name="SaftyIoInterlock" Value="" />
 	</Setting>
-	<Setting Name="VirtualIo" Type="xyz.Components.Components.VirtualIoComponent">
-		<Value Name="IsRun" Value="true" />
-		<!-- DO 3000~3999，DI 4000~4999，AO 5000~5999，AI 6000~6999。 -->
-		<!-- 示例：DO3000=false；DI4000=AI3&gt;50；AO5000=12.5；AI6000=AI3。按实际点位填写。 -->
-		<Value Name="DigitalOutputs" Value="" />
-		<Value Name="DigitalInputs" Value="" />
-		<Value Name="AnalogOutputs" Value="" />
-		<Value Name="AnalogInputs" Value="" />
-	</Setting>
+
 	<Setting Name="Safety" Type="xyz.Components.Components.SafetyComponent">
 		<Value Name="IsRun" Value="true" />
 		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">

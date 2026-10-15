@@ -32,39 +32,9 @@ public partial class IoComponent : ComponentBase
 
     private IPlc? Plc => _plc ??= PlcComponent.Current;
 
-    private VirtualIoComponent? _virtualIo;
+    private VirtualInputRegistry? _virtualInputs;
 
-    /// <summary>虚拟 IO 可独立装配，也可作为子组件；一个 IO 入口只绑定一个虚拟点空间。</summary>
-    public VirtualIoComponent? VirtualIo
-    {
-        get
-        {
-            var component = _virtualIo;
-            foreach (var child in Children.OfType<VirtualIoComponent>())
-            {
-                if (component is not null && !ReferenceEquals(component, child))
-                {
-                    throw new InvalidOperationException($"{Name}：只能绑定一个虚拟 IO 组件");
-                }
-
-                component = child;
-            }
-
-            component?.Bind(this);
-            return component;
-        }
-    }
-
-    internal void AttachVirtualIo(VirtualIoComponent component)
-    {
-        if (VirtualIo is { } existing && !ReferenceEquals(existing, component))
-        {
-            throw new InvalidOperationException($"{Name}：只能绑定一个虚拟 IO 组件");
-        }
-
-        component.Bind(this);
-        _virtualIo = component;
-    }
+    internal void AttachVirtualInputs(VirtualInputRegistry registry) => _virtualInputs = registry;
 
     #region SC
 
@@ -127,7 +97,7 @@ public partial class IoComponent : ComponentBase
     #region SV
 
     /// <summary>
-    /// 采集是否在工作（SV）：PLC 连着才算。断了以后所有点都读不到（TryRead 一律 false），不会拿陈旧值当真。
+    /// 物理采集是否在工作（SV）：PLC 连着才算。虚拟输入按其来源单独判断有效性，纯常量不依赖 PLC。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "IO 采集是否在工作")]
     public bool IsCollecting => Plc?.IsConnected ?? false;
@@ -151,13 +121,15 @@ public partial class IoComponent : ComponentBase
     public bool Open()
     {
         // 全限定：组件基类自己有个 Path 属性（组件路径），这儿的 Path 不是它。
-        string directory = System.IO.Path.Combine(SC.ConfigDirectory, PointTableDirectory);
+        string directory = System.IO.Path.IsPathRooted(PointTableDirectory)
+            ? PointTableDirectory
+            : System.IO.Path.Combine(SC.ConfigDirectory, PointTableDirectory);
 
         Di.Load(System.IO.Path.Combine(directory, "DI.csv"));
         Do.Load(System.IO.Path.Combine(directory, "DO.csv"));
         Ai.Load(System.IO.Path.Combine(directory, "AI.csv"));
         Ao.Load(System.IO.Path.Combine(directory, "AO.csv"));
-        VirtualIo?.ValidateSources();
+        _virtualInputs?.ValidateSources();
         ValidateInterlockPoints();
 
         LogHelper.Info($"[{FullPath}] 点表装载：DI {Di.Points.Count}、DO {Do.Points.Count}、"
@@ -167,7 +139,7 @@ public partial class IoComponent : ComponentBase
 
     #endregion
 
-    #region 按索引读写（点表里没有该索引、PLC 没连或读不到时一律 false）
+    #region 按索引读写（物理点与虚拟输入；未配置或数据无效时返回 false）
 
     /// <summary>
     /// 读一个 DI 点。
@@ -177,7 +149,11 @@ public partial class IoComponent : ComponentBase
         on = false;
         if (index >= 3000)
         {
-            return VirtualIo?.TryReadDi(index, out on) ?? false;
+            double value = 0;
+            bool valid = index is >= 4000 and < 5000
+                && (_virtualInputs?.TryRead(new IoReference("DI", index), out value) ?? false);
+            on = valid && value != 0;
+            return valid;
         }
 
         var point = Di.Find(index);
@@ -198,7 +174,7 @@ public partial class IoComponent : ComponentBase
         on = false;
         if (index >= 3000)
         {
-            return VirtualIo?.TryReadDo(index, out on) ?? false;
+            return false;
         }
 
         var point = Do.Find(index);
@@ -216,10 +192,10 @@ public partial class IoComponent : ComponentBase
     /// </summary>
     public bool WriteDo(int index, bool on)
     {
-        // 本次只提供虚拟输出内存读写；虚拟点暂不接入联锁。
+        // 虚拟点只保留计算型 DI/AI；预留的输出区间不能下发到 PLC。
         if (index >= 3000)
         {
-            return VirtualIo?.WriteDo(index, on) ?? false;
+            return false;
         }
 
         lock (_doGate)
@@ -257,7 +233,8 @@ public partial class IoComponent : ComponentBase
         value = 0;
         if (index >= 3000)
         {
-            return VirtualIo?.TryReadAi(index, out value) ?? false;
+            return index is >= 6000 and < 7000
+                && (_virtualInputs?.TryRead(new IoReference("AI", index), out value) ?? false);
         }
 
         var point = Ai.Find(index);
@@ -279,7 +256,7 @@ public partial class IoComponent : ComponentBase
         value = 0;
         if (index >= 3000)
         {
-            return VirtualIo?.TryReadAo(index, out value) ?? false;
+            return false;
         }
 
         var point = Ao.Find(index);
@@ -300,7 +277,7 @@ public partial class IoComponent : ComponentBase
     {
         if (index >= 3000)
         {
-            return VirtualIo?.WriteAo(index, engineering) ?? false;
+            return false;
         }
 
         var point = Ao.Find(index);
@@ -328,8 +305,6 @@ public partial class IoComponent : ComponentBase
     /// </summary>
     protected override void OnScan()
     {
-        // 先绑定拥有者，再由基类扫描虚拟 IO 子组件。
-        _ = VirtualIo;
         base.OnScan();
         lock (_doGate)
         {
