@@ -32,6 +32,40 @@ public partial class IoComponent : ComponentBase
 
     private IPlc? Plc => _plc ??= PlcComponent.Current;
 
+    private VirtualIoComponent? _virtualIo;
+
+    /// <summary>虚拟 IO 可独立装配，也可作为子组件；一个 IO 入口只绑定一个虚拟点空间。</summary>
+    public VirtualIoComponent? VirtualIo
+    {
+        get
+        {
+            var component = _virtualIo;
+            foreach (var child in Children.OfType<VirtualIoComponent>())
+            {
+                if (component is not null && !ReferenceEquals(component, child))
+                {
+                    throw new InvalidOperationException($"{Name}：只能绑定一个虚拟 IO 组件");
+                }
+
+                component = child;
+            }
+
+            component?.Bind(this);
+            return component;
+        }
+    }
+
+    internal void AttachVirtualIo(VirtualIoComponent component)
+    {
+        if (VirtualIo is { } existing && !ReferenceEquals(existing, component))
+        {
+            throw new InvalidOperationException($"{Name}：只能绑定一个虚拟 IO 组件");
+        }
+
+        component.Bind(this);
+        _virtualIo = component;
+    }
+
     #region SC
 
     [SCEditor("IO", "Io", "点表目录（相对 sc.xml 所在目录），里面放 DI.csv / DO.csv / AI.csv / AO.csv")]
@@ -123,6 +157,7 @@ public partial class IoComponent : ComponentBase
         Do.Load(System.IO.Path.Combine(directory, "DO.csv"));
         Ai.Load(System.IO.Path.Combine(directory, "AI.csv"));
         Ao.Load(System.IO.Path.Combine(directory, "AO.csv"));
+        VirtualIo?.ValidateSources();
         ValidateInterlockPoints();
 
         LogHelper.Info($"[{FullPath}] 点表装载：DI {Di.Points.Count}、DO {Do.Points.Count}、"
@@ -140,6 +175,11 @@ public partial class IoComponent : ComponentBase
     public bool TryReadDi(int index, out bool on)
     {
         on = false;
+        if (index >= 3000)
+        {
+            return VirtualIo?.TryReadDi(index, out on) ?? false;
+        }
+
         var point = Di.Find(index);
         var plc = Plc;
         if (point is null || plc is null)
@@ -156,6 +196,11 @@ public partial class IoComponent : ComponentBase
     public bool TryReadDo(int index, out bool on)
     {
         on = false;
+        if (index >= 3000)
+        {
+            return VirtualIo?.TryReadDo(index, out on) ?? false;
+        }
+
         var point = Do.Find(index);
         var plc = Plc;
         if (point is null || plc is null)
@@ -171,6 +216,12 @@ public partial class IoComponent : ComponentBase
     /// </summary>
     public bool WriteDo(int index, bool on)
     {
+        // 本次只提供虚拟输出内存读写；虚拟点暂不接入联锁。
+        if (index >= 3000)
+        {
+            return VirtualIo?.WriteDo(index, on) ?? false;
+        }
+
         lock (_doGate)
         {
             var point = Do.Find(index);
@@ -204,6 +255,11 @@ public partial class IoComponent : ComponentBase
     public bool TryReadAi(int index, out double value)
     {
         value = 0;
+        if (index >= 3000)
+        {
+            return VirtualIo?.TryReadAi(index, out value) ?? false;
+        }
+
         var point = Ai.Find(index);
         var plc = Plc;
         if (point is null || plc is null || !plc.TryReadAi(point.Index, out double raw))
@@ -221,6 +277,11 @@ public partial class IoComponent : ComponentBase
     public bool TryReadAo(int index, out double value)
     {
         value = 0;
+        if (index >= 3000)
+        {
+            return VirtualIo?.TryReadAo(index, out value) ?? false;
+        }
+
         var point = Ao.Find(index);
         var plc = Plc;
         if (point is null || plc is null || !plc.TryReadAo(point.Index, out double raw))
@@ -237,6 +298,11 @@ public partial class IoComponent : ComponentBase
     /// </summary>
     public bool WriteAo(int index, double engineering)
     {
+        if (index >= 3000)
+        {
+            return VirtualIo?.WriteAo(index, engineering) ?? false;
+        }
+
         var point = Ao.Find(index);
         var plc = Plc;
         if (point is null || plc is null)
@@ -262,6 +328,8 @@ public partial class IoComponent : ComponentBase
     /// </summary>
     protected override void OnScan()
     {
+        // 先绑定拥有者，再由基类扫描虚拟 IO 子组件。
+        _ = VirtualIo;
         base.OnScan();
         lock (_doGate)
         {

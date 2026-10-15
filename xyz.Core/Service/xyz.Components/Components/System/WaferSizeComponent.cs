@@ -9,9 +9,7 @@ using xyz.Shared.Errors;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 晶圆尺寸（sc.xml System 节点下的 WaferSize 节点）：整机做 8 寸还是 12 寸。摆臂按它取配方坐标的半径和边缘示教位，
-/// 工艺配方字段可以按它分开写上限（Max.8、Max.12）。主界面系统操作里切（<see cref="SetSize"/>），切了马上生效并写回 sc.xml。
-/// 单独一个组件、放在组件层：摆臂在组件层，要能直接取到。
+/// 晶圆尺寸组件
 /// </summary>
 [Component(description: "晶圆尺寸：8 寸 / 12 寸（主界面切换，写回 sc.xml）")]
 public class WaferSizeComponent : ComponentBase

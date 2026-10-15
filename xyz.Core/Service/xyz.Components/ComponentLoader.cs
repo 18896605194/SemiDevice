@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Reflection;
 using xyz.Components.Attributes;
+using xyz.Components.Components;
 using xyz.Configs.Models;
 
 namespace xyz.Components;
@@ -41,6 +42,26 @@ public static class ComponentLoader
         foreach (var root in roots)
         {
             AssignFullPath(root, parentPath: string.Empty);
+        }
+
+        // 独立 VirtualIo 根节点通过 IO 入口路由；子节点由所属 Io 自己绑定。
+        var ioRoots = roots.OfType<IoComponent>().ToList();
+        foreach (var virtualIo in roots.OfType<VirtualIoComponent>())
+        {
+            if (ioRoots.Count > 1)
+            {
+                throw new InvalidOperationException("多个 IO 根节点时，请把 VirtualIo 放在所属 IO 下面，避免绑定歧义");
+            }
+
+            if (ioRoots.Count == 1)
+            {
+                ioRoots[0].AttachVirtualIo(virtualIo);
+            }
+            else
+            {
+                // 没有物理 IO 入口也能使用纯软件点；物理来源则必须报配置错误。
+                virtualIo.ValidateSources();
+            }
         }
 
         return roots;
