@@ -13,17 +13,7 @@ using xyz.Database.DbProvider;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 数据曲线：每个采样周期（默认 1 秒）采一整行、值没变也记，入库，供数据曲线页按名字、按时间查。
-/// 只记 sc.xml 里配置了的——组件上能画成曲线的 SV，加上组件绑定的 IO（DiXxxIndex / DoXxxIndex / AiXxxIndex / AoXxxIndex 这类配置项）；
-/// 点表里有、sc.xml 里没绑到组件上的点不记。所以库里的结构跟 sc.xml 一一对应，勾选树里看得到的一定查得到；
-/// 哪个点想看，就在 sc.xml 里把它绑到组件上（整机安全信号绑在 Safety 节点下），重启后开始记。
-/// 同一份采样经 <see cref="Records"/> 流交给实时曲线（RealChartComponent）推给界面：
-/// 采样只有这一处，历史和实时看到的是同一份数据，PLC 也不用多读一遍。
-///
-/// 库表见 <see cref="DataRecordTable"/>：按天一张宽表，一行 = 时间 + 全部信号值，列名就是信号名（见 <see cref="DataSignal"/>）；读不到的值存空，不存 0。
-/// 管道（Rx）：采样线程每周期 OnNext 一行 →
-///   ① 本组件：按 RecordBatchSeconds 攒一批 → 写库线程逐批写（写库慢了只积压，不拖采样）；
-///   ② 实时曲线：留最近一段 + 推给界面。
+/// 数据曲线：每个采样周期（默认 1 秒）
 /// </summary>
 [Component(description: "数据曲线（每秒采样入库，按名字、按时间查询）")]
 public class DataChartComponent : ComponentBase
@@ -80,23 +70,27 @@ public class DataChartComponent : ComponentBase
 
     #region 采样
 
-    private readonly Subject<DataRecord> _records = new();
 
-    private IReadOnlyList<DataSignal> _signals = [];
-
-    private CancellationTokenSource? _sampling;
-
-    private Task? _samplingTask;
 
     /// <summary>
-    /// 在采的信号，顺序即每行值的顺序；StartSampling 之前为空，运行期不变。
+    /// 在采的信号
     /// </summary>
+    private IReadOnlyList<DataSignal> _signals = [];
     public IReadOnlyList<DataSignal> Signals => _signals;
 
+    /// <summary>
+    /// rx技术写法
+    /// </summary>
+    private readonly Subject<DataRecord> _records = new();
     /// <summary>
     /// 每个采样周期一行，在采样线程上发出；订阅方别在回调里干慢活，要干就 ObserveOn 到自己的线程。
     /// </summary>
     public IObservable<DataRecord> Records => _records.AsObservable();
+
+
+    private CancellationTokenSource? _sampling;
+
+    private Task? _samplingTask;
 
     /// <summary>
     /// 装配全部完成后（SV 编号表合并完、IO 点表读好）调一次：照 sc.xml 装出来的组件树定信号表、开写库管道、起采样线程。
@@ -116,7 +110,7 @@ public class DataChartComponent : ComponentBase
 
         if (EnableRecord)
         {
-            StartWriter();
+            StartWriter(); //开始写数据库
         }
 
         _sampling = new CancellationTokenSource();
@@ -265,8 +259,8 @@ public class DataChartComponent : ComponentBase
 
     /// <summary>
     /// 采样线程：按整周期对齐（1 秒周期就是整秒），一个周期采一整行。
-    /// 落后超过一个周期（机器卡住、系统时间往前调）就跳到下一个整周期，不补；系统时间往回调了也重新对齐。
     /// </summary>
+    /// <param name="token"></param>
     private void SampleLoop(CancellationToken token)
     {
         long interval = Math.Max(100, SampleIntervalMs);
@@ -347,8 +341,7 @@ public class DataChartComponent : ComponentBase
     private bool _databasePrepared;
 
     /// <summary>
-    /// 写库管道：攒 RecordBatchSeconds 秒（EC，改了下一批生效）→ 写库线程逐批写。
-    /// 写库线程只有一条，批与批之间不并发；库挂了只丢这一批、记日志，采样照采、实时曲线照推。
+    /// 写库管道
     /// </summary>
     private void StartWriter()
     {
@@ -359,10 +352,9 @@ public class DataChartComponent : ComponentBase
         _records
             .Buffer(() => Observable.Timer(TimeSpan.FromSeconds(Math.Clamp(RecordBatchSeconds, 1, 60))))
             .Where(batch => batch.Count > 0)
-            .Do(CountPending)
+            .Do(CountPending) //等待推送
             .ObserveOn(writerThread)
-            .Subscribe(
-                WriteBatch,
+            .Subscribe(WriteBatch,
                 exception =>
                 {
                     LogHelper.Error(Name, $"数据曲线写库管道异常结束: {exception.Message}");
@@ -469,12 +461,12 @@ public class DataChartComponent : ComponentBase
 
     #endregion
 
-    #region 过期清理（一天一次：跨天后写第一批之前顺手清）
+    #region 过期清理
 
     private DateTime _cleanedDay = DateTime.MinValue;
 
     /// <summary>
-    /// 按天分表，过期的整张删，不用逐行删；删掉的空间 SQLite 留着给新表用，库文件不会一直涨。失败只记日志，下次跨天再试。
+    /// 按天分表 过期删除
     /// </summary>
     private void CleanupIfDayChanged()
     {
@@ -491,7 +483,7 @@ public class DataChartComponent : ComponentBase
             var expired = DataRecordTable.ListTables(db).Where(table => table.Key < deadline).ToList();
             foreach (var table in expired)
             {
-                DataRecordTable.Drop(db, table.Value);
+                db.DbMaintenance.DropTable(table.Value);
             }
 
             if (expired.Count > 0)
@@ -510,9 +502,13 @@ public class DataChartComponent : ComponentBase
     #region 查询（数据曲线页）
 
     /// <summary>
-    /// 按名字查 [start, end)（本机时间）的曲线；点数超过 QueryMaxPoints 就抽稀。能查的就是 <see cref="Signals"/>（sc.xml 里配置了的）；
-    /// 某个信号是后来才在 sc.xml 里配上的，配上之前那些天的表里没有这一列，那段就是空的。
+    /// 按名字查 [start, end)（本机时间）的曲线
     /// </summary>
+    /// <param name="names"></param>
+    /// <param name="start"></param>
+    /// <param name="end"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
     public DataQueryResult Query(IReadOnlyList<string> names, DateTime start, DateTime end, CancellationToken token)
     {
         if (names.Count == 0 || end <= start)

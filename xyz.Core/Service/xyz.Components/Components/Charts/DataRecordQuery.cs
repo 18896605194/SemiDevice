@@ -4,7 +4,7 @@ using xyz.Components.Models;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 查询：逐张日表按行读（只读要的列），边读边统计；点数没超上限原样给，超了按时段取最小、最大值。
+/// 查询
 /// </summary>
 internal static class DataRecordQuery
 {

@@ -7,10 +7,7 @@ using xyz.Components.Models;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 数据曲线的库表：按天一张宽表 DataRecord_yyyyMMdd（本机日期），一个采样周期一行——
-/// Time（UTC 毫秒，主键）+ 每个信号一列，列名就是信号名。开关量列 INTEGER（存 0/1），模拟量列 REAL；读不到的存 NULL。
-/// 列跟着信号走：当天新加的信号在当天的表上补一列（之前的行这一列是 NULL），第二天建新表时自然带上。
-/// 只认 SQLite：列名带点号，一律双引号括起来。
+/// 数据曲线的库表：按天一张宽表 DataRecord_yyyyMMdd（本机日期）
 /// </summary>
 internal static class DataRecordTable
 {
@@ -39,11 +36,12 @@ internal static class DataRecordTable
     public static SortedDictionary<DateTime, string> ListTables(ISqlSugarClient db)
     {
         var tables = new SortedDictionary<DateTime, string>();
-        var names = db.Ado.SqlQuery<string>(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'DataRecord!_%' ESCAPE '!'");
-        foreach (var name in names)
+        // 不用 SqlSugar 的缓存：日表是运行中按天新建的，缓存里会漏掉新表
+        foreach (var table in db.DbMaintenance.GetTableInfoList(false))
         {
-            if (DateTime.TryParseExact(name.AsSpan(Prefix.Length), "yyyyMMdd", CultureInfo.InvariantCulture,
+            string name = table.Name ?? string.Empty;
+            if (name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase)
+                && DateTime.TryParseExact(name.AsSpan(Prefix.Length), "yyyyMMdd", CultureInfo.InvariantCulture,
                     DateTimeStyles.None, out var day))
             {
                 tables[day] = name;
@@ -59,10 +57,9 @@ internal static class DataRecordTable
     public static List<string> ColumnsOf(ISqlSugarClient db, string table)
     {
         var columns = new List<string>();
-        var info = db.Ado.GetDataTable($"PRAGMA table_info({Quote(table)})");
-        foreach (DataRow row in info.Rows)
+        foreach (var column in db.DbMaintenance.GetColumnInfosByTableName(table, false))
         {
-            var name = Convert.ToString(row["name"], CultureInfo.InvariantCulture) ?? string.Empty;
+            string name = column.DbColumnName ?? string.Empty;
             if (name.Length > 0 && !string.Equals(name, TimeColumn, StringComparison.OrdinalIgnoreCase))
             {
                 columns.Add(name);
@@ -72,6 +69,10 @@ internal static class DataRecordTable
         return columns;
     }
 
+    /// <summary>
+    /// 建表、加列自己拼 SQL：列名带点号（Chamber1.Door.DiOpened），SqlSugar 的 CreateTable / AddColumn
+    /// 会按点号拆开括成 "Chamber1"."Door"."DiOpened"，SQLite 报语法错。
+    /// </summary>
     public static void Create(ISqlSugarClient db, string table, IReadOnlyList<DataSignal> signals)
     {
         var sql = new StringBuilder()
@@ -89,11 +90,6 @@ internal static class DataRecordTable
     public static void AddColumn(ISqlSugarClient db, string table, DataSignal signal)
     {
         db.Ado.ExecuteCommand($"ALTER TABLE {Quote(table)} ADD COLUMN {Quote(signal.Name)} {TypeOf(signal)}");
-    }
-
-    public static void Drop(ISqlSugarClient db, string table)
-    {
-        db.Ado.ExecuteCommand($"DROP TABLE IF EXISTS {Quote(table)}");
     }
 
     /// <summary>

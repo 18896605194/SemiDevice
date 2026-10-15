@@ -120,6 +120,16 @@
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 	</Setting>
+	<Setting Name="Monitor">
+		<Setting Name="RobotControllerPower" Type="xyz.Components.Components.DiSensorComponent">
+			<Value Name="DiIndex" Value="68" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+		<Setting Name="Chamber1Exhaust" Type="xyz.Components.Components.AiSensorComponent">
+			<Value Name="AiIndex" Value="102" />
+			<Value Name="AlarmEnabled" Value="False" />
+		</Setting>
+	</Setting>
 	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
 		<Value Name="EnableRecord" Value="True" />
 		<Value Name="Database" Value="Io" />
