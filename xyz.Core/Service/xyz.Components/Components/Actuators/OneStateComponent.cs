@@ -40,7 +40,6 @@ public abstract class OneStateComponent : ComponentBase
 
     #region 状态
 
-    // 以下由组件扫描和调用方线程共享，访问时持有 _actionGate。
     private readonly object _actionGate = new();
     private ActionState _action;
     private long _actionStarted;
@@ -59,7 +58,9 @@ public abstract class OneStateComponent : ComponentBase
         }
     }
 
-    /// <summary>是否在通电到位态：接了 DI 看 DI；没接看 DO 回读（写没写进去）。PLC 没连一律 false。</summary>
+    /// <summary>
+    /// 有没有接通io组件，有di就读取di，没有配置就读取do
+    /// </summary>
     public bool IsOn
     {
         get
@@ -83,13 +84,10 @@ public abstract class OneStateComponent : ComponentBase
 
     #region 动作（返回 true 只表示 DO 已写进 PLC，完成看 ActionState）
 
-    /// <summary>通电。</summary>
     public bool On()
     {
         return Drive(true);
     }
-
-    /// <summary>断电回位。</summary>
     public bool Off()
     {
         return Drive(false);

@@ -42,35 +42,31 @@ public class LightComponent : ComponentBase, ILightComponent
 
     #region Control
 
-    /// <summary>设置红灯开关。</summary>
     public virtual void SetRed(bool isOn)
     {
         SetOutput(DoRedIndex, isOn, nameof(DoRedIndex));
         IsRedOn = isOn;
     }
 
-    /// <summary>设置黄灯开关。</summary>
     public virtual void SetYellow(bool isOn)
     {
         SetOutput(DoYellowIndex, isOn, nameof(DoYellowIndex));
         IsYellowOn = isOn;
     }
 
-    /// <summary>设置绿灯开关。</summary>
     public virtual void SetGreen(bool isOn)
     {
         SetOutput(DoGreenIndex, isOn, nameof(DoGreenIndex));
         IsGreenOn = isOn;
     }
 
-    /// <summary>设置蓝灯开关。</summary>
     public virtual void SetBlue(bool isOn)
     {
         SetOutput(DoBlueIndex, isOn, nameof(DoBlueIndex));
         IsBlueOn = isOn;
     }
 
-    /// <summary>设置蜂鸣器开关。</summary>
+
     public virtual void SetBuzzer(bool isOn)
     {
         SetOutput(DoBuzzerIndex, isOn, nameof(DoBuzzerIndex));
@@ -87,10 +83,6 @@ public class LightComponent : ComponentBase, ILightComponent
         WriteOutput(doIndex, isOn);
     }
 
-    /// <summary>
-    /// 经 IoComponent 写 DO。isOn 表示逻辑开关，接线反相在 PLC 侧处理。
-    /// 写入失败抛异常，不能把没执行的输出当成功——调用方（EquipmentStatusPublisher）接住记日志。
-    /// </summary>
     protected virtual void WriteOutput(int doIndex, bool isOn)
     {
         var io = IoComponent.Current;
