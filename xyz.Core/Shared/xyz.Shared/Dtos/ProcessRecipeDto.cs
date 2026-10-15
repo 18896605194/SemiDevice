@@ -191,6 +191,7 @@ public class ProcessRecipeFieldDto
 
 /// <summary>
 /// 工艺配方变了（新建、改名、删除、保存）：只带编号，界面收到后自己重拉。
+/// 主界面切了晶圆尺寸也推一条，编号是 0：字段的上限按尺寸分开写的跟着变了，字段表要重拉。
 /// </summary>
 public class ProcessRecipeChangedDto
 {

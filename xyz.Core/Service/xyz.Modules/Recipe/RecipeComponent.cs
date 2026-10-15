@@ -558,7 +558,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// </summary>
     public HandleResult Save(int index, int revision, RecipeData content, string operatorName)
     {
-        string? language = SystemComponent.Current?.Language;
+        string? language = SystemModule.Current?.Language;
         HandleResult result;
         lock (_gate)
         {
@@ -643,7 +643,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             return HandleResult.Fail(ErrorCodes.ProcessRecipeBodyInvalid, name);
         }
 
-        string? language = SystemComponent.Current?.Language;
+        string? language = SystemModule.Current?.Language;
         HandleResult result;
         int index;
         string reported;

@@ -6,6 +6,9 @@ public interface INozzle : IValve
     /// <summary>这一路药液的名称。</summary>
     string Chemical { get; }
 
+    /// <summary>相对示教喷嘴的轴偏移：摆臂换算配方位置时加上它。</summary>
+    double Offset { get; }
+
     /// <summary>喷嘴是否开启。</summary>
     bool IsOn { get; }
 

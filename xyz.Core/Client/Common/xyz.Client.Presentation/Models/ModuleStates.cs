@@ -84,6 +84,52 @@ public static class ModuleStates
     }
 
     /// <summary>
+    /// 整机（主界面的系统状态）：未初始化、初始化中、空闲、出错跟模块一样；35 是整机停止的"停止中"，
+    /// 另有 100 自动空闲、110 自动运行、120 全部回片中（xyz.Modules 的 SystemState）。
+    /// </summary>
+    public static string SystemText(int state)
+    {
+        switch (state)
+        {
+            case 35:
+                return L10n.Get("module.state.stopping");
+            case 100:
+                return L10n.Get("module.state.auto_idle");
+            case 110:
+                return L10n.Get("module.state.auto_running");
+            case 120:
+                return L10n.Get("module.state.returning");
+            default:
+                return CommonText(state);
+        }
+    }
+
+    /// <summary>
+    /// 整机：空闲、自动空闲就绪；初始化、自动运行、回片算动作中；停止中黄、出错红、未初始化灰。
+    /// </summary>
+    public static ModuleStateTone SystemTone(int state)
+    {
+        switch (state)
+        {
+            case 100:
+                return ModuleStateTone.Ready;
+            case 110:
+            case 120:
+                return ModuleStateTone.Busy;
+            default:
+                return CommonTone(state);
+        }
+    }
+
+    /// <summary>
+    /// 整机在不在 Auto：自动空闲、自动运行。
+    /// </summary>
+    public static bool IsSystemAuto(int state)
+    {
+        return state == 100 || state == 110;
+    }
+
+    /// <summary>
     /// 其他模块（Aligner、Buffer 这类）：只认通用状态和传片环。
     /// </summary>
     public static string OtherText(int state)

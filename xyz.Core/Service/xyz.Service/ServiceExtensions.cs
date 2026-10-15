@@ -187,6 +187,17 @@ public static class ServiceExtensions
 
         #endregion
 
+        // 整机（sc.xml 的 System 节点）：全部初始化、整机停止管的模块表，赶在它开始扫描之前绑上
+        var system = SystemModule.Current;
+        if (system is not null)
+        {
+            system.Bind(modules);
+        }
+        else
+        {
+            LogHelper.Warn("System", "sc.xml 没配 System 节点：没有系统状态，全部初始化、Auto / Manual、整机停止、全部回片都用不了");
+        }
+
         foreach (var module in modules)
         {
             module.Start();
@@ -236,6 +247,14 @@ public static class ServiceExtensions
             processRecipes.Bind(modules);
             processRecipes.Changed += index =>
                 EventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
+
+            // 字段的上限可以按晶圆尺寸分开写（Max.8、Max.12）：主界面切了尺寸，配方页要重拉字段表
+            var waferSize = WaferSizeComponent.Current;
+            if (waferSize is not null)
+            {
+                waferSize.Changed += _ =>
+                    EventBus.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken, retain: false);
+            }
         }
         else
         {

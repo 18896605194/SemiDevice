@@ -31,6 +31,41 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 晶圆尺寸（主界面切 8 / 12 寸）
+
+    /// <summary>sc.xml 的 System 节点下没配 WaferSize（晶圆尺寸组件），切不了晶圆尺寸。Args: []</summary>
+    public const string WaferSizeNotInstalled = "system.wafer_size_not_installed";
+
+    /// <summary>晶圆尺寸只能是 8 或 12。Args: [给的值]</summary>
+    public const string WaferSizeInvalid = "system.wafer_size_invalid";
+
+    /// <summary>有模块不是未初始化（初始化过、正在初始化或出错），切不了晶圆尺寸。Args: [模块名]</summary>
+    public const string WaferSizeInitialized = "system.wafer_size_initialized";
+
+    /// <summary>机台里（LoadPort 以外的位置）还有片，切不了晶圆尺寸。Args: [位置]</summary>
+    public const string WaferSizeHasWafer = "system.wafer_size_has_wafer";
+
+    /// <summary>晶圆尺寸写回 sc.xml 失败。Args: [原因]</summary>
+    public const string WaferSizeSaveFailed = "system.wafer_size_save_failed";
+
+    #endregion
+
+    #region 整机
+
+    /// <summary>sc.xml 没配 System 节点（没有整机模块），整机操作都用不了。Args: []</summary>
+    public const string SystemNotInstalled = "system.not_installed";
+
+    /// <summary>全部初始化：有模块的初始化被拒（状态不允许、在忙、没写初始化）。Args: [模块名]</summary>
+    public const string SystemInitRejected = "system.init_rejected";
+
+    /// <summary>全部初始化：有模块的初始化没做成。Args: [模块名]</summary>
+    public const string SystemInitFailed = "system.init_failed";
+
+    /// <summary>全部回片：有片没回去（每片的原因在日志里）。Args: [没回去的片数]</summary>
+    public const string SystemReturnIncomplete = "system.return_incomplete";
+
+    #endregion
+
     #region LoadPort
 
     /// <summary>指令被设备拒绝（未连接或在途）。Args: [操作名]</summary>

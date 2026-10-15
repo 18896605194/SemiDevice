@@ -501,8 +501,12 @@ try
 
     SmokeRobot? secondRobot = null;
 
+    // 整机：第 16 节才装上（看自动运行、整机停止、全部回片），之前的各节不受它影响
+    SmokeSystem? machine = null;
+
     void Tick()
     {
+        machine?.Tick();
         robot.Tick();
         secondRobot?.Tick();
         pm1.Tick();
@@ -1426,31 +1430,45 @@ try
     UnloadCarrier(lp1);
     jobs.ControlJobAutoStart = savedControlAutoStart;
 
-    // 16. 整机停止：关自动派单、中止搬运操作，Job 走中止（等设备确认、核对片位），不是直接删 Job。
+    // 16. 整机：Auto 下有在跑的 Job 是自动运行；整机停止关自动派单、中止搬运操作，Job 走中止（等设备确认、核对片位），不是直接删 Job，
+    //     整机停止中，停下来回空闲；全部回片把留在腔里的片搬回来源 LoadPort 的原槽。
+    machine = new SmokeSystem();
+    Probe.Name(machine, "System");
+    machine.Bind(modules);
+    machine.NoteState(SystemState.AutoIdle);
     LoadCarrier(lp1, 1, 2, 3);
     Check(Create("LOT-E", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-E");
     Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(IsProcessing) == true && !transfers.IsRobotInTransfer("Robot1")),
         "跑到有片在加工、机械手闲着");
+    Check(machine.State == SystemState.AutoRunning, "有在跑的 Job：整机是自动运行");
     var equipment = new EquipmentService(modules);
     var stop = equipment.StopAsync(new RpcRequest()).Result;
-    Check(stop.Success && stop.DeserializeData<int>() == 0 && !transfers.IsAutoDispatch,
-        "整机停止：关自动派单；在给 Job 做工艺的腔体不在这里直接发中止");
+    Check(stop.Success && !transfers.IsAutoDispatch && machine.State == ModuleState.Aborting,
+        "整机停止：关自动派单，整机停止中；在给 Job 做工艺的腔体不在这里直接发中止");
     Check(CjOf("LOT-E")?.State == (int)ControlJobState.Aborting && CjOf("LOT-E")?.E94State == 3,
         "内部进入 Aborting，E94 收尾期间仍上报 EXECUTING");
     Check(RunUntil(() => CjOf("LOT-E")?.State == (int)ControlJobState.Aborted) && CjOf("LOT-E")?.CompletedBy == 12
           && PjOf("LOT-E-1")?.EndedBy == 16 && CjOf("LOT-E")?.E94State == 5, "Job 走中止：PJ #16、CJ #12，内部 Aborted 上报 E94 COMPLETED");
+    Check(RunUntil(() => machine.State == ModuleState.Idle), "停的那一刻在做的工艺都收完尾：整机停下来，回空闲（Manual）");
+
+    var leftInside = new[] { pm1, pm2 }
+        .Select(chamber => ledger.Get(chamber.Name, 1))
+        .Where(wafer => wafer is not null)
+        .Select(wafer => wafer!)
+        .ToList();
+    Check(leftInside.Count > 0, "停止后腔里留着片");
     foreach (var chamber in new[] { pm1, pm2 })
     {
-        if (ledger.Get(chamber.Name, 1) is not null)
-        {
-            int free = Enumerable.Range(1, 25).First(slot => ledger.Get("LP1", slot) is null);
-            Check(ledger.Move(chamber.Name, 1, "LP1", free), "停止后人工收回腔里的片");
-        }
-
         chamber.NoteState(ModuleState.Idle);
     }
 
     robot.NoteState(ModuleState.Idle);
+    var returnAll = equipment.ReturnAllAsync(new RpcRequest()).Result;
+    Check(returnAll.Success && machine.State == SystemState.Returning, "全部回片开始：回片中");
+    Check(RunUntil(() => machine.State == ModuleState.Idle), "全部回片做完：回空闲");
+    Check(leftInside.All(wafer => ledger.Get("LP1", wafer.SourceSlot)?.Id == wafer.Id)
+          && new[] { pm1, pm2 }.All(chamber => ledger.Get(chamber.Name, 1) is null),
+        "腔里的片都回了来源 LoadPort 的原槽，腔里空了");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-E") is null, 20), "LOT-E 删掉");
 
@@ -1995,4 +2013,12 @@ sealed class SilentE87 : IE87Callback
     public void PortError(ILoadPort port, string error)
     {
     }
+}
+
+// 整机：测试代替扫描线程推一拍，直接摆状态（省得为了进 Auto 先跑全部初始化）。
+sealed class SmokeSystem : SystemModule
+{
+    public void Tick() => OnScan();
+
+    public void NoteState(int state) => State = state;
 }

@@ -1,88 +1,154 @@
-﻿using ProtoBuf.Grpc;
-using xyz.Common.Log;
+﻿using System.Globalization;
+using ProtoBuf.Grpc;
+using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components;
 using xyz.Modules;
+using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
-using xyz.Tools;
 
 namespace xyz.Service.Systems;
 
 /// <summary>
-/// 整机操作 gRPC 服务（主界面的系统操作）：Auto / Manual 就是开、关搬运管理的自动派单；Stop 关自动派单并中止所有在做的动作。
-/// 模式、系统状态由设备总状态推送带给界面（EquipmentStatusPublisher），这里只管改。
+/// 整机操作 gRPC 服务（主界面的系统操作）：全部初始化、Auto / Manual、整机停止、全部回片都转给整机模块（<see cref="SystemModule"/>），
+/// 这里只翻结果：开了就回，进展看系统状态推送（SystemStateDto）；被拒照原样回整机给的错误码和参数。另有切晶圆尺寸。
 /// </summary>
 public class EquipmentService : BaseService, IEquipmentService
 {
-    private const string LogModule = "Equipment";
-
     public EquipmentService(IReadOnlyList<ComponentBase> roots) : base(roots)
     {
     }
 
+    public Task<RpcResponse> InitAsync(RpcRequest request, CallContext context = default)
+    {
+        var system = SystemModule.Current;
+        if (system is null)
+        {
+            return SystemNotInstalled();
+        }
+
+        return Reply(system.InitAll());
+    }
+
     public Task<RpcResponse> AutoAsync(RpcRequest request, CallContext context = default)
     {
-        var transfers = TransferManager.Current;
-        if (transfers is null)
+        var system = SystemModule.Current;
+        if (system is null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
+            return SystemNotInstalled();
         }
 
-        if (!transfers.IsEnable)
-        {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferDisabled, []));
-        }
-
-        transfers.StartAutoDispatch();
-        return Task.FromResult(RpcResponse.Ok());
+        return Reply(system.Auto());
     }
 
     public Task<RpcResponse> ManualAsync(RpcRequest request, CallContext context = default)
     {
-        TransferManager.Current?.StopAutoDispatch();
-        return Task.FromResult(RpcResponse.Ok());
+        var system = SystemModule.Current;
+        if (system is null)
+        {
+            return SystemNotInstalled();
+        }
+
+        return Reply(system.Manual());
+    }
+
+    public Task<RpcResponse> StopAsync(RpcRequest request, CallContext context = default)
+    {
+        var system = SystemModule.Current;
+        if (system is null)
+        {
+            return SystemNotInstalled();
+        }
+
+        if (system.Abort() is not null)
+        {
+            return Task.FromResult(RpcResponse.Ok());
+        }
+
+        // 被拒了再问原因（停止中再按）
+        var rejected = system.CheckAbort();
+        if (rejected is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected,
+                [system.Name, system.State.ToString(CultureInfo.InvariantCulture)]));
+        }
+
+        return Reply(rejected);
+    }
+
+    public Task<RpcResponse> ReturnAllAsync(RpcRequest request, CallContext context = default)
+    {
+        var system = SystemModule.Current;
+        if (system is null)
+        {
+            return SystemNotInstalled();
+        }
+
+        return Reply(system.ReturnAll());
+    }
+
+    private static Task<RpcResponse> SystemNotInstalled()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.SystemNotInstalled, []));
+    }
+
+    private static Task<RpcResponse> Reply(HandleResult result)
+    {
+        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
+    }
+
+    private static Task<RpcResponse> Reply(HandleResult<ModuleOperation> result)
+    {
+        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 
     /// <summary>
-    /// 整机停止：先关自动派单、中止所有搬运操作（搬运管理负责：手臂正在取放的由它发设备中止），所有没结束的 Job 走中止流程
-    /// （等设备确认、核对片位，不是直接删 Job）；再给正在做别的动作（手动动作）的模块发中止——
-    /// 正在搬运的机械手、在给 Job 做工艺的腔体归上面两路去停，这里不直接发。闲着的模块不碰。Data 为这里直接发了中止的模块个数。
+    /// 切晶圆尺寸：整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外的位置）没片才让切——
+    /// 摆臂马上按新尺寸的半径和边缘示教位换算，机台里留着的片、初始化好的设备都还是按旧尺寸来的。LoadPort 上的片盒不算，换尺寸本来要换盒。
     /// </summary>
-    public Task<RpcResponse> StopAsync(RpcRequest request, CallContext context = default)
+    public Task<RpcResponse> SetWaferSizeAsync(RpcRequest request, CallContext context = default)
     {
-        var transfers = TransferManager.Current;
-        transfers?.Abort();
+        request.Parameters.TryGetValue(IEquipmentService.WaferSizeKey, out string? sizeText);
+        sizeText ??= string.Empty;
+        if (!int.TryParse(sizeText, NumberStyles.None, CultureInfo.InvariantCulture, out int size) || !WaferSizeComponent.IsSupported(size))
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInvalid, [sizeText]));
+        }
 
-        // 手动动作直接发中止；在搬运的机械手（上面撤单管）、在给 Job 做工艺的腔体（下面 Job 中止管）不在这里发。
-        // 要先认再让 Job 中止：Job 的中止当场就给它的腔体发中止，之后就认不出那是 Job 的工艺了
-        int aborted = 0;
+        var waferSize = WaferSizeComponent.Current;
+        if (waferSize is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeNotInstalled, []));
+        }
+
+        if (waferSize.Size == size)
+        {
+            return Task.FromResult(RpcResponse.Ok());
+        }
+
         foreach (var module in Roots.OfType<BaseModule>())
         {
-            if (!module.IsEnabled || module.CurrentOperation is null)
+            if (module.IsEnabled && module.State != ModuleState.NotInit)
             {
-                continue;
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInitialized, [module.Name]));
             }
-
-            bool robotInTransfer = module is IRobot robot && transfers is not null && transfers.IsRobotInTransfer(robot.Name);
-            if (robotInTransfer || JobManager.IsJobProcess(module))
-            {
-                continue;
-            }
-
-            module.Abort();
-            aborted++;
         }
 
-        // Job 走中止：当场执行（等设备确认、核对片位），进展看 Job 推送
-        var jobs = JobManager.Current;
-        if (jobs is not null)
+        var wafers = WaferManagerComponent.Current;
+        if (wafers is not null)
         {
-            _ = jobs.AbortAllAsync();
+            foreach (var (location, _) in wafers.Locations)
+            {
+                if (!wafers.IsLoadPort(location) && wafers.CountWafers(location) > 0)
+                {
+                    return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeHasWafer, [location]));
+                }
+            }
         }
 
-        LogHelper.Info(LogModule, $"整机停止：自动派单已关，搬运操作已请求中止，Job 走中止；另有 {aborted} 个模块在做手动动作，已发中止");
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(aborted)));
+        var result = waferSize.SetSize(size);
+        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 }

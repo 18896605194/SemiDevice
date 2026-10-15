@@ -30,7 +30,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!--  系统操作：系统状态（色块徽标）、当前模式、报警条数，下面 Auto / Manual / Stop / Reset 两行两列  -->
+                <!--  系统操作：系统状态（色块徽标）、当前模式、报警条数、晶圆尺寸，下面 Auto / Manual / Stop / Reset / 初始化 / 全部回片 三行两列  -->
                 <Border Grid.Row="0" Style="{DynamicResource ZoneBorderStyle}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
@@ -49,6 +49,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="10" />
+                                    <RowDefinition Height="28" />
                                     <RowDefinition Height="28" />
                                     <RowDefinition Height="28" />
                                 </Grid.RowDefinitions>
@@ -83,6 +84,21 @@
                                     Style="{DynamicResource AlarmCountTextStyle}"
                                     Tag="{Binding HasAlarms}"
                                     Text="{Binding AlarmCount}" />
+
+                                <!--  晶圆尺寸：当前几寸，后面一个小按钮切到另一种（整机没初始化、机台里没片才切得了，后端查）  -->
+                                <TextBlock
+                                    Grid.Row="4"
+                                    Style="{DynamicResource FormLabelTextStyle}"
+                                    Text="{DynamicResource main.wafer_size}" />
+                                <DockPanel Grid.Row="4" Grid.Column="1">
+                                    <Button
+                                        Command="{Binding SwitchWaferSizeCommand}"
+                                        Content="{DynamicResource main.wafer_size.switch}"
+                                        DockPanel.Dock="Right"
+                                        Style="{DynamicResource MiniButtonStyle}"
+                                        ToolTip="{DynamicResource main.wafer_size_tip}" />
+                                    <TextBlock Style="{DynamicResource FormValueTextStyle}" Text="{Binding WaferSizeText}" />
+                                </DockPanel>
                             </Grid>
 
                             <!--  Stop 是整机停止（中止所有在做的动作），用红色  -->
@@ -109,6 +125,16 @@
                                     Content="{DynamicResource main.reset}"
                                     Style="{DynamicResource CompactButtonStyle}"
                                     ToolTip="{DynamicResource main.reset_tip}" />
+                                <Button
+                                    Command="{Binding InitCommand}"
+                                    Content="{DynamicResource main.init}"
+                                    Style="{DynamicResource CompactButtonStyle}"
+                                    ToolTip="{DynamicResource main.init_tip}" />
+                                <Button
+                                    Command="{Binding ReturnAllCommand}"
+                                    Content="{DynamicResource main.return_all}"
+                                    Style="{DynamicResource CompactButtonStyle}"
+                                    ToolTip="{DynamicResource main.return_all_tip}" />
                             </UniformGrid>
                         </StackPanel>
                     </DockPanel>

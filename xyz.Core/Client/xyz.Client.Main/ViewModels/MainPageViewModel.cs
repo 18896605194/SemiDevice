@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Alarms;
 using xyz.Client.Common.Events;
@@ -20,9 +21,10 @@ using xyz.Tools;
 namespace xyz.Client.Main.ViewModels;
 
 /// <summary>
-/// 主界面 ViewModel：左边系统操作（系统状态、当前模式、报警条数，Auto / Manual / Stop / Reset），
+/// 主界面 ViewModel：左边系统操作（系统状态、当前模式、报警条数、晶圆尺寸，Auto / Manual / Stop / Reset / 初始化 / 全部回片），
 /// 右边一个 LoadPort 一个页签（载具、槽图、LotID、Sequence、槽位表、创建 / 启动 Job）。中间的整机调度是另一块（默认是公共控件 DispatchMap，机型可换），不归这里。
-/// 状态全靠订推送：设备总状态、各 LoadPort 状态、Job 全貌都是留存消息，订上就补发、重连后重放；报警条数跟着客户端的当前报警（ClientAlarms）。
+/// 状态全靠订推送：系统状态、设备总状态（晶圆尺寸）、各 LoadPort 状态、Job 全貌都是留存消息，订上就补发、重连后重放；报警条数跟着客户端的当前报警（ClientAlarms）。
+/// 系统操作的按钮按系统状态开关（跟后端整机的状态表一致），后端照样再查一遍。
 /// 创建 Job 把当前页签的 LotID 和各槽选的 Sequence 交给后端（建好等启动）；启动 Job 启动这个 LoadPort 上等启动的 CJ（要在 Auto 下）。
 /// </summary>
 public class MainPageViewModel : BaseViewModel
@@ -39,7 +41,7 @@ public class MainPageViewModel : BaseViewModel
     private bool _isConnected;
 
     /// <summary>
-    /// 跟后端连着没有：没连上（或连上了还没收到设备总状态）时系统状态是"未连接"，四个按钮都点不了。
+    /// 跟后端连着没有：没连上（或连上了还没收到系统状态）时系统状态是"未连接"，系统操作的按钮都点不了。
     /// </summary>
     public bool IsConnected
     {
@@ -54,14 +56,19 @@ public class MainPageViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 连着、而且收到了设备总状态（知道现在是什么模式）：四个按钮这时候才能点。
+    /// 连着、而且收到了系统状态：系统操作的按钮这时候才能点。
     /// </summary>
-    private bool IsReady => IsConnected && _status is not null;
+    private bool IsReady => IsConnected && _system is not null;
+
+    /// <summary>
+    /// 当前系统状态码；不知道（没连上、还没收到）时为 -1，哪个状态都对不上。
+    /// </summary>
+    private int SystemState => _system?.State ?? -1;
 
     private string _systemStateText = string.Empty;
 
     /// <summary>
-    /// 系统状态字（状态徽标显示）：未连接 / 报警 / 运行中 / 警告 / 空闲。
+    /// 系统状态字（状态徽标显示）：未连接，或整机的状态（未初始化、初始化中、空闲、停止中、报警、自动空闲、自动运行、回片中）。
     /// </summary>
     public string SystemStateText
     {
@@ -72,7 +79,7 @@ public class MainPageViewModel : BaseViewModel
     private ModuleStateTone _systemStateTone;
 
     /// <summary>
-    /// 系统状态色调：灰 未连接、红 报警、蓝 运行中、黄 警告、绿 空闲。
+    /// 系统状态色调：灰 未连接 / 未初始化、蓝 初始化中 / 自动运行 / 回片中、绿 空闲 / 自动空闲、黄 停止中、红 报警。
     /// </summary>
     public ModuleStateTone SystemStateTone
     {
@@ -83,7 +90,7 @@ public class MainPageViewModel : BaseViewModel
     private bool _isAuto;
 
     /// <summary>
-    /// 整机模式：true = Auto（自动派单开着）。
+    /// 整机模式：true = Auto（系统状态是自动空闲或自动运行）。
     /// </summary>
     public bool IsAuto
     {
@@ -124,6 +131,17 @@ public class MainPageViewModel : BaseViewModel
     /// </summary>
     public bool HasAlarms => AlarmCount > 0;
 
+    private string _waferSizeText = string.Empty;
+
+    /// <summary>
+    /// 整机做几寸片："12 寸"；没连上写"—"。
+    /// </summary>
+    public string WaferSizeText
+    {
+        get => _waferSizeText;
+        private set => SetProperty(ref _waferSizeText, value);
+    }
+
     /// <summary>
     /// 右栏的页签：sc.xml 里配了几个 LoadPort 就几个，先后跟 sc.xml 一样。
     /// </summary>
@@ -158,19 +176,37 @@ public class MainPageViewModel : BaseViewModel
 
     #endregion
 
+    #region 系统状态码（后端 xyz.Modules 的 ModuleState / SystemState；按钮照整机状态表开关）
+
+    private const int StateNotInit = 10;
+    private const int StateIdle = 30;
+    private const int StateAborting = 35;
+    private const int StateError = 40;
+
+    #endregion
+
     #region Command
 
-    /// <summary>切到 Auto（开自动派单）：连上了、现在是 Manual 才能点。</summary>
+    /// <summary>切到 Auto（开自动派单）：要初始化过、现在空闲（Manual）才能点。</summary>
     public IAsyncRelayCommand AutoCommand { get; }
 
-    /// <summary>切到 Manual（关自动派单）：连上了、现在是 Auto 才能点。</summary>
+    /// <summary>切到 Manual（关自动派单）：现在是 Auto（自动空闲、自动运行）才能点。</summary>
     public IAsyncRelayCommand ManualCommand { get; }
 
-    /// <summary>整机停止：关自动派单，中止所有在做的动作。</summary>
+    /// <summary>整机停止：关自动派单，中止所有在做的动作；停止中不能再点。</summary>
     public IAsyncRelayCommand StopCommand { get; }
 
     /// <summary>复位全部有报警的来源（跟右上角的复位一样）。</summary>
     public IAsyncRelayCommand ResetCommand { get; }
+
+    /// <summary>全部初始化：未初始化、空闲、报警时能点。</summary>
+    public IAsyncRelayCommand InitCommand { get; }
+
+    /// <summary>全部回片：空闲（Manual）时能点。</summary>
+    public IAsyncRelayCommand ReturnAllCommand { get; }
+
+    /// <summary>切晶圆尺寸（8 寸、12 寸来回切）：连上了能点，能不能切由后端查（整机没初始化、机台里没片），不行的原因写顶栏日志。</summary>
+    public IAsyncRelayCommand SwitchWaferSizeCommand { get; }
 
     /// <summary>⊕：给这一片单独选一个 Sequence（公共选择弹窗）。</summary>
     public IRelayCommand<JobSlotModel> PickSlotSequenceCommand { get; }
@@ -193,12 +229,16 @@ public class MainPageViewModel : BaseViewModel
     private readonly ISequenceService _sequenceService;
     private readonly IJobService _jobService;
 
+    private IDisposable? _systemSubscription;
     private IDisposable? _statusSubscription;
     private IDisposable? _sequenceSubscription;
     private IDisposable? _jobSubscription;
     private readonly List<IDisposable> _loadPortSubscriptions = [];
 
-    /// <summary>最近一次收到的设备总状态；断开后清空，重连时后端补发当前值。</summary>
+    /// <summary>最近一次收到的系统状态；断开后清空，重连时后端补发当前值。</summary>
+    private SystemStateDto? _system;
+
+    /// <summary>最近一次收到的设备总状态（这一页只用它的晶圆尺寸）；断开后清空，重连时后端补发当前值。</summary>
     private EquipmentStatusDto? _status;
 
     /// <summary>拉 Sequence 列表的序号：连着发了两次，只认最后一次的结果。</summary>
@@ -216,10 +256,14 @@ public class MainPageViewModel : BaseViewModel
         LoadPorts = new ObservableCollection<LoadPortJobModel>(loadPorts.Select(name => new LoadPortJobModel(name)));
         _selectedLoadPort = LoadPorts.FirstOrDefault();
 
-        AutoCommand = new AsyncRelayCommand(DoAuto, () => IsReady && !IsAuto);
+        AutoCommand = new AsyncRelayCommand(DoAuto, () => IsReady && SystemState == StateIdle);
         ManualCommand = new AsyncRelayCommand(DoManual, () => IsReady && IsAuto);
-        StopCommand = new AsyncRelayCommand(DoStop, () => IsReady);
+        StopCommand = new AsyncRelayCommand(DoStop, () => IsReady && SystemState != StateAborting);
         ResetCommand = new AsyncRelayCommand(DoReset, () => IsReady);
+        InitCommand = new AsyncRelayCommand(DoInit,
+            () => IsReady && (SystemState == StateNotInit || SystemState == StateIdle || SystemState == StateError));
+        ReturnAllCommand = new AsyncRelayCommand(DoReturnAll, () => IsReady && SystemState == StateIdle);
+        SwitchWaferSizeCommand = new AsyncRelayCommand(DoSwitchWaferSize, () => IsConnected && _status is not null);
         PickSlotSequenceCommand = new RelayCommand<JobSlotModel>(DoPickSlotSequence);
         ClearSlotSequenceCommand = new RelayCommand<JobSlotModel>(DoClearSlotSequence);
         CreateJobCommand = new AsyncRelayCommand(DoCreateJob, CanCreateJob);
@@ -242,7 +286,10 @@ public class MainPageViewModel : BaseViewModel
 
     public override void Init()
     {
-        // 设备总状态、各 LoadPort 状态都是留存消息：订上就补发当前值，重连后重放，不用另外拉。
+        // 系统状态、设备总状态、各 LoadPort 状态都是留存消息：订上就补发当前值，重连后重放，不用另外拉。
+        _systemSubscription?.Dispose();
+        _systemSubscription = EventBus.Register<SystemStateDto>(SystemStateDto.EventToken, OnSystemChanged);
+
         _statusSubscription?.Dispose();
         _statusSubscription = EventBus.Register<EquipmentStatusDto>(EquipmentStatusDto.EventToken, OnStatusChanged);
 
@@ -280,6 +327,7 @@ public class MainPageViewModel : BaseViewModel
         if (!connected)
         {
             // 断开后不知道设备现在是什么状态、有哪些 Job，等重连后后端重放
+            _system = null;
             _status = null;
             OnJobsChanged(null);
             RefreshSystem();
@@ -287,6 +335,12 @@ public class MainPageViewModel : BaseViewModel
         }
 
         _ = LoadSequences();
+    }
+
+    private void OnSystemChanged(SystemStateDto system)
+    {
+        _system = system;
+        RefreshSystem();
     }
 
     private void OnStatusChanged(EquipmentStatusDto status)
@@ -309,12 +363,13 @@ public class MainPageViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 系统状态、模式按连接和设备总状态重算：没连上 → 未连接；有报警 → 报警；有模块在动 → 运行中；只有警告 → 警告；否则空闲。
+    /// 系统状态、模式按连接和系统状态推送重算：没连上（或还没收到）→ 未连接；否则照整机的状态码显示，自动空闲、自动运行算 Auto。
+    /// 晶圆尺寸按设备总状态推送。
     /// </summary>
     private void RefreshSystem()
     {
-        var status = _status;
-        if (!IsConnected || status is null)
+        var system = _system;
+        if (!IsConnected || system is null)
         {
             SystemStateText = L10n.Get("main.state.disconnected");
             SystemStateTone = ModuleStateTone.Inactive;
@@ -323,35 +378,22 @@ public class MainPageViewModel : BaseViewModel
         }
         else
         {
-            if (status.HasAlarm)
-            {
-                SystemStateText = L10n.Get("main.state.alarm");
-                SystemStateTone = ModuleStateTone.Alarm;
-            }
-            else if (status.IsRunning)
-            {
-                SystemStateText = L10n.Get("main.state.running");
-                SystemStateTone = ModuleStateTone.Busy;
-            }
-            else if (status.HasWarning)
-            {
-                SystemStateText = L10n.Get("main.state.warning");
-                SystemStateTone = ModuleStateTone.Warning;
-            }
-            else
-            {
-                SystemStateText = L10n.Get("main.state.idle");
-                SystemStateTone = ModuleStateTone.Ready;
-            }
-
-            IsAuto = status.IsAuto;
-            ModeText = L10n.Get(status.IsAuto ? "main.mode.auto" : "main.mode.manual");
+            SystemStateText = ModuleStates.SystemText(system.State);
+            SystemStateTone = ModuleStates.SystemTone(system.State);
+            IsAuto = ModuleStates.IsSystemAuto(system.State);
+            ModeText = L10n.Get(IsAuto ? "main.mode.auto" : "main.mode.manual");
         }
+
+        var status = _status;
+        WaferSizeText = IsConnected && status is not null ? L10n.Get("main.wafer_size.value", status.WaferSize) : L10n.Get("main.none");
 
         AutoCommand.NotifyCanExecuteChanged();
         ManualCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
         ResetCommand.NotifyCanExecuteChanged();
+        InitCommand.NotifyCanExecuteChanged();
+        ReturnAllCommand.NotifyCanExecuteChanged();
+        SwitchWaferSizeCommand.NotifyCanExecuteChanged();
         RefreshJobCommands();
     }
 
@@ -417,7 +459,7 @@ public class MainPageViewModel : BaseViewModel
             var response = await _equipmentService.AutoAsync(new RpcRequest());
             if (!response.Success)
             {
-                ClientLog.Error(LogModule, L10n.Get("main.auto_failed", ReasonOf(response)));
+                ClientLog.Error(LogModule, L10n.Get("main.auto_failed", SystemReason(response)));
                 return;
             }
 
@@ -436,7 +478,7 @@ public class MainPageViewModel : BaseViewModel
             var response = await _equipmentService.ManualAsync(new RpcRequest());
             if (!response.Success)
             {
-                ClientLog.Error(LogModule, L10n.Get("main.manual_failed", ReasonOf(response)));
+                ClientLog.Error(LogModule, L10n.Get("main.manual_failed", SystemReason(response)));
                 return;
             }
 
@@ -448,6 +490,37 @@ public class MainPageViewModel : BaseViewModel
         }
     }
 
+    /// <summary>
+    /// 切到另一种尺寸（现在 8 寸就切 12 寸，别的都切 8 寸）；切成了设备总状态推送会带回新尺寸，这里只写日志。
+    /// </summary>
+    private async Task DoSwitchWaferSize()
+    {
+        var status = _status;
+        if (status is null)
+        {
+            return;
+        }
+
+        int target = status.WaferSize == 8 ? 12 : 8;
+        try
+        {
+            var request = new RpcRequest();
+            request.Parameters[IEquipmentService.WaferSizeKey] = target.ToString(CultureInfo.InvariantCulture);
+            var response = await _equipmentService.SetWaferSizeAsync(request);
+            if (!response.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.wafer_size_failed", ReasonOf(response)));
+                return;
+            }
+
+            ClientLog.Info(LogModule, L10n.Get("main.wafer_size_done", target));
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(LogModule, L10n.Get("main.wafer_size_failed", exception.Message));
+        }
+    }
+
     private async Task DoStop()
     {
         try
@@ -455,11 +528,11 @@ public class MainPageViewModel : BaseViewModel
             var response = await _equipmentService.StopAsync(new RpcRequest());
             if (!response.Success)
             {
-                ClientLog.Error(LogModule, L10n.Get("main.stop_failed", ReasonOf(response)));
+                ClientLog.Error(LogModule, L10n.Get("main.stop_failed", SystemReason(response)));
                 return;
             }
 
-            ClientLog.Warn(LogModule, L10n.Get("main.stopped", response.DeserializeData<int>()));
+            ClientLog.Warn(LogModule, L10n.Get("main.stopped"));
         }
         catch (Exception exception)
         {
@@ -483,6 +556,50 @@ public class MainPageViewModel : BaseViewModel
         catch (Exception exception)
         {
             ClientLog.Error(LogModule, L10n.Get("main.reset_failed", exception.Message));
+        }
+    }
+
+    /// <summary>
+    /// 全部初始化：开了就回，做没做成看系统状态（空闲 = 做成，回未初始化 = 没做成，原因在后端日志里）。
+    /// </summary>
+    private async Task DoInit()
+    {
+        try
+        {
+            var response = await _equipmentService.InitAsync(new RpcRequest());
+            if (!response.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.init_failed", SystemReason(response)));
+                return;
+            }
+
+            ClientLog.Info(LogModule, L10n.Get("main.init_started"));
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(LogModule, L10n.Get("main.init_failed", exception.Message));
+        }
+    }
+
+    /// <summary>
+    /// 全部回片：开了就回，回完系统状态回空闲；回不去的片和原因在后端日志里。
+    /// </summary>
+    private async Task DoReturnAll()
+    {
+        try
+        {
+            var response = await _equipmentService.ReturnAllAsync(new RpcRequest());
+            if (!response.Success)
+            {
+                ClientLog.Error(LogModule, L10n.Get("main.return_all_failed", SystemReason(response)));
+                return;
+            }
+
+            ClientLog.Info(LogModule, L10n.Get("main.return_all_started"));
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error(LogModule, L10n.Get("main.return_all_failed", exception.Message));
         }
     }
 
@@ -601,5 +718,13 @@ public class MainPageViewModel : BaseViewModel
     private static string ReasonOf(RpcResponse response)
     {
         return string.IsNullOrEmpty(response.Code) ? response.Message : L10n.Get(response.Code, response.Args);
+    }
+
+    /// <summary>
+    /// 系统操作被拒的原因：状态不允许时把状态码翻成整机的状态字。
+    /// </summary>
+    private static string SystemReason(RpcResponse response)
+    {
+        return ErrorText.Of(response, ModuleStates.SystemText);
     }
 }

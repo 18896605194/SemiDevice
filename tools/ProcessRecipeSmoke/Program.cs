@@ -363,12 +363,88 @@ try
     Fails(library.Save(7, 1, Content(string.Empty, good), "Saver"), ErrorCodes.ProcessRecipeNotFound, ["7"], "没有的编号");
     Check(Data(library.Get(1))?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
     // 系统组件构造即成为 Current：界面语言切成英文
-    _ = new SystemComponent { Language = "en-US" };
+    _ = new SystemModule { Language = "en-US" };
     Fails(SaveOne(Step(" ", "300")), ErrorCodes.ProcessRecipeValueRequired, ["2", "Time"], "英文界面时提示里用英文字段名");
-    SystemComponent.Current = null;
+    SystemModule.Current = null;
     Check(SaveOne(Step("0.1", "0", "arm1", "sc1", "0.1", "SCAN", "0", "150", "0.1")).IsSuccess, "边界值都能存：时间 0.1、转速 0、流量 0.1、位置 0 和 150、速度 0.1");
     Check(Data(library.Get(1))!.Steps[1].Get("Mode") == "Scan" && Data(library.Get(1))!.Steps[1].Get("Chemical") == "SC1"
           && Data(library.Get(1))!.Steps[1].Get("Arm") == "Arm1", "下拉的写法跟选项一样");
+
+    // 4b. 晶圆尺寸：位置、到的上限在 sc.xml 里按尺寸分开写（Max.8 = 100、Max.12 = 150），整机切到哪个尺寸用哪个，没配晶圆尺寸组件按 12 寸；
+    //     切尺寸写回 sc.xml（输出目录里链接过来的那份），只改 Size 那一个值、别的一个字节不动，切回来跟原来一模一样。
+    var previousWaferSize = WaferSizeComponent.Current;
+    WaferSizeComponent.Current = null;
+    Check(F("Position").MaxFor(8) == 100 && F("Position").MaxFor(12) == 150 && F("ScanTo").MaxFor(8) == 100 && F("ScanTo").MaxFor(12) == 150
+          && F("Seconds").MaxFor(8) == 3600 && F("Position").Max == 150,
+        "位置、到按尺寸分开写上限：8 寸 100、12 寸 150；没分开写的两种尺寸一样；没配晶圆尺寸按 12 寸");
+    string scFile = Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml");
+    byte[] scBefore = File.ReadAllBytes(scFile);
+    try
+    {
+        var sizeRoots = ComponentLoader.Load(
+        [
+            new ModuleConfig
+            {
+                Name = "System",
+                Children =
+                [
+                    new ModuleConfig
+                    {
+                        Name = "WaferSize",
+                        Type = typeof(WaferSizeComponent).FullName,
+                        Values = [new ValueConfig { Name = "Size", Value = "12" }],
+                    },
+                ],
+            },
+        ]);
+        var waferSize = sizeRoots.OfType<WaferSizeComponent>().Single();
+        int sizeEvents = 0;
+        waferSize.Changed += _ => sizeEvents++;
+        Check(WaferSizeComponent.Current == waferSize && waferSize.FullPath == "System.WaferSize" && waferSize.Size == 12,
+            "晶圆尺寸组件挂在 System 下面，路径跟 sc.xml 的层级一样");
+        Fails(waferSize.SetSize(6), ErrorCodes.WaferSizeInvalid, ["6"], "只能切 8 寸、12 寸");
+        Check(waferSize.SetSize(8).IsSuccess && waferSize.Size == 8 && WaferSizeComponent.CurrentSize == 8 && sizeEvents == 1,
+            "切到 8 寸：马上换上，发一次变更");
+        const string size12Line = "<Value Name=\"Size\" Value=\"12\" />";
+        const string size8Line = "<Value Name=\"Size\" Value=\"8\" />";
+        string beforeText = System.Text.Encoding.UTF8.GetString(scBefore);
+        byte[] scAfter = File.ReadAllBytes(scFile);
+        Check(beforeText.Split(size12Line).Length == 2 && System.Text.Encoding.UTF8.GetString(scAfter) == beforeText.Replace(size12Line, size8Line)
+              && scAfter.Take(3).SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }),
+            "写回 sc.xml：只有 System 下 WaferSize 那一行的 Size 改成 8，别的一个字都没变，还是带 BOM 的 UTF-8");
+        Check(F("Position").Max == 100 && F("ScanTo").Max == 100, "8 寸：位置、到的上限是 100");
+        int revision = Data(library.Get(1))!.Revision;
+        Fails(library.Save(1, revision, Content(string.Empty, [Step("5", "300"), Step("5", "300", "Arm1", "DIW", "1.5", "Time", "101")]), "Saver"),
+            ErrorCodes.ProcessRecipeValueAboveMax, ["2", "位置", "100", ""], "8 寸：位置过了 8 寸的中心（库里不动）");
+        Check(F("Position").CheckFormat("100", []) is null, "8 寸：位置 100（中心）合规");
+        Check(waferSize.SetSize(8).IsSuccess && sizeEvents == 1, "跟现在一样直接成功，不发变更");
+        Check(waferSize.SetSize(12).IsSuccess && sizeEvents == 2 && File.ReadAllBytes(scFile).SequenceEqual(scBefore),
+            "切回 12 寸：sc.xml 跟原来一个字节都不差（缩进、换行、BOM 都没动）");
+
+        // 节点下没写 Size（装配时用的默认 12）：切的时候照节点的缩进补一行，补出来跟手写的一样
+        string lineBreak = beforeText.Contains("\r\n") ? "\r\n" : "\n";
+        string withoutSize = beforeText.Replace(lineBreak + "\t\t\t" + size12Line, string.Empty);
+        Check(withoutSize != beforeText, "造一份 WaferSize 下没写 Size 的 sc.xml");
+        File.WriteAllText(scFile, withoutSize, new System.Text.UTF8Encoding(false));
+        Check(waferSize.SetSize(8).IsSuccess && System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(scFile)) == beforeText.Replace(size12Line, size8Line),
+            "没写 Size 的节点：补上一行 Size = 8，缩进跟别的行一样");
+        Check(waferSize.SetSize(12).IsSuccess && File.ReadAllBytes(scFile).SequenceEqual(scBefore), "再切回 12 寸");
+
+        // 换行照原文件：git 签出来是 CRLF、仓库里存的是 LF，两种来回切都一个字节不差
+        foreach (string newLine in new[] { "\r\n", "\n" })
+        {
+            string sameText = beforeText.Replace("\r\n", "\n").Replace("\n", newLine);
+            byte[] sameBytes = new System.Text.UTF8Encoding(false).GetBytes(sameText);
+            File.WriteAllBytes(scFile, sameBytes);
+            Check(waferSize.SetSize(8).IsSuccess && waferSize.SetSize(12).IsSuccess && File.ReadAllBytes(scFile).SequenceEqual(sameBytes),
+                $"换行是 {(newLine.Length == 2 ? "CRLF" : "LF")} 的 sc.xml：切过去再切回来跟原来一样");
+        }
+    }
+    finally
+    {
+        File.WriteAllBytes(scFile, scBefore);
+        WaferSizeComponent.Current = previousWaferSize;
+    }
 
     // 5. 开关、文本字段（自己拼的字段表）：开关只认 true / false（存成小写），文本去掉首尾空白；字段之间不互相管。
     var flags = (RecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
@@ -605,7 +681,7 @@ try
 finally
 {
     RecipeComponent.Current = null;
-    SystemComponent.Current = null;
+    SystemModule.Current = null;
     foreach (string path in new[] { folder, otherFolder })
     {
         if (Directory.Exists(path))

@@ -12,8 +12,8 @@ public interface ISwingArm : IAxis
     /// <summary>按药液名找喷嘴。</summary>
     INozzle? FindNozzle(string chemical);
 
-    /// <summary>晶圆坐标换算成实际轴位置。</summary>
-    double ToAxisPosition(double waferPosition);
+    /// <summary>晶圆坐标换算成实际轴位置；给了喷嘴就让这个喷嘴到那个点（加上它的偏移）。</summary>
+    double ToAxisPosition(double waferPosition, INozzle? nozzle = null);
 
     /// <summary>供设备图显示的当前摆幅。</summary>
     double Reach { get; }

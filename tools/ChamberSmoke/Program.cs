@@ -323,7 +323,7 @@ try
     Check(!SpinDto().IsSpinning, "速度容差以内不算在转");
     SetSpinSpeed(0);
 
-    // 摆臂：回零后 0 位 = Home；示教位默认 Edge = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）
+    // 摆臂：回零后 0 位 = Home；示教位默认 Edge12 = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）；没配晶圆尺寸组件按 12 寸
     double Reach()
     {
         return ArmDto().Reach;
@@ -334,13 +334,16 @@ try
         return ArmDto().EdgeReach;
     }
 
-    Check(Near(arm.Center, 150) && Near(arm.Edge, 0), "示教位默认 Center = 150、Edge = 0（轴位置按晶圆坐标走）");
+    var previousWaferSize = WaferSizeComponent.Current;
+    WaferSizeComponent.Current = null;
+    Check(Near(arm.Center, 150) && Near(arm.Edge12, 0) && Near(arm.Edge, 0) && Near(arm.Edge8, 50),
+        "示教位默认 Center = 150、Edge12 = 0（轴位置按 12 寸晶圆坐标走）、Edge8 = 50（12 寸边缘往里 50）；没配晶圆尺寸用 Edge12");
     Check(Near(arm.ToAxisPosition(75), 75), "没示教：配方坐标就是轴位置");
     Check(Reach() == 0 && EdgeReach() == 0, "0 位是 Home；默认 Edge 跟 Home 重合，不分段");
     SetArm(75);
     Check(Near(Reach(), 0.5), "默认示教位下按 Center 线性换算：75 / 150 = 0.5");
     // 示教后（实际轴位置）：Edge = 100、Center = 200
-    arm.Edge = 100;
+    arm.Edge12 = 100;
     arm.Center = 200;
     Check(Near(arm.ToAxisPosition(0), 100) && Near(arm.ToAxisPosition(150), 200) && Near(arm.ToAxisPosition(75), 150),
         "示教后配方坐标按 Edge、Center 换成轴位置：0 → 100，150 → 200");
@@ -358,9 +361,9 @@ try
         "PLC 断了 Reach 停在断线前的值，HasPlcData 推 false（界面位置显示\"—\"）");
     plc.IsConnected = true;
     Tick(2);
-    arm.Edge = 250;
+    arm.Edge12 = 250;
     Check(EdgeReach() == 0, "Edge 不在 Home 和 Center 之间（示教错了）不分段");
-    arm.Edge = 100;
+    arm.Edge12 = 100;
     arm.Center = 0;
     SetArm(0);
     Check(Reach() == 0 && EdgeReach() == 0, "Center 被改到跟 0 位分不开：0 位算 Home，不分段");
@@ -369,6 +372,18 @@ try
     arm.Center = 200;
     SetArm(0);
     Check(Reach() == 0 && Near(EdgeReach(), 0.5), "回到 0 位，示教位恢复");
+
+    // 8 寸 / 12 寸：边缘示教位各一个、Center 共用；半径 8 寸 100、12 寸 150，按晶圆尺寸组件现在的尺寸换算
+    var waferSize = new WaferSizeComponent { Size = WaferSizeComponent.Inch8 };
+    Check(WaferSizeComponent.Current == waferSize && WaferSizeComponent.CurrentSize == 8, "配了晶圆尺寸组件就按它的尺寸");
+    arm.Edge8 = 125;
+    Check(Near(arm.Edge, 125) && Near(arm.ToAxisPosition(0), 125) && Near(arm.ToAxisPosition(100), 200) && Near(arm.ToAxisPosition(50), 162.5),
+        "8 寸：配方 0 → Edge8，100（8 寸中心）→ Center，中间线性");
+    Check(Near(EdgeReach(), 125.0 / 200), "8 寸：三维图的边缘按 Edge8 画");
+    waferSize.Size = WaferSizeComponent.Inch12;
+    Check(Near(arm.Edge, 100) && Near(arm.ToAxisPosition(0), 100) && Near(arm.ToAxisPosition(150), 200) && Near(EdgeReach(), 0.5),
+        "切回 12 寸：按 Edge12 和半径 150，8 寸的示教位留着不动");
+    WaferSizeComponent.Current = previousWaferSize;
 
     // 4. 推送：有变化才推；跟 ChamberDto 同 token、类型不同，各自留存互不覆盖
     int pushes = 0;
@@ -659,6 +674,11 @@ try
         return operation;
     }
 
+    // 两个喷嘴并排装在臂头上：示教位对着先到中心的 DIW，SC1 要喷到同一点轴还得多走 10（EC Offset，现场测的值）
+    Check(diw.Offset == 0 && sc1.Offset == 0, "喷嘴偏移默认 0");
+    sc1.Offset = 10;
+    Check(Near(arm.ToAxisPosition(150, diw), 200) && Near(arm.ToAxisPosition(150, sc1), 210) && Near(arm.ToAxisPosition(0, sc1), 110),
+        "换算加上喷嘴的偏移：DIW 中心 200，SC1 中心 210、边缘 110");
     var process = Recipe("Clean",
         StepOf(("Seconds", "0.3"), ("Rpm", "300"), ("Arm", "Arm1"), ("Chemical", "DIW"), ("Flow", "1.5"), ("Mode", "Time"), ("Position", "150")),
         StepOf(("Seconds", "0.5"), ("Rpm", "500"), ("Arm", "Arm1"), ("Chemical", "SC1"), ("Flow", "2"), ("Mode", "Scan"),
@@ -676,12 +696,14 @@ try
     var processed = Drive(started);
     Check(processed.IsSuccess && chamber.State == ModuleState.Idle, "工艺做完回空闲");
     Check(diwOn && sc1On && !bothOn, "DIW、SC1 各喷过，换药液时先关上一路");
-    Check(seenPositions.Contains(100) && seenPositions.Contains(200), "第 2 步 Scan：在位置 0（轴 100）和到 150（轴 200）之间来回扫");
+    Check(seenPositions.Contains(110) && seenPositions.Contains(210) && !seenPositions.Contains(100),
+        "第 2、3 步 SC1：Scan 在位置 0 和到 150 之间来回扫、Time 停在 150，都按 SC1 的偏移多走 10（轴 110 ↔ 210），不按 DIW 的位置");
     Check(plc.Speeds("Arm.Command").Any(speed => Near(speed, 15)), "扫描速度 15 原样给轴（配方速度就是轴的设计速度，不按示教位换算）");
     Check(plc.Ao(1) == 0 && !plc.ReadDo(6) && !plc.ReadDo(7), "做完喷嘴全停、流量设定清零");
     Check(plc.CommandCount("Spin.Command") - spinCommands == 4 && plc.Speeds("Spin.Command").Contains(500),
         "卡盘：第 1 步转 300、第 2 步转着换 500（PLC 报忙也照收）、第 3 步转速一样不重发、第 4 步转速 0 停、收尾再停一次");
     Check(sc1Opens == 1, "第 2、3 步都用 SC1：接着喷，不关了再开");
+    sc1.Offset = 0;
     Check(!plc.OutputWhen("Spin.Command", 500, 6), "换步先关上一步的 DIW 再改转速：卡盘加速时不接着喷上一步的药液");
     Check(Near(arm.CurrentPosition, 0) && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Closed && !spin.IsSpinning,
         "收尾：摆臂回 Home、卡盘停转、Bowl 降");
@@ -809,8 +831,8 @@ static ModuleConfig ChamberConfig(string name, bool enabled)
     [
         Node("Lift", typeof(ChamberLiftComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5"),
             Value("DiOpenedIndex", "4"), Value("DiClosedIndex", "5")),
-        Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("Chemical", "DIW"), Value("FlowAoIndex", "0")),
-        Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("DiIndex", "7"), Value("Chemical", "SC1"), Value("FlowAoIndex", "1")),
+        Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("Chemical", "DIW"), Value("AoIndex", "0")),
+        Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("DiIndex", "7"), Value("Chemical", "SC1"), Value("AoIndex", "1")),
     ];
     var chamber = Node(name, typeof(SmokeChamber), Value("IsEnable", enabled ? "True" : "False"));
     chamber.Children =

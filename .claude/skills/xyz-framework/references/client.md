@@ -69,6 +69,8 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 系统状态（`ModuleStateBadge` 整条色块）：没连上 / 还没收到设备总状态 = 未连接（灰），有报警 = 报警（红），有模块在动 = 运行中（蓝），
   只有警告 = 警告（黄），否则空闲（绿）。模式取设备总状态 `EquipmentStatusDto.IsAuto`。四个按钮连上且收到状态后才能点。
   Auto / Manual / Stop 走 `IEquipmentService`，Reset 跟右上角一样走 `IAlarmService.ResetAllAsync`；结果写顶栏日志。
+  报警下面一行晶圆尺寸（`EquipmentStatusDto.WaferSize`，"12 寸"）+ 小按钮"切换"（`MiniButtonStyle`，切到另一种，`IEquipmentService.SetWaferSizeAsync`；
+  能不能切后端查，不行的原因写顶栏日志）。
 - 槽位表（`DenseDataGridStyle`，行高 24，25 槽一屏放下，大号在上）：片以晶圆账为准（`LoadPortDto.LedgerSlots`，账上没登记才按 Mapping）；
   状态列 `JobWaferStateDataGridTextStyle`（物理状态不正常的先显示交叉片 / 叠片 / 状态不明，否则显示工艺状态）。
   Sequence 是界面上选的（点创建 Job 时交给后端）：上面的 Sequence 框一选给全篮能做的片套上，⊕ 弹公共选择弹窗给这一片单独选，⊖ 清空（这片不做）；

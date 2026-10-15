@@ -787,7 +787,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         }
 
         var field = library.Fields.Concat(library.HeadFields).FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
-        return field is null ? key : field.DisplayText(SystemComponent.Current?.Language);
+        return field is null ? key : field.DisplayText(SystemModule.Current?.Language);
     }
 
     /// <summary>

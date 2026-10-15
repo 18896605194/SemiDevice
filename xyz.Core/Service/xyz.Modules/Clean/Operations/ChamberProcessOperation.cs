@@ -330,7 +330,8 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
             }
 
             var position = _position;
-            if (position is not null && !Send(arm, ChamberDeviceAction.Move, () => arm.MoveTo(arm.ToAxisPosition(position.Value))))
+            var nozzle = _nozzle;
+            if (position is not null && !Send(arm, ChamberDeviceAction.Move, () => arm.MoveTo(arm.ToAxisPosition(position.Value, nozzle))))
             {
                 return false;
             }
@@ -381,7 +382,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
             return;
         }
 
-        double target = arm.ToAxisPosition(_towardScanTo ? to.Value : from.Value);
+        double target = arm.ToAxisPosition(_towardScanTo ? to.Value : from.Value, _nozzle);
         double? speed = _scanSpeed;
         _towardScanTo = !_towardScanTo;
         Send(arm, ChamberDeviceAction.Move, () => arm.MoveTo(target, speed));

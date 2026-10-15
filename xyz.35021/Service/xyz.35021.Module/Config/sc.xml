@@ -1,7 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ArrayOfSetting>
-	<Setting Name="System" Type="xyz.Components.Components.SystemComponent">
+	<Setting Name="System" Type="xyz.Modules.SystemModule">
 		<Value Name="Language" Value="zh-CN" />
+		<Setting Name="WaferSize" Type="xyz.Components.Components.WaferSizeComponent">
+			<Value Name="Size" Value="12" />
+		</Setting>
 	</Setting>
 	<Setting Name="Rpc" Type="xyz.Components.Components.RpcComponent">
 		<Value Name="Host" Value="localhost" />
@@ -424,7 +427,8 @@
 				<Value Name="TextEn" Value="Position" />
 				<Value Name="Type" Value="Double" />
 				<Value Name="Min" Value="0" />
-				<Value Name="Max" Value="150" />
+				<Value Name="Max.8" Value="100" />
+				<Value Name="Max.12" Value="150" />
 				<Value Name="Decimals" Value="1" />
 			</Setting>
 			<Setting Name="ScanTo">
@@ -432,7 +436,8 @@
 				<Value Name="TextEn" Value="To" />
 				<Value Name="Type" Value="Double" />
 				<Value Name="Min" Value="0" />
-				<Value Name="Max" Value="150" />
+				<Value Name="Max.8" Value="100" />
+				<Value Name="Max.12" Value="150" />
 				<Value Name="Decimals" Value="1" />
 			</Setting>
 			<Setting Name="ScanSpeed">
@@ -544,13 +549,25 @@
 					<Value Name="DoIndex" Value="110" />
 					<Value Name="DiIndex" Value="110" />
 					<Value Name="Chemical" Value="DIW" />
-					<Value Name="FlowAoIndex" Value="100" />
+					<Value Name="AoIndex" Value="100" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="100" />
+						<Value Name="MonitoringDoIndex" Value="110" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="111" />
 					<Value Name="DiIndex" Value="111" />
 					<Value Name="Chemical" Value="SC1" />
-					<Value Name="FlowAoIndex" Value="101" />
+					<Value Name="AoIndex" Value="101" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="101" />
+						<Value Name="MonitoringDoIndex" Value="111" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
@@ -591,13 +608,25 @@
 					<Value Name="DoIndex" Value="150" />
 					<Value Name="DiIndex" Value="150" />
 					<Value Name="Chemical" Value="DIW" />
-					<Value Name="FlowAoIndex" Value="120" />
+					<Value Name="AoIndex" Value="120" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="120" />
+						<Value Name="MonitoringDoIndex" Value="150" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="151" />
 					<Value Name="DiIndex" Value="151" />
 					<Value Name="Chemical" Value="SC1" />
-					<Value Name="FlowAoIndex" Value="121" />
+					<Value Name="AoIndex" Value="121" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="121" />
+						<Value Name="MonitoringDoIndex" Value="151" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
@@ -638,13 +667,25 @@
 					<Value Name="DoIndex" Value="190" />
 					<Value Name="DiIndex" Value="190" />
 					<Value Name="Chemical" Value="DIW" />
-					<Value Name="FlowAoIndex" Value="140" />
+					<Value Name="AoIndex" Value="140" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="140" />
+						<Value Name="MonitoringDoIndex" Value="190" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="191" />
 					<Value Name="DiIndex" Value="191" />
 					<Value Name="Chemical" Value="SC1" />
-					<Value Name="FlowAoIndex" Value="141" />
+					<Value Name="AoIndex" Value="141" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="141" />
+						<Value Name="MonitoringDoIndex" Value="191" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
@@ -685,13 +726,25 @@
 					<Value Name="DoIndex" Value="230" />
 					<Value Name="DiIndex" Value="230" />
 					<Value Name="Chemical" Value="DIW" />
-					<Value Name="FlowAoIndex" Value="160" />
+					<Value Name="AoIndex" Value="160" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="160" />
+						<Value Name="MonitoringDoIndex" Value="230" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="231" />
 					<Value Name="DiIndex" Value="231" />
 					<Value Name="Chemical" Value="SC1" />
-					<Value Name="FlowAoIndex" Value="161" />
+					<Value Name="AoIndex" Value="161" />
+					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
+						<Value Name="AiIndex" Value="161" />
+						<Value Name="MonitoringDoIndex" Value="231" />
+						<Value Name="MonitoringActiveHigh" Value="True" />
+						<Value Name="AlarmEnabled" Value="True" />
+					</Setting>
 				</Setting>
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">

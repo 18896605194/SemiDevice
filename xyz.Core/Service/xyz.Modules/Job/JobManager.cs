@@ -184,6 +184,21 @@ public class JobManager : ComponentBase, IJobManager
         }
     }
 
+    /// <summary>
+    /// 有没有在跑的 Job：CJ 已经开始执行、还没结束（执行中、暂停、中止中）。整机据此分自动运行 / 自动空闲。
+    /// </summary>
+    public bool HasRunningJob
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _controlJobs.ControlJobs.Any(job => !job.IsEnded
+                    && job.State is ControlJobState.Executing or ControlJobState.Paused or ControlJobState.Aborting);
+            }
+        }
+    }
+
     /// <summary>按载具号从 CJ 队列查找，在 Job 锁内读取并返回 DTO 副本。</summary>
     public ControlJobDto? FindControlJobByCarrier(string carrierId)
     {

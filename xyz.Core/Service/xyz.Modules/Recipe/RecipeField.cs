@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
+using xyz.Components.Components;
 using xyz.Configs.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -33,6 +34,12 @@ public sealed class RecipeField
     public const string SourceName = "Source";
 
     private const string SourceTypeSeparator = ".";
+
+    /// <summary>
+    /// 按晶圆尺寸分开写的上限：<c>Max.8</c>、<c>Max.12</c>（摆臂的位置这类晶圆坐标，8 寸中心 100、12 寸中心 150），
+    /// 整机切到哪个尺寸用哪个；当前尺寸没写的用 <c>Max</c>。
+    /// </summary>
+    private const string MaxBySizePrefix = "Max.";
 
     /// <summary>
     /// 整数、小数的写法跟界面的通用输入框一样：可以带正负号、小数点，不认千分位、科学计数法。
@@ -73,9 +80,19 @@ public sealed class RecipeField
     public double? Min { get; private init; }
 
     /// <summary>
-    /// 上限；null = 不限。
+    /// 上限；null = 不限。按整机现在的晶圆尺寸取（见 <see cref="MaxFor"/>），主界面切了尺寸跟着变。
     /// </summary>
-    public double? Max { get; private init; }
+    public double? Max => MaxFor(WaferSizeComponent.CurrentSize);
+
+    /// <summary>
+    /// sc.xml 里写的 <c>Max</c>：没按尺寸分开写时用它。
+    /// </summary>
+    private double? DefaultMax { get; init; }
+
+    /// <summary>
+    /// 按晶圆尺寸分开写的上限（<c>Max.8</c>、<c>Max.12</c>）：尺寸 → 上限。
+    /// </summary>
+    private IReadOnlyDictionary<int, double> MaxBySize { get; init; } = new Dictionary<int, double>();
 
     /// <summary>
     /// 最多几位小数（小数才有）；null = 不限。
@@ -99,6 +116,14 @@ public sealed class RecipeField
     public bool IsNumber => Type is ProcessRecipeFieldType.Int or ProcessRecipeFieldType.Double;
 
     /// <summary>
+    /// 做这种尺寸的片时的上限：写了 <c>Max.尺寸</c> 的用它，没写的用 <c>Max</c>。
+    /// </summary>
+    public double? MaxFor(int waferSize)
+    {
+        return MaxBySize.TryGetValue(waferSize, out double max) ? max : DefaultMax;
+    }
+
+    /// <summary>
     /// 这种站点能选的（Type 不分大小写）；没写这一套的为空。
     /// </summary>
     public IReadOnlyList<string> OptionsFor(string stationType)
@@ -118,8 +143,14 @@ public sealed class RecipeField
     /// <summary>
     /// 按字段自己的规则查一个非空的值：整数、小数的写法、上下限、小数位，下拉要在 options 里（不分大小写；步骤按配方的 Type 取那一套），
     /// 开关只认 true / false。查过了返回 null；没过返回步骤那一组错误码和参数（不含步号、字段名，调用方在前面补上；配方头换成配方头那一组）。
+    /// 上限按整机现在的晶圆尺寸取。
     /// </summary>
     public (string Code, string[] Args)? CheckFormat(string value, IReadOnlyList<string> options)
+    {
+        return CheckFormat(value, options, Max);
+    }
+
+    private (string Code, string[] Args)? CheckFormat(string value, IReadOnlyList<string> options, double? max)
     {
         if (Type == ProcessRecipeFieldType.Choice)
         {
@@ -170,7 +201,6 @@ public sealed class RecipeField
             return (ErrorCodes.ProcessRecipeValueBelowMin, [Number(min.Value), UnitSuffix()]);
         }
 
-        double? max = Max;
         if (max is not null && number > max.Value)
         {
             return (ErrorCodes.ProcessRecipeValueAboveMax, [Number(max.Value), UnitSuffix()]);
@@ -244,9 +274,13 @@ public sealed class RecipeField
         bool number = type is ProcessRecipeFieldType.Int or ProcessRecipeFieldType.Double;
         double? min = number ? ReadLimit(Read(nameof(Min)), nameof(Min), path, type) : null;
         double? max = number ? ReadLimit(Read(nameof(Max)), nameof(Max), path, type) : null;
-        if (min is not null && max is not null && min.Value > max.Value)
+        var maxBySize = number ? ReadMaxBySize(node, path, type) : new Dictionary<int, double>();
+        foreach (double limit in maxBySize.Values.Append(max ?? double.PositiveInfinity))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的下限 {Number(min.Value)} 比上限 {Number(max.Value)} 大");
+            if (min is not null && min.Value > limit)
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {path} 的下限 {Number(min.Value)} 比上限 {Number(limit)} 大");
+            }
         }
 
         int? decimals = null;
@@ -280,7 +314,8 @@ public sealed class RecipeField
             Type = type,
             Unit = number ? Read(nameof(Unit)) : string.Empty,
             Min = min,
-            Max = max,
+            DefaultMax = max,
+            MaxBySize = maxBySize,
             Decimals = decimals,
             Required = required,
             OptionsByType = optionsByType,
@@ -292,13 +327,17 @@ public sealed class RecipeField
             return field;
         }
 
-        // 默认值也得合规：新加一步就填它，不合规的话一添加就报错。下拉的先原样留着，Bind 时按每种站点的选项查
+        // 默认值也得合规：新加一步就填它，不合规的话一添加就报错。下拉的先原样留着，Bind 时按每种站点的选项查。
+        // 上限按尺寸分开写的，每种尺寸都查一遍（切了尺寸照样能添加）
         if (!choice)
         {
-            var problem = field.CheckFormat(defaultText, []);
-            if (problem is not null)
+            foreach (int size in new[] { WaferSizeComponent.Inch8, WaferSizeComponent.Inch12 })
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
+                var problem = field.CheckFormat(defaultText, [], field.MaxFor(size));
+                if (problem is not null)
+                {
+                    throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
+                }
             }
         }
 
@@ -310,7 +349,8 @@ public sealed class RecipeField
             Type = field.Type,
             Unit = field.Unit,
             Min = field.Min,
-            Max = field.Max,
+            DefaultMax = field.DefaultMax,
+            MaxBySize = field.MaxBySize,
             Decimals = field.Decimals,
             Required = field.Required,
             OptionsByType = field.OptionsByType,
@@ -369,6 +409,42 @@ public sealed class RecipeField
         {
             throw new InvalidOperationException(
                 $"sc.xml 节点 {path} 是下拉，要写选项：{SourceName}（站点没配 Type 时），或按站点的 Type 分开写 {SourceName}{SourceTypeSeparator}A、{SourceName}{SourceTypeSeparator}B……");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 读按晶圆尺寸分开写的上限（<c>Max.8</c>、<c>Max.12</c>）：尺寸只能是 8 或 12、值要是数（空着的跳过），同一个尺寸写了两遍就抛。
+    /// </summary>
+    private static Dictionary<int, double> ReadMaxBySize(ModuleConfig node, string path, ProcessRecipeFieldType type)
+    {
+        var result = new Dictionary<int, double>();
+        foreach (var value in node.Values)
+        {
+            string name = (value.Name ?? string.Empty).Trim();
+            if (!name.StartsWith(MaxBySizePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string sizeText = name[MaxBySizePrefix.Length..].Trim();
+            if (!int.TryParse(sizeText, NumberStyles.None, CultureInfo.InvariantCulture, out int size) || !WaferSizeComponent.IsSupported(size))
+            {
+                throw new InvalidOperationException(
+                    $"sc.xml 节点 {path} 的 {name} 不对：按晶圆尺寸分开写的上限只能是 {MaxBySizePrefix}{WaferSizeComponent.Inch8} 或 {MaxBySizePrefix}{WaferSizeComponent.Inch12}");
+            }
+
+            double? limit = ReadLimit((value.Value ?? string.Empty).Trim(), name, path, type);
+            if (limit is null)
+            {
+                continue;
+            }
+
+            if (!result.TryAdd(size, limit.Value))
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name} 写了两遍");
+            }
         }
 
         return result;

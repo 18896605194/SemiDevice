@@ -10,7 +10,7 @@ using xyz.Tools;
 namespace xyz.Service.Events;
 
 /// <summary>
-/// 设备总状态：定时看报警和各模块有没有在执行动作，得出 红 = 报警、黄 = 警告、绿 = 运行，再带上整机模式（Auto = 自动派单开着），
+/// 设备总状态：定时看报警和各模块有没有在执行动作，得出 红 = 报警、黄 = 警告、绿 = 运行，再带上晶圆尺寸，
 /// 有变化时点亮组件树里的四色灯（只认 ILightComponent，不依赖具体灯组件），并经事件流推给客户端（顶栏四色灯、主界面系统操作）。
 /// 设备没配四色灯时照样推给客户端。蓝灯（通讯）和蜂鸣器不在这里管。
 /// </summary>
@@ -20,7 +20,7 @@ public static class EquipmentStatusPublisher
 
     private static readonly object Gate = new();
     private static Timer? _timer;
-    private static (bool HasAlarm, bool HasWarning, bool IsRunning, bool IsAuto)? _last;
+    private static (bool HasAlarm, bool HasWarning, bool IsRunning, int WaferSize)? _last;
 
     /// <summary>
     /// 灯输出失败时记过的原因，同一个灯同样的错只记一次，免得每次变化都刷日志。
@@ -71,13 +71,13 @@ public static class EquipmentStatusPublisher
         lock (Gate)
         {
             var dto = Snapshot(modules);
-            var status = (dto.HasAlarm, dto.HasWarning, dto.IsRunning, dto.IsAuto);
+            var status = (dto.HasAlarm, dto.HasWarning, dto.IsRunning, dto.WaferSize);
             if (_last == status)
             {
                 return;
             }
 
-            // 只是模式变了也重刷一遍灯：写的是同样的值，模式又是人点的、很少变，不值得为它单分一种情况。
+            // 只是晶圆尺寸变了也重刷一遍灯：写的是同样的值，尺寸又是人点的、很少变，不值得为它单分一种情况。
             _last = status;
             foreach (var light in lights)
             {
@@ -89,8 +89,8 @@ public static class EquipmentStatusPublisher
     }
 
     /// <summary>
-    /// 这一刻的设备总状态：报警看报警组件（Warn 级算警告，其余算报警），运行看有没有模块在执行动作，模式看搬运管理的自动派单。
-    /// 没装报警组件、搬运管理的照样能算（没报警、Manual）。
+    /// 这一刻的设备总状态：报警看报警组件（Warn 级算警告，其余算报警），运行看有没有模块在执行动作（整机在全部初始化、回片、停止中也算），
+    /// 晶圆尺寸看晶圆尺寸组件。没装报警组件、晶圆尺寸的照样能算（没报警、12 寸）。系统状态、模式不在这里，整机模块自己推。
     /// </summary>
     public static EquipmentStatusDto Snapshot(IReadOnlyList<BaseModule> modules)
     {
@@ -100,7 +100,7 @@ public static class EquipmentStatusPublisher
             HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
             HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
             IsRunning = modules.Any(module => module.CurrentOperation is not null),
-            IsAuto = TransferManager.Current?.IsAutoDispatch == true,
+            WaferSize = WaferSizeComponent.CurrentSize,
         };
     }
 

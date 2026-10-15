@@ -15,6 +15,19 @@
     <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
 
+    <!-- 整机（sc.xml 的 System 节点：全部初始化、Auto / Manual、整机停止、全部回片） -->
+    <sys:String x:Key="system.not_installed">sc.xml 没配 System 节点（没有整机模块），初始化、Auto / Manual、Stop、全部回片都用不了</sys:String>
+    <sys:String x:Key="system.init_rejected">{0} 的初始化被拒（状态不允许、在忙，或没写初始化），全部初始化没做成</sys:String>
+    <sys:String x:Key="system.init_failed">{0} 初始化没做成，全部初始化没做成</sys:String>
+    <sys:String x:Key="system.return_incomplete">全部回片有 {0} 片没回去，原因见日志</sys:String>
+
+    <!-- 晶圆尺寸（主界面切 8 / 12 寸） -->
+    <sys:String x:Key="system.wafer_size_not_installed">sc.xml 的 System 节点下没配 WaferSize，切不了晶圆尺寸</sys:String>
+    <sys:String x:Key="system.wafer_size_invalid">晶圆尺寸只能是 8 或 12，给的是 {0}</sys:String>
+    <sys:String x:Key="system.wafer_size_initialized">{0} 已经初始化过（不是未初始化），要在整机没初始化时切晶圆尺寸</sys:String>
+    <sys:String x:Key="system.wafer_size_has_wafer">{0} 里还有片，机台里（LoadPort 以外）都没片才能切晶圆尺寸</sys:String>
+    <sys:String x:Key="system.wafer_size_save_failed">晶圆尺寸写回 sc.xml 失败：{0}</sys:String>
+
     <!-- 模块状态文字：码值见 xyz.Modules 的 ModuleState/TransferModuleState/LoadPortState -->
     <sys:String x:Key="module.state.not_init">未初始化</sys:String>
     <sys:String x:Key="module.state.initing">初始化中</sys:String>
@@ -35,6 +48,10 @@
     <sys:String x:Key="module.state.placing">放片中</sys:String>
     <sys:String x:Key="module.state.processing">工艺中</sys:String>
     <sys:String x:Key="module.state.manual">手动动作中</sys:String>
+    <sys:String x:Key="module.state.stopping">停止中</sys:String>
+    <sys:String x:Key="module.state.auto_idle">自动空闲</sys:String>
+    <sys:String x:Key="module.state.auto_running">自动运行</sys:String>
+    <sys:String x:Key="module.state.returning">回片中</sys:String>
     <sys:String x:Key="module.state.unknown">未知状态（{0}）</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} 指令被设备拒绝（未连接或在途）</sys:String>
@@ -559,28 +576,38 @@
     <sys:String x:Key="main.mode">当前模式</sys:String>
     <sys:String x:Key="main.alarms">报警</sys:String>
     <sys:String x:Key="main.state.disconnected">未连接</sys:String>
-    <sys:String x:Key="main.state.idle">空闲</sys:String>
-    <sys:String x:Key="main.state.running">运行中</sys:String>
-    <sys:String x:Key="main.state.warning">警告</sys:String>
-    <sys:String x:Key="main.state.alarm">报警</sys:String>
     <sys:String x:Key="main.mode.auto">Auto</sys:String>
     <sys:String x:Key="main.mode.manual">Manual</sys:String>
     <sys:String x:Key="main.auto">Auto</sys:String>
     <sys:String x:Key="main.manual">Manual</sys:String>
     <sys:String x:Key="main.stop">Stop</sys:String>
     <sys:String x:Key="main.reset">Reset</sys:String>
-    <sys:String x:Key="main.auto_tip">切到 Auto：开自动派单，Job 按调度自动搬片、起工艺</sys:String>
+    <sys:String x:Key="main.init">初始化</sys:String>
+    <sys:String x:Key="main.return_all">全部回片</sys:String>
+    <sys:String x:Key="main.auto_tip">切到 Auto：开自动派单，Job 按调度自动搬片、起工艺；要先初始化、空闲时才能切</sys:String>
     <sys:String x:Key="main.manual_tip">切到 Manual：关自动派单，正在跑的那一趟跑完</sys:String>
     <sys:String x:Key="main.stop_tip">整机停止：关自动派单，在跑的 Job 走中止（等设备确认、核对片位），全部回片也停，其他模块正在做的动作直接中止</sys:String>
     <sys:String x:Key="main.reset_tip">复位全部有报警的来源（跟右上角的复位一样）</sys:String>
+    <sys:String x:Key="main.init_tip">全部初始化：先机械手回原点，再一起初始化 LoadPort、腔体等；都做成了系统进空闲，有一个没做成回未初始化（原因写日志）</sys:String>
+    <sys:String x:Key="main.return_all_tip">全部回片：机械手手上、腔体里的片回各自来源 LoadPort 的原槽，Manual 空闲时能用；回不去的片跳过，原因写日志</sys:String>
     <sys:String x:Key="main.auto_done">已切到 Auto</sys:String>
     <sys:String x:Key="main.manual_done">已切到 Manual</sys:String>
     <sys:String x:Key="main.auto_failed">切到 Auto 失败：{0}</sys:String>
     <sys:String x:Key="main.manual_failed">切到 Manual 失败：{0}</sys:String>
-    <sys:String x:Key="main.stopped">已停止：自动派单已关，在跑的 Job 走中止；另有 {0} 个模块在做动作，已发中止</sys:String>
+    <sys:String x:Key="main.stopped">已发整机停止：自动派单已关，搬运已撤，在跑的 Job 走中止，其他在做的动作已发中止</sys:String>
     <sys:String x:Key="main.stop_failed">停止失败：{0}</sys:String>
     <sys:String x:Key="main.reset_done">已复位 {0} 个报警来源</sys:String>
     <sys:String x:Key="main.reset_failed">复位失败：{0}</sys:String>
+    <sys:String x:Key="main.init_started">已开始全部初始化</sys:String>
+    <sys:String x:Key="main.init_failed">全部初始化没开始：{0}</sys:String>
+    <sys:String x:Key="main.return_all_started">已开始全部回片</sys:String>
+    <sys:String x:Key="main.return_all_failed">全部回片没开始：{0}</sys:String>
+    <sys:String x:Key="main.wafer_size">晶圆尺寸</sys:String>
+    <sys:String x:Key="main.wafer_size.value">{0} 寸</sys:String>
+    <sys:String x:Key="main.wafer_size.switch">切换</sys:String>
+    <sys:String x:Key="main.wafer_size_tip">切换整机做的晶圆尺寸：整机没初始化、机台里（LoadPort 以外）没片时才能切；切了马上生效，摆臂按这个尺寸换算配方位置，配方页的位置上限跟着变</sys:String>
+    <sys:String x:Key="main.wafer_size_done">已切到 {0} 寸</sys:String>
+    <sys:String x:Key="main.wafer_size_failed">切换晶圆尺寸失败：{0}</sys:String>
     <sys:String x:Key="main.dispatch">整机调度</sys:String>
     <sys:String x:Key="main.no_robot">没有机械手可画：启动时没连上后端，或 sc.xml 没配 Robot</sys:String>
     <sys:String x:Key="main.no_loadport">没有 LoadPort：启动时没连上后端，或 sc.xml 没配 LoadPort</sys:String>

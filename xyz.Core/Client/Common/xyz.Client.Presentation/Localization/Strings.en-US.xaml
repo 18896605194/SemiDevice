@@ -14,6 +14,19 @@
     <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
 
+    <!-- Equipment (System node in sc.xml: initialize all, Auto / Manual, stop, return all) -->
+    <sys:String x:Key="system.not_installed">The System node is not configured in sc.xml (no equipment module); Init, Auto / Manual, Stop and Return All are unavailable</sys:String>
+    <sys:String x:Key="system.init_rejected">{0} refused to initialize (state not allowed, busy, or no initialization defined); initializing all did not succeed</sys:String>
+    <sys:String x:Key="system.init_failed">{0} failed to initialize; initializing all did not succeed</sys:String>
+    <sys:String x:Key="system.return_incomplete">Return all left {0} wafer(s) unreturned; see the log for the reasons</sys:String>
+
+    <!-- Wafer size (switch 8 / 12 inch on the main page) -->
+    <sys:String x:Key="system.wafer_size_not_installed">WaferSize is not configured under the System node in sc.xml; the wafer size cannot be switched</sys:String>
+    <sys:String x:Key="system.wafer_size_invalid">Wafer size must be 8 or 12; got {0}</sys:String>
+    <sys:String x:Key="system.wafer_size_initialized">{0} has been initialized; switch the wafer size while the equipment is not initialized</sys:String>
+    <sys:String x:Key="system.wafer_size_has_wafer">There is still a wafer in {0}; the equipment (outside the load ports) must be empty to switch the wafer size</sys:String>
+    <sys:String x:Key="system.wafer_size_save_failed">Failed to save the wafer size to sc.xml: {0}</sys:String>
+
     <!-- Module state texts; codes defined in xyz.Modules ModuleState/TransferModuleState/LoadPortState -->
     <sys:String x:Key="module.state.not_init">Not initialized</sys:String>
     <sys:String x:Key="module.state.initing">Initializing</sys:String>
@@ -34,6 +47,10 @@
     <sys:String x:Key="module.state.placing">Placing</sys:String>
     <sys:String x:Key="module.state.processing">Processing</sys:String>
     <sys:String x:Key="module.state.manual">Manual action</sys:String>
+    <sys:String x:Key="module.state.stopping">Stopping</sys:String>
+    <sys:String x:Key="module.state.auto_idle">Auto idle</sys:String>
+    <sys:String x:Key="module.state.auto_running">Auto running</sys:String>
+    <sys:String x:Key="module.state.returning">Returning wafers</sys:String>
     <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
@@ -559,28 +576,38 @@
     <sys:String x:Key="main.mode">Mode</sys:String>
     <sys:String x:Key="main.alarms">Alarms</sys:String>
     <sys:String x:Key="main.state.disconnected">Disconnected</sys:String>
-    <sys:String x:Key="main.state.idle">Idle</sys:String>
-    <sys:String x:Key="main.state.running">Running</sys:String>
-    <sys:String x:Key="main.state.warning">Warning</sys:String>
-    <sys:String x:Key="main.state.alarm">Alarm</sys:String>
     <sys:String x:Key="main.mode.auto">Auto</sys:String>
     <sys:String x:Key="main.mode.manual">Manual</sys:String>
     <sys:String x:Key="main.auto">Auto</sys:String>
     <sys:String x:Key="main.manual">Manual</sys:String>
     <sys:String x:Key="main.stop">Stop</sys:String>
     <sys:String x:Key="main.reset">Reset</sys:String>
-    <sys:String x:Key="main.auto_tip">Switch to Auto: turn on automatic dispatch; jobs move wafers and start processes as scheduled</sys:String>
+    <sys:String x:Key="main.init">Init</sys:String>
+    <sys:String x:Key="main.return_all">Return All</sys:String>
+    <sys:String x:Key="main.auto_tip">Switch to Auto: turn on automatic dispatch; jobs move wafers and start processes as scheduled. Only after initializing, while idle</sys:String>
     <sys:String x:Key="main.manual_tip">Switch to Manual: turn off automatic dispatch; the transfer in progress finishes</sys:String>
     <sys:String x:Key="main.stop_tip">Stop the equipment: turn off automatic dispatch, abort running jobs (waiting for the devices to confirm and checking wafer positions), stop a running return all, and abort any other module action in progress</sys:String>
     <sys:String x:Key="main.reset_tip">Reset every alarm source (same as Reset at the top right)</sys:String>
+    <sys:String x:Key="main.init_tip">Initialize all: home the robots first, then initialize the load ports, chambers and the rest together; idle when all succeed, back to not initialized if any fails (reason in the log)</sys:String>
+    <sys:String x:Key="main.return_all_tip">Return all: wafers on robot arms and in chambers go back to their original slots in their source load ports; only while idle in Manual. Wafers that cannot go back are skipped, with the reason in the log</sys:String>
     <sys:String x:Key="main.auto_done">Switched to Auto</sys:String>
     <sys:String x:Key="main.manual_done">Switched to Manual</sys:String>
     <sys:String x:Key="main.auto_failed">Failed to switch to Auto: {0}</sys:String>
     <sys:String x:Key="main.manual_failed">Failed to switch to Manual: {0}</sys:String>
-    <sys:String x:Key="main.stopped">Stopped: automatic dispatch is off and running jobs are aborting; abort sent to {0} other busy module(s)</sys:String>
+    <sys:String x:Key="main.stopped">Stop sent: automatic dispatch is off, transfers are cancelled, running jobs are aborting and other busy modules were sent an abort</sys:String>
     <sys:String x:Key="main.stop_failed">Stop failed: {0}</sys:String>
     <sys:String x:Key="main.reset_done">Reset {0} alarm source(s)</sys:String>
     <sys:String x:Key="main.reset_failed">Reset failed: {0}</sys:String>
+    <sys:String x:Key="main.init_started">Initializing all</sys:String>
+    <sys:String x:Key="main.init_failed">Initialize all did not start: {0}</sys:String>
+    <sys:String x:Key="main.return_all_started">Returning all wafers</sys:String>
+    <sys:String x:Key="main.return_all_failed">Return all did not start: {0}</sys:String>
+    <sys:String x:Key="main.wafer_size">Wafer size</sys:String>
+    <sys:String x:Key="main.wafer_size.value">{0}-inch</sys:String>
+    <sys:String x:Key="main.wafer_size.switch">Switch</sys:String>
+    <sys:String x:Key="main.wafer_size_tip">Switch the wafer size the equipment runs: only while the equipment is not initialized and empty (outside the load ports). Takes effect at once: swing arms convert recipe positions for this size and the recipe position limits follow</sys:String>
+    <sys:String x:Key="main.wafer_size_done">Switched to {0}-inch wafers</sys:String>
+    <sys:String x:Key="main.wafer_size_failed">Failed to switch the wafer size: {0}</sys:String>
     <sys:String x:Key="main.dispatch">Equipment</sys:String>
     <sys:String x:Key="main.no_robot">No robot to show: the backend was not reachable at startup, or there is no Robot in sc.xml</sys:String>
     <sys:String x:Key="main.no_loadport">No LoadPort: the backend was not reachable at startup, or there is no LoadPort in sc.xml</sys:String>

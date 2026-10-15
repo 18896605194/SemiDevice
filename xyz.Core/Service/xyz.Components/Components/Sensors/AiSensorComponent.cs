@@ -4,9 +4,6 @@ using xyz.Components.Enums;
 
 namespace xyz.Components.Components;
 
-/// <summary>
-/// AI 值监控组件：上下限报警、预警带，超限/出预警带持续满 DurationMs 才报（报警防抖，EC）；可选监控使能 DO 门控。
-/// </summary>
 [Component(description: "AI 值监控组件")]
 public class AiSensorComponent : ComponentBase
 {
@@ -47,6 +44,13 @@ public class AiSensorComponent : ComponentBase
     {
         get { return GetEcInt(nameof(DurationMs)); }
         set { SetEcInt(nameof(DurationMs), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "0", "600000", "0", "开监控后延时：监控使能 DO 变有效后等这么久才开始判（比如开阀后流量还在爬升）；没配 DO 的从开机算；0 = 马上判")]
+    public int MonitoringDelayMs
+    {
+        get { return GetEcInt(nameof(MonitoringDelayMs)); }
+        set { SetEcInt(nameof(MonitoringDelayMs), value); }
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Double, null, null, null, "0", "设定值（UI 展示/换算用）")]
@@ -105,13 +109,18 @@ public class AiSensorComponent : ComponentBase
     /// </summary>
     public bool IsInWarning { get; private set; }
 
+    /// <summary>
+    /// 这一回开始监控的时刻（Environment.TickCount64）；没在监控为 -1。只在扫描线程里读写。
+    /// </summary>
+    private long _monitoringSince = -1;
+
     #endregion
 
     #region 扫描
 
     /// <summary>
     /// 每个扫描周期读一次 AI，按防抖判超限、预警并报警。
-    /// 监控没开（使能 DO 不在有效电平）时不判、防抖计时清零；读不到时不判，状态与防抖计时都不动。
+    /// 监控没开（使能 DO 不在有效电平）、或开了还没过 MonitoringDelayMs 时不判、防抖计时清零；读不到时不判，状态与防抖计时都不动。
     /// </summary>
     protected override void OnScan()
     {
@@ -124,7 +133,19 @@ public class AiSensorComponent : ComponentBase
         var value = ReadAi();
         Value = value;
 
-        if (!IsMonitoring())
+        bool monitoring = IsMonitoring();
+        long now = Environment.TickCount64;
+        if (!monitoring)
+        {
+            _monitoringSince = -1;
+        }
+        else if (_monitoringSince < 0)
+        {
+            _monitoringSince = now;
+        }
+
+        // 没开监控，或者开了还没过延时（开阀后流量还在爬升）：不判，防抖计时清零
+        if (!monitoring || now - _monitoringSince < MonitoringDelayMs)
         {
             IsOutOfRange = CheckAlarm(AiSensorAlarm, false, 0);
             IsInWarning = CheckAlarm(AiSensorWarnAlarm, false, 0);
