@@ -123,6 +123,15 @@ public static class ErrorCodes
     /// <summary>放片被拒：晶圆账上这只手没有片。Args: [机械手模块名, 手指号]</summary>
     public const string RobotArmNoWafer = "robot.arm_no_wafer";
 
+    /// <summary>手指在位传感器看到有片，按晶圆账这只手该是空的（取片前、Home 前、放片做完）。Args: [机械手模块名, 手指号]</summary>
+    public const string RobotArmSensorHasWafer = "robot.arm_sensor_has_wafer";
+
+    /// <summary>手指在位传感器没看到片，按晶圆账这只手上该有片（放片前、Home 前、取片做完）。Args: [机械手模块名, 手指号]</summary>
+    public const string RobotArmSensorNoWafer = "robot.arm_sensor_no_wafer";
+
+    /// <summary>手指在位传感器读不到（PLC 没连上、点位不对），取放不敢伸手。Args: [机械手模块名, 手指号]</summary>
+    public const string RobotArmSensorUnknown = "robot.arm_sensor_unknown";
+
     #endregion
 
     #region 腔体

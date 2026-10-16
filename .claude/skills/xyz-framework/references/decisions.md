@@ -178,7 +178,15 @@
 - **喷嘴流量**（2026-10-15 用户定的）：流量设定 SC 叫 **`AoIndex`**（用户点名，原来叫 FlowAoIndex），**不配（-1）就不能设流量**；
   流量计**跟现成的 AI 组件结合，不写进喷嘴**：喷嘴下面挂 `AiSensorComponent`（节点名 Flow），`MonitoringDoIndex` 跟喷嘴 `DoIndex` 填同一个
   （用户确认两边都配、手写，不从父节点推），**没挂就是没流量计、不显示流量**；开阀后多久开始判 = AI 组件的 EC `MonitoringDelayMs`。
-  35021 八路照点表配了（AI 100/101、120/121、140/141、160/161）。还没定：流量显示在哪、上下限固定还是跟配方流量走、工艺中超限停不停。
+  35021 八路照点表配了（AI 100/101、120/121、140/141、160/161）。
+  **思路照 CTC（`IoFlowRate`）：配方只给目标值，判是流量计自己的事**（2026-10-15 用户定）：工艺每步调喷嘴 `SetFlow(配方流量)`——
+  挂了流量计的给它 `SetTarget`，接了 AO 的再下发；**没 AO 的一路配方照填、不下发，只当监控目标**。上下限**按目标值的百分比**
+  （**AI 组件只有一套上下限 EC：`AlarmMin` / `AlarmMax` / `WarnMin` / `WarnMax`**，用户点名，原来叫 Min/Max/WarningMin/WarningMax，
+  别再另加一套百分比的；SC `IsPercentOfTarget` 定这套数是目标的百分比（流量计配 True）还是固定数（压力这类，默认），百分比时哪边 0 哪边不判）。
+  目标值是运行时的、不存盘（不用 EC `Setpoint`）；目标 0（没给、停液清掉）不按百分比判（CTC 这里会误报）；开着监控换了目标，延时重新计。
+  AI 组件跟 DI 一样有接口 `IAiSensor`（2026-10-16 用户："AiSensorComponent 这个最好和 di 组件一样提供接口"）：`Value`、`IsOutOfRange`、`Target`、`SetTarget`，
+  喷嘴 `FlowMeter` 按它认；`IsInWarning` 没人用，没放进接口。
+  **工艺中超限只报警**，报警怎么落到腔体、要不要停工艺，用户说"先不着急"。流量显示在哪还没定。
 - **腔体三维里的动画一律 0.2 s，写死**（LoadPort 三维是 0.5 s，见「LoadPort 手动页（三维）」）：摆臂收到新位置的过渡（`ArmTransitionMilliseconds`）、Lift、Bowl、门的全行程过渡都是 0.2 s
   （液体流动、转盘转动是持续的速度，不算过渡）。
 - **Bowl 降下时上沿比旋转盘（SpinMotor 卡盘）低，升起来才比它高**（用户点名）：降下露出盘面好取放片，升起围住盘面挡液。
@@ -288,9 +296,29 @@
   （之后放上、Mapping 出来的片也套它），再用 ⊕ ⊖ 单独改；交叉片、叠片、状态不明的没有 ⊕ ⊖。
 - 界面字：用户说中文还是英文"无所谓，多语言双份就行，到时候自己改语言包"——中文包先照图写（Auto / Manual / Stop / Reset、LotID、Sequence、Wafer、Job 用英文）。
 - 自己定的（交付时说了）：Auto / Manual = 开 / 关搬运管理的自动派单；Stop 不弹确认（跟各手动页的中止一样）；Reset = 右上角那个整机复位。
+  2026-10-15 起这几个都归整机模块（见下面「整机：系统状态」），系统状态、模式都看整机的状态。
 - **Stop 走 Job 中止**（2026-10-04 用户定的）：关自动调度、中止搬运操作，在跑的 Job 全部走中止（等设备确认、核对片位），不直接删 Job；
   在给 Job 做工艺的腔体、正在搬运的机械手由 Job / 搬运管理自己收场，别的正在动的模块照旧直接发中止（先认出哪些在给 Job 做工艺，再让 Job 中止）。
-- **全部回片按钮**（2026-10-05 加的）2026-10-06 删了（用户："回片这个你先把现有的也删除吧，整体回片先不做"）。腔体卡片没有值的字段整行不显示（图上就是空的，Robot 手动页跟着一样）；LoadPort 卡片的六盏灯改成真数据（以前写死）。
+- **全部回片按钮**（2026-10-05 加的）2026-10-06 删了（用户："回片这个你先把现有的也删除吧，整体回片先不做"），2026-10-15 跟整机一起做回来（Returning 是用户定的整机状态之一）。
+  腔体卡片没有值的字段整行不显示（图上就是空的，Robot 手动页跟着一样）；LoadPort 卡片的六盏灯改成真数据（以前写死）。
+
+## 整机：系统状态（2026-10-15，对照老 CTC 后用户定的）
+- **起因**：看 CTC 主界面的系统状态跟子模块状态有没有关联——CTC 的 System 格是整机状态机 `EquipmentManager` 自己的 RtState，不汇总子模块（只有 HomeAll 等全部模块 Ready 才进 Idle），
+  汇总全部模块 IsError 的是三色灯。我们原来的"系统状态"是拿四色灯的红黄绿翻成字，用户："三色灯是三色灯，和系统状态有啥关系"——拆开，整机做成模块层的系统组件（用户："我应该创建一个系统的组件，在模块层面"）。
+- **状态**（用户定）：`SystemState : ModuleState`，**基础的直接用 ModuleState 上的、不另起名**（用户："NotInit 直接用 module 上面的"）：NotInit、Initing、Idle、Aborting、Error，
+  加 AutoIdle、AutoRunning、Returning，一共 8 个。界面字：Aborting 在整机显示"停止中"，其余跟模块一样，加"自动空闲 / 自动运行 / 回片中"。
+- **全部初始化、整机安全信号拉报警都是标配**（用户："废话，肯定会有这个功能的""肯定的"），但 **报警逻辑先不做**（Safety → Error 后面再接）。
+  所以现在没有路径进 Error：动作没做成先不进 Error，全部初始化没做成回未初始化，全部回片没做成回空闲（自己定的，交付时说了）；Error 那几行状态表先留着。
+- **放哪**：sc.xml 原来的 System 节点（只放界面语言的 SystemComponent，组件层）换成 `xyz.Modules.SystemModule`，语言挪进来、SystemComponent 删了；
+  晶圆尺寸是另一会话同天做的独立子组件 `System.WaferSize`（摆臂在组件层要取得到），原样挂在下面。
+- **系统状态只说整机在干什么，不汇总模块**：单个模块报警不改系统状态（看报警条数和四色灯），跟用户"能执行的任务肯定是接着跑"一致；系统对模块只往下管（初始化、停止）。
+- 自己定的细节（交付时说了）：全部初始化照 CTC HomeAll 先机械手（手缩回来，别的站点动才不刮手）、再其余模块一起；有一个被拒或没做成整趟没做成，已经在做的让它做完。
+  Auto 要先初始化过（空闲）才能切；运行中照旧能切 Manual（Job 不派新动作，在途的做完）。自动空闲 / 自动运行按有没有 CJ 在执行、暂停、中止中每拍自己切。
+  Stop 任何时候能停（停止中再按不收），停止中等停的那一刻各模块手上的动作和撤掉的搬运都收完尾，Job 的中止不等（要核对片位、可能要人）；
+  停完回到停之前该在的地方：没初始化完的回未初始化，Auto、回片停下来回空闲（Manual）。
+  全部回片只在 Manual 空闲时做：机械手手上的先回、再腔体等站点的，回各自来源 LoadPort 原槽；还归 Job、不知道从哪来、LoadPort 没 Load 着、载具换过了、原槽有片的跳过、记日志，
+  搬的时候机械手 / 手 / 槽一时被占着下一拍再试，卡住了剩下的记成回不去；有回不去的算没做成（`system.return_incomplete` [片数]）。
+- 主界面：按钮加"初始化"、"全部回片"（第三行），按系统状态开关（跟整机状态表一致），后端照样再查；当前模式照系统状态算（自动空闲 / 自动运行 = Auto）。
 
 ## LoadPort 在位和驱动恢复（2026-10-06，用户定的）
 - **在位二选一做成 SC**（用户："事件和这个状态查询的结果，二选一"）：`PresenceSource` = Query（状态查询）/ Event（PODON / PODOF），**默认 Query**
@@ -562,7 +590,7 @@
 - **Job 存库**（2026-10-07 用户："界面上都是显示的数据库的数据……该存库就存库"）：CJ、PJ 各一张表一个 Job 一行，实体继承现成的 `BaseEntity`（用户："目前的应该有可以给你用的"），
   每片的任务明细放 PJ 那一行的 JSON 里（不另开一片一行的表）；内存里不留历史（`TrimHistory`、EC `HistoryKeepCount`、全貌里的 History、`job_snapshot` 都删了），历史查库。
 - **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；库里上次没做完的记成中止（标着重启）；机内的片人到现场确认片位后收回，
-  再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。**全部回片 2026-10-06 删了**（用户："整体回片先不做"）。
+  再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。全部回片 2026-10-06 删了（用户："整体回片先不做"），2026-10-15 跟整机一起做回来（见「整机：系统状态」，主界面手动点、Manual 空闲时才能做）。
 - **料没到先建 PJ + 等 E87 槽图认定**（2026-10-08 用户定的，对标 CTC，两件一起做）：Host 按载具号建 PJ 时载具不在端口上、或还不能取片，
   PJ 照样建、排队（报 #1），只记载具号和要的槽号（`ProcessJob.Slots`，空 = 料到了取全部有片的槽），任务行先空着；CJ 能收这种 PJ，口（`ControlJob.LoadPort`）先空着、
   按载具号认，同一载具不能有两个 CJ（`job.carrier_busy`）、同一载具的槽不能两个 PJ 要（`job.slot_claimed`）；指定了 LoadPort 的 CJ 不收没定片的 PJ。
@@ -605,14 +633,28 @@
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV；不接 PLC、没有手动动作），X/Z/Theta 直接配它；
-  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`HasWafer` 是设备推送的在位（null = 还没收到）；
+  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`HasWafer` 挂了 `WaferSensor` 按它、没挂是设备推送的在位（null = 还没读到 / 收到）；
   手指上的传感器（缩回到位、真空……）作为子组件挂在手指节点下。
 - **轴表单一来源**：删掉 `RobotDriverComponent.Axes/AxisList/ArmCount` 和 `BaseRobotModule._axisPositions/_armWafers`；
   轴的先后 = sc.xml 轴节点的先后；`Axes` / `Arms` 是普通属性（不写 `=>` 懒加载），在 `InitComponent` 开头赋值：
-  `Axes` = `FindChildren<RobotAxisComponent>()` = 整张轴表（含 Arm），`Arms` = 从 `Axes` 里挑出 `RobotArmComponent`、按手指号排；
+  `Axes` = `FindChildren<IRobotAxis>()` = 整张轴表（含 Arm），`Arms` = 从 `Axes` 里挑出 `IRobotArm`、按手指号排；
   `ArmCount` = `Arms.Count`（DTO 照填，界面画几只手臂按它），晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
-- **不抽接口**：同族组件走基类（跟 `AxisComponent` / `SwingArmComponent` 一个路子）；模块要调 `UpdatePosition` / `UpdateWaferPresence` 这些 internal 写入口，
-  接口放不下，模块也只依赖这两个具体基类；派生类要自己再标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
+- **模块按接口用轴和手指**（2026-10-15 改，用户："RobotAxisComponent 这个是不是也最好是有接口的，在 robot 模块组件里面使用的时候也是用接口"；
+  10-10 定的是"不抽接口、模块只依赖两个具体基类"，作废）：`IRobotAxis`（`Position`、`UpdatePosition`）、`IRobotArm : IRobotAxis`（`Number`、`WaferSensor`、`HasWafer`、
+  `WaferSensorTimeoutMs`、`UpdateWaferPresence`）放 `xyz.Components.Interfaces`，两个写入口从 internal 改 public 进接口；模块的 `Axes` / `Arms` 是接口列表。
+  派生类照旧自己标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
+- **手指在位传感器跟晶圆账对**（2026-10-15，用户："arm 里面配置一下 DI 点位……内部的账单和这个 di 信号做一个对比"；"如果没有配置的话，就当没有这个传感器"；
+  "DI 的组件也搞一下接口，使用的时候都用接口"；"WaferSensorTimeoutMs 在 robotarm 组件上更加合理"）：
+  - Arm 节点下挂名叫 `WaferSensor` 的 `DiSensorComponent`（配 `AlarmEnabled=False`，SC `TriggerValue` 填有片时的电平，抖动时间是它的 EC `DebounceMs`）；
+    **`IsActive` 两边都防抖**（2026-10-16 用户："没有片的时候也要抖动"）：有片、没片都要持续满 `DebounceMs` 才认，没认下来保持原来的，读不到为 null、重新读到重新稳满；
+    报警用的 `IsTriggered` 照旧（离开报警电平立刻撤）。不两边防抖的后果：放片后真空抖一下就判放好、账记进腔体，片其实还在手上；
+    DI 组件的触发电平 SC 原来叫 `TriggerLevel`，同日用户改名 `TriggerValue`（sc.xml 里不认的值名装配时直接跳过，旧名会悄悄回到默认 true，sc.xml 要一起改）；手指按接口 `IDiSensor` 认（`IsActive`：没读到 null，读到了是防抖后的触发）。
+    挂了 `HasWafer` 就按它，没挂照旧按控制器推送。**没挂 = 没有传感器、什么都不查**（控制器推送的在位只显示，不拿来比）。
+  - 挂了的手：取片前要空、放片前要有片（平台默认的 `PickInterlock` / `PlaceInterlock`，机型重写先调 base）；读不到（PLC 没连上、点位不对）不让伸手（`robot.arm_sensor_unknown`）。
+  - 取放的设备动作外面套 `WaferSensorCheckOperation`（套在 `StartTransfer` 里，机型重写了 `CreatePickOperation` 也照样查）：设备做完后在手指 EC `WaferSensorTimeoutMs`（默认 3000）内
+    传感器要跟上（取完有片、放完没片）才算做成、才记账；对不上判失败、落 Error、不记账，搬运管理照"动过手才失败"留锁等人工确认。
+  - Home 前（`HomeInterlock`）传感器跟账对不上就拦，先按实物改账；还没读到的手不拦（Home 不碰片，拦住就回不了原点）。
+  - 错误码：`robot.arm_sensor_has_wafer`（传感器有片、按账该空）/ `robot.arm_sensor_no_wafer`（传感器没片、按账该有）/ `robot.arm_sensor_unknown`。
 - **事件路由**：手指在位推送按手指号找 Arm 节点，找不到只记 WARN 忽略（设备推了没配的手指，不再凭空长出一只手）。
 - **设备状态查询收进平台**（照 LoadPort "设备状态查询在平台"的做法，2026-10-10）：原来 35021 `RobotModule` 里的轮询（订阅手指在位推送 -> 轮流查设备报错、伺服、速度、轴位；超时作废这条、下拍重试）移进 `BaseRobotModule`，
   `OnScan` 统一按 `base.OnScan -> LoopQueryStatus -> CheckDeviceAlarm -> PublishState` 走；机型只留动作（Home/Reset/Abort/Pick/Place/PowerOn/PowerOff），以后新机械手不用抄轮询。

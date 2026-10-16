@@ -56,7 +56,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 没注册页面的菜单显示占位页。
 
 ### 主界面（菜单 Main，`xyz.Client.Main`，布局照用户 2026-10-04 给的图，见 decisions.md）
-- 三块：左 **系统操作**（平台固定：系统状态徽标、当前模式、报警条数，Auto / Manual / Stop / Reset；左栏最底下是 **晶圆颜色** 说明，
+- 三块：左 **系统操作**（平台固定：系统状态徽标、当前模式、报警条数、晶圆尺寸，Auto / Manual / Stop / Reset / 初始化 / 全部回片；左栏最底下是 **晶圆颜色** 说明，
   `WaferLegendDotStyle` 圆点 + `WaferLegendTextStyle`，颜色跟圆片控件同一套 `Wafer*`，圆片加了新颜色这里也要加一项）| 中 **整机调度**（可替换）|
   右 **LoadPort 页签**（`UnderlineTabListBoxStyle`，一个 LoadPort 一个：载具 / 槽图状态 / 槽数、LotID、Sequence 选择框、创建 / 启动 Job、槽位表）。
 - **以后机台变了，要动的就是中间和右边，都不用改主界面**：
@@ -66,9 +66,12 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   - 机型要别的摆法（几台机械手、缓存位、对中台……）：在机型 `IClientModule.Register` 里
     `services.AddKeyedSingleton<UserControl, 自己的View>(ClientViewKeys.MainDispatch)`，后注册的生效，整块换掉；
     自己的图照样可以拿 `DispatchMap`、`StationCard`、`Robot` 控件来拼。主界面由 `MainPageView` 构造时按这个键从 DI 取。
-- 系统状态（`ModuleStateBadge` 整条色块）：没连上 / 还没收到设备总状态 = 未连接（灰），有报警 = 报警（红），有模块在动 = 运行中（蓝），
-  只有警告 = 警告（黄），否则空闲（绿）。模式取设备总状态 `EquipmentStatusDto.IsAuto`。四个按钮连上且收到状态后才能点。
-  Auto / Manual / Stop 走 `IEquipmentService`，Reset 跟右上角一样走 `IAlarmService.ResetAllAsync`；结果写顶栏日志。
+- 系统状态（`ModuleStateBadge` 整条色块）：订整机推送 `SystemStateDto`，没连上 / 还没收到 = 未连接（灰），否则照整机状态码
+  （`ModuleStates.SystemText` / `SystemTone`：未初始化灰、初始化中 / 自动运行 / 回片中蓝、空闲 / 自动空闲绿、停止中黄、报警红）；
+  模式按状态算（`ModuleStates.IsSystemAuto`：自动空闲、自动运行 = Auto）。跟四色灯（`EquipmentStatusDto`）没关系。
+  按钮按整机状态表开关：初始化（未初始化 / 空闲 / 报警）、Auto 和全部回片（空闲）、Manual（Auto 下）、Stop（停止中以外）、Reset（连上就能点）；
+  初始化 / Auto / Manual / Stop / 全部回片走 `IEquipmentService`，被拒原因用 `ErrorText.Of(response, ModuleStates.SystemText)` 把状态码翻成字；
+  Reset 跟右上角一样走 `IAlarmService.ResetAllAsync`；结果写顶栏日志。
   报警下面一行晶圆尺寸（`EquipmentStatusDto.WaferSize`，"12 寸"）+ 小按钮"切换"（`MiniButtonStyle`，切到另一种，`IEquipmentService.SetWaferSizeAsync`；
   能不能切后端查，不行的原因写顶栏日志）。
 - 槽位表（`DenseDataGridStyle`，行高 24，25 槽一屏放下，大号在上）：片以晶圆账为准（`LoadPortDto.LedgerSlots`，账上没登记才按 Mapping）；

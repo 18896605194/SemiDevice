@@ -340,7 +340,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return true;
     }
 
-    /// <summary>开这一步的喷嘴：接了流量设定、填了流量的先给流量。</summary>
+    /// <summary>开这一步的喷嘴：填了流量的先给流量（接了 AO 的下发，没接的只给流量计当监控目标），再开阀。</summary>
     private bool OpenNozzle()
     {
         var nozzle = _nozzle;
@@ -350,7 +350,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         }
 
         var flow = _flow;
-        if (flow is not null && nozzle.HasFlowControl && !Send(nozzle, ChamberDeviceAction.Flow, () => nozzle.SetFlow(flow.Value)))
+        if (flow is not null && !Send(nozzle, ChamberDeviceAction.Flow, () => nozzle.SetFlow(flow.Value)))
         {
             return false;
         }

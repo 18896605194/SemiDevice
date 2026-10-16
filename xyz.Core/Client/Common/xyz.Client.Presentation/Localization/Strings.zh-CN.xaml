@@ -70,6 +70,9 @@
     <sys:String x:Key="robot.arm_not_allowed">{0} 的站点 {1} 不允许用 Arm{2} 取放（见 sc.xml 站点节点的 Arms）</sys:String>
     <sys:String x:Key="robot.arm_has_wafer">{0} 的 Arm{1} 上已经有片：{2}，不能再取片（账不对先到账单调整页按实物改账）</sys:String>
     <sys:String x:Key="robot.arm_no_wafer">{0} 的 Arm{1} 上没有片，不能放片（账不对先到账单调整页按实物改账）</sys:String>
+    <sys:String x:Key="robot.arm_sensor_has_wafer">{0} 的 Arm{1} 在位传感器检测到有片，跟晶圆账（手上没片）对不上：先到现场确认片位，按实物改账</sys:String>
+    <sys:String x:Key="robot.arm_sensor_no_wafer">{0} 的 Arm{1} 在位传感器没检测到片，跟晶圆账（手上有片）对不上：先到现场确认片位，按实物改账</sys:String>
+    <sys:String x:Key="robot.arm_sensor_unknown">{0} 的 Arm{1} 在位传感器读不到（PLC 没连上或点位不对），不能取放</sys:String>
     <sys:String x:Key="robot.direction.north">北</sys:String>
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>

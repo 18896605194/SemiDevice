@@ -65,52 +65,52 @@
 		<Value Name="IsRun" Value="true" />
 		<Setting Name="Emo" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="0" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="FrontDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="1" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="RearDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="2" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="LeftDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="3" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="RightDoor" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="4" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="LeakTray" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="5" />
-			<Value Name="TriggerLevel" Value="true" />
+			<Value Name="TriggerValue" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="LeakCabinet" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="6" />
-			<Value Name="TriggerLevel" Value="true" />
+			<Value Name="TriggerValue" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="Smoke" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="7" />
-			<Value Name="TriggerLevel" Value="true" />
+			<Value Name="TriggerValue" Value="true" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="CdaOk" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="8" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="ExhaustOk" Type="xyz.Components.Components.DiSensorComponent">
 			<Value Name="DiIndex" Value="9" />
-			<Value Name="TriggerLevel" Value="false" />
+			<Value Name="TriggerValue" Value="false" />
 			<Value Name="AlarmEnabled" Value="False" />
 		</Setting>
 		<Setting Name="CdaPressure" Type="xyz.Components.Components.AiSensorComponent">
@@ -568,6 +568,7 @@
 						<Value Name="MonitoringDoIndex" Value="110" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
@@ -580,6 +581,7 @@
 						<Value Name="MonitoringDoIndex" Value="111" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 			</Setting>
@@ -628,6 +630,7 @@
 						<Value Name="MonitoringDoIndex" Value="150" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
@@ -640,6 +643,7 @@
 						<Value Name="MonitoringDoIndex" Value="151" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 			</Setting>
@@ -688,6 +692,7 @@
 						<Value Name="MonitoringDoIndex" Value="190" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
@@ -700,6 +705,7 @@
 						<Value Name="MonitoringDoIndex" Value="191" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 			</Setting>
@@ -748,6 +754,7 @@
 						<Value Name="MonitoringDoIndex" Value="230" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
@@ -760,6 +767,7 @@
 						<Value Name="MonitoringDoIndex" Value="231" />
 						<Value Name="MonitoringActiveHigh" Value="True" />
 						<Value Name="AlarmEnabled" Value="True" />
+						<Value Name="IsPercentOfTarget" Value="True" />
 					</Setting>
 				</Setting>
 			</Setting>

@@ -15,7 +15,7 @@ public interface INozzle : IValve
     /// <summary>是否提供流量设定。</summary>
     bool HasFlowControl { get; }
 
-    /// <summary>设定流量，单位 L/min。</summary>
+    /// <summary>给流量，单位 L/min：接了 AO 的下发，挂了流量计的当监控目标。</summary>
     bool SetFlow(double litersPerMinute);
 
     /// <summary>停液并清零流量设定。</summary>

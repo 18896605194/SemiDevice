@@ -275,6 +275,8 @@ try
         && chamber.Nozzles.SequenceEqual([diw, sc1]), "轴、气缸、喷嘴照 sc 的先后（先父后子）");
     Check(chamber.FindArm("arm1") == arm && arm.FindNozzle("sc1") == sc1 && chamber.FindArm("Arm2") is null,
         "摆臂按节点名找、喷嘴按药液找，忽略大小写");
+    var sc1Meter = sc1.FlowMeter ?? throw new InvalidOperationException("FAIL: SC1 下面挂了流量计，应认出来");
+    Check(diw.FlowMeter is null && sc1Meter.FullPath == "Chamber9.Arm1.Nozzle_SC1.Flow", "流量计照 sc、按 IAiSensor 认：SC1 下面挂了，DIW 没挂（没流量计）");
     var dto = chamber.CreateDeviceDataDto();
     Check(dto.Module == "Chamber9", "设备快照带模块名");
     Check(dto.Door is not null && dto.Door.Path == "Chamber9.Door" && dto.Bowls.Select(item => item.Path).SequenceEqual(["Chamber9.Bowl1"])
@@ -313,6 +315,12 @@ try
     Tick();
     Check(!NozzleDto("Chamber9.Arm1.Nozzle_DIW").IsOn && !NozzleDto("Chamber9.Arm1.Nozzle_SC1").IsOn, "都停液");
     Check(diw.HasFlowControl && diw.SetFlow(1.5) && plc.Ao(0) == 1.5, "流量设定按点表写 AO");
+    Check(sc1.SetFlow(2) && plc.Ao(1) == 2 && sc1Meter.Target == 2, "给流量：接了 AO 的下发，流量计拿它当目标值");
+    sc1.AoIndex = -1;
+    Check(!sc1.HasFlowControl && sc1.SetFlow(1.2) && plc.Ao(1) == 2 && sc1Meter.Target == 1.2,
+        "没接 AO（固定流量的一路）：不下发、也不算失败，只给流量计当目标值");
+    sc1.AoIndex = 1;
+    Check(sc1.Stop() && plc.Ao(1) == 0 && sc1Meter.Target == 0, "停液：AO 设定和流量计的目标都清零");
 
     SetSpinSpeed(50);
     Check(SpinDto().IsSpinning && SpinDto().CurrentSpeed == 50,
@@ -633,6 +641,7 @@ try
     bool sc1On = false;
     int sc1Opens = 0;
     bool sc1Was = false;
+    double sc1TargetSeen = 0;
     ModuleOperation RunProcess(ProcessRequest request, Func<bool>? until = null)
     {
         var operation = chamber.StartProcess(request);
@@ -667,6 +676,7 @@ try
             }
 
             sc1Was = sc1Now;
+            sc1TargetSeen = Math.Max(sc1TargetSeen, sc1Meter.Target);
             Thread.Sleep(5);
         }
 
@@ -703,6 +713,7 @@ try
     Check(plc.CommandCount("Spin.Command") - spinCommands == 4 && plc.Speeds("Spin.Command").Contains(500),
         "卡盘：第 1 步转 300、第 2 步转着换 500（PLC 报忙也照收）、第 3 步转速一样不重发、第 4 步转速 0 停、收尾再停一次");
     Check(sc1Opens == 1, "第 2、3 步都用 SC1：接着喷，不关了再开");
+    Check(sc1TargetSeen == 2 && sc1Meter.Target == 0, "第 2 步 SC1 流量 2 给了流量计当目标；做完停液，目标清零");
     sc1.Offset = 0;
     Check(!plc.OutputWhen("Spin.Command", 500, 6), "换步先关上一步的 DIW 再改转速：卡盘加速时不接着喷上一步的药液");
     Check(Near(arm.CurrentPosition, 0) && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Closed && !spin.IsSpinning,
@@ -826,13 +837,16 @@ static ModuleConfig Node(string name, Type type, params ValueConfig[] values)
 
 static ModuleConfig ChamberConfig(string name, bool enabled)
 {
+    // SC1 下面挂流量计（监控使能 DO 填它的阀 DO 7）；DIW 不挂，当没流量计的一路
+    var sc1Node = Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("DiIndex", "7"), Value("Chemical", "SC1"), Value("AoIndex", "1"));
+    sc1Node.Children = [Node("Flow", typeof(AiSensorComponent), Value("AiIndex", "0"), Value("MonitoringDoIndex", "7"), Value("IsPercentOfTarget", "True"))];
     var arm = Node("Arm1", typeof(SwingArmComponent), Value("SendPlcDataPath", "Arm.Command"), Value("ReceivePlcDataPath", "Arm.Status"));
     arm.Children =
     [
         Node("Lift", typeof(ChamberLiftComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5"),
             Value("DiOpenedIndex", "4"), Value("DiClosedIndex", "5")),
         Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("Chemical", "DIW"), Value("AoIndex", "0")),
-        Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("DiIndex", "7"), Value("Chemical", "SC1"), Value("AoIndex", "1")),
+        sc1Node,
     ];
     var chamber = Node(name, typeof(SmokeChamber), Value("IsEnable", enabled ? "True" : "False"));
     chamber.Children =

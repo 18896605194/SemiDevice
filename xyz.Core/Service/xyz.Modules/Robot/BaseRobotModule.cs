@@ -5,6 +5,7 @@ using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Drivers.Robot;
 using xyz.Modules.Enums;
@@ -138,8 +139,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     public RobotDriverComponent? _robot { get; private set; }
 
-    public IReadOnlyList<RobotAxisComponent> Axes { get; private set; } = Array.Empty<RobotAxisComponent>();
-    public IReadOnlyList<RobotArmComponent> Arms { get; private set; } = Array.Empty<RobotArmComponent>();
+    public IReadOnlyList<IRobotAxis> Axes { get; private set; } = Array.Empty<IRobotAxis>();
+    public IReadOnlyList<IRobotArm> Arms { get; private set; } = Array.Empty<IRobotArm>();
 
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
@@ -194,8 +195,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
         // 停用的机械手也要收轴表，所以放在判 IsEnable 前面：界面照样列出轴名。
         // 手指也是轴：Axes 是整张轴表（含手指），Arms 从里面挑出手指、按手指号排。
-        Axes = FindChildren<RobotAxisComponent>();
-        Arms = Axes.OfType<RobotArmComponent>().OrderBy(arm => arm.Number).ToList();
+        Axes = FindChildren<IRobotAxis>();
+        Arms = Axes.OfType<IRobotArm>().OrderBy(arm => arm.Number).ToList();
 
         // 账本槽位 = 手指号，所以手指号要唯一、从 1 连续到 N。
         for (int index = 0; index < Arms.Count; index++)
@@ -273,7 +274,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         switch (evt.Kind)
         {
             case RobotDeviceEventKind.WaferPresence:
-                RobotArmComponent? arm = Arms.FirstOrDefault(item => item.Number == evt.Arm);
+                IRobotArm? arm = Arms.FirstOrDefault(item => item.Number == evt.Arm);
                 if (arm is not null)
                 {
                     arm.UpdateWaferPresence(evt.HasWafer);
@@ -825,9 +826,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
         }
 
-        var operation = action == RobotAction.Pick
+        bool pick = action == RobotAction.Pick;
+        var operation = pick
             ? CreatePickOperation(arm, config.Number, slot)
             : CreatePlaceOperation(arm, config.Number, slot);
+
+        // 挂了在位传感器的手：设备说做完了还不算，传感器要跟上（取完有片、放完没片）才算做成、才记账。
+        // 套在这儿而不是设备动作里：机型重写了 CreatePickOperation 也照样查。
+        var armComponent = FindArm(arm);
+        if (armComponent is not null && armComponent.WaferSensor is not null)
+        {
+            operation = new WaferSensorCheckOperation(operation, Name, armComponent, expectWafer: pick);
+        }
+
         var started = Started(action, operation);
         if (started.IsSuccess)
         {
@@ -961,21 +972,92 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region Interlock
 
-    // 互锁：周围条件允不允许动。平台默认放行，机型重写加自己的条件（先调 base）。
+    // 互锁：周围条件允不允许动。平台默认只查手指在位传感器（挂了 WaferSensor 的手才查），机型重写加自己的条件（先调 base）。
 
+    /// <summary>
+    /// Home 前：挂了在位传感器的手，传感器跟晶圆账要对得上。账实不符先到账单调整页按实物改账再 Home，
+    /// 不然回完原点接着按错账取放会碰片。传感器还没读到的手不拦——Home 不碰片，拦住反而回不了原点。
+    /// </summary>
     protected virtual HandleResult? HomeInterlock()
     {
+        var ledger = _waferManager;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        foreach (var arm in Arms)
+        {
+            if (arm.WaferSensor is null)
+            {
+                continue;
+            }
+
+            bool? sensed = arm.HasWafer;
+            if (sensed is null)
+            {
+                continue;
+            }
+
+            bool onLedger = ledger.Get(Name, arm.Number) is not null;
+            if (sensed.Value != onLedger)
+            {
+                return ArmSensorMismatch(arm.Number, sensed.Value);
+            }
+        }
+
         return null;
     }
 
+    /// <summary>取片前这只手要是空的（传感器看）。</summary>
     protected virtual HandleResult? PickInterlock(int arm, string station, int slot)
     {
+        return CheckArmSensor(arm, expectWafer: false);
+    }
+
+    /// <summary>放片前这只手上要有片（传感器看）。</summary>
+    protected virtual HandleResult? PlaceInterlock(int arm, string station, int slot)
+    {
+        return CheckArmSensor(arm, expectWafer: true);
+    }
+
+    /// <summary>
+    /// 取放前看这只手的在位传感器：没挂传感器不查；挂了但还没读到（PLC 没连上、点位不对）不动——要伸手碰片了，读数不可信就别伸；
+    /// 读到的跟该有的不一样不动（取片前手上有片、放片前手上没片），说明晶圆账跟实物对不上。
+    /// </summary>
+    private HandleResult? CheckArmSensor(int arm, bool expectWafer)
+    {
+        var component = FindArm(arm);
+        if (component is null || component.WaferSensor is null)
+        {
+            return null;
+        }
+
+        bool? sensed = component.HasWafer;
+        if (sensed is null)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, Name, arm.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (sensed.Value != expectWafer)
+        {
+            return ArmSensorMismatch(arm, sensed.Value);
+        }
+
         return null;
     }
 
-    protected virtual HandleResult? PlaceInterlock(int arm, string station, int slot)
+    /// <summary>传感器跟账对不上的原因：传感器看到有片 / 没看到片各一个错误码。</summary>
+    private HandleResult ArmSensorMismatch(int arm, bool sensed)
     {
-        return null;
+        return HandleResult.Fail(sensed ? ErrorCodes.RobotArmSensorHasWafer : ErrorCodes.RobotArmSensorNoWafer,
+            Name, arm.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>按手指号找手指组件；sc.xml 没配这只手为 null。</summary>
+    private IRobotArm? FindArm(int arm)
+    {
+        return Arms.FirstOrDefault(item => item.Number == arm);
     }
 
     protected virtual HandleResult? PowerOnInterlock()

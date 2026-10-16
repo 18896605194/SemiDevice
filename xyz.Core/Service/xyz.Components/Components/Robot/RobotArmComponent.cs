@@ -1,15 +1,14 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 机械手指（Robot 的 Arm）：本身就是一根轴（继承 <see cref="RobotAxisComponent"/>，节点名即轴名），
-/// 额外带取放/推送用的手指号、传感器/控制器推送的在位状态。
-/// 手指上的传感器（缩回到位、真空、边缘检测）作为子组件挂在本节点下。
+/// Robot Arm
 /// </summary>
 [Component(description: "机械手指（Robot 的 Arm，本身是一根 Arm 轴）")]
-public class RobotArmComponent : RobotAxisComponent
+public class RobotArmComponent : RobotAxisComponent, IRobotArm
 {
     #region SC
 
@@ -18,19 +17,43 @@ public class RobotArmComponent : RobotAxisComponent
 
     #endregion
 
+    #region EC
+
+    [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "0", max: "60000",
+        @default: "3000", description: "取放做完后等在位传感器跟上的上限（取完要有片、放完要没片；挂了 WaferSensor 才用）")]
+    public int WaferSensorTimeoutMs
+    {
+        get { return GetEcInt(nameof(WaferSensorTimeoutMs)); }
+        set { SetEcInt(nameof(WaferSensorTimeoutMs), value); }
+    }
+
+    #endregion
+
+    /// <summary>
+    /// 这只手的在位传感器：本节点下名叫 WaferSensor 的 DI（组件初始化时认）。没挂为 null，就当这只手没有在位传感器，
+    /// 取放前后、Home 前都不拿它跟晶圆账比。
+    /// </summary>
+    public IDiSensor? WaferSensor { get; private set; }
+
     private readonly object _waferGate = new();
 
     /// <summary>0 = 还没收到推送，1 = 有片，2 = 无片。</summary>
     private int _hasWafer;
 
     /// <summary>
-    /// 传感器/控制器推送的物理在位；null = 还没收到该手指的推送（不是"没片"）。
+    /// 手上有没有片：挂了在位传感器按它读，没挂按控制器主动推送；null = 传感器还没读到、或还没收到推送（不是"没片"）。
     /// </summary>
-    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "手指上是否有片（设备推送，null=还没收到）")]
+    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "手指上是否有片（挂了在位传感器按它，没挂按设备推送；null=还没读到）")]
     public bool? HasWafer
     {
         get
         {
+            var sensor = WaferSensor;
+            if (sensor is not null)
+            {
+                return sensor.IsActive;
+            }
+
             lock (_waferGate)
             {
                 return _hasWafer switch
@@ -43,10 +66,16 @@ public class RobotArmComponent : RobotAxisComponent
         }
     }
 
+    public override bool InitComponent()
+    {
+        WaferSensor = FindChild<IDiSensor>("WaferSensor");
+        return base.InitComponent();
+    }
+
     /// <summary>
-    /// 记下手指在位。驱动路由线程上调，只翻标志不做重活。
+    /// 记下控制器推送的手指在位。驱动路由线程上调，只翻标志不做重活。
     /// </summary>
-    internal void UpdateWaferPresence(bool hasWafer)
+    public void UpdateWaferPresence(bool hasWafer)
     {
         lock (_waferGate)
         {

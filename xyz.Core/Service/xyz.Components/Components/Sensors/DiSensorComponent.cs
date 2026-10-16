@@ -1,14 +1,16 @@
-﻿using xyz.Components;
+﻿using System.Diagnostics;
+using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// DI 值监控组件：单个 DI，电平触发 + 报警防抖（EC DebounceMs）。
+/// DI 值监控组件：单个 DI，电平触发 + 报警防抖（EC DebounceMs）。别的组件、模块用它走 <see cref="IDiSensor"/>。
 /// </summary>
 [Component(description: "DI 值监控组件")]
-public class DiSensorComponent : ComponentBase
+public class DiSensorComponent : ComponentBase, IDiSensor
 {
     #region SC
 
@@ -16,7 +18,7 @@ public class DiSensorComponent : ComponentBase
     public int DiIndex { get; set; } = -1;
 
     [SCEditor("true", "Config", "触发有效电平：true=高电平触发，false=低电平触发")]
-    public bool TriggerLevel { get; set; } = true;
+    public bool TriggerValue { get; set; } = true;
 
     [SCEditor("True", "Config", "是否直接报警（false = 只提供触发状态，由宿主处理）")]
     public bool AlarmEnabled { get; set; } = true;
@@ -59,6 +61,21 @@ public class DiSensorComponent : ComponentBase
     /// </summary>
     public bool? CurrentLevel => _level < 0 ? null : _level != 0;
 
+    /// <summary>两边都防抖后的触发状态：-1 = 读不到或还没稳下来，0 = 没触发，1 = 触发。</summary>
+    private volatile int _active = -1;
+
+    /// <summary>最近读到的触不触发（还没认下来的那个），和它从哪一拍开始一直是这样；只在扫描线程用。</summary>
+    private bool? _candidate;
+
+    private long _candidateSince;
+
+    /// <summary>
+    /// 给用的地方看的触发状态（<see cref="IDiSensor"/>）：触发、不触发都要持续满 DebounceMs 才认，抖一下不认，
+    /// 没认下来之前保持原来的；读不到（没配点、PLC 没连上）为 null，重新读到要重新稳满一次。
+    /// 跟报警用的 <see cref="IsTriggered"/> 不一样——那个离开报警电平立刻算没触发（恢复不用等），这里像在位传感器，"没片"也不能抖一下就当真。
+    /// </summary>
+    public bool? IsActive => _active < 0 ? null : _active != 0;
+
     #endregion
 
     #region 按 DI 索引找组件（安全联锁用）
@@ -94,6 +111,7 @@ public class DiSensorComponent : ComponentBase
         if (DiIndex < 0)
         {
             _level = -1;
+            ResetActive();
             return;
         }
 
@@ -101,11 +119,37 @@ public class DiSensorComponent : ComponentBase
         _level = level is null ? -1 : level.Value ? 1 : 0;
         if (level is null)
         {
+            ResetActive();
             return;
         }
 
-        bool active = level.Value == TriggerLevel;
+        bool active = level.Value == TriggerValue;
         IsTriggered = CheckAlarm(SensorAlarm, active, DebounceMs, raise: AlarmEnabled);
+        UpdateActive(active);
+    }
+
+    /// <summary>
+    /// 两边都防抖：这一拍读到的跟上一拍不一样就从这一拍重新计时，一直保持满 DebounceMs 才认成 <see cref="IsActive"/>。
+    /// </summary>
+    private void UpdateActive(bool active)
+    {
+        if (_candidate != active)
+        {
+            _candidate = active;
+            _candidateSince = Stopwatch.GetTimestamp();
+        }
+
+        if (Stopwatch.GetElapsedTime(_candidateSince).TotalMilliseconds >= DebounceMs)
+        {
+            _active = active ? 1 : 0;
+        }
+    }
+
+    /// <summary>读不到了：认下来的状态作废，重新读到要重新稳满一次。</summary>
+    private void ResetActive()
+    {
+        _candidate = null;
+        _active = -1;
     }
 
     /// <summary>

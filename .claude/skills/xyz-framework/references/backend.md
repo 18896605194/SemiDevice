@@ -43,7 +43,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   写在所在模块的 Home 操作里去驱动。`BaseModule.Open()` 已经没有了；PLC、IO、HSMS、轴（`Open(IPlc)`）各自的 `Open` 还是装配层按类型调；
   气缸 / 阀的 `Open()` / `Close()` 是开合动作，不是生命周期。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
-- 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、System、Log、Rpc、Mapper、WaferManagerComponent、Io、Safety、
+- 单例：`public static X? Current { get; set; }` + 构造里 `Current = this;`（报警、EC、整机 SystemModule、Log、Rpc、Mapper、WaferManagerComponent、Io、Safety、
   Eap、Hsms、E30、DataChart、RealChart、PLC、TransferManager、JobManager、GemCollectors、SequenceComponent、RecipeComponent）。用的地方 `X.Current` 先取到变量再判空，没装就降级不崩。
 
 ### 装配（`ComponentLoader`）
@@ -198,7 +198,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 是设备推送的在位）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`HasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
   `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台，机型类留空、只在不一样时重写 `Home` / `ResetDevice` / `AbortDevice` / `CreateProcessOperation`），每拍最后 `PublishState`）。
 - **腔体里装什么照 sc 认、强类型**（2026-10-10 用户："未来其他项目直接修改 sc 文件就行，代码基本不要修改"；原来的 `[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典整套删了，"Part"这个叫法也不用了）：
   sc 里一个腔体下挂门、Bowl、卡盘、摆臂（`SwingArmComponent`，它自己就是摆动轴；硬件上装在它上面的升降是一个 `CylinderComponent`、喷嘴是几个 `NozzleComponent`，都挂在摆臂节点下面）。
@@ -229,7 +229,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），卡盘 EC `MaxSpeed` 要不小于配方里的转速（轴的通用默认是 100）。转着换转速：上一条就是 Spin 时 PLC 报忙也照收（2026-10-10 仿真器上发现转着改不了转速）。
     喷嘴 SC `AoIndex`（-1 不接）：`SetFlow(L/min)` 写 AO，`Stop()` = 关阀 + 设定清零。
     流量计 = 喷嘴下面挂的 `AiSensorComponent`（sc 节点名 `Flow`，`MonitoringDoIndex` 填喷嘴阀的 DO）：上下限、预警、防抖、报警都用它的，
-    EC `MonitoringDelayMs` = 监控 DO 变有效（开阀）后等多久才判；没挂就是这一路没流量计。
+    EC `MonitoringDelayMs` = 监控 DO 变有效（开阀）后等多久才判；没挂就是这一路没流量计。喷嘴 `SetFlow` 给流量计 `SetTarget`（没 AO 也给），
+    流量计配 SC `IsPercentOfTarget = True`：EC `AlarmMin` / `AlarmMax` / `WarnMin` / `WarnMax` 就是目标的百分比（别的 AI 是固定数），
+    目标 0 不判、目标变了延时重新计；喷嘴 `FlowMeter` 按接口 `IAiSensor` 认子节点，挂两个开机就报。
   气缸 `TwoStateComponent.Position` 三态（命令发到哪侧看哪侧到没到位，没到 = Unknown；两个线圈都没通时只看到位反馈）。
   摆臂 `SwingArmComponent.Reach`（0 = 回零的 0 位，1 = EC Center）/ `EdgeReach`（Edge / Center，示教过才有，三维分两段画），
   示教位：边缘 `Edge8` / `Edge12` = 配方 0（第一个边缘）、`Center` = 配方里的晶圆中心（8 寸 100、12 寸 150）的实际轴位置，默认 50 / 0 / 150，
@@ -479,7 +481,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 ### 事件推送
 - `EventBus.Send(dto, token, retain)`：
-  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"WaferLedger"）；
+  - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"SystemState"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManagerComponent.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
@@ -490,18 +492,24 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 系统设置 `SystemSettingsDto` 除了 Modules、Chambers，还带 `LoadPorts`、`Robots`（装配出来、启用的，先后同 sc.xml）：客户端主界面照它生成 LoadPort 页签和默认调度图。
 - 机械手站点 `RobotStationDto.Kind`（`StationKind`：LoadPort / Chamber / Other）：`BaseRobotModule` 跟槽数一样从搬运模块表认
   （`TransferManager.TryGetStation` 拿到的是 `BaseLoadPortModule` / `BaseChamberModule` / 别的），表没绑好或不在表里算 Other；变了算状态变化。
-- 设备总状态 `EquipmentStatusDto.IsAuto` = 搬运管理的自动派单开着（`TransferManager.IsAutoDispatch`），`WaferSize` = 晶圆尺寸组件现在的尺寸（没配是 12），
-  `EquipmentStatusPublisher.Snapshot(modules)` 算一次。切晶圆尺寸 `IEquipmentService.SetWaferSizeAsync`（参数 `IEquipmentService.WaferSizeKey`）：
-  启用的模块都是未初始化、LoadPort 以外没片才切，切了写回 sc.xml（见 decisions.md「晶圆尺寸 8 / 12 寸」）。
-- 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`AutoAsync` 开自动派单（没配搬运管理回 `transfer.not_installed`，
-  停用了回 `transfer.disabled`）、`ManualAsync` 关自动派单（Job 不再派新动作，在途的做完）、`StopAsync`：搬运管理 `Abort()`（关自动调度 + 中止当前搬运操作）；正在执行动作的模块直接发 Abort（闲着的不碰，不等中止做完，Data = 直接发了几个），
-  在给 Job 做工艺的腔体（`JobManager.IsJobProcess`）、在搬运的机械手除外（由 Job / 搬运管理收场）；最后 Job 全部走中止（`AbortAllAsync`）——
-  要先认出哪些腔体在给 Job 做工艺：Job 的中止当场就给它们发中止，之后就认不出来了。
+- 设备总状态 `EquipmentStatusDto`（四色灯红黄绿 + `WaferSize` = 晶圆尺寸组件现在的尺寸，没配是 12）：`EquipmentStatusPublisher.Snapshot(modules)` 算一次。
+  **系统状态、模式不在这里**（三色灯是三色灯，系统状态是整机自己的状态机），看下面「整机」。切晶圆尺寸 `IEquipmentService.SetWaferSizeAsync`（参数 `IEquipmentService.WaferSizeKey`）：
+  启用的模块都是未初始化（整机模块也在里面，等于"整机没初始化"）、LoadPort 以外没片才切，切了写回 sc.xml（见 decisions.md「晶圆尺寸 8 / 12 寸」）。
+- **整机** `System\SystemModule`（sc.xml 顶层 `System` 节点，`BaseModule`，在根上自己一条扫描线程；下面挂 `WaferSize`；SC `Language`；`SystemModule.Current`）：
+  状态 `SystemState : ModuleState`——NotInit / Initing / Idle（Manual）/ Aborting（停止中）/ Error 直接用基础的，加 AutoIdle 100、AutoRunning 110、Returning 120；
+  状态表 `SystemStateTable`。动作入口（在模块锁里查状态再挂）：`InitAll()`（`SystemInitOperation`：先 `IRobot` 的 `InitModule`，收完尾再一起初始化其余模块；
+  被拒 `system.init_rejected` / 没做成 `system.init_failed` [模块]）、`Auto()` / `Manual()`（当场切、不挂动作；拨搬运管理的自动派单，Job 只看那个开关，开关只由整机拨）、
+  `ReturnAll()`（`SystemReturnOperation`，见 decisions.md）、`Abort()` = 整机停止（`SystemStopOperation`：先进停止中顶掉初始化 / 回片，锁外关自动派单、撤搬运、
+  给在做动作的模块发中止（在搬运的机械手、给 Job 做工艺的腔体除外）、Job 全部走中止；等停的那一刻各模块手上的动作和撤掉的搬运都收完尾才回到停之前该在的地方）。
+  每拍 Auto 下按 `JobManager.HasRunningJob`（CJ 执行中 / 暂停 / 中止中）切自动运行 / 自动空闲。动作没做成先不进 Error（报警逻辑还没接）：初始化回 NotInit、回片回 Idle。
+  推送 `SystemStateDto`（token "SystemState"，留存，变了才推）。开机在各模块 Start 之前 `Bind(modules)`（不含自己）。系统设置的模块名单不带它（没有 IO）。
+- 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`InitAsync` / `AutoAsync` / `ManualAsync` / `StopAsync` / `ReturnAllAsync` 都转给整机，
+  开了就回、只翻结果；没配 System 节点回 `system.not_installed`，状态不允许回 `module.state_not_allowed` [System, 状态码]，Auto 没装 / 停用搬运管理回 `transfer.not_installed` / `transfer.disabled`。
 
 ### 启动顺序（`AddXyzServices`）
 日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
 IO 表 Open + Start（开机 DO）→ Safety Start → Computer Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
-**EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 各模块 Start →
+**EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 整机 Bind（全部初始化、整机停止管的模块表）→ 各模块 Start（整机也是模块，跟着起）→
 TransferManager Bind → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
 JobManager Bind（模块、搬运管理、配方库都起来之后）→ **Dispatch Start**（Job、搬运管理都绑完表才起这条线程；挂在 Dispatch 下面的这两个不再各自 Start，
 单独挂在根上的照旧自己 Start）→ **EAP Open**（开 HSMS 链路，Host 连进来时处理方、设备都在）→ 设备总状态 / IO 推送 →

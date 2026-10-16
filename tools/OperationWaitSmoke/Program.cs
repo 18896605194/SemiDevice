@@ -678,6 +678,118 @@ port.E87Callback = null;
     WaferManagerComponent.Current = null;
 }
 
+// ── 机械手手指在位传感器：Arm 下挂了 WaferSensor（DI）的手，取放前后、Home 前跟晶圆账对；没挂的手不查（上面那段） ──────
+{
+    var sensorLedger = new WaferManagerComponent();
+    var robot = new ProbeRobot();
+    var sensor = new ProbeDi("SmokeRobot.Arm1.WaferSensor") { AlarmEnabled = false, DebounceMs = 0 };
+    var arm1 = robot.FindChild<RobotArmComponent>("Arm1")!;
+    arm1.AddChild(sensor);
+    robot.NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children =
+        [
+            new ModuleConfig
+            {
+                Name = "Stations",
+                Children = [new ModuleConfig { Name = "SmokeLP", Values = [new ValueConfig { Name = "Number", Value = "1" }] }],
+            },
+        ],
+    });
+    sensorLedger.RegisterLocation("SmokeLP", 5);
+    var wafer = sensorLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-SENSOR")!;
+    Check(robot.InitComponent() && ReferenceEquals(robot.Arms[0].WaferSensor, sensor),
+        "Arm1 下面名叫 WaferSensor 的 DI 按 IDiSensor 认成这只手的在位传感器");
+    robot.NoteState(ModuleState.Idle);
+    arm1.WaferSensorTimeoutMs = 1000;
+
+    bool SensorRejected(HandleResult<ModuleOperation> started, string code, params string[] args)
+    {
+        return !started.IsSuccess && started.Result is null && started.ErrorMessage == code && started.Args.SequenceEqual(args)
+            && robot.State == ModuleState.Idle;
+    }
+
+    // 传感器还没读到：取放不敢伸手；Home 不碰片，不拦
+    robot.Tick();
+    Check(robot.Arms[0].HasWafer is null
+          && SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorUnknown, "SmokeRobot", "1"),
+        "传感器还没读到：取片被拒，robot.arm_sensor_unknown [机械手, 手指号]");
+    robot.Next = new ProbeOperation();
+    Check(robot.Home().Result == robot.Next, "传感器还没读到不拦 Home");
+    robot.Next!.Succeed();
+    robot.Tick();
+
+    // 取片前、Home 前：传感器看到手上有片，账上手是空的
+    sensor.Level = true;
+    robot.Tick();
+    Check(robot.Arms[0].HasWafer == true && robot.CreateStateDto().Arms[0].HasWafer,
+        "挂了传感器的手，在位按传感器读（推送给界面的也是它）");
+    Check(SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorHasWafer, "SmokeRobot", "1"),
+        "取片前传感器看到手上有片、账上没有：robot.arm_sensor_has_wafer [机械手, 手指号]");
+    Check(robot.CheckPick(1, "SmokeLP", 3)?.ErrorMessage == ErrorCodes.RobotArmSensorHasWafer, "只查不动的 CheckPick 也查传感器（搬运管理落标记前先问它）");
+    Check(SensorRejected(robot.Home(), ErrorCodes.RobotArmSensorHasWafer, "SmokeRobot", "1"), "Home 前账实不符也拦：先按实物改账");
+
+    // 取片：设备做完了还要等传感器看到片，才算做成、才记账
+    sensor.Level = false;
+    robot.Tick();
+    robot.Next = new ProbeOperation();
+    var picking = robot.Pick(1, "SmokeLP", 3).Result;
+    Check(picking is not null && !ReferenceEquals(picking, robot.Next) && robot.State == RobotState.Picking,
+        "挂了传感器的手：取片外面套一层等传感器的操作");
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(picking is not null && !picking.IsTerminal && sensorLedger.Get("SmokeLP", 3)?.Id == wafer.Id,
+        "设备说取完了、传感器还没看到片：不算做成、不记账");
+    sensor.Level = true;
+    robot.Tick();
+    Check(picking is not null && picking.IsSuccess && robot.State == ModuleState.Idle && sensorLedger.Get(robot.Name, 1)?.Id == wafer.Id,
+        "传感器跟上（有片）：取片做成，片记到 Arm1");
+
+    // 放片前、Home 前：账上手上有片，传感器没看到
+    sensor.Level = false;
+    robot.Tick();
+    Check(SensorRejected(robot.Place(1, "SmokeLP", 4), ErrorCodes.RobotArmSensorNoWafer, "SmokeRobot", "1"),
+        "放片前传感器没看到片、账上有：robot.arm_sensor_no_wafer [机械手, 手指号]");
+    Check(SensorRejected(robot.Home(), ErrorCodes.RobotArmSensorNoWafer, "SmokeRobot", "1"), "Home 前账上有片、传感器没看到：拦");
+
+    // 放片做完、时限到了传感器还看到片：判失败、落 Error、不记账（片可能还挂在手上）
+    sensor.Level = true;
+    robot.Tick();
+    arm1.WaferSensorTimeoutMs = 0;
+    robot.Next = new ProbeOperation();
+    var placing = robot.Place(1, "SmokeLP", 4).Result;
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(placing is not null && !placing.IsSuccess && placing.Code == ErrorCodes.RobotArmSensorHasWafer
+          && placing.ErrorArgs.SequenceEqual(["SmokeRobot", "1"]) && robot.State == ModuleState.Error,
+        "放完传感器还看到片：时限到判失败 robot.arm_sensor_has_wafer，机械手落 Error");
+    Check(sensorLedger.Get(robot.Name, 1)?.Id == wafer.Id && sensorLedger.Get("SmokeLP", 4) is null, "放片没做成不记账：片还记在手上");
+
+    // 设备动作自己失败：原样带它的错误码，不等传感器
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    var failing = robot.Place(1, "SmokeLP", 4).Result;
+    robot.Next!.Reject();
+    robot.Tick();
+    Check(failing is not null && failing.Code == ErrorCodes.DeviceFailed && failing.ErrorArgs.SequenceEqual(["Probe", "device error"]),
+        "设备动作失败：原样带设备的错误码和参数");
+
+    // 急停顶掉：等传感器那层和设备动作一起打断
+    robot.NoteState(ModuleState.Idle);
+    var motion = new ProbeOperation();
+    robot.Next = motion;
+    var abortedPlace = robot.Place(1, "SmokeLP", 4).Result;
+    robot.Next = new ProbeOperation();
+    robot.Abort();
+    Check(abortedPlace is not null && abortedPlace.State == OperationState.Aborted && motion.State == OperationState.Aborted && motion.AbortCount == 1,
+        "急停顶掉放片：外层和设备动作都落 Aborted");
+    robot.Next!.Succeed();
+    robot.Tick();
+
+    WaferManagerComponent.Current = null;
+}
+
 // ── 报警：LoadPort / _robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
 {
     var alarms = new AlarmComponent();
@@ -1114,28 +1226,57 @@ port.E87Callback = null;
     Check(!Active(di, di.SensorAlarm) && !chamber.HasAlarm, "复位模块应连同 DI 一起清掉报警");
 
     // 低电平报警 + 关掉直接报警：只给触发状态，不报
-    var quiet = new ProbeDi("SmokeChamber.Di2") { TriggerLevel = false, AlarmEnabled = false, DebounceMs = 0 };
+    var quiet = new ProbeDi("SmokeChamber.Di2") { TriggerValue = false, AlarmEnabled = false, DebounceMs = 0 };
     quiet.Level = false;
     quiet.Tick();
     Check(quiet.IsTriggered && !Active(quiet, quiet.SensorAlarm), "AlarmEnabled=False 只给触发状态，不报警");
     quiet.Level = true;
     quiet.Tick();
-    Check(!quiet.IsTriggered, "TriggerLevel=false 在 DI=true 时不触发");
+    Check(!quiet.IsTriggered, "TriggerValue=false 在 DI=true 时不触发");
+
+    // 给用的地方看的 IsActive（在位传感器这类）：触发、不触发两边都防抖，抖一下不认；读不到为 null
+    var presence = new ProbeDi("SmokeChamber.Di3") { AlarmEnabled = false, DebounceMs = 200 };
+    presence.Tick();
+    Check(presence.IsActive is null, "IsActive：读不到为 null");
+    presence.Level = true;
+    presence.Tick();
+    Check(presence.IsActive is null, "IsActive：刚读到触发、还没稳满防抖时间，不认（仍是 null）");
+    Thread.Sleep(250);
+    presence.Tick();
+    Check(presence.IsActive == true, "IsActive：触发持续满防抖时间才认");
+    presence.Level = false;
+    presence.Tick();
+    presence.Level = true;
+    presence.Tick();
+    Thread.Sleep(250);
+    presence.Tick();
+    Check(presence.IsActive == true, "IsActive：掉了一下马上又回来，不认没触发（报警用的 IsTriggered 是立刻撤）");
+    presence.Level = false;
+    presence.Tick();
+    Check(presence.IsActive == true && !presence.IsTriggered, "IsActive：刚变成没触发、还没稳满，保持原来的触发；IsTriggered 已经立刻撤了");
+    Thread.Sleep(250);
+    presence.Tick();
+    Check(presence.IsActive == false, "IsActive：没触发也要持续满防抖时间才认");
+    presence.Level = null;
+    presence.Tick();
+    presence.Level = false;
+    presence.Tick();
+    Check(presence.IsActive is null, "IsActive：中间读不到过，认下来的作废，重新读到要重新稳满");
 
     foreach (var (text, expected) in new[] { ("true", true), ("false", false), ("True", true), ("False", false) })
     {
         var loaded = (DiSensorComponent)ComponentLoader.Load([new ModuleConfig
         {
-            Name = "TriggerLevelSmoke", Type = typeof(DiSensorComponent).FullName,
-            Values = [new() { Name = "TriggerLevel", Value = text }]
+            Name = "TriggerValueSmoke", Type = typeof(DiSensorComponent).FullName,
+            Values = [new() { Name = "TriggerValue", Value = text }]
         }]).Single();
-        Check(loaded.TriggerLevel == expected, $"DI 触发电平配置 {text} 应加载为 {expected}");
+        Check(loaded.TriggerValue == expected, $"DI 触发电平配置 {text} 应加载为 {expected}");
     }
     var defaultDi = (DiSensorComponent)ComponentLoader.Load([new ModuleConfig
     {
         Name = "DefaultTriggerSmoke", Type = typeof(DiSensorComponent).FullName
     }]).Single();
-    Check(defaultDi.TriggerLevel, "未配置触发电平时仍默认高电平触发");
+    Check(defaultDi.TriggerValue, "未配置触发电平时仍默认高电平触发");
     // 只认 bool：旧的 High/Low 写法不再兼容，跟乱填的一样拒绝加载
     foreach (var invalid in new[] { "invalid", "High", "Low" })
     {
@@ -1145,7 +1286,7 @@ port.E87Callback = null;
             ComponentLoader.Load([new ModuleConfig
             {
                 Name = "InvalidTriggerSmoke", Type = typeof(DiSensorComponent).FullName,
-                Values = [new() { Name = "TriggerLevel", Value = invalid }]
+                Values = [new() { Name = "TriggerValue", Value = invalid }]
             }]);
         }
         catch (InvalidOperationException)
@@ -1161,12 +1302,12 @@ port.E87Callback = null;
     ai.Tick();
     Check(!ai.IsOutOfRange && !ai.IsInWarning && !ai.HasAlarm, "没标定的 AI 不判超限");
 
-    ai.Min = 10;
-    ai.Max = 90;
-    ai.WarningMin = 20;
-    ai.WarningMax = 80;
+    ai.AlarmMin = 10;
+    ai.AlarmMax = 90;
+    ai.WarnMin = 20;
+    ai.WarnMax = 80;
     ai.DurationMs = 0;
-    Check(ai.Min == 10 && ai.WarningMax == 80, "AI 上下限是 EC，写完即生效");
+    Check(ai.AlarmMin == 10 && ai.WarnMax == 80, "AI 上下限是 EC，写完即生效");
 
     ai.Reading = 50;
     ai.Tick();
@@ -1199,8 +1340,8 @@ port.E87Callback = null;
 
     // 监控使能 DO 门控：没开（或读不到）就不判
     var gated = new ProbeAi("SmokeChamber.Ai2") { MonitoringDoIndex = 3, MonitoringActiveHigh = true };
-    gated.Min = 10;
-    gated.Max = 90;
+    gated.AlarmMin = 10;
+    gated.AlarmMax = 90;
     gated.DurationMs = 0;
     gated.Reading = 95;
     gated.MonitoringDo = false;
@@ -1237,6 +1378,51 @@ port.E87Callback = null;
     gated.MonitoringDo = true;
     gated.Tick();
     Check(!gated.IsOutOfRange && !Active(gated, gated.AiSensorAlarm), "DO 关了再开，延时重新计");
+
+    // 按目标值的百分比判（IsPercentOfTarget，喷嘴流量计：工艺每步把配方流量给它当目标）：AlarmMin/AlarmMax/WarnMin/WarnMax 是百分比；没给目标（0）不判，哪边是 0 哪边不判
+    var flow = new ProbeAi("SmokeChamber.Arm1.Nozzle_SC1.Flow") { MonitoringDoIndex = 7, IsPercentOfTarget = true };
+    flow.AlarmMin = 10;
+    flow.AlarmMax = 10;
+    flow.WarnMin = 5;
+    flow.WarnMax = 5;
+    flow.DurationMs = 0;
+    flow.MonitoringDo = true;
+    flow.Reading = 5;
+    flow.Tick();
+    Check(flow.Target == 0 && !flow.IsOutOfRange && !flow.IsInWarning, "没给目标值不按百分比判（不在工艺里手动开阀不报）");
+    flow.SetTarget(2);
+    flow.Reading = 2.05;
+    flow.Tick();
+    Check(flow.Target == 2 && !flow.IsOutOfRange && !flow.IsInWarning, "目标 2：2.05 在 ±5% 预警带里");
+    flow.Reading = 2.15;
+    flow.Tick();
+    Check(flow.IsInWarning && !flow.IsOutOfRange && Active(flow, flow.AiSensorWarnAlarm), "目标 2：2.15 出了 +5%、没出 +10%，报预警");
+    flow.Reading = 1.75;
+    flow.Tick();
+    Check(flow.IsOutOfRange && Active(flow, flow.AiSensorAlarm), "目标 2：1.75 低于 -10%（1.8），报超限");
+    alarms.Reset(flow.FullPath);
+    flow.AlarmMax = 0;
+    flow.WarnMax = 0;
+    flow.Reading = 5;
+    flow.Tick();
+    Check(!flow.IsOutOfRange && !flow.IsInWarning, "按百分比时上限是 0：上边不判");
+    flow.AlarmMax = 10;
+    flow.WarnMax = 5;
+
+    // 开着监控换了目标（同一个喷嘴连着两步、流量不一样）：延时重新计
+    flow.MonitoringDelayMs = 200;
+    flow.Reading = 2;
+    flow.Tick();
+    Thread.Sleep(250);
+    flow.Tick();
+    Check(!flow.IsOutOfRange, "过了延时、流量在目标上");
+    flow.SetTarget(3);
+    flow.Tick();
+    Check(!flow.IsOutOfRange && !Active(flow, flow.AiSensorAlarm), "目标从 2 换成 3，流量还没爬上来：延时重新计，先不判");
+    Thread.Sleep(250);
+    flow.Tick();
+    Check(flow.IsOutOfRange && Active(flow, flow.AiSensorAlarm), "新目标的延时过了还是 2：低于 3 的 -10%，报超限");
+    alarms.Reset(flow.FullPath);
 
     AlarmComponent.Current = null;
 }
