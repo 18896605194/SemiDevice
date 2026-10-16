@@ -19,6 +19,9 @@ public class NozzleComponent : ValveComponent, INozzle
     [SCEditor("-1", "IO", "流量设定 AO 索引 (-1 = 没接流量设定，配方里的流量不下发，只给流量计当监控目标)")]
     public int AoIndex { get; set; } = -1;
 
+    [SCEditor("True", "Nozzle", "停液关阀后流量清不清零（True：AO 设定和流量计目标都设 0；False：保持上一步的流量）")]
+    public bool ClearFlowOnStop { get; set; } = true;
+
     #endregion
 
     #region EC 可调参数
@@ -70,8 +73,7 @@ public class NozzleComponent : ValveComponent, INozzle
     public bool HasFlowControl => AoIndex >= 0;
 
     /// <summary>
-    /// 给流量（L/min，配方这一步的流量）：挂了流量计的给它当目标值，上下限按目标的百分比判；接了 AO 的再写 AO 下发，
-    /// 没接 AO 的这一路流量是固定的、不下发，只拿来监控。返回 false = 接了 AO 却没写进去。
+    /// 设置流量
     /// </summary>
     /// <param name="litersPerMinute"></param>
     /// <returns></returns>
@@ -93,7 +95,7 @@ public class NozzleComponent : ValveComponent, INozzle
     }
 
     /// <summary>
-    /// 停液：关阀，流量清零（AO 设定和流量计的目标都清掉，下回开阀不带着上一步的流量）。
+    /// 停液：关阀；SC ClearFlowOnStop 开着的再把流量清零。
     /// </summary>
     public bool Stop()
     {
@@ -102,7 +104,12 @@ public class NozzleComponent : ValveComponent, INozzle
             return false;
         }
 
-        return SetFlow(0);
+        if (ClearFlowOnStop)
+        {
+            return SetFlow(0);
+        }
+
+        return true;
     }
 
     #endregion

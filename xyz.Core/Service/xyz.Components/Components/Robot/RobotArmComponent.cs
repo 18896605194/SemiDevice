@@ -56,12 +56,15 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
 
             lock (_waferGate)
             {
-                return _hasWafer switch
+                switch (_hasWafer)
                 {
-                    1 => true,
-                    2 => false,
-                    _ => null,
-                };
+                    case 1:
+                        return true;
+                    case 2:
+                        return false;
+                    default:
+                        return null;
+                }
             }
         }
     }

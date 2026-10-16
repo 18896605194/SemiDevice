@@ -6,7 +6,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// AI 值监控组件：单个 AI，上下限 + 预警 + 防抖报警。别的组件、模块用它走 <see cref="IAiSensor"/>。
+/// AI 值监控组件
 /// </summary>
 [Component(description: "AI 值监控组件")]
 public class AiSensorComponent : ComponentBase, IAiSensor
@@ -60,13 +60,6 @@ public class AiSensorComponent : ComponentBase, IAiSensor
         set { SetEcInt(nameof(MonitoringDelayMs), value); }
     }
 
-    [VariableMark(VariableType.EC, ValueFormat.Double, null, null, null, "0", "设定值（UI 展示/换算用）")]
-    public double Setpoint
-    {
-        get { return GetEcDouble(nameof(Setpoint)); }
-        set { SetEcDouble(nameof(Setpoint), value); }
-    }
-
     [VariableMark(VariableType.EC, ValueFormat.Double, null, null, null, "0", "预警下限：固定数时低于它进入预警区（上下限都为 0 表示不判预警）；按目标百分比时低于 目标×(1−它/100) 进入预警区、0 = 下边不判")]
     public double WarnMin
     {
@@ -102,17 +95,17 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     #region 状态
 
     /// <summary>
-    /// 最近一次读数；IO 没接或读失败为 null。
+    /// 最近一次读数
     /// </summary>
     public double? Value { get; private set; }
 
     /// <summary>
-    /// 是否超限（防抖后）：超出 AlarmMin/AlarmMax（固定数，或按目标值的百分比）并持续满 DurationMs；回到范围内立刻算没超限。
+    /// 是否超限（防抖后）
     /// </summary>
     public bool IsOutOfRange { get; private set; }
 
     /// <summary>
-    /// 是否在预警区（防抖后）：出了预警带并持续满 DurationMs，且没超限。
+    /// 是否在预警区（防抖后）
     /// </summary>
     public bool IsInWarning { get; private set; }
 
@@ -120,8 +113,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     private double _target;
 
     /// <summary>
-    /// 目标值：工艺给的（喷嘴按配方流量 SetFlow 时给它的流量计），IsPercentOfTarget 时上下限按它的百分比算；0 = 没给，不判。
-    /// 运行时的值，不存盘——不用 EC 的 Setpoint，那个每步一改就要写 ec.xml、重启还留着上一步的值。
+    /// 目标值 其实就是下发
     /// </summary>
     public double Target
     {
@@ -135,12 +127,12 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     }
 
     /// <summary>
-    /// 这一回开始监控的时刻（Environment.TickCount64）；没在监控为 -1。只在扫描线程里读写。
+    /// 开始监控的时刻
     /// </summary>
     private long _monitoringSince = -1;
 
     /// <summary>
-    /// 上一拍看到的目标值，开着监控时目标变了要重新计延时。只在扫描线程里读写。
+    /// 上一拍看到的目标值
     /// </summary>
     private double _monitoringTarget;
 
@@ -149,7 +141,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     #region 目标值
 
     /// <summary>
-    /// 给目标值（0 = 清掉，按百分比的就不判了）。开着监控时目标变了，开监控延时从变的那一拍重新计（换了流量要重新爬升）。
+    /// 设置目标值
     /// </summary>
     public void SetTarget(double target)
     {
@@ -163,10 +155,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
 
     #region 扫描
 
-    /// <summary>
-    /// 每个扫描周期读一次 AI，按防抖判超限、预警并报警。
-    /// 监控没开（使能 DO 不在有效电平）、或开了还没过 MonitoringDelayMs 时不判、防抖计时清零；读不到时不判，状态与防抖计时都不动。
-    /// </summary>
+   
     protected override void OnScan()
     {
         base.OnScan();
@@ -216,10 +205,13 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     }
 
     /// <summary>
-    /// 是否出了上下限。固定数：出了 [min, max] 算，上下限都为 0 表示没标定、不判。
-    /// 按目标值的百分比（IsPercentOfTarget）：高于 目标×(1+max/100) 或低于 目标×(1−min/100) 算，哪边是 0 哪边不判；
-    /// 目标是 0（没给）不判——不在工艺里手动开阀时没有目标，按 0 判的话一开阀就报超上限。
+    /// 是否出了上下限  值和百分比共存
     /// </summary>
+    /// <param name="value"></param>
+    /// <param name="target"></param>
+    /// <param name="min"></param>
+    /// <param name="max"></param>
+    /// <returns></returns>
     private bool Outside(double value, double target, double min, double max)
     {
         if (!IsPercentOfTarget)
@@ -248,7 +240,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     }
 
     /// <summary>
-    /// 读 AI 工程值；PLC 没连或点表里没这个索引返回 null。探针测试重写它直接摆读数。
+    /// 读取 AI 
     /// </summary>
     protected virtual double? ReadAi()
     {
@@ -262,7 +254,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     }
 
     /// <summary>
-    /// 回读监控使能 DO（true = 高电平）；读不到返回 null（当作没开监控）。
+    /// 回读监控使能 DO
     /// </summary>
     protected virtual bool? ReadMonitoringDo()
     {

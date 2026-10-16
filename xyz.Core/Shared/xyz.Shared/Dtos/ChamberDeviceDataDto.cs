@@ -1,4 +1,4 @@
-namespace xyz.Shared.Dtos;
+﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
 /// 一个腔体里各设备的实时状态（腔体手动页的轴页签、气缸表、三维图都从这里取），结构跟 sc.xml 一样：
@@ -18,7 +18,7 @@ public class ChamberDeviceDataDto
     public List<ChamberCylinderDto> Bowls { get; set; } = [];
 
     /// <summary>卡盘；sc 里没配为 null。</summary>
-    public ChamberSpinDto? Spin { get; set; }
+    public ChamberAxisDto? Spin { get; set; }
 
     /// <summary>各条摆臂，按 sc 的先后。</summary>
     public List<ChamberArmDto> Arms { get; set; } = [];
@@ -66,15 +66,6 @@ public record ChamberAxisDto
 
     /// <summary>驱动器报错（故障）。</summary>
     public bool IsError { get; set; }
-}
-
-/// <summary>
-/// 卡盘：轴的状态 + 在不在转。
-/// </summary>
-public record ChamberSpinDto : ChamberAxisDto
-{
-    /// <summary>在转（三维图转盘面，转向看 CurrentSpeed 的正负）。</summary>
-    public bool IsSpinning { get; set; }
 }
 
 /// <summary>

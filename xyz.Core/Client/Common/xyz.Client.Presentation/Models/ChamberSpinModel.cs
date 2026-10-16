@@ -26,13 +26,15 @@ public class ChamberSpinModel : ObservableObject
         private set => SetProperty(ref _isPresent, value);
     }
 
-    private bool _isSpinning;
+    private bool _isBusy;
 
-    /// <summary>在转。</summary>
-    public bool IsSpinning
+    /// <summary>
+    /// PLC 报忙（在转）
+    /// </summary>
+    public bool IsBusy
     {
-        get => _isSpinning;
-        private set => SetProperty(ref _isSpinning, value);
+        get => _isBusy;
+        private set => SetProperty(ref _isBusy, value);
     }
 
     private bool _isClockwise = true;
@@ -47,19 +49,19 @@ public class ChamberSpinModel : ObservableObject
     /// <summary>
     /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配旋转电机。转向看实际速度的正负，正的算顺时针。
     /// </summary>
-    public void Update(ChamberSpinDto? dto)
+    public void Update(ChamberAxisDto? dto)
     {
         if (dto is null)
         {
             IsPresent = false;
             Path = string.Empty;
-            IsSpinning = false;
+            IsBusy = false;
             return;
         }
 
         IsPresent = true;
         Path = dto.Path;
-        IsSpinning = dto.IsSpinning;
+        IsBusy = dto.IsBusy;
         IsClockwise = dto.CurrentSpeed >= 0;
     }
 }

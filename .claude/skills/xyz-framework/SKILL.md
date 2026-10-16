@@ -40,8 +40,11 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 
 ## 二、硬规矩（所有 C#、XAML，包括 tools 下的冒烟）
 
-1. **注释中文、大白话、讲为什么**；成员写 `/// <summary>`。日志、异常信息、界面文字也是中文（英文只出现在 en-US 语言包）。
+1. **注释中文、大白话、讲为什么**；成员写 `/// <summary>`，**一律分三行**（`/// <summary>`、`/// 一句短话`、`/// </summary>`），
+   不写成一行的 `/// <summary>xxx</summary>`；内容一句短话说清是什么，长的背景写进 decisions.md（用户 2026-10-16 定）。日志、异常信息、界面文字也是中文（英文只出现在 en-US 语言包）。
 2. **不写花括号模式匹配和列表模式**：`x is { } y`、`is not { } y`、`is { Count: > 0 }`、`is [..]`、switch 里 `{ Prop: v } =>` 都不要。
+   **不写 switch 表达式**（`x switch { 1 => true, _ => null }`）和 `when` 守卫，用传统 switch 语句（`case 1: return true;`、`default: return null;`），
+   相同结果的 case 叠在一起；在对象初始化器里的抽成一个 `private static` 换算方法再用 switch 语句。
    先取局部变量，再显式判空、判属性；**判空只用 `is null` / `is not null`**，不写 `== null` / `!= null`。类型模式（`x is Foo foo`）、常量和 `or` 模式可以用。
    ```csharp
    var alarms = AlarmComponent.Current;

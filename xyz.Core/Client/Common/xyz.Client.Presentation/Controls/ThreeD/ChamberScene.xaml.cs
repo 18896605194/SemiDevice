@@ -223,7 +223,7 @@ public partial class ChamberScene : UserControl
         Bind(_door, DoorVisual3D.IsUnknownProperty, devices, "Door.IsUnknown");
         Bind(_bowl, BowlVisual3D.IsRaisedProperty, devices, "Bowl.IsOpen");
         Bind(_bowl, BowlVisual3D.IsUnknownProperty, devices, "Bowl.IsUnknown");
-        Bind(_disk, DiskVisual3D.RotationSpeedProperty, devices, "Spin.IsSpinning", SpinSpeedConverter.Instance);
+        Bind(_disk, DiskVisual3D.RotationSpeedProperty, devices, "Spin.IsBusy", SpinSpeedConverter.Instance);
         Bind(_disk, DiskVisual3D.RotateClockwiseProperty, devices, "Spin.IsClockwise");
     }
 
@@ -623,7 +623,9 @@ public partial class ChamberScene : UserControl
         }
     }
 
-    /// <summary>"在转"换成显示转速：只表示转没转，不跟实际转速走。</summary>
+    /// <summary>
+    /// 忙（在转）换成显示转速：只表示转没转，不跟实际转速走
+    /// </summary>
     private sealed class SpinSpeedConverter : IValueConverter
     {
         public static readonly SpinSpeedConverter Instance = new();

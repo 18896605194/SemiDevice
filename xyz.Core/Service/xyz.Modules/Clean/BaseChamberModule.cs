@@ -369,9 +369,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         var spin = SpinMotor;
         if (spin is not null)
         {
-            var spinDto = AxisDtoOf<ChamberSpinDto>(spin);
-            spinDto.IsSpinning = spin.IsSpinning;
-            dto.Spin = spinDto;
+            dto.Spin = AxisDtoOf<ChamberAxisDto>(spin);
         }
 
         foreach (var arm in Arms)

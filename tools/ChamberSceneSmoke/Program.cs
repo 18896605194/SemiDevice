@@ -448,11 +448,11 @@ internal sealed class SceneState
             Module = Module,
             Door = Door is null ? null : Cylinder($"{Module}.Door", Door),
             Bowls = [Cylinder($"{Module}.Bowl1", Bowl)],
-            Spin = new ChamberSpinDto
+            Spin = new ChamberAxisDto
             {
                 Path = $"{Module}.SpinMotor",
                 CurrentSpeed = Spin.Speed,
-                IsSpinning = Spin.Speed != 0,
+                IsBusy = Spin.Speed != 0,
             },
         };
         foreach (var arm in Arms)

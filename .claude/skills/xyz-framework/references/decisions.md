@@ -183,9 +183,11 @@
   挂了流量计的给它 `SetTarget`，接了 AO 的再下发；**没 AO 的一路配方照填、不下发，只当监控目标**。上下限**按目标值的百分比**
   （**AI 组件只有一套上下限 EC：`AlarmMin` / `AlarmMax` / `WarnMin` / `WarnMax`**，用户点名，原来叫 Min/Max/WarningMin/WarningMax，
   别再另加一套百分比的；SC `IsPercentOfTarget` 定这套数是目标的百分比（流量计配 True）还是固定数（压力这类，默认），百分比时哪边 0 哪边不判）。
-  目标值是运行时的、不存盘（不用 EC `Setpoint`）；目标 0（没给、停液清掉）不按百分比判（CTC 这里会误报）；开着监控换了目标，延时重新计。
+  目标值是运行时的、不存盘（AI 组件原来有个 EC `Setpoint`，没人用，2026-10-16 用户指出后删了；目标别再做成 EC，每步一改就写 ec.xml、重启还留着上一步的）；目标 0（没给、停液清掉）不按百分比判（CTC 这里会误报）；开着监控换了目标，延时重新计。
   AI 组件跟 DI 一样有接口 `IAiSensor`（2026-10-16 用户："AiSensorComponent 这个最好和 di 组件一样提供接口"）：`Value`、`IsOutOfRange`、`Target`、`SetTarget`，
   喷嘴 `FlowMeter` 按它认；`IsInWarning` 没人用，没放进接口。
+  停液后流量清不清零做成**喷嘴的 SC `ClearFlowOnStop`**（2026-10-16 用户："关闭阀门之后这个流量需不需要设置 0，做成可配置的"，"做成 SC 配置吧"）：
+  默认 True（原来的行为：AO 设定和流量计目标都清 0）；False 只关阀，AO 和目标都保持上一步的（目标跟着下发走，两个不拆开配）。35021 八路都写了 True。
   **工艺中超限只报警**，报警怎么落到腔体、要不要停工艺，用户说"先不着急"。流量显示在哪还没定。
 - **腔体三维里的动画一律 0.2 s，写死**（LoadPort 三维是 0.5 s，见「LoadPort 手动页（三维）」）：摆臂收到新位置的过渡（`ArmTransitionMilliseconds`）、Lift、Bowl、门的全行程过渡都是 0.2 s
   （液体流动、转盘转动是持续的速度，不算过渡）。

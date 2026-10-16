@@ -123,7 +123,7 @@ try
         return new ChamberDeviceRequest { Module = module, Device = path };
     }
 
-    ChamberSpinDto SpinDto()
+    ChamberAxisDto SpinDto()
     {
         var spinDto = chamber.CreateDeviceDataDto().Spin;
         if (spinDto is null)
@@ -175,6 +175,7 @@ try
     {
         var status = plc.Read<MotionPlcToCSharpData>("Spin.Status");
         status.Current_Speed = speed;
+        status.Is_Busy = speed == 0 ? (byte)0 : (byte)1;
         plc.Put("Spin.Status", status);
         Tick();
     }
@@ -286,7 +287,7 @@ try
         && armDto.Nozzles.Select(nozzle => (nozzle.Path, nozzle.Chemical)).SequenceEqual([
             ("Chamber9.Arm1.Nozzle_DIW", "DIW"), ("Chamber9.Arm1.Nozzle_SC1", "SC1")]),
         "摆臂下面是它的 Lift 和喷嘴（带药液），跟 sc 一样；WaferSensor 不在里面");
-    Check(armDto.HasPlcData && armDto.CurrentPosition == 0 && !armDto.IsError && !dto.Spin!.IsSpinning, "轴的数据都是实打实的属性");
+    Check(armDto.HasPlcData && armDto.CurrentPosition == 0 && !armDto.IsError && !dto.Spin!.IsBusy, "轴的数据都是实打实的属性");
 
     // 2. 气缸三态：命令发到哪一侧就看那一侧到没到位，没到是未知；两个线圈都没通只看到位反馈；PLC 断了未知
     Check(CylinderDto("Chamber9.Door").Position == CylinderPosition.Closed, "刚上电线圈都没通、关到位信号亮：关到位");
@@ -321,15 +322,19 @@ try
         "没接 AO（固定流量的一路）：不下发、也不算失败，只给流量计当目标值");
     sc1.AoIndex = 1;
     Check(sc1.Stop() && plc.Ao(1) == 0 && sc1Meter.Target == 0, "停液：AO 设定和流量计的目标都清零");
+    sc1.ClearFlowOnStop = false;
+    Check(sc1.SetFlow(2) && sc1.On() && sc1.Stop() && !plc.ReadDo(7) && plc.Ao(1) == 2 && sc1Meter.Target == 2,
+        "SC ClearFlowOnStop=False：停液只关阀，AO 设定和流量计目标保持上一步的");
+    sc1.ClearFlowOnStop = true;
+    Check(sc1.Stop() && plc.Ao(1) == 0 && sc1Meter.Target == 0, "ClearFlowOnStop 改回 True：停液清零");
 
     SetSpinSpeed(50);
-    Check(SpinDto().IsSpinning && SpinDto().CurrentSpeed == 50,
-        "实际转速超出速度容差算在转，正负照推（界面按正负画转向）");
+    Check(SpinDto().IsBusy && SpinDto().CurrentSpeed == 50,
+        "PLC 报忙就是在转，实际转速正负照推（界面按正负画转向）");
     SetSpinSpeed(-50);
-    Check(SpinDto().IsSpinning && SpinDto().CurrentSpeed == -50, "反转");
-    SetSpinSpeed(2);
-    Check(!SpinDto().IsSpinning, "速度容差以内不算在转");
+    Check(SpinDto().IsBusy && SpinDto().CurrentSpeed == -50, "反转");
     SetSpinSpeed(0);
+    Check(!SpinDto().IsBusy, "停了不报忙，不算在转");
 
     // 摆臂：回零后 0 位 = Home；示教位默认 Edge12 = 0（第一个边缘，跟 Home 重合）、Center = 150（晶圆中心）；没配晶圆尺寸组件按 12 寸
     double Reach()
@@ -464,7 +469,7 @@ try
         && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]), "一个设备动作在途时别的动作被拒");
     Check(!plc.ReadDo(2), "被拒的动作没发指令（Bowl 线圈没通）");
     response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = 50 }));
-    Check(!response.Success && response.Code == ErrorCodes.ActionRejected && !spin.IsSpinning, "在途时点动也被拒");
+    Check(!response.Success && response.Code == ErrorCodes.ActionRejected && !spin.IsBusy, "在途时点动也被拒");
     response = Run(() => service.AxisStopAsync(Device("Chamber9.Arm1")));
     Check(response.Success && chamber.State == ChamberState.Manual, "停止腔体正忙也照发、发出去就回，不动在途的门");
     plc.HoldCylinders = false;
@@ -526,7 +531,7 @@ try
     response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = 50 }));
     Check(response.Success && chamber.State == ChamberState.Manual, "点动发起就回 Ok，腔体进手动中");
     Tick();
-    Check(spin.IsSpinning && SpinDto().CurrentSpeed == 50, "点动按 50 转起来");
+    Check(spin.IsBusy && SpinDto().CurrentSpeed == 50, "点动按 50 转起来");
     Check(service.AxisJogRenewAsync(Device("chamber9.spinmotor")).Result.Success, "按住期间续得上（路径大小写不论）");
     response = service.AxisJogRenewAsync(Device("Chamber9.Arm1")).Result;
     Check(!response.Success && response.Code == ErrorCodes.ChamberJogNotHeld
@@ -536,7 +541,7 @@ try
     response = Run(() => service.AxisStopAsync(Device("Chamber9.SpinMotor")));
     Check(response.Success, "松手发停止（腔体忙也照发）");
     WaitIdle("松手后等停下就退出手动中");
-    Check(chamber.State == ModuleState.Idle && !spin.IsSpinning, "停下了，回到原来的空闲");
+    Check(chamber.State == ModuleState.Idle && !spin.IsBusy, "停下了，回到原来的空闲");
     Check(!service.AxisJogRenewAsync(Device("Chamber9.SpinMotor")).Result.Success, "松手后再续：没在按住");
 
     // 12. 没续上（界面断了、客户端退了）：过了 EC HoldTimeoutMs 模块自己发停止
@@ -544,10 +549,10 @@ try
     response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = -50 }));
     Check(response.Success && chamber.State == ChamberState.Manual, "反向点动发起");
     Tick();
-    Check(spin.IsSpinning && spin.CurrentSpeed < 0, "反向转起来");
+    Check(spin.IsBusy && spin.CurrentSpeed < 0, "反向转起来");
     var held = Stopwatch.StartNew();
     WaitIdle("没续上应在保活超时后自己停");
-    Check(held.ElapsedMilliseconds >= 400 && !spin.IsSpinning && chamber.State == ModuleState.Idle, "过了保活超时（500 ms）自己停，回到空闲");
+    Check(held.ElapsedMilliseconds >= 400 && !spin.IsBusy && chamber.State == ModuleState.Idle, "过了保活超时（500 ms）自己停，回到空闲");
 
     // 13. 气缸升降：Lift、Bowl
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Arm1.Lift")));
@@ -700,7 +705,7 @@ try
     Check(chamber.State == ChamberState.Processing && chamber.Recipe == "Clean", "工艺发起：腔体在工艺中，记下配方名");
     Check(CylinderDto("Chamber9.Arm1.Lift").Position == CylinderPosition.Opened && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Opened,
         "开喷前 Lift 升、Bowl 升（围住盘面挡液）");
-    Check(plc.LastCommand("Spin.Command") == MotionCommandId.Spin && plc.LastSpeed("Spin.Command") == 300 && spin.IsSpinning,
+    Check(plc.LastCommand("Spin.Command") == MotionCommandId.Spin && plc.LastSpeed("Spin.Command") == 300 && spin.IsBusy,
         "第 1 步：转速 300 原样给卡盘");
     Check(Near(arm.CurrentPosition, 200) && plc.Ao(0) == 1.5 && !plc.ReadDo(7), "第 1 步：摆臂摆到晶圆中心（示教的 200），DIW 先给流量 1.5 再开阀，SC1 关着");
     var processed = Drive(started);
@@ -716,7 +721,7 @@ try
     Check(sc1TargetSeen == 2 && sc1Meter.Target == 0, "第 2 步 SC1 流量 2 给了流量计当目标；做完停液，目标清零");
     sc1.Offset = 0;
     Check(!plc.OutputWhen("Spin.Command", 500, 6), "换步先关上一步的 DIW 再改转速：卡盘加速时不接着喷上一步的药液");
-    Check(Near(arm.CurrentPosition, 0) && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Closed && !spin.IsSpinning,
+    Check(Near(arm.CurrentPosition, 0) && CylinderDto("Chamber9.Bowl1").Position == CylinderPosition.Closed && !spin.IsBusy,
         "收尾：摆臂回 Home、卡盘停转、Bowl 降");
 
     // 工艺出错：转速超出卡盘上限、超过配方头的超时时间；失败后喷嘴停液。

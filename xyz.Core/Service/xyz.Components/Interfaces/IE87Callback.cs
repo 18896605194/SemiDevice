@@ -23,15 +23,28 @@ public interface IE87Callback
 
     void AutoModeChanged(ILoadPort port, bool autoMode);
 
-    /// <summary>可以开始取放这个载具了（Load 完成后）。</summary>
+    /// <summary>
+    /// 可以开始取放这个载具了（Load 完成后）
+    /// </summary>
+    /// <param name="port"></param>
     void AccessStarted(ILoadPort port);
 
-    /// <summary>不再取放这个载具（Unload 完成或中断）。</summary>
+    /// <summary>
+    /// 不再取放这个载具（Unload 完成或中断）
+    /// </summary>
+    /// <param name="port"></param>
     void AccessStopped(ILoadPort port);
 
-    /// <summary>这个载具的活干完了，由上层作业判定后经 ICarrier.NoteComplete 触发。</summary>
+    /// <summary>
+    /// 载具的活干完了
+    /// </summary>
+    /// <param name="port"></param>
     void CarrierComplete(ILoadPort port);
 
-    /// <summary>端口出错：动作失败或设备报错，error 为"错误码#内容"。</summary>
+    /// <summary>
+    /// 端口出错
+    /// </summary>
+    /// <param name="port"></param>
+    /// <param name="error"></param>
     void PortError(ILoadPort port, string error);
 }

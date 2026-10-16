@@ -563,6 +563,7 @@
 					<Value Name="DiIndex" Value="110" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="100" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="100" />
 						<Value Name="MonitoringDoIndex" Value="110" />
@@ -576,6 +577,7 @@
 					<Value Name="DiIndex" Value="111" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="101" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="101" />
 						<Value Name="MonitoringDoIndex" Value="111" />
@@ -625,6 +627,7 @@
 					<Value Name="DiIndex" Value="150" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="120" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="120" />
 						<Value Name="MonitoringDoIndex" Value="150" />
@@ -638,6 +641,7 @@
 					<Value Name="DiIndex" Value="151" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="121" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="121" />
 						<Value Name="MonitoringDoIndex" Value="151" />
@@ -687,6 +691,7 @@
 					<Value Name="DiIndex" Value="190" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="140" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="140" />
 						<Value Name="MonitoringDoIndex" Value="190" />
@@ -700,6 +705,7 @@
 					<Value Name="DiIndex" Value="191" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="141" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="141" />
 						<Value Name="MonitoringDoIndex" Value="191" />
@@ -749,6 +755,7 @@
 					<Value Name="DiIndex" Value="230" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="160" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="160" />
 						<Value Name="MonitoringDoIndex" Value="230" />
@@ -762,6 +769,7 @@
 					<Value Name="DiIndex" Value="231" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="161" />
+					<Value Name="ClearFlowOnStop" Value="True" />
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="161" />
 						<Value Name="MonitoringDoIndex" Value="231" />

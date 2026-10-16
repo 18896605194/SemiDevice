@@ -30,12 +30,6 @@ public class SpinMotorComponent : AxisComponent, ISpinMotor
 
     #endregion
 
-    #region 三维图用的状态
-
-    public bool IsSpinning => HasPlcData && Math.Abs(CurrentSpeed) > SpeedTolerance;
-
-    #endregion
-
     #region Alarm
 
     [Alarm("卡盘到速超时", AlarmCategory.Timeout,
