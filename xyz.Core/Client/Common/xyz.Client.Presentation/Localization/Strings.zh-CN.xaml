@@ -90,6 +90,15 @@
     <sys:String x:Key="chamber.recipe_option_missing">{0} 没有{2} {3}，起不了工艺配方 {1}</sys:String>
     <sys:String x:Key="chamber.wafer_mismatch">{0} 第 {1} 槽不是要做的那一片（没片，或换过片）</sys:String>
     <sys:String x:Key="chamber.wafer_owned">{0} 里的 {1} 正在 Job {2} 里，不能手动起工艺</sys:String>
+    <sys:String x:Key="tank.busy">{0} 正在补液、排液、换液或供液，先停止</sys:String>
+    <sys:String x:Key="tank.error">{0} 有报警，先复位</sys:String>
+    <sys:String x:Key="tank.valve_group_missing">{0} 没配 {1} 阀组</sys:String>
+    <sys:String x:Key="tank.signal_missing">{0} 没配 {1} 液位信号</sys:String>
+    <sys:String x:Key="tank.level_unknown">{0} 液位不知道（信号读不到或对不上），不能补液</sys:String>
+    <sys:String x:Key="tank.high_high">{0} HH 或溢流亮着，不能补液</sys:String>
+    <sys:String x:Key="tank.not_ready">{0} 不是就绪，先补液再供液</sys:String>
+    <sys:String x:Key="tank.valve_failed">{0} 的 {1} 阀组有阀开不了（PLC 没连上或 DO 点没配），已经全关回去</sys:String>
+    <sys:String x:Key="tank.close_failed">{0} 有阀没关上（PLC 没连上或 DO 点没配）</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} 等了 {1} ms 还没空出来（没回到待命状态，或一直被别的机械手占着）</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0} 搬运准备（第 {1} 步）被拒：站点当前状态不允许，可能被人工动过</sys:String>

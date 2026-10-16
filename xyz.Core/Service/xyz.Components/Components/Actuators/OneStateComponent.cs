@@ -44,9 +44,6 @@ public abstract class OneStateComponent : ComponentBase
     private ActionState _action;
     private long _actionStarted;
 
-    /// <summary>
-    /// 当前动作的状态：DO 写进 PLC 即 Running，到位反馈来了 Completed，超时 Failed；没接 DI 或断电回位写完即 Completed。
-    /// </summary>
     public override ActionState ActionState
     {
         get

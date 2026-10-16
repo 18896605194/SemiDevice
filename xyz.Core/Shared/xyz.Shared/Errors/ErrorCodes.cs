@@ -174,6 +174,37 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 供液（CDS）
+
+    /// <summary>槽正在补液、排液、换液或供液，要先停止。Args: [槽路径]</summary>
+    public const string TankBusy = "tank.busy";
+
+    /// <summary>槽有报警（出错），要先复位。Args: [槽路径]</summary>
+    public const string TankError = "tank.error";
+
+    /// <summary>槽下面没配这个阀组，做不了这个功能。Args: [槽路径, 阀组（Fill / Drain / Supply）]</summary>
+    public const string TankValveGroupMissing = "tank.valve_group_missing";
+
+    /// <summary>槽下面没配这个液位信号，做不了这个功能。Args: [槽路径, 信号（LL / H）]</summary>
+    public const string TankSignalMissing = "tank.signal_missing";
+
+    /// <summary>液位不知道（信号读不到或对不上），不能补液。Args: [槽路径]</summary>
+    public const string TankLevelUnknown = "tank.level_unknown";
+
+    /// <summary>HH 或溢流亮着，不能补液。Args: [槽路径]</summary>
+    public const string TankHighHigh = "tank.high_high";
+
+    /// <summary>槽不是就绪（要先补液），不能供液。Args: [槽路径]</summary>
+    public const string TankNotReady = "tank.not_ready";
+
+    /// <summary>阀组里有阀开不了（PLC 没连上或 DO 点没配），已经全关回去。Args: [槽路径, 阀组]</summary>
+    public const string TankValveFailed = "tank.valve_failed";
+
+    /// <summary>停止时有阀没关上（PLC 没连上或 DO 点没配）。Args: [槽路径]</summary>
+    public const string TankCloseFailed = "tank.close_failed";
+
+    #endregion
+
     #region 搬运
 
     /// <summary>站点等不到可服务（一直没回到待命态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>

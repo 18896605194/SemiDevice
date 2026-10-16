@@ -1282,8 +1282,8 @@ port.E87Callback = null;
         Name = "DefaultTriggerSmoke", Type = typeof(DiSensorComponent).FullName
     }]).Single();
     Check(defaultDi.TriggerValue, "未配置触发电平时仍默认高电平触发");
-    // 只认 bool：旧的 High/Low 写法不再兼容，跟乱填的一样拒绝加载
-    foreach (var invalid in new[] { "invalid", "High", "Low" })
+    // 只认 bool：旧的 H/L 写法不再兼容，跟乱填的一样拒绝加载
+    foreach (var invalid in new[] { "invalid", "H", "L" })
     {
         var invalidTriggerRejected = false;
         try

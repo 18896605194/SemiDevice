@@ -89,6 +89,15 @@
     <sys:String x:Key="chamber.recipe_option_missing">{0} has no {2} {3}, so process recipe {1} cannot run there</sys:String>
     <sys:String x:Key="chamber.wafer_mismatch">{0} slot {1} does not hold the wafer to be processed (empty, or the wafer was swapped)</sys:String>
     <sys:String x:Key="chamber.wafer_owned">{1} in {0} belongs to job {2}; it cannot be processed manually</sys:String>
+    <sys:String x:Key="tank.busy">{0} is filling, draining, exchanging or supplying; stop it first</sys:String>
+    <sys:String x:Key="tank.error">{0} has an alarm; reset it first</sys:String>
+    <sys:String x:Key="tank.valve_group_missing">{0} has no {1} valve group</sys:String>
+    <sys:String x:Key="tank.signal_missing">{0} has no {1} level signal</sys:String>
+    <sys:String x:Key="tank.level_unknown">{0}: level unknown (signals unreadable or inconsistent); cannot fill</sys:String>
+    <sys:String x:Key="tank.high_high">{0}: HH or overfill is on; cannot fill</sys:String>
+    <sys:String x:Key="tank.not_ready">{0} is not ready; fill it before supplying</sys:String>
+    <sys:String x:Key="tank.valve_failed">{0}: a valve in the {1} group could not be opened (PLC offline or DO point not configured); all valves were closed again</sys:String>
+    <sys:String x:Key="tank.close_failed">{0}: some valves could not be closed (PLC offline or DO point not configured)</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} did not become available within {1} ms (it never returned to idle, or another robot kept it busy)</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0}: transfer preparation step {1} was rejected (the station state does not allow it; it may have been operated manually)</sys:String>

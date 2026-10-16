@@ -89,7 +89,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 ### 目录（xyz.Components）
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
   顶层目录 = 命名空间（`xyz.Components.Models` 等）。
-- `Components\` 下按类别分 System / Plc / Actuators（气缸、阀、喷嘴、灯）/ Sensors / Motion / Drivers（品牌驱动壳）/ Charts / Eap，
+- `Components\` 下按类别分 System / Plc / Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（品牌驱动壳）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
