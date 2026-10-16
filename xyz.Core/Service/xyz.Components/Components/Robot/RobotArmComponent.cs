@@ -40,7 +40,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     private int _hasWafer;
 
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "手指上是否有片（挂了在位传感器按它，没挂按设备推送；null=还没读到）")]
-    public bool? HasWafer
+    public bool? SensorHasWafer
     {
         get
         {

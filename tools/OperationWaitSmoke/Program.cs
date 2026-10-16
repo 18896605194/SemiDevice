@@ -713,7 +713,7 @@ port.E87Callback = null;
 
     // 传感器还没读到：取放不敢伸手；Home 不碰片，不拦
     robot.Tick();
-    Check(robot.Arms[0].HasWafer is null
+    Check(robot.Arms[0].SensorHasWafer is null
           && SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorUnknown, "SmokeRobot", "1"),
         "传感器还没读到：取片被拒，robot.arm_sensor_unknown [机械手, 手指号]");
     robot.Next = new ProbeOperation();
@@ -724,7 +724,7 @@ port.E87Callback = null;
     // 取片前、Home 前：传感器看到手上有片，账上手是空的
     sensor.Level = true;
     robot.Tick();
-    Check(robot.Arms[0].HasWafer == true && robot.CreateStateDto().Arms[0].HasWafer,
+    Check(robot.Arms[0].SensorHasWafer == true && robot.CreateStateDto().Arms[0].HasWafer,
         "挂了传感器的手，在位按传感器读（推送给界面的也是它）");
     Check(SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorHasWafer, "SmokeRobot", "1"),
         "取片前传感器看到手上有片、账上没有：robot.arm_sensor_has_wafer [机械手, 手指号]");
@@ -2827,7 +2827,7 @@ port.E87Callback = null;
     //    后面跟一帧手指在位推送，它落下来了，说明前面那帧也处理过了（同一条路由队列，按先后处理）
     robotComm.Push(">00000000#@Error");
     robotComm.Push(">00000000#SubWaferEx,1,0@Event");
-    Check(WaitUntil(() => pollRobot.Arms[0].HasWafer == true), "手指在位推送应落到 Arm1 上");
+    Check(WaitUntil(() => pollRobot.Arms[0].SensorHasWafer == true), "手指在位推送应落到 Arm1 上");
     Check(pollRobot.DeviceError == "40010006#Arm2 No Wafer When Put",
         $"成功码的 Error 帧不是报错推送，设备报错不该被它改掉，实际 {pollRobot.DeviceError}");
 

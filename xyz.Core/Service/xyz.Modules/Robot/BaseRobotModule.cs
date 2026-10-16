@@ -508,7 +508,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 .Select(arm => new RobotArmDto
                 {
                     Arm = arm.Number,
-                    HasWafer = arm.HasWafer ?? false,
+                    HasWafer = arm.SensorHasWafer ?? false,
                     IsExtended = intent is not null && intent.Arm == arm.Number,
                 })
                 .ToList(),
@@ -996,7 +996,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 continue;
             }
 
-            bool? sensed = arm.HasWafer;
+            bool? sensed = arm.SensorHasWafer;
             if (sensed is null)
             {
                 continue;
@@ -1035,7 +1035,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return null;
         }
 
-        bool? sensed = component.HasWafer;
+        bool? sensed = component.SensorHasWafer;
         if (sensed is null)
         {
             return HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, Name, arm.ToString(CultureInfo.InvariantCulture));

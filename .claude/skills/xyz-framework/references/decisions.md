@@ -635,14 +635,14 @@
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV；不接 PLC、没有手动动作），X/Z/Theta 直接配它；
-  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`HasWafer` 挂了 `WaferSensor` 按它、没挂是设备推送的在位（null = 还没读到 / 收到）；
+  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`SensorHasWafer`（原名 HasWafer，2026-10-16 用户改名）挂了 `WaferSensor` 按它、没挂是设备推送的在位（null = 还没读到 / 收到）；
   手指上的传感器（缩回到位、真空……）作为子组件挂在手指节点下。
 - **轴表单一来源**：删掉 `RobotDriverComponent.Axes/AxisList/ArmCount` 和 `BaseRobotModule._axisPositions/_armWafers`；
   轴的先后 = sc.xml 轴节点的先后；`Axes` / `Arms` 是普通属性（不写 `=>` 懒加载），在 `InitComponent` 开头赋值：
   `Axes` = `FindChildren<IRobotAxis>()` = 整张轴表（含 Arm），`Arms` = 从 `Axes` 里挑出 `IRobotArm`、按手指号排；
   `ArmCount` = `Arms.Count`（DTO 照填，界面画几只手臂按它），晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
 - **模块按接口用轴和手指**（2026-10-15 改，用户："RobotAxisComponent 这个是不是也最好是有接口的，在 robot 模块组件里面使用的时候也是用接口"；
-  10-10 定的是"不抽接口、模块只依赖两个具体基类"，作废）：`IRobotAxis`（`Position`、`UpdatePosition`）、`IRobotArm : IRobotAxis`（`Number`、`WaferSensor`、`HasWafer`、
+  10-10 定的是"不抽接口、模块只依赖两个具体基类"，作废）：`IRobotAxis`（`Position`、`UpdatePosition`）、`IRobotArm : IRobotAxis`（`Number`、`WaferSensor`、`SensorHasWafer`、`LedgerHasWafer`、
   `WaferSensorTimeoutMs`、`UpdateWaferPresence`）放 `xyz.Components.Interfaces`，两个写入口从 internal 改 public 进接口；模块的 `Axes` / `Arms` 是接口列表。
   派生类照旧自己标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
 - **手指在位传感器跟晶圆账对**（2026-10-15，用户："arm 里面配置一下 DI 点位……内部的账单和这个 di 信号做一个对比"；"如果没有配置的话，就当没有这个传感器"；
@@ -651,10 +651,10 @@
     **`IsActive` 两边都防抖**（2026-10-16 用户："没有片的时候也要抖动"）：有片、没片都要持续满 `DebounceMs` 才认，没认下来保持原来的，读不到为 null、重新读到重新稳满；
     报警用的 `IsTriggered` 照旧（离开报警电平立刻撤）。不两边防抖的后果：放片后真空抖一下就判放好、账记进腔体，片其实还在手上；
     DI 组件的触发电平 SC 原来叫 `TriggerLevel`，同日用户改名 `TriggerValue`（sc.xml 里不认的值名装配时直接跳过，旧名会悄悄回到默认 true，sc.xml 要一起改）；手指按接口 `IDiSensor` 认（`IsActive`：没读到 null，读到了是防抖后的触发）。
-    挂了 `HasWafer` 就按它，没挂照旧按控制器推送。**没挂 = 没有传感器、什么都不查**（控制器推送的在位只显示，不拿来比）。
-  - **手指上账和实物分开给**（2026-10-16 用户："手指的组件里面应该增加一个 bool 值，账单里面这个 arm 上面有没有值"）：`HasWafer` 只看实物（传感器 / 推送），
+    挂了 `SensorHasWafer` 就按它，没挂照旧按控制器推送。**没挂 = 没有传感器、什么都不查**（控制器推送的在位只显示，不拿来比）。
+  - **手指上账和实物分开给**（2026-10-16 用户："手指的组件里面应该增加一个 bool 值，账单里面这个 arm 上面有没有值"）：`SensorHasWafer`（原名 `HasWafer`，同日用户提议改名，跟 `LedgerHasWafer` 对着）只看实物（传感器 / 推送），
     `LedgerHasWafer` 看晶圆账（机械手初始化时 `SetRobot(Name)` 告诉手指自己属于哪台，账按"机械手名 + 手指号"查；账没开为 false）。
-    不把两个合成一个：取完片要等 `HasWafer` 变有片才记账，合进账就永远等不到；账上没有、手上多出来的片也会被放过去。
+    不把两个合成一个：取完片要等 `SensorHasWafer` 变有片才记账，合进账就永远等不到；账上没有、手上多出来的片也会被放过去。
     放片前"账上手要有片"、Home 前账实对比用手指的 `LedgerHasWafer`；取片前"账上手要空"还直接查账（报错要带片号），站点那边以后重写时一起理。
   - 挂了的手：取片前要空、放片前要有片（平台默认的 `PickInterlock` / `PlaceInterlock`，机型重写先调 base）；读不到（PLC 没连上、点位不对）不让伸手（`robot.arm_sensor_unknown`）。
   - 取放的设备动作外面套 `WaferSensorCheckOperation`（套在 `StartTransfer` 里，机型重写了 `CreatePickOperation` 也照样查）：设备做完后在手指 EC `WaferSensorTimeoutMs`（默认 3000）内

@@ -9,7 +9,7 @@ public interface IRobotArm : IRobotAxis
     int Number { get; }
     IDiSensor? WaferSensor { get; }
 
-    bool? HasWafer { get; }
+    bool? SensorHasWafer { get; }
 
     /// <summary>
     /// 账上这只手有没有片

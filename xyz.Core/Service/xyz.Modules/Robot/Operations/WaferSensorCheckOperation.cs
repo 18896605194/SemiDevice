@@ -82,7 +82,7 @@ internal sealed class WaferSensorCheckOperation : ModuleOperation<WaferSensorChe
     private void WaitSensor()
     {
         string arm = _arm.Number.ToString(CultureInfo.InvariantCulture);
-        bool? sensed = _arm.HasWafer;
+        bool? sensed = _arm.SensorHasWafer;
         if (sensed == _expectWafer)
         {
             Complete();
