@@ -652,6 +652,10 @@
     报警用的 `IsTriggered` 照旧（离开报警电平立刻撤）。不两边防抖的后果：放片后真空抖一下就判放好、账记进腔体，片其实还在手上；
     DI 组件的触发电平 SC 原来叫 `TriggerLevel`，同日用户改名 `TriggerValue`（sc.xml 里不认的值名装配时直接跳过，旧名会悄悄回到默认 true，sc.xml 要一起改）；手指按接口 `IDiSensor` 认（`IsActive`：没读到 null，读到了是防抖后的触发）。
     挂了 `HasWafer` 就按它，没挂照旧按控制器推送。**没挂 = 没有传感器、什么都不查**（控制器推送的在位只显示，不拿来比）。
+  - **手指上账和实物分开给**（2026-10-16 用户："手指的组件里面应该增加一个 bool 值，账单里面这个 arm 上面有没有值"）：`HasWafer` 只看实物（传感器 / 推送），
+    `LedgerHasWafer` 看晶圆账（机械手初始化时 `SetRobot(Name)` 告诉手指自己属于哪台，账按"机械手名 + 手指号"查；账没开为 false）。
+    不把两个合成一个：取完片要等 `HasWafer` 变有片才记账，合进账就永远等不到；账上没有、手上多出来的片也会被放过去。
+    放片前"账上手要有片"、Home 前账实对比用手指的 `LedgerHasWafer`；取片前"账上手要空"还直接查账（报错要带片号），站点那边以后重写时一起理。
   - 挂了的手：取片前要空、放片前要有片（平台默认的 `PickInterlock` / `PlaceInterlock`，机型重写先调 base）；读不到（PLC 没连上、点位不对）不让伸手（`robot.arm_sensor_unknown`）。
   - 取放的设备动作外面套 `WaferSensorCheckOperation`（套在 `StartTransfer` 里，机型重写了 `CreatePickOperation` 也照样查）：设备做完后在手指 EC `WaferSensorTimeoutMs`（默认 3000）内
     传感器要跟上（取完有片、放完没片）才算做成、才记账；对不上判失败、落 Error、不记账，搬运管理照"动过手才失败"留锁等人工确认。

@@ -701,6 +701,7 @@ port.E87Callback = null;
     var wafer = sensorLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-SENSOR")!;
     Check(robot.InitComponent() && ReferenceEquals(robot.Arms[0].WaferSensor, sensor),
         "Arm1 下面名叫 WaferSensor 的 DI 按 IDiSensor 认成这只手的在位传感器");
+    Check(!robot.Arms[0].LedgerHasWafer, "取片前账上 Arm1 空着：LedgerHasWafer 为 false");
     robot.NoteState(ModuleState.Idle);
     arm1.WaferSensorTimeoutMs = 1000;
 
@@ -745,6 +746,10 @@ port.E87Callback = null;
     robot.Tick();
     Check(picking is not null && picking.IsSuccess && robot.State == ModuleState.Idle && sensorLedger.Get(robot.Name, 1)?.Id == wafer.Id,
         "传感器跟上（有片）：取片做成，片记到 Arm1");
+    Check(robot.Arms[0].LedgerHasWafer, "取片记账以后手指的 LedgerHasWafer 跟着账变成有片");
+    sensorLedger.IsEnable = false;
+    Check(!robot.Arms[0].LedgerHasWafer, "账没开：LedgerHasWafer 为 false");
+    sensorLedger.IsEnable = true;
 
     // 放片前、Home 前：账上手上有片，传感器没看到
     sensor.Level = false;

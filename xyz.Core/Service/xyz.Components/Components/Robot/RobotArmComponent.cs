@@ -30,8 +30,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     #endregion
 
     /// <summary>
-    /// 这只手的在位传感器：本节点下名叫 WaferSensor 的 DI（组件初始化时认）。没挂为 null，就当这只手没有在位传感器，
-    /// 取放前后、Home 前都不拿它跟晶圆账比。
+    /// 有片传感器
     /// </summary>
     public IDiSensor? WaferSensor { get; private set; }
 
@@ -40,9 +39,6 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     /// <summary>0 = 还没收到推送，1 = 有片，2 = 无片。</summary>
     private int _hasWafer;
 
-    /// <summary>
-    /// 手上有没有片：挂了在位传感器按它读，没挂按控制器主动推送；null = 传感器还没读到、或还没收到推送（不是"没片"）。
-    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "手指上是否有片（挂了在位传感器按它，没挂按设备推送；null=还没读到）")]
     public bool? HasWafer
     {
@@ -67,6 +63,36 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 这只手属于哪台机械手，机械手初始化时给
+    /// </summary>
+    private string _robot = string.Empty;
+
+    /// <summary>
+    /// 账上这只手有没有片；账没开为 false
+    /// </summary>
+    public bool LedgerHasWafer
+    {
+        get
+        {
+            var ledger = WaferManagerComponent.Current;
+            if (ledger is null || !ledger.IsEnable || _robot.Length == 0)
+            {
+                return false;
+            }
+
+            return ledger.Get(_robot, Number) is not null;
+        }
+    }
+
+    /// <summary>
+    /// 记下这只手属于哪台机械手
+    /// </summary>
+    public void SetRobot(string robot)
+    {
+        _robot = robot;
     }
 
     public override bool InitComponent()

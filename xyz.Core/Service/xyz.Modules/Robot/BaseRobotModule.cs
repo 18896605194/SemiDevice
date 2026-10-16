@@ -193,10 +193,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     {
         #region 轴与手指
 
-        // 停用的机械手也要收轴表，所以放在判 IsEnable 前面：界面照样列出轴名。
-        // 手指也是轴：Axes 是整张轴表（含手指），Arms 从里面挑出手指、按手指号排。
         Axes = FindChildren<IRobotAxis>();
         Arms = Axes.OfType<IRobotArm>().OrderBy(arm => arm.Number).ToList();
+        foreach (var arm in Arms)
+        {
+            arm.SetRobot(Name);
+        }
 
         // 账本槽位 = 手指号，所以手指号要唯一、从 1 连续到 N。
         for (int index = 0; index < Arms.Count; index++)
@@ -783,7 +785,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return null;
         }
 
-        if (ledger.Get(Name, arm) is null)
+        var armComponent = FindArm(arm);
+        if (armComponent is not null && !armComponent.LedgerHasWafer)
         {
             return HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture));
         }
@@ -999,8 +1002,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 continue;
             }
 
-            bool onLedger = ledger.Get(Name, arm.Number) is not null;
-            if (sensed.Value != onLedger)
+            if (sensed.Value != arm.LedgerHasWafer)
             {
                 return ArmSensorMismatch(arm.Number, sensed.Value);
             }
