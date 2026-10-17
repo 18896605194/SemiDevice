@@ -12,7 +12,7 @@ namespace xyz.Components.Components;
 /// <summary>
 ///Tank
 /// </summary>
-[Component(description: "供液的槽（子节点 LL / L / H / HH / Overfill 挂液位 DI 信号，Fill / Drain / Supply 挂阀组；没挂 = 没有这个点、没有这个功能）")]
+[Component(description: "供液的槽（子节点 LL / L / H / HH / Overfill 挂液位信号：DI 信号或读液位计的 AI 液位信号；Fill / Drain / Supply 挂阀组；没挂 = 没有这个点、没有这个功能）")]
 public class TankComponent : ComponentBase, ITank
 {
     #region 液位信号

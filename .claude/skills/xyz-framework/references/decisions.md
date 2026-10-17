@@ -696,7 +696,7 @@
 ## CDS 供液：槽 Tank（2026-10-16，用户定的结构）
 - **结构**（用户："一般叫做 CDS，下面比方说有 IPA 或者硫酸，然后下面还会有 Tank，有的一个 Tank，有的两个"）：sc.xml `CDS` → 药液（IPA、H2SO4……）→ Tank1 / Tank2。
   两个槽的一般一个在供液、另一个在补液或换液，轮换着用（用户确认）——这是药液那一层的事，还没写。CTC 里的 SC1、SC2 是供液柜（自带 PLC，CTC 只跟它握手 + 读数），不是这套。
-- **槽 `TankComponent`**（`Components\Cds`，接口 `ITank`，液位枚举 `TankLevel`）：子节点 `LL / L / H / HH / Overfill` 挂现成的 `DiSensorComponent`，名字固定，
+- **槽 `TankComponent`**（`Components\Cds`，接口 `ITank`，液位枚举 `TankLevel`）：子节点 `LL / L / H / HH / Overfill` 挂现成的 `DiSensorComponent`（装液位计的挂 AI 液位信号，见下「AI 液位计」），名字固定，
   **五个都是 DI 信号、一样对待**（用户："LL、L、H、HH 都是 di 信号"，Overfill "不是开关，只是信号，亮的直接就是已经满出来了"；别叫"开关"）；
   **哪个没挂就是没有这个点**（用户："没有配置哪一个 di 的话就说明这个 Tank 就没有这个点位"），只按配了的信号算。跟手指找 `WaferSensor` 一样在 `InitComponent` 里认，
   所以槽要挂在模块下面才会被初始化（IPA 那一层做成模块后自然带上）。
@@ -737,6 +737,20 @@
 - **槽的推送**（用户确认的流程）：IPA 模块的扫描线程每拍调槽的 `OnScan`，**槽自己在 `OnScan` 最后**比液位、状态、五个信号的 `IsActive`，跟上一拍不一样（第一拍也算）才发 C# 事件 `Changed`；
   组件层不直接推客户端，`xyz.Service\Events\TankPublisher` 把它换成 `TankDto`（液位、状态、`LL`～`Overfill` 各一个 `DiSensorDto`，没配是 null）`EventBus.Send`，
   token 是槽的全路径（`CDS.IPA.Tank1`，可能有好几个槽），留存。IPA 模块没做之前没人扫槽，所以还不会推。
+- **AI 液位计**（2026-10-17，用户定的）：液位不靠几个 DI 浮球、改装一个 AI 液位计时，LL / L / H / HH / Overfill 节点挂 `AiLevelComponent`
+  （`Components\Sensors`，实现 `IDiSensor`）：读 `AiIndex` 那个 AI，到了自己的触发值算触发。对外跟 DI 信号一样，**槽、`TankDto`、`TankScene` 都没改**。
+  - 两种配法（用户："要么就是只有一个 ai"；"混着也只是溢流有可能单独 di，其他的还是一个 ai"）：五个都挂 AI 液位信号、`AiIndex` 填同一个液位计；
+    或者 LL～HH 挂 AI 液位信号、Overfill 挂 DI 浮球。混着用时浮球亮了、液位计没到 HH，照现有规则报"液位信号异常"，看得出有一个坏了。
+  - **阈值放 EC，所以不用虚拟点**（用户："这个应该还是用 ec"）：虚拟 DI 的阈值写在 sc 的表达式里、在线改不了；虚拟点也没加容错，保持原样。
+    每个点各一份 EC：`TriggerValue` 触发值（单位 L，默认 0 = 没设：当读不到、开机记一条警告）、`Tolerance` 容错（默认 0.2 L：触发后掉到 触发值 − 容错 以下才算没触发）、
+    `DebounceMs` 防抖（默认 200 ms，触发、没触发两边都防，跟 DI 信号一样）。
+    名字都是用户定的：组件原来叫 `AiLevelSignalComponent`；`TriggerValue` 跟 DI 信号的触发值同一个叫法（原来叫 `TriggerLevel`，跟 DI 以前的触发电平撞名），
+    `Tolerance` 就是用户说的"容错"（原来叫 `Hysteresis` / 回差，用户嫌不合适）。
+  - **容错分两层**（用户："肯定要给一个容错的"）：`Tolerance` 防液面在阈值附近小幅晃（补到 H 关阀后液面就停在 H 附近；FillTo=L 时晃一下就会从就绪退回空闲）；
+    防抖防读数冒尖（补液时冒一下就提前停了）。容错按每个点自己是不是触发着算，再防抖。
+  - AI 读不到（PLC 断了、点表里没这个点）或触发值没设：这个点 `IsActive` 是 null，槽的液位不知道，跟 DI 读不到一样。
+  - 读数是点表换算后的工程值（点表 PhysicalMin/Max → LogicalMin/Max）；读上来是不是升、要不要另外换算，用户说先不管。
+  - 没做：图上显示具体多少升。数据曲线按现有规则给每个 AI 液位信号的 `AiIndex` 各记一列（`CDS__IPA__Tank1__LL__Ai`……，一个槽几列一样的读数），**不去重**（用户："不需要修改，是啥就是啥"），不想看的用 DataChart 的 `Exclude` 去掉。
 
 ## 界面件对后台组件（2026-10-16，用户定的）
 - **按具体组件对界面件，不按基类**：`ChamberDoorComponent` ↔ `DoorVisual3D`、`ChamberBowlComponent` ↔ `BowlVisual3D`、`ChamberLiftComponent` ↔ `LiftVisual3D`、

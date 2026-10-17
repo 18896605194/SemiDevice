@@ -259,11 +259,41 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 不会控制 Lift、开启供液或调用排液阀。IsDraining 是显示状态，不代表检测到真实液流。
 它只切换材质，不新增动画时钟或重复显示液柱。IsSelected 和 IsMoving 沿用公共组件规则。
 
+## FluidPipe：普通页面管路控件
+
+页面布管直接使用 `xyz.Client.Presentation.Controls.FluidPipe`，可放进 Grid、Canvas 或 StackPanel：
+
+```xml
+<controls:FluidPipe Width="200" IsFlowing="{Binding IsSupplying}" />
+```
+
+相机、灯光和取景均在内部。默认直管；竖管设 `Orientation="Vertical"`；弯管设 `Points="0,0 180,0 180,120 340,120"`。
+Points 为二维页面坐标，X 向右、Y 向下。外观、路径和流动状态均支持依赖属性绑定，DataContext 正常从页面继承。
+停流清除液芯与水纹。完整用法见 [FluidPipe 使用说明](../../../../../../tools/FluidPipeSmoke/README.md)。
+
+## FluidRoute：共享三维场景中的管路
+
+`FluidRouteVisual3D` 用于腔体、Tank、CDS 的自定义布管，可以直接放入 `Viewport3D.Children` 或 `Arm.Attachments`。
+`Path`（`Point3DCollection`）指定管中心路径，自动生成直管和圆角；管壁保持中性透明，较细的彩色液芯与移动水纹位于管内。
+
+路径、外半径、壁厚、圆角、液芯比例、管壁透明度、管壁/液体/水纹颜色、充液状态、流动状态、速度、反向和动画开关均为依赖属性。
+替换路径或直接修改已绑定集合里的点都会刷新。多条管路使用多个实例，各自绑定状态。
+
+- `IsFlowing=false`：彩色液芯和水纹完全消失，只保留管壁。
+- `IsAnimationEnabled=false` 或 `FlowSpeed=0`：冻结水纹，保留液芯和设备反馈。
+- 隐藏页面或拆卸所属硬件时停止动画，重新显示后按反馈恢复；动画不逐帧重建网格。
+
+代码位于同目录的 `FluidRouteVisual3D.cs` 和 `FluidRouteGeometry.cs`。
+完整 XAML、依赖属性表和代码布管用法见 [管路控件使用说明](../../../../../../tools/FluidRouteVisual3DSmoke/README.md)，
+[Scene.xaml](../../../../../../tools/FluidRouteVisual3DSmoke/Scene.xaml) 是实际编译运行的绑定示例。
+运行 `dotnet run --project tools/FluidRouteVisual3DSmoke` 可验证绑定、渲染与 Arm 装配生命周期。
+
 ## 管子与 Arm 装配
 
 `FluidPipeVisual3D` 就是一根管子，DIW、SC1 分别创建实例，互不影响。
-功能输入是布尔依赖属性 `IsFlowing`：`true` 高亮管子并显示移动亮段、下落液滴和落点波纹；
-`false` 隐藏液体并恢复管子默认材质（仍选中时保留选中高亮）。
+喷嘴内部复用 `FluidRouteVisual3D`，与普通 `FluidPipe` 使用同一套透明管壁、彩色液芯和连续水纹。
+功能输入是布尔依赖属性 `IsFlowing`：`true` 显示管内水流、向下液柱和淡色落点波纹；
+`false` 清除液芯、外部液柱和波纹，保留中性透明管壁。
 可选的 `IsAnimationEnabled=false` 暂停视觉动画，保留出液状态；默认 `true`。
 
 把管子放进 `Arm.Attachments`，它就会继承 Arm 的内部角度和外部安装、升降变换，
@@ -297,11 +327,11 @@ HomeCup 应与 Arm 并列放在场景中，不放入 Arm.Attachments；Arm 摆�
 `StreamLength` 默认 `0.55`，是喷口到接液面的示意距离，设置为 `0` 时隐藏外部液柱和波纹。
 这些是装配尺寸，不是流量或设备动作指令。完整腔体装配需要根据实际升降高度、晶圆或 Home 排液杯位置
 设置或绑定接液距离，管子本身不推断 Home、Lift 状态，不自动改变出液开关。
-共享的颜色、选择和外部动作属性与其他硬件相同，可绑定 DarkHardwareBodyColor 和 DarkAccent。
+`FlowColor` 是管内液体、外部液柱和波纹共用的颜色；`WallOpacity` 控制管壁透明度。管壁使用中性颜色，出液时也不变成实体高亮管。
 
 页面隐藏时暂停动画，重新显示后按当前反馈恢复；从视口移除 Arm 或从 Attachments 移除管子也会停止时钟。
 场景应通过硬件节点执行挂载、移除；若另行使用普通 ModelVisual3D 包装整个装配并动态拆卸，
-装配层需同时关闭 IsAnimationEnabled。动画只改变变换，复用冻结网格，不注册全局逐帧事件。
+装配层需同时关闭 IsAnimationEnabled。水纹只改变纹理偏移，波纹只改变变换和透明度，复用冻结网格，不注册全局逐帧事件。
 
 ## ChamberScene 腔体三维图
 

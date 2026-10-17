@@ -8,39 +8,176 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// 带流动效果的管子。局部直管沿 +X，末端沿 -Y 出液；DIW、SC1 各创建一个实例。
-/// 作为 Arm.Attachments 的子项挂载，输入 IsFlowing 即可独立控制显示。
+/// Arm 上的一路喷嘴：透明供液管、向下喷口和外部液柱。
+/// 与普通 FluidPipe 控件共用 FluidRouteVisual3D；DIW、SC1 各自绑定 IsFlowing。
 /// </summary>
 public sealed class FluidPipeVisual3D : HardwareVisual3D
 {
-    private const double PipeRadius = 0.024;
+    private const double TubeRadius = 0.032;
+    private const double TubeWallThickness = 0.008;
+    private const double LiquidRadius = (TubeRadius - TubeWallThickness) * 0.58;
 
-    /// <summary>喷口比直管低多少：喷口在局部 (Length, -OutletDrop, 0)，装配层按它算液柱落点。</summary>
+    /// <summary>喷口在局部 (Length, -OutletDrop, 0)，装配层按此位置计算接液面。</summary>
     public const double OutletDrop = 0.21;
 
-    private readonly Model3DGroup _liquid = new();
-    private readonly List<Trail> _trails = [];
+    private readonly FluidRouteVisual3D _tube = new()
+    {
+        PipeRadius = TubeRadius,
+        WallThickness = TubeWallThickness,
+        BendRadius = 0.09
+    };
+
+    // 外部液柱继续使用同一套水纹，管壁透明度设为 0，只显示液体。
+    private readonly FluidRouteVisual3D _jet = new()
+    {
+        PipeRadius = LiquidRadius + 0.0001,
+        WallThickness = 0.0001,
+        FluidCoreRatio = 1,
+        BendRadius = 0,
+        WallOpacity = 0,
+        FlowSpeed = 0.9
+    };
+
     private readonly SolidColorBrush _rippleBrush = new();
     private readonly ScaleTransform3D _rippleScale = new();
-    private GeometryModel3D _stream = null!;
-    private GeometryModel3D _ripple = null!;
+    private readonly TranslateTransform3D _ripplePosition = new();
+    private readonly GeometryModel3D _ripple;
     private bool _clockRunning;
-
-    static FluidPipeVisual3D()
-    {
-        HighlightColorProperty.OverrideMetadata(typeof(FluidPipeVisual3D), new PropertyMetadata(OnLiquidColorChanged));
-    }
 
     public FluidPipeVisual3D()
     {
-        RebuildGeometry();
+        var rippleTransform = new Transform3DGroup();
+        rippleTransform.Children.Add(_rippleScale);
+        rippleTransform.Children.Add(_ripplePosition);
+        _ripple = new GeometryModel3D(
+            HardwareMesh3D.Annulus(0.86, 1),
+            new EmissiveMaterial(_rippleBrush))
+        {
+            Transform = rippleTransform
+        };
+
+        Children.Add(_tube);
+        Children.Add(_jet);
+        UpdateTubePath();
+        UpdateJetPath();
+        UpdateAppearance();
+        UpdateFlow();
     }
+
+    /// <summary>本路喷嘴是否出液。关闭时管内液芯、外部液柱和落点波纹全部消失。</summary>
+    public bool IsFlowing
+    {
+        get
+        {
+            return (bool)GetValue(IsFlowingProperty);
+        }
+        set
+        {
+            SetValue(IsFlowingProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty IsFlowingProperty = DependencyProperty.Register(
+        nameof(IsFlowing), typeof(bool), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(false, OnFlowChanged));
+
+    /// <summary>暂停动画但保留出液状态。</summary>
+    public bool IsAnimationEnabled
+    {
+        get
+        {
+            return (bool)GetValue(IsAnimationEnabledProperty);
+        }
+        set
+        {
+            SetValue(IsAnimationEnabledProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty IsAnimationEnabledProperty = DependencyProperty.Register(
+        nameof(IsAnimationEnabled), typeof(bool), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(true, OnFlowChanged));
+
+    /// <summary>沿 Arm 的局部 +X 方向布管，长度与场景使用同一单位。</summary>
+    public double Length
+    {
+        get
+        {
+            return (double)GetValue(LengthProperty);
+        }
+        set
+        {
+            SetValue(LengthProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty LengthProperty = DependencyProperty.Register(
+        nameof(Length), typeof(double), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(2.2d, OnLengthChanged), IsPositiveFinite);
+
+    /// <summary>喷口到接液面的距离；0 时只有管内水流，不显示外部液柱和波纹。</summary>
+    public double StreamLength
+    {
+        get
+        {
+            return (double)GetValue(StreamLengthProperty);
+        }
+        set
+        {
+            SetValue(StreamLengthProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty StreamLengthProperty = DependencyProperty.Register(
+        nameof(StreamLength), typeof(double), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(0.55d, OnStreamLengthChanged), IsNonNegativeFinite);
+
+    /// <summary>管内水流、喷口液柱和落点波纹使用同一种颜色。</summary>
+    public Color FlowColor
+    {
+        get
+        {
+            return (Color)GetValue(FlowColorProperty);
+        }
+        set
+        {
+            SetValue(FlowColorProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty FlowColorProperty = DependencyProperty.Register(
+        nameof(FlowColor), typeof(Color), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(Color.FromRgb(82, 212, 239), OnAppearanceChanged));
+
+    /// <summary>透明供液管的管壁不透明度强度。</summary>
+    public double WallOpacity
+    {
+        get
+        {
+            return (double)GetValue(WallOpacityProperty);
+        }
+        set
+        {
+            SetValue(WallOpacityProperty, value);
+        }
+    }
+
+    public static readonly DependencyProperty WallOpacityProperty = DependencyProperty.Register(
+        nameof(WallOpacity), typeof(double), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(0.18d, OnAppearanceChanged), IsOpacity);
+
+    private static readonly DependencyProperty PhaseProperty = DependencyProperty.Register(
+        "Phase", typeof(double), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(0d, OnPhaseChanged));
+
+    private static readonly DependencyProperty IsHostVisibleProperty = DependencyProperty.Register(
+        "IsHostVisible", typeof(bool), typeof(FluidPipeVisual3D),
+        new PropertyMetadata(false, OnFlowChanged));
 
     protected override void OnSceneConnectionChanged()
     {
-        // 显式重新寻找宿主：RelativeSource 绑定在整个三维子树移除后可能仍缓存旧视口。
         DependencyObject? parent = VisualTreeHelper.GetParent(this);
-        while (parent is not null && parent is not Viewport3D)
+        while (parent != null && parent is not Viewport3D)
         {
             parent = VisualTreeHelper.GetParent(parent);
         }
@@ -48,8 +185,12 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
         BindingOperations.ClearBinding(this, IsHostVisibleProperty);
         if (parent is Viewport3D viewport)
         {
-            BindingOperations.SetBinding(this, IsHostVisibleProperty,
-                new Binding(nameof(UIElement.IsVisible)) { Source = viewport, Mode = BindingMode.OneWay });
+            var binding = new Binding(nameof(UIElement.IsVisible))
+            {
+                Source = viewport,
+                Mode = BindingMode.OneWay
+            };
+            BindingOperations.SetBinding(this, IsHostVisibleProperty, binding);
         }
         else
         {
@@ -57,203 +198,133 @@ public sealed class FluidPipeVisual3D : HardwareVisual3D
         }
     }
 
-    public bool IsFlowing
+    private static bool IsPositiveFinite(object value)
     {
-        get => (bool)GetValue(IsFlowingProperty);
-        set => SetValue(IsFlowingProperty, value);
+        double number = (double)value;
+        return double.IsFinite(number) && number > 0;
     }
 
-    public static readonly DependencyProperty IsFlowingProperty = DependencyProperty.Register(
-        nameof(IsFlowing), typeof(bool), typeof(FluidPipeVisual3D), new PropertyMetadata(false, OnFlowChanged));
-
-    /// <summary>可选的动画总开关。关闭时保留出液状态和静态液柱，不改变 IsFlowing。</summary>
-    public bool IsAnimationEnabled
+    private static bool IsNonNegativeFinite(object value)
     {
-        get => (bool)GetValue(IsAnimationEnabledProperty);
-        set => SetValue(IsAnimationEnabledProperty, value);
+        double number = (double)value;
+        return double.IsFinite(number) && number >= 0;
     }
 
-    public static readonly DependencyProperty IsAnimationEnabledProperty = DependencyProperty.Register(
-        nameof(IsAnimationEnabled), typeof(bool), typeof(FluidPipeVisual3D), new PropertyMetadata(true, OnFlowChanged));
-
-    /// <summary>直管显示长度，通常绑定 Arm.Length；与场景使用相同长度单位。</summary>
-    public double Length
+    private static bool IsOpacity(object value)
     {
-        get => (double)GetValue(LengthProperty);
-        set => SetValue(LengthProperty, value);
+        double number = (double)value;
+        return double.IsFinite(number) && number >= 0 && number <= 1;
     }
 
-    public static readonly DependencyProperty LengthProperty = DependencyProperty.Register(
-        nameof(Length), typeof(double), typeof(FluidPipeVisual3D), new PropertyMetadata(2.2d, OnGeometryChanged),
-        value => value is double length && double.IsFinite(length) && length > 0);
-
-    /// <summary>喷口到接液面的显示距离；0 不显示外部液柱。由装配层设置，不是流量。</summary>
-    public double StreamLength
+    private static void OnLengthChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
-        get => (double)GetValue(StreamLengthProperty);
-        set => SetValue(StreamLengthProperty, value);
+        var pipe = (FluidPipeVisual3D)sender;
+        pipe.UpdateTubePath();
+        pipe.UpdateJetPath();
     }
 
-    public static readonly DependencyProperty StreamLengthProperty = DependencyProperty.Register(
-        nameof(StreamLength), typeof(double), typeof(FluidPipeVisual3D), new PropertyMetadata(0.55d, OnGeometryChanged),
-        value => value is double length && double.IsFinite(length) && length >= 0);
-
-    private static readonly DependencyProperty PhaseProperty = DependencyProperty.Register(
-        "Phase", typeof(double), typeof(FluidPipeVisual3D), new PropertyMetadata(0d, OnPhaseChanged));
-
-    private static readonly DependencyProperty IsHostVisibleProperty = DependencyProperty.Register(
-        "IsHostVisible", typeof(bool), typeof(FluidPipeVisual3D), new PropertyMetadata(false, OnFlowChanged));
-
-    private static void OnFlowChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((FluidPipeVisual3D)sender).UpdateFlow();
-
-    private static void OnGeometryChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((FluidPipeVisual3D)sender).RebuildGeometry();
-
-    private static void OnPhaseChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((FluidPipeVisual3D)sender).UpdateTrails();
-
-    private static void OnLiquidColorChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((FluidPipeVisual3D)sender).UpdateLiquidMaterials();
-
-    private void RebuildGeometry()
+    private static void OnStreamLengthChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
-        ClearMeshes();
-        _liquid.Children.Clear();
-        _trails.Clear();
-        var horizontal = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), -90));
-        horizontal.Freeze();
-        AddMesh(HardwareMesh3D.Cylinder(PipeRadius, Length, 0), 1.12).Transform = horizontal;
-        AddMesh(HardwareMesh3D.Cylinder(PipeRadius * 1.35, OutletDrop, -OutletDrop), 1.18)
-            .Transform = new TranslateTransform3D(Length, 0, 0);
+        var pipe = (FluidPipeVisual3D)sender;
+        pipe.UpdateJetPath();
+        pipe.UpdateFlow();
+    }
 
-        // 静态液柱打底，上面叠加位置实际变化的亮段和液滴。
-        _stream = new GeometryModel3D
+    private static void OnFlowChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var pipe = (FluidPipeVisual3D)sender;
+        pipe.UpdateFlow();
+    }
+
+    private static void OnAppearanceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var pipe = (FluidPipeVisual3D)sender;
+        pipe.UpdateAppearance();
+    }
+
+    private static void OnPhaseChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var pipe = (FluidPipeVisual3D)sender;
+        pipe.UpdateRipple();
+    }
+
+    private void UpdateTubePath()
+    {
+        var path = new Point3DCollection
         {
-            Geometry = HardwareMesh3D.Cylinder(0.012, 1, 0),
-            Transform = Group(new ScaleTransform3D(1, StreamLength, 1),
-                new TranslateTransform3D(Length, -OutletDrop - StreamLength, 0))
+            new Point3D(0, 0, 0),
+            new Point3D(Length, 0, 0),
+            new Point3D(Length, -OutletDrop, 0)
         };
-        if (StreamLength > 0)
-        {
-            _liquid.Children.Add(_stream);
-        }
-
-        AddTrails(Length, false, horizontal);
-        if (StreamLength > 0)
-        {
-            AddTrails(StreamLength, true, Transform3D.Identity);
-        }
-
-        _ripple = new GeometryModel3D(HardwareMesh3D.Annulus(0.84, 1), new EmissiveMaterial(_rippleBrush))
-        {
-            Transform = Group(_rippleScale, new TranslateTransform3D(Length, -OutletDrop - StreamLength, 0))
-        };
-        if (StreamLength > 0)
-        {
-            _liquid.Children.Add(_ripple);
-        }
-        UpdateLiquidMaterials();
-        UpdateFlow();
+        path.Freeze();
+        _tube.Path = path;
     }
 
-    private void AddTrails(double distance, bool falling, Transform3D orientation)
+    private void UpdateJetPath()
     {
-        int count = (int)Math.Clamp(Math.Ceiling(distance / (falling ? 0.17 : 0.52)), 1, 64);
-        var mesh = HardwareMesh3D.Cylinder(falling ? 0.02 : PipeRadius * 1.2, 1, 0);
-        for (int i = 0; i < count + 1; i++)
+        var path = new Point3DCollection();
+        if (StreamLength > 0)
         {
-            var scale = new ScaleTransform3D();
-            var translation = new TranslateTransform3D();
-            var part = new GeometryModel3D { Geometry = mesh, Transform = Group(scale, orientation, translation) };
-            _trails.Add(new Trail(part, scale, translation, distance, i, count, falling));
-            _liquid.Children.Add(part);
+            path.Add(new Point3D(Length, -OutletDrop, 0));
+            path.Add(new Point3D(Length, -OutletDrop - StreamLength, 0));
         }
+
+        path.Freeze();
+        _jet.Path = path;
+        _ripplePosition.OffsetX = Length;
+        _ripplePosition.OffsetY = -OutletDrop - StreamLength;
     }
 
-    private static Transform3DGroup Group(params Transform3D[] transforms)
+    private void UpdateAppearance()
     {
-        var result = new Transform3DGroup();
-        foreach (var transform in transforms)
-        {
-            result.Children.Add(transform);
-        }
-
-        return result;
+        _tube.FlowColor = FlowColor;
+        _tube.WallOpacity = WallOpacity;
+        _jet.FlowColor = FlowColor;
+        UpdateRipple();
     }
 
     private void UpdateFlow()
     {
-        SetVisualActive(IsFlowing);
-        if (IsFlowing && !Model.Children.Contains(_liquid))
+        _tube.IsFlowing = IsFlowing;
+        _tube.IsAnimationEnabled = IsAnimationEnabled;
+        _jet.IsFlowing = IsFlowing && StreamLength > 0;
+        _jet.IsAnimationEnabled = IsAnimationEnabled;
+
+        Model.Children.Clear();
+        if (IsFlowing && StreamLength > 0)
         {
-            Model.Children.Add(_liquid);
+            Model.Children.Add(_ripple);
         }
 
-        if (!IsFlowing)
+        bool shouldRun = IsFlowing && IsAnimationEnabled && (bool)GetValue(IsHostVisibleProperty);
+        if (shouldRun != _clockRunning)
         {
-            Model.Children.Remove(_liquid);
-        }
+            double phase = (double)GetValue(PhaseProperty) % 1;
+            BeginAnimation(PhaseProperty, null);
+            SetValue(PhaseProperty, phase);
+            _clockRunning = shouldRun;
 
-        bool run = IsFlowing && IsAnimationEnabled && (bool)GetValue(IsHostVisibleProperty);
-        if (run != _clockRunning)
-        {
-            _clockRunning = run;
-            if (run)
+            if (shouldRun)
             {
-                var animation = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(1.6)) { RepeatBehavior = RepeatBehavior.Forever };
+                var animation = new DoubleAnimation(phase, phase + 1, TimeSpan.FromSeconds(1.6))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                };
                 Timeline.SetDesiredFrameRate(animation, 30);
                 BeginAnimation(PhaseProperty, animation);
             }
-            else
-            {
-                BeginAnimation(PhaseProperty, null);
-            }
         }
-        UpdateTrails();
+
+        UpdateRipple();
     }
 
-    private void UpdateTrails()
+    private void UpdateRipple()
     {
-        double phase = (double)GetValue(PhaseProperty);
-        foreach (var trail in _trails)
-        {
-            double spacing = trail.Distance / trail.Count;
-            double position = (phase * (trail.Falling ? 6 : 3) % 1 + trail.Index - 1) * spacing;
-            double start = Math.Max(0, position), end = Math.Min(trail.Distance, position + spacing * 0.32);
-            trail.Scale.ScaleY = Math.Max(0, end - start);
-            trail.Translation.OffsetX = trail.Falling ? Length : start;
-            trail.Translation.OffsetY = trail.Falling ? -OutletDrop - end : 0;
-        }
-        double ripplePhase = phase * 4 % 1;
-        double radius = 0.025 + ripplePhase * 0.13;
-        _rippleScale.ScaleX = _rippleScale.ScaleZ = radius;
-        Color accent = HighlightColor;
-        _rippleBrush.Color = Color.FromArgb((byte)(150 * (1 - ripplePhase)), accent.R, accent.G, accent.B);
+        double phase = (double)GetValue(PhaseProperty) * 4 % 1;
+        double radius = 0.025 + phase * 0.10;
+        _rippleScale.ScaleX = radius;
+        _rippleScale.ScaleZ = radius;
+        _rippleBrush.Color = Color.FromArgb(
+            (byte)(85 * (1 - phase)), FlowColor.R, FlowColor.G, FlowColor.B);
     }
-
-    private void UpdateLiquidMaterials()
-    {
-        if (_stream is null)
-        {
-            return;
-        }
-
-        var streamMaterial = new DiffuseMaterial(new SolidColorBrush(HighlightColor));
-        streamMaterial.Freeze();
-        _stream.Material = streamMaterial;
-        Color color = HighlightColor;
-        byte Light(byte value) => (byte)(value * 0.45 + 255 * 0.55);
-        var trailMaterial = new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(Light(color.R), Light(color.G), Light(color.B))));
-        trailMaterial.Freeze();
-        foreach (var trail in _trails)
-        {
-            trail.Model.Material = trailMaterial;
-        }
-
-        UpdateTrails();
-    }
-
-    private sealed record Trail(GeometryModel3D Model, ScaleTransform3D Scale, TranslateTransform3D Translation,
-        double Distance, int Index, int Count, bool Falling);
 }

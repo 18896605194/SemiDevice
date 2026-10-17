@@ -1,0 +1,19 @@
+﻿<Canvas xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+        Background="{DynamicResource DarkControlBackground}">
+    <controls:FluidPipe x:Name="Straight"
+                        Canvas.Left="40" Canvas.Top="40"
+                        Width="240"
+                        IsFlowing="{Binding Flowing}" />
+    <controls:FluidPipe x:Name="Bend"
+                        Canvas.Left="40" Canvas.Top="140"
+                        Points="{Binding Route}"
+                        FlowColor="{Binding WaterColor}"
+                        IsFlowing="{Binding Flowing}" />
+    <controls:FluidPipe x:Name="Vertical"
+                        Canvas.Left="640" Canvas.Top="40"
+                        Orientation="Vertical"
+                        Height="280"
+                        IsFlowing="True" />
+</Canvas>

@@ -12,8 +12,9 @@ using xyz.Tools;
 // CDS 冒烟：槽（Tank）照 sc 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
 // 按配了的信号算液位（Overfill 亮了就是溢流）、读不到算不知道、信号对不上 / 液位高高 / 溢流报警且只能人工复位清；
 // 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因；
-// 推送（液位、状态、各信号有变化才推 TankDto，没配的信号是 null）。
-// 全用假 PLC（摆 DI、记 DO）和内存 EC，不连设备、不读写配置文件。
+// 推送（液位、状态、各信号有变化才推 TankDto，没配的信号是 null）；
+// AI 液位计：液位信号换成读同一个 AI 的 AI 液位信号（触发值、容错、防抖在 EC），只有 AI、AI + 溢流 DI 混着用两种都照样补液、排液、供液。
+// 全用假 PLC（摆 DI、AI，记 DO）和内存 EC，不连设备、不读写配置文件。
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -41,6 +42,7 @@ try
     var io = new IoComponent();
     io.Di.Load(csv);
     io.Do.Load(csv);
+    io.Ai.Load(csv);
     var plc = new FakePlc();
     PlcComponent.Current = plc;
     _ = new EcComponent();
@@ -456,6 +458,174 @@ try
     {
         Check(late is not null && late.State == (int)TankState.Ready, "留存：后打开的页面一订上就拿到最新一条");
     }
+
+    // 14. AI 液位计：LL～Overfill 都挂 AI 液位信号、读同一个 AI（0 号），触发值 5 / 6 / 18 / 20 / 22 L；
+    // 补液阀 DO 10、排液阀 DO 11、供液阀 DO 12
+    var levelDefaults = new AiLevelComponent();
+    Check(levelDefaults.TriggerValue == 0 && levelDefaults.Tolerance == 0.2 && levelDefaults.DebounceMs == 200 && !levelDefaults.IsConfigured,
+        "AI 液位信号默认：触发值没设（0）、容错 0.2 L、防抖 200 ms、没配 AI 点");
+
+    var meter = LoadTank("Tank20", null, [], fill: [(10, -1)], drain: [(11, -1)], supply: [(12, -1)],
+        levels: [("LL", 0, 5), ("L", 0, 6), ("H", 0, 18), ("HH", 0, 20), ("Overfill", 0, 22)]);
+    Check(meter.LL is AiLevelComponent && meter.Overfill is AiLevelComponent,
+        "LL～Overfill 挂 AI 液位信号：槽照样按节点名认（都走 IDiSensor）");
+
+    void Meter(double liters)
+    {
+        plc.SetAi(0, liters);
+        meter.Tick();
+    }
+
+    // 液位分档：读数到了哪几个触发值
+    Meter(3);
+    Check(meter.Level == TankLevel.LL && !meter.HasAlarm, "读数 3 L：低于 LL");
+    Meter(5.5);
+    Check(meter.Level == TankLevel.L, "读数 5.5 L：到了 LL、没到 L");
+    Meter(7.3);
+    Check(meter.Level == TankLevel.Normal, "读数 7.3 L：Normal");
+    Meter(18.5);
+    Check(meter.Level == TankLevel.H, "读数 18.5 L：H");
+    Meter(20.5);
+    Check(meter.Level == TankLevel.HH && Active(meter, meter.HighHighAlarm) && !Active(meter, meter.LevelSensorAlarm),
+        "读数 20.5 L：HH、报高高；几个点读同一个数，不会上面到了下面没到");
+    Meter(22.5);
+    Check(meter.Level == TankLevel.Overfill && Active(meter, meter.OverfillAlarm), "读数 22.5 L：溢流、报溢流");
+    Meter(10);
+    meter.Reset();
+    meter.Tick();
+    Check(meter.Level == TankLevel.Normal && !meter.HasAlarm && meter.State == TankState.Idle, "回到 10 L、复位：Normal、报警清掉、空闲");
+
+    // 容错：涨到 6 L 才算到 L，掉到 5.8 L 以下才算没到；在中间来回晃液位不变、不推
+    Meter(5.5);
+    Meter(5.95);
+    Check(meter.Level == TankLevel.L, "从下面涨到 5.95 L：还没到 L（要到 6 L）");
+    Meter(6.0);
+    Check(meter.Level == TankLevel.Normal, "涨到 6 L：到了 L");
+    int meterChanges = 0;
+    meter.Changed += () => meterChanges++;
+    foreach (var liters in new[] { 5.85, 6.05, 5.81, 5.95, 5.82 })
+    {
+        Meter(liters);
+    }
+
+    Check(meter.Level == TankLevel.Normal && meterChanges == 0, "在 5.8～6 L 之间来回晃：一直算到了 L，液位不跳、不推");
+    Meter(5.79);
+    Check(meter.Level == TankLevel.L && meterChanges == 1, "掉到 5.8 L 以下：才算没到 L");
+    var lowSignal = meter.FindChild<AiLevelComponent>("L")!;
+    lowSignal.Tolerance = 0;
+    Meter(6.05);
+    Meter(5.95);
+    Check(meter.Level == TankLevel.L, "容错设成 0：掉到 6 L 以下马上算没到（容错按液面晃的幅度在 EC 设）");
+    lowSignal.Tolerance = 0.2;
+
+    // 读不到（PLC 没连上）：几个点都读不到，液位不知道、不报警、不让补液
+    Meter(10);
+    plc.IsConnected = false;
+    meter.Tick();
+    Check(meter.Level == TankLevel.Unknown && !meter.HasAlarm && meter.LL!.IsActive is null, "AI 读不到：液位不知道、信号是 null、不报警");
+    Check(meter.Fill().ErrorMessage == ErrorCodes.TankLevelUnknown, "液位不知道：不补液");
+    plc.IsConnected = true;
+    meter.Tick();
+    Check(meter.Level == TankLevel.Normal, "读回来了：液位跟着读数");
+
+    // 补液：防抖防读数冒尖（不然补液时冒一下就提前停了），一直到了 H 满防抖才关阀、就绪
+    var highSignal = meter.FindChild<AiLevelComponent>("H")!;
+    highSignal.DebounceMs = 200;
+    Check(meter.Fill().IsSuccess && meter.State == TankState.Filling && plc.Do(10), "10 L 补液：开补液阀");
+    Meter(18.5);
+    Meter(12);
+    Thread.Sleep(250);
+    meter.Tick();
+    Check(meter.State == TankState.Filling && plc.Do(10), "读数冒到 18.5 L 一拍又回 12 L：不认，接着补");
+    Meter(18.1);
+    Check(meter.State == TankState.Filling && plc.Do(10), "到了 18 L、还没满防抖时间：接着补");
+    Thread.Sleep(250);
+    meter.Tick();
+    Check(meter.State == TankState.Ready && !plc.Do(10) && meter.Level == TankLevel.H, "到 H 满防抖时间：关补液阀、就绪");
+    highSignal.DebounceMs = 0;
+
+    // 供液：掉到 LL 的容错以下才算低低（4.9 L 还在容错里）→ 报警、出错、阀全关
+    meter.SupplyLowLowDebounceMs = 0;
+    Check(meter.Supply().IsSuccess && plc.Do(12), "就绪了供液：开供液阀");
+    Meter(4.9);
+    Check(meter.State == TankState.Supplying && plc.Do(12), "供到 4.9 L：还在 LL 的容错里（4.8 L 以下才算没到），接着供");
+    Meter(4.7);
+    Check(meter.State == TankState.Error && !plc.Do(12) && Active(meter, meter.SupplyLowLowAlarm), "掉到 4.8 L 以下：报供液低低、出错、阀全关");
+    meter.Reset();
+    meter.Tick();
+
+    // 排液：LL 掉到 4.8 L 以下才算灭，再排满排空延时关阀
+    meter.DrainDelayMs = 100;
+    Meter(10);
+    Check(meter.Drain().IsSuccess && plc.Do(11), "排液：开排液阀");
+    Meter(4.9);
+    Thread.Sleep(150);
+    meter.Tick();
+    Check(meter.State == TankState.Draining && plc.Do(11), "排到 4.9 L：还在 LL 的容错里，不算排空");
+    Meter(4.7);
+    Thread.Sleep(150);
+    meter.Tick();
+    Check(meter.State == TankState.Idle && !plc.Do(11), "掉到 4.8 L 以下满排空延时：关排液阀、回空闲");
+
+    // 推送：AI 液位信号跟 DI 信号一样带节点名和触发状态，界面信号灯照旧
+    TankPublisher.Bind([meter]);
+    var meterPushed = new List<TankDto>();
+    using var meterSubscription = EventBus.Register<TankDto>(meter.FullPath, dto => meterPushed.Add(dto));
+    Meter(7.3);
+    Check(meterPushed.Count == 1 && meterPushed[0].Level == (int)TankLevel.Normal
+        && meterPushed[0].LL!.Name == "LL" && meterPushed[0].LL!.IsActive == true
+        && meterPushed[0].L!.IsActive == true && meterPushed[0].H!.IsActive == false && meterPushed[0].Overfill is not null,
+        "推送：AI 液位信号带节点名和各自的触发状态");
+
+    // 触发值没设（新生成的 EC 是 0）：当读不到；AiIndex 配成 -1：当没有这个点
+    var unset = LoadTank("Tank21", null, [], [], [], [], levels: [("L", 0, 0), ("H", 0, 18), ("HH", -1, 20)]);
+    unset.Tick();
+    Check(unset.Level == TankLevel.Unknown && unset.L!.IsActive is null, "L 的触发值没设：当读不到，液位不知道");
+    unset.FindChild<AiLevelComponent>("L")!.TriggerValue = 6;
+    unset.Tick();
+    Check(unset.Level == TankLevel.Normal && unset.HH is null, "在线设上触发值：下一拍生效（7.3 L 是 Normal）；HH 的 AiIndex 配成 -1 当没有这个点");
+
+    // FillTo=L：补到 L 就绪，之后液面在 6 L 上下晃，有容错就一直就绪，不会晃一下退回空闲
+    var lowMeter = LoadTank("Tank22", "L", [], fill: [(13, -1)], drain: [], supply: [],
+        levels: [("LL", 2, 5), ("L", 2, 6), ("H", 2, 18)]);
+    plc.SetAi(2, 5.5);
+    lowMeter.Tick();
+    Check(lowMeter.Fill().IsSuccess && plc.Do(13), "FillTo=L、5.5 L：开补液阀");
+    plc.SetAi(2, 6.02);
+    lowMeter.Tick();
+    Check(lowMeter.State == TankState.Ready && !plc.Do(13), "到了 6 L：关补液阀、就绪");
+    foreach (var liters in new[] { 5.9, 6.03, 5.85, 5.97 })
+    {
+        plc.SetAi(2, liters);
+        lowMeter.Tick();
+    }
+
+    Check(lowMeter.State == TankState.Ready, "关阀后液面在 6 L 上下晃：还是就绪");
+
+    // 15. 混着用：LL～HH 读液位计（AI 1），Overfill 是单独的 DI 浮球（DI 19）；补液阀 DO 14、排液阀 DO 15
+    var mixed = LoadTank("Tank23", null, [("Overfill", 19, true)], fill: [(14, -1)], drain: [(15, -1)], supply: [],
+        levels: [("LL", 1, 5), ("L", 1, 6), ("H", 1, 18), ("HH", 1, 20)]);
+    Check(mixed.Overfill is DiSensorComponent && mixed.HH is AiLevelComponent, "混着用：Overfill 是 DI 信号，别的是 AI 液位信号");
+    mixed.DrainDelayMs = 0;
+    plc.SetDi(19, false);
+    plc.SetAi(1, 10);
+    mixed.Tick();
+    Check(mixed.Level == TankLevel.Normal && mixed.Fill().IsSuccess && plc.Do(14), "液位计 10 L、浮球没亮：Normal，补液开阀");
+    plc.SetAi(1, 18.2);
+    mixed.Tick();
+    Check(mixed.State == TankState.Ready && !plc.Do(14), "补到 18 L（H）：关补液阀、就绪");
+    Check(mixed.Drain().IsSuccess && plc.Do(15), "排液：开排液阀");
+    plc.SetAi(1, 4.7);
+    mixed.Tick();
+    Check(mixed.State == TankState.Idle && !plc.Do(15), "排到 4.8 L 以下：关排液阀、回空闲");
+    plc.SetAi(1, 19);
+    plc.SetDi(19, true);
+    mixed.Tick();
+    Check(mixed.Level == TankLevel.Overfill && Active(mixed, mixed.OverfillAlarm) && Active(mixed, mixed.LevelSensorAlarm),
+        "浮球亮了、液位计才 19 L：溢流，还报液位信号异常（两边对不上，看得出有一个坏了）");
+    var meterLost = LoadTank("Tank24", null, [("Overfill", 19, true)], [], [], [], levels: [("L", 99, 6), ("H", 99, 18)]);
+    meterLost.Tick();
+    Check(meterLost.Level == TankLevel.Overfill, "液位计读不到（点表里没这个 AI）但浮球亮了：照样是溢流");
 }
 finally
 {
@@ -472,7 +642,9 @@ Console.WriteLine($"PASS: {checks} cds checks (tank: level DI signals found by n
     + "after each one's EC debounce time and cleared only by a manual reset; the fill / drain / exchange / supply / stop functions "
     + "driving their valve groups, ready only through a fill, any alarm putting the tank into error with every valve closed, "
     + "the SC fill target, the checks before each function with their error codes, "
-    + "and the push of level / state / each signal only on change, with unconfigured signals as null)");
+    + "and the push of level / state / each signal only on change, with unconfigured signals as null; "
+    + "AI level signals reading one level meter against EC trigger values with a tolerance and debounce, "
+    + "an AI-only tank and an AI + overflow DI tank running fill / drain / supply unchanged)");
 
 // 只挂液位信号的槽
 static SmokeTank Load(string name, params (string Signal, int Di, bool Trigger)[] signals)
@@ -481,9 +653,10 @@ static SmokeTank Load(string name, params (string Signal, int Di, bool Trigger)[
 }
 
 // 照 sc 的写法装一个槽：CDS、IPA 是分组，信号按 (节点名, DI 号, 触发值)、阀组的阀按 (DO 号, 到位 DI 号) 挂上去，阀名叫 V+DO 号；
-// 信号和报警的防抖都设成 0，一拍就认
+// AI 液位信号按 (节点名, AI 号, 触发值) 挂，触发值是 EC，装好了再设；信号和报警的防抖都设成 0，一拍就认
 static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, bool Trigger)[] signals,
-    (int Do, int Di)[] fill, (int Do, int Di)[] drain, (int Do, int Di)[] supply)
+    (int Do, int Di)[] fill, (int Do, int Di)[] drain, (int Do, int Di)[] supply,
+    (string Signal, int Ai, double Trigger)[]? levels = null)
 {
     var tank = new ModuleConfig { Name = name, Type = typeof(SmokeTank).FullName };
     if (fillTo is not null)
@@ -509,6 +682,16 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
         });
     }
 
+    foreach (var item in levels ?? [])
+    {
+        tank.Children.Add(new ModuleConfig
+        {
+            Name = item.Signal,
+            Type = typeof(AiLevelComponent).FullName,
+            Values = [new() { Name = "AiIndex", Value = item.Ai.ToString() }]
+        });
+    }
+
     var group = new ModuleConfig
     {
         Name = "CDS",
@@ -518,6 +701,13 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
     foreach (var sensor in loaded.FindChildren<DiSensorComponent>())
     {
         sensor.DebounceMs = 0;
+    }
+
+    foreach (var item in levels ?? [])
+    {
+        var level = loaded.FindChild<AiLevelComponent>(item.Signal)!;
+        level.TriggerValue = item.Trigger;
+        level.DebounceMs = 0;
     }
 
     loaded.LevelSensorDebounceMs = 0;
@@ -582,13 +772,14 @@ public sealed class SmokeTank : TankComponent
 }
 
 /// <summary>
-/// 假 PLC：DI 由测试摆，DO 记下写进来的值；没连上时都读写不了
+/// 假 PLC：DI、AI 由测试摆，DO 记下写进来的值；没连上时都读写不了
 /// </summary>
 public sealed class FakePlc : IPlc
 {
     private readonly object _gate = new();
     private readonly Dictionary<int, bool> _di = [];
     private readonly Dictionary<int, bool> _do = [];
+    private readonly Dictionary<int, double> _ai = [];
     private volatile bool _connected = true;
 
     public bool IsConnected
@@ -654,10 +845,26 @@ public sealed class FakePlc : IPlc
         }
     }
 
+    public void SetAi(int index, double value)
+    {
+        lock (_gate)
+        {
+            _ai[index] = value;
+        }
+    }
+
     public bool TryReadAi(int index, out double value)
     {
-        value = 0;
-        return false;
+        lock (_gate)
+        {
+            value = 0;
+            if (_connected)
+            {
+                value = _ai.GetValueOrDefault(index);
+            }
+
+            return _connected;
+        }
     }
 
     public bool TryReadAo(int index, out double value)
