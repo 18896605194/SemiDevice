@@ -28,4 +28,29 @@ public interface IAlarmComponent
     /// 人工复位全部有报警的组件；返回复位了几个组件。
     /// </summary>
     int ResetAll();
+
+    /// <summary>
+    /// 组件报警（只给 ComponentBase.RaiseAlarm 用）
+    /// </summary>
+    internal bool Raise(ComponentBase source, string alarmCode);
+
+    /// <summary>
+    /// 清掉这个组件的报警（只给 ComponentBase.Reset 用）
+    /// </summary>
+    internal int Clear(ComponentBase source);
+
+    /// <summary>
+    /// 这个路径下面有没有报警
+    /// </summary>
+    internal bool HasAlarmUnder(string path);
+
+    /// <summary>
+    /// 报警历史一次最多查几条
+    /// </summary>
+    int HistoryQueryMaxCount { get; }
+
+    /// <summary>
+    /// 报警历史落哪个库
+    /// </summary>
+    string HistoryDatabase { get; }
 }

@@ -91,7 +91,7 @@ public abstract class TwoStateComponent : ComponentBase
     {
         get
         {
-            var io = IoComponent.Current;
+            var io = ComponentBase.Find<IIoComponent>();
             if (io is null || !io.TryReadDo(DoOpenIndex, out bool open) || !io.TryReadDo(DoCloseIndex, out bool close))
             {
                 return TwoStatePosition.Unknown;
@@ -142,7 +142,7 @@ public abstract class TwoStateComponent : ComponentBase
             return side.IsActive == true && (opposite is null || opposite.IsActive == false);
         }
 
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null)
         {
             return false;
@@ -168,7 +168,7 @@ public abstract class TwoStateComponent : ComponentBase
 
     private bool Move(bool opening)
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         int coil = DoCloseIndex;
         int oppositeCoil = DoOpenIndex;
         var feedback = _closed;

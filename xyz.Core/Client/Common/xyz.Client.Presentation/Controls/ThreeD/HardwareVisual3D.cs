@@ -34,6 +34,11 @@ public abstract class HardwareVisual3D : ModelVisual3D
     /// <summary>自身或所属硬件从装配树挂载/移除时刷新动画宿主。</summary>
     protected virtual void OnSceneConnectionChanged() { }
 
+    /// <summary>
+    /// IsError 变了：网格之外自己画的部分（如盘面）在这里跟着变。
+    /// </summary>
+    protected virtual void OnIsErrorChanged() { }
+
     private static void NotifySceneConnection(DependencyObject node)
     {
         if (node is HardwareVisual3D hardware)
@@ -69,7 +74,12 @@ public abstract class HardwareVisual3D : ModelVisual3D
 
     public static readonly DependencyProperty IsErrorProperty = DependencyProperty.Register(
         nameof(IsError), typeof(bool), typeof(HardwareVisual3D),
-        new PropertyMetadata(false, OnAppearanceChanged));
+        new PropertyMetadata(false, OnErrorChanged));
+
+    /// <summary>
+    /// 报警红，取主题的 DarkAlarmStatus。
+    /// </summary>
+    protected static Color FaultColor => HardwareTheme.ColorOf("DarkAlarmStatus", FallbackFault);
 
     /// <summary>由外部选择逻辑设置，与 IsMoving 相互独立。</summary>
     public bool IsSelected
@@ -159,6 +169,13 @@ public abstract class HardwareVisual3D : ModelVisual3D
         ((HardwareVisual3D)sender).RefreshMaterials();
     }
 
+    private static void OnErrorChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var hardware = (HardwareVisual3D)sender;
+        hardware.RefreshMaterials();
+        hardware.OnIsErrorChanged();
+    }
+
     private void RefreshMaterials()
     {
         foreach (var (model, brightness) in _meshes)
@@ -176,7 +193,7 @@ public abstract class HardwareVisual3D : ModelVisual3D
         if (IsError || _isVisualFault)
         {
             blend = 1;
-            accent = HardwareTheme.ColorOf("DarkAlarmStatus", FallbackFault);
+            accent = FaultColor;
         }
 
         byte Channel(byte normal, byte highlight) => (byte)Math.Clamp(

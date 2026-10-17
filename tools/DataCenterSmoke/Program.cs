@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.ServiceModel;
+using System.Text;
 using NLog;
 using SqlSugar;
 using xyz.Common.Log;
@@ -7,13 +9,16 @@ using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
+using xyz.Service;
 using xyz.Service.Alarms;
 using xyz.Service.Events;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Shared.Services;
 using xyz.Tools;
 
 // 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）、数据曲线（采样、信号名、日表）。
@@ -88,15 +93,67 @@ try
     Check((await QueryLogs(new LogHistoryQuery { Start = day.AddDays(3), End = day.AddDays(4) })).Items.Count == 0,
         "没有日志文件的日子查出来为空");
 
+    // ── 2b. 最近日志、实时日志：日志组件 Bind 时接上日志队列（接上之前攒在队列里的也补进来），留最近 RecentLogCount 条供客户端连上补拉，
+    //     每条推给界面（发生类，不留存）；日志服务从日志组件取最近一段。队列只收 Warn 以上（LogQueue.MinLevel 默认）─────
+    var logComponent = new LogComponent { RecentLogCount = 3 };
+    var pushedLogs = new List<LogDto>();
+    bool Pushed(string message)
+    {
+        lock (pushedLogs)
+        {
+            return pushedLogs.Any(log => log.Message == message);
+        }
+    }
+
+    using (EventBus.Register<LogDto>(LogDto.EventToken, dto =>
+           {
+               lock (pushedLogs)
+               {
+                   pushedLogs.Add(dto);
+               }
+           }))
+    {
+        LogHelper.Warn("SmokeLog", "接上之前的一条");
+        logComponent.Bind();
+        for (int index = 1; index <= 4; index++)
+        {
+            LogHelper.Warn("SmokeLog", $"第 {index} 条");
+        }
+
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline && !Pushed("第 4 条"))
+        {
+            Thread.Sleep(20);
+        }
+    }
+
+    var recentLogs = logComponent.Recent().Where(log => log.Module == "SmokeLog").ToList();
+    Check(recentLogs.Count == 3 && recentLogs[^1].Message == "第 4 条" && recentLogs.All(log => log.Source == "Server" && log.Level == "Warn"),
+        "最近一段只留 RecentLogCount 条，最旧的丢掉");
+    lock (pushedLogs)
+    {
+        Check(pushedLogs.Count(log => log.Module == "SmokeLog") == 5 && Pushed("接上之前的一条"),
+            "每条都推给界面；接上之前攒在队列里的也补推");
+    }
+
+    var recentReply = await new LogService().GetRecentAsync(new LogQuery { Count = 2 });
+    var recentTail = JsonHelper.Deserialize<List<LogDto>>(recentReply.Data)!;
+    Check(recentReply.Success && recentTail.Count == 2 && recentTail[^1].Message == "第 4 条", "日志服务从日志组件取最近一段，带了条数只回最新的几条");
+
     // ── 3. 当前报警与人工复位：走报警组件；复位不存在的来源给错误码；没装报警组件给错误码 ─────
     var alarms = new AlarmComponent();
+    _ = new MapperComponent(); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
     var device = new ProbeDevice("Tool1");
     var alarmService = new AlarmService();
+    var pushedAlarms = new List<AlarmDto>();
+    using var alarmPushes = EventBus.Register<AlarmDto>(AlarmDto.EventToken, dto => pushedAlarms.Add(dto));
     device.Fault();
     var active = JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!;
     Check(active.Count == 1 && active[0].Source == "Tool1" && active[0].Code == "ProbeFault"
           && active[0].Level == "Alarm1" && active[0].IsActive, "当前报警带来源、代码、等级");
     Check(active[0].Text == "探针故障" && active[0].Solution == "检查探针后复位", "报警文本与处理建议");
+    Check(pushedAlarms.Count == 1 && pushedAlarms[0].Source == "Tool1" && pushedAlarms[0].Code == "ProbeFault" && pushedAlarms[0].IsActive,
+        "报警组件自己推给界面：报出来推一条（照映射组件的规则转）");
 
     var unknown = await alarmService.ResetAsync(new RpcRequest { Parameters = { ["Source"] = "Nobody" } });
     Check(!unknown.Success && unknown.Code == ErrorCodes.AlarmSourceNotFound
@@ -104,13 +161,15 @@ try
         "复位没报过报警的来源：给错误码和来源");
     var reset = await alarmService.ResetAsync(new RpcRequest { Parameters = { ["Source"] = "Tool1" } });
     Check(reset.Success && alarms.ActiveAlarms.Count == 0, "复位来源后报警清掉");
+    Check(pushedAlarms.Count == 2 && pushedAlarms[1].Source == "Tool1" && !pushedAlarms[1].IsActive, "清掉也推一条");
 
     device.Fault();
     var resetAll = await alarmService.ResetAllAsync(new RpcRequest());
     Check(resetAll.Success && JsonHelper.Deserialize<int>(resetAll.Data) == 1 && alarms.ActiveAlarms.Count == 0,
         "全部复位：复位了 1 个来源");
 
-    AlarmComponent.Current = null;
+    ComponentBase.Register<IAlarmComponent>(null);
+    alarmService = new AlarmService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await alarmService.ResetAllAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.AlarmNotInstalled, "没装报警组件：给错误码");
     Check(JsonHelper.Deserialize<List<AlarmDto>>((await alarmService.GetActiveAsync(new RpcRequest())).Data)!.Count == 0,
@@ -280,8 +339,35 @@ try
     idle.StopSampling();
     Check(Volatile.Read(ref idleRows) == 0, "sc 里没配 IsRun 就不起扫描、不采样");
 
+    // 实时曲线：接在数据曲线的采样上，在自己的扫描里（配了 IsRun）把采到的行一帧一帧推给界面（不留存）；每帧带这一轮的标识，值跟信号表一样多
+    var realSource = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
+    var realChart = new RealChartComponent { IsRun = true, WindowSeconds = 60 };
+    var frames = new List<RealChartFrameDto>();
+    using (EventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
+           {
+               lock (frames)
+               {
+                   frames.Add(frame);
+               }
+           }))
+    {
+        realSource.Bind(ChartTree("Door"));
+        realChart.Attach(realSource);
+        ComponentLoader.StartScanning([realSource, realChart]);
+        Thread.Sleep(1300);
+        realSource.StopSampling();
+        Thread.Sleep(200);
+    }
+
+    lock (frames)
+    {
+        Check(frames.Count >= 3 && frames.All(frame => frame.Session == realChart.Session && frame.Values.Count == realSource.Signals.Count)
+              && realChart.Recent().Count >= frames.Count,
+            $"实时曲线在自己的扫描里推：{frames.Count} 帧，每帧带这一轮的标识、值跟信号表一样多，最近一段内存里都留着");
+    }
+
     // IO 绑定的信号名：组件路径 + 配置项名去掉 Index；DI 组件只有一个点，就是组件路径（Door__Opened，不再带 __Di）
-    var previousIo = IoComponent.Current;
+    var previousIo = ComponentBase.Find<IIoComponent>();
     var ioCsv = Path.Combine(chartGemDirectory, "points.csv");
     File.WriteAllText(ioCsv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n0,P0,0,0,0,0\n1,P1,0,0,0,0\n2,P2,0,10,0,10\n");
     var chartIo = new IoComponent();
@@ -317,12 +403,12 @@ try
     }
     finally
     {
-        IoComponent.Current = previousIo;
+        ComponentBase.Register<IIoComponent>(previousIo);
     }
 }
 finally
 {
-    DataChartComponent.Current = null;
+    ComponentBase.Register<IDataChartComponent>(null);
     GemCollectors.Current = null;
     SqliteCleanup(chartDbFile);
     try
@@ -334,10 +420,24 @@ finally
     }
 }
 
+// ── 6. gRPC 服务自动认：xyz.Shared 里带 [ServiceContract] 的契约，在装进来的 xyz 程序集里找实现（宿主照这张表注册、映射，加服务不用改宿主）─────
+{
+    var services = ServiceExtensions.GrpcServices();
+    var contracts = typeof(IAlarmService).Assembly.GetTypes()
+        .Where(type => type.IsInterface && type.GetCustomAttribute<ServiceContractAttribute>() is not null)
+        .Where(type => type != typeof(IRpcService))
+        .ToList();
+    Check(contracts.Count >= 19 && contracts.All(contract => services.Count(service => service.Contract == contract) == 1),
+        "xyz.Service 里的服务一个契约认出一个实现（宿主自己的 RpcService 在宿主程序集里，这里没装）");
+    Check(services.All(service => service.Implementation.Name == service.Contract.Name[1..] && !service.Implementation.IsAbstract),
+        "认出来的都是契约对应的那个类：IAlarmService → AlarmService");
+}
+
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
-                  "log history filters and truncation, active alarms with reset / reset-all / not-installed error codes, " +
+                  "log history filters and truncation, recent and realtime logs forwarded by the log component, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
                   "alarm history over day-split tables, and data chart sampling on its own scan (IsRun, whole periods), " +
-                  "signal names (a DI component named by its own path) / day tables through SqlSugar).");
+                  "signal names (a DI component named by its own path) / day tables through SqlSugar, real chart frames pushed from its own scan, " +
+                  "and gRPC services found by contract).");
 
 static void SqliteCleanup(string path)
 {

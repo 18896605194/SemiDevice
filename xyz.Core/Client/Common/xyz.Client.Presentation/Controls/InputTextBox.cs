@@ -327,12 +327,15 @@ public class InputTextBox : TextBox
 
     private bool IsDraftValid(string text)
     {
-        return _type switch
+        switch (_type)
         {
-            InputDataType.Integer => IntegerDraft.IsMatch(text.Trim()),
-            InputDataType.Decimal => DecimalDraft.IsMatch(text.Trim()),
-            _ => true,
-        };
+            case InputDataType.Integer:
+                return IntegerDraft.IsMatch(text.Trim());
+            case InputDataType.Decimal:
+                return DecimalDraft.IsMatch(text.Trim());
+            default:
+                return true;
+        }
     }
 
     /// <summary>提交时查：完整格式 + 范围；合法时给出规整后的写法（去空格、去多余的零和小数点）。</summary>

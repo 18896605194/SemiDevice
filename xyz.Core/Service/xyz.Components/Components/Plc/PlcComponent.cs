@@ -8,11 +8,25 @@ namespace xyz.Components.Components;
 [Component(description: "PLC 组件（全系统 IO 底座）")]
 public partial class PlcComponent : ComponentBase, IPlc
 {
-    public static IPlc? Current { get; set; }
-
     public PlcComponent()
     {
-        Current = this;
+        Register<IPlc>(this);
+        // 开机准备排最前：IO 点表、轴的数据块都要在它后面
+        InitOrder = 100;
+    }
+
+    /// <summary>
+    /// 开机准备：连 PLC（连不上后台照样重连）
+    /// </summary>
+    public override bool InitComponent()
+    {
+        bool opened = Open();
+        if (!opened)
+        {
+            LogHelper.Error(Name, "PLC 连接失败");
+        }
+
+        return base.InitComponent() && opened;
     }
 
     #region SC
@@ -479,4 +493,12 @@ public partial class PlcComponent : ComponentBase, IPlc
     }
 
     #endregion
+
+    /// <summary>
+    /// 宿主退出：断开 PLC
+    /// </summary>
+    public override void OnStopping()
+    {
+        Close();
+    }
 }

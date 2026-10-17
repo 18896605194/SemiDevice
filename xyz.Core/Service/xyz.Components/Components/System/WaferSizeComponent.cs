@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Shared.Dtos;
@@ -12,7 +13,7 @@ namespace xyz.Components.Components;
 /// 晶圆尺寸组件
 /// </summary>
 [Component(description: "晶圆尺寸：8 寸 / 12 寸（主界面切换，写回 sc.xml）")]
-public class WaferSizeComponent : ComponentBase
+public class WaferSizeComponent : ComponentBase, IWaferSizeComponent
 {
     /// <summary>8 寸片（200 mm）。</summary>
     public const int Inch8 = 8;
@@ -22,14 +23,9 @@ public class WaferSizeComponent : ComponentBase
 
     private readonly object _gate = new();
 
-    /// <summary>
-    /// 当前的晶圆尺寸组件；sc.xml 没配时为 null，一律按 12 寸。
-    /// </summary>
-    public static WaferSizeComponent? Current { get; set; }
-
     public WaferSizeComponent()
     {
-        Current = this;
+        Register<IWaferSizeComponent>(this);
     }
 
     /// <summary>
@@ -51,7 +47,7 @@ public class WaferSizeComponent : ComponentBase
     {
         get
         {
-            var current = Current;
+            var current = Find<IWaferSizeComponent>();
             return current is null ? Inch12 : current.Size;
         }
     }

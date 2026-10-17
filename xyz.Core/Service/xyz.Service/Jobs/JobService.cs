@@ -22,8 +22,11 @@ public class JobService : BaseService, IJobService
 
     private const string LogModule = "Job";
 
-    public JobService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly IJobManager? _jobs;
+
+    public JobService()
     {
+        _jobs = ComponentBase.Find<IJobManager>();
     }
 
     #endregion
@@ -32,13 +35,12 @@ public class JobService : BaseService, IJobService
 
     public Task<RpcResponse> GetJobsAsync(RpcRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
         }
 
-        string json = JsonHelper.Serialize(jobs.Snapshot);
+        string json = JsonHelper.Serialize(_jobs.Snapshot);
         return Task.FromResult(RpcResponse.Ok(json));
     }
 
@@ -54,13 +56,12 @@ public class JobService : BaseService, IJobService
     /// <returns></returns>
     public async Task<RpcResponse> CreateProcessJobAsync(ProcessJobCreateRequest request, CallContext context = default)
     {
-        var _jobManger = JobManager.Current;
-        if (_jobManger is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await _jobManger.CreateProcessJobAsync(
+        var result = await _jobs.CreateProcessJobAsync(
             request.LoadPort ?? string.Empty,
             request.Name ?? string.Empty,
             request.Slots ?? [],
@@ -84,13 +85,12 @@ public class JobService : BaseService, IJobService
     /// <returns></returns>
     public async Task<RpcResponse> CreateControlJobAsync(ControlJobCreateRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await jobs.CreateControlJobAsync(
+        var result = await _jobs.CreateControlJobAsync(
             request.LoadPort ?? string.Empty,
             request.ProcessJobs ?? [],
             request.Name,
@@ -113,13 +113,12 @@ public class JobService : BaseService, IJobService
     /// <returns></returns>
     public async Task<RpcResponse> CreateJobAsync(ControlJobCreateRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await jobs.CreateJobAsync(
+        var result = await _jobs.CreateJobAsync(
             request.LoadPort ?? string.Empty,
             request.ProcessJobs ?? [],
             request.Name,
@@ -142,15 +141,14 @@ public class JobService : BaseService, IJobService
     /// <returns></returns>
     public async Task<RpcResponse> CreateAsync(JobCreateRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
         // protobuf 传输省略默认值字段，空字符串、空列表在接收端可能为 null。
         string portName = (request.LoadPort ?? string.Empty).Trim();
-        var port = FindModule<BaseLoadPortModule>(portName);
+        var port = FindModule<ILoadPort>(portName);
         if (port is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobLoadPortNotFound, [portName]);
@@ -170,22 +168,22 @@ public class JobService : BaseService, IJobService
         foreach (var (sequence, slots) in groups)
         {
             string processId = $"{controlId}-{(created.Count + 1).ToString(CultureInfo.InvariantCulture)}";
-            var process = await jobs.CreateProcessJobAsync(
+            var process = await _jobs.CreateProcessJobAsync(
                 port.Name, processId, slots, sequence, lotId).ConfigureAwait(false);
             if (!process.IsSuccess)
             {
-                await CancelAsync(jobs, created).ConfigureAwait(false);
+                await CancelAsync(_jobs, created).ConfigureAwait(false);
                 return RpcResponse.Fail(process.ErrorMessage, process.Args);
             }
 
             created.Add(processId);
         }
 
-        var control = await jobs.CreateJobAsync(
+        var control = await _jobs.CreateJobAsync(
             port.Name, created, controlId, lotId).ConfigureAwait(false);
         if (!control.IsSuccess)
         {
-            await CancelAsync(jobs, created).ConfigureAwait(false);
+            await CancelAsync(_jobs, created).ConfigureAwait(false);
             return RpcResponse.Fail(control.ErrorMessage, control.Args);
         }
 
@@ -202,13 +200,12 @@ public class JobService : BaseService, IJobService
 
     public async Task<RpcResponse> CancelProcessJobAsync(JobCommandRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await jobs.CancelProcessJobAsync(request.JobId ?? string.Empty).ConfigureAwait(false);
+        var result = await _jobs.CancelProcessJobAsync(request.JobId ?? string.Empty).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);
@@ -226,8 +223,7 @@ public class JobService : BaseService, IJobService
     /// <returns></returns>
     public async Task<RpcResponse> ControlJobCommandAsync(JobCommandRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
@@ -241,7 +237,7 @@ public class JobService : BaseService, IJobService
                 [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
-        var result = await jobs.ExecuteControlJobCommandAsync(id, command, action).ConfigureAwait(false);
+        var result = await _jobs.ExecuteControlJobCommandAsync(id, command, action).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);
@@ -253,8 +249,7 @@ public class JobService : BaseService, IJobService
 
     public async Task<RpcResponse> ProcessJobCommandAsync(JobCommandRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
@@ -267,7 +262,7 @@ public class JobService : BaseService, IJobService
                 [id, request.Command.ToString(CultureInfo.InvariantCulture), string.Empty]);
         }
 
-        var result = await jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
+        var result = await _jobs.ExecuteProcessJobCommandAsync(id, command).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);
@@ -283,13 +278,12 @@ public class JobService : BaseService, IJobService
 
     public async Task<RpcResponse> RetryTaskAsync(JobTaskRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await jobs.RetryTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
+        var result = await _jobs.RetryTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);
@@ -301,13 +295,12 @@ public class JobService : BaseService, IJobService
 
     public async Task<RpcResponse> CompleteTaskAsync(JobTaskRequest request, CallContext context = default)
     {
-        var jobs = JobManager.Current;
-        if (jobs is null)
+        if (_jobs is null)
         {
             return RpcResponse.Fail(ErrorCodes.JobNotInstalled, []);
         }
 
-        var result = await jobs.CompleteTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
+        var result = await _jobs.CompleteTaskAsync(request.ProcessJob ?? string.Empty, request.Slot, request.Task).ConfigureAwait(false);
         if (result.IsSuccess)
         {
             string json = JsonHelper.Serialize(result.Result);

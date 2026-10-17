@@ -133,13 +133,26 @@ public static class SecsCodec
     /// <summary>整数数组编码：宽度由格式定，值域在工厂构造时已对齐宽度，这里直接取 64 位值的低 N 字节落大端。</summary>
     private static void WriteIntegerArray(MemoryStream buffer, SecsItem item, Array values, bool signed)
     {
-        int width = item.Format switch
+        int width;
+        switch (item.Format)
         {
-            SecsFormat.I1 or SecsFormat.U1 => 1,
-            SecsFormat.I2 or SecsFormat.U2 => 2,
-            SecsFormat.I4 or SecsFormat.U4 => 4,
-            _ => 8,
-        };
+            case SecsFormat.I1:
+            case SecsFormat.U1:
+                width = 1;
+                break;
+            case SecsFormat.I2:
+            case SecsFormat.U2:
+                width = 2;
+                break;
+            case SecsFormat.I4:
+            case SecsFormat.U4:
+                width = 4;
+                break;
+            default:
+                width = 8;
+                break;
+        }
+
         WriteHead(buffer, item.Format, values.Length * width);
         Span<byte> cell = stackalloc byte[8];
         foreach (var value in values)
@@ -271,13 +284,26 @@ public static class SecsCodec
     private static (SecsItem Item, int Consumed) DecodeIntegerArray(ReadOnlySpan<byte> bytes, SecsFormat format, int lengthBytes, int length)
     {
         RequireLength(format, bytes, lengthBytes, length);
-        int width = format switch
+        int width;
+        switch (format)
         {
-            SecsFormat.I1 or SecsFormat.U1 => 1,
-            SecsFormat.I2 or SecsFormat.U2 => 2,
-            SecsFormat.I4 or SecsFormat.U4 => 4,
-            _ => 8,
-        };
+            case SecsFormat.I1:
+            case SecsFormat.U1:
+                width = 1;
+                break;
+            case SecsFormat.I2:
+            case SecsFormat.U2:
+                width = 2;
+                break;
+            case SecsFormat.I4:
+            case SecsFormat.U4:
+                width = 4;
+                break;
+            default:
+                width = 8;
+                break;
+        }
+
         if (length % width != 0)
         {
             throw new SecsException($"格式 {format} 数据长度 {length} 不是 {width} 的整数倍");
@@ -305,21 +331,35 @@ public static class SecsCodec
         }
     }
 
-    private static SecsItem CreateSigned(SecsFormat format, long[] values) => format switch
+    private static SecsItem CreateSigned(SecsFormat format, long[] values)
     {
-        SecsFormat.I1 => SecsItem.I1(Array.ConvertAll(values, value => (sbyte)value)),
-        SecsFormat.I2 => SecsItem.I2(Array.ConvertAll(values, value => (short)value)),
-        SecsFormat.I4 => SecsItem.I4(Array.ConvertAll(values, value => (int)value)),
-        _ => SecsItem.I8(values),
-    };
+        switch (format)
+        {
+            case SecsFormat.I1:
+                return SecsItem.I1(Array.ConvertAll(values, value => (sbyte)value));
+            case SecsFormat.I2:
+                return SecsItem.I2(Array.ConvertAll(values, value => (short)value));
+            case SecsFormat.I4:
+                return SecsItem.I4(Array.ConvertAll(values, value => (int)value));
+            default:
+                return SecsItem.I8(values);
+        }
+    }
 
-    private static SecsItem CreateUnsigned(SecsFormat format, ulong[] values) => format switch
+    private static SecsItem CreateUnsigned(SecsFormat format, ulong[] values)
     {
-        SecsFormat.U1 => SecsItem.U1(Array.ConvertAll(values, value => (byte)value)),
-        SecsFormat.U2 => SecsItem.U2(Array.ConvertAll(values, value => (ushort)value)),
-        SecsFormat.U4 => SecsItem.U4(Array.ConvertAll(values, value => (uint)value)),
-        _ => SecsItem.U8(values),
-    };
+        switch (format)
+        {
+            case SecsFormat.U1:
+                return SecsItem.U1(Array.ConvertAll(values, value => (byte)value));
+            case SecsFormat.U2:
+                return SecsItem.U2(Array.ConvertAll(values, value => (ushort)value));
+            case SecsFormat.U4:
+                return SecsItem.U4(Array.ConvertAll(values, value => (uint)value));
+            default:
+                return SecsItem.U8(values);
+        }
+    }
 
     private static (SecsItem Item, int Consumed) DecodeFloating(ReadOnlySpan<byte> bytes, SecsFormat format, int lengthBytes, int length, int width)
     {

@@ -1,10 +1,11 @@
 ﻿using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 
 namespace xyz.Components.Components;
 
-public abstract class VirtualInputComponent : ComponentBase
+public abstract class VirtualInputComponent : ComponentBase, IVirtualInputComponent
 {
     [SCEditor("-1", "VirtualInput", "全局唯一索引：虚拟 DI 4000~4999，虚拟 AI 6000~6999", Required = true)]
     public int Index { get; set; } = -1;
@@ -43,6 +44,20 @@ public abstract class VirtualInputComponent : ComponentBase
 
     internal void Bind(VirtualInputRegistry registry) => _registry = registry;
     internal void SetValue(double? value) => Volatile.Write(ref _state, new State(value));
+
+    string IVirtualInputComponent.PointType => PointType;
+
+    IoExpression IVirtualInputComponent.Compiled => Compiled;
+
+    void IVirtualInputComponent.Bind(VirtualInputRegistry registry)
+    {
+        Bind(registry);
+    }
+
+    void IVirtualInputComponent.SetValue(double? value)
+    {
+        SetValue(value);
+    }
 
     protected bool TryEvaluate(out double value)
     {

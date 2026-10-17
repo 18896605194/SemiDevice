@@ -27,47 +27,70 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 ```
 
 - 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `EventBus.Send` → 客户端 `EventBus.Register`）。
-- 设备树：sc.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树、按顺序做组件初始化（InitComponent）和 Start。
+- 设备树：sc.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树，按开机几个阶段走：
+  组件初始化（`InitComponent`）→ `Bind` → 开始扫描（sc 配了 `IsRun` 的根）→ `OnStarted`，退出倒着 `OnStopping`。组件自己的开机准备、收尾、推送
+  都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体组件，加组件不用改它们。
 - 设备动作 = `ModuleOperation`，在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 
 ### 依赖铁律
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
-2. xyz.Components 引用 xyz.Shared 只为两样（2026-10-05 起，用户定的；原来是不引用）：错误码（`ModuleOperation` 挪到了组件层），
-   设备侧给 EAP 的接口（`Interfaces` 下的 ILoadPort、IJobManager 和回调口）用到的 Job DTO。组件发 C# 事件转成 EventBus 推送的桥照旧搭在
-   `xyz.Service\ServiceExtensions.cs`，组件里不直接推客户端。组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
+2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（`ModuleOperation` 挪到了组件层）、设备侧给 EAP 的接口
+   （`Interfaces` 下的 ILoadPort、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
+   组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapperComponent`，规则写在 `MapperComponent`），不在启动代码里搭桥。
+   组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
+5. **找组件一律按接口**（2026-10-18 用户定的，不按基类、不按具体类）：单例在构造时 `Register<IXxx>(this)`，用的地方 `ComponentBase.Find<IXxx>()`；
+   要一类的全部（所有 LoadPort、所有腔体）用 `ComponentBase.FindAll<IXxx>()`，在整棵树上找（停用的连同下面的跳过）。不写 `Xxx.Current`，
+   不往 Bind 里传整棵树；模块共有的走 `IModule`，跟机械手交互的站点 `ITransferStation`、不交互的（供液）`ISupplyModule`。
 
 ## 二、硬规矩（所有 C#、XAML，包括 tools 下的冒烟）
 
 1. **注释中文、大白话、讲为什么**；成员写 `/// <summary>`，**一律分三行**（`/// <summary>`、`/// 一句短话`、`/// </summary>`），
    不写成一行的 `/// <summary>xxx</summary>`；内容一句短话说清是什么，长的背景写进 decisions.md（用户 2026-10-16 定）。日志、异常信息、界面文字也是中文（英文只出现在 en-US 语言包）。
-2. **不写花括号模式匹配和列表模式**：`x is { } y`、`is not { } y`、`is { Count: > 0 }`、`is [..]`、switch 里 `{ Prop: v } =>` 都不要。
-   **不写 switch 表达式**（`x switch { 1 => true, _ => null }`）和 `when` 守卫，用传统 switch 语句（`case 1: return true;`、`default: return null;`），
-   相同结果的 case 叠在一起；在对象初始化器里的抽成一个 `private static` 换算方法再用 switch 语句。
-   先取局部变量，再显式判空、判属性；**判空只用 `is null` / `is not null`**，不写 `== null` / `!= null`。类型模式（`x is Foo foo`）、常量和 `or` 模式可以用。
+2. **if、switch 只用老写法**（用户 2026-10-16、10-18 定的，新写的、改到的都照这个）：
+   - **switch 用传统 switch 语句**：`case A:` 下面 `return …;`，或者赋值再 `break;`，最后 `default:`。**不写 switch 表达式**（`x switch { A => 1, _ => 0 }`），
+     case 里也不写 `or`、`when`、关系模式这些新写法——几个值结果一样就把 case 叠起来写，带条件的改成 if；
+     要给变量赋值的先声明、在 case 里赋值；写在对象初始化器、实参、lambda 里的抽成一个 `private static` 换算方法。
+   - **if 的大括号一定单独一行**：`if` / `else` / `for` / `foreach` / `while` / `lock` / `try` / `catch` 后面哪怕只有一句 `return` / `continue` / `break` / `throw` / 赋值，
+     也要加大括号，`{`、`}` 各占一行。不写 `if (x) return;`、`if (!ok) throw ...;`，也不写 `if (x) { return; }`、`try { X(); }`、
+     `get { lock (_gate) { return _x; } }` 这种挤在一行的；lambda 里的 `if` 也一样。
    ```csharp
-   var alarms = AlarmComponent.Current;
-   if (alarms is not null && alarms.ActiveAlarms.Count > 0) { ... }
-   ```
-3. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[SCEditor]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
-4. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
-   **大括号一律不省略**：`if` / `else` / `for` / `foreach` / `while` / `lock` 后面哪怕只有一句 `return` / `continue` / `break` / `throw` / 赋值，
-   也要换行加大括号；不写 `if (x) return;`、`if (!ok) throw ...;` 这种单行，lambda 里的 `if` 也一样。
-   带了大括号也不挤在一行：`if (x) { return; }`、`try { X(); }`、`catch { ... }`、`get { lock (_gate) { return _x; } }` 都拆成多行。
-   ```csharp
+   switch (format)
+   {
+       case SecsFormat.I1:
+       case SecsFormat.U1:
+           return 1;
+       case SecsFormat.I2:
+       case SecsFormat.U2:
+           return 2;
+       default:
+           return 8;
+   }
+
    if (version != _transitionVersion)
    {
        return;
    }
    ```
-5. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
-6. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
-7. 错误：配置/装配错了抛 `InvalidOperationException`（开机就暴露）；运行期返回结果（bool、结果枚举、操作的 Code+Args）；
+3. **不写花括号模式匹配和列表模式**：`x is { } y`、`is not { } y`、`is { Count: > 0 }`、`is [..]` 都不要。
+   先取局部变量，再显式判空、判属性；**判空只用 `is null` / `is not null`**，不写 `== null` / `!= null`。if 条件里类型模式（`x is Foo foo`）、常量和 `or` 模式可以用。
+   ```csharp
+   var alarms = ComponentBase.Find<IAlarmComponent>();
+   if (alarms is not null && alarms.ActiveAlarms.Count > 0)
+   {
+       ...
+   }
+   ```
+4. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[SCEditor]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
+5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
+6. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
+7. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
+8. 错误：配置/装配错了抛 `InvalidOperationException`（开机就暴露）；运行期返回结果（bool、结果枚举、操作的 Code+Args）；
    服务层翻成 `RpcResponse.Fail(ErrorCodes.X, [参数])` 给界面，**不向客户端抛异常**；界面按错误码查语言包显示。
-8. 用户看得到的文字都走语言包，**zh-CN、en-US 两份的 key 一一对应**，加一条两边都加。
-9. 客户端：模块状态用 `ModuleStateBadge`；输入用 `InputTextBox`（绑 Value）；样式只放 `Presentation\Styles`，颜色、字号用 token（`Dark*`、`SizeNN`）；页面里不写资源、不写死颜色和字号。
-10. 删功能要删干净：界面、逻辑、语言包、样式、DTO 字段、测试一起删，不留没人用的代码。
+9. 用户看得到的文字都走语言包，**zh-CN、en-US 两份的 key 一一对应**，加一条两边都加。
+10. 客户端：模块状态用 `ModuleStateBadge`；输入用 `InputTextBox`（绑 Value）；样式只放 `Presentation\Styles`，颜色、字号用 token（`Dark*`、`SizeNN`）；页面里不写资源、不写死颜色和字号。
+11. 删功能要删干净：界面、逻辑、语言包、样式、DTO 字段、测试一起删，不留没人用的代码。
 
 ## 三、按任务找做法
 
@@ -98,6 +121,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    单行不带括号 `rg "^\s*(if|else if|while|for|foreach)\b.*\)\s*[^{\s/].*;\s*$" --glob "*.cs"`；
    换行不带括号 `rg -U "^\s*(if|else if|while|for|foreach|lock)\b.*\)\s*\r?\n\s*[A-Za-z_]" --glob "*.cs"`、`rg -U "^\s*else\s*\r?\n\s*[A-Za-z_]" --glob "*.cs"`；
    带了括号却挤在一行 `rg "^\s*(if|else if|else|while|for|foreach|lock|try|catch|finally)\b[^{]*\{[^}]*\}\s*$" --glob "*.cs"`。
+   switch 新写法也要搜：switch 表达式 `rg -U "[\w)\]]\s+switch\s*\r?\n?\s*\{" --glob "*.cs"`，case 里的新模式 `rg "^\s*case\b.*\b(or|when)\b" --glob "*.cs"`。
 
 ## 五、跟用户的协作方式
 

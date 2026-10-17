@@ -1,3 +1,4 @@
+﻿using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
@@ -6,8 +7,8 @@ static class IoInterlocks
 {
     public static void Run(string directory)
     {
-        var previousPlc = PlcComponent.Current;
-        var previousIo = IoComponent.Current;
+        var previousPlc = ComponentBase.Find<IPlc>();
+        var previousIo = ComponentBase.Find<IIoComponent>();
         try
         {
             foreach (string bad in new[] { "DI25=false", "DO25=false:DO12=true", "DI25=flase:DO12=true",
@@ -34,7 +35,7 @@ static class IoInterlocks
 
             TestIo Create(RecordingPlc plc, string rules)
             {
-                PlcComponent.Current = plc;
+                ComponentBase.Register<IPlc>(plc);
                 var io = new TestIo { SaftyIoInterlock = rules };
                 io.Load();
                 io.Di.Load(diCsv);
@@ -118,8 +119,8 @@ static class IoInterlocks
         }
         finally
         {
-            PlcComponent.Current = previousPlc;
-            IoComponent.Current = previousIo;
+            ComponentBase.Register<IPlc>(previousPlc);
+            ComponentBase.Register<IIoComponent>(previousIo);
         }
     }
 

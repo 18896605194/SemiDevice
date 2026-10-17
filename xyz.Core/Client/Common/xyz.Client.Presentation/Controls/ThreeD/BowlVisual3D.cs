@@ -60,7 +60,9 @@ public sealed class BowlVisual3D : HardwareVisual3D
     public static readonly DependencyProperty IsRaisedProperty = DependencyProperty.Register(
         nameof(IsRaised), typeof(bool), typeof(BowlVisual3D), new PropertyMetadata(false, OnTargetChanged));
 
-    /// <summary>位置未知：上沿画到行程中间、整个 Bowl 变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。</summary>
+    /// <summary>
+    /// 位置未知：上沿画到行程中间、整个 Bowl 变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。
+    /// </summary>
     public bool IsUnknown
     {
         get => (bool)GetValue(IsUnknownProperty);

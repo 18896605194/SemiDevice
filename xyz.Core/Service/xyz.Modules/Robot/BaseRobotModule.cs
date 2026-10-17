@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -137,7 +138,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region Component
 
-    public RobotDriverComponent? _robot { get; private set; }
+    public IRobotDriverComponent? _robot { get; private set; }
 
     public IReadOnlyList<IRobotAxis> Axes { get; private set; } = Array.Empty<IRobotAxis>();
     public IReadOnlyList<IRobotArm> Arms { get; private set; } = Array.Empty<IRobotArm>();
@@ -145,7 +146,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
     /// </summary>
-    private WaferManagerComponent? _waferManager;
+    private IWaferManagerComponent? _waferManager;
 
     #endregion
 
@@ -242,7 +243,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
         #region 机械手驱动
 
-        var robot = FindChild<RobotDriverComponent>();
+        var robot = FindChild<IRobotDriverComponent>();
         if (robot is not null)
         {
             // 先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送。
@@ -258,7 +259,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         #endregion
 
         // 晶圆账注册：手指在账里也是槽位，槽号 = 手指号
-        _waferManager = WaferManagerComponent.Current;
+        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
         _waferManager?.RegisterLocation(Name, Arms.Count);
 
         bool childrenInitialized = base.InitComponent();
@@ -398,7 +399,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 一圈查什么、什么顺序、回来写到哪，从上往下写：yield return 一条 = 发出去，等它回来（或超时作废）了再往下走。
     /// 发不出去、没查成的那一项这圈不写，接着查下一项。加一种查询：照着加一段。
     /// </summary>
-    private IEnumerable<RobotCommand?> QueryRound(RobotDriverComponent robot)
+    private IEnumerable<RobotCommand?> QueryRound(IRobotDriverComponent robot)
     {
         // 手指在位推送：SC 开着又还没订上，每圈开头订一次，订上为止
         if (WaferEventEnabled && !_waferEventSubscribed)
@@ -546,7 +547,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     private static int SlotCountOf(string station)
     {
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         if (transfers is null)
         {
             return 0;
@@ -565,7 +566,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     private static StationKind KindOf(string station)
     {
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         if (transfers is null)
         {
             return StationKind.Other;
@@ -576,12 +577,17 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return StationKind.Other;
         }
 
-        return module switch
+        if (module is ILoadPort)
         {
-            BaseLoadPortModule => StationKind.LoadPort,
-            BaseChamberModule => StationKind.Chamber,
-            _ => StationKind.Other,
-        };
+            return StationKind.LoadPort;
+        }
+
+        if (module is IChamber)
+        {
+            return StationKind.Chamber;
+        }
+
+        return StationKind.Other;
     }
 
     /// <summary>

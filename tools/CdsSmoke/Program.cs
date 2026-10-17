@@ -4,15 +4,18 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
-using xyz.Service.Events;
+using xyz.Modules;
+using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
+using xyz._35021.Module.Cds;
+using xyz._35021.Shared.Dtos;
 
 // CDS 冒烟：槽（Tank）照 sc 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
 // 按配了的信号算液位（Overfill 亮了就是溢流）、读不到算不知道、信号对不上 / 液位高高 / 溢流报警且只能人工复位清；
 // 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因；
-// 推送（液位、状态、各信号有变化才推 TankDto，没配的信号是 null）；
+// 推送（槽跟着 IPA 模块推 IpaDto：液位、状态、各信号有变化才推，没配的信号是 null）；
 // AI 液位计：液位信号换成读同一个 AI 的 AI 液位信号（触发值、容错、防抖在 EC），只有 AI、AI + 溢流 DI 混着用两种都照样补液、排液、供液。
 // 全用假 PLC（摆 DI、AI，记 DO）和内存 EC，不连设备、不读写配置文件。
 
@@ -29,10 +32,10 @@ void Check(bool condition, string message)
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-cds-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = PlcComponent.Current;
-var previousIo = IoComponent.Current;
-var previousEc = EcComponent.Current;
-var previousAlarm = AlarmComponent.Current;
+var previousPlc = ComponentBase.Find<IPlc>();
+var previousIo = ComponentBase.Find<IIoComponent>();
+var previousEc = ComponentBase.Find<IEcComponent>();
+var previousAlarm = ComponentBase.Find<IAlarmComponent>();
 try
 {
     // 0. 假 PLC、IO 表（0~19 号点）、内存 EC、报警
@@ -44,7 +47,7 @@ try
     io.Do.Load(csv);
     io.Ai.Load(csv);
     var plc = new FakePlc();
-    PlcComponent.Current = plc;
+    ComponentBase.Register<IPlc>(plc);
     _ = new EcComponent();
     var alarms = new AlarmComponent();
 
@@ -417,46 +420,55 @@ try
     Check(feedback.State == TankState.Error && !plc.Do(7) && Active(supplyValve, supplyValve.TimeoutAlarm),
         "供液阀到位超时报警：槽进出错、阀全关");
 
-    // 13. 推送：槽每拍比液位、状态、各信号，有变化（第一拍也算）才发 Changed；
-    // 推送桥换成 TankDto（token 是槽的全路径，留存），信号带名字和各自的触发状态，没配的是 null
-    var pushed = LoadTank("Tank16", null, [("LL", 10, true), ("H", 11, true)], fill: [(9, -1)], drain: [], supply: []);
+    // 13. 推送：槽跟着它上面的 IPA 模块推（IpaDto：IPA 的状态 + 下面各槽的 TankDto，token 是模块名，留存），
+    //     IPA 每拍比一次，有变化（第一拍也算）才推；槽的信号带名字和各自的触发状态，没配的是 null
+    var ipa = LoadIpa("Tank16", [("LL", 10, true), ("H", 11, true)], fill: [(9, -1)]);
+    var pushed = ipa.FindChild<SmokeTank>("Tank16")!;
+    Check(ipa.Tanks.Count == 1 && ReferenceEquals(ipa.Tanks[0], pushed) && ComponentBase.FindAll<ISupplyModule>().Single() == ipa,
+        "IPA 认出下面的槽；按 ISupplyModule 找得到 IPA");
     Check(pushed.LL is not null && pushed.H is not null && pushed.L is null && pushed.HH is null && pushed.Overfill is null,
         "槽给出配了的信号，没挂的是 null");
-    int changes = 0;
-    pushed.Changed += () => changes++;
-    TankPublisher.Bind([pushed]);
-    var received = new List<TankDto>();
-    using var subscription = EventBus.Register<TankDto>(pushed.FullPath, dto => received.Add(dto));
+    var received = new List<IpaDto>();
+    using var subscription = EventBus.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
     plc.SetDi(10, true);
     plc.SetDi(11, false);
-    pushed.Tick();
-    Check(changes == 1 && received.Count == 1, "第一拍：通知一次、推一条");
-    var first = received[0];
+    ComponentBase.Register<IMapperComponent>(null);
+    ipa.Tick();
+    Check(received.Count == 0, "没装映射组件：不推（开机时映射组件是必配的）");
+    var mapper = new MapperComponent();
+    ipa.Tick();
+    Check(received.Count == 1 && received[0].Module == "IPA" && received[0].State == ModuleState.NotInit && received[0].Tanks.Count == 1,
+        "第一拍：推一条，带 IPA 的名字、状态和下面的槽");
+    var first = received[0].Tanks[0];
     Check(first.Path == "CDS.IPA.Tank16" && first.Level == (int)TankLevel.L && first.State == (int)TankState.Idle,
-        "推的是槽的全路径、液位、状态");
+        "槽带全路径、液位、状态");
     Check(first.LL is not null && first.LL.Name == "LL" && first.LL.IsActive == true
         && first.H is not null && first.H.Name == "H" && first.H.IsActive == false, "配了的信号带名字和各自的触发状态");
     Check(first.L is null && first.HH is null && first.Overfill is null, "没配的信号是 null（界面不画）");
-    pushed.Tick();
-    pushed.Tick();
-    Check(changes == 1 && received.Count == 1, "没变化：不通知、不推");
+    ipa.Tick();
+    ipa.Tick();
+    Check(received.Count == 1, "没变化：不推");
     plc.SetDi(11, true);
-    pushed.Tick();
-    Check(received.Count == 2 && received[1].Level == (int)TankLevel.H && received[1].H!.IsActive == true, "信号变了：推一条新的");
+    ipa.Tick();
+    Check(received.Count == 2 && received[1].Tanks[0].Level == (int)TankLevel.H && received[1].Tanks[0].H!.IsActive == true, "信号变了：推一条新的");
     plc.IsConnected = false;
-    pushed.Tick();
-    Check(received.Count == 3 && received[2].LL!.IsActive is null && received[2].H!.IsActive is null && received[2].Level == (int)TankLevel.Unknown,
-        "信号读不到：推 null（界面画不知道色）");
+    ipa.Tick();
+    Check(received.Count == 3 && received[2].Tanks[0].LL!.IsActive is null && received[2].Tanks[0].H!.IsActive is null
+        && received[2].Tanks[0].Level == (int)TankLevel.Unknown, "信号读不到：推 null（界面画不知道色）");
     plc.IsConnected = true;
-    pushed.Tick();
-    Check(received.Count == 4 && received[3].Level == (int)TankLevel.H, "读回来了：再推一条");
+    ipa.Tick();
+    Check(received.Count == 4 && received[3].Tanks[0].Level == (int)TankLevel.H, "读回来了：再推一条");
     Check(pushed.Fill().IsSuccess && pushed.State == TankState.Ready && received.Count == 4, "补液（H 已经亮了）直接就绪：在扫描外变的，当场不推");
-    pushed.Tick();
-    Check(changes == 5 && received.Count == 5 && received[4].State == (int)TankState.Ready, "状态变了：下一拍推");
-    TankDto? late = null;
-    using (EventBus.Register<TankDto>(pushed.FullPath, dto => late = dto))
+    ipa.Tick();
+    Check(received.Count == 5 && received[4].Tanks[0].State == (int)TankState.Ready, "槽的状态变了：下一拍推");
+    Check(ipa.InitModule() is not null && ipa.State == ModuleState.Idle && received.Count == 5, "IPA 初始化（功能还没做）：直接进空闲");
+    ipa.Tick();
+    Check(received.Count == 6 && received[5].State == ModuleState.Idle, "IPA 自己的状态变了：也推");
+    IpaDto? late = null;
+    using (EventBus.Register<IpaDto>(ipa.Name, dto => late = dto))
     {
-        Check(late is not null && late.State == (int)TankState.Ready, "留存：后打开的页面一订上就拿到最新一条");
+        Check(late is not null && late.State == ModuleState.Idle && late.Tanks[0].State == (int)TankState.Ready,
+            "留存：后打开的页面一订上就拿到最新一条");
     }
 
     // 14. AI 液位计：LL～Overfill 都挂 AI 液位信号、读同一个 AI（0 号），触发值 5 / 6 / 18 / 20 / 22 L；
@@ -501,16 +513,14 @@ try
     Check(meter.Level == TankLevel.L, "从下面涨到 5.95 L：还没到 L（要到 6 L）");
     Meter(6.0);
     Check(meter.Level == TankLevel.Normal, "涨到 6 L：到了 L");
-    int meterChanges = 0;
-    meter.Changed += () => meterChanges++;
     foreach (var liters in new[] { 5.85, 6.05, 5.81, 5.95, 5.82 })
     {
         Meter(liters);
+        Check(meter.Level == TankLevel.Normal, $"在 5.8～6 L 之间来回晃（{liters} L）：一直算到了 L，液位不跳");
     }
 
-    Check(meter.Level == TankLevel.Normal && meterChanges == 0, "在 5.8～6 L 之间来回晃：一直算到了 L，液位不跳、不推");
     Meter(5.79);
-    Check(meter.Level == TankLevel.L && meterChanges == 1, "掉到 5.8 L 以下：才算没到 L");
+    Check(meter.Level == TankLevel.L, "掉到 5.8 L 以下：才算没到 L");
     var lowSignal = meter.FindChild<AiLevelComponent>("L")!;
     lowSignal.Tolerance = 0;
     Meter(6.05);
@@ -567,15 +577,13 @@ try
     meter.Tick();
     Check(meter.State == TankState.Idle && !plc.Do(11), "掉到 4.8 L 以下满排空延时：关排液阀、回空闲");
 
-    // 推送：AI 液位信号跟 DI 信号一样带节点名和触发状态，界面信号灯照旧
-    TankPublisher.Bind([meter]);
-    var meterPushed = new List<TankDto>();
-    using var meterSubscription = EventBus.Register<TankDto>(meter.FullPath, dto => meterPushed.Add(dto));
+    // 推送：AI 液位信号跟 DI 信号一样转成带节点名和触发状态的信号（映射组件的规则），界面信号灯照旧
     Meter(7.3);
-    Check(meterPushed.Count == 1 && meterPushed[0].Level == (int)TankLevel.Normal
-        && meterPushed[0].LL!.Name == "LL" && meterPushed[0].LL!.IsActive == true
-        && meterPushed[0].L!.IsActive == true && meterPushed[0].H!.IsActive == false && meterPushed[0].Overfill is not null,
-        "推送：AI 液位信号带节点名和各自的触发状态");
+    var meterDto = mapper.Map<TankDto>(meter);
+    Check(meterDto.Level == (int)TankLevel.Normal
+        && meterDto.LL!.Name == "LL" && meterDto.LL!.IsActive == true
+        && meterDto.L!.IsActive == true && meterDto.H!.IsActive == false && meterDto.Overfill is not null,
+        "转成 TankDto：AI 液位信号带节点名和各自的触发状态");
 
     // 触发值没设（新生成的 EC 是 0）：当读不到；AiIndex 配成 -1：当没有这个点
     var unset = LoadTank("Tank21", null, [], [], [], [], levels: [("L", 0, 0), ("H", 0, 18), ("HH", -1, 20)]);
@@ -629,10 +637,10 @@ try
 }
 finally
 {
-    PlcComponent.Current = previousPlc;
-    IoComponent.Current = previousIo;
-    EcComponent.Current = previousEc;
-    AlarmComponent.Current = previousAlarm;
+    ComponentBase.Register<IPlc>(previousPlc);
+    ComponentBase.Register<IIoComponent>(previousIo);
+    ComponentBase.Register<IEcComponent>(previousEc);
+    ComponentBase.Register<IAlarmComponent>(previousAlarm);
     Directory.Delete(directory, recursive: true);
 }
 
@@ -657,6 +665,38 @@ static SmokeTank Load(string name, params (string Signal, int Di, bool Trigger)[
 static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, bool Trigger)[] signals,
     (int Do, int Di)[] fill, (int Do, int Di)[] drain, (int Do, int Di)[] supply,
     (string Signal, int Ai, double Trigger)[]? levels = null)
+{
+    var group = new ModuleConfig
+    {
+        Name = "CDS",
+        Children = [new ModuleConfig { Name = "IPA", Children = [TankNode(name, fillTo, signals, fill, drain, supply, levels)] }]
+    };
+    var loaded = (SmokeTank)ComponentLoader.Load([group]).Single();
+    NoDebounce(loaded, levels);
+    loaded.InitComponent();
+    return loaded;
+}
+
+// 槽装在 IPA 模块下面（sc 里 CDS → IPA → 槽，IPA 配了 Type）：推送跟着 IPA 走
+static SmokeIpa LoadIpa(string name, (string Signal, int Di, bool Trigger)[] signals, (int Do, int Di)[] fill)
+{
+    var group = new ModuleConfig
+    {
+        Name = "CDS",
+        Children =
+        [
+            new ModuleConfig { Name = "IPA", Type = typeof(SmokeIpa).FullName, Children = [TankNode(name, null, signals, fill, [], [], null)] },
+        ]
+    };
+    var ipa = (SmokeIpa)ComponentLoader.Load([group]).Single();
+    NoDebounce(ipa.FindChild<SmokeTank>(name)!, null);
+    ipa.InitComponent();
+    return ipa;
+}
+
+static ModuleConfig TankNode(string name, string? fillTo, (string Signal, int Di, bool Trigger)[] signals,
+    (int Do, int Di)[] fill, (int Do, int Di)[] drain, (int Do, int Di)[] supply,
+    (string Signal, int Ai, double Trigger)[]? levels)
 {
     var tank = new ModuleConfig { Name = name, Type = typeof(SmokeTank).FullName };
     if (fillTo is not null)
@@ -692,12 +732,12 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
         });
     }
 
-    var group = new ModuleConfig
-    {
-        Name = "CDS",
-        Children = [new ModuleConfig { Name = "IPA", Children = [tank] }]
-    };
-    var loaded = (SmokeTank)ComponentLoader.Load([group]).Single();
+    return tank;
+}
+
+// 防抖都设 0，一拍就认；AI 液位信号的触发值照给的摆上
+static void NoDebounce(SmokeTank loaded, (string Signal, int Ai, double Trigger)[]? levels)
+{
     foreach (var sensor in loaded.FindChildren<DiSensorComponent>())
     {
         sensor.DebounceMs = 0;
@@ -713,8 +753,6 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
     loaded.LevelSensorDebounceMs = 0;
     loaded.HighHighDebounceMs = 0;
     loaded.OverfillDebounceMs = 0;
-    loaded.InitComponent();
-    return loaded;
 }
 
 // 一个阀组：ValveGroupComponent 下面每个阀按 (DO 号, 到位 DI 号) 挂，到位 DI 号 -1 = 不挂 Feedback；一个阀都没有就不挂这个阀组
@@ -757,6 +795,18 @@ static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
     }
 
     tank.Children.Add(group);
+}
+
+/// <summary>
+/// 测试用的 IPA：顶替扫描线程推一拍（下面的槽跟着扫）
+/// </summary>
+[Component(description: "冒烟用的 IPA")]
+public sealed class SmokeIpa : IpaModule
+{
+    public void Tick()
+    {
+        OnScan();
+    }
 }
 
 /// <summary>

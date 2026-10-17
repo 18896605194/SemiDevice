@@ -1,6 +1,7 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -20,41 +21,52 @@ public class SequenceService : BaseService, ISequenceService
     /// </summary>
     private const string UnknownOperator = "Unknown";
 
-    public SequenceService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly ISequenceComponent? _library;
+
+    /// <summary>
+    /// EAP 的远程配方管理：Host 锁着时本地不让改
+    /// </summary>
+    private readonly IE30RecipeComponent? _e30Recipe;
+
+    public SequenceService()
     {
+        _library = ComponentBase.Find<ISequenceComponent>();
+        _e30Recipe = ComponentBase.Find<IE30RecipeComponent>();
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
     {
-        var library = SequenceComponent.Current;
-        if (library is null)
+        if (_library is null)
         {
             return NotInstalled();
         }
 
         var dto = new SequenceListDto
         {
-            Capacity = library.Capacity,
-            Items = library.List().Select(item => new SequenceSummaryDto { Index = item.Index, Name = item.Name }).ToList(),
+            Capacity = _library.Capacity,
+            Items = _library.List().Select(item => new SequenceSummaryDto { Index = item.Index, Name = item.Name }).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
 
     public Task<RpcResponse> GetAsync(SequenceIndexRequest request, CallContext context = default)
     {
-        var library = SequenceComponent.Current;
-        return library is null ? NotInstalled() : Reply(library.Get(request.Index));
-    }
-
-    public Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default)
-    {
-        var library = SequenceComponent.Current;
-        if (library is null)
+        if (_library is null)
         {
             return NotInstalled();
         }
 
-        var groups = library.StationGroups.Select(group => new SequenceStationGroupDto
+        return Reply(_library.Get(request.Index));
+    }
+
+    public Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default)
+    {
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        var groups = _library.StationGroups.Select(group => new SequenceStationGroupDto
         {
             Name = group.Name,
             Modules = group.Modules.ToList(),
@@ -66,26 +78,37 @@ public class SequenceService : BaseService, ISequenceService
 
     public Task<RpcResponse> CreateAsync(SequenceCreateRequest request, CallContext context = default)
     {
-        var library = SequenceComponent.Current;
-        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> RenameAsync(SequenceRenameRequest request, CallContext context = default)
     {
-        var library = SequenceComponent.Current;
-        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> DeleteAsync(SequenceDeleteRequest request, CallContext context = default)
     {
-        var library = SequenceComponent.Current;
-        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Delete(request.Index, OperatorOf(request.Operator)));
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        return LockedByHost() ?? Reply(_library.Delete(request.Index, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> SaveAsync(SequenceSaveRequest request, CallContext context = default)
     {
-        var library = SequenceComponent.Current;
-        if (library is null)
+        if (_library is null)
         {
             return NotInstalled();
         }
@@ -95,7 +118,7 @@ public class SequenceService : BaseService, ISequenceService
             step.Group ?? string.Empty,
             (step.Stations ?? []).Select(station => station ?? string.Empty),
             step.Recipe ?? string.Empty)).ToList();
-        return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
     }
 
     private static Task<RpcResponse> Reply(HandleResult result)
@@ -140,11 +163,16 @@ public class SequenceService : BaseService, ISequenceService
         return Task.FromResult(RpcResponse.Fail(ErrorCodes.SequenceNotInstalled, []));
     }
 
-    /// <summary>ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包；没锁返回 null。</summary>
-    private static Task<RpcResponse>? LockedByHost()
+    /// <summary>
+    /// ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包，没锁返回 null
+    /// </summary>
+    private Task<RpcResponse>? LockedByHost()
     {
-        return E30RecipeComponent.Current?.IsLocalEditLocked == true
-            ? Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []))
-            : null;
+        if (_e30Recipe is null || !_e30Recipe.IsLocalEditLocked)
+        {
+            return null;
+        }
+
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []));
     }
 }

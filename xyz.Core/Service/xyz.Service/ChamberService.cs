@@ -1,5 +1,6 @@
 ﻿using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
@@ -15,13 +16,22 @@ namespace xyz.Service;
 /// </summary>
 public class ChamberService : BaseService, IChamberService
 {
-    public ChamberService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly IRecipeComponent? _recipes;
+
+    private readonly IWaferManagerComponent? _wafers;
+
+    private readonly IJobManager? _jobs;
+
+    public ChamberService()
     {
+        _recipes = ComponentBase.Find<IRecipeComponent>();
+        _wafers = ComponentBase.Find<IWaferManagerComponent>();
+        _jobs = ComponentBase.Find<IJobManager>();
     }
 
     public Task<RpcResponse> HomeAsync(string module)
     {
-        var chamber = FindModule<BaseChamberModule>(module);
+        var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
@@ -32,7 +42,7 @@ public class ChamberService : BaseService, IChamberService
 
     public Task<RpcResponse> ResetAsync(string module)
     {
-        var chamber = FindModule<BaseChamberModule>(module);
+        var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
@@ -43,7 +53,7 @@ public class ChamberService : BaseService, IChamberService
 
     public Task<RpcResponse> AbortAsync(string module)
     {
-        var chamber = FindModule<BaseChamberModule>(module);
+        var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
@@ -56,7 +66,7 @@ public class ChamberService : BaseService, IChamberService
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         var module = request.Module ?? string.Empty;
-        var chamber = FindModule<BaseChamberModule>(module);
+        var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
@@ -70,11 +80,10 @@ public class ChamberService : BaseService, IChamberService
 
         // 配方要在工艺配方库里：被删了、改名了的配方不让起（没装库只有名字，腔体会回拿不到配方步骤）；
         // 起工艺带的是这一刻的配方快照，跑的过程中库里改了也不影响这一次
-        var library = RecipeComponent.Current;
         RecipeData? snapshot = null;
-        if (library is not null)
+        if (_recipes is not null)
         {
-            snapshot = library.Find(recipe);
+            snapshot = _recipes.Find(recipe);
             if (snapshot is null)
             {
                 return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberRecipeNotFound, [module, recipe]));
@@ -82,11 +91,14 @@ public class ChamberService : BaseService, IChamberService
         }
 
         // 腔里的片正在 Job 里：工艺归 Job 起，手动不能插一脚
-        var wafer = WaferManagerComponent.Current?.Get(chamber.Name, 1);
-        string? owner = wafer is null ? null : JobManager.Current?.OwnerOf(wafer.Id);
-        if (wafer is not null && owner is not null)
+        var wafer = _wafers?.Get(chamber.Name, 1);
+        if (wafer is not null)
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberWaferOwned, [module, wafer.WaferId, owner]));
+            string? owner = _jobs?.OwnerOf(wafer.Id);
+            if (owner is not null)
+            {
+                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberWaferOwned, [module, wafer.WaferId, owner]));
+            }
         }
 
         // 配方对不对得上这个腔体（Type、选的摆臂和药液）、腔体此刻能不能起，都由腔体自己查
@@ -107,46 +119,46 @@ public class ChamberService : BaseService, IChamberService
     public Task<RpcResponse> AxisHomeAsync(ChamberDeviceRequest request)
     {
         return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Home,
-            (BaseChamberModule chamber, out ModuleOperation? operation) => chamber.AxisHome(request.Device ?? string.Empty, out operation));
+            (IChamber chamber, out ModuleOperation? operation) => chamber.AxisHome(request.Device ?? string.Empty, out operation));
     }
 
     public Task<RpcResponse> AxisMoveAsync(ChamberAxisMoveRequest request)
     {
         return RunDeviceAction(request.Module, request.Axis, ChamberDeviceAction.Move,
-            (BaseChamberModule chamber, out ModuleOperation? operation) =>
+            (IChamber chamber, out ModuleOperation? operation) =>
                 chamber.AxisMove(request.Axis ?? string.Empty, request.Position, request.Speed, out operation));
     }
 
     public Task<RpcResponse> AxisStepAsync(ChamberAxisStepRequest request)
     {
         return RunDeviceAction(request.Module, request.Axis, ChamberDeviceAction.Step,
-            (BaseChamberModule chamber, out ModuleOperation? operation) =>
+            (IChamber chamber, out ModuleOperation? operation) =>
                 chamber.AxisStep(request.Axis ?? string.Empty, request.Distance, request.Speed, out operation));
     }
 
     public Task<RpcResponse> AxisResetAsync(ChamberDeviceRequest request)
     {
         return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Reset,
-            (BaseChamberModule chamber, out ModuleOperation? operation) => chamber.AxisReset(request.Device ?? string.Empty, out operation));
+            (IChamber chamber, out ModuleOperation? operation) => chamber.AxisReset(request.Device ?? string.Empty, out operation));
     }
 
     public Task<RpcResponse> CylinderUpAsync(ChamberDeviceRequest request)
     {
         return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Up,
-            (BaseChamberModule chamber, out ModuleOperation? operation) => chamber.MoveCylinder(request.Device ?? string.Empty, true, out operation));
+            (IChamber chamber, out ModuleOperation? operation) => chamber.MoveCylinder(request.Device ?? string.Empty, true, out operation));
     }
 
     public Task<RpcResponse> CylinderDownAsync(ChamberDeviceRequest request)
     {
         return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Down,
-            (BaseChamberModule chamber, out ModuleOperation? operation) => chamber.MoveCylinder(request.Device ?? string.Empty, false, out operation));
+            (IChamber chamber, out ModuleOperation? operation) => chamber.MoveCylinder(request.Device ?? string.Empty, false, out operation));
     }
 
     /// <summary>点动：发起了就回 Ok，之后按住期间续、松手发停止。</summary>
     public Task<RpcResponse> AxisJogAsync(ChamberAxisJogRequest request)
     {
         return RunDeviceAction(request.Module, request.Axis, ChamberDeviceAction.Jog,
-            (BaseChamberModule chamber, out ModuleOperation? operation) =>
+            (IChamber chamber, out ModuleOperation? operation) =>
             {
                 operation = null;
                 return chamber.AxisJog(request.Axis ?? string.Empty, request.Speed);
@@ -157,7 +169,7 @@ public class ChamberService : BaseService, IChamberService
     public Task<RpcResponse> AxisStopAsync(ChamberDeviceRequest request)
     {
         return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Stop,
-            (BaseChamberModule chamber, out ModuleOperation? operation) =>
+            (IChamber chamber, out ModuleOperation? operation) =>
             {
                 operation = null;
                 return chamber.AxisStop(request.Device ?? string.Empty);
@@ -171,7 +183,7 @@ public class ChamberService : BaseService, IChamberService
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         var module = request.Module ?? string.Empty;
-        var chamber = FindModule<BaseChamberModule>(module);
+        var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
@@ -184,7 +196,7 @@ public class ChamberService : BaseService, IChamberService
     }
 
     /// <summary>发起设备动作：out 是挂上的操作（停止、点动没有）。</summary>
-    private delegate ChamberDeviceActionResult StartAction(BaseChamberModule chamber, out ModuleOperation? operation);
+    private delegate ChamberDeviceActionResult StartAction(IChamber chamber, out ModuleOperation? operation);
 
     /// <summary>
     /// 发设备动作并回包：找不到设备、参数不对、指令没发出去各回各的码；状态不允许或已有动作在途走 module.action_rejected；
@@ -195,7 +207,7 @@ public class ChamberService : BaseService, IChamberService
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         module ??= string.Empty;
         part ??= string.Empty;
-        var chamber = FindModule<BaseChamberModule>(module);
+        var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
@@ -229,12 +241,12 @@ public class ChamberService : BaseService, IChamberService
     /// </summary>
     public Task<RpcResponse> OnlineAsync(string module)
     {
-        return Online<BaseChamberModule>(module);
+        return Online<IChamber>(module);
     }
 
     public Task<RpcResponse> OfflineAsync(string module)
     {
-        return Offline<BaseChamberModule>(module);
+        return Offline<IChamber>(module);
     }
 
     /// <summary>
@@ -242,7 +254,7 @@ public class ChamberService : BaseService, IChamberService
     /// </summary>
     public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = Roots.OfType<BaseChamberModule>()
+        var dto = ComponentBase.FindAll<IChamber>()
             .Where(chamber => string.IsNullOrWhiteSpace(module)
                               || string.Equals(chamber.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(chamber => chamber.CreateStateDto())

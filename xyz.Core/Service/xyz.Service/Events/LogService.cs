@@ -1,7 +1,9 @@
 ﻿using xyz.Tools;
 using ProtoBuf.Grpc;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -14,9 +16,16 @@ namespace xyz.Service.Events;
 /// </summary>
 public class LogService : ILogService
 {
+    private readonly ILogComponent? _log;
+
+    public LogService()
+    {
+        _log = ComponentBase.Find<ILogComponent>();
+    }
+
     public Task<RpcResponse> GetRecentAsync(LogQuery query, CallContext context = default)
     {
-        var logs = LogHistory.Snapshot();
+        var logs = _log?.Recent() ?? [];
         var count = query.Count;
         if (count > 0 && logs.Count > count)
         {
@@ -37,7 +46,7 @@ public class LogService : ILogService
             {
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
-                var configured = LogComponent.Current?.HistoryQueryMaxCount ?? 0;
+                var configured = _log?.HistoryQueryMaxCount ?? 0;
                 if (configured <= 0)
                 {
                     configured = 1000;
@@ -94,15 +103,14 @@ public class LogService : ILogService
     }
 
     /// <summary>
-    /// 客户端日志显示条数：读 sc.xml 的 Log 节点（LogComponent.Current），没装或配得不对时给默认值。
+    /// 客户端日志显示条数：读 sc.xml 的 Log 节点（ILogComponent），没装或配得不对时给默认值。
     /// </summary>
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
     {
-        var component = LogComponent.Current;
         var settings = new LogSettingsDto
         {
-            RealtimeDisplayMaxCount = PositiveOr(component?.RealtimeDisplayMaxCount, LogSettingsDto.DefaultRealtimeDisplayMaxCount),
-            LogBarDisplayMaxCount = PositiveOr(component?.LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
+            RealtimeDisplayMaxCount = PositiveOr(_log?.RealtimeDisplayMaxCount, LogSettingsDto.DefaultRealtimeDisplayMaxCount),
+            LogBarDisplayMaxCount = PositiveOr(_log?.LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
         };
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));

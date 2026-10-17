@@ -135,23 +135,8 @@ try
     var sequences = libraryRoots.OfType<SequenceComponent>().Single();
     var recipes = libraryRoots.OfType<RecipeComponent>().Single();
     recipes.Bind(modules);
-    ModuleConfig Module(string name)
-    {
-        return new ModuleConfig { Name = name, Type = "Probe" };
-    }
-
-    ModuleConfig Group(string name, params ModuleConfig[] children)
-    {
-        return new ModuleConfig { Name = name, Children = children.ToList() };
-    }
-
-    sequences.Bind(
-        [
-            Group("LoadPort", Module("LP1"), Module("LP2")),
-            Group("_robot", Module("Robot1")),
-            Group("Chamber", Module("PM1"), Module("PM2")),
-        ],
-        modules);
+    sequences.Bind(modules);
+    Probe.Tree(modules); // 上面装配器装过两回，整棵树换回这台假机器（服务按接口在树上找模块）
     Check(recipes.Create(1, "R1", "Smoke").IsSuccess && recipes.Create(2, "R2", "Smoke").IsSuccess, "建两个工艺配方");
 
     SequenceStep Step(string group, string recipe, params string[] stations)
@@ -614,7 +599,7 @@ try
     }
 
     // 本地建 Job 走 Job 服务，跟界面一样（先建 PJ、再建 CJ，跟 Host 同一套方法）；回包翻回 HandleResult，跟别的命令一样查
-    var jobService = new JobService(modules);
+    var jobService = new JobService();
     HandleResult Create(string lot, string port, bool controlJobAutoStart, params (int Slot, string Sequence)[] slots)
     {
         jobs.ControlJobAutoStart = controlJobAutoStart;
@@ -1419,7 +1404,7 @@ try
           && PjOf("PJ-BAD") is null && events.WaitFor("PJ PJ-BAD #18") && events.WaitFor("CJ CJ-BAD #11"),
         "Host 停掉 CJ：排队的 PJ 删掉（#18），CJ 停完（#11）；没定口的 CJ 不等载具拿走就删");
     Check(materialAlarms.ResetAll() >= 1 && !RunUntil(MaterialAlarm, 5), "收场以后复位就清了，不再报");
-    AlarmComponent.Current = null;
+    ComponentBase.Register<IAlarmComponent>(null);
 
     // Host 不给槽号、料已经在而且能取片：当场定片，做载具上全部有片的槽
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-ALL", [], "SEQ_A", null, "CAR-B")).IsSuccess
@@ -1441,7 +1426,7 @@ try
     Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(IsProcessing) == true && !transfers.IsRobotInTransfer("Robot1")),
         "跑到有片在加工、机械手闲着");
     Check(machine.State == SystemState.AutoRunning, "有在跑的 Job：整机是自动运行");
-    var equipment = new EquipmentService(modules);
+    var equipment = new EquipmentService();
     var stop = equipment.StopAsync(new RpcRequest()).Result;
     Check(stop.Success && !transfers.IsAutoDispatch && machine.State == ModuleState.Aborting,
         "整机停止：关自动派单，整机停止中；在给 Job 做工艺的腔体不在这里直接发中止");
@@ -1499,7 +1484,7 @@ try
     Check(list.ControlJobs.Count == 0 && list.ProcessJobs.Count == 0, "查全貌：载具移走后返回当前空的 CJ / PJ 集合");
 
     LoadCarrier(lp1, 1);
-    var transferService = new TransferService(modules);
+    var transferService = new TransferService();
     var manual = Pump(transferService.TransferAsync(new TransferRequestDto { Source = "LP1", SourceSlot = 1, Target = "PM1", TargetSlot = 1 }));
     Check(manual.Success && manual.DeserializeData<TransferDoneDto>().Robot == "Robot1" && ledger.Get("PM1", 1) is not null,
         "手动传片走搬运管理：搬完回机械手和手");
@@ -1670,10 +1655,23 @@ sealed class ScanProbe : ComponentBase
 // 名字、路径：生产里由 ComponentLoader 经内部 setter 填。
 static class Probe
 {
-    public static void Name(ComponentBase component, string name)
+    // group：sc.xml 里套在哪个分组节点下（全路径的第一层，流程配方按它分组），顶层直接装的不给
+    public static void Name(ComponentBase component, string name, string? group = null)
     {
+        string path = name;
+        if (group is not null)
+        {
+            path = group + "." + name;
+        }
+
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
+    }
+
+    // 整棵组件树：生产里由 ComponentLoader 装好时填
+    public static void Tree(params ComponentBase[] roots)
+    {
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Roots))!.SetValue(null, roots);
     }
 
     public static void Enabled(ComponentBase component, bool enabled)
@@ -1817,7 +1815,7 @@ sealed class SmokePort : BaseLoadPortModule
 {
     public SmokePort(string name)
     {
-        Probe.Name(this, name);
+        Probe.Name(this, name, "LoadPort");
         Probe.Carrier(this, PodPresenceSource.Event);
         AddChild(new SmokePortShell());
     }
@@ -1855,7 +1853,7 @@ sealed class SmokeChamber : BaseChamberModule
 {
     public SmokeChamber(string name)
     {
-        Probe.Name(this, name);
+        Probe.Name(this, name, "Chamber");
         Type = "A";
     }
 

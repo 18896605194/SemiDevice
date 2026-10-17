@@ -2,6 +2,7 @@
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 
@@ -11,24 +12,24 @@ namespace xyz.Modules;
 /// 调度引擎：从任务表拿任务执行，做完记回任务表。Job 是标准件，派单规则全在平台，机型不另写、不换 Type。
 /// </summary>
 [Component(description: "调度引擎：从任务表拿任务执行（站内任务交给站点、取放交给搬运管理），做完记回任务表")]
-public class SchedulerComponent : ComponentBase
+public class SchedulerComponent : ComponentBase, ISchedulerComponent
 {
     /// <summary>
     /// 搬运管理
     /// </summary>
-    private TransferManager? _transfers;
+    private ITransferManager? _transfers;
     /// <summary>
     /// 晶圆账
     /// </summary>
-    private WaferManagerComponent? _waferManager;
+    private IWaferManagerComponent? _waferManager;
 
     /// <summary>
     /// 派这一拍的任务。rows 是有许可的行，按优先级排好（CJ 队列先后、PJ 在 CJ 里的先后、PJ 里的投片顺序）。Manual 下 Job 组件不调。
     /// </summary>
-    public void Dispatch(IReadOnlyList<TaskRow> rows, TaskComponent tasks)
+    public void Dispatch(IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
     {
-        _transfers = TransferManager.Current;
-        _waferManager = WaferManagerComponent.Current;
+        _transfers = ComponentBase.Find<ITransferManager>();
+        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
         if (_transfers is null || _waferManager is null)
         {
             return;
@@ -71,7 +72,7 @@ public class SchedulerComponent : ComponentBase
     /// 按每行当前的 WaferTask 收执行进度。取片确认后转到放片任务，沿用已占好目标的搬运操作；
     /// 站内操作收尾后完成这一格。执行记录只挂在当前任务上。
     /// </summary>
-    public void Collect(TaskComponent tasks)
+    public void Collect(ITaskComponent tasks)
     {
         foreach (var row in tasks.Rows)
         {
@@ -105,7 +106,7 @@ public class SchedulerComponent : ComponentBase
     }
 
     /// <summary>取片后开始放片格；没动手就失败退回等待，动过手才失败则当前格记出错。</summary>
-    private static void CollectTransfer(TaskRow row, WaferTask task, TransferRoutine operation, TaskComponent tasks)
+    private static void CollectTransfer(TaskRow row, WaferTask task, TransferRoutine operation, ITaskComponent tasks)
     {
         if (task.Kind == StationTaskAction.Pick && operation.HasPicked)
         {
@@ -156,11 +157,11 @@ public class SchedulerComponent : ComponentBase
     /// <summary>
     /// 启动站点内的任务
     /// </summary>
-    private void StartStationTask(TaskRow row, WaferTask task, TaskComponent tasks)
+    private void StartStationTask(TaskRow row, WaferTask task, ITaskComponent tasks)
     {
         var location = row.ExpectedLocation;
         var station = location.IsArm ? null : Station(location.Module);
-        if (station is not BaseModule module || !IsOnline(module))
+        if (station is not IModule module || !IsOnline(module))
         {
             return;
         }
@@ -188,7 +189,7 @@ public class SchedulerComponent : ComponentBase
     /// <param name="task"></param>
     /// <param name="tasks"></param>
     /// <returns></returns>
-    private bool StartTransfer(TaskRow row, WaferTask task, TaskComponent tasks)
+    private bool StartTransfer(TaskRow row, WaferTask task, ITaskComponent tasks)
     {
         var source = row.ExpectedLocation;
         var pick = task.Kind == StationTaskAction.Pick ? task : null;
@@ -249,7 +250,7 @@ public class SchedulerComponent : ComponentBase
     private bool IsStationReady(string name)
     {
         var station = Station(name);
-        if (station is not BaseModule module || !module.IsEnabled || !IsOnline(module) || !station.CanPrepare)
+        if (station is not IModule module || !module.IsEnabled || !IsOnline(module) || !station.CanPrepare)
         {
             return false;
         }
@@ -262,7 +263,7 @@ public class SchedulerComponent : ComponentBase
     /// 调度用到的站点（LoadPort、腔体……）和机械手都得在线：下线的不派新任务，已经在做的照常做完；上线了下一拍接着派。
     /// 手动页、手动取放不看这个，下线就是留给人手动操作的。
     /// </summary>
-    private static bool IsOnline(BaseModule module)
+    private static bool IsOnline(IModule module)
     {
         return module.Mode == ModuleMode.Online;
     }
@@ -297,7 +298,7 @@ public class SchedulerComponent : ComponentBase
             return false;
         }
 
-        return robot is BaseModule module && module.IsEnabled && IsOnline(module);
+        return robot.IsEnabled && IsOnline(robot);
     }
 
     #endregion
@@ -307,7 +308,7 @@ public class SchedulerComponent : ComponentBase
     /// 目标槽和机械手在启动时一起占住，避免取片后没有位置可放。
     /// 只放片（片在机械手手上）就用拿着片的那台。
     /// </summary>
-    private bool StartTransfer(TaskRow row, WaferTask task, (string Module, int Slot, bool IsArm) source, string target, int targetSlot, TaskComponent tasks)
+    private bool StartTransfer(TaskRow row, WaferTask task, (string Module, int Slot, bool IsArm) source, string target, int targetSlot, ITaskComponent tasks)
     {
         var transfers = _transfers!;
         foreach (var robot in transfers.Robots)

@@ -3,7 +3,7 @@
 namespace xyz.Components.Interfaces;
 
 
-public interface IRecipeComponent
+public interface IRecipeLibrary
 {
     /// <summary>库里全部工艺配方的名字，按编号从小到大。</summary>
     IReadOnlyList<string> RecipeNames { get; }

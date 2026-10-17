@@ -7,6 +7,7 @@ using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Database.DbProvider;
 
@@ -16,13 +17,11 @@ namespace xyz.Components.Components;
 /// 数据曲线：每个采样周期（默认 1 秒）
 /// </summary>
 [Component(description: "数据曲线（每秒采样入库，按名字、按时间查询）")]
-public class DataChartComponent : ComponentBase
+public class DataChartComponent : ComponentBase, IDataChartComponent
 {
-    public static DataChartComponent? Current { get; set; }
-
     public DataChartComponent()
     {
-        Current = this;
+        Register<IDataChartComponent>(this);
     }
 
     #region SC
@@ -113,6 +112,14 @@ public class DataChartComponent : ComponentBase
     private string? _lastFault;
 
     /// <summary>
+    /// 开机（开始扫描之前）：照整棵组件树定信号表、开写库管道
+    /// </summary>
+    public override void Bind()
+    {
+        Bind(Roots);
+    }
+
+    /// <summary>
     /// 装配完、开始扫描之前调一次：照组件树定信号表、开写库管道
     /// </summary>
     public void Bind(IReadOnlyList<ComponentBase> roots)
@@ -194,7 +201,7 @@ public class DataChartComponent : ComponentBase
         }
 
         var svs = (GemCollectors.Current?.Sv.NumericItems() ?? []).ToLookup(sv => sv.Owner);
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         bool warnedNoIo = false;
         var levelMeters = new HashSet<int>();
         foreach (var component in CollectorHelper.Walk(roots))
@@ -205,7 +212,7 @@ public class DataChartComponent : ComponentBase
             }
 
             // 一个液位计（AI）挂在槽的几个液位点上：只记第一个点那一列，不重复记几遍
-            if (component is AiLevelComponent level && !levelMeters.Add(level.AiIndex))
+            if (component is IAiLevel level && !levelMeters.Add(level.AiIndex))
             {
                 continue;
             }
@@ -262,7 +269,7 @@ public class DataChartComponent : ComponentBase
 
             // DI 组件（到位反馈、Safety、Monitor 这些）叫 Door__Opened，不再在后面加一段 __Di
             string path = $"{component.FullPath}.{property.Name[..^"Index".Length]}";
-            if (component is DiSensorComponent)
+            if (component is IDiSensor && property.Name == "DiIndex")
             {
                 path = component.FullPath;
             }
@@ -298,28 +305,46 @@ public class DataChartComponent : ComponentBase
     /// <summary>
     /// 组件绑的一个 IO 点：地址、单位、说明从点表拿；点表里没有这个点就记告警，这一列会一直是空的。
     /// </summary>
-    private DataSignal IoSignal(IoComponent io, string name, string type, int index)
+    private DataSignal IoSignal(IIoComponent io, string name, string type, int index)
     {
-        var point = type switch
+        IoPoint? point;
+        switch (type)
         {
-            "DI" => io.Di.Find(index),
-            "DO" => io.Do.Find(index),
-            "AI" => io.Ai.Find(index),
-            _ => io.Ao.Find(index),
-        };
+            case "DI":
+                point = io.Di.Find(index);
+                break;
+            case "DO":
+                point = io.Do.Find(index);
+                break;
+            case "AI":
+                point = io.Ai.Find(index);
+                break;
+            default:
+                point = io.Ao.Find(index);
+                break;
+        }
 
         if (point is null)
         {
             LogHelper.Warn(Name, $"sc.xml 里 {name} 绑了 {type}{index}，点表里没有这个点，数据曲线这一列会一直是空的");
         }
 
-        Func<double?> read = type switch
+        Func<double?> read;
+        switch (type)
         {
-            "DI" => () => io.TryReadDi(index, out bool on) ? on ? 1 : 0 : null,
-            "DO" => () => io.TryReadDo(index, out bool on) ? on ? 1 : 0 : null,
-            "AI" => () => io.TryReadAi(index, out double value) ? value : null,
-            _ => () => io.TryReadAo(index, out double value) ? value : null,
-        };
+            case "DI":
+                read = () => io.TryReadDi(index, out bool on) ? on ? 1 : 0 : null;
+                break;
+            case "DO":
+                read = () => io.TryReadDo(index, out bool on) ? on ? 1 : 0 : null;
+                break;
+            case "AI":
+                read = () => io.TryReadAi(index, out double value) ? value : null;
+                break;
+            default:
+                read = () => io.TryReadAo(index, out double value) ? value : null;
+                break;
+        }
 
         string description = point is null ? string.Empty : $"{point.Name} {point.Description}".Trim();
         return new DataSignal(name, type is "DI" or "DO", type, $"{type}{index}", point?.Unit ?? string.Empty, description, read);
@@ -611,4 +636,12 @@ public class DataChartComponent : ComponentBase
     }
 
     #endregion
+
+    /// <summary>
+    /// 宿主退出：停采样，把攒着的最后一批写进库
+    /// </summary>
+    public override void OnStopping()
+    {
+        StopSampling();
+    }
 }

@@ -12,7 +12,7 @@ namespace xyz.Components.Components;
 /// 载具管理
 /// </summary>
 [Component(description: "载具管理（SEMI E87）：载具 ID / 槽图跟 Host 核对、端口搬运状态，S3 报文")]
-public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
+public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, IE87Component
 {
     #region DV 代码（事件带的数据）
 
@@ -198,7 +198,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     private readonly object _gate = new();
     private readonly List<E87LoadPort> _ports = [];
     private readonly List<Action> _later = [];
-    private E30Component? _gem;
+    private IE30Component? _gem;
     private Action<string>? _materialVerified;
     private Timer? _poll;
 
@@ -208,7 +208,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     /// 接到链路和设备上（EAP 组件在链路打开之前调）：每个 LoadPort 建一个端口对象（PortID 按给的先后编），挂上 E87 回调和 E84 反查口，
     /// 登记 S3 处理方；materialVerified 是槽图认定（料到了）时通知的（E90 据此建片对象）。开始按 EC PortPollMs 查端口状态。
     /// </summary>
-    public void Attach(HsmsComponent link, E30Component gem, IReadOnlyList<ILoadPort> ports, Action<string>? materialVerified)
+    public void Attach(IHsmsComponent link, IE30Component gem, IReadOnlyList<ILoadPort> ports, Action<string>? materialVerified)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -606,7 +606,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider
     /// <summary>片号表 L[槽数]{L[2]{批次号, 片号}}：槽图认定后按晶圆账报（Host 给的片号已经写进账了）；没认定报空表。</summary>
     private static SecsItem ContentMapItem(E87LoadPort port)
     {
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (port.SlotMapMachine.State != E87SlotMapState.Verified || ledger is null)
         {
             return SecsItem.L();

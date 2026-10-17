@@ -270,13 +270,23 @@ public class ProcessRecipeViewModel : BaseViewModel
     /// </summary>
     public bool IsPageHintVisible => !IsReady;
 
-    public string PageHint => PageState switch
+    public string PageHint
     {
-        ProcessRecipePageState.Offline => L10n.Get("recipe.process.offline"),
-        ProcessRecipePageState.Loading => L10n.Get("recipe.process.loading"),
-        ProcessRecipePageState.NotInstalled => L10n.Get(ErrorCodes.ProcessRecipeNotInstalled),
-        _ => string.Empty,
-    };
+        get
+        {
+            switch (PageState)
+            {
+                case ProcessRecipePageState.Offline:
+                    return L10n.Get("recipe.process.offline");
+                case ProcessRecipePageState.Loading:
+                    return L10n.Get("recipe.process.loading");
+                case ProcessRecipePageState.NotInstalled:
+                    return L10n.Get(ErrorCodes.ProcessRecipeNotInstalled);
+                default:
+                    return string.Empty;
+            }
+        }
+    }
 
     private ProcessRecipeDialogKind _dialog;
 

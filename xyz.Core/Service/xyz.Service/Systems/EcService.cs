@@ -1,7 +1,9 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -16,17 +18,27 @@ namespace xyz.Service.Systems;
 /// </summary>
 public class EcService : IEcService
 {
+    private readonly IEcComponent? _ec;
+
+    public EcService()
+    {
+        _ec = ComponentBase.Find<IEcComponent>();
+    }
+
     public Task<RpcResponse> GetDefinitionsAsync(RpcRequest request, CallContext context = default)
     {
-        var items = EcComponent.Current?.Snapshot() ?? [];
-        var dtos = items.Select(item => item.Value.ToDto(item.Path)).ToList();
+        var dtos = new List<EcItemDto>();
+        if (_ec is not null)
+        {
+            dtos = _ec.Snapshot().Select(item => _ec.CreateDto(item.Path, item.Value)).ToList();
+        }
+
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dtos)));
     }
 
     public Task<RpcResponse> SetValueAsync(EcSetRequest request, CallContext context = default)
     {
-        var ec = EcComponent.Current;
-        if (ec is null)
+        if (_ec is null)
         {
             return Fail(ErrorCodes.EcNotInstalled);
         }
@@ -41,8 +53,8 @@ public class EcService : IEcService
 
         string path = key[..dot];
         string name = key[(dot + 1)..];
-        string old = ec.Get(path, name);
-        var result = ec.TrySet(path, name, request.Value ?? string.Empty, out var item);
+        string old = _ec.Get(path, name);
+        var result = _ec.TrySet(path, name, request.Value ?? string.Empty, out var item);
         if (item is null)
         {
             return Fail(ErrorCodes.EcNotFound, key);
@@ -63,7 +75,7 @@ public class EcService : IEcService
                 break;
         }
 
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(item.ToDto(path))));
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_ec.CreateDto(path, item))));
     }
 
     private static Task<RpcResponse> Fail(string code, params string[] args)

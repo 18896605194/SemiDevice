@@ -163,13 +163,20 @@ public sealed class SvCollector
     {
         try
         {
-            double? value = declaration.Property.GetValue(declaration.Owner) switch
+            object? raw = declaration.Property.GetValue(declaration.Owner);
+            double? value = null;
+            if (raw is bool flag)
             {
-                bool flag => flag ? 1 : 0,
-                Enum member => Convert.ToDouble(member, CultureInfo.InvariantCulture),
-                IConvertible number and not string => number.ToDouble(CultureInfo.InvariantCulture),
-                _ => null,
-            };
+                value = flag ? 1 : 0;
+            }
+            else if (raw is Enum member)
+            {
+                value = Convert.ToDouble(member, CultureInfo.InvariantCulture);
+            }
+            else if (raw is IConvertible number && raw is not string)
+            {
+                value = number.ToDouble(CultureInfo.InvariantCulture);
+            }
             return value is not null && double.IsFinite(value.Value) ? value.Value : null;
         }
         catch

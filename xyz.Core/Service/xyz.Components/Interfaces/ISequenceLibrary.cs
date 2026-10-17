@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 流程配方库 接口，同时也给eap使用
 /// </summary>
-public interface ISequenceComponent
+public interface ISequenceLibrary
 {
     /// <summary>
     /// 库里全部流程配方的名字，按编号从小到大

@@ -15,12 +15,18 @@ public sealed class SecsItem
     private SecsItem(SecsFormat format, object data)
     {
         Format = format;
-        _data = data switch
+        switch (data)
         {
-            SecsItem[] items => Array.AsReadOnly(items.ToArray()),
-            Array array => array.Clone(),
-            _ => data,
-        };
+            case SecsItem[] items:
+                _data = Array.AsReadOnly(items.ToArray());
+                break;
+            case Array array:
+                _data = array.Clone();
+                break;
+            default:
+                _data = data;
+                break;
+        }
     }
 
     public SecsFormat Format { get; }
@@ -28,13 +34,23 @@ public sealed class SecsItem
     /// <summary>
     /// 元素个数：List 是子项个数，数组是元素个数，A/J 是字符数；空串、空数组、空列表都是 0。
     /// </summary>
-    public int Count => _data switch
+    public int Count
     {
-        IReadOnlyList<SecsItem> items => items.Count,
-        string text => text.Length,
-        Array array => array.Length,
-        _ => 0,
-    };
+        get
+        {
+            switch (_data)
+            {
+                case IReadOnlyList<SecsItem> items:
+                    return items.Count;
+                case string text:
+                    return text.Length;
+                case Array array:
+                    return array.Length;
+                default:
+                    return 0;
+            }
+        }
+    }
 
     /// <summary>
     /// List 的子项；不是 List 时抛异常——拿之前先看 Format。
@@ -110,12 +126,15 @@ public sealed class SecsItem
 
     public long[] GetInt64Array()
     {
-        return _data switch
+        switch (_data)
         {
-            long[] values => values.ToArray(),
-            ulong[] values => Array.ConvertAll(values, value => checked((long)value)),
-            _ => throw new SecsException($"Format={Format} 不是整数"),
-        };
+            case long[] values:
+                return values.ToArray();
+            case ulong[] values:
+                return Array.ConvertAll(values, value => checked((long)value));
+            default:
+                throw new SecsException($"Format={Format} 不是整数");
+        }
     }
 
     public ulong GetUInt64()
@@ -125,12 +144,15 @@ public sealed class SecsItem
 
     public ulong[] GetUInt64Array()
     {
-        return _data switch
+        switch (_data)
         {
-            ulong[] values => values.ToArray(),
-            long[] values => Array.ConvertAll(values, value => checked((ulong)value)),
-            _ => throw new SecsException($"Format={Format} 不是整数"),
-        };
+            case ulong[] values:
+                return values.ToArray();
+            case long[] values:
+                return Array.ConvertAll(values, value => checked((ulong)value));
+            default:
+                throw new SecsException($"Format={Format} 不是整数");
+        }
     }
 
     public double GetDouble()

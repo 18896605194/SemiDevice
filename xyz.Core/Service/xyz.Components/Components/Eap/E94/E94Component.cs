@@ -14,7 +14,7 @@ namespace xyz.Components.Components;
 /// CJ 管理（SEMI E94，sc.xml 的 Eap 下的 E94 节点）：Host 用 S14F9 建 CJ（E39 Create Object，对象类型 ControlJob）
 /// </summary>
 [Component(description: "CJ 管理（SEMI E94）：S14F9 建 CJ、S16F27 CJ 命令，CJ 状态转换报事件")]
-public class E94Component : ComponentBase, IE94Callback
+public class E94Component : ComponentBase, IE94Callback, IE94Component
 {
     private const byte OrderByList = 3;
 
@@ -180,7 +180,7 @@ public class E94Component : ComponentBase, IE94Callback
 
     #region 组件+服务
 
-    private E30Component? _gem;
+    private IE30Component? _gem;
     private IJobManager? _jobs;
 
     #endregion
@@ -191,7 +191,7 @@ public class E94Component : ComponentBase, IE94Callback
     /// 接到链路和 Job 管理上（EAP 组件在链路打开之前调）：挂 E94 上报口，登记 S16F27 和 E39 对象类型 ControlJob（S14F9 建 CJ 走它）。
     /// 没配 E39 时 Host 建不了 CJ，记错误。
     /// </summary>
-    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs)
+    public void Attach(IHsmsComponent link, IE30Component gem, IE39Component? objects, IJobManager jobs)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -485,26 +485,55 @@ public class E94Component : ComponentBase, IE94Callback
         var processes = snapshot.ProcessJobs
             .Where(process => job.ProcessJobs.Contains(process.Id, StringComparer.OrdinalIgnoreCase))
             .ToList();
-        value = attribute switch
+        switch (attribute)
         {
-            ControlJobNames.ObjType => SecsItem.A(ControlJobNames.ObjectType),
-            ControlJobNames.ObjId => SecsItem.A(GemValue.Ascii(job.Id)),
-            ControlJobNames.CarrierInputSpec => job.CarrierId.Length == 0 ? SecsItem.L() : SecsItem.L(SecsItem.A(GemValue.Ascii(job.CarrierId))),
-            ControlJobNames.CurrentPrJob => SecsItem.L(processes.Where(process => IsActive(process.State))
-                .Select(process => SecsItem.A(GemValue.Ascii(process.Id)))),
-            ControlJobNames.DataCollectionPlan => SecsItem.A(string.Empty),
-            ControlJobNames.MtrlOutByStatus => SecsItem.L(),
-            ControlJobNames.MtrlOutSpec => SecsItem.L(),
-            ControlJobNames.PauseEvent => SecsItem.L(),
-            ControlJobNames.ProcessingCtrlSpec => SecsItem.L(job.ProcessJobs.Select(processId =>
-                SecsItem.L(SecsItem.A(GemValue.Ascii(processId)), SecsItem.L(), SecsItem.L()))),
-            ControlJobNames.ProcessOrderMgmt => SecsItem.U1(OrderByList),
-            ControlJobNames.PrJobStatusList => SecsItem.L(job.ProcessJobs.Select(processId => SecsItem.L(SecsItem.A(GemValue.Ascii(processId)),
-                StateOf(processes, processId)))),
-            ControlJobNames.StartMethod => SecsItem.Boolean(job.AutoStart),
-            ControlJobNames.State => SecsItem.U1((byte)(job.E94State ?? job.State)),
-            _ => SecsItem.L(),
-        };
+            case ControlJobNames.ObjType:
+                value = SecsItem.A(ControlJobNames.ObjectType);
+                break;
+            case ControlJobNames.ObjId:
+                value = SecsItem.A(GemValue.Ascii(job.Id));
+                break;
+            case ControlJobNames.CarrierInputSpec:
+                value = job.CarrierId.Length == 0 ? SecsItem.L() : SecsItem.L(SecsItem.A(GemValue.Ascii(job.CarrierId)));
+                break;
+            case ControlJobNames.CurrentPrJob:
+                value = SecsItem.L(processes.Where(process => IsActive(process.State))
+                    .Select(process => SecsItem.A(GemValue.Ascii(process.Id))));
+                break;
+            case ControlJobNames.DataCollectionPlan:
+                value = SecsItem.A(string.Empty);
+                break;
+            case ControlJobNames.MtrlOutByStatus:
+                value = SecsItem.L();
+                break;
+            case ControlJobNames.MtrlOutSpec:
+                value = SecsItem.L();
+                break;
+            case ControlJobNames.PauseEvent:
+                value = SecsItem.L();
+                break;
+            case ControlJobNames.ProcessingCtrlSpec:
+                value = SecsItem.L(job.ProcessJobs.Select(processId =>
+                    SecsItem.L(SecsItem.A(GemValue.Ascii(processId)), SecsItem.L(), SecsItem.L())));
+                break;
+            case ControlJobNames.ProcessOrderMgmt:
+                value = SecsItem.U1(OrderByList);
+                break;
+            case ControlJobNames.PrJobStatusList:
+                value = SecsItem.L(job.ProcessJobs.Select(processId => SecsItem.L(SecsItem.A(GemValue.Ascii(processId)),
+                    StateOf(processes, processId))));
+                break;
+            case ControlJobNames.StartMethod:
+                value = SecsItem.Boolean(job.AutoStart);
+                break;
+            case ControlJobNames.State:
+                value = SecsItem.U1((byte)(job.E94State ?? job.State));
+                break;
+            default:
+                value = SecsItem.L();
+                break;
+        }
+
         return true;
     }
 

@@ -244,7 +244,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     /// </summary>
     protected virtual double? ReadAi()
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null || !io.TryReadAi(AiIndex, out double value))
         {
             return null;
@@ -258,7 +258,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     /// </summary>
     protected virtual bool? ReadMonitoringDo()
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null || !io.TryReadDo(MonitoringDoIndex, out bool on))
         {
             return null;

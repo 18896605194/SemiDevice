@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -201,7 +202,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Component
 
-    public LoadPortDriverComponent? _driver { get; private set; }
+    public ILoadPortDriverComponent? _driver { get; private set; }
 
     public ICarrierIdReader? _rfid { get; private set; }
 
@@ -210,7 +211,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不登记账）为 null。
     /// </summary>
-    private WaferManagerComponent? _waferManager;
+    private IWaferManagerComponent? _waferManager;
 
     public IE84? E84
     {
@@ -298,7 +299,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         #region LoadPort 驱动
 
-        var driver = FindChild<LoadPortDriverComponent>();
+        var driver = FindChild<ILoadPortDriverComponent>();
         if (driver is not null)
         {
             // 先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报。
@@ -314,7 +315,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         #endregion
 
         ///晶圆账注册
-        _waferManager = WaferManagerComponent.Current;
+        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
         _waferManager?.RegisterLoadPort(Name, SlotCount);
 
         bool childrenInitialized = base.InitComponent();
@@ -855,7 +856,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private HandleResult? CheckWafersInJob()
     {
         var ledger = _waferManager;
-        var jobs = JobManager.Current;
+        var jobs = ComponentBase.Find<IJobManager>();
         if (ledger is null || !ledger.IsEnable || jobs is null)
         {
             return null;
@@ -884,7 +885,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private HandleResult? CheckSlotsInTransfer()
     {
         var ledger = _waferManager;
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         if (ledger is null || !ledger.IsEnable || transfers is null)
         {
             return null;
@@ -1509,7 +1510,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        EapNotifierComponent.Current?.Post(() =>
+        ComponentBase.Find<IEapNotifierComponent>()?.Post(() =>
         {
             var callback = E87Callback;
             if (callback is not null)
@@ -1530,7 +1531,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        EapNotifierComponent.Current?.Post(() =>
+        ComponentBase.Find<IEapNotifierComponent>()?.Post(() =>
         {
             var callback = E84Callback;
             if (callback is not null)

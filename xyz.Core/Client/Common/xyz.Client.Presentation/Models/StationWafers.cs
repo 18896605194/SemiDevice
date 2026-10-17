@@ -35,14 +35,25 @@ public static class StationWafers
             {
                 Slot = slot.Slot,
                 LpSlot = slot.Slot.ToString("00"),
-                State = slot.State switch
-                {
-                    LoadPortSlotState.DoubleSlotted => "Double",
-                    LoadPortSlotState.CrossSlotted => "Crossed",
-                    _ => WaferStates.Idle,
-                },
+                State = StateOf(slot.State),
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Mapping 结果的槽状态换成片的颜色口径：叠片、交叉片各用各的，别的按未处理
+    /// </summary>
+    private static string StateOf(LoadPortSlotState state)
+    {
+        switch (state)
+        {
+            case LoadPortSlotState.DoubleSlotted:
+                return "Double";
+            case LoadPortSlotState.CrossSlotted:
+                return "Crossed";
+            default:
+                return WaferStates.Idle;
+        }
     }
 
     /// <summary>

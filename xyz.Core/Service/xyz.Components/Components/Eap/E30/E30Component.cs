@@ -2,6 +2,7 @@
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
@@ -20,13 +21,8 @@ namespace xyz.Components.Components;
 /// Host 定的报告、开关、缓存范围掉电保持（存库）。EAP 没启用时不接到链路上，组件里的事件也不报。
 /// </summary>
 [Component(description: "GEM（SEMI E30）：控制状态、通讯建立、事件报告、报警、变量和常量、缓存")]
-public partial class E30Component : ComponentBase
+public partial class E30Component : ComponentBase, IE30Component
 {
-    /// <summary>
-    /// 当前 GEM 组件；sc.xml 没配 E30 节点时为 null。组件报事件（ComponentBase.RaiseEvent）经它发。
-    /// </summary>
-    public static E30Component? Current { get; set; }
-
     /// <summary>ALTX 最长 40 个字符（E5）。</summary>
     private const int MaxAlarmTextLength = 40;
 
@@ -34,7 +30,7 @@ public partial class E30Component : ComponentBase
     private const byte AlarmSetBit = 0x80;
 
     private readonly GemBook _book = new();
-    private HsmsComponent? _link;
+    private IHsmsComponent? _link;
     private GemStore? _store;
     private GemSpool? _spool;
     private GemSender? _sender;
@@ -48,7 +44,7 @@ public partial class E30Component : ComponentBase
 
     public E30Component()
     {
-        Current = this;
+        Register<IE30Component>(this);
     }
 
     #region SC
@@ -265,7 +261,7 @@ public partial class E30Component : ComponentBase
     /// 接到链路上（EAP 组件在链路打开之前调）：读回存着的设定、登记各报文的处理方和闸门、订链路连上 / 断开、
     /// 订报警和 EC 变化，最后按 EC 进开机的控制状态。
     /// </summary>
-    public void Attach(HsmsComponent link)
+    public void Attach(IHsmsComponent link)
     {
         ArgumentNullException.ThrowIfNull(link);
         if (_link is not null)
@@ -288,13 +284,13 @@ public partial class E30Component : ComponentBase
         link.LinkClosed += OnLinkClosed;
         RegisterHandlers(link);
 
-        var alarms = AlarmComponent.Current;
+        var alarms = ComponentBase.Find<IAlarmComponent>();
         if (alarms is not null)
         {
             alarms.AlarmChanged += OnAlarmChanged;
         }
 
-        var ec = EcComponent.Current;
+        var ec = ComponentBase.Find<IEcComponent>();
         if (ec is not null)
         {
             ec.ValueChanged += OnConstantChanged;
@@ -310,13 +306,13 @@ public partial class E30Component : ComponentBase
     /// <summary>从链路上摘下来（宿主退出时）：不再订报警和 EC 变化。</summary>
     public void Detach()
     {
-        var alarms = AlarmComponent.Current;
+        var alarms = ComponentBase.Find<IAlarmComponent>();
         if (alarms is not null)
         {
             alarms.AlarmChanged -= OnAlarmChanged;
         }
 
-        var ec = EcComponent.Current;
+        var ec = ComponentBase.Find<IEcComponent>();
         if (ec is not null)
         {
             ec.ValueChanged -= OnConstantChanged;
@@ -385,6 +381,35 @@ public partial class E30Component : ComponentBase
         }
 
         ReportEvent($"{source.FullPath}.{code}", values);
+    }
+
+    /// <summary>
+    /// 发一条设备主动发的报文（S6F1 这类），离线不发；没通讯、缓存跟 S6F11 一样处理
+    /// </summary>
+    public void Send(SecsMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        var sender = _sender;
+        if (sender is null || !IsOnline)
+        {
+            return;
+        }
+
+        // 发送线反正要丢的这里先丢、不记日志：Trace 一秒能有好几条，断线时不然会刷屏
+        var spool = _spool;
+        if (spool is not null && spool.IsActive)
+        {
+            if (!_book.IsSpoolable(message.Stream, message.Function))
+            {
+                return;
+            }
+        }
+        else if (CommState != GemCommState.Communicating)
+        {
+            return;
+        }
+
+        sender.Enqueue(message);
     }
 
     /// <summary>按事件全名报（报警事件这种不挂在组件上的）：dvs 是 DVID → 值。</summary>
@@ -627,7 +652,7 @@ public partial class E30Component : ComponentBase
     private static IReadOnlyList<uint> ActiveAlarmIds()
     {
         var collectors = GemCollectors.Current;
-        var alarms = AlarmComponent.Current;
+        var alarms = ComponentBase.Find<IAlarmComponent>();
         if (collectors is null || alarms is null)
         {
             return [];

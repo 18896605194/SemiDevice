@@ -1,12 +1,13 @@
 ﻿using xyz.Common.Log;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
 /// <summary>
 /// 全部初始化：先把机械手回原点（手缩回来，别的站点动起来才不刮手），都做成了再一起初始化其余模块（LoadPort、腔体……）。
-/// 每个模块走自己的 <see cref="BaseModule.InitModule"/>（各自的超时由模块 EC 管，这里不另设）；
+/// 每个模块走自己的 <see cref="IModule.InitModule"/>（各自的超时由模块 EC 管，这里不另设）；
 /// 有一个被拒（状态不允许、在忙，没写初始化的模块也算）或没做成，整趟就算没做成，已经在做的让它做完。
 /// </summary>
 internal sealed class SystemInitOperation : ModuleOperation<SystemInitOperation.InitStep>
@@ -19,11 +20,11 @@ internal sealed class SystemInitOperation : ModuleOperation<SystemInitOperation.
         WaitOthers,
     }
 
-    private readonly IReadOnlyList<BaseModule> _robots;
-    private readonly IReadOnlyList<BaseModule> _others;
-    private readonly List<(BaseModule Module, ModuleOperation Operation)> _started = [];
+    private readonly IReadOnlyList<IModule> _robots;
+    private readonly IReadOnlyList<IModule> _others;
+    private readonly List<(IModule Module, ModuleOperation Operation)> _started = [];
 
-    public SystemInitOperation(IReadOnlyList<BaseModule> modules) : base("Init", InitStep.StartRobots)
+    public SystemInitOperation(IReadOnlyList<IModule> modules) : base("Init", InitStep.StartRobots)
     {
         _robots = modules.Where(module => module is IRobot).ToList();
         _others = modules.Where(module => module is not IRobot).ToList();
@@ -65,7 +66,7 @@ internal sealed class SystemInitOperation : ModuleOperation<SystemInitOperation.
     }
 
     /// <summary>这一批一起发初始化；有一个被拒就判失败（模块自己记了被拒的原因）。</summary>
-    private bool StartAll(IReadOnlyList<BaseModule> modules)
+    private bool StartAll(IReadOnlyList<IModule> modules)
     {
         _started.Clear();
         foreach (var module in modules)

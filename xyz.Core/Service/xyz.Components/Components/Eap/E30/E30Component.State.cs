@@ -68,6 +68,11 @@ public partial class E30Component
     /// <summary>ON-LINE REMOTE：Host 的动作命令（载具动作、建 Job、Job 命令……）才收。</summary>
     public bool IsRemote => CurrentControlState == GemControlState.OnlineRemote;
 
+    /// <summary>
+    /// 从在线进了离线（锁外发）
+    /// </summary>
+    public event Action? WentOffline;
+
     private static bool IsOnlineState(GemControlState state)
     {
         return state is GemControlState.OnlineLocal or GemControlState.OnlineRemote;
@@ -177,6 +182,7 @@ public partial class E30Component
     /// </summary>
     private bool Transit(Func<GemControlState, bool> allowed, GemControlState to, string transition)
     {
+        bool wentOffline;
         lock (_transitionGate)
         {
             var from = CurrentControlState;
@@ -185,7 +191,8 @@ public partial class E30Component
                 return false;
             }
 
-            if (IsOnlineState(from) && !IsOnlineState(to))
+            wentOffline = IsOnlineState(from) && !IsOnlineState(to);
+            if (wentOffline)
             {
                 Report(this, EquipmentOfflineEvent);
             }
@@ -205,9 +212,14 @@ public partial class E30Component
             {
                 Report(this, ControlStateRemoteEvent);
             }
-
-            return true;
         }
+
+        if (wentOffline)
+        {
+            WentOffline?.Invoke();
+        }
+
+        return true;
     }
 
     #endregion

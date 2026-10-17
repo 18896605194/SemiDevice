@@ -4,6 +4,7 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Modules;
 
@@ -552,27 +553,38 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     private static E84Timer? TimerOf(E84State state)
     {
-        return state switch
+        switch (state)
         {
-            E84State.Requesting => E84Timer.TP1,
-            E84State.WaitBusy => E84Timer.TP2,
-            E84State.Transferring => E84Timer.TP3,
-            E84State.WaitComplete => E84Timer.TP4,
-            E84State.Releasing => E84Timer.TP5,
-            _ => null,
-        };
+            case E84State.Requesting:
+                return E84Timer.TP1;
+            case E84State.WaitBusy:
+                return E84Timer.TP2;
+            case E84State.Transferring:
+                return E84Timer.TP3;
+            case E84State.WaitComplete:
+                return E84Timer.TP4;
+            case E84State.Releasing:
+                return E84Timer.TP5;
+            default:
+                return null;
+        }
     }
 
     private int TimeoutOf(E84Timer timer)
     {
-        return timer switch
+        switch (timer)
         {
-            E84Timer.TP1 => Tp1Timeout,
-            E84Timer.TP2 => Tp2Timeout,
-            E84Timer.TP3 => Tp3Timeout,
-            E84Timer.TP4 => Tp4Timeout,
-            _ => Tp5Timeout,
-        };
+            case E84Timer.TP1:
+                return Tp1Timeout;
+            case E84Timer.TP2:
+                return Tp2Timeout;
+            case E84Timer.TP3:
+                return Tp3Timeout;
+            case E84Timer.TP4:
+                return Tp4Timeout;
+            default:
+                return Tp5Timeout;
+        }
     }
 
     /// <summary>
@@ -636,7 +648,7 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     protected virtual E84Inputs ReadInputs()
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null)
         {
             return default;
@@ -662,7 +674,7 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     protected virtual bool WriteOutputs(E84Outputs outputs)
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         bool written = OutputWritten(io, DoLReqIndex, outputs.LReq)
             && OutputWritten(io, DoUReqIndex, outputs.UReq)
             && OutputWritten(io, DoReadyIndex, outputs.Ready)
@@ -686,12 +698,12 @@ public class E84Component : ComponentBase, IE84
         return written;
     }
 
-    private static bool InputOn(IoComponent io, int index)
+    private static bool InputOn(IIoComponent io, int index)
     {
         return index >= 0 && io.TryReadDi(index, out bool on) && on;
     }
 
-    private static bool OutputWritten(IoComponent? io, int index, bool on)
+    private static bool OutputWritten(IIoComponent? io, int index, bool on)
     {
         return index < 0 || (io is not null && io.WriteDo(index, on));
     }

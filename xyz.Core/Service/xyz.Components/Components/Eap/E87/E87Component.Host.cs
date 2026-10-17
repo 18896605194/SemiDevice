@@ -208,7 +208,7 @@ public partial class E87Component
     /// <summary>Host 给的片号表写进晶圆账（片号、批次号），空槽、空项跳过（CTC 也是这样）。</summary>
     private static void WriteContentMap(E87LoadPort port, List<(string LotId, string SubstrateId)>? content)
     {
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null || content is null)
         {
             return;

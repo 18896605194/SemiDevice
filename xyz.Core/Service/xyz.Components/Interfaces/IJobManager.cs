@@ -71,4 +71,29 @@ public interface IJobManager
 
     IE94Callback? E94Callback { get; set; }
 
+
+    /// <summary>
+    /// 这片归哪个 Job（片号），不归 Job 是 null
+    /// </summary>
+    string? OwnerOf(Guid waferId);
+
+    /// <summary>
+    /// 全部 Job 走中止（整机停止用）
+    /// </summary>
+    Task<HandleResult> AbortAllAsync();
+
+    /// <summary>
+    /// 有没有在跑的 CJ（执行中、暂停、中止中）
+    /// </summary>
+    bool HasRunningJob { get; }
+
+    /// <summary>
+    /// 工艺没做成的那一片重做这个任务
+    /// </summary>
+    Task<HandleResult> RetryTaskAsync(string processJob, int slot, int task);
+
+    /// <summary>
+    /// 工艺没做成的那一片这个任务标记完成
+    /// </summary>
+    Task<HandleResult> CompleteTaskAsync(string processJob, int slot, int task);
 }

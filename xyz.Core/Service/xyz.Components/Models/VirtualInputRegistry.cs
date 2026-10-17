@@ -1,15 +1,16 @@
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Models;
 
 /// <summary>一棵装配树的虚拟输入索引和依赖关系；不使用跨设备/跨装配的静态点表。</summary>
 internal sealed class VirtualInputRegistry
 {
-    private readonly Dictionary<IoReference, VirtualInputComponent> _points;
-    private readonly IoComponent? _io;
+    private readonly Dictionary<IoReference, IVirtualInputComponent> _points;
+    private readonly IIoComponent? _io;
     private readonly object _gate = new();
 
-    private VirtualInputRegistry(IEnumerable<VirtualInputComponent> points, IoComponent? io)
+    private VirtualInputRegistry(IEnumerable<IVirtualInputComponent> points, IIoComponent? io)
     {
         _io = io;
         _points = [];
@@ -66,13 +67,13 @@ internal sealed class VirtualInputRegistry
     public static void Attach(IReadOnlyList<ComponentBase> roots)
     {
         var all = Flatten(roots).ToList();
-        var points = all.OfType<VirtualInputComponent>().ToList();
+        var points = all.OfType<IVirtualInputComponent>().ToList();
         if (points.Count == 0)
         {
             return;
         }
 
-        var io = all.OfType<IoComponent>().ToList();
+        var io = all.OfType<IIoComponent>().ToList();
         if (io.Count > 1)
         {
             throw new InvalidOperationException("全局虚拟输入索引只能绑定一个 IoComponent 读写入口");
@@ -108,13 +109,23 @@ internal sealed class VirtualInputRegistry
                 continue;
             }
 
-            var table = source.Type switch
+            IoPointTable? table;
+            switch (source.Type)
             {
-                "DI" => _io?.Di,
-                "DO" => _io?.Do,
-                "AI" => _io?.Ai,
-                _ => _io?.Ao,
-            };
+                case "DI":
+                    table = _io?.Di;
+                    break;
+                case "DO":
+                    table = _io?.Do;
+                    break;
+                case "AI":
+                    table = _io?.Ai;
+                    break;
+                default:
+                    table = _io?.Ao;
+                    break;
+            }
+
             if (table?.Find(source.Index) is null)
             {
                 throw new InvalidOperationException($"虚拟输入的来源 {source} 不在物理 IO 点表中");
@@ -165,13 +176,23 @@ internal sealed class VirtualInputRegistry
 
         bool level = false;
         double value = 0;
-        bool valid = point.Type switch
+        bool valid;
+        switch (point.Type)
         {
-            "DI" => _io.TryReadDi(point.Index, out level),
-            "DO" => _io.TryReadDo(point.Index, out level),
-            "AI" => _io.TryReadAi(point.Index, out value),
-            _ => _io.TryReadAo(point.Index, out value),
-        };
+            case "DI":
+                valid = _io.TryReadDi(point.Index, out level);
+                break;
+            case "DO":
+                valid = _io.TryReadDo(point.Index, out level);
+                break;
+            case "AI":
+                valid = _io.TryReadAi(point.Index, out value);
+                break;
+            default:
+                valid = _io.TryReadAo(point.Index, out value);
+                break;
+        }
+
         if (point.IsBoolean)
         {
             value = level ? 1 : 0;

@@ -6,35 +6,48 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// EAP（SECS/GEM，sc.xml 的 Eap 节点）：链路 Hsms、上报派发 Notifier，加上每个 SEMI 标准一个组件（E30、E39、E87、E90、E40、E94）
-/// 和 E30 里的配方管理 Recipe，都是它的子节点。
+/// 和 E30 里的配方管理 Recipe、Trace 数据采集 Trace，都是它的子节点。
 /// 开机分两步：模块开始扫描之前 <see cref="Bind"/>，按顺序把各标准接到链路和设备上（只挂上报口、登记处理方）；设备侧都起来以后 <see cref="Open"/> 打开链路——
 /// Host 一连进来就可能发报文，处理方和设备都得先在。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备侧的上报口保持 null，照常跑。
-/// 子节点哪个没配就不接哪个（Hsms、Notifier、E30 是必须的；Recipe / E87 / E90 / E40 / E94 按机台需要配，E94 建 CJ 要 E39）。
+/// 子节点哪个没配就不接哪个（Hsms、Notifier、E30 是必须的；Recipe / Trace / E87 / E90 / E40 / E94 按机台需要配，E94 建 CJ 要 E39）。
 /// </summary>
 [Component(description: "EAP（SECS/GEM）：链路加各 SEMI 标准，开机先接到设备上、设备起来后再开链路")]
-public class EapComponent : ComponentBase
+public class EapComponent : ComponentBase, IEapComponent
 {
-    /// <summary>当前 EAP 组件；sc.xml 没配 Eap 节点时为 null。</summary>
-    public static EapComponent? Current { get; set; }
-
     public EapComponent()
     {
-        Current = this;
+        Register<IEapComponent>(this);
     }
 
     /// <summary>各标准接到设备上了（链路启用、必需的节点都在）；链路由 <see cref="Open"/> 另开。</summary>
     public bool IsBound { get; private set; }
 
     /// <summary>
+    /// 开机（开始扫描之前）：把各标准接到 LoadPort、Job 管理、两个配方库上
+    /// </summary>
+    public override void Bind()
+    {
+        Bind(FindAll<ILoadPort>(), Find<IJobManager>(), Find<ISequenceLibrary>(), Find<IRecipeLibrary>());
+    }
+
+    /// <summary>
+    /// 设备侧都开始扫描以后开链路：Host 一连进来就可能发报文，处理方和设备都得先在
+    /// </summary>
+    public override void OnStarted()
+    {
+        Open();
+    }
+
+    /// <summary>
     /// 接设备（宿主在模块开始扫描之前调一次）：E30 先接（别的标准报事件、判控制状态都经它），再 E39（对象服务，别的标准往里登记对象），
-    /// 再配方管理（两个配方库）、E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理）。不开链路。
+    /// 再配方管理（两个配方库）、Trace、E90（晶圆账）、E87（LoadPort，槽图认定后通知 E90 建片对象）、E40 / E94（Job 管理）。不开链路。
     /// 要赶在扫描之前：开机时端口上已有的载具第一拍扫描就判到、自动读码，上报口没挂上的话到达和读码结果就丢了，
     /// E87 不知道这个载具，Host 没法认定，这一盒一直取不了片。这时报的事 Host 收不收得到由 E30 管（没在线不报、没通讯按缓存设置）。
     /// 配方库没装的传 null，那个库就不给 Host 管。
     /// </summary>
-    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, ISequenceComponent? sequences, IRecipeComponent? processRecipes)
+    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
     {
-        var link = FindChild<HsmsComponent>();
+        var link = FindChild<IHsmsComponent>();
         if (link is null)
         {
             LogHelper.Warn(Name, "Eap 下没配 Hsms 节点：EAP 不接");
@@ -47,13 +60,13 @@ public class EapComponent : ComponentBase
             return;
         }
 
-        if (FindChild<EapNotifierComponent>() is null)
+        if (FindChild<IEapNotifierComponent>() is null)
         {
             LogHelper.Error(Name, "Eap 下没配 Notifier 节点：设备侧报给 EAP 的事没有派发线程，EAP 不接");
             return;
         }
 
-        var gem = FindChild<E30Component>();
+        var gem = FindChild<IE30Component>();
         if (gem is null)
         {
             LogHelper.Error(Name, "Eap 下没配 E30 节点：GEM 是 EAP 的底子，没有它 EAP 不接");
@@ -61,15 +74,18 @@ public class EapComponent : ComponentBase
         }
 
         gem.Attach(link);
-        var objects = FindChild<E39Component>();
+        var objects = FindChild<IE39Component>();
         objects?.Attach(link, gem);
 
-        var recipes = FindChild<E30RecipeComponent>();
+        var recipes = FindChild<IE30RecipeComponent>();
         recipes?.Attach(link, gem, sequences, processRecipes);
 
-        var substrates = FindChild<E90Component>();
-        var carriers = FindChild<E87Component>();
-        var ledger = WaferManagerComponent.Current;
+        var traces = FindChild<IE30TraceComponent>();
+        traces?.Attach(link, gem);
+
+        var substrates = FindChild<IE90Component>();
+        var carriers = FindChild<IE87Component>();
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (substrates is not null)
         {
             if (ledger is null)
@@ -85,8 +101,8 @@ public class EapComponent : ComponentBase
 
         carriers?.Attach(link, gem, ports, substrates is null ? null : substrates.MaterialArrived);
 
-        var processJobs = FindChild<E40Component>();
-        var controlJobs = FindChild<E94Component>();
+        var processJobs = FindChild<IE40Component>();
+        var controlJobs = FindChild<IE94Component>();
         if (jobs is null)
         {
             if (processJobs is not null || controlJobs is not null)
@@ -112,25 +128,34 @@ public class EapComponent : ComponentBase
             return;
         }
 
-        FindChild<HsmsComponent>()?.Open();
+        FindChild<IHsmsComponent>()?.Open();
         LogHelper.Info(Name, "EAP 链路打开");
     }
 
     /// <summary>收：先断链路（发 Separate），再把各标准从设备上摘下来。宿主退出时调。</summary>
     public void Close()
     {
-        FindChild<HsmsComponent>()?.Close();
+        FindChild<IHsmsComponent>()?.Close();
         if (!IsBound)
         {
             return;
         }
 
-        FindChild<E94Component>()?.Detach();
-        FindChild<E40Component>()?.Detach();
-        FindChild<E87Component>()?.Detach();
-        FindChild<E90Component>()?.Detach();
-        FindChild<E30RecipeComponent>()?.Detach();
-        FindChild<E30Component>()?.Detach();
+        FindChild<IE94Component>()?.Detach();
+        FindChild<IE40Component>()?.Detach();
+        FindChild<IE87Component>()?.Detach();
+        FindChild<IE90Component>()?.Detach();
+        FindChild<IE30TraceComponent>()?.Detach();
+        FindChild<IE30RecipeComponent>()?.Detach();
+        FindChild<IE30Component>()?.Detach();
         IsBound = false;
+    }
+
+    /// <summary>
+    /// 宿主退出：先断链路（发 Separate），再把各标准从设备上摘下来
+    /// </summary>
+    public override void OnStopping()
+    {
+        Close();
     }
 }

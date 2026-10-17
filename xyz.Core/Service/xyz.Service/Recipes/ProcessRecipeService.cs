@@ -1,6 +1,7 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -20,22 +21,30 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// </summary>
     private const string UnknownOperator = "Unknown";
 
-    public ProcessRecipeService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly IRecipeComponent? _library;
+
+    /// <summary>
+    /// EAP 的远程配方管理：Host 锁着时本地不让改
+    /// </summary>
+    private readonly IE30RecipeComponent? _e30Recipe;
+
+    public ProcessRecipeService()
     {
+        _library = ComponentBase.Find<IRecipeComponent>();
+        _e30Recipe = ComponentBase.Find<IE30RecipeComponent>();
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
     {
-        var library = RecipeComponent.Current;
-        if (library is null)
+        if (_library is null)
         {
             return NotInstalled();
         }
 
         var dto = new ProcessRecipeListDto
         {
-            Capacity = library.Capacity,
-            Items = library.List().Select(item => new ProcessRecipeSummaryDto
+            Capacity = _library.Capacity,
+            Items = _library.List().Select(item => new ProcessRecipeSummaryDto
             {
                 Index = item.Index,
                 Name = item.Name,
@@ -48,49 +57,63 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
 
     public Task<RpcResponse> GetAsync(ProcessRecipeIndexRequest request, CallContext context = default)
     {
-        var library = RecipeComponent.Current;
-        return library is null ? NotInstalled() : Reply(library.Get(request.Index));
-    }
-
-    public Task<RpcResponse> GetOptionsAsync(RpcRequest request, CallContext context = default)
-    {
-        var library = RecipeComponent.Current;
-        if (library is null)
+        if (_library is null)
         {
             return NotInstalled();
         }
 
-        var stationTypes = library.StationTypes;
+        return Reply(_library.Get(request.Index));
+    }
+
+    public Task<RpcResponse> GetOptionsAsync(RpcRequest request, CallContext context = default)
+    {
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        var stationTypes = _library.StationTypes;
         var dto = new ProcessRecipeOptionsDto
         {
-            HeadFields = library.HeadFields.Select(field => ToHeadDto(field, stationTypes)).ToList(),
-            Fields = library.Fields.Select(ToDto).ToList(),
+            HeadFields = _library.HeadFields.Select(field => ToHeadDto(field, stationTypes)).ToList(),
+            Fields = _library.Fields.Select(ToDto).ToList(),
         };
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(dto)));
     }
 
     public Task<RpcResponse> CreateAsync(ProcessRecipeCreateRequest request, CallContext context = default)
     {
-        var library = RecipeComponent.Current;
-        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> RenameAsync(ProcessRecipeRenameRequest request, CallContext context = default)
     {
-        var library = RecipeComponent.Current;
-        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> DeleteAsync(ProcessRecipeDeleteRequest request, CallContext context = default)
     {
-        var library = RecipeComponent.Current;
-        return library is null ? NotInstalled() : LockedByHost() ?? Reply(library.Delete(request.Index, OperatorOf(request.Operator)));
+        if (_library is null)
+        {
+            return NotInstalled();
+        }
+
+        return LockedByHost() ?? Reply(_library.Delete(request.Index, OperatorOf(request.Operator)));
     }
 
     public Task<RpcResponse> SaveAsync(ProcessRecipeSaveRequest request, CallContext context = default)
     {
-        var library = RecipeComponent.Current;
-        if (library is null)
+        if (_library is null)
         {
             return NotInstalled();
         }
@@ -104,7 +127,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Head = ToValues(request.Head),
             Steps = (request.Steps ?? []).Select(step => ToValues(step.Values)).ToList(),
         };
-        return LockedByHost() ?? Reply(library.Save(request.Index, request.Revision, content, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, content, OperatorOf(request.Operator)));
     }
 
     private static RecipeStep ToValues(Dictionary<string, string>? values)
@@ -211,11 +234,16 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         return Task.FromResult(RpcResponse.Fail(ErrorCodes.ProcessRecipeNotInstalled, []));
     }
 
-    /// <summary>ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包；没锁返回 null。</summary>
-    private static Task<RpcResponse>? LockedByHost()
+    /// <summary>
+    /// ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包，没锁返回 null
+    /// </summary>
+    private Task<RpcResponse>? LockedByHost()
     {
-        return E30RecipeComponent.Current?.IsLocalEditLocked == true
-            ? Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []))
-            : null;
+        if (_e30Recipe is null || !_e30Recipe.IsLocalEditLocked)
+        {
+            return null;
+        }
+
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.RecipeLockedByHost, []));
     }
 }

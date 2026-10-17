@@ -1,20 +1,13 @@
 ﻿using System.Net;
+using System.Reflection;
 using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Service;
-using xyz.Service.Alarms;
-using xyz.Service.Charts;
-using xyz.Service.Events;
-using xyz.Service.Jobs;
-using xyz.Service.Recipes;
-using xyz.Service.Systems;
-using xyz.Service.Transfers;
-using xyz.Service.UserManger;
-using xyz.Service.Wafers;
 
 namespace xyz.GrpcHost;
 
@@ -60,7 +53,7 @@ public static class Program
         // 先装配组件树再配监听：gRPC 端点本身是组件（sc.xml 的 Rpc 节点），地址端口从 RpcComponent 上取；
         // 没配该节点时退回默认 localhost:5000，行为与老版本一致。组件照旧先于端口装配（PLC 先连先扫描的启动顺序不变）。
         builder.Services.AddXyzServices();
-        var rpc = RpcComponent.Current;
+        var rpc = ComponentBase.Find<IRpcComponent>();
         var host = rpc is not null && !string.IsNullOrEmpty(rpc.Host) ? rpc.Host : "localhost";
         var port = rpc?.Port ?? RpcComponent.DefaultPort;
 
@@ -92,47 +85,30 @@ public static class Program
 
         app.Lifetime.ApplicationStopping.Register(() =>
         {
-            // EAP 链路先优雅断开（发 Separate），再停采样、落库、断 PLC。
-            EapComponent.Current?.Close();
-
-            // 先停采样、把攒着的最后一批写进库，再断 PLC。
-            DataChartComponent.Current?.StopSampling();
-
-            // 晶圆账最后存一次盘：下次开机按它把腔体、机械手上的片放回去。
-            WaferManagerComponent.Current?.StopSnapshot();
-
-            var roots = app.Services.GetRequiredService<IReadOnlyList<ComponentBase>>();
-            foreach (var plc in roots.OfType<PlcComponent>())
-            {
-                plc.Close();
-            }
+            // 各组件自己收尾（EAP 断链路、数据曲线落库、断 PLC、晶圆账存盘），按开机的倒序
+            ComponentLoader.StopAll(ComponentBase.Roots);
         });
 
-        app.MapGrpcService<RpcService>();
-        app.MapGrpcService<RoleService>();
-        app.MapGrpcService<UserService>();
-        app.MapGrpcService<EventService>();
-        app.MapGrpcService<LoadPortService>();
-        app.MapGrpcService<RobotService>();
-        app.MapGrpcService<ChamberService>();
-        app.MapGrpcService<LogService>();
-        app.MapGrpcService<AlarmService>();
-        app.MapGrpcService<SystemService>();
-        app.MapGrpcService<EquipmentService>();
-        app.MapGrpcService<IoService>();
-        app.MapGrpcService<EcService>();
-        app.MapGrpcService<WaferLedgerService>();
-        app.MapGrpcService<SequenceService>();
-        app.MapGrpcService<ProcessRecipeService>();
-        app.MapGrpcService<DataChartService>();
-        app.MapGrpcService<RealChartService>();
-        app.MapGrpcService<TransferService>();
-        app.MapGrpcService<JobService>();
+        // gRPC 服务：实现了契约的类都映射上（加服务不用改这里）
+        foreach (var implementation in ServiceExtensions.GrpcServices().Select(service => service.Implementation).Distinct())
+        {
+            MapGrpcService(app, implementation);
+        }
 
         // 端口监听上了灯才变绿；托盘上点退出就停宿主。
         app.Lifetime.ApplicationStarted.Register(() => tray.SetRunning($"{host}:{port}"));
         tray.ExitRequested.Register(app.Lifetime.StopApplication);
 
         app.Run();
+    }
+
+    /// <summary>
+    /// 按类型映射一个 gRPC 服务（按类型映射的只有泛型版本，另两个非泛型重载收的是服务定义）
+    /// </summary>
+    private static void MapGrpcService(WebApplication app, Type implementation)
+    {
+        var map = typeof(GrpcEndpointRouteBuilderExtensions).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Single(method => method.Name == nameof(GrpcEndpointRouteBuilderExtensions.MapGrpcService) && method.IsGenericMethodDefinition);
+        map.MakeGenericMethod(implementation).Invoke(null, [app]);
     }
 }

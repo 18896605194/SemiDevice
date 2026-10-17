@@ -539,6 +539,22 @@
   S7F17 空表照标准全删；"配方变了"本地、Host 改的都报；改名报旧名删了 + 新名建了。
 - 库里配方文件还是 XML（`001.xml`），JSON 只是给 Host 的格式；Job、腔体用的是配方快照，Host 改了配方不影响在跑的。
 
+## Trace 数据采集（S2F23 / S6F1，2026-10-17，用户："那你先做Trace"）
+- **为什么做**：给客户的 FDC 供连续数据，最常见的接法就是借 EAP 这条 HSMS 链路做 Trace，设备端不用配客户 FDC 的 IP。
+  FDC 的统计、判断归厂里；设备端按步算平均、最大、最小值这些（CTC 的 `Fdc.cs`）现在不做，客户规范要"步结束带汇总"再加。
+- **结构**：Eap 下单独一个组件 `Trace`（`E30TraceComponent`），照 Recipe 的先例不往 E30 里塞；E30 只开了发送口 `Send`（S6F1 跟 S6F11 同一条发送线、
+  同样的离线 / 没通讯 / 缓存规则）、离线通知 `WentOffline`、`TimeFormat`。S2F43 能把 S6F1 列进缓存范围（默认还是什么都不缓存）。
+- **我替用户定的**（交付时说了）：DSPER 6 位、8 位都认（不学 FabConnect 只认 6 位、出错回两次）；全部查完只回一次 TIAACK；
+  3 周期不对、4 SVID 不认识或没给、5 REPGSZ 是 0（E5 里 3 以上归设备定）；不设任务个数、SVID 个数上限（1、2 不用）；
+  第一次采样在一个周期以后；SMPLN / STIME 记一包里最后一次（E5 附录 R1-3.2.4）；采够了不满一包的也发；取消、替换、离线时没攒满的不发；
+  设备离线全部停掉，任务只在内存里、重启没了（Host 上线后重新设）。
+- **待办（2026-10-17 用户让先记下，下一步做）**：不做这些，客户只能 Trace 到现有的少量 SV（槽液位 / 状态、轴位置、IO / PLC 连着、手指有片、CPU / 内存）。
+  1. 工艺数据点标 SV（属性上加 `[VariableMark(VariableType.SV, ...)]`，启动自动分 SVID）：`AiSensorComponent` 的 `Value`（实际值）、`Target`（目标值），
+     卡盘转速（`SpinMotorComponent`），摆臂位置（`SwingArmComponent`）；动手前先看各自现有属性，轴位置已经是 SV 的不重复标。
+  2. 腔体工艺上下文 SV：当前步号、配方名、片号（在 `BaseChamberModule` 跑配方的地方），FDC 靠它们把 Trace 数据按片、按步切开。
+  3. 腔体"步开始 / 步结束"事件（带步号、配方名、片号的 DV）。
+  4. 设备端按步算平均 / 最大 / 最小值（CTC `Fdc.cs` 那种）不在这次待办里，客户 GEM 规范要求"步结束带汇总"再做。
+
 ## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05 做的，2026-10-06 按用户的设计重做，需求文档《通用 Job 组件功能需求文档》v0.1）
 - **结构**（2026-10-06 用户定的）：Job 组件 `JobManager` 管着 CJ 管理、PJ 管理（各有接口 `ICjManager` / `IPjManager`，各管自己的队列和 SEMI 状态机；
   转换表就写在各自里面，跟 LoadPort 的状态表一个写法，不另造通用转换表类），CJ / PJ 建好、状态变化都报 EAP；下面挂**任务组件**
@@ -634,7 +650,7 @@
 - **名字、放法是用户选的**：父节点叫 Dispatch（我提的 Handling 没用）；选"加父组件"，没选"Transfer 挂到 Job 下面"（那样 sc 里拿掉 Job，搬运也没了，可手动传片用不到 Job）。
 - **跟 10-11「分组节点不做成组件」不冲突**：那条说的是不写 Type 的分组节点；要共用线程就写 Type 做成父组件（用户："这个也不是一定的，腔体不就是那样的么"）。
   设备模块仍在根上，所以服务层找模块、开机装配的模块表、客户端都不用改。
-- **开机**：`AddXyzServices` 里搬运管理、Job 照旧绑表；挂在 Dispatch 下面的不再各自 `Start()`（不然会被扫两遍），两边都绑完表后 `Dispatch.Start()`；
+- **开机**（2026-10-18 起绑表是各自的 `Bind()`、起扫描统一按 sc 的 `IsRun`，下面是当时的做法）：`AddXyzServices` 里搬运管理、Job 照旧绑表；挂在 Dispatch 下面的不再各自 `Start()`（不然会被扫两遍），两边都绑完表后 `Dispatch.Start()`；
   单独挂在根上的照旧自己 Start（老 sc 照样能跑）。
 - **跟着变的**：全路径 `Transfer` → `Dispatch.Transfer`、`Job` → `Dispatch.Job`（Task、Scheduler 跟着）；EC 键、报警来源、GEM 采集名、数据曲线列名跟着变，
   ec.xml 里旧路径的值不自动搬（开机提示"组件树上没有了"，这几项回默认值）。
@@ -687,7 +703,8 @@
 ## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
 - **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
 - **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 构造里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局），
-  用的地方 `MapperComponent.Current.Map<T>(source)`；sc.xml 顶层配 `Mapper` 节点。
+  用的地方 `ComponentBase.Find<IMapperComponent>()` 的 `Map<T>(source)`（2026-10-18 起按接口找）；sc.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
+  2026-10-18 起报警、EC、曲线推给界面和服务回包的 DTO 也都走它，原来服务层的 AlarmMapper、EcMapper、ChartMapper 删了。
 - **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
   动作、从哪到哪、操作人这些片上没有的，映射完再赋值。开机恢复（存盘行 → 片）有解析失败跳过、加工中记中止这些逻辑，照旧手写。
 - 账本开着却没配映射组件，开机恢复时抛 `InvalidOperationException`（开机就暴露）。原来空着的 `RoleMappingConfig.Register()` 删了。
@@ -716,6 +733,9 @@
   **低低不由槽报**：排液、换液时到 LL 以下是正常的（CTC 供液柜的报警也是"循环中液位掉了""补液时到了 H"这样带场合的），只在供液时报（见下）。
 - **槽还是组件、不是模块**（用户："就是组件不会集成 Module 的"；"后面的话 IPA 才是一个 module"）：以后 IPA（药液）做成模块，管**手动 / 自动、两槽切换、低于 L 自动补液**，
   槽只提供功能和状态，手动按钮和 IPA 的自动逻辑调同一组功能（"手自动一体"）。IPA 没做之前槽没有扫描线程、也没人调 InitComponent，平台不为它改（只对模块做组件初始化）。
+- **IPA 这类模块实现 `ISupplyModule`**（2026-10-17，用户："这个接口和 ITransferStation 是平级的……代表和机械手是没有交互的"；名字用户从几个里选的）：`xyz.Modules\Supply`，
+  机械手来取放片的站点（LoadPort、腔体）实现 `ITransferStation`，不跟机械手交互的（供液这类）实现它。现在只有名字；"就绪"这类等做 IPA 功能时再加（用户："先不着急"）。
+  挂在 CDS 基类上（`BaseCdsModule : BaseModule`，以后的药液模块继承就自带），IPA 模块放机型层（用户定的；`CdsIpaModule`，现在只推 `IpaDto`）。
 - **阀组**：子节点 `Fill` / `Drain` / `Supply` 是 `ValveGroupComponent`（下面挂几个 `ValveComponent`，一起开、一起关，接口 `IValveGroup`），补液、排液会有多个阀（用户）；没挂就没有那个功能。
 - **SC `FillTo`**（用户："增加一个 sc，补液到什么时候哪一个液位算是补液完成"）：L 或 H，默认 H，不分大小写，配错开机抛；只给 L / H 是我定的（HH 是报警位，补到 HH 每次都报高高）。
 - **状态 `TankState`（SV）**：空闲 / 就绪 / 补液中 / 排液中 / 换液中 / 供液中 / 出错（用户要的，"真正的机台跑的时候肯定是要求你的 tank 都是 ready 状态"）。
@@ -739,9 +759,10 @@
 - **信号灯跟各自的 DI，不从液位推**（2026-10-16 改的，原来照预览按液位推、少配了也画五盏；用户："那五个 di 实际上就是物理存在的，不需要推断"）：
   一盏灯对一个 DI 组件，亮灭是它的 `IsActive`，名字照 sc 节点名，sc 里没配的不画；液面、右上角的字还是跟液位。信号对不上时液位不知道，灯照样各亮各的，看得出是哪个点坏了。
   TankScene 收整个槽的显示模型（依赖属性 `Tank` = `TankModel`，用户同意），不再只收 `Level`。信号灯是公共控件 `Controls\SignalLamp`（灯 + 名字，只收 `IsActive` / `Text` / `IsAlarm`），别处显示 DI 也用它。
-- **槽的推送**（用户确认的流程）：IPA 模块的扫描线程每拍调槽的 `OnScan`，**槽自己在 `OnScan` 最后**比液位、状态、五个信号的 `IsActive`，跟上一拍不一样（第一拍也算）才发 C# 事件 `Changed`；
-  组件层不直接推客户端，`xyz.Service\Events\TankPublisher` 把它换成 `TankDto`（液位、状态、`LL`～`Overfill` 各一个 `DiSensorDto`，没配是 null）`EventBus.Send`，
-  token 是槽的全路径（`CDS.IPA.Tank1`，可能有好几个槽），留存。IPA 模块没做之前没人扫槽，所以还不会推。
+- **槽的推送**（2026-10-18 改成跟着 IPA 模块推；原来是槽自己发 C# 事件 `Changed`、`xyz.Service\Events\TankPublisher` 按槽的全路径推，那一套删了）：
+  IPA 模块的扫描线程每拍扫槽（基类递归），槽算液位、状态；机型的 `Cds\IpaModule` 在自己的 `OnScan` 最后把 IPA 的状态和下面各槽转成 `TankDto`
+  （映射组件转：液位、状态、`LL`～`Overfill` 各一个 `DiSensorDto`，没配是 null）装进 `IpaDto`（放机型的 xyz.35021.Shared），跟上一拍不一样（第一拍也算）
+  才 `EventBus.Send`，token 是模块名（`IPA`），留存。用户："推的话肯定是 IPADTO……里面有关于 IPA 下面所有的数据以及下面组件的消息……这个也肯定是放在项目上的"。
 - **AI 液位计**（2026-10-17，用户定的）：液位不靠几个 DI 浮球、改装一个 AI 液位计时，LL / L / H / HH / Overfill 节点挂 `AiLevelComponent`
   （`Components\Sensors`，实现 `IDiSensor`）：读 `AiIndex` 那个 AI，到了自己的触发值算触发。对外跟 DI 信号一样，**槽、`TankDto`、`TankScene` 都没改**。
   - 两种配法（用户："要么就是只有一个 ai"；"混着也只是溢流有可能单独 di，其他的还是一个 ai"）：五个都挂 AI 液位信号、`AiIndex` 填同一个液位计；
@@ -777,3 +798,35 @@
 - **没挂、或者挂了但 DiIndex 配成 -1，都算没有这个点**（用户："没有配置或这个配置的是 -1 的话就是没有到位反馈的"）：`ComponentBase.FindSignal(名字)`（按名字找 DI 子节点，
   `IDiSensor.IsConfigured` 为 false 也返回 null），阀、气缸的反馈和 Tank 的液位信号都用它。机械手手指的 `WaferSensor` 还是 `FindChild`（没改，配 -1 会当"读不到"）。
 - 反馈在组件初始化（`InitComponent`）时认，所以阀、气缸要挂在会被初始化的父组件下面（腔体模块、Tank 的阀组）；判到位看 DI 组件上一拍扫到的值。
+
+## 推送和开机归组件自己、找组件按接口（2026-10-18，用户定的："一起做掉吧"）
+- **起因**（用户）："数据推送啥的应该就是自己组件的事情，不需要外部启动啥的"；"以后新增加组件不可能是还来改这个文件的"。原来 `ServiceExtensions` 里
+  点名开 PLC、IO、轴，挨个 Bind 搬运 / Job / 配方库 / EAP，再搭报警、EC、晶圆账、配方变更的推送桥，加四个 `Events\*Publisher`（设备总状态、IO、实时曲线、槽）。
+- **开机几个阶段**（`ComponentBase` 的空虚方法，`ComponentLoader` 统一调，启动代码不点名任何组件）：`InitComponent`（根按 InitOrder 再按 sc 先后：PLC 100、IO 200）
+  → `Bind()`（整棵树按 sc 先后、先父后子）→ 开始扫描（sc 配了 `IsRun` 的根）→ `OnStarted()` → 宿主退出 `OnStopping()`（倒着来，一个出错记日志、不耽误后面的）。
+  `Bind` 不带参数（用户："为什么要传递整个树，需要用到哪一个组件，自己知道的呀"）；要测的组件另留一个带模块表的重载给冒烟传。
+- **找组件一律按接口**（用户："很重要的一点就是，找组件的时候都要根据接口而不是基类去找"）：单例构造时 `Register<IXxx>(this)`，用 `ComponentBase.Find<IXxx>()`；
+  一类的全部用 `ComponentBase.FindAll<IXxx>()`（整棵树 `ComponentBase.Roots` 上找，停用的连同下面的跳过；用户："应该有一个地方提供获取这些的方法"）。
+  `Xxx.Current` 全删了。讨论过放进 IoC 当单例，定的是这样（静态登记 + 按接口取），以后有人另写一个数据曲线组件，实现同一个接口、sc 里换 Type 就行。
+  接口名带 Component 后缀（用户选的），已有的照用；EAP 那边只看得到组件层，配方库给它的是 `ISequenceLibrary` / `IRecipeLibrary`，模块层的 `ISequenceComponent` /
+  `IRecipeComponent` 继承它们。模块共有的 `IModule`（`ILoadPort`、`IRobot` 继承），腔体 `IChamber`（用户："腔体按照道理也应该和 loadport 一样增加接口"）；
+  搬运、Job、整机认模块用 `IModule` 不用 `BaseModule`（用户："为什么要用 BaseModule 这个"）。机型类不重复写基类已经实现的接口（用户："基类已经实现了"）。
+  服务也不再拿整棵树：构造不带参数，`FindModule<IXxx>(name)` 在整棵树上找；冒烟里手搭的模块用反射换 `ComponentBase.Roots`。
+  服务要用的单例在构造里 `Find` 一次存成字段，方法里不再各自取（用户："你怎么能每一个方法里面都获取呢，单例的不需要这个样子啊，为啥不通过构造"；
+  构造参数注入（单例转进 DI）也比过，用户选的是构造里取）。宿主每次调用都新建服务，构造里取的就是当前的；冒烟里换了单例要重新 new 服务。
+  日志转发也归日志组件（用户："public static class LogHistory 这个东西真的需要这样写吗？还搞了一个静态的"）：原来开机代码一开头就挂上日志队列，
+  转发和最近日志的环形缓冲只能是静态的 `LogHistory`；其实日志队列没人取时会把日志攒着（最多 2000 条），晚点接上一条不丢，所以改成 `LogComponent` 在 `Bind` 里接上队列、
+  自己留最近 `RecentLogCount` 条、自己推，`LogService` 从它取；`LogHistory` 和开机代码里那段转发删了，Log 节点改成必配（不然界面收不到日志）。
+- **谁推什么**：EC 组件值一变推 `EcItemDto`；报警组件报出、清掉都推 `AlarmDto`；晶圆账一变推 `WaferLedgerChangedDto`；两个配方库存、删、改名推变更，
+  切晶圆尺寸工艺配方库推一条编号 0 的；IO 组件在自己的扫描里按 EC 周期推整包 `IoDto`；实时曲线在自己的扫描里一帧一帧推（用户："单独自己一个线程然后写在 OnScan 里面"，
+  sc 配 `IsRun`）；数据曲线在自己的扫描里采（同上）；设备总状态挪进整机模块（用户："状态就是收紧这个系统模块里面"），整机每拍算、变了点四色灯（挂在 System 下）再推，
+  System 节点必配；槽跟着 IPA 推 `IpaDto`（见「CDS 供液：槽 Tank」）。转 DTO 一律走用户写的映射组件（`IMapperComponent`），服务层的 AlarmMapper / EcMapper / ChartMapper
+  和四个 Publisher 都删了，Mapper 节点必配。
+- **gRPC 服务自动认**（用户："这个是需要的"）：`ServiceExtensions.GrpcServices()` 在装进来的 xyz 程序集里找实现了带 `[ServiceContract]` 接口的公开类，
+  DI 注册成 Transient（跟原来一样）、宿主照这张表 `MapGrpcService`，加服务不用改 `ServiceExtensions` 和宿主 `Program`。
+- **CDS / IPA 只搭架子**（用户："先搭建架子，不需要做"）：`BaseCdsModule : BaseModule, ISupplyModule`（初始化直接进空闲、扫描时推状态），机型 `IpaModule` 继承它，
+  sc 里配了 CDS → IPA → Tank1 / Tank2（点都还没接，`DiIndex` / `DoIndex` 先写 -1）。"就绪"这类等做 IPA 功能时再加（用户："先不着急"）。
+- **没动的**：腔体替子组件拼设备 DTO 的那几段（用户："这个先暂时不动吧"）。
+- **跟着变的**：轴"两根轴配了同一个命令块"的检查从启动代码挪进轴自己的 `InitComponent`（比的还是装起来的那棵树）；EAP 的 Bind 跟着 sc 的先后走
+  （现在排在配方库、Job 后面，它用的都是单例，跟先后无关）；`IModule` 加了 `IsEnabled`，调度、任务表判站点能不能用不再转成 `BaseModule`；
+  两处 switch 表达式改成 if。

@@ -1,5 +1,6 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Drivers.Robot;
 
 namespace xyz.Components.Components;
@@ -8,7 +9,7 @@ namespace xyz.Components.Components;
 /// 机械手驱动组件基座：通讯配置、驱动生命周期（断线重连）、主动事件转发、统一触发口、在途指令作废。
 /// 挂在机械手模块下面，OnScan 由父模块的扫描线程递归带着跑。
 /// </summary>
-public abstract class RobotDriverComponent : ComponentBase
+public abstract class RobotDriverComponent : ComponentBase, IRobotDriverComponent
 {
     #region SC
 

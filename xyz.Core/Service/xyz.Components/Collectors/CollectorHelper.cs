@@ -76,14 +76,19 @@ internal static class CollectorHelper
     /// </summary>
     public static string? ReadCode(MemberInfo member, ComponentBase component)
     {
-        return member switch
+        if (member is FieldInfo field && field.FieldType == typeof(string))
         {
-            FieldInfo field when field.FieldType == typeof(string) => field.GetValue(component) as string,
-            PropertyInfo property when property.PropertyType == typeof(string)
-                && property.GetMethod?.IsPublic == true
-                && property.GetIndexParameters().Length == 0 => property.GetValue(component) as string,
-            _ => null
-        };
+            return field.GetValue(component) as string;
+        }
+
+        if (member is PropertyInfo property && property.PropertyType == typeof(string)
+            && property.GetMethod?.IsPublic == true
+            && property.GetIndexParameters().Length == 0)
+        {
+            return property.GetValue(component) as string;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -93,12 +98,18 @@ internal static class CollectorHelper
     {
         try
         {
-            return declaration.Property.GetValue(declaration.Owner) switch
+            object? value = declaration.Property.GetValue(declaration.Owner);
+            if (value is null)
             {
-                null => string.Empty,
-                IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-                var value => value.ToString() ?? string.Empty
-            };
+                return string.Empty;
+            }
+
+            if (value is IFormattable formattable)
+            {
+                return formattable.ToString(null, CultureInfo.InvariantCulture);
+            }
+
+            return value.ToString() ?? string.Empty;
         }
         catch (Exception exception)
         {

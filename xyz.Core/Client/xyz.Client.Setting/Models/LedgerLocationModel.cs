@@ -17,13 +17,7 @@ public sealed class LedgerLocationModel
         SlotCount = Slots.Count;
         WaferCount = Slots.Count(slot => slot.Wafer is not null);
 
-        KindText = L10n.Get(Kind switch
-        {
-            WaferLocationKind.Robot => "setting.ledger.kind.robot",
-            WaferLocationKind.LoadPort => "setting.ledger.kind.loadport",
-            WaferLocationKind.Chamber => "setting.ledger.kind.chamber",
-            _ => "setting.ledger.kind.other",
-        });
+        KindText = L10n.Get(KindKey(Kind));
 
         string summary = L10n.Get(IsRobot ? "setting.ledger.summary_arms" : "setting.ledger.summary_slots", SlotCount, WaferCount);
         if (Kind == WaferLocationKind.LoadPort)
@@ -96,5 +90,23 @@ public sealed class LedgerLocationModel
     public string PositionText(int slot)
     {
         return $"{Name} · {SlotName(slot)}";
+    }
+
+    /// <summary>
+    /// 位置种类对应的语言包键
+    /// </summary>
+    private static string KindKey(WaferLocationKind kind)
+    {
+        switch (kind)
+        {
+            case WaferLocationKind.Robot:
+                return "setting.ledger.kind.robot";
+            case WaferLocationKind.LoadPort:
+                return "setting.ledger.kind.loadport";
+            case WaferLocationKind.Chamber:
+                return "setting.ledger.kind.chamber";
+            default:
+                return "setting.ledger.kind.other";
+        }
     }
 }

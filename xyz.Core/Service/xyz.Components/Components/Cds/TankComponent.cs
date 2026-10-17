@@ -216,20 +216,6 @@ public class TankComponent : ComponentBase, ITank
 
     #endregion
 
-    #region 推送
-
-    /// <summary>
-    /// 液位、状态或哪个液位信号变了（第一拍也算）
-    /// </summary>
-    public event Action? Changed;
-
-    /// <summary>
-    /// 上一次通知出去的液位、状态和五个信号（从下往上），还没通知过是 null
-    /// </summary>
-    private (TankLevel, TankState, bool?, bool?, bool?, bool?, bool?)? _sent;
-
-    #endregion
-
     /// <summary>
     /// SC 灌完值：补液完成位只能是 L 或 H，配错开机就报
     /// </summary>
@@ -550,23 +536,6 @@ public class TankComponent : ComponentBase, ITank
                 SetState(TankState.Error, "有报警");
             }
         }
-
-        NotifyIfChanged();
-    }
-
-    /// <summary>
-    /// 跟上一次通知出去的比，有变化才通知（在锁外发）
-    /// </summary>
-    private void NotifyIfChanged()
-    {
-        var now = (Level, State, _ll?.IsActive, _l?.IsActive, _h?.IsActive, _hh?.IsActive, _overfill?.IsActive);
-        if (_sent == now)
-        {
-            return;
-        }
-
-        _sent = now;
-        Changed?.Invoke();
     }
 
     /// <summary>

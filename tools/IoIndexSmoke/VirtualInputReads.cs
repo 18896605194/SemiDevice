@@ -10,13 +10,13 @@ static class VirtualInputReads
 {
     public static void Run(string directory)
     {
-        var previousPlc = PlcComponent.Current;
-        var previousIo = IoComponent.Current;
+        var previousPlc = ComponentBase.Find<IPlc>();
+        var previousIo = ComponentBase.Find<IIoComponent>();
         try
         {
             InvalidConfigurations();
             var plc = new ProbePlc();
-            PlcComponent.Current = plc;
+            ComponentBase.Register<IPlc>(plc);
             var roots = ComponentLoader.Load(
             [
                 new ModuleConfig { Name = "Io", Type = typeof(IoComponent).FullName },
@@ -105,8 +105,8 @@ static class VirtualInputReads
         }
         finally
         {
-            PlcComponent.Current = previousPlc;
-            IoComponent.Current = previousIo;
+            ComponentBase.Register<IPlc>(previousPlc);
+            ComponentBase.Register<IIoComponent>(previousIo);
         }
     }
 

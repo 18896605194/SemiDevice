@@ -162,7 +162,7 @@ public class DiSensorComponent : ComponentBase, IDiSensor
     /// </summary>
     protected virtual bool? ReadDi()
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null || !io.TryReadDi(DiIndex, out bool on))
         {
             return null;

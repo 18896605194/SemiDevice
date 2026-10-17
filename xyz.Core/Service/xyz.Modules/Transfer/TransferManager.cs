@@ -5,13 +5,14 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Shared.Errors;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
 [Component(description: "搬运执行：校验参数、占用槽位和手臂、驱动站点交互与机械手取放")]
-public class TransferManager : ComponentBase
+public class TransferManager : ComponentBase, ITransferManager
 {
 
     #region EC
@@ -96,7 +97,6 @@ public class TransferManager : ComponentBase
 
     #endregion
 
-    public static TransferManager? Current { get; set; }
     private readonly object _gate = new();
     private readonly Dictionary<string, TransferRoutine> _running = new(StringComparer.OrdinalIgnoreCase);
 
@@ -108,13 +108,13 @@ public class TransferManager : ComponentBase
 
     public TransferManager()
     {
-        Current = this;
+        Register<ITransferManager>(this);
     }
 
 
     #region 模块装配
 
-    private IReadOnlyDictionary<string, BaseModule> _modules =new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, IModule> _modules =new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
 
     private IReadOnlyList<IRobot> _robots = [];
 
@@ -122,9 +122,20 @@ public class TransferManager : ComponentBase
 
     public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
 
-    public void Bind(IEnumerable<BaseModule> modules)
+    /// <summary>
+    /// 开机：认装起来的站点和机械手
+    /// </summary>
+    public override void Bind()
     {
-        var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+        Bind(FindAll<IModule>());
+    }
+
+    /// <summary>
+    /// 按给的模块认站点和机械手（开机由 Bind() 传整棵树上的模块）
+    /// </summary>
+    public void Bind(IEnumerable<IModule> modules)
+    {
+        var table = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
         {
             table[module.Name] = module;
@@ -164,7 +175,7 @@ public class TransferManager : ComponentBase
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = WaferManagerComponent.Current;  //晶圆账单管理
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();  //晶圆账单管理
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -264,7 +275,7 @@ public class TransferManager : ComponentBase
     }
 
     /// <summary>源或目标是机械手时：手指号要在晶圆账给它登记的手指数以内。</summary>
-    private static HandleResult<TransferRoutine>? CheckArmSlot(string robot, int arm, WaferManagerComponent ledger)
+    private static HandleResult<TransferRoutine>? CheckArmSlot(string robot, int arm, IWaferManagerComponent ledger)
     {
         int armCount = ledger.GetSlots(robot).Count;
         if (arm >= 1 && arm <= armCount)
@@ -281,7 +292,7 @@ public class TransferManager : ComponentBase
     /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手；
     /// 目标是机械手（receiver 不为 null，只取片）时就用点了名的那台、目标槽号那只手。
     /// </summary>
-    private HandleResult<TransferRoutine> Admit(TransferRequest request, WaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
+    private HandleResult<TransferRoutine> Admit(TransferRequest request, IWaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
         ITransferStation? target, IRobot? receiver, string targetName)
     {
         string sourceSlot = request.SourceSlot.ToString(CultureInfo.InvariantCulture);
@@ -310,7 +321,7 @@ public class TransferManager : ComponentBase
 
         #region 归属：被 Job 占着的片只能由那个 Job 搬（人工恢复放行）
 
-        string? owner = JobManager.Current?.OwnerOf(wafer.Id); //这个wafer有没有被job占用
+        string? owner = ComponentBase.Find<IJobManager>()?.OwnerOf(wafer.Id); //这个wafer有没有被job占用
         if (owner is not null && request.Origin != TransferOrigin.Recovery&& !string.Equals(owner, request.Owner, StringComparison.Ordinal))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferOwned, wafer.WaferId, owner);
@@ -385,13 +396,13 @@ public class TransferManager : ComponentBase
             if (string.Equals(active.SourceName, sourceName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(active.TargetName, sourceName, StringComparison.OrdinalIgnoreCase))
             {
-                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, (source as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, (source as IModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
 
             if (string.Equals(active.SourceName, targetName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(active.TargetName, targetName, StringComparison.OrdinalIgnoreCase))
             {
-                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, targetName, (target as BaseModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, targetName, (target as IModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
         }
 
@@ -496,7 +507,7 @@ public class TransferManager : ComponentBase
     /// 挑手臂：两个站点都许用、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
     /// 手指数按晶圆账给机械手登记的槽数（机械手组件初始化时按驱动轴表登记）。
     /// </summary>
-    private HandleResult<TransferRoutine>? PickArm(IRobot robot, int wanted, string source, string target, WaferManagerComponent ledger, out int arm)
+    private HandleResult<TransferRoutine>? PickArm(IRobot robot, int wanted, string source, string target, IWaferManagerComponent ledger, out int arm)
     {
         arm = 0;
         int armCount = ledger.GetSlots(robot.Name).Count;

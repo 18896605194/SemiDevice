@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace xyz.Components.Models;
@@ -37,12 +37,15 @@ internal sealed class IoExpression
                 return null;
             }
 
-            return Operator switch
+            switch (Operator)
             {
-                "-" => -value.Value,
-                "!" => value.Value == 0 ? 1 : 0,
-                _ => value.Value,
-            };
+                case "-":
+                    return -value.Value;
+                case "!":
+                    return value.Value == 0 ? 1 : 0;
+                default:
+                    return value.Value;
+            }
         }
     }
 
@@ -60,22 +63,49 @@ internal sealed class IoExpression
 
             double a = left.Value;
             double b = right.Value;
-            double result = Operator switch
+            double result;
+            switch (Operator)
             {
-                "+" => a + b,
-                "-" => a - b,
-                "*" => a * b,
-                "/" => a / b,
-                ">" => a > b ? 1 : 0,
-                ">=" => a >= b ? 1 : 0,
-                "<" => a < b ? 1 : 0,
-                "<=" => a <= b ? 1 : 0,
-                "==" => a == b ? 1 : 0,
-                "!=" => a != b ? 1 : 0,
-                "&&" => a != 0 && b != 0 ? 1 : 0,
-                "||" => a != 0 || b != 0 ? 1 : 0,
-                _ => throw new InvalidOperationException($"未知运算符 {Operator}"),
-            };
+                case "+":
+                    result = a + b;
+                    break;
+                case "-":
+                    result = a - b;
+                    break;
+                case "*":
+                    result = a * b;
+                    break;
+                case "/":
+                    result = a / b;
+                    break;
+                case ">":
+                    result = a > b ? 1 : 0;
+                    break;
+                case ">=":
+                    result = a >= b ? 1 : 0;
+                    break;
+                case "<":
+                    result = a < b ? 1 : 0;
+                    break;
+                case "<=":
+                    result = a <= b ? 1 : 0;
+                    break;
+                case "==":
+                    result = a == b ? 1 : 0;
+                    break;
+                case "!=":
+                    result = a != b ? 1 : 0;
+                    break;
+                case "&&":
+                    result = a != 0 && b != 0 ? 1 : 0;
+                    break;
+                case "||":
+                    result = a != 0 || b != 0 ? 1 : 0;
+                    break;
+                default:
+                    throw new InvalidOperationException($"未知运算符 {Operator}");
+            }
+
             return double.IsFinite(result) ? result : null;
         }
     }
@@ -259,16 +289,32 @@ internal sealed class IoExpression
             }
         }
 
-        private static int Precedence(string token) => token switch
+        private static int Precedence(string token)
         {
-            "||" => 1,
-            "&&" => 2,
-            "==" or "!=" => 3,
-            ">" or ">=" or "<" or "<=" => 4,
-            "+" or "-" => 5,
-            "*" or "/" => 6,
-            _ => 0,
-        };
+            switch (token)
+            {
+                case "||":
+                    return 1;
+                case "&&":
+                    return 2;
+                case "==":
+                case "!=":
+                    return 3;
+                case ">":
+                case ">=":
+                case "<":
+                case "<=":
+                    return 4;
+                case "+":
+                case "-":
+                    return 5;
+                case "*":
+                case "/":
+                    return 6;
+                default:
+                    return 0;
+            }
+        }
 
         private InvalidOperationException Error(string message) => new($"Expression 第 {_position + 1} 字符附近：{message}");
     }

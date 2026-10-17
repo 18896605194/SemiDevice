@@ -229,7 +229,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `ChamberScene` 把它们装成腔体手动页的三维图（`Devices` 绑 `ChamberDeviceDataModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
   LoadPort（`LoadPortVisual3D`）和花篮（`CarrierVisual3D`，片用 Disk）两个公共组件由 `LoadPortScene` 组合成 LoadPort 手动页中间的三维图
   （槽数跟 sc 的 SlotCount、每个动作 0.5 s，见 decisions.md「LoadPort 手动页（三维）」）；原来的二维花篮控件 `LoadPort` 删了。
-  供液槽：`TankVisual3D`（透明圆筒 + 液体）由 `TankScene` 装成三维图，`Tank` 绑槽的显示模型（`Models\TankModel`，后端推 `TankDto`，token 是槽的全路径）、
+  供液槽：`TankVisual3D`（透明圆筒 + 液体）由 `TankScene` 装成三维图，`Tank` 绑槽的显示模型（`Models\TankModel`，后端跟着供液模块推：35021 的 `IpaDto` 里带各槽的 `TankDto`，token 是模块名）、
   `WallTransparency` 罐壁透明度；液面跟液位，罐右边的信号灯跟各自的 DI 信号、sc 里没配的不画。还没接进页面（Tank 手动页没做）。
 - **SignalLamp**（信号灯：一盏灯 + 名字，对一个 DI 信号）：`IsActive`（触发亮绿、没触发灭、null 读不到是"不知道"色）、`Text`（sc 节点名原样）、
   `IsAlarm`（报警位，触发亮红）。灯的颜色、字用 `SignalLampBorderStyle` / `SignalLampTextStyle`。显示 DI 信号都用它（界面件对后台组件的定法见 decisions.md）。

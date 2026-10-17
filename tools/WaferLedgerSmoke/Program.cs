@@ -2,6 +2,7 @@
 using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.Alarms;
@@ -27,6 +28,12 @@ void Check(bool condition, string message)
     checks++;
 }
 
+// 整棵组件树：生产里由 ComponentLoader 装好时填，服务按接口在上面找模块
+void UseTree(params ComponentBase[] roots)
+{
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Roots))!.SetValue(null, roots);
+}
+
 // 0. 真 sc.xml 里配了账本节点（这里只装配这一个节点：整份 sc.xml 要机型模块程序集，不是本工具的事）。
 // 读编译时从 xyz.Configs 拷到输出目录的那份（跟源码 sc.xml 同一份），不写死仓库位置。
 var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
@@ -41,7 +48,7 @@ Check(mapperNode is not null, "账本的存盘、流水、人工调整记录靠�
 // 连库、映射组件和账本一起装：账本的流水库名要能在这些连接里找到，否则会回落到默认库。
 // 后面直接 new 出来的账本也用这里装出来的映射组件。
 var roots = ComponentLoader.Load([databaseGroup!, mapperNode!, node!]);
-Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && MapperComponent.Current is not null, "sc.xml 应装出映射组件");
+Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && ComponentBase.Find<IMapperComponent>() is not null, "sc.xml 应装出映射组件");
 Check(XyzDb.IsRegistered("Default") && XyzDb.IsRegistered("Io"),
     "Database 节点应注册出业务库与设备数据库两路连接，实际: " + string.Join(",", XyzDb.RegisteredNames));
 Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
@@ -49,7 +56,7 @@ Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", Str
     "晶圆流水属业务数据，应配在默认库");
 var assembled = roots.OfType<WaferManagerComponent>().SingleOrDefault();
 Check(assembled is not null && assembled.IsEnable && assembled.Name == "WaferManager", "sc.xml 应装出一个启用的 WaferManagerComponent");
-Check(ReferenceEquals(WaferManagerComponent.Current, assembled), "装配出来即成为 Current");
+Check(ReferenceEquals(ComponentBase.Find<IWaferManagerComponent>(), assembled), "装配出来就登记成单例");
 // 启动时只对 roots 里的 BaseModule 调 Start()，账本不在其中，所以没有扫描线程。
 Check(!roots.OfType<BaseModule>().Any(module => ReferenceEquals(module, assembled)), "账本不该出现在会被 Start 的模块清单里");
 
@@ -96,18 +103,23 @@ Check(ledger.SetProcessState("Robot1", 1, WaferProcessState.InProcess)
       && ledger.Get("Robot1", 1)!.ProcessState == WaferProcessState.InProcess, "改工艺状态");
 Check(ledger.Find("W-123")?.Module == "Robot1" && ledger.Find("没有这片") is null, "按片号找片");
 
-// 5. 事件：建/移/改/删各发一次，移片带原位置。
+// 5. 事件：建/移/改/删各发一次，移片带原位置；每次也推一条轻通知给界面（WaferLedgerChangedDto，带变了的站点，不留存），界面自己再拉。
 var events = new List<string>();
 ledger.WaferCreated += w => events.Add($"created:{w.Module}.{w.Slot}");
 ledger.WaferMoved += (w, module, slot) => events.Add($"moved:{module}.{slot}->{w.Module}.{w.Slot}");
 ledger.WaferUpdated += w => events.Add($"updated:{w.WaferId}");
 ledger.WaferDeleted += w => events.Add($"deleted:{w.Module}.{w.Slot}");
+var ledgerPushes = new List<string>();
+var ledgerPushSubscription = EventBus.Register<WaferLedgerChangedDto>(WaferLedgerDto.EventToken, dto => ledgerPushes.Add(dto.Module));
 ledger.Create("LoadPort1", 9);
 ledger.Move("LoadPort1", 9, "Robot1", 2);
 ledger.SetLotId("Robot1", 2, "LOT-B");
 ledger.Delete("Robot1", 2);
+ledgerPushSubscription.Dispose();
 Check(events.SequenceEqual(new[] { "created:LoadPort1.9", "moved:LoadPort1.9->Robot1.2", "updated:LoadPort1.09", "deleted:Robot1.2" }),
     "事件顺序/内容不对: " + string.Join(" | ", events));
+Check(ledgerPushes.SequenceEqual(new[] { "LoadPort1", "Robot1", "Robot1", "Robot1" }),
+    "账一变推一条轻通知，带变了的站点（移片带去的那个）：" + string.Join(",", ledgerPushes));
 
 // 6. Mapping 整篮重建：先清旧账再按每槽状态建，交叉片状态要带进账。
 ledger.RegisterLoadPort("LoadPort2", 3);
@@ -306,7 +318,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
             ],
         },
     ]).OfType<AlarmComponent>().Single();
-    Check(ReferenceEquals(AlarmComponent.Current, alarms), "装出来的报警组件应成为 Current");
+    Check(ReferenceEquals(ComponentBase.Find<IAlarmComponent>(), alarms), "装出来的报警组件应成为 Current");
 
     var raised = new List<AlarmItem>();
     alarms.AlarmChanged += item =>
@@ -392,7 +404,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     }
 
     // 报警上报不能把设备线程带崩：没装报警组件时是空操作
-    AlarmComponent.Current = null;
+    ComponentBase.Register<IAlarmComponent>(null);
     Check(!ledger.Move("AlarmLp", 1, "AlarmLp", 2), "没装报警组件时账本照常工作");
 }
 
@@ -551,7 +563,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
             .SplitTable(tables => tables.Take(2)).ExecuteCommand();
     }
 
-    AlarmComponent.Current = null;
+    ComponentBase.Register<IAlarmComponent>(null);
 }
 
 // 16. 账单调整服务（直接调 gRPC 服务类，不起网络）：位置跟着机械手的站点表走——机械手在前，站点按站点表的先后，
@@ -571,7 +583,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     serviceLedger.Create("SvcLP1", 5, WaferStatus.Crossed, "FOUP-SVC");
     serviceLedger.SetWaferId("SvcLP1", 5, "W-LP05");
 
-    var service = new WaferLedgerService([robot1, robot2]);
+    UseTree(robot1, robot2);
+    var service = new WaferLedgerService();
     var view = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     Check(view.IsEnabled && view.Locations.Select(location => location.Name)
               .SequenceEqual(new[] { "SvcRobot1", "SvcRobot2", "SvcLP1", "SvcPM1", "SvcBuffer" }),
@@ -665,11 +678,12 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && !disabledCreate.Success && disabledCreate.Code == ErrorCodes.WaferLedgerDisabled,
         "账没开：位置表是空的，调账给错误码");
 
-    WaferManagerComponent.Current = null;
+    ComponentBase.Register<IWaferManagerComponent>(null);
+    service = new WaferLedgerService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var noLedgerView = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     var noLedgerRecords = (await service.GetAdjustmentsAsync(new RpcRequest())).DeserializeData<List<WaferAdjustmentDto>>();
     Check(!noLedgerView.IsEnabled && noLedgerView.Locations.Count == 0 && noLedgerRecords.Count == 0, "没装账本也不出错");
-    AlarmComponent.Current = null;
+    ComponentBase.Register<IAlarmComponent>(null);
 }
 
 // 存盘与开机恢复：装配出来（读到 SC）的账本隔一会儿把当前账整张存盘；"重启"后新的一本账在模块登记完槽位后恢复——
@@ -712,7 +726,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     }
 
     var noMapper = Assemble();
-    MapperComponent.Current = null;
+    ComponentBase.Register<IMapperComponent>(null);
     bool refused = false;
     try
     {
@@ -733,7 +747,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     var armWafer = before.Create("PLP", 3, WaferStatus.Normal, "FOUP-P")!;
     Check(before.Move("PLP", 2, "PPM", 1) && before.SetProcessState("PPM", 1, WaferProcessState.InProcess)
           && before.Move("PLP", 3, "PRB", 2), "摆好：一片在载具里、一片在腔体里加工、一片在机械手手上");
-    var mapper = MapperComponent.Current;
+    var mapper = ComponentBase.Find<IMapperComponent>();
     var armNow = before.Get("PRB", 2);
     var armRow = mapper is not null && armNow is not null ? mapper.Map<WaferCurrentEntity>(armNow) : null;
     Check(armRow is not null && armNow is not null && armRow.WaferGuid == armNow.Id.ToString() && armRow.WaferId == armNow.WaferId
@@ -757,7 +771,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && adjustmentRow.WaferId == armNow.WaferId && adjustmentRow.CarrierId == armNow.CarrierId && adjustmentRow.LotId == armNow.LotId
           && adjustmentRow.FromModule == string.Empty && adjustmentRow.Operator == string.Empty,
         "人工调整记录：表自己的 Id 是雪花号，片号、载具、批次照片上的，从哪到哪、操作人留给记录的地方填");
-    before.StopSnapshot();
+    before.OnStopping(); // 宿主退出时 StopAll 调它：停存盘线程、最后存一次
     var saved = Saved();
     Check(saved.Count == 3 && saved.Any(row => row.WaferGuid == inChamber.Id.ToString() && row.Module == "PPM"
                                            && row.ProcessState == nameof(WaferProcessState.InProcess) && row.SourceLoadPort == "PLP" && row.SourceSlot == 2),
@@ -767,7 +781,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     Check(after.Create("PLP", 1, WaferStatus.Normal, "FOUP-P") is not null, "恢复之前账就变了（开机 Mapping 抢在前面）");
     Thread.Sleep(1300);
     Check(Saved().Count == 3, "恢复之前不存盘：上次存的没被开机那一刻的账冲掉");
-    Check(after.Restore() == 2, "恢复了腔体、机械手上的两片");
+    after.Bind(); // 开机 BindAll 调它：各模块登记完槽位以后按存盘恢复
+    Check(after.CountWafers("PPM") == 1 && after.CountWafers("PRB") == 1, "恢复了腔体、机械手上的两片");
     var restoredChamber = after.Get("PPM", 1);
     var restoredArm = after.Get("PRB", 2);
     Check(restoredChamber is not null && restoredChamber.Id == inChamber.Id && restoredChamber.ProcessState == WaferProcessState.Aborted
@@ -789,8 +804,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     Check(savedAfterRestore, "恢复完存盘线程接着存：存的是这一轮的账（中止、开机 Mapping 的新片）");
     after.StopSnapshot();
-    WaferManagerComponent.Current = null;
-    MapperComponent.Current = null;
+    ComponentBase.Register<IWaferManagerComponent>(null);
+    ComponentBase.Register<IMapperComponent>(null);
 }
 
 Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");
@@ -824,11 +839,25 @@ sealed class LedgerProbeRobot : BaseModule, IRobot
 
     HandleResult<ModuleOperation> IRobot.Home() => Refused();
 
-    ModuleOperation? IRobot.InitModule() => null;
+    int IRobot.HomeTimeout => 0;
 
-    ModuleOperation? IRobot.Reset() => null;
+    int IRobot.ResetTimeout => 0;
 
-    ModuleOperation? IRobot.Abort() => null;
+    int IRobot.AbortTimeout => 0;
+
+    int IRobot.PowerTimeout => 0;
+
+    HandleResult? IRobot.CheckReset() => null;
+
+    HandleResult? IRobot.CheckAbort() => null;
+
+    RobotDto IRobot.CreateStateDto() => new() { Name = Name };
+
+    ModuleOperation? IModule.InitModule() => null;
+
+    ModuleOperation? IModule.Reset() => null;
+
+    ModuleOperation? IModule.Abort() => null;
 
     HandleResult<ModuleOperation> IRobot.Pick(int arm, string station, int slot) => Refused();
 

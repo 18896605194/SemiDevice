@@ -90,7 +90,7 @@ public class NozzleComponent : ValveComponent, INozzle
             return true;
         }
 
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         return io is not null && io.WriteAo(AoIndex, litersPerMinute);
     }
 

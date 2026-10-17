@@ -77,7 +77,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     {
         get
         {
-            var ledger = WaferManagerComponent.Current;
+            var ledger = ComponentBase.Find<IWaferManagerComponent>();
             if (ledger is null || !ledger.IsEnable || _robot.Length == 0)
             {
                 return false;

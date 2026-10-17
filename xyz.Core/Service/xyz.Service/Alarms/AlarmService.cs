@@ -1,6 +1,8 @@
 ﻿using ProtoBuf.Grpc;
 using SqlSugar;
+using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -11,13 +13,23 @@ using xyz.Tools;
 namespace xyz.Service.Alarms;
 
 /// <summary>
-/// 报警 gRPC 服务：当前报警与人工复位走报警组件（AlarmComponent.Current），报警历史查报警记录表。
+/// 报警 gRPC 服务：当前报警与人工复位走报警组件（IAlarmComponent），报警历史查报警记录表。
 /// </summary>
 public class AlarmService : IAlarmService
 {
+    private readonly IAlarmComponent? _alarms;
+
+    private readonly IMapperComponent _mapper;
+
+    public AlarmService()
+    {
+        _alarms = ComponentBase.Find<IAlarmComponent>();
+        _mapper = ComponentBase.Find<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+    }
+
     public Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default)
     {
-        var alarms = AlarmComponent.Current?.ActiveAlarms.Select(item => item.ToDto()).ToList() ?? [];
+        var alarms = _alarms?.ActiveAlarms.Select(item => _mapper.Map<AlarmDto>(item)).ToList() ?? [];
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(alarms)));
     }
 
@@ -26,14 +38,13 @@ public class AlarmService : IAlarmService
     /// </summary>
     public Task<RpcResponse> ResetAsync(RpcRequest request, CallContext context = default)
     {
-        var alarms = AlarmComponent.Current;
-        if (alarms is null)
+        if (_alarms is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
         }
 
         var source = request.Parameters.GetValueOrDefault("Source") ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(source) || !alarms.Reset(source))
+        if (string.IsNullOrWhiteSpace(source) || !_alarms.Reset(source))
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmSourceNotFound, [source]));
         }
@@ -43,13 +54,12 @@ public class AlarmService : IAlarmService
 
     public Task<RpcResponse> ResetAllAsync(RpcRequest request, CallContext context = default)
     {
-        var alarms = AlarmComponent.Current;
-        if (alarms is null)
+        if (_alarms is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.AlarmNotInstalled, []));
         }
 
-        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(alarms.ResetAll())));
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(_alarms.ResetAll())));
     }
 
     /// <summary>
@@ -63,7 +73,7 @@ public class AlarmService : IAlarmService
             {
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
-                var configured = AlarmComponent.Current?.HistoryQueryMaxCount ?? 0;
+                var configured = _alarms?.HistoryQueryMaxCount ?? 0;
                 if (configured <= 0)
                 {
                     configured = 1000;
@@ -73,7 +83,7 @@ public class AlarmService : IAlarmService
                 var start = query.Start;
                 var end = query.End;
 
-                using var db = XyzDb.Create(AlarmComponent.Current?.HistoryDatabase ?? XyzDb.DefaultName);
+                using var db = XyzDb.Create(_alarms?.HistoryDatabase ?? XyzDb.DefaultName);
                 var hasTables = db.SplitHelper<AlarmHistoryEntity>().GetTables()
                     .Any(table => table.Date >= start.Date && table.Date < end);
                 if (!hasTables)
@@ -93,7 +103,7 @@ public class AlarmService : IAlarmService
 
                 var result = new HistoryResult<AlarmHistoryDto>
                 {
-                    Items = rows.Take(maxCount).Select(row => row.ToDto()).ToList(),
+                    Items = rows.Take(maxCount).Select(row => _mapper.Map<AlarmHistoryDto>(row)).ToList(),
                     Truncated = rows.Count > maxCount,
                 };
                 return RpcResponse.Ok(JsonHelper.Serialize(result));

@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -39,14 +40,14 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     protected override void OnScan()
     {
         // 入口查过装没装，这里兜个底
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         if (transfers is null)
         {
             Fail(ErrorCodes.TransferNotInstalled, "没装搬运管理");
             return;
         }
 
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null)
         {
             Fail(ErrorCodes.WaferLedgerDisabled, "没装晶圆账");
@@ -72,7 +73,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
 
     #region 排计划
 
-    private void Plan(TransferManager transfers, WaferManagerComponent ledger)
+    private void Plan(ITransferManager transfers, IWaferManagerComponent ledger)
     {
         var claimed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -109,7 +110,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     }
 
     /// <summary>这一片回不回得去：回得去排进计划，回不去记日志。</summary>
-    private void Consider(TransferManager transfers, WaferManagerComponent ledger, HashSet<string> claimed,
+    private void Consider(ITransferManager transfers, IWaferManagerComponent ledger, HashSet<string> claimed,
         WaferInfo wafer, string source, int sourceSlot)
     {
         string? reason = Check(transfers, ledger, claimed, wafer);
@@ -132,9 +133,9 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     }
 
     /// <summary>回不去的原因；回得去返回 null，并占住原槽（两片不会排进同一个槽）。</summary>
-    private static string? Check(TransferManager transfers, WaferManagerComponent ledger, HashSet<string> claimed, WaferInfo wafer)
+    private static string? Check(ITransferManager transfers, IWaferManagerComponent ledger, HashSet<string> claimed, WaferInfo wafer)
     {
-        string? owner = JobManager.Current?.OwnerOf(wafer.Id);
+        string? owner = ComponentBase.Find<IJobManager>()?.OwnerOf(wafer.Id);
         if (owner is not null)
         {
             return $"还归 Job {owner}，由 Job 收场";
@@ -186,7 +187,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     #region 下单、收单
 
     /// <summary>推一拍：收搬完的、下能下的。都收场了返回 true。</summary>
-    private bool Advance(TransferManager transfers)
+    private bool Advance(ITransferManager transfers)
     {
         foreach (var routine in _running.ToList())
         {

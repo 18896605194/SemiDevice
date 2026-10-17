@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Reflection;
+using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Models;
 using xyz.Configs.Models;
@@ -12,7 +13,32 @@ namespace xyz.Components;
 public static class ComponentLoader
 {
     /// <summary>
-    /// 初始化和依赖绑定完成后统一启动根组件。子组件已在父组件的扫描树中，不能重复起线程。
+    /// 开机第一步：根组件按 InitOrder、再按 sc 先后做开机准备，子组件由基类递归带着做
+    /// </summary>
+    public static void InitAll(IEnumerable<ComponentBase> roots)
+    {
+        foreach (var root in roots.Where(root => root.IsEnabled).OrderBy(root => root.InitOrder))
+        {
+            if (!root.InitComponent())
+            {
+                LogHelper.Error(root.FullPath, "组件初始化没全做成（驱动连接失败等，原因见前面的日志）");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 开机第二步：开机准备都做完、开始扫描之前，整棵树按 sc 先后挨个 Bind
+    /// </summary>
+    public static void BindAll(IEnumerable<ComponentBase> roots)
+    {
+        foreach (var component in Walk(roots))
+        {
+            component.Bind();
+        }
+    }
+
+    /// <summary>
+    /// 开机第三步：初始化和依赖绑定完成后统一启动根组件。子组件已在父组件的扫描树中，不能重复起线程。
     /// </summary>
     public static void StartScanning(IEnumerable<ComponentBase> roots)
     {
@@ -21,6 +47,55 @@ public static class ComponentLoader
             if (root.IsEnabled && root.IsRun)
             {
                 root.Start();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 开机第四步：都开始扫描以后，整棵树按 sc 先后挨个 OnStarted
+    /// </summary>
+    public static void StartedAll(IEnumerable<ComponentBase> roots)
+    {
+        foreach (var component in Walk(roots))
+        {
+            component.OnStarted();
+        }
+    }
+
+    /// <summary>
+    /// 宿主退出：整棵树倒着挨个 OnStopping（后起来的先收）；一个出错不耽误后面的
+    /// </summary>
+    public static void StopAll(IEnumerable<ComponentBase> roots)
+    {
+        foreach (var component in Walk(roots).Reverse())
+        {
+            try
+            {
+                component.OnStopping();
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Error(component.FullPath, $"退出收尾出错：{exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 启用的组件按 sc 先后（父在前、子在后）；停用的连同下面的都跳过
+    /// </summary>
+    private static IEnumerable<ComponentBase> Walk(IEnumerable<ComponentBase> components)
+    {
+        foreach (var component in components)
+        {
+            if (!component.IsEnabled)
+            {
+                continue;
+            }
+
+            yield return component;
+            foreach (var child in Walk(component.Children))
+            {
+                yield return child;
             }
         }
     }
@@ -47,6 +122,7 @@ public static class ComponentLoader
         // 虚拟点可分布于任意模块，整棵树装好后统一校验索引与依赖。
         VirtualInputRegistry.Attach(roots);
 
+        ComponentBase.Roots = roots;
         return roots;
     }
 

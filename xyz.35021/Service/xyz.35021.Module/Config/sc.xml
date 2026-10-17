@@ -157,6 +157,7 @@
 		<Value Name="ScreenshotDirectory" Value="Screenshots" />
 	</Setting>
 	<Setting Name="RealChart" Type="xyz.Components.Components.RealChartComponent">
+		<Value Name="IsRun" Value="true" />
 		<Value Name="WindowSeconds" Value="3600" />
 	</Setting>
 	<Setting Name="LoadPort">
@@ -502,6 +503,7 @@
 		<Setting Name="Recipe" Type="xyz.Components.Components.E30RecipeComponent">
 			<Value Name="LockLocalEditInRemote" Value="False" />
 		</Setting>
+		<Setting Name="Trace" Type="xyz.Components.Components.E30TraceComponent" />
 		<Setting Name="E87" Type="xyz.Components.Components.E87Component" />
 		<Setting Name="E90" Type="xyz.Components.Components.E90Component" />
 		<Setting Name="E40" Type="xyz.Components.Components.E40Component">
@@ -922,6 +924,102 @@
 			</Setting>
 		</Setting>
 	</Setting>
-    <Setting Name="CDS" />
+	<Setting Name="CDS">
+		<Setting Name="IPA" Type="xyz._35021.Module.Cds.IpaModule">
+			<Value Name="IsRun" Value="true" />
+			<Setting Name="Tank1" Type="xyz.Components.Components.TankComponent">
+				<Value Name="FillTo" Value="H" />
+				<Setting Name="LL" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="L" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="H" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="HH" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Overfill" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Fill" Type="xyz.Components.Components.ValveGroupComponent">
+					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+						<Value Name="DoIndex" Value="-1" />
+						<Value Name="NormalState" Value="NC" />
+					</Setting>
+				</Setting>
+				<Setting Name="Drain" Type="xyz.Components.Components.ValveGroupComponent">
+					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+						<Value Name="DoIndex" Value="-1" />
+						<Value Name="NormalState" Value="NC" />
+					</Setting>
+				</Setting>
+				<Setting Name="Supply" Type="xyz.Components.Components.ValveGroupComponent">
+					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+						<Value Name="DoIndex" Value="-1" />
+						<Value Name="NormalState" Value="NC" />
+					</Setting>
+				</Setting>
+			</Setting>
+			<Setting Name="Tank2" Type="xyz.Components.Components.TankComponent">
+				<Value Name="FillTo" Value="H" />
+				<Setting Name="LL" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="L" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="H" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="HH" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Overfill" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="-1" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Fill" Type="xyz.Components.Components.ValveGroupComponent">
+					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+						<Value Name="DoIndex" Value="-1" />
+						<Value Name="NormalState" Value="NC" />
+					</Setting>
+				</Setting>
+				<Setting Name="Drain" Type="xyz.Components.Components.ValveGroupComponent">
+					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+						<Value Name="DoIndex" Value="-1" />
+						<Value Name="NormalState" Value="NC" />
+					</Setting>
+				</Setting>
+				<Setting Name="Supply" Type="xyz.Components.Components.ValveGroupComponent">
+					<Setting Name="Valve1" Type="xyz.Components.Components.ValveComponent">
+						<Value Name="DoIndex" Value="-1" />
+						<Value Name="NormalState" Value="NC" />
+					</Setting>
+				</Setting>
+			</Setting>
+		</Setting>
+	</Setting>
     <Setting Name="Supply" />
 </ArrayOfSetting>

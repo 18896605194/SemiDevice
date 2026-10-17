@@ -223,10 +223,10 @@ internal static class Program
             Check(disk.RotationSpeed > 1 && !disk.RotateClockwise, "在转就按显示转速转，转向看实际转速的正负");
             Check(arms[0].IsMoving && !arms[1].IsMoving && !IsRed(arms[0]), "摆臂在动时高亮");
             Check(arms[1].IsError && IsRed(arms[1]) && !arms[0].IsError, "摆动轴报错：那条摆臂变红");
-            Check(disk.IsError && IsRed(disk), "卡盘轴报错：旋转盘变红");
+            Check(disk.IsError && IsRed(disk) && FaceIsRed(disk), "卡盘轴报错：旋转盘变红，空盘的盘面也红");
             devices.Update(State(arms: 2).ToDto());
             Check(disk.RotationSpeed == 0 && !door.IsOpen && !door.IsUnknown && !bowl.IsRaised, "停了、关到位了跟着变");
-            Check(!IsRed(door) && !IsRed(arms[1]) && !IsRed(disk), "关到位、报错清了：红色撤掉");
+            Check(!IsRed(door) && !IsRed(arms[1]) && !IsRed(disk) && !FaceIsRed(disk), "关到位、报错清了：红色撤掉");
             var wafer = new WaferModel { LpSlot = "LP1-03", State = "Process" };
             scene.Wafer = wafer;
             Check(ReferenceEquals(disk.Data, wafer), "盘上的片跟 Wafer 走");
@@ -427,6 +427,16 @@ internal static class Program
     {
         var part = (GeometryModel3D)((Model3DGroup)hardware.Content).Children[0];
         var color = ((SolidColorBrush)((DiffuseMaterial)part.Material).Brush).Color;
+        return color.R > color.G + 80 && color.R > color.B + 80;
+    }
+
+    /// <summary>
+    /// 盘面（二维 Wafer）的底色是报警红。
+    /// </summary>
+    private static bool FaceIsRed(DiskVisual3D disk)
+    {
+        var face = Descendants<xyz.Client.Presentation.Controls.Wafer>(disk).Single();
+        var color = ((SolidColorBrush)face.FillColor).Color;
         return color.R > color.G + 80 && color.R > color.B + 80;
     }
 

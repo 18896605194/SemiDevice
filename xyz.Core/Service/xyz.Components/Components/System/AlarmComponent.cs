@@ -4,12 +4,15 @@ using System.Threading.Channels;
 using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
+using xyz.Components.Collectors;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
+using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -19,8 +22,6 @@ namespace xyz.Components.Components;
 [Component(description: "报警管理组件")]
 public class AlarmComponent : ComponentBase, IAlarmComponent
 {
-    public static AlarmComponent? Current { get; set; }
-
     private readonly object _syncRoot = new();
 
     /// <summary>
@@ -46,7 +47,7 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
 
     public AlarmComponent()
     {
-        Current = this;
+        Register<IAlarmComponent>(this);
     }
 
     #region SC
@@ -198,6 +199,21 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
         }
     }
 
+    bool IAlarmComponent.Raise(ComponentBase source, string alarmCode)
+    {
+        return Raise(source, alarmCode);
+    }
+
+    int IAlarmComponent.Clear(ComponentBase source)
+    {
+        return Clear(source);
+    }
+
+    bool IAlarmComponent.HasAlarmUnder(string path)
+    {
+        return HasAlarmUnder(path);
+    }
+
     /// <summary>
     /// 第一次报某个组件的报警时，读它身上的 [Alarm] 定义并记下它；同一个实例读过就不再读。
     /// 同一路径换了实例（重新装配）以新实例为准。
@@ -243,14 +259,7 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
                 continue;
             }
 
-            string? alarmCode = member switch
-            {
-                FieldInfo field when field.FieldType == typeof(string) => field.GetValue(source) as string,
-                PropertyInfo property when property.PropertyType == typeof(string)
-                    && property.GetMethod?.IsPublic == true
-                    && property.GetIndexParameters().Length == 0 => property.GetValue(source) as string,
-                _ => null
-            };
+            string? alarmCode = CollectorHelper.ReadCode(member, source);
 
             if (string.IsNullOrWhiteSpace(alarmCode))
             {
@@ -469,6 +478,7 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
             }
 
             RecordHistory(alarm);  //报警入库
+            PushToClient(alarm);
 
             var handlers = AlarmChanged;
             if (handlers is null)
@@ -494,6 +504,27 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 推给界面（报警栏、实时报警页）；推失败不挡后面的通知
+    /// </summary>
+    private static void PushToClient(AlarmItem alarm)
+    {
+        var mapper = Find<IMapperComponent>();
+        if (mapper is null)
+        {
+            return;
+        }
+
+        try
+        {
+            EventBus.Send(mapper.Map<AlarmDto>(alarm), AlarmDto.EventToken, retain: false);
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError($"报警推送 {alarm.SourcePath}.{alarm.AlarmCode} 失败：{exception}");
         }
     }
 

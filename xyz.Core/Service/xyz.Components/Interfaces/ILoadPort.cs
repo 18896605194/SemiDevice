@@ -4,13 +4,9 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
-public interface ILoadPort
+public interface ILoadPort : IModule
 {
     #region 状态
-
-    string Name { get; }
-
-    int State { get; }
 
     /// <summary>
     /// 载具
@@ -42,14 +38,17 @@ public interface ILoadPort
     /// </summary>
     LoadPortTransferState LocalTransferState { get; }
 
+    /// <summary>
+    /// 载具到了、Load 好了、槽图认定了：能给 Job 定片
+    /// </summary>
+    bool CanAssignCarrierToJob { get; }
+
     #endregion
 
     #region 动作
 
     // 动作入口：端口自己按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）返回、端口不动，调用方不用先查；通过就是发起的动作。
     // 复位、中止跟着组件基类，返回动作或 null。
-
-    ModuleOperation? InitModule();
 
     HandleResult<ModuleOperation> Load();
 
@@ -60,10 +59,6 @@ public interface ILoadPort
     HandleResult? CheckUnload();
 
     HandleResult<ModuleOperation> Home();
-
-    ModuleOperation? Reset();
-
-    ModuleOperation? Abort();
 
     HandleResult<ModuleOperation> Clamp();
 
@@ -90,6 +85,60 @@ public interface ILoadPort
     /// HO_AVBL 由 E84 组件按端口给的许可自己开关，EAP 不直接置。
     /// </summary>
     IE84Provider? E84Provider { get; set; }
+
+    #endregion
+
+    #region 给服务用的（手动页、主界面）
+
+    /// <summary>
+    /// 取片先后（从上往下 / 从下往上）
+    /// </summary>
+    SlotPickOrder PickOrder { get; }
+
+    /// <summary>
+    /// Load 等到做完的上限（ms）
+    /// </summary>
+    int LoadTimeout { get; }
+
+    /// <summary>
+    /// Unload 等到做完的上限（ms）
+    /// </summary>
+    int UnloadTimeout { get; }
+
+    /// <summary>
+    /// 回原点等到做完的上限（ms）
+    /// </summary>
+    int HomeTimeout { get; }
+
+    /// <summary>
+    /// 复位等到做完的上限（ms）
+    /// </summary>
+    int ResetTimeout { get; }
+
+    /// <summary>
+    /// 中止等到做完的上限（ms）
+    /// </summary>
+    int AbortTimeout { get; }
+
+    /// <summary>
+    /// 手动 Unload（只发 CULOD，不扫图对账）
+    /// </summary>
+    HandleResult<ModuleOperation> UnloadManually();
+
+    /// <summary>
+    /// 复位能不能做，能是 null
+    /// </summary>
+    HandleResult? CheckReset();
+
+    /// <summary>
+    /// 中止能不能做，能是 null
+    /// </summary>
+    HandleResult? CheckAbort();
+
+    /// <summary>
+    /// 现在的状态（推给界面的那一份）
+    /// </summary>
+    LoadPortDto CreateStateDto();
 
     #endregion
 }

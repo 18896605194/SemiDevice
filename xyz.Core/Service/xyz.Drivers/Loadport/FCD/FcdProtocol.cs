@@ -48,14 +48,24 @@ public static class FcdProtocol
         var slots = new SlotState[trimmed.Length];
         for (int i = 0; i < trimmed.Length; i++)
         {
-            slots[i] = char.ToUpperInvariant(trimmed[i]) switch
+            switch (char.ToUpperInvariant(trimmed[i]))
             {
-                'E' => SlotState.Empty,
-                'P' => SlotState.CorrectlyOccupied,
-                'C' => SlotState.CrossSlotted,
-                'D' => SlotState.DoubleSlotted,
-                _ => SlotState.Undefined,
-            };
+                case 'E':
+                    slots[i] = SlotState.Empty;
+                    break;
+                case 'P':
+                    slots[i] = SlotState.CorrectlyOccupied;
+                    break;
+                case 'C':
+                    slots[i] = SlotState.CrossSlotted;
+                    break;
+                case 'D':
+                    slots[i] = SlotState.DoubleSlotted;
+                    break;
+                default:
+                    slots[i] = SlotState.Undefined;
+                    break;
+            }
         }
 
         return slots;

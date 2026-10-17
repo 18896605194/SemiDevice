@@ -1,6 +1,7 @@
 ﻿using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
@@ -11,7 +12,7 @@ namespace xyz.Components.Components;
 /// 设备侧只在上报口挂上（不为 null）时投递；Eap 下没配这个节点 EAP 就不接（见 <see cref="EapComponent.Bind"/>），上报口一直是 null。
 /// </summary>
 [Component(description: "EAP 上报派发：设备侧报给 EAP 的事按发生先后在一条线程上发")]
-public class EapNotifierComponent : ComponentBase
+public class EapNotifierComponent : ComponentBase, IEapNotifierComponent
 {
     /// <summary>积压到这个条数的整数倍时记一次告警。</summary>
     private const int BacklogWarning = 500;
@@ -21,11 +22,9 @@ public class EapNotifierComponent : ComponentBase
     private int _pending;
 
     /// <summary>当前派发组件；Eap 节点下没配 Notifier 时为 null（这时 EAP 不接，也没有要报的）。</summary>
-    public static EapNotifierComponent? Current { get; set; }
-
     public EapNotifierComponent()
     {
-        Current = this;
+        Register<IEapNotifierComponent>(this);
     }
 
     /// <summary>投递一条上报（任意线程可调）。</summary>

@@ -3,6 +3,7 @@ using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
@@ -14,7 +15,7 @@ namespace xyz.Modules;
 /// 自己执行，走哪些站点由流程配方定，所以这里不留给机型重写的口子。
 /// </summary>
 [Component(description: "任务组件：照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理")]
-public class TaskComponent : ComponentBase
+public class TaskComponent : ComponentBase, ITaskComponent
 {
     #region 任务表
     private readonly List<TaskRow> _rows = [];
@@ -25,7 +26,7 @@ public class TaskComponent : ComponentBase
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
     private static ITransferStation? Station(string name)
     {
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         return transfers is not null && transfers.TryGetStation(name, out var station) ? station : null;
     }
 
@@ -74,7 +75,7 @@ public class TaskComponent : ComponentBase
     /// </summary>
     private static HandleResult? BuildRoute(SequenceData sequence, List<WaferTask> route)
     {
-        var library = RecipeComponent.Current;
+        var library = ComponentBase.Find<IRecipeComponent>();
         for (int index = 1; index < sequence.Steps.Count - 1; index++)
         {
             var step = sequence.Steps[index];
@@ -142,8 +143,8 @@ public class TaskComponent : ComponentBase
     /// </summary>
     private static bool IsUsable(string name, RecipeData? recipe)
     {
-        var transfers = TransferManager.Current;
-        if (transfers is null || !transfers.TryGetStation(name, out var station) || station is not BaseModule module || !module.IsEnabled
+        var transfers = ComponentBase.Find<ITransferManager>();
+        if (transfers is null || !transfers.TryGetStation(name, out var station) || station is not IModule module || !module.IsEnabled
             || !transfers.Robots.Any(robot => robot.TryGetStation(name, out _)))
         {
             return false;
@@ -284,7 +285,7 @@ public class TaskComponent : ComponentBase
     /// </summary>
     internal void CheckPositions()
     {
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null)
         {
             return;
@@ -342,10 +343,10 @@ public class TaskComponent : ComponentBase
 
         if (task.IsRobotTask)
         {
-            var found = WaferManagerComponent.Current?.FindById(row.WaferId);
+            var found = ComponentBase.Find<IWaferManagerComponent>()?.FindById(row.WaferId);
             string actual = found is null ? "-" : string.Create(CultureInfo.InvariantCulture, $"{found.Module}.{found.Slot:00}");
             var place = task.Kind == StationTaskAction.Pick ? row.NextPlace(task) : task;
-            if (found is not null && task.Kind == StationTaskAction.Pick && TransferManager.Current?.TryGetRobot(found.Module, out _) == true)
+            if (found is not null && task.Kind == StationTaskAction.Pick && ComponentBase.Find<ITransferManager>()?.TryGetRobot(found.Module, out _) == true)
             {
                 SetDone(task, found.Module, found.Slot);
             }
@@ -438,4 +439,43 @@ public class TaskComponent : ComponentBase
         LogHelper.Warn(Name, $"{row.Owner} {row.WaferName} 的任务 {task.Kind} 出错，停住等人处理：{code} [{string.Join(", ", args)}]");
     }
 
+
+    #region 接口里只给 Job 管理用的几项（所以是 internal）
+
+    HandleResult? ITaskComponent.Build(ProcessJob job)
+    {
+        return Build(job);
+    }
+
+    void ITaskComponent.Add(ProcessJob job)
+    {
+        Add(job);
+    }
+
+    void ITaskComponent.Close(ProcessJob job)
+    {
+        Close(job);
+    }
+
+    void ITaskComponent.Abort(ProcessJob job)
+    {
+        Abort(job);
+    }
+
+    void ITaskComponent.CheckPositions()
+    {
+        CheckPositions();
+    }
+
+    HandleResult ITaskComponent.Retry(ProcessJob job, int slot, int index)
+    {
+        return Retry(job, slot, index);
+    }
+
+    HandleResult ITaskComponent.Complete(ProcessJob job, int slot, int index)
+    {
+        return Complete(job, slot, index);
+    }
+
+    #endregion
 }

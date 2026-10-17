@@ -1,12 +1,12 @@
 ﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 一个供液槽的液位、状态和它下面的液位信号（结构跟 sc 一样），token 是槽的全路径
+/// 一个供液槽的液位、状态和它下面的液位信号（结构跟 sc 一样）：跟着它上面的供液模块一起推（如 35021 的 IpaDto），自己不单独推
 /// </summary>
-public class TankDto
+public record TankDto
 {
     /// <summary>
-    /// 槽的全路径，跟 EventBus token 一样，如 "CDS.IPA.Tank1"
+    /// 槽的全路径，如 "CDS.IPA.Tank1"
     /// </summary>
     public string Path { get; set; } = string.Empty;
 

@@ -1,4 +1,6 @@
-﻿using xyz.Components.Components;
+﻿using xyz.Components;
+using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Shared.Dtos;
 
@@ -16,7 +18,7 @@ public static class WaferLedgerSnapshot
     /// </summary>
     public static List<WaferSlotDto> SlotsOf(string module)
     {
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null || !ledger.IsEnable)
         {
             return [];

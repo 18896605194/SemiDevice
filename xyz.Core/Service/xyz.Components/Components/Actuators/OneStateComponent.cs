@@ -82,7 +82,7 @@ public abstract class OneStateComponent : ComponentBase
                 return feedback.IsActive == true;
             }
 
-            var io = IoComponent.Current;
+            var io = ComponentBase.Find<IIoComponent>();
             if (io is null)
             {
                 return false;
@@ -112,7 +112,7 @@ public abstract class OneStateComponent : ComponentBase
 
     private bool Drive(bool on)
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null || DoIndex < 0)
         {
             return false;

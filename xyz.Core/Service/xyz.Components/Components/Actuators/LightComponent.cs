@@ -85,7 +85,7 @@ public class LightComponent : ComponentBase, ILightComponent
 
     protected virtual void WriteOutput(int doIndex, bool isOn)
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null)
         {
             throw new InvalidOperationException("sc.xml 没配 Io 节点，四色灯没有输出通道");

@@ -1,0 +1,145 @@
+﻿<UserControl x:Class="CdsLayoutPreview.PreviewPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:CdsLayoutPreview"
+             xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+             Background="{DynamicResource DarkWindowBackground}" Foreground="{DynamicResource DarkPrimaryText}"
+             FontFamily="Microsoft YaHei" FontSize="14" Focusable="True" PreviewKeyDown="OnEditorKeyDown">
+    <UserControl.Resources>
+        <local:BooleanTextConverter x:Key="BooleanText" />
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource DarkPrimaryText}" />
+            <Setter Property="Background" Value="{DynamicResource DarkControlBackground}" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DarkBorderBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </UserControl.Resources>
+    <Grid x:Name="EditorRoot" Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="*" /><RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <DockPanel x:Name="EditorHeading" Margin="0,0,0,14">
+            <TextBlock DockPanel.Dock="Right" Text="原生组件 · 模拟数据 · 未连接设备" Foreground="{DynamicResource DarkDisabledText}" VerticalAlignment="Center" />
+            <StackPanel>
+                <TextBlock Text="CDS 管路布局编辑" FontSize="23" FontWeight="SemiBold" />
+                <TextBlock x:Name="FileText" Text="示例布局 · 尚未保存" FontSize="12" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </DockPanel>
+        <WrapPanel Grid.Row="1" Margin="0,0,0,6">
+            <Button x:Name="SelectButton" Content="选择 / 拖动" Click="OnSelectTool" />
+            <Button x:Name="DrawButton" Content="画管路" Click="OnDrawTool" />
+            <Button x:Name="PreviewButton" Content="运行预览" Click="OnPreviewTool" />
+            <Button x:Name="UndoButton" Content="撤销" Click="OnUndo" ToolTip="Ctrl+Z" />
+            <Button x:Name="RedoButton" Content="重做" Click="OnRedo" ToolTip="Ctrl+Y" />
+            <Button x:Name="PropertiesToggle" Content="收起属性" Click="OnToggleProperties" />
+            <StackPanel x:Name="FileActions" Orientation="Horizontal">
+                <Button Content="打开" Click="OnOpen" />
+                <Button Content="保存" Click="OnSave" />
+                <Button Content="另存为" Click="OnSaveAs" />
+                <Button Content="重新加载" Click="OnReload" />
+            </StackPanel>
+        </WrapPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="PropertiesColumn" Width="270" /></Grid.ColumnDefinitions>
+            <Border Background="{DynamicResource DarkSurfaceBackground}" BorderBrush="{DynamicResource DarkBorderBrush}" BorderThickness="1" CornerRadius="6">
+                <Viewbox Stretch="Uniform">
+                    <Grid x:Name="Stage" Width="1000" Height="650" Background="Transparent"
+                          MouseLeftButtonDown="OnStageDown" MouseMove="OnStageMove" MouseLeftButtonUp="OnStageUp"
+                          LostMouseCapture="OnStageLostCapture" MouseRightButtonDown="OnStageRightClick">
+                        <Canvas x:Name="GridLayer" IsHitTestVisible="False" />
+                        <Viewport3D x:Name="Viewport" IsHitTestVisible="False">
+                            <Viewport3D.Camera>
+                                <OrthographicCamera Position="500,-325,2000" LookDirection="0,0,-1" UpDirection="0,1,0" Width="1000" NearPlaneDistance="1" FarPlaneDistance="4000" />
+                            </Viewport3D.Camera>
+                            <ModelVisual3D>
+                                <ModelVisual3D.Content>
+                                    <Model3DGroup>
+                                        <AmbientLight Color="{DynamicResource DarkHardwareAmbientLightColor}" />
+                                        <DirectionalLight Color="{DynamicResource DarkHardwareKeyLightColor}" Direction="-1,-3,-2" />
+                                        <DirectionalLight Color="{DynamicResource DarkHardwareFillLightColor}" Direction="2,-1,1" />
+                                    </Model3DGroup>
+                                </ModelVisual3D.Content>
+                            </ModelVisual3D>
+                        </Viewport3D>
+                        <Canvas x:Name="DragLayer" IsHitTestVisible="False" />
+                        <Canvas x:Name="Overlay" IsHitTestVisible="False" />
+                    </Grid>
+                </Viewbox>
+            </Border>
+            <Border x:Name="PropertiesPanel" Grid.Column="1" Margin="14,0,0,0" Background="{DynamicResource DarkSurfaceBackground}" BorderBrush="{DynamicResource DarkBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock Text="布局对象" FontSize="16" Margin="0,0,0,8" />
+                        <ComboBox x:Name="ObjectPicker" SelectionChanged="OnObjectSelected" Margin="0,0,0,14" />
+                        <TextBlock x:Name="SelectionTitle" Text="未选择对象" FontSize="17" />
+                        <TextBlock x:Name="SelectionDetails" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource DarkDisabledText}" Margin="0,8,0,12" />
+                        <StackPanel x:Name="PipeProperties" Visibility="Collapsed">
+                            <TextBlock Text="管路旁文字" />
+                            <TextBox x:Name="PipeTextEditor" Text="{Binding PipeProperties.Text, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" Margin="0,0,0,18" />
+                            <TextBlock Text="跟随管路移动；留空隐藏。修改后点击下方“应用管路属性”或保存。" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource DarkDisabledText}" Margin="0,0,0,10" />
+                            <TextBlock Text="管路模拟状态" Margin="0,0,0,6" />
+                            <ComboBox x:Name="PipeModePicker" SelectionChanged="OnPipeModeChanged">
+                                <ComboBoxItem Content="补液" Tag="fill" /><ComboBoxItem Content="供液" Tag="supply" /><ComboBoxItem Content="排液" Tag="drain" />
+                            </ComboBox>
+                            <Expander Header="管路外观与动画" IsExpanded="True" Margin="0,10,0,0">
+                                <StackPanel Margin="0,8,0,0" DataContext="{Binding PipeProperties}">
+                                    <TextBlock Text="显示尺寸使用画布单位" FontSize="11" Foreground="{DynamicResource DarkDisabledText}" Margin="0,0,0,6" />
+                                    <UniformGrid Columns="2">
+                                        <StackPanel Margin="0,0,8,8"><TextBlock Text="管径" /><TextBox x:Name="DiameterEditor" Text="{Binding Diameter, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                        <StackPanel Margin="0,0,0,8"><TextBlock Text="管壁厚度" /><TextBox Text="{Binding WallThickness, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                        <StackPanel Margin="0,0,8,8"><TextBlock Text="转弯半径" /><TextBox Text="{Binding BendRadius, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                        <StackPanel Margin="0,0,0,8"><TextBlock Text="不透明度 0～1" /><TextBox Text="{Binding WallOpacity, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="管壁颜色" /><TextBox Text="{Binding WallColor, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                    <TextBlock Text="液流颜色（#RRGGBB）" /><TextBox Text="{Binding FlowColor, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                                    <UniformGrid Columns="2">
+                                        <StackPanel Margin="0,0,8,8"><TextBlock Text="动画速度" /><TextBox Text="{Binding FlowSpeed, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                        <StackPanel Margin="0,0,0,8"><TextBlock Text="介质名称" /><TextBox Text="{Binding Medium, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="反向流动" Margin="0,6,0,3" />
+                                    <ComboBox ItemsSource="{x:Static local:BooleanTextConverter.Choices}" SelectedItem="{Binding ReverseFlow, Converter={StaticResource BooleanText}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="False" />
+                                    <TextBlock Text="显示液芯" Margin="0,6,0,3" />
+                                    <ComboBox ItemsSource="{x:Static local:BooleanTextConverter.Choices}" SelectedItem="{Binding IsFilled, Converter={StaticResource BooleanText}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="False" />
+                                    <TextBlock Text="播放水流动画" Margin="0,6,0,3" />
+                                    <ComboBox ItemsSource="{x:Static local:BooleanTextConverter.Choices}" SelectedItem="{Binding IsAnimationEnabled, Converter={StaticResource BooleanText}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="False" />
+                                    <TextBlock Text="{Binding Error}" Foreground="{DynamicResource DarkAlarmStatus}" TextWrapping="Wrap" FontSize="12" Margin="0,6" />
+                                    <Button Content="应用管路属性" Command="{Binding ApplyCommand}" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                        <Button x:Name="DeleteButton" Content="删除选中管路 / 拐点" Click="OnDelete" Margin="0,12,0,12" />
+                        <TextBlock Text="拖动槽或接口可改变位置。&#10;选中管路后拖动方形拐点。&#10;双击线段增加拐点，Delete 删除。" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource DarkDisabledText}" />
+                        <Separator Margin="0,18" />
+                        <TextBlock Text="新管路的模拟状态" Margin="0,0,0,6" />
+                        <ComboBox x:Name="NewPipeModePicker" SelectedIndex="0">
+                            <ComboBoxItem Content="补液" Tag="fill" /><ComboBoxItem Content="供液" Tag="supply" /><ComboBoxItem Content="排液" Tag="drain" />
+                        </ComboBox>
+                        <TextBlock Text="画管路：点击起点连接口 → 点击拐点 → 点击终点连接口。Esc / 右键取消。" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource DarkDisabledText}" Margin="0,8,0,18" />
+                        <TextBlock x:Name="ModeText" FontSize="18" Foreground="{DynamicResource DarkAccent}" Margin="0,0,0,10" />
+                        <UniformGrid Columns="2">
+                            <Button x:Name="FillButton" Content="补液" Tag="fill" Click="OnModeClick" /><Button x:Name="SupplyButton" Content="供液" Tag="supply" Click="OnModeClick" />
+                            <Button x:Name="DrainButton" Content="排液" Tag="drain" Click="OnModeClick" /><Button x:Name="StopButton" Content="停止" Tag="idle" Click="OnModeClick" />
+                        </UniformGrid>
+                        <TextBlock Text="模拟液位档位" Margin="0,10,0,6" />
+                        <ComboBox x:Name="LevelPicker" SelectionChanged="OnLevelChanged">
+                            <ComboBoxItem Content="低低液位" /><ComboBoxItem Content="低液位" /><ComboBoxItem Content="正常液位" />
+                            <ComboBoxItem Content="高液位" /><ComboBoxItem Content="高高液位" /><ComboBoxItem Content="溢流" />
+                        </ComboBox>
+                        <WrapPanel Margin="0,14,0,0">
+                            <controls:SignalLamp Text="LL" IsActive="{Binding Tank.LL.IsActive}" Margin="0,0,14,8" />
+                            <controls:SignalLamp Text="L" IsActive="{Binding Tank.L.IsActive}" Margin="0,0,14,8" />
+                            <controls:SignalLamp Text="H" IsActive="{Binding Tank.H.IsActive}" Margin="0,0,14,8" />
+                            <controls:SignalLamp Text="HH" IsActive="{Binding Tank.HH.IsActive}" IsAlarm="True" Margin="0,0,14,8" />
+                            <controls:SignalLamp Text="Overfill" IsActive="{Binding Tank.Overfill.IsActive}" IsAlarm="True" />
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Foreground="{DynamicResource DarkDisabledText}" FontSize="12" Margin="0,12,0,0" />
+    </Grid>
+</UserControl>

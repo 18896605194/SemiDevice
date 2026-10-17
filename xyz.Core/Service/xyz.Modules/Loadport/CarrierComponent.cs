@@ -89,7 +89,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     private ICarrierIdReader? _reader;
 
     /// <summary>晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不给子组件做初始化）为 null。</summary>
-    private WaferManagerComponent? _waferManager;
+    private IWaferManagerComponent? _waferManager;
 
     private Action<Action<IE87Callback>>? _enqueue;
 
@@ -290,7 +290,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     public override bool InitComponent()
     {
-        _waferManager = WaferManagerComponent.Current;
+        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
         return base.InitComponent();
     }
 

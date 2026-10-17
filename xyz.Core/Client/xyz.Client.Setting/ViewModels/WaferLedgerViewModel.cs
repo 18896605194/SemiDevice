@@ -510,13 +510,23 @@ public class WaferLedgerViewModel : BaseViewModel
         // 选好的源、目标找回来：位置和槽还在、源那槽上还是同一片、目标那槽还空着才留
         Source = Resolve(source, forSource: true);
         Target = Resolve(target, forSource: false);
-        bool stillValid = PendingAction switch
+        bool stillValid;
+        switch (PendingAction)
         {
-            LedgerAction.Move => Source is not null && Target is not null,
-            LedgerAction.Delete => Source is not null,
-            LedgerAction.Create => Target is not null,
-            _ => true,
-        };
+            case LedgerAction.Move:
+                stillValid = Source is not null && Target is not null;
+                break;
+            case LedgerAction.Delete:
+                stillValid = Source is not null;
+                break;
+            case LedgerAction.Create:
+                stillValid = Target is not null;
+                break;
+            default:
+                stillValid = true;
+                break;
+        }
+
         if (!stillValid)
         {
             // 要确认的那片或那个空槽已经变了（比如设备刚动过），确认框作废

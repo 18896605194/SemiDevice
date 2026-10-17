@@ -1,6 +1,8 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -13,11 +15,17 @@ namespace xyz.Service;
 /// </summary>
 public class IoService : IIoService
 {
+    private readonly IIoComponent? _io;
+
+    public IoService()
+    {
+        _io = ComponentBase.Find<IIoComponent>();
+    }
+
     public Task<RpcResponse> WriteDoAsync(IoWriteRequest request)
     {
         bool on = request.Value != 0;
-        var io = IoComponent.Current;
-        if (io is null || !io.WriteDo(request.Index, on))
+        if (_io is null || !_io.WriteDo(request.Index, on))
         {
             return WriteFailed("DO", request.Index);
         }
@@ -28,9 +36,8 @@ public class IoService : IIoService
 
     public Task<RpcResponse> WriteAoAsync(IoWriteRequest request)
     {
-        var io = IoComponent.Current;
-        var point = io?.Ao.Find(request.Index);
-        if (io is null || point is null)
+        var point = _io?.Ao.Find(request.Index);
+        if (_io is null || point is null)
         {
             return WriteFailed("AO", request.Index);
         }
@@ -47,7 +54,7 @@ public class IoService : IIoService
             }
         }
 
-        if (!io.WriteAo(request.Index, request.Value))
+        if (!_io.WriteAo(request.Index, request.Value))
         {
             return WriteFailed("AO", request.Index);
         }

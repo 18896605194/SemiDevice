@@ -19,7 +19,7 @@ namespace xyz.Components.Components;
 /// ④ E39 对象 Substrate、SubstLoc（Host 用 S14F1 查）。没有读片号的设备，片号核对（ID Status）不做。
 /// </summary>
 [Component(description: "片跟踪（SEMI E90）：按晶圆账报片的位置、工艺状态和片位占用")]
-public class E90Component : ComponentBase, IE90Callback
+public class E90Component : ComponentBase, IE90Callback, IE90Component
 {
     #region 状态码（E90，U1）
 
@@ -146,8 +146,8 @@ public class E90Component : ComponentBase, IE90Callback
 
     private readonly object _gate = new();
     private readonly Dictionary<Guid, Substrate> _substrates = new();
-    private E30Component? _gem;
-    private WaferManagerComponent? _ledger;
+    private IE30Component? _gem;
+    private IWaferManagerComponent? _ledger;
     private bool _waitForCarrier;
 
     #region 接设备
@@ -156,7 +156,7 @@ public class E90Component : ComponentBase, IE90Callback
     /// 接到晶圆账上（EAP 组件在链路打开之前调）：挂 E90 上报口，登记 E39 对象类型；账上已经有的片（开机恢复的）不报事件、直接建影子。
     /// waitForCarrier：接了 E87 时为 true——LoadPort 上的片等槽图认定（MaterialArrived）才建片对象。
     /// </summary>
-    public void Attach(E30Component gem, E39Component? objects, WaferManagerComponent ledger, bool waitForCarrier)
+    public void Attach(IE30Component gem, IE39Component? objects, IWaferManagerComponent ledger, bool waitForCarrier)
     {
         ArgumentNullException.ThrowIfNull(gem);
         ArgumentNullException.ThrowIfNull(ledger);
@@ -306,14 +306,7 @@ public class E90Component : ComponentBase, IE90Callback
 
             substrate.SubstId = wafer.WaferId;
             substrate.LotId = wafer.LotId ?? string.Empty;
-            byte next = wafer.ProcessState switch
-            {
-                WaferProcessState.InProcess => InProcess,
-                WaferProcessState.Completed => Processed,
-                WaferProcessState.Aborted => Aborted,
-                WaferProcessState.Failed => Rejected,
-                _ => substrate.ProcState,
-            };
+            byte next = ProcStateOf(wafer.ProcessState, substrate.ProcState);
             if (next == substrate.ProcState)
             {
                 return;
@@ -357,14 +350,7 @@ public class E90Component : ComponentBase, IE90Callback
             Source = source,
             Destination = source,
             State = !inCarrier ? AtWork : string.Equals(location, source, StringComparison.OrdinalIgnoreCase) ? AtSource : AtDestination,
-            ProcState = wafer.ProcessState switch
-            {
-                WaferProcessState.InProcess => InProcess,
-                WaferProcessState.Completed => Processed,
-                WaferProcessState.Aborted => Aborted,
-                WaferProcessState.Failed => Rejected,
-                _ => NeedsProcessing,
-            },
+            ProcState = ProcStateOf(wafer.ProcessState, NeedsProcessing),
         };
         substrate.History.Add(new Visit(location, DateTime.Now, null));
         _substrates[wafer.Id] = substrate;
@@ -375,6 +361,26 @@ public class E90Component : ComponentBase, IE90Callback
         }
 
         return substrate;
+    }
+
+    /// <summary>
+    /// 片的工艺状态换成 E90 的加工状态；还没做的（账上没对应的）用 otherwise
+    /// </summary>
+    private static byte ProcStateOf(WaferProcessState state, byte otherwise)
+    {
+        switch (state)
+        {
+            case WaferProcessState.InProcess:
+                return InProcess;
+            case WaferProcessState.Completed:
+                return Processed;
+            case WaferProcessState.Aborted:
+                return Aborted;
+            case WaferProcessState.Failed:
+                return Rejected;
+            default:
+                return otherwise;
+        }
     }
 
     private void Move(Substrate substrate, byte state, string code)
@@ -450,25 +456,52 @@ public class E90Component : ComponentBase, IE90Callback
                 return false;
             }
 
-            value = attribute switch
+            switch (attribute)
             {
-                "ObjType" => SecsItem.A("Substrate"),
-                "ObjID" => SecsItem.A(GemValue.Ascii(substrate.SubstId)),
-                "LotID" => SecsItem.A(GemValue.Ascii(substrate.LotId)),
-                "MaterialStatus" => SecsItem.U1(),
-                "SubstDestination" => SecsItem.A(GemValue.Ascii(substrate.Destination)),
-                "SubstHistory" => SecsItem.L(substrate.History.Select(visit => SecsItem.L(
-                    SecsItem.A(GemValue.Ascii(visit.Location)),
-                    SecsItem.A(GemValue.Time(visit.TimeIn, 1)),
-                    SecsItem.A(visit.TimeOut is null ? string.Empty : GemValue.Time(visit.TimeOut.Value, 1))))),
-                "SubstLocID" => SecsItem.A(GemValue.Ascii(substrate.Location)),
-                "SubstProcState" => SecsItem.U1(substrate.ProcState),
-                "SubstSource" => SecsItem.A(GemValue.Ascii(substrate.Source)),
-                "SubstState" => SecsItem.U1(substrate.State),
-                "SubstType" => SecsItem.U1(0),
-                "SubstUsage" => SecsItem.U1(),
-                _ => SecsItem.L(),
-            };
+                case "ObjType":
+                    value = SecsItem.A("Substrate");
+                    break;
+                case "ObjID":
+                    value = SecsItem.A(GemValue.Ascii(substrate.SubstId));
+                    break;
+                case "LotID":
+                    value = SecsItem.A(GemValue.Ascii(substrate.LotId));
+                    break;
+                case "MaterialStatus":
+                    value = SecsItem.U1();
+                    break;
+                case "SubstDestination":
+                    value = SecsItem.A(GemValue.Ascii(substrate.Destination));
+                    break;
+                case "SubstHistory":
+                    value = SecsItem.L(substrate.History.Select(visit => SecsItem.L(
+                        SecsItem.A(GemValue.Ascii(visit.Location)),
+                        SecsItem.A(GemValue.Time(visit.TimeIn, 1)),
+                        SecsItem.A(visit.TimeOut is null ? string.Empty : GemValue.Time(visit.TimeOut.Value, 1)))));
+                    break;
+                case "SubstLocID":
+                    value = SecsItem.A(GemValue.Ascii(substrate.Location));
+                    break;
+                case "SubstProcState":
+                    value = SecsItem.U1(substrate.ProcState);
+                    break;
+                case "SubstSource":
+                    value = SecsItem.A(GemValue.Ascii(substrate.Source));
+                    break;
+                case "SubstState":
+                    value = SecsItem.U1(substrate.State);
+                    break;
+                case "SubstType":
+                    value = SecsItem.U1(0);
+                    break;
+                case "SubstUsage":
+                    value = SecsItem.U1();
+                    break;
+                default:
+                    value = SecsItem.L();
+                    break;
+            }
+
             return true;
         }
     }
@@ -507,14 +540,25 @@ public class E90Component : ComponentBase, IE90Callback
                 }
 
                 var wafer = ledger.Get(module, slot);
-                value = attribute switch
+                switch (attribute)
                 {
-                    "ObjType" => SecsItem.A("SubstLoc"),
-                    "ObjID" => SecsItem.A(GemValue.Ascii(location)),
-                    "SubstID" => SecsItem.A(GemValue.Ascii(wafer?.WaferId ?? string.Empty)),
-                    "SubstLocState" => SecsItem.U1(wafer is null ? Unoccupied : Occupied),
-                    _ => SecsItem.L(),
-                };
+                    case "ObjType":
+                        value = SecsItem.A("SubstLoc");
+                        break;
+                    case "ObjID":
+                        value = SecsItem.A(GemValue.Ascii(location));
+                        break;
+                    case "SubstID":
+                        value = SecsItem.A(GemValue.Ascii(wafer?.WaferId ?? string.Empty));
+                        break;
+                    case "SubstLocState":
+                        value = SecsItem.U1(wafer is null ? Unoccupied : Occupied);
+                        break;
+                    default:
+                        value = SecsItem.L();
+                        break;
+                }
+
                 return true;
             }
         }

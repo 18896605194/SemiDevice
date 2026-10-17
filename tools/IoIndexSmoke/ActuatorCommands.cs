@@ -10,8 +10,8 @@ static class ActuatorCommands
     {
         var directory = Path.Combine(Path.GetTempPath(), "xyz-io-actuator-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
-        var previousPlc = PlcComponent.Current;
-        var previousIo = IoComponent.Current;
+        var previousPlc = ComponentBase.Find<IPlc>();
+        var previousIo = ComponentBase.Find<IIoComponent>();
         try
         {
             var csv = Path.Combine(directory, "points.csv");
@@ -48,9 +48,9 @@ static class ActuatorCommands
                 tick();
             }
 
-            PlcComponent.Current = null;
+            ComponentBase.Register<IPlc>(null);
             Check(!door.Open() && !valve.Open() && !door.IsOpened, "no PLC: nothing writable or readable");
-            PlcComponent.Current = plc;
+            ComponentBase.Register<IPlc>(plc);
 
             Check(door.Open() && plc.Do[0] && !plc.Do[1] && door.ActionState == ActionState.Running,
                 "open energizes the open coil only and waits for feedback");
@@ -123,8 +123,8 @@ static class ActuatorCommands
         }
         finally
         {
-            PlcComponent.Current = previousPlc;
-            IoComponent.Current = previousIo;
+            ComponentBase.Register<IPlc>(previousPlc);
+            ComponentBase.Register<IIoComponent>(previousIo);
             Directory.Delete(directory, recursive: true);
         }
     }

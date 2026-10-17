@@ -361,12 +361,19 @@ internal sealed partial class HostTrayIcon : IDisposable
             size = 16;
         }
 
-        var color = state switch
+        int color;
+        switch (state)
         {
-            HostState.Running => GreenLamp,
-            HostState.Failed => RedLamp,
-            _ => GrayLamp,
-        };
+            case HostState.Running:
+                color = GreenLamp;
+                break;
+            case HostState.Failed:
+                color = RedLamp;
+                break;
+            default:
+                color = GrayLamp;
+                break;
+        }
 
         var stale = IntPtr.Zero;
         if (_icon == IntPtr.Zero || size != _iconSize || color != _iconColor)
@@ -403,13 +410,29 @@ internal sealed partial class HostTrayIcon : IDisposable
     private void ShowBalloon()
     {
         var (state, detail) = Snapshot();
-        var (title, text, flags) = state switch
+        string title;
+        string text;
+        uint flags = NiifInfo;
+        switch (state)
         {
-            HostState.Running => ($"{Title}已在运行", $"{detail}，右键这颗灯可以打开日志或退出。", NiifInfo),
-            HostState.Failed => ($"{Title}启动失败", $"{Clip(detail, 200)}\n右键这颗灯可以打开日志或退出。", NiifError),
-            HostState.Stopping => ($"{Title}正在退出", "等灯消失了再启动。", NiifInfo),
-            _ => ($"{Title}正在启动", "灯变绿就好了。", NiifInfo),
-        };
+            case HostState.Running:
+                title = $"{Title}已在运行";
+                text = $"{detail}，右键这颗灯可以打开日志或退出。";
+                break;
+            case HostState.Failed:
+                title = $"{Title}启动失败";
+                text = $"{Clip(detail, 200)}\n右键这颗灯可以打开日志或退出。";
+                flags = NiifError;
+                break;
+            case HostState.Stopping:
+                title = $"{Title}正在退出";
+                text = "等灯消失了再启动。";
+                break;
+            default:
+                title = $"{Title}正在启动";
+                text = "灯变绿就好了。";
+                break;
+        }
 
         var data = NewData(NifInfo);
         data.szInfoTitle = Clip(title, 63);
@@ -447,13 +470,17 @@ internal sealed partial class HostTrayIcon : IDisposable
 
     private static string TooltipOf(HostState state, string detail)
     {
-        return state switch
+        switch (state)
         {
-            HostState.Running => $"{Title}：运行中\n{detail}",
-            HostState.Failed => $"{Title}：启动失败\n{detail}",
-            HostState.Stopping => $"{Title}：正在退出…",
-            _ => $"{Title}：启动中…",
-        };
+            case HostState.Running:
+                return $"{Title}：运行中\n{detail}";
+            case HostState.Failed:
+                return $"{Title}：启动失败\n{detail}";
+            case HostState.Stopping:
+                return $"{Title}：正在退出…";
+            default:
+                return $"{Title}：启动中…";
+        }
     }
 
     private static string Clip(string text, int maxLength)
@@ -468,13 +495,22 @@ internal sealed partial class HostTrayIcon : IDisposable
     private void ShowMenu()
     {
         var (state, detail) = Snapshot();
-        var status = state switch
+        string status;
+        switch (state)
         {
-            HostState.Running => $"运行中 · {detail}",
-            HostState.Failed => $"启动失败：{Clip(detail.ReplaceLineEndings(" "), 40)}",
-            HostState.Stopping => "正在退出…",
-            _ => "启动中…",
-        };
+            case HostState.Running:
+                status = $"运行中 · {detail}";
+                break;
+            case HostState.Failed:
+                status = $"启动失败：{Clip(detail.ReplaceLineEndings(" "), 40)}";
+                break;
+            case HostState.Stopping:
+                status = "正在退出…";
+                break;
+            default:
+                status = "启动中…";
+                break;
+        }
 
         var menu = CreatePopupMenu();
         AppendMenuW(menu, MfString | MfGrayed, 0, status.Replace("&", "&&"));

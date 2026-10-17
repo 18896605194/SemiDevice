@@ -2,6 +2,7 @@
 using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Database.Wafers;
 using xyz.Modules;
@@ -24,20 +25,22 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// </summary>
     private const string UnknownOperator = "Unknown";
 
-    public WaferLedgerService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly IWaferManagerComponent? _ledger;
+
+    public WaferLedgerService()
     {
+        _ledger = ComponentBase.Find<IWaferManagerComponent>();
     }
 
     public Task<RpcResponse> GetLedgerAsync(RpcRequest request, CallContext context = default)
     {
-        var ledger = WaferManagerComponent.Current;
-        var dto = new WaferLedgerDto { IsEnabled = ledger is not null && ledger.IsEnable };
-        if (ledger is not null && ledger.IsEnable)
+        var dto = new WaferLedgerDto { IsEnabled = _ledger is not null && _ledger.IsEnable };
+        if (_ledger is not null && _ledger.IsEnable)
         {
-            var modules = Modules().ToLookup(module => module.Name, StringComparer.OrdinalIgnoreCase);
+            var modules = ComponentBase.FindAll<IModule>().ToLookup(module => module.Name, StringComparer.OrdinalIgnoreCase);
             foreach (string name in LocationNames())
             {
-                var slots = ledger.GetSlots(name);
+                var slots = _ledger.GetSlots(name);
                 if (slots.Count == 0)
                 {
                     continue;  // 没登记过槽位的站点放不了片，不列
@@ -52,57 +55,47 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public Task<RpcResponse> MoveAsync(WaferMoveRequest request, CallContext context = default)
     {
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
         string from = request.FromModule.Trim(), to = request.ToModule.Trim();
-        var result = ledger.ManualMove(from, request.FromSlot, to, request.ToSlot, OperatorOf(request.Operator), request.Reason);
-        return result switch
+        var result = _ledger.ManualMove(from, request.FromSlot, to, request.ToSlot, OperatorOf(request.Operator), request.Reason);
+        switch (result)
         {
-            WaferAdjustResult.Ok => Task.FromResult(RpcResponse.Ok()),
-            WaferAdjustResult.Disabled => Fail(ErrorCodes.WaferLedgerDisabled),
-            WaferAdjustResult.LocationNotFound => Fail(ErrorCodes.WaferLocationNotFound, ledger.GetSlots(from).Count == 0 ? from : to),
-            WaferAdjustResult.SlotOutOfRange => SlotOutOfRange(ledger, from, request.FromSlot, to, request.ToSlot),
-            WaferAdjustResult.NoWafer => Fail(ErrorCodes.WaferNoWafer, from, request.FromSlot.ToString()),
-            WaferAdjustResult.SameSlot => Fail(ErrorCodes.WaferSameSlot),
-            _ => Fail(ErrorCodes.WaferSlotOccupied, to, request.ToSlot.ToString(), ledger.Get(to, request.ToSlot)?.WaferId ?? string.Empty),
-        };
+            case WaferAdjustResult.Ok:
+                return Task.FromResult(RpcResponse.Ok());
+            case WaferAdjustResult.Disabled:
+                return Fail(ErrorCodes.WaferLedgerDisabled);
+            case WaferAdjustResult.LocationNotFound:
+                // 源没登记就报源，不然是目标没登记
+                if (_ledger.GetSlots(from).Count == 0)
+                {
+                    return Fail(ErrorCodes.WaferLocationNotFound, from);
+                }
+
+                return Fail(ErrorCodes.WaferLocationNotFound, to);
+            case WaferAdjustResult.SlotOutOfRange:
+                return SlotOutOfRange(_ledger, from, request.FromSlot, to, request.ToSlot);
+            case WaferAdjustResult.NoWafer:
+                return Fail(ErrorCodes.WaferNoWafer, from, request.FromSlot.ToString());
+            case WaferAdjustResult.SameSlot:
+                return Fail(ErrorCodes.WaferSameSlot);
+            default:
+                return Fail(ErrorCodes.WaferSlotOccupied, to, request.ToSlot.ToString(), _ledger.Get(to, request.ToSlot)?.WaferId ?? string.Empty);
+        }
     }
 
     public Task<RpcResponse> DeleteAsync(WaferDeleteRequest request, CallContext context = default)
     {
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null || !ledger.IsEnable)
+        if (_ledger is null || !_ledger.IsEnable)
         {
             return Fail(ErrorCodes.WaferLedgerDisabled);
         }
 
         string module = request.Module.Trim();
-        var result = ledger.ManualDelete(module, request.Slot, OperatorOf(request.Operator), request.Reason);
-        return result switch
-        {
-            WaferAdjustResult.Ok => Task.FromResult(RpcResponse.Ok()),
-            WaferAdjustResult.Disabled => Fail(ErrorCodes.WaferLedgerDisabled),
-            WaferAdjustResult.LocationNotFound => Fail(ErrorCodes.WaferLocationNotFound, module),
-            WaferAdjustResult.SlotOutOfRange => Fail(ErrorCodes.WaferSlotOutOfRange, module, request.Slot.ToString(), ledger.GetSlots(module).Count.ToString()),
-            _ => Fail(ErrorCodes.WaferNoWafer, module, request.Slot.ToString()),
-        };
-    }
-
-    public Task<RpcResponse> CreateAsync(WaferCreateRequest request, CallContext context = default)
-    {
-        var ledger = WaferManagerComponent.Current;
-        if (ledger is null || !ledger.IsEnable)
-        {
-            return Fail(ErrorCodes.WaferLedgerDisabled);
-        }
-
-        string module = request.Module.Trim();
-        string waferId = request.WaferId.Trim();
-        var result = ledger.ManualCreate(module, request.Slot, waferId, OperatorOf(request.Operator), request.Reason);
+        var result = _ledger.ManualDelete(module, request.Slot, OperatorOf(request.Operator), request.Reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -112,30 +105,55 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
             case WaferAdjustResult.LocationNotFound:
                 return Fail(ErrorCodes.WaferLocationNotFound, module);
             case WaferAdjustResult.SlotOutOfRange:
-                return Fail(ErrorCodes.WaferSlotOutOfRange, module, request.Slot.ToString(), ledger.GetSlots(module).Count.ToString());
+                return Fail(ErrorCodes.WaferSlotOutOfRange, module, request.Slot.ToString(), _ledger.GetSlots(module).Count.ToString());
+            default:
+                return Fail(ErrorCodes.WaferNoWafer, module, request.Slot.ToString());
+        }
+    }
+
+    public Task<RpcResponse> CreateAsync(WaferCreateRequest request, CallContext context = default)
+    {
+        if (_ledger is null || !_ledger.IsEnable)
+        {
+            return Fail(ErrorCodes.WaferLedgerDisabled);
+        }
+
+        string module = request.Module.Trim();
+        string waferId = request.WaferId.Trim();
+        var result = _ledger.ManualCreate(module, request.Slot, waferId, OperatorOf(request.Operator), request.Reason);
+        switch (result)
+        {
+            case WaferAdjustResult.Ok:
+                return Task.FromResult(RpcResponse.Ok());
+            case WaferAdjustResult.Disabled:
+                return Fail(ErrorCodes.WaferLedgerDisabled);
+            case WaferAdjustResult.LocationNotFound:
+                return Fail(ErrorCodes.WaferLocationNotFound, module);
+            case WaferAdjustResult.SlotOutOfRange:
+                return Fail(ErrorCodes.WaferSlotOutOfRange, module, request.Slot.ToString(), _ledger.GetSlots(module).Count.ToString());
             case WaferAdjustResult.SlotOccupied:
-                return Fail(ErrorCodes.WaferSlotOccupied, module, request.Slot.ToString(), ledger.Get(module, request.Slot)?.WaferId ?? string.Empty);
+                return Fail(ErrorCodes.WaferSlotOccupied, module, request.Slot.ToString(), _ledger.Get(module, request.Slot)?.WaferId ?? string.Empty);
             case WaferAdjustResult.WaferIdRequired:
                 return Fail(ErrorCodes.WaferIdRequired);
             default:
                 // 片号已经在账上：说出在哪，让人去那边用移动
-                var existing = ledger.Find(waferId);
+                var existing = _ledger.Find(waferId);
                 return Fail(ErrorCodes.WaferDuplicateId, waferId, existing?.Module ?? string.Empty, existing?.Slot.ToString() ?? string.Empty);
         }
     }
 
     public Task<RpcResponse> GetAdjustmentsAsync(RpcRequest request, CallContext context = default)
     {
-        var rows = WaferManagerComponent.Current?.GetRecentAdjustments() ?? [];
+        var rows = _ledger?.GetRecentAdjustments() ?? [];
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(rows.Select(ToDto).ToList())));
     }
 
     /// <summary>
     /// 能调整的位置名：机械手在前（按组件树的先后），再按各机械手 Stations 里的先后列站点，同名只列一次。
     /// </summary>
-    private IEnumerable<string> LocationNames()
+    private static IEnumerable<string> LocationNames()
     {
-        var robots = Modules().OfType<IRobot>().Cast<BaseModule>().ToList();
+        var robots = ComponentBase.FindAll<IRobot>();
         var names = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var robot in robots)
@@ -148,7 +166,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
         foreach (var robot in robots)
         {
-            foreach (string station in ((IRobot)robot).Stations.Keys)
+            foreach (string station in robot.Stations.Keys)
             {
                 if (seen.Add(station))
                 {
@@ -160,43 +178,45 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
         return names;
     }
 
-    /// <summary>
-    /// 组件树上全部模块（模块一般挂在根上，这里整棵树走一遍，挂在别处的也找得到）。
-    /// </summary>
-    private IEnumerable<BaseModule> Modules()
+    private static WaferLocationDto ToDto(string name, IModule? module, IReadOnlyList<WaferInfo?> slots)
     {
-        var pending = new Stack<ComponentBase>(Roots.Reverse());
-        while (pending.Count > 0)
+        var dto = new WaferLocationDto { Name = name, Kind = KindOf(module), Slots = WaferLedgerSnapshot.ToSlots(slots) };
+        if (module is not null)
         {
-            var component = pending.Pop();
-            if (component is BaseModule module)
-            {
-                yield return module;
-            }
-
-            for (int index = component.Children.Count - 1; index >= 0; index--)
-            {
-                pending.Push(component.Children[index]);
-            }
+            dto.Name = module.Name;
         }
+
+        if (module is ILoadPort port)
+        {
+            dto.CarrierId = port._carrier.CarrierId;
+        }
+
+        return dto;
     }
 
-    private static WaferLocationDto ToDto(string name, BaseModule? module, IReadOnlyList<WaferInfo?> slots)
+    /// <summary>
+    /// 片在哪种站点上
+    /// </summary>
+    private static WaferLocationKind KindOf(IModule? module)
     {
-        return new WaferLocationDto
+        if (module is IRobot)
         {
-            Name = module?.Name ?? name,
-            Kind = module switch
-            {
-                IRobot => WaferLocationKind.Robot,
-                BaseLoadPortModule => WaferLocationKind.LoadPort,
-                BaseChamberModule => WaferLocationKind.Chamber,
-                _ => WaferLocationKind.Other,
-            },
-            CarrierId = (module as BaseLoadPortModule)?._carrier.CarrierId,
-            Slots = WaferLedgerSnapshot.ToSlots(slots),
-        };
+            return WaferLocationKind.Robot;
+        }
+
+        if (module is ILoadPort)
+        {
+            return WaferLocationKind.LoadPort;
+        }
+
+        if (module is IChamber)
+        {
+            return WaferLocationKind.Chamber;
+        }
+
+        return WaferLocationKind.Other;
     }
+
 
     private static WaferAdjustmentDto ToDto(WaferAdjustmentEntity row)
     {
@@ -222,7 +242,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// <summary>
     /// 槽号超范围：说清楚是源还是目标的哪一个槽超了。
     /// </summary>
-    private static Task<RpcResponse> SlotOutOfRange(WaferManagerComponent ledger, string from, int fromSlot, string to, int toSlot)
+    private static Task<RpcResponse> SlotOutOfRange(IWaferManagerComponent ledger, string from, int fromSlot, string to, int toSlot)
     {
         int fromCount = ledger.GetSlots(from).Count;
         return fromSlot < 1 || fromSlot > fromCount

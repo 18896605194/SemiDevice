@@ -16,8 +16,6 @@ namespace xyz.Modules;
 [Component(description: "流程配方库：编号 1~N 的流程配方，一个编号一个文件")]
 public class SequenceComponent : ComponentBase, ISequenceComponent
 {
-    public static SequenceComponent? Current { get; set; }
-
     /// <summary>
     /// 001.xml
     /// </summary>
@@ -41,7 +39,8 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     public SequenceComponent()
     {
-        Current = this;
+        Register<ISequenceComponent>(this);
+        Register<ISequenceLibrary>(this);
     }
 
     #region SC
@@ -140,66 +139,63 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 生成可选站点分组
+    /// 开机：按装起来的模块生成可选站点分组
     /// </summary>
-    /// <param name="settings"></param>
-    /// <param name="modules"></param>
-    public void Bind(IEnumerable<ModuleConfig> settings, IEnumerable<BaseModule> modules)
+    public override void Bind()
     {
-        #region 模块名 → 模块；机械手站点表里配了的站点（机械手到不了的写进流程也走不了）
+        Bind(FindAll<IModule>());
+    }
 
-        var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
-        foreach (var module in modules)
-        {
-            table[module.Name] = module;
-        }
-
+    /// <summary>
+    /// 生成可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
+    /// 只留能放片、机械手到得了的站点（机械手站点表里配了的）；顶层直接装的站点自己成一组
+    /// </summary>
+    public void Bind(IEnumerable<IModule> modules)
+    {
+        var all = modules.ToList();
         var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var robot in table.Values.OfType<IRobot>())
+        foreach (var robot in all.OfType<IRobot>())
         {
             reachable.UnionWith(robot.Stations.Keys);
         }
 
-        #endregion
-
-        #region 按 sc.xml 的分组节点生成分组：只留能放片、机械手到得了的站点；顶层直接装的站点自己成一组
-
         var groups = new List<SequenceStationGroup>();
-        foreach (var node in settings)
+        foreach (var group in all.Where(module => module is ITransferStation && reachable.Contains(module.Name)).GroupBy(GroupOf))
         {
-            IReadOnlyList<ModuleConfig> members = string.IsNullOrWhiteSpace(node.Type) ? node.Children : new List<ModuleConfig> { node };
-            var stations = new List<BaseModule>();
-            foreach (var member in members)
-            {
-                if (!string.IsNullOrWhiteSpace(member.Type)
-                    && table.TryGetValue(member.Name, out var module)
-                    && module is ITransferStation
-                    && reachable.Contains(module.Name))
-                {
-                    stations.Add(module);
-                }
-            }
-
-            if (stations.Count > 0)
-            {
-                groups.Add(new SequenceStationGroup(
-                    node.Name,
-                    stations.Select(station => station.Name).ToList(),
-                    stations.All(station => station is BaseLoadPortModule),
-                    stations.Any(station => station is BaseChamberModule)));
-            }
+            var stations = group.ToList();
+            groups.Add(new SequenceStationGroup(
+                group.Key,
+                stations.Select(station => station.Name).ToList(),
+                stations.All(station => station is ILoadPort),
+                stations.Any(station => station is IChamber)));
         }
-
-        #endregion
 
         lock (_gate)
         {
             _groups = groups;
         }
 
-        LogHelper.Info(Name, groups.Count == 0
-            ? "没有可选的站点分组（没有机械手，或机械手站点表里的站点都没装），流程配方编辑不了步骤"
-            : $"可选站点分组 {groups.Count} 个：{string.Join("；", groups.Select(group => $"{group.Name}（{string.Join(", ", group.Modules)}）"))}");
+        if (groups.Count == 0)
+        {
+            LogHelper.Info(Name, "没有可选的站点分组（没有机械手，或机械手站点表里的站点都没装），流程配方编辑不了步骤");
+            return;
+        }
+
+        LogHelper.Info(Name, $"可选站点分组 {groups.Count} 个：{string.Join("；", groups.Select(group => $"{group.Name}（{string.Join(", ", group.Modules)}）"))}");
+    }
+
+    /// <summary>
+    /// 站点在 sc.xml 里的分组：全路径的第一层；顶层直接装的就是它自己
+    /// </summary>
+    private static string GroupOf(IModule module)
+    {
+        int dot = module.FullPath.IndexOf('.');
+        if (dot < 0)
+        {
+            return module.Name;
+        }
+
+        return module.FullPath[..dot];
     }
 
     #endregion
@@ -245,11 +241,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     #endregion
 
     #region 新建、改名、删除、保存
-
-    /// <summary>
-    /// 内容变了（新建、改名、删除、保存），参数是编号。在锁外发。
-    /// </summary>
-    public event Action<int>? Changed;
 
     /// <summary>
     /// 新建
@@ -341,7 +332,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     public HandleResult Save(int index, int revision, string description, IReadOnlyList<SequenceStep> steps, string operatorName)
     {
         // 工艺配方要在工艺配方库里（没装库就不查）。库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = RecipeComponent.Current;
+        var recipes = ComponentBase.Find<IRecipeComponent>();
         HandleResult result;
         lock (_gate)
         {
@@ -376,7 +367,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         var saved = result.Result as SequenceData;
         LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        Changed?.Invoke(index);
+        EventBus.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
 
         var callback = E30Callback;
         if (callback is null)
@@ -386,7 +377,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         foreach (var (name, change) in changes)
         {
-            EapNotifierComponent.Current?.Post(() => callback.SequenceChanged(name, change));
+            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.SequenceChanged(name, change));
         }
     }
 
@@ -428,7 +419,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
 
         // 工艺配方库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = RecipeComponent.Current;
+        var recipes = ComponentBase.Find<IRecipeComponent>();
         HandleResult result;
         int index;
         string reported;
@@ -758,7 +749,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     /// 每一步：分组要在可选的里面，第 1 步、最后一步是 LoadPort 分组；至少勾一个站点、勾的站点在这个分组里；
     /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且勾的每个腔体都跑得了（Type、选的摆臂和药液）。步号从 1 数，跟界面上一样。
     /// </summary>
-    private static HandleResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, RecipeComponent? recipes)
+    private static HandleResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, IRecipeComponent? recipes)
     {
         for (int position = 0; position < steps.Count; position++)
         {

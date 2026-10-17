@@ -1,4 +1,5 @@
-﻿using xyz.Components.Components;
+﻿using xyz.Components;
+using xyz.Components.Components;
 
 namespace xyz.Modules;
 
@@ -39,7 +40,7 @@ internal sealed class SystemStopOperation : ModuleOperation
             }
         }
 
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         if (transfers is not null)
         {
             foreach (var robot in transfers.Robots)

@@ -71,20 +71,37 @@ public sealed class ProcessRecipeFieldModel
         _optionsByType = (dto.OptionsByType ?? []).ToDictionary(
             pair => pair.Key, pair => (IReadOnlyList<string>)(pair.Value ?? []), StringComparer.OrdinalIgnoreCase);
         Header = Unit.Length == 0 ? Text : $"{Text} {Unit}";
-        Width = Type switch
+        switch (Type)
         {
-            ProcessRecipeFieldType.Int => NumberWidth,
-            ProcessRecipeFieldType.Double => NumberWidth,
-            ProcessRecipeFieldType.Choice => ChoiceWidth,
-            ProcessRecipeFieldType.Bool => BoolWidth,
-            _ => TextWidth,
-        };
-        DataType = Type switch
+            case ProcessRecipeFieldType.Int:
+                Width = NumberWidth;
+                break;
+            case ProcessRecipeFieldType.Double:
+                Width = NumberWidth;
+                break;
+            case ProcessRecipeFieldType.Choice:
+                Width = ChoiceWidth;
+                break;
+            case ProcessRecipeFieldType.Bool:
+                Width = BoolWidth;
+                break;
+            default:
+                Width = TextWidth;
+                break;
+        }
+
+        switch (Type)
         {
-            ProcessRecipeFieldType.Int => InputDataType.Integer,
-            ProcessRecipeFieldType.Double => InputDataType.Decimal,
-            _ => InputDataType.Text,
-        };
+            case ProcessRecipeFieldType.Int:
+                DataType = InputDataType.Integer;
+                break;
+            case ProcessRecipeFieldType.Double:
+                DataType = InputDataType.Decimal;
+                break;
+            default:
+                DataType = InputDataType.Text;
+                break;
+        }
     }
 
     /// <summary>

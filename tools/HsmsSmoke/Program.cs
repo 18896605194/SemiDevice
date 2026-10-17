@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Threading.Channels;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Secs;
@@ -49,7 +50,7 @@ var node = new ModuleConfig
 };
 var roots = ComponentLoader.Load([node]);
 var hsms = roots.OfType<HsmsComponent>().Single();
-Check(ReferenceEquals(HsmsComponent.Current, hsms), "装配出来即成为 Current");
+Check(ReferenceEquals(ComponentBase.Find<IHsmsComponent>(), hsms), "装配出来就登记成单例");
 Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[SCEditor] 灌值生效（IsEnable/Port/DeviceId）");
 
 // 2. 登记处理方和闸门（链路打开之前）。
@@ -183,12 +184,12 @@ eap.Dispose();
 
 // 4. 链路起不来的几种情况：Open 只记错误、不抛，后端照常起，链路状态保持未连接。
 // ① 跟 gRPC（Rpc 节点）同端口：不去抢——宿主先开 EAP 链路后起 gRPC，抢了 gRPC 就绑不上、整个后端起不来。
-_ = new RpcComponent { Port = port };  // 构造即成为 RpcComponent.Current，宿主从它取 gRPC 端口
+_ = new RpcComponent { Port = port };  // 构造即成为 ComponentBase.Find<IRpcComponent>()，宿主从它取 gRPC 端口
 var sameAsRpc = new HsmsComponent { IsEnable = true, Port = port, LinktestIntervalMs = 0 };
 sameAsRpc.Open();
 Check(sameAsRpc.LocalEndpoint is null && sameAsRpc.LinkState == HsmsLinkState.NotConnected, "跟 gRPC 同端口时不监听");
 sameAsRpc.Close();
-RpcComponent.Current = null;
+ComponentBase.Register<IRpcComponent>(null);
 
 // ② 配置不对（设备号超 15 位、超时填 0）：同样只记错误。端口给 0，万一没拦住会监听到系统分配的端口，检查就会失败。
 foreach (var invalid in new[]

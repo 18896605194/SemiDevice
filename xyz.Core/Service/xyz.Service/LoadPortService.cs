@@ -1,4 +1,5 @@
 ﻿using xyz.Components;
+using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -13,13 +14,9 @@ namespace xyz.Service;
 /// </summary>
 public class LoadPortService : BaseService, ILoadPortService
 {
-    public LoadPortService(IReadOnlyList<ComponentBase> roots) : base(roots)
-    {
-    }
-
     public Task<RpcResponse> LoadAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -34,7 +31,7 @@ public class LoadPortService : BaseService, ILoadPortService
     /// </summary>
     public Task<RpcResponse> UnloadAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -45,7 +42,7 @@ public class LoadPortService : BaseService, ILoadPortService
 
     public Task<RpcResponse> HomeAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -56,7 +53,7 @@ public class LoadPortService : BaseService, ILoadPortService
 
     public Task<RpcResponse> ResetAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -67,7 +64,7 @@ public class LoadPortService : BaseService, ILoadPortService
 
     public Task<RpcResponse> AbortAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -81,12 +78,12 @@ public class LoadPortService : BaseService, ILoadPortService
     /// </summary>
     public Task<RpcResponse> OnlineAsync(string module)
     {
-        return Online<BaseLoadPortModule>(module);
+        return Online<ILoadPort>(module);
     }
 
     public Task<RpcResponse> OfflineAsync(string module)
     {
-        return Offline<BaseLoadPortModule>(module);
+        return Offline<ILoadPort>(module);
     }
 
     /// <summary>
@@ -95,7 +92,7 @@ public class LoadPortService : BaseService, ILoadPortService
     /// </summary>
     public Task<RpcResponse> AutoAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -111,7 +108,7 @@ public class LoadPortService : BaseService, ILoadPortService
     /// </summary>
     public Task<RpcResponse> ManualAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -127,7 +124,7 @@ public class LoadPortService : BaseService, ILoadPortService
     /// </summary>
     public Task<RpcResponse> ReadCarrierIdAsync(string module)
     {
-        var port = FindModule<BaseLoadPortModule>(module);
+        var port = FindModule<ILoadPort>(module);
         if (port is null)
         {
             return ModuleNotFound(module);
@@ -140,7 +137,7 @@ public class LoadPortService : BaseService, ILoadPortService
 
     public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = Roots.OfType<BaseLoadPortModule>()
+        var dto = ComponentBase.FindAll<ILoadPort>()
             .Where(port => string.IsNullOrWhiteSpace(module)
                            || string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(port => port.CreateStateDto())

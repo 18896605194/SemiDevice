@@ -3,8 +3,10 @@ using System.Reflection;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Configs;
 using xyz.Configs.Models;
+using xyz.Shared.Dtos;
 using xyz.Tools;
 
 namespace xyz.Components.Components;
@@ -14,14 +16,12 @@ namespace xyz.Components.Components;
 /// 层级、先后都跟组件树（也就是 sc.xml）一样；文件已经有了就只补新的、更新说明和上下限，改过的值不动。
 /// </summary>
 [Component(description: "EC 管理组件（在线可调参数 ec.xml）")]
-public class EcComponent : ComponentBase
+public class EcComponent : ComponentBase, IEcComponent
 {
     /// <summary>
     /// 当前 EC；sc.xml 里装出来即生效。没装时各组件的 EC 属性读回退 [VariableMark] 的默认值，写不生效。
     /// 冒烟与测试直接 new 一个：只在内存里，不读也不写 ec.xml。
     /// </summary>
-    public static EcComponent? Current { get; set; }
-
     private readonly object _gate = new();
     private List<EcSettingConfig> _settings = new();
 
@@ -36,7 +36,7 @@ public class EcComponent : ComponentBase
 
     public EcComponent()
     {
-        Current = this;
+        Register<IEcComponent>(this);
     }
 
     /// <summary>
@@ -265,7 +265,7 @@ public class EcComponent : ComponentBase
         Flush();
         if (changed is not null)
         {
-            ValueChanged?.Invoke(path, changed);
+            OnValueChanged(path, changed);
         }
 
         return true;
@@ -315,7 +315,7 @@ public class EcComponent : ComponentBase
             item = Copy(existing);
         }
 
-        ValueChanged?.Invoke(path, item);
+        OnValueChanged(path, item);
         return EcSetResult.Ok;
     }
 
@@ -563,4 +563,29 @@ public class EcComponent : ComponentBase
     }
 
     #endregion
+
+    /// <summary>
+    /// 值变了：先告诉订了事件的（E30），再推给界面（EC 设置页、输入框按 EcKey 取的范围跟着走）
+    /// </summary>
+    private void OnValueChanged(string path, EcValueConfig item)
+    {
+        ValueChanged?.Invoke(path, item);
+        EventBus.Send(CreateDto(path, item), EcItemDto.EventToken, retain: false);
+    }
+
+    /// <summary>
+    /// 一项 EC 转成给界面的样子：键 = 组件全路径.参数名
+    /// </summary>
+    public EcItemDto CreateDto(string path, EcValueConfig value)
+    {
+        var mapper = Find<IMapperComponent>();
+        var dto = new EcItemDto();
+        if (mapper is not null)
+        {
+            dto = mapper.Map<EcItemDto>(value);
+        }
+
+        dto.Key = $"{path}.{value.Name}";
+        return dto;
+    }
 }

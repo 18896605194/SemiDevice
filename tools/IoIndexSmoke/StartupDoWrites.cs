@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
@@ -33,16 +34,16 @@ static class StartupDoWrites
         File.WriteAllText(csv, "Index,Name\n12,Valve\n13,Lamp\n");
 
         var plc = new RecordingPlc();
-        var previousPlc = PlcComponent.Current;
-        PlcComponent.Current = plc;
+        var previousPlc = ComponentBase.Find<IPlc>();
+        ComponentBase.Register<IPlc>(plc);
         var io = new ConfiguredIo { StartupDo = " do12 = FALSE ; Do13=true;;DO99=true; " };
         io.Load();
         io.Do.Load(csv);
         io.Start();
 
-        // IO 组件第一拍就把 PlcComponent.Current 记住了，之后再还原不影响它。
+        // IO 组件第一拍就把 ComponentBase.Find<IPlc>() 记住了，之后再还原不影响它。
         Thread.Sleep(1500);
-        PlcComponent.Current = previousPlc;
+        ComponentBase.Register<IPlc>(previousPlc);
         Check(plc.Writes.Count == 0, "PLC 没连上不下发");
 
         plc.IsConnected = true;

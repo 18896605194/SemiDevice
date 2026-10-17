@@ -165,13 +165,22 @@ internal sealed class FakeFcdReader : ICommunication
             return;
         }
 
-        byte[]? block = messageId switch
+        byte[]? block;
+        switch (messageId)
         {
-            FcdRfidProtocol.CmdReadTag => BuildTagBlock(),
-            FcdRfidProtocol.CmdGetVersion => [FcdRfidProtocol.RspVersion, 0x02, 0x04],
-            FcdRfidProtocol.CmdGetStatus => [FcdRfidProtocol.RspStatus, 0x00],
-            _ => null,
-        };
+            case FcdRfidProtocol.CmdReadTag:
+                block = BuildTagBlock();
+                break;
+            case FcdRfidProtocol.CmdGetVersion:
+                block = [FcdRfidProtocol.RspVersion, 0x02, 0x04];
+                break;
+            case FcdRfidProtocol.CmdGetStatus:
+                block = [FcdRfidProtocol.RspStatus, 0x00];
+                break;
+            default:
+                block = null;
+                break;
+        }
 
         if (block is null)
         {

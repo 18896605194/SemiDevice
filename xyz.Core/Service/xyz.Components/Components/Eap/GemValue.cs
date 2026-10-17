@@ -123,13 +123,17 @@ internal static class GemValue
     /// <summary>没有值的时候报的空项：按格式给零长度的数组（Host 按格式认得出"这一项这次没值"）。</summary>
     public static SecsItem Empty(string format)
     {
-        return format switch
+        switch (format)
         {
-            "Bool" => SecsItem.Boolean(),
-            "Int" => SecsItem.U4(),
-            "Double" => SecsItem.F8(),
-            _ => SecsItem.A(string.Empty),
-        };
+            case "Bool":
+                return SecsItem.Boolean();
+            case "Int":
+                return SecsItem.U4();
+            case "Double":
+                return SecsItem.F8();
+            default:
+                return SecsItem.A(string.Empty);
+        }
     }
 
     /// <summary>整数：非负给 U4（放不下给 U8），负数给 I4（放不下给 I8）。</summary>
@@ -154,12 +158,15 @@ internal static class GemValue
     /// </summary>
     public static string Time(DateTime time, int timeFormat)
     {
-        return timeFormat switch
+        switch (timeFormat)
         {
-            0 => time.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture),
-            2 => time.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture),
-            _ => time.ToString("yyyyMMddHHmmssff", CultureInfo.InvariantCulture),
-        };
+            case 0:
+                return time.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture);
+            case 2:
+                return time.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
+            default:
+                return time.ToString("yyyyMMddHHmmssff", CultureInfo.InvariantCulture);
+        }
     }
 
     /// <summary>Host 给的时间（S2F31）：12 位、16 位、ISO 8601 都认。</summary>

@@ -267,13 +267,23 @@ public class SequenceViewModel : BaseViewModel
     /// </summary>
     public bool IsPageHintVisible => !IsReady;
 
-    public string PageHint => PageState switch
+    public string PageHint
     {
-        SequencePageState.Offline => L10n.Get("recipe.sequence.offline"),
-        SequencePageState.Loading => L10n.Get("recipe.sequence.loading"),
-        SequencePageState.NotInstalled => L10n.Get(ErrorCodes.SequenceNotInstalled),
-        _ => string.Empty,
-    };
+        get
+        {
+            switch (PageState)
+            {
+                case SequencePageState.Offline:
+                    return L10n.Get("recipe.sequence.offline");
+                case SequencePageState.Loading:
+                    return L10n.Get("recipe.sequence.loading");
+                case SequencePageState.NotInstalled:
+                    return L10n.Get(ErrorCodes.SequenceNotInstalled);
+                default:
+                    return string.Empty;
+            }
+        }
+    }
 
     private SequenceDialogKind _dialog;
 

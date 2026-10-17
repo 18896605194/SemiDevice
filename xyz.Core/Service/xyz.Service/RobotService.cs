@@ -10,13 +10,16 @@ namespace xyz.Service;
 
 public class RobotService : BaseService, IRobotService
 {
-    public RobotService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly ITransferManager? _transfers;
+
+    public RobotService()
     {
+        _transfers = ComponentBase.Find<ITransferManager>();
     }
 
     public Task<RpcResponse> HomeAsync(string module)
     {
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -27,7 +30,7 @@ public class RobotService : BaseService, IRobotService
 
     public Task<RpcResponse> ResetAsync(string module)
     {
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -38,7 +41,7 @@ public class RobotService : BaseService, IRobotService
 
     public Task<RpcResponse> AbortAsync(string module)
     {
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -55,7 +58,7 @@ public class RobotService : BaseService, IRobotService
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         var module = request.Module ?? string.Empty;
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -80,7 +83,7 @@ public class RobotService : BaseService, IRobotService
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         var module = request.Module ?? string.Empty;
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -101,22 +104,21 @@ public class RobotService : BaseService, IRobotService
     /// <summary>
     /// 交给搬运管理跑这一趟、等它做完（等的上限跟手动传片一样，EC ManualWaitTimeoutMs；等不到界面先回超时，搬运照样跑完）。
     /// </summary>
-    private static async Task<RpcResponse> RunTransfer(TransferRequest request)
+    private async Task<RpcResponse> RunTransfer(TransferRequest request)
     {
-        var transfers = TransferManager.Current;
-        if (transfers is null)
+        if (_transfers is null)
         {
             return RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []);
         }
 
-        var started = transfers.Start(request);
+        var started = _transfers.Start(request);
         var operation = started.Result;
         if (!started.IsSuccess || operation is null)
         {
             return RpcResponse.Fail(started.ErrorMessage, started.Args);
         }
 
-        int timeout = transfers.ManualWaitTimeoutMs;
+        int timeout = _transfers.ManualWaitTimeoutMs;
         if (!await Task.Run(() => operation.WaitReply(timeout)).ConfigureAwait(false))
         {
             return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout, [operation.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
@@ -127,7 +129,7 @@ public class RobotService : BaseService, IRobotService
 
     public Task<RpcResponse> PowerOnAsync(string module)
     {
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -138,7 +140,7 @@ public class RobotService : BaseService, IRobotService
 
     public Task<RpcResponse> PowerOffAsync(string module)
     {
-        var robot = FindModule<BaseRobotModule>(module);
+        var robot = FindModule<IRobot>(module);
         if (robot is null)
         {
             return ModuleNotFound(module);
@@ -152,12 +154,12 @@ public class RobotService : BaseService, IRobotService
     /// </summary>
     public Task<RpcResponse> OnlineAsync(string module)
     {
-        return Online<BaseRobotModule>(module);
+        return Online<IRobot>(module);
     }
 
     public Task<RpcResponse> OfflineAsync(string module)
     {
-        return Offline<BaseRobotModule>(module);
+        return Offline<IRobot>(module);
     }
 
     /// <summary>
@@ -165,7 +167,7 @@ public class RobotService : BaseService, IRobotService
     /// </summary>
     public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = Roots.OfType<BaseRobotModule>()
+        var dto = ComponentBase.FindAll<IRobot>()
             .Where(robot => string.IsNullOrWhiteSpace(module)
                             || string.Equals(robot.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(robot => robot.CreateStateDto())

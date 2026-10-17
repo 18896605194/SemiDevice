@@ -1,8 +1,11 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
@@ -18,16 +21,11 @@ namespace xyz.Modules;
 /// Auto 落地靠搬运管理的自动派单（Job 只看那个开关），开关只由这里拨。
 /// </summary>
 [Component(description: "整机：系统状态、全部初始化、Auto / Manual、整机停止、全部回片；界面语言")]
-public class SystemModule : BaseModule
+public class SystemModule : BaseModule, ISystemModule
 {
-    /// <summary>
-    /// 当前整机；sc.xml 没装时为 null（界面语言用默认值，整机操作回 system.not_installed）。
-    /// </summary>
-    public static SystemModule? Current { get; set; }
-
     public SystemModule()
     {
-        Current = this;
+        Register<ISystemModule>(this);
         RegisterTransitions(SystemStateTable.ToModuleTable());
     }
 
@@ -60,12 +58,20 @@ public class SystemModule : BaseModule
 
     #region 装配
 
-    private IReadOnlyList<BaseModule> _modules = [];
+    private IReadOnlyList<IModule> _modules = [];
+
+    /// <summary>
+    /// 开机：认整机要管的模块（全部初始化、整机停止、全部回片）
+    /// </summary>
+    public override void Bind()
+    {
+        Bind(FindAll<IModule>());
+    }
 
     /// <summary>
     /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块（不含自己），先后跟 sc.xml 一样。
     /// </summary>
-    public void Bind(IEnumerable<BaseModule> modules)
+    public void Bind(IEnumerable<IModule> modules)
     {
         _modules = modules.Where(module => !ReferenceEquals(module, this)).ToList();
         LogHelper.Info(Name, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
@@ -107,7 +113,7 @@ public class SystemModule : BaseModule
                 return rejected;
             }
 
-            var transfers = TransferManager.Current;
+            var transfers = ComponentBase.Find<ITransferManager>();
             if (transfers is null)
             {
                 return HandleResult.Fail(ErrorCodes.TransferNotInstalled);
@@ -137,7 +143,7 @@ public class SystemModule : BaseModule
                 return rejected;
             }
 
-            TransferManager.Current?.StopAutoDispatch();
+            ComponentBase.Find<ITransferManager>()?.StopAutoDispatch();
             SwitchTo(SystemAction.Manual);
             return HandleResult.Success();
         }
@@ -164,7 +170,7 @@ public class SystemModule : BaseModule
     /// <summary>回片要用的：搬运管理装了、开着，晶圆账装了、开着。</summary>
     private static HandleResult? CheckReturnResource()
     {
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         if (transfers is null)
         {
             return HandleResult.Fail(ErrorCodes.TransferNotInstalled);
@@ -175,7 +181,7 @@ public class SystemModule : BaseModule
             return HandleResult.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -220,7 +226,7 @@ public class SystemModule : BaseModule
         }
 
         // 锁外发：Job 中止要等 Job 的锁，别让系统的扫描线程跟着等
-        var transfers = TransferManager.Current;
+        var transfers = ComponentBase.Find<ITransferManager>();
         transfers?.Abort();
 
         // 要先认再让 Job 中止：Job 的中止当场就给它的腔体发中止，之后就认不出那是 Job 的工艺了
@@ -242,7 +248,7 @@ public class SystemModule : BaseModule
             aborted++;
         }
 
-        var jobs = JobManager.Current;
+        var jobs = ComponentBase.Find<IJobManager>();
         if (jobs is not null)
         {
             _ = jobs.AbortAllAsync();
@@ -295,6 +301,7 @@ public class SystemModule : BaseModule
         base.OnScan();
         FollowJobs();
         PublishState();
+        PublishEquipmentStatus();
     }
 
     private void FollowJobs()
@@ -305,7 +312,7 @@ public class SystemModule : BaseModule
         }
 
         // 先在锁外问 Job（要等 Job 的锁），再进自己的锁核对一遍还在 Auto
-        var jobs = JobManager.Current;
+        var jobs = ComponentBase.Find<IJobManager>();
         int next = jobs is not null && jobs.HasRunningJob ? SystemState.AutoRunning : SystemState.AutoIdle;
         lock (OperationGate)
         {
@@ -361,6 +368,101 @@ public class SystemModule : BaseModule
 
         _lastPublished = dto;
         EventBus.Send(dto, SystemStateDto.EventToken);
+    }
+
+    #endregion
+
+    #region 设备总状态（顶栏四色灯）
+
+    private (bool HasAlarm, bool HasWarning, bool IsRunning, int WaferSize)? _lastStatus;
+
+    private string? _lastStatusFault;
+
+    /// <summary>
+    /// 四色灯输出失败时记过的原因：同一个灯同样的错只记一次
+    /// </summary>
+    private readonly Dictionary<ILightComponent, string> _lightErrors = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// 每拍算一次设备总状态，变了才点亮下面挂的四色灯、推给顶栏
+    /// </summary>
+    private void PublishEquipmentStatus()
+    {
+        try
+        {
+            var dto = CreateEquipmentStatus();
+            var status = (dto.HasAlarm, dto.HasWarning, dto.IsRunning, dto.WaferSize);
+            if (_lastStatus == status)
+            {
+                return;
+            }
+
+            // 只是晶圆尺寸变了也重刷一遍灯：写的是同样的值，尺寸又是人点的、很少变
+            _lastStatus = status;
+            foreach (var light in FindChildren<ILightComponent>())
+            {
+                Drive(light, dto.HasAlarm, dto.HasWarning, dto.IsRunning);
+            }
+
+            EventBus.Send(dto, EquipmentStatusDto.EventToken);
+            _lastStatusFault = null;
+        }
+        catch (Exception exception)
+        {
+            if (_lastStatusFault != exception.Message)
+            {
+                _lastStatusFault = exception.Message;
+                LogHelper.Warn(Name, $"设备总状态刷新失败: {exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 这一刻的设备总状态：报警看报警组件（Warn 级算警告，其余算报警），运行看有没有模块（含整机自己）在做动作，晶圆尺寸看晶圆尺寸组件
+    /// </summary>
+    public EquipmentStatusDto CreateEquipmentStatus()
+    {
+        IReadOnlyList<AlarmItem> alarms = [];
+        var alarmComponent = Find<IAlarmComponent>();
+        if (alarmComponent is not null)
+        {
+            alarms = alarmComponent.ActiveAlarms;
+        }
+
+        return new EquipmentStatusDto
+        {
+            HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
+            HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
+            IsRunning = CurrentOperation is not null || _modules.Any(module => module.CurrentOperation is not null),
+            WaferSize = WaferSizeComponent.CurrentSize,
+        };
+    }
+
+    private void Drive(ILightComponent light, bool red, bool yellow, bool green)
+    {
+        try
+        {
+            light.SetRed(red);
+            light.SetYellow(yellow);
+            light.SetGreen(green);
+            _lightErrors.Remove(light);
+        }
+        catch (Exception exception)
+        {
+            if (_lightErrors.TryGetValue(light, out var last) && last == exception.Message)
+            {
+                return;
+            }
+
+            _lightErrors[light] = exception.Message;
+            string name = light.GetType().Name;
+            if (light is ComponentBase component)
+            {
+                name = component.FullPath;
+            }
+
+            LogHelper.Warn(Name, $"{name} 四色灯输出失败: {exception.Message}");
+        }
     }
 
     #endregion

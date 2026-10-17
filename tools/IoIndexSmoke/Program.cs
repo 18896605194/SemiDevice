@@ -1,10 +1,13 @@
+﻿using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
+using xyz.Shared.Dtos;
+using xyz.Tools;
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-io-index-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = PlcComponent.Current;
-var previousIo = IoComponent.Current;
+var previousPlc = ComponentBase.Find<IPlc>();
+var previousIo = ComponentBase.Find<IIoComponent>();
 var io = new IoComponent();
 try
 {
@@ -32,9 +35,9 @@ try
     }
 
     var plc = new FakePlc();
-    PlcComponent.Current = null;
+    ComponentBase.Register<IPlc>(null);
     Check(!io.IsCollecting && !io.TryReadDi(7, out _), "no PLC means nothing is readable");
-    PlcComponent.Current = plc;
+    ComponentBase.Register<IPlc>(plc);
     Check(io.IsCollecting, "collecting follows the PLC connection");
     Check(io.TryReadAi(7, out var value) && value == 50, "AI must resolve sparse PLC indices and scale");
     Check(io.TryReadDi(7, out var on) && on, "DI index 7");
@@ -54,12 +57,51 @@ try
     Check(io.TryReadDi(7, out _), "reads resume with the connection");
     io.Di.Load(Path.Combine(directory, "missing.csv"));
     Check(io.Di.Points.Count == 0 && io.Di.Find(7) is null, "reload must clear index lookup");
-    Console.WriteLine("PASS: index lookup, reads, writes, scaling, invalid indices and connection gating");
+
+    // IO 组件自己推 IO 界面那一包（IoDto，留存）：在自己的扫描里到了 EC 推送周期才推，骨架只建一次、之后每次只刷值
+    // 推送周期是 EC：先拨到最长（两拍之间肯定没到），再拨到最短看下一个周期接着推
+    var previousEc = ComponentBase.Find<IEcComponent>();
+    var ec = new EcComponent();
+    var scanning = new ScanIo();
+    foreach (var table in new[] { scanning.Di, scanning.Do, scanning.Ai, scanning.Ao })
+    {
+        table.Load(csv);
+    }
+
+    ec.Merge([scanning]);
+    scanning.PublishIntervalMs = 10000;
+    Check(scanning.PublishIntervalMs == 10000, "publish interval comes from EC");
+    var pushedSnapshots = new List<IoDto>();
+    int testThread = Environment.CurrentManagedThreadId;
+    using (EventBus.Register<IoDto>(IoDto.EventToken, dto =>
+           {
+               // 前面几节起的 IO 组件还在各自的扫描线程上推，只认这里扫的这一个（EventBus 在发的那个线程上回调）
+               if (Environment.CurrentManagedThreadId == testThread)
+               {
+                   pushedSnapshots.Add(dto);
+               }
+           }))
+    {
+        pushedSnapshots.Clear();
+        scanning.Tick();
+        scanning.Tick();
+        Check(pushedSnapshots.Count == 1 && pushedSnapshots[0].IsCollecting && pushedSnapshots[0].Types.Count == 4,
+            "the IO component pushes its snapshot from its own scan, once per publish interval");
+        scanning.PublishIntervalMs = 100;
+        Thread.Sleep(200);
+        scanning.Tick();
+        Check(pushedSnapshots.Count == 2 && ReferenceEquals(pushedSnapshots[0], pushedSnapshots[1]),
+            "the next interval pushes again, refreshing values on the same skeleton");
+    }
+
+    ComponentBase.Register<IEcComponent>(previousEc);
+
+    Console.WriteLine("PASS: index lookup, reads, writes, scaling, invalid indices and connection gating, IO snapshot pushed from its own scan");
 }
 finally
 {
-    PlcComponent.Current = previousPlc;
-    IoComponent.Current = previousIo;
+    ComponentBase.Register<IPlc>(previousPlc);
+    ComponentBase.Register<IIoComponent>(previousIo);
     Directory.Delete(directory, recursive: true);
 }
 
@@ -85,4 +127,20 @@ sealed class FakePlc : IPlc
     public bool WriteAo(int index, double value) { LastAo = (index, value); return true; }
     public bool TryReadBlock(string path, out byte[] block) { block = []; return false; }
     public bool WriteBlock(string path, byte[] data) => false;
+}
+
+// IO 组件顶替扫描线程扫一拍
+sealed class ScanIo : IoComponent
+{
+    // EC 的键是组件全路径：生产里由 ComponentLoader 填，这里反射设
+    public ScanIo()
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "ScanIo");
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, "ScanIo");
+    }
+
+    public void Tick()
+    {
+        OnScan();
+    }
 }

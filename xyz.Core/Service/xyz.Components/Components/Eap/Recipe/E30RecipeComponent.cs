@@ -11,8 +11,8 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 配方管理（SEMI E30 工艺程序管理，sc.xml 的 Eap 下的 Recipe 节点）：Host 的 S7 翻成流程配方库（ISequenceComponent）、
-/// 工艺配方库（IRecipeComponent）各自的命令（跟本地两个配方页同一套检查），两个库报上来的"变了"翻成事件。
+/// 配方管理（SEMI E30 工艺程序管理，sc.xml 的 Eap 下的 Recipe 节点）：Host 的 S7 翻成流程配方库（ISequenceLibrary）、
+/// 工艺配方库（IRecipeLibrary）各自的命令（跟本地两个配方页同一套检查），两个库报上来的"变了"翻成事件。
 /// 流程配方、工艺配方各在自己的库里，这里分开处理、不混在一起：Host 那边的配方号（PPID）就是名字，先看流程配方库有没有，再看工艺配方库
 /// （两个库的名字不会重）；Host 下一个两个库都还没有的名字，看 JSON 的样子由库自己认（流程配方每一步是分组 + 站点，工艺配方每一步是字段名 → 值）。
 /// 内容（PPBODY）是 JSON，发出去用 B（UTF-8），收的时候 A、B 都认。
@@ -21,7 +21,7 @@ namespace xyz.Components.Components;
 /// SC LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地两个配方页（配方服务改之前问 <see cref="IsLocalEditLocked"/>）。
 /// </summary>
 [Component(description: "配方管理（SEMI E30 工艺程序管理）：S7 下、取、删、列流程配方和工艺配方，变了报事件")]
-public class E30RecipeComponent : ComponentBase, IE30Callback
+public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeComponent
 {
     /// <summary>PPGNT：可以下。</summary>
     private const byte GrantOk = 0;
@@ -57,16 +57,14 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
 
     #endregion
 
-    private E30Component? _gem;
-    private ISequenceComponent? _sequences;
-    private IRecipeComponent? _processRecipes;
+    private IE30Component? _gem;
+    private ISequenceLibrary? _sequences;
+    private IRecipeLibrary? _processRecipes;
 
     /// <summary>当前配方管理组件；Eap 下没配 Recipe 节点时为 null（本地配方页就不会被锁）。</summary>
-    public static E30RecipeComponent? Current { get; set; }
-
     public E30RecipeComponent()
     {
-        Current = this;
+        Register<IE30RecipeComponent>(this);
     }
 
     #region SC
@@ -79,7 +77,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback
     #region 接设备
 
     /// <summary>接到链路和两个配方库上（EAP 组件在链路打开之前调）：挂两个库的上报口，登记 S7 报文。库没装的那个不接。</summary>
-    public void Attach(HsmsComponent link, E30Component gem, ISequenceComponent? sequences, IRecipeComponent? processRecipes)
+    public void Attach(IHsmsComponent link, IE30Component gem, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);

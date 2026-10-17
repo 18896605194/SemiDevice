@@ -1,19 +1,13 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
-public interface IRobot
+public interface IRobot : IModule
 {
     #region 状态
-
-    /// <summary>
-    /// 模块名（如 Robot1）。
-    /// </summary>
-    string Name { get; }
-
-    int State { get; }
 
     /// <summary>
     /// 是否上使能
@@ -45,18 +39,7 @@ public interface IRobot
 
     // 动作入口按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）；复位、急停跟着组件基类，被拒返回 null。
 
-    /// <summary>
-    /// 模块初始化（动硬件）
-    /// </summary>
-    /// <returns></returns>
-
-    ModuleOperation? InitModule();
-
     HandleResult<ModuleOperation> Home();
-
-    ModuleOperation? Reset();
-
-    ModuleOperation? Abort();
 
     /// <summary>取片：站点要先由搬运管理准备好（取放都经搬运管理来）。</summary>
     HandleResult<ModuleOperation> Pick(int arm, string station, int slot);
@@ -79,6 +62,45 @@ public interface IRobot
     HandleResult<ModuleOperation> PowerOn();
 
     HandleResult<ModuleOperation> PowerOff();
+
+    #endregion
+
+    #region 给服务用的（手动页、主界面）
+
+    /// <summary>
+    /// 回原点等到做完的上限（ms）
+    /// </summary>
+    int HomeTimeout { get; }
+
+    /// <summary>
+    /// 复位等到做完的上限（ms）
+    /// </summary>
+    int ResetTimeout { get; }
+
+    /// <summary>
+    /// 中止等到做完的上限（ms）
+    /// </summary>
+    int AbortTimeout { get; }
+
+    /// <summary>
+    /// 上电、断电等到做完的上限（ms）
+    /// </summary>
+    int PowerTimeout { get; }
+
+    /// <summary>
+    /// 复位能不能做，能是 null
+    /// </summary>
+    HandleResult? CheckReset();
+
+    /// <summary>
+    /// 中止能不能做，能是 null
+    /// </summary>
+    HandleResult? CheckAbort();
+
+    /// <summary>
+    /// 现在的状态（推给界面的那一份）
+    /// </summary>
+    RobotDto CreateStateDto();
 
     #endregion
 }

@@ -2,6 +2,7 @@
 using xyz.Common.Log;
 using xyz.Components.Collectors;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Secs;
 using xyz.Secs.Hsms;
@@ -75,15 +76,15 @@ public partial class E30Component
     private const byte AlarmAccepted = 0;
 
     /// <summary>
-    /// 设备会主动发、断了通讯能缓存的报文：S5F1 报警、S6F11 事件报告。S2F43 只认这几条。
+    /// 设备会主动发、断了通讯能缓存的报文：S5F1 报警、S6F1 Trace 数据、S6F11 事件报告。S2F43 只认这几条。
     /// </summary>
     private static readonly IReadOnlyDictionary<byte, byte[]> SpoolablePrimaries = new Dictionary<byte, byte[]>
     {
         [5] = [1],
-        [6] = [11],
+        [6] = [1, 11],
     };
 
-    private void RegisterHandlers(HsmsComponent link)
+    private void RegisterHandlers(IHsmsComponent link)
     {
         link.Handle(1, 1, AreYouThere);
         link.Handle(1, 3, StatusRequest);
@@ -252,7 +253,7 @@ public partial class E30Component
     {
         var items = SecsRead.List(SecsRead.Body(message), "S2F15");
         var collectors = GemCollectors.Current;
-        var store = EcComponent.Current;
+        var store = ComponentBase.Find<IEcComponent>();
         if (collectors is null || store is null)
         {
             return SecsReply.Of(SecsItem.B(ConstantNotExist));
@@ -524,7 +525,7 @@ public partial class E30Component
 
     /// <summary>
     /// S2F43 设缓存范围 → S2F44 L[2]{RSPACK, L[m]{L[3]{STRID, STRACK, L[n]{FCNID}}}}：L[m]{L[2]{STRID, L[n]{FCNID}}}，
-    /// 表空 = 什么都不缓存，Function 表空 = 这个 Stream 能缓存的都缓存。只认设备会主动发的 S5F1、S6F11；
+    /// 表空 = 什么都不缓存，Function 表空 = 这个 Stream 能缓存的都缓存。只认设备会主动发的 S5F1、S6F1、S6F11；
     /// 有一项不对整条不收，回的表里列出不对的 Stream 和它的原因。
     /// </summary>
     private SecsReply ResetSpooling(HsmsMessage message)

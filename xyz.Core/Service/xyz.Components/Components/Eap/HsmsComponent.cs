@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Secs;
 using xyz.Secs.Diagnostics;
@@ -23,7 +24,7 @@ namespace xyz.Components.Components;
 /// 本节点 IsEnable=False 时整个 EAP 不起（不监听端口），设备照常跑。
 /// </summary>
 [Component(description: "EAP 主机链路（SEMI E37 HSMS）：监听或连出、按 Stream/Function 分发报文")]
-public class HsmsComponent : ComponentBase
+public class HsmsComponent : ComponentBase, IHsmsComponent
 {
     /// <summary>S9F3：整个 Stream 不认识。</summary>
     private const byte UnknownStreamFunction = 3;
@@ -31,14 +32,9 @@ public class HsmsComponent : ComponentBase
     /// <summary>S9F5：Stream 认识、Function 不认识。</summary>
     private const byte UnknownFunctionFunction = 5;
 
-    /// <summary>
-    /// 当前链路组件；sc.xml 没配 Hsms 节点时为 null。退出时宿主经它做 Separate 优雅断开。
-    /// </summary>
-    public static HsmsComponent? Current { get; set; }
-
     public HsmsComponent()
     {
-        Current = this;
+        Register<IHsmsComponent>(this);
     }
 
     #region 配置（[SCEditor]，现场可在 EC 页改 sc.xml）
@@ -151,6 +147,17 @@ public class HsmsComponent : ComponentBase
     #region 生命周期
 
     /// <summary>
+    /// 开机：Hsms 得挂在 Eap 节点下面，才有人接各标准、开链路
+    /// </summary>
+    public override void Bind()
+    {
+        if (Find<IEapComponent>() is null)
+        {
+            LogHelper.Error(Name, "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
+        }
+    }
+
+    /// <summary>
     /// 建链路：EAP 组件把各标准都接好、登记完之后调（Host 一连进来就可能发报文，处理方得先在）。
     /// </summary>
     public void Open()
@@ -206,7 +213,7 @@ public class HsmsComponent : ComponentBase
 
         // 跟 gRPC 同端口：宿主先开 EAP 链路、后起 gRPC，监听是独占的，gRPC 就绑不上、整个后端起不来。
         // 只能让一边让路——界面要靠 gRPC，所以 EAP 链路不起，记错误。
-        int rpcPort = RpcComponent.Current?.Port ?? RpcComponent.DefaultPort;
+        int rpcPort = ComponentBase.Find<IRpcComponent>()?.Port ?? RpcComponent.DefaultPort;
         if (Port == rpcPort)
         {
             LogHelper.Error(Name, $"EAP 链路没起来：Hsms 端口 {Port} 跟 Rpc 节点的 gRPC 端口相同，把其中一个挪开");

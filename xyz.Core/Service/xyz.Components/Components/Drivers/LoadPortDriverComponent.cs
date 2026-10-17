@@ -1,5 +1,6 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 
@@ -10,7 +11,7 @@ namespace xyz.Components.Components;
 /// 品牌只补两件事——建驱动、建指令；sc.xml 换品牌壳 Type 即换品牌，机型代码不动。
 /// 挂在 LoadPort 模块下面，OnScan 由父模块的扫描线程递归带着跑。
 /// </summary>
-public abstract class LoadPortDriverComponent : ComponentBase
+public abstract class LoadPortDriverComponent : ComponentBase, ILoadPortDriverComponent
 {
     #region SC
 

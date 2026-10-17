@@ -16,7 +16,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 腔体模块基类
 /// </summary>
-public abstract class BaseChamberModule : BaseTransferStationModule, IProcessStation
+public abstract class BaseChamberModule : BaseTransferStationModule, IProcessStation, IChamber
 {
     #region SV
 
@@ -166,7 +166,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
 
     #region 组件初始化
 
-    private WaferManagerComponent? _waferManager;
+    private IWaferManagerComponent? _waferManager;
 
     public override bool InitComponent()
     {
@@ -179,7 +179,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         }
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
-        _waferManager = WaferManagerComponent.Current;
+        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
         _waferManager?.RegisterLocation(Name, SlotCount);
         return base.InitComponent();
     }
@@ -778,14 +778,19 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     /// </summary>
     private static string FieldText(string key)
     {
-        var library = RecipeComponent.Current;
+        var library = ComponentBase.Find<IRecipeComponent>();
         if (library is null)
         {
             return key;
         }
 
         var field = library.Fields.Concat(library.HeadFields).FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
-        return field is null ? key : field.DisplayText(SystemModule.Current?.Language);
+        if (field is null)
+        {
+            return key;
+        }
+
+        return field.DisplayText(ComponentBase.Find<ISystemModule>()?.Language);
     }
 
     /// <summary>

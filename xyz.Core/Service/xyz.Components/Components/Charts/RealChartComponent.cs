@@ -1,24 +1,22 @@
-﻿using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using xyz.Common.Log;
+﻿using xyz.Common.Log;
 using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 实时曲线：专管往界面推。自己不采样——订阅数据曲线（DataChartComponent）的每周期一行，
-/// 内存里留最近一段（WindowSeconds），每来一行经 <see cref="Frames"/> 交给推送桥（xyz.Service 的 RealChartPublisher）发给界面；
-/// 实时曲线页打开、新勾一条曲线时先从 <see cref="Recent"/> 把这一段补上，不用等曲线从零长起来。
+/// 实时曲线：专管往界面推。自己不采样——订阅数据曲线的每周期一行，内存里留最近一段（WindowSeconds），
+/// 在自己的扫描里（sc 配 IsRun）把新来的行一帧一帧推给界面；实时曲线页打开、新勾一条曲线时先从 <see cref="Recent"/> 把这一段补上。
 /// </summary>
 [Component(description: "实时曲线（订阅数据曲线的采样，留最近一段，推给界面）")]
-public class RealChartComponent : ComponentBase
+public class RealChartComponent : ComponentBase, IRealChartComponent
 {
-    public static RealChartComponent? Current { get; set; }
-
     public RealChartComponent()
     {
-        Current = this;
+        Register<IRealChartComponent>(this);
     }
 
     #region SC
@@ -32,11 +30,16 @@ public class RealChartComponent : ComponentBase
 
     private readonly Queue<DataRecord> _recent = new();
 
-    private readonly Subject<DataRecord> _frames = new();
+    /// <summary>
+    /// 采到了、还没推出去的行
+    /// </summary>
+    private readonly Queue<DataRecord> _pending = new();
 
-    private DataChartComponent? _source;
+    private IDataChartComponent? _source;
 
     private IDisposable? _subscription;
+
+    private string? _lastPushFault;
 
     /// <summary>
     /// 这一轮采样的标识（接上采样的时刻，UTC 毫秒）：每帧都带着，界面对不上就知道后端重启过、信号表得重新拉。
@@ -46,24 +49,66 @@ public class RealChartComponent : ComponentBase
     /// <summary>
     /// 推的是哪些信号，顺序即每帧值的顺序（就是数据曲线的采样信号表）。
     /// </summary>
-    public IReadOnlyList<DataSignal> Signals => _source?.Signals ?? [];
+    public IReadOnlyList<DataSignal> Signals
+    {
+        get
+        {
+            var source = _source;
+            if (source is null)
+            {
+                return [];
+            }
 
-    public int SampleIntervalMs => _source?.SampleIntervalMs ?? 1000;
+            return source.Signals;
+        }
+    }
 
     /// <summary>
-    /// 每来一行发一帧，在采样线程上发出；推送桥要 ObserveOn 到自己的线程，推慢了不拖采样。
+    /// 采样周期（毫秒），跟数据曲线一样
     /// </summary>
-    public IObservable<DataRecord> Frames => _frames.AsObservable();
+    public int SampleIntervalMs
+    {
+        get
+        {
+            var source = _source;
+            if (source is null)
+            {
+                return 1000;
+            }
+
+            return source.SampleIntervalMs;
+        }
+    }
 
     /// <summary>
-    /// 接到数据曲线的采样流上（装配完、开始采样之前调）。
+    /// 开机（开始扫描之前）：接到数据曲线的采样上
     /// </summary>
-    public void Attach(DataChartComponent source)
+    public override void Bind()
+    {
+        var source = Find<IDataChartComponent>();
+        if (source is null)
+        {
+            LogHelper.Warn(Name, "sc.xml 没配 DataChart 节点：实时曲线没有数据");
+            return;
+        }
+
+        Attach(source);
+    }
+
+    /// <summary>
+    /// 接到数据曲线的采样流上
+    /// </summary>
+    public void Attach(IDataChartComponent source)
     {
         _subscription?.Dispose();
         _source = source;
         Session = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        _subscription = source.Records.Subscribe(Keep, _frames.OnCompleted);
+        _subscription = source.Records.Subscribe(Keep);
+        if (!IsRun)
+        {
+            LogHelper.Warn(Name, "sc.xml 的 RealChart 节点没配 IsRun=true：不推，实时曲线页没有新数据");
+        }
+
         LogHelper.Info(Name, $"实时曲线接上数据曲线的采样，内存留最近 {WindowSeconds} 秒");
     }
 
@@ -78,6 +123,9 @@ public class RealChartComponent : ComponentBase
         }
     }
 
+    /// <summary>
+    /// 数据曲线采到一行（在它的扫描线程上）：留进最近一段，排着等推
+    /// </summary>
     private void Keep(DataRecord record)
     {
         long oldest = record.Time - Math.Max(1, WindowSeconds) * 1000L;
@@ -88,8 +136,76 @@ public class RealChartComponent : ComponentBase
             {
                 _recent.Dequeue();
             }
+
+            // 不扫描就没人推，不攒着
+            if (IsRun)
+            {
+                _pending.Enqueue(record);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 扫描里把新来的行一帧一帧推给界面：推在自己的线程上，客户端慢了也拖不到数据曲线采样
+    /// </summary>
+    protected override void OnScan()
+    {
+        base.OnScan();
+        while (true)
+        {
+            DataRecord record;
+            lock (_gate)
+            {
+                if (_pending.Count == 0)
+                {
+                    return;
+                }
+
+                record = _pending.Dequeue();
+            }
+
+            Push(record);
+        }
+    }
+
+    /// <summary>
+    /// 推一帧（不留存，只给在线的）；推失败同样的错只记一次
+    /// </summary>
+    private void Push(DataRecord record)
+    {
+        try
+        {
+            EventBus.Send(ToFrame(record), RealChartFrameDto.EventToken, retain: false);
+            _lastPushFault = null;
+        }
+        catch (Exception exception)
+        {
+            if (_lastPushFault != exception.Message)
+            {
+                _lastPushFault = exception.Message;
+                LogHelper.Warn(Name, $"实时曲线推送失败: {exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 采样行转成推给界面的一帧：值转单精度（曲线够用，包小一半）
+    /// </summary>
+    private RealChartFrameDto ToFrame(DataRecord record)
+    {
+        var values = new List<float?>(record.Values.Length);
+        foreach (var value in record.Values)
+        {
+            if (value is null)
+            {
+                values.Add(null);
+            }
+            else
+            {
+                values.Add((float)value.Value);
+            }
         }
 
-        _frames.OnNext(record);
+        return new RealChartFrameDto { Session = Session, Time = record.Time, Values = values };
     }
 }

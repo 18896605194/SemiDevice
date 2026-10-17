@@ -40,7 +40,9 @@ public sealed class LiftVisual3D : HardwareVisual3D
         nameof(IsRaised), typeof(bool), typeof(LiftVisual3D),
         new PropertyMetadata(false, OnTargetChanged));
 
-    /// <summary>位置未知：画到行程中间、整个气缸变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。</summary>
+    /// <summary>
+    /// 位置未知：画到行程中间、整个气缸变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。
+    /// </summary>
     public bool IsUnknown
     {
         get => (bool)GetValue(IsUnknownProperty);

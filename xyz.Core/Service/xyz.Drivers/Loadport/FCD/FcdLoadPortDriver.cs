@@ -33,12 +33,19 @@ public class FcdLoadPortDriver : LoadPortDriverBase
         string name = rest.Split('/')[0];
         string content = rest.Length > name.Length ? rest[(name.Length + 1)..] : string.Empty;
 
-        LoadPortDeviceEventKind kind = name.ToUpperInvariant() switch
+        LoadPortDeviceEventKind kind;
+        switch (name.ToUpperInvariant())
         {
-            "PODON" => LoadPortDeviceEventKind.PodPresent,
-            "PODOF" => LoadPortDeviceEventKind.PodRemoved,
-            _ => LoadPortDeviceEventKind.Unknown,
-        };
+            case "PODON":
+                kind = LoadPortDeviceEventKind.PodPresent;
+                break;
+            case "PODOF":
+                kind = LoadPortDeviceEventKind.PodRemoved;
+                break;
+            default:
+                kind = LoadPortDeviceEventKind.Unknown;
+                break;
+        }
 
         if (kind == LoadPortDeviceEventKind.Unknown)
         {

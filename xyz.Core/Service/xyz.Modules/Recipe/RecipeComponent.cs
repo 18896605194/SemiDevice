@@ -18,11 +18,6 @@ namespace xyz.Modules;
 public class RecipeComponent : ComponentBase, IRecipeComponent
 {
     /// <summary>
-    /// 当前工艺配方库；sc.xml 里装出来即生效。冒烟与测试可以直接换成自己的实例。
-    /// </summary>
-    public static RecipeComponent? Current { get; set; }
-
-    /// <summary>
     /// 步骤字段表在本节点下的分组名：一个子节点一个字段，节点名就是字段名。
     /// </summary>
     public const string FieldsNodeName = "Fields";
@@ -74,7 +69,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 装起来的腔体：配方用到具体腔体时按名字找它核对。
     /// </summary>
-    private IReadOnlyList<BaseChamberModule> _chambers = [];
+    private IReadOnlyList<IChamber> _chambers = [];
 
     /// <summary>
     /// 腔体配的几种 Type（按 sc.xml 里的先后，不分大小写去重；没配的是空字符串）：配方头 Type 的选项。
@@ -84,7 +79,8 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     public RecipeComponent()
     {
-        Current = this;
+        Register<IRecipeComponent>(this);
+        Register<IRecipeLibrary>(this);
     }
 
     #region SC
@@ -99,11 +95,6 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     public int NameMaxLength { get; set; } = 32;
 
     #endregion
-
-    /// <summary>
-    /// 内容变了
-    /// </summary>
-    public event Action<int>? Changed;
 
     /// <summary>
     /// 步骤字段表（装配时从 sc.xml 读的，之后不变）。
@@ -309,13 +300,26 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
+    /// 开机：认装起来的腔体；切了晶圆尺寸通知配方页重拉字段表（上限按尺寸分开写）
+    /// </summary>
+    public override void Bind()
+    {
+        Bind(FindAll<IModule>());
+        var size = Find<IWaferSizeComponent>();
+        if (size is not null)
+        {
+            size.Changed += _ => EventBus.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken, retain: false);
+        }
+    }
+
+    /// <summary>
     /// 记下装起来的腔体和它们配的几种 Type（装配完、模块起来之后调一次），配方用到具体腔体时按名字找腔体核对（<see cref="FindMismatch"/>）。
     /// 按这几种 Type 查字段表：步骤的下拉每种 Type 都要写了选项、默认值在每一套里；配方头自己加的下拉要写了选项、默认值在里面——配错开机就抛。
     /// 老配方没写 Type 的补成第一种（sc.xml 里排最前的腔体那种），下次保存写进文件。
     /// </summary>
-    public void Bind(IEnumerable<BaseModule> modules)
+    public void Bind(IEnumerable<IModule> modules)
     {
-        var chambers = modules.OfType<BaseChamberModule>().ToList();
+        var chambers = modules.OfType<IChamber>().ToList();
         var types = new List<string>();
         foreach (var chamber in chambers)
         {
@@ -463,7 +467,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     /// <summary>
     /// 这个配方用在这个腔体上对不对得上（流程配方保存时按勾的腔体查）：由腔体照名字找配方里选的摆臂、药液
-    /// （<see cref="BaseChamberModule.FindRecipeMismatch"/>，几个腔体装的不一样时才会对不上）。
+    /// （<see cref="IChamber.FindRecipeMismatch"/>，几个腔体装的不一样时才会对不上）。
     /// 对得上、腔体不认识（不是腔体，或没绑上）、配方不在库里（那是另一个错，由 <see cref="Contains"/> 那一步报）都返回 null。
     /// </summary>
     public (string Field, string Value)? FindMismatch(string recipeName, string chamber)
@@ -471,7 +475,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         string wanted = recipeName.Trim();
         string chamberName = chamber.Trim();
         RecipeData? recipe;
-        BaseChamberModule? found;
+        IChamber? found;
         lock (_gate)
         {
             recipe = FindByName(wanted);
@@ -558,7 +562,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// </summary>
     public HandleResult Save(int index, int revision, RecipeData content, string operatorName)
     {
-        string? language = SystemModule.Current?.Language;
+        string? language = ComponentBase.Find<ISystemModule>()?.Language;
         HandleResult result;
         lock (_gate)
         {
@@ -585,7 +589,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
         var saved = result.Result as RecipeData;
         LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
-        Changed?.Invoke(index);
+        EventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
 
         var callback = E30Callback;
         if (callback is null)
@@ -595,7 +599,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
         foreach (var (name, change) in changes)
         {
-            EapNotifierComponent.Current?.Post(() => callback.ProcessRecipeChanged(name, change));
+            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
     }
 
@@ -643,7 +647,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             return HandleResult.Fail(ErrorCodes.ProcessRecipeBodyInvalid, name);
         }
 
-        string? language = SystemModule.Current?.Language;
+        string? language = ComponentBase.Find<ISystemModule>()?.Language;
         HandleResult result;
         int index;
         string reported;

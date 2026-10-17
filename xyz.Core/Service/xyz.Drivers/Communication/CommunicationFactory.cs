@@ -14,12 +14,15 @@ public static class CommunicationFactory
     public static ICommunication Create(CommType commType, string portName, int baudRate, string parity,
         int dataBits, string stopBits, string host, int netPort)
     {
-        return commType switch
+        switch (commType)
         {
-            CommType.Serial => CreateSerial(portName, baudRate, parity, dataBits, stopBits),
-            CommType.Tcp => CreateTcp(host, netPort),
-            _ => throw new NotSupportedException($"不支持的通讯类型: {commType}"),
-        };
+            case CommType.Serial:
+                return CreateSerial(portName, baudRate, parity, dataBits, stopBits);
+            case CommType.Tcp:
+                return CreateTcp(host, netPort);
+            default:
+                throw new NotSupportedException($"不支持的通讯类型: {commType}");
+        }
     }
 
     public static ICommunication CreateSerial(string portName, int baudRate, string parity, int dataBits, string stopBits)

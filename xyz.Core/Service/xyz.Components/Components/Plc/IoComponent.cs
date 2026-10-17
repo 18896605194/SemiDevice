@@ -13,28 +13,39 @@ namespace xyz.Components.Components;
 /// IO 组件：点表 + 按索引读写。
 /// </summary>
 [Component(description: "IO 组件（点表 + 按索引读写）")]
-public partial class IoComponent : ComponentBase
+public partial class IoComponent : ComponentBase, IIoComponent
 {
-    /// <summary>
-    /// 当前 IO 表；sc.xml 里装出来即生效，上层可按索引取点。
-    /// </summary>
-    public static IoComponent? Current { get; set; }
-
     public IoComponent()
     {
-        Current = this;
+        Register<IIoComponent>(this);
+        // 开机准备排在 PLC 后面、别的组件前面：DI、AI 组件要按点表认点
+        InitOrder = 200;
     }
 
     /// <summary>
-    /// 本组件用的 PLC。Current 装配/冒烟里会后设，所以摸一次就固定，不放构造里绑。
+    /// 开机准备：读点表
+    /// </summary>
+    public override bool InitComponent()
+    {
+        Open();
+        return base.InitComponent();
+    }
+
+    /// <summary>
+    /// 本组件用的 PLC（按 IPlc 找的单例）：装配、冒烟里会后登记，所以第一次用到时才取、取到就固定，不放构造里绑。
     /// </summary>
     private IPlc? _plc;
 
-    private IPlc? Plc => _plc ??= PlcComponent.Current;
+    private IPlc? Plc => _plc ??= ComponentBase.Find<IPlc>();
 
     private VirtualInputRegistry? _virtualInputs;
 
     internal void AttachVirtualInputs(VirtualInputRegistry registry) => _virtualInputs = registry;
+
+    void IIoComponent.AttachVirtualInputs(VirtualInputRegistry registry)
+    {
+        AttachVirtualInputs(registry);
+    }
 
     #region SC
 
@@ -311,6 +322,7 @@ public partial class IoComponent : ComponentBase
             EnforceInterlocks(ReadInterlockStates());
         }
         WriteStartupDo();
+        PublishSnapshot();
     }
 
     private void WriteStartupDo()

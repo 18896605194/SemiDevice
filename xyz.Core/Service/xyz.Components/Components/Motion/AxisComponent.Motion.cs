@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
@@ -29,6 +30,50 @@ public partial class AxisComponent
     #endregion
 
     #region 通信
+
+    /// <summary>
+    /// 开机准备：查命令块跟别的轴重没重，再把收发块登记到 PLC 上
+    /// </summary>
+    public override bool InitComponent()
+    {
+        var plc = Find<IPlc>();
+        if (plc is not null)
+        {
+            CheckCommandBlock();
+            if (!Open(plc))
+            {
+                LogHelper.Warn(FullPath, "轴收发块未配置，未登记 PLC 数据块");
+            }
+        }
+
+        return base.InitComponent();
+    }
+
+    /// <summary>
+    /// 装起来的树上两根轴配了同一个命令块（会抢着写同一块）：开机就报
+    /// </summary>
+    private void CheckCommandBlock()
+    {
+        if (string.IsNullOrWhiteSpace(SendPlcDataPath))
+        {
+            return;
+        }
+
+        // 不在装起来的那棵树上的（单独建的）没有可比的
+        var axes = FindAll<AxisComponent>();
+        if (!axes.Contains(this))
+        {
+            return;
+        }
+
+        foreach (var other in axes)
+        {
+            if (!ReferenceEquals(other, this) && string.Equals(other.SendPlcDataPath, SendPlcDataPath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"轴命令块路径重复: {SendPlcDataPath}");
+            }
+        }
+    }
 
     public bool Open(IPlc plc)
     {

@@ -8,6 +8,8 @@ using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Database.Wafers;
+using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -15,10 +17,8 @@ namespace xyz.Components.Components;
 /// 晶圆账 应用到各个模块
 /// </summary>
 [Component(description: "晶圆账：记录每个位置上的片与流转")]
-public class WaferManagerComponent : ComponentBase
+public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
 {
-    public static WaferManagerComponent? Current { get; set; }
-
     private readonly object _gate = new();
 
     /// <summary>
@@ -33,13 +33,32 @@ public class WaferManagerComponent : ComponentBase
 
     public WaferManagerComponent()
     {
-        Current = this;
+        Register<IWaferManagerComponent>(this);
 
         // 账一变就给 EAP 报一份（E90）：放进 EAP 的派发组件按先后报，不占改账的线程。没挂 EAP 时不入队
         WaferCreated += wafer => NotifyE90(callback => callback.WaferCreated(wafer));
         WaferDeleted += wafer => NotifyE90(callback => callback.WaferDeleted(wafer));
         WaferMoved += (wafer, fromModule, fromSlot) => NotifyE90(callback => callback.WaferMoved(wafer, fromModule, fromSlot));
         WaferUpdated += wafer => NotifyE90(callback => callback.WaferUpdated(wafer));
+
+        // 账一变就告诉界面哪个站点变了（只是轻通知：整篮 Mapping 变化很密，界面自己攒一下再拉）
+        WaferCreated += wafer => NotifyLedger(wafer.Module);
+        WaferDeleted += wafer => NotifyLedger(wafer.Module);
+        WaferUpdated += wafer => NotifyLedger(wafer.Module);
+        WaferMoved += (wafer, _, _) => NotifyLedger(wafer.Module);
+    }
+
+    /// <summary>
+    /// 开机准备都做完（各模块登记完槽位）、开始扫描之前：按存盘把账恢复回来
+    /// </summary>
+    public override void Bind()
+    {
+        Restore();
+    }
+
+    private static void NotifyLedger(string module)
+    {
+        EventBus.Send(new WaferLedgerChangedDto { Module = module }, WaferLedgerDto.EventToken, retain: false);
     }
 
     #region EAP 口子（E90 片跟踪）
@@ -53,7 +72,7 @@ public class WaferManagerComponent : ComponentBase
             return;
         }
 
-        EapNotifierComponent.Current?.Post(() =>
+        ComponentBase.Find<IEapNotifierComponent>()?.Post(() =>
         {
             var callback = E90Callback;
             if (callback is not null)
@@ -179,7 +198,7 @@ public class WaferManagerComponent : ComponentBase
 
         // 映射组件开机恢复时已经查过在；只有冒烟把它拿掉了才会是 null
         var rows = _historyRows;
-        var mapper = MapperComponent.Current;
+        var mapper = ComponentBase.Find<IMapperComponent>();
         if (rows is null || mapper is null)
         {
             return;
@@ -271,7 +290,7 @@ public class WaferManagerComponent : ComponentBase
     public int Restore()
     {
         // 存盘行、流水行、人工调整记录都靠映射组件转，账本开着却没配它：开机就报出来
-        if (IsEnable && MapperComponent.Current is null)
+        if (IsEnable && ComponentBase.Find<IMapperComponent>() is null)
         {
             throw new InvalidOperationException($"{Name} 的存盘、流水、人工调整记录要靠映射组件转，但 sc.xml 里没配映射组件（MapperComponent）");
         }
@@ -406,7 +425,7 @@ public class WaferManagerComponent : ComponentBase
     public bool SaveSnapshot()
     {
         // 开机恢复时已经查过映射组件在；只有冒烟把它拿掉了才会是 null
-        var mapper = MapperComponent.Current;
+        var mapper = ComponentBase.Find<IMapperComponent>();
         if (mapper is null)
         {
             return false;
@@ -1257,7 +1276,7 @@ public class WaferManagerComponent : ComponentBase
         string? toModule, int? toSlot, string operatorName, string? reason)
     {
         // 映射组件开机恢复时已经查过在；只有冒烟把它拿掉了才会是 null
-        var mapper = MapperComponent.Current;
+        var mapper = ComponentBase.Find<IMapperComponent>();
         if (mapper is null)
         {
             return;
@@ -1403,4 +1422,12 @@ public class WaferManagerComponent : ComponentBase
     }
 
     #endregion
+
+    /// <summary>
+    /// 宿主退出：账最后存一次盘，下次开机按它把腔体、机械手上的片放回去
+    /// </summary>
+    public override void OnStopping()
+    {
+        StopSnapshot();
+    }
 }

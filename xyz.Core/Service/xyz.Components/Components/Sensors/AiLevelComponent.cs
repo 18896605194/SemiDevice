@@ -10,7 +10,7 @@ namespace xyz.Components.Components;
 /// AI 液位信号：读液位计的 AI，到了 EC 触发值就算触发s
 /// </summary>
 [Component(description: "AI 液位信号（读液位计的 AI，到了 EC 设的触发值算触发；跟 DI 信号一样挂在槽的 LL / L / H / HH / Overfill 上）")]
-public class AiLevelComponent : ComponentBase, IDiSensor
+public class AiLevelComponent : ComponentBase, IAiLevel
 {
     #region SC
 
@@ -164,7 +164,7 @@ public class AiLevelComponent : ComponentBase, IDiSensor
     /// </summary>
     protected virtual double? ReadAi()
     {
-        var io = IoComponent.Current;
+        var io = ComponentBase.Find<IIoComponent>();
         if (io is null || !io.TryReadAi(AiIndex, out double value))
         {
             return null;

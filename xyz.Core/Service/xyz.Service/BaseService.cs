@@ -1,6 +1,7 @@
 ﻿using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components;
+using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -8,27 +9,17 @@ using xyz.Shared.Errors;
 namespace xyz.Service;
 
 /// <summary>
-/// 服务基类：组件树访问 + 模块动作「下发 → 等终态 → 回包」的公共流程。
+/// 服务基类：找模块（按接口在整棵组件树上找）+ 模块动作「下发 → 等终态 → 回包」的公共流程。
 /// 各动作服务只管两件事：找模块、调对应动作，错误码拼装与超时判定都在这里。
 /// </summary>
 public abstract class BaseService
 {
-    protected BaseService(IReadOnlyList<ComponentBase> roots)
-    {
-        Roots = roots;
-    }
-
-    /// <summary>
-    /// 组件树根列表（按 sc.xml 装配）。
-    /// </summary>
-    protected IReadOnlyList<ComponentBase> Roots { get; }
-
     /// <summary>
     /// 按模块实例名查找模块（忽略大小写）；找不到返回 null。
     /// </summary>
-    protected TModule? FindModule<TModule>(string name) where TModule : ComponentBase
+    protected static TModule? FindModule<TModule>(string name) where TModule : class, IModule
     {
-        return Roots.OfType<TModule>()
+        return ComponentBase.FindAll<TModule>()
             .FirstOrDefault(module => string.Equals(module.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -44,7 +35,7 @@ public abstract class BaseService
     /// 上线：找到这类模块里叫这个名字的，调模块基类的 <see cref="BaseModule.Online"/>（只改 Mode、不经设备），置位即成功；
     /// 界面经事件流刷新在线灯。按模块类型找，LoadPort 的服务不会把同名的别类模块拉上线。
     /// </summary>
-    protected Task<RpcResponse> Online<TModule>(string module) where TModule : BaseModule
+    protected Task<RpcResponse> Online<TModule>(string module) where TModule : class, IModule
     {
         var target = FindModule<TModule>(module);
         if (target is null)
@@ -59,7 +50,7 @@ public abstract class BaseService
     /// <summary>
     /// 下线：同 <see cref="Online{TModule}"/>，调模块基类的 <see cref="BaseModule.Offline"/>。
     /// </summary>
-    protected Task<RpcResponse> Offline<TModule>(string module) where TModule : BaseModule
+    protected Task<RpcResponse> Offline<TModule>(string module) where TModule : class, IModule
     {
         var target = FindModule<TModule>(module);
         if (target is null)
@@ -74,7 +65,7 @@ public abstract class BaseService
     /// <summary>
     /// 下发 LoadPort 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,
+    protected static Task<RpcResponse> RunOperation(string module, ILoadPort port,
         ModuleOperation? operation, int timeout)
     {
         return RunOperation("LoadPort", module, port.State, operation, timeout);
@@ -83,7 +74,7 @@ public abstract class BaseService
     /// <summary>
     /// 下发已经改成"状态 → 资源 → 互锁"入口的 LoadPort 动作：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,
+    protected static Task<RpcResponse> RunOperation(string module, ILoadPort port,
         HandleResult<ModuleOperation> started, int timeout)
     {
         if (!started.IsSuccess)
@@ -98,7 +89,7 @@ public abstract class BaseService
     /// 下发 LoadPort 的复位、中止：这两个跟着组件基类返回动作或 null，被拒了再问端口原因（whyRejected，就是端口的 CheckReset / CheckAbort）回给界面；
     /// 问的时候状态已经变了、问不出原因的，回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, BaseLoadPortModule port,
+    protected static Task<RpcResponse> RunOperation(string module, ILoadPort port,
         ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
     {
         if (operation is null)
@@ -116,7 +107,7 @@ public abstract class BaseService
     /// <summary>
     /// 下发 _robot 的动作（"状态 → 资源 → 互锁"入口，跟 LoadPort 一样）：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, BaseRobotModule robot,
+    protected static Task<RpcResponse> RunOperation(string module, IRobot robot,
         HandleResult<ModuleOperation> started, int timeout)
     {
         if (!started.IsSuccess)
@@ -131,7 +122,7 @@ public abstract class BaseService
     /// 下发 _robot 的复位、急停：跟着组件基类返回动作或 null，被拒了再问原因（whyRejected，就是机械手的 CheckReset / CheckAbort）回给界面；
     /// 问不出原因的回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, BaseRobotModule robot,
+    protected static Task<RpcResponse> RunOperation(string module, IRobot robot,
         ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
     {
         if (operation is null)
@@ -149,7 +140,7 @@ public abstract class BaseService
     /// <summary>
     /// 下发腔体动作并同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, BaseChamberModule chamber,
+    protected static Task<RpcResponse> RunOperation(string module, IChamber chamber,
         ModuleOperation? operation, int timeout)
     {
         return RunOperation("Chamber", module, chamber.State, operation, timeout);

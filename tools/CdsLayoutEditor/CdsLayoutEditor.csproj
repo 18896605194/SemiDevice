@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../CdsLayoutPreview/BooleanTextConverter.cs" Link="BooleanTextConverter.cs" />
+    <ProjectReference Include="../../xyz.Core/Client/Common/xyz.Client.Presentation/xyz.Client.Presentation.csproj" />
+    <Compile Include="../CdsLayoutPreview/PreviewPage*.cs;../CdsLayoutPreview/LayoutDocument.cs;../CdsLayoutPreview/LayoutEditorViewModel.cs;../CdsLayoutPreview/PipeAppearance.cs" Link="%(Filename)%(Extension)" />
+    <Page Include="../CdsLayoutPreview/PreviewPage.xaml" Link="PreviewPage.xaml" />
+  </ItemGroup>
+</Project>

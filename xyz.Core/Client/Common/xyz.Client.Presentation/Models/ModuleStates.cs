@@ -15,26 +15,40 @@ public static class ModuleStates
     /// </summary>
     public static string LoadPortText(int state)
     {
-        return state switch
+        switch (state)
         {
-            100 => L10n.Get("module.state.loading"),
-            110 => L10n.Get("module.state.loaded"),
-            120 => L10n.Get("module.state.unloading"),
-            130 => L10n.Get("module.state.homing"),
-            140 => L10n.Get("module.state.clamping"),
-            150 => L10n.Get("module.state.unclamping"),
-            _ => CommonText(state),
-        };
+            case 100:
+                return L10n.Get("module.state.loading");
+            case 110:
+                return L10n.Get("module.state.loaded");
+            case 120:
+                return L10n.Get("module.state.unloading");
+            case 130:
+                return L10n.Get("module.state.homing");
+            case 140:
+                return L10n.Get("module.state.clamping");
+            case 150:
+                return L10n.Get("module.state.unclamping");
+            default:
+                return CommonText(state);
+        }
     }
 
     public static ModuleStateTone LoadPortTone(int state)
     {
-        return state switch
+        switch (state)
         {
-            110 => ModuleStateTone.Ready,
-            100 or 120 or 130 or 140 or 150 => ModuleStateTone.Busy,
-            _ => CommonTone(state),
-        };
+            case 110:
+                return ModuleStateTone.Ready;
+            case 100:
+            case 120:
+            case 130:
+            case 140:
+            case 150:
+                return ModuleStateTone.Busy;
+            default:
+                return CommonTone(state);
+        }
     }
 
     /// <summary>
@@ -42,22 +56,30 @@ public static class ModuleStates
     /// </summary>
     public static string ChamberText(int state)
     {
-        return state switch
+        switch (state)
         {
-            100 => L10n.Get("module.state.homing"),
-            110 => L10n.Get("module.state.processing"),
-            120 => L10n.Get("module.state.manual"),
-            _ => CommonText(state),
-        };
+            case 100:
+                return L10n.Get("module.state.homing");
+            case 110:
+                return L10n.Get("module.state.processing");
+            case 120:
+                return L10n.Get("module.state.manual");
+            default:
+                return CommonText(state);
+        }
     }
 
     public static ModuleStateTone ChamberTone(int state)
     {
-        return state switch
+        switch (state)
         {
-            100 or 110 or 120 => ModuleStateTone.Busy,
-            _ => CommonTone(state),
-        };
+            case 100:
+            case 110:
+            case 120:
+                return ModuleStateTone.Busy;
+            default:
+                return CommonTone(state);
+        }
     }
 
     /// <summary>
@@ -65,22 +87,32 @@ public static class ModuleStates
     /// </summary>
     public static string RobotText(int state)
     {
-        return state switch
+        switch (state)
         {
-            130 or 200 => L10n.Get("module.state.homing"),
-            210 => L10n.Get("module.state.picking"),
-            220 => L10n.Get("module.state.placing"),
-            _ => CommonText(state),
-        };
+            case 130:
+            case 200:
+                return L10n.Get("module.state.homing");
+            case 210:
+                return L10n.Get("module.state.picking");
+            case 220:
+                return L10n.Get("module.state.placing");
+            default:
+                return CommonText(state);
+        }
     }
 
     public static ModuleStateTone RobotTone(int state)
     {
-        return state switch
+        switch (state)
         {
-            130 or 200 or 210 or 220 => ModuleStateTone.Busy,
-            _ => CommonTone(state),
-        };
+            case 130:
+            case 200:
+            case 210:
+            case 220:
+                return ModuleStateTone.Busy;
+            default:
+                return CommonTone(state);
+        }
     }
 
     /// <summary>
@@ -147,30 +179,49 @@ public static class ModuleStates
     /// </summary>
     private static string CommonText(int state)
     {
-        return state switch
+        switch (state)
         {
-            10 => L10n.Get("module.state.not_init"),
-            20 => L10n.Get("module.state.initing"),
-            30 => L10n.Get("module.state.idle"),
-            35 => L10n.Get("module.state.aborting"),
-            40 => L10n.Get("module.state.error"),
-            50 => L10n.Get("module.state.pre_transfer"),
-            60 => L10n.Get("module.state.transfer_ready"),
-            70 => L10n.Get("module.state.transferring"),
-            80 => L10n.Get("module.state.transfer_complete"),
-            _ => L10n.Get("module.state.unknown", state),
-        };
+            case 10:
+                return L10n.Get("module.state.not_init");
+            case 20:
+                return L10n.Get("module.state.initing");
+            case 30:
+                return L10n.Get("module.state.idle");
+            case 35:
+                return L10n.Get("module.state.aborting");
+            case 40:
+                return L10n.Get("module.state.error");
+            case 50:
+                return L10n.Get("module.state.pre_transfer");
+            case 60:
+                return L10n.Get("module.state.transfer_ready");
+            case 70:
+                return L10n.Get("module.state.transferring");
+            case 80:
+                return L10n.Get("module.state.transfer_complete");
+            default:
+                return L10n.Get("module.state.unknown", state);
+        }
     }
 
     private static ModuleStateTone CommonTone(int state)
     {
-        return state switch
+        switch (state)
         {
-            30 => ModuleStateTone.Ready,
-            35 => ModuleStateTone.Warning,
-            40 => ModuleStateTone.Alarm,
-            20 or 50 or 60 or 70 or 80 => ModuleStateTone.Busy,
-            _ => ModuleStateTone.Inactive,
-        };
+            case 30:
+                return ModuleStateTone.Ready;
+            case 35:
+                return ModuleStateTone.Warning;
+            case 40:
+                return ModuleStateTone.Alarm;
+            case 20:
+            case 50:
+            case 60:
+            case 70:
+            case 80:
+                return ModuleStateTone.Busy;
+            default:
+                return ModuleStateTone.Inactive;
+        }
     }
 }

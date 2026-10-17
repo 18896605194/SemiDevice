@@ -1,5 +1,6 @@
 ﻿using System.Threading.Channels;
 using xyz.Common.Log;
+using xyz.Components.Interfaces;
 using xyz.Secs;
 using xyz.Secs.SecsII;
 
@@ -16,7 +17,7 @@ namespace xyz.Components.Components;
 internal sealed class GemSender
 {
     private readonly Channel<Work> _queue = Channel.CreateUnbounded<Work>(new UnboundedChannelOptions { SingleReader = true });
-    private readonly Func<HsmsComponent?> _link;
+    private readonly Func<IHsmsComponent?> _link;
     private readonly GemSpool _spool;
     private readonly GemBook _book;
     private readonly Func<bool> _isCommunicating;
@@ -35,7 +36,7 @@ internal sealed class GemSender
     /// <param name="spoolEmptied">缓存取空或清掉了：E30 关缓存、报事件。</param>
     /// <param name="transmitFailed">发缓存的时候断了：E30 报事件。</param>
     /// <param name="owner">日志里写谁。</param>
-    public GemSender(Func<HsmsComponent?> link, GemSpool spool, GemBook book, Func<bool> isCommunicating,
+    public GemSender(Func<IHsmsComponent?> link, GemSpool spool, GemBook book, Func<bool> isCommunicating,
         Action<string> communicationFailed, Action spoolEmptied, Action transmitFailed, Func<string> owner)
     {
         _link = link;

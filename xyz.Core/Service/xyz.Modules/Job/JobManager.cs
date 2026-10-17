@@ -20,15 +20,13 @@ namespace xyz.Modules;
 [Component(description: "Job 管理：里面有 CJ 管理（E94）、PJ 管理（E40），下面挂任务组件（任务表）和调度引擎")]
 public class JobManager : ComponentBase, IJobManager
 {
-    public static JobManager? Current { get; set; }
-
     private readonly object _gate = new();
 
-    private IReadOnlyDictionary<string, BaseModule> _modules = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, IModule> _modules = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
 
     #region 任务+调度 组件
-    private TaskComponent? _tasks;
-    private SchedulerComponent? _scheduler;
+    private ITaskComponent? _tasks;
+    private ISchedulerComponent? _scheduler;
     #endregion
 
     #region CJ / PJ 管理
@@ -49,7 +47,7 @@ public class JobManager : ComponentBase, IJobManager
 
     public JobManager()
     {
-        Current = this;
+        Register<IJobManager>(this);
         _processJobs = new PjManager();
         _controlJobs = new CjManager();
         _processJobs.StateChanged += OnProcessJobStateChanged;
@@ -129,14 +127,22 @@ public class JobManager : ComponentBase, IJobManager
     #region 装配
 
     /// <summary>
+    /// 开机：认装起来的模块（站点、腔体、LoadPort）
+    /// </summary>
+    public override void Bind()
+    {
+        Bind(FindAll<IModule>());
+    }
+
+    /// <summary>
     /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：sc.xml Job 节点下的 Task（任务组件）必须配，Scheduler 没配就自己建一个；
     /// 两个都是平台的标准件，机型不另写。开了存库的先把库里上次没做完的 Job 记成中止（重启后不接着跑），再起写库线程。
     /// </summary>
-    public void Bind(IEnumerable<BaseModule> modules)
+    public void Bind(IEnumerable<IModule> modules)
     {
-        var tasks = FindChild<TaskComponent>()
+        var tasks = FindChild<ITaskComponent>()
             ?? throw new InvalidOperationException($"{Name}：sc.xml 的 Job 节点下没配 Task 子节点（任务组件 {typeof(TaskComponent).FullName}）");
-        var table = new Dictionary<string, BaseModule>(StringComparer.OrdinalIgnoreCase);
+        var table = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
         {
             table[module.Name] = module;
@@ -146,7 +152,7 @@ public class JobManager : ComponentBase, IJobManager
         {
             _modules = table;
             _tasks = tasks;
-            _scheduler = FindChild<SchedulerComponent>() ?? new SchedulerComponent();
+            _scheduler = FindChild<ISchedulerComponent>() ?? new SchedulerComponent();
             if (IsPersistent && !_storeStarted)
             {
                 _storeStarted = true;
@@ -288,7 +294,7 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, port!.Name));
             }
 
-            var ledger = WaferManagerComponent.Current;
+            var ledger = ComponentBase.Find<IWaferManagerComponent>();
             if (ledger is null || !ledger.IsEnable)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.WaferLedgerDisabled));
@@ -1576,7 +1582,7 @@ public class JobManager : ComponentBase, IJobManager
     /// 料在哪个 LoadPort：给了 LoadPort 就按它（本地建，载具号可能没读到），载具要能取片（放着、Load 好，接了 EAP 时槽图认定）；
     /// 没给按载具号找（Host 建）：载具在哪个口上就是哪个，还没到为 null（先建着，料到了再定片）。
     /// </summary>
-    private HandleResult? FindLoadPort(string? loadPort, string? carrierId, out BaseLoadPortModule? port)
+    private HandleResult? FindLoadPort(string? loadPort, string? carrierId, out ILoadPort? port)
     {
         port = null;
         string name = (loadPort ?? string.Empty).Trim();
@@ -1608,7 +1614,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>这个载具在哪个 LoadPort 上（载具号不分大小写）；不在任何口上为 null。</summary>
-    private BaseLoadPortModule? FindCarrierPort(string carrierId)
+    private ILoadPort? FindCarrierPort(string carrierId)
     {
         return LoadPorts.FirstOrDefault(item =>
         {
@@ -1624,7 +1630,7 @@ public class JobManager : ComponentBase, IJobManager
     private HandleResult? TryTakeSequence(string name, out SequenceData sequence)
     {
         sequence = null!;
-        var found = SequenceComponent.Current?.Find(name);
+        var found = ComponentBase.Find<ISequenceComponent>()?.Find(name);
         if (found is null || found.Steps.Count < 3)
         {
             return HandleResult.Fail(ErrorCodes.JobSequenceNotFound, name);
@@ -1668,7 +1674,7 @@ public class JobManager : ComponentBase, IJobManager
     /// 有一项不行就回原因，任务行一行不留。建 PJ 时料已经在就当场定；料没到的扫描里等料到了定（<see cref="AssignWaitingProcessJobs"/>）。
     /// 这里只生成行；挂进任务表、登记片归属由调用方做。
     /// </summary>
-    private HandleResult? AssignWafers(ProcessJob job, BaseLoadPortModule port)
+    private HandleResult? AssignWafers(ProcessJob job, ILoadPort port)
     {
         string sourceName = port.Name;
         var sequence = job.Sequence;
@@ -1677,7 +1683,7 @@ public class JobManager : ComponentBase, IJobManager
             return HandleResult.Fail(ErrorCodes.JobSequenceSourceMismatch, sequence.Name, sourceName);
         }
 
-        var ledger = WaferManagerComponent.Current;
+        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -1756,7 +1762,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>载具上有片的槽（槽图里正常和有片说不准的），从下往上：Host 没给槽号时就做这些。</summary>
-    private static List<int> OccupiedSlots(BaseLoadPortModule port)
+    private static List<int> OccupiedSlots(ILoadPort port)
     {
         var slots = new List<int>();
         var map = port._carrier.SlotMap;
@@ -1801,7 +1807,7 @@ public class JobManager : ComponentBase, IJobManager
         var target = LoadPort(port);
         bool claimed = _processJobs.ProcessJobs.Any(job => job.Rows.Any(row =>
             !row.IsReturned && string.Equals(row.ReturnPort, port, StringComparison.OrdinalIgnoreCase) && row.ReturnSlot == slot));
-        if (target is null || slot > target.SlotCount || WaferManagerComponent.Current?.Get(port, slot) is not null || claimed)
+        if (target is null || slot > target.SlotCount || ComponentBase.Find<IWaferManagerComponent>()?.Get(port, slot) is not null || claimed)
         {
             return HandleResult.Fail(ErrorCodes.JobReturnSlotUnavailable, port, slotText);
         }
@@ -1874,7 +1880,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null)
         {
             var dto = JobDtos.Of(job, ProcessJobAutoStart);
-            EapNotifierComponent.Current?.Post(() => callback.ProcessJobStateChanged(dto, e40TransitionNumber));
+            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ProcessJobStateChanged(dto, e40TransitionNumber));
         }
     }
 
@@ -1885,7 +1891,7 @@ public class JobManager : ComponentBase, IJobManager
     private void AbortDevices(ProcessJob job)
     {
         Tasks.Abort(job);
-        TransferManager.Current?.CancelOwner(job.Id, $"PJ {job.Id} 中止");
+        ComponentBase.Find<ITransferManager>()?.CancelOwner(job.Id, $"PJ {job.Id} 中止");
         var stations = job.Rows
             .SelectMany(row => row.Tasks)
             .Where(task => task.State == WaferTaskState.Running && !task.IsRobotTask && task.Station is not null)
@@ -1922,7 +1928,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null && e94TransitionNumber != 0)
         {
             var dto = JobDtos.Of(job, ControlJobAutoStart);
-            EapNotifierComponent.Current?.Post(() => callback.ControlJobStateChanged(dto, e94TransitionNumber));
+            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ControlJobStateChanged(dto, e94TransitionNumber));
         }
 
     }
@@ -2110,7 +2116,7 @@ public class JobManager : ComponentBase, IJobManager
                     break;
                 case ProcessJobState.Aborting:
                     if (!job.HasRunning && job.DeviceAborts.All(abort => abort.IsSettled) && !job.HasErrors
-                        && TransferManager.Current?.HeldOperations.Any(operation =>
+                        && ComponentBase.Find<ITransferManager>()?.HeldOperations.Any(operation =>
                             string.Equals(operation.Owner, job.Id, StringComparison.Ordinal)) != true)
                     {
                         changed |= _processJobs.FinishAbort(job).IsSuccess;
@@ -2211,7 +2217,7 @@ public class JobManager : ComponentBase, IJobManager
     /// ④ 派任务：Manual 下不派新动作（在途的照常做完）。Auto 下把 CJ 里没结束的 PJ 的行按优先级（CJ 队列先后、PJ 在 CJ 里的先后、
     /// PJ 里的投片顺序）交给调度引擎；能派什么看每一行的许可（PJ 状态定的，暂停、停止就体现在这上面）。不归 CJ 的 PJ 没开始，不派。
     /// </summary>
-    private void Dispatch(SchedulerComponent scheduler, TaskComponent tasks)
+    private void Dispatch(ISchedulerComponent scheduler, ITaskComponent tasks)
     {
         if (!IsAuto)
         {
@@ -2496,7 +2502,7 @@ public class JobManager : ComponentBase, IJobManager
     #region 设备
 
     /// <summary>任务组件（装配时从 sc.xml 的 Task 子节点取）。</summary>
-    private TaskComponent Tasks
+    private ITaskComponent Tasks
     {
         get
         {
@@ -2512,16 +2518,16 @@ public class JobManager : ComponentBase, IJobManager
     /// <summary>Auto 模式（自动派单开着）：Manual 下不派新动作，启动 Job 也要 Auto。</summary>
     private static bool IsAuto
     {
-        get { return TransferManager.Current?.IsAutoDispatch == true; }
+        get { return ComponentBase.Find<ITransferManager>()?.IsAutoDispatch == true; }
     }
 
     /// <summary>装了的 LoadPort（按 sc.xml 先后）。</summary>
-    private IEnumerable<BaseLoadPortModule> LoadPorts
+    private IEnumerable<ILoadPort> LoadPorts
     {
-        get { return _modules.Values.OfType<BaseLoadPortModule>(); }
+        get { return _modules.Values.OfType<ILoadPort>(); }
     }
 
-    private BaseModule? Module(string name)
+    private IModule? Module(string name)
     {
         if (_modules.TryGetValue(name.Trim(), out var module))
         {
@@ -2531,13 +2537,13 @@ public class JobManager : ComponentBase, IJobManager
         return null;
     }
 
-    private BaseLoadPortModule? LoadPort(string name)
+    private ILoadPort? LoadPort(string name)
     {
-        return Module(name) as BaseLoadPortModule;
+        return Module(name) as ILoadPort;
     }
 
     /// <summary>这个腔体正在给 Job 做工艺（整机停止时由 Job 的中止去停它，不直接发中止）。</summary>
-    public static bool IsJobProcess(BaseModule module)
+    public static bool IsJobProcess(IModule module)
     {
         return module is IProcessStation process && process.CurrentProcess?.Origin == ProcessOrigin.Job;
     }

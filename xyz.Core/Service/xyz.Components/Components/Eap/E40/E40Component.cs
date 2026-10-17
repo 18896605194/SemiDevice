@@ -15,7 +15,7 @@ namespace xyz.Components.Components;
 /// PJ 管理（SEMI E40，sc.xml 的 Eap 下的 E40 节点）：Host 的 S16 翻成 Job 管理的命令
 /// </summary>
 [Component(description: "PJ 管理（SEMI E40）：S16 建 PJ、PJ 命令、查 PJ，PJ 状态转换报事件")]
-public class E40Component : ComponentBase, IE40Callback
+public class E40Component : ComponentBase, IE40Callback, IE40Component
 {
     /// <summary>PrMtlType：载具加槽号。</summary>
     private const byte MaterialCarriers = 0x0D;
@@ -196,7 +196,7 @@ public class E40Component : ComponentBase, IE40Callback
 
     #region 组件+服务
 
-    private E30Component? _gem;
+    private IE30Component? _gem;
     private IJobManager? _jobs;
 
     #endregion
@@ -210,7 +210,7 @@ public class E40Component : ComponentBase, IE40Callback
     /// <param name="gem"></param>
     /// <param name="objects"></param>
     /// <param name="jobs"></param>
-    public void Attach(HsmsComponent link, E30Component gem, E39Component? objects, IJobManager jobs)
+    public void Attach(IHsmsComponent link, IE30Component gem, IE39Component? objects, IJobManager jobs)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -548,20 +548,43 @@ public class E40Component : ComponentBase, IE40Callback
             return false;
         }
 
-        value = attribute switch
+        switch (attribute)
         {
-            ProcessJobNames.ObjType => SecsItem.A(ProcessJobNames.ObjectType),
-            ProcessJobNames.ObjId => SecsItem.A(GemValue.Ascii(job.Id)),
-            ProcessJobNames.PauseEvent => SecsItem.L(),
-            ProcessJobNames.ProcessJobState => SecsItem.U1((byte)job.State),
-            ProcessJobNames.PrMtlNameList => MaterialOf(job),
-            ProcessJobNames.PrMtlType => SecsItem.B(MaterialCarriers),
-            ProcessJobNames.PrProcessStart => SecsItem.Boolean(job.AutoStart),
-            ProcessJobNames.PrRecipeMethod => SecsItem.U1(RecipeOnly),
-            ProcessJobNames.RecId => SecsItem.A(GemValue.Ascii(job.Sequence)),
-            ProcessJobNames.RecVariableList => SecsItem.L(),
-            _ => SecsItem.L(),
-        };
+            case ProcessJobNames.ObjType:
+                value = SecsItem.A(ProcessJobNames.ObjectType);
+                break;
+            case ProcessJobNames.ObjId:
+                value = SecsItem.A(GemValue.Ascii(job.Id));
+                break;
+            case ProcessJobNames.PauseEvent:
+                value = SecsItem.L();
+                break;
+            case ProcessJobNames.ProcessJobState:
+                value = SecsItem.U1((byte)job.State);
+                break;
+            case ProcessJobNames.PrMtlNameList:
+                value = MaterialOf(job);
+                break;
+            case ProcessJobNames.PrMtlType:
+                value = SecsItem.B(MaterialCarriers);
+                break;
+            case ProcessJobNames.PrProcessStart:
+                value = SecsItem.Boolean(job.AutoStart);
+                break;
+            case ProcessJobNames.PrRecipeMethod:
+                value = SecsItem.U1(RecipeOnly);
+                break;
+            case ProcessJobNames.RecId:
+                value = SecsItem.A(GemValue.Ascii(job.Sequence));
+                break;
+            case ProcessJobNames.RecVariableList:
+                value = SecsItem.L();
+                break;
+            default:
+                value = SecsItem.L();
+                break;
+        }
+
         return true;
     }
 

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Components;
 using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Modules.Enums;
@@ -35,16 +36,6 @@ SequenceData? Data(HandleResult result)
     return result.Result as SequenceData;
 }
 
-ModuleConfig Module(string name)
-{
-    return new ModuleConfig { Name = name, Type = "Probe" };
-}
-
-ModuleConfig Group(string name, params ModuleConfig[] children)
-{
-    return new ModuleConfig { Name = name, Children = children.ToList() };
-}
-
 string folder = Path.Combine(Path.GetTempPath(), "xyz-sequence-smoke-" + Guid.NewGuid().ToString("N"));
 try
 {
@@ -65,27 +56,19 @@ try
     var roots = ComponentLoader.Load([node]);
     var library = roots.OfType<SequenceComponent>().Single();
     Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个流程配方库，参数按 sc.xml");
-    Check(ReferenceEquals(SequenceComponent.Current, library), "装配出来即成为 Current");
+    Check(ReferenceEquals(ComponentBase.Find<ISequenceComponent>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
 
-    // 1. 可选站点分组：按 sc.xml 的分组节点和下面装的模块，只留能放片、机械手站点表里有的；顶层直接装的站点自成一组；
-    //    _robot 分组、不是模块的节点（Database）、机械手到不了的站点（SmokePM3）都不算。
-    var lp1 = new ProbePort("SmokeLP1");
-    var lp2 = new ProbePort("SmokeLP2");
-    var pm1 = new ProbeChamber("SmokePM1");
-    var pm2 = new ProbeChamber("SmokePM2");
-    var pm3 = new ProbeChamber("SmokePM3");
+    // 1. 可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手站点表里有的；顶层直接装的站点自成一组；
+    //    机械手本身、机械手到不了的站点（SmokePM3）都不算。
+    var lp1 = new ProbePort("SmokeLP1", "LoadPort");
+    var lp2 = new ProbePort("SmokeLP2", "LoadPort");
+    var pm1 = new ProbeChamber("SmokePM1", "Chamber");
+    var pm2 = new ProbeChamber("SmokePM2", "Chamber");
+    var pm3 = new ProbeChamber("SmokePM3", "Chamber");
     var aligner = new ProbeStation("SmokeAligner");
     var robot = new ProbeRobot("SmokeRobot", "SmokeLP1", "SmokeLP2", "SmokePM1", "SmokePM2", "SmokeAligner");
-    var settings = new List<ModuleConfig>
-    {
-        Group("Database", Module("Default")),
-        Group("LoadPort", Module("SmokeLP1"), Module("SmokeLP2")),
-        Group("_robot", Module("SmokeRobot")),
-        Group("Chamber", Module("SmokePM1"), Module("SmokePM2"), Module("SmokePM3")),
-        Module("SmokeAligner"),
-    };
-    library.Bind(settings, [lp1, lp2, robot, pm1, pm2, pm3, aligner]);
+    library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
     var groups = library.StationGroups;
     Check(groups.Select(group => group.Name).SequenceEqual(new[] { "LoadPort", "Chamber", "SmokeAligner" }),
         "分组按 sc.xml 的先后：LoadPort、Chamber、顶层的 SmokeAligner，实际 " + string.Join(",", groups.Select(group => group.Name)));
@@ -99,7 +82,7 @@ try
     // 2. 新建：空编号上建，名称去掉首尾空白；内容按默认（LoadPort 全勾 → 第一个要工艺配方的分组全勾、配方留空 → LoadPort 全勾），
     //    版本 1，记创建人；写成 001.xml。名称、编号不对的回错误码，不建、不发事件。
     var changed = new List<int>();
-    library.Changed += index => changed.Add(index);
+    using var changedSubscription = EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => changed.Add(dto.Index));
     var created = library.Create(1, "  SC1_CLEAN ", "Tester");
     Check(created.IsSuccess && Data(created) is not null && Data(created)!.Name == "SC1_CLEAN" && Data(created)!.Revision == 1
           && Data(created)!.CreatedBy == "Tester" && Data(created)!.ModifiedBy == "Tester", "新建：版本 1，记创建人");
@@ -174,7 +157,7 @@ try
     File.WriteAllText(Path.Combine(folder, "120.xml"), "<Sequence Name=\"TOO_BIG\" />");
     var reopened = new SequenceComponent { Folder = folder };
     reopened.Load();
-    SequenceComponent.Current = library;
+    ComponentBase.Register<ISequenceComponent>(library);
     var reloaded = reopened.List();
     Check(reloaded.Select(item => item.Index).SequenceEqual(new[] { 1, 2 }), "坏文件、不是编号的、超出个数的都跳过");
     var back = reloaded[0];
@@ -201,7 +184,7 @@ try
     //     建、改、删、改名都经 EAP 的派发组件报上报口（改名报旧名删了、新名建了）。这一节建的最后都删掉，后面接着只剩 1 号。
     _ = new EapNotifierComponent();
     var eapChanges = new RecordingRecipeCallback();
-    xyz.Components.Interfaces.ISequenceComponent remote = library;
+    xyz.Components.Interfaces.ISequenceLibrary remote = library;
     remote.E30Callback = eapChanges;
     Check(remote.SequenceNames.SequenceEqual(new[] { "SC1_LP1_TO_LP2" }), "按名字列");
     string? exported = remote.GetSequenceData("sc1_lp1_to_lp2");
@@ -243,9 +226,14 @@ try
 
     var tinyFolder = Path.Combine(folder, "tiny");
     var tiny = new SequenceComponent { Folder = tinyFolder, Capacity = 1 };
-    SequenceComponent.Current = library;
+    ComponentBase.Register<ISequenceComponent>(library);
     tiny.Load();
-    var full = tiny.Create(1, "ONLY", "Tester").IsSuccess ? ((xyz.Components.Interfaces.ISequenceComponent)tiny).ImportSequence("SECOND", exported!, "Host") : null;
+    HandleResult? full = null;
+    if (tiny.Create(1, "ONLY", "Tester").IsSuccess)
+    {
+        full = ((ISequenceLibrary)tiny).ImportSequence("SECOND", exported!, "Host");
+    }
+
     Check(full is not null && full.ErrorMessage == ErrorCodes.SequenceFull && full.Args.SequenceEqual(new[] { "1" }), "编号都用完了：sequence.full 带个数");
     Directory.Delete(tinyFolder, recursive: true);
 
@@ -265,7 +253,7 @@ try
 
     // 8. 流程配方服务（直接调 gRPC 服务类，不起网络）：列表带个数，分组照库里的，错误码和参数原样回给界面；
     //    没带操作人记成 Unknown；没装库回 sequence.not_installed。
-    var service = new SequenceService([]);
+    var service = new SequenceService();
     var listDto = (await service.GetListAsync(new RpcRequest())).DeserializeData<SequenceListDto>();
     Check(listDto.Capacity == 99 && listDto.Items.Count == 1 && listDto.Items[0].Index == 1 && listDto.Items[0].Name == "SC1_LP1_TO_LP2",
         "列表：个数 99，用了的编号和名称");
@@ -309,7 +297,8 @@ try
     var gone = await service.GetAsync(new SequenceIndexRequest { Index = 3 });
     Check(!gone.Success && gone.Code == ErrorCodes.SequenceNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
-    SequenceComponent.Current = null;
+    ComponentBase.Register<ISequenceComponent>(null);
+    service = new SequenceService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.SequenceNotInstalled && notInstalled.Args.Count == 0, "没装库：sequence.not_installed");
 
@@ -377,7 +366,7 @@ try
             return new RecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
         }
 
-        Check(ReferenceEquals(RecipeComponent.Current, recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
+        Check(ReferenceEquals(ComponentBase.Find<IRecipeComponent>(), recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
               && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsSuccess, "工艺配方库里建一个 SC1_60S（用 DIW）");
         Check(recipes.Create(2, "HF_ONLY", "Tester").IsSuccess && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsSuccess,
             "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
@@ -394,7 +383,7 @@ try
     }
     finally
     {
-        RecipeComponent.Current = null;
+        ComponentBase.Register<IRecipeComponent>(null);
         if (Directory.Exists(recipeFolder))
         {
             Directory.Delete(recipeFolder, recursive: true);
@@ -403,7 +392,7 @@ try
 }
 finally
 {
-    SequenceComponent.Current = null;
+    ComponentBase.Register<ISequenceComponent>(null);
     if (Directory.Exists(folder))
     {
         Directory.Delete(folder, recursive: true);
@@ -417,19 +406,26 @@ Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups 
 /// </summary>
 static class Probe
 {
-    public static void Name(ComponentBase component, string name)
+    // group：sc.xml 里套在哪个分组节点下（全路径的第一层），顶层直接装的不给
+    public static void Name(ComponentBase component, string name, string? group = null)
     {
+        string path = name;
+        if (group is not null)
+        {
+            path = group + "." + name;
+        }
+
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
     }
 }
 
 // 探针 LoadPort：只给站点分组认类型、认名字，不连设备、不做动作。
 sealed class ProbePort : BaseLoadPortModule
 {
-    public ProbePort(string name)
+    public ProbePort(string name, string? group = null)
     {
-        Probe.Name(this, name);
+        Probe.Name(this, name, group);
     }
 
     // 没挂驱动：动作入口一律回"停用或驱动没装好"，不用再一个个改成回 null
@@ -438,9 +434,9 @@ sealed class ProbePort : BaseLoadPortModule
 // 探针腔体：要工艺配方的那一类站点。
 sealed class ProbeChamber : BaseChamberModule
 {
-    public ProbeChamber(string name)
+    public ProbeChamber(string name, string? group = null)
     {
-        Probe.Name(this, name);
+        Probe.Name(this, name, group);
     }
 
     public override ModuleOperation? Home() => null;
@@ -455,9 +451,9 @@ sealed class ProbeChamber : BaseChamberModule
 // 探针普通站点（Aligner 这类）：能放片，不要工艺配方。
 sealed class ProbeStation : BaseTransferStationModule
 {
-    public ProbeStation(string name)
+    public ProbeStation(string name, string? group = null)
     {
-        Probe.Name(this, name);
+        Probe.Name(this, name, group);
     }
 
     public override int State { get; protected set; } = ModuleState.Idle;
@@ -493,11 +489,25 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     HandleResult<ModuleOperation> IRobot.Home() => Refused();
 
-    ModuleOperation? IRobot.InitModule() => null;
+    int IRobot.HomeTimeout => 0;
 
-    ModuleOperation? IRobot.Reset() => null;
+    int IRobot.ResetTimeout => 0;
 
-    ModuleOperation? IRobot.Abort() => null;
+    int IRobot.AbortTimeout => 0;
+
+    int IRobot.PowerTimeout => 0;
+
+    HandleResult? IRobot.CheckReset() => null;
+
+    HandleResult? IRobot.CheckAbort() => null;
+
+    RobotDto IRobot.CreateStateDto() => new() { Name = Name };
+
+    ModuleOperation? IModule.InitModule() => null;
+
+    ModuleOperation? IModule.Reset() => null;
+
+    ModuleOperation? IModule.Abort() => null;
 
     HandleResult<ModuleOperation> IRobot.Pick(int arm, string station, int slot) => Refused();
 

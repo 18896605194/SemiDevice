@@ -14,12 +14,19 @@ public sealed class RejeQueryEnableCommand : RejeCommand
     protected override RobotResponse BuildResponse(string content)
     {
         string text = content.Trim();
-        bool? servoOn = text.ToUpperInvariant() switch
+        bool? servoOn;
+        switch (text.ToUpperInvariant())
         {
-            "YES" => true,
-            "NO" => false,
-            _ => null,
-        };
+            case "YES":
+                servoOn = true;
+                break;
+            case "NO":
+                servoOn = false;
+                break;
+            default:
+                servoOn = null;
+                break;
+        }
 
         if (servoOn is null)
         {

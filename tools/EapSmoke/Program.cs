@@ -21,6 +21,7 @@ using xyz.Shared.Errors;
 // 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（WaferManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
+// Trace（S2F23 设、校验、取消、替换、离线全停，S6F1 按包发、SMPLN / STIME 记包里最后一次）；
 // E39 查类型 / 属性名 / 属性（带条件）；E87 载具核对（读到号等 Host、Host 让继续、槽图一律等 Host、第二次 PWC 比对槽图和给片号、
 // 取消、ReCreate、读码失败 Host 给号、E87 不自己卸、干完靠 CarrierRelease）、端口搬运状态、Host 启停用、存取方式；E90 片对象跟着账走（建、挪、做、跳过、删）；E40 / E94 的建、命令、查询翻成 Job 管理的命令、状态转换报事件。
 var checks = 0;
@@ -82,6 +83,7 @@ var eapNode = new ModuleConfig
         },
         new ModuleConfig { Name = "E39", Type = typeof(E39Component).FullName! },
         new ModuleConfig { Name = "Recipe", Type = typeof(E30RecipeComponent).FullName! },
+        new ModuleConfig { Name = "Trace", Type = typeof(E30TraceComponent).FullName! },
         new ModuleConfig { Name = "E87", Type = typeof(E87Component).FullName! },
         new ModuleConfig { Name = "E90", Type = typeof(E90Component).FullName! },
         new ModuleConfig
@@ -457,6 +459,96 @@ mark = host.EventCount;
 Check((await Send(6, 23, SecsItem.U1(1))).Body!.GetBinary()[0] == 0, "S6F23 清缓存：RSDA=0");
 await Event("Eap.E30.SpoolingDeactivated", mark, "清缓存报缓存清空");
 Check(gem.SpoolCountActual == 0 && host.FindEvent((uint)Ceid("Eap.E30.SpoolingActivated"), mark) is null, "清掉的缓存不发给 Host");
+await Send(2, 43, SecsItem.L());
+
+// ── E30：Trace（S2F23 / S6F1）───────────────────────────────────────────────
+uint clockSvid = (uint)Svid("Eap.E30.Clock");
+SecsItem TraceInit(SecsItem trid, string period, uint total, uint group, params uint[] svids) =>
+    SecsItem.L(trid, SecsItem.A(period), SecsItem.U4(total), SecsItem.U4(group), SecsItem.L(svids.Select(svid => SecsItem.U4(svid))));
+byte Tiaack(HsmsMessage reply) => reply.Body!.GetBinary()[0];
+List<HsmsMessage> TraceData(SecsItem trid) =>
+    host.Others.Where(message => message.Header.Stream == 6 && message.Header.Function == 1 && message.Body!.Items[0].Equals(trid)).ToList();
+uint Smpln(HsmsMessage data) => (uint)data.Body!.Items[1].GetUInt64();
+int ValueCount(HsmsMessage data) => data.Body!.Items[3].Count;
+
+var t1 = SecsItem.A("T1");
+Check(Tiaack(await Send(2, 23, TraceInit(t1, "00000020", 3, 2, (uint)controlStateSvid, clockSvid))) == 0,
+    "S2F23 每 0.2 s 采 ControlState、时钟，共 3 次、2 次一包：TIAACK=0");
+await WaitUntil(() => TraceData(t1).Count >= 2, "Trace T1 收到两条 S6F1");
+await Task.Delay(600);
+var t1Data = TraceData(t1);
+Check(t1Data.Count == 2, "采够 3 次就停：一共两条 S6F1");
+Check(Smpln(t1Data[0]) == 2 && ValueCount(t1Data[0]) == 4 && Smpln(t1Data[1]) == 3 && ValueCount(t1Data[1]) == 2,
+    "第一包 2 次 4 个值、SMPLN=2；最后不满一包也发：1 次 2 个值、SMPLN=3");
+var firstValues = t1Data[0].Body!.Items[3].Items;
+Check(firstValues[0].Format == SecsFormat.U1 && firstValues[0].GetUInt64() == 5 && firstValues[1].GetString().Length == 16
+      && firstValues[2].GetUInt64() == 5 && firstValues[3].GetString().Length == 16 && t1Data[0].Body!.Items[2].GetString().Length == 16,
+    "值按 SVID 先后、按采样先后排（ControlState U1 5、16 位时钟）；STIME 按 TimeFormat 16 位");
+
+var badTrace = SecsItem.A("BAD");
+Check(Tiaack(await Send(2, 23, TraceInit(badTrace, "0000002", 3, 1, (uint)controlStateSvid))) == 3
+      && Tiaack(await Send(2, 23, TraceInit(badTrace, "000000", 3, 1, (uint)controlStateSvid))) == 3
+      && Tiaack(await Send(2, 23, TraceInit(badTrace, "006000", 3, 1, (uint)controlStateSvid))) == 3
+      && Tiaack(await Send(2, 23, SecsItem.L(badTrace, SecsItem.U4(1), SecsItem.U4(3), SecsItem.U4(1), SecsItem.L(SecsItem.U4((uint)controlStateSvid))))) == 3,
+    "周期不是 6 / 8 位数字、是 0、分钟超 59、不是文字：TIAACK=3");
+Check(Tiaack(await Send(2, 23, TraceInit(badTrace, "000001", 3, 1, (uint)controlStateSvid, 49999))) == 4
+      && Tiaack(await Send(2, 23, TraceInit(badTrace, "000001", 3, 1))) == 4, "有不认识的 SVID、没给 SVID：TIAACK=4");
+Check(Tiaack(await Send(2, 23, TraceInit(badTrace, "000001", 3, 0, (uint)controlStateSvid))) == 5, "几次一包是 0：TIAACK=5");
+Check((await SendExpectingAbort(2, 23, SecsItem.L(badTrace, SecsItem.A("000001")))).Contains("S9F7", StringComparison.Ordinal), "S2F23 结构不对回 S9F7");
+Check(TraceData(badTrace).Count == 0, "没收下的 Trace 不发数据");
+
+var t2 = SecsItem.U4(2);
+Check(Tiaack(await Send(2, 23, SecsItem.L(t2, SecsItem.A("00000020"), SecsItem.U4(1000), SecsItem.U4(1), SecsItem.U4((uint)controlStateSvid)))) == 0,
+    "TRID 用 U4、SVID 用整数数组的老写法也收");
+await WaitUntil(() => TraceData(t2).Count >= 1, "Trace 2 在发");
+Check(TraceData(t2)[0].Body!.Items[0].Format == SecsFormat.U4 && ValueCount(TraceData(t2)[0]) == 1, "S6F1 原样带回 U4 的 TRID");
+Check(Tiaack(await Send(2, 23, SecsItem.L(t2, SecsItem.A("000000"), SecsItem.U4(0), SecsItem.U4(0), SecsItem.L()))) == 0, "TOTSMP=0 取消：TIAACK=0（别的项不看）");
+await Task.Delay(300);
+int t2Count = TraceData(t2).Count;
+await Task.Delay(600);
+Check(TraceData(t2).Count == t2Count, "取消以后不再发");
+
+var t3 = SecsItem.A("T3");
+await Send(2, 23, TraceInit(t3, "00000020", 1000, 1, (uint)controlStateSvid));
+await WaitUntil(() => TraceData(t3).Count >= 1, "Trace T3 在发");
+Check(Tiaack(await Send(2, 23, TraceInit(t3, "00000020", 2, 1, (uint)controlStateSvid, clockSvid))) == 0, "同一个 TRID 再发：替换，TIAACK=0");
+await WaitUntil(() => TraceData(t3).Count(data => ValueCount(data) == 2) == 2, "换成新的：每条 2 个值、采 2 次");
+int t3OldCount = TraceData(t3).Count(data => ValueCount(data) == 1);
+await Task.Delay(600);
+var t3New = TraceData(t3).Where(data => ValueCount(data) == 2).ToList();
+Check(t3New.Count == 2 && Smpln(t3New[0]) == 1 && Smpln(t3New[1]) == 2 && TraceData(t3).Count(data => ValueCount(data) == 1) == t3OldCount,
+    "新任务从第 1 次重新数、采够 2 次停，旧任务不再发");
+
+var t4 = SecsItem.A("T4");
+await Send(2, 23, TraceInit(t4, "00000020", 1000, 1, (uint)controlStateSvid));
+await WaitUntil(() => TraceData(t4).Count >= 1, "Trace T4 在发");
+mark = host.EventCount;
+await Send(1, 15);
+await Event("Eap.E30.EquipmentOffline", mark, "Host 请求离线");
+Check((await SendExpectingAbort(2, 23, TraceInit(t4, "00000020", 1000, 1, (uint)controlStateSvid))).Contains("S2F0", StringComparison.Ordinal), "离线时 S2F23 回 S2F0");
+await Send(1, 17);
+await WaitUntil(() => gem.IsRemote, "Host 再请求上线");
+await Task.Delay(300);
+int t4Count = TraceData(t4).Count;
+await Task.Delay(600);
+Check(TraceData(t4).Count == t4Count, "离线时 Trace 全部停掉，上线后不再发（Host 要重新设）");
+
+Check((await Send(2, 43, SecsItem.L(SecsItem.L(SecsItem.U1(6), SecsItem.L(SecsItem.U1(1)))))).Body!.Items[0].GetBinary()[0] == 0,
+    "S2F43 能指定缓存 S6F1（Trace 数据）");
+var t5 = SecsItem.A("T5");
+await Send(2, 23, TraceInit(t5, "00000020", 1000, 1, (uint)controlStateSvid));
+await WaitUntil(() => TraceData(t5).Count >= 1, "Trace T5 在发");
+int t5Before = TraceData(t5).Count;
+connector.Current!.SendSeparate();
+await WaitUntil(() => gem.SpoolCountActual >= 3, "断线期间 Trace 数据进缓存");
+await WaitUntil(() => gem.CommState == GemCommState.Communicating, "重连上", 8000);
+Check((await Send(6, 23, SecsItem.U1(0))).Body!.GetBinary()[0] == 0, "S6F23 要缓存：RSDA=0");
+await WaitUntil(() => gem.SpoolCountActual == 0, "缓存里的 Trace 数据发完");
+await Send(2, 23, TraceInit(t5, "000000", 0, 0));
+await Task.Delay(300);
+var t5Samples = TraceData(t5).Select(Smpln).ToList();
+Check(t5Samples.Count - t5Before >= 3 && t5Samples.Zip(t5Samples.Skip(1)).All(pair => pair.First <= pair.Second),
+    "断线期间的 Trace 数据，Host 要了按先后补发（SMPLN 不乱）");
 await Send(2, 43, SecsItem.L());
 
 // ── E39 ─────────────────────────────────────────────────────────────────────
@@ -1130,6 +1222,60 @@ sealed class FakePort : ILoadPort
 
     public string Name { get; }
 
+    #region 接口里这个冒烟用不到的（假件给默认值）
+
+    public string FullPath => Name;
+
+    public ModuleMode Mode => ModuleMode.Online;
+
+    public bool IsEnabled => true;
+
+    public ModuleOperation? CurrentOperation => null;
+
+    public void Online()
+    {
+    }
+
+    public void Offline()
+    {
+    }
+
+    public bool CanAssignCarrierToJob => _loaded;
+
+    public SlotPickOrder PickOrder => SlotPickOrder.BottomUp;
+
+    public int LoadTimeout => 0;
+
+    public int UnloadTimeout => 0;
+
+    public int HomeTimeout => 0;
+
+    public int ResetTimeout => 0;
+
+    public int AbortTimeout => 0;
+
+    public HandleResult<ModuleOperation> UnloadManually()
+    {
+        return Unload();
+    }
+
+    public HandleResult? CheckReset()
+    {
+        return null;
+    }
+
+    public HandleResult? CheckAbort()
+    {
+        return null;
+    }
+
+    public LoadPortDto CreateStateDto()
+    {
+        return new LoadPortDto { Name = Name };
+    }
+
+    #endregion
+
     /// <summary>端口上这一盒载具：状态和记录都还在 FakePort 的字段里，这里只是把 ICarrier 的口子转过去。</summary>
     public ICarrier _carrier { get; }
 
@@ -1373,6 +1519,32 @@ sealed class FakePort : ILoadPort
 /// <summary>假的 Job 管理：EAP 翻过来的命令都记下来，按 NextResult 回（不给就收下）；全貌由测试给。</summary>
 sealed class FakeJobs : IJobManager
 {
+    #region 接口里这个冒烟用不到的（假件给默认值）
+
+    public bool HasRunningJob => false;
+
+    public string? OwnerOf(Guid waferId)
+    {
+        return null;
+    }
+
+    public Task<HandleResult> AbortAllAsync()
+    {
+        return Task.FromResult(HandleResult.Success());
+    }
+
+    public Task<HandleResult> RetryTaskAsync(string processJob, int slot, int task)
+    {
+        return Task.FromResult(HandleResult.Success());
+    }
+
+    public Task<HandleResult> CompleteTaskAsync(string processJob, int slot, int task)
+    {
+        return Task.FromResult(HandleResult.Success());
+    }
+
+    #endregion
+
     public List<(string Id, string? LoadPort, string? CarrierId, IReadOnlyList<int> Slots, string Sequence, string? LotId)> ProcessJobs { get; } = [];
 
     public List<(string Id, string? LoadPort, IReadOnlyList<string> ProcessJobs, string? LotId)> ControlJobs { get; } = [];
@@ -1510,7 +1682,7 @@ abstract class FakeRecipes(string stepKey)
     protected abstract void Notify(string name, ChangeKind change);
 }
 
-sealed class FakeSequences() : FakeRecipes("group"), ISequenceComponent
+sealed class FakeSequences() : FakeRecipes("group"), ISequenceLibrary
 {
     public IReadOnlyList<string> SequenceNames => RecipeNames;
 
@@ -1527,12 +1699,12 @@ sealed class FakeSequences() : FakeRecipes("group"), ISequenceComponent
         var callback = E30Callback;
         if (callback is not null)
         {
-            EapNotifierComponent.Current?.Post(() => callback.SequenceChanged(name, change));
+            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.SequenceChanged(name, change));
         }
     }
 }
 
-sealed class FakeProcessRecipes() : FakeRecipes("values"), IRecipeComponent
+sealed class FakeProcessRecipes() : FakeRecipes("values"), IRecipeLibrary
 {
     public IReadOnlyList<string> RecipeNames => base.RecipeNames;
 
@@ -1549,7 +1721,7 @@ sealed class FakeProcessRecipes() : FakeRecipes("values"), IRecipeComponent
         var callback = E30Callback;
         if (callback is not null)
         {
-            EapNotifierComponent.Current?.Post(() => callback.ProcessRecipeChanged(name, change));
+            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
     }
 }

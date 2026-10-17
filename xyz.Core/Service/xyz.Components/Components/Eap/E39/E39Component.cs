@@ -1,6 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Secs;
 using xyz.Secs.Hsms;
@@ -15,7 +16,7 @@ namespace xyz.Components.Components;
 /// 查在 ON-LINE 就行；改、建、删是动作命令，要 ON-LINE REMOTE。
 /// </summary>
 [Component(description: "对象服务（SEMI E39）：Host 用 S14 查、改、建、删各标准登记的对象")]
-public class E39Component : ComponentBase
+public class E39Component : ComponentBase, IE39Component
 {
     /// <summary>OBJACK：0 没错、1 有错。</summary>
     private const byte ObjectAccepted = 0;
@@ -45,12 +46,12 @@ public class E39Component : ComponentBase
 
     private readonly object _gate = new();
     private readonly List<IE39ObjectType> _types = [];
-    private E30Component? _gem;
+    private IE30Component? _gem;
 
     #region 登记
 
     /// <summary>接到链路上：登记 S14 的处理方（EAP 组件在链路打开之前调）。</summary>
-    public void Attach(HsmsComponent link, E30Component gem)
+    public void Attach(IHsmsComponent link, IE30Component gem)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -64,6 +65,11 @@ public class E39Component : ComponentBase
     }
 
     /// <summary>登记一种对象（各标准组件接链路时调）；同名类型登记两次是配置错了，开机就抛。</summary>
+    void IE39Component.Register(IE39ObjectType type)
+    {
+        Register(type);
+    }
+
     internal void Register(IE39ObjectType type)
     {
         ArgumentNullException.ThrowIfNull(type);
@@ -208,13 +214,22 @@ public class E39Component : ComponentBase
 
             default:
                 int? order = Compare(qualifier.Data, value);
-                return order is not null && qualifier.Relation switch
+                if (order is null)
                 {
-                    RelationLess => order.Value < 0,
-                    RelationLessOrEqual => order.Value <= 0,
-                    RelationGreater => order.Value > 0,
-                    _ => order.Value >= 0,
-                };
+                    return false;
+                }
+
+                switch (qualifier.Relation)
+                {
+                    case RelationLess:
+                        return order.Value < 0;
+                    case RelationLessOrEqual:
+                        return order.Value <= 0;
+                    case RelationGreater:
+                        return order.Value > 0;
+                    default:
+                        return order.Value >= 0;
+                }
         }
     }
 
@@ -275,12 +290,19 @@ public class E39Component : ComponentBase
 
     private static double[] Numbers(SecsItem item)
     {
-        return item.Format switch
+        switch (item.Format)
         {
-            SecsFormat.F4 or SecsFormat.F8 => item.GetDoubleArray(),
-            SecsFormat.U1 or SecsFormat.U2 or SecsFormat.U4 or SecsFormat.U8 => item.GetUInt64Array().Select(number => (double)number).ToArray(),
-            _ => item.GetInt64Array().Select(number => (double)number).ToArray(),
-        };
+            case SecsFormat.F4:
+            case SecsFormat.F8:
+                return item.GetDoubleArray();
+            case SecsFormat.U1:
+            case SecsFormat.U2:
+            case SecsFormat.U4:
+            case SecsFormat.U8:
+                return item.GetUInt64Array().Select(number => (double)number).ToArray();
+            default:
+                return item.GetInt64Array().Select(number => (double)number).ToArray();
+        }
     }
 
     #endregion

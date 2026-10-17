@@ -3,6 +3,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Collectors;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 using xyz.Tools;
 
@@ -229,7 +230,7 @@ finally
     Directory.Delete(directory, recursive: true);
     Directory.Delete(spare, recursive: true);
     Directory.Delete(quiet, recursive: true);
-    EcComponent.Current = null;
+    ComponentBase.Register<IEcComponent>(null);
     GemCollectors.Current = null;
 }
 

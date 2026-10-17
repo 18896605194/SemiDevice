@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\xyz.Client.Common\xyz.Client.Common.csproj" />
@@ -9,6 +9,8 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.2" />
     <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
+    <!-- ScottPlot.WPF 带进来的；它没有 net10.0-windows 版本，退回用 net462 那份，压掉 NU1701 -->
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="3.119.0" NoWarn="NU1701" />
     <PackageReference Include="System.Reactive" Version="6.1.0" />
   </ItemGroup>
 

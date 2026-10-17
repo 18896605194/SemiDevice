@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Components\xyz.Components.csproj" />
-    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
+    <!-- 槽的推送跟着机型的 IPA 模块走（IpaModule、IpaDto 在机型层） -->
+    <ProjectReference Include="..\..\xyz.35021\Service\xyz.35021.Module\xyz.35021.Module.csproj" />
   </ItemGroup>
 </Project>

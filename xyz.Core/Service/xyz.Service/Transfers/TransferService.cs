@@ -14,21 +14,23 @@ namespace xyz.Service.Transfers;
 /// </summary>
 public class TransferService : BaseService, ITransferService
 {
-    public TransferService(IReadOnlyList<ComponentBase> roots) : base(roots)
+    private readonly ITransferManager? _transfers;
+
+    public TransferService()
     {
+        _transfers = ComponentBase.Find<ITransferManager>();
     }
 
     public async Task<RpcResponse> TransferAsync(TransferRequestDto request, CallContext context = default)
     {
-        var transfers = TransferManager.Current;
-        if (transfers is null)
+        if (_transfers is null)
         {
             return RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []);
         }
 
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         string robot = (request.Robot ?? string.Empty).Trim();
-        var started = transfers.Start(new TransferRequest
+        var started = _transfers.Start(new TransferRequest
         {
             Origin = TransferOrigin.Manual,
             Source = request.Source ?? string.Empty,
@@ -45,7 +47,7 @@ public class TransferService : BaseService, ITransferService
             return RpcResponse.Fail(started.ErrorMessage, started.Args);
         }
 
-        int timeout = transfers.ManualWaitTimeoutMs;
+        int timeout = _transfers.ManualWaitTimeoutMs;
         if (!await Task.Run(() => operation.WaitReply(timeout, context.CancellationToken)).ConfigureAwait(false))
         {
             return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout,
@@ -70,13 +72,12 @@ public class TransferService : BaseService, ITransferService
 
     public Task<RpcResponse> ReleaseAsync(TransferReleaseRequest request, CallContext context = default)
     {
-        var transfers = TransferManager.Current;
-        if (transfers is null)
+        if (_transfers is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.TransferNotInstalled, []));
         }
 
-        return Task.FromResult(transfers.ReleaseHold(request.WaferId)
+        return Task.FromResult(_transfers.ReleaseHold(request.WaferId)
             ? RpcResponse.Ok()
             : RpcResponse.Fail(ErrorCodes.TransferNotHeld, [request.WaferId.ToString()]));
     }

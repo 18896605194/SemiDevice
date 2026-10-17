@@ -4,6 +4,7 @@ using xyz.Components.Components;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -11,7 +12,7 @@ using xyz.Shared.Errors;
 namespace xyz.Modules;
 
 
-public abstract class BaseModule : ComponentBase
+public abstract class BaseModule : ComponentBase, IModule
 {
     public abstract int State { get; protected set; }
 
@@ -47,6 +48,24 @@ public abstract class BaseModule : ComponentBase
 
     public virtual ModuleOperation? InitModule()
     {
+        return null;
+    }
+
+    /// <summary>
+    /// 复位：子组件跟着复位、清自己的报警；模块有自己的复位动作就重写
+    /// </summary>
+    public override ModuleOperation? Reset()
+    {
+        base.Reset();
+        return null;
+    }
+
+    /// <summary>
+    /// 中止：子组件跟着中止；模块有自己的中止动作就重写
+    /// </summary>
+    public override ModuleOperation? Abort()
+    {
+        base.Abort();
         return null;
     }
 

@@ -96,12 +96,16 @@ public static class ClientLog
 
     private static LogLevel ToNLogLevel(string? level)
     {
-        return level switch
+        switch (level)
         {
-            "Error" => LogLevel.Error,
-            "Warn" => LogLevel.Warn,
-            "Debug" => LogLevel.Debug,
-            _ => LogLevel.Info,
-        };
+            case "Error":
+                return LogLevel.Error;
+            case "Warn":
+                return LogLevel.Warn;
+            case "Debug":
+                return LogLevel.Debug;
+            default:
+                return LogLevel.Info;
+        }
     }
 }

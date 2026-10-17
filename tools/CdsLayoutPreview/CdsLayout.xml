@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 页面预览的配置子集；Component 仅标识模拟对象，不连接后端。 -->
+<CdsLayout Version="1">
+  <Page Id="IPA" Title="IPA 供液" ComponentRoot="CDS.IPA" Width="1000" Height="650">
+    <Elements>
+      <Terminal Id="FillSource" Text="补液入口" X="60" Y="180" Direction="Right" />
+      <Terminal Id="SupplyTarget" Text="供液出口" X="900" Y="330" Direction="Left" />
+      <Terminal Id="DrainTarget" Text="排液出口" X="500" Y="590" Direction="Up" />
+      <Tank Id="Tank1" Component="Tank1" Text="IPA 槽" X="400" Y="160" Width="200" Height="280" Template="StandardTank" />
+    </Elements>
+    <Pipes>
+      <Pipe Id="FillPipe" Text="补液管路" From="FillSource.Port" To="Tank1.Inlet" Medium="IPA" PreviewMode="fill">
+        <Bends><Point X="360" Y="180" /><Point X="360" Y="220" /></Bends>
+      </Pipe>
+      <Pipe Id="SupplyPipe" Text="供液管路" From="Tank1.Outlet" To="SupplyTarget.Port" Medium="IPA" PreviewMode="supply" />
+      <Pipe Id="DrainPipe" Text="排液管路" From="Tank1.Drain" To="DrainTarget.Port" Medium="IPA" PreviewMode="drain" />
+    </Pipes>
+  </Page>
+</CdsLayout>

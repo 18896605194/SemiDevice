@@ -37,7 +37,7 @@ public sealed class DiskVisual3D : HardwareVisual3D
         foreach (var (target, path) in new (DependencyProperty, string)[]
         {
             (Wafer.DataProperty, nameof(Data)),
-            (Wafer.IsDiskVisibleProperty, nameof(IsDiskVisible)), (Wafer.FillColorProperty, nameof(FillColor)),
+            (Wafer.IsDiskVisibleProperty, nameof(IsDiskVisible)),
             (Control.BorderBrushProperty, nameof(BorderBrush)), (Control.BorderThicknessProperty, nameof(BorderThickness)),
             (Wafer.LabelProperty, nameof(Label))
         })
@@ -47,6 +47,7 @@ public sealed class DiskVisual3D : HardwareVisual3D
 
         RebuildGeometry();
         UpdateLabel();
+        UpdateFaceFill();
     }
 
     public object? Data { get => GetValue(DataProperty); set => SetValue(DataProperty, value); }
@@ -57,7 +58,7 @@ public sealed class DiskVisual3D : HardwareVisual3D
         nameof(IsDiskVisible), typeof(bool), typeof(DiskVisual3D), new PropertyMetadata(false, OnDisplayChanged));
     public Brush FillColor { get => (Brush)GetValue(FillColorProperty); set => SetValue(FillColorProperty, value); }
     public static readonly DependencyProperty FillColorProperty = DependencyProperty.Register(
-        nameof(FillColor), typeof(Brush), typeof(DiskVisual3D), new PropertyMetadata(Brushes.Gray));
+        nameof(FillColor), typeof(Brush), typeof(DiskVisual3D), new PropertyMetadata(Brushes.Gray, OnFaceFillChanged));
     public Brush BorderBrush { get => (Brush)GetValue(BorderBrushProperty); set => SetValue(BorderBrushProperty, value); }
     public static readonly DependencyProperty BorderBrushProperty = DependencyProperty.Register(
         nameof(BorderBrush), typeof(Brush), typeof(DiskVisual3D), new PropertyMetadata(Brushes.Gray));
@@ -104,6 +105,26 @@ public sealed class DiskVisual3D : HardwareVisual3D
         disk.UpdateRotation();
     }
     private static void OnLabelChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DiskVisual3D)sender).UpdateLabel();
+    private static void OnFaceFillChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DiskVisual3D)sender).UpdateFaceFill();
+
+    protected override void OnIsErrorChanged()
+    {
+        UpdateFaceFill();
+    }
+
+    /// <summary>
+    /// 盘面底色：报错画报警红；盘上有片时按片的状态色，底色不显示。
+    /// </summary>
+    private void UpdateFaceFill()
+    {
+        Brush fill = FillColor;
+        if (IsError)
+        {
+            fill = new SolidColorBrush(FaultColor);
+        }
+
+        _face.FillColor = fill;
+    }
     private static void OnGeometryChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DiskVisual3D)sender).RebuildGeometry();
     private static void OnRotationChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DiskVisual3D)sender).UpdateRotation();
     private static void OnAngleChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((DiskVisual3D)sender)._rotation.Angle = (double)args.NewValue;
