@@ -572,6 +572,7 @@
     <sys:String x:Key="scene.default_view">默认视角</sys:String>
     <sys:String x:Key="scene.top_view">俯视</sys:String>
     <sys:String x:Key="scene.back_view">背面</sys:String>
+    <sys:String x:Key="scene.front_view">正视图</sys:String>
     <sys:String x:Key="lpscene.title">设备视图</sys:String>
     <sys:String x:Key="lpscene.slot_total">/ {0} 片</sys:String>
     <sys:String x:Key="lpscene.click_hint">点击晶圆查看槽位</sys:String>
@@ -580,6 +581,13 @@
     <sys:String x:Key="lpscene.full">满载 · {0} 片</sys:String>
     <sys:String x:Key="lpscene.no_wafer">空花篮</sys:String>
     <sys:String x:Key="chamberscene.too_many_arms">{0} 配了 {1} 条摆臂，三维图只画前 {2} 条</sys:String>
+    <sys:String x:Key="tankscene.level.LL">低低液位</sys:String>
+    <sys:String x:Key="tankscene.level.L">低液位</sys:String>
+    <sys:String x:Key="tankscene.level.Normal">液位正常</sys:String>
+    <sys:String x:Key="tankscene.level.H">高液位</sys:String>
+    <sys:String x:Key="tankscene.level.HH">高高液位</sys:String>
+    <sys:String x:Key="tankscene.level.Overfill">溢流</sys:String>
+    <sys:String x:Key="tankscene.level.Unknown">液位未知</sys:String>
 
     <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。
          创建 Job 按各槽选的 Sequence 建（建好等启动），启动 Job 在 Auto 下启动这个 LoadPort 上等启动的 Job -->

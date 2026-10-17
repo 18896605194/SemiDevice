@@ -208,7 +208,7 @@ public class DataChartComponent : ComponentBase
     private static readonly Regex BindingPattern = new("^[A-Za-z]*?(Di|Do|Ai|Ao)[A-Za-z0-9]*Index$", RegexOptions.Compiled);
 
     /// <summary>
-    /// 一个组件在 sc.xml 里绑的 IO：信号名 = 组件全路径 + 配置项名去掉 Index，层级用 __ 隔开。
+    /// 一个组件在 sc.xml 里绑的 IO：信号名 = 组件全路径 + 配置项名去掉 Index，层级用 __ 隔开；DI 组件只有一个点，信号名就是组件全路径
     /// </summary>
     private static IEnumerable<(string Name, string Type, int Index)> IoBindings(ComponentBase component)
     {
@@ -225,8 +225,14 @@ public class DataChartComponent : ComponentBase
                 continue;
             }
 
-            string item = property.Name[..^"Index".Length];
-            yield return (SignalName($"{component.FullPath}.{item}"), match.Groups[1].Value.ToUpperInvariant(), index);
+            // DI 组件（到位反馈、Safety、Monitor 这些）叫 Door__Opened，不再在后面加一段 __Di
+            string path = $"{component.FullPath}.{property.Name[..^"Index".Length]}";
+            if (component is DiSensorComponent)
+            {
+                path = component.FullPath;
+            }
+
+            yield return (SignalName(path), match.Groups[1].Value.ToUpperInvariant(), index);
         }
     }
 

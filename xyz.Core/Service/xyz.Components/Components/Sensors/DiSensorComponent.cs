@@ -76,6 +76,11 @@ public class DiSensorComponent : ComponentBase, IDiSensor
     /// </summary>
     public bool? IsActive => _active < 0 ? null : _active != 0;
 
+    /// <summary>
+    /// 配了 DI 点没有（DiIndex 配成 -1 就是没配）
+    /// </summary>
+    public bool IsConfigured => DiIndex >= 0;
+
     #endregion
 
     #region 按 DI 索引找组件（安全联锁用）

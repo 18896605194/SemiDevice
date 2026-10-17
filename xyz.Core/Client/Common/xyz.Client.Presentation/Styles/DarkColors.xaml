@@ -40,6 +40,21 @@
     <!-- 腔体三维图的旋转盘：没片时的盘面、盘边线 -->
     <SolidColorBrush x:Key="DarkHardwareDiskFill" Color="#484848" />
     <SolidColorBrush x:Key="DarkHardwareDiskBorder" Color="#747474" />
+    <!-- 供液槽三维图：透明罐壁、上下沿，液体（正常蓝；高高、溢流红）的侧面和液面 -->
+    <Color x:Key="DarkHardwareTankWallColor">#AEBEC9</Color>
+    <Color x:Key="DarkHardwareTankRimColor">#8C979F</Color>
+    <Color x:Key="DarkHardwareLiquidColor">#248EBF</Color>
+    <Color x:Key="DarkHardwareLiquidSurfaceColor">#60BCDE</Color>
+    <Color x:Key="DarkHardwareLiquidAlarmColor">#C15955</Color>
+    <Color x:Key="DarkHardwareLiquidAlarmSurfaceColor">#E69B8C</Color>
+    <!-- 三维图旁的信号灯（供液槽液位信号）：灭、亮、报警位亮、不知道，亮着的灯描一圈浅边 -->
+    <SolidColorBrush x:Key="DarkSignalLampOff" Color="#4A5157" />
+    <SolidColorBrush x:Key="DarkSignalLampOn" Color="#7DCE8A" />
+    <SolidColorBrush x:Key="DarkSignalLampAlarm" Color="#EF7772" />
+    <SolidColorBrush x:Key="DarkSignalLampUnknown" Color="#77715A" />
+    <SolidColorBrush x:Key="DarkSignalLampRim" Color="#A6AFB7" />
+    <SolidColorBrush x:Key="DarkSignalLampOnRim" Color="#C3EBC9" />
+    <SolidColorBrush x:Key="DarkSignalLampAlarmRim" Color="#FFD1CA" />
     <!-- 未初始化 / 停用：灰 -->
     <SolidColorBrush x:Key="DarkInactiveStatus" Color="#616161" />
 

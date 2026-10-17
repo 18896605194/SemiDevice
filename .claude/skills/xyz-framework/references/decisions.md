@@ -54,6 +54,8 @@
 ## 数据曲线 / 实时曲线（2026-09-30）
 - 只记 sc.xml 配置了的：组件上能画成曲线的 SV + 组件绑定的 IO（`Di/Do/Ai/Ao…Index`，-1 不算）；点表有、sc 没绑的不记（"这个非常重要"）。
 - 列名由 sc 生成：SV = 组件全路径 + 属性名；IO = 组件全路径 + 配置项名去掉 Index。勾选树 = 库里的列 = sc 结构，不显示旧列。
+  **DI 组件只有一个点，列名就是组件全路径**（2026-10-16，用户嫌 `Door__Opened__Di` 怪）：`Chamber__Chamber1__Door__Opened`、`Safety__Emo`；
+  AI 组件照旧带 `__Ai`（它还绑了监控使能 DO `__MonitoringDo`，去掉的话勾选树同一层会出两个同名的），阀照旧 `__Do`、气缸 `__DoOpen` / `__DoClose`。
 - **层级用两个下划线 `__` 隔开**（`Chamber1__Door__DiOpened`，2026-10-15 用户定：库表全走 SqlSugar、不写 SQL，换库不用改）：
   SqlSugar 遇到点号拆成"表.列"、写库拿列名当参数名，点号和 `/ - # : @ |` 都不行；`·` 只有 SQLite 认。每层名字只许字母、数字和单个下划线、
   不许下划线开头结尾，不合规开机抛错。建表、补列用 `DbMaintenance`（类型名由 `DbBind` 按库给），写库在事务里先删同一时刻的行再插，
@@ -69,7 +71,7 @@
   文件名"页面名_时间.png"，图标旁边小字提示存到哪 5 秒。数据曲线、实时曲线两页、放大窗口里都有。
 - Safety 组件（用户起的名）：整机安全信号（急停、门、漏液、烟感、气源/排风），一个信号一个 DiSensor/AiSensor 子节点；报警先都关着。
 - **没绑组件的点要看**（2026-10-15）：sc.xml 的 `Monitor` 分组节点（不写 Type）下挂 DiSensor / AiSensor，一个点一个节点、`AlarmEnabled=False`，
-  列名 `Monitor__节点名__Di/Ai`。只是分组、不扫描、不报警，只记值。**不加 `IncludeIo` 这类按点号记的配置**（列名就不是 sc 结构了）。
+  列名 DI 是 `Monitor__节点名`、AI 是 `Monitor__节点名__Ai`。只是分组、不扫描、不报警，只记值。**不加 `IncludeIo` 这类按点号记的配置**（列名就不是 sc 结构了）。
   DO / AO 没有单点组件，真要看没绑的 DO / AO 时再照 DiSensor 加。
 - **Computer 组件**（2026-10-15，用户起的名）：本程序和整台电脑**两边都要**，分两个子节点（用户："自己程序节点下面三个，电脑节点下面三个"）：
   `Computer.Program`（`ProgramUsageComponent`：后端进程的 CPU %（占整台电脑的）、内存 MB（工作集）、线程数，`Process.GetCurrentProcess()` 取）、
@@ -724,3 +726,33 @@
     掉到 LL 以下持续满 EC `SupplyLowLowDebounceMs` 报"供液中液位低低"→ 出错停供液。
   - 停止：关全部阀，**直接回空闲**（用户："停止的时候直接回到 idle 空闲"）；关不上回 `tank.close_failed`。
     **中止**（上面模块、整机停下来顺着设备树带过来的 `Abort()`）跟停止一样（用户："关掉所有的阀门，状态直接变成 idle"），供液也停。
+- **槽的三维图**（用户："把这个软件里面展示的 tank 界面转换成我们自己的项目的一个 tank 控件"，"改用依赖属性的就用依赖属性"）：
+  照 Codex 的 Tank 预览软件转成 `Presentation\Controls\ThreeD` 的 `TankVisual3D` + `TankScene`，状态全走依赖属性（液位、罐壁透明度、液体报警色、相机方位）。
+  预览里的"液位预览"按钮、读数、拖动提示是演示用的没搬；窗口标题那行的液位挪到图右上角；正中间的"液位未知"字跟右上角重复没搬。
+  **罐壁透明度滑块删了**（用户："这个直接删除，做成控件的依赖属性，外部可以调整"），只留 `WallTransparency` 依赖属性，默认 0.72。
+  细节见 Controls\ThreeD\README.md。
+- **信号灯跟各自的 DI，不从液位推**（2026-10-16 改的，原来照预览按液位推、少配了也画五盏；用户："那五个 di 实际上就是物理存在的，不需要推断"）：
+  一盏灯对一个 DI 组件，亮灭是它的 `IsActive`，名字照 sc 节点名，sc 里没配的不画；液面、右上角的字还是跟液位。信号对不上时液位不知道，灯照样各亮各的，看得出是哪个点坏了。
+  TankScene 收整个槽的显示模型（依赖属性 `Tank` = `TankModel`，用户同意），不再只收 `Level`。信号灯是公共控件 `Controls\SignalLamp`（灯 + 名字，只收 `IsActive` / `Text` / `IsAlarm`），别处显示 DI 也用它。
+- **槽的推送**（用户确认的流程）：IPA 模块的扫描线程每拍调槽的 `OnScan`，**槽自己在 `OnScan` 最后**比液位、状态、五个信号的 `IsActive`，跟上一拍不一样（第一拍也算）才发 C# 事件 `Changed`；
+  组件层不直接推客户端，`xyz.Service\Events\TankPublisher` 把它换成 `TankDto`（液位、状态、`LL`～`Overfill` 各一个 `DiSensorDto`，没配是 null）`EventBus.Send`，
+  token 是槽的全路径（`CDS.IPA.Tank1`，可能有好几个槽），留存。IPA 模块没做之前没人扫槽，所以还不会推。
+
+## 界面件对后台组件（2026-10-16，用户定的）
+- **按具体组件对界面件，不按基类**：`ChamberDoorComponent` ↔ `DoorVisual3D`、`ChamberBowlComponent` ↔ `BowlVisual3D`、`ChamberLiftComponent` ↔ `LiftVisual3D`、
+  `TankComponent` ↔ `TankScene`、`DiSensorComponent` ↔ `SignalLamp`。`CylinderComponent`、`AxisComponent` 这类基类只是代码复用，界面上不出现。
+- **不做通用的 `CylinderDto` / `AxisDto`，Chamber 前缀不去**（用户："每一种气缸形态都是不一样的"；"这些形态目前都是腔体里面的形态，换做其他模块，轴的形态又不一样了"）。
+  只有在哪都一个样的才共用，目前就是 DI 信号灯。
+- 组合照 sc 树：Tank 下挂 DI → `TankDto` 里带 `DiSensorDto` → `TankScene` 里放 `SignalLamp`。整个设备的图收整个模型，底下的小件只收简单的值。
+- LoadPort 的在位 / 放置到位 / 门 / 报警几盏灯是 LoadPort 控制器串口状态查询报的（不是 PLC 的 DI、sc 里也没挂 DI 组件），本来就是 LoadPort 自己的状态，平铺在 `LoadPortDto` 里是对的，不改。
+
+## 阀 NC / NO、到位反馈改成 DI 组件（2026-10-16，用户定的）
+- **阀、喷嘴（`OneStateComponent`）加 SC `NormalState`**（用户："叫做 NC 和 NO，这个是行业内的叫法"）：NC 常闭（默认，DO 写 true 开）、NO 常开（DO 写 false 开、写 true 关）；
+  没挂反馈时回读 DO 判开没开也按它比。35021 的阀、喷嘴都显式写 `NormalState=NC`（用户："都是要配置一下的，默认的话就是 NC"）。
+  **气缸不加**（双电控两个线圈各自通电动作，没有常开常闭，用户选的）。
+- **到位反馈从"直接配 DI 号"改成 DI 组件子节点**（用户："改成 DI 组件不行吗"，我也建议改：常闭的到位开关原来没地方配、只能改代码；趁 35021 还在开发改代价最小）：
+  阀、喷嘴挂 `Feedback`（喷嘴的流量开关也是它），气缸挂 `Opened` / `Closed`；SC `DiIndex`、`DiOpenedIndex`、`DiClosedIndex` 删了，**老写法不兼容**
+  （用户："老的写法肯定是不需要了"；装配时不认的配置名直接跳过，没改的老配置会悄悄丢反馈，所以 35021 一次全改了）。触发电平、两边防抖（默认 200 ms，用户："默认都是 200 就行"）都用 DI 组件自己的。
+- **没挂、或者挂了但 DiIndex 配成 -1，都算没有这个点**（用户："没有配置或这个配置的是 -1 的话就是没有到位反馈的"）：`ComponentBase.FindSignal(名字)`（按名字找 DI 子节点，
+  `IDiSensor.IsConfigured` 为 false 也返回 null），阀、气缸的反馈和 Tank 的液位信号都用它。机械手手指的 `WaferSensor` 还是 `FindChild`（没改，配 -1 会当"读不到"）。
+- 反馈在组件初始化（`InitComponent`）时认，所以阀、气缸要挂在会被初始化的父组件下面（腔体模块、Tank 的阀组）；判到位看 DI 组件上一拍扫到的值。

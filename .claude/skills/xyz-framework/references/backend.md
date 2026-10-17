@@ -483,6 +483,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - `EventBus.Send(dto, token, retain)`：
   - 全局事件 DTO 带 `public const string EventToken`（"Alarm"、"Ec"、"EquipmentStatus"、"Io"、"Job"、"Log"、"ProcessRecipe"、"RealChart"、"Sequence"、"SystemState"、"WaferLedger"）；
   - 模块状态 DTO 用模块名做 token、**留存**（客户端订上立即拿到当前值）；同一模块再推一种 DTO（腔体的设备状态推送 `ChamberDeviceDataDto`）也用模块名，类型不同互不覆盖；
+    不是模块的组件自己推的用组件全路径做 token（供液槽 `TankDto`：槽在 `OnScan` 里比出变化发 `Changed`，`Events\TankPublisher` 换成 DTO 推，留存）；
   - "发生了一件事"类用 `retain: false`。
 - 组件发 C# 事件（`AlarmChanged`、`ValueChanged`、`WaferManagerComponent.Wafer*`），在 `ServiceExtensions` 里桥成 EventBus 消息。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。

@@ -572,6 +572,7 @@
     <sys:String x:Key="scene.default_view">Default</sys:String>
     <sys:String x:Key="scene.top_view">Top</sys:String>
     <sys:String x:Key="scene.back_view">Back</sys:String>
+    <sys:String x:Key="scene.front_view">Front</sys:String>
     <sys:String x:Key="lpscene.title">Equipment view</sys:String>
     <sys:String x:Key="lpscene.slot_total">/ {0} wafers</sys:String>
     <sys:String x:Key="lpscene.click_hint">Click a wafer to see its slot</sys:String>
@@ -580,6 +581,13 @@
     <sys:String x:Key="lpscene.full">Full · {0} wafers</sys:String>
     <sys:String x:Key="lpscene.no_wafer">Empty cassette</sys:String>
     <sys:String x:Key="chamberscene.too_many_arms">{0} has {1} arms; the 3D view only draws the first {2}</sys:String>
+    <sys:String x:Key="tankscene.level.LL">Low-low level</sys:String>
+    <sys:String x:Key="tankscene.level.L">Low level</sys:String>
+    <sys:String x:Key="tankscene.level.Normal">Level normal</sys:String>
+    <sys:String x:Key="tankscene.level.H">High level</sys:String>
+    <sys:String x:Key="tankscene.level.HH">High-high level</sys:String>
+    <sys:String x:Key="tankscene.level.Overfill">Overfill</sys:String>
+    <sys:String x:Key="tankscene.level.Unknown">Level unknown</sys:String>
 
     <!-- 主界面：左 系统操作（平台固定）、中 整机调度（机型可按 ClientViewKeys.MainDispatch 换成自己的）、右 一个 LoadPort 一个页签。
          创建 Job 按各槽选的 Sequence 建（建好等启动），启动 Job 在 Auto 下启动这个 LoadPort 上等启动的 Job -->

@@ -5,6 +5,7 @@ using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 
 namespace xyz.Components;
@@ -147,6 +148,20 @@ public abstract class ComponentBase
 
             CollectChildren(child, result);
         }
+    }
+
+    /// <summary>
+    /// 按名字找 DI 子节点（到位反馈、液位信号这类）；没挂、或者 DiIndex 配成 -1 都当没有，返回 null
+    /// </summary>
+    protected IDiSensor? FindSignal(string name)
+    {
+        var signal = FindChild<IDiSensor>(name);
+        if (signal is null || !signal.IsConfigured)
+        {
+            return null;
+        }
+
+        return signal;
     }
 
     #endregion

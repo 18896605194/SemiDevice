@@ -1,9 +1,12 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
-
+/// <summary>
+/// 单 DO 执行器底座（阀、喷嘴）：一个 DO 开关，到位反馈挂子节点 Feedback（DiSensorComponent），没挂就不等反馈
+/// </summary>
 public abstract class OneStateComponent : ComponentBase
 {
     #region  SC
@@ -11,15 +14,26 @@ public abstract class OneStateComponent : ComponentBase
     [SCEditor("-1", "IO", "驱动 DO 索引", Required = true)]
     public int DoIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "到位 DI 索引 (-1 = 没接反馈点，不等反馈也不报超时)")]
-    public int DiIndex { get; set; } = -1;
+    [SCEditor("NC", "IO", "常开常闭：NC 常闭（DO 写 true 开）、NO 常开（DO 写 false 开）")]
+    public NormalState NormalState { get; set; } = NormalState.NC;
 
     #endregion
+
+    /// <summary>
+    /// 到位反馈（子节点 Feedback）；没挂是 null，开了就算完成
+    /// </summary>
+    private IDiSensor? _feedback;
+
+    public override bool InitComponent()
+    {
+        _feedback = FindSignal("Feedback");
+        return base.InitComponent();
+    }
 
     #region EC
 
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "100", "60000", "3000",
-        "到位超时时间（没接 DI 时不生效）")]
+        "到位超时时间（没挂 Feedback 时不生效）")]
     public int ActionTimeoutMs
     {
         get { return GetEcInt(nameof(ActionTimeoutMs)); }
@@ -32,7 +46,7 @@ public abstract class OneStateComponent : ComponentBase
 
     [Alarm("到位反馈超时", AlarmCategory.Timeout,
         Description = "驱动命令已发出，但在指定时间内未收到到位反馈",
-        Solution = "检查气源压力、电磁阀及到位传感器；没接到位点就把 DI 索引配成 -1，"
+        Solution = "检查气源压力、电磁阀及到位传感器；没接到位点就不挂 Feedback 子节点，"
                    + "不等也不报；超时时长在 EC ActionTimeoutMs 调")]
     public string TimeoutAlarm = nameof(TimeoutAlarm);
 
@@ -56,26 +70,32 @@ public abstract class OneStateComponent : ComponentBase
     }
 
     /// <summary>
-    /// 有没有接通io组件，有di就读取di，没有配置就读取do
+    /// 开着没有：挂了 Feedback 看反馈，没挂回读 DO（按 NC / NO 比）
     /// </summary>
     public bool IsOn
     {
         get
         {
+            var feedback = _feedback;
+            if (feedback is not null)
+            {
+                return feedback.IsActive == true;
+            }
+
             var io = IoComponent.Current;
             if (io is null)
             {
                 return false;
             }
 
-            if (DiIndex >= 0)
-            {
-                return io.TryReadDi(DiIndex, out bool arrived) && arrived;
-            }
-
-            return io.TryReadDo(DoIndex, out bool on) && on;
+            return io.TryReadDo(DoIndex, out bool on) && on == OpenValue;
         }
     }
+
+    /// <summary>
+    /// 开阀时 DO 写的值：常闭写 true，常开写 false
+    /// </summary>
+    private bool OpenValue => NormalState == NormalState.NC;
 
     #endregion
 
@@ -100,14 +120,20 @@ public abstract class OneStateComponent : ComponentBase
 
         lock (_actionGate)
         {
-            if (!io.WriteDo(DoIndex, on))
+            // 常开阀开阀写 false、关阀写 true
+            if (!io.WriteDo(DoIndex, on == OpenValue))
             {
                 return false;
             }
 
             _actionStarted = Environment.TickCount64;
-            // 只有通电侧有到位反馈；断电回位不受控也没反馈，写完即完成。
-            _action = on && DiIndex >= 0 ? ActionState.Running : ActionState.Completed;
+            // 只有开的那一侧有到位反馈；关回去不受控也没反馈，写完即完成。
+            _action = ActionState.Completed;
+            if (on && _feedback is not null)
+            {
+                _action = ActionState.Running;
+            }
+
             return true;
         }
     }
@@ -116,7 +142,9 @@ public abstract class OneStateComponent : ComponentBase
 
     #region 中止
 
-    /// <summary>中止：不再等这次到位，输出保持原样；报警只能 Reset 清。</summary>
+    /// <summary>
+    /// 中止：不再等这次到位，输出保持原样；报警只能 Reset 清
+    /// </summary>
     public override object? Abort()
     {
         base.Abort();

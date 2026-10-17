@@ -32,6 +32,31 @@ public class TankComponent : ComponentBase, ITank
     /// </summary>
     private IDiSensor?[] _signals = [];
 
+    /// <summary>
+    /// LL 信号，没配是 null
+    /// </summary>
+    public IDiSensor? LL => _ll;
+
+    /// <summary>
+    /// L 信号，没配是 null
+    /// </summary>
+    public IDiSensor? L => _l;
+
+    /// <summary>
+    /// H 信号，没配是 null
+    /// </summary>
+    public IDiSensor? H => _h;
+
+    /// <summary>
+    /// HH 信号，没配是 null
+    /// </summary>
+    public IDiSensor? HH => _hh;
+
+    /// <summary>
+    /// Overfill 信号，没配是 null
+    /// </summary>
+    public IDiSensor? Overfill => _overfill;
+
     #endregion
 
     /// <summary>
@@ -191,6 +216,20 @@ public class TankComponent : ComponentBase, ITank
 
     #endregion
 
+    #region 推送
+
+    /// <summary>
+    /// 液位、状态或哪个液位信号变了（第一拍也算）
+    /// </summary>
+    public event Action? Changed;
+
+    /// <summary>
+    /// 上一次通知出去的液位、状态和五个信号（从下往上），还没通知过是 null
+    /// </summary>
+    private (TankLevel, TankState, bool?, bool?, bool?, bool?, bool?)? _sent;
+
+    #endregion
+
     /// <summary>
     /// SC 灌完值：补液完成位只能是 L 或 H，配错开机就报
     /// </summary>
@@ -217,13 +256,13 @@ public class TankComponent : ComponentBase, ITank
     /// </summary>
     public override bool InitComponent()
     {
-        _ll = FindChild<IDiSensor>("LL");
-        _l = FindChild<IDiSensor>("L");
-        _h = FindChild<IDiSensor>("H");
-        _hh = FindChild<IDiSensor>("HH");
-        _overfill = FindChild<IDiSensor>("Overfill");
+        _ll = FindSignal("LL");
+        _l = FindSignal("L");
+        _h = FindSignal("H");
+        _hh = FindSignal("HH");
+        _overfill = FindSignal("Overfill");
         _signals = [_ll, _l, _h, _hh, _overfill];
-        _fillTo = FindChild<IDiSensor>(FillTo);
+        _fillTo = FindSignal(FillTo);
         _fill = FindChild<IValveGroup>("Fill");
         _drain = FindChild<IValveGroup>("Drain");
         _supply = FindChild<IValveGroup>("Supply");
@@ -511,6 +550,23 @@ public class TankComponent : ComponentBase, ITank
                 SetState(TankState.Error, "有报警");
             }
         }
+
+        NotifyIfChanged();
+    }
+
+    /// <summary>
+    /// 跟上一次通知出去的比，有变化才通知（在锁外发）
+    /// </summary>
+    private void NotifyIfChanged()
+    {
+        var now = (Level, State, _ll?.IsActive, _l?.IsActive, _h?.IsActive, _hh?.IsActive, _overfill?.IsActive);
+        if (_sent == now)
+        {
+            return;
+        }
+
+        _sent = now;
+        Changed?.Invoke();
     }
 
     /// <summary>
@@ -528,7 +584,13 @@ public class TankComponent : ComponentBase, ITank
         if (IsOn(_fillTo))
         {
             CloseGroup(_fill, "Fill");
-            SetState(LevelReady() ? TankState.Ready : TankState.Idle, $"补到 {FillTo} 了");
+            if (LevelReady())
+            {
+                SetState(TankState.Ready, $"补到 {FillTo} 了");
+                return;
+            }
+
+            SetState(TankState.Idle, $"补到 {FillTo} 了，但液位信号不对，不算就绪");
             return;
         }
 

@@ -250,6 +250,38 @@ try
     }
 
     Check(rejected, "部件名以下划线结尾（跟分隔符 __ 分不清）开机就报，报错里带名字");
+
+    // IO 绑定的信号名：组件路径 + 配置项名去掉 Index；DI 组件只有一个点，就是组件路径（Door__Opened，不再带 __Di）
+    var previousIo = IoComponent.Current;
+    var ioCsv = Path.Combine(chartGemDirectory, "points.csv");
+    File.WriteAllText(ioCsv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n0,P0,0,0,0,0\n1,P1,0,0,0,0\n2,P2,0,10,0,10\n");
+    var chartIo = new IoComponent();
+    chartIo.Di.Load(ioCsv);
+    chartIo.Do.Load(ioCsv);
+    chartIo.Ai.Load(ioCsv);
+    try
+    {
+        var door = new ModuleConfig
+        {
+            Name = "Door",
+            Type = typeof(CylinderComponent).FullName,
+            Values = [new() { Name = "DoOpenIndex", Value = "0" }, new() { Name = "DoCloseIndex", Value = "1" }],
+            Children = [new ModuleConfig { Name = "Opened", Type = typeof(DiSensorComponent).FullName, Values = [new() { Name = "DiIndex", Value = "0" }] }]
+        };
+        var valve = new ModuleConfig { Name = "Valve", Type = typeof(ValveComponent).FullName, Values = [new() { Name = "DoIndex", Value = "1" }] };
+        var pressure = new ModuleConfig { Name = "Pressure", Type = typeof(AiSensorComponent).FullName, Values = [new() { Name = "AiIndex", Value = "2" }] };
+        var ioRoots = ComponentLoader.Load([new ModuleConfig { Name = "Chart2", Type = typeof(ChartProbe).FullName, Children = [door, valve, pressure] }]);
+        new GemCollectors().Merge(ioRoots, chartGemDirectory);
+        var ioNames = RunChart(ioRoots).Signals.Select(signal => signal.Name).ToHashSet();
+        Check(ioNames.Contains("Chart2__Door__Opened") && !ioNames.Any(name => name.EndsWith("__Di", StringComparison.Ordinal)),
+            $"DI 组件的信号名就是组件路径（Door__Opened，不带 __Di）：{string.Join(",", ioNames)}");
+        Check(ioNames.Contains("Chart2__Door__DoOpen") && ioNames.Contains("Chart2__Valve__Do") && ioNames.Contains("Chart2__Pressure__Ai"),
+            "别的 IO 照旧：组件路径 + 配置项名去掉 Index");
+    }
+    finally
+    {
+        IoComponent.Current = previousIo;
+    }
 }
 finally
 {
@@ -267,7 +299,7 @@ finally
 
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
                   "log history filters and truncation, active alarms with reset / reset-all / not-installed error codes, " +
-                  "alarm history over day-split tables, and data chart signal names / day tables through SqlSugar).");
+                  "alarm history over day-split tables, and data chart signal names (a DI component named by its own path) / day tables through SqlSugar).");
 
 static void SqliteCleanup(string path)
 {

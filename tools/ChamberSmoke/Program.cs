@@ -70,6 +70,15 @@ try
     var diw = Find<NozzleComponent>(chamber, "Nozzle_DIW");
     var sc1 = Find<NozzleComponent>(chamber, "Nozzle_SC1");
     Check(spin.Open(plc) && arm.Open(plc), "轴登记数据块");
+
+    // 到位反馈、流量开关是子节点，各设备做组件初始化时认（腔体自己的组件初始化在第 17 节测）；反馈防抖设 0，一拍就认
+    foreach (var sensor in chamber.FindChildren<DiSensorComponent>())
+    {
+        sensor.DebounceMs = 0;
+    }
+
+    Check(door.InitComponent() && bowl.InitComponent() && lift.InitComponent() && diw.InitComponent() && sc1.InitComponent(),
+        "门、Bowl、Lift、喷嘴的组件初始化：认出到位反馈、流量开关");
     var service = new ChamberService([chamber]);
 
     void Tick(int count = 1)
@@ -840,31 +849,37 @@ static ModuleConfig Node(string name, Type type, params ValueConfig[] values)
     return new ModuleConfig { Name = name, Type = type.FullName, Values = [.. values] };
 }
 
+// 到位反馈 / 流量开关：一个 DI 组件子节点（高电平触发、不自己报警）
+static ModuleConfig Feedback(string name, int di)
+{
+    return Node(name, typeof(DiSensorComponent), Value("DiIndex", di.ToString()), Value("TriggerValue", "true"), Value("AlarmEnabled", "False"));
+}
+
+static ModuleConfig With(ModuleConfig node, params ModuleConfig[] children)
+{
+    node.Children = [.. children];
+    return node;
+}
+
 static ModuleConfig ChamberConfig(string name, bool enabled)
 {
-    // SC1 下面挂流量计（监控使能 DO 填它的阀 DO 7）；DIW 不挂，当没流量计的一路
-    var sc1Node = Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("DiIndex", "7"), Value("Chemical", "SC1"), Value("AoIndex", "1"));
-    sc1Node.Children = [Node("Flow", typeof(AiSensorComponent), Value("AiIndex", "0"), Value("MonitoringDoIndex", "7"), Value("IsPercentOfTarget", "True"))];
-    var arm = Node("Arm1", typeof(SwingArmComponent), Value("SendPlcDataPath", "Arm.Command"), Value("ReceivePlcDataPath", "Arm.Status"));
-    arm.Children =
-    [
-        Node("Lift", typeof(ChamberLiftComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5"),
-            Value("DiOpenedIndex", "4"), Value("DiClosedIndex", "5")),
-        Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("Chemical", "DIW"), Value("AoIndex", "0")),
-        sc1Node,
-    ];
-    var chamber = Node(name, typeof(SmokeChamber), Value("IsEnable", enabled ? "True" : "False"));
-    chamber.Children =
-    [
-        Node("Door", typeof(ChamberDoorComponent), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1"),
-            Value("DiOpenedIndex", "0"), Value("DiClosedIndex", "1")),
-        Node("Bowl1", typeof(ChamberBowlComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3"),
-            Value("DiOpenedIndex", "2"), Value("DiClosedIndex", "3")),
+    // SC1 下面挂流量开关（Feedback，DI 7）和流量计（监控使能 DO 填它的阀 DO 7）；DIW 都不挂，当没流量开关、没流量计的一路
+    var sc1Node = With(Node("Nozzle_SC1", typeof(NozzleComponent), Value("DoIndex", "7"), Value("NormalState", "NC"), Value("Chemical", "SC1"), Value("AoIndex", "1")),
+        Feedback("Feedback", 7),
+        Node("Flow", typeof(AiSensorComponent), Value("AiIndex", "0"), Value("MonitoringDoIndex", "7"), Value("IsPercentOfTarget", "True")));
+    var arm = With(Node("Arm1", typeof(SwingArmComponent), Value("SendPlcDataPath", "Arm.Command"), Value("ReceivePlcDataPath", "Arm.Status")),
+        With(Node("Lift", typeof(ChamberLiftComponent), Value("DoOpenIndex", "4"), Value("DoCloseIndex", "5")),
+            Feedback("Opened", 4), Feedback("Closed", 5)),
+        Node("Nozzle_DIW", typeof(NozzleComponent), Value("DoIndex", "6"), Value("NormalState", "NC"), Value("Chemical", "DIW"), Value("AoIndex", "0")),
+        sc1Node);
+    return With(Node(name, typeof(SmokeChamber), Value("IsEnable", enabled.ToString())),
+        With(Node("Door", typeof(ChamberDoorComponent), Value("DoOpenIndex", "0"), Value("DoCloseIndex", "1")),
+            Feedback("Opened", 0), Feedback("Closed", 1)),
+        With(Node("Bowl1", typeof(ChamberBowlComponent), Value("DoOpenIndex", "2"), Value("DoCloseIndex", "3")),
+            Feedback("Opened", 2), Feedback("Closed", 3)),
         Node("SpinMotor", typeof(SpinMotorComponent), Value("SendPlcDataPath", "Spin.Command"), Value("ReceivePlcDataPath", "Spin.Status")),
         arm,
-        Node("WaferSensor", typeof(DiSensorComponent), Value("DiIndex", "8"), Value("AlarmEnabled", "False")),
-    ];
-    return chamber;
+        Node("WaferSensor", typeof(DiSensorComponent), Value("DiIndex", "8"), Value("AlarmEnabled", "False")));
 }
 
 /// <summary>冒烟用腔体：跟机型一样什么都不写，回零、复位、中止、工艺全用平台的；Tick 由冒烟线程手动走一拍。</summary>

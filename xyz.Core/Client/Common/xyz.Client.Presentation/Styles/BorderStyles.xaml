@@ -106,6 +106,61 @@
         <Setter Property="CornerRadius" Value="0,0,6,6" />
     </Style>
 
+    <!--  信号灯（SignalLamp）的灯：Tag = On 亮绿、Alarm 亮红、Unknown 不知道，其他灭  -->
+    <Style x:Key="SignalLampBorderStyle" TargetType="Border">
+        <Setter Property="Width" Value="14" />
+        <Setter Property="Height" Value="14" />
+        <Setter Property="Margin" Value="0,0,9,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="7" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Background" Value="{StaticResource DarkSignalLampOff}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkSignalLampRim}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="On">
+                <Setter Property="Background" Value="{StaticResource DarkSignalLampOn}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DarkSignalLampOnRim}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Alarm">
+                <Setter Property="Background" Value="{StaticResource DarkSignalLampAlarm}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DarkSignalLampAlarmRim}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Unknown">
+                <Setter Property="Background" Value="{StaticResource DarkSignalLampUnknown}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  供液槽液位前面的小圆点：Tag = TankLevel，正常绿、低低 / 低 / 高黄、高高 / 溢流红、不知道灰  -->
+    <Style x:Key="TankLevelDotBorderStyle" TargetType="Border">
+        <Setter Property="Width" Value="7" />
+        <Setter Property="Height" Value="7" />
+        <Setter Property="Margin" Value="0,0,7,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="3.5" />
+        <Setter Property="Background" Value="{StaticResource DarkDisabledText}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Normal">
+                <Setter Property="Background" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="LL">
+                <Setter Property="Background" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="L">
+                <Setter Property="Background" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="H">
+                <Setter Property="Background" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="HH">
+                <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Overfill">
+                <Setter Property="Background" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!--  工具栏里按钮之间的竖线  -->
     <Style x:Key="ToolbarSeparatorBorderStyle" TargetType="Border">
         <Setter Property="Width" Value="1" />

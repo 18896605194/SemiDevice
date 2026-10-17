@@ -278,6 +278,42 @@
         <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
     </Style>
 
+    <!--  信号灯（SignalLamp）的名字：sc 里的信号节点名（供液槽的 LL、H……）  -->
+    <Style x:Key="SignalLampTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size15}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+    <!--  供液槽三维图右上角的液位：Tag = TankLevel，写"液位正常"这类字  -->
+    <Style x:Key="TankLevelTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Text" Value="{DynamicResource tankscene.level.Unknown}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="LL">
+                <Setter Property="Text" Value="{DynamicResource tankscene.level.LL}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="L">
+                <Setter Property="Text" Value="{DynamicResource tankscene.level.L}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Normal">
+                <Setter Property="Text" Value="{DynamicResource tankscene.level.Normal}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="H">
+                <Setter Property="Text" Value="{DynamicResource tankscene.level.H}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="HH">
+                <Setter Property="Text" Value="{DynamicResource tankscene.level.HH}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Overfill">
+                <Setter Property="Text" Value="{DynamicResource tankscene.level.Overfill}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!--  只读字段的值：正文大小，数字等宽，放不下省略  -->
     <Style x:Key="MetaValueTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,3,8,0" />

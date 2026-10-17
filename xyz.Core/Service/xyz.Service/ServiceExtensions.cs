@@ -107,6 +107,9 @@ public static class ServiceExtensions
 
         #endregion
 
+        // 供液槽：有变化就推给界面
+        TankPublisher.Bind(roots);
+
         //plc连接
         foreach (var plc in roots.OfType<PlcComponent>())
         {

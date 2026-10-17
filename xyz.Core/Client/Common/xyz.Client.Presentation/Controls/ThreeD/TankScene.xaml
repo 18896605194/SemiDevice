@@ -1,0 +1,90 @@
+﻿<UserControl
+    x:Class="xyz.Client.Presentation.Controls.ThreeD.TankScene"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls.ThreeD"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <!--  供液槽三维图：透明圆筒（TankVisual3D）+ 右边配了的液位信号灯，右上角写液位，图下面一条视角工具栏  -->
+    <!--  三维对象不在逻辑树里，灯光、罐沿颜色用 StaticResource 在加载时取 token  -->
+    <Border Style="{DynamicResource SceneFrameBorderStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!--  透明底：空白处也能拖动旋转  -->
+            <Grid
+                x:Name="Stage"
+                Background="Transparent"
+                ClipToBounds="True"
+                LostMouseCapture="OnStageLostMouseCapture"
+                MouseLeftButtonDown="OnStageMouseLeftButtonDown"
+                MouseLeftButtonUp="OnStageMouseLeftButtonUp"
+                MouseMove="OnStageMouseMove"
+                MouseWheel="OnStageMouseWheel">
+                <Viewport3D x:Name="Viewport" IsHitTestVisible="False">
+                    <Viewport3D.Camera>
+                        <OrthographicCamera x:Name="Camera" UpDirection="0,1,0" />
+                    </Viewport3D.Camera>
+                    <ModelVisual3D>
+                        <ModelVisual3D.Content>
+                            <Model3DGroup>
+                                <AmbientLight Color="{StaticResource DarkHardwareAmbientLightColor}" />
+                                <DirectionalLight Direction="-1,-3,-2" Color="{StaticResource DarkHardwareKeyLightColor}" />
+                                <DirectionalLight Direction="2,-1,1" Color="{StaticResource DarkHardwareFillLightColor}" />
+                            </Model3DGroup>
+                        </ModelVisual3D.Content>
+                    </ModelVisual3D>
+                    <local:TankVisual3D x:Name="Body" BodyColor="{StaticResource DarkHardwareTankRimColor}" />
+                </Viewport3D>
+
+                <!--  信号灯贴在罐的右边沿外面，位置由代码按相机算；一盏灯对一个 DI 信号，亮灭、名字跟着它，sc 里没配的不画  -->
+                <Canvas IsHitTestVisible="False">
+                    <controls:SignalLamp x:Name="OverfillSignal" IsAlarm="True" />
+                    <controls:SignalLamp x:Name="HighHighSignal" IsAlarm="True" />
+                    <controls:SignalLamp x:Name="HighSignal" />
+                    <controls:SignalLamp x:Name="LowSignal" />
+                    <controls:SignalLamp x:Name="LowLowSignal" />
+                </Canvas>
+
+                <!--  右上角：液位（点的颜色跟液位走）  -->
+                <StackPanel
+                    Margin="0,10,14,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False"
+                    Orientation="Horizontal">
+                    <Border x:Name="LevelDot" Style="{DynamicResource TankLevelDotBorderStyle}" />
+                    <TextBlock x:Name="LevelText" Style="{DynamicResource TankLevelTextStyle}" />
+                </StackPanel>
+            </Grid>
+
+            <!--  视角工具栏（图下面一条）：默认视角、正视图；在图上左键拖动旋转、滚轮缩放  -->
+            <Border Grid.Row="1" Style="{DynamicResource SceneToolStripBorderStyle}">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="DefaultViewButton" Click="OnDefaultViewClick" Style="{DynamicResource SceneToolButtonStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Kind="CubeOutline" />
+                            <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.default_view}" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="FrontViewButton" Click="OnFrontViewClick" Style="{DynamicResource SceneToolButtonStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Kind="EyeOutline" />
+                            <TextBlock VerticalAlignment="Center" Text="{DynamicResource scene.front_view}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

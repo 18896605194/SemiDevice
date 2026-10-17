@@ -18,17 +18,35 @@ static class ActuatorCommands
             File.WriteAllText(csv,
                 "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +
                 "0,OpenCoil,0,0,0,0\n1,CloseCoil,0,0,0,0\n2,Opened,0,0,0,0\n3,Closed,0,0,0,0\n" +
-                "4,ValveDo,0,0,0,0\n5,ValveDi,0,0,0,0\n6,Pressure,0,1000,0,100\n7,Red,0,0,0,0\n");
+                "4,ValveDo,0,0,0,0\n5,ValveDi,0,0,0,0\n6,Pressure,0,1000,0,100\n7,Red,0,0,0,0\n8,NoValveDo,0,0,0,0\n");
             var io = new IoComponent();
             io.Di.Load(csv);
             io.Do.Load(csv);
             io.Ai.Load(csv);
             var plc = new StatePlc();
 
-            var door = new ScanningCylinder { DoOpenIndex = 0, DoCloseIndex = 1, DiOpenedIndex = 2, DiClosedIndex = 3 };
+            // 到位反馈是 DI 组件子节点（门 Opened / Closed，阀 Feedback），组件初始化时认
+            var door = new ScanningCylinder { DoOpenIndex = 0, DoCloseIndex = 1 };
+            door.AddChild(Named(new DiSensorComponent { DiIndex = 2, AlarmEnabled = false }, "Opened"));
+            door.AddChild(Named(new DiSensorComponent { DiIndex = 3, AlarmEnabled = false }, "Closed"));
+            door.InitComponent();
             var lift = new ScanningCylinder { DoOpenIndex = 0, DoCloseIndex = 1 };
-            var valve = new ScanningValve { DoIndex = 4, DiIndex = 5 };
+            lift.InitComponent();
+            var valve = new ScanningValve { DoIndex = 4 };
+            valve.AddChild(Named(new DiSensorComponent { DiIndex = 5, AlarmEnabled = false }, "Feedback"));
+            valve.InitComponent();
             var nozzle = new NozzleComponent { DoIndex = 4, Chemical = "DIW" };
+            nozzle.InitComponent();
+            var normallyOpen = new ScanningValve { DoIndex = 8, NormalState = NormalState.NO };
+            normallyOpen.InitComponent();
+
+            // 反馈的防抖是默认 200 ms（这里没装 EC）：改了 DI 先扫一拍、等过防抖再扫一拍才认
+            void Settle(Action tick)
+            {
+                tick();
+                Thread.Sleep(250);
+                tick();
+            }
 
             PlcComponent.Current = null;
             Check(!door.Open() && !valve.Open() && !door.IsOpened, "no PLC: nothing writable or readable");
@@ -40,11 +58,11 @@ static class ActuatorCommands
             Check(door.ActionState == ActionState.Running && !door.IsOpened, "no feedback yet");
             plc.Di[2] = true;
             plc.Di[3] = true;
-            door.Tick();
+            Settle(door.Tick);
             Check(door.ActionState == ActionState.Running && !door.IsOpened && !door.IsClosed,
                 "contradictory feedback is neither side");
             plc.Di[3] = false;
-            door.Tick();
+            Settle(door.Tick);
             Check(door.ActionState == ActionState.Completed && door.IsOpened && !door.IsClosed, "opened feedback completes");
 
             Check(door.Close() && plc.Do[1] && !plc.Do[0] && door.ActionState == ActionState.Running, "close reverses the coils");
@@ -52,7 +70,7 @@ static class ActuatorCommands
             Check(door.ActionState == ActionState.Idle && plc.Do[1] && !plc.Do[0], "abort stops waiting and leaves the coils");
             plc.Di[2] = false;
             plc.Di[3] = true;
-            door.Tick();
+            Settle(door.Tick);
             Check(door.ActionState == ActionState.Idle && door.IsClosed, "feedback is readable without an action");
             Check(door.Open() && door.Close() && door.ActionState == ActionState.Running && plc.Do[1],
                 "a new command replaces the running one");
@@ -63,12 +81,23 @@ static class ActuatorCommands
             Check(valve.Open() && plc.Do[4] && valve.ActionState == ActionState.Running && !valve.IsOpened,
                 "valve waits for its feedback");
             plc.Di[5] = true;
-            valve.Tick();
+            Settle(valve.Tick);
             Check(valve.ActionState == ActionState.Completed && valve.IsOpened, "valve opened");
             Check(valve.Close() && !plc.Do[4] && valve.ActionState == ActionState.Completed,
                 "close has no feedback and completes at once");
             Check(nozzle.Open() && nozzle.ActionState == ActionState.Completed && nozzle.IsOpened,
                 "nozzle without feedback: opened follows the DO readback");
+
+            // Feedback 挂了但 DiIndex 配成 -1：当没有到位反馈，写完就算完成
+            var unwired = new ScanningValve { DoIndex = 4 };
+            unwired.AddChild(Named(new DiSensorComponent { DiIndex = -1, AlarmEnabled = false }, "Feedback"));
+            unwired.InitComponent();
+            Check(unwired.Open() && unwired.ActionState == ActionState.Completed && unwired.IsOpened,
+                "feedback with DI index -1 counts as no feedback: completes at once");
+
+            // NO（常开）阀：开阀写 false、关阀写 true，没反馈时按 false 算开着
+            Check(normallyOpen.Open() && plc.Do.ContainsKey(8) && !plc.Do[8] && normallyOpen.IsOpened, "NO valve: open writes false");
+            Check(normallyOpen.Close() && plc.Do[8] && !normallyOpen.IsOpened, "NO valve: close writes true");
 
             var sensor = new ScanningDi { DiIndex = 2 };
             plc.Di[2] = true;
@@ -87,9 +116,10 @@ static class ActuatorCommands
             Check(plc.Do[7] && light.IsRedOn, "light writes through the IO table");
 
             plc.IsConnected = false;
+            door.Tick();
             Check(!nozzle.IsOpened && !nozzle.Close() && !door.IsClosed, "offline PLC: unreadable and unwritable");
             Check(Throws(() => light.SetRed(false)) && light.IsRedOn, "failed light output throws and keeps the last state");
-            Console.WriteLine("PASS: cylinder, valve, nozzle, DI/AI sensors and light through the IO table");
+            Console.WriteLine("PASS: cylinder, valve (NC / NO), nozzle with feedback DI components, DI/AI sensors and light through the IO table");
         }
         finally
         {
@@ -97,6 +127,15 @@ static class ActuatorCommands
             IoComponent.Current = previousIo;
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// 不走 sc 装配直接 new 的组件起个名（Name 只给装配写，这里用反射）
+    /// </summary>
+    private static T Named<T>(T component, string name) where T : ComponentBase
+    {
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
+        return component;
     }
 
     private static bool Throws(Action action)

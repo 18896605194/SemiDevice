@@ -4,11 +4,15 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
+using xyz.Service.Events;
+using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Tools;
 
 // CDS 冒烟：槽（Tank）照 sc 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
 // 按配了的信号算液位（Overfill 亮了就是溢流）、读不到算不知道、信号对不上 / 液位高高 / 溢流报警且只能人工复位清；
-// 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因。
+// 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因；
+// 推送（液位、状态、各信号有变化才推 TankDto，没配的信号是 null）。
 // 全用假 PLC（摆 DI、记 DO）和内存 EC，不连设备、不读写配置文件。
 
 var checks = 0;
@@ -135,6 +139,9 @@ try
     var noOverfill = Load("Tank8", ("L", 1, true), ("H", 2, true), ("Overfill", 98, true));
     noOverfill.Tick();
     Check(noOverfill.Level == TankLevel.Unknown, "Overfill 的点读不到：跟别的信号一样，液位不知道");
+    var unwired = Load("Tank16", ("L", 1, true), ("H", 2, true), ("HH", -1, true));
+    unwired.Tick();
+    Check(unwired.Level == TankLevel.H, "HH 挂了但 DiIndex 配成 -1：当没有这个点，不算读不到（L、H 都亮就是 H 档）");
     var spilled = Load("Tank7", ("L", 97, true), ("Overfill", 9, true));
     plc.SetDi(9, true);
     spilled.Tick();
@@ -407,6 +414,48 @@ try
     feedback.Tick();
     Check(feedback.State == TankState.Error && !plc.Do(7) && Active(supplyValve, supplyValve.TimeoutAlarm),
         "供液阀到位超时报警：槽进出错、阀全关");
+
+    // 13. 推送：槽每拍比液位、状态、各信号，有变化（第一拍也算）才发 Changed；
+    // 推送桥换成 TankDto（token 是槽的全路径，留存），信号带名字和各自的触发状态，没配的是 null
+    var pushed = LoadTank("Tank16", null, [("LL", 10, true), ("H", 11, true)], fill: [(9, -1)], drain: [], supply: []);
+    Check(pushed.LL is not null && pushed.H is not null && pushed.L is null && pushed.HH is null && pushed.Overfill is null,
+        "槽给出配了的信号，没挂的是 null");
+    int changes = 0;
+    pushed.Changed += () => changes++;
+    TankPublisher.Bind([pushed]);
+    var received = new List<TankDto>();
+    using var subscription = EventBus.Register<TankDto>(pushed.FullPath, dto => received.Add(dto));
+    plc.SetDi(10, true);
+    plc.SetDi(11, false);
+    pushed.Tick();
+    Check(changes == 1 && received.Count == 1, "第一拍：通知一次、推一条");
+    var first = received[0];
+    Check(first.Path == "CDS.IPA.Tank16" && first.Level == (int)TankLevel.L && first.State == (int)TankState.Idle,
+        "推的是槽的全路径、液位、状态");
+    Check(first.LL is not null && first.LL.Name == "LL" && first.LL.IsActive == true
+        && first.H is not null && first.H.Name == "H" && first.H.IsActive == false, "配了的信号带名字和各自的触发状态");
+    Check(first.L is null && first.HH is null && first.Overfill is null, "没配的信号是 null（界面不画）");
+    pushed.Tick();
+    pushed.Tick();
+    Check(changes == 1 && received.Count == 1, "没变化：不通知、不推");
+    plc.SetDi(11, true);
+    pushed.Tick();
+    Check(received.Count == 2 && received[1].Level == (int)TankLevel.H && received[1].H!.IsActive == true, "信号变了：推一条新的");
+    plc.IsConnected = false;
+    pushed.Tick();
+    Check(received.Count == 3 && received[2].LL!.IsActive is null && received[2].H!.IsActive is null && received[2].Level == (int)TankLevel.Unknown,
+        "信号读不到：推 null（界面画不知道色）");
+    plc.IsConnected = true;
+    pushed.Tick();
+    Check(received.Count == 4 && received[3].Level == (int)TankLevel.H, "读回来了：再推一条");
+    Check(pushed.Fill().IsSuccess && pushed.State == TankState.Ready && received.Count == 4, "补液（H 已经亮了）直接就绪：在扫描外变的，当场不推");
+    pushed.Tick();
+    Check(changes == 5 && received.Count == 5 && received[4].State == (int)TankState.Ready, "状态变了：下一拍推");
+    TankDto? late = null;
+    using (EventBus.Register<TankDto>(pushed.FullPath, dto => late = dto))
+    {
+        Check(late is not null && late.State == (int)TankState.Ready, "留存：后打开的页面一订上就拿到最新一条");
+    }
 }
 finally
 {
@@ -422,7 +471,8 @@ Console.WriteLine($"PASS: {checks} cds checks (tank: level DI signals found by n
     + "unknown when a signal cannot be read unless overfill is on, the signal mismatch / high-high / overfill alarms raised by the tank "
     + "after each one's EC debounce time and cleared only by a manual reset; the fill / drain / exchange / supply / stop functions "
     + "driving their valve groups, ready only through a fill, any alarm putting the tank into error with every valve closed, "
-    + "the SC fill target, and the checks before each function with their error codes)");
+    + "the SC fill target, the checks before each function with their error codes, "
+    + "and the push of level / state / each signal only on change, with unconfigured signals as null)");
 
 // 只挂液位信号的槽
 static SmokeTank Load(string name, params (string Signal, int Di, bool Trigger)[] signals)
@@ -477,7 +527,7 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
     return loaded;
 }
 
-// 一个阀组：ValveGroupComponent 下面每个阀按 (DO 号, 到位 DI 号) 挂；一个阀都没有就不挂这个阀组
+// 一个阀组：ValveGroupComponent 下面每个阀按 (DO 号, 到位 DI 号) 挂，到位 DI 号 -1 = 不挂 Feedback；一个阀都没有就不挂这个阀组
 static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
 {
     if (valves.Length == 0)
@@ -488,16 +538,32 @@ static void AddGroup(ModuleConfig tank, string name, (int Do, int Di)[] valves)
     var group = new ModuleConfig { Name = name, Type = typeof(ValveGroupComponent).FullName };
     foreach (var valve in valves)
     {
-        group.Children.Add(new ModuleConfig
+        var node = new ModuleConfig
         {
             Name = "V" + valve.Do,
             Type = typeof(ValveComponent).FullName,
             Values =
             [
                 new() { Name = "DoIndex", Value = valve.Do.ToString() },
-                new() { Name = "DiIndex", Value = valve.Di.ToString() }
+                new() { Name = "NormalState", Value = "NC" }
             ]
-        });
+        };
+        if (valve.Di >= 0)
+        {
+            node.Children.Add(new ModuleConfig
+            {
+                Name = "Feedback",
+                Type = typeof(DiSensorComponent).FullName,
+                Values =
+                [
+                    new() { Name = "DiIndex", Value = valve.Di.ToString() },
+                    new() { Name = "TriggerValue", Value = "true" },
+                    new() { Name = "AlarmEnabled", Value = "False" }
+                ]
+            });
+        }
+
+        group.Children.Add(node);
     }
 
     tank.Children.Add(group);

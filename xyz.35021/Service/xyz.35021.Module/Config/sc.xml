@@ -533,15 +533,31 @@
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="100" />
 				<Value Name="DoCloseIndex" Value="101" />
-				<Value Name="DiOpenedIndex" Value="100" />
-				<Value Name="DiClosedIndex" Value="101" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="100" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="101" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 		
 			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="102" />
 				<Value Name="DoCloseIndex" Value="103" />
-				<Value Name="DiOpenedIndex" Value="102" />
-				<Value Name="DiClosedIndex" Value="103" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="102" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="103" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 	
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
@@ -555,15 +571,28 @@
 				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="108" />
 					<Value Name="DoCloseIndex" Value="109" />
-					<Value Name="DiOpenedIndex" Value="108" />
-					<Value Name="DiClosedIndex" Value="109" />
+					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="108" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
+					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="109" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="110" />
-					<Value Name="DiIndex" Value="110" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="100" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="110" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="100" />
 						<Value Name="MonitoringDoIndex" Value="110" />
@@ -574,10 +603,15 @@
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="111" />
-					<Value Name="DiIndex" Value="111" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="101" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="111" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="101" />
 						<Value Name="MonitoringDoIndex" Value="111" />
@@ -600,14 +634,30 @@
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="140" />
 				<Value Name="DoCloseIndex" Value="141" />
-				<Value Name="DiOpenedIndex" Value="140" />
-				<Value Name="DiClosedIndex" Value="141" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="140" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="141" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="142" />
 				<Value Name="DoCloseIndex" Value="143" />
-				<Value Name="DiOpenedIndex" Value="142" />
-				<Value Name="DiClosedIndex" Value="143" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="142" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="143" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[20]" />
@@ -619,15 +669,28 @@
 				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="148" />
 					<Value Name="DoCloseIndex" Value="149" />
-					<Value Name="DiOpenedIndex" Value="148" />
-					<Value Name="DiClosedIndex" Value="149" />
+					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="148" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
+					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="149" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="150" />
-					<Value Name="DiIndex" Value="150" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="120" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="150" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="120" />
 						<Value Name="MonitoringDoIndex" Value="150" />
@@ -638,10 +701,15 @@
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="151" />
-					<Value Name="DiIndex" Value="151" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="121" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="151" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="121" />
 						<Value Name="MonitoringDoIndex" Value="151" />
@@ -664,14 +732,30 @@
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="180" />
 				<Value Name="DoCloseIndex" Value="181" />
-				<Value Name="DiOpenedIndex" Value="180" />
-				<Value Name="DiClosedIndex" Value="181" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="180" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="181" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="182" />
 				<Value Name="DoCloseIndex" Value="183" />
-				<Value Name="DiOpenedIndex" Value="182" />
-				<Value Name="DiClosedIndex" Value="183" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="182" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="183" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[30]" />
@@ -683,15 +767,28 @@
 				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="188" />
 					<Value Name="DoCloseIndex" Value="189" />
-					<Value Name="DiOpenedIndex" Value="188" />
-					<Value Name="DiClosedIndex" Value="189" />
+					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="188" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
+					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="189" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="190" />
-					<Value Name="DiIndex" Value="190" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="140" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="190" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="140" />
 						<Value Name="MonitoringDoIndex" Value="190" />
@@ -702,10 +799,15 @@
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="191" />
-					<Value Name="DiIndex" Value="191" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="141" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="191" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="141" />
 						<Value Name="MonitoringDoIndex" Value="191" />
@@ -728,14 +830,30 @@
 			<Setting Name="Door" Type="xyz.Components.Components.ChamberDoorComponent">
 				<Value Name="DoOpenIndex" Value="220" />
 				<Value Name="DoCloseIndex" Value="221" />
-				<Value Name="DiOpenedIndex" Value="220" />
-				<Value Name="DiClosedIndex" Value="221" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="220" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="221" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 			<Setting Name="Bowl1" Type="xyz.Components.Components.ChamberBowlComponent">
 				<Value Name="DoOpenIndex" Value="222" />
 				<Value Name="DoCloseIndex" Value="223" />
-				<Value Name="DiOpenedIndex" Value="222" />
-				<Value Name="DiClosedIndex" Value="223" />
+				<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="222" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
+				<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+					<Value Name="DiIndex" Value="223" />
+					<Value Name="TriggerValue" Value="true" />
+					<Value Name="AlarmEnabled" Value="False" />
+				</Setting>
 			</Setting>
 			<Setting Name="SpinMotor" Type="xyz.Components.Components.SpinMotorComponent">
 				<Value Name="SendPlcDataPath" Value=".Motor_Csharp2Plc[40]" />
@@ -747,15 +865,28 @@
 				<Setting Name="Lift" Type="xyz.Components.Components.ChamberLiftComponent">
 					<Value Name="DoOpenIndex" Value="228" />
 					<Value Name="DoCloseIndex" Value="229" />
-					<Value Name="DiOpenedIndex" Value="228" />
-					<Value Name="DiClosedIndex" Value="229" />
+					<Setting Name="Opened" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="228" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
+					<Setting Name="Closed" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="229" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 				</Setting>
 				<Setting Name="Nozzle_DIW" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="230" />
-					<Value Name="DiIndex" Value="230" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="DIW" />
 					<Value Name="AoIndex" Value="160" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="230" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="160" />
 						<Value Name="MonitoringDoIndex" Value="230" />
@@ -766,10 +897,15 @@
 				</Setting>
 				<Setting Name="Nozzle_SC1" Type="xyz.Components.Components.NozzleComponent">
 					<Value Name="DoIndex" Value="231" />
-					<Value Name="DiIndex" Value="231" />
+					<Value Name="NormalState" Value="NC" />
 					<Value Name="Chemical" Value="SC1" />
 					<Value Name="AoIndex" Value="161" />
 					<Value Name="ClearFlowOnStop" Value="True" />
+					<Setting Name="Feedback" Type="xyz.Components.Components.DiSensorComponent">
+						<Value Name="DiIndex" Value="231" />
+						<Value Name="TriggerValue" Value="true" />
+						<Value Name="AlarmEnabled" Value="False" />
+					</Setting>
 					<Setting Name="Flow" Type="xyz.Components.Components.AiSensorComponent">
 						<Value Name="AiIndex" Value="161" />
 						<Value Name="MonitoringDoIndex" Value="231" />

@@ -1,15 +1,16 @@
 ﻿using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 双状态执行器底座：两个 DO 各驱一个方向 + 两个 DI 各给一侧到位反馈。
+/// 双状态执行器底座：两个 DO 各驱一个方向，两侧到位反馈挂子节点 Opened / Closed（DiSensorComponent），没挂的那侧不等反馈
 /// </summary>
 public abstract class TwoStateComponent : ComponentBase
 {
-    #region SC 
+    #region SC
 
     [SCEditor("-1", "IO", "开侧驱动 DO 索引", Required = true)]
     public int DoOpenIndex { get; set; } = -1;
@@ -17,18 +18,33 @@ public abstract class TwoStateComponent : ComponentBase
     [SCEditor("-1", "IO", "关侧驱动 DO 索引", Required = true)]
     public int DoCloseIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "开到位 DI 索引 (-1 = 没接反馈点，不等反馈也不报超时)")]
-    public int DiOpenedIndex { get; set; } = -1;
+    #endregion
 
-    [SCEditor("-1", "IO", "关到位 DI 索引 (-1 = 没接反馈点，不等反馈也不报超时)")]
-    public int DiClosedIndex { get; set; } = -1;
+    #region 到位反馈
+
+    /// <summary>
+    /// 开到位（子节点 Opened）；没挂是 null
+    /// </summary>
+    private IDiSensor? _opened;
+
+    /// <summary>
+    /// 关到位（子节点 Closed）；没挂是 null
+    /// </summary>
+    private IDiSensor? _closed;
+
+    public override bool InitComponent()
+    {
+        _opened = FindSignal("Opened");
+        _closed = FindSignal("Closed");
+        return base.InitComponent();
+    }
 
     #endregion
 
     #region EC 
 
     [VariableMark(VariableType.EC, ValueFormat.Int, "ms", "100", "60000", "5000",
-        "到位超时时间（只管接了 DI 的那一侧）")]
+        "到位超时时间（只管挂了到位反馈的那一侧）")]
     public int ActionTimeoutMs
     {
         get { return GetEcInt(nameof(ActionTimeoutMs)); }
@@ -41,7 +57,7 @@ public abstract class TwoStateComponent : ComponentBase
 
     [Alarm("开/关到位超时", AlarmCategory.Timeout,
         Description = "开/关命令已发出，但在指定时间内未收到该侧到位反馈",
-        Solution = "检查气源压力、电磁阀及到位传感器；没接到位点的那一侧把 DI 索引配成 -1，"
+        Solution = "检查气源压力、电磁阀及到位传感器；没接到位点的那一侧就不挂 Opened / Closed 子节点，"
                    + "不等也不报；超时时长在 EC ActionTimeoutMs 调")]
     public string TimeoutAlarm = nameof(TimeoutAlarm);
 
@@ -67,9 +83,9 @@ public abstract class TwoStateComponent : ComponentBase
     }
 
 
-    public bool IsOpened => IsAtSide(DiOpenedIndex, DiClosedIndex, DoOpenIndex, DoCloseIndex);
+    public bool IsOpened => IsAtSide(_opened, _closed, DoOpenIndex, DoCloseIndex);
 
-    public bool IsClosed => IsAtSide(DiClosedIndex, DiOpenedIndex, DoCloseIndex, DoOpenIndex);
+    public bool IsClosed => IsAtSide(_closed, _opened, DoCloseIndex, DoOpenIndex);
 
     public TwoStatePosition Position
     {
@@ -81,14 +97,25 @@ public abstract class TwoStateComponent : ComponentBase
                 return TwoStatePosition.Unknown;
             }
 
-            if (open != close)
+            // 只通了一侧线圈：只认这一侧到位
+            if (open && !close)
             {
-                if (open)
+                if (IsOpened)
                 {
-                    return IsOpened ? TwoStatePosition.Opened : TwoStatePosition.Unknown;
+                    return TwoStatePosition.Opened;
                 }
 
-                return IsClosed ? TwoStatePosition.Closed : TwoStatePosition.Unknown;
+                return TwoStatePosition.Unknown;
+            }
+
+            if (close && !open)
+            {
+                if (IsClosed)
+                {
+                    return TwoStatePosition.Closed;
+                }
+
+                return TwoStatePosition.Unknown;
             }
 
             if (IsOpened)
@@ -96,38 +123,33 @@ public abstract class TwoStateComponent : ComponentBase
                 return TwoStatePosition.Opened;
             }
 
-            return IsClosed ? TwoStatePosition.Closed : TwoStatePosition.Unknown;
+            if (IsClosed)
+            {
+                return TwoStatePosition.Closed;
+            }
+
+            return TwoStatePosition.Unknown;
         }
     }
 
     /// <summary>
-    /// 配置了di就回读di，没有配置就不回读
+    /// 到没到这一侧：这侧挂了反馈看反馈（对面挂了还要对面没亮），没挂看这侧线圈通、对面线圈断
     /// </summary>
-    /// <param name="di"></param>
-    /// <param name="oppositeDi"></param>
-    /// <param name="coil"></param>
-    /// <param name="oppositeCoil"></param>
-    /// <returns></returns>
-    private static bool IsAtSide(int di, int oppositeDi, int coil, int oppositeCoil)
+    private static bool IsAtSide(IDiSensor? side, IDiSensor? opposite, int coil, int oppositeCoil)
     {
+        if (side is not null)
+        {
+            return side.IsActive == true && (opposite is null || opposite.IsActive == false);
+        }
+
         var io = IoComponent.Current;
         if (io is null)
         {
             return false;
         }
 
-        if (di < 0)
-        {
-            return io.TryReadDo(coil, out bool on) && on
-                && io.TryReadDo(oppositeCoil, out bool oppositeOn) && !oppositeOn;
-        }
-
-        if (!io.TryReadDi(di, out bool arrived) || !arrived)
-        {
-            return false;
-        }
-
-        return oppositeDi < 0 || (io.TryReadDi(oppositeDi, out bool oppositeArrived) && !oppositeArrived);
+        return io.TryReadDo(coil, out bool on) && on
+            && io.TryReadDo(oppositeCoil, out bool oppositeOn) && !oppositeOn;
     }
 
     #endregion
@@ -147,8 +169,16 @@ public abstract class TwoStateComponent : ComponentBase
     private bool Move(bool opening)
     {
         var io = IoComponent.Current;
-        int coil = opening ? DoOpenIndex : DoCloseIndex;
-        int oppositeCoil = opening ? DoCloseIndex : DoOpenIndex;
+        int coil = DoCloseIndex;
+        int oppositeCoil = DoOpenIndex;
+        var feedback = _closed;
+        if (opening)
+        {
+            coil = DoOpenIndex;
+            oppositeCoil = DoCloseIndex;
+            feedback = _opened;
+        }
+
         if (io is null || coil < 0 || oppositeCoil < 0)
         {
             return false;
@@ -163,8 +193,13 @@ public abstract class TwoStateComponent : ComponentBase
 
             _opening = opening;
             _actionStarted = Environment.TickCount64;
-            // 这一侧没接到位点就不等了，写完即完成。
-            _action = (opening ? DiOpenedIndex : DiClosedIndex) < 0 ? ActionState.Completed : ActionState.Running;
+            // 这一侧没挂到位反馈就不等了，写完即完成。
+            _action = ActionState.Running;
+            if (feedback is null)
+            {
+                _action = ActionState.Completed;
+            }
+
             return true;
         }
     }
@@ -201,7 +236,13 @@ public abstract class TwoStateComponent : ComponentBase
                 return;
             }
 
-            if (_opening ? IsOpened : IsClosed)
+            bool arrived = IsClosed;
+            if (_opening)
+            {
+                arrived = IsOpened;
+            }
+
+            if (arrived)
             {
                 _action = ActionState.Completed;
                 return;

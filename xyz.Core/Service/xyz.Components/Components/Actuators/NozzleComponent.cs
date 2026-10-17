@@ -8,7 +8,7 @@ namespace xyz.Components.Components;
 /// <summary>
 /// 喷嘴组件
 /// </summary>
-[Component(description: "喷嘴组件 (一路药液的通断阀，可选流量开关 DI、流量设定 AO；流量计挂子节点 AiSensorComponent)")]
+[Component(description: "喷嘴组件 (一路药液的通断阀，NC / NO 可选；流量开关挂子节点 Feedback、流量计挂子节点 AiSensorComponent，可选流量设定 AO)")]
 public class NozzleComponent : ValveComponent, INozzle
 {
     #region SC 装机常量

@@ -229,6 +229,10 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `ChamberScene` 把它们装成腔体手动页的三维图（`Devices` 绑 `ChamberDeviceDataModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
   LoadPort（`LoadPortVisual3D`）和花篮（`CarrierVisual3D`，片用 Disk）两个公共组件由 `LoadPortScene` 组合成 LoadPort 手动页中间的三维图
   （槽数跟 sc 的 SlotCount、每个动作 0.5 s，见 decisions.md「LoadPort 手动页（三维）」）；原来的二维花篮控件 `LoadPort` 删了。
+  供液槽：`TankVisual3D`（透明圆筒 + 液体）由 `TankScene` 装成三维图，`Tank` 绑槽的显示模型（`Models\TankModel`，后端推 `TankDto`，token 是槽的全路径）、
+  `WallTransparency` 罐壁透明度；液面跟液位，罐右边的信号灯跟各自的 DI 信号、sc 里没配的不画。还没接进页面（Tank 手动页没做）。
+- **SignalLamp**（信号灯：一盏灯 + 名字，对一个 DI 信号）：`IsActive`（触发亮绿、没触发灭、null 读不到是"不知道"色）、`Text`（sc 节点名原样）、
+  `IsAlarm`（报警位，触发亮红）。灯的颜色、字用 `SignalLampBorderStyle` / `SignalLampTextStyle`。显示 DI 信号都用它（界面件对后台组件的定法见 decisions.md）。
   三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
 - **圆片没有右键菜单**：右键建片 / 删片 2026-10-10 删了（二维 `Wafer`、三维 Disk、机械手、各站点卡片、Transfer 页），建片统一在账单调整页做。
 - **腔体手动页**（`xyz.Client.Manual\Views\ChamberManualControl`，布局照用户给的参考图，见 decisions.md）：数据都来自后端的设备状态推送
@@ -252,7 +256,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 ## 9. 显示模型
 
 - 公共的在 `Presentation\Models`（`ModuleStates`、`ModuleStateTone`、`QueryDateRange`、`TrendSeries`、`InputDataType`、`ProcessRecipeOptionModel`、
-  `RobotModel` / `RobotStationModel`（机械手和它的站点，Robot 手动页、调度图共用）、`StationWafers`（LoadPort 花篮 / 腔体片位 → 圆片，以晶圆账为准）……），
+  `RobotModel` / `RobotStationModel`（机械手和它的站点，Robot 手动页、调度图共用）、`StationWafers`（LoadPort 花篮 / 腔体片位 → 圆片，以晶圆账为准）、
+  `DiSensorModel`（一个 DI 信号：配了没有、名字、`IsActive`）、`TankModel`（槽：液位 + 五个信号）……），
   页面自己的在功能模块 `Models\`。
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
 - 当前用户 `xyz.Client.Common.Session.ClientSession.UserName`（登录没做，先固定 Admin），要记操作人的地方都从这儿取。

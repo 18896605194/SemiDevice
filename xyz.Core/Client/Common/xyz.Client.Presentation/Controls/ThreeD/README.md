@@ -386,6 +386,39 @@ LoadPort 和上面的花篮是**两个公共组件，组合起来用**（用户�
 - 鼠标挂 Viewport3D 的 Preview 事件：片的盘面是可交互的二维 Wafer，点在盘面上也先到这里。
 - 灯光比腔体多一盏右前补光、一盏右后轮廓光（token `DarkHardwareFillLightColor`），又高又直的侧面和背面不发黑。
 
+## Tank：TankVisual3D + TankScene 供液槽三维图
+
+样子照 Codex 的 Tank 预览软件（仓库外 `C:\Users\Administrator\.codex\worktrees\b68a\Code\tools\TankPreview`，只当样子参考）转过来的，2026-10-16。
+
+`TankVisual3D`：透明圆筒（前后两半罐壁）、罐底、液体（侧面 + 液面）、上下沿（金属，走 `AddMesh`，颜色 = BodyColor）。原点在罐底中心，罐半径 1、高 `TankHeight`。
+画的先后有讲究：后半圈罐壁 → 罐底 → 液体 → 前半圈罐壁 → 罐沿，透明的罐壁才不会挡掉液体。
+
+| 依赖属性 | 含义 |
+| --- | --- |
+| `FillFraction` | 液面占罐高的比例（0～1），0 不画液体 |
+| `IsAlarm` | 液体画成报警红 |
+| `WallTransparency` | 罐壁透明度（0～1，默认 0.72） |
+| `Azimuth` | 相机方位角（度），朝相机的半圈当前壁 |
+
+`TankScene`（UserControl）：TankVisual3D + 罐右边沿外的液位信号灯（LL / L / H / HH / Overfill，公共控件 `Controls\SignalLamp`）、右上角液位（点 + 字）、
+图下面一条工具栏（默认视角、正视图）。拖动旋转、滚轮缩放（0.72～1.08）。
+
+| 依赖属性 | 含义 |
+| --- | --- |
+| `Tank` | 槽的显示模型 `Presentation\Models\TankModel`（后端推的 `TankDto`，token 是槽的全路径）：液位 + 五个信号各一个 `DiSensorModel` |
+| `WallTransparency` | 罐壁透明度（0～1，默认 0.72），外部按需要设或绑；图上不放滑块（用户定的） |
+
+```xml
+<threeD:TankScene Tank="{Binding Tank}" />
+```
+
+- 液面跟液位：只是档位示意（没有连续液位），落在上下两个信号点中间；换液位 0.2 s 过渡，页面藏着、换槽直接落位；液位不知道不画液体。高高、溢流液体变红。
+- **信号灯跟各自的 DI 信号，不从液位推**（2026-10-16 用户："那五个 di 实际上就是物理存在的，不需要推断"）：一盏灯对一个 DI 组件，
+  亮灭是它推上来的 `IsActive`（已按触发值、防抖算好）——触发亮绿（HH、Overfill 是报警位，亮红）、没触发灭、读不到是"不知道"色；
+  名字照推送里的信号名（sc 节点名）。信号对不上时液位是不知道，灯照样各亮各的，看得出是哪个点不对。**sc 里没配的信号不画**，没给槽、还没收到推送一盏都不画。
+- 颜色都是 token：`DarkHardwareTank*`、`DarkHardwareLiquid*`（三维件）、`DarkSignalLamp*`（信号灯，样式 `SignalLampBorderStyle` / `SignalLampTextStyle`）；
+  液位的点和字用 `TankLevelDotBorderStyle` / `TankLevelTextStyle`（Tag = Level）。
+
 ## 动作与高亮约定
 
 - `IsMoving=true`、`IsSelected=true` 或组件内部过渡动画进行中时使用相同蓝色材质；三者都结束时恢复默认材质。
