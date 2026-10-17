@@ -10,7 +10,7 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// <summary>
 /// 薄壁 Bowl 外观。HeightLevel 选择三级侧壁高度，IsRaised 控制升降：底边一直贴着安装面，
 /// 升起时只把上沿抬高、直侧壁跟着拉长，侧壁始终连到底，不会悬空露缝。
-/// IsUnknown=true（命令发了、到位信号还没亮）上沿停在行程中间并一直高亮。
+/// IsUnknown=true（命令发了、到位信号还没亮）上沿停在行程中间、整个 Bowl 画成红色。
 /// 原点为底面中心，Y 向上；不包含晶圆、主轴和设备指令。
 /// </summary>
 public sealed class BowlVisual3D : HardwareVisual3D
@@ -60,7 +60,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
     public static readonly DependencyProperty IsRaisedProperty = DependencyProperty.Register(
         nameof(IsRaised), typeof(bool), typeof(BowlVisual3D), new PropertyMetadata(false, OnTargetChanged));
 
-    /// <summary>位置未知：上沿画到行程中间并一直高亮，到位（变回 false）后再走到 IsRaised 那一头。</summary>
+    /// <summary>位置未知：上沿画到行程中间、整个 Bowl 变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。</summary>
     public bool IsUnknown
     {
         get => (bool)GetValue(IsUnknownProperty);
@@ -119,6 +119,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
 
     private void TransitionTo(double target)
     {
+        SetVisualFault(IsUnknown);
         double current = (double)GetValue(ProgressProperty);
         if (!(bool)GetValue(IsHostVisibleProperty) || Math.Abs(target - current) < 0.000001)
         {
@@ -144,7 +145,7 @@ public sealed class BowlVisual3D : HardwareVisual3D
         ++_transitionVersion;
         SetValue(ProgressProperty, target);
         BeginAnimation(ProgressProperty, null);
-        SetVisualActive(IsUnknown);
+        SetVisualActive(false);
     }
 
     private void RebuildGeometry()

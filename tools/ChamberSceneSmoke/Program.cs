@@ -16,8 +16,8 @@ using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
 // 腔体三维图冒烟：从后端的设备状态推送（ChamberDeviceDataDto，结构跟 sc 一样）取出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
-// 液柱落点、0.2 s 过渡（中途换目标不跳、隐藏时直接落位）、Lift 升降带动摆臂和液柱、门 / Bowl / Lift 跟到位反馈（未知停在行程中间并高亮）、
-// 旋转跟状态、组成变化重搭、多于两条摆臂只画两条、视角工具栏（默认视角、俯视）、解绑。不连后端，推送直接喂显示模型。
+// 液柱落点、0.2 s 过渡（中途换目标不跳、隐藏时直接落位）、Lift 升降带动摆臂和液柱、门 / Bowl / Lift 跟到位反馈（未知停在行程中间、变红）、
+// 旋转跟状态、摆臂 / 卡盘轴报错变红、组成变化重搭、多于两条摆臂只画两条、视角工具栏（默认视角、俯视）、解绑。不连后端，推送直接喂显示模型。
 internal static class Program
 {
     private const double HomeAngle = -90;
@@ -209,18 +209,24 @@ internal static class Program
                 "Lift 升到位：摆臂抬高，液柱长一个行程");
             Check(Near(Landing(firstPipe, plate).Y, diskTop), "抬高后液柱仍落在盘面");
 
-            // 8. 门、Bowl 跟到位反馈（未知停中间）、旋转跟实际转速的正负、摆臂在动时高亮；盘上的片跟 Wafer
+            // 8. 门、Bowl 跟到位反馈（未知停中间、变红）、旋转跟实际转速的正负、摆臂在动时高亮、轴报错变红；盘上的片跟 Wafer
             state = State(arms: 2);
             state.Arms[0].IsMoving = true;
+            state.Arms[1].IsError = true;
             state.Door!.Position = CylinderPosition.Unknown;
             state.Bowl.Position = CylinderPosition.Opened;
             state.Spin.Speed = -100;
+            state.Spin.IsError = true;
             devices.Update(state.ToDto());
-            Check(door.IsUnknown && !door.IsOpen && bowl.IsRaised && !bowl.IsUnknown, "门未知（画在中间、高亮）、Bowl 升到位");
+            Check(door.IsUnknown && !door.IsOpen && bowl.IsRaised && !bowl.IsUnknown && IsRed(door) && !IsRed(bowl),
+                "门未知（画在中间、变红）、Bowl 升到位");
             Check(disk.RotationSpeed > 1 && !disk.RotateClockwise, "在转就按显示转速转，转向看实际转速的正负");
-            Check(arms[0].IsMoving && !arms[1].IsMoving, "摆臂在动时高亮");
+            Check(arms[0].IsMoving && !arms[1].IsMoving && !IsRed(arms[0]), "摆臂在动时高亮");
+            Check(arms[1].IsError && IsRed(arms[1]) && !arms[0].IsError, "摆动轴报错：那条摆臂变红");
+            Check(disk.IsError && IsRed(disk), "卡盘轴报错：旋转盘变红");
             devices.Update(State(arms: 2).ToDto());
             Check(disk.RotationSpeed == 0 && !door.IsOpen && !door.IsUnknown && !bowl.IsRaised, "停了、关到位了跟着变");
+            Check(!IsRed(door) && !IsRed(arms[1]) && !IsRed(disk), "关到位、报错清了：红色撤掉");
             var wafer = new WaferModel { LpSlot = "LP1-03", State = "Process" };
             scene.Wafer = wafer;
             Check(ReferenceEquals(disk.Data, wafer), "盘上的片跟 Wafer 走");
@@ -307,7 +313,7 @@ internal static class Program
             host.RootVisual = null;
             app.Shutdown();
             Console.WriteLine($"PASS: {_checks} chamber scene checks (devices taken from the sc-shaped device push, device action labels, process/home alignment, stream landing, "
-                + "0.2 s transition with retarget and hidden settle, lift/door/bowl follow feedback with unknown mid-stroke, spin direction, "
+                + "0.2 s transition with retarget and hidden settle, lift/door/bowl follow feedback with unknown mid-stroke in red, arm/spin red on axis error, spin direction, "
                 + "default-view / top-view toolbar below the view, rebuild, arm limit, unbind)");
             return 0;
         }
@@ -414,6 +420,16 @@ internal static class Program
         return Math.Abs(a - b) < 1e-6;
     }
 
+    /// <summary>
+    /// 这个件画成了报警红：取它第一块网格的颜色，红通道明显压过绿、蓝。
+    /// </summary>
+    private static bool IsRed(HardwareVisual3D hardware)
+    {
+        var part = (GeometryModel3D)((Model3DGroup)hardware.Content).Children[0];
+        var color = ((SolidColorBrush)((DiffuseMaterial)part.Material).Brush).Color;
+        return color.R > color.G + 80 && color.R > color.B + 80;
+    }
+
     private static void Check(bool condition, string description)
     {
         if (!condition)
@@ -453,6 +469,7 @@ internal sealed class SceneState
                 Path = $"{Module}.SpinMotor",
                 CurrentSpeed = Spin.Speed,
                 IsBusy = Spin.Speed != 0,
+                IsError = Spin.IsError,
             },
         };
         foreach (var arm in Arms)
@@ -464,6 +481,7 @@ internal sealed class SceneState
                 Reach = arm.Reach,
                 EdgeReach = arm.EdgeReach,
                 IsBusy = arm.IsMoving,
+                IsError = arm.IsError,
                 Lift = Cylinder($"{path}.Lift", arm.Lift),
             };
             for (int i = 0; i < arm.Nozzles.Count; i++)
@@ -497,6 +515,11 @@ internal sealed class SpinState
 {
     /// <summary>实际转速，0 = 停，正负是转向。</summary>
     public double Speed { get; set; }
+
+    /// <summary>
+    /// 驱动器报错。
+    /// </summary>
+    public bool IsError { get; set; }
 }
 
 internal sealed class ArmState(string name)
@@ -508,6 +531,11 @@ internal sealed class ArmState(string name)
     public double EdgeReach { get; set; }
 
     public bool IsMoving { get; set; }
+
+    /// <summary>
+    /// 摆动轴驱动器报错。
+    /// </summary>
+    public bool IsError { get; set; }
 
     public CylinderState Lift { get; } = new();
 

@@ -508,15 +508,16 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   开了就回、只翻结果；没配 System 节点回 `system.not_installed`，状态不允许回 `module.state_not_allowed` [System, 状态码]，Auto 没装 / 停用搬运管理回 `transfer.not_installed` / `transfer.disabled`。
 
 ### 启动顺序（`AddXyzServices`）
-日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → PLC Open + Start →
-IO 表 Open + Start（开机 DO）→ Safety Start → Computer Start → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
-**EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 整机 Bind（全部初始化、整机停止管的模块表）→ 各模块 Start（整机也是模块，跟着起）→
+日志队列 → `SC.Load` → `ComponentLoader.Load` → EC 合并 + 推送桥 → GEM 编号表 → 报警 / 晶圆账推送桥 → 槽推送 Bind → PLC Open →
+IO 表 Open → 轴 Open → 各模块 `InitComponent`（连驱动、登记槽位，子组件基类递归，不动硬件）→ **晶圆账开机恢复**（`WaferManagerComponent.Restore`：模块登记完槽位之后、开始扫描之前）→
+**EAP Bind**（各标准接到 LoadPort、晶圆账、Job 管理上，不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）→ 整机 Bind（全部初始化、整机停止管的模块表）→
 TransferManager Bind → 流程配方库 Bind + 变更推送桥 → 工艺配方库 Bind + 变更推送桥 →
-JobManager Bind（模块、搬运管理、配方库都起来之后）→ **Dispatch Start**（Job、搬运管理都绑完表才起这条线程；挂在 Dispatch 下面的这两个不再各自 Start，
-单独挂在根上的照旧自己 Start）→ **EAP Open**（开 HSMS 链路，Host 连进来时处理方、设备都在）→ 设备总状态 / IO 推送 →
-数据曲线采样、实时曲线推送 → 注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
-新组件要连接、登记的，写在自己的 `InitComponent` 里（挂在模块下的子组件跟着基类递归走，模块里不用点名）；要在装配层单独 Open/Start 的根组件（PLC、IO 这类），
-按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）。
+JobManager Bind（模块、搬运管理、配方库都起来之后）→ 数据曲线 Bind（定信号表、开写库管道）+ 实时曲线接上 →
+**统一启动扫描**（`ComponentLoader.StartScanning`：sc 里配了 `IsRun=true` 的根各起一条扫描线程——整机、PLC、IO（开机 DO）、Safety、Computer、DataChart、各模块、Dispatch；
+挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **EAP Open**（开 HSMS 链路，Host 连进来时处理方、设备都在）→ 设备总状态 / IO 推送 →
+注册 gRPC 服务。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）。
+新组件要连接、登记的，写在自己的 `InitComponent` 里（挂在模块下的子组件跟着基类递归走，模块里不用点名）；要在装配层单独 Open 的根组件（PLC、IO 这类），
+按依赖放进这个顺序（读点表的排在 IO 表之后，用 PLC 的排在 PLC 之后）；要自己扫描的根组件在 sc 里配 `IsRun=true`，这里不写 Start。
 
 ## 6. 错误码（`Shared\xyz.Shared\Errors\ErrorCodes.cs`）
 

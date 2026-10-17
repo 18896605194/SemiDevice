@@ -16,7 +16,7 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 
-// 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）、数据曲线（信号名、日表）。
+// 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）、数据曲线（采样、信号名、日表）。
 // 不起宿主、不连设备；日志样本写在运行目录 Log 下一个不会跟真日志撞的日期，报警记录、数据曲线写临时库，跑完都删掉。
 var checks = 0;
 void Check(bool condition, string message)
@@ -163,7 +163,7 @@ finally
     SqliteCleanup(dbFile);
 }
 
-// ── 5. 数据曲线：信号名按 __ 分层；库表全走 SqlSugar（建表、写、查、开机补列、清过期日表）；名字不合规开机就报 ─────
+// ── 5. 数据曲线：在自己的扫描里采（配了 IsRun 才采、整周期一行）；信号名按 __ 分层；库表全走 SqlSugar（建表、写、查、开机补列、清过期日表）；名字不合规开机就报 ─────
 var chartDbFile = Path.Combine(Path.GetTempPath(), $"datachart-smoke-{Guid.NewGuid():N}.db");
 var chartGemDirectory = Path.Combine(Path.GetTempPath(), $"datachart-smoke-{Guid.NewGuid():N}");
 Directory.CreateDirectory(chartGemDirectory);
@@ -181,13 +181,30 @@ try
         return roots;
     }
 
-    // 跑一小会儿：200ms 采一行，停下时把攒着的一批写完。
+    // 跑一小会儿：200ms 采一行，在它自己的扫描里采（跟 sc 配 IsRun 一样起），停下时把攒着的一批写完。
+    int sampledRows = 0;
     DataChartComponent RunChart(List<ComponentBase> roots)
     {
-        var chart = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
-        chart.StartSampling(roots);
+        var chart = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
+        var times = new List<long>();
+        chart.Records.Subscribe(record =>
+        {
+            lock (times)
+            {
+                times.Add(record.Time);
+            }
+        });
+        chart.Bind(roots);
+        ComponentLoader.StartScanning([chart]);
         Thread.Sleep(1300);
         chart.StopSampling();
+        lock (times)
+        {
+            Check(times.Count >= 3 && times.All(time => time % 200 == 0) && times.Zip(times.Skip(1)).All(pair => pair.First < pair.Second),
+                $"在自己的扫描里采：整 200ms 一行、不重复（{times.Count} 行）");
+            sampledRows = times.Count;
+        }
+
         return chart;
     }
 
@@ -200,6 +217,7 @@ try
     }
 
     var first = RunChart(ChartTree("Door"));
+    int firstRows = sampledRows;
     var names = first.Signals.Select(signal => signal.Name).ToList();
     Check(names.ToHashSet().SetEquals(["Chart1__Speed", "Chart1__IsOn", "Chart1__Door__Speed", "Chart1__Door__IsOn"]),
         $"信号名 = 组件路径 + 属性名，层级用 __ 隔开：{string.Join(",", names)}");
@@ -221,6 +239,7 @@ try
     var speed = queried.Series.Single(series => series.Name == "Chart1__Door__Speed");
     var isOn = queried.Series.Single(series => series.Name == "Chart1__Door__IsOn");
     Check(speed.Count >= 3 && speed.Min == 12.5 && speed.Max == 12.5, $"模拟量写进去、按名字查得回来：{speed.Count} 行，值 {speed.Min}");
+    Check(speed.Count == firstRows, $"停采样时攒着的最后一批也写进库了：采了 {firstRows} 行，库里 {speed.Count} 行");
     Check(isOn.Count == speed.Count && isOn.Min == 1 && isOn.Max == 1, "开关量存 1/0，查回来是 1");
     Check(queried.Times.Zip(queried.Times.Skip(1)).All(pair => pair.First < pair.Second), "查出来按时间排好");
 
@@ -242,7 +261,7 @@ try
     bool rejected = false;
     try
     {
-        new DataChartComponent { Database = "ChartSmoke" }.StartSampling(ChartTree("Lift_"));
+        new DataChartComponent { Database = "ChartSmoke" }.Bind(ChartTree("Lift_"));
     }
     catch (InvalidOperationException exception)
     {
@@ -250,6 +269,16 @@ try
     }
 
     Check(rejected, "部件名以下划线结尾（跟分隔符 __ 分不清）开机就报，报错里带名字");
+
+    // sc 里没配 IsRun：不起扫描，一行都不采
+    var idle = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
+    int idleRows = 0;
+    idle.Records.Subscribe(_ => Interlocked.Increment(ref idleRows));
+    idle.Bind(ChartTree("Door"));
+    ComponentLoader.StartScanning([idle]);
+    Thread.Sleep(600);
+    idle.StopSampling();
+    Check(Volatile.Read(ref idleRows) == 0, "sc 里没配 IsRun 就不起扫描、不采样");
 
     // IO 绑定的信号名：组件路径 + 配置项名去掉 Index；DI 组件只有一个点，就是组件路径（Door__Opened，不再带 __Di）
     var previousIo = IoComponent.Current;
@@ -270,13 +299,21 @@ try
         };
         var valve = new ModuleConfig { Name = "Valve", Type = typeof(ValveComponent).FullName, Values = [new() { Name = "DoIndex", Value = "1" }] };
         var pressure = new ModuleConfig { Name = "Pressure", Type = typeof(AiSensorComponent).FullName, Values = [new() { Name = "AiIndex", Value = "2" }] };
-        var ioRoots = ComponentLoader.Load([new ModuleConfig { Name = "Chart2", Type = typeof(ChartProbe).FullName, Children = [door, valve, pressure] }]);
+        var tank = new ModuleConfig { Name = "Tank", Type = typeof(TankComponent).FullName };
+        foreach (var signal in new[] { "LL", "L", "H" })
+        {
+            tank.Children.Add(new ModuleConfig { Name = signal, Type = typeof(AiLevelComponent).FullName, Values = [new() { Name = "AiIndex", Value = "1" }] });
+        }
+
+        var ioRoots = ComponentLoader.Load([new ModuleConfig { Name = "Chart2", Type = typeof(ChartProbe).FullName, Children = [door, valve, pressure, tank] }]);
         new GemCollectors().Merge(ioRoots, chartGemDirectory);
         var ioNames = RunChart(ioRoots).Signals.Select(signal => signal.Name).ToHashSet();
         Check(ioNames.Contains("Chart2__Door__Opened") && !ioNames.Any(name => name.EndsWith("__Di", StringComparison.Ordinal)),
             $"DI 组件的信号名就是组件路径（Door__Opened，不带 __Di）：{string.Join(",", ioNames)}");
         Check(ioNames.Contains("Chart2__Door__DoOpen") && ioNames.Contains("Chart2__Valve__Do") && ioNames.Contains("Chart2__Pressure__Ai"),
             "别的 IO 照旧：组件路径 + 配置项名去掉 Index");
+        Check(ioNames.Contains("Chart2__Tank__LL__Ai") && !ioNames.Contains("Chart2__Tank__L__Ai") && !ioNames.Contains("Chart2__Tank__H__Ai"),
+            "一个液位计挂在槽的几个液位点上：只记第一个点那一列");
     }
     finally
     {
@@ -299,7 +336,8 @@ finally
 
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
                   "log history filters and truncation, active alarms with reset / reset-all / not-installed error codes, " +
-                  "alarm history over day-split tables, and data chart signal names (a DI component named by its own path) / day tables through SqlSugar).");
+                  "alarm history over day-split tables, and data chart sampling on its own scan (IsRun, whole periods), " +
+                  "signal names (a DI component named by its own path) / day tables through SqlSugar).");
 
 static void SqliteCleanup(string path)
 {

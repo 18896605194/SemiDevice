@@ -46,7 +46,7 @@ internal static class Program
                 "door has no actuator or connector protruding below or outside the frame");
             var placement = door.Transform;
             double Y() => parts[0].Bounds.Y;
-            Color ColorOf() => ((SolidColorBrush)((DiffuseMaterial)parts[0].Material).Brush).Color;
+            Color ColorOf() => MaterialColor(parts[0]);
             Color idle = ColorOf();
             double closedY = Y();
             var closed = Render(scene);
@@ -78,20 +78,27 @@ internal static class Program
             door.IsSelected = false;
             Check(ColorOf() == idle, "deselection restores idle");
 
-            // 未知（命令发了、到位信号还没亮）：门板停在行程中间、一直高亮；到位后走到那一头、高亮撤掉
+            // 未知（命令发了、到位信号还没亮）：门板停在行程中间、整个门马上变红（走的路上也红，选中也盖不过）；到位后红色撤掉、走到那一头
             door.IsUnknown = true;
+            Check(IsRed(ColorOf()) && parts.Skip(1).All(p => IsRed(MaterialColor(p))), "unknown turns the whole door red at once, frame included");
             Pump(550);
-            Check(Math.Abs(Y() - (closedY + openY) / 2) < 0.000001 && !door.HasAnimatedProperties && ColorOf() != idle,
-                "unknown parks the panel mid-stroke and keeps the highlight after the transition");
+            Check(Math.Abs(Y() - (closedY + openY) / 2) < 0.000001 && !door.HasAnimatedProperties && IsRed(ColorOf()),
+                "unknown parks the panel mid-stroke and stays red after the transition");
+            door.IsSelected = true;
+            Check(IsRed(ColorOf()), "selection does not cover the fault red");
+            door.IsSelected = false;
             door.IsUnknown = false;
+            Check(!IsRed(ColorOf()), "known again drops the red at once");
             Pump(550);
-            Check(Near(Y(), closedY) && ColorOf() == idle, "known again: the panel finishes at the reported end and drops the highlight");
+            Check(Near(Y(), closedY) && ColorOf() == idle, "known again: the panel finishes at the reported end and restores the idle material");
             var initialUnknown = new DoorVisual3D { Width = door.Width, Height = door.Height, IsUnknown = true };
             var initialClosed = new DoorVisual3D { Width = door.Width, Height = door.Height };
-            double initialTravel = ((GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[0]).Bounds.Y
+            var initialPanel = (GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[0];
+            double initialTravel = initialPanel.Bounds.Y
                 - ((GeometryModel3D)((Model3DGroup)initialClosed.Content).Children[0]).Bounds.Y;
-            Check(!initialUnknown.HasAnimatedProperties && Math.Abs(initialTravel - (openY - closedY) / 2) < 0.000001,
-                "initial unknown is drawn mid-stroke immediately before attachment");
+            Check(!initialUnknown.HasAnimatedProperties && Math.Abs(initialTravel - (openY - closedY) / 2) < 0.000001
+                && IsRed(MaterialColor(initialPanel)),
+                "initial unknown is drawn mid-stroke and red immediately before attachment");
 
             feedback.IsOpen = true;
             Pump(60);
@@ -128,7 +135,7 @@ internal static class Program
             }
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine("PASS: Door boolean binding, open/close, reversal, moving highlight, unknown parked mid-stroke, fixed frame, assembly independence and visibility/detach lifecycle.");
+            Console.WriteLine("PASS: Door boolean binding, open/close, reversal, moving highlight, unknown parked mid-stroke in red, fixed frame, assembly independence and visibility/detach lifecycle.");
             return 0;
         }
         catch (Exception ex)
@@ -155,6 +162,13 @@ internal static class Program
         Dispatcher.PushFrame(frame);
     }
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
+    private static Color MaterialColor(GeometryModel3D part) => ((SolidColorBrush)((DiffuseMaterial)part.Material).Brush).Color;
+
+    /// <summary>
+    /// 报警红：红通道明显压过绿、蓝（金属灰三通道差不多，蓝色高亮是蓝通道最高）。
+    /// </summary>
+    private static bool IsRed(Color color) => color.R > color.G + 80 && color.R > color.B + 80;
+
     private static void Check(bool condition, string description)
     {
         if (!condition)

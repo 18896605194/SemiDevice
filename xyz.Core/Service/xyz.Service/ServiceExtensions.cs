@@ -255,6 +255,23 @@ public static class ServiceExtensions
 
         #endregion
 
+        #region 曲线
+
+        // 数据曲线先定信号表、开写库管道；采样在它自己的扫描里（sc 配 IsRun），跟下面的统一启动扫描一起起来
+        var dataChart = DataChartComponent.Current;
+        if (dataChart is not null)
+        {
+            RealChartComponent.Current?.Attach(dataChart);
+            RealChartPublisher.Start();
+            dataChart.Bind(roots);
+        }
+        else
+        {
+            LogHelper.Warn("DataChart", "sc.xml 没配 DataChart 节点：数据曲线、实时曲线都没有数据");
+        }
+
+        #endregion
+
         #region 统一启动扫描
 
         // 根节点通过 SC Value 的 IsRun 开启独立扫描；新增根组件无需在这里按类型补 Start。
@@ -276,25 +293,9 @@ public static class ServiceExtensions
         // IO 点位：按周期整包推给 IO 界面，界面只订阅不拉。
         IoPublisher.Start();
 
-        #region 曲线
-
-        var dataChart = DataChartComponent.Current;
-        if (dataChart is not null)
-        {
-            RealChartComponent.Current?.Attach(dataChart);
-            RealChartPublisher.Start();
-            dataChart.StartSampling(roots);
-        }
-        else
-        {
-            LogHelper.Warn("DataChart", "sc.xml 没配 DataChart 节点：数据曲线、实时曲线都没有数据");
-        }
-
         var scanningRoots = roots.Where(root => root.IsEnabled && root.IsRun).ToList();
         LogHelper.Info($"根组件装配 {roots.Count} 个，模块 {modules.Count} 个，启动独立扫描 {scanningRoots.Count} 个："
             + string.Join(", ", scanningRoots.Select(root => root.FullPath)));
-
-        #endregion
 
         #endregion
 

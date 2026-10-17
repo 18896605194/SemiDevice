@@ -6,7 +6,7 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// 两态升降气缸外观：IsRaised=true 升起，false 收回；IsUnknown=true（命令发了、到位信号还没亮）停在行程中间并一直高亮。
+/// 两态升降气缸外观：IsRaised=true 升起，false 收回；IsUnknown=true（命令发了、到位信号还没亮）停在行程中间、整个气缸画成红色。
 /// 原点在底座底面中心，沿 +Y 伸出；尺寸、行程和过渡时间均为内部示意参数。
 /// </summary>
 public sealed class LiftVisual3D : HardwareVisual3D
@@ -40,7 +40,7 @@ public sealed class LiftVisual3D : HardwareVisual3D
         nameof(IsRaised), typeof(bool), typeof(LiftVisual3D),
         new PropertyMetadata(false, OnTargetChanged));
 
-    /// <summary>位置未知：画到行程中间并一直高亮，到位（变回 false）后再走到 IsRaised 那一头。</summary>
+    /// <summary>位置未知：画到行程中间、整个气缸变红，到位（变回 false）后红色撤掉、再走到 IsRaised 那一头。</summary>
     public bool IsUnknown
     {
         get => (bool)GetValue(IsUnknownProperty);
@@ -75,14 +75,15 @@ public sealed class LiftVisual3D : HardwareVisual3D
 
     private void TransitionTo(double target)
     {
+        SetVisualFault(IsUnknown);
         int version = ++_transitionVersion;
         double current = (double)GetValue(ProgressProperty);
         if (VisualTreeHelper.GetParent(this) is null || Math.Abs(target - current) < 0.000001)
         {
-            // 装入场景前直接呈现初始状态，避免初始 true 先显示为下位；未知一直高亮。
+            // 装入场景前直接呈现初始状态，避免初始 true 先显示为下位。
             SetValue(ProgressProperty, target);
             BeginAnimation(ProgressProperty, null);
-            SetVisualActive(IsUnknown);
+            SetVisualActive(false);
             return;
         }
 
@@ -101,7 +102,7 @@ public sealed class LiftVisual3D : HardwareVisual3D
 
             SetValue(ProgressProperty, target);
             BeginAnimation(ProgressProperty, null);
-            SetVisualActive(IsUnknown);
+            SetVisualActive(false);
         };
         SetVisualActive(true);
         BeginAnimation(ProgressProperty, animation, HandoffBehavior.SnapshotAndReplace);

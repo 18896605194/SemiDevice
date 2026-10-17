@@ -52,7 +52,7 @@ public class ChamberCylinderModel : ObservableObject
     /// <summary>开到位（门开、Bowl 升、Lift 升）。</summary>
     public bool IsOpen => Position == CylinderPosition.Opened;
 
-    /// <summary>未知：三维图画在行程中间、高亮。</summary>
+    /// <summary>未知：三维图画在行程中间、整块变红。</summary>
     public bool IsUnknown => IsPresent && Position == CylinderPosition.Unknown;
 
     /// <summary>

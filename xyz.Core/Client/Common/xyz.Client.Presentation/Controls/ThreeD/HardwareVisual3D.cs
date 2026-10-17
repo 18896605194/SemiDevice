@@ -5,15 +5,18 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// 硬件三维外观的公共基类。动作和选中共用主题高亮，不执行设备指令。
+/// 硬件三维外观的公共基类。动作和选中共用主题高亮，故障整块画成报警色，不执行设备指令。
 /// </summary>
 public abstract class HardwareVisual3D : ModelVisual3D
 {
     /// <summary>两态件（门、Bowl、Lift）位置未知（命令发了、到位信号还没亮）时画在行程的哪儿：正中间，一眼看出没到位。</summary>
     protected const double UnknownProgress = 0.5;
 
+    private static readonly Color FallbackFault = Color.FromRgb(239, 83, 80);
+
     private readonly List<(GeometryModel3D Model, double Brightness)> _meshes = [];
     private bool _isVisualActive;
+    private bool _isVisualFault;
 
     protected Model3DGroup Model { get; } = new();
 
@@ -53,6 +56,19 @@ public abstract class HardwareVisual3D : ModelVisual3D
 
     public static readonly DependencyProperty IsMovingProperty = DependencyProperty.Register(
         nameof(IsMoving), typeof(bool), typeof(HardwareVisual3D),
+        new PropertyMetadata(false, OnAppearanceChanged));
+
+    /// <summary>
+    /// 绑定设备故障反馈（如轴驱动器报错）；为 true 时整块画成报警色，盖过高亮。
+    /// </summary>
+    public bool IsError
+    {
+        get => (bool)GetValue(IsErrorProperty);
+        set => SetValue(IsErrorProperty, value);
+    }
+
+    public static readonly DependencyProperty IsErrorProperty = DependencyProperty.Register(
+        nameof(IsError), typeof(bool), typeof(HardwareVisual3D),
         new PropertyMetadata(false, OnAppearanceChanged));
 
     /// <summary>由外部选择逻辑设置，与 IsMoving 相互独立。</summary>
@@ -124,6 +140,20 @@ public abstract class HardwareVisual3D : ModelVisual3D
         RefreshMaterials();
     }
 
+    /// <summary>
+    /// 内部判出的故障（两态件位置未知），效果同 IsError，不修改外部绑定的 IsError。
+    /// </summary>
+    protected void SetVisualFault(bool fault)
+    {
+        if (_isVisualFault == fault)
+        {
+            return;
+        }
+
+        _isVisualFault = fault;
+        RefreshMaterials();
+    }
+
     private static void OnAppearanceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         ((HardwareVisual3D)sender).RefreshMaterials();
@@ -142,6 +172,13 @@ public abstract class HardwareVisual3D : ModelVisual3D
         double blend = IsMoving || IsSelected || _isVisualActive ? HighlightStrength : 0;
         Color body = BodyColor;
         Color accent = HighlightColor;
+        // 故障不混金属灰，整块换成报警色，只留各面的深浅
+        if (IsError || _isVisualFault)
+        {
+            blend = 1;
+            accent = HardwareTheme.ColorOf("DarkAlarmStatus", FallbackFault);
+        }
+
         byte Channel(byte normal, byte highlight) => (byte)Math.Clamp(
             Math.Round((normal * (1 - blend) + highlight * blend) * brightness), 0, 255);
 

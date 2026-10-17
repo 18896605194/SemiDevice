@@ -617,7 +617,7 @@
 
                         <Border Style="{DynamicResource SectionDividerBorderStyle}" />
 
-                        <!--  气缸：sc 里的双作用气缸一行一个（名字照 sc），状态 升到位 / 降到位 / 未知（命令发了、到位信号还没亮，黄字），升 / 降两个按钮  -->
+                        <!--  气缸：sc 里的双作用气缸一行一个（名字照 sc），状态 升到位 / 降到位 / 未知（命令发了、到位信号还没亮，红字，跟三维图变红一致），升 / 降两个按钮  -->
                         <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.cylinders}" />
                         <Border
                             Margin="0,10,0,0"
@@ -656,7 +656,7 @@
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Text" Value="{DynamicResource chambermanual.cylinder.unknown}" />
-                                                            <Setter Property="Foreground" Value="{DynamicResource DarkWarningStatus}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource DarkAlarmStatus}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Position}" Value="Opened">
                                                                     <Setter Property="Text" Value="{DynamicResource chambermanual.cylinder.opened}" />

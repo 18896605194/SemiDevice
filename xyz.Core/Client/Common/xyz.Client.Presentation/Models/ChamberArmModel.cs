@@ -59,6 +59,17 @@ public class ChamberArmModel : ObservableObject
         private set => SetProperty(ref _isMoving, value);
     }
 
+    private bool _isError;
+
+    /// <summary>
+    /// 摆动轴驱动器报错，三维图据此把摆臂画成红色。
+    /// </summary>
+    public bool IsError
+    {
+        get => _isError;
+        private set => SetProperty(ref _isError, value);
+    }
+
     /// <summary>有喷嘴在出液：在 Home 时接液杯据此亮起来。</summary>
     public bool IsAnyNozzleOn => Nozzles.Any(nozzle => nozzle.IsOn);
 
@@ -68,6 +79,7 @@ public class ChamberArmModel : ObservableObject
         Reach = arm.Reach;
         EdgeReach = arm.EdgeReach;
         IsMoving = arm.IsBusy;
+        IsError = arm.IsError;
         Lift.Update(arm.Lift);
         for (int i = 0; i < Nozzles.Count; i++)
         {

@@ -37,6 +37,17 @@ public class ChamberSpinModel : ObservableObject
         private set => SetProperty(ref _isBusy, value);
     }
 
+    private bool _isError;
+
+    /// <summary>
+    /// 驱动器报错，三维图据此把卡盘画成红色。
+    /// </summary>
+    public bool IsError
+    {
+        get => _isError;
+        private set => SetProperty(ref _isError, value);
+    }
+
     private bool _isClockwise = true;
 
     /// <summary>从上往下看顺时针转。</summary>
@@ -56,12 +67,14 @@ public class ChamberSpinModel : ObservableObject
             IsPresent = false;
             Path = string.Empty;
             IsBusy = false;
+            IsError = false;
             return;
         }
 
         IsPresent = true;
         Path = dto.Path;
         IsBusy = dto.IsBusy;
+        IsError = dto.IsError;
         IsClockwise = dto.CurrentSpeed >= 0;
     }
 }

@@ -41,7 +41,7 @@ internal static class Program
             var viewport = (Viewport3D)scene.FindName("Viewport");
             var model = (Model3DGroup)bowl.Content;
             GeometryModel3D Side() => (GeometryModel3D)model.Children[1];
-            Color ColorOf() => ((SolidColorBrush)((DiffuseMaterial)Side().Material).Brush).Color;
+            Color ColorOf() => MaterialColor(Side());
             double Bottom() => model.Bounds.Y;
             double Top() => model.Bounds.Y + model.Bounds.SizeY;
             // 上沿比这一级的原高度多出来多少：0 = 下位，Stroke = 上位。
@@ -108,17 +108,23 @@ internal static class Program
             bowl.IsSelected = false;
             Check(ColorOf() == idle, "deselect restores material");
 
-            // 未知（命令发了、到位信号还没亮）：上沿停在行程中间、一直高亮，底边不动；到位后走到那一头、高亮撤掉
+            // 未知（命令发了、到位信号还没亮）：上沿停在行程中间、整个 Bowl 马上变红（走的路上也红，选中也盖不过），底边不动；到位后红色撤掉、走到那一头
             bowl.IsUnknown = true;
+            Check(model.Children.Cast<GeometryModel3D>().All(p => IsRed(MaterialColor(p))), "unknown turns the whole Bowl red at once");
             Pump(550);
-            Check(Near(Rise(), Stroke / 2) && Near(Bottom(), 0) && WallsConnected() && !bowl.HasAnimatedProperties && ColorOf() != idle,
-                "unknown parks the rim mid-stroke with continuous walls and keeps the highlight");
+            Check(Near(Rise(), Stroke / 2) && Near(Bottom(), 0) && WallsConnected() && !bowl.HasAnimatedProperties && IsRed(ColorOf()),
+                "unknown parks the rim mid-stroke with continuous walls and stays red");
+            bowl.IsSelected = true;
+            Check(IsRed(ColorOf()), "selection does not cover the fault red");
+            bowl.IsSelected = false;
             bowl.IsUnknown = false;
+            Check(!IsRed(ColorOf()), "known again drops the red at once");
             Pump(550);
-            Check(Near(Rise(), 0) && ColorOf() == idle, "known again: the rim finishes at the reported end and drops the highlight");
+            Check(Near(Rise(), 0) && ColorOf() == idle, "known again: the rim finishes at the reported end and restores the idle material");
             var initialUnknown = new BowlVisual3D { IsUnknown = true };
-            Check(!initialUnknown.HasAnimatedProperties && Near(initialUnknown.Content.Bounds.SizeY, LevelHeight + Stroke / 2),
-                "initial unknown is drawn mid-stroke immediately before attachment");
+            Check(!initialUnknown.HasAnimatedProperties && Near(initialUnknown.Content.Bounds.SizeY, LevelHeight + Stroke / 2)
+                && IsRed(MaterialColor((GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[1])),
+                "initial unknown is drawn mid-stroke and red immediately before attachment");
 
             feedback.IsRaised = true;
             Pump(90);
@@ -172,7 +178,7 @@ internal static class Program
             }
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine("PASS: Bowl three levels, hollow geometry, bindings, fixed-bottom rise/fall with continuous walls, reversal, highlight, unknown parked mid-stroke, visibility and detach lifecycle.");
+            Console.WriteLine("PASS: Bowl three levels, hollow geometry, bindings, fixed-bottom rise/fall with continuous walls, reversal, highlight, unknown parked mid-stroke in red, visibility and detach lifecycle.");
             return 0;
         }
         catch (Exception ex)
@@ -201,6 +207,13 @@ internal static class Program
         Dispatcher.PushFrame(frame);
     }
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
+    private static Color MaterialColor(GeometryModel3D part) => ((SolidColorBrush)((DiffuseMaterial)part.Material).Brush).Color;
+
+    /// <summary>
+    /// 报警红：红通道明显压过绿、蓝（金属灰三通道差不多，蓝色高亮是蓝通道最高）。
+    /// </summary>
+    private static bool IsRed(Color color) => color.R > color.G + 80 && color.R > color.B + 80;
+
     private static void Check(bool condition, string description)
     {
         if (!condition)

@@ -86,22 +86,38 @@ public class DataChartComponent : ComponentBase
     /// </summary>
     private readonly Subject<DataRecord> _records = new();
     /// <summary>
-    /// 每个采样周期一行，在采样线程上发出；订阅方别在回调里干慢活，要干就 ObserveOn 到自己的线程。
+    /// 每个采样周期一行，在扫描线程上发出；订阅方别在回调里干慢活，要干就 ObserveOn 到自己的线程。
     /// </summary>
     public IObservable<DataRecord> Records => _records.AsObservable();
 
 
-    private CancellationTokenSource? _sampling;
+    private volatile bool _bound;
 
-    private Task? _samplingTask;
+    private readonly object _gate = new();
 
     /// <summary>
-    /// 装配全部完成后（SV 编号表合并完、IO 点表读好）调一次：照 sc.xml 装出来的组件树定信号表、开写库管道、起采样线程。
-    /// 不叫 Start：基类的 Start 是模块扫描线程，这里不走扫描。
+    /// 退出时停了采样
     /// </summary>
-    public void StartSampling(IReadOnlyList<ComponentBase> roots)
+    private bool _stopped;
+
+    /// <summary>
+    /// 手上没有在采的行
+    /// </summary>
+    private readonly ManualResetEventSlim _rowDone = new(true);
+
+    /// <summary>
+    /// 下一行的时刻（UTC 毫秒，整周期）；0 是还没开始
+    /// </summary>
+    private long _next;
+
+    private string? _lastFault;
+
+    /// <summary>
+    /// 装配完、开始扫描之前调一次：照组件树定信号表、开写库管道
+    /// </summary>
+    public void Bind(IReadOnlyList<ComponentBase> roots)
     {
-        if (_sampling is not null)
+        if (_bound)
         {
             return;
         }
@@ -110,15 +126,17 @@ public class DataChartComponent : ComponentBase
         int svCount = _signals.Count(signal => signal.Source == "SV");
         LogHelper.Info(Name, $"数据曲线：每 {SampleIntervalMs}ms 采一行，{_signals.Count} 个信号（SV {svCount}、IO {_signals.Count - svCount}）"
             + (EnableRecord ? $"，入 {Database} 库、保留 {KeepDays} 天" : "，不入库（EnableRecord=False）"));
+        if (!IsRun)
+        {
+            LogHelper.Warn(Name, "sc.xml 的 DataChart 节点没配 IsRun=true：不采样，数据曲线、实时曲线都没有新数据");
+        }
 
         if (EnableRecord)
         {
             StartWriter(); //开始写数据库
         }
 
-        _sampling = new CancellationTokenSource();
-        var token = _sampling.Token;
-        _samplingTask = Task.Factory.StartNew(() => SampleLoop(token), token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        _bound = true;
     }
 
     /// <summary>
@@ -126,13 +144,23 @@ public class DataChartComponent : ComponentBase
     /// </summary>
     public void StopSampling()
     {
-        if (_sampling is null)
+        if (!_bound)
         {
             return;
         }
 
-        _sampling.Cancel();
-        _samplingTask?.Wait(TimeSpan.FromSeconds(2));
+        lock (_gate)
+        {
+            if (_stopped)
+            {
+                return;
+            }
+
+            _stopped = true;
+        }
+
+        // 扫描线程手上那一行发完再收尾，不然收尾以后还会冒出一行
+        _rowDone.Wait(TimeSpan.FromSeconds(2));
         _records.OnCompleted();
         _writerDone?.Task.Wait(TimeSpan.FromSeconds(3));
     }
@@ -168,11 +196,18 @@ public class DataChartComponent : ComponentBase
         var svs = (GemCollectors.Current?.Sv.NumericItems() ?? []).ToLookup(sv => sv.Owner);
         var io = IoComponent.Current;
         bool warnedNoIo = false;
+        var levelMeters = new HashSet<int>();
         foreach (var component in CollectorHelper.Walk(roots))
         {
             foreach (var sv in svs[component])
             {
                 Add(new DataSignal(SignalName(sv.Name), sv.Format == ValueFormat.Bool, "SV", string.Empty, sv.Unit, sv.Description, sv.Read));
+            }
+
+            // 一个液位计（AI）挂在槽的几个液位点上：只记第一个点那一列，不重复记几遍
+            if (component is AiLevelComponent level && !levelMeters.Add(level.AiIndex))
+            {
+                continue;
             }
 
             foreach (var binding in IoBindings(component))
@@ -291,60 +326,73 @@ public class DataChartComponent : ComponentBase
     }
 
     /// <summary>
-    /// 采样线程：按整周期对齐（1 秒周期就是整秒），一个周期采一整行。
+    /// 到了下一个整周期就采一行（1 秒周期就是整秒），行的时间记那个整周期
     /// </summary>
-    /// <param name="token"></param>
-    private void SampleLoop(CancellationToken token)
+    protected override void OnScan()
     {
-        long interval = Math.Max(100, SampleIntervalMs);
-        long next = AlignUp(NowMs(), interval);
-        string? lastFault = null;
-        while (true)
+        base.OnScan();
+        if (!_bound)
         {
-            long wait = next - NowMs();
-            if (wait > interval)
-            {
-                next = AlignUp(NowMs(), interval);
-                wait = next - NowMs();
-            }
+            return;
+        }
 
-            if (wait > 0 && token.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(wait)))
+        long interval = Math.Max(100, SampleIntervalMs);
+        long now = NowMs();
+        if (_next == 0 || _next - now > interval || now - _next >= interval)
+        {
+            // 头一拍，或者时钟调过、扫描卡了一个周期以上：从下一个整周期重新对齐，中间的不补
+            _next = AlignUp(now, interval);
+            return;
+        }
+
+        if (now < _next)
+        {
+            return;
+        }
+
+        long time = _next;
+        _next += interval;
+        SampleRow(time);
+    }
+
+    /// <summary>
+    /// 采一行发出去；退出时停了就不采
+    /// </summary>
+    private void SampleRow(long time)
+    {
+        lock (_gate)
+        {
+            if (_stopped)
             {
                 return;
             }
 
-            if (token.IsCancellationRequested)
+            _rowDone.Reset();
+        }
+
+        try
+        {
+            var values = new double?[_signals.Count];
+            for (int index = 0; index < values.Length; index++)
             {
-                return;
+                values[index] = _signals[index].Read();
             }
 
-            try
+            _records.OnNext(new DataRecord(time, values));
+            _lastFault = null;
+        }
+        catch (Exception exception)
+        {
+            // 订阅方抛出来的也兜住，同样的错只记一次
+            if (_lastFault != exception.Message)
             {
-                var values = new double?[_signals.Count];
-                for (int index = 0; index < values.Length; index++)
-                {
-                    values[index] = _signals[index].Read();
-                }
-
-                _records.OnNext(new DataRecord(next, values));
-                lastFault = null;
+                _lastFault = exception.Message;
+                LogHelper.Warn(Name, $"数据曲线采样出错: {exception.Message}");
             }
-            catch (Exception exception)
-            {
-                // 订阅方抛出来的也兜住：采样线程不能死。同样的错只记一次。
-                if (lastFault != exception.Message)
-                {
-                    lastFault = exception.Message;
-                    LogHelper.Warn(Name, $"数据曲线采样出错: {exception.Message}");
-                }
-            }
-
-            next += interval;
-            long now = NowMs();
-            if (now - next >= interval)
-            {
-                next = AlignUp(now, interval);
-            }
+        }
+        finally
+        {
+            _rowDone.Set();
         }
     }
 

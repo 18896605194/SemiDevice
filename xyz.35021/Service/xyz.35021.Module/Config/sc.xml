@@ -146,6 +146,7 @@
 		<Setting Name="Total" Type="xyz.Components.Components.ComputerUsageComponent" />
 	</Setting>
 	<Setting Name="DataChart" Type="xyz.Components.Components.DataChartComponent">
+		<Value Name="IsRun" Value="true" />
 		<Value Name="EnableRecord" Value="True" />
 		<Value Name="Database" Value="Io" />
 		<Value Name="KeepDays" Value="30" />

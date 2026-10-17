@@ -16,7 +16,8 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// <summary>
 /// 腔体三维图：底座上装 Bowl、旋转盘、腔门和每条摆臂（Lift 立柱、摆臂、喷嘴管、Home 接液杯）。
 /// 装哪些设备看 Devices（后端按 sc.xml 推来的设备组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
-/// 摆臂收到新位置后 0.2 s 过渡过去。门、Bowl、Lift 跟到位反馈走：到位画在那一头，未知（命令发了、到位信号还没亮）画在行程中间并高亮。
+/// 摆臂收到新位置后 0.2 s 过渡过去。门、Bowl、Lift 跟到位反馈走：到位画在那一头，未知（命令发了、到位信号还没亮）画在行程中间、整块变红；
+/// 摆臂、旋转盘跟轴推送的驱动器报错（IsError）走，报错整块变红。
 /// 不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，只有动画进行中角度和高度才会逐帧变，停下来就一点不算。
 /// 左键拖动旋转视角、滚轮缩放，图下面一条工具栏：默认视角、俯视。
 /// </summary>
@@ -225,6 +226,7 @@ public partial class ChamberScene : UserControl
         Bind(_bowl, BowlVisual3D.IsUnknownProperty, devices, "Bowl.IsUnknown");
         Bind(_disk, DiskVisual3D.RotationSpeedProperty, devices, "Spin.IsBusy", SpinSpeedConverter.Instance);
         Bind(_disk, DiskVisual3D.RotateClockwiseProperty, devices, "Spin.IsClockwise");
+        Bind(_disk, HardwareVisual3D.IsErrorProperty, devices, "Spin.IsError");
     }
 
     /// <summary>
@@ -477,6 +479,7 @@ public partial class ChamberScene : UserControl
             Bind(Lift, LiftVisual3D.IsRaisedProperty, model.Lift, nameof(ChamberCylinderModel.IsOpen));
             Bind(Lift, LiftVisual3D.IsUnknownProperty, model.Lift, nameof(ChamberCylinderModel.IsUnknown));
             Bind(Arm, HardwareVisual3D.IsMovingProperty, model, nameof(ChamberArmModel.IsMoving));
+            Bind(Arm, HardwareVisual3D.IsErrorProperty, model, nameof(ChamberArmModel.IsError));
             _targetAngle = AngleOf(model.Reach, model.EdgeReach);
             Arm.Angle = _targetAngle;
             scene.Base.Attachments.Add(Cup);

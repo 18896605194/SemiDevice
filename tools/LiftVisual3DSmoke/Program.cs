@@ -87,18 +87,23 @@ internal static class Program
             lift.IsSelected = false;
             Check(ColorOf(parts[2]) == idle, "deselect restores the default material");
 
-            // 未知（命令发了、到位信号还没亮）：停在行程中间、一直高亮；到位后走到那一头、高亮撤掉
+            // 未知（命令发了、到位信号还没亮）：停在行程中间、整个气缸马上变红（走的路上也红，选中也盖不过）；到位后红色撤掉、走到那一头
             lift.IsUnknown = true;
+            Check(parts.All(part => IsRed(ColorOf(part))), "unknown turns the whole Lift red at once");
             Pump(600);
-            Check(Near(lift.MountHeight, (down + up) / 2) && !lift.HasAnimatedProperties && ColorOf(parts[2]) != idle,
-                "unknown parks mid-stroke and keeps the highlight after the transition");
+            Check(Near(lift.MountHeight, (down + up) / 2) && !lift.HasAnimatedProperties && IsRed(ColorOf(parts[2])),
+                "unknown parks mid-stroke and stays red after the transition");
+            lift.IsSelected = true;
+            Check(IsRed(ColorOf(parts[2])), "selection does not cover the fault red");
+            lift.IsSelected = false;
             lift.IsUnknown = false;
+            Check(!IsRed(ColorOf(parts[2])), "known again drops the red at once");
             Pump(600);
-            Check(Near(lift.MountHeight, down) && ColorOf(parts[2]) == idle, "known again: finishes at the reported end and drops the highlight");
+            Check(Near(lift.MountHeight, down) && ColorOf(parts[2]) == idle, "known again: finishes at the reported end and restores the idle material");
             var initialUnknown = new LiftVisual3D { IsUnknown = true };
             Check(Near(initialUnknown.MountHeight, (down + up) / 2) && !initialUnknown.HasAnimatedProperties
-                && ColorOf((GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[2]) != idle,
-                "initial unknown is drawn mid-stroke and highlighted before attaching");
+                && IsRed(ColorOf((GeometryModel3D)((Model3DGroup)initialUnknown.Content).Children[2])),
+                "initial unknown is drawn mid-stroke and red before attaching");
 
             var movingSource = new CylinderFeedback();
             BindingOperations.SetBinding(lift, HardwareVisual3D.IsMovingProperty,
@@ -130,7 +135,7 @@ internal static class Program
                 Pump(600);
                 SaveComparison(scene, feedback, args[0]);
             }
-            Console.WriteLine("PASS: Lift boolean binding, rise/fall, reversal, highlight, unknown parked mid-stroke, independent assembly and mesh reuse.");
+            Console.WriteLine("PASS: Lift boolean binding, rise/fall, reversal, highlight, unknown parked mid-stroke in red, independent assembly and mesh reuse.");
             app.Shutdown();
             return 0;
         }
@@ -222,6 +227,12 @@ internal static class Program
     }
 
     private static Color ColorOf(GeometryModel3D part) => ((SolidColorBrush)((DiffuseMaterial)part.Material).Brush).Color;
+
+    /// <summary>
+    /// 报警红：红通道明显压过绿、蓝（金属灰三通道差不多，蓝色高亮是蓝通道最高）。
+    /// </summary>
+    private static bool IsRed(Color color) => color.R > color.G + 80 && color.R > color.B + 80;
+
     private static bool Near(double a, double b) => Math.Abs(a - b) < 1e-7;
     private static void Check(bool condition, string description)
     {

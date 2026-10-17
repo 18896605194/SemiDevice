@@ -8,7 +8,7 @@ using System.Windows.Media.Media3D;
 namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
-/// 气缸驱动的上下升降门示意。上升打开、下降关闭，外部绑定 IsOpen；IsUnknown=true（命令发了、到位信号还没亮）门板停在行程中间并一直高亮。
+/// 气缸驱动的上下升降门示意。上升打开、下降关闭，外部绑定 IsOpen；IsUnknown=true（命令发了、到位信号还没亮）门板停在行程中间、整个门画成红色。
 /// 原点为门框下方安装面中心，Y 向上，门宽沿 X；打开时门板完全高于门框。
 /// </summary>
 public sealed class DoorVisual3D : HardwareVisual3D
@@ -33,7 +33,7 @@ public sealed class DoorVisual3D : HardwareVisual3D
     public static readonly DependencyProperty IsOpenProperty = DependencyProperty.Register(
         nameof(IsOpen), typeof(bool), typeof(DoorVisual3D), new PropertyMetadata(false, OnTargetChanged));
 
-    /// <summary>位置未知：门板画到行程中间并一直高亮，到位（变回 false）后再走到 IsOpen 那一头。</summary>
+    /// <summary>位置未知：门板画到行程中间、整个门变红，到位（变回 false）后红色撤掉、再走到 IsOpen 那一头。</summary>
     public bool IsUnknown
     {
         get => (bool)GetValue(IsUnknownProperty);
@@ -107,6 +107,7 @@ public sealed class DoorVisual3D : HardwareVisual3D
 
     private void TransitionTo(double target)
     {
+        SetVisualFault(IsUnknown);
         double current = (double)GetValue(ProgressProperty);
         if (!(bool)GetValue(IsHostVisibleProperty) || Math.Abs(current - target) < 0.000001)
         {
@@ -131,7 +132,7 @@ public sealed class DoorVisual3D : HardwareVisual3D
         ++_transitionVersion;
         SetValue(ProgressProperty, target);
         BeginAnimation(ProgressProperty, null);
-        SetVisualActive(IsUnknown);
+        SetVisualActive(false);
     }
 
     private void RebuildGeometry()
