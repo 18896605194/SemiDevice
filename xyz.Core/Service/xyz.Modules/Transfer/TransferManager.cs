@@ -586,7 +586,7 @@ public class TransferManager : ComponentBase, ITransferManager
         return marked;
     }
 
-    /// <summary>人工确认片位后，释放这片晶圆因搬运失败保留的资源。</summary>
+    /// <summary>人工确认片位及站点状态后，释放这片晶圆因搬运失败或撤销失败保留的资源。</summary>
     public bool ReleaseHold(Guid waferId)
     {
         lock (_gate)
@@ -599,11 +599,11 @@ public class TransferManager : ComponentBase, ITransferManager
             Unlock(operation);
         }
 
-        LogHelper.Info(Name, $"晶圆 {waferId} 的搬运占用已人工放开（片位已确认）");
+        LogHelper.Info(Name, $"晶圆 {waferId} 的搬运占用已人工放开（片位及站点状态已确认）");
         return true;
     }
 
-    /// <summary>动过手才失败，等待人工确认的操作；已完成的操作不留历史。</summary>
+    /// <summary>运动已开始或站点占用未解除时失败，等待人工确认的操作；已完成的操作不留历史。</summary>
     public IReadOnlyList<TransferRoutine> HeldOperations
     {
         get
@@ -691,7 +691,7 @@ public class TransferManager : ComponentBase, ITransferManager
         }
         else if (operation.NeedsRecovery)
         {
-            LogHelper.Error(Name, $"搬运失败，动过手了，资源保留到人工确认片位：{operation.WaferName} {operation.Name}（{operation.Reason}）");
+            LogHelper.Error(Name, $"搬运未完成，运动已开始或站点占用未解除，资源保留到人工确认片位及站点状态：{operation.WaferName} {operation.Name}（{operation.Reason}）");
         }
         else
         {

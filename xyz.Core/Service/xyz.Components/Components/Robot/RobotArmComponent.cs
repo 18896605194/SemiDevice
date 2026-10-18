@@ -21,7 +21,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     #region EC
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "0", max: "60000",
-        @default: "3000", description: "取放做完后等在位传感器跟上的上限（取完要有片、放完要没片；挂了 WaferSensor 才用）")]
+        @default: "3000", description: "取放做完后等持片反馈跟上的上限（取完要有片、放完要没片；启用持片检查后使用）")]
     public int WaferSensorTimeoutMs
     {
         get { return GetEcInt(nameof(WaferSensorTimeoutMs)); }
@@ -35,13 +35,21 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     /// </summary>
     public IDiSensor? WaferSensor { get; private set; }
 
+    /// <summary>
+    /// 默认配置了 DI 在位传感器就启用持片检查；其他反馈来源的手指组件可重写。
+    /// 是否启用由配置决定，不随当前读数是否有效而改变。
+    /// </summary>
+    public virtual bool IsWaferCheckEnabled => WaferSensor is not null;
+
     private readonly object _waferGate = new();
 
     /// <summary>0 = 还没收到推送，1 = 有片，2 = 无片。</summary>
     private int _hasWafer;
 
-    [VariableMark(VariableType.SV, ValueFormat.Bool, description: "手指上是否有片（挂了在位传感器按它，没挂按设备推送；null=还没读到）")]
-    public bool? SensorHasWafer
+    // 属性统一为 HasWafer，对外采集名保持兼容。
+    [VariableMark(VariableType.SV, ValueFormat.Bool,
+        description: "手指上是否有片（挂了在位传感器按它，没挂按设备推送；null=还没读到）", Name = "SensorHasWafer")]
+    public virtual bool? HasWafer
     {
         get
         {

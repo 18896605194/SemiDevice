@@ -519,7 +519,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                 .Select(arm => new RobotArmDto
                 {
                     Arm = arm.Number,
-                    HasWafer = arm.SensorHasWafer ?? false,
+                    HasWafer = arm.HasWafer ?? false,
                     IsExtended = intent is not null && intent.Arm == arm.Number,
                 })
                 .ToList(),
@@ -850,19 +850,18 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             ? CreatePickOperation(arm, config.Number, slot)
             : CreatePlaceOperation(arm, config.Number, slot);
 
-        // 挂了在位传感器的手：设备说做完了还不算，传感器要跟上（取完有片、放完没片）才算做成、才记账。
-        // 套在这儿而不是设备动作里：机型重写了 CreatePickOperation 也照样查。
+        // 机型只补设备动作；持片校验和记账由公共取放操作负责，记账通过后才向搬运管理确认成功。
         var armComponent = FindArm(arm);
-        if (armComponent is not null && armComponent.WaferSensor is not null)
-        {
-            operation = new WaferSensorCheckOperation(operation, Name, armComponent, expectWafer: pick);
-        }
+        var sensorArm = armComponent?.IsWaferCheckEnabled == true ? armComponent : null;
+        var intent = new TransferIntent(action, arm, station, slot);
+        operation = new RobotTransferOperation(operation, Name, sensorArm, expectWafer: pick,
+            commitLedger: () => CommitTransferLedger(intent));
 
         var started = Started(action, operation);
         if (started.IsSuccess)
         {
             _currentStation = config;
-            _transferIntent = new TransferIntent(action, arm, station, slot);
+            _transferIntent = intent;
         }
 
         return started;
@@ -991,11 +990,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region Interlock
 
-    // 互锁：周围条件允不允许动。平台默认只查手指在位传感器（挂了 WaferSensor 的手才查），机型重写加自己的条件（先调 base）。
+    // 互锁：周围条件允不允许动。平台通过手指的统一持片检查契约查询反馈，机型重写加自己的条件（先调 base）。
 
     /// <summary>
-    /// Home 前：挂了在位传感器的手，传感器跟晶圆账要对得上。账实不符先到账单调整页按实物改账再 Home，
-    /// 不然回完原点接着按错账取放会碰片。传感器还没读到的手不拦——Home 不碰片，拦住反而回不了原点。
+    /// Home 前：启用持片检查的手，实际反馈跟晶圆账要对得上。账实不符先到账单调整页按实物改账再 Home，
+    /// 不然回完原点接着按错账取放会碰片。反馈还没读到的手沿用现有规则，不拦 Home。
     /// </summary>
     protected virtual HandleResult? HomeInterlock()
     {
@@ -1007,12 +1006,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
         foreach (var arm in Arms)
         {
-            if (arm.WaferSensor is null)
+            if (!arm.IsWaferCheckEnabled)
             {
                 continue;
             }
 
-            bool? sensed = arm.SensorHasWafer;
+            bool? sensed = arm.HasWafer;
             if (sensed is null)
             {
                 continue;
@@ -1027,31 +1026,31 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         return null;
     }
 
-    /// <summary>取片前这只手要是空的（传感器看）。</summary>
+    /// <summary>取片前这只手要是空的（实际持片反馈）。</summary>
     protected virtual HandleResult? PickInterlock(int arm, string station, int slot)
     {
         return CheckArmSensor(arm, expectWafer: false);
     }
 
-    /// <summary>放片前这只手上要有片（传感器看）。</summary>
+    /// <summary>放片前这只手上要有片（实际持片反馈）。</summary>
     protected virtual HandleResult? PlaceInterlock(int arm, string station, int slot)
     {
         return CheckArmSensor(arm, expectWafer: true);
     }
 
     /// <summary>
-    /// 取放前看这只手的在位传感器：没挂传感器不查；挂了但还没读到（PLC 没连上、点位不对）不动——要伸手碰片了，读数不可信就别伸；
-    /// 读到的跟该有的不一样不动（取片前手上有片、放片前手上没片），说明晶圆账跟实物对不上。
+    /// 取放前看这只手的实际持片反馈：没启用检查就跳过；启用了但读数未知就拒绝取放。
+    /// 读到的跟该有的不一样也拒绝（取片前手上有片、放片前手上没片），说明晶圆账跟实物对不上。
     /// </summary>
     private HandleResult? CheckArmSensor(int arm, bool expectWafer)
     {
         var component = FindArm(arm);
-        if (component is null || component.WaferSensor is null)
+        if (component is null || !component.IsWaferCheckEnabled)
         {
             return null;
         }
 
-        bool? sensed = component.SensorHasWafer;
+        bool? sensed = component.HasWafer;
         if (sensed is null)
         {
             return HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, Name, arm.ToString(CultureInfo.InvariantCulture));
@@ -1118,11 +1117,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 操作终结（状态已由基类落好）：记晶圆账，失败的动作报警。
+    /// 操作终结（状态已由基类落好，成功取放已提交晶圆账）：清除交互意图，失败的动作报警。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        UpdateLedger(operation);
+        _transferIntent = null;
         RaiseActionFailedAlarm(operation);
     }
 
@@ -1166,26 +1165,28 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     private TransferIntent? _transferIntent;
 
-    private void UpdateLedger(ModuleOperation operation)
+    private HandleResult? CommitTransferLedger(TransferIntent intent)
     {
-        var intent = _transferIntent;
-        _transferIntent = null;
-        if (intent is null || !operation.IsSuccess || _waferManager is null)
+        var ledger = _waferManager;
+        if (ledger is null)
         {
-            return;
+            return null;
         }
 
-        bool moved = intent.Action == RobotAction.Pick
-            ? _waferManager.Move(intent.Station, intent.Slot, Name, intent.Arm)
-            : _waferManager.Move(Name, intent.Arm, intent.Station, intent.Slot);
-
-        // 设备说取放成功，账却移不动（源上没片/目标已有片）：账实不符。
-        // 账本自己已经报警了，这里补一条带动作的日志，方便现场对着流水查。
-        if (!moved)
+        bool pick = intent.Action == RobotAction.Pick;
+        string fromModule = pick ? intent.Station : Name;
+        int fromSlot = pick ? intent.Slot : intent.Arm;
+        string toModule = pick ? Name : intent.Station;
+        int toSlot = pick ? intent.Arm : intent.Slot;
+        if (ledger.Move(fromModule, fromSlot, toModule, toSlot))
         {
-            LogHelper.Error(Name,
-                $"{intent.Action} 成功但账没记上：{intent.Station}.{intent.Slot:00} ↔ {Name}.{intent.Arm:00}");
+            return null;
         }
+
+        LogHelper.Error(Name, $"{intent.Action} 动作已完成但账没记上：{fromModule}.{fromSlot:00} → {toModule}.{toSlot:00}，需确认实际片位");
+        return HandleResult.Fail(ErrorCodes.RobotLedgerMoveFailed, Name,
+            fromModule, fromSlot.ToString(CultureInfo.InvariantCulture),
+            toModule, toSlot.ToString(CultureInfo.InvariantCulture));
     }
 
     #endregion

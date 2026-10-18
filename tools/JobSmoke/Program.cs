@@ -695,6 +695,132 @@ try
         "两个站点都收尾回到待命，机械手空闲");
     Check(Finish(StartTransfer("PM1", 1, "LP1", 1)).IsSuccess && ledger.Get("LP1", 1)?.Id == first.Id, "搬回原槽");
 
+    // 设备已执行取片，但记账冲突：整趟失败并保留资源，不能接着向目标放片。
+    var ledgerConflict = StartTransfer("LP1", 1, "PM1", 1);
+    Check(ledgerConflict.IsSuccess && RunUntil(() => robot.State == RobotState.Picking && robot.CurrentOperation is not null),
+        "记账冲突用例：搬运已完成站点准备，机械手取片操作已启动");
+    var heldArm = ledgerConflict.Result!.Arm;
+    var blockedArm = ledger.Create(robot.Name, heldArm, WaferStatus.Normal, "FOUP-LEDGER-CONFLICT")!;
+    var failedLedgerTransfer = Finish(ledgerConflict);
+    Check(!failedLedgerTransfer.IsSuccess && failedLedgerTransfer.Code == ErrorCodes.RobotLedgerMoveFailed
+          && failedLedgerTransfer.ErrorArgs.SequenceEqual([robot.Name, "LP1", "1", robot.Name, heldArm.ToString()])
+          && failedLedgerTransfer.NeedsRecovery && !failedLedgerTransfer.HasPicked && robot.State == ModuleState.Error,
+        "取片设备动作成功但记账失败：向搬运调用方保留具体原因，按已动手失败进入恢复");
+    Check(ledger.Get("LP1", 1)?.Id == first.Id && ledger.Get(robot.Name, heldArm)?.Id == blockedArm.Id
+          && ledger.Get("PM1", 1) is null && lp1.State == TransferModuleState.Transferring
+          && transfers.HeldOperations.Count == 1 && ReferenceEquals(transfers.HeldOperations[0], failedLedgerTransfer)
+          && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
+        "记账失败不执行后续放片、不通知源站完成，保留站点环、机械手、槽位和晶圆占用");
+    Rejects(StartTransfer("LP1", 2, "PM2", 1, arm: heldArm), ErrorCodes.TransferArmUnavailable,
+        [robot.Name, heldArm.ToString()], "记账失败保留的手臂不能用于新的搬运");
+    Tick();
+    Check(robot.CurrentOperation is null && ledger.Get("PM1", 1) is null && transfers.HeldOperations.Count == 1,
+        "后续扫描不自动重发取片或继续放片，等待现场确认");
+    ledger.Delete(robot.Name, heldArm);
+    Check(transfers.ReleaseHold(first.Id), "记账冲突已人工核对后释放保留资源");
+    robot.NoteState(ModuleState.Idle);
+    lp1.NoteState(LoadPortState.Loaded);
+    pm1.NoteState(ModuleState.Idle);
+
+    // 站点拒绝完成通知：设备取放和记账已成功，保留实际片位、占用和已取片标记，不继续下一步。
+    var sourceFinish = StartTransfer("LP1", 1, "PM1", 1);
+    Check(sourceFinish.IsSuccess && RunUntil(() => robot.State == RobotState.Picking), "源站点收尾用例：取片已开始");
+    lp1.NoteState(ModuleState.Error);
+    var sourceFinishFailed = Finish(sourceFinish);
+    Check(!sourceFinishFailed.IsSuccess && sourceFinishFailed.Code == ErrorCodes.TransferStepRejected
+          && sourceFinishFailed.ErrorArgs.SequenceEqual(["LP1", "TransferComplete"])
+          && sourceFinishFailed.HasPicked && sourceFinishFailed.NeedsRecovery,
+        "源站点收尾被拒：报告具体站点和步骤，保留已取片结果并要求恢复");
+    Check(ledger.Get(robot.Name, sourceFinishFailed.Arm)?.Id == first.Id && ledger.Get("LP1", 1) is null
+          && ledger.Get("PM1", 1) is null && pm1.State == TransferModuleState.PreTransfer
+          && lp1.State == ModuleState.Error && robot.State == ModuleState.Idle
+          && transfers.HeldOperations.Contains(sourceFinishFailed)
+          && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
+        "源站点收尾失败不继续放片，不回滚晶圆账，不强改站点状态，保留整轮资源");
+    Rejects(StartTransfer("LP1", 2, "PM2", 1, arm: sourceFinishFailed.Arm), ErrorCodes.TransferArmUnavailable,
+        [robot.Name, sourceFinishFailed.Arm.ToString()], "源站点收尾失败保留手臂占用");
+    Tick();
+    Check(robot.CurrentOperation is null && ledger.Get("PM1", 1) is null && transfers.HeldOperations.Count == 1,
+        "源站点收尾失败后扫描不自动继续放片");
+    Check(ledger.Move(robot.Name, sourceFinishFailed.Arm, "LP1", 1), "人工把手上晶圆放回并校正账");
+    lp1.NoteState(LoadPortState.Loaded);
+    pm1.NoteState(ModuleState.Idle);
+    Check(transfers.ReleaseHold(first.Id), "确认源站点恢复后释放资源");
+
+    var targetFinish = StartTransfer("LP1", 1, "PM1", 1);
+    Check(targetFinish.IsSuccess && RunUntil(() => robot.State == RobotState.Placing), "目标站点收尾用例：放片已开始");
+    pm1.NoteState(ModuleState.Error);
+    var targetFinishFailed = Finish(targetFinish);
+    Check(!targetFinishFailed.IsSuccess && targetFinishFailed.Code == ErrorCodes.TransferStepRejected
+          && targetFinishFailed.ErrorArgs.SequenceEqual(["PM1", "TransferComplete"])
+          && targetFinishFailed.HasPicked && targetFinishFailed.NeedsRecovery
+          && ledger.Get("PM1", 1)?.Id == first.Id && ledger.Get(robot.Name, targetFinishFailed.Arm) is null
+          && lp1.State == LoadPortState.Loaded && pm1.State == ModuleState.Error
+          && transfers.HeldOperations.Contains(targetFinishFailed)
+          && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
+        "目标站点收尾失败不能报成功，晶圆已在目标账上，整轮资源保留到人工处理");
+    Tick();
+    Check(robot.CurrentOperation is null && ledger.Get("PM1", 1)?.Id == first.Id,
+        "目标站点收尾失败后不自动重发放片");
+    Check(ledger.Move("PM1", 1, "LP1", 1), "人工回片并校正账");
+    pm1.NoteState(ModuleState.Idle);
+    Check(transfers.ReleaseHold(first.Id), "确认目标站点恢复后释放资源");
+
+    // 尚未运动但撤销被拒：来源拒绝时目标仍撤回；目标拒绝时来源仍撤回，失败和中止都保留整轮资源。
+    var sourceCancel = StartTransfer("LP1", 1, "PM1", 1);
+    Check(sourceCancel.IsSuccess && RunUntil(() => lp1.State == TransferModuleState.PreTransfer),
+        "撤销来源用例：两个站点已占用、机械手尚未运动");
+    lp1.NoteState(ModuleState.Error);
+    var sourceCancelFailed = Finish(sourceCancel);
+    Check(sourceCancelFailed.Code == ErrorCodes.StationPrepareRejected
+          && sourceCancelFailed.ErrorArgs.SequenceEqual(["LP1", "2"])
+          && !sourceCancelFailed.MotionStarted && sourceCancelFailed.NeedsRecovery
+          && pm1.State == ModuleState.Idle && lp1.State == ModuleState.Error
+          && ledger.Get("LP1", 1)?.Id == first.Id && robot.CurrentOperation is null
+          && transfers.HeldOperations.Contains(sourceCancelFailed)
+          && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
+        "准备失败后来源撤销被拒：保留原始错误及占用，目标仍成功撤回，晶圆未动");
+    Rejects(StartTransfer("LP1", 2, "PM2", 1, arm: sourceCancelFailed.Arm), ErrorCodes.TransferArmUnavailable,
+        [robot.Name, sourceCancelFailed.Arm.ToString()], "尚未运动但撤销失败仍保留手臂锁");
+    Tick();
+    Check(transfers.HeldOperations.Count == 1 && lp1.State == ModuleState.Error,
+        "撤销失败后不自动重试或强制回待命");
+    lp1.NoteState(LoadPortState.Loaded);
+    Check(transfers.ReleaseHold(first.Id), "来源状态已人工恢复后放锁");
+
+    var targetCancel = StartTransfer("LP1", 1, "PM1", 1);
+    Check(targetCancel.IsSuccess && RunUntil(() => lp1.State == TransferModuleState.PreTransfer),
+        "中止撤销目标用例：两个站点已占用");
+    pm1.NoteState(ModuleState.Error);
+    Check(transfers.Cancel(targetCancel.Result!, "smoke station cancel refused"), "中止尚未运动的搬运");
+    var targetCancelFailed = Finish(targetCancel);
+    Check(targetCancelFailed.State == OperationState.Aborted && targetCancelFailed.Code == ErrorCodes.Aborted
+          && !targetCancelFailed.MotionStarted && targetCancelFailed.NeedsRecovery
+          && lp1.State == LoadPortState.Loaded && pm1.State == ModuleState.Error
+          && ledger.Get("LP1", 1)?.Id == first.Id && transfers.HeldOperations.Contains(targetCancelFailed)
+          && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
+        "尚未运动的中止撤销失败也要保留资源，来源已撤回但目标状态不被强改");
+    Check(transfers.ReleaseHold(first.Id) && pm1.State == ModuleState.Error,
+        "人工放锁只释放资源，不代替站点恢复");
+    pm1.NoteState(ModuleState.Idle);
+
+    // 同站点换槽：取完不通知完成；放片后收尾拒绝时两个槽继续保留，账上保留新槽。
+    var sameFinish = StartTransfer("LP1", 1, "LP1", 10);
+    Check(sameFinish.IsSuccess && RunUntil(() => robot.State == RobotState.Placing),
+        "同站点换槽取完继续放片，没有提前收尾");
+    lp1.NoteState(ModuleState.Error);
+    var sameFinishFailed = Finish(sameFinish);
+    Check(sameFinishFailed.Code == ErrorCodes.TransferStepRejected
+          && sameFinishFailed.ErrorArgs.SequenceEqual(["LP1", "TransferComplete"])
+          && sameFinishFailed.HasPicked && sameFinishFailed.NeedsRecovery
+          && ledger.Get("LP1", 10)?.Id == first.Id && ledger.Get("LP1", 1) is null
+          && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("LP1", 10)
+          && transfers.HeldOperations.Contains(sameFinishFailed),
+        "同站点换槽收尾被拒：保留新槽的晶圆账及两槽占用");
+    Check(ledger.Move("LP1", 10, "LP1", 1), "人工恢复同站点槽位");
+    lp1.NoteState(LoadPortState.Loaded);
+    Check(transfers.ReleaseHold(first.Id), "同站点恢复后释放资源");
+
     // 3. 没动手就失败（目标一直不在待命，等站点超时）：片没动过，锁放开，不用人工确认。
     pm1.NoteState(ModuleState.NotInit);
     var notReady = Finish(StartTransfer("LP1", 1, "PM1", 1), sleepMs: 5);

@@ -76,6 +76,7 @@
     <sys:String x:Key="robot.arm_sensor_has_wafer">{0} Arm{1} presence sensor detects a wafer, but the wafer ledger says the arm is empty: check the actual wafer position and fix the ledger</sys:String>
     <sys:String x:Key="robot.arm_sensor_no_wafer">{0} Arm{1} presence sensor detects no wafer, but the wafer ledger says the arm holds one: check the actual wafer position and fix the ledger</sys:String>
     <sys:String x:Key="robot.arm_sensor_unknown">{0} Arm{1} presence sensor cannot be read (PLC not connected or wrong IO point); pick/place is not allowed</sys:String>
+    <sys:String x:Key="robot.ledger_move_failed">{0} completed the pick/place motion, but the wafer ledger could not move the wafer from {1} slot {2} to {3} slot {4}; confirm the actual wafer position before recovery</sys:String>
     <sys:String x:Key="robot.direction.north">North</sys:String>
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>

@@ -42,13 +42,14 @@ public interface ITransferStation : IModule
     bool Transferring();
 
     /// <summary>
-    /// 标记本轮完成：先落 TransferComplete 并发布，随即回落待命态，并回调 OnTransferFinished。
-    /// 状态不符返回 false。
+    /// 接受本轮完成通知：落 TransferComplete 并发布，再交给站点收尾；默认同步回待命态。
+    /// 状态不符返回 false；true 表示通知已接受，不代表机型扩展的异步收尾已完成。
     /// </summary>
     bool TransferComplete();
 
     /// <summary>
-    /// 撤回本轮：准备做了（PreTransfer / TransferReady）但机械手还没伸手
+    /// 撤回本轮：准备做了（PreTransfer / TransferReady）但机械手还没伸手。
+    /// true 表示站点接受撤回（默认同步回待命态）；false 时调用方须保留本轮占用。
     /// </summary>
     /// <returns></returns>
     bool CancelTransfer();

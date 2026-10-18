@@ -2,41 +2,37 @@
 using System.Globalization;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
+using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
 /// <summary>
-/// 取放片做完再对一次手指在位传感器：设备动作成功以后，这只手的传感器要在手指的 EC WaferSensorTimeoutMs 内变成该有的样子
-/// （取完有片、放完没片）才算做成，模块才记账；时限内对不上判失败、不记账——片可能还在站点上或挂在手上，
-/// 搬运管理照"动过手才失败"留着资源、站点停在交互中，等人到现场确认片位。只套在挂了在位传感器的手上。
+/// 完整取放操作：设备动作成功 → 按配置确认手指持片 → 提交晶圆账，全部通过后才成功。
+/// 设备、持片或记账失败均交给模块落 Error，搬运管理保留已动手的资源供人工确认，不自动重发取放动作。
 /// </summary>
-internal sealed class WaferSensorCheckOperation : ModuleOperation<WaferSensorCheckOperation.CheckStep>
+internal sealed class RobotTransferOperation : ModuleOperation<RobotTransferOperation.CheckStep>
 {
-    internal enum CheckStep
-    {
-        /// <summary>设备动作（取 / 放片指令）还在做。</summary>
-        Motion,
-
-        /// <summary>设备做完了，等传感器跟上。</summary>
-        WaitSensor,
-    }
+   
 
     private readonly ModuleOperation _motion;
     private readonly string _robot;
-    private readonly IRobotArm _arm;
+    private readonly IRobotArm? _sensorArm;
     private readonly bool _expectWafer;
+    private readonly Func<HandleResult?> _commitLedger;
 
     /// <summary>从设备做完开始计时：等传感器的时限不算设备动作的时间。</summary>
     private readonly Stopwatch _sensorWatch = new();
 
-    public WaferSensorCheckOperation(ModuleOperation motion, string robot, IRobotArm arm, bool expectWafer)
+    public RobotTransferOperation(ModuleOperation motion, string robot, IRobotArm? sensorArm,
+        bool expectWafer, Func<HandleResult?> commitLedger)
         : base(motion.Name, CheckStep.Motion)
     {
         _motion = motion;
         _robot = robot;
-        _arm = arm;
+        _sensorArm = sensorArm;
         _expectWafer = expectWafer;
+        _commitLedger = commitLedger;
     }
 
     protected override void OnScan()
@@ -63,7 +59,7 @@ internal sealed class WaferSensorCheckOperation : ModuleOperation<WaferSensorChe
     private void RunMotion()
     {
         _motion.Scan();
-        if (!_motion.IsTerminal)
+        if (IsTerminal || !_motion.IsTerminal)
         {
             return;
         }
@@ -74,6 +70,12 @@ internal sealed class WaferSensorCheckOperation : ModuleOperation<WaferSensorChe
             return;
         }
 
+        if (_sensorArm is null)
+        {
+            CommitLedger();
+            return;
+        }
+
         _sensorWatch.Restart();
         SetStep(CheckStep.WaitSensor);
         WaitSensor();
@@ -81,15 +83,16 @@ internal sealed class WaferSensorCheckOperation : ModuleOperation<WaferSensorChe
 
     private void WaitSensor()
     {
-        string arm = _arm.Number.ToString(CultureInfo.InvariantCulture);
-        bool? sensed = _arm.SensorHasWafer;
+        var sensorArm = _sensorArm!;
+        string arm = sensorArm.Number.ToString(CultureInfo.InvariantCulture);
+        bool? sensed = sensorArm.HasWafer;
         if (sensed == _expectWafer)
         {
-            Complete();
+            CommitLedger();
             return;
         }
 
-        int timeout = _arm.WaferSensorTimeoutMs;
+        int timeout = sensorArm.WaferSensorTimeoutMs;
         if (_sensorWatch.ElapsedMilliseconds < timeout)
         {
             return;
@@ -98,19 +101,43 @@ internal sealed class WaferSensorCheckOperation : ModuleOperation<WaferSensorChe
         string expected = _expectWafer ? "有片" : "没片";
         if (sensed is null)
         {
-            Fail(ErrorCodes.RobotArmSensorUnknown, $"{Name} 做完 {timeout}ms 内 Arm{arm} 在位传感器读不到（该{expected}）", _robot, arm);
+            Fail(ErrorCodes.RobotArmSensorUnknown, $"{Name} 做完 {timeout}ms 内 Arm{arm} 持片反馈读不到（该{expected}）", _robot, arm);
             return;
         }
 
         Fail(sensed.Value ? ErrorCodes.RobotArmSensorHasWafer : ErrorCodes.RobotArmSensorNoWafer,
-            $"{Name} 做完 {timeout}ms 内 Arm{arm} 在位传感器没跟上（该{expected}）", _robot, arm);
+            $"{Name} 做完 {timeout}ms 内 Arm{arm} 持片反馈没跟上（该{expected}）", _robot, arm);
+    }
+
+    private void CommitLedger()
+    {
+        if (IsTerminal)
+        {
+            return;
+        }
+
+        var refused = _commitLedger();
+        if (refused is not null)
+        {
+            Fail(refused.ErrorMessage, "设备取放已完成，但晶圆账更新失败，需确认实际片位", [.. refused.Args]);
+            return;
+        }
+
+        Complete();
     }
 
     /// <summary>
-    /// 被急停、被新操作顶替：设备动作跟着打断（它自己的收尾照旧）。
+    /// 被急停、被新操作顶替：设备动作跟着打断，尚未完成的取放不提交晶圆账。
     /// </summary>
     protected override void OnAborted(string reason)
     {
         _motion.AbortByHost(reason);
+    }
+
+    internal enum CheckStep
+    {
+        Motion,
+
+        WaitSensor,
     }
 }

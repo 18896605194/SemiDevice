@@ -144,6 +144,9 @@ public static class ErrorCodes
     /// <summary>手指在位传感器读不到（PLC 没连上、点位不对），取放不敢伸手。Args: [机械手模块名, 手指号]</summary>
     public const string RobotArmSensorUnknown = "robot.arm_sensor_unknown";
 
+    /// <summary>设备取放已完成，但晶圆账更新失败，需人工确认实际片位。Args: [机械手模块名, 源模块, 源槽号, 目标模块, 目标槽号]</summary>
+    public const string RobotLedgerMoveFailed = "robot.ledger_move_failed";
+
     #endregion
 
     #region 腔体

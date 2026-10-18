@@ -55,7 +55,7 @@ public interface ITransferManager
     bool IsRobotInTransfer(string robot);
 
     /// <summary>
-    /// 动过手才失败、等人工确认的搬运
+    /// 运动已开始或站点占用未解除时失败、等人工确认的搬运
     /// </summary>
     IReadOnlyList<TransferRoutine> HeldOperations { get; }
 
@@ -85,7 +85,7 @@ public interface ITransferManager
     int ManualWaitTimeoutMs { get; }
 
     /// <summary>
-    /// 人工确认后放掉等确认的那一趟
+    /// 人工确认片位及站点状态后，释放失败搬运保留的资源
     /// </summary>
     bool ReleaseHold(Guid waferId);
 }

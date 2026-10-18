@@ -58,8 +58,8 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// <summary>目标站点名；只取片时是机械手名（目标槽号就是手指号）。</summary>
     public string TargetName => _target?.Name ?? _robot.Name;
 
-    /// <summary>动过手才失败，资源保留到人工确认片位。</summary>
-    public bool NeedsRecovery => IsTerminal && !IsSuccess && MotionStarted;
+    /// <summary>运动已开始或站点占用未解除时失败，资源保留到人工确认片位及站点状态。</summary>
+    public bool NeedsRecovery => IsTerminal && !IsSuccess && (MotionStarted || _holdingSource || _holdingTarget);
 
     private volatile bool _abortRequested;
     internal bool AbortRequested => _abortRequested;
@@ -96,7 +96,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
     /// <summary>
     /// 动过手了：落过"交互中"标记、发过取片（不管成没成）。之后再失败，片在哪说不准，要留着等人工确认；
-    /// 没动手就失败，片还在源槽、环也还回去了。
+    /// 没动手就失败，片还在源槽；站点撤销成功后才解除本轮占用。
     /// </summary>
     public bool MotionStarted { get; private set; }
 
@@ -373,7 +373,15 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        SourceStation.TransferComplete();
+        if (!SourceStation.TransferComplete())
+        {
+            Fail(ErrorCodes.TransferStepRejected,
+                $"{SourceStation.Name} 取片后的收尾被拒",
+                SourceStation.Name,
+                "TransferComplete");
+            return;
+        }
+
         _holdingSource = false;
 
         // 只取片：片留在手上，这一趟到这儿就做完了
@@ -403,7 +411,15 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        TargetStation.TransferComplete();
+        if (!TargetStation.TransferComplete())
+        {
+            Fail(ErrorCodes.TransferStepRejected,
+                $"{TargetStation.Name} 放片后的收尾被拒",
+                TargetStation.Name,
+                "TransferComplete");
+            return;
+        }
+
         _holdingTarget = false;
         _holdingSource = false;
         Complete();
@@ -428,6 +444,12 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     {
         LogHelper.Error(_robot.Name,
             $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{operation.Reason}");
+        if (operation.Code == ErrorCodes.RobotLedgerMoveFailed)
+        {
+            Fail(operation.Code, operation.Reason, [.. operation.ErrorArgs]);
+            return;
+        }
+
         Fail(ErrorCodes.TransferFailed,
             $"{_robot.Name} {action} 失败：{operation.Reason}",
             _robot.Name,
@@ -435,7 +457,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 失败收场：还没动手就把占着的环还回去（片还在源槽，站点可以接着被服务），再落失败。
+    /// 失败收场：还没动手就尝试撤销站点准备；撤销失败保留占用，再落原始失败。
     /// </summary>
     private void Abandon(string code, string reason, params string[] args)
     {
@@ -444,7 +466,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 被中止（急停、人工取消、Job 中止）：在途的那一步操作跟着中止；没动手就把环还回去。
+    /// 被中止（急停、人工取消、Job 中止）：在途的那一步操作跟着中止；没动手就尝试撤销站点准备。
     /// 动过手的环不动——跟失败时一个道理，片在哪说不准，留着卡住等人工。
     /// </summary>
     protected override void OnAborted(string reason)
@@ -459,7 +481,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 还环：只在没动过手时还，站点自己决定能不能撤（只撤准备阶段的）。
+    /// 还环：只在没动过手时撤销，站点接受撤销后才清占用；一站拒绝或异常不影响另一站撤销。
     /// </summary>
     private void ReleaseRings()
     {
@@ -468,16 +490,33 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        if (_holdingSource)
+        if (_holdingSource && _source is not null && TryCancelStation(_source))
         {
-            _source?.CancelTransfer();
             _holdingSource = false;
         }
 
-        if (_holdingTarget && !_sameStation)
+        if (_holdingTarget && !_sameStation && _target is not null && TryCancelStation(_target))
         {
-            _target?.CancelTransfer();
             _holdingTarget = false;
         }
+    }
+
+    private bool TryCancelStation(ITransferStation station)
+    {
+        try
+        {
+            if (station.CancelTransfer())
+            {
+                return true;
+            }
+
+            LogHelper.Error(_robot.Name, $"{station.Name} 撤销搬运准备被拒，保留本轮占用");
+        }
+        catch (Exception exception)
+        {
+            LogHelper.Error(_robot.Name, $"{station.Name} 撤销搬运准备异常，保留本轮占用：{exception.Message}");
+        }
+
+        return false;
     }
 }

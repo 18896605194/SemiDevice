@@ -603,8 +603,9 @@ port.E87Callback = null;
     ComponentLoader.BindAll([robot]);
     Check(robotLedger.GetSlots(robot.Name).Count == robot.Arms.Count,
         $"开机应把手指注册成账本槽位，实际 {robotLedger.GetSlots(robot.Name).Count} 个");
-    Check(robot.Arms.Count == 1 && robot.Axes.Count == 4 && robot.Arms[0].Number == 1,
-        "轴/手指应从组件树收出来：X/Z/Theta 三根轴加 Arm1 一只手指");
+    Check(robot.Arms.Count == 1 && robot.Axes.Count == 4 && robot.Arms[0].Number == 1
+          && !robot.Arms[0].IsWaferCheckEnabled,
+        "轴/手指从组件树收出来；没有配置 DI 的默认手指不启用持片检查");
 
     robot.NoteState(ModuleState.Idle);
 
@@ -630,11 +631,18 @@ port.E87Callback = null;
     robot.Next = new ProbeOperation();
     var beforePick = robot.CreateStateDto();
     Check(!beforePick.Arms[0].IsExtended, "没在取放时手指是缩着的");
-    Check(robot.Pick(1, "SmokeLP", 3).Result == robot.Next, "Idle 状态应能发起 Pick");
+    var pickOperation = robot.Pick(1, "SmokeLP", 3).Result;
+    Check(pickOperation is not null && ReferenceEquals(robot.CurrentOperation, pickOperation)
+          && !ReferenceEquals(pickOperation, robot.Next), "Idle 状态发起包含设备动作和记账的完整 Pick");
     var picking = robot.CreateStateDto();
     Check(picking.Arms[0].IsExtended && picking.HasStateChanged(beforePick), "发出取片指令：Arm1 伸出，推送算变化（界面画伸出）");
     robot.Next!.Succeed();
+    Check(pickOperation is not null && !pickOperation.IsTerminal && !pickOperation.IsSettled
+          && robotLedger.Get("SmokeLP", 3)?.Id == carried.Id,
+        "设备动作刚成功但尚未记账：外层取片仍在执行，不提前唤醒等待方");
     robot.Tick();
+    Check(pickOperation is not null && pickOperation.IsSuccess && pickOperation.IsSettled,
+        "取片记账完成且模块收尾后，才向等待方确认成功");
     Check(!robot.CreateStateDto().Arms[0].IsExtended, "取片做完：Arm1 缩回");
     Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
     Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id,
@@ -662,7 +670,8 @@ port.E87Callback = null;
 
     // Place 成功：片从手指放回另一个槽位
     robot.Next = new ProbeOperation();
-    Check(robot.Place(1, "SmokeLP", 5).Result == robot.Next, "应能发起 Place");
+    var placeOperation = robot.Place(1, "SmokeLP", 5).Result;
+    Check(placeOperation is not null && ReferenceEquals(robot.CurrentOperation, placeOperation), "应能发起完整 Place");
     robot.Next!.Succeed();
     robot.Tick();
     Check(robotLedger.Get(robot.Name, 1) is null, "Place 成功后手指应空");
@@ -691,6 +700,53 @@ port.E87Callback = null;
     Check(robot.Swap(1, 2, "SmokeLP", 5) is null && robot.State == ModuleState.Idle
           && robotLedger.Get("SmokeLP", 5)?.Id == carried.Id,
         "机械手默认不支持换片：Swap 返回 null，状态和账都不动");
+
+    // 模拟动作发出后账发生冲突：设备成功也不能掩盖记账失败，不重发动作、不覆盖目标片。
+    robot.Next = new ProbeOperation();
+    var ledgerFailedPick = robot.Pick(1, "SmokeLP", 5).Result;
+    var armBlocker = robotLedger.Create(robot.Name, 1, WaferStatus.Normal, "FOUP-BLOCK-PICK")!;
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(ledgerFailedPick is not null && ledgerFailedPick.IsSettled && !ledgerFailedPick.IsSuccess
+          && ledgerFailedPick.Code == ErrorCodes.RobotLedgerMoveFailed && robot.State == ModuleState.Error
+          && ledgerFailedPick.ErrorArgs.SequenceEqual([robot.Name, "SmokeLP", "5", robot.Name, "1"]),
+        "设备取片成功但手指账被占用：完整操作失败，Robot 落 Error，错误带源和目标位置");
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id && robotLedger.Get(robot.Name, 1)?.Id == armBlocker.Id,
+        "记账失败保留原账，不覆盖占位晶圆，也不伪造成功片位");
+    robot.Tick();
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id && robot.CurrentOperation is null,
+        "失败后下一拍不自动重试设备动作或记账");
+
+    robotLedger.Delete(robot.Name, 1);
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    var recoveredPick = robot.Pick(1, "SmokeLP", 5).Result;
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(recoveredPick?.IsSuccess == true && robotLedger.Get(robot.Name, 1)?.Id == carried.Id,
+        "核对并清理账后，由调用方重新发起取片可以正常完成");
+
+    robot.Next = new ProbeOperation();
+    var ledgerFailedPlace = robot.Place(1, "SmokeLP", 3).Result;
+    var slotBlocker = robotLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-BLOCK-PLACE")!;
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(ledgerFailedPlace is not null && ledgerFailedPlace.IsSettled && !ledgerFailedPlace.IsSuccess
+          && ledgerFailedPlace.Code == ErrorCodes.RobotLedgerMoveFailed && robot.State == ModuleState.Error
+          && ledgerFailedPlace.ErrorArgs.SequenceEqual([robot.Name, robot.Name, "1", "SmokeLP", "3"]),
+        "设备放片成功但目标账被占用：完整操作失败，错误按放片方向携带源和目标位置");
+    Check(robotLedger.Get(robot.Name, 1)?.Id == carried.Id && robotLedger.Get("SmokeLP", 3)?.Id == slotBlocker.Id,
+        "放片记账失败不删除手指上的原账，也不覆盖目标片");
+
+    robot.NoteState(ModuleState.Idle);
+    robot.Next = new ProbeOperation();
+    var missingSource = robot.Place(1, "SmokeLP", 2).Result;
+    robotLedger.Delete(robot.Name, 1);
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(missingSource is not null && missingSource.Code == ErrorCodes.RobotLedgerMoveFailed
+          && robot.State == ModuleState.Error && robotLedger.Get("SmokeLP", 2) is null,
+        "设备动作完成时源账已丢失：报告记账失败，不凭空给目标补片");
 
     // 驱动没连上：动作不发（发出去也到不了设备，只会落 Error），module.not_connected；急停不看连接，照样能把在途的顶掉
     robot.NoteState(ModuleState.Idle);
@@ -739,7 +795,7 @@ port.E87Callback = null;
 
     // 传感器还没读到：取放不敢伸手；Home 不碰片，不拦
     robot.Tick();
-    Check(robot.Arms[0].SensorHasWafer is null
+    Check(robot.Arms[0].HasWafer is null && robot.Arms[0].IsWaferCheckEnabled
           && SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorUnknown, "SmokeRobot", "1"),
         "传感器还没读到：取片被拒，robot.arm_sensor_unknown [机械手, 手指号]");
     robot.Next = new ProbeOperation();
@@ -750,7 +806,7 @@ port.E87Callback = null;
     // 取片前、Home 前：传感器看到手上有片，账上手是空的
     sensor.Level = true;
     robot.Tick();
-    Check(robot.Arms[0].SensorHasWafer == true && robot.CreateStateDto().Arms[0].HasWafer,
+    Check(robot.Arms[0].HasWafer == true && robot.CreateStateDto().Arms[0].HasWafer,
         "挂了传感器的手，在位按传感器读（推送给界面的也是它）");
     Check(SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorHasWafer, "SmokeRobot", "1"),
         "取片前传感器看到手上有片、账上没有：robot.arm_sensor_has_wafer [机械手, 手指号]");
@@ -817,6 +873,84 @@ port.E87Callback = null;
         "急停顶掉放片：外层和设备动作都落 Aborted");
     robot.Next!.Succeed();
     robot.Tick();
+
+    SmokeIoc.Use<IWaferManagerComponent>(null);
+}
+
+// ── 非 DI 持片反馈：手指组件重写统一契约后，公共 Home / 取放检查与完成确认不再依赖 WaferSensor 对象 ──────
+{
+    var feedbackLedger = new WaferManagerComponent();
+    SmokeIoc.Use<IWaferManagerComponent>(feedbackLedger);
+    var arm = new ProbeFeedbackArm { Number = 1 };
+    var robot = new ProbeRobot(arm);
+    robot.NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children =
+        [
+            new ModuleConfig
+            {
+                Name = "Stations",
+                Children = [new ModuleConfig { Name = "SmokeLP", Values = [new ValueConfig { Name = "Number", Value = "1" }] }],
+            },
+        ],
+    });
+    feedbackLedger.RegisterLocation("SmokeLP", 5);
+    var wafer = feedbackLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-FEEDBACK")!;
+    Check(robot.InitComponent() && arm.WaferSensor is null && arm.IsWaferCheckEnabled,
+        "非 DI 手指组件可以独立启用持片检查");
+    ComponentLoader.BindAll([robot]);
+    robot.NoteState(ModuleState.Idle);
+    arm.WaferSensorTimeoutMs = 1000;
+
+    Check(robot.CheckPick(1, "SmokeLP", 3)?.ErrorMessage == ErrorCodes.RobotArmSensorUnknown
+          && !robot.Pick(1, "SmokeLP", 3).IsSuccess && robot.CurrentOperation is null,
+        "非 DI 反馈未知时取片被拒，启用状态不随未知读数关闭");
+    arm.Feedback = true;
+    Check(robot.CheckPick(1, "SmokeLP", 3)?.ErrorMessage == ErrorCodes.RobotArmSensorHasWafer
+          && robot.Home().ErrorMessage == ErrorCodes.RobotArmSensorHasWafer,
+        "非 DI 反馈有片但账上为空：取片和 Home 都检查同一个 HasWafer");
+
+    arm.Feedback = false;
+    robot.Next = new ProbeOperation();
+    var pick = robot.Pick(1, "SmokeLP", 3).Result;
+    Check(pick is not null && robot.State == RobotState.Picking, "非 DI 反馈为空时允许取片");
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(pick is not null && !pick.IsTerminal && feedbackLedger.Get("SmokeLP", 3)?.Id == wafer.Id,
+        "非 DI 持片反馈未到：设备取片成功也继续等待，不提前记账");
+    arm.Feedback = true;
+    robot.Tick();
+    Check(pick?.IsSuccess == true && feedbackLedger.Get(robot.Name, 1)?.Id == wafer.Id
+          && robot.CreateStateDto().Arms[0].HasWafer,
+        "非 DI 持片反馈到位后才完成取片、记账并更新界面反馈");
+
+    arm.Feedback = false;
+    Check(robot.CheckPlace(1, "SmokeLP", 4)?.ErrorMessage == ErrorCodes.RobotArmSensorNoWafer,
+        "非 DI 反馈没片时，放片前检查同样拒绝");
+    arm.Feedback = true;
+    robot.Next = new ProbeOperation();
+    var place = robot.Place(1, "SmokeLP", 4).Result;
+    Check(place is not null, "非 DI 反馈有片时允许放片");
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(place is not null && !place.IsTerminal && feedbackLedger.Get(robot.Name, 1)?.Id == wafer.Id,
+        "非 DI 放片后仍有片：等待反馈，不提前把账移到目标");
+    arm.Feedback = false;
+    robot.Tick();
+    Check(place?.IsSuccess == true && feedbackLedger.Get("SmokeLP", 4)?.Id == wafer.Id,
+        "非 DI 放片后反馈为空，才完成放片并记账");
+
+    arm.WaferSensorTimeoutMs = 0;
+    robot.Next = new ProbeOperation();
+    var unknownPick = robot.Pick(1, "SmokeLP", 4).Result;
+    Check(unknownPick is not null, "反馈丢失用例：取片前反馈有效，动作已启动");
+    arm.Feedback = null;
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(unknownPick?.Code == ErrorCodes.RobotArmSensorUnknown && robot.State == ModuleState.Error
+          && arm.IsWaferCheckEnabled && feedbackLedger.Get("SmokeLP", 4)?.Id == wafer.Id,
+        "动作后非 DI 反馈失效仍按启用检查处理，超时报错，不跳过确认或提交晶圆账");
 
     SmokeIoc.Use<IWaferManagerComponent>(null);
 }
@@ -1700,6 +1834,40 @@ port.E87Callback = null;
     Check(pickRejected.Code == ErrorCodes.ActionRejected && pickRejected.ErrorArgs.SequenceEqual(new[] { "TransferRobot", "0" })
           && !pickRejected.MotionStarted && pickSource.Cancels == 1 && pickTarget.Cancels == 1,
         "取片被机械手拒：落交互中标记之前就问过，带机械手给的原因（module.action_rejected），没动过手，两个环都还回去");
+
+    var cancelSource = new ProbeStation("CancelSource") { First = Succeeded, Cancel = () => false };
+    var cancelTarget = new ProbeStation("CancelTarget") { First = Succeeded };
+    var cancelRejected = RunTransfer(cancelSource, cancelTarget, 1000);
+    Check(cancelRejected.Code == ErrorCodes.StationPrepareRejected && !cancelRejected.MotionStarted
+          && cancelRejected.NeedsRecovery && cancelSource.Cancels == 1 && cancelTarget.Cancels == 1,
+        "来源撤销被拒仍尝试撤销目标，保留占用和原始失败，尚未运动也要求恢复");
+
+    var throwSource = new ProbeStation("ThrowSource")
+    {
+        First = Succeeded,
+        Cancel = () => throw new InvalidOperationException("smoke cancel fault"),
+    };
+    var afterThrowTarget = new ProbeStation("AfterThrowTarget") { First = Succeeded };
+    var cancelFault = RunTransfer(throwSource, afterThrowTarget, 1000);
+    Check(cancelFault.Code == ErrorCodes.StationPrepareRejected && cancelFault.NeedsRecovery
+          && !cancelFault.MotionStarted && throwSource.Cancels == 1 && afterThrowTarget.Cancels == 1,
+        "来源撤销抛异常不阻止目标撤销，不吞掉原始失败，异常站点保留占用");
+
+    var sameStation = new ProbeStation("SameStation") { First = Succeeded };
+    var sameCancel = new TransferRoutine(TransferOrigin.Manual, transferRobot, sameStation, 1, sameStation, 2, 1, 1000);
+    sameCancel.Scan();
+    sameCancel.AbortByHost("smoke same-station cancel");
+    Check(sameCancel.State == OperationState.Aborted && !sameCancel.NeedsRecovery
+          && sameStation.Prepares == 1 && sameStation.Cancels == 1,
+        "同站点换槽中止只撤销一次，成功撤销后无需保留资源");
+
+    var sameRefused = new ProbeStation("SameRefused") { First = Succeeded, Cancel = () => false };
+    var sameCancelFailed = new TransferRoutine(TransferOrigin.Manual, transferRobot, sameRefused, 1, sameRefused, 2, 1, 1000);
+    sameCancelFailed.Scan();
+    sameCancelFailed.AbortByHost("smoke same-station cancel refused");
+    Check(sameCancelFailed.State == OperationState.Aborted && !sameCancelFailed.MotionStarted
+          && sameCancelFailed.NeedsRecovery && sameRefused.Prepares == 1 && sameRefused.Cancels == 1,
+        "同站点换槽撤销被拒只调用一次并保留占用");
 }
 
 // ── 主界面要的后端：系统设置带上 LoadPort / 机械手名单（右栏页签、默认调度图照它生成），机械手站点带上类型（调度图按它选卡片），
@@ -2930,7 +3098,7 @@ port.E87Callback = null;
     //    后面跟一帧手指在位推送，它落下来了，说明前面那帧也处理过了（同一条路由队列，按先后处理）
     robotComm.Push(">00000000#@Error");
     robotComm.Push(">00000000#SubWaferEx,1,0@Event");
-    Check(WaitUntil(() => pollRobot.Arms[0].SensorHasWafer == true), "手指在位推送应落到 Arm1 上");
+    Check(WaitUntil(() => pollRobot.Arms[0].HasWafer == true), "手指在位推送应落到 Arm1 上");
     Check(pollRobot.DeviceError == "40010006#Arm2 No Wafer When Put",
         $"成功码的 Error 帧不是报错推送，设备报错不该被它改掉，实际 {pollRobot.DeviceError}");
 
@@ -3724,7 +3892,11 @@ sealed class ProbeRobot : BaseRobotModule
     /// <summary>品牌壳（真锐洁驱动 + 假通道）：测试看发出去的帧、往里推回复。</summary>
     public ProbeRobotShell Shell { get; } = new();
 
-    public ProbeRobot()
+    public ProbeRobot() : this(new RobotArmComponent { Number = 1 })
+    {
+    }
+
+    public ProbeRobot(RobotArmComponent arm)
     {
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, "SmokeRobot");
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
@@ -3742,7 +3914,7 @@ sealed class ProbeRobot : BaseRobotModule
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
         AddChild(Named(new RobotAxisComponent(), "Theta"));
-        AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
+        AddChild(Named(arm, "Arm1"));
     }
 
     private static T Named<T>(T component, string name) where T : ComponentBase
@@ -3775,6 +3947,14 @@ sealed class ProbeRobot : BaseRobotModule
 
     private ModuleOperation Supply() =>
         Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
+}
+
+// 探针手指：模拟机型自己提供的有效持片反馈，不挂 DI 传感器。
+sealed class ProbeFeedbackArm : RobotArmComponent
+{
+    public bool? Feedback { get; set; }
+    public override bool IsWaferCheckEnabled => true;
+    public override bool? HasWafer => Feedback;
 }
 
 // 探针腔体：只占个名字和类型（主界面那一节验站点类型、系统设置的腔体名单），不做动作。
@@ -3864,6 +4044,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
 {
     public Func<ModuleOperation?> First { get; init; } = () => null;
     public Func<ModuleOperation?> Second { get; init; } = () => null;
+    public Func<bool> Cancel { get; init; } = () => true;
     public int Prepares { get; private set; }
     public int Cancels { get; private set; }
     public string Name => name;
@@ -3894,7 +4075,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public bool CancelTransfer()
     {
         Cancels++;
-        return true;
+        return Cancel();
     }
 
     public IReadOnlyList<string> SupportedTasks => StationTaskAction.PickPlace;
