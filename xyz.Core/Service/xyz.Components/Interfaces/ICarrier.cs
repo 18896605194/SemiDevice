@@ -1,31 +1,13 @@
-﻿using xyz.Components.Models;
-using xyz.Drivers.Loadport;
+﻿using xyz.Drivers.Loadport;
 using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
 /// <summary>
-/// 载具接口
+/// 载具完整契约：继承对外的信息读取能力，并提供端口及 EAP 所需的维护操作。
 /// </summary>
-public interface ICarrier
+public interface ICarrier : ICarrierAccess
 {
-
-    bool IsArrived { get; }
-
-    string? CarrierId { get; }
-
-    IReadOnlyList<SlotState> SlotMap { get; }
-
-    /// <summary>
-    /// 这一盒载具的快照；端口上没载具为 null
-    /// </summary>
-    CarrierInfo? Info { get; }
-
-    /// <summary>
-    /// 载具这边认可了、能取放片：没接 EAP 读到就算，接了 EAP 要 Host 认定槽图
-    /// </summary>
-    bool IsAccepted { get; }
-
     bool ReadId();
 
     void SetId(string carrierId);

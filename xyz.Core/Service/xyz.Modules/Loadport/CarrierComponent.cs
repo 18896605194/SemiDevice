@@ -199,7 +199,7 @@ public class CarrierComponent : ComponentBase, ICarrier
             return;
         }
 
-        var snapshot = slotMap.ToArray();
+        var snapshot = Array.AsReadOnly(slotMap.ToArray());
         SlotMap = snapshot;
         UpdateInfo(info => info.SlotMapStatus == CarrierSlotMapStatus.NotRead
             ? info with { SlotMapStatus = CarrierSlotMapStatus.Read }

@@ -925,7 +925,7 @@ try
           && wafer.Tasks.Count(task => task.Kind == "Process" && task.State == "Done") == 1), "SEQ_A 的片各做一站");
     Check(PjOf("LOT-A-1")!.Wafers.Select(wafer => wafer.Tasks[1].Station).Distinct().Count() == 2,
         "站点组：两片分到了 PM1、PM2 两个腔（放片那一刻在组里挑空的）");
-    Check(lp1._carrier.Info?.AccessStatus == CarrierAccessStatus.Complete, "CJ 完成告诉 LoadPort 载具干完了（E87 CarrierComplete）");
+    Check(lp1.Carrier.Info?.AccessStatus == CarrierAccessStatus.Complete, "CJ 完成告诉 LoadPort 载具干完了（E87 CarrierComplete）");
     Check(events.WaitFor("CJ LOT-A #10"), "上报口收到 CJ 完成");
     Check(events.Numbers("PJ LOT-A-1").SequenceEqual(new[] { 1, 2, 4, 6, 7 }) && events.Numbers("PJ LOT-A-2").SequenceEqual(new[] { 1, 2, 4, 6, 7 }),
         "PJ 转换号照 E40：#1 建、#2 准备、#4 自动开始、#6 加工完、#7 结束，实际 " + string.Join(",", events.Numbers("PJ LOT-A-2")));
@@ -935,7 +935,7 @@ try
     Check(jobs.OwnerOf(first.Id) is null, "PJ 结束放开它名下的片");
 
     Tick();
-    Check(CjOf("LOT-A")?.State == (int)ControlJobState.Completed && lp1._carrier.IsArrived,
+    Check(CjOf("LOT-A")?.State == (int)ControlJobState.Completed && lp1.Carrier.IsArrived,
         "CJ 完成但载具仍在位时保留，等待载具移走");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-A") is null, 20), "载具拿走：完成的 CJ 删掉（#13）");
@@ -1385,7 +1385,7 @@ try
     lp1.E87Callback = new SilentE87();
     LoadCarrier(lp1, 1, 2);
     lp1._carrier.SetId("CAR-E");
-    Check(!lp1.CanUseCarrierForJob && lp1._carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具还不能分给 Job");
+    Check(!lp1.CanUseCarrierForJob && lp1.Carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具还不能分给 Job");
     Check(!RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count > 0 || CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 20)
           && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
         "槽图没被 Host 认定：PJ 不定片、不占片，CJ 还在选中");

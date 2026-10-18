@@ -1296,6 +1296,8 @@ sealed class FakePort : ILoadPort
     /// <summary>端口上这一盒载具：状态和记录都还在 FakePort 的字段里，这里只是把 ICarrier 的口子转过去。</summary>
     public ICarrier _carrier { get; }
 
+    public ICarrierAccess Carrier => _carrier;
+
     public int State => _loaded ? 110 : 30;
 
     public bool IsCarrierArrived { get; private set; }

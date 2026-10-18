@@ -207,6 +207,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public ICarrier _carrier { get; private set; } = null!;
 
+    /// <summary>提供给 Job 的载具读取入口，复用端口维护的载具组件。</summary>
+    public ICarrierAccess Carrier => _carrier;
+
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不登记账）为 null。
     /// </summary>

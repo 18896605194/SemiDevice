@@ -3038,7 +3038,11 @@ port.E87Callback = null;
     Check(accessPort.InitComponent(), "载具准入测试端口初始化成功");
     ComponentLoader.BindAll([accessPort]);
     IJobAccess jobAccess = accessPort;
+    ICarrierAccess carrierAccess = jobAccess.Carrier;
     ITransferStation transferAccess = accessPort;
+
+    Check(!carrierAccess.IsArrived && carrierAccess.Info is null && carrierAccess.CarrierId is null && carrierAccess.SlotMap.Count == 0,
+        "Job 经 ICarrierAccess 读取空端口，无需取得载具维护接口");
 
     void RefusesAccess(HandleResult? error, string code, string message)
     {
@@ -3055,6 +3059,9 @@ port.E87Callback = null;
     accessPort.NoteState(ModuleState.Idle);
     accessPort.NotePodPlaced(true);
     accessPort.Tick();
+    var arrivedCarrier = carrierAccess.Info;
+    Check(carrierAccess.IsArrived && arrivedCarrier?.Location == accessPort.Name && arrivedCarrier.Capacity == accessPort.SlotCount,
+        "事先取得的载具读取入口能观察到后来到位的载具");
     RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotLoaded, "载具到了但未装载：Job 查询返回未装载");
     var notStandby = transferAccess.CheckPrepareTransfer();
     Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer
@@ -3064,7 +3071,7 @@ port.E87Callback = null;
         "查询不发装载指令、不改变状态；搬运查询保留状态码参数");
 
     accessPort.NoteState(LoadPortState.Loaded);
-    Check(accessPort.Mode == ModuleMode.Offline && accessPort._carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.NotRead
+    Check(accessPort.Mode == ModuleMode.Offline && carrierAccess.Info?.SlotMapStatus == CarrierSlotMapStatus.NotRead
           && jobAccess.CanUseCarrierForJob && jobAccess.CheckCarrierForJob() is null
           && transferAccess.CanPrepareTransfer && transferAccess.CheckPrepareTransfer() is null,
         "保持原规则：未接 EAP 的已装载载具无需额外认定，查询也不增加自动调度的 Online 限制");
@@ -3086,15 +3093,32 @@ port.E87Callback = null;
     Check(accessPort.TransferComplete() && accessPort.State == LoadPortState.Loaded && transferAccess.CanPrepareTransfer,
         "本轮完成恢复 Loaded 后，允许下一轮搬运准备");
 
+    var deviceMap = Enumerable.Repeat(SlotState.Empty, accessPort.SlotCount).ToArray();
+    deviceMap[0] = SlotState.CorrectlyOccupied;
+    accessPort.NoteMap(deviceMap);
+    var publishedMap = carrierAccess.SlotMap;
+    deviceMap[0] = SlotState.Empty;
+    Check(publishedMap.Count == accessPort.SlotCount && publishedMap[0] == SlotState.CorrectlyOccupied,
+        "载具读取入口返回 Mapping 快照，调用方修改原始设备数据不影响发布的槽图");
+    if (publishedMap is IList<SlotState> mutableMap)
+    {
+        Throws<NotSupportedException>(() => mutableMap[0] = SlotState.Empty);
+    }
+    Check(carrierAccess.SlotMap[0] == SlotState.CorrectlyOccupied,
+        "读取方不能通过集合写接口更改已发布的槽图");
+
     // 查询成功不代表预留了许可：Host 状态随后变化，真正发起时必须拒绝。
     accessPort.E87Callback = new RecordingE87Callback();
     accessPort._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
     Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer
-          && accessPort._carrier.Info?.IdStatus == CarrierIdStatus.NotRead,
+          && carrierAccess.Info?.IdStatus == CarrierIdStatus.NotRead,
         "保持 EAP 原规则：槽图通过即可，未新增载具 ID 必须认定的限制");
     foreach (var mapStatus in new[] { CarrierSlotMapStatus.Read, CarrierSlotMapStatus.WaitingForHost, CarrierSlotMapStatus.VerifyFailed })
     {
         accessPort._carrier.UpdateStatus(null, mapStatus);
+        Check(!carrierAccess.IsAccepted && carrierAccess.Info?.SlotMapStatus == mapStatus
+              && arrivedCarrier?.SlotMapStatus == CarrierSlotMapStatus.NotRead,
+            $"槽图 {mapStatus}：读取入口反映当前认定状态，先前取得的载具快照保持不变");
         RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：Job 查询返回载具未被认可");
         RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：搬运查询返回相同的认可原因");
         Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer() is null
@@ -3110,6 +3134,11 @@ port.E87Callback = null;
     accessPort.Shell.Comm.Drop();
     Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer,
         "保持原查询条件：查询不增加设备连接限制，设备动作及自动调度继续各自检查");
+    accessPort.NotePodPlaced(false);
+    accessPort.Tick();
+    Check(!carrierAccess.IsArrived && carrierAccess.Info is null && carrierAccess.CarrierId is null && carrierAccess.SlotMap.Count == 0
+          && publishedMap[0] == SlotState.CorrectlyOccupied,
+        "载具移走后，同一读取入口反映空端口，调用方已取得的槽图快照仍保持不变");
     accessPort.Close();
 
     // 普通站点只实现搬运能力即可；并发发起仍只有一个调用能取得传片环。

@@ -326,7 +326,7 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(sequenceError);
             }
 
-            string? carrier = port is not null ? port._carrier.CarrierId : carrierId!.Trim();
+            string? carrier = port is not null ? port.Carrier.CarrierId : carrierId!.Trim();
             if (byCarrier)
             {
                 var claimError = CheckSlotsFree(carrier!, selectedSlots);
@@ -1639,7 +1639,7 @@ public class JobManager : ComponentBase, IJobManager
     {
         return LoadPorts.FirstOrDefault(item =>
         {
-            var carrier = item._carrier;
+            var carrier = item.Carrier;
             return carrier.IsArrived && string.Equals(carrier.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase);
         });
     }
@@ -1783,10 +1783,10 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>载具上有片的槽（槽图里正常和有片说不准的），从下往上：Host 没给槽号时就做这些。</summary>
-    private static List<int> OccupiedSlots(ILoadPort port)
+    private static List<int> OccupiedSlots(IJobAccess port)
     {
         var slots = new List<int>();
-        var map = port._carrier.SlotMap;
+        var map = port.Carrier.SlotMap;
         for (int index = 0; index < map.Count; index++)
         {
             var state = map[index];
@@ -2197,7 +2197,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             if (job.State is ControlJobState.Completed or ControlJobState.Aborted
-                && port?._carrier.IsArrived != true)
+                && port?.Carrier.IsArrived != true)
             {
                 changed |= _controlJobs.Delete(job).IsSuccess;
             }

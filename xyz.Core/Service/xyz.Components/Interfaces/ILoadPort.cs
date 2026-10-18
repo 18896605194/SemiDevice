@@ -9,7 +9,7 @@ public interface ILoadPort : ITransferStation, IJobAccess
     #region 状态
 
     /// <summary>
-    /// 载具
+    /// 载具完整契约，供端口及 EAP 维护；Job 读取使用继承自 IJobAccess 的 Carrier。
     /// </summary>
     ICarrier _carrier { get; }
 
