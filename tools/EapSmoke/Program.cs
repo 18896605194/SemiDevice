@@ -1259,6 +1259,8 @@ sealed class FakePort : ILoadPort
     public bool CanUseCarrierForJob => CheckCarrierForJob() is null;
     public HandleResult? CheckCarrierForJob() => _loaded ? null : HandleResult.Fail(ErrorCodes.CarrierNotLoaded, Name);
 
+    public HandleResult NotifyJobFinished(string carrierId) => _carrier.NoteComplete(carrierId);
+
     public SlotPickOrder PickOrder => SlotPickOrder.BottomUp;
 
     public int LoadTimeout => 0;
@@ -1499,6 +1501,31 @@ sealed class FakePort : ILoadPort
         public void UpdateStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus) => _port.UpdateCarrierStatus(idStatus, slotMapStatus);
 
         public void NoteComplete() => _port.NoteCarrierComplete();
+
+        public HandleResult NoteComplete(string carrierId)
+        {
+            if (string.IsNullOrWhiteSpace(carrierId) || string.IsNullOrWhiteSpace(CarrierId))
+            {
+                return HandleResult.Fail(ErrorCodes.CarrierIdRequired, _port.Name);
+            }
+
+            if (!IsArrived)
+            {
+                return HandleResult.Fail(ErrorCodes.CarrierNotArrived, _port.Name);
+            }
+
+            if (!string.Equals(CarrierId, carrierId.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return HandleResult.Fail(ErrorCodes.CarrierIdMismatch, _port.Name, carrierId.Trim(), CarrierId);
+            }
+
+            if (!_port._complete)
+            {
+                NoteComplete();
+            }
+
+            return HandleResult.Success();
+        }
 
         // 下面是端口那一半：EAP 不读也不调，假端口也不跑端口的扫描，都空着。
         public CarrierInfo? Info => null;

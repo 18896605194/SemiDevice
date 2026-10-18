@@ -104,6 +104,12 @@ public static class ErrorCodes
     /// <summary>载具尚未被认可（接了 EAP 时槽图未通过 Host 认定），不能供 Job 使用或开始搬运准备。Args: [模块名]</summary>
     public const string CarrierNotAccepted = "loadport.carrier_not_accepted";
 
+    /// <summary>未取得有效载具号，不能供 Job 使用或处理作业结束通知。Args: [模块名]</summary>
+    public const string CarrierIdRequired = "loadport.carrier_id_required";
+
+    /// <summary>当前载具号与 Job 保存的载具号不符。Args: [模块名, Job 载具号, 当前载具号]</summary>
+    public const string CarrierIdMismatch = "loadport.carrier_id_mismatch";
+
     /// <summary>Load 联锁：跟搬运车的 E84 交接还没走完，或交接超时锁着等人处理。Args: [模块名]</summary>
     public const string E84HandoffRunning = "loadport.handoff_running";
 
@@ -301,7 +307,7 @@ public static class ErrorCodes
     /// <summary>没有这个 LoadPort。Args: [LoadPort]</summary>
     public const string JobLoadPortNotFound = "job.loadport_not_found";
 
-    /// <summary>LoadPort 上没有能取片的载具（没放、没 Load、没 Mapping）。Args: [LoadPort]</summary>
+    /// <summary>LoadPort 的载具不能供 Job 使用（未到位、未装载、无有效载具号或未被认可）。Args: [LoadPort]</summary>
     public const string JobCarrierNotReady = "job.carrier_not_ready";
 
     /// <summary>这个 LoadPort 上已经有没结束的 Job。Args: [LoadPort, Job 名]</summary>

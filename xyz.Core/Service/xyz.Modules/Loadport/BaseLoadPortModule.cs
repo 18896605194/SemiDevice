@@ -1241,7 +1241,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public bool CanUseCarrierForJob => CheckCarrierForJob() is null;
 
     /// <summary>
-    /// 保持现有载具准入条件：启用、到位、已装载、被认可；不检查机械手是否正占用传片环。
+    /// 载具准入条件：启用、到位、已装载、已有有效载具号、被认可；不检查机械手是否正占用传片环。
     /// 只查询，不给 Job 分配或占用资源。
     /// </summary>
     public virtual HandleResult? CheckCarrierForJob()
@@ -1261,7 +1261,21 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return HandleResult.Fail(ErrorCodes.CarrierNotLoaded, Name);
         }
 
+        if (string.IsNullOrWhiteSpace(_carrier.CarrierId))
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierIdRequired, Name);
+        }
+
         return CheckCarrierAcceptance();
+    }
+
+    /// <summary>
+    /// 接收 CJ 结束通知，由载具按 Job 保存的载具号核对并完成；自动卸载仍由端口扫描等待回片后处理。
+    /// 机型可重写补充收尾条件，标记载具完成时继续调用带载具号的入口。
+    /// </summary>
+    public virtual HandleResult NotifyJobFinished(string carrierId)
+    {
+        return _carrier.NoteComplete(carrierId);
     }
 
     private HandleResult? CheckCarrierAcceptance()

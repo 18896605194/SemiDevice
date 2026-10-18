@@ -3071,10 +3071,15 @@ port.E87Callback = null;
         "查询不发装载指令、不改变状态；搬运查询保留状态码参数");
 
     accessPort.NoteState(LoadPortState.Loaded);
+    RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierIdRequired, "已装载但载具号未取得：Job 准入返回具体原因");
+    Check(!jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer,
+        "Job 需要有效载具号，机械手手动搬运的准备条件继续独立判断");
+    accessPort._carrier.SetId("ACCESS-A");
+    accessPort._carrier.UpdateStatus(CarrierIdStatus.Read, null);
     Check(accessPort.Mode == ModuleMode.Offline && carrierAccess.Info?.SlotMapStatus == CarrierSlotMapStatus.NotRead
           && jobAccess.CanUseCarrierForJob && jobAccess.CheckCarrierForJob() is null
           && transferAccess.CanPrepareTransfer && transferAccess.CheckPrepareTransfer() is null,
-        "保持原规则：未接 EAP 的已装载载具无需额外认定，查询也不增加自动调度的 Online 限制");
+        "RFID 已读到有效载具号：未接 EAP 无需额外认定，查询也不增加自动调度的 Online 限制");
 
     Check(accessPort.PrepareTransfer() is not null && accessPort.State == TransferModuleState.PreTransfer,
         "通过查询后仍由 PrepareTransfer 正式占用传片环");
@@ -3108,10 +3113,11 @@ port.E87Callback = null;
         "读取方不能通过集合写接口更改已发布的槽图");
 
     // 查询成功不代表预留了许可：Host 状态随后变化，真正发起时必须拒绝。
-    accessPort.E87Callback = new RecordingE87Callback();
+    var accessEvents = new RecordingE87Callback();
+    accessPort.E87Callback = accessEvents;
     accessPort._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
     Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer
-          && carrierAccess.Info?.IdStatus == CarrierIdStatus.NotRead,
+          && carrierAccess.Info?.IdStatus == CarrierIdStatus.Read,
         "保持 EAP 原规则：槽图通过即可，未新增载具 ID 必须认定的限制");
     foreach (var mapStatus in new[] { CarrierSlotMapStatus.Read, CarrierSlotMapStatus.WaitingForHost, CarrierSlotMapStatus.VerifyFailed })
     {
@@ -3131,6 +3137,25 @@ port.E87Callback = null;
     RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.ModuleDisabled, "组件停用：载具 Job 查询返回模块停用");
     Check(!jobAccess.CanUseCarrierForJob, "组件停用：Job 布尔属性与查询一致");
     typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(accessPort, true);
+
+    RefusesAccess(jobAccess.NotifyJobFinished(" "), ErrorCodes.CarrierIdRequired, "作业结束通知必须携带 Job 保存的载具号");
+    var wrongCarrier = jobAccess.NotifyJobFinished("ACCESS-B");
+    Check(!wrongCarrier.IsSuccess && wrongCarrier.ErrorMessage == ErrorCodes.CarrierIdMismatch
+          && wrongCarrier.Args.SequenceEqual(new[] { accessPort.Name, "ACCESS-B", "ACCESS-A" })
+          && carrierAccess.Info?.AccessStatus != CarrierAccessStatus.Complete,
+        "载具号不匹配：返回期望与实际载具号，不改变当前载具的访问状态");
+    accessPort.NoteState(ModuleState.Error);
+    Check(jobAccess.NotifyJobFinished("access-a").IsSuccess && accessPort.State == ModuleState.Error
+          && carrierAccess.Info?.AccessStatus == CarrierAccessStatus.Complete
+          && accessEvents.Wait(nameof(IE87Callback.CarrierComplete)),
+        "完成或中止收尾按 CarrierId 核对，不要求端口在 Loaded，也不改变端口状态");
+    var completedCarrier = carrierAccess.Info;
+    Check(jobAccess.NotifyJobFinished("ACCESS-A").IsSuccess && ReferenceEquals(completedCarrier, carrierAccess.Info),
+        "相同载具重复通知成功，不重复更新完成状态");
+    accessPort.SetAutoMode(true);
+    Check(accessEvents.Wait(nameof(IE87Callback.AutoModeChanged)) && accessEvents.Count(nameof(IE87Callback.CarrierComplete)) == 1,
+        "同一上报队列的后续通知已处理：重复结束没有重复上报 E87 CarrierComplete");
+    accessPort.NoteState(LoadPortState.Loaded);
     accessPort.Shell.Comm.Drop();
     Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer,
         "保持原查询条件：查询不增加设备连接限制，设备动作及自动调度继续各自检查");
@@ -3139,6 +3164,14 @@ port.E87Callback = null;
     Check(!carrierAccess.IsArrived && carrierAccess.Info is null && carrierAccess.CarrierId is null && carrierAccess.SlotMap.Count == 0
           && publishedMap[0] == SlotState.CorrectlyOccupied,
         "载具移走后，同一读取入口反映空端口，调用方已取得的槽图快照仍保持不变");
+    RefusesAccess(jobAccess.NotifyJobFinished("ACCESS-A"), ErrorCodes.CarrierNotArrived, "载具已取走：结束通知拒绝，不凭空完成载具");
+    accessPort.NotePodPlaced(true);
+    accessPort.Tick();
+    accessPort._carrier.SetId("ACCESS-B");
+    var oldNotification = jobAccess.NotifyJobFinished("ACCESS-A");
+    Check(oldNotification.ErrorMessage == ErrorCodes.CarrierIdMismatch
+          && carrierAccess.CarrierId == "ACCESS-B" && carrierAccess.Info?.AccessStatus != CarrierAccessStatus.Complete,
+        "端口换成另一载具：旧 Job 的 CarrierId 通知不能完成新载具");
     accessPort.Close();
 
     // 普通站点只实现搬运能力即可；并发发起仍只有一个调用能取得传片环。
@@ -3646,7 +3679,9 @@ sealed class RecordingE84Callback : IE84Callback
 // 只记下收到了哪些回调：派发在别的线程上，等到为止。
 sealed class RecordingE87Callback : IE87Callback
 {
-    private readonly ConcurrentDictionary<string, bool> _received = new();
+    private readonly ConcurrentDictionary<string, int> _received = new();
+
+    public int Count(string name) => _received.GetValueOrDefault(name);
 
     public bool Wait(string name, int timeoutMs = 2000)
     {
@@ -3664,7 +3699,7 @@ sealed class RecordingE87Callback : IE87Callback
         return false;
     }
 
-    private void Note([CallerMemberName] string? name = null) => _received[name!] = true;
+    private void Note([CallerMemberName] string? name = null) => _received.AddOrUpdate(name!, 1, (_, count) => count + 1);
 
     public void CarrierArrived(ILoadPort port) => Note();
     public void CarrierRemoved(ILoadPort port, string? carrierId) => Note();

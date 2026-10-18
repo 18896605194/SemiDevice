@@ -65,6 +65,8 @@
     <sys:String x:Key="loadport.carrier_not_arrived">{0} has no carrier, or the carrier is not in place</sys:String>
     <sys:String x:Key="loadport.carrier_not_loaded">{0} carrier has not finished loading and cannot be used for a job</sys:String>
     <sys:String x:Key="loadport.carrier_not_accepted">{0} carrier has not been accepted (the slot map has not passed host verification)</sys:String>
+    <sys:String x:Key="loadport.carrier_id_required">{0} has no valid carrier ID; the carrier cannot be used for a job or receive a job-finished notification</sys:String>
+    <sys:String x:Key="loadport.carrier_id_mismatch">{0} current carrier ID {2} does not match job carrier ID {1}</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} handoff with the transport vehicle is not finished (or timed out and waiting for the operator); cannot load</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
@@ -129,7 +131,7 @@
     <sys:String x:Key="job.id_invalid">Name {0} is invalid: use 1-80 letters, digits, symbols or spaces, without ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">Name {0} is already used by a job that has not ended</sys:String>
     <sys:String x:Key="job.loadport_not_found">LoadPort {0} not found</sys:String>
-    <sys:String x:Key="job.carrier_not_ready">{0} has no carrier ready for picking (not placed, not loaded, not mapped, or slot map not yet verified by the host when EAP is connected)</sys:String>
+    <sys:String x:Key="job.carrier_not_ready">{0} carrier is not ready for a job (not in place, not loaded, no valid carrier ID, or not accepted)</sys:String>
     <sys:String x:Key="job.loadport_busy">{0} already has an unfinished job {1}</sys:String>
     <sys:String x:Key="job.no_wafers">{0}: no wafers selected (no slot has a Sequence)</sys:String>
     <sys:String x:Key="job.slot_empty">{0} slot {1} is empty</sys:String>

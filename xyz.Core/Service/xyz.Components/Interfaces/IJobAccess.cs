@@ -21,4 +21,9 @@ public interface IJobAccess : IModule
     /// 只查询准入条件，不占用载具或晶圆。null 表示允许，否则返回拒绝原因（错误码和参数）。
     /// </summary>
     HandleResult? CheckCarrierForJob();
+
+    /// <summary>
+    /// CJ 完成或中止收尾后通知模块；按 Job 保存的载具号核对当前载具，同一载具重复通知返回成功。
+    /// </summary>
+    HandleResult NotifyJobFinished(string carrierId);
 }

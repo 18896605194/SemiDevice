@@ -2,12 +2,12 @@
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
-using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Drivers.Loadport;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Tools;
 
 namespace xyz.Modules;
@@ -262,10 +262,12 @@ public class CarrierComponent : ComponentBase, ICarrier
     public void SetId(string carrierId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(carrierId);
-        CarrierId = carrierId;
-
-        // Host 改写即认定：读到什么不重要了，以 Host 为准。
-        UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Verified });
+        lock (_gate)
+        {
+            CarrierId = carrierId;
+            // Host 改写即认定：载具号和快照一起更新，与按载具号完成的检查共用一把锁。
+            UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Verified });
+        }
         _waferManager?.SetCarrierIdOn(Port.Name, carrierId);
     }
 
@@ -282,6 +284,44 @@ public class CarrierComponent : ComponentBase, ICarrier
     {
         UpdateInfo(info => info with { AccessStatus = CarrierAccessStatus.Complete });
         NotifyE87((callback, port) => callback.CarrierComplete(port));
+    }
+
+    public HandleResult NoteComplete(string carrierId)
+    {
+        if (string.IsNullOrWhiteSpace(carrierId))
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierIdRequired, Port.Name);
+        }
+
+        string expected = carrierId.Trim();
+        lock (_gate)
+        {
+            var info = _info;
+            if (!IsArrived || info is null)
+            {
+                return HandleResult.Fail(ErrorCodes.CarrierNotArrived, Port.Name);
+            }
+
+            if (string.IsNullOrWhiteSpace(info.CarrierId))
+            {
+                return HandleResult.Fail(ErrorCodes.CarrierIdRequired, Port.Name);
+            }
+
+            if (!string.Equals(info.CarrierId, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                return HandleResult.Fail(ErrorCodes.CarrierIdMismatch, Port.Name, expected, info.CarrierId);
+            }
+
+            if (info.AccessStatus == CarrierAccessStatus.Complete)
+            {
+                return HandleResult.Success();
+            }
+
+            _info = info with { AccessStatus = CarrierAccessStatus.Complete, UpdatedAt = DateTime.Now };
+        }
+
+        NotifyE87((callback, port) => callback.CarrierComplete(port));
+        return HandleResult.Success();
     }
 
     #endregion
@@ -326,10 +366,12 @@ public class CarrierComponent : ComponentBase, ICarrier
         }
 
         string carrierId = result.Result ?? string.Empty;
-        CarrierId = carrierId;
-
-        // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
-        UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Read });
+        lock (_gate)
+        {
+            CarrierId = carrierId;
+            // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
+            UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Read });
+        }
         _waferManager?.SetCarrierIdOn(Port.Name, carrierId);
         NotifyE87((callback, port) => callback.CarrierIdRead(port, carrierId));
     }
@@ -447,11 +489,11 @@ public class CarrierComponent : ComponentBase, ICarrier
     private void Remove()
     {
         string? carrierId = CarrierId;
-        CarrierId = null;
         SlotMap = Array.Empty<SlotState>();
         _autoReadPending = false;
         lock (_gate)
         {
+            CarrierId = null;
             _info = null;
         }
 

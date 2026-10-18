@@ -16,6 +16,9 @@ public interface ICarrier : ICarrierAccess
 
     void NoteComplete();
 
+    /// <summary>端口按载具号核对并标记完成；核对与更新在载具锁内执行，重复完成不重复上报。</summary>
+    HandleResult NoteComplete(string carrierId);
+
     #region 端口调的（只有 LoadPort 模块调，EAP 别调）
 
     /// <summary>

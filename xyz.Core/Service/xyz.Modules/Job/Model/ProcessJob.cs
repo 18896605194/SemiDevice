@@ -16,7 +16,7 @@ public sealed class ProcessJob
     public required SequenceData Sequence { get; init; }
 
     /// <summary>
-    /// 载具号：Host 建的是 Host 给的（料可能还没到）；本地建的是来源 LoadPort 上那个载具的（没读到为 null）。EAP 按它找 PJ、报料，料没到时按它认载具。
+    /// 载具号：Host 建的是 Host 给的（料可能还没到）；本地建的是来源 LoadPort 已取得的有效载具号。EAP 按它找 PJ、报料，料没到时按它认载具。
     /// </summary>
     public string? CarrierId { get; init; }
 

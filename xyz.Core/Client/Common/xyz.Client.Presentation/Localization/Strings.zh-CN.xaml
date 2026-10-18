@@ -66,6 +66,8 @@
     <sys:String x:Key="loadport.carrier_not_arrived">{0} 上没有载具，或载具未放到位</sys:String>
     <sys:String x:Key="loadport.carrier_not_loaded">{0} 的载具尚未完成装载，不能供 Job 使用</sys:String>
     <sys:String x:Key="loadport.carrier_not_accepted">{0} 的载具尚未被认可（槽图未通过 Host 认定）</sys:String>
+    <sys:String x:Key="loadport.carrier_id_required">{0} 尚未取得有效载具号，不能供 Job 使用或处理作业结束通知</sys:String>
+    <sys:String x:Key="loadport.carrier_id_mismatch">{0} 当前载具号为 {2}，与 Job 保存的载具号 {1} 不一致</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} 跟搬运车的交接还没走完（或交接超时等人处理），不能装载</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
@@ -130,7 +132,7 @@
     <sys:String x:Key="job.id_invalid">名字 {0} 不合规：要 1~80 个英文、数字、符号或空格，不能有 ? * ~ &gt; :</sys:String>
     <sys:String x:Key="job.id_duplicate">名字 {0} 已经在用（有同名的 Job 还没结束）</sys:String>
     <sys:String x:Key="job.loadport_not_found">没有 LoadPort {0}</sys:String>
-    <sys:String x:Key="job.carrier_not_ready">{0} 上没有能取片的载具（没放、没 Load、没 Mapping，或接了 EAP 时槽图还没被 Host 认定）</sys:String>
+    <sys:String x:Key="job.carrier_not_ready">{0} 的载具尚不能供 Job 使用（未到位、未装载、未取得有效载具号，或未通过认定）</sys:String>
     <sys:String x:Key="job.loadport_busy">{0} 上已经有没结束的 Job {1}</sys:String>
     <sys:String x:Key="job.no_wafers">{0} 没有选要做的片（槽位都没配 Sequence）</sys:String>
     <sys:String x:Key="job.slot_empty">{0} 第 {1} 槽没片</sys:String>

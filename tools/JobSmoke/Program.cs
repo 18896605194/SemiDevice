@@ -594,6 +594,8 @@ try
         port.NotePodPlaced(true);
         port.Tick();
         port.NoteMap(map);
+        // 假设备没有 RFID 通道；在这里模拟读头取得有效载具号。
+        port._carrier.SetId($"CARRIER-{port.Name}");
     }
 
     void UnloadCarrier(SmokePort port)
@@ -633,6 +635,15 @@ try
     }
 
     // 1. 搬运管理：受理时的检查——站点、槽、片、机械手、手臂，不收的不占锁。
+    lp1.NoteState(LoadPortState.Loaded);
+    lp1.NotePodPlaced(true);
+    lp1.Tick();
+    lp1.NoteMap(Enumerable.Range(1, lp1.SlotCount).Select(slot => slot == 1 ? SlotState.CorrectlyOccupied : SlotState.Empty).ToArray());
+    Refuses(Do(jobs.CreateProcessJobAsync("LP1", "PJ-NO-CARRIER-ID", [1], "SEQ_A", null)), ErrorCodes.JobCarrierNotReady,
+        ["LP1"], "本地创建：载具已到、已装载，但尚未取得 CarrierId，不创建 PJ");
+    Check(PjOf("PJ-NO-CARRIER-ID") is null && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,
+        "载具号为空时不留下 Job，不占用晶圆");
+    UnloadCarrier(lp1);
     LoadCarrier(lp1, 1, 2, 3, 4, 5);
     var first = ledger.Get("LP1", 1)!;
     HandleResult<TransferRoutine> StartTransfer(string source, int sourceSlot, string target, int targetSlot, Guid? wafer = null, int arm = 0,
@@ -925,7 +936,9 @@ try
           && wafer.Tasks.Count(task => task.Kind == "Process" && task.State == "Done") == 1), "SEQ_A 的片各做一站");
     Check(PjOf("LOT-A-1")!.Wafers.Select(wafer => wafer.Tasks[1].Station).Distinct().Count() == 2,
         "站点组：两片分到了 PM1、PM2 两个腔（放片那一刻在组里挑空的）");
-    Check(lp1.Carrier.Info?.AccessStatus == CarrierAccessStatus.Complete, "CJ 完成告诉 LoadPort 载具干完了（E87 CarrierComplete）");
+    Check(lp1.Carrier.Info?.AccessStatus == CarrierAccessStatus.Complete
+          && lp1.FinishedCarriers.LastOrDefault() == CjOf("LOT-A")!.CarrierId,
+        "CJ 经 LoadPort 的 Job 入口传回已保存的 CarrierId，端口完成载具（E87 CarrierComplete）");
     Check(events.WaitFor("CJ LOT-A #10"), "上报口收到 CJ 完成");
     Check(events.Numbers("PJ LOT-A-1").SequenceEqual(new[] { 1, 2, 4, 6, 7 }) && events.Numbers("PJ LOT-A-2").SequenceEqual(new[] { 1, 2, 4, 6, 7 }),
         "PJ 转换号照 E40：#1 建、#2 准备、#4 自动开始、#6 加工完、#7 结束，实际 " + string.Join(",", events.Numbers("PJ LOT-A-2")));
@@ -1384,6 +1397,11 @@ try
     // 接了 EAP：槽图读了但 Host 还没认定，料到了也不定片、不能本地建要动这盒片的 PJ
     lp1.E87Callback = new SilentE87();
     LoadCarrier(lp1, 1, 2);
+    lp1._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
+    Check(lp1.CanUseCarrierForJob
+          && !RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count > 0 || CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 10),
+        "载具已到、可供 Job 使用，但 CarrierId 不匹配：原 PJ/CJ 继续等料");
+    lp1._carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
     lp1._carrier.SetId("CAR-E");
     Check(!lp1.CanUseCarrierForJob && lp1.Carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.Read, "接了 EAP、槽图没被认定：载具还不能分给 Job");
     Check(!RunUntil(() => PjOf("PJ-EARLY")?.Wafers.Count > 0 || CjOf("CJ-EARLY")?.State != (int)ControlJobState.Selected, 20)
@@ -1550,6 +1568,27 @@ try
     transfers.Bind(modules);
     secondRobot.Close();
     secondRobot = null;
+
+    // 17c. CJ 结束使用创建时保存的 CarrierId；端口换成其他载具后，中止旧 CJ 也不能把新载具标成完成。
+    LoadCarrier(lp1, 1);
+    Check(Create("LOT-CARRIER-ID", "LP1", false, (1, "SEQ_A")).IsSuccess
+          && RunUntil(() => CjOf("LOT-CARRIER-ID")?.State == (int)ControlJobState.WaitingForStart, 20),
+        "按有效 CarrierId 建好 Job，CJ 等待启动");
+    string originalCarrierId = CjOf("LOT-CARRIER-ID")!.CarrierId;
+    Check(originalCarrierId == lp1.Carrier.CarrierId && PjOf("LOT-CARRIER-ID-1")?.CarrierId == originalCarrierId,
+        "本地创建的 PJ/CJ 都保存实际载具号");
+    UnloadCarrier(lp1);
+    LoadCarrier(lp1, 1);
+    lp1._carrier.SetId("REPLACEMENT-CARRIER");
+    Check(Do(jobs.AbortControlJobAsync("LOT-CARRIER-ID")).IsSuccess
+          && RunUntil(() => CjOf("LOT-CARRIER-ID")?.State == (int)ControlJobState.Aborted, 20),
+        "载具已换：旧 CJ 中止仍正常结束，端口拒绝通知不回滚 CJ");
+    Check(lp1.FinishedCarriers.LastOrDefault() == originalCarrierId
+          && CjOf("LOT-CARRIER-ID")?.CarrierId == originalCarrierId
+          && lp1.Carrier.CarrierId == "REPLACEMENT-CARRIER" && lp1.Carrier.Info?.AccessStatus != CarrierAccessStatus.Complete,
+        "JobManager 传保存的 CarrierId，端口不会把通知作用到后来换上的载具");
+    UnloadCarrier(lp1);
+    Check(RunUntil(() => CjOf("LOT-CARRIER-ID") is null, 20), "载具移走后旧 CJ 照常删掉");
 
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
@@ -1826,6 +1865,14 @@ sealed class SmokeRobotShell : RejeRobotComponent
 // 在位走设备上报（Event），下一拍扫描生效；假驱动不回状态查询，用 Query 的话在位永远判不出来。
 sealed class SmokePort : BaseLoadPortModule
 {
+    public List<string> FinishedCarriers { get; } = [];
+
+    public override HandleResult NotifyJobFinished(string carrierId)
+    {
+        FinishedCarriers.Add(carrierId);
+        return base.NotifyJobFinished(carrierId);
+    }
+
     public SmokePort(string name)
     {
         Probe.Name(this, name, "LoadPort");

@@ -327,6 +327,11 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             string? carrier = port is not null ? port.Carrier.CarrierId : carrierId!.Trim();
+            if (string.IsNullOrWhiteSpace(carrier))
+            {
+                return Task.FromResult(HandleResult.Fail(ErrorCodes.JobCarrierNotReady, port!.Name));
+            }
+
             if (byCarrier)
             {
                 var claimError = CheckSlotsFree(carrier!, selectedSlots);
@@ -449,6 +454,7 @@ public class JobManager : ComponentBase, IJobManager
             {
                 var process = _processJobs.Get(processId.Trim());
                 if (process is null || process.ControlJob is not null || process.State != ProcessJobState.QueuedPooled
+                    || string.IsNullOrWhiteSpace(process.CarrierId)
                     || processes.Contains(process))
                 {
                     return Task.FromResult(HandleResult.Fail(ErrorCodes.JobProcessJobUnavailable, processId.Trim()));
@@ -1599,7 +1605,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// 料在哪个 LoadPort：给了 LoadPort 就按它（本地建，载具号可能没读到），载具要能取片（放着、Load 好，接了 EAP 时槽图认定）；
+    /// 料在哪个 LoadPort：给了 LoadPort 就按它（本地建，必须已取得有效载具号），载具要能取片（放着、Load 好，接了 EAP 时槽图认定）；
     /// 没给按载具号找（Host 建）：载具在哪个口上就是哪个，还没到为 null（先建着，料到了再定片）。
     /// </summary>
     private HandleResult? FindLoadPort(string? loadPort, string? carrierId, out ILoadPort? port)
@@ -1698,6 +1704,18 @@ public class JobManager : ComponentBase, IJobManager
     private HandleResult? AssignWafers(ProcessJob job, ILoadPort port)
     {
         string sourceName = port.Name;
+        string? carrierId = port.Carrier.CarrierId;
+        if (string.IsNullOrWhiteSpace(carrierId))
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierIdRequired, sourceName);
+        }
+
+        // 等料查找和实际定片都按 CarrierId 核对；不把端口上后来换到的载具分给原 Job。
+        if (!string.Equals(job.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase))
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierIdMismatch, sourceName, job.CarrierId ?? string.Empty, carrierId);
+        }
+
         var sequence = job.Sequence;
         if (!sequence.Steps[0].Stations.Contains(sourceName, StringComparer.OrdinalIgnoreCase))
         {
@@ -1934,9 +1952,15 @@ public class JobManager : ComponentBase, IJobManager
     /// </summary>
     private void OnControlJobStateChanged(ControlJob job, ControlJobState state, int e94TransitionNumber)
     {
-        if (state is ControlJobState.Completed or ControlJobState.Aborted && !job.IsEnded)
+        if (state is ControlJobState.Completed or ControlJobState.Aborted && !job.IsEnded
+            && Module(job.LoadPort) is IJobAccess access)
         {
-            LoadPort(job.LoadPort)?._carrier.NoteComplete();
+            var finished = access.NotifyJobFinished(job.CarrierId ?? string.Empty);
+            if (!finished.IsSuccess)
+            {
+                LogHelper.Warn(Name, $"CJ {job.Id} 已结束，{access.Name} 拒绝载具 {job.CarrierId} 的结束通知："
+                    + $"{finished.ErrorMessage} [{string.Join(", ", finished.Args)}]");
+            }
         }
 
         if (job.IsEnded)
@@ -2167,6 +2191,7 @@ public class JobManager : ComponentBase, IJobManager
 
             if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
                 && port?.CanUseCarrierForJob == true
+                && string.Equals(port.Carrier.CarrierId, job.CarrierId, StringComparison.OrdinalIgnoreCase)
                 && job.ProcessJobs.All(process => process.IsEnded || !process.IsWaitingForMaterial))
             {
                 if (ControlJobAutoStart)
