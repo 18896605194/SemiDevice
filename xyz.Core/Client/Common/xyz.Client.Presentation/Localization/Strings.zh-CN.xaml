@@ -63,7 +63,9 @@
     <sys:String x:Key="loadport.unload_slot_map_mismatch">{0} Unload 时扫到的片跟晶圆账对不上：第 {1} 槽</sys:String>
     <sys:String x:Key="loadport.wafers_in_job">{0} 上的片属于还没结束的 Job（{1}），要先中止这个 Job</sys:String>
     <sys:String x:Key="loadport.wafers_outside">{0} 取出去的片还有 {1} 片没回来（在腔体或机械手上），关门片就回不来了；先把片放回来</sys:String>
-    <sys:String x:Key="loadport.carrier_not_arrived">{0} 上没有载具（没放到位），不能装载</sys:String>
+    <sys:String x:Key="loadport.carrier_not_arrived">{0} 上没有载具，或载具未放到位</sys:String>
+    <sys:String x:Key="loadport.carrier_not_loaded">{0} 的载具尚未完成装载，不能供 Job 使用</sys:String>
+    <sys:String x:Key="loadport.carrier_not_accepted">{0} 的载具尚未被认可（槽图未通过 Host 认定）</sys:String>
     <sys:String x:Key="loadport.handoff_running">{0} 跟搬运车的交接还没走完（或交接超时等人处理），不能装载</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>

@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
-public interface ILoadPort : ITransferStation
+public interface ILoadPort : ITransferStation, IJobAccess
 {
     #region 状态
 
@@ -32,11 +32,6 @@ public interface ILoadPort : ITransferStation
     /// E87状态
     /// </summary>
     LoadPortTransferState LocalTransferState { get; }
-
-    /// <summary>
-    /// 载具到了、Load 好了、槽图认定了：能给 Job 定片
-    /// </summary>
-    bool CanAssignCarrierToJob { get; }
 
     #endregion
 

@@ -1,4 +1,5 @@
 ﻿using xyz.Components.Components;
+using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
@@ -12,7 +13,16 @@ public interface ITransferStation : IModule
     /// </summary>
     int SlotCount { get; }
 
-    bool CanPrepare { get; }
+    /// <summary>
+    /// 工位当前能否开始一次搬运准备；准备完成前不代表机械手可以伸入。
+    /// </summary>
+    bool CanPrepareTransfer { get; }
+
+    /// <summary>
+    /// 只查询，不占用工位。null 表示允许，否则返回拒绝原因（错误码和参数）；发起准备时仍须重新检查。
+    /// 自动调度所需的启用、在线状态及具体槽位、机械手资源由调用方另行检查。
+    /// </summary>
+    HandleResult? CheckPrepareTransfer();
 
     /// <summary>
     /// 准备阶段一：粗准备（腔体排气/预热/机构到位等）

@@ -255,7 +255,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     private bool IsStationReady(string name)
     {
         var station = Station(name);
-        if (station is null || !station.IsEnabled || !IsOnline(station) || !station.CanPrepare)
+        if (station is null || !station.IsEnabled || !IsOnline(station) || !station.CanPrepareTransfer)
         {
             return false;
         }

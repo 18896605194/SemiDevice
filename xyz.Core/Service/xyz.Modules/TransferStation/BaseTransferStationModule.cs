@@ -1,4 +1,5 @@
-﻿using xyz.Components.Components;
+﻿using System.Globalization;
+using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
@@ -28,16 +29,35 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// </summary>
     public abstract int SlotCount { get; set; }
 
-    public virtual bool CanPrepare => State == StandbyState;
+    public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
 
     /// <summary>
-    /// 准备一
+    /// 只检查传片环是否在待命态；模块补充自己的准备条件，不在这里增加自动调度限制。
+    /// </summary>
+    public virtual HandleResult? CheckPrepareTransfer()
+    {
+        int state = State;
+        return state == StandbyState
+            ? null
+            : HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// 准备一：锁内重查准入并占用本轮传片环。
     /// </summary>
     public virtual ModuleOperation? PrepareTransfer()
     {
-        return TransferStep(StandbyState, TransferModuleState.PreTransfer)
-            ? new NoOpOperation("PrepareTransfer")
-            : null;
+        lock (OperationGate)
+        {
+            if (CheckPrepareTransfer() is not null)
+            {
+                return null;
+            }
+
+            return TransferStep(StandbyState, TransferModuleState.PreTransfer)
+                ? new NoOpOperation("PrepareTransfer")
+                : null;
+        }
     }
 
     /// <summary>

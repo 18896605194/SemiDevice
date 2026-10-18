@@ -95,8 +95,14 @@ public static class ErrorCodes
     /// <summary>资源检查：从这个口取出去的片还有没回来的（在腔体、机械手上），Unload / 门开着的 Home 一关门就回不来了。Args: [模块名, 片数]</summary>
     public const string PortWafersOutside = "loadport.wafers_outside";
 
-    /// <summary>Load 联锁：载具没放到位。Args: [模块名]</summary>
+    /// <summary>载具没放到位，不能装载、供 Job 使用或开始搬运准备。Args: [模块名]</summary>
     public const string CarrierNotArrived = "loadport.carrier_not_arrived";
+
+    /// <summary>载具尚未完成装载，不能供 Job 使用。Args: [模块名]</summary>
+    public const string CarrierNotLoaded = "loadport.carrier_not_loaded";
+
+    /// <summary>载具尚未被认可（接了 EAP 时槽图未通过 Host 认定），不能供 Job 使用或开始搬运准备。Args: [模块名]</summary>
+    public const string CarrierNotAccepted = "loadport.carrier_not_accepted";
 
     /// <summary>Load 联锁：跟搬运车的 E84 交接还没走完，或交接超时锁着等人处理。Args: [模块名]</summary>
     public const string E84HandoffRunning = "loadport.handoff_running";

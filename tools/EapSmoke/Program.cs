@@ -1240,7 +1240,8 @@ sealed class FakePort : ILoadPort
     public ModuleOperation? CurrentOperation => null;
 
     // 这份假件只模拟 EAP 载具流程，不受理机械手搬运。
-    public bool CanPrepare => false;
+    public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
+    public HandleResult? CheckPrepareTransfer() => HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, State.ToString());
     public ModuleOperation? PrepareTransfer() => null;
     public ModuleOperation? PrepareTransfer2() => null;
     public bool Transferring() => false;
@@ -1255,7 +1256,8 @@ sealed class FakePort : ILoadPort
     {
     }
 
-    public bool CanAssignCarrierToJob => _loaded;
+    public bool CanUseCarrierForJob => CheckCarrierForJob() is null;
+    public HandleResult? CheckCarrierForJob() => _loaded ? null : HandleResult.Fail(ErrorCodes.CarrierNotLoaded, Name);
 
     public SlotPickOrder PickOrder => SlotPickOrder.BottomUp;
 

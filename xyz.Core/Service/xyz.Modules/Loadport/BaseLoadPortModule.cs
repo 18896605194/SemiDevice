@@ -246,22 +246,23 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override int StandbyState => LoadPortState.Loaded;
 
     /// <summary>
-    /// 
+    /// 开始搬运准备：传片环在 Loaded、载具到位且被认可。
+    /// 基类 PrepareTransfer 在占用传片环的同一把锁内重查这里，查询本身不占用端口。
     /// </summary>
-    public override bool CanPrepare => base.CanPrepare && _carrier.IsArrived && _carrier.IsAccepted;
-
-    /// <summary>
-    /// 机械手进站（准备一）：载具不在、或者 Host 还没认定槽图就不让进，返回 null（搬运那边按站点忙接着等，等到超时判负）。
-    /// 在不在待命态由基类在锁里判，两台机械手抢同一个口只有一台进得去。
-    /// </summary>
-    public override ModuleOperation? PrepareTransfer()
+    public override HandleResult? CheckPrepareTransfer()
     {
-        if (!_carrier.IsArrived || !_carrier.IsAccepted)
+        var stateError = base.CheckPrepareTransfer();
+        if (stateError is not null)
         {
-            return null;
+            return stateError;
         }
 
-        return base.PrepareTransfer();
+        if (!_carrier.IsArrived)
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierNotArrived, Name);
+        }
+
+        return CheckCarrierAcceptance();
     }
 
     #region 组件初始化与驱动连接
@@ -1232,10 +1233,38 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 载具可以分给 Job（定片、选回片口、开始 CJ）：启用、载具在、门开着（正被机械手取放也算）、Host 认可了槽图。
-    /// 只管账面上排活，不管机械手现在能不能进站——那个看 CanPrepare。
+    /// 载具可以供 Job 使用（定片、选回片口、开始 CJ）；正被机械手取放也算已装载。
     /// </summary>
-    public bool CanAssignCarrierToJob => IsEnabled && _carrier.IsArrived && IsLoaded && _carrier.IsAccepted;
+    public bool CanUseCarrierForJob => CheckCarrierForJob() is null;
+
+    /// <summary>
+    /// 保持现有载具准入条件：启用、到位、已装载、被认可；不检查机械手是否正占用传片环。
+    /// 只查询，不给 Job 分配或占用资源。
+    /// </summary>
+    public virtual HandleResult? CheckCarrierForJob()
+    {
+        if (!IsEnabled)
+        {
+            return HandleResult.Fail(ErrorCodes.ModuleDisabled, Name);
+        }
+
+        if (!_carrier.IsArrived)
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierNotArrived, Name);
+        }
+
+        if (!IsLoaded)
+        {
+            return HandleResult.Fail(ErrorCodes.CarrierNotLoaded, Name);
+        }
+
+        return CheckCarrierAcceptance();
+    }
+
+    private HandleResult? CheckCarrierAcceptance()
+    {
+        return _carrier.IsAccepted ? null : HandleResult.Fail(ErrorCodes.CarrierNotAccepted, Name);
+    }
 
     /// <summary>
     /// 空闲，也就是Unload状态

@@ -346,7 +346,7 @@ public class JobManager : ComponentBase, IJobManager
             };
 
             // 料已经在、能取片了就当场定片（查片、定回片槽、生成任务行），不行整个不建；料没到先建着，扫描里等料到了再定
-            if (port is not null && port.CanAssignCarrierToJob)
+            if (port is not null && port.CanUseCarrierForJob)
             {
                 var assignError = AssignWafers(job, port);
                 if (assignError is not null)
@@ -1614,8 +1614,9 @@ public class JobManager : ComponentBase, IJobManager
                 return HandleResult.Fail(ErrorCodes.JobLoadPortNotFound, name);
             }
 
-            if (!found.CanAssignCarrierToJob)
+            if (found.CheckCarrierForJob() is not null)
             {
+                // 准入规则由端口的载具能力统一检查；Job 对外保留既有错误码。
                 return HandleResult.Fail(ErrorCodes.JobCarrierNotReady, found.Name);
             }
 
@@ -1818,7 +1819,7 @@ public class JobManager : ComponentBase, IJobManager
             return null;
         }
 
-        string? port = returnPorts.FirstOrDefault(name => LoadPort(name)?.CanAssignCarrierToJob == true);
+        string? port = returnPorts.FirstOrDefault(name => LoadPort(name)?.CanUseCarrierForJob == true);
         if (port is null)
         {
             return HandleResult.Fail(ErrorCodes.JobReturnSlotUnavailable, returnPorts[0], slotText);
@@ -1999,7 +2000,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             var port = FindCarrierPort(job.CarrierId);
-            if (port is null || !port.CanAssignCarrierToJob)
+            if (port is null || !port.CanUseCarrierForJob)
             {
                 continue;
             }
@@ -2165,7 +2166,7 @@ public class JobManager : ComponentBase, IJobManager
             }
 
             if (job.State == ControlJobState.Selected && job.Ending == ControlJobEnding.None
-                && port?.CanAssignCarrierToJob == true
+                && port?.CanUseCarrierForJob == true
                 && job.ProcessJobs.All(process => process.IsEnded || !process.IsWaitingForMaterial))
             {
                 if (ControlJobAutoStart)

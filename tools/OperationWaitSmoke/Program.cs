@@ -476,11 +476,11 @@ Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess, "Load �
 Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCompleted");
 Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
-// 机械手进站要载具在、Host 认可了槽图（CanPrepare）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
-Check(!port.CanPrepare && port.PrepareTransfer() is null && port.State == LoadPortState.Loaded,
+// 机械手进站要载具在、Host 认可了槽图（CanPrepareTransfer）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
+Check(!port.CanPrepareTransfer && port.PrepareTransfer() is null && port.State == LoadPortState.Loaded,
     "接了 EAP、槽图没认定：机械手不能进站");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
-Check(port.CanPrepare && port.PrepareTransfer() is not null && port.CancelTransfer() && port.State == LoadPortState.Loaded,
+Check(port.CanPrepareTransfer && port.PrepareTransfer() is not null && port.CancelTransfer() && port.State == LoadPortState.Loaded,
     "槽图认定后机械手能进站；准备再撤回应回到 Loaded");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
 
@@ -2368,7 +2368,7 @@ port.E87Callback = null;
 
     Check(disabledScanned, "停用的端口：扫描不抛空引用");
     var disabledDto = disabledPort.CreateStateDto();
-    Check(!disabledDto.HasCarrier && !disabledPort.CanAssignCarrierToJob
+    Check(!disabledDto.HasCarrier && !disabledPort.CanUseCarrierForJob
           && disabledPort.LocalTransferState == LoadPortTransferState.OutOfService,
         "停用的端口：状态推得出来，没载具、不能分给 Job、搬运状态是 Out Of Service");
     var disabledLoad = disabledPort.Load();
@@ -2475,7 +2475,7 @@ port.E87Callback = null;
     var crossPort = new PlainPort("CrossMapPort");
     var crossLoad = LoadWithMap(crossPort, $"PPCPD{new string('E', 20)}");
     Check(crossLoad.Code == ErrorCodes.SlotMapAbnormal && crossLoad.ErrorArgs.SequenceEqual(new[] { "CrossMapPort", "3,5" })
-          && crossPort.State == ModuleState.Error && !crossPort.CanPrepare,
+          && crossPort.State == ModuleState.Error && !crossPort.CanPrepareTransfer,
         "3 槽交叉片、5 槽叠片：Load 判失败（slot_map_abnormal），落 Error，机械手进不来");
     Check(crossPort._carrier.SlotMap.Count == 25 && crossPort._carrier.SlotMap[2] == SlotState.CrossSlotted
           && presenceLedger.Get("CrossMapPort", 3)?.Status == WaferStatus.Crossed && presenceLedger.Get("CrossMapPort", 5)?.Status == WaferStatus.Double,
@@ -2763,10 +2763,10 @@ port.E87Callback = null;
 
     // 机械手进站要载具在：状态还是 Loaded、载具却不在了，不让进，免得往空口放片
     resetPort.NoteState(LoadPortState.Loaded);
-    Check(resetPort.CanPrepare, "Loaded、载具在、没接 EAP：机械手能进站");
+    Check(resetPort.CanPrepareTransfer, "Loaded、载具在、没接 EAP：机械手能进站");
     resetPort.NotePodPlaced(false);
     resetPort.Tick();
-    Check(!resetPort.CanPrepare && resetPort.PrepareTransfer() is null && resetPort.State == LoadPortState.Loaded,
+    Check(!resetPort.CanPrepareTransfer && resetPort.PrepareTransfer() is null && resetPort.State == LoadPortState.Loaded,
         "Loaded 但载具不在：机械手不能进站");
     resetPort.NotePodPlaced(true);
     resetPort.Tick();
@@ -2796,7 +2796,7 @@ port.E87Callback = null;
           == ModuleState.NotInit,
         "门开、门关两位都不亮（停在半路）：中止完落 NotInit");
     Check(StateAfter(TransferModuleState.Transferring, LoadPortAction.Abort, doorOpen) == LoadPortState.Loaded
-          && resetPort.CanPrepare,
+          && resetPort.CanPrepareTransfer,
         "机械手取片失败卡在取放中：人确认后中止，门开着回 Loaded，机械手又能来取");
     Check(StateAfter(TransferModuleState.Transferring, LoadPortAction.Abort, doorClosed) == ModuleState.Idle,
         "卡在取放中、门却关着：中止完落 Idle");
@@ -3030,6 +3030,101 @@ port.E87Callback = null;
     Check(stuckPick.IsTerminal && stuckPick.Code == ErrorCodes.Timeout, "等回复超时：动作判失败（超时）");
     Check(stuckRobot.Shell.Pick(1, 3, 5) is not null, "超时的那条作废了：同一条取片指令能再发");
     stuckRobot.Close();
+}
+
+// LP-1：载具供 Job 使用与开始一次搬运准备是两种能力；查询只返回原因，实际发起准备仍须重查并独占传片环。
+{
+    var accessPort = new ProbePort("CarrierAccessPort");
+    Check(accessPort.InitComponent(), "载具准入测试端口初始化成功");
+    ComponentLoader.BindAll([accessPort]);
+    IJobAccess jobAccess = accessPort;
+    ITransferStation transferAccess = accessPort;
+
+    void RefusesAccess(HandleResult? error, string code, string message)
+    {
+        Check(error is not null && error.ErrorMessage == code && error.Args.SequenceEqual(new[] { accessPort.Name }), message);
+    }
+
+    accessPort.NoteState(LoadPortState.Loaded);
+    RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotArrived, "Job 查询：载具未到位，返回端口名和具体原因");
+    RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotArrived, "搬运查询：Loaded 但载具未到位，同样返回具体原因");
+    Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer() is null
+          && accessPort.State == LoadPortState.Loaded && accessPort.CurrentOperation is null,
+        "载具不在：查询与动作都拒绝，状态和操作不变");
+
+    accessPort.NoteState(ModuleState.Idle);
+    accessPort.NotePodPlaced(true);
+    accessPort.Tick();
+    RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotLoaded, "载具到了但未装载：Job 查询返回未装载");
+    var notStandby = transferAccess.CheckPrepareTransfer();
+    Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer
+          && notStandby?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed
+          && notStandby.Args.SequenceEqual(new[] { accessPort.Name, ModuleState.Idle.ToString() })
+          && accessPort.State == ModuleState.Idle && accessPort.Calls == 0,
+        "查询不发装载指令、不改变状态；搬运查询保留状态码参数");
+
+    accessPort.NoteState(LoadPortState.Loaded);
+    Check(accessPort.Mode == ModuleMode.Offline && accessPort._carrier.Info?.SlotMapStatus == CarrierSlotMapStatus.NotRead
+          && jobAccess.CanUseCarrierForJob && jobAccess.CheckCarrierForJob() is null
+          && transferAccess.CanPrepareTransfer && transferAccess.CheckPrepareTransfer() is null,
+        "保持原规则：未接 EAP 的已装载载具无需额外认定，查询也不增加自动调度的 Online 限制");
+
+    Check(accessPort.PrepareTransfer() is not null && accessPort.State == TransferModuleState.PreTransfer,
+        "通过查询后仍由 PrepareTransfer 正式占用传片环");
+    var preparing = transferAccess.CheckPrepareTransfer();
+    Check(!transferAccess.CanPrepareTransfer && preparing?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed
+          && preparing.Args.SequenceEqual(new[] { accessPort.Name, TransferModuleState.PreTransfer.ToString() })
+          && jobAccess.CanUseCarrierForJob && jobAccess.CheckCarrierForJob() is null,
+        "端口已在准备：拒绝另一轮搬运准备，载具供 Job 使用的条件仍成立");
+    Check(accessPort.PrepareTransfer() is null && accessPort.State == TransferModuleState.PreTransfer,
+        "重复启动搬运准备被拒，已经占用的传片环不变");
+    Check(accessPort.PrepareTransfer2() is not null && accessPort.State == TransferModuleState.TransferReady
+          && jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer,
+        "准备二沿用本轮交互，载具准入与下一轮搬运准备分别判断");
+    Check(accessPort.Transferring() && jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer,
+        "正在取放：载具仍具备 Job 准入条件，不能开始另一轮搬运准备");
+    Check(accessPort.TransferComplete() && accessPort.State == LoadPortState.Loaded && transferAccess.CanPrepareTransfer,
+        "本轮完成恢复 Loaded 后，允许下一轮搬运准备");
+
+    // 查询成功不代表预留了许可：Host 状态随后变化，真正发起时必须拒绝。
+    accessPort.E87Callback = new RecordingE87Callback();
+    accessPort._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
+    Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer
+          && accessPort._carrier.Info?.IdStatus == CarrierIdStatus.NotRead,
+        "保持 EAP 原规则：槽图通过即可，未新增载具 ID 必须认定的限制");
+    foreach (var mapStatus in new[] { CarrierSlotMapStatus.Read, CarrierSlotMapStatus.WaitingForHost, CarrierSlotMapStatus.VerifyFailed })
+    {
+        accessPort._carrier.UpdateStatus(null, mapStatus);
+        RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：Job 查询返回载具未被认可");
+        RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：搬运查询返回相同的认可原因");
+        Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer() is null
+              && accessPort.State == LoadPortState.Loaded && accessPort.CurrentOperation is null,
+            $"槽图 {mapStatus}：布尔属性与拒绝原因一致，之前查询成功也不能绕过动作入口重查");
+    }
+
+    accessPort._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(accessPort, false);
+    RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.ModuleDisabled, "组件停用：载具 Job 查询返回模块停用");
+    Check(!jobAccess.CanUseCarrierForJob, "组件停用：Job 布尔属性与查询一致");
+    typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(accessPort, true);
+    accessPort.Shell.Comm.Drop();
+    Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer,
+        "保持原查询条件：查询不增加设备连接限制，设备动作及自动调度继续各自检查");
+    accessPort.Close();
+
+    // 普通站点只实现搬运能力即可；并发发起仍只有一个调用能取得传片环。
+    var station = new ProbeAligner("TransferAccessStation");
+    ITransferStation stationAccess = station;
+    Check(stationAccess.CheckPrepareTransfer() is null && stationAccess.CanPrepareTransfer
+          && (object)station is not IJobAccess,
+        "普通站点复用搬运查询，无需实现载具 Job 能力");
+    var attempts = new ModuleOperation?[8];
+    Parallel.For(0, attempts.Length, index => attempts[index] = station.PrepareTransfer());
+    Check(attempts.Count(operation => operation is not null) == 1 && !stationAccess.CanPrepareTransfer
+          && stationAccess.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
+        "八次并发准备只有一次成功；查询不会代替锁内占用");
+    Check(station.CancelTransfer() && stationAccess.CanPrepareTransfer && stationAccess.CheckPrepareTransfer() is null,
+        "普通站点撤回准备后恢复可用");
 }
 
 Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all recording the wafers it cannot return), the system module kept out of the IO module list, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
@@ -3718,7 +3813,8 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
     public int SlotCount => 1;
-    public bool CanPrepare => true;
+    public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
+    public HandleResult? CheckPrepareTransfer() => null;
 
     public ModuleOperation? PrepareTransfer()
     {
