@@ -1,4 +1,4 @@
-# 后端
+﻿# 后端
 
 路径相对 `xyz.Core`。.NET 10（`net10.0`），Nullable、ImplicitUsings 全开；`D:\Code\Directory.Build.props` 统一 win-x64、x64。
 
@@ -342,6 +342,8 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `Scheduler` = `SchedulerComponent`（不配自己建一个））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
   **Job 是标准件**：CJ / PJ 管理、任务组件、调度引擎全在平台，机型不写 Job 代码，这几个类不开 `abstract` / `virtual`（JobSmoke 盯着）；
   调度逻辑不同的在平台另写调度组件（实现 `ISchedulerComponent`），机型在 sc 的 `Scheduler` 选 Type（现在只有 `SchedulerComponent`，见 decisions.md「调度可以有多个」）；
+  对外的任务、搬运请求、站内任务和执行结果契约保持通用；后续增加不同派单策略时，将结果收集和共用执行方法提到 `BaseSchedulerComponent`。
+  这是后续整理项，当前未新增调度基类或第二种调度实现。
   站点的差别靠站点自己声明、执行任务（`SupportedTasks` / `StartTask`），走哪些站点靠流程配方，规则要变就改平台。
   - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：`Dictionary<string, CjEntity>`，key 为 CJ ID，每个实体包含 `ControlJob` 和自己的 `CjStateMachine`）
     和 PJ 管理（`IPjManager` / `PjManager`：`Dictionary<string, PjEntity>`，key 为 PJ ID，实体包含 PJ 对象及独立状态机，并管理晶圆归属）。CJ 管理不依赖 PJ 管理，不处理 PJ。

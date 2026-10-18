@@ -1,4 +1,4 @@
-# 已经跟用户定下来的设计（不要改回去）
+﻿# 已经跟用户定下来的设计（不要改回去）
 
 改到相关功能前先看这里。每条后面是定下来的日期。
 
@@ -577,7 +577,9 @@
   不写调度代码；对外的东西通用（任务表、`TransferRequest` / `SwapRequest`、`StationTaskRequest`、`ModuleOperation` 和每片进度）。
   分界：同一套流程上的变化（交换、预取这类）在现有调度上加 SC 开关；节拍根本不一样的才另写一个。站点能力（批量、剩余时间、Q-time）先补进站点契约和任务生成，
   不藏在某个调度里，免得混合机台（单片腔 + 浸泡槽）要为每种组合各写一个调度。现在只有 `SchedulerComponent` 一个：不先建调度基类，
-  写第二个时再把共用的（收进度、找站点和空槽、起搬运）提出来，JobSmoke 里"sc 的 Scheduler 必须是 SchedulerComponent"那项检查到时放宽成"平台里的调度类型"。
+  写第二个时再把共用的（收进度、找站点和空槽、起搬运）提到 `BaseSchedulerComponent`，JobSmoke 里"sc 的 Scheduler 必须是 SchedulerComponent"那项检查到时放宽成"平台里的调度类型"。
+  **本轮确认（2026-10-18，用户："针对不同的设备调度逻辑写不同的调度组件，你先记一下"）**：保持对外任务、搬运请求、站内任务和执行结果契约通用，
+  不同派单策略分别实现调度组件；公共结果收集和执行方法后续统一复用。`BaseSchedulerComponent` 只是后续整理项，本次只记录，不新增基类或调度实现。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
   `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
   CJ / PJ 管理按后续参考工程使用对象状态动作；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
@@ -711,6 +713,8 @@
   （配错开机暴露，别等跑货时卡住）；跑货时机械手不能分段，落交互中标记之前就拒（`robot.handoff_unsupported`），两头的环还回去。
 - Job、流程配方、工艺配方、调度都不动：调度还是派"取片、放片"，分不分段由搬运执行照站点开关定。`PrepareNextLeg`（取完 A、放 B 之前的调整）照留，
   跟一下取放里面的中途交接是两回事。
+- **真实设备接入暂缓（2026-10-18，本轮用户确认）**：当前不接真实机械手分段指令、站点交接机构，也不启用现有机型的分段配置。
+  后续按现有扩展点在机型机械手声明 `ITransferRobotStep`、提供四个伸缩臂动作，站点补交接动作及配置；通常沿用公共搬运、Job 和调度流程，品牌命令不足时补品牌驱动适配。
 
 ## 站内工艺开不开工归站点模块（2026-10-19，用户："CheckProcess 这个模块自己实现就好了，比方说后面接入浸泡，浸泡模块自己实现就好了"）
 - 调度只按片调 `StartTask` 问"做不做"、等回来的动作收尾；站点不接（回 null）调度不记失败，下一拍再问。开不开工、什么时候开、怎么做，全在站点模块的
@@ -720,6 +724,8 @@
 - 浸泡（各片各自计时）：每槽的计时放模块自己的列表里在 `OnScan` 推，不用 `Begin` 挂（模块一次只能挂一个动作，挂上站点算忙，别的槽进不了片），站点状态保持空闲。
 - 接新站点：继承 `BaseTransferStationModule`，实现 `IProcessStation`（Type、CurrentProcess、FindRecipeMismatch、CheckProcess、StartProcess），`SupportedTasks` 加工艺，
   `CheckTask` / `StartTask` 把工艺转过去（照 `BaseChamberModule`）。调度、Job、平台都不改。
+- **浸泡模块留到新项目（2026-10-18，用户："这个后续扩展新的项目做"）**：当前不在 35021 或平台里新增浸泡模块；扩展对应新项目时再继承
+  `BaseTransferStationModule`，实现按槽检查、独立计时、`OnScan` 推进和整槽停止。此项属于后续项目实现，当前只记录边界。
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV；不接 PLC、没有手动动作），X/Z/Theta 直接配它；
