@@ -15,6 +15,12 @@ public static class RobotStateTable
             [(ModuleState.Idle, RobotAction.Pick)] = (RobotState.Picking, ModuleState.Idle),
             [(ModuleState.Idle, RobotAction.Place)] = (RobotState.Placing, ModuleState.Idle),
 
+            // 分段取放：伸臂做完停在"伸着"等站点交接，手还在站里，只收缩臂和急停（回原点、上下使能这些都不收）。
+            [(ModuleState.Idle, RobotAction.ExtendPick)] = (RobotState.Picking, RobotState.PickExtended),
+            [(RobotState.PickExtended, RobotAction.RetractPick)] = (RobotState.Picking, ModuleState.Idle),
+            [(ModuleState.Idle, RobotAction.ExtendPlace)] = (RobotState.Placing, RobotState.PlaceExtended),
+            [(RobotState.PlaceExtended, RobotAction.RetractPlace)] = (RobotState.Placing, ModuleState.Idle),
+
             // Reset 只清设备报错，不占用独立执行状态；报错后位置不可信，清错回 NotInit，需 Home 才回 Idle。
             [(ModuleState.NotInit, RobotAction.Reset)] = (ModuleState.NotInit, ModuleState.NotInit),
             [(ModuleState.Idle, RobotAction.Reset)] = (ModuleState.Idle, ModuleState.Idle),

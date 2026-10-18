@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -13,6 +14,18 @@ namespace xyz.Modules;
 /// </summary>
 public abstract class BaseTransferStationModule : BaseModule, ITransferStation, IStationTaskExecutor
 {
+    #region SC
+
+    [SCEditor("False", "TransferStation",
+        "取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令取完")]
+    public bool HandoffOnPick { get; set; }
+
+    [SCEditor("False", "TransferStation",
+        "放片要站点中途交接：机械手伸到位先停下，站点把片接走（比如升顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令放完")]
+    public bool HandoffOnPlace { get; set; }
+
+    #endregion
+
     #region 待命态（传片环的起点和终点）
 
     /// <summary>
@@ -142,6 +155,50 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     }
 
     /// <summary>
+    /// 取片交接：机械手伸到位停下后调；只认配了 HandoffOnPick、本轮带取片的上下文、交互中、没有未收尾的动作，不受理返回 null
+    /// </summary>
+    public ModuleOperation? HandoffPick(TransferContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
+        {
+            if (!HandoffOnPick || !context.HasPick || !CanHandoff(context))
+            {
+                return null;
+            }
+
+            return HandoffPickCore(context);
+        }
+    }
+
+    /// <summary>
+    /// 放片交接：机械手伸到位停下后调；只认配了 HandoffOnPlace、本轮带放片的上下文、交互中、没有未收尾的动作，不受理返回 null
+    /// </summary>
+    public ModuleOperation? HandoffPlace(TransferContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
+        {
+            if (!HandoffOnPlace || !context.HasPlace || !CanHandoff(context))
+            {
+                return null;
+            }
+
+            return HandoffPlaceCore(context);
+        }
+    }
+
+    /// <summary>
+    /// 交接的公共条件：同一份上下文、交互中、没有未收尾的动作（调用方已在锁内）
+    /// </summary>
+    private bool CanHandoff(TransferContext context)
+    {
+        return ReferenceEquals(_transferContext, context)
+            && State == TransferModuleState.Transferring
+            && !HasUnsettledOperation();
+    }
+
+    /// <summary>
     /// 机械手和站点传输完成
     /// </summary>
     public bool TransferComplete(TransferContext context)
@@ -216,7 +273,9 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
 
     #region 钩子（子类扩展点）
 
-    /// <summary>准备一扩展点；公共入口已经在锁内检查准入并记录本轮上下文。</summary>
+    /// <summary>
+    /// 准备一扩展点；公共入口已经在锁内检查准入并记录本轮上下文
+    /// </summary>
     protected virtual ModuleOperation? PrepareTransferCore(TransferContext context)
     {
         return TransferStep(StandbyState, TransferModuleState.PreTransfer)
@@ -224,7 +283,9 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
             : null;
     }
 
-    /// <summary>准备二扩展点；公共入口统一检查本轮上下文、状态和当前操作。</summary>
+    /// <summary>
+    /// 准备二扩展点；公共入口统一检查本轮上下文、状态和当前操作
+    /// </summary>
     protected virtual ModuleOperation? PrepareTransfer2Core(TransferContext context)
     {
         return TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady)
@@ -238,6 +299,22 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     protected virtual ModuleOperation? PrepareNextLegCore(TransferContext context)
     {
         return new NoOpOperation("PrepareNextLeg");
+    }
+
+    /// <summary>
+    /// 取片交接扩展点：配了 HandoffOnPick 的站点重写，起动作把片交到手上（比如降顶针），做完仍停在交互中；默认没有交接动作，被拒
+    /// </summary>
+    protected virtual ModuleOperation? HandoffPickCore(TransferContext context)
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 放片交接扩展点：配了 HandoffOnPlace 的站点重写，起动作把片从手上接走（比如升顶针），做完仍停在交互中；默认被拒
+    /// </summary>
+    protected virtual ModuleOperation? HandoffPlaceCore(TransferContext context)
+    {
+        return null;
     }
 
     /// <summary>

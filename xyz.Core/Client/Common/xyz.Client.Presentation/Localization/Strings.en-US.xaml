@@ -45,6 +45,8 @@
     <sys:String x:Key="module.state.unclamping">Unclamping</sys:String>
     <sys:String x:Key="module.state.picking">Picking</sys:String>
     <sys:String x:Key="module.state.placing">Placing</sys:String>
+    <sys:String x:Key="module.state.pick_extended">Pick extended</sys:String>
+    <sys:String x:Key="module.state.place_extended">Place extended</sys:String>
     <sys:String x:Key="module.state.processing">Processing</sys:String>
     <sys:String x:Key="module.state.manual">Manual action</sys:String>
     <sys:String x:Key="module.state.stopping">Stopping</sys:String>
@@ -77,6 +79,7 @@
     <sys:String x:Key="robot.arm_sensor_no_wafer">{0} Arm{1} presence sensor detects no wafer, but the wafer ledger says the arm holds one: check the actual wafer position and fix the ledger</sys:String>
     <sys:String x:Key="robot.arm_sensor_unknown">{0} Arm{1} presence sensor cannot be read (PLC not connected or wrong IO point); pick/place is not allowed</sys:String>
     <sys:String x:Key="robot.ledger_move_failed">{0} completed the pick/place motion, but the wafer ledger could not move the wafer from {1} slot {2} to {3} slot {4}; confirm the actual wafer position before recovery</sys:String>
+    <sys:String x:Key="robot.handoff_unsupported">{0} cannot do step-wise pick/place, so it cannot serve a station that needs a mid-transfer handoff</sys:String>
     <sys:String x:Key="robot.direction.north">North</sys:String>
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>
@@ -107,6 +110,8 @@
     <sys:String x:Key="transfer.station_busy">{0} did not become available within {1} ms (it never returned to idle, or another robot kept it busy)</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0}: transfer preparation step {1} was rejected (the station state does not allow it; it may have been operated manually)</sys:String>
     <sys:String x:Key="transfer.station_prepare_failed">{0}: transfer preparation step {1} did not complete (timeout or device error)</sys:String>
+    <sys:String x:Key="transfer.station_handoff_rejected">{0}: the mid-transfer handoff was rejected (the station state does not allow it; it may have been operated manually). The robot is stopped inside the station; check where the wafer is on site</sys:String>
+    <sys:String x:Key="transfer.station_handoff_failed">{0}: the mid-transfer handoff did not complete (timeout or device error). The robot is stopped inside the station; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} failed: the station stays in Transferring; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} could not be marked {1} (the station state does not match the transfer progress; it may have been operated manually)</sys:String>
     <sys:String x:Key="transfer.not_installed">Cannot switch to Auto: no Transfer node in sc.xml (transfer manager not installed)</sys:String>

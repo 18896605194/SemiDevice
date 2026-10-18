@@ -846,33 +846,74 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         }
 
         bool pick = action == RobotAction.Pick;
-        Guid? expectedWaferId = null;
-        var ledger = _waferManager;
-        if (ledger is not null && ledger.IsEnable)
+        var noWafer = FindExpectedWafer(pick, arm, station, slot, out var expectedWaferId);
+        if (noWafer is not null)
         {
-            // 复用已有晶圆 Id；动作期间即使来源槽补成同样的业务片号，也不能误移另一片的账。
-            var wafer = ledger.Get(pick ? station : Name, pick ? slot : arm);
-            if (wafer is null)
-            {
-                return Rejected(pick
-                    ? HandleResult.Fail(ErrorCodes.WaferNoWafer, station, slot.ToString(CultureInfo.InvariantCulture))
-                    : HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture)));
-            }
-
-            expectedWaferId = wafer.Id;
+            return Rejected(noWafer);
         }
 
-        var operation = pick
-            ? CreatePickOperation(arm, config.Number, slot)
-            : CreatePlaceOperation(arm, config.Number, slot);
+        ModuleOperation motion;
+        if (pick)
+        {
+            motion = CreatePickOperation(arm, config.Number, slot);
+        }
+        else
+        {
+            motion = CreatePlaceOperation(arm, config.Number, slot);
+        }
 
-        // 机型只补设备动作；持片校验和记账由公共取放操作负责，记账通过后才向搬运管理确认成功。
-        var armComponent = FindArm(arm);
-        var sensorArm = armComponent?.IsWaferCheckEnabled == true ? armComponent : null;
-        var intent = new TransferIntent(action, arm, station, slot, expectedWaferId);
-        operation = new RobotTransferOperation(operation, Name, sensorArm, expectWafer: pick,
+        return StartWithLedger(action, motion, new TransferIntent(action, arm, station, slot, expectedWaferId), config);
+    }
+
+    /// <summary>
+    /// 开着晶圆账时认定要搬的那一片（取片看站点这一槽、放片看这只手）：复用已有晶圆 Id，动作期间来源槽补成同样的业务片号也不会误移另一片的账；没片就拒
+    /// </summary>
+    private HandleResult? FindExpectedWafer(bool pick, int arm, string station, int slot, out Guid? expectedWaferId)
+    {
+        expectedWaferId = null;
+        var ledger = _waferManager;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        string fromModule = Name;
+        int fromSlot = arm;
+        if (pick)
+        {
+            fromModule = station;
+            fromSlot = slot;
+        }
+
+        var wafer = ledger.Get(fromModule, fromSlot);
+        if (wafer is null)
+        {
+            if (pick)
+            {
+                return HandleResult.Fail(ErrorCodes.WaferNoWafer, station, slot.ToString(CultureInfo.InvariantCulture));
+            }
+
+            return HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture));
+        }
+
+        expectedWaferId = wafer.Id;
+        return null;
+    }
+
+    /// <summary>
+    /// 设备动作套上持片检查和记账再挂上：机型只补设备动作，持片校验和记账由公共取放操作负责，记账通过后才向搬运管理确认成功
+    /// </summary>
+    private HandleResult<ModuleOperation> StartWithLedger(RobotAction action, ModuleOperation motion, TransferIntent intent, RobotStation config)
+    {
+        var armComponent = FindArm(intent.Arm);
+        IRobotArm? sensorArm = null;
+        if (armComponent is not null && armComponent.IsWaferCheckEnabled)
+        {
+            sensorArm = armComponent;
+        }
+
+        var operation = new RobotTransferOperation(motion, Name, sensorArm, expectWafer: intent.Action == RobotAction.Pick,
             commitLedger: () => CommitTransferLedger(intent));
-
         var started = Started(action, operation);
         if (started.IsSuccess)
         {
@@ -897,6 +938,200 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 换片：默认不支持，返回 null（被拒）。机械手支持换片的，在机型里重写。
     /// </summary>
     public virtual ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot)
+    {
+        return null;
+    }
+
+    #endregion
+
+    #region 分段取放（伸臂 → 停在站里等站点交接 → 缩臂）
+
+    // 能分段取放的机械手类在类上声明 ITransferRobotStep（下面四个方法就是它的实现），再重写四个 CreateExtend / RetractXxxOperation 给出设备动作。
+    // 伸臂做完机械手停在"伸着"（PickExtended / PlaceExtended），手还在站里，状态表只收缩臂和急停；片在伸臂时认定，缩臂做完按它查持片、记账。
+
+    /// <summary>
+    /// 分段取片第一步：检查跟 Pick 一样；手伸到片下方停住，做完停在"取片伸着"
+    /// </summary>
+    public HandleResult<ModuleOperation> ExtendPick(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.ExtendPick) ?? CheckPickResource(arm, station, slot) ?? PickInterlock(arm, station, slot);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return StartExtend(RobotAction.ExtendPick, arm, station, slot);
+        }
+    }
+
+    /// <summary>
+    /// 分段取片第二步：只在"取片伸着"、而且是伸进去的那只手那一槽时收；缩回后查持片、片记到手上
+    /// </summary>
+    public HandleResult<ModuleOperation> RetractPick(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.RetractPick) ?? CheckExtended(RobotAction.Pick, arm, station, slot);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return StartRetract(RobotAction.RetractPick, _transferIntent!);
+        }
+    }
+
+    /// <summary>
+    /// 分段放片第一步：检查跟 Place 一样；带着片伸到放片位停住，做完停在"放片伸着"
+    /// </summary>
+    public HandleResult<ModuleOperation> ExtendPlace(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.ExtendPlace) ?? CheckPlaceResource(arm, station, slot) ?? PlaceInterlock(arm, station, slot);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return StartExtend(RobotAction.ExtendPlace, arm, station, slot);
+        }
+    }
+
+    /// <summary>
+    /// 分段放片第二步：只在"放片伸着"、而且是伸进去的那只手那一槽时收；缩回后查持片、片记到站点
+    /// </summary>
+    public HandleResult<ModuleOperation> RetractPlace(int arm, string station, int slot)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.RetractPlace) ?? CheckExtended(RobotAction.Place, arm, station, slot);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return StartRetract(RobotAction.RetractPlace, _transferIntent!);
+        }
+    }
+
+    /// <summary>
+    /// 缩臂要对得上伸进去的那一趟：同样是取片（或放片）、同一只手、同一个站、同一槽
+    /// </summary>
+    private HandleResult? CheckExtended(RobotAction action, int arm, string station, int slot)
+    {
+        var intent = _transferIntent;
+        if (intent is null || intent.Action != action || intent.Arm != arm || intent.Slot != slot
+            || !string.Equals(intent.Station, station, StringComparison.OrdinalIgnoreCase))
+        {
+            return HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 挂上伸臂：伸臂不动账（片还在原处），这一趟的意图记下来留给缩臂；机械手类没给伸臂动作就拒
+    /// </summary>
+    private HandleResult<ModuleOperation> StartExtend(RobotAction action, int arm, string station, int slot)
+    {
+        if (!TryGetStation(station, out var config))
+        {
+            return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
+        }
+
+        bool pick = action == RobotAction.ExtendPick;
+        var noWafer = FindExpectedWafer(pick, arm, station, slot, out var expectedWaferId);
+        if (noWafer is not null)
+        {
+            return Rejected(noWafer);
+        }
+
+        ModuleOperation? motion;
+        var intentAction = RobotAction.Place;
+        if (pick)
+        {
+            motion = CreateExtendPickOperation(arm, config.Number, slot);
+            intentAction = RobotAction.Pick;
+        }
+        else
+        {
+            motion = CreateExtendPlaceOperation(arm, config.Number, slot);
+        }
+
+        if (motion is null)
+        {
+            return Rejected(HandleResult.Fail(ErrorCodes.RobotHandoffUnsupported, Name));
+        }
+
+        var started = Started(action, motion);
+        if (started.IsSuccess)
+        {
+            _currentStation = config;
+            _transferIntent = new TransferIntent(intentAction, arm, station, slot, expectedWaferId);
+        }
+
+        return started;
+    }
+
+    /// <summary>
+    /// 挂上缩臂：按伸臂时记下的那一趟查持片、记账；机械手类没给缩臂动作就拒（手还伸着，等人工）
+    /// </summary>
+    private HandleResult<ModuleOperation> StartRetract(RobotAction action, TransferIntent intent)
+    {
+        if (!TryGetStation(intent.Station, out var config))
+        {
+            return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, intent.Station));
+        }
+
+        ModuleOperation? motion;
+        if (intent.Action == RobotAction.Pick)
+        {
+            motion = CreateRetractPickOperation(intent.Arm, config.Number, intent.Slot);
+        }
+        else
+        {
+            motion = CreateRetractPlaceOperation(intent.Arm, config.Number, intent.Slot);
+        }
+
+        if (motion is null)
+        {
+            return Rejected(HandleResult.Fail(ErrorCodes.RobotHandoffUnsupported, Name));
+        }
+
+        return StartWithLedger(action, motion, intent, config);
+    }
+
+    /// <summary>
+    /// 分段取片伸臂的设备动作：能分段取放的机械手类重写，发自己的伸臂指令（伸到片下方停住，不抬片）；默认没有，分段取放被拒
+    /// </summary>
+    protected virtual ModuleOperation? CreateExtendPickOperation(int arm, int stationNumber, int slot)
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 分段取片缩臂的设备动作：站点已经把片交到手上，吸住确认后缩回；默认没有
+    /// </summary>
+    protected virtual ModuleOperation? CreateRetractPickOperation(int arm, int stationNumber, int slot)
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 分段放片伸臂的设备动作：带着片伸到放片位停住，有吸附的手松开吸附；默认没有
+    /// </summary>
+    protected virtual ModuleOperation? CreateExtendPlaceOperation(int arm, int stationNumber, int slot)
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 分段放片缩臂的设备动作：站点已经把片接走，空手缩回；默认没有
+    /// </summary>
+    protected virtual ModuleOperation? CreateRetractPlaceOperation(int arm, int stationNumber, int slot)
     {
         return null;
     }
@@ -1133,11 +1368,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 操作终结（状态已由基类落好，成功取放已提交晶圆账）：清除交互意图，失败的动作报警。
+    /// 操作终结（状态已由基类落好，成功取放已提交晶圆账）：清除交互意图（分段取放伸臂做完停在"伸着"的留着给缩臂记账），失败的动作报警。
     /// </summary>
     protected override void OnOperationCompleted(ModuleOperation operation)
     {
-        _transferIntent = null;
+        if (State != RobotState.PickExtended && State != RobotState.PlaceExtended)
+        {
+            _transferIntent = null;
+        }
+
         RaiseActionFailedAlarm(operation);
     }
 

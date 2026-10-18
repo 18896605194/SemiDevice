@@ -46,6 +46,8 @@
     <sys:String x:Key="module.state.unclamping">松开中</sys:String>
     <sys:String x:Key="module.state.picking">取片中</sys:String>
     <sys:String x:Key="module.state.placing">放片中</sys:String>
+    <sys:String x:Key="module.state.pick_extended">取片伸着</sys:String>
+    <sys:String x:Key="module.state.place_extended">放片伸着</sys:String>
     <sys:String x:Key="module.state.processing">工艺中</sys:String>
     <sys:String x:Key="module.state.manual">手动动作中</sys:String>
     <sys:String x:Key="module.state.stopping">停止中</sys:String>
@@ -78,6 +80,7 @@
     <sys:String x:Key="robot.arm_sensor_no_wafer">{0} 的 Arm{1} 在位传感器没检测到片，跟晶圆账（手上有片）对不上：先到现场确认片位，按实物改账</sys:String>
     <sys:String x:Key="robot.arm_sensor_unknown">{0} 的 Arm{1} 在位传感器读不到（PLC 没连上或点位不对），不能取放</sys:String>
     <sys:String x:Key="robot.ledger_move_failed">{0} 取放动作已完成，但晶圆账从 {1} 第 {2} 槽移至 {3} 第 {4} 槽失败；请确认实际片位后处理</sys:String>
+    <sys:String x:Key="robot.handoff_unsupported">{0} 不能分段取放，做不了要站点中途交接的取放</sys:String>
     <sys:String x:Key="robot.direction.north">北</sys:String>
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>
@@ -108,6 +111,8 @@
     <sys:String x:Key="transfer.station_busy">{0} 等了 {1} ms 还没空出来（没回到待命状态，或一直被别的机械手占着）</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0} 搬运准备（第 {1} 步）被拒：站点当前状态不允许，可能被人工动过</sys:String>
     <sys:String x:Key="transfer.station_prepare_failed">{0} 搬运准备（第 {1} 步）没做成（超时或设备报错）</sys:String>
+    <sys:String x:Key="transfer.station_handoff_rejected">{0} 中途交接被拒（站点状态不允许，可能被人工动过）：机械手停在站里，先到现场确认片在哪</sys:String>
+    <sys:String x:Key="transfer.station_handoff_failed">{0} 中途交接没做成（超时或设备报错）：机械手停在站里，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} 没做成：站点会停在搬运中，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} 落不下 {1} 标记（站点状态跟搬运进度对不上，可能被人工动过）</sys:String>
     <sys:String x:Key="transfer.not_installed">sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto</sys:String>

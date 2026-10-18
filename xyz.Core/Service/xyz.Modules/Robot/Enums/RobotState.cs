@@ -6,7 +6,17 @@ public class RobotState : ModuleState
 
     public const int Picking = 210;
 
+    /// <summary>
+    /// 分段取片伸着停在站里，等站点把片交到手上；只收取片缩臂和急停
+    /// </summary>
+    public const int PickExtended = 211;
+
     public const int Placing = 220;
+
+    /// <summary>
+    /// 分段放片伸着停在站里，等站点把片接走；只收放片缩臂和急停
+    /// </summary>
+    public const int PlaceExtended = 221;
 }
 
 public enum RobotAction
@@ -17,5 +27,9 @@ public enum RobotAction
     Pick,
     Place,
     PowerOn,
-    PowerOff
+    PowerOff,
+    ExtendPick,
+    RetractPick,
+    ExtendPlace,
+    RetractPlace
 }

@@ -48,6 +48,26 @@ public interface ITransferStation : IModule
     ModuleOperation? PrepareNextLeg(TransferContext context);
 
     /// <summary>
+    /// 取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂
+    /// </summary>
+    bool HandoffOnPick { get; }
+
+    /// <summary>
+    /// 放片要站点中途交接：机械手伸到位先停下，站点把片接走（比如升顶针）再缩臂
+    /// </summary>
+    bool HandoffOnPlace { get; }
+
+    /// <summary>
+    /// 取片交接：机械手伸到位停下后调；只认本轮带取片的上下文、交互中、没有没收尾的动作，不受理返回 null
+    /// </summary>
+    ModuleOperation? HandoffPick(TransferContext context);
+
+    /// <summary>
+    /// 放片交接：机械手伸到位停下后调；只认本轮带放片的上下文、交互中、没有没收尾的动作，不受理返回 null
+    /// </summary>
+    ModuleOperation? HandoffPlace(TransferContext context);
+
+    /// <summary>
     /// 接受本轮完成通知：落 TransferComplete 并发布，再交给站点收尾；默认同步回待命态。
     /// 上下文或状态不符返回 false；true 表示通知已接受，不代表机型扩展的异步收尾已完成。
     /// </summary>

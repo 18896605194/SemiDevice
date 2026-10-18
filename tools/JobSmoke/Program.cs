@@ -1716,6 +1716,379 @@ try
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-CARRIER-ID") is null, 20), "载具移走后旧 CJ 照常删掉");
 
+    // 17d. 同腔交换、预取：同一槽先取走做完的旧片、再放进手上的新片，站点一轮占到底，两片各记各的进度和账；
+    //      放新片失败、取完旧片后中止都整条挂起，按任意一片放锁都能清干净；
+    //      调度两个开关默认关，打开后预取只取不放、留一只空手给旧片、同一个站只预取一片，许可不对称、旧片没去处都不预取；
+    //      Job 中止时交换里它的旧片已经取出来了，就让交换把另一片放完，Job 等交换收尾才结束。
+    {
+        TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.WaferId == waferId);
+
+        bool HoldsFor(int ticks, Func<bool> condition)
+        {
+            for (int tick = 0; tick < ticks; tick++)
+            {
+                Tick();
+                if (!condition())
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        LoadCarrier(lp1, 1, 2);
+        Check(ledger.Move("LP1", 1, "PM1", 1) && ledger.Move("LP1", 2, "Robot1", 2), "摆好：旧片 A 在 PM1 第 1 槽、新片 B 在 Robot1 的 2 号手");
+        var waferA = ledger.Get("PM1", 1)!;
+        var waferB = ledger.Get("Robot1", 2)!;
+        SwapRequest SwapOf(int pickArm, int placeArm, Guid pickWafer, Guid placeWafer) => new()
+        {
+            Robot = "Robot1",
+            Station = "PM1",
+            Slot = 1,
+            PickArm = pickArm,
+            PlaceArm = placeArm,
+            PickWafer = pickWafer,
+            PlaceWafer = placeWafer,
+        };
+
+        var sameArm = transfers.StartSwap(SwapOf(2, 2, waferA.Id, waferB.Id));
+        var wrongWafer = transfers.StartSwap(SwapOf(1, 2, waferB.Id, waferB.Id));
+        var noArm = transfers.StartSwap(SwapOf(3, 2, waferA.Id, waferB.Id));
+        Check(!sameArm.IsSuccess && sameArm.ErrorMessage == ErrorCodes.TransferArmUnavailable
+              && !wrongWafer.IsSuccess && wrongWafer.ErrorMessage == ErrorCodes.TransferWaferMismatch
+              && !noArm.IsSuccess && noArm.ErrorMessage == ErrorCodes.TransferArmUnavailable
+              && !transfers.IsSlotLocked("PM1", 1) && !transfers.IsRobotInTransfer("Robot1"),
+            "交换受理：两只手要不同、手要存在、站里要正好是预期的旧片；不收的不占锁");
+
+        var swap = transfers.StartSwap(SwapOf(1, 2, waferA.Id, waferB.Id)).Result!;
+        Check(swap is not null && transfers.IsSlotLocked("PM1", 1) && transfers.IsSlotLocked("Robot1", 1) && transfers.IsSlotLocked("Robot1", 2),
+            "同一槽先出后进：槽上是预期的旧片也收，站点这一槽和两只手一次占齐");
+        Check(RunUntil(() => swap.Wafers[0].Progress == TransferWaferProgress.Picked), "旧片取出");
+        Check(pm1.State == TransferModuleState.Transferring && pm1.PrepareTransfer(TransferContext.ForPlace("Robot1", 1, 1)) is null
+              && ledger.Get("Robot1", 1)?.Id == waferA.Id && ledger.Get("PM1", 1) is null && ledger.Get("Robot1", 2)?.Id == waferB.Id,
+            "取完旧片站点不收尾、别的轮次进不来；旧片的账已经记到取片手上");
+        Check(RunUntil(() => swap.IsSettled) && swap.IsSuccess && pm1.State == ModuleState.Idle
+              && ledger.Get("PM1", 1)?.Id == waferB.Id && ledger.Get("Robot1", 1)?.Id == waferA.Id && ledger.Get("Robot1", 2) is null
+              && swap.Wafers[1].Progress == TransferWaferProgress.Placed
+              && !transfers.IsSlotLocked("PM1", 1) && !transfers.IsSlotLocked("Robot1", 1) && !transfers.IsSlotLocked("Robot1", 2),
+            "交换做完：新片进站、旧片留在取片手上，站点整轮收尾，资源全部放开");
+
+        // 放新片失败：旧片照样算取出来了，整条记录挂起只列一次，按任意一片放锁都能清干净
+        robot.FailNextPlace = true;
+        var failed = transfers.StartSwap(SwapOf(2, 1, waferB.Id, waferA.Id)).Result!;
+        Check(RunUntil(() => failed.IsSettled) && !failed.IsSuccess && failed.NeedsRecovery
+              && failed.Wafers[0].Progress == TransferWaferProgress.Picked && failed.Wafers[1].Progress == TransferWaferProgress.None
+              && ledger.Get("Robot1", 2)?.Id == waferB.Id && ledger.Get("Robot1", 1)?.Id == waferA.Id && ledger.Get("PM1", 1) is null,
+            "放新片失败：旧片已取出（账在取片手上），新片还在放片手上，不回滚、不重取");
+        Check(transfers.HeldOperations.Count == 1 && ReferenceEquals(transfers.HeldOperations.Single(), failed)
+              && transfers.IsSlotLocked("Robot1", 1) && transfers.IsSlotLocked("Robot1", 2), "交换挂起：两片共用一条记录，资源保留");
+        Check(transfers.ReleaseHold(waferA.Id) && transfers.HeldOperations.Count == 0 && !transfers.ReleaseHold(waferB.Id)
+              && !transfers.IsSlotLocked("Robot1", 1) && !transfers.IsSlotLocked("Robot1", 2) && !transfers.IsSlotLocked("PM1", 1),
+            "按其中一片放锁，整条记录的资源一起放开，另一片不用再放");
+        robot.NoteState(ModuleState.Idle);
+        pm1.NoteState(ModuleState.Idle);
+
+        // 取完旧片、放新片之前中止：动过手，整条挂起，旧片照实际记已取出
+        Check(ledger.Move("Robot1", 1, "PM1", 1), "旧片放回 PM1 再来一次");
+        var abortedSwap = transfers.StartSwap(SwapOf(1, 2, waferA.Id, waferB.Id)).Result!;
+        Check(RunUntil(() => abortedSwap.Wafers[0].Progress == TransferWaferProgress.Picked) && transfers.Cancel(abortedSwap, "冒烟中止"),
+            "取完旧片后请求中止");
+        Check(RunUntil(() => abortedSwap.IsSettled) && abortedSwap.State == OperationState.Aborted && abortedSwap.NeedsRecovery
+              && abortedSwap.Wafers[0].Progress == TransferWaferProgress.Picked && abortedSwap.Wafers[1].Progress == TransferWaferProgress.None
+              && ReferenceEquals(transfers.HeldOperations.Single(), abortedSwap),
+            "放新片前中止：整条挂起等人工，旧片照实际记已取出");
+        Check(transfers.ReleaseHold(waferB.Id) && transfers.HeldOperations.Count == 0, "按另一片放锁也能放开整条");
+        robot.NoteState(ModuleState.Idle);
+        pm1.NoteState(ModuleState.Idle);
+        Check(ledger.Move("Robot1", 1, "LP1", 1) && ledger.Move("Robot1", 2, "LP1", 2), "手动交换用的两片收回");
+        UnloadCarrier(lp1);
+
+        // 调度：开关默认关（前面各节都是关着跑的）；打开交换、预取，一个腔跑三片
+        var scheduler = jobs.Scheduler;
+        Check(!scheduler.EnableSwap && !scheduler.EnablePrefetch, "交换、预取两个开关默认都关");
+        Sequence(7, "SEQ_SW", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP1"));
+        scheduler.EnableSwap = true;
+        scheduler.EnablePrefetch = true;
+        pm1.ProcessTicks = 30;
+        LoadCarrier(lp1, 1, 2, 3);
+        var lotSw = Enumerable.Range(1, 3).Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
+        Check(Create("LOT-SW", "LP1", true, (1, "SEQ_SW"), (2, "SEQ_SW"), (3, "SEQ_SW")).IsSuccess, "建 LOT-SW（一个腔跑三片）");
+        Check(RunUntil(() => PjOf("LOT-SW-1")?.Wafers.Any(IsProcessing) == true), "第一片在 PM1 加工");
+        Check(RunUntil(() => RowOf(lotSw[1]).ExpectedLocation.IsArm && RowOf(lotSw[1]).Current?.State == WaferTaskState.Waiting),
+            "腔满着：第二片被预取到手上");
+        var carried = RowOf(lotSw[1]).ExpectedLocation;
+        int spareArm = 1;
+        if (carried.Slot == 1)
+        {
+            spareArm = 2;
+        }
+
+        Check(RowOf(lotSw[1]).Tasks[0].State == WaferTaskState.Done && RowOf(lotSw[1]).Tasks[1].State == WaferTaskState.Waiting
+              && RowOf(lotSw[1]).Tasks[1].Operation is null && ledger.Get("Robot1", spareArm) is null,
+            "预取只取不放：取片记完成、放片留着另派，另一只手空着留给旧片");
+        Check(HoldsFor(10, () => RowOf(lotSw[2]).IsWaiting && ledger.Get("LP1", 3)?.Id == lotSw[2]),
+            "同一个站只预取一片：第三片不动，空手不被占光");
+
+        // 只开交换（预取关掉）也能处理已经在手上的片
+        scheduler.EnablePrefetch = false;
+        SwapRoutine? scheduled = null;
+        Check(RunUntil(() =>
+        {
+            scheduled = RowOf(lotSw[0]).Current?.Operation as SwapRoutine;
+            return scheduled is not null;
+        }), "第一片做完：调度在 PM1 派了交换（只开交换也处理手上的片）");
+        var swapped = scheduled!;
+        Check(ReferenceEquals(RowOf(lotSw[1]).Current?.Operation, swapped) && swapped.Station.Name == "PM1",
+            "旧片的取片、新片的放片挂在同一趟交换上");
+        Check(RunUntil(() => swapped.IsSettled) && swapped.IsSuccess
+              && RowOf(lotSw[0]).Tasks[3].State == WaferTaskState.Done && RowOf(lotSw[0]).Tasks[4].State != WaferTaskState.Done
+              && RowOf(lotSw[1]).Tasks[1].State == WaferTaskState.Done && ledger.Get("PM1", 1)?.Id == lotSw[1],
+            "交换收尾：旧片取片完成、回片另派（不跟着交换记完成），新片放进 PM1");
+        Check(RunUntil(() => CjOf("LOT-SW")?.State == (int)ControlJobState.Completed)
+              && PjOf("LOT-SW-1")!.Wafers.All(IsDone)
+              && Enumerable.Range(1, 3).All(slot => ledger.Get("LP1", slot)?.Id == lotSw[slot - 1]),
+            "LOT-SW 跑完：三片都回原槽");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-SW") is null, 20), "LOT-SW 删掉");
+
+        // 旧片换出来没去处（回片的 LP2 没在 Loaded，收不了片）：不预取
+        scheduler.EnablePrefetch = true;
+        Sequence(8, "SEQ_SW2", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP2"));
+        LoadCarrier(lp1, 1, 2);
+        LoadCarrier(lp2);
+        Check(Create("LOT-SW2", "LP1", true, (1, "SEQ_SW2"), (2, "SEQ_SW2")).IsSuccess, "建 LOT-SW2（回到 LP2）");
+        lp2.NoteState(ModuleState.NotInit);
+        Check(RunUntil(() => PjOf("LOT-SW2-1")?.Wafers.Any(IsProcessing) == true), "第一片在 PM1 加工");
+        Check(HoldsFor(40, () => PjOf("LOT-SW2-1")!.Wafers.Count(IsWaiting) == 1 && ledger.Get("Robot1", 1) is null && ledger.Get("Robot1", 2) is null),
+            "LP2 收不了（旧片没去处）：第二片不预取");
+        lp2.NoteState(LoadPortState.Loaded);
+        Check(RunUntil(() => CjOf("LOT-SW2")?.State == (int)ControlJobState.Completed) && PjOf("LOT-SW2-1")!.Wafers.All(IsDone)
+              && ledger.Get("LP2", 1) is not null && ledger.Get("LP2", 2) is not null, "LP2 放好载具以后照常跑完，片回到 LP2");
+        Check(ledger.ManualDelete("LP2", 1, "Smoke", "冒烟收尾") == WaferAdjustResult.Ok
+              && ledger.ManualDelete("LP2", 2, "Smoke", "冒烟收尾") == WaferAdjustResult.Ok, "LP2 上的两片账人工删掉");
+        UnloadCarrier(lp1);
+        UnloadCarrier(lp2);
+        Check(RunUntil(() => CjOf("LOT-SW2") is null, 20), "LOT-SW2 删掉");
+
+        // 许可不对称：这台机械手在 LP1 只许用 1 号手，旧片回 LP1 只能用 1 号手，而新片也只能用 1 号手取——不预取
+        // （只看加工那 30 拍里的 20 拍：加工完旧片正常回片要上 1 号手，不算预取）
+        var lefty = new SmokeRobot("Robot3", new Dictionary<string, string> { ["LP1"] = "1" }, "LP1", "LP2", "PM1", "PM2");
+        Check(lefty.InitComponent(), "许可不对称的机械手组件初始化");
+        ComponentLoader.BindAll([lefty]);
+        lefty.NoteState(ModuleState.Idle);
+        lefty.Online();
+        transfers.Bind([lp1, lp2, lefty, pm1, pm2, pm9]);
+        secondRobot = lefty;
+        LoadCarrier(lp1, 1, 2);
+        Check(Create("LOT-SW3", "LP1", true, (1, "SEQ_SW"), (2, "SEQ_SW")).IsSuccess, "建 LOT-SW3");
+        Check(RunUntil(() => PjOf("LOT-SW3-1")?.Wafers.Any(IsProcessing) == true), "第一片在 PM1 加工");
+        Check(HoldsFor(20, () => PjOf("LOT-SW3-1")!.Wafers.Count(IsWaiting) == 1 && ledger.Get("Robot3", 1) is null && ledger.Get("Robot3", 2) is null),
+            "取新片的手和留给旧片的手都只能是 1 号：不预取");
+        Check(RunUntil(() => CjOf("LOT-SW3")?.State == (int)ControlJobState.Completed) && PjOf("LOT-SW3-1")!.Wafers.All(IsDone),
+            "不预取照常一片一片跑完");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-SW3") is null, 20), "LOT-SW3 删掉");
+        transfers.Bind(modules);
+        lefty.Close();
+        secondRobot = null;
+
+        // Job 中止：旧片属于 PJ1（SEQ_B 走 PM1、PM2 两站，从 PM1 换出来时 PJ1 还在 PROCESSING，能中止）、新片属于 PJ2；
+        // 交换取完旧片后中止 PJ1——交换不被打断，PJ1 等交换收尾才结束
+        LoadCarrier(lp1, 1, 2);
+        var lotX = Enumerable.Range(1, 2).Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
+        Check(Create("LOT-SWX", "LP1", true, (1, "SEQ_B"), (2, "SEQ_SW")).IsSuccess, "建 LOT-SWX（两片分属两个 PJ）");
+        SwapRoutine? shared = null;
+        Check(RunUntil(() =>
+        {
+            // 旧片一取出来它那行就翻到下一步了，按新片那行找（放片还挂在交换上）
+            shared = RowOf(lotX[1]).Current?.Operation as SwapRoutine;
+            return shared is not null && shared.Wafers[0].Progress == TransferWaferProgress.Picked && !shared.IsTerminal;
+        }) && shared!.Wafers[0].Id == lotX[0] && shared.Wafers[1].Id == lotX[1], "PJ1 的片换出来了，交换还在给 PJ2 的片放");
+        var sharedSwap = shared!;
+        Check(Do(jobs.AbortProcessJobAsync("LOT-SWX-1")).IsSuccess && PjOf("LOT-SWX-1")?.State == (int)ProcessJobState.Aborting
+              && transfers.HasUnfinishedTransfer("LOT-SWX-1") && !sharedSwap.IsTerminal,
+            "中止 PJ1：它的片已经取出来，交换不被打断；PJ1 有没收尾的共享交换，停在 ABORTING");
+        Check(RunUntil(() => sharedSwap.IsSettled) && sharedSwap.IsSuccess && ledger.Get("PM1", 1)?.Id == lotX[1],
+            "交换照常把 PJ2 的片放完");
+        Check(RunUntil(() => PjOf("LOT-SWX-1")?.State == (int)ProcessJobState.Aborted && PjOf("LOT-SWX-1")?.EndedBy == 16)
+              && !transfers.HasUnfinishedTransfer("LOT-SWX-1"), "交换收尾以后 PJ1 才中止结束");
+        Check(RunUntil(() => CjOf("LOT-SWX")?.State == (int)ControlJobState.Completed) && PjOf("LOT-SWX-2")!.Wafers.All(IsDone),
+            "PJ2 照常跑完");
+        int swapHeldArm = 1;
+        if (ledger.Get("Robot1", 1)?.Id != lotX[0])
+        {
+            swapHeldArm = 2;
+        }
+
+        Check(ledger.Get("Robot1", swapHeldArm)?.Id == lotX[0] && ledger.Move("Robot1", swapHeldArm, "LP1", 1), "中止的 PJ1 那片停在手上，人工收回");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-SWX") is null, 20), "LOT-SWX 删掉");
+        scheduler.EnableSwap = false;
+        scheduler.EnablePrefetch = false;
+        pm1.ProcessTicks = 3;
+    }
+
+    // 17e. 分段取放：站点配了中途交接（HandoffOnPick / HandoffOnPlace），机械手伸臂停在站里，站点把片交到手上或接走，再缩臂；
+    //      伸着时机械手停在取片伸着 / 放片伸着，回原点、下使能这些动作进不来；交接被拒、没做成、伸着时被中止，都是机械手就地停下、整条挂起等人工；
+    //      Job、调度不用改，照样跑完。开机查：站点配了交接、到得了它的机械手不能分段取放（没声明 ITransferRobotStep），搬运管理认表就报错。
+    {
+        bool HoldsFor(int ticks, Func<bool> condition)
+        {
+            for (int tick = 0; tick < ticks; tick++)
+            {
+                Tick();
+                if (!condition())
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        pm1.HandoffOnPick = true;
+        string bindRefused = string.Empty;
+        try
+        {
+            transfers.Bind(modules);
+        }
+        catch (InvalidOperationException exception)
+        {
+            bindRefused = exception.Message;
+        }
+
+        Check(bindRefused.Contains("PM1") && bindRefused.Contains("Robot1"),
+            "开机查：PM1 配了中途交接，Robot1 不能分段取放（没声明 ITransferRobotStep），搬运管理认表就报错");
+
+        var stepper = new SmokeStepRobot("Robot4", "LP1", "LP2", "PM1", "PM2");
+        Check(stepper.InitComponent(), "能分段取放的机械手（类上声明 ITransferRobotStep）组件初始化");
+        ComponentLoader.BindAll([stepper]);
+        stepper.NoteState(ModuleState.Idle);
+        stepper.Online();
+        transfers.Bind([lp1, lp2, stepper, pm1, pm2, pm9]);
+        secondRobot = stepper;
+
+        // 放片分段：伸到位停下，PM1 把片接走以后才缩臂
+        pm1.HandoffOnPick = false;
+        pm1.HandoffOnPlace = true;
+        LoadCarrier(lp1, 1, 2);
+        var stepA = ledger.Get("LP1", 1)!.Id;
+        var stepB = ledger.Get("LP1", 2)!.Id;
+        var placeHandoff = new SmokeHandoff("HandoffPlace");
+        pm1.NextHandoff = () => placeHandoff;
+        var stepPlace = StartTransfer("LP1", 1, "PM1", 1).Result!;
+        Check(RunUntil(() => pm1.Handoffs.Count == 1), "机械手伸臂做完，叫 PM1 放片交接");
+        Check(stepper.State == RobotState.PlaceExtended && pm1.State == TransferModuleState.Transferring
+              && ledger.Get("Robot4", stepPlace.Arm)?.Id == stepA && !stepPlace.IsTerminal,
+            "等交接时机械手停在放片伸着（不回空闲）、片还在手上，站点停在交互中");
+        Check(stepper.Home().ErrorMessage == ErrorCodes.ModuleStateNotAllowed && stepper.PowerOff().ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
+            "伸着停在站里时机械手不收回原点、下使能（手还在站里）");
+        Check(HoldsFor(5, () => !stepPlace.IsTerminal && stepper.State == RobotState.PlaceExtended), "站点交接没做完，机械手一直伸着停着");
+        placeHandoff.Finish();
+        Check(RunUntil(() => stepPlace.IsSettled) && stepPlace.IsSuccess && ledger.Get("PM1", 1)?.Id == stepA
+              && stepper.State == ModuleState.Idle && pm1.State == ModuleState.Idle
+              && stepper.Steps.SequenceEqual(["ExtendPlace", "RetractPlace"]),
+            "交接做完机械手缩臂，片记到 PM1、站点收尾；取片那头（LP1 没配交接）还是一条指令");
+
+        // 取片分段：伸到片下方停住，PM1 把片交到手上，再缩臂
+        pm1.HandoffOnPick = true;
+        pm1.HandoffOnPlace = false;
+        pm1.Handoffs.Clear();
+        stepper.Steps.Clear();
+        var stepPick = StartTransfer("PM1", 1, "LP1", 1).Result!;
+        Check(RunUntil(() => stepPick.IsSettled) && stepPick.IsSuccess && ledger.Get("LP1", 1)?.Id == stepA
+              && pm1.Handoffs.SequenceEqual(["Pick"]) && stepper.Steps.SequenceEqual(["ExtendPick", "RetractPick"]),
+            "取片同样分段：PM1 交接一次，机械手先伸后缩");
+
+        // 交换两段都分段
+        pm1.HandoffOnPlace = true;
+        pm1.Handoffs.Clear();
+        stepper.Steps.Clear();
+        Check(ledger.Move("LP1", 1, "PM1", 1) && ledger.Move("LP1", 2, "Robot4", 2), "摆好：旧片在 PM1、新片在 Robot4 的 2 号手");
+        var stepSwap = transfers.StartSwap(new SwapRequest
+        {
+            Robot = "Robot4",
+            Station = "PM1",
+            Slot = 1,
+            PickArm = 1,
+            PlaceArm = 2,
+            PickWafer = stepA,
+            PlaceWafer = stepB,
+        }).Result!;
+        Check(RunUntil(() => stepSwap.IsSettled) && stepSwap.IsSuccess
+              && ledger.Get("PM1", 1)?.Id == stepB && ledger.Get("Robot4", 1)?.Id == stepA
+              && pm1.Handoffs.SequenceEqual(["Pick", "Place"])
+              && stepper.Steps.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
+            "交换两段都分段：取旧片交接一次，换段后放新片再交接一次");
+
+        // 人工收场：放锁、两头站点回待命（PM1 停在交互中、先抢的目标 LP1 停在准备里，现场复位）、机械手回原点
+        void RecoverStepper(Guid waferId)
+        {
+            Check(transfers.ReleaseHold(waferId) && transfers.HeldOperations.Count == 0, "人工确认片位后按片放锁");
+            pm1.NoteState(ModuleState.Idle);
+            lp1.NoteState(LoadPortState.Loaded);
+            Check(stepper.Home().IsSuccess && RunUntil(() => stepper.State == ModuleState.Idle), "机械手人工回原点");
+        }
+
+        // 交接没做成：机械手不缩臂、就地中止（回 NotInit 要人工回原点），整条挂起，片的账不动，站点停在交互中
+        pm1.HandoffOnPlace = false;
+        pm1.Handoffs.Clear();
+        stepper.Steps.Clear();
+        var brokenHandoff = new SmokeHandoff("HandoffPick");
+        pm1.NextHandoff = () => brokenHandoff;
+        var brokenStep = StartTransfer("PM1", 1, "LP1", 2).Result!;
+        Check(RunUntil(() => pm1.Handoffs.Count == 1 && stepper.State == RobotState.PickExtended), "机械手伸进 PM1 停下等取片交接");
+        brokenHandoff.Break();
+        Check(RunUntil(() => brokenStep.IsSettled) && brokenStep.Code == ErrorCodes.StationHandoffFailed
+              && brokenStep.ErrorArgs.SequenceEqual(["PM1"]) && brokenStep.NeedsRecovery
+              && transfers.HeldOperations.Count == 1 && ReferenceEquals(transfers.HeldOperations[0], brokenStep),
+            "PM1 交接没做成：transfer.station_handoff_failed [PM1]，整条挂起等人工");
+        Check(stepper.State == ModuleState.NotInit && pm1.State == TransferModuleState.Transferring
+              && ledger.Get("PM1", 1)?.Id == stepB && stepper.Steps.SequenceEqual(["ExtendPick"]),
+            "机械手不缩臂、就地中止（回 NotInit），片的账不动，站点停在交互中");
+        RecoverStepper(stepB);
+
+        // 交接被拒：同样就地停下、挂起
+        stepper.Steps.Clear();
+        pm1.NextHandoff = () => null;
+        var refusedStep = StartTransfer("PM1", 1, "LP1", 2).Result!;
+        Check(RunUntil(() => refusedStep.IsSettled) && refusedStep.Code == ErrorCodes.StationHandoffRejected
+              && refusedStep.ErrorArgs.SequenceEqual(["PM1"]) && refusedStep.NeedsRecovery
+              && stepper.State == ModuleState.NotInit && stepper.Steps.SequenceEqual(["ExtendPick"]),
+            "PM1 交接被拒：transfer.station_handoff_rejected [PM1]，机械手就地停下，整条挂起");
+        RecoverStepper(stepB);
+
+        // 停着等交接时被中止：站点的交接跟着中止，机械手就地停下，整条挂起
+        var waitingHandoff = new SmokeHandoff("HandoffPick");
+        pm1.NextHandoff = () => waitingHandoff;
+        var cancelledStep = StartTransfer("PM1", 1, "LP1", 2).Result!;
+        Check(RunUntil(() => stepper.State == RobotState.PickExtended && !waitingHandoff.IsTerminal && pm1.Handoffs.Count == 3)
+              && transfers.Cancel(cancelledStep, "冒烟中止"),
+            "停着等交接时请求中止");
+        Check(RunUntil(() => cancelledStep.IsSettled) && cancelledStep.State == OperationState.Aborted && cancelledStep.NeedsRecovery
+              && waitingHandoff.State == OperationState.Aborted && stepper.State == ModuleState.NotInit,
+            "停着等交接时被中止：站点的交接跟着中止，机械手就地停下，整条挂起");
+        RecoverStepper(stepB);
+
+        // Job、调度不用改：PM1 取放都要交接，一个 LOT 照样跑完，每片在 PM1 放、取各交接一次
+        Check(ledger.Move("PM1", 1, "LP1", 2) && ledger.Move("Robot4", 1, "LP1", 1), "两片收回 LP1");
+        pm1.HandoffOnPick = true;
+        pm1.HandoffOnPlace = true;
+        pm1.Handoffs.Clear();
+        Check(Create("LOT-HO", "LP1", true, (1, "SEQ_SW"), (2, "SEQ_SW")).IsSuccess, "建 LOT-HO（PM1 取放都要交接）");
+        Check(RunUntil(() => CjOf("LOT-HO")?.State == (int)ControlJobState.Completed) && PjOf("LOT-HO-1")!.Wafers.All(IsDone)
+              && pm1.Handoffs.Count == 4 && ledger.Get("LP1", 1)?.Id == stepA && ledger.Get("LP1", 2)?.Id == stepB,
+            "LOT-HO 跑完：两片各在 PM1 放、取交接一次，回到原槽");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-HO") is null, 20), "LOT-HO 删掉");
+        pm1.HandoffOnPick = false;
+        pm1.HandoffOnPlace = false;
+        transfers.Bind(modules);
+        stepper.Close();
+        secondRobot = null;
+    }
+
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
     LoadCarrier(lp1, 1, 2, 3);
@@ -1882,7 +2255,13 @@ sealed class SmokeJobs : JobManager
         var tasks = new TaskComponent();
         Probe.Name(tasks, "Task");
         AddChild(tasks);
+        Scheduler = new SchedulerComponent();
+        Probe.Name(Scheduler, "Scheduler");
+        AddChild(Scheduler);
     }
+
+    // 调度挂在 Job 下面（生产里是 sc.xml 的 Scheduler 子节点），测试直接拨它的交换、预取开关。
+    public SchedulerComponent Scheduler { get; }
 
     public void Tick() => OnScan();
 }
@@ -1924,9 +2303,16 @@ sealed class SmokeMotion : ModuleOperation
 }
 
 // 假机械手：取放两拍做完（成功后基类照常记账），取放都可以故意失败一次。
-sealed class SmokeRobot : BaseRobotModule
+class SmokeRobot : BaseRobotModule
 {
-    public SmokeRobot(string name, params string[] stations)
+    private static readonly Dictionary<string, string> AllArms = [];
+
+    public SmokeRobot(string name, params string[] stations) : this(name, AllArms, stations)
+    {
+    }
+
+    // arms：站点 → 许用的手（sc.xml 站点节点的 Arms，如 "1,2"）；没写的站点所有手都能用。
+    public SmokeRobot(string name, IReadOnlyDictionary<string, string> arms, params string[] stations)
     {
         Probe.Name(this, name);
         AddChild(new SmokeRobotShell());
@@ -1936,13 +2322,21 @@ sealed class SmokeRobot : BaseRobotModule
         AddChild(Named(new RobotAxisComponent(), "Theta"));
         AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
         AddChild(Named(new RobotArmComponent { Number = 2 }, "Arm2"));
-        var nodes = stations
-            .Select((station, index) => new ModuleConfig
+        var nodes = new List<ModuleConfig>();
+        for (int index = 0; index < stations.Length; index++)
+        {
+            var values = new List<ValueConfig>
             {
-                Name = station,
-                Values = [new ValueConfig { Name = "Number", Value = (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) }],
-            })
-            .ToList();
+                new() { Name = "Number", Value = (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
+            };
+            if (arms.TryGetValue(stations[index], out var allowed))
+            {
+                values.Add(new ValueConfig { Name = "Arms", Value = allowed });
+            }
+
+            nodes.Add(new ModuleConfig { Name = stations[index], Values = values });
+        }
+
         OnSettingLoaded(new ModuleConfig { Name = name, Children = [new ModuleConfig { Name = "Stations", Children = nodes }] });
     }
 
@@ -1981,10 +2375,42 @@ sealed class SmokeRobot : BaseRobotModule
     }
 }
 
+// 能分段取放的假机械手：类上声明 ITransferRobotStep（四个方法用机械手基类的），伸臂、缩臂各一拍做完，按先后记在 Steps。
+sealed class SmokeStepRobot(string name, params string[] stations) : SmokeRobot(name, stations), ITransferRobotStep
+{
+    public List<string> Steps { get; } = [];
+
+    protected override ModuleOperation? CreateExtendPickOperation(int arm, int stationNumber, int slot) => NoteStep("ExtendPick");
+
+    protected override ModuleOperation? CreateRetractPickOperation(int arm, int stationNumber, int slot) => NoteStep("RetractPick");
+
+    protected override ModuleOperation? CreateExtendPlaceOperation(int arm, int stationNumber, int slot) => NoteStep("ExtendPlace");
+
+    protected override ModuleOperation? CreateRetractPlaceOperation(int arm, int stationNumber, int slot) => NoteStep("RetractPlace");
+
+    private SmokeMotion NoteStep(string step)
+    {
+        Steps.Add(step);
+        return new SmokeMotion(step, 1);
+    }
+}
+
 // 假机械手的品牌壳：驱动走假传输，只为把"驱动已连接"这道门打开。
 sealed class SmokeRobotShell : RejeRobotComponent
 {
     protected override IRobotDriver CreateDriver() => new RejeRobotDriver(new FakeFrameCommunication());
+}
+
+// 站点的中途交接动作：测试手动做完（Finish）或做坏（Break）。
+sealed class SmokeHandoff(string name) : ModuleOperation(name)
+{
+    public void Finish() => Complete();
+
+    public void Break() => Fail(ErrorCodes.DeviceFailed, "冒烟里故意交接失败", Name, "smoke");
+
+    protected override void OnScan()
+    {
+    }
 }
 
 // 假 LoadPort：在位、Mapping、状态由测试直接摆；不做 Load / Unload 这些动作。
@@ -2072,6 +2498,28 @@ sealed class SmokeChamber : BaseChamberModule
         bool fail = FailNextProcess;
         FailNextProcess = false;
         return new SmokeMotion("Process", ProcessTicks, fail);
+    }
+
+    // 中途交接：按先后记下取片（Pick）、放片（Place）；NextHandoff 摆下一次给什么（返回 null = 被拒），没摆就当场做完。
+    public List<string> Handoffs { get; } = [];
+
+    public Func<ModuleOperation?>? NextHandoff { get; set; }
+
+    protected override ModuleOperation? HandoffPickCore(TransferContext context) => TakeHandoff("Pick");
+
+    protected override ModuleOperation? HandoffPlaceCore(TransferContext context) => TakeHandoff("Place");
+
+    private ModuleOperation? TakeHandoff(string leg)
+    {
+        Handoffs.Add(leg);
+        var next = NextHandoff;
+        NextHandoff = null;
+        if (next is null)
+        {
+            return new NoOpOperation("Handoff" + leg);
+        }
+
+        return next();
     }
 }
 

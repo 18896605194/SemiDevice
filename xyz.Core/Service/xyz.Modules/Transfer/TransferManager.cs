@@ -154,9 +154,38 @@ public class TransferManager : ComponentBase, ITransferManager
 
         _modules = table;
         _robots = table.Values.OfType<ITransferRobot>().ToList();
+        CheckHandoffSupport();
 
         LogHelper.Info(Name,
             $"搬运模块表 {table.Count} 个，机械手 {_robots.Count} 台：{string.Join(", ", _robots.Select(r => r.Name))}");
+    }
+
+    /// <summary>
+    /// 开机查：配了中途交接的站点，到得了它的机械手都得能分段取放（机械手类声明了 ITransferRobotStep）；配错开机就报出来，别等到跑货时才拒
+    /// </summary>
+    private void CheckHandoffSupport()
+    {
+        foreach (var robot in _robots)
+        {
+            if (!robot.IsEnabled || robot is ITransferRobotStep)
+            {
+                continue;
+            }
+
+            foreach (string name in robot.Stations.Keys)
+            {
+                if (!TryGetStation(name, out var station) || !station.IsEnabled)
+                {
+                    continue;
+                }
+
+                if (station.HandoffOnPick || station.HandoffOnPlace)
+                {
+                    throw new InvalidOperationException(
+                        $"sc.xml 站点 {name} 配了取放中途交接（HandoffOnPick / HandoffOnPlace），机械手 {robot.Name} 不能分段取放（没声明 ITransferRobotStep），到不了这个站");
+                }
+            }
+        }
     }
 
     public bool TryGetStation(string name, [MaybeNullWhen(false)] out ITransferStation station)
@@ -772,11 +801,11 @@ public class TransferManager : ComponentBase, ITransferManager
     }
 
     /// <summary>
-    /// 撤掉跟这个 Job 有关的全部搬运：一趟里任意一片归它就整趟撤（交换的两片可能分属两个 Job）
+    /// 撤掉还有这个 Job 的片没走完的搬运；交换里它的旧片已经取出来的，让交换把另一片放完（Job 收尾按 HasUnfinishedTransfer 等它）
     /// </summary>
     public int CancelOwner(string owner, string reason)
     {
-        return Cancel(operation => operation.InvolvesOwner(owner), reason);
+        return Cancel(operation => operation.HasPendingWork(owner), reason);
     }
 
     public int CancelAll(string reason)

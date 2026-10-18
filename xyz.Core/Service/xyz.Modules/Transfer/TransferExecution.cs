@@ -46,6 +46,37 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     private TransferClaims? _claims;
 
     /// <summary>
+    /// 这一下分段取放走到哪一段；不是分段的、或者已经走完为 None
+    /// </summary>
+    private HandoffPhase _handoffPhase;
+
+    /// <summary>
+    /// 做分段取放的机械手（就是 Robot，按可选能力取出来）
+    /// </summary>
+    private ITransferRobotStep? _stepRobot;
+
+    /// <summary>
+    /// 要中途交接的站点；这一轮的上下文（站点按它认）
+    /// </summary>
+    private ITransferStation? _handoffStation;
+
+    private TransferContext? _handoffContext;
+
+    /// <summary>
+    /// 交接的是取片（站点把片交到手上）还是放片（站点把片接走）；用哪只手、哪一槽（缩臂要对得上伸臂）
+    /// </summary>
+    private bool _handoffPick;
+
+    private int _handoffArm;
+
+    private int _handoffSlot;
+
+    /// <summary>
+    /// 站点正在做的交接；没在交接为 null
+    /// </summary>
+    private ModuleOperation? _handoff;
+
+    /// <summary>
     /// 建执行：机械手、来源、等站点空出来的上限
     /// </summary>
     protected TransferExecution(string name, TransferStep initialStep, TransferOrigin origin, ITransferRobot robot, int stationWaitTimeout)
@@ -122,7 +153,8 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     /// 当前设备动作和设备中止都收尾后，搬运管理才释放资源、唤醒等待方
     /// </summary>
     internal bool ReadyToFinish => IsTerminal && (_current is null || _current.IsSettled)
-        && (_abortOperation is null || _abortOperation.IsSettled);
+        && (_abortOperation is null || _abortOperation.IsSettled)
+        && (_handoff is null || _handoff.IsSettled);
 
     /// <summary>
     /// 日志里这一趟的几片
@@ -143,6 +175,33 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     public bool InvolvesOwner(string owner)
     {
         return Wafers.Any(wafer => string.Equals(wafer.Owner, owner, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 这一趟还有这个 Job 的片没走完：只取不放的取完算走完，其余放完算走完
+    /// </summary>
+    public bool HasPendingWork(string owner)
+    {
+        foreach (var wafer in Wafers)
+        {
+            if (!string.Equals(wafer.Owner, owner, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var done = TransferWaferProgress.Placed;
+            if (wafer.EndsOnArm)
+            {
+                done = TransferWaferProgress.Picked;
+            }
+
+            if (wafer.Progress != done)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -236,15 +295,33 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 先问机械手能不能做，再落"交互中"标记、发取片或放片；从落标记起就算动过手了
+    /// 先问机械手能不能做，再落"交互中"标记、发取片或放片；从落标记起就算动过手了。
+    /// 站点配了中途交接的走分段取放：机械手要有分段能力（<see cref="ITransferRobotStep"/>），这里先伸臂，交接、缩臂由 <see cref="TakeSettled"/> 接着推
     /// </summary>
     protected void BeginMotion(ITransferStation station, TransferContext context, int arm, int slot, bool pick, TransferStep next)
     {
         string action = "Place";
-        HandleResult? refused;
+        bool handoff = station.HandoffOnPlace;
         if (pick)
         {
             action = "Pick";
+            handoff = station.HandoffOnPick;
+        }
+
+        ITransferRobotStep? stepRobot = null;
+        if (handoff)
+        {
+            stepRobot = Robot as ITransferRobotStep;
+            if (stepRobot is null)
+            {
+                Abandon(ErrorCodes.RobotHandoffUnsupported, $"{station.Name} 要中途交接，{Robot.Name} 不能分段取放", Robot.Name);
+                return;
+            }
+        }
+
+        HandleResult? refused;
+        if (pick)
+        {
             refused = Robot.CheckPick(arm, station.Name, slot);
         }
         else
@@ -269,7 +346,15 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         }
 
         HandleResult<ModuleOperation> started;
-        if (pick)
+        if (stepRobot is not null && pick)
+        {
+            started = stepRobot.ExtendPick(arm, station.Name, slot);
+        }
+        else if (stepRobot is not null)
+        {
+            started = stepRobot.ExtendPlace(arm, station.Name, slot);
+        }
+        else if (pick)
         {
             started = Robot.Pick(arm, station.Name, slot);
         }
@@ -286,22 +371,159 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         }
 
         _current = operation;
+        _handoffPhase = HandoffPhase.None;
+        if (stepRobot is not null)
+        {
+            _handoffPhase = HandoffPhase.Extend;
+            _stepRobot = stepRobot;
+            _handoffStation = station;
+            _handoffContext = context;
+            _handoffPick = pick;
+            _handoffArm = arm;
+            _handoffSlot = slot;
+        }
+
         SetStep(next);
     }
 
     /// <summary>
-    /// 当前在等的操作收尾完成了就交出来（清掉），还没完返回 null
+    /// 当前在等的操作收尾完成了就交出来（清掉），还没完返回 null；分段取放要伸臂、交接、缩臂都走完（或者伸臂、缩臂没做成）才交出来
     /// </summary>
     protected ModuleOperation? TakeSettled()
     {
+        AdvanceHandoff();
         var operation = _current;
-        if (operation is null || !operation.IsSettled)
+        if (IsTerminal || _handoffPhase != HandoffPhase.None || operation is null || !operation.IsSettled)
         {
             return null;
         }
 
         _current = null;
         return operation;
+    }
+
+    /// <summary>
+    /// 分段取放往下推：伸臂做完叫站点交接，交接做完叫机械手缩臂，缩臂收尾了交给取放收场；伸臂、缩臂没做成按取放失败收场
+    /// </summary>
+    private void AdvanceHandoff()
+    {
+        var stepRobot = _stepRobot;
+        var station = _handoffStation;
+        var context = _handoffContext;
+        if (_handoffPhase == HandoffPhase.None || stepRobot is null || station is null || context is null)
+        {
+            return;
+        }
+
+        if (_handoffPhase == HandoffPhase.Extend)
+        {
+            var extend = _current;
+            if (extend is null || !extend.IsSettled)
+            {
+                return;
+            }
+
+            if (!extend.IsSuccess)
+            {
+                // 伸臂没做成：跟一条指令取放没做成一样收场（站点停在交互中等人工）
+                _handoffPhase = HandoffPhase.None;
+                return;
+            }
+
+            _current = null;
+            StartHandoff(station, context);
+            return;
+        }
+
+        if (_handoffPhase == HandoffPhase.Handoff)
+        {
+            FinishHandoff(stepRobot, station);
+            return;
+        }
+
+        var retract = _current;
+        if (retract is not null && retract.IsSettled)
+        {
+            _handoffPhase = HandoffPhase.None;
+        }
+    }
+
+    /// <summary>
+    /// 伸臂做完：叫站点交接；站点不收，机械手就地停下
+    /// </summary>
+    private void StartHandoff(ITransferStation station, TransferContext context)
+    {
+        ModuleOperation? handoff;
+        if (_handoffPick)
+        {
+            handoff = station.HandoffPick(context);
+        }
+        else
+        {
+            handoff = station.HandoffPlace(context);
+        }
+
+        if (handoff is null)
+        {
+            StopAtHandoff(ErrorCodes.StationHandoffRejected, $"{station.Name} 中途交接被拒", station.Name);
+            return;
+        }
+
+        _handoff = handoff;
+        _handoffPhase = HandoffPhase.Handoff;
+    }
+
+    /// <summary>
+    /// 站点交接做完：叫机械手缩臂。交接没做成机械手就地停下；缩臂被拒按机械手给的原因失败（手还伸着，等人工）
+    /// </summary>
+    private void FinishHandoff(ITransferRobotStep stepRobot, ITransferStation station)
+    {
+        var handoff = _handoff;
+        if (handoff is null || !handoff.IsSettled)
+        {
+            return;
+        }
+
+        _handoff = null;
+        if (!handoff.IsSuccess)
+        {
+            StopAtHandoff(ErrorCodes.StationHandoffFailed, $"{station.Name} 中途交接没做成：{handoff.Reason}", station.Name);
+            return;
+        }
+
+        HandleResult<ModuleOperation> retract;
+        if (_handoffPick)
+        {
+            retract = stepRobot.RetractPick(_handoffArm, station.Name, _handoffSlot);
+        }
+        else
+        {
+            retract = stepRobot.RetractPlace(_handoffArm, station.Name, _handoffSlot);
+        }
+
+        var operation = retract.Result;
+        if (!retract.IsSuccess || operation is null)
+        {
+            _handoffPhase = HandoffPhase.None;
+            LogHelper.Error(Robot.Name, $"{station.Name} 交接做完了，缩臂被拒：{retract.ErrorMessage}，手还伸在站里等人工确认");
+            Fail(retract.ErrorMessage, $"{Robot.Name} 缩臂被拒：{retract.ErrorMessage}", [.. retract.Args]);
+            return;
+        }
+
+        _current = operation;
+        _handoffPhase = HandoffPhase.Retract;
+    }
+
+    /// <summary>
+    /// 交接被拒或没做成：机械手伸着停在站里，就地中止它（不缩臂，片可能交了一半），整趟失败等人工确认片位
+    /// </summary>
+    private void StopAtHandoff(string code, string reason, string station)
+    {
+        _handoffPhase = HandoffPhase.None;
+        LogHelper.Error(Robot.Name, $"{reason}，机械手停在 {station} 里等人工确认");
+        _abortOperation = Robot.Abort();
+        _current?.AbortByHost(reason);
+        Fail(code, reason, station);
     }
 
     /// <summary>
@@ -363,7 +585,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 被中止（急停、人工取消、Job 中止）：在途的设备动作跟着中止；没动过手才撤站点
+    /// 被中止（急停、人工取消、Job 中止）：在途的设备动作、站点的中途交接跟着中止；没动过手才撤站点
     /// </summary>
     protected override void OnAborted(string reason)
     {
@@ -373,6 +595,33 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         }
 
         _current?.AbortByHost(reason);
+        _handoff?.AbortByHost(reason);
         ReleaseStations();
+    }
+
+    /// <summary>
+    /// 分段取放走到哪一段
+    /// </summary>
+    private enum HandoffPhase
+    {
+        /// <summary>
+        /// 不是分段取放，或者已经走完
+        /// </summary>
+        None,
+
+        /// <summary>
+        /// 机械手在伸臂
+        /// </summary>
+        Extend,
+
+        /// <summary>
+        /// 机械手伸着停在站里，站点在交接
+        /// </summary>
+        Handoff,
+
+        /// <summary>
+        /// 机械手在缩臂
+        /// </summary>
+        Retract,
     }
 }

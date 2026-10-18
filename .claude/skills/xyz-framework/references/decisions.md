@@ -572,6 +572,12 @@
   `BaseTaskComponent` 改成平台的具体类 `TaskComponent`，sc.xml `Task` 指 `xyz.Modules.TaskComponent`，两个类里的 virtual 全去掉
   （JobSmoke 查任务组件、调度引擎、Job 管理不是抽象类、没有自己开的 virtual）。机型、站点的差别只从两处进来：站点自己声明、执行任务
   （`ITransferStation.SupportedTasks` / `StartTask`），走哪些站点由流程配方定；平台规则不够用就补平台，不给机型开口子。
+- **调度可以有多个，都写在平台**（2026-10-19 用户："机型不写，平台写，这样的话，sc配置的时候直接就是可以用，以后这个平台也会是用很多设备"）：
+  上一条"不换 Type"放宽成"在平台提供的调度里选"——不同的调度逻辑在平台里各写一个调度组件（实现 `ISchedulerComponent`），机型在 sc 的 `Scheduler` 节点选 Type，
+  不写调度代码；对外的东西通用（任务表、`TransferRequest` / `SwapRequest`、`StationTaskRequest`、`ModuleOperation` 和每片进度）。
+  分界：同一套流程上的变化（交换、预取这类）在现有调度上加 SC 开关；节拍根本不一样的才另写一个。站点能力（批量、剩余时间、Q-time）先补进站点契约和任务生成，
+  不藏在某个调度里，免得混合机台（单片腔 + 浸泡槽）要为每种组合各写一个调度。现在只有 `SchedulerComponent` 一个：不先建调度基类，
+  写第二个时再把共用的（收进度、找站点和空槽、起搬运）提出来，JobSmoke 里"sc 的 Scheduler 必须是 SchedulerComponent"那项检查到时放宽成"平台里的调度类型"。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
   `ControlJobAction`、`ControlJobEnding`；方法名直白——建叫 `Create`（查完直接进队列，不分 TryBuild + Add）、按 LoadPort 找叫 `FindByLoadPort`（原来叫 `On`）、
   CJ / PJ 管理按后续参考工程使用对象状态动作；对外通用命令入口为 `ExecuteControlJobCommandAsync` / `ExecuteProcessJobCommandAsync`（`IJobManager`）；状态变了的事件叫 `StateChanged`，
@@ -659,6 +665,61 @@
 - **跟着变的**：全路径 `Transfer` → `Dispatch.Transfer`、`Job` → `Dispatch.Job`（Task、Scheduler 跟着）；EC 键、报警来源、GEM 采集名、数据曲线列名跟着变，
   ec.xml 里旧路径的值不自动搬（开机提示"组件树上没有了"，这几项回默认值）。
 - **合线程不解决的**：界面请求线程（机械手页的 Home / 上下使能、账单调整）插进搬运空档的那几处，跟合不合线程无关，要另外补。
+
+## 同腔交换、预取（2026-10-18，用户："你直接做吧"；方案先跟另一个会话对过几轮，用户："我做的是框架平台"）
+- **为什么**：单片机型一个腔一个槽，原来只能等旧片回去、再取新片进来；交换 = 机械手两只手，在站门口先取走做完的旧片、再放进手上的新片，
+  站点少等一来一回。做成平台能力，机型只配 sc、不写代码。
+- **站点一轮两段**：`TransferContext` 分取、放两段（`ForPick` / `ForPlace` / `ForPickThenPlace` 三个工厂，构造私有，号 < 1、机械手名空抛异常）。
+  一轮先取后放时取完不收尾，调 `ITransferStation.PrepareNextLeg`（换段准备：只认同一份两段上下文、在交互中、没有没收尾的动作，不收返回 null），
+  再放，整轮站点一直占着，别的轮次进不来。基类默认给空操作，站点两段之间要动设备（比如换段前顶针、门）就重写 `PrepareNextLegCore`。同站换槽也走这条。
+- **执行基类**：`TransferExecution` 放公共的（抢站点、两步准备、换段、落交互标记并发取放、失败挂起、中止）；`TransferRoutine` 一片一趟，
+  `SwapRoutine` 两片两只手、同一站同一槽（`TransferManager.StartSwap(SwapRequest)`）。每片各记各的进度 `TransferWafer.Progress`（None / Picked / Placed），
+  只取不放的（交换里的旧片、预取）标 `EndsOnArm`，取完就算这片走完。
+- **资源清单**：每趟一份 `TransferClaims`（槽、手、片、站点），占锁、放锁、挂起都照它；交换放新片失败或取完旧片后中止，整条挂起、只列一次，
+  `ReleaseHold` 按其中任意一片都能整条放开。动过手不回滚、不重取，跟一趟搬运一样等人工确认。
+- **Job 中止只中止还有活的搬运**：`CancelOwner(Job)` 只中止这个 Job 还有片没走完的（`HasPendingWork`）——交换里它的旧片已经取出来了，
+  就让交换把别的 Job 的新片放完；Job 中止收尾（#16）还要等 `HasUnfinishedTransfer(Job)`（在跑的和挂起的都算）为 false。
+- **调度两个 SC 开关，默认都关**（`Scheduler.EnableSwap`、`EnablePrefetch`；关着跟原来一样一趟一片）：交换排在"走机内的片"前面——
+  站里的片做完了、手上有片等着进这一槽就派交换；预取要两个都开：腔满着、里面那片"有去处"时先把下一片取到手上（只取不放：取片格记完成、放片格留着等交换），
+  一个站只预取一片，一定留一只空手给旧片；"这个站已经给谁预取了"的记号在开关关掉、那片不再等这个站、站里没有快做完的片时作废。
+- **"有去处"按机械手、手臂逐个判**：下一站到得了、这只手在那站许用、站点能收、槽空着（回片的 LoadPort 也查回片槽）；预取用的手在来源站和这个腔都要许用，
+  留给旧片的手在这个腔和旧片下一站都要许用——许可不对称（比如 LoadPort 只许 1 号手）就不预取，免得两只手都拿着片卡死。
+- **调度收进度按片**：取完的片取片格记完成，放片格接着等或跟着交换走完；交换里两行各收各的。
+- **平台还不支持的**（交付时说了，接到那类设备再做）：批处理腔、取放 / 工艺以外的站内任务种类、Q-time、LoadLock 抽充气。
+  取放拆段（伸臂 → 站点动作 → 缩臂）10-19 做了，见下一节「分段取放」。
+
+## 分段取放：伸臂 → 站点中途交接 → 缩臂（2026-10-19，用户："IStagedTransferRobot 这个改成 ITransferRobotStep 这个名字，开始做吧"；先评过另一个会话的方案）
+- **解决什么**：有的工位机械手伸进去以后，站点要配合动一下（降顶针把片交到手上、升顶针把片接走），机械手才能缩回来；完整 Pick / Place 一条指令做完，
+  中间没有停下来等站点的点。站点能提前准备好、机械手一条指令就能交接的，照旧不用分段。
+- **分段能力是机械手模块上的可选接口**（用户 10-19 定："放在机械手模块上，因为调度要调用这个方法，可选的……放在驱动上不需要，这个只是机械手的能力"；
+  "作为可选项放在模块上，然后继承原来的接口"）：`ITransferRobotStep : ITransferRobot`，四个方法 `ExtendPick` / `RetractPick` / `ExtendPlace` / `RetractPlace`
+  （手、站点名、槽，各回一个动作）；机械手类声明了它才算能分段，搬运执行按 `Robot is ITransferRobotStep` 判断再调。我先放在品牌驱动上被用户否了，别再挪回驱动。
+  平台 `BaseRobotModule` 写好了这四个方法，但不声明接口；能分段的机械手类在类上声明 `ITransferRobotStep`，再重写 `CreateExtend/RetractPick/PlaceOperation`
+  给设备动作（默认没有 → 分段被拒 `robot.handoff_unsupported`）。带吸附的手的约定写在接口上：取片缩臂先吸住确认再缩，放片伸臂停住后先松开。现在没有机械手类声明它。
+- **伸着的时候机械手不回空闲**：两个动作之间机械手停在"取片伸着 / 放片伸着"（`RobotState.PickExtended` 211 / `PlaceExtended` 221，状态表里只收对应的缩臂和急停），
+  手还在站里，机械手页的回原点、上下使能都进不来（「指挥层 Dispatch」记过界面请求会插进搬运空档；之前评审担心的"拆成两个动作伸完臂回 Idle"就是靠这个状态守住的）。
+  片在伸臂时认定（意图留到缩臂），伸臂不动账，缩臂做完照常查持片、记账（`RobotTransferOperation`）；缩臂只收跟伸臂同一只手、同一站同一槽。
+  伸臂、缩臂各用 PickTimeout / PlaceTimeout，等交接的上限归站点交接动作自己。界面状态文字"取片伸着 / 放片伸着"。
+- **"这个站要交接"只配一处，在站点上**：站点 SC `HandoffOnPick` / `HandoffOnPlace`（`BaseTransferStationModule`，默认 False），交接动作写在站点类的
+  `HandoffPickCore` / `HandoffPlaceCore`（默认被拒）；入口 `HandoffPick / HandoffPlace` 跟换段准备一样在锁里查：开关开着、同一份上下文、带这一段、交互中、没有没收尾的动作。
+  另一个会话的方案把开关放在机械手站点表（RobotStation 上两个 bool），交接动作却在站点里，两处会对不上，没用。
+- **三段由搬运执行推**（指挥层下令，机械手、站点之间不直接调）：`TransferExecution.BeginMotion` 看站点开关，要交接就调 `ExtendPick / ExtendPlace`，
+  伸臂做完叫站点 `HandoffPick / HandoffPlace`，交接做完调 `RetractPick / RetractPlace`，缩臂收尾了才算这一下取放做完；普通搬运、同站换槽、同腔交换都走这一处。
+  伸臂、缩臂没做成按取放失败收场；交接被拒 / 没做成：机械手不缩臂、就地中止（回 NotInit 要人工回原点），整趟失败挂起等人工
+  （`transfer.station_handoff_rejected` / `failed`），两头站点的占用照"动过手失败"的老规矩保留；伸着时整趟被中止，站点的交接跟着中止。
+- **开机查**：搬运管理 `Bind` 时，开了交接的站点，到得了它的启用机械手都要能分段取放（声明了 `ITransferRobotStep`），不然抛 InvalidOperationException
+  （配错开机暴露，别等跑货时卡住）；跑货时机械手不能分段，落交互中标记之前就拒（`robot.handoff_unsupported`），两头的环还回去。
+- Job、流程配方、工艺配方、调度都不动：调度还是派"取片、放片"，分不分段由搬运执行照站点开关定。`PrepareNextLeg`（取完 A、放 B 之前的调整）照留，
+  跟一下取放里面的中途交接是两回事。
+
+## 站内工艺开不开工归站点模块（2026-10-19，用户："CheckProcess 这个模块自己实现就好了，比方说后面接入浸泡，浸泡模块自己实现就好了"）
+- 调度只按片调 `StartTask` 问"做不做"、等回来的动作收尾；站点不接（回 null）调度不记失败，下一拍再问。开不开工、什么时候开、怎么做，全在站点模块的
+  `CheckProcess` / `StartProcess` 里。我先说成"先接任务挂着、模块自己排"、还提了多槽站点基类，用户嫌复杂（"不就是执行 process 自己的判断条件吗"），别再往这个方向设计。
+- 凑批：开工条件加一条"片够不够"，不够不接（凑不满的规则也写在条件里，比如等够多久），够了像腔体一样 `Begin` 挂一个这一批的工艺动作，这一批每片来问都回同一个动作
+  （几格任务挂同一个动作调度本来支持，同腔交换就这么挂）。
+- 浸泡（各片各自计时）：每槽的计时放模块自己的列表里在 `OnScan` 推，不用 `Begin` 挂（模块一次只能挂一个动作，挂上站点算忙，别的槽进不了片），站点状态保持空闲。
+- 接新站点：继承 `BaseTransferStationModule`，实现 `IProcessStation`（Type、CurrentProcess、FindRecipeMismatch、CheckProcess、StartProcess），`SupportedTasks` 加工艺，
+  `CheckTask` / `StartTask` 把工艺转过去（照 `BaseChamberModule`）。调度、Job、平台都不改。
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV；不接 PLC、没有手动动作），X/Z/Theta 直接配它；

@@ -208,7 +208,9 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   EAP：E87 取消 / 放行回 Host 之前先问 `ILoadPort.CheckUnload()`（Load 着的；在动作中的照旧回忙），不能卸回 CAACK=2 带端口给的原因；
   `LoadLater` / `UnloadLater` 被拒带原因记日志。Job 干完自动卸（`CheckCarrierComplete`）照旧先等片回齐再调 `Unload()`，被拒带原因记日志。
 - 动作失败（被人中止顶掉的不算）在操作终结时由 `RaiseActionFailedAlarm`（`protected virtual`，机型可重写：自己要管的情况先判、报了就 return，其余交给 base，整套换掉不调 base；在模块锁里，只报警不等待）报警，一次失败只报一条：机械手、腔体报 `ControlledStopAlarm`；LoadPort 超时按动作报各自的超时报警（Load / Unload / Home=初始化 / 夹紧 / 松开 / 复位 / 中止，跟 EC 各动作超时一一对应），不是超时的报 `ControlledStopAlarm`（显示为"LoadPort 动作失败"）。设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
-- 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → Transferring → TransferComplete）、
+- 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → PrepareTransfer2 → Transferring →（同一站先取后放时取完 PrepareNextLeg 再 Transferring）→ TransferComplete；
+  公共入口在锁里查本轮上下文、状态、有没有没收尾的动作，站点只重写 `*Core` 扩展点；SC `HandoffOnPick` / `HandoffOnPlace`（默认 False）开了的站点，
+  机械手伸到位停下后调 `HandoffPick` / `HandoffPlace` 中途交接（比如降、升顶针），站点重写 `HandoffPickCore` / `HandoffPlaceCore`，默认被拒，见 decisions.md「分段取放」）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
   连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、驱动这一次没连上也照样往下走，
   返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；`InitModule()` = `Home()`；**设备状态查询在平台**：按 EC `QueryStatusIntervalMs`（默认 1000 ms，从上一条发出去算）发一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
@@ -221,7 +223,10 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账）、
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、Arms；推送的站点表还带槽数、站点类型 Kind；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
+  分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
+  能分段的机械手类在类上声明它、重写 `CreateExtend/RetractPick/PlaceOperation` 给设备动作（默认没有 → `robot.handoff_unsupported`）；伸臂做完停在
+  `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账）、
   `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台，机型类留空、只在不一样时重写 `Home` / `ResetDevice` / `AbortDevice` / `CreateProcessOperation`），每拍最后 `PublishState`）。
 - **腔体里装什么照 sc 认、强类型**（2026-10-10 用户："未来其他项目直接修改 sc 文件就行，代码基本不要修改"；原来的 `[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典整套删了，"Part"这个叫法也不用了）：
   sc 里一个腔体下挂门、Bowl、卡盘、摆臂（`SwingArmComponent`，它自己就是摆动轴；硬件上装在它上面的升降是一个 `CylinderComponent`、喷嘴是几个 `NozzleComponent`，都挂在摆臂节点下面）。
@@ -307,23 +312,36 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
 - **指挥层** `Dispatch\DispatchComponent`（sc.xml 顶层 `Dispatch`，下面先挂 `Job`、再挂 `Transfer`）：Job 派单、搬运管理推工单共用它这一条扫描线程，
-  一拍里按 sc.xml 先后逐个 `ScanChild`（先收结果、派单，新派的单当拍就走第一步），彼此之间没有线程交叉；工单（TransferRoutine）没有自己的线程，跟着搬运管理走。
+  一拍里按 sc.xml 先后逐个 `ScanChild`（先收结果、派单，新派的单当拍就走第一步），彼此之间没有线程交叉；工单（TransferRoutine、SwapRoutine）没有自己的线程，跟着搬运管理走。
   设备（机械手、LoadPort、腔体）不挂这里，各自在根上一条线程，指挥层经设备的动作入口下令（设备锁里检查完就挂上动作）、看 `IsSettled` 收结果。决定见 decisions.md「指挥层 Dispatch」。
 - **搬运管理** `Transfer\TransferManager`（sc.xml `Dispatch.Transfer`，扫描由 Dispatch 带着）：手动、Job、人工恢复共用的唯一执行口，来源 `TransferOrigin` Manual / Auto / Recovery。
   `Start(TransferRequest)` 当场回 `HandleResult<TransferRoutine>`（成功给实际设备操作，拒绝给错误码 + 参数）；请求只是参数，不建立搬运单、单号、回执或结果历史。
   启动时查：启用、晶圆账、站点、槽号、同槽、源片标识、目标槽空闲、Job 归属（人工恢复 Recovery 可搬 Job 的片）、资源占用、机械手可达与手臂可用。
   调度直接查搬运管理的 `IsSlotLocked` / `IsRobotInTransfer`，手臂占用在搬运启动时内部校验，不另建占用快照类。
   源槽、目标槽、片、手一起占用；机械手忙或站点与正在执行的操作重叠就拒绝，不另排搬运队列。自动任务仍在原任务表等待下一拍。
-  `TransferRoutine` **先抢目标站点再抢源**，子操作 `IsSettled`（模块收完尾、记完账）才继续；取片确认记 `HasPicked`，整趟资源收尾及设备中止确认后才置自身 `IsSettled`。
+  执行都派生自 `TransferExecution`（抢站点、两步准备、换段、落交互标记并发取放、失败挂起、中止）：`TransferRoutine` 一片一趟，`SwapRoutine` 同腔交换（见下）。
+  `TransferRoutine` **先抢目标站点再抢源**，子操作 `IsSettled`（模块收完尾、记完账）才继续；每片的进度记在 `Wafers[i].Progress`（None / Picked / Placed，
+  `TransferRoutine.HasPicked` 是它的简写），整趟资源收尾及设备中止确认后才置自身 `IsSettled`。
+  站点交接上下文 `TransferContext` 分取、放两段（`ForPick` / `ForPlace` / `ForPickThenPlace`），站点按对象身份认本轮；同一站先取后放（同站换槽、交换）
+  取完不收尾，调 `PrepareNextLeg` 换段（基类默认空操作，站点要在两段之间动设备就重写 `PrepareNextLegCore`）再放，整轮占着站点。
+  **分段取放**：站点开了 `HandoffOnPick` / `HandoffOnPlace` 的，`BeginMotion` 要求机械手是 `ITransferRobotStep`（不是就落标记前拒，`robot.handoff_unsupported`），
+  先调 `ExtendPick / ExtendPlace`，伸臂做完叫站点 `HandoffPick / HandoffPlace`，交接做完调 `RetractPick / RetractPlace`，缩臂收尾才算这一下取放做完；
+  交接被拒 / 没做成，机械手不缩臂、就地中止，整趟失败挂起（`transfer.station_handoff_rejected` / `failed` [站点]）。
+  `Bind` 时查：开了交接的站点，到得了它的启用机械手都要声明 `ITransferRobotStep`，不然抛。
+  每趟的占用是一份 `TransferClaims`（槽、手、片、站点），占锁、放锁、挂起都照它。
   没动手就失败：把抢到的环撤回待命态（`ITransferStation.CancelTransfer`）、释放资源；**动过手才失败：保留资源、站点停在交互中**（`HeldOperations`、`NeedsRecovery`）。
-  人工确认片位、对好账后 `ReleaseHold(晶圆内部标识)`。`Cancel(操作)` / `CancelOwner` / `CancelAll` 请求由搬运扫描线程执行中止；`Abort()` = 关自动调度 + 全部中止。
+  人工确认片位、对好账后 `ReleaseHold(晶圆内部标识)`（交换挂起的一条记录按其中任意一片都能整条放开）。`Cancel(操作)` / `CancelOwner` / `CancelAll` 请求由搬运扫描线程执行中止；
+  `CancelOwner(Job)` 只中止这个 Job 还有片没走完的（`HasPendingWork`），`HasUnfinishedTransfer(Job)` 查它还有没有在跑或挂起的搬运（Job 中止收尾用）；`Abort()` = 关自动调度 + 全部中止。
+  **同腔交换** `StartSwap(SwapRequest)` → `HandleResult<SwapRoutine>`：同一站同一槽，取片手先取走预期的旧片（取片手要空）、放片手再放进预期的新片，两只手不同、
+  都要在这站许用；一次占齐这一槽和两只手，旧片标 `EndsOnArm`（取完就算走完，下一步由调度另派）。决定见 decisions.md「同腔交换、预取」。
   **源可以是机械手**（片已经在手上：重启前搬到一半、手动取了没放）：`Source` 写机械手名、`SourceSlot` 写手指号，就用拿着它的那只手，只放片
   （`TransferRoutine` 抢目标 → 准备二 → 放；`Source` 为 null、`SourceName` 是机械手名）。
   启动时问片归哪个 Job：开机 Bind 时取的 Job 管理的 `OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
 - **Job** `Job\JobManager`（sc.xml `Dispatch.Job`，扫描由 Dispatch 带着；子节点 `Task` = 任务组件 `TaskComponent`（必须配），
   `Scheduler` = `SchedulerComponent`（不配自己建一个））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
-  **Job 是标准件**：CJ / PJ 管理、任务组件、调度引擎全在平台，机型不写 Job 代码、不换 Type，这几个类不开 `abstract` / `virtual`（JobSmoke 盯着）；
+  **Job 是标准件**：CJ / PJ 管理、任务组件、调度引擎全在平台，机型不写 Job 代码，这几个类不开 `abstract` / `virtual`（JobSmoke 盯着）；
+  调度逻辑不同的在平台另写调度组件（实现 `ISchedulerComponent`），机型在 sc 的 `Scheduler` 选 Type（现在只有 `SchedulerComponent`，见 decisions.md「调度可以有多个」）；
   站点的差别靠站点自己声明、执行任务（`SupportedTasks` / `StartTask`），走哪些站点靠流程配方，规则要变就改平台。
   - `JobManager` 里面有 CJ 管理（`ICjManager` / `CjManager`：`Dictionary<string, CjEntity>`，key 为 CJ ID，每个实体包含 `ControlJob` 和自己的 `CjStateMachine`）
     和 PJ 管理（`IPjManager` / `PjManager`：`Dictionary<string, PjEntity>`，key 为 PJ ID，实体包含 PJ 对象及独立状态机，并管理晶圆归属）。CJ 管理不依赖 PJ 管理，不处理 PJ。
@@ -360,6 +378,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
     每拍 `Collect` 直接读当前任务的 `Operation`，没有 `_moves` / `_works` 或 `Move` / `Work` 执行记录。取片确认后完成取片格，操作引用转到放片格，整行同时只有一格 Running。
     没碰到片就失败退回等待；动过片才失败将当前取片或放片格记 Error；站内操作被 PJ 中止打断的记未执行。
     不维护每拍槽位、机械手的重复占用集合，直接查询搬运管理；调度按先后尝试空闲且可达的机械手，手臂选择和资源校验只在搬运执行口做一次。
+    收搬运进度按片（`Wafers[i].Progress`）：取完的片取片格记完成，放片格接着等或跟着交换走完。
+    SC `EnableSwap`、`EnablePrefetch`（默认都关）：开交换后，站里的片做完、手上有片等着进这一槽就派交换（排在"走机内的片"前面）；
+    两个都开才预取——腔满着、里面那片有去处时先把下一片取到手上（只取不放），一个站只预取一片、一定留一只空手给旧片，许可不对称（某站只许某只手）就不预取。
     工艺日志在任务状态方法里直接写，不再经任务开始 / 结束事件转发到 JobManager；EAP 片加工上报仍由 E90 照晶圆账报。
     只看每一行的许可（`TaskPermission`，PJ 状态定的：暂停、停止就体现在这上面）。
   - 站点任务：`TransferStation\StationTaskAction`（Pick / Place / Process，字符串常量，新站点要新的站内任务自己起名字）、`ITransferStation.SupportedTasks`（默认取放，腔体加工艺）。

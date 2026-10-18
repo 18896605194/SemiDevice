@@ -627,6 +627,10 @@ port.E87Callback = null;
         "账上手上没片：放不了，robot.arm_no_wafer [机械手, 手指号]");
     Check(robot.CheckPick(1, "SmokeLP", 3) is null && robot.CheckPlace(1, "SmokeLP", 4) is not null,
         "只查不动的 CheckPick / CheckPlace 跟入口查的是同一套");
+    Check(!typeof(ITransferRobotStep).IsAssignableFrom(typeof(BaseRobotModule))
+          && RejectedWith(robot.ExtendPick(1, "SmokeLP", 3), ErrorCodes.RobotHandoffUnsupported, "SmokeRobot")
+          && RejectedWith(robot.RetractPick(1, "SmokeLP", 3), ErrorCodes.ModuleStateNotAllowed, "SmokeRobot", ModuleState.Idle.ToString()),
+        "分段取放是可选能力：机械手基类不自带（类上声明 ITransferRobotStep 才算）；没给分段动作的伸臂当场拒（robot.handoff_unsupported），没伸着不收缩臂");
 
     // Pick 成功：片从花篮槽位挪到手指上
     robot.Next = new ProbeOperation();
@@ -3278,6 +3282,59 @@ port.E87Callback = null;
         "撤销的延迟机构收尾没完成时也不能接下一轮");
     Check(station.FinishCleanup() && station.CanPrepareTransfer, "撤销收尾实际结束后站点恢复可用");
 
+    // 换段准备：只认本轮、取放两段都有、已经在交互中；站点没有换段动作时给空操作，之后照常放片收尾
+    station.DelayCleanup = false;
+    var legs = TransferContext.ForPickThenPlace("Robot1", 1, 5, 2, 5);
+    Throws<ArgumentNullException>(() => station.PrepareNextLeg(null!));
+    Check(station.PrepareTransfer(legs) is not null && station.PrepareNextLeg(legs) is null,
+        "两段的轮次还没开始交互不能换段");
+    Check(station.PrepareTransfer2(legs) is not null && station.Transferring(legs)
+          && station.PrepareNextLeg(TransferContext.ForPickThenPlace("Robot1", 1, 5, 2, 5)) is null,
+        "别的轮次即使内容相同也不能换段");
+    var nextLeg = station.PrepareNextLeg(legs);
+    Check(nextLeg is not null && nextLeg.IsSuccess && station.State == TransferModuleState.Transferring,
+        "本轮交互中换段：默认空操作直接成功，站点仍停在交互中");
+    Check(station.Transferring(legs) && station.TransferComplete(legs) && station.State == ModuleState.Idle
+          && station.PrepareNextLeg(legs) is null,
+        "换段以后照常放片收尾回待命，旧轮不能再换段");
+    var single = TransferContext.ForPick("Robot1", 1, 5);
+    Check(station.PrepareTransfer(single) is not null && station.PrepareTransfer2(single) is not null && station.Transferring(single)
+          && station.PrepareNextLeg(single) is null,
+        "只有一段的轮次不能换段");
+    Check(station.TransferComplete(single) && station.State == ModuleState.Idle, "单段轮次照常收尾回待命");
+
+    // 中途交接：只认配了开关、本轮带这一段的上下文、已经在交互中；交接完站点还停在交互中，照常收尾
+    var pickRound = TransferContext.ForPick("Robot1", 1, 5);
+    Throws<ArgumentNullException>(() => station.HandoffPick(null!));
+    Check(station.PrepareTransfer(pickRound) is not null && station.HandoffPick(pickRound) is null,
+        "还没开始交互不能交接");
+    Check(station.PrepareTransfer2(pickRound) is not null && station.Transferring(pickRound)
+          && station.HandoffPick(pickRound) is null && station.Handoffs == 0,
+        "没配 HandoffOnPick 的站点不受理取片交接");
+    station.HandoffOnPick = true;
+    station.HandoffOnPlace = true;
+    Check(station.HandoffPlace(pickRound) is null && station.HandoffPick(TransferContext.ForPick("Robot1", 1, 5)) is null
+          && station.Handoffs == 0,
+        "只取片的轮次不能放片交接，别的轮次（内容相同）也不能交接");
+    var handoff = station.HandoffPick(pickRound);
+    Check(handoff is not null && handoff.IsSuccess && station.Handoffs == 1 && station.State == TransferModuleState.Transferring,
+        "本轮交互中取片交接：交给站点的扩展点，站点还停在交互中");
+    Check(station.TransferComplete(pickRound) && station.State == ModuleState.Idle && station.HandoffPick(pickRound) is null,
+        "交接以后照常收尾回待命，旧轮不能再交接");
+    var placeRound = TransferContext.ForPlace("Robot1", 1, 5);
+    Check(station.PrepareTransfer(placeRound) is not null && station.PrepareTransfer2(placeRound) is not null
+          && station.Transferring(placeRound) && station.HandoffPick(placeRound) is null
+          && station.HandoffPlace(placeRound) is not null && station.Handoffs == 2
+          && station.TransferComplete(placeRound) && station.State == ModuleState.Idle,
+        "放片交接一样：只放片的轮次不收取片交接");
+    station.HandoffOnPick = false;
+    station.HandoffOnPlace = false;
+    var plainStation = new ProbeAligner("PlainHandoff") { HandoffOnPick = true };
+    var plainRound = TransferContext.ForPick("Robot1", 1, 1);
+    Check(plainStation.PrepareTransfer(plainRound) is not null && plainStation.PrepareTransfer2(plainRound) is not null
+          && plainStation.Transferring(plainRound) && plainStation.HandoffPick(plainRound) is null,
+        "站点没重写交接扩展点：配了开关也被拒（默认没有交接动作）");
+
     // 真实腔体状态表：Reset 执行态仍保留传片状态，操作收尾之前不能靠旧上下文推进。
     foreach (int phase in new[] { TransferModuleState.PreTransfer, TransferModuleState.TransferReady, TransferModuleState.Transferring })
     {
@@ -3390,8 +3447,9 @@ port.E87Callback = null;
         var first = station.TransferCalls[0].Context;
         Check(station.TransferCalls.Select(call => call.Step).SequenceEqual(steps)
               && station.TransferCalls.All(call => ReferenceEquals(call.Context, first))
-              && first.Robot == robot.Name && first.Arm == 4 && first.PickSlot == pickSlot && first.PlaceSlot == placeSlot,
-            "站点每个入口取得同一实例，且只描述本站的取片槽和放片槽");
+              && first.Robot == robot.Name && (first.PickArm == 4) == (pickSlot is not null) && (first.PlaceArm == 4) == (placeSlot is not null)
+              && first.PickSlot == pickSlot && first.PlaceSlot == placeSlot,
+            "站点每个入口取得同一实例，且只描述本站的取片段（手、槽）和放片段（手、槽）");
     }
 
     var source = Station("ContextLP");
@@ -3408,7 +3466,135 @@ port.E87Callback = null;
     CheckCalls(onlyPlace, null, 2, "Prepare", "Prepare2", "Transferring", "Complete");
     var relocate = Station("ContextRelocate");
     Run(relocate, 5, relocate, 8);
-    CheckCalls(relocate, 5, 8, "Prepare", "Prepare2", "Transferring", "Transferring", "Complete");
+    CheckCalls(relocate, 5, 8, "Prepare", "Prepare2", "Transferring", "NextLeg", "Transferring", "Complete");
+
+    // 分段取放：站点配了中途交接，机械手伸到位停下，站点交接完才让它接着缩臂；按站点、按取放各看各的开关
+    var stepRobot = new ProbeStepRobot { AllowMotion = true };
+    TransferExecution RunStepped(TransferExecution execution)
+    {
+        for (int scan = 0; scan < 32 && !execution.IsTerminal; scan++)
+        {
+            execution.Scan();
+        }
+
+        return execution;
+    }
+
+    ProbeStation HandoffStation(string name, bool pick, bool place) => new(name)
+    {
+        First = () => new NoOpOperation("Prepare"),
+        Second = () => new NoOpOperation("Prepare2"),
+        HandoffOnPick = pick,
+        HandoffOnPlace = place,
+    };
+
+    var handoffSource = HandoffStation("HandoffLP", true, false);
+    var handoffTarget = HandoffStation("HandoffPM", false, true);
+    Check(RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, handoffSource, 5, handoffTarget, 1, 4, 1000)).IsSuccess
+          && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
+        "两头都配了交接：机械手分段取、分段放，各停一下等站点交接再继续");
+    CheckCalls(handoffSource, 5, null, "Prepare", "Prepare2", "Transferring", "HandoffPick", "Complete");
+    CheckCalls(handoffTarget, null, 1, "Prepare", "Prepare2", "Transferring", "HandoffPlace", "Complete");
+
+    stepRobot.Calls.Clear();
+    var plainSource = Station("PlainLP");
+    var placeHandoffTarget = HandoffStation("HandoffPM2", false, true);
+    Check(RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, plainSource, 5, placeHandoffTarget, 1, 4, 1000)).IsSuccess
+          && stepRobot.Calls.SequenceEqual(["Pick", "ExtendPlace", "RetractPlace"]),
+        "只看这一头的开关：来源没配就一条指令取完，目标配了放片才分段");
+    CheckCalls(plainSource, 5, null, "Prepare", "Prepare2", "Transferring", "Complete");
+
+    stepRobot.Calls.Clear();
+    var handoffRelocate = HandoffStation("HandoffRelocate", true, true);
+    Check(RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, handoffRelocate, 5, handoffRelocate, 8, 4, 1000)).IsSuccess
+          && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
+        "同站换槽两段各分段一次");
+    CheckCalls(handoffRelocate, 5, 8, "Prepare", "Prepare2", "Transferring", "HandoffPick", "NextLeg", "Transferring", "HandoffPlace", "Complete");
+
+    stepRobot.Calls.Clear();
+    var handoffSwapStation = HandoffStation("HandoffSwap", true, true);
+    var steppedSwap = new SwapRoutine(new SwapRequest
+    {
+        Robot = stepRobot.Name,
+        Station = handoffSwapStation.Name,
+        Slot = 1,
+        PickArm = 4,
+        PlaceArm = 5,
+        PickWafer = Guid.NewGuid(),
+        PlaceWafer = Guid.NewGuid(),
+    }, stepRobot, handoffSwapStation, "A", "B", 1000);
+    Check(RunStepped(steppedSwap).IsSuccess
+          && steppedSwap.Wafers[0].Progress == TransferWaferProgress.Picked && steppedSwap.Wafers[1].Progress == TransferWaferProgress.Placed
+          && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"])
+          && handoffSwapStation.TransferCalls.Select(call => call.Step)
+              .SequenceEqual(["Prepare", "Prepare2", "Transferring", "HandoffPick", "NextLeg", "Transferring", "HandoffPlace", "Complete"]),
+        "交换两段都分段：取旧片交接一次，换段后放新片再交接一次");
+
+    // 交接被拒、没做成：机械手停着不继续（就地中止），整趟失败挂起等人工，站点不收尾
+    stepRobot.Calls.Clear();
+    var refusingStation = new ProbeStation("HandoffRefused")
+    {
+        First = () => new NoOpOperation("Prepare"),
+        Second = () => new NoOpOperation("Prepare2"),
+        HandoffOnPick = true,
+        Handoff = () => null,
+    };
+    var handoffRefused = RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, refusingStation, 5, null, 4, 4, 1000));
+    Check(handoffRefused.Code == ErrorCodes.StationHandoffRejected && handoffRefused.ErrorArgs.SequenceEqual(["HandoffRefused"])
+          && handoffRefused.MotionStarted && handoffRefused.NeedsRecovery && stepRobot.Calls.SequenceEqual(["ExtendPick"])
+          && refusingStation.TransferCalls.Select(call => call.Step).SequenceEqual(["Prepare", "Prepare2", "Transferring", "HandoffPick"]),
+        "交接被拒：transfer.station_handoff_rejected [站点]，机械手不继续，整趟挂起等人工，站点不收尾");
+
+    stepRobot.Calls.Clear();
+    var failingStation = new ProbeStation("HandoffFailed")
+    {
+        First = () => new NoOpOperation("Prepare"),
+        Second = () => new NoOpOperation("Prepare2"),
+        HandoffOnPlace = true,
+        Handoff = () =>
+        {
+            var failed = new ProbeOperation();
+            failed.Reject();
+            return failed;
+        },
+    };
+    var handoffFailed = RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, null, 4, failingStation, 1, 4, 1000));
+    Check(handoffFailed.Code == ErrorCodes.StationHandoffFailed && handoffFailed.ErrorArgs.SequenceEqual(["HandoffFailed"])
+          && handoffFailed.NeedsRecovery && stepRobot.Calls.SequenceEqual(["ExtendPlace"])
+          && failingStation.TransferCalls.All(call => call.Step != "Complete"),
+        "交接没做成：transfer.station_handoff_failed [站点]，同样停着不继续、整趟挂起");
+
+    var noStepRobot = new ProbeTransferRobot { AllowMotion = true };
+    var noStepSource = HandoffStation("HandoffNoStep", true, false);
+    var noStepTarget = Station("HandoffNoStepTarget");
+    var unsupported = RunStepped(new TransferRoutine(TransferOrigin.Manual, noStepRobot, noStepSource, 5, noStepTarget, 1, 4, 1000));
+    Check(unsupported.Code == ErrorCodes.RobotHandoffUnsupported && unsupported.ErrorArgs.SequenceEqual(["TransferRobot"])
+          && !unsupported.MotionStarted && !unsupported.NeedsRecovery && noStepSource.Cancels == 1 && noStepTarget.Cancels == 1
+          && noStepRobot.Calls.Count == 0,
+        "机械手没有分段指令：落交互中标记之前就拒（robot.handoff_unsupported），没动过手，两头的环都还回去");
+
+    // 站点交接还没做完就被中止：交接跟着中止，机械手停在站里，动过手，整趟挂起等人工
+    stepRobot.Calls.Clear();
+    var slowHandoff = new ProbeOperation();
+    var slowStation = new ProbeStation("HandoffSlow")
+    {
+        First = () => new NoOpOperation("Prepare"),
+        Second = () => new NoOpOperation("Prepare2"),
+        HandoffOnPick = true,
+        Handoff = () => slowHandoff,
+    };
+    var slowRoutine = new TransferRoutine(TransferOrigin.Manual, stepRobot, slowStation, 5, null, 4, 4, 1000);
+    for (int scan = 0; scan < 10; scan++)
+    {
+        slowRoutine.Scan();
+    }
+
+    Check(!slowRoutine.IsTerminal && stepRobot.Calls.SequenceEqual(["ExtendPick"]) && slowStation.TransferCalls[^1].Step == "HandoffPick",
+        "站点交接没做完：机械手一直停着等");
+    slowRoutine.AbortByHost("冒烟中止");
+    Check(slowRoutine.State == OperationState.Aborted && slowRoutine.NeedsRecovery
+          && slowHandoff.State == OperationState.Aborted && slowHandoff.AbortCount == 1,
+        "停着等交接时被中止：站点的交接跟着中止，整趟挂起等人工");
 
     var cancelled = new ContextProbeStation();
     var oldRoutine = new TransferRoutine(TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
@@ -4238,6 +4424,23 @@ sealed class ContextProbeStation : BaseTransferStationModule
         return base.PrepareTransfer2Core(context);
     }
 
+    /// <summary>
+    /// 受理了几次中途交接（取片、放片合计）
+    /// </summary>
+    public int Handoffs { get; private set; }
+
+    protected override ModuleOperation? HandoffPickCore(TransferContext context)
+    {
+        Handoffs++;
+        return new NoOpOperation("HandoffPick");
+    }
+
+    protected override ModuleOperation? HandoffPlaceCore(TransferContext context)
+    {
+        Handoffs++;
+        return new NoOpOperation("HandoffPlace");
+    }
+
     protected override void OnTransferFinished(TransferContext context)
     {
         if (DelayCleanup)
@@ -4375,6 +4578,27 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
         return NextLeg();
     }
 
+    public bool HandoffOnPick { get; init; }
+
+    public bool HandoffOnPlace { get; init; }
+
+    /// <summary>
+    /// 中途交接给什么（null = 被拒）
+    /// </summary>
+    public Func<ModuleOperation?> Handoff { get; init; } = () => new NoOpOperation("Handoff");
+
+    public ModuleOperation? HandoffPick(TransferContext context)
+    {
+        TransferCalls.Add(("HandoffPick", context));
+        return Handoff();
+    }
+
+    public ModuleOperation? HandoffPlace(TransferContext context)
+    {
+        TransferCalls.Add(("HandoffPlace", context));
+        return Handoff();
+    }
+
     public bool TransferComplete(TransferContext context)
     {
         TransferCalls.Add(("Complete", context));
@@ -4395,10 +4619,13 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public ModuleOperation? StartTask(StationTaskRequest request) => null;
 }
 
-// 探针机械手：默认拒绝动作；上下文贯通用例可开启即时完成的取放。
-sealed class ProbeTransferRobot : ITransferRobot
+// 探针机械手：默认拒绝动作；上下文贯通用例可开启即时完成的取放。收到的取放按先后记在 Calls。
+class ProbeTransferRobot : ITransferRobot
 {
     public bool AllowMotion { get; init; }
+
+    public List<string> Calls { get; } = [];
+
     public string Name => "TransferRobot";
     public string FullPath => Name;
     public ModuleMode Mode => ModuleMode.Online;
@@ -4423,18 +4650,48 @@ sealed class ProbeTransferRobot : ITransferRobot
         return false;
     }
 
-    private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, "0");
-
     public ModuleOperation? InitModule() => null;
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
-    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => AllowMotion
-        ? HandleResult<ModuleOperation>.Success(new NoOpOperation("Pick")) : Refused();
-    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => AllowMotion
-        ? HandleResult<ModuleOperation>.Success(new NoOpOperation("Place")) : Refused();
-    public HandleResult? CheckPick(int arm, string station, int slot) => AllowMotion ? null : HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
-    public HandleResult? CheckPlace(int arm, string station, int slot) => AllowMotion ? null : HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
+    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => Move("Pick");
+    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => Move("Place");
+    public HandleResult? CheckPick(int arm, string station, int slot) => CheckMotion();
+    public HandleResult? CheckPlace(int arm, string station, int slot) => CheckMotion();
     public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
+
+    private HandleResult? CheckMotion()
+    {
+        if (!AllowMotion)
+        {
+            return HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 记下这一下、当场做完；没开动作的被拒
+    /// </summary>
+    protected HandleResult<ModuleOperation> Move(string action)
+    {
+        var refused = CheckMotion();
+        if (refused is not null)
+        {
+            return HandleResult<ModuleOperation>.Fail(refused.ErrorMessage, [.. refused.Args]);
+        }
+
+        Calls.Add(action);
+        return HandleResult<ModuleOperation>.Success(new NoOpOperation(action));
+    }
+}
+
+// 能分段取放的探针机械手：声明 ITransferRobotStep，伸臂、缩臂当场做完，跟取放一起按先后记在 Calls。
+sealed class ProbeStepRobot : ProbeTransferRobot, ITransferRobotStep
+{
+    public HandleResult<ModuleOperation> ExtendPick(int arm, string station, int slot) => Move("ExtendPick");
+    public HandleResult<ModuleOperation> RetractPick(int arm, string station, int slot) => Move("RetractPick");
+    public HandleResult<ModuleOperation> ExtendPlace(int arm, string station, int slot) => Move("ExtendPlace");
+    public HandleResult<ModuleOperation> RetractPlace(int arm, string station, int slot) => Move("RetractPlace");
 }
 
 // 整机冒烟用的探针模块：初始化挂用例摆的操作（没摆就是被拒），能挂一个手动动作，中止把在做的动作当场打断（下一拍收尾）。

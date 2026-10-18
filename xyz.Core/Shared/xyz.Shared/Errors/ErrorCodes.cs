@@ -147,6 +147,11 @@ public static class ErrorCodes
     /// <summary>设备取放已完成，但晶圆账更新失败，需人工确认实际片位。Args: [机械手模块名, 源模块, 源槽号, 目标模块, 目标槽号]</summary>
     public const string RobotLedgerMoveFailed = "robot.ledger_move_failed";
 
+    /// <summary>
+    /// 站点要中途交接（分段取放），机械手不能分段取放（没声明分段能力，或机械手类没给分段动作）。Args: [机械手模块名]
+    /// </summary>
+    public const string RobotHandoffUnsupported = "robot.handoff_unsupported";
+
     #endregion
 
     #region 腔体
@@ -230,6 +235,16 @@ public static class ErrorCodes
 
     /// <summary>站点准备失败。Args: [站点名, 第几步准备（1 粗准备、2 开门放行）]</summary>
     public const string StationPrepareFailed = "transfer.station_prepare_failed";
+
+    /// <summary>
+    /// 机械手伸到位后站点中途交接被拒（状态不对，多半被人工动过），机械手停在站里。Args: [站点名]
+    /// </summary>
+    public const string StationHandoffRejected = "transfer.station_handoff_rejected";
+
+    /// <summary>
+    /// 站点中途交接没做成（超时或设备报错），机械手停在站里。Args: [站点名]
+    /// </summary>
+    public const string StationHandoffFailed = "transfer.station_handoff_failed";
 
     /// <summary>取放片失败。Args: [机械手模块名, 动作]</summary>
     public const string TransferFailed = "transfer.failed";

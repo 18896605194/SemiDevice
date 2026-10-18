@@ -83,7 +83,7 @@ public static class ModuleStates
     }
 
     /// <summary>
-    /// 机械手：空闲就绪；回零、取放都算动作中。
+    /// 机械手：空闲就绪；回零、取放都算动作中，分段取放伸着停在站里（211 / 221）也算。
     /// </summary>
     public static string RobotText(int state)
     {
@@ -94,8 +94,12 @@ public static class ModuleStates
                 return L10n.Get("module.state.homing");
             case 210:
                 return L10n.Get("module.state.picking");
+            case 211:
+                return L10n.Get("module.state.pick_extended");
             case 220:
                 return L10n.Get("module.state.placing");
+            case 221:
+                return L10n.Get("module.state.place_extended");
             default:
                 return CommonText(state);
         }
@@ -108,7 +112,9 @@ public static class ModuleStates
             case 130:
             case 200:
             case 210:
+            case 211:
             case 220:
+            case 221:
                 return ModuleStateTone.Busy;
             default:
                 return CommonTone(state);

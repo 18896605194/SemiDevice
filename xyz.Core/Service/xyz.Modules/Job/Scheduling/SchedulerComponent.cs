@@ -203,7 +203,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         }
     }
 
-    /// <summary>这一行轮到的、等着做的任务（有这个许可才算）；不该派返回 null。</summary>
+    /// <summary>
+    /// 这一行轮到的、等着做的任务（有这个许可才算）；不该派返回 null
+    /// </summary>
     private static WaferTask? NextTask(TaskRow row, TaskPermission needed)
     {
         var current = row.Current;
@@ -651,7 +653,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 
     #region 设备与资源占用查询
 
-    /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
+    /// <summary>
+    /// 按名字找站点（搬运管理的模块表）；不是站点为 null
+    /// </summary>
     private ITransferStation? Station(string name)
     {
         var transfers = _transfers;
@@ -663,7 +667,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         return null;
     }
 
-    /// <summary>按名字找机械手（搬运管理的模块表）；不是机械手为 null。</summary>
+    /// <summary>
+    /// 按名字找机械手（搬运管理的模块表）；不是机械手为 null
+    /// </summary>
     private ITransferRobot? Robot(string name)
     {
         var transfers = _transfers;
@@ -699,26 +705,34 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         return module.Mode == ModuleMode.Online;
     }
 
-    /// <summary>这一槽账上空着、也没被搬运操作占用。</summary>
+    /// <summary>
+    /// 这一槽账上空着、也没被搬运操作占用
+    /// </summary>
     private bool IsSlotFree(string station, int slot)
     {
         return _waferManager is not null && _transfers is not null
             && _waferManager.Get(station, slot) is null && !_transfers.IsSlotLocked(station, slot);
     }
 
-    /// <summary>这只手账上空着、也没被搬运操作当作位置占用。</summary>
+    /// <summary>
+    /// 这只手账上空着、也没被搬运操作当作位置占用
+    /// </summary>
     private bool IsArmFree(ITransferRobot robot, int arm)
     {
         return IsSlotFree(robot.Name, arm);
     }
 
-    /// <summary>机械手到得了这个站，而且这个站许用这只手。</summary>
+    /// <summary>
+    /// 机械手到得了这个站，而且这个站许用这只手
+    /// </summary>
     private static bool CanArmServe(ITransferRobot robot, int arm, string station)
     {
         return robot.TryGetStation(station, out var config) && config.AllowsArm(arm);
     }
 
-    /// <summary>站点上第一个空着、没被占用的槽；没有返回 0。</summary>
+    /// <summary>
+    /// 站点上第一个空着、没被占用的槽；没有返回 0
+    /// </summary>
     private int FreeSlot(string station)
     {
         int count = Station(station)?.SlotCount ?? 0;
@@ -733,7 +747,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         return 0;
     }
 
-    /// <summary>机械手可执行任务：启用、在线、空闲、没有搬运操作。</summary>
+    /// <summary>
+    /// 机械手可执行任务：启用、在线、空闲、没有搬运操作
+    /// </summary>
     private bool IsRobotFree(ITransferRobot robot)
     {
         if (_transfers?.IsRobotInTransfer(robot.Name) == true || robot.State != ModuleState.Idle)
