@@ -1,4 +1,5 @@
 ﻿using xyz.Components.Components;
+using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -8,7 +9,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 机械手可服务工位基类
 /// </summary>
-public abstract class BaseTransferStationModule : BaseModule, ITransferStation
+public abstract class BaseTransferStationModule : BaseModule, ITransferStation, IStationTaskExecutor
 {
     #region 待命态（传片环的起点和终点）
 
@@ -91,6 +92,10 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation
         OnTransferCancelled(state);
         return true;
     }
+
+    #endregion
+
+    #region IStationTaskExecutor 实现
 
     /// <summary>
     /// 支持的任务：默认只能取放（LoadPort 这类）。有站内任务的站点重写，比如腔体加上工艺。

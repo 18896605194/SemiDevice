@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
-public interface ILoadPort : IModule
+public interface ILoadPort : ITransferStation
 {
     #region 状态
 
@@ -17,11 +17,6 @@ public interface ILoadPort : IModule
     /// Auto/Manual Auto = 搬运车经 E84 自动交接，Manual = 人工放取。
     /// </summary>
     bool IsAutoMode { get; }
-
-    /// <summary>
-    /// 花篮槽数（E87 载具的 Capacity）
-    /// </summary>
-    int SlotCount { get; }
 
     /// <summary>
     /// 载具 Load 好了

@@ -1239,6 +1239,14 @@ sealed class FakePort : ILoadPort
 
     public ModuleOperation? CurrentOperation => null;
 
+    // 这份假件只模拟 EAP 载具流程，不受理机械手搬运。
+    public bool CanPrepare => false;
+    public ModuleOperation? PrepareTransfer() => null;
+    public ModuleOperation? PrepareTransfer2() => null;
+    public bool Transferring() => false;
+    public bool TransferComplete() => false;
+    public bool CancelTransfer() => false;
+
     public void Online()
     {
     }

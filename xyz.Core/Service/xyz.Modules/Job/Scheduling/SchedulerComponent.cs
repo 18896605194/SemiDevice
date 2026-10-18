@@ -166,12 +166,12 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     {
         var location = row.ExpectedLocation;
         var station = location.IsArm ? null : Station(location.Module);
-        if (station is not IModule module || !IsOnline(module))
+        if (station is null || !IsOnline(station) || station is not IStationTaskExecutor executor)
         {
             return;
         }
 
-        var operation = station.StartTask(new StationTaskRequest
+        var operation = executor.StartTask(new StationTaskRequest
         {
             Kind = task.Kind,
             Owner = row.Owner,
@@ -255,12 +255,12 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     private bool IsStationReady(string name)
     {
         var station = Station(name);
-        if (station is not IModule module || !module.IsEnabled || !IsOnline(module) || !station.CanPrepare)
+        if (station is null || !station.IsEnabled || !IsOnline(station) || !station.CanPrepare)
         {
             return false;
         }
 
-        var current = module.CurrentOperation;
+        var current = station.CurrentOperation;
         return current is null || current.IsTerminal;
     }
 

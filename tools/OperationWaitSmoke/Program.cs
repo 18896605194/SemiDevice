@@ -3700,13 +3700,23 @@ sealed class PlainChild : ComponentBase
 
 // 探针站点：两步准备各给什么由测试定（不给 = 被拒），交互标记一律落得下；只为验搬运出错时报的错误码和参数，
 // 顺带记下准备一被抢了几次、环被还了几次。
-sealed class ProbeStation(string name) : ITransferStation
+sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
 {
     public Func<ModuleOperation?> First { get; init; } = () => null;
     public Func<ModuleOperation?> Second { get; init; } = () => null;
     public int Prepares { get; private set; }
     public int Cancels { get; private set; }
     public string Name => name;
+    public string FullPath => Name;
+    public int State => ModuleState.Idle;
+    public ModuleMode Mode { get; private set; } = ModuleMode.Online;
+    public bool IsEnabled => true;
+    public ModuleOperation? CurrentOperation => null;
+    public void Online() => Mode = ModuleMode.Online;
+    public void Offline() => Mode = ModuleMode.Offline;
+    public ModuleOperation? InitModule() => null;
+    public ModuleOperation? Reset() => null;
+    public ModuleOperation? Abort() => null;
     public int SlotCount => 1;
     public bool CanPrepare => true;
 

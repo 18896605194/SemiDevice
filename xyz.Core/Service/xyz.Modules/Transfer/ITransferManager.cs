@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;

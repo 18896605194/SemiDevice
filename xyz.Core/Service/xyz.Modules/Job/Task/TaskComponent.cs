@@ -12,7 +12,7 @@ namespace xyz.Modules;
 
 /// <summary>
 /// 任务组件：建 PJ 时照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理。
-/// Job 是标准件，任务表的规则全在平台、机型不另写；站点之间的差别由站点自己声明支持的任务（<see cref="ITransferStation.SupportedTasks"/>）、
+/// Job 是标准件，任务表的规则全在平台、机型不另写；站点之间的差别由站点自己声明支持的任务（<see cref="IStationTaskExecutor.SupportedTasks"/>）、
 /// 自己执行，走哪些站点由流程配方定，所以这里不留给机型重写的口子。
 /// </summary>
 [Component(description: "任务组件：照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理")]
@@ -157,20 +157,19 @@ public class TaskComponent : ComponentBase, ITaskComponent
     private bool IsUsable(string name, RecipeData? recipe)
     {
         var transfers = _transfers;
-        if (transfers is null || !transfers.TryGetStation(name, out var station) || station is not IModule module || !module.IsEnabled
+        if (transfers is null || !transfers.TryGetStation(name, out var station) || !station.IsEnabled
             || !transfers.Robots.Any(robot => robot.TryGetStation(name, out _)))
         {
             return false;
         }
 
-        return recipe is null || module is not IProcessStation process || process.FindRecipeMismatch(recipe) is null;
+        return recipe is null || station is not IProcessStation process || process.FindRecipeMismatch(recipe) is null;
     }
 
     /// <summary>这个站点支持这个任务；不支持回原因（流程配方名、第几步、站点、任务）。</summary>
     private HandleResult? Require(SequenceData sequence, int sequenceStep, string station, string kind)
     {
-        var found = Station(station);
-        if (found is not null && found.SupportedTasks.Contains(kind, StringComparer.Ordinal))
+        if (Station(station) is IStationTaskExecutor executor && executor.SupportedTasks.Contains(kind, StringComparer.Ordinal))
         {
             return null;
         }

@@ -1,16 +1,15 @@
 ﻿using xyz.Components.Components;
-using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Interfaces;
 
-
-public interface ITransferStation
+/// <summary>
+/// 机械手可服务工位的搬运交互契约。
+/// </summary>
+public interface ITransferStation : IModule
 {
     /// <summary>
-    /// 工位模块名（如 LoadPort1）
+    /// 工位槽位数；LoadPort 对应载具的容量。
     /// </summary>
-    string Name { get; }
-
     int SlotCount { get; }
 
     bool CanPrepare { get; }
@@ -43,23 +42,4 @@ public interface ITransferStation
     /// </summary>
     /// <returns></returns>
     bool CancelTransfer();
-
-    /// <summary>
-    /// 这个站点支持的任务 Job 建任务表时按它查，要用到的这个站点不支持就不建。
-    /// </summary>
-    IReadOnlyList<string> SupportedTasks { get; }
-
-    /// <summary>
-    /// 单独询问站内任务能不能起
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    HandleResult CheckTask(StationTaskRequest request);
-
-    /// <summary>
-    /// 校验并启动站内任务
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    ModuleOperation? StartTask(StationTaskRequest request);
 }

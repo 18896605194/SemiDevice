@@ -398,13 +398,13 @@ public class TransferManager : ComponentBase, ITransferManager
             if (string.Equals(active.SourceName, sourceName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(active.TargetName, sourceName, StringComparison.OrdinalIgnoreCase))
             {
-                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, (source as IModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, source?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
 
             if (string.Equals(active.SourceName, targetName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(active.TargetName, targetName, StringComparison.OrdinalIgnoreCase))
             {
-                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, targetName, (target as IModule)?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
+                return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, targetName, target?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
         }
 
