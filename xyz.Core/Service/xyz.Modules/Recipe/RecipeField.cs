@@ -80,12 +80,7 @@ public sealed class RecipeField
     public double? Min { get; private init; }
 
     /// <summary>
-    /// 上限；null = 不限。按整机现在的晶圆尺寸取（见 <see cref="MaxFor"/>），主界面切了尺寸跟着变。
-    /// </summary>
-    public double? Max => MaxFor(WaferSizeComponent.CurrentSize);
-
-    /// <summary>
-    /// sc.xml 里写的 <c>Max</c>：没按尺寸分开写时用它。
+    /// sc.xml 里写的 <c>Max</c>：没按尺寸分开写时用它。上限按晶圆尺寸取，见 <see cref="MaxFor"/>。
     /// </summary>
     private double? DefaultMax { get; init; }
 
@@ -116,7 +111,7 @@ public sealed class RecipeField
     public bool IsNumber => Type is ProcessRecipeFieldType.Int or ProcessRecipeFieldType.Double;
 
     /// <summary>
-    /// 做这种尺寸的片时的上限：写了 <c>Max.尺寸</c> 的用它，没写的用 <c>Max</c>。
+    /// 做这种尺寸的片时的上限（null = 不限）：写了 <c>Max.尺寸</c> 的用它，没写的用 <c>Max</c>。
     /// </summary>
     public double? MaxFor(int waferSize)
     {
@@ -143,15 +138,11 @@ public sealed class RecipeField
     /// <summary>
     /// 按字段自己的规则查一个非空的值：整数、小数的写法、上下限、小数位，下拉要在 options 里（不分大小写；步骤按配方的 Type 取那一套），
     /// 开关只认 true / false。查过了返回 null；没过返回步骤那一组错误码和参数（不含步号、字段名，调用方在前面补上；配方头换成配方头那一组）。
-    /// 上限按整机现在的晶圆尺寸取。
+    /// 上限按 waferSize（整机现在做几寸片）取。
     /// </summary>
-    public (string Code, string[] Args)? CheckFormat(string value, IReadOnlyList<string> options)
+    public (string Code, string[] Args)? CheckFormat(string value, IReadOnlyList<string> options, int waferSize)
     {
-        return CheckFormat(value, options, Max);
-    }
-
-    private (string Code, string[] Args)? CheckFormat(string value, IReadOnlyList<string> options, double? max)
-    {
+        double? max = MaxFor(waferSize);
         if (Type == ProcessRecipeFieldType.Choice)
         {
             return options.Contains(value, StringComparer.OrdinalIgnoreCase) ? null : (ErrorCodes.ProcessRecipeValueNotInOptions, [value]);
@@ -273,7 +264,7 @@ public sealed class RecipeField
 
         bool number = type is ProcessRecipeFieldType.Int or ProcessRecipeFieldType.Double;
         double? min = number ? ReadLimit(Read(nameof(Min)), nameof(Min), path, type) : null;
-        double? max = number ? ReadLimit(Read(nameof(Max)), nameof(Max), path, type) : null;
+        double? max = number ? ReadLimit(Read("Max"), "Max", path, type) : null;
         var maxBySize = number ? ReadMaxBySize(node, path, type) : new Dictionary<int, double>();
         foreach (double limit in maxBySize.Values.Append(max ?? double.PositiveInfinity))
         {
@@ -333,7 +324,7 @@ public sealed class RecipeField
         {
             foreach (int size in new[] { WaferSizeComponent.Inch8, WaferSizeComponent.Inch12 })
             {
-                var problem = field.CheckFormat(defaultText, [], field.MaxFor(size));
+                var problem = field.CheckFormat(defaultText, [], size);
                 if (problem is not null)
                 {
                     throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");

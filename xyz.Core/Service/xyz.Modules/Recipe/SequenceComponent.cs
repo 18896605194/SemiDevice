@@ -37,11 +37,9 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     private IReadOnlyList<SequenceStationGroup> _groups = [];
 
-    public SequenceComponent()
-    {
-        Register<ISequenceComponent>(this);
-        Register<ISequenceLibrary>(this);
-    }
+    // 下面两个单例开机生成站点分组时取；没装是 null
+    private IRecipeComponent? _recipes;
+    private IEapNotifierComponent? _notifier;
 
     #region SC
 
@@ -143,15 +141,17 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     /// </summary>
     public override void Bind()
     {
-        Bind(FindAll<IModule>());
+        Bind(IocHelper.GetServices<IModule>());
     }
 
     /// <summary>
     /// 生成可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
-    /// 只留能放片、机械手到得了的站点（机械手站点表里配了的）；顶层直接装的站点自己成一组
+    /// 只留能放片、机械手到得了的站点（机械手站点表里配了的）；顶层直接装的站点自己成一组。工艺配方库、EAP 派发也在这里取一次
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
+        _recipes = IocHelper.GetService<IRecipeComponent>();
+        _notifier = IocHelper.GetService<IEapNotifierComponent>();
         var all = modules.ToList();
         var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var robot in all.OfType<IRobot>())
@@ -167,7 +167,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
                 group.Key,
                 stations.Select(station => station.Name).ToList(),
                 stations.All(station => station is ILoadPort),
-                stations.Any(station => station is IChamber)));
+                stations.Any(station => station is IProcessStation)));
         }
 
         lock (_gate)
@@ -332,7 +332,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     public HandleResult Save(int index, int revision, string description, IReadOnlyList<SequenceStep> steps, string operatorName)
     {
         // 工艺配方要在工艺配方库里（没装库就不查）。库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = ComponentBase.Find<IRecipeComponent>();
+        var recipes = _recipes;
         HandleResult result;
         lock (_gate)
         {
@@ -377,7 +377,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         foreach (var (name, change) in changes)
         {
-            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.SequenceChanged(name, change));
+            _notifier?.Post(() => callback.SequenceChanged(name, change));
         }
     }
 
@@ -419,7 +419,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
 
         // 工艺配方库只被这边查、从不反过来调这边，两把锁不会互等
-        var recipes = ComponentBase.Find<IRecipeComponent>();
+        var recipes = _recipes;
         HandleResult result;
         int index;
         string reported;
@@ -747,7 +747,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     /// <summary>
     /// 每一步：分组要在可选的里面，第 1 步、最后一步是 LoadPort 分组；至少勾一个站点、勾的站点在这个分组里；
-    /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且勾的每个腔体都跑得了（Type、选的摆臂和药液）。步号从 1 数，跟界面上一样。
+    /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且勾的每个站点都跑得了（腔体是 Type、选的摆臂和药液）。步号从 1 数，跟界面上一样。
     /// </summary>
     private static HandleResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, IRecipeComponent? recipes)
     {
@@ -789,7 +789,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
             #endregion
 
-            #region 工艺配方：要填、在库里、勾的每个腔体都跑得了
+            #region 工艺配方：要填、在库里、勾的每个站点都跑得了
 
             if (group.NeedsRecipe && string.IsNullOrWhiteSpace(step.Recipe))
             {

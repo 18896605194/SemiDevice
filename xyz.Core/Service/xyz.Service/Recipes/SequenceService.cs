@@ -1,5 +1,4 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
@@ -30,8 +29,8 @@ public class SequenceService : BaseService, ISequenceService
 
     public SequenceService()
     {
-        _library = ComponentBase.Find<ISequenceComponent>();
-        _e30Recipe = ComponentBase.Find<IE30RecipeComponent>();
+        _library = IocHelper.GetService<ISequenceComponent>();
+        _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)

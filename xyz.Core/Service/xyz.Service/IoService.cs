@@ -1,11 +1,11 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Service;
 
@@ -19,7 +19,7 @@ public class IoService : IIoService
 
     public IoService()
     {
-        _io = ComponentBase.Find<IIoComponent>();
+        _io = IocHelper.GetService<IIoComponent>();
     }
 
     public Task<RpcResponse> WriteDoAsync(IoWriteRequest request)

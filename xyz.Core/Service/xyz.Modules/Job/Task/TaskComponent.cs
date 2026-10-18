@@ -6,6 +6,7 @@ using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
@@ -23,10 +24,22 @@ public class TaskComponent : ComponentBase, ITaskComponent
 
     #endregion
 
-    /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
-    private static ITransferStation? Station(string name)
+    // 下面几个单例开机 Bind 时取；没装是 null
+    private ITransferManager? _transfers;
+    private IRecipeComponent? _recipes;
+    private IWaferManagerComponent? _ledger;
+
+    public override void Bind()
     {
-        var transfers = ComponentBase.Find<ITransferManager>();
+        _transfers = IocHelper.GetService<ITransferManager>();
+        _recipes = IocHelper.GetService<IRecipeComponent>();
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+    }
+
+    /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
+    private ITransferStation? Station(string name)
+    {
+        var transfers = _transfers;
         return transfers is not null && transfers.TryGetStation(name, out var station) ? station : null;
     }
 
@@ -73,9 +86,9 @@ public class TaskComponent : ComponentBase, ITaskComponent
     /// 这一站的工艺配方在这里取快照（之后库里改了、删了都不影响）；能去的站点去掉用不了的（<see cref="IsUsable"/>），至少剩一个；
     /// 剩下的每个站点都要支持用到的任务，有一个不支持就整个不建（报出是哪个站点）。
     /// </summary>
-    private static HandleResult? BuildRoute(SequenceData sequence, List<WaferTask> route)
+    private HandleResult? BuildRoute(SequenceData sequence, List<WaferTask> route)
     {
-        var library = ComponentBase.Find<IRecipeComponent>();
+        var library = _recipes;
         for (int index = 1; index < sequence.Steps.Count - 1; index++)
         {
             var step = sequence.Steps[index];
@@ -141,9 +154,9 @@ public class TaskComponent : ComponentBase, ITaskComponent
     /// <summary>
     /// 站点能用：装了（搬运管理的站点表里有）、启用、有机械手到得了；有工艺配方的腔体还要跑得了这个配方。
     /// </summary>
-    private static bool IsUsable(string name, RecipeData? recipe)
+    private bool IsUsable(string name, RecipeData? recipe)
     {
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         if (transfers is null || !transfers.TryGetStation(name, out var station) || station is not IModule module || !module.IsEnabled
             || !transfers.Robots.Any(robot => robot.TryGetStation(name, out _)))
         {
@@ -154,7 +167,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     }
 
     /// <summary>这个站点支持这个任务；不支持回原因（流程配方名、第几步、站点、任务）。</summary>
-    private static HandleResult? Require(SequenceData sequence, int sequenceStep, string station, string kind)
+    private HandleResult? Require(SequenceData sequence, int sequenceStep, string station, string kind)
     {
         var found = Station(station);
         if (found is not null && found.SupportedTasks.Contains(kind, StringComparer.Ordinal))
@@ -285,7 +298,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     /// </summary>
     internal void CheckPositions()
     {
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
+        var ledger = _ledger;
         if (ledger is null)
         {
             return;
@@ -343,10 +356,10 @@ public class TaskComponent : ComponentBase, ITaskComponent
 
         if (task.IsRobotTask)
         {
-            var found = ComponentBase.Find<IWaferManagerComponent>()?.FindById(row.WaferId);
+            var found = _ledger?.FindById(row.WaferId);
             string actual = found is null ? "-" : string.Create(CultureInfo.InvariantCulture, $"{found.Module}.{found.Slot:00}");
             var place = task.Kind == StationTaskAction.Pick ? row.NextPlace(task) : task;
-            if (found is not null && task.Kind == StationTaskAction.Pick && ComponentBase.Find<ITransferManager>()?.TryGetRobot(found.Module, out _) == true)
+            if (found is not null && task.Kind == StationTaskAction.Pick && _transfers?.TryGetRobot(found.Module, out _) == true)
             {
                 SetDone(task, found.Module, found.Slot);
             }

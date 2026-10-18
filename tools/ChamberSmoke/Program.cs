@@ -21,6 +21,8 @@ using xyz.Tools;
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件。
 
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -34,23 +36,27 @@ void Check(bool condition, string message)
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-chamber-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = ComponentBase.Find<IPlc>();
-var previousIo = ComponentBase.Find<IIoComponent>();
-var previousEc = ComponentBase.Find<IEcComponent>();
+var previousPlc = IocHelper.GetService<IPlc>();
+var previousIo = IocHelper.GetService<IIoComponent>();
+var previousEc = IocHelper.GetService<IEcComponent>();
 try
 {
     // 0. 假 PLC、IO 表（0~9 号点）、内存 EC；接线：Door 0/1、Bowl 2/3、Lift 4/5（DO 与 DI 同号），
     //    DIW 喷嘴只有 DO 6（不接反馈）、流量 AO 0，SC1 喷嘴 DO 7 / DI 7、流量 AO 1，两根轴各一对数据块。
-    var csv = Path.Combine(directory, "points.csv");
-    File.WriteAllText(csv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n"
-        + string.Concat(Enumerable.Range(0, 10).Select(i => $"{i},P{i},0,0,0,0\n")));
-    var io = new IoComponent();
-    io.Di.Load(csv);
-    io.Do.Load(csv);
-    io.Ao.Load(csv);
+    // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+    string points = "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n"
+        + string.Concat(Enumerable.Range(0, 10).Select(i => $"{i},P{i},0,0,0,0\n"));
+    foreach (string table in new[] { "DI", "DO", "AO" })
+    {
+        File.WriteAllText(Path.Combine(directory, table + ".csv"), points);
+    }
+
     var plc = new FakePlc();
-    ComponentBase.Register<IPlc>(plc);
-    _ = new EcComponent();
+    SmokeIoc.Use<IPlc>(plc);
+    var io = new IoComponent { PointTableDirectory = directory };
+    SmokeIoc.Use<IIoComponent>(io);
+    io.InitComponent();
+    SmokeIoc.Use<IEcComponent>(new EcComponent());
     plc.Cylinders.Add((0, 1, 0, 1));
     plc.Cylinders.Add((2, 3, 2, 3));
     plc.Cylinders.Add((4, 5, 4, 5));
@@ -61,7 +67,7 @@ try
     plc.AddAxis("Spin.Command", "Spin.Status");
     plc.AddAxis("Arm.Command", "Arm.Status");
 
-    var chamber = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber9", enabled: true)]).Single();
+    var chamber = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber9", enabled: true)]).Single();
     var door = Find<ChamberDoorComponent>(chamber, "Door");
     var bowl = Find<ChamberBowlComponent>(chamber, "Bowl1");
     var lift = Find<ChamberLiftComponent>(chamber, "Lift");
@@ -79,6 +85,8 @@ try
 
     Check(door.InitComponent() && bowl.InitComponent() && lift.InitComponent() && diw.InitComponent() && sc1.InitComponent(),
         "门、Bowl、Lift、喷嘴的组件初始化：认出到位反馈、流量开关");
+    // 开机 Bind：设备取 IO 组件
+    ComponentLoader.BindAll([chamber]);
     var service = new ChamberService();
 
     void Tick(int count = 1)
@@ -214,7 +222,7 @@ try
     flexibleConfig.Children.Insert(0, Node("Door", typeof(CylinderComponent)));
     flexibleConfig.Children.Add(Node("Bowl99", typeof(CylinderComponent)));
     flexibleConfig.Children.Add(Node("InnerCup", typeof(ChamberBowlComponent)));
-    var flexible = (SmokeChamber)ComponentLoader.Load([flexibleConfig]).Single();
+    var flexible = (SmokeChamber)SmokeIoc.Load([flexibleConfig]).Single();
     Check(flexible.Door?.Name == "FrontGate", "改名的腔门按接口识别，普通气缸叫 Door 也不会被认成腔门");
     Check(flexible.Bowls.Select(item => item.Name).SequenceEqual(["OuterCup", "InnerCup"]),
         "多层接液杯按接口识别，普通气缸叫 Bowl99 也不会混进来");
@@ -228,7 +236,7 @@ try
     // 同一接口允许另一种实现：这两个探针不继承 CylinderComponent，动作执行器仍能发、等和推送。
     var interfaceConfig = Node("InterfaceOnly", typeof(SmokeChamber));
     interfaceConfig.Children = [Node("AccessGate", typeof(InterfaceDoorProbe)), Node("Collector", typeof(InterfaceBowlProbe))];
-    var interfaceChamber = (SmokeChamber)ComponentLoader.Load([interfaceConfig]).Single();
+    var interfaceChamber = (SmokeChamber)SmokeIoc.Load([interfaceConfig]).Single();
     Check(interfaceChamber.InitComponent(), "只提供部件接口的腔体初始化成功");
     var interfaceHome = interfaceChamber.Home();
     for (int index = 0; index < 8; index++)
@@ -254,7 +262,7 @@ try
     // 单实例部件配重了开机就拒绝，不能悄悄取第一个。
     void RejectDuplicate(ModuleConfig config, string expected, string message)
     {
-        var rejected = (SmokeChamber)ComponentLoader.Load([config]).Single();
+        var rejected = (SmokeChamber)SmokeIoc.Load([config]).Single();
         try
         {
             rejected.InitComponent();
@@ -359,8 +367,10 @@ try
         return ArmDto().EdgeReach;
     }
 
-    var previousWaferSize = ComponentBase.Find<IWaferSizeComponent>();
-    ComponentBase.Register<IWaferSizeComponent>(null);
+    var previousWaferSize = IocHelper.GetService<IWaferSizeComponent>();
+    SmokeIoc.Use<IWaferSizeComponent>(null);
+    // 摆臂开机 Bind 时取晶圆尺寸组件：换了要重新 Bind
+    arm.Bind();
     Check(Near(arm.Center, 150) && Near(arm.Edge12, 0) && Near(arm.Edge, 0) && Near(arm.Edge8, 50),
         "示教位默认 Center = 150、Edge12 = 0（轴位置按 12 寸晶圆坐标走）、Edge8 = 50（12 寸边缘往里 50）；没配晶圆尺寸用 Edge12");
     Check(Near(arm.ToAxisPosition(75), 75), "没示教：配方坐标就是轴位置");
@@ -400,7 +410,9 @@ try
 
     // 8 寸 / 12 寸：边缘示教位各一个、Center 共用；半径 8 寸 100、12 寸 150，按晶圆尺寸组件现在的尺寸换算
     var waferSize = new WaferSizeComponent { Size = WaferSizeComponent.Inch8 };
-    Check(ComponentBase.Find<IWaferSizeComponent>() == waferSize && WaferSizeComponent.CurrentSize == 8, "配了晶圆尺寸组件就按它的尺寸");
+    SmokeIoc.Use<IWaferSizeComponent>(waferSize);
+    arm.Bind();
+    Check(IocHelper.GetService<IWaferSizeComponent>() == waferSize && WaferSizeComponent.SizeOf(waferSize) == 8, "配了晶圆尺寸组件就按它的尺寸");
     arm.Edge8 = 125;
     Check(Near(arm.Edge, 125) && Near(arm.ToAxisPosition(0), 125) && Near(arm.ToAxisPosition(100), 200) && Near(arm.ToAxisPosition(50), 162.5),
         "8 寸：配方 0 → Edge8，100（8 寸中心）→ Center，中间线性");
@@ -408,7 +420,8 @@ try
     waferSize.Size = WaferSizeComponent.Inch12;
     Check(Near(arm.Edge, 100) && Near(arm.ToAxisPosition(0), 100) && Near(arm.ToAxisPosition(150), 200) && Near(EdgeReach(), 0.5),
         "切回 12 寸：按 Edge12 和半径 150，8 寸的示教位留着不动");
-    ComponentBase.Register<IWaferSizeComponent>(previousWaferSize);
+    SmokeIoc.Use<IWaferSizeComponent>(previousWaferSize);
+    arm.Bind();
 
     // 4. 推送：有变化才推；跟 ChamberDto 同 token、类型不同，各自留存互不覆盖
     int pushes = 0;
@@ -434,7 +447,7 @@ try
     Tick();
 
     // 中间几节另装过腔体（换了整棵树），服务按接口在树上找模块，先换回这台
-    UseTree(chamber);
+    SmokeIoc.Tree(chamber);
 
     // 上线 / 下线走服务基类 → 模块基类的 Online / Offline，只改 Mode、不挂动作
     var response = Run(() => service.OnlineAsync("Chamber404"));
@@ -788,15 +801,16 @@ try
     Check(!plc.ReadDo(6) && plc.Ao(0) == 0 && plc.LastCommand("Spin.Command") == MotionCommandId.Stop, "中止停液、停轴");
 
     // 16. 停用的腔体不发设备动作
-    var disabled = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber8", enabled: false)]).Single();
+    var disabled = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber8", enabled: false)]).Single();
     var disabledService = new ChamberService();
     var disabledResponse = disabledService.CylinderUpAsync(Device("Chamber8.Door", "Chamber8")).Result;
     Check(!disabledResponse.Success && disabledResponse.Code == ErrorCodes.ActionRejected, "停用的腔体设备动作被拒");
 
     // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
     //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
-    var previousLedger = ComponentBase.Find<IWaferManagerComponent>();
+    var previousLedger = IocHelper.GetService<IWaferManagerComponent>();
     var ledger = new WaferManagerComponent();
+    SmokeIoc.Use<IWaferManagerComponent>(ledger);
     try
     {
         var armBefore = arm.ActionState;
@@ -808,13 +822,13 @@ try
             "组件初始化一路递归下去也不动轴：摆臂和卡盘的动作状态没变，腔体没挂操作");
         Check(disabled.InitComponent() && !ledger.IsRegistered("Chamber8"), "停用的腔体：组件初始化连账都不占");
 
-        var fresh = (SmokeChamber)ComponentLoader.Load([ChamberConfig("Chamber7", enabled: true)]).Single();
+        var fresh = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber7", enabled: true)]).Single();
         var home = fresh.InitModule();
         Check(home is not null && fresh.State == ChamberState.Homing, "腔体的模块初始化 InitModule = Home：回原点操作挂上，进 Homing");
     }
     finally
     {
-        ComponentBase.Register<IWaferManagerComponent>(previousLedger);
+        SmokeIoc.Use<IWaferManagerComponent>(previousLedger);
     }
 
     Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
@@ -828,9 +842,9 @@ try
 }
 finally
 {
-    ComponentBase.Register<IPlc>(previousPlc);
-    ComponentBase.Register<IIoComponent>(previousIo);
-    ComponentBase.Register<IEcComponent>(previousEc);
+    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IIoComponent>(previousIo);
+    SmokeIoc.Use<IEcComponent>(previousEc);
     Directory.Delete(directory, recursive: true);
 }
 
@@ -843,12 +857,6 @@ static T Find<T>(ComponentBase root, string name) where T : class
     }
 
     return found;
-}
-
-// 整棵组件树：生产里由 ComponentLoader 装好时填，服务按接口在上面找模块
-static void UseTree(params ComponentBase[] roots)
-{
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Roots))!.SetValue(null, roots);
 }
 
 static ValueConfig Value(string name, string value)

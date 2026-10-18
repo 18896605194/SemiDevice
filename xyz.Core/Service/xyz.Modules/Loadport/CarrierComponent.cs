@@ -8,6 +8,7 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Drivers.Loadport;
 using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
@@ -290,7 +291,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     public override bool InitComponent()
     {
-        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
+        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
         return base.InitComponent();
     }
 

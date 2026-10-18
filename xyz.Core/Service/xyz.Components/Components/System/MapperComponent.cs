@@ -21,7 +21,6 @@ public class MapperComponent : ComponentBase, IMapperComponent
 
     public MapperComponent()
     {
-        Register<IMapperComponent>(this);
 
         // 账上的片 → 当前账存盘行：片的 Id 在表里叫 WaferGuid
         _config.NewConfig<WaferInfo, WaferCurrentEntity>()

@@ -9,6 +9,7 @@ using xyz.Secs;
 using xyz.Secs.Diagnostics;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -31,11 +32,6 @@ public class HsmsComponent : ComponentBase, IHsmsComponent
 
     /// <summary>S9F5：Stream 认识、Function 不认识。</summary>
     private const byte UnknownFunctionFunction = 5;
-
-    public HsmsComponent()
-    {
-        Register<IHsmsComponent>(this);
-    }
 
     #region 配置（[SCEditor]，现场可在 EC 页改 sc.xml）
 
@@ -151,7 +147,7 @@ public class HsmsComponent : ComponentBase, IHsmsComponent
     /// </summary>
     public override void Bind()
     {
-        if (Find<IEapComponent>() is null)
+        if (IocHelper.GetService<IEapComponent>() is null)
         {
             LogHelper.Error(Name, "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
         }
@@ -213,7 +209,7 @@ public class HsmsComponent : ComponentBase, IHsmsComponent
 
         // 跟 gRPC 同端口：宿主先开 EAP 链路、后起 gRPC，监听是独占的，gRPC 就绑不上、整个后端起不来。
         // 只能让一边让路——界面要靠 gRPC，所以 EAP 链路不起，记错误。
-        int rpcPort = ComponentBase.Find<IRpcComponent>()?.Port ?? RpcComponent.DefaultPort;
+        int rpcPort = IocHelper.GetService<IRpcComponent>()?.Port ?? RpcComponent.DefaultPort;
         if (Port == rpcPort)
         {
             LogHelper.Error(Name, $"EAP 链路没起来：Hsms 端口 {Port} 跟 Rpc 节点的 gRPC 端口相同，把其中一个挪开");

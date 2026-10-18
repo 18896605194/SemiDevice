@@ -1,6 +1,5 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -27,42 +26,41 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     /// <summary>日志记在系统模块名下。</summary>
     private readonly string _logModule;
 
+    private readonly ITransferManager _transfers;
+    private readonly IWaferManagerComponent _ledger;
+
+    /// <summary>
+    /// Job 管理：片还归没结束的 Job 的不回；没装是 null
+    /// </summary>
+    private readonly IJobManager? _jobs;
+
     private readonly List<TransferRequest> _pending = [];
     private readonly List<TransferRoutine> _running = [];
     private readonly Dictionary<TransferRequest, string> _lastBusy = [];
     private int _notReturned;
 
-    public SystemReturnOperation(string logModule) : base("ReturnAll", ReturnStep.Plan)
+    /// <param name="transfers">搬运管理：整机入口查过装着、开着</param>
+    /// <param name="ledger">晶圆账：整机入口查过装着、开着</param>
+    public SystemReturnOperation(string logModule, ITransferManager transfers, IWaferManagerComponent ledger, IJobManager? jobs)
+        : base("ReturnAll", ReturnStep.Plan)
     {
         _logModule = logModule;
+        _transfers = transfers;
+        _ledger = ledger;
+        _jobs = jobs;
     }
 
     protected override void OnScan()
     {
-        // 入口查过装没装，这里兜个底
-        var transfers = ComponentBase.Find<ITransferManager>();
-        if (transfers is null)
-        {
-            Fail(ErrorCodes.TransferNotInstalled, "没装搬运管理");
-            return;
-        }
-
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
-        if (ledger is null)
-        {
-            Fail(ErrorCodes.WaferLedgerDisabled, "没装晶圆账");
-            return;
-        }
-
         switch (Step)
         {
             case ReturnStep.Plan:
-                Plan(transfers, ledger);
+                Plan(_transfers, _ledger);
                 LogHelper.Info(_logModule, $"全部回片：要回 {_pending.Count} 片，回不去 {_notReturned} 片");
                 SetStep(ReturnStep.Run);
                 break;
             case ReturnStep.Run:
-                if (Advance(transfers))
+                if (Advance(_transfers))
                 {
                     Finish();
                 }
@@ -133,9 +131,9 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     }
 
     /// <summary>回不去的原因；回得去返回 null，并占住原槽（两片不会排进同一个槽）。</summary>
-    private static string? Check(ITransferManager transfers, IWaferManagerComponent ledger, HashSet<string> claimed, WaferInfo wafer)
+    private string? Check(ITransferManager transfers, IWaferManagerComponent ledger, HashSet<string> claimed, WaferInfo wafer)
     {
-        string? owner = ComponentBase.Find<IJobManager>()?.OwnerOf(wafer.Id);
+        string? owner = _jobs?.OwnerOf(wafer.Id);
         if (owner is not null)
         {
             return $"还归 Job {owner}，由 Job 收场";

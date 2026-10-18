@@ -1,7 +1,6 @@
 ﻿using xyz.Tools;
 using ProtoBuf.Grpc;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
@@ -20,7 +19,7 @@ public class LogService : ILogService
 
     public LogService()
     {
-        _log = ComponentBase.Find<ILogComponent>();
+        _log = IocHelper.GetService<ILogComponent>();
     }
 
     public Task<RpcResponse> GetRecentAsync(LogQuery query, CallContext context = default)

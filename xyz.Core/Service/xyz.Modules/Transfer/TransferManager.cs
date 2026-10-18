@@ -8,6 +8,7 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Shared.Errors;
 using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
@@ -106,11 +107,6 @@ public class TransferManager : ComponentBase, ITransferManager
     private readonly Dictionary<string, TransferRoutine> _armLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<Guid, TransferRoutine> _waferLocks = new();
 
-    public TransferManager()
-    {
-        Register<ITransferManager>(this);
-    }
-
 
     #region 模块装配
 
@@ -122,19 +118,25 @@ public class TransferManager : ComponentBase, ITransferManager
 
     public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
 
+    // 下面两个单例开机绑模块表时取；没装是 null
+    private IWaferManagerComponent? _ledger;
+    private IJobManager? _jobs;
+
     /// <summary>
     /// 开机：认装起来的站点和机械手
     /// </summary>
     public override void Bind()
     {
-        Bind(FindAll<IModule>());
+        Bind(IocHelper.GetServices<IModule>());
     }
 
     /// <summary>
-    /// 按给的模块认站点和机械手（开机由 Bind() 传整棵树上的模块）
+    /// 按给的模块认站点和机械手（开机由 Bind() 传整棵树上的模块）；晶圆账、Job 管理也在这里取一次
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _jobs = IocHelper.GetService<IJobManager>();
         var table = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
         {
@@ -175,7 +177,7 @@ public class TransferManager : ComponentBase, ITransferManager
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();  //晶圆账单管理
+        var ledger = _ledger;  //晶圆账单管理
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -321,7 +323,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
         #region 归属：被 Job 占着的片只能由那个 Job 搬（人工恢复放行）
 
-        string? owner = ComponentBase.Find<IJobManager>()?.OwnerOf(wafer.Id); //这个wafer有没有被job占用
+        string? owner = _jobs?.OwnerOf(wafer.Id); //这个wafer有没有被job占用
         if (owner is not null && request.Origin != TransferOrigin.Recovery&& !string.Equals(owner, request.Owner, StringComparison.Ordinal))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferWaferOwned, wafer.WaferId, owner);

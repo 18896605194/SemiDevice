@@ -45,9 +45,14 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
     private readonly Queue<AlarmItem> _notifications = new();
     private bool _publishing;
 
-    public AlarmComponent()
+    /// <summary>
+    /// 映射组件（开机 Bind 时取）：报警转成给界面的样子
+    /// </summary>
+    private IMapperComponent? _mapper;
+
+    public override void Bind()
     {
-        Register<IAlarmComponent>(this);
+        _mapper = IocHelper.GetService<IMapperComponent>();
     }
 
     #region SC
@@ -510,9 +515,9 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
     /// <summary>
     /// 推给界面（报警栏、实时报警页）；推失败不挡后面的通知
     /// </summary>
-    private static void PushToClient(AlarmItem alarm)
+    private void PushToClient(AlarmItem alarm)
     {
-        var mapper = Find<IMapperComponent>();
+        var mapper = _mapper;
         if (mapper is null)
         {
             return;

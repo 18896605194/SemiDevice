@@ -67,21 +67,20 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     private IReadOnlyList<RecipeField> _headFields = [];
 
     /// <summary>
-    /// 装起来的腔体：配方用到具体腔体时按名字找它核对。
+    /// 装起来的、能做工艺的站点：配方用到具体站点时按名字找它核对。
     /// </summary>
-    private IReadOnlyList<IChamber> _chambers = [];
+    private IReadOnlyList<IProcessStation> _stations = [];
 
     /// <summary>
-    /// 腔体配的几种 Type（按 sc.xml 里的先后，不分大小写去重；没配的是空字符串）：配方头 Type 的选项。
-    /// 还没 Bind（没有腔体）时只有空字符串一种，配方不分类型。
+    /// 能做工艺的站点配的几种 Type（按 sc.xml 里的先后，不分大小写去重；没配的是空字符串）：配方头 Type 的选项。
+    /// 还没 Bind（没有站点）时只有空字符串一种，配方不分类型。
     /// </summary>
     private IReadOnlyList<string> _stationTypes = [string.Empty];
 
-    public RecipeComponent()
-    {
-        Register<IRecipeComponent>(this);
-        Register<IRecipeLibrary>(this);
-    }
+    // 下面几个单例开机绑站点时取；没装是 null
+    private ISystemModule? _system;
+    private IEapNotifierComponent? _notifier;
+    private IWaferSizeComponent? _waferSize;
 
     #region SC
 
@@ -125,7 +124,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 腔体配的几种 Type：配方头 Type 的选项（Bind 之后才是真的，之前只有空字符串一种）。
+    /// 能做工艺的站点配的几种 Type：配方头 Type 的选项（Bind 之后才是真的，之前只有空字符串一种）。
     /// </summary>
     public IReadOnlyList<string> StationTypes
     {
@@ -207,7 +206,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     /// <summary>
     /// 读配方头字段表：字段名不能重复；固定的几项（<see cref="RecipeHead"/>）都要有，类型跟固定的一样。
-    /// Type 那一项的选项是腔体配的几种 Type，不在 sc.xml 里写；自己加的下拉只写一套 Source。
+    /// Type 那一项的选项是能做工艺的站点配的几种 Type，不在 sc.xml 里写；自己加的下拉只写一套 Source。
     /// </summary>
     private static List<RecipeField> ReadHeadFields(ModuleConfig setting)
     {
@@ -251,7 +250,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 从目录把工艺配方全部读进内存（装配时调一次）。目录没有就建；文件名不是编号的、编号超出个数的、读不出来的跳过并记日志——
     /// 一个坏文件不该拖垮开机，也不该连累别的工艺配方。字段表里有、文件里没有的项按默认值补上（字段表后来加的；
-    /// 配方头的超时时间没写的也补默认值，Type 没写的等 Bind 知道有哪几种腔体再补）。
+    /// 配方头的超时时间没写的也补默认值，Type 没写的等 Bind 知道有哪几种站点再补）。
     /// </summary>
     public void Load()
     {
@@ -300,12 +299,12 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 开机：认装起来的腔体；切了晶圆尺寸通知配方页重拉字段表（上限按尺寸分开写）
+    /// 开机：认装起来的、能做工艺的站点；切了晶圆尺寸通知配方页重拉字段表（上限按尺寸分开写）
     /// </summary>
     public override void Bind()
     {
-        Bind(FindAll<IModule>());
-        var size = Find<IWaferSizeComponent>();
+        Bind(IocHelper.GetServices<IModule>());
+        var size = _waferSize;
         if (size is not null)
         {
             size.Changed += _ => EventBus.Send(new ProcessRecipeChangedDto(), ProcessRecipeListDto.EventToken, retain: false);
@@ -313,17 +312,20 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 记下装起来的腔体和它们配的几种 Type（装配完、模块起来之后调一次），配方用到具体腔体时按名字找腔体核对（<see cref="FindMismatch"/>）。
+    /// 记下装起来的、能做工艺的站点和它们配的几种 Type（装配完、模块起来之后调一次），配方用到具体站点时按名字找它核对（<see cref="FindMismatch"/>）。
     /// 按这几种 Type 查字段表：步骤的下拉每种 Type 都要写了选项、默认值在每一套里；配方头自己加的下拉要写了选项、默认值在里面——配错开机就抛。
-    /// 老配方没写 Type 的补成第一种（sc.xml 里排最前的腔体那种），下次保存写进文件。
+    /// 老配方没写 Type 的补成第一种（sc.xml 里排最前的站点那种），下次保存写进文件。整机（界面语言）、EAP 派发、晶圆尺寸也在这里取一次。
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
-        var chambers = modules.OfType<IChamber>().ToList();
+        _system = IocHelper.GetService<ISystemModule>();
+        _notifier = IocHelper.GetService<IEapNotifierComponent>();
+        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+        var stations = modules.OfType<IProcessStation>().ToList();
         var types = new List<string>();
-        foreach (var chamber in chambers)
+        foreach (var station in stations)
         {
-            string type = chamber.Type.Trim();
+            string type = station.Type.Trim();
             if (!types.Contains(type, StringComparer.OrdinalIgnoreCase))
             {
                 types.Add(type);
@@ -339,7 +341,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         int filled = 0;
         lock (_gate)
         {
-            _chambers = chambers;
+            _stations = stations;
             _stationTypes = types;
             foreach (var pair in _items.ToList())
             {
@@ -354,12 +356,12 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             }
         }
 
-        LogHelper.Info(Name, $"腔体的 Type：{string.Join(", ", types.Select(TypeText))}"
+        LogHelper.Info(Name, $"站点的 Type：{string.Join(", ", types.Select(TypeText))}"
             + (filled == 0 ? string.Empty : $"；{filled} 个老配方没写 Type，按 {types[0]} 补上"));
     }
 
     /// <summary>
-    /// 按腔体的几种 Type 查字段表里的下拉（见 <see cref="Bind"/>）；写了某种 Type 的选项、却没有腔体是这种 Type 的，记一条提醒。
+    /// 按站点的几种 Type 查字段表里的下拉（见 <see cref="Bind"/>）；写了某种 Type 的选项、却没有站点是这种 Type 的，记一条提醒。
     /// </summary>
     private void CheckOptions(IReadOnlyList<RecipeField> fields, IReadOnlyList<RecipeField> headFields, IReadOnlyList<string> types)
     {
@@ -375,7 +377,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             {
                 if (!types.Contains(written, StringComparer.OrdinalIgnoreCase))
                 {
-                    LogHelper.Warn(Name, $"sc.xml 节点 {path} 写了 {SourceOf(written)}，但没有腔体的 Type 是 {TypeText(written)}，用不上");
+                    LogHelper.Warn(Name, $"sc.xml 节点 {path} 写了 {SourceOf(written)}，但没有站点的 Type 是 {TypeText(written)}，用不上");
                 }
             }
         }
@@ -466,28 +468,33 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 这个配方用在这个腔体上对不对得上（流程配方保存时按勾的腔体查）：由腔体照名字找配方里选的摆臂、药液
-    /// （<see cref="IChamber.FindRecipeMismatch"/>，几个腔体装的不一样时才会对不上）。
-    /// 对得上、腔体不认识（不是腔体，或没绑上）、配方不在库里（那是另一个错，由 <see cref="Contains"/> 那一步报）都返回 null。
+    /// 这个配方用在这个站点上对不对得上（流程配方保存时按勾的站点查）：由站点自己查（<see cref="IProcessStation.FindRecipeMismatch"/>，
+    /// 腔体是先比 Type、再照名字找配方里选的摆臂、药液）。
+    /// 对得上、站点不认识（不能做工艺，或没绑上）、配方不在库里（那是另一个错，由 <see cref="Contains"/> 那一步报）都返回 null。
     /// </summary>
-    public (string Field, string Value)? FindMismatch(string recipeName, string chamber)
+    public (string Field, string Value)? FindMismatch(string recipeName, string station)
     {
         string wanted = recipeName.Trim();
-        string chamberName = chamber.Trim();
+        string stationName = station.Trim();
         RecipeData? recipe;
-        IChamber? found;
+        IProcessStation? found;
         lock (_gate)
         {
             recipe = FindByName(wanted);
-            found = _chambers.FirstOrDefault(item => string.Equals(item.Name, chamberName, StringComparison.OrdinalIgnoreCase));
+            found = _stations.FirstOrDefault(item => string.Equals(item.Name, stationName, StringComparison.OrdinalIgnoreCase));
         }
 
         // 库里的配方存的时候整份换掉、不在原地改，锁外读也不会读到一半
-        return recipe is null || found is null ? null : found.FindRecipeMismatch(recipe);
+        if (recipe is null || found is null)
+        {
+            return null;
+        }
+
+        return found.FindRecipeMismatch(recipe);
     }
 
     /// <summary>
-    /// 新建：空编号上建一个，名称要合规、不重名。配方头填默认值（Type 取腔体的第一种），步骤先给一步（各字段的默认值），人再改。
+    /// 新建：空编号上建一个，名称要合规、不重名。配方头填默认值（Type 取站点的第一种），步骤先给一步（各字段的默认值），人再改。
     /// </summary>
     public HandleResult Create(int index, string name, string operatorName)
     {
@@ -562,7 +569,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// </summary>
     public HandleResult Save(int index, int revision, RecipeData content, string operatorName)
     {
-        string? language = ComponentBase.Find<ISystemModule>()?.Language;
+        string? language = _system?.Language;
         HandleResult result;
         lock (_gate)
         {
@@ -599,7 +606,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
         foreach (var (name, change) in changes)
         {
-            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ProcessRecipeChanged(name, change));
+            _notifier?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
     }
 
@@ -647,7 +654,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             return HandleResult.Fail(ErrorCodes.ProcessRecipeBodyInvalid, name);
         }
 
-        string? language = ComponentBase.Find<ISystemModule>()?.Language;
+        string? language = _system?.Language;
         HandleResult result;
         int index;
         string reported;
@@ -900,7 +907,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     /// <summary>
     /// 配方头没写的项按默认值补：超时时间空着的补默认值（老配方里还没有这一项），自己加的项没有的补默认值（字段表后来加的）。
-    /// Type 不在这儿补：要知道有哪几种腔体，Bind 时补。说明空着就是空着。
+    /// Type 不在这儿补：要知道有哪几种站点，Bind 时补。说明空着就是空着。
     /// </summary>
     private static void FillHeadDefaults(RecipeData data, IReadOnlyList<RecipeField> headFields)
     {
@@ -976,14 +983,16 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// </summary>
     private HandleResult? CheckContent(RecipeData content, string? language)
     {
-        return CheckHead(content, language) ?? CheckSteps(content.Steps, _fields, content.Type.Trim(), content.TimeoutSeconds, language);
+        int waferSize = WaferSizeComponent.SizeOf(_waferSize);
+        return CheckHead(content, language, waferSize)
+            ?? CheckSteps(content.Steps, _fields, content.Type.Trim(), content.TimeoutSeconds, language, waferSize);
     }
 
     /// <summary>
-    /// 配方头里能填的项（程序算的那几项不查）：Type 要是腔体配的几种之一（没配 Type 的腔体也算一种，那种就是空着）；
+    /// 配方头里能填的项（程序算的那几项不查）：Type 要是站点配的几种之一（没配 Type 的站点也算一种，那种就是空着）；
     /// 超时时间、说明、自己加的项按字段表查，规则跟步骤一样，提示用配方头那一组错误码、字段名按界面语言。必须在 _gate 里调。
     /// </summary>
-    private HandleResult? CheckHead(RecipeData content, string? language)
+    private HandleResult? CheckHead(RecipeData content, string? language, int waferSize)
     {
         foreach (var field in _headFields)
         {
@@ -1007,7 +1016,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
                 continue;
             }
 
-            var problem = field.CheckFormat(value, options);
+            var problem = field.CheckFormat(value, options, waferSize);
             if (problem is not null)
             {
                 return HandleResult.Fail(HeadCode(problem.Value.Code), [fieldText, .. problem.Value.Args]);
@@ -1063,7 +1072,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 把查过的内容规整后放进 next（必须在 _gate 里调）：Type 换成腔体配的写法；超时时间、自己加的项换成统一写法，
+    /// 把查过的内容规整后放进 next（必须在 _gate 里调）：Type 换成站点配的写法；超时时间、自己加的项换成统一写法，
     /// 自己加的项只留字段表里有的、按字段表的先后；说明去掉首尾空白；步骤见 <see cref="Normalize"/>（下拉按配方的 Type 取选项）。
     /// </summary>
     private void ApplyContent(RecipeData next, RecipeData content)
@@ -1089,7 +1098,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// 字段之间不互相管。步号从 1 数，跟界面上一样；提示里的字段名按界面语言。
     /// </summary>
     private static HandleResult? CheckSteps(IReadOnlyList<RecipeStep> steps, IReadOnlyList<RecipeField> fields,
-        string stationType, double timeoutSeconds, string? language)
+        string stationType, double timeoutSeconds, string? language, int waferSize)
     {
         if (steps.Count == 0)
         {
@@ -1114,7 +1123,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
                     continue;
                 }
 
-                var problem = field.CheckFormat(value, field.OptionsFor(stationType));
+                var problem = field.CheckFormat(value, field.OptionsFor(stationType), waferSize);
                 if (problem is not null)
                 {
                     return HandleResult.Fail(problem.Value.Code, [number, fieldText, .. problem.Value.Args]);

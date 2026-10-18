@@ -1,6 +1,5 @@
 ﻿using ProtoBuf.Grpc;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
@@ -22,7 +21,7 @@ public class EcService : IEcService
 
     public EcService()
     {
-        _ec = ComponentBase.Find<IEcComponent>();
+        _ec = IocHelper.GetService<IEcComponent>();
     }
 
     public Task<RpcResponse> GetDefinitionsAsync(RpcRequest request, CallContext context = default)

@@ -1,6 +1,5 @@
 ﻿using System.Runtime.InteropServices;
 using xyz.Common.Log;
-using xyz.Components.Collectors;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -123,7 +122,7 @@ public partial class E30Component
     /// </summary>
     private SecsReply StatusRequest(HsmsMessage message)
     {
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         if (collectors is null)
         {
             return SecsReply.Of(SecsItem.L());
@@ -155,7 +154,7 @@ public partial class E30Component
     /// <summary>S1F11 SV 名单 → S1F12 L[n]{L[3]{SVID, SVNAME, UNITS}}；空表 = 全部。不认识的号名字、单位给空。</summary>
     private SecsReply StatusNamelist(HsmsMessage message)
     {
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         var all = collectors?.Sv.Collect().Where(sv => sv.Visible).ToList() ?? [];
         var ids = RequestedIds(message, "SVID");
         if (ids.Count == 0)
@@ -174,7 +173,7 @@ public partial class E30Component
     /// <summary>S1F21 DV 名单 → S1F22 L[n]{L[3]{VID, DVVALNAME, UNITS}}；空表 = 全部。</summary>
     private SecsReply DataNamelist(HsmsMessage message)
     {
-        var all = GemCollectors.Current?.Dv.Collect() ?? [];
+        var all = _collectors?.Dv.Collect() ?? [];
         var ids = RequestedIds(message, "VID");
         if (ids.Count == 0)
         {
@@ -192,7 +191,7 @@ public partial class E30Component
     /// <summary>S1F23 事件名单 → S1F24 L[n]{L[3]{CEID, CENAME, L[a]{VID}}}（VID 是事件带的 DV）；空表 = 全部。</summary>
     private SecsReply EventNamelist(HsmsMessage message)
     {
-        var all = GemCollectors.Current?.Event.Collect() ?? [];
+        var all = _collectors?.Event.Collect() ?? [];
         var ids = RequestedIds(message, "CEID");
         if (ids.Count == 0)
         {
@@ -226,7 +225,7 @@ public partial class E30Component
     /// <summary>S2F13 EC 查询 → S2F14 L[n]{ECV}；空表 = 全部在用、标了上传的。不认识的号回空 ASCII。</summary>
     private SecsReply ConstantRequest(HsmsMessage message)
     {
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         if (collectors is null)
         {
             return SecsReply.Of(SecsItem.L());
@@ -252,8 +251,8 @@ public partial class E30Component
     private SecsReply ConstantSend(HsmsMessage message)
     {
         var items = SecsRead.List(SecsRead.Body(message), "S2F15");
-        var collectors = GemCollectors.Current;
-        var store = ComponentBase.Find<IEcComponent>();
+        var collectors = _collectors;
+        var store = _ec;
         if (collectors is null || store is null)
         {
             return SecsReply.Of(SecsItem.B(ConstantNotExist));
@@ -321,7 +320,7 @@ public partial class E30Component
     /// </summary>
     private SecsReply ConstantNamelist(HsmsMessage message)
     {
-        var all = GemCollectors.Current?.Ec.Collect().Where(ec => ec.Visible).ToList() ?? [];
+        var all = _collectors?.Ec.Collect().Where(ec => ec.Visible).ToList() ?? [];
         var ids = RequestedIds(message, "ECID");
         if (ids.Count == 0)
         {
@@ -619,9 +618,9 @@ public partial class E30Component
         return SecsReply.Of(AlarmList(AllAlarmIds().Where(_book.IsAlarmEnabled).ToList()));
     }
 
-    private static SecsItem AlarmList(IReadOnlyList<uint> ids)
+    private SecsItem AlarmList(IReadOnlyList<uint> ids)
     {
-        var definitions = GemCollectors.Current?.Alarm.Definitions ?? [];
+        var definitions = _collectors?.Alarm.Definitions ?? [];
         var active = ActiveAlarmIds().ToHashSet();
         return SecsItem.L(ids.Select(alid =>
         {

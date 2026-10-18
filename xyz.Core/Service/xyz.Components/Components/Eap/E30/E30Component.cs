@@ -7,6 +7,7 @@ using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Secs.SecsII;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -37,15 +38,25 @@ public partial class E30Component : ComponentBase, IE30Component
     private int _dataId;
 
     /// <summary>
+    /// 报警组件（接链路时取）；没装是 null
+    /// </summary>
+    private IAlarmComponent? _alarms;
+
+    /// <summary>
+    /// EC 组件（接链路时取）；没装是 null
+    /// </summary>
+    private IEcComponent? _ec;
+
+    /// <summary>
+    /// GEM 编号表（接链路时取）：SV、EC、DV、事件、报警的编号都查它
+    /// </summary>
+    private GemCollectors? _collectors;
+
+    /// <summary>
     /// Host 改 EC（S2F15）的那一刻：EC 变化的通知也在这条线程上发，见到这个标记就不当成操作员改的（不报操作员改常量的事件）。
     /// </summary>
     [ThreadStatic]
     private static bool _applyingHostConstants;
-
-    public E30Component()
-    {
-        Register<IE30Component>(this);
-    }
 
     #region SC
 
@@ -284,16 +295,17 @@ public partial class E30Component : ComponentBase, IE30Component
         link.LinkClosed += OnLinkClosed;
         RegisterHandlers(link);
 
-        var alarms = ComponentBase.Find<IAlarmComponent>();
-        if (alarms is not null)
+        _collectors = IocHelper.GetService<GemCollectors>();
+        _alarms = IocHelper.GetService<IAlarmComponent>();
+        if (_alarms is not null)
         {
-            alarms.AlarmChanged += OnAlarmChanged;
+            _alarms.AlarmChanged += OnAlarmChanged;
         }
 
-        var ec = ComponentBase.Find<IEcComponent>();
-        if (ec is not null)
+        _ec = IocHelper.GetService<IEcComponent>();
+        if (_ec is not null)
         {
-            ec.ValueChanged += OnConstantChanged;
+            _ec.ValueChanged += OnConstantChanged;
         }
 
         EnterInitialState();
@@ -306,13 +318,13 @@ public partial class E30Component : ComponentBase, IE30Component
     /// <summary>从链路上摘下来（宿主退出时）：不再订报警和 EC 变化。</summary>
     public void Detach()
     {
-        var alarms = ComponentBase.Find<IAlarmComponent>();
+        var alarms = _alarms;
         if (alarms is not null)
         {
             alarms.AlarmChanged -= OnAlarmChanged;
         }
 
-        var ec = ComponentBase.Find<IEcComponent>();
+        var ec = _ec;
         if (ec is not null)
         {
             ec.ValueChanged -= OnConstantChanged;
@@ -361,7 +373,7 @@ public partial class E30Component : ComponentBase, IE30Component
             return;
         }
 
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         if (collectors is null)
         {
             return;
@@ -416,7 +428,7 @@ public partial class E30Component : ComponentBase, IE30Component
     private void ReportEvent(string eventName, IReadOnlyDictionary<int, object?> dvs)
     {
         var sender = _sender;
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         if (sender is null || collectors is null)
         {
             return;
@@ -471,7 +483,7 @@ public partial class E30Component : ComponentBase, IE30Component
     {
         try
         {
-            var collectors = GemCollectors.Current;
+            var collectors = _collectors;
             if (collectors is null)
             {
                 return;
@@ -545,7 +557,7 @@ public partial class E30Component : ComponentBase, IE30Component
             return;
         }
 
-        int ecid = GemCollectors.Current?.Ec.EcidOf(path, value.Name) ?? 0;
+        int ecid = _collectors?.Ec.EcidOf(path, value.Name) ?? 0;
         if (ecid == 0)
         {
             return;
@@ -581,9 +593,9 @@ public partial class E30Component : ComponentBase, IE30Component
     #region 变量（SV / EC / DV）
 
     /// <summary>变量号存在吗：在用、标了上传的 SV、EC，或者在用的 DV。</summary>
-    private static bool VariableExists(uint vid)
+    private bool VariableExists(uint vid)
     {
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         if (collectors is null || vid > int.MaxValue)
         {
             return false;
@@ -607,9 +619,9 @@ public partial class E30Component : ComponentBase, IE30Component
     /// <summary>
     /// 一个变量现在的值：SV、EC 现读；DV 用报事件时给的（没给的报空项）。不存在的号报空 ASCII（跟 S1F3 一样）。
     /// </summary>
-    private static SecsItem VariableValue(uint vid, IReadOnlyDictionary<int, object?>? dvs)
+    private SecsItem VariableValue(uint vid, IReadOnlyDictionary<int, object?>? dvs)
     {
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         if (collectors is null || vid > int.MaxValue)
         {
             return SecsItem.A(string.Empty);
@@ -637,22 +649,22 @@ public partial class E30Component : ComponentBase, IE30Component
     }
 
     /// <summary>全部在用事件的 CEID。</summary>
-    private static IReadOnlyList<uint> AllEventIds()
+    private IReadOnlyList<uint> AllEventIds()
     {
-        return GemCollectors.Current?.Event.Definitions.Where(row => row.Enabled).Select(row => (uint)row.Id).ToList() ?? [];
+        return _collectors?.Event.Definitions.Where(row => row.Enabled).Select(row => (uint)row.Id).ToList() ?? [];
     }
 
     /// <summary>全部在用报警的 ALID。</summary>
-    private static IReadOnlyList<uint> AllAlarmIds()
+    private IReadOnlyList<uint> AllAlarmIds()
     {
-        return GemCollectors.Current?.Alarm.Definitions.Where(row => row.Enabled).Select(row => (uint)row.Id).ToList() ?? [];
+        return _collectors?.Alarm.Definitions.Where(row => row.Enabled).Select(row => (uint)row.Id).ToList() ?? [];
     }
 
     /// <summary>正在报着的报警的 ALID。</summary>
-    private static IReadOnlyList<uint> ActiveAlarmIds()
+    private IReadOnlyList<uint> ActiveAlarmIds()
     {
-        var collectors = GemCollectors.Current;
-        var alarms = ComponentBase.Find<IAlarmComponent>();
+        var collectors = _collectors;
+        var alarms = _alarms;
         if (collectors is null || alarms is null)
         {
             return [];

@@ -13,6 +13,8 @@ using xyz.Tools;
 
 // 流程配方冒烟：sc.xml 节点、可选站点分组（按 sc 的分组节点 + 机械手站点表生成）、新建 / 改名 / 保存 / 删除和各项检查、
 // 文件读写（一个编号一个文件、坏文件跳过）、版本冲突、变更事件、gRPC 服务的错误码。不连设备，文件写在临时目录，跑完删掉。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -53,10 +55,10 @@ try
         "sc.xml 里写全三个参数：个数 99、名称最长 32、目录 Recipe\\Sequence");
     node!.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = folder;
 
-    var roots = ComponentLoader.Load([node]);
+    var roots = SmokeIoc.Load([node]);
     var library = roots.OfType<SequenceComponent>().Single();
     Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个流程配方库，参数按 sc.xml");
-    Check(ReferenceEquals(ComponentBase.Find<ISequenceComponent>(), library), "装配出来就登记成单例");
+    Check(ReferenceEquals(IocHelper.GetService<ISequenceComponent>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
 
     // 1. 可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手站点表里有的；顶层直接装的站点自成一组；
@@ -78,6 +80,15 @@ try
         "Chamber 分组：机械手到不了的 SmokePM3 不列，要工艺配方");
     Check(groups[2].Modules.SequenceEqual(new[] { "SmokeAligner" }) && !groups[2].IsLoadPort && !groups[2].NeedsRecipe,
         "顶层直接装的站点自成一组");
+
+    // 1b. 能做工艺但不是腔体的站点（热板这类，只实现 IProcessStation）：它的分组也要工艺配方。看完换回原来那一套。
+    var hotPlate = new ProbeHotPlate("SmokeHP1", "HotPlate");
+    var hotRobot = new ProbeRobot("SmokeRobot", "SmokeLP1", "SmokeLP2", "SmokePM1", "SmokePM2", "SmokeAligner", "SmokeHP1");
+    library.Bind([lp1, lp2, hotRobot, pm1, pm2, pm3, aligner, hotPlate]);
+    var hotGroup = library.StationGroups.FirstOrDefault(group => group.Name == "HotPlate");
+    Check(hotGroup is not null && hotGroup.Modules.SequenceEqual(new[] { "SmokeHP1" }) && !hotGroup.IsLoadPort && hotGroup.NeedsRecipe,
+        "HotPlate 分组：热板不是腔体、只实现 IProcessStation，也要工艺配方");
+    library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
 
     // 2. 新建：空编号上建，名称去掉首尾空白；内容按默认（LoadPort 全勾 → 第一个要工艺配方的分组全勾、配方留空 → LoadPort 全勾），
     //    版本 1，记创建人；写成 001.xml。名称、编号不对的回错误码，不建、不发事件。
@@ -156,8 +167,10 @@ try
     File.WriteAllText(Path.Combine(folder, "notes.xml"), "<Sequence Name=\"NOTES\" />");
     File.WriteAllText(Path.Combine(folder, "120.xml"), "<Sequence Name=\"TOO_BIG\" />");
     var reopened = new SequenceComponent { Folder = folder };
+    SmokeIoc.Use<ISequenceComponent>(reopened);
+    SmokeIoc.Use<ISequenceLibrary>(reopened);
     reopened.Load();
-    ComponentBase.Register<ISequenceComponent>(library);
+    SmokeIoc.Use<ISequenceComponent>(library);
     var reloaded = reopened.List();
     Check(reloaded.Select(item => item.Index).SequenceEqual(new[] { 1, 2 }), "坏文件、不是编号的、超出个数的都跳过");
     var back = reloaded[0];
@@ -182,7 +195,8 @@ try
 
     // 7b. Host 远程管配方（ISequenceComponent，EAP 的 S7 走它）：按名字列、取（JSON）、存（没有就新建、有就覆盖，检查跟本地一样）、删；
     //     建、改、删、改名都经 EAP 的派发组件报上报口（改名报旧名删了、新名建了）。这一节建的最后都删掉，后面接着只剩 1 号。
-    _ = new EapNotifierComponent();
+    SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
+    library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]); // 流程配方库开机 Bind 时取 EAP 的派发组件
     var eapChanges = new RecordingRecipeCallback();
     xyz.Components.Interfaces.ISequenceLibrary remote = library;
     remote.E30Callback = eapChanges;
@@ -226,7 +240,9 @@ try
 
     var tinyFolder = Path.Combine(folder, "tiny");
     var tiny = new SequenceComponent { Folder = tinyFolder, Capacity = 1 };
-    ComponentBase.Register<ISequenceComponent>(library);
+    SmokeIoc.Use<ISequenceComponent>(tiny);
+    SmokeIoc.Use<ISequenceLibrary>(tiny);
+    SmokeIoc.Use<ISequenceComponent>(library);
     tiny.Load();
     HandleResult? full = null;
     if (tiny.Create(1, "ONLY", "Tester").IsSuccess)
@@ -297,7 +313,7 @@ try
     var gone = await service.GetAsync(new SequenceIndexRequest { Index = 3 });
     Check(!gone.Success && gone.Code == ErrorCodes.SequenceNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
-    ComponentBase.Register<ISequenceComponent>(null);
+    SmokeIoc.Use<ISequenceComponent>(null);
     service = new SequenceService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await service.GetListAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.SequenceNotInstalled && notInstalled.Args.Count == 0, "没装库：sequence.not_installed");
@@ -339,7 +355,7 @@ try
                 },
             ],
         };
-        var recipes = (RecipeComponent)ComponentLoader.Load([recipeNode]).Single();
+        var recipes = (RecipeComponent)SmokeIoc.Load([recipeNode]).Single();
         void Mount(ProbeChamber chamber, params string[] chemicals)
         {
             var arm = new SwingArmComponent();
@@ -356,6 +372,9 @@ try
         Mount(pm1, "DIW");
         Mount(pm2, "DIW", "HF");
         recipes.Bind([pm1, pm2, pm3]);
+        // 流程配方库、腔体开机 Bind 时取工艺配方库：装了库以后重新 Bind
+        library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
+        ComponentLoader.BindAll([pm1, pm2, pm3]);
         RecipeStep RecipeStep(string chemical)
         {
             return new RecipeStep { Values = [new("Seconds", "10"), new("Arm", "Arm1"), new("Chemical", chemical)] };
@@ -366,7 +385,7 @@ try
             return new RecipeData { Timeout = "600", Steps = [RecipeStep(chemical)] };
         }
 
-        Check(ReferenceEquals(ComponentBase.Find<IRecipeComponent>(), recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
+        Check(ReferenceEquals(IocHelper.GetService<IRecipeComponent>(), recipes) && recipes.Create(1, "SC1_60S", "Tester").IsSuccess
               && recipes.Save(1, 1, RecipeContent("DIW"), "Tester").IsSuccess, "工艺配方库里建一个 SC1_60S（用 DIW）");
         Check(recipes.Create(2, "HF_ONLY", "Tester").IsSuccess && recipes.Save(2, 1, RecipeContent("HF"), "Tester").IsSuccess,
             "再建一个 HF_ONLY（用 HF，只有 SmokePM2 有）");
@@ -383,7 +402,7 @@ try
     }
     finally
     {
-        ComponentBase.Register<IRecipeComponent>(null);
+        SmokeIoc.Use<IRecipeComponent>(null);
         if (Directory.Exists(recipeFolder))
         {
             Directory.Delete(recipeFolder, recursive: true);
@@ -392,7 +411,7 @@ try
 }
 finally
 {
-    ComponentBase.Register<ISequenceComponent>(null);
+    SmokeIoc.Use<ISequenceComponent>(null);
     if (Directory.Exists(folder))
     {
         Directory.Delete(folder, recursive: true);
@@ -446,6 +465,28 @@ sealed class ProbeChamber : BaseChamberModule
     protected override ModuleOperation? AbortDevice() => null;
 
     protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
+}
+
+// 探针热板：能做工艺、但不是腔体（只实现 IProcessStation，没有轴和气缸）。
+sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
+{
+    public ProbeHotPlate(string name, string? group = null)
+    {
+        Probe.Name(this, name, group);
+        Type = "HP";
+    }
+
+    public override int State { get; protected set; } = ModuleState.Idle;
+
+    public override int SlotCount { get; set; } = 1;
+
+    public ProcessRequest? CurrentProcess => null;
+
+    public (string Field, string Value)? FindRecipeMismatch(RecipeData recipe) => null;
+
+    public ProcessRejection? CheckProcess(ProcessRequest request) => null;
+
+    public ModuleOperation? StartProcess(ProcessRequest request) => null;
 }
 
 // 探针普通站点（Aligner 这类）：能放片，不要工艺配方。

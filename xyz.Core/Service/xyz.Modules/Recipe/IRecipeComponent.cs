@@ -29,9 +29,9 @@ public interface IRecipeComponent : IRecipeLibrary
     bool Contains(string name);
 
     /// <summary>
-    /// 这个配方跟这个腔体对不对得上，对不上带回是哪一项
+    /// 这个配方跟这个站点对不对得上，对不上带回是哪一项
     /// </summary>
-    (string Field, string Value)? FindMismatch(string recipeName, string chamber);
+    (string Field, string Value)? FindMismatch(string recipeName, string station);
 
     /// <summary>
     /// 编号上限
@@ -49,7 +49,7 @@ public interface IRecipeComponent : IRecipeLibrary
     HandleResult Get(int index);
 
     /// <summary>
-    /// 腔体里配了的站点类型
+    /// 能做工艺的站点配了的几种 Type
     /// </summary>
     IReadOnlyList<string> StationTypes { get; }
 

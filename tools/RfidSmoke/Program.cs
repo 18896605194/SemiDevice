@@ -11,6 +11,8 @@ using xyz.Shared.Dtos;
 
 // FCD _rfid 读头冒烟：不开硬件，用假读头按真实握手时序对话。
 // 覆盖帧编解码、ENQ/EOT/ACK/NAK 双向握手、块校验、载具 ID 切片、在途位管理与超时。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {

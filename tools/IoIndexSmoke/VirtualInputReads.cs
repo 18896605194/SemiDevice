@@ -1,23 +1,24 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
+using xyz.Tools;
 
 static class VirtualInputReads
 {
     public static void Run(string directory)
     {
-        var previousPlc = ComponentBase.Find<IPlc>();
-        var previousIo = ComponentBase.Find<IIoComponent>();
+        var previousPlc = IocHelper.GetService<IPlc>();
+        var previousIo = IocHelper.GetService<IIoComponent>();
         try
         {
             InvalidConfigurations();
             var plc = new ProbePlc();
-            ComponentBase.Register<IPlc>(plc);
-            var roots = ComponentLoader.Load(
+            SmokeIoc.Use<IPlc>(plc);
+            var roots = SmokeIoc.Load(
             [
                 new ModuleConfig { Name = "Io", Type = typeof(IoComponent).FullName },
                 Group("ModuleA", Point<VirtualDiComponent>(4000, "ai6001 > 50 && DI12 && !DO12")),
@@ -35,12 +36,17 @@ static class VirtualInputReads
             var moduleB = (VirtualInputGroup)roots.Single(root => root.Name == "ModuleB");
             var ready = moduleA.FindChild<VirtualDiComponent>()!;
             var average = moduleB.FindChild<VirtualAiComponent>()!;
-            string csv = Path.Combine(directory, "computed-inputs.csv");
-            File.WriteAllText(csv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n5,A,0,1000,0,100\n6,B,0,1000,0,100\n12,Signal,0,1000,0,100\n");
-            foreach (var table in new[] { io.Di, io.Do, io.Ai, io.Ao })
+            // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+            string tables = Path.Combine(directory, "virtual-io");
+            Directory.CreateDirectory(tables);
+            foreach (string table in new[] { "DI", "DO", "AI", "AO" })
             {
-                table.Load(csv);
+                File.WriteAllText(Path.Combine(tables, table + ".csv"),
+                    "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n5,A,0,1000,0,100\n6,B,0,1000,0,100\n12,Signal,0,1000,0,100\n");
             }
+
+            io.PointTableDirectory = tables;
+            io.InitComponent();
 
             Check(ready.Value is null && average.Value is null && !ready.IsValid, "components start invalid");
             moduleA.Tick();
@@ -105,8 +111,8 @@ static class VirtualInputReads
         }
         finally
         {
-            ComponentBase.Register<IPlc>(previousPlc);
-            ComponentBase.Register<IIoComponent>(previousIo);
+            SmokeIoc.Use<IPlc>(previousPlc);
+            SmokeIoc.Use<IIoComponent>(previousIo);
         }
     }
 
@@ -121,7 +127,7 @@ static class VirtualInputReads
         };
         var settings = expressions.Select((item, index) => Point<VirtualDiComponent>(4000 + index, item.Text)).ToList();
         settings.Add(Point<VirtualAiComponent>(6001, "6/2", run: true));
-        var roots = ComponentLoader.Load(settings);
+        var roots = SmokeIoc.Load(settings);
         foreach (var (item, index) in expressions.Select((item, index) => (item, index)))
         {
             Check(((VirtualDiComponent)roots[index]).TryRead(out bool value) && value == item.Expected, $"expression: {item.Text}");
@@ -136,7 +142,7 @@ static class VirtualInputReads
     {
         string configDirectory = Path.Combine(directory, "virtual-validation");
         Directory.CreateDirectory(configDirectory);
-        var roots = ComponentLoader.Load(
+        var roots = SmokeIoc.Load(
         [
             new ModuleConfig { Name = "Io", Type = typeof(IoComponent).FullName },
             Point<VirtualAiComponent>(6001, "AI999+1"),
@@ -186,7 +192,7 @@ static class VirtualInputReads
         bool rejected = false;
         try
         {
-            ComponentLoader.Load(settings);
+            SmokeIoc.Load(settings);
         }
         catch (InvalidOperationException)
         {

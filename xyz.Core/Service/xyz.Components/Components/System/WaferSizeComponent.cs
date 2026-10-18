@@ -23,11 +23,6 @@ public class WaferSizeComponent : ComponentBase, IWaferSizeComponent
 
     private readonly object _gate = new();
 
-    public WaferSizeComponent()
-    {
-        Register<IWaferSizeComponent>(this);
-    }
-
     /// <summary>
     /// 切换成功以后发（锁外），参数是新尺寸：配方页的字段上限跟着变，要通知界面重拉。
     /// </summary>
@@ -41,15 +36,16 @@ public class WaferSizeComponent : ComponentBase, IWaferSizeComponent
     #endregion
 
     /// <summary>
-    /// 现在做几寸片；没配晶圆尺寸组件按 12 寸。
+    /// 现在做几寸片：用的地方把自己取到的晶圆尺寸组件传进来；没配晶圆尺寸组件（null）按 12 寸。
     /// </summary>
-    public static int CurrentSize
+    public static int SizeOf(IWaferSizeComponent? component)
     {
-        get
+        if (component is null)
         {
-            var current = Find<IWaferSizeComponent>();
-            return current is null ? Inch12 : current.Size;
+            return Inch12;
         }
+
+        return component.Size;
     }
 
     /// <summary>

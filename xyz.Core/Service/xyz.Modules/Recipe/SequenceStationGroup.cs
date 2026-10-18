@@ -29,7 +29,7 @@ public sealed class SequenceStationGroup
     public bool IsLoadPort { get; }
 
     /// <summary>
-    /// 这一组有工艺腔：这一组的步骤要选工艺配方。
+    /// 这一组有能做工艺的站点：这一组的步骤要选工艺配方。
     /// </summary>
     public bool NeedsRecipe { get; }
 }

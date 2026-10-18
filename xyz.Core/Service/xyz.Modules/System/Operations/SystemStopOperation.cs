@@ -1,5 +1,4 @@
-﻿using xyz.Components;
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 
 namespace xyz.Modules;
 
@@ -11,12 +10,19 @@ namespace xyz.Modules;
 internal sealed class SystemStopOperation : ModuleOperation
 {
     private readonly IReadOnlyList<ModuleOperation> _inFlight;
+
+    /// <summary>
+    /// 搬运管理：撤掉的搬运要等收场；没装是 null
+    /// </summary>
+    private readonly ITransferManager? _transfers;
+
     private volatile bool _issued;
 
     /// <param name="inFlight">停的那一刻各模块手上的动作。</param>
-    public SystemStopOperation(IReadOnlyList<ModuleOperation> inFlight) : base("Abort")
+    public SystemStopOperation(IReadOnlyList<ModuleOperation> inFlight, ITransferManager? transfers) : base("Abort")
     {
         _inFlight = inFlight;
+        _transfers = transfers;
     }
 
     /// <summary>中止指令都发完了，开始等。</summary>
@@ -40,7 +46,7 @@ internal sealed class SystemStopOperation : ModuleOperation
             }
         }
 
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         if (transfers is not null)
         {
             foreach (var robot in transfers.Robots)

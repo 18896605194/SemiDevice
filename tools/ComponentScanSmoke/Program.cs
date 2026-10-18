@@ -1,8 +1,13 @@
 ﻿using System.Collections.Concurrent;
 using System.Xml.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Configs.Models;
+using xyz.Smoke;
+using xyz.Tools;
+
+SmokeIoc.Reset();
 
 const string xml = """
     <ArrayOfSetting>
@@ -31,7 +36,7 @@ const string xml = """
 var serializer = new XmlSerializer(typeof(ScConfig));
 using var reader = new StringReader(xml);
 var config = (ScConfig)serializer.Deserialize(reader)!;
-var roots = ComponentLoader.Load(config.Modules);
+var roots = SmokeIoc.Load(config.Modules);
 var running = (ScanProbe)roots.Single(root => root.Name == "Running");
 var child = (ScanProbe)running.Children.Single(component => component.Name == "Child");
 var sharedChild = (ScanProbe)running.Children.Single(component => component.Name == "SharedChild");
@@ -63,7 +68,8 @@ Check(running.Threads.Count == 1 && grouped.Threads.Count == 1 && child.Threads.
 
 // 开机各阶段（组件自己的开机准备、收尾都挂在这几个钩子上）：组件初始化按 InitOrder、再按 sc 先后，子组件跟着父组件；
 // Bind、OnStarted 按 sc 先后（先父后子）；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
-// 找组件按接口：FindAll 在整棵树上找（停用的连同下面的跳过）；单例构造时登记、Find 取，登记 null 就是没装。
+// 进容器（宿主开机装配那一步，ComponentLoader.Register）：每个组件按它实现的 xyz 接口登记，取一类全部按 sc 先后、停用的连同下面跳过，
+// 同一接口登记了好几个、取一个的拿最后登记的，没人实现的取不到（null）；装好的树本身也登记（宿主开机、收尾按它走）。
 const string lifecycleXml = """
     <ArrayOfSetting>
       <Setting Name="Late" Type="LifecycleProbe">
@@ -78,9 +84,14 @@ const string lifecycleXml = """
     """;
 using var lifecycleReader = new StringReader(lifecycleXml);
 var lifecycleRoots = ComponentLoader.Load(((ScConfig)serializer.Deserialize(lifecycleReader)!).Modules);
-Check(ReferenceEquals(ComponentBase.Roots, lifecycleRoots), "loading publishes the assembled tree as ComponentBase.Roots");
-Check(string.Join(",", ComponentBase.FindAll<ILifecycleProbe>().Select(probe => probe.Name)) == "Late,LateChild,Early,Faulty",
-    "FindAll walks the tree by interface in sc order and skips a disabled node with everything under it");
+var services = new ServiceCollection();
+ComponentLoader.Register(services, lifecycleRoots);
+IocHelper.ServiceProvider = services.BuildServiceProvider();
+Check(ReferenceEquals(IocHelper.GetRequiredService<IReadOnlyList<ComponentBase>>(), lifecycleRoots), "the assembled tree itself goes into the container");
+Check(string.Join(",", IocHelper.GetServices<ILifecycleProbe>().Select(probe => probe.Name)) == "Late,LateChild,Early,Faulty",
+    "every component goes in by its xyz interfaces in sc order; a disabled node is skipped with everything under it");
+Check(IocHelper.GetService<ILifecycleProbe>()?.Name == "Faulty" && IocHelper.GetService<INotInstalledProbe>() is null,
+    "asking for one gives the last registered; an interface nobody implements is not installed (null)");
 ComponentLoader.InitAll(lifecycleRoots);
 ComponentLoader.BindAll(lifecycleRoots);
 ComponentLoader.StartedAll(lifecycleRoots);
@@ -90,12 +101,7 @@ Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && Lifecycle
     "Bind and OnStarted run in sc order, parent before child");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after a component throws");
 
-_ = new SingletonProbe();
-var lastSingleton = new SingletonProbe();
-Check(ReferenceEquals(ComponentBase.Find<ISingletonProbe>(), lastSingleton), "a singleton registers itself when built; Find returns the one registered last");
-ComponentBase.Register<ISingletonProbe>(null);
-Check(ComponentBase.Find<ISingletonProbe>() is null, "registering null means not installed");
-Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), FindAll by interface and singletons");
+Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), components into the container by interface");
 
 static void Check(bool condition, string message)
 {
@@ -127,11 +133,6 @@ public sealed class DisabledScanProbe : ScanProbe
     {
         typeof(ComponentBase).GetProperty(nameof(IsEnabled))!.SetValue(this, false);
     }
-}
-
-public interface ILifecycleProbe
-{
-    string Name { get; }
 }
 
 // 记下每个阶段走到了谁
@@ -187,14 +188,16 @@ public sealed class FaultyLifecycleProbe : LifecycleProbe
     }
 }
 
-public interface ISingletonProbe
+// 探针的接口放在 xyz 开头的命名空间里：装配器只按 xyz 的接口登记
+namespace xyz.Smoke
 {
-}
-
-public sealed class SingletonProbe : ComponentBase, ISingletonProbe
-{
-    public SingletonProbe()
+    public interface ILifecycleProbe
     {
-        Register<ISingletonProbe>(this);
+        string Name { get; }
+    }
+
+    // 谁都没实现：取不到
+    public interface INotInstalledProbe
+    {
     }
 }

@@ -1,6 +1,7 @@
 ﻿using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -14,11 +15,6 @@ namespace xyz.Components.Components;
 [Component(description: "EAP（SECS/GEM）：链路加各 SEMI 标准，开机先接到设备上、设备起来后再开链路")]
 public class EapComponent : ComponentBase, IEapComponent
 {
-    public EapComponent()
-    {
-        Register<IEapComponent>(this);
-    }
-
     /// <summary>各标准接到设备上了（链路启用、必需的节点都在）；链路由 <see cref="Open"/> 另开。</summary>
     public bool IsBound { get; private set; }
 
@@ -27,7 +23,7 @@ public class EapComponent : ComponentBase, IEapComponent
     /// </summary>
     public override void Bind()
     {
-        Bind(FindAll<ILoadPort>(), Find<IJobManager>(), Find<ISequenceLibrary>(), Find<IRecipeLibrary>());
+        Bind(IocHelper.GetServices<ILoadPort>(), IocHelper.GetService<IJobManager>(), IocHelper.GetService<ISequenceLibrary>(), IocHelper.GetService<IRecipeLibrary>());
     }
 
     /// <summary>
@@ -85,7 +81,7 @@ public class EapComponent : ComponentBase, IEapComponent
 
         var substrates = FindChild<IE90Component>();
         var carriers = FindChild<IE87Component>();
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
+        var ledger = IocHelper.GetService<IWaferManagerComponent>();
         if (substrates is not null)
         {
             if (ledger is null)

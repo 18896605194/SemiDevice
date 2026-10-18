@@ -1,26 +1,15 @@
 ﻿using xyz.Components.Components;
-using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
 
 /// <summary>
-/// 腔体
+/// 腔体：带卡盘、摆臂、气缸的那种，腔体手动页按它认；工艺那几个在 IProcessStation
 /// </summary>
-public interface IChamber : IModule
+public interface IChamber : IProcessStation
 {
-    /// <summary>
-    /// 站点类型：工艺配方按它挑能跑的腔体
-    /// </summary>
-    string Type { get; }
-
-    /// <summary>
-    /// 这个配方跟腔体里装的对不对得上，对不上带回是哪一项
-    /// </summary>
-    (string Field, string Value)? FindRecipeMismatch(RecipeData recipe);
-
-    #region 整腔动作和工艺
+    #region 整腔动作
 
     /// <summary>
     /// 回零
@@ -41,16 +30,6 @@ public interface IChamber : IModule
     /// 中止等到做完的上限（ms）
     /// </summary>
     int AbortTimeout { get; }
-
-    /// <summary>
-    /// 这一步工艺能不能起，能是 null
-    /// </summary>
-    ProcessRejection? CheckProcess(ProcessRequest request);
-
-    /// <summary>
-    /// 起工艺
-    /// </summary>
-    ModuleOperation? StartProcess(ProcessRequest request);
 
     #endregion
 

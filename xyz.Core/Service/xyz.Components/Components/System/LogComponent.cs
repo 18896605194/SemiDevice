@@ -19,11 +19,6 @@ public class LogComponent : ComponentBase, ILogComponent
     /// </summary>
     private readonly Queue<LogDto> _recent = new();
 
-    public LogComponent()
-    {
-        Register<ILogComponent>(this);
-    }
-
     [SCEditor("1000", "Log", "日志历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
     public int HistoryQueryMaxCount { get; set; } = 1000;
 

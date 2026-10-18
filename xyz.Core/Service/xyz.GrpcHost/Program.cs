@@ -1,13 +1,14 @@
 ﻿using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Service;
+using xyz.Tools;
 
 namespace xyz.GrpcHost;
 
@@ -50,30 +51,16 @@ public static class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // 先装配组件树再配监听：gRPC 端点本身是组件（sc.xml 的 Rpc 节点），地址端口从 RpcComponent 上取；
-        // 没配该节点时退回默认 localhost:5000，行为与老版本一致。组件照旧先于端口装配（PLC 先连先扫描的启动顺序不变）。
+        // 照 sc.xml 装组件树，组件和 gRPC 服务进容器；组件等容器建好以后再开机
         builder.Services.AddXyzServices();
-        var rpc = ComponentBase.Find<IRpcComponent>();
-        var host = rpc is not null && !string.IsNullOrEmpty(rpc.Host) ? rpc.Host : "localhost";
-        var port = rpc?.Port ?? RpcComponent.DefaultPort;
 
+        // 只走 HTTP/2；监听哪个地址、端口等组件起来以后从 Rpc 组件上取（见下面 app.Urls）
         builder.WebHost.ConfigureKestrel(options =>
         {
-            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+            options.ConfigureEndpointDefaults(listenOptions =>
             {
-                options.ListenLocalhost(port, listenOptions =>
-                {
-                    listenOptions.Protocols = HttpProtocols.Http2;
-                });
-            }
-            else
-            {
-                // 远程调试场景：按明确地址监听（IPv4/IPv6 均可）
-                options.Listen(IPAddress.Parse(host), port, listenOptions =>
-                {
-                    listenOptions.Protocols = HttpProtocols.Http2;
-                });
-            }
+                listenOptions.Protocols = HttpProtocols.Http2;
+            });
         });
 
         // 退出时不干等长连接：客户端的事件流不会自己断，按默认 30 秒超时要等半分钟才退得掉。
@@ -83,11 +70,20 @@ public static class Program
 
         var app = builder.Build();
 
-        app.Lifetime.ApplicationStopping.Register(() =>
+        // 容器建好了再开机：组件按阶段起来（PLC 先连先扫描），都起来以后才开 gRPC 端口；退出时各组件按开机的倒序收尾
+        app.Services.StartComponents();
+        app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopComponents);
+
+        // gRPC 端点本身是组件（sc.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
+        var rpc = IocHelper.GetService<IRpcComponent>();
+        string host = "localhost";
+        if (rpc is not null && !string.IsNullOrEmpty(rpc.Host))
         {
-            // 各组件自己收尾（EAP 断链路、数据曲线落库、断 PLC、晶圆账存盘），按开机的倒序
-            ComponentLoader.StopAll(ComponentBase.Roots);
-        });
+            host = rpc.Host;
+        }
+
+        int port = rpc?.Port ?? RpcComponent.DefaultPort;
+        app.Urls.Add(ListenUrl(host, port));
 
         // gRPC 服务：实现了契约的类都映射上（加服务不用改这里）
         foreach (var implementation in ServiceExtensions.GrpcServices().Select(service => service.Implementation).Distinct())
@@ -100,6 +96,25 @@ public static class Program
         tray.ExitRequested.Register(app.Lifetime.StopApplication);
 
         app.Run();
+    }
+
+    /// <summary>
+    /// 监听地址：localhost 监听本机的两个回环（IPv4、IPv6）；别的按明确地址监听（远程调试，IPv6 加方括号）
+    /// </summary>
+    private static string ListenUrl(string host, int port)
+    {
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"http://localhost:{port}";
+        }
+
+        var address = IPAddress.Parse(host);
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return $"http://[{address}]:{port}";
+        }
+
+        return $"http://{address}:{port}";
     }
 
     /// <summary>

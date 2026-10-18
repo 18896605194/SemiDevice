@@ -7,16 +7,6 @@ namespace xyz.Components.Collectors;
 /// </summary>
 public sealed class GemCollectors
 {
-    /// <summary>
-    /// 当前这套采集器；宿主启动时建出来即生效，冒烟与测试直接 new 一套。
-    /// </summary>
-    public static GemCollectors? Current { get; set; }
-
-    public GemCollectors()
-    {
-        Current = this;
-    }
-
     public EcCollector Ec { get; } = new();
 
     public SvCollector Sv { get; } = new();

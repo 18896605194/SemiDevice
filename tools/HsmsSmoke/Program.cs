@@ -1,7 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -10,12 +9,15 @@ using xyz.Secs;
 using xyz.Secs.Diagnostics;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
+using xyz.Tools;
 
 // HsmsComponent 冒烟（链路和报文分发，不带 GEM）：组件经 ComponentLoader 按 sc.xml 同款结构装配，登记几个测试处理方，
 // 假 EAP 用 HsmsConnector 连入，验证：按 Stream/Function 交给处理方（在派发线程上，可以 await）、处理方抛数据错回 S9F7、
 // 抛别的错回 SxF0、没人登记的回 S9F3 / S9F5、闸门挡住的照闸门回、回完再做的事排在回复之后、设备主动发报文等回复、
 // 连上 / 断开按先后通知、断线重连后照常分发、Close 发 Separate、跟 gRPC 同端口 / 配置不对 / 端口被占时 Open 只记错误不抛。
 // GEM 的答话（S1F13、S1F3……）归 E30，见 EapSmoke。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -48,9 +50,9 @@ var node = new ModuleConfig
         new ValueConfig { Name = "LinktestIntervalMs", Value = "500" },
     },
 };
-var roots = ComponentLoader.Load([node]);
+var roots = SmokeIoc.Load([node]);
 var hsms = roots.OfType<HsmsComponent>().Single();
-Check(ReferenceEquals(ComponentBase.Find<IHsmsComponent>(), hsms), "装配出来就登记成单例");
+Check(ReferenceEquals(IocHelper.GetService<IHsmsComponent>(), hsms), "装配出来就登记成单例");
 Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[SCEditor] 灌值生效（IsEnable/Port/DeviceId）");
 
 // 2. 登记处理方和闸门（链路打开之前）。
@@ -184,12 +186,13 @@ eap.Dispose();
 
 // 4. 链路起不来的几种情况：Open 只记错误、不抛，后端照常起，链路状态保持未连接。
 // ① 跟 gRPC（Rpc 节点）同端口：不去抢——宿主先开 EAP 链路后起 gRPC，抢了 gRPC 就绑不上、整个后端起不来。
-_ = new RpcComponent { Port = port };  // 构造即成为 ComponentBase.Find<IRpcComponent>()，宿主从它取 gRPC 端口
+SmokeIoc.Use<IRpcComponent>(new RpcComponent { Port = port }); // 宿主从容器里的 Rpc 组件取 gRPC 端口
 var sameAsRpc = new HsmsComponent { IsEnable = true, Port = port, LinktestIntervalMs = 0 };
+SmokeIoc.Use<IHsmsComponent>(sameAsRpc);
 sameAsRpc.Open();
 Check(sameAsRpc.LocalEndpoint is null && sameAsRpc.LinkState == HsmsLinkState.NotConnected, "跟 gRPC 同端口时不监听");
 sameAsRpc.Close();
-ComponentBase.Register<IRpcComponent>(null);
+SmokeIoc.Use<IRpcComponent>(null);
 
 // ② 配置不对（设备号超 15 位、超时填 0）：同样只记错误。端口给 0，万一没拦住会监听到系统分配的端口，检查就会失败。
 foreach (var invalid in new[]
@@ -208,6 +211,7 @@ var occupant = new TcpListener(IPAddress.Loopback, 0);
 occupant.Start();
 var occupiedPort = ((IPEndPoint)occupant.LocalEndpoint).Port;
 var clash = new HsmsComponent { IsEnable = true, Port = occupiedPort, LinktestIntervalMs = 0 };
+SmokeIoc.Use<IHsmsComponent>(clash);
 clash.Open();
 Check(clash.LocalEndpoint is null && clash.LinkState == HsmsLinkState.NotConnected, "端口被占时 Open 不抛、不监听");
 clash.Close();
@@ -215,6 +219,7 @@ occupant.Stop();
 
 // ④ 没启用：不监听。
 var disabled = new HsmsComponent { IsEnable = false, Port = 0 };
+SmokeIoc.Use<IHsmsComponent>(disabled);
 disabled.Open();
 Check(disabled.LocalEndpoint is null, "IsEnable=False 时不监听");
 

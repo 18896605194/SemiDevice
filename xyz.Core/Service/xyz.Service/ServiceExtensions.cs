@@ -8,32 +8,50 @@ using xyz.Components.Interfaces;
 using xyz.Configs;
 using xyz.Configs.Models;
 using xyz.Modules;
+using xyz.Tools;
 
 namespace xyz.Service;
 
 /// <summary>
-/// 后端开机：装配组件树、按阶段把组件起来、注册 gRPC 服务。
+/// 后端开机：装配组件树、组件和 gRPC 服务进容器；容器建好以后按阶段把组件起来、退出时收尾。
 /// 这里只有框架自己的几步，不认识具体组件：组件开机要做的事写在它自己的开机阶段里（见 ComponentBase），加组件不用改这个文件。
 /// </summary>
 public static class ServiceExtensions
 {
     /// <summary>
-    /// 注册 xyz 后端业务服务。
+    /// 注册 xyz 后端：照 sc.xml 装组件树，组件、GEM 编号表、gRPC 服务进容器。不开机，组件等容器建好以后由 <see cref="StartComponents"/> 起
     /// </summary>
     public static IServiceCollection AddXyzServices(this IServiceCollection services)
     {
-        #region 装配（sc.xml → 组件树）、EC 合并、GEM 编号表
-
         var settings = SC.Load();
         services.AddSingleton<IReadOnlyList<ModuleConfig>>(settings);
 
         var roots = ComponentLoader.Load(settings);
+        ComponentLoader.Register(services, roots);
+        services.AddSingleton(new GemCollectors());
+
+        // gRPC 服务：实现了契约的类自动认
+        foreach (var (contract, implementation) in GrpcServices())
+        {
+            services.AddTransient(contract, implementation);
+        }
+
+        return services;
+    }
+
+    /// <summary>
+    /// 开机（容器建好以后、gRPC 开始监听之前）：查必配的组件、合并 EC、编 GEM 编号表，再按阶段把组件起来：准备 → 绑定 → 开始扫描 → 都起来以后
+    /// </summary>
+    public static void StartComponents(this IServiceProvider provider)
+    {
+        IocHelper.ServiceProvider = provider;
+        var roots = IocHelper.GetRequiredService<IReadOnlyList<ComponentBase>>();
         Require<ISystemModule>("System", "整机");
         Require<IMapperComponent>("Mapper", "对象映射（报警、EC、曲线推给界面都靠它转）");
         Require<ILogComponent>("Log", "日志（转给界面的实时日志、最近日志）");
 
         // 组件开机准备就要读 EC，所以排在开机阶段前面
-        var ec = ComponentBase.Find<IEcComponent>();
+        var ec = IocHelper.GetService<IEcComponent>();
         if (ec is not null)
         {
             ec.Merge(roots);
@@ -43,13 +61,7 @@ public static class ServiceExtensions
             LogHelper.Warn("EC", "sc.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
         }
 
-        var collectors = new GemCollectors();
-        collectors.Merge(roots, SC.ConfigDirectory);
-        services.AddSingleton(collectors);
-
-        #endregion
-
-        #region 开机阶段：准备 → 绑定 → 开始扫描 → 都起来以后
+        IocHelper.GetRequiredService<GemCollectors>().Merge(roots, SC.ConfigDirectory);
 
         ComponentLoader.InitAll(roots);
         ComponentLoader.BindAll(roots);
@@ -57,21 +69,16 @@ public static class ServiceExtensions
         ComponentLoader.StartedAll(roots);
 
         var scanningRoots = roots.Where(root => root.IsEnabled && root.IsRun).ToList();
-        LogHelper.Info($"根组件装配 {roots.Count} 个，模块 {ComponentBase.FindAll<IModule>().Count} 个，启动独立扫描 {scanningRoots.Count} 个："
+        LogHelper.Info($"根组件装配 {roots.Count} 个，模块 {IocHelper.GetServices<IModule>().Count} 个，启动独立扫描 {scanningRoots.Count} 个："
             + string.Join(", ", scanningRoots.Select(root => root.FullPath)));
+    }
 
-        #endregion
-
-        #region gRPC 服务：实现了契约的类自动认
-
-        foreach (var (contract, implementation) in GrpcServices())
-        {
-            services.AddTransient(contract, implementation);
-        }
-
-        #endregion
-
-        return services;
+    /// <summary>
+    /// 宿主退出：各组件自己收尾（EAP 断链路、数据曲线落库、断 PLC、晶圆账存盘），按开机的倒序
+    /// </summary>
+    public static void StopComponents()
+    {
+        ComponentLoader.StopAll(IocHelper.GetRequiredService<IReadOnlyList<ComponentBase>>());
     }
 
     /// <summary>
@@ -124,7 +131,7 @@ public static class ServiceExtensions
     /// </summary>
     private static void Require<T>(string node, string what) where T : class
     {
-        if (ComponentBase.Find<T>() is null)
+        if (IocHelper.GetService<T>() is null)
         {
             throw new InvalidOperationException($"sc.xml 没配 {node} 节点（{what}），这是必配的");
         }

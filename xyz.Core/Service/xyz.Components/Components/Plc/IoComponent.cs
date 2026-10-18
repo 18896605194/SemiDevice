@@ -6,6 +6,7 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs;
 using xyz.Configs.Models;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -17,26 +18,24 @@ public partial class IoComponent : ComponentBase, IIoComponent
 {
     public IoComponent()
     {
-        Register<IIoComponent>(this);
         // 开机准备排在 PLC 后面、别的组件前面：DI、AI 组件要按点表认点
         InitOrder = 200;
     }
 
     /// <summary>
-    /// 开机准备：读点表
+    /// 开机准备：取 PLC、读点表（别的组件开机准备时就要经它读写，比如 E84 开机清输出）
     /// </summary>
     public override bool InitComponent()
     {
+        _plc = IocHelper.GetService<IPlc>();
         Open();
         return base.InitComponent();
     }
 
     /// <summary>
-    /// 本组件用的 PLC（按 IPlc 找的单例）：装配、冒烟里会后登记，所以第一次用到时才取、取到就固定，不放构造里绑。
+    /// 本组件用的 PLC（开机准备时取）；sc.xml 没配 PLC 是 null
     /// </summary>
     private IPlc? _plc;
-
-    private IPlc? Plc => _plc ??= ComponentBase.Find<IPlc>();
 
     private VirtualInputRegistry? _virtualInputs;
 
@@ -111,7 +110,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
     /// 物理采集是否在工作（SV）：PLC 连着才算。虚拟输入按其来源单独判断有效性，纯常量不依赖 PLC。
     /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "IO 采集是否在工作")]
-    public bool IsCollecting => Plc?.IsConnected ?? false;
+    public bool IsCollected => _plc?.IsConnected ?? false;
 
     #endregion
 
@@ -168,7 +167,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
         }
 
         var point = Di.Find(index);
-        var plc = Plc;
+        var plc = _plc;
         if (point is null || plc is null)
         {
             return false;
@@ -189,7 +188,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
         }
 
         var point = Do.Find(index);
-        var plc = Plc;
+        var plc = _plc;
         if (point is null || plc is null)
         {
             return false;
@@ -212,7 +211,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
         lock (_doGate)
         {
             var point = Do.Find(index);
-            var plc = Plc;
+            var plc = _plc;
             if (point is null || plc is null)
             {
                 return false;
@@ -249,7 +248,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
         }
 
         var point = Ai.Find(index);
-        var plc = Plc;
+        var plc = _plc;
         if (point is null || plc is null || !plc.TryReadAi(point.Index, out double raw))
         {
             return false;
@@ -271,7 +270,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
         }
 
         var point = Ao.Find(index);
-        var plc = Plc;
+        var plc = _plc;
         if (point is null || plc is null || !plc.TryReadAo(point.Index, out double raw))
         {
             return false;
@@ -292,7 +291,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
         }
 
         var point = Ao.Find(index);
-        var plc = Plc;
+        var plc = _plc;
         if (point is null || plc is null)
         {
             return false;
@@ -332,7 +331,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
             return;
         }
 
-        var plc = Plc;
+        var plc = _plc;
         if (plc is null || !plc.IsConnected)
         {
             // 等的过程中掉线了，重连后重新计时。

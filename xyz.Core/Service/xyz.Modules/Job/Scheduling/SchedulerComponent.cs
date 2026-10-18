@@ -5,6 +5,7 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
@@ -15,21 +16,25 @@ namespace xyz.Modules;
 public class SchedulerComponent : ComponentBase, ISchedulerComponent
 {
     /// <summary>
-    /// 搬运管理
+    /// 搬运管理（开机 Bind 时取）
     /// </summary>
     private ITransferManager? _transfers;
     /// <summary>
-    /// 晶圆账
+    /// 晶圆账（开机 Bind 时取）
     /// </summary>
     private IWaferManagerComponent? _waferManager;
+
+    public override void Bind()
+    {
+        _transfers = IocHelper.GetService<ITransferManager>();
+        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
+    }
 
     /// <summary>
     /// 派这一拍的任务。rows 是有许可的行，按优先级排好（CJ 队列先后、PJ 在 CJ 里的先后、PJ 里的投片顺序）。Manual 下 Job 组件不调。
     /// </summary>
     public void Dispatch(IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
     {
-        _transfers = ComponentBase.Find<ITransferManager>();
-        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
         if (_transfers is null || _waferManager is null)
         {
             return;

@@ -4,11 +4,14 @@ using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Tools;
 
+SmokeIoc.Reset();
+
 var directory = Path.Combine(Path.GetTempPath(), "xyz-io-index-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = ComponentBase.Find<IPlc>();
-var previousIo = ComponentBase.Find<IIoComponent>();
+var previousPlc = IocHelper.GetService<IPlc>();
+var previousIo = IocHelper.GetService<IIoComponent>();
 var io = new IoComponent();
+SmokeIoc.Use<IIoComponent>(io);
 try
 {
     SinglePointWrites.Run();
@@ -35,10 +38,21 @@ try
     }
 
     var plc = new FakePlc();
-    ComponentBase.Register<IPlc>(null);
-    Check(!io.IsCollecting && !io.TryReadDi(7, out _), "no PLC means nothing is readable");
-    ComponentBase.Register<IPlc>(plc);
-    Check(io.IsCollecting, "collecting follows the PLC connection");
+    // IO 组件开机准备时读点表、取 PLC：同一份点表放进它的点表目录，先不给 PLC
+    string tables = Path.Combine(directory, "main-io");
+    Directory.CreateDirectory(tables);
+    foreach (string table in new[] { "DI", "DO", "AI", "AO" })
+    {
+        File.Copy(csv, Path.Combine(tables, table + ".csv"));
+    }
+
+    io.PointTableDirectory = tables;
+    SmokeIoc.Use<IPlc>(null);
+    io.InitComponent();
+    Check(!io.IsCollected && !io.TryReadDi(7, out _), "no PLC means nothing is readable");
+    SmokeIoc.Use<IPlc>(plc);
+    io.InitComponent();
+    Check(io.IsCollected, "collecting follows the PLC connection");
     Check(io.TryReadAi(7, out var value) && value == 50, "AI must resolve sparse PLC indices and scale");
     Check(io.TryReadDi(7, out var on) && on, "DI index 7");
     Check(io.TryReadDi(2, out on) && !on, "same name at index 2 must not read index 7");
@@ -51,7 +65,7 @@ try
     Check(plc.LastAo == (7, 250d), "invalid write must not reach PLC");
 
     plc.IsConnected = false;
-    Check(!io.IsCollecting && !io.TryReadDi(7, out _) && !io.TryReadAi(7, out _),
+    Check(!io.IsCollected && !io.TryReadDi(7, out _) && !io.TryReadAi(7, out _),
         "offline PLC makes every point unreadable");
     plc.IsConnected = true;
     Check(io.TryReadDi(7, out _), "reads resume with the connection");
@@ -60,13 +74,12 @@ try
 
     // IO 组件自己推 IO 界面那一包（IoDto，留存）：在自己的扫描里到了 EC 推送周期才推，骨架只建一次、之后每次只刷值
     // 推送周期是 EC：先拨到最长（两拍之间肯定没到），再拨到最短看下一个周期接着推
-    var previousEc = ComponentBase.Find<IEcComponent>();
+    var previousEc = IocHelper.GetService<IEcComponent>();
     var ec = new EcComponent();
-    var scanning = new ScanIo();
-    foreach (var table in new[] { scanning.Di, scanning.Do, scanning.Ai, scanning.Ao })
-    {
-        table.Load(csv);
-    }
+    SmokeIoc.Use<IEcComponent>(ec);
+    var scanning = new ScanIo { PointTableDirectory = tables };
+    SmokeIoc.Use<IIoComponent>(scanning);
+    scanning.InitComponent();
 
     ec.Merge([scanning]);
     scanning.PublishIntervalMs = 10000;
@@ -94,14 +107,14 @@ try
             "the next interval pushes again, refreshing values on the same skeleton");
     }
 
-    ComponentBase.Register<IEcComponent>(previousEc);
+    SmokeIoc.Use<IEcComponent>(previousEc);
 
     Console.WriteLine("PASS: index lookup, reads, writes, scaling, invalid indices and connection gating, IO snapshot pushed from its own scan");
 }
 finally
 {
-    ComponentBase.Register<IPlc>(previousPlc);
-    ComponentBase.Register<IIoComponent>(previousIo);
+    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IIoComponent>(previousIo);
     Directory.Delete(directory, recursive: true);
 }
 

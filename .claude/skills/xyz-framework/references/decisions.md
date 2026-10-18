@@ -167,6 +167,10 @@
 - 腔体手动页的配方框换成选择框（点"…"从工艺配方库里选），原来那个灰着的"选择"按钮删了。
 - 用户押后（"先不管"）：流程配方在用的工艺配方不让删、不让改名。
 - 腔体按工艺配方的步骤真的执行、流量下发到喷嘴 AO：2026-10-10 做了，见下面「腔体收进平台」。
+- **配方认 `IProcessStation`，不认 `IChamber`**（2026-10-18，评估涂胶显影时用户问"IChamber 这个需要吗？为啥不是 IProcessStation 这一个接口就行"，听了分工后让改）：
+  `Type` 从 `IChamber` 挪到 `IProcessStation`（它改成继承 `IModule`），`IChamber : IProcessStation`、删掉两边重复的 `Type` / `FindRecipeMismatch` / `CheckProcess` / `StartProcess`；
+  配方头 Type 的选项、流程配方哪些分组要选配方、配方对不对得上站点都按 `IProcessStation`。为的是热板、冷板这类能做工艺但没有轴、摆臂的站点只实现它就能挂配方，
+  不用硬实现腔体手动页那十几个方法、也不会被列进腔体手动页。`IChamber` 不改名、两个接口都留（只留一个的话，要么热板得实现轴点动，要么分不出谁开腔体手动页）。
 
 ## 腔体手动页（三维，2026-10-03）
 - **直接三维**（"为什么要放二维的，直接就是三维的"）：左边是 `ChamberScene`，二维 `Chamber` 俯视控件已删。
@@ -703,7 +707,7 @@
 ## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
 - **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
 - **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 构造里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局），
-  用的地方 `ComponentBase.Find<IMapperComponent>()` 的 `Map<T>(source)`（2026-10-18 起按接口找）；sc.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
+  用的地方取映射组件 `IMapperComponent` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；sc.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
   2026-10-18 起报警、EC、曲线推给界面和服务回包的 DTO 也都走它，原来服务层的 AlarmMapper、EcMapper、ChartMapper 删了。
 - **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
   动作、从哪到哪、操作人这些片上没有的，映射完再赋值。开机恢复（存盘行 → 片）有解析失败跳过、加工中记中止这些逻辑，照旧手写。
@@ -807,7 +811,7 @@
   `Bind` 不带参数（用户："为什么要传递整个树，需要用到哪一个组件，自己知道的呀"）；要测的组件另留一个带模块表的重载给冒烟传。
 - **找组件一律按接口**（用户："很重要的一点就是，找组件的时候都要根据接口而不是基类去找"）：单例构造时 `Register<IXxx>(this)`，用 `ComponentBase.Find<IXxx>()`；
   一类的全部用 `ComponentBase.FindAll<IXxx>()`（整棵树 `ComponentBase.Roots` 上找，停用的连同下面的跳过；用户："应该有一个地方提供获取这些的方法"）。
-  `Xxx.Current` 全删了。讨论过放进 IoC 当单例，定的是这样（静态登记 + 按接口取），以后有人另写一个数据曲线组件，实现同一个接口、sc 里换 Type 就行。
+  `Xxx.Current` 全删了。讨论过放进 IoC 当单例，当时定的是这样（静态登记 + 按接口取；同一天后来改成进 IoC、从 IocHelper 取，见下一节），以后有人另写一个数据曲线组件，实现同一个接口、sc 里换 Type 就行。
   接口名带 Component 后缀（用户选的），已有的照用；EAP 那边只看得到组件层，配方库给它的是 `ISequenceLibrary` / `IRecipeLibrary`，模块层的 `ISequenceComponent` /
   `IRecipeComponent` 继承它们。模块共有的 `IModule`（`ILoadPort`、`IRobot` 继承），腔体 `IChamber`（用户："腔体按照道理也应该和 loadport 一样增加接口"）；
   搬运、Job、整机认模块用 `IModule` 不用 `BaseModule`（用户："为什么要用 BaseModule 这个"）。机型类不重复写基类已经实现的接口（用户："基类已经实现了"）。
@@ -830,3 +834,29 @@
 - **跟着变的**：轴"两根轴配了同一个命令块"的检查从启动代码挪进轴自己的 `InitComponent`（比的还是装起来的那棵树）；EAP 的 Bind 跟着 sc 的先后走
   （现在排在配方库、Job 后面，它用的都是单例，跟先后无关）；`IModule` 加了 `IsEnabled`，调度、任务表判站点能不能用不再转成 `BaseModule`；
   两处 switch 表达式改成 if。
+
+## 组件进 IoC、取一律走 IocHelper；单例开机取一次（2026-10-18，用户定的）
+- **起因**（用户）：服务、组件里每个方法都现取一次单例——"你怎么能每一个方法里面都获取呢，单例的不需要这个样子啊"；
+  又问"这些所有的组件能不能放在 ioc 里面统一管理"，我先说了容器还没建、同类要按名字登记这些顾虑，用户："本质上来还是系应该 ioc……你直接调整顺序不就好了"；
+  定的取法："ioc 获取的话都要用 IocHelper 这个帮助类"（不在组件基类上另包 `GetService`，服务也不写构造参数注入）。先改"每个方法现取"，再换 IoC。
+- **进容器**：`ComponentLoader.Register(services, roots)`——整棵树照 sc 先后（父在前、子在后，停用的连同下面的跳过），每个组件按它实现的接口里
+  命名空间 xyz 开头的登记成单例实例（不由容器建、也不由容器释放，开机、收尾照旧归装配器）；树本身登记成 `IReadOnlyList<ComponentBase>`。
+  取一个 `IocHelper.GetService<T>()`（没登记是 null；登记了好几个的拿最后一个，跟原来"后登记的生效"一样），取一类全部 `IocHelper.GetServices<T>()`
+  （按登记先后，就是 sc 先后）。`ComponentBase` 上的静态 `Roots`、`Find`、`FindAll`、`Register` 和各组件构造里的登记都删了；`GemCollectors.Current` 也删了，
+  编号表登记在容器里（E30、Trace 接链路时取，数据曲线 Bind 时取）；`DiSensorComponent` 按 DI 号找组件的静态表没人用，一起删了。
+- **开机顺序**：容器要先建好，所以组件开机挪到 `builder.Build()` 以后。`AddXyzServices` 只装树、进容器（组件构造、`OnSettingLoaded` 里不取别的组件，查过没有）；
+  `app.Services.StartComponents()` 设 `IocHelper.ServiceProvider`，再查必配、合并 EC 和 GEM 编号表、按阶段开机；退出 `StopComponents()`。
+  监听地址原来是装完树马上从 Rpc 组件取、再配 Kestrel；现在 Kestrel 的选项在 Build 时就定了（那时还没开机），改成 Kestrel 只定 HTTP/2，
+  地址开完机从容器里的 Rpc 组件取、加进 `app.Urls`（localhost 照旧监听两个回环，别的按明确地址，IPv6 加方括号）。开机仍在开端口之前（PLC 先连先扫描不变）。
+- **单例开机取一次**：组件在 `Bind` 里取、存字段。开机准备里就要用的在 `InitComponent` 里取：晶圆账（模块开机准备时就登记槽位，LoadPort 连上驱动就可能
+  Mapping 建片、记流水、存盘，要映射组件；它在 sc 里排在各模块前面）、IO 组件（E84 开机准备时就经它清输出，IO 排在 PLC 后、别的前）、E84 自己。
+  被父组件在它的 Bind 里接上的（E30、E87、Trace 由 Eap 的 Bind 调 `Attach`，父先子后，那时它们自己的 Bind 还没轮到）在 `Attach` 里取。
+  有 `Bind(modules)` 重载的（整机、Job、搬运管理、两个配方库）在重载里取，冒烟直接调重载也取得到；Job 没配 Scheduler 时自己建的那个不在树上、轮不到 Bind，Job 替它 Bind。
+  模块动作（全部回片、整机停止）要用的搬运管理、晶圆账、Job 由整机经构造传进去。组件基类的报警、EC、报事件三个公共方法照旧每次现取（开机每个阶段、所有组件都用，
+  开机准备时就在读 EC）；只在开机某一步用一次的（数据曲线定信号表、HSMS 开链路时比端口、轴登记收发块）就地取。
+- **跟着变的**：配方字段的上限原来每次查"整机现在几寸"（静态的 `WaferSizeComponent.CurrentSize`），改成用的地方把自己取到的尺寸传进去
+  （`RecipeField.CheckFormat(值, 选项, 尺寸)`、`MaxFor(尺寸)`，`WaferSizeComponent.SizeOf(组件)`：没配按 12 寸），`RecipeField.Max` 删了；
+  晶圆账快照 `WaferLedgerSnapshot.SlotsOf` 由模块把自己的晶圆账传进去。
+- **冒烟**：`tools\SmokeShared\SmokeIoc.cs`（各冒烟工程链接进去，加 `Microsoft.Extensions.DependencyInjection` 包）：`Reset` 空容器、`Load` 装树进容器、`Tree` 换树、
+  `Use<T>(x)` 单独登记（null 是撤掉），改一次重建一次。原来 new 出来就自己登记的，现在要用的显式 `Use`；装新树会换掉前一棵树（原来静态登记的单例会一直留着），
+  前一棵树上还要用的单独 `Use`。组件开机时就取好了单例，冒烟里换了单例要重新 `Bind`（或 `InitComponent`）；IO 组件改成走开机准备读点表，冒烟把点表写进它的点表目录。

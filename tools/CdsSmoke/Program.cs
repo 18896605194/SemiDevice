@@ -19,6 +19,8 @@ using xyz._35021.Shared.Dtos;
 // AI 液位计：液位信号换成读同一个 AI 的 AI 液位信号（触发值、容错、防抖在 EC），只有 AI、AI + 溢流 DI 混着用两种都照样补液、排液、供液。
 // 全用假 PLC（摆 DI、AI，记 DO）和内存 EC，不连设备、不读写配置文件。
 
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -32,24 +34,29 @@ void Check(bool condition, string message)
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-cds-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = ComponentBase.Find<IPlc>();
-var previousIo = ComponentBase.Find<IIoComponent>();
-var previousEc = ComponentBase.Find<IEcComponent>();
-var previousAlarm = ComponentBase.Find<IAlarmComponent>();
+var previousPlc = IocHelper.GetService<IPlc>();
+var previousIo = IocHelper.GetService<IIoComponent>();
+var previousEc = IocHelper.GetService<IEcComponent>();
+var previousAlarm = IocHelper.GetService<IAlarmComponent>();
 try
 {
     // 0. 假 PLC、IO 表（0~19 号点）、内存 EC、报警
-    var csv = Path.Combine(directory, "points.csv");
-    File.WriteAllText(csv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n"
-        + string.Concat(Enumerable.Range(0, 20).Select(i => $"{i},P{i},0,0,0,0\n")));
-    var io = new IoComponent();
-    io.Di.Load(csv);
-    io.Do.Load(csv);
-    io.Ai.Load(csv);
+    // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+    string points = "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n"
+        + string.Concat(Enumerable.Range(0, 20).Select(i => $"{i},P{i},0,0,0,0\n"));
+    foreach (string table in new[] { "DI", "DO", "AI" })
+    {
+        File.WriteAllText(Path.Combine(directory, table + ".csv"), points);
+    }
+
     var plc = new FakePlc();
-    ComponentBase.Register<IPlc>(plc);
-    _ = new EcComponent();
+    SmokeIoc.Use<IPlc>(plc);
+    var io = new IoComponent { PointTableDirectory = directory };
+    SmokeIoc.Use<IIoComponent>(io);
+    io.InitComponent();
+    SmokeIoc.Use<IEcComponent>(new EcComponent());
     var alarms = new AlarmComponent();
+    SmokeIoc.Use<IAlarmComponent>(alarms);
 
     bool Active(ComponentBase source, string code)
     {
@@ -424,7 +431,7 @@ try
     //     IPA 每拍比一次，有变化（第一拍也算）才推；槽的信号带名字和各自的触发状态，没配的是 null
     var ipa = LoadIpa("Tank16", [("LL", 10, true), ("H", 11, true)], fill: [(9, -1)]);
     var pushed = ipa.FindChild<SmokeTank>("Tank16")!;
-    Check(ipa.Tanks.Count == 1 && ReferenceEquals(ipa.Tanks[0], pushed) && ComponentBase.FindAll<ISupplyModule>().Single() == ipa,
+    Check(ipa.Tanks.Count == 1 && ReferenceEquals(ipa.Tanks[0], pushed) && IocHelper.GetServices<ISupplyModule>().Single() == ipa,
         "IPA 认出下面的槽；按 ISupplyModule 找得到 IPA");
     Check(pushed.LL is not null && pushed.H is not null && pushed.L is null && pushed.HH is null && pushed.Overfill is null,
         "槽给出配了的信号，没挂的是 null");
@@ -432,10 +439,14 @@ try
     using var subscription = EventBus.Register<IpaDto>(ipa.Name, dto => received.Add(dto));
     plc.SetDi(10, true);
     plc.SetDi(11, false);
-    ComponentBase.Register<IMapperComponent>(null);
+    // IPA 开机 Bind 时取映射组件：换了要重新 Bind
+    SmokeIoc.Use<IMapperComponent>(null);
+    ipa.Bind();
     ipa.Tick();
     Check(received.Count == 0, "没装映射组件：不推（开机时映射组件是必配的）");
     var mapper = new MapperComponent();
+    SmokeIoc.Use<IMapperComponent>(mapper);
+    ipa.Bind();
     ipa.Tick();
     Check(received.Count == 1 && received[0].Module == "IPA" && received[0].State == ModuleState.NotInit && received[0].Tanks.Count == 1,
         "第一拍：推一条，带 IPA 的名字、状态和下面的槽");
@@ -637,10 +648,10 @@ try
 }
 finally
 {
-    ComponentBase.Register<IPlc>(previousPlc);
-    ComponentBase.Register<IIoComponent>(previousIo);
-    ComponentBase.Register<IEcComponent>(previousEc);
-    ComponentBase.Register<IAlarmComponent>(previousAlarm);
+    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IIoComponent>(previousIo);
+    SmokeIoc.Use<IEcComponent>(previousEc);
+    SmokeIoc.Use<IAlarmComponent>(previousAlarm);
     Directory.Delete(directory, recursive: true);
 }
 
@@ -671,9 +682,10 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
         Name = "CDS",
         Children = [new ModuleConfig { Name = "IPA", Children = [TankNode(name, fillTo, signals, fill, drain, supply, levels)] }]
     };
-    var loaded = (SmokeTank)ComponentLoader.Load([group]).Single();
+    var loaded = (SmokeTank)SmokeIoc.Load([group]).Single();
     NoDebounce(loaded, levels);
     loaded.InitComponent();
+    ComponentLoader.BindAll([loaded]);
     return loaded;
 }
 
@@ -688,9 +700,10 @@ static SmokeIpa LoadIpa(string name, (string Signal, int Di, bool Trigger)[] sig
             new ModuleConfig { Name = "IPA", Type = typeof(SmokeIpa).FullName, Children = [TankNode(name, null, signals, fill, [], [], null)] },
         ]
     };
-    var ipa = (SmokeIpa)ComponentLoader.Load([group]).Single();
+    var ipa = (SmokeIpa)SmokeIoc.Load([group]).Single();
     NoDebounce(ipa.FindChild<SmokeTank>(name)!, null);
     ipa.InitComponent();
+    ComponentLoader.BindAll([ipa]);
     return ipa;
 }
 

@@ -14,6 +14,8 @@ using xyz.Tools;
 // 规整（数字、开关、下拉的写法，只留字段表里的字段）、文件读写（字段都写进文件、老配方缺的字段按默认值补、坏文件跳过）、版本冲突、变更事件、
 // 配方用到具体腔体时腔体照名字核对摆臂和药液、gRPC 服务的列表 / 字段表 / 错误码，腔体起工艺时配方要在库里、选的摆臂和药液这个腔体要有。
 // 不连设备，文件写在临时目录，跑完删掉。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -133,7 +135,7 @@ void Rejects(ModuleConfig node, string message)
 {
     try
     {
-        ComponentLoader.Load([node]);
+        SmokeIoc.Load([node]);
     }
     catch (InvalidOperationException)
     {
@@ -160,10 +162,10 @@ try
           && node!.Values.Count == 3, "sc.xml 里写全参数：个数 99、目录 Recipe\\Process、名称 32（上下限都挪进字段表了）");
     node!.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = folder;
 
-    var roots = ComponentLoader.Load([node]);
+    var roots = SmokeIoc.Load([node]);
     var library = roots.OfType<RecipeComponent>().Single();
     Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个工艺配方库，参数按 sc.xml");
-    Check(ReferenceEquals(ComponentBase.Find<IRecipeComponent>(), library), "装配出来就登记成单例");
+    Check(ReferenceEquals(IocHelper.GetService<IRecipeComponent>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
     var fields = library.Fields;
     Check(fields.Select(field => field.Key).SequenceEqual(new[] { "Seconds", "Rpm", "Arm", "Chemical", "Flow", "Mode", "Position", "ScanTo", "ScanSpeed" }),
@@ -173,10 +175,10 @@ try
         return fields.First(field => field.Key == key);
     }
 
-    Check(F("Seconds").Type == ProcessRecipeFieldType.Double && F("Seconds").Required && F("Seconds").Min == 0.1 && F("Seconds").Max == 3600
+    Check(F("Seconds").Type == ProcessRecipeFieldType.Double && F("Seconds").Required && F("Seconds").Min == 0.1 && F("Seconds").MaxFor(12) == 3600
           && F("Seconds").Decimals == 1 && F("Seconds").Default == "10" && F("Seconds").Unit == "s" && F("Seconds").Text == "时间" && F("Seconds").TextEn == "Time",
         "时间：小数、必填、0.1 ~ 3600 s、一位小数、默认 10");
-    Check(F("Rpm").Type == ProcessRecipeFieldType.Int && F("Rpm").Min == 0 && F("Rpm").Max == 3000 && F("Rpm").Default == "500" && F("Rpm").Decimals is null,
+    Check(F("Rpm").Type == ProcessRecipeFieldType.Int && F("Rpm").Min == 0 && F("Rpm").MaxFor(12) == 3000 && F("Rpm").Default == "500" && F("Rpm").Decimals is null,
         "转速：整数、0 ~ 3000、默认 500");
     Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").OptionsFor("A").SequenceEqual(new[] { "Arm1" }) && !F("Arm").Required,
         "摆臂：下拉，Type A 的选项照 sc.xml 写的（腔体里摆臂的名字 Arm1）");
@@ -185,14 +187,14 @@ try
         "药液：Type A 的选项 DIW、SC1（Type 不分大小写、去掉首尾空白）；没写的 Type 没有选项");
     Check(F("Mode").OptionsFor("A").SequenceEqual(new[] { "Time", "Scan" }) && F("Mode").Default == "Time" && F("Rpm").OptionsByType.Count == 0,
         "方式：下拉，Time、Scan，默认 Time；不是下拉的没有选项");
-    Check(F("Position").Unit.Length == 0 && F("Position").Min == 0 && F("Position").Max == 150, "位置：0 ~ 150，没单位");
+    Check(F("Position").Unit.Length == 0 && F("Position").Min == 0 && F("Position").MaxFor(12) == 150, "位置：0 ~ 150（12 寸），没单位");
     var headFields = library.HeadFields;
     Check(headFields.Select(field => field.Key).SequenceEqual(new[]
           {
               "Index", "Name", "Type", "Timeout", "CreatedBy", "CreatedAt", "ModifiedBy", "ModifiedAt", "Revision", "Description",
           }), "配方头字段表：固定的 10 项，按 sc.xml 的先后（说明放最后），实际 " + string.Join(",", headFields.Select(field => field.Key)));
     var timeoutField = headFields.First(field => field.Key == "Timeout");
-    Check(timeoutField.Type == ProcessRecipeFieldType.Double && timeoutField.Required && timeoutField.Min == 1 && timeoutField.Max == 3600
+    Check(timeoutField.Type == ProcessRecipeFieldType.Double && timeoutField.Required && timeoutField.Min == 1 && timeoutField.MaxFor(12) == 3600
           && timeoutField.Decimals == 0 && timeoutField.Default == "600" && timeoutField.Unit == "s" && timeoutField.Text == "超时时间",
         "配方头超时时间：小数、必填、1 ~ 3600 s、整秒、默认 600");
     Check(headFields.First(field => field.Key == "Type").Type == ProcessRecipeFieldType.Choice
@@ -223,7 +225,7 @@ try
     Rejects(LibraryNode(SecondsNode(), FieldNode("Rpm", ("Text", "转速"), ("Type", "Int"), ("Max", "3000"), ("Default", "5000"))), "默认值超过上限");
     Rejects(LibraryNode(SecondsNode(), FieldNode("Flow", ("Text", "流量"), ("Type", "Double"), ("Decimals", "1"), ("Default", "1.25"))), "默认值小数位多了");
     // 下拉的默认值在不在选项里，要知道有哪几种 Type 才查得了：Bind 时报（还是开机就报）
-    var badDefault = (RecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
+    var badDefault = (RecipeComponent)SmokeIoc.Load([LibraryNode(SecondsNode(),
         FieldNode("Mode", ("Text", "方式"), ("Type", "Choice"), ("Source", "Time,Scan"), ("Default", "Spin")))]).Single();
     try
     {
@@ -242,7 +244,7 @@ try
     Rejects(LibraryWith(HeadNode(without: "Timeout"), SecondsNode()), "配方头少了固定的超时时间");
     Rejects(LibraryWith(HeadNode(wrongType: "Type"), SecondsNode()), "配方头固定的 Type 类型写错（不是 Choice）");
     Rejects(LibraryWith(HeadNode(extra: FieldNode("name", ("Text", "又一个"), ("Type", "Text"))), SecondsNode()), "配方头字段名重复（不分大小写）");
-    ComponentBase.Register<IRecipeComponent>(library);
+    SmokeIoc.Use<IRecipeComponent>(library);
 
     // 2. 模块全起来后 Bind：记下腔体和它们配的 Type（配方头 Type 的选项）。三个探针腔体都是 Type A，装的不一样：
     //    SmokePM1 的 Arm1 上有 DIW、SC1；SmokePM2 的 arm1（名字大小写不同）上只有 diw；SmokePM3 只有 Arm2。
@@ -263,8 +265,21 @@ try
     }
 
     Check(library.StationTypes.SequenceEqual(new[] { string.Empty }), "Bind 没成：库还是原来的样子");
+    // 不是腔体、只实现 IProcessStation 的站点（热板这类）的 Type 也收：Type HP 字段表没写 Source.HP，Bind 照样报出来
+    try
+    {
+        library.Bind([pm1, new ProbeHotPlate("SmokeHP1")]);
+        Check(false, "有 Type HP 的热板、字段表没写 Source.HP：Bind 应报出来");
+    }
+    catch (InvalidOperationException)
+    {
+        checks++;
+    }
+
     library.Bind([pm1, pm2, pm3]);
     Check(library.StationTypes.SequenceEqual(new[] { "A" }), "Bind 之后：腔体的 Type 只有 A 一种");
+    // 腔体开机 Bind 时取工艺配方库：对不上时报的字段名按库里的字段表
+    ComponentLoader.BindAll([pm1, pm2, pm3]);
 
     // 3. 新建：空编号上建，名称去掉首尾空白；配方头填默认值（Type 取腔体的第一种 A、超时时间 600），先给一步（各字段的默认值），
     //    版本 1，记创建人；写成 001.xml，字段都写上（空的也写）。名称、编号不对的回错误码，不建、不发事件。
@@ -363,26 +378,28 @@ try
         "合计超过超时时间 600 s");
     Fails(library.Save(7, 1, Content(string.Empty, good), "Saver"), ErrorCodes.ProcessRecipeNotFound, ["7"], "没有的编号");
     Check(Data(library.Get(1))?.Revision == 2 && changed.Count == 2, "没存成的不改库、不发事件");
-    // 系统组件构造时登记成单例：界面语言切成英文
-    _ = new SystemModule { Language = "en-US" };
+    // 系统组件构造时登记成单例：界面语言切成英文；配方库开机 Bind 时取整机，换了要重新 Bind
+    SmokeIoc.Use<ISystemModule>(new SystemModule { Language = "en-US" });
+    library.Bind([pm1, pm2, pm3]);
     Fails(SaveOne(Step(" ", "300")), ErrorCodes.ProcessRecipeValueRequired, ["2", "Time"], "英文界面时提示里用英文字段名");
-    ComponentBase.Register<ISystemModule>(null);
+    SmokeIoc.Use<ISystemModule>(null);
+    library.Bind([pm1, pm2, pm3]);
     Check(SaveOne(Step("0.1", "0", "arm1", "sc1", "0.1", "SCAN", "0", "150", "0.1")).IsSuccess, "边界值都能存：时间 0.1、转速 0、流量 0.1、位置 0 和 150、速度 0.1");
     Check(Data(library.Get(1))!.Steps[1].Get("Mode") == "Scan" && Data(library.Get(1))!.Steps[1].Get("Chemical") == "SC1"
           && Data(library.Get(1))!.Steps[1].Get("Arm") == "Arm1", "下拉的写法跟选项一样");
 
     // 4b. 晶圆尺寸：位置、到的上限在 sc.xml 里按尺寸分开写（Max.8 = 100、Max.12 = 150），整机切到哪个尺寸用哪个，没配晶圆尺寸组件按 12 寸；
     //     切尺寸写回 sc.xml（输出目录里链接过来的那份），只改 Size 那一个值、别的一个字节不动，切回来跟原来一模一样。
-    var previousWaferSize = ComponentBase.Find<IWaferSizeComponent>();
-    ComponentBase.Register<IWaferSizeComponent>(null);
+    var previousWaferSize = IocHelper.GetService<IWaferSizeComponent>();
+    SmokeIoc.Use<IWaferSizeComponent>(null);
     Check(F("Position").MaxFor(8) == 100 && F("Position").MaxFor(12) == 150 && F("ScanTo").MaxFor(8) == 100 && F("ScanTo").MaxFor(12) == 150
-          && F("Seconds").MaxFor(8) == 3600 && F("Position").Max == 150,
+          && F("Seconds").MaxFor(8) == 3600 && F("Position").MaxFor(WaferSizeComponent.SizeOf(null)) == 150,
         "位置、到按尺寸分开写上限：8 寸 100、12 寸 150；没分开写的两种尺寸一样；没配晶圆尺寸按 12 寸");
     string scFile = Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml");
     byte[] scBefore = File.ReadAllBytes(scFile);
     try
     {
-        var sizeRoots = ComponentLoader.Load(
+        var sizeRoots = SmokeIoc.Load(
         [
             new ModuleConfig
             {
@@ -399,19 +416,22 @@ try
             },
         ]);
         var waferSize = sizeRoots.OfType<WaferSizeComponent>().Single();
+        SmokeIoc.Use<IWaferSizeComponent>(waferSize); // 下面再装配方库会换掉整棵树：晶圆尺寸单独登记着
         int sizeEvents = 0;
         waferSize.Changed += _ => sizeEvents++;
 
         // 配方库开机 Bind 时接上晶圆尺寸：切了尺寸推一条编号 0 的变更（上限跟着尺寸变，配方页要重拉字段表）
         var sizePushes = new List<int>();
         using var sizePushSubscription = EventBus.Register<ProcessRecipeChangedDto>(ProcessRecipeListDto.EventToken, dto => sizePushes.Add(dto.Index));
-        var sizeLibrary = (RecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode())]).Single();
-        ComponentBase.Register<IRecipeComponent>(library);
+        var sizeLibrary = (RecipeComponent)SmokeIoc.Load([LibraryNode(SecondsNode())]).Single();
+        SmokeIoc.Use<IRecipeComponent>(library);
+        // 配方库开机 Bind 时取晶圆尺寸组件：装了晶圆尺寸以后重新 Bind
+        library.Bind([pm1, pm2, pm3]);
         sizeLibrary.Bind();
-        Check(ComponentBase.Find<IWaferSizeComponent>() == waferSize && waferSize.FullPath == "System.WaferSize" && waferSize.Size == 12,
+        Check(IocHelper.GetService<IWaferSizeComponent>() == waferSize && waferSize.FullPath == "System.WaferSize" && waferSize.Size == 12,
             "晶圆尺寸组件挂在 System 下面，路径跟 sc.xml 的层级一样");
         Fails(waferSize.SetSize(6), ErrorCodes.WaferSizeInvalid, ["6"], "只能切 8 寸、12 寸");
-        Check(waferSize.SetSize(8).IsSuccess && waferSize.Size == 8 && WaferSizeComponent.CurrentSize == 8 && sizeEvents == 1
+        Check(waferSize.SetSize(8).IsSuccess && waferSize.Size == 8 && sizeEvents == 1
               && sizePushes.SequenceEqual(new[] { 0 }), "切到 8 寸：马上换上，发一次变更，配方库推一条编号 0 的");
         const string size12Line = "<Value Name=\"Size\" Value=\"12\" />";
         const string size8Line = "<Value Name=\"Size\" Value=\"8\" />";
@@ -420,11 +440,13 @@ try
         Check(beforeText.Split(size12Line).Length == 2 && System.Text.Encoding.UTF8.GetString(scAfter) == beforeText.Replace(size12Line, size8Line)
               && scAfter.Take(3).SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }),
             "写回 sc.xml：只有 System 下 WaferSize 那一行的 Size 改成 8，别的一个字都没变，还是带 BOM 的 UTF-8");
-        Check(F("Position").Max == 100 && F("ScanTo").Max == 100, "8 寸：位置、到的上限是 100");
+        var sizeOptions = (await new ProcessRecipeService().GetOptionsAsync(new RpcRequest())).DeserializeData<ProcessRecipeOptionsDto>();
+        Check(sizeOptions.Fields.First(field => field.Key == "Position").Max == 100 && sizeOptions.Fields.First(field => field.Key == "ScanTo").Max == 100,
+            "8 寸：界面拿到的字段表里位置、到的上限是 100");
         int revision = Data(library.Get(1))!.Revision;
         Fails(library.Save(1, revision, Content(string.Empty, [Step("5", "300"), Step("5", "300", "Arm1", "DIW", "1.5", "Time", "101")]), "Saver"),
             ErrorCodes.ProcessRecipeValueAboveMax, ["2", "位置", "100", ""], "8 寸：位置过了 8 寸的中心（库里不动）");
-        Check(F("Position").CheckFormat("100", []) is null, "8 寸：位置 100（中心）合规");
+        Check(F("Position").CheckFormat("100", [], waferSize.Size) is null, "8 寸：位置 100（中心）合规");
         Check(waferSize.SetSize(8).IsSuccess && sizeEvents == 1 && sizePushes.Count == 1, "跟现在一样直接成功，不发变更、不推");
         Check(waferSize.SetSize(12).IsSuccess && sizeEvents == 2 && File.ReadAllBytes(scFile).SequenceEqual(scBefore),
             "切回 12 寸：sc.xml 跟原来一个字节都不差（缩进、换行、BOM 都没动）");
@@ -451,11 +473,11 @@ try
     finally
     {
         File.WriteAllBytes(scFile, scBefore);
-        ComponentBase.Register<IWaferSizeComponent>(previousWaferSize);
+        SmokeIoc.Use<IWaferSizeComponent>(previousWaferSize);
     }
 
     // 5. 开关、文本字段（自己拼的字段表）：开关只认 true / false（存成小写），文本去掉首尾空白；字段之间不互相管。
-    var flags = (RecipeComponent)ComponentLoader.Load([LibraryNode(SecondsNode(),
+    var flags = (RecipeComponent)SmokeIoc.Load([LibraryNode(SecondsNode(),
         FieldNode("Flag", ("Text", "开关"), ("Type", "Bool"), ("Default", "false")),
         FieldNode("Note", ("Text", "备注"), ("Type", "Text")))]).Single();
     Check(flags.Create(1, "FLAGS", "Tester").IsSuccess && Data(flags.Get(1))!.Steps[0].Get("Flag") == "false", "开关默认 false");
@@ -467,7 +489,7 @@ try
     var flagSaved = flags.Save(1, 1, Content(string.Empty, [FlagStep("TRUE", "  hello  ")], type: string.Empty), "Tester");
     Check(flagSaved.IsSuccess && Data(flagSaved)!.Steps[0].Get("Flag") == "true" && Data(flagSaved)!.Steps[0].Get("Note") == "hello", "开关存成小写，文本去掉首尾空白");
     Fails(flags.Save(1, 2, Content(string.Empty, [FlagStep("yes", string.Empty)], type: string.Empty), "Tester"), ErrorCodes.ProcessRecipeValueNotInOptions, ["1", "开关", "yes"], "开关不认 yes");
-    ComponentBase.Register<IRecipeComponent>(library);
+    SmokeIoc.Use<IRecipeComponent>(library);
 
     // 6. 改名：版本加 1、记修改人；跟别的编号重了不行。
     Check(library.Create(2, "DIW_RINSE", "Tester").IsSuccess, "再建一个");
@@ -487,8 +509,8 @@ try
     File.WriteAllText(Path.Combine(folder, "005.xml"), "<ProcessRecipe Name=");
     File.WriteAllText(Path.Combine(folder, "notes.xml"), "<ProcessRecipe Name=\"NOTES\" />");
     File.WriteAllText(Path.Combine(folder, "120.xml"), "<ProcessRecipe Name=\"TOO_BIG\" />");
-    var reopened = (RecipeComponent)ComponentLoader.Load([node]).Single();
-    ComponentBase.Register<IRecipeComponent>(library);
+    var reopened = (RecipeComponent)SmokeIoc.Load([node]).Single();
+    SmokeIoc.Use<IRecipeComponent>(library);
     var reloaded = reopened.List();
     Check(reloaded.Select(item => item.Index).SequenceEqual(new[] { 1, 2, 3 }), "坏文件、不是编号的、超出个数的都跳过");
     var back = reloaded[0];
@@ -502,7 +524,7 @@ try
         "老配方里没有的字段按默认值补（方式 Time，摆臂空着），字段表里没有的先留着");
     Check(reloaded[2].Type.Length == 0 && reloaded[2].Timeout == "600", "老配方读进来：超时时间补默认 600，Type 等 Bind 再补");
     reopened.Bind([pm1, pm2, pm3]);
-    ComponentBase.Register<IRecipeComponent>(library);
+    SmokeIoc.Use<IRecipeComponent>(library);
     var oldFilled = Data(reopened.Get(3))!;
     Check(oldFilled.Type == "A" && Data(reopened.Get(1))!.Type == "A", "Bind 之后老配方的 Type 补成腔体的第一种 A，写了的不动");
     var oldSaved = reopened.Save(3, 1, Content(string.Empty, oldFilled.Steps), "Tester");
@@ -546,7 +568,8 @@ try
 
     // 11b. Host 远程管配方（IRecipeLibrary，EAP 的 S7 走它）：按名字列、取（JSON，每一步是字段名 → 值）、存（没有就新建、有就覆盖，
     //      检查、规整跟本地保存一样）、删；变化经 EAP 的派发组件报上报口。这一节建的最后删掉，后面接着是 1、2 两个。
-    _ = new EapNotifierComponent();
+    SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
+    library.Bind([pm1, pm2, pm3]); // 配方库开机 Bind 时取 EAP 的派发组件
     var eapChanges = new RecordingRecipeCallback();
     IRecipeLibrary remote = library;
     remote.E30Callback = eapChanges;
@@ -659,7 +682,7 @@ try
         "改名重了：错误码带名称和编号");
 
     // 13. 腔体起工艺：配方要在库里，Type 要跟腔体一样，选的摆臂、药液这个腔体要有；都对得上的照常往下走（探针腔体不接动作，回动作被拒）。
-    Probe.Tree(pm1, pm2, pmB);
+    SmokeIoc.Tree(pm1, pm2, pmB);
     var chamberService = new ChamberService();
     var wrongType = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePMB", Recipe = "sc1_45s" });
     Check(!wrongType.Success && wrongType.Code == ErrorCodes.ChamberRecipeOptionMissing && wrongType.Args.SequenceEqual(new[] { "SmokePMB", "sc1_45s", "Type", "A" }),
@@ -679,7 +702,7 @@ try
     var gone = await service.GetAsync(new ProcessRecipeIndexRequest { Index = 3 });
     Check(!gone.Success && gone.Code == ErrorCodes.ProcessRecipeNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 
-    ComponentBase.Register<IRecipeComponent>(null);
+    SmokeIoc.Use<IRecipeComponent>(null);
     service = new ProcessRecipeService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     chamberService = new ChamberService();
     var notInstalled = await service.GetListAsync(new RpcRequest());
@@ -691,8 +714,8 @@ try
 }
 finally
 {
-    ComponentBase.Register<IRecipeComponent>(null);
-    ComponentBase.Register<ISystemModule>(null);
+    SmokeIoc.Use<IRecipeComponent>(null);
+    SmokeIoc.Use<ISystemModule>(null);
     foreach (string path in new[] { folder, otherFolder })
     {
         if (Directory.Exists(path))
@@ -715,11 +738,6 @@ static class Probe
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
     }
 
-    // 整棵组件树：生产里由 ComponentLoader 装好时填，服务按接口在上面找模块
-    public static void Tree(params ComponentBase[] roots)
-    {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Roots))!.SetValue(null, roots);
-    }
 }
 
 // 探针腔体：只给摆臂、喷嘴挂在下面，不连设备、不做动作（起工艺回 null = 动作被拒）。
@@ -737,6 +755,28 @@ sealed class ProbeChamber : BaseChamberModule
     protected override ModuleOperation? AbortDevice() => null;
 
     protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
+}
+
+// 探针热板：能做工艺、但不是腔体（只实现 IProcessStation），Type 是 HP。
+sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
+{
+    public ProbeHotPlate(string name)
+    {
+        Probe.Name(this, name);
+        Type = "HP";
+    }
+
+    public override int State { get; protected set; } = xyz.Modules.Enums.ModuleState.Idle;
+
+    public override int SlotCount { get; set; } = 1;
+
+    public ProcessRequest? CurrentProcess => null;
+
+    public (string Field, string Value)? FindRecipeMismatch(RecipeData recipe) => null;
+
+    public ProcessRejection? CheckProcess(ProcessRequest request) => null;
+
+    public ModuleOperation? StartProcess(ProcessRequest request) => null;
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。

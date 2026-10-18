@@ -12,4 +12,9 @@
     <!-- 要核对 sc.xml 里的节点：sc.xml 归机型，链接 35021 那份进输出目录的 Config 目录 -->
     <None Include="..\..\xyz.35021\Service\xyz.35021.Module\Config\sc.xml" Link="Config\sc.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
+    <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+  </ItemGroup>
 </Project>

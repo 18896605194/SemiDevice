@@ -1,5 +1,4 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
@@ -28,10 +27,16 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// </summary>
     private readonly IE30RecipeComponent? _e30Recipe;
 
+    /// <summary>
+    /// 晶圆尺寸：字段的上限按它取
+    /// </summary>
+    private readonly IWaferSizeComponent? _waferSize;
+
     public ProcessRecipeService()
     {
-        _library = ComponentBase.Find<IRecipeComponent>();
-        _e30Recipe = ComponentBase.Find<IE30RecipeComponent>();
+        _library = IocHelper.GetService<IRecipeComponent>();
+        _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
+        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)
@@ -182,7 +187,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// <summary>
     /// 步骤的一个字段给界面：下拉带上 sc.xml 里按站点 Type 分开写的选项。
     /// </summary>
-    private static ProcessRecipeFieldDto ToDto(RecipeField field)
+    private ProcessRecipeFieldDto ToDto(RecipeField field)
     {
         var dto = ToFieldDto(field);
         dto.OptionsByType = field.OptionsByType.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
@@ -193,7 +198,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// 配方头的一项给界面：程序算的标出来；Type 的选项是腔体配的几种 Type，自己加的下拉是 sc.xml 里写的那一套。
     /// Type 必不必填看腔体：有腔体没配 Type（空着也是一种），Type 就能空着，跟后端保存时一样。
     /// </summary>
-    private static ProcessRecipeFieldDto ToHeadDto(RecipeField field, IReadOnlyList<string> stationTypes)
+    private ProcessRecipeFieldDto ToHeadDto(RecipeField field, IReadOnlyList<string> stationTypes)
     {
         bool isType = string.Equals(field.Key, RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
         var dto = ToFieldDto(field);
@@ -207,7 +212,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
         return dto;
     }
 
-    private static ProcessRecipeFieldDto ToFieldDto(RecipeField field)
+    private ProcessRecipeFieldDto ToFieldDto(RecipeField field)
     {
         return new ProcessRecipeFieldDto
         {
@@ -217,7 +222,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Type = field.Type,
             Unit = field.Unit,
             Min = field.Min,
-            Max = field.Max,
+            Max = field.MaxFor(WaferSizeComponent.SizeOf(_waferSize)),
             Decimals = field.Decimals,
             Default = field.Default,
             Required = field.Required,

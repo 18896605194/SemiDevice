@@ -16,6 +16,7 @@ using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Tools;
 
 // EAP 冒烟（SECS/GEM 各标准组件对假 Host）：Eap 节点按 sc.xml 同款结构装配（Hsms + E30 + E39 + E87 + E90 + E40 + E94），
 // 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（WaferManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
@@ -24,6 +25,8 @@ using xyz.Shared.Errors;
 // Trace（S2F23 设、校验、取消、替换、离线全停，S6F1 按包发、SMPLN / STIME 记包里最后一次）；
 // E39 查类型 / 属性名 / 属性（带条件）；E87 载具核对（读到号等 Host、Host 让继续、槽图一律等 Host、第二次 PWC 比对槽图和给片号、
 // 取消、ReCreate、读码失败 Host 给号、E87 不自己卸、干完靠 CarrierRelease）、端口搬运状态、Host 启停用、存取方式；E90 片对象跟着账走（建、挪、做、跳过、删）；E40 / E94 的建、命令、查询翻成 Job 管理的命令、状态转换报事件。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -108,16 +111,20 @@ var eapNode = new ModuleConfig
         },
     },
 };
-var roots = ComponentLoader.Load([alarmNode, probeNode, eapNode]);
+var roots = SmokeIoc.Load([alarmNode, probeNode, eapNode]);
 var ec = new EcComponent();
+SmokeIoc.Use<IEcComponent>(ec);
 ec.Merge(roots);
 var collectors = new GemCollectors();
 collectors.Merge(roots, directory);
+SmokeIoc.Use(collectors); // E30、Trace 接链路时从容器取 GEM 编号表
 
 var eap = roots.OfType<EapComponent>().Single();
 var gem = eap.FindChild<E30Component>()!;
 var probe = roots.OfType<AlarmProbe>().Single();
 var ledger = new WaferManagerComponent();
+SmokeIoc.Use<IWaferManagerComponent>(ledger);
+ledger.InitComponent(); // 开机准备：取 EAP 的派发组件（E90 的上报经它发）
 ledger.RegisterLoadPort("LP1", 5);
 ledger.RegisterLoadPort("LP2", 5);
 ledger.RegisterLocation("Robot", 2);
@@ -827,7 +834,7 @@ E40Component LoadPjSettings(params (string Name, string Value)[] values)
         node.Values.Add(new ValueConfig { Name = value.Name, Value = value.Value });
     }
 
-    return ComponentLoader.Load([node]).OfType<E40Component>().Single();
+    return ComponentLoader.Load([node]).OfType<E40Component>().Single(); // 只测配置校验：不换容器里的树
 }
 
 void RejectPjSettings(string reason, params (string Name, string Value)[] values)
@@ -1699,7 +1706,7 @@ sealed class FakeSequences() : FakeRecipes("group"), ISequenceLibrary
         var callback = E30Callback;
         if (callback is not null)
         {
-            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.SequenceChanged(name, change));
+            IocHelper.GetService<IEapNotifierComponent>()?.Post(() => callback.SequenceChanged(name, change));
         }
     }
 }
@@ -1721,7 +1728,7 @@ sealed class FakeProcessRecipes() : FakeRecipes("values"), IRecipeLibrary
         var callback = E30Callback;
         if (callback is not null)
         {
-            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ProcessRecipeChanged(name, change));
+            IocHelper.GetService<IEapNotifierComponent>()?.Post(() => callback.ProcessRecipeChanged(name, change));
         }
     }
 }

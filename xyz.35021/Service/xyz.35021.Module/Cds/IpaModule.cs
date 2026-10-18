@@ -16,11 +16,21 @@ public class IpaModule : BaseCdsModule
     private IpaDto? _lastPublished;
 
     /// <summary>
+    /// 映射组件（开机 Bind 时取）：槽转成给界面的样子
+    /// </summary>
+    private IMapperComponent? _mapper;
+
+    public override void Bind()
+    {
+        _mapper = IocHelper.GetService<IMapperComponent>();
+    }
+
+    /// <summary>
     /// 推 IPA 的状态和下面各槽（液位、状态、信号），变了才推；token 是模块名，留存
     /// </summary>
     protected override void PublishState()
     {
-        var mapper = Find<IMapperComponent>();
+        var mapper = _mapper;
         if (mapper is null)
         {
             return;

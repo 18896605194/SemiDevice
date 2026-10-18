@@ -21,12 +21,6 @@ public class EapNotifierComponent : ComponentBase, IEapNotifierComponent
     private int _started;
     private int _pending;
 
-    /// <summary>当前派发组件；Eap 节点下没配 Notifier 时为 null（这时 EAP 不接，也没有要报的）。</summary>
-    public EapNotifierComponent()
-    {
-        Register<IEapNotifierComponent>(this);
-    }
-
     /// <summary>投递一条上报（任意线程可调）。</summary>
     public void Post(Action notification)
     {

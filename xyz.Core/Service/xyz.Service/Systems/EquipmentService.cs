@@ -9,6 +9,7 @@ using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Service.Systems;
 
@@ -26,9 +27,9 @@ public class EquipmentService : BaseService, IEquipmentService
 
     public EquipmentService()
     {
-        _system = ComponentBase.Find<ISystemModule>();
-        _waferSize = ComponentBase.Find<IWaferSizeComponent>();
-        _wafers = ComponentBase.Find<IWaferManagerComponent>();
+        _system = IocHelper.GetService<ISystemModule>();
+        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+        _wafers = IocHelper.GetService<IWaferManagerComponent>();
     }
 
     public Task<RpcResponse> InitAsync(RpcRequest request, CallContext context = default)
@@ -132,7 +133,7 @@ public class EquipmentService : BaseService, IEquipmentService
             return Task.FromResult(RpcResponse.Ok());
         }
 
-        foreach (var module in ComponentBase.FindAll<IModule>())
+        foreach (var module in IocHelper.GetServices<IModule>())
         {
             if (module.State != ModuleState.NotInit)
             {

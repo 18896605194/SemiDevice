@@ -34,9 +34,14 @@ public class EcComponent : ComponentBase, IEcComponent
     /// </summary>
     private HashSet<string>? _declared;
 
-    public EcComponent()
+    /// <summary>
+    /// 映射组件（开机 Bind 时取）：EC 转成给界面的样子
+    /// </summary>
+    private IMapperComponent? _mapper;
+
+    public override void Bind()
     {
-        Register<IEcComponent>(this);
+        _mapper = IocHelper.GetService<IMapperComponent>();
     }
 
     /// <summary>
@@ -578,7 +583,7 @@ public class EcComponent : ComponentBase, IEcComponent
     /// </summary>
     public EcItemDto CreateDto(string path, EcValueConfig value)
     {
-        var mapper = Find<IMapperComponent>();
+        var mapper = _mapper;
         var dto = new EcItemDto();
         if (mapper is not null)
         {

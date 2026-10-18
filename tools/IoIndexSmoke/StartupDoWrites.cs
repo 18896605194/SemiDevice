@@ -3,6 +3,7 @@ using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
+using xyz.Tools;
 
 /// <summary>
 /// 开机下发 DO：配置解析（DO 不分大小写、分号隔开、写错开机就报）、连上 PLC 满延时才下发、等的时候掉线重新计时、
@@ -28,22 +29,25 @@ static class StartupDoWrites
         }
 
         var empty = new ConfiguredIo();
+        SmokeIoc.Use<IIoComponent>(empty);
         empty.Load();
 
-        var csv = Path.Combine(directory, "startup-do.csv");
-        File.WriteAllText(csv, "Index,Name\n12,Valve\n13,Lamp\n");
+        // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+        string tables = Path.Combine(directory, "startup-io");
+        Directory.CreateDirectory(tables);
+        File.WriteAllText(Path.Combine(tables, "DO.csv"), "Index,Name\n12,Valve\n13,Lamp\n");
 
         var plc = new RecordingPlc();
-        var previousPlc = ComponentBase.Find<IPlc>();
-        ComponentBase.Register<IPlc>(plc);
-        var io = new ConfiguredIo { StartupDo = " do12 = FALSE ; Do13=true;;DO99=true; " };
+        var previousPlc = IocHelper.GetService<IPlc>();
+        SmokeIoc.Use<IPlc>(plc);
+        var io = new ConfiguredIo { StartupDo = " do12 = FALSE ; Do13=true;;DO99=true; ", PointTableDirectory = tables };
         io.Load();
-        io.Do.Load(csv);
+        io.InitComponent();
         io.Start();
 
-        // IO 组件第一拍就把 ComponentBase.Find<IPlc>() 记住了，之后再还原不影响它。
+        // IO 组件开机准备时就取好了 PLC，之后再还原不影响它。
         Thread.Sleep(1500);
-        ComponentBase.Register<IPlc>(previousPlc);
+        SmokeIoc.Use<IPlc>(previousPlc);
         Check(plc.Writes.Count == 0, "PLC 没连上不下发");
 
         plc.IsConnected = true;

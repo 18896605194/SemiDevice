@@ -5,6 +5,7 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Drivers.Loadport;
 using xyz.Secs.SecsII;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -202,6 +203,11 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     private Action<string>? _materialVerified;
     private Timer? _poll;
 
+    /// <summary>
+    /// 晶圆账（接设备时取）；没装是 null
+    /// </summary>
+    private IWaferManagerComponent? _ledger;
+
     #region 接设备
 
     /// <summary>
@@ -214,6 +220,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         ArgumentNullException.ThrowIfNull(gem);
         _gem = gem;
         _materialVerified = materialVerified;
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
         lock (_gate)
         {
             byte id = 1;
@@ -580,7 +587,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     /// <summary>
     /// 载具的数据：几个状态取状态机的（没有载具报空 U1）；槽数、槽图、片数直接问 LoadPort；片号表槽图认定后按晶圆账报。
     /// </summary>
-    private static IEnumerable<GemData> CarrierData(E87LoadPort port)
+    private IEnumerable<GemData> CarrierData(E87LoadPort port)
     {
         var device = port._loadport;
         var slots = port._carrier.SlotMap;
@@ -604,9 +611,9 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     }
 
     /// <summary>片号表 L[槽数]{L[2]{批次号, 片号}}：槽图认定后按晶圆账报（Host 给的片号已经写进账了）；没认定报空表。</summary>
-    private static SecsItem ContentMapItem(E87LoadPort port)
+    private SecsItem ContentMapItem(E87LoadPort port)
     {
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
+        var ledger = _ledger;
         if (port.SlotMapMachine.State != E87SlotMapState.Verified || ledger is null)
         {
             return SecsItem.L();

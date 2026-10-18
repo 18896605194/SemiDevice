@@ -61,12 +61,6 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
     private ISequenceLibrary? _sequences;
     private IRecipeLibrary? _processRecipes;
 
-    /// <summary>当前配方管理组件；Eap 下没配 Recipe 节点时为 null（本地配方页就不会被锁）。</summary>
-    public E30RecipeComponent()
-    {
-        Register<IE30RecipeComponent>(this);
-    }
-
     #region SC
 
     [SCEditor("False", "Recipe", "ON-LINE REMOTE 时锁住本地改流程配方、工艺配方：True = 两个配方页新建、改名、保存、删除都拒，只能 Host 改；False = 本地照样能改，改了报给 Host")]

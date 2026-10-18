@@ -2,6 +2,7 @@
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -153,6 +154,16 @@ public class AiSensorComponent : ComponentBase, IAiSensor
 
     #endregion
 
+    /// <summary>
+    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// </summary>
+    private IIoComponent? _io;
+
+    public override void Bind()
+    {
+        _io = IocHelper.GetService<IIoComponent>();
+    }
+
     #region 扫描
 
    
@@ -244,7 +255,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     /// </summary>
     protected virtual double? ReadAi()
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         if (io is null || !io.TryReadAi(AiIndex, out double value))
         {
             return null;
@@ -258,7 +269,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     /// </summary>
     protected virtual bool? ReadMonitoringDo()
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         if (io is null || !io.TryReadDo(MonitoringDoIndex, out bool on))
         {
             return null;

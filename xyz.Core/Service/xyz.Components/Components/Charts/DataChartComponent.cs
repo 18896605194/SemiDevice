@@ -10,6 +10,7 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Database.DbProvider;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -19,11 +20,6 @@ namespace xyz.Components.Components;
 [Component(description: "数据曲线（每秒采样入库，按名字、按时间查询）")]
 public class DataChartComponent : ComponentBase, IDataChartComponent
 {
-    public DataChartComponent()
-    {
-        Register<IDataChartComponent>(this);
-    }
-
     #region SC
 
     [SCEditor("True", "DataChart", "是否入库（False = 只采样给实时曲线，不写库，数据曲线页查不到新数据）")]
@@ -116,7 +112,7 @@ public class DataChartComponent : ComponentBase, IDataChartComponent
     /// </summary>
     public override void Bind()
     {
-        Bind(Roots);
+        Bind(IocHelper.GetRequiredService<IReadOnlyList<ComponentBase>>());
     }
 
     /// <summary>
@@ -200,8 +196,8 @@ public class DataChartComponent : ComponentBase, IDataChartComponent
             signals.Add(signal);
         }
 
-        var svs = (GemCollectors.Current?.Sv.NumericItems() ?? []).ToLookup(sv => sv.Owner);
-        var io = ComponentBase.Find<IIoComponent>();
+        var svs = (IocHelper.GetService<GemCollectors>()?.Sv.NumericItems() ?? []).ToLookup(sv => sv.Owner);
+        var io = IocHelper.GetService<IIoComponent>();
         bool warnedNoIo = false;
         var levelMeters = new HashSet<int>();
         foreach (var component in CollectorHelper.Walk(roots))

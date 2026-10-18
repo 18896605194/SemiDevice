@@ -7,6 +7,7 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
+using xyz.Tools;
 
 namespace xyz.Components;
 
@@ -149,64 +150,6 @@ public abstract class ComponentBase
             CollectChildren(child, result);
         }
     }
-
-    #region 整棵树和单例（找组件一律按接口）
-
-    /// <summary>
-    /// 装好的整棵组件树（根组件）
-    /// </summary>
-    public static IReadOnlyList<ComponentBase> Roots { get; internal set; } = [];
-
-    /// <summary>
-    /// 整棵树里所有是 T 的组件，按 sc 先后
-    /// </summary>
-    public static IReadOnlyList<T> FindAll<T>() where T : class
-    {
-        var found = new List<T>();
-        CollectEnabled(Roots, found);
-        return found;
-    }
-
-    private static void CollectEnabled<T>(IEnumerable<ComponentBase> components, List<T> found) where T : class
-    {
-        foreach (var component in components)
-        {
-            if (!component.IsEnabled)
-            {
-                continue;
-            }
-
-            if (component is T matched)
-            {
-                found.Add(matched);
-            }
-
-            CollectEnabled(component._children, found);
-        }
-    }
-
-    /// <summary>
-    /// 全系统只有一个的组件，按接口取；没登记是 null
-    /// </summary>
-    public static T? Find<T>() where T : class
-    {
-        return Single<T>.Value;
-    }
-
-    /// <summary>
-    /// 登记单例：组件在构造里登记自己，后登记的生效；传 null 是撤掉
-    /// </summary>
-    public static void Register<T>(T? component) where T : class
-    {
-        Single<T>.Value = component;
-    }
-
-    private static class Single<T> where T : class
-    {
-        public static volatile T? Value;
-    }
-
-    #endregion
 
     /// <summary>
     /// 按名字找 DI 子节点（到位反馈、液位信号这类）；没挂、或者 DiIndex 配成 -1 都当没有，返回 null
@@ -365,7 +308,7 @@ public abstract class ComponentBase
             child.Reset();
         }
 
-        ComponentBase.Find<IAlarmComponent>()?.Clear(this);
+        IocHelper.GetService<IAlarmComponent>()?.Clear(this);
         return null;
     }
 
@@ -399,7 +342,7 @@ public abstract class ComponentBase
     /// 自己或任意子组件当前有没有报警（按来源路径前缀查报警表）。
     /// DI、AI 这类公共组件装进哪个模块，报警就算在哪个模块头上，组件里不用写任何代码。
     /// </summary>
-    public bool HasAlarm => ComponentBase.Find<IAlarmComponent>()?.HasAlarmUnder(AlarmSource) ?? false;
+    public bool HasAlarm => IocHelper.GetService<IAlarmComponent>()?.HasAlarmUnder(AlarmSource) ?? false;
 
     /// <summary>
     /// 报警（动作失败、超时、账实不符这类一次性的事）：立即报，不防抖；已经在报的再报不会重复。
@@ -407,7 +350,7 @@ public abstract class ComponentBase
     /// </summary>
     protected void RaiseAlarm(string code)
     {
-        ComponentBase.Find<IAlarmComponent>()?.Raise(this, code);
+        IocHelper.GetService<IAlarmComponent>()?.Raise(this, code);
     }
 
     /// <summary>
@@ -416,7 +359,7 @@ public abstract class ComponentBase
     /// </summary>
     protected void RaiseEvent(string code, params Models.GemData[] data)
     {
-        ComponentBase.Find<IE30Component>()?.Report(this, code, data);
+        IocHelper.GetService<IE30Component>()?.Report(this, code, data);
     }
 
     /// <summary>
@@ -475,7 +418,7 @@ public abstract class ComponentBase
     /// </summary>
     public string GetEcString(string key)
     {
-        var value = ComponentBase.Find<IEcComponent>()?.Get(FullPath, key);
+        var value = IocHelper.GetService<IEcComponent>()?.Get(FullPath, key);
         if (!string.IsNullOrEmpty(value))
         {
             return value;
@@ -501,7 +444,7 @@ public abstract class ComponentBase
     /// </summary>
     protected bool SetEc(string key, string value)
     {
-        return ComponentBase.Find<IEcComponent>()?.Set(FullPath, key, value) ?? false;
+        return IocHelper.GetService<IEcComponent>()?.Set(FullPath, key, value) ?? false;
     }
 
     /// <summary>

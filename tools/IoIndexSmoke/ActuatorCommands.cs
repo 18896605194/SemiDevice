@@ -2,6 +2,7 @@
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 /// <summary>气缸/阀/喷嘴/DI/AI/四色灯经 IO 表读写 PLC：全部用假 PLC，不连真设备。</summary>
 static class ActuatorCommands
@@ -10,19 +11,22 @@ static class ActuatorCommands
     {
         var directory = Path.Combine(Path.GetTempPath(), "xyz-io-actuator-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
-        var previousPlc = ComponentBase.Find<IPlc>();
-        var previousIo = ComponentBase.Find<IIoComponent>();
+        var previousPlc = IocHelper.GetService<IPlc>();
+        var previousIo = IocHelper.GetService<IIoComponent>();
         try
         {
-            var csv = Path.Combine(directory, "points.csv");
-            File.WriteAllText(csv,
+            // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+            string points =
                 "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +
                 "0,OpenCoil,0,0,0,0\n1,CloseCoil,0,0,0,0\n2,Opened,0,0,0,0\n3,Closed,0,0,0,0\n" +
-                "4,ValveDo,0,0,0,0\n5,ValveDi,0,0,0,0\n6,Pressure,0,1000,0,100\n7,Red,0,0,0,0\n8,NoValveDo,0,0,0,0\n");
-            var io = new IoComponent();
-            io.Di.Load(csv);
-            io.Do.Load(csv);
-            io.Ai.Load(csv);
+                "4,ValveDo,0,0,0,0\n5,ValveDi,0,0,0,0\n6,Pressure,0,1000,0,100\n7,Red,0,0,0,0\n8,NoValveDo,0,0,0,0\n";
+            foreach (string table in new[] { "DI", "DO", "AI" })
+            {
+                File.WriteAllText(Path.Combine(directory, table + ".csv"), points);
+            }
+
+            var io = new IoComponent { PointTableDirectory = directory };
+            SmokeIoc.Use<IIoComponent>(io);
             var plc = new StatePlc();
 
             // 到位反馈是 DI 组件子节点（门 Opened / Closed，阀 Feedback），组件初始化时认
@@ -48,9 +52,13 @@ static class ActuatorCommands
                 tick();
             }
 
-            ComponentBase.Register<IPlc>(null);
+            // 阀、气缸、DI 开机 Bind 时取 IO 组件；IO 组件开机准备时取 PLC，先不给 PLC
+            ComponentLoader.BindAll([door, lift, valve, nozzle, normallyOpen]);
+            SmokeIoc.Use<IPlc>(null);
+            io.InitComponent();
             Check(!door.Open() && !valve.Open() && !door.IsOpened, "no PLC: nothing writable or readable");
-            ComponentBase.Register<IPlc>(plc);
+            SmokeIoc.Use<IPlc>(plc);
+            io.InitComponent();
 
             Check(door.Open() && plc.Do[0] && !plc.Do[1] && door.ActionState == ActionState.Running,
                 "open energizes the open coil only and waits for feedback");
@@ -92,6 +100,7 @@ static class ActuatorCommands
             var unwired = new ScanningValve { DoIndex = 4 };
             unwired.AddChild(Named(new DiSensorComponent { DiIndex = -1, AlarmEnabled = false }, "Feedback"));
             unwired.InitComponent();
+            ComponentLoader.BindAll([unwired]);
             Check(unwired.Open() && unwired.ActionState == ActionState.Completed && unwired.IsOpened,
                 "feedback with DI index -1 counts as no feedback: completes at once");
 
@@ -100,6 +109,7 @@ static class ActuatorCommands
             Check(normallyOpen.Close() && plc.Do[8] && !normallyOpen.IsOpened, "NO valve: close writes true");
 
             var sensor = new ScanningDi { DiIndex = 2 };
+            sensor.Bind();
             plc.Di[2] = true;
             sensor.Tick();
             Check(!sensor.IsTriggered, "debounce not elapsed");
@@ -107,11 +117,13 @@ static class ActuatorCommands
             sensor.Tick();
             Check(sensor.IsTriggered, "DI sensor reads through the IO table");
             var pressure = new ScanningAi { AiIndex = 6 };
+            pressure.Bind();
             plc.Ai[6] = 500;
             pressure.Tick();
             Check(pressure.Value == 50, "AI sensor reads the scaled value through the IO table");
 
             var light = new LightComponent { DoRedIndex = 7 };
+            light.Bind();
             light.SetRed(true);
             Check(plc.Do[7] && light.IsRedOn, "light writes through the IO table");
 
@@ -123,8 +135,8 @@ static class ActuatorCommands
         }
         finally
         {
-            ComponentBase.Register<IPlc>(previousPlc);
-            ComponentBase.Register<IIoComponent>(previousIo);
+            SmokeIoc.Use<IPlc>(previousPlc);
+            SmokeIoc.Use<IIoComponent>(previousIo);
             Directory.Delete(directory, recursive: true);
         }
     }

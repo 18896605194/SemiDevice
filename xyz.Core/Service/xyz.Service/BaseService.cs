@@ -1,15 +1,15 @@
 ﻿using xyz.Common.Log;
 using xyz.Components.Components;
-using xyz.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Tools;
 
 namespace xyz.Service;
 
 /// <summary>
-/// 服务基类：找模块（按接口在整棵组件树上找）+ 模块动作「下发 → 等终态 → 回包」的公共流程。
+/// 服务基类：找模块（按接口从容器里取）+ 模块动作「下发 → 等终态 → 回包」的公共流程。
 /// 各动作服务只管两件事：找模块、调对应动作，错误码拼装与超时判定都在这里。
 /// </summary>
 public abstract class BaseService
@@ -19,7 +19,7 @@ public abstract class BaseService
     /// </summary>
     protected static TModule? FindModule<TModule>(string name) where TModule : class, IModule
     {
-        return ComponentBase.FindAll<TModule>()
+        return IocHelper.GetServices<TModule>()
             .FirstOrDefault(module => string.Equals(module.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 

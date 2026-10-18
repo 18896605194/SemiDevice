@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -14,7 +13,7 @@ public class RobotService : BaseService, IRobotService
 
     public RobotService()
     {
-        _transfers = ComponentBase.Find<ITransferManager>();
+        _transfers = IocHelper.GetService<ITransferManager>();
     }
 
     public Task<RpcResponse> HomeAsync(string module)
@@ -167,7 +166,7 @@ public class RobotService : BaseService, IRobotService
     /// </summary>
     public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = ComponentBase.FindAll<IRobot>()
+        var dto = IocHelper.GetServices<IRobot>()
             .Where(robot => string.IsNullOrWhiteSpace(module)
                             || string.Equals(robot.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(robot => robot.CreateStateDto())

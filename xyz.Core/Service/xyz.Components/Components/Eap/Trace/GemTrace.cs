@@ -15,6 +15,7 @@ internal sealed class GemTrace
     private readonly uint _totalSamples;
     private readonly uint _groupSize;
     private readonly IReadOnlyList<uint> _svids;
+    private readonly GemCollectors _collectors;
     private readonly IE30Component _gem;
     private readonly Action<GemTrace> _finished;
     private readonly string _owner;
@@ -24,17 +25,19 @@ internal sealed class GemTrace
     /// <param name="totalSamples">一共采几次（TOTSMP）。</param>
     /// <param name="groupSize">几次一包（REPGSZ）。</param>
     /// <param name="svids">采哪些 SV，按 Host 给的先后。</param>
+    /// <param name="collectors">GEM 编号表：按 SVID 读 SV。</param>
     /// <param name="gem">S6F1 经它发。</param>
     /// <param name="finished">结束了（采完、停下、出错）。</param>
     /// <param name="owner">日志里写谁。</param>
     public GemTrace(SecsItem traceId, TimeSpan period, uint totalSamples, uint groupSize, IReadOnlyList<uint> svids,
-        IE30Component gem, Action<GemTrace> finished, string owner)
+        GemCollectors collectors, IE30Component gem, Action<GemTrace> finished, string owner)
     {
         TraceId = traceId;
         _period = period;
         _totalSamples = totalSamples;
         _groupSize = groupSize;
         _svids = svids;
+        _collectors = collectors;
         _gem = gem;
         _finished = finished;
         _owner = owner;
@@ -103,11 +106,10 @@ internal sealed class GemTrace
     /// </summary>
     private List<SecsItem> Sample()
     {
-        var collectors = GemCollectors.Current;
         var items = new List<SecsItem>();
         foreach (uint svid in _svids)
         {
-            if (collectors is not null && collectors.Sv.TryRead((int)svid, out var row, out object? raw) && row is not null && row.Visible)
+            if (_collectors.Sv.TryRead((int)svid, out var row, out object? raw) && row is not null && row.Visible)
             {
                 items.Add(GemValue.From(raw, row.Format));
             }

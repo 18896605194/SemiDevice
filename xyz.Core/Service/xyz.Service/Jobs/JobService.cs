@@ -26,7 +26,7 @@ public class JobService : BaseService, IJobService
 
     public JobService()
     {
-        _jobs = ComponentBase.Find<IJobManager>();
+        _jobs = IocHelper.GetService<IJobManager>();
     }
 
     #endregion

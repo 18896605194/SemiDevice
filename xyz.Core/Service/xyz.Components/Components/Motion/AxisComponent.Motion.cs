@@ -4,6 +4,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -36,7 +37,7 @@ public partial class AxisComponent
     /// </summary>
     public override bool InitComponent()
     {
-        var plc = Find<IPlc>();
+        var plc = IocHelper.GetService<IPlc>();
         if (plc is not null)
         {
             CheckCommandBlock();
@@ -60,7 +61,7 @@ public partial class AxisComponent
         }
 
         // 不在装起来的那棵树上的（单独建的）没有可比的
-        var axes = FindAll<AxisComponent>();
+        var axes = IocHelper.GetServices<IAxis>().OfType<AxisComponent>().ToList();
         if (!axes.Contains(this))
         {
             return;

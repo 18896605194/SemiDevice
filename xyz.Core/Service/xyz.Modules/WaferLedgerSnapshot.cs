@@ -1,5 +1,4 @@
-﻿using xyz.Components;
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Shared.Dtos;
@@ -14,11 +13,10 @@ public static class WaferLedgerSnapshot
 {
     /// <summary>
     /// 这个位置每个槽的片（槽号从 1 起，空槽的 Wafer 为 null）；晶圆账没开或没登记这个位置时为空表。
-    /// 模块每拍扫描都调，账一变下一拍的状态推送就跟着变。
+    /// 模块每拍扫描都调（传它自己取到的晶圆账），账一变下一拍的状态推送就跟着变。
     /// </summary>
-    public static List<WaferSlotDto> SlotsOf(string module)
+    public static List<WaferSlotDto> SlotsOf(IWaferManagerComponent? ledger, string module)
     {
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
         if (ledger is null || !ledger.IsEnable)
         {
             return [];

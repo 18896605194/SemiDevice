@@ -1,5 +1,4 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
@@ -29,7 +28,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
     public WaferLedgerService()
     {
-        _ledger = ComponentBase.Find<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
     }
 
     public Task<RpcResponse> GetLedgerAsync(RpcRequest request, CallContext context = default)
@@ -37,7 +36,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
         var dto = new WaferLedgerDto { IsEnabled = _ledger is not null && _ledger.IsEnable };
         if (_ledger is not null && _ledger.IsEnable)
         {
-            var modules = ComponentBase.FindAll<IModule>().ToLookup(module => module.Name, StringComparer.OrdinalIgnoreCase);
+            var modules = IocHelper.GetServices<IModule>().ToLookup(module => module.Name, StringComparer.OrdinalIgnoreCase);
             foreach (string name in LocationNames())
             {
                 var slots = _ledger.GetSlots(name);
@@ -153,7 +152,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// </summary>
     private static IEnumerable<string> LocationNames()
     {
-        var robots = ComponentBase.FindAll<IRobot>();
+        var robots = IocHelper.GetServices<IRobot>();
         var names = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var robot in robots)

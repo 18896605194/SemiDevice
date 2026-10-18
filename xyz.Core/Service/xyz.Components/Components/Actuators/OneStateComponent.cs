@@ -1,6 +1,7 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -28,6 +29,16 @@ public abstract class OneStateComponent : ComponentBase
     {
         _feedback = FindSignal("Feedback");
         return base.InitComponent();
+    }
+
+    /// <summary>
+    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// </summary>
+    protected IIoComponent? Io { get; private set; }
+
+    public override void Bind()
+    {
+        Io = IocHelper.GetService<IIoComponent>();
     }
 
     #region EC
@@ -82,7 +93,7 @@ public abstract class OneStateComponent : ComponentBase
                 return feedback.IsActive == true;
             }
 
-            var io = ComponentBase.Find<IIoComponent>();
+            var io = Io;
             if (io is null)
             {
                 return false;
@@ -112,7 +123,7 @@ public abstract class OneStateComponent : ComponentBase
 
     private bool Drive(bool on)
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = Io;
         if (io is null || DoIndex < 0)
         {
             return false;

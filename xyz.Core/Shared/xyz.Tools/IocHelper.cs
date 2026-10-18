@@ -22,6 +22,22 @@ public static class IocHelper
     }
 
     /// <summary>
+    /// 通过接口/类型获取服务，没登记返回 null（同一个接口登记了好几个的，取最后登记的）。
+    /// </summary>
+    public static T? GetService<T>() where T : class
+    {
+        return GetProvider().GetService<T>();
+    }
+
+    /// <summary>
+    /// 通过接口/类型获取登记的全部服务，按登记先后；一个都没有是空表。
+    /// </summary>
+    public static IReadOnlyList<T> GetServices<T>() where T : class
+    {
+        return GetProvider().GetServices<T>().ToList();
+    }
+
+    /// <summary>
     /// 通过 Type 获取服务，找不到会抛异常。
     /// </summary>
     public static object GetRequiredService(Type serviceType)

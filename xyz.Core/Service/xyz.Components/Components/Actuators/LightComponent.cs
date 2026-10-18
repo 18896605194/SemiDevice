@@ -1,5 +1,6 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -39,6 +40,16 @@ public class LightComponent : ComponentBase, ILightComponent
     public bool IsBuzzerOn { get; private set; }
 
     #endregion
+
+    /// <summary>
+    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// </summary>
+    private IIoComponent? _io;
+
+    public override void Bind()
+    {
+        _io = IocHelper.GetService<IIoComponent>();
+    }
 
     #region Control
 
@@ -85,7 +96,7 @@ public class LightComponent : ComponentBase, ILightComponent
 
     protected virtual void WriteOutput(int doIndex, bool isOn)
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         if (io is null)
         {
             throw new InvalidOperationException("sc.xml 没配 Io 节点，四色灯没有输出通道");

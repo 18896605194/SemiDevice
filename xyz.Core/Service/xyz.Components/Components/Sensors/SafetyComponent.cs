@@ -9,11 +9,6 @@ namespace xyz.Components.Components;
 [Component(description: "安全信号（急停、维修门、漏液、厂务气源/排风等整机 DI/AI）")]
 public class SafetyComponent : ComponentBase, ISafetyComponent
 {
-    public SafetyComponent()
-    {
-        Register<ISafetyComponent>(this);
-    }
-
     /// <summary>
     /// 下面配了信号没有（没配就不给它单独一页 IO）
     /// </summary>

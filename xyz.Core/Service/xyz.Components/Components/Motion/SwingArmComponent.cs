@@ -3,6 +3,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Enums;
 
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -38,7 +39,7 @@ public class SwingArmComponent : AxisComponent, ISwingArm
     /// <summary>
     /// 现在用的边缘示教位：按主界面切的晶圆尺寸取 <see cref="Edge8"/> 或 <see cref="Edge12"/>。
     /// </summary>
-    public double Edge => EdgeOf(WaferSizeComponent.CurrentSize);
+    public double Edge => EdgeOf(WaferSizeComponent.SizeOf(_waferSize));
 
     #endregion
 
@@ -70,6 +71,16 @@ public class SwingArmComponent : AxisComponent, ISwingArm
         return base.InitComponent();
     }
 
+    /// <summary>
+    /// 晶圆尺寸组件（开机 Bind 时取）：配方坐标按它换算；没配是 null，按 12 寸
+    /// </summary>
+    private IWaferSizeComponent? _waferSize;
+
+    public override void Bind()
+    {
+        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+    }
+
     public INozzle? FindNozzle(string chemical)
     {
         return Nozzles.FirstOrDefault(nozzle => string.Equals(nozzle.Chemical, chemical, StringComparison.OrdinalIgnoreCase));
@@ -87,7 +98,7 @@ public class SwingArmComponent : AxisComponent, ISwingArm
     /// <returns></returns>
     public double ToAxisPosition(double waferPosition, INozzle? nozzle = null)
     {
-        int size = WaferSizeComponent.CurrentSize;
+        int size = WaferSizeComponent.SizeOf(_waferSize);
         double edge = EdgeOf(size);
         double offset = nozzle is null ? 0 : nozzle.Offset;
         return edge + (Center - edge) * waferPosition / WaferSizeComponent.RadiusOf(size) + offset;

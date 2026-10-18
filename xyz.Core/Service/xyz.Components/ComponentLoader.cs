@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Models;
@@ -121,9 +122,26 @@ public static class ComponentLoader
 
         // 虚拟点可分布于任意模块，整棵树装好后统一校验索引与依赖。
         VirtualInputRegistry.Attach(roots);
-
-        ComponentBase.Roots = roots;
         return roots;
+    }
+
+    /// <summary>
+    /// 组件进容器：整棵树照 sc 先后（父在前、子在后，停用的连同下面的都跳过），每个组件按它实现的 xyz 接口登记成单例；
+    /// 一类有好几个的（LoadPort、腔体）用的地方取全部，只有一个的（搬运管理、晶圆账）取一个。树本身也登记，宿主开机、收尾按它走
+    /// </summary>
+    public static void Register(IServiceCollection services, IReadOnlyList<ComponentBase> roots)
+    {
+        services.AddSingleton(roots);
+        foreach (var component in Walk(roots))
+        {
+            foreach (var contract in component.GetType().GetInterfaces())
+            {
+                if (contract.Namespace is not null && contract.Namespace.StartsWith("xyz", StringComparison.Ordinal))
+                {
+                    services.AddSingleton(contract, component);
+                }
+            }
+        }
     }
 
     private static void AssignFullPath(ComponentBase component, string parentPath)

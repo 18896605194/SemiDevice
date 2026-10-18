@@ -1,5 +1,4 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
@@ -21,8 +20,8 @@ public class DataChartService : IDataChartService
 
     public DataChartService()
     {
-        _chart = ComponentBase.Find<IDataChartComponent>();
-        _mapper = ComponentBase.Find<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _chart = IocHelper.GetService<IDataChartComponent>();
+        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     /// <summary>

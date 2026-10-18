@@ -1,0 +1,95 @@
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using xyz.Components;
+using xyz.Configs.Models;
+using xyz.Tools;
+
+/// <summary>
+/// 冒烟用的容器：跟宿主一样组件照树进容器（ComponentLoader.Register），IocHelper 从它取；
+/// 冒烟里换树、登记假件、撤掉某个单例都在这里，改一次重建一次。各冒烟工程链接这一个文件
+/// </summary>
+static class SmokeIoc
+{
+    private static IReadOnlyList<ComponentBase> _tree = [];
+
+    /// <summary>
+    /// 单独登记的（假件、直接 new 的、撤掉的）：按登记先后，盖过树上的同类；null 是撤掉
+    /// </summary>
+    private static readonly List<(Type Type, object? Instance)> _uses = [];
+
+    /// <summary>
+    /// 冒烟开头：空容器（没有树、没有单独登记的）
+    /// </summary>
+    public static void Reset()
+    {
+        _tree = [];
+        _uses.Clear();
+        Rebuild();
+    }
+
+    /// <summary>
+    /// 照 sc 装一棵树（宿主开机装配那一步），装出来的组件都进容器
+    /// </summary>
+    public static List<ComponentBase> Load(IEnumerable<ModuleConfig> settings)
+    {
+        var roots = ComponentLoader.Load(settings);
+        UseTree(roots);
+        return roots;
+    }
+
+    /// <summary>
+    /// 整棵树换成这些：树上的组件按接口进容器，单独登记过的同类让给树上的（后装的生效）
+    /// </summary>
+    public static void Tree(params ComponentBase[] roots)
+    {
+        UseTree(roots);
+    }
+
+    private static void UseTree(IReadOnlyList<ComponentBase> roots)
+    {
+        var contracts = new HashSet<Type>();
+        CollectContracts(roots, contracts);
+        _uses.RemoveAll(use => contracts.Contains(use.Type));
+        _tree = roots;
+        Rebuild();
+    }
+
+    /// <summary>
+    /// 单独登记一个（后登记的生效）；传 null 是撤掉，树上的同类也一起撤
+    /// </summary>
+    public static void Use<T>(T? instance) where T : class
+    {
+        _uses.RemoveAll(use => use.Type == typeof(T));
+        _uses.Add((typeof(T), instance));
+        Rebuild();
+    }
+
+    private static void CollectContracts(IEnumerable<ComponentBase> components, HashSet<Type> contracts)
+    {
+        foreach (var component in components)
+        {
+            foreach (var contract in component.GetType().GetInterfaces())
+            {
+                contracts.Add(contract);
+            }
+
+            CollectContracts(component.Children, contracts);
+        }
+    }
+
+    private static void Rebuild()
+    {
+        var services = new ServiceCollection();
+        ComponentLoader.Register(services, _tree);
+        foreach (var (type, instance) in _uses)
+        {
+            services.RemoveAll(type);
+            if (instance is not null)
+            {
+                services.AddSingleton(type, instance);
+            }
+        }
+
+        IocHelper.ServiceProvider = services.BuildServiceProvider();
+    }
+}

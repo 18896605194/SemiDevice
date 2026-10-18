@@ -8,6 +8,8 @@ using xyz.Configs.Models;
 using xyz.Tools;
 
 // 编号表冒烟：五个采集器在临时目录里生成、合并、改写编号表。不起宿主、不连设备、不碰真配置。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -20,7 +22,7 @@ void Check(bool condition, string message)
 }
 
 List<ComponentBase> Build(params string[] names) =>
-    ComponentLoader.Load(names.Select(name => new ModuleConfig { Name = name, Type = typeof(ProbeTool).FullName }).ToList());
+    SmokeIoc.Load(names.Select(name => new ModuleConfig { Name = name, Type = typeof(ProbeTool).FullName }).ToList());
 
 int IdOf<T>(IReadOnlyList<T> rows, string name) where T : IDefinitionRow => rows.Single(row => row.Name == name).Id;
 bool EnabledOf<T>(IReadOnlyList<T> rows, string name) where T : IDefinitionRow => rows.Single(row => row.Name == name).Enabled;
@@ -43,7 +45,6 @@ try
     var roots = Build("Tool1", "Tool2");
     var gem = new GemCollectors();
     gem.Merge(roots, directory);
-    Check(ReferenceEquals(GemCollectors.Current, gem), "new 出来即成为 Current");
     Check(new[] { EcCollector.FileName, SvCollector.FileName, AlarmCollector.FileName, EventCollector.FileName, DvCollector.FileName }
         .All(name => File.Exists(FileOf(name))), "五张编号表都应生成");
     Check(Ids(gem.Ec.Definitions).SequenceEqual(Enumerable.Range(10000, 4)), "ECID 从 10000 连续分");
@@ -151,6 +152,7 @@ try
 
     // ── 8. 一键采集：EC、SV 带当前值；值在 ec.xml（EC 组件），编号表里不存值 ───────────
     var ec = new EcComponent();
+    SmokeIoc.Use<IEcComponent>(ec);
     var tool1 = tools.OfType<ProbeTool>().Single(tool => tool.Name == "Tool1");
     tool1.ActionTimeout = 4567;
     tool1.State = 42;
@@ -217,7 +219,7 @@ try
 
     // ── 11. 只有 Warn 级报警：有 ALID，但没有报警事件，也不需要报警 DV ─────────────────
     var warnOnly = new GemCollectors();
-    warnOnly.Merge(ComponentLoader.Load([new ModuleConfig { Name = "Quiet", Type = typeof(ProbeWarnOnly).FullName }]), quiet);
+    warnOnly.Merge(SmokeIoc.Load([new ModuleConfig { Name = "Quiet", Type = typeof(ProbeWarnOnly).FullName }]), quiet);
     var warnOnlyAlarms = warnOnly.Alarm.Definitions;
     Check(warnOnlyAlarms.Count == 1 && warnOnlyAlarms[0].Name == "Quiet.OnlyWarn"
           && warnOnlyAlarms[0].SetEventId == 0 && warnOnlyAlarms[0].ClearEventId == 0,
@@ -230,8 +232,8 @@ finally
     Directory.Delete(directory, recursive: true);
     Directory.Delete(spare, recursive: true);
     Directory.Delete(quiet, recursive: true);
-    ComponentBase.Register<IEcComponent>(null);
-    GemCollectors.Current = null;
+    SmokeIoc.Use<IEcComponent>(null);
+    SmokeIoc.Use<GemCollectors>(null);
 }
 
 Console.WriteLine($"PASS: {checks} GEM collector checks (fresh generation in five ID ranges, alarm set/clear events with the alarm DV " +

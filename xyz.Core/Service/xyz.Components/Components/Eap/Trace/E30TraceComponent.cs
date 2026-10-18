@@ -6,6 +6,7 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -40,6 +41,11 @@ public class E30TraceComponent : ComponentBase, IE30TraceComponent
     private IE30Component? _gem;
 
     /// <summary>
+    /// GEM 编号表（接链路时取）：认 SVID、采 SV 都查它
+    /// </summary>
+    private GemCollectors? _collectors;
+
+    /// <summary>
     /// 接到链路和 GEM 上（EAP 组件在链路打开之前调）：登记 S2F23，订离线
     /// </summary>
     public void Attach(IHsmsComponent link, IE30Component gem)
@@ -47,6 +53,7 @@ public class E30TraceComponent : ComponentBase, IE30TraceComponent
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
         _gem = gem;
+        _collectors = IocHelper.GetService<GemCollectors>();
         gem.WentOffline += OnWentOffline;
         link.Handle(2, 23, TraceInitialize);
     }
@@ -105,12 +112,13 @@ public class E30TraceComponent : ComponentBase, IE30TraceComponent
         }
 
         var gem = _gem;
-        if (gem is null)
+        var collectors = _collectors;
+        if (gem is null || collectors is null)
         {
             return SecsReply.Abort;
         }
 
-        var trace = new GemTrace(traceId, period.Value, totalSamples, groupSize, svids, gem, OnFinished, Name);
+        var trace = new GemTrace(traceId, period.Value, totalSamples, groupSize, svids, collectors, gem, OnFinished, Name);
         GemTrace? replaced;
         lock (_gate)
         {
@@ -170,9 +178,9 @@ public class E30TraceComponent : ComponentBase, IE30TraceComponent
     /// <summary>
     /// 这个 SVID 在用、标了上传（跟 S1F3 认的一样）
     /// </summary>
-    private static bool IsTraceable(uint svid)
+    private bool IsTraceable(uint svid)
     {
-        var collectors = GemCollectors.Current;
+        var collectors = _collectors;
         return collectors is not null && svid <= int.MaxValue && collectors.Sv.TryRead((int)svid, out var row, out _) && row is not null && row.Visible;
     }
 

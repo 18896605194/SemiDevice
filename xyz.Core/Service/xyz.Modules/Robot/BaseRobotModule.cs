@@ -2,7 +2,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -259,11 +258,21 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         #endregion
 
         // 晶圆账注册：手指在账里也是槽位，槽号 = 手指号
-        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
+        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
         _waferManager?.RegisterLocation(Name, Arms.Count);
 
         bool childrenInitialized = base.InitComponent();
         return robot is not null && childrenInitialized;
+    }
+
+    /// <summary>
+    /// 搬运管理（开机 Bind 时取）：站点的槽数、类型从它的模块表认；没装是 null
+    /// </summary>
+    private ITransferManager? _transfers;
+
+    public override void Bind()
+    {
+        _transfers = IocHelper.GetService<ITransferManager>();
     }
 
     public void Close()
@@ -513,7 +522,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     IsExtended = intent is not null && intent.Arm == arm.Number,
                 })
                 .ToList(),
-            LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_waferManager, Name),
         };
 
         var robot = _robot;
@@ -545,9 +554,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// 站点槽数：取站点模块在 sc.xml 里配的 SlotCount（LoadPort 25、腔体 1），不在站点表里重复配。
     /// 搬运模块表还没绑好、或站点名不是可服务工位时为 0。
     /// </summary>
-    private static int SlotCountOf(string station)
+    private int SlotCountOf(string station)
     {
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         if (transfers is null)
         {
             return 0;
@@ -564,9 +573,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 站点是哪一类模块（调度图按它选卡片）：跟槽数一样从搬运模块表认；表还没绑好、或名字不是可服务工位时算 Other。
     /// </summary>
-    private static StationKind KindOf(string station)
+    private StationKind KindOf(string station)
     {
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         if (transfers is null)
         {
             return StationKind.Other;

@@ -25,7 +25,6 @@ public class SystemModule : BaseModule, ISystemModule
 {
     public SystemModule()
     {
-        Register<ISystemModule>(this);
         RegisterTransitions(SystemStateTable.ToModuleTable());
     }
 
@@ -60,19 +59,32 @@ public class SystemModule : BaseModule, ISystemModule
 
     private IReadOnlyList<IModule> _modules = [];
 
+    // 下面几个单例开机绑模块表时取；没装是 null
+    private ITransferManager? _transfers;
+    private IJobManager? _jobs;
+    private IWaferManagerComponent? _ledger;
+    private IAlarmComponent? _alarms;
+    private IWaferSizeComponent? _waferSize;
+
     /// <summary>
     /// 开机：认整机要管的模块（全部初始化、整机停止、全部回片）
     /// </summary>
     public override void Bind()
     {
-        Bind(FindAll<IModule>());
+        Bind(IocHelper.GetServices<IModule>());
     }
 
     /// <summary>
-    /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块（不含自己），先后跟 sc.xml 一样。
+    /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块（不含自己），先后跟 sc.xml 一样；
+    /// 搬运管理、Job 管理、晶圆账、报警、晶圆尺寸也在这里取一次。
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
+        _transfers = IocHelper.GetService<ITransferManager>();
+        _jobs = IocHelper.GetService<IJobManager>();
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _alarms = IocHelper.GetService<IAlarmComponent>();
+        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
         _modules = modules.Where(module => !ReferenceEquals(module, this)).ToList();
         LogHelper.Info(Name, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
     }
@@ -113,7 +125,7 @@ public class SystemModule : BaseModule, ISystemModule
                 return rejected;
             }
 
-            var transfers = ComponentBase.Find<ITransferManager>();
+            var transfers = _transfers;
             if (transfers is null)
             {
                 return HandleResult.Fail(ErrorCodes.TransferNotInstalled);
@@ -143,7 +155,7 @@ public class SystemModule : BaseModule, ISystemModule
                 return rejected;
             }
 
-            ComponentBase.Find<ITransferManager>()?.StopAutoDispatch();
+            _transfers?.StopAutoDispatch();
             SwitchTo(SystemAction.Manual);
             return HandleResult.Success();
         }
@@ -163,14 +175,15 @@ public class SystemModule : BaseModule, ISystemModule
                 return Rejected(rejected);
             }
 
-            return Started(SystemAction.ReturnAll, new SystemReturnOperation(Name));
+            // 上面查过搬运管理、晶圆账都装着
+            return Started(SystemAction.ReturnAll, new SystemReturnOperation(Name, _transfers!, _ledger!, _jobs));
         }
     }
 
     /// <summary>回片要用的：搬运管理装了、开着，晶圆账装了、开着。</summary>
-    private static HandleResult? CheckReturnResource()
+    private HandleResult? CheckReturnResource()
     {
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         if (transfers is null)
         {
             return HandleResult.Fail(ErrorCodes.TransferNotInstalled);
@@ -181,7 +194,7 @@ public class SystemModule : BaseModule, ISystemModule
             return HandleResult.Fail(ErrorCodes.TransferDisabled);
         }
 
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
+        var ledger = _ledger;
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -218,7 +231,7 @@ public class SystemModule : BaseModule, ISystemModule
                 }
             }
 
-            stop = new SystemStopOperation(inFlight);
+            stop = new SystemStopOperation(inFlight, _transfers);
             if (Begin(SystemAction.Abort, stop) is null)
             {
                 return null;
@@ -226,7 +239,7 @@ public class SystemModule : BaseModule, ISystemModule
         }
 
         // 锁外发：Job 中止要等 Job 的锁，别让系统的扫描线程跟着等
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         transfers?.Abort();
 
         // 要先认再让 Job 中止：Job 的中止当场就给它的腔体发中止，之后就认不出那是 Job 的工艺了
@@ -248,7 +261,7 @@ public class SystemModule : BaseModule, ISystemModule
             aborted++;
         }
 
-        var jobs = ComponentBase.Find<IJobManager>();
+        var jobs = _jobs;
         if (jobs is not null)
         {
             _ = jobs.AbortAllAsync();
@@ -312,7 +325,7 @@ public class SystemModule : BaseModule, ISystemModule
         }
 
         // 先在锁外问 Job（要等 Job 的锁），再进自己的锁核对一遍还在 Auto
-        var jobs = ComponentBase.Find<IJobManager>();
+        var jobs = _jobs;
         int next = jobs is not null && jobs.HasRunningJob ? SystemState.AutoRunning : SystemState.AutoIdle;
         lock (OperationGate)
         {
@@ -423,7 +436,7 @@ public class SystemModule : BaseModule, ISystemModule
     public EquipmentStatusDto CreateEquipmentStatus()
     {
         IReadOnlyList<AlarmItem> alarms = [];
-        var alarmComponent = Find<IAlarmComponent>();
+        var alarmComponent = _alarms;
         if (alarmComponent is not null)
         {
             alarms = alarmComponent.ActiveAlarms;
@@ -434,7 +447,7 @@ public class SystemModule : BaseModule, ISystemModule
             HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
             HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
             IsRunning = CurrentOperation is not null || _modules.Any(module => module.CurrentOperation is not null),
-            WaferSize = WaferSizeComponent.CurrentSize,
+            WaferSize = WaferSizeComponent.SizeOf(_waferSize),
         };
     }
 

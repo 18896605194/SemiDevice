@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -16,7 +15,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 腔体模块基类
 /// </summary>
-public abstract class BaseChamberModule : BaseTransferStationModule, IProcessStation, IChamber
+public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 {
     #region SV
 
@@ -179,9 +178,19 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
         }
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
-        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
+        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
         _waferManager?.RegisterLocation(Name, SlotCount);
         return base.InitComponent();
+    }
+
+    // 下面两个单例开机 Bind 时取：配方里的项在界面上叫什么要用；没装是 null
+    private IRecipeComponent? _recipes;
+    private ISystemModule? _system;
+
+    public override void Bind()
+    {
+        _recipes = IocHelper.GetService<IRecipeComponent>();
+        _system = IocHelper.GetService<ISystemModule>();
     }
 
     #endregion
@@ -776,9 +785,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
     /// <summary>
     /// 配方里一项在界面上叫什么（按界面语言，步骤、配方头的字段表里找）；没装工艺配方库就用字段名。
     /// </summary>
-    private static string FieldText(string key)
+    private string FieldText(string key)
     {
-        var library = ComponentBase.Find<IRecipeComponent>();
+        var library = _recipes;
         if (library is null)
         {
             return key;
@@ -790,7 +799,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IProcessSta
             return key;
         }
 
-        return field.DisplayText(ComponentBase.Find<ISystemModule>()?.Language);
+        return field.DisplayText(_system?.Language);
     }
 
     /// <summary>

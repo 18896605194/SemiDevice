@@ -23,6 +23,8 @@ using xyz.Tools;
 
 // 数据中心冒烟：日志文件解析与日志历史查询、报警服务（当前报警、人工复位、报警历史）、数据曲线（采样、信号名、日表）。
 // 不起宿主、不连设备；日志样本写在运行目录 Log 下一个不会跟真日志撞的日期，报警记录、数据曲线写临时库，跑完都删掉。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -96,6 +98,7 @@ try
     // ── 2b. 最近日志、实时日志：日志组件 Bind 时接上日志队列（接上之前攒在队列里的也补进来），留最近 RecentLogCount 条供客户端连上补拉，
     //     每条推给界面（发生类，不留存）；日志服务从日志组件取最近一段。队列只收 Warn 以上（LogQueue.MinLevel 默认）─────
     var logComponent = new LogComponent { RecentLogCount = 3 };
+    SmokeIoc.Use<ILogComponent>(logComponent);
     var pushedLogs = new List<LogDto>();
     bool Pushed(string message)
     {
@@ -142,7 +145,9 @@ try
 
     // ── 3. 当前报警与人工复位：走报警组件；复位不存在的来源给错误码；没装报警组件给错误码 ─────
     var alarms = new AlarmComponent();
-    _ = new MapperComponent(); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
+    SmokeIoc.Use<IAlarmComponent>(alarms);
+    SmokeIoc.Use<IMapperComponent>(new MapperComponent()); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
+    alarms.Bind(); // 开机 Bind 时取映射组件
     var device = new ProbeDevice("Tool1");
     var alarmService = new AlarmService();
     var pushedAlarms = new List<AlarmDto>();
@@ -168,7 +173,7 @@ try
     Check(resetAll.Success && JsonHelper.Deserialize<int>(resetAll.Data) == 1 && alarms.ActiveAlarms.Count == 0,
         "全部复位：复位了 1 个来源");
 
-    ComponentBase.Register<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarmComponent>(null);
     alarmService = new AlarmService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await alarmService.ResetAllAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.AlarmNotInstalled, "没装报警组件：给错误码");
@@ -235,8 +240,10 @@ try
     {
         var root = new ModuleConfig { Name = "Chart1", Type = typeof(ChartProbe).FullName };
         root.Children.AddRange(parts.Select(part => new ModuleConfig { Name = part, Type = typeof(ChartProbe).FullName }));
-        var roots = ComponentLoader.Load([root]);
-        new GemCollectors().Merge(roots, chartGemDirectory);
+        var roots = SmokeIoc.Load([root]);
+        var chartGem = new GemCollectors();
+        chartGem.Merge(roots, chartGemDirectory);
+        SmokeIoc.Use(chartGem); // 数据曲线 Bind 时从容器取 GEM 编号表
         return roots;
     }
 
@@ -245,6 +252,7 @@ try
     DataChartComponent RunChart(List<ComponentBase> roots)
     {
         var chart = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
+        SmokeIoc.Use<IDataChartComponent>(chart);
         var times = new List<long>();
         chart.Records.Subscribe(record =>
         {
@@ -331,6 +339,7 @@ try
 
     // sc 里没配 IsRun：不起扫描，一行都不采
     var idle = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
+    SmokeIoc.Use<IDataChartComponent>(idle);
     int idleRows = 0;
     idle.Records.Subscribe(_ => Interlocked.Increment(ref idleRows));
     idle.Bind(ChartTree("Door"));
@@ -341,7 +350,9 @@ try
 
     // 实时曲线：接在数据曲线的采样上，在自己的扫描里（配了 IsRun）把采到的行一帧一帧推给界面（不留存）；每帧带这一轮的标识，值跟信号表一样多
     var realSource = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
+    SmokeIoc.Use<IDataChartComponent>(realSource);
     var realChart = new RealChartComponent { IsRun = true, WindowSeconds = 60 };
+    SmokeIoc.Use<IRealChartComponent>(realChart);
     var frames = new List<RealChartFrameDto>();
     using (EventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
            {
@@ -367,10 +378,11 @@ try
     }
 
     // IO 绑定的信号名：组件路径 + 配置项名去掉 Index；DI 组件只有一个点，就是组件路径（Door__Opened，不再带 __Di）
-    var previousIo = ComponentBase.Find<IIoComponent>();
+    var previousIo = IocHelper.GetService<IIoComponent>();
     var ioCsv = Path.Combine(chartGemDirectory, "points.csv");
     File.WriteAllText(ioCsv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n0,P0,0,0,0,0\n1,P1,0,0,0,0\n2,P2,0,10,0,10\n");
     var chartIo = new IoComponent();
+    SmokeIoc.Use<IIoComponent>(chartIo);
     chartIo.Di.Load(ioCsv);
     chartIo.Do.Load(ioCsv);
     chartIo.Ai.Load(ioCsv);
@@ -391,8 +403,10 @@ try
             tank.Children.Add(new ModuleConfig { Name = signal, Type = typeof(AiLevelComponent).FullName, Values = [new() { Name = "AiIndex", Value = "1" }] });
         }
 
-        var ioRoots = ComponentLoader.Load([new ModuleConfig { Name = "Chart2", Type = typeof(ChartProbe).FullName, Children = [door, valve, pressure, tank] }]);
-        new GemCollectors().Merge(ioRoots, chartGemDirectory);
+        var ioRoots = SmokeIoc.Load([new ModuleConfig { Name = "Chart2", Type = typeof(ChartProbe).FullName, Children = [door, valve, pressure, tank] }]);
+        var ioGem = new GemCollectors();
+        ioGem.Merge(ioRoots, chartGemDirectory);
+        SmokeIoc.Use(ioGem); // 数据曲线 Bind 时从容器取 GEM 编号表
         var ioNames = RunChart(ioRoots).Signals.Select(signal => signal.Name).ToHashSet();
         Check(ioNames.Contains("Chart2__Door__Opened") && !ioNames.Any(name => name.EndsWith("__Di", StringComparison.Ordinal)),
             $"DI 组件的信号名就是组件路径（Door__Opened，不带 __Di）：{string.Join(",", ioNames)}");
@@ -403,13 +417,13 @@ try
     }
     finally
     {
-        ComponentBase.Register<IIoComponent>(previousIo);
+        SmokeIoc.Use<IIoComponent>(previousIo);
     }
 }
 finally
 {
-    ComponentBase.Register<IDataChartComponent>(null);
-    GemCollectors.Current = null;
+    SmokeIoc.Use<IDataChartComponent>(null);
+    SmokeIoc.Use<GemCollectors>(null);
     SqliteCleanup(chartDbFile);
     try
     {

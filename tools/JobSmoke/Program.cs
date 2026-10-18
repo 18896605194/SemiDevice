@@ -31,6 +31,8 @@ using xyz.Tools;
 // 服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
 // Job 是标准件（任务组件、调度引擎都是平台的，不给机型留重写的口子）。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
+SmokeIoc.Reset();
+
 var checks = 0;
 void Check(bool condition, string message)
 {
@@ -52,13 +54,16 @@ static bool IsNotRun(JobWaferDto wafer) => wafer.Tasks.All(task => task.State ==
 
 // EC 只放在本进程内存里：不读也不写 ec.xml。
 var ec = new EcComponent();
+SmokeIoc.Use<IEcComponent>(ec);
 string folder = Path.Combine(Path.GetTempPath(), "xyz-job-smoke-" + Guid.NewGuid().ToString("N"));
 string jobDb = folder + ".db";
 try
 {
     // 0. 装一台假机器：两个 LoadPort、两个腔体、一台两指机械手（四个站点都到得了），再加一个机械手到不了的腔体。
     var ledger = new WaferManagerComponent();
-    _ = new MapperComponent(); // 人工移账的调整记录靠它转
+    SmokeIoc.Use<IWaferManagerComponent>(ledger);
+    SmokeIoc.Use<IMapperComponent>(new MapperComponent()); // 人工移账的调整记录靠它转
+    ledger.InitComponent(); // 开机准备：取映射组件
     var lp1 = new SmokePort("LP1");
     var lp2 = new SmokePort("LP2");
     var pm1 = new SmokeChamber("PM1");
@@ -84,6 +89,7 @@ try
     }
 
     var transfers = new SmokeTransfers();
+    SmokeIoc.Use<ITransferManager>(transfers);
     Probe.Name(transfers, "Transfer");
     transfers.Bind(modules);
     transfers.StationWaitTimeoutMs = 1000;
@@ -124,19 +130,21 @@ try
         "Job 是标准件：任务组件、调度引擎、Job 管理不是抽象类，也没有自己开的 virtual");
 
     // 宿主开机就是装配器照 sc.xml 的 Type 建组件：这两个节点要认得出平台类（认不出开机就抛"未找到组件类"）
-    var jobParts = ComponentLoader.Load(jobNode!.Children.Where(child => child.Name is "Task" or "Scheduler"));
+    var jobParts = SmokeIoc.Load(jobNode!.Children.Where(child => child.Name is "Task" or "Scheduler"));
     Check(jobParts.Count == 2 && jobParts.OfType<TaskComponent>().Count() == 1 && jobParts.OfType<SchedulerComponent>().Count() == 1,
         "装配器照 sc.xml 建得出 Task（TaskComponent）、Scheduler（SchedulerComponent）");
     Check(jobNode!.Values.Any(value => value.Name == nameof(JobManager.ProcessJobAutoStart) && value.Value == "True")
           && jobNode.Values.Any(value => value.Name == nameof(JobManager.ControlJobAutoStart) && value.Value == "False"),
         "sc.xml 配置 PJ 自动开始、CJ 等待 Start，创建请求不传启动方式");
 
-    var libraryRoots = ComponentLoader.Load([Node("Sequence"), Node("ProcessRecipe")]);
+    var libraryRoots = SmokeIoc.Load([Node("Sequence"), Node("ProcessRecipe")]);
     var sequences = libraryRoots.OfType<SequenceComponent>().Single();
     var recipes = libraryRoots.OfType<RecipeComponent>().Single();
     recipes.Bind(modules);
     sequences.Bind(modules);
-    Probe.Tree(modules); // 上面装配器装过两回，整棵树换回这台假机器（服务按接口在树上找模块）
+    SmokeIoc.Tree(modules); // 上面装配器装过两回，整棵树换回这台假机器（服务按接口在树上找模块）
+    SmokeIoc.Use<ISequenceComponent>(sequences); // 两个配方库不在这棵树上，单独登记着
+    SmokeIoc.Use<IRecipeComponent>(recipes);
     Check(recipes.Create(1, "R1", "Smoke").IsSuccess && recipes.Create(2, "R2", "Smoke").IsSuccess, "建两个工艺配方");
 
     SequenceStep Step(string group, string recipe, params string[] stations)
@@ -158,6 +166,7 @@ try
 
     // Job 节点下没配 Task（任务组件）是配错了：开机就抛，不能悄悄没有任务表
     var bare = new BareJobs();
+    SmokeIoc.Use<IJobManager>(bare);
     Probe.Name(bare, "Job");
     bare.IsPersistent = false;
     bool bareThrew = false;
@@ -175,9 +184,14 @@ try
     // Job 存盘写临时库（第 18 节"重启"时读回来），冒烟结束删掉
     XyzDb.Register("JobSmoke", $"DataSource={jobDb}", SqlSugar.DbType.Sqlite);
     var jobs = new SmokeJobs();
+    SmokeIoc.Use<IJobManager>(jobs);
     Probe.Name(jobs, "Job");
     jobs.Database = "JobSmoke";
     jobs.Bind(modules);
+    // 开机 Bind（生产里 BindAll 照 sc 先后挨个调）：Job 下面的任务组件、搬运管理（这时才有 Job 管理）、各模块都在这里取单例
+    ComponentLoader.BindAll(jobs.Children);
+    transfers.Bind(modules);
+    ComponentLoader.BindAll(modules);
 
     // CJ 管理按参考用对象提交事件，注册与入队分开，实体和状态机不对外暴露。
     ICjManager controls = new CjManager();
@@ -479,7 +493,8 @@ try
         "异常后释放锁，其他线程仍能执行 Job 命令");
 
     // 上报口直接挂假的 EAP；上报都经 EAP 的派发组件发（宿主里是 sc.xml Eap 下的 Notifier）
-    _ = new EapNotifierComponent();
+    SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
+    jobs.Bind(modules); // Job 管理开机 Bind 时取 EAP 的派发组件
     var events = new RecordingJobEvents();
     jobs.E40Callback = events;
     jobs.E94Callback = events;
@@ -1390,6 +1405,7 @@ try
 
     // 定不了片：报警，PJ 留在排队、CJ 等着，片一片不动；问题还在复位了会再报；Host 停掉 CJ（连带删掉排队的 PJ）收场
     var materialAlarms = new AlarmComponent();
+    SmokeIoc.Use<IAlarmComponent>(materialAlarms);
     bool MaterialAlarm() => materialAlarms.ActiveAlarms.Any(alarm => alarm.AlarmCode == jobs.MaterialUnusableAlarm);
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-BAD", [5], "SEQ_A", null, "CAR-B")).IsSuccess
           && Do(jobs.CreateControlJobAsync(null, ["PJ-BAD"], "CJ-BAD")).IsSuccess, "Host 建好 PJ-BAD（要第 5 槽）、CJ-BAD");
@@ -1404,7 +1420,7 @@ try
           && PjOf("PJ-BAD") is null && events.WaitFor("PJ PJ-BAD #18") && events.WaitFor("CJ CJ-BAD #11"),
         "Host 停掉 CJ：排队的 PJ 删掉（#18），CJ 停完（#11）；没定口的 CJ 不等载具拿走就删");
     Check(materialAlarms.ResetAll() >= 1 && !RunUntil(MaterialAlarm, 5), "收场以后复位就清了，不再报");
-    ComponentBase.Register<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarmComponent>(null);
 
     // Host 不给槽号、料已经在而且能取片：当场定片，做载具上全部有片的槽
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-ALL", [], "SEQ_A", null, "CAR-B")).IsSuccess
@@ -1418,6 +1434,7 @@ try
     // 16. 整机：Auto 下有在跑的 Job 是自动运行；整机停止关自动派单、中止搬运操作，Job 走中止（等设备确认、核对片位），不是直接删 Job，
     //     整机停止中，停下来回空闲；全部回片把留在腔里的片搬回来源 LoadPort 的原槽。
     machine = new SmokeSystem();
+    SmokeIoc.Use<ISystemModule>(machine);
     Probe.Name(machine, "System");
     machine.Bind(modules);
     machine.NoteState(SystemState.AutoIdle);
@@ -1498,6 +1515,7 @@ try
     // 17b. 调度只用搬运管理的实时占用：第一台无空手时尝试下一台；两台同时工作也不能抢同一站点。
     secondRobot = new SmokeRobot("Robot2", "LP1", "LP2", "PM1", "PM2");
     Check(secondRobot.InitComponent(), "第二台机械手的组件初始化");
+    ComponentLoader.BindAll([secondRobot]);
     secondRobot.NoteState(ModuleState.Idle);
     secondRobot.Online();
     transfers.Bind([.. modules, secondRobot]);
@@ -1551,6 +1569,7 @@ try
     Thread.Sleep(200);
     transfers.StopAutoDispatch();
     var restarted = new SmokeJobs();
+    SmokeIoc.Use<IJobManager>(restarted);
     Probe.Name(restarted, "Job");
     restarted.Database = "JobSmoke";
     restarted.Bind(modules);
@@ -1666,12 +1685,6 @@ static class Probe
 
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, path);
-    }
-
-    // 整棵组件树：生产里由 ComponentLoader 装好时填
-    public static void Tree(params ComponentBase[] roots)
-    {
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Roots))!.SetValue(null, roots);
     }
 
     public static void Enabled(ComponentBase component, bool enabled)

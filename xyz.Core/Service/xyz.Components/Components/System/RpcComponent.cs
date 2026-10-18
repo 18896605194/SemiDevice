@@ -14,11 +14,6 @@ public class RpcComponent : ComponentBase, IRpcComponent
 
     public const int DefaultPort = 5000;
 
-    public RpcComponent()
-    {
-        Register<IRpcComponent>(this);
-    }
-
     /// <summary>
     /// 监听地址：前端壳和后端同机，保持 localhost；远程调试时才需要改。
     /// </summary>

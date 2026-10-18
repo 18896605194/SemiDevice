@@ -50,13 +50,18 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   `OnStarted()`（都在扫了以后，如 EAP 开链路）→ 宿主退出时 `OnStopping()`（倒着来，一个出错记日志、不耽误后面的；EAP 断链路、数据曲线落库、
   断 PLC、晶圆账最后存一次）。都是 `ComponentBase` 的空虚方法，要用就重写。
 - 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
-- **找组件一律按接口**（2026-10-18 用户定的）：单例在构造里 `Register<IXxx>(this)`，用的地方 `ComponentBase.Find<IXxx>()` 先取到变量再判空，
-  没装就降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、`IRpcComponent`、`IMapperComponent`、
-  `IWaferManagerComponent`、`IIoComponent`、`IPlc`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、`IDataChartComponent`、
-  `IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；
-  EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）。要一类的全部用 `ComponentBase.FindAll<IXxx>()`：在整棵树
-  （`ComponentBase.Roots`，装配时填）上按 sc 先后找，停用的连同下面的跳过。不写 `Xxx.Current`，不按基类、具体类找，不往 Bind 里传整棵树；
-  `Register<IXxx>(null)` = 没装（冒烟里换掉、还原单例就这么写）。`GemCollectors.Current` 不是组件，照旧。
+- **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的）：装配器照 sc 树把每个组件按它实现的 xyz 接口
+  （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
+  取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、
+  `IRpcComponent`、`IMapperComponent`、`IWaferManagerComponent`、`IIoComponent`、`IPlc`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
+  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；
+  EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）；同一个接口登记了好几个的，取一个拿最后登记的。
+  要一类的全部用 `IocHelper.GetServices<IXxx>()`：按 sc 先后（先父后子），停用的连同下面的跳过。GEM 编号表 `GemCollectors` 不是组件，也登记在容器里，一样从 `IocHelper` 取。
+  不写 `Xxx.Current`、不在构造里登记、不在组件基类上另包取法，不按基类、具体类找，不往 Bind 里传整棵树。
+- **组件里用到的单例开机时取一次、存成字段**（2026-10-18 用户："你怎么能每一个方法里面都获取呢"）：在 `Bind` 里取；开机准备里就要用的在 `InitComponent` 里取
+  （晶圆账取映射组件、IO 组件取 PLC、E84 取 IO：模块开机准备时就要建片记流水、经 IO 写 DO）；被父组件在它 Bind 里接上的标准件（E30、E87、Trace）在自己的 `Attach` 里取。
+  有 `Bind(modules)` 重载的（整机、Job、搬运管理、两个配方库）在重载里取，冒烟直接调重载也取得到。自己建出来、不在树上的组件（Job 没配 Scheduler 时建的那个）
+  由建它的替它 `Bind`。组件基类的报警、EC、报事件三个公共方法每次现取（开机每个阶段、所有组件都在用）。模块动作（`ModuleOperation`）要用的由模块经构造传进去。
 
 ### 装配（`ComponentLoader`）
 - 类上 `[Component(description: "中文说明")]`，sc.xml 的 `Type` 写**类型全名**（如 `xyz.Components.Components.CylinderComponent`、
@@ -273,7 +278,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `Unit`、`Min` / `Max`、`Decimals`、`Default`、`Required`、下拉的选项。`OnSettingLoaded` 里读（`ProcessRecipeField.FromConfig`），配错就抛（字段名格式、重复、
   步骤必须有 `Seconds` 且是 Double、配方头固定的 10 项（`ProcessRecipeHead.Fixed`）都要有且类型对、上下限、默认值、下拉没写选项……）。
   配方头：编号、名称、创建 / 修改记录、版本程序算（`ProcessRecipeHead.IsAuto`）；`Type`、`Timeout`（超时时间 s）、`Description` 是 `ProcessRecipeData` 根上的属性，
-  自己加的项在 `<Head …/>` 上（`ProcessRecipeData.Head`）。`Type` 的选项是腔体配的几种 Type（`BaseModule.Type`，SC 参数，`Bind(modules)` 时收集，`StationTypes`）。
+  自己加的项在 `<Head …/>` 上（`ProcessRecipeData.Head`）。`Type` 的选项是能做工艺的站点（`IProcessStation`）配的几种 Type（`BaseModule.Type`，SC 参数，`Bind(modules)` 时收集，`StationTypes`）。
   步骤下拉的选项按腔体 Type 分开写：`Source.A`（腔体没配 Type 的写 `Source`），`ProcessRecipeField.OptionsFor(type)`，按配方头的 Type 取；
   `Bind` 时查每种 Type 都写了、默认值在里面（配错开机就抛），老配方没写 Type 的补第一种，没写超时时间的读文件时补默认值。
   配方对不对得上具体腔体由腔体自己查：`IProcessStation.FindRecipeMismatch(配方)`（`BaseChamberModule` 实现：先比 Type，再跟执行共用
@@ -292,9 +297,11 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   检查、规整跟本地一样，JSON 里的编号 / 版本 / 人和时间不管；满了 `*.full`、读不出来 `*.body_invalid`，删除时没有名字回 `*.name_not_found`。
   两个 `Accepts` 方法只看 JSON 的样子，Host 下新名字时分库用。
   上报口 `E30Callback`（`IE30Callback`）：分别调用 `SequenceChanged` / `ProcessRecipeChanged`；建、改、删、改名（旧名删 + 新名建）都在 `Report` 里经 `EapNotifierComponent` 报。
-  配方服务改配方（建、改名、存、删）之前先问 `ComponentBase.Find<IE30RecipeComponent>()?.IsLocalEditLocked`，锁着回 `recipe.locked_by_host`。
+  配方服务改配方（建、改名、存、删）之前先问 EAP 的配方管理（构造里取的 `IE30RecipeComponent`）的 `IsLocalEditLocked`，锁着回 `recipe.locked_by_host`。
   腔体按工艺配方的步骤执行（2026-10-10）见上面"腔体整腔动作"：执行按字段名认（Seconds、Rpm、Arm、Chemical、Flow、Mode、Position、ScanTo、ScanSpeed），流量下发到喷嘴的 `AoIndex`。
-- **加工口** `Process\IProcessStation`（`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。`CheckProcess(ProcessRequest)` 只问不动设备
+- **加工口** `Process\IProcessStation`（继承 `IModule`，带 `Type`；`IChamber` 继承它，`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。
+  工艺配方（Type 选项、配方对不对得上站点）、流程配方（哪些分组要选配方）、Job 都认 `IProcessStation`；`IChamber` 只放腔体手动页的东西
+  （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。`CheckProcess(ProcessRequest)` 只问不动设备
   （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected`），
   `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
   机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
@@ -312,7 +319,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   人工确认片位、对好账后 `ReleaseHold(晶圆内部标识)`。`Cancel(操作)` / `CancelOwner` / `CancelAll` 请求由搬运扫描线程执行中止；`Abort()` = 关自动调度 + 全部中止。
   **源可以是机械手**（片已经在手上：重启前搬到一半、手动取了没放）：`Source` 写机械手名、`SourceSlot` 写手指号，就用拿着它的那只手，只放片
   （`TransferRoutine` 抢目标 → 准备二 → 放；`Source` 为 null、`SourceName` 是机械手名）。
-  启动时问片归哪个 Job：`ComponentBase.Find<IJobManager>()?.OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
+  启动时问片归哪个 Job：开机 Bind 时取的 Job 管理的 `OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
 - **Job** `Job\JobManager`（sc.xml `Dispatch.Job`，扫描由 Dispatch 带着；子节点 `Task` = 任务组件 `TaskComponent`（必须配），
   `Scheduler` = `SchedulerComponent`（不配自己建一个））：SEMI E94 CJ / E40 PJ，决定见 decisions.md「Job」。
@@ -340,7 +347,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
     DTO.State 使用内部状态，DTO.E94State 用于 Host 上报和历史库（原 E94 0~5）；Aborting 上报中止前的状态，Aborted 上报 COMPLETED=5。
     JobManager 负责建 PJ、解析和关联 CJ 的 PJ 集合，以及 CJ 取消 / Stop / Abort 时协调 PJ；PJ 进 ABORTING 中止设备、PJ 结束任务表收场、CJ 完成通知 LoadPort；
     载具就绪、PJ 执行结束、载具离位时由 JobManager 提交相应 action，当前状态是否允许转换由状态表决定；建好、每条转换都由它经 `E94Callback` / `E40Callback`（片开始 / 结束加工 E40 没有事件，由 E90 照晶圆账报） 报
-    （放进 EAP 的上报派发组件 `ComponentBase.Find<IEapNotifierComponent>()`，跟所有上报一条线程按先后发，PJ 结束先于 CJ 完成报）。
+    （放进 EAP 的上报派发组件 `IEapNotifierComponent`（开机 Bind 时取），跟所有上报一条线程按先后发，PJ 结束先于 CJ 完成报）。
   - 任务组件 `Task\TaskComponent`：建 PJ 时照流程配方快照（`ProcessJob.Sequence`，库里 `Find` 给的副本）生成任务表，一片一行（`TaskRow`）：来源 LoadPort 取片 →
     每一站放片、站内任务、取片 → 回片 LoadPort 放片（回片槽建 PJ 时定）。中间的路线整个 PJ 算一次（`BuildRoute`）：这一站的工艺配方取快照、站点组去掉用不了的
     （没装、停用、机械手到不了、跑不了这个配方）、剩下的每个站点都要声明支持用到的任务（`job.station_task_unsupported`）。每一格（`WaferTask`）记状态
@@ -415,7 +422,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   每重连一次漏 2 条线程（ADS 接收线程 + 它的事件循环），Computer.Program 的线程数曲线一直涨才查出来。新写连接代码，每条失败路径都要释放。
 - HSMS 协议（`xyz.Secs`）：设备端被动、独占绑定、单会话；S9 只由设备发；`PrimaryReceived` 在收包线程，别在里面同步等 SendAsync
   （`HsmsComponent` 已经把 Host 的报文挪到自己的派发线程上，处理方不用操心这个）。
-- 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性；报的时候放进 `ComponentBase.Find<IEapNotifierComponent>()`，不自己起线程）、反查口（provider，为 null 走本地规则），
+- 设备侧对象接 EAP 一律开三个口子：命令接口（EAP 和本地服务共用）、上报口（回调属性；报的时候放进 EAP 的上报派发组件 `IEapNotifierComponent`（开机 Bind 时取一次），不自己起线程）、反查口（provider，为 null 走本地规则），
   照 `BaseLoadPortModule` 的 E87 / E84 写；接口放 `xyz.Components\Interfaces`（EAP 组件在组件层，看得到）；细则见 decisions.md「EAP 接入的统一做法」。
 
 ### EAP（SECS/GEM，`xyz.Components\Components\Eap`，sc.xml 的 `Eap` 节点）
@@ -490,14 +497,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
    ```
 2. 请求 DTO 放 `Shared\xyz.Shared\Dtos`，`[ProtoContract]` + `[ProtoMember(n)]`；返回数据也放 Dtos（普通 POCO，走 JSON）。
 3. 实现 `Service\xyz.Service\<领域>\XxxService.cs`：`public class XxxService : BaseService, IXxxService`。要用的单例在无参构造里
-   `ComponentBase.Find<IXxx>()` 取一次、存成字段（宿主每次调用都新建一个服务，构造里取的就是当前的），方法里只判空、不再各自取
-   （2026-10-18 用户："单例的不需要这个样子啊，为啥不通过构造"）；转 DTO 的服务在构造里取映射组件，没取到就是 sc 配错了、直接抛。
-   模块按名字找用 `FindModule<IXxx>(name)`（按接口在整棵树上找）。
+   `IocHelper.GetService<IXxx>()` 取一次、存成字段（宿主每次调用都新建一个服务，构造里取的就是当前的），方法里只判空、不再各自取
+   （2026-10-18 用户："单例的不需要这个样子啊，为啥不通过构造"；取一律走 IocHelper，不写构造参数注入）；转 DTO 的服务在构造里取映射组件，没取到就是 sc 配错了、直接抛。
+   模块按名字找用 `FindModule<IXxx>(name)`（按接口从容器里取这一类的全部再按名字挑）。
 4. 不用注册（2026-10-18 起）：开机按契约自动认（`ServiceExtensions.GrpcServices()`：装进来的 xyz 程序集里实现了带 `[ServiceContract]` 接口的公开类，
    DI 注册成 Transient，宿主照这张表 `MapGrpcService`；机型 DLL 里的也算），`ServiceExtensions`、宿主 `Program` 都不用改。
 5. 错误码 + 两个语言包（§6）。
-6. 冒烟里直接 new 服务类调方法验证（不起网络），见 `tools\WaferLedgerSmoke` 第 16 节。服务在整棵树（`ComponentBase.Roots`）上找模块，
-   冒烟里手搭的模块用反射把 Roots 换成它们（各冒烟的 `UseTree` / `Probe.Tree`）；换了单例（`Register<IXxx>(...)`）要重新 new 服务。
+6. 冒烟里直接 new 服务类调方法验证（不起网络），见 `tools\WaferLedgerSmoke` 第 16 节。服务从容器里取模块和单例，
+   冒烟里手搭的模块用 `SmokeIoc.Tree(...)` 换成容器里的那棵树；换了单例（`SmokeIoc.Use<IXxx>(...)`）要重新 new 服务（见 machine-and-tools.md §3）。
 
 ### 返回
 - 成功：`RpcResponse.Ok()` / `RpcResponse.Ok(JsonHelper.Serialize(数据))`；客户端 `DeserializeData<T>()`。
@@ -517,7 +524,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   晶圆账 `WaferLedgerChangedDto`、两个配方库的变更 DTO、日志组件每条日志 `LogDto`，切晶圆尺寸时工艺配方库推一条编号 0 的）；每拍比、变了才推的在自己的 `OnScan` 里发
   （模块状态、整机的设备总状态、IPA）；按周期推的也在自己的 `OnScan` 里看时间（IO 整包按 EC `PublishIntervalMs`，实时曲线把数据曲线采到的行一帧一帧推）——
   所以要推的根组件在 sc 配 `IsRun=true`。推失败吞住，同一个错只记一次日志。C# 事件（`AlarmChanged`、`ValueChanged`、`Wafer*`）留给后端里别的组件订（E30 订报警和 EC 变化，晶圆账自己接给 E90）。
-- 转 DTO：组件里 `Find<IMapperComponent>()` 的 `Map<T>(源)`（规则都写在 `MapperComponent`），服务在构造里取一次映射组件存成字段；不另写 `*Mapper` 类。
+- 转 DTO：映射组件 `IMapperComponent` 的 `Map<T>(源)`（规则都写在 `MapperComponent`）；组件在开机 Bind 时取一次映射组件、服务在构造里取一次，都存成字段；不另写 `*Mapper` 类。
   映射组件 sc 必配（开机就查，没配抛）。
 - 变化很密的（整篮 Mapping）只推"哪里变了"的轻通知，让界面自己攒一下再拉（`WaferLedgerChangedDto`）。
 
@@ -537,18 +544,23 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `ReturnAll()`（`SystemReturnOperation`，见 decisions.md）、`Abort()` = 整机停止（`SystemStopOperation`：先进停止中顶掉初始化 / 回片，锁外关自动派单、撤搬运、
   给在做动作的模块发中止（在搬运的机械手、给 Job 做工艺的腔体除外）、Job 全部走中止；等停的那一刻各模块手上的动作和撤掉的搬运都收完尾才回到停之前该在的地方）。
   每拍 Auto 下按 `JobManager.HasRunningJob`（CJ 执行中 / 暂停 / 中止中）切自动运行 / 自动空闲。动作没做成先不进 Error（报警逻辑还没接）：初始化回 NotInit、回片回 Idle。
-  推送 `SystemStateDto`（token "SystemState"，留存，变了才推）。开机 `Bind()` 认整棵树上的模块（`FindAll<IModule>()`，不含自己）。系统设置的模块名单不带它（没有 IO）。
+  推送 `SystemStateDto`（token "SystemState"，留存，变了才推）。开机 `Bind()` 认容器里的模块（`IocHelper.GetServices<IModule>()`，不含自己），
+  搬运管理、Job 管理、晶圆账、报警、晶圆尺寸也在这时取一次；回片、停止两个动作要用的由构造传进去。系统设置的模块名单不带它（没有 IO）。
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`InitAsync` / `AutoAsync` / `ManualAsync` / `StopAsync` / `ReturnAllAsync` 都转给整机，
   开了就回、只翻结果；没配 System 节点回 `system.not_installed`，状态不允许回 `module.state_not_allowed` [System, 状态码]，Auto 没装 / 停用搬运管理回 `transfer.not_installed` / `transfer.disabled`。
 
-### 启动顺序（`AddXyzServices`，只做框架的事，2026-10-18 起不点名任何组件）
-`SC.Load` → `ComponentLoader.Load`（装整棵树，填 `ComponentBase.Roots`）→ 查必配的节点（`System` 整机、`Mapper` 映射组件、`Log` 日志，没配开机就抛）→
-EC 合并 → GEM 编号表 → **组件初始化** `ComponentLoader.InitAll`（根组件按 InitOrder、再按 sc 先后：PLC 100 先连、IO 200 读点表，再各模块连驱动、
+### 启动顺序（`ServiceExtensions` + 宿主 `Program`，只做框架的事，2026-10-18 起不点名任何组件）
+**注册**（`AddXyzServices`，容器建好之前）：`SC.Load` → `ComponentLoader.Load`（装整棵树）→ `ComponentLoader.Register`（组件按接口进容器、树本身也进）→
+GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开机，组件构造、`OnSettingLoaded` 里不取别的组件（容器还没有）。
+**开机**（宿主 `builder.Build()` 之后、开始监听之前调 `app.Services.StartComponents()`）：先 `IocHelper.ServiceProvider = 容器` →
+查必配的节点（`System` 整机、`Mapper` 映射组件、`Log` 日志，没配开机就抛）→ EC 合并 → GEM 编号表合并 →
+**组件初始化** `ComponentLoader.InitAll`（根组件按 InitOrder、再按 sc 先后：PLC 100 先连、IO 200 读点表，再各模块连驱动、
 登记槽位，轴登记收发块；子组件基类递归，不动硬件）→ **Bind** `BindAll`（整棵树按 sc 先后、先父后子：晶圆账开机恢复、整机 / 搬运管理 / Job 认模块、
 两个配方库认站点和腔体、EAP 接各标准（不开链路；要在扫描之前，开机已在端口上的载具才报得进 E87）、数据曲线定信号表、实时曲线接上数据曲线）→
 **开始扫描** `StartScanning`（sc 里配了 `IsRun=true` 的根各起一条扫描线程——整机、PLC、IO、Safety、Computer、DataChart、RealChart、各模块、Dispatch；
-挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）→
-注册 gRPC 服务（按契约自动认）。宿主在这之后才起 Kestrel（HTTP/2，地址取 sc.xml `Rpc` 节点，默认 localhost:5000）；退出时 `StopAll`（倒着 `OnStopping`）。
+挂在 Dispatch 下面的 Job、搬运管理跟着 Dispatch 扫）→ **OnStarted** `StartedAll`（EAP 开 HSMS 链路，Host 连进来时处理方、设备都在）。
+开完机宿主才从容器里的 `Rpc` 组件取地址端口（`app.Urls`，默认 localhost:5000，只走 HTTP/2）、映射 gRPC 服务、开始监听；
+退出时 `ServiceExtensions.StopComponents()`（`StopAll`，倒着 `OnStopping`）。
 新组件要连接、登记的写在自己的 `InitComponent`；要认别的组件、订阅、开机恢复的写在 `Bind`；要等都扫起来的写在 `OnStarted`；退出收尾写在 `OnStopping`；
 要自己扫描、自己推的根组件在 sc 里配 `IsRun=true`——都不用改启动代码。根组件之间有先后的配 sc 的 `InitOrder`（读点表的排在 IO 之后，用 PLC 的排在 PLC 之后）。
 

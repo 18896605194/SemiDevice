@@ -2,6 +2,7 @@
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -40,6 +41,16 @@ public abstract class TwoStateComponent : ComponentBase
     }
 
     #endregion
+
+    /// <summary>
+    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// </summary>
+    private IIoComponent? _io;
+
+    public override void Bind()
+    {
+        _io = IocHelper.GetService<IIoComponent>();
+    }
 
     #region EC 
 
@@ -91,7 +102,7 @@ public abstract class TwoStateComponent : ComponentBase
     {
         get
         {
-            var io = ComponentBase.Find<IIoComponent>();
+            var io = _io;
             if (io is null || !io.TryReadDo(DoOpenIndex, out bool open) || !io.TryReadDo(DoCloseIndex, out bool close))
             {
                 return TwoStatePosition.Unknown;
@@ -135,14 +146,14 @@ public abstract class TwoStateComponent : ComponentBase
     /// <summary>
     /// 到没到这一侧：这侧挂了反馈看反馈（对面挂了还要对面没亮），没挂看这侧线圈通、对面线圈断
     /// </summary>
-    private static bool IsAtSide(IDiSensor? side, IDiSensor? opposite, int coil, int oppositeCoil)
+    private bool IsAtSide(IDiSensor? side, IDiSensor? opposite, int coil, int oppositeCoil)
     {
         if (side is not null)
         {
             return side.IsActive == true && (opposite is null || opposite.IsActive == false);
         }
 
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         if (io is null)
         {
             return false;
@@ -168,7 +179,7 @@ public abstract class TwoStateComponent : ComponentBase
 
     private bool Move(bool opening)
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         int coil = DoCloseIndex;
         int oppositeCoil = DoOpenIndex;
         var feedback = _closed;

@@ -1,6 +1,5 @@
 ﻿using ProtoBuf.Grpc;
 using SqlSugar;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Database.Alarms;
@@ -23,8 +22,8 @@ public class AlarmService : IAlarmService
 
     public AlarmService()
     {
-        _alarms = ComponentBase.Find<IAlarmComponent>();
-        _mapper = ComponentBase.Find<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _alarms = IocHelper.GetService<IAlarmComponent>();
+        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default)

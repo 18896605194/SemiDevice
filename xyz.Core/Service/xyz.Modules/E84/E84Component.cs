@@ -5,6 +5,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
@@ -145,6 +146,11 @@ public class E84Component : ComponentBase, IE84
     private E84Outputs _outputs;
     private E84Outputs _written;
 
+    /// <summary>
+    /// IO 组件（开机准备时取，开机就要清输出）；sc.xml 没配 Io 节点是 null
+    /// </summary>
+    private IIoComponent? _io;
+
     // 上一拍输出写没写通：翻转时记一条日志，别每拍刷屏。
     private bool _outputsWritable = true;
     private E84State _state = E84State.NotAvailable;
@@ -233,6 +239,7 @@ public class E84Component : ComponentBase, IE84
             return true;
         }
 
+        _io = IocHelper.GetService<IIoComponent>();
         bool childrenInitialized = base.InitComponent();
         lock (_gate)
         {
@@ -648,7 +655,7 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     protected virtual E84Inputs ReadInputs()
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         if (io is null)
         {
             return default;
@@ -674,7 +681,7 @@ public class E84Component : ComponentBase, IE84
     /// </summary>
     protected virtual bool WriteOutputs(E84Outputs outputs)
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         bool written = OutputWritten(io, DoLReqIndex, outputs.LReq)
             && OutputWritten(io, DoUReqIndex, outputs.UReq)
             && OutputWritten(io, DoReadyIndex, outputs.Ready)

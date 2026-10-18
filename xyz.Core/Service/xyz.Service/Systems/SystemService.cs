@@ -1,5 +1,4 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
@@ -20,7 +19,7 @@ public class SystemService : ISystemService
 
     public SystemService()
     {
-        _system = ComponentBase.Find<ISystemModule>();
+        _system = IocHelper.GetService<ISystemModule>();
     }
 
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
@@ -32,12 +31,12 @@ public class SystemService : ISystemService
             // 配了安全信号（Safety 节点下有子节点）时，它排在最前面：IO 页给它单独一页。整机模块没有 IO，不在里面。
             Modules =
             [
-                .. ComponentBase.FindAll<ISafetyComponent>().Where(safety => safety.HasSignals).Select(safety => safety.Name),
-                .. ComponentBase.FindAll<IModule>().Where(module => module is not ISystemModule).Select(module => module.Name),
+                .. IocHelper.GetServices<ISafetyComponent>().Where(safety => safety.HasSignals).Select(safety => safety.Name),
+                .. IocHelper.GetServices<IModule>().Where(module => module is not ISystemModule).Select(module => module.Name),
             ],
-            Chambers = [.. ComponentBase.FindAll<IChamber>().Select(module => module.Name)],
-            LoadPorts = [.. ComponentBase.FindAll<ILoadPort>().Select(module => module.Name)],
-            Robots = [.. ComponentBase.FindAll<IRobot>().Select(module => module.Name)],
+            Chambers = [.. IocHelper.GetServices<IChamber>().Select(module => module.Name)],
+            LoadPorts = [.. IocHelper.GetServices<ILoadPort>().Select(module => module.Name)],
+            Robots = [.. IocHelper.GetServices<IRobot>().Select(module => module.Name)],
         };
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));

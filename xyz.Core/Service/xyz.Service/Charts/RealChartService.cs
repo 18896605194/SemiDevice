@@ -1,5 +1,4 @@
 ﻿using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
@@ -22,9 +21,9 @@ public class RealChartService : IRealChartService
 
     public RealChartService()
     {
-        _realChart = ComponentBase.Find<IRealChartComponent>();
-        _dataChart = ComponentBase.Find<IDataChartComponent>();
-        _mapper = ComponentBase.Find<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _realChart = IocHelper.GetService<IRealChartComponent>();
+        _dataChart = IocHelper.GetService<IDataChartComponent>();
+        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetLayoutAsync(RpcRequest request, CallContext context = default)

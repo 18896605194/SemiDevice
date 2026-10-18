@@ -34,7 +34,7 @@ public partial class IoComponent
         try
         {
             _snapshot ??= BuildSkeleton();
-            _snapshot.IsCollecting = IsCollecting;
+            _snapshot.IsCollecting = IsCollected;
             RefreshValues(_snapshot);
 
             // 状态类消息：留存着，客户端连上立刻拿到当前这一包，不用等下一次

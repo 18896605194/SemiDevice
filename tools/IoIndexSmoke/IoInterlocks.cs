@@ -2,13 +2,14 @@
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
+using xyz.Tools;
 
 static class IoInterlocks
 {
     public static void Run(string directory)
     {
-        var previousPlc = ComponentBase.Find<IPlc>();
-        var previousIo = ComponentBase.Find<IIoComponent>();
+        var previousPlc = IocHelper.GetService<IPlc>();
+        var previousIo = IocHelper.GetService<IIoComponent>();
         try
         {
             foreach (string bad in new[] { "DI25=false", "DO25=false:DO12=true", "DI25=flase:DO12=true",
@@ -28,18 +29,19 @@ static class IoInterlocks
                 Check(rejected, $"invalid rule must fail during assembly: {bad}");
             }
 
-            string diCsv = Path.Combine(directory, "interlock-di.csv");
-            string doCsv = Path.Combine(directory, "interlock-do.csv");
-            File.WriteAllText(diCsv, "Index,Name\n25,Door\n26,Sensor\n");
-            File.WriteAllText(doCsv, "Index,Name\n12,Valve\n13,Valve2\n14,Valve3\n");
+            // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
+            string tables = Path.Combine(directory, "interlock-io");
+            Directory.CreateDirectory(tables);
+            File.WriteAllText(Path.Combine(tables, "DI.csv"), "Index,Name\n25,Door\n26,Sensor\n");
+            File.WriteAllText(Path.Combine(tables, "DO.csv"), "Index,Name\n12,Valve\n13,Valve2\n14,Valve3\n");
 
             TestIo Create(RecordingPlc plc, string rules)
             {
-                ComponentBase.Register<IPlc>(plc);
-                var io = new TestIo { SaftyIoInterlock = rules };
+                SmokeIoc.Use<IPlc>(plc);
+                var io = new TestIo { SaftyIoInterlock = rules, PointTableDirectory = tables };
+                SmokeIoc.Use<IIoComponent>(io);
                 io.Load();
-                io.Di.Load(diCsv);
-                io.Do.Load(doCsv);
+                io.InitComponent();
                 return io;
             }
 
@@ -119,8 +121,8 @@ static class IoInterlocks
         }
         finally
         {
-            ComponentBase.Register<IPlc>(previousPlc);
-            ComponentBase.Register<IIoComponent>(previousIo);
+            SmokeIoc.Use<IPlc>(previousPlc);
+            SmokeIoc.Use<IIoComponent>(previousIo);
         }
     }
 

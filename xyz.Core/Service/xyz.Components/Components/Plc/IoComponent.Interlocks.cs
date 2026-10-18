@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using xyz.Common.Log;
 
 namespace xyz.Components.Components;
@@ -113,7 +113,7 @@ public partial class IoComponent
                 continue; // 不按规则顺序交替写相反值；命令入口仍检查全部规则。
             }
 
-            var plc = Plc;
+            var plc = _plc;
             if (plc is null || !plc.IsConnected || Do.Find(index) is null)
             {
                 _forcedDo.Remove(index);

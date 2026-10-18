@@ -14,11 +14,6 @@ namespace xyz.Components.Components;
 [Component(description: "实时曲线（订阅数据曲线的采样，留最近一段，推给界面）")]
 public class RealChartComponent : ComponentBase, IRealChartComponent
 {
-    public RealChartComponent()
-    {
-        Register<IRealChartComponent>(this);
-    }
-
     #region SC
 
     [SCEditor("3600", "RealChart", "内存里留最近多少秒：实时曲线页打开、新勾曲线时先补这一段，也是页面上能选的最长显示范围（页面有 1、2、5、10、30、60 分钟几档，超过这个的不给选）")]
@@ -85,7 +80,7 @@ public class RealChartComponent : ComponentBase, IRealChartComponent
     /// </summary>
     public override void Bind()
     {
-        var source = Find<IDataChartComponent>();
+        var source = IocHelper.GetService<IDataChartComponent>();
         if (source is null)
         {
             LogHelper.Warn(Name, "sc.xml 没配 DataChart 节点：实时曲线没有数据");

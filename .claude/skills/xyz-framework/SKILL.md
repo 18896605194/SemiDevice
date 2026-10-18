@@ -40,9 +40,12 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
-5. **找组件一律按接口**（2026-10-18 用户定的，不按基类、不按具体类）：单例在构造时 `Register<IXxx>(this)`，用的地方 `ComponentBase.Find<IXxx>()`；
-   要一类的全部（所有 LoadPort、所有腔体）用 `ComponentBase.FindAll<IXxx>()`，在整棵树上找（停用的连同下面的跳过）。不写 `Xxx.Current`，
-   不往 Bind 里传整棵树；模块共有的走 `IModule`，跟机械手交互的站点 `ITransferStation`、不交互的（供液）`ISupplyModule`。
+5. **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的，不按基类、不按具体类）：装配器照 sc 树把每个组件
+   按它实现的 xyz 接口登记进容器（`ComponentLoader.Register`），用的地方 `IocHelper.GetService<IXxx>()`（取一个，没装是 null）、
+   要一类的全部（所有 LoadPort、所有腔体）用 `IocHelper.GetServices<IXxx>()`（按 sc 先后，停用的连同下面的跳过）。不在组件基类上另包取法，
+   不写 `Xxx.Current`、不在构造里登记、不往 Bind 里传整棵树；**组件里用到的单例开机时取一次存字段**（`Bind` 里取，开机准备就要用的在
+   `InitComponent` 里取），不在每个方法里现取；服务在构造里取。模块共有的走 `IModule`，跟机械手交互的站点 `ITransferStation`、不交互的（供液）`ISupplyModule`；
+   能做工艺的站点 `IProcessStation`（带 `Type`，配方、流程配方、Job 认它），腔体手动页那些在继承它的 `IChamber` 里。
 
 ## 二、硬规矩（所有 C#、XAML，包括 tools 下的冒烟）
 
@@ -76,7 +79,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 3. **不写花括号模式匹配和列表模式**：`x is { } y`、`is not { } y`、`is { Count: > 0 }`、`is [..]` 都不要。
    先取局部变量，再显式判空、判属性；**判空只用 `is null` / `is not null`**，不写 `== null` / `!= null`。if 条件里类型模式（`x is Foo foo`）、常量和 `or` 模式可以用。
    ```csharp
-   var alarms = ComponentBase.Find<IAlarmComponent>();
+   var alarms = IocHelper.GetService<IAlarmComponent>();
    if (alarms is not null && alarms.ActiveAlarms.Count > 0)
    {
        ...
@@ -122,6 +125,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    换行不带括号 `rg -U "^\s*(if|else if|while|for|foreach|lock)\b.*\)\s*\r?\n\s*[A-Za-z_]" --glob "*.cs"`、`rg -U "^\s*else\s*\r?\n\s*[A-Za-z_]" --glob "*.cs"`；
    带了括号却挤在一行 `rg "^\s*(if|else if|else|while|for|foreach|lock|try|catch|finally)\b[^{]*\{[^}]*\}\s*$" --glob "*.cs"`。
    switch 新写法也要搜：switch 表达式 `rg -U "[\w)\]]\s+switch\s*\r?\n?\s*\{" --glob "*.cs"`，case 里的新模式 `rg "^\s*case\b.*\b(or|when)\b" --glob "*.cs"`。
+   找组件的老写法也要搜：`rg "ComponentBase\.(Find|FindAll|Register|Roots)|\bRegister<I\w+>\(this\)|\w(Component|Collectors|Module|Manager)\.Current\b" --glob "*.cs"` 应该一条都没有。
 
 ## 五、跟用户的协作方式
 

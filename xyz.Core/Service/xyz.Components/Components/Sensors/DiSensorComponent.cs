@@ -3,6 +3,7 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -83,27 +84,15 @@ public class DiSensorComponent : ComponentBase, IDiSensor
 
     #endregion
 
-    #region 按 DI 索引找组件（安全联锁用）
-
-    private static readonly List<DiSensorComponent> Instances = [];
-
     /// <summary>
-    /// 按 DI 索引找正在监控该点的组件。同一个 DI 被多个组件监控时，优先给已经读到电平的那个；
-    /// 只看已装进组件树（FullPath 非空）的，冒烟里临时 new 出来、还没装配的不参与，免得串台。
+    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
     /// </summary>
-    public static bool TryGetByIndex(int diIndex, out DiSensorComponent? component)
-    {
-        lock (Instances)
-        {
-            component = Instances
-                .Where(item => item.DiIndex == diIndex && item.FullPath.Length > 0)
-                .OrderByDescending(item => item.CurrentLevel.HasValue)
-                .FirstOrDefault();
-            return component is not null;
-        }
-    }
+    private IIoComponent? _io;
 
-    #endregion
+    public override void Bind()
+    {
+        _io = IocHelper.GetService<IIoComponent>();
+    }
 
     #region 扫描
 
@@ -162,7 +151,7 @@ public class DiSensorComponent : ComponentBase, IDiSensor
     /// </summary>
     protected virtual bool? ReadDi()
     {
-        var io = ComponentBase.Find<IIoComponent>();
+        var io = _io;
         if (io is null || !io.TryReadDi(DiIndex, out bool on))
         {
             return null;
@@ -172,12 +161,4 @@ public class DiSensorComponent : ComponentBase, IDiSensor
     }
 
     #endregion
-
-    public DiSensorComponent()
-    {
-        lock (Instances)
-        {
-            Instances.Add(this);
-        }
-    }
 }

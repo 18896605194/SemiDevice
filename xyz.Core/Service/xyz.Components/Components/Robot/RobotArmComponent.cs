@@ -1,6 +1,7 @@
 ﻿using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -71,13 +72,18 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     private string _robot = string.Empty;
 
     /// <summary>
+    /// 晶圆账（开机 Bind 时取）；没装是 null
+    /// </summary>
+    private IWaferManagerComponent? _ledger;
+
+    /// <summary>
     /// 账上这只手有没有片；账没开为 false
     /// </summary>
     public bool LedgerHasWafer
     {
         get
         {
-            var ledger = ComponentBase.Find<IWaferManagerComponent>();
+            var ledger = _ledger;
             if (ledger is null || !ledger.IsEnable || _robot.Length == 0)
             {
                 return false;
@@ -99,6 +105,11 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     {
         WaferSensor = FindChild<IDiSensor>("WaferSensor");
         return base.InitComponent();
+    }
+
+    public override void Bind()
+    {
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
     }
 
     /// <summary>

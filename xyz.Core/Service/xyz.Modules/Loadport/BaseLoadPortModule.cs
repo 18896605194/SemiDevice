@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using xyz.Common.Log;
-using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
@@ -315,11 +314,23 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         #endregion
 
         ///晶圆账注册
-        _waferManager = ComponentBase.Find<IWaferManagerComponent>();
+        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
         _waferManager?.RegisterLoadPort(Name, SlotCount);
 
         bool childrenInitialized = base.InitComponent();
         return driver is not null && childrenInitialized;
+    }
+
+    // 下面几个单例开机 Bind 时取；没装是 null
+    private IJobManager? _jobs;
+    private ITransferManager? _transfers;
+    private IEapNotifierComponent? _notifier;
+
+    public override void Bind()
+    {
+        _jobs = IocHelper.GetService<IJobManager>();
+        _transfers = IocHelper.GetService<ITransferManager>();
+        _notifier = IocHelper.GetService<IEapNotifierComponent>();
     }
 
     /// <summary>
@@ -466,7 +477,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             CarrierId = _carrier.CarrierId ?? string.Empty,
             SlotCount = SlotCount,
             Slots = ToSlotDtos(_carrier.SlotMap),
-            LedgerSlots = WaferLedgerSnapshot.SlotsOf(Name),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_waferManager, Name),
             HasCarrier = info is not null,
             LotId = info?.LotId ?? string.Empty,
             CarrierIdStatus = info?.IdStatus ?? CarrierIdStatus.NotRead,
@@ -856,7 +867,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private HandleResult? CheckWafersInJob()
     {
         var ledger = _waferManager;
-        var jobs = ComponentBase.Find<IJobManager>();
+        var jobs = _jobs;
         if (ledger is null || !ledger.IsEnable || jobs is null)
         {
             return null;
@@ -885,7 +896,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private HandleResult? CheckSlotsInTransfer()
     {
         var ledger = _waferManager;
-        var transfers = ComponentBase.Find<ITransferManager>();
+        var transfers = _transfers;
         if (ledger is null || !ledger.IsEnable || transfers is null)
         {
             return null;
@@ -1510,7 +1521,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        ComponentBase.Find<IEapNotifierComponent>()?.Post(() =>
+        _notifier?.Post(() =>
         {
             var callback = E87Callback;
             if (callback is not null)
@@ -1531,7 +1542,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             return;
         }
 
-        ComponentBase.Find<IEapNotifierComponent>()?.Post(() =>
+        _notifier?.Post(() =>
         {
             var callback = E84Callback;
             if (callback is not null)

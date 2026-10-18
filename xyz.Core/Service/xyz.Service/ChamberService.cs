@@ -1,5 +1,4 @@
-﻿using xyz.Components;
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Modules.Enums;
@@ -24,9 +23,9 @@ public class ChamberService : BaseService, IChamberService
 
     public ChamberService()
     {
-        _recipes = ComponentBase.Find<IRecipeComponent>();
-        _wafers = ComponentBase.Find<IWaferManagerComponent>();
-        _jobs = ComponentBase.Find<IJobManager>();
+        _recipes = IocHelper.GetService<IRecipeComponent>();
+        _wafers = IocHelper.GetService<IWaferManagerComponent>();
+        _jobs = IocHelper.GetService<IJobManager>();
     }
 
     public Task<RpcResponse> HomeAsync(string module)
@@ -254,7 +253,7 @@ public class ChamberService : BaseService, IChamberService
     /// </summary>
     public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = ComponentBase.FindAll<IChamber>()
+        var dto = IocHelper.GetServices<IChamber>()
             .Where(chamber => string.IsNullOrWhiteSpace(module)
                               || string.Equals(chamber.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(chamber => chamber.CreateStateDto())

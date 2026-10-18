@@ -1,6 +1,5 @@
 ﻿using System.Globalization;
 using ProtoBuf.Grpc;
-using xyz.Components;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -18,7 +17,7 @@ public class TransferService : BaseService, ITransferService
 
     public TransferService()
     {
-        _transfers = ComponentBase.Find<ITransferManager>();
+        _transfers = IocHelper.GetService<ITransferManager>();
     }
 
     public async Task<RpcResponse> TransferAsync(TransferRequestDto request, CallContext context = default)

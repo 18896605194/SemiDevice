@@ -47,7 +47,6 @@ public class JobManager : ComponentBase, IJobManager
 
     public JobManager()
     {
-        Register<IJobManager>(this);
         _processJobs = new PjManager();
         _controlJobs = new CjManager();
         _processJobs.StateChanged += OnProcessJobStateChanged;
@@ -126,20 +125,31 @@ public class JobManager : ComponentBase, IJobManager
 
     #region 装配
 
+    // 下面几个单例开机绑模块表时取；没装是 null
+    private ITransferManager? _transfers;
+    private IWaferManagerComponent? _ledger;
+    private ISequenceComponent? _sequences;
+    private IEapNotifierComponent? _notifier;
+
     /// <summary>
     /// 开机：认装起来的模块（站点、腔体、LoadPort）
     /// </summary>
     public override void Bind()
     {
-        Bind(FindAll<IModule>());
+        Bind(IocHelper.GetServices<IModule>());
     }
 
     /// <summary>
     /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：sc.xml Job 节点下的 Task（任务组件）必须配，Scheduler 没配就自己建一个；
     /// 两个都是平台的标准件，机型不另写。开了存库的先把库里上次没做完的 Job 记成中止（重启后不接着跑），再起写库线程。
+    /// 搬运管理、晶圆账、流程配方库、EAP 派发也在这里取一次。
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
+        _transfers = IocHelper.GetService<ITransferManager>();
+        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _sequences = IocHelper.GetService<ISequenceComponent>();
+        _notifier = IocHelper.GetService<IEapNotifierComponent>();
         var tasks = FindChild<ITaskComponent>()
             ?? throw new InvalidOperationException($"{Name}：sc.xml 的 Job 节点下没配 Task 子节点（任务组件 {typeof(TaskComponent).FullName}）");
         var table = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
@@ -152,7 +162,7 @@ public class JobManager : ComponentBase, IJobManager
         {
             _modules = table;
             _tasks = tasks;
-            _scheduler = FindChild<ISchedulerComponent>() ?? new SchedulerComponent();
+            _scheduler = FindChild<ISchedulerComponent>() ?? CreateScheduler();
             if (IsPersistent && !_storeStarted)
             {
                 _storeStarted = true;
@@ -164,6 +174,16 @@ public class JobManager : ComponentBase, IJobManager
         }
 
         LogHelper.Info(Name, "Job 管理已绑定");
+    }
+
+    /// <summary>
+    /// sc.xml 没配 Scheduler：自己建一个。它不在组件树上，开机 Bind 轮不到它，这里替它 Bind
+    /// </summary>
+    private static SchedulerComponent CreateScheduler()
+    {
+        var scheduler = new SchedulerComponent();
+        scheduler.Bind();
+        return scheduler;
     }
 
     #endregion
@@ -294,7 +314,7 @@ public class JobManager : ComponentBase, IJobManager
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.JobNoWafers, port!.Name));
             }
 
-            var ledger = ComponentBase.Find<IWaferManagerComponent>();
+            var ledger = _ledger;
             if (ledger is null || !ledger.IsEnable)
             {
                 return Task.FromResult(HandleResult.Fail(ErrorCodes.WaferLedgerDisabled));
@@ -1630,7 +1650,7 @@ public class JobManager : ComponentBase, IJobManager
     private HandleResult? TryTakeSequence(string name, out SequenceData sequence)
     {
         sequence = null!;
-        var found = ComponentBase.Find<ISequenceComponent>()?.Find(name);
+        var found = _sequences?.Find(name);
         if (found is null || found.Steps.Count < 3)
         {
             return HandleResult.Fail(ErrorCodes.JobSequenceNotFound, name);
@@ -1683,7 +1703,7 @@ public class JobManager : ComponentBase, IJobManager
             return HandleResult.Fail(ErrorCodes.JobSequenceSourceMismatch, sequence.Name, sourceName);
         }
 
-        var ledger = ComponentBase.Find<IWaferManagerComponent>();
+        var ledger = _ledger;
         if (ledger is null || !ledger.IsEnable)
         {
             return HandleResult.Fail(ErrorCodes.WaferLedgerDisabled);
@@ -1807,7 +1827,7 @@ public class JobManager : ComponentBase, IJobManager
         var target = LoadPort(port);
         bool claimed = _processJobs.ProcessJobs.Any(job => job.Rows.Any(row =>
             !row.IsReturned && string.Equals(row.ReturnPort, port, StringComparison.OrdinalIgnoreCase) && row.ReturnSlot == slot));
-        if (target is null || slot > target.SlotCount || ComponentBase.Find<IWaferManagerComponent>()?.Get(port, slot) is not null || claimed)
+        if (target is null || slot > target.SlotCount || _ledger?.Get(port, slot) is not null || claimed)
         {
             return HandleResult.Fail(ErrorCodes.JobReturnSlotUnavailable, port, slotText);
         }
@@ -1880,7 +1900,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null)
         {
             var dto = JobDtos.Of(job, ProcessJobAutoStart);
-            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ProcessJobStateChanged(dto, e40TransitionNumber));
+            _notifier?.Post(() => callback.ProcessJobStateChanged(dto, e40TransitionNumber));
         }
     }
 
@@ -1891,7 +1911,7 @@ public class JobManager : ComponentBase, IJobManager
     private void AbortDevices(ProcessJob job)
     {
         Tasks.Abort(job);
-        ComponentBase.Find<ITransferManager>()?.CancelOwner(job.Id, $"PJ {job.Id} 中止");
+        _transfers?.CancelOwner(job.Id, $"PJ {job.Id} 中止");
         var stations = job.Rows
             .SelectMany(row => row.Tasks)
             .Where(task => task.State == WaferTaskState.Running && !task.IsRobotTask && task.Station is not null)
@@ -1928,7 +1948,7 @@ public class JobManager : ComponentBase, IJobManager
         if (callback is not null && e94TransitionNumber != 0)
         {
             var dto = JobDtos.Of(job, ControlJobAutoStart);
-            ComponentBase.Find<IEapNotifierComponent>()?.Post(() => callback.ControlJobStateChanged(dto, e94TransitionNumber));
+            _notifier?.Post(() => callback.ControlJobStateChanged(dto, e94TransitionNumber));
         }
 
     }
@@ -2116,7 +2136,7 @@ public class JobManager : ComponentBase, IJobManager
                     break;
                 case ProcessJobState.Aborting:
                     if (!job.HasRunning && job.DeviceAborts.All(abort => abort.IsSettled) && !job.HasErrors
-                        && ComponentBase.Find<ITransferManager>()?.HeldOperations.Any(operation =>
+                        && _transfers?.HeldOperations.Any(operation =>
                             string.Equals(operation.Owner, job.Id, StringComparison.Ordinal)) != true)
                     {
                         changed |= _processJobs.FinishAbort(job).IsSuccess;
@@ -2516,9 +2536,9 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>Auto 模式（自动派单开着）：Manual 下不派新动作，启动 Job 也要 Auto。</summary>
-    private static bool IsAuto
+    private bool IsAuto
     {
-        get { return ComponentBase.Find<ITransferManager>()?.IsAutoDispatch == true; }
+        get { return _transfers?.IsAutoDispatch == true; }
     }
 
     /// <summary>装了的 LoadPort（按 sc.xml 先后）。</summary>

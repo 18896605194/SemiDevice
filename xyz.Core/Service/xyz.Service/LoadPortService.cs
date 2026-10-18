@@ -1,5 +1,4 @@
-﻿using xyz.Components;
-using xyz.Components.Interfaces;
+﻿using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -137,7 +136,7 @@ public class LoadPortService : BaseService, ILoadPortService
 
     public Task<RpcResponse> GetStateAsync(string module)
     {
-        var dto = ComponentBase.FindAll<ILoadPort>()
+        var dto = IocHelper.GetServices<ILoadPort>()
             .Where(port => string.IsNullOrWhiteSpace(module)
                            || string.Equals(port.Name, module, StringComparison.OrdinalIgnoreCase))
             .Select(port => port.CreateStateDto())

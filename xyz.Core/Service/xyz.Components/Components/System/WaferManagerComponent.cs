@@ -33,7 +33,6 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
 
     public WaferManagerComponent()
     {
-        Register<IWaferManagerComponent>(this);
 
         // 账一变就给 EAP 报一份（E90）：放进 EAP 的派发组件按先后报，不占改账的线程。没挂 EAP 时不入队
         WaferCreated += wafer => NotifyE90(callback => callback.WaferCreated(wafer));
@@ -46,6 +45,26 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
         WaferDeleted += wafer => NotifyLedger(wafer.Module);
         WaferUpdated += wafer => NotifyLedger(wafer.Module);
         WaferMoved += (wafer, _, _) => NotifyLedger(wafer.Module);
+    }
+
+    /// <summary>
+    /// 映射组件（开机准备时取）：存盘行、流水行、人工调整记录都靠它转
+    /// </summary>
+    private IMapperComponent? _mapper;
+
+    /// <summary>
+    /// EAP 的派发组件（开机准备时取）；没挂 EAP 是 null
+    /// </summary>
+    private IEapNotifierComponent? _notifier;
+
+    /// <summary>
+    /// 开机准备：取映射组件、EAP 派发组件。排在各模块前面，模块开机准备时就登记槽位、可能建片记流水
+    /// </summary>
+    public override bool InitComponent()
+    {
+        _mapper = IocHelper.GetService<IMapperComponent>();
+        _notifier = IocHelper.GetService<IEapNotifierComponent>();
+        return base.InitComponent();
     }
 
     /// <summary>
@@ -72,7 +91,7 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
             return;
         }
 
-        ComponentBase.Find<IEapNotifierComponent>()?.Post(() =>
+        _notifier?.Post(() =>
         {
             var callback = E90Callback;
             if (callback is not null)
@@ -196,9 +215,9 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
     {
         Interlocked.Exchange(ref _snapshotDirty, 1);
 
-        // 映射组件开机恢复时已经查过在；只有冒烟把它拿掉了才会是 null
+        // 映射组件开机准备时取、开机恢复时查过在；没走开机准备的（冒烟直接 new 的）才会是 null
         var rows = _historyRows;
-        var mapper = ComponentBase.Find<IMapperComponent>();
+        var mapper = _mapper;
         if (rows is null || mapper is null)
         {
             return;
@@ -290,7 +309,7 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
     public int Restore()
     {
         // 存盘行、流水行、人工调整记录都靠映射组件转，账本开着却没配它：开机就报出来
-        if (IsEnable && ComponentBase.Find<IMapperComponent>() is null)
+        if (IsEnable && _mapper is null)
         {
             throw new InvalidOperationException($"{Name} 的存盘、流水、人工调整记录要靠映射组件转，但 sc.xml 里没配映射组件（MapperComponent）");
         }
@@ -424,8 +443,8 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
     /// </summary>
     public bool SaveSnapshot()
     {
-        // 开机恢复时已经查过映射组件在；只有冒烟把它拿掉了才会是 null
-        var mapper = ComponentBase.Find<IMapperComponent>();
+        // 映射组件开机准备时取、开机恢复时查过在；没走开机准备的（冒烟直接 new 的）才会是 null
+        var mapper = _mapper;
         if (mapper is null)
         {
             return false;
@@ -1275,8 +1294,8 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
     private void RecordAdjustment(string action, WaferInfo wafer, string fromModule, int fromSlot,
         string? toModule, int? toSlot, string operatorName, string? reason)
     {
-        // 映射组件开机恢复时已经查过在；只有冒烟把它拿掉了才会是 null
-        var mapper = ComponentBase.Find<IMapperComponent>();
+        // 映射组件开机准备时取、开机恢复时查过在；没走开机准备的（冒烟直接 new 的）才会是 null
+        var mapper = _mapper;
         if (mapper is null)
         {
             return;

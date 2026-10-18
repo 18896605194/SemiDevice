@@ -10,7 +10,6 @@ public partial class PlcComponent : ComponentBase, IPlc
 {
     public PlcComponent()
     {
-        Register<IPlc>(this);
         // 开机准备排最前：IO 点表、轴的数据块都要在它后面
         InitOrder = 100;
     }
