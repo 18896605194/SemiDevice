@@ -3,6 +3,7 @@ using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
@@ -27,6 +28,9 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
     /// <summary>源和目标是同一个站点：环只抢一次，取完不收尾接着放。</summary>
     private readonly bool _sameStation;
+
+    private readonly TransferContext? _sourceContext;
+    private readonly TransferContext? _targetContext;
 
     /// <summary>当前在等的那一步操作（站点准备、取片、放片）；没在等为 null。</summary>
     private ModuleOperation? _current;
@@ -139,6 +143,12 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         _arm = arm;
         _stationWaitTimeout = stationWaitTimeout;
         _sameStation = IsSameStation(source, target);
+        _sourceContext = source is null
+            ? null
+            : new TransferContext(robot.Name, arm, sourceSlot, _sameStation ? targetSlot : null);
+        _targetContext = _sameStation
+            ? _sourceContext
+            : target is null ? null : new TransferContext(robot.Name, arm, null, targetSlot);
         _grabSince = Stopwatch.GetTimestamp();
     }
 
@@ -154,6 +164,10 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// <summary>放片那几步用的目标站点；只取片的搬运走不到那几步。</summary>
     private ITransferStation TargetStation => _target ?? throw new InvalidOperationException("只取片的搬运没有目标站点");
 
+    private TransferContext SourceContext => _sourceContext ?? throw new InvalidOperationException("只放片的搬运没有来源站点上下文");
+
+    private TransferContext TargetContext => _targetContext ?? throw new InvalidOperationException("只取片的搬运没有目标站点上下文");
+
     protected override void OnScan()
     {
         switch (Step)
@@ -161,7 +175,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             // —— 先抢目标站点：放不下就不取 ——
 
             case TransferStep.PrepareTarget:
-                if (GrabStation(TargetStation, TransferStep.WaitPrepareTarget))
+                if (GrabStation(TargetStation, TargetContext, TransferStep.WaitPrepareTarget))
                 {
                     _holdingTarget = true;
                 }
@@ -181,7 +195,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             // —— 源站点：准备 → 取片 ——
 
             case TransferStep.PrepareSource:
-                if (GrabStation(SourceStation, TransferStep.WaitPrepareSource))
+                if (GrabStation(SourceStation, SourceContext, TransferStep.WaitPrepareSource))
                 {
                     _holdingSource = true;
                 }
@@ -193,7 +207,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.PrepareSource2:
-                BeginPrepare(SourceStation, SourceStation.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareSource2);
+                BeginPrepare(SourceStation, SourceStation.PrepareTransfer2(SourceContext), SecondPreparePhase, TransferStep.WaitPrepareSource2);
                 break;
 
             case TransferStep.WaitPrepareSource2:
@@ -201,7 +215,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.Pick:
-                BeginTransfer(SourceStation, _sourceSlot, pick: true, TransferStep.WaitPick);
+                BeginTransfer(SourceStation, SourceContext, _sourceSlot, pick: true, TransferStep.WaitPick);
                 break;
 
             case TransferStep.WaitPick:
@@ -211,7 +225,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             // —— 目标站点：准备二 → 放片 ——
 
             case TransferStep.PrepareTarget2:
-                BeginPrepare(TargetStation, TargetStation.PrepareTransfer2(), SecondPreparePhase, TransferStep.WaitPrepareTarget2);
+                BeginPrepare(TargetStation, TargetStation.PrepareTransfer2(TargetContext), SecondPreparePhase, TransferStep.WaitPrepareTarget2);
                 break;
 
             case TransferStep.WaitPrepareTarget2:
@@ -219,7 +233,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
                 break;
 
             case TransferStep.Place:
-                BeginTransfer(TargetStation, _targetSlot, pick: false, TransferStep.WaitPlace);
+                BeginTransfer(TargetStation, TargetContext, _targetSlot, pick: false, TransferStep.WaitPlace);
                 break;
 
             case TransferStep.WaitPlace:
@@ -237,9 +251,9 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     /// 会返回 null，这不算失败：下一拍接着抢，等到超时才判负。抢到返回 true。
     /// 两台机械手抢同一个站点靠的就是这个：站点环在锁里校验当前态，只有一台能抢进去。
     /// </summary>
-    private bool GrabStation(ITransferStation station, TransferStep next)
+    private bool GrabStation(ITransferStation station, TransferContext context, TransferStep next)
     {
-        var operation = station.PrepareTransfer();
+        var operation = station.PrepareTransfer(context);
         if (operation is not null)
         {
             _current = operation;
@@ -305,10 +319,10 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
     /// <summary>
     /// 落"交互中"标记并发起取/放片。标记必须先落：机械手要伸手进去了，这期间站点不能被别人动。
-    /// 从落标记起就算动过手了；同站点换槽时取片已经落过标记，放片不再落。
+    /// 从落标记起就算动过手了；同站点换槽放片时复核本轮标记，不释放或重新占用站点。
     /// 落标记之前先问机械手能不能做（没连上、正忙、账不对……）：不能就算没动手，把占着的环还回去、带上机械手给的原因，不留着等人工。
     /// </summary>
-    private void BeginTransfer(ITransferStation station, int slot, bool pick, TransferStep next)
+    private void BeginTransfer(ITransferStation station, TransferContext context, int slot, bool pick, TransferStep next)
     {
         string action = pick ? "Pick" : "Place";
         var refused = pick
@@ -320,18 +334,14 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        bool marked = !pick && _sameStation;
-        if (!marked)
+        MotionStarted = true;
+        if (!station.Transferring(context))
         {
-            MotionStarted = true;
-            if (!station.Transferring())
-            {
-                Fail(ErrorCodes.TransferStepRejected,
-                    $"{station.Name} 落不下 Transferring 标记",
-                    station.Name,
-                    "Transferring");
-                return;
-            }
+            Fail(ErrorCodes.TransferStepRejected,
+                $"{station.Name} 落不下 Transferring 标记",
+                station.Name,
+                "Transferring");
+            return;
         }
 
         var started = pick
@@ -373,7 +383,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        if (!SourceStation.TransferComplete())
+        if (!SourceStation.TransferComplete(SourceContext))
         {
             Fail(ErrorCodes.TransferStepRejected,
                 $"{SourceStation.Name} 取片后的收尾被拒",
@@ -411,7 +421,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        if (!TargetStation.TransferComplete())
+        if (!TargetStation.TransferComplete(TargetContext))
         {
             Fail(ErrorCodes.TransferStepRejected,
                 $"{TargetStation.Name} 放片后的收尾被拒",
@@ -490,22 +500,22 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
             return;
         }
 
-        if (_holdingSource && _source is not null && TryCancelStation(_source))
+        if (_holdingSource && _source is not null && TryCancelStation(_source, SourceContext))
         {
             _holdingSource = false;
         }
 
-        if (_holdingTarget && !_sameStation && _target is not null && TryCancelStation(_target))
+        if (_holdingTarget && !_sameStation && _target is not null && TryCancelStation(_target, TargetContext))
         {
             _holdingTarget = false;
         }
     }
 
-    private bool TryCancelStation(ITransferStation station)
+    private bool TryCancelStation(ITransferStation station, TransferContext context)
     {
         try
         {
-            if (station.CancelTransfer())
+            if (station.CancelTransfer(context))
             {
                 return true;
             }

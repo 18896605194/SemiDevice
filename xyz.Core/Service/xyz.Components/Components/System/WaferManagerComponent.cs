@@ -738,6 +738,17 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
     /// <returns></returns>
     public bool Move(string fromModule, int fromSlot, string toModule, int toSlot)
     {
+        return MoveCore(fromModule, fromSlot, toModule, toSlot, expectedWaferId: null);
+    }
+
+    /// <summary>核对已有晶圆内部 Id 后原子移账，防止动作期间来源账被替换。</summary>
+    public bool Move(string fromModule, int fromSlot, string toModule, int toSlot, Guid expectedWaferId)
+    {
+        return MoveCore(fromModule, fromSlot, toModule, toSlot, expectedWaferId);
+    }
+
+    private bool MoveCore(string fromModule, int fromSlot, string toModule, int toSlot, Guid? expectedWaferId)
+    {
         if (!IsEnable)
         {
             return false;
@@ -755,6 +766,12 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
             if (wafer is null)
             {
                 Fault($"{fromModule}.{fromSlot:00} 上没片，移不了");
+                return false;
+            }
+
+            if (expectedWaferId.HasValue && wafer.Id != expectedWaferId.Value)
+            {
+                Fault($"{fromModule}.{fromSlot:00} 上的晶圆已变化：预期 {expectedWaferId.Value}，当前 {wafer.Id}（{wafer.WaferId}），不移账");
                 return false;
             }
 

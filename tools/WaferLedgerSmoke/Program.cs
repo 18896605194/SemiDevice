@@ -97,6 +97,40 @@ ledger.Create("LoadPort1", 7);
 Check(!ledger.Move("LoadPort1", 7, "Robot1", 1), "目标已有片应拒绝");
 Check(ledger.CountWafers("Robot1") == 1 && ledger.CountWafers("LoadPort1") == 1, "被拒的移动不能改账");
 
+// 3b. 带预期晶圆 Id 的原子移账：改业务片号仍是同一片，删后补同号晶圆则是另一片。
+{
+    var guarded = new WaferManagerComponent();
+    guarded.RegisterLocation("GuardSource", 2);
+    guarded.RegisterLocation("GuardTarget", 1);
+    var original = guarded.Create("GuardSource", 1)!;
+    int moves = 0;
+    guarded.WaferMoved += (_, _, _) => moves++;
+    IWaferManagerComponent access = guarded;
+
+    Check(!access.Move("GuardSource", 1, "GuardTarget", 1, Guid.Empty)
+          && guarded.Get("GuardSource", 1)?.Id == original.Id && guarded.Get("GuardTarget", 1) is null && moves == 0,
+        "预期 Id 不符（包括空 Id）时不移账、不发移动事件");
+    Check(guarded.SetWaferId("GuardSource", 1, "RENAMED-WAFER")
+          && access.Move("GuardSource", 1, "GuardTarget", 1, original.Id)
+          && guarded.Get("GuardTarget", 1)?.Id == original.Id && moves == 1,
+        "同一片修改业务片号后，已有内部 Id 不变，仍可完成预期移账");
+    Check(access.Move("GuardTarget", 1, "GuardSource", 1, original.Id), "预期晶圆可以正常移回");
+    Check(guarded.Delete("GuardSource", 1), "模拟动作期间原来源账被删除");
+    var replacement = guarded.Create("GuardSource", 1)!;
+    Check(replacement.Id != original.Id && guarded.SetWaferId("GuardSource", 1, "RENAMED-WAFER"),
+        "补成同样的业务片号，仍然是另一个内部 Id");
+    Check(!access.Move("GuardSource", 1, "GuardTarget", 1, original.Id)
+          && guarded.Get("GuardSource", 1)?.Id == replacement.Id && guarded.Get("GuardTarget", 1) is null && moves == 2,
+        "来源补成同号的另一片后，旧动作不能误把它移走");
+    Check(!access.Move("GuardSource", 1, "GuardSource", 1, original.Id) && moves == 2,
+        "同槽移动也不能绕过预期晶圆身份检查");
+    Check(access.Move("GuardSource", 1, "GuardTarget", 1, replacement.Id)
+          && guarded.Get("GuardTarget", 1)?.Id == replacement.Id && moves == 3,
+        "新动作明确使用当前晶圆 Id 时可以正常移账");
+    Check(access.Move("GuardTarget", 1, "GuardSource", 2) && moves == 4,
+        "原有不带预期 Id 的 Move 接口保持兼容");
+}
+
 // 4. 改片信息。
 Check(ledger.SetWaferId("Robot1", 1, "W-123") && ledger.Get("Robot1", 1)!.WaferId == "W-123", "改片号");
 Check(ledger.SetProcessState("Robot1", 1, WaferProcessState.InProcess)

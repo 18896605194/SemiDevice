@@ -1242,11 +1242,11 @@ sealed class FakePort : ILoadPort
     // 这份假件只模拟 EAP 载具流程，不受理机械手搬运。
     public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
     public HandleResult? CheckPrepareTransfer() => HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, State.ToString());
-    public ModuleOperation? PrepareTransfer() => null;
-    public ModuleOperation? PrepareTransfer2() => null;
-    public bool Transferring() => false;
-    public bool TransferComplete() => false;
-    public bool CancelTransfer() => false;
+    public ModuleOperation? PrepareTransfer(TransferContext context) => null;
+    public ModuleOperation? PrepareTransfer2(TransferContext context) => null;
+    public bool Transferring(TransferContext context) => false;
+    public bool TransferComplete(TransferContext context) => false;
+    public bool CancelTransfer(TransferContext context) => true;
 
     public void Online()
     {

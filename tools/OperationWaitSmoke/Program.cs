@@ -478,10 +478,11 @@ Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCo
 Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
 // 机械手进站要载具在、Host 认可了槽图（CanPrepareTransfer）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
-Check(!port.CanPrepareTransfer && port.PrepareTransfer() is null && port.State == LoadPortState.Loaded,
+var portTransferContext = new TransferContext("WaitSmokeRobot", 1, 1, null);
+Check(!port.CanPrepareTransfer && port.PrepareTransfer(portTransferContext) is null && port.State == LoadPortState.Loaded,
     "接了 EAP、槽图没认定：机械手不能进站");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
-Check(port.CanPrepareTransfer && port.PrepareTransfer() is not null && port.CancelTransfer() && port.State == LoadPortState.Loaded,
+Check(port.CanPrepareTransfer && port.PrepareTransfer(portTransferContext) is not null && port.CancelTransfer(portTransferContext) && port.State == LoadPortState.Loaded,
     "槽图认定后机械手能进站；准备再撤回应回到 Loaded");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
 
@@ -701,6 +702,28 @@ port.E87Callback = null;
           && robotLedger.Get("SmokeLP", 5)?.Id == carried.Id,
         "机械手默认不支持换片：Swap 返回 null，状态和账都不动");
 
+    // 设备取片期间来源账被换成另一片（即使业务片号相同），不能误移新片的账。
+    robot.Next = new ProbeOperation();
+    var replacedPick = robot.Pick(1, "SmokeLP", 5).Result;
+    Check(replacedPick is not null && robotLedger.Move("SmokeLP", 5, "SmokeLP", 4), "取片启动后模拟原来源账被移走");
+    var pickReplacement = robotLedger.Create("SmokeLP", 5)!;
+    robotLedger.SetWaferId("SmokeLP", 5, carried.WaferId);
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(replacedPick is not null && replacedPick.IsSettled && replacedPick.Code == ErrorCodes.RobotLedgerMoveFailed
+          && replacedPick.ErrorArgs.SequenceEqual([robot.Name, "SmokeLP", "5", robot.Name, "1"])
+          && robot.State == ModuleState.Error && robot.Next.IsSuccess,
+        "设备取片成功但来源已换片：整次操作记账失败并落 Error");
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == pickReplacement.Id && robotLedger.Get("SmokeLP", 4)?.Id == carried.Id
+          && robotLedger.Get(robot.Name, 1) is null,
+        "同号替换晶圆保留在来源，原晶圆账也保留，不把另一片记到机械手上");
+    robot.Tick();
+    Check(robot.CurrentOperation is null && robotLedger.Get("SmokeLP", 5)?.Id == pickReplacement.Id,
+        "来源身份不符后不自动重试设备动作或记账");
+    robotLedger.Delete("SmokeLP", 5);
+    Check(robotLedger.Move("SmokeLP", 4, "SmokeLP", 5), "人工恢复取片用例的原晶圆账");
+    robot.NoteState(ModuleState.Idle);
+
     // 模拟动作发出后账发生冲突：设备成功也不能掩盖记账失败，不重发动作、不覆盖目标片。
     robot.Next = new ProbeOperation();
     var ledgerFailedPick = robot.Pick(1, "SmokeLP", 5).Result;
@@ -726,6 +749,21 @@ port.E87Callback = null;
     Check(recoveredPick?.IsSuccess == true && robotLedger.Get(robot.Name, 1)?.Id == carried.Id,
         "核对并清理账后，由调用方重新发起取片可以正常完成");
 
+    robot.Next = new ProbeOperation();
+    var replacedPlace = robot.Place(1, "SmokeLP", 3).Result;
+    Check(replacedPlace is not null && robotLedger.Move(robot.Name, 1, "SmokeLP", 4), "放片启动后模拟手指来源账被移走");
+    var placeReplacement = robotLedger.Create(robot.Name, 1)!;
+    robotLedger.SetWaferId(robot.Name, 1, carried.WaferId);
+    robot.Next!.Succeed();
+    robot.Tick();
+    Check(replacedPlace is not null && replacedPlace.Code == ErrorCodes.RobotLedgerMoveFailed
+          && replacedPlace.ErrorArgs.SequenceEqual([robot.Name, robot.Name, "1", "SmokeLP", "3"])
+          && robot.State == ModuleState.Error && robotLedger.Get(robot.Name, 1)?.Id == placeReplacement.Id
+          && robotLedger.Get("SmokeLP", 4)?.Id == carried.Id && robotLedger.Get("SmokeLP", 3) is null,
+        "放片完成时手指账被换片：不误移替换晶圆，不伪造目标片位");
+    robotLedger.Delete(robot.Name, 1);
+    Check(robotLedger.Move("SmokeLP", 4, robot.Name, 1), "人工恢复放片用例的原晶圆账");
+    robot.NoteState(ModuleState.Idle);
     robot.Next = new ProbeOperation();
     var ledgerFailedPlace = robot.Place(1, "SmokeLP", 3).Result;
     var slotBlocker = robotLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-BLOCK-PLACE")!;
@@ -2935,7 +2973,7 @@ port.E87Callback = null;
     Check(resetPort.CanPrepareTransfer, "Loaded、载具在、没接 EAP：机械手能进站");
     resetPort.NotePodPlaced(false);
     resetPort.Tick();
-    Check(!resetPort.CanPrepareTransfer && resetPort.PrepareTransfer() is null && resetPort.State == LoadPortState.Loaded,
+    Check(!resetPort.CanPrepareTransfer && resetPort.PrepareTransfer(new TransferContext("Robot", 1, 1, null)) is null && resetPort.State == LoadPortState.Loaded,
         "Loaded 但载具不在：机械手不能进站");
     resetPort.NotePodPlaced(true);
     resetPort.Tick();
@@ -3201,6 +3239,187 @@ port.E87Callback = null;
     stuckRobot.Close();
 }
 
+// 本站交接上下文：对象身份隔离轮次，覆盖正常/延迟收尾、撤销、恢复及同站换槽。
+{
+    Throws<ArgumentException>(() => new TransferContext("Robot1", 1, null, null));
+    Throws<ArgumentException>(() => new TransferContext(" ", 1, 1, null));
+    Throws<ArgumentOutOfRangeException>(() => new TransferContext("Robot1", 0, 1, null));
+    var context = new TransferContext("Robot1", 4, 5, null);
+    var identical = new TransferContext("Robot1", 4, 5, null);
+    Check(context != identical && !context.Equals(identical), "内容相同的两个 class 上下文仍是不同轮次；手臂编号不限定为 1/2");
+
+    var station = new ContextProbeStation();
+    Throws<ArgumentNullException>(() => station.PrepareTransfer(null!));
+    Check(station.PrepareTransfer(context) is not null, "本站上下文取得传片环");
+    Check(station.PrepareTransfer2(identical) is null && !station.Transferring(identical)
+          && !station.TransferComplete(identical) && station.SecondPrepares == 0,
+        "同内容的另一轮不能准备、开始交互或完成，也不会调用设备准备扩展点");
+    Check(station.CancelTransfer(identical) && station.State == TransferModuleState.PreTransfer,
+        "撤销不属于本站的轮次直接成功，不动实际占用");
+    Check(station.PrepareTransfer2(context) is not null && ReferenceEquals(station.PreparedContext, context),
+        "准备二扩展点取得准备一的同一份上下文");
+    Check(station.Transferring(context) && station.Transferring(context)
+          && !station.CancelTransfer(context), "同轮交互标记可复核，已经交互时不能普通撤销");
+    station.DelayCleanup = true;
+    Check(station.TransferComplete(context) && station.State == TransferModuleState.TransferComplete,
+        "接受完成通知后允许站点继续异步收尾");
+    Check(station.PrepareTransfer(identical) is null && !station.TransferComplete(identical)
+          && station.CancelTransfer(identical) && station.State == TransferModuleState.TransferComplete,
+        "收尾期间挡住下一轮，旧轮撤销不影响正在收尾的站点");
+    Check(station.FinishCleanup() && station.State == ModuleState.Idle
+          && !station.Transferring(context) && !station.TransferComplete(context),
+        "实际回待命后旧轮不能继续交互或完成");
+    Check(station.PrepareTransfer(identical) is not null && station.CancelTransfer(context)
+          && station.State == TransferModuleState.PreTransfer,
+        "下一轮即使内容相同，上一轮撤销仍不能释放它");
+    Check(station.CancelTransfer(identical) && station.State == TransferModuleState.PreTransfer
+          && station.PrepareTransfer(new TransferContext("Robot1", 4, 5, null)) is null,
+        "撤销的延迟机构收尾没完成时也不能接下一轮");
+    Check(station.FinishCleanup() && station.CanPrepareTransfer, "撤销收尾实际结束后站点恢复可用");
+
+    // 真实腔体状态表：Reset 执行态仍保留传片状态，操作收尾之前不能靠旧上下文推进。
+    foreach (int phase in new[] { TransferModuleState.PreTransfer, TransferModuleState.TransferReady, TransferModuleState.Transferring })
+    {
+        var chamber = new ProbeChamber("ContextResetChamber");
+        chamber.NoteState(ModuleState.Idle);
+        var beforeReset = new TransferContext("Robot1", 1, null, 1);
+        var afterReset = new TransferContext("Robot1", 1, null, 1);
+        Check(chamber.PrepareTransfer(beforeReset) is not null, "复位用例占用腔体");
+        if (phase != TransferModuleState.PreTransfer)
+        {
+            Check(chamber.PrepareTransfer2(beforeReset) is not null, "复位用例进入准备好状态");
+        }
+
+        if (phase == TransferModuleState.Transferring)
+        {
+            Check(chamber.Transferring(beforeReset), "复位用例进入交互中状态");
+        }
+
+        var resetting = new ProbeOperation();
+        chamber.NextReset = resetting;
+        Check(ReferenceEquals(chamber.Reset(), resetting) && chamber.State == phase,
+            "腔体真实状态表在复位执行中保留原来的传片状态");
+        Check(chamber.PrepareTransfer2(beforeReset) is null && !chamber.Transferring(beforeReset)
+              && !chamber.TransferComplete(beforeReset) && !chamber.CancelTransfer(beforeReset)
+              && chamber.PrepareTransfer(afterReset) is null && chamber.State == phase,
+            "复位执行中：上下文和状态即使仍匹配，也不能推进或撤销传片环");
+        resetting.Succeed();
+        Check(!resetting.IsSettled && !chamber.Transferring(beforeReset), "复位已达终态但模块尚未收尾时仍拒绝旧交互");
+        chamber.Tick();
+        Check(chamber.State == ModuleState.Idle && chamber.CancelTransfer(beforeReset)
+              && chamber.PrepareTransfer2(beforeReset) is null && !chamber.TransferComplete(beforeReset),
+            "复位收尾后旧轮无事可撤，旧准备和完成不能推进");
+        Check(chamber.PrepareTransfer(afterReset) is not null && chamber.CancelTransfer(beforeReset)
+              && chamber.State == TransferModuleState.PreTransfer && chamber.CancelTransfer(afterReset),
+            "复位后准备一覆盖残留上下文，旧撤销不影响新一轮");
+    }
+
+    var idleReset = new ProbeChamber("ContextIdleReset");
+    idleReset.NoteState(ModuleState.Idle);
+    idleReset.NextReset = new ProbeOperation();
+    Check(idleReset.Reset() is not null && !idleReset.CanPrepareTransfer
+          && idleReset.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleBusy
+          && idleReset.PrepareTransfer(context) is null, "待命状态执行复位时，查询和准备入口也都拒绝占用");
+    idleReset.NextReset.Succeed();
+    idleReset.Tick();
+    Check(idleReset.CanPrepareTransfer, "复位真正收尾后允许申请交接");
+
+    // 真实 LoadPort 恢复路径使用 Abort，而非给传片状态补 Reset。
+    var contextPort = new ProbePort("ContextAbortPort");
+    Check(contextPort.InitComponent(), "上下文中止用例端口初始化");
+    ComponentLoader.BindAll([contextPort]);
+    contextPort.NotePodPlaced(true);
+    contextPort.NoteStatus(new LoadPortStatus { IsPresent = true, IsPlaced = true, IsDoorOpen = true });
+    contextPort.Tick();
+    contextPort._carrier.SetId("CONTEXT-CARRIER");
+    contextPort._carrier.UpdateStatus(CarrierIdStatus.Verified, CarrierSlotMapStatus.Verified);
+    foreach (int phase in new[] { TransferModuleState.PreTransfer, TransferModuleState.TransferReady, TransferModuleState.Transferring })
+    {
+        contextPort.NoteState(LoadPortState.Loaded);
+        var beforeAbort = new TransferContext("Robot1", 1, 1, null);
+        var afterAbort = new TransferContext("Robot1", 1, 1, null);
+        Check(contextPort.PrepareTransfer(beforeAbort) is not null, "中止用例占用端口");
+        if (phase != TransferModuleState.PreTransfer)
+        {
+            Check(contextPort.PrepareTransfer2(beforeAbort) is not null, "中止用例端口准备好");
+        }
+
+        if (phase == TransferModuleState.Transferring)
+        {
+            Check(contextPort.Transferring(beforeAbort), "中止用例端口交互中");
+        }
+
+        Check(contextPort.Reset() is null && contextPort.State == phase, "LoadPort 传片状态不通过 Reset 退出");
+        var aborting = new ProbeOperation();
+        contextPort.Next = aborting;
+        Check(ReferenceEquals(contextPort.Abort(), aborting) && contextPort.State == ModuleState.Aborting
+              && !contextPort.Transferring(beforeAbort), "LoadPort 中止执行中旧轮不能交互");
+        aborting.Succeed();
+        contextPort.Tick();
+        Check(contextPort.State == LoadPortState.Loaded && contextPort.CancelTransfer(beforeAbort), "中止完成按门位恢复 Loaded，旧轮可以无操作撤销");
+        Check(contextPort.PrepareTransfer(afterAbort) is not null && contextPort.CancelTransfer(beforeAbort)
+              && contextPort.State == TransferModuleState.PreTransfer && contextPort.CancelTransfer(afterAbort),
+            "LoadPort 中止后新轮覆盖旧上下文，旧撤销不会导致新轮丢失占用");
+    }
+
+    contextPort.Close();
+
+    // 搬运层确实传递本站信息；同站换槽共用同一上下文，准备一次、最后收尾一次。
+    var robot = new ProbeTransferRobot { AllowMotion = true };
+    TransferRoutine Run(ITransferStation? source, int pickSlot, ITransferStation? target, int placeSlot)
+    {
+        var routine = new TransferRoutine(TransferOrigin.Manual, robot, source, pickSlot, target, placeSlot, 4, 1000);
+        for (int scan = 0; scan < 32 && !routine.IsTerminal; scan++)
+        {
+            routine.Scan();
+        }
+
+        Check(routine.IsSuccess, "上下文贯通用例搬运完成");
+        return routine;
+    }
+
+    ProbeStation Station(string name) => new(name)
+    {
+        First = () => new NoOpOperation("Prepare"),
+        Second = () => new NoOpOperation("Prepare2"),
+    };
+
+    void CheckCalls(ProbeStation station, int? pickSlot, int? placeSlot, params string[] steps)
+    {
+        var first = station.TransferCalls[0].Context;
+        Check(station.TransferCalls.Select(call => call.Step).SequenceEqual(steps)
+              && station.TransferCalls.All(call => ReferenceEquals(call.Context, first))
+              && first.Robot == robot.Name && first.Arm == 4 && first.PickSlot == pickSlot && first.PlaceSlot == placeSlot,
+            "站点每个入口取得同一实例，且只描述本站的取片槽和放片槽");
+    }
+
+    var source = Station("ContextLP");
+    var target = Station("ContextPM");
+    Run(source, 5, target, 1);
+    CheckCalls(source, 5, null, "Prepare", "Prepare2", "Transferring", "Complete");
+    CheckCalls(target, null, 1, "Prepare", "Prepare2", "Transferring", "Complete");
+    Check(!ReferenceEquals(source.TransferCalls[0].Context, target.TransferCalls[0].Context), "跨站搬运的两个站点各有自己的上下文");
+    var onlyPick = Station("ContextPickOnly");
+    Run(onlyPick, 3, null, 4);
+    CheckCalls(onlyPick, 3, null, "Prepare", "Prepare2", "Transferring", "Complete");
+    var onlyPlace = Station("ContextPlaceOnly");
+    Run(null, 4, onlyPlace, 2);
+    CheckCalls(onlyPlace, null, 2, "Prepare", "Prepare2", "Transferring", "Complete");
+    var relocate = Station("ContextRelocate");
+    Run(relocate, 5, relocate, 8);
+    CheckCalls(relocate, 5, 8, "Prepare", "Prepare2", "Transferring", "Transferring", "Complete");
+
+    var cancelled = new ContextProbeStation();
+    var oldRoutine = new TransferRoutine(TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
+    oldRoutine.Scan();
+    cancelled.NoteState(ModuleState.Idle); // 模拟恢复完成，状态与上下文身份的真实覆盖已在上面的 Reset / Abort 用例验证。
+    var replacementContext = new TransferContext(robot.Name, 4, null, 1);
+    Check(cancelled.PrepareTransfer(replacementContext) is not null, "恢复后的另一轮取得站点");
+    oldRoutine.AbortByHost("old round cancelled after recovery");
+    Check(!oldRoutine.NeedsRecovery && cancelled.State == TransferModuleState.PreTransfer
+          && cancelled.CancelTransfer(replacementContext), "旧轮撤销不会改新轮状态，也不会制造不必要的搬运挂起");
+}
+
 // LP-1：载具供 Job 使用与开始一次搬运准备是两种能力；查询只返回原因，实际发起准备仍须重查并独占传片环。
 {
     var accessPort = new ProbePort("CarrierAccessPort");
@@ -3209,6 +3428,7 @@ port.E87Callback = null;
     IJobAccess jobAccess = accessPort;
     ICarrierAccess carrierAccess = jobAccess.Carrier;
     ITransferStation transferAccess = accessPort;
+    var accessContext = new TransferContext("AccessRobot", 1, 1, null);
 
     Check(!carrierAccess.IsArrived && carrierAccess.Info is null && carrierAccess.CarrierId is null && carrierAccess.SlotMap.Count == 0,
         "Job 经 ICarrierAccess 读取空端口，无需取得载具维护接口");
@@ -3221,7 +3441,7 @@ port.E87Callback = null;
     accessPort.NoteState(LoadPortState.Loaded);
     RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotArrived, "Job 查询：载具未到位，返回端口名和具体原因");
     RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotArrived, "搬运查询：Loaded 但载具未到位，同样返回具体原因");
-    Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer() is null
+    Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer(accessContext) is null
           && accessPort.State == LoadPortState.Loaded && accessPort.CurrentOperation is null,
         "载具不在：查询与动作都拒绝，状态和操作不变");
 
@@ -3250,21 +3470,21 @@ port.E87Callback = null;
           && transferAccess.CanPrepareTransfer && transferAccess.CheckPrepareTransfer() is null,
         "RFID 已读到有效载具号：未接 EAP 无需额外认定，查询也不增加自动调度的 Online 限制");
 
-    Check(accessPort.PrepareTransfer() is not null && accessPort.State == TransferModuleState.PreTransfer,
+    Check(accessPort.PrepareTransfer(accessContext) is not null && accessPort.State == TransferModuleState.PreTransfer,
         "通过查询后仍由 PrepareTransfer 正式占用传片环");
     var preparing = transferAccess.CheckPrepareTransfer();
     Check(!transferAccess.CanPrepareTransfer && preparing?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed
           && preparing.Args.SequenceEqual(new[] { accessPort.Name, TransferModuleState.PreTransfer.ToString() })
           && jobAccess.CanUseCarrierForJob && jobAccess.CheckCarrierForJob() is null,
         "端口已在准备：拒绝另一轮搬运准备，载具供 Job 使用的条件仍成立");
-    Check(accessPort.PrepareTransfer() is null && accessPort.State == TransferModuleState.PreTransfer,
+    Check(accessPort.PrepareTransfer(accessContext) is null && accessPort.State == TransferModuleState.PreTransfer,
         "重复启动搬运准备被拒，已经占用的传片环不变");
-    Check(accessPort.PrepareTransfer2() is not null && accessPort.State == TransferModuleState.TransferReady
+    Check(accessPort.PrepareTransfer2(accessContext) is not null && accessPort.State == TransferModuleState.TransferReady
           && jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer,
         "准备二沿用本轮交互，载具准入与下一轮搬运准备分别判断");
-    Check(accessPort.Transferring() && jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer,
+    Check(accessPort.Transferring(accessContext) && jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer,
         "正在取放：载具仍具备 Job 准入条件，不能开始另一轮搬运准备");
-    Check(accessPort.TransferComplete() && accessPort.State == LoadPortState.Loaded && transferAccess.CanPrepareTransfer,
+    Check(accessPort.TransferComplete(accessContext) && accessPort.State == LoadPortState.Loaded && transferAccess.CanPrepareTransfer,
         "本轮完成恢复 Loaded 后，允许下一轮搬运准备");
 
     var deviceMap = Enumerable.Repeat(SlotState.Empty, accessPort.SlotCount).ToArray();
@@ -3296,7 +3516,7 @@ port.E87Callback = null;
             $"槽图 {mapStatus}：读取入口反映当前认定状态，先前取得的载具快照保持不变");
         RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：Job 查询返回载具未被认可");
         RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：搬运查询返回相同的认可原因");
-        Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer() is null
+        Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer(accessContext) is null
               && accessPort.State == LoadPortState.Loaded && accessPort.CurrentOperation is null,
             $"槽图 {mapStatus}：布尔属性与拒绝原因一致，之前查询成功也不能绕过动作入口重查");
     }
@@ -3350,11 +3570,14 @@ port.E87Callback = null;
           && (object)station is not IJobAccess,
         "普通站点复用搬运查询，无需实现载具 Job 能力");
     var attempts = new ModuleOperation?[8];
-    Parallel.For(0, attempts.Length, index => attempts[index] = station.PrepareTransfer());
+    var attemptContexts = Enumerable.Range(1, attempts.Length)
+        .Select(arm => new TransferContext("ParallelRobot", arm, null, 1)).ToArray();
+    Parallel.For(0, attempts.Length, index => attempts[index] = station.PrepareTransfer(attemptContexts[index]));
     Check(attempts.Count(operation => operation is not null) == 1 && !stationAccess.CanPrepareTransfer
           && stationAccess.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
         "八次并发准备只有一次成功；查询不会代替锁内占用");
-    Check(station.CancelTransfer() && stationAccess.CanPrepareTransfer && stationAccess.CheckPrepareTransfer() is null,
+    var winner = Array.FindIndex(attempts, operation => operation is not null);
+    Check(station.CancelTransfer(attemptContexts[winner]) && stationAccess.CanPrepareTransfer && stationAccess.CheckPrepareTransfer() is null,
         "普通站点撤回准备后恢复可用");
 }
 
@@ -3968,7 +4191,22 @@ sealed class ProbeChamber : BaseChamberModule
 
     public override ModuleOperation? Home() => null;
 
-    protected override ModuleOperation? ResetDevice() => null;
+    public ProbeOperation? NextReset { get; set; }
+
+    public void NoteState(int state) => State = state;
+
+    public void Tick() => OnScan();
+
+    protected override ModuleOperation? ResetDevice()
+    {
+        var operation = NextReset;
+        if (operation is null)
+        {
+            return null;
+        }
+
+        return Begin(ChamberAction.Reset, operation);
+    }
 
     protected override ModuleOperation? AbortDevice() => null;
 
@@ -3976,6 +4214,52 @@ sealed class ProbeChamber : BaseChamberModule
 }
 
 // 探针普通站点（对中台这类）：能放片，既不是 LoadPort 也不是腔体。
+sealed class ContextProbeStation : BaseTransferStationModule
+{
+    private int? _cleanupFrom;
+    public override int State { get; protected set; } = ModuleState.Idle;
+    public override int SlotCount { get; set; } = 25;
+    public bool DelayCleanup { get; set; }
+    public int SecondPrepares { get; private set; }
+    public TransferContext? PreparedContext { get; private set; }
+
+    public void NoteState(int state) => State = state;
+
+    public bool FinishCleanup()
+    {
+        return _cleanupFrom is int from && TransferStep(from, StandbyState);
+    }
+
+    protected override ModuleOperation? PrepareTransfer2Core(TransferContext context)
+    {
+        SecondPrepares++;
+        PreparedContext = context;
+        return base.PrepareTransfer2Core(context);
+    }
+
+    protected override void OnTransferFinished(TransferContext context)
+    {
+        if (DelayCleanup)
+        {
+            _cleanupFrom = TransferModuleState.TransferComplete;
+            return;
+        }
+
+        base.OnTransferFinished(context);
+    }
+
+    protected override void OnTransferCancelled(TransferContext context, int from)
+    {
+        if (DelayCleanup)
+        {
+            _cleanupFrom = from;
+            return;
+        }
+
+        base.OnTransferCancelled(context, from);
+    }
+}
+
 sealed class ProbeAligner : BaseTransferStationModule
 {
     public ProbeAligner(string name)
@@ -4042,6 +4326,7 @@ sealed class PlainChild : ComponentBase
 // 顺带记下准备一被抢了几次、环被还了几次。
 sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
 {
+    public List<(string Step, TransferContext Context)> TransferCalls { get; } = [];
     public Func<ModuleOperation?> First { get; init; } = () => null;
     public Func<ModuleOperation?> Second { get; init; } = () => null;
     public Func<bool> Cancel { get; init; } = () => true;
@@ -4062,18 +4347,34 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
     public HandleResult? CheckPrepareTransfer() => null;
 
-    public ModuleOperation? PrepareTransfer()
+    public ModuleOperation? PrepareTransfer(TransferContext context)
     {
+        TransferCalls.Add(("Prepare", context));
         Prepares++;
         return First();
     }
 
-    public ModuleOperation? PrepareTransfer2() => Second();
-    public bool Transferring() => true;
-    public bool TransferComplete() => true;
-
-    public bool CancelTransfer()
+    public ModuleOperation? PrepareTransfer2(TransferContext context)
     {
+        TransferCalls.Add(("Prepare2", context));
+        return Second();
+    }
+
+    public bool Transferring(TransferContext context)
+    {
+        TransferCalls.Add(("Transferring", context));
+        return true;
+    }
+
+    public bool TransferComplete(TransferContext context)
+    {
+        TransferCalls.Add(("Complete", context));
+        return true;
+    }
+
+    public bool CancelTransfer(TransferContext context)
+    {
+        TransferCalls.Add(("Cancel", context));
         Cancels++;
         return Cancel();
     }
@@ -4085,9 +4386,10 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public ModuleOperation? StartTask(StationTaskRequest request) => null;
 }
 
-// 探针机械手（搬运用）：只占个名字，动作一律发不出去——验的几种出错都停在站点准备，走不到取放片。
+// 探针机械手：默认拒绝动作；上下文贯通用例可开启即时完成的取放。
 sealed class ProbeTransferRobot : ITransferRobot
 {
+    public bool AllowMotion { get; init; }
     public string Name => "TransferRobot";
     public string FullPath => Name;
     public ModuleMode Mode => ModuleMode.Online;
@@ -4117,10 +4419,12 @@ sealed class ProbeTransferRobot : ITransferRobot
     public ModuleOperation? InitModule() => null;
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
-    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => Refused();
-    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => Refused();
-    public HandleResult? CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
-    public HandleResult? CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
+    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => AllowMotion
+        ? HandleResult<ModuleOperation>.Success(new NoOpOperation("Pick")) : Refused();
+    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => AllowMotion
+        ? HandleResult<ModuleOperation>.Success(new NoOpOperation("Place")) : Refused();
+    public HandleResult? CheckPick(int arm, string station, int slot) => AllowMotion ? null : HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
+    public HandleResult? CheckPlace(int arm, string station, int slot) => AllowMotion ? null : HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
     public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
 }
 

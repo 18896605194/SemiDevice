@@ -145,11 +145,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// 自动跑货、机械手手动页的取放都经搬运管理走到这里。转不到位、门开不了（卡盘没回零、到位超时、PLC 断了）准备判失败、
     /// 腔体落 Error，搬运那边按"第 2 步准备失败"收场；卡盘、腔门气缸自己报到位超时。
     /// </summary>
-    public override ModuleOperation? PrepareTransfer2()
+    protected override ModuleOperation? PrepareTransfer2Core(TransferContext context)
     {
         if (Door is null && SpinMotor is null)
         {
-            return base.PrepareTransfer2();
+            return base.PrepareTransfer2Core(context);
         }
 
         // 指令由操作挂上之后在扫描里发，不会出现门开了、操作却没挂上没人等的情况

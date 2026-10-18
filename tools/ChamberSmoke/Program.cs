@@ -246,8 +246,9 @@ try
 
     Check(interfaceHome is not null && interfaceHome.IsSuccess
         && interfaceChamber.State == ModuleState.Idle, "回零流程通过接口控制不同实现的接液杯");
-    Check(interfaceChamber.PrepareTransfer() is not null, "不同实现的腔门进入取放准备一");
-    var interfaceOpen = interfaceChamber.PrepareTransfer2();
+    var interfaceContext = new TransferContext("Robot1", 1, null, 1);
+    Check(interfaceChamber.PrepareTransfer(interfaceContext) is not null, "不同实现的腔门进入取放准备一");
+    var interfaceOpen = interfaceChamber.PrepareTransfer2(interfaceContext);
     for (int index = 0; index < 4; index++)
     {
         interfaceChamber.Tick();
@@ -618,9 +619,16 @@ try
     // 14b. 取放准备二（平台默认）：卡盘转到取放位（卡盘 EC TransferPosition）、开门，两样同时发，都到位才算准备好；
     //      卡盘没回零（绝对定位发不出去）就失败，门不开，腔体落 Error
     spin.TransferPosition = 90;
-    Check(chamber.PrepareTransfer() is not null && chamber.State == TransferModuleState.PreTransfer, "取放准备一：抢到腔体");
+    var transferContext = new TransferContext("Robot1", 1, null, 1);
+    Check(chamber.PrepareTransfer(transferContext) is not null && chamber.State == TransferModuleState.PreTransfer, "取放准备一：抢到腔体");
+    int transferSpinCommands = plc.CommandCount("Spin.Command");
+    Check(chamber.PrepareTransfer2(new TransferContext("Robot1", 1, null, 1)) is null
+          && chamber.State == TransferModuleState.PreTransfer && plc.CommandCount("Spin.Command") == transferSpinCommands
+          && !plc.ReadDo(0), "同内容的另一轮被公共入口挡住，不发转位或开门指令");
     plc.HoldCylinders = true;
-    var prepare = chamber.PrepareTransfer2() ?? throw new InvalidOperationException("FAIL: 取放准备二应能发起");
+    var prepare = chamber.PrepareTransfer2(transferContext) ?? throw new InvalidOperationException("FAIL: 取放准备二应能发起");
+    Check(chamber.PrepareTransfer2(transferContext) is null && !chamber.Transferring(transferContext),
+        "本站准备动作执行中不能重复发起或提前进入交互");
     Tick(3);
     Check(plc.LastCommand("Spin.Command") == MotionCommandId.MoveTo && Near(spin.CurrentPosition, 90),
         "卡盘按 EC TransferPosition 转到 90");
@@ -630,15 +638,16 @@ try
     Tick(3);
     Check(prepare.IsSuccess && chamber.State == TransferModuleState.TransferReady
         && CylinderDto("Chamber9.Door").Position == CylinderPosition.Opened, "卡盘到位、门开到位：准备好了");
-    Check(chamber.CancelTransfer() && chamber.State == ModuleState.Idle && door.Close(), "撤回这一轮，关门");
+    Check(chamber.CancelTransfer(transferContext) && chamber.State == ModuleState.Idle && door.Close(), "撤回这一轮，关门");
     Tick();
 
     var unhomed = plc.Read<MotionPlcToCSharpData>("Spin.Status");
     unhomed.Is_Homed = 0;
     plc.Put("Spin.Status", unhomed);
     Tick();
-    Check(chamber.PrepareTransfer() is not null, "卡盘没回零时再抢腔体");
-    prepare = chamber.PrepareTransfer2() ?? throw new InvalidOperationException("FAIL: 卡盘没回零也应能发起取放准备二（发了才判失败）");
+    transferContext = new TransferContext("Robot1", 1, 1, null);
+    Check(chamber.PrepareTransfer(transferContext) is not null, "卡盘没回零时再抢腔体");
+    prepare = chamber.PrepareTransfer2(transferContext) ?? throw new InvalidOperationException("FAIL: 卡盘没回零也应能发起取放准备二（发了才判失败）");
     Tick(3);
     Check(prepare.Code == ErrorCodes.ChamberDeviceCommandRejected
         && prepare.ErrorArgs.SequenceEqual(["Chamber9.SpinMotor", "Move"]) && chamber.State == ModuleState.Error,

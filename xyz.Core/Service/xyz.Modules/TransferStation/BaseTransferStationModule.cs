@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -24,6 +25,8 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
 
     #region ITransferStation 实现
 
+    private TransferContext? _transferContext;
+
     /// <summary>
     /// 槽位数
     /// </summary>
@@ -36,81 +39,131 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// </summary>
     public virtual HandleResult? CheckPrepareTransfer()
     {
-        int state = State;
-        return state == StandbyState
-            ? null
-            : HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
+        lock (OperationGate)
+        {
+            int state = State;
+            if (state != StandbyState)
+            {
+                return HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (HasUnsettledOperation())
+            {
+                return HandleResult.Fail(ErrorCodes.ModuleBusy, Name);
+            }
+
+            return null;
+        }
     }
 
     /// <summary>
     /// 准备一：锁内重查准入并占用本轮传片环。
     /// </summary>
-    public virtual ModuleOperation? PrepareTransfer()
+    public ModuleOperation? PrepareTransfer(TransferContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         lock (OperationGate)
         {
-            if (CheckPrepareTransfer() is not null)
+            if (HasUnsettledOperation() || CheckPrepareTransfer() is not null)
             {
                 return null;
             }
 
-            return TransferStep(StandbyState, TransferModuleState.PreTransfer)
-                ? new NoOpOperation("PrepareTransfer")
-                : null;
+            // 恢复动作可能绕过 TransferStep；旧上下文不代表仍在占用，新一轮准入后直接覆盖。
+            var previous = _transferContext;
+            _transferContext = context;
+            var operation = PrepareTransferCore(context);
+            if (operation is null)
+            {
+                _transferContext = previous;
+            }
+
+            return operation;
         }
     }
 
     /// <summary>
     /// 准备二
     /// </summary>
-    public virtual ModuleOperation? PrepareTransfer2()
+    public ModuleOperation? PrepareTransfer2(TransferContext context)
     {
-        return TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady)
-            ? new NoOpOperation("PrepareTransfer2")
-            : null;
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
+        {
+            if (!ReferenceEquals(_transferContext, context)
+                || State != TransferModuleState.PreTransfer
+                || HasUnsettledOperation())
+            {
+                return null;
+            }
+
+            return PrepareTransfer2Core(context);
+        }
     }
 
     /// <summary>
     /// 机械手和工站正在交互
     /// </summary>
-    public bool Transferring()
+    public bool Transferring(TransferContext context)
     {
-        return TransferStep(TransferModuleState.TransferReady, TransferModuleState.Transferring);
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
+        {
+            if (!ReferenceEquals(_transferContext, context) || HasUnsettledOperation())
+            {
+                return false;
+            }
+
+            // 同站换槽取完不收尾，放片前仍须核对本轮身份及有无恢复动作。
+            return State == TransferModuleState.Transferring
+                || TransferStep(TransferModuleState.TransferReady, TransferModuleState.Transferring);
+        }
     }
 
     /// <summary>
     /// 机械手和站点传输完成
     /// </summary>
-    public bool TransferComplete()
-    {    
-        if (!TransferStep(TransferModuleState.Transferring, TransferModuleState.TransferComplete))
+    public bool TransferComplete(TransferContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
         {
-            return false;
-        }
+            if (!ReferenceEquals(_transferContext, context)
+                || HasUnsettledOperation()
+                || !TransferStep(TransferModuleState.Transferring, TransferModuleState.TransferComplete))
+            {
+                return false;
+            }
 
-        OnTransferFinished(); //钩子
-        return true;
+            OnTransferFinished(context);
+            return true;
+        }
     }
 
     /// <summary>
     /// 撤回本轮
     /// </summary>
     /// <returns></returns>
-    public bool CancelTransfer()
+    public bool CancelTransfer(TransferContext context)
     {
-        int state = State;
-        if (state == StandbyState)
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
         {
+            int state = State;
+            if (!ReferenceEquals(_transferContext, context) || state == StandbyState)
+            {
+                return true;
+            }
+
+            if (HasUnsettledOperation()
+                || (state != TransferModuleState.PreTransfer && state != TransferModuleState.TransferReady))
+            {
+                return false;
+            }
+
+            OnTransferCancelled(context, state);
             return true;
         }
-
-        if (state != TransferModuleState.PreTransfer && state != TransferModuleState.TransferReady)
-        {
-            return false;
-        }
-
-        OnTransferCancelled(state);
-        return true;
     }
 
     #endregion
@@ -142,11 +195,27 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
 
     #region 钩子（子类扩展点）
 
+    /// <summary>准备一扩展点；公共入口已经在锁内检查准入并记录本轮上下文。</summary>
+    protected virtual ModuleOperation? PrepareTransferCore(TransferContext context)
+    {
+        return TransferStep(StandbyState, TransferModuleState.PreTransfer)
+            ? new NoOpOperation("PrepareTransfer")
+            : null;
+    }
+
+    /// <summary>准备二扩展点；公共入口统一检查本轮上下文、状态和当前操作。</summary>
+    protected virtual ModuleOperation? PrepareTransfer2Core(TransferContext context)
+    {
+        return TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady)
+            ? new NoOpOperation("PrepareTransfer2")
+            : null;
+    }
+
     /// <summary>
     /// 一轮传片完成后的收尾钩子。默认没有收尾动作，直接回待命态。
-    /// 腔体重写：关门、起工艺，收尾真做完了再自己落状态——在那之前一直停在 TransferComplete。
+    /// 子类有机构收尾时重写，动作真做完了再落待命态；工艺由站内任务入口另行启动。
     /// </summary>
-    protected virtual void OnTransferFinished()
+    protected virtual void OnTransferFinished(TransferContext context)
     {
         TransferStep(TransferModuleState.TransferComplete, StandbyState);
     }
@@ -155,7 +224,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// 撤回本轮的钩子（from 是撤之前的状态）。默认准备阶段什么都没动过，直接回待命态；
     /// 准备时开过门、抽过气的站点重写成先收回去，收好了再自己落待命态。
     /// </summary>
-    protected virtual void OnTransferCancelled(int from)
+    protected virtual void OnTransferCancelled(TransferContext context, int from)
     {
         TransferStep(from, StandbyState);
     }
@@ -178,9 +247,23 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
             }
 
             State = next;
+            if (next == StandbyState)
+            {
+                _transferContext = null;
+            }
+
             PublishState();
             return true;
         }
+    }
+
+    /// <summary>
+    /// 有还没收尾的动作（准备二、复位这类还在跑），这时不接新的交接步骤
+    /// </summary>
+    private bool HasUnsettledOperation()
+    {
+        var operation = CurrentOperation;
+        return operation is not null && !operation.IsSettled;
     }
 
     #endregion

@@ -1,4 +1,5 @@
 ﻿using xyz.Components.Components;
+using xyz.Components.Models;
 using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
@@ -25,32 +26,33 @@ public interface ITransferStation : IModule
     HandleResult? CheckPrepareTransfer();
 
     /// <summary>
-    /// 准备阶段一：粗准备（腔体排气/预热/机构到位等）
+    /// 准备阶段一：申请并占用本站本轮交接；后续各步须传入同一份本站上下文。
     /// </summary>
     /// <returns></returns>
-    ModuleOperation? PrepareTransfer();
+    ModuleOperation? PrepareTransfer(TransferContext context);
 
     /// <summary>
-    /// 准备阶段二
+    /// 准备阶段二：完成本站本轮取片或放片所需的机构准备。
     /// </summary>
     /// <returns></returns>
-    ModuleOperation? PrepareTransfer2();
+    ModuleOperation? PrepareTransfer2(TransferContext context);
 
     /// <summary>
-    /// 标记本轮取放片进行中
+    /// 标记本轮取放片进行中；同轮重复通知不改变状态，同站换槽在放片前再次核对。
     /// </summary>
-    bool Transferring();
+    bool Transferring(TransferContext context);
 
     /// <summary>
     /// 接受本轮完成通知：落 TransferComplete 并发布，再交给站点收尾；默认同步回待命态。
-    /// 状态不符返回 false；true 表示通知已接受，不代表机型扩展的异步收尾已完成。
+    /// 上下文或状态不符返回 false；true 表示通知已接受，不代表机型扩展的异步收尾已完成。
     /// </summary>
-    bool TransferComplete();
+    bool TransferComplete(TransferContext context);
 
     /// <summary>
     /// 撤回本轮：准备做了（PreTransfer / TransferReady）但机械手还没伸手。
-    /// true 表示站点接受撤回（默认同步回待命态）；false 时调用方须保留本轮占用。
+    /// 上下文不匹配表示本站已无本轮占用，返回 true 且不动当前状态。
+    /// 匹配时 true 表示接受撤回（默认同步回待命态）；false 时调用方须保留本轮占用。
     /// </summary>
     /// <returns></returns>
-    bool CancelTransfer();
+    bool CancelTransfer(TransferContext context);
 }

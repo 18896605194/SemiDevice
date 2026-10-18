@@ -846,6 +846,22 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         }
 
         bool pick = action == RobotAction.Pick;
+        Guid? expectedWaferId = null;
+        var ledger = _waferManager;
+        if (ledger is not null && ledger.IsEnable)
+        {
+            // 复用已有晶圆 Id；动作期间即使来源槽补成同样的业务片号，也不能误移另一片的账。
+            var wafer = ledger.Get(pick ? station : Name, pick ? slot : arm);
+            if (wafer is null)
+            {
+                return Rejected(pick
+                    ? HandleResult.Fail(ErrorCodes.WaferNoWafer, station, slot.ToString(CultureInfo.InvariantCulture))
+                    : HandleResult.Fail(ErrorCodes.RobotArmNoWafer, Name, arm.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            expectedWaferId = wafer.Id;
+        }
+
         var operation = pick
             ? CreatePickOperation(arm, config.Number, slot)
             : CreatePlaceOperation(arm, config.Number, slot);
@@ -853,7 +869,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         // 机型只补设备动作；持片校验和记账由公共取放操作负责，记账通过后才向搬运管理确认成功。
         var armComponent = FindArm(arm);
         var sensorArm = armComponent?.IsWaferCheckEnabled == true ? armComponent : null;
-        var intent = new TransferIntent(action, arm, station, slot);
+        var intent = new TransferIntent(action, arm, station, slot, expectedWaferId);
         operation = new RobotTransferOperation(operation, Name, sensorArm, expectWafer: pick,
             commitLedger: () => CommitTransferLedger(intent));
 
@@ -1161,7 +1177,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region 晶圆账
 
-    private sealed record TransferIntent(RobotAction Action, int Arm, string Station, int Slot);
+    private sealed record TransferIntent(RobotAction Action, int Arm, string Station, int Slot, Guid? ExpectedWaferId);
 
     private TransferIntent? _transferIntent;
 
@@ -1178,7 +1194,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         int fromSlot = pick ? intent.Slot : intent.Arm;
         string toModule = pick ? Name : intent.Station;
         int toSlot = pick ? intent.Arm : intent.Slot;
-        if (ledger.Move(fromModule, fromSlot, toModule, toSlot))
+        if (intent.ExpectedWaferId is Guid expectedWaferId
+            && ledger.Move(fromModule, fromSlot, toModule, toSlot, expectedWaferId))
         {
             return null;
         }

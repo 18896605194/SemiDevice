@@ -100,6 +100,12 @@ public interface IWaferManagerComponent
     bool Move(string fromModule, int fromSlot, string toModule, int toSlot);
 
     /// <summary>
+    /// 确认来源仍是预期晶圆后移账；expectedWaferId 为已有 WaferInfo.Id。
+    /// 身份核对与位置更新在同一把账本锁内完成，不符合时不修改账本。
+    /// </summary>
+    bool Move(string fromModule, int fromSlot, string toModule, int toSlot, Guid expectedWaferId);
+
+    /// <summary>
     /// 一个站点上有几片
     /// </summary>
     int CountWafers(string module);
