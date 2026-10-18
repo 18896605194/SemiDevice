@@ -55,12 +55,17 @@ public interface ITransferManager
     bool IsRobotInTransfer(string robot);
 
     /// <summary>
-    /// 运动已开始或站点占用未解除时失败、等人工确认的搬运
+    /// 运动已开始或站点占用未解除时失败、等人工确认的搬运（一条记录只列一次）
     /// </summary>
-    IReadOnlyList<TransferRoutine> HeldOperations { get; }
+    IReadOnlyList<TransferExecution> HeldOperations { get; }
 
     /// <summary>
-    /// 撤掉某个归属（Job）的全部搬运，返回撤了几趟
+    /// 这个 Job 还有没收尾的搬运（在跑的、挂着等人工的记录里有它的片）
+    /// </summary>
+    bool HasUnfinishedTransfer(string owner);
+
+    /// <summary>
+    /// 撤掉跟某个归属（Job）有关的全部搬运，返回撤了几趟
     /// </summary>
     int CancelOwner(string owner, string reason);
 
@@ -73,6 +78,11 @@ public interface ITransferManager
     /// 受理一趟搬运
     /// </summary>
     HandleResult<TransferRoutine> Start(TransferRequest request);
+
+    /// <summary>
+    /// 受理一次同腔交换（同一槽先取走旧片、再放进新片）
+    /// </summary>
+    HandleResult<SwapRoutine> StartSwap(SwapRequest request);
 
     /// <summary>
     /// 机械手能来取放片的站点

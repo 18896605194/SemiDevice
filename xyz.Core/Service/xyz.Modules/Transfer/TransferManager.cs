@@ -6,6 +6,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Shared.Errors;
 using xyz.Shared.Dtos;
 using xyz.Tools;
@@ -99,13 +100,21 @@ public class TransferManager : ComponentBase, ITransferManager
     #endregion
 
     private readonly object _gate = new();
-    private readonly Dictionary<string, TransferRoutine> _running = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TransferExecution> _running = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<Guid, TransferRoutine> _held = new();
+    /// <summary>
+    /// 失败后等人工确认的执行记录；交换的两片共用一条，只记一次
+    /// </summary>
+    private readonly HashSet<TransferExecution> _held = [];
 
-    private readonly Dictionary<string, TransferRoutine> _slotLocks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, TransferRoutine> _armLocks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<Guid, TransferRoutine> _waferLocks = new();
+    /// <summary>
+    /// 片 → 挂着它的执行记录；人工按任意一片放锁都能找到整条
+    /// </summary>
+    private readonly Dictionary<Guid, TransferExecution> _heldByWafer = new();
+
+    private readonly Dictionary<string, TransferExecution> _slotLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TransferExecution> _armLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<Guid, TransferExecution> _waferLocks = new();
 
 
     #region 模块装配
@@ -395,14 +404,12 @@ public class TransferManager : ComponentBase, ITransferManager
 
         foreach (var active in _running.Values)
         {
-            if (string.Equals(active.SourceName, sourceName, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(active.TargetName, sourceName, StringComparison.OrdinalIgnoreCase))
+            if (UsesLocation(active, sourceName))
             {
                 return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, sourceName, source?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (string.Equals(active.SourceName, targetName, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(active.TargetName, targetName, StringComparison.OrdinalIgnoreCase))
+            if (UsesLocation(active, targetName))
             {
                 return HandleResult<TransferRoutine>.Fail(ErrorCodes.ActionRejected, targetName, target?.State.ToString(CultureInfo.InvariantCulture) ?? robot.State.ToString(CultureInfo.InvariantCulture));
             }
@@ -457,6 +464,15 @@ public class TransferManager : ComponentBase, ITransferManager
     private static bool Reaches(ITransferRobot robot, string source, string target)
     {
         return robot.TryGetStation(source, out _) && robot.TryGetStation(target, out _);
+    }
+
+    /// <summary>
+    /// 在跑的这一趟用着这个位置：清单里的站点，或者就是它那台机械手
+    /// </summary>
+    private static bool UsesLocation(TransferExecution active, string name)
+    {
+        return active.Claims.Stations.Contains(name, StringComparer.OrdinalIgnoreCase)
+            || string.Equals(active.Robot.Name, name, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -550,17 +566,217 @@ public class TransferManager : ComponentBase, ITransferManager
 
     #endregion
 
+    #region 同腔交换
+
+    /// <summary>
+    /// 受理一次同腔交换：站点、两只手、两片、归属、占用、忙不忙都在同一把锁里查完，一次占齐资源
+    /// </summary>
+    public HandleResult<SwapRoutine> StartSwap(SwapRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!IsEnable)
+        {
+            return HandleResult<SwapRoutine>.Fail(ErrorCodes.TransferDisabled);
+        }
+
+        var ledger = _ledger;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return HandleResult<SwapRoutine>.Fail(ErrorCodes.WaferLedgerDisabled);
+        }
+
+        string stationName = request.Station.Trim();
+        if (!TryGetStation(stationName, out var station))
+        {
+            return HandleResult<SwapRoutine>.Fail(ErrorCodes.TransferStationNotFound, stationName);
+        }
+
+        string robotName = request.Robot.Trim();
+        if (!TryGetRobot(robotName, out var robot))
+        {
+            return HandleResult<SwapRoutine>.Fail(ErrorCodes.ModuleNotFound, robotName);
+        }
+
+        SwapRoutine operation;
+        lock (_gate)
+        {
+            var rejected = CheckSwap(request, robot, station, ledger, out string pickName, out string placeName);
+            if (rejected is not null)
+            {
+                return HandleResult<SwapRoutine>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
+            }
+
+            operation = new SwapRoutine(request, robot, station, pickName, placeName, StationWaitTimeoutMs);
+            operation.DeferCompletion();
+            Lock(operation);
+            _running[robot.Name] = operation;
+        }
+
+        LogHelper.Info(Name, $"开始交换：{operation.WaferNames} {operation.Name}（{operation.Origin}）");
+        return HandleResult<SwapRoutine>.Success(operation);
+    }
+
+    /// <summary>
+    /// 交换能不能做（锁里查）：同一个槽先出后进，所以不套普通搬运"目标槽要空""同站同槽就拒"那两条
+    /// </summary>
+    private HandleResult? CheckSwap(SwapRequest request, ITransferRobot robot, ITransferStation station, IWaferManagerComponent ledger,
+        out string pickName, out string placeName)
+    {
+        pickName = string.Empty;
+        placeName = string.Empty;
+        string slotText = request.Slot.ToString(CultureInfo.InvariantCulture);
+        string pickArmText = request.PickArm.ToString(CultureInfo.InvariantCulture);
+        string placeArmText = request.PlaceArm.ToString(CultureInfo.InvariantCulture);
+
+        #region 槽、手：槽在范围内；两只不同的手都在手指数以内、这个站都许用
+
+        if (request.Slot < 1 || request.Slot > station.SlotCount)
+        {
+            return HandleResult.Fail(ErrorCodes.TransferSlotOutOfRange, station.Name, slotText,
+                station.SlotCount.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (!robot.TryGetStation(station.Name, out var config))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferNoRobot, station.Name, robot.Name);
+        }
+
+        int armCount = ledger.GetSlots(robot.Name).Count;
+        if (request.PickArm == request.PlaceArm || !IsArmUsable(request.PickArm, armCount, config))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, pickArmText);
+        }
+
+        if (!IsArmUsable(request.PlaceArm, armCount, config))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, placeArmText);
+        }
+
+        #endregion
+
+        #region 片：站里正好是预期的旧片，放片手上正好是预期的新片，取片手空着
+
+        var pickWafer = ledger.Get(station.Name, request.Slot);
+        if (pickWafer is null)
+        {
+            return HandleResult.Fail(ErrorCodes.WaferNoWafer, station.Name, slotText);
+        }
+
+        if (pickWafer.Id != request.PickWafer)
+        {
+            return HandleResult.Fail(ErrorCodes.TransferWaferMismatch, station.Name, slotText, pickWafer.WaferId);
+        }
+
+        var placeWafer = ledger.Get(robot.Name, request.PlaceArm);
+        if (placeWafer is null)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmNoWafer, robot.Name, placeArmText);
+        }
+
+        if (placeWafer.Id != request.PlaceWafer)
+        {
+            return HandleResult.Fail(ErrorCodes.TransferWaferMismatch, robot.Name, placeArmText, placeWafer.WaferId);
+        }
+
+        var inHand = ledger.Get(robot.Name, request.PickArm);
+        if (inHand is not null)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmHasWafer, robot.Name, pickArmText, inHand.WaferId);
+        }
+
+        #endregion
+
+        #region 归属：被 Job 占着的片只能由那个 Job 搬（人工恢复放行）
+
+        var ownerError = CheckOwner(pickWafer.Id, pickWafer.WaferId, request.PickOwner, request.Origin)
+            ?? CheckOwner(placeWafer.Id, placeWafer.WaferId, request.PlaceOwner, request.Origin);
+        if (ownerError is not null)
+        {
+            return ownerError;
+        }
+
+        #endregion
+
+        #region 占用：站点这一槽、两只手、两片都没被别的操作占着
+
+        if (_slotLocks.ContainsKey(SlotKey(station.Name, request.Slot)) || _waferLocks.ContainsKey(pickWafer.Id))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferSlotLocked, station.Name, slotText);
+        }
+
+        if (_armLocks.ContainsKey(ArmKey(robot.Name, request.PickArm)) || _slotLocks.ContainsKey(SlotKey(robot.Name, request.PickArm)))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, pickArmText);
+        }
+
+        if (_armLocks.ContainsKey(ArmKey(robot.Name, request.PlaceArm)) || _slotLocks.ContainsKey(SlotKey(robot.Name, request.PlaceArm))
+            || _waferLocks.ContainsKey(placeWafer.Id))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, placeArmText);
+        }
+
+        #endregion
+
+        #region 没在忙：这台机械手、这个站点都没在跑别的搬运
+
+        if (_running.ContainsKey(robot.Name))
+        {
+            return HandleResult.Fail(ErrorCodes.ActionRejected, robot.Name, robot.State.ToString(CultureInfo.InvariantCulture));
+        }
+
+        foreach (var active in _running.Values)
+        {
+            if (UsesLocation(active, station.Name))
+            {
+                return HandleResult.Fail(ErrorCodes.ActionRejected, station.Name, station.State.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+
+        #endregion
+
+        pickName = pickWafer.WaferId;
+        placeName = placeWafer.WaferId;
+        return null;
+    }
+
+    /// <summary>
+    /// 这只手在机械手的手指数以内，而且这个站点许用它
+    /// </summary>
+    private static bool IsArmUsable(int arm, int armCount, RobotStation config)
+    {
+        return arm >= 1 && arm <= armCount && config.AllowsArm(arm);
+    }
+
+    /// <summary>
+    /// 片被某个 Job 占着时只能由那个 Job 搬；人工恢复放行
+    /// </summary>
+    private HandleResult? CheckOwner(Guid waferId, string waferName, string? expected, TransferOrigin origin)
+    {
+        string? owner = _jobs?.OwnerOf(waferId);
+        if (owner is not null && origin != TransferOrigin.Recovery && !string.Equals(owner, expected, StringComparison.Ordinal))
+        {
+            return HandleResult.Fail(ErrorCodes.TransferWaferOwned, waferName, owner);
+        }
+
+        return null;
+    }
+
+    #endregion
+
     #region 中止、恢复、占用查询
 
     /// <summary>请求中止这个操作，由搬运扫描线程执行设备中止和收尾。</summary>
-    public bool Cancel(TransferRoutine operation, string reason)
+    public bool Cancel(TransferExecution operation, string reason)
     {
         return Cancel(active => ReferenceEquals(active, operation), reason) > 0;
     }
 
+    /// <summary>
+    /// 撤掉跟这个 Job 有关的全部搬运：一趟里任意一片归它就整趟撤（交换的两片可能分属两个 Job）
+    /// </summary>
     public int CancelOwner(string owner, string reason)
     {
-        return Cancel(operation => string.Equals(operation.Owner, owner, StringComparison.Ordinal), reason);
+        return Cancel(operation => operation.InvolvesOwner(owner), reason);
     }
 
     public int CancelAll(string reason)
@@ -568,7 +784,7 @@ public class TransferManager : ComponentBase, ITransferManager
         return Cancel(_ => true, reason);
     }
 
-    private int Cancel(Func<TransferRoutine, bool> match, string reason)
+    private int Cancel(Func<TransferExecution, bool> match, string reason)
     {
         int marked = 0;
         lock (_gate)
@@ -586,32 +802,53 @@ public class TransferManager : ComponentBase, ITransferManager
         return marked;
     }
 
-    /// <summary>人工确认片位及站点状态后，释放这片晶圆因搬运失败或撤销失败保留的资源。</summary>
+    /// <summary>
+    /// 人工确认片位及站点状态后，放掉这片所在那条记录保留的全部资源（交换按任意一片都能放整条）
+    /// </summary>
     public bool ReleaseHold(Guid waferId)
     {
+        TransferExecution? operation;
         lock (_gate)
         {
-            if (!_held.Remove(waferId, out var operation))
+            if (!_heldByWafer.TryGetValue(waferId, out operation))
             {
                 return false;
+            }
+
+            _held.Remove(operation);
+            foreach (var wafer in operation.Wafers)
+            {
+                _heldByWafer.Remove(wafer.Id);
             }
 
             Unlock(operation);
         }
 
-        LogHelper.Info(Name, $"晶圆 {waferId} 的搬运占用已人工放开（片位及站点状态已确认）");
+        LogHelper.Info(Name, $"{operation.WaferNames} 的搬运占用已人工放开（片位及站点状态已确认）：{operation.Name}");
         return true;
     }
 
-    /// <summary>运动已开始或站点占用未解除时失败，等待人工确认的操作；已完成的操作不留历史。</summary>
-    public IReadOnlyList<TransferRoutine> HeldOperations
+    /// <summary>运动已开始或站点占用未解除时失败，等待人工确认的操作；一条记录只列一次，已完成的操作不留历史。</summary>
+    public IReadOnlyList<TransferExecution> HeldOperations
     {
         get
         {
             lock (_gate)
             {
-                return _held.Values.ToList();
+                return _held.ToList();
             }
+        }
+    }
+
+    /// <summary>
+    /// 这个 Job 还有没收尾的搬运：在跑的、挂着等人工的记录里有它的片
+    /// </summary>
+    public bool HasUnfinishedTransfer(string owner)
+    {
+        lock (_gate)
+        {
+            return _running.Values.Any(operation => operation.InvolvesOwner(owner))
+                || _held.Any(operation => operation.InvolvesOwner(owner));
         }
     }
 
@@ -640,7 +877,7 @@ public class TransferManager : ComponentBase, ITransferManager
     protected override void OnScan()
     {
         base.OnScan();
-        List<TransferRoutine> running;
+        List<TransferExecution> running;
         lock (_gate)
         {
             running = _running.Values.ToList();
@@ -665,7 +902,7 @@ public class TransferManager : ComponentBase, ITransferManager
         }
     }
 
-    private void Finish(TransferRoutine operation)
+    private void Finish(TransferExecution operation)
     {
         lock (_gate)
         {
@@ -677,7 +914,11 @@ public class TransferManager : ComponentBase, ITransferManager
             _running.Remove(operation.Robot.Name);
             if (operation.NeedsRecovery)
             {
-                _held[operation.WaferId] = operation;
+                _held.Add(operation);
+                foreach (var wafer in operation.Wafers)
+                {
+                    _heldByWafer[wafer.Id] = operation;
+                }
             }
             else
             {
@@ -687,11 +928,11 @@ public class TransferManager : ComponentBase, ITransferManager
 
         if (operation.IsSuccess)
         {
-            LogHelper.Info(Name, $"搬运完成：{operation.WaferName} {operation.Name}");
+            LogHelper.Info(Name, $"搬运完成：{operation.WaferNames} {operation.Name}");
         }
         else if (operation.NeedsRecovery)
         {
-            LogHelper.Error(Name, $"搬运未完成，运动已开始或站点占用未解除，资源保留到人工确认片位及站点状态：{operation.WaferName} {operation.Name}（{operation.Reason}）");
+            LogHelper.Error(Name, $"搬运未完成，运动已开始或站点占用未解除，资源保留到人工确认片位及站点状态：{operation.WaferNames} {operation.Name}（{operation.Reason}）");
         }
         else
         {
@@ -723,26 +964,52 @@ public class TransferManager : ComponentBase, ITransferManager
         return $"{robot}#{arm.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    private void Lock(TransferRoutine operation)
+    /// <summary>
+    /// 按这一趟的资源清单一次占上（调用方已在同一把锁里查过都空着）
+    /// </summary>
+    private void Lock(TransferExecution operation)
     {
-        _slotLocks[SlotKey(operation.SourceName, operation.SourceSlot)] = operation;
-        _slotLocks[SlotKey(operation.TargetName, operation.TargetSlot)] = operation;
-        _armLocks[ArmKey(operation.Robot.Name, operation.Arm)] = operation;
-        _waferLocks[operation.WaferId] = operation;
-    }
-
-    private void Unlock(TransferRoutine operation)
-    {
-        RemoveIfOwned(_slotLocks, SlotKey(operation.SourceName, operation.SourceSlot), operation);
-        RemoveIfOwned(_slotLocks, SlotKey(operation.TargetName, operation.TargetSlot), operation);
-        RemoveIfOwned(_armLocks, ArmKey(operation.Robot.Name, operation.Arm), operation);
-        if (_waferLocks.TryGetValue(operation.WaferId, out var holder) && ReferenceEquals(holder, operation))
+        var claims = operation.Claims;
+        foreach (string slot in claims.Slots)
         {
-            _waferLocks.Remove(operation.WaferId);
+            _slotLocks[slot] = operation;
+        }
+
+        foreach (string arm in claims.Arms)
+        {
+            _armLocks[arm] = operation;
+        }
+
+        foreach (var wafer in claims.Wafers)
+        {
+            _waferLocks[wafer] = operation;
         }
     }
 
-    private static void RemoveIfOwned(Dictionary<string, TransferRoutine> locks, string key, TransferRoutine operation)
+    /// <summary>
+    /// 按资源清单放掉；只放还归这一趟的
+    /// </summary>
+    private void Unlock(TransferExecution operation)
+    {
+        var claims = operation.Claims;
+        foreach (string slot in claims.Slots)
+        {
+            RemoveIfOwned(_slotLocks, slot, operation);
+        }
+
+        foreach (string arm in claims.Arms)
+        {
+            RemoveIfOwned(_armLocks, arm, operation);
+        }
+
+        foreach (var wafer in claims.Wafers)
+        {
+            RemoveIfOwned(_waferLocks, wafer, operation);
+        }
+    }
+
+    private static void RemoveIfOwned<TKey>(Dictionary<TKey, TransferExecution> locks, TKey key, TransferExecution operation)
+        where TKey : notnull
     {
         if (locks.TryGetValue(key, out var holder) && ReferenceEquals(holder, operation))
         {

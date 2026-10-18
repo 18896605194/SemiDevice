@@ -478,7 +478,7 @@ Check(eap.Wait(nameof(IE87Callback.LoadCompleted)), "Load 完成应上报 LoadCo
 Check(eap.Wait(nameof(IE87Callback.AccessStarted)), "Load 完成接着上报 AccessStarted");
 
 // 机械手进站要载具在、Host 认可了槽图（CanPrepareTransfer）：接了 EAP、槽图还没被 Host 认定，Loaded 了也不让进（手动传片不经过 Job，也靠这一关挡住）
-var portTransferContext = new TransferContext("WaitSmokeRobot", 1, 1, null);
+var portTransferContext = TransferContext.ForPick("WaitSmokeRobot", 1, 1);
 Check(!port.CanPrepareTransfer && port.PrepareTransfer(portTransferContext) is null && port.State == LoadPortState.Loaded,
     "接了 EAP、槽图没认定：机械手不能进站");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
@@ -2973,7 +2973,7 @@ port.E87Callback = null;
     Check(resetPort.CanPrepareTransfer, "Loaded、载具在、没接 EAP：机械手能进站");
     resetPort.NotePodPlaced(false);
     resetPort.Tick();
-    Check(!resetPort.CanPrepareTransfer && resetPort.PrepareTransfer(new TransferContext("Robot", 1, 1, null)) is null && resetPort.State == LoadPortState.Loaded,
+    Check(!resetPort.CanPrepareTransfer && resetPort.PrepareTransfer(TransferContext.ForPick("Robot", 1, 1)) is null && resetPort.State == LoadPortState.Loaded,
         "Loaded 但载具不在：机械手不能进站");
     resetPort.NotePodPlaced(true);
     resetPort.Tick();
@@ -3241,11 +3241,12 @@ port.E87Callback = null;
 
 // 本站交接上下文：对象身份隔离轮次，覆盖正常/延迟收尾、撤销、恢复及同站换槽。
 {
-    Throws<ArgumentException>(() => new TransferContext("Robot1", 1, null, null));
-    Throws<ArgumentException>(() => new TransferContext(" ", 1, 1, null));
-    Throws<ArgumentOutOfRangeException>(() => new TransferContext("Robot1", 0, 1, null));
-    var context = new TransferContext("Robot1", 4, 5, null);
-    var identical = new TransferContext("Robot1", 4, 5, null);
+    Throws<ArgumentException>(() => TransferContext.ForPick(" ", 1, 1));
+    Throws<ArgumentOutOfRangeException>(() => TransferContext.ForPick("Robot1", 0, 1));
+    Throws<ArgumentOutOfRangeException>(() => TransferContext.ForPlace("Robot1", 1, 0));
+    Throws<ArgumentOutOfRangeException>(() => TransferContext.ForPickThenPlace("Robot1", 1, 1, 2, 0));
+    var context = TransferContext.ForPick("Robot1", 4, 5);
+    var identical = TransferContext.ForPick("Robot1", 4, 5);
     Check(context != identical && !context.Equals(identical), "内容相同的两个 class 上下文仍是不同轮次；手臂编号不限定为 1/2");
 
     var station = new ContextProbeStation();
@@ -3273,7 +3274,7 @@ port.E87Callback = null;
           && station.State == TransferModuleState.PreTransfer,
         "下一轮即使内容相同，上一轮撤销仍不能释放它");
     Check(station.CancelTransfer(identical) && station.State == TransferModuleState.PreTransfer
-          && station.PrepareTransfer(new TransferContext("Robot1", 4, 5, null)) is null,
+          && station.PrepareTransfer(TransferContext.ForPick("Robot1", 4, 5)) is null,
         "撤销的延迟机构收尾没完成时也不能接下一轮");
     Check(station.FinishCleanup() && station.CanPrepareTransfer, "撤销收尾实际结束后站点恢复可用");
 
@@ -3282,8 +3283,8 @@ port.E87Callback = null;
     {
         var chamber = new ProbeChamber("ContextResetChamber");
         chamber.NoteState(ModuleState.Idle);
-        var beforeReset = new TransferContext("Robot1", 1, null, 1);
-        var afterReset = new TransferContext("Robot1", 1, null, 1);
+        var beforeReset = TransferContext.ForPlace("Robot1", 1, 1);
+        var afterReset = TransferContext.ForPlace("Robot1", 1, 1);
         Check(chamber.PrepareTransfer(beforeReset) is not null, "复位用例占用腔体");
         if (phase != TransferModuleState.PreTransfer)
         {
@@ -3336,8 +3337,8 @@ port.E87Callback = null;
     foreach (int phase in new[] { TransferModuleState.PreTransfer, TransferModuleState.TransferReady, TransferModuleState.Transferring })
     {
         contextPort.NoteState(LoadPortState.Loaded);
-        var beforeAbort = new TransferContext("Robot1", 1, 1, null);
-        var afterAbort = new TransferContext("Robot1", 1, 1, null);
+        var beforeAbort = TransferContext.ForPick("Robot1", 1, 1);
+        var afterAbort = TransferContext.ForPick("Robot1", 1, 1);
         Check(contextPort.PrepareTransfer(beforeAbort) is not null, "中止用例占用端口");
         if (phase != TransferModuleState.PreTransfer)
         {
@@ -3413,7 +3414,7 @@ port.E87Callback = null;
     var oldRoutine = new TransferRoutine(TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
     oldRoutine.Scan();
     cancelled.NoteState(ModuleState.Idle); // 模拟恢复完成，状态与上下文身份的真实覆盖已在上面的 Reset / Abort 用例验证。
-    var replacementContext = new TransferContext(robot.Name, 4, null, 1);
+    var replacementContext = TransferContext.ForPlace(robot.Name, 4, 1);
     Check(cancelled.PrepareTransfer(replacementContext) is not null, "恢复后的另一轮取得站点");
     oldRoutine.AbortByHost("old round cancelled after recovery");
     Check(!oldRoutine.NeedsRecovery && cancelled.State == TransferModuleState.PreTransfer
@@ -3428,7 +3429,7 @@ port.E87Callback = null;
     IJobAccess jobAccess = accessPort;
     ICarrierAccess carrierAccess = jobAccess.Carrier;
     ITransferStation transferAccess = accessPort;
-    var accessContext = new TransferContext("AccessRobot", 1, 1, null);
+    var accessContext = TransferContext.ForPick("AccessRobot", 1, 1);
 
     Check(!carrierAccess.IsArrived && carrierAccess.Info is null && carrierAccess.CarrierId is null && carrierAccess.SlotMap.Count == 0,
         "Job 经 ICarrierAccess 读取空端口，无需取得载具维护接口");
@@ -3571,7 +3572,7 @@ port.E87Callback = null;
         "普通站点复用搬运查询，无需实现载具 Job 能力");
     var attempts = new ModuleOperation?[8];
     var attemptContexts = Enumerable.Range(1, attempts.Length)
-        .Select(arm => new TransferContext("ParallelRobot", arm, null, 1)).ToArray();
+        .Select(arm => TransferContext.ForPlace("ParallelRobot", arm, 1)).ToArray();
     Parallel.For(0, attempts.Length, index => attempts[index] = station.PrepareTransfer(attemptContexts[index]));
     Check(attempts.Count(operation => operation is not null) == 1 && !stationAccess.CanPrepareTransfer
           && stationAccess.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
@@ -4364,6 +4365,14 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     {
         TransferCalls.Add(("Transferring", context));
         return true;
+    }
+
+    public Func<ModuleOperation?> NextLeg { get; init; } = () => new NoOpOperation("PrepareNextLeg");
+
+    public ModuleOperation? PrepareNextLeg(TransferContext context)
+    {
+        TransferCalls.Add(("NextLeg", context));
+        return NextLeg();
     }
 
     public bool TransferComplete(TransferContext context)

@@ -121,6 +121,27 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     }
 
     /// <summary>
+    /// 换段准备：一轮先取后放时取完、放之前调；只认同一份两段上下文、交互中、没有未收尾的动作，不受理返回 null
+    /// </summary>
+    public ModuleOperation? PrepareNextLeg(TransferContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        lock (OperationGate)
+        {
+            if (!ReferenceEquals(_transferContext, context)
+                || !context.HasPick
+                || !context.HasPlace
+                || State != TransferModuleState.Transferring
+                || HasUnsettledOperation())
+            {
+                return null;
+            }
+
+            return PrepareNextLegCore(context);
+        }
+    }
+
+    /// <summary>
     /// 机械手和站点传输完成
     /// </summary>
     public bool TransferComplete(TransferContext context)
@@ -209,6 +230,14 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
         return TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady)
             ? new NoOpOperation("PrepareTransfer2")
             : null;
+    }
+
+    /// <summary>
+    /// 换段准备扩展点：取片、放片要的机构位置不一样的站点重写，默认直接成功
+    /// </summary>
+    protected virtual ModuleOperation? PrepareNextLegCore(TransferContext context)
+    {
+        return new NoOpOperation("PrepareNextLeg");
     }
 
     /// <summary>

@@ -1245,6 +1245,7 @@ sealed class FakePort : ILoadPort
     public ModuleOperation? PrepareTransfer(TransferContext context) => null;
     public ModuleOperation? PrepareTransfer2(TransferContext context) => null;
     public bool Transferring(TransferContext context) => false;
+    public ModuleOperation? PrepareNextLeg(TransferContext context) => null;
     public bool TransferComplete(TransferContext context) => false;
     public bool CancelTransfer(TransferContext context) => true;
 

@@ -27,6 +27,13 @@ public enum TransferStep
 
     WaitPick,
 
+    /// <summary>
+    /// 换段准备：一轮先取后放（同站换槽、同腔交换），取完、放之前让站点调整机构
+    /// </summary>
+    PrepareNextLeg,
+
+    WaitPrepareNextLeg,
+
     /// <summary>目标站点准备二：开门/放行。</summary>
     PrepareTarget2,
 

@@ -1327,7 +1327,7 @@ try
     Check(pickRow.Tasks.IndexOf(pickError) == 0 && pickError.Code == ErrorCodes.TransferFailed && pickRow.Tasks[1].State == "Waiting"
           && transfers.HeldOperations.Count == 1,
         "出错记在取片上（操作未确认取片），放片退回等着做；搬运资源保留等人确认");
-    Check(transfers.ReleaseHold(transfers.HeldOperations.Single().WaferId), "人确认片还在源槽，放锁");
+    Check(transfers.ReleaseHold(transfers.HeldOperations.Single().Wafers[0].Id), "人确认片还在源槽，放锁");
     robot.NoteState(ModuleState.Idle);
     lp1.NoteState(LoadPortState.Loaded);
     pm1.NoteState(ModuleState.Idle);
@@ -1348,7 +1348,7 @@ try
           && placeRow.Tasks[2].State == WaferTaskState.Waiting && placeRow.Tasks.All(task => task.Operation is null),
         "取片完成，放片记错，工艺等待，设备操作引用已收尾清空");
     var heldPlace = transfers.HeldOperations.Single();
-    Check(heldPlace.HasPicked && ledger.Get("Robot1", heldPlace.Arm)?.Id == placeRow.WaferId
+    Check(heldPlace.Wafers[0].Progress == TransferWaferProgress.Picked && ledger.Get("Robot1", heldPlace.Wafers[0].Arm)?.Id == placeRow.WaferId
           && ledger.Get("LP1", 1) is null && ledger.Get("PM1", 1) is null, "取片已记账，失败后片仍在手上");
     Check(transfers.ReleaseHold(placeRow.WaferId), "人工确认片在手上后释放资源");
     robot.NoteState(ModuleState.Idle);

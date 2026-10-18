@@ -2161,8 +2161,7 @@ public class JobManager : ComponentBase, IJobManager
                     break;
                 case ProcessJobState.Aborting:
                     if (!job.HasRunning && job.DeviceAborts.All(abort => abort.IsSettled) && !job.HasErrors
-                        && _transfers?.HeldOperations.Any(operation =>
-                            string.Equals(operation.Owner, job.Id, StringComparison.Ordinal)) != true)
+                        && _transfers?.HasUnfinishedTransfer(job.Id) != true)
                     {
                         changed |= _processJobs.FinishAbort(job).IsSuccess;
                     }

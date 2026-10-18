@@ -3,6 +3,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Tools;
@@ -15,6 +16,16 @@ namespace xyz.Modules;
 [Component(description: "调度引擎：从任务表拿任务执行（站内任务交给站点、取放交给搬运管理），做完记回任务表")]
 public class SchedulerComponent : ComponentBase, ISchedulerComponent
 {
+    #region SC
+
+    [SCEditor("False", "Scheduler", "同腔交换：机械手手上的片要进的站里那片做完了，就在站门口先取走旧片、再放进新片，站点少等一来一回；False = 不派交换")]
+    public bool EnableSwap { get; set; }
+
+    [SCEditor("False", "Scheduler", "预取：要去的站都满着时，先把下一片取到一只空手上，等站做完就交换；EnableSwap 也开着才生效，多站路线确认不会卡死再打开")]
+    public bool EnablePrefetch { get; set; }
+
+    #endregion
+
     /// <summary>
     /// 搬运管理（开机 Bind 时取）
     /// </summary>
@@ -23,6 +34,11 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// 晶圆账（开机 Bind 时取）
     /// </summary>
     private IWaferManagerComponent? _waferManager;
+
+    /// <summary>
+    /// 预取意向：站点 → 为它预取到手上的那片；同一个站只预取一片。只在 Job 扫描线程上读写
+    /// </summary>
+    private readonly Dictionary<string, Guid> _prefetched = new(StringComparer.OrdinalIgnoreCase);
 
     public override void Bind()
     {
@@ -40,6 +56,8 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return;
         }
 
+        DropStalePrefetches(rows);
+
         // 先起站内任务：片已经在站点上了
         foreach (var row in rows)
         {
@@ -47,6 +65,15 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             if (task is not null && !task.IsRobotTask)
             {
                 StartStationTask(row, task, tasks);
+            }
+        }
+
+        // 交换：手上的片要去的站里那片做完了，先取后放；排在"走机内的片"前面，免得机械手先去送做完的片
+        if (EnableSwap)
+        {
+            foreach (var row in rows)
+            {
+                TryStartSwap(row, rows, tasks);
             }
         }
 
@@ -60,7 +87,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             }
         }
 
-        // 最后投新片
+        // 最后投新片；要去的站都满着时按开关预取
         foreach (var row in rows)
         {
             var task = NextTask(row, TaskPermission.Feed);
@@ -69,13 +96,20 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 continue;
             }
 
-            StartTransfer(row, task, tasks);
+            if (StartTransfer(row, task, tasks))
+            {
+                continue;
+            }
+
+            if (EnableSwap && EnablePrefetch)
+            {
+                TryPrefetch(row, task, rows, tasks);
+            }
         }
     }
 
     /// <summary>
-    /// 按每行当前的 WaferTask 收执行进度。取片确认后转到放片任务，沿用已占好目标的搬运操作；
-    /// 站内操作收尾后完成这一格。执行记录只挂在当前任务上。
+    /// 按每行当前的 WaferTask 收执行进度。站内操作收尾后完成这一格；搬运按这一片实际做完的动作记，执行记录只挂在当前任务上。
     /// </summary>
     public void Collect(ITaskComponent tasks)
     {
@@ -88,7 +122,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 continue;
             }
 
-            if (operation is TransferRoutine transfer)
+            if (operation is TransferExecution transfer)
             {
                 CollectTransfer(row, task, transfer, tasks);
             }
@@ -110,20 +144,42 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         }
     }
 
-    /// <summary>取片后开始放片格；没动手就失败退回等待，动过手才失败则当前格记出错。</summary>
-    private static void CollectTransfer(TaskRow row, WaferTask task, TransferRoutine operation, ITaskComponent tasks)
+    /// <summary>
+    /// 按这一片在这趟执行里实际做完的动作记任务：取完转放片（只取不放的放片留着另派）、放完记完成；
+    /// 执行结束这片还没走到下一步的，没动手退回等待，动过手记出错等人工。
+    /// </summary>
+    private static void CollectTransfer(TaskRow row, WaferTask task, TransferExecution operation, ITaskComponent tasks)
     {
-        if (task.Kind == StationTaskAction.Pick && operation.HasPicked)
+        var wafer = operation.Wafers.FirstOrDefault(item => item.Id == row.WaferId);
+        if (wafer is null)
         {
+            return;
+        }
+
+        if (task.Kind == StationTaskAction.Pick && wafer.Progress != TransferWaferProgress.None)
+        {
+            // 只取不放（预取、交换换出来的旧片）：片停在手上，放片留着另派，不挂这趟执行
+            if (wafer.EndsOnArm)
+            {
+                tasks.Done(row, task, wafer.Arm);
+                return;
+            }
+
             var place = row.NextPlace(task);
             if (place is null)
             {
                 return;
             }
 
-            tasks.Done(row, task, operation.Arm);
-            tasks.Start(row, place, operation.TargetName, operation.TargetSlot, operation.Robot.Name, operation);
+            tasks.Done(row, task, wafer.Arm);
+            tasks.Start(row, place, wafer.To, wafer.ToSlot, operation.Robot.Name, operation);
             task = place;
+        }
+
+        if (task.Kind == StationTaskAction.Place && wafer.Progress == TransferWaferProgress.Placed)
+        {
+            tasks.Done(row, task, wafer.Arm);
+            return;
         }
 
         if (!operation.IsSettled)
@@ -133,9 +189,11 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 
         if (operation.IsSuccess)
         {
-            tasks.Done(row, task, operation.Arm);
+            tasks.Done(row, task, wafer.Arm);
+            return;
         }
-        else if (!operation.NeedsRecovery)
+
+        if (!operation.NeedsRecovery)
         {
             tasks.Reset(task);
         }
@@ -157,7 +215,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         return current;
     }
 
-    #region 启动任务 
+    #region 启动任务
 
     /// <summary>
     /// 启动站点内的任务
@@ -165,7 +223,12 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     private void StartStationTask(TaskRow row, WaferTask task, ITaskComponent tasks)
     {
         var location = row.ExpectedLocation;
-        var station = location.IsArm ? null : Station(location.Module);
+        ITransferStation? station = null;
+        if (!location.IsArm)
+        {
+            station = Station(location.Module);
+        }
+
         if (station is null || !IsOnline(station) || station is not IStationTaskExecutor executor)
         {
             return;
@@ -186,7 +249,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             tasks.Start(row, task, location.Module, location.Slot, operation: operation);
         }
     }
-     
+
     /// <summary>
     /// 启动传输
     /// </summary>
@@ -197,8 +260,13 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     private bool StartTransfer(TaskRow row, WaferTask task, ITaskComponent tasks)
     {
         var source = row.ExpectedLocation;
-        var pick = task.Kind == StationTaskAction.Pick ? task : null;
-        var place = pick is null ? task : row.NextPlace(pick);
+        WaferTask? pick = null;
+        WaferTask? place = task;
+        if (task.Kind == StationTaskAction.Pick)
+        {
+            pick = task;
+            place = row.NextPlace(task);
+        }
 
         // 取片要片在站点上、只放片要片在机械手手上；对不上说明片被人挪过，等任务组件核对片位记出错
         if (place is null || place.Kind != StationTaskAction.Place || source.IsArm == (pick is not null))
@@ -240,13 +308,371 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 
     #endregion
 
+    #region 同腔交换与预取
+
+    /// <summary>
+    /// 交换：这一片在机械手手上等着放，它要去的站组里有站的片做完了，就在那个站先取走旧片、再放进这一片
+    /// </summary>
+    private void TryStartSwap(TaskRow row, IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
+    {
+        var place = NextTask(row, TaskPermission.Advance);
+        var at = row.ExpectedLocation;
+        if (place is null || place.Kind != StationTaskAction.Place || !at.IsArm || place.FixedSlot > 0)
+        {
+            return;
+        }
+
+        var robot = Robot(at.Module);
+        if (robot is null || !IsRobotFree(robot))
+        {
+            return;
+        }
+
+        foreach (string station in place.Stations)
+        {
+            if (TryStartSwapAt(row, place, robot, at.Slot, station, rows, tasks))
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 在这个站找一片做完、能换出来的旧片，挑一只空手给它，提交交换；两片的任务都挂上这趟交换
+    /// </summary>
+    private bool TryStartSwapAt(TaskRow row, WaferTask place, ITransferRobot robot, int placeArm, string stationName,
+        IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
+    {
+        var station = Station(stationName);
+        if (station is null || !IsStationReady(stationName) || !robot.TryGetStation(stationName, out var config)
+            || !config.AllowsArm(placeArm))
+        {
+            return false;
+        }
+
+        for (int slot = 1; slot <= station.SlotCount; slot++)
+        {
+            var finished = FinishedRow(stationName, slot, rows);
+            if (finished is null || _transfers!.IsSlotLocked(stationName, slot))
+            {
+                continue;
+            }
+
+            var pick = NextTask(finished, TaskPermission.Advance);
+            if (pick is null)
+            {
+                continue;
+            }
+
+            int pickArm = FindPickArm(robot, finished, pick, config, placeArm);
+            if (pickArm == 0)
+            {
+                continue;
+            }
+
+            var started = _transfers.StartSwap(new SwapRequest
+            {
+                Origin = TransferOrigin.Auto,
+                Robot = robot.Name,
+                Station = stationName,
+                Slot = slot,
+                PickArm = pickArm,
+                PlaceArm = placeArm,
+                PickWafer = finished.WaferId,
+                PlaceWafer = row.WaferId,
+                PickOwner = finished.Owner,
+                PlaceOwner = row.Owner,
+            });
+            var operation = started.Result;
+            if (!started.IsSuccess || operation is null)
+            {
+                continue;
+            }
+
+            tasks.Start(finished, pick, stationName, slot, robot.Name, operation);
+            tasks.Start(row, place, stationName, slot, robot.Name, operation);
+            _prefetched.Remove(stationName);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 这个槽里那片做完了、轮到取片的那一行（片按晶圆账认）；没有返回 null
+    /// </summary>
+    private TaskRow? FinishedRow(string station, int slot, IReadOnlyList<TaskRow> rows)
+    {
+        var wafer = _waferManager!.Get(station, slot);
+        if (wafer is null)
+        {
+            return null;
+        }
+
+        var row = rows.FirstOrDefault(item => item.WaferId == wafer.Id);
+        if (row is null)
+        {
+            return null;
+        }
+
+        var pick = NextTask(row, TaskPermission.Advance);
+        if (pick is null || pick.Kind != StationTaskAction.Pick)
+        {
+            return null;
+        }
+
+        return row;
+    }
+
+    /// <summary>
+    /// 预取：新片要去的站都满着，组里有站快做完了，就先把新片只取到一只空手上，另留一只空手给换出来的旧片
+    /// </summary>
+    private void TryPrefetch(TaskRow row, WaferTask pick, IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
+    {
+        var source = row.ExpectedLocation;
+        var place = row.NextPlace(pick);
+        if (source.IsArm || place is null || place.FixedSlot > 0 || !IsStationReady(source.Module))
+        {
+            return;
+        }
+
+        foreach (var robot in _transfers!.Robots)
+        {
+            if (!IsRobotFree(robot) || !robot.TryGetStation(source.Module, out var from))
+            {
+                continue;
+            }
+
+            foreach (string stationName in place.Stations)
+            {
+                if (TryPrefetchFor(row, pick, robot, from, source, stationName, rows, tasks))
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 为这个站预取：站里那片正在做或做完了、换出来有去处，机械手有一只手能从来源取、往这个站放，另有一只空手能取旧片
+    /// </summary>
+    private bool TryPrefetchFor(TaskRow row, WaferTask pick, ITransferRobot robot, RobotStation from,
+        (string Module, int Slot, bool IsArm) source, string stationName, IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
+    {
+        if (_prefetched.ContainsKey(stationName) || !robot.TryGetStation(stationName, out var at))
+        {
+            return false;
+        }
+
+        var finishing = FinishingRow(stationName, rows, out var finishingPick);
+        if (finishing is null || finishingPick is null)
+        {
+            return false;
+        }
+
+        int armCount = _waferManager!.GetSlots(robot.Name).Count;
+        for (int carryArm = 1; carryArm <= armCount; carryArm++)
+        {
+            if (!from.AllowsArm(carryArm) || !at.AllowsArm(carryArm) || !IsArmFree(robot, carryArm)
+                || FindPickArm(robot, finishing, finishingPick, at, carryArm) == 0)
+            {
+                continue;
+            }
+
+            var started = _transfers!.Start(new TransferRequest
+            {
+                Origin = TransferOrigin.Auto,
+                Owner = row.Owner,
+                WaferId = row.WaferId,
+                Source = source.Module,
+                SourceSlot = source.Slot,
+                Target = robot.Name,
+                TargetSlot = carryArm,
+                Robot = robot.Name,
+                Arm = carryArm,
+            });
+            var operation = started.Result;
+            if (!started.IsSuccess || operation is null)
+            {
+                continue;
+            }
+
+            tasks.Start(row, pick, source.Module, source.Slot, robot.Name, operation);
+            _prefetched[stationName] = row.WaferId;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 这个站里正在做工艺、或者做完等取的那一行，以及它的取片任务；站点停用、下线、出错的不算
+    /// </summary>
+    private TaskRow? FinishingRow(string stationName, IReadOnlyList<TaskRow> rows, out WaferTask? pick)
+    {
+        pick = null;
+        var station = Station(stationName);
+        if (station is null || !station.IsEnabled || !IsOnline(station) || station.State == ModuleState.Error)
+        {
+            return null;
+        }
+
+        for (int slot = 1; slot <= station.SlotCount; slot++)
+        {
+            var wafer = _waferManager!.Get(stationName, slot);
+            if (wafer is null)
+            {
+                continue;
+            }
+
+            var row = rows.FirstOrDefault(item => item.WaferId == wafer.Id);
+            var current = row?.Current;
+            if (row is null || current is null)
+            {
+                continue;
+            }
+
+            if (current.Kind == StationTaskAction.Pick && current.State == WaferTaskState.Waiting)
+            {
+                pick = current;
+                return row;
+            }
+
+            if (current.Kind == StationTaskAction.Process && current.State == WaferTaskState.Running)
+            {
+                int index = row.Tasks.IndexOf(current);
+                pick = row.Tasks.Skip(index + 1).FirstOrDefault(task => task.Kind == StationTaskAction.Pick);
+                if (pick is not null)
+                {
+                    return row;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 给换出来的旧片挑一只空手：这个站许用、空着，拿着旧片的这只手到得了它的下一站、那里收得下；没有返回 0
+    /// </summary>
+    private int FindPickArm(ITransferRobot robot, TaskRow row, WaferTask pick, RobotStation at, int excludeArm)
+    {
+        var next = row.NextPlace(pick);
+        if (next is null)
+        {
+            return 0;
+        }
+
+        int armCount = _waferManager!.GetSlots(robot.Name).Count;
+        for (int arm = 1; arm <= armCount; arm++)
+        {
+            if (arm == excludeArm || !at.AllowsArm(arm) || !IsArmFree(robot, arm))
+            {
+                continue;
+            }
+
+            if (HasPlaceFor(robot, arm, next))
+            {
+                return arm;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// 这只手拿着片能完成这个放片任务：机械手到得了、这只手许用、站点待命、槽空着（回片看定好的那一槽）
+    /// </summary>
+    private bool HasPlaceFor(ITransferRobot robot, int arm, WaferTask place)
+    {
+        if (place.FixedSlot > 0 && place.Stations.Count > 0)
+        {
+            string port = place.Stations[0];
+            return CanArmServe(robot, arm, port) && IsStationReady(port) && IsSlotFree(port, place.FixedSlot);
+        }
+
+        foreach (string station in place.Stations)
+        {
+            if (CanArmServe(robot, arm, station) && IsStationReady(station) && FreeSlot(station) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 作废过时的预取意向：开关关了、那片已经不在等这个站（放到别处、没取成）、站点停用下线出错、站里没有快做完的片
+    /// </summary>
+    private void DropStalePrefetches(IReadOnlyList<TaskRow> rows)
+    {
+        if (_prefetched.Count == 0)
+        {
+            return;
+        }
+
+        if (!EnableSwap || !EnablePrefetch)
+        {
+            _prefetched.Clear();
+            return;
+        }
+
+        foreach (var entry in _prefetched.ToList())
+        {
+            if (!IsWaitingForSwap(entry.Value, rows) || FinishingRow(entry.Key, rows, out _) is null)
+            {
+                _prefetched.Remove(entry.Key);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 预取的这片还在等交换：预取那一趟还在取，或者已经在手上等着放
+    /// </summary>
+    private static bool IsWaitingForSwap(Guid waferId, IReadOnlyList<TaskRow> rows)
+    {
+        var row = rows.FirstOrDefault(item => item.WaferId == waferId);
+        var current = row?.Current;
+        if (row is null || current is null)
+        {
+            return false;
+        }
+
+        if (current.Kind == StationTaskAction.Pick && current.State == WaferTaskState.Running)
+        {
+            return true;
+        }
+
+        return current.Kind == StationTaskAction.Place && current.State == WaferTaskState.Waiting && row.ExpectedLocation.IsArm;
+    }
+
+    #endregion
+
     #region 设备与资源占用查询
 
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>
     private ITransferStation? Station(string name)
     {
         var transfers = _transfers;
-        return transfers is not null && transfers.TryGetStation(name, out var station) ? station : null;
+        if (transfers is not null && transfers.TryGetStation(name, out var station))
+        {
+            return station;
+        }
+
+        return null;
+    }
+
+    /// <summary>按名字找机械手（搬运管理的模块表）；不是机械手为 null。</summary>
+    private ITransferRobot? Robot(string name)
+    {
+        var transfers = _transfers;
+        if (transfers is not null && transfers.TryGetRobot(name, out var robot))
+        {
+            return robot;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -278,6 +704,18 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     {
         return _waferManager is not null && _transfers is not null
             && _waferManager.Get(station, slot) is null && !_transfers.IsSlotLocked(station, slot);
+    }
+
+    /// <summary>这只手账上空着、也没被搬运操作当作位置占用。</summary>
+    private bool IsArmFree(ITransferRobot robot, int arm)
+    {
+        return IsSlotFree(robot.Name, arm);
+    }
+
+    /// <summary>机械手到得了这个站，而且这个站许用这只手。</summary>
+    private static bool CanArmServe(ITransferRobot robot, int arm, string station)
+    {
+        return robot.TryGetStation(station, out var config) && config.AllowsArm(arm);
     }
 
     /// <summary>站点上第一个空着、没被占用的槽；没有返回 0。</summary>
@@ -323,9 +761,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 continue;
             }
 
-            if (source.IsArm
-                ? !string.Equals(robot.Name, source.Module, StringComparison.OrdinalIgnoreCase)
-                : !robot.TryGetStation(source.Module, out _))
+            if (!IsSourceReachable(robot, source))
             {
                 continue;
             }
@@ -348,11 +784,31 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 continue;
             }
 
-            bool pick = task.Kind == StationTaskAction.Pick;
-            tasks.Start(row, task, pick ? source.Module : target, pick ? source.Slot : targetSlot, robot.Name, operation);
+            if (task.Kind == StationTaskAction.Pick)
+            {
+                tasks.Start(row, task, source.Module, source.Slot, robot.Name, operation);
+            }
+            else
+            {
+                tasks.Start(row, task, target, targetSlot, robot.Name, operation);
+            }
+
             return true;
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// 这台机械手能接这片：片在手上要是它自己的手，片在站点上要到得了那个站
+    /// </summary>
+    private static bool IsSourceReachable(ITransferRobot robot, (string Module, int Slot, bool IsArm) source)
+    {
+        if (source.IsArm)
+        {
+            return string.Equals(robot.Name, source.Module, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return robot.TryGetStation(source.Module, out _);
     }
 }

@@ -43,6 +43,11 @@ public interface ITransferStation : IModule
     bool Transferring(TransferContext context);
 
     /// <summary>
+    /// 换段准备：一轮先取后放（同站换槽、同腔交换）时，取完、放之前站点要调整的机构在这里做；只在交互中、同一份上下文时受理，不受理返回 null。
+    /// </summary>
+    ModuleOperation? PrepareNextLeg(TransferContext context);
+
+    /// <summary>
     /// 接受本轮完成通知：落 TransferComplete 并发布，再交给站点收尾；默认同步回待命态。
     /// 上下文或状态不符返回 false；true 表示通知已接受，不代表机型扩展的异步收尾已完成。
     /// </summary>
