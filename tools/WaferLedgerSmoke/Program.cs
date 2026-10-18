@@ -827,8 +827,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
 Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");
 
-// 探针机械手：只给账单调整服务一张站点表（位置跟着它列），不连设备、不做动作。
-sealed class LedgerProbeRobot : BaseModule, IRobot
+// 只实现搬运能力：账单调整服务按机械手站点表列位置，不依赖完整机械手管理接口。
+sealed class LedgerProbeRobot : BaseModule, ITransferRobot
 {
     private readonly Dictionary<string, RobotStation> _stations = new(StringComparer.OrdinalIgnoreCase);
 
@@ -844,31 +844,11 @@ sealed class LedgerProbeRobot : BaseModule, IRobot
 
     public override int State { get; protected set; } = ModuleState.Idle;
 
-    public bool? IsServoOn => null;
-
-    public string? DeviceError => null;
-
     public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
 
     private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
-
-    HandleResult<ModuleOperation> IRobot.Home() => Refused();
-
-    int IRobot.HomeTimeout => 0;
-
-    int IRobot.ResetTimeout => 0;
-
-    int IRobot.AbortTimeout => 0;
-
-    int IRobot.PowerTimeout => 0;
-
-    HandleResult? IRobot.CheckReset() => null;
-
-    HandleResult? IRobot.CheckAbort() => null;
-
-    RobotDto IRobot.CreateStateDto() => new() { Name = Name };
 
     ModuleOperation? IModule.InitModule() => null;
 
@@ -876,17 +856,13 @@ sealed class LedgerProbeRobot : BaseModule, IRobot
 
     ModuleOperation? IModule.Abort() => null;
 
-    HandleResult<ModuleOperation> IRobot.Pick(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleOperation> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
 
-    HandleResult<ModuleOperation> IRobot.Place(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleOperation> ITransferRobot.Place(int arm, string station, int slot) => Refused();
 
-    HandleResult? IRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+    HandleResult? ITransferRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    HandleResult? IRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+    HandleResult? ITransferRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleOperation? IRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
-
-    HandleResult<ModuleOperation> IRobot.PowerOn() => Refused();
-
-    HandleResult<ModuleOperation> IRobot.PowerOff() => Refused();
+    ModuleOperation? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
 }

@@ -2,7 +2,7 @@
 using xyz.Configs.Models;
 using xyz.Shared.Dtos;
 
-namespace xyz.Modules;
+namespace xyz.Components.Models;
 
 /// <summary>
 /// 机械手站点表一条：LoadPort / 腔体在 sc.xml _robot.Stations 下各编一条。

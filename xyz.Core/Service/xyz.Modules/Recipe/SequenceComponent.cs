@@ -154,7 +154,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
         var all = modules.ToList();
         var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var robot in all.OfType<IRobot>())
+        foreach (var robot in all.OfType<ITransferRobot>())
         {
             reachable.UnionWith(robot.Stations.Keys);
         }

@@ -6,6 +6,7 @@ using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Drivers.Robot;
 using xyz.Modules.Enums;

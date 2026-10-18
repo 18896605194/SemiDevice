@@ -32,7 +32,7 @@ public interface ITransferManager
     /// <summary>
     /// 搬运能到的机械手
     /// </summary>
-    IReadOnlyList<IRobot> Robots { get; }
+    IReadOnlyList<ITransferRobot> Robots { get; }
 
     /// <summary>
     /// 按名字找站点
@@ -42,7 +42,7 @@ public interface ITransferManager
     /// <summary>
     /// 按名字找机械手
     /// </summary>
-    bool TryGetRobot(string name, [MaybeNullWhen(false)] out IRobot robot);
+    bool TryGetRobot(string name, [MaybeNullWhen(false)] out ITransferRobot robot);
 
     /// <summary>
     /// 这个槽被哪一趟搬运占着

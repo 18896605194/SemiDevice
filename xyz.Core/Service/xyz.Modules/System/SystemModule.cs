@@ -251,7 +251,7 @@ public class SystemModule : BaseModule, ISystemModule
                 continue;
             }
 
-            bool robotInTransfer = module is IRobot robot && transfers is not null && transfers.IsRobotInTransfer(robot.Name);
+            bool robotInTransfer = module is ITransferRobot robot && transfers is not null && transfers.IsRobotInTransfer(robot.Name);
             if (robotInTransfer || JobManager.IsJobProcess(module))
             {
                 continue;

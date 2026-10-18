@@ -2,6 +2,7 @@
 using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Modules;
 using xyz.Modules.Enums;
@@ -70,6 +71,14 @@ try
     var pm3 = new ProbeChamber("SmokePM3", "Chamber");
     var aligner = new ProbeStation("SmokeAligner");
     var robot = new ProbeRobot("SmokeRobot", "SmokeLP1", "SmokeLP2", "SmokePM1", "SmokePM2", "SmokeAligner");
+    var transfers = new TransferManager();
+    transfers.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
+    Check((object)robot is not IRobot && (object)robot is not ITransferStation
+          && transfers.Robots.Count == 1 && ReferenceEquals(transfers.Robots[0], robot)
+          && transfers.TryGetRobot("smokerobot", out var foundRobot) && ReferenceEquals(foundRobot, robot)
+          && transfers.TryGetStation("SmokeLP1", out var foundStation) && ReferenceEquals(foundStation, lp1)
+          && !transfers.TryGetStation(robot.Name, out _),
+        "只实现 ITransferRobot 即可被搬运管理发现；机械手和被服务站点分别识别，不要求完整 IRobot");
     library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
     var groups = library.StationGroups;
     Check(groups.Select(group => group.Name).SequenceEqual(new[] { "LoadPort", "Chamber", "SmokeAligner" }),
@@ -502,8 +511,8 @@ sealed class ProbeStation : BaseTransferStationModule
     public override int SlotCount { get; set; } = 1;
 }
 
-// 探针机械手：只给一张站点表（机械手到得了的站点），不连设备、不做动作。
-sealed class ProbeRobot : BaseModule, IRobot
+// 只实现搬运能力：流程配方识别可达站点不依赖完整机械手管理接口。
+sealed class ProbeRobot : BaseModule, ITransferRobot
 {
     private readonly Dictionary<string, RobotStation> _stations = new(StringComparer.OrdinalIgnoreCase);
 
@@ -518,31 +527,11 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     public override int State { get; protected set; } = ModuleState.Idle;
 
-    public bool? IsServoOn => null;
-
-    public string? DeviceError => null;
-
     public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
 
     private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
-
-    HandleResult<ModuleOperation> IRobot.Home() => Refused();
-
-    int IRobot.HomeTimeout => 0;
-
-    int IRobot.ResetTimeout => 0;
-
-    int IRobot.AbortTimeout => 0;
-
-    int IRobot.PowerTimeout => 0;
-
-    HandleResult? IRobot.CheckReset() => null;
-
-    HandleResult? IRobot.CheckAbort() => null;
-
-    RobotDto IRobot.CreateStateDto() => new() { Name = Name };
 
     ModuleOperation? IModule.InitModule() => null;
 
@@ -550,19 +539,15 @@ sealed class ProbeRobot : BaseModule, IRobot
 
     ModuleOperation? IModule.Abort() => null;
 
-    HandleResult<ModuleOperation> IRobot.Pick(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleOperation> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
 
-    HandleResult<ModuleOperation> IRobot.Place(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleOperation> ITransferRobot.Place(int arm, string station, int slot) => Refused();
 
-    HandleResult? IRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+    HandleResult? ITransferRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    HandleResult? IRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+    HandleResult? ITransferRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleOperation? IRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
-
-    HandleResult<ModuleOperation> IRobot.PowerOn() => Refused();
-
-    HandleResult<ModuleOperation> IRobot.PowerOff() => Refused();
+    ModuleOperation? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。

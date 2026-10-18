@@ -16,7 +16,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
     private const int FirstPreparePhase = 1;
     private const int SecondPreparePhase = 2;
 
-    private readonly IRobot _robot;
+    private readonly ITransferRobot _robot;
     private readonly ITransferStation? _source;
 
     private readonly ITransferStation? _target;
@@ -77,7 +77,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
         && (_abortOperation is null || _abortOperation.IsSettled);
 
     /// <summary>搬片的机械手。</summary>
-    public IRobot Robot => _robot;
+    public ITransferRobot Robot => _robot;
 
     /// <summary>源站点；片已经在机械手手上（只放片）时为 null。</summary>
     public ITransferStation? Source => _source;
@@ -115,7 +115,7 @@ public sealed class TransferRoutine : ModuleOperation<TransferStep>
 
     public TransferRoutine(
         TransferOrigin origin,
-        IRobot robot,
+        ITransferRobot robot,
         ITransferStation? source,
         int sourceSlot,
         ITransferStation? target,

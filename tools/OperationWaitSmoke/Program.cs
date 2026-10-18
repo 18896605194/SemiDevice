@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -3904,7 +3905,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
 }
 
 // 探针机械手（搬运用）：只占个名字，动作一律发不出去——验的几种出错都停在站点准备，走不到取放片。
-sealed class ProbeTransferRobot : IRobot
+sealed class ProbeTransferRobot : ITransferRobot
 {
     public string Name => "TransferRobot";
     public string FullPath => Name;
@@ -3922,8 +3923,6 @@ sealed class ProbeTransferRobot : IRobot
     }
 
     public int State => 0;
-    public bool? IsServoOn => null;
-    public string? DeviceError => null;
     public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
@@ -3934,7 +3933,6 @@ sealed class ProbeTransferRobot : IRobot
 
     private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, "0");
 
-    public HandleResult<ModuleOperation> Home() => Refused();
     public ModuleOperation? InitModule() => null;
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
@@ -3943,15 +3941,6 @@ sealed class ProbeTransferRobot : IRobot
     public HandleResult? CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
     public HandleResult? CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
     public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
-    public HandleResult<ModuleOperation> PowerOn() => Refused();
-    public int HomeTimeout => 0;
-    public int ResetTimeout => 0;
-    public int AbortTimeout => 0;
-    public int PowerTimeout => 0;
-    public HandleResult? CheckReset() => null;
-    public HandleResult? CheckAbort() => null;
-    public RobotDto CreateStateDto() => new() { Name = Name };
-    public HandleResult<ModuleOperation> PowerOff() => Refused();
 }
 
 // 整机冒烟用的探针模块：初始化挂用例摆的操作（没摆就是被拒），能挂一个手动动作，中止把在做的动作当场打断（下一拍收尾）。

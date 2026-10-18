@@ -296,7 +296,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>机械手可执行任务：启用、在线、空闲、没有搬运操作。</summary>
-    private bool IsRobotFree(IRobot robot)
+    private bool IsRobotFree(ITransferRobot robot)
     {
         if (_transfers?.IsRobotInTransfer(robot.Name) == true || robot.State != ModuleState.Idle)
         {

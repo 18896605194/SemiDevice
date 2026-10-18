@@ -152,7 +152,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// </summary>
     private static IEnumerable<string> LocationNames()
     {
-        var robots = IocHelper.GetServices<IRobot>();
+        var robots = IocHelper.GetServices<ITransferRobot>();
         var names = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var robot in robots)
@@ -198,7 +198,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// </summary>
     private static WaferLocationKind KindOf(IModule? module)
     {
-        if (module is IRobot)
+        if (module is ITransferRobot)
         {
             return WaferLocationKind.Robot;
         }

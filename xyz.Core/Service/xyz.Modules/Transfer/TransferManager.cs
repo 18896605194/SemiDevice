@@ -112,9 +112,9 @@ public class TransferManager : ComponentBase, ITransferManager
 
     private IReadOnlyDictionary<string, IModule> _modules =new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
 
-    private IReadOnlyList<IRobot> _robots = [];
+    private IReadOnlyList<ITransferRobot> _robots = [];
 
-    public IReadOnlyList<IRobot> Robots => _robots;
+    public IReadOnlyList<ITransferRobot> Robots => _robots;
 
     public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
 
@@ -144,7 +144,7 @@ public class TransferManager : ComponentBase, ITransferManager
         }
 
         _modules = table;
-        _robots = table.Values.OfType<IRobot>().ToList();
+        _robots = table.Values.OfType<ITransferRobot>().ToList();
 
         LogHelper.Info(Name,
             $"搬运模块表 {table.Count} 个，机械手 {_robots.Count} 台：{string.Join(", ", _robots.Select(r => r.Name))}");
@@ -156,9 +156,9 @@ public class TransferManager : ComponentBase, ITransferManager
         return station is not null;
     }
 
-    public bool TryGetRobot(string name, [MaybeNullWhen(false)] out IRobot robot)
+    public bool TryGetRobot(string name, [MaybeNullWhen(false)] out ITransferRobot robot)
     {
-        robot = _modules.TryGetValue(name, out var module) ? module as IRobot : null;
+        robot = _modules.TryGetValue(name, out var module) ? module as ITransferRobot : null;
         return robot is not null;
     }
 
@@ -189,7 +189,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
         string sourceName = request.Source.Trim(); //源头站点
         ITransferStation? source = null;
-        IRobot? holder = null;
+        ITransferRobot? holder = null;
         if (TryGetStation(sourceName, out var station))  //获取源头站点对象
         {
             source = station;
@@ -209,7 +209,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
         string targetName = request.Target.Trim();//目标站点
         ITransferStation? target = null;
-        IRobot? receiver = null;
+        ITransferRobot? receiver = null;
         if (TryGetStation(targetName, out var targetStation)) //获取目标站点对象
         {
             target = targetStation;
@@ -294,8 +294,8 @@ public class TransferManager : ComponentBase, ITransferManager
     /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手；
     /// 目标是机械手（receiver 不为 null，只取片）时就用点了名的那台、目标槽号那只手。
     /// </summary>
-    private HandleResult<TransferRoutine> Admit(TransferRequest request, IWaferManagerComponent ledger, ITransferStation? source, IRobot? holder, string sourceName,
-        ITransferStation? target, IRobot? receiver, string targetName)
+    private HandleResult<TransferRoutine> Admit(TransferRequest request, IWaferManagerComponent ledger, ITransferStation? source, ITransferRobot? holder, string sourceName,
+        ITransferStation? target, ITransferRobot? receiver, string targetName)
     {
         string sourceSlot = request.SourceSlot.ToString(CultureInfo.InvariantCulture);
         string targetSlot = request.TargetSlot.ToString(CultureInfo.InvariantCulture);
@@ -347,7 +347,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
         #region 机械手和手：只放片用拿着片的那只，只取片用点名的那只，取放一趟自己挑
 
-        IRobot robot;
+        ITransferRobot robot;
         int arm;
         if (holder is not null)
         {
@@ -423,7 +423,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// <summary>
     /// 挑机械手：点了名的要两个站点都到得了；没点名的按 sc.xml 先后挑第一台到得了的。
     /// </summary>
-    private HandleResult<TransferRoutine>? PickRobot(string? wanted, string source, string target, out IRobot robot)
+    private HandleResult<TransferRoutine>? PickRobot(string? wanted, string source, string target, out ITransferRobot robot)
     {
         robot = null!;
         if (!string.IsNullOrWhiteSpace(wanted))
@@ -454,7 +454,7 @@ public class TransferManager : ComponentBase, ITransferManager
         return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, source, target);
     }
 
-    private static bool Reaches(IRobot robot, string source, string target)
+    private static bool Reaches(ITransferRobot robot, string source, string target)
     {
         return robot.TryGetStation(source, out _) && robot.TryGetStation(target, out _);
     }
@@ -463,7 +463,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// 片已经在手上（只放片）：就用拿着它的那台、那只手。点了名的机械手要是这台、点了名的手要是这只；
     /// 目标站点要到得了、许用这只手，这只手没被别的操作占用。
     /// </summary>
-    private HandleResult<TransferRoutine>? UseHoldingArm(TransferRequest request, IRobot holder, string target, out int arm)
+    private HandleResult<TransferRoutine>? UseHoldingArm(TransferRequest request, ITransferRobot holder, string target, out int arm)
     {
         arm = request.SourceSlot;
         string armText = arm.ToString(CultureInfo.InvariantCulture);
@@ -486,7 +486,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// 片要取到机械手手上（只取片）：就用目标这台、目标槽号那只手。点了名的机械手要是这台、点了名的手要是这只；
     /// 源站点要到得了、许用这只手，这只手没被别的操作占用（账上空着已经在前面按目标槽查过）。
     /// </summary>
-    private HandleResult<TransferRoutine>? UseReceivingArm(TransferRequest request, IRobot receiver, string source, out int arm)
+    private HandleResult<TransferRoutine>? UseReceivingArm(TransferRequest request, ITransferRobot receiver, string source, out int arm)
     {
         arm = request.TargetSlot;
         string armText = arm.ToString(CultureInfo.InvariantCulture);
@@ -509,7 +509,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// 挑手臂：两个站点都许用、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
     /// 手指数按晶圆账给机械手登记的槽数（机械手组件初始化时按驱动轴表登记）。
     /// </summary>
-    private HandleResult<TransferRoutine>? PickArm(IRobot robot, int wanted, string source, string target, IWaferManagerComponent ledger, out int arm)
+    private HandleResult<TransferRoutine>? PickArm(ITransferRobot robot, int wanted, string source, string target, IWaferManagerComponent ledger, out int arm)
     {
         arm = 0;
         int armCount = ledger.GetSlots(robot.Name).Count;
