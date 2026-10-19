@@ -580,6 +580,7 @@
     <sys:String x:Key="device.action.valve_on">开阀</sys:String>
     <sys:String x:Key="device.action.valve_off">停液</sys:String>
     <sys:String x:Key="device.action.flow">流量设定</sys:String>
+    <sys:String x:Key="buffer.rack">缓存架</sys:String>
     <sys:String x:Key="scene.default_view">默认视角</sys:String>
     <sys:String x:Key="scene.top_view">俯视</sys:String>
     <sys:String x:Key="scene.back_view">背面</sys:String>

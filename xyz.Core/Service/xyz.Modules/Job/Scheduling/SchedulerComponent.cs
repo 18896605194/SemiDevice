@@ -17,12 +17,6 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 {
     #region SC
 
-    [SCEditor("False", "Scheduler", "同腔交换：机械手手上的片要进的站里那片做完了，就在站门口先取走旧片、再放进新片，站点少等一来一回；False = 不派交换")]
-    public bool EnableSwap { get; set; }
-
-    [SCEditor("False", "Scheduler", "预取：要去的站都满着时，先把下一片取到一只空手上，等站做完就交换；EnableSwap 也开着才生效，多站路线确认不会卡死再打开")]
-    public bool EnablePrefetch { get; set; }
-
     [SCEditor("False", "Scheduler", "并行的工艺站挑最久没开工的那个，几个腔轮着用；False = 按流程配方勾的顺序，第一个能放的就用")]
     public bool PreferIdleStation { get; set; }
 
@@ -64,26 +58,29 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             }
         }
 
-        // 交换：手上的片要去的站里那片做完了，先取后放；排在"走机内的片"前面，免得机械手先去送做完的片
-        if (EnableSwap)
+        // 交换：手上的片要去的站里那片做完了，先取后放；排在"走机内的片"前面，免得机械手先去送做完的片。
+        // 换不换由机械手定：要有另一只空手、站点许它取旧片（单手的挑不出第二只手，自然不换）
+        foreach (var row in rows)
         {
-            foreach (var row in rows)
-            {
-                TryStartSwap(row, rows, tasks);
-            }
+            TryStartSwap(row, rows, tasks);
         }
 
-        // 再走机内的片：做完的片占着站点，不挪走后面的片进不来
+        // 再走机内的片：做完的片占着站点，不挪走后面的片进不来；下一站满着就预取（buffer 里等着进腔的片也一样）
         foreach (var row in rows)
         {
             var task = NextTask(row, TaskPermission.Advance);
-            if (task is not null && task.IsRobotTask && !row.IsWaiting)
+            if (task is null || !task.IsRobotTask || row.IsWaiting)
             {
-                StartTransfer(row, task, tasks);
+                continue;
+            }
+
+            if (!StartTransfer(row, task, tasks) && task.Kind == StationTaskAction.Pick)
+            {
+                TryPrefetch(row, task, rows, tasks);
             }
         }
 
-        // 最后投新片；要去的站都满着时按开关预取
+        // 最后投新片；要去的站都满着时预取
         foreach (var row in rows)
         {
             var task = NextTask(row, TaskPermission.Feed);
@@ -92,12 +89,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 continue;
             }
 
-            if (StartTransfer(row, task, tasks))
-            {
-                continue;
-            }
-
-            if (EnableSwap && EnablePrefetch)
+            if (!StartTransfer(row, task, tasks))
             {
                 TryPrefetch(row, task, rows, tasks);
             }
@@ -423,7 +415,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 预取：新片要去的站都满着，组里有站快做完了，就先把新片只取到一只空手上，另留一只空手给换出来的旧片
+    /// 预取：片要去的站都满着、组里有站快做完了，就先把片只取到一只空手上，另留一只空手给换出来的旧片；从料盒、buffer、腔取都一样
     /// </summary>
     private void TryPrefetch(TaskRow row, WaferTask pick, IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
     {
@@ -601,18 +593,12 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 作废过时的预取意向：开关关了、那片已经不在等这个站（放到别处、没取成）、站点停用下线出错、站里没有快做完的片
+    /// 作废过时的预取意向：那片已经不在等这个站（放到别处、没取成）、站点停用下线出错、站里没有快做完的片
     /// </summary>
     private void DropStalePrefetches(IReadOnlyList<TaskRow> rows)
     {
         if (_prefetched.Count == 0)
         {
-            return;
-        }
-
-        if (!EnableSwap || !EnablePrefetch)
-        {
-            _prefetched.Clear();
             return;
         }
 

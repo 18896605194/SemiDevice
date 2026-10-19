@@ -532,6 +532,17 @@ LoadPortScene 槽数跟 sc（13 / 25 / 26 / 40 槽的花篮高度、槽号、取
 dotnet run --project tools/LoadPortSceneSmoke -- D:\Code\artifacts\loadport-scene.png
 ```
 
+## Buffer：可直接放进页面的三维缓存架
+
+普通页面只要缓存架时使用 `<controls:BufferView SlotCount="10" Wafers="{Binding BufferWafers}" />`，
+它自带相机、灯光，不带模块标题、状态栏、片数文字或视角按钮，不需要页面后台代码。
+已有 `Viewport3D` 时用公开的 `BufferVisual3D`，与其他硬件共用相机和灯光；数据使用显式 Source / ElementName 绑定。
+`xyz.Client.Presentation.Controls.Buffer` 在同一个 `BufferView` 外封装模块标题、状态和默认 / 背面视角按钮。
+三个入口提供可绑定的 FirstSlot、SlotCount、Wafers 和只读 WaferCount，建模和集合观察逻辑只维护一份。
+复用 `WaferModel` 与 `DiskVisual3D` 的状态色；集合增删、换源和单片槽位移动会自动刷新。
+紧凑槽距、前后对称贯通；保留拖动旋转和滚轮缩放，无俯视、下拉、选片或选择回传。
+依赖属性与可运行示例见 [Buffer 控件使用说明](../../../../../../tools/BufferSmoke/README.md)。
+
 WPF 机制参考：[自定义依赖属性](https://learn.microsoft.com/zh-cn/dotnet/desktop/wpf/properties/custom-dependency-properties)、
 [三维性能建议](https://learn.microsoft.com/zh-cn/dotnet/desktop/wpf/graphics-multimedia/maximize-wpf-3d-performance)。
 

@@ -580,6 +580,7 @@
     <sys:String x:Key="device.action.valve_on">Valve on</sys:String>
     <sys:String x:Key="device.action.valve_off">Stop dispense</sys:String>
     <sys:String x:Key="device.action.flow">Flow setpoint</sys:String>
+    <sys:String x:Key="buffer.rack">Buffer rack</sys:String>
     <sys:String x:Key="scene.default_view">Default</sys:String>
     <sys:String x:Key="scene.top_view">Top</sys:String>
     <sys:String x:Key="scene.back_view">Back</sys:String>

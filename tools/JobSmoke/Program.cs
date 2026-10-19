@@ -1726,7 +1726,7 @@ try
 
     // 17d. 同腔交换、预取：同一槽先取走做完的旧片、再放进手上的新片，站点一轮占到底，两片各记各的进度和账；
     //      放新片失败、取完旧片后中止都整条挂起，按任意一片放锁都能清干净；
-    //      调度两个开关默认关，打开后预取只取不放、留一只空手给旧片、同一个站只预取一片，许可不对称、旧片没去处都不预取；
+    //      调度没有交换、预取开关，换不换看机械手的手：预取只取不放、留一只空手给旧片、同一个站只预取一片，许可不对称、旧片没去处都不预取；
     //      Job 中止时交换里它的旧片已经取出来了，就让交换把另一片放完，Job 等交换收尾才结束。
     {
         TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.WaferId == waferId);
@@ -1812,12 +1812,8 @@ try
         Check(ledger.Move("Robot1", 1, "LP1", 1) && ledger.Move("Robot1", 2, "LP1", 2), "手动交换用的两片收回");
         UnloadCarrier(lp1);
 
-        // 调度：开关默认关（前面各节都是关着跑的）；打开交换、预取，一个腔跑三片
-        var scheduler = jobs.Scheduler;
-        Check(!scheduler.EnableSwap && !scheduler.EnablePrefetch, "交换、预取两个开关默认都关");
+        // 调度：交换、预取没有开关，两只手的机械手就会换（前面各节一样在换，只是没专门查）；一个腔跑三片
         Sequence(7, "SEQ_SW", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP1"));
-        scheduler.EnableSwap = true;
-        scheduler.EnablePrefetch = true;
         pm1.ProcessTicks = 30;
         LoadCarrier(lp1, 1, 2, 3);
         var lotSw = Enumerable.Range(1, 3).Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
@@ -1838,14 +1834,13 @@ try
         Check(HoldsFor(10, () => RowOf(lotSw[2]).IsWaiting && ledger.Get("LP1", 3)?.Id == lotSw[2]),
             "同一个站只预取一片：第三片不动，空手不被占光");
 
-        // 只开交换（预取关掉）也能处理已经在手上的片
-        scheduler.EnablePrefetch = false;
+        // 第一片做完：手上那片换进去
         SwapRoutine? scheduled = null;
         Check(RunUntil(() =>
         {
             scheduled = RowOf(lotSw[0]).Current?.Operation as SwapRoutine;
             return scheduled is not null;
-        }), "第一片做完：调度在 PM1 派了交换（只开交换也处理手上的片）");
+        }), "第一片做完：调度在 PM1 派了交换");
         var swapped = scheduled!;
         Check(ReferenceEquals(RowOf(lotSw[1]).Current?.Operation, swapped) && swapped.Station.Name == "PM1",
             "旧片的取片、新片的放片挂在同一趟交换上");
@@ -1861,7 +1856,6 @@ try
         Check(RunUntil(() => CjOf("LOT-SW") is null, 20), "LOT-SW 删掉");
 
         // 旧片换出来没去处（回片的 LP2 没在 Loaded，收不了片）：不预取
-        scheduler.EnablePrefetch = true;
         Sequence(8, "SEQ_SW2", Step("LoadPort", "", "LP1"), Step("Chamber", "R1", "PM1"), Step("LoadPort", "", "LP2"));
         LoadCarrier(lp1, 1, 2);
         LoadCarrier(lp2);
@@ -1902,6 +1896,27 @@ try
         lefty.Close();
         secondRobot = null;
 
+        // 单手机械手：挑不出第二只手，腔满着也不预取、不交换，一片一片跑完——换不换由机械手的手定，调度没有开关
+        var single = new SmokeRobot("Robot7", 1, "LP1", "LP2", "PM1", "PM2");
+        Check(single.InitComponent() && single.Arms.Count == 1 && ledger.GetSlots("Robot7").Count == 1, "单手机械手组件初始化（账上一只手）");
+        ComponentLoader.BindAll([single]);
+        single.NoteState(ModuleState.Idle);
+        single.Online();
+        transfers.Bind([lp1, lp2, single, pm1, pm2, pm9]);
+        secondRobot = single;
+        LoadCarrier(lp1, 1, 2);
+        Check(Create("LOT-SW4", "LP1", true, (1, "SEQ_SW"), (2, "SEQ_SW")).IsSuccess, "建 LOT-SW4（单手机械手）");
+        Check(RunUntil(() => PjOf("LOT-SW4-1")?.Wafers.Any(IsProcessing) == true), "第一片在 PM1 加工");
+        Check(HoldsFor(20, () => PjOf("LOT-SW4-1")!.Wafers.Count(IsWaiting) == 1 && ledger.Get("Robot7", 1) is null),
+            "单手：腔满着也不预取，第二片留在料盒");
+        Check(RunUntil(() => CjOf("LOT-SW4")?.State == (int)ControlJobState.Completed) && PjOf("LOT-SW4-1")!.Wafers.All(IsDone),
+            "单手不交换，照常一片一片跑完");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-SW4") is null, 20), "LOT-SW4 删掉");
+        transfers.Bind(modules);
+        single.Close();
+        secondRobot = null;
+
         // Job 中止：旧片属于 PJ1（SEQ_B 走 PM1、PM2 两站，从 PM1 换出来时 PJ1 还在 PROCESSING，能中止）、新片属于 PJ2；
         // 交换取完旧片后中止 PJ1——交换不被打断，PJ1 等交换收尾才结束
         LoadCarrier(lp1, 1, 2);
@@ -1933,8 +1948,6 @@ try
         Check(ledger.Get("Robot1", swapHeldArm)?.Id == lotX[0] && ledger.Move("Robot1", swapHeldArm, "LP1", 1), "中止的 PJ1 那片停在手上，人工收回");
         UnloadCarrier(lp1);
         Check(RunUntil(() => CjOf("LOT-SWX") is null, 20), "LOT-SWX 删掉");
-        scheduler.EnableSwap = false;
-        scheduler.EnablePrefetch = false;
         pm1.ProcessTicks = 3;
     }
 
@@ -2154,10 +2167,7 @@ try
         Check(!wrongArm.IsSuccess && wrongArm.ErrorMessage == ErrorCodes.TransferArmUnavailable,
             "点名 2 号手从 LP1 取片：LP1 不许 2 号手取，搬运管理不收");
 
-        // Job 跑两片，交换、预取都开：第二片预取到 1 号手，PM1 做完交换（取旧片 2 号、放新片 1 号），片回料盒都用 2 号手
-        var scheduler = jobs.Scheduler;
-        scheduler.EnableSwap = true;
-        scheduler.EnablePrefetch = true;
+        // Job 跑两片：第二片预取到 1 号手，PM1 做完交换（取旧片 2 号、放新片 1 号），片回料盒都用 2 号手
         pm1.ProcessTicks = 30;
         Check(Create("LOT-ARM", "LP1", true, (1, "SEQ_SW"), (2, "SEQ_SW")).IsSuccess, "建 LOT-ARM（干净手 / 脏手，一个腔跑两片）");
         Check(RunUntil(() => RowOf(dirtyB).ExpectedLocation.IsArm), "腔满着：第二片被预取到手上");
@@ -2177,8 +2187,6 @@ try
             "每片进腔（LP1 取、PM1 放）都用 1 号手，出腔（PM1 取、LP1 放）都用 2 号手");
         UnloadCarrier(lp1);
         Check(RunUntil(() => CjOf("LOT-ARM") is null, 20), "LOT-ARM 删掉");
-        scheduler.EnableSwap = false;
-        scheduler.EnablePrefetch = false;
         pm1.ProcessTicks = 3;
         transfers.Bind(modules);
         clean.Close();
@@ -2218,6 +2226,7 @@ try
 
     // 17h. buffer：两台机械手中间一个 10 层的架子，sc 里配成进片段、出片段两个站（各 5 层），流程配方各走一次——
     //      进、出不共用一个站，调度照现在的规则连续跑一盒也不卡死，调度、机械手、搬运管理都不用改。buffer 段开机就待命、自己上线；
+    //      交换、预取看机械手的手、不分片从哪来：B 从进片段把下一片提前拿上手、在腔门口交换，A 在 buffer 上不换；
     //      跟 JK 一样，机械手控制器里两段各教一个站号，槽号原样发，不用换算
     {
         var bufferIn = new SmokeBuffer("BufferIn", 5);
@@ -2265,9 +2274,51 @@ try
         LoadCarrier(lp1, bufferSlots);
         var lotBuf = bufferSlots.Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
         Check(Create("LOT-BUF", "LP1", true, bufferSlots.Select(slot => (slot, "SEQ_BUF")).ToArray()).IsSuccess, "建 LOT-BUF（8 片都经过 buffer）");
-        Check(RunUntil(() => CjOf("LOT-BUF")?.State == (int)ControlJobState.Completed) && PjOf("LOT-BUF-1")!.Wafers.All(IsDone)
+
+        // 跑的时候记下：谁在哪个站交换过、有没有片从进片段被提前拿到 B 手上等着进腔（预取的片停在手上、放片还等着）
+        pm1.ProcessTicks = 30;
+        pm2.ProcessTicks = 30;
+        var bufferTasks = jobs.FindChild<TaskComponent>()!;
+        var swapStations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var swapRobots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool prefetchedFromBuffer = false;
+        void NoteBufferRun()
+        {
+            foreach (var row in bufferTasks.Rows)
+            {
+                var current = row.Current;
+                if (current is null)
+                {
+                    continue;
+                }
+
+                if (current.Operation is SwapRoutine running)
+                {
+                    swapStations.Add(running.Station.Name);
+                    swapRobots.Add(running.Robot.Name);
+                }
+
+                var at = row.ExpectedLocation;
+                if (at.IsArm && at.Module == "RobotB" && current.Kind == StationTaskAction.Place && current.State == WaferTaskState.Waiting
+                    && current.Stations.Contains("PM1"))
+                {
+                    prefetchedFromBuffer = true;
+                }
+            }
+        }
+
+        Check(RunUntil(() =>
+        {
+            NoteBufferRun();
+            return CjOf("LOT-BUF")?.State == (int)ControlJobState.Completed;
+        }) && PjOf("LOT-BUF-1")!.Wafers.All(IsDone)
               && bufferSlots.All(slot => ledger.Get("LP1", slot)?.Id == lotBuf[slot - 1]),
             "连续跑一盒（8 片，比 buffer 一段的 5 层多）：不卡死，片都回原槽");
+        Check(prefetchedFromBuffer, "腔都在做时，B 把进片段里的下一片提前取到手上（预取不分片从哪来，不只从料盒）");
+        Check(swapRobots.SetEquals(["RobotB"]) && swapStations.Count > 0 && swapStations.IsSubsetOf(["PM1", "PM2"]),
+            "交换只在腔门口、由 B 做；A 够不着腔，在 buffer 上换不出旧片，不换");
+        pm1.ProcessTicks = 3;
+        pm2.ProcessTicks = 3;
         var bufWafers = PjOf("LOT-BUF-1")!.Wafers;
         Check(bufWafers.All(wafer => wafer.Tasks[1].Station == "BufferIn" && wafer.Tasks[6].Station == "BufferOut"),
             "没洗的片都放进进片段，洗完的片都放进出片段");
@@ -2376,8 +2427,10 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
     "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, " +
     "per-station pick / place arms (clean and dirty arms: a wrong arm number refused at startup, the robot entry and transfer arm choice, prefetch and swap following them), " +
+    "swap and prefetch with no switch, decided by the robot's arms (a one-arm robot never prefetches or swaps), " +
     "parallel process stations taking turns by their last start when PreferIdleStation is on (recipe order when off), chambers counting their own starts, " +
     "a buffer rack split into in / out stations between two robots (ready and online at startup, a full carrier without deadlock, " +
+    "the second robot prefetching from the in-section and swapping only at the chambers, " +
     "each section taught as its own robot station number so slots go out unchanged), " +
     "transition numbers in order,a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
@@ -2472,7 +2525,7 @@ sealed class SmokeJobs : JobManager
         AddChild(Scheduler);
     }
 
-    // 调度挂在 Job 下面（生产里是 sc.xml 的 Scheduler 子节点），测试直接拨它的交换、预取开关。
+    // 调度挂在 Job 下面（生产里是 sc.xml 的 Scheduler 子节点），测试直接拨它的 PreferIdleStation 开关。
     public SchedulerComponent Scheduler { get; }
 
     public void Tick() => OnScan();
@@ -2530,19 +2583,32 @@ class SmokeRobot : BaseRobotModule
     {
     }
 
+    public SmokeRobot(string name, int armCount, params string[] stations) : this(name, armCount, AllArms, AllArms, InOrder, stations)
+    {
+    }
+
+    public SmokeRobot(string name, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
+        IReadOnlyDictionary<string, int> numbers, params string[] stations) : this(name, 2, pickArms, placeArms, numbers, stations)
+    {
+    }
+
+    // armCount：几只手（sc.xml Axes 下几个 Arm 节点），不给的都是两只。
     // pickArms / placeArms：站点 → 取片 / 放片许用的手（sc.xml 站点节点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
     // numbers：站点 → 站号（sc.xml 站点节点的 Number）；没写的站点按先后 1、2、3……
-    public SmokeRobot(string name, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
+    public SmokeRobot(string name, int armCount, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
         IReadOnlyDictionary<string, int> numbers, params string[] stations)
     {
         Probe.Name(this, name);
         AddChild(new SmokeRobotShell());
-        // sc.xml 的轴节点：本冒烟装两指（生产里由 ComponentLoader 建，这里直接挂）。
+        // sc.xml 的轴节点（生产里由 ComponentLoader 建，这里直接挂）。
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
         AddChild(Named(new RobotAxisComponent(), "Theta"));
-        AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
-        AddChild(Named(new RobotArmComponent { Number = 2 }, "Arm2"));
+        for (int arm = 1; arm <= armCount; arm++)
+        {
+            AddChild(Named(new RobotArmComponent { Number = arm }, "Arm" + arm.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+
         var nodes = new List<ModuleConfig>();
         for (int index = 0; index < stations.Length; index++)
         {

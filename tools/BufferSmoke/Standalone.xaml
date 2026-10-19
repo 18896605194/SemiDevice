@@ -1,0 +1,7 @@
+﻿<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+      Width="360" Height="320" Background="{DynamicResource DarkControlBackground}">
+    <controls:BufferView x:Name="RackView" FirstSlot="{Binding FirstSlot}"
+                         SlotCount="{Binding SlotCount}" Wafers="{Binding Wafers}" />
+</Grid>

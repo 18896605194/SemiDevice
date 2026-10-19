@@ -1,0 +1,28 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:xyz.Client.Presentation.Controls">
+    <Style x:Key="BufferStateBadgeStyle" TargetType="local:ModuleStateBadge">
+        <Style.Triggers>
+            <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+            <Trigger Property="Text" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="BufferOnlineDotStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource DarkDisabledText}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:Buffer}}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource DarkRunningStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="BufferOnlineTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource Size12}" />
+        <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
+        <Setter Property="Text" Value="{DynamicResource action.offline}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:Buffer}}" Value="True">
+                <Setter Property="Text" Value="{DynamicResource action.online}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>
