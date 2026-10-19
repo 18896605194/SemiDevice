@@ -6,7 +6,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 [Component(description: "PLC 组件（全系统 IO 底座）")]
-public partial class PlcComponent : ComponentBase, IPlc
+public partial class PlcComponent : ComponentBase, IPlcIo, IPlcBlock
 {
     public PlcComponent()
     {

@@ -34,7 +34,7 @@ void Check(bool condition, string message)
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-cds-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = IocHelper.GetService<IPlc>();
+var previousPlc = IocHelper.GetService<IPlcIo>();
 var previousIo = IocHelper.GetService<IIoComponent>();
 var previousEc = IocHelper.GetService<IEcComponent>();
 var previousAlarm = IocHelper.GetService<IAlarmComponent>();
@@ -50,7 +50,7 @@ try
     }
 
     var plc = new FakePlc();
-    SmokeIoc.Use<IPlc>(plc);
+    SmokeIoc.Use<IPlcIo>(plc);
     var io = new IoComponent { PointTableDirectory = directory };
     SmokeIoc.Use<IIoComponent>(io);
     io.InitComponent();
@@ -648,7 +648,7 @@ try
 }
 finally
 {
-    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IPlcIo>(previousPlc);
     SmokeIoc.Use<IIoComponent>(previousIo);
     SmokeIoc.Use<IEcComponent>(previousEc);
     SmokeIoc.Use<IAlarmComponent>(previousAlarm);
@@ -837,7 +837,7 @@ public sealed class SmokeTank : TankComponent
 /// <summary>
 /// 假 PLC：DI、AI 由测试摆，DO 记下写进来的值；没连上时都读写不了
 /// </summary>
-public sealed class FakePlc : IPlc
+public sealed class FakePlc : IPlcIo
 {
     private readonly object _gate = new();
     private readonly Dictionary<int, bool> _di = [];
@@ -937,21 +937,6 @@ public sealed class FakePlc : IPlc
     }
 
     public bool WriteAo(int index, double value)
-    {
-        return false;
-    }
-
-    public void Register(string path)
-    {
-    }
-
-    public bool TryReadBlock(string path, out byte[] block)
-    {
-        block = [];
-        return false;
-    }
-
-    public bool WriteBlock(string path, byte[] data)
     {
         return false;
     }

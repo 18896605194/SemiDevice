@@ -6,7 +6,7 @@
 public interface IE87Component
 {
 
-    void Attach(IHsmsComponent link, IE30Component gem, IReadOnlyList<ILoadPort> ports, Action<string>? materialVerified);
+    void Attach(IHsmsComponent link, IE30Component gem, IReadOnlyList<ILoadPortAccess> ports, Action<string>? materialVerified);
 
     void Detach();
 }

@@ -19,7 +19,7 @@ using xyz.Shared.Errors;
 using xyz.Tools;
 
 // EAP 冒烟（SECS/GEM 各标准组件对假 Host）：Eap 节点按 sc.xml 同款结构装配（Hsms + E30 + E39 + E87 + E90 + E40 + E94），
-// 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（LedgerManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
+// 设备侧用假的 LoadPort（ILoadPortAccess）、真的晶圆账（LedgerManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
 // Trace（S2F23 设、校验、取消、替换、离线全停，S6F1 按包发、SMPLN / STIME 记包里最后一次）；
@@ -1214,7 +1214,7 @@ sealed class HostLog
 /// 假的 LoadPort：状态都是字段，测试按真端口的顺序调回调（放上、读码、读槽图、Load 好、干完、Unload 好、拿走）；
 /// 槽图照样落到晶圆账。EAP 发的动作（Load、Unload、改存取方式、写载具号和核对状态）都记下来。
 /// </summary>
-sealed class FakePort : ILoadPort
+sealed class FakePort : ILoadPortAccess
 {
     private readonly LedgerManagerComponent _ledger;
     private bool _loaded;
@@ -1239,20 +1239,6 @@ sealed class FakePort : ILoadPort
 
     public ModuleOperation? CurrentOperation => null;
 
-    // 这份假件只模拟 EAP 载具流程，不受理机械手搬运。
-    public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
-    public HandleResult? CheckPrepareTransfer() => HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, State.ToString());
-    public ModuleOperation? PrepareTransfer(TransferContext context) => null;
-    public ModuleOperation? PrepareTransfer2(TransferContext context) => null;
-    public bool Transferring(TransferContext context) => false;
-    public ModuleOperation? PrepareNextLeg(TransferContext context) => null;
-    public bool HandoffOnPick => false;
-    public bool HandoffOnPlace => false;
-    public ModuleOperation? HandoffPick(TransferContext context) => null;
-    public ModuleOperation? HandoffPlace(TransferContext context) => null;
-    public bool TransferComplete(TransferContext context) => false;
-    public bool CancelTransfer(TransferContext context) => true;
-
     public void Online()
     {
     }
@@ -1261,49 +1247,10 @@ sealed class FakePort : ILoadPort
     {
     }
 
-    public bool CanUseCarrierForJob => CheckCarrierForJob() is null;
-    public HandleResult? CheckCarrierForJob() => _loaded ? null : HandleResult.Fail(ErrorCodes.CarrierNotLoaded, Name);
-
-    public HandleResult NotifyJobFinished(string carrierId) => _carrier.NoteComplete(carrierId);
-
-    public SlotPickOrder PickOrder => SlotPickOrder.BottomUp;
-
-    public int LoadTimeout => 0;
-
-    public int UnloadTimeout => 0;
-
-    public int HomeTimeout => 0;
-
-    public int ResetTimeout => 0;
-
-    public int AbortTimeout => 0;
-
-    public HandleResult<ModuleOperation> UnloadManually()
-    {
-        return Unload();
-    }
-
-    public HandleResult? CheckReset()
-    {
-        return null;
-    }
-
-    public HandleResult? CheckAbort()
-    {
-        return null;
-    }
-
-    public LoadPortDto CreateStateDto()
-    {
-        return new LoadPortDto { Name = Name };
-    }
-
     #endregion
 
     /// <summary>端口上这一盒载具：状态和记录都还在 FakePort 的字段里，这里只是把 ICarrier 的口子转过去。</summary>
     public ICarrier _carrier { get; }
-
-    public ICarrierAccess Carrier => _carrier;
 
     public int State => _loaded ? 110 : 30;
 
@@ -1372,17 +1319,11 @@ sealed class FakePort : ILoadPort
 
     public HandleResult? CheckUnload() => UnloadRejection;
 
-    public HandleResult<ModuleOperation> Home() => HandleResult<ModuleOperation>.Success(new NoOpOperation("Home"));
-
     public ModuleOperation? InitModule() => new NoOpOperation("InitModule");
 
     public ModuleOperation? Reset() => new NoOpOperation("Reset");
 
     public ModuleOperation? Abort() => new NoOpOperation("Abort");
-
-    public HandleResult<ModuleOperation> Clamp() => HandleResult<ModuleOperation>.Success(new NoOpOperation("Clamp"));
-
-    public HandleResult<ModuleOperation> Unclamp() => HandleResult<ModuleOperation>.Success(new NoOpOperation("Unclamp"));
 
     public void SetAutoMode(bool autoMode)
     {
@@ -1537,7 +1478,7 @@ sealed class FakePort : ILoadPort
 
         public bool IsAccepted => false;
 
-        public void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
+        public void Attach(ILoadPortAccess port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
         {
         }
 

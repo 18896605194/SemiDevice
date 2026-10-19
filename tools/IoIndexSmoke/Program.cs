@@ -8,7 +8,7 @@ SmokeIoc.Reset();
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-io-index-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = IocHelper.GetService<IPlc>();
+var previousPlc = IocHelper.GetService<IPlcIo>();
 var previousIo = IocHelper.GetService<IIoComponent>();
 var io = new IoComponent();
 SmokeIoc.Use<IIoComponent>(io);
@@ -47,10 +47,10 @@ try
     }
 
     io.PointTableDirectory = tables;
-    SmokeIoc.Use<IPlc>(null);
+    SmokeIoc.Use<IPlcIo>(null);
     io.InitComponent();
     Check(!io.IsCollected && !io.TryReadDi(7, out _), "no PLC means nothing is readable");
-    SmokeIoc.Use<IPlc>(plc);
+    SmokeIoc.Use<IPlcIo>(plc);
     io.InitComponent();
     Check(io.IsCollected, "collecting follows the PLC connection");
     Check(io.TryReadAi(7, out var value) && value == 50, "AI must resolve sparse PLC indices and scale");
@@ -113,7 +113,7 @@ try
 }
 finally
 {
-    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IPlcIo>(previousPlc);
     SmokeIoc.Use<IIoComponent>(previousIo);
     Directory.Delete(directory, recursive: true);
 }
@@ -126,20 +126,17 @@ static void Check(bool condition, string message)
     }
 }
 
-sealed class FakePlc : IPlc
+sealed class FakePlc : IPlcIo
 {
     public bool IsConnected { get; set; } = true;
     public (int, bool) LastDo { get; private set; }
     public (int, double) LastAo { get; private set; }
-    public void Register(string path) { }
     public bool TryReadDi(int index, out bool on) { on = IsConnected && index == 7; return IsConnected; }
     public bool TryReadDo(int index, out bool on) { on = IsConnected && index == 12; return IsConnected; }
     public bool TryReadAi(int index, out double value) { value = index == 7 ? 500 : 100; return IsConnected; }
     public bool TryReadAo(int index, out double value) { value = 250; return IsConnected; }
     public bool WriteDo(int index, bool on) { LastDo = (index, on); return true; }
     public bool WriteAo(int index, double value) { LastAo = (index, value); return true; }
-    public bool TryReadBlock(string path, out byte[] block) { block = []; return false; }
-    public bool WriteBlock(string path, byte[] data) => false;
 }
 
 // IO 组件顶替扫描线程扫一拍

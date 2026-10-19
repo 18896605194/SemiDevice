@@ -14,7 +14,7 @@ public partial class AxisComponent
     private const int SettleScans = 3;
 
     private readonly object _axisGate = new();
-    private IPlc? _plc;
+    private IPlcBlock? _plc;
     private MotionCSharpToPlcCommand _command;
     private bool _baselined;
 
@@ -37,7 +37,7 @@ public partial class AxisComponent
     /// </summary>
     public override bool InitComponent()
     {
-        var plc = IocHelper.GetService<IPlc>();
+        var plc = IocHelper.GetService<IPlcBlock>();
         if (plc is not null)
         {
             CheckCommandBlock();
@@ -76,7 +76,7 @@ public partial class AxisComponent
         }
     }
 
-    public bool Open(IPlc plc)
+    public bool Open(IPlcBlock plc)
     {
         if (string.IsNullOrWhiteSpace(SendPlcDataPath) || string.IsNullOrWhiteSpace(ReceivePlcDataPath))
         {
@@ -384,7 +384,7 @@ public partial class AxisComponent
         return true;
     }
 
-    private static bool TryRead<T>(IPlc plc, string path, out T value) where T : unmanaged
+    private static bool TryRead<T>(IPlcBlock plc, string path, out T value) where T : unmanaged
     {
         value = default;
         if (!plc.TryReadBlock(path, out var block) || block.Length < Marshal.SizeOf<T>())

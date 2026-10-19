@@ -31,7 +31,7 @@ public interface ICarrier : ICarrierAccess
     /// <summary>
     /// 端口把自己、读码器（没配为 null）、E87 上报的入队口交给它；端口组件初始化时调
     /// </summary>
-    void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue);
+    void Attach(ILoadPortAccess port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue);
 
     /// <summary>
     /// 在位、到位

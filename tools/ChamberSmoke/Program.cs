@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -7,6 +8,8 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
+using xyz.Database.DbProvider;
+using xyz.Database.Process;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Service;
@@ -19,7 +22,8 @@ using xyz.Tools;
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
-// 全用假 PLC 和内存 EC，不连设备、不读写配置文件。
+// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。
+// 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数写进临时库。
 
 SmokeIoc.Reset();
 
@@ -36,7 +40,12 @@ void Check(bool condition, string message)
 
 var directory = Path.Combine(Path.GetTempPath(), "xyz-chamber-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
-var previousPlc = IocHelper.GetService<IPlc>();
+
+// 开工片数落默认库：默认库指到临时文件（放在临时目录外面，SQLite 连接池占着文件也不耽误删目录）
+var countDb = Path.Combine(Path.GetTempPath(), "xyz-chamber-count-" + Guid.NewGuid().ToString("N") + ".db");
+XyzDb.Register(XyzDb.DefaultName, $"DataSource={countDb}", SqlSugar.DbType.Sqlite);
+var previousPlcIo = IocHelper.GetService<IPlcIo>();
+var previousPlcBlock = IocHelper.GetService<IPlcBlock>();
 var previousIo = IocHelper.GetService<IIoComponent>();
 var previousEc = IocHelper.GetService<IEcComponent>();
 try
@@ -52,7 +61,8 @@ try
     }
 
     var plc = new FakePlc();
-    SmokeIoc.Use<IPlc>(plc);
+    SmokeIoc.Use<IPlcIo>(plc);
+    SmokeIoc.Use<IPlcBlock>(plc);
     var io = new IoComponent { PointTableDirectory = directory };
     SmokeIoc.Use<IIoComponent>(io);
     io.InitComponent();
@@ -737,6 +747,9 @@ try
             ("Position", "0"), ("ScanTo", "150"), ("ScanSpeed", "15")),
         StepOf(("Seconds", "0.1"), ("Rpm", "500"), ("Arm", "Arm1"), ("Chemical", "SC1"), ("Mode", "Time"), ("Position", "150")),
         StepOf(("Seconds", "0.1"), ("Rpm", "0"), ("Arm", ""), ("Chemical", "")));
+    Check(chamber.TodayWafers == 0 && chamber.TotalWafers == 0 && chamber.LastStartedTimestamp is null && chamber.ProcessPercent is null,
+        "还没做过工艺：今天、累计都是 0，没有开工时间戳，进度为空");
+    long beforeStart = Stopwatch.GetTimestamp();
     int spinCommands = plc.CommandCount("Spin.Command");
     var started = RunProcess(process, () => plc.ReadDo(6));
     Check(chamber.State == ChamberState.Processing && chamber.Recipe == "Clean", "工艺发起：腔体在工艺中，记下配方名");
@@ -745,8 +758,21 @@ try
     Check(plc.LastCommand("Spin.Command") == MotionCommandId.Spin && plc.LastSpeed("Spin.Command") == 300 && spin.IsBusy,
         "第 1 步：转速 300 原样给卡盘");
     Check(Near(arm.CurrentPosition, 200) && plc.Ao(0) == 1.5 && !plc.ReadDo(7), "第 1 步：摆臂摆到晶圆中心（示教的 200），DIW 先给流量 1.5 再开阀，SC1 关着");
+    var startedAt = chamber.LastStartedTimestamp;
+    Check(chamber.TodayWafers == 1 && chamber.TotalWafers == 1 && startedAt is not null && startedAt >= beforeStart && startedAt <= Stopwatch.GetTimestamp(),
+        "开工就记一片：今天、累计各 1 片；开工时间戳用开机以来的计时（Stopwatch），不看系统时间");
+
+    // 进度按配方每一步的时间算（0.3 + 0.5 + 0.1 + 0.1 = 1 s）：第 1 步刚开喷不到 30，第 2 步开喷时第 1 步的 0.3 s 算做完
+    int? firstStep = chamber.ProcessPercent;
+    Check(firstStep is not null && firstStep < 30, $"第 1 步刚开喷：进度不到 30，实际 {firstStep}");
+    Drive(started, () => plc.ReadDo(7));
+    int? secondStep = chamber.ProcessPercent;
+    Check(secondStep is not null && secondStep >= 29 && secondStep < 80, $"第 2 步开喷：进度在 30 上下到 80 之间，实际 {secondStep}");
+    Drive(started, () => chamber.ProcessPercent == 99);
+    Check(!started.IsTerminal && chamber.ProcessPercent == 99, "步骤都做完、还在收尾：进度停在 99，动作真做完才算满");
     var processed = Drive(started);
     Check(processed.IsSuccess && chamber.State == ModuleState.Idle, "工艺做完回空闲");
+    Check(chamber.ProcessPercent is null, "工艺做完：不在做工艺了，进度变空");
     Check(diwOn && sc1On && !bothOn, "DIW、SC1 各喷过，换药液时先关上一路");
     Check(seenPositions.Contains(110) && seenPositions.Contains(210) && !seenPositions.Contains(100),
         "第 2、3 步 SC1：Scan 在位置 0 和到 150 之间来回扫、Time 停在 150，都按 SC1 的偏移多走 10（轴 110 ↔ 210），不按 DIW 的位置");
@@ -808,6 +834,64 @@ try
     response = Run(() => service.AbortAsync("Chamber9"));
     Check(response.Success && aborting!.State == OperationState.Aborted && chamber.State == ModuleState.Idle, "中止顶掉工艺，回空闲");
     Check(!plc.ReadDo(6) && plc.Ao(0) == 0 && plc.LastCommand("Spin.Command") == MotionCommandId.Stop, "中止停液、停轴");
+    Check(chamber.TodayWafers == 4 && chamber.TotalWafers == 4,
+        "做成、转速超限、超时、中止的都算开工（4 片）；起工艺前就挡下的不算");
+
+    // 开工片数按天存库：后台写到今天那行；再插一行昨天的，新的计数从库里读回来——今天接着数，累计把各天加起来
+    string today = DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    bool written = false;
+    var waitWrite = Stopwatch.StartNew();
+    while (!written && waitWrite.ElapsedMilliseconds < 3000)
+    {
+        using (var db = XyzDb.Create())
+        {
+            written = db.Queryable<ProcessDailyCountEntity>().Any(row => row.Station == "Chamber9" && row.Day == today && row.Wafers == 4);
+        }
+
+        if (!written)
+        {
+            Thread.Sleep(20);
+        }
+    }
+
+    Check(written, "开工片数按天写进库：Chamber9 今天那行 4 片");
+    using (var db = XyzDb.Create())
+    {
+        string yesterday = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        db.Insertable(new ProcessDailyCountEntity { Station = "Chamber9", Day = yesterday, Wafers = 5, UpdatedAt = DateTime.Now }).ExecuteCommand();
+    }
+
+    var reloaded = new ProcessCounter();
+    reloaded.Load("Chamber9", XyzDb.DefaultName);
+    Check(reloaded.Today == 4 && reloaded.Total == 9 && reloaded.LastStartedTimestamp is null,
+        "重启读回来：今天接着从 4 片数，累计把昨天的 5 片加上（9 片）；开工时间戳只在内存，读回来是空");
+
+    // 写库只给那一天加 1、不写总数：库里今天那行被改成 100（比如时钟往回调到这一天，库里已经有别的数），再开工一片是 101，不会冲成内存里的 5
+    using (var db = XyzDb.Create())
+    {
+        db.Updateable<ProcessDailyCountEntity>()
+            .SetColumns(row => new ProcessDailyCountEntity { Wafers = 100 })
+            .Where(row => row.Station == "Chamber9" && row.Day == today)
+            .ExecuteCommand();
+    }
+
+    reloaded.Started();
+    bool added = false;
+    var waitAdd = Stopwatch.StartNew();
+    while (!added && waitAdd.ElapsedMilliseconds < 3000)
+    {
+        using (var db = XyzDb.Create())
+        {
+            added = db.Queryable<ProcessDailyCountEntity>().Any(row => row.Station == "Chamber9" && row.Day == today && row.Wafers == 101);
+        }
+
+        if (!added)
+        {
+            Thread.Sleep(20);
+        }
+    }
+
+    Check(added && reloaded.Today == 5, "写库只给那一天加 1：库里那行 100 变 101，不按内存里的 5 冲掉");
 
     // 16. 停用的腔体不发设备动作
     var disabled = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber8", enabled: false)]).Single();
@@ -846,15 +930,26 @@ try
         + "jog hold / renew / release, hold timeout auto stop, cylinders up / down; platform Home order (spin homed too), "
         + "prepare transfer 2 (spin to transfer position + door, unhomed spin fails), Reset, Abort; "
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "
-        + "missing steps, recipe mismatch, rpm over limit, timeout, abort; disabled chamber, component init and module init = Home)");
+        + "missing steps, recipe mismatch, rpm over limit, timeout, abort; process starts counted per day in the database (adding one to the day, "
+        + "never overwriting it) and read back, start timestamps on the monotonic clock, "
+        + "process percent by recipe step times; disabled chamber, component init and module init = Home)");
     return 0;
 }
 finally
 {
-    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IPlcIo>(previousPlcIo);
+    SmokeIoc.Use<IPlcBlock>(previousPlcBlock);
     SmokeIoc.Use<IIoComponent>(previousIo);
     SmokeIoc.Use<IEcComponent>(previousEc);
     Directory.Delete(directory, recursive: true);
+    try
+    {
+        File.Delete(countDb);
+    }
+    catch (IOException)
+    {
+        // SQLite 连接池可能还占着文件；在系统临时目录里，留着不碍事
+    }
 }
 
 static T Find<T>(ComponentBase root, string name) where T : class
@@ -978,7 +1073,7 @@ public sealed class InterfaceBowlProbe : InterfaceCylinderProbe, IChamberBowl
 /// 带反馈的阀照输出给反馈、轴照新命令回零 / 定位 / 步进 / 点动 / 转 / 停 / 复位。冒烟线程和 RPC 线程都会碰它，全部加锁。
 /// 每条写进命令块的轴指令都记下来（指令码、速度），检查先后、有没有重发。
 /// </summary>
-public sealed class FakePlc : IPlc
+public sealed class FakePlc : IPlcIo, IPlcBlock
 {
     private readonly object _gate = new();
     private readonly Dictionary<int, bool> _di = [];

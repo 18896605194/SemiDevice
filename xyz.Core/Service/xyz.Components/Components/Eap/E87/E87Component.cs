@@ -214,7 +214,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     /// 接到链路和设备上（EAP 组件在链路打开之前调）：每个 LoadPort 建一个端口对象（PortID 按给的先后编），挂上 E87 回调和 E84 反查口，
     /// 登记 S3 处理方；materialVerified 是槽图认定（料到了）时通知的（E90 据此建片对象）。开始按 EC PortPollMs 查端口状态。
     /// </summary>
-    public void Attach(IHsmsComponent link, IE30Component gem, IReadOnlyList<ILoadPort> ports, Action<string>? materialVerified)
+    public void Attach(IHsmsComponent link, IE30Component gem, IReadOnlyList<ILoadPortAccess> ports, Action<string>? materialVerified)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
@@ -278,7 +278,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         }
     }
 
-    private E87LoadPort? PortOf(ILoadPort device)
+    private E87LoadPort? PortOf(ILoadPortAccess device)
     {
         return _ports.FirstOrDefault(port => ReferenceEquals(port._loadport, device));
     }
@@ -287,7 +287,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
 
     #region 设备回调（IE87Callback，在 EAP 的上报派发线程上）：翻成状态机的消息
 
-    void IE87Callback.CarrierArrived(ILoadPort device)
+    void IE87Callback.CarrierArrived(ILoadPortAccess device)
     {
         OnPort(device, port =>
         {
@@ -296,7 +296,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         });
     }
 
-    void IE87Callback.CarrierIdRead(ILoadPort device, string carrierId)
+    void IE87Callback.CarrierIdRead(ILoadPortAccess device, string carrierId)
     {
         OnPort(device, port =>
         {
@@ -317,7 +317,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         });
     }
 
-    void IE87Callback.CarrierIdReadFailed(ILoadPort device)
+    void IE87Callback.CarrierIdReadFailed(ILoadPortAccess device)
     {
         // 读不出号、也没有载具对象：报读码失败，等 Host 带端口号给号（ProceedWithCarrier）或取消
         OnPort(device, port =>
@@ -329,37 +329,37 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         });
     }
 
-    void IE87Callback.SlotMapRead(ILoadPort device, IReadOnlyList<SlotState> slotMap)
+    void IE87Callback.SlotMapRead(ILoadPortAccess device, IReadOnlyList<SlotState> slotMap)
     {
         OnPort(device, port => port.SlotMapMachine.Post(E87SlotMapMessage.Read));
     }
 
-    void IE87Callback.LoadCompleted(ILoadPort device)
+    void IE87Callback.LoadCompleted(ILoadPortAccess device)
     {
         OnPort(device, port => ReportDoor(CarrierOpenedEvent, port));
     }
 
-    void IE87Callback.UnloadCompleted(ILoadPort device)
+    void IE87Callback.UnloadCompleted(ILoadPortAccess device)
     {
         OnPort(device, port => ReportDoor(CarrierClosedEvent, port));
     }
 
-    void IE87Callback.AutoModeChanged(ILoadPort device, bool autoMode)
+    void IE87Callback.AutoModeChanged(ILoadPortAccess device, bool autoMode)
     {
         OnPort(device, port => port.AccessModeMachine.Post(autoMode ? E87AccessModeMessage.GoAuto : E87AccessModeMessage.GoManual));
     }
 
-    void IE87Callback.AccessStarted(ILoadPort device)
+    void IE87Callback.AccessStarted(ILoadPortAccess device)
     {
         OnPort(device, port => port.AccessMachine.Post(E87AccessMessage.Start));
     }
 
-    void IE87Callback.AccessStopped(ILoadPort device)
+    void IE87Callback.AccessStopped(ILoadPortAccess device)
     {
         OnPort(device, port => port.AccessMachine.Post(E87AccessMessage.Stop));
     }
 
-    void IE87Callback.CarrierComplete(ILoadPort device)
+    void IE87Callback.CarrierComplete(ILoadPortAccess device)
     {
         OnPort(device, port =>
         {
@@ -369,13 +369,13 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         });
     }
 
-    void IE87Callback.PortError(ILoadPort device, string error)
+    void IE87Callback.PortError(ILoadPortAccess device, string error)
     {
         // 取放途中出错：设备侧已经把载具记成中断，这边跟着报 #20
         OnPort(device, port => port.AccessMachine.Post(E87AccessMessage.Stop));
     }
 
-    void IE87Callback.CarrierRemoved(ILoadPort device, string? carrierId)
+    void IE87Callback.CarrierRemoved(ILoadPortAccess device, string? carrierId)
     {
         OnPort(device, port =>
         {
@@ -391,7 +391,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     /// </summary>
     /// <param name="device"></param>
     /// <param name="work"></param>
-    private void OnPort(ILoadPort device, Action<E87LoadPort> work)
+    private void OnPort(ILoadPortAccess device, Action<E87LoadPort> work)
     {
         Locked(() =>
         {
@@ -502,7 +502,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
 
     #region E84 反查（E84 每一拍问一次端口能不能交接）
 
-    LoadPortTransferState IE84Provider.GetTransferState(ILoadPort device)
+    LoadPortTransferState IE84Provider.GetTransferState(ILoadPortAccess device)
     {
         lock (_gate)
         {
@@ -537,7 +537,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         }
     }
 
-    bool IE84Provider.IsAutoAccessMode(ILoadPort device)
+    bool IE84Provider.IsAutoAccessMode(ILoadPortAccess device)
     {
         return device.IsAutoMode;
     }

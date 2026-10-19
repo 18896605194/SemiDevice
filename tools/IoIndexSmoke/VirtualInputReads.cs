@@ -11,13 +11,13 @@ static class VirtualInputReads
 {
     public static void Run(string directory)
     {
-        var previousPlc = IocHelper.GetService<IPlc>();
+        var previousPlc = IocHelper.GetService<IPlcIo>();
         var previousIo = IocHelper.GetService<IIoComponent>();
         try
         {
             InvalidConfigurations();
             var plc = new ProbePlc();
-            SmokeIoc.Use<IPlc>(plc);
+            SmokeIoc.Use<IPlcIo>(plc);
             var roots = SmokeIoc.Load(
             [
                 new ModuleConfig { Name = "Io", Type = typeof(IoComponent).FullName },
@@ -111,7 +111,7 @@ static class VirtualInputReads
         }
         finally
         {
-            SmokeIoc.Use<IPlc>(previousPlc);
+            SmokeIoc.Use<IPlcIo>(previousPlc);
             SmokeIoc.Use<IIoComponent>(previousIo);
         }
     }
@@ -231,7 +231,7 @@ static class VirtualInputReads
         }
     }
 
-    private sealed class ProbePlc : IPlc
+    private sealed class ProbePlc : IPlcIo
     {
         public bool Connected { get; set; } = true;
         public bool IsConnected => Connected;
@@ -282,18 +282,6 @@ static class VirtualInputReads
             Writes++;
             return IsConnected;
         }
-
-        public void Register(string path)
-        {
-        }
-
-        public bool TryReadBlock(string path, out byte[] block)
-        {
-            block = [];
-            return false;
-        }
-
-        public bool WriteBlock(string path, byte[] data) => false;
     }
 }
 

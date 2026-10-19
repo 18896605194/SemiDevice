@@ -4,7 +4,10 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
-public interface ILoadPort : ITransferStation, IJobAccess
+/// <summary>
+/// LoadPort 给 EAP 用的那一面（E87 管载具、E84 交接）
+/// </summary>
+public interface ILoadPortAccess : IModule
 {
     #region 状态
 
@@ -13,8 +16,19 @@ public interface ILoadPort : ITransferStation, IJobAccess
     /// </summary>
     ICarrier _carrier { get; }
 
+    /// <summary>
+    /// 槽数
+    /// </summary>
+    int SlotCount { get; }
+
+    /// <summary>
+    /// 是不是自动模式
+    /// </summary>
     bool IsAutoMode { get; }
 
+    /// <summary>
+    /// 载具是不是 Load 好了
+    /// </summary>
     bool IsLoaded { get; }
 
     /// <summary>
@@ -31,18 +45,24 @@ public interface ILoadPort : ITransferStation, IJobAccess
 
     #region 动作
 
+    /// <summary>
+    /// Load 载具
+    /// </summary>
     HandleResult<ModuleOperation> Load();
 
+    /// <summary>
+    /// Unload 载具
+    /// </summary>
     HandleResult<ModuleOperation> Unload();
 
+    /// <summary>
+    /// 现在能不能 Unload，不能的带原因
+    /// </summary>
     HandleResult? CheckUnload();
 
-    HandleResult<ModuleOperation> Home();
-
-    HandleResult<ModuleOperation> Clamp();
-
-    HandleResult<ModuleOperation> Unclamp();
-
+    /// <summary>
+    /// 切自动 / 手动模式
+    /// </summary>
     void SetAutoMode(bool autoMode);
 
     #endregion
@@ -63,48 +83,6 @@ public interface ILoadPort : ITransferStation, IJobAccess
     /// E84 握手期间设备侧反查 EAP（端口搬运状态、自动模式）。
     /// </summary>
     IE84Provider? E84Provider { get; set; }
-
-    #endregion
-
-    #region 给服务用的（手动页、主界面）
-
-    /// <summary>
-    /// 取片顺序
-    /// </summary>
-    SlotPickOrder PickOrder { get; }
-
-    /// <summary>
-    /// Load 等到做完的上限（ms）
-    /// </summary>
-    int LoadTimeout { get; }
-
-    /// <summary>
-    /// Unload 等到做完的上限（ms）
-    /// </summary>
-    int UnloadTimeout { get; }
-
-    /// <summary>
-    /// 回原点等到做完的上限（ms）
-    /// </summary>
-    int HomeTimeout { get; }
-
-    /// <summary>
-    /// 复位等到做完的上限（ms）
-    /// </summary>
-    int ResetTimeout { get; }
-
-    /// <summary>
-    /// 中止等到做完的上限（ms）
-    /// </summary>
-    int AbortTimeout { get; }
-
-    HandleResult<ModuleOperation> UnloadManually();
-
-    HandleResult? CheckReset();
-
-    HandleResult? CheckAbort();
-
-    LoadPortDto CreateStateDto();
 
     #endregion
 }

@@ -38,6 +38,16 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
 
     private const double MillisecondsPerSecond = 1000;
 
+    /// <summary>
+    /// 进度满格
+    /// </summary>
+    private const int FullPercent = 100;
+
+    /// <summary>
+    /// 步骤都做完、还在收尾时的进度：动作真做完才算满（做完以后站点的进度就变空了）
+    /// </summary>
+    private const int FinishingPercent = 99;
+
     private enum Phase
     {
         Prepare,
@@ -87,6 +97,21 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     private bool _scanStopped;
 
     /// <summary>
+    /// 每一步要喷几秒（建操作时按配方快照算好）
+    /// </summary>
+    private readonly double[] _stepSeconds;
+
+    /// <summary>
+    /// 所有步骤加起来一共几秒
+    /// </summary>
+    private readonly double _totalSeconds;
+
+    /// <summary>
+    /// 进度 0~100：扫描线程每拍算一次，别的线程只读
+    /// </summary>
+    private volatile int _percent;
+
+    /// <summary>
     /// 按配方快照做工艺，整个动作的上限是配方头的超时时间。
     /// </summary>
     public ChamberProcessOperation(BaseChamberModule chamber, string recipeName, RecipeData recipe)
@@ -95,11 +120,20 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         _chamber = chamber;
         _recipeName = recipeName.Trim();
         _steps = recipe.Steps;
+        _stepSeconds = [.. _steps.Select(RecipeData.SecondsOf)];
+        _totalSeconds = _stepSeconds.Sum();
     }
+
+    /// <summary>
+    /// 工艺进度 0~100
+    /// </summary>
+    public int Percent => _percent;
 
     /// <summary>Scan 扫到一半到点了：当场停轴，停下来就进下一步（不等这一趟走完）。</summary>
     protected override void OnWaiting()
     {
+        UpdatePercent();
+
         var arm = _arm;
         if (_phase != Phase.StepDwell || !_isScan || arm is null || _scanStopped || _dwellStart < 0 || !IsDue())
         {
@@ -391,6 +425,56 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     private bool IsDue()
     {
         return Watch.ElapsedMilliseconds - _dwellStart >= _seconds * MillisecondsPerSecond;
+    }
+
+    /// <summary>
+    /// 按配方每一步的时间算进度：准备段 0，收尾段 99；做完的步骤时间加上这一步已经喷了多久，除以总时间。
+    /// 每一步都没填时间就按做完几步算
+    /// </summary>
+    private void UpdatePercent()
+    {
+        switch (_phase)
+        {
+            case Phase.Prepare:
+            case Phase.BowlUp:
+                _percent = 0;
+                return;
+            case Phase.EndNozzles:
+            case Phase.EndArms:
+            case Phase.EndSpin:
+            case Phase.EndBowls:
+            case Phase.Done:
+                _percent = FinishingPercent;
+                return;
+            default:
+                break;
+        }
+
+        int finished = Math.Min(_index, _stepSeconds.Length);
+        if (_totalSeconds <= 0)
+        {
+            if (_stepSeconds.Length == 0)
+            {
+                _percent = 0;
+                return;
+            }
+
+            _percent = Math.Min(FinishingPercent, finished * FullPercent / _stepSeconds.Length);
+            return;
+        }
+
+        double done = 0;
+        for (int step = 0; step < finished; step++)
+        {
+            done += _stepSeconds[step];
+        }
+
+        if (_phase == Phase.StepDwell && _dwellStart >= 0)
+        {
+            done += Math.Min(_seconds, (Watch.ElapsedMilliseconds - _dwellStart) / MillisecondsPerSecond);
+        }
+
+        _percent = Math.Min(FinishingPercent, (int)(done * FullPercent / _totalSeconds));
     }
 
     private bool LiftsUp()

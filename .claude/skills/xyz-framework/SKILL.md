@@ -35,7 +35,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 ### 依赖铁律
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
 2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（`ModuleOperation` 挪到了组件层）、设备侧给 EAP 的接口
-   （`Interfaces` 下的 ILoadPort、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
+   （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
    组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapperComponent`，规则写在 `MapperComponent`），不在启动代码里搭桥。
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。

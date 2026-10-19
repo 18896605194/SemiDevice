@@ -569,7 +569,7 @@ public partial class E87Component
         }
 
         var failures = new List<SecsItem>();
-        var targets = new List<ILoadPort>();
+        var targets = new List<ILoadPortAccess>();
         lock (_gate)
         {
             var ids = requested.Count == 0 ? _ports.Select(port => port.Id).ToList() : requested;

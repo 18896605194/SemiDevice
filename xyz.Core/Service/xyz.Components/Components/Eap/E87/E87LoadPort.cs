@@ -10,7 +10,7 @@ namespace xyz.Components.Components;
 /// </summary>
 internal sealed class E87LoadPort
 {
-    public E87LoadPort(E87Component owner, ILoadPort device, byte id)
+    public E87LoadPort(E87Component owner, ILoadPortAccess device, byte id)
     {
         _e87Component = owner;
         _loadport = device;
@@ -26,7 +26,7 @@ internal sealed class E87LoadPort
 
     public E87Component _e87Component { get; }
 
-    public ILoadPort _loadport { get; }
+    public ILoadPortAccess _loadport { get; }
 
     /// <summary>端口上这一盒载具（设备侧的载具事实和 E87 能下的命令），建端口时取一次，状态机和 Host 报文都从这儿用。</summary>
     public ICarrier _carrier { get; }

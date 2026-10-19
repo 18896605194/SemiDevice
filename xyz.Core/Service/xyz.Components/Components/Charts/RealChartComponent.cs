@@ -8,8 +8,7 @@ using xyz.Tools;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 实时曲线：专管往界面推。自己不采样——订阅数据曲线的每周期一行，内存里留最近一段（WindowSeconds），
-/// 在自己的扫描里（sc 配 IsRun）把新来的行一帧一帧推给界面；实时曲线页打开、新勾一条曲线时先从 <see cref="Recent"/> 把这一段补上。
+/// 实时曲线：专管往界面推
 /// </summary>
 [Component(description: "实时曲线（订阅数据曲线的采样，留最近一段，推给界面）")]
 public class RealChartComponent : ComponentBase, IRealChartComponent

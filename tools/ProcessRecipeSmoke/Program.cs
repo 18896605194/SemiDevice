@@ -777,6 +777,14 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
     public ProcessRejection? CheckProcess(ProcessRequest request) => null;
 
     public ModuleOperation? StartProcess(ProcessRequest request) => null;
+
+    public int TodayWafers => 0;
+
+    public long TotalWafers => 0;
+
+    public long? LastStartedTimestamp => null;
+
+    public int? ProcessPercent => null;
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。

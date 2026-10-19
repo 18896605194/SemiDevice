@@ -8,7 +8,7 @@ static class IoInterlocks
 {
     public static void Run(string directory)
     {
-        var previousPlc = IocHelper.GetService<IPlc>();
+        var previousPlc = IocHelper.GetService<IPlcIo>();
         var previousIo = IocHelper.GetService<IIoComponent>();
         try
         {
@@ -37,7 +37,7 @@ static class IoInterlocks
 
             TestIo Create(RecordingPlc plc, string rules)
             {
-                SmokeIoc.Use<IPlc>(plc);
+                SmokeIoc.Use<IPlcIo>(plc);
                 var io = new TestIo { SaftyIoInterlock = rules, PointTableDirectory = tables };
                 SmokeIoc.Use<IIoComponent>(io);
                 io.Load();
@@ -121,7 +121,7 @@ static class IoInterlocks
         }
         finally
         {
-            SmokeIoc.Use<IPlc>(previousPlc);
+            SmokeIoc.Use<IPlcIo>(previousPlc);
             SmokeIoc.Use<IIoComponent>(previousIo);
         }
     }
@@ -140,7 +140,7 @@ static class IoInterlocks
         public void Tick() => OnScan();
     }
 
-    private sealed class RecordingPlc : IPlc
+    private sealed class RecordingPlc : IPlcIo
     {
         public bool IsConnected { get; set; } = true;
         public bool FailWrites { get; set; }
@@ -170,9 +170,6 @@ static class IoInterlocks
             Do[index] = on;
             return true;
         }
-        public void Register(string path)
-        {
-        }
 
         public bool TryReadAi(int index, out double value)
         {
@@ -187,11 +184,5 @@ static class IoInterlocks
         }
 
         public bool WriteAo(int index, double value) => false;
-        public bool TryReadBlock(string path, out byte[] block)
-        {
-            block = [];
-            return false;
-        }
-        public bool WriteBlock(string path, byte[] data) => false;
     }
 }

@@ -12,12 +12,12 @@ public interface IE84Provider
     /// </summary>
     /// <param name="port"></param>
     /// <returns></returns>
-    LoadPortTransferState GetTransferState(ILoadPort port);
+    LoadPortTransferState GetTransferState(ILoadPortAccess port);
 
     /// <summary>
     /// 端口是否处于自动（AMHS 可交接）模式
     /// </summary>
     /// <param name="port"></param>
     /// <returns></returns>
-    bool IsAutoAccessMode(ILoadPort port);
+    bool IsAutoAccessMode(ILoadPortAccess port);
 }

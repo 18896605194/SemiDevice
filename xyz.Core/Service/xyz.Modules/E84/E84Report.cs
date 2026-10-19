@@ -40,7 +40,7 @@ public sealed record E84Report(
     /// <summary>
     /// 转成 EAP 的 IE84Callback 调用（在 EAP 的上报派发线程上执行）。
     /// </summary>
-    public void DispatchTo(IE84Callback callback, ILoadPort port)
+    public void DispatchTo(IE84Callback callback, ILoadPortAccess port)
     {
         switch (Kind)
         {

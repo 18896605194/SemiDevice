@@ -2441,9 +2441,11 @@ port.E87Callback = null;
     }) && flapComm.Opens == 1 + 2, "连上一下又断的照样算重连，次数用完停下、报警（以前次数一直清零，永远停不下来）");
     flapPort.Close();
 
-    var previousPlc = IocHelper.GetService<IPlc>();
+    var previousPlcIo = IocHelper.GetService<IPlcIo>();
+    var previousPlcBlock = IocHelper.GetService<IPlcBlock>();
     var giveUpPlc = new ProbePlc();
-    SmokeIoc.Use<IPlc>(giveUpPlc);
+    SmokeIoc.Use<IPlcIo>(giveUpPlc);
+    SmokeIoc.Use<IPlcBlock>(giveUpPlc);
     giveUpPlc.ReconnectIntervalMs = 10;
     giveUpPlc.ReconnectMaxCount = 2;
     Check(!giveUpPlc.Open() && giveUpPlc.Connects == 1, "PLC 开机连不上");
@@ -2467,7 +2469,8 @@ port.E87Callback = null;
         return giveUpPlc.IsConnected;
     }), "PLC 人工复位以后从头再连，连上了");
     giveUpPlc.Close();
-    SmokeIoc.Use<IPlc>(previousPlc);
+    SmokeIoc.Use<IPlcIo>(previousPlcIo);
+    SmokeIoc.Use<IPlcBlock>(previousPlcBlock);
     SmokeIoc.Use<IAlarmComponent>(previousAlarms);
 
     // 7) _rfid 读头连不上：LoadPort 照样开驱动、登记晶圆账槽位（以前整台 LoadPort 都不能动）；读头之后按间隔重连上
@@ -4248,11 +4251,11 @@ sealed class RecordingE84Callback : IE84Callback
         return false;
     }
 
-    public void HandoffStarted(ILoadPort port, bool isLoad) => _received[$"HandoffStarted:{isLoad}"] = true;
-    public void HandoffCompleted(ILoadPort port, bool isLoad) => _received[$"HandoffCompleted:{isLoad}"] = true;
-    public void HandoffTimeout(ILoadPort port, bool isLoad, E84Timer timer) => _received[$"HandoffTimeout:{isLoad}:{timer}"] = true;
-    public void HandoffAborted(ILoadPort port, bool isLoad, string reason) => _received[$"HandoffAborted:{isLoad}"] = true;
-    public void AvailabilityChanged(ILoadPort port, bool available) => _received[$"AvailabilityChanged:{available}"] = true;
+    public void HandoffStarted(ILoadPortAccess port, bool isLoad) => _received[$"HandoffStarted:{isLoad}"] = true;
+    public void HandoffCompleted(ILoadPortAccess port, bool isLoad) => _received[$"HandoffCompleted:{isLoad}"] = true;
+    public void HandoffTimeout(ILoadPortAccess port, bool isLoad, E84Timer timer) => _received[$"HandoffTimeout:{isLoad}:{timer}"] = true;
+    public void HandoffAborted(ILoadPortAccess port, bool isLoad, string reason) => _received[$"HandoffAborted:{isLoad}"] = true;
+    public void AvailabilityChanged(ILoadPortAccess port, bool available) => _received[$"AvailabilityChanged:{available}"] = true;
 }
 
 // 只记下收到了哪些回调：派发在别的线程上，等到为止。
@@ -4280,18 +4283,18 @@ sealed class RecordingE87Callback : IE87Callback
 
     private void Note([CallerMemberName] string? name = null) => _received.AddOrUpdate(name!, 1, (_, count) => count + 1);
 
-    public void CarrierArrived(ILoadPort port) => Note();
-    public void CarrierRemoved(ILoadPort port, string? carrierId) => Note();
-    public void CarrierIdRead(ILoadPort port, string carrierId) => Note();
-    public void CarrierIdReadFailed(ILoadPort port) => Note();
-    public void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap) => Note();
-    public void LoadCompleted(ILoadPort port) => Note();
-    public void UnloadCompleted(ILoadPort port) => Note();
-    public void AutoModeChanged(ILoadPort port, bool autoMode) => Note();
-    public void AccessStarted(ILoadPort port) => Note();
-    public void AccessStopped(ILoadPort port) => Note();
-    public void CarrierComplete(ILoadPort port) => Note();
-    public void PortError(ILoadPort port, string error) => Note();
+    public void CarrierArrived(ILoadPortAccess port) => Note();
+    public void CarrierRemoved(ILoadPortAccess port, string? carrierId) => Note();
+    public void CarrierIdRead(ILoadPortAccess port, string carrierId) => Note();
+    public void CarrierIdReadFailed(ILoadPortAccess port) => Note();
+    public void SlotMapRead(ILoadPortAccess port, IReadOnlyList<SlotState> slotMap) => Note();
+    public void LoadCompleted(ILoadPortAccess port) => Note();
+    public void UnloadCompleted(ILoadPortAccess port) => Note();
+    public void AutoModeChanged(ILoadPortAccess port, bool autoMode) => Note();
+    public void AccessStarted(ILoadPortAccess port) => Note();
+    public void AccessStopped(ILoadPortAccess port) => Note();
+    public void CarrierComplete(ILoadPortAccess port) => Note();
+    public void PortError(ILoadPortAccess port, string error) => Note();
 }
 
 // 探针机械手：动作体不连设备，只为验"取放成功之后账有没有跟着动"。

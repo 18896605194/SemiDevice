@@ -27,7 +27,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
     /// </summary>
     public override bool InitComponent()
     {
-        _plc = IocHelper.GetService<IPlc>();
+        _plc = IocHelper.GetService<IPlcIo>();
         Open();
         return base.InitComponent();
     }
@@ -35,7 +35,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
     /// <summary>
     /// 本组件用的 PLC（开机准备时取）；sc.xml 没配 PLC 是 null
     /// </summary>
-    private IPlc? _plc;
+    private IPlcIo? _plc;
 
     private VirtualInputRegistry? _virtualInputs;
 

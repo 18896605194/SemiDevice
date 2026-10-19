@@ -496,6 +496,14 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
     public ProcessRejection? CheckProcess(ProcessRequest request) => null;
 
     public ModuleOperation? StartProcess(ProcessRequest request) => null;
+
+    public int TodayWafers => 0;
+
+    public long TotalWafers => 0;
+
+    public long? LastStartedTimestamp => null;
+
+    public int? ProcessPercent => null;
 }
 
 // 探针普通站点（Aligner 这类）：能放片，不要工艺配方。

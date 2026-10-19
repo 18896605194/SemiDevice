@@ -2177,6 +2177,37 @@ try
         secondRobot = null;
     }
 
+    // 17g. 并行的工艺站轮着用（调度 SC PreferIdleStation，默认关）：一次只跑一片时，关着每片都进流程配方里勾在前面的 PM1；
+    //      开着挑最久没开工的那个，PM1、PM2 轮着用。开工时间、片数是腔体自己记的（IProcessStation），调度只读
+    {
+        var scheduler = jobs.Scheduler;
+        Check(!scheduler.PreferIdleStation, "PreferIdleStation 默认关");
+
+        // 一片一个 LOT（SEQ_A：PM1、PM2 并行），跑完回原槽、卸载；回这片放进了哪个腔
+        string RunOne(string lot)
+        {
+            LoadCarrier(lp1, 1);
+            Check(Create(lot, "LP1", true, (1, "SEQ_A")).IsSuccess, $"建 {lot}（一片）");
+            Check(RunUntil(() => CjOf(lot)?.State == (int)ControlJobState.Completed) && PjOf(lot + "-1")!.Wafers.All(IsDone), $"{lot} 跑完");
+            string station = PjOf(lot + "-1")!.Wafers.Single().Tasks[1].Station;
+            UnloadCarrier(lp1);
+            Check(RunUntil(() => CjOf(lot) is null, 20), $"{lot} 删掉");
+            return station;
+        }
+
+        int pm1Before = pm1.TodayWafers;
+        long pm1TotalBefore = pm1.TotalWafers;
+        Check(RunOne("LOT-ORD1") == "PM1" && RunOne("LOT-ORD2") == "PM1", "开关关着：一次一片，每片都进配方里勾在前面的 PM1");
+        Check(pm1.TodayWafers == pm1Before + 2 && pm1.TotalWafers == pm1TotalBefore + 2 && pm1.LastStartedTimestamp is not null,
+            "腔体自己记开工：今天、累计各加 2，记下最近一次开工的时间戳");
+
+        // PM1 刚做完两片，PM2 更久没开工：下一片去 PM2，再下一片回 PM1
+        scheduler.PreferIdleStation = true;
+        Check(RunOne("LOT-IDLE1") == "PM2" && RunOne("LOT-IDLE2") == "PM1" && RunOne("LOT-IDLE3") == "PM2",
+            "开关开着：挑最久没开工的，PM2、PM1、PM2 轮着用");
+        scheduler.PreferIdleStation = false;
+    }
+
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
     LoadCarrier(lp1, 1, 2, 3);
@@ -2257,6 +2288,7 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
     "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, " +
     "per-station pick / place arms (clean and dirty arms: a wrong arm number refused at startup, the robot entry and transfer arm choice, prefetch and swap following them), " +
+    "parallel process stations taking turns by their last start when PreferIdleStation is on (recipe order when off), chambers counting their own starts, " +
     "transition numbers in order,a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
     "nothing new dispatched to an offline robot, LoadPort or chamber while work already started finishes, " +
@@ -2694,51 +2726,51 @@ sealed class SmokeStateMachine : xyz.Modules.StateMachines.BaseStateMachine<Cont
 // 假 EAP 的 E87 上报口：挂上它 LoadPort 就算接了 EAP（槽图要等 Host 认定才能取片），回调什么都不做。
 sealed class SilentE87 : IE87Callback
 {
-    public void CarrierArrived(ILoadPort port)
+    public void CarrierArrived(ILoadPortAccess port)
     {
     }
 
-    public void CarrierRemoved(ILoadPort port, string? carrierId)
+    public void CarrierRemoved(ILoadPortAccess port, string? carrierId)
     {
     }
 
-    public void CarrierIdRead(ILoadPort port, string carrierId)
+    public void CarrierIdRead(ILoadPortAccess port, string carrierId)
     {
     }
 
-    public void CarrierIdReadFailed(ILoadPort port)
+    public void CarrierIdReadFailed(ILoadPortAccess port)
     {
     }
 
-    public void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap)
+    public void SlotMapRead(ILoadPortAccess port, IReadOnlyList<SlotState> slotMap)
     {
     }
 
-    public void LoadCompleted(ILoadPort port)
+    public void LoadCompleted(ILoadPortAccess port)
     {
     }
 
-    public void UnloadCompleted(ILoadPort port)
+    public void UnloadCompleted(ILoadPortAccess port)
     {
     }
 
-    public void AutoModeChanged(ILoadPort port, bool autoMode)
+    public void AutoModeChanged(ILoadPortAccess port, bool autoMode)
     {
     }
 
-    public void AccessStarted(ILoadPort port)
+    public void AccessStarted(ILoadPortAccess port)
     {
     }
 
-    public void AccessStopped(ILoadPort port)
+    public void AccessStopped(ILoadPortAccess port)
     {
     }
 
-    public void CarrierComplete(ILoadPort port)
+    public void CarrierComplete(ILoadPortAccess port)
     {
     }
 
-    public void PortError(ILoadPort port, string error)
+    public void PortError(ILoadPortAccess port, string error)
     {
     }
 }

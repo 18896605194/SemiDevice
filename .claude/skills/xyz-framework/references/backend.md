@@ -53,7 +53,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 - **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的）：装配器照 sc 树把每个组件按它实现的 xyz 接口
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
   取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、
-  `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIoComponent`、`IPlc`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
+  `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIoComponent`、`IPlcIo`、`IPlcBlock`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
   `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；
   EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）；同一个接口登记了好几个的，取一个拿最后登记的。
   要一类的全部用 `IocHelper.GetServices<IXxx>()`：按 sc 先后（先父后子），停用的连同下面的跳过。GEM 编号表 `GemCollectors` 不是组件，也登记在容器里，一样从 `IocHelper` 取。
@@ -111,10 +111,10 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
   `OperationState` 在 `Enums`——2026-10-05 从模块层挪下来，好让设备侧接口放进组件层。
-- `Interfaces` 下有组件自己的（IPlc；2026-10-18 起每个单例组件都有接口，带 Component 后缀：`IAlarmComponent`、`IEcComponent`、`IMapperComponent`、
+- `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用）；2026-10-18 起每个单例组件都有接口，带 Component 后缀：`IAlarmComponent`、`IEcComponent`、`IMapperComponent`、
   `IDataChartComponent`、`IE30Component`……，找组件一律按它们）、模块共有的 `IModule`（名字、状态、模式、在做的动作、InitModule / Reset / Abort、上下线；
-  `ILoadPort`、`IRobot` 继承它；`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
-  还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`ICarrier`（经 `ILoadPort.Carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，平台默认 `RfidDriverComponent` 实现）、`IE87Callback`、`IE84Callback`、
+  `ILoadPortAccess`、`ITransferRobot` 继承它；`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
+  还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，平台默认 `RfidDriverComponent` 实现）、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `LedgerManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
   Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）和载具快照 `CarrierInfo` 在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
@@ -205,7 +205,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   | `Clamp()` / `Unclamp()` | 不碰片和账，不查 | 不拦（现在没有调用方，手动页没按钮） | `CreateClampOperation` / `CreateUnclampOperation` |
   | `Reset()` / `Abort()` | 不查 | 不设 | `CreateResetOperation` / `CreateAbortOperation` |
 
-  EAP：E87 取消 / 放行回 Host 之前先问 `ILoadPort.CheckUnload()`（Load 着的；在动作中的照旧回忙），不能卸回 CAACK=2 带端口给的原因；
+  EAP：E87 取消 / 放行回 Host 之前先问 `ILoadPortAccess.CheckUnload()`（Load 着的；在动作中的照旧回忙），不能卸回 CAACK=2 带端口给的原因；
   `LoadLater` / `UnloadLater` 被拒带原因记日志。Job 干完自动卸（`CheckCarrierComplete`）照旧先等片回齐再调 `Unload()`，被拒带原因记日志。
 - 动作失败（被人中止顶掉的不算）在操作终结时由 `RaiseActionFailedAlarm`（`protected virtual`，机型可重写：自己要管的情况先判、报了就 return，其余交给 base，整套换掉不调 base；在模块锁里，只报警不等待）报警，一次失败只报一条：机械手、腔体报 `ControlledStopAlarm`；LoadPort 超时按动作报各自的超时报警（Load / Unload / Home=初始化 / 夹紧 / 松开 / 复位 / 中止，跟 EC 各动作超时一一对应），不是超时的报 `ControlledStopAlarm`（显示为"LoadPort 动作失败"）。设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → PrepareTransfer2 → Transferring →（同一站先取后放时取完 PrepareNextLeg 再 Transferring）→ TransferComplete；
@@ -311,6 +311,11 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
   机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
+  开工计数和进度也在这个接口上（调度、界面只读，见 decisions.md「工艺站开工计数、进度和并行站轮着用」）：`TodayWafers` / `TotalWafers`（每片开工加 1，
+  中止、失败也算；共用的 `Process\ProcessCounter` 按天一站一行存默认库 `process_daily_count`，`Bind` 时读回来接着数）、
+  `LastStartedTimestamp`（Stopwatch 开机以来的计时，只用来比先后、只在内存；不用系统时间，Host 对时、改时间往回调先后不乱）、
+  `ProcessPercent`（0~100，只在内存，没在做工艺为空；平台的 `ChamberProcessOperation` 按配方每步时间算，准备段 0、收尾段 99，机型自己造的工艺动作为空）。
+  以后的热板、浸泡槽实现接口时用同一个 `ProcessCounter`。
 - **指挥层** `Dispatch\DispatchComponent`（sc.xml 顶层 `Dispatch`，下面先挂 `Job`、再挂 `Transfer`）：Job 派单、搬运管理推工单共用它这一条扫描线程，
   一拍里按 sc.xml 先后逐个 `ScanChild`（先收结果、派单，新派的单当拍就走第一步），彼此之间没有线程交叉；工单（TransferRoutine、SwapRoutine）没有自己的线程，跟着搬运管理走。
   设备（机械手、LoadPort、腔体）不挂这里，各自在根上一条线程，指挥层经设备的动作入口下令（设备锁里检查完就挂上动作）、看 `IsSettled` 收结果。决定见 decisions.md「指挥层 Dispatch」。
@@ -383,6 +388,8 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
     收搬运进度按片（`Wafers[i].Progress`）：取完的片取片格记完成，放片格接着等或跟着交换走完。
     SC `EnableSwap`、`EnablePrefetch`（默认都关）：开交换后，站里的片做完、手上有片等着进这一槽就派交换（排在"走机内的片"前面）；
     两个都开才预取——腔满着、里面那片有去处时先把下一片取到手上（只取不放），一个站只预取一片、一定留一只空手给旧片，许可不对称（某站只许某只手）就不预取。
+    SC `PreferIdleStation`（默认关）：开着时挑站的三处（普通放片、交换、预取）把站点组按 `IProcessStation.LastStartedTimestamp` 排，最久没开工的在前
+    （没开过工的、不是工艺站的当最早，一样的保持配方顺序），几个并行腔轮着用；关着照流程配方勾的顺序。
     工艺日志在任务状态方法里直接写，不再经任务开始 / 结束事件转发到 JobManager；EAP 片加工上报仍由 E90 照晶圆账报。
     只看每一行的许可（`TaskPermission`，PJ 状态定的：暂停、停止就体现在这上面）。
   - 站点任务：`TransferStation\StationTaskAction`（Pick / Place / Process，字符串常量，新站点要新的站内任务自己起名字）、`ITransferStation.SupportedTasks`（默认取放，腔体加工艺）。
@@ -613,6 +620,8 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   `Restore()`（晶圆账自己的 `Bind` 里调：各模块组件初始化登记完槽位之后、开始扫描之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
 - Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新（见 §3 Job）。
+- 工艺站开工片数：`process_daily_count` 一站一天一行（站点、日期 yyyy-MM-dd、片数、更新时间），默认库；`ProcessCounter` 开机读回（读不成今天、累计这次从 0 数），
+  开工一片放进队列、后台一个读者给那一天那行**加 1**（没有就插一行 1），不写总数——时钟往回调到前一天也只是给那天加 1，不会冲掉那天的数。行数少，不清理。
 - GEM（E30）掉电保持：`gem_config` 一行 JSON（Host 定的报告、链接、关掉的事件和报警、缓存范围、缓存状态），Host 改了就同步写；
   `gem_spool` 缓存的报文一条一行（雪花号主键 = 先后，体是 SECS-II 编码的字节），断了通讯才写。见 §4「EAP」。
 

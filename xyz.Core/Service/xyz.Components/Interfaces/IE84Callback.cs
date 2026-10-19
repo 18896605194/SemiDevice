@@ -12,14 +12,14 @@ public interface IE84Callback
     /// </summary>
     /// <param name="port"></param>
     /// <param name="isLoad"></param>
-    void HandoffStarted(ILoadPort port, bool isLoad);
+    void HandoffStarted(ILoadPortAccess port, bool isLoad);
 
     /// <summary>
     /// 交接正常结束，载具已完成交接
     /// </summary>
     /// <param name="port"></param>
     /// <param name="isLoad"></param>
-    void HandoffCompleted(ILoadPort port, bool isLoad);
+    void HandoffCompleted(ILoadPortAccess port, bool isLoad);
 
     /// <summary>
     /// 一段握手超时，本次交接中
@@ -27,7 +27,7 @@ public interface IE84Callback
     /// <param name="port"></param>
     /// <param name="isLoad"></param>
     /// <param name="timer"></param>
-    void HandoffTimeout(ILoadPort port, bool isLoad, E84Timer timer);
+    void HandoffTimeout(ILoadPortAccess port, bool isLoad, E84Timer timer);
 
     /// <summary>
     /// 交接异常中止
@@ -35,12 +35,12 @@ public interface IE84Callback
     /// <param name="port"></param>
     /// <param name="isLoad"></param>
     /// <param name="reason"></param>
-    void HandoffAborted(ILoadPort port, bool isLoad, string reason);
+    void HandoffAborted(ILoadPortAccess port, bool isLoad, string reason);
 
     /// <summary>
     /// 本端口对搬运车的可交接状态变了（HO_AVBL）
     /// </summary>
     /// <param name="port"></param>
     /// <param name="available"></param>
-    void AvailabilityChanged(ILoadPort port, bool available);
+    void AvailabilityChanged(ILoadPortAccess port, bool available);
 }

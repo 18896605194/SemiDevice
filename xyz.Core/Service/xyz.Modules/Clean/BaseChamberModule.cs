@@ -4,6 +4,7 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Database.DbProvider;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
@@ -191,6 +192,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     {
         _recipes = IocHelper.GetService<IRecipeComponent>();
         _system = IocHelper.GetService<ISystemModule>();
+
+        // 开工片数跟晶圆账一样是业务数据，走默认库；开机读回今天那行接着数
+        _counter.Load(Name, XyzDb.DefaultName);
     }
 
     #endregion
@@ -758,6 +762,36 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public ProcessRequest? CurrentProcess => _process;
 
     /// <summary>
+    /// 开工计数：今天几片、累计几片、最近一次开工时间（按天存库）
+    /// </summary>
+    private readonly ProcessCounter _counter = new();
+
+    /// <summary>
+    /// 正在跑的平台默认工艺动作，读进度用；机型自己造的工艺动作不认，进度为空
+    /// </summary>
+    private volatile ChamberProcessOperation? _processing;
+
+    /// <summary>
+    /// 今天开工了几片（中止、失败的也算）
+    /// </summary>
+    public int TodayWafers => _counter.Today;
+
+    /// <summary>
+    /// 累计开工了几片
+    /// </summary>
+    public long TotalWafers => _counter.Total;
+
+    /// <summary>
+    /// 最近一次开工的时间戳（开机以来的计时，改系统时间不影响）；这次开机还没开过工为空
+    /// </summary>
+    public long? LastStartedTimestamp => _counter.LastStartedTimestamp;
+
+    /// <summary>
+    /// 当前工艺进度 0~100；没在做工艺为空
+    /// </summary>
+    public int? ProcessPercent => _processing?.Percent;
+
+    /// <summary>
     /// 这个配方在这个腔体上跑不跑得了：配方头的 Type 要跟这个腔体的 Type 一样（不分大小写）；
     /// 每一步选的摆臂、药液照名字在这个腔体里找（跟执行时同一段，见 ChamberProcessOperation.FindDevices）。
     /// 对得上返回 null；对不上回第一处的字段（按界面语言的名字，没装工艺配方库就用字段名）和值。
@@ -885,6 +919,8 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
             _process = request;
             _processOperation = operation;
+            _processing = operation as ChamberProcessOperation;
+            _counter.Started();
             Recipe = request.RecipeName.Trim();
 
             if (_ledger is not null && _ledger.HasWafer(Name, request.Slot))
@@ -909,6 +945,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         var request = _process;
         _process = null;
         _processOperation = null;
+        _processing = null;
 
         // 工艺做到一半失败、超时：先把喷嘴停了，别一直喷（中止由中止操作自己停液）
         if (!operation.IsSuccess && operation.State != OperationState.Aborted)

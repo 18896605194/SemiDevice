@@ -24,4 +24,24 @@ public interface IProcessStation : IModule
 
     /// <summary>起工艺：检查过了才发；被拒返回 null（原因用 <see cref="CheckProcess"/> 查）。</summary>
     ModuleOperation? StartProcess(ProcessRequest request);
+
+    /// <summary>
+    /// 今天开工了几片（中止、失败的也算）；按天存库，开机读回来接着数
+    /// </summary>
+    int TodayWafers { get; }
+
+    /// <summary>
+    /// 累计开工了几片：库里各天的加起来
+    /// </summary>
+    long TotalWafers { get; }
+
+    /// <summary>
+    /// 最近一次开工的时间戳（Stopwatch 开机以来的计时，改系统时间不影响），只用来比先后、只在内存；这次开机还没开过工为空。调度轮着挑并行的站用
+    /// </summary>
+    long? LastStartedTimestamp { get; }
+
+    /// <summary>
+    /// 当前工艺进度 0~100，只在内存；没在做工艺为空
+    /// </summary>
+    int? ProcessPercent { get; }
 }

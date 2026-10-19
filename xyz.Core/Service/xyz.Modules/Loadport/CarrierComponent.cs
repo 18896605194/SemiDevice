@@ -86,7 +86,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     private volatile bool _deviceReportedPlaced;
 
-    private ILoadPort? _port;
+    private ILoadPortAccess? _port;
  
     private ICarrierIdReader? _reader;
 
@@ -130,7 +130,7 @@ public class CarrierComponent : ComponentBase, ICarrier
         }
     }
 
-    private ILoadPort Port
+    private ILoadPortAccess Port
     {
         get
         {
@@ -147,12 +147,12 @@ public class CarrierComponent : ComponentBase, ICarrier
     #region 端口调的口（只有 LoadPort 模块调，EAP 别调）
 
     /// <summary>
-    /// ILoadPort  ICarrierIdReader 以及eap口子都拿过来
+    /// ILoadPortAccess  ICarrierIdReader 以及eap口子都拿过来
     /// </summary>
     /// <param name="port"></param>
     /// <param name="reader"></param>
     /// <param name="enqueue"></param>
-    public void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
+    public void Attach(ILoadPortAccess port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
     {
         ArgumentNullException.ThrowIfNull(port);
         ArgumentNullException.ThrowIfNull(enqueue);
@@ -584,7 +584,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// <summary>
     /// 一条 E87 上报放进端口给的入队口（跟端口自己的上报同一条线）；没挂 EAP 时入队口直接丢弃。任意线程可调。
     /// </summary>
-    private void NotifyE87(Action<IE87Callback, ILoadPort> notification)
+    private void NotifyE87(Action<IE87Callback, ILoadPortAccess> notification)
     {
         var port = _port;
         var enqueue = _enqueue;

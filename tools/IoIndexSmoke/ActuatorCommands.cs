@@ -11,7 +11,7 @@ static class ActuatorCommands
     {
         var directory = Path.Combine(Path.GetTempPath(), "xyz-io-actuator-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
-        var previousPlc = IocHelper.GetService<IPlc>();
+        var previousPlc = IocHelper.GetService<IPlcIo>();
         var previousIo = IocHelper.GetService<IIoComponent>();
         try
         {
@@ -54,10 +54,10 @@ static class ActuatorCommands
 
             // 阀、气缸、DI 开机 Bind 时取 IO 组件；IO 组件开机准备时取 PLC，先不给 PLC
             ComponentLoader.BindAll([door, lift, valve, nozzle, normallyOpen]);
-            SmokeIoc.Use<IPlc>(null);
+            SmokeIoc.Use<IPlcIo>(null);
             io.InitComponent();
             Check(!door.Open() && !valve.Open() && !door.IsOpened, "no PLC: nothing writable or readable");
-            SmokeIoc.Use<IPlc>(plc);
+            SmokeIoc.Use<IPlcIo>(plc);
             io.InitComponent();
 
             Check(door.Open() && plc.Do[0] && !plc.Do[1] && door.ActionState == ActionState.Running,
@@ -135,7 +135,7 @@ static class ActuatorCommands
         }
         finally
         {
-            SmokeIoc.Use<IPlc>(previousPlc);
+            SmokeIoc.Use<IPlcIo>(previousPlc);
             SmokeIoc.Use<IIoComponent>(previousIo);
             Directory.Delete(directory, recursive: true);
         }
@@ -192,13 +192,12 @@ static class ActuatorCommands
     }
 
     /// <summary>假 PLC：DI/DO/AI 各一张表，断了什么都读不到、写不进。</summary>
-    private sealed class StatePlc : IPlc
+    private sealed class StatePlc : IPlcIo
     {
         public bool IsConnected { get; set; } = true;
         public Dictionary<int, bool> Di { get; } = [];
         public Dictionary<int, bool> Do { get; } = [];
         public Dictionary<int, double> Ai { get; } = [];
-        public void Register(string path) { }
         public bool TryReadDi(int index, out bool on) { on = IsConnected && Di.GetValueOrDefault(index); return IsConnected; }
         public bool TryReadDo(int index, out bool on) { on = IsConnected && Do.GetValueOrDefault(index); return IsConnected; }
 
@@ -216,7 +215,5 @@ static class ActuatorCommands
         public bool TryReadAi(int index, out double value) { value = Ai.GetValueOrDefault(index); return IsConnected; }
         public bool TryReadAo(int index, out double value) { value = 0; return false; }
         public bool WriteAo(int index, double value) => false;
-        public bool TryReadBlock(string path, out byte[] block) { block = []; return false; }
-        public bool WriteBlock(string path, byte[] data) => false;
     }
 }

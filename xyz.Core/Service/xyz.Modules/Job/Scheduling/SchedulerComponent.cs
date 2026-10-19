@@ -23,6 +23,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     [SCEditor("False", "Scheduler", "预取：要去的站都满着时，先把下一片取到一只空手上，等站做完就交换；EnableSwap 也开着才生效，多站路线确认不会卡死再打开")]
     public bool EnablePrefetch { get; set; }
 
+    [SCEditor("False", "Scheduler", "并行的工艺站挑最久没开工的那个，几个腔轮着用；False = 按流程配方勾的顺序，第一个能放的就用")]
+    public bool PreferIdleStation { get; set; }
+
     #endregion
 
     private ITransferManager? _transfers;
@@ -283,8 +286,8 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 && StartTransfer(row, task, source, port, slot, tasks);
         }
 
-        // 站点组按流程配方里勾的先后挑，第一个能放的就用
-        foreach (string station in place.Stations)
+        // 站点组按流程配方里勾的先后挑，第一个能放的就用；开了 PreferIdleStation 先挑最久没开工的
+        foreach (string station in OrderStations(place.Stations))
         {
             if (!IsStationReady(station))
             {
@@ -323,7 +326,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return;
         }
 
-        foreach (string station in place.Stations)
+        foreach (string station in OrderStations(place.Stations))
         {
             if (TryStartSwapAt(row, place, robot, at.Slot, station, rows, tasks))
             {
@@ -438,7 +441,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 continue;
             }
 
-            foreach (string stationName in place.Stations)
+            foreach (string stationName in OrderStations(place.Stations))
             {
                 if (TryPrefetchFor(row, pick, robot, from, source, stationName, rows, tasks))
                 {
@@ -672,6 +675,36 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 站点组排先后：开关关着照流程配方的顺序；开着最久没开工的工艺站在前（没开过工的最前，一样的保持配方顺序）
+    /// </summary>
+    private IEnumerable<string> OrderStations(IReadOnlyList<string> stations)
+    {
+        if (!PreferIdleStation)
+        {
+            return stations;
+        }
+
+        return stations.OrderBy(LastStartedOf);
+    }
+
+    /// <summary>
+    /// 工艺站最近一次开工的时间戳（开机以来的计时，Host 对时、改系统时间都不影响先后）；没开过工、不是工艺站的当最早
+    /// </summary>
+    private long LastStartedOf(string name)
+    {
+        if (Station(name) is IProcessStation process)
+        {
+            var started = process.LastStartedTimestamp;
+            if (started is not null)
+            {
+                return started.Value;
+            }
+        }
+
+        return long.MinValue;
     }
 
     /// <summary>

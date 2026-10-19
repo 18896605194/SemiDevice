@@ -23,7 +23,7 @@ public class EapComponent : ComponentBase, IEapComponent
     /// </summary>
     public override void Bind()
     {
-        Bind(IocHelper.GetServices<ILoadPort>(), IocHelper.GetService<IJobManager>(), IocHelper.GetService<ISequenceLibrary>(), IocHelper.GetService<IRecipeLibrary>());
+        Bind(IocHelper.GetServices<ILoadPortAccess>(), IocHelper.GetService<IJobManager>(), IocHelper.GetService<ISequenceLibrary>(), IocHelper.GetService<IRecipeLibrary>());
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ public class EapComponent : ComponentBase, IEapComponent
     /// E87 不知道这个载具，Host 没法认定，这一盒一直取不了片。这时报的事 Host 收不收得到由 E30 管（没在线不报、没通讯按缓存设置）。
     /// 配方库没装的传 null，那个库就不给 Host 管。
     /// </summary>
-    public void Bind(IReadOnlyList<ILoadPort> ports, IJobManager? jobs, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
+    public void Bind(IReadOnlyList<ILoadPortAccess> ports, IJobManager? jobs, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
     {
         var link = FindChild<IHsmsComponent>();
         if (link is null)

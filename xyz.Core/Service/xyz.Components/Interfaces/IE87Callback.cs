@@ -7,44 +7,44 @@ namespace xyz.Components.Interfaces;
 /// </summary>
 public interface IE87Callback
 {
-    void CarrierArrived(ILoadPort port);
+    void CarrierArrived(ILoadPortAccess port);
 
-    void CarrierRemoved(ILoadPort port, string? carrierId);
+    void CarrierRemoved(ILoadPortAccess port, string? carrierId);
 
-    void CarrierIdRead(ILoadPort port, string carrierId);
+    void CarrierIdRead(ILoadPortAccess port, string carrierId);
 
-    void CarrierIdReadFailed(ILoadPort port);
+    void CarrierIdReadFailed(ILoadPortAccess port);
 
-    void SlotMapRead(ILoadPort port, IReadOnlyList<SlotState> slotMap);
+    void SlotMapRead(ILoadPortAccess port, IReadOnlyList<SlotState> slotMap);
 
-    void LoadCompleted(ILoadPort port);
+    void LoadCompleted(ILoadPortAccess port);
 
-    void UnloadCompleted(ILoadPort port);
+    void UnloadCompleted(ILoadPortAccess port);
 
-    void AutoModeChanged(ILoadPort port, bool autoMode);
+    void AutoModeChanged(ILoadPortAccess port, bool autoMode);
 
     /// <summary>
     /// 可以开始取放这个载具了（Load 完成后）
     /// </summary>
     /// <param name="port"></param>
-    void AccessStarted(ILoadPort port);
+    void AccessStarted(ILoadPortAccess port);
 
     /// <summary>
     /// 不再取放这个载具（Unload 完成或中断）
     /// </summary>
     /// <param name="port"></param>
-    void AccessStopped(ILoadPort port);
+    void AccessStopped(ILoadPortAccess port);
 
     /// <summary>
     /// 载具的活干完了
     /// </summary>
     /// <param name="port"></param>
-    void CarrierComplete(ILoadPort port);
+    void CarrierComplete(ILoadPortAccess port);
 
     /// <summary>
     /// 端口出错
     /// </summary>
     /// <param name="port"></param>
     /// <param name="error"></param>
-    void PortError(ILoadPort port, string error);
+    void PortError(ILoadPortAccess port, string error);
 }

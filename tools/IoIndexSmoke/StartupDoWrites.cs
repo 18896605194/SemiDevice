@@ -38,8 +38,8 @@ static class StartupDoWrites
         File.WriteAllText(Path.Combine(tables, "DO.csv"), "Index,Name\n12,Valve\n13,Lamp\n");
 
         var plc = new RecordingPlc();
-        var previousPlc = IocHelper.GetService<IPlc>();
-        SmokeIoc.Use<IPlc>(plc);
+        var previousPlc = IocHelper.GetService<IPlcIo>();
+        SmokeIoc.Use<IPlcIo>(plc);
         var io = new ConfiguredIo { StartupDo = " do12 = FALSE ; Do13=true;;DO99=true; ", PointTableDirectory = tables };
         io.Load();
         io.InitComponent();
@@ -47,7 +47,7 @@ static class StartupDoWrites
 
         // IO 组件开机准备时就取好了 PLC，之后再还原不影响它。
         Thread.Sleep(1500);
-        SmokeIoc.Use<IPlc>(previousPlc);
+        SmokeIoc.Use<IPlcIo>(previousPlc);
         Check(plc.Writes.Count == 0, "PLC 没连上不下发");
 
         plc.IsConnected = true;
@@ -96,7 +96,7 @@ static class StartupDoWrites
     }
 
     /// <summary>记下每次 DO 写入；IO 组件的扫描线程写、冒烟主线程读，所以加锁给副本。</summary>
-    sealed class RecordingPlc : IPlc
+    sealed class RecordingPlc : IPlcIo
     {
         private readonly object _gate = new();
         private readonly List<(int, bool)> _writes = new();
@@ -134,8 +134,5 @@ static class StartupDoWrites
         public bool TryReadAi(int index, out double value) { value = 0; return false; }
         public bool TryReadAo(int index, out double value) { value = 0; return false; }
         public bool WriteAo(int index, double value) => false;
-        public void Register(string path) { }
-        public bool TryReadBlock(string path, out byte[] block) { block = []; return false; }
-        public bool WriteBlock(string path, byte[] data) => false;
     }
 }

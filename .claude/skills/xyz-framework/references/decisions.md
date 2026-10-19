@@ -24,6 +24,15 @@
   EC 页左边的树自然跟 sc 一样。不另加"sc 路径"字段（试过 `ScPath`，用户嫌绕），也不把分组做成组件（模块就不在根上了）。
   要几个组件共用一条扫描线程的，写 Type 做成父组件（像腔体带部件），见「指挥层 Dispatch」；设备模块仍在根上。
   界面要短名的（腔体手动页的页签、气缸行）取模块名那一段后面的，不能假设路径以模块名开头。
+- **PLC 接口拆成点位和数据块**（2026-10-19，用户提的）：原来一个 `IPlc`，拆成 `IPlcIo`（`IsConnected` + DI/DO/AI/AO 读写，IO 组件用）
+  和 `IPlcBlock`（`Register` / `TryReadBlock` / `WriteBlock`，轴用），`PlcComponent` 两个都实现。两边用的人不重叠，
+  而且 IO 和轴不一定接在同一台设备上（IO 走远程 IO / 板卡、轴在倍福上），拆开后换来源只实现对应那个。不再往细拆（DI/DO 各一个、读写分开）。
+- **LoadPort 接口拆成 EAP 用的和设备用的**（2026-10-19，用户："说白了就是把现在的这个拆开，eap 用到的和设备用到的"）：
+  组件层 `ILoadPortAccess : IModule`（名字用户选的，跟 `IJobAccess`、`ICarrierAccess` 一样，Access = 给别的组件用的那一面）只放 E87 / E84 用的：
+  载具、槽数、自动模式、IsLoaded / IsIdle、LocalTransferState、Load / Unload / CheckUnload / SetAutoMode、三个 EAP 口子；E87 / E84 的回调参数都是它。
+  完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 挪到模块层（跟 `IRobot`、`IChamber` 一样用设备名），放 Home / Clamp / Unclamp 和服务用的（超时、
+  PickOrder、UnloadManually、CheckReset / CheckAbort、CreateStateDto）。**不再继承 `ITransferStation`**（用户：LoadPort 本身是 `BaseTransferStationModule`，再继承是重复）。
+  名字被否过的：`ILoadPortModule`（跟别的模块不统一）、`ICarrierPort`。
 
 ## 组件初始化 InitComponent 和模块初始化 InitModule（2026-10-09，用户定的名和分工）
 - **起因**（用户："组件调用子组件的时候，不需要什么写死声明，应该就是通过框架获取所有的子组件"）：LoadPort / Robot 的 `Open()` 里手写找读头、E84、驱动再逐个开，
@@ -38,7 +47,7 @@
 - **InitModule 的规矩**：`BaseModule` 里默认返回 null；LoadPort / Robot / Chamber 基类里 = `Home()`（Home 就是它们的初始化）；不递归子组件。
   部件（轴、气缸）怎么回零、什么先后是机型的事，写在 Home 操作里去驱动。`ILoadPort` / `IRobot` 里的 `Init()` 改叫 `InitModule()`。
 - **轴不重写 InitComponent**（用户："轴的不需要重写 init，后面即使写也是写 InitComponent，然后也不会有动作的"）：原来轴的 `Init()` 是回零，删了；以后轴的组件初始化也不带动作。
-- **没动的**：模块的 `Close()` 还是手写（`_rfid?.Close(); _driver?.Close();`，现在宿主没有调用点）；PLC、IO、HSMS、轴的 `Open(IPlc)` 仍由装配层按类型调；
+- **没动的**：模块的 `Close()` 还是手写（`_rfid?.Close(); _driver?.Close();`，现在宿主没有调用点）；PLC、IO、HSMS、轴的 `Open(IPlc)`（现在是 `Open(IPlcBlock)`）仍由装配层按类型调；
   `_driver` / `_rfid` / `E84` / `Carrier` 这些模块要用它能力的子组件，模块还是要取一个句柄（只能点名，框架没法代劳）；`InitModule` 还没有界面或服务入口（服务调的是 `Home()`）。
 
 ## 界面
@@ -729,6 +738,24 @@
 - **检查只做开机这一层**：PickArms / PlaceArms 里配了这台机械手没有的手，机械手 `InitComponent` 抛异常（原来这项只记日志）。
   **两头配不配得上不查**（用户 10-19 定）：不按流程配方查每一段"源站 PickArms 和目标站 PlaceArms 有没有共同的手"，开机、存流程配方、建 Job 都不查，配的人自己对；
   配错了的表现是那片一直等着、不报警。
+
+## 工艺站开工计数、进度和并行站轮着用（2026-10-19，用户："重点就是在工艺站点计数"、"IProcessStation 我也看见了放在这个接口上面比较好"、"直接开始做吧"）
+- **为什么**：调度在并行站里按流程配方的顺序挑第一个能放的，片少的时候（一片一片跑、尾片、测试片）腔 1 包圆、腔 2 一直闲着。JK 是优先级一样时挑上次工艺结束最早的。
+- **计数放在工艺站自己身上，接口 `IProcessStation`**：不放 `ITransferStation`（LoadPort 也是它、不做工艺），不放 `IChamber`（腔体手动页用的，热板、浸泡也做工艺）。
+  四项：`TodayWafers` / `TotalWafers`（每片开工加 1，中止、失败也算；起工艺前就挡下的不算；Job 和腔体手动页都走 `StartProcess`，都算）、
+  `LastStartedTimestamp`（只在内存）、`ProcessPercent`（0~100，只在内存，没在做工艺为空）。调度、界面只读，调度认站点只走接口。
+- **按天存**（用户："存的时候最好是每天多少片存一下"）：`process_daily_count` 一站一天一行，默认库；开机 `Bind` 读回今天那行接着数，各天加起来是累计；
+  读不成今天、累计这次从 0 数；开工时放进队列，后台一个读者给那一天那行**加 1**（没有就插一行 1），不在开工那把锁里写库。
+- **时钟会被改，计数不能靠系统时间**（2026-10-19 评审提的，用户："你先把这两个问题修改掉吧"）：现场时钟会往回调（平台支持 Host 对时 S2F31 真改本机时钟，
+  还有 NTP、人改）。① 开工先后原来记系统时间：往回调 1 小时后，新开工的腔记的时间比别的腔"早"，调度一直挑它，这 1 小时又偏用一个腔——
+  改成 `LastStartedTimestamp`（`Stopwatch.GetTimestamp()`，开机以来的计时，改时间不动）。② 写库原来写"今天一共几片"覆盖那一行：
+  日期往回调过零点，内存换天从 0 数，写库把前一天那行（比如 100）冲成 1——改成给那一天加 1、只加不写总数。剩下的小偏差：跨零点回调后内存里的"今天"会比库里少算，库里是对的。
+  计数、存库写在共用的 `Process\ProcessCounter` 里，`BaseChamberModule` 用它；以后热板、浸泡槽实现 `IProcessStation` 时也用它，不另写一份。界面先不显示，没有清零。
+- **进度是百分比**（用户："我说的这个进度是百分比"、"这个也只是内存的"）：平台的 `ChamberProcessOperation` 每拍（`OnWaiting`）按配方每步的时间算：
+  （做完的步骤时间 + 这一步已经喷了多久）÷ 总时间；准备段（关喷嘴、Lift / Bowl 升）0，步骤做完、还在收尾停在 99，动作真做完站点进度变空；每步都没填时间按做完几步算。
+  机型重写 `CreateProcessOperation` 自己造的工艺动作不认，进度为空。
+- **调度拿什么挑**：SC `PreferIdleStation`（默认关）开着挑最久没开工的（`LastStartedTimestamp`），几个腔轮着用。**不拿累计片数挑**：会追平——腔 2 修了一周回来，
+  片少时每片都去腔 2，腔 1 要闲到腔 2 追上几千片，又回到一个腔一直闲着。挑站三处（普通放片、交换、预取）都按它排；不做工艺的站（缓冲、LoadLock）没有开工时间，照配方顺序。
 
 ## 站内工艺开不开工归站点模块（2026-10-19，用户："CheckProcess 这个模块自己实现就好了，比方说后面接入浸泡，浸泡模块自己实现就好了"）
 - 调度只按片调 `StartTask` 问"做不做"、等回来的动作收尾；站点不接（回 null）调度不记失败，下一拍再问。开不开工、什么时候开、怎么做，全在站点模块的
