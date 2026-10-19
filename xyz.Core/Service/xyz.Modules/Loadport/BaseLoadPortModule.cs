@@ -614,9 +614,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region Load
 
-    /// <summary>
-    /// Load：开门 + Mapping。调用方：手动页、E87（Host 认定载具号后）。
-    /// </summary>
     public HandleResult<ModuleOperation> Load()
     {
         lock (OperationGate)
@@ -631,18 +628,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
     }
 
-    /// <summary>
-    /// Load 能不能做（只查不动）：状态 → 资源 → 互锁。
-    /// </summary>
     private HandleResult? CheckLoad()
     {
         return CheckState(LoadPortAction.Load) ?? CheckLoadResource() ?? LoadInterlock();
     }
 
-    /// <summary>
-    /// Load 的资源检查
-    /// </summary>
-    /// <returns></returns>
     private HandleResult? CheckLoadResource()
     {
         return CheckWafersInJob() ?? CheckSlotsInTransfer();
@@ -1293,32 +1283,32 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     #region 干完收尾（自动 Unload / 对账）
 
-    /// <summary>上一拍载具的取放状态（没载具为 null），看它从别的变成 Complete 才算"刚干完"。只在扫描线程上读写。</summary>
+    /// <summary>
+    /// 载具的取放状态 最近一次的状态
+    /// </summary>
     private CarrierAccessStatus? _lastAccessStatus;
 
-    /// <summary>载具刚干完、收尾还没做（机械手在收尾、片没回齐）。只在扫描线程上读写。</summary>
+    /// <summary>
+    /// 载具刚干完、收尾还没做
+    /// </summary>
     private bool _completePending;
 
-    /// <summary>片没回齐、等着收尾这件事记过日志了，免得每拍记一条。只在扫描线程上读写。</summary>
     private bool _completeWaitLogged;
 
     /// <summary>
-    /// 载具刚干完（Job 做完或中止，Job 管理调载具的 NoteComplete）的收尾，接不接 EAP 都一样（照 CTC）：
-    /// EC AutoUnload 开着就 Unload；关着不卸，拿 Load 时的槽图跟晶圆账对一遍（<see cref="CheckCompletedSlotMap"/>），盒子等操作员或 Host CarrierRelease。
-    /// 只认"刚变成干完"这一下：操作员把干完的载具又手动 Load 起来，不会马上又被卸掉、又对一遍账。
-    /// 两样都先等：机械手还在取放就等它回到 Loaded；从这个口取出去的片还有在腔体、机械手上的（Job 中止时会有），
-    /// 门一关片就回不来了、账也必然对不上，等回齐。等完了按那时的 EC 定卸还是对账；干完以后才打开 EC 的不补卸。
-    /// 等的时候端口不再是 Load 着的（出错、被人卸了、Home 了、载具拿走了）就不管了，交给人处理。
+    /// 载具完成
     /// </summary>
     private void CheckCarrierComplete()
     {
+        //载具状态
         var accessStatus = _carrier.Info?.AccessStatus;
+        //刚完成
         if (accessStatus == CarrierAccessStatus.Complete && _lastAccessStatus != CarrierAccessStatus.Complete)
         {
             _completePending = true;
             _completeWaitLogged = false;
         }
-
+        //临时记录状态
         _lastAccessStatus = accessStatus;
         if (!_completePending)
         {
@@ -1349,6 +1339,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
 
         _completePending = false;
+        //检查是都要unload map
         if (!AutoUnload)
         {
             CheckCompletedSlotMap();
@@ -1365,9 +1356,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         LogHelper.Info(Name, "载具干完了，自动 Unload");
     }
 
-    /// <summary>
-    /// 从这个口取出去、现在在腔体或机械手上的片数（晶圆账里来源是本口、位置不在任何 LoadPort 上）；回到别的 LoadPort 的算回来了。没装晶圆账为 0。
-    /// </summary>
+   /// <summary>
+   /// c从这个口出去多少片
+   /// </summary>
+   /// <returns></returns>
     private int CountWafersOutside()
     {
         if (_ledger is null)
