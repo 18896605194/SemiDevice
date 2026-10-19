@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Models;
 
 /// <summary>
-/// 一个站点本轮跟机械手交接的信息：取一段、放一段，或者先取后放；每轮新建一个，站点按对象认本轮
+/// 传输上下文
 /// </summary>
 public sealed class TransferContext
 {

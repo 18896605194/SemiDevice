@@ -9,24 +9,21 @@ namespace xyz.Components.Interfaces;
 /// </summary>
 public interface ITransferStation : IModule
 {
-    /// <summary>
-    /// 工位槽位数；LoadPort 对应载具的容量。
-    /// </summary>
     int SlotCount { get; }
 
     /// <summary>
-    /// 工位当前能否开始一次搬运准备；准备完成前不代表机械手可以伸入。
+    /// 是否可以准备传输
     /// </summary>
     bool CanPrepareTransfer { get; }
 
     /// <summary>
-    /// 只查询，不占用工位。null 表示允许，否则返回拒绝原因（错误码和参数）；发起准备时仍须重新检查。
-    /// 自动调度所需的启用、在线状态及具体槽位、机械手资源由调用方另行检查。
+    /// 只查询，不占用工位
     /// </summary>
+    /// <returns></returns>
     HandleResult? CheckPrepareTransfer();
 
     /// <summary>
-    /// 准备阶段一：申请并占用本站本轮交接；后续各步须传入同一份本站上下文。
+    /// 准备阶段一：申请并占用本站本轮交接
     /// </summary>
     /// <returns></returns>
     ModuleOperation? PrepareTransfer(TransferContext context);
@@ -38,22 +35,26 @@ public interface ITransferStation : IModule
     ModuleOperation? PrepareTransfer2(TransferContext context);
 
     /// <summary>
-    /// 标记本轮取放片进行中；同轮重复通知不改变状态，同站换槽在放片前再次核对。
+    /// 传输进行中
     /// </summary>
     bool Transferring(TransferContext context);
 
+    #region 分段
+
     /// <summary>
-    /// 换段准备：一轮先取后放（同站换槽、同腔交换）时，取完、放之前站点要调整的机构在这里做；只在交互中、同一份上下文时受理，不受理返回 null。
+    /// 分段
     /// </summary>
+    /// <param name="context"></param>
+    /// <returns></returns>
     ModuleOperation? PrepareNextLeg(TransferContext context);
 
     /// <summary>
-    /// 取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂
+    /// 取片要站点中途交接：机械手伸到位先停下
     /// </summary>
     bool HandoffOnPick { get; }
 
     /// <summary>
-    /// 放片要站点中途交接：机械手伸到位先停下，站点把片接走（比如升顶针）再缩臂
+    /// 放片要站点中途交接：机械手伸到位先停下
     /// </summary>
     bool HandoffOnPlace { get; }
 
@@ -67,17 +68,19 @@ public interface ITransferStation : IModule
     /// </summary>
     ModuleOperation? HandoffPlace(TransferContext context);
 
+    #endregion
+
     /// <summary>
-    /// 接受本轮完成通知：落 TransferComplete 并发布，再交给站点收尾；默认同步回待命态。
-    /// 上下文或状态不符返回 false；true 表示通知已接受，不代表机型扩展的异步收尾已完成。
+    /// 完成
     /// </summary>
+    /// <param name="context"></param>
+    /// <returns></returns>
     bool TransferComplete(TransferContext context);
 
     /// <summary>
-    /// 撤回本轮：准备做了（PreTransfer / TransferReady）但机械手还没伸手。
-    /// 上下文不匹配表示本站已无本轮占用，返回 true 且不动当前状态。
-    /// 匹配时 true 表示接受撤回（默认同步回待命态）；false 时调用方须保留本轮占用。
+    /// 取消传输
     /// </summary>
+    /// <param name="context"></param>
     /// <returns></returns>
     bool CancelTransfer(TransferContext context);
 }
