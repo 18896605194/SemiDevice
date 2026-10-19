@@ -9,6 +9,7 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
+using xyz.Database.Lifetime;
 using xyz.Database.Process;
 using xyz.Modules;
 using xyz.Modules.Enums;
@@ -22,8 +23,8 @@ using xyz.Tools;
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
-// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。
-// 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数写进临时库。
+// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（盯 DO 计次、警告 / 报警次数、存库读回、清零）。
+// 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
 SmokeIoc.Reset();
 
@@ -924,6 +925,112 @@ try
         SmokeIoc.Use<ILedgerManagerComponent>(previousLedger);
     }
 
+    // 18. 部件寿命：寿命组件挂在气缸下面、盯它开侧的 DO 8，气缸本身一行不改；DO 每变一次算一次（断→通、通→断各一次），
+    //     读不到不算、重新读到那一拍只记下；到警告次数报警告、到报警次数报报警；已用次数按"加一"写库、开机读回接着数，清零连库一起清
+    var previousAlarm = IocHelper.GetService<IAlarmComponent>();
+    var alarms = new AlarmComponent();
+    SmokeIoc.Use<IAlarmComponent>(alarms);
+    try
+    {
+        var gateConfig = With(Node("Gate", typeof(CylinderComponent), Value("DoOpenIndex", "8"), Value("DoCloseIndex", "9")),
+            Node("Lifetime", typeof(LifetimeProbe), Value("DoIndex", "8")));
+        var gate = (CylinderComponent)SmokeIoc.Load([gateConfig]).Single();
+        var life = Find<LifetimeProbe>(gate, "Lifetime");
+        ComponentLoader.BindAll([gate]);
+        Check(ReferenceEquals(IocHelper.GetServices<ILifetime>().Single(), life) && life.FullPath == "Gate.Lifetime",
+            "寿命组件按 ILifetime 找得到，路径挂在气缸下面");
+
+        bool Active(string code)
+        {
+            return alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == life.FullPath && alarm.AlarmCode == code);
+        }
+
+        // 库里那行等后台写到这个数
+        bool WaitLifetime(long expected)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.ElapsedMilliseconds < 3000)
+            {
+                using (var db = XyzDb.Create())
+                {
+                    if (db.Queryable<ComponentLifetimeEntity>().Any(row => row.Path == "Gate.Lifetime" && row.UsedCount == expected))
+                    {
+                        return true;
+                    }
+                }
+
+                Thread.Sleep(20);
+            }
+
+            return false;
+        }
+
+        life.WarnCount = 2;
+        life.AlarmCount = 3;
+        life.Tick();
+        Check(life.UsedCount == 0, "第一拍只记下 DO 现在的样子，不算");
+        Check(gate.Open(), "开气缸");
+        life.Tick();
+        Check(life.UsedCount == 1 && !Active(life.WarnAlarm), "开：开侧 DO 断→通，算一次；没到警告次数不报");
+        Check(gate.Open(), "已经开着再发开");
+        life.Tick();
+        Check(life.UsedCount == 1, "DO 没变，不算");
+        Check(gate.Close(), "关气缸");
+        life.Tick();
+        Check(life.UsedCount == 2, "关：开侧 DO 通→断，也算一次");
+        var warn = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == life.FullPath && alarm.AlarmCode == life.WarnAlarm);
+        Check(warn is not null && warn.Level == AlarmLevel.Warn && !Active(life.ExpiredAlarm), "到了警告次数（2）报警告级报警，还没到报警次数");
+
+        plc.IsConnected = false;
+        life.Tick();
+        plc.IsConnected = true;
+        plc.WriteDo(8, true);
+        life.Tick();
+        Check(life.UsedCount == 2, "读不到的那拍不算；重新读到的那一拍只记下，中间变过也不补");
+        plc.WriteDo(8, false);
+        life.Tick();
+        var expired = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == life.FullPath && alarm.AlarmCode == life.ExpiredAlarm);
+        Check(life.UsedCount == 3 && expired is not null && expired.Level == AlarmLevel.Alarm1, "到了报警次数（3）报寿命到期报警");
+
+        alarms.Reset(life.FullPath);
+        Check(!Active(life.WarnAlarm) && !Active(life.ExpiredAlarm), "人工复位两条都清掉");
+        life.Tick();
+        Check(Active(life.ExpiredAlarm) && !Active(life.WarnAlarm), "还到着就再报；到了报警次数只报报警，不再叠一条警告");
+        Check(WaitLifetime(3), "已用次数写进库：Gate.Lifetime 那行 3 次");
+
+        // 重启：同一棵树再装一遍，开机读回接着数
+        var reloadedGate = (CylinderComponent)SmokeIoc.Load([gateConfig]).Single();
+        var reloadedLife = Find<LifetimeProbe>(reloadedGate, "Lifetime");
+        ComponentLoader.BindAll([reloadedGate]);
+        Check(reloadedLife.UsedCount == 3, "重启读回来：从 3 次接着数");
+
+        // 写库只给那行加一、不写总数：库里那行被改成 100，再变一次是 101，不按内存里的 4 冲掉
+        using (var db = XyzDb.Create())
+        {
+            db.Updateable<ComponentLifetimeEntity>()
+                .SetColumns(row => new ComponentLifetimeEntity { UsedCount = 100 })
+                .Where(row => row.Path == "Gate.Lifetime")
+                .ExecuteCommand();
+        }
+
+        reloadedLife.Tick();
+        plc.WriteDo(8, true);
+        reloadedLife.Tick();
+        Check(reloadedLife.UsedCount == 4 && WaitLifetime(101), "写库只给那行加一：库里 100 变 101，内存里是 4");
+
+        reloadedLife.Clear();
+        Check(reloadedLife.UsedCount == 0 && WaitLifetime(0), "换件清零：内存和库里都是 0");
+        alarms.Reset(reloadedLife.FullPath);
+        reloadedLife.AlarmCount = 0;
+        reloadedLife.WarnCount = 0;
+        reloadedLife.Tick();
+        Check(!Active(reloadedLife.WarnAlarm) && !Active(reloadedLife.ExpiredAlarm), "次数配 0 不管，不报");
+    }
+    finally
+    {
+        SmokeIoc.Use<IAlarmComponent>(previousAlarm);
+    }
+
     Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
         + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
         + "command rejected, Manual state, busy rejection, stop while busy, abort replacement, failure to Error, axis end to end, "
@@ -932,7 +1039,8 @@ try
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "
         + "missing steps, recipe mismatch, rpm over limit, timeout, abort; process starts counted per day in the database (adding one to the day, "
         + "never overwriting it) and read back, start timestamps on the monotonic clock, "
-        + "process percent by recipe step times; disabled chamber, component init and module init = Home)");
+        + "process percent by recipe step times; disabled chamber, component init and module init = Home; "
+        + "part lifetime: counting every change of a DO, warn / alarm counts, stored by adding one and read back, clear on part change)");
     return 0;
 }
 finally
@@ -1009,6 +1117,18 @@ static ModuleConfig ChamberConfig(string name, bool enabled)
 /// <summary>冒烟用腔体：跟机型一样什么都不写，回零、复位、中止、工艺全用平台的；Tick 由冒烟线程手动走一拍。</summary>
 [Component(description: "冒烟用腔体")]
 public sealed class SmokeChamber : BaseChamberModule
+{
+    public void Tick()
+    {
+        OnScan();
+    }
+}
+
+/// <summary>
+/// 冒烟用寿命组件：读真 IO 组件，Tick 由冒烟线程手动走一拍
+/// </summary>
+[Component(description: "冒烟用寿命组件")]
+public sealed class LifetimeProbe : LifetimeComponent
 {
     public void Tick()
     {
