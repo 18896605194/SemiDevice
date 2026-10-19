@@ -340,7 +340,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     {
         var station = Station(stationName);
         if (station is null || !IsStationReady(stationName) || !robot.TryGetStation(stationName, out var config)
-            || !config.AllowsArm(placeArm))
+            || !config.AllowsPlace(placeArm))
         {
             return false;
         }
@@ -468,7 +468,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         int armCount = _ledger!.GetSlots(robot.Name).Count;
         for (int carryArm = 1; carryArm <= armCount; carryArm++)
         {
-            if (!from.AllowsArm(carryArm) || !at.AllowsArm(carryArm) || !IsArmFree(robot, carryArm)
+            if (!from.AllowsPick(carryArm) || !at.AllowsPlace(carryArm) || !IsArmFree(robot, carryArm)
                 || FindPickArm(robot, finishing, finishingPick, at, carryArm) == 0)
             {
                 continue;
@@ -548,7 +548,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 给换出来的旧片挑一只空手：这个站许用、空着，拿着旧片的这只手到得了它的下一站、那里收得下；没有返回 0
+    /// 给换出来的旧片挑一只空手：这个站许它取片、空着，拿着旧片的这只手下一站许它放、那里收得下；没有返回 0
     /// </summary>
     private int FindPickArm(ITransferRobot robot, TaskRow row, WaferTask pick, RobotStation at, int excludeArm)
     {
@@ -561,7 +561,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         int armCount = _ledger!.GetSlots(robot.Name).Count;
         for (int arm = 1; arm <= armCount; arm++)
         {
-            if (arm == excludeArm || !at.AllowsArm(arm) || !IsArmFree(robot, arm))
+            if (arm == excludeArm || !at.AllowsPick(arm) || !IsArmFree(robot, arm))
             {
                 continue;
             }
@@ -576,19 +576,19 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 这只手拿着片能完成这个放片任务：机械手到得了、这只手许用、站点待命、槽空着（回片看定好的那一槽）
+    /// 这只手拿着片能完成这个放片任务：机械手到得了、站点许这只手放片、站点待命、槽空着（回片看定好的那一槽）
     /// </summary>
     private bool HasPlaceFor(ITransferRobot robot, int arm, WaferTask place)
     {
         if (place.FixedSlot > 0 && place.Stations.Count > 0)
         {
             string port = place.Stations[0];
-            return CanArmServe(robot, arm, port) && IsStationReady(port) && IsSlotFree(port, place.FixedSlot);
+            return CanArmPlace(robot, arm, port) && IsStationReady(port) && IsSlotFree(port, place.FixedSlot);
         }
 
         foreach (string station in place.Stations)
         {
-            if (CanArmServe(robot, arm, station) && IsStationReady(station) && FreeSlot(station) > 0)
+            if (CanArmPlace(robot, arm, station) && IsStationReady(station) && FreeSlot(station) > 0)
             {
                 return true;
             }
@@ -716,11 +716,11 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 机械手到得了这个站，而且这个站许用这只手
+    /// 机械手到得了这个站，而且这个站许这只手放片
     /// </summary>
-    private static bool CanArmServe(ITransferRobot robot, int arm, string station)
+    private static bool CanArmPlace(ITransferRobot robot, int arm, string station)
     {
-        return robot.TryGetStation(station, out var config) && config.AllowsArm(arm);
+        return robot.TryGetStation(station, out var config) && config.AllowsPlace(arm);
     }
 
     /// <summary>

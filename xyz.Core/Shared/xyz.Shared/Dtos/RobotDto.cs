@@ -132,7 +132,8 @@ public class RobotDto
                 || current.Y != last.Y
                 || current.SlotCount != last.SlotCount
                 || current.Kind != last.Kind
-                || !current.Arms.SequenceEqual(last.Arms))
+                || !current.PickArms.SequenceEqual(last.PickArms)
+                || !current.PlaceArms.SequenceEqual(last.PlaceArms))
             {
                 return true;
             }
@@ -182,7 +183,7 @@ public class RobotDto
 }
 
 /// <summary>
-/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向 + 槽数 + 允许的手指 + 站点类型，供界面画调度图与限定取放的手臂、槽位。
+/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向 + 槽数 + 取片 / 放片允许的手指 + 站点类型，供界面画调度图与限定取放的手臂、槽位。
 /// </summary>
 public class RobotStationDto
 {
@@ -201,8 +202,15 @@ public class RobotStationDto
     /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。</summary>
     public int SlotCount { get; set; }
 
-    /// <summary>这个站点允许用哪几只手取放（sc.xml 站点节点的 Arms，没配就是所有手指），升序；取放手臂下拉只列这些。</summary>
-    public List<int> Arms { get; set; } = [];
+    /// <summary>
+    /// 从这个站取片能用的手（sc.xml 站点节点的 PickArms，没配就是所有手指），升序；取片手臂下拉只列这些
+    /// </summary>
+    public List<int> PickArms { get; set; } = [];
+
+    /// <summary>
+    /// 往这个站放片能用的手（sc.xml 站点节点的 PlaceArms，没配就是所有手指），升序；放片手臂下拉只列这些
+    /// </summary>
+    public List<int> PlaceArms { get; set; } = [];
 
     /// <summary>站点是哪一类模块（LoadPort / 腔体 / 其他），调度图按它选卡片；搬运模块表还没绑好时为 Other。</summary>
     public StationKind Kind { get; set; }

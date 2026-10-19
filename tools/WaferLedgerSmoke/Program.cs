@@ -872,7 +872,7 @@ sealed class LedgerProbeRobot : BaseModule, ITransferRobot
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
         for (int index = 0; index < stations.Length; index++)
         {
-            _stations[stations[index]] = new RobotStation(stations[index], index + 1, RobotDirection.South, 0, [1, 2]);
+            _stations[stations[index]] = new RobotStation(stations[index], index + 1, RobotDirection.South, 0, [1, 2], [1, 2]);
         }
     }
 

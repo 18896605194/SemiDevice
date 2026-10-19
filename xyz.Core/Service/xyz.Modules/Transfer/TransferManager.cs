@@ -506,7 +506,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
     /// <summary>
     /// 片已经在手上（只放片）：就用拿着它的那台、那只手。点了名的机械手要是这台、点了名的手要是这只；
-    /// 目标站点要到得了、许用这只手，这只手没被别的操作占用。
+    /// 目标站点要到得了、许这只手放片，这只手没被别的操作占用。
     /// </summary>
     private HandleResult<TransferRoutine>? UseHoldingArm(TransferRequest request, ITransferRobot holder, string target, out int arm)
     {
@@ -519,7 +519,7 @@ public class TransferManager : ComponentBase, ITransferManager
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, holder.Name, target);
         }
 
-        if ((request.Arm > 0 && request.Arm != arm) || !to.AllowsArm(arm) || _armLocks.ContainsKey(ArmKey(holder.Name, arm)))
+        if ((request.Arm > 0 && request.Arm != arm) || !to.AllowsPlace(arm) || _armLocks.ContainsKey(ArmKey(holder.Name, arm)))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferArmUnavailable, holder.Name, armText);
         }
@@ -529,7 +529,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
     /// <summary>
     /// 片要取到机械手手上（只取片）：就用目标这台、目标槽号那只手。点了名的机械手要是这台、点了名的手要是这只；
-    /// 源站点要到得了、许用这只手，这只手没被别的操作占用（账上空着已经在前面按目标槽查过）。
+    /// 源站点要到得了、许这只手取片，这只手没被别的操作占用（账上空着已经在前面按目标槽查过）。
     /// </summary>
     private HandleResult<TransferRoutine>? UseReceivingArm(TransferRequest request, ITransferRobot receiver, string source, out int arm)
     {
@@ -542,7 +542,7 @@ public class TransferManager : ComponentBase, ITransferManager
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, source, receiver.Name);
         }
 
-        if ((request.Arm > 0 && request.Arm != arm) || !from.AllowsArm(arm) || _armLocks.ContainsKey(ArmKey(receiver.Name, arm)))
+        if ((request.Arm > 0 && request.Arm != arm) || !from.AllowsPick(arm) || _armLocks.ContainsKey(ArmKey(receiver.Name, arm)))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferArmUnavailable, receiver.Name, armText);
         }
@@ -551,7 +551,7 @@ public class TransferManager : ComponentBase, ITransferManager
     }
 
     /// <summary>
-    /// 挑手臂：两个站点都许用、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
+    /// 挑手臂：源站许它取片、目标站许它放片（一片从取到放在同一只手上）、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
     /// 手指数按晶圆账给机械手登记的槽数（机械手组件初始化时按驱动轴表登记）。
     /// </summary>
     private HandleResult<TransferRoutine>? PickArm(ITransferRobot robot, int wanted, string source, string target, ILedgerManagerComponent ledger, out int arm)
@@ -564,8 +564,8 @@ public class TransferManager : ComponentBase, ITransferManager
         bool Usable(int candidate)
         {
             return candidate >= 1 && candidate <= armCount
-                && from is not null && from.AllowsArm(candidate)
-                && to is not null && to.AllowsArm(candidate)
+                && from is not null && from.AllowsPick(candidate)
+                && to is not null && to.AllowsPlace(candidate)
                 && ledger.Get(robot.Name, candidate) is null
                 && !_armLocks.ContainsKey(ArmKey(robot.Name, candidate));
         }
@@ -657,7 +657,7 @@ public class TransferManager : ComponentBase, ITransferManager
         string pickArmText = request.PickArm.ToString(CultureInfo.InvariantCulture);
         string placeArmText = request.PlaceArm.ToString(CultureInfo.InvariantCulture);
 
-        #region 槽、手：槽在范围内；两只不同的手都在手指数以内、这个站都许用
+        #region 槽、手：槽在范围内；两只不同的手都在手指数以内，取旧片的手这个站许取、放新片的手这个站许放
 
         if (request.Slot < 1 || request.Slot > station.SlotCount)
         {
@@ -671,12 +671,12 @@ public class TransferManager : ComponentBase, ITransferManager
         }
 
         int armCount = ledger.GetSlots(robot.Name).Count;
-        if (request.PickArm == request.PlaceArm || !IsArmUsable(request.PickArm, armCount, config))
+        if (request.PickArm == request.PlaceArm || !IsArmInRange(request.PickArm, armCount) || !config.AllowsPick(request.PickArm))
         {
             return HandleResult.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, pickArmText);
         }
 
-        if (!IsArmUsable(request.PlaceArm, armCount, config))
+        if (!IsArmInRange(request.PlaceArm, armCount) || !config.AllowsPlace(request.PlaceArm))
         {
             return HandleResult.Fail(ErrorCodes.TransferArmUnavailable, robot.Name, placeArmText);
         }
@@ -769,11 +769,11 @@ public class TransferManager : ComponentBase, ITransferManager
     }
 
     /// <summary>
-    /// 这只手在机械手的手指数以内，而且这个站点许用它
+    /// 这只手在机械手的手指数以内
     /// </summary>
-    private static bool IsArmUsable(int arm, int armCount, RobotStation config)
+    private static bool IsArmInRange(int arm, int armCount)
     {
-        return arm >= 1 && arm <= armCount && config.AllowsArm(arm);
+        return arm >= 1 && arm <= armCount;
     }
 
     /// <summary>

@@ -221,14 +221,24 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
         #region 站点表校验
 
-        // 站点表里配的手指必须存在，界面不会给出一只用不了的手。
+        // 站点表里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒
         foreach (var station in _stations.Values)
         {
-            foreach (int arm in station.Arms)
+            foreach (int arm in station.PickArms)
             {
-                if (Arms.FirstOrDefault(item => item.Number == arm) is null)
+                if (Arms.All(item => item.Number != arm))
                 {
-                    LogHelper.Error(Name, $"sc.xml 站点 {station.Name} 的 Arms 配了 Arm{arm}，但没配这个手指节点");
+                    throw new InvalidOperationException(
+                        $"sc.xml 节点 {FullPath}.Stations.{station.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                }
+            }
+
+            foreach (int arm in station.PlaceArms)
+            {
+                if (Arms.All(item => item.Number != arm))
+                {
+                    throw new InvalidOperationException(
+                        $"sc.xml 节点 {FullPath}.Stations.{station.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
                 }
             }
         }
@@ -511,7 +521,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     Direction = station.Direction,
                     Y = station.Y,
                     SlotCount = SlotCountOf(station.Name),
-                    Arms = ArmsOf(station),
+                    PickArms = ArmsOf(station.PickArms),
+                    PlaceArms = ArmsOf(station.PlaceArms),
                     Kind = KindOf(station.Name),
                 })
                 .ToList(),
@@ -601,13 +612,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 站点允许的手指：sc.xml 站点节点配了 Arms 就按它；没配就是所有手指（sc.xml 里配的 Arm 节点）。
+    /// 推给界面的站点手指（PickArms 或 PlaceArms）：配了就按它，没配就是所有手指
     /// </summary>
-    private List<int> ArmsOf(RobotStation station)
+    private List<int> ArmsOf(IReadOnlyList<int> configured)
     {
-        if (station.Arms.Count > 0)
+        if (configured.Count > 0)
         {
-            return [.. station.Arms];
+            return [.. configured];
         }
 
         return [.. Arms.Select(arm => arm.Number)];
@@ -758,7 +769,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     private HandleResult? CheckPickResource(int arm, string station, int slot)
     {
-        var rejected = CheckStationArm(arm, station);
+        var rejected = CheckPickArm(arm, station);
         if (rejected is not null)
         {
             return rejected;
@@ -789,7 +800,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     private HandleResult? CheckPlaceResource(int arm, string station, int slot)
     {
-        var rejected = CheckStationArm(arm, station);
+        var rejected = CheckPlaceArm(arm, station);
         if (rejected is not null)
         {
             return rejected;
@@ -817,16 +828,34 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 站点在本机械手的站点表里、这只手存在而且这个站点许用它（sc.xml 站点节点的 Arms）。
+    /// 取片的手：站点在本机械手的站点表里、这只手存在、这个站许它取片（sc.xml 站点节点的 PickArms）
     /// </summary>
-    private HandleResult? CheckStationArm(int arm, string station)
+    private HandleResult? CheckPickArm(int arm, string station)
     {
         if (!TryGetStation(station, out var config))
         {
             return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
         }
 
-        if (!config.AllowsArm(arm) || Arms.All(item => item.Number != arm))
+        if (!config.AllowsPick(arm) || Arms.All(item => item.Number != arm))
+        {
+            return HandleResult.Fail(ErrorCodes.ArmNotAllowed, Name, station, arm.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 放片的手：站点在本机械手的站点表里、这只手存在、这个站许它放片（sc.xml 站点节点的 PlaceArms）
+    /// </summary>
+    private HandleResult? CheckPlaceArm(int arm, string station)
+    {
+        if (!TryGetStation(station, out var config))
+        {
+            return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
+        }
+
+        if (!config.AllowsPlace(arm) || Arms.All(item => item.Number != arm))
         {
             return HandleResult.Fail(ErrorCodes.ArmNotAllowed, Name, station, arm.ToString(CultureInfo.InvariantCulture));
         }

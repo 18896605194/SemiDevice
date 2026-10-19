@@ -23,8 +23,15 @@ public sealed class RobotStationModel : ObservableObject
     /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1），取放槽位下拉按它列 1~N。</summary>
     public int SlotCount { get; init; }
 
-    /// <summary>这个站点允许用的手指号（sc.xml 站点节点的 Arms，没配就是所有手指），取放手臂下拉只列这些。</summary>
-    public IReadOnlyList<int> Arms { get; init; } = [];
+    /// <summary>
+    /// 从这个站取片能用的手指号（sc.xml 站点节点的 PickArms，后端已把没配展开成所有手指）；取片手臂下拉只列这些
+    /// </summary>
+    public IReadOnlyList<int> PickArms { get; init; } = [];
+
+    /// <summary>
+    /// 往这个站放片能用的手指号（sc.xml 站点节点的 PlaceArms，后端已把没配展开成所有手指）；放片手臂下拉只列这些
+    /// </summary>
+    public IReadOnlyList<int> PlaceArms { get; init; } = [];
 
     /// <summary>站点是哪一类模块：调度图按它选卡片（LoadPort 画花篮卡片，腔体和其他站点画单片卡片）。</summary>
     public StationKind Kind { get; init; }

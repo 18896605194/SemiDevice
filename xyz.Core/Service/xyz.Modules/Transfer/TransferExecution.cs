@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics;
+using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
@@ -31,6 +32,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         Origin = origin;
         Robot = robot;
         _stationWaitTimeout = stationWaitTimeout;
+        _grabSince = Stopwatch.GetTimestamp();
     }
 
     #endregion
@@ -148,7 +150,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     protected const int NextLegPhase = 3;
 
     /// <summary>
-    /// 这一站从什么时候开始抢的（计时表上的毫秒）；抢站点判超时用，换站点时重置
+    /// 这一站从什么时候开始抢的；抢站点判超时用，换站点时重置
     /// </summary>
     private long _grabSince;
 
@@ -157,7 +159,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     /// </summary>
     protected void RestartStationWait()
     {
-        _grabSince = Watch.ElapsedMilliseconds;
+        _grabSince = Stopwatch.GetTimestamp();
     }
 
     /// <summary>
@@ -173,7 +175,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
             return true;
         }
 
-        if (Watch.ElapsedMilliseconds - _grabSince > _stationWaitTimeout)
+        if (Stopwatch.GetElapsedTime(_grabSince).TotalMilliseconds > _stationWaitTimeout)
         {
             Abandon(ErrorCodes.StationBusy,
                 $"{station.Name} 等不到可服务（{_stationWaitTimeout}ms）",
@@ -597,7 +599,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     /// <summary>
     /// 机械手的取片或放片正在做：被中止时要给机械手发设备中止
     /// </summary>
-    private bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
+    public bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
 
     /// <summary>
     /// 被中止（急停、人工取消、Job 中止）：在途的设备动作、站点的中途交接跟着中止；没动过手才撤站点

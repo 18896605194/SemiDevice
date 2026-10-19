@@ -280,37 +280,43 @@
 					<Value Name="Number" Value="1" />
 					<Value Name="Y" Value="20" />
 					<Value Name="Direction" Value="South" />
-					<Value Name="Arms" Value="1,2" />
+					<Value Name="PickArms" Value="1,2" />
+					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
 				<Setting Name="LoadPort2">
 					<Value Name="Number" Value="2" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="South" />
-					<Value Name="Arms" Value="1,2" />
+					<Value Name="PickArms" Value="1,2" />
+					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber1">
 					<Value Name="Number" Value="3" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
-					<Value Name="Arms" Value="1,2" />
+					<Value Name="PickArms" Value="1,2" />
+					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber2">
 					<Value Name="Number" Value="4" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
-					<Value Name="Arms" Value="1,2" />
+					<Value Name="PickArms" Value="1,2" />
+					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber3">
 					<Value Name="Number" Value="5" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
-					<Value Name="Arms" Value="1,2" />
+					<Value Name="PickArms" Value="1,2" />
+					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
 				<Setting Name="Chamber4">
 					<Value Name="Number" Value="6" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
-					<Value Name="Arms" Value="1,2" />
+					<Value Name="PickArms" Value="1,2" />
+					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
 			</Setting>
 		</Setting>

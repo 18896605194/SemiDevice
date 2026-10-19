@@ -323,7 +323,8 @@ public class RobotModel : ObservableObject
                     Direction = info.Direction,
                     Y = info.Y,
                     SlotCount = info.SlotCount,
-                    Arms = [.. info.Arms],
+                    PickArms = [.. info.PickArms],
+                    PlaceArms = [.. info.PlaceArms],
                     Kind = info.Kind,
                 })
                 .ToList()
@@ -414,7 +415,8 @@ public class RobotModel : ObservableObject
                 || a.Y != b.Y
                 || a.SlotCount != b.SlotCount
                 || a.Kind != b.Kind
-                || !a.Arms.SequenceEqual(b.Arms))
+                || !a.PickArms.SequenceEqual(b.PickArms)
+                || !a.PlaceArms.SequenceEqual(b.PlaceArms))
             {
                 return false;
             }

@@ -1873,7 +1873,8 @@ try
 
         // 许可不对称：这台机械手在 LP1 只许用 1 号手，旧片回 LP1 只能用 1 号手，而新片也只能用 1 号手取——不预取
         // （只看加工那 30 拍里的 20 拍：加工完旧片正常回片要上 1 号手，不算预取）
-        var lefty = new SmokeRobot("Robot3", new Dictionary<string, string> { ["LP1"] = "1" }, "LP1", "LP2", "PM1", "PM2");
+        var leftArms = new Dictionary<string, string> { ["LP1"] = "1" };
+        var lefty = new SmokeRobot("Robot3", leftArms, leftArms, "LP1", "LP2", "PM1", "PM2");
         Check(lefty.InitComponent(), "许可不对称的机械手组件初始化");
         ComponentLoader.BindAll([lefty]);
         lefty.NoteState(ModuleState.Idle);
@@ -2089,6 +2090,93 @@ try
         secondRobot = null;
     }
 
+    // 17f. 手臂取放分开（清洗机的干净手 / 脏手）：机械手站点表每个站分开配 PickArms / PlaceArms。一片从取到放在同一只手上，
+    //      一趟搬运用的手要源站许取、目标站许放。LP1 取片只许 1 号、放片只许 2 号；PM1 放片只许 1 号、取片只许 2 号：
+    //      没洗的片进腔用 1 号手，洗完的回料盒用 2 号手；交换时取旧片 2 号、放新片 1 号。开机查：配了这台机械手没有的手就报错。
+    {
+        TaskRow RowOf(Guid waferId) => jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.WaferId == waferId);
+
+        // 开机查：两只手的机械手，PM1 的 PlaceArms 配了 Arm3，组件初始化就报错
+        var badPlace = new Dictionary<string, string> { ["PM1"] = "3" };
+        var bad = new SmokeRobot("Robot6", new Dictionary<string, string>(), badPlace, "LP1", "PM1");
+        string initRefused = string.Empty;
+        try
+        {
+            bad.InitComponent();
+        }
+        catch (InvalidOperationException exception)
+        {
+            initRefused = exception.Message;
+        }
+
+        Check(initRefused.Contains("PM1") && initRefused.Contains("PlaceArms") && initRefused.Contains("Arm3"),
+            "开机查：站点表配了这台机械手没有的手（PM1 的 PlaceArms 配了 Arm3），组件初始化就报错");
+
+        var cleanPick = new Dictionary<string, string> { ["LP1"] = "1", ["PM1"] = "2" };
+        var cleanPlace = new Dictionary<string, string> { ["LP1"] = "2", ["PM1"] = "1" };
+        var clean = new SmokeRobot("Robot5", cleanPick, cleanPlace, "LP1", "LP2", "PM1", "PM2");
+        Check(clean.InitComponent(), "取放分开配的机械手组件初始化");
+        ComponentLoader.BindAll([clean]);
+        clean.NoteState(ModuleState.Idle);
+        clean.Online();
+        transfers.Bind([lp1, lp2, clean, pm1, pm2, pm9]);
+        secondRobot = clean;
+        Check(clean.TryGetStation("LP1", out var lpConfig) && lpConfig.PickArms.SequenceEqual([1]) && lpConfig.PlaceArms.SequenceEqual([2])
+              && clean.TryGetStation("LP2", out var lp2Config) && lp2Config.PickArms.Count == 0 && lp2Config.PlaceArms.Count == 0,
+            "站点表分开读 PickArms / PlaceArms，没配的站点两项都空（所有手都能用）");
+        var stationInfos = clean.CreateStateDto().StationInfos;
+        var lpInfo = stationInfos.Single(info => info.Name == "LP1");
+        var lp2Info = stationInfos.Single(info => info.Name == "LP2");
+        Check(lpInfo.PickArms.SequenceEqual([1]) && lpInfo.PlaceArms.SequenceEqual([2])
+              && lp2Info.PickArms.SequenceEqual([1, 2]) && lp2Info.PlaceArms.SequenceEqual([1, 2]),
+            "推给界面的站点表也分开给，没配的展开成所有手（手动页取片、放片的手臂下拉各列各的）");
+
+        // 机械手自己的取放入口：取片查 PickArms，放片查 PlaceArms
+        LoadCarrier(lp1, 1, 2);
+        var dirtyA = ledger.Get("LP1", 1)!.Id;
+        var dirtyB = ledger.Get("LP1", 2)!.Id;
+        Check(clean.CheckPick(2, "LP1", 1)?.ErrorMessage == ErrorCodes.ArmNotAllowed && clean.CheckPick(1, "LP1", 1) is null,
+            "机械手取片查 PickArms：LP1 只许 1 号手取片");
+        Check(clean.CheckPlace(1, "LP1", 3)?.ErrorMessage == ErrorCodes.ArmNotAllowed
+              && clean.CheckPlace(2, "LP1", 3)?.ErrorMessage == ErrorCodes.RobotArmNoWafer,
+            "机械手放片查 PlaceArms：LP1 只许 2 号手放片（2 号手过了这一关，卡在手上没片）");
+
+        // 搬运管理挑手：点名用 2 号手从 LP1 取，不收
+        var wrongArm = StartTransfer("LP1", 1, "PM1", 1, arm: 2);
+        Check(!wrongArm.IsSuccess && wrongArm.ErrorMessage == ErrorCodes.TransferArmUnavailable,
+            "点名 2 号手从 LP1 取片：LP1 不许 2 号手取，搬运管理不收");
+
+        // Job 跑两片，交换、预取都开：第二片预取到 1 号手，PM1 做完交换（取旧片 2 号、放新片 1 号），片回料盒都用 2 号手
+        var scheduler = jobs.Scheduler;
+        scheduler.EnableSwap = true;
+        scheduler.EnablePrefetch = true;
+        pm1.ProcessTicks = 30;
+        Check(Create("LOT-ARM", "LP1", true, (1, "SEQ_SW"), (2, "SEQ_SW")).IsSuccess, "建 LOT-ARM（干净手 / 脏手，一个腔跑两片）");
+        Check(RunUntil(() => RowOf(dirtyB).ExpectedLocation.IsArm), "腔满着：第二片被预取到手上");
+        Check(RowOf(dirtyB).ExpectedLocation.Slot == 1, "预取用 1 号手：LP1 许它取、PM1 许它放");
+        SwapRoutine? armSwap = null;
+        Check(RunUntil(() =>
+        {
+            armSwap = RowOf(dirtyB).Current?.Operation as SwapRoutine;
+            return armSwap is not null;
+        }), "第一片做完：调度在 PM1 派了交换");
+        Check(armSwap!.PickArm == 2 && armSwap.PlaceArm == 1, "交换：取旧片用 2 号手（PM1 许取）、放新片用 1 号手（PM1 许放）");
+        Check(RunUntil(() => CjOf("LOT-ARM")?.State == (int)ControlJobState.Completed) && PjOf("LOT-ARM-1")!.Wafers.All(IsDone)
+              && ledger.Get("LP1", 1)?.Id == dirtyA && ledger.Get("LP1", 2)?.Id == dirtyB,
+            "LOT-ARM 跑完：两片都回原槽");
+        Check(PjOf("LOT-ARM-1")!.Wafers.All(wafer => wafer.Tasks[0].Arm == 1 && wafer.Tasks[1].Arm == 1
+                                                    && wafer.Tasks[3].Arm == 2 && wafer.Tasks[4].Arm == 2),
+            "每片进腔（LP1 取、PM1 放）都用 1 号手，出腔（PM1 取、LP1 放）都用 2 号手");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-ARM") is null, 20), "LOT-ARM 删掉");
+        scheduler.EnableSwap = false;
+        scheduler.EnablePrefetch = false;
+        pm1.ProcessTicks = 3;
+        transfers.Bind(modules);
+        clean.Close();
+        secondRobot = null;
+    }
+
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
     LoadCarrier(lp1, 1, 2, 3);
@@ -2167,7 +2255,9 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "for manual recovery, rejecting a busy robot, aborting and waiting for device confirmation; jobs per SEMI E94/E40: creation checks with nothing left behind (including a station that does not " +
     "support a needed task, a step with no usable station and a missing process recipe), local creation going through PJ-then-CJ like the host " +
     "with already-created PJs cancelled when the CJ is refused, one task row per wafer (pick, place, process, ... return), one carrier with two sequences and a two-step route, " +
-    "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, transition numbers in order, a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
+    "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, " +
+    "per-station pick / place arms (clean and dirty arms: a wrong arm number refused at startup, the robot entry and transfer arm choice, prefetch and swap following them), " +
+    "transition numbers in order,a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
     "nothing new dispatched to an offline robot, LoadPort or chamber while work already started finishes, " +
     "a wafer moved behind the job's back, job pick/place failures and retrying place without repeating pick, host-style PJ-then-CJ creation, finding jobs by carrier ID for EAP, " +
@@ -2307,12 +2397,13 @@ class SmokeRobot : BaseRobotModule
 {
     private static readonly Dictionary<string, string> AllArms = [];
 
-    public SmokeRobot(string name, params string[] stations) : this(name, AllArms, stations)
+    public SmokeRobot(string name, params string[] stations) : this(name, AllArms, AllArms, stations)
     {
     }
 
-    // arms：站点 → 许用的手（sc.xml 站点节点的 Arms，如 "1,2"）；没写的站点所有手都能用。
-    public SmokeRobot(string name, IReadOnlyDictionary<string, string> arms, params string[] stations)
+    // pickArms / placeArms：站点 → 取片 / 放片许用的手（sc.xml 站点节点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
+    public SmokeRobot(string name, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
+        params string[] stations)
     {
         Probe.Name(this, name);
         AddChild(new SmokeRobotShell());
@@ -2329,9 +2420,14 @@ class SmokeRobot : BaseRobotModule
             {
                 new() { Name = "Number", Value = (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
             };
-            if (arms.TryGetValue(stations[index], out var allowed))
+            if (pickArms.TryGetValue(stations[index], out var pick))
             {
-                values.Add(new ValueConfig { Name = "Arms", Value = allowed });
+                values.Add(new ValueConfig { Name = "PickArms", Value = pick });
+            }
+
+            if (placeArms.TryGetValue(stations[index], out var place))
+            {
+                values.Add(new ValueConfig { Name = "PlaceArms", Value = place });
             }
 
             nodes.Add(new ModuleConfig { Name = stations[index], Values = values });

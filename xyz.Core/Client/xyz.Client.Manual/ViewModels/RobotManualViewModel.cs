@@ -49,7 +49,9 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private int _sourceArm = 1;
 
-    /// <summary>Pick 用的手指号（1 开始），只能在源站点允许的手指里选。</summary>
+    /// <summary>
+    /// Pick 用的手指号（1 开始），只能在源站点许取片的手指里选
+    /// </summary>
     public int SourceArm
     {
         get => _sourceArm;
@@ -82,7 +84,9 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private int _targetArm = 1;
 
-    /// <summary>Place 用的手指号，只能在目标站点允许的手指里选。</summary>
+    /// <summary>
+    /// Place 用的手指号，只能在目标站点许放片的手指里选
+    /// </summary>
     public int TargetArm
     {
         get => _targetArm;
@@ -98,13 +102,17 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
         set => SetProperty(ref _targetSlot, value);
     }
 
-    /// <summary>源手臂下拉：源站点允许的手指（sc.xml 机械手站点节点的 Arms，没配就是所有手指）。</summary>
+    /// <summary>
+    /// 源手臂下拉：源站点许取片的手指（sc.xml 机械手站点节点的 PickArms，没配就是所有手指）
+    /// </summary>
     public ObservableCollection<int> SourceArmOptions { get; } = new();
 
     /// <summary>源槽位下拉：1~源站点的槽数（站点模块在 sc.xml 里配的 SlotCount，LoadPort 25、腔体 1）。</summary>
     public ObservableCollection<int> SourceSlotOptions { get; } = new();
 
-    /// <summary>目标手臂下拉：目标站点允许的手指。</summary>
+    /// <summary>
+    /// 目标手臂下拉：目标站点许放片的手指（sc.xml 机械手站点节点的 PlaceArms）
+    /// </summary>
     public ObservableCollection<int> TargetArmOptions { get; } = new();
 
     /// <summary>目标槽位下拉：1~目标站点的槽数。</summary>
@@ -220,7 +228,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     {
         var mark = FindStation(SourceStation);
 
-        if (FillOptions(SourceArmOptions, ArmsOf(mark)))
+        if (FillOptions(SourceArmOptions, PickArmsOf(mark)))
         {
             SourceArm = ClampOption(SourceArmOptions, SourceArm);
 
@@ -239,7 +247,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     {
         var mark = FindStation(TargetStation);
 
-        if (FillOptions(TargetArmOptions, ArmsOf(mark)))
+        if (FillOptions(TargetArmOptions, PlaceArmsOf(mark)))
         {
             TargetArm = ClampOption(TargetArmOptions, TargetArm);
             OnPropertyChanged(nameof(TargetArm));
@@ -258,16 +266,29 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 站点允许的手指（sc.xml 站点节点的 Arms，后端已把"没配"展开成所有手指）；站点还没选上时为空。
+    /// 从站点取片能用的手（sc.xml 站点节点的 PickArms）；站点还没选上时为空
     /// </summary>
-    private static IReadOnlyList<int> ArmsOf(RobotStationModel? mark)
+    private static IReadOnlyList<int> PickArmsOf(RobotStationModel? mark)
     {
         if (mark is null)
         {
             return [];
         }
 
-        return mark.Arms;
+        return mark.PickArms;
+    }
+
+    /// <summary>
+    /// 往站点放片能用的手（sc.xml 站点节点的 PlaceArms）；站点还没选上时为空
+    /// </summary>
+    private static IReadOnlyList<int> PlaceArmsOf(RobotStationModel? mark)
+    {
+        if (mark is null)
+        {
+            return [];
+        }
+
+        return mark.PlaceArms;
     }
 
     /// <summary>

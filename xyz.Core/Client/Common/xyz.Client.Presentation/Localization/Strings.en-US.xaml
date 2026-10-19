@@ -72,7 +72,7 @@
     <sys:String x:Key="loadport.handoff_running">{0} handoff with the transport vehicle is not finished (or timed out and waiting for the operator); cannot load</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
-    <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} (see Arms of the station node in sc.xml)</sys:String>
+    <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} for this pick / place (pick: PickArms, place: PlaceArms of the station node in sc.xml)</sys:String>
     <sys:String x:Key="robot.arm_has_wafer">{0} Arm{1} already holds a wafer: {2}; cannot pick another (if the ledger is wrong, fix it on the wafer ledger adjustment page first)</sys:String>
     <sys:String x:Key="robot.arm_no_wafer">{0} Arm{1} holds no wafer; nothing to place (if the ledger is wrong, fix it on the wafer ledger adjustment page first)</sys:String>
     <sys:String x:Key="robot.arm_sensor_has_wafer">{0} Arm{1} presence sensor detects a wafer, but the wafer ledger says the arm is empty: check the actual wafer position and fix the ledger</sys:String>
