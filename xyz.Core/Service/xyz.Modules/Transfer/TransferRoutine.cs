@@ -5,7 +5,7 @@ using xyz.Shared.Errors;
 namespace xyz.Modules;
 
 /// <summary>
-/// 一趟搬运（一片）：站点到站点、只取片到机械手、只把手上的片放到站点，或者同一个站点里换槽
+/// 一趟搬运的动作
 /// </summary>
 public sealed class TransferRoutine : TransferExecution
 {
@@ -295,7 +295,7 @@ public sealed class TransferRoutine : TransferExecution
             return;
         }
 
-        MarkProgress(_wafer, TransferWaferProgress.Picked);
+        _wafer.Progress = TransferWaferProgress.Picked;
         if (_sameStation)
         {
             SetStep(TransferStep.PrepareNextLeg);
@@ -340,7 +340,7 @@ public sealed class TransferRoutine : TransferExecution
             return;
         }
 
-        MarkProgress(_wafer, TransferWaferProgress.Placed);
+        _wafer.Progress = TransferWaferProgress.Placed;
         if (!TargetStation.TransferComplete(TargetContext))
         {
             Fail(ErrorCodes.TransferStepRejected,

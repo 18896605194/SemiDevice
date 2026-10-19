@@ -55,16 +55,29 @@ public interface IJobManager
     Task<HandleResult> AbortControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs);
     Task<HandleResult> CancelControlJobAsync(string id, ControlJobAction action = ControlJobAction.RemoveJobs);
 
-    /// <summary>EAP 命令适配入口，内部调用对应的 CJ 方法。</summary>
+    /// <summary>
+    /// EAP 命令适配入口，内部调用对应的 CJ 方法。
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="command"></param>
+    /// <param name="action"></param>
+    /// <returns></returns>
     Task<HandleResult> ExecuteControlJobCommandAsync(string id, ControlJobCommand command, ControlJobAction action);
 
-    /// <summary>EAP 命令适配入口，内部调用对应的 PJ 方法。</summary>
+    /// <summary>
+    /// EAP 命令适配入口，内部调用对应的 PJ 方法。
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="command"></param>
+    /// <returns></returns>
     Task<HandleResult> ExecuteProcessJobCommandAsync(string id, ProcessJobCommand command);
 
     ControlJobDto? FindControlJobByCarrier(string carrierId);
     IReadOnlyList<ProcessJobDto> FindProcessJobsByCarrier(string carrierId);
 
-    /// <summary>根据当前运行对象生成独立的 CJ、PJ 查询结果。</summary>
+    /// <summary>
+    /// cj pj 的快照
+    /// </summary>
     JobListDto Snapshot { get; }
 
     IE40Callback? E40Callback { get; set; }

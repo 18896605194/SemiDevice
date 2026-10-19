@@ -10,11 +10,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 任务组件：建 PJ 时照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理。
-/// Job 是标准件，任务表的规则全在平台、机型不另写；站点之间的差别由站点自己声明支持的任务（<see cref="IStationTaskExecutor.SupportedTasks"/>）、
-/// 自己执行，走哪些站点由流程配方定，所以这里不留给机型重写的口子。
-/// </summary>
+
 [Component(description: "任务组件：照流程配方给每片生成任务表，记每个任务做到哪，出错停住等人处理")]
 public class TaskComponent : ComponentBase, ITaskComponent
 {

@@ -1,6 +1,5 @@
 ﻿using xyz.Components;
 using xyz.Components.Attributes;
-using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
@@ -11,7 +10,7 @@ using xyz.Tools;
 namespace xyz.Modules;
 
 /// <summary>
-/// 调度引擎：从任务表拿任务执行，做完记回任务表。Job 是标准件，派单规则全在平台，机型不另写、不换 Type。
+/// 调度引擎：从任务表拿任务执行，做完记回任务表
 /// </summary>
 [Component(description: "调度引擎：从任务表拿任务执行（站内任务交给站点、取放交给搬运管理），做完记回任务表")]
 public class SchedulerComponent : ComponentBase, ISchedulerComponent
@@ -26,13 +25,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 
     #endregion
 
-    /// <summary>
-    /// 搬运管理（开机 Bind 时取）
-    /// </summary>
     private ITransferManager? _transfers;
-    /// <summary>
-    /// 晶圆账（开机 Bind 时取）
-    /// </summary>
     private ILedgerManagerComponent? _ledger;
 
     /// <summary>

@@ -169,7 +169,7 @@ public sealed class SwapRoutine : TransferExecution
             return;
         }
 
-        MarkProgress(_picked, TransferWaferProgress.Picked);
+        _picked.Progress = TransferWaferProgress.Picked;
         SetStep(TransferStep.PrepareNextLeg);
     }
 
@@ -190,7 +190,7 @@ public sealed class SwapRoutine : TransferExecution
             return;
         }
 
-        MarkProgress(_placed, TransferWaferProgress.Placed);
+        _placed.Progress = TransferWaferProgress.Placed;
         if (!_station.TransferComplete(_context))
         {
             Fail(ErrorCodes.TransferStepRejected,

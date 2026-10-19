@@ -353,7 +353,7 @@ public class JobManager : ComponentBase, IJobManager
             // 料已经在、能取片了就当场定片（查片、定回片槽、生成任务行），不行整个不建；料没到先建着，扫描里等料到了再定
             if (port is not null && port.CanUseCarrierForJob)
             {
-                var assignError = AssignWafers(job, port);
+                var assignError = AssignWafers(job, port); //选定晶圆
                 if (assignError is not null)
                 {
                     return Task.FromResult(assignError);
@@ -1696,10 +1696,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// 给 PJ 定片（料在这个 LoadPort 上、能取片了）：流程配方第 1 步要勾这个口；没给槽号的取载具上全部有片的槽；
-    /// PJ 归了 CJ 而 CJ 还没定口的，这个口不能被别的 CJ 占着；每槽要有片、片正常、没做过、不归别的 PJ，定好回片槽，再照流程配方生成任务行。
-    /// 有一项不行就回原因，任务行一行不留。建 PJ 时料已经在就当场定；料没到的扫描里等料到了定（<see cref="AssignWaitingProcessJobs"/>）。
-    /// 这里只生成行；挂进任务表、登记片归属由调用方做。
+    /// 选定晶圆 给 PJ 定片（料在这个 LoadPort 上、能取片了）
     /// </summary>
     private HandleResult? AssignWafers(ProcessJob job, ILoadPort port)
     {
@@ -1788,9 +1785,8 @@ public class JobManager : ComponentBase, IJobManager
             });
         }
 
-        // 每片的任务行照流程配方生成（任务组件管）；生成不了就一行不留，PJ 还是没定片
         job.Rows.AddRange(rows);
-        var taskError = Tasks.Build(job);
+        var taskError = Tasks.Build(job);//生成每一篇wafer的任务
         if (taskError is not null)
         {
             job.Rows.Clear();
@@ -1982,10 +1978,6 @@ public class JobManager : ComponentBase, IJobManager
 
     #region 扫描
 
-    /// <summary>
-    /// 每拍固定六步：① 调度引擎收做完的（搬运、站内任务），结果记回任务表 → ② 任务组件核对片位 → ③ 料没到先建的 PJ，料到了定片 →
-    /// ④ 按任务进度提交 PJ、CJ 状态动作、定许可 → ⑤ 调度引擎派新任务 → ⑥ 发布当前快照。整拍拿着命令那把锁，命令和扫描不会交叉着改。
-    /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
@@ -2002,18 +1994,12 @@ public class JobManager : ComponentBase, IJobManager
             scheduler.Collect(tasks);
             tasks.CheckPositions();
             AssignWaitingProcessJobs();
-            Advance();
-            Dispatch(scheduler, tasks);
+            Advance(); //推进pj和cj的状态流程
+            Dispatch(scheduler, tasks); //派发任务
             Publish();
         }
     }
 
-    /// <summary>
-    /// ③ 料没到先建的 PJ（还在排队）：载具到了某个 LoadPort、能取片了（Load 好，接了 EAP 时槽图也被 Host 认定了）就定片——
-    /// 任务行挂进任务表、登记片归属，归了 CJ 而 CJ 还没定口的把口填上。定不了（槽里没片、片不正常、流程配方没勾这个口……）就报警、
-    /// 日志写清哪个 PJ、什么原因（同样的原因只记一次），PJ 留在排队等人或 Host 收场（停掉 CJ，或取消没归 CJ 的 PJ）；
-    /// 每拍还会再试（账改对了就接着定），报警复位了还没解决会再报。
-    /// </summary>
     private void AssignWaitingProcessJobs()
     {
         foreach (var job in _processJobs.ProcessJobs)
@@ -2101,7 +2087,10 @@ public class JobManager : ComponentBase, IJobManager
         UpdateTaskPermissions();
     }
 
-    /// <summary>按任务进度提交 PJ 动作，目标状态由 PJ 状态表决定。</summary>
+    /// <summary>
+    /// 按任务进度提交 PJ 动作，目标状态由 PJ 状态表决定。
+    /// </summary>
+    /// <returns></returns>
     private bool AdvanceProcessJobs()
     {
         bool changed = false;
@@ -2258,10 +2247,7 @@ public class JobManager : ComponentBase, IJobManager
         }
     }
 
-    /// <summary>
-    /// ④ 派任务：Manual 下不派新动作（在途的照常做完）。Auto 下把 CJ 里没结束的 PJ 的行按优先级（CJ 队列先后、PJ 在 CJ 里的先后、
-    /// PJ 里的投片顺序）交给调度引擎；能派什么看每一行的许可（PJ 状态定的，暂停、停止就体现在这上面）。不归 CJ 的 PJ 没开始，不派。
-    /// </summary>
+
     private void Dispatch(ISchedulerComponent scheduler, ITaskComponent tasks)
     {
         if (!IsAuto)
@@ -2278,8 +2264,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// ⑤ 发布当前快照：本次生成没删的 CJ、界面要看的 PJ（没结束的，加上没删的 CJ 下面已经结束的）对应的 DTO；
-    /// 推给界面（留存，重连就能拿到最新的）；里面的每个 CJ、PJ 交给写库线程更新库里那一行（任务进度也跟着进库）。
+    /// 发布当前快照
     /// </summary>
     private void Publish()
     {

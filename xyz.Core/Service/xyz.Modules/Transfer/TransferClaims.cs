@@ -1,7 +1,7 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 一趟执行要独占的资源清单：槽、手、片、站点；受理时定好，加锁、解锁、挂起、放锁都照它
+/// 一趟执行要独占的资源清单
 /// </summary>
 public sealed class TransferClaims
 {

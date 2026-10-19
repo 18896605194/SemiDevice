@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Globalization;
+﻿using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
@@ -14,20 +13,7 @@ namespace xyz.Modules;
 /// </summary>
 public abstract class TransferExecution : ModuleOperation<TransferStep>
 {
-    /// <summary>
-    /// 准备一（抢站点），报错参数里的第几步
-    /// </summary>
-    protected const int FirstPreparePhase = 1;
-
-    /// <summary>
-    /// 准备二，报错参数里的第几步
-    /// </summary>
-    protected const int SecondPreparePhase = 2;
-
-    /// <summary>
-    /// 换段准备，报错参数里的第几步
-    /// </summary>
-    protected const int NextLegPhase = 3;
+    #region 字段与构造
 
     private readonly int _stationWaitTimeout;
 
@@ -35,46 +21,6 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     /// 当前在等的那一步操作（站点准备、换段、取片、放片）；没在等为 null
     /// </summary>
     private ModuleOperation? _current;
-
-    /// <summary>
-    /// 这一站从什么时候开始抢的；抢站点判超时用，换站点时重置
-    /// </summary>
-    private long _grabSince;
-
-    private volatile bool _abortRequested;
-    private ModuleOperation? _abortOperation;
-    private TransferClaims? _claims;
-
-    /// <summary>
-    /// 这一下分段取放走到哪一段；不是分段的、或者已经走完为 None
-    /// </summary>
-    private HandoffPhase _handoffPhase;
-
-    /// <summary>
-    /// 做分段取放的机械手（就是 Robot，按可选能力取出来）
-    /// </summary>
-    private ITransferRobotStep? _stepRobot;
-
-    /// <summary>
-    /// 要中途交接的站点；这一轮的上下文（站点按它认）
-    /// </summary>
-    private ITransferStation? _handoffStation;
-
-    private TransferContext? _handoffContext;
-
-    /// <summary>
-    /// 交接的是取片（站点把片交到手上）还是放片（站点把片接走）；用哪只手、哪一槽（缩臂要对得上伸臂）
-    /// </summary>
-    private bool _handoffPick;
-
-    private int _handoffArm;
-
-    private int _handoffSlot;
-
-    /// <summary>
-    /// 站点正在做的交接；没在交接为 null
-    /// </summary>
-    private ModuleOperation? _handoff;
 
     /// <summary>
     /// 建执行：机械手、来源、等站点空出来的上限
@@ -85,8 +31,11 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         Origin = origin;
         Robot = robot;
         _stationWaitTimeout = stationWaitTimeout;
-        _grabSince = Stopwatch.GetTimestamp();
     }
+
+    #endregion
+
+    #region 这一趟的信息（搬运管理、调度读）
 
     /// <summary>
     /// 谁发起的（自动、手动、恢复）
@@ -103,23 +52,12 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     /// </summary>
     public abstract IReadOnlyList<TransferWafer> Wafers { get; }
 
+    private TransferClaims? _claims;
+
     /// <summary>
     /// 这一趟独占的资源清单（第一次用时按受理好的参数建，之后不变）
     /// </summary>
-    public TransferClaims Claims
-    {
-        get
-        {
-            var claims = _claims;
-            if (claims is null)
-            {
-                claims = CreateClaims();
-                _claims = claims;
-            }
-
-            return claims;
-        }
-    }
+    public TransferClaims Claims => _claims ??= CreateClaims();
 
     /// <summary>
     /// 动过手了：落过"交互中"标记、发过取放。之后再失败片在哪说不准，要留着等人工确认
@@ -132,42 +70,9 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     public bool NeedsRecovery => IsTerminal && !IsSuccess && (MotionStarted || IsHoldingStation);
 
     /// <summary>
-    /// 机械手的取片或放片正在做：被中止时要给机械手发设备中止
-    /// </summary>
-    public bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
-
-    internal bool AbortRequested => _abortRequested;
-
-    internal string AbortReason { get; private set; } = string.Empty;
-
-    /// <summary>
-    /// 请求中止，由搬运管理的扫描线程执行
-    /// </summary>
-    internal void RequestAbort(string reason)
-    {
-        AbortReason = reason;
-        _abortRequested = true;
-    }
-
-    /// <summary>
-    /// 当前设备动作和设备中止都收尾后，搬运管理才释放资源、唤醒等待方
-    /// </summary>
-    internal bool ReadyToFinish => IsTerminal && (_current is null || _current.IsSettled)
-        && (_abortOperation is null || _abortOperation.IsSettled)
-        && (_handoff is null || _handoff.IsSettled);
-
-    /// <summary>
     /// 日志里这一趟的几片
     /// </summary>
     internal string WaferNames => string.Join("、", Wafers.Select(wafer => wafer.Name));
-
-    /// <summary>
-    /// 这一趟有没有这片
-    /// </summary>
-    public bool Involves(Guid waferId)
-    {
-        return Wafers.Any(wafer => wafer.Id == waferId);
-    }
 
     /// <summary>
     /// 这一趟有没有属于这个 Job 的片
@@ -204,6 +109,10 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         return false;
     }
 
+    #endregion
+
+    #region 子类实现
+
     /// <summary>
     /// 还占着站点的环（准备过、还没收尾或撤掉）
     /// </summary>
@@ -219,12 +128,36 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     /// </summary>
     protected abstract void ReleaseStations();
 
+    #endregion
+
+    #region 抢站点、准备
+
+    /// <summary>
+    /// 准备一（抢站点），报错参数里的第几步
+    /// </summary>
+    protected const int FirstPreparePhase = 1;
+
+    /// <summary>
+    /// 准备二，报错参数里的第几步
+    /// </summary>
+    protected const int SecondPreparePhase = 2;
+
+    /// <summary>
+    /// 换段准备，报错参数里的第几步
+    /// </summary>
+    protected const int NextLegPhase = 3;
+
+    /// <summary>
+    /// 这一站从什么时候开始抢的（计时表上的毫秒）；抢站点判超时用，换站点时重置
+    /// </summary>
+    private long _grabSince;
+
     /// <summary>
     /// 换站点了，抢站点的等待重新计时
     /// </summary>
     protected void RestartStationWait()
     {
-        _grabSince = Stopwatch.GetTimestamp();
+        _grabSince = Watch.ElapsedMilliseconds;
     }
 
     /// <summary>
@@ -240,7 +173,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
             return true;
         }
 
-        if (Stopwatch.GetElapsedTime(_grabSince).TotalMilliseconds > _stationWaitTimeout)
+        if (Watch.ElapsedMilliseconds - _grabSince > _stationWaitTimeout)
         {
             Abandon(ErrorCodes.StationBusy,
                 $"{station.Name} 等不到可服务（{_stationWaitTimeout}ms）",
@@ -293,6 +226,10 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         SetStep(next);
         return true;
     }
+
+    #endregion
+
+    #region 取放
 
     /// <summary>
     /// 先问机械手能不能做，再落"交互中"标记、发取片或放片；从落标记起就算动过手了。
@@ -371,7 +308,6 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         }
 
         _current = operation;
-        _handoffPhase = HandoffPhase.None;
         if (stepRobot is not null)
         {
             _handoffPhase = HandoffPhase.Extend;
@@ -401,6 +337,60 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         _current = null;
         return operation;
     }
+
+    /// <summary>
+    /// 取片或放片没做成：站点停在 Transferring 等人工确认；账没记上的原样带出账的错误码
+    /// </summary>
+    protected void ReportMotionFailure(ITransferStation station, string action, ModuleOperation operation)
+    {
+        LogHelper.Error(Robot.Name,
+            $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{operation.Reason}");
+        if (operation.Code == ErrorCodes.RobotLedgerMoveFailed)
+        {
+            Fail(operation.Code, operation.Reason, [.. operation.ErrorArgs]);
+            return;
+        }
+
+        Fail(ErrorCodes.TransferFailed,
+            $"{Robot.Name} {action} 失败：{operation.Reason}",
+            Robot.Name,
+            action);
+    }
+
+    #endregion
+
+    #region 分段取放：伸臂 → 站点交接 → 缩臂
+
+    /// <summary>
+    /// 这一下分段取放走到哪一段；不是分段的、或者已经走完为 None
+    /// </summary>
+    private HandoffPhase _handoffPhase;
+
+    /// <summary>
+    /// 做分段取放的机械手（就是 Robot，按可选能力取出来）
+    /// </summary>
+    private ITransferRobotStep? _stepRobot;
+
+    /// <summary>
+    /// 要中途交接的站点；这一轮的上下文（站点按它认）
+    /// </summary>
+    private ITransferStation? _handoffStation;
+
+    private TransferContext? _handoffContext;
+
+    /// <summary>
+    /// 交接的是取片（站点把片交到手上）还是放片（站点把片接走）；用哪只手、哪一槽（缩臂要对得上伸臂）
+    /// </summary>
+    private bool _handoffPick;
+
+    private int _handoffArm;
+
+    private int _handoffSlot;
+
+    /// <summary>
+    /// 站点正在做的交接；没在交接为 null
+    /// </summary>
+    private ModuleOperation? _handoff;
 
     /// <summary>
     /// 分段取放往下推：伸臂做完叫站点交接，交接做完叫机械手缩臂，缩臂收尾了交给取放收场；伸臂、缩臂没做成按取放失败收场
@@ -527,23 +517,38 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 取片或放片没做成：站点停在 Transferring 等人工确认；账没记上的原样带出账的错误码
+    /// 分段取放走到哪一段
     /// </summary>
-    protected void ReportMotionFailure(ITransferStation station, string action, ModuleOperation operation)
+    private enum HandoffPhase
     {
-        LogHelper.Error(Robot.Name,
-            $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{operation.Reason}");
-        if (operation.Code == ErrorCodes.RobotLedgerMoveFailed)
-        {
-            Fail(operation.Code, operation.Reason, [.. operation.ErrorArgs]);
-            return;
-        }
+        /// <summary>
+        /// 不是分段取放，或者已经走完
+        /// </summary>
+        None,
 
-        Fail(ErrorCodes.TransferFailed,
-            $"{Robot.Name} {action} 失败：{operation.Reason}",
-            Robot.Name,
-            action);
+        /// <summary>
+        /// 机械手在伸臂
+        /// </summary>
+        Extend,
+
+        /// <summary>
+        /// 机械手伸着停在站里，站点在交接
+        /// </summary>
+        Handoff,
+
+        /// <summary>
+        /// 机械手在缩臂
+        /// </summary>
+        Retract,
     }
+
+    #endregion
+
+    #region 失败收场、中止
+
+    private volatile bool _abortRequested;
+
+    private ModuleOperation? _abortOperation;
 
     /// <summary>
     /// 失败收场：没动过手就先撤站点，撤不掉保留占用，再落原始失败
@@ -576,13 +581,23 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
         return false;
     }
 
+    internal bool AbortRequested => _abortRequested;
+
+    internal string AbortReason { get; private set; } = string.Empty;
+
     /// <summary>
-    /// 记这一片做到哪一步
+    /// 请求中止，由搬运管理的扫描线程执行
     /// </summary>
-    protected static void MarkProgress(TransferWafer wafer, TransferWaferProgress progress)
+    internal void RequestAbort(string reason)
     {
-        wafer.Progress = progress;
+        AbortReason = reason;
+        _abortRequested = true;
     }
+
+    /// <summary>
+    /// 机械手的取片或放片正在做：被中止时要给机械手发设备中止
+    /// </summary>
+    private bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
 
     /// <summary>
     /// 被中止（急停、人工取消、Job 中止）：在途的设备动作、站点的中途交接跟着中止；没动过手才撤站点
@@ -600,28 +615,11 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 分段取放走到哪一段
+    /// 当前设备动作和设备中止都收尾后，搬运管理才释放资源、唤醒等待方
     /// </summary>
-    private enum HandoffPhase
-    {
-        /// <summary>
-        /// 不是分段取放，或者已经走完
-        /// </summary>
-        None,
+    internal bool ReadyToFinish => IsTerminal && (_current is null || _current.IsSettled)
+        && (_abortOperation is null || _abortOperation.IsSettled)
+        && (_handoff is null || _handoff.IsSettled);
 
-        /// <summary>
-        /// 机械手在伸臂
-        /// </summary>
-        Extend,
-
-        /// <summary>
-        /// 机械手伸着停在站里，站点在交接
-        /// </summary>
-        Handoff,
-
-        /// <summary>
-        /// 机械手在缩臂
-        /// </summary>
-        Retract,
-    }
+    #endregion
 }

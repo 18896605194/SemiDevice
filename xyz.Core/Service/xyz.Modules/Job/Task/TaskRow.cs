@@ -78,7 +78,11 @@ public sealed class TaskRow
         }
     }
 
-    /// <summary>这个取片后面的放片（取放要一起定）；没有返回 null。</summary>
+    /// <summary>
+    /// 这个取片后面的放片（取放要一起定）
+    /// </summary>
+    /// <param name="pick"></param>
+    /// <returns></returns>
     public WaferTask? NextPlace(WaferTask pick)
     {
         int index = Tasks.IndexOf(pick);
