@@ -24,11 +24,11 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// </summary>
     private const string UnknownOperator = "Unknown";
 
-    private readonly IWaferManagerComponent? _ledger;
+    private readonly ILedgerManagerComponent? _ledger;
 
     public WaferLedgerService()
     {
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
     }
 
     public Task<RpcResponse> GetLedgerAsync(RpcRequest request, CallContext context = default)
@@ -241,7 +241,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     /// <summary>
     /// 槽号超范围：说清楚是源还是目标的哪一个槽超了。
     /// </summary>
-    private static Task<RpcResponse> SlotOutOfRange(IWaferManagerComponent ledger, string from, int fromSlot, string to, int toSlot)
+    private static Task<RpcResponse> SlotOutOfRange(ILedgerManagerComponent ledger, string from, int fromSlot, string to, int toSlot)
     {
         int fromCount = ledger.GetSlots(from).Count;
         return fromSlot < 1 || fromSlot > fromCount

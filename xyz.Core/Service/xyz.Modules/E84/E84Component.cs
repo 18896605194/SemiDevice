@@ -14,10 +14,6 @@ public class E84Component : ComponentBase, IE84
 {
     #region SC
 
-    /// <summary>
-    /// 装没装：False 时端口当没有 E84（不打开、不扫、不读写 IO），本机没接搬运车时这么配。
-    /// 现场临时不跟搬运车交接用 EC E84Enabled，不用改这个。
-    /// </summary>
     [SCEditor("True", "E84", "是否装了 E84（False = 本机没接搬运车：端口当没有 E84，不打开、不扫、不读写 IO；现场临时停交接用 EC E84Enabled）")]
     public bool IsEnable { get; set; } = true;
 
@@ -228,10 +224,9 @@ public class E84Component : ComponentBase, IE84
     #region 初始化与人工恢复
 
     /// <summary>
-    /// 组件初始化（开机，端口的基类递归带着调）：输出全灭、回初始。
-    /// 装没装（SC IsEnable=False，本机没接搬运车）的什么都不做、不读写 IO——端口当没有 E84，
-    /// 这一条挂在基类的递归上，端口拦不住它，所以在这里自己拦。
+    /// 组件初始化
     /// </summary>
+    /// <returns></returns>
     public override bool InitComponent()
     {
         if (!IsEnable)
@@ -335,14 +330,14 @@ public class E84Component : ComponentBase, IE84
         }
     }
 
-    /// <summary>
-    /// 走一步。能不能交接、往哪个方向看端口给的两样：Manual 或 Out Of Service 关闸门；
-    /// 搬运状态是等送盒 / 等取走才开对应方向，其余（端口在忙、这一盒还没干完）亮着 HO_AVBL 但先挡着。
-    /// </summary>
+   /// <summary>
+   /// 推进 状态机流转
+   /// </summary>
+   /// <param name="autoMode"></param>
+   /// <param name="transferState"></param>
+   /// <param name="carrierPlaced"></param>
     private void Advance(bool autoMode, LoadPortTransferState transferState, bool carrierPlaced)
     {
-        // 闸门：E84 没开、端口不可交接、光幕被挡 → 输出全灭，进行中的交接按中止处理。
-        // 超时锁存不因此解开（跟 CTC 一样），仍等人工恢复。
         string? closed = GateClosedReason(autoMode, transferState);
         if (closed is not null)
         {
@@ -446,10 +441,10 @@ public class E84Component : ComponentBase, IE84
     }
 
     /// <summary>
-    /// Auto 模式下载具没走交接就变了（放上或拿走）：报警（照 CTC 的 Unexpected carrier placed / removed on access auto）。
-    /// 交接进行中（给了 READY 以后）载具本来就该变；交接超时锁住的已经报过超时，不重复报；Manual 是人工放取，不管。
-    /// 只报警、不锁交接：交接本来就按载具在不在开方向（有盒不亮 L_REQ、没盒不亮 U_REQ），人手动放、拿不会让搬运车撞上。
+    /// 检查盒子的异常
     /// </summary>
+    /// <param name="autoMode"></param>
+    /// <param name="carrierPlaced"></param>
     private void CheckUnexpectedCarrier(bool autoMode, bool carrierPlaced)
     {
         bool? last = _lastCarrierPlaced;
@@ -468,6 +463,12 @@ public class E84Component : ComponentBase, IE84
         RaiseAlarm(UnexpectedCarrierAlarm);
     }
 
+    /// <summary>
+    /// 检查一些基础的判断稿件和原因
+    /// </summary>
+    /// <param name="autoMode"></param>
+    /// <param name="transferState"></param>
+    /// <returns></returns>
     private string? GateClosedReason(bool autoMode, LoadPortTransferState transferState)
     {
         if (!E84Enabled)

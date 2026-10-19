@@ -62,7 +62,7 @@ public class SystemModule : BaseModule, ISystemModule
     // 下面几个单例开机绑模块表时取；没装是 null
     private ITransferManager? _transfers;
     private IJobManager? _jobs;
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
     private IAlarmComponent? _alarms;
     private IWaferSizeComponent? _waferSize;
 
@@ -82,7 +82,7 @@ public class SystemModule : BaseModule, ISystemModule
     {
         _transfers = IocHelper.GetService<ITransferManager>();
         _jobs = IocHelper.GetService<IJobManager>();
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
         _alarms = IocHelper.GetService<IAlarmComponent>();
         _waferSize = IocHelper.GetService<IWaferSizeComponent>();
         _modules = modules.Where(module => !ReferenceEquals(module, this)).ToList();

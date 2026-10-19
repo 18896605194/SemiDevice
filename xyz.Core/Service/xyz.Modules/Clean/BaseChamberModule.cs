@@ -165,7 +165,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     #region 组件初始化
 
-    private IWaferManagerComponent? _waferManager;
+    private ILedgerManagerComponent? _ledger;
 
     public override bool InitComponent()
     {
@@ -178,8 +178,8 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位。
-        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
-        _waferManager?.RegisterLocation(Name, SlotCount);
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger?.RegisterLocation(Name, SlotCount);
         return base.InitComponent();
     }
 
@@ -226,9 +226,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     private List<ChamberSlotDto> CreateSlotDtos()
     {
         IReadOnlyList<WaferInfo?> wafers = [];
-        if (_waferManager is not null)
+        if (_ledger is not null)
         {
-            wafers = _waferManager.GetSlots(Name);
+            wafers = _ledger.GetSlots(Name);
         }
 
         var slots = new List<ChamberSlotDto>();
@@ -838,7 +838,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         var expected = request.WaferId;
         if (expected is not null)
         {
-            var wafer = _waferManager?.Get(Name, request.Slot);
+            var wafer = _ledger?.Get(Name, request.Slot);
             if (wafer is null || wafer.Id != expected.Value)
             {
                 return new ProcessRejection(ErrorCodes.ChamberWaferMismatch, [Name, slot]);
@@ -887,9 +887,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             _processOperation = operation;
             Recipe = request.RecipeName.Trim();
 
-            if (_waferManager is not null && _waferManager.HasWafer(Name, request.Slot))
+            if (_ledger is not null && _ledger.HasWafer(Name, request.Slot))
             {
-                _waferManager.SetProcessState(Name, request.Slot, WaferProcessState.InProcess);
+                _ledger.SetProcessState(Name, request.Slot, WaferProcessState.InProcess);
             }
 
             return operation;
@@ -924,7 +924,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             return;
         }
 
-        if (_waferManager is null || !_waferManager.HasWafer(Name, request.Slot))
+        if (_ledger is null || !_ledger.HasWafer(Name, request.Slot))
         {
             return;
         }
@@ -932,7 +932,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         var state = operation.IsSuccess
             ? WaferProcessState.Completed
             : operation.State == OperationState.Aborted ? WaferProcessState.Aborted : WaferProcessState.Failed;
-        _waferManager.SetProcessState(Name, request.Slot, state);
+        _ledger.SetProcessState(Name, request.Slot, state);
     }
 
     #endregion

@@ -27,13 +27,13 @@ public class TaskComponent : ComponentBase, ITaskComponent
     // 下面几个单例开机 Bind 时取；没装是 null
     private ITransferManager? _transfers;
     private IRecipeComponent? _recipes;
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
 
     public override void Bind()
     {
         _transfers = IocHelper.GetService<ITransferManager>();
         _recipes = IocHelper.GetService<IRecipeComponent>();
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
     }
 
     /// <summary>按名字找站点（搬运管理的模块表）；不是站点为 null。</summary>

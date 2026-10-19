@@ -34,8 +34,8 @@ void Check(bool condition, string message)
 // 读编译时从 xyz.Configs 拷到输出目录的那份（跟源码 sc.xml 同一份），不写死仓库位置。
 var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
 Check(scConfig is not null, "sc.xml 解析失败");
-var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "WaferManager", StringComparison.OrdinalIgnoreCase));
-Check(node is not null && node.Type == typeof(WaferManagerComponent).FullName, "sc.xml 里应有指向 WaferManagerComponent 的顶层节点");
+var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "LedgerManager", StringComparison.OrdinalIgnoreCase));
+Check(node is not null && node.Type == typeof(LedgerManagerComponent).FullName, "sc.xml 里应有指向 LedgerManagerComponent 的顶层节点");
 var databaseGroup = scConfig.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Database", StringComparison.OrdinalIgnoreCase));
 Check(databaseGroup is not null, "sc.xml 应有 Database 节点");
 var mapperNode = scConfig.Modules.FirstOrDefault(setting => setting.Type == typeof(MapperComponent).FullName);
@@ -50,17 +50,17 @@ Check(XyzDb.IsRegistered("Default") && XyzDb.IsRegistered("Io"),
 Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
                                 && string.Equals(value.Value, "Default", StringComparison.OrdinalIgnoreCase)),
     "晶圆流水属业务数据，应配在默认库");
-var assembled = roots.OfType<WaferManagerComponent>().SingleOrDefault();
-Check(assembled is not null && assembled.IsEnable && assembled.Name == "WaferManager", "sc.xml 应装出一个启用的 WaferManagerComponent");
-Check(ReferenceEquals(IocHelper.GetService<IWaferManagerComponent>(), assembled), "装配出来就登记成单例");
+var assembled = roots.OfType<LedgerManagerComponent>().SingleOrDefault();
+Check(assembled is not null && assembled.IsEnable && assembled.Name == "LedgerManager", "sc.xml 应装出一个启用的 LedgerManagerComponent");
+Check(ReferenceEquals(IocHelper.GetService<ILedgerManagerComponent>(), assembled), "装配出来就登记成单例");
 // 启动时只对 roots 里的 BaseModule 调 Start()，账本不在其中，所以没有扫描线程。
 Check(!roots.OfType<BaseModule>().Any(module => ReferenceEquals(module, assembled)), "账本不该出现在会被 Start 的模块清单里");
 // 后面还要装别的树（会换掉整棵树）：映射组件单独登记着
 SmokeIoc.Use<IMapperComponent>(roots.OfType<MapperComponent>().Single());
 
 // 后面用独立实例，不动装配出来的那本账。
-var ledger = new WaferManagerComponent();
-SmokeIoc.Use<IWaferManagerComponent>(ledger);
+var ledger = new LedgerManagerComponent();
+SmokeIoc.Use<ILedgerManagerComponent>(ledger);
 ledger.InitComponent(); // 开机准备：取映射组件（流水、存盘、人工调整记录靠它转）
 ledger.RegisterLoadPort("LoadPort1", 25);
 ledger.RegisterLocation("Robot1", 2);
@@ -99,13 +99,13 @@ Check(ledger.CountWafers("Robot1") == 1 && ledger.CountWafers("LoadPort1") == 1,
 
 // 3b. 带预期晶圆 Id 的原子移账：改业务片号仍是同一片，删后补同号晶圆则是另一片。
 {
-    var guarded = new WaferManagerComponent();
+    var guarded = new LedgerManagerComponent();
     guarded.RegisterLocation("GuardSource", 2);
     guarded.RegisterLocation("GuardTarget", 1);
     var original = guarded.Create("GuardSource", 1)!;
     int moves = 0;
     guarded.WaferMoved += (_, _, _) => moves++;
-    IWaferManagerComponent access = guarded;
+    ILedgerManagerComponent access = guarded;
 
     Check(!access.Move("GuardSource", 1, "GuardTarget", 1, Guid.Empty)
           && guarded.Get("GuardSource", 1)?.Id == original.Id && guarded.Get("GuardTarget", 1) is null && moves == 0,
@@ -169,8 +169,8 @@ Check(!ledger.Verify("Robot1", 1, false), "账上有片设备没有 → 不一�
 Check(!ledger.Verify("Robot1", 2, true), "设备有片账上没有 → 不一致");
 
 // 8. 并发抢同一个槽：两个线程同时放片，只能成一个，账上不丢片也不覆盖。
-var race = new WaferManagerComponent();
-SmokeIoc.Use<IWaferManagerComponent>(race);
+var race = new LedgerManagerComponent();
+SmokeIoc.Use<ILedgerManagerComponent>(race);
 race.InitComponent();
 race.RegisterLocation("A", 2);
 race.RegisterLocation("B", 1);
@@ -210,8 +210,8 @@ for (int round = 0; round < 50; round++)
 }
 
 // 9. 关掉记账：不建账，设备照常动作。
-var off = new WaferManagerComponent { IsEnable = false };
-SmokeIoc.Use<IWaferManagerComponent>(off);
+var off = new LedgerManagerComponent { IsEnable = false };
+SmokeIoc.Use<ILedgerManagerComponent>(off);
 off.RegisterLocation("X", 1);
 Check(off.Create("X", 1) is null && off.CountWafers("X") == 0 && !off.Move("X", 1, "X", 1), "IsEnable=False 时不记账");
 
@@ -239,7 +239,7 @@ var recorded = SmokeIoc.Load([
     new ModuleConfig
     {
         Name = "WaferLedgerSmoke",
-        Type = typeof(WaferManagerComponent).FullName,
+        Type = typeof(LedgerManagerComponent).FullName,
         Values =
         [
             new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -248,7 +248,7 @@ var recorded = SmokeIoc.Load([
             new ValueConfig { Name = "HistoryKeepDays", Value = "90" },
         ],
     },
-]).OfType<WaferManagerComponent>().Single();
+]).OfType<LedgerManagerComponent>().Single();
 recorded.InitComponent();
 recorded.RegisterLocation("SmokeLP", 2);
 recorded.RegisterLocation("SmokeRB", 1);
@@ -367,8 +367,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         }
     };
 
-    var faulty = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(faulty);
+    var faulty = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(faulty);
     faulty.InitComponent();
     typeof(ComponentBase).GetProperty("Name")!.SetValue(faulty, "SmokeLedger");
     typeof(ComponentBase).GetProperty("FullPath")!.SetValue(faulty, "SmokeLedger");
@@ -453,8 +453,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 {
     var manualGuard = new AlarmComponent();
     SmokeIoc.Use<IAlarmComponent>(manualGuard);
-    var manual = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(manual);
+    var manual = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(manual);
     manual.InitComponent();
     manual.RegisterLocation("ManualPM", 1);
     manual.RegisterLocation("ManualRB", 2);
@@ -544,10 +544,10 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         manual.ManualMove("ManualRB", 2, "ManualPM", 1, "Tester", null);
     }
 
-    Check(manual.GetRecentAdjustments().Count == WaferManagerComponent.RecentAdjustmentCount, "不落库时内存里只留最近 50 条");
+    Check(manual.GetRecentAdjustments().Count == LedgerManagerComponent.RecentAdjustmentCount, "不落库时内存里只留最近 50 条");
 
-    var disabledLedger = new WaferManagerComponent { IsEnable = false };
-    SmokeIoc.Use<IWaferManagerComponent>(disabledLedger);
+    var disabledLedger = new LedgerManagerComponent { IsEnable = false };
+    SmokeIoc.Use<ILedgerManagerComponent>(disabledLedger);
     Check(disabledLedger.ManualMove("A", 1, "B", 1, "Tester", null) == WaferAdjustResult.Disabled
           && disabledLedger.ManualDelete("A", 1, "Tester", null) == WaferAdjustResult.Disabled
           && disabledLedger.ManualCreate("A", 1, "W-1", "Tester", null) == WaferAdjustResult.Disabled,
@@ -558,7 +558,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         new ModuleConfig
         {
             Name = "ManualLedger",
-            Type = typeof(WaferManagerComponent).FullName,
+            Type = typeof(LedgerManagerComponent).FullName,
             Values =
             [
                 new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -567,7 +567,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
                 new ValueConfig { Name = "HistoryKeepDays", Value = "90" },
             ],
         },
-    ]).OfType<WaferManagerComponent>().Single();
+    ]).OfType<LedgerManagerComponent>().Single();
     persisted.InitComponent();
     persisted.RegisterLocation("DbPM", 1);
     persisted.RegisterLocation("DbRB", 1);
@@ -616,8 +616,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 {
     var serviceGuard = new AlarmComponent();
     SmokeIoc.Use<IAlarmComponent>(serviceGuard);
-    var serviceLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(serviceLedger);
+    var serviceLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(serviceLedger);
     serviceLedger.InitComponent();
     var robot1 = new LedgerProbeRobot("SvcRobot1", "SvcLP1", "SvcPM1");
     var robot2 = new LedgerProbeRobot("SvcRobot2", "SvcPM1", "SvcBuffer", "SvcGhost");
@@ -726,7 +726,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && !disabledCreate.Success && disabledCreate.Code == ErrorCodes.WaferLedgerDisabled,
         "账没开：位置表是空的，调账给错误码");
 
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
     service = new WaferLedgerService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var noLedgerView = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     var noLedgerRecords = (await service.GetAdjustmentsAsync(new RpcRequest())).DeserializeData<List<WaferAdjustmentDto>>();
@@ -744,14 +744,14 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
         db.Ado.ExecuteCommand("DELETE FROM wafer_current");
     }
 
-    WaferManagerComponent Assemble()
+    LedgerManagerComponent Assemble()
     {
         var assembledLedger = SmokeIoc.Load([
             new ModuleConfig { Name = "Mapper", Type = typeof(MapperComponent).FullName },
             new ModuleConfig
             {
                 Name = "PersistSmoke",
-                Type = typeof(WaferManagerComponent).FullName,
+                Type = typeof(LedgerManagerComponent).FullName,
                 Values =
                 [
                     new ValueConfig { Name = "IsEnable", Value = "True" },
@@ -760,7 +760,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
                     new ValueConfig { Name = "HistoryDatabase", Value = "SmokeWafer" },
                 ],
             },
-        ]).OfType<WaferManagerComponent>().Single();
+        ]).OfType<LedgerManagerComponent>().Single();
         assembledLedger.RegisterLoadPort("PLP", 3);
         assembledLedger.RegisterLocation("PRB", 2);
         assembledLedger.RegisterLocation("PPM", 1);
@@ -855,7 +855,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     Check(savedAfterRestore, "恢复完存盘线程接着存：存的是这一轮的账（中止、开机 Mapping 的新片）");
     after.StopSnapshot();
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
     SmokeIoc.Use<IMapperComponent>(null);
 }
 

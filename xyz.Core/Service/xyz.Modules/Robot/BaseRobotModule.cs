@@ -146,7 +146,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
     /// </summary>
-    private IWaferManagerComponent? _waferManager;
+    private ILedgerManagerComponent? _ledger;
 
     #endregion
 
@@ -259,8 +259,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         #endregion
 
         // 晶圆账注册：手指在账里也是槽位，槽号 = 手指号
-        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
-        _waferManager?.RegisterLocation(Name, Arms.Count);
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger?.RegisterLocation(Name, Arms.Count);
 
         bool childrenInitialized = base.InitComponent();
         return robot is not null && childrenInitialized;
@@ -523,7 +523,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
                     IsExtended = intent is not null && intent.Arm == arm.Number,
                 })
                 .ToList(),
-            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_waferManager, Name),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_ledger, Name),
         };
 
         var robot = _robot;
@@ -764,7 +764,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return rejected;
         }
 
-        var ledger = _waferManager;
+        var ledger = _ledger;
         if (ledger is null || !ledger.IsEnable)
         {
             return null;
@@ -795,7 +795,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return rejected;
         }
 
-        var ledger = _waferManager;
+        var ledger = _ledger;
         if (ledger is null || !ledger.IsEnable)
         {
             return null;
@@ -871,7 +871,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     private HandleResult? FindExpectedWafer(bool pick, int arm, string station, int slot, out Guid? expectedWaferId)
     {
         expectedWaferId = null;
-        var ledger = _waferManager;
+        var ledger = _ledger;
         if (ledger is null || !ledger.IsEnable)
         {
             return null;
@@ -1249,7 +1249,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// </summary>
     protected virtual HandleResult? HomeInterlock()
     {
-        var ledger = _waferManager;
+        var ledger = _ledger;
         if (ledger is null || !ledger.IsEnable)
         {
             return null;
@@ -1422,7 +1422,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     private HandleResult? CommitTransferLedger(TransferIntent intent)
     {
-        var ledger = _waferManager;
+        var ledger = _ledger;
         if (ledger is null)
         {
             return null;

@@ -12,7 +12,7 @@ public class WaferLedgerDto
     public const string EventToken = "WaferLedger";
 
     /// <summary>
-    /// 晶圆账开着没有（sc.xml 没配 WaferManager 或 IsEnable=False 时为 false，位置表是空的）。
+    /// 晶圆账开着没有（sc.xml 没配 LedgerManager 或 IsEnable=False 时为 false，位置表是空的）。
     /// </summary>
     public bool IsEnabled { get; set; }
 

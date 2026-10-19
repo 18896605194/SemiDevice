@@ -8,7 +8,7 @@ public interface IE90Component
     /// <summary>
     /// 接到 GEM、对象服务和晶圆账上
     /// </summary>
-    void Attach(IE30Component gem, IE39Component? objects, IWaferManagerComponent ledger, bool waitForCarrier);
+    void Attach(IE30Component gem, IE39Component? objects, ILedgerManagerComponent ledger, bool waitForCarrier);
 
     /// <summary>
     /// 从设备上摘下来（宿主退出）

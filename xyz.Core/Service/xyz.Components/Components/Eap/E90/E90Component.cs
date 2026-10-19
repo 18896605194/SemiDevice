@@ -147,7 +147,7 @@ public class E90Component : ComponentBase, IE90Callback, IE90Component
     private readonly object _gate = new();
     private readonly Dictionary<Guid, Substrate> _substrates = new();
     private IE30Component? _gem;
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
     private bool _waitForCarrier;
 
     #region 接设备
@@ -156,7 +156,7 @@ public class E90Component : ComponentBase, IE90Callback, IE90Component
     /// 接到晶圆账上（EAP 组件在链路打开之前调）：挂 E90 上报口，登记 E39 对象类型；账上已经有的片（开机恢复的）不报事件、直接建影子。
     /// waitForCarrier：接了 E87 时为 true——LoadPort 上的片等槽图认定（MaterialArrived）才建片对象。
     /// </summary>
-    public void Attach(IE30Component gem, IE39Component? objects, IWaferManagerComponent ledger, bool waitForCarrier)
+    public void Attach(IE30Component gem, IE39Component? objects, ILedgerManagerComponent ledger, bool waitForCarrier)
     {
         ArgumentNullException.ThrowIfNull(gem);
         ArgumentNullException.ThrowIfNull(ledger);

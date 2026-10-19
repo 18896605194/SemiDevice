@@ -21,39 +21,21 @@ public interface ILoadPortService
     [OperationContract]
     Task<RpcResponse> AbortAsync(string module);
 
-    /// <summary>
-    /// 上线：模块模式切 Online（只改 Mode，不经设备协议）。
-    /// </summary>
     [OperationContract]
     Task<RpcResponse> OnlineAsync(string module);
 
-    /// <summary>
-    /// 下线：模块模式切 Offline（只改 Mode，不经设备协议）。
-    /// </summary>
     [OperationContract]
     Task<RpcResponse> OfflineAsync(string module);
 
-    /// <summary>
-    /// LoadPort 切 Auto（Access Mode，内部模式位，不经设备协议）：E84 组件据此跟搬运车交接。
-    /// </summary>
     [OperationContract]
     Task<RpcResponse> AutoAsync(string module);
 
-    /// <summary>
-    /// LoadPort 切 Manual（Access Mode，内部模式位，不经设备协议）：E84 不再跟搬运车交接，人工放取。
-    /// </summary>
     [OperationContract]
     Task<RpcResponse> ManualAsync(string module);
 
-    /// <summary>
-    /// 读载具 ID（读 RFID）：只发起不等结果，读到的 ID 随状态推送刷新。
-    /// </summary>
     [OperationContract]
     Task<RpcResponse> ReadCarrierIdAsync(string module);
 
-    /// <summary>
-    /// 查询当前状态。module 为空返回全部 LoadPort；Data 为 LoadPortDto（或其数组）的 JSON。
-    /// </summary>
     [OperationContract]
     Task<RpcResponse> GetStateAsync(string module);
 }

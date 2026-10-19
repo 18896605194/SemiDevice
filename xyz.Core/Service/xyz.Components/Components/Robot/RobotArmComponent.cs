@@ -82,7 +82,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
     /// <summary>
     /// 晶圆账（开机 Bind 时取）；没装是 null
     /// </summary>
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
 
     /// <summary>
     /// 账上这只手有没有片；账没开为 false
@@ -117,7 +117,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
 
     public override void Bind()
     {
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
     }
 
     /// <summary>

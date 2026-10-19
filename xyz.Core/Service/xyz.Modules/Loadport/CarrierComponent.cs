@@ -88,7 +88,7 @@ public class CarrierComponent : ComponentBase, ICarrier
  
     private ICarrierIdReader? _reader;
 
-    private IWaferManagerComponent? _waferManager;
+    private ILedgerManagerComponent? _ledger;
 
     private Action<Action<IE87Callback>>? _enqueue;
 
@@ -264,7 +264,7 @@ public class CarrierComponent : ComponentBase, ICarrier
             // Host 改写即认定：载具号和快照一起更新，与按载具号完成的检查共用一把锁。
             UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Verified });
         }
-        _waferManager?.SetCarrierIdOn(Port.Name, carrierId);
+        _ledger?.SetCarrierIdOn(Port.Name, carrierId);
     }
 
     public void UpdateStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus)
@@ -327,7 +327,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     public override bool InitComponent()
     {
-        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
         return base.InitComponent();
     }
 
@@ -368,7 +368,7 @@ public class CarrierComponent : ComponentBase, ICarrier
             // 读到 ≠ 认定：接了 EAP 的话还要 Host 点头（ProceedWithCarrier）才转 Verified。
             UpdateInfo(info => info with { CarrierId = carrierId, IdStatus = CarrierIdStatus.Read });
         }
-        _waferManager?.SetCarrierIdOn(Port.Name, carrierId);
+        _ledger?.SetCarrierIdOn(Port.Name, carrierId);
         NotifyE87((callback, port) => callback.CarrierIdRead(port, carrierId));
     }
 
@@ -492,7 +492,7 @@ public class CarrierComponent : ComponentBase, ICarrier
             _info = null;
         }
 
-        _waferManager?.Clear(Port.Name);
+        _ledger?.Clear(Port.Name);
         NotifyE87((callback, port) => callback.CarrierRemoved(port, carrierId));
         RaiseEvent(FoupRemovedEvent);
     }
@@ -530,13 +530,13 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// <param name="slotMap"></param>
     private void ApplySlotMapToLedger(IReadOnlyList<SlotState> slotMap)
     {
-        if (_waferManager is null)
+        if (_ledger is null)
         {
             return;
         }
 
         var port = Port;
-        _waferManager.RegisterLocation(port.Name, port.SlotCount);
+        _ledger.RegisterLocation(port.Name, port.SlotCount);
 
         var statuses = new WaferStatus?[slotMap.Count];
         for (int index = 0; index < slotMap.Count; index++)
@@ -545,7 +545,7 @@ public class CarrierComponent : ComponentBase, ICarrier
         }
 
         var info = _info;
-        int created = _waferManager.ApplySlotMap(port.Name, statuses, info?.CarrierId, info?.LotId);
+        int created = _ledger.ApplySlotMap(port.Name, statuses, info?.CarrierId, info?.LotId);
         LogHelper.Info($"[{port.Name}] Mapping 落账：{created} 片");
     }
 

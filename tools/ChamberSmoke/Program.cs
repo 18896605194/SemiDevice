@@ -817,9 +817,9 @@ try
 
     // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
     //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
-    var previousLedger = IocHelper.GetService<IWaferManagerComponent>();
-    var ledger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(ledger);
+    var previousLedger = IocHelper.GetService<ILedgerManagerComponent>();
+    var ledger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(ledger);
     try
     {
         var armBefore = arm.ActionState;
@@ -837,7 +837,7 @@ try
     }
     finally
     {
-        SmokeIoc.Use<IWaferManagerComponent>(previousLedger);
+        SmokeIoc.Use<ILedgerManagerComponent>(previousLedger);
     }
 
     Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "

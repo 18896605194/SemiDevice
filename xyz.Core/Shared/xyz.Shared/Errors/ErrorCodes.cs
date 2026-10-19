@@ -446,7 +446,7 @@ public static class ErrorCodes
 
     #region 晶圆账
 
-    /// <summary>晶圆账没开（sc.xml 没配 WaferManager，或 IsEnable=False）。</summary>
+    /// <summary>晶圆账没开（sc.xml 没配 LedgerManager，或 IsEnable=False）。</summary>
     public const string WaferLedgerDisabled = "wafer.ledger_disabled";
 
     /// <summary>账上没有这个位置（模块没登记过槽位）。Args: [位置]</summary>

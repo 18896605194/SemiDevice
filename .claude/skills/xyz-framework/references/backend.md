@@ -53,7 +53,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 - **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的）：装配器照 sc 树把每个组件按它实现的 xyz 接口
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
   取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、
-  `IRpcComponent`、`IMapperComponent`、`IWaferManagerComponent`、`IIoComponent`、`IPlc`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
+  `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIoComponent`、`IPlc`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
   `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；
   EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）；同一个接口登记了好几个的，取一个拿最后登记的。
   要一类的全部用 `IocHelper.GetServices<IXxx>()`：按 sc 先后（先父后子），停用的连同下面的跳过。GEM 编号表 `GemCollectors` 不是组件，也登记在容器里，一样从 `IocHelper` 取。
@@ -115,7 +115,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `IDataChartComponent`、`IE30Component`……，找组件一律按它们）、模块共有的 `IModule`（名字、状态、模式、在做的动作、InitModule / Reset / Abort、上下线；
   `ILoadPort`、`IRobot` 继承它；`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
   还有设备侧给 EAP 的命令接口和上报口：`ILoadPort`、`ICarrier`（经 `ILoadPort.Carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，平台默认 `RfidDriverComponent` 实现）、`IE87Callback`、`IE84Callback`、
-  `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `WaferManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
+  `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `LedgerManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
   Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）和载具快照 `CarrierInfo` 在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
   实现还在模块层（`BaseLoadPortModule`、`CarrierComponent`、`JobManager`）；EAP 组件写在组件层，直接用这些接口。
@@ -625,7 +625,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   平台不再带 sc.xml；读 sc.xml 节点的冒烟（Job / ProcessRecipe / Sequence / WaferLedger）在 csproj 里把机型那份链接进输出目录的 `Config\`。新机型照这样在自己工程里放一份。
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
-- 节点顺序：System → Rpc → EC → Database → Alarm → Log → WaferManager → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
+- 节点顺序：System → Rpc → EC → Database → Alarm → Log → LedgerManager → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
   LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Eap（Hsms、E30、E39、E87、E90、E40、E94）→ Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`，源码不在本仓库）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；
   机械手站点表、工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）有专门的表格页。改了 ScEdit 要跑它的 build.ps1 发布到 app。

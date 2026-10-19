@@ -209,7 +209,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public ICarrierAccess Carrier => _carrier;
 
-    private IWaferManagerComponent? _waferManager;
+    private ILedgerManagerComponent? _ledger;
 
     public IE84? E84
     {
@@ -311,8 +311,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         #endregion
 
         ///晶圆账注册
-        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
-        _waferManager?.RegisterLoadPort(Name, SlotCount);
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger?.RegisterLoadPort(Name, SlotCount);
 
         bool childrenInitialized = base.InitComponent();
         return driver is not null && childrenInitialized;
@@ -466,7 +466,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             CarrierId = _carrier.CarrierId ?? string.Empty,
             SlotCount = SlotCount,
             Slots = ToSlotDtos(_carrier.SlotMap),
-            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_waferManager, Name),
+            LedgerSlots = WaferLedgerSnapshot.SlotsOf(_ledger, Name),
             HasCarrier = info is not null,
             LotId = info?.LotId ?? string.Empty,
             CarrierIdStatus = info?.IdStatus ?? CarrierIdStatus.NotRead,
@@ -857,7 +857,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// <returns></returns>
     private HandleResult? CheckWafersInJob()
     {
-        var ledger = _waferManager;
+        var ledger = _ledger;
         var jobs = _jobs;
         if (ledger is null || !ledger.IsEnable || jobs is null)
         {
@@ -886,7 +886,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private HandleResult? CheckSlotsInTransfer()
     {
-        var ledger = _waferManager;
+        var ledger = _ledger;
         var transfers = _transfers;
         if (ledger is null || !ledger.IsEnable || transfers is null)
         {
@@ -966,9 +966,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             var state = slotMap[index];
             bool abnormal = state is SlotState.Crossed or SlotState.Double or SlotState.Undefined;
             bool matched = true;
-            if (_waferManager is not null && _waferManager.IsEnable)
+            if (_ledger is not null && _ledger.IsEnable)
             {
-                matched = _waferManager.Verify(Name, slot, state != SlotState.Empty);
+                matched = _ledger.Verify(Name, slot, state != SlotState.Empty);
             }
 
             if (abnormal || !matched)
@@ -1370,20 +1370,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     /// </summary>
     private int CountWafersOutside()
     {
-        if (_waferManager is null)
+        if (_ledger is null)
         {
             return 0;
         }
 
         int count = 0;
-        foreach (var location in _waferManager.Locations)
+        foreach (var location in _ledger.Locations)
         {
-            if (_waferManager.IsLoadPort(location.Module))
+            if (_ledger.IsLoadPort(location.Module))
             {
                 continue;
             }
 
-            foreach (var wafer in _waferManager.GetSlots(location.Module))
+            foreach (var wafer in _ledger.GetSlots(location.Module))
             {
                 if (wafer is not null && string.Equals(wafer.SourceLoadPort, Name, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1396,8 +1396,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
     private void CheckCompletedSlotMap()
     {
-        var waferManager = _waferManager;
-        if (waferManager is null || !waferManager.IsEnable)
+        var ledger = _ledger;
+        if (ledger is null || !ledger.IsEnable)
         {
             return;
         }
@@ -1411,14 +1411,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
         // 从这个口出去、回到别的 LoadPort 上的片，按来处的槽号记下
         var returnedElsewhere = new HashSet<int>();
-        foreach (var location in waferManager.Locations)
+        foreach (var location in ledger.Locations)
         {
-            if (!waferManager.IsLoadPort(location.Module) || string.Equals(location.Module, Name, StringComparison.OrdinalIgnoreCase))
+            if (!ledger.IsLoadPort(location.Module) || string.Equals(location.Module, Name, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            foreach (var wafer in waferManager.GetSlots(location.Module))
+            foreach (var wafer in ledger.GetSlots(location.Module))
             {
                 if (wafer is not null && string.Equals(wafer.SourceLoadPort, Name, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1427,7 +1427,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             }
         }
 
-        var slots = waferManager.GetSlots(Name);
+        var slots = ledger.GetSlots(Name);
         var mismatched = new List<string>();
         for (int index = 0; index < loadedMap.Count; index++)
         {

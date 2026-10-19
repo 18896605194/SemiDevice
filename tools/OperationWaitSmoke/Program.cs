@@ -162,10 +162,10 @@ for (var i = 0; i < 200; i++)
     Check(consistent, "Concurrent terminal paths produced a mixed result.");
 }
 
-// 跟开机装配一样：晶圆账先装出来，再做组件初始化——端口和载具在组件初始化时取一次账本（_waferManager），
+// 跟开机装配一样：晶圆账先装出来，再做组件初始化——端口和载具在组件初始化时取一次账本（_ledger），
 // 载具组件也在这里挂到端口上
-var ledger = new WaferManagerComponent();
-SmokeIoc.Use<IWaferManagerComponent>(ledger);
+var ledger = new LedgerManagerComponent();
+SmokeIoc.Use<ILedgerManagerComponent>(ledger);
 var port = new ProbePort();
 port.InitComponent();
 ComponentLoader.BindAll([port]);
@@ -561,13 +561,13 @@ Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.Stopped, "取放�
 port.NotePodPlaced(false);
 port.Tick();
 
-SmokeIoc.Use<IWaferManagerComponent>(null);
+SmokeIoc.Use<ILedgerManagerComponent>(null);
 port.E87Callback = null;
 
 // ── 机械手取放写晶圆账 ──────────────────────────────────────────────────
 {
-    var robotLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(robotLedger);
+    var robotLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(robotLedger);
     var robot = new ProbeRobot();
     robot.NoteSettings(new ModuleConfig
     {
@@ -797,13 +797,13 @@ port.E87Callback = null;
     robot.Next = new ProbeOperation();
     Check(robot.Abort() == robot.Next, "驱动没连上照样能急停");
 
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
 }
 
 // ── 机械手手指在位传感器：Arm 下挂了 WaferSensor（DI）的手，取放前后、Home 前跟晶圆账对；没挂的手不查（上面那段） ──────
 {
-    var sensorLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(sensorLedger);
+    var sensorLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(sensorLedger);
     var robot = new ProbeRobot();
     var sensor = new ProbeDi("SmokeRobot.Arm1.WaferSensor") { AlarmEnabled = false, DebounceMs = 0 };
     var arm1 = robot.FindChild<RobotArmComponent>("Arm1")!;
@@ -916,13 +916,13 @@ port.E87Callback = null;
     robot.Next!.Succeed();
     robot.Tick();
 
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
 }
 
 // ── 非 DI 持片反馈：手指组件重写统一契约后，公共 Home / 取放检查与完成确认不再依赖 WaferSensor 对象 ──────
 {
-    var feedbackLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(feedbackLedger);
+    var feedbackLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(feedbackLedger);
     var arm = new ProbeFeedbackArm { Number = 1 };
     var robot = new ProbeRobot(arm);
     robot.NoteSettings(new ModuleConfig
@@ -994,7 +994,7 @@ port.E87Callback = null;
           && arm.IsWaferCheckEnabled && feedbackLedger.Get("SmokeLP", 4)?.Id == wafer.Id,
         "动作后非 DI 反馈失效仍按启用检查处理，超时报错，不跳过确认或提交晶圆账");
 
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
 }
 
 // ── 报警：LoadPort / _robot 出故障要报出来；报出去以后只能人工 Reset 清，源头恢复、动作成功都不清 ──────
@@ -1984,9 +1984,9 @@ port.E87Callback = null;
     // 真搬片的全部回片在 JobSmoke 里跟着整机停止一起跑。
     var previousSystem = IocHelper.GetService<ISystemModule>();
     var previousJobs = IocHelper.GetService<IJobManager>();
-    var previousSystemLedger = IocHelper.GetService<IWaferManagerComponent>();
+    var previousSystemLedger = IocHelper.GetService<ILedgerManagerComponent>();
     SmokeIoc.Use<IJobManager>(null);
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
     var sysRobot = new SystemProbeRobot("SysRobot");
     var sysPort = new SystemProbeModule("SysLP");
     var sysChamber = new SystemProbeModule("SysPM");
@@ -2148,8 +2148,8 @@ port.E87Callback = null;
     var noLedger = equipment.ReturnAllAsync(new RpcRequest()).Result;
     Check(!noLedger.Success && noLedger.Code == ErrorCodes.WaferLedgerDisabled && machine.State == ModuleState.Idle,
         "没装晶圆账：全部回片回 wafer.ledger_disabled");
-    var sysLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(sysLedger);
+    var sysLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(sysLedger);
     machine.Bind(sysModules);
     sysLedger.RegisterLocation("SysRobot", 1);
     Check(sysLedger.Create("SysRobot", 1) is not null, "机械手手上摆一片补账的片（不知道从哪个 LoadPort 来）");
@@ -2174,14 +2174,14 @@ port.E87Callback = null;
         "没配整机：整机操作回 system.not_installed");
     SmokeIoc.Use<ISystemModule>(previousSystem);
     SmokeIoc.Use<IJobManager>(previousJobs);
-    SmokeIoc.Use<IWaferManagerComponent>(previousSystemLedger);
+    SmokeIoc.Use<ILedgerManagerComponent>(previousSystemLedger);
 
     // 晶圆尺寸：整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外）没片才让切；尺寸不对、没配晶圆尺寸各回各的码。
     // 这里没有 sc.xml，过了这几道检查就是写回失败（不换尺寸）；写成功、写回的样子在 ProcessRecipeSmoke 里用真 sc.xml 查。
     var previousWaferSize = IocHelper.GetService<IWaferSizeComponent>();
-    var previousSizeLedger = IocHelper.GetService<IWaferManagerComponent>();
+    var previousSizeLedger = IocHelper.GetService<ILedgerManagerComponent>();
     SmokeIoc.Use<IWaferSizeComponent>(null);
-    SmokeIoc.Use<IWaferManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManagerComponent>(null);
     machine.Bind(sysModules);
     var sizePort = new ProbePort("SizeLP");
     var sizeChamber = new ProbeChamber("SizePM");
@@ -2215,8 +2215,8 @@ port.E87Callback = null;
     Check(!initialized.Success && initialized.Code == ErrorCodes.WaferSizeInitialized && initialized.Args.SequenceEqual(["SizeLP"]) && waferSize.Size == 12,
         "有模块初始化过（不是未初始化）：不让切，尺寸不变");
     sizePort.NoteState(ModuleState.NotInit);
-    var sizeLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(sizeLedger);
+    var sizeLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(sizeLedger);
     sizeLedger.RegisterLoadPort("SizeLP", 25);
     sizeLedger.RegisterLocation("SizePM", 1);
     Check(sizeLedger.Create("SizePM", 1) is not null && sizeLedger.Create("SizeLP", 3) is not null, "腔体里一片、LoadPort 上一片");
@@ -2231,7 +2231,7 @@ port.E87Callback = null;
     waferSize.Size = 8;
     Check(machine.CreateEquipmentStatus().WaferSize == 8, "设备总状态带上现在的尺寸");
     SmokeIoc.Use<IWaferSizeComponent>(previousWaferSize);
-    SmokeIoc.Use<IWaferManagerComponent>(previousSizeLedger);
+    SmokeIoc.Use<ILedgerManagerComponent>(previousSizeLedger);
 
     SmokeIoc.Use<ITransferManager>(previousTransfers);
 }
@@ -2239,9 +2239,9 @@ port.E87Callback = null;
 // ── LoadPort 在位来源（SC PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
 //    断线按间隔重连、_rfid 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己那一轮 ─────────────────────────
 {
-    var previousLedger = IocHelper.GetService<IWaferManagerComponent>();
-    var presenceLedger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(presenceLedger);
+    var previousLedger = IocHelper.GetService<ILedgerManagerComponent>();
+    var presenceLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(presenceLedger);
 
     bool WaitUntil(Func<bool> condition, int timeoutMs = 3000)
     {
@@ -3041,7 +3041,7 @@ port.E87Callback = null;
         "载具不在了：门开着也不回 Loaded，落 NotInit");
     resetPort.Close();
 
-    SmokeIoc.Use<IWaferManagerComponent>(previousLedger);
+    SmokeIoc.Use<ILedgerManagerComponent>(previousLedger);
 }
 
 // ── 机械手设备状态查询：一圈从上往下查（没订上每圈开头订一次，订上了不再订）；一条没回就超时作废，同名查询还能再发；

@@ -33,7 +33,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// <summary>
     /// 晶圆账（开机 Bind 时取）
     /// </summary>
-    private IWaferManagerComponent? _waferManager;
+    private ILedgerManagerComponent? _ledger;
 
     /// <summary>
     /// 预取意向：站点 → 为它预取到手上的那片；同一个站只预取一片。只在 Job 扫描线程上读写
@@ -43,7 +43,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     public override void Bind()
     {
         _transfers = IocHelper.GetService<ITransferManager>();
-        _waferManager = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// </summary>
     public void Dispatch(IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
     {
-        if (_transfers is null || _waferManager is null)
+        if (_transfers is null || _ledger is null)
         {
             return;
         }
@@ -405,7 +405,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// </summary>
     private TaskRow? FinishedRow(string station, int slot, IReadOnlyList<TaskRow> rows)
     {
-        var wafer = _waferManager!.Get(station, slot);
+        var wafer = _ledger!.Get(station, slot);
         if (wafer is null)
         {
             return null;
@@ -472,7 +472,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return false;
         }
 
-        int armCount = _waferManager!.GetSlots(robot.Name).Count;
+        int armCount = _ledger!.GetSlots(robot.Name).Count;
         for (int carryArm = 1; carryArm <= armCount; carryArm++)
         {
             if (!from.AllowsArm(carryArm) || !at.AllowsArm(carryArm) || !IsArmFree(robot, carryArm)
@@ -521,7 +521,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 
         for (int slot = 1; slot <= station.SlotCount; slot++)
         {
-            var wafer = _waferManager!.Get(stationName, slot);
+            var wafer = _ledger!.Get(stationName, slot);
             if (wafer is null)
             {
                 continue;
@@ -565,7 +565,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return 0;
         }
 
-        int armCount = _waferManager!.GetSlots(robot.Name).Count;
+        int armCount = _ledger!.GetSlots(robot.Name).Count;
         for (int arm = 1; arm <= armCount; arm++)
         {
             if (arm == excludeArm || !at.AllowsArm(arm) || !IsArmFree(robot, arm))
@@ -710,8 +710,8 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// </summary>
     private bool IsSlotFree(string station, int slot)
     {
-        return _waferManager is not null && _transfers is not null
-            && _waferManager.Get(station, slot) is null && !_transfers.IsSlotLocked(station, slot);
+        return _ledger is not null && _transfers is not null
+            && _ledger.Get(station, slot) is null && !_transfers.IsSlotLocked(station, slot);
     }
 
     /// <summary>

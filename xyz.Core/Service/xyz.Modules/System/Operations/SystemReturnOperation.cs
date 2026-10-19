@@ -27,7 +27,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     private readonly string _logModule;
 
     private readonly ITransferManager _transfers;
-    private readonly IWaferManagerComponent _ledger;
+    private readonly ILedgerManagerComponent _ledger;
 
     /// <summary>
     /// Job 管理：片还归没结束的 Job 的不回；没装是 null
@@ -41,7 +41,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
 
     /// <param name="transfers">搬运管理：整机入口查过装着、开着</param>
     /// <param name="ledger">晶圆账：整机入口查过装着、开着</param>
-    public SystemReturnOperation(string logModule, ITransferManager transfers, IWaferManagerComponent ledger, IJobManager? jobs)
+    public SystemReturnOperation(string logModule, ITransferManager transfers, ILedgerManagerComponent ledger, IJobManager? jobs)
         : base("ReturnAll", ReturnStep.Plan)
     {
         _logModule = logModule;
@@ -71,7 +71,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
 
     #region 排计划
 
-    private void Plan(ITransferManager transfers, IWaferManagerComponent ledger)
+    private void Plan(ITransferManager transfers, ILedgerManagerComponent ledger)
     {
         var claimed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -108,7 +108,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     }
 
     /// <summary>这一片回不回得去：回得去排进计划，回不去记日志。</summary>
-    private void Consider(ITransferManager transfers, IWaferManagerComponent ledger, HashSet<string> claimed,
+    private void Consider(ITransferManager transfers, ILedgerManagerComponent ledger, HashSet<string> claimed,
         WaferInfo wafer, string source, int sourceSlot)
     {
         string? reason = Check(transfers, ledger, claimed, wafer);
@@ -131,7 +131,7 @@ internal sealed class SystemReturnOperation : ModuleOperation<SystemReturnOperat
     }
 
     /// <summary>回不去的原因；回得去返回 null，并占住原槽（两片不会排进同一个槽）。</summary>
-    private string? Check(ITransferManager transfers, IWaferManagerComponent ledger, HashSet<string> claimed, WaferInfo wafer)
+    private string? Check(ITransferManager transfers, ILedgerManagerComponent ledger, HashSet<string> claimed, WaferInfo wafer)
     {
         string? owner = _jobs?.OwnerOf(wafer.Id);
         if (owner is not null)

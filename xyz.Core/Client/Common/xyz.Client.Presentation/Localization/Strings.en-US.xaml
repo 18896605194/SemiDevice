@@ -175,7 +175,7 @@
     <sys:String x:Key="ec.invalid_option">{0} must be one of: {1}</sys:String>
     <sys:String x:Key="ec.save_failed">{0} was not changed: cannot write ec.xml (file in use or access denied)</sys:String>
 
-    <sys:String x:Key="wafer.ledger_disabled">The wafer ledger is off (no WaferManager node in sc.xml, or IsEnable=False)</sys:String>
+    <sys:String x:Key="wafer.ledger_disabled">The wafer ledger is off (no LedgerManager node in sc.xml, or IsEnable=False)</sys:String>
     <sys:String x:Key="wafer.location_not_found">The ledger has no location named {0}</sys:String>
     <sys:String x:Key="wafer.slot_out_of_range">{0} has no slot {1} (it has {2} slots)</sys:String>
     <sys:String x:Key="wafer.no_wafer">There is no wafer in {0} slot {1} (the ledger may have just been changed elsewhere)</sys:String>

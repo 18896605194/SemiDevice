@@ -81,12 +81,12 @@ public class EapComponent : ComponentBase, IEapComponent
 
         var substrates = FindChild<IE90Component>();
         var carriers = FindChild<IE87Component>();
-        var ledger = IocHelper.GetService<IWaferManagerComponent>();
+        var ledger = IocHelper.GetService<ILedgerManagerComponent>();
         if (substrates is not null)
         {
             if (ledger is null)
             {
-                LogHelper.Warn(Name, "没有晶圆账（WaferManager）：E90 不接");
+                LogHelper.Warn(Name, "没有晶圆账（LedgerManager）：E90 不接");
                 substrates = null;
             }
             else

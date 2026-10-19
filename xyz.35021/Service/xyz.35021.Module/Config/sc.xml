@@ -35,7 +35,7 @@
 		<Value Name="LogBarDisplayMaxCount" Value="500" />
 	</Setting>
 	<Setting Name="Mapper" Type="xyz.Components.Components.MapperComponent" />
-	<Setting Name="WaferManager" Type="xyz.Components.Components.WaferManagerComponent">
+	<Setting Name="LedgerManager" Type="xyz.Components.Components.LedgerManagerComponent">
 		<Value Name="IsEnable" Value="True" />
 		<Value Name="EnableHistory" Value="True" />
 		<Value Name="IsPersistent" Value="True" />

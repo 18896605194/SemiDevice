@@ -176,7 +176,7 @@
     <sys:String x:Key="ec.invalid_option">{0} 只能是：{1}</sys:String>
     <sys:String x:Key="ec.save_failed">{0} 没改成：ec.xml 写不进去（文件被占着或没有权限）</sys:String>
 
-    <sys:String x:Key="wafer.ledger_disabled">晶圆账没开（sc.xml 没配 WaferManager 节点，或 IsEnable=False）</sys:String>
+    <sys:String x:Key="wafer.ledger_disabled">晶圆账没开（sc.xml 没配 LedgerManager 节点，或 IsEnable=False）</sys:String>
     <sys:String x:Key="wafer.location_not_found">账上没有这个位置：{0}</sys:String>
     <sys:String x:Key="wafer.slot_out_of_range">{0} 没有第 {1} 槽（共 {2} 槽）</sys:String>
     <sys:String x:Key="wafer.no_wafer">{0} 第 {1} 槽上没有片（可能刚被别处改过账）</sys:String>

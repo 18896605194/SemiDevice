@@ -17,7 +17,7 @@ namespace xyz.Components.Components;
 /// 晶圆账 应用到各个模块
 /// </summary>
 [Component(description: "晶圆账：记录每个位置上的片与流转")]
-public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
+public class LedgerManagerComponent : ComponentBase, ILedgerManagerComponent
 {
     private readonly object _gate = new();
 
@@ -31,7 +31,7 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
     /// </summary>
     private readonly HashSet<string> _loadPorts = new(StringComparer.OrdinalIgnoreCase);
 
-    public WaferManagerComponent()
+    public LedgerManagerComponent()
     {
 
         // 账一变就给 EAP 报一份（E90）：放进 EAP 的派发组件按先后报，不占改账的线程。没挂 EAP 时不入队
@@ -125,19 +125,19 @@ public class WaferManagerComponent : ComponentBase, IWaferManagerComponent
 
     #region SC 
 
-    [SCEditor("True", "WaferManager", "是否记晶圆账（False=不记账，设备照常动作）")]
+    [SCEditor("True", "LedgerManager", "是否记晶圆账（False=不记账，设备照常动作）")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("True", "WaferManager", "是否把每次变动写成流水入库（False=只在内存记账）")]
+    [SCEditor("True", "LedgerManager", "是否把每次变动写成流水入库（False=只在内存记账）")]
     public bool EnableHistory { get; set; } = true;
 
-    [SCEditor("True", "WaferManager", "是否把账存盘、开机恢复腔体和机械手上的片（LoadPort 以开机 Mapping 为准；False=只在内存，重启后机内的片要人工补账）")]
+    [SCEditor("True", "LedgerManager", "是否把账存盘、开机恢复腔体和机械手上的片（LoadPort 以开机 Mapping 为准；False=只在内存，重启后机内的片要人工补账）")]
     public bool IsPersistent { get; set; } = true;
 
-    [SCEditor("Default", "WaferManager", "流水和存盘落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
+    [SCEditor("Default", "LedgerManager", "流水和存盘落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
     public string HistoryDatabase { get; set; } = XyzDb.DefaultName;
 
-    [SCEditor("90", "WaferManager", "晶圆流水保留天数，超期每天清理一次")]
+    [SCEditor("90", "LedgerManager", "晶圆流水保留天数，超期每天清理一次")]
     public int HistoryKeepDays { get; set; } = 90;
 
     #endregion

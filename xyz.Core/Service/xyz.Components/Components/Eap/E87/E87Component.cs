@@ -206,7 +206,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     /// <summary>
     /// 晶圆账（接设备时取）；没装是 null
     /// </summary>
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
 
     #region 接设备
 
@@ -220,7 +220,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         ArgumentNullException.ThrowIfNull(gem);
         _gem = gem;
         _materialVerified = materialVerified;
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
         lock (_gate)
         {
             byte id = 1;

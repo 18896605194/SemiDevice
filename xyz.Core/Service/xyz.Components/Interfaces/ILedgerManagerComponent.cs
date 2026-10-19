@@ -7,11 +7,8 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 晶圆账
 /// </summary>
-public interface IWaferManagerComponent
+public interface ILedgerManagerComponent
 {
-    /// <summary>
-    /// 账本开着没有
-    /// </summary>
     bool IsEnable { get; }
 
     /// <summary>

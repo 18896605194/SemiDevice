@@ -19,7 +19,7 @@ using xyz.Shared.Errors;
 using xyz.Tools;
 
 // EAP 冒烟（SECS/GEM 各标准组件对假 Host）：Eap 节点按 sc.xml 同款结构装配（Hsms + E30 + E39 + E87 + E90 + E40 + E94），
-// 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（WaferManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
+// 设备侧用假的 LoadPort（ILoadPort）、真的晶圆账（LedgerManagerComponent）、假的 Job 管理（IJobManager），假 Host 用 HsmsConnector 连进来。
 // 验证：E30 通讯建立、控制状态（离线挡报文、上线 / 离线 / 本地 / 远程、操作员上线问 S1F1）、SV / EC / DV / 事件名单、Host 改 EC、
 // 报告定义 / 链接 / 开关和 S6F11 带的值、按需要报告、报警 S5F1 和报警事件、缓存（断线进缓存、Host 要了按先后发、清缓存）；
 // Trace（S2F23 设、校验、取消、替换、离线全停，S6F1 按包发、SMPLN / STIME 记包里最后一次）；
@@ -122,8 +122,8 @@ SmokeIoc.Use(collectors); // E30、Trace 接链路时从容器取 GEM 编号表
 var eap = roots.OfType<EapComponent>().Single();
 var gem = eap.FindChild<E30Component>()!;
 var probe = roots.OfType<AlarmProbe>().Single();
-var ledger = new WaferManagerComponent();
-SmokeIoc.Use<IWaferManagerComponent>(ledger);
+var ledger = new LedgerManagerComponent();
+SmokeIoc.Use<ILedgerManagerComponent>(ledger);
 ledger.InitComponent(); // 开机准备：取 EAP 的派发组件（E90 的上报经它发）
 ledger.RegisterLoadPort("LP1", 5);
 ledger.RegisterLoadPort("LP2", 5);
@@ -1216,11 +1216,11 @@ sealed class HostLog
 /// </summary>
 sealed class FakePort : ILoadPort
 {
-    private readonly WaferManagerComponent _ledger;
+    private readonly LedgerManagerComponent _ledger;
     private bool _loaded;
     private bool _complete;
 
-    public FakePort(string name, WaferManagerComponent ledger)
+    public FakePort(string name, LedgerManagerComponent ledger)
     {
         Name = name;
         _ledger = ledger;

@@ -127,7 +127,7 @@ public class JobManager : ComponentBase, IJobManager
 
     // 下面几个单例开机绑模块表时取；没装是 null
     private ITransferManager? _transfers;
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
     private ISequenceComponent? _sequences;
     private IEapNotifierComponent? _notifier;
 
@@ -147,7 +147,7 @@ public class JobManager : ComponentBase, IJobManager
     public void Bind(IEnumerable<IModule> modules)
     {
         _transfers = IocHelper.GetService<ITransferManager>();
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
         _sequences = IocHelper.GetService<ISequenceComponent>();
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
         var tasks = FindChild<ITaskComponent>()

@@ -60,8 +60,8 @@ string jobDb = folder + ".db";
 try
 {
     // 0. 装一台假机器：两个 LoadPort、两个腔体、一台两指机械手（四个站点都到得了），再加一个机械手到不了的腔体。
-    var ledger = new WaferManagerComponent();
-    SmokeIoc.Use<IWaferManagerComponent>(ledger);
+    var ledger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManagerComponent>(ledger);
     SmokeIoc.Use<IMapperComponent>(new MapperComponent()); // 人工移账的调整记录靠它转
     ledger.InitComponent(); // 开机准备：取映射组件
     var lp1 = new SmokePort("LP1");

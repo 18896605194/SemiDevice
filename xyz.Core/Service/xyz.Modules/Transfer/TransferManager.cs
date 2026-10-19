@@ -128,7 +128,7 @@ public class TransferManager : ComponentBase, ITransferManager
     public IEnumerable<ITransferStation> Stations => _modules.Values.OfType<ITransferStation>();
 
     // 下面两个单例开机绑模块表时取；没装是 null
-    private IWaferManagerComponent? _ledger;
+    private ILedgerManagerComponent? _ledger;
     private IJobManager? _jobs;
 
     /// <summary>
@@ -144,7 +144,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
-        _ledger = IocHelper.GetService<IWaferManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
         _jobs = IocHelper.GetService<IJobManager>();
         var table = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
@@ -315,7 +315,7 @@ public class TransferManager : ComponentBase, ITransferManager
     }
 
     /// <summary>源或目标是机械手时：手指号要在晶圆账给它登记的手指数以内。</summary>
-    private static HandleResult<TransferRoutine>? CheckArmSlot(string robot, int arm, IWaferManagerComponent ledger)
+    private static HandleResult<TransferRoutine>? CheckArmSlot(string robot, int arm, ILedgerManagerComponent ledger)
     {
         int armCount = ledger.GetSlots(robot).Count;
         if (arm >= 1 && arm <= armCount)
@@ -332,7 +332,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// 源是机械手（holder 不为 null，只放片）时就用拿着片的那台、那只手；
     /// 目标是机械手（receiver 不为 null，只取片）时就用点了名的那台、目标槽号那只手。
     /// </summary>
-    private HandleResult<TransferRoutine> Admit(TransferRequest request, IWaferManagerComponent ledger, ITransferStation? source, ITransferRobot? holder, string sourceName,
+    private HandleResult<TransferRoutine> Admit(TransferRequest request, ILedgerManagerComponent ledger, ITransferStation? source, ITransferRobot? holder, string sourceName,
         ITransferStation? target, ITransferRobot? receiver, string targetName)
     {
         string sourceSlot = request.SourceSlot.ToString(CultureInfo.InvariantCulture);
@@ -554,7 +554,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// 挑手臂：两个站点都许用、账上空着、没被别的操作占用。点了名的不行就拒，没点名的从 1 号手往上挑。
     /// 手指数按晶圆账给机械手登记的槽数（机械手组件初始化时按驱动轴表登记）。
     /// </summary>
-    private HandleResult<TransferRoutine>? PickArm(ITransferRobot robot, int wanted, string source, string target, IWaferManagerComponent ledger, out int arm)
+    private HandleResult<TransferRoutine>? PickArm(ITransferRobot robot, int wanted, string source, string target, ILedgerManagerComponent ledger, out int arm)
     {
         arm = 0;
         int armCount = ledger.GetSlots(robot.Name).Count;
@@ -648,7 +648,7 @@ public class TransferManager : ComponentBase, ITransferManager
     /// <summary>
     /// 交换能不能做（锁里查）：同一个槽先出后进，所以不套普通搬运"目标槽要空""同站同槽就拒"那两条
     /// </summary>
-    private HandleResult? CheckSwap(SwapRequest request, ITransferRobot robot, ITransferStation station, IWaferManagerComponent ledger,
+    private HandleResult? CheckSwap(SwapRequest request, ITransferRobot robot, ITransferStation station, ILedgerManagerComponent ledger,
         out string pickName, out string placeName)
     {
         pickName = string.Empty;

@@ -79,7 +79,7 @@
   直接 new 的组件不会自己进容器，要被别人取到的显式 `Use`；装新树后前一棵树上还要用的单独 `Use`。组件开机时（`Bind` / `InitComponent`）取单例，
   冒烟里搭好容器再走开机步骤，换了单例要重新 `Bind`；服务构造时取，换了要重新 new。IO 组件开机准备时读点表、取 PLC：点表写进它的 `PointTableDirectory`（DI.csv / DO.csv / AI.csv / AO.csv）再 `InitComponent()`。
   只测装配校验、不该换容器里那棵树的直接用 `ComponentLoader.Load`。
-- 数据：内存里造组件（`new WaferManagerComponent()`、`SmokeIoc.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
+- 数据：内存里造组件（`new LedgerManagerComponent()`、`SmokeIoc.Load([...])`）；要库的用临时 SQLite；不连设备（`FakeFrameCommunication`、`ProbeRobot` 这类假件）。
 - 跑：仓库根目录 `dotnet run --project tools\<Name>`（先编译整个 sln；IoIndexSmoke、ComponentScanSmoke 单独编）。HsmsSmoke、EapSmoke 随机用 5600~5999 的端口，
   真宿主开着 EAP 链路（Hsms 启用、端口落在这一段）时别同时跑。
 - **新功能、改了行为都要在对应冒烟里加检查**；冒烟测试里的代码也守同样的编码规范（不写花括号模式匹配等）。
