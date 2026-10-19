@@ -5,8 +5,7 @@ using xyz.Modules.Enums;
 namespace xyz.Modules;
 
 /// <summary>
-/// 供液（CDS）里一种药液的模块基类（IPA、硫酸……各一个），下面挂它的槽；不跟机械手交互。
-/// 手动 / 自动、两槽切换、低于 L 自动补液这些默认做法以后写在这儿，机型的药液模块跟默认不一样时才重写。
+/// CDS基类
 /// </summary>
 public abstract class BaseCdsModule : BaseModule, ISupplyModule
 {
