@@ -1808,7 +1808,7 @@ public class JobManager : ComponentBase, IJobManager
         for (int index = 0; index < map.Count; index++)
         {
             var state = map[index];
-            if (state == SlotState.CorrectlyOccupied || state == SlotState.NotEmpty)
+            if (state == SlotState.Normal || state == SlotState.NotEmpty)
             {
                 slots.Add(index + 1);
             }

@@ -533,13 +533,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
             case SlotState.NotEmpty:
                 return LoadPortSlotState.NotEmpty;
 
-            case SlotState.CorrectlyOccupied:
+            case SlotState.Normal:
                 return LoadPortSlotState.CorrectlyOccupied;
 
-            case SlotState.DoubleSlotted:
+            case SlotState.Double:
                 return LoadPortSlotState.DoubleSlotted;
 
-            case SlotState.CrossSlotted:
+            case SlotState.Crossed:
                 return LoadPortSlotState.CrossSlotted;
 
             default:
@@ -929,7 +929,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         var abnormalSlots = new List<string>();
         for (int index = 0; index < slotMap.Count; index++)
         {
-            if (slotMap[index] is SlotState.CrossSlotted or SlotState.DoubleSlotted or SlotState.Undefined)
+            if (slotMap[index] is SlotState.Crossed or SlotState.Double or SlotState.Undefined)
             {
                 abnormalSlots.Add((index + 1).ToString());
             }
@@ -964,7 +964,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         {
             int slot = index + 1;
             var state = slotMap[index];
-            bool abnormal = state is SlotState.CrossSlotted or SlotState.DoubleSlotted or SlotState.Undefined;
+            bool abnormal = state is SlotState.Crossed or SlotState.Double or SlotState.Undefined;
             bool matched = true;
             if (_waferManager is not null && _waferManager.IsEnable)
             {

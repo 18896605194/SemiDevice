@@ -598,7 +598,7 @@ await Event("Eap.E87.CarrierSMTrans08", mark, "ID 认定（#8）");
 await WaitUntil(() => lp1.CarrierIdsSet.Contains("CAR-A") && lp1.LoadRequested, "认定的号写回设备，自动 Load");
 
 mark = host.EventCount;
-lp1.Map(SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty);
+lp1.Map(SlotState.Normal, SlotState.Empty, SlotState.Normal, SlotState.Empty, SlotState.Empty);
 await Event("Eap.E87.CarrierSMTrans14", mark, "读到槽图：一律等 Host 核对（#14）");
 Check(lp1.Statuses.Contains("Map:WaitingForHost"), "设备侧的槽图状态写成等 Host");
 lp1.LoadDone();
@@ -689,7 +689,7 @@ Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", null)
 Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", 2))) == 0, "Host 带端口号给号：CAACK=0");
 await Event("Eap.E87.CarrierSMTrans04", mark, "Host 给号直接认定（#4）");
 await WaitUntil(() => lp2.CarrierIdsSet.Contains("CAR-D") && lp2.LoadRequested, "Host 给的号写回设备，自动 Load");
-lp2.Map(SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty, SlotState.Empty, SlotState.Empty);
+lp2.Map(SlotState.Normal, SlotState.Empty, SlotState.Empty, SlotState.Empty, SlotState.Empty);
 lp2.LoadDone();
 await Event("Eap.E87.CarrierSMTrans18", mark, "Load 好了开始取放（#18）");
 Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-D", 2))) == 0, "槽图不带也能认定：CAACK=0");
@@ -735,7 +735,7 @@ lp2.Arrive();
 lp2.ReadId("CAR-C");
 Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-C", 2))) == 0, "CAR-C 认定 ID：CAACK=0");
 await WaitUntil(() => lp2.LoadRequested, "CAR-C 认定后自动 Load");
-lp2.Map(SlotState.CorrectlyOccupied, SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.Empty, SlotState.Empty);
+lp2.Map(SlotState.Normal, SlotState.Normal, SlotState.Empty, SlotState.Empty, SlotState.Empty);
 lp2.LoadDone();
 Check(Caack(await Send(3, 17, CarrierAction("ProceedWithCarrier", "CAR-C", 2, SlotMapAttribute(3, 3, 1, 1, 1)))) == 0,
     "CAR-C 带一致的槽图认定：CAACK=0");

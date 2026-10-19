@@ -392,7 +392,7 @@ Check(eap.Wait(nameof(IE87Callback.AutoModeChanged)), "EAP callbacks must be del
 port.SetAutoMode(false);
 
 // 载具 ID 与 Mapping 结果要能进状态快照（DTO），否则出不了服务进程。
-port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CrossSlotted]);
+port.NoteMap([SlotState.Normal, SlotState.Empty, SlotState.Crossed]);
 Check(eap.Wait(nameof(IE87Callback.SlotMapRead)), "Mapping must report SlotMapRead.");
 port._carrier.SetId("FOUP-001");
 
@@ -409,7 +409,7 @@ Check(new LoadPortSlotDto { State = LoadPortSlotState.Undefined }.HasWafer
       && new LoadPortSlotDto { State = LoadPortSlotState.DoubleSlotted }.HasWafer
       && !new LoadPortSlotDto { State = LoadPortSlotState.Empty }.HasWafer,
     "槽位有没有片：不是空槽就算有，认不出的也算（跟记账一样，宁可多记不可漏记）");
-port.NoteMap([SlotState.Empty, SlotState.Empty, SlotState.CrossSlotted]);
+port.NoteMap([SlotState.Empty, SlotState.Empty, SlotState.Crossed]);
 Check(port.CreateStateDto().HasStateChanged(snapshot), "A slot map change must count as a change.");
 
 // ── 载具对象：放上到取走这一程 ──────────────────────────────────────────
@@ -432,7 +432,7 @@ Check(carrier.IdStatus == CarrierIdStatus.NotRead
 Check(eap.Wait(nameof(IE87Callback.CarrierArrived)), "FOUP 放上应上报 CarrierArrived");
 
 // Mapping：载具状态推进，同时落到晶圆账
-port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CrossSlotted, SlotState.Undefined]);
+port.NoteMap([SlotState.Normal, SlotState.Empty, SlotState.Crossed, SlotState.Undefined]);
 Check(port._carrier.Info!.SlotMapStatus == CarrierSlotMapStatus.Read, "Mapping 后槽图状态应转 Read");
 Check(ledger.CountWafers(port.Name) == 3, $"Mapping 应落账 3 片，实际 {ledger.CountWafers(port.Name)}");
 Check(ledger.Get(port.Name, 1)?.Status == WaferStatus.Normal, "正常片应记 Normal");
@@ -522,9 +522,9 @@ Check(port._carrier.Info!.IdStatus == CarrierIdStatus.Verified && port._carrier.
 
 // 槽图认定状态只往前走：Host 已经认定的载具再 Map 一次（比如 Unload 之后又 Load），只更新槽图和账，不用重新等 Host
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Verified);
-port.NoteMap([SlotState.CorrectlyOccupied, SlotState.Empty, SlotState.CorrectlyOccupied]);
+port.NoteMap([SlotState.Normal, SlotState.Empty, SlotState.Normal]);
 Check(port._carrier.Info!.SlotMapStatus == CarrierSlotMapStatus.Verified, "已认定的槽图再 Map 一次，认定状态保持（不回 Read）");
-Check(port._carrier.SlotMap.Count == 3 && port._carrier.SlotMap[2] == SlotState.CorrectlyOccupied, "再 Map 一次，槽图照常更新");
+Check(port._carrier.SlotMap.Count == 3 && port._carrier.SlotMap[2] == SlotState.Normal, "再 Map 一次，槽图照常更新");
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
 
 // 载具状态要能出到 DTO，并且被 HasStateChanged 认出来
@@ -2631,7 +2631,7 @@ port.E87Callback = null;
     Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 发的是 FCD 的 CLOAD");
     plainComm.Push($"INF:CLOAD/PE{new string('E', 23)}");
     Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
-          && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.CorrectlyOccupied && plain._carrier.SlotMap[1] == SlotState.Empty,
+          && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.Normal && plain._carrier.SlotMap[1] == SlotState.Empty,
         "平台默认 Load：设备回完成就落 Loaded，Mapping 结果落进 SlotMap");
     var plainUnload = plain.Unload().Result;
     Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
@@ -2688,7 +2688,7 @@ port.E87Callback = null;
     Check(crossLoad.Code == ErrorCodes.SlotMapAbnormal && crossLoad.ErrorArgs.SequenceEqual(new[] { "CrossMapPort", "3,5" })
           && crossPort.State == ModuleState.Error && !crossPort.CanPrepareTransfer,
         "3 槽交叉片、5 槽叠片：Load 判失败（slot_map_abnormal），落 Error，机械手进不来");
-    Check(crossPort._carrier.SlotMap.Count == 25 && crossPort._carrier.SlotMap[2] == SlotState.CrossSlotted
+    Check(crossPort._carrier.SlotMap.Count == 25 && crossPort._carrier.SlotMap[2] == SlotState.Crossed
           && presenceLedger.Get("CrossMapPort", 3)?.Status == WaferStatus.Crossed && presenceLedger.Get("CrossMapPort", 5)?.Status == WaferStatus.Double,
         "交叉片、叠片：账照落，看得到是哪几槽");
     Check(MapAlarmActive(crossPort, crossPort.SlotMapAlarm), "交叉片、叠片：报 Mapping 异常");
@@ -2792,7 +2792,7 @@ port.E87Callback = null;
     bool CompleteAlarmActive(BaseLoadPortModule port) =>
         completeAlarms.ActiveAlarms.Any(alarm => alarm.SourcePath == port.FullPath && alarm.AlarmCode == port.SlotMapAlarm);
 
-    var completeMap = Enumerable.Range(1, 25).Select(slot => slot <= 3 ? SlotState.CorrectlyOccupied : SlotState.Empty).ToArray();
+    var completeMap = Enumerable.Range(1, 25).Select(slot => slot <= 3 ? SlotState.Normal : SlotState.Empty).ToArray();
     presenceLedger.RegisterLoadPort("CompleteOtherPort", 25);
 
     var settledPort = CompletedCarrierPort("CompleteSettledPort", autoUnload: false);
@@ -3675,17 +3675,17 @@ port.E87Callback = null;
         "本轮完成恢复 Loaded 后，允许下一轮搬运准备");
 
     var deviceMap = Enumerable.Repeat(SlotState.Empty, accessPort.SlotCount).ToArray();
-    deviceMap[0] = SlotState.CorrectlyOccupied;
+    deviceMap[0] = SlotState.Normal;
     accessPort.NoteMap(deviceMap);
     var publishedMap = carrierAccess.SlotMap;
     deviceMap[0] = SlotState.Empty;
-    Check(publishedMap.Count == accessPort.SlotCount && publishedMap[0] == SlotState.CorrectlyOccupied,
+    Check(publishedMap.Count == accessPort.SlotCount && publishedMap[0] == SlotState.Normal,
         "载具读取入口返回 Mapping 快照，调用方修改原始设备数据不影响发布的槽图");
     if (publishedMap is IList<SlotState> mutableMap)
     {
         Throws<NotSupportedException>(() => mutableMap[0] = SlotState.Empty);
     }
-    Check(carrierAccess.SlotMap[0] == SlotState.CorrectlyOccupied,
+    Check(carrierAccess.SlotMap[0] == SlotState.Normal,
         "读取方不能通过集合写接口更改已发布的槽图");
 
     // 查询成功不代表预留了许可：Host 状态随后变化，真正发起时必须拒绝。
@@ -3738,7 +3738,7 @@ port.E87Callback = null;
     accessPort.NotePodPlaced(false);
     accessPort.Tick();
     Check(!carrierAccess.IsArrived && carrierAccess.Info is null && carrierAccess.CarrierId is null && carrierAccess.SlotMap.Count == 0
-          && publishedMap[0] == SlotState.CorrectlyOccupied,
+          && publishedMap[0] == SlotState.Normal,
         "载具移走后，同一读取入口反映空端口，调用方已取得的槽图快照仍保持不变");
     RefusesAccess(jobAccess.NotifyJobFinished("ACCESS-A"), ErrorCodes.CarrierNotArrived, "载具已取走：结束通知拒绝，不凭空完成载具");
     accessPort.NotePodPlaced(true);

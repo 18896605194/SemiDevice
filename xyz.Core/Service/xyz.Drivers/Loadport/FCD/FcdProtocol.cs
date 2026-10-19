@@ -54,13 +54,13 @@ public static class FcdProtocol
                     slots[i] = SlotState.Empty;
                     break;
                 case 'P':
-                    slots[i] = SlotState.CorrectlyOccupied;
+                    slots[i] = SlotState.Normal;
                     break;
                 case 'C':
-                    slots[i] = SlotState.CrossSlotted;
+                    slots[i] = SlotState.Crossed;
                     break;
                 case 'D':
-                    slots[i] = SlotState.DoubleSlotted;
+                    slots[i] = SlotState.Double;
                     break;
                 default:
                     slots[i] = SlotState.Undefined;

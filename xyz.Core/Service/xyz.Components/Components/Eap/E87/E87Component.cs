@@ -598,7 +598,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
         yield return new GemData(DvCapacity, SecsItem.U1((byte)Math.Min(byte.MaxValue, device.SlotCount)));
         yield return new GemData(DvSubstrateCount, slots.Count == 0
             ? SecsItem.U1()
-            : SecsItem.U1((byte)slots.Count(slot => slot is SlotState.CorrectlyOccupied or SlotState.NotEmpty)));
+            : SecsItem.U1((byte)slots.Count(slot => slot is SlotState.Normal or SlotState.NotEmpty)));
         yield return new GemData(DvSlotMap, SecsItem.L(slots.Select(slot => SecsItem.U1((byte)slot))));
         yield return new GemData(DvContentMap, ContentMapItem(port));
         yield return new GemData(DvLocationId, GemValue.Ascii(device.Name));

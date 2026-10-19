@@ -587,7 +587,7 @@ try
         var map = new SlotState[port.SlotCount];
         for (int index = 0; index < map.Length; index++)
         {
-            map[index] = slots.Contains(index + 1) ? SlotState.CorrectlyOccupied : SlotState.Empty;
+            map[index] = slots.Contains(index + 1) ? SlotState.Normal : SlotState.Empty;
         }
 
         port.NoteState(LoadPortState.Loaded);
@@ -638,7 +638,7 @@ try
     lp1.NoteState(LoadPortState.Loaded);
     lp1.NotePodPlaced(true);
     lp1.Tick();
-    lp1.NoteMap(Enumerable.Range(1, lp1.SlotCount).Select(slot => slot == 1 ? SlotState.CorrectlyOccupied : SlotState.Empty).ToArray());
+    lp1.NoteMap(Enumerable.Range(1, lp1.SlotCount).Select(slot => slot == 1 ? SlotState.Normal : SlotState.Empty).ToArray());
     Refuses(Do(jobs.CreateProcessJobAsync("LP1", "PJ-NO-CARRIER-ID", [1], "SEQ_A", null)), ErrorCodes.JobCarrierNotReady,
         ["LP1"], "本地创建：载具已到、已装载，但尚未取得 CarrierId，不创建 PJ");
     Check(PjOf("PJ-NO-CARRIER-ID") is null && jobs.OwnerOf(ledger.Get("LP1", 1)!.Id) is null,

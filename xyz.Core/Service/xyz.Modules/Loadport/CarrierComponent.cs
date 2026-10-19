@@ -85,29 +85,28 @@ public class CarrierComponent : ComponentBase, ICarrier
     private volatile bool _deviceReportedPlaced;
 
     private ILoadPort? _port;
-
-    /// <summary>读码器（端口下的兄弟节点，端口挂载时交过来）；没配为 null，这个端口不读码，ID 由 Host 给。</summary>
+ 
     private ICarrierIdReader? _reader;
 
-    /// <summary>晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不给子组件做初始化）为 null。</summary>
     private IWaferManagerComponent? _waferManager;
 
     private Action<Action<IE87Callback>>? _enqueue;
 
-    /// <summary>到位后要自动读码，但读头这会儿没发起成功（没连上、或上一次还没读完）：下一拍接着试。只在扫描线程上读写。</summary>
+    /// <summary>
+    /// 到位后要自动读码
+    /// </summary>
     private bool _autoReadPending;
 
     /// <summary>从到位、发现没发起成功起算，等读头的时间；超过读头的读码超时（EC ReadCarrierIdTimeout）就当读码失败。</summary>
     private readonly Stopwatch _autoReadWatch = new();
 
     /// <summary>
-    /// 这一盒载具的快照（记录类型，改的时候整个换掉，读的人拿到的不会半截变）；端口上没载具为 null。
+    /// 载具数据
     /// </summary>
     public CarrierInfo? Info => _info;
 
     /// <summary>
-    /// 载具这边认可了，能取放片：没接 EAP 没人核对，读到就算；接了 EAP 槽图要被 Host 认定（E87 写回 Verified）才行，
-    /// 免得 Host 还没核对完、或者核对不过就已经取走了。是否已装载由端口判断，CanUseCarrierForJob（载具准入）、CanPrepareTransfer（开始搬运准备）再加上它。
+    /// 载具这边认可了，能取放片
     /// </summary>
     public bool IsAccepted
     {
@@ -146,9 +145,11 @@ public class CarrierComponent : ComponentBase, ICarrier
     #region 端口调的口（只有 LoadPort 模块调，EAP 别调）
 
     /// <summary>
-    /// 端口把自己、读码器（没配为 null）和 E87 上报的入队口交给它（载具没有父引用，跟 E84 一样由端口驱动）。可以重复调。
-    /// 上报都放进端口给的入队口，跟端口自己的上报走同一条线，先后不乱。
+    /// ILoadPort  ICarrierIdReader 以及eap口子都拿过来
     /// </summary>
+    /// <param name="port"></param>
+    /// <param name="reader"></param>
+    /// <param name="enqueue"></param>
     public void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue)
     {
         ArgumentNullException.ThrowIfNull(port);
@@ -159,9 +160,10 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 每拍把状态查询的两个传感器位喂进来（null = 这次没查到）：Query 模式两位都亮算放好、都灭算拿走、一亮一灭或查不到保持原判断；
-    /// Event 模式只认 PODON/PODOF（<see cref="SetDeviceReportedPlaced"/>），传感器位不管。判出变化就建 / 清载具并上报，只在端口的扫描线程上调。
+    /// 每拍把状态查询的两个传感器位喂进来
     /// </summary>
+    /// <param name="isPresent"></param>
+    /// <param name="isPlaced"></param>
     public void Sense(bool? isPresent, bool? isPlaced)
     {
         bool arrived = Judge(isPresent, isPlaced);
@@ -187,10 +189,9 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// Load 带回了 Mapping 结果：更新槽图、整篮落晶圆账、报 E87 SlotMapRead；空列表忽略。
-    /// 槽图认定状态只往前走：还没读过才转 Read，Host 已经认定（或在等、或判了不过）的，再 Map 一次只更新槽图和账、不动认定状态；
-    /// 重置只靠载具拿走或 Host 的 CarrierReCreate。
+    /// Load 带回了 Mapping 结果：更新槽图
     /// </summary>
+    /// <param name="slotMap"></param>
     public void UpdateSlotMap(IReadOnlyList<SlotState> slotMap)
     {
         ArgumentNullException.ThrowIfNull(slotMap);
@@ -209,7 +210,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// Load 好了：这个载具进 E87 的 IN ACCESS（照老 CTC，Load 好就算开始取放），报 AccessStarted；已经取放过的不动。
+    /// Load 好了：这个载具进 E87 的 IN ACCESS
     /// </summary>
     public void StartAccess()
     {
@@ -231,8 +232,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// Unload 好了，取放结束：取放过、没判完成的记中断（E87 CARRIER STOPPED），已经 Complete / Stopped 的保持原样；报 AccessStopped。
-    /// 干完没干完不由这里判——上层作业调 <see cref="NoteComplete"/> 才算完成。
+    /// Unload 好了，取放结束
     /// </summary>
     public void EndAccess()
     {
@@ -240,10 +240,6 @@ public class CarrierComponent : ComponentBase, ICarrier
         NotifyE87((callback, port) => callback.AccessStopped(port));
     }
 
-    /// <summary>
-    /// 端口的动作没做成（失败、超时、被顶替）：取放途中出错，这个载具算没干完，记中断；还没开始取放的不动它。
-    /// 不报 AccessStopped——端口紧接着报 PortError，E87 据此转中断。
-    /// </summary>
     public void MarkAccessStopped()
     {
         MarkStopped();
@@ -327,7 +323,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     #endregion
 
     /// <summary>
-    /// 组件初始化（开机，端口初始化时跟着递归进来）：晶圆账取一次存着，落账、补载具号、清账都用它。
+    /// 组件初始化
     /// </summary>
     public override bool InitComponent()
     {
@@ -441,8 +437,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 自动读码没发起成功的接着试：发起了就交给 <see cref="TakeReadResult"/> 收结果；载具走了、已经有读码结果（别处读过了）就不试了；
-    /// 试到读头的读码超时（EC ReadCarrierIdTimeout）还没发起成功，按读码失败报给 E87，Host 就能带端口号给号或取消。
+    /// 自动读码没发起成功的接着试
     /// </summary>
     private void RetryAutoRead()
     {
@@ -484,7 +479,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 载具拿走了：清载具对象、载具号、槽图，这个端口上的片也一起走（晶圆账上清掉，免得留一堆幽灵片），报 E87 CarrierRemoved 和 FOUP 移除事件。
+    /// 载具拿走了
     /// </summary>
     private void Remove()
     {
@@ -513,7 +508,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 改载具快照（锁里整个换掉）；没有载具时什么都不做。
+    /// 改载具快照
     /// </summary>
     private void UpdateInfo(Func<CarrierInfo, CarrierInfo> change)
     {
@@ -530,12 +525,9 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 把 Mapping 结果落到晶圆账：这个端口的账整篮重建，一槽一片。
-    ///
-    /// 识别不出来的槽（Undefined）按"有片但状态不明"记，不按空槽记——两种错的代价不一样：
-    /// 记成有片而实际没有，机械手去取会空手，Verify 对不上报警，停下来让人看；
-    /// 记成空而实际有片，机械手会往上放，那是撞片。宁可多记不可漏记。
+    /// 把 Mapping 结果落到晶圆账
     /// </summary>
+    /// <param name="slotMap"></param>
     private void ApplySlotMapToLedger(IReadOnlyList<SlotState> slotMap)
     {
         if (_waferManager is null)
@@ -558,8 +550,10 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 槽位状态换成账上的片状态：空槽为 null（不建片）；认不出的按有片记 Unknown（见上面宁可多记不可漏记）。
+    /// 槽位状态换成账上的片状态
     /// </summary>
+    /// <param name="state"></param>
+    /// <returns></returns>
     private static WaferStatus? ToWaferStatus(SlotState state)
     {
         switch (state)
@@ -567,14 +561,14 @@ public class CarrierComponent : ComponentBase, ICarrier
             case SlotState.Empty:
                 return null;
 
-            case SlotState.CorrectlyOccupied:
+            case SlotState.Normal:
             case SlotState.NotEmpty:
                 return WaferStatus.Normal;
 
-            case SlotState.DoubleSlotted:
+            case SlotState.Double:
                 return WaferStatus.Double;
 
-            case SlotState.CrossSlotted:
+            case SlotState.Crossed:
                 return WaferStatus.Crossed;
 
             default:

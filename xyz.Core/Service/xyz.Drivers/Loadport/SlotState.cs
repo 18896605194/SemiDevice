@@ -20,15 +20,15 @@ public enum SlotState
     /// <summary>
     /// 有片且放置正确。
     /// </summary>
-    CorrectlyOccupied = 3,
+    Normal = 3,
 
     /// <summary>
     /// 双片（叠片）。
     /// </summary>
-    DoubleSlotted = 4,
+    Double = 4,
 
     /// <summary>
     /// 交叉片（跨槽）。
     /// </summary>
-    CrossSlotted = 5,
+    Crossed = 5,
 }
