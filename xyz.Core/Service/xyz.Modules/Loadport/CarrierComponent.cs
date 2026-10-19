@@ -81,7 +81,9 @@ public class CarrierComponent : ComponentBase, ICarrier
     private readonly object _gate = new();
     private volatile CarrierInfo? _info;
 
-    /// <summary>设备最近一次主动报的是放上（PODON）还是拿走（PODOF）；只是记下，算不算到达由扫描线程按 PresenceSource 判。</summary>
+    /// <summary>
+    /// 设备最近一次主动报的是放上（PODON）还是拿走（PODOF）
+    /// </summary>
     private volatile bool _deviceReportedPlaced;
 
     private ILoadPort? _port;
@@ -373,8 +375,11 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 这一拍载具到没到：Event 只看 PODON/PODOF；Query 看两位传感器，都亮到了、都灭走了，一亮一灭或查不到保持原判断。
+    /// 判断两个灯有没有亮是否到达
     /// </summary>
+    /// <param name="isPresent"></param>
+    /// <param name="isPlaced"></param>
+    /// <returns></returns>
     private bool Judge(bool? isPresent, bool? isPlaced)
     {
         if (PresenceSource == PodPresenceSource.Event)
