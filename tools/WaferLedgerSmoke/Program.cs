@@ -638,8 +638,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
               .SequenceEqual(new[] { "SvcRobot1", "SvcRobot2", "SvcLP1", "SvcPM1", "SvcBuffer" }),
         "位置：机械手在前、站点按站点表先后、共用的只列一次、没登记槽位的不列，实际 "
         + string.Join(",", view.Locations.Select(location => location.Name)));
-    Check(view.Locations[0].Kind == WaferLocationKind.Robot && view.Locations[2].Kind == WaferLocationKind.Other,
-        "机械手带种类；不是模块的站点归到其他");
+    Check(view.Locations[0].Kind == StationKind.Robot && view.Locations[2].Kind == StationKind.Other,
+        "种类照抄模块自己报的（机械手报机械手）；不是模块的站点归到其他");
     Check(view.Locations[0].Slots.Count == 2 && view.Locations[2].Slots.Count == 25 && view.Locations[4].Slots.Count == 4
           && view.Locations[2].Slots.Select(slot => slot.Slot).SequenceEqual(Enumerable.Range(1, 25)),
         "机械手按手指数、站点按登记的槽数，槽号从 1 起");
@@ -865,6 +865,9 @@ Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent 
 sealed class LedgerProbeRobot : BaseModule, ITransferRobot
 {
     private readonly Dictionary<string, RobotStation> _stations = new(StringComparer.OrdinalIgnoreCase);
+
+    // 假机械手没走机械手基类，自己报类型（真机械手由 BaseRobotModule 报）
+    public override StationKind Kind => StationKind.Robot;
 
     public LedgerProbeRobot(string name, params string[] stations)
     {

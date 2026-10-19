@@ -4551,6 +4551,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
     public int SlotCount => 1;
+    public StationKind Kind => StationKind.Other;
     public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
     public HandleResult? CheckPrepareTransfer() => null;
 
@@ -4632,6 +4633,7 @@ class ProbeTransferRobot : ITransferRobot
     public string Name => "TransferRobot";
     public string FullPath => Name;
     public ModuleMode Mode => ModuleMode.Online;
+    public StationKind Kind => StationKind.Robot;
 
     public bool IsEnabled => true;
     public ModuleOperation? CurrentOperation => null;

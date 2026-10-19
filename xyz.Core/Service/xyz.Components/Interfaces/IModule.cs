@@ -29,6 +29,11 @@ public interface IModule
     bool IsEnabled { get; }
 
     /// <summary>
+    /// 模块自己报是哪一类（LoadPort、腔体、buffer、机械手……）：界面、账单这些照抄，别处不用判断具体类型
+    /// </summary>
+    StationKind Kind { get; }
+
+    /// <summary>
     /// 手上在做的动作，没有是 null
     /// </summary>
     ModuleOperation? CurrentOperation { get; }

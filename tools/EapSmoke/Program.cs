@@ -1235,6 +1235,8 @@ sealed class FakePort : ILoadPortAccess
 
     public ModuleMode Mode => ModuleMode.Online;
 
+    public StationKind Kind => StationKind.LoadPort;
+
     public bool IsEnabled => true;
 
     public ModuleOperation? CurrentOperation => null;

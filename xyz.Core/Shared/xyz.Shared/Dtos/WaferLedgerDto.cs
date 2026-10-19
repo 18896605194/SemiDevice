@@ -20,24 +20,16 @@ public class WaferLedgerDto
 }
 
 /// <summary>
-/// 位置的种类：界面按它分组；机械手的槽叫"手指"，LoadPort 的槽大号在上。
-/// </summary>
-public enum WaferLocationKind
-{
-    Robot,
-    LoadPort,
-    Chamber,
-    Other,
-}
-
-/// <summary>
 /// 一个能放片的位置（一个模块）和它的槽。
 /// </summary>
 public class WaferLocationDto
 {
     public string Name { get; set; } = string.Empty;
 
-    public WaferLocationKind Kind { get; set; }
+    /// <summary>
+    /// 这个位置是哪一类模块（模块自己报的）：界面按它分组；机械手的槽叫"手指"，LoadPort 的槽大号在上
+    /// </summary>
+    public StationKind Kind { get; set; }
 
     /// <summary>
     /// LoadPort 上的载具号；其他位置为空。

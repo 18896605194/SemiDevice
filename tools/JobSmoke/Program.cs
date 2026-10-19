@@ -501,6 +501,9 @@ try
 
     SmokeRobot? secondRobot = null;
 
+    // 某一节临时加进来的机械手、站点也要每拍扫（第 17h 节的两台 buffer 机械手和两段 buffer），用完清掉
+    var extraTicks = new List<Action>();
+
     // 整机：第 16 节才装上（看自动运行、整机停止、全部回片），之前的各节不受它影响
     SmokeSystem? machine = null;
 
@@ -509,6 +512,11 @@ try
         machine?.Tick();
         robot.Tick();
         secondRobot?.Tick();
+        foreach (var extra in extraTicks)
+        {
+            extra();
+        }
+
         pm1.Tick();
         pm2.Tick();
         lp1.Tick();
@@ -2208,6 +2216,86 @@ try
         scheduler.PreferIdleStation = false;
     }
 
+    // 17h. buffer：两台机械手中间一个 10 层的架子，sc 里配成进片段、出片段两个站（各 5 层），流程配方各走一次——
+    //      进、出不共用一个站，调度照现在的规则连续跑一盒也不卡死，调度、机械手、搬运管理都不用改。buffer 段开机就待命、自己上线；
+    //      跟 JK 一样，机械手控制器里两段各教一个站号，槽号原样发，不用换算
+    {
+        var bufferIn = new SmokeBuffer("BufferIn", 5);
+        var bufferOut = new SmokeBuffer("BufferOut", 5);
+        Check(bufferIn.InitComponent() && bufferOut.InitComponent(), "两段 buffer 的组件初始化");
+        Check(bufferIn.State == ModuleState.Idle && bufferIn.Mode == ModuleMode.Online && bufferOut.Mode == ModuleMode.Online
+              && ledger.GetSlots("BufferIn").Count == 5 && ledger.GetSlots("BufferOut").Count == 5,
+            "buffer 段开机就待命、自己上线（没有手动页），晶圆账各登记 5 个槽");
+        var bufferInit = bufferIn.InitModule();
+        Check(bufferInit is not null && bufferInit.IsSuccess && bufferIn.State == ModuleState.Idle,
+            "全部初始化调到 buffer：没有要动的机构，直接回待命、算做成");
+
+        // A 管料盒和 buffer（它的控制器里进片段是 5 号站、出片段是 6 号站），B 管 buffer 和腔（它的控制器里是 7、8 号站）
+        var noArms = new Dictionary<string, string>();
+        var robotA = new SmokeRobot("RobotA", noArms, noArms, new Dictionary<string, int> { ["LP1"] = 1, ["BufferIn"] = 5, ["BufferOut"] = 6 },
+            "LP1", "BufferIn", "BufferOut");
+        var robotB = new SmokeRobot("RobotB", noArms, noArms, new Dictionary<string, int> { ["BufferIn"] = 7, ["BufferOut"] = 8, ["PM1"] = 3, ["PM2"] = 4 },
+            "BufferIn", "BufferOut", "PM1", "PM2");
+        Check(robotA.InitComponent() && robotB.InitComponent(), "两台 buffer 机械手组件初始化");
+        ComponentLoader.BindAll([robotA, robotB]);
+        foreach (var bufferRobot in new[] { robotA, robotB })
+        {
+            bufferRobot.NoteState(ModuleState.Idle);
+            bufferRobot.Online();
+        }
+
+        BaseModule[] bufferModules = [lp1, lp2, robotA, robotB, pm1, pm2, pm9, bufferIn, bufferOut];
+        transfers.Bind(bufferModules);
+        var robotAInfos = robotA.CreateStateDto().StationInfos;
+        var robotBInfos = robotB.CreateStateDto().StationInfos;
+        Check(robotAInfos.Single(info => info.Name == "BufferIn").Kind == StationKind.Buffer
+              && robotAInfos.Single(info => info.Name == "LP1").Kind == StationKind.LoadPort
+              && robotBInfos.Single(info => info.Name == "PM1").Kind == StationKind.Chamber,
+            "站点自己报类型（buffer、LoadPort、腔体），机械手推给界面的站点表照抄，不判断具体站型");
+        sequences.Bind(bufferModules);
+        secondRobot = robotA;
+        extraTicks.Add(robotB.Tick);
+        extraTicks.Add(bufferIn.Tick);
+        extraTicks.Add(bufferOut.Tick);
+
+        // 流程配方：料盒 → 进片段 → 腔 → 出片段 → 料盒；buffer 两步不选工艺配方，只放进去、取出来
+        Sequence(9, "SEQ_BUF", Step("LoadPort", "", "LP1"), Step("Buffer", "", "BufferIn"), Step("Chamber", "R1", "PM1", "PM2"),
+            Step("Buffer", "", "BufferOut"), Step("LoadPort", "", "LP1"));
+        int[] bufferSlots = [1, 2, 3, 4, 5, 6, 7, 8];
+        LoadCarrier(lp1, bufferSlots);
+        var lotBuf = bufferSlots.Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
+        Check(Create("LOT-BUF", "LP1", true, bufferSlots.Select(slot => (slot, "SEQ_BUF")).ToArray()).IsSuccess, "建 LOT-BUF（8 片都经过 buffer）");
+        Check(RunUntil(() => CjOf("LOT-BUF")?.State == (int)ControlJobState.Completed) && PjOf("LOT-BUF-1")!.Wafers.All(IsDone)
+              && bufferSlots.All(slot => ledger.Get("LP1", slot)?.Id == lotBuf[slot - 1]),
+            "连续跑一盒（8 片，比 buffer 一段的 5 层多）：不卡死，片都回原槽");
+        var bufWafers = PjOf("LOT-BUF-1")!.Wafers;
+        Check(bufWafers.All(wafer => wafer.Tasks[1].Station == "BufferIn" && wafer.Tasks[6].Station == "BufferOut"),
+            "没洗的片都放进进片段，洗完的片都放进出片段");
+        Check(bufWafers.All(wafer => wafer.Tasks[0].Robot == "RobotA" && wafer.Tasks[1].Robot == "RobotA"
+                                   && wafer.Tasks[2].Robot == "RobotB" && wafer.Tasks[3].Robot == "RobotB"
+                                   && wafer.Tasks[5].Robot == "RobotB" && wafer.Tasks[6].Robot == "RobotB"
+                                   && wafer.Tasks[7].Robot == "RobotA" && wafer.Tasks[8].Robot == "RobotA"),
+            "每趟挑两头都到得了的机械手：料盒 ↔ buffer 用 A，buffer ↔ 腔用 B，调度不用为 buffer 另写");
+
+        // 某台机械手发到某个站号的某种指令，槽号都在 1~5 之间（而且真发过）
+        bool SentWithin(SmokeRobot target, string action, int station)
+        {
+            var sent = target.Commands.Where(command => command.Action == action && command.Station == station).ToList();
+            return sent.Count > 0 && sent.All(command => command.Slot >= 1 && command.Slot <= 5);
+        }
+
+        Check(SentWithin(robotA, "Place", 5) && SentWithin(robotA, "Pick", 6) && SentWithin(robotB, "Pick", 7) && SentWithin(robotB, "Place", 8),
+            "两段在机械手里各是一个站号（A：进 5 号、出 6 号；B：进 7 号、出 8 号），槽号原样发 1~5，不用换算");
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-BUF") is null, 20), "LOT-BUF 删掉");
+        extraTicks.Clear();
+        secondRobot = null;
+        transfers.Bind(modules);
+        sequences.Bind(modules);
+        robotA.Close();
+        robotB.Close();
+    }
+
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
     LoadCarrier(lp1, 1, 2, 3);
@@ -2289,6 +2377,8 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "station groups, two robots sharing live resource occupancy and falling back when an arm is unavailable, " +
     "per-station pick / place arms (clean and dirty arms: a wrong arm number refused at startup, the robot entry and transfer arm choice, prefetch and swap following them), " +
     "parallel process stations taking turns by their last start when PreferIdleStation is on (recipe order when off), chambers counting their own starts, " +
+    "a buffer rack split into in / out stations between two robots (ready and online at startup, a full carrier without deadlock, " +
+    "each section taught as its own robot station number so slots go out unchanged), " +
     "transition numbers in order,a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
     "nothing new dispatched to an offline robot, LoadPort or chamber while work already started finishes, " +
@@ -2429,13 +2519,21 @@ class SmokeRobot : BaseRobotModule
 {
     private static readonly Dictionary<string, string> AllArms = [];
 
-    public SmokeRobot(string name, params string[] stations) : this(name, AllArms, AllArms, stations)
+    private static readonly Dictionary<string, int> InOrder = [];
+
+    public SmokeRobot(string name, params string[] stations) : this(name, AllArms, AllArms, InOrder, stations)
+    {
+    }
+
+    public SmokeRobot(string name, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
+        params string[] stations) : this(name, pickArms, placeArms, InOrder, stations)
     {
     }
 
     // pickArms / placeArms：站点 → 取片 / 放片许用的手（sc.xml 站点节点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
+    // numbers：站点 → 站号（sc.xml 站点节点的 Number）；没写的站点按先后 1、2、3……
     public SmokeRobot(string name, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
-        params string[] stations)
+        IReadOnlyDictionary<string, int> numbers, params string[] stations)
     {
         Probe.Name(this, name);
         AddChild(new SmokeRobotShell());
@@ -2448,9 +2546,15 @@ class SmokeRobot : BaseRobotModule
         var nodes = new List<ModuleConfig>();
         for (int index = 0; index < stations.Length; index++)
         {
+            int number = index + 1;
+            if (numbers.TryGetValue(stations[index], out int configured))
+            {
+                number = configured;
+            }
+
             var values = new List<ValueConfig>
             {
-                new() { Name = "Number", Value = (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                new() { Name = "Number", Value = number.ToString(System.Globalization.CultureInfo.InvariantCulture) },
             };
             if (pickArms.TryGetValue(stations[index], out var pick))
             {
@@ -2488,8 +2592,12 @@ class SmokeRobot : BaseRobotModule
 
     protected override ModuleOperation CreateAbortOperation() => new SmokeMotion("Abort", 1);
 
+    // 发给设备的取放指令：动作、站号、槽号（buffer 段换成了实物层号），按先后记
+    public List<(string Action, int Station, int Slot)> Commands { get; } = [];
+
     protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
     {
+        Commands.Add(("Pick", stationNumber, slot));
         bool fail = FailNextPick;
         FailNextPick = false;
         return new SmokeMotion("Pick", 2, fail);
@@ -2497,10 +2605,23 @@ class SmokeRobot : BaseRobotModule
 
     protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
     {
+        Commands.Add(("Place", stationNumber, slot));
         bool fail = FailNextPlace;
         FailNextPlace = false;
         return new SmokeMotion("Place", 2, fail);
     }
+}
+
+// 假 buffer 段：用平台的 BaseBufferModule（取放、开机待命上线、全部初始化回待命），名字挂在 Buffer 分组下
+sealed class SmokeBuffer : BaseBufferModule
+{
+    public SmokeBuffer(string name, int slotCount)
+    {
+        Probe.Name(this, name, "Buffer");
+        SlotCount = slotCount;
+    }
+
+    public void Tick() => OnScan();
 }
 
 // 能分段取放的假机械手：类上声明 ITransferRobotStep（四个方法用机械手基类的），伸臂、缩臂各一拍做完，按先后记在 Steps。

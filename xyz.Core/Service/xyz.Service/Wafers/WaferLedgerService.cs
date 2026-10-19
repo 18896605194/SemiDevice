@@ -194,26 +194,16 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
     }
 
     /// <summary>
-    /// 片在哪种站点上
+    /// 片在哪一类模块上：照抄模块自己报的，不判断具体类型；名字认不出模块的算其他
     /// </summary>
-    private static WaferLocationKind KindOf(IModule? module)
+    private static StationKind KindOf(IModule? module)
     {
-        if (module is ITransferRobot)
+        if (module is null)
         {
-            return WaferLocationKind.Robot;
+            return StationKind.Other;
         }
 
-        if (module is ILoadPort)
-        {
-            return WaferLocationKind.LoadPort;
-        }
-
-        if (module is IChamber)
-        {
-            return WaferLocationKind.Chamber;
-        }
-
-        return WaferLocationKind.Other;
+        return module.Kind;
     }
 
 

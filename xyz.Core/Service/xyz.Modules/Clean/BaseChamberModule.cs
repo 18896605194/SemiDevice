@@ -141,6 +141,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     protected override int StandbyState => ChamberState.Idle;
 
     /// <summary>
+    /// 站点类型：腔体
+    /// </summary>
+    public override StationKind Kind => StationKind.Chamber;
+
+    /// <summary>
     /// 取放准备二：卡盘转到取放片示教位（卡盘 EC TransferPosition）、开腔门，都到位才算准备好（进 TransferReady），
     /// 机械手才伸手进来（<see cref="ChamberPrepareTransferOperation"/>）。sc 里卡盘、门都没配的照旧直接准备好。
     /// 自动跑货、机械手手动页的取放都经搬运管理走到这里。转不到位、门开不了（卡盘没回零、到位超时、PLC 断了）准备判失败、

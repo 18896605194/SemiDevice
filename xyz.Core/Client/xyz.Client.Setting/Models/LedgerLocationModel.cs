@@ -20,7 +20,7 @@ public sealed class LedgerLocationModel
         KindText = L10n.Get(KindKey(Kind));
 
         string summary = L10n.Get(IsRobot ? "setting.ledger.summary_arms" : "setting.ledger.summary_slots", SlotCount, WaferCount);
-        if (Kind == WaferLocationKind.LoadPort)
+        if (Kind == StationKind.LoadPort)
         {
             summary += " · " + (string.IsNullOrEmpty(dto.CarrierId) ? L10n.Get("setting.ledger.no_carrier") : dto.CarrierId);
         }
@@ -33,15 +33,18 @@ public sealed class LedgerLocationModel
     /// </summary>
     public string Name { get; }
 
-    public WaferLocationKind Kind { get; }
+    /// <summary>
+    /// 这个位置是哪一类模块（后端照抄模块自己报的）
+    /// </summary>
+    public StationKind Kind { get; }
 
     /// <summary>
     /// 机械手的槽就是手指，显示"手指 1"；其他位置显示"槽 01"。
     /// </summary>
-    public bool IsRobot => Kind == WaferLocationKind.Robot;
+    public bool IsRobot => Kind == StationKind.Robot;
 
     /// <summary>
-    /// 种类名，位置列表按它分组（机械手、LoadPort、腔体、其他）。
+    /// 种类名，位置列表按它分组（机械手、LoadPort、腔体、buffer、其他）。
     /// </summary>
     public string KindText { get; }
 
@@ -95,16 +98,18 @@ public sealed class LedgerLocationModel
     /// <summary>
     /// 位置种类对应的语言包键
     /// </summary>
-    private static string KindKey(WaferLocationKind kind)
+    private static string KindKey(StationKind kind)
     {
         switch (kind)
         {
-            case WaferLocationKind.Robot:
+            case StationKind.Robot:
                 return "setting.ledger.kind.robot";
-            case WaferLocationKind.LoadPort:
+            case StationKind.LoadPort:
                 return "setting.ledger.kind.loadport";
-            case WaferLocationKind.Chamber:
+            case StationKind.Chamber:
                 return "setting.ledger.kind.chamber";
+            case StationKind.Buffer:
+                return "setting.ledger.kind.buffer";
             default:
                 return "setting.ledger.kind.other";
         }

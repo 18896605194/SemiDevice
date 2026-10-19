@@ -19,7 +19,12 @@ namespace xyz.Modules;
 
 public abstract class BaseRobotModule : BaseModule, IRobot
 {
-    #region SV 
+    /// <summary>
+    /// 模块类型：机械手
+    /// </summary>
+    public override StationKind Kind => StationKind.Robot;
+
+    #region SV
 
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "模块状态码")]
     public override int State { get; protected set; } = RobotState.NotInit;
@@ -583,7 +588,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     }
 
     /// <summary>
-    /// 站点是哪一类模块（调度图按它选卡片）：跟槽数一样从搬运模块表认；表还没绑好、或名字不是可服务工位时算 Other。
+    /// 站点是哪一类（调度图按它选卡片）：照抄站点自己报的，机械手不判断具体站型；表还没绑好、或名字不是可服务工位时算其他
     /// </summary>
     private StationKind KindOf(string station)
     {
@@ -598,17 +603,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
             return StationKind.Other;
         }
 
-        if (module is ILoadPort)
-        {
-            return StationKind.LoadPort;
-        }
-
-        if (module is IChamber)
-        {
-            return StationKind.Chamber;
-        }
-
-        return StationKind.Other;
+        return module.Kind;
     }
 
     /// <summary>

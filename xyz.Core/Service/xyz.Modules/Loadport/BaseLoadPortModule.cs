@@ -242,6 +242,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected override int StandbyState => LoadPortState.Loaded;
 
     /// <summary>
+    /// 站点类型：LoadPort
+    /// </summary>
+    public override StationKind Kind => StationKind.LoadPort;
+
+    /// <summary>
     /// 开始搬运准备：传片环在 Loaded、载具到位且被认可。
     /// 基类 PrepareTransfer 在占用传片环的同一把锁内重查这里，查询本身不占用端口。
     /// </summary>

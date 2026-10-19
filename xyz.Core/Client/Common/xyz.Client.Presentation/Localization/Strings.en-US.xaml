@@ -350,6 +350,7 @@
     <sys:String x:Key="setting.ledger.kind.robot">Robots</sys:String>
     <sys:String x:Key="setting.ledger.kind.loadport">LoadPorts</sys:String>
     <sys:String x:Key="setting.ledger.kind.chamber">Chambers</sys:String>
+    <sys:String x:Key="setting.ledger.kind.buffer">Buffers</sys:String>
     <sys:String x:Key="setting.ledger.kind.other">Other</sys:String>
     <sys:String x:Key="setting.ledger.slot_name">Slot {0:00}</sys:String>
     <sys:String x:Key="setting.ledger.arm_name">Arm {0}</sys:String>

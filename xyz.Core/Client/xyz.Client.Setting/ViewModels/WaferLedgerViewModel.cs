@@ -502,7 +502,7 @@ public class WaferLedgerViewModel : BaseViewModel
         var target = Target;
 
         Locations.Clear();
-        foreach (var dto in ledger.Locations.OrderBy(location => location.Kind))
+        foreach (var dto in ledger.Locations.OrderBy(location => KindOrder(location.Kind)))
         {
             Locations.Add(new LedgerLocationModel(dto));
         }
@@ -806,10 +806,30 @@ public class WaferLedgerViewModel : BaseViewModel
             return;
         }
 
-        var slots = location.Kind == WaferLocationKind.LoadPort ? location.Slots.Reverse() : location.Slots;
+        var slots = location.Kind == StationKind.LoadPort ? location.Slots.Reverse() : location.Slots;
         foreach (var slot in slots)
         {
             rows.Add(new LedgerSlotModel(location, slot, forSource));
+        }
+    }
+
+    /// <summary>
+    /// 位置列表的先后：机械手、LoadPort、腔体、buffer、其他（不按枚举的数值排）
+    /// </summary>
+    private static int KindOrder(StationKind kind)
+    {
+        switch (kind)
+        {
+            case StationKind.Robot:
+                return 0;
+            case StationKind.LoadPort:
+                return 1;
+            case StationKind.Chamber:
+                return 2;
+            case StationKind.Buffer:
+                return 3;
+            default:
+                return 4;
         }
     }
 

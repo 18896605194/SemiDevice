@@ -350,6 +350,7 @@
     <sys:String x:Key="setting.ledger.kind.robot">机械手</sys:String>
     <sys:String x:Key="setting.ledger.kind.loadport">LoadPort</sys:String>
     <sys:String x:Key="setting.ledger.kind.chamber">腔体</sys:String>
+    <sys:String x:Key="setting.ledger.kind.buffer">Buffer</sys:String>
     <sys:String x:Key="setting.ledger.kind.other">其他</sys:String>
     <sys:String x:Key="setting.ledger.slot_name">槽 {0:00}</sys:String>
     <sys:String x:Key="setting.ledger.arm_name">手指 {0}</sys:String>

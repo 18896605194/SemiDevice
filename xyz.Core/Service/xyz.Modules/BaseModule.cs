@@ -20,6 +20,11 @@ public abstract class BaseModule : ComponentBase, IModule
     public ModuleMode Mode { get; private set; } = ModuleMode.Offline;
 
     /// <summary>
+    /// 模块是哪一类：LoadPort、腔体、buffer、机械手的基类各自重写，别的模块默认其他
+    /// </summary>
+    public virtual StationKind Kind => StationKind.Other;
+
+    /// <summary>
     /// 站点的类型（sc.xml 里写成 <c>&lt;Value Name="Type" Value="A" /&gt;</c>，不是节点上写类名的那个 Type 属性）：
     /// 几台一样的站点写同一个值（比如 8 个腔体 1~4 写 A、5~8 写 B），工艺配方按它定给哪种站点用。空 = 不分类型。
     /// </summary>
