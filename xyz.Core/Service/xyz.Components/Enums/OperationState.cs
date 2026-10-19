@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// 操作状态：Running 执行中；Completed / Failed / Aborted 为终态。
+/// Operation状态
 /// </summary>
 public enum OperationState
 {
@@ -11,17 +11,17 @@ public enum OperationState
     Running,
 
     /// <summary>
-    /// 成功终结。
+    /// 完成
     /// </summary>
     Completed,
 
     /// <summary>
-    /// 失败终结（指令失败、超时、步骤异常）。
+    /// error
     /// </summary>
     Failed,
 
     /// <summary>
-    /// 被宿主打断（Abort 顶替）。
+    /// 被终止
     /// </summary>
     Aborted,
 }

@@ -207,12 +207,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public ICarrier _carrier { get; private set; } = null!;
 
-    /// <summary>提供给 Job 的载具读取入口，复用端口维护的载具组件。</summary>
     public ICarrierAccess Carrier => _carrier;
 
-    /// <summary>
-    /// 晶圆账：组件初始化时取一次；没配晶圆账、或端口停用（不登记账）为 null。
-    /// </summary>
     private IWaferManagerComponent? _waferManager;
 
     public IE84? E84
@@ -243,9 +239,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         RegisterTransitions(LoadPortStateTable.ToModuleTable());
     }
 
-    /// <summary>
-    /// 传片环待命态：LoadPort 已装载（Loaded）即可被机械手服务。
-    /// </summary>
     protected override int StandbyState => LoadPortState.Loaded;
 
     /// <summary>
@@ -325,7 +318,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return driver is not null && childrenInitialized;
     }
 
-    // 下面几个单例开机 Bind 时取；没装是 null
     private IJobManager? _jobs;
     private ITransferManager? _transfers;
     private IEapNotifierComponent? _notifier;
@@ -337,19 +329,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
     }
 
-    /// <summary>
-    /// 关闭 _rfid 和loadport
-    /// </summary>
     public void Close()
     {
         _rfid?.Close();
         _driver?.Close();
     }
 
-    /// <summary>
-    /// 在位和移除事件回调
-    /// </summary>
-    /// <param name="evt"></param>
     private void OnDeviceEvent(LoadPortDeviceEvent evt)
     {
         
@@ -655,17 +640,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// Load 的资源检查：Load 会把这个口的旧账清掉、按扫图重建（片的内部标识全换新），所以这个口账上的片得没被别人占着——
-    /// 归还没结束的 Job 的不行（Job 按内部标识认片，重建后就认不出了；要 Load 先中止这个 Job），被搬运占着的槽也不行。
+    /// Load 的资源检查
     /// </summary>
+    /// <returns></returns>
     private HandleResult? CheckLoadResource()
     {
         return CheckWafersInJob() ?? CheckSlotsInTransfer();
     }
 
     /// <summary>
-    /// Load 的设备动作：平台默认发驱动的 Load、等完结、把回来的 Mapping 落账（<see cref="TakeSlotMap"/>）。机型动作不一样才重写。
+    /// Load 的设备动作
     /// </summary>
+    /// <returns></returns>
     protected virtual ModuleOperation CreateLoadOperation()
     {
         return new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout, TakeSlotMap);
@@ -866,8 +852,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 这个口账上的片有没有归还没结束的 Job 的（Load 会重建账、Unload / Home 会关门，都会打乱 Job）。没装晶圆账不查。
+    /// 有没有wafer正在job
     /// </summary>
+    /// <returns></returns>
     private HandleResult? CheckWafersInJob()
     {
         var ledger = _waferManager;
@@ -895,7 +882,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 这个口有片的槽有没有被搬运占着（Load 会重建账，搬运记着的片就对不上了）。没装晶圆账不查。
+    /// 有没有wafer正在搬运
     /// </summary>
     private HandleResult? CheckSlotsInTransfer()
     {
@@ -924,10 +911,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #endregion
 
     /// <summary>
-    /// Load 回来的 Mapping。槽数跟 SC SlotCount 对不上就不落账、Load 判失败：少了的槽会当空槽、往有片的槽上放片，
-    /// 多出来的字符在前面整篮错一槽。对得上就交给载具落账；有交叉片、叠片、认不出的槽也判失败（账照落，界面看得到是哪几槽），
-    /// 端口停在 Error、机械手不会来——交叉片占着两槽，取放相邻槽、往账上空着的槽回片都可能碰片。两种都报"Mapping 异常"。
+    /// Load 回来的 Mapping
     /// </summary>
+    /// <param name="response"></param>
+    /// <returns></returns>
     private HandleResult TakeSlotMap(LoadPortResponse response)
     {
         var slotMap = response.SlotMap;
@@ -958,7 +945,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return HandleResult.Success();
     }
 
-
+    /// <summary>
+    /// unload 回来的map
+    /// </summary>
+    /// <param name="response"></param>
+    /// <returns></returns>
     private HandleResult CheckUnloadSlotMap(LoadPortResponse response)
     {
         var slotMap = response.SlotMap;
@@ -997,10 +988,6 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         return HandleResult.Success();
     }
 
-    /// <summary>
-    ///  切 Auto/Manual 并且和E84有关系
-    /// </summary>
-    /// <param name="autoMode"></param>
     public void SetAutoMode(bool autoMode)
     {
         if (IsAutoMode == autoMode)

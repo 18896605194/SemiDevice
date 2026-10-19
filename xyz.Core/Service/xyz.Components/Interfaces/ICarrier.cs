@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Interfaces;
 
 /// <summary>
-/// 载具完整契约：继承对外的信息读取能力，并提供端口及 EAP 所需的维护操作。
+/// 载具接口
 /// </summary>
 public interface ICarrier : ICarrierAccess
 {
@@ -14,9 +14,16 @@ public interface ICarrier : ICarrierAccess
 
     void UpdateStatus(CarrierIdStatus? idStatus, CarrierSlotMapStatus? slotMapStatus);
 
+    /// <summary>
+    /// 标记这个载具已经完成
+    /// </summary>
     void NoteComplete();
 
-    /// <summary>端口按载具号核对并标记完成；核对与更新在载具锁内执行，重复完成不重复上报。</summary>
+    /// <summary>
+    /// 标记已经完成根据这个  carrierId
+    /// </summary>
+    /// <param name="carrierId"></param>
+    /// <returns></returns>
     HandleResult NoteComplete(string carrierId);
 
     #region 端口调的（只有 LoadPort 模块调，EAP 别调）
@@ -27,7 +34,7 @@ public interface ICarrier : ICarrierAccess
     void Attach(ILoadPort port, ICarrierIdReader? reader, Action<Action<IE87Callback>> enqueue);
 
     /// <summary>
-    /// 每拍喂状态查询的在位、到位两位（null = 没查到），判放上 / 拿走
+    /// 在位、到位
     /// </summary>
     void Sense(bool? isPresent, bool? isPlaced);
 

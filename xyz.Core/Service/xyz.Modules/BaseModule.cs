@@ -193,31 +193,22 @@ public abstract class BaseModule : ComponentBase, IModule
     private (int ExecutingState, int SuccessState) _transition;
 
     /// <summary>
-    /// 动作能不能发；默认没限制。
-    /// 装机停用、驱动没建起来的模块重写成 false——装配里组件初始化没做成就不该还能发指令。
+    /// 动作能不能发
     /// </summary>
     protected virtual bool CanBeginAction => true;
 
     #region 动作检查：状态 → 资源 → 互锁
 
-    // 每个动作的入口在模块锁里按这个先后查，哪项不过就带原因返回、模块不动，都过了才 Begin：
-    //   状态：只看模块自己（能不能动作、状态表允不允许、有没有正在做的动作），这里写好，各动作共用；
-    //   资源：这个动作要独占的东西有没有被别人占着（晶圆账、搬运占用、Job 归属），写在模块里；
-    //   互锁：周围条件允不允许动（传感器、别的模块、搬运车），平台给默认、机型重写先调 base。
-    // 只跟"谁发的命令"有关的检查（EAP 要 ON-LINE REMOTE 这类）不放这里，留在发命令的那一层。
-
-    /// <summary>
-    /// 能不能动作：默认看 <see cref="CanBeginAction"/>（停用、驱动没装好）。
-    /// 有驱动的模块重写，再加上"设备没连上"——没连上照样发，指令发不出去会落 Error、报警。不通过返回原因，通过返回 null。
-    /// </summary>
+    
     protected virtual HandleResult? CheckAvailable()
     {
         return CheckEnabled();
     }
 
     /// <summary>
-    /// 模块停用、驱动没装好（<see cref="CanBeginAction"/> 为 false）不能动作。急停只查这个，见 <see cref="CheckState{TAction}"/>。
+    /// 模块停用
     /// </summary>
+    /// <returns></returns>
     private HandleResult? CheckEnabled()
     {
         if (!CanBeginAction)
@@ -229,9 +220,11 @@ public abstract class BaseModule : ComponentBase, IModule
     }
 
     /// <summary>
-    /// 状态检查（三项检查的第一项）：能不能动作 → 状态表允不允许 → 有没有正在做的动作（急停可以顶替，不查）。
-    /// 跟 <see cref="Begin{TAction}"/> 查的是同一套，只是带上原因。不通过返回原因，通过返回 null。
+    /// 状态检查
     /// </summary>
+    /// <typeparam name="TAction"></typeparam>
+    /// <param name="action"></param>
+    /// <returns></returns>
     protected HandleResult? CheckState<TAction>(TAction action)
         where TAction : struct, Enum
     {
@@ -275,8 +268,10 @@ public abstract class BaseModule : ComponentBase, IModule
     }
 
     /// <summary>
-    /// 检查没过：把原因（错误码 + 参数）原样转成动作入口的结果。
+    /// 检查没过：把原因（错误码 + 参数）原样转成动作入口的结果
     /// </summary>
+    /// <param name="rejected"></param>
+    /// <returns></returns>
     protected static HandleResult<ModuleOperation> Rejected(HandleResult rejected)
     {
         return HandleResult<ModuleOperation>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
@@ -355,7 +350,7 @@ public abstract class BaseModule : ComponentBase, IModule
         finally
         {
             _operation = null;
-            operation.NotifyCompletion();
+            operation.NotifyCompletion();   //通知操作完成
         }
     }
 

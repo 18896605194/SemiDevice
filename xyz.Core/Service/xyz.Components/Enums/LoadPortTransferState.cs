@@ -1,25 +1,37 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// E87 的端口搬运状态（Host 看到的那一套）：由 EAP 侧状态机维护，设备侧只在 E84 握手时查询。
+/// E87 的端口搬运状态
 /// </summary>
 public enum LoadPortTransferState
 {
-    /// <summary>不可用：停用、报错或未回原点。</summary>
+    /// <summary>
+    /// 不可用
+    /// </summary>
     OutOfService,
 
-    /// <summary>可用，但这会儿不接受交接。</summary>
+    /// <summary>
+    /// 可用，但这会儿不接受交接
+    /// </summary>
     InService,
 
-    /// <summary>可交接，方向未定。</summary>
+    /// <summary>
+    /// 可交接
+    /// </summary>
     TransferReady,
 
-    /// <summary>等着送盒进来。</summary>
+    /// <summary>
+    /// 等着送盒进来
+    /// </summary>
     ReadyToLoad,
 
-    /// <summary>等着把盒取走。</summary>
+    /// <summary>
+    /// 等着把盒取走
+    /// </summary>
     ReadyToUnload,
 
-    /// <summary>交接被挡住：正在取放片、门开着、端口被占等。</summary>
+    /// <summary>
+    /// 交接被挡住
+    /// </summary>
     TransferBlocked,
 }

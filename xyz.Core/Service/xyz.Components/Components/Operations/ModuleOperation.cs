@@ -7,13 +7,7 @@ namespace xyz.Components.Components;
 public abstract class ModuleOperation
 {
     #region Column
-    /// <summary>
-    /// 4种状态， 运行，成功，失败，停止
-    /// </summary>
     private volatile OperationState _state = OperationState.Running;
-    /// <summary>
-    /// 当前状态。
-    /// </summary>
     public OperationState State => _state;
 
     private readonly object _terminalGate = new();
