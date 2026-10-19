@@ -14,7 +14,7 @@ public sealed class SequenceStationGroup
     }
 
     /// <summary>
-    /// 分组名：sc.xml 里分组节点的 Name，原样给界面显示。
+    /// 分组名
     /// </summary>
     public string Name { get; }
 

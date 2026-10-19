@@ -3,7 +3,7 @@
 namespace xyz.Components.Interfaces;
 
 /// <summary>
-/// 流程配方库 接口，同时也给eap使用
+/// 流程配方库 对外接口 和eap对接
 /// </summary>
 public interface ISequenceLibrary
 {

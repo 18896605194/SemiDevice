@@ -31,13 +31,15 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     private readonly object _gate = new();
 
     /// <summary>
-    /// 编号 → 流程配方，按编号排好。排序字典
+    /// 支持排序的 字典
     /// </summary>
     private readonly SortedDictionary<int, SequenceData> _items = new();
 
+    /// <summary>
+    /// 所有的站点分组
+    /// </summary>
     private IReadOnlyList<SequenceStationGroup> _groups = [];
 
-    // 下面两个单例开机生成站点分组时取；没装是 null
     private IRecipeComponent? _recipes;
     private IEapNotifierComponent? _notifier;
 
@@ -57,7 +59,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     #region 装配：查参数、读文件、生成可选站点分组
 
     /// <summary>
-    /// 可选的站点分组（Bind 之后才有），按 sc.xml 里的先后。
+    /// 可选的站点分组
     /// </summary>
     public IReadOnlyList<SequenceStationGroup> StationGroups
     {
@@ -71,7 +73,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 装配读完 SC：先查参数（配错了开机就报出来），再从目录把流程配方读进来。
+    /// 装配加载
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
@@ -95,9 +97,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         Load();
     }
 
-    /// <summary>
-    /// 从目录把流程配方全部读进内存（装配时调一次）
-    /// </summary>
     public void Load()
     {
         string folder = FolderPath();
@@ -202,9 +201,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     #region 查询
 
-    /// <summary>
-    /// 获取 全部流程配方（副本），按编号从小到大。
-    /// </summary>
     public IReadOnlyList<SequenceData> List()
     {
         lock (_gate)
@@ -213,12 +209,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
     }
 
-    /// <summary>
-    /// 按名字取一个流程配方 ,job
-    /// 肯定用到
-    /// </summary>
-    /// <param name="name"></param>
-    /// <returns></returns>
     public SequenceData? Find(string name)
     {
         lock (_gate)
@@ -227,9 +217,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
     }
 
-    /// <summary>
-    /// 按编号取一个流程配方
-    /// </summary>
     public HandleResult Get(int index)
     {
         lock (_gate)
@@ -242,13 +229,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     #region 新建、改名、删除、保存
 
-    /// <summary>
-    /// 新建
-    /// </summary>
-    /// <param name="index"></param>
-    /// <param name="name"></param>
-    /// <param name="operatorName"></param>
-    /// <returns></returns>
     public HandleResult Create(int index, string name, string operatorName)
     {
         name = name.Trim();
@@ -273,13 +253,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         return result;
     }
 
-    /// <summary>
-    /// 重命名
-    /// </summary>
-    /// <param name="index"></param>
-    /// <param name="name"></param>
-    /// <param name="operatorName"></param>
-    /// <returns></returns>
     public HandleResult Rename(int index, string name, string operatorName)
     {
         name = name.Trim();
@@ -301,12 +274,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         return result;
     }
 
-    /// <summary>
-    /// 删除
-    /// </summary>
-    /// <param name="index"></param>
-    /// <param name="operatorName"></param>
-    /// <returns></returns>
     public HandleResult Delete(int index, string operatorName)
     {
         HandleResult result;
@@ -320,15 +287,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         return result;
     }
 
-    /// <summary>
-    /// 保存
-    /// </summary>
-    /// <param name="index"></param>
-    /// <param name="revision"></param>
-    /// <param name="description"></param>
-    /// <param name="steps"></param>
-    /// <param name="operatorName"></param>
-    /// <returns></returns>
     public HandleResult Save(int index, int revision, string description, IReadOnlyList<SequenceStep> steps, string operatorName)
     {
         // 工艺配方要在工艺配方库里（没装库就不查）。库只被这边查、从不反过来调这边，两把锁不会互等
@@ -616,7 +574,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 删文件，成了才从内存里拿掉。必须在 _gate 里调。
+    /// 删文件
     /// </summary>
     private HandleResult Remove(int index, out string name)
     {
@@ -719,9 +677,6 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         return _items[index].Revision == revision ? null : HandleResult.Fail(ErrorCodes.SequenceRevisionMismatch, Text(index));
     }
 
-    /// <summary>
-    /// 名称：必填、不超长、不跟别的编号重（不分大小写）。
-    /// </summary>
     private HandleResult? CheckName(string name, int selfIndex)
     {
         if (name.Length == 0)
@@ -746,9 +701,12 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 每一步：分组要在可选的里面，第 1 步、最后一步是 LoadPort 分组；至少勾一个站点、勾的站点在这个分组里；
-    /// 要工艺配方的分组得填配方，装了工艺配方库时配方还得在库里，而且勾的每个站点都跑得了（腔体是 Type、选的摆臂和药液）。步号从 1 数，跟界面上一样。
+    /// 检查sequence的每一步
     /// </summary>
+    /// <param name="steps"></param>
+    /// <param name="groups"></param>
+    /// <param name="recipes"></param>
+    /// <returns></returns>
     private static HandleResult? CheckSteps(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups, IRecipeComponent? recipes)
     {
         for (int position = 0; position < steps.Count; position++)
@@ -823,8 +781,11 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 规整步骤（检查通过之后调）：分组名、站点名换成 sc 里的写法，站点去重、按 sc 里的先后排；配方去掉首尾空白，不要配方的分组清空。
+    /// 整理步骤
     /// </summary>
+    /// <param name="steps"></param>
+    /// <param name="groups"></param>
+    /// <returns></returns>
     private static List<SequenceStep> Normalize(IReadOnlyList<SequenceStep> steps, IReadOnlyList<SequenceStationGroup> groups)
     {
         var result = new List<SequenceStep>();
