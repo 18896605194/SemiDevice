@@ -36,7 +36,7 @@ void Check(bool condition, string message)
 var directory = Path.Combine(Path.GetTempPath(), "xyz-cds-smoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
 var previousPlc = IocHelper.GetService<IPlcIo>();
-var previousIo = IocHelper.GetService<IIoComponent>();
+var previousIo = IocHelper.GetService<IIo>();
 var previousEc = IocHelper.GetService<IEcComponent>();
 var previousAlarm = IocHelper.GetService<IAlarmComponent>();
 try
@@ -53,7 +53,7 @@ try
     var plc = new FakePlc();
     SmokeIoc.Use<IPlcIo>(plc);
     var io = new IoComponent { PointTableDirectory = directory };
-    SmokeIoc.Use<IIoComponent>(io);
+    SmokeIoc.Use<IIo>(io);
     io.InitComponent();
     SmokeIoc.Use<IEcComponent>(new EcComponent());
     var alarms = new AlarmComponent();
@@ -661,7 +661,7 @@ try
 finally
 {
     SmokeIoc.Use<IPlcIo>(previousPlc);
-    SmokeIoc.Use<IIoComponent>(previousIo);
+    SmokeIoc.Use<IIo>(previousIo);
     SmokeIoc.Use<IEcComponent>(previousEc);
     SmokeIoc.Use<IAlarmComponent>(previousAlarm);
     Directory.Delete(directory, recursive: true);

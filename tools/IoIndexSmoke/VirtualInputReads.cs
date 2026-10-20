@@ -12,7 +12,7 @@ static class VirtualInputReads
     public static void Run(string directory)
     {
         var previousPlc = IocHelper.GetService<IPlcIo>();
-        var previousIo = IocHelper.GetService<IIoComponent>();
+        var previousIo = IocHelper.GetService<IIo>();
         try
         {
             InvalidConfigurations();
@@ -112,7 +112,7 @@ static class VirtualInputReads
         finally
         {
             SmokeIoc.Use<IPlcIo>(previousPlc);
-            SmokeIoc.Use<IIoComponent>(previousIo);
+            SmokeIoc.Use<IIo>(previousIo);
         }
     }
 

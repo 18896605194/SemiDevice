@@ -15,7 +15,7 @@ static class Heartbeats
     public static void Run(string directory)
     {
         var previousPlc = IocHelper.GetService<IPlcIo>();
-        var previousIo = IocHelper.GetService<IIoComponent>();
+        var previousIo = IocHelper.GetService<IIo>();
         var previousAlarm = IocHelper.GetService<IAlarmComponent>();
         try
         {
@@ -27,7 +27,7 @@ static class Heartbeats
             var plc = new HeartbeatPlc();
             SmokeIoc.Use<IPlcIo>(plc);
             var io = new IoComponent { PointTableDirectory = tables };
-            SmokeIoc.Use<IIoComponent>(io);
+            SmokeIoc.Use<IIo>(io);
             io.InitComponent();
             var alarms = new AlarmComponent();
             SmokeIoc.Use<IAlarmComponent>(alarms);
@@ -108,7 +108,7 @@ static class Heartbeats
         finally
         {
             SmokeIoc.Use<IPlcIo>(previousPlc);
-            SmokeIoc.Use<IIoComponent>(previousIo);
+            SmokeIoc.Use<IIo>(previousIo);
             SmokeIoc.Use<IAlarmComponent>(previousAlarm);
         }
     }

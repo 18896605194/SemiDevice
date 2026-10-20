@@ -49,11 +49,11 @@ public class HeartbeatComponent : ComponentBase, IHeartbeat
 
     #endregion
 
-    private IIoComponent? _io;
+    private IIo? _io;
 
     public override void Bind()
     {
-        _io = IocHelper.GetService<IIoComponent>();
+        _io = IocHelper.GetService<IIo>();
     }
 
     #region 扫描

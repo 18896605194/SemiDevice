@@ -44,11 +44,11 @@ public class LightComponent : ComponentBase, ILightComponent
     /// <summary>
     /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
     /// </summary>
-    private IIoComponent? _io;
+    private IIo? _io;
 
     public override void Bind()
     {
-        _io = IocHelper.GetService<IIoComponent>();
+        _io = IocHelper.GetService<IIo>();
     }
 
     #region Control

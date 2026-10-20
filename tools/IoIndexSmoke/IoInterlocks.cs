@@ -9,7 +9,7 @@ static class IoInterlocks
     public static void Run(string directory)
     {
         var previousPlc = IocHelper.GetService<IPlcIo>();
-        var previousIo = IocHelper.GetService<IIoComponent>();
+        var previousIo = IocHelper.GetService<IIo>();
         try
         {
             foreach (string bad in new[] { "DI25=false", "DO25=false:DO12=true", "DI25=flase:DO12=true",
@@ -39,7 +39,7 @@ static class IoInterlocks
             {
                 SmokeIoc.Use<IPlcIo>(plc);
                 var io = new TestIo { SaftyIoInterlock = rules, PointTableDirectory = tables };
-                SmokeIoc.Use<IIoComponent>(io);
+                SmokeIoc.Use<IIo>(io);
                 io.Load();
                 io.InitComponent();
                 return io;
@@ -122,7 +122,7 @@ static class IoInterlocks
         finally
         {
             SmokeIoc.Use<IPlcIo>(previousPlc);
-            SmokeIoc.Use<IIoComponent>(previousIo);
+            SmokeIoc.Use<IIo>(previousIo);
         }
     }
 

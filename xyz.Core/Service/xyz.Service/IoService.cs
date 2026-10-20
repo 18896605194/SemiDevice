@@ -15,11 +15,11 @@ namespace xyz.Service;
 /// </summary>
 public class IoService : IIoService
 {
-    private readonly IIoComponent? _io;
+    private readonly IIo? _io;
 
     public IoService()
     {
-        _io = IocHelper.GetService<IIoComponent>();
+        _io = IocHelper.GetService<IIo>();
     }
 
     public Task<RpcResponse> WriteDoAsync(IoWriteRequest request)

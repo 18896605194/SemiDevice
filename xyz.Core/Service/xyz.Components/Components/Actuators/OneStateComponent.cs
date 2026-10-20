@@ -34,11 +34,11 @@ public abstract class OneStateComponent : ComponentBase
     /// <summary>
     /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
     /// </summary>
-    protected IIoComponent? Io { get; private set; }
+    protected IIo? Io { get; private set; }
 
     public override void Bind()
     {
-        Io = IocHelper.GetService<IIoComponent>();
+        Io = IocHelper.GetService<IIo>();
     }
 
     #region EC

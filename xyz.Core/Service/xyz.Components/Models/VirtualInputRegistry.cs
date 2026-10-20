@@ -7,10 +7,10 @@ namespace xyz.Components.Models;
 internal sealed class VirtualInputRegistry
 {
     private readonly Dictionary<IoReference, IVirtualInputComponent> _points;
-    private readonly IIoComponent? _io;
+    private readonly IIo? _io;
     private readonly object _gate = new();
 
-    private VirtualInputRegistry(IEnumerable<IVirtualInputComponent> points, IIoComponent? io)
+    private VirtualInputRegistry(IEnumerable<IVirtualInputComponent> points, IIo? io)
     {
         _io = io;
         _points = [];
@@ -73,7 +73,7 @@ internal sealed class VirtualInputRegistry
             return;
         }
 
-        var io = all.OfType<IIoComponent>().ToList();
+        var io = all.OfType<IIo>().ToList();
         if (io.Count > 1)
         {
             throw new InvalidOperationException("全局虚拟输入索引只能绑定一个 IoComponent 读写入口");

@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Data.Common;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using xyz.Components;
@@ -49,7 +50,7 @@ var countDb = Path.Combine(Path.GetTempPath(), "xyz-chamber-count-" + Guid.NewGu
 XyzDb.Register(XyzDb.DefaultName, $"DataSource={countDb}", SqlSugar.DbType.Sqlite);
 var previousPlcIo = IocHelper.GetService<IPlcIo>();
 var previousPlcBlock = IocHelper.GetService<IPlcBlock>();
-var previousIo = IocHelper.GetService<IIoComponent>();
+var previousIo = IocHelper.GetService<IIo>();
 var previousEc = IocHelper.GetService<IEcComponent>();
 try
 {
@@ -67,7 +68,7 @@ try
     SmokeIoc.Use<IPlcIo>(plc);
     SmokeIoc.Use<IPlcBlock>(plc);
     var io = new IoComponent { PointTableDirectory = directory };
-    SmokeIoc.Use<IIoComponent>(io);
+    SmokeIoc.Use<IIo>(io);
     io.InitComponent();
     SmokeIoc.Use<IEcComponent>(new EcComponent());
     plc.Cylinders.Add((0, 1, 0, 1));
@@ -975,17 +976,25 @@ try
         }
 
         // 库里那行等后台写到这个数
+        // 池里早先开的连接还认旧表结构，赶上后台正在提交时会报"没有这张表"，当没写到、过一会儿再查
         bool WaitLifetime(long expected)
         {
             var watch = Stopwatch.StartNew();
             while (watch.ElapsedMilliseconds < 3000)
             {
-                using (var db = XyzDb.Create())
+                try
                 {
-                    if (db.Queryable<CountLifetimeEntity>().Any(row => row.Path == "Gate.Lifetime" && row.UsedCount == expected))
+                    using (var db = XyzDb.Create())
                     {
-                        return true;
+                        if (db.Queryable<CountLifetimeEntity>().Any(row => row.Path == "Gate.Lifetime" && row.UsedCount == expected))
+                        {
+                            return true;
+                        }
                     }
+                }
+                catch (DbException)
+                {
+                    // 当没写到，下一圈再查
                 }
 
                 Thread.Sleep(20);
@@ -1076,13 +1085,20 @@ try
             var watch = Stopwatch.StartNew();
             while (watch.ElapsedMilliseconds < 3000)
             {
-                using (var db = XyzDb.Create())
+                try
                 {
-                    var row = db.Queryable<TimeLifetimeEntity>().First(item => item.Path == "BathLife");
-                    if (row is not null && row.StartedAt == expected)
+                    using (var db = XyzDb.Create())
                     {
-                        return true;
+                        var row = db.Queryable<TimeLifetimeEntity>().First(item => item.Path == "BathLife");
+                        if (row is not null && row.StartedAt == expected)
+                        {
+                            return true;
+                        }
                     }
+                }
+                catch (DbException)
+                {
+                    // 当没写到，下一圈再查
                 }
 
                 Thread.Sleep(20);
@@ -1217,7 +1233,7 @@ finally
 {
     SmokeIoc.Use<IPlcIo>(previousPlcIo);
     SmokeIoc.Use<IPlcBlock>(previousPlcBlock);
-    SmokeIoc.Use<IIoComponent>(previousIo);
+    SmokeIoc.Use<IIo>(previousIo);
     SmokeIoc.Use<IEcComponent>(previousEc);
     Directory.Delete(directory, recursive: true);
     try

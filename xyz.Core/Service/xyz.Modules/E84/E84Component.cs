@@ -145,7 +145,7 @@ public class E84Component : ComponentBase, IE84
     /// <summary>
     /// IO 组件（开机准备时取，开机就要清输出）；sc.xml 没配 Io 节点是 null
     /// </summary>
-    private IIoComponent? _io;
+    private IIo? _io;
 
     // 上一拍输出写没写通：翻转时记一条日志，别每拍刷屏。
     private bool _outputsWritable = true;
@@ -234,7 +234,7 @@ public class E84Component : ComponentBase, IE84
             return true;
         }
 
-        _io = IocHelper.GetService<IIoComponent>();
+        _io = IocHelper.GetService<IIo>();
         bool childrenInitialized = base.InitComponent();
         lock (_gate)
         {
@@ -706,12 +706,12 @@ public class E84Component : ComponentBase, IE84
         return written;
     }
 
-    private static bool InputOn(IIoComponent io, int index)
+    private static bool InputOn(IIo io, int index)
     {
         return index >= 0 && io.TryReadDi(index, out bool on) && on;
     }
 
-    private static bool OutputWritten(IIoComponent? io, int index, bool on)
+    private static bool OutputWritten(IIo? io, int index, bool on)
     {
         return index < 0 || (io is not null && io.WriteDo(index, on));
     }

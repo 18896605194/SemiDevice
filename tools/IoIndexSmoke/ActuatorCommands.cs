@@ -12,7 +12,7 @@ static class ActuatorCommands
         var directory = Path.Combine(Path.GetTempPath(), "xyz-io-actuator-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var previousPlc = IocHelper.GetService<IPlcIo>();
-        var previousIo = IocHelper.GetService<IIoComponent>();
+        var previousIo = IocHelper.GetService<IIo>();
         try
         {
             // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC
@@ -26,7 +26,7 @@ static class ActuatorCommands
             }
 
             var io = new IoComponent { PointTableDirectory = directory };
-            SmokeIoc.Use<IIoComponent>(io);
+            SmokeIoc.Use<IIo>(io);
             var plc = new StatePlc();
 
             // 到位反馈是 DI 组件子节点（门 Opened / Closed，阀 Feedback），组件初始化时认
@@ -136,7 +136,7 @@ static class ActuatorCommands
         finally
         {
             SmokeIoc.Use<IPlcIo>(previousPlc);
-            SmokeIoc.Use<IIoComponent>(previousIo);
+            SmokeIoc.Use<IIo>(previousIo);
             Directory.Delete(directory, recursive: true);
         }
     }

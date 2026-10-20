@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// IO 点表
 /// </summary>
-public interface IIoComponent
+public interface IIo
 {
     /// <summary>
     /// DI 点表

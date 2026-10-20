@@ -197,7 +197,7 @@ public class DataChartComponent : ComponentBase, IDataChartComponent
         }
 
         var svs = (IocHelper.GetService<GemCollectors>()?.Sv.NumericItems() ?? []).ToLookup(sv => sv.Owner);
-        var io = IocHelper.GetService<IIoComponent>();
+        var io = IocHelper.GetService<IIo>();
         bool warnedNoIo = false;
         var levelMeters = new HashSet<int>();
         foreach (var component in CollectorHelper.Walk(roots))
@@ -301,7 +301,7 @@ public class DataChartComponent : ComponentBase, IDataChartComponent
     /// <summary>
     /// 组件绑的一个 IO 点：地址、单位、说明从点表拿；点表里没有这个点就记告警，这一列会一直是空的。
     /// </summary>
-    private DataSignal IoSignal(IIoComponent io, string name, string type, int index)
+    private DataSignal IoSignal(IIo io, string name, string type, int index)
     {
         IoPoint? point;
         switch (type)

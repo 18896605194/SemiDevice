@@ -14,7 +14,7 @@ namespace xyz.Components.Components;
 /// IO 组件：点表 + 按索引读写。
 /// </summary>
 [Component(description: "IO 组件（点表 + 按索引读写）")]
-public partial class IoComponent : ComponentBase, IIoComponent
+public partial class IoComponent : ComponentBase, IIo
 {
     public IoComponent()
     {
@@ -41,7 +41,7 @@ public partial class IoComponent : ComponentBase, IIoComponent
 
     internal void AttachVirtualInputs(VirtualInputRegistry registry) => _virtualInputs = registry;
 
-    void IIoComponent.AttachVirtualInputs(VirtualInputRegistry registry)
+    void IIo.AttachVirtualInputs(VirtualInputRegistry registry)
     {
         AttachVirtualInputs(registry);
     }

@@ -29,7 +29,7 @@ static class StartupDoWrites
         }
 
         var empty = new ConfiguredIo();
-        SmokeIoc.Use<IIoComponent>(empty);
+        SmokeIoc.Use<IIo>(empty);
         empty.Load();
 
         // 点表放进 IO 组件的点表目录：它开机准备时读点表、取 PLC

@@ -9,9 +9,9 @@ SmokeIoc.Reset();
 var directory = Path.Combine(Path.GetTempPath(), "xyz-io-index-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
 var previousPlc = IocHelper.GetService<IPlcIo>();
-var previousIo = IocHelper.GetService<IIoComponent>();
+var previousIo = IocHelper.GetService<IIo>();
 var io = new IoComponent();
-SmokeIoc.Use<IIoComponent>(io);
+SmokeIoc.Use<IIo>(io);
 try
 {
     SinglePointWrites.Run();
@@ -79,7 +79,7 @@ try
     var ec = new EcComponent();
     SmokeIoc.Use<IEcComponent>(ec);
     var scanning = new ScanIo { PointTableDirectory = tables };
-    SmokeIoc.Use<IIoComponent>(scanning);
+    SmokeIoc.Use<IIo>(scanning);
     scanning.InitComponent();
 
     ec.Merge([scanning]);
@@ -115,7 +115,7 @@ try
 finally
 {
     SmokeIoc.Use<IPlcIo>(previousPlc);
-    SmokeIoc.Use<IIoComponent>(previousIo);
+    SmokeIoc.Use<IIo>(previousIo);
     Directory.Delete(directory, recursive: true);
 }
 

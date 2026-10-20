@@ -120,11 +120,11 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
 
     #endregion
 
-    private IIoComponent? _io;
+    private IIo? _io;
 
     public override void Bind()
     {
-        _io = IocHelper.GetService<IIoComponent>();
+        _io = IocHelper.GetService<IIo>();
         Load();
     }
 

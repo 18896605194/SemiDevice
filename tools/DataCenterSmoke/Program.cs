@@ -378,11 +378,11 @@ try
     }
 
     // IO 绑定的信号名：组件路径 + 配置项名去掉 Index；DI 组件只有一个点，就是组件路径（Door__Opened，不再带 __Di）
-    var previousIo = IocHelper.GetService<IIoComponent>();
+    var previousIo = IocHelper.GetService<IIo>();
     var ioCsv = Path.Combine(chartGemDirectory, "points.csv");
     File.WriteAllText(ioCsv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n0,P0,0,0,0,0\n1,P1,0,0,0,0\n2,P2,0,10,0,10\n");
     var chartIo = new IoComponent();
-    SmokeIoc.Use<IIoComponent>(chartIo);
+    SmokeIoc.Use<IIo>(chartIo);
     chartIo.Di.Load(ioCsv);
     chartIo.Do.Load(ioCsv);
     chartIo.Ai.Load(ioCsv);
@@ -417,7 +417,7 @@ try
     }
     finally
     {
-        SmokeIoc.Use<IIoComponent>(previousIo);
+        SmokeIoc.Use<IIo>(previousIo);
     }
 }
 finally

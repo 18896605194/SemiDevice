@@ -53,8 +53,8 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 - **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的）：装配器照 sc 树把每个组件按它实现的 xyz 接口
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
   取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、
-  `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIoComponent`、`IPlcIo`、`IPlcBlock`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
-  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；AI 助手的 `IAi` 例外，不带后缀（用户 2026-10-20 改的）；
+  `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIo`、`IPlcIo`、`IPlcBlock`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
+  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；AI 助手的 `IAi`、IO 组件的 `IIo` 例外，不带后缀（用户 2026-10-20、10-21 改的）；
   EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）；同一个接口登记了好几个的，取一个拿最后登记的。
   要一类的全部用 `IocHelper.GetServices<IXxx>()`：按 sc 先后（先父后子），停用的连同下面的跳过。GEM 编号表 `GemCollectors` 不是组件，也登记在容器里，一样从 `IocHelper` 取。
   不写 `Xxx.Current`、不在构造里登记、不在组件基类上另包取法，不按基类、具体类找，不往 Bind 里传整棵树。
@@ -107,7 +107,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
   顶层目录 = 命名空间（`xyz.Components.Models` 等）。
 - `Components\` 下按类别分 System / Plc（PLC、IO、心跳 `HeartbeatComponent`：按 sc 的时间轮流写一个 DO，见 decisions.md「心跳」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（品牌驱动壳）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
-  Maintenance（部件寿命 `LifetimeComponent`，挂在部件下面盯 DO 计次，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
+  Maintenance（部件寿命：次数型 `CountLifetimeComponent` 挂在部件下面盯 DO 计次、时间型 `TimeLifetimeComponent` 从清零起按实际时间算，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
@@ -656,7 +656,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新（见 §3 Job）。
 - 工艺站开工片数：`process_daily_count` 一站一天一行（站点、日期 yyyy-MM-dd、片数、更新时间），默认库；`ProcessCounter` 开机读回（读不成今天、累计这次从 0 数），
   开工一片放进队列、后台一个读者给那一天那行**加 1**（没有就插一行 1），不写总数——时钟往回调到前一天也只是给那天加 1，不会冲掉那天的数。行数少，不清理。
-- 部件寿命：`component_lifetime` 一个寿命组件一行（全路径、已用次数、更新时间），默认库；`LifetimeComponent` 开机 `Bind` 读回，DO 每变一次放进队列、
+- 部件寿命：`count_lifetime` 一个次数寿命组件一行（全路径、已用次数、更新时间）、`time_lifetime` 一个时间寿命组件一行（全路径、起算时间），默认库；`CountLifetimeComponent` 开机 `Bind` 读回，DO 每变一次放进队列、
   后台一个读者给那行**加 1**（没有就插一行 1），清零也走队列；跟开工计数一样只加不写总数。行数少，不清理。
 - GEM（E30）掉电保持：`gem_config` 一行 JSON（Host 定的报告、链接、关掉的事件和报警、缓存范围、缓存状态），Host 改了就同步写；
   `gem_spool` 缓存的报文一条一行（雪花号主键 = 先后，体是 SECS-II 编码的字节），断了通讯才写。见 §4「EAP」。
