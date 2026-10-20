@@ -5,9 +5,9 @@ using xyz.Configs.Models;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 虚拟 DO：一个带固定点号的程序输出点，经 IO 组件按点号读写，只在内存里、不下发 PLC
+/// 虚拟 DO：挂在虚拟 IO 下面，声明一个点号；读写走虚拟 IO
 /// </summary>
-[Component(description: "虚拟 DO：一个带固定点号的程序输出点（只在内存里，不下发 PLC），经 IO 组件按点号读写")]
+[Component(description: "虚拟 DO：挂在虚拟 IO 下面，声明一个点号（5000~5999）；按点号读写走虚拟 IO")]
 public class VirtualDoComponent : ComponentBase, IVirtualDo
 {
     /// <summary>
@@ -26,21 +26,6 @@ public class VirtualDoComponent : ComponentBase, IVirtualDo
     public int Index { get; set; } = -1;
 
     #endregion
-
-    private volatile bool _value;
-
-    /// <summary>
-    /// 现在是通还是断；开机是断
-    /// </summary>
-    public bool Value
-    {
-        get { return _value; }
-    }
-
-    public void Write(bool on)
-    {
-        _value = on;
-    }
 
     /// <summary>
     /// 装配校验：点号不在 5000~5999 开机就报

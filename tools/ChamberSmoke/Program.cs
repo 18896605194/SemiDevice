@@ -25,7 +25,7 @@ using xyz.Tools;
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
-// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算；警告 / 报警、存库读回、清零）。
+// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算；警告 / 报警、存库读回、清零）。虚拟 IO（虚拟 DO 按点号读写、不下发 PLC，次数寿命先读它）。
 // 起工艺前看供液就绪（腔体 sc 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
@@ -1143,6 +1143,70 @@ try
         reloadedBath.AlarmMinutes = 0;
         reloadedBath.Tick();
         Check(!BathActive(reloadedBath.WarnAlarm) && !BathActive(reloadedBath.ExpiredAlarm), "时间配 0 不管，不报");
+
+        // 20. 虚拟 IO：下面挂虚拟 DO（5000~5999），按点号读写，只在内存里、不下发 PLC，PLC 断了照样读写，IO 组件不知道它；
+        //     次数寿命组件先问虚拟 IO 有没有这个点号，有就读它（程序计数时翻一下，就跟真 DO 一样计次），没有照旧读真 DO；
+        //     点号越界装配时报，点号重复开机 Bind 时报
+        var virtualTree = SmokeIoc.Load([
+            With(Node("VirtualIo", typeof(VirtualIoComponent)),
+                Node("PickCount", typeof(VirtualDoComponent), Value("Index", "5000")),
+                Node("PlaceCount", typeof(VirtualDoComponent), Value("Index", "5001"))),
+            Node("PickLife", typeof(CountLifetimeProbe), Value("DoIndex", "5000")),
+            Node("ValveLife", typeof(CountLifetimeProbe), Value("DoIndex", "8"))]);
+        ComponentLoader.BindAll(virtualTree);
+        var virtualIo = IocHelper.GetService<IVirtualIo>()!;
+        var pickLife = (CountLifetimeProbe)virtualTree[1];
+        var valveLife = (CountLifetimeProbe)virtualTree[2];
+        Check(ReferenceEquals(virtualIo, virtualTree[0]) && virtualIo.TryReadDo(5000, out bool virtualOn) && !virtualOn
+            && virtualIo.TryReadDo(5001, out virtualOn) && !virtualOn, "虚拟 IO 按接口找得到；下面两个点开机都是断");
+        Check(!virtualIo.TryReadDo(5002, out _) && !virtualIo.WriteDo(5002, true) && !virtualIo.ToggleDo(5002), "没配的点号读、写、翻都不行");
+        Check(virtualIo.WriteDo(5001, true) && virtualIo.TryReadDo(5001, out virtualOn) && virtualOn, "写通了读回来是通");
+
+        pickLife.Tick();
+        Check(virtualIo.ToggleDo(5000), "程序计数时翻一下");
+        pickLife.Tick();
+        virtualIo.ToggleDo(5000);
+        pickLife.Tick();
+        Check(pickLife.UsedCount == 2 && !plc.ReadDo(5000) && !io.TryReadDo(5000, out _),
+            "翻两次，寿命组件计 2 次；没往 PLC 下发，IO 组件也不知道这个点");
+        plc.IsConnected = false;
+        virtualIo.ToggleDo(5000);
+        pickLife.Tick();
+        Check(pickLife.UsedCount == 3, "PLC 断了虚拟 IO 照样读写、照样计次");
+        plc.IsConnected = true;
+
+        valveLife.Tick();
+        plc.WriteDo(8, !plc.ReadDo(8));
+        valveLife.Tick();
+        Check(valveLife.UsedCount == 1, "虚拟 IO 里没有的点号照旧读真 DO");
+
+        string outOfRange = string.Empty;
+        try
+        {
+            SmokeIoc.Load([With(Node("VirtualIo", typeof(VirtualIoComponent)), Node("BadIndex", typeof(VirtualDoComponent), Value("Index", "4000")))]);
+        }
+        catch (InvalidOperationException exception)
+        {
+            outOfRange = exception.Message;
+        }
+
+        Check(outOfRange.Contains("5000~5999"), "点号不在 5000~5999：装配时就报");
+
+        var duplicateTree = SmokeIoc.Load([With(Node("VirtualIo", typeof(VirtualIoComponent)),
+            Node("PickA", typeof(VirtualDoComponent), Value("Index", "5003")),
+            Node("PickB", typeof(VirtualDoComponent), Value("Index", "5003")))]);
+        string duplicated = string.Empty;
+        try
+        {
+            ComponentLoader.BindAll(duplicateTree);
+        }
+        catch (InvalidOperationException exception)
+        {
+            duplicated = exception.Message;
+        }
+
+        Check(duplicated.Contains("DO5003 重复") && duplicated.Contains("VirtualIo.PickA") && duplicated.Contains("VirtualIo.PickB"),
+            "点号重复：开机 Bind 时报，带两个节点的路径");
     }
     finally
     {
@@ -1223,7 +1287,7 @@ try
         + "never overwriting it) and read back, start timestamps on the monotonic clock, "
         + "process percent by recipe step times; disabled chamber, component init and module init = Home; "
         + "part lifetime by count (every change of a DO, stored by adding one) and by time (since the last clear, through shutdowns), "
-        + "warn / alarm thresholds, read back, clear on part change; "
+        + "warn / alarm thresholds, read back, clear on part change; virtual IO (virtual DO by index in memory, read first by a count lifetime); "
         + "supply readiness checked when a process starts: the chamber's supplies named in sc and bound by name at startup, a missing name failing startup, "
         + "a disabled chamber not binding, any not-ready supply refusing the start, no supplies configured means no check, a supply drop after the start ignored, "
         + "the EC switch turning the check off and back on at once)");

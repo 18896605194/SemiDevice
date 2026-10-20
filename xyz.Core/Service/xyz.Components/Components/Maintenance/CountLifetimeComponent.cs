@@ -17,7 +17,7 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
 {
     #region SC
 
-    [SCEditor("-1", "IO", "盯的 DO 索引：这个 DO 每变一次（断→通、通→断）算用了一次", Required = true)]
+    [SCEditor("-1", "IO", "盯的 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：每变一次（断→通、通→断）算用了一次", Required = true)]
     public int DoIndex { get; set; } = -1;
 
     #endregion
@@ -122,9 +122,12 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
 
     private IIo? _io;
 
+    private IVirtualIo? _virtualIo;
+
     public override void Bind()
     {
         _io = IocHelper.GetService<IIo>();
+        _virtualIo = IocHelper.GetService<IVirtualIo>();
         Load();
     }
 
@@ -156,12 +159,24 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
     }
 
     /// <summary>
-    /// 读 DO（true = 通）；没配点、PLC 没连或点表里没这个索引返回 null。探针测试重写它直接摆读数
+    /// 读 DO（true = 通）：虚拟 IO 里有这个点号就读它，没有再读真 DO；都读不到返回 null。探针测试重写它直接摆读数
     /// </summary>
     protected virtual bool? ReadDo()
     {
+        if (DoIndex < 0)
+        {
+            return null;
+        }
+
+        bool on;
+        var virtualIo = _virtualIo;
+        if (virtualIo is not null && virtualIo.TryReadDo(DoIndex, out on))
+        {
+            return on;
+        }
+
         var io = _io;
-        if (DoIndex < 0 || io is null || !io.TryReadDo(DoIndex, out bool on))
+        if (io is null || !io.TryReadDo(DoIndex, out on))
         {
             return null;
         }
