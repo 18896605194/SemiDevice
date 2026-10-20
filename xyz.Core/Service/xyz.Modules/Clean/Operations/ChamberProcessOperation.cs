@@ -18,7 +18,7 @@ namespace xyz.Modules;
 /// 字段表里没配、这一步没填的字段就跳过（没填转速就不动卡盘，没填位置摆臂就不动）。位置是晶圆坐标，按摆臂的示教位换成轴位置；
 /// 速度就是轴的设计速度，原样给轴，不按示教位换算。
 /// </summary>
-internal sealed class ChamberProcessOperation : ChamberStepOperation
+public sealed class ChamberProcessOperation : ChamberStepOperation
 {
     // 配方字段名（sc.xml ProcessRecipe → Fields 下的节点名）：执行认这几个名字。时间是 RecipeField.SecondsKey。
     private const string RpmKey = "Rpm";
@@ -30,10 +30,14 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     private const string ScanToKey = "ScanTo";
     private const string ScanSpeedKey = "ScanSpeed";
 
-    /// <summary>方式字段里"来回扫"的写法（另一个是 Time）。</summary>
+    /// <summary>
+    /// 方式字段里"来回扫"的写法（另一个是 Time）
+    /// </summary>
     private const string ScanMode = "Scan";
 
-    /// <summary>摆臂的 Home 位：回零后轴在 0 位。</summary>
+    /// <summary>
+    /// 摆臂的 Home 位：回零后轴在 0 位
+    /// </summary>
     private const double HomePosition = 0;
 
     private const double MillisecondsPerSecond = 1000;
@@ -48,30 +52,16 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     /// </summary>
     private const int FinishingPercent = 99;
 
-    private enum Phase
-    {
-        Prepare,
-        BowlUp,
-        StepStart,
-        StepSpin,
-        StepArms,
-        StepNozzleOn,
-        StepDwell,
-        EndNozzles,
-        EndArms,
-        EndSpin,
-        EndBowls,
-        Done,
-    }
-
     private readonly BaseChamberModule _chamber;
     private readonly string _recipeName;
     private readonly IReadOnlyList<RecipeStep> _steps;
 
-    private Phase _phase;
+    private ChamberProcessPhase _phase;
     private int _index;
 
-    /// <summary>这一步的字段（没填为 null）。</summary>
+    /// <summary>
+    /// 这一步的字段（没填为 null）
+    /// </summary>
     private double _seconds;
     private double? _rpm;
     private double? _flow;
@@ -80,20 +70,30 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     private double? _scanSpeed;
     private bool _isScan;
 
-    /// <summary>这一步用的摆臂、喷嘴；不喷为 null。</summary>
+    /// <summary>
+    /// 这一步用的摆臂、喷嘴；不喷为 null
+    /// </summary>
     private ISwingArm? _arm;
     private INozzle? _nozzle;
 
-    /// <summary>上一次给卡盘的转速（一样就不重发）；还没给过为 null。</summary>
+    /// <summary>
+    /// 上一次给卡盘的转速（一样就不重发）；还没给过为 null
+    /// </summary>
     private double? _lastRpm;
 
-    /// <summary>这一步开始喷的时刻（本操作计时的毫秒数）；-1 = 还没开始。</summary>
+    /// <summary>
+    /// 这一步开始喷的时刻（本操作计时的毫秒数）；-1 = 还没开始
+    /// </summary>
     private long _dwellStart = -1;
 
-    /// <summary>Scan 下一趟往"到"走（false = 往"位置"走）。</summary>
+    /// <summary>
+    /// Scan 下一趟往"到"走（false = 往"位置"走）
+    /// </summary>
     private bool _towardScanTo;
 
-    /// <summary>Scan 到点时已经在半路发了停轴。</summary>
+    /// <summary>
+    /// Scan 到点时已经在半路发了停轴
+    /// </summary>
     private bool _scanStopped;
 
     /// <summary>
@@ -129,13 +129,15 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     /// </summary>
     public int Percent => _percent;
 
-    /// <summary>Scan 扫到一半到点了：当场停轴，停下来就进下一步（不等这一趟走完）。</summary>
+    /// <summary>
+    /// Scan 扫到一半到点了：当场停轴，停下来就进下一步（不等这一趟走完）
+    /// </summary>
     protected override void OnWaiting()
     {
         UpdatePercent();
 
         var arm = _arm;
-        if (_phase != Phase.StepDwell || !_isScan || arm is null || _scanStopped || _dwellStart < 0 || !IsDue())
+        if (_phase != ChamberProcessPhase.StepDwell || !_isScan || arm is null || _scanStopped || _dwellStart < 0 || !IsDue())
         {
             return;
         }
@@ -153,96 +155,96 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
 
         switch (_phase)
         {
-            case Phase.Prepare:
+            case ChamberProcessPhase.Prepare:
                 if (StopNozzles(null) && LiftsUp())
                 {
-                    _phase = Phase.BowlUp;
+                    _phase = ChamberProcessPhase.BowlUp;
                 }
 
                 break;
 
-            case Phase.BowlUp:
+            case ChamberProcessPhase.BowlUp:
                 if (MoveBowls(true))
                 {
-                    _phase = Phase.StepStart;
+                    _phase = ChamberProcessPhase.StepStart;
                 }
 
                 break;
 
-            case Phase.StepStart:
+            case ChamberProcessPhase.StepStart:
                 if (_index >= steps.Count)
                 {
-                    _phase = Phase.EndNozzles;
+                    _phase = ChamberProcessPhase.EndNozzles;
                     break;
                 }
 
                 // 换步先关掉这一步不用的喷嘴，再改转速、摆臂：不然卡盘加减速那段上一步的药液还在喷
                 if (LoadStep(steps[_index]) && StopNozzles(_nozzle))
                 {
-                    _phase = Phase.StepSpin;
+                    _phase = ChamberProcessPhase.StepSpin;
                 }
 
                 break;
 
-            case Phase.StepSpin:
+            case ChamberProcessPhase.StepSpin:
                 if (GiveRpm())
                 {
-                    _phase = Phase.StepArms;
+                    _phase = ChamberProcessPhase.StepArms;
                 }
 
                 break;
 
-            case Phase.StepArms:
+            case ChamberProcessPhase.StepArms:
                 if (MoveArms())
                 {
-                    _phase = Phase.StepNozzleOn;
+                    _phase = ChamberProcessPhase.StepNozzleOn;
                 }
 
                 break;
 
-            case Phase.StepNozzleOn:
+            case ChamberProcessPhase.StepNozzleOn:
                 if (OpenNozzle())
                 {
-                    _phase = Phase.StepDwell;
+                    _phase = ChamberProcessPhase.StepDwell;
                     _dwellStart = -1;
                 }
 
                 break;
 
-            case Phase.StepDwell:
+            case ChamberProcessPhase.StepDwell:
                 Dwell();
                 break;
 
-            case Phase.EndNozzles:
+            case ChamberProcessPhase.EndNozzles:
                 if (StopNozzles(null))
                 {
                     _arm = null;
-                    _phase = Phase.EndArms;
+                    _phase = ChamberProcessPhase.EndArms;
                 }
 
                 break;
 
-            case Phase.EndArms:
+            case ChamberProcessPhase.EndArms:
                 if (MoveArms())
                 {
-                    _phase = Phase.EndSpin;
+                    _phase = ChamberProcessPhase.EndSpin;
                 }
 
                 break;
 
-            case Phase.EndSpin:
+            case ChamberProcessPhase.EndSpin:
                 var spin = _chamber.SpinMotor;
                 if (spin is null || Send(spin, ChamberDeviceAction.Stop, spin.Stop))
                 {
-                    _phase = Phase.EndBowls;
+                    _phase = ChamberProcessPhase.EndBowls;
                 }
 
                 break;
 
-            case Phase.EndBowls:
+            case ChamberProcessPhase.EndBowls:
                 if (MoveBowls(false))
                 {
-                    _phase = Phase.Done;
+                    _phase = ChamberProcessPhase.Done;
                 }
 
                 break;
@@ -253,7 +255,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         }
     }
 
-    /// <summary>读这一步的字段，认出用哪条摆臂、哪个喷嘴；配方选的摆臂、药液这个腔体没有就失败（返回 false）。</summary>
+    /// <summary>
+    /// 读这一步的字段，认出用哪条摆臂、哪个喷嘴；配方选的摆臂、药液这个腔体没有就失败（返回 false）
+    /// </summary>
     private bool LoadStep(RecipeStep step)
     {
         _seconds = RecipeData.SecondsOf(step);
@@ -281,7 +285,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     /// 这一步选的摆臂、药液照名字在腔体里找：没选摆臂 arm 为 null（这一步不喷）；选了的找不到，回是哪个字段（字段名）、什么值。
     /// 执行时按它认设备；起工艺前、流程配方保存、Job 挑腔体也按它把每一步先查一遍（<see cref="BaseChamberModule.FindRecipeMismatch"/>）。
     /// </summary>
-    internal static (string Key, string Value)? FindDevices(BaseChamberModule chamber, RecipeStep step, out ISwingArm? arm, out INozzle? nozzle)
+    public static (string Key, string Value)? FindDevices(BaseChamberModule chamber, RecipeStep step, out ISwingArm? arm, out INozzle? nozzle)
     {
         arm = null;
         nozzle = null;
@@ -314,7 +318,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return false;
     }
 
-    /// <summary>转速给卡盘：0 停转，别的按转速转；跟上一步一样不重发；没填转速、没配卡盘不动。</summary>
+    /// <summary>
+    /// 转速给卡盘：0 停转，别的按转速转；跟上一步一样不重发；没填转速、没配卡盘不动
+    /// </summary>
     private bool GiveRpm()
     {
         var spin = _chamber.SpinMotor;
@@ -334,7 +340,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return Send(spin, ChamberDeviceAction.Spin, () => spin.Spin(speed));
     }
 
-    /// <summary>喷嘴停液，留下 keep（这一步接着用的那个，不关了再开）。</summary>
+    /// <summary>
+    /// 喷嘴停液，留下 keep（这一步接着用的那个，不关了再开）
+    /// </summary>
     private bool StopNozzles(INozzle? keep)
     {
         foreach (var nozzle in _chamber.Nozzles)
@@ -348,7 +356,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return true;
     }
 
-    /// <summary>别的摆臂回 Home；这一步的摆臂填了位置就摆过去。</summary>
+    /// <summary>
+    /// 别的摆臂回 Home；这一步的摆臂填了位置就摆过去
+    /// </summary>
     private bool MoveArms()
     {
         foreach (var arm in _chamber.Arms)
@@ -374,7 +384,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return true;
     }
 
-    /// <summary>开这一步的喷嘴：填了流量的先给流量（接了 AO 的下发，没接的只给流量计当监控目标），再开阀。</summary>
+    /// <summary>
+    /// 开这一步的喷嘴：填了流量的先给流量（接了 AO 的下发，没接的只给流量计当监控目标），再开阀
+    /// </summary>
     private bool OpenNozzle()
     {
         var nozzle = _nozzle;
@@ -392,7 +404,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return Send(nozzle, ChamberDeviceAction.ValveOn, nozzle.Open);
     }
 
-    /// <summary>喷：到点进下一步；Scan 没到点就往另一头走一趟。</summary>
+    /// <summary>
+    /// 喷：到点进下一步；Scan 没到点就往另一头走一趟
+    /// </summary>
     private void Dwell()
     {
         if (_dwellStart < 0)
@@ -404,7 +418,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         if (IsDue())
         {
             _index++;
-            _phase = Phase.StepStart;
+            _phase = ChamberProcessPhase.StepStart;
             return;
         }
 
@@ -435,15 +449,15 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
     {
         switch (_phase)
         {
-            case Phase.Prepare:
-            case Phase.BowlUp:
+            case ChamberProcessPhase.Prepare:
+            case ChamberProcessPhase.BowlUp:
                 _percent = 0;
                 return;
-            case Phase.EndNozzles:
-            case Phase.EndArms:
-            case Phase.EndSpin:
-            case Phase.EndBowls:
-            case Phase.Done:
+            case ChamberProcessPhase.EndNozzles:
+            case ChamberProcessPhase.EndArms:
+            case ChamberProcessPhase.EndSpin:
+            case ChamberProcessPhase.EndBowls:
+            case ChamberProcessPhase.Done:
                 _percent = FinishingPercent;
                 return;
             default:
@@ -469,7 +483,7 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
             done += _stepSeconds[step];
         }
 
-        if (_phase == Phase.StepDwell && _dwellStart >= 0)
+        if (_phase == ChamberProcessPhase.StepDwell && _dwellStart >= 0)
         {
             done += Math.Min(_seconds, (Watch.ElapsedMilliseconds - _dwellStart) / MillisecondsPerSecond);
         }
@@ -491,7 +505,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return true;
     }
 
-    /// <summary>Bowl 升（true）或降。</summary>
+    /// <summary>
+    /// Bowl 升（true）或降
+    /// </summary>
     private bool MoveBowls(bool up)
     {
         foreach (var bowl in _chamber.Bowls)
@@ -505,7 +521,9 @@ internal sealed class ChamberProcessOperation : ChamberStepOperation
         return true;
     }
 
-    /// <summary>这一步某个数字字段的值（不变区域性）；没填、不是有限数为 null。</summary>
+    /// <summary>
+    /// 这一步某个数字字段的值（不变区域性）；没填、不是有限数为 null
+    /// </summary>
     private static double? Number(RecipeStep step, string key)
     {
         if (double.TryParse(step.Get(key).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value) && double.IsFinite(value))

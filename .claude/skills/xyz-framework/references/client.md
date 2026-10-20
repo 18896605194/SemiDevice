@@ -217,6 +217,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **公共确认弹窗** `DialogService.ShowConfirm(标题, 说明, 确定按钮字, danger, showCancel)`：跟选择弹窗一个样子，说明多行、长了滚动；
   danger = 确定按钮红色（中止、删除这类），showCancel = false 只有一个按钮（只是告知）。以后 Job 页的停止 / 中止用它。
 - LogBar / AlarmBar 只在主窗口顶栏用。
+- 实时报警页上面的 AI 工具栏（`ShowWhenTagTrueStyle` 包着、Tag = `IsAiInstalled`）：连上后端问一次 `IAiService.GetStatusAsync`，配了 AI 才显示；
+  表格 `SelectedItem` 绑 `SelectedAlarm`（报警一变整表重建，按来源 + 代码接着选中原来那条），"AI 分析"结果用 `DialogService.ShowConfirm` 只一个按钮显示（见 backend.md §5「AI 助手」）。
 - **DispatchMap**（调度图，Robot 手动页左边和主界面中间共用）：给 `RobotName`（机械手模块名）就自己建 `DispatchMapViewModel`、订机械手和各站点的推送
   （都是留存消息，不用另外拉）；机械手在中间，站点按它 sc.xml `Stations` 的方向摆四周，每个站点一张 `StationCard`
   （`Kind` = LoadPort 用 `LoadPortInfoCard` 花篮卡，其他用 `ChamberInfoCard` 单片卡，用模板切、只建用得上的那张）。

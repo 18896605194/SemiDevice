@@ -2798,17 +2798,17 @@ sealed class SmokeChamber : BaseChamberModule
 
     public void Tick() => OnScan();
 
-    public override ModuleOperation? Home() => Begin(ChamberAction.Home, new SmokeMotion("Home", 1));
+    protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
 
-    protected override ModuleOperation? ResetDevice() => Begin(ChamberAction.Reset, new SmokeMotion("Reset", 1));
+    protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
 
-    protected override ModuleOperation? AbortDevice()
+    protected override ModuleOperation CreateAbortOperation()
     {
         Aborts++;
-        return Begin(ChamberAction.Abort, new SmokeMotion("Abort", 1));
+        return new SmokeMotion("Abort", 1);
     }
 
-    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request)
+    protected override ModuleOperation CreateProcessOperation(ProcessRequest request)
     {
         bool fail = FailNextProcess;
         FailNextProcess = false;

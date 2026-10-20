@@ -1,7 +1,6 @@
 ﻿using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
-using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Shared.Services;
@@ -11,7 +10,7 @@ namespace xyz.Service;
 
 /// <summary>
 /// 腔体手动操作 gRPC 服务（命令通道）：下发 → 同步等终态 → 码+参数回包。
-/// 公共流程（找模块、被拒/超时/终态回包）在 <see cref="BaseService"/>。
+/// 检查都在腔体的动作入口里（状态 → 资源 → 互锁），被拒照原样回入口给的原因；公共流程（找模块、被拒/超时/终态回包）在 <see cref="BaseService"/>。
 /// </summary>
 public class ChamberService : BaseService, IChamberService
 {
@@ -47,7 +46,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, chamber, chamber.Reset(), chamber.ResetTimeout);
+        return RunOperation(module, chamber, chamber.Reset(), chamber.CheckReset, chamber.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(string module)
@@ -58,7 +57,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, chamber, chamber.Abort(), chamber.AbortTimeout);
+        return RunOperation(module, chamber, chamber.Abort(), chamber.CheckAbort, chamber.AbortTimeout);
     }
 
     public Task<RpcResponse> ProcessAsync(ChamberProcessRequest request)
@@ -89,7 +88,7 @@ public class ChamberService : BaseService, IChamberService
             }
         }
 
-        // 腔里的片正在 Job 里：工艺归 Job 起，手动不能插一脚
+        // 腔里的片正在 Job 里：工艺归 Job 起，手动不能插一脚（只拦手动、不拦 Job 自己，所以留在发命令这一层）
         var wafer = _wafers?.Get(chamber.Name, 1);
         if (wafer is not null)
         {
@@ -100,15 +99,9 @@ public class ChamberService : BaseService, IChamberService
             }
         }
 
-        // 配方对不对得上这个腔体（Type、选的摆臂和药液）、腔体此刻能不能起，都由腔体自己查
+        // 配方对不对得上这个腔体（Type、选的摆臂和药液）、腔体此刻能不能起，都由腔体入口自己查；
+        // 起了就等到做完为止，上限跟工艺操作一样是配方头的超时时间
         var process = new ProcessRequest { Origin = ProcessOrigin.Manual, RecipeName = recipe, Recipe = snapshot };
-        var rejection = chamber.CheckProcess(process);
-        if (rejection is not null)
-        {
-            return Task.FromResult(RpcResponse.Fail(rejection.Code, rejection.Args));
-        }
-
-        // 等到做完为止，上限跟工艺操作一样是配方头的超时时间（查过了，这里一定有配方快照）
         int timeout = snapshot is null ? 0 : snapshot.TimeoutMilliseconds;
         return RunOperation(module, chamber, chamber.StartProcess(process), timeout);
     }
@@ -117,62 +110,76 @@ public class ChamberService : BaseService, IChamberService
 
     public Task<RpcResponse> AxisHomeAsync(ChamberDeviceRequest request)
     {
-        return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Home,
-            (IChamber chamber, out ModuleOperation? operation) => chamber.AxisHome(request.Device ?? string.Empty, out operation));
+        return RunDeviceAction(request.Module, chamber => chamber.AxisHome(request.Device ?? string.Empty));
     }
 
     public Task<RpcResponse> AxisMoveAsync(ChamberAxisMoveRequest request)
     {
-        return RunDeviceAction(request.Module, request.Axis, ChamberDeviceAction.Move,
-            (IChamber chamber, out ModuleOperation? operation) =>
-                chamber.AxisMove(request.Axis ?? string.Empty, request.Position, request.Speed, out operation));
+        return RunDeviceAction(request.Module, chamber => chamber.AxisMove(request.Axis ?? string.Empty, request.Position, request.Speed));
     }
 
     public Task<RpcResponse> AxisStepAsync(ChamberAxisStepRequest request)
     {
-        return RunDeviceAction(request.Module, request.Axis, ChamberDeviceAction.Step,
-            (IChamber chamber, out ModuleOperation? operation) =>
-                chamber.AxisStep(request.Axis ?? string.Empty, request.Distance, request.Speed, out operation));
+        return RunDeviceAction(request.Module, chamber => chamber.AxisStep(request.Axis ?? string.Empty, request.Distance, request.Speed));
     }
 
     public Task<RpcResponse> AxisResetAsync(ChamberDeviceRequest request)
     {
-        return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Reset,
-            (IChamber chamber, out ModuleOperation? operation) => chamber.AxisReset(request.Device ?? string.Empty, out operation));
+        return RunDeviceAction(request.Module, chamber => chamber.AxisReset(request.Device ?? string.Empty));
     }
 
     public Task<RpcResponse> CylinderUpAsync(ChamberDeviceRequest request)
     {
-        return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Up,
-            (IChamber chamber, out ModuleOperation? operation) => chamber.MoveCylinder(request.Device ?? string.Empty, true, out operation));
+        return RunDeviceAction(request.Module, chamber => chamber.MoveCylinder(request.Device ?? string.Empty, true));
     }
 
     public Task<RpcResponse> CylinderDownAsync(ChamberDeviceRequest request)
     {
-        return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Down,
-            (IChamber chamber, out ModuleOperation? operation) => chamber.MoveCylinder(request.Device ?? string.Empty, false, out operation));
+        return RunDeviceAction(request.Module, chamber => chamber.MoveCylinder(request.Device ?? string.Empty, false));
     }
 
-    /// <summary>点动：发起了就回 Ok，之后按住期间续、松手发停止。</summary>
+    /// <summary>
+    /// 点动：发起了就回 Ok（不等），之后按住期间续、松手发停止
+    /// </summary>
     public Task<RpcResponse> AxisJogAsync(ChamberAxisJogRequest request)
     {
-        return RunDeviceAction(request.Module, request.Axis, ChamberDeviceAction.Jog,
-            (IChamber chamber, out ModuleOperation? operation) =>
-            {
-                operation = null;
-                return chamber.AxisJog(request.Axis ?? string.Empty, request.Speed);
-            });
+        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
+        var module = request.Module ?? string.Empty;
+        var chamber = FindModule<IChamber>(module);
+        if (chamber is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        var started = chamber.AxisJog(request.Axis ?? string.Empty, request.Speed);
+        if (!started.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
+        }
+
+        return Task.FromResult(RpcResponse.Ok());
     }
 
-    /// <summary>停止：腔体正忙也照发，发出去就回 Ok。</summary>
+    /// <summary>
+    /// 停止：腔体正忙也照发，发出去就回 Ok
+    /// </summary>
     public Task<RpcResponse> AxisStopAsync(ChamberDeviceRequest request)
     {
-        return RunDeviceAction(request.Module, request.Device, ChamberDeviceAction.Stop,
-            (IChamber chamber, out ModuleOperation? operation) =>
-            {
-                operation = null;
-                return chamber.AxisStop(request.Device ?? string.Empty);
-            });
+        // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
+        var module = request.Module ?? string.Empty;
+        var chamber = FindModule<IChamber>(module);
+        if (chamber is null)
+        {
+            return ModuleNotFound(module);
+        }
+
+        var sent = chamber.AxisStop(request.Device ?? string.Empty);
+        if (!sent.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(sent.ErrorMessage, [.. sent.Args]));
+        }
+
+        return Task.FromResult(RpcResponse.Ok());
     }
 
     /// <summary>
@@ -194,43 +201,21 @@ public class ChamberService : BaseService, IChamberService
             : RpcResponse.Fail(ErrorCodes.ChamberJogNotHeld, [path, nameof(ChamberDeviceAction.Jog)]));
     }
 
-    /// <summary>发起设备动作：out 是挂上的操作（停止、点动没有）。</summary>
-    private delegate ChamberDeviceActionResult StartAction(IChamber chamber, out ModuleOperation? operation);
-
     /// <summary>
-    /// 发设备动作并回包：找不到设备、参数不对、指令没发出去各回各的码；状态不允许或已有动作在途走 module.action_rejected；
-    /// 普通动作发起了就同步等设备做完（上限 EC DeviceActionTimeout）；停止发出去、点动发起了就回。
+    /// 发设备动作并回包：被拒（找不到设备、参数不对、指令没发出去、状态不允许、已有动作在途）照原样回入口给的错误码 + 参数；
+    /// 发起了就同步等设备做完（上限 EC DeviceActionTimeout）
     /// </summary>
-    private Task<RpcResponse> RunDeviceAction(string? module, string? part, ChamberDeviceAction action, StartAction start)
+    private Task<RpcResponse> RunDeviceAction(string? module, Func<IChamber, HandleResult<ModuleOperation>> start)
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         module ??= string.Empty;
-        part ??= string.Empty;
         var chamber = FindModule<IChamber>(module);
         if (chamber is null)
         {
             return ModuleNotFound(module);
         }
 
-        string name = action.ToString();
-        switch (start(chamber, out var operation))
-        {
-            case ChamberDeviceActionResult.NotFound:
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberDeviceNotFound, [module, part]));
-
-            case ChamberDeviceActionResult.InvalidArgs:
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberDeviceArgsInvalid, [part, name]));
-
-            case ChamberDeviceActionResult.CommandRejected:
-                return Task.FromResult(RpcResponse.Fail(ErrorCodes.ChamberDeviceCommandRejected, [part, name]));
-
-            case ChamberDeviceActionResult.Sent:
-            case ChamberDeviceActionResult.Holding:
-                return Task.FromResult(RpcResponse.Ok());
-
-            default:
-                return RunOperation(module, chamber, operation, chamber.DeviceActionTimeout);
-        }
+        return RunOperation(module, chamber, start(chamber), chamber.DeviceActionTimeout);
     }
 
     #endregion

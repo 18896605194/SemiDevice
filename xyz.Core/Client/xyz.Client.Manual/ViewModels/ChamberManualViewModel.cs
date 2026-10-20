@@ -698,17 +698,17 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// <summary>
     /// 失败原因：有错误码按语言包翻，老接口没码才用 Message。
     /// 设备动作的错误码第二个参数是动作名（ChamberDeviceAction，如 Move），先换成语言包里的叫法，中文界面不露英文；
-    /// 设备路径照 sc 原样显示，不翻。
+    /// 设备路径照 sc 原样显示，不翻。别的码（状态不允许这类）跟 LoadPort、机械手页一样走公共的 ErrorText，状态码翻成腔体的状态字
     /// </summary>
     private static string ReasonOf(RpcResponse response)
     {
-        if (string.IsNullOrEmpty(response.Code))
+        if (string.IsNullOrEmpty(response.Code) || !DeviceActionCodes.Contains(response.Code))
         {
-            return response.Message;
+            return ErrorText.Of(response, ModuleStates.ChamberText);
         }
 
         var args = response.Args.ToList();
-        if (DeviceActionCodes.Contains(response.Code) && args.Count > 1)
+        if (args.Count > 1)
         {
             args[1] = DeviceActionText.Of(args[1]);
         }

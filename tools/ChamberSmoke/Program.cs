@@ -19,6 +19,7 @@ using xyz.Shared.Errors;
 using xyz.Tools;
 
 // 腔体冒烟：照 sc 认设备（轴表、气缸表、喷嘴表，门 / Bowl / Lift / 卡盘 / 摆臂和它上面的喷嘴），气缸三态、喷嘴、卡盘、摆臂 Reach，有变化才推；
+// 动作入口跟 LoadPort、机械手一样走 状态 → 资源 → 互锁，被拒带原因（状态不允许带状态码、停用，复位 / 中止被拒再问原因）；
 // 设备手动动作（找不到、参数不对、指令没发出去、执行中 Manual、在途拒绝、Abort 顶替、失败、停用、停止腔体忙也照发、
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
@@ -97,6 +98,8 @@ try
 
     Check(door.InitComponent() && bowl.InitComponent() && lift.InitComponent() && diw.InitComponent() && sc1.InitComponent(),
         "门、Bowl、Lift、喷嘴的组件初始化：认出到位反馈、流量开关");
+    // 腔体自己的组件初始化（开机由装配器调）：照 sc 认一遍腔体里装的设备存起来；这时没装晶圆账，不登记槽位（第 17 节再测登记）
+    Check(chamber.InitComponent(), "腔体的组件初始化：认出腔体里装的设备");
     // 开机 Bind：设备取 IO 组件
     ComponentLoader.BindAll([chamber]);
     var service = new ChamberService();
@@ -235,6 +238,7 @@ try
     flexibleConfig.Children.Add(Node("Bowl99", typeof(CylinderComponent)));
     flexibleConfig.Children.Add(Node("InnerCup", typeof(ChamberBowlComponent)));
     var flexible = (SmokeChamber)SmokeIoc.Load([flexibleConfig]).Single();
+    Check(flexible.InitComponent(), "改名的腔体组件初始化：照 sc 认设备");
     Check(flexible.Door?.Name == "FrontGate", "改名的腔门按接口识别，普通气缸叫 Door 也不会被认成腔门");
     Check(flexible.Bowls.Select(item => item.Name).SequenceEqual(["OuterCup", "InnerCup"]),
         "多层接液杯按接口识别，普通气缸叫 Bowl99 也不会混进来");
@@ -250,7 +254,7 @@ try
     interfaceConfig.Children = [Node("AccessGate", typeof(InterfaceDoorProbe)), Node("Collector", typeof(InterfaceBowlProbe))];
     var interfaceChamber = (SmokeChamber)SmokeIoc.Load([interfaceConfig]).Single();
     Check(interfaceChamber.InitComponent(), "只提供部件接口的腔体初始化成功");
-    var interfaceHome = interfaceChamber.Home();
+    var interfaceHome = interfaceChamber.Home().Result;
     for (int index = 0; index < 8; index++)
     {
         interfaceChamber.Tick();
@@ -506,11 +510,20 @@ try
     Tick(3);
     Check(!opening.IsCompleted && chamber.State == ChamberState.Manual, "门在走：模块落 Manual（120），RPC 还在等");
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Bowl1")));
-    Check(!response.Success && response.Code == ErrorCodes.ActionRejected
-        && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]), "一个设备动作在途时别的动作被拒");
+    Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed
+        && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]),
+        "一个设备动作在途时别的动作被拒：腔体在手动中，回 module.state_not_allowed [模块, 状态码]");
     Check(!plc.ReadDo(2), "被拒的动作没发指令（Bowl 线圈没通）");
     response = Run(() => service.AxisJogAsync(new ChamberAxisJogRequest { Module = "Chamber9", Axis = "Chamber9.SpinMotor", Speed = 50 }));
-    Check(!response.Success && response.Code == ErrorCodes.ActionRejected && !spin.IsBusy, "在途时点动也被拒");
+    Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed && !spin.IsBusy, "在途时点动也被拒");
+    response = Run(() => service.HomeAsync("Chamber9"));
+    Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed
+        && response.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]) && chamber.State == ChamberState.Manual,
+        "设备动作在途时回零被拒：入口带原因（状态不允许 + 状态码），在途的门照走");
+    var busyProcess = chamber.CheckProcess(Recipe("Busy", StepOf(("Seconds", "1"))));
+    Check(busyProcess is not null && busyProcess.ErrorMessage == ErrorCodes.ModuleStateNotAllowed
+        && busyProcess.Args.SequenceEqual(["Chamber9", ChamberState.Manual.ToString()]),
+        "设备动作在途时起工艺被拒：先查状态（状态 → 资源 → 互锁），配方再对也不起");
     response = Run(() => service.AxisStopAsync(Device("Chamber9.Arm1")));
     Check(response.Success && chamber.State == ChamberState.Manual, "停止腔体正忙也照发、发出去就回，不动在途的门");
     plc.HoldCylinders = false;
@@ -578,7 +591,7 @@ try
     Check(!response.Success && response.Code == ErrorCodes.ChamberJogNotHeld
         && response.Args.SequenceEqual(["Chamber9.Arm1", "Jog"]), "续的不是正按着的轴：chamber.jog_not_held");
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Bowl1")));
-    Check(!response.Success && response.Code == ErrorCodes.ActionRejected, "点动按住期间别的普通动作被拒");
+    Check(!response.Success && response.Code == ErrorCodes.ModuleStateNotAllowed, "点动按住期间别的普通动作被拒");
     response = Run(() => service.AxisStopAsync(Device("Chamber9.SpinMotor")));
     Check(response.Success, "松手发停止（腔体忙也照发）");
     WaitIdle("松手后等停下就退出手动中");
@@ -698,10 +711,11 @@ try
     double sc1TargetSeen = 0;
     ModuleOperation RunProcess(ProcessRequest request, Func<bool>? until = null)
     {
-        var operation = chamber.StartProcess(request);
-        if (operation is null)
+        var started = chamber.StartProcess(request);
+        var operation = started.Result;
+        if (!started.IsSuccess || operation is null)
         {
-            throw new InvalidOperationException("FAIL: 工艺应能发起");
+            throw new InvalidOperationException($"FAIL: 工艺应能发起，实际被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
         }
 
         return Drive(operation, until);
@@ -799,22 +813,27 @@ try
 
     var noSteps = new ProcessRequest { RecipeName = "NoLibrary" };
     var rejected = chamber.CheckProcess(noSteps);
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeStepsMissing && rejected.Args.SequenceEqual(["Chamber9", "NoLibrary"])
-        && chamber.StartProcess(noSteps) is null && chamber.State == ModuleState.Idle,
-        "没有配方步骤（没装工艺配方库，只有名字）：起工艺前就挡下 chamber.recipe_steps_missing，腔体不动");
+    var noStepsStarted = chamber.StartProcess(noSteps);
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberRecipeStepsMissing && rejected.Args.SequenceEqual(["Chamber9", "NoLibrary"])
+        && !noStepsStarted.IsSuccess && noStepsStarted.ErrorMessage == ErrorCodes.ChamberRecipeStepsMissing && chamber.State == ModuleState.Idle,
+        "没有配方步骤（没装工艺配方库，只有名字）：起工艺前就挡下 chamber.recipe_steps_missing，入口原样带回原因，腔体不动");
     var otherType = Recipe("OtherType", StepOf(("Seconds", "1")));
     otherType.Recipe!.Type = "B";
     rejected = chamber.CheckProcess(otherType);
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args.SequenceEqual(["Chamber9", "OtherType", "Type", "B"]),
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args.SequenceEqual(["Chamber9", "OtherType", "Type", "B"]),
         "配方的 Type（B）跟腔体的（没配）不一样：起工艺前就挡下，报字段 Type 和配方的 Type");
     var wrongArm = Recipe("WrongArm", StepOf(("Seconds", "1"), ("Arm", "Arm2")));
     rejected = chamber.CheckProcess(wrongArm);
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args.SequenceEqual(["Chamber9", "WrongArm", "Arm", "Arm2"]),
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args.SequenceEqual(["Chamber9", "WrongArm", "Arm", "Arm2"]),
         "配方选的摆臂这个腔体没有：起工艺前就挡下 chamber.recipe_option_missing（没装工艺配方库，报字段名）");
     rejected = chamber.CheckProcess(Recipe("WrongChemical", StepOf(("Seconds", "1"), ("Arm", "Arm1"), ("Chemical", "HF"))));
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args[2] == "Chemical" && rejected.Args[3] == "HF",
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberRecipeOptionMissing && rejected.Args[2] == "Chemical" && rejected.Args[3] == "HF",
         "这条摆臂上没有这种药液的喷嘴：起工艺前就挡下");
-    Check(chamber.StartProcess(wrongArm) is null && chamber.State == ModuleState.Idle, "挡下的不起工艺，腔体不动");
+    Check(!chamber.StartProcess(wrongArm).IsSuccess && chamber.State == ModuleState.Idle, "挡下的不起工艺，腔体不动");
+    var outOfSlot = new ProcessRequest { RecipeName = "Clean", Recipe = process.Recipe, Slot = 2 };
+    rejected = chamber.CheckProcess(outOfSlot);
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberWaferMismatch && rejected.Args.SequenceEqual(["Chamber9", "2"]),
+        "槽号超出腔体的片位数：chamber.wafer_mismatch [腔体, 槽号]");
     var failed = RunProcess(Recipe("TooFast", StepOf(("Seconds", "1"), ("Rpm", "5000"))));
     Check(failed.Code == ErrorCodes.ChamberDeviceCommandRejected && failed.ErrorArgs.SequenceEqual(["Chamber9.SpinMotor", "Spin"]),
         "转速超出卡盘 EC MaxSpeed：转速指令发不出去");
@@ -824,7 +843,7 @@ try
         "超过配方头的超时时间（1 s）：chamber.action_timeout [模块, ms]");
     Check(!plc.ReadDo(6), "工艺失败先把喷嘴停了");
     ResetChamber();
-    var aborting = chamber.StartProcess(Recipe("Abort", StepOf(("Seconds", "30"), ("Arm", "Arm1"), ("Chemical", "DIW"), ("Position", "150"))));
+    var aborting = chamber.StartProcess(Recipe("Abort", StepOf(("Seconds", "30"), ("Arm", "Arm1"), ("Chemical", "DIW"), ("Position", "150")))).Result;
     var watchAbort = Stopwatch.StartNew();
     while (!plc.ReadDo(6) && watchAbort.ElapsedMilliseconds < 5000)
     {
@@ -897,9 +916,18 @@ try
 
     // 16. 停用的腔体不发设备动作
     var disabled = (SmokeChamber)SmokeIoc.Load([ChamberConfig("Chamber8", enabled: false)]).Single();
+    Check(disabled.InitComponent() && disabled.Door is not null, "停用的腔体也做组件初始化：照样认设备（推送、手动页看得到），不占账");
     var disabledService = new ChamberService();
-    var disabledResponse = disabledService.CylinderUpAsync(Device("Chamber8.Door", "Chamber8")).Result;
-    Check(!disabledResponse.Success && disabledResponse.Code == ErrorCodes.ActionRejected, "停用的腔体设备动作被拒");
+    bool Disabled(RpcResponse reply)
+    {
+        return !reply.Success && reply.Code == ErrorCodes.ModuleDisabled && reply.Args.SequenceEqual(["Chamber8"]);
+    }
+
+    Check(Disabled(disabledService.CylinderUpAsync(Device("Chamber8.Door", "Chamber8")).Result), "停用的腔体设备动作被拒：module.disabled [模块]");
+    Check(Disabled(disabledService.HomeAsync("Chamber8").Result), "停用的腔体回零被拒：module.disabled");
+    Check(Disabled(disabledService.ResetAsync("Chamber8").Result) && Disabled(disabledService.AbortAsync("Chamber8").Result),
+        "停用的腔体复位、中止被拒：服务再问 CheckReset / CheckAbort 拿到原因（module.disabled）");
+    Check(disabled.State == ModuleState.NotInit && disabled.CurrentOperation is null, "停用的腔体被拒的动作都没挂上，状态不动");
 
     // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
     //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
@@ -1072,9 +1100,9 @@ try
     ipa.IsReady = true;
     var useSupply = Recipe("UseSupply", StepOf(("Seconds", "0.1"), ("Arm", "Arm1"), ("Chemical", "SC1"), ("Position", "150")));
     rejected = chamber.CheckProcess(useSupply);
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberSupplyNotReady && rejected.Args.SequenceEqual(["Chamber9", "UseSupply", "H2SO4"]),
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberSupplyNotReady && rejected.Args.SequenceEqual(["Chamber9", "UseSupply", "H2SO4"]),
         "配了 IPA、H2SO4，H2SO4 没就绪：起工艺前挡下 chamber.supply_not_ready [腔体, 配方, 供液模块名]（大小写、空格、重复都认）");
-    Check(chamber.StartProcess(useSupply) is null && chamber.State == ModuleState.Idle, "挡下的不起工艺，腔体不动");
+    Check(!chamber.StartProcess(useSupply).IsSuccess && chamber.State == ModuleState.Idle, "挡下的不起工艺，腔体不动");
 
     sulfuric.IsReady = true;
     Check(chamber.CheckProcess(useSupply) is null, "都就绪了：能起");
@@ -1083,13 +1111,13 @@ try
     var done = Drive(running);
     Check(done.IsSuccess && chamber.State == ModuleState.Idle, "开工以后供液掉了不管：只看开工这一下，照样做完");
     rejected = chamber.CheckProcess(useSupply);
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberSupplyNotReady && rejected.Args[2] == "IPA", "下一次开工再看：IPA 没就绪，挡下");
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberSupplyNotReady && rejected.Args[2] == "IPA", "下一次开工再看：IPA 没就绪，挡下");
     Check(chamber.SupplyCheckEnabled, "EC SupplyCheckEnabled 默认开着");
     chamber.SupplyCheckEnabled = false;
     Check(chamber.CheckProcess(useSupply) is null, "EC 关了（调试时供液还没调好）：不看供液，IPA 没就绪也能起");
     chamber.SupplyCheckEnabled = true;
     rejected = chamber.CheckProcess(useSupply);
-    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberSupplyNotReady, "EC 再打开：当场又看，挡下（不用重启）");
+    Check(rejected is not null && rejected.ErrorMessage == ErrorCodes.ChamberSupplyNotReady, "EC 再打开：当场又看，挡下（不用重启）");
 
     chamber.Supply = string.Empty;
     chamber.Bind();
@@ -1097,7 +1125,8 @@ try
 
     Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
         + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
-        + "command rejected, Manual state, busy rejection, stop while busy, abort replacement, failure to Error, axis end to end, "
+        + "command rejected, Manual state, rejections with their reasons (state not allowed with the state code, disabled, reset / abort asked for the reason), "
+        + "stop while busy, abort replacement, failure to Error, axis end to end, "
         + "jog hold / renew / release, hold timeout auto stop, cylinders up / down; platform Home order (spin homed too), "
         + "prepare transfer 2 (spin to transfer position + door, unhomed spin fails), Reset, Abort; "
         + "process by recipe: lift / bowl up, rpm, arm to wafer position, nozzle by chemical with flow, Time / Scan, finish, "

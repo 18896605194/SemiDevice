@@ -138,11 +138,35 @@ public abstract class BaseService
     }
 
     /// <summary>
-    /// 下发腔体动作并同步等终态（回包规则见私有重载）。
+    /// 下发腔体的动作（"状态 → 资源 → 互锁"入口，跟 LoadPort 一样）：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
     protected static Task<RpcResponse> RunOperation(string module, IChamber chamber,
-        ModuleOperation? operation, int timeout)
+        HandleResult<ModuleOperation> started, int timeout)
     {
+        if (!started.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
+        }
+
+        return RunOperation("Chamber", module, chamber.State, started.Result, timeout);
+    }
+
+    /// <summary>
+    /// 下发腔体的复位、中止：跟着组件基类返回动作或 null，被拒了再问原因（whyRejected，就是腔体的 CheckReset / CheckAbort）回给界面；
+    /// 问不出原因的回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
+    /// </summary>
+    protected static Task<RpcResponse> RunOperation(string module, IChamber chamber,
+        ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
+    {
+        if (operation is null)
+        {
+            var rejected = whyRejected();
+            if (rejected is not null)
+            {
+                return Task.FromResult(RpcResponse.Fail(rejected.ErrorMessage, [.. rejected.Args]));
+            }
+        }
+
         return RunOperation("Chamber", module, chamber.State, operation, timeout);
     }
 

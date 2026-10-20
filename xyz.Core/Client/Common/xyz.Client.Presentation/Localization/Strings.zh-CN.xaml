@@ -108,6 +108,11 @@
     <sys:String x:Key="tank.not_ready">{0} 不是就绪，先补液再供液</sys:String>
     <sys:String x:Key="tank.valve_failed">{0} 的 {1} 阀组有阀开不了（PLC 没连上或 DO 点没配），已经全关回去</sys:String>
     <sys:String x:Key="tank.close_failed">{0} 有阀没关上（PLC 没连上或 DO 点没配）</sys:String>
+    <sys:String x:Key="ai.not_installed">这台机没配 AI（sc.xml 的 Ai 节点）</sys:String>
+    <sys:String x:Key="ai.alarm_not_found">{0} 的报警 {1} 已经没了（可能已经复位）</sys:String>
+    <sys:String x:Key="ai.timeout">AI 超过 {0} ms 没回答</sys:String>
+    <sys:String x:Key="ai.failed">AI 服务出错：{0}</sys:String>
+    <sys:String x:Key="ai.empty_answer">AI 没给出回答</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} 等了 {1} ms 还没空出来（没回到待命状态，或一直被别的机械手占着）</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0} 搬运准备（第 {1} 步）被拒：站点当前状态不允许，可能被人工动过</sys:String>
@@ -311,6 +316,12 @@
     <sys:String x:Key="alarmview.action">动作</sys:String>
     <sys:String x:Key="alarmview.duration">持续</sys:String>
     <sys:String x:Key="alarmview.keyword_hint">关键字（来源 / 代码 / 内容）</sys:String>
+    <sys:String x:Key="alarmview.ai_explain">AI 分析</sys:String>
+    <sys:String x:Key="alarmview.ai_tip">选中一条报警再点；AI 的建议仅供参考，以现场确认为准</sys:String>
+    <sys:String x:Key="alarmview.ai_running">AI 正在分析 {0} 的报警：{1}</sys:String>
+    <sys:String x:Key="alarmview.ai_failed">AI 分析没做成：{0}</sys:String>
+    <sys:String x:Key="alarmview.ai_title">AI 分析：{0} {1}</sys:String>
+    <sys:String x:Key="alarmview.ai_basis">参考了 {0} 条日志、{1} 个信号；模型 {2}，用时 {3:0.0} 秒。AI 的建议仅供参考，以现场确认为准。</sys:String>
     <sys:String x:Key="alarmview.action.raised">报出</sys:String>
     <sys:String x:Key="alarmview.action.cleared">清除</sys:String>
 

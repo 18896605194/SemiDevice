@@ -11,44 +11,68 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <!--  当前报警（只显示，没有操作按钮；条数看顶栏报警栏）：最新的在最上面；等级按颜色区分，处理建议悬停看全文  -->
-        <materialDesign:Card
-            Margin="8"
-            Style="{DynamicResource DefaultCardStyle}">
-            <DataGrid ItemsSource="{Binding Alarms}" Style="{DynamicResource CompactDataGridStyle}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn
-                        Width="200"
-                        Binding="{Binding RaisedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
-                        ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                        Header="{DynamicResource alarmview.raised_at}" />
-                    <DataGridTextColumn
-                        Width="110"
-                        Binding="{Binding Level}"
-                        ElementStyle="{DynamicResource AlarmLevelDataGridTextStyle}"
-                        Header="{DynamicResource alarmview.level}" />
-                    <DataGridTextColumn
-                        Width="160"
-                        Binding="{Binding Source}"
-                        ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                        Header="{DynamicResource alarmview.source}" />
-                    <DataGridTextColumn
-                        Width="*"
-                        Binding="{Binding Text}"
-                        ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                        Header="{DynamicResource alarmview.text}" />
-                    <DataGridTextColumn
-                        Width="180"
-                        Binding="{Binding Category}"
-                        ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                        Header="{DynamicResource alarmview.category}" />
-                    <DataGridTextColumn
-                        Width="*"
-                        Binding="{Binding Solution}"
-                        ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
-                        Header="{DynamicResource alarmview.solution}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </materialDesign:Card>
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--  AI 工具栏：后端配了 AI 才有；选中一条报警点"AI 分析"，结果弹窗显示（只给建议，不动设备）  -->
+            <Grid
+                Margin="0,0,0,8"
+                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                Tag="{Binding IsAiInstalled}">
+                <Border Style="{DynamicResource ToolbarBorderStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <Button
+                            Command="{Binding ExplainCommand}"
+                            Content="{DynamicResource alarmview.ai_explain}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
+                        <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource alarmview.ai_tip}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!--  当前报警（条数看顶栏报警栏）：最新的在最上面；等级按颜色区分，处理建议悬停看全文  -->
+            <materialDesign:Card Grid.Row="1" Style="{DynamicResource DefaultCardStyle}">
+                <DataGrid
+                    ItemsSource="{Binding Alarms}"
+                    SelectedItem="{Binding SelectedAlarm}"
+                    Style="{DynamicResource CompactDataGridStyle}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Width="200"
+                            Binding="{Binding RaisedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                            Header="{DynamicResource alarmview.raised_at}" />
+                        <DataGridTextColumn
+                            Width="110"
+                            Binding="{Binding Level}"
+                            ElementStyle="{DynamicResource AlarmLevelDataGridTextStyle}"
+                            Header="{DynamicResource alarmview.level}" />
+                        <DataGridTextColumn
+                            Width="160"
+                            Binding="{Binding Source}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource alarmview.source}" />
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding Text}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource alarmview.text}" />
+                        <DataGridTextColumn
+                            Width="180"
+                            Binding="{Binding Category}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource alarmview.category}" />
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding Solution}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource alarmview.solution}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </materialDesign:Card>
+        </Grid>
     </Grid>
 </UserControl>

@@ -4370,7 +4370,7 @@ sealed class ProbeFeedbackArm : RobotArmComponent
     public override bool? HasWafer => Feedback;
 }
 
-// 探针腔体：只占个名字和类型（主界面那一节验站点类型、系统设置的腔体名单），不做动作。
+// 探针腔体：只占个名字和类型（主界面那一节验站点类型、系统设置的腔体名单）；复位的设备动作由冒烟摆（NextReset），一拍一拍地推。
 sealed class ProbeChamber : BaseChamberModule
 {
     public ProbeChamber(string name)
@@ -4379,28 +4379,13 @@ sealed class ProbeChamber : BaseChamberModule
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
-    public override ModuleOperation? Home() => null;
-
     public ProbeOperation? NextReset { get; set; }
 
     public void NoteState(int state) => State = state;
 
     public void Tick() => OnScan();
 
-    protected override ModuleOperation? ResetDevice()
-    {
-        var operation = NextReset;
-        if (operation is null)
-        {
-            return null;
-        }
-
-        return Begin(ChamberAction.Reset, operation);
-    }
-
-    protected override ModuleOperation? AbortDevice() => null;
-
-    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
+    protected override ModuleOperation CreateResetOperation() => NextReset ?? new ProbeOperation();
 }
 
 // 探针普通站点（对中台这类）：能放片，既不是 LoadPort 也不是腔体。

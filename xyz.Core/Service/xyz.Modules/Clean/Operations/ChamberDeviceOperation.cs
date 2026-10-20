@@ -1,10 +1,8 @@
-﻿using xyz.Components;
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
-
-using xyz.Components.Interfaces;
 
 namespace xyz.Modules;
 
@@ -13,30 +11,30 @@ namespace xyz.Modules;
 /// 做完就成功；设备判失败（到位超时、轴报错、PLC 断了）就失败；设备被中止回到 Idle 算中止。
 /// 设备都有自己的超时，EC DeviceActionTimeout 只是兜底，免得腔体一直停在"手动中"。
 /// </summary>
-internal sealed class ChamberDeviceOperation : ModuleOperation
+public sealed class ChamberDeviceOperation : ModuleOperation
 {
-    private readonly IDeviceComponent _part;
+    private readonly IDeviceComponent _device;
     private readonly ChamberDeviceAction _action;
     private readonly int _timeout;
 
-    public ChamberDeviceOperation(IDeviceComponent part, ChamberDeviceAction action, int timeout)
-        : base($"{part.FullPath} {action}")
+    public ChamberDeviceOperation(IDeviceComponent device, ChamberDeviceAction action, int timeout)
+        : base($"{device.FullPath} {action}")
     {
-        _part = part;
+        _device = device;
         _action = action;
         _timeout = timeout;
     }
 
     protected override void OnScan()
     {
-        switch (_part.ActionState)
+        switch (_device.ActionState)
         {
             case ActionState.Completed:
                 Complete();
                 return;
 
             case ActionState.Failed:
-                Fail(ErrorCodes.ChamberDeviceActionFailed, $"{Name}：设备报失败（到位超时或设备报错）", _part.FullPath, _action.ToString());
+                Fail(ErrorCodes.ChamberDeviceActionFailed, $"{Name}：设备报失败（到位超时或设备报错）", _device.FullPath, _action.ToString());
                 return;
 
             case ActionState.Idle:
@@ -46,7 +44,7 @@ internal sealed class ChamberDeviceOperation : ModuleOperation
 
         if (Watch.ElapsedMilliseconds > _timeout)
         {
-            Fail(ErrorCodes.ChamberDeviceActionFailed, $"{Name}：等了 {_timeout}ms 还没做完", _part.FullPath, _action.ToString());
+            Fail(ErrorCodes.ChamberDeviceActionFailed, $"{Name}：等了 {_timeout}ms 还没做完", _device.FullPath, _action.ToString());
         }
     }
 }

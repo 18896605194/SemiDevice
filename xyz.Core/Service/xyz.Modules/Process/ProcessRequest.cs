@@ -1,14 +1,18 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 工艺是谁起的。
+/// 工艺是谁起的
 /// </summary>
 public enum ProcessOrigin
 {
-    /// <summary>腔体手动页起的。</summary>
+    /// <summary>
+    /// 腔体手动页起的
+    /// </summary>
     Manual,
 
-    /// <summary>Job 起的。</summary>
+    /// <summary>
+    /// Job 起的
+    /// </summary>
     Job,
 }
 
@@ -18,28 +22,38 @@ public enum ProcessOrigin
 /// </summary>
 public sealed record ProcessRequest
 {
+    /// <summary>
+    /// 谁起的：手动页还是 Job
+    /// </summary>
     public ProcessOrigin Origin { get; init; } = ProcessOrigin.Manual;
 
-    /// <summary>起工艺的 Job（PJ 名）；手动为空。</summary>
+    /// <summary>
+    /// 起工艺的 Job（PJ 名）；手动为空
+    /// </summary>
     public string? Owner { get; init; }
 
-    /// <summary>要做的那一片（晶圆账内部标识）；空 = 腔里现在那一片（手动起工艺）。</summary>
+    /// <summary>
+    /// 要做的那一片（晶圆账内部标识）；空 = 腔里现在那一片（手动起工艺）
+    /// </summary>
     public Guid? WaferId { get; init; }
 
-    /// <summary>腔体里的槽号（一般腔体只有 1 槽）。</summary>
+    /// <summary>
+    /// 腔体里的槽号（一般腔体只有 1 槽）
+    /// </summary>
     public int Slot { get; init; } = 1;
 
-    /// <summary>Job 路线上第几步（手动为 -1）。</summary>
+    /// <summary>
+    /// Job 路线上第几步（手动为 -1）
+    /// </summary>
     public int Step { get; init; } = -1;
 
-    /// <summary>工艺配方名。</summary>
+    /// <summary>
+    /// 工艺配方名
+    /// </summary>
     public required string RecipeName { get; init; }
 
-    /// <summary>工艺配方快照；没装工艺配方库时为 null（只认名字）。</summary>
+    /// <summary>
+    /// 工艺配方快照；没装工艺配方库时为 null（只认名字）
+    /// </summary>
     public RecipeData? Recipe { get; init; }
 }
-
-/// <summary>
-/// 起不了工艺的原因（错误码 + 参数，界面按码查语言包）。
-/// </summary>
-public sealed record ProcessRejection(string Code, IReadOnlyList<string> Args);

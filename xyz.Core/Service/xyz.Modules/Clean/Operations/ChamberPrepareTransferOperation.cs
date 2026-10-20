@@ -7,7 +7,7 @@ namespace xyz.Modules;
 /// 两样同时发、都到位才算准备好，机械手才伸手进来。卡盘转位和开门互不碰，同时做省时间。
 /// 卡盘先发：没回零（绝对定位发不出去）就直接失败，门不开。sc 里没配卡盘或门的那一样就不动。
 /// </summary>
-internal sealed class ChamberPrepareTransferOperation : ChamberStepOperation
+public sealed class ChamberPrepareTransferOperation : ChamberStepOperation
 {
     private readonly BaseChamberModule _chamber;
     private int _stage;

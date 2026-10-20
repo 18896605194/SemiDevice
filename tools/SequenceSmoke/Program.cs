@@ -376,6 +376,9 @@ try
                 Probe.Name(nozzle, "Nozzle_" + chemical);
                 arm.AddChild(nozzle);
             }
+
+            // 跟开机一样：腔体的组件初始化照树认出装上去的摆臂、喷嘴
+            chamber.InitComponent();
         }
 
         Mount(pm1, "DIW");
@@ -459,21 +462,13 @@ sealed class ProbePort : BaseLoadPortModule
     // 没挂驱动：动作入口一律回"停用或驱动没装好"，不用再一个个改成回 null
 }
 
-// 探针腔体：要工艺配方的那一类站点。
+// 探针腔体：要工艺配方的那一类站点（不做动作，冒烟里也不让它做）。
 sealed class ProbeChamber : BaseChamberModule
 {
     public ProbeChamber(string name, string? group = null)
     {
         Probe.Name(this, name, group);
     }
-
-    public override ModuleOperation? Home() => null;
-
-    protected override ModuleOperation? ResetDevice() => null;
-
-    protected override ModuleOperation? AbortDevice() => null;
-
-    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
 }
 
 // 探针热板：能做工艺、但不是腔体（只实现 IProcessStation，没有轴和气缸）。
@@ -493,9 +488,10 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
 
     public (string Field, string Value)? FindRecipeMismatch(RecipeData recipe) => null;
 
-    public ProcessRejection? CheckProcess(ProcessRequest request) => null;
+    public HandleResult? CheckProcess(ProcessRequest request) => null;
 
-    public ModuleOperation? StartProcess(ProcessRequest request) => null;
+    public HandleResult<ModuleOperation> StartProcess(ProcessRequest request) =>
+        HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public int TodayWafers => 0;
 

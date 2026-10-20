@@ -7,9 +7,9 @@ namespace xyz.Modules;
 /// 腔体回零（平台默认做法，照 sc 里挂的设备走）：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂、卡盘回零 → Bowl 降，门不动（门归站点交互环管）。
 /// 每一段同时发、等都做完再走下一段；Lift 先升起来，摆臂回零时才不会刮到 Bowl 壁。卡盘要先停稳再回零；
 /// 卡盘回过零，取放准备才能按绝对位置转到取放位。sc 里没配的设备那一段就空着过去；别的轴跟摆臂一起回零。
-/// 机型的先后不一样就重写腔体的 Home。
+/// 机型的先后不一样就重写腔体的 CreateHomeOperation。
 /// </summary>
-internal sealed class ChamberHomeOperation : ChamberStepOperation
+public sealed class ChamberHomeOperation : ChamberStepOperation
 {
     private readonly BaseChamberModule _chamber;
     private int _stage;

@@ -1,10 +1,9 @@
 ﻿using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
-
-using xyz.Components.Interfaces;
 
 namespace xyz.Modules;
 
@@ -14,20 +13,26 @@ namespace xyz.Modules;
 /// 按住期间腔体一直在"手动中"，别的普通动作发不进来；轴中途报失败先发停止再判失败。
 /// 续、松手在 RPC 线程，扫描在模块线程，两边只碰两个原子字段。
 /// </summary>
-internal sealed class ChamberHoldOperation : ModuleOperation
+public sealed class ChamberHoldOperation : ModuleOperation
 {
     private const string LogModule = "Chamber";
 
     private readonly int _holdTimeout;
     private readonly int _releaseTimeout;
 
-    /// <summary>上次续的时刻（本操作计时的毫秒数）。</summary>
+    /// <summary>
+    /// 上次续的时刻（本操作计时的毫秒数）
+    /// </summary>
     private long _renewedAt;
 
-    /// <summary>已经松手（界面发了停止，或者没续上自己停了）。</summary>
+    /// <summary>
+    /// 已经松手（界面发了停止，或者没续上自己停了）
+    /// </summary>
     private volatile bool _released;
 
-    /// <summary>松手的时刻（本操作计时的毫秒数），只在扫描线程里用；-1 = 还没开始等停下。</summary>
+    /// <summary>
+    /// 松手的时刻（本操作计时的毫秒数），只在扫描线程里用；-1 = 还没开始等停下
+    /// </summary>
     private long _releasedAt = -1;
 
     /// <param name="axis">点动的轴。</param>
@@ -41,10 +46,14 @@ internal sealed class ChamberHoldOperation : ModuleOperation
         _releaseTimeout = releaseTimeout;
     }
 
-    /// <summary>点动的轴。</summary>
+    /// <summary>
+    /// 点动的轴
+    /// </summary>
     public IAxis Axis { get; }
 
-    /// <summary>界面还按着：重新计时；已经松手或结束了返回 false（界面就不用再续了）。</summary>
+    /// <summary>
+    /// 界面还按着：重新计时；已经松手或结束了返回 false（界面就不用再续了）
+    /// </summary>
     public bool Renew()
     {
         if (_released || IsTerminal)
@@ -56,7 +65,9 @@ internal sealed class ChamberHoldOperation : ModuleOperation
         return true;
     }
 
-    /// <summary>界面松手了：停止已经由腔体发出去，这里只等轴停下。</summary>
+    /// <summary>
+    /// 界面松手了：停止已经由腔体发出去，这里只等轴停下
+    /// </summary>
     public void Release()
     {
         _released = true;

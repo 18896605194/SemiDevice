@@ -54,7 +54,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
   取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、
   `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIoComponent`、`IPlcIo`、`IPlcBlock`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
-  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；
+  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`、`IAiComponent`……，接口名带 Component 后缀；
   EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）；同一个接口登记了好几个的，取一个拿最后登记的。
   要一类的全部用 `IocHelper.GetServices<IXxx>()`：按 sc 先后（先父后子），停用的连同下面的跳过。GEM 编号表 `GemCollectors` 不是组件，也登记在容器里，一样从 `IocHelper` 取。
   不写 `Xxx.Current`、不在构造里登记、不在组件基类上另包取法，不按基类、具体类找，不往 Bind 里传整棵树。
@@ -107,7 +107,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
   顶层目录 = 命名空间（`xyz.Components.Models` 等）。
 - `Components\` 下按类别分 System / Plc / Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（品牌驱动壳）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
-  Maintenance（部件寿命 `LifetimeComponent`，挂在部件下面盯 DO 计次，见 decisions.md「部件寿命」），
+  Maintenance（部件寿命 `LifetimeComponent`，挂在部件下面盯 DO 计次，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
@@ -160,7 +160,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   ```
   `Complete()` / `Fail(code, reason, args)` / `AbortByHost(reason)`；`Reason` 只进日志，`Code + ErrorArgs` 给界面；OnScan 抛异常自动 `Fail(OperationFaulted)`。
   RPC 线程用 `WaitReply(ms)` 等结果，**不能在扫描线程等**。超时时间取模块的 EC 属性。
-- **动作入口：状态 → 资源 → 互锁**（2026-10-10 用户定的统一结构；LoadPort 的动作全部改完，机械手取放、腔体还没改，照着改）：
+- **动作入口：状态 → 资源 → 互锁**（2026-10-10 用户定的统一结构；LoadPort、机械手的动作都改完了，腔体 2026-10-20 照着改完，见 decisions.md「腔体照 LoadPort / 机械手的写法改」）：
   手动页、自动任务、EAP 都调模块的**同一个入口**，入口在模块锁里按顺序查三项，哪项不过就带原因（错误码 + 参数）返回、模块不动；都过了才 `Begin`（占住模块、落执行态、发指令）。
   调用方不先查、也不重复查。入口不带"谁发的"参数，模块里不写 `if (来自 EAP)`。
   ```csharp
@@ -230,18 +230,23 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
   能分段的机械手类在类上声明它、重写 `CreateExtend/RetractPick/PlaceOperation` 给设备动作（默认没有 → `robot.handoff_unsupported`）；伸臂做完停在
   `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账）、
-  `BaseChamberModule`（`InitComponent` 只登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台，机型类留空、只在不一样时重写 `Home` / `ResetDevice` / `AbortDevice` / `CreateProcessOperation`），每拍最后 `PublishState`）。
+  `BaseChamberModule`（`InitComponent` 照 sc 认一遍腔体里装的设备存起来（停用的也认），启用的再登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台）；
+  2026-10-20 照 LoadPort / 机械手的写法改完：动作入口 `Home()` / `StartProcess` / 手动设备动作回 `HandleResult<ModuleOperation>`，入口不 virtual，
+  机型类留空、只在设备做法不一样时重写 `CreateHomeOperation` / `CreateResetOperation` / `CreateAbortOperation` / `CreateProcessOperation` / `CreatePrepareTransferOperation`，
+  要加条件重写 `HomeInterlock` / `ProcessInterlock` / `DeviceActionInterlock`（先调 base）；动作类（`Clean\Operations`）都是 public，机型能继承 `ChamberStepOperation` 写自己的整腔动作；每拍最后 `PublishState`）。
 - **腔体里装什么照 sc 认、强类型**（2026-10-10 用户："未来其他项目直接修改 sc 文件就行，代码基本不要修改"；原来的 `[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典整套删了，"Part"这个叫法也不用了）：
   sc 里一个腔体下挂门、Bowl、卡盘、摆臂（`SwingArmComponent`，它自己就是摆动轴；硬件上装在它上面的升降是一个 `CylinderComponent`、喷嘴是几个 `NozzleComponent`，都挂在摆臂节点下面）。
-  `BaseChamberModule` 直接从子节点认：`Door`（名叫 Door 的气缸）、`Bowls`（名字以 Bowl 开头的气缸，可多层）、`SpinMotor`（第一个 `SpinMotorComponent`）、`Arms`、`FindArm(节点名)`（配方用），
-  另有 `Axes` / `Cylinders` / `Nozzles` 全量（手动页按路径找、整腔动作逐个发）。摆臂自己给 `Lift`（下面第一个气缸）、`Nozzles`、`FindNozzle(药液)`。没有另外的"部件表"类。
+  `BaseChamberModule` 在组件初始化时直接从子节点按接口认一次、存起来：`Door`（`IChamberDoor`，只能一个）、`Bowls`（`IChamberBowl`，可多层）、`SpinMotor`（`ISpinMotor`，只能一个）、`Arms`、`FindArm(节点名)`（配方用），
+  另有 `Axes` / `Cylinders` / `Nozzles` 全量（手动页按路径找、整腔动作逐个发）；冒烟里手搭的腔体要先调 `InitComponent()` 才认得到。摆臂自己给 `Lift`（下面第一个气缸）、`Nozzles`、`FindNozzle(药液)`。没有另外的"部件表"类。
   推送 `ChamberDeviceDataDto`（结构跟 sc 一样：`Door`、`Bowls`、`Spin`（`ChamberAxisDto`，在不在转看 `IsBusy`）、`Arms`（`ChamberArmDto`：摆动轴的状态 + Reach / EdgeReach + `Lift` + `Nozzles`）；
   token 模块名、留存、有变化才推，跟 `ChamberDto` 类型不同互不覆盖；条目是 record，浮点按 3 位取整）。门、Bowl、卡盘、摆臂以外的东西不在推送里（35021 没有，真有了再加一个位置）。
   加新种类的硬件（加热、真空……）：写组件 + 在模块 / DTO / 服务 / 界面各加一处，这是平台一次性的活；之后各项目 sc 里挂就行。
   做没做完由组件自己说：`ComponentBase.ActionState`（基类默认已做完，自己管动作到完成的轴、气缸、阀重写；2026-10-07 用户："为什么是腔体判断，不应该"，去掉了 `IActionComponent`）。
 - 腔体设备手动动作（手动页）：服务是具体方法 `AxisHomeAsync` / `AxisMoveAsync`（位置、速度 0 = EC MoveSpeed）/ `AxisStepAsync`（步距不能 0）/ `AxisJogAsync` + `AxisJogRenewAsync` / `AxisStopAsync` / `AxisResetAsync`、
-  `CylinderUpAsync` / `CylinderDownAsync`（请求 `ChamberDeviceRequest`（Module + Device 路径）/ `ChamberAxisMoveRequest` / `ChamberAxisStepRequest` / `ChamberAxisJogRequest`），模块上对应 `AxisHome`……`MoveCylinder`：
-  普通动作走迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内发，发不出去回 `chamber.device_command_rejected`
+  `CylinderUpAsync` / `CylinderDownAsync`（请求 `ChamberDeviceRequest`（Module + Device 路径）/ `ChamberAxisMoveRequest` / `ChamberAxisStepRequest` / `ChamberAxisJogRequest`），模块上对应 `AxisHome`……`MoveCylinder`
+  （回 `HandleResult<ModuleOperation>`，停止回 `HandleResult`，服务只把被拒的原因原样转回去）：先认设备、查参数，再在锁里查 状态（`CheckState(Manual)`：停用 `module.disabled`、
+  状态不允许 `module.state_not_allowed`[模块, 状态码]）→ 互锁（`DeviceActionInterlock`，平台不拦）。
+  普通动作走迁移表 `Manual`（未初始化 / 空闲 / 报错可发，执行中 `ChamberState.Manual` 120，做完回原来的状态），指令在锁内当场发，发不出去回 `chamber.device_command_rejected`
   不改状态、不报警，`ChamberDeviceOperation` 只看设备的 ActionState，EC `DeviceActionTimeout` 兜底；
   停止不看忙不忙、不挂操作，发出去就回；点动挂 `ChamberHoldOperation` 等松手——界面按住期间调 `AxisJogRenewAsync` 续，
   EC `HoldTimeoutMs`（默认 1000）内没续上就自己停，停下才退出 Manual。错误码：`chamber.device_not_found`（这个路径不是这种设备）、
@@ -258,7 +263,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
     认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，字段表里没配、这一步没填的跳过。
     配方选的摆臂 / 药液这个腔体没有 `chamber.recipe_option_missing`；没有配方步骤（没装工艺配方库）`chamber.recipe_steps_missing`。工艺失败、超时（不是中止）`FinishProcess` 先把喷嘴停了。
     腔体 SC `Supply` 配这个腔体用的供液模块名（几个逗号隔开，空 = 不看），`Bind` 时按名字从 `GetServices<ISupplyAccess>()` 取（不分大小写、重复的只取一次，
-    配了没有开机抛，停用的腔体不取）；起工艺时有一个没就绪，`CheckProcess` 挡下 `chamber.supply_not_ready`[模块, 配方, 供液模块]；只看开工这一下，喷的中途不再看。
+    配了没有开机抛，停用的腔体不取）；起工艺时有一个没就绪，互锁 `ProcessInterlock` 挡下 `chamber.supply_not_ready`[模块, 配方, 供液模块]；只看开工这一下，喷的中途不再看。
     腔体 EC `SupplyCheckEnabled`（默认 True）关了不看（调试时供液还没调好用），每次起工艺现读、改了当场生效；名字照样开机取、配错照样开机报。
   - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），卡盘 EC `MaxSpeed` 要不小于配方里的转速（轴的通用默认是 100）。转着换转速：上一条就是 Spin 时 PLC 报忙也照收（2026-10-10 仿真器上发现转着改不了转速）。
     喷嘴 SC `AoIndex`（-1 不接）：`SetFlow(L/min)` 写 AO，`Stop()` = 关阀，SC `ClearFlowOnStop`（默认 True）开着的再 `SetFlow(0)`（AO 设定和流量计目标都清零），False 保持上一步的流量。
@@ -317,10 +322,12 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   机械手、搬运管理、调度都不认识 buffer。见 decisions.md「buffer」。
 - **加工口** `Process\IProcessStation`（继承 `IModule`，带 `Type`；`IChamber` 继承它，`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。
   工艺配方（Type 选项、配方对不对得上站点）、流程配方（哪些分组要选配方）、Job 都认 `IProcessStation`；`IChamber` 只放腔体手动页的东西
-  （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。`CheckProcess(ProcessRequest)` 只问不动设备
-  （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected` → 配的供液没就绪 `chamber.supply_not_ready`），
-  `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
-  机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
+  （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。
+  `HandleResult? CheckProcess(ProcessRequest)` 只问不动设备，跟别的动作入口一样 状态 → 资源 → 互锁（状态：停用 `module.disabled`、状态不允许 / 在忙 `module.state_not_allowed` / `module.busy` →
+  资源：没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 互锁：配的供液没就绪 `chamber.supply_not_ready`；2026-10-20 起先查状态，腔体忙时先报忙）；
+  `HandleResult<ModuleOperation> StartProcess` 在同一把锁里查完就 Begin，被拒原样带原因，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
+  站内任务 `CheckTask` / `StartTask` 转给这两个（`StartTask` 被拒回 null，调度下一拍再问）。机型只写 `CreateProcessOperation(ProcessRequest)`（检查过了才调，请求里一定带配方快照）。
+  "腔里的片归 Job 时手动不能起"（`chamber.wafer_owned`）只拦手动、不拦 Job 自己，留在服务层 `ChamberService.ProcessAsync`。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。
   开工计数和进度也在这个接口上（调度、界面只读，见 decisions.md「工艺站开工计数、进度和并行站轮着用」）：`TodayWafers` / `TotalWafers`（每片开工加 1，
   中止、失败也算；共用的 `Process\ProcessCounter` 按天一站一行存默认库 `process_daily_count`，`Bind` 时读回来接着数）、
@@ -590,6 +597,21 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   搬运管理、Job 管理、晶圆账、报警、晶圆尺寸也在这时取一次；回片、停止两个动作要用的由构造传进去。系统设置的模块名单不带它（没有 IO）。
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`InitAsync` / `AutoAsync` / `ManualAsync` / `StopAsync` / `ReturnAllAsync` 都转给整机，
   开了就回、只翻结果；没配 System 节点回 `system.not_installed`，状态不允许回 `module.state_not_allowed` [System, 状态码]，Auto 没装 / 停用搬运管理回 `transfer.not_installed` / `transfer.disabled`。
+
+### AI 助手（2026-10-20，见 decisions.md「AI 助手」）
+- **组件** `Components\Ai\AiComponent`（sc.xml 顶层 `Ai` 节点，不配就是没有 AI；接口 `IAiComponent`：`Model`、`ExplainAlarmAsync(来源, 报警码, 界面语言, 取消)` 回 `HandleResult<AiAnswer>`）。
+  只读、不动设备、不扫描、不起线程：请求在调用方（RPC）的异步流程里走，排队（SC `MaxConcurrent`，默认 1）、超时（EC `TimeoutMs`，含排队）都在组件里管，不抛异常、回错误码。
+  模型跑在厂内网另一台机器上（现场不能联网），组件只是传话的：用微软 `Microsoft.Extensions.AI` 的 `IChatClient`，经 `Microsoft.Extensions.AI.OpenAI` 按兼容 OpenAI 接口格式
+  连 SC `Endpoint`（带 `/v1`）、`Model`、`ApiKey`（本地服务一般空着，空着带占位的 `no-key`）；不重试（服务没开当场报）、网络层不限时（超时归 EC 管）；`CreateChatClient()` 是 `protected virtual`，冒烟换成假的。
+  地址不是 http / https、没配模型名、`MaxConcurrent` 小于 1，`OnSettingLoaded` 开机就抛。组件初始化只建客户端对象（不连网）；`Bind` 取报警、日志、数据曲线三个单例。
+- **交给模型的材料**（报警解释）：报警本身（来源、文字、等级、类别、报出时间、说明、处理办法）；数据曲线里名字以来源路径开头的信号（`.` 换成 `__`，按 sc 先后、最多 EC `SignalCount` 个），
+  报警前后各 EC `SignalWindowSeconds` 秒——数字量列起始值和每次变化（一个信号最多 20 次），模拟量写最小、最大、报警那一刻的值，都带现在的值（`DataSignal.Read`）；
+  日志组件里最近的告警、错误日志（最新的 EC `LogCount` 条）。规矩（system）：只按材料说、不编、说不准直说、三段（原因 + 依据 / 先查哪里 / 处理建议）、不建议跳过联锁；
+  回答语言跟界面（服务传整机的 `Language`，en 开头用英文，别的用中文）。EC `MaxOutputTokens`（发出去是 `max_completion_tokens`，有的本地服务不认）、`Temperature`。
+  回答 `AiAnswer`：正文（去前后空白）、模型、带了几条日志、哪些信号、用时。每次结果记一条 Info 日志（只进文件，界面自己报）。
+- 错误码：`ai.not_installed`、`ai.alarm_not_found` [来源, 报警码]（报警已不在当前报警里，不问模型）、`ai.timeout` [ms]、`ai.failed` [原因]、`ai.empty_answer`。
+- **服务** `IAiService`（`xyz.Service\Ai\AiService`）：`GetStatusAsync`（配了回 `AiStatusDto`（模型名），没配 `ai.not_installed`）、`ExplainAlarmAsync(AiAlarmRequest)`（回 `AiAnswerDto`）。
+  客户端：实时报警页上面一条 AI 工具栏，连上后端问一次 `GetStatusAsync`，配了才显示；选中一条报警点"AI 分析"，等的时候按钮点不了，结果用公共确认弹窗显示（下面列参考了几条日志、几个信号、模型、用时，"仅供参考"）。
 
 ### 启动顺序（`ServiceExtensions` + 宿主 `Program`，只做框架的事，2026-10-18 起不点名任何组件）
 **注册**（`AddXyzServices`，容器建好之前）：`SC.Load` → `ComponentLoader.Load`（装整棵树）→ `ComponentLoader.Register`（组件按接口进容器、树本身也进）→

@@ -230,6 +230,35 @@ public static class ErrorCodes
 
     #endregion
 
+    #region AI 助手
+
+    /// <summary>
+    /// sc.xml 没配 Ai 节点（这台机没有 AI）。Args: []
+    /// </summary>
+    public const string AiNotInstalled = "ai.not_installed";
+
+    /// <summary>
+    /// 要分析的报警已经不在当前报警里了（复位了，或者来源、报警码不对）。Args: [来源路径, 报警码]
+    /// </summary>
+    public const string AiAlarmNotFound = "ai.alarm_not_found";
+
+    /// <summary>
+    /// 超过 EC TimeoutMs（含排队）模型还没回答。Args: [超时 ms]
+    /// </summary>
+    public const string AiTimeout = "ai.timeout";
+
+    /// <summary>
+    /// 模型服务出错（连不上、地址或模型名不对、服务报错）。Args: [原因]
+    /// </summary>
+    public const string AiFailed = "ai.failed";
+
+    /// <summary>
+    /// 模型回了空的。Args: []
+    /// </summary>
+    public const string AiEmptyAnswer = "ai.empty_answer";
+
+    #endregion
+
     #region 搬运
 
     /// <summary>站点等不到可服务（一直没回到待命态，或一直被别的机械手占着）。Args: [站点名, 等待ms]</summary>

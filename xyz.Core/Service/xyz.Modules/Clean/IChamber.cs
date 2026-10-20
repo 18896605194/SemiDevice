@@ -1,5 +1,4 @@
 ﻿using xyz.Components.Components;
-using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
@@ -12,9 +11,19 @@ public interface IChamber : IProcessStation
     #region 整腔动作
 
     /// <summary>
-    /// 回零
+    /// 回零：状态 → 资源 → 互锁查过才挂上，被拒带原因返回
     /// </summary>
-    ModuleOperation? Home();
+    HandleResult<ModuleOperation> Home();
+
+    /// <summary>
+    /// 复位被拒的原因（复位本身是 IModule.Reset，签名跟着组件基类）
+    /// </summary>
+    HandleResult? CheckReset();
+
+    /// <summary>
+    /// 中止被拒的原因（中止本身是 IModule.Abort，签名跟着组件基类）
+    /// </summary>
+    HandleResult? CheckAbort();
 
     /// <summary>
     /// 回零等到做完的上限（ms）
@@ -43,37 +52,37 @@ public interface IChamber : IProcessStation
     /// <summary>
     /// 一根轴回零
     /// </summary>
-    ChamberDeviceActionResult AxisHome(string path, out ModuleOperation? operation);
+    HandleResult<ModuleOperation> AxisHome(string path);
 
     /// <summary>
-    /// 一根轴走到绝对位置
+    /// 一根轴走到绝对位置；speed 为 0 按这根轴的 EC MoveSpeed
     /// </summary>
-    ChamberDeviceActionResult AxisMove(string path, double position, double speed, out ModuleOperation? operation);
+    HandleResult<ModuleOperation> AxisMove(string path, double position, double speed);
 
     /// <summary>
-    /// 一根轴走一段（相对）
+    /// 一根轴走一段（相对）；speed 为 0 按这根轴的 EC MoveSpeed
     /// </summary>
-    ChamberDeviceActionResult AxisStep(string path, double distance, double speed, out ModuleOperation? operation);
+    HandleResult<ModuleOperation> AxisStep(string path, double distance, double speed);
 
     /// <summary>
     /// 一根轴复位
     /// </summary>
-    ChamberDeviceActionResult AxisReset(string path, out ModuleOperation? operation);
+    HandleResult<ModuleOperation> AxisReset(string path);
 
     /// <summary>
     /// 一个气缸升（开）或降（关）
     /// </summary>
-    ChamberDeviceActionResult MoveCylinder(string path, bool up, out ModuleOperation? operation);
+    HandleResult<ModuleOperation> MoveCylinder(string path, bool up);
 
     /// <summary>
-    /// 点动：按住期间界面每隔一会儿续一次（AxisJogRenew）
+    /// 点动：发起了就回，返回的是等松手的动作；按住期间界面每隔一会儿续一次（AxisJogRenew）
     /// </summary>
-    ChamberDeviceActionResult AxisJog(string path, double speed);
+    HandleResult<ModuleOperation> AxisJog(string path, double speed);
 
     /// <summary>
-    /// 一根轴停下
+    /// 一根轴停下：不看腔体忙不忙、不挂动作，发出去就回
     /// </summary>
-    ChamberDeviceActionResult AxisStop(string path);
+    HandleResult AxisStop(string path);
 
     /// <summary>
     /// 点动续一次，没在点动返回 false

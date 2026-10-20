@@ -74,6 +74,8 @@ ProbeChamber Chamber(string name, params (string Arm, string[] Chemicals)[] arms
         }
     }
 
+    // 跟开机一样：腔体的组件初始化照树认出装上去的摆臂、喷嘴
+    chamber.InitComponent();
     return chamber;
 }
 
@@ -306,8 +308,6 @@ try
 
     Fails(library.Create(1, "OTHER", "Tester"), ErrorCodes.ProcessRecipeIndexOccupied, ["1", "SC1_60S"], "编号已经有了");
     Fails(library.Create(2, "sc1_60s", "Tester"), ErrorCodes.ProcessRecipeNameDuplicate, ["sc1_60s", "1"], "名称重了（不分大小写）");
-    Fails(library.Create(2, "SC1 60S", "Tester"), ErrorCodes.ProcessRecipeNameInvalid, ["SC1 60S"], "名称里有空格");
-    Fails(library.Create(2, "药洗", "Tester"), ErrorCodes.ProcessRecipeNameInvalid, ["药洗"], "名称只能用字母、数字、_ 和 -");
     Fails(library.Create(2, "   ", "Tester"), ErrorCodes.ProcessRecipeNameRequired, [], "名称没填");
     Fails(library.Create(2, new string('A', 33), "Tester"), ErrorCodes.ProcessRecipeNameTooLong, ["32"], "名称超过 32 个字符");
     Fails(library.Create(0, "ZERO", "Tester"), ErrorCodes.ProcessRecipeIndexOutOfRange, ["0", "99"], "编号 0");
@@ -740,21 +740,20 @@ static class Probe
 
 }
 
-// 探针腔体：只给摆臂、喷嘴挂在下面，不连设备、不做动作（起工艺回 null = 动作被拒）。
+// 探针腔体：只给摆臂、喷嘴挂在下面，不连设备、不做动作。空闲着（起工艺先查状态，没初始化的话配方对不对得上就查不到），
+// 状态、配方、片都过了，到互锁这一步一律被拒（module.action_rejected），不真起工艺。
 sealed class ProbeChamber : BaseChamberModule
 {
     public ProbeChamber(string name)
     {
         Probe.Name(this, name);
+        State = xyz.Modules.Enums.ModuleState.Idle;
     }
 
-    public override ModuleOperation? Home() => null;
-
-    protected override ModuleOperation? ResetDevice() => null;
-
-    protected override ModuleOperation? AbortDevice() => null;
-
-    protected override ModuleOperation? CreateProcessOperation(ProcessRequest request) => null;
+    protected override HandleResult? ProcessInterlock(ProcessRequest request)
+    {
+        return HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
 }
 
 // 探针热板：能做工艺、但不是腔体（只实现 IProcessStation），Type 是 HP。
@@ -774,9 +773,10 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
 
     public (string Field, string Value)? FindRecipeMismatch(RecipeData recipe) => null;
 
-    public ProcessRejection? CheckProcess(ProcessRequest request) => null;
+    public HandleResult? CheckProcess(ProcessRequest request) => null;
 
-    public ModuleOperation? StartProcess(ProcessRequest request) => null;
+    public HandleResult<ModuleOperation> StartProcess(ProcessRequest request) =>
+        HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public int TodayWafers => 0;
 

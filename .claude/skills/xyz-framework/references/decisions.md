@@ -11,6 +11,8 @@
   2026-10-03 用户说"全部改掉"：全仓清了一遍（不带括号 53 处 + 挤在一行的 `{ ... }` 27 处，含 `lock`、`try/catch/finally`）；
   当时另一个会话还在做的 3D 组件（`Controls\ThreeD`）和 `tools\*Visual3DSmoke` 没动，那边还有 63 处，等那块做完再清。
   （2026-10-03 腔体三维页做完时这两处也清了。）
+- **不写内部类**（2026-10-20，用户改腔体时说的："不要搞什么内部类"）：动作类、枚举、记录不嵌在别的类里，也不用 `internal` 修饰，单独成文件、`public`
+  （机型程序集要能继承、复用）。腔体这边已照改；LoadPort / 机械手剩下的几个见「腔体照 LoadPort / 机械手的写法改」。
 - **注册扩展类叫 ServiceExtensions**（2026-10-03）：各工程根目录的 `ServiceCollectionExtensions.cs` 全部改名 `ServiceExtensions.cs`，类名同名。
 - **不写花括号模式匹配**（2026-10-02）：`x is { } y`、`is not { } y`、`is { Prop: v }`、列表模式 `is [..]`、switch 里的属性模式都不要；
   先取局部变量再显式判空、判属性，判空用 `is null` / `is not null`。全框架改过一遍。
@@ -1024,7 +1026,8 @@
     我先做成配在喷嘴上（只查配方用到的喷嘴），用户："你这个是在喷嘴上面的，但是腔体上面需要咋整"——按模块之间的关系配在模块上，喷嘴上的那个删了。
     代价是只要配了的供液有一个没就绪，这个腔体什么配方都起不了（配方只用 DIW 也一样），给用户选的时候说过。名字不分大小写、去空格、重复的只取一次；
     停用的腔体（`IsEnable=False`）不取（不起工艺，配错也不报）。
-  - **只在开工那一下看**（用户："这个主要是就是腔体开始工艺的时候是需要判定的，其他的倒还好"）：`CheckProcess` 最后一项（请求本身 → 腔体状态 → 供液），
+  - **只在开工那一下看**（用户："这个主要是就是腔体开始工艺的时候是需要判定的，其他的倒还好"）：`CheckProcess` 最后一项——2026-10-20 腔体照 LoadPort / 机械手改了以后
+    是互锁 `ProcessInterlock`（状态 → 资源（配方、片）→ 互锁（供液）），机型有别的开工条件重写它、先调 base；
     配的供液有一个没就绪回 `chamber.supply_not_ready`[腔体, 配方, 供液模块]。手动起工艺界面直接显示；Job 那边调度 `StartTask` 被拒下一拍再问，片在腔里等到就绪。
     开喷前等待、喷的中途掉了停喷这两条我提过，用户不要，没做（开工以后供液掉了照样做完）。
   - **EC 开关 `SupplyCheckEnabled`**（腔体上，每个腔体一份；用户："最好就是增加一下这个 ec 就是是否开启这个校验吧，因为就是调试的时候很可能就是这个 cds 这一块还没有调试好"）：
@@ -1034,3 +1037,36 @@
     这是我按现在只搭了架子的 CDS 定的；真正的规则（两槽切换、自动补液）等写 IPA 功能时重定。
 - **还没做**：界面上看不出 Job 的片在等供液（调度被拒不记原因）；供液那边"有没有腔体正在用"（换液、排液前要知道的话，让腔体去登记占用，不让供液模块回头看腔体）；
   35021 sc.xml 的腔体都没配 `Supply`（喷嘴是 DIW、SC1，CDS 下只有 IPA 且点还没接，配上 IPA 腔体就一直起不了工艺）。
+
+## 腔体照 LoadPort / 机械手的写法改（2026-10-20，用户："BaseChamberModule 这个里面很多写法都很奇怪，其次不规范，你按照就是loadport以及robot那边的写法……不要搞什么内部类"；先要了分析，看完说"就按照你说的，改造一下这个腔体这边"）
+- **动作入口统一成 状态 → 资源 → 互锁**：`Home()`、`StartProcess`、手动页的设备动作（`AxisHome` / `AxisMove` / `AxisStep` / `AxisReset` / `MoveCylinder` / `AxisJog`）都回
+  `HandleResult<ModuleOperation>`，在模块锁里 `CheckState` → 资源 → `XxxInterlock`，被拒带原因（停用 `module.disabled`、状态不允许 `module.state_not_allowed`[模块, 状态码]、在忙 `module.busy`），
+  入口不 virtual；`AxisStop` 回 `HandleResult`（不看忙不忙、不挂动作）。Reset / Abort 签名跟着组件基类，补了 `CheckReset` / `CheckAbort`，服务层被拒再问原因（跟 LoadPort、机械手一样）。
+  原来四种返回（`ModuleOperation?`、自造的 `ProcessRejection`、`ChamberDeviceActionResult` 枚举 + `out`、bool）删了；`IProcessStation.CheckProcess` / `StartProcess` 跟着改成 `HandleResult?` / `HandleResult<ModuleOperation>`。
+- **机型扩展点照 LoadPort / 机械手**：设备做法不一样重写 `CreateHomeOperation` / `CreateResetOperation` / `CreateAbortOperation` / `CreateProcessOperation` / `CreatePrepareTransferOperation`；
+  加条件重写 `HomeInterlock` / `ProcessInterlock`（供液就绪挪到这里）/ `DeviceActionInterlock`（平台不拦，Bowl 升着不许摆臂这类联锁用户押后）。
+  原来的 `public virtual Home()`、`ResetDevice` / `AbortDevice`（机型重写要连 Begin 一起写）没了。手动设备动作的语义没变：指令在入口锁里当场发，发不出去回 `chamber.device_command_rejected`、状态不动、不报警。
+- **工艺检查改成先查状态**（分析时跟用户说过）：原来"配方 → 片 → 状态 → 供液"，配方不对不管腔体忙不忙都先报；现在腔体忙时先报忙。检查和挂动作在同一把锁里（原来锁外查、锁里 Begin）。
+  "腔里的片归 Job 时手动不能起"（`chamber.wafer_owned`）只拦手动、不拦 Job 自己，按"只跟谁发的有关的留在发命令那一层"留在 `ChamberService`。
+- **腔体里的设备在组件初始化时认一次存起来**（跟机械手的 `Axes` / `Arms` 一样）：`Door`、`Bowls`、`SpinMotor`、`Arms`、`Axes`、`Cylinders`、`Nozzles` 原来每次访问现扫子组件、
+  配重了靠 getter 抛异常（InitComponent 里写 `_ = Door` 触发检查）。停用的腔体也认（推送、手动页看得到）。冒烟里手搭的腔体要先调 `InitComponent()`。
+- **不要内部类**：`Clean\Operations` 下的动作类原来全是 `internal`（底座 `ChamberStepOperation` 是 `internal abstract`），机型程序集看不到、复用不了"一段一段走"的底座，
+  全改 public（跟 `LoadPortCommandOperation`、`RobotCommandOperation` 一样）；`ChamberProcessOperation` 里嵌的 `Phase` 枚举挪成 `Clean\Enums\ChamberProcessPhase`。
+  Clean 照 Loadport 分了 `Enums\`（ChamberState、ChamberProcessPhase）、`StateMachines\`（ChamberStateTable），只挪文件、命名空间不改。
+  LoadPort / 机械手里剩下的嵌套类型（`LoadPortCommandOperation.Stage`、`BaseRobotModule.TransferIntent`、`RobotTransferOperation.CheckStep`）和 internal 的 `RobotTransferOperation` 这次没动。
+- **删了没人用的**：SC `Brand`、EC `QueryDataTimeOut`（腔体没有设备状态查询）。**SV `DeviceError` 和"腔体设备报警"留着**：分析时说过可以删，但它连着腔体手动页右栏"报错"那一行
+  （用户给的参考图里有），删了要连界面一起改；留着给接了腔体控制器的机型写（`protected set`）。
+- 客户端腔体手动页的失败原因跟 LoadPort、机械手页一样走 `ErrorText.Of(response, ModuleStates.ChamberText)`，`module.state_not_allowed` 的状态码翻成腔体状态字。
+
+## AI 助手：AI 组件 + IAiComponent，接厂内网的本地模型（2026-10-20，用户："写一个 ai 组件是不是更好一点，然后就是再写一个 ai 对应的接口"、"可以啊，你直接写，然后就是这个直接用微软官方的那么 ai dll"）
+- **起因**：用户问"这一套架构能不能引入 AI、哪些能用 AI 做"。我答 AI 只当参谋（只读、给建议），不进扫描线程、联锁、动作、开工条件、EAP 回复；
+  用户说现场**不能联网**，所以模型只能在厂内网另一台带显卡的机器上跑本地开源模型（Claude 这类云端模型现场用不了；开发侧照用）。
+  我提过"当成又一个客户端"，用户要做成组件 + 接口——确实更顺：组件 `Bind` 里直接按接口取报警、日志、数据曲线，sc 没配就是没有 AI，换模型、哪天能联网换别家，写一个实现同一接口的组件、sc 换 Type。
+- **第一版只做报警解释**（我提的先后：报警解释 → 问设备 → 交接班摘要；用户"可以啊"）。"问设备"要模型自己决定查什么，小模型做不稳，放第二步。
+- **微软官方的库**：`Microsoft.Extensions.AI`（`IChatClient`）+ `Microsoft.Extensions.AI.OpenAI`（10.11.0，按兼容 OpenAI 接口格式连）——本地模型服务大多兼容这个格式。
+  这个包要 `Microsoft.Extensions.Logging.Abstractions` 10.0.9 以上，组件层原来为 TwinCAT 钉的三个 Microsoft.Extensions 包从 10.0.3 抬到 10.0.9（还是 10.0 这一档，仓库别处已经在用 10.0.9）。
+- **我定的细节**：不重试（模型服务没开当场报，不让人干等）；超时含排队、在 EC；同时几个在 SC（一张显卡一般 1 个）；日志只记 Info 进文件（界面自己报，免得顶栏日志栏报两遍）；
+  材料里数字量只列变化、一个信号最多 20 次（const），模拟量写最小、最大、报警时，都带现在的值；规矩里写死"不建议跳过联锁、屏蔽报警或改安全设置"；回答语言跟界面。
+  界面：实时报警页原来"只显示、没有按钮"，加了一条工具栏，**只有配了 AI 才显示**（连上后端问一次），没配的机台页面跟原来一样；结果用公共确认弹窗，下面写"仅供参考，以现场确认为准"。
+- **没做的**：问设备、交接班摘要；部件变慢这类统计预警（归部件自己，气缸、阀现在没记每次动作用时）；报警一来自动分析；把 AI 的回答存库留底；
+  35021 sc.xml 没加 `Ai` 节点（还没有模型服务）；没在真模型上试过（冒烟用假模型 + 本机假的模型服务走了一遍 HTTP）。

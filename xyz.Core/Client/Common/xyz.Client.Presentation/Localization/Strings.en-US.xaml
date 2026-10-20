@@ -107,6 +107,11 @@
     <sys:String x:Key="tank.not_ready">{0} is not ready; fill it before supplying</sys:String>
     <sys:String x:Key="tank.valve_failed">{0}: a valve in the {1} group could not be opened (PLC offline or DO point not configured); all valves were closed again</sys:String>
     <sys:String x:Key="tank.close_failed">{0}: some valves could not be closed (PLC offline or DO point not configured)</sys:String>
+    <sys:String x:Key="ai.not_installed">AI is not configured on this tool (Ai node in sc.xml)</sys:String>
+    <sys:String x:Key="ai.alarm_not_found">Alarm {1} on {0} is no longer active (it may have been reset)</sys:String>
+    <sys:String x:Key="ai.timeout">AI did not answer within {0} ms</sys:String>
+    <sys:String x:Key="ai.failed">AI service error: {0}</sys:String>
+    <sys:String x:Key="ai.empty_answer">AI returned an empty answer</sys:String>
 
     <sys:String x:Key="transfer.station_busy">{0} did not become available within {1} ms (it never returned to idle, or another robot kept it busy)</sys:String>
     <sys:String x:Key="transfer.station_prepare_rejected">{0}: transfer preparation step {1} was rejected (the station state does not allow it; it may have been operated manually)</sys:String>
@@ -310,6 +315,12 @@
     <sys:String x:Key="alarmview.action">Action</sys:String>
     <sys:String x:Key="alarmview.duration">Duration</sys:String>
     <sys:String x:Key="alarmview.keyword_hint">Keyword (source / code / text)</sys:String>
+    <sys:String x:Key="alarmview.ai_explain">AI analysis</sys:String>
+    <sys:String x:Key="alarmview.ai_tip">Select an alarm first; AI suggestions are for reference only, confirm on site</sys:String>
+    <sys:String x:Key="alarmview.ai_running">AI is analyzing the alarm on {0}: {1}</sys:String>
+    <sys:String x:Key="alarmview.ai_failed">AI analysis failed: {0}</sys:String>
+    <sys:String x:Key="alarmview.ai_title">AI analysis: {0} {1}</sys:String>
+    <sys:String x:Key="alarmview.ai_basis">Based on {0} log lines and {1} signals; model {2}, took {3:0.0} s. AI suggestions are for reference only; confirm on site.</sys:String>
     <sys:String x:Key="alarmview.action.raised">Raised</sys:String>
     <sys:String x:Key="alarmview.action.cleared">Cleared</sys:String>
 
