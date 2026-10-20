@@ -52,6 +52,10 @@
 		<Value Name="AiDataPath" Value=".AnaIn" />
 		<Value Name="AoDataPath" Value=".AnaOut" />
 		<Value Name="IoPointCount" Value="1000" />
+		<Setting Name="Heartbeat" Type="xyz.Components.Components.HeartbeatComponent">
+			<Value Name="DoIndex" Value="0" />
+			<Value Name="IntervalMs" Value="1000" />
+		</Setting>
 	</Setting>
 	<Setting Name="Io" Type="xyz.Components.Components.IoComponent">
 		<Value Name="IsRun" Value="true" />

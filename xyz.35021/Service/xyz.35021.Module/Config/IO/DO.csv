@@ -1,4 +1,5 @@
 ﻿Index,Module,Component,Name,Tag,Description
+0,Plc,Heartbeat,PC_Heartbeat,Heartbeat,上位机心跳（通、断轮流写，PLC 看它判上位机在不在）
 32,LoadPort1,E84,LP1_E84_L_REQ,L_REQ,LoadPort1 E84 请求送盒
 33,LoadPort1,E84,LP1_E84_U_REQ,U_REQ,LoadPort1 E84 请求取盒
 34,LoadPort1,E84,LP1_E84_READY,READY,LoadPort1 E84 准备好交接

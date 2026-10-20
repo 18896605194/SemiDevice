@@ -20,6 +20,7 @@ try
     VirtualInputReads.Run(directory);
     IoInterlocks.Run(directory);
     StartupDoWrites.Run(directory);
+    Heartbeats.Run(directory);
     var csv = Path.Combine(directory, "points.csv");
     File.WriteAllText(csv,
         "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n" +
