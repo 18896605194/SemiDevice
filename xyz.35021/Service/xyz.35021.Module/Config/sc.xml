@@ -57,7 +57,6 @@
 		<Value Name="IsRun" Value="true" />
 		<Value Name="PointTableDirectory" Value="IO" />
 		<Value Name="StartupDo" Value="" />
-		<!-- DI 触发时强制并锁定 DO；例：DI25=false:DO12=true,DO13=true;DI26=true:DO14=false -->
 		<Value Name="SaftyIoInterlock" Value="" />
 	</Setting>
 
