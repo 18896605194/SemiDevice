@@ -16,6 +16,7 @@ using xyz._35021.Shared.Dtos;
 // 按配了的信号算液位（Overfill 亮了就是溢流）、读不到算不知道、信号对不上 / 液位高高 / 溢流报警且只能人工复位清；
 // 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因；
 // 推送（槽跟着 IPA 模块推 IpaDto：液位、状态、各信号有变化才推，没配的信号是 null）；
+// 能不能供液（ISupplyAccess：IPA 在自己扫描里算，初始化过、在空闲、有槽就绪或正在供液才算）；
 // AI 液位计：液位信号换成读同一个 AI 的 AI 液位信号（触发值、容错、防抖在 EC），只有 AI、AI + 溢流 DI 混着用两种都照样补液、排液、供液。
 // 全用假 PLC（摆 DI、AI，记 DO）和内存 EC，不连设备、不读写配置文件。
 
@@ -472,6 +473,7 @@ try
     Check(pushed.Fill().IsSuccess && pushed.State == TankState.Ready && received.Count == 4, "补液（H 已经亮了）直接就绪：在扫描外变的，当场不推");
     ipa.Tick();
     Check(received.Count == 5 && received[4].Tanks[0].State == (int)TankState.Ready, "槽的状态变了：下一拍推");
+    Check(!ipa.IsReady, "IPA 还没初始化：槽就绪了也不能供液");
     Check(ipa.InitModule() is not null && ipa.State == ModuleState.Idle && received.Count == 5, "IPA 初始化（功能还没做）：直接进空闲");
     ipa.Tick();
     Check(received.Count == 6 && received[5].State == ModuleState.Idle, "IPA 自己的状态变了：也推");
@@ -481,6 +483,16 @@ try
         Check(late is not null && late.State == ModuleState.Idle && late.Tanks[0].State == (int)TankState.Ready,
             "留存：后打开的页面一订上就拿到最新一条");
     }
+
+    // 能不能供液（ISupplyAccess，腔体起工艺前看的就是它）：IPA 在自己的扫描里每拍算——初始化过、在空闲，并且有一个槽就绪或正在供液
+    Check(IocHelper.GetServices<ISupplyAccess>().Single() == ipa && ipa.IsReady,
+        "按 ISupplyAccess 找得到 IPA；初始化过、在空闲、Tank16 就绪：能供液");
+    Check(pushed.Stop().IsSuccess && pushed.State == TankState.Idle && ipa.IsReady, "槽停下回空闲：在扫描外变的，下一拍才算");
+    ipa.Tick();
+    Check(!ipa.IsReady, "没有就绪或正在供液的槽：不能供液");
+    Check(pushed.Fill().IsSuccess && pushed.State == TankState.Ready, "再补液（H 亮着）直接就绪");
+    ipa.Tick();
+    Check(ipa.IsReady, "槽又就绪了：又能供液");
 
     // 14. AI 液位计：LL～Overfill 都挂 AI 液位信号、读同一个 AI（0 号），触发值 5 / 6 / 18 / 20 / 22 L；
     // 补液阀 DO 10、排液阀 DO 11、供液阀 DO 12
@@ -662,6 +674,7 @@ Console.WriteLine($"PASS: {checks} cds checks (tank: level DI signals found by n
     + "driving their valve groups, ready only through a fill, any alarm putting the tank into error with every valve closed, "
     + "the SC fill target, the checks before each function with their error codes, "
     + "and the push of level / state / each signal only on change, with unconfigured signals as null; "
+    + "supply readiness for other modules (ISupplyAccess, worked out on the IPA scan: initialized, idle and one tank ready or supplying); "
     + "AI level signals reading one level meter against EC trigger values with a tolerance and debounce, "
     + "an AI-only tank and an AI + overflow DI tank running fill / drain / supply unchanged)");
 

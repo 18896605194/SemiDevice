@@ -98,6 +98,7 @@
     <sys:String x:Key="chamber.recipe_option_missing">{0} 没有{2} {3}，起不了工艺配方 {1}</sys:String>
     <sys:String x:Key="chamber.wafer_mismatch">{0} 第 {1} 槽不是要做的那一片（没片，或换过片）</sys:String>
     <sys:String x:Key="chamber.wafer_owned">{0} 里的 {1} 正在 Job {2} 里，不能手动起工艺</sys:String>
+    <sys:String x:Key="chamber.supply_not_ready">{0} 起不了工艺配方 {1}：供液 {2} 没就绪</sys:String>
     <sys:String x:Key="tank.busy">{0} 正在补液、排液、换液或供液，先停止</sys:String>
     <sys:String x:Key="tank.error">{0} 有报警，先复位</sys:String>
     <sys:String x:Key="tank.valve_group_missing">{0} 没配 {1} 阀组</sys:String>

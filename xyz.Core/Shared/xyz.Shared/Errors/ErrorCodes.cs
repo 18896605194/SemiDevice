@@ -192,6 +192,11 @@ public static class ErrorCodes
     /// <summary>腔里的片正在一个没结束的 Job 里，不能手动起工艺。Args: [模块名, 片号, Job 名]</summary>
     public const string ChamberWaferOwned = "chamber.wafer_owned";
 
+    /// <summary>
+    /// 起工艺时这个腔体用的供液模块（sc 腔体上配的 Supply）没就绪。Args: [模块名, 配方名, 供液模块名]
+    /// </summary>
+    public const string ChamberSupplyNotReady = "chamber.supply_not_ready";
+
     #endregion
 
     #region 供液（CDS）

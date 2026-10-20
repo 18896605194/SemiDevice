@@ -24,6 +24,7 @@ using xyz.Tools;
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
 // 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（盯 DO 计次、警告 / 报警次数、存库读回、清零）。
+// 起工艺前看供液就绪（腔体 sc 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
 SmokeIoc.Reset();
@@ -1031,6 +1032,69 @@ try
         SmokeIoc.Use<IAlarmComponent>(previousAlarm);
     }
 
+    // 19. 起工艺前看供液就绪没有：腔体 SC Supply 配供液模块名（几个逗号隔开），开机 Bind 时按名字经 ISupplyAccess 取到（不分大小写、去空格、重复的只取一次；
+    //     配了没有的开机就报，停用的腔体不取）；起工艺时有一个没就绪就挡下 chamber.supply_not_ready、腔体不动；没配的不看；只看开工这一下，喷的中途掉了也不管；
+    //     EC SupplyCheckEnabled（默认开）关了不看，调试时供液还没调好用，改了当场生效
+    var supplyRoots = SmokeIoc.Load([Node("IPA", typeof(SupplyProbe)), Node("H2SO4", typeof(SupplyProbe))]);
+    var ipa = (SupplyProbe)supplyRoots[0];
+    var sulfuric = (SupplyProbe)supplyRoots[1];
+    Check(IocHelper.GetServices<ISupplyAccess>().SequenceEqual([ipa, sulfuric]), "两个供液模块按 ISupplyAccess 进了容器");
+
+    chamber.Supply = "IPA,Missing";
+    string? bindError = null;
+    try
+    {
+        chamber.Bind();
+    }
+    catch (InvalidOperationException exception)
+    {
+        bindError = exception.Message;
+    }
+
+    Check(bindError is not null && bindError.Contains("Chamber9", StringComparison.Ordinal) && bindError.Contains("Missing", StringComparison.Ordinal),
+        "腔体的 Supply 配了没有的供液模块：开机 Bind 就报，说清是哪个腔体、配的什么名字");
+
+    disabled.Supply = "Missing";
+    string? disabledError = null;
+    try
+    {
+        disabled.Bind();
+    }
+    catch (InvalidOperationException exception)
+    {
+        disabledError = exception.Message;
+    }
+
+    Check(disabledError is null, "停用的腔体不起工艺、不取供液模块：配错也不报");
+
+    chamber.Supply = " ipa , H2SO4 ,IPA";
+    chamber.Bind();
+    ipa.IsReady = true;
+    var useSupply = Recipe("UseSupply", StepOf(("Seconds", "0.1"), ("Arm", "Arm1"), ("Chemical", "SC1"), ("Position", "150")));
+    rejected = chamber.CheckProcess(useSupply);
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberSupplyNotReady && rejected.Args.SequenceEqual(["Chamber9", "UseSupply", "H2SO4"]),
+        "配了 IPA、H2SO4，H2SO4 没就绪：起工艺前挡下 chamber.supply_not_ready [腔体, 配方, 供液模块名]（大小写、空格、重复都认）");
+    Check(chamber.StartProcess(useSupply) is null && chamber.State == ModuleState.Idle, "挡下的不起工艺，腔体不动");
+
+    sulfuric.IsReady = true;
+    Check(chamber.CheckProcess(useSupply) is null, "都就绪了：能起");
+    var running = RunProcess(useSupply, () => plc.ReadDo(7));
+    ipa.IsReady = false;
+    var done = Drive(running);
+    Check(done.IsSuccess && chamber.State == ModuleState.Idle, "开工以后供液掉了不管：只看开工这一下，照样做完");
+    rejected = chamber.CheckProcess(useSupply);
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberSupplyNotReady && rejected.Args[2] == "IPA", "下一次开工再看：IPA 没就绪，挡下");
+    Check(chamber.SupplyCheckEnabled, "EC SupplyCheckEnabled 默认开着");
+    chamber.SupplyCheckEnabled = false;
+    Check(chamber.CheckProcess(useSupply) is null, "EC 关了（调试时供液还没调好）：不看供液，IPA 没就绪也能起");
+    chamber.SupplyCheckEnabled = true;
+    rejected = chamber.CheckProcess(useSupply);
+    Check(rejected is not null && rejected.Code == ErrorCodes.ChamberSupplyNotReady, "EC 再打开：当场又看，挡下（不用重启）");
+
+    chamber.Supply = string.Empty;
+    chamber.Bind();
+    Check(chamber.CheckProcess(useSupply) is null, "没配 Supply 的腔体：不看供液");
+
     Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
         + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
         + "command rejected, Manual state, busy rejection, stop while busy, abort replacement, failure to Error, axis end to end, "
@@ -1040,7 +1104,10 @@ try
         + "missing steps, recipe mismatch, rpm over limit, timeout, abort; process starts counted per day in the database (adding one to the day, "
         + "never overwriting it) and read back, start timestamps on the monotonic clock, "
         + "process percent by recipe step times; disabled chamber, component init and module init = Home; "
-        + "part lifetime: counting every change of a DO, warn / alarm counts, stored by adding one and read back, clear on part change)");
+        + "part lifetime: counting every change of a DO, warn / alarm counts, stored by adding one and read back, clear on part change; "
+        + "supply readiness checked when a process starts: the chamber's supplies named in sc and bound by name at startup, a missing name failing startup, "
+        + "a disabled chamber not binding, any not-ready supply refusing the start, no supplies configured means no check, a supply drop after the start ignored, "
+        + "the EC switch turning the check off and back on at once)");
     return 0;
 }
 finally
@@ -1186,6 +1253,18 @@ public sealed class InterfaceBowlProbe : InterfaceCylinderProbe, IChamberBowl
     {
         return Close();
     }
+}
+
+/// <summary>
+/// 冒烟用的供液模块：只实现给别的模块用的那一面，名字照 sc 节点名，就绪由冒烟摆；证明腔体按接口、按 sc 配的名字取
+/// </summary>
+[Component(description: "冒烟用供液模块")]
+public sealed class SupplyProbe : ComponentBase, ISupplyAccess
+{
+    /// <summary>
+    /// 能不能供液：冒烟摆
+    /// </summary>
+    public bool IsReady { get; set; }
 }
 
 /// <summary>

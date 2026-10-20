@@ -63,6 +63,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     [SCEditor("1", "Chamber", "片位数（腔体一般 1 片；晶圆账按它注册槽位）")]
     public override int SlotCount { get; set; } = 1;
 
+    [SCEditor("", "Chamber", "这个腔体用的供液模块名（几个用逗号隔开，如 IPA,H2SO4；空 = 不看供液）：起工艺前都要就绪，EC SupplyCheckEnabled 关了不看")]
+    public string Supply { get; set; } = string.Empty;
+
     // 通讯参数（IP/端口/串口号）不在基类：腔体走 PLC 还是串口网口由机型定，
     // 机型自己声明自己的 [SCEditor]，别在这儿预设一套用不上的。
 
@@ -116,6 +119,14 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     {
         get { return GetEcInt(nameof(HoldTimeoutMs)); }
         set { SetEcInt(nameof(HoldTimeoutMs), value); }
+    }
+
+    [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "True",
+        description: "起工艺前看不看供液就绪（sc Supply 配的供液模块）；False = 不看，调试时供液还没调好用")]
+    public bool SupplyCheckEnabled
+    {
+        get { return !bool.TryParse(GetEcString(nameof(SupplyCheckEnabled)), out bool enabled) || enabled; }
+        set { SetEc(nameof(SupplyCheckEnabled), value.ToString()); }
     }
 
     #endregion
@@ -193,13 +204,46 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     private IRecipeComponent? _recipes;
     private ISystemModule? _system;
 
+    /// <summary>
+    /// 这个腔体用的供液模块：开机 Bind 时按 SC Supply 配的名字取好
+    /// </summary>
+    private IReadOnlyList<ISupplyAccess> _supplies = [];
+
     public override void Bind()
     {
         _recipes = IocHelper.GetService<IRecipeComponent>();
         _system = IocHelper.GetService<ISystemModule>();
+        BindSupplies();
 
         // 开工片数跟晶圆账一样是业务数据，走默认库；开机读回今天那行接着数
         _counter.Load(Name, XyzDb.DefaultName);
+    }
+
+    /// <summary>
+    /// 按 SC Supply 配的名字取到供液模块（不分大小写，重复的只取一次）：配了却没有这个模块，开机就报；停用的腔体不起工艺，不取
+    /// </summary>
+    private void BindSupplies()
+    {
+        var supplies = new List<ISupplyAccess>();
+        if (IsEnable)
+        {
+            var all = IocHelper.GetServices<ISupplyAccess>();
+            foreach (string name in Supply.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var supply = all.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (supply is null)
+                {
+                    throw new InvalidOperationException($"sc.xml 节点 {FullPath} 的 Supply 配了 {name}，但没有这个供液模块（没配或停用了）。");
+                }
+
+                if (!supplies.Contains(supply))
+                {
+                    supplies.Add(supply);
+                }
+            }
+        }
+
+        _supplies = supplies;
     }
 
     #endregion
@@ -843,7 +887,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     /// <summary>
     /// 现在能不能起这个工艺（不动设备）：先查请求本身（配方名、配方对不对得上这个腔体、腔里是不是要做的那一片），
-    /// 再查腔体此刻的状态——配方不对这种问题不管腔体忙不忙都先报出来。
+    /// 再查腔体此刻的状态，最后看这个腔体用的供液模块就绪没有——配方不对这种问题不管腔体忙不忙都先报出来。
     /// </summary>
     public ProcessRejection? CheckProcess(ProcessRequest request)
     {
@@ -891,6 +935,18 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             if (!CanBeginAction || busy || !TryGetTransition(State, nameof(ChamberAction.Process), out _))
             {
                 return new ProcessRejection(ErrorCodes.ActionRejected, [Name, State.ToString(CultureInfo.InvariantCulture)]);
+            }
+        }
+
+        // 这个腔体用的供液模块都得就绪：只在开工这一下看，喷的中途不再看；EC SupplyCheckEnabled 关了不看（调试时供液还没调好）
+        if (SupplyCheckEnabled)
+        {
+            foreach (var supply in _supplies)
+            {
+                if (!supply.IsReady)
+                {
+                    return new ProcessRejection(ErrorCodes.ChamberSupplyNotReady, [Name, request.RecipeName.Trim(), supply.Name]);
+                }
             }
         }
 

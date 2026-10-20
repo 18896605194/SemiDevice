@@ -128,9 +128,11 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `Loadport` 已分好：`Enums\`（SlotPickOrder、PodPresenceSource、LoadPortCommandStep、LoadPortState 加 LoadPortAction）、`Operations\`（LoadPortCommandOperation）、`StateMachines\`（LoadPortStateTable）；
   `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`Models\`：RobotStation；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根）；
   `Clean`、`E84` 还平铺，改到那一块时照这个分。
-- 供液（CDS）：`Cds\BaseCdsModule : BaseModule, ISupplyModule`（一种药液一个模块，下面挂它的槽 `Tanks`；`ISupplyModule` = 不跟机械手交互的模块，
+- 供液（CDS）：`Cds\BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess`（一种药液一个模块，下面挂它的槽 `Tanks`；`ISupplyModule` = 不跟机械手交互的模块，
   跟 `ITransferStation` 平级）。机型的药液模块继承它（35021 的 `Cds\IpaModule`，推 `IpaDto`：IPA 的状态 + 下面各槽的 `TankDto`，DTO 放机型的
   xyz.35021.Shared）。2026-10-18 只搭了架子：初始化直接进空闲，手动 / 自动、两槽切换、自动补液这些默认做法以后写在基类里。
+  给别的模块用的那一面是 `Supply\ISupplyAccess`（`Name`、`IsReady`，2026-10-20）：`IsReady` 在供液模块自己的扫描里每拍算（`protected virtual CheckReady()`，
+  默认 = 状态是空闲 + 有一个槽就绪或正在供液），存 volatile，别的线程只读。腔体按自己的 SC `Supply`（模块名）开机取到它，起工艺前看（见 decisions.md「模块之间访问」）。
 - `BaseModule : ComponentBase, IModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`InitModule()`（动硬件的模块初始化，默认返回 null）、
   `Online()/Offline()`（虚方法，只改 Mode；LoadPort、腔体、机械手的服务都调 `BaseService.Online<TModule>` / `Offline<TModule>` 走到这里，不各写一份）、
   动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
@@ -255,6 +257,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
     Time 停着喷 / Scan 在位置和"到"之间按"速度"（轴的设计速度，原样当 MoveTo 速度，不按示教换算）来回扫，到点进下一步（扫到一半当场停轴）→ 收尾停液、摆臂回 Home、停转、Bowl 降。
     认的字段名：`Seconds`、`Rpm`、`Arm`、`Chemical`、`Flow`、`Mode`（Time / Scan）、`Position`、`ScanTo`、`ScanSpeed`，字段表里没配、这一步没填的跳过。
     配方选的摆臂 / 药液这个腔体没有 `chamber.recipe_option_missing`；没有配方步骤（没装工艺配方库）`chamber.recipe_steps_missing`。工艺失败、超时（不是中止）`FinishProcess` 先把喷嘴停了。
+    腔体 SC `Supply` 配这个腔体用的供液模块名（几个逗号隔开，空 = 不看），`Bind` 时按名字从 `GetServices<ISupplyAccess>()` 取（不分大小写、重复的只取一次，
+    配了没有开机抛，停用的腔体不取）；起工艺时有一个没就绪，`CheckProcess` 挡下 `chamber.supply_not_ready`[模块, 配方, 供液模块]；只看开工这一下，喷的中途不再看。
+    腔体 EC `SupplyCheckEnabled`（默认 True）关了不看（调试时供液还没调好用），每次起工艺现读、改了当场生效；名字照样开机取、配错照样开机报。
   - 卡盘速度单位 rpm（配方转速原样当 Spin 速度），卡盘 EC `MaxSpeed` 要不小于配方里的转速（轴的通用默认是 100）。转着换转速：上一条就是 Spin 时 PLC 报忙也照收（2026-10-10 仿真器上发现转着改不了转速）。
     喷嘴 SC `AoIndex`（-1 不接）：`SetFlow(L/min)` 写 AO，`Stop()` = 关阀，SC `ClearFlowOnStop`（默认 True）开着的再 `SetFlow(0)`（AO 设定和流量计目标都清零），False 保持上一步的流量。
     流量计 = 喷嘴下面挂的 `AiSensorComponent`（sc 节点名 `Flow`，`MonitoringDoIndex` 填喷嘴阀的 DO）：上下限、预警、防抖、报警都用它的，
@@ -313,7 +318,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - **加工口** `Process\IProcessStation`（继承 `IModule`，带 `Type`；`IChamber` 继承它，`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。
   工艺配方（Type 选项、配方对不对得上站点）、流程配方（哪些分组要选配方）、Job 都认 `IProcessStation`；`IChamber` 只放腔体手动页的东西
   （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。`CheckProcess(ProcessRequest)` 只问不动设备
-  （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected`），
+  （没配方 → 配方对不上这个腔体 → 槽号 / 片号对不上 `chamber.wafer_mismatch` → 状态不允许 / 在忙 `module.action_rejected` → 配的供液没就绪 `chamber.supply_not_ready`），
   `StartProcess` 在锁里 Begin，起了把账上的片标成 InProcess，做完（`OnOperationCompleted`）标 Completed / Failed / Aborted。
   机型只写 `CreateProcessOperation(ProcessRequest)`（请求里带配方快照）。
   `ChamberService.ProcessAsync` 先取库里的配方快照，腔里的片归某个 Job 时拒（`chamber.wafer_owned`）。

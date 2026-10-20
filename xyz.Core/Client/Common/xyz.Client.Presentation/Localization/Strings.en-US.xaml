@@ -97,6 +97,7 @@
     <sys:String x:Key="chamber.recipe_option_missing">{0} has no {2} {3}, so process recipe {1} cannot run there</sys:String>
     <sys:String x:Key="chamber.wafer_mismatch">{0} slot {1} does not hold the wafer to be processed (empty, or the wafer was swapped)</sys:String>
     <sys:String x:Key="chamber.wafer_owned">{1} in {0} belongs to job {2}; it cannot be processed manually</sys:String>
+    <sys:String x:Key="chamber.supply_not_ready">{0} cannot run process recipe {1}: supply {2} is not ready</sys:String>
     <sys:String x:Key="tank.busy">{0} is filling, draining, exchanging or supplying; stop it first</sys:String>
     <sys:String x:Key="tank.error">{0} has an alarm; reset it first</sys:String>
     <sys:String x:Key="tank.valve_group_missing">{0} has no {1} valve group</sys:String>
