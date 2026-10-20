@@ -10,10 +10,10 @@ using xyz.Tools;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 部件寿命：挂在要管寿命的部件下面
+/// 部件寿命（次数）：挂在要管寿命的部件下面
 /// </summary>
-[Component(description: "部件寿命组件（盯一个 DO，断→通、通→断各算一次；到 EC 警告次数报警告、到报警次数报报警）")]
-public class LifetimeComponent : ComponentBase, ILifetime
+[Component(description: "部件寿命（次数）组件（盯一个 DO，断→通、通→断各算一次；到 EC 警告次数报警告、到报警次数报报警）")]
+public class CountLifetimeComponent : ComponentBase, ICountLifetime
 {
     #region SC
 
@@ -194,8 +194,8 @@ public class LifetimeComponent : ComponentBase, ILifetime
         try
         {
             using var db = XyzDb.Create();
-            db.CodeFirst.InitTables<ComponentLifetimeEntity>();
-            var row = db.Queryable<ComponentLifetimeEntity>().First(item => item.Path == path);
+            db.CodeFirst.InitTables<CountLifetimeEntity>();
+            var row = db.Queryable<CountLifetimeEntity>().First(item => item.Path == path);
             if (row is not null)
             {
                 lock (_gate)
@@ -242,20 +242,20 @@ public class LifetimeComponent : ComponentBase, ILifetime
                 using var db = XyzDb.Create();
                 if (write.Clear)
                 {
-                    db.Updateable<ComponentLifetimeEntity>()
-                        .SetColumns(item => new ComponentLifetimeEntity { UsedCount = 0, UpdatedAt = write.At })
+                    db.Updateable<CountLifetimeEntity>()
+                        .SetColumns(item => new CountLifetimeEntity { UsedCount = 0, UpdatedAt = write.At })
                         .Where(item => item.Path == _path)
                         .ExecuteCommand();
                 }
                 else
                 {
-                    int updated = db.Updateable<ComponentLifetimeEntity>()
-                        .SetColumns(item => new ComponentLifetimeEntity { UsedCount = item.UsedCount + 1, UpdatedAt = write.At })
+                    int updated = db.Updateable<CountLifetimeEntity>()
+                        .SetColumns(item => new CountLifetimeEntity { UsedCount = item.UsedCount + 1, UpdatedAt = write.At })
                         .Where(item => item.Path == _path)
                         .ExecuteCommand();
                     if (updated == 0)
                     {
-                        db.Insertable(new ComponentLifetimeEntity { Path = _path, UsedCount = 1, UpdatedAt = write.At }).ExecuteCommand();
+                        db.Insertable(new CountLifetimeEntity { Path = _path, UsedCount = 1, UpdatedAt = write.At }).ExecuteCommand();
                     }
                 }
             }

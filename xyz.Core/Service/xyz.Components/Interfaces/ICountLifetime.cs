@@ -1,9 +1,9 @@
 ﻿namespace xyz.Components.Interfaces;
 
 /// <summary>
-/// 部件寿命
+/// 部件寿命（次数）
 /// </summary>
-public interface ILifetime : IDeviceComponent
+public interface ICountLifetime : IDeviceComponent
 {
     /// <summary>
     /// 已用次数

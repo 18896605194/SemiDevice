@@ -24,7 +24,7 @@ using xyz.Tools;
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
-// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（盯 DO 计次、警告 / 报警次数、存库读回、清零）。
+// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算；警告 / 报警、存库读回、清零）。
 // 起工艺前看供液就绪（腔体 sc 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
@@ -954,7 +954,7 @@ try
         SmokeIoc.Use<ILedgerManagerComponent>(previousLedger);
     }
 
-    // 18. 部件寿命：寿命组件挂在气缸下面、盯它开侧的 DO 8，气缸本身一行不改；DO 每变一次算一次（断→通、通→断各一次），
+    // 18. 部件寿命（次数）：寿命组件挂在气缸下面、盯它开侧的 DO 8，气缸本身一行不改；DO 每变一次算一次（断→通、通→断各一次），
     //     读不到不算、重新读到那一拍只记下；到警告次数报警告、到报警次数报报警；已用次数按"加一"写库、开机读回接着数，清零连库一起清
     var previousAlarm = IocHelper.GetService<IAlarmComponent>();
     var alarms = new AlarmComponent();
@@ -962,12 +962,12 @@ try
     try
     {
         var gateConfig = With(Node("Gate", typeof(CylinderComponent), Value("DoOpenIndex", "8"), Value("DoCloseIndex", "9")),
-            Node("Lifetime", typeof(LifetimeProbe), Value("DoIndex", "8")));
+            Node("Lifetime", typeof(CountLifetimeProbe), Value("DoIndex", "8")));
         var gate = (CylinderComponent)SmokeIoc.Load([gateConfig]).Single();
-        var life = Find<LifetimeProbe>(gate, "Lifetime");
+        var life = Find<CountLifetimeProbe>(gate, "Lifetime");
         ComponentLoader.BindAll([gate]);
-        Check(ReferenceEquals(IocHelper.GetServices<ILifetime>().Single(), life) && life.FullPath == "Gate.Lifetime",
-            "寿命组件按 ILifetime 找得到，路径挂在气缸下面");
+        Check(ReferenceEquals(IocHelper.GetServices<ICountLifetime>().Single(), life) && life.FullPath == "Gate.Lifetime",
+            "寿命组件按 ICountLifetime 找得到，路径挂在气缸下面");
 
         bool Active(string code)
         {
@@ -982,7 +982,7 @@ try
             {
                 using (var db = XyzDb.Create())
                 {
-                    if (db.Queryable<ComponentLifetimeEntity>().Any(row => row.Path == "Gate.Lifetime" && row.UsedCount == expected))
+                    if (db.Queryable<CountLifetimeEntity>().Any(row => row.Path == "Gate.Lifetime" && row.UsedCount == expected))
                     {
                         return true;
                     }
@@ -1029,15 +1029,15 @@ try
 
         // 重启：同一棵树再装一遍，开机读回接着数
         var reloadedGate = (CylinderComponent)SmokeIoc.Load([gateConfig]).Single();
-        var reloadedLife = Find<LifetimeProbe>(reloadedGate, "Lifetime");
+        var reloadedLife = Find<CountLifetimeProbe>(reloadedGate, "Lifetime");
         ComponentLoader.BindAll([reloadedGate]);
         Check(reloadedLife.UsedCount == 3, "重启读回来：从 3 次接着数");
 
         // 写库只给那行加一、不写总数：库里那行被改成 100，再变一次是 101，不按内存里的 4 冲掉
         using (var db = XyzDb.Create())
         {
-            db.Updateable<ComponentLifetimeEntity>()
-                .SetColumns(row => new ComponentLifetimeEntity { UsedCount = 100 })
+            db.Updateable<CountLifetimeEntity>()
+                .SetColumns(row => new CountLifetimeEntity { UsedCount = 100 })
                 .Where(row => row.Path == "Gate.Lifetime")
                 .ExecuteCommand();
         }
@@ -1054,6 +1054,79 @@ try
         reloadedLife.WarnCount = 0;
         reloadedLife.Tick();
         Check(!Active(reloadedLife.WarnAlarm) && !Active(reloadedLife.ExpiredAlarm), "次数配 0 不管，不报");
+
+        // 19. 部件寿命（时间）：从上次清零起按实际时间算，关机也照算；第一次开机库里没有就从开机算并存下来；
+        //     到警告时间报警告、到报警时间只报报警；清零存库；时钟往回调到起算之前算 0。时间由探针摆
+        var bathConfig = Node("BathLife", typeof(TimeLifetimeProbe));
+        var bathStarted = new DateTime(2026, 10, 1, 8, 0, 0);
+        var bath = (TimeLifetimeProbe)SmokeIoc.Load([bathConfig]).Single();
+        bath.Clock = bathStarted;
+        ComponentLoader.BindAll([bath]);
+        Check(ReferenceEquals(IocHelper.GetServices<ITimeLifetime>().Single(), bath) && bath.UsedTime == TimeSpan.Zero,
+            "时间寿命组件按 ITimeLifetime 找得到；刚开机已用时间是 0");
+
+        bool BathActive(string code)
+        {
+            return alarms.ActiveAlarms.Any(alarm => alarm.SourcePath == "BathLife" && alarm.AlarmCode == code);
+        }
+
+        // 库里那行等后台写到这个起算时间
+        bool WaitStarted(DateTime expected)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.ElapsedMilliseconds < 3000)
+            {
+                using (var db = XyzDb.Create())
+                {
+                    var row = db.Queryable<TimeLifetimeEntity>().First(item => item.Path == "BathLife");
+                    if (row is not null && row.StartedAt == expected)
+                    {
+                        return true;
+                    }
+                }
+
+                Thread.Sleep(20);
+            }
+
+            return false;
+        }
+
+        Check(WaitStarted(bathStarted), "第一次开机库里没有：从开机这一刻算，存进库");
+        bath.WarnMinutes = 60;
+        bath.AlarmMinutes = 120;
+        bath.Clock = bathStarted.AddMinutes(59);
+        bath.Tick();
+        Check(bath.UsedTime == TimeSpan.FromMinutes(59) && !BathActive(bath.WarnAlarm), "59 分钟：没到警告时间不报");
+        bath.Clock = bathStarted.AddMinutes(60);
+        bath.Tick();
+        var bathWarn = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == "BathLife" && alarm.AlarmCode == bath.WarnAlarm);
+        Check(bathWarn is not null && bathWarn.Level == AlarmLevel.Warn && !BathActive(bath.ExpiredAlarm), "到了警告时间（60 分钟）报警告级报警");
+        alarms.Reset("BathLife");
+        bath.Clock = bathStarted.AddMinutes(120);
+        bath.Tick();
+        var bathExpired = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == "BathLife" && alarm.AlarmCode == bath.ExpiredAlarm);
+        Check(bathExpired is not null && bathExpired.Level == AlarmLevel.Alarm1 && !BathActive(bath.WarnAlarm),
+            "到了报警时间（120 分钟）只报寿命到期报警，不再叠一条警告");
+
+        // 重启：关机三天后再开，从库里的起算时间接着算，关机这三天也算进去
+        var reloadedBath = (TimeLifetimeProbe)SmokeIoc.Load([bathConfig]).Single();
+        reloadedBath.Clock = bathStarted.AddDays(3);
+        ComponentLoader.BindAll([reloadedBath]);
+        Check(reloadedBath.UsedTime == TimeSpan.FromDays(3), "重启读回起算时间：关机的三天也算进去");
+
+        var cleared = bathStarted.AddDays(3).AddMinutes(5);
+        reloadedBath.Clock = cleared;
+        reloadedBath.Clear();
+        Check(reloadedBath.UsedTime == TimeSpan.Zero && WaitStarted(cleared), "换件清零：从现在起重新算，库里起算时间改成现在");
+        reloadedBath.Clock = cleared.AddMinutes(-10);
+        Check(reloadedBath.UsedTime == TimeSpan.Zero, "时钟往回调到起算之前：算 0，不出负数");
+
+        alarms.Reset("BathLife");
+        reloadedBath.Clock = cleared.AddDays(1);
+        reloadedBath.WarnMinutes = 0;
+        reloadedBath.AlarmMinutes = 0;
+        reloadedBath.Tick();
+        Check(!BathActive(reloadedBath.WarnAlarm) && !BathActive(reloadedBath.ExpiredAlarm), "时间配 0 不管，不报");
     }
     finally
     {
@@ -1133,7 +1206,8 @@ try
         + "missing steps, recipe mismatch, rpm over limit, timeout, abort; process starts counted per day in the database (adding one to the day, "
         + "never overwriting it) and read back, start timestamps on the monotonic clock, "
         + "process percent by recipe step times; disabled chamber, component init and module init = Home; "
-        + "part lifetime: counting every change of a DO, warn / alarm counts, stored by adding one and read back, clear on part change; "
+        + "part lifetime by count (every change of a DO, stored by adding one) and by time (since the last clear, through shutdowns), "
+        + "warn / alarm thresholds, read back, clear on part change; "
         + "supply readiness checked when a process starts: the chamber's supplies named in sc and bound by name at startup, a missing name failing startup, "
         + "a disabled chamber not binding, any not-ready supply refusing the start, no supplies configured means no check, a supply drop after the start ignored, "
         + "the EC switch turning the check off and back on at once)");
@@ -1224,11 +1298,33 @@ public sealed class SmokeChamber : BaseChamberModule
 /// 冒烟用寿命组件：读真 IO 组件，Tick 由冒烟线程手动走一拍
 /// </summary>
 [Component(description: "冒烟用寿命组件")]
-public sealed class LifetimeProbe : LifetimeComponent
+public sealed class CountLifetimeProbe : CountLifetimeComponent
 {
     public void Tick()
     {
         OnScan();
+    }
+}
+
+/// <summary>
+/// 冒烟用时间寿命组件：现在几点由冒烟摆，Tick 由冒烟线程手动走一拍
+/// </summary>
+[Component(description: "冒烟用时间寿命组件")]
+public sealed class TimeLifetimeProbe : TimeLifetimeComponent
+{
+    /// <summary>
+    /// 冒烟摆的现在时间
+    /// </summary>
+    public DateTime Clock { get; set; } = DateTime.Now;
+
+    public void Tick()
+    {
+        OnScan();
+    }
+
+    protected override DateTime ReadNow()
+    {
+        return Clock;
     }
 }
 
