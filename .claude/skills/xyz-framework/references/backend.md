@@ -54,7 +54,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
   取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarmComponent`、`IEcComponent`、`ISystemModule`、`ILogComponent`、
   `IRpcComponent`、`IMapperComponent`、`ILedgerManagerComponent`、`IIoComponent`、`IPlcIo`、`IPlcBlock`、`ISafetyComponent`、`IEapComponent`、`IHsmsComponent`、`IE30Component`、
-  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`、`IAiComponent`……，接口名带 Component 后缀；
+  `IDataChartComponent`、`IRealChartComponent`、`ITransferManager`、`IJobManager`、`ISequenceComponent`、`IRecipeComponent`……，接口名带 Component 后缀；AI 助手的 `IAi` 例外，不带后缀（用户 2026-10-20 改的）；
   EAP 那边只认配方库的，用 `ISequenceLibrary` / `IRecipeLibrary`）；同一个接口登记了好几个的，取一个拿最后登记的。
   要一类的全部用 `IocHelper.GetServices<IXxx>()`：按 sc 先后（先父后子），停用的连同下面的跳过。GEM 编号表 `GemCollectors` 不是组件，也登记在容器里，一样从 `IocHelper` 取。
   不写 `Xxx.Current`、不在构造里登记、不在组件基类上另包取法，不按基类、具体类找，不往 Bind 里传整棵树。
@@ -599,7 +599,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   开了就回、只翻结果；没配 System 节点回 `system.not_installed`，状态不允许回 `module.state_not_allowed` [System, 状态码]，Auto 没装 / 停用搬运管理回 `transfer.not_installed` / `transfer.disabled`。
 
 ### AI 助手（2026-10-20，见 decisions.md「AI 助手」）
-- **组件** `Components\Ai\AiComponent`（sc.xml 顶层 `Ai` 节点，不配就是没有 AI；接口 `IAiComponent`：`Model`、`ExplainAlarmAsync(来源, 报警码, 界面语言, 取消)` 回 `HandleResult<AiAnswer>`）。
+- **组件** `Components\Ai\AiComponent`（sc.xml 顶层 `Ai` 节点，不配就是没有 AI；接口 `IAi`：`Model`、`ExplainAlarmAsync(来源, 报警码, 界面语言, 取消)` 回 `HandleResult<AiAnswer>`）。
   只读、不动设备、不扫描、不起线程：请求在调用方（RPC）的异步流程里走，排队（SC `MaxConcurrent`，默认 1）、超时（EC `TimeoutMs`，含排队）都在组件里管，不抛异常、回错误码。
   模型跑在厂内网另一台机器上（现场不能联网），组件只是传话的：用微软 `Microsoft.Extensions.AI` 的 `IChatClient`，经 `Microsoft.Extensions.AI.OpenAI` 按兼容 OpenAI 接口格式
   连 SC `Endpoint`（带 `/v1`）、`Model`、`ApiKey`（本地服务一般空着，空着带占位的 `no-key`）；不重试（服务没开当场报）、网络层不限时（超时归 EC 管）；`CreateChatClient()` 是 `protected virtual`，冒烟换成假的。

@@ -21,7 +21,7 @@ namespace xyz.Components.Components;
 /// AI 助手
 /// </summary>
 [Component(description: "AI 助手（接厂内网的本地模型服务解释报警；只读，不动设备）")]
-public class AiComponent : ComponentBase, IAiComponent
+public class AiComponent : ComponentBase, IAi
 {
     /// <summary>
     /// 本地模型服务一般不要密钥，可接口格式要求带一个：没配就带这个占位的

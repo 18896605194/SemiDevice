@@ -6,7 +6,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// AI 助手：只读报警、日志、信号，给建议，不动设备
 /// </summary>
-public interface IAiComponent
+public interface IAi
 {
     /// <summary>
     /// 模型名（sc 里配的）

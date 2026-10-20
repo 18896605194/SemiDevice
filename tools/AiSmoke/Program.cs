@@ -18,7 +18,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// AI 冒烟：AI 组件（sc 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAiComponent 进容器；
+// AI 冒烟：AI 组件（sc 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAi 进容器；
 // 解释报警：报警不在当前报警里回 ai.alarm_not_found、不问模型；交给模型的材料（报警的说明和处理办法、来源下面的信号前后怎么变的和现在的值、
 // 最近的告警和错误日志），EC 限条数，回答的语言跟界面，回答带它看了哪些数据；模型回空的、出错、超时（含排队）的错误码；同时只让 SC MaxConcurrent 个在模型上算；
 // 服务（没配回 ai.not_installed、状态带模型名、回答转成 AiAnswerDto）；
@@ -92,7 +92,7 @@ try
     var door = roots[1].FullPath == Source ? (AlarmProbe)roots[1] : throw new InvalidOperationException("FAIL: 报警来源的路径不对：" + roots[1].FullPath);
     Check(ai.InitComponent(), "AI 组件初始化：只建对象，不连网");
     ComponentLoader.BindAll(roots);
-    Check(ReferenceEquals(IocHelper.GetService<IAiComponent>(), ai) && ai.Model == "qwen-test", "按 IAiComponent 找得到 AI 组件，模型名照 sc");
+    Check(ReferenceEquals(IocHelper.GetService<IAi>(), ai) && ai.Model == "qwen-test", "按 IAi 找得到 AI 组件，模型名照 sc");
     Check(ai.TimeoutMs == 120000 && ai.LogCount == 50 && ai.SignalWindowSeconds == 120 && ai.SignalCount == 20
         && ai.MaxOutputTokens == 1000 && Math.Abs(ai.Temperature - 0.2) < 1e-9 && ai.MaxConcurrent == 1,
         "默认：超时 120 s、50 条日志、前后各 120 s、20 个信号、回答 1000 token、随机程度 0.2、同时 1 个");
@@ -237,7 +237,7 @@ try
     Check(fake.Requests[^1][0].Text.EndsWith("用简体中文回答。", StringComparison.Ordinal), "服务：没装整机（没有界面语言）按中文答");
     response = await service.ExplainAlarmAsync(new AiAlarmRequest { Source = Source, Code = "Nope" });
     Check(!response.Success && response.Code == ErrorCodes.AiAlarmNotFound && response.Args.SequenceEqual([Source, "Nope"]), "服务：报警没了原样回 ai.alarm_not_found");
-    SmokeIoc.Use<IAiComponent>(null);
+    SmokeIoc.Use<IAi>(null);
     var noAi = new AiService();
     response = await noAi.GetStatusAsync(new RpcRequest());
     var explainNoAi = await noAi.ExplainAlarmAsync(new AiAlarmRequest { Source = Source, Code = Code });
@@ -281,7 +281,7 @@ finally
     SmokeIoc.Use<IAlarmComponent>(previousAlarm);
 }
 
-Console.WriteLine($"PASS: {checks} ai checks (sc errors at startup, found by IAiComponent, alarm not active, the material handed to the model "
+Console.WriteLine($"PASS: {checks} ai checks (sc errors at startup, found by IAi, alarm not active, the material handed to the model "
     + "(alarm text, description and solution, related signals before and after the alarm with their changes and current values, recent warn / error logs), "
     + "EC limits, answer language following the UI, answer with what it looked at, empty answer / service error / timeout codes, one request at a time on the model, "
     + $"the service (status, answer DTO, not installed), and a real HTTP round trip through Microsoft.Extensions.AI's OpenAI adapter (max tokens sent as {maxTokensField}), no retry when the model service is down)");
