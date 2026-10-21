@@ -3,7 +3,7 @@
 /// <summary>
 /// AI 值监控
 /// </summary>
-public interface IAiSensor : IDeviceComponent
+public interface IAiSensor : IDevice
 {
     double? Value { get; }
 

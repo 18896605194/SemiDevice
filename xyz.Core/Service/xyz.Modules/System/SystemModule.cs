@@ -62,9 +62,9 @@ public class SystemModule : BaseModule, ISystemModule
     // 下面几个单例开机绑模块表时取；没装是 null
     private ITransferManager? _transfers;
     private IJobManager? _jobs;
-    private ILedgerManagerComponent? _ledger;
-    private IAlarmComponent? _alarms;
-    private IWaferSizeComponent? _waferSize;
+    private ILedgerManager? _ledger;
+    private IAlarm? _alarms;
+    private IWaferSize? _waferSize;
 
     /// <summary>
     /// 开机：认整机要管的模块（全部初始化、整机停止、全部回片）
@@ -82,9 +82,9 @@ public class SystemModule : BaseModule, ISystemModule
     {
         _transfers = IocHelper.GetService<ITransferManager>();
         _jobs = IocHelper.GetService<IJobManager>();
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
-        _alarms = IocHelper.GetService<IAlarmComponent>();
-        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
+        _alarms = IocHelper.GetService<IAlarm>();
+        _waferSize = IocHelper.GetService<IWaferSize>();
         _modules = modules.Where(module => !ReferenceEquals(module, this)).ToList();
         LogHelper.Info(Name, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
     }
@@ -394,7 +394,7 @@ public class SystemModule : BaseModule, ISystemModule
     /// <summary>
     /// 四色灯输出失败时记过的原因：同一个灯同样的错只记一次
     /// </summary>
-    private readonly Dictionary<ILightComponent, string> _lightErrors = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<ILight, string> _lightErrors = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>
     /// 每拍算一次设备总状态，变了才点亮下面挂的四色灯、推给顶栏
@@ -412,7 +412,7 @@ public class SystemModule : BaseModule, ISystemModule
 
             // 只是晶圆尺寸变了也重刷一遍灯：写的是同样的值，尺寸又是人点的、很少变
             _lastStatus = status;
-            foreach (var light in FindChildren<ILightComponent>())
+            foreach (var light in FindChildren<ILight>())
             {
                 Drive(light, dto.HasAlarm, dto.HasWarning, dto.IsRunning);
             }
@@ -451,7 +451,7 @@ public class SystemModule : BaseModule, ISystemModule
         };
     }
 
-    private void Drive(ILightComponent light, bool red, bool yellow, bool green)
+    private void Drive(ILight light, bool red, bool yellow, bool green)
     {
         try
         {

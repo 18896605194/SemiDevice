@@ -16,7 +16,7 @@ namespace xyz.Components.Components;
 /// 层级、先后都跟组件树（也就是 sc.xml）一样；文件已经有了就只补新的、更新说明和上下限，改过的值不动。
 /// </summary>
 [Component(description: "EC 管理组件（在线可调参数 ec.xml）")]
-public class EcComponent : ComponentBase, IEcComponent
+public class EcComponent : ComponentBase, IEc
 {
     /// <summary>
     /// 当前 EC；sc.xml 里装出来即生效。没装时各组件的 EC 属性读回退 [VariableMark] 的默认值，写不生效。
@@ -37,11 +37,11 @@ public class EcComponent : ComponentBase, IEcComponent
     /// <summary>
     /// 映射组件（开机 Bind 时取）：EC 转成给界面的样子
     /// </summary>
-    private IMapperComponent? _mapper;
+    private IMapper? _mapper;
 
     public override void Bind()
     {
-        _mapper = IocHelper.GetService<IMapperComponent>();
+        _mapper = IocHelper.GetService<IMapper>();
     }
 
     /// <summary>

@@ -36,7 +36,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
 2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（`ModuleOperation` 挪到了组件层）、设备侧给 EAP 的接口
    （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
-   组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapperComponent`，规则写在 `MapperComponent`），不在启动代码里搭桥。
+   组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapper`，规则写在 `MapperComponent`），不在启动代码里搭桥。
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
@@ -82,7 +82,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 3. **不写花括号模式匹配和列表模式**：`x is { } y`、`is not { } y`、`is { Count: > 0 }`、`is [..]` 都不要。
    先取局部变量，再显式判空、判属性；**判空只用 `is null` / `is not null`**，不写 `== null` / `!= null`。if 条件里类型模式（`x is Foo foo`）、常量和 `or` 模式可以用。
    ```csharp
-   var alarms = IocHelper.GetService<IAlarmComponent>();
+   var alarms = IocHelper.GetService<IAlarm>();
    if (alarms is not null && alarms.ActiveAlarms.Count > 0)
    {
        ...

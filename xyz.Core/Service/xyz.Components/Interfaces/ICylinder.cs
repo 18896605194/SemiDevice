@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 气缸
 /// </summary>
-public interface ICylinder : IDeviceComponent
+public interface ICylinder : IDevice
 {
     bool IsOpened { get; }
 

@@ -3,7 +3,7 @@ using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
 
-public interface ITank : IDeviceComponent
+public interface ITank : IDevice
 {
     TankLevel Level { get; }
 

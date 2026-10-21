@@ -83,7 +83,7 @@ public partial class E30Component
         [6] = [1, 11],
     };
 
-    private void RegisterHandlers(IHsmsComponent link)
+    private void RegisterHandlers(IHsms link)
     {
         link.Handle(1, 1, AreYouThere);
         link.Handle(1, 3, StatusRequest);

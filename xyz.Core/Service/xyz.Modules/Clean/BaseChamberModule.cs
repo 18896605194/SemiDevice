@@ -179,7 +179,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或腔体停用（不登记账）为 null
     /// </summary>
-    private ILedgerManagerComponent? _ledger;
+    private ILedgerManager? _ledger;
 
     /// <summary>
     /// 工艺配方库（开机 Bind 时取）：配方里的项在界面上叫什么要用；没装是 null
@@ -262,7 +262,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         #region 晶圆账
 
         // 腔体在晶圆账里也是个位置：片停在腔里跟停在花篮里一样要有槽位
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, SlotCount);
 
         #endregion
@@ -273,7 +273,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 只能装一个的设备：不取"第一个"，配重了直接报错
     /// </summary>
-    private T? FindSingleDevice<T>() where T : class, IDeviceComponent
+    private T? FindSingleDevice<T>() where T : class, IDevice
     {
         var devices = Children.OfType<T>().ToList();
         if (devices.Count > 1)
@@ -933,7 +933,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 锁里查 状态 → 互锁，过了当场发指令，发出去了挂上等设备做完的动作
     /// </summary>
-    private HandleResult<ModuleOperation> StartDeviceAction(IDeviceComponent device, string path, ChamberDeviceAction action, Func<bool> send)
+    private HandleResult<ModuleOperation> StartDeviceAction(IDevice device, string path, ChamberDeviceAction action, Func<bool> send)
     {
         lock (OperationGate)
         {
@@ -1107,7 +1107,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 手动页的设备动作前：平台还没做（比如 Bowl 升着不许摆臂，用户押后了），操作员自己看着点
     /// </summary>
-    protected virtual HandleResult? DeviceActionInterlock(IDeviceComponent device, ChamberDeviceAction action)
+    protected virtual HandleResult? DeviceActionInterlock(IDevice device, ChamberDeviceAction action)
     {
         return null;
     }

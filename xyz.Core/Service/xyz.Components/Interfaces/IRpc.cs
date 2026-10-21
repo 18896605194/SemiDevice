@@ -3,7 +3,7 @@
 /// <summary>
 /// gRPC 服务地址
 /// </summary>
-public interface IRpcComponent
+public interface IRpc
 {
     /// <summary>
     /// 监听端口

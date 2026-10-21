@@ -43,7 +43,7 @@ public class EapComponent : ComponentBase, IEapComponent
     /// </summary>
     public void Bind(IReadOnlyList<ILoadPortAccess> ports, IJobManager? jobs, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
     {
-        var link = FindChild<IHsmsComponent>();
+        var link = FindChild<IHsms>();
         if (link is null)
         {
             LogHelper.Warn(Name, "Eap 下没配 Hsms 节点：EAP 不接");
@@ -81,7 +81,7 @@ public class EapComponent : ComponentBase, IEapComponent
 
         var substrates = FindChild<IE90Component>();
         var carriers = FindChild<IE87Component>();
-        var ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        var ledger = IocHelper.GetService<ILedgerManager>();
         if (substrates is not null)
         {
             if (ledger is null)
@@ -124,14 +124,14 @@ public class EapComponent : ComponentBase, IEapComponent
             return;
         }
 
-        FindChild<IHsmsComponent>()?.Open();
+        FindChild<IHsms>()?.Open();
         LogHelper.Info(Name, "EAP 链路打开");
     }
 
     /// <summary>收：先断链路（发 Separate），再把各标准从设备上摘下来。宿主退出时调。</summary>
     public void Close()
     {
-        FindChild<IHsmsComponent>()?.Close();
+        FindChild<IHsms>()?.Close();
         if (!IsBound)
         {
             return;

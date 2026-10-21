@@ -17,11 +17,11 @@ namespace xyz.Service.Systems;
 /// </summary>
 public class EcService : IEcService
 {
-    private readonly IEcComponent? _ec;
+    private readonly IEc? _ec;
 
     public EcService()
     {
-        _ec = IocHelper.GetService<IEcComponent>();
+        _ec = IocHelper.GetService<IEc>();
     }
 
     public Task<RpcResponse> GetDefinitionsAsync(RpcRequest request, CallContext context = default)

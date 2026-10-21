@@ -30,13 +30,13 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     /// <summary>
     /// 晶圆尺寸：字段的上限按它取
     /// </summary>
-    private readonly IWaferSizeComponent? _waferSize;
+    private readonly IWaferSize? _waferSize;
 
     public ProcessRecipeService()
     {
         _library = IocHelper.GetService<IRecipeComponent>();
         _e30Recipe = IocHelper.GetService<IE30RecipeComponent>();
-        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+        _waferSize = IocHelper.GetService<IWaferSize>();
     }
 
     public Task<RpcResponse> GetListAsync(RpcRequest request, CallContext context = default)

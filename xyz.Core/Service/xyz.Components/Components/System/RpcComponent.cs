@@ -9,7 +9,7 @@ namespace xyz.Components.Components;
 /// 端口规划注意：HSMS（EAP 链路）惯例端口也是 5000，接 EAP 时把其中一边挪开。
 /// </summary>
 [Component(description: "对前端壳的 gRPC 服务端点（监听地址与端口）")]
-public class RpcComponent : ComponentBase, IRpcComponent
+public class RpcComponent : ComponentBase, IRpc
 {
 
     public const int DefaultPort = 5000;

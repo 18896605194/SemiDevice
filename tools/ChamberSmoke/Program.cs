@@ -25,7 +25,8 @@ using xyz.Tools;
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
 // 取放准备二（卡盘转到取放位 + 开门，没回零就失败）、复位等清错、中止停液停轴、
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
-// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算；警告 / 报警、存库读回、清零）。虚拟 IO（虚拟 DO 按点号读写、不下发 PLC，次数寿命先读它）。
+// 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算，或盯计时 DO 只算通着的，
+// 清零 DO 变了就清零重算；警告 / 报警、存库读回、清零）。虚拟 IO（虚拟 DO 按点号读写、不下发 PLC，寿命组件先读它）。
 // 起工艺前看供液就绪（腔体 sc 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
@@ -51,7 +52,7 @@ XyzDb.Register(XyzDb.DefaultName, $"DataSource={countDb}", SqlSugar.DbType.Sqlit
 var previousPlcIo = IocHelper.GetService<IPlcIo>();
 var previousPlcBlock = IocHelper.GetService<IPlcBlock>();
 var previousIo = IocHelper.GetService<IIo>();
-var previousEc = IocHelper.GetService<IEcComponent>();
+var previousEc = IocHelper.GetService<IEc>();
 try
 {
     // 0. 假 PLC、IO 表（0~9 号点）、内存 EC；接线：Door 0/1、Bowl 2/3、Lift 4/5（DO 与 DI 同号），
@@ -70,7 +71,7 @@ try
     var io = new IoComponent { PointTableDirectory = directory };
     SmokeIoc.Use<IIo>(io);
     io.InitComponent();
-    SmokeIoc.Use<IEcComponent>(new EcComponent());
+    SmokeIoc.Use<IEc>(new EcComponent());
     plc.Cylinders.Add((0, 1, 0, 1));
     plc.Cylinders.Add((2, 3, 2, 3));
     plc.Cylinders.Add((4, 5, 4, 5));
@@ -385,8 +386,8 @@ try
         return ArmDto().EdgeReach;
     }
 
-    var previousWaferSize = IocHelper.GetService<IWaferSizeComponent>();
-    SmokeIoc.Use<IWaferSizeComponent>(null);
+    var previousWaferSize = IocHelper.GetService<IWaferSize>();
+    SmokeIoc.Use<IWaferSize>(null);
     // 摆臂开机 Bind 时取晶圆尺寸组件：换了要重新 Bind
     arm.Bind();
     Check(Near(arm.Center, 150) && Near(arm.Edge12, 0) && Near(arm.Edge, 0) && Near(arm.Edge8, 50),
@@ -428,9 +429,9 @@ try
 
     // 8 寸 / 12 寸：边缘示教位各一个、Center 共用；半径 8 寸 100、12 寸 150，按晶圆尺寸组件现在的尺寸换算
     var waferSize = new WaferSizeComponent { Size = WaferSizeComponent.Inch8 };
-    SmokeIoc.Use<IWaferSizeComponent>(waferSize);
+    SmokeIoc.Use<IWaferSize>(waferSize);
     arm.Bind();
-    Check(IocHelper.GetService<IWaferSizeComponent>() == waferSize && WaferSizeComponent.SizeOf(waferSize) == 8, "配了晶圆尺寸组件就按它的尺寸");
+    Check(IocHelper.GetService<IWaferSize>() == waferSize && WaferSizeComponent.SizeOf(waferSize) == 8, "配了晶圆尺寸组件就按它的尺寸");
     arm.Edge8 = 125;
     Check(Near(arm.Edge, 125) && Near(arm.ToAxisPosition(0), 125) && Near(arm.ToAxisPosition(100), 200) && Near(arm.ToAxisPosition(50), 162.5),
         "8 寸：配方 0 → Edge8，100（8 寸中心）→ Center，中间线性");
@@ -438,7 +439,7 @@ try
     waferSize.Size = WaferSizeComponent.Inch12;
     Check(Near(arm.Edge, 100) && Near(arm.ToAxisPosition(0), 100) && Near(arm.ToAxisPosition(150), 200) && Near(EdgeReach(), 0.5),
         "切回 12 寸：按 Edge12 和半径 150，8 寸的示教位留着不动");
-    SmokeIoc.Use<IWaferSizeComponent>(previousWaferSize);
+    SmokeIoc.Use<IWaferSize>(previousWaferSize);
     arm.Bind();
 
     // 4. 推送：有变化才推；跟 ChamberDto 同 token、类型不同，各自留存互不覆盖
@@ -932,9 +933,9 @@ try
 
     // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
     //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
-    var previousLedger = IocHelper.GetService<ILedgerManagerComponent>();
+    var previousLedger = IocHelper.GetService<ILedgerManager>();
     var ledger = new LedgerManagerComponent();
-    SmokeIoc.Use<ILedgerManagerComponent>(ledger);
+    SmokeIoc.Use<ILedgerManager>(ledger);
     try
     {
         var armBefore = arm.ActionState;
@@ -952,14 +953,14 @@ try
     }
     finally
     {
-        SmokeIoc.Use<ILedgerManagerComponent>(previousLedger);
+        SmokeIoc.Use<ILedgerManager>(previousLedger);
     }
 
     // 18. 部件寿命（次数）：寿命组件挂在气缸下面、盯它开侧的 DO 8，气缸本身一行不改；DO 每变一次算一次（断→通、通→断各一次），
     //     读不到不算、重新读到那一拍只记下；到警告次数报警告、到报警次数报报警；已用次数按"加一"写库、开机读回接着数，清零连库一起清
-    var previousAlarm = IocHelper.GetService<IAlarmComponent>();
+    var previousAlarm = IocHelper.GetService<IAlarm>();
     var alarms = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(alarms);
+    SmokeIoc.Use<IAlarm>(alarms);
     try
     {
         var gateConfig = With(Node("Gate", typeof(CylinderComponent), Value("DoOpenIndex", "8"), Value("DoCloseIndex", "9")),
@@ -1207,10 +1208,159 @@ try
 
         Check(duplicated.Contains("DO5003 重复") && duplicated.Contains("VirtualIo.PickA") && duplicated.Contains("VirtualIo.PickB"),
             "点号重复：开机 Bind 时报，带两个节点的路径");
+
+        // 21. 时间寿命盯 DO：配了 DoIndex 只算那个 DO 通着的时间（读法跟次数型一样：先问虚拟 IO，没有再读真 DO；第一拍、读不到以后重新读到的那拍只记下），
+        //     用开机计时器量、改系统时钟不影响；通着攒满一分钟、断了各给库里那行加整秒（只加不写总数，零头留着），重装读回接着算、关机那段不算；
+        //     配了 ClearDoIndex 那个 DO 每变一次（换液时程序翻一下虚拟 DO）就清零重算，重装后虚拟 DO 开机是断、第一拍只记下不当成变了；
+        //     两个配成同一个 DO 装配时就报。时间由探针摆
+        ModuleConfig[] timeConfigs =
+        [
+            With(Node("VirtualIo", typeof(VirtualIoComponent)),
+                Node("PumpRun", typeof(VirtualDoComponent), Value("Index", "5010")),
+                Node("NewChemical", typeof(VirtualDoComponent), Value("Index", "5011"))),
+            Node("PumpLife", typeof(TimeLifetimeProbe), Value("DoIndex", "5010")),
+            Node("ChemicalLife", typeof(TimeLifetimeProbe), Value("ClearDoIndex", "5011")),
+            Node("HeaterLife", typeof(TimeLifetimeProbe), Value("DoIndex", "8")),
+        ];
+        var timeStarted = new DateTime(2026, 10, 1, 8, 0, 0);
+        var timeTree = SmokeIoc.Load(timeConfigs);
+        var timeIo = IocHelper.GetService<IVirtualIo>()!;
+        var pump = (TimeLifetimeProbe)timeTree[1];
+        var chemical = (TimeLifetimeProbe)timeTree[2];
+        var heater = (TimeLifetimeProbe)timeTree[3];
+        pump.Clock = timeStarted;
+        chemical.Clock = timeStarted;
+        heater.Clock = timeStarted;
+        ComponentLoader.BindAll(timeTree);
+
+        // 库里那行等后台写成想要的样子（"没有这张表"当没写到，见 18 节）
+        bool WaitTimeRow(string path, Func<TimeLifetimeEntity, bool> match)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.ElapsedMilliseconds < 3000)
+            {
+                try
+                {
+                    using (var db = XyzDb.Create())
+                    {
+                        var row = db.Queryable<TimeLifetimeEntity>().First(item => item.Path == path);
+                        if (row is not null && match(row))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch (DbException)
+                {
+                    // 当没写到，下一圈再查
+                }
+
+                Thread.Sleep(20);
+            }
+
+            return false;
+        }
+
+        Check(WaitTimeRow("PumpLife", row => row.StartedAt == timeStarted && row.UsedSeconds == 0),
+            "盯 DO 的第一次开机库里也没有：插一行，起算时间是开机这一刻、通着的秒数是 0");
+        pump.Tick();
+        pump.Uptime += TimeSpan.FromMinutes(10);
+        pump.Tick();
+        Check(pump.UsedTime == TimeSpan.Zero, "计时 DO 断着：不算时间");
+        timeIo.WriteDo(5010, true);
+        pump.Tick();
+        pump.Uptime += TimeSpan.FromSeconds(30);
+        pump.Tick();
+        Check(pump.UsedTime == TimeSpan.FromSeconds(30), "程序把虚拟 DO 写通：从通的那一拍起算，通着 30 秒算 30 秒");
+        pump.Clock = timeStarted.AddDays(5);
+        pump.Tick();
+        Check(pump.UsedTime == TimeSpan.FromSeconds(30), "系统时钟往后跳 5 天：不影响，只按开机计时器量");
+        pump.Uptime += TimeSpan.FromSeconds(30);
+        pump.Tick();
+        Check(pump.UsedTime == TimeSpan.FromMinutes(1) && WaitTimeRow("PumpLife", row => row.UsedSeconds == 60), "通着攒满一分钟：给库里那行加 60 秒");
+        pump.Uptime += TimeSpan.FromSeconds(12.5);
+        timeIo.WriteDo(5010, false);
+        pump.Tick();
+        Check(pump.UsedTime == TimeSpan.FromSeconds(72.5) && WaitTimeRow("PumpLife", row => row.UsedSeconds == 72),
+            "断了：最后这一段也算进去，攒下的整秒加进库（72 秒），零头留着下次一起写");
+
+        pump.WarnMinutes = 1;
+        pump.Tick();
+        var pumpWarn = alarms.ActiveAlarms.SingleOrDefault(alarm => alarm.SourcePath == "PumpLife" && alarm.AlarmCode == pump.WarnAlarm);
+        Check(pumpWarn is not null && pumpWarn.Level == AlarmLevel.Warn, "通着累计到警告时间（1 分钟）报警告，报警规则跟按实际时间算的一样");
+        alarms.Reset("PumpLife");
+        pump.WarnMinutes = 0;
+
+        // 计时 DO 是真 DO 8：虚拟 IO 里没有这个点号就读真的；读不到的那段不算，重新读到的那一拍只记下
+        plc.WriteDo(8, true);
+        heater.Tick();
+        heater.Uptime += TimeSpan.FromMinutes(1);
+        heater.Tick();
+        Check(heater.UsedTime == TimeSpan.FromMinutes(1), "虚拟 IO 里没有的点号读真 DO：通着 1 分钟算 1 分钟");
+        plc.IsConnected = false;
+        heater.Uptime += TimeSpan.FromMinutes(1);
+        heater.Tick();
+        plc.IsConnected = true;
+        heater.Uptime += TimeSpan.FromMinutes(1);
+        heater.Tick();
+        heater.Uptime += TimeSpan.FromMinutes(1);
+        heater.Tick();
+        Check(heater.UsedTime == TimeSpan.FromMinutes(2), "读不到的那拍不算，重新读到的那一拍只记下（中间那 2 分钟不补）：一共 2 分钟");
+
+        // 清零 DO：换液这类由程序把虚拟 DO 5011 翻一下，药液时长清零重算（没配计时 DO，按实际时间算）
+        chemical.Tick();
+        chemical.Clock = timeStarted.AddDays(2);
+        chemical.Tick();
+        Check(chemical.UsedTime == TimeSpan.FromDays(2), "清零 DO 没变：照常按实际时间算（第一拍只记下，不清零）");
+        Check(timeIo.ToggleDo(5011), "换了新液：程序把虚拟 DO 翻一下");
+        chemical.Tick();
+        Check(chemical.UsedTime == TimeSpan.Zero && WaitTimeRow("ChemicalLife", row => row.StartedAt == timeStarted.AddDays(2)),
+            "清零 DO 变了（断→通）：清零重算，库里起算时间改成现在");
+        chemical.Clock = timeStarted.AddDays(3);
+        chemical.Tick();
+        Check(chemical.UsedTime == TimeSpan.FromDays(1), "没再变：接着算");
+
+        // 重启：同一棵树再装一遍；虚拟 DO 开机都是断（清零 DO 关机前是通的）
+        var reloadedTimeTree = SmokeIoc.Load(timeConfigs);
+        var reloadedTimeIo = IocHelper.GetService<IVirtualIo>()!;
+        var reloadedPump = (TimeLifetimeProbe)reloadedTimeTree[1];
+        var reloadedChemical = (TimeLifetimeProbe)reloadedTimeTree[2];
+        reloadedPump.Clock = timeStarted.AddDays(9);
+        reloadedChemical.Clock = timeStarted.AddDays(4);
+        ComponentLoader.BindAll(reloadedTimeTree);
+        reloadedPump.Tick();
+        reloadedPump.Uptime += TimeSpan.FromHours(1);
+        reloadedPump.Tick();
+        Check(reloadedPump.UsedTime == TimeSpan.FromSeconds(72), "重装读回库里的 72 秒接着算（没写进库的半秒丢了）；关机那几天、DO 断着的一小时都不算");
+        reloadedChemical.Tick();
+        Check(reloadedChemical.UsedTime == TimeSpan.FromDays(2), "重装：清零 DO 开机是断，第一拍只记下、不当成变了，接着库里的起算时间算（关机那天也算）");
+        reloadedTimeIo.ToggleDo(5011);
+        reloadedChemical.Tick();
+        reloadedChemical.Clock = timeStarted.AddDays(5);
+        reloadedTimeIo.ToggleDo(5011);
+        reloadedChemical.Tick();
+        Check(reloadedChemical.UsedTime == TimeSpan.Zero && WaitTimeRow("ChemicalLife", row => row.StartedAt == timeStarted.AddDays(5)),
+            "通→断也算变了一次：再清零，库里起算时间跟着改");
+
+        reloadedPump.Clear();
+        Check(reloadedPump.UsedTime == TimeSpan.Zero && WaitTimeRow("PumpLife", row => row.UsedSeconds == 0 && row.StartedAt == timeStarted.AddDays(9)),
+            "人工清零：通着累计的归零，库里秒数归 0、起算时间改成现在");
+
+        string sameDo = string.Empty;
+        try
+        {
+            SmokeIoc.Load([Node("BadLife", typeof(TimeLifetimeProbe), Value("DoIndex", "5010"), Value("ClearDoIndex", "5010"))]);
+        }
+        catch (InvalidOperationException exception)
+        {
+            sameDo = exception.Message;
+        }
+
+        Check(sameDo.Contains("BadLife") && sameDo.Contains("DO5010"), "计时 DO 和清零 DO 配成同一个：装配时就报，带节点路径和点号");
     }
     finally
     {
-        SmokeIoc.Use<IAlarmComponent>(previousAlarm);
+        SmokeIoc.Use<IAlarm>(previousAlarm);
     }
 
     // 19. 起工艺前看供液就绪没有：腔体 SC Supply 配供液模块名（几个逗号隔开），开机 Bind 时按名字经 ISupplyAccess 取到（不分大小写、去空格、重复的只取一次；
@@ -1287,7 +1437,9 @@ try
         + "never overwriting it) and read back, start timestamps on the monotonic clock, "
         + "process percent by recipe step times; disabled chamber, component init and module init = Home; "
         + "part lifetime by count (every change of a DO, stored by adding one) and by time (since the last clear, through shutdowns), "
-        + "warn / alarm thresholds, read back, clear on part change; virtual IO (virtual DO by index in memory, read first by a count lifetime); "
+        + "warn / alarm thresholds, read back, clear on part change; a time lifetime counting only while a DO is on (monotonic clock, "
+        + "saved by adding whole seconds, read back) or restarted by every change of a DO, the same DO for both refused at load; "
+        + "virtual IO (virtual DO by index in memory, read first by the lifetimes); "
         + "supply readiness checked when a process starts: the chamber's supplies named in sc and bound by name at startup, a missing name failing startup, "
         + "a disabled chamber not binding, any not-ready supply refusing the start, no supplies configured means no check, a supply drop after the start ignored, "
         + "the EC switch turning the check off and back on at once)");
@@ -1298,7 +1450,7 @@ finally
     SmokeIoc.Use<IPlcIo>(previousPlcIo);
     SmokeIoc.Use<IPlcBlock>(previousPlcBlock);
     SmokeIoc.Use<IIo>(previousIo);
-    SmokeIoc.Use<IEcComponent>(previousEc);
+    SmokeIoc.Use<IEc>(previousEc);
     Directory.Delete(directory, recursive: true);
     try
     {
@@ -1387,7 +1539,7 @@ public sealed class CountLifetimeProbe : CountLifetimeComponent
 }
 
 /// <summary>
-/// 冒烟用时间寿命组件：现在几点由冒烟摆，Tick 由冒烟线程手动走一拍
+/// 冒烟用时间寿命组件：现在几点、开机计时由冒烟摆，Tick 由冒烟线程手动走一拍
 /// </summary>
 [Component(description: "冒烟用时间寿命组件")]
 public sealed class TimeLifetimeProbe : TimeLifetimeComponent
@@ -1397,6 +1549,11 @@ public sealed class TimeLifetimeProbe : TimeLifetimeComponent
     /// </summary>
     public DateTime Clock { get; set; } = DateTime.Now;
 
+    /// <summary>
+    /// 冒烟摆的开机计时读数
+    /// </summary>
+    public TimeSpan Uptime { get; set; }
+
     public void Tick()
     {
         OnScan();
@@ -1405,6 +1562,11 @@ public sealed class TimeLifetimeProbe : TimeLifetimeComponent
     protected override DateTime ReadNow()
     {
         return Clock;
+    }
+
+    protected override TimeSpan ReadUptime()
+    {
+        return Uptime;
     }
 }
 

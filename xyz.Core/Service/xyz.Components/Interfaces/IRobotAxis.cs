@@ -3,7 +3,7 @@
 /// <summary>
 /// robot的轴不包含arm
 /// </summary>
-public interface IRobotAxis : IDeviceComponent
+public interface IRobotAxis : IDevice
 {
     double? Position { get; }
 

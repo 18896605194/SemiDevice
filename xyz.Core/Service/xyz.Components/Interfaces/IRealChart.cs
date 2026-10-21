@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 实时曲线
 /// </summary>
-public interface IRealChartComponent
+public interface IRealChart
 {
     /// <summary>
     /// 这次开机的会话号（界面按它认是不是同一段数据）

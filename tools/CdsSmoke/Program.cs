@@ -37,8 +37,8 @@ var directory = Path.Combine(Path.GetTempPath(), "xyz-cds-smoke-" + Guid.NewGuid
 Directory.CreateDirectory(directory);
 var previousPlc = IocHelper.GetService<IPlcIo>();
 var previousIo = IocHelper.GetService<IIo>();
-var previousEc = IocHelper.GetService<IEcComponent>();
-var previousAlarm = IocHelper.GetService<IAlarmComponent>();
+var previousEc = IocHelper.GetService<IEc>();
+var previousAlarm = IocHelper.GetService<IAlarm>();
 try
 {
     // 0. 假 PLC、IO 表（0~19 号点）、内存 EC、报警
@@ -55,9 +55,9 @@ try
     var io = new IoComponent { PointTableDirectory = directory };
     SmokeIoc.Use<IIo>(io);
     io.InitComponent();
-    SmokeIoc.Use<IEcComponent>(new EcComponent());
+    SmokeIoc.Use<IEc>(new EcComponent());
     var alarms = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(alarms);
+    SmokeIoc.Use<IAlarm>(alarms);
 
     bool Active(ComponentBase source, string code)
     {
@@ -441,12 +441,12 @@ try
     plc.SetDi(10, true);
     plc.SetDi(11, false);
     // IPA 开机 Bind 时取映射组件：换了要重新 Bind
-    SmokeIoc.Use<IMapperComponent>(null);
+    SmokeIoc.Use<IMapper>(null);
     ipa.Bind();
     ipa.Tick();
     Check(received.Count == 0, "没装映射组件：不推（开机时映射组件是必配的）");
     var mapper = new MapperComponent();
-    SmokeIoc.Use<IMapperComponent>(mapper);
+    SmokeIoc.Use<IMapper>(mapper);
     ipa.Bind();
     ipa.Tick();
     Check(received.Count == 1 && received[0].Module == "IPA" && received[0].State == ModuleState.NotInit && received[0].Tanks.Count == 1,
@@ -662,8 +662,8 @@ finally
 {
     SmokeIoc.Use<IPlcIo>(previousPlc);
     SmokeIoc.Use<IIo>(previousIo);
-    SmokeIoc.Use<IEcComponent>(previousEc);
-    SmokeIoc.Use<IAlarmComponent>(previousAlarm);
+    SmokeIoc.Use<IEc>(previousEc);
+    SmokeIoc.Use<IAlarm>(previousAlarm);
     Directory.Delete(directory, recursive: true);
 }
 

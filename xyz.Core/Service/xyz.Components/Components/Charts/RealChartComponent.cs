@@ -11,7 +11,7 @@ namespace xyz.Components.Components;
 /// 实时曲线：专管往界面推
 /// </summary>
 [Component(description: "实时曲线（订阅数据曲线的采样，留最近一段，推给界面）")]
-public class RealChartComponent : ComponentBase, IRealChartComponent
+public class RealChartComponent : ComponentBase, IRealChart
 {
     #region SC
 
@@ -29,7 +29,7 @@ public class RealChartComponent : ComponentBase, IRealChartComponent
     /// </summary>
     private readonly Queue<DataRecord> _pending = new();
 
-    private IDataChartComponent? _source;
+    private IDataChart? _source;
 
     private IDisposable? _subscription;
 
@@ -79,7 +79,7 @@ public class RealChartComponent : ComponentBase, IRealChartComponent
     /// </summary>
     public override void Bind()
     {
-        var source = IocHelper.GetService<IDataChartComponent>();
+        var source = IocHelper.GetService<IDataChart>();
         if (source is null)
         {
             LogHelper.Warn(Name, "sc.xml 没配 DataChart 节点：实时曲线没有数据");
@@ -92,7 +92,7 @@ public class RealChartComponent : ComponentBase, IRealChartComponent
     /// <summary>
     /// 接到数据曲线的采样流上
     /// </summary>
-    public void Attach(IDataChartComponent source)
+    public void Attach(IDataChart source)
     {
         _subscription?.Dispose();
         _source = source;

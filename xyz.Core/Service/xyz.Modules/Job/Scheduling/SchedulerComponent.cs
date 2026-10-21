@@ -23,7 +23,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     #endregion
 
     private ITransferManager? _transfers;
-    private ILedgerManagerComponent? _ledger;
+    private ILedgerManager? _ledger;
 
     /// <summary>
     /// 预取意向：站点 → 为它预取到手上的那片；同一个站只预取一片。只在 Job 扫描线程上读写
@@ -33,7 +33,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     public override void Bind()
     {
         _transfers = IocHelper.GetService<ITransferManager>();
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
     }
 
     /// <summary>

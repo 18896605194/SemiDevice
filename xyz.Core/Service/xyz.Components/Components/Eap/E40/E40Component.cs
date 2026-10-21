@@ -210,7 +210,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
     /// <param name="gem"></param>
     /// <param name="objects"></param>
     /// <param name="jobs"></param>
-    public void Attach(IHsmsComponent link, IE30Component gem, IE39Component? objects, IJobManager jobs)
+    public void Attach(IHsms link, IE30Component gem, IE39Component? objects, IJobManager jobs)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);

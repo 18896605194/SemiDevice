@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 报警组件接口
 /// </summary>
-public interface IAlarmComponent
+public interface IAlarm
 {
     /// <summary>
     /// 报警变化的快照

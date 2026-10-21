@@ -145,8 +145,8 @@ try
 
     // ── 3. 当前报警与人工复位：走报警组件；复位不存在的来源给错误码；没装报警组件给错误码 ─────
     var alarms = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(alarms);
-    SmokeIoc.Use<IMapperComponent>(new MapperComponent()); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
+    SmokeIoc.Use<IAlarm>(alarms);
+    SmokeIoc.Use<IMapper>(new MapperComponent()); // 报警、EC、曲线推给界面和服务回包都靠它转（开机必配）
     alarms.Bind(); // 开机 Bind 时取映射组件
     var device = new ProbeDevice("Tool1");
     var alarmService = new AlarmService();
@@ -173,7 +173,7 @@ try
     Check(resetAll.Success && JsonHelper.Deserialize<int>(resetAll.Data) == 1 && alarms.ActiveAlarms.Count == 0,
         "全部复位：复位了 1 个来源");
 
-    SmokeIoc.Use<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarm>(null);
     alarmService = new AlarmService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var notInstalled = await alarmService.ResetAllAsync(new RpcRequest());
     Check(!notInstalled.Success && notInstalled.Code == ErrorCodes.AlarmNotInstalled, "没装报警组件：给错误码");
@@ -252,7 +252,7 @@ try
     DataChartComponent RunChart(List<ComponentBase> roots)
     {
         var chart = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
-        SmokeIoc.Use<IDataChartComponent>(chart);
+        SmokeIoc.Use<IDataChart>(chart);
         var times = new List<long>();
         chart.Records.Subscribe(record =>
         {
@@ -339,7 +339,7 @@ try
 
     // sc 里没配 IsRun：不起扫描，一行都不采
     var idle = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
-    SmokeIoc.Use<IDataChartComponent>(idle);
+    SmokeIoc.Use<IDataChart>(idle);
     int idleRows = 0;
     idle.Records.Subscribe(_ => Interlocked.Increment(ref idleRows));
     idle.Bind(ChartTree("Door"));
@@ -350,9 +350,9 @@ try
 
     // 实时曲线：接在数据曲线的采样上，在自己的扫描里（配了 IsRun）把采到的行一帧一帧推给界面（不留存）；每帧带这一轮的标识，值跟信号表一样多
     var realSource = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };
-    SmokeIoc.Use<IDataChartComponent>(realSource);
+    SmokeIoc.Use<IDataChart>(realSource);
     var realChart = new RealChartComponent { IsRun = true, WindowSeconds = 60 };
-    SmokeIoc.Use<IRealChartComponent>(realChart);
+    SmokeIoc.Use<IRealChart>(realChart);
     var frames = new List<RealChartFrameDto>();
     using (EventBus.Register<RealChartFrameDto>(RealChartFrameDto.EventToken, frame =>
            {
@@ -422,7 +422,7 @@ try
 }
 finally
 {
-    SmokeIoc.Use<IDataChartComponent>(null);
+    SmokeIoc.Use<IDataChart>(null);
     SmokeIoc.Use<GemCollectors>(null);
     SqliteCleanup(chartDbFile);
     try

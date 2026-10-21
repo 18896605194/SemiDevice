@@ -25,7 +25,7 @@ namespace xyz.Components.Components;
 /// 本节点 IsEnable=False 时整个 EAP 不起（不监听端口），设备照常跑。
 /// </summary>
 [Component(description: "EAP 主机链路（SEMI E37 HSMS）：监听或连出、按 Stream/Function 分发报文")]
-public class HsmsComponent : ComponentBase, IHsmsComponent
+public class HsmsComponent : ComponentBase, IHsms
 {
     /// <summary>S9F3：整个 Stream 不认识。</summary>
     private const byte UnknownStreamFunction = 3;
@@ -209,7 +209,7 @@ public class HsmsComponent : ComponentBase, IHsmsComponent
 
         // 跟 gRPC 同端口：宿主先开 EAP 链路、后起 gRPC，监听是独占的，gRPC 就绑不上、整个后端起不来。
         // 只能让一边让路——界面要靠 gRPC，所以 EAP 链路不起，记错误。
-        int rpcPort = IocHelper.GetService<IRpcComponent>()?.Port ?? RpcComponent.DefaultPort;
+        int rpcPort = IocHelper.GetService<IRpc>()?.Port ?? RpcComponent.DefaultPort;
         if (Port == rpcPort)
         {
             LogHelper.Error(Name, $"EAP 链路没起来：Hsms 端口 {Port} 跟 Rpc 节点的 gRPC 端口相同，把其中一个挪开");

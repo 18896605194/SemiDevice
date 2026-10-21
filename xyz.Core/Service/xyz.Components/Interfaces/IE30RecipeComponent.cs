@@ -13,7 +13,7 @@ public interface IE30RecipeComponent
     /// <summary>
     /// 接到链路、GEM 和两个配方库上（没装的库传 null）
     /// </summary>
-    void Attach(IHsmsComponent link, IE30Component gem, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes);
+    void Attach(IHsms link, IE30Component gem, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes);
 
     /// <summary>
     /// 从设备上摘下来（宿主退出）

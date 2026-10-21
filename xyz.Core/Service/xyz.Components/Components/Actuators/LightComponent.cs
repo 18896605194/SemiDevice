@@ -6,7 +6,7 @@ namespace xyz.Components.Components;
 
 
 [Component(description: "四色灯和蜂鸣器组件")]
-public class LightComponent : ComponentBase, ILightComponent
+public class LightComponent : ComponentBase, ILight
 {
     #region SC 装机常量
 

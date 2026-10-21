@@ -52,7 +52,7 @@ var node = new ModuleConfig
 };
 var roots = SmokeIoc.Load([node]);
 var hsms = roots.OfType<HsmsComponent>().Single();
-Check(ReferenceEquals(IocHelper.GetService<IHsmsComponent>(), hsms), "装配出来就登记成单例");
+Check(ReferenceEquals(IocHelper.GetService<IHsms>(), hsms), "装配出来就登记成单例");
 Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[SCEditor] 灌值生效（IsEnable/Port/DeviceId）");
 
 // 2. 登记处理方和闸门（链路打开之前）。
@@ -186,13 +186,13 @@ eap.Dispose();
 
 // 4. 链路起不来的几种情况：Open 只记错误、不抛，后端照常起，链路状态保持未连接。
 // ① 跟 gRPC（Rpc 节点）同端口：不去抢——宿主先开 EAP 链路后起 gRPC，抢了 gRPC 就绑不上、整个后端起不来。
-SmokeIoc.Use<IRpcComponent>(new RpcComponent { Port = port }); // 宿主从容器里的 Rpc 组件取 gRPC 端口
+SmokeIoc.Use<IRpc>(new RpcComponent { Port = port }); // 宿主从容器里的 Rpc 组件取 gRPC 端口
 var sameAsRpc = new HsmsComponent { IsEnable = true, Port = port, LinktestIntervalMs = 0 };
-SmokeIoc.Use<IHsmsComponent>(sameAsRpc);
+SmokeIoc.Use<IHsms>(sameAsRpc);
 sameAsRpc.Open();
 Check(sameAsRpc.LocalEndpoint is null && sameAsRpc.LinkState == HsmsLinkState.NotConnected, "跟 gRPC 同端口时不监听");
 sameAsRpc.Close();
-SmokeIoc.Use<IRpcComponent>(null);
+SmokeIoc.Use<IRpc>(null);
 
 // ② 配置不对（设备号超 15 位、超时填 0）：同样只记错误。端口给 0，万一没拦住会监听到系统分配的端口，检查就会失败。
 foreach (var invalid in new[]
@@ -211,7 +211,7 @@ var occupant = new TcpListener(IPAddress.Loopback, 0);
 occupant.Start();
 var occupiedPort = ((IPEndPoint)occupant.LocalEndpoint).Port;
 var clash = new HsmsComponent { IsEnable = true, Port = occupiedPort, LinktestIntervalMs = 0 };
-SmokeIoc.Use<IHsmsComponent>(clash);
+SmokeIoc.Use<IHsms>(clash);
 clash.Open();
 Check(clash.LocalEndpoint is null && clash.LinkState == HsmsLinkState.NotConnected, "端口被占时 Open 不抛、不监听");
 clash.Close();
@@ -219,7 +219,7 @@ occupant.Stop();
 
 // ④ 没启用：不监听。
 var disabled = new HsmsComponent { IsEnable = false, Port = 0 };
-SmokeIoc.Use<IHsmsComponent>(disabled);
+SmokeIoc.Use<IHsms>(disabled);
 disabled.Open();
 Check(disabled.LocalEndpoint is null, "IsEnable=False 时不监听");
 

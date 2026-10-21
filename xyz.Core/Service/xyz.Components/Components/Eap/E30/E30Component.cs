@@ -31,7 +31,7 @@ public partial class E30Component : ComponentBase, IE30Component
     private const byte AlarmSetBit = 0x80;
 
     private readonly GemBook _book = new();
-    private IHsmsComponent? _link;
+    private IHsms? _link;
     private GemStore? _store;
     private GemSpool? _spool;
     private GemSender? _sender;
@@ -40,12 +40,12 @@ public partial class E30Component : ComponentBase, IE30Component
     /// <summary>
     /// 报警组件（接链路时取）；没装是 null
     /// </summary>
-    private IAlarmComponent? _alarms;
+    private IAlarm? _alarms;
 
     /// <summary>
     /// EC 组件（接链路时取）；没装是 null
     /// </summary>
-    private IEcComponent? _ec;
+    private IEc? _ec;
 
     /// <summary>
     /// GEM 编号表（接链路时取）：SV、EC、DV、事件、报警的编号都查它
@@ -272,7 +272,7 @@ public partial class E30Component : ComponentBase, IE30Component
     /// 接到链路上（EAP 组件在链路打开之前调）：读回存着的设定、登记各报文的处理方和闸门、订链路连上 / 断开、
     /// 订报警和 EC 变化，最后按 EC 进开机的控制状态。
     /// </summary>
-    public void Attach(IHsmsComponent link)
+    public void Attach(IHsms link)
     {
         ArgumentNullException.ThrowIfNull(link);
         if (_link is not null)
@@ -296,13 +296,13 @@ public partial class E30Component : ComponentBase, IE30Component
         RegisterHandlers(link);
 
         _collectors = IocHelper.GetService<GemCollectors>();
-        _alarms = IocHelper.GetService<IAlarmComponent>();
+        _alarms = IocHelper.GetService<IAlarm>();
         if (_alarms is not null)
         {
             _alarms.AlarmChanged += OnAlarmChanged;
         }
 
-        _ec = IocHelper.GetService<IEcComponent>();
+        _ec = IocHelper.GetService<IEc>();
         if (_ec is not null)
         {
             _ec.ValueChanged += OnConstantChanged;

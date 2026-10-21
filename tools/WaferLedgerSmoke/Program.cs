@@ -44,7 +44,7 @@ Check(mapperNode is not null, "账本的存盘、流水、人工调整记录靠�
 // 连库、映射组件和账本一起装：账本的流水库名要能在这些连接里找到，否则会回落到默认库。
 // 后面直接 new 出来的账本也用这里装出来的映射组件。
 var roots = SmokeIoc.Load([databaseGroup!, mapperNode!, node!]);
-Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && IocHelper.GetService<IMapperComponent>() is not null, "sc.xml 应装出映射组件");
+Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && IocHelper.GetService<IMapper>() is not null, "sc.xml 应装出映射组件");
 Check(XyzDb.IsRegistered("Default") && XyzDb.IsRegistered("Io"),
     "Database 节点应注册出业务库与设备数据库两路连接，实际: " + string.Join(",", XyzDb.RegisteredNames));
 Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
@@ -52,15 +52,15 @@ Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", Str
     "晶圆流水属业务数据，应配在默认库");
 var assembled = roots.OfType<LedgerManagerComponent>().SingleOrDefault();
 Check(assembled is not null && assembled.IsEnable && assembled.Name == "LedgerManager", "sc.xml 应装出一个启用的 LedgerManagerComponent");
-Check(ReferenceEquals(IocHelper.GetService<ILedgerManagerComponent>(), assembled), "装配出来就登记成单例");
+Check(ReferenceEquals(IocHelper.GetService<ILedgerManager>(), assembled), "装配出来就登记成单例");
 // 启动时只对 roots 里的 BaseModule 调 Start()，账本不在其中，所以没有扫描线程。
 Check(!roots.OfType<BaseModule>().Any(module => ReferenceEquals(module, assembled)), "账本不该出现在会被 Start 的模块清单里");
 // 后面还要装别的树（会换掉整棵树）：映射组件单独登记着
-SmokeIoc.Use<IMapperComponent>(roots.OfType<MapperComponent>().Single());
+SmokeIoc.Use<IMapper>(roots.OfType<MapperComponent>().Single());
 
 // 后面用独立实例，不动装配出来的那本账。
 var ledger = new LedgerManagerComponent();
-SmokeIoc.Use<ILedgerManagerComponent>(ledger);
+SmokeIoc.Use<ILedgerManager>(ledger);
 ledger.InitComponent(); // 开机准备：取映射组件（流水、存盘、人工调整记录靠它转）
 ledger.RegisterLoadPort("LoadPort1", 25);
 ledger.RegisterLocation("Robot1", 2);
@@ -105,7 +105,7 @@ Check(ledger.CountWafers("Robot1") == 1 && ledger.CountWafers("LoadPort1") == 1,
     var original = guarded.Create("GuardSource", 1)!;
     int moves = 0;
     guarded.WaferMoved += (_, _, _) => moves++;
-    ILedgerManagerComponent access = guarded;
+    ILedgerManager access = guarded;
 
     Check(!access.Move("GuardSource", 1, "GuardTarget", 1, Guid.Empty)
           && guarded.Get("GuardSource", 1)?.Id == original.Id && guarded.Get("GuardTarget", 1) is null && moves == 0,
@@ -170,7 +170,7 @@ Check(!ledger.Verify("Robot1", 2, true), "设备有片账上没有 → 不一致
 
 // 8. 并发抢同一个槽：两个线程同时放片，只能成一个，账上不丢片也不覆盖。
 var race = new LedgerManagerComponent();
-SmokeIoc.Use<ILedgerManagerComponent>(race);
+SmokeIoc.Use<ILedgerManager>(race);
 race.InitComponent();
 race.RegisterLocation("A", 2);
 race.RegisterLocation("B", 1);
@@ -211,7 +211,7 @@ for (int round = 0; round < 50; round++)
 
 // 9. 关掉记账：不建账，设备照常动作。
 var off = new LedgerManagerComponent { IsEnable = false };
-SmokeIoc.Use<ILedgerManagerComponent>(off);
+SmokeIoc.Use<ILedgerManager>(off);
 off.RegisterLocation("X", 1);
 Check(off.Create("X", 1) is null && off.CountWafers("X") == 0 && !off.Move("X", 1, "X", 1), "IsEnable=False 时不记账");
 
@@ -356,7 +356,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
             ],
         },
     ]).OfType<AlarmComponent>().Single();
-    Check(ReferenceEquals(IocHelper.GetService<IAlarmComponent>(), alarms), "装出来的报警组件应成为 Current");
+    Check(ReferenceEquals(IocHelper.GetService<IAlarm>(), alarms), "装出来的报警组件应成为 Current");
 
     var raised = new List<AlarmItem>();
     alarms.AlarmChanged += item =>
@@ -368,7 +368,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     };
 
     var faulty = new LedgerManagerComponent();
-    SmokeIoc.Use<ILedgerManagerComponent>(faulty);
+    SmokeIoc.Use<ILedgerManager>(faulty);
     faulty.InitComponent();
     typeof(ComponentBase).GetProperty("Name")!.SetValue(faulty, "SmokeLedger");
     typeof(ComponentBase).GetProperty("FullPath")!.SetValue(faulty, "SmokeLedger");
@@ -444,7 +444,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     }
 
     // 报警上报不能把设备线程带崩：没装报警组件时是空操作
-    SmokeIoc.Use<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarm>(null);
     Check(!ledger.Move("AlarmLp", 1, "AlarmLp", 2), "没装报警组件时账本照常工作");
 }
 
@@ -452,9 +452,9 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 //     改成了照常发事件、记流水，另记一条调整记录（操作人、原因）；流水落库时调整记录也落库。
 {
     var manualGuard = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(manualGuard);
+    SmokeIoc.Use<IAlarm>(manualGuard);
     var manual = new LedgerManagerComponent();
-    SmokeIoc.Use<ILedgerManagerComponent>(manual);
+    SmokeIoc.Use<ILedgerManager>(manual);
     manual.InitComponent();
     manual.RegisterLocation("ManualPM", 1);
     manual.RegisterLocation("ManualRB", 2);
@@ -547,7 +547,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     Check(manual.GetRecentAdjustments().Count == LedgerManagerComponent.RecentAdjustmentCount, "不落库时内存里只留最近 50 条");
 
     var disabledLedger = new LedgerManagerComponent { IsEnable = false };
-    SmokeIoc.Use<ILedgerManagerComponent>(disabledLedger);
+    SmokeIoc.Use<ILedgerManager>(disabledLedger);
     Check(disabledLedger.ManualMove("A", 1, "B", 1, "Tester", null) == WaferAdjustResult.Disabled
           && disabledLedger.ManualDelete("A", 1, "Tester", null) == WaferAdjustResult.Disabled
           && disabledLedger.ManualCreate("A", 1, "W-1", "Tester", null) == WaferAdjustResult.Disabled,
@@ -608,16 +608,16 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
             .SplitTable(tables => tables.Take(2)).ExecuteCommand();
     }
 
-    SmokeIoc.Use<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarm>(null);
 }
 
 // 16. 账单调整服务（直接调 gRPC 服务类，不起网络）：位置跟着机械手的站点表走——机械手在前，站点按站点表的先后，
 //     几台机械手共用的站点只列一次，没登记槽位的站点不列；移账、删账的结果翻成错误码；没带操作人记成 Unknown。
 {
     var serviceGuard = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(serviceGuard);
+    SmokeIoc.Use<IAlarm>(serviceGuard);
     var serviceLedger = new LedgerManagerComponent();
-    SmokeIoc.Use<ILedgerManagerComponent>(serviceLedger);
+    SmokeIoc.Use<ILedgerManager>(serviceLedger);
     serviceLedger.InitComponent();
     var robot1 = new LedgerProbeRobot("SvcRobot1", "SvcLP1", "SvcPM1");
     var robot2 = new LedgerProbeRobot("SvcRobot2", "SvcPM1", "SvcBuffer", "SvcGhost");
@@ -726,12 +726,12 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && !disabledCreate.Success && disabledCreate.Code == ErrorCodes.WaferLedgerDisabled,
         "账没开：位置表是空的，调账给错误码");
 
-    SmokeIoc.Use<ILedgerManagerComponent>(null);
+    SmokeIoc.Use<ILedgerManager>(null);
     service = new WaferLedgerService(); // 服务在构造时取单例（宿主每次调用都新建一个），换了单例要重新建
     var noLedgerView = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     var noLedgerRecords = (await service.GetAdjustmentsAsync(new RpcRequest())).DeserializeData<List<WaferAdjustmentDto>>();
     Check(!noLedgerView.IsEnabled && noLedgerView.Locations.Count == 0 && noLedgerRecords.Count == 0, "没装账本也不出错");
-    SmokeIoc.Use<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarm>(null);
 }
 
 // 存盘与开机恢复：装配出来（读到 SC）的账本隔一会儿把当前账整张存盘；"重启"后新的一本账在模块登记完槽位后恢复——
@@ -774,7 +774,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     }
 
     var noMapper = Assemble();
-    SmokeIoc.Use<IMapperComponent>(null);
+    SmokeIoc.Use<IMapper>(null);
     noMapper.InitComponent(); // 开机准备时取映射组件：这时没有
     bool refused = false;
     try
@@ -797,7 +797,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     var armWafer = before.Create("PLP", 3, WaferStatus.Normal, "FOUP-P")!;
     Check(before.Move("PLP", 2, "PPM", 1) && before.SetProcessState("PPM", 1, WaferProcessState.InProcess)
           && before.Move("PLP", 3, "PRB", 2), "摆好：一片在载具里、一片在腔体里加工、一片在机械手手上");
-    var mapper = IocHelper.GetService<IMapperComponent>();
+    var mapper = IocHelper.GetService<IMapper>();
     var armNow = before.Get("PRB", 2);
     var armRow = mapper is not null && armNow is not null ? mapper.Map<WaferCurrentEntity>(armNow) : null;
     Check(armRow is not null && armNow is not null && armRow.WaferGuid == armNow.Id.ToString() && armRow.WaferId == armNow.WaferId
@@ -855,8 +855,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     Check(savedAfterRestore, "恢复完存盘线程接着存：存的是这一轮的账（中止、开机 Mapping 的新片）");
     after.StopSnapshot();
-    SmokeIoc.Use<ILedgerManagerComponent>(null);
-    SmokeIoc.Use<IMapperComponent>(null);
+    SmokeIoc.Use<ILedgerManager>(null);
+    SmokeIoc.Use<IMapper>(null);
 }
 
 Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");

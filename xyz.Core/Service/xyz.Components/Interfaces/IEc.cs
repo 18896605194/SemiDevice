@@ -7,7 +7,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// EC 参数：读写、落盘
 /// </summary>
-public interface IEcComponent
+public interface IEc
 {
     /// <summary>
     /// 值变了（界面改的、组件自己写的都算）

@@ -16,7 +16,7 @@ static class Heartbeats
     {
         var previousPlc = IocHelper.GetService<IPlcIo>();
         var previousIo = IocHelper.GetService<IIo>();
-        var previousAlarm = IocHelper.GetService<IAlarmComponent>();
+        var previousAlarm = IocHelper.GetService<IAlarm>();
         try
         {
             // 点表放进 IO 组件的点表目录：心跳 DO 是 0 号点
@@ -30,7 +30,7 @@ static class Heartbeats
             SmokeIoc.Use<IIo>(io);
             io.InitComponent();
             var alarms = new AlarmComponent();
-            SmokeIoc.Use<IAlarmComponent>(alarms);
+            SmokeIoc.Use<IAlarm>(alarms);
 
             // 1. 照 sc 装：挂在 Plc 分组下，DO 号、间隔从 sc 来；没配的用默认值（-1 不发、1000 ms）
             var plcGroup = new ModuleConfig
@@ -109,7 +109,7 @@ static class Heartbeats
         {
             SmokeIoc.Use<IPlcIo>(previousPlc);
             SmokeIoc.Use<IIo>(previousIo);
-            SmokeIoc.Use<IAlarmComponent>(previousAlarm);
+            SmokeIoc.Use<IAlarm>(previousAlarm);
         }
     }
 

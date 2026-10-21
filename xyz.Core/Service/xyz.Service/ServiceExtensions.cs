@@ -47,11 +47,11 @@ public static class ServiceExtensions
         IocHelper.ServiceProvider = provider;
         var roots = IocHelper.GetRequiredService<IReadOnlyList<ComponentBase>>();
         Require<ISystemModule>("System", "整机");
-        Require<IMapperComponent>("Mapper", "对象映射（报警、EC、曲线推给界面都靠它转）");
+        Require<IMapper>("Mapper", "对象映射（报警、EC、曲线推给界面都靠它转）");
         Require<ILogComponent>("Log", "日志（转给界面的实时日志、最近日志）");
 
         // 组件开机准备就要读 EC，所以排在开机阶段前面
-        var ec = IocHelper.GetService<IEcComponent>();
+        var ec = IocHelper.GetService<IEc>();
         if (ec is not null)
         {
             ec.Merge(roots);

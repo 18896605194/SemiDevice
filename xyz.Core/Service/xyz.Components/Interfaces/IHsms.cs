@@ -7,7 +7,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// HSMS 链路
 /// </summary>
-public interface IHsmsComponent
+public interface IHsms
 {
     /// <summary>
     /// 链路选上了（Host 连上、Select 成功）

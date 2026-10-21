@@ -51,7 +51,7 @@ public class E39Component : ComponentBase, IE39Component
     #region 登记
 
     /// <summary>接到链路上：登记 S14 的处理方（EAP 组件在链路打开之前调）。</summary>
-    public void Attach(IHsmsComponent link, IE30Component gem)
+    public void Attach(IHsms link, IE30Component gem)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);

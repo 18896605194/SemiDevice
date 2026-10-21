@@ -308,7 +308,7 @@ public abstract class ComponentBase
             child.Reset();
         }
 
-        IocHelper.GetService<IAlarmComponent>()?.Clear(this);
+        IocHelper.GetService<IAlarm>()?.Clear(this);
         return null;
     }
 
@@ -342,7 +342,7 @@ public abstract class ComponentBase
     /// 自己或任意子组件当前有没有报警（按来源路径前缀查报警表）。
     /// DI、AI 这类公共组件装进哪个模块，报警就算在哪个模块头上，组件里不用写任何代码。
     /// </summary>
-    public bool HasAlarm => IocHelper.GetService<IAlarmComponent>()?.HasAlarmUnder(AlarmSource) ?? false;
+    public bool HasAlarm => IocHelper.GetService<IAlarm>()?.HasAlarmUnder(AlarmSource) ?? false;
 
     /// <summary>
     /// 报警（动作失败、超时、账实不符这类一次性的事）：立即报，不防抖；已经在报的再报不会重复。
@@ -350,7 +350,7 @@ public abstract class ComponentBase
     /// </summary>
     protected void RaiseAlarm(string code)
     {
-        IocHelper.GetService<IAlarmComponent>()?.Raise(this, code);
+        IocHelper.GetService<IAlarm>()?.Raise(this, code);
     }
 
     /// <summary>
@@ -418,7 +418,7 @@ public abstract class ComponentBase
     /// </summary>
     public string GetEcString(string key)
     {
-        var value = IocHelper.GetService<IEcComponent>()?.Get(FullPath, key);
+        var value = IocHelper.GetService<IEc>()?.Get(FullPath, key);
         if (!string.IsNullOrEmpty(value))
         {
             return value;
@@ -444,7 +444,7 @@ public abstract class ComponentBase
     /// </summary>
     protected bool SetEc(string key, string value)
     {
-        return IocHelper.GetService<IEcComponent>()?.Set(FullPath, key, value) ?? false;
+        return IocHelper.GetService<IEc>()?.Set(FullPath, key, value) ?? false;
     }
 
     /// <summary>

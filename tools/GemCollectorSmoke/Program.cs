@@ -152,7 +152,7 @@ try
 
     // ── 8. 一键采集：EC、SV 带当前值；值在 ec.xml（EC 组件），编号表里不存值 ───────────
     var ec = new EcComponent();
-    SmokeIoc.Use<IEcComponent>(ec);
+    SmokeIoc.Use<IEc>(ec);
     var tool1 = tools.OfType<ProbeTool>().Single(tool => tool.Name == "Tool1");
     tool1.ActionTimeout = 4567;
     tool1.State = 42;
@@ -232,7 +232,7 @@ finally
     Directory.Delete(directory, recursive: true);
     Directory.Delete(spare, recursive: true);
     Directory.Delete(quiet, recursive: true);
-    SmokeIoc.Use<IEcComponent>(null);
+    SmokeIoc.Use<IEc>(null);
     SmokeIoc.Use<GemCollectors>(null);
 }
 

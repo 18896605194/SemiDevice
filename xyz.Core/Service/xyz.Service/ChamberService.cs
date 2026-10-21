@@ -16,14 +16,14 @@ public class ChamberService : BaseService, IChamberService
 {
     private readonly IRecipeComponent? _recipes;
 
-    private readonly ILedgerManagerComponent? _wafers;
+    private readonly ILedgerManager? _wafers;
 
     private readonly IJobManager? _jobs;
 
     public ChamberService()
     {
         _recipes = IocHelper.GetService<IRecipeComponent>();
-        _wafers = IocHelper.GetService<ILedgerManagerComponent>();
+        _wafers = IocHelper.GetService<ILedgerManager>();
         _jobs = IocHelper.GetService<IJobManager>();
     }
 

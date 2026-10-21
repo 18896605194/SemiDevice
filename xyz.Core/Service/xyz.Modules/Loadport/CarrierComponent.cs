@@ -90,7 +90,7 @@ public class CarrierComponent : ComponentBase, ICarrier
  
     private ICarrierIdReader? _reader;
 
-    private ILedgerManagerComponent? _ledger;
+    private ILedgerManager? _ledger;
 
     private Action<Action<IE87Callback>>? _enqueue;
 
@@ -329,7 +329,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     /// </summary>
     public override bool InitComponent()
     {
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
         return base.InitComponent();
     }
 

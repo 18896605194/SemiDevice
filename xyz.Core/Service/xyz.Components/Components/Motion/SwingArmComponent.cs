@@ -74,11 +74,11 @@ public class SwingArmComponent : AxisComponent, ISwingArm
     /// <summary>
     /// 晶圆尺寸组件（开机 Bind 时取）：配方坐标按它换算；没配是 null，按 12 寸
     /// </summary>
-    private IWaferSizeComponent? _waferSize;
+    private IWaferSize? _waferSize;
 
     public override void Bind()
     {
-        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+        _waferSize = IocHelper.GetService<IWaferSize>();
     }
 
     public INozzle? FindNozzle(string chemical)

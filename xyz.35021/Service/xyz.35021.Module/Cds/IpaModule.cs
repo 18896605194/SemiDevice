@@ -18,11 +18,11 @@ public class IpaModule : BaseCdsModule
     /// <summary>
     /// 映射组件（开机 Bind 时取）：槽转成给界面的样子
     /// </summary>
-    private IMapperComponent? _mapper;
+    private IMapper? _mapper;
 
     public override void Bind()
     {
-        _mapper = IocHelper.GetService<IMapperComponent>();
+        _mapper = IocHelper.GetService<IMapper>();
     }
 
     /// <summary>

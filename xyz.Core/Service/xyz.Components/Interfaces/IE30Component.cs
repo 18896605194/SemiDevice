@@ -36,7 +36,7 @@ public interface IE30Component
     /// <summary>
     /// 接到链路上
     /// </summary>
-    void Attach(IHsmsComponent link);
+    void Attach(IHsms link);
 
     /// <summary>
     /// 从链路上摘下来（宿主退出）

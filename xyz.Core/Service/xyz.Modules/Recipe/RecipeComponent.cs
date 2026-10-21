@@ -80,7 +80,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     // 下面几个单例开机绑站点时取；没装是 null
     private ISystemModule? _system;
     private IEapNotifierComponent? _notifier;
-    private IWaferSizeComponent? _waferSize;
+    private IWaferSize? _waferSize;
 
     #region SC
 
@@ -320,7 +320,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     {
         _system = IocHelper.GetService<ISystemModule>();
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
-        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
+        _waferSize = IocHelper.GetService<IWaferSize>();
         var stations = modules.OfType<IProcessStation>().ToList();
         var types = new List<string>();
         foreach (var station in stations)

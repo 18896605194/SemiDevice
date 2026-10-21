@@ -110,9 +110,9 @@ public class AiComponent : ComponentBase, IAi
 
     private volatile IChatClient? _client;
     private volatile SemaphoreSlim? _slots;
-    private IAlarmComponent? _alarms;
+    private IAlarm? _alarms;
     private ILogComponent? _logs;
-    private IDataChartComponent? _chart;
+    private IDataChart? _chart;
 
     /// <summary>
     /// 地址、模型名配错开机就报
@@ -148,9 +148,9 @@ public class AiComponent : ComponentBase, IAi
 
     public override void Bind()
     {
-        _alarms = IocHelper.GetService<IAlarmComponent>();
+        _alarms = IocHelper.GetService<IAlarm>();
         _logs = IocHelper.GetService<ILogComponent>();
-        _chart = IocHelper.GetService<IDataChartComponent>();
+        _chart = IocHelper.GetService<IDataChart>();
     }
 
     public override void OnStopping()

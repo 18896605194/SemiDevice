@@ -20,7 +20,7 @@ namespace xyz.Components.Components;
 /// 报警管理：全系统一个，只管三件事——当前有哪些报警、人工清除、报警入库。
 /// </summary>
 [Component(description: "报警管理组件")]
-public class AlarmComponent : ComponentBase, IAlarmComponent
+public class AlarmComponent : ComponentBase, IAlarm
 {
     private readonly object _syncRoot = new();
 
@@ -48,11 +48,11 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
     /// <summary>
     /// 映射组件（开机 Bind 时取）：报警转成给界面的样子
     /// </summary>
-    private IMapperComponent? _mapper;
+    private IMapper? _mapper;
 
     public override void Bind()
     {
-        _mapper = IocHelper.GetService<IMapperComponent>();
+        _mapper = IocHelper.GetService<IMapper>();
     }
 
     #region SC
@@ -204,17 +204,17 @@ public class AlarmComponent : ComponentBase, IAlarmComponent
         }
     }
 
-    bool IAlarmComponent.Raise(ComponentBase source, string alarmCode)
+    bool IAlarm.Raise(ComponentBase source, string alarmCode)
     {
         return Raise(source, alarmCode);
     }
 
-    int IAlarmComponent.Clear(ComponentBase source)
+    int IAlarm.Clear(ComponentBase source)
     {
         return Clear(source);
     }
 
-    bool IAlarmComponent.HasAlarmUnder(string path)
+    bool IAlarm.HasAlarmUnder(string path)
     {
         return HasAlarmUnder(path);
     }

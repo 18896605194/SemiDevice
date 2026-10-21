@@ -151,7 +151,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
     /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或机械手停用（不登记账）为 null。
     /// </summary>
-    private ILedgerManagerComponent? _ledger;
+    private ILedgerManager? _ledger;
 
     #endregion
 
@@ -274,7 +274,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         #endregion
 
         // 晶圆账注册：手指在账里也是槽位，槽号 = 手指号
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, Arms.Count);
 
         bool childrenInitialized = base.InitComponent();

@@ -47,7 +47,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
         }
 
         // 在晶圆账里也是个位置：片放在这一段的哪一层，账上就记在这个站的哪一槽
-        IocHelper.GetService<ILedgerManagerComponent>()?.RegisterLocation(Name, SlotCount);
+        IocHelper.GetService<ILedgerManager>()?.RegisterLocation(Name, SlotCount);
 
         // 没有手动页、没有要人确认的设备：开机就上线，调度才会往这儿派片
         Online();

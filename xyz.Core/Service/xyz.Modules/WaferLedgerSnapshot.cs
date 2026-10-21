@@ -15,7 +15,7 @@ public static class WaferLedgerSnapshot
     /// 这个位置每个槽的片（槽号从 1 起，空槽的 Wafer 为 null）；晶圆账没开或没登记这个位置时为空表。
     /// 模块每拍扫描都调（传它自己取到的晶圆账），账一变下一拍的状态推送就跟着变。
     /// </summary>
-    public static List<WaferSlotDto> SlotsOf(ILedgerManagerComponent? ledger, string module)
+    public static List<WaferSlotDto> SlotsOf(ILedgerManager? ledger, string module)
     {
         if (ledger is null || !ledger.IsEnable)
         {

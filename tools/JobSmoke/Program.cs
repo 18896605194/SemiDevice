@@ -54,15 +54,15 @@ static bool IsNotRun(JobWaferDto wafer) => wafer.Tasks.All(task => task.State ==
 
 // EC 只放在本进程内存里：不读也不写 ec.xml。
 var ec = new EcComponent();
-SmokeIoc.Use<IEcComponent>(ec);
+SmokeIoc.Use<IEc>(ec);
 string folder = Path.Combine(Path.GetTempPath(), "xyz-job-smoke-" + Guid.NewGuid().ToString("N"));
 string jobDb = folder + ".db";
 try
 {
     // 0. 装一台假机器：两个 LoadPort、两个腔体、一台两指机械手（四个站点都到得了），再加一个机械手到不了的腔体。
     var ledger = new LedgerManagerComponent();
-    SmokeIoc.Use<ILedgerManagerComponent>(ledger);
-    SmokeIoc.Use<IMapperComponent>(new MapperComponent()); // 人工移账的调整记录靠它转
+    SmokeIoc.Use<ILedgerManager>(ledger);
+    SmokeIoc.Use<IMapper>(new MapperComponent()); // 人工移账的调整记录靠它转
     ledger.InitComponent(); // 开机准备：取映射组件
     var lp1 = new SmokePort("LP1");
     var lp2 = new SmokePort("LP2");
@@ -1557,7 +1557,7 @@ try
 
     // 定不了片：报警，PJ 留在排队、CJ 等着，片一片不动；问题还在复位了会再报；Host 停掉 CJ（连带删掉排队的 PJ）收场
     var materialAlarms = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(materialAlarms);
+    SmokeIoc.Use<IAlarm>(materialAlarms);
     bool MaterialAlarm() => materialAlarms.ActiveAlarms.Any(alarm => alarm.AlarmCode == jobs.MaterialUnusableAlarm);
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-BAD", [5], "SEQ_A", null, "CAR-B")).IsSuccess
           && Do(jobs.CreateControlJobAsync(null, ["PJ-BAD"], "CJ-BAD")).IsSuccess, "Host 建好 PJ-BAD（要第 5 槽）、CJ-BAD");
@@ -1572,7 +1572,7 @@ try
           && PjOf("PJ-BAD") is null && events.WaitFor("PJ PJ-BAD #18") && events.WaitFor("CJ CJ-BAD #11"),
         "Host 停掉 CJ：排队的 PJ 删掉（#18），CJ 停完（#11）；没定口的 CJ 不等载具拿走就删");
     Check(materialAlarms.ResetAll() >= 1 && !RunUntil(MaterialAlarm, 5), "收场以后复位就清了，不再报");
-    SmokeIoc.Use<IAlarmComponent>(null);
+    SmokeIoc.Use<IAlarm>(null);
 
     // Host 不给槽号、料已经在而且能取片：当场定片，做载具上全部有片的槽
     Check(Do(jobs.CreateProcessJobAsync(null, "PJ-ALL", [], "SEQ_A", null, "CAR-B")).IsSuccess

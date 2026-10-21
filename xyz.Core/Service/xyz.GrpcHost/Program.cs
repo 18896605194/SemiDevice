@@ -75,7 +75,7 @@ public static class Program
         app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopComponents);
 
         // gRPC 端点本身是组件（sc.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
-        var rpc = IocHelper.GetService<IRpcComponent>();
+        var rpc = IocHelper.GetService<IRpc>();
         string host = "localhost";
         if (rpc is not null && !string.IsNullOrEmpty(rpc.Host))
         {

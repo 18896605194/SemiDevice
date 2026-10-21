@@ -17,7 +17,7 @@ namespace xyz.Components.Components;
 /// 晶圆账 应用到各个模块
 /// </summary>
 [Component(description: "晶圆账：记录每个位置上的片与流转")]
-public class LedgerManagerComponent : ComponentBase, ILedgerManagerComponent
+public class LedgerManagerComponent : ComponentBase, ILedgerManager
 {
     private readonly object _gate = new();
 
@@ -50,7 +50,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManagerComponent
     /// <summary>
     /// 映射组件（开机准备时取）：存盘行、流水行、人工调整记录都靠它转
     /// </summary>
-    private IMapperComponent? _mapper;
+    private IMapper? _mapper;
 
     /// <summary>
     /// EAP 的派发组件（开机准备时取）；没挂 EAP 是 null
@@ -62,7 +62,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManagerComponent
     /// </summary>
     public override bool InitComponent()
     {
-        _mapper = IocHelper.GetService<IMapperComponent>();
+        _mapper = IocHelper.GetService<IMapper>();
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
         return base.InitComponent();
     }

@@ -17,13 +17,13 @@ public class AiService : IAiService
 
     private readonly ISystemModule? _system;
 
-    private readonly IMapperComponent _mapper;
+    private readonly IMapper _mapper;
 
     public AiService()
     {
         _ai = IocHelper.GetService<IAi>();
         _system = IocHelper.GetService<ISystemModule>();
-        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetStatusAsync(RpcRequest request, CallContext context = default)

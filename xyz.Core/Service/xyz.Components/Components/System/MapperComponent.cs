@@ -12,7 +12,7 @@ namespace xyz.Components.Components;
 /// 同名字段、枚举转字符串 Mapster 自己会对；名字对不上的在构造里配一条，装配时就配好了，用的地方不用管谁先注册。
 /// </summary>
 [Component(description: "对象映射（Mapster）：字段名对不上的映射规则都配在这儿")]
-public class MapperComponent : ComponentBase, IMapperComponent
+public class MapperComponent : ComponentBase, IMapper
 {
     /// <summary>
     /// 组件自己的一套规则，不放 Mapster 全局：别处直接 Adapt 的不受这里影响。

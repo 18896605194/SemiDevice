@@ -844,7 +844,7 @@
 ## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
 - **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
 - **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 构造里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局），
-  用的地方取映射组件 `IMapperComponent` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；sc.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
+  用的地方取映射组件 `IMapper` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；sc.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
   2026-10-18 起报警、EC、曲线推给界面和服务回包的 DTO 也都走它，原来服务层的 AlarmMapper、EcMapper、ChartMapper 删了。
 - **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
   动作、从哪到哪、操作人这些片上没有的，映射完再赋值。开机恢复（存盘行 → 片）有解析失败跳过、加工中记中止这些逻辑，照旧手写。
@@ -950,7 +950,7 @@
 - **找组件一律按接口**（用户："很重要的一点就是，找组件的时候都要根据接口而不是基类去找"）：单例构造时 `Register<IXxx>(this)`，用 `ComponentBase.Find<IXxx>()`；
   一类的全部用 `ComponentBase.FindAll<IXxx>()`（整棵树 `ComponentBase.Roots` 上找，停用的连同下面的跳过；用户："应该有一个地方提供获取这些的方法"）。
   `Xxx.Current` 全删了。讨论过放进 IoC 当单例，当时定的是这样（静态登记 + 按接口取；同一天后来改成进 IoC、从 IocHelper 取，见下一节），以后有人另写一个数据曲线组件，实现同一个接口、sc 里换 Type 就行。
-  接口名带 Component 后缀（用户选的），已有的照用；EAP 那边只看得到组件层，配方库给它的是 `ISequenceLibrary` / `IRecipeLibrary`，模块层的 `ISequenceComponent` /
+  接口名带 Component 后缀（用户选的；10-20 起用户在一个个去掉，见「接口去掉 Component 后缀」）；EAP 那边只看得到组件层，配方库给它的是 `ISequenceLibrary` / `IRecipeLibrary`，模块层的 `ISequenceComponent` /
   `IRecipeComponent` 继承它们。模块共有的 `IModule`（`ILoadPort`、`IRobot` 继承），腔体 `IChamber`（用户："腔体按照道理也应该和 loadport 一样增加接口"）；
   搬运、Job、整机认模块用 `IModule` 不用 `BaseModule`（用户："为什么要用 BaseModule 这个"）。机型类不重复写基类已经实现的接口（用户："基类已经实现了"）。
   服务也不再拿整棵树：构造不带参数，`FindModule<IXxx>(name)` 在整棵树上找；冒烟里手搭的模块用反射换 `ComponentBase.Roots`。
@@ -962,7 +962,7 @@
 - **谁推什么**：EC 组件值一变推 `EcItemDto`；报警组件报出、清掉都推 `AlarmDto`；晶圆账一变推 `WaferLedgerChangedDto`；两个配方库存、删、改名推变更，
   切晶圆尺寸工艺配方库推一条编号 0 的；IO 组件在自己的扫描里按 EC 周期推整包 `IoDto`；实时曲线在自己的扫描里一帧一帧推（用户："单独自己一个线程然后写在 OnScan 里面"，
   sc 配 `IsRun`）；数据曲线在自己的扫描里采（同上）；设备总状态挪进整机模块（用户："状态就是收紧这个系统模块里面"），整机每拍算、变了点四色灯（挂在 System 下）再推，
-  System 节点必配；槽跟着 IPA 推 `IpaDto`（见「CDS 供液：槽 Tank」）。转 DTO 一律走用户写的映射组件（`IMapperComponent`），服务层的 AlarmMapper / EcMapper / ChartMapper
+  System 节点必配；槽跟着 IPA 推 `IpaDto`（见「CDS 供液：槽 Tank」）。转 DTO 一律走用户写的映射组件（`IMapper`），服务层的 AlarmMapper / EcMapper / ChartMapper
   和四个 Publisher 都删了，Mapper 节点必配。
 - **gRPC 服务自动认**（用户："这个是需要的"）：`ServiceExtensions.GrpcServices()` 在装进来的 xyz 程序集里找实现了带 `[ServiceContract]` 接口的公开类，
   DI 注册成 Transient（跟原来一样）、宿主照这张表 `MapGrpcService`，加服务不用改 `ServiceExtensions` 和宿主 `Program`。
@@ -999,7 +999,7 @@
   `Use<T>(x)` 单独登记（null 是撤掉），改一次重建一次。原来 new 出来就自己登记的，现在要用的显式 `Use`；装新树会换掉前一棵树（原来静态登记的单例会一直留着），
   前一棵树上还要用的单独 `Use`。组件开机时就取好了单例，冒烟里换了单例要重新 `Bind`（或 `InitComponent`）；IO 组件改成走开机准备读点表，冒烟把点表写进它的点表目录。
 
-## 部件寿命：次数型盯 DO 计次、时间型从清零起算（2026-10-20 ~ 10-21，用户："单独搞一个寿命的接口"、"现有的都不要动"、"只要是这个 do 变了就记录一下"、"表 count_lifetime 就按照这样去修改"）
+## 部件寿命：次数型盯 DO 计次、时间型从清零起算或只算 DO 通着的（2026-10-20 ~ 10-21，用户："单独搞一个寿命的接口"、"现有的都不要动"、"只要是这个 do 变了就记录一下"、"表 count_lifetime 就按照这样去修改"）
 - **起因**：问 JK 气缸有没有记次数做寿命管理——没有，气缸基类只管控制方式、超时、开关后延时、报警，全树也没有寿命 / 保养计数。
 - **结构**：次数型接口 `ICountLifetime`（`UsedCount` 已用次数、`WarnCount` 警告次数、`AlarmCount` 报警次数、`Clear()` 换件清零）+ 现成的 `CountLifetimeComponent`
   （`Components\Maintenance`）。要管寿命的部件在 sc 里挂一个寿命子节点，跟气缸挂 Opened / Closed 一样；寿命页、报警按 `GetServices<ICountLifetime>()` / `GetServices<ITimeLifetime>()` 找全部。
@@ -1015,12 +1015,29 @@
 - **存库**：表 `count_lifetime` 一个次数寿命组件一行（键 = 全路径），默认库；开机 `Bind` 读回接着数，读不成这次从 0 数；每变一次放进队列，后台一个读者给那行**加 1**
   （没有就插一行 1），不写总数——开机没读成也不会把库里的数冲掉（跟开工计数一个道理）；`Clear()` 内存马上清，库里那行由后台清零，记一条日志带清零前的次数。
   sc 里改了节点名（全路径变了）就是新的一行，从 0 数。
-- **时间型**（10-21，用户的例子："药液在 tank 里面多久了需要报警"；"具体怎么使用先等一下，你先就是搞一下组件出来"）：`TimeLifetimeComponent` 从上次清零起**按实际时间算，关机也照算**；
-  EC `WarnMinutes` / `AlarmMinutes`（分钟，0 = 不管），报警规则跟次数型一样（到报警时间只报 Alarm1，没到、到了警告时间报 Warn）。表 `time_lifetime` 一个组件一行，只存起算时间 `StartedAt`；
-  开机 `Bind` 读回；第一次开机库里没有就从开机算并存下来（宁可早报，也不能一直不报）；读不成这次从开机算、库里不动；`Clear()` 从现在起重新算、后台改库。
-  靠本机时钟：时钟往回调到起算之前算 0，往前跳就多算——跨关机只能这样。现在只有 `Clear()` 能清零。
-- **还没定 / 还没做**：时间型谁来清零（换液做完让组件自己看槽的状态，还是槽调 `Clear()`）、泵运行时长那种"只算 DO 通着的时间"要不要放进同一个组件用 SC 选（用户说先等等）；
-  周期管理页面（看次数和时长、清零）；35021 sc.xml 里还没挂寿命节点。
+- **时间型**（10-21，用户的例子："药液在 tank 里面多久了需要报警"；"具体怎么使用先等一下，你先就是搞一下组件出来"）：`TimeLifetimeComponent` 默认从上次清零起**按实际时间算，关机也照算**；
+  EC `WarnMinutes` / `AlarmMinutes`（分钟，0 = 不管），报警规则跟次数型一样（到报警时间只报 Alarm1，没到、到了警告时间报 Warn）。表 `time_lifetime` 一个组件一行：起算时间 `StartedAt`（上次清零的时间）、
+  盯 DO 的通着秒数 `UsedSeconds`；开机 `Bind` 读回；第一次开机库里没有就从开机算并存下来（宁可早报，也不能一直不报）；不盯 DO 的读不成这次从开机算、库里不动；`Clear()` 从现在起重新算、后台改库。
+  不盯 DO 的靠本机时钟：时钟往回调到起算之前算 0，往前跳就多算——跨关机只能这样。
+- **时间型也盯 DO，跟次数型一样只配 sc**（10-21 用户："能不能做到和这个次数的一样简单的用法"、"不需要直接引用我们的组件……中间可以通过其他方式转换，衔接一下"、
+  "不单单是 Tank，以后还会有其他的……Tank 只是举例子"、"槽那边先不用管，你先就是搞一下就是这个 time 的组件"）：
+  - 寿命组件只认点号，不认识发信号的组件；发信号的组件也不认识寿命组件，**中间用虚拟 IO 接**（sc 里两边填同一个点号）。哪个组件知道"什么时候算"，
+    就在它自己身上配一个点号 SC、到时候写虚拟 DO（跟次数型"程序里数的"同一个做法）；以后再有别的组件要接，寿命组件不用改。
+  - **用 DO 不用 AO**（用户问"用 do 好还是用 Ao 好"，我建议 DO，用户接着让做）：要传的只是通断、发生了一次，一位就够；泵、阀、加热器本来就是 DO，能直接盯真点；
+    次数型也盯 DO，一个点能同时给两种寿命用；虚拟 IO 只有虚拟 DO。同一拍（50 ms）里翻两下会抵消——换液、换件几分钟以上才一次，碰不到；真要传数值或高频计数再说 AO。
+  - SC `DoIndex`（计时 DO，-1 = 不盯）：**只算这个 DO 通着的时间**（泵、加热器运行时长填它的真 DO；程序里的"在用"状态由程序开始写通、结束写断虚拟 DO），关机那段不算。
+    两拍之间的时长用开机计时器（`Environment.TickCount64`）量，改系统时钟不影响；上一拍通着、这一拍读得到才算这一段，第一拍、读不到以后重新读到的那一拍只记下（跟次数型一样）。
+    存库只加不写总数：通着攒满 60 s（const）给那行加一次，不通了（断了、读不到）把攒的整秒加进去，零头留着下次一起写；突然断电最多丢不到一分钟；读不成这次从 0 算、库里照样加。
+  - SC `ClearDoIndex`（清零 DO，-1 = 只人工清零）：**这个 DO 每变一次（断→通、通→断）就清零重算**，换液、换件这类由知道时机的组件把虚拟 DO 翻一下；
+    第一拍、读不到以后重新读到的那一拍只记下——虚拟 DO 开机都是断，关机前是通的也不会当成变了。两个 SC 能一起配；**配成同一个 DO 装配时就抛**（通断一次清零一次，算不出时长）。
+  - 两个 DO 都先问虚拟 IO 有没有这个点号、有就读它，没有再读真 DO（跟次数型一样；配了虚拟点号却没挂那个虚拟 DO 同样查不出来）。
+  - `UsedSeconds` 带 `DefaultValue = "0"`：老表补这一列时 SqlSugar 靠它把老行填 0；不写的话老行是空值，往上加还是空（10-21 拿临时库试过）。
+- **药液在槽里多久**（这次只做了时间组件，槽没动）：打算由槽在"空过（液位低于 LL）以后补到就绪"那一下翻一个虚拟 DO（槽上配点号 SC），药液时长那个时间寿命的 `ClearDoIndex` 填同一个点号。
+  **报警以后做什么，以后统一设计**（用户："这种报警后续做啥，到时候会统一设计的"）。现在的情况已经跟用户说过：槽"身上有任何报警就出错、阀全关"（按路径、不分级别），
+  寿命挂在槽下面的话，报"快到期"（Warn）槽就停供液；到期出错后又不让换液，复位后下一拍又报，要换液得先调高 EC 或手动清零。挂在槽外面（IPA 下面）就只报警、不停槽。
+  给槽里的阀挂次数寿命也一样。
+- **还没做**：槽翻虚拟 DO（用户："槽那边先不用管"）；报警以后的处理（停不停、挡不挡开工和换液）等统一设计；周期管理页面（看次数和时长、清零）；35021 sc.xml 里还没挂寿命节点；
+  次数型要不要也加 `ClearDoIndex`（比如这一槽液处理了多少片、换液自动清零）没定。
 
 ## 模块之间访问：sc 上配对方的名字，经对方专门的接口取（2026-10-20，用户："可以在配置里面直接配置 sc，然后模块里面直接就是根据 sc 配置的名字获取这个，当然肯定是通过接口，所以我想专门创建一个这样的接口"）
 - **起因**：用户问"模块之间的访问怎么进行，比方说腔体工艺需要看 CDS 准备好了没"。我先提的是按药液名隐式对号（配方 Chemical → 喷嘴 Chemical → 同名供液模块），
@@ -1083,7 +1100,7 @@
 ## 心跳：给 PLC 发的心跳 DO（2026-10-21，用户："目前的话就是给一个do就是1s发一次true，1s发一次false这样，然后do以及这个时间都是可以sc配置的"）
 - **起因**：用户提"增加一个心跳的组件"。我先提的是双向（我们翻 DO + 看 PLC 回的 DI 超时报警，间隔、超时放 EC），用户收成上面那句：
   **只发不收**——一个 DO 按时间轮流写通、断，PLC 那边看它停了自己进安全态（那是 PLC 程序的事）；DO 号和时间**都在 SC**，不是 EC。
-- **结构**：接口 `IHeartbeat : IDeviceComponent`（只有 `IsAlive`：最近一次写 DO 写成了，没配 DO 是 false；名字用户从几个里选的，我起的 `IsSending` 被要求改）
+- **结构**：接口 `IHeartbeat : IDevice`（只有 `IsAlive`：最近一次写 DO 写成了，没配 DO 是 false；名字用户从几个里选的，我起的 `IsSending` 被要求改）
   + `HeartbeatComponent`（`Components\Plc`）。挂在哪个节点下就跟着那个大组件的扫描线程走；经 IO 组件写（点表索引，跟寿命组件、DI 组件一样），所以 DO 要在点表里。
   以后供液柜、腔体有自己的心跳点，在对应节点下再挂一个，按 `GetServices<IHeartbeat>()` 找全部。
 - **SC**：`DoIndex`（-1 = 不发）、`IntervalMs`（默认 1000：1 s 写一次通、1 s 写一次断，要跟 PLC 那边判心跳的时间对好）。
@@ -1101,8 +1118,19 @@
   值都存在虚拟 IO 里、只在内存、开机都是断、不下发 PLC；`ToggleDo` 读和写在一把锁里做完。点号越界在虚拟 DO 装配时报，重号在虚拟 IO 的 `Bind` 里报（开机失败）。
 - **IO 组件一行不动**（用户："肯定不是在这个 IoComponent.cs 里面…也太不解耦了"）：我先把虚拟 DO 塞进 IO 组件的按点号读写，被否、撤了。
   **虚拟 IO 也不实现 `IIo`**：11 处 `GetService<IIo>()` 会取到后登记的那个（虚拟 IO）、虚拟输入登记要求树上只有一个 `IIo`（有两个就抛）、DI / AI / AO 那些成员都得写空的。
-- **次数寿命怎么读**（用户选的"更省的写法"）：先问虚拟 IO 有没有这个点号，有就读它，没有再经 `IIo` 读真 DO；不按号段判断。
+- **次数寿命怎么读**（用户选的"更省的写法"；时间寿命的计时 DO、清零 DO 也这样读）：先问虚拟 IO 有没有这个点号，有就读它，没有再经 `IIo` 读真 DO；不按号段判断。
   代价：配了虚拟点号却没挂那个虚拟 DO，会去读真 IO（读不到）、一直不计数，开机查不出来。
 - **程序那边**：要计数的组件配一个点号（SC），`Bind` 里取 `IVirtualIo`，计数的地方 `ToggleDo(点号)`。还没接任何具体的计数点（等用户说接哪个）。
   同一拍（50 ms）里翻两次会翻回原样、两次都漏；取放、过片一次几秒，碰不到。
 - **没做**：现有的虚拟 DI / AI（拿真实点用表达式算的）照旧走 IO 组件，没并进来；IO 页不显示虚拟点；35021 sc.xml 没配虚拟 IO 节点。
+
+## 接口去掉 Component 后缀（2026-10-21，用户一个个点名："IAlarmComponent 这个帮我改成IAlarm"、"IDataChartComponent 这个帮我改成 IDataChart"、"IDeviceComponent 这个帮我改成IDevice"、"IEcComponent 这个帮我改成IEc"……）
+- 10-18 定的"单例组件的接口带 Component 后缀"（见「推送和开机归组件自己、找组件按接口」）用户在一个个改掉：10-20 `IAiComponent` → `IAi`、`IIoComponent` → `IIo`；
+  10-21 `IAlarmComponent` → `IAlarm`、`IDataChartComponent` → `IDataChart`、`IEcComponent` → `IEc`、`IHsmsComponent` → `IHsms`、`ILedgerManagerComponent` → `ILedgerManager`、
+  `ILightComponent` → `ILight`、`IMapperComponent` → `IMapper`、`IRealChartComponent` → `IRealChart`、`IRpcComponent` → `IRpc`、`ISafetyComponent` → `ISafety`、`IWaferSizeComponent` → `IWaferSize`，
+  设备组件的公共接口 `IDeviceComponent` → `IDevice`（气缸、阀、阀组、轴、DI / AI 传感器、槽、寿命、心跳、虚拟 DO 的接口都继承它）。
+- 只改接口名和它的文件名（`Interfaces\IAlarm.cs` 这些）；组件类（`AlarmComponent`、`EcComponent`、`MapperComponent`……）、sc 节点、命名空间、
+  取到它的字段名（`_alarms`、`_ec`、`_mapper`……）都不变。`IMapper` 跟 Mapster 包里的 `MapsterMapper.IMapper` 同名，仓库只引用 `Mapster` 命名空间、不引用 `MapsterMapper`，所以不冲突。
+- **`ILoadPortDriverComponent` 用户选了先不改**：去掉后缀就跟驱动层 `xyz.Drivers.Loadport.ILoadPortDriver`（品牌协议驱动的接口）同名，
+  `LoadPortDriverComponent`、`BaseLoadPortModule` 和两个冒烟两个都用到。`IRobotDriverComponent` 跟 `xyz.Drivers.Robot.IRobotDriver` 是一样的情况，按同一个办法。
+- 还带后缀、用户没点名的先不动；已经去掉的别改回去。

@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 /// 晶圆尺寸组件
 /// </summary>
 [Component(description: "晶圆尺寸：8 寸 / 12 寸（主界面切换，写回 sc.xml）")]
-public class WaferSizeComponent : ComponentBase, IWaferSizeComponent
+public class WaferSizeComponent : ComponentBase, IWaferSize
 {
     /// <summary>8 寸片（200 mm）。</summary>
     public const int Inch8 = 8;
@@ -38,7 +38,7 @@ public class WaferSizeComponent : ComponentBase, IWaferSizeComponent
     /// <summary>
     /// 现在做几寸片：用的地方把自己取到的晶圆尺寸组件传进来；没配晶圆尺寸组件（null）按 12 寸。
     /// </summary>
-    public static int SizeOf(IWaferSizeComponent? component)
+    public static int SizeOf(IWaferSize? component)
     {
         if (component is null)
         {

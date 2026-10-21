@@ -75,9 +75,9 @@ try
 
     // IO 组件自己推 IO 界面那一包（IoDto，留存）：在自己的扫描里到了 EC 推送周期才推，骨架只建一次、之后每次只刷值
     // 推送周期是 EC：先拨到最长（两拍之间肯定没到），再拨到最短看下一个周期接着推
-    var previousEc = IocHelper.GetService<IEcComponent>();
+    var previousEc = IocHelper.GetService<IEc>();
     var ec = new EcComponent();
-    SmokeIoc.Use<IEcComponent>(ec);
+    SmokeIoc.Use<IEc>(ec);
     var scanning = new ScanIo { PointTableDirectory = tables };
     SmokeIoc.Use<IIo>(scanning);
     scanning.InitComponent();
@@ -108,7 +108,7 @@ try
             "the next interval pushes again, refreshing values on the same skeleton");
     }
 
-    SmokeIoc.Use<IEcComponent>(previousEc);
+    SmokeIoc.Use<IEc>(previousEc);
 
     Console.WriteLine("PASS: index lookup, reads, writes, scaling, invalid indices and connection gating, IO snapshot pushed from its own scan");
 }

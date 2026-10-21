@@ -8,7 +8,7 @@ public interface IE30TraceComponent
     /// <summary>
     /// 接到链路和 GEM 上
     /// </summary>
-    void Attach(IHsmsComponent link, IE30Component gem);
+    void Attach(IHsms link, IE30Component gem);
 
     /// <summary>
     /// 从 GEM 上摘下来，停掉全部 Trace（宿主退出）

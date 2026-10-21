@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 数据曲线
 /// </summary>
-public interface IDataChartComponent
+public interface IDataChart
 {
     /// <summary>
     /// 采样周期（毫秒）

@@ -113,7 +113,7 @@ var eapNode = new ModuleConfig
 };
 var roots = SmokeIoc.Load([alarmNode, probeNode, eapNode]);
 var ec = new EcComponent();
-SmokeIoc.Use<IEcComponent>(ec);
+SmokeIoc.Use<IEc>(ec);
 ec.Merge(roots);
 var collectors = new GemCollectors();
 collectors.Merge(roots, directory);
@@ -123,7 +123,7 @@ var eap = roots.OfType<EapComponent>().Single();
 var gem = eap.FindChild<E30Component>()!;
 var probe = roots.OfType<AlarmProbe>().Single();
 var ledger = new LedgerManagerComponent();
-SmokeIoc.Use<ILedgerManagerComponent>(ledger);
+SmokeIoc.Use<ILedgerManager>(ledger);
 ledger.InitComponent(); // 开机准备：取 EAP 的派发组件（E90 的上报经它发）
 ledger.RegisterLoadPort("LP1", 5);
 ledger.RegisterLoadPort("LP2", 5);

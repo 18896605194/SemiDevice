@@ -3,7 +3,7 @@
 /// <summary>
 /// 部件寿命（时间）
 /// </summary>
-public interface ITimeLifetime : IDeviceComponent
+public interface ITimeLifetime : IDevice
 {
     TimeSpan UsedTime { get; }
 

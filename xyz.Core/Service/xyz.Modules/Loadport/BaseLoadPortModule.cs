@@ -209,7 +209,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     public ICarrierAccess Carrier => _carrier;
 
-    private ILedgerManagerComponent? _ledger;
+    private ILedgerManager? _ledger;
 
     public IE84? E84
     {
@@ -316,7 +316,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         #endregion
 
         ///晶圆账注册
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLoadPort(Name, SlotCount);
 
         bool childrenInitialized = base.InitComponent();

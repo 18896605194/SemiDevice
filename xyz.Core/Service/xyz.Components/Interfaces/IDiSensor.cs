@@ -1,7 +1,7 @@
 ﻿namespace xyz.Components.Interfaces;
 
 
-public interface IDiSensor : IDeviceComponent
+public interface IDiSensor : IDevice
 {
     /// <summary>
     /// 有没有触发

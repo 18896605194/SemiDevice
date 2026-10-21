@@ -71,7 +71,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
     #region 接设备
 
     /// <summary>接到链路和两个配方库上（EAP 组件在链路打开之前调）：挂两个库的上报口，登记 S7 报文。库没装的那个不接。</summary>
-    public void Attach(IHsmsComponent link, IE30Component gem, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
+    public void Attach(IHsms link, IE30Component gem, ISequenceLibrary? sequences, IRecipeLibrary? processRecipes)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);

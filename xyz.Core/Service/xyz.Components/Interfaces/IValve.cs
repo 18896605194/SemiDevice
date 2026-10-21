@@ -1,6 +1,6 @@
 ﻿namespace xyz.Components.Interfaces;
 
-public interface IValve : IDeviceComponent
+public interface IValve : IDevice
 {
     bool IsOpened { get; }
 

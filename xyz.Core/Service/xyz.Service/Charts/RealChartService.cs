@@ -9,21 +9,21 @@ using xyz.Tools;
 namespace xyz.Service.Charts;
 
 /// <summary>
-/// 实时曲线 gRPC 服务：信号表、最近一段都走实时曲线组件（IRealChartComponent）；每帧不走这里，走事件流。
+/// 实时曲线 gRPC 服务：信号表、最近一段都走实时曲线组件（IRealChart）；每帧不走这里，走事件流。
 /// </summary>
 public class RealChartService : IRealChartService
 {
-    private readonly IRealChartComponent? _realChart;
+    private readonly IRealChart? _realChart;
 
-    private readonly IDataChartComponent? _dataChart;
+    private readonly IDataChart? _dataChart;
 
-    private readonly IMapperComponent _mapper;
+    private readonly IMapper _mapper;
 
     public RealChartService()
     {
-        _realChart = IocHelper.GetService<IRealChartComponent>();
-        _dataChart = IocHelper.GetService<IDataChartComponent>();
-        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _realChart = IocHelper.GetService<IRealChart>();
+        _dataChart = IocHelper.GetService<IDataChart>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetLayoutAsync(RpcRequest request, CallContext context = default)

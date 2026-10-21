@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 设备组件的公共接口
 /// </summary>
-public interface IDeviceComponent
+public interface IDevice
 {
     /// <summary>
     /// 组件实例名

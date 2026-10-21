@@ -1,6 +1,6 @@
 ﻿namespace xyz.Components.Interfaces;
 
-public interface IAxis : IDeviceComponent
+public interface IAxis : IDevice
 {
     /// <summary>
     /// 当前反馈是否有效

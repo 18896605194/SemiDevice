@@ -390,8 +390,8 @@ try
 
     // 4b. 晶圆尺寸：位置、到的上限在 sc.xml 里按尺寸分开写（Max.8 = 100、Max.12 = 150），整机切到哪个尺寸用哪个，没配晶圆尺寸组件按 12 寸；
     //     切尺寸写回 sc.xml（输出目录里链接过来的那份），只改 Size 那一个值、别的一个字节不动，切回来跟原来一模一样。
-    var previousWaferSize = IocHelper.GetService<IWaferSizeComponent>();
-    SmokeIoc.Use<IWaferSizeComponent>(null);
+    var previousWaferSize = IocHelper.GetService<IWaferSize>();
+    SmokeIoc.Use<IWaferSize>(null);
     Check(F("Position").MaxFor(8) == 100 && F("Position").MaxFor(12) == 150 && F("ScanTo").MaxFor(8) == 100 && F("ScanTo").MaxFor(12) == 150
           && F("Seconds").MaxFor(8) == 3600 && F("Position").MaxFor(WaferSizeComponent.SizeOf(null)) == 150,
         "位置、到按尺寸分开写上限：8 寸 100、12 寸 150；没分开写的两种尺寸一样；没配晶圆尺寸按 12 寸");
@@ -416,7 +416,7 @@ try
             },
         ]);
         var waferSize = sizeRoots.OfType<WaferSizeComponent>().Single();
-        SmokeIoc.Use<IWaferSizeComponent>(waferSize); // 下面再装配方库会换掉整棵树：晶圆尺寸单独登记着
+        SmokeIoc.Use<IWaferSize>(waferSize); // 下面再装配方库会换掉整棵树：晶圆尺寸单独登记着
         int sizeEvents = 0;
         waferSize.Changed += _ => sizeEvents++;
 
@@ -428,7 +428,7 @@ try
         // 配方库开机 Bind 时取晶圆尺寸组件：装了晶圆尺寸以后重新 Bind
         library.Bind([pm1, pm2, pm3]);
         sizeLibrary.Bind();
-        Check(IocHelper.GetService<IWaferSizeComponent>() == waferSize && waferSize.FullPath == "System.WaferSize" && waferSize.Size == 12,
+        Check(IocHelper.GetService<IWaferSize>() == waferSize && waferSize.FullPath == "System.WaferSize" && waferSize.Size == 12,
             "晶圆尺寸组件挂在 System 下面，路径跟 sc.xml 的层级一样");
         Fails(waferSize.SetSize(6), ErrorCodes.WaferSizeInvalid, ["6"], "只能切 8 寸、12 寸");
         Check(waferSize.SetSize(8).IsSuccess && waferSize.Size == 8 && sizeEvents == 1
@@ -473,7 +473,7 @@ try
     finally
     {
         File.WriteAllBytes(scFile, scBefore);
-        SmokeIoc.Use<IWaferSizeComponent>(previousWaferSize);
+        SmokeIoc.Use<IWaferSize>(previousWaferSize);
     }
 
     // 5. 开关、文本字段（自己拼的字段表）：开关只认 true / false（存成小写），文本去掉首尾空白；字段之间不互相管。

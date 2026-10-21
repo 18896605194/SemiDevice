@@ -18,7 +18,7 @@ namespace xyz.Components.Components;
 /// 数据曲线：每个采样周期（默认 1 秒）
 /// </summary>
 [Component(description: "数据曲线（每秒采样入库，按名字、按时间查询）")]
-public class DataChartComponent : ComponentBase, IDataChartComponent
+public class DataChartComponent : ComponentBase, IDataChart
 {
     #region SC
 

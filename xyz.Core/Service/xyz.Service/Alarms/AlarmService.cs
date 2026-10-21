@@ -12,18 +12,18 @@ using xyz.Tools;
 namespace xyz.Service.Alarms;
 
 /// <summary>
-/// 报警 gRPC 服务：当前报警与人工复位走报警组件（IAlarmComponent），报警历史查报警记录表。
+/// 报警 gRPC 服务：当前报警与人工复位走报警组件（IAlarm），报警历史查报警记录表。
 /// </summary>
 public class AlarmService : IAlarmService
 {
-    private readonly IAlarmComponent? _alarms;
+    private readonly IAlarm? _alarms;
 
-    private readonly IMapperComponent _mapper;
+    private readonly IMapper _mapper;
 
     public AlarmService()
     {
-        _alarms = IocHelper.GetService<IAlarmComponent>();
-        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _alarms = IocHelper.GetService<IAlarm>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default)

@@ -9,19 +9,19 @@ using xyz.Tools;
 namespace xyz.Service.Charts;
 
 /// <summary>
-/// 数据曲线 gRPC 服务：信号表和查询都走数据曲线组件（IDataChartComponent）。读库放线程池，不占 gRPC 线程；
+/// 数据曲线 gRPC 服务：信号表和查询都走数据曲线组件（IDataChart）。读库放线程池，不占 gRPC 线程；
 /// 界面缩放、平移会接连发查询，旧的那个客户端一取消，这边读到一半也就停了。
 /// </summary>
 public class DataChartService : IDataChartService
 {
-    private readonly IDataChartComponent? _chart;
+    private readonly IDataChart? _chart;
 
-    private readonly IMapperComponent _mapper;
+    private readonly IMapper _mapper;
 
     public DataChartService()
     {
-        _chart = IocHelper.GetService<IDataChartComponent>();
-        _mapper = IocHelper.GetService<IMapperComponent>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _chart = IocHelper.GetService<IDataChart>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     /// <summary>

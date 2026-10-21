@@ -3,7 +3,7 @@
 /// <summary>
 /// 四色灯（带蜂鸣器） 接口
 /// </summary>
-public interface ILightComponent
+public interface ILight
 {
     /// <summary>红灯是否亮（最后一次成功输出的状态，下同）。</summary>
     bool IsRedOn { get; }

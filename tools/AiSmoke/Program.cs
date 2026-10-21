@@ -42,19 +42,19 @@ const string Source = "Chamber.Chamber1.Door";
 const string Code = "TimeoutAlarm";
 string maxTokensField = string.Empty;
 
-var previousEc = IocHelper.GetService<IEcComponent>();
-var previousAlarm = IocHelper.GetService<IAlarmComponent>();
+var previousEc = IocHelper.GetService<IEc>();
+var previousAlarm = IocHelper.GetService<IAlarm>();
 try
 {
     // 0. 内存 EC、报警组件、映射组件；假日志、假数据曲线
-    SmokeIoc.Use<IEcComponent>(new EcComponent());
+    SmokeIoc.Use<IEc>(new EcComponent());
     var alarms = new AlarmComponent();
-    SmokeIoc.Use<IAlarmComponent>(alarms);
-    SmokeIoc.Use<IMapperComponent>(new MapperComponent());
+    SmokeIoc.Use<IAlarm>(alarms);
+    SmokeIoc.Use<IMapper>(new MapperComponent());
     var logs = new FakeLogs();
     SmokeIoc.Use<ILogComponent>(logs);
     var chart = new FakeChart();
-    SmokeIoc.Use<IDataChartComponent>(chart);
+    SmokeIoc.Use<IDataChart>(chart);
 
     // 1. 配错开机就报：地址没配或不是 http / https、没配模型名、同时几个配成 0；配对了能装上
     string? LoadError(params ValueConfig[] values)
@@ -277,8 +277,8 @@ try
 }
 finally
 {
-    SmokeIoc.Use<IEcComponent>(previousEc);
-    SmokeIoc.Use<IAlarmComponent>(previousAlarm);
+    SmokeIoc.Use<IEc>(previousEc);
+    SmokeIoc.Use<IAlarm>(previousAlarm);
 }
 
 Console.WriteLine($"PASS: {checks} ai checks (sc errors at startup, found by IAi, alarm not active, the material handed to the model "
@@ -455,7 +455,7 @@ public sealed class FakeLogs : ILogComponent
 /// <summary>
 /// 假的数据曲线：信号表固定（门下面 4 个、名字开头像的 DoorLock、别的部件 Spin），曲线由冒烟摆，记下最近一次查了什么
 /// </summary>
-public sealed class FakeChart : IDataChartComponent
+public sealed class FakeChart : IDataChart
 {
     /// <summary>
     /// 查回去的时间轴（UTC 毫秒）

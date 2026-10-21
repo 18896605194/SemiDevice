@@ -48,7 +48,7 @@ public class E30TraceComponent : ComponentBase, IE30TraceComponent
     /// <summary>
     /// 接到链路和 GEM 上（EAP 组件在链路打开之前调）：登记 S2F23，订离线
     /// </summary>
-    public void Attach(IHsmsComponent link, IE30Component gem)
+    public void Attach(IHsms link, IE30Component gem)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);

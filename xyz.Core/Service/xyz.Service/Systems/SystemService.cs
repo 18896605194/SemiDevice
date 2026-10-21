@@ -31,7 +31,7 @@ public class SystemService : ISystemService
             // 配了安全信号（Safety 节点下有子节点）时，它排在最前面：IO 页给它单独一页。整机模块没有 IO，不在里面。
             Modules =
             [
-                .. IocHelper.GetServices<ISafetyComponent>().Where(safety => safety.HasSignals).Select(safety => safety.Name),
+                .. IocHelper.GetServices<ISafety>().Where(safety => safety.HasSignals).Select(safety => safety.Name),
                 .. IocHelper.GetServices<IModule>().Where(module => module is not ISystemModule).Select(module => module.Name),
             ],
             Chambers = [.. IocHelper.GetServices<IChamber>().Select(module => module.Name)],

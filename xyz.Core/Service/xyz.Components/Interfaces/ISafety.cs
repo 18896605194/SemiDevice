@@ -3,7 +3,7 @@
 /// <summary>
 /// 整机安全信号
 /// </summary>
-public interface ISafetyComponent
+public interface ISafety
 {
     /// <summary>
     /// 组件名（IO 页的页签名）

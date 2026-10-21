@@ -3,7 +3,7 @@
 /// <summary>
 /// 部件寿命（次数）
 /// </summary>
-public interface ICountLifetime : IDeviceComponent
+public interface ICountLifetime : IDevice
 {
     /// <summary>
     /// 已用次数

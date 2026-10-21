@@ -5,7 +5,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 整机晶圆尺寸（8 / 12 寸）
 /// </summary>
-public interface IWaferSizeComponent
+public interface IWaferSize
 {
     /// <summary>
     /// 现在做几寸片

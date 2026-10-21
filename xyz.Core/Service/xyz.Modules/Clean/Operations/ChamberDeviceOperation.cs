@@ -13,11 +13,11 @@ namespace xyz.Modules;
 /// </summary>
 public sealed class ChamberDeviceOperation : ModuleOperation
 {
-    private readonly IDeviceComponent _device;
+    private readonly IDevice _device;
     private readonly ChamberDeviceAction _action;
     private readonly int _timeout;
 
-    public ChamberDeviceOperation(IDeviceComponent device, ChamberDeviceAction action, int timeout)
+    public ChamberDeviceOperation(IDevice device, ChamberDeviceAction action, int timeout)
         : base($"{device.FullPath} {action}")
     {
         _device = device;

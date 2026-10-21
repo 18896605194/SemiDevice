@@ -206,7 +206,7 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     /// <summary>
     /// 晶圆账（接设备时取）；没装是 null
     /// </summary>
-    private ILedgerManagerComponent? _ledger;
+    private ILedgerManager? _ledger;
 
     #region 接设备
 
@@ -214,13 +214,13 @@ public partial class E87Component : ComponentBase, IE87Callback, IE84Provider, I
     /// 接到链路和设备上（EAP 组件在链路打开之前调）：每个 LoadPort 建一个端口对象（PortID 按给的先后编），挂上 E87 回调和 E84 反查口，
     /// 登记 S3 处理方；materialVerified 是槽图认定（料到了）时通知的（E90 据此建片对象）。开始按 EC PortPollMs 查端口状态。
     /// </summary>
-    public void Attach(IHsmsComponent link, IE30Component gem, IReadOnlyList<ILoadPortAccess> ports, Action<string>? materialVerified)
+    public void Attach(IHsms link, IE30Component gem, IReadOnlyList<ILoadPortAccess> ports, Action<string>? materialVerified)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
         _gem = gem;
         _materialVerified = materialVerified;
-        _ledger = IocHelper.GetService<ILedgerManagerComponent>();
+        _ledger = IocHelper.GetService<ILedgerManager>();
         lock (_gate)
         {
             byte id = 1;

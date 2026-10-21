@@ -7,7 +7,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 晶圆账
 /// </summary>
-public interface ILedgerManagerComponent
+public interface ILedgerManager
 {
     bool IsEnable { get; }
 

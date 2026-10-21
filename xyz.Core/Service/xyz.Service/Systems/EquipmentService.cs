@@ -21,15 +21,15 @@ public class EquipmentService : BaseService, IEquipmentService
 {
     private readonly ISystemModule? _system;
 
-    private readonly IWaferSizeComponent? _waferSize;
+    private readonly IWaferSize? _waferSize;
 
-    private readonly ILedgerManagerComponent? _wafers;
+    private readonly ILedgerManager? _wafers;
 
     public EquipmentService()
     {
         _system = IocHelper.GetService<ISystemModule>();
-        _waferSize = IocHelper.GetService<IWaferSizeComponent>();
-        _wafers = IocHelper.GetService<ILedgerManagerComponent>();
+        _waferSize = IocHelper.GetService<IWaferSize>();
+        _wafers = IocHelper.GetService<ILedgerManager>();
     }
 
     public Task<RpcResponse> InitAsync(RpcRequest request, CallContext context = default)

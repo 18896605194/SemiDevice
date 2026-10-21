@@ -191,7 +191,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
     /// 接到链路和 Job 管理上（EAP 组件在链路打开之前调）：挂 E94 上报口，登记 S16F27 和 E39 对象类型 ControlJob（S14F9 建 CJ 走它）。
     /// 没配 E39 时 Host 建不了 CJ，记错误。
     /// </summary>
-    public void Attach(IHsmsComponent link, IE30Component gem, IE39Component? objects, IJobManager jobs)
+    public void Attach(IHsms link, IE30Component gem, IE39Component? objects, IJobManager jobs)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(gem);
