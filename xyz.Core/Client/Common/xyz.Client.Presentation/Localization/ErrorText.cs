@@ -25,4 +25,17 @@ public static class ErrorText
 
         return L10n.Get(response.Code, args);
     }
+
+    /// <summary>
+    /// 不带模块状态码的回包（账号、角色这些）
+    /// </summary>
+    public static string Of(RpcResponse response)
+    {
+        if (string.IsNullOrEmpty(response.Code))
+        {
+            return response.Message;
+        }
+
+        return L10n.Get(response.Code, response.Args);
+    }
 }

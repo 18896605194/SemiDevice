@@ -16,6 +16,11 @@ public class MenuModel
     public string Code { get; set; } = string.Empty;
 
     /// <summary>
+    /// 当前角色对这一页只能看（名字后面带一只小眼睛）
+    /// </summary>
+    public bool IsViewOnly { get; set; }
+
+    /// <summary>
     /// 子菜单。
     /// </summary>
     public List<MenuModel> Children { get; set; } = new();

@@ -5,7 +5,9 @@ using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.Common.Session;
 using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Presentation.Dialogs;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Session;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
@@ -14,7 +16,7 @@ using xyz.Tools;
 namespace xyz.Client.ViewModels;
 
 /// <summary>
-/// 主界面顶栏右侧：四色灯、当前时间、当前用户、整机复位。
+/// 主界面顶栏右侧：四色灯、当前时间、当前用户（能点：登录、换人、改密码）、注销、整机复位。
 /// 红 = 报警、黄 = 警告、绿 = 运行，跟后端推来的设备总状态（EquipmentStatusDto）亮；蓝 = 和后端的通讯。
 /// </summary>
 public class TopBarViewModel : BaseViewModel
@@ -76,10 +78,60 @@ public class TopBarViewModel : BaseViewModel
         private set => SetProperty(ref _now, value);
     }
 
+    private string _userText = ClientSession.DefaultUserName;
+
     /// <summary>
-    /// 当前用户（登录还没做，先是 Admin）。
+    /// 用户块上面一行：显示名；没登录是"访客"，没启用登录是 Admin
     /// </summary>
-    public string UserName => ClientSession.UserName;
+    public string UserText
+    {
+        get => _userText;
+        private set => SetProperty(ref _userText, value);
+    }
+
+    private string _roleCaption = string.Empty;
+
+    /// <summary>
+    /// 用户块下面一行：角色；没登录是"点这里登录"，没启用登录是"没启用登录"
+    /// </summary>
+    public string RoleCaption
+    {
+        get => _roleCaption;
+        private set => SetProperty(ref _roleCaption, value);
+    }
+
+    private bool _isGuest;
+
+    /// <summary>
+    /// 启用了登录、现在没登录（访客）：用户块灰字，小菜单里只有"登录"
+    /// </summary>
+    public bool IsGuest
+    {
+        get => _isGuest;
+        private set => SetProperty(ref _isGuest, value);
+    }
+
+    private bool _isLoggedIn;
+
+    /// <summary>
+    /// 登录着：小菜单里是"换人登录""改密码"，注销能点
+    /// </summary>
+    public bool IsLoggedIn
+    {
+        get => _isLoggedIn;
+        private set => SetProperty(ref _isLoggedIn, value);
+    }
+
+    private bool _isLoginEnabled;
+
+    /// <summary>
+    /// 启用了登录：用户块才有小菜单（带小箭头）
+    /// </summary>
+    public bool IsLoginEnabled
+    {
+        get => _isLoginEnabled;
+        private set => SetProperty(ref _isLoginEnabled, value);
+    }
 
     #endregion
 
@@ -94,6 +146,21 @@ public class TopBarViewModel : BaseViewModel
     /// 关闭蜂鸣器的声音（右上角 Off 按钮）。
     /// </summary>
     public IRelayCommand BuzzerOffCommand { get; }
+
+    /// <summary>
+    /// 登录 / 换人登录：弹登录框
+    /// </summary>
+    public IRelayCommand LoginCommand { get; }
+
+    /// <summary>
+    /// 改自己的密码：登录着才能点
+    /// </summary>
+    public IRelayCommand ChangePasswordCommand { get; }
+
+    /// <summary>
+    /// 注销回访客：登录着才能点
+    /// </summary>
+    public IAsyncRelayCommand LogoutCommand { get; }
 
     #endregion
 
@@ -116,6 +183,9 @@ public class TopBarViewModel : BaseViewModel
 
         ResetCommand = new AsyncRelayCommand(DoReset, () => IsConnected);
         BuzzerOffCommand = new RelayCommand(DoBuzzerOff);
+        LoginCommand = new RelayCommand(DoLogin);
+        ChangePasswordCommand = new RelayCommand(DoChangePassword, () => ClientSession.IsLoggedIn);
+        LogoutCommand = new AsyncRelayCommand(DoLogout, () => ClientSession.IsLoggedIn);
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clock.Tick += (_, _) => Now = DateTime.Now;
@@ -133,6 +203,48 @@ public class TopBarViewModel : BaseViewModel
         RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
         RemoteEventBus.ConnectionChanged += OnConnectionChanged;
         OnConnectionChanged(RemoteEventBus.IsConnected);
+
+        ClientSession.Changed -= UpdateUser;
+        ClientSession.Changed += UpdateUser;
+        UpdateUser();
+    }
+
+    /// <summary>
+    /// 开机弹的那次登录框（启用了登录、还没登录才弹）：多一行"取消就当访客"的说明
+    /// </summary>
+    public void ShowLoginAtStartup()
+    {
+        if (!ClientSession.IsLoginEnabled || ClientSession.IsLoggedIn)
+        {
+            return;
+        }
+
+        DialogService.ShowLogin(string.Empty, true, ClientAccount.LoginAsync);
+    }
+
+    private void UpdateUser()
+    {
+        if (!ClientSession.IsLoginEnabled)
+        {
+            UserText = ClientSession.DefaultUserName;
+            RoleCaption = L10n.Get("account.login_disabled");
+        }
+        else if (ClientSession.IsLoggedIn)
+        {
+            UserText = ClientSession.DisplayName;
+            RoleCaption = RoleText.Of(ClientSession.RoleKind, ClientSession.RoleName);
+        }
+        else
+        {
+            UserText = L10n.Get("account.guest");
+            RoleCaption = L10n.Get("account.click_to_login");
+        }
+
+        IsGuest = ClientSession.IsLoginEnabled && !ClientSession.IsLoggedIn;
+        IsLoggedIn = ClientSession.IsLoggedIn;
+        IsLoginEnabled = ClientSession.IsLoginEnabled;
+        ChangePasswordCommand.NotifyCanExecuteChanged();
+        LogoutCommand.NotifyCanExecuteChanged();
     }
 
     private void OnStatusChanged(EquipmentStatusDto status)
@@ -164,6 +276,25 @@ public class TopBarViewModel : BaseViewModel
     private void DoBuzzerOff()
     {
         // 后端关蜂鸣器的接口还没做，先留空。
+    }
+
+    /// <summary>
+    /// 登录、换人登录：登录名先填上现在这个人的，换人时改掉就行
+    /// </summary>
+    private void DoLogin()
+    {
+        DialogService.ShowLogin(ClientSession.LoginName, false, ClientAccount.LoginAsync);
+    }
+
+    private void DoChangePassword()
+    {
+        string subtitle = $"{ClientSession.LoginName} · {RoleText.Of(ClientSession.RoleKind, ClientSession.RoleName)}";
+        DialogService.ShowPassword(L10n.Get("account.password.change_title"), subtitle, true, ClientAccount.ChangePasswordAsync);
+    }
+
+    private Task DoLogout()
+    {
+        return ClientAccount.LogoutAsync(false);
     }
 
     private async Task DoReset()

@@ -12,6 +12,8 @@ using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Modules;
 using xyz.Client.Presentation.Localization;
+using xyz.Client.Session;
+using xyz.Client.ViewModels;
 using xyz.Client.Views;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
@@ -78,8 +80,9 @@ public partial class App : Application
 
             GrpcClientFactory.Initialize();
 
-            // 界面语言跟后端 sc.xml 的 System 节点走：先换好语言包再建界面。顺带拿回装了哪些模块、哪些是腔体。
-            var settings = await ApplySystemLanguageAsync(loadingWindow);
+            // 界面语言跟后端 sc.xml 的 System 节点走：先换好语言包再建界面。顺带拿回装了哪些模块、哪些是腔体、要不要登录。
+            var fetched = await ApplySystemLanguageAsync(loadingWindow);
+            var settings = fetched ?? new SystemSettingsDto();
             await ReportAsync(loadingWindow, 20, L10n.Get("shell.loading.channel"));
 
             #endregion
@@ -89,6 +92,9 @@ public partial class App : Application
             RemoteEventBus.Initialize();
             ClientAlarms.Initialize();
             ClientEc.Initialize();
+
+            // 要登录的先取访客的权限，菜单一开始就按访客排；后端不在线时先当要登录、什么都只看，连上以后再定
+            await ClientAccount.InitializeAsync(fetched);
             await ReportAsync(loadingWindow, 35, L10n.Get("shell.loading.events"));
 
             #endregion
@@ -134,15 +140,23 @@ public partial class App : Application
         {
             await ShowMainWindowAsync(loadingWindow);
         }
+
+        #region 登录
+
+        // 闲置自动注销开始计时；启用了登录就弹登录框（取消当访客）
+        IdleLogout.Start();
+        Services?.GetService<TopBarViewModel>()?.ShowLoginAtStartup();
+
+        #endregion
     }
 
     /// <summary>
     /// 界面语言跟后端 sc.xml 的 System 节点（Language）走：启动时问一次后端，换好语言包再建界面。
     /// 后端还没起来（连不上）就每秒再问一次，最多等 BackendWaitSeconds——模块表只在这儿拿一次，
     /// 没拿到的话 IO、腔体这些按模块分的菜单整场都是空的。
-    /// 等到头还没拿到，或后端在但没配时用默认的简体中文；改了语言重启客户端生效。
+    /// 等到头还没拿到返回 null（用默认的简体中文，要不要登录连上以后再定）；改了语言重启客户端生效。
     /// </summary>
-    private static async Task<SystemSettingsDto> ApplySystemLanguageAsync(LoadingWindow loadingWindow)
+    private static async Task<SystemSettingsDto?> ApplySystemLanguageAsync(LoadingWindow loadingWindow)
     {
         var waitUntil = DateTime.UtcNow.AddSeconds(BackendWaitSeconds);
         while (true)
@@ -167,7 +181,7 @@ public partial class App : Application
             catch (Exception exception)
             {
                 ClientLog.Warn("Client", $"没拿到界面语言设置，先用 {L10n.Language}：{exception.Message}");
-                return new SystemSettingsDto();
+                return null;
             }
         }
     }

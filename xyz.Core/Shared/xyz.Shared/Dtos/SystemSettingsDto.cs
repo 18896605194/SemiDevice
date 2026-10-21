@@ -39,4 +39,9 @@ public class SystemSettingsDto
     /// 主界面默认的调度图一台机械手画一张（站点按它站点表里的方向摆）。
     /// </summary>
     public List<string> Robots { get; set; } = [];
+
+    /// <summary>
+    /// 要不要登录（sc.xml 的 Account 节点 IsEnable；没配 Account 节点就是不要）
+    /// </summary>
+    public bool IsLoginEnabled { get; set; }
 }

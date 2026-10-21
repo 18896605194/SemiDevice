@@ -1,9 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Common\xyz.Client.Presentation\xyz.Client.Presentation.csproj" />
     <ProjectReference Include="..\Common\xyz.Client.DataModels\xyz.Client.DataModels.csproj" />
     <ProjectReference Include="..\Common\xyz.Client.Common\xyz.Client.Common.csproj" />
+    <!-- 角色页要列出所有声明的菜单和功能项（平台的、机型的） -->
+    <ProjectReference Include="..\Common\xyz.Client.Modules\xyz.Client.Modules.csproj" />
     <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
   </ItemGroup>
 

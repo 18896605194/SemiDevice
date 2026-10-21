@@ -389,6 +389,67 @@
     </Style>
 
 
+    <!--  底部导航最右边"这一页只看 · 角色"的小标签：淡底细边圆角，Tag=True 才显示  -->
+    <Style x:Key="ViewOnlyChipBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DarkHoverBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="TextElement.FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  灰边小标签（角色"内置"、权限项"功能"、管理员"固定全部能操作"）：Tag=True 才显示  -->
+    <Style x:Key="TagChipBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkInactiveStatus}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  角色页权限表的一行：32 高（35021 全部菜单一页放得下，不用滚）、行间一道细线；Tag=True（一级菜单那一行）亮一档的底  -->
+    <Style x:Key="PermissionRowBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkSurfaceVariantBackground}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Background" Value="Transparent" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkSurfaceVariantBackground}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  角色页权限表上面那一行说明（三档各是什么）：一行、底下一道线  -->
+    <Style x:Key="PermissionLegendBorderStyle" TargetType="Border">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="TextElement.FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkDisabledText}" />
+    </Style>
+
     <!--  页面里的一块（如流程配方页的列表、基本信息、流程步骤、路线预览）：深底、细边、圆角 6；
           顶上配 ZoneHeaderBorderStyle 的标题条，块和块一眼分得开  -->
     <Style x:Key="ZoneBorderStyle" TargetType="Border">

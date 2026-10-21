@@ -4,9 +4,9 @@ using xyz.Database;
 namespace xyz.Database.Auth;
 
 /// <summary>
-/// 用户实体（RBAC 模型）
+/// 账号表：一个账号一行
 /// </summary>
-[SugarTable("User")]
+[SugarTable("account_user")]
 public class UserEntity : BaseEntity
 {
     /// <summary>
@@ -16,37 +16,29 @@ public class UserEntity : BaseEntity
     public string UserName { get; set; } = string.Empty;
 
     /// <summary>
-    /// 密码哈希，不存明文
-    /// </summary>
-    [SugarColumn(Length = 200)]
-    public string PasswordHash { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 显示名称
+    /// 显示名
     /// </summary>
     [SugarColumn(Length = 100, IsNullable = true)]
     public string? DisplayName { get; set; }
 
     /// <summary>
-    /// 所属角色名称
+    /// 密码的加盐哈希，不存原文
     /// </summary>
-    [SugarColumn(Length = 100, IsNullable = true)]
-    public string? RoleName { get; set; }
+    [SugarColumn(Length = 200)]
+    public string PasswordHash { get; set; } = string.Empty;
 
     /// <summary>
-    /// 邮箱
+    /// 角色编号
     /// </summary>
-    [SugarColumn(Length = 100, IsNullable = true)]
-    public string? Email { get; set; }
+    public long RoleId { get; set; }
 
     /// <summary>
-    /// 手机号
+    /// 内置账号（admin）：不能删、不能停用、不能改角色
     /// </summary>
-    [SugarColumn(Length = 20, IsNullable = true)]
-    public string? Phone { get; set; }
+    public bool IsBuiltIn { get; set; }
 
     /// <summary>
-    /// 最后登录时间
+    /// 最后一次登录的时间
     /// </summary>
     [SugarColumn(IsNullable = true)]
     public DateTime? LastLoginTime { get; set; }

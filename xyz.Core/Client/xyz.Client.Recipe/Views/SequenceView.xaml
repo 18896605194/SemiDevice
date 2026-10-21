@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers;assembly=xyz.Client.Presentation"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="920"
@@ -28,12 +29,15 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--  流程配方列表：只有编号、名称两列；新建 / 重命名 / 删除马上生效  -->
+            <!--  流程配方列表：只有编号、名称两列；新建 / 重命名 / 删除马上生效（这一页只看时灰掉，列表照样能点着看）  -->
             <Border Style="{DynamicResource ZoneBorderStyle}">
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <StackPanel
+                                helpers:Permission.Operate="True"
+                                DockPanel.Dock="Right"
+                                Orientation="Horizontal">
                                 <Button Command="{Binding CreateCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon
@@ -180,6 +184,7 @@
                                 </Grid>
                                 <controls:InputTextBox
                                     Margin="0,14,0,0"
+                                    helpers:Permission.Operate="True"
                                     materialDesign:HintAssist.Hint="{DynamicResource recipe.sequence.description}"
                                     DataType="Text"
                                     Value="{Binding Description}" />
@@ -204,6 +209,7 @@
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
                             <DockPanel>
                                 <StackPanel
+                                    helpers:Permission.Operate="True"
                                     DockPanel.Dock="Right"
                                     Orientation="Horizontal"
                                     Style="{DynamicResource ShowWhenTagTrueStyle}"
@@ -308,7 +314,7 @@
                                                         Text="{Binding Group}"
                                                         TextTrimming="CharacterEllipsis" />
                                                     <WrapPanel VerticalAlignment="Center">
-                                                        <ItemsControl ItemsSource="{Binding Options}">
+                                                        <ItemsControl helpers:Permission.Operate="True" ItemsSource="{Binding Options}">
                                                             <ItemsControl.ItemsPanel>
                                                                 <ItemsPanelTemplate>
                                                                     <WrapPanel />
@@ -332,6 +338,7 @@
                                                 <!--  工艺配方：公共选择框，只能从工艺配方库里选（后端没装库时才放开手输）  -->
                                                 <Border
                                                     Grid.Column="2"
+                                                    helpers:Permission.Operate="True"
                                                     Style="{DynamicResource ShowWhenTagTrueStyle}"
                                                     Tag="{Binding NeedsRecipe}">
                                                     <controls:PickerBox

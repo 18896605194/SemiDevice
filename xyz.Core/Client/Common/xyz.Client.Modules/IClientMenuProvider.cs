@@ -12,4 +12,9 @@ public interface IClientMenuProvider
     /// 本提供者声明的菜单；同一个 Code 只认第一个声明的。
     /// </summary>
     IReadOnlyList<ClientMenu> Menus { get; }
+
+    /// <summary>
+    /// 本提供者声明的功能项（角色页里单独给开关的按钮）；没有就是空的
+    /// </summary>
+    IReadOnlyList<ClientFunction> Functions => [];
 }

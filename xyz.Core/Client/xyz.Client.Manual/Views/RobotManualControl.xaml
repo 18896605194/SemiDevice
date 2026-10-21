@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="xyz.Client.Manual.Views.RobotManualControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers;assembly=xyz.Client.Presentation"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation">
 
@@ -143,6 +144,7 @@
                                 Margin="0,0,8,0"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
+                                helpers:Permission.Operate="True"
                                 Orientation="Horizontal">
                                 <Button
                                     Command="{Binding PowerOnCommand}"
@@ -271,8 +273,8 @@
 
                     <!--  取放：源 / 目标 各一行 站点·手臂·槽位，手臂和槽位都跟着选中的站点走
                          （手臂取 sc.xml 机械手站点节点的 Arms，槽位取站点的槽数：LoadPort 1~25、腔体 1）；
-                         Pick 用源手臂从源取片、Place 用目标手臂往目标放片  -->
-                    <StackPanel Margin="14,0,14,0">
+                         Pick 用源手臂从源取片、Place 用目标手臂往目标放片；这一页只看时连选站点一起灰掉  -->
+                    <StackPanel Margin="14,0,14,0" helpers:Permission.Operate="True">
                         <TextBlock
                             FontSize="{DynamicResource Size13}"
                             Foreground="{DynamicResource DarkDisabledText}"
@@ -408,7 +410,10 @@
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
                     <!--  上线 / 下线：模块模式，刷新模块名右边的在线灯  -->
-                    <UniformGrid Margin="14,0,14,0" Columns="3">
+                    <UniformGrid
+                        Margin="14,0,14,0"
+                        helpers:Permission.Operate="True"
+                        Columns="3">
                         <Button
                             Command="{Binding OnlineCommand}"
                             Content="{DynamicResource action.online}"
@@ -420,7 +425,10 @@
                     </UniformGrid>
 
                     <!--  Home / Abort / Reset：Abort 是急停，用红色  -->
-                    <UniformGrid Margin="14,0,14,14" Columns="3">
+                    <UniformGrid
+                        Margin="14,0,14,14"
+                        helpers:Permission.Operate="True"
+                        Columns="3">
                         <Button
                             Command="{Binding HomeCommand}"
                             Content="{DynamicResource action.home}"

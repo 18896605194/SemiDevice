@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers;assembly=xyz.Client.Presentation"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="920"
@@ -28,12 +29,15 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--  工艺配方列表：只有编号、名称两列；新建 / 重命名 / 删除马上生效  -->
+            <!--  工艺配方列表：只有编号、名称两列；新建 / 重命名 / 删除马上生效（这一页只看时灰掉，列表照样能点着看）  -->
             <Border Style="{DynamicResource ZoneBorderStyle}">
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <StackPanel
+                                helpers:Permission.Operate="True"
+                                DockPanel.Dock="Right"
+                                Orientation="Horizontal">
                                 <Button Command="{Binding CreateCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon
@@ -155,7 +159,7 @@
                                                 Text="{Binding Field.Header}"
                                                 TextTrimming="CharacterEllipsis" />
                                             <!--  值：程序算的是文字；能填的按类型三选一，跟步骤的格子一样  -->
-                                            <Grid Width="{Binding ControlWidth}">
+                                            <Grid Width="{Binding ControlWidth}" helpers:Permission.Operate="True">
                                                 <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsAuto}">
                                                     <TextBlock
                                                         VerticalAlignment="Center"
@@ -212,6 +216,7 @@
                         <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
                             <DockPanel>
                                 <StackPanel
+                                    helpers:Permission.Operate="True"
                                     DockPanel.Dock="Right"
                                     Orientation="Horizontal"
                                     Style="{DynamicResource ShowWhenTagTrueStyle}"
@@ -308,7 +313,7 @@
                                                     Width="70"
                                                     VerticalAlignment="Center"
                                                     Text="{Binding Number}" />
-                                                <ItemsControl ItemsSource="{Binding Cells}">
+                                                <ItemsControl helpers:Permission.Operate="True" ItemsSource="{Binding Cells}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <StackPanel Orientation="Horizontal" />

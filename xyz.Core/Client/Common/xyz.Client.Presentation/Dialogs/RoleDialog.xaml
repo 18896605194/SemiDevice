@@ -1,0 +1,55 @@
+﻿<Window
+    x:Class="xyz.Client.Presentation.Dialogs.RoleDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    AllowsTransparency="True"
+    Background="Transparent"
+    FontSize="{DynamicResource Size14}"
+    ResizeMode="NoResize"
+    ShowInTaskbar="False"
+    SizeToContent="WidthAndHeight"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    WindowStartupLocation="CenterOwner"
+    WindowStyle="None">
+
+    <!--  新建 / 改角色：名字、说明；后端拒了（重名、太长）在框里红字说原因  -->
+    <materialDesign:Card Margin="24" Style="{DynamicResource DialogCardStyle}">
+        <StackPanel Width="420">
+            <TextBlock x:Name="TitleText" Style="{DynamicResource PanelTitleTextStyle}" />
+
+            <TextBlock
+                Margin="0,16,0,0"
+                Style="{DynamicResource MetaLabelTextStyle}"
+                Text="{DynamicResource account.role.name}" />
+            <controls:InputTextBox x:Name="NameBox" />
+
+            <TextBlock
+                Margin="0,8,0,0"
+                Style="{DynamicResource MetaLabelTextStyle}"
+                Text="{DynamicResource account.role.description}" />
+            <controls:InputTextBox x:Name="DescriptionBox" />
+
+            <TextBlock x:Name="ErrorText" Style="{DynamicResource DialogErrorTextStyle}" />
+
+            <StackPanel
+                Margin="0,20,0,0"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal">
+                <Button
+                    Click="OnCancelClick"
+                    Content="{DynamicResource common.cancel}"
+                    IsCancel="True"
+                    Style="{DynamicResource ToolbarOutlinedButtonStyle}" />
+                <Button
+                    x:Name="OkButton"
+                    Margin="0"
+                    Click="OnOkClick"
+                    Content="{DynamicResource common.ok}"
+                    IsDefault="True"
+                    Style="{DynamicResource ToolbarButtonStyle}" />
+            </StackPanel>
+        </StackPanel>
+    </materialDesign:Card>
+</Window>

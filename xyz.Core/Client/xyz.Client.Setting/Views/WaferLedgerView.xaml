@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers;assembly=xyz.Client.Presentation"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="920"
@@ -23,7 +24,8 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!--  工具栏：原因、移动 / 新建 / 删除；右边是色条的颜色说明。选好的源、目标看两栏里高亮的行，确认框里会再列一遍  -->
+            <!--  工具栏：原因、移动 / 新建 / 删除；右边是色条的颜色说明。选好的源、目标看两栏里高亮的行，确认框里会再列一遍。
+                  这一页只看时原因和三个按钮灰掉，两栏照样能点着看  -->
             <Border Grid.Row="0" Style="{DynamicResource ToolbarBorderStyle}">
                 <DockPanel>
                     <StackPanel
@@ -44,7 +46,10 @@
                         <TextBlock Style="{DynamicResource ItemDetailTextStyle}" Text="{DynamicResource setting.ledger.status.Double}" />
                     </StackPanel>
 
-                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        helpers:Permission.Operate="True"
+                        Orientation="Horizontal">
                         <controls:InputTextBox
                             Width="360"
                             Margin="0,0,10,0"

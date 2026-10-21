@@ -17,9 +17,12 @@ public class SystemService : ISystemService
 {
     private readonly ISystemModule? _system;
 
+    private readonly IAccount? _account;
+
     public SystemService()
     {
         _system = IocHelper.GetService<ISystemModule>();
+        _account = IocHelper.GetService<IAccount>();
     }
 
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
@@ -37,6 +40,8 @@ public class SystemService : ISystemService
             Chambers = [.. IocHelper.GetServices<IChamber>().Select(module => module.Name)],
             LoadPorts = [.. IocHelper.GetServices<ILoadPort>().Select(module => module.Name)],
             Robots = [.. IocHelper.GetServices<IRobot>().Select(module => module.Name)],
+            // 没配 Account 节点就是不要登录
+            IsLoginEnabled = _account is not null && _account.IsEnable,
         };
 
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));

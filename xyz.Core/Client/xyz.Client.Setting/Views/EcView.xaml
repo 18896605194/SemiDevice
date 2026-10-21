@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers;assembly=xyz.Client.Presentation"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:presentation="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
@@ -95,13 +96,14 @@
                             Header="{DynamicResource setting.ec.default}" />
 
                         <!--  设定值：数值、文本用通用输入框（按这一项 EC 的格式、上下限卡，错着的时候"设置"灰掉），布尔、枚举用下拉；
-                              行只有 32 高，错误提示走弹出层，放在框下面会被行裁掉  -->
+                              行只有 32 高，错误提示走弹出层，放在框下面会被行裁掉。这一页只看时整格灰掉（"设置"自己绑了 IsEnabled，标在外面这一层）  -->
                         <DataGridTemplateColumn Width="Auto" Header="{DynamicResource setting.ec.setpoint}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel
                                         Margin="4,0"
                                         VerticalAlignment="Center"
+                                        helpers:Permission.Operate="True"
                                         Orientation="Horizontal">
                                         <Grid>
                                             <Grid.Style>

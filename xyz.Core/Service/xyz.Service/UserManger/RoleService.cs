@@ -1,72 +1,115 @@
-﻿using Mapster;
-using ProtoBuf.Grpc;
-using xyz.Tools;
-using xyz.Database.Auth;
-using xyz.Database.DbProvider;
+﻿using ProtoBuf.Grpc;
+using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
+using xyz.Shared.Errors;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Service.UserManger;
 
 /// <summary>
-/// 角色管理 gRPC 服务实现，继承数据库操作基类，直接对接 SqlSugar/SQLite。
+/// 角色管理 gRPC 服务：转给账号组件，只翻结果
 /// </summary>
-public class RoleService : RepositoryBase<RoleEntity>, IRoleService
+public class RoleService : BaseService, IRoleService
 {
-    static RoleService()
+    private readonly IAccount? _account;
+
+    public RoleService()
     {
-        XyzDb.InitTables<RoleEntity>();
+        _account = IocHelper.GetService<IAccount>();
     }
 
-    public async Task<RpcResponse> GetRolesAsync(RpcRequest request, CallContext context = default)
+    public Task<RpcResponse> GetRolesAsync(RpcRequest request, CallContext context = default)
     {
-        var entities = await GetAllEnabledAsync();
-        var roles = entities.Select(role => role.Adapt<RoleDto>()).ToList();
-
-        return RpcResponse.Ok(JsonHelper.Serialize(roles));
-    }
-
-    public async Task<RpcResponse> ExistsAsync(RpcRequest request, CallContext context = default)
-    {
-        var name = GetParameter(request, "Name");
-        var exists = await AnyAsync(role =>
-            role.Name == name && role.IsEnabled);
-
-        return RpcResponse.Ok(JsonHelper.Serialize(exists));
-    }
-
-    public async Task<RpcResponse> CreateRoleAsync(RpcRequest request, CallContext context = default)
-    {
-        var name = GetParameter(request, "Name");
-        var description = GetParameter(request, "Description");
-
-        var entity = new RoleEntity
+        var account = _account;
+        if (account is null)
         {
-            Name = name,
-            Code = name,
-            Description = description
-        };
-
-        entity.Id = await InsertAsync(entity);
-
-        return RpcResponse.Ok(JsonHelper.Serialize(entity.Adapt<RoleDto>()));
-    }
-
-    public async Task<RpcResponse> DeleteRoleAsync(RpcRequest request, CallContext context = default)
-    {
-        var idText = GetParameter(request, "Id");
-        if (!long.TryParse(idText, out var id))
-        {
-            return RpcResponse.Fail("无效的角色 Id");
+            return NotInstalled();
         }
 
-        await DeleteAsync(role => role.Id == id);
+        var result = account.GetRoles();
+        if (!result.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+        }
 
-        return RpcResponse.Ok("{}");
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
     }
 
-    private static string GetParameter(RpcRequest request, string key)
+    public Task<RpcResponse> CreateRoleAsync(RoleSaveRequest request, CallContext context = default)
     {
-        return request.Parameters.TryGetValue(key, out var value) ? value : string.Empty;
+        var account = _account;
+        if (account is null)
+        {
+            return NotInstalled();
+        }
+
+        var result = account.CreateRole(request);
+        if (!result.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+        }
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+    }
+
+    public Task<RpcResponse> UpdateRoleAsync(RoleSaveRequest request, CallContext context = default)
+    {
+        var account = _account;
+        if (account is null)
+        {
+            return NotInstalled();
+        }
+
+        return Reply(account.UpdateRole(request));
+    }
+
+    public Task<RpcResponse> DeleteRoleAsync(AccountIdRequest request, CallContext context = default)
+    {
+        var account = _account;
+        if (account is null)
+        {
+            return NotInstalled();
+        }
+
+        return Reply(account.DeleteRole(request.Id));
+    }
+
+    public Task<RpcResponse> GetPermissionsAsync(AccountIdRequest request, CallContext context = default)
+    {
+        var account = _account;
+        if (account is null)
+        {
+            return NotInstalled();
+        }
+
+        var result = account.GetPermissions(request.Id);
+        if (!result.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Fail(result.ErrorMessage, result.Args));
+        }
+
+        return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(result.Result)));
+    }
+
+    public Task<RpcResponse> SavePermissionsAsync(RolePermissionsSaveRequest request, CallContext context = default)
+    {
+        var account = _account;
+        if (account is null)
+        {
+            return NotInstalled();
+        }
+
+        return Reply(account.SavePermissions(request));
+    }
+
+    private static Task<RpcResponse> NotInstalled()
+    {
+        return Task.FromResult(RpcResponse.Fail(ErrorCodes.AccountNotInstalled, []));
+    }
+
+    private static Task<RpcResponse> Reply(HandleResult result)
+    {
+        return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 }

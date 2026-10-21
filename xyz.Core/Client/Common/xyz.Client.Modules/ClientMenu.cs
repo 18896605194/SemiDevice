@@ -7,6 +7,8 @@
 /// </summary>
 public sealed class ClientMenu
 {
+    private readonly string? _permissionCode;
+
     public ClientMenu(string? parentCode, string code, int sort, string? title = null)
     {
         ParentCode = parentCode;
@@ -35,4 +37,18 @@ public sealed class ClientMenu
     /// null 时按 Code 到语言包取 menu.{Code}。
     /// </summary>
     public string? Title { get; }
+
+    /// <summary>
+    /// 权限项编码：不写就是菜单 Code；按模块生成的几页合成一项时写同一个（每个腔体的手动页都是 Manual.Chamber）
+    /// </summary>
+    public string PermissionCode
+    {
+        get { return _permissionCode ?? Code; }
+        init { _permissionCode = value; }
+    }
+
+    /// <summary>
+    /// 按权限怎么管：默认隐藏 / 只看 / 能操作三档
+    /// </summary>
+    public MenuAccess Access { get; init; } = MenuAccess.Normal;
 }

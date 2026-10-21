@@ -42,6 +42,11 @@
 		<Value Name="HistoryDatabase" Value="Default" />
 		<Value Name="HistoryKeepDays" Value="90" />
 	</Setting>
+	<!-- 账号：用户、角色和各菜单权限；IsEnable=True 客户端启动弹登录框，没登录按访客的权限，False 不登录、不分权限 -->
+	<Setting Name="Account" Type="xyz.Components.Components.AccountComponent">
+		<Value Name="IsEnable" Value="True" />
+		<Value Name="Database" Value="Default" />
+	</Setting>
 	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
 		<Value Name="IsRun" Value="true" />
 		<Value Name="Brand" Value="Beckhoff" />

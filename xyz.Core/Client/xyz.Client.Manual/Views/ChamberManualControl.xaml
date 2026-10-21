@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="xyz.Client.Manual.Views.ChamberManualControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:xyz.Client.Presentation.Helpers;assembly=xyz.Client.Presentation"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:presentationControls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
              xmlns:threeD="clr-namespace:xyz.Client.Presentation.Controls.ThreeD;assembly=xyz.Client.Presentation">
@@ -255,6 +256,7 @@
                         Grid.Column="1"
                         Margin="0,0,10,0"
                         Padding="14,8"
+                        helpers:Permission.Operate="True"
                         Style="{DynamicResource ReadoutBorderStyle}">
                         <Grid VerticalAlignment="Center">
                             <Grid.ColumnDefinitions>
@@ -334,6 +336,7 @@
                     <Border
                         Grid.Column="2"
                         Padding="6"
+                        helpers:Permission.Operate="True"
                         Style="{DynamicResource ReadoutBorderStyle}">
                         <UniformGrid
                             VerticalAlignment="Center"
@@ -540,7 +543,7 @@
 
                         <!--  工艺：配方框（点"…"从工艺配方库里选；后端没装库时手填）→ Start（按配方起工艺，只在空闲时允许，做完才回包；要停按 Abort）  -->
                         <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.process}" />
-                        <Grid Margin="0,10,0,0">
+                        <Grid Margin="0,10,0,0" helpers:Permission.Operate="True">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" MinWidth="80" SharedSizeGroup="Label" />
                                 <ColumnDefinition Width="*" />
@@ -590,7 +593,10 @@
 
                         <!--  整腔操作：上线 / 下线（只改 Mode，不经设备，刷新腔体名右边的在线灯）；Home / Abort / Reset，Abort 是急停，用红色  -->
                         <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource chambermanual.whole}" />
-                        <UniformGrid Margin="-3,8,-3,0" Columns="3">
+                        <UniformGrid
+                            Margin="-3,8,-3,0"
+                            helpers:Permission.Operate="True"
+                            Columns="3">
                             <Button
                                 Command="{Binding OnlineCommand}"
                                 Content="{DynamicResource action.online}"
@@ -600,7 +606,10 @@
                                 Content="{DynamicResource action.offline}"
                                 Style="{DynamicResource CompactButtonStyle}" />
                         </UniformGrid>
-                        <UniformGrid Margin="-3,0,-3,0" Columns="3">
+                        <UniformGrid
+                            Margin="-3,0,-3,0"
+                            helpers:Permission.Operate="True"
+                            Columns="3">
                             <Button
                                 Command="{Binding HomeCommand}"
                                 Content="{DynamicResource action.home}"
@@ -670,7 +679,10 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                <StackPanel
+                                                    Grid.Column="2"
+                                                    helpers:Permission.Operate="True"
+                                                    Orientation="Horizontal">
                                                     <Button
                                                         MinWidth="60"
                                                         Command="{Binding DataContext.CylinderOpenCommand, ElementName=Root}"

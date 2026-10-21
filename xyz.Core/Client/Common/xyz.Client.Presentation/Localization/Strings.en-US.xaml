@@ -239,6 +239,27 @@
     <sys:String x:Key="process_recipe.name_not_found">Process recipe {0} not found in the process recipe library</sys:String>
     <sys:String x:Key="process_recipe.body_invalid">The content of process recipe {0} cannot be read (it must be JSON in the format this equipment exports)</sys:String>
 
+    <!-- Accounts (login, users, roles) -->
+    <sys:String x:Key="account.not_installed">No Account node in sc.xml (no account component); login, users and roles are unavailable</sys:String>
+    <sys:String x:Key="account.login_failed">Wrong user name or password</sys:String>
+    <sys:String x:Key="account.user_disabled">Account {0} is disabled and cannot log in</sys:String>
+    <sys:String x:Key="account.user_not_found">Account {0} not found (it may have been deleted)</sys:String>
+    <sys:String x:Key="account.user_exists">User name {0} already exists</sys:String>
+    <sys:String x:Key="account.user_name_invalid">The user name must not be empty or contain spaces, and can have at most {0} characters</sys:String>
+    <sys:String x:Key="account.display_name_invalid">The display name can have at most {0} characters</sys:String>
+    <sys:String x:Key="account.builtin_user">{0} is a built-in account: it cannot be deleted, disabled or given another role</sys:String>
+    <sys:String x:Key="account.password_too_short">The password must have at least {0} characters</sys:String>
+    <sys:String x:Key="account.password_wrong">The old password is wrong</sys:String>
+    <sys:String x:Key="account.role_not_found">Role not found (ID {0}; it may have been deleted)</sys:String>
+    <sys:String x:Key="account.role_exists">Role name {0} already exists</sys:String>
+    <sys:String x:Key="account.role_name_invalid">The role name must not be empty and can have at most {0} characters</sys:String>
+    <sys:String x:Key="account.role_description_invalid">The role description can have at most {0} characters</sys:String>
+    <sys:String x:Key="account.builtin_role">{0} is a built-in role: it cannot be deleted or renamed, and the administrator's permissions cannot be changed</sys:String>
+    <sys:String x:Key="account.role_in_use">{1} account(s) still use role {0}; give them another role before deleting it</sys:String>
+    <sys:String x:Key="account.role_not_assignable">{0} is for people who are not logged in and cannot be given to an account</sys:String>
+    <sys:String x:Key="account.permission_invalid">Permission item {0} has an invalid level {1}</sys:String>
+    <sys:String x:Key="account.failed">Account database error: {0}</sys:String>
+
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
          The UI language comes from the System node (Language) in the backend sc.xml, fetched once at client startup. -->
@@ -246,16 +267,11 @@
     <!-- Common -->
     <sys:String x:Key="common.ok">OK</sys:String>
     <sys:String x:Key="common.cancel">Cancel</sys:String>
-    <sys:String x:Key="common.create">Create</sys:String>
     <sys:String x:Key="common.delete">Delete</sys:String>
     <sys:String x:Key="common.save">Save</sys:String>
-    <sys:String x:Key="common.enabled">Enabled</sys:String>
     <sys:String x:Key="common.sort">Order</sys:String>
     <sys:String x:Key="common.none">None</sys:String>
     <sys:String x:Key="common.all">All</sys:String>
-    <sys:String x:Key="common.input">Input</sys:String>
-    <sys:String x:Key="common.input_prompt">Please enter a value</sys:String>
-    <sys:String x:Key="common.select_prompt">Please select</sys:String>
     <sys:String x:Key="common.query">Search</sys:String>
     <sys:String x:Key="common.today">Today</sys:String>
     <sys:String x:Key="common.last_7_days">Last 7 days</sys:String>
@@ -282,7 +298,7 @@
     <sys:String x:Key="shell.placeholder">The "{0}" module is not implemented yet; its content will appear here.</sys:String>
     <sys:String x:Key="shell.no_alarm">No active alarms</sys:String>
     <sys:String x:Key="shell.logout">Logout</sys:String>
-    <sys:String x:Key="shell.logout_tip">Log out (available once login is implemented)</sys:String>
+    <sys:String x:Key="shell.logout_tip">Log out and return to guest</sys:String>
     <sys:String x:Key="shell.reset">Reset</sys:String>
     <sys:String x:Key="shell.reset_tip">Reset all alarm sources</sys:String>
     <sys:String x:Key="shell.buzzer_off">Buzzer Off</sys:String>
@@ -324,18 +340,119 @@
     <sys:String x:Key="alarmview.action.raised">Raised</sys:String>
     <sys:String x:Key="alarmview.action.cleared">Cleared</sys:String>
 
-    <!-- Settings pages (users, roles) -->
-    <sys:String x:Key="setting.user.name">User name</sys:String>
-    <sys:String x:Key="setting.user.real_name">Full name</sys:String>
-    <sys:String x:Key="setting.user.role">Role</sys:String>
-    <sys:String x:Key="setting.user.role_select">Role</sys:String>
-    <sys:String x:Key="setting.user.create">Create user</sys:String>
-    <sys:String x:Key="setting.user.exists">The user name already exists; please choose another one</sys:String>
-    <sys:String x:Key="setting.role.name">Role name</sys:String>
-    <sys:String x:Key="setting.role.description">Description</sys:String>
-    <sys:String x:Key="setting.role.user_count">Users</sys:String>
-    <sys:String x:Key="setting.role.create">Create role</sys:String>
-    <sys:String x:Key="setting.role.exists">The role name already exists; please choose another one</sys:String>
+    <!-- Login: top bar user block, login dialog, password dialog, user dialog, role dialog -->
+    <sys:String x:Key="account.guest">Guest</sys:String>
+    <sys:String x:Key="account.click_to_login">Click to log in</sys:String>
+    <sys:String x:Key="account.login_disabled">No login required</sys:String>
+    <sys:String x:Key="account.menu.login">Log in</sys:String>
+    <sys:String x:Key="account.menu.switch">Switch user</sys:String>
+    <sys:String x:Key="account.menu.change_password">Change password</sys:String>
+    <sys:String x:Key="account.view_only_chip">View only · {0}</sys:String>
+    <sys:String x:Key="account.login.title">Log in</sys:String>
+    <sys:String x:Key="account.login.subtitle">Enter your user name and password</sys:String>
+    <sys:String x:Key="account.login.guest_hint">You can look around without logging in: Cancel enters as a guest, view only</sys:String>
+    <sys:String x:Key="account.login.ok">Log in</sys:String>
+    <sys:String x:Key="account.user_name">User name</sys:String>
+    <sys:String x:Key="account.display_name">Display name</sys:String>
+    <sys:String x:Key="account.password">Password</sys:String>
+    <sys:String x:Key="account.old_password">Old password</sys:String>
+    <sys:String x:Key="account.new_password">New password</sys:String>
+    <sys:String x:Key="account.initial_password">Initial password</sys:String>
+    <sys:String x:Key="account.confirm_password">Repeat password</sys:String>
+    <sys:String x:Key="account.password.change_title">Change password</sys:String>
+    <sys:String x:Key="account.password.reset_title">Reset password</sys:String>
+    <sys:String x:Key="account.password.reset_subtitle">Set a new password for {0}; the old one is not needed</sys:String>
+    <sys:String x:Key="account.password.mismatch">The two passwords do not match</sys:String>
+    <sys:String x:Key="account.user.create_title">New user</sys:String>
+    <sys:String x:Key="account.user.edit_title">Edit user</sys:String>
+    <sys:String x:Key="account.role">Role</sys:String>
+    <sys:String x:Key="account.role.select">Select a role</sys:String>
+    <sys:String x:Key="account.role.required">Select a role first</sys:String>
+    <sys:String x:Key="account.role.name">Role name</sys:String>
+    <sys:String x:Key="account.role.description">Description</sys:String>
+    <sys:String x:Key="account.role.create_title">New role</sys:String>
+    <sys:String x:Key="account.role.edit_title">Edit role</sys:String>
+    <sys:String x:Key="account.role.admin">Administrator</sys:String>
+    <sys:String x:Key="account.role.guest">Guest</sys:String>
+
+    <!-- Settings page (users): administrators only -->
+    <sys:String x:Key="setting.user.list">Users</sys:String>
+    <sys:String x:Key="setting.user.count">{0} account(s)</sys:String>
+    <sys:String x:Key="setting.user.create">New</sys:String>
+    <sys:String x:Key="setting.user.edit">Edit</sys:String>
+    <sys:String x:Key="setting.user.reset_password">Reset password</sys:String>
+    <sys:String x:Key="setting.user.enable">Enable</sys:String>
+    <sys:String x:Key="setting.user.disable">Disable</sys:String>
+    <sys:String x:Key="setting.user.user_name">User name</sys:String>
+    <sys:String x:Key="setting.user.display_name">Display name</sys:String>
+    <sys:String x:Key="setting.user.role_name">Role</sys:String>
+    <sys:String x:Key="setting.user.status">Status</sys:String>
+    <sys:String x:Key="setting.user.last_login">Last login</sys:String>
+    <sys:String x:Key="setting.user.note">Note</sys:String>
+    <sys:String x:Key="setting.user.builtin">Built-in</sys:String>
+    <sys:String x:Key="setting.user.enabled">Enabled</sys:String>
+    <sys:String x:Key="setting.user.disabled">Disabled</sys:String>
+    <sys:String x:Key="setting.user.builtin_note">Built-in account: cannot be deleted or disabled; the password can be changed</sys:String>
+    <sys:String x:Key="setting.user.disabled_note">Disabled: cannot log in</sys:String>
+    <sys:String x:Key="setting.user.delete_title">Delete user</sys:String>
+    <sys:String x:Key="setting.user.delete_message">Delete account {0}? It will no longer be able to log in, and this cannot be undone.</sys:String>
+
+    <!-- Settings page (roles): administrators only; Administrator and Guest are built in -->
+    <sys:String x:Key="setting.role.list">Roles</sys:String>
+    <sys:String x:Key="setting.role.create">New</sys:String>
+    <sys:String x:Key="setting.role.rename">Rename</sys:String>
+    <sys:String x:Key="setting.role.builtin">Built-in</sys:String>
+    <sys:String x:Key="setting.role.user_count">{0} user(s)</sys:String>
+    <sys:String x:Key="setting.role.guest_count">Not logged in</sys:String>
+    <sys:String x:Key="setting.role.admin_description">Full access to everything; cannot be changed</sys:String>
+    <sys:String x:Key="setting.role.guest_description">Applies to anyone who is not logged in</sys:String>
+    <sys:String x:Key="setting.role.footer">Each user has one role. Administrator and Guest are built in and cannot be deleted; the administrator's permissions cannot be changed.</sys:String>
+    <sys:String x:Key="setting.role.permissions">Permissions · {0}</sys:String>
+    <sys:String x:Key="setting.role.dirty">Unsaved changes</sys:String>
+    <sys:String x:Key="setting.role.locked">Always full access; cannot be changed</sys:String>
+    <sys:String x:Key="setting.role.undo">Undo changes</sys:String>
+    <sys:String x:Key="setting.role.delete_title">Delete role</sys:String>
+    <sys:String x:Key="setting.role.delete_message">Delete role {0}? Its permission settings are deleted too, and this cannot be undone.</sys:String>
+    <sys:String x:Key="setting.role.discard_title">Discard changes</sys:String>
+    <sys:String x:Key="setting.role.discard_message">The permissions of role {0} have unsaved changes. Discard them?</sys:String>
+    <sys:String x:Key="setting.role.discard">Discard</sys:String>
+
+    <!-- Permission table: three levels, headers; item names default to menu names, merged items and functions use permission.{code}, what they cover uses permission.{code}_tip -->
+    <sys:String x:Key="permission.level.hidden">Hidden</sys:String>
+    <sys:String x:Key="permission.level.view">View only</sys:String>
+    <sys:String x:Key="permission.level.operate">Operate</sys:String>
+    <sys:String x:Key="permission.legend.hidden">not shown in the menu</sys:String>
+    <sys:String x:Key="permission.legend.view">can open the page and search; buttons that change things are greyed out</sys:String>
+    <sys:String x:Key="permission.legend.operate">everything works</sys:String>
+    <sys:String x:Key="permission.legend.default">New menus not configured yet count as "View only"</sys:String>
+    <sys:String x:Key="permission.item">Permission</sys:String>
+    <sys:String x:Key="permission.covers">Covers</sys:String>
+    <sys:String x:Key="permission.function_tag">Function</sys:String>
+    <sys:String x:Key="permission.function.denied">Denied</sys:String>
+    <sys:String x:Key="permission.function.allowed">Allowed</sys:String>
+    <sys:String x:Key="permission.mixed">Mixed</sys:String>
+    <sys:String x:Key="permission.admin_only">Administrators only</sys:String>
+    <sys:String x:Key="permission.group_tip">Pick a level on this row to set every item below</sys:String>
+    <sys:String x:Key="permission.group_view_only_tip">Nothing in this group changes anything; only Hidden / View only</sys:String>
+    <sys:String x:Key="permission.Manual.Chamber">Chambers (all chambers)</sys:String>
+    <sys:String x:Key="permission.Io">IO (all modules)</sys:String>
+    <sys:String x:Key="permission.Main.System">System control</sys:String>
+    <sys:String x:Key="permission.Alarm.Reset">Alarm reset</sys:String>
+    <sys:String x:Key="permission.Main_tip">Create and start jobs; the main page cannot be hidden</sys:String>
+    <sys:String x:Key="permission.Main.System_tip">Initialize, Auto, Manual, Stop, return all wafers, switch wafer size</sys:String>
+    <sys:String x:Key="permission.Manual.LoadPorts_tip">Load, Unload, Home, Reset, Abort, Online / Offline</sys:String>
+    <sys:String x:Key="permission.Manual.Robot_tip">Pick, Place, power on / off, Home</sys:String>
+    <sys:String x:Key="permission.Manual.Chamber_tip">Every chamber's manual page counts: axes, cylinders, processing</sys:String>
+    <sys:String x:Key="permission.Recipe.Sequence_tip">New, rename, delete, save</sys:String>
+    <sys:String x:Key="permission.Recipe.Process_tip">New, rename, delete, save</sys:String>
+    <sys:String x:Key="permission.Alarm.Realtime_tip">See current alarms, AI analysis</sys:String>
+    <sys:String x:Key="permission.Alarm.History_tip">Search history</sys:String>
+    <sys:String x:Key="permission.Alarm.Reset_tip">Reset on the top bar and Reset on the main page (system alarm reset)</sys:String>
+    <sys:String x:Key="permission.Setting.Ec_tip">Change parameters</sys:String>
+    <sys:String x:Key="permission.Setting.WaferLedger_tip">Create, delete and move wafers</sys:String>
+    <sys:String x:Key="permission.Setting.User_tip">Managing accounts and roles is always for administrators</sys:String>
+    <sys:String x:Key="permission.Setting.Role_tip">Managing accounts and roles is always for administrators</sys:String>
+    <sys:String x:Key="permission.Io_tip">Write DO and AO; every module's IO page counts</sys:String>
 
     <!-- Settings page (EC settings): component tree on the left, one EC item per row on the right -->
     <sys:String x:Key="setting.ec.component">Component</sys:String>

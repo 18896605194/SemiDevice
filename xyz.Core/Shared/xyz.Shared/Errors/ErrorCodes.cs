@@ -681,4 +681,103 @@ public static class ErrorCodes
     public const string RealChartNotInstalled = "realchart.not_installed";
 
     #endregion
+
+    #region 账号（登录、用户、角色）
+
+    /// <summary>
+    /// sc.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了。Args: []
+    /// </summary>
+    public const string AccountNotInstalled = "account.not_installed";
+
+    /// <summary>
+    /// 登录名或密码不对。Args: []
+    /// </summary>
+    public const string AccountLoginFailed = "account.login_failed";
+
+    /// <summary>
+    /// 账号停用了，登录不了。Args: [登录名]
+    /// </summary>
+    public const string AccountUserDisabled = "account.user_disabled";
+
+    /// <summary>
+    /// 没有这个账号（可能已经被删了）。Args: [登录名或编号]
+    /// </summary>
+    public const string AccountUserNotFound = "account.user_not_found";
+
+    /// <summary>
+    /// 登录名已经有了。Args: [登录名]
+    /// </summary>
+    public const string AccountUserExists = "account.user_exists";
+
+    /// <summary>
+    /// 登录名不对：空的、带空格，或者太长。Args: [最长几个字]
+    /// </summary>
+    public const string AccountUserNameInvalid = "account.user_name_invalid";
+
+    /// <summary>
+    /// 显示名太长。Args: [最长几个字]
+    /// </summary>
+    public const string AccountDisplayNameInvalid = "account.display_name_invalid";
+
+    /// <summary>
+    /// 内置账号不能删、不能停用、不能改角色。Args: [登录名]
+    /// </summary>
+    public const string AccountBuiltInUser = "account.builtin_user";
+
+    /// <summary>
+    /// 密码太短。Args: [最短几位]
+    /// </summary>
+    public const string AccountPasswordTooShort = "account.password_too_short";
+
+    /// <summary>
+    /// 改密码时旧密码不对。Args: []
+    /// </summary>
+    public const string AccountPasswordWrong = "account.password_wrong";
+
+    /// <summary>
+    /// 没有这个角色（可能已经被删了）。Args: [角色编号]
+    /// </summary>
+    public const string AccountRoleNotFound = "account.role_not_found";
+
+    /// <summary>
+    /// 角色名已经有了。Args: [角色名]
+    /// </summary>
+    public const string AccountRoleExists = "account.role_exists";
+
+    /// <summary>
+    /// 角色名不对：空的或者太长。Args: [最长几个字]
+    /// </summary>
+    public const string AccountRoleNameInvalid = "account.role_name_invalid";
+
+    /// <summary>
+    /// 角色说明太长。Args: [最长几个字]
+    /// </summary>
+    public const string AccountRoleDescriptionInvalid = "account.role_description_invalid";
+
+    /// <summary>
+    /// 内置角色不能删、不能改名，管理员的权限不能改。Args: [角色名]
+    /// </summary>
+    public const string AccountBuiltInRole = "account.builtin_role";
+
+    /// <summary>
+    /// 还有账号在用这个角色，不能删。Args: [角色名, 账号数]
+    /// </summary>
+    public const string AccountRoleInUse = "account.role_in_use";
+
+    /// <summary>
+    /// 访客角色是给没登录的人的，不能给账号用。Args: [角色名]
+    /// </summary>
+    public const string AccountRoleNotAssignable = "account.role_not_assignable";
+
+    /// <summary>
+    /// 权限项编码是空的，或者档位不对。Args: [权限项编码, 档位]
+    /// </summary>
+    public const string AccountPermissionInvalid = "account.permission_invalid";
+
+    /// <summary>
+    /// 读写账号库出错。Args: [原因]
+    /// </summary>
+    public const string AccountFailed = "account.failed";
+
+    #endregion
 }

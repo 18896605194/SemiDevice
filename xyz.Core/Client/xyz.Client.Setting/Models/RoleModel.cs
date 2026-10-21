@@ -1,33 +1,35 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using xyz.Shared.Dtos;
 
 namespace xyz.Client.Setting.Models;
 
 /// <summary>
-/// 用户角色。
+/// 角色：角色页左边一行、用户页选角色的候选
 /// </summary>
-public class RoleModel : ObservableObject
+public class RoleModel
 {
-    private string _name = string.Empty;
-    private string _description = string.Empty;
-    private int _userCount;
-
     public long Id { get; set; }
 
-    public string Name
-    {
-        get => _name;
-        set => SetProperty(ref _name, value);
-    }
+    /// <summary>
+    /// 库里存的名字
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
 
-    public string Description
-    {
-        get => _description;
-        set => SetProperty(ref _description, value);
-    }
+    /// <summary>
+    /// 显示名：内置的按语言包，自己建的就是库里的名字
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
 
-    public int UserCount
-    {
-        get => _userCount;
-        set => SetProperty(ref _userCount, value);
-    }
+    public string Description { get; set; } = string.Empty;
+
+    public RoleKind Kind { get; set; }
+
+    /// <summary>
+    /// 内置的（管理员、访客）：不能删、不能改名
+    /// </summary>
+    public bool IsBuiltIn => Kind != RoleKind.Normal;
+
+    /// <summary>
+    /// 右边那一小格：几个账号在用；访客是"没登录时"
+    /// </summary>
+    public string CountText { get; set; } = string.Empty;
 }

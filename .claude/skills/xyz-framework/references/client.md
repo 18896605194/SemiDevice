@@ -27,13 +27,15 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
    返回的模块名、腔体名用来生成 IO / 腔体菜单，LoadPort、机械手名单用来生成主界面的 LoadPort 页签和默认调度图。
    后端一直不在就用 zh-CN、这些按模块生成的东西整次为空（主界面显示提示）；换语言要重启客户端。
-4. `RemoteEventBus.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`。
+4. `RemoteEventBus.Initialize()`、`ClientAlarms.Initialize()`、`ClientEc.Initialize()`、`ClientAccount.InitializeAsync(设置)`
+   （`SystemSettingsDto.IsLoginEnabled` 定要不要登录，要登录的先取访客的会话；后端不在当要登录、什么都只看，连上再定）。
 5. 建 DI：`AddXyzClientServices(settings)`（壳 VM、平台菜单、各功能模块注册）→ `ClientModuleLoader.Load(services)`
    （扫 exe 目录和 `Modules\**\*.dll` 里带 `[ClientModule]` 的 `IClientModule`，按 Key 排序调 `Register`；机型后注册，
    同一个 keyed 页面键会覆盖平台的）→ 机型语言包 `L10n.AddPack(module.PresentationAssembly)` → `IocHelper.ServiceProvider = ...`。
 6. 统一调一遍所有 `BaseViewModel` 的 `Init()`（各自 try/catch 记日志）。`MainViewModel` 最先注册，它的 Init 会把所有页面建出来，
    所以**页面的构造先于自己 VM 的 Init**。
 7. 主窗口先放到屏幕外 `Show`、等 `ContentRendered`（所有页面套模板、排版、Loaded 一次做完），再挪回来最大化、关加载窗口。
+8. `IdleLogout.Start()`（闲置自动注销）；要登录、还没登录的弹登录框（`TopBarViewModel.ShowLoginAtStartup`，取消就当访客）。
 
 ## 3. 菜单和页面
 
@@ -50,6 +52,14 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   services.AddKeyedSingleton<UserControl, XxxView>("Setting.Xxx");                    // 键 = 菜单 Code
   ```
   按模块一页的（IO、腔体手动）用工厂：`AddKeyedSingleton<UserControl>(code, (sp, key) => new IoView(...))`。
+- **权限**（2026-10-21，见 decisions.md「登录和菜单权限」）：菜单 Code 就是权限项编码，常量在 `xyz.Shared\Permissions\PermissionCodes`（客户端菜单、后端预置角色共用）。
+  `ClientMenu` 另有 `PermissionCode`（几页合成一项时写，如每个腔体手动页都是 `Manual.Chamber`、每个模块的 IO 页都是 `Io`；不写就是 Code）
+  和 `Access`（`MenuAccess`：Normal 三档都有、NoHide 主界面不能隐藏、ViewOnly 报警 / 数据中心这类只能看的页只分隐藏 / 只看、AdminOnly 固定只给管理员）。
+  不在某一页上的按钮级开关是功能项 `IClientMenuProvider.Functions`（`ClientFunction(挂在哪个一级菜单, 编码, 先后)`：整机控制 `Main.System`、报警复位 `Alarm.Reset`）。
+  档位怎么算在 `MenuPermissions.LevelOf(menu)`（没配过的按"只看"）；角色页的权限表照声明的菜单、功能项排，不进库。
+  壳（`MainViewModel`）按会话只建看得见的菜单，给每个页面根设 `Permission.CanOperate`（往下传）；页面里会改东西的那一块标
+  `helpers:Permission.Operate="True"`（只看时灰掉，本身绑了 IsEnabled 的控件标在外面包的那一层）；功能项的按钮标
+  `helpers:Permission.Function="{x:Static permissions:PermissionCodes.MainSystem}"`。只是界面上挡，后端不查（用户定的）。
 - `xyz.Client\Views\PageHost.cs`：全部页面启动时挂上，当前页 Visible、其余 Hidden。
   **页面常驻：Loaded / Unloaded 只触发一次**。要知道页面显示没显示用 `IsVisibleChanged`，转给 VM（示例 `WaferLedgerView.xaml.cs` →
   `viewModel.SetPageVisible(...)`）；页面不在前台时不拉数据、不跑每帧的东西（TrendChart、Robot 控件隐藏时停 `CompositionTarget.Rendering`）。
@@ -86,10 +96,11 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 ### 加一个页面（清单）
 1. 功能模块里加 `Models\`、`ViewModels\XxxViewModel.cs`、`Views\XxxView.xaml(.cs)`。
 2. 模块 `ServiceExtensions` 注册 VM（+ BaseViewModel 别名）和 keyed View。
-3. `PlatformMenuProvider` 加 `ClientMenu`（注意后面的 sort 顺延）。
-4. 两个语言包加 `menu.{Code}` 和页面文字。
-5. 样式缺的加到 `Presentation\Styles`，不在页面里写资源。
-6. 编译；用离屏预览（见 machine-and-tools.md）出中英文截图看一遍。
+3. `PlatformMenuProvider` 加 `ClientMenu`（注意后面的 sort 顺延；编码加进 `PermissionCodes`，只能看的页给 `Access = MenuAccess.ViewOnly`）。
+4. 两个语言包加 `menu.{Code}` 和页面文字；角色页上"管哪些操作"配 `permission.{Code}_tip`。
+5. 页面里会改东西的按钮、输入那一块标 `helpers:Permission.Operate="True"`（不标的话只看的人也能点）；预置角色要不要给这一项改 `AccountComponent.Defaults`。
+6. 样式缺的加到 `Presentation\Styles`，不在页面里写资源。
+7. 编译；用离屏预览（见 machine-and-tools.md）出中英文截图看一遍。
 
 ## 4. ViewModel
 
@@ -101,7 +112,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 构造里只建对象（集合、命令、服务代理 `GrpcClientFactory.Create<IXxxService>()`、计时器、CollectionView），**不拉数据**。
 - 拉数据、订阅事件放 `Init()`（由壳统一调，View 里不调）。Init 要能重复调：先 `Dispose` 旧订阅、`-=` 再 `+=`。
 - 命令方法 `Do` 开头（`DoMove`、`DoConfirm`）；不是命令的方法不加 Do。会走 RPC / IO 的命令用 `AsyncRelayCommand`，方法返回 `Task`。
-- 不在 `Init` 里同步等 RPC（`.GetAwaiter().GetResult()`）——旧代码有（Manual、User、Role），新代码不要学。
+- 不在 `Init` 里同步等 RPC（`.GetAwaiter().GetResult()`）——旧代码有（Manual），新代码不要学。
 
 ### 调后端
 ```csharp
@@ -115,7 +126,7 @@ if (!response.Success)
 var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperationException
 ```
 - 错误显示一律"错误码 → 语言包"；没码的老接口才用 `Message`。
-- 结果提示走顶栏日志栏：`ClientLog.Info/Warn/Error(模块名, 句子)`。不弹 MessageBox（只有 User/Role 旧代码还有）。
+- 结果提示走顶栏日志栏：`ClientLog.Info/Warn/Error(模块名, 句子)`。不弹 MessageBox。
 
 ### 事件
 - `EventBus.Register<TDto>(TDto.EventToken 或模块名, handler)`：远程消息由 `RemoteEventBus` 投递到 **UI 线程**，handler 里直接改绑定属性；
@@ -216,6 +227,9 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - **公共确认弹窗** `DialogService.ShowConfirm(标题, 说明, 确定按钮字, danger, showCancel)`：跟选择弹窗一个样子，说明多行、长了滚动；
   danger = 确定按钮红色（中止、删除这类），showCancel = false 只有一个按钮（只是告知）。以后 Job 页的停止 / 中止用它。
+- **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机那次多一行"取消就当访客"）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
+  `ShowUser`（新建 / 改账号）、`ShowRole`（新建角色 / 改名和说明）。都是传一个异步回调去调后端：回 null 关框，回一句话就红字写在框里、框不关。
+  密码用 `PasswordBox` + `DefaultPasswordBoxStyle`（不进 VM、不绑定）。
 - LogBar / AlarmBar 只在主窗口顶栏用。
 - 实时报警页上面的 AI 工具栏（`ShowWhenTagTrueStyle` 包着、Tag = `IsAiInstalled`）：连上后端问一次 `IAiService.GetStatusAsync`，配了 AI 才显示；
   表格 `SelectedItem` 绑 `SelectedAlarm`（报警一变整表重建，按来源 + 代码接着选中原来那条），"AI 分析"结果用 `DialogService.ShowConfirm` 只一个按钮显示（见 backend.md §5「AI 助手」）。
@@ -262,14 +276,15 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `DiSensorModel`（一个 DI 信号：配了没有、名字、`IsActive`）、`TankModel`（槽：液位 + 五个信号）……），
   页面自己的在功能模块 `Models\`。
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
-- 当前用户 `xyz.Client.Common.Session.ClientSession.UserName`（登录没做，先固定 Admin），要记操作人的地方都从这儿取。
+- 当前用户 `xyz.Client.Common.Session.ClientSession`（2026-10-21 起有登录）：`UserName` 记操作人用（不用登录时是 Admin，没登录是 Guest），
+  `LoginName` / `DisplayName` / `RoleKind` / `IsLoggedIn` / `IsAdmin`、`LevelOf(编码)` / `CanOperate(编码)`；会话一变发 `Changed`（界面线程）。
+  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置注销 `Session\IdleLogout`（分钟数是后端 EC，跟会话一起下来）。
 - EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。
 
 ## 10. 旧代码里和规则不一致的地方（截至 2026-10-03；改到时顺手改，新代码别学）
 
-- 裸 TextBox：报警历史、日志历史/实时的关键字框，IoView 搜索框，两个对话框。
-- 写死颜色 / 字号：LoadPort、Robot 手动控件里的 `#555`（腔体页已换成 `DarkInactiveStatus`）、LoadingWindow 的 `#333333`、Dialogs 的 `FontSize="14"`。
+- 裸 TextBox：报警历史、日志历史/实时的关键字框，IoView 搜索框。
+- 写死颜色 / 字号：LoadPort、Robot 手动控件里的 `#555`（腔体页已换成 `DarkInactiveStatus`）、LoadingWindow 的 `#333333`。
 - `MainWindow` 有 `Window.Resources`（BooleanToVisibilityConverter）。
-- Manual、User、Role 的 VM 在 Init 里同步等 RPC；User/Role 用了 MessageBox。
-- User/Role 选中项变了没刷新删除按钮的 CanExecute（删除按钮可能一直灰）。
+- Manual 的 VM 在 Init 里同步等 RPC。
 - `.codex\skills\xyz-wpf-mvvm-conventions\SKILL.md` 里有过时内容（路径写成 D:\Common、提到 RpcClient/IRpcService、xyz.Shared/Models），以本 skill 为准。

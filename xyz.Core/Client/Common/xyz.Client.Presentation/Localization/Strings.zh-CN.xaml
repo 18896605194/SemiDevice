@@ -240,6 +240,27 @@
     <sys:String x:Key="process_recipe.name_not_found">工艺配方库里没有 {0}</sys:String>
     <sys:String x:Key="process_recipe.body_invalid">工艺配方 {0} 的内容读不出来（要这边给出去的那种 JSON）</sys:String>
 
+    <!-- 账号（登录、用户、角色） -->
+    <sys:String x:Key="account.not_installed">sc.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了</sys:String>
+    <sys:String x:Key="account.login_failed">登录名或密码不对</sys:String>
+    <sys:String x:Key="account.user_disabled">账号 {0} 停用了，登录不了</sys:String>
+    <sys:String x:Key="account.user_not_found">没有账号 {0}（可能已经被删了）</sys:String>
+    <sys:String x:Key="account.user_exists">登录名 {0} 已经有了</sys:String>
+    <sys:String x:Key="account.user_name_invalid">登录名不能空、不能带空格，最多 {0} 个字</sys:String>
+    <sys:String x:Key="account.display_name_invalid">显示名最多 {0} 个字</sys:String>
+    <sys:String x:Key="account.builtin_user">{0} 是内置账号：不能删、不能停用、不能换角色</sys:String>
+    <sys:String x:Key="account.password_too_short">密码至少 {0} 位</sys:String>
+    <sys:String x:Key="account.password_wrong">旧密码不对</sys:String>
+    <sys:String x:Key="account.role_not_found">没有这个角色（编号 {0}，可能已经被删了）</sys:String>
+    <sys:String x:Key="account.role_exists">角色名 {0} 已经有了</sys:String>
+    <sys:String x:Key="account.role_name_invalid">角色名不能空，最多 {0} 个字</sys:String>
+    <sys:String x:Key="account.role_description_invalid">角色说明最多 {0} 个字</sys:String>
+    <sys:String x:Key="account.builtin_role">{0} 是内置角色：不能删、不能改名，管理员的权限也不能改</sys:String>
+    <sys:String x:Key="account.role_in_use">还有 {1} 个账号在用角色 {0}，先给它们换个角色再删</sys:String>
+    <sys:String x:Key="account.role_not_assignable">{0} 是给没登录的人用的，不能给账号</sys:String>
+    <sys:String x:Key="account.permission_invalid">权限项 {0} 的档位 {1} 不对</sys:String>
+    <sys:String x:Key="account.failed">账号库读写出错：{0}</sys:String>
+
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
          界面语言由后端 sc.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
@@ -247,16 +268,11 @@
     <!-- 通用 -->
     <sys:String x:Key="common.ok">确定</sys:String>
     <sys:String x:Key="common.cancel">取消</sys:String>
-    <sys:String x:Key="common.create">创建</sys:String>
     <sys:String x:Key="common.delete">删除</sys:String>
     <sys:String x:Key="common.save">保存</sys:String>
-    <sys:String x:Key="common.enabled">启用</sys:String>
     <sys:String x:Key="common.sort">排序</sys:String>
     <sys:String x:Key="common.none">无</sys:String>
     <sys:String x:Key="common.all">全部</sys:String>
-    <sys:String x:Key="common.input">输入</sys:String>
-    <sys:String x:Key="common.input_prompt">请输入内容</sys:String>
-    <sys:String x:Key="common.select_prompt">请选择</sys:String>
     <sys:String x:Key="common.query">查询</sys:String>
     <sys:String x:Key="common.today">今天</sys:String>
     <sys:String x:Key="common.last_7_days">最近 7 天</sys:String>
@@ -283,7 +299,7 @@
     <sys:String x:Key="shell.placeholder">「{0}」模块后续实现，内容将显示在中间区域。</sys:String>
     <sys:String x:Key="shell.no_alarm">当前没有报警</sys:String>
     <sys:String x:Key="shell.logout">注销</sys:String>
-    <sys:String x:Key="shell.logout_tip">注销（登录功能接上后可用）</sys:String>
+    <sys:String x:Key="shell.logout_tip">注销，回到访客</sys:String>
     <sys:String x:Key="shell.reset">复位</sys:String>
     <sys:String x:Key="shell.reset_tip">复位全部有报警的来源</sys:String>
     <sys:String x:Key="shell.buzzer_off">关蜂鸣器</sys:String>
@@ -325,18 +341,119 @@
     <sys:String x:Key="alarmview.action.raised">报出</sys:String>
     <sys:String x:Key="alarmview.action.cleared">清除</sys:String>
 
-    <!-- 设置页（用户、角色） -->
-    <sys:String x:Key="setting.user.name">用户名</sys:String>
-    <sys:String x:Key="setting.user.real_name">姓名</sys:String>
-    <sys:String x:Key="setting.user.role">角色</sys:String>
-    <sys:String x:Key="setting.user.role_select">所属角色</sys:String>
-    <sys:String x:Key="setting.user.create">创建用户</sys:String>
-    <sys:String x:Key="setting.user.exists">用户名已存在，请更换后重试</sys:String>
-    <sys:String x:Key="setting.role.name">角色名称</sys:String>
-    <sys:String x:Key="setting.role.description">说明</sys:String>
-    <sys:String x:Key="setting.role.user_count">用户数</sys:String>
-    <sys:String x:Key="setting.role.create">创建角色</sys:String>
-    <sys:String x:Key="setting.role.exists">角色名称已存在，请更换后重试</sys:String>
+    <!-- 登录：顶栏用户块、登录框、改密码框、新建 / 改账号框、角色框 -->
+    <sys:String x:Key="account.guest">访客</sys:String>
+    <sys:String x:Key="account.click_to_login">点这里登录</sys:String>
+    <sys:String x:Key="account.login_disabled">不用登录</sys:String>
+    <sys:String x:Key="account.menu.login">登录</sys:String>
+    <sys:String x:Key="account.menu.switch">切换用户</sys:String>
+    <sys:String x:Key="account.menu.change_password">改密码</sys:String>
+    <sys:String x:Key="account.view_only_chip">这一页只看 · {0}</sys:String>
+    <sys:String x:Key="account.login.title">登录</sys:String>
+    <sys:String x:Key="account.login.subtitle">输入登录名和密码</sys:String>
+    <sys:String x:Key="account.login.guest_hint">不登录也能看：点取消按访客进去，只能看，不能操作</sys:String>
+    <sys:String x:Key="account.login.ok">登录</sys:String>
+    <sys:String x:Key="account.user_name">登录名</sys:String>
+    <sys:String x:Key="account.display_name">显示名</sys:String>
+    <sys:String x:Key="account.password">密码</sys:String>
+    <sys:String x:Key="account.old_password">旧密码</sys:String>
+    <sys:String x:Key="account.new_password">新密码</sys:String>
+    <sys:String x:Key="account.initial_password">初始密码</sys:String>
+    <sys:String x:Key="account.confirm_password">再输一遍</sys:String>
+    <sys:String x:Key="account.password.change_title">改密码</sys:String>
+    <sys:String x:Key="account.password.reset_title">重置密码</sys:String>
+    <sys:String x:Key="account.password.reset_subtitle">给 {0} 设一个新密码，不用旧密码</sys:String>
+    <sys:String x:Key="account.password.mismatch">两次输的密码不一样</sys:String>
+    <sys:String x:Key="account.user.create_title">新建用户</sys:String>
+    <sys:String x:Key="account.user.edit_title">修改用户</sys:String>
+    <sys:String x:Key="account.role">角色</sys:String>
+    <sys:String x:Key="account.role.select">选角色</sys:String>
+    <sys:String x:Key="account.role.required">还没选角色</sys:String>
+    <sys:String x:Key="account.role.name">角色名</sys:String>
+    <sys:String x:Key="account.role.description">说明</sys:String>
+    <sys:String x:Key="account.role.create_title">新建角色</sys:String>
+    <sys:String x:Key="account.role.edit_title">修改角色</sys:String>
+    <sys:String x:Key="account.role.admin">管理员</sys:String>
+    <sys:String x:Key="account.role.guest">访客</sys:String>
+
+    <!-- 设置页（用户管理）：只有管理员进得来 -->
+    <sys:String x:Key="setting.user.list">用户</sys:String>
+    <sys:String x:Key="setting.user.count">{0} 个账号</sys:String>
+    <sys:String x:Key="setting.user.create">新建</sys:String>
+    <sys:String x:Key="setting.user.edit">修改</sys:String>
+    <sys:String x:Key="setting.user.reset_password">重置密码</sys:String>
+    <sys:String x:Key="setting.user.enable">启用</sys:String>
+    <sys:String x:Key="setting.user.disable">停用</sys:String>
+    <sys:String x:Key="setting.user.user_name">登录名</sys:String>
+    <sys:String x:Key="setting.user.display_name">显示名</sys:String>
+    <sys:String x:Key="setting.user.role_name">角色</sys:String>
+    <sys:String x:Key="setting.user.status">状态</sys:String>
+    <sys:String x:Key="setting.user.last_login">最后登录</sys:String>
+    <sys:String x:Key="setting.user.note">说明</sys:String>
+    <sys:String x:Key="setting.user.builtin">内置</sys:String>
+    <sys:String x:Key="setting.user.enabled">启用</sys:String>
+    <sys:String x:Key="setting.user.disabled">停用</sys:String>
+    <sys:String x:Key="setting.user.builtin_note">内置账号：不能删、不能停用，密码能改</sys:String>
+    <sys:String x:Key="setting.user.disabled_note">停用：登录不了</sys:String>
+    <sys:String x:Key="setting.user.delete_title">删除用户</sys:String>
+    <sys:String x:Key="setting.user.delete_message">删除账号 {0}？删了就登录不了，不能恢复。</sys:String>
+
+    <!-- 设置页（角色管理）：只有管理员进得来；管理员、访客是内置的 -->
+    <sys:String x:Key="setting.role.list">角色</sys:String>
+    <sys:String x:Key="setting.role.create">新建</sys:String>
+    <sys:String x:Key="setting.role.rename">重命名</sys:String>
+    <sys:String x:Key="setting.role.builtin">内置</sys:String>
+    <sys:String x:Key="setting.role.user_count">{0} 人</sys:String>
+    <sys:String x:Key="setting.role.guest_count">没登录时</sys:String>
+    <sys:String x:Key="setting.role.admin_description">全部能操作，固定不能改</sys:String>
+    <sys:String x:Key="setting.role.guest_description">没登录的人按它算</sys:String>
+    <sys:String x:Key="setting.role.footer">一个用户一个角色。管理员、访客是内置的，不能删；管理员的权限也不能改。</sys:String>
+    <sys:String x:Key="setting.role.permissions">权限 · {0}</sys:String>
+    <sys:String x:Key="setting.role.dirty">有修改没保存</sys:String>
+    <sys:String x:Key="setting.role.locked">固定全部能操作，不能改</sys:String>
+    <sys:String x:Key="setting.role.undo">撤销修改</sys:String>
+    <sys:String x:Key="setting.role.delete_title">删除角色</sys:String>
+    <sys:String x:Key="setting.role.delete_message">删除角色 {0}？它的权限设置一起删掉，不能恢复。</sys:String>
+    <sys:String x:Key="setting.role.discard_title">放弃修改</sys:String>
+    <sys:String x:Key="setting.role.discard_message">角色 {0} 的权限改了还没保存，放弃这些修改？</sys:String>
+    <sys:String x:Key="setting.role.discard">放弃</sys:String>
+
+    <!-- 权限表：三档、表头；权限项名字默认就是菜单名，合成的几项和功能项在这里配 permission.{编码}，管哪些操作配 permission.{编码}_tip -->
+    <sys:String x:Key="permission.level.hidden">隐藏</sys:String>
+    <sys:String x:Key="permission.level.view">只看</sys:String>
+    <sys:String x:Key="permission.level.operate">能操作</sys:String>
+    <sys:String x:Key="permission.legend.hidden">菜单里看不到</sys:String>
+    <sys:String x:Key="permission.legend.view">能进页面、能查询，改东西的按钮灰掉</sys:String>
+    <sys:String x:Key="permission.legend.operate">全部能用</sys:String>
+    <sys:String x:Key="permission.legend.default">没配过的新菜单按"只看"</sys:String>
+    <sys:String x:Key="permission.item">权限项</sys:String>
+    <sys:String x:Key="permission.covers">管哪些操作</sys:String>
+    <sys:String x:Key="permission.function_tag">功能</sys:String>
+    <sys:String x:Key="permission.function.denied">不允许</sys:String>
+    <sys:String x:Key="permission.function.allowed">允许</sys:String>
+    <sys:String x:Key="permission.mixed">各项不同</sys:String>
+    <sys:String x:Key="permission.admin_only">只给管理员</sys:String>
+    <sys:String x:Key="permission.group_tip">点这一行的档位，下面各项一起改</sys:String>
+    <sys:String x:Key="permission.group_view_only_tip">这一组没有改东西的操作，只分隐藏 / 只看</sys:String>
+    <sys:String x:Key="permission.Manual.Chamber">腔体（全部腔体）</sys:String>
+    <sys:String x:Key="permission.Io">IO（全部模块）</sys:String>
+    <sys:String x:Key="permission.Main.System">整机控制</sys:String>
+    <sys:String x:Key="permission.Alarm.Reset">报警复位</sys:String>
+    <sys:String x:Key="permission.Main_tip">建 Job、启动 Job；主界面不能隐藏</sys:String>
+    <sys:String x:Key="permission.Main.System_tip">初始化、Auto、Manual、Stop、全部回片、切晶圆尺寸</sys:String>
+    <sys:String x:Key="permission.Manual.LoadPorts_tip">Load、Unload、Home、复位、中止、上线下线</sys:String>
+    <sys:String x:Key="permission.Manual.Robot_tip">取片、放片、上电下电、回原点</sys:String>
+    <sys:String x:Key="permission.Manual.Chamber_tip">每个腔体的手动页一起算：轴、气缸、做工艺</sys:String>
+    <sys:String x:Key="permission.Recipe.Sequence_tip">新建、改名、删除、保存</sys:String>
+    <sys:String x:Key="permission.Recipe.Process_tip">新建、改名、删除、保存</sys:String>
+    <sys:String x:Key="permission.Alarm.Realtime_tip">看当前报警、AI 分析</sys:String>
+    <sys:String x:Key="permission.Alarm.History_tip">查历史</sys:String>
+    <sys:String x:Key="permission.Alarm.Reset_tip">顶栏的复位、主界面的 Reset（整机报警复位）</sys:String>
+    <sys:String x:Key="permission.Setting.Ec_tip">改参数</sys:String>
+    <sys:String x:Key="permission.Setting.WaferLedger_tip">建片、删片、挪片</sys:String>
+    <sys:String x:Key="permission.Setting.User_tip">谁能管账号、角色，固定是管理员</sys:String>
+    <sys:String x:Key="permission.Setting.Role_tip">谁能管账号、角色，固定是管理员</sys:String>
+    <sys:String x:Key="permission.Io_tip">写 DO、AO；每个模块的 IO 页一起算</sys:String>
 
     <!-- 设置页（EC 设置）：左边组件树，右边一行一项 EC -->
     <sys:String x:Key="setting.ec.component">组件</sys:String>

@@ -18,6 +18,22 @@
         <Setter Property="CaretBrush" Value="{StaticResource DarkPrimaryText}" />
     </Style>
 
+    <!--  密码框（登录、改密码、新建账号）：跟默认输入框一个样子、一样高  -->
+    <Style
+        x:Key="DefaultPasswordBoxStyle"
+        BasedOn="{StaticResource MaterialDesignOutlinedPasswordBox}"
+        TargetType="PasswordBox">
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Margin" Value="0,4" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
     <!--  工具栏里的输入（关键字……）：跟工具栏按钮同高（34），上下不留外边距  -->
     <Style
         x:Key="ToolbarTextBoxStyle"

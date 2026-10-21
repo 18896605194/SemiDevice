@@ -81,6 +81,68 @@
         <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
     </Style>
 
+    <!--  顶栏用户块的名字：Tag=True（没登录，访客）灰字  -->
+    <Style
+        x:Key="TopBarUserTextStyle"
+        BasedOn="{StaticResource TopBarValueTextStyle}"
+        TargetType="TextBlock">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  角色页权限表一行的名字：Tag 是这一行是什么（PermissionRowKind）——一级菜单加粗，下面的项往里缩一格（功能项前面那道折线自己缩）  -->
+    <Style x:Key="PermissionNameTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size14}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Group">
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Item">
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Child">
+                <Setter Property="Margin" Value="26,0,0,0" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="AdminOnly">
+                <Setter Property="Margin" Value="26,0,0,0" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  账号状态前面的小圆点：Tag=True（启用）绿，停用灰  -->
+    <Style x:Key="EnabledDotTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="8,0,6,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkInactiveStatus}" />
+        <Setter Property="Text" Value="●" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  角色页权限表里灰的小字：管哪些操作、"—"（没有这一档）、"各项不同"  -->
+    <Style x:Key="PermissionHintTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--  小标签里的字（"内置""功能"）：小一号  -->
+    <Style x:Key="ChipTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
+    </Style>
+
     <!--  报警等级文字（数据要有 Level 属性）：Warn 黄、Alarm1/Alarm2 橙、Fatal 红  -->
     <Style x:Key="AlarmLevelTextStyle" TargetType="TextBlock">
         <Setter Property="FontWeight" Value="SemiBold" />

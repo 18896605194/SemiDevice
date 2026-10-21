@@ -615,6 +615,18 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - **服务** `IAiService`（`xyz.Service\Ai\AiService`）：`GetStatusAsync`（配了回 `AiStatusDto`（模型名），没配 `ai.not_installed`）、`ExplainAlarmAsync(AiAlarmRequest)`（回 `AiAnswerDto`）。
   客户端：实时报警页上面一条 AI 工具栏，连上后端问一次 `GetStatusAsync`，配了才显示；选中一条报警点"AI 分析"，等的时候按钮点不了，结果用公共确认弹窗显示（下面列参考了几条日志、几个信号、模型、用时，"仅供参考"）。
 
+### 账号：登录、用户、角色（2026-10-21，见 decisions.md「登录和菜单权限」）
+- **组件** `Components\System\AccountComponent`（sc.xml 顶层 `Account` 节点，接口 `IAccount`）：SC `IsEnable`（要不要登录，系统设置的 `IsLoginEnabled` 就是它；没配节点 = 不登录）、
+  `Database`（库名）；EC `IdleLogoutMinutes`（闲置注销，默认 15，0 = 不注销）、`PasswordMinLength`（默认 4）。不扫描、不起线程，调用都在 RPC 线程上、一把锁。
+  组件初始化建表、第一次开机预置角色（管理员、访客，还有工程师、操作员各项的默认档位在 `Defaults`）和内置账号 admin / admin；建表、预置没成后面一律回 `account.failed`。
+  会话 `SessionDto`：登录名、显示名、角色、各项档位（管理员不带，全部能操作）、闲置注销分钟数；`GetSession(空)` 就是访客的。
+  建、改、删账号和角色，存权限都推 `AccountChangedDto`（token "Account"，不留存），登录着的客户端重新取会话、两个设置页重拉。
+- **权限项编码**在 `xyz.Shared\Permissions\PermissionCodes`（= 菜单 Code，客户端菜单和预置角色共用）；后端只存、只发，**不按权限挡任何服务**（用户定的）。
+- **服务**（`xyz.Service\UserManger\`）：`IAccountService`（`LoginAsync`、`GetSessionAsync`、`LogoutAsync`（只记日志）、`ChangePasswordAsync`）、
+  `IUserService`（列、建、改显示名和角色、重置密码、停用 / 启用、删）、`IRoleService`（列、建、改名和说明、删、取 / 存一个角色的档位）；没配 `Account` 回 `account.not_installed`。
+- 错误码 `account.*`（登录不对一律 `account.login_failed`，不说是登录名还是密码不对；内置的账号、角色动不了 `account.builtin_user` / `account.builtin_role`；
+  有人在用的角色不能删 `account.role_in_use` [角色名, 账号数]；访客角色不给账号 `account.role_not_assignable`）。
+
 ### 启动顺序（`ServiceExtensions` + 宿主 `Program`，只做框架的事，2026-10-18 起不点名任何组件）
 **注册**（`AddXyzServices`，容器建好之前）：`SC.Load` → `ComponentLoader.Load`（装整棵树）→ `ComponentLoader.Register`（组件按接口进容器、树本身也进）→
 GEM 编号表、gRPC 服务（按契约自动认）进容器。这一步不开机，组件构造、`OnSettingLoaded` 里不取别的组件（容器还没有）。
@@ -656,6 +668,8 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   `Restore()`（晶圆账自己的 `Bind` 里调：各模块组件初始化登记完槽位之后、开始扫描之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
 - Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新（见 §3 Job）。
+- 账号：`account_user`（登录名、显示名、密码哈希 `PBKDF2-SHA256$次数$盐$哈希`、角色、内置、最后登录）、`account_role`（名字、说明、种类 普通 / 管理员 / 访客）、
+  `account_role_permission`（角色、权限项编码、档位），在 sc `Account` 的 `Database` 库里；行数少，不清理。老的 User / Role 表没人用了（没删库里的表）。
 - 工艺站开工片数：`process_daily_count` 一站一天一行（站点、日期 yyyy-MM-dd、片数、更新时间），默认库；`ProcessCounter` 开机读回（读不成今天、累计这次从 0 数），
   开工一片放进队列、后台一个读者给那一天那行**加 1**（没有就插一行 1），不写总数——时钟往回调到前一天也只是给那天加 1，不会冲掉那天的数。行数少，不清理。
 - 部件寿命：`count_lifetime` 一个次数寿命组件一行（全路径、已用次数、更新时间）、`time_lifetime` 一个时间寿命组件一行（全路径、起算时间、盯 DO 的通着秒数），默认库；`CountLifetimeComponent` 开机 `Bind` 读回，DO 每变一次放进队列、
@@ -673,7 +687,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   平台不再带 sc.xml；读 sc.xml 节点的冒烟（Job / ProcessRecipe / Sequence / WaferLedger）在 csproj 里把机型那份链接进输出目录的 `Config\`。新机型照这样在自己工程里放一份。
 - 启动时在同目录生成：`ec.xml`、`EcDefinitions.xml`、`SvDefinitions.xml`、`AlarmDefinitions.xml`、`EventDefinitions.xml`、`DvDefinitions.xml`；
   IO 点表 `Config\IO\*.csv` 来自机型工程。
-- 节点顺序：System → Rpc → EC → Database → Alarm → Log → LedgerManager → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
+- 节点顺序：System → Rpc → EC → Database → Alarm → Log → LedgerManager → Account → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
   LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Eap（Hsms、E30、E39、E87、E90、E40、E94）→ Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
 - 外部工具 ScEdit（`D:\tools\ScEdit`，源码不在本仓库）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；
   机械手站点表、工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）有专门的表格页。改了 ScEdit 要跑它的 build.ps1 发布到 app。

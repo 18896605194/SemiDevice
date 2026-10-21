@@ -1,64 +1,335 @@
-<UserControl
+﻿<UserControl
     x:Class="xyz.Client.Setting.Views.RoleView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    d:DesignHeight="820"
-    d:DesignWidth="1640"
+    d:DesignHeight="920"
+    d:DesignWidth="1980"
     TextElement.Foreground="{DynamicResource DarkPrimaryText}"
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
+        <!--  左边角色，右边这个角色每一项权限几档（隐藏 / 只看 / 能操作；功能项是允许 / 不允许）。只有管理员进得来  -->
         <Grid Margin="8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="440" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <Border
-                Grid.Row="0"
-                Style="{DynamicResource ToolbarBorderStyle}">
-                <StackPanel Orientation="Horizontal">
-                    <Button
-                        Command="{Binding CreateRoleCommand}"
-                        Content="{DynamicResource common.create}"
-                        Style="{DynamicResource ToolbarButtonStyle}" />
-                    <Button
-                        Command="{Binding DeleteRoleCommand}"
-                        Content="{DynamicResource common.delete}"
-                        Style="{DynamicResource ToolbarDangerButtonStyle}" />
-                </StackPanel>
+            <!--  角色：管理员、访客是内置的（不能删、不能改名）  -->
+            <Border Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Command="{Binding CreateRoleCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon
+                                            Width="16"
+                                            Height="16"
+                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Kind="Plus" />
+                                        <TextBlock Text="{DynamicResource setting.role.create}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding RenameRoleCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon
+                                            Width="16"
+                                            Height="16"
+                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Kind="PencilOutline" />
+                                        <TextBlock Text="{DynamicResource setting.role.rename}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding DeleteRoleCommand}" Style="{DynamicResource ZoneHeaderButtonStyle}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon
+                                            Width="16"
+                                            Height="16"
+                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Kind="DeleteOutline" />
+                                        <TextBlock Text="{DynamicResource common.delete}" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource setting.role.list}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <TextBlock
+                        Margin="16,10,16,12"
+                        DockPanel.Dock="Bottom"
+                        Style="{DynamicResource MetaLabelTextStyle}"
+                        Text="{DynamicResource setting.role.footer}"
+                        TextWrapping="Wrap" />
+
+                    <ListBox
+                        ItemContainerStyle="{DynamicResource RoleListBoxItemStyle}"
+                        ItemsSource="{Binding Roles}"
+                        SelectedItem="{Binding SelectedRole}"
+                        Style="{DynamicResource PickListBoxStyle}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock
+                                            DockPanel.Dock="Right"
+                                            Style="{DynamicResource PermissionHintTextStyle}"
+                                            Text="{Binding CountText}" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{Binding DisplayName}" />
+                                            <Border Style="{DynamicResource TagChipBorderStyle}" Tag="{Binding IsBuiltIn}">
+                                                <TextBlock Style="{DynamicResource ChipTextStyle}" Text="{DynamicResource setting.role.builtin}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        Style="{DynamicResource PermissionHintTextStyle}"
+                                        Text="{Binding Description}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
             </Border>
 
-            <materialDesign:Card
-                Grid.Row="1"
-                Margin="0,8,0,0"
-                Style="{DynamicResource DefaultCardStyle}">
-                <DataGrid
-                    ItemsSource="{Binding Roles}"
-                    SelectedItem="{Binding SelectedRole}"
-                    Style="{DynamicResource DefaultDataGridStyle}">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn
-                            Width="*"
-                            Binding="{Binding Name}"
-                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="{DynamicResource setting.role.name}" />
-                        <DataGridTextColumn
-                            Width="1.4*"
-                            Binding="{Binding Description}"
-                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="{DynamicResource setting.role.description}" />
-                        <DataGridTextColumn
-                            Width="120"
-                            Binding="{Binding UserCount}"
-                            ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
-                            Header="{DynamicResource setting.role.user_count}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-            </materialDesign:Card>
+            <!--  权限：改了标"有修改没保存"，保存才生效；管理员固定全部能操作、锁上  -->
+            <Border Grid.Column="2" Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button
+                                    Command="{Binding UndoCommand}"
+                                    Content="{DynamicResource setting.role.undo}"
+                                    Style="{DynamicResource ZoneHeaderButtonStyle}" />
+                                <Button
+                                    Command="{Binding SaveCommand}"
+                                    Content="{DynamicResource common.save}"
+                                    Style="{DynamicResource ZoneHeaderPrimaryButtonStyle}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                                <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{Binding PermissionTitle}" />
+                                <Border
+                                    Margin="12,0,0,0"
+                                    Style="{DynamicResource DirtyChipBorderStyle}"
+                                    Tag="{Binding IsDirty}">
+                                    <TextBlock Style="{DynamicResource ChipTextStyle}" Text="{DynamicResource setting.role.dirty}" />
+                                </Border>
+                                <Border
+                                    Height="24"
+                                    Margin="12,0,0,0"
+                                    Style="{DynamicResource TagChipBorderStyle}"
+                                    Tag="{Binding IsLocked}">
+                                    <TextBlock Style="{DynamicResource ChipTextStyle}" Text="{DynamicResource setting.role.locked}" />
+                                </Border>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!--  三档各是什么  -->
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource PermissionLegendBorderStyle}">
+                        <DockPanel>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                DockPanel.Dock="Right"
+                                Text="{DynamicResource permission.legend.default}" />
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <TextBlock Margin="0,0,22,0">
+                                    <Run FontWeight="SemiBold" Foreground="{DynamicResource DarkPrimaryText}" Text="{DynamicResource permission.level.hidden}" />
+                                    <Run Text="{DynamicResource permission.legend.hidden}" />
+                                </TextBlock>
+                                <TextBlock Margin="0,0,22,0">
+                                    <Run FontWeight="SemiBold" Foreground="{DynamicResource DarkPrimaryText}" Text="{DynamicResource permission.level.view}" />
+                                    <Run Text="{DynamicResource permission.legend.view}" />
+                                </TextBlock>
+                                <TextBlock>
+                                    <Run FontWeight="SemiBold" Foreground="{DynamicResource DarkPrimaryText}" Text="{DynamicResource permission.level.operate}" />
+                                    <Run Text="{DynamicResource permission.legend.operate}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!--  表头：跟每一行同样的列宽  -->
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource StepHeaderBorderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="400" />
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{DynamicResource permission.item}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{DynamicResource permission.level.hidden}" />
+                            <TextBlock
+                                Grid.Column="2"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{DynamicResource permission.level.view}" />
+                            <TextBlock
+                                Grid.Column="3"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Text="{DynamicResource permission.level.operate}" />
+                            <TextBlock
+                                Grid.Column="4"
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="{DynamicResource permission.covers}" />
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{DynamicResource PermissionRowBorderStyle}" Tag="{Binding IsGroup}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="400" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="140" />
+                                                <ColumnDefinition Width="140" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!--  名字：功能项前面一道折线、后面"功能"小标签；一级菜单下面各项不一样时写"各项不同"  -->
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsFunction}">
+                                                    <TextBlock
+                                                        Margin="26,0,6,0"
+                                                        Style="{DynamicResource PermissionHintTextStyle}"
+                                                        Text="└" />
+                                                </Border>
+                                                <TextBlock
+                                                    Style="{DynamicResource PermissionNameTextStyle}"
+                                                    Tag="{Binding Kind}"
+                                                    Text="{Binding Name}" />
+                                                <Border Style="{DynamicResource TagChipBorderStyle}" Tag="{Binding IsFunction}">
+                                                    <TextBlock Style="{DynamicResource ChipTextStyle}" Text="{DynamicResource permission.function_tag}" />
+                                                </Border>
+                                                <Border Style="{DynamicResource ShowWhenTagTrueStyle}" Tag="{Binding IsMixed}">
+                                                    <TextBlock
+                                                        Margin="8,0,0,0"
+                                                        Style="{DynamicResource PermissionHintTextStyle}"
+                                                        Text="{DynamicResource permission.mixed}" />
+                                                </Border>
+                                            </StackPanel>
+
+                                            <!--  隐藏：功能项没有这一档  -->
+                                            <Border
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding ShowHidden}">
+                                                <RadioButton IsChecked="{Binding IsHidden}" IsEnabled="{Binding CanChooseHidden}" />
+                                            </Border>
+                                            <Border
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding IsFunction}">
+                                                <TextBlock Style="{DynamicResource PermissionHintTextStyle}" Text="—" />
+                                            </Border>
+
+                                            <!--  只看；功能项是"不允许"  -->
+                                            <Border
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding ShowHidden}">
+                                                <RadioButton IsChecked="{Binding IsView}" IsEnabled="{Binding IsEditable}" />
+                                            </Border>
+                                            <Border
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding IsFunction}">
+                                                <RadioButton
+                                                    Content="{DynamicResource permission.function.denied}"
+                                                    IsChecked="{Binding IsView}"
+                                                    IsEnabled="{Binding IsEditable}" />
+                                            </Border>
+
+                                            <!--  能操作；功能项是"允许"；只能看的页没有这一档  -->
+                                            <Border
+                                                Grid.Column="3"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding ShowOperate}">
+                                                <RadioButton IsChecked="{Binding IsOperate}" IsEnabled="{Binding IsEditable}" />
+                                            </Border>
+                                            <Border
+                                                Grid.Column="3"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding IsFunction}">
+                                                <RadioButton
+                                                    Content="{DynamicResource permission.function.allowed}"
+                                                    IsChecked="{Binding IsOperate}"
+                                                    IsEnabled="{Binding IsEditable}" />
+                                            </Border>
+                                            <Border
+                                                Grid.Column="3"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding ShowOperateDash}">
+                                                <TextBlock Style="{DynamicResource PermissionHintTextStyle}" Text="—" />
+                                            </Border>
+
+                                            <!--  只给管理员：三格合成一句  -->
+                                            <Border
+                                                Grid.Column="1"
+                                                Grid.ColumnSpan="3"
+                                                HorizontalAlignment="Center"
+                                                Style="{DynamicResource ShowWhenTagTrueStyle}"
+                                                Tag="{Binding IsAdminOnly}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon
+                                                        Width="14"
+                                                        Height="14"
+                                                        VerticalAlignment="Center"
+                                                        Foreground="{DynamicResource DarkWarningStatus}"
+                                                        Kind="LockOutline" />
+                                                    <TextBlock
+                                                        Margin="6,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Foreground="{DynamicResource DarkWarningStatus}"
+                                                        Text="{DynamicResource permission.admin_only}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock
+                                                Grid.Column="4"
+                                                Margin="10,0,0,0"
+                                                Style="{DynamicResource PermissionHintTextStyle}"
+                                                Text="{Binding Tip}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>
