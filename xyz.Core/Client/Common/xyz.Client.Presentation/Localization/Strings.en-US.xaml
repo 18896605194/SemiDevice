@@ -890,6 +890,7 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">Log History</sys:String>
     <sys:String x:Key="menu.DataCenter.DataChart">Data Chart</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">Real-time Chart</sys:String>
+    <sys:String x:Key="menu.DataCenter.JobHistory">Job History</sys:String>
     <sys:String x:Key="menu.Setting.Ec">EC</sys:String>
     <sys:String x:Key="menu.Setting.WaferLedger">Wafer Ledger</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>

@@ -293,7 +293,7 @@
         </Style.Triggers>
     </Style>
 
-    <!--  Job 历史页的结果列（行数据要有 Result）：还在做强调色，完成绿字，停止、没做完黄字，中止、出错红字，取消灰字  -->
+    <!--  Job 历史页的结果列（行数据要有 Result）：还在做白字（强调色跟选中行的底色撞），完成绿字，停止、没做完黄字，中止、出错红字，取消灰字  -->
     <Style
         x:Key="JobResultDataGridTextStyle"
         BasedOn="{StaticResource DefaultDataGridTextStyle}"
@@ -302,7 +302,6 @@
         <Style.Triggers>
             <DataTrigger Binding="{Binding Result}" Value="Running">
                 <Setter Property="Text" Value="{DynamicResource jobhistory.result.Running}" />
-                <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Result}" Value="Completed">
                 <Setter Property="Text" Value="{DynamicResource jobhistory.result.Completed}" />
@@ -335,7 +334,7 @@
         </Style.Triggers>
     </Style>
 
-    <!--  Job 历史页任务表的状态列（行数据要有 State）：等着灰字，在做强调色，完成绿字，出错红字，没执行灰字  -->
+    <!--  Job 历史页任务表的状态列（行数据要有 State）：等着灰字，在做白字，完成绿字，出错红字，没执行灰字  -->
     <Style
         x:Key="JobTaskStateDataGridTextStyle"
         BasedOn="{StaticResource DefaultDataGridTextStyle}"
@@ -348,7 +347,6 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding State}" Value="Running">
                 <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Running}" />
-                <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding State}" Value="Done">
                 <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Done}" />

@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="xyz.Client.DataCenter.Views.JobHistoryView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -21,10 +21,10 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="440" />
+                <ColumnDefinition Width="520" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="8" />
-                <ColumnDefinition Width="720" />
+                <ColumnDefinition Width="760" />
             </Grid.ColumnDefinitions>
 
             <!--  查询条件：按 CJ 建的时刻查（精确到分钟，截止那一分钟也算）、关键字；今天 / 最近 7 天直接查  -->
@@ -96,12 +96,12 @@
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.name}" />
                             <DataGridTextColumn
-                                Width="120"
+                                Width="100"
                                 Binding="{Binding LoadPort, Mode=OneWay}"
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.loadport}" />
                             <DataGridTextColumn
-                                Width="170"
+                                Width="130"
                                 Binding="{Binding CarrierId, Mode=OneWay}"
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.carrier}" />
@@ -110,7 +110,7 @@
                                 Binding="{Binding LotId, Mode=OneWay}"
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.lot}" />
-                            <DataGridTemplateColumn Width="110" Header="{DynamicResource jobhistory.result}">
+                            <DataGridTemplateColumn Width="140" Header="{DynamicResource jobhistory.result}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Style="{DynamicResource JobResultDataGridTextStyle}" />
@@ -118,17 +118,17 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn
-                                Width="180"
+                                Width="165"
                                 Binding="{Binding CreatedAt, Mode=OneWay, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
                                 ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.created_at}" />
                             <DataGridTextColumn
-                                Width="180"
+                                Width="165"
                                 Binding="{Binding StartedAt, Mode=OneWay, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
                                 ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                                 Header="{DynamicResource common.start_time}" />
                             <DataGridTextColumn
-                                Width="180"
+                                Width="165"
                                 Binding="{Binding CompletedAt, Mode=OneWay, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
                                 ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                                 Header="{DynamicResource common.end_time}" />
@@ -161,16 +161,16 @@
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.name}" />
                             <DataGridTextColumn
-                                Width="170"
+                                Width="180"
                                 Binding="{Binding Sequence, Mode=OneWay}"
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.sequence}" />
                             <DataGridTextColumn
-                                Width="64"
+                                Width="60"
                                 Binding="{Binding WaferCount, Mode=OneWay}"
                                 ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.wafer_count}" />
-                            <DataGridTemplateColumn Width="90" Header="{DynamicResource jobhistory.result}">
+                            <DataGridTemplateColumn Width="80" Header="{DynamicResource jobhistory.result}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Style="{DynamicResource JobResultDataGridTextStyle}" />
@@ -178,12 +178,12 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn
-                                Width="130"
+                                Width="125"
                                 Binding="{Binding StartedAt, Mode=OneWay, StringFormat='{}{0:MM-dd HH:mm:ss}'}"
                                 ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                                 Header="{DynamicResource common.start_time}" />
                             <DataGridTextColumn
-                                Width="130"
+                                Width="125"
                                 Binding="{Binding EndedAt, Mode=OneWay, StringFormat='{}{0:MM-dd HH:mm:ss}'}"
                                 ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
                                 Header="{DynamicResource common.end_time}" />
@@ -211,7 +211,7 @@
                         Style="{DynamicResource ZoneDataGridStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn
-                                Width="96"
+                                Width="130"
                                 Binding="{Binding Source, Mode=OneWay}"
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.source}" />
@@ -221,11 +221,11 @@
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.wafer_id}" />
                             <DataGridTextColumn
-                                Width="96"
+                                Width="130"
                                 Binding="{Binding Return, Mode=OneWay}"
                                 ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                                 Header="{DynamicResource jobhistory.return}" />
-                            <DataGridTemplateColumn Width="90" Header="{DynamicResource jobhistory.result}">
+                            <DataGridTemplateColumn Width="100" Header="{DynamicResource jobhistory.result}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Style="{DynamicResource JobResultDataGridTextStyle}" />

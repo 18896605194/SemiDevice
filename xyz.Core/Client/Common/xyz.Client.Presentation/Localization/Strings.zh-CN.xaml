@@ -890,6 +890,7 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">日志历史</sys:String>
     <sys:String x:Key="menu.DataCenter.DataChart">数据曲线</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">实时曲线</sys:String>
+    <sys:String x:Key="menu.DataCenter.JobHistory">Job 历史</sys:String>
     <sys:String x:Key="menu.Setting.Ec">EC</sys:String>
     <sys:String x:Key="menu.Setting.WaferLedger">账单调整</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>

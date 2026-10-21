@@ -1,4 +1,4 @@
-namespace xyz.Client.DataCenter.Models;
+﻿namespace xyz.Client.DataCenter.Models;
 
 /// <summary>
 /// Job 历史页"结果"一列（CJ、PJ、每片共用）：界面按它换字、换色

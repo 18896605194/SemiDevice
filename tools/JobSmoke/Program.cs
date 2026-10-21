@@ -1100,6 +1100,50 @@ try
         }),
         "PJ 记进库：process_job 一个 PJ 一行，记着 CJ 的行号，#7 结束，每片的任务明细（都做完了）跟着进库");
 
+    // 7b. Job 历史页（数据中心）走 Job 服务：按建的时刻查库里的 CJ（关键字筛、最新的在前），再按 CJ 的行号取它下面的 PJ，每片带它的任务明细
+    HistoryResult<ControlJobHistoryDto> QueryHistory(JobService service, string keyword, DateTime start, DateTime end)
+    {
+        var response = service.QueryHistoryAsync(new JobHistoryQuery { Start = start, End = end, Keyword = keyword }).Result;
+        Check(response.Success, $"查 Job 历史应成功：{response.Code} {response.Message}");
+        return response.DeserializeData<HistoryResult<ControlJobHistoryDto>>();
+    }
+
+    RpcResponse HistoryProcessJobs(JobService service, string controlJob)
+    {
+        var request = new RpcRequest();
+        request.Parameters["ControlJob"] = controlJob;
+        return service.GetHistoryProcessJobsAsync(request).Result;
+    }
+
+    var historyToday = DateTime.Today;
+    var lotAHistory = QueryHistory(jobService, "LOT-A", historyToday, historyToday.AddDays(1));
+    Check(lotAHistory.Items.Count == 1 && !lotAHistory.Truncated && lotAHistory.Items[0].Name == "LOT-A"
+          && lotAHistory.Items[0].LoadPort == "LP1" && lotAHistory.Items[0].LotId == "LOT-A"
+          && lotAHistory.Items[0].CompletedBy == 10 && lotAHistory.Items[0].EndedBy == 13 && !lotAHistory.Items[0].Restarted
+          && lotAHistory.Items[0].StartedAt is not null && lotAHistory.Items[0].CompletedAt is not null
+          && lotAHistory.Items[0].CreatedAt <= lotAHistory.Items[0].StartedAt,
+        "Job 历史：按关键字查到 LOT-A（LoadPort、批次号、#10 完成、#13 删掉，建的、开始、完成的时刻）");
+    Check(QueryHistory(jobService, "LOT-A", historyToday.AddDays(-1), historyToday).Items.Count == 0
+          && QueryHistory(jobService, "NO-SUCH-LOT", historyToday, historyToday.AddDays(1)).Items.Count == 0,
+        "Job 历史：建的时刻不在时间段里、关键字对不上的都不查出来");
+    var lotAProcessResponse = HistoryProcessJobs(jobService, lotAHistory.Items[0].Id.ToString());
+    Check(lotAProcessResponse.Success, $"取库里 LOT-A 下面的 PJ 应成功：{lotAProcessResponse.Code}");
+    var lotAProcessJobs = lotAProcessResponse.DeserializeData<List<ProcessJobDto>>();
+    Check(lotAProcessJobs.Select(job => job.Id).SequenceEqual(new[] { "LOT-A-1", "LOT-A-2" })
+          && lotAProcessJobs.All(job => job.ControlJob == "LOT-A" && job.LotId == "LOT-A" && job.EndedBy == 7 && job.EndedAt is not null)
+          && lotAProcessJobs[0].Sequence == "SEQ_A" && lotAProcessJobs[1].Sequence == "SEQ_B"
+          && lotAProcessJobs[0].Wafers.Count == 2 && lotAProcessJobs[1].Wafers.Count == 1,
+        "Job 历史：按行号取 LOT-A 下面的两个 PJ（按建的先后、流程配方、#7 结束、片数）");
+    var historyTwoStep = lotAProcessJobs[^1].Wafers.Single();
+    Check(historyTwoStep.SourcePort == "LP1" && historyTwoStep.SourceSlot == 3 && IsDone(historyTwoStep)
+          && historyTwoStep.Tasks.Where(task => task.Kind == StationTaskAction.Process).Select(task => task.Station).SequenceEqual(new[] { "PM1", "PM2" }),
+        "Job 历史：每片的任务明细跟跑的时候一样（LP1 第 3 槽、PM1、PM2 两步加工，每一格完成）");
+    Check(HistoryProcessJobs(jobService, "999999").DeserializeData<List<ProcessJobDto>>().Count == 0,
+        "Job 历史：库里没有这个行号的 CJ，回空的");
+    var badRow = HistoryProcessJobs(jobService, "LOT-A");
+    Check(!badRow.Success && badRow.Code == ErrorCodes.JobNotFound && badRow.Args.SequenceEqual(new[] { "LOT-A" }),
+        "Job 历史：CJ 行号不是数，回 job.not_found");
+
     // 8. 配方快照 + 回到别的 LoadPort：建好之后流程配方改名、删掉都不影响；最后一步只勾了 LP2，片放到 LP2 同号槽。
     LoadCarrier(lp1, 1, 2);
     LoadCarrier(lp2);
@@ -2449,6 +2493,19 @@ try
             .Any(row => row.EndedBy == 13 && !row.Restarted)),
         "早先做完的不受影响");
     Check(lotR.All(id => jobs.OwnerOf(id) is null), "片不再归任何 Job");
+
+    // Job 历史页看得到重启收场的 CJ、PJ；一次最多返回多少个按 SC，超出只留最新的
+    var restartedService = new JobService();
+    restarted.HistoryQueryMaxCount = 2;
+    var latest = QueryHistory(restartedService, string.Empty, DateTime.Today, DateTime.Today.AddDays(1));
+    Check(latest.Truncated && latest.Items.Count == 2 && latest.Items[0].Name == "LOT-R"
+          && latest.Items[0].Restarted && latest.Items[0].CompletedBy == 12 && latest.Items[0].EndedBy == 13,
+        "Job 历史：超出上限只留最新的（LOT-R 在最前，标着重启、#12 中止），提示截断了");
+    var lotRProcessResponse = HistoryProcessJobs(restartedService, latest.Items[0].Id.ToString());
+    Check(lotRProcessResponse.Success, $"取库里 LOT-R 下面的 PJ 应成功：{lotRProcessResponse.Code}");
+    var lotRProcessJobs = lotRProcessResponse.DeserializeData<List<ProcessJobDto>>();
+    Check(lotRProcessJobs.Count == 1 && lotRProcessJobs[0].EndedBy == 16 && lotRProcessJobs[0].Wafers.Count(IsProcessing) == 2,
+        "Job 历史：LOT-R 下面的 PJ 记着中止（#16），任务明细是重启前做到的地方");
 }
 finally
 {
@@ -2502,7 +2559,8 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "the equipment stop going through job abort, the job and transfer services, " +
     "every CJ and PJ recorded as one database row with each wafer's tasks, " +
     "the Dispatch node scanning Job then Transfer on one thread without one child's exception skipping the other, " +
-    "and a restart that marks unfinished jobs aborted in the database instead of resuming them)");
+    "a restart that marks unfinished jobs aborted in the database instead of resuming them, " +
+    "and the job history page querying control jobs by time and keyword (newest first, capped by SC) with their process jobs and task rows)");
 
 // ── 假件 ─────────────────────────────────────────────────────────────
 
