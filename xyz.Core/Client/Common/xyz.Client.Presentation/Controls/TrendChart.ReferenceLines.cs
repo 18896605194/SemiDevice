@@ -56,6 +56,11 @@ public partial class TrendChart
     private const double TagSpacing = 6;
 
     /// <summary>
+    /// 纵轴上的 Y 标签离图的左边至少空这么多（界面坐标），不贴着边。
+    /// </summary>
+    private const double AxisTagMargin = 2;
+
+    /// <summary>
     /// 双向箭头的箭尖长（界面坐标）。
     /// </summary>
     private const double ArrowLength = 5;
@@ -324,7 +329,7 @@ public partial class TrendChart
                 // 纵轴的像素往下变大、坐标往上变大，挪的方向反过来
                 AddBlock(valueBlocks, Y1Tag, _y1, first - centers.First, firstSize.Height * scale / 2);
                 AddBlock(valueBlocks, Y2Tag, _y2, second - centers.Second, secondSize.Height * scale / 2);
-                double widest = Math.Max(firstSize.Width, secondSize.Width);
+                double widest = Math.Max(firstSize.Width, secondSize.Width) + AxisTagMargin;
                 _valueAxisMinimum = Math.Max(_valueAxisMinimum, (float)(widest * scale));
             }
         }
@@ -542,8 +547,12 @@ public partial class TrendChart
         Canvas.SetTop(element, top);
     }
 
+    /// <summary>
+    /// 量标签现在的大小：字刚改过时框本身还算"量过"，直接量会拿回上一次的大小，先让它作废再量。
+    /// </summary>
     private static WpfSize MeasureOverlay(UIElement element)
     {
+        element.InvalidateMeasure();
         element.Measure(new WpfSize(double.PositiveInfinity, double.PositiveInfinity));
         return element.DesiredSize;
     }
