@@ -1,10 +1,13 @@
 ﻿using System.Globalization;
 using ProtoBuf.Grpc;
+using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Components;
+using xyz.Database.DbProvider;
+using xyz.Database.Jobs;
 using xyz.Modules;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -24,9 +27,12 @@ public class JobService : BaseService, IJobService
 
     private readonly IJobManager? _jobs;
 
+    private readonly IMapper _mapper;
+
     public JobService()
     {
         _jobs = IocHelper.GetService<IJobManager>();
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
     }
 
     #endregion
@@ -42,6 +48,96 @@ public class JobService : BaseService, IJobService
 
         string json = JsonHelper.Serialize(_jobs.Snapshot);
         return Task.FromResult(RpcResponse.Ok(json));
+    }
+
+    /// <summary>
+    /// 查 control_job 表：建的时刻在时间段里的 CJ，再按关键字筛，最新的在前。读库放线程池
+    /// </summary>
+    public Task<RpcResponse> QueryHistoryAsync(JobHistoryQuery query, CallContext context = default)
+    {
+        if (_jobs is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
+        }
+
+        var jobs = _jobs;
+        return Task.Run(() =>
+        {
+            try
+            {
+                string keyword = (query.Keyword ?? string.Empty).Trim();
+                int maxCount = jobs.HistoryQueryMaxCount;
+                var start = query.Start;
+                var end = query.End;
+                using var db = XyzDb.Create(jobs.Database);
+                if (!db.DbMaintenance.IsAnyTable(db.EntityMaintenance.GetTableName<ControlJobEntity>(), false))
+                {
+                    return RpcResponse.Ok(JsonHelper.Serialize(new HistoryResult<ControlJobHistoryDto>()));
+                }
+
+                var rows = db.Queryable<ControlJobEntity>()
+                    .Where(row => row.CreatedTime >= start && row.CreatedTime < end)
+                    .WhereIF(keyword.Length > 0, row => row.Name.Contains(keyword) || row.LotId.Contains(keyword)
+                        || row.CarrierId.Contains(keyword) || row.LoadPort.Contains(keyword))
+                    .OrderBy(row => row.CreatedTime, OrderByType.Desc)
+                    .OrderBy(row => row.Id, OrderByType.Desc)
+                    .Take(maxCount + 1)
+                    .ToList();
+
+                var result = new HistoryResult<ControlJobHistoryDto>
+                {
+                    Items = rows.Take(maxCount).Select(row => _mapper.Map<ControlJobHistoryDto>(row)).ToList(),
+                    Truncated = rows.Count > maxCount,
+                };
+                return RpcResponse.Ok(JsonHelper.Serialize(result));
+            }
+            catch (Exception exception)
+            {
+                return RpcResponse.Fail(ErrorCodes.HistoryQueryFailed, [exception.Message]);
+            }
+        });
+    }
+
+    /// <summary>
+    /// 查 process_job 表里归这个 CJ（按行号）的 PJ，按建的先后。读库放线程池
+    /// </summary>
+    public Task<RpcResponse> GetHistoryProcessJobsAsync(RpcRequest request, CallContext context = default)
+    {
+        if (_jobs is null)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotInstalled, []));
+        }
+
+        string text = request.Parameters.GetValueOrDefault("ControlJob") ?? string.Empty;
+        if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long controlJob))
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.JobNotFound, [text]));
+        }
+
+        var jobs = _jobs;
+        return Task.Run(() =>
+        {
+            try
+            {
+                using var db = XyzDb.Create(jobs.Database);
+                if (!db.DbMaintenance.IsAnyTable(db.EntityMaintenance.GetTableName<ProcessJobEntity>(), false))
+                {
+                    return RpcResponse.Ok(JsonHelper.Serialize(new List<ProcessJobDto>()));
+                }
+
+                var rows = db.Queryable<ProcessJobEntity>()
+                    .Where(row => row.ControlJobRowId == controlJob)
+                    .OrderBy(row => row.CreatedTime)
+                    .OrderBy(row => row.Id)
+                    .ToList();
+                var processJobs = rows.Select(row => _mapper.Map<ProcessJobDto>(row)).ToList();
+                return RpcResponse.Ok(JsonHelper.Serialize(processJobs));
+            }
+            catch (Exception exception)
+            {
+                return RpcResponse.Fail(ErrorCodes.HistoryQueryFailed, [exception.Message]);
+            }
+        });
     }
 
     #endregion

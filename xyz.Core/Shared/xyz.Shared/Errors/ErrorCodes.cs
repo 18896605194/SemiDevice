@@ -199,6 +199,15 @@ public static class ErrorCodes
 
     #endregion
 
+    #region 对准器
+
+    /// <summary>
+    /// 对准器台上的片还没对好（对准失败、重启过、人改过账），不让机械手来取；回零时台上有片会再对一遍。Args: [模块名]
+    /// </summary>
+    public const string AlignerWaferNotAligned = "aligner.wafer_not_aligned";
+
+    #endregion
+
     #region 供液（CDS）
 
     /// <summary>槽正在补液、排液、换液或供液，要先停止。Args: [槽路径]</summary>

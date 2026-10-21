@@ -488,6 +488,7 @@
 			<Value Name="ControlJobAutoStart" Value="False" />
 			<Value Name="IsPersistent" Value="True" />
 			<Value Name="Database" Value="Default" />
+			<Value Name="HistoryQueryMaxCount" Value="1000" />
 			<Setting Name="Task" Type="xyz.Modules.TaskComponent" />
 			<Setting Name="Scheduler" Type="xyz.Modules.SchedulerComponent" />
 		</Setting>

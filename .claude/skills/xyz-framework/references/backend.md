@@ -322,6 +322,15 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   下面进片段、出片段各配一个（SC `SlotCount` 几层、`IsEnable`），各自 `IsRun`。开机在晶圆账登记槽位、待命、自己上线
   （没有手动页）；全部初始化时直接回待命。跟 JK 一样，机械手控制器里两段各教一个站号，站点表里各配各的 `Number`，槽号原样发、不换算，
   机械手、搬运管理、调度都不认识 buffer。见 decisions.md「buffer」。
+- **对准器** `Aligner\BaseAlignerModule : BaseTransferStationModule, IAligner`（2026-10-22；机型写空类继承，跟 buffer 一样）：一个槽，`Kind` = `StationKind.Aligner`，只声明取放
+  （流程配方这一步不选工艺配方，任务表只有放片、取片）。下面必挂一个驱动子组件（`IAlignerDriverComponent`：Home / Align(角度) / Stop / ResetDrive / AbandonAll，
+  指令句柄 `xyz.Drivers\Aligner\AlignerCommand`），没挂开机抛；还没有品牌驱动。开机登记晶圆账一个槽、自己上线（没有手动页），`InitModule()` = `Home()`。
+  **片放上来自己对准**：`OnTransferFinished` 里这一轮放了片就接着 `Begin(Align)`（`TransferComplete → Aligning → Idle`），搬运照常收尾、机械手不等；
+  起不了（驱动断了、互锁 `AlignInterlock` 不让）落 Error、报 `ControlledStopAlarm`。**台上的片没对好不让取**：`CheckPrepareTransfer` 加一条 `aligner.wafer_not_aligned`
+  （记的是对好的那片的内部标识，跟账上台上那片比，只在内存）。回零时台上有片串一条对准（`CreateHomeOperation(hasWafer)`）。
+  动作 `AlignerCommandOperation`（发指令 → 等做完 → 超时判失败，`Then` 串下一条，各按各的超时）；失败作废在途指令、报警（人为急停顶掉的不报）。
+  SC `IsEnable`；EC `NotchAngle`（度，默认 0）、`HomeTimeout` / `AlignTimeout`（30 s）、`ResetTimeout` / `AbortTimeout`（10 s）。
+  机型扩展点：`CreateHomeOperation` / `CreateAlignOperation` / `CreateResetOperation` / `CreateAbortOperation`、`HomeInterlock` / `AlignInterlock`、`RaiseActionFailedAlarm`。见 decisions.md「对准器」。
 - **加工口** `Process\IProcessStation`（继承 `IModule`，带 `Type`；`IChamber` 继承它，`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。
   工艺配方（Type 选项、配方对不对得上站点）、流程配方（哪些分组要选配方）、Job 都认 `IProcessStation`；`IChamber` 只放腔体手动页的东西
   （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。
@@ -450,6 +459,8 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 - 品牌驱动壳：抽象基类（`RobotDriverComponent`、`LoadPortDriverComponent`、`RfidDriverComponent`）管 SC 通讯配置、驱动生命周期、`DeviceEvent`
   和触发方法；品牌壳（`RejeRobotComponent`、`FcdLoadPortComponent`、`FcdRfidComponent`）只实现 `CreateDriver()` 和命令工厂。换品牌 = 改 sc.xml 的 Type。
+  对准器只定了驱动口 `IAlignerDriverComponent` 和指令句柄 `xyz.Drivers\Aligner`（2026-10-22），还没有驱动基类和品牌壳：接第一个品牌时照 LoadPort 写
+  （协议、在途规则按品牌，通讯 SC、`DriverReconnector` 重连照抄），作废在途指令的办法由品牌驱动自己给（`AlignerCommand.Complete` 是 protected）。
 - `xyz.Drivers`：`ICommunication`（串口 / TCP，`CommunicationFactory`）、`IFrameCodec` + `FrameCommunication`（收包泵 + 发送锁）、
   品牌协议放 `Robot\Reje\`、`Loadport\FCD\`、`Rfid\FCD\`（Protocol、FrameCodec、Commands）。驱动回调只改状态，动作由模块扫描线程推进。
 - **在途指令要能作废**（2026-10-06）：LoadPort 驱动按指令名占在途位、RFID 驱动只有一个在途位，回复丢了就一直占着，同名指令再也发不出去。

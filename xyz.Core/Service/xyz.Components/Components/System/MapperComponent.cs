@@ -2,8 +2,10 @@
 using xyz.Components.Attributes;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Database.Jobs;
 using xyz.Database.Wafers;
 using xyz.Shared.Dtos;
+using xyz.Tools;
 
 namespace xyz.Components.Components;
 
@@ -57,6 +59,30 @@ public class MapperComponent : ComponentBase, IMapper
             .Map(dto => dto.Path, tank => tank.FullPath)
             .Map(dto => dto.Level, tank => (int)tank.Level)
             .Map(dto => dto.State, tank => (int)tank.State);
+
+        // CJ 记录 → 历史页的 CJ：建的时刻在表里叫 CreatedTime
+        _config.NewConfig<ControlJobEntity, ControlJobHistoryDto>()
+            .Map(dto => dto.CreatedAt, row => row.CreatedTime);
+
+        // PJ 记录 → PJ：表的 Id 是行号、PJ 名在 Name；表里没 LotID 的给空串；每片的任务明细存的是 JSON
+        _config.NewConfig<ProcessJobEntity, ProcessJobDto>()
+            .Map(dto => dto.Id, row => row.Name)
+            .Map(dto => dto.LotId, row => row.LotId ?? string.Empty)
+            .Map(dto => dto.CreatedAt, row => row.CreatedTime)
+            .Map(dto => dto.Wafers, row => WafersOf(row.Wafers));
+    }
+
+    /// <summary>
+    /// PJ 记录里的任务明细 JSON 转回每片的任务，空的是没有片
+    /// </summary>
+    private static List<JobWaferDto> WafersOf(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return [];
+        }
+
+        return JsonHelper.Deserialize<List<JobWaferDto>>(json) ?? [];
     }
 
     /// <summary>

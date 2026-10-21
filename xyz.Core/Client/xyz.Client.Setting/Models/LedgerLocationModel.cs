@@ -44,7 +44,7 @@ public sealed class LedgerLocationModel
     public bool IsRobot => Kind == StationKind.Robot;
 
     /// <summary>
-    /// 种类名，位置列表按它分组（机械手、LoadPort、腔体、buffer、其他）。
+    /// 种类名，位置列表按它分组（机械手、LoadPort、腔体、buffer、对准器、其他）。
     /// </summary>
     public string KindText { get; }
 
@@ -110,6 +110,8 @@ public sealed class LedgerLocationModel
                 return "setting.ledger.kind.chamber";
             case StationKind.Buffer:
                 return "setting.ledger.kind.buffer";
+            case StationKind.Aligner:
+                return "setting.ledger.kind.aligner";
             default:
                 return "setting.ledger.kind.other";
         }

@@ -88,6 +88,11 @@ public static class PermissionCodes
     public const string DataCenterRealChart = "DataCenter.RealChart";
 
     /// <summary>
+    /// 数据中心 · Job 历史
+    /// </summary>
+    public const string DataCenterJobHistory = "DataCenter.JobHistory";
+
+    /// <summary>
     /// 设置（一级菜单）
     /// </summary>
     public const string Setting = "Setting";

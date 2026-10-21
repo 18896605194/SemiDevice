@@ -8,6 +8,7 @@ using xyz.Components.Enums;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
+using xyz.Drivers.Aligner;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Loadport;
 using xyz.Drivers.Loadport.FCD;
@@ -28,7 +29,7 @@ using xyz.Tools;
 // 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
 // CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、
 // 料没到先建 PJ（载具到了、Load 好、接了 EAP 时槽图被认定才定片；同一载具的槽和 CJ 不能重；定不了片报警、PJ 留在排队）、整机停止走 Job 中止、
-// 服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
+// 对准器（片放上来自己对准、对好了才让取，调度不用改）、服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
 // Job 是标准件（任务组件、调度引擎都是平台的，不给机型留重写的口子）。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
@@ -2347,6 +2348,65 @@ try
         robotB.Close();
     }
 
+    // 17i. 对准器：料盒 → 对准器 → 腔 → 料盒。对准器只声明取放（流程配方这一步不选工艺配方），片放上来自己对准、对好了才让取——
+    //      调度、任务表、搬运管理都不用改：对准中站点不在待命，调度就不来取；机械手放下片就走，不在旁边等对准
+    {
+        var aligner = new SmokeJobAligner("AL1");
+        Check(aligner.InitComponent() && aligner.Mode == ModuleMode.Online && ledger.GetSlots("AL1").Count == 1,
+            "对准器组件初始化：开机就上线、晶圆账一个槽");
+        var alignerRobot = new SmokeRobot("RobotAL", "LP1", "AL1", "PM1", "PM2");
+        Check(alignerRobot.InitComponent(), "这一节的机械手（到得了对准器）组件初始化");
+        ComponentLoader.BindAll([alignerRobot, aligner]);
+        alignerRobot.NoteState(ModuleState.Idle);
+        alignerRobot.Online();
+        robot.Offline(); // 这一节只让到得了对准器的那台干活
+        BaseModule[] alignerModules = [lp1, lp2, robot, alignerRobot, pm1, pm2, pm9, aligner];
+        transfers.Bind(alignerModules);
+        sequences.Bind(alignerModules);
+        extraTicks.Add(alignerRobot.Tick);
+        extraTicks.Add(aligner.Tick);
+        var alignerInit = aligner.InitModule();
+        Check(alignerInit is not null && RunUntil(() => alignerInit.IsSettled) && aligner.State == ModuleState.Idle,
+            "全部初始化调到对准器：回零做完回待命");
+        Check(alignerRobot.CreateStateDto().StationInfos.Single(info => info.Name == "AL1").Kind == StationKind.Aligner,
+            "机械手推给界面的站点表里，对准器报自己的类型");
+
+        Sequence(10, "SEQ_AL", Step("LoadPort", "", "LP1"), Step("Aligner", "", "AL1"), Step("Chamber", "R1", "PM1", "PM2"),
+            Step("LoadPort", "", "LP1"));
+        int[] alignerSlots = [1, 2, 3, 4];
+        LoadCarrier(lp1, alignerSlots);
+        var lotAl = alignerSlots.Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
+        Check(Create("LOT-AL", "LP1", true, alignerSlots.Select(slot => (slot, "SEQ_AL")).ToArray()).IsSuccess, "建 LOT-AL（4 片都先过对准器）");
+
+        // 跑的时候记下：对准的时候机械手有没有在干别的（放下片就走，不等对准）
+        bool robotBusyWhileAligning = false;
+        Check(RunUntil(() =>
+        {
+            if (aligner.State == AlignerState.Aligning && transfers.IsRobotInTransfer("RobotAL"))
+            {
+                robotBusyWhileAligning = true;
+            }
+
+            return CjOf("LOT-AL")?.State == (int)ControlJobState.Completed;
+        }) && PjOf("LOT-AL-1")!.Wafers.All(IsDone) && alignerSlots.All(slot => ledger.Get("LP1", slot)?.Id == lotAl[slot - 1]),
+            "连续跑 4 片：不卡死，片都回原槽");
+        var alignerWafers = PjOf("LOT-AL-1")!.Wafers;
+        Check(alignerWafers.All(wafer => wafer.Tasks.Count == 7 && wafer.Tasks[1].Station == "AL1" && wafer.Tasks[2].Kind == StationTaskAction.Pick
+                                         && wafer.Tasks[4].Kind == StationTaskAction.Process),
+            "任务表：对准器这一站只有放片、取片（不选配方，没有工艺任务），后面才进腔做工艺");
+        Check(aligner.Driver.Aligned == alignerSlots.Length && aligner.PickedAligned.Count == alignerSlots.Length && aligner.PickedAligned.All(aligned => aligned),
+            "每片放上对准器都对了一次，机械手每次来取的时候台上那片都已对好");
+        Check(robotBusyWhileAligning, "对准的时候机械手在干别的（放下片就走，不在旁边等对准）");
+
+        UnloadCarrier(lp1);
+        Check(RunUntil(() => CjOf("LOT-AL") is null, 20), "LOT-AL 删掉");
+        extraTicks.Clear();
+        robot.Online();
+        transfers.Bind(modules);
+        sequences.Bind(modules);
+        alignerRobot.Close();
+    }
+
     // 18. 重启：CJ、PJ 跟着进度记在库里（每次发布交给写库线程），"断电"后新的一个 Job 管理开机查库——
     //     没做完的不接着跑：CJ 记成中止（E94 #12，标着重启）、删掉（#13），PJ 记成中止（E40 #16）；早先做完的不动；片不再归任何 Job。
     LoadCarrier(lp1, 1, 2, 3);
@@ -2432,6 +2492,7 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "a buffer rack split into in / out stations between two robots (ready and online at startup, a full carrier without deadlock, " +
     "the second robot prefetching from the in-section and swapping only at the chambers, " +
     "each section taught as its own robot station number so slots go out unchanged), " +
+    "an aligner on the route (pick / place only, aligning each wafer by itself after it is placed, picked only once aligned, the robot not waiting for it), " +
     "transition numbers in order,a resent create refused by the normal checks, sequence snapshots, returning to another LoadPort, PJ pause/resume, " +
     "CJ pause that only stops starting new PJs, CJ stop, PJ abort, a failed process stopping only its own row until retry or manual completion, " +
     "nothing new dispatched to an offline robot, LoadPort or chamber while work already started finishes, " +
@@ -2688,6 +2749,90 @@ sealed class SmokeBuffer : BaseBufferModule
     }
 
     public void Tick() => OnScan();
+}
+
+// 对准器：驱动是假的（每条指令 5 拍做完）；每次机械手来取时记下台上那片对好了没有
+sealed class SmokeJobAligner : BaseAlignerModule
+{
+    public SmokeJobAligner(string name)
+    {
+        Probe.Name(this, name, "Aligner");
+        Driver = new SmokeAlignerDriver();
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(Driver, "_driver");
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(Driver, $"{FullPath}._driver");
+        AddChild(Driver);
+    }
+
+    public SmokeAlignerDriver Driver { get; }
+
+    public List<bool> PickedAligned { get; } = [];
+
+    public void Tick() => OnScan();
+
+    protected override ModuleOperation? PrepareTransferCore(TransferContext context)
+    {
+        if (context.HasPick)
+        {
+            PickedAligned.Add(IsWaferAligned);
+        }
+
+        return base.PrepareTransferCore(context);
+    }
+}
+
+sealed class SmokeAlignerDriver : ComponentBase, IAlignerDriverComponent
+{
+    private readonly List<(SmokeAlignerCommand Command, int SentAt)> _inflight = [];
+    private int _ticks;
+
+    public bool IsConnected => true;
+
+    public int Aligned { get; private set; }
+
+    public AlignerCommand? Home() => Send();
+
+    public AlignerCommand? Align(double angle)
+    {
+        Aligned++;
+        return Send();
+    }
+
+    public AlignerCommand? Stop() => Send();
+
+    public AlignerCommand? ResetDrive() => Send();
+
+    public void AbandonAll(string reason)
+    {
+        foreach (var pending in _inflight)
+        {
+            pending.Command.Finish(false, reason);
+        }
+
+        _inflight.Clear();
+    }
+
+    protected override void OnScan()
+    {
+        base.OnScan();
+        _ticks++;
+        foreach (var pending in _inflight.Where(pending => _ticks - pending.SentAt >= 5).ToList())
+        {
+            pending.Command.Finish(true, string.Empty);
+            _inflight.Remove(pending);
+        }
+    }
+
+    private SmokeAlignerCommand Send()
+    {
+        var command = new SmokeAlignerCommand();
+        _inflight.Add((command, _ticks));
+        return command;
+    }
+}
+
+sealed class SmokeAlignerCommand : AlignerCommand
+{
+    public void Finish(bool success, string error) => Complete(new AlignerResponse { IsSuccess = success, Error = error });
 }
 
 // 能分段取放的假机械手：类上声明 ITransferRobotStep（四个方法用机械手基类的），伸臂、缩臂各一拍做完，按先后记在 Steps。
