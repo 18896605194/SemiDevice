@@ -1,17 +1,21 @@
 ﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using MaterialDesignThemes.Wpf;
+using xyz.Client.Presentation.Controls;
 using xyz.Client.Presentation.Localization;
 
 namespace xyz.Client.DataCenter.Views;
 
 /// <summary>
 /// 曲线 + 曲线信息面板：数据曲线、实时曲线两页共用（绑页面 ViewModel 的 Series、RangeStart/RangeEnd、FollowRange、
-/// VisibleStart/VisibleEnd、CursorTime）。右上角"截图"把折线图那一块存成 PNG；"放大"把整块（同一个图、同一张表，缩放状态、勾选都不变）
+/// VisibleStart/VisibleEnd、CursorTime）。右上角 X、Y 开关基准线（开着 X 时信息表多"X1 处 / X2 处"两列）；
+/// "截图"把折线图那一块存成 PNG；"放大"把整块（同一个图、同一张表，缩放状态、勾选、基准线都不变）
 /// 搬进单独的窗口全屏显示，窗口里再点一下、按 Esc 或关掉窗口就搬回来；搬出去期间页面这儿显示提示和"收回"。
 /// </summary>
 public partial class ChartPanel : UserControl
@@ -41,6 +45,12 @@ public partial class ChartPanel : UserControl
             _hintTimer.Stop();
             ScreenshotHint.Visibility = Visibility.Collapsed;
         };
+
+        // 两个基准线开关、信息表的"X1 处 / X2 处"两列都跟着图走。绑定直接指着这张图、不按名字找：
+        // 放大时整块搬进别的窗口，按名字找的绑定在那边找不到这张图。
+        XLinesButton.SetBinding(ToggleButton.IsCheckedProperty, new Binding(nameof(TrendChart.ShowXLines)) { Source = Chart, Mode = BindingMode.TwoWay });
+        YLinesButton.SetBinding(ToggleButton.IsCheckedProperty, new Binding(nameof(TrendChart.ShowYLines)) { Source = Chart, Mode = BindingMode.TwoWay });
+        InfoTable.SetBinding(TrendInfoTable.ShowReferenceColumnsProperty, new Binding(nameof(TrendChart.ShowXLines)) { Source = Chart });
     }
 
     /// <summary>

@@ -65,6 +65,8 @@
     <SolidColorBrush x:Key="DarkChartZoomFill" Color="#3342A5F5" />
     <!-- 悬停数值框的底色：比绘图区亮一档、略透，压在曲线上也看得清 -->
     <SolidColorBrush x:Key="DarkChartHoverBackground" Color="#E62B2B2B" />
+    <!-- 基准线（X、Y 各两条）、它们在轴上的标签和差值箭头：浅灰，跟彩色曲线分得开；指着、拖着的那条换成 DarkPrimaryText 的白 -->
+    <SolidColorBrush x:Key="DarkChartReferenceLine" Color="#E0E0E0" />
 
     <!-- 趋势图曲线配色：按勾选顺序轮着用，暗底上彼此分得开 -->
     <x:Array x:Key="TrendPalette" Type="{x:Type Color}">

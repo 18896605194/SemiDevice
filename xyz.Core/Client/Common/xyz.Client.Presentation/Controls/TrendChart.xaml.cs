@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,9 +19,11 @@ namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 趋势图：ScottPlot 5 的封装，数据曲线、实时曲线两页共用。
-/// 喂给它一组 <see cref="TrendSeries"/>（Series），它负责：配色；纵轴只有左边一根，所有曲线都按真实数值画在它上面
-/// （不按单位分轴，开关量也不另外分道——就是 0 和 1 两个位置上的阶梯线）；
-/// 纵轴按当前看到的那段数据自动适配（中键框选放大后按框定住，双击恢复）。
+/// 喂给它一组 <see cref="TrendSeries"/>（Series），它负责：配色；纵轴只有左边一根，所有曲线都画在它上面
+/// （不按单位分轴，开关量也不另外分道——就是 0 和 1 两个位置上的阶梯线）；默认按真实数值画，
+/// 信息表里给某条线填了偏移（TrendSeries.Offset）就按 值 + 偏移 画，悬停框、信息表里照旧是真实值；
+/// 纵轴按当前看到的那段数据（加上偏移）自动适配（中键框选放大后按框定住，双击恢复）。
+/// 右上角 X、Y 两个按钮开关基准线（ShowXLines / ShowYLines），见 TrendChart.ReferenceLines.cs。
 /// 采样点不挤的时候每个点画一个小圆点；鼠标悬停时对准最近的采样时刻，每条线在这一刻的点放大高亮，旁边弹出数值框（时刻、点名、值）。
 /// 横轴是时间：RangeStart/RangeEnd 是"整段"，FollowRange 为真时横轴跟着它走（实时曲线每秒挪一格就是这么挪的）；
 /// 滚轮缩放、左键拖动平移、中键框选时 FollowRange 自动变假，双击回到整段并重新跟随。
@@ -116,8 +119,8 @@ public partial class TrendChart : UserControl
     private readonly Dictionary<TrendSeries, Marker> _highlights = [];
 
     /// <summary>
-    /// 纵轴只有左边这一根：所有曲线（模拟量、开关量）都按真实数值画在它上面，不按单位分轴、不给开关量另外分道——
-    /// 线在哪个刻度上，值就是多少。
+    /// 纵轴只有左边这一根：所有曲线（模拟量、开关量）都画在它上面，不按单位分轴、不给开关量另外分道——
+    /// 没填偏移的线在哪个刻度上，值就是多少；填了偏移的线整条挪了那么多。
     /// </summary>
     private readonly IYAxis _valueAxis;
 
@@ -127,7 +130,7 @@ public partial class TrendChart : UserControl
     private readonly NumericAutomatic _valueTicks = new();
 
     /// <summary>
-    /// 图上只有开关量时纵轴的刻度：只标 0 和 1，中间的 0.2、0.4 对开关量没有意义。
+    /// 图上只有开关量、都没挪过时纵轴的刻度：只标 0 和 1，中间的 0.2、0.4 对开关量没有意义。
     /// </summary>
     private readonly NumericManual _digitalTicks = new([0, 1], ["0", "1"]);
 
@@ -180,15 +183,25 @@ public partial class TrendChart : UserControl
         var timeAxis = _plot.Axes.DateTimeTicksBottom();
         _timeTicks = (DateTimeAutomatic)timeAxis.TickGenerator;
         _timeTicks.LabelFormatter = FormatTime;
+        _timeTickFilter = new TrendTickFilter(_timeTicks);
+        timeAxis.TickGenerator = _timeTickFilter;
 
         _valueAxis = _plot.Axes.Left;
-        _valueAxis.TickGenerator = _valueTicks;
+        _valueTickFilter = new TrendTickFilter(_valueTicks);
+        _valueAxis.TickGenerator = _valueTickFilter;
         _plot.Axes.Right.IsVisible = false;
 
         _cursorLine = _plot.Add.VerticalLine(0);
         _cursorLine.LinePattern = LinePattern.Dashed;
         _cursorLine.LineWidth = 1;
         _cursorLine.IsVisible = false;
+
+        // 基准线先建好藏着，放在曲线下面；图每画完一帧，标签按这一帧的绘图区再对一次位置
+        _x1Line = PrepareReferenceLine(_plot.Add.VerticalLine(0));
+        _x2Line = PrepareReferenceLine(_plot.Add.VerticalLine(0));
+        _y1Line = PrepareReferenceLine(_plot.Add.HorizontalLine(0));
+        _y2Line = PrepareReferenceLine(_plot.Add.HorizontalLine(0));
+        _plot.RenderManager.RenderFinished += OnPlotRendered;
 
         ApplyTheme();
 
@@ -198,7 +211,11 @@ public partial class TrendChart : UserControl
         PlotView.AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(OnMouseDown), true);
         PlotView.AddHandler(PreviewMouseUpEvent, new MouseButtonEventHandler(OnMouseUp), true);
         PlotView.AddHandler(PreviewMouseMoveEvent, new MouseEventHandler(OnMouseMove), true);
-        PlotView.MouseLeave += (_, _) => HideHover();
+        PlotView.MouseLeave += (_, _) =>
+        {
+            ClearLineUnderMouse();
+            HideHover();
+        };
         PlotView.LostMouseCapture += (_, _) => CancelGestures();
         IsVisibleChanged += (_, _) =>
         {
@@ -298,6 +315,17 @@ public partial class TrendChart : UserControl
         RequestRender();
     }
 
+    /// <summary>
+    /// 信息表里改了某条线的偏移：重画（纵轴跟着重新适配）。别的属性（光标处、统计、X1/X2 处的值）是算出来往表里写的，不用重画。
+    /// </summary>
+    private void OnSeriesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TrendSeries.Offset))
+        {
+            RequestRender();
+        }
+    }
+
     private void OnRangeChanged()
     {
         if (FollowRange)
@@ -342,8 +370,10 @@ public partial class TrendChart : UserControl
 
         FitValues(series);
         UpdateMarkers(series);
+        UpdateReferenceLines(series);
         FollowMouse();
         PlotView.Refresh();
+        PlaceReferenceOverlays();
         PublishVisibleRange();
     }
 
@@ -354,7 +384,7 @@ public partial class TrendChart : UserControl
 
     /// <summary>
     /// 曲线增删：新来的配色、建线（按引用画 TrendSeries 的两串数据）和它的悬停高亮点，走了的拆掉。
-    /// 线都挂在左边那根纵轴上、按真实数值画；开关量画成阶梯线。
+    /// 线都挂在左边那根纵轴上、按 值 + 偏移 画（没填偏移就是真实数值）；开关量画成阶梯线。
     /// </summary>
     private void SyncLines(List<TrendSeries> series)
     {
@@ -365,6 +395,7 @@ public partial class TrendChart : UserControl
             _lines.Remove(gone);
             _highlights.Remove(gone);
             gone.DataChanged -= OnSeriesDataChanged;
+            gone.PropertyChanged -= OnSeriesPropertyChanged;
         }
 
         foreach (var item in series.Where(item => !_lines.ContainsKey(item)))
@@ -389,6 +420,12 @@ public partial class TrendChart : UserControl
             _highlights[item] = highlight;
 
             item.DataChanged += OnSeriesDataChanged;
+            item.PropertyChanged += OnSeriesPropertyChanged;
+        }
+
+        foreach (var item in series)
+        {
+            _lines[item].OffsetY = item.Offset;
         }
 
         // 高亮点、光标线始终在曲线上面。
@@ -445,8 +482,8 @@ public partial class TrendChart : UserControl
     }
 
     /// <summary>
-    /// 纵轴：取全部曲线在当前看到那段里的最小、最大值，上下各留一点空；框选定住的就用框的范围。
-    /// 图上只有开关量时刻度只标 0 和 1。
+    /// 纵轴：取全部曲线（按 值 + 偏移）在当前看到那段里的最小、最大值，上下各留一点空；框选定住的就用框的范围。
+    /// 图上只有开关量、都没挪过时刻度只标 0 和 1。
     /// </summary>
     private void FitValues(List<TrendSeries> series)
     {
@@ -457,7 +494,7 @@ public partial class TrendChart : UserControl
             return;
         }
 
-        _valueAxis.TickGenerator = _manualRange is null && series.All(item => item.IsDigital)
+        _valueTickFilter.Inner = _manualRange is null && series.All(item => item.IsDigital && item.Offset == 0)
             ? _digitalTicks
             : _valueTicks;
 
@@ -467,7 +504,7 @@ public partial class TrendChart : UserControl
     }
 
     /// <summary>
-    /// 这几条线在 [left, right] 里的最小、最大值。开关量只有 0、1 两个值，有它在就把 0~1 都包进来，
+    /// 这几条线（按 值 + 偏移）在 [left, right] 里的最小、最大值。开关量只有 0、1 两个值，有它在就把 偏移 ~ 偏移+1 都包进来，
     /// 一直是 1（或一直是 0）的线也看得出是 1 还是 0。
     /// 纵轴至少撑开到数值大小的 2%：几乎不变的值不把噪声放大成大起大落，差一点点的两条线也不会被拉得老远；
     /// 全是 0 就给 0~1，线落在 0 刻度上，不往 0 以下撑。
@@ -479,14 +516,15 @@ public partial class TrendChart : UserControl
         foreach (var item in lines)
         {
             bool hasValue = false;
+            double offset = item.Offset;
             for (int point = Math.Max(0, item.LowerBound(left) - 1); point < item.Xs.Count; point++)
             {
                 double value = item.Ys[point];
                 if (!double.IsNaN(value))
                 {
                     hasValue = true;
-                    min = Math.Min(min, value);
-                    max = Math.Max(max, value);
+                    min = Math.Min(min, value + offset);
+                    max = Math.Max(max, value + offset);
                 }
 
                 if (item.Xs[point] > right)
@@ -497,8 +535,8 @@ public partial class TrendChart : UserControl
 
             if (hasValue && item.IsDigital)
             {
-                min = Math.Min(min, 0);
-                max = Math.Max(max, 1);
+                min = Math.Min(min, offset);
+                max = Math.Max(max, offset + 1);
             }
         }
 
@@ -565,22 +603,8 @@ public partial class TrendChart : UserControl
     private void UpdateHover(double x)
     {
         var series = CurrentSeries();
-        double? snapped = null;
-        double distance = double.MaxValue;
-        foreach (var item in series)
-        {
-            int index = item.NearestIndex(x);
-            if (index >= 0 && Math.Abs(item.Xs[index] - x) < distance)
-            {
-                distance = Math.Abs(item.Xs[index] - x);
-                snapped = item.Xs[index];
-            }
-        }
-
-        var limits = _plot.Axes.GetLimits();
-        bool near = snapped is not null
-                    && limits.Right > limits.Left
-                    && distance / (limits.Right - limits.Left) * DataWidth() <= SnapPixels;
+        double? snapped = SnapToSample(series, x);
+        bool near = snapped is not null;
         double cursor = near ? snapped!.Value : x;
 
         _cursorLine.X = cursor;
@@ -600,11 +624,35 @@ public partial class TrendChart : UserControl
             if (value is not null)
             {
                 highlight.X = cursor;
-                highlight.Y = value.Value;
+                highlight.Y = value.Value + item.Offset;
             }
         }
 
         ShowHoverCard(near && series.Count > 0);
+    }
+
+    /// <summary>
+    /// x 附近最近的采样时刻（各条曲线里找）：离 x 超过 SnapPixels 像素就不算（比如停在没数据的空档里），给 null。
+    /// </summary>
+    private double? SnapToSample(List<TrendSeries> series, double x)
+    {
+        double? snapped = null;
+        double distance = double.MaxValue;
+        foreach (var item in series)
+        {
+            int index = item.NearestIndex(x);
+            if (index >= 0 && Math.Abs(item.Xs[index] - x) < distance)
+            {
+                distance = Math.Abs(item.Xs[index] - x);
+                snapped = item.Xs[index];
+            }
+        }
+
+        var limits = _plot.Axes.GetLimits();
+        bool near = snapped is not null
+                    && limits.Right > limits.Left
+                    && distance / (limits.Right - limits.Left) * DataWidth() <= SnapPixels;
+        return near ? snapped : null;
     }
 
     /// <summary>
@@ -704,6 +752,13 @@ public partial class TrendChart : UserControl
 
         if (e.ChangedButton == MouseButton.Left)
         {
+            // 按在基准线（或它在轴上的标签）上就是拖这条线，不平移。
+            if (StartLineDrag(PlotView.GetPlotPixelPosition(e)))
+            {
+                e.Handled = true;
+                return;
+            }
+
             var limits = _plot.Axes.GetLimits();
             _dragging = true;
             _dragStartPixel = PlotView.GetPlotPixelPosition(e).X;
@@ -725,6 +780,13 @@ public partial class TrendChart : UserControl
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (e.ChangedButton == MouseButton.Left && _lineDragging != TrendReferenceLine.None)
+        {
+            EndLineDrag();
+            e.Handled = true;
+            return;
+        }
+
         if (e.ChangedButton == MouseButton.Left && _dragging)
         {
             _dragging = false;
@@ -750,6 +812,12 @@ public partial class TrendChart : UserControl
             return;
         }
 
+        if (_lineDragging != TrendReferenceLine.None)
+        {
+            DragLine(pixel);
+            return;
+        }
+
         if (_dragging)
         {
             if (dataRect.Width <= 0)
@@ -767,6 +835,13 @@ public partial class TrendChart : UserControl
             _plot.Axes.SetLimitsX(_dragStartLimits.Left - shift, _dragStartLimits.Right - shift);
             HideHover();
             RequestRender();
+            return;
+        }
+
+        // 指着基准线（或它在轴上的标签）：光标换成左右 / 上下箭头、那条线加粗，这时不弹悬停数值框。
+        if (UpdateLineUnderMouse(pixel))
+        {
+            HideHover();
             return;
         }
 
@@ -841,11 +916,12 @@ public partial class TrendChart : UserControl
     }
 
     /// <summary>
-    /// 鼠标被抢走（切窗口、弹框）时，拖着的、框着的都作废。
+    /// 鼠标被抢走（切窗口、弹框）时，拖着的（平移、基准线）、框着的都作废；基准线停在拖到的地方。
     /// </summary>
     private void CancelGestures()
     {
         _dragging = false;
+        _lineDragging = TrendReferenceLine.None;
         if (_boxing)
         {
             _boxing = false;
@@ -890,6 +966,8 @@ public partial class TrendChart : UserControl
 
         _plot.Axes.FrameColor(ResourceColor("DarkBorderBrush"));
         _cursorLine.Color = ResourceColor("DarkPrimaryText");
+        _referenceColor = ResourceColor("DarkChartReferenceLine");
+        _referenceActiveColor = ResourceColor("DarkPrimaryText");
     }
 
     private void StyleAxis(IAxis axis)

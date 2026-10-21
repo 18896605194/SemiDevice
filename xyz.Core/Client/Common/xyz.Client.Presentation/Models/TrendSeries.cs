@@ -1,4 +1,5 @@
-﻿using System.Windows.Media;
+﻿using System.Globalization;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace xyz.Client.Presentation.Models;
@@ -7,7 +8,7 @@ namespace xyz.Client.Presentation.Models;
 /// 趋势图（TrendChart）上的一条曲线：数据 + 右下角信息表的一行。
 /// 数据是两串等长的 List：Xs 是时间（OADate，升序），Ys 是值（NaN = 这一刻没数据，曲线在这儿断开）；
 /// 图表按引用画这两串，改完调 <see cref="SetData"/> / <see cref="Append"/>，它们会发 <see cref="DataChanged"/> 让图表重画。
-/// 颜色由图表控件加进来时按调色板分配。
+/// 颜色由图表控件加进来时按调色板分配；偏移在信息表里填，图上按 值 + 偏移 画；X1、X2 处的值由图表开着 X 基准线时算好写进来。
 /// </summary>
 public sealed class TrendSeries : ObservableObject
 {
@@ -27,7 +28,7 @@ public sealed class TrendSeries : ObservableObject
     public string Unit { get; }
 
     /// <summary>
-    /// 开关量：值只有 0/1，图上画成阶梯线（跟模拟量同一根纵轴，就在 0 和 1 的位置）。
+    /// 开关量：值只有 0/1，图上画成阶梯线（跟模拟量同一根纵轴，就在 0 和 1 的位置；填了偏移就在 偏移、偏移+1 的位置）。
     /// </summary>
     public bool IsDigital { get; }
 
@@ -63,6 +64,62 @@ public sealed class TrendSeries : ObservableObject
     /// 信息表里的色块。
     /// </summary>
     public Brush Brush { get; private set; } = Brushes.Transparent;
+
+    private double _offset;
+
+    /// <summary>
+    /// 偏移：画的时候整条线往上挪这么多（负数往下挪），默认 0；开关量 0/1 填 20 就画在 20/21，几条开关量各在各的高度。
+    /// 只改画在哪，悬停框、信息表里还是真实值。去掉再勾上的曲线是新的一条，回到 0。
+    /// </summary>
+    public double Offset
+    {
+        get => _offset;
+        set
+        {
+            if (!double.IsFinite(value))
+            {
+                return;
+            }
+
+            if (SetProperty(ref _offset, value))
+            {
+                OnPropertyChanged(nameof(HasOffset));
+                OnPropertyChanged(nameof(OffsetText));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 挪过（偏移不是 0）：悬停框里名字后面带个小标。
+    /// </summary>
+    public bool HasOffset => Offset != 0;
+
+    /// <summary>
+    /// 悬停框里的小标：+20、-5。
+    /// </summary>
+    public string OffsetText => (Offset > 0 ? "+" : string.Empty) + Offset.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private double? _valueAtX1;
+
+    /// <summary>
+    /// X 基准线 X1 那一刻的值（真实值）；没开 X 基准线时不更新。
+    /// </summary>
+    public double? ValueAtX1
+    {
+        get => _valueAtX1;
+        set => SetProperty(ref _valueAtX1, value);
+    }
+
+    private double? _valueAtX2;
+
+    /// <summary>
+    /// X 基准线 X2 那一刻的值（真实值）。
+    /// </summary>
+    public double? ValueAtX2
+    {
+        get => _valueAtX2;
+        set => SetProperty(ref _valueAtX2, value);
+    }
 
     private double? _cursorValue;
 

@@ -6,7 +6,8 @@
     x:Name="Root">
 
     <!--  ScottPlot 画布 + 一层不接鼠标的浮层。鼠标由控件自己接管：
-          滚轮缩放时间轴、左键拖动平移、中键拖框放大、双击回到整段；悬停对准最近的采样点，浮层里弹出这一刻每条线的值  -->
+          滚轮缩放时间轴、左键拖动平移、中键拖框放大、双击回到整段；按住基准线（或它在轴上的标签）是拖线；
+          悬停对准最近的采样点，浮层里弹出这一刻每条线的值  -->
     <Grid>
         <scottPlot:WpfPlot x:Name="PlotView" Cursor="Cross" />
 
@@ -20,7 +21,54 @@
                 Style="{DynamicResource ChartZoomBoxBorderStyle}"
                 Visibility="Collapsed" />
 
-            <!--  悬停数值框：第一行时刻，下面每条线一行（颜色、点名、值和单位）  -->
+            <!--  基准线：两条线之间的双向箭头和差（ΔX 时间差标在绘图区顶上，ΔY 数值差标在右边）；
+                  X1、X2 的时刻贴在时间轴上，Y1、Y2 的值贴在纵轴上。位置都由代码按线算  -->
+            <Path
+                x:Name="XDeltaArrow"
+                Style="{DynamicResource ChartDeltaArrowStyle}"
+                Visibility="Collapsed" />
+            <Path
+                x:Name="YDeltaArrow"
+                Style="{DynamicResource ChartDeltaArrowStyle}"
+                Visibility="Collapsed" />
+            <Border
+                x:Name="XDelta"
+                Style="{DynamicResource ChartDeltaBorderStyle}"
+                Visibility="Collapsed">
+                <TextBlock x:Name="XDeltaText" />
+            </Border>
+            <Border
+                x:Name="YDelta"
+                Style="{DynamicResource ChartDeltaBorderStyle}"
+                Visibility="Collapsed">
+                <TextBlock x:Name="YDeltaText" />
+            </Border>
+            <Border
+                x:Name="X1Tag"
+                Style="{DynamicResource ChartReferenceTagBorderStyle}"
+                Visibility="Collapsed">
+                <TextBlock x:Name="X1TagText" />
+            </Border>
+            <Border
+                x:Name="X2Tag"
+                Style="{DynamicResource ChartReferenceTagBorderStyle}"
+                Visibility="Collapsed">
+                <TextBlock x:Name="X2TagText" />
+            </Border>
+            <Border
+                x:Name="Y1Tag"
+                Style="{DynamicResource ChartReferenceTagBorderStyle}"
+                Visibility="Collapsed">
+                <TextBlock x:Name="Y1TagText" />
+            </Border>
+            <Border
+                x:Name="Y2Tag"
+                Style="{DynamicResource ChartReferenceTagBorderStyle}"
+                Visibility="Collapsed">
+                <TextBlock x:Name="Y2TagText" />
+            </Border>
+
+            <!--  悬停数值框：第一行时刻，下面每条线一行（颜色、点名、挪过的带偏移小标、真实值和单位）  -->
             <Border
                 x:Name="HoverCard"
                 Style="{DynamicResource ChartHoverCardBorderStyle}"
@@ -34,6 +82,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="HoverName" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="HoverOffset" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Ellipse
@@ -45,7 +94,13 @@
                                         Grid.Column="1"
                                         Margin="6,0,16,0"
                                         Text="{Binding Name}" />
-                                    <TextBlock Grid.Column="2" FontWeight="SemiBold">
+                                    <Border
+                                        Grid.Column="2"
+                                        Style="{DynamicResource ChartOffsetChipBorderStyle}"
+                                        Tag="{Binding HasOffset}">
+                                        <TextBlock Text="{Binding OffsetText}" />
+                                    </Border>
+                                    <TextBlock Grid.Column="3" FontWeight="SemiBold">
                                         <Run Text="{Binding CursorValue, Mode=OneWay, StringFormat='{}{0:0.###}', TargetNullValue='—'}" />
                                         <Run Text="{Binding Unit, Mode=OneWay}" />
                                     </TextBlock>

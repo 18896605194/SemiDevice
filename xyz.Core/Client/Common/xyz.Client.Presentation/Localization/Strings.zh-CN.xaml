@@ -558,6 +558,16 @@
     <sys:String x:Key="chart.avg">平均</sys:String>
     <sys:String x:Key="chart.cursor_at">光标</sys:String>
     <sys:String x:Key="chart.view">显示</sys:String>
+    <sys:String x:Key="chart.ref_x">X 基准线：两条竖线，拖动看时间差</sys:String>
+    <sys:String x:Key="chart.ref_y">Y 基准线：两条横线，拖动看数值差</sys:String>
+    <sys:String x:Key="chart.offset">偏移</sys:String>
+    <sys:String x:Key="chart.offset_tip">整条线往上挪这么多（负数往下挪），表里、悬停框里还是真实值</sys:String>
+    <sys:String x:Key="chart.at_x1">X1 处</sys:String>
+    <sys:String x:Key="chart.at_x2">X2 处</sys:String>
+    <!-- 两条 X 基准线之间的时间差：{0}{1}{2} 是时、分、秒 -->
+    <sys:String x:Key="chart.duration_s">{0} 秒</sys:String>
+    <sys:String x:Key="chart.duration_ms">{0} 分 {1:00} 秒</sys:String>
+    <sys:String x:Key="chart.duration_hms">{0} 时 {1:00} 分 {2:00} 秒</sys:String>
     <sys:String x:Key="datachart.querying">查询中…</sys:String>
     <sys:String x:Key="datachart.points">共 {0} 个时间点</sys:String>
     <sys:String x:Key="datachart.decimated">时间段较长，每 {0} 秒取最小、最大值画（统计按原始数据）</sys:String>

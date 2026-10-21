@@ -96,6 +96,41 @@
         <Setter Property="Cursor" Value="Hand" />
     </Style>
 
+    <!--  图角上的开关按钮（趋势图右上角的 X / Y 基准线）：图标 + 字母的胶囊，透明底，跟旁边的图标按钮同高；
+          开着时强调色字、淡强调底  -->
+    <Style x:Key="ChartCornerToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="MinWidth" Value="30" />
+        <Setter Property="Padding" Value="6,0,8,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkChartAxisText}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="15">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource DarkHoverBackground}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
+                            <Setter Property="Background" Value="{StaticResource DarkAccentSoft}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!--  三维图下面视角工具栏的按钮（默认视角、俯视）：图标 + 字，平的，鼠标移上去才有底色  -->
     <Style
         x:Key="SceneToolButtonStyle"

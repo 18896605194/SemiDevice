@@ -44,6 +44,56 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
 
+    <!--  趋势图基准线贴在轴上的标签（X1 10:21:50、Y1 150）：浅灰底深色字；Tag=True（鼠标指着、正拖着这条线）换成白底  -->
+    <Style x:Key="ChartReferenceTagBorderStyle" TargetType="Border">
+        <Setter Property="Padding" Value="6,2" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Background" Value="{StaticResource DarkChartReferenceLine}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkWindowBackground}" />
+        <Setter Property="TextElement.FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Background" Value="{StaticResource DarkPrimaryText}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  趋势图两条基准线之间的差（ΔX 5 分 10 秒、ΔY 150）：跟悬停数值框一个底色，压在曲线上也看得清  -->
+    <Style x:Key="ChartDeltaBorderStyle" TargetType="Border">
+        <Setter Property="Padding" Value="7,1" />
+        <Setter Property="Background" Value="{StaticResource DarkChartHoverBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="TextElement.FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkPrimaryText}" />
+    </Style>
+
+    <!--  趋势图两条基准线之间的双向箭头：细线，跟基准线同色、淡一点  -->
+    <Style x:Key="ChartDeltaArrowStyle" TargetType="Path">
+        <Setter Property="Stroke" Value="{StaticResource DarkChartReferenceLine}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="Opacity" Value="0.85" />
+    </Style>
+
+    <!--  悬停数值框里名字后面的偏移小标（+20）：淡强调底强调色字；Tag=True（这条线挪过）才显示  -->
+    <Style x:Key="ChartOffsetChipBorderStyle" TargetType="Border">
+        <Setter Property="Margin" Value="0,0,10,0" />
+        <Setter Property="Padding" Value="5,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Background" Value="{StaticResource DarkAccentSoft}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource DarkAccent}" />
+        <Setter Property="TextElement.FontSize" Value="{StaticResource Size12}" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="TableHeaderBorderStyle" TargetType="Border">
         <Setter Property="Padding" Value="14,12" />
         <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />

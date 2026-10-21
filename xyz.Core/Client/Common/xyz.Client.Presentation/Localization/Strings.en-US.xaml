@@ -558,6 +558,16 @@
     <sys:String x:Key="chart.avg">Avg</sys:String>
     <sys:String x:Key="chart.cursor_at">Cursor</sys:String>
     <sys:String x:Key="chart.view">View</sys:String>
+    <sys:String x:Key="chart.ref_x">X reference lines: two vertical lines, drag them to measure time</sys:String>
+    <sys:String x:Key="chart.ref_y">Y reference lines: two horizontal lines, drag them to measure values</sys:String>
+    <sys:String x:Key="chart.offset">Offset</sys:String>
+    <sys:String x:Key="chart.offset_tip">Moves the whole curve up by this amount (negative moves it down); the table and hover box still show real values</sys:String>
+    <sys:String x:Key="chart.at_x1">At X1</sys:String>
+    <sys:String x:Key="chart.at_x2">At X2</sys:String>
+    <!-- Time between the two X reference lines: {0}{1}{2} are hours, minutes, seconds -->
+    <sys:String x:Key="chart.duration_s">{0} s</sys:String>
+    <sys:String x:Key="chart.duration_ms">{0} min {1:00} s</sys:String>
+    <sys:String x:Key="chart.duration_hms">{0} h {1:00} min {2:00} s</sys:String>
     <sys:String x:Key="datachart.querying">Querying…</sys:String>
     <sys:String x:Key="datachart.points">{0} time points</sys:String>
     <sys:String x:Key="datachart.decimated">Long range: plotted as min/max per {0} s (statistics use the raw data)</sys:String>
