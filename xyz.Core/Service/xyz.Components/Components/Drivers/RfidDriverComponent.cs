@@ -75,7 +75,7 @@ public abstract class RfidDriverComponent : ComponentBase, ICarrierIdReader
 
     #region Alarm
 
-    [Alarm("RFID 通讯断开，已停止重连", AlarmCategory.CommunicationError,
+    [Alarm("RFID 通讯断开，已停止重连", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "读头通讯断开后按 EC ReconnectMaxCount 重连了几次都没连上，已停止重连，读不了载具号",
         Solution = "检查线缆、读头电源和通讯配置（sc.xml 的串口 / IP）；好了以后复位，复位会重新开始连")]

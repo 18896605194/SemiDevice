@@ -164,37 +164,37 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region Alarm
 
     // 动作超时：一个动作一条，跟 EC 里各动作的超时一一对应；Home 就是初始化
-    [Alarm("LoadPort Load 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（开门 + Mapping）没在 EC LoadTimeout 内做完", Solution = "检查门、Mapping 传感器和 FOUP 有没有放好，看 LoadPort 有没有报错；处理好后复位，再 Home")]
+    [Alarm("LoadPort Load 超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（开门 + Mapping）没在 EC LoadTimeout 内做完", Solution = "检查门、Mapping 传感器和 FOUP 有没有放好，看 LoadPort 有没有报错；处理好后复位，再 Home")]
     public string LoadTimeoutAlarm = nameof(LoadTimeoutAlarm);
 
-    [Alarm("LoadPort Unload 超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门，或自动跑货对账时关门后的扫图）没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
+    [Alarm("LoadPort Unload 超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门，或自动跑货对账时关门后的扫图）没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
     public string UnloadTimeoutAlarm = nameof(UnloadTimeoutAlarm);
 
-    [Alarm("LoadPort 初始化超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "Home（初始化回原点）没在 EC HomeTimeout 内做完", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
+    [Alarm("LoadPort 初始化超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Home（初始化回原点）没在 EC HomeTimeout 内做完", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
     public string InitTimeoutAlarm = nameof(InitTimeoutAlarm);
 
-    [Alarm("LoadPort 夹紧超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "夹紧 FOUP 没在 EC ClampTimeout 内做完", Solution = "检查 FOUP 有没有放到位、夹爪有没有卡住；处理好后复位，再 Home")]
+    [Alarm("LoadPort 夹紧超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "夹紧 FOUP 没在 EC ClampTimeout 内做完", Solution = "检查 FOUP 有没有放到位、夹爪有没有卡住；处理好后复位，再 Home")]
     public string ClampTimeoutAlarm = nameof(ClampTimeoutAlarm);
 
-    [Alarm("LoadPort 松开超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "松开 FOUP 没在 EC UnclampTimeout 内做完", Solution = "检查夹爪有没有卡住；处理好后复位，再 Home")]
+    [Alarm("LoadPort 松开超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "松开 FOUP 没在 EC UnclampTimeout 内做完", Solution = "检查夹爪有没有卡住；处理好后复位，再 Home")]
     public string UnclampTimeoutAlarm = nameof(UnclampTimeoutAlarm);
 
-    [Alarm("LoadPort 复位超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "复位（清设备报错）没在 EC ResetTimeout 内做完", Solution = "检查串口 / 网口连接和 LoadPort 供电，再复位")]
+    [Alarm("LoadPort 复位超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "复位（清设备报错）没在 EC ResetTimeout 内做完", Solution = "检查串口 / 网口连接和 LoadPort 供电，再复位")]
     public string ResetTimeoutAlarm = nameof(ResetTimeoutAlarm);
 
-    [Alarm("LoadPort 中止超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "中止（急停）没在 EC AbortTimeout 内做完", Solution = "检查串口 / 网口连接和 LoadPort 状态；处理好后复位，再 Home")]
+    [Alarm("LoadPort 中止超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "中止（急停）没在 EC AbortTimeout 内做完", Solution = "检查串口 / 网口连接和 LoadPort 状态；处理好后复位，再 Home")]
     public string AbortTimeoutAlarm = nameof(AbortTimeoutAlarm);
 
     // 不是超时的失败：设备回了错、指令发不出去
-    [Alarm("LoadPort 动作失败", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load、Unload、Home、夹紧、松开等动作被设备回错或指令发不出去，LoadPort 停在错误状态", Solution = "看报警前后的日志找失败原因，处理好后复位，再 Home")]
+    [Alarm("LoadPort 动作失败", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load、Unload、Home、夹紧、松开等动作被设备回错或指令发不出去，LoadPort 停在错误状态", Solution = "看报警前后的日志找失败原因，处理好后复位，再 Home")]
     public string ControlledStopAlarm = nameof(ControlledStopAlarm);
 
-    [Alarm("LoadPort 设备报警", AlarmCategory.HardwareError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 设备本身报警", Solution = "检查 LoadPort 硬件/通讯状态")]
+    [Alarm("LoadPort 设备报警", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "LoadPort 设备本身报警", Solution = "检查 LoadPort 硬件/通讯状态")]
     public string LoadPortDeviceAlarm = nameof(LoadPortDeviceAlarm);
 
     // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条；
     // EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条（只报警）
-    [Alarm("LoadPort Mapping 异常", AlarmCategory.ProcessError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的、或 Unload 关好门后扫的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
+    [Alarm("LoadPort Mapping 异常", AlarmCategory.DataIntegrity, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的、或 Unload 关好门后扫的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
     public string SlotMapAlarm = nameof(SlotMapAlarm);
 
     #endregion

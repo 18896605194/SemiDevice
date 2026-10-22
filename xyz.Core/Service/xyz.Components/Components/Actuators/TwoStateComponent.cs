@@ -66,7 +66,7 @@ public abstract class TwoStateComponent : ComponentBase
 
     #region Alarm
 
-    [Alarm("开/关到位超时", AlarmCategory.Timeout,
+    [Alarm("开/关到位超时", AlarmCategory.IrrecoverableError,
         Description = "开/关命令已发出，但在指定时间内未收到该侧到位反馈",
         Solution = "检查气源压力、电磁阀及到位传感器；没接到位点的那一侧就不挂 Opened / Closed 子节点，"
                    + "不等也不报；超时时长在 EC ActionTimeoutMs 调")]

@@ -24,7 +24,7 @@ public class HeartbeatComponent : ComponentBase, IHeartbeat
 
     #region Alarm
 
-    [Alarm("心跳发送失败", AlarmCategory.CommunicationError, AlarmLevel = AlarmLevel.Alarm1,
+    [Alarm("心跳发送失败", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1,
         Description = "心跳 DO 没写进 PLC；一直写不进去，PLC 那边看心跳停了会当上位机掉线",
         Solution = "检查 PLC 通讯、DO 点表里有没有 sc 配的这个 DoIndex、IO 联锁是不是锁住了这个 DO；恢复后复位清警")]
     public string SendFailedAlarm = nameof(SendFailedAlarm);

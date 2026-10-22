@@ -79,7 +79,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
 
     #region Alarm
 
-    [Alarm("AI 测量值进入预警区间", AlarmCategory.ParameterControlError,
+    [Alarm("AI 测量值进入预警区间", AlarmCategory.ParameterControlWarning,
         AlarmLevel = AlarmLevel.Warn,
         Description = "AI 测量值进入预警区",
         Solution = "关注该工艺量趋势，必要时提前处理")]

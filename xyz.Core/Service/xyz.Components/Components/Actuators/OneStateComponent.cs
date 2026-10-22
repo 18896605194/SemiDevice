@@ -55,7 +55,7 @@ public abstract class OneStateComponent : ComponentBase
 
     #region Alarm
 
-    [Alarm("到位反馈超时", AlarmCategory.Timeout,
+    [Alarm("到位反馈超时", AlarmCategory.IrrecoverableError,
         Description = "驱动命令已发出，但在指定时间内未收到到位反馈",
         Solution = "检查气源压力、电磁阀及到位传感器；没接到位点就不挂 Feedback 子节点，"
                    + "不等也不报；超时时长在 EC ActionTimeoutMs 调")]

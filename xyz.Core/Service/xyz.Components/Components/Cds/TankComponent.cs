@@ -136,7 +136,7 @@ public class TankComponent : ComponentBase, ITank
 
     #region Alarm
 
-    [Alarm("液位信号异常", AlarmCategory.SensorError,
+    [Alarm("液位信号异常", AlarmCategory.IrrecoverableError,
         Description = "上面的液位信号到了、下面的却没到",
         Solution = "检查液位信号有没有卡住、接线和触发值配置")]
     public string LevelSensorAlarm = nameof(LevelSensorAlarm);
@@ -146,22 +146,22 @@ public class TankComponent : ComponentBase, ITank
         Solution = "检查补液阀有没有关住、H 信号是否失灵")]
     public string HighHighAlarm = nameof(HighHighAlarm);
 
-    [Alarm("溢流", AlarmCategory.SafetyInterlock,
+    [Alarm("溢流", AlarmCategory.EquipmentSafety,
         Description = "Overfill 信号亮了，槽里的液已经满出来了",
         Solution = "停止补液，检查槽和接液盘")]
     public string OverfillAlarm = nameof(OverfillAlarm);
 
-    [Alarm("补液超时", AlarmCategory.Timeout,
+    [Alarm("补液超时", AlarmCategory.IrrecoverableError,
         Description = "补液阀开了 EC FillTimeoutMs 还没到 H",
         Solution = "检查补液阀、来液压力和 H 信号")]
     public string FillTimeoutAlarm = nameof(FillTimeoutAlarm);
 
-    [Alarm("排液超时", AlarmCategory.Timeout,
+    [Alarm("排液超时", AlarmCategory.IrrecoverableError,
         Description = "排液阀开了 EC DrainTimeoutMs LL 还没灭",
         Solution = "检查排液阀、排液管路和 LL 信号")]
     public string DrainTimeoutAlarm = nameof(DrainTimeoutAlarm);
 
-    [Alarm("供液中液位低低", AlarmCategory.ProcessError,
+    [Alarm("供液中液位低低", AlarmCategory.ParameterControlError,
         Description = "供液时液位掉到 LL 以下，已停止供液",
         Solution = "补液后复位")]
     public string SupplyLowLowAlarm = nameof(SupplyLowLowAlarm);

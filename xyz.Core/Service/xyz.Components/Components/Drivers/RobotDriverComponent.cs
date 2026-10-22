@@ -45,7 +45,7 @@ public abstract class RobotDriverComponent : ComponentBase, IRobotDriverComponen
 
     #region Alarm
 
-    [Alarm("机械手通讯断开，已停止重连", AlarmCategory.CommunicationError,
+    [Alarm("机械手通讯断开，已停止重连", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "机械手控制器通讯断开后按 EC ReconnectMaxCount 重连了几次都没连上，已停止重连，指令都发不出去",
         Solution = "检查网线、控制器电源和通讯配置（sc.xml 的 IP / 端口）；好了以后复位，复位会重新开始连")]

@@ -92,9 +92,11 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 ### 报警
 ```csharp
-[Alarm("开/关到位超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1, Description = "...", Solution = "...")]
+[Alarm("开/关到位超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "...", Solution = "...")]
 public string TimeoutAlarm = nameof(TimeoutAlarm);
 ```
+- **分类就是 SEMI E5 ALCD 的类别**（2026-10-22）：按出了什么事选——伤人 1、坏设备 2、工艺量预警 3 / 超限 4、设备或动作出错要人处理 5、
+  设备状况要留意 6、要人来看一下 7、账或 Mapping 对不上 8；值原样进 S5F1 / S5F6 / S5F8 的 ALCD 低 7 位。轻重另看 `AlarmLevel`，两个不互相推。
 - 报：每拍条件型 `CheckAlarm(code, condition, debounceMs)`；一次性 `RaiseAlarm(code)`。不用事先注册，第一次报时反射取定义。
 - **报警只能人工复位清**（`AlarmComponent.Reset(sourcePath)` → 组件 `Reset()`），源头恢复、动作成功都不自动清。
 - 历史入库（按天分表），报出、清除各一行。客户端推送由 Service 层桥接 `AlarmChanged`。

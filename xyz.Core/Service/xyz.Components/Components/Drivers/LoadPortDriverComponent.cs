@@ -63,7 +63,7 @@ public abstract class LoadPortDriverComponent : ComponentBase, ILoadPortDriverCo
 
     #region Alarm
 
-    [Alarm("LoadPort 通讯断开，已停止重连", AlarmCategory.CommunicationError,
+    [Alarm("LoadPort 通讯断开，已停止重连", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "通讯断开后按 EC ReconnectMaxCount 重连了几次都没连上，已停止重连，这一路指令都发不出去",
         Solution = "检查线缆、设备电源和通讯配置（sc.xml 的串口 / IP）；好了以后复位，复位会重新开始连")]

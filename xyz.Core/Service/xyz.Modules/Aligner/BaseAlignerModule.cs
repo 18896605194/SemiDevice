@@ -77,7 +77,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     #region Alarm
 
-    [Alarm("对准器动作失败", AlarmCategory.ProcessError,
+    [Alarm("对准器动作失败", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "回原点、对准动作失败或超时（找不到缺口、真空没吸上、设备报错），或片放上来了却起不了对准，对准器进入错误状态",
         Solution = "确认台上实际有没有片、片是不是完好，账不对先调账；复位后重新回原点（台上有片会再对一遍）")]

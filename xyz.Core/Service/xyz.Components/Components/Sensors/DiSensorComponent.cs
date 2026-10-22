@@ -39,7 +39,7 @@ public class DiSensorComponent : ComponentBase, IDiSensor
 
     #region Alarm
 
-    [Alarm("开关信号异常", AlarmCategory.SensorError,
+    [Alarm("开关信号异常", AlarmCategory.EquipmentStatusWarning,
         Description = "DI 数字输入处于配置的报警电平",
         Solution = "检查对应设备/互锁状态及该 DI 点接线")]
     public string SensorAlarm = nameof(SensorAlarm);

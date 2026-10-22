@@ -115,7 +115,7 @@ public class JobManager : ComponentBase, IJobManager
 
     #region 报警
 
-    [Alarm("PJ 等的载具到了，但定不了片", AlarmCategory.ProcessError,
+    [Alarm("PJ 等的载具到了，但定不了片", AlarmCategory.AttentionFlags,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "Host 先建的 PJ 等的载具到了 LoadPort、也能取片了，但片用不了：槽里没片、片不正常或已经做过、片归了别的 PJ、"
             + "流程配方第 1 步没勾这个 LoadPort、回片槽用不了、这个口被别的 Job 占着等。PJ 留在排队不动，哪个 PJ、什么原因看 Job 的日志",

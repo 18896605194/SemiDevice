@@ -59,7 +59,7 @@ try
         "EC 全名 = 组件路径.属性名，元数据取自 [VariableMark]");
     Check(gem.Sv.Definitions.Any(row => row.Name == "Tool1._carrier"), "SV 用 [VariableMark] 的 Name 覆盖采集名");
     Check(gem.Alarm.Definitions.Any(row => row.Name == "Tool1.TimeoutAlarm" && row.AlarmText == "动作超时"
-                                           && row.AlarmLevel == "Alarm1" && row.Category == "Timeout"),
+                                           && row.AlarmLevel == "Alarm1" && row.Category == "IrrecoverableError"),
         "报警全名 = 组件路径.报警代码，文本、等级、分类取自 [Alarm]");
     Check(IdOf(gem.Event.Definitions, "Tool1.Arrived") == 70000 && IdOf(gem.Event.Definitions, "Tool2.Arrived") == 70001,
         "组件事件先分号，报警事件跟在后面");
@@ -267,11 +267,11 @@ public sealed class ProbeTool : ComponentBase
     [VariableMark(VariableType.SV, ValueFormat.String, description: "当前载具号", Name = "_carrier")]
     public string? CarrierId { get; set; }
 
-    [Alarm("动作超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1,
+    [Alarm("动作超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1,
         Description = "动作没在规定时间内完成", Solution = "检查设备后复位")]
     public string TimeoutAlarm = nameof(TimeoutAlarm);
 
-    [Alarm("温度偏高", AlarmCategory.ParameterControlError, AlarmLevel = AlarmLevel.Warn)]
+    [Alarm("温度偏高", AlarmCategory.ParameterControlWarning, AlarmLevel = AlarmLevel.Warn)]
     public string HotWarn = nameof(HotWarn);
 
     [EventAttribut("载具到达", Description = "载具放上")]
@@ -284,6 +284,6 @@ public sealed class ProbeTool : ComponentBase
 [Component(description: "只有 Warn 报警的冒烟用设备")]
 public sealed class ProbeWarnOnly : ComponentBase
 {
-    [Alarm("仅提示", AlarmCategory.Other, AlarmLevel = AlarmLevel.Warn)]
+    [Alarm("仅提示", AlarmCategory.AttentionFlags, AlarmLevel = AlarmLevel.Warn)]
     public string OnlyWarn = nameof(OnlyWarn);
 }

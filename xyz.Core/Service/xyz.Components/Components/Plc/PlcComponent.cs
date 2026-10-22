@@ -115,13 +115,13 @@ public partial class PlcComponent : ComponentBase, IPlcIo, IPlcBlock
 
     #region Alarm
 
-    [Alarm("PLC 通讯断开", AlarmCategory.CommunicationError,
+    [Alarm("PLC 通讯断开", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "与 PLC 的连接断开或建立失败，所有 IO 读写停摆",
         Solution = "检查网线、PLC 上电与地址配置（sc.xml 的 Host/Port）；恢复后复位清警（重连次数用完停下来的，复位会重新开始连）")]
     public string PlcOfflineAlarm = nameof(PlcOfflineAlarm);
 
-    [Alarm("PLC 数据块读写失败", AlarmCategory.CommunicationError,
+    [Alarm("PLC 数据块读写失败", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "连接正常但某个数据块读或写失败，通常是块名配错或 PLC 侧未定义",
         Solution = "核对数据块名（组件的 PlcDataPath / sc.xml 的 DiDataPath、DoDataPath）与 PLC 程序里的符号")]

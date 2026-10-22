@@ -384,7 +384,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     Check(alarm.SourcePath == "SmokeLedger" && alarm.AlarmCode == "WaferLedgerAlarm",
         $"报警应带上来源与代码，实际 {alarm.SourcePath}.{alarm.AlarmCode}");
     Check(alarm.AlarmText == "晶圆账异常" && alarm.Level == AlarmLevel.Alarm1
-          && alarm.Category == AlarmCategory.ProcessError,
+          && alarm.Category == AlarmCategory.DataIntegrity,
         "报警文本/等级/分类应来自组件上的 [Alarm] 定义——不用事先注册");
     Check(!string.IsNullOrWhiteSpace(alarm.Solution), "报警应带处理建议，界面要显示给操作员");
     Check(alarm.IsActive, "刚报出来应是活动的");

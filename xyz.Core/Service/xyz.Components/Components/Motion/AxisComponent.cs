@@ -166,22 +166,22 @@ public partial class AxisComponent : ComponentBase, IAxis
 
     #region Alarm
 
-    [Alarm("轴回零超时", AlarmCategory.Timeout,
+    [Alarm("轴回零超时", AlarmCategory.IrrecoverableError,
         Description = "回零命令已发出，但在指定时间内未收到回零完成",
         Solution = "检查原点开关、驱动器使能及 PLC 数据块通讯；超时时长在 EC TimeoutMs 调")]
     public string HomeTimeoutAlarm = nameof(HomeTimeoutAlarm);
 
-    [Alarm("轴运动超时", AlarmCategory.Timeout,
+    [Alarm("轴运动超时", AlarmCategory.IrrecoverableError,
         Description = "运动命令已发出，但在指定时间内实际位置未进入目标位置容差",
         Solution = "检查驱动器使能、机械是否卡滞及 PLC 数据块通讯；超时时长在 EC TimeoutMs、容差在 EC PositionTolerance 调")]
     public string MoveTimeoutAlarm = nameof(MoveTimeoutAlarm);
 
-    [Alarm("轴停止超时", AlarmCategory.Timeout,
+    [Alarm("轴停止超时", AlarmCategory.IrrecoverableError,
         Description = "停止命令已发出，但在指定时间内轴未静止",
         Solution = "检查驱动器及 PLC 数据块通讯；超时时长在 EC StopTimeoutMs 调")]
     public string StopTimeoutAlarm = nameof(StopTimeoutAlarm);
 
-    [Alarm("轴驱动器报错", AlarmCategory.MotionError,
+    [Alarm("轴驱动器报错", AlarmCategory.IrrecoverableError,
         Description = "PLC 回读数据中该轴处于报错状态（驱动器报警、限位、伺服未使能等）",
         Solution = "查看驱动器报警码，排除故障后复位并重新回零")]
     public string AxisErrorAlarm = nameof(AxisErrorAlarm);

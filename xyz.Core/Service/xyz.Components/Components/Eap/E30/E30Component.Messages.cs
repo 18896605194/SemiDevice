@@ -604,7 +604,9 @@ public partial class E30Component
         return SecsReply.Of(SecsItem.B(ack));
     }
 
-    /// <summary>S5F5 列报警 → S5F6 L[n]{L[3]{ALCD, ALID, ALTX}}：ALID 向量，空 = 全部；ALCD 最高位表示现在在报着。</summary>
+    /// <summary>
+    /// S5F5 列报警 → S5F6 L[n]{L[3]{ALCD, ALID, ALTX}}：ALID 向量，空 = 全部；ALCD 最高位表示现在在报着，低 7 位是报警分类。
+    /// </summary>
     private SecsReply ListAlarms(HsmsMessage message)
     {
         var body = message.Body;
@@ -625,7 +627,7 @@ public partial class E30Component
         return SecsItem.L(ids.Select(alid =>
         {
             var definition = definitions.FirstOrDefault(row => row.Enabled && row.Id == alid);
-            byte alcd = active.Contains(alid) ? AlarmSetBit : (byte)0;
+            byte alcd = Alcd(active.Contains(alid), CategoryOf(definition));
             return SecsItem.L(SecsItem.B(alcd), SecsItem.U4(alid), SecsItem.A(definition is null ? string.Empty : AlarmText(definition.Name)));
         }));
     }

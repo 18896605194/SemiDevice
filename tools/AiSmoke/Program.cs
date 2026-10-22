@@ -325,7 +325,7 @@ public sealed class SmokeAi : AiComponent
 [Component(description: "冒烟用报警来源")]
 public sealed class AlarmProbe : ComponentBase
 {
-    [Alarm("开/关到位超时", AlarmCategory.Timeout, AlarmLevel = AlarmLevel.Alarm1,
+    [Alarm("开/关到位超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1,
         Description = "开门命令发出后到位信号没在时间内亮",
         Solution = "检查到位传感器和气压")]
     public string TimeoutAlarm = nameof(TimeoutAlarm);

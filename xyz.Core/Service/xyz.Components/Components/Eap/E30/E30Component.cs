@@ -476,7 +476,7 @@ public partial class E30Component : ComponentBase, IE30Component
     #region 报警（S5F1 + 报警事件）
 
     /// <summary>
-    /// 报警报出 / 清除：Host 开着这个报警就发 S5F1（ALCD 最高位 1 = 报出），再报这条报警对应的报出 / 清除事件（带报警的几项 DV）。
+    /// 报警报出 / 清除：Host 开着这个报警就发 S5F1（ALCD 最高位 1 = 报出，低 7 位是报警分类），再报这条报警对应的报出 / 清除事件（带报警的几项 DV）。
     /// 没有 ALID 的报警只记日志。
     /// </summary>
     private void OnAlarmChanged(AlarmItem alarm)
@@ -502,7 +502,7 @@ public partial class E30Component : ComponentBase, IE30Component
             var sender = _sender;
             if (sender is not null && IsOnline && _book.IsAlarmEnabled(alid))
             {
-                byte alcd = alarm.IsActive ? AlarmSetBit : (byte)0;
+                byte alcd = Alcd(alarm.IsActive, alarm.Category);
                 sender.Enqueue(new SecsMessage(5, 1, true,
                     SecsItem.L(SecsItem.B(alcd), SecsItem.U4(alid), SecsItem.A(AlarmText(definition.Name)))));
             }
@@ -543,6 +543,33 @@ public partial class E30Component : ComponentBase, IE30Component
     {
         string text = GemValue.Ascii(name);
         return text.Length > MaxAlarmTextLength ? text[^MaxAlarmTextLength..] : text;
+    }
+
+    /// <summary>
+    /// ALCD：最高位是还在不在报，低 7 位是报警分类（[Alarm] 上声明的，跟 E5 的类别一一对应）。
+    /// </summary>
+    private static byte Alcd(bool active, AlarmCategory category)
+    {
+        byte alcd = (byte)category;
+        if (active)
+        {
+            alcd |= AlarmSetBit;
+        }
+
+        return alcd;
+    }
+
+    /// <summary>
+    /// 编号表里记的分类名换回枚举；没有这一行或名字认不出就当"不用"（0）。
+    /// </summary>
+    private static AlarmCategory CategoryOf(AlarmDefinition? definition)
+    {
+        if (definition is not null && Enum.TryParse(definition.Category, out AlarmCategory category))
+        {
+            return category;
+        }
+
+        return AlarmCategory.NotUsed;
     }
 
     #endregion

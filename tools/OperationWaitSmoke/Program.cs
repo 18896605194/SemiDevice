@@ -4487,7 +4487,7 @@ sealed class ProbeChild : ComponentBase
         _trace = trace;
     }
 
-    [xyz.Components.Attributes.Alarm("探针故障", xyz.Components.Enums.AlarmCategory.Other)]
+    [xyz.Components.Attributes.Alarm("探针故障", xyz.Components.Enums.AlarmCategory.OtherCategories)]
     public string ProbeFault = nameof(ProbeFault);
 
     public bool FailInit { get; init; }

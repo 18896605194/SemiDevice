@@ -410,18 +410,19 @@ mark = host.EventCount;
 probe.Fire();
 await WaitUntil(() => host.AlarmCount > alarmMark, "报警报出应发 S5F1");
 var s5f1 = host.Alarms[alarmMark];
-Check(s5f1.Body!.Items[0].GetBinary()[0] == 0x80 && s5f1.Body.Items[1].GetUInt64() == alid && s5f1.Body.Items[2].GetString() == "Probe.ProbeAlarm",
-    "S5F1 L[3]{ALCD=0x80, ALID, ALTX}");
+Check(s5f1.Body!.Items[0].GetBinary()[0] == 0x82 && s5f1.Body.Items[1].GetUInt64() == alid && s5f1.Body.Items[2].GetString() == "Probe.ProbeAlarm",
+    "S5F1 L[3]{ALCD=0x82（报出 0x80 + 设备安全 2）, ALID, ALTX}");
 Check(host.FindEvent((uint)alarmRow.SetEventId, mark) is not null || await host.WaitEventAsync((uint)alarmRow.SetEventId, mark) is not null,
     "报警报出同时报报警事件");
 var s5f6 = await Send(5, 5, SecsItem.U4(alid));
-Check(s5f6.Body!.Items[0].Items[0].GetBinary()[0] == 0x80, "S5F5 列报警：在报着的 ALCD 最高位是 1");
+Check(s5f6.Body!.Items[0].Items[0].GetBinary()[0] == 0x82, "S5F5 列报警：在报着的 ALCD = 最高位 1 + 报警分类");
 Check((await Send(5, 3, SecsItem.L(SecsItem.B(0), SecsItem.U4(alid)))).Body!.GetBinary()[0] == 0, "S5F3 关掉这个报警");
 alarmMark = host.AlarmCount;
 mark = host.EventCount;
 probe.Reset();
 await host.WaitEventAsync((uint)alarmRow.ClearEventId, mark);
 Check(host.FindEvent((uint)alarmRow.ClearEventId, mark) is not null && host.AlarmCount == alarmMark, "报警关了：清除不发 S5F1，但照报清除事件");
+Check((await Send(5, 5, SecsItem.U4(alid))).Body!.Items[0].Items[0].GetBinary()[0] == 0x02, "S5F5 列报警：清掉了 ALCD 只剩报警分类（设备安全 2）");
 Check((await Send(5, 7)).Body!.Items.All(item => item.Items[1].GetUInt64() != alid), "S5F7 开着的报警里没有它");
 Check((await Send(5, 3, SecsItem.L(SecsItem.B(0x80), SecsItem.U4()))).Body!.GetBinary()[0] == 0, "S5F3 ALID 空 = 全部开");
 Check((await Send(5, 3, SecsItem.L(SecsItem.B(0x80), SecsItem.U4(1)))).Body!.GetBinary()[0] == 1, "S5F3 不存在的 ALID 回 1");
@@ -1097,7 +1098,7 @@ Console.WriteLine($"PASS: {checks} 项检查全部通过");
 [Component(description: "EapSmoke 报警探针")]
 public sealed class AlarmProbe : ComponentBase
 {
-    [Alarm("冒烟报警", AlarmCategory.Other)]
+    [Alarm("冒烟报警", AlarmCategory.EquipmentSafety)]
     public string ProbeAlarm = "ProbeAlarm";
 
     public void Fire() => RaiseAlarm(ProbeAlarm);

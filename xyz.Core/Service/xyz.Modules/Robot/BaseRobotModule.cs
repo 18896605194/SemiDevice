@@ -127,13 +127,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot
 
     #region Alarm
 
-    [Alarm("_robot 设备报警", AlarmCategory.HardwareError,
+    [Alarm("_robot 设备报警", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "_robot 控制器上报报错",
         Solution = "查询报错内容，排除故障后复位并重新回原点")]
     public string RobotDeviceAlarm = nameof(RobotDeviceAlarm);
 
-    [Alarm("_robot 受控停止", AlarmCategory.MotionError,
+    [Alarm("_robot 受控停止", AlarmCategory.IrrecoverableError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "取放片、回原点等动作失败或超时，_robot 进入错误状态",
         Solution = "先确认手指与站点上的实际片位，再复位并重新回原点")]

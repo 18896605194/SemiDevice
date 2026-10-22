@@ -188,11 +188,11 @@ try
         db.CodeFirst.SplitTables().InitTables<AlarmHistoryEntity>();
         db.Insertable(new List<AlarmHistoryEntity>
         {
-            new() { Action = "Raised", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "Other", Level = "Alarm1",
+            new() { Action = "Raised", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "OtherCategories", Level = "Alarm1",
                     RaisedAt = today.AddHours(8), OccurredAt = today.AddHours(8) },
-            new() { Action = "Cleared", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "Other", Level = "Alarm1",
+            new() { Action = "Cleared", Source = "Tool1", Code = "ProbeFault", Text = "探针故障", Category = "OtherCategories", Level = "Alarm1",
                     RaisedAt = today.AddHours(8), OccurredAt = today.AddHours(8).AddMinutes(5) },
-            new() { Action = "Raised", Source = "Tool2", Code = "Crash", Text = "撞机", Category = "MotionError", Level = "Fatal",
+            new() { Action = "Raised", Source = "Tool2", Code = "Crash", Text = "撞机", Category = "IrrecoverableError", Level = "Fatal",
                     RaisedAt = today.AddHours(9), OccurredAt = today.AddHours(9) },
         }).SplitTable().ExecuteCommand();
     }
@@ -476,7 +476,7 @@ sealed class ProbeDevice : ComponentBase
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
-    [Alarm("探针故障", AlarmCategory.Other, AlarmLevel = AlarmLevel.Alarm1, Solution = "检查探针后复位")]
+    [Alarm("探针故障", AlarmCategory.OtherCategories, AlarmLevel = AlarmLevel.Alarm1, Solution = "检查探针后复位")]
     public string ProbeFault = nameof(ProbeFault);
 
     public void Fault() => RaiseAlarm(ProbeFault);
