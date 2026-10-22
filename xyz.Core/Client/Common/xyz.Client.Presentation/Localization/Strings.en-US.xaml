@@ -396,6 +396,7 @@
     <sys:String x:Key="account.login.title">Log in</sys:String>
     <sys:String x:Key="account.login.subtitle">Enter your user name and password</sys:String>
     <sys:String x:Key="account.login.guest_hint">You can look around without logging in: Cancel enters as a guest, view only</sys:String>
+    <sys:String x:Key="account.login.idle_notice">No activity for {0} minutes, so you were logged out. Please log in again.</sys:String>
     <sys:String x:Key="account.login.ok">Log in</sys:String>
     <sys:String x:Key="account.user_name">User name</sys:String>
     <sys:String x:Key="account.display_name">Display name</sys:String>

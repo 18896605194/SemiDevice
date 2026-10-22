@@ -630,7 +630,8 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 ### 账号：登录、用户、角色（2026-10-21，见 decisions.md「登录和菜单权限」）
 - **组件** `Components\System\AccountComponent`（sc.xml 顶层 `Account` 节点，接口 `IAccount`）：SC `IsEnable`（要不要登录，系统设置的 `IsLoginEnabled` 就是它；没配节点 = 不登录）、
-  `Database`（库名）；EC `IdleLogoutMinutes`（闲置注销，默认 15，0 = 不注销）、`PasswordMinLength`（默认 4）。不扫描、不起线程，调用都在 RPC 线程上、一把锁。
+  `Database`（库名）、`IdleLogoutMinutes`（闲置自动退出、客户端弹登录框，默认 15，0 = 不自动退出）、`PasswordMinLength`（默认 4）——后两个
+  **放 sc 不放 EC**（用户 2026-10-22 定的：账号安全的规矩不让 EC 页改），配错 `OnSettingLoaded` 开机就报。不扫描、不起线程，调用都在 RPC 线程上、一把锁。
   组件初始化建表、第一次开机预置角色（管理员、访客，还有工程师、操作员各项的默认档位在 `Defaults`）和内置账号 admin / admin；建表、预置没成后面一律回 `account.failed`。
   会话 `SessionDto`：登录名、显示名、角色、各项档位（管理员不带，全部能操作）、闲置注销分钟数；`GetSession(空)` 就是访客的。
   建、改、删账号和角色，存权限都推 `AccountChangedDto`（token "Account"，不留存），登录着的客户端重新取会话、两个设置页重拉。

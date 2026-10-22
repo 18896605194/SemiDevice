@@ -5,7 +5,7 @@ using xyz.Client.Common.Session;
 namespace xyz.Client.Session;
 
 /// <summary>
-/// 闲置自动注销：键盘鼠标多久没动（会话带的分钟数，账号组件的 EC）就注销回访客。
+/// 闲置自动退出：键盘鼠标多久没动（会话带的分钟数，账号组件 sc 的 IdleLogoutMinutes）就退出登录，接着由顶栏弹登录框要重新登录。
 /// 看的是 Windows 记的最后一次有人碰键盘、鼠标、触摸屏的时刻（整台电脑的），不看 WPF 自己的输入事件：
 /// 鼠标停在窗口上时，界面一刷新（顶栏时钟每秒走一下）WPF 就补发一次"鼠标移动"，那样永远算不上闲着
 /// </summary>
@@ -29,6 +29,11 @@ public static class IdleLogout
     /// 这个人登录的时刻（开机以来的毫秒数）：闲置从这儿起算，不算登录之前闲着的时间
     /// </summary>
     private static long _loggedInAt = Environment.TickCount64;
+
+    /// <summary>
+    /// 闲置到点、已经退出登录以后发（界面线程上）：带刚才那个人的登录名和分钟数，顶栏接着弹登录框
+    /// </summary>
+    public static event Action<string, int>? TimedOut;
 
     /// <summary>
     /// 主窗口起来以后调一次（在界面线程上）
@@ -59,7 +64,7 @@ public static class IdleLogout
         _loggedInAt = Environment.TickCount64;
     }
 
-    private static void OnTick(object? sender, EventArgs e)
+    private static async void OnTick(object? sender, EventArgs e)
     {
         int minutes = ClientSession.IdleLogoutMinutes;
         if (!ClientSession.IsLoggedIn || minutes <= 0)
@@ -73,7 +78,10 @@ public static class IdleLogout
             return;
         }
 
-        _ = ClientAccount.LogoutAsync(isIdle: true);
+        // 退出时会话当场就回访客，下一拍不会再进来
+        string userName = ClientSession.LoginName;
+        await ClientAccount.LogoutAsync(isIdle: true);
+        TimedOut?.Invoke(userName, minutes);
     }
 
     /// <summary>

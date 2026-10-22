@@ -35,7 +35,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 6. 统一调一遍所有 `BaseViewModel` 的 `Init()`（各自 try/catch 记日志）。`MainViewModel` 最先注册，它的 Init 会把所有页面建出来，
    所以**页面的构造先于自己 VM 的 Init**。
 7. 主窗口先放到屏幕外 `Show`、等 `ContentRendered`（所有页面套模板、排版、Loaded 一次做完），再挪回来最大化、关加载窗口。
-8. `IdleLogout.Start()`（闲置自动注销）；要登录、还没登录的弹登录框（`TopBarViewModel.ShowLoginAtStartup`，取消就当访客）。
+8. `IdleLogout.Start()`（闲置自动退出，到点再弹登录框）；要登录、还没登录的弹登录框（`TopBarViewModel.ShowLoginAtStartup`，取消就当访客）。
 
 ## 3. 菜单和页面
 
@@ -243,7 +243,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - **公共确认弹窗** `DialogService.ShowConfirm(标题, 说明, 确定按钮字, danger, showCancel)`：跟选择弹窗一个样子，说明多行、长了滚动；
   danger = 确定按钮红色（中止、删除这类），showCancel = false 只有一个按钮（只是告知）。以后 Job 页的停止 / 中止用它。
-- **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机那次多一行"取消就当访客"）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
+- **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机和闲置退出那次多一行"取消就当访客"；`notice` 是标题下的黄字提醒，`DialogNoticeTextStyle`）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
   `ShowUser`（新建 / 改账号）、`ShowRole`（新建角色 / 改名和说明）。都是传一个异步回调去调后端：回 null 关框，回一句话就红字写在框里、框不关。
   密码用 `PasswordBox` + `DefaultPasswordBoxStyle`（不进 VM、不绑定）。
 - LogBar / AlarmBar 只在主窗口顶栏用。
@@ -294,7 +294,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
 - 当前用户 `xyz.Client.Common.Session.ClientSession`（2026-10-21 起有登录）：`UserName` 记操作人用（不用登录时是 Admin，没登录是 Guest），
   `LoginName` / `DisplayName` / `RoleKind` / `IsLoggedIn` / `IsAdmin`、`LevelOf(编码)` / `CanOperate(编码)`；会话一变发 `Changed`（界面线程）。
-  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置注销 `Session\IdleLogout`（分钟数是后端 EC，跟会话一起下来；
+  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置自动退出 `Session\IdleLogout`（分钟数是后端 sc，跟会话一起下来；到点退出以后发 `TimedOut`，
+  顶栏 `TopBarViewModel` 接着弹登录框（写明原因、登录名填好，取消当访客；开着一个就不再叠）；`MainViewModel` 记着被藏掉的那一页，重新登录看得到了回去；
   闲没闲看 Windows 的 `GetLastInputInfo`，**别改回 WPF 的 `InputManager.PreProcessInput`**——鼠标停在窗口上时界面一刷新 WPF 就补发鼠标移动，永远不算闲着）。
 - EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。
 

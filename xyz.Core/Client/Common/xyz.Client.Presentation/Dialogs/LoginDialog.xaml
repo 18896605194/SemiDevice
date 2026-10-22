@@ -14,10 +14,12 @@
     WindowStartupLocation="CenterOwner"
     WindowStyle="None">
 
-    <!--  登录框：跟公共弹窗一个样子（深色卡片浮在主窗口中间）。登录名、密码不对在框里红字说原因，不清登录名；回车 = 登录，Esc = 取消  -->
+    <!--  登录框：跟公共弹窗一个样子（深色卡片浮在主窗口中间）。登录名、密码不对在框里红字说原因，不清登录名；回车 = 登录，Esc = 取消。
+          闲置太久自动退出时也弹它，标题下面黄字写为什么要重新登录  -->
     <materialDesign:Card Margin="24" Style="{DynamicResource DialogCardStyle}">
         <StackPanel Width="420">
             <TextBlock Style="{DynamicResource PanelTitleTextStyle}" Text="{DynamicResource account.login.title}" />
+            <TextBlock x:Name="NoticeText" Style="{DynamicResource DialogNoticeTextStyle}" />
             <TextBlock Style="{DynamicResource DialogMessageTextStyle}" Text="{DynamicResource account.login.subtitle}" />
 
             <TextBlock

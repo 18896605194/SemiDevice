@@ -48,6 +48,7 @@ public class MainViewModel : BaseViewModel
         {
             if (SetProperty(ref _selectedPrimaryMenu, value))
             {
+                ForgetReturnPage();
                 ApplyPrimaryMenuSelection(value);
             }
         }
@@ -68,6 +69,7 @@ public class MainViewModel : BaseViewModel
                 return;
             }
 
+            ForgetReturnPage();
             if (SelectedPrimaryMenu is not null)
             {
                 _lastSecondaryCodes[SelectedPrimaryMenu.Code] = value.Code;
@@ -148,6 +150,18 @@ public class MainViewModel : BaseViewModel
     /// 声明的全部菜单（不管当前角色看不看得到）：页面照它全部建好，换人只重排底部菜单
     /// </summary>
     private List<ClientMenu> _menus = [];
+
+    /// <summary>
+    /// 退出、换人时眼下这一页看不到了，记下它的一级、二级菜单：权限回来（重新登录）就回到这一页，中间人自己点了别的菜单就作废
+    /// </summary>
+    private string? _returnPrimaryCode;
+
+    private string? _returnSecondaryCode;
+
+    /// <summary>
+    /// 正在按会话重排底部菜单：这时候换选中不是人点的
+    /// </summary>
+    private bool _rebuilding;
 
     #endregion
 
@@ -251,7 +265,8 @@ public class MainViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 按当前会话合成底部菜单：隐藏的不放，一级菜单下的页面都看不到就整个不放；原来那一页还在就停在那一页，不在了回第一个
+    /// 按当前会话合成底部菜单：隐藏的不放，一级菜单下的页面都看不到就整个不放。
+    /// 原来那一页还在就停在那一页；不在了（比如闲置退出成访客）先回还看得到的地方，记下原来那一页，重新登录看得到了再回去
     /// </summary>
     private void BuildMenus()
     {
@@ -262,20 +277,62 @@ public class MainViewModel : BaseViewModel
             _lastSecondaryCodes[primaryCode] = secondaryCode;
         }
 
-        SelectedPrimaryMenu = null;
-        PrimaryMenus.Clear();
-        foreach (var menu in _menus
-                     .Where(menu => menu.ParentCode is null)
-                     .OrderBy(menu => menu.Sort))
+        // 想停的那一页：之前被藏掉、还没回去的优先，没有就是眼下这一页
+        string? wantedPrimary = _returnPrimaryCode ?? primaryCode;
+        string? wantedSecondary = _returnPrimaryCode is not null ? _returnSecondaryCode : secondaryCode;
+
+        _rebuilding = true;
+        try
         {
-            var model = BuildMenu(menu);
-            if (model is not null)
+            SelectedPrimaryMenu = null;
+            PrimaryMenus.Clear();
+            foreach (var menu in _menus
+                         .Where(menu => menu.ParentCode is null)
+                         .OrderBy(menu => menu.Sort))
             {
-                PrimaryMenus.Add(model);
+                var model = BuildMenu(menu);
+                if (model is not null)
+                {
+                    PrimaryMenus.Add(model);
+                }
             }
+
+            var wanted = PrimaryMenus.FirstOrDefault(menu => menu.Code == wantedPrimary);
+            if (wanted is not null && (wantedSecondary is null || wanted.Children.Any(child => child.Code == wantedSecondary)))
+            {
+                _returnPrimaryCode = null;
+                _returnSecondaryCode = null;
+                if (wantedSecondary is not null)
+                {
+                    _lastSecondaryCodes[wanted.Code] = wantedSecondary;
+                }
+
+                SelectedPrimaryMenu = wanted;
+                return;
+            }
+
+            _returnPrimaryCode = wantedPrimary;
+            _returnSecondaryCode = wantedSecondary;
+            SelectedPrimaryMenu = PrimaryMenus.FirstOrDefault(menu => menu.Code == primaryCode) ?? PrimaryMenus.FirstOrDefault();
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
+    }
+
+    /// <summary>
+    /// 人自己点了菜单：之前记着要回去的那一页作废
+    /// </summary>
+    private void ForgetReturnPage()
+    {
+        if (_rebuilding)
+        {
+            return;
         }
 
-        SelectedPrimaryMenu = PrimaryMenus.FirstOrDefault(menu => menu.Code == primaryCode) ?? PrimaryMenus.FirstOrDefault();
+        _returnPrimaryCode = null;
+        _returnSecondaryCode = null;
     }
 
     /// <summary>

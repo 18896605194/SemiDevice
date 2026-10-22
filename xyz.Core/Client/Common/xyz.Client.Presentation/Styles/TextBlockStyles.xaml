@@ -406,6 +406,15 @@
         <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
     </Style>
 
+    <!--  弹窗里的提醒（如闲置太久自动退出了、要重新登录）：黄字、自动换行；没有时不占地方  -->
+    <Style
+        x:Key="DialogNoticeTextStyle"
+        BasedOn="{StaticResource DialogMessageTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,10,0,0" />
+        <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+    </Style>
+
     <!--  块标题条右边的一个统计数（如工艺步骤的"合计 115 s"）：灰字，跟后面的按钮隔开  -->
     <Style x:Key="ZoneStatTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,0,12,0" />

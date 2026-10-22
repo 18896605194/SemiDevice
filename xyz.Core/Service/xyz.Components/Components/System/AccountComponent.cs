@@ -3,8 +3,8 @@ using System.Security.Cryptography;
 using SqlSugar;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
-using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Configs.Models;
 using xyz.Database.Auth;
 using xyz.Database.DbProvider;
 using xyz.Shared.Dtos;
@@ -92,6 +92,18 @@ public class AccountComponent : ComponentBase, IAccount
     /// </summary>
     private static readonly string[] LegacyTables = ["User", "Role", "Menu"];
 
+    /// <summary>
+    /// 闲置自动退出最长配多少分钟（一天）
+    /// </summary>
+    private const int IdleLogoutMaxMinutes = 1440;
+
+    /// <summary>
+    /// 密码最短几位能配的范围
+    /// </summary>
+    private const int PasswordMinLengthLowest = 1;
+
+    private const int PasswordMinLengthHighest = 32;
+
     #endregion
 
     #region SC
@@ -102,24 +114,14 @@ public class AccountComponent : ComponentBase, IAccount
     [SCEditor("Default", "Account", "账号存在哪个库（sc.xml 的 Database 节点名）")]
     public string Database { get; set; } = "Default";
 
-    #endregion
+    /// <summary>
+    /// 放 sc 不放 EC（用户 2026-10-22 定的）：EC 页工程师就能改，账号安全的规矩不该谁都能改
+    /// </summary>
+    [SCEditor("15", "Account", "闲置自动退出：客户端键盘鼠标多少分钟没动就退出登录、弹登录框（取消按访客）；0 = 不自动退出，最长 1440")]
+    public int IdleLogoutMinutes { get; set; } = 15;
 
-    #region EC
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, "min", "0", "1440", "15",
-        "闲置自动注销：客户端键盘鼠标多少分钟没动就注销回访客；0 = 不自动注销")]
-    public int IdleLogoutMinutes
-    {
-        get { return GetEcInt(nameof(IdleLogoutMinutes)); }
-        set { SetEcInt(nameof(IdleLogoutMinutes), value); }
-    }
-
-    [VariableMark(VariableType.EC, ValueFormat.Int, "位", "1", "32", "4", "密码最短几位")]
-    public int PasswordMinLength
-    {
-        get { return GetEcInt(nameof(PasswordMinLength)); }
-        set { SetEcInt(nameof(PasswordMinLength), value); }
-    }
+    [SCEditor("4", "Account", "密码最短几位（1 ~ 32）")]
+    public int PasswordMinLength { get; set; } = 4;
 
     #endregion
 
@@ -131,6 +133,25 @@ public class AccountComponent : ComponentBase, IAccount
     private bool _ready;
 
     #region 开机：建表、预置
+
+    /// <summary>
+    /// 闲置分钟数、密码最短几位配得不对开机就报
+    /// </summary>
+    protected internal override void OnSettingLoaded(ModuleConfig setting)
+    {
+        base.OnSettingLoaded(setting);
+        if (IdleLogoutMinutes < 0 || IdleLogoutMinutes > IdleLogoutMaxMinutes)
+        {
+            throw new InvalidOperationException(
+                $"sc.xml 节点 {setting.Name} 的 IdleLogoutMinutes={IdleLogoutMinutes} 不对：0 ~ {IdleLogoutMaxMinutes}（0 = 不自动退出）。");
+        }
+
+        if (PasswordMinLength < PasswordMinLengthLowest || PasswordMinLength > PasswordMinLengthHighest)
+        {
+            throw new InvalidOperationException(
+                $"sc.xml 节点 {setting.Name} 的 PasswordMinLength={PasswordMinLength} 不对：{PasswordMinLengthLowest} ~ {PasswordMinLengthHighest}。");
+        }
+    }
 
     /// <summary>
     /// 建三张表、删老表；内置的管理员、访客角色和 admin 账号没有就建，第一次开机再预置工程师、操作员两个角色

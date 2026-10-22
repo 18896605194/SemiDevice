@@ -44,11 +44,11 @@ public static class DialogService
 
     /// <summary>
     /// 弹出登录框：login 拿登录名、密码去登录，成功回 null，没成回原因（框不关）。登录成功返回 true，取消返回 false。
-    /// showGuestHint = true 时多一行"取消就当访客"的说明（开机弹的那次）
+    /// showGuestHint = true 时多一行"取消就当访客"的说明（开机、闲置退出弹的）；notice 是标题下面的黄字提醒（为什么要重新登录），没有给 null
     /// </summary>
-    public static bool ShowLogin(string userName, bool showGuestHint, Func<string, string, Task<string?>> login)
+    public static bool ShowLogin(string userName, bool showGuestHint, string? notice, Func<string, string, Task<string?>> login)
     {
-        var dialog = new LoginDialog(userName, showGuestHint, login)
+        var dialog = new LoginDialog(userName, showGuestHint, notice, login)
         {
             Owner = Application.Current?.MainWindow
         };

@@ -175,6 +175,11 @@ public class TopBarViewModel : BaseViewModel
     /// </summary>
     private EquipmentStatusDto? _status;
 
+    /// <summary>
+    /// 登录框开着（开机的、点了登录 / 换人的、闲置退出弹的）：别再叠一个
+    /// </summary>
+    private bool _loginOpen;
+
     #endregion
 
     public TopBarViewModel()
@@ -207,6 +212,9 @@ public class TopBarViewModel : BaseViewModel
         ClientSession.Changed -= UpdateUser;
         ClientSession.Changed += UpdateUser;
         UpdateUser();
+
+        IdleLogout.TimedOut -= OnIdleTimedOut;
+        IdleLogout.TimedOut += OnIdleTimedOut;
     }
 
     /// <summary>
@@ -219,7 +227,36 @@ public class TopBarViewModel : BaseViewModel
             return;
         }
 
-        DialogService.ShowLogin(string.Empty, true, ClientAccount.LoginAsync);
+        OpenLogin(string.Empty, true, null);
+    }
+
+    /// <summary>
+    /// 闲置到点已经退出了：弹登录框要重新登录，写明为什么，登录名填好刚才那个人；取消就按访客（跟开机一样）
+    /// </summary>
+    private void OnIdleTimedOut(string userName, int minutes)
+    {
+        OpenLogin(userName, true, L10n.Get("account.login.idle_notice", minutes));
+    }
+
+    /// <summary>
+    /// 弹登录框；已经开着一个就不再叠（比如有人点了换人登录就走开了，闲置到点时那个框还在）
+    /// </summary>
+    private void OpenLogin(string userName, bool showGuestHint, string? notice)
+    {
+        if (_loginOpen)
+        {
+            return;
+        }
+
+        _loginOpen = true;
+        try
+        {
+            DialogService.ShowLogin(userName, showGuestHint, notice, ClientAccount.LoginAsync);
+        }
+        finally
+        {
+            _loginOpen = false;
+        }
     }
 
     private void UpdateUser()
@@ -283,7 +320,7 @@ public class TopBarViewModel : BaseViewModel
     /// </summary>
     private void DoLogin()
     {
-        DialogService.ShowLogin(ClientSession.LoginName, false, ClientAccount.LoginAsync);
+        OpenLogin(ClientSession.LoginName, false, null);
     }
 
     private void DoChangePassword()

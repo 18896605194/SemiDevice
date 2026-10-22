@@ -1,5 +1,6 @@
 ﻿using SqlSugar;
 using xyz.Components;
+using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
@@ -41,12 +42,39 @@ using var subscription = EventBus.Register<AccountChangedDto>(AccountChangedDto.
 
 try
 {
-    // 1. 装配：按 IAccount 进容器；SC 默认要登录、库照 sc；EC 默认闲置 15 分钟注销、密码最短 4 位
+    // 1. 装配：按 IAccount 进容器；SC 默认要登录、库照 sc、闲置 15 分钟自动退出、密码最短 4 位（这两个放 sc 不放 EC）；
+    //    闲置分钟数、密码最短几位配错开机就报
+    string? LoadError(params ValueConfig[] values)
+    {
+        try
+        {
+            ComponentLoader.Load([Node("Account", typeof(AccountComponent), values)]);
+            return null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception.Message;
+        }
+    }
+
+    string? error = LoadError(Value("IdleLogoutMinutes", "-1"));
+    Check(error is not null && error.Contains("IdleLogoutMinutes=-1", StringComparison.Ordinal), "闲置分钟数配成负的：装配就报，带上配的值");
+    error = LoadError(Value("IdleLogoutMinutes", "1441"));
+    Check(error is not null && error.Contains("IdleLogoutMinutes", StringComparison.Ordinal), "闲置分钟数超过一天：装配就报");
+    error = LoadError(Value("PasswordMinLength", "0"));
+    Check(error is not null && error.Contains("PasswordMinLength", StringComparison.Ordinal), "密码最短配成 0：装配就报");
+    error = LoadError(Value("PasswordMinLength", "33"));
+    Check(error is not null && error.Contains("PasswordMinLength", StringComparison.Ordinal), "密码最短超过 32：装配就报");
+    Check(LoadError(Value("IdleLogoutMinutes", "0"), Value("PasswordMinLength", "8")) is null, "闲置配 0（不自动退出）、密码最短 8 位能装上");
+
     var roots = SmokeIoc.Load([Node("Account", typeof(AccountComponent), Value("Database", DbName))]);
     var account = (AccountComponent)roots[0];
     Check(ReferenceEquals(IocHelper.GetService<IAccount>(), account), "按 IAccount 找得到账号组件");
     Check(account.IsEnable && account.Database == DbName, "SC：IsEnable 默认 True，库照 sc");
-    Check(account.IdleLogoutMinutes == 15 && account.PasswordMinLength == 4, "EC 默认：闲置 15 分钟注销、密码最短 4 位");
+    Check(account.IdleLogoutMinutes == 15 && account.PasswordMinLength == 4, "SC 默认：闲置 15 分钟自动退出、密码最短 4 位");
+    Check(typeof(AccountComponent).GetProperty(nameof(AccountComponent.IdleLogoutMinutes))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0
+        && typeof(AccountComponent).GetProperty(nameof(AccountComponent.PasswordMinLength))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0,
+        "闲置分钟数、密码最短几位不是 EC（EC 页改不了）");
 
     // 2. 开机建表、预置：四个角色（管理员在前、访客在后）、内置账号 admin；预置的档位。
     //    库里留着换 account_* 以前老服务建的 User、Role、Menu 表：开机删掉，名字只是像的表不动
@@ -112,15 +140,16 @@ try
         "操作员：主界面能操作、整机控制和报警复位允许，手动、配方只看，设置、IO 隐藏（IO 是工程师级别）");
 
     // 3. 重开（新组件、同一个库）：不重复预置
-    var again = new AccountComponent { Database = DbName };
+    var again = new AccountComponent { Database = DbName, IdleLogoutMinutes = 7 };
     Check(again.InitComponent() && again.GetRoles().Result!.Count == 4 && again.GetUsers().Result!.Count == 1, "重开同一个库：角色还是 4 个、账号还是 1 个");
+    Check(again.GetSession(string.Empty).Result!.IdleLogoutMinutes == 7, "sc 配的闲置分钟数跟着会话给客户端");
 
     // 4. 登录：对的、不分大小写、错的、没有这个人；记最后登录
     changed = 0;
     var login = account.Login(AccountComponent.AdminUserName, AccountComponent.AdminInitialPassword);
     Check(login.IsSuccess && login.Result!.UserName == AccountComponent.AdminUserName && login.Result.RoleKind == RoleKind.Admin
         && login.Result.Permissions.Count == 0, "admin / admin 登录：管理员，不带档位（全部能操作）");
-    Check(login.Result!.IdleLogoutMinutes == 15 && account.GetSession(string.Empty).Result!.IdleLogoutMinutes == 15, "会话带闲置注销分钟数（EC）");
+    Check(login.Result!.IdleLogoutMinutes == 15 && account.GetSession(string.Empty).Result!.IdleLogoutMinutes == 15, "会话带闲置自动退出的分钟数（sc）");
     Check(account.Login("ADMIN", AccountComponent.AdminInitialPassword).IsSuccess, "登录名不分大小写");
     Check(account.Login(" admin ", AccountComponent.AdminInitialPassword).IsSuccess, "登录名前后的空格去掉");
     login = account.Login(AccountComponent.AdminUserName, "wrong");

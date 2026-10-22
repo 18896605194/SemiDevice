@@ -1,5 +1,4 @@
-﻿using xyz.Client.Common.Ec;
-using xyz.Client.Common.Events;
+﻿using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.Common.Session;
@@ -29,8 +28,6 @@ public static class ClientAccount
         _subscription ??= EventBus.Register<AccountChangedDto>(AccountChangedDto.EventToken, changed => _ = RefreshAsync());
         RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
         RemoteEventBus.ConnectionChanged += OnConnectionChanged;
-        ClientEc.Changed -= OnEcChanged;
-        ClientEc.Changed += OnEcChanged;
         if (settings is not null)
         {
             await RefreshAsync();
@@ -186,16 +183,5 @@ public static class ClientAccount
         }
 
         await RefreshAsync();
-    }
-
-    /// <summary>
-    /// EC 改了：闲置注销的分钟数跟着会话来，再取一次
-    /// </summary>
-    private static void OnEcChanged()
-    {
-        if (ClientSession.IsLoggedIn)
-        {
-            _ = RefreshAsync();
-        }
     }
 }

@@ -397,6 +397,7 @@
     <sys:String x:Key="account.login.title">登录</sys:String>
     <sys:String x:Key="account.login.subtitle">输入登录名和密码</sys:String>
     <sys:String x:Key="account.login.guest_hint">不登录也能看：点取消按访客进去，只能看，不能操作</sys:String>
+    <sys:String x:Key="account.login.idle_notice">{0} 分钟没有操作，已自动退出，请重新登录</sys:String>
     <sys:String x:Key="account.login.ok">登录</sys:String>
     <sys:String x:Key="account.user_name">登录名</sys:String>
     <sys:String x:Key="account.display_name">显示名</sys:String>
