@@ -214,7 +214,14 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `SetResourceReference(StyleProperty, ...)`**：那是本地值，列表行、表格行模板里写的 `Style` 优先级比它低，写了不生效
   （2026-10-04 改的：之前 IO 页 AO 设定框、EC 页值框写的 `CompactTextBoxStyle` 一直没生效，实际是 40 高、上下各 4 的默认样式）。
 - **DateTimePicker** + `QueryDateRange.Of/Today/LastDays/LastHours`：查时间段，分钟精度，截止那一分钟算进去。
-- **TrendChart**（ScottPlot 5 封装）：喂 `ObservableCollection<TrendSeries>`，只用 `SetData` / `Append` 改数据；单一左 Y 轴，所有曲线按真实值画。
+- **TrendChart**（ScottPlot 5 封装）：喂 `ObservableCollection<TrendSeries>`，只用 `SetData` / `Append` 改数据；单一左 Y 轴，默认按真实值画，
+  `TrendSeries.Offset`（信息表里填）不是 0 就按 值 + 偏移 画（用曲线自带的 `OffsetY`，不复制数据），悬停框、信息表照旧真实值。
+  基准线（`ShowXLines` / `ShowYLines`，ChartPanel 右上角 X、Y 两个开关）写在 `TrendChart.ReferenceLines.cs`：线是 ScottPlot 的
+  `VerticalLine` / `HorizontalLine`（放在曲线下面），轴上的标签、ΔX / ΔY 和箭头是浮层（截图带得上）；两根轴的刻度都包了一层
+  `TrendTickFilter`（时间轴只认 `IDateTimeTickGenerator`，所以按它包），被标签压住的刻度只去字不去网格。
+  浮层位置 = ScottPlot 像素 ÷ `PlotView.DisplayScale`（本机 1.5 实测对得上），图画完一帧（`RenderManager.RenderFinished`）再对一次；
+  量刚改过字的浮层先 `InvalidateMeasure` 再 `Measure`，不然拿回旧尺寸。开关、表里"X1 处 / X2 处"两列在 ChartPanel 代码里
+  `Source = Chart` 绑定（放大窗口要搬整块，按名字找的绑定在那边找不到图）。
 - **ModuleStateBadge**（`Text`、`Tone`、`IsCompact`）：模块状态一律用它（整条圆角色块：灰未初始化 / 蓝动作中 / 绿就绪 / 黄中止中 / 红报错），
   不写"状态：xxx"文字。码 → 字和色调用 `Presentation\Models\ModuleStates`（按 LoadPort / Chamber / Robot / 其他分开，同一个码不同模块意思不同）。
 - **PickerBox**（从一个库里选一项：左边文本、右边"…"按钮弹公共选择弹窗；**选东西不用下拉框**）：绑 `Value`（默认双向）；
