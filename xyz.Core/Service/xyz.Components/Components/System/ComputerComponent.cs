@@ -26,7 +26,7 @@ public class ComputerComponent : ComponentBase
     private long _nextSampleAt;
 
     /// <summary>
-    /// 扫描线程 20 ms 一拍，到了取样时间才扫子节点：第一拍就扫，之后每隔 SampleIntervalMs 扫一次。
+    /// 扫描线程 10 ms 一拍，到了取样时间才扫子节点：第一拍就扫，之后每隔 SampleIntervalMs 扫一次。
     /// </summary>
     protected override void OnScan()
     {

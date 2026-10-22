@@ -202,7 +202,7 @@ public class BeckhoffPlcComponent : PlcComponent
     }
 
     /// <summary>
-    /// 块名 → 最近一次读失败的错误码：同样的错只记一次日志（扫描 20ms 一拍，不然一秒五十条）。
+    /// 块名 → 最近一次读失败的错误码：同样的错只记一次日志（扫描 10ms 一拍，不然一秒一百条）。
     /// </summary>
     private readonly Dictionary<string, string> _readFaults = new(StringComparer.OrdinalIgnoreCase);
 

@@ -30,7 +30,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 - 属性：`Name`、`FullPath`（"Chamber.Chamber1.Door"：sc.xml 的分组节点不生成组件，但名字进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
-- 扫描：根组件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、Computer、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(20)`（`ComponentBase.ScanIntervalMs`，2026-10-22 用户从 50 改成 20）。
+- 扫描：根组件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、Computer、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(10)`（`ComponentBase.ScanIntervalMs`，2026-10-22 用户从 50 改成 20、又改成 10）。
   `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。子组件之间要互不耽误的父组件重写 `OnScan`、逐个调 `ScanChild(子组件)`：
   每个子组件的异常、慢扫描记在它自己名下，一个抛异常不会让这一拍排在后面的漏扫（基类的直接递归会）。现在只有 `DispatchComponent` 这么用。
   **子组件要每拍做事就重写 `OnScan()`，跟着大组件那一条线程走**（LoadPort1 下的驱动、读头、载具，Chamber1 下的气缸、电机、DI 都是这样）：
@@ -441,13 +441,13 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   （等不到回 `job.command_timeout`，EC `CommandTimeoutMs`），成功执行后当场发布；创建校验或状态命令被拒不发布。检查、加锁、执行、发布、异常处理直接写在各入口里，
   不再使用 Execute / WithProcessJob 委托包装；PJ 创建逻辑直接在 CreateProcessJobAsync 内。本地建 Job（`JobService.CreateAsync`）也是一个个建 PJ（给了 LoadPort 按它找，没给按载具号找）
   再建 CJ，中途被拒撤掉已建的 PJ。PJ / CJ 创建检查 Queue 结果，失败撤销本次登记及任务或关联；CJ 失败保留先前独立创建的 PJ。扫描一拍：① 调度引擎收做完的、记回任务表 → ② 核对片位 → ③ JobManager 分别检查 PJ、CJ 推进条件，提交状态动作（先 PJ 后 CJ，转到不再转），再按 PJ 状态给行定许可 →
-  ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布并交给存库线程合并写入。
+  ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布；全貌（JSON）跟上次交去写的不一样才交给存库线程合并写入（2026-10-22），上一批没写进库期间每拍都交。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
   EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 在锁内读取当前 PJ，包括保留在 CJ 下的已结束 PJ。Snapshot 查询在锁内生成 DTO，不缓存 `_snapshot`。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
   SC：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`、`HistoryQueryMaxCount`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
   **存库与重启**（2026-10-07 用户："界面上显示的就是数据库的数据，该存库就存库"）：CJ、PJ 各一张表，一个 Job 一行（`control_job` / `process_job`，
   实体 `ControlJobEntity` / `ProcessJobEntity` 继承 `BaseEntity`：自增行号、CreatedTime = 建的时刻、UpdatedTime = 最后写的时刻；PJ 行记着 CJ 的行号 `ControlJobRowId`，
-  每片的任务明细是 `JobWaferDto` 列表的 JSON 放在 `Wafers` 列）。每次发布把全貌里的 CJ、PJ 交给 Job 管理里的一条写库线程（同一个 Job 只写最新一份；
+  每片的任务明细是 `JobWaferDto` 列表的 JSON 放在 `Wafers` 列）。发布时全貌变了才把里面的 CJ、PJ 交给 Job 管理里的一条写库线程（同一个 Job 只写最新一份；
   第一次插一行、行号记在 `ControlJob.RowId` / `ProcessJob.RowId` 上，之后按行号更新），删掉的 CJ、结束的 PJ 在转换那里单独交最后一次。
   内存里不留历史、全貌里没有历史，界面看历史查库：`IJobService.QueryHistoryAsync(JobHistoryQuery)`（按 CJ 建的时刻、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前，
   最多 SC `HistoryQueryMaxCount` 个、多取一个判截断，回 `HistoryResult<ControlJobHistoryDto>`，带行号）、`GetHistoryProcessJobsAsync`（Parameters["ControlJob"] = CJ 行号，

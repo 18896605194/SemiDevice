@@ -675,6 +675,8 @@
 - **设备状态判断归模块（2026-10-07 用户明确）**：载具能不能分给 Job 由 BaseLoadPortModule.CanAssignCarrierToJob 判断（2026-10-09 由 IsCarrierReady 改名：它在机械手正在取放时也是 true，只管排活，机械手进站看 CanPrepare）（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
 - **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 SC ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 SC。
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
+  **2026-10-22 用户："写入数据库没有必要每一次都写"**（扫描改成 10ms 以后一秒交 100 次写库）：发布时把全貌转成 JSON 跟上次交去写的比，一样就不交写库
+  （还是不加 dirty 标记）；推送照旧每拍发。上一批没写进库期间每次发布都交，写好了再只在变了时交。
 - **CJ 按载具号查询（2026-10-07 用户明确）**：从 CjManager 管理的真实 CJ 对象查，不能查发布快照；JobManager 加锁调用 FindByCarrier 并返回 DTO 副本。
 - **CJ 参考结构统一（2026-10-07 用户明确）**：按桌面参考工程 ControlJobManager / ControlJobStateMachine / BaseStateMachine 统一，替代之前的逐命令查字典设计。`Dictionary<string, CjEntity>` 保存私有实体（CJ + 独立状态机），外部只拿 ControlJobs；Add 只注册、Queue 入队、Get 按 ID 查询、Remove 检查 ID 和对象引用，旧对象不能操作同 ID 新对象。不保留订单计数，不依赖 PJ；外部命令及 PJ 协调在 JobManager。
 - **CJ 状态表和基类（2026-10-07 用户确认参考）**：CjStateMachine 不持有 Job，继承 BaseStateMachine<TState,TAction>，类内 BuildTransitions 建立字典，key=(state,action)，value=StateTransition<TState>。基类提供 CurrentState、OnStateChanged、StateChange，并执行 OnEntry / PreCheck / ProcessState / Execute / TargetState / OnExit / ErrorHandler；管理器用对象参数提交 Queue / Select / Activate / Pause / Resume / Complete / Abort / FinishAbort / Rollback 等动作，订阅通知同步 CJ 状态和时间。不向 JobManager 暴露状态机，不提供自动 Advance。
@@ -1046,7 +1048,7 @@
   不按盯的是什么起名（时间型以后也可能盯 DO，比如泵的运行时长）。两种不共用父接口：次数、时长的列本来就不一样，周期管理页分两张表各取各的。
 - **不让部件自己实现接口、也不用继承**：计数、存库、EC、报警写一遍就够；C# 单继承，气缸、阀、轴各有父类，继承就得插到每条链底下，所有同类都带上寿命，
   要不要管就成了代码定死、sc 改不了，一个部件也只能记一份。
-- **现有组件一行不改**（用户："能不能就是现有的都不要动"）：寿命组件不靠父组件通知，自己在扫描里（跟着父组件每 20 ms）读 SC `DoIndex` 那个 DO，
+- **现有组件一行不改**（用户："能不能就是现有的都不要动"）：寿命组件不靠父组件通知，自己在扫描里（跟着父组件每 10 ms）读 SC `DoIndex` 那个 DO，
   **每变一次算一次**（断→通、通→断各一次，用户定的）；第一拍、读不到以后重新读到的那一拍只记下不算（中间变过也不补）。双线圈气缸盯开侧线圈，开、关各算一次。
   记的是出命令的次数（超时没到位也算，阀已经动了）；只管 DO 驱动的（气缸、阀、泵），轴、机械手没 DO，到时再说。`DoIndex` 跟父节点的 DO 号手写一致，不推导。
 - **两个次数都是 EC**（用户："增加一下那个警告次数和报警次数"），各自 0 = 不管：到报警次数报 `ExpiredAlarm`（Alarm1），没到报警次数、到了警告次数报 `WarnAlarm`（Warn）；
@@ -1063,7 +1065,7 @@
   - 寿命组件只认点号，不认识发信号的组件；发信号的组件也不认识寿命组件，**中间用虚拟 IO 接**（sc 里两边填同一个点号）。哪个组件知道"什么时候算"，
     就在它自己身上配一个点号 SC、到时候写虚拟 DO（跟次数型"程序里数的"同一个做法）；以后再有别的组件要接，寿命组件不用改。
   - **用 DO 不用 AO**（用户问"用 do 好还是用 Ao 好"，我建议 DO，用户接着让做）：要传的只是通断、发生了一次，一位就够；泵、阀、加热器本来就是 DO，能直接盯真点；
-    次数型也盯 DO，一个点能同时给两种寿命用；虚拟 IO 只有虚拟 DO。同一拍（20 ms）里翻两下会抵消——换液、换件几分钟以上才一次，碰不到；真要传数值或高频计数再说 AO。
+    次数型也盯 DO，一个点能同时给两种寿命用；虚拟 IO 只有虚拟 DO。同一拍（10 ms）里翻两下会抵消——换液、换件几分钟以上才一次，碰不到；真要传数值或高频计数再说 AO。
   - SC `DoIndex`（计时 DO，-1 = 不盯）：**只算这个 DO 通着的时间**（泵、加热器运行时长填它的真 DO；程序里的"在用"状态由程序开始写通、结束写断虚拟 DO），关机那段不算。
     两拍之间的时长用开机计时器（`Environment.TickCount64`）量，改系统时钟不影响；上一拍通着、这一拍读得到才算这一段，第一拍、读不到以后重新读到的那一拍只记下（跟次数型一样）。
     存库只加不写总数：通着攒满 60 s（const）给那行加一次，不通了（断了、读不到）把攒的整秒加进去，零头留着下次一起写；突然断电最多丢不到一分钟；读不成这次从 0 算、库里照样加。
@@ -1160,7 +1162,7 @@
 - **次数寿命怎么读**（用户选的"更省的写法"；时间寿命的计时 DO、清零 DO 也这样读）：先问虚拟 IO 有没有这个点号，有就读它，没有再经 `IIo` 读真 DO；不按号段判断。
   代价：配了虚拟点号却没挂那个虚拟 DO，会去读真 IO（读不到）、一直不计数，开机查不出来。
 - **程序那边**：要计数的组件配一个点号（SC），`Bind` 里取 `IVirtualIo`，计数的地方 `ToggleDo(点号)`。还没接任何具体的计数点（等用户说接哪个）。
-  同一拍（20 ms）里翻两次会翻回原样、两次都漏；取放、过片一次几秒，碰不到。
+  同一拍（10 ms）里翻两次会翻回原样、两次都漏；取放、过片一次几秒，碰不到。
 - **没做**：现有的虚拟 DI / AI（拿真实点用表达式算的）照旧走 IO 组件，没并进来；IO 页不显示虚拟点；35021 sc.xml 没配虚拟 IO 节点。
 
 ## 接口去掉 Component 后缀（2026-10-21，用户一个个点名："IAlarmComponent 这个帮我改成IAlarm"、"IDataChartComponent 这个帮我改成 IDataChart"、"IDeviceComponent 这个帮我改成IDevice"、"IEcComponent 这个帮我改成IEc"……）

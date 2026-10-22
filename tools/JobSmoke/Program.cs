@@ -1085,6 +1085,23 @@ try
     Tick();
     Check(CjOf("LOT-A")?.State == (int)ControlJobState.Completed && lp1.Carrier.IsArrived,
         "CJ 完成但载具仍在位时保留，等待载具移走");
+
+    // 写库只在 Job 变了时写（2026-10-22 用户："写入数据库没有必要每一次都写"）：CJ 完成、载具还在位这段 Job 不再变，扫再多拍库里那一行也不动
+    DateTime? StoredAt()
+    {
+        using (var db = XyzDb.Create("JobSmoke"))
+        {
+            return db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-A").ToList().Single().UpdatedTime;
+        }
+    }
+
+    Check(WaitDb(db => db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-A").ToList().Any(row => row.CompletedBy == 10)),
+        "CJ 完成写进库");
+    Thread.Sleep(200);
+    var storedAt = StoredAt();
+    RunUntil(() => false, 40, 30);
+    Thread.Sleep(200);
+    Check(storedAt is not null && StoredAt() == storedAt, "Job 没变就不再写库：CJ 完成、载具还在位，扫 40 拍（约 1.2 秒）库里那一行没再写");
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-A") is null, 20), "载具拿走：完成的 CJ 删掉（#13）");
     Check(WaitDb(db => db.Queryable<ControlJobEntity>().Where(row => row.Name == "LOT-A").ToList()
@@ -2557,7 +2574,7 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "creating PJs and CJs before the carrier arrives (wafers assigned once the carrier is loaded and, with EAP, its slot map verified by the host; " +
     "overlapping slots and a second CJ on one carrier refused; an unusable carrier raising an alarm and leaving the PJ queued), " +
     "the equipment stop going through job abort, the job and transfer services, " +
-    "every CJ and PJ recorded as one database row with each wafer's tasks, " +
+    "every CJ and PJ recorded as one database row with each wafer's tasks and written again only when the jobs change, " +
     "the Dispatch node scanning Job then Transfer on one thread without one child's exception skipping the other, " +
     "a restart that marks unfinished jobs aborted in the database instead of resuming them, " +
     "and the job history page querying control jobs by time and keyword (newest first, capped by SC) with their process jobs and task rows)");

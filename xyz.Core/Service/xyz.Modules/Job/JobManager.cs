@@ -2267,7 +2267,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// 发布当前快照
+    /// 发布当前快照：推给界面；跟上次交去写库的比变了才交写库
     /// </summary>
     private void Publish()
     {
@@ -2280,14 +2280,17 @@ public class JobManager : ComponentBase, IJobManager
             ControlJobs = controlJobs.Select(job => JobDtos.Of(job, ControlJobAutoStart)).ToList(),
             ProcessJobs = processJobs.Select(job => JobDtos.Of(job, ProcessJobAutoStart)).ToList(),
         };
-        for (int index = 0; index < controlJobs.Count; index++)
+        if (HasChangedSinceStored(snapshot))
         {
-            Store(controlJobs[index], snapshot.ControlJobs[index]);
-        }
+            for (int index = 0; index < controlJobs.Count; index++)
+            {
+                Store(controlJobs[index], snapshot.ControlJobs[index]);
+            }
 
-        for (int index = 0; index < processJobs.Count; index++)
-        {
-            Store(processJobs[index], snapshot.ProcessJobs[index]);
+            for (int index = 0; index < processJobs.Count; index++)
+            {
+                Store(processJobs[index], snapshot.ProcessJobs[index]);
+            }
         }
 
         try
@@ -2305,8 +2308,9 @@ public class JobManager : ComponentBase, IJobManager
     #region 存库
 
     // CJ、PJ 各一张表，一个 Job 一行（control_job、process_job）：第一次写插一行、记下行号（RowId），之后按行号更新。
-    // 每次发布把全貌里的 CJ、PJ 交给一条写库线程，同一个 Job 只写最新的一份；删掉的 CJ、结束的 PJ 由转换那里单独交最后一次。
-    // 写库不在扫描线程上做——磁盘一卡，扫描就卡。写不进去只记日志，Job 照跑，下一次发布再写。
+    // 发布时全貌跟上次交去写的不一样，才把全貌里的 CJ、PJ 交给一条写库线程（扫描每拍都发布，没变也交就一直在写库），同一个 Job 只写最新的一份；
+    // 删掉的 CJ、结束的 PJ 由转换那里单独交最后一次。
+    // 写库不在扫描线程上做——磁盘一卡，扫描就卡。写不进去只记日志，Job 照跑；写不进去期间每次发布都交，写好了再只在变了时交。
 
     private readonly Channel<bool> _storeSignal = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
@@ -2318,7 +2322,36 @@ public class JobManager : ComponentBase, IJobManager
 
     private bool _storeStarted;
     private bool _storeTableReady;
-    private bool _storeFailing;
+
+    /// <summary>
+    /// 上一批没写进库：写库线程写，发布时（Job 的锁里）读
+    /// </summary>
+    private volatile bool _storeFailing;
+
+    /// <summary>
+    /// 上次交去写库的全貌（JSON）；只在 Job 的锁里读写
+    /// </summary>
+    private string? _storedSnapshot;
+
+    /// <summary>
+    /// 这份全貌跟上次交去写库的比变了没有（没开存库算没变）；上一批没写进库就一直算变了，每次都交，写好了再按变没变交
+    /// </summary>
+    private bool HasChangedSinceStored(JobListDto snapshot)
+    {
+        if (!_storeStarted)
+        {
+            return false;
+        }
+
+        string json = JsonHelper.Serialize(snapshot);
+        if (!_storeFailing && string.Equals(json, _storedSnapshot, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        _storedSnapshot = json;
+        return true;
+    }
 
     /// <summary>
     /// 重启收场（开机时，写库线程起来之前）：库里还没删的 CJ、没结束的 PJ 就是上次没做完的。不接着跑——重启前在途的搬运、工艺做没做完说不准，
