@@ -47,7 +47,7 @@ static class AxisCommands
             Tick(plc, axis, status);
             Check(axis.ActionState == ActionState.Completed, "observed movement then matching position completes");
 
-            // 50ms 内跑完的短行程：从来没看到"运动中"，过了旧帧窗口就按到位算，不会等到超时。
+            // 一拍（20ms）内跑完的短行程：从来没看到"运动中"，过了旧帧窗口就按到位算，不会等到超时。
             Check(axis.MoveTo(12), "short move");
             status.Current_Position = 12;
             Tick(plc, axis, status);

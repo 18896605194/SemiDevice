@@ -834,7 +834,8 @@
     <sys:String x:Key="main.lot_id">LotID</sys:String>
     <sys:String x:Key="main.lot_hint">Enter LotID</sys:String>
     <sys:String x:Key="main.sequence">Sequence</sys:String>
-    <sys:String x:Key="main.sequence_hint">Select a Sequence</sys:String>
+    <sys:String x:Key="main.sequence_hint">Whole carrier at once; edit single wafers below</sys:String>
+    <sys:String x:Key="main.sequence_tip">Applies to every wafer in this carrier that can be processed (wafers mapped later too); use ⊕ below to change a wafer and ⊖ to skip it. Pick again to reset the whole carrier</sys:String>
     <sys:String x:Key="main.pick_sequence">Select Sequence</sys:String>
     <sys:String x:Key="main.pick_slot_sequence">Sequence for slot {0}</sys:String>
     <sys:String x:Key="main.sequences_failed">Failed to load the Sequence list: {0}</sys:String>

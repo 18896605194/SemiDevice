@@ -167,7 +167,7 @@ public abstract class ComponentBase
 
     #endregion
 
-    #region 开启轮询 间隔50ms
+    #region 开启轮询 间隔20ms
     /// <summary>
     /// 启动组件树的扫描线程。只有模块根组件调用；
     /// 子组件随父组件在同一线程上被 OnScan 递归扫描，不要对子组件单独调用 Start。
@@ -185,6 +185,11 @@ public abstract class ComponentBase
     private int _scanStarted;
 
     /// <summary>
+    /// 扫描周期（毫秒）：扫完一拍歇这么久再扫下一拍
+    /// </summary>
+    private const int ScanIntervalMs = 20;
+
+    /// <summary>
     /// 单周期慢扫描警告阈值（毫秒），默认 200；超过记警告日志。
     /// </summary>
     protected virtual int SlowScanWarnMilliseconds => 200;
@@ -200,7 +205,7 @@ public abstract class ComponentBase
         while (true)
         {
             ScanOnce();
-            Thread.Sleep(50);
+            Thread.Sleep(ScanIntervalMs);
         }
     }
 

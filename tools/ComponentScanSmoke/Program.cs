@@ -66,6 +66,12 @@ Thread.Sleep(200);
 Check(running.Threads.Count == 1 && grouped.Threads.Count == 1 && child.Threads.Count == 1,
     "repeat starts must be idempotent");
 
+// 扫描周期 20ms（2026-10-22 从 50ms 改的）：1 秒里至少扫 25 拍（50ms 时只有 20 拍左右），给计时精度和机器忙留余量
+int scansBefore = running.Count;
+Thread.Sleep(1000);
+int scansInOneSecond = running.Count - scansBefore;
+Check(scansInOneSecond >= 25, $"roots scan about every 20 ms: {scansInOneSecond} scans in one second");
+
 // 开机各阶段（组件自己的开机准备、收尾都挂在这几个钩子上）：组件初始化按 InitOrder、再按 sc 先后，子组件跟着父组件；
 // Bind、OnStarted 按 sc 先后（先父后子）；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
 // 进容器（宿主开机装配那一步，ComponentLoader.Register）：每个组件按它实现的 xyz 接口登记，取一类全部按 sc 先后、停用的连同下面跳过，
@@ -101,7 +107,7 @@ Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && Lifecycle
     "Bind and OnStarted run in sc order, parent before child");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after a component throws");
 
-Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), components into the container by interface");
+Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 20 ms scan period; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), components into the container by interface");
 
 static void Check(bool condition, string message)
 {

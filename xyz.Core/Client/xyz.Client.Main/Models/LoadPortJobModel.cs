@@ -77,11 +77,8 @@ public sealed class LoadPortJobModel : ObservableObject
         get => _sequence;
         set
         {
-            if (!SetProperty(ref _sequence, value))
-            {
-                return;
-            }
-
+            // 跟现在一样也照样套（选择框选了同一个也会回写）：单独改过几片以后，再选一次就把全篮改回来
+            SetProperty(ref _sequence, value);
             foreach (var slot in Slots)
             {
                 if (slot.CanAssign)

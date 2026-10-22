@@ -13,7 +13,7 @@ using xyz.Shared.Permissions;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 账号冒烟：账号组件（sc 的 Account 节点）开机建表、预置管理员 / 访客 / 工程师 / 操作员四个角色和内置账号 admin（只预置一次，重开不重复）；
+// 账号冒烟：账号组件（sc 的 Account 节点）开机建表、删老的 User / Role / Menu 表、预置管理员 / 访客 / 工程师 / 操作员四个角色和内置账号 admin（只预置一次，重开不重复）；
 // 登录（对、错、不分大小写、停用、记最后登录）；会话（访客、普通角色带档位、管理员不带档位）；密码只存加盐哈希；改密码、重置密码；
 // 账号的增删改（登录名 / 显示名不对、重名、密码太短、角色不在、访客角色不给账号、内置 admin 不能删 / 停用 / 改角色）；
 // 角色（重名、名字 / 说明不对、内置的不能改名和删、有账号在用不能删、删角色连权限一起删、管理员权限不能改、权限整张换、档位不对、同一项以最后一次为准）；
@@ -48,8 +48,25 @@ try
     Check(account.IsEnable && account.Database == DbName, "SC：IsEnable 默认 True，库照 sc");
     Check(account.IdleLogoutMinutes == 15 && account.PasswordMinLength == 4, "EC 默认：闲置 15 分钟注销、密码最短 4 位");
 
-    // 2. 开机建表、预置：四个角色（管理员在前、访客在后）、内置账号 admin；预置的档位
+    // 2. 开机建表、预置：四个角色（管理员在前、访客在后）、内置账号 admin；预置的档位。
+    //    库里留着换 account_* 以前老服务建的 User、Role、Menu 表：开机删掉，名字只是像的表不动
+    using (var db = XyzDb.Create(DbName))
+    {
+        db.Ado.ExecuteCommand("CREATE TABLE \"User\" (Id INTEGER PRIMARY KEY, UserName TEXT)");
+        db.Ado.ExecuteCommand("CREATE TABLE \"Role\" (Id INTEGER PRIMARY KEY, Name TEXT)");
+        db.Ado.ExecuteCommand("CREATE TABLE \"Menu\" (Id INTEGER PRIMARY KEY, Code TEXT)");
+        db.Ado.ExecuteCommand("CREATE TABLE \"UserNote\" (Id INTEGER PRIMARY KEY)");
+        db.Ado.ExecuteCommand("INSERT INTO \"User\" (UserName) VALUES ('old')");
+    }
+
     Check(account.InitComponent(), "组件初始化：建表、预置做成");
+    using (var db = XyzDb.Create(DbName))
+    {
+        Check(!db.DbMaintenance.IsAnyTable("User", false) && !db.DbMaintenance.IsAnyTable("Role", false) && !db.DbMaintenance.IsAnyTable("Menu", false),
+            "开机删掉老的账号、菜单表 User、Role、Menu");
+        Check(db.DbMaintenance.IsAnyTable("UserNote", false) && db.DbMaintenance.IsAnyTable("account_user", false), "名字只是像的表、新的账号表不动");
+    }
+
     var roles = account.GetRoles().Result!;
     Check(roles.Count == 4
         && roles[0].Kind == RoleKind.Admin && roles[0].Name == "管理员"

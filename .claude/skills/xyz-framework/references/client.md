@@ -294,7 +294,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
 - 当前用户 `xyz.Client.Common.Session.ClientSession`（2026-10-21 起有登录）：`UserName` 记操作人用（不用登录时是 Admin，没登录是 Guest），
   `LoginName` / `DisplayName` / `RoleKind` / `IsLoggedIn` / `IsAdmin`、`LevelOf(编码)` / `CanOperate(编码)`；会话一变发 `Changed`（界面线程）。
-  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置注销 `Session\IdleLogout`（分钟数是后端 EC，跟会话一起下来）。
+  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置注销 `Session\IdleLogout`（分钟数是后端 EC，跟会话一起下来；
+  闲没闲看 Windows 的 `GetLastInputInfo`，**别改回 WPF 的 `InputManager.PreProcessInput`**——鼠标停在窗口上时界面一刷新 WPF 就补发鼠标移动，永远不算闲着）。
 - EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。
 
 ## 10. 旧代码里和规则不一致的地方（截至 2026-10-03；改到时顺手改，新代码别学）

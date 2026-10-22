@@ -834,7 +834,8 @@
     <sys:String x:Key="main.lot_id">LotID</sys:String>
     <sys:String x:Key="main.lot_hint">输入 LotID</sys:String>
     <sys:String x:Key="main.sequence">Sequence</sys:String>
-    <sys:String x:Key="main.sequence_hint">选择 Sequence</sys:String>
+    <sys:String x:Key="main.sequence_hint">整篮一次选，个别片在下表单独改</sys:String>
+    <sys:String x:Key="main.sequence_tip">给整篮能做的片一次套上（之后 Mapping 出来的片也套它）；个别片用下表的 ⊕ 改、⊖ 不做，再选一次全篮改回来</sys:String>
     <sys:String x:Key="main.pick_sequence">选择 Sequence</sys:String>
     <sys:String x:Key="main.pick_slot_sequence">槽位 {0} 的 Sequence</sys:String>
     <sys:String x:Key="main.sequences_failed">读取 Sequence 列表失败：{0}</sys:String>

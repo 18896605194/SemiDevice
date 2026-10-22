@@ -278,7 +278,7 @@
                                 Style="{DynamicResource ToolbarTextBoxStyle}"
                                 Value="{Binding LotId}" />
 
-                            <!--  整篮的 Sequence：一选就给所有能做的片套上；单独改用表里的 ⊕  -->
+                            <!--  整篮的 Sequence：一选就给所有能做的片套上，再选同一个也重新套一遍；单独改用表里的 ⊕  -->
                             <TextBlock
                                 Grid.Row="4"
                                 Style="{DynamicResource FormLabelTextStyle}"
@@ -291,6 +291,7 @@
                                 PickerTitle="{DynamicResource main.pick_sequence}"
                                 Placeholder="{DynamicResource main.sequence_hint}"
                                 Style="{DynamicResource ToolbarPickerBoxStyle}"
+                                ToolTip="{DynamicResource main.sequence_tip}"
                                 Value="{Binding Sequence}">
                                 <controls:PickerBox.Columns>
                                     <controls:PickerColumn

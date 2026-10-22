@@ -30,7 +30,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
 
 - 属性：`Name`、`FullPath`（"Chamber.Chamber1.Door"：sc.xml 的分组节点不生成组件，但名字进路径）、`InitOrder`（默认 10000）、`Children` / `AddChild`；
   查找 `FindChild(name)`、`FindChild<T>(name)`、`FindChild<T>()`、`FindChildren<T>()`。
-- 扫描：根组件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、Computer、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(50)`。
+- 扫描：根组件（模块、PLC、IO（等 PLC 连上下发开机 DO）、Safety、Computer、指挥层 Dispatch）调 `Start()` 起一条长任务循环：`OnScan()` → 慢扫描检查 → `Thread.Sleep(20)`（`ComponentBase.ScanIntervalMs`，2026-10-22 用户从 50 改成 20）。
   `protected virtual void OnScan()` 会递归子组件，重写时先调 `base.OnScan()`。子组件之间要互不耽误的父组件重写 `OnScan`、逐个调 `ScanChild(子组件)`：
   每个子组件的异常、慢扫描记在它自己名下，一个抛异常不会让这一拍排在后面的漏扫（基类的直接递归会）。现在只有 `DispatchComponent` 这么用。
   **子组件要每拍做事就重写 `OnScan()`，跟着大组件那一条线程走**（LoadPort1 下的驱动、读头、载具，Chamber1 下的气缸、电机、DI 都是这样）：
@@ -682,7 +682,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
 - Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新、不清理；数据中心的 Job 历史页经 `IJobService` 查它（见 §3 Job）。
 - 账号：`account_user`（登录名、显示名、密码哈希 `PBKDF2-SHA256$次数$盐$哈希`、角色、内置、最后登录）、`account_role`（名字、说明、种类 普通 / 管理员 / 访客）、
-  `account_role_permission`（角色、权限项编码、档位），在 sc `Account` 的 `Database` 库里；行数少，不清理。老的 User / Role 表没人用了（没删库里的表）。
+  `account_role_permission`（角色、权限项编码、档位），在 sc `Account` 的 `Database` 库里；行数少，不清理。老服务建过的 `User`、`Role`、`Menu` 三张表，账号组件开机看见就删（`LegacyTables`）。
 - 工艺站开工片数：`process_daily_count` 一站一天一行（站点、日期 yyyy-MM-dd、片数、更新时间），默认库；`ProcessCounter` 开机读回（读不成今天、累计这次从 0 数），
   开工一片放进队列、后台一个读者给那一天那行**加 1**（没有就插一行 1），不写总数——时钟往回调到前一天也只是给那天加 1，不会冲掉那天的数。行数少，不清理。
 - 部件寿命：`count_lifetime` 一个次数寿命组件一行（全路径、已用次数、更新时间）、`time_lifetime` 一个时间寿命组件一行（全路径、起算时间、盯 DO 的通着秒数），默认库；`CountLifetimeComponent` 开机 `Bind` 读回，DO 每变一次放进队列、

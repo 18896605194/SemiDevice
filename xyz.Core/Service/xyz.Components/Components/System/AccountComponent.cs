@@ -87,6 +87,11 @@ public class AccountComponent : ComponentBase, IAccount
     /// </summary>
     private const int HashParts = 4;
 
+    /// <summary>
+    /// 老的账号、菜单表：换成 account_* 三张表、菜单写进代码以前，老的用户、角色、菜单服务建在默认库里的，没人用了
+    /// </summary>
+    private static readonly string[] LegacyTables = ["User", "Role", "Menu"];
+
     #endregion
 
     #region SC
@@ -128,7 +133,7 @@ public class AccountComponent : ComponentBase, IAccount
     #region 开机：建表、预置
 
     /// <summary>
-    /// 建三张表；内置的管理员、访客角色和 admin 账号没有就建，第一次开机再预置工程师、操作员两个角色
+    /// 建三张表、删老表；内置的管理员、访客角色和 admin 账号没有就建，第一次开机再预置工程师、操作员两个角色
     /// </summary>
     public override bool InitComponent()
     {
@@ -139,6 +144,7 @@ public class AccountComponent : ComponentBase, IAccount
             {
                 using var db = CreateDb();
                 db.CodeFirst.InitTables<UserEntity, RoleEntity, RolePermissionEntity>();
+                DropLegacyTables(db);
 
                 // 事务里出的错 SqlSugar 自己接住、回滚，看结果
                 var seeded = db.Ado.UseTran(() => Seed(db));
@@ -158,6 +164,28 @@ public class AccountComponent : ComponentBase, IAccount
         }
 
         return succeeded;
+    }
+
+    /// <summary>
+    /// 库里还留着老表的删掉（开机看见才删，删过就没有了）；删不掉不耽误登录，下次开机再删
+    /// </summary>
+    private void DropLegacyTables(SqlSugarClient db)
+    {
+        foreach (string table in LegacyTables)
+        {
+            try
+            {
+                if (db.DbMaintenance.IsAnyTable(table, false))
+                {
+                    db.DbMaintenance.DropTable(table);
+                    LogHelper.Info(FullPath, $"删掉了不再用的老表 {table}（账号已经换成 account_* 三张表，菜单写在代码里）");
+                }
+            }
+            catch (Exception exception)
+            {
+                LogHelper.Warn(FullPath, $"老表 {table} 没删掉（不影响登录），下次开机再删：{exception.Message}");
+            }
+        }
     }
 
     private void Seed(SqlSugarClient db)
