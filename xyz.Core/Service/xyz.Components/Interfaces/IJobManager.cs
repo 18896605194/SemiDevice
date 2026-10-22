@@ -101,6 +101,16 @@ public interface IJobManager
     bool HasRunningJob { get; }
 
     /// <summary>
+    /// Job 记录落的库（sc.xml 的 Database 节点名），历史页查它
+    /// </summary>
+    string Database { get; }
+
+    /// <summary>
+    /// Job 历史页一次最多返回多少个 CJ
+    /// </summary>
+    int HistoryQueryMaxCount { get; }
+
+    /// <summary>
     /// 工艺没做成的那一片重做这个任务
     /// </summary>
     Task<HandleResult> RetryTaskAsync(string processJob, int slot, int task);

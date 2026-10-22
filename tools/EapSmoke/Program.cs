@@ -1517,6 +1517,10 @@ sealed class FakeJobs : IJobManager
 
     public bool HasRunningJob => false;
 
+    public string Database => "Default";
+
+    public int HistoryQueryMaxCount => 1000;
+
     public string? OwnerOf(Guid waferId)
     {
         return null;

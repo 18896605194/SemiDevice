@@ -27,6 +27,18 @@ public interface IJobService
     Task<RpcResponse> GetJobsAsync(RpcRequest request, CallContext context = default);
 
     /// <summary>
+    /// 按建的时刻查库里的 CJ。Data 为 HistoryResult&lt;ControlJobHistoryDto&gt; 的 JSON（最新的在前）
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> QueryHistoryAsync(JobHistoryQuery query, CallContext context = default);
+
+    /// <summary>
+    /// 库里一个 CJ 下面的 PJ（每片带它的一行任务），按建的先后。Parameters["ControlJob"] = CJ 的行号；Data 为 ProcessJobDto 数组的 JSON
+    /// </summary>
+    [OperationContract]
+    Task<RpcResponse> GetHistoryProcessJobsAsync(RpcRequest request, CallContext context = default);
+
+    /// <summary>
     /// 本地建 Job：一个 LoadPort 上的一篮，每槽一个流程配方。Data 为 JobCreatedDto 的 JSON。
     /// 不建回 job.* 的码（LoadPort、载具、片、名字、上限、流程配方、工艺配方、站点、回片槽）。
     /// </summary>

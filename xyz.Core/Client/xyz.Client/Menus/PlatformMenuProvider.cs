@@ -47,6 +47,7 @@ public sealed class PlatformMenuProvider : IClientMenuProvider
             new ClientMenu(PermissionCodes.DataCenter, PermissionCodes.DataCenterLogHistory, 2) { Access = MenuAccess.ViewOnly },
             new ClientMenu(PermissionCodes.DataCenter, PermissionCodes.DataCenterDataChart, 3) { Access = MenuAccess.ViewOnly },
             new ClientMenu(PermissionCodes.DataCenter, PermissionCodes.DataCenterRealChart, 4) { Access = MenuAccess.ViewOnly },
+            new ClientMenu(PermissionCodes.DataCenter, PermissionCodes.DataCenterJobHistory, 5) { Access = MenuAccess.ViewOnly },
 
             new ClientMenu(PermissionCodes.Setting, PermissionCodes.SettingEc, 1),
             new ClientMenu(PermissionCodes.Setting, PermissionCodes.SettingWaferLedger, 2),

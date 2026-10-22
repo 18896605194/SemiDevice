@@ -18,4 +18,9 @@ public enum StationKind
     Buffer = 3,
 
     Robot = 4,
+
+    /// <summary>
+    /// 对准器
+    /// </summary>
+    Aligner = 5,
 }

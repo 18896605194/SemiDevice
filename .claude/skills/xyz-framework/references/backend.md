@@ -322,6 +322,15 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   下面进片段、出片段各配一个（SC `SlotCount` 几层、`IsEnable`），各自 `IsRun`。开机在晶圆账登记槽位、待命、自己上线
   （没有手动页）；全部初始化时直接回待命。跟 JK 一样，机械手控制器里两段各教一个站号，站点表里各配各的 `Number`，槽号原样发、不换算，
   机械手、搬运管理、调度都不认识 buffer。见 decisions.md「buffer」。
+- **对准器** `Aligner\BaseAlignerModule : BaseTransferStationModule, IAligner`（2026-10-22；机型写空类继承，跟 buffer 一样）：一个槽，`Kind` = `StationKind.Aligner`，只声明取放
+  （流程配方这一步不选工艺配方，任务表只有放片、取片）。下面必挂一个驱动子组件（`IAlignerDriverComponent`：Home / Align(角度) / Stop / ResetDrive / AbandonAll，
+  指令句柄 `xyz.Drivers\Aligner\AlignerCommand`），没挂开机抛；还没有品牌驱动。开机登记晶圆账一个槽、自己上线（没有手动页），`InitModule()` = `Home()`。
+  **片放上来自己对准**：`OnTransferFinished` 里这一轮放了片就接着 `Begin(Align)`（`TransferComplete → Aligning → Idle`），搬运照常收尾、机械手不等；
+  起不了（驱动断了、互锁 `AlignInterlock` 不让）落 Error、报 `ControlledStopAlarm`。**台上的片没对好不让取**：`CheckPrepareTransfer` 加一条 `aligner.wafer_not_aligned`
+  （记的是对好的那片的内部标识，跟账上台上那片比，只在内存）。回零时台上有片串一条对准（`CreateHomeOperation(hasWafer)`）。
+  动作 `AlignerCommandOperation`（发指令 → 等做完 → 超时判失败，`Then` 串下一条，各按各的超时）；失败作废在途指令、报警（人为急停顶掉的不报）。
+  SC `IsEnable`；EC `NotchAngle`（度，默认 0）、`HomeTimeout` / `AlignTimeout`（30 s）、`ResetTimeout` / `AbortTimeout`（10 s）。
+  机型扩展点：`CreateHomeOperation` / `CreateAlignOperation` / `CreateResetOperation` / `CreateAbortOperation`、`HomeInterlock` / `AlignInterlock`、`RaiseActionFailedAlarm`。见 decisions.md「对准器」。
 - **加工口** `Process\IProcessStation`（继承 `IModule`，带 `Type`；`IChamber` 继承它，`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。
   工艺配方（Type 选项、配方对不对得上站点）、流程配方（哪些分组要选配方）、Job 都认 `IProcessStation`；`IChamber` 只放腔体手动页的东西
   （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。
@@ -435,12 +444,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   ④ 调度派任务（Manual 不派）→ ⑤ 直接发布当前快照（`JobListDto` 推送，留存，开机先推一份）。不使用 dirty 标记、快照版本号或任务表版本比较，每拍发布并交给存库线程合并写入。
   不限同时跑几个 CJ、不设 CJ / PJ 个数上限（一个 LoadPort 一个 CJ、一片只归一个 PJ，个数自然有数；S16F21 答 U2 最大值）。
   EAP 按载具号找：`IJobManager.FindControlJobByCarrier` 在 Job 锁内调用 `CjManager.FindByCarrier`，从 CJ 字典读取并返回 DTO 副本；`FindProcessJobsByCarrier` 在锁内读取当前 PJ，包括保留在 CJ 下的已结束 PJ。Snapshot 查询在锁内生成 DTO，不缓存 `_snapshot`。PJ 记着建的时候的载具号（`ProcessJob.CarrierId`，E40 报料 PrMtlNameList 也用它）。
-  SC：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
+  SC：`IsEnable`、`ProcessJobAutoStart`、`ControlJobAutoStart`、`IsPersistent`、`Database`、`HistoryQueryMaxCount`；EC：`CommandTimeoutMs`。服务 `IJobService`（`xyz.Service\Jobs`：建 Job、CJ / PJ 命令、出错任务重做 / 标记完成）。
   **存库与重启**（2026-10-07 用户："界面上显示的就是数据库的数据，该存库就存库"）：CJ、PJ 各一张表，一个 Job 一行（`control_job` / `process_job`，
   实体 `ControlJobEntity` / `ProcessJobEntity` 继承 `BaseEntity`：自增行号、CreatedTime = 建的时刻、UpdatedTime = 最后写的时刻；PJ 行记着 CJ 的行号 `ControlJobRowId`，
   每片的任务明细是 `JobWaferDto` 列表的 JSON 放在 `Wafers` 列）。每次发布把全貌里的 CJ、PJ 交给 Job 管理里的一条写库线程（同一个 Job 只写最新一份；
   第一次插一行、行号记在 `ControlJob.RowId` / `ProcessJob.RowId` 上，之后按行号更新），删掉的 CJ、结束的 PJ 在转换那里单独交最后一次。
-  内存里不留历史、全貌里没有历史，界面看历史查库（查询服务等 Job 页定了再加）。`Bind` 时 `CloseOutLastRun`：**重启后 Job 不接着跑**——
+  内存里不留历史、全貌里没有历史，界面看历史查库：`IJobService.QueryHistoryAsync(JobHistoryQuery)`（按 CJ 建的时刻、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前，
+  最多 SC `HistoryQueryMaxCount` 个、多取一个判截断，回 `HistoryResult<ControlJobHistoryDto>`，带行号）、`GetHistoryProcessJobsAsync`（Parameters["ControlJob"] = CJ 行号，
+  按 `ControlJobRowId` 取 PJ 转回 `ProcessJobDto`，任务明细 JSON 在映射组件里转回；行号不是数回 `job.not_found`）；服务从 `IJobManager.Database` 读库，表还没建回空的，读库出错回 `history.query_failed`。`Bind` 时 `CloseOutLastRun`：**重启后 Job 不接着跑**——
   库里还没删的 CJ 记成中止结束（`CompletedBy` 12、`EndedBy` 13、`Restarted` = true；完成了还没删的只补 #13），没结束的 PJ 记成中止（#16），
   任务明细留着重启前做到哪；机内的片由人确认片位收回后重新建 Job。两张表不清理（量小）。
   重启收场的 Job 不补报 E40 / E94 事件：开机时 Host 还没连上，报了也发不出去（不算断线，不进缓存）；Host 连上后用 S16F19、S14F1 查得到哪些还在。
@@ -450,6 +461,8 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 - 品牌驱动壳：抽象基类（`RobotDriverComponent`、`LoadPortDriverComponent`、`RfidDriverComponent`）管 SC 通讯配置、驱动生命周期、`DeviceEvent`
   和触发方法；品牌壳（`RejeRobotComponent`、`FcdLoadPortComponent`、`FcdRfidComponent`）只实现 `CreateDriver()` 和命令工厂。换品牌 = 改 sc.xml 的 Type。
+  对准器只定了驱动口 `IAlignerDriverComponent` 和指令句柄 `xyz.Drivers\Aligner`（2026-10-22），还没有驱动基类和品牌壳：接第一个品牌时照 LoadPort 写
+  （协议、在途规则按品牌，通讯 SC、`DriverReconnector` 重连照抄），作废在途指令的办法由品牌驱动自己给（`AlignerCommand.Complete` 是 protected）。
 - `xyz.Drivers`：`ICommunication`（串口 / TCP，`CommunicationFactory`）、`IFrameCodec` + `FrameCommunication`（收包泵 + 发送锁）、
   品牌协议放 `Robot\Reje\`、`Loadport\FCD\`、`Rfid\FCD\`（Protocol、FrameCodec、Commands）。驱动回调只改状态，动作由模块扫描线程推进。
 - **在途指令要能作废**（2026-10-06）：LoadPort 驱动按指令名占在途位、RFID 驱动只有一个在途位，回复丢了就一直占着，同名指令再也发不出去。
@@ -667,7 +680,7 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   账一变（都走 `RecordHistory`）标脏，存盘线程隔一会儿整张重写（事务里删了再插）；**开机恢复之前不写**（开机那一刻的空账不能冲掉上次的）。
   `Restore()`（晶圆账自己的 `Bind` 里调：各模块组件初始化登记完槽位之后、开始扫描之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。
-- Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新（见 §3 Job）。
+- Job 记录：`control_job` / `process_job` 一个 Job 一行，跟着进度更新、不清理；数据中心的 Job 历史页经 `IJobService` 查它（见 §3 Job）。
 - 账号：`account_user`（登录名、显示名、密码哈希 `PBKDF2-SHA256$次数$盐$哈希`、角色、内置、最后登录）、`account_role`（名字、说明、种类 普通 / 管理员 / 访客）、
   `account_role_permission`（角色、权限项编码、档位），在 sc `Account` 的 `Database` 库里；行数少，不清理。老的 User / Role 表没人用了（没删库里的表）。
 - 工艺站开工片数：`process_daily_count` 一站一天一行（站点、日期 yyyy-MM-dd、片数、更新时间），默认库；`ProcessCounter` 开机读回（读不成今天、累计这次从 0 数），

@@ -261,6 +261,7 @@ public class AccountComponent : ComponentBase, IAccount
             [PermissionCodes.DataCenterLogHistory] = PermissionLevel.View,
             [PermissionCodes.DataCenterDataChart] = PermissionLevel.View,
             [PermissionCodes.DataCenterRealChart] = PermissionLevel.View,
+            [PermissionCodes.DataCenterJobHistory] = PermissionLevel.View,
             [PermissionCodes.SettingEc] = setting,
             [PermissionCodes.SettingWaferLedger] = setting,
             [PermissionCodes.Io] = io,

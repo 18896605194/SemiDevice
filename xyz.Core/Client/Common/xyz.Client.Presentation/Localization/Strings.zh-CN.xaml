@@ -99,6 +99,7 @@
     <sys:String x:Key="chamber.wafer_mismatch">{0} 第 {1} 槽不是要做的那一片（没片，或换过片）</sys:String>
     <sys:String x:Key="chamber.wafer_owned">{0} 里的 {1} 正在 Job {2} 里，不能手动起工艺</sys:String>
     <sys:String x:Key="chamber.supply_not_ready">{0} 起不了工艺配方 {1}：供液 {2} 没就绪</sys:String>
+    <sys:String x:Key="aligner.wafer_not_aligned">{0} 上的片还没对好，不能取走：先回零，台上有片会再对一遍</sys:String>
     <sys:String x:Key="tank.busy">{0} 正在补液、排液、换液或供液，先停止</sys:String>
     <sys:String x:Key="tank.error">{0} 有报警，先复位</sys:String>
     <sys:String x:Key="tank.valve_group_missing">{0} 没配 {1} 阀组</sys:String>
@@ -321,6 +322,50 @@
     <sys:String x:Key="log.clear">清空</sys:String>
     <sys:String x:Key="log.paused_summary">已暂停，新到 {0} 条</sys:String>
 
+    <!-- Job 历史页（数据中心）：上面 CJ、PJ，下面晶圆、任务；名字、站点、配方是库里的数据，原样显示 -->
+    <sys:String x:Key="jobhistory.keyword_hint">关键字（CJ / LotID / 载具号 / LoadPort）</sys:String>
+    <sys:String x:Key="jobhistory.control_jobs">CJ</sys:String>
+    <sys:String x:Key="jobhistory.process_jobs">PJ</sys:String>
+    <sys:String x:Key="jobhistory.wafers">晶圆</sys:String>
+    <sys:String x:Key="jobhistory.tasks">任务</sys:String>
+    <sys:String x:Key="jobhistory.name">名称</sys:String>
+    <sys:String x:Key="jobhistory.loadport">LoadPort</sys:String>
+    <sys:String x:Key="jobhistory.carrier">载具号</sys:String>
+    <sys:String x:Key="jobhistory.lot">LotID</sys:String>
+    <sys:String x:Key="jobhistory.result">结果</sys:String>
+    <sys:String x:Key="jobhistory.created_at">建立时间</sys:String>
+    <sys:String x:Key="jobhistory.sequence">流程配方</sys:String>
+    <sys:String x:Key="jobhistory.wafer_count">片数</sys:String>
+    <sys:String x:Key="jobhistory.source">来源</sys:String>
+    <sys:String x:Key="jobhistory.wafer_id">片号</sys:String>
+    <sys:String x:Key="jobhistory.return">回片</sys:String>
+    <sys:String x:Key="jobhistory.task_kind">任务</sys:String>
+    <sys:String x:Key="jobhistory.station">站点</sys:String>
+    <sys:String x:Key="jobhistory.slot">槽</sys:String>
+    <sys:String x:Key="jobhistory.recipe">工艺配方</sys:String>
+    <sys:String x:Key="jobhistory.robot">机械手</sys:String>
+    <sys:String x:Key="jobhistory.state">状态</sys:String>
+    <sys:String x:Key="jobhistory.reason">原因</sys:String>
+    <sys:String x:Key="jobhistory.revision">{0}（版本 {1}）</sys:String>
+    <sys:String x:Key="jobhistory.location">{0} · {1}</sys:String>
+    <sys:String x:Key="jobhistory.robot_arm">{0} · Arm{1}</sys:String>
+    <sys:String x:Key="jobhistory.result.Running">进行中</sys:String>
+    <sys:String x:Key="jobhistory.result.Completed">完成</sys:String>
+    <sys:String x:Key="jobhistory.result.Stopped">停止</sys:String>
+    <sys:String x:Key="jobhistory.result.Aborted">中止</sys:String>
+    <sys:String x:Key="jobhistory.result.Restarted">重启中止</sys:String>
+    <sys:String x:Key="jobhistory.result.Cancelled">取消</sys:String>
+    <sys:String x:Key="jobhistory.result.Error">出错</sys:String>
+    <sys:String x:Key="jobhistory.result.Unfinished">没做完</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Waiting">等待</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Running">进行中</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Done">完成</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Error">出错</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Cancelled">未执行</sys:String>
+    <sys:String x:Key="jobhistory.task.Process">工艺</sys:String>
+    <sys:String x:Key="jobhistory.query_failed">Job 历史查询失败：{0}</sys:String>
+    <sys:String x:Key="jobhistory.detail_failed">取 {0} 下面的 PJ 失败：{1}</sys:String>
+
     <!-- 报警页 -->
     <sys:String x:Key="alarmview.raised_at">报出时间</sys:String>
     <sys:String x:Key="alarmview.level">等级</sys:String>
@@ -480,6 +525,7 @@
     <sys:String x:Key="setting.ledger.kind.loadport">LoadPort</sys:String>
     <sys:String x:Key="setting.ledger.kind.chamber">腔体</sys:String>
     <sys:String x:Key="setting.ledger.kind.buffer">Buffer</sys:String>
+    <sys:String x:Key="setting.ledger.kind.aligner">Aligner</sys:String>
     <sys:String x:Key="setting.ledger.kind.other">其他</sys:String>
     <sys:String x:Key="setting.ledger.slot_name">槽 {0:00}</sys:String>
     <sys:String x:Key="setting.ledger.arm_name">手指 {0}</sys:String>
@@ -844,6 +890,7 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">日志历史</sys:String>
     <sys:String x:Key="menu.DataCenter.DataChart">数据曲线</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">实时曲线</sys:String>
+    <sys:String x:Key="menu.DataCenter.JobHistory">Job 历史</sys:String>
     <sys:String x:Key="menu.Setting.Ec">EC</sys:String>
     <sys:String x:Key="menu.Setting.WaferLedger">账单调整</sys:String>
     <sys:String x:Key="menu.Setting.User">用户管理</sys:String>

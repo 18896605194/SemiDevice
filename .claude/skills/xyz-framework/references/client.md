@@ -44,6 +44,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   显示名取语言包 `menu.{Code}`（没配就显示 Code），按模块生成的菜单直接用 title（模块名）。
 - 一级菜单：Main 1、Manual 2、Recipe 3、Alarm 4、DataCenter 5、Setting 6、Io 7。
   Recipe 下：Recipe.Sequence 1（流程配方）、Recipe.Process 2（工艺配方）。
+  DataCenter 下：DataCenter.LogRealtime 1、DataCenter.LogHistory 2、DataCenter.DataChart 3、DataCenter.RealChart 4、DataCenter.JobHistory 5（Job 历史），都是只看。
   Setting 下：Setting.Ec 1、Setting.WaferLedger 2、Setting.User 3、Setting.Role 4。
 - 页面注册（功能模块的 `ServiceExtensions`）：
   ```csharp
@@ -92,6 +93,13 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽、操作人；启动方式由设备 SC 决定，后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
   启动 Job = `ControlJobCommandAsync`（CJStart），Auto 下、CJ 是 WAITINGFORSTART（`ControlJobDto.StateWaitingForStart`）才能点。结果写顶栏日志。
   Job 的列表、详情、暂停 / 停止 / 中止这些按钮还没有界面（要先给参考图或出样稿）。
+
+### 数据中心 · Job 历史（`xyz.Client.DataCenter`，2026-10-22，见 decisions.md「Job」）
+- 工具栏跟日志历史一样（起止时间、关键字 `InputTextBox`、查询 / 今天 / 最近 7 天，右边共几条 / 截断提示），不自动查。下面四块 `ZoneBorderStyle`：
+  上 CJ（查到的，最新的在前）| PJ（右边 760 宽），下 晶圆（左边 520 宽）| 任务。查完默认选第一个 CJ，选 CJ 调 `IJobService.GetHistoryProcessJobsAsync` 取 PJ（换得快时晚回来的旧结果丢掉），
+  默认选第一个 PJ、第一片；晶圆、任务都是 PJ 那一行里带的，不再问后端。
+- 结果列 `JobResultDataGridTextStyle`（行上 `Result` = `Models\JobResult`），任务表的任务列 `JobTaskKindDataGridTextStyle`（Pick / Place / Process 翻成字，站点自己起名的原样）、
+  状态列 `JobTaskStateDataGridTextStyle`；"进行中"用白字（强调色跟选中行的底色撞）。出错原因按任务带的错误码 + 参数查语言包。
 
 ### 加一个页面（清单）
 1. 功能模块里加 `Models\`、`ViewModels\XxxViewModel.cs`、`Views\XxxView.xaml(.cs)`。
@@ -176,7 +184,8 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   DataTrigger 的 `Value="Move"` 这种字符串能直接匹配枚举。
 - 表单一行"标签 + 值"（主界面系统操作、LoadPort 栏）：`FormLabelTextStyle` / `FormValueTextStyle`。表格行里的小图标按钮（⊕ ⊖）：`RowIconButtonStyle`。
 - 需要行数据带特定属性的样式：`LogLevelDataGridTextStyle`（Level）、`PickDataGridRowStyle` / `PickDataGridCellStyle`（IsPickable）、
-  `FreshDataGridCellStyle`（IsFresh）、`JobWaferStateDataGridTextStyle`（WaferState，主界面槽位表的状态列）。
+  `FreshDataGridCellStyle`（IsFresh）、`JobWaferStateDataGridTextStyle`（WaferState，主界面槽位表的状态列）、
+  `JobResultDataGridTextStyle`（Result）、`JobTaskStateDataGridTextStyle`（State）、`JobTaskKindDataGridTextStyle`（Kind）（Job 历史页）。
 - DataGrid 三档：`DefaultDataGridStyle`（行 46）、`CompactDataGridStyle`（行 32，日志、报警、IO、EC）、
   `DenseDataGridStyle`（行 27、格子留白小、不能点表头排序、外面套 `ListPaneBorderStyle`）+ `DenseDataGridTextStyle`。
   列文字用 `ElementStyle`；**要让样式来定 Text 的列用模板列**（DataGridTextColumn 会在 TextBlock 上设本地 Text，盖掉样式）。

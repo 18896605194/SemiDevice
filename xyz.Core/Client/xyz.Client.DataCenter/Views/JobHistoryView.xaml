@@ -1,0 +1,304 @@
+﻿<UserControl
+    x:Class="xyz.Client.DataCenter.Views.JobHistoryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="920"
+    d:DesignWidth="1980"
+    TextElement.Foreground="{DynamicResource DarkPrimaryText}"
+    mc:Ignorable="d">
+
+    <Grid Background="{DynamicResource DarkWindowBackground}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="520" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="760" />
+            </Grid.ColumnDefinitions>
+
+            <!--  查询条件：按 CJ 建的时刻查（精确到分钟，截止那一分钟也算）、关键字；今天 / 最近 7 天直接查  -->
+            <Border
+                Grid.Row="0"
+                Grid.ColumnSpan="4"
+                Style="{DynamicResource ToolbarBorderStyle}">
+                <DockPanel>
+                    <TextBlock
+                        DockPanel.Dock="Right"
+                        Style="{DynamicResource StatusLabelTextStyle}"
+                        Text="{Binding Summary}" />
+                    <WrapPanel Orientation="Horizontal">
+                        <controls:DateTimePicker
+                            Width="300"
+                            Margin="0,0,10,0"
+                            Hint="{DynamicResource common.start_time}"
+                            Value="{Binding StartTime}" />
+                        <controls:DateTimePicker
+                            Width="300"
+                            Margin="0,0,10,0"
+                            Hint="{DynamicResource common.end_time}"
+                            Value="{Binding EndTime}" />
+                        <controls:InputTextBox
+                            Width="320"
+                            Margin="0,0,10,0"
+                            materialDesign:HintAssist.Hint="{DynamicResource jobhistory.keyword_hint}"
+                            DataType="Text"
+                            Style="{DynamicResource ToolbarTextBoxStyle}"
+                            Value="{Binding Keyword}" />
+                        <Button
+                            Command="{Binding QueryCommand}"
+                            Content="{DynamicResource common.query}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
+                        <Button
+                            Command="{Binding TodayCommand}"
+                            Content="{DynamicResource common.today}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
+                        <Button
+                            Command="{Binding LastWeekCommand}"
+                            Content="{DynamicResource common.last_7_days}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
+                    </WrapPanel>
+                </DockPanel>
+            </Border>
+
+            <!--  CJ：查到的，最新的在上面；选中一个，右边列它下面的 PJ  -->
+            <Border
+                Grid.Row="2"
+                Grid.ColumnSpan="2"
+                Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                            <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource jobhistory.control_jobs}" />
+                        </StackPanel>
+                    </Border>
+                    <!--  单元格样式要直接写在 DataGrid 上：只靠表格样式里的 CellStyle，MaterialDesign 会先套上它自己的单元格样式，选中行变成灰的  -->
+                    <DataGrid
+                        CellStyle="{DynamicResource DefaultDataGridCellStyle}"
+                        ItemsSource="{Binding ControlJobs}"
+                        SelectedItem="{Binding SelectedControlJob}"
+                        Style="{DynamicResource ZoneDataGridStyle}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding Name, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.name}" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding LoadPort, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.loadport}" />
+                            <DataGridTextColumn
+                                Width="130"
+                                Binding="{Binding CarrierId, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.carrier}" />
+                            <DataGridTextColumn
+                                Width="170"
+                                Binding="{Binding LotId, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.lot}" />
+                            <DataGridTemplateColumn Width="140" Header="{DynamicResource jobhistory.result}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{DynamicResource JobResultDataGridTextStyle}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn
+                                Width="165"
+                                Binding="{Binding CreatedAt, Mode=OneWay, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.created_at}" />
+                            <DataGridTextColumn
+                                Width="165"
+                                Binding="{Binding StartedAt, Mode=OneWay, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource common.start_time}" />
+                            <DataGridTextColumn
+                                Width="165"
+                                Binding="{Binding CompletedAt, Mode=OneWay, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource common.end_time}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!--  PJ：选中 CJ 下面的，按建的先后；选中一个，下面列它的每一片  -->
+            <Border
+                Grid.Row="2"
+                Grid.Column="3"
+                Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                            <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource jobhistory.process_jobs}" />
+                        </StackPanel>
+                    </Border>
+                    <DataGrid
+                        CellStyle="{DynamicResource DefaultDataGridCellStyle}"
+                        ItemsSource="{Binding ProcessJobs}"
+                        SelectedItem="{Binding SelectedProcessJob}"
+                        Style="{DynamicResource ZoneDataGridStyle}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding Name, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.name}" />
+                            <DataGridTextColumn
+                                Width="180"
+                                Binding="{Binding Sequence, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.sequence}" />
+                            <DataGridTextColumn
+                                Width="60"
+                                Binding="{Binding WaferCount, Mode=OneWay}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.wafer_count}" />
+                            <DataGridTemplateColumn Width="80" Header="{DynamicResource jobhistory.result}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{DynamicResource JobResultDataGridTextStyle}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn
+                                Width="125"
+                                Binding="{Binding StartedAt, Mode=OneWay, StringFormat='{}{0:MM-dd HH:mm:ss}'}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource common.start_time}" />
+                            <DataGridTextColumn
+                                Width="125"
+                                Binding="{Binding EndedAt, Mode=OneWay, StringFormat='{}{0:MM-dd HH:mm:ss}'}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource common.end_time}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!--  晶圆：选中 PJ 的每一片，从哪来、回哪去；选中一片，右边列它的任务  -->
+            <Border
+                Grid.Row="4"
+                Grid.Column="0"
+                Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                            <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource jobhistory.wafers}" />
+                        </StackPanel>
+                    </Border>
+                    <DataGrid
+                        CellStyle="{DynamicResource DefaultDataGridCellStyle}"
+                        ItemsSource="{Binding Wafers}"
+                        SelectedItem="{Binding SelectedWafer}"
+                        Style="{DynamicResource ZoneDataGridStyle}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="130"
+                                Binding="{Binding Source, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.source}" />
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding WaferId, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.wafer_id}" />
+                            <DataGridTextColumn
+                                Width="130"
+                                Binding="{Binding Return, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.return}" />
+                            <DataGridTemplateColumn Width="100" Header="{DynamicResource jobhistory.result}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{DynamicResource JobResultDataGridTextStyle}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+
+            <!--  任务：选中那一片的一行任务，按顺序（实际做的站点、槽、机械手，出错的原因）  -->
+            <Border
+                Grid.Row="4"
+                Grid.Column="1"
+                Grid.ColumnSpan="3"
+                Margin="8,0,0,0"
+                Style="{DynamicResource ZoneBorderStyle}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{DynamicResource ZoneHeaderBorderStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{DynamicResource ZoneTitleBarBorderStyle}" />
+                            <TextBlock Style="{DynamicResource ZoneTitleTextStyle}" Text="{DynamicResource jobhistory.tasks}" />
+                        </StackPanel>
+                    </Border>
+                    <DataGrid
+                        CellStyle="{DynamicResource DefaultDataGridCellStyle}"
+                        ItemsSource="{Binding Tasks}"
+                        Style="{DynamicResource ZoneDataGridStyle}">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="90" Header="{DynamicResource jobhistory.task_kind}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{DynamicResource JobTaskKindDataGridTextStyle}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn
+                                Width="200"
+                                Binding="{Binding Station, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.station}" />
+                            <DataGridTextColumn
+                                Width="64"
+                                Binding="{Binding Slot, Mode=OneWay}"
+                                ElementStyle="{DynamicResource DefaultDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.slot}" />
+                            <DataGridTextColumn
+                                Width="200"
+                                Binding="{Binding Recipe, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.recipe}" />
+                            <DataGridTextColumn
+                                Width="170"
+                                Binding="{Binding Robot, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.robot}" />
+                            <DataGridTemplateColumn Width="90" Header="{DynamicResource jobhistory.state}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{DynamicResource JobTaskStateDataGridTextStyle}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding Reason, Mode=OneWay}"
+                                ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                                Header="{DynamicResource jobhistory.reason}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

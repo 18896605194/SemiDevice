@@ -293,4 +293,93 @@
         </Style.Triggers>
     </Style>
 
+    <!--  Job 历史页的结果列（行数据要有 Result）：还在做白字（强调色跟选中行的底色撞），完成绿字，停止、没做完黄字，中止、出错红字，取消灰字  -->
+    <Style
+        x:Key="JobResultDataGridTextStyle"
+        BasedOn="{StaticResource DefaultDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Text" Value="" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Result}" Value="Running">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Running}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Completed">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Completed}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Stopped">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Stopped}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Aborted">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Aborted}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Restarted">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Restarted}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Cancelled">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Cancelled}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Error">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Error}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Result}" Value="Unfinished">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.result.Unfinished}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkWarningStatus}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  Job 历史页任务表的状态列（行数据要有 State）：等着灰字，在做白字，完成绿字，出错红字，没执行灰字  -->
+    <Style
+        x:Key="JobTaskStateDataGridTextStyle"
+        BasedOn="{StaticResource DefaultDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Text" Value="{Binding State}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding State}" Value="Waiting">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Waiting}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding State}" Value="Running">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Running}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding State}" Value="Done">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Done}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkRunningStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding State}" Value="Error">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Error}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkAlarmStatus}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding State}" Value="Cancelled">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.task_state.Cancelled}" />
+                <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  Job 历史页任务表的任务列（行数据要有 Kind）：取片、放片、工艺翻成字，站点自己起名的站内任务原样显示  -->
+    <Style
+        x:Key="JobTaskKindDataGridTextStyle"
+        BasedOn="{StaticResource EllipsisDataGridTextStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Text" Value="{Binding Kind}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Kind}" Value="Pick">
+                <Setter Property="Text" Value="{DynamicResource action.pick}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Kind}" Value="Place">
+                <Setter Property="Text" Value="{DynamicResource action.place}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Kind}" Value="Process">
+                <Setter Property="Text" Value="{DynamicResource jobhistory.task.Process}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

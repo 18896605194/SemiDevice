@@ -98,6 +98,7 @@
     <sys:String x:Key="chamber.wafer_mismatch">{0} slot {1} does not hold the wafer to be processed (empty, or the wafer was swapped)</sys:String>
     <sys:String x:Key="chamber.wafer_owned">{1} in {0} belongs to job {2}; it cannot be processed manually</sys:String>
     <sys:String x:Key="chamber.supply_not_ready">{0} cannot run process recipe {1}: supply {2} is not ready</sys:String>
+    <sys:String x:Key="aligner.wafer_not_aligned">The wafer on {0} is not aligned and cannot be picked; home it first (a wafer on the stage is aligned again)</sys:String>
     <sys:String x:Key="tank.busy">{0} is filling, draining, exchanging or supplying; stop it first</sys:String>
     <sys:String x:Key="tank.error">{0} has an alarm; reset it first</sys:String>
     <sys:String x:Key="tank.valve_group_missing">{0} has no {1} valve group</sys:String>
@@ -320,6 +321,50 @@
     <sys:String x:Key="log.clear">Clear</sys:String>
     <sys:String x:Key="log.paused_summary">Paused, {0} new</sys:String>
 
+    <!-- Job history page (Data Center): control jobs and process jobs on top, wafers and tasks below -->
+    <sys:String x:Key="jobhistory.keyword_hint">Keyword (CJ / Lot ID / carrier / LoadPort)</sys:String>
+    <sys:String x:Key="jobhistory.control_jobs">Control Jobs</sys:String>
+    <sys:String x:Key="jobhistory.process_jobs">Process Jobs</sys:String>
+    <sys:String x:Key="jobhistory.wafers">Wafers</sys:String>
+    <sys:String x:Key="jobhistory.tasks">Tasks</sys:String>
+    <sys:String x:Key="jobhistory.name">Name</sys:String>
+    <sys:String x:Key="jobhistory.loadport">LoadPort</sys:String>
+    <sys:String x:Key="jobhistory.carrier">Carrier ID</sys:String>
+    <sys:String x:Key="jobhistory.lot">Lot ID</sys:String>
+    <sys:String x:Key="jobhistory.result">Result</sys:String>
+    <sys:String x:Key="jobhistory.created_at">Created</sys:String>
+    <sys:String x:Key="jobhistory.sequence">Sequence</sys:String>
+    <sys:String x:Key="jobhistory.wafer_count">Wafers</sys:String>
+    <sys:String x:Key="jobhistory.source">From</sys:String>
+    <sys:String x:Key="jobhistory.wafer_id">Wafer ID</sys:String>
+    <sys:String x:Key="jobhistory.return">Return</sys:String>
+    <sys:String x:Key="jobhistory.task_kind">Task</sys:String>
+    <sys:String x:Key="jobhistory.station">Station</sys:String>
+    <sys:String x:Key="jobhistory.slot">Slot</sys:String>
+    <sys:String x:Key="jobhistory.recipe">Recipe</sys:String>
+    <sys:String x:Key="jobhistory.robot">Robot</sys:String>
+    <sys:String x:Key="jobhistory.state">State</sys:String>
+    <sys:String x:Key="jobhistory.reason">Reason</sys:String>
+    <sys:String x:Key="jobhistory.revision">{0} (rev {1})</sys:String>
+    <sys:String x:Key="jobhistory.location">{0} · {1}</sys:String>
+    <sys:String x:Key="jobhistory.robot_arm">{0} · Arm{1}</sys:String>
+    <sys:String x:Key="jobhistory.result.Running">Running</sys:String>
+    <sys:String x:Key="jobhistory.result.Completed">Completed</sys:String>
+    <sys:String x:Key="jobhistory.result.Stopped">Stopped</sys:String>
+    <sys:String x:Key="jobhistory.result.Aborted">Aborted</sys:String>
+    <sys:String x:Key="jobhistory.result.Restarted">Aborted (restart)</sys:String>
+    <sys:String x:Key="jobhistory.result.Cancelled">Cancelled</sys:String>
+    <sys:String x:Key="jobhistory.result.Error">Error</sys:String>
+    <sys:String x:Key="jobhistory.result.Unfinished">Unfinished</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Waiting">Waiting</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Running">Running</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Done">Done</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Error">Error</sys:String>
+    <sys:String x:Key="jobhistory.task_state.Cancelled">Skipped</sys:String>
+    <sys:String x:Key="jobhistory.task.Process">Process</sys:String>
+    <sys:String x:Key="jobhistory.query_failed">Job history query failed: {0}</sys:String>
+    <sys:String x:Key="jobhistory.detail_failed">Failed to load the process jobs of {0}: {1}</sys:String>
+
     <!-- Alarm pages -->
     <sys:String x:Key="alarmview.raised_at">Raised at</sys:String>
     <sys:String x:Key="alarmview.level">Level</sys:String>
@@ -480,6 +525,7 @@
     <sys:String x:Key="setting.ledger.kind.loadport">LoadPorts</sys:String>
     <sys:String x:Key="setting.ledger.kind.chamber">Chambers</sys:String>
     <sys:String x:Key="setting.ledger.kind.buffer">Buffers</sys:String>
+    <sys:String x:Key="setting.ledger.kind.aligner">Aligners</sys:String>
     <sys:String x:Key="setting.ledger.kind.other">Other</sys:String>
     <sys:String x:Key="setting.ledger.slot_name">Slot {0:00}</sys:String>
     <sys:String x:Key="setting.ledger.arm_name">Arm {0}</sys:String>
@@ -844,6 +890,7 @@
     <sys:String x:Key="menu.DataCenter.LogHistory">Log History</sys:String>
     <sys:String x:Key="menu.DataCenter.DataChart">Data Chart</sys:String>
     <sys:String x:Key="menu.DataCenter.RealChart">Real-time Chart</sys:String>
+    <sys:String x:Key="menu.DataCenter.JobHistory">Job History</sys:String>
     <sys:String x:Key="menu.Setting.Ec">EC</sys:String>
     <sys:String x:Key="menu.Setting.WaferLedger">Wafer Ledger</sys:String>
     <sys:String x:Key="menu.Setting.User">Users</sys:String>

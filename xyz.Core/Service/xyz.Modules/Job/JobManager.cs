@@ -70,6 +70,9 @@ public class JobManager : ComponentBase, IJobManager
     [SCEditor("Default", "Job", "Job 记录落哪个库（sc.xml 的 Database 节点名）")]
     public string Database { get; set; } = XyzDb.DefaultName;
 
+    [SCEditor("1000", "Job", "Job 历史页一次最多返回多少个 CJ（取最新的），超出界面提示缩小时间段或加条件")]
+    public int HistoryQueryMaxCount { get; set; } = 1000;
+
     #endregion
 
     #region EC
