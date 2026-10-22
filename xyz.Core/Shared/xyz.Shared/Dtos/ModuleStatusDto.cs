@@ -1,0 +1,38 @@
+﻿namespace xyz.Shared.Dtos;
+
+/// <summary>
+/// 各模块的状态和 Auto / Manual（顶栏的模块状态行按它显示），整机模块推。
+/// 模块照 sc.xml 装配出来的、先后同 sc，不含整机自己。状态类消息：有一个变了才推整张表，留存。
+/// </summary>
+public class ModuleStatusListDto
+{
+    public const string EventToken = "ModuleStatus";
+
+    public List<ModuleStatusDto> Modules { get; set; } = [];
+}
+
+/// <summary>
+/// 一个模块：名字、哪一类、状态码、Auto / Manual
+/// </summary>
+public class ModuleStatusDto
+{
+    /// <summary>
+    /// 模块名（sc.xml 原样，如 LoadPort1）
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 哪一类：界面按它把状态码翻成字、定色调（同一个码在 LoadPort、腔体意思不同）
+    /// </summary>
+    public StationKind Kind { get; set; }
+
+    /// <summary>
+    /// 状态码
+    /// </summary>
+    public int State { get; set; }
+
+    /// <summary>
+    /// 在线（参与自动调度）算 Auto，离线算 Manual
+    /// </summary>
+    public ModuleMode Mode { get; set; }
+}

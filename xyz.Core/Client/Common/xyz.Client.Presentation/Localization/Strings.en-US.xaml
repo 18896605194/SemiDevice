@@ -54,6 +54,8 @@
     <sys:String x:Key="module.state.auto_running">Auto running</sys:String>
     <sys:String x:Key="module.state.returning">Returning wafers</sys:String>
     <sys:String x:Key="module.state.unknown">Unknown state ({0})</sys:String>
+    <sys:String x:Key="module.state.aligning">Aligning</sys:String>
+    <sys:String x:Key="module.state.disconnected">Disconnected</sys:String>
 
     <sys:String x:Key="loadport.command_rejected">{0} command rejected (disconnected or in flight)</sys:String>
     <sys:String x:Key="loadport.timeout">{0} timeout ({1}ms)</sys:String>

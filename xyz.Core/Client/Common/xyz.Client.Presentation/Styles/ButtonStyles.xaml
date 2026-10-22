@@ -255,17 +255,16 @@
         <Setter Property="BorderBrush" Value="{StaticResource DarkRunningStatus}" />
     </Style>
 
-    <!--  顶栏右上角竖排的三个按钮（注销、复位、关蜂鸣器）：一样宽高、控件底色细边，图标和字靠左；竖排正好占满顶栏两行  -->
+    <!--  顶栏右上角竖排的三个按钮（注销、复位、关蜂鸣器）：宽度随最长的字、控件底色细边，图标和字靠左；竖排正好占满顶栏上两行  -->
     <Style
         x:Key="TopBarStackButtonStyle"
         BasedOn="{StaticResource MaterialDesignOutlinedButton}"
         TargetType="Button">
-        <Setter Property="Width" Value="120" />
-        <Setter Property="Height" Value="28" />
+        <Setter Property="Height" Value="20" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="Padding" Value="10,0" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
-        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
         <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
         <Setter Property="Background" Value="{StaticResource DarkControlBackground}" />
@@ -287,16 +286,15 @@
         </Style.Triggers>
     </Style>
 
-    <!--  顶栏的用户块（点开小菜单：登录、换人、改密码）：跟时间块一个样子（深一档的底、细边圆角、40 高），悬停边框变强调色  -->
+    <!--  顶栏的用户（点开小菜单：登录、换人、改密码）：跟日期、时间一样直接用顶栏的底色，没有框；悬停才淡淡一层底  -->
     <Style x:Key="TopBarUserButtonStyle" TargetType="Button">
-        <Setter Property="Height" Value="40" />
-        <Setter Property="MinWidth" Value="140" />
-        <Setter Property="Padding" Value="12,0" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
-        <Setter Property="Background" Value="{StaticResource DarkSurfaceBackground}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
@@ -308,12 +306,12 @@
                         Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="6">
+                        CornerRadius="4">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource DarkAccent}" />
+                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource DarkHoverBackground}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

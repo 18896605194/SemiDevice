@@ -1,0 +1,56 @@
+﻿<UserControl
+    x:Class="xyz.Client.Presentation.Controls.ModuleChip"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="clr-namespace:xyz.Client.Presentation.Models"
+    x:Name="Root">
+
+    <!--  模块小框：圆点是状态（就绪绿、报警红、其他灰），边框亮（跟就绪一样的绿）= Auto、灭（灰）= Manual，里面写模块名。
+          控件不认状态码：圆点按 Tone、边框按 IsAuto，谁用谁给  -->
+    <Border>
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="6,0" />
+                <Setter Property="Background" Value="{DynamicResource DarkControlBackground}" />
+                <!--  灭了用跟灰圆点一样的灰：DarkBorderBrush 跟顶栏底色几乎一样，看不出框  -->
+                <Setter Property="BorderBrush" Value="{DynamicResource DarkDisabledText}" />
+                <Setter Property="BorderThickness" Value="2" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsAuto, ElementName=Root}" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource DarkRunningStatus}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <StackPanel Orientation="Horizontal">
+            <Border
+                Width="8"
+                Height="8"
+                VerticalAlignment="Center"
+                CornerRadius="4">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource DarkDisabledText}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Tone, ElementName=Root}" Value="{x:Static models:ModuleStateTone.Ready}">
+                                <Setter Property="Background" Value="{DynamicResource DarkRunningStatus}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Tone, ElementName=Root}" Value="{x:Static models:ModuleStateTone.Alarm}">
+                                <Setter Property="Background" Value="{DynamicResource DarkAlarmStatus}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+            <TextBlock
+                Margin="5,0,0,0"
+                VerticalAlignment="Center"
+                FontSize="{DynamicResource Size14}"
+                FontWeight="SemiBold"
+                Foreground="{DynamicResource DarkPrimaryText}"
+                Text="{Binding Text, ElementName=Root}" />
+        </StackPanel>
+    </Border>
+</UserControl>

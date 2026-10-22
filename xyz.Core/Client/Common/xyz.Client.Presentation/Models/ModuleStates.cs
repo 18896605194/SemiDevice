@@ -1,4 +1,5 @@
 ﻿using xyz.Client.Presentation.Localization;
+using xyz.Shared.Dtos;
 
 namespace xyz.Client.Presentation.Models;
 
@@ -6,10 +7,50 @@ namespace xyz.Client.Presentation.Models;
 /// 模块状态码 → 状态字（按当前语言）和色调（状态徽标的底色）。
 /// 同一个码在不同模块意思不同（LoadPort 110 已装载 / 腔体 110 工艺中），所以按模块种类分开查。
 /// 码值对应 xyz.Modules 的 ModuleState / TransferModuleState 及各模块自己的状态，未收录的码显示原值。
-/// 手动页的模块卡片、机械手页的站点卡片都用这一份。
+/// 手动页的模块卡片、机械手页的站点卡片、顶栏的模块行都用这一份。
 /// </summary>
 public static class ModuleStates
 {
+    /// <summary>
+    /// 按模块种类查状态字（顶栏模块行这类各种模块混在一起显示的地方用）
+    /// </summary>
+    public static string TextOf(StationKind kind, int state)
+    {
+        switch (kind)
+        {
+            case StationKind.LoadPort:
+                return LoadPortText(state);
+            case StationKind.Chamber:
+                return ChamberText(state);
+            case StationKind.Robot:
+                return RobotText(state);
+            case StationKind.Aligner:
+                return AlignerText(state);
+            default:
+                return OtherText(state);
+        }
+    }
+
+    /// <summary>
+    /// 按模块种类查色调
+    /// </summary>
+    public static ModuleStateTone ToneOf(StationKind kind, int state)
+    {
+        switch (kind)
+        {
+            case StationKind.LoadPort:
+                return LoadPortTone(state);
+            case StationKind.Chamber:
+                return ChamberTone(state);
+            case StationKind.Robot:
+                return RobotTone(state);
+            case StationKind.Aligner:
+                return AlignerTone(state);
+            default:
+                return OtherTone(state);
+        }
+    }
+
     /// <summary>
     /// LoadPort：已装载是它的待命态（可被机械手服务），跟空闲一样算就绪；装卸、回零、夹紧/松开、传片环都算动作中。
     /// </summary>
@@ -168,7 +209,35 @@ public static class ModuleStates
     }
 
     /// <summary>
-    /// 其他模块（Aligner、Buffer 这类）：只认通用状态和传片环。
+    /// 对准器：回零、对准算动作中
+    /// </summary>
+    public static string AlignerText(int state)
+    {
+        switch (state)
+        {
+            case 100:
+                return L10n.Get("module.state.homing");
+            case 110:
+                return L10n.Get("module.state.aligning");
+            default:
+                return CommonText(state);
+        }
+    }
+
+    public static ModuleStateTone AlignerTone(int state)
+    {
+        switch (state)
+        {
+            case 100:
+            case 110:
+                return ModuleStateTone.Busy;
+            default:
+                return CommonTone(state);
+        }
+    }
+
+    /// <summary>
+    /// 其他模块（Buffer、供液这类）：只认通用状态和传片环。
     /// </summary>
     public static string OtherText(int state)
     {

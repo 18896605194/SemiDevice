@@ -64,20 +64,12 @@
         </Style.Triggers>
     </Style>
 
-    <!--  顶栏信息块里的主值（时间、用户名）：数字等宽，秒跳动时不晃  -->
+    <!--  顶栏右边的日期、时间、用户名：跟按钮、日志一样 12 号字；数字等宽，秒跳动时不晃  -->
     <Style x:Key="TopBarValueTextStyle" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="FontSize" Value="{StaticResource Size13}" />
+        <Setter Property="FontSize" Value="{StaticResource Size12}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource DarkPrimaryText}" />
-        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
-    </Style>
-
-    <!--  顶栏信息块里的附注（日期）：小一号、灰一点  -->
-    <Style x:Key="TopBarCaptionTextStyle" TargetType="TextBlock">
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="FontSize" Value="{StaticResource Size10}" />
-        <Setter Property="Foreground" Value="{StaticResource DarkDisabledText}" />
         <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
     </Style>
 

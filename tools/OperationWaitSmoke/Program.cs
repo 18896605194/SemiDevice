@@ -2043,6 +2043,25 @@ port.E87Callback = null;
     machine.Tick();
     Check(statusPushes.Count == 1 && !statusPushes[0].IsRunning, "整机自己推设备总状态：第一拍推一条，没变化不再推");
 
+    // 整机推各模块的状态和 Auto / Manual（ModuleStatusListDto，留存，顶栏模块行用）：不含整机自己、先后同模块表，有一个变了才推整张表
+    var modulePushes = new List<ModuleStatusListDto>();
+    using var moduleSubscription = EventBus.Register<ModuleStatusListDto>(ModuleStatusListDto.EventToken, dto => modulePushes.Add(dto));
+    Check(modulePushes.Count == 1 && modulePushes[0].Modules.Select(module => module.Name).SequenceEqual(["SysRobot", "SysLP", "SysPM"])
+          && modulePushes[0].Modules.Select(module => module.Kind).SequenceEqual([sysRobot.Kind, sysPort.Kind, sysChamber.Kind])
+          && modulePushes[0].Modules.All(module => module.State == ModuleState.NotInit && module.Mode == ModuleMode.Offline),
+        "整机推模块状态（留存，订上就补发）：不含整机自己、先后同模块表，带类别、状态码、Auto / Manual");
+    modulePushes.Clear();
+    machine.Tick();
+    Check(modulePushes.Count == 0, "模块都没变：不再推");
+    sysPort.Online();
+    machine.Tick();
+    machine.Tick();
+    Check(modulePushes.Count == 1 && modulePushes[0].Modules[1].Mode == ModuleMode.Online
+          && modulePushes[0].Modules[0].Mode == ModuleMode.Offline, "一个模块上线：推一张新表（只推一次）");
+    sysPort.Offline();
+    machine.Tick();
+    Check(modulePushes.Count == 2 && modulePushes[1].Modules[1].Mode == ModuleMode.Offline, "下线了：再推一张");
+
     // 全部初始化：先只初始化机械手，它收完尾才轮到别的，都做成进空闲
     var robotHome = new ProbeOperation();
     var portHome = new ProbeOperation();

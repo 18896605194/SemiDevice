@@ -17,7 +17,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 整机（sc.xml 的 System 节点）：系统状态和整机动作——全部初始化、Auto / Manual、整机停止、全部回片；
 /// 顺带放全系统一份的设置（界面语言）。状态码见 <see cref="SystemState"/>，状态表见 <see cref="SystemStateTable"/>。
-/// 系统状态只说整机在干什么，不汇总各模块：单个模块报警不改系统状态（看报警条数和四色灯）。
+/// 系统状态只说整机在干什么，不汇总各模块：单个模块报警不改系统状态（看报警条数和四色灯）；各模块的状态和 Auto / Manual 另推一张表给顶栏。
 /// Auto 落地靠搬运管理的自动派单（Job 只看那个开关），开关只由这里拨。
 /// </summary>
 [Component(description: "整机：系统状态、全部初始化、Auto / Manual、整机停止、全部回片；界面语言")]
@@ -315,6 +315,7 @@ public class SystemModule : BaseModule, ISystemModule
         FollowJobs();
         PublishState();
         PublishEquipmentStatus();
+        PublishModuleStatus();
     }
 
     private void FollowJobs()
@@ -381,6 +382,59 @@ public class SystemModule : BaseModule, ISystemModule
 
         _lastPublished = dto;
         EventBus.Send(dto, SystemStateDto.EventToken);
+    }
+
+    private ModuleStatusListDto? _lastModuleStatus;
+
+    /// <summary>
+    /// 推各模块的状态和 Auto / Manual（顶栏的模块状态行用）：有一个变了才推整张表，留存
+    /// </summary>
+    private void PublishModuleStatus()
+    {
+        if (!HasModuleStatusChanged())
+        {
+            return;
+        }
+
+        var list = new ModuleStatusListDto();
+        foreach (var module in _modules)
+        {
+            list.Modules.Add(new ModuleStatusDto
+            {
+                Name = module.Name,
+                Kind = module.Kind,
+                State = module.State,
+                Mode = module.Mode,
+            });
+        }
+
+        _lastModuleStatus = list;
+        EventBus.Send(list, ModuleStatusListDto.EventToken);
+    }
+
+    /// <summary>
+    /// 跟上次推的比：模块表换了（重新 Bind）、哪个模块的状态或 Auto / Manual 变了
+    /// </summary>
+    private bool HasModuleStatusChanged()
+    {
+        var last = _lastModuleStatus;
+        var modules = _modules;
+        if (last is null || last.Modules.Count != modules.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < modules.Count; i++)
+        {
+            var module = modules[i];
+            var sent = last.Modules[i];
+            if (sent.Name != module.Name || sent.State != module.State || sent.Mode != module.Mode)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     #endregion

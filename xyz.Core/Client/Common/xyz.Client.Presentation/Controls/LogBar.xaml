@@ -3,10 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
 
-    <!--  日志下拉框：收起时显示最新一条，展开显示队列消费出来的历史  -->
+    <!--  日志下拉框：收起时显示最新一条，展开显示队列消费出来的历史。顶栏一行 32 高，框压到 30（去掉样式里的最小高度和上下外边距）  -->
     <ComboBox
         MinWidth="520"
-        Height="36"
+        Height="30"
+        MinHeight="30"
+        Margin="0"
         MaxDropDownHeight="420"
         VerticalAlignment="Center"
         ItemsSource="{Binding Logs}"

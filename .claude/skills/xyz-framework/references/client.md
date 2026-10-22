@@ -66,6 +66,11 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   `viewModel.SetPageVisible(...)`）；页面不在前台时不拉数据、不跑每帧的东西（TrendChart、Robot 控件隐藏时停 `CompositionTarget.Rendering`）。
 - 没注册页面的菜单显示占位页。
 
+### 主窗口顶栏（`xyz.Client\MainWindow.xaml`，2026-10-23 照用户的样稿改，见 decisions.md「顶栏模块行」）
+- 平时 96 高、三行：日志下拉框、报警下拉框（各 30 高）、模块行（`ModuleStatusBar`：sc 装了的模块一个 `ModuleChip`，通到最右边，一行放不下折行、顶栏跟着变高）。
+  右边那块只占上两行：日期、时间一组（一个时钟图标），下面隔开是当前用户（角色在悬停提示里）| 注销 / 复位 / 关蜂鸣器竖排（20 高、宽度随字）| 最右边四色灯，都直接用顶栏的底色。
+- 字号只两档：模块名（和菜单、状态显示）14，按钮、日志、报警、时间、用户名 12，不要小字。页面区高度保持 920（主界面槽位表 25 槽一屏放下）——壳上要加常驻的东西别另起一行。
+
 ### 主界面（菜单 Main，`xyz.Client.Main`，布局照用户 2026-10-04 给的图，见 decisions.md）
 - 三块：左 **系统操作**（平台固定：系统状态徽标、当前模式、报警条数、晶圆尺寸，Auto / Manual / Stop / Reset / 初始化 / 全部回片；左栏最底下是 **晶圆颜色** 说明，
   `WaferLegendDotStyle` 圆点 + `WaferLegendTextStyle`，颜色跟圆片控件同一套 `Wafer*`，圆片加了新颜色这里也要加一项）| 中 **整机调度**（可替换）|
@@ -147,7 +152,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 
 - 构造里只做 `InitializeComponent(); DataContext = IocHelper.GetRequiredService<XxxViewModel>();`，不调 Init；
   需要感知可见性时再挂一个 `IsVisibleChanged`。按模块一页的 View 由工厂把 VM 传进构造（IoView）。
-- 自带 VM 的复用控件（LogBar、AlarmBar、手动页的 ChamberManualControl 等）自己建 VM、自己 Init，这是例外，不是页面的做法。
+- 自带 VM 的复用控件（LogBar、AlarmBar、ModuleStatusBar、手动页的 ChamberManualControl 等）自己建 VM、自己 Init，这是例外，不是页面的做法。
 - 不写 `<UserControl.DataContext>`、不写 `UserControl.Resources` / `Window.Resources`；样式都在 Presentation\Styles。
   只跟这一处有关的显隐、变色可以写行内 `<X.Style>` + DataTrigger，能复用的做成 Tag 驱动的公共样式（见 §6）。
 - 引用资源一律 `{DynamicResource}`：样式、颜色（`Dark*`）、字号（`SizeNN`）、文字（语言包 key）。**不写死颜色、不写死 FontSize**。
@@ -170,7 +175,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - 合并在 `xyz.Client\App.xaml`，**顺序有意义**：后面的样式用 `StaticResource` 取前面的颜色、字号。新加样式文件要同时加进 App.xaml
   和各模块 `Properties\DesignTimeResources.xaml`（设计时用，各模块的列表目前不全）。`Theme\MaterialDesignTheme.xaml` 没人用。
 - 命名：`{档位}{控件}Style`——档位 Default / Toolbar / Compact / Dense / Mini / Large，再加 Danger / Success / Outlined 变体
-  （`ToolbarDangerButtonStyle`、`CompactTextBoxStyle`）；专用的叫 `{用途}{元素}Style`（`TopBarInfoBorderStyle`、`DialogCardBorderStyle`）。
+  （`ToolbarDangerButtonStyle`、`CompactTextBoxStyle`）；专用的叫 `{用途}{元素}Style`（`TopBarUserButtonStyle`、`DialogCardBorderStyle`）。
 - 高度档：默认输入 40 / 默认按钮 44 / 工具栏 34 / 紧凑按钮 32 / 紧凑输入 28 / Mini 22。
 - 颜色 token（DarkColors）：底 `DarkWindowBackground`→`DarkSurfaceBackground`→`DarkSurfaceVariantBackground`→`DarkControlBackground`、
   边 `DarkBorderBrush`、字 `DarkPrimaryText` / `DarkDisabledText`、强调 `DarkAccent` / `DarkAccentPressed` / `DarkAccentSoft`、
@@ -246,7 +251,11 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机和闲置退出那次多一行"取消就当访客"；`notice` 是标题下的黄字提醒，`DialogNoticeTextStyle`）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
   `ShowUser`（新建 / 改账号）、`ShowRole`（新建角色 / 改名和说明）。都是传一个异步回调去调后端：回 null 关框，回一句话就红字写在框里、框不关。
   密码用 `PasswordBox` + `DefaultPasswordBoxStyle`（不进 VM、不绑定）。
-- LogBar / AlarmBar 只在主窗口顶栏用。
+- **ModuleChip**（模块小框：圆点 + 名字，`Text`、`Tone`、`IsAuto`）：圆点按色调——就绪绿、报警红、其他灰；`IsAuto` 边框亮（跟就绪同一个绿 `DarkRunningStatus`），
+  否则灭（灰 `DarkDisabledText`，跟灰圆点一样；别用 `DarkBorderBrush`，它跟顶栏底色 #454545 几乎一样、看不出框），边框 2 粗、框 28 高。控件不认状态码，谁用谁给；顶栏模块行用它，别处要显示模块状态和 Auto / Manual 也用它。
+- **ModuleStatusBar**（顶栏模块行，自带 VM `ModuleStatusBarViewModel`）：订整机推的 `ModuleStatusListDto`（token "ModuleStatus"，留存），一个模块一个 ModuleChip（WrapPanel）；
+  状态码按 `ModuleStates.TextOf / ToneOf`（按 `StationKind` 分）翻，悬停看状态字；断开时全部未连接（灰点、边框灭）。
+- LogBar / AlarmBar / ModuleStatusBar 只在主窗口顶栏用。
 - 实时报警页上面的 AI 工具栏（`ShowWhenTagTrueStyle` 包着、Tag = `IsAiInstalled`）：连上后端问一次 `IAiService.GetStatusAsync`，配了 AI 才显示；
   表格 `SelectedItem` 绑 `SelectedAlarm`（报警一变整表重建，按来源 + 代码接着选中原来那条），"AI 分析"结果用 `DialogService.ShowConfirm` 只一个按钮显示（见 backend.md §5「AI 助手」）。
 - **DispatchMap**（调度图，Robot 手动页左边和主界面中间共用）：给 `RobotName`（机械手模块名）就自己建 `DispatchMapViewModel`、订机械手和各站点的推送

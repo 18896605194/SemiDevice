@@ -610,7 +610,8 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   `ReturnAll()`（`SystemReturnOperation`，见 decisions.md）、`Abort()` = 整机停止（`SystemStopOperation`：先进停止中顶掉初始化 / 回片，锁外关自动派单、撤搬运、
   给在做动作的模块发中止（在搬运的机械手、给 Job 做工艺的腔体除外）、Job 全部走中止；等停的那一刻各模块手上的动作和撤掉的搬运都收完尾才回到停之前该在的地方）。
   每拍 Auto 下按 `JobManager.HasRunningJob`（CJ 执行中 / 暂停 / 中止中）切自动运行 / 自动空闲。动作没做成先不进 Error（报警逻辑还没接）：初始化回 NotInit、回片回 Idle。
-  推送 `SystemStateDto`（token "SystemState"，留存，变了才推）。开机 `Bind()` 认容器里的模块（`IocHelper.GetServices<IModule>()`，不含自己），
+  推送 `SystemStateDto`（token "SystemState"，留存，变了才推）；另推各模块状态表 `ModuleStatusListDto`（每个模块 Name / Kind / State / Mode，token "ModuleStatus"，留存，
+  每拍比一次、有一个变了推整张，顶栏模块行用）。开机 `Bind()` 认容器里的模块（`IocHelper.GetServices<IModule>()`，不含自己），
   搬运管理、Job 管理、晶圆账、报警、晶圆尺寸也在这时取一次；回片、停止两个动作要用的由构造传进去。系统设置的模块名单不带它（没有 IO）。
 - 整机操作 `IEquipmentService`（`xyz.Service\Systems\EquipmentService`）：`InitAsync` / `AutoAsync` / `ManualAsync` / `StopAsync` / `ReturnAllAsync` 都转给整机，
   开了就回、只翻结果；没配 System 节点回 `system.not_installed`，状态不允许回 `module.state_not_allowed` [System, 状态码]，Auto 没装 / 停用搬运管理回 `transfer.not_installed` / `transfer.disabled`。
