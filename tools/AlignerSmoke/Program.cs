@@ -1,9 +1,11 @@
-﻿using xyz.Components;
+﻿using System.Text;
+using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
-using xyz.Drivers.Aligner;
+using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
@@ -14,7 +16,7 @@ using xyz.Tools;
 // 片放上来接着对准（搬运照常收尾不等对准、对准中不让取、对完回待命、缺口转到 EC 角度）、只取走不对、交换后对新片、
 // 台上的片没对过不让取（重启、人改账）而回零时接着对一遍、对准失败 / 超时落出错报警作废在途指令且复位回零后再对、
 // 片放上来起不了对准（驱动断了）落出错报警、中止顶掉对准不报警、状态不允许、停用。
-// 不连设备：驱动是假的（每条指令按扫描拍数做完），扫描由测试一拍一拍推。
+// 不连设备：通道是假的（每条指令按扫描拍数做完），指令是测试自己的，扫描由测试一拍一拍推。
 SmokeIoc.Reset();
 
 var checks = 0;
@@ -117,8 +119,9 @@ void ClearStage(SmokeAligner target)
 }
 
 var aligner = new SmokeAligner("AL1");
-var driver = aligner.Driver!;
-Check(aligner.InitComponent(), "对准器组件初始化");
+Check(aligner.InitComponent() && aligner._driver is FakeAlignerDriver, "对准器组件初始化：认下面挂的通道");
+var driver = (FakeAlignerDriver)aligner._driver!;
+Check(driver.Codec is SmokeAlignerCodec, "开机把对准器自己的解码器交给通道");
 SmokeIoc.Tree(aligner);
 Check(ledger.GetSlots("AL1").Count == 1 && aligner.SlotCount == 1, "晶圆账登记一个槽");
 Check(aligner.Mode == ModuleMode.Production && aligner.State == ModuleState.NotInit, "开机就是生产模式、还没回零");
@@ -275,7 +278,7 @@ Check(aligner.Home().IsSuccess && RunUntil(aligner, () => aligner.State == Modul
 Console.WriteLine($"PASS: {checks} aligner checks (assembly, home, align after place, pick, swap, unaligned wafer, failure, timeout, cannot start, abort, disabled)");
 return 0;
 
-// 测试用的对准器：扫描由测试推
+// 测试用的对准器：扫描由测试推，每个动作发测试自己的指令
 sealed class SmokeAligner : BaseAlignerModule
 {
     public SmokeAligner(string name, bool withDriver = true)
@@ -283,17 +286,40 @@ sealed class SmokeAligner : BaseAlignerModule
         SetName(this, name, name);
         if (withDriver)
         {
-            Driver = new FakeAlignerDriver();
-            SetName(Driver, "_driver", name + "._driver");
-            AddChild(Driver);
+            var driver = new FakeAlignerDriver();
+            SetName(driver, "Driver", name + ".Driver");
+            AddChild(driver);
         }
     }
-
-    public FakeAlignerDriver? Driver { get; }
 
     public void Tick()
     {
         OnScan();
+    }
+
+    protected override IFrameCodec CreateCodec()
+    {
+        return new SmokeAlignerCodec();
+    }
+
+    protected override CommandOperation AddHomeSteps(CommandOperation operation)
+    {
+        return operation.Then("回零", () => new SmokeAlignerCommand("Home"));
+    }
+
+    protected override CommandOperation AddAlignSteps(CommandOperation operation, double angle)
+    {
+        return operation.Then("对准", () => new SmokeAlignerCommand("Align", angle));
+    }
+
+    protected override ModuleOperation CreateResetOperation()
+    {
+        return new CommandOperation("Reset", _driver, () => new SmokeAlignerCommand("Reset"), () => ResetTimeout);
+    }
+
+    protected override ModuleOperation CreateAbortOperation()
+    {
+        return new CommandOperation("Abort", _driver, () => new SmokeAlignerCommand("Stop"), () => AbortTimeout);
     }
 
     private static void SetName(ComponentBase component, string name, string path)
@@ -303,8 +329,60 @@ sealed class SmokeAligner : BaseAlignerModule
     }
 }
 
-// 假驱动：每条指令过 Ticks 拍做完；FailNext 摆下一条哪种指令报错，Hang 开着一直不回
-sealed class FakeAlignerDriver : ComponentBase, IAlignerDriverComponent
+// 测试的指令：名字就是在途键，回复只带成没成
+sealed class SmokeAlignerCommand(string name, double angle = 0) : DeviceCommand<SmokeAlignerReply>
+{
+    public string Name { get; } = name;
+
+    public double Angle { get; } = angle;
+
+    public override string Key => Name;
+
+    public override string BuildFrame()
+    {
+        return Name;
+    }
+
+    protected override bool Handle(SmokeAlignerReply message)
+    {
+        if (message.IsSuccess)
+        {
+            Complete();
+        }
+        else
+        {
+            Fail(message.Error);
+        }
+
+        return true;
+    }
+}
+
+sealed record SmokeAlignerReply(bool IsSuccess, string Error);
+
+// 测试的解码器：假通道不收发字节，只为开机交得出去
+sealed class SmokeAlignerCodec : IFrameCodec
+{
+    public Encoding Encoding => Encoding.ASCII;
+
+    public string Wrap(string body)
+    {
+        return body;
+    }
+
+    public IEnumerable<string> Extract(string chunk)
+    {
+        return [chunk];
+    }
+
+    public object? Decode(string frame)
+    {
+        return frame;
+    }
+}
+
+// 假通道：每条指令过 Ticks 拍做完；FailNext 摆下一条哪种指令报错，Hang 开着一直不回
+sealed class FakeAlignerDriver : ComponentBase, IDeviceDriverComponent
 {
     private readonly List<Pending> _inflight = [];
 
@@ -322,30 +400,48 @@ sealed class FakeAlignerDriver : ComponentBase, IAlignerDriverComponent
 
     public double LastAngle { get; private set; }
 
-    public AlignerCommand? Home()
+    public IFrameCodec? Codec { get; private set; }
+
+    public event Action<object>? Reported;
+
+    public void UseCodec(IFrameCodec codec)
     {
-        return Send("Home");
+        Codec = codec;
     }
 
-    public AlignerCommand? Align(double angle)
+    public bool Send(DeviceCommand command)
     {
-        var command = Send("Align");
-        if (command is not null)
+        if (!IsConnected || command is not SmokeAlignerCommand smoke)
         {
-            LastAngle = angle;
+            return false;
         }
 
-        return command;
+        bool fail = FailNext == smoke.Name;
+        if (fail)
+        {
+            FailNext = string.Empty;
+        }
+
+        Sent.Add(smoke.Name);
+        if (smoke.Name == "Align")
+        {
+            LastAngle = smoke.Angle;
+        }
+
+        _inflight.Add(new Pending(smoke, Ticks, fail));
+        return true;
     }
 
-    public AlignerCommand? Stop()
+    public void Abandon(DeviceCommand command, string reason)
     {
-        return Send("Stop");
-    }
-
-    public AlignerCommand? ResetDrive()
-    {
-        return Send("Reset");
+        for (int index = _inflight.Count - 1; index >= 0; index--)
+        {
+            if (ReferenceEquals(_inflight[index].Command, command))
+            {
+                _inflight[index].Command.Accept(new SmokeAlignerReply(false, reason));
+                _inflight.RemoveAt(index);
+            }
+        }
     }
 
     public void AbandonAll(string reason)
@@ -353,10 +449,15 @@ sealed class FakeAlignerDriver : ComponentBase, IAlignerDriverComponent
         Abandoned++;
         foreach (var pending in _inflight)
         {
-            pending.Command.Finish(false, reason);
+            pending.Command.Accept(new SmokeAlignerReply(false, reason));
         }
 
         _inflight.Clear();
+    }
+
+    public void Close()
+    {
+        AbandonAll("PortClosed");
     }
 
     protected override void OnScan()
@@ -378,50 +479,23 @@ sealed class FakeAlignerDriver : ComponentBase, IAlignerDriverComponent
 
             if (pending.Fail)
             {
-                pending.Command.Finish(false, "设备报错");
+                pending.Command.Accept(new SmokeAlignerReply(false, "设备报错"));
             }
             else
             {
-                pending.Command.Finish(true, string.Empty);
+                pending.Command.Accept(new SmokeAlignerReply(true, string.Empty));
             }
 
             _inflight.RemoveAt(index);
         }
     }
 
-    private FakeAlignerCommand? Send(string name)
+    private sealed class Pending(SmokeAlignerCommand command, int left, bool fail)
     {
-        if (!IsConnected)
-        {
-            return null;
-        }
-
-        var command = new FakeAlignerCommand();
-        bool fail = FailNext == name;
-        if (fail)
-        {
-            FailNext = string.Empty;
-        }
-
-        Sent.Add(name);
-        _inflight.Add(new Pending(command, Ticks, fail));
-        return command;
-    }
-
-    private sealed class Pending(FakeAlignerCommand command, int left, bool fail)
-    {
-        public FakeAlignerCommand Command { get; } = command;
+        public SmokeAlignerCommand Command { get; } = command;
 
         public int Left { get; set; } = left;
 
         public bool Fail { get; } = fail;
-    }
-}
-
-sealed class FakeAlignerCommand : AlignerCommand
-{
-    public void Finish(bool success, string error)
-    {
-        Complete(new AlignerResponse { IsSuccess = success, Error = error });
     }
 }

@@ -3,14 +3,14 @@
 namespace xyz.Drivers.Communication;
 
 /// <summary>
-/// 通信的 发送接收的公共层，具体的ICommunication 又这个转发
+/// 帧通讯：字节传输上面套一层解码器，收上来拆帧、解成报文交出去，发的时候包壳写出去
 /// </summary>
 public class FrameCommunication : IFrameCommunication, IDisposable
 {
     #region 字段与构造
 
     /// <summary>
-    /// 串口和网口的接口，这里目前不确定
+    /// 字节传输（串口 / 网口）
     /// </summary>
     private readonly ICommunication _transport;
     private readonly IFrameCodec _codec;
@@ -32,18 +32,17 @@ public class FrameCommunication : IFrameCommunication, IDisposable
     }
 
     /// <summary>
-    /// 收到一条完整帧体（已去壳），在接收泵线程触发；订阅方应及时返回，异常不会拖垮接收泵。
+    /// 收到一条解好的报文，在接收泵线程触发；订阅方要及时返回，异常不会拖垮接收泵
     /// </summary>
-    public event Action<string>? FrameReceived;
+    public event Action<object>? MessageReceived;
 
     /// <param name="transport">字节传输（串口/网口）。</param>
-    /// <param name="codec">帧编解码，自持缓冲，每帧通讯独占一个实例。</param>
-    /// <param name="encoding">帧文本编码，默认 ASCII。</param>
-    public FrameCommunication(ICommunication transport, IFrameCodec codec, Encoding? encoding = null)
+    /// <param name="codec">品牌的解码器，自带接收缓冲，一条通讯一个实例；帧文本的编码也按它的。</param>
+    public FrameCommunication(ICommunication transport, IFrameCodec codec)
     {
         _transport = transport;
         _codec = codec;
-        _encoding = encoding ?? Encoding.ASCII;
+        _encoding = codec.Encoding;
     }
 
     #endregion
@@ -166,11 +165,15 @@ public class FrameCommunication : IFrameCommunication, IDisposable
             {
                 try
                 {
-                    FrameReceived?.Invoke(frame);
+                    var message = _codec.Decode(frame);
+                    if (message is not null)
+                    {
+                        MessageReceived?.Invoke(message);
+                    }
                 }
                 catch
                 {
-                    // 订阅方异常不拖垮接收泵。
+                    // 解不了的帧、订阅方的异常都不拖垮接收泵。
                 }
             }
         }

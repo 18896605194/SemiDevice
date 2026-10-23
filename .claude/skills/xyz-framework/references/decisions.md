@@ -485,8 +485,8 @@
   **端口只认 `ICarrier`、对外也只给 `ICarrier`**（用户："万一以后换了这个组件"、"不要再搞一个接口"）：端口要调的那几个口和 `Info`、`IsAccepted` 都在 `ICarrier` 里
   （`CarrierInfo` 因此在 `xyz.Components\Models`），换载具组件就是写一个实现 `ICarrier` 的组件、改 sc.xml 的 Type，端口不动；代价是 EAP 也看得见端口专用的口，
   接口里分了一段注明"EAP 别调"。读码器同理（2026-10-09 用户："这个确实得抽取出来"，名字用户定）：端口和载具只认 `ICarrierIdReader`
-  （`ReadCarrierIdTimeout` / `StartReadCarrierId` / `GetCarrierIdResult` / `Close`，在 `xyz.Components\Interfaces`），平台的 `RfidDriverComponent` 实现它；
-  换 RFID 牌子写品牌壳，换扫码枪这类非 RFID 的就实现这个接口，都只改 sc.xml 的 Type。端口的组件引用（`_driver`、`_rfid`、`_carrier`）一律在 InitComponent 里找出来存下，
+  （`ReadCarrierIdTimeout` / `StartReadCarrierId` / `GetCarrierIdResult` / `Close`，在 `xyz.Components\Interfaces`），读头底座 `RfidReaderComponent` 实现它（2026-10-23 前是 `RfidDriverComponent`）；
+  换 RFID 牌子在机型工程写读头类（继承读头底座、给解码器和读码指令），换扫码枪这类非 RFID 的就实现这个接口，sc.xml 的 Type 写它。端口的组件引用（`_driver`、`_rfid`、`_carrier`）一律在 InitComponent 里找出来存下，
   不写每次现找的属性。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
   `ILoadPort` 里原来的 `IsCarrierArrived` / `CarrierId` / `SlotMap` / `ReadCarrierId` / `SetCarrierId` / `UpdateCarrierStatus` / `NoteCarrierComplete` 删了（不留重复）。
 - **分工的标准：主语是载具的进 Carrier，主语是端口的留下，两边都沾的由端口组合**。进 Carrier 的有：载具快照 `CarrierInfo`（`Info`）和它的锁、
@@ -520,7 +520,7 @@
 - **Mapping 异常**（用户："这个肯定是要报警的"、"一样用一个报警就行了"）：Load 回来的槽数 ≠ SC `SlotCount` → 不落账，Load 判失败（`loadport.slot_map_length_mismatch`）；
   有交叉片、叠片、认不出的槽 → 账照落（界面看得到哪几槽），Load 判失败（`loadport.slot_map_abnormal`，参数带槽号）。两种都报同一条 `SlotMapAlarm`，不报笼统的动作失败；
   端口落 Error，机械手进不来（交叉片占两槽，取放相邻槽、往账上空着的槽回片都会碰片）。处理：复位、Home、理好片再 Load。
-  做法：`LoadPortCommandOperation` 的成功后处理返回 `HandleResult`，失败就按它判动作失败。CTC 是报警但照样落账、端口靠报警进 Error。
+  做法：设备动作（现在是 `CommandOperation`，2026-10-23 前是 `LoadPortCommandOperation`）的成功后处理返回 `HandleResult`，失败就按它判动作失败。CTC 是报警但照样落账、端口靠报警进 Error。
 - **Job 做完自动 Unload**（用户："做成 SC，接不接 EAP 都生效"；2026-10-10 用户又要"增加一个 ec"，改成 LoadPort 的 **EC** `AutoUnload`（默认 True），SC 删了）：
   现场在线开关、Host 也能经 S2F13 / S2F15 读改（CTC 是 SC `LoadPort.IsAutoUnloadWhenJobComplete`，也登记成 ECID 给 Host）；E87 原来的 `AutoUnload` SC 删了，E87 不再自己卸，CarrierRelease 照旧。
   **EC 关着时干完对账**（2026-10-10，用户："你先补这个"，照 CTC：参数关着时走 `LPAutoCloseDoorRoutine`——名字叫关门，实际不动门，
@@ -546,7 +546,7 @@
   **先 Unload、再主动 Map**（同日改，用户："CUDMP 没有依据，这个功能其实是没有的，直接 unload 然后 map"）：FCD 没有带图卸载的指令，原来照 TDK 系写的 `MOV:CUDMP`
   （驱动组件 `UnloadWithMap` / `CreateUnloadWithMap`、`FcdUnloadWithMapCommand`、冒烟里测它的用例）整套删了——仿真器不认 CUDMP，XM.Core 实机 Fortrend 驱动也没有。
   现在开着时 Unload 的设备动作（`CreateUnloadOperation(mapAndVerify)`）先发普通卸载（CULOD），做成了再发驱动组件的 `Map()`（FCD 是 `MOV:CLDMP`，原地扫、不装载，XM.Core 实机驱动和仿真器都这么用；
-  槽位串跟 Load 一样两种形状都收，`FcdMappingCommand`），两条用 `LoadPortCommandOperation.Then` 串在同一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败，
+  槽位串跟 Load 一样两种形状都收，`FcdMappingCommand`），两条用 `Then`（当时的 `LoadPortCommandOperation`，现在是 `CommandOperation`）串在同一个 Unload 动作里：关门没成就不扫，扫图没成 Unload 也判失败，
   超时每条各按 EC `UnloadTimeout` 算（后一条从它自己发出去算起）。扫回来的槽图逐槽走晶圆账 `Verify`（对不上晶圆账自己报账实不符、写清是多是少），交叉片、叠片、认不出的也算对不上；
   有对不上的 Unload 判失败（`loadport.unload_slot_map_mismatch`，带槽号）、报 `SlotMapAlarm`、端口落 Error——盒子里的片跟账不一样不能就这么取走。
   **账不改**（CTC 会把对不上的片改成 Unknown / 补建，我们等人按实物在账单调整页改），**不碰载具槽图**（载具的 UpdateSlotMap 会整篮重建账，片标识就丢了）。
@@ -848,9 +848,9 @@
 - **还没做**：主界面调度图对 LoadPort、腔体以外的站画单片卡片，buffer 一段 5 层只显示一片，要显示全得加多槽卡片（`Kind` 已经能认出 buffer）；buffer 的在位传感器、门这类硬件。
 
 ## 对准器 Aligner：片放上来自己对准，对好了才让取（2026-10-22，用户："写在模块里面……专门弄一个就是对中平台的文件夹"）
-- **放哪**：平台 `xyz.Modules\Aligner`（`BaseAlignerModule : BaseTransferStationModule, IAligner`，`Enums\`、`Operations\`、`StateMachines\` 照 LoadPort 分），
-  驱动口 `Interfaces\IAlignerDriverComponent`（Home / Align(角度) / Stop / ResetDrive / AbandonAll，Align 做完要松开片），指令句柄 `xyz.Drivers\Aligner`
-  （`AlignerCommand` 只有做没做完和结果，`AlignerResponse` 成功 / 原因）。机型以后写空类继承它，跟 LoadPort、buffer 一样。`StationKind.Aligner`（5）。
+- **放哪**：平台 `xyz.Modules\Aligner`（`BaseAlignerModule : BaseTransferStationModule, IAligner`，`Enums\`、`StateMachines\` 照 LoadPort 分）。
+  设备通道跟 LoadPort、机械手一样是平台的 `DeviceDriverComponent`（2026-10-23 起，见「品牌驱动：平台只给通道」；原来的驱动口 `IAlignerDriverComponent`、指令句柄 `xyz.Drivers\Aligner`、
+  `AlignerCommandOperation` 删了）；品牌的解码器和回零、对准（Align 做完要松开片）、复位、停止发哪几条指令由机型的对准器类填。`StationKind.Aligner`（5）。
 - **流程里怎么走**（先跟用户讲过、用户认了做法）：流程配方加一步选对准器、不选工艺配方，任务表就是"放片 → 取片"（跟 buffer 一样），**调度、任务表、搬运管理一行不改**。
   对准是站点自己的事：一轮交互收尾（`OnTransferFinished`）时这一轮放了片就接着 `Begin` 对准（状态表 `(TransferComplete, Align) → (Aligning, Idle)`），
   搬运照常收尾、机械手放下就走，对准中不在待命、调度自然不来取，对完回待命才取。交换、预取照现成的走（一个槽，正好"取对好的、放下一片"）。
@@ -862,8 +862,8 @@
   所以对准失败、重启过、人改过账都自动算没对过；回零、对准一发起就作废，做成了才记上。机械手取放的源头只看站点能不能准备，这条不分手动、自动（基类注释"不在这里加自动调度限制"）。
 - **回零时台上有片接着对一遍**（Home 后串一条 Align，各按各的超时）：回零转过台面，片的方向就不对了；这样出错 → 复位（落未初始化）→ 全部初始化回零以后，台上的片直接能取，
   不用手动页也恢复得了。复位只清设备报错：出错、交互环里复位都落未初始化（片的方向、在不在都要人确认），空闲复位留在空闲；中止从动作中落未初始化。
-- **没有手动页**：跟 buffer 一样开机就上线（不然没人点上线、调度永远不用它），全部初始化调它的 Home。没挂驱动开机抛；停用的不认驱动、不登记账、不上线。
-- **还没做**（交付时说了，接到具体设备再做）：品牌驱动（协议、在途规则、通讯 SC、断线重连都按品牌写，平台只定了驱动口）、手动页和服务、主界面显示、
+- **没有手动页**：跟 buffer 一样开机就上线（不然没人点上线、调度永远不用它），全部初始化调它的 Home。没挂通道开机抛；停用的不认通道、不登记账、不上线。
+- **还没做**（交付时说了，接到具体设备再做）：品牌（解码器和指令在机型工程写，通道、重连、在途作废平台都有了）、手动页和服务、主界面显示、
   机械手按对准器报的偏心量补位（取片指令现在不带补偿，对准器自己带 XY 平台的不用）、读片号（OCR 组件 + E90 核对，读不出来怎么办要定规则）、角度跟产品走。
 
 ## 扫片：LoadPort 和机械手都能扫（IWaferMap）（2026-10-22，用户："机械手可能增加这样的能力，就是单独写一个机械手的 map 接口……在 sc 里面配置了就用"、"手上全空才扫 是的，你直接做吧"）
@@ -1256,6 +1256,7 @@
   取到它的字段名（`_alarms`、`_ec`、`_mapper`……）都不变。`IMapper` 跟 Mapster 包里的 `MapsterMapper.IMapper` 同名，仓库只引用 `Mapster` 命名空间、不引用 `MapsterMapper`，所以不冲突。
 - **`ILoadPortDriverComponent` 用户选了先不改**：去掉后缀就跟驱动层 `xyz.Drivers.Loadport.ILoadPortDriver`（品牌协议驱动的接口）同名，
   `LoadPortDriverComponent`、`BaseLoadPortModule` 和两个冒烟两个都用到。`IRobotDriverComponent` 跟 `xyz.Drivers.Robot.IRobotDriver` 是一样的情况，按同一个办法。
+  （2026-10-23 品牌驱动重做，这几个接口和类都删了，通道统一叫 `IDeviceDriverComponent`，这条不用再管。）
 - 还带后缀、用户没点名的先不动；已经去掉的别改回去。
 
 ## 登录和菜单权限（2026-10-21，用户："规整一下就是这个菜单权限，和登录权限的设计"；样稿 `桌面\登录权限样稿-v1` 看过说"大体上没啥问题"，然后"直接开工吧"）
@@ -1320,3 +1321,30 @@
 - **字号**（用户定）：外壳只两档——模块名 14，按钮、日志、报警、时间、用户名 12；菜单、状态显示跟模块名一档（14）；小字（日期附注、角色附注）都去掉，角色挪到用户名的悬停提示。
 - **数据**：整机模块每拍比一次各模块的 Name / State / Mode，有一个变了推整张 `ModuleStatusListDto`（token "ModuleStatus"，留存）；模块表就是整机 `Bind` 认的那张（不含整机自己、先后同 sc），
   sc 里加减模块界面自己跟着变。客户端断开时全部灰点、边框灭。
+
+## 品牌驱动：平台只给通道，指令和协议在机型工程（2026-10-23，用户："一旦某一个机械手增加一个指令啥的都要修改平台……新的机械手来了，他只需要继承我们自己的一些最基础的东西，然后他可以自己实现所谓的协议解析以及动作指令"、"直接修改吧"）
+- **为什么改**：以前品牌协议在平台（`xyz.Drivers` 的 `Robot\Reje`、`Loadport\FCD`、`Rfid\FCD`），每类设备一套驱动接口（`IRobotDriverComponent` 上 Home / Pick / Place 这些固定动作）、
+  驱动基类和品牌壳；机械手加一条指令要改驱动接口、驱动基类、品牌驱动、平台模块，几层一起动。
+- **用户定的几条**（讨论时画过 `桌面\品牌驱动架构.html`）：
+  1. LoadPort 跟机械手本质一样，RFID、对准器"也是一样的"，一套做法。
+  2. 不新建 DLL、不另立 Device 层或共享工程：**指令这些都在机型自己的工程里**（`xyz.35021.Module\Drivers\<品牌>\`）；别的项目也用这个品牌，"拷贝过去也没啥"。
+  3. "平台就提供一个指令下发的通道，和指令解析的通道"；"报文解析只留到最终的对比，不可能直接返回二进制来让我解析"——解码器把字节解成本品牌的报文对象，指令里只比对、取值。
+  4. "有的指令只回复 ack，有的先回 ack 之后还要回复 inf，这种都在项目里面的自己指令里面自己解决"——完成规则写在每条指令里，通道不管。
+  5. "固定动作一个都不要……一个指令就是一个 command，我们用的指令模式"——通道上没有 Home / Pick 这类方法，模块 new 指令交给通道发。
+  6. 参数（查询周期、超时这些 EC）留在模块里。
+  7. 模块里通道的引用叫 `_driver`（"`_driver?.Close();` 肯定是这种命名，不是 `Driver?.Close();`"）。
+  8. **每条指令必须自己实现 `Handle`**（同日，用户看 `FcdLoadCommand` 问"怎么只有创建发送的指令，没有解析的呢"，然后"必须实现，把品牌基类里那份删掉"、"都要这样设计"）：
+     品牌基类（`FcdCommand`、`RejeCommand`、`FcdRfidCommand`）只放在途键、指令名 / 下发体、组帧，不写 `Handle`，原来的 `CompleteOnAck` / `ReadData`、`Echoes` / `FailureEchoes` /
+     `ReadContent` / `OnFailureCode`、`ExpectedResponseIds` / `Read` 这些钩子一起删了。代价是动作类几条的 `Handle` 写得几乎一样，用户认了；以后加品牌照这个写，别再在品牌基类里收拢解析。
+- **做成什么样**：平台 `DeviceCommand` / `DeviceCommand<TMessage>`、`DeviceDriver`、`IFrameCodec`（多了 `Decode`）、`IFrameLink`（握手）、`DeviceDriverComponent`（`Driver` 节点）、
+  `CommandOperation`（原来三个 `XxxCommandOperation` 合成一个）、`StatusQueryLoop`、`RfidReaderComponent<T>`；`Base*Module` 只留动作入口、流程和节奏，
+  设备那几处做成抽象（`CreateCodec`、`CreateXxxOperation` / `AddXxxSteps`），`QueryRound` / `OnReport` / `OnDisconnected` 可选重写。细节见 backend.md §4。
+- **自己定的细节**（交付时说了）：
+  - 读头挂在 LoadPort 下面、自己再挂一条 `Driver`；设备找通道只认直接挂的那条（`DeviceDriverComponent.FindIn`）——组件基类的 `FindChild` 是递归的，会把读头那条也找出来。
+  - 富创得读头的 ENQ/EOT/ACK/NAK 握手放进它的解码器（实现 `IFrameLink`），通道是 sealed、不按品牌派生；读头拒收（NAK）通道把在途作废，读码立刻失败。
+  - 锐洁急停 `Sstop` 原来要"打断在途的运动指令"，现在动作被中止时 `CommandOperation` 自己作废它在途的那条，不用品牌管。
+  - 一个通道一个解码器实例（解码器自带接收缓冲），开机由设备交给通道；通道已经按别的解码器打开过再换就抛。
+  - 主动上报（没有在途指令认的报文）走通道的 `Reported`，设备在 `OnReport` 里认（锐洁手指在位 / 报错推送、富创得 PODON / PODOF）。
+- **sc.xml**：设备下的 `Driver` 节点 Type 一律 `xyz.Components.Components.DeviceDriverComponent`；RFID 节点 Type 写机型的读头类，下面挂自己的 `Driver`（串口配置挪到它上面）；
+  机械手的 `Driver` 补了 `CommType=Tcp`（通道默认串口，原来锐洁壳写死走网口）。
+- **冒烟**：OperationWaitSmoke、RfidSmoke 引用机型工程，用真的 35021 LoadPort / 机械手 / 读头类 + 平台通道，只把帧通讯换成假的；AlignerSmoke、JobSmoke 用测试自己的假通道和指令。

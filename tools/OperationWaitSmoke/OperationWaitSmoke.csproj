@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Service\xyz.Service.csproj" />
+    <!-- 品牌指令（富创得 LoadPort / 读头、锐洁机械手）和填指令的 LoadPort、机械手类在机型层，测通道和状态查询要用真的 -->
+    <ProjectReference Include="..\..\xyz.35021\Service\xyz.35021.Module\xyz.35021.Module.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->

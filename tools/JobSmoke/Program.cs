@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Components;
@@ -8,12 +9,9 @@ using xyz.Components.Enums;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
 using xyz.Database.Jobs;
-using xyz.Drivers.Aligner;
 using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Drivers.Loadport;
-using xyz.Drivers.Loadport.FCD;
-using xyz.Drivers.Robot;
-using xyz.Drivers.Robot.Reje;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Service.Jobs;
@@ -2536,7 +2534,7 @@ try
         Check(alignerWafers.All(wafer => wafer.Tasks.Count == 7 && wafer.Tasks[1].Station == "AL1" && wafer.Tasks[2].Kind == StationTaskAction.Pick
                                          && wafer.Tasks[4].Kind == StationTaskAction.Process),
             "任务表：对准器这一站只有放片、取片（不选配方，没有工艺任务），后面才进腔做工艺");
-        Check(aligner.Driver.Aligned == alignerSlots.Length && aligner.PickedAligned.Count == alignerSlots.Length && aligner.PickedAligned.All(aligned => aligned),
+        Check(aligner.Channel.Sent.Count(sent => sent == "Align") == alignerSlots.Length && aligner.PickedAligned.Count == alignerSlots.Length && aligner.PickedAligned.All(aligned => aligned),
             "每片放上对准器都对了一次，机械手每次来取的时候台上那片都已对好");
         Check(robotBusyWhileAligning, "对准的时候机械手在干别的（放下片就走，不在旁边等对准）");
 
@@ -2721,6 +2719,16 @@ static class Probe
         port.AddChild(carrier);
         return carrier;
     }
+
+    // 设备下挂的通道：生产里是 sc.xml 的 Driver 节点。
+    public static SmokeChannel Channel(ComponentBase device)
+    {
+        var channel = new SmokeChannel();
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(channel, "Driver");
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(channel, $"{device.FullPath}.Driver");
+        device.AddChild(channel);
+        return channel;
+    }
 }
 
 // 搬运管理、Job 管理：顶替扫描线程推一拍。
@@ -2816,7 +2824,7 @@ class SmokeRobot : BaseRobotModule
         IReadOnlyDictionary<string, int> numbers, params string[] stations)
     {
         Probe.Name(this, name);
-        AddChild(new SmokeRobotShell());
+        Probe.Channel(this);
         // sc.xml 的轴节点（生产里由 ComponentLoader 建，这里直接挂）。
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
@@ -2869,11 +2877,17 @@ class SmokeRobot : BaseRobotModule
 
     public void Tick() => OnScan();
 
+    protected override IFrameCodec CreateCodec() => new SmokeCodec();
+
     protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
 
     protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
 
     protected override ModuleOperation CreateAbortOperation() => new SmokeMotion("Abort", 1);
+
+    protected override ModuleOperation CreatePowerOnOperation() => new SmokeMotion("PowerOn", 1);
+
+    protected override ModuleOperation CreatePowerOffOperation() => new SmokeMotion("PowerOff", 1);
 
     // 发给设备的取放指令：动作、站号、槽号（buffer 段换成了实物层号），按先后记
     public List<(string Action, int Station, int Slot)> Commands { get; } = [];
@@ -2907,23 +2921,30 @@ sealed class SmokeBuffer : BaseBufferModule
     public void Tick() => OnScan();
 }
 
-// 对准器：驱动是假的（每条指令 5 拍做完）；每次机械手来取时记下台上那片对好了没有
+// 对准器：通道是假的（每条指令 5 拍做完）；每次机械手来取时记下台上那片对好了没有
 sealed class SmokeJobAligner : BaseAlignerModule
 {
     public SmokeJobAligner(string name)
     {
         Probe.Name(this, name, "Aligner");
-        Driver = new SmokeAlignerDriver();
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(Driver, "_driver");
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(Driver, $"{FullPath}._driver");
-        AddChild(Driver);
+        Channel = Probe.Channel(this);
     }
 
-    public SmokeAlignerDriver Driver { get; }
+    public SmokeChannel Channel { get; }
 
     public List<bool> PickedAligned { get; } = [];
 
     public void Tick() => OnScan();
+
+    protected override IFrameCodec CreateCodec() => new SmokeCodec();
+
+    protected override CommandOperation AddHomeSteps(CommandOperation operation) => operation.Then("回零", () => new SmokeCommand("Home"));
+
+    protected override CommandOperation AddAlignSteps(CommandOperation operation, double angle) => operation.Then("对准", () => new SmokeCommand("Align"));
+
+    protected override ModuleOperation CreateResetOperation() => new CommandOperation("Reset", _driver, () => new SmokeCommand("Reset"), () => ResetTimeout);
+
+    protected override ModuleOperation CreateAbortOperation() => new CommandOperation("Abort", _driver, () => new SmokeCommand("Stop"), () => AbortTimeout);
 
     protected override ModuleOperation? PrepareTransferCore(TransferContext context)
     {
@@ -2936,35 +2957,55 @@ sealed class SmokeJobAligner : BaseAlignerModule
     }
 }
 
-sealed class SmokeAlignerDriver : ComponentBase, IAlignerDriverComponent
+// 假通道：一直连着；发来的指令过 5 拍做完（对准器用），按先后记下名字。机械手、LoadPort 的动作是假的，挂它只为把"通道已连接"这道门打开
+sealed class SmokeChannel : ComponentBase, IDeviceDriverComponent
 {
-    private readonly List<(SmokeAlignerCommand Command, int SentAt)> _inflight = [];
+    private readonly List<(SmokeCommand Command, int SentAt)> _inflight = [];
     private int _ticks;
 
     public bool IsConnected => true;
 
-    public int Aligned { get; private set; }
+    public List<string> Sent { get; } = [];
 
-    public AlignerCommand? Home() => Send();
+    public event Action<object>? Reported;
 
-    public AlignerCommand? Align(double angle)
+    public void UseCodec(IFrameCodec codec)
     {
-        Aligned++;
-        return Send();
     }
 
-    public AlignerCommand? Stop() => Send();
+    public bool Send(DeviceCommand command)
+    {
+        if (command is not SmokeCommand smoke)
+        {
+            return false;
+        }
 
-    public AlignerCommand? ResetDrive() => Send();
+        Sent.Add(smoke.Name);
+        _inflight.Add((smoke, _ticks));
+        return true;
+    }
+
+    public void Abandon(DeviceCommand command, string reason)
+    {
+        foreach (var pending in _inflight.Where(pending => ReferenceEquals(pending.Command, command)).ToList())
+        {
+            pending.Command.Accept(new SmokeReply(false, reason));
+            _inflight.Remove(pending);
+        }
+    }
 
     public void AbandonAll(string reason)
     {
         foreach (var pending in _inflight)
         {
-            pending.Command.Finish(false, reason);
+            pending.Command.Accept(new SmokeReply(false, reason));
         }
 
         _inflight.Clear();
+    }
+
+    public void Close()
+    {
     }
 
     protected override void OnScan()
@@ -2973,22 +3014,48 @@ sealed class SmokeAlignerDriver : ComponentBase, IAlignerDriverComponent
         _ticks++;
         foreach (var pending in _inflight.Where(pending => _ticks - pending.SentAt >= 5).ToList())
         {
-            pending.Command.Finish(true, string.Empty);
+            pending.Command.Accept(new SmokeReply(true, string.Empty));
             _inflight.Remove(pending);
         }
     }
+}
 
-    private SmokeAlignerCommand Send()
+// 假指令：名字就是在途键，回复只带成没成
+sealed class SmokeCommand(string name) : DeviceCommand<SmokeReply>
+{
+    public string Name { get; } = name;
+
+    public override string Key => Name;
+
+    public override string BuildFrame() => Name;
+
+    protected override bool Handle(SmokeReply message)
     {
-        var command = new SmokeAlignerCommand();
-        _inflight.Add((command, _ticks));
-        return command;
+        if (message.IsSuccess)
+        {
+            Complete();
+        }
+        else
+        {
+            Fail(message.Error);
+        }
+
+        return true;
     }
 }
 
-sealed class SmokeAlignerCommand : AlignerCommand
+sealed record SmokeReply(bool IsSuccess, string Error);
+
+// 假解码器：假通道不收发字节，只为开机交得出去
+sealed class SmokeCodec : IFrameCodec
 {
-    public void Finish(bool success, string error) => Complete(new AlignerResponse { IsSuccess = success, Error = error });
+    public Encoding Encoding => Encoding.ASCII;
+
+    public string Wrap(string body) => body;
+
+    public IEnumerable<string> Extract(string chunk) => [chunk];
+
+    public object? Decode(string frame) => frame;
 }
 
 // 能分段取放的假机械手：类上声明 ITransferRobotStep（四个方法用机械手基类的），伸臂、缩臂各一拍做完，按先后记在 Steps。
@@ -3011,12 +3078,6 @@ sealed class SmokeStepRobot(string name, params string[] stations) : SmokeRobot(
     }
 }
 
-// 假机械手的品牌壳：驱动走假传输，只为把"驱动已连接"这道门打开。
-sealed class SmokeRobotShell : RejeRobotComponent
-{
-    protected override IRobotDriver CreateDriver() => new RejeRobotDriver(new FakeFrameCommunication());
-}
-
 // 站点的中途交接动作：测试手动做完（Finish）或做坏（Break）。
 sealed class SmokeHandoff(string name) : ModuleOperation(name)
 {
@@ -3030,7 +3091,7 @@ sealed class SmokeHandoff(string name) : ModuleOperation(name)
 }
 
 // 假 LoadPort：在位、Mapping、状态由测试直接摆；不做 Load / Unload 这些动作。
-// 在位走设备上报（Event），下一拍扫描生效；假驱动不回状态查询，用 Query 的话在位永远判不出来。
+// 在位走设备上报（Event），下一拍扫描生效；一圈不查状态，用 Query 的话在位永远判不出来。
 sealed class SmokePort : BaseLoadPortModule
 {
     public List<string> FinishedCarriers { get; } = [];
@@ -3045,7 +3106,7 @@ sealed class SmokePort : BaseLoadPortModule
     {
         Probe.Name(this, name, "LoadPort");
         Probe.Carrier(this, PodPresenceSource.Event);
-        AddChild(new SmokePortShell());
+        Probe.Channel(this);
     }
 
     public void NoteMap(IReadOnlyList<SlotState> map) => UpdateSlotMap(map);
@@ -3068,11 +3129,24 @@ sealed class SmokePort : BaseLoadPortModule
     protected override HandleResult? ClampInterlock() => HandleResult.Fail(NoDevice, Name);
 
     protected override HandleResult? UnclampInterlock() => HandleResult.Fail(NoDevice, Name);
-}
 
-sealed class SmokePortShell : FcdLoadPortComponent
-{
-    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(new FakeFrameCommunication());
+    protected override IFrameCodec CreateCodec() => new SmokeCodec();
+
+    protected override CommandOperation AddLoadSteps(CommandOperation operation) => operation;
+
+    protected override CommandOperation AddUnloadSteps(CommandOperation operation) => operation;
+
+    protected override CommandOperation AddMapSteps(CommandOperation operation) => operation;
+
+    protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
+
+    protected override ModuleOperation CreateClampOperation() => new SmokeMotion("Clamp", 1);
+
+    protected override ModuleOperation CreateUnclampOperation() => new SmokeMotion("Unclamp", 1);
+
+    protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
+
+    protected override ModuleOperation CreateAbortOperation() => new SmokeMotion("Abort", 1);
 }
 
 // 假腔体：工艺默认三拍做完（ProcessTicks 可调长），可以故意失败一次；记下收到几次中止。
@@ -3137,28 +3211,6 @@ sealed class SmokeChamber : BaseChamberModule
 
         return next();
     }
-}
-
-// 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
-sealed class FakeFrameCommunication : IFrameCommunication
-{
-    public event Action<string>? FrameReceived;
-
-    public bool IsConnected { get; private set; }
-
-    public bool Open()
-    {
-        IsConnected = true;
-        return true;
-    }
-
-    public void Close() => IsConnected = false;
-
-    public void Send(string body)
-    {
-    }
-
-    public void Push(string body) => FrameReceived?.Invoke(body);
 }
 
 // 记下 E40 / E94 上报口收到的转换（"PJ 名 #号"、"CJ 名 #号"），派发在别的线程上，等到为止。

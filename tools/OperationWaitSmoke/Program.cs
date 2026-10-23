@@ -8,14 +8,17 @@ using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
+using xyz._35021.Module.Drivers.Fcd;
+using xyz._35021.Module.Drivers.Fcd.Commands;
+using xyz._35021.Module.Drivers.Fcd.Rfid;
+using xyz._35021.Module.Drivers.Reje;
+using xyz._35021.Module.Drivers.Reje.Commands;
+using xyz._35021.Module.Loadport;
+using xyz._35021.Module.Robot;
 using xyz.Configs.Models;
 using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Drivers.Loadport;
-using xyz.Drivers.Loadport.FCD;
-using xyz.Drivers.Rfid;
-using xyz.Drivers.Rfid.FCD;
-using xyz.Drivers.Robot;
-using xyz.Drivers.Robot.Reje;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Service;
@@ -275,7 +278,7 @@ var service = new LoadPortService();
     var inflight = new ProbeOperation();
     servicePort.Next = inflight;
     Check(servicePort.Home().IsSuccess, "Home 发起、在途");
-    servicePort.Shell.Close();
+    servicePort.Channel.Close();
     var homeOffline = servicePort.Home();
     Check(!homeOffline.IsSuccess && homeOffline.ErrorMessage == ErrorCodes.ModuleNotConnected, "没连上：Home 当场被拒（回设备没连上）");
     var abortOperation = new ProbeOperation();
@@ -323,7 +326,7 @@ var service = new LoadPortService();
           && loadResponse.Args.SequenceEqual(new[] { loadPort.Name, LoadPortState.Loaded.ToString() }),
         "已经 Load 好了再 Load：回状态不允许，带当前状态码");
 
-    loadPort.Shell.Close();
+    loadPort.Channel.Close();
     loadPort.NoteState(ModuleState.Idle);
     loadResponse = await loadService.LoadAsync(loadPort.Name);
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.ModuleNotConnected && loadPort.State == ModuleState.Idle,
@@ -1929,7 +1932,7 @@ port.E87Callback = null;
     int calls = initPort.Calls;
     Check(initPort.InitComponent() && trace.SequenceEqual(new[] { "InitComponent:Child" }) && initPort.Calls == calls,
         "LoadPort 的组件初始化：驱动和子组件跟着基类递归走，不发 Home（不动硬件）");
-    Check(initPort.Shell.IsConnected, "LoadPort 的组件初始化把品牌驱动连上了（连接写在驱动自己的 InitComponent 里，端口没点名）");
+    Check(initPort.Channel.IsConnected, "LoadPort 的组件初始化把品牌驱动连上了（连接写在驱动自己的 InitComponent 里，端口没点名）");
     trace.Clear();
     initPort.Next = new ProbeOperation();
     Check(ReferenceEquals(initPort.InitModule(), initPort.Next) && initPort.Calls == calls + 1 && trace.Count == 0,
@@ -2528,7 +2531,7 @@ port.E87Callback = null;
     var pollPort = new ProbePort("PollPort", PodPresenceSource.Query);
     pollPort.QueryDataTimeOut = 100;
     pollPort.QueryStatusIntervalMs = 500;
-    var pollComm = pollPort.Shell.Comm;
+    var pollComm = pollPort.Channel.Comm;
     Check(pollPort.InitComponent(), "状态查询用的端口的组件初始化应成功");
     ComponentLoader.BindAll([pollPort]);
     pollPort.Tick();
@@ -2547,30 +2550,30 @@ port.E87Callback = null;
     pollComm.Push(StateReply(present: false, placed: false));
     Check(TickUntil(pollPort, () => !pollPort._carrier.IsArrived && pollPort._carrier.Info is null), "查询回来两位都灭：判拿走");
 
-    // 4) 动作没做成（失败、超时、被顶替）：驱动上还在等回复的指令全部作废，同名指令能再发
-    var stuckLoad = pollPort.Shell.Load();
-    Check(stuckLoad is not null, "发一条 Load 指令（假通道不回它）");
-    Check(pollPort.Shell.Load() is null, "同名指令还在途时再发被拒");
+    // 4) 动作没做成（失败、超时、被顶替）：通道上还在等回复的指令全部作废，同名指令能再发
+    var stuckLoad = new FcdLoadCommand();
+    Check(pollPort.Channel.Send(stuckLoad), "发一条 Load 指令（假通讯不回它）");
+    Check(!pollPort.Channel.Send(new FcdLoadCommand()), "同名指令还在途时再发被拒");
     // 端口上这时没载具（上面判拿走了），Load 发不起来，用 Home 当那个没做成的动作
     pollPort.NoteState(ModuleState.Idle);
     var failedHome = new ProbeOperation();
     Check(pollPort.BeginAction(LoadPortAction.Home, failedHome) is not null, "Idle 应能发起 Home");
     failedHome.TimeOut();
     pollPort.Tick();
-    Check(stuckLoad!.IsCompleted && stuckLoad.Response is not null && !stuckLoad.Response.IsSuccess,
+    Check(stuckLoad.IsCompleted && !stuckLoad.IsSuccess && stuckLoad.Error == "Abandoned",
         "动作没做成：在途的指令作废，等它的人不会一直等");
-    var retriedLoad = pollPort.Shell.Load();
-    Check(retriedLoad is not null, "作废之后同名指令能再发");
+    var retriedLoad = new FcdLoadCommand();
+    Check(pollPort.Channel.Send(retriedLoad), "作废之后同名指令能再发");
 
     // 5) 关连接：在途的指令全部作废
     pollPort.Close();
-    Check(retriedLoad!.IsCompleted && retriedLoad.Response is not null && !retriedLoad.Response.IsSuccess,
+    Check(retriedLoad.IsCompleted && !retriedLoad.IsSuccess && retriedLoad.Error == "PortClosed",
         "关连接：在途指令全部作废");
 
     // 6) 断线：按 EC 间隔在后台重连（先关后开），连上以后接着查状态
     var linkPort = new ProbePort("ReconnectPort", PodPresenceSource.Query);
-    linkPort.Shell.ReconnectIntervalMs = 10;
-    var linkComm = linkPort.Shell.Comm;
+    linkPort.Channel.ReconnectIntervalMs = 10;
+    var linkComm = linkPort.Channel.Comm;
     Check(linkPort.InitComponent() && linkComm.Opens == 1, "重连用的端口的组件初始化应成功");
     ComponentLoader.BindAll([linkPort]);
     linkPort.Tick();
@@ -2597,13 +2600,13 @@ port.E87Callback = null;
     var reconnectAlarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(reconnectAlarms);
     var giveUpPort = new ProbePort("GiveUpPort", PodPresenceSource.Query);
-    giveUpPort.Shell.ReconnectIntervalMs = 10;
-    giveUpPort.Shell.ReconnectMaxCount = 2;
-    var giveUpComm = giveUpPort.Shell.Comm;
+    giveUpPort.Channel.ReconnectIntervalMs = 10;
+    giveUpPort.Channel.ReconnectMaxCount = 2;
+    var giveUpComm = giveUpPort.Channel.Comm;
     Check(giveUpPort.InitComponent() && giveUpComm.Opens == 1, "停重连用的端口开机连上");
     ComponentLoader.BindAll([giveUpPort]);
     bool GaveUp() => reconnectAlarms.ActiveAlarms.Any(alarm =>
-        alarm.SourcePath == giveUpPort.Shell.FullPath && alarm.AlarmCode == giveUpPort.Shell.ReconnectFailedAlarm);
+        alarm.SourcePath == giveUpPort.Channel.FullPath && alarm.AlarmCode == giveUpPort.Channel.ReconnectFailedAlarm);
     giveUpComm.FailOpen = true;
     giveUpComm.Drop();
     Check(TickUntil(giveUpPort, GaveUp) && giveUpComm.Opens == 1 + 2, "断了重连正好 EC 给的 2 次，还连不上就报已停止重连");
@@ -2615,20 +2618,20 @@ port.E87Callback = null;
 
     Check(giveUpComm.Opens == 3, "停下以后不再重连");
     giveUpComm.FailOpen = false;
-    giveUpPort.Shell.Reset();
+    giveUpPort.Channel.Reset();
     Check(!GaveUp(), "人工复位清掉已停止重连的报警");
     Check(TickUntil(giveUpPort, () => giveUpComm.IsConnected), "人工复位以后从头再连，连上了");
     giveUpPort.Close();
 
     // 连上一下又断（串口打开就算连上，设备不在要等发东西失败才断）：没连满一个间隔不算恢复，照样算一次重连，次数用完照样停
     var flapPort = new ProbePort("FlapPort", PodPresenceSource.Query);
-    flapPort.Shell.ReconnectIntervalMs = 200;
-    flapPort.Shell.ReconnectMaxCount = 2;
-    var flapComm = flapPort.Shell.Comm;
+    flapPort.Channel.ReconnectIntervalMs = 200;
+    flapPort.Channel.ReconnectMaxCount = 2;
+    var flapComm = flapPort.Channel.Comm;
     flapPort.InitComponent();
     ComponentLoader.BindAll([flapPort]);
     bool FlapGaveUp() => reconnectAlarms.ActiveAlarms.Any(alarm =>
-        alarm.SourcePath == flapPort.Shell.FullPath && alarm.AlarmCode == flapPort.Shell.ReconnectFailedAlarm);
+        alarm.SourcePath == flapPort.Channel.FullPath && alarm.AlarmCode == flapPort.Channel.ReconnectFailedAlarm);
     flapComm.Drop();
     Check(TickUntil(flapPort, () =>
     {
@@ -2674,38 +2677,28 @@ port.E87Callback = null;
     SmokeIoc.Use<IPlcBlock>(previousPlcBlock);
     SmokeIoc.Use<IAlarm>(previousAlarms);
 
-    // 7) _rfid 读头连不上：LoadPort 照样开驱动、登记晶圆账槽位（以前整台 LoadPort 都不能动）；读头之后按间隔重连上
+    // 7) _rfid 读头连不上：LoadPort 照样开自己的通道、登记晶圆账槽位（以前整台 LoadPort 都不能动）；读头之后按间隔重连上。
+    //    读头的通道挂在读头下面，LoadPort 只认自己直接挂的那条，两条各连各的
     var rfidPort = new ProbePort("RfidDownPort", PodPresenceSource.Query);
-    var rfidShell = new ProbeRfidShell();
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(rfidShell, "_rfid");
-    typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(rfidShell, "RfidDownPort._rfid");
-    rfidShell.ReconnectIntervalMs = 10;
-    rfidShell.Comm.FailOpen = true;
-    rfidPort.AddChild(rfidShell);
+    var rfidReader = ProbeRfidReader.AddTo(rfidPort, "_rfid");
+    rfidReader.Channel.ReconnectIntervalMs = 10;
+    rfidReader.Channel.Comm.FailOpen = true;
     Check(!rfidPort.InitComponent(), "_rfid 连不上时组件初始化返回 false（开机日志看得到）");
     ComponentLoader.BindAll([rfidPort]);
-    Check(rfidPort.Shell.IsConnected, "_rfid 连不上也照样打开 LoadPort 驱动");
+    Check(rfidPort.Channel.IsConnected && !rfidReader.IsConnected, "_rfid 连不上也照样打开 LoadPort 的通道");
     Check(presenceLedger.GetSlots(rfidPort.Name).Count == rfidPort.SlotCount, "_rfid 连不上也照样在晶圆账上登记槽位");
-    rfidShell.Comm.FailOpen = false;
-    Check(TickUntil(rfidPort, () => rfidShell.IsConnected), "读头能连了：按间隔在后台重连上");
+    rfidReader.Channel.Comm.FailOpen = false;
+    Check(TickUntil(rfidPort, () => rfidReader.IsConnected), "读头能连了：按间隔在后台重连上");
     rfidPort.Close();
+    Check(!rfidPort.Channel.IsConnected && !rfidReader.IsConnected, "LoadPort 关连接：自己的通道和读头的一起关");
 
     // 7b) 到位后自动读码，读头这会儿没连上：以前读码没发起成功就这么算了，Host 干等一个永远不来的 ID。
     //     现在接着试，读头连上就发起读码；一直连不上，到读头的读码超时就按读码失败报给 E87
-    ProbeRfidShell AddReader(ProbePort target, string path)
-    {
-        var reader = new ProbeRfidShell();
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(reader, "RFID");
-        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(reader, path);
-        target.AddChild(reader);
-        return reader;
-    }
-
     var autoPort = new ProbePort("AutoReadPort", PodPresenceSource.Event);
-    var autoReader = AddReader(autoPort, "AutoReadPort.RFID");
-    autoReader.ReconnectIntervalMs = 10;
+    var autoReader = ProbeRfidReader.AddTo(autoPort, "RFID");
+    autoReader.Channel.ReconnectIntervalMs = 10;
     autoReader.ReadCarrierIdTimeout = 60000;
-    autoReader.Comm.FailOpen = true;
+    autoReader.Channel.Comm.FailOpen = true;
     var autoEvents = new RecordingE87Callback();
     autoPort.E87Callback = autoEvents;
     autoPort.InitComponent();
@@ -2716,15 +2709,15 @@ port.E87Callback = null;
     autoPort.Tick();
     Check(!autoReader.IsReading && !autoEvents.Wait(nameof(IE87Callback.CarrierIdReadFailed), 100),
         "读头没连上、还没到读码超时：接着等，不报失败");
-    autoReader.Comm.FailOpen = false;
+    autoReader.Channel.Comm.FailOpen = false;
     Check(TickUntil(autoPort, () => autoReader.IsReading), "读头连上以后自动读码接着发起（以前没发起成功就算了）");
     autoPort.Close();
 
     var failPort = new ProbePort("AutoReadFailPort", PodPresenceSource.Event);
-    var failReader = AddReader(failPort, "AutoReadFailPort.RFID");
-    failReader.ReconnectIntervalMs = 600000;
+    var failReader = ProbeRfidReader.AddTo(failPort, "RFID");
+    failReader.Channel.ReconnectIntervalMs = 600000;
     failReader.ReadCarrierIdTimeout = 100;
-    failReader.Comm.FailOpen = true;
+    failReader.Channel.Comm.FailOpen = true;
     var failEvents = new RecordingE87Callback();
     failPort.E87Callback = failEvents;
     failPort.InitComponent();
@@ -2787,15 +2780,21 @@ port.E87Callback = null;
           && disabledPort.LocalTransferState == LoadPortTransferState.OutOfService,
         "停用的端口：状态推得出来，没载具、不能分给 Job、搬运状态是 Out Of Service");
     var disabledLoad = disabledPort.Load();
-    Check(!disabledLoad.IsSuccess && disabledLoad.ErrorMessage == ErrorCodes.ModuleDisabled && !disabledPort.Shell.IsConnected,
+    Check(!disabledLoad.IsSuccess && disabledLoad.ErrorMessage == ErrorCodes.ModuleDisabled && !disabledPort.Channel.IsConnected,
         "停用的端口：不连驱动、不发动作（Load 回模块停用）");
 
     // 8) 帧通讯重连：旧接收泵在新连接起来以后才出错，只停它自己那一轮，新的一轮照样收（以前一个全局标志会把新泵也停了）
     var transport = new GatedTransport();
-    var codec = new FcdFrameCodec();
-    var frameLink = new FrameCommunication(transport, new FcdFrameCodec());
+    var codec = new FcdCodec();
+    var frameLink = new FrameCommunication(transport, new FcdCodec());
     var received = new ConcurrentQueue<string>();
-    frameLink.FrameReceived += received.Enqueue;
+    frameLink.MessageReceived += message =>
+    {
+        if (message is FcdMessage fcd)
+        {
+            received.Enqueue($"{fcd.Type}:{fcd.Name}");
+        }
+    };
     Check(frameLink.Open() && WaitUntil(() => transport.Waiting == 1), "打开后第一轮接收泵在等数据");
     frameLink.Close();
     Check(WaitUntil(() => transport.Stale == 1), "关了以后旧泵醒了，卡在出错之前");
@@ -2810,7 +2809,7 @@ port.E87Callback = null;
         "旧泵退出没把新的一轮停掉：第二帧照样收到");
     frameLink.Close();
 
-    // 9) 平台默认动作：机型一个动作都不写也能用。Load 先只发 CLOAD 开门（回执里带图也不用），再发 MAPDO 扫片、GET:MAPDT 取槽图落账；
+    // 9) 35021 LoadPort 的动作（平台管流程，机型只填每个动作发哪几条 FCD 指令）：Load 先只发 CLOAD 开门（回执里带图也不用），再发 MAPDO 扫片、GET:MAPDT 取槽图落账；
     //    设备回 NAK、等超时、没连上都判失败
     bool TickPlainUntil(PlainPort target, Func<bool> condition)
     {
@@ -2822,18 +2821,18 @@ port.E87Callback = null;
     }
 
     var plain = new PlainPort("PlainPort");
-    var plainComm = plain.Shell.Comm;
-    Check(plain.InitComponent(), "平台默认动作用的端口的组件初始化应成功");
+    var plainComm = plain.Channel.Comm;
+    Check(plain.InitComponent(), "35021 LoadPort 用的端口的组件初始化应成功");
     plain.NoteState(ModuleState.Idle);
     var noCarrierLoad = plain.Load();
     Check(!noCarrierLoad.IsSuccess && noCarrierLoad.ErrorMessage == ErrorCodes.CarrierNotArrived
           && plain.State == ModuleState.Idle && plainComm.SentCount("MOV:CLOAD") == 0,
-        "端口上没载具：平台默认 Load 不发，回载具没到位");
+        "端口上没载具：Load 不发，回载具没到位");
     plain.NotePodPlaced(true);
     plain.Tick();
     var plainLoad = plain.Load().Result;
-    Check(plainLoad is not null && plain.State == LoadPortState.Loading, "平台默认 Load：空闲能发起，进 Loading");
-    Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 先发 FCD 的 CLOAD，只开门");
+    Check(plainLoad is not null && plain.State == LoadPortState.Loading, "Load：空闲能发起，进 Loading");
+    Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "Load 先发 FCD 的 CLOAD，只开门");
     plainComm.Push($"INF:CLOAD/{new string('E', 25)}");
     Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:MAPDO") == 1) && !plainLoad!.IsTerminal && plain._carrier.SlotMap.Count == 0,
         "CLOAD 做完接着发 MAPDO 扫片；CLOAD 回执里带的图不用、不落账");
@@ -2845,7 +2844,7 @@ port.E87Callback = null;
           && plain.MapResults["PlainPort"][0] == SlotState.Normal,
         "取到槽图才算 Load 做完：落 Loaded，槽图按 GET:MAPDT 回的落进 SlotMap，也存进 MapResults");
     var plainUnload = plain.Unload().Result;
-    Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
+    Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "Unload 发 CULOD");
     plainComm.Push("NAK:CULOD/BUSY");
     Check(TickPlainUntil(plain, () => plainUnload!.IsTerminal) && plainUnload!.Code == ErrorCodes.DeviceFailed
           && plain.State == ModuleState.Error,
@@ -2878,12 +2877,12 @@ port.E87Callback = null;
         port.NotePodPlaced(true);
         port.Tick();
         var load = port.Load().Result;
-        Check(load is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CLOAD") == 1), $"{port.Name} 发了 CLOAD");
-        port.Shell.Comm.Push("INF:CLOAD");
-        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:MAPDO") == 1), $"{port.Name} 接着发了 MAPDO");
-        port.Shell.Comm.Push("INF:MAPDO");
-        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("GET:MAPDT") == 1), $"{port.Name} 扫完取槽图");
-        port.Shell.Comm.Push($"ACK:MAPDT/{mapData}");
+        Check(load is not null && TickPlainUntil(port, () => port.Channel.Comm.SentCount("MOV:CLOAD") == 1), $"{port.Name} 发了 CLOAD");
+        port.Channel.Comm.Push("INF:CLOAD");
+        Check(TickPlainUntil(port, () => port.Channel.Comm.SentCount("MOV:MAPDO") == 1), $"{port.Name} 接着发了 MAPDO");
+        port.Channel.Comm.Push("INF:MAPDO");
+        Check(TickPlainUntil(port, () => port.Channel.Comm.SentCount("GET:MAPDT") == 1), $"{port.Name} 扫完取槽图");
+        port.Channel.Comm.Push($"ACK:MAPDT/{mapData}");
         Check(TickPlainUntil(port, () => load!.IsTerminal), $"{port.Name} 的 Load 做完了");
         return load!;
     }
@@ -3050,12 +3049,12 @@ port.E87Callback = null;
         port.NotePodPlaced(true);
         port.Tick();
         var load = port.Load().Result;
-        Check(load is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CLOAD") == 1), $"{name} 发了 CLOAD");
-        port.Shell.Comm.Push("INF:CLOAD");
-        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:MAPDO") == 1), $"{name} 接着发了 MAPDO");
-        port.Shell.Comm.Push("INF:MAPDO");
-        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("GET:MAPDT") == 1), $"{name} 扫完取槽图");
-        port.Shell.Comm.Push($"ACK:MAPDT/PPE{new string('E', 22)}");
+        Check(load is not null && TickPlainUntil(port, () => port.Channel.Comm.SentCount("MOV:CLOAD") == 1), $"{name} 发了 CLOAD");
+        port.Channel.Comm.Push("INF:CLOAD");
+        Check(TickPlainUntil(port, () => port.Channel.Comm.SentCount("MOV:MAPDO") == 1), $"{name} 接着发了 MAPDO");
+        port.Channel.Comm.Push("INF:MAPDO");
+        Check(TickPlainUntil(port, () => port.Channel.Comm.SentCount("GET:MAPDT") == 1), $"{name} 扫完取槽图");
+        port.Channel.Comm.Push($"ACK:MAPDT/PPE{new string('E', 22)}");
         Check(TickPlainUntil(port, () => load!.IsTerminal) && load!.IsSuccess && port.State == LoadPortState.Loaded, $"{name} Load 好了，1、2 槽有片");
         return port;
     }
@@ -3063,7 +3062,7 @@ port.E87Callback = null;
     // 自动跑货的 Unload：先发 MAPDO 扫片（门不关），扫完取槽图，回 mapData；对得上才会接着发 CULOD
     ModuleOperation UnloadWithMap(PlainPort port, string mapData)
     {
-        var comm = port.Shell.Comm;
+        var comm = port.Channel.Comm;
         var unload = port.Unload().Result;
         Check(unload is not null && TickPlainUntil(port, () => comm.SentCount("MOV:MAPDO") == 2) && comm.SentCount("MOV:CULOD") == 0,
             $"{port.Name}：AutoRunMapOnUnload 开着，Unload 先发 MAPDO 扫片，门先不关");
@@ -3075,9 +3074,9 @@ port.E87Callback = null;
 
     var matchPort = LoadedMapPort("UnloadMapOkPort");
     var matchUnload = UnloadWithMap(matchPort, $"PPE{new string('E', 22)}");
-    Check(TickPlainUntil(matchPort, () => matchPort.Shell.Comm.SentCount("MOV:CULOD") == 1) && !matchUnload.IsTerminal,
+    Check(TickPlainUntil(matchPort, () => matchPort.Channel.Comm.SentCount("MOV:CULOD") == 1) && !matchUnload.IsTerminal,
         "扫到的跟账一致：这才发 CULOD 关门");
-    matchPort.Shell.Comm.Push("INF:CULOD");
+    matchPort.Channel.Comm.Push("INF:CULOD");
     Check(TickPlainUntil(matchPort, () => matchUnload.IsTerminal) && matchUnload.IsSuccess && matchPort.State == ModuleState.Idle && !matchPort.HasAlarm,
         "关门前扫到的跟账一致：Unload 成功、落 Idle，不报警");
     matchPort.Close();
@@ -3087,7 +3086,7 @@ port.E87Callback = null;
     var mismatchUnload = UnloadWithMap(mismatchPort, $"EPPC{new string('E', 21)}");
     Check(TickPlainUntil(mismatchPort, () => mismatchUnload.IsTerminal)
           && mismatchUnload.Code == ErrorCodes.UnloadSlotMapMismatch && mismatchUnload.ErrorArgs.SequenceEqual(new[] { "UnloadMapBadPort", "1,3,4" })
-          && mismatchPort.State == ModuleState.Error && mismatchPort.Shell.Comm.SentCount("MOV:CULOD") == 0,
+          && mismatchPort.State == ModuleState.Error && mismatchPort.Channel.Comm.SentCount("MOV:CULOD") == 0,
         "少片、多片、交叉片：Unload 判失败（unload_slot_map_mismatch，带槽号），落 Error，门不关，不能就这么取走");
     Check(MapAlarmActiveIn(unloadMapAlarms, mismatchPort, mismatchPort.SlotMapAlarm)
           && unloadMapAlarms.ActiveAlarms.Any(alarm => alarm.AlarmCode == presenceLedger.WaferLedgerAlarm),
@@ -3098,7 +3097,7 @@ port.E87Callback = null;
 
     // 扫片对上了、关门没成（设备回 ABS）：Unload 判失败、落 Error
     var closeFailPort = LoadedMapPort("UnloadMapCloseFailPort");
-    var closeFailComm = closeFailPort.Shell.Comm;
+    var closeFailComm = closeFailPort.Channel.Comm;
     var closeFailUnload = UnloadWithMap(closeFailPort, $"PPE{new string('E', 22)}");
     Check(TickPlainUntil(closeFailPort, () => closeFailComm.SentCount("MOV:CULOD") == 1), "关门没成用的端口：对上了才发 CULOD");
     closeFailComm.Push("ABS:CULOD/0301");
@@ -3109,7 +3108,7 @@ port.E87Callback = null;
 
     // 扫片没成（设备回 NAK）：Unload 判失败、落 Error，不取图、不关门——没扫成就对不了账，不能当卸好了让人取走
     var scanFailPort = LoadedMapPort("UnloadMapScanFailPort");
-    var scanFailComm = scanFailPort.Shell.Comm;
+    var scanFailComm = scanFailPort.Channel.Comm;
     var scanFailUnload = scanFailPort.Unload().Result;
     Check(scanFailUnload is not null && TickPlainUntil(scanFailPort, () => scanFailComm.SentCount("MOV:MAPDO") == 2),
         "扫片没成用的端口：Unload 先发了 MAPDO");
@@ -3123,12 +3122,12 @@ port.E87Callback = null;
     //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货的 Unload）
     var manualPort = LoadedMapPort("ManualUnloadPort");
     var manualUnload = manualPort.UnloadManually().Result;
-    Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Shell.Comm.SentCount("MOV:CULOD") == 1),
+    Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Channel.Comm.SentCount("MOV:CULOD") == 1),
         "手动 Unload：SC AutoRunMapOnUnload 开着也发普通的 CULOD");
-    manualPort.Shell.Comm.Push("INF:CULOD");
+    manualPort.Channel.Comm.Push("INF:CULOD");
     Check(TickPlainUntil(manualPort, () => manualUnload!.IsTerminal) && manualUnload!.IsSuccess
           && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm
-          && manualPort.Shell.Comm.SentCount("MOV:MAPDO") == 1 && manualPort.Shell.Comm.SentCount("GET:MAPDT") == 1,
+          && manualPort.Channel.Comm.SentCount("MOV:MAPDO") == 1 && manualPort.Channel.Comm.SentCount("GET:MAPDT") == 1,
         "手动 Unload：不扫、不对账（MAPDO、GET:MAPDT 只有 Load 时那一次）——账上 1、2 槽有片也不拦，卸成功、落 Idle、不报警");
     Check(presenceLedger.Get("ManualUnloadPort", 1) is not null && presenceLedger.Get("ManualUnloadPort", 2) is not null,
         "手动 Unload：账不动");
@@ -3291,7 +3290,7 @@ port.E87Callback = null;
     // 探针机械手的查询超时是 0：没回的查询下一拍就作废、同一拍接着发下一条，一条一拍；一圈查完空一拍，下一拍重开一圈。
     // 探针有 X / Z / Theta / Arm1 四根轴：没订上时一圈 8 条（订阅、报错、伺服、速度、4 根轴）+ 空一拍 = 9 拍
     var pollRobot = new ProbeRobot();
-    var robotComm = pollRobot.Shell.Comm;
+    var robotComm = pollRobot.Channel.Comm;
     Check(pollRobot.InitComponent(), "状态查询用的机械手的组件初始化应成功");
     ComponentLoader.BindAll([pollRobot]);
 
@@ -3370,18 +3369,18 @@ port.E87Callback = null;
         $"成功码的 Error 帧不是报错推送，设备报错不该被它改掉，实际 {pollRobot.DeviceError}");
 
     // 4) 关连接：在途的指令全部作废（等它的人不会一直等）；重新连上以后同名指令能再发
-    var stuckHome = pollRobot.Shell.Home();
-    Check(stuckHome is not null, "发一条 Home 指令（假通道不回它）");
-    Check(pollRobot.Shell.Home() is null, "同名指令还在途时再发被拒");
+    var stuckHome = new RejeHomeCommand();
+    Check(pollRobot.Channel.Send(stuckHome), "发一条 Home 指令（假通讯不回它）");
+    Check(!pollRobot.Channel.Send(new RejeHomeCommand()), "同名指令还在途时再发被拒");
     pollRobot.Close();
-    Check(stuckHome!.IsCompleted && stuckHome.Response is not null && !stuckHome.Response.IsSuccess,
+    Check(stuckHome.IsCompleted && !stuckHome.IsSuccess && stuckHome.Error == "PortClosed",
         "关连接：在途指令全部作废");
-    Check(pollRobot.InitComponent() && pollRobot.Shell.Home() is not null, "重新连上以后同名指令能再发");
+    Check(pollRobot.InitComponent() && pollRobot.Channel.Send(new RejeHomeCommand()), "重新连上以后同名指令能再发");
     pollRobot.Close();
 
     // 5) 这台机械手不带手指在位推送（SC WaferEventEnabled = False）：一圈不订阅，一条订阅都不发
     var plainRobot = new ProbeRobot { WaferEventEnabled = false };
-    var plainComm = plainRobot.Shell.Comm;
+    var plainComm = plainRobot.Channel.Comm;
     Check(plainRobot.InitComponent(), "不带手指在位推送的机械手组件初始化应成功");
     ComponentLoader.BindAll([plainRobot]);
     for (int tick = 0; tick < 16; tick++)
@@ -3396,7 +3395,7 @@ port.E87Callback = null;
 
     // 6) 查询周期（EC QueryStatusIntervalMs）管的是"圈"：一圈里的各条照旧一拍一条，一圈查完要离这一圈开始满一个周期才开下一圈
     var paceRobot = new ProbeRobot { WaferEventEnabled = false, QueryStatusIntervalMs = 500 };
-    var paceComm = paceRobot.Shell.Comm;
+    var paceComm = paceRobot.Channel.Comm;
     Check(paceRobot.InitComponent(), "测查询周期的机械手组件初始化应成功");
     ComponentLoader.BindAll([paceRobot]);
     for (int tick = 0; tick < 12; tick++)
@@ -3419,8 +3418,8 @@ port.E87Callback = null;
     // 7) 断线：按 EC 间隔在后台重连（先关后开），连上以后从头查、重新订手指在位推送；Close 以后不再重连
     //    （以前机械手不重连：控制器断电重启、比后端晚上电，只能重启后端）
     var linkRobot = new ProbeRobot { QueryDataTimeOut = 600000 };
-    linkRobot.Shell.ReconnectIntervalMs = 10;
-    var linkComm = linkRobot.Shell.Comm;
+    linkRobot.Channel.ReconnectIntervalMs = 10;
+    var linkComm = linkRobot.Channel.Comm;
     Check(linkRobot.InitComponent() && linkComm.Opens == 1, "重连用的机械手组件初始化应成功");
     ComponentLoader.BindAll([linkRobot]);
     linkRobot.Tick();
@@ -3458,14 +3457,40 @@ port.E87Callback = null;
     var stuckRobot = new ProbeRobot { WaferEventEnabled = false };
     Check(stuckRobot.InitComponent(), "测动作超时的机械手组件初始化应成功");
     ComponentLoader.BindAll([stuckRobot]);
-    var stuckPick = new RobotCommandOperation("Pick", () => stuckRobot.Shell.Pick(1, 3, 5), () => 0);
+    var stuckPick = new CommandOperation("Pick", stuckRobot._driver, () => new RejePickCommand(1, 3, 5), () => 0);
     stuckPick.Scan();
-    Check(!stuckPick.IsTerminal && stuckRobot.Shell.Pick(1, 3, 5) is null, "取片指令发出去了（假通道不回它），同一条还在途时再发被拒");
+    Check(!stuckPick.IsTerminal && !stuckRobot.Channel.Send(new RejePickCommand(1, 3, 5)), "取片指令发出去了（假通讯不回它），同一条还在途时再发被拒");
     Thread.Sleep(5);
     stuckPick.Scan();
     Check(stuckPick.IsTerminal && stuckPick.Code == ErrorCodes.Timeout, "等回复超时：动作判失败（超时）");
-    Check(stuckRobot.Shell.Pick(1, 3, 5) is not null, "超时的那条作废了：同一条取片指令能再发");
+    Check(stuckRobot.Channel.Send(new RejePickCommand(1, 3, 5)), "超时的那条作废了：同一条取片指令能再发");
     stuckRobot.Close();
+
+    // 9) 每条指令自己认回复（Handle 写在指令里，品牌基类不管）：上面跑通的路子之外，几个少见的分支直接喂报文看
+    var load = new FcdLoadCommand();
+    Check(!load.Accept(new FcdMessage { Type = FcdProtocol.Inf, Name = "CULOD" }) && !load.IsCompleted,
+        "FCD 别的指令名的回复不认");
+    Check(load.Accept(new FcdMessage { Type = FcdProtocol.Ack, Name = "CLOAD" }) && !load.IsCompleted,
+        "FCD 动作类：ACK 认下，只是受理了，不算做完");
+    Check(load.Accept(new FcdMessage { Type = FcdProtocol.Inf, Name = "cload", Data = "EEE" }) && load.IsSuccess,
+        "FCD 动作类：INF 才算做完（名字不分大小写）");
+    var shortState = new FcdGetStateCommand();
+    Check(shortState.Accept(new FcdMessage { Type = FcdProtocol.Ack, Name = "STATE", Data = "0110" })
+          && !shortState.IsSuccess && shortState.Error == "状态串长度不足: 4" && shortState.Status is null,
+        "FCD 查询类：ACK 就收尾，状态串不够 64 位判失败、不给状态");
+    var pick = new RejePickCommand(1, 3, 5);
+    Check(!pick.Accept(new RejeMessage { Code = "00000000", Content = string.Empty, Name = "G" }) && !pick.IsCompleted,
+        "锐洁取片：只回指令名 G 的成功帧不认（成功帧要完整回显，免得把别人的结果当成功）");
+    Check(pick.Accept(new RejeMessage { Code = "40010001", Content = "NotEnabled", Name = "G" })
+          && !pick.IsSuccess && pick.Error == "40010001#NotEnabled",
+        "锐洁取片：只回指令名 G 的失败帧认下，判失败（没上使能这类拒绝）");
+    var placed = new RejePlaceCommand(1, 3, 5);
+    Check(placed.Accept(new RejeMessage { Code = "00000000", Content = string.Empty, Name = placed.BuildFrame() }) && placed.IsSuccess,
+        "锐洁放片：完整回显的成功帧做完");
+    var enable = new RejeQueryEnableCommand();
+    Check(enable.Accept(new RejeMessage { Code = "00000000", Content = "MAYBE", Name = "QEnable" })
+          && !enable.IsSuccess && enable.ServoOn is null,
+        "锐洁查使能：内容认不出判失败、不写伺服状态");
 }
 
 // 本站交接上下文：对象身份隔离轮次，覆盖正常/延迟收尾、撤销、恢复及同站换槽。
@@ -3957,7 +3982,7 @@ port.E87Callback = null;
     Check(accessEvents.Wait(nameof(IE87Callback.AutoModeChanged)) && accessEvents.Count(nameof(IE87Callback.CarrierComplete)) == 1,
         "同一上报队列的后续通知已处理：重复结束没有重复上报 E87 CarrierComplete");
     accessPort.NoteState(LoadPortState.Loaded);
-    accessPort.Shell.Comm.Drop();
+    accessPort.Channel.Comm.Drop();
     Check(jobAccess.CanUseCarrierForJob && transferAccess.CanPrepareTransfer,
         "保持原查询条件：查询不增加设备连接限制，设备动作及自动调度继续各自检查");
     accessPort.NotePodPlaced(false);
@@ -4088,11 +4113,11 @@ port.E87Callback = null;
     Check(!otherStation.IsSuccess && otherStation.ErrorMessage == ErrorCodes.StationNotFound && otherStation.Args.SequenceEqual(["OwnMapLP", "OtherLP"]),
         "LoadPort 只扫自己：别的站点名被拒（robot.station_not_found [端口, 站点]）");
     var ownMap = ownPort.Map("OwnMapLP").Result;
-    Check(ownMap is not null && ownPort.State == LoadPortState.Mapping && PumpUntil(() => ownPort.Shell.Comm.SentCount("MOV:MAPDO") == 1),
+    Check(ownMap is not null && ownPort.State == LoadPortState.Mapping && PumpUntil(() => ownPort.Channel.Comm.SentCount("MOV:MAPDO") == 1),
         "门开着：单独扫片进扫片中（160），发 MAPDO");
-    ownPort.Shell.Comm.Push("INF:MAPDO");
-    Check(PumpUntil(() => ownPort.Shell.Comm.SentCount("GET:MAPDT") == 1), "扫完发 GET:MAPDT 取槽图");
-    ownPort.Shell.Comm.Push($"ACK:MAPDT/PP{new string('E', 23)}");
+    ownPort.Channel.Comm.Push("INF:MAPDO");
+    Check(PumpUntil(() => ownPort.Channel.Comm.SentCount("GET:MAPDT") == 1), "扫完发 GET:MAPDT 取槽图");
+    ownPort.Channel.Comm.Push($"ACK:MAPDT/PP{new string('E', 23)}");
     Check(PumpUntil(() => ownMap!.IsTerminal) && ownMap!.IsSuccess && ownPort.State == LoadPortState.Loaded
           && ownPort.MapResults["OwnMapLP"].Take(3).SequenceEqual([SlotState.Normal, SlotState.Normal, SlotState.Empty])
           && ownPort._carrier.SlotMap.Count == 0 && mapLedger.CountWafers("OwnMapLP") == 0,
@@ -4167,11 +4192,11 @@ port.E87Callback = null;
     lp.NotePodPlaced(true);
     lp.Tick();
     var maintenanceLoad = lp.Load().Result;
-    Check(maintenanceLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 1), "机械手扫片的口：Load 照样先发 CLOAD 开门");
-    lp.Shell.Comm.Push("INF:CLOAD");
+    Check(maintenanceLoad is not null && PumpUntil(() => lp.Channel.Comm.SentCount("MOV:CLOAD") == 1), "机械手扫片的口：Load 照样先发 CLOAD 开门");
+    lp.Channel.Comm.Push("INF:CLOAD");
     Check(PumpUntil(() => maintenanceLoad!.IsTerminal) && maintenanceLoad!.Code == ErrorCodes.ModuleMaintenance
           && maintenanceLoad.ErrorArgs.SequenceEqual(["MapRobot"]) && lp.State == ModuleState.Error
-          && robot.MapCalls == 0 && lp.Shell.Comm.SentCount("MOV:MAPDO") == 0,
+          && robot.MapCalls == 0 && lp.Channel.Comm.SentCount("MOV:MAPDO") == 0,
         $"机械手在维护模式：不等，Load 判失败（module.maintenance），机械手没动，LoadPort 也不自己扫，实际 {maintenanceLoad?.Code}");
 
     // 5) 生产模式、机械手手上还拿着片：扫片排着等（不按 Load 超时算）；这时只拒往手上添片的（只取到手上），把手上的片放出去的照接
@@ -4179,8 +4204,8 @@ port.E87Callback = null;
     lp.NoteState(ModuleState.Idle);
     lp.LoadTimeout = 1000;
     var queuedLoad = lp.Load().Result;
-    Check(queuedLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 2), "再 Load 一次：发 CLOAD");
-    lp.Shell.Comm.Push("INF:CLOAD");
+    Check(queuedLoad is not null && PumpUntil(() => lp.Channel.Comm.SentCount("MOV:CLOAD") == 2), "再 Load 一次：发 CLOAD");
+    lp.Channel.Comm.Push("INF:CLOAD");
     Pump(3);
     Thread.Sleep(1100);
     Pump(3);
@@ -4203,7 +4228,7 @@ port.E87Callback = null;
     robot.CompleteMap(MapOf(2));
     Check(PumpUntil(() => queuedLoad!.IsTerminal) && queuedLoad!.IsSuccess && lp.State == LoadPortState.Loaded
           && lp._carrier.SlotMap.Count == 25 && lp._carrier.SlotMap[1] == SlotState.Normal && lp._carrier.SlotMap[2] == SlotState.Empty
-          && mapLedger.CountWafers("RobotMapLP") == 2 && lp.Shell.Comm.SentCount("MOV:MAPDO") == 0 && lp.Shell.Comm.SentCount("GET:MAPDT") == 0,
+          && mapLedger.CountWafers("RobotMapLP") == 2 && lp.Channel.Comm.SentCount("MOV:MAPDO") == 0 && lp.Channel.Comm.SentCount("GET:MAPDT") == 0,
         $"机械手扫完：Load 做完落 Loaded，槽图按机械手扫的落账（2 片），LoadPort 自己没发 MAPDO / GET:MAPDT，实际 {queuedLoad!.Code}");
     Check(PumpUntil(() => robot.State == ModuleState.Idle) && robot.MapResults["RobotMapLP"].Count == 25,
         "机械手扫完回空闲，MapResults 里留着这个口最近一次的槽图");
@@ -4212,11 +4237,11 @@ port.E87Callback = null;
     // 8) 自动跑货 Unload 对账也由机械手扫：关门前排它扫，扫到的跟账对上才发 CULOD
     lp.AutoRunMapOnUnload = true;
     var robotUnload = lp.Unload().Result;
-    Check(robotUnload is not null && PumpUntil(() => robot.MapCalls == 2) && lp.Shell.Comm.SentCount("MOV:CULOD") == 0,
+    Check(robotUnload is not null && PumpUntil(() => robot.MapCalls == 2) && lp.Channel.Comm.SentCount("MOV:CULOD") == 0,
         "机械手扫片的口自动跑货 Unload：关门前先排机械手扫，门先不关");
     robot.CompleteMap(MapOf(2));
-    Check(PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CULOD") == 1), "机械手扫到的跟账对上：这才发 CULOD 关门");
-    lp.Shell.Comm.Push("INF:CULOD");
+    Check(PumpUntil(() => lp.Channel.Comm.SentCount("MOV:CULOD") == 1), "机械手扫到的跟账对上：这才发 CULOD 关门");
+    lp.Channel.Comm.Push("INF:CULOD");
     Check(PumpUntil(() => robotUnload!.IsTerminal) && robotUnload!.IsSuccess && lp.State == ModuleState.Idle,
         "关门做完：Unload 成功、落 Idle");
     lp.AutoRunMapOnUnload = false;
@@ -4224,8 +4249,8 @@ port.E87Callback = null;
     // 9) 机械手没初始化：不等，Load 判失败（module.state_not_allowed，带机械手的状态码）
     robot.NoteState(ModuleState.NotInit);
     var notInitLoad = lp.Load().Result;
-    Check(notInitLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 3), "第三次 Load：发 CLOAD");
-    lp.Shell.Comm.Push("INF:CLOAD");
+    Check(notInitLoad is not null && PumpUntil(() => lp.Channel.Comm.SentCount("MOV:CLOAD") == 3), "第三次 Load：发 CLOAD");
+    lp.Channel.Comm.Push("INF:CLOAD");
     Check(PumpUntil(() => notInitLoad!.IsTerminal) && notInitLoad!.Code == ErrorCodes.ModuleStateNotAllowed
           && notInitLoad.ErrorArgs.SequenceEqual(["MapRobot", ModuleState.NotInit.ToString()]) && robot.MapCalls == 2,
         $"机械手没初始化：Load 判失败（module.state_not_allowed [机械手, 状态码]），机械手没动，实际 {notInitLoad?.Code}");
@@ -4235,8 +4260,8 @@ port.E87Callback = null;
     lp.NoteState(ModuleState.Idle);
     Check(mapLedger.Create("MapRobot", 1) is not null, "机械手 Arm1 上又拿着一片");
     var abortedLoad = lp.Load().Result;
-    Check(abortedLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 4), "第四次 Load：发 CLOAD");
-    lp.Shell.Comm.Push("INF:CLOAD");
+    Check(abortedLoad is not null && PumpUntil(() => lp.Channel.Comm.SentCount("MOV:CLOAD") == 4), "第四次 Load：发 CLOAD");
+    lp.Channel.Comm.Push("INF:CLOAD");
     Pump(3);
     lp.Abort();
     Check(abortedLoad!.State == OperationState.Aborted, "中止顶掉排着等机械手的 Load");
@@ -4254,21 +4279,31 @@ port.E87Callback = null;
 
 Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
 
-// 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
+// 假帧通讯：顶替串口 / 网口，连接由测试摆（打不开、断线），发出去的帧体记下来；设备的回复由测试推，
+// 按通道交来的那家解码器解成报文往上交（跟真的接收泵一样），字节级的拆帧不在这里测（见 GatedTransport）。
 sealed class FakeFrameCommunication : IFrameCommunication
 {
     private readonly ConcurrentQueue<string> _sent = new();
     private int _opens;
     private volatile bool _isConnected;
 
-    public event Action<string>? FrameReceived;
+    public event Action<object>? MessageReceived;
 
     public bool IsConnected => _isConnected;
 
-    /// <summary>为 true 时打不开（模拟设备没接、串口不存在）。</summary>
+    /// <summary>
+    /// 通道建帧通讯时交来的解码器（所属设备那家的）
+    /// </summary>
+    public IFrameCodec? Codec { get; set; }
+
+    /// <summary>
+    /// 为 true 时打不开（模拟设备没接、串口不存在）
+    /// </summary>
     public bool FailOpen { get; set; }
 
-    /// <summary>打开过几次（重连也算）。</summary>
+    /// <summary>
+    /// 打开过几次（重连也算）
+    /// </summary>
     public int Opens => Volatile.Read(ref _opens);
 
     public bool Open()
@@ -4285,18 +4320,61 @@ sealed class FakeFrameCommunication : IFrameCommunication
 
     public void Close() => _isConnected = false;
 
-    /// <summary>模拟连接自己断了（传输出错自己关了）。</summary>
+    /// <summary>
+    /// 模拟连接自己断了（传输出错自己关了）
+    /// </summary>
     public void Drop() => _isConnected = false;
 
     public void Send(string body) => _sent.Enqueue(body);
 
-    public void Push(string body) => FrameReceived?.Invoke(body);
+    /// <summary>
+    /// 设备回一帧（拆好的、不带外壳）：用解码器解好交上去，解不出的丢掉
+    /// </summary>
+    public void Push(string frame)
+    {
+        var message = Codec!.Decode(frame);
+        if (message is not null)
+        {
+            MessageReceived?.Invoke(message);
+        }
+    }
 
-    /// <summary>发出去的帧里以 prefix 开头的有几条。</summary>
+    /// <summary>
+    /// 发出去的帧里以 prefix 开头的有几条
+    /// </summary>
     public int SentCount(string prefix) => _sent.Count(body => body.StartsWith(prefix, StringComparison.Ordinal));
 
-    /// <summary>发出去的帧，按发出的先后。</summary>
+    /// <summary>
+    /// 发出去的帧，按发出的先后
+    /// </summary>
     public IReadOnlyList<string> Sent => _sent.ToArray();
+}
+
+// 探针通道：平台的通道组件（在途表、重连、握手都是生产代码），只把帧通讯换成假的。
+sealed class ProbeChannel : DeviceDriverComponent
+{
+    /// <summary>
+    /// 通道底下的假帧通讯：测试看发出去的帧、往里推回复、模拟断线
+    /// </summary>
+    public FakeFrameCommunication Comm { get; } = new();
+
+    /// <summary>
+    /// 挂到设备下面（生产里是 sc.xml 设备节点下的 Driver 节点）
+    /// </summary>
+    public static ProbeChannel AddTo(ComponentBase device)
+    {
+        var channel = new ProbeChannel();
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(channel, "Driver");
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(channel, $"{device.FullPath}.Driver");
+        device.AddChild(channel);
+        return channel;
+    }
+
+    protected override IFrameCommunication CreateCommunication(IFrameCodec codec)
+    {
+        Comm.Codec = codec;
+        return Comm;
+    }
 }
 
 sealed class ProbeOperation() : ModuleOperation("Probe")
@@ -4352,23 +4430,24 @@ static class ProbeCarrier
     }
 }
 
-sealed class ProbePort : BaseLoadPortModule
+// 探针 LoadPort：35021 的 LoadPort 类（FCD 解码器、状态查询、PODON/PODOF 上报都是生产代码），设备动作换成用例摆的探针动作；
+// 下面挂探针通道，测试看发出去的帧、往里推回复、模拟断线。
+sealed class ProbePort : LoadPortModule
 {
     public ProbeOperation? Next { get; set; }
     public int Calls { get; private set; }
 
-    /// <summary>挂在下面的探针品牌壳：真 FCD 驱动，传输换成假通道。</summary>
-    public ProbePortShell Shell { get; }
+    /// <summary>
+    /// 挂在下面的探针通道
+    /// </summary>
+    public ProbeChannel Channel { get; }
 
     public ProbePort(string name = "WaitSmokePort", PodPresenceSource presence = PodPresenceSource.Event)
     {
         // Production names are assigned by ComponentLoader through internal setters.
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, Name);
-        Shell = new ProbePortShell();
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(Shell, "_driver");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(Shell, $"{name}._driver");
-        AddChild(Shell);
+        Channel = ProbeChannel.AddTo(this);
 
         // 在位默认走设备上报（测试用 NotePodPlaced 摆）；测状态查询的传 Query，用 NoteStatus 或假通道回状态摆。
         ProbeCarrier.Add(this, presence);
@@ -4438,7 +4517,7 @@ sealed class ProbePort : BaseLoadPortModule
 }
 
 // 没挂 _carrier 子组件的端口：验装配错了开机就暴露。
-sealed class BarePort : BaseLoadPortModule
+sealed class BarePort : LoadPortModule
 {
     public BarePort(string name)
     {
@@ -4447,19 +4526,16 @@ sealed class BarePort : BaseLoadPortModule
     }
 }
 
-// 平台默认动作的探针 LoadPort：一个动作都不重写，走 BaseLoadPortModule 自带的那一套（真 FCD 驱动 + 假通道）。
-sealed class PlainPort : BaseLoadPortModule
+// 35021 LoadPort 原样（一个动作都不重写）：平台管入口和流程，机型类填 FCD 指令，下面挂探针通道。
+sealed class PlainPort : LoadPortModule
 {
-    public ProbePortShell Shell { get; }
+    public ProbeChannel Channel { get; }
 
     public PlainPort(string name)
     {
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
-        Shell = new ProbePortShell();
-        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(Shell, "Driver");
-        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(Shell, $"{name}.Driver");
-        AddChild(Shell);
+        Channel = ProbeChannel.AddTo(this);
         ProbeCarrier.Add(this, PodPresenceSource.Event);
 
         // 假通道不回状态查询：超时给到最长，别让查询超时的日志掺和
@@ -4476,21 +4552,30 @@ sealed class PlainPort : BaseLoadPortModule
     public void NotePodPlaced(bool placed) => SetDeviceReportedPlaced(placed);
 }
 
-// 探针 LoadPort 品牌壳：只把传输换成假通道，编解码/驱动/指令都是生产代码。
-sealed class ProbePortShell : FcdLoadPortComponent
+// 探针读头：35021 的富创得读头类（读码流程、解码器、握手都是生产代码），下面挂探针通道（测读头连不上、重连）。
+sealed class ProbeRfidReader : FcdRfidReader
 {
-    /// <summary>驱动底下的假通道：测试看发出去的帧、往里推回复、模拟断线。</summary>
-    public FakeFrameCommunication Comm { get; } = new();
+    private ProbeRfidReader(string name, string path)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, path);
+        Channel = ProbeChannel.AddTo(this);
+    }
 
-    protected override ILoadPortDriver CreateDriver() => new FcdLoadPortDriver(Comm);
-}
+    /// <summary>
+    /// 读头自己的通道（挂在读头下面，跟 LoadPort 的那条各连各的）
+    /// </summary>
+    public ProbeChannel Channel { get; }
 
-// 探针 _rfid 品牌壳：真 FCD 读头驱动，传输换成假通道（测读头连不上、重连）。
-sealed class ProbeRfidShell : FcdRfidComponent
-{
-    public FakeFrameCommunication Comm { get; } = new();
-
-    protected override IRfidDriver CreateDriver() => new FcdRfidDriver(Comm);
+    /// <summary>
+    /// 挂到端口下面（生产里是 sc.xml LoadPort 节点下的读头节点）
+    /// </summary>
+    public static ProbeRfidReader AddTo(ComponentBase port, string name)
+    {
+        var reader = new ProbeRfidReader(name, $"{port.FullPath}.{name}");
+        port.AddChild(reader);
+        return reader;
+    }
 }
 
 // 字节级的假传输，专测帧通讯的接收泵：收包一直等到有数据或连接被关；等的时候被关了，要测试放行才出错，
@@ -4778,13 +4863,16 @@ sealed class RecordingE87Callback : IE87Callback
     public void PortError(ILoadPortAccess port, string error) => Note();
 }
 
-// 探针机械手：动作体不连设备，只为验"取放成功之后账有没有跟着动"。
-sealed class ProbeRobot : BaseRobotModule
+// 探针机械手：35021 的机械手类（锐洁解码器、状态查询、在位 / 报错推送都是生产代码），动作体换成用例摆的探针动作，
+// 只为验"取放成功之后账有没有跟着动"；下面挂探针通道，测试看发出去的帧、往里推回复。
+sealed class ProbeRobot : RobotModule
 {
     public ProbeOperation? Next { get; set; }
 
-    /// <summary>品牌壳（真锐洁驱动 + 假通道）：测试看发出去的帧、往里推回复。</summary>
-    public ProbeRobotShell Shell { get; } = new();
+    /// <summary>
+    /// 挂在下面的探针通道
+    /// </summary>
+    public ProbeChannel Channel { get; }
 
     public ProbeRobot() : this(new RobotArmComponent { Number = 1 })
     {
@@ -4803,7 +4891,7 @@ sealed class ProbeRobot : BaseRobotModule
         ResetTimeout = 0;
         AbortTimeout = 0;
         PowerTimeout = 0;
-        AddChild(Shell);
+        Channel = ProbeChannel.AddTo(this);
         // sc.xml 的轴节点：本冒烟装一指（生产里由 ComponentLoader 建，这里直接挂）。
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
@@ -4843,14 +4931,14 @@ sealed class ProbeRobot : BaseRobotModule
         Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
 }
 
-// 能扫片的探针机械手：类上声明 IWaferMap（平台基类写好的 Map / MapResults 就是实现），两只手；
+// 能扫片的探针机械手：35021 的机械手类，类上声明 IWaferMap（平台基类写好的 Map / MapResults 就是实现），两只手；
 // 扫片的设备动作是探针动作，用例用 CompleteMap 模拟设备扫完回槽图。
-sealed class MapProbeRobot : BaseRobotModule, IWaferMap
+sealed class MapProbeRobot : RobotModule, IWaferMap
 {
     /// <summary>
-    /// 品牌壳（真锐洁驱动 + 假通道），只为"驱动连上了"
+    /// 探针通道，只为"通道连上了"
     /// </summary>
-    public ProbeRobotShell Shell { get; } = new();
+    public ProbeChannel Channel { get; }
 
     /// <summary>
     /// 叫它扫了几次（建了几次扫片的设备动作）
@@ -4875,7 +4963,7 @@ sealed class MapProbeRobot : BaseRobotModule, IWaferMap
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
         QueryDataTimeOut = 0;
         QueryStatusIntervalMs = 0;
-        AddChild(Shell);
+        Channel = ProbeChannel.AddTo(this);
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
         AddChild(Named(new RobotAxisComponent(), "Theta"));
@@ -5022,15 +5110,6 @@ sealed class ProbeAligner : BaseTransferStationModule
     public override int State { get; protected set; } = ModuleState.Idle;
 
     public override int SlotCount { get; set; } = 1;
-}
-
-// 探针品牌壳：真锐洁驱动，传输换成假通道（动作被 ProbeOperation 顶替了，状态查询走的是真驱动）。
-sealed class ProbeRobotShell : RejeRobotComponent
-{
-    /// <summary>驱动底下的假通道：测试看发出去的帧、往里推回复。</summary>
-    public FakeFrameCommunication Comm { get; } = new();
-
-    protected override IRobotDriver CreateDriver() => new RejeRobotDriver(Comm);
 }
 
 // 探针子组件：记下 InitComponent/Abort 的先后，能报自己的一条报警；FailInit 为真时组件初始化返回 false（模拟没连上）。

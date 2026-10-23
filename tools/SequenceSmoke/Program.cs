@@ -4,6 +4,7 @@ using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
+using xyz.Drivers.Communication;
 using xyz.Modules;
 using xyz.Modules.Enums;
 using xyz.Service.Recipes;
@@ -492,7 +493,24 @@ sealed class ProbePort : BaseLoadPortModule
         Probe.Name(this, name, group);
     }
 
-    // 没挂驱动：动作入口一律回"停用或驱动没装好"，不用再一个个改成回 null
+    // 没挂通道：动作入口一律回"停用或驱动没装好"，设备那部分用不上，给最简单的
+    protected override IFrameCodec CreateCodec() => throw new NotSupportedException("探针端口不连设备");
+
+    protected override CommandOperation AddLoadSteps(CommandOperation operation) => operation;
+
+    protected override CommandOperation AddUnloadSteps(CommandOperation operation) => operation;
+
+    protected override CommandOperation AddMapSteps(CommandOperation operation) => operation;
+
+    protected override ModuleOperation CreateHomeOperation() => new NoOpOperation("Home");
+
+    protected override ModuleOperation CreateClampOperation() => new NoOpOperation("Clamp");
+
+    protected override ModuleOperation CreateUnclampOperation() => new NoOpOperation("Unclamp");
+
+    protected override ModuleOperation CreateResetOperation() => new NoOpOperation("Reset");
+
+    protected override ModuleOperation CreateAbortOperation() => new NoOpOperation("Abort");
 }
 
 // 探针腔体：要工艺配方的那一类站点（不做动作，冒烟里也不让它做）。

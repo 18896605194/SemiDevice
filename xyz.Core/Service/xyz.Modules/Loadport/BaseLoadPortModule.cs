@@ -1,11 +1,12 @@
-﻿using System.Diagnostics;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Drivers.Loadport;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -202,7 +203,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #region Component
 
-    public ILoadPortDriverComponent? _driver { get; private set; }
+    /// <summary>
+    /// 设备通道（sc 里本端口下的 Driver 节点）：项目的 LoadPort 类用它发指令
+    /// </summary>
+    public IDeviceDriverComponent? _driver { get; private set; }
+
+    /// <summary>
+    /// 这台 LoadPort 的解码器：开机时建一次交给通道
+    /// </summary>
+    private IFrameCodec? _codec;
 
     public ICarrierIdReader? _rfid { get; private set; }
 
@@ -299,19 +308,21 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             return true;
         }
 
-        #region LoadPort 驱动
+        #region 设备通道
 
-        var driver = FindChild<ILoadPortDriverComponent>();
+        // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报
+        var driver = DeviceDriverComponent.FindIn(this);
         if (driver is not null)
         {
-            // 先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报。
-            driver.DeviceEvent -= OnDeviceEvent;
-            driver.DeviceEvent += OnDeviceEvent;
+            _codec ??= CreateCodec();
+            driver.UseCodec(_codec);
+            driver.Reported -= OnReport;
+            driver.Reported += OnReport;
             _driver = driver;
         }
         else
         {
-            LogHelper.Error(Name, "sc.xml 未挂品牌驱动组件（_driver 子节点），无法打开");
+            LogHelper.Error(Name, "sc.xml 没挂设备通道：本端口下要有 Driver 子节点（Type=xyz.Components.Components.DeviceDriverComponent）");
         }
 
         #endregion
@@ -381,19 +392,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         _driver?.Close();
     }
 
-    private void OnDeviceEvent(LoadPortDeviceEvent evt)
+    /// <summary>
+    /// 设备主动上报（没有在途指令认的报文，在通道的解析线程上调）：项目的 LoadPort 类认自己品牌的报文，放上 / 拿走交给 SetDeviceReportedPlaced
+    /// </summary>
+    protected virtual void OnReport(object message)
     {
-        
-        switch (evt.Kind)
-        {
-            case LoadPortDeviceEventKind.PodPresent:
-                SetDeviceReportedPlaced(true);
-                break;
-
-            case LoadPortDeviceEventKind.PodRemoved:
-                SetDeviceReportedPlaced(false);
-                break;
-        }
     }
 
     #endregion
@@ -413,85 +416,49 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #region 设备状态查询
 
-    private LoadPortCommand? _loadPortQuery;
-    private readonly Stopwatch _statusQueryWatch = new();
+    private StatusQueryLoop? _queries;
 
-    private bool _isStatusQueryLate;
-
+    /// <summary>
+    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryRound 给。
+    /// 没连上、查询超时都把状态清空——查到之前在位保持原判断（载具只认查到的）
+    /// </summary>
     private void LoopQueryStatus()
     {
-        if (!IsEnable || _driver is null)
+        var driver = _driver;
+        if (!IsEnable || driver is null)
         {
             return;
         }
 
-        #region 没连上：状态清空
-
-        if (!_driver.IsConnected)
+        _queries ??= new StatusQueryLoop(Name);
+        var result = _queries.Scan(driver, QueryRound, QueryStatusIntervalMs, QueryDataTimeOut);
+        if (result == StatusQueryResult.TimedOut)
         {
             Status = null;
-            _loadPortQuery = null;
             return;
         }
 
-        #endregion
-
-        #region 发查询
-
-        // 手上没有在途的查询、离上一条发出去满一个周期（EC QueryStatusIntervalMs）就发一条；发不出去（驱动正忙）是 null，下一拍再发。
-        if (_loadPortQuery is null)
+        if (result == StatusQueryResult.Disconnected)
         {
-            if (_statusQueryWatch.IsRunning && _statusQueryWatch.ElapsedMilliseconds < QueryStatusIntervalMs)
-            {
-                return;
-            }
-
-            _loadPortQuery = _driver.QueryStatus();
-            _statusQueryWatch.Restart();
-            return;
+            Status = null;
+            OnDisconnected();
         }
+    }
 
-        #endregion
+    /// <summary>
+    /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 平台替它发出去、等它回来（或超时作废）再往下走；
+    /// 查到的设备状态写进 Status。默认不查（全靠设备主动推的品牌）
+    /// </summary>
+    protected virtual IEnumerable<DeviceCommand> QueryRound()
+    {
+        yield break;
+    }
 
-        #region 收结果
-
-        if (_loadPortQuery.IsCompleted)
-        {
-            var response = _loadPortQuery.Response;
-            _loadPortQuery = null;
-            if (response is not null && response.IsSuccess && response.Status is not null)
-            {
-                Status = response.Status;
-                if (_isStatusQueryLate)
-                {
-                    _isStatusQueryLate = false;
-                    LogHelper.Info(Name, "状态查询恢复");
-                }
-            }
-
-            return;
-        }
-
-        #endregion
-
-        #region 超时：作废这一条，下一拍重发
-
-        int timeout = QueryDataTimeOut;
-        if (_statusQueryWatch.ElapsedMilliseconds < timeout)
-        {
-            return;
-        }
-
-        _driver.Abandon(_loadPortQuery, "Timeout");
-        _loadPortQuery = null;
-        Status = null;
-        if (!_isStatusQueryLate)
-        {
-            _isStatusQueryLate = true;
-            LogHelper.Warn(Name, $"状态查询超时（{timeout}ms）：这一条作废、接着查，查到之前在位保持原判断");
-        }
-
-        #endregion
+    /// <summary>
+    /// 连接刚断（断开那一拍调一次，扫描线程）：跟着连接走的东西在这里清掉，连上以后重来
+    /// </summary>
+    protected virtual void OnDisconnected()
+    {
     }
 
     #endregion
@@ -699,9 +666,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleOperation CreateLoadOperation()
     {
-        var operation = new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout);
+        var operation = AddLoadSteps(new CommandOperation("Load", _driver, () => LoadTimeout));
         return AddMapStages(operation, TakeSlotMap);
     }
+
+    /// <summary>
+    /// 装载开门那几条（不扫片）：项目的 LoadPort 类用自己品牌的指令串上（超时用 EC LoadTimeout）
+    /// </summary>
+    protected abstract CommandOperation AddLoadSteps(CommandOperation operation);
 
     #endregion
 
@@ -744,14 +716,19 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleOperation CreateUnloadOperation(bool mapAndVerify)
     {
+        var operation = new CommandOperation("Unload", _driver, () => UnloadTimeout);
         if (!mapAndVerify)
         {
-            return new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout);
+            return AddUnloadSteps(operation);
         }
 
-        var operation = AddMapStages(new LoadPortCommandOperation("Unload", () => UnloadTimeout), CheckUnloadSlotMap);
-        return operation.Then("关门", () => _driver?.Unload());
+        return AddUnloadSteps(AddMapStages(operation, CheckUnloadSlotMap));
     }
+
+    /// <summary>
+    /// 关门那几条：项目的 LoadPort 类用自己品牌的指令串上（超时用 EC UnloadTimeout）
+    /// </summary>
+    protected abstract CommandOperation AddUnloadSteps(CommandOperation operation);
 
     #endregion
 
@@ -786,10 +763,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         return CheckCloseDoorResource();
     }
 
-    protected virtual ModuleOperation CreateHomeOperation()
-    {
-        return new LoadPortCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout);
-    }
+    /// <summary>
+    /// Home 的设备动作（整机回零）：项目的 LoadPort 类给（超时用 EC HomeTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateHomeOperation();
 
     #endregion
 
@@ -822,15 +799,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             return Started(LoadPortAction.Unclamp, CreateUnclampOperation());
         }
     }
-    protected virtual ModuleOperation CreateClampOperation()
-    {
-        return new LoadPortCommandOperation("Clamp", () => _driver?.Clamp(), () => ClampTimeout);
-    }
+    /// <summary>
+    /// 夹紧的设备动作：项目的 LoadPort 类给（超时用 EC ClampTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateClampOperation();
 
-    protected virtual ModuleOperation CreateUnclampOperation()
-    {
-        return new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout);
-    }
+    /// <summary>
+    /// 松开的设备动作：项目的 LoadPort 类给（超时用 EC UnclampTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateUnclampOperation();
 
     #endregion
 
@@ -901,13 +878,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleOperation CreateMapOperation()
     {
-        return AddOwnMapStages(new LoadPortCommandOperation("Map", () => LoadTimeout), null);
+        return AddOwnMapStages(new CommandOperation("Map", _driver, () => LoadTimeout), null);
     }
+
+    /// <summary>
+    /// 自己扫片那几条（扫、取槽图）：项目的 LoadPort 类用自己品牌的指令串上，拿到槽图调 SaveMapResult 存起来（超时用 EC LoadTimeout / UnloadTimeout）
+    /// </summary>
+    protected abstract CommandOperation AddMapSteps(CommandOperation operation);
 
     /// <summary>
     /// 串上扫片：有机械手替这个口扫，就交搬运管理排它去扫，不然自己扫；扫到的槽图交给 check（Load 落账、Unload 对账）
     /// </summary>
-    private LoadPortCommandOperation AddMapStages(LoadPortCommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult> check)
+    private CommandOperation AddMapStages(CommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult> check)
     {
         var robot = _mapRobot;
         if (robot is null)
@@ -919,42 +901,57 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 自己扫：发扫片（先清旧结果），再取槽图存起来；check 不为 null 就接着把槽图交给它
+    /// 自己扫：先清掉上一次的结果，串上项目给的扫片那几条，扫完把存下的槽图交给 check（check 为 null 只存不用）
     /// </summary>
-    private LoadPortCommandOperation AddOwnMapStages(LoadPortCommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult>? check)
+    private CommandOperation AddOwnMapStages(CommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult>? check)
     {
-        return operation
-            .Then("扫片", SendMap)
-            .Then("取槽图", () => _driver?.GetMap(), response =>
+        operation.ThenCheck("清掉旧槽图", ClearMapResult);
+        AddMapSteps(operation);
+        return operation.ThenCheck("用槽图", () =>
+        {
+            if (check is null)
             {
-                SaveMapResult(response.SlotMap);
-                if (check is null)
-                {
-                    return HandleResult.Success();
-                }
+                return HandleResult.Success();
+            }
 
-                return check(response.SlotMap);
-            });
+            return check(OwnMapResult());
+        });
     }
 
-    /// <summary>
-    /// 发扫片指令，先清掉上一次的结果
-    /// </summary>
-    private LoadPortCommand? SendMap()
+    private HandleResult ClearMapResult()
     {
         lock (_mapGate)
         {
             _mapResult = null;
         }
 
-        return _driver?.Map();
+        return HandleResult.Success();
     }
 
-    private void SaveMapResult(IReadOnlyList<SlotState> slotMap)
+    /// <summary>
+    /// 存自己扫到的槽图（下标 0 是第 1 槽），给 MapResults 读；项目的扫片那几条拿到图时调
+    /// </summary>
+    protected void SaveMapResult(IReadOnlyList<SlotState> slotMap)
     {
         lock (_mapGate)
         {
             _mapResult = slotMap.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// 自己这次扫到的槽图；扫片那几条没存上给空的，落账、对账按槽数对不上处理
+    /// </summary>
+    private IReadOnlyList<SlotState> OwnMapResult()
+    {
+        lock (_mapGate)
+        {
+            if (_mapResult is null)
+            {
+                return [];
+            }
+
+            return _mapResult;
         }
     }
 
@@ -1027,15 +1024,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         return CheckState(LoadPortAction.Abort);
     }
 
-    protected virtual ModuleOperation CreateResetOperation()
-    {
-        return new LoadPortCommandOperation("Reset", () => _driver?.ResetDrive(), () => ResetTimeout);
-    }
+    /// <summary>
+    /// 复位的设备动作（清设备报错）：项目的 LoadPort 类给（超时用 EC ResetTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateResetOperation();
 
-    protected virtual ModuleOperation CreateAbortOperation()
-    {
-        return new LoadPortCommandOperation("Abort", () => _driver?.Stop(), () => AbortTimeout);
-    }
+    /// <summary>
+    /// 中止的设备动作（急停）：项目的 LoadPort 类给（超时用 EC AbortTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateAbortOperation();
+
+    /// <summary>
+    /// 这台 LoadPort 的解码器（拆帧、解报文），开机时交给通道
+    /// </summary>
+    protected abstract IFrameCodec CreateCodec();
 
     #endregion
 

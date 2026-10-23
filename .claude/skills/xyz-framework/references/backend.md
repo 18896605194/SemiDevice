@@ -110,7 +110,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 ### 目录（xyz.Components）
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
   顶层目录 = 命名空间（`xyz.Components.Models` 等）。
-- `Components\` 下按类别分 System / Plc（PLC、IO、心跳 `HeartbeatComponent`：按 sc 的时间轮流写一个 DO，见 decisions.md「心跳」；虚拟 IO `VirtualIoComponent`：下面挂虚拟 DO，程序按点号读写，见 decisions.md「虚拟 IO」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（品牌驱动壳）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
+- `Components\` 下按类别分 System / Plc（PLC、IO、心跳 `HeartbeatComponent`：按 sc 的时间轮流写一个 DO，见 decisions.md「心跳」；虚拟 IO `VirtualIoComponent`：下面挂虚拟 DO，程序按点号读写，见 decisions.md「虚拟 IO」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（设备通道 `DeviceDriverComponent`、读头底座 `RfidReaderComponent`、重连 `DriverReconnector`；品牌在机型工程）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
   Maintenance（部件寿命：次数型 `CountLifetimeComponent` 挂在部件下面盯 DO 计次、时间型 `TimeLifetimeComponent` 默认从清零起按实际时间算，配了计时 DO 只算它通着的、配了清零 DO 它一变就清零重算，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
@@ -119,7 +119,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用）；2026-10-18 起每个单例组件都有接口：`IAlarm`、`IEc`、`IMapper`、
   `IDataChart`、`IE30Component`……（Component 后缀在一个个去掉，见 §2），找组件一律按它们）、模块共有的 `IModule`（名字、状态、在做的动作、InitModule / Reset / Abort；生产 / 维护是单独的能力接口 `IMode`，见 §3；
   `ILoadPortAccess`、`ITransferRobot` 继承它；`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
-  还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，平台默认 `RfidDriverComponent` 实现）、`IE87Callback`、`IE84Callback`、
+  还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，读头底座 `RfidReaderComponent` 实现，品牌读头类在机型工程）、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `LedgerManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
   Job 的请求（`ProcessJobSpec`、`ControlJobSpec`，本地、Host 共用）和载具快照 `CarrierInfo` 在 `Models`；命令结果用 xyz.Shared 的 `HandleResult`
   （失败时 `ErrorMessage` 放错误码、`Args` 放参数）。
@@ -129,7 +129,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 
 - **目录**（2026-10-09，用户："该归类就是归类用文件夹"）：模块的域目录（`Loadport`、`Clean`、`Robot`……）里，本体（`Base*Module`、`*Component`）留在根，其余按类别放子文件夹
   `Enums\`、`Models\`、`Operations\`、`StateMachines\`（`Job` 下的 `Model\`、`Task\` 是同一个做法）；**只归类，命名空间不改**（一般 `xyz.Modules`，状态码和动作枚举 `xyz.Modules.Enums`，状态表 `xyz.Modules.StateMachines`）。
-  `Loadport` 已分好：`Enums\`（SlotPickOrder、PodPresenceSource、LoadPortCommandStep、LoadPortState 加 LoadPortAction）、`Operations\`（LoadPortCommandOperation）、`StateMachines\`（LoadPortStateTable）；
+  `Loadport` 已分好：`Enums\`（PodPresenceSource、LoadPortState 加 LoadPortAction；SlotPickOrder 在组件层 `xyz.Components\Enums`）、`StateMachines\`（LoadPortStateTable）；
+  设备动作统一用组件层的 `CommandOperation`（2026-10-23，原来 LoadPort / 机械手 / 对准器各一个 `XxxCommandOperation` 已删，见 §4）；
   `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`Models\`：RobotStation；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根）；
   `Clean`、`E84` 还平铺，改到那一块时照这个分。
 - 供液（CDS）：`Cds\BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess`（一种药液一个模块，下面挂它的槽 `Tanks`；`ISupplyModule` = 不跟机械手交互的模块，
@@ -223,19 +224,23 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   机械手伸到位停下后调 `HandoffPick` / `HandoffPlace` 中途交接（比如降、升顶针），站点重写 `HandoffPickCore` / `HandoffPlaceCore`，默认被拒，见 decisions.md「分段取放」；
   在位传感器：组件初始化认下面叫 `WaferSensor` 的 DI（`IDiSensor`），`CheckWaferSensors()`（`ITransferStation` 上）sc 配了才跟晶圆账比——看到有片 = 账上这个站有片，
   读不到也算对不上（`station.wafer_sensor_*` [站点]），没配回 null；传感器配法不一样的站点重写它。全部回片开始前用，见 decisions.md「全部回片」）、
-  `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
-  连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、驱动这一次没连上也照样往下走，
-  返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；`InitModule()` = `Home()`；**设备状态查询在平台**：按 EC `QueryStatusIntervalMs`（默认 1000 ms，从上一条发出去算）发一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
-  Status 清空、下一拍重发，超时 / 恢复各记一次日志，机型不用写；**载具交给子组件 `CarrierComponent`**（sc.xml 每个 LoadPort 下必配一个 `Carrier` 节点，缺了开机抛 `InvalidOperationException`；`ILoadPort.Carrier` 是它的 `ICarrier` 口，读码、槽图认定状态、取放状态、E87 载具上报都在它里面，见 decisions.md「LoadPort 的载具收进 CarrierComponent」）：**在位二选一**（Carrier 的 SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位（端口每拍用 `Carrier.Sense` 喂进去），
+  `BaseLoadPortModule`（通道找直接挂的 `Driver` 节点（`DeviceDriverComponent.FindIn`），RFID / E84 按接口找；`InitComponent` 里先登记晶圆账槽位、把机型给的解码器交给通道（`UseCodec`）、
+  挂通道的上报（`OnReport`），再由基类把子组件（通道、读头、E84）各自初始化——
+  连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、通道这一次没连上也照样往下走，
+  返回 false 只为开机日志看得到，之后由通道组件按间隔重连；`InitModule()` = `Home()`；**状态查询的节奏在平台**（`StatusQueryLoop`）：一圈查什么由机型 `QueryRound` 给
+  （35021 一圈一条 GET:STATE，回来写 `Status`），按 EC `QueryStatusIntervalMs`（默认 1000 ms）开下一圈，超过 EC `QueryDataTimeOut` 没回就作废这一条、Status 清空、接着查，
+  超时 / 恢复各记一次日志；**载具交给子组件 `CarrierComponent`**（sc.xml 每个 LoadPort 下必配一个 `Carrier` 节点，缺了开机抛 `InvalidOperationException`；`ILoadPort.Carrier` 是它的 `ICarrier` 口，读码、槽图认定状态、取放状态、E87 载具上报都在它里面，见 decisions.md「LoadPort 的载具收进 CarrierComponent」）：**在位二选一**（Carrier 的 SC `PresenceSource`，默认 Query）：Query 看状态查询的在位、到位两位（端口每拍用 `Carrier.Sense` 喂进去），
   都亮放好、都灭拿走、一亮一灭或查不到不算变化，Event 看 PODON / PODOF（端口的 `SetDeviceReportedPlaced` 转给 `Carrier.SetDeviceReportedPlaced`，机型有别的上报路子也调它），只在扫描线程判边沿，
-  判出来的叫 `Carrier.IsArrived`（载具到了，后台全用它；界面三维图的盒子不看它、跟原始两位走；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
+  判出来的叫 `Carrier.IsArrived`（载具到了，后台全用它；界面三维图的盒子不看它、跟原始两位走；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把通道的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
-Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，几条用 `Then` 串、`ThenWait` 串一段别家动作（搬运管理排的机械手扫片）；**Load 和扫片分开**（2026-10-22，见 decisions.md「扫片：LoadPort 和机械手都能扫（IWaferMap）」）：Load 先只发 `CLOAD` 开门（回执带图也不用），再扫片——有机械手开了 `MapEnabled`、站点表里有这个口，就经搬运管理排它扫，不然自己发 `MAPDO` 扫、`GET:MAPDT` 取槽图——拿到的槽图交 `TakeSlotMap` 落账（转给 `Carrier.UpdateSlotMap`）；LoadPort 也实现 `IWaferMap`：`Map(自己的名字)` 只在 Loaded 时用自己的传感器单独扫一遍（状态 160 扫片中），结果存进 `MapResults`、不落账；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时**关门前**先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上才发 `CULOD`，对不上判失败、门不关；手动页面走 `UnloadManually()`，一律不扫图、不对账，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在设备动作不一样时重写对应的 `CreateXxxOperation`（动作入口不 virtual，见"动作入口"）；
+Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**动作的流程在平台、指令在机型**（2026-10-23，见 decisions.md「品牌驱动：平台只给通道」）：平台用 `CommandOperation`（发指令 → 等做完 → 超时判失败，`Then` 串指令、`ThenWait` 串一段别家动作（搬运管理排的机械手扫片）、`ThenCheck` 当场检查）搭好 Load / Unload / 扫片，每段发哪几条由机型填：`AddLoadSteps`（开门）、`AddUnloadSteps`（关门）、`AddMapSteps`（自己扫片，拿到槽图调 `SaveMapResult`）；**Load 和扫片分开**（2026-10-22，见 decisions.md「扫片：LoadPort 和机械手都能扫（IWaferMap）」）：Load 先只开门（35021 发 `CLOAD`，回执带图也不用），再扫片——有机械手开了 `MapEnabled`、站点表里有这个口，就经搬运管理排它扫，不然自己扫（35021 发 `MAPDO` 扫、`GET:MAPDT` 取槽图）——拿到的槽图交 `TakeSlotMap` 落账（转给 `Carrier.UpdateSlotMap`）；LoadPort 也实现 `IWaferMap`：`Map(自己的名字)` 只在 Loaded 时用自己的传感器单独扫一遍（状态 160 扫片中），结果存进 `MapResults`、不落账；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时**关门前**先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上才发 `CULOD`，对不上判失败、门不关；手动页面走 `UnloadManually()`，一律不扫图、不对账，SC 只管自动跑货用不用它），每拍最后 `PublishState`；机型类必须填 `CreateCodec`、`AddLoadSteps` / `AddUnloadSteps` / `AddMapSteps`、
+`CreateHome/Clamp/Unclamp/Reset/AbortOperation`（一般一条指令一个 `CommandOperation`），可选 `QueryRound`、`OnReport`（主动上报：放上 / 拿走交 `SetDeviceReportedPlaced`），
+整个动作做法不一样的还能重写 `CreateLoadOperation` 这些（动作入口不 virtual，见"动作入口"）；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、PickArms / PlaceArms（从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；推送的站点表还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询的节奏（`StatusQueryLoop`，扫描线程，跟 LoadPort 一样同一时间一条在途；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调通道 `Abandon` 作废那一条；断线这一圈作废、调 `OnDisconnected`）和每拍状态发布在平台；一圈查什么、什么顺序、回来写到哪由机型从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来；35021 锐洁：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标，SC `WaferEventEnabled` 关掉不订阅，断线清订阅标志下一圈重订），主动推送机型 `OnReport` 认（手指在位交 `NoteArmPresence`、报错写 `DeviceError`）；机型必须填 `CreateCodec` 和 `CreateHome/Pick/Place/PowerOn/PowerOff/Reset/AbortOperation`（一般一条指令一个 `CommandOperation`）；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、PickArms / PlaceArms（从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；推送的站点表还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
   分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
   能分段的机械手类在类上声明它、重写 `CreateExtend/RetractPick/PlaceOperation` 给设备动作（默认没有 → `robot.handoff_unsupported`）；伸臂做完停在
   `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账；
@@ -332,15 +337,16 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   下面进片段、出片段各配一个（SC `SlotCount` 几层、`IsEnable`），各自 `IsRun`。开机在晶圆账登记槽位、待命、自己切生产模式
   （没有手动页）；全部初始化时直接回待命。跟 JK 一样，机械手控制器里两段各教一个站号，站点表里各配各的 `Number`，槽号原样发、不换算，
   机械手、搬运管理、调度都不认识 buffer。见 decisions.md「buffer」。
-- **对准器** `Aligner\BaseAlignerModule : BaseTransferStationModule, IAligner`（2026-10-22；机型写空类继承，跟 buffer 一样）：一个槽，`Kind` = `StationKind.Aligner`，只声明取放
-  （流程配方这一步不选工艺配方，任务表只有放片、取片）。下面必挂一个驱动子组件（`IAlignerDriverComponent`：Home / Align(角度) / Stop / ResetDrive / AbandonAll，
-  指令句柄 `xyz.Drivers\Aligner\AlignerCommand`），没挂开机抛；还没有品牌驱动。开机登记晶圆账一个槽、自己切生产模式（没有手动页），`InitModule()` = `Home()`。
+- **对准器** `Aligner\BaseAlignerModule : BaseTransferStationModule, IAligner`（2026-10-22；机型写一个类继承、填品牌指令）：一个槽，`Kind` = `StationKind.Aligner`，只声明取放
+  （流程配方这一步不选工艺配方，任务表只有放片、取片）。下面必挂一条通道（`Driver` 节点，`DeviceDriverComponent`），没挂开机抛；还没有品牌。
+  开机登记晶圆账一个槽、自己切生产模式（没有手动页），`InitModule()` = `Home()`。
   **片放上来自己对准**：`OnTransferFinished` 里这一轮放了片就接着 `Begin(Align)`（`TransferComplete → Aligning → Idle`），搬运照常收尾、机械手不等；
   起不了（驱动断了、互锁 `AlignInterlock` 不让）落 Error、报 `ControlledStopAlarm`。**台上的片没对好不让取**：`CheckPrepareTransfer` 加一条 `aligner.wafer_not_aligned`
   （记的是对好的那片的内部标识，跟账上台上那片比，只在内存）。回零时台上有片串一条对准（`CreateHomeOperation(hasWafer)`）。
-  动作 `AlignerCommandOperation`（发指令 → 等做完 → 超时判失败，`Then` 串下一条，各按各的超时）；失败作废在途指令、报警（人为急停顶掉的不报）。
-  SC `IsEnable`；EC `NotchAngle`（度，默认 0）、`HomeTimeout` / `AlignTimeout`（30 s）、`ResetTimeout` / `AbortTimeout`（10 s）。
-  机型扩展点：`CreateHomeOperation` / `CreateAlignOperation` / `CreateResetOperation` / `CreateAbortOperation`、`HomeInterlock` / `AlignInterlock`、`RaiseActionFailedAlarm`。见 decisions.md「对准器」。
+  动作用 `CommandOperation`：回零 = 机型的 `AddHomeSteps`，台上有片再串 `AddAlignSteps`（`UseTimeout` 换成对准的超时）；对准 = `AddAlignSteps(操作, EC NotchAngle)`；
+  失败作废在途指令、报警（人为急停顶掉的不报）。SC `IsEnable`；EC `NotchAngle`（度，默认 0）、`HomeTimeout` / `AlignTimeout`（30 s）、`ResetTimeout` / `AbortTimeout`（10 s）。
+  机型必须填：`CreateCodec`、`AddHomeSteps`、`AddAlignSteps`、`CreateResetOperation`、`CreateAbortOperation`；可选 `OnReport`、`HomeInterlock` / `AlignInterlock`、`RaiseActionFailedAlarm`，
+  整个动作不一样再重写 `CreateHomeOperation(hasWafer)` / `CreateAlignOperation`。见 decisions.md「对准器」。
 - **加工口** `Process\IProcessStation`（继承 `IModule`，带 `Type`；`IChamber` 继承它，`BaseChamberModule` 实现）：手动起工艺和 Job 走同一个口子。
   工艺配方（Type 选项、配方对不对得上站点）、流程配方（哪些分组要选配方）、Job 都认 `IProcessStation`；`IChamber` 只放腔体手动页的东西
   （整腔回零 / 复位 / 中止的超时、轴和气缸手动、腔体推送），腔体手动页、调度图和账单页的"腔体"分组认它。以后热板、冷板这类不是腔体的加工站点只实现 `IProcessStation`。
@@ -470,29 +476,44 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   重启收场的 Job 不补报 E40 / E94 事件：开机时 Host 还没连上，报了也发不出去（不算断线，不进缓存）；Host 连上后用 S16F19、S14F1 查得到哪些还在。
   Host 的 S16 / S14 由 EAP 的 E40 / E94 翻成 `IJobManager` 的命令（见 §4「EAP」）。
 
-## 4. 驱动（`xyz.Components\Components\Drivers` + `xyz.Drivers`）
+## 4. 驱动：平台只给通道（`xyz.Drivers` + `xyz.Components\Components\Drivers`），品牌协议和指令在机型工程
 
-- 品牌驱动壳：抽象基类（`RobotDriverComponent`、`LoadPortDriverComponent`、`RfidDriverComponent`）管 SC 通讯配置、驱动生命周期、`DeviceEvent`
-  和触发方法；品牌壳（`RejeRobotComponent`、`FcdLoadPortComponent`、`FcdRfidComponent`）只实现 `CreateDriver()` 和命令工厂。换品牌 = 改 sc.xml 的 Type。
-  对准器只定了驱动口 `IAlignerDriverComponent` 和指令句柄 `xyz.Drivers\Aligner`（2026-10-22），还没有驱动基类和品牌壳：接第一个品牌时照 LoadPort 写
-  （协议、在途规则按品牌，通讯 SC、`DriverReconnector` 重连照抄），作废在途指令的办法由品牌驱动自己给（`AlignerCommand.Complete` 是 protected）。
-- `xyz.Drivers`：`ICommunication`（串口 / TCP，`CommunicationFactory`）、`IFrameCodec` + `FrameCommunication`（收包泵 + 发送锁）、
-  品牌协议放 `Robot\Reje\`、`Loadport\FCD\`、`Rfid\FCD\`（Protocol、FrameCodec、Commands）。驱动回调只改状态，动作由模块扫描线程推进。
-- **在途指令要能作废**（2026-10-06）：LoadPort 驱动按指令名占在途位、RFID 驱动只有一个在途位，回复丢了就一直占着，同名指令再也发不出去。
-  所以：等回复超时的发起方调 `Abandon`（LoadPort）/ `AbandonInflight`（RFID）让出来；`Close` 作废全部在途；LoadPort 模块动作没做成时 `AbandonAll`。
-  作废的指令以失败落终态（Error 写 `Timeout` / `PortClosed` / `Abandoned` 这类英文标记，跟 RFID 一样）；迟到的回复没人认，当无主帧丢掉。
-- **断线重连**（2026-10-06；10-15 加了次数上限，见本条末尾）：LoadPort、RFID 驱动组件 `InitComponent` 过以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
+2026-10-23 重做（用户定的，见 decisions.md「品牌驱动：平台只给通道」）：平台只提供**指令下发的通道和报文解析的通道**，不认识任何品牌、没有固定动作；
+一条指令就是一个类（指令模式），报文解到"本品牌的报文对象"为止，比对、取值、判做没做完都在指令自己里面。加指令、换品牌只动机型工程，平台不动。
+
+- 平台（`xyz.Drivers`）：
+  - `Device\DeviceCommand`：`Key`（在途键，同一时间一键一条）、`BuildFrame()`（帧体，不带壳）、`Accept(object)`（是不是自己的回复）、`Complete()` / `Fail(原因)`、
+    `IsCompleted` / `IsSuccess` / `Error`、`WaitReply`（工具用，扫描线程里别用）。`DeviceCommand<TMessage>`：只认本品牌解码器解好的报文，`Handle(TMessage)` 是抽象的，品牌指令都继承它、每条自己实现（品牌基类不实现，见下面机型一条）。
+  - `Device\DeviceDriver`（sealed）：在途表（按 `Key`）、发送队列串行写、解析队列把报文挨个交给在途指令，谁认归谁，都不认的当 `Reported` 上报；`Abandon` / `AbandonAll` 作废。
+  - `Communication\IFrameCodec`：`Encoding`、`Wrap`（包壳）、`Extract`（拆帧）、`Decode`（一帧解成本品牌的报文对象，认不出的返回 null 丢掉）；
+    `IFrameLink`：有握手的协议给链路层（`Start` 发指令先发哪几帧、`Receive` 收到一帧回什么 / 吃掉 / 拒收作废 `Rejected`、`Reset`），品牌的解码器顺带实现（富创得读头的 ENQ/EOT/ACK/NAK）；
+    `FrameCommunication`（收包泵 + 发送锁，解好的报文经 `MessageReceived` 往上交）；`ICommunication`（串口 / TCP，`CommunicationFactory`）。
+- 平台（组件层）：`Components\Drivers\DeviceDriverComponent`（sc 里设备下面的 `Driver` 节点，接口 `IDeviceDriverComponent`；LoadPort、机械手、读头、对准器都是它）：
+  通讯 SC、EC 重连、报警；用哪家的解码器由所属设备开机时 `UseCodec` 交给它（打开之前）；`DeviceDriverComponent.FindIn(owner)` 只找直接挂的那条（挂两条开机抛），
+  所以读头挂在 LoadPort 下面、自己再挂一条也不会认错。`Components\Operations\CommandOperation`：设备动作一段一段走（`Then` 发一条指令、`ThenWait` 等别家的动作、`ThenCheck` 当场检查），
+  第一条从动作发起算超时、后面的从自己发出去算，`UseTimeout` 换后面几段的超时；设备回错 `device_failed`、超时 `timeout`（先作废那条）、发不出去 `command_rejected`，被中止作废在途那条。
+  `Components\Drivers\RfidReaderComponent<读码指令>`：读码流程和读码超时，读头类给 `CreateCodec`、`CreateReadCommand`、`CarrierIdOf`。
+  `xyz.Modules\StatusQueryLoop`：状态轮询的节奏，一圈查什么由模块的 `QueryRound()` 用 `yield return 指令` 给，回来了在 yield 后面取值写状态。
+- 机型（`xyz.35021.Module\Drivers\<品牌>\`，35021 有 `Fcd`（LoadPort + `Rfid`）和 `Reje`）：`XxxProtocol`（常量）、`XxxMessage`（解好的报文）、`XxxCodec`（拆帧 + 解报文，有握手的顺带 `IFrameLink`）、
+  `Commands\`（一条指令一个类、一个文件，继承本品牌的指令基类）。**每条指令必须自己实现 `Handle`**（用户 2026-10-23 定："必须实现，把品牌基类里那份删掉"、"都要这样设计"）：
+  品牌基类只放共性（在途键、指令名 / 下发体、组帧），不写 `Handle`；认不认这条报文（名字 / 回显名 / 响应 ID）、ACK 算受理还是做完、INF / NAK / ABS / 错误码怎么判、数据怎么取，
+  都写在每条指令自己的 `Handle` 里（富创得动作类 ACK 受理、INF 做完，查询类数据随 ACK 回；锐洁按回显名对号、错误码 00000000 是成功）。几条共用的协议换算放品牌的 `XxxProtocol`（`FcdProtocol.ParseSlotMap`、`FcdRfidProtocol.ErrorText`）。
+  机型的模块类（`Loadport\LoadPortModule`、`Robot\RobotModule`）继承平台 `Base*Module`，只填 `CreateCodec()`、每个动作发哪几条指令、一圈查什么（`QueryRound`）、主动上报怎么认（`OnReport`）；
+  读头 `Drivers\Fcd\Rfid\FcdRfidReader : RfidReaderComponent<FcdReadCarrierIdCommand>`。别的项目用同一品牌，把 `Drivers\<品牌>\` 和模块里填的那几行拷过去。
+- 模块里通道的引用叫 `_driver`（公开属性、私有 set，跟 `_rfid`、`_carrier` 一样，用户定的），关连接写 `_driver?.Close()`。
+- **在途指令要能作废**（2026-10-06）：通道按指令的 `Key` 占在途位（富创得按指令名、锐洁按整条指令（Pick 带手指、站点、槽号）、读头所有指令共用一个键），
+  回复丢了就一直占着，同键指令再也发不出去。所以：等回复超时的发起方（`CommandOperation`、`StatusQueryLoop`、读头的读码）调 `Abandon` 让出来；`Close` 作废全部在途；
+  模块动作没做成时 `AbandonAll`；读头拒收（NAK）链路层报 `Rejected`、通道 `AbandonAll`。作废的指令以失败落终态（Error 写 `Timeout` / `PortClosed` / `Abandoned` / `Aborted` / `NAK`
+  这类英文标记）；迟到的回复没人认，当上报交给 `Reported`。
+- **断线重连**（2026-10-06；10-15 加了次数上限，见本条末尾）：通道组件 `InitComponent` 打开以后，扫描里发现断了就按 EC `ReconnectIntervalMs`（默认 5000）在后台先关后开
   （`Components\Drivers\DriverReconnector`，网口 Connect 会卡几秒，不能在扫描线程上做），断开、恢复各记一次日志；Close 以后不再重连。
-  机械手驱动 2026-10-13 接上（`RobotDriverComponent`，EC `ReconnectIntervalMs` 同样默认 5000；以前控制器断电重启、比后端晚上电只能重启后端），
-  连上以后模块的状态查询从头查、手指在位推送重新订。同时补了 LoadPort 驱动 10-06 修过、机械手驱动没跟上的两处：`Open` 先收掉上一轮的收发任务；
-  发送任务出错只关自己那一轮连接。机械手动作等回复超时（`RobotCommandOperation`）先 `AbandonInFlight` 作废那条指令再判失败——
-  锐洁按整条指令认在途（Pick 带手指、站点、槽号），以前回复丢了就一直占着，复位、回零后再取同一槽也发不出去。
+  连上以后模块的状态查询从头查（`StatusQueryLoop` 断线那一拍调模块的 `OnDisconnected`，锐洁在这里清订阅标志、下一圈重订手指在位推送）。
+  `DeviceDriver.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
   `FrameCommunication` 一次打开一轮接收泵（`PumpSession`），旧泵出错只停自己那一轮——以前一个全局"在收"标志，旧泵在重连以后才醒会把新泵也停了。
-  `LoadPortDriverBase.Open` 先收掉上一轮的收发队列再建新的；发送任务出错只关自己那一轮连接。
-  **重连有次数上限**（2026-10-15，用户："不需要一直重连"，所有驱动一起）：PLC、LoadPort、RFID、机械手都走 `DriverReconnector`，
+  **重连有次数上限**（2026-10-15，用户："不需要一直重连"，所有驱动一起）：PLC 和通道组件都走 `DriverReconnector`，
   按 EC `ReconnectIntervalMs` 隔一次、最多 EC `ReconnectMaxCount` 次（默认 10，0 = 不自动重连），**连着满一个间隔才算恢复**、次数清零
   （串口打开就算连上：仿真器 / 设备不在时虚拟串口照样打得开，第一条指令写超时 1 s 又关掉，以前每 6 s 恢复、断开来回跳、次数一直清零停不下来）；用完还连不上就停下——
-  三个驱动报"通讯断开，已停止重连"（`ReconnectFailedAlarm`），PLC 不另报（掉线报警 `PlcOfflineAlarm` 一直在）；
+  通道报"设备通讯断开，已停止重连"（`ReconnectFailedAlarm`），PLC 不另报（掉线报警 `PlcOfflineAlarm` 一直在）；
   组件 `Reset()` 里 `Rearm()`，人工复位就马上从头再连。日志只记断开、放弃、恢复各一条；倍福连不上的原因同样的只记一次。
   PLC 以前在自己扫描线程上同步倒计时重连，现在也是后台重连，扫描不再被 ADS 连接卡住。
   **连接没成要关掉**：倍福 `ConnectAds` 以前 `ReadState` 抛异常（路由连上、PLC 不应答）时没 Dispose 新建的 `AdsClient`，

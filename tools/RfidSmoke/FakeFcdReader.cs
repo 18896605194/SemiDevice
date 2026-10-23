@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using xyz._35021.Module.Drivers.Fcd.Rfid;
 using xyz.Drivers.Communication;
-using xyz.Drivers.Rfid.FCD;
 
 namespace RfidSmoke;
 
@@ -16,25 +16,39 @@ internal sealed class FakeFcdReader : ICommunication
 {
     private readonly BlockingCollection<byte[]> _toHost = new();
 
-    /// <summary>主机发过来的完整块，供断言核对。</summary>
+    /// <summary>
+    /// 主机发过来的完整块，供断言核对。
+    /// </summary>
     public readonly ConcurrentQueue<byte[]> HostBlocks = new();
 
-    /// <summary>标签内存内容（0xE0 响应里页头之后的部分）。</summary>
+    /// <summary>
+    /// 标签内存内容（0xE0 响应里页头之后的部分）。
+    /// </summary>
     public byte[] TagMemory { get; set; } = System.Text.Encoding.ASCII.GetBytes("FOUP-0001       ");
 
-    /// <summary>收到读码指令后不回结果：用来验超时。</summary>
+    /// <summary>
+    /// 收到读码指令后不回结果：用来验超时。
+    /// </summary>
     public bool SwallowResult { get; set; }
 
-    /// <summary>收到块后回 NAK 而不是 ACK：用来验拒收。</summary>
+    /// <summary>
+    /// 收到块后回 NAK 而不是 ACK：用来验拒收。
+    /// </summary>
     public bool RejectCommand { get; set; }
 
-    /// <summary>回错误块 0x63 而不是数据块。</summary>
+    /// <summary>
+    /// 回错误块 0x63 而不是数据块。
+    /// </summary>
     public byte? ErrorCode { get; set; }
 
-    /// <summary>回结果块时故意写坏校验和：用来验主机 NAK。</summary>
+    /// <summary>
+    /// 回结果块时故意写坏校验和：用来验主机 NAK。
+    /// </summary>
     public bool CorruptChecksum { get; set; }
 
-    /// <summary>主机对坏块回过几次 NAK。</summary>
+    /// <summary>
+    /// 主机对坏块回过几次 NAK。
+    /// </summary>
     public int HostNakCount;
 
     public bool IsConnected { get; private set; }
@@ -69,10 +83,14 @@ internal sealed class FakeFcdReader : ICommunication
 
     #region 读头侧时序
 
-    /// <summary>主机发来的下一段是不是数据块（本机回过 EOT 之后）。</summary>
+    /// <summary>
+    /// 主机发来的下一段是不是数据块（本机回过 EOT 之后）。
+    /// </summary>
     private bool _expectBlockFromHost;
 
-    /// <summary>本机已发出结果块，正等主机 ACK/NAK。</summary>
+    /// <summary>
+    /// 本机已发出结果块，正等主机 ACK/NAK。
+    /// </summary>
     private bool _waitingHostAck;
 
     private byte[]? _pendingResult;
@@ -140,6 +158,9 @@ internal sealed class FakeFcdReader : ICommunication
                 }
 
                 break;
+
+            default:
+                break;
         }
     }
 
@@ -204,7 +225,9 @@ internal sealed class FakeFcdReader : ICommunication
         Post(FcdRfidProtocol.Enq);
     }
 
-    /// <summary>0xE0 数据块：[0xE0][起始页][页数][标签内存...]。</summary>
+    /// <summary>
+    /// 0xE0 数据块：[0xE0][起始页][页数][标签内存...]。
+    /// </summary>
     private byte[] BuildTagBlock()
     {
         var block = new byte[3 + TagMemory.Length];
@@ -215,7 +238,9 @@ internal sealed class FakeFcdReader : ICommunication
         return block;
     }
 
-    /// <summary>读头主动事件块 0x66，用来验它不会被当成在途指令的结果。</summary>
+    /// <summary>
+    /// 读头主动事件块 0x66，用来验它不会被当成在途指令的结果。
+    /// </summary>
     public void PushSpontaneousEvent(byte payload)
     {
         _pendingResult = FcdRfidProtocol.WrapBlock([FcdRfidProtocol.RspEvent, payload]);

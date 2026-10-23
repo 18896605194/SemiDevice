@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
@@ -8,8 +7,9 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
+using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Drivers.Loadport;
-using xyz.Drivers.Robot;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
@@ -182,7 +182,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region Component
 
-    public IRobotDriverComponent? _robot { get; private set; }
+    /// <summary>
+    /// 设备通道（sc 里本模块下的 Driver 节点）：项目的机械手类用它发指令
+    /// </summary>
+    public IDeviceDriverComponent? _driver { get; private set; }
+
+    /// <summary>
+    /// 这台机械手的解码器：开机时建一次交给通道
+    /// </summary>
+    private IFrameCodec? _codec;
 
     public IReadOnlyList<IRobotAxis> Axes { get; private set; } = Array.Empty<IRobotAxis>();
     public IReadOnlyList<IRobotArm> Arms { get; private set; } = Array.Empty<IRobotArm>();
@@ -338,19 +346,21 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return true;
         }
 
-        #region 机械手驱动
+        #region 设备通道
 
-        var robot = FindChild<IRobotDriverComponent>();
-        if (robot is not null)
+        // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送
+        var driver = DeviceDriverComponent.FindIn(this);
+        if (driver is not null)
         {
-            // 先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送。
-            robot.DeviceEvent -= OnDeviceEvent;
-            robot.DeviceEvent += OnDeviceEvent;
-            _robot = robot;
+            _codec ??= CreateCodec();
+            driver.UseCodec(_codec);
+            driver.Reported -= OnReport;
+            driver.Reported += OnReport;
+            _driver = driver;
         }
         else
         {
-            LogHelper.Error(Name, "sc.xml 没挂驱动组件：本模块下要有 Driver 子节点（Type 指定品牌壳）");
+            LogHelper.Error(Name, "sc.xml 没挂设备通道：本模块下要有 Driver 子节点（Type=xyz.Components.Components.DeviceDriverComponent）");
         }
 
         #endregion
@@ -360,7 +370,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         _ledger?.RegisterLocation(Name, Arms.Count);
 
         bool childrenInitialized = base.InitComponent();
-        return robot is not null && childrenInitialized;
+        return driver is not null && childrenInitialized;
     }
 
     /// <summary>
@@ -402,201 +412,70 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     public void Close()
     {
-        _robot?.Close();
+        _driver?.Close();
     }
 
-
-    private void OnDeviceEvent(RobotDeviceEvent evt)
+    /// <summary>
+    /// 设备主动上报（没有在途指令认的报文，在通道的解析线程上调）：项目的机械手类认自己品牌的报文，手指在位交给 NoteArmPresence、报错写 DeviceError
+    /// </summary>
+    protected virtual void OnReport(object message)
     {
-        switch (evt.Kind)
+    }
+
+    /// <summary>
+    /// 记一只手的在位推送；设备推了 sc.xml 里没配的手指，不凭空长一只手，记日志忽略
+    /// </summary>
+    protected void NoteArmPresence(int arm, bool hasWafer)
+    {
+        var component = FindArm(arm);
+        if (component is null)
         {
-            case RobotDeviceEventKind.WaferPresence:
-                IRobotArm? arm = Arms.FirstOrDefault(item => item.Number == evt.Arm);
-                if (arm is not null)
-                {
-                    arm.UpdateWaferPresence(evt.HasWafer);
-                }
-                else
-                {
-                    // 设备推了 sc.xml 里没配的手指：不凭空长一只手，记日志忽略。
-                    LogHelper.Warn(Name, $"收到手指 {evt.Arm} 的在位推送，但没配这个手指节点");
-                }
-
-                break;
-
-            case RobotDeviceEventKind.DeviceError:
-                DeviceError = evt.Content;
-                break;
+            LogHelper.Warn(Name, $"收到手指 {arm} 的在位推送，但没配这个手指节点");
+            return;
         }
+
+        component.UpdateWaferPresence(hasWafer);
     }
 
     #endregion
 
     #region 设备状态查询
 
-    /// <summary>这一圈查到哪了；一圈查完为 null，下一拍从头再查一圈。</summary>
-    private IEnumerator<RobotCommand?>? _queryRound;
-
-    /// <summary>在途的那条查询：跟 LoadPort 一样同一时间只有一条，回来了（或超时作废了）才发下一条。</summary>
-    private RobotCommand? _query;
-
-    private readonly Stopwatch _queryWatch = new();
-
-    /// <summary>这一圈从什么时候开始查的：新的一圈要离上一圈开始满一个周期（EC QueryStatusIntervalMs）。</summary>
-    private readonly Stopwatch _roundWatch = new();
-
-    private bool _isStatusQueryLate;
-    private bool _waferEventSubscribed;
+    private StatusQueryLoop? _queries;
 
     /// <summary>
-    /// 设备状态轮询（扫描线程，跟 LoadPort 一个路子）：在途那条没回来、没超时就等，超时就作废它；
-    /// 回来了或作废了，就往下走一步——写上一条的结果、发这一圈的下一条；一圈查完，离这一圈开始满一个周期（EC QueryStatusIntervalMs）再从头查。
-    /// 查什么、什么顺序、回来写到哪，都在 <see cref="QueryRound"/> 里。
+    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryRound 给
     /// </summary>
     private void LoopQueryStatus()
     {
-        var robot = _robot;
-        if (!IsEnable || robot is null)
+        var driver = _driver;
+        if (!IsEnable || driver is null)
         {
             return;
         }
 
-        #region 没连上：这一圈作废
-
-        // 连上以后从头查；在位推送的订阅跟着连接走，也要重新订。
-        if (!robot.IsConnected)
+        _queries ??= new StatusQueryLoop(Name);
+        var result = _queries.Scan(driver, QueryRound, QueryStatusIntervalMs, QueryDataTimeOut);
+        if (result == StatusQueryResult.Disconnected)
         {
-            _queryRound = null;
-            _query = null;
-            _waferEventSubscribed = false;
-            return;
-        }
-
-        #endregion
-
-        #region 等在途那条：没回来、没超时就等；超时作废
-
-        var query = _query;
-        if (query is not null && !query.IsCompleted)
-        {
-            int timeout = QueryDataTimeOut;
-            if (_queryWatch.ElapsedMilliseconds < timeout)
-            {
-                return;
-            }
-
-            // 回复丢了的话，这条会一直占着驱动的在途位，同名查询再也发不出去，所以要作废。
-            robot.Abandon(query, "Timeout");
-            if (!_isStatusQueryLate)
-            {
-                _isStatusQueryLate = true;
-                LogHelper.Warn(Name, $"设备状态查询超时（{timeout}ms）：这一条作废、接着查");
-            }
-        }
-        else if (_isStatusQueryLate && ReplyOf(query) is not null)
-        {
-            _isStatusQueryLate = false;
-            LogHelper.Info(Name, "设备状态查询恢复");
-        }
-
-        #endregion
-
-        #region 往下走一步：写上一条的结果、发下一条
-
-        // 新的一圈离上一圈开始不满一个周期就先不查；一圈里的各条照旧一条回来接着发下一条
-        if (_queryRound is null)
-        {
-            if (_roundWatch.IsRunning && _roundWatch.ElapsedMilliseconds < QueryStatusIntervalMs)
-            {
-                return;
-            }
-
-            _queryRound = QueryRound(robot).GetEnumerator();
-            _roundWatch.Restart();
-        }
-
-        if (_queryRound.MoveNext())
-        {
-            _query = _queryRound.Current;
-            _queryWatch.Restart();
-            return;
-        }
-
-        // 一圈查完：满一个周期再从头查
-        _queryRound = null;
-        _query = null;
-
-        #endregion
-    }
-
-    /// <summary>
-    /// 一圈查什么、什么顺序、回来写到哪，从上往下写：yield return 一条 = 发出去，等它回来（或超时作废）了再往下走。
-    /// 发不出去、没查成的那一项这圈不写，接着查下一项。加一种查询：照着加一段。
-    /// </summary>
-    private IEnumerable<RobotCommand?> QueryRound(IRobotDriverComponent robot)
-    {
-        // 手指在位推送：SC 开着又还没订上，每圈开头订一次，订上为止
-        if (WaferEventEnabled && !_waferEventSubscribed)
-        {
-            var subscribe = robot.SubscribeWaferEvent();
-            yield return subscribe;
-            _waferEventSubscribed = ReplyOf(subscribe) is not null;
-        }
-
-        var error = robot.QueryDeviceError();
-        yield return error;
-        var errorReply = ReplyOf(error);
-        if (errorReply is not null)
-        {
-            DeviceError = errorReply.DeviceError;
-        }
-
-        var servo = robot.QueryServoOn();
-        yield return servo;
-        var servoReply = ReplyOf(servo);
-        if (servoReply is not null)
-        {
-            IsServoOn = servoReply.ServoOn;
-        }
-
-        var speed = robot.QuerySpeed();
-        yield return speed;
-        var speedReply = ReplyOf(speed);
-        if (speedReply is not null)
-        {
-            Speed = speedReply.Speed;
-        }
-
-        // 每根轴（含手指）查一次坐标，按 sc.xml 轴节点的先后
-        foreach (var axis in Axes)
-        {
-            var position = robot.QueryAxisPos(axis.Name);
-            yield return position;
-            var positionReply = ReplyOf(position);
-            if (positionReply is not null)
-            {
-                axis.UpdatePosition(positionReply.Position);
-            }
+            OnDisconnected();
         }
     }
 
     /// <summary>
-    /// 查成了的回复；没发出去、还没回来、失败、超时作废的都是 null。
+    /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 平台替它发出去、等它回来（或超时作废）再往下走；
+    /// 没做成的那一项这圈不写（看指令的 IsSuccess）。默认不查（全靠设备主动推的品牌）
     /// </summary>
-    private static RobotResponse? ReplyOf(RobotCommand? command)
+    protected virtual IEnumerable<DeviceCommand> QueryRound()
     {
-        if (command is null || !command.IsCompleted)
-        {
-            return null;
-        }
+        yield break;
+    }
 
-        var response = command.Response;
-        if (response is null || !response.IsSuccess)
-        {
-            return null;
-        }
-
-        return response;
+    /// <summary>
+    /// 连接刚断（断开那一拍调一次，扫描线程）：跟着连接走的东西（比如推送订阅）在这里清掉，连上以后重来
+    /// </summary>
+    protected virtual void OnDisconnected()
+    {
     }
 
     #endregion
@@ -652,8 +531,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             LedgerSlots = WaferLedgerSnapshot.SlotsOf(_ledger, Name),
         };
 
-        var robot = _robot;
-        dto.IsConnected = robot?.IsConnected ?? false;
+        dto.IsConnected = _driver?.IsConnected ?? false;
 
         // 轴位表按 sc.xml 轴节点整表下发（轴名总在，界面没数据也列得出轴）：
         // 连上了才带坐标，还没查到或没连上的轴坐标为 null——组件里存的是断线前的旧值，不作数。
@@ -766,7 +644,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region 动作入口：状态 → 资源 → 互锁
 
     // 跟 LoadPort 同一套：每个动作的入口在模块锁里按 状态 → 资源 → 互锁 查（三项怎么分见 BaseModule"动作检查"区），
-    // 哪项不过就带原因返回、机械手不动，都过了才挂上设备动作。设备动作平台给默认（RobotCommandOperation），机型动作不一样才重写 CreateXxxOperation。
+    // 哪项不过就带原因返回、机械手不动，都过了才挂上设备动作。设备动作（每个动作发哪条指令）由项目的机械手类实现 CreateXxxOperation。
     // 取放之前站点要先准备好（腔体开门、LoadPort 要 Load 着），那一段在搬运管理里：手动页、自动跑货的取放都经搬运管理走到这里。
 
     /// <summary>
@@ -802,10 +680,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
     }
 
-    protected virtual ModuleOperation CreateHomeOperation()
-    {
-        return new RobotCommandOperation("Home", () => _robot?.Home(), () => HomeTimeout);
-    }
+    /// <summary>
+    /// Home 的设备动作：项目的机械手类用自己品牌的指令给（超时用 EC HomeTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateHomeOperation();
 
     #endregion
 
@@ -1058,15 +936,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         return started;
     }
 
-    protected virtual ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
-    {
-        return new RobotCommandOperation("Pick", () => _robot?.Pick(arm, stationNumber, slot), () => PickTimeout);
-    }
+    /// <summary>
+    /// 取片的设备动作（只管设备做，持片检查、记账平台在外面套）：项目的机械手类给（超时用 EC PickTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot);
 
-    protected virtual ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
-    {
-        return new RobotCommandOperation("Place", () => _robot?.Place(arm, stationNumber, slot), () => PlaceTimeout);
-    }
+    /// <summary>
+    /// 放片的设备动作：同取片（超时用 EC PlaceTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot);
 
     /// <summary>
     /// 换片：默认不支持，返回 null（被拒）。机械手支持换片的，在机型里重写。
@@ -1426,15 +1304,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
     }
 
-    protected virtual ModuleOperation CreatePowerOnOperation()
-    {
-        return new RobotCommandOperation("PowerOn", () => _robot?.PowerOn(), () => PowerTimeout);
-    }
+    /// <summary>
+    /// 上使能的设备动作：项目的机械手类给（超时用 EC PowerTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreatePowerOnOperation();
 
-    protected virtual ModuleOperation CreatePowerOffOperation()
-    {
-        return new RobotCommandOperation("PowerOff", () => _robot?.PowerOff(), () => PowerTimeout);
-    }
+    /// <summary>
+    /// 下使能的设备动作：项目的机械手类给（超时用 EC PowerTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreatePowerOffOperation();
 
     #endregion
 
@@ -1485,15 +1363,20 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         return CheckState(RobotAction.Abort);
     }
 
-    protected virtual ModuleOperation CreateResetOperation()
-    {
-        return new RobotCommandOperation("Reset", () => _robot?.ResetDrive(), () => ResetTimeout);
-    }
+    /// <summary>
+    /// 复位的设备动作（清设备报错）：项目的机械手类给（超时用 EC ResetTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateResetOperation();
 
-    protected virtual ModuleOperation CreateAbortOperation()
-    {
-        return new RobotCommandOperation("Abort", () => _robot?.Stop(), () => AbortTimeout);
-    }
+    /// <summary>
+    /// 中止的设备动作（急停）：项目的机械手类给（超时用 EC AbortTimeout）；被顶掉的取放指令平台已经作废
+    /// </summary>
+    protected abstract ModuleOperation CreateAbortOperation();
+
+    /// <summary>
+    /// 这台机械手的解码器（拆帧、解报文），开机时交给通道
+    /// </summary>
+    protected abstract IFrameCodec CreateCodec();
 
     #endregion
 
@@ -1636,7 +1519,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 装机停用、或驱动组件没挂起来（装配里组件初始化没做成）都不发动作。
     /// </summary>
-    protected override bool CanBeginAction => IsEnable && _robot is not null;
+    protected override bool CanBeginAction => IsEnable && _driver is not null;
 
     /// <summary>
     /// 能不能动作：停用、驱动没装好之外，驱动没连上也不发——没连上照样发，指令发不出去会落 Error、报受控停止，要复位再 Home。
@@ -1649,8 +1532,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return unavailable;
         }
 
-        var robot = _robot;
-        if (robot is null || !robot.IsConnected)
+        var driver = _driver;
+        if (driver is null || !driver.IsConnected)
         {
             return HandleResult.Fail(ErrorCodes.ModuleNotConnected, Name);
         }
@@ -1688,8 +1571,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     private void CheckDeviceAlarm()
     {
-        var robot = _robot;
-        if (robot is not null && robot.IsConnected && !string.IsNullOrEmpty(DeviceError))
+        var driver = _driver;
+        if (driver is not null && driver.IsConnected && !string.IsNullOrEmpty(DeviceError))
         {
             RaiseAlarm(RobotDeviceAlarm);
         }

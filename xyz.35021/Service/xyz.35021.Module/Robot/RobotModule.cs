@@ -1,14 +1,143 @@
-﻿using xyz.Components.Attributes;
+﻿using xyz._35021.Module.Drivers.Reje;
+using xyz._35021.Module.Drivers.Reje.Commands;
+using xyz.Components.Attributes;
+using xyz.Components.Components;
+using xyz.Drivers.Communication;
+using xyz.Drivers.Device;
 using xyz.Modules;
 
 namespace xyz._35021.Module.Robot;
 
 /// <summary>
-/// 35021 机台 _robot 模块：动作（Home、Pick、Place、上下使能、复位、急停）、动作入口检查、设备状态轮询、状态推送都用平台的（BaseRobotModule）。
-/// 这个类留着放 35021 独有的东西：哪个动作跟平台不一样，就重写对应的 CreateXxxOperation；要加互锁就重写 XxxInterlock（先调 base）。
-/// 品牌指令由 _driver 组件选（sc.xml 换 Type 即换品牌），机型代码不碰具体品牌。
+/// 35021 机械手模块（锐洁）：动作入口、晶圆账、持片检查、轮询节奏、推送都是平台的（BaseRobotModule），
+/// 这里只写每个动作发哪条锐洁指令、一圈查什么、上报怎么认；要加互锁重写 XxxInterlock（先调 base）
 /// </summary>
-[Component(description: "35021 _robot 模块")]
+[Component(description: "35021 机械手模块（锐洁）")]
 public class RobotModule : BaseRobotModule
 {
+    /// <summary>
+    /// 手指在位推送订上了没有：订阅跟着连接走，断了要重订（只在扫描线程上碰）
+    /// </summary>
+    private bool _waferEventSubscribed;
+
+    protected override IFrameCodec CreateCodec()
+    {
+        return new RejeCodec();
+    }
+
+    #region 动作
+
+    protected override ModuleOperation CreateHomeOperation()
+    {
+        return new CommandOperation("Home", _driver, () => new RejeHomeCommand(), () => HomeTimeout);
+    }
+
+    protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
+    {
+        return new CommandOperation("Pick", _driver, () => new RejePickCommand(arm, stationNumber, slot), () => PickTimeout);
+    }
+
+    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
+    {
+        return new CommandOperation("Place", _driver, () => new RejePlaceCommand(arm, stationNumber, slot), () => PlaceTimeout);
+    }
+
+    protected override ModuleOperation CreatePowerOnOperation()
+    {
+        return new CommandOperation("PowerOn", _driver, () => new RejePowerOnCommand(), () => PowerTimeout);
+    }
+
+    protected override ModuleOperation CreatePowerOffOperation()
+    {
+        return new CommandOperation("PowerOff", _driver, () => new RejePowerOffCommand(), () => PowerTimeout);
+    }
+
+    protected override ModuleOperation CreateResetOperation()
+    {
+        return new CommandOperation("Reset", _driver, () => new RejeResetCommand(), () => ResetTimeout);
+    }
+
+    protected override ModuleOperation CreateAbortOperation()
+    {
+        return new CommandOperation("Abort", _driver, () => new RejeSStopCommand(), () => AbortTimeout);
+    }
+
+    #endregion
+
+    #region 状态查询和上报
+
+    /// <summary>
+    /// 一圈：没订上先订手指在位推送，再查报错、伺服、速度、每根轴的坐标（按 sc 轴节点的先后）
+    /// </summary>
+    protected override IEnumerable<DeviceCommand> QueryRound()
+    {
+        // 手指在位推送：SC 开着又还没订上，每圈开头订一次，订上为止
+        if (WaferEventEnabled && !_waferEventSubscribed)
+        {
+            var subscribe = new RejeSubscribeWaferEventCommand();
+            yield return subscribe;
+            _waferEventSubscribed = subscribe.IsSuccess;
+        }
+
+        var error = new RejeQueryErrorCommand();
+        yield return error;
+        if (error.IsSuccess)
+        {
+            DeviceError = error.DeviceError;
+        }
+
+        var servo = new RejeQueryEnableCommand();
+        yield return servo;
+        if (servo.IsSuccess)
+        {
+            IsServoOn = servo.ServoOn;
+        }
+
+        var speed = new RejeQuerySpeedCommand();
+        yield return speed;
+        if (speed.IsSuccess)
+        {
+            Speed = speed.Speed;
+        }
+
+        foreach (var axis in Axes)
+        {
+            var position = new RejeQueryAxisPosCommand(axis.Name);
+            yield return position;
+            if (position.IsSuccess)
+            {
+                axis.UpdatePosition(position.Position);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 连接断了：在位推送的订阅跟着连接走，连上以后重订
+    /// </summary>
+    protected override void OnDisconnected()
+    {
+        _waferEventSubscribed = false;
+    }
+
+    /// <summary>
+    /// 锐洁的主动推送：手指在位变化、报错（成功码的 Error 帧是迟到的"没有报错"，不算）
+    /// </summary>
+    protected override void OnReport(object message)
+    {
+        if (message is RejeMessage reje)
+        {
+            if (RejeProtocol.TryReadWaferEvent(reje, out int arm, out bool hasWafer))
+            {
+                NoteArmPresence(arm, hasWafer);
+                return;
+            }
+
+            if (RejeProtocol.IsErrorPush(reje))
+            {
+                DeviceError = $"{reje.Code}#{reje.Content}";
+            }
+        }
+    }
+
+    #endregion
 }

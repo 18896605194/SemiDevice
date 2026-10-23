@@ -5,6 +5,7 @@ using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Drivers.Communication;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
 using xyz.Shared.Dtos;
@@ -86,9 +87,14 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     #endregion
 
     /// <summary>
-    /// 对准器驱动；sc 里没挂开机就抛
+    /// 设备通道（sc 里本对准器下的 Driver 节点），项目的对准器类用它发指令；没挂开机就抛
     /// </summary>
-    private IAlignerDriverComponent? _driver;
+    public IDeviceDriverComponent? _driver { get; private set; }
+
+    /// <summary>
+    /// 这台对准器的解码器：开机时建一次交给通道
+    /// </summary>
+    private IFrameCodec? _codec;
 
     private ILedgerManager? _ledger;
 
@@ -125,7 +131,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     #region 组件初始化
 
     /// <summary>
-    /// 组件初始化（开机，不动硬件）：认驱动、登记晶圆账槽位；没有手动页，跟 buffer 一样开机就切生产模式，全部初始化回零以后调度才会来
+    /// 组件初始化（开机，不动硬件）：认通道、交解码器、登记晶圆账槽位；没有手动页，跟 buffer 一样开机就切生产模式，全部初始化回零以后调度才会来
     /// </summary>
     public override bool InitComponent()
     {
@@ -134,12 +140,16 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
             return true;
         }
 
-        var driver = FindChild<IAlignerDriverComponent>();
+        var driver = DeviceDriverComponent.FindIn(this);
         if (driver is null)
         {
-            throw new InvalidOperationException($"对准器 {Name} 的 sc.xml 节点下没配驱动子组件（实现 IAlignerDriverComponent 的品牌驱动组件）。");
+            throw new InvalidOperationException($"对准器 {Name} 的 sc.xml 节点下没挂设备通道（Driver 节点，Type=xyz.Components.Components.DeviceDriverComponent）。");
         }
 
+        _codec ??= CreateCodec();
+        driver.UseCodec(_codec);
+        driver.Reported -= OnReport;
+        driver.Reported += OnReport;
         _driver = driver;
         _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, SlotCount);
@@ -251,7 +261,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     #region 动作入口：状态 → 资源 → 互锁
 
     // 跟 LoadPort、腔体同一套：入口在模块锁里按 状态 → 资源 → 互锁 查，哪项不过就带原因返回、对准器不动，都过了才挂上设备动作。
-    // 设备动作平台给默认（发驱动指令），机型做法不一样才重写 CreateXxxOperation，要加条件重写 XxxInterlock（先调 base）。
+    // 设备动作（每个动作发哪几条指令）由项目的对准器类给，要加条件重写 XxxInterlock（先调 base）。
 
     /// <summary>
     /// 回零：台上有片的接着对一遍（回零转过台面，片的方向就不对了，对过才能让机械手取）。调用方：模块初始化（整机初始化）
@@ -349,17 +359,17 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     #endregion
 
-    #region 设备动作（机型做法不一样就重写）
+    #region 设备动作
 
     /// <summary>
-    /// 回零的设备动作：发 Home；台上有片再串一条对准
+    /// 回零的设备动作：回零那几条；台上有片再串上对准那几条（按 EC AlignTimeout 算）
     /// </summary>
     protected virtual ModuleOperation CreateHomeOperation(bool hasWafer)
     {
-        var operation = new AlignerCommandOperation("Home", () => _driver?.Home(), () => HomeTimeout);
+        var operation = AddHomeSteps(new CommandOperation("Home", _driver, () => HomeTimeout));
         if (hasWafer)
         {
-            operation.Then("Home 后对准", () => _driver?.Align(NotchAngle), () => AlignTimeout);
+            AddAlignSteps(operation.UseTimeout(() => AlignTimeout), NotchAngle);
         }
 
         return operation;
@@ -370,23 +380,39 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     protected virtual ModuleOperation CreateAlignOperation()
     {
-        return new AlignerCommandOperation("Align", () => _driver?.Align(NotchAngle), () => AlignTimeout);
+        return AddAlignSteps(new CommandOperation("Align", _driver, () => AlignTimeout), NotchAngle);
     }
 
     /// <summary>
-    /// 复位的设备动作：清设备报错
+    /// 回零那几条：项目的对准器类用自己品牌的指令串上
     /// </summary>
-    protected virtual ModuleOperation CreateResetOperation()
-    {
-        return new AlignerCommandOperation("Reset", () => _driver?.ResetDrive(), () => ResetTimeout);
-    }
+    protected abstract CommandOperation AddHomeSteps(CommandOperation operation);
 
     /// <summary>
-    /// 中止的设备动作：停止
+    /// 对准那几条：把缺口转到 angle（度），做完要松开片；项目的对准器类用自己品牌的指令串上
     /// </summary>
-    protected virtual ModuleOperation CreateAbortOperation()
+    protected abstract CommandOperation AddAlignSteps(CommandOperation operation, double angle);
+
+    /// <summary>
+    /// 复位的设备动作（清设备报错）：项目的对准器类给（超时用 EC ResetTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateResetOperation();
+
+    /// <summary>
+    /// 中止的设备动作（停止）：项目的对准器类给（超时用 EC AbortTimeout）
+    /// </summary>
+    protected abstract ModuleOperation CreateAbortOperation();
+
+    /// <summary>
+    /// 这台对准器的解码器（拆帧、解报文），开机时交给通道
+    /// </summary>
+    protected abstract IFrameCodec CreateCodec();
+
+    /// <summary>
+    /// 设备主动上报（没有在途指令认的报文，在通道的解析线程上调）；默认不管
+    /// </summary>
+    protected virtual void OnReport(object message)
     {
-        return new AlignerCommandOperation("Abort", () => _driver?.Stop(), () => AbortTimeout);
     }
 
     #endregion
