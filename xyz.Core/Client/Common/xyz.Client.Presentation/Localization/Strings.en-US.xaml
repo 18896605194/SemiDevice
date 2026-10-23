@@ -14,6 +14,7 @@
     <sys:String x:Key="module.maintenance">{0} is in maintenance mode and does not take actions requested by other modules; switch it to production and try again</sys:String>
     <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
+    <sys:String x:Key="routine.step_at" xml:space="preserve">Step {0}/{1}: </sys:String>
 
     <!-- Equipment (System node in sc.xml: initialize all, Auto / Manual, stop, return all) -->
     <sys:String x:Key="system.not_installed">The System node is not configured in sc.xml (no equipment module); Init, Auto / Manual, Stop and Return All are unavailable</sys:String>

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Globalization;
+﻿using System.Globalization;
 using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
@@ -10,29 +9,37 @@ using xyz.Shared.Errors;
 namespace xyz.Modules;
 
 /// <summary>
-/// 搬运执行的公共部分：抢站点、准备、换段、落交互标记并发取放、等结果、失败挂起、中止；一趟搬运和同腔交换都从这里派生
+/// 搬运执行的公共部分：抢站点、准备、换段、落交互标记并发取放、分段取放的交接、失败挂起、中止；一趟搬运和同腔交换都从这里派生，
+/// 派生类在构造里按情况把步骤排好（放不下就不取、同站换槽、只取片、只放片）。搬运管理的扫描线程推进
 /// </summary>
-public abstract class TransferExecution : ModuleOperation<TransferStep>
+public abstract class TransferExecution : ModuleRoutine
 {
     #region 字段与构造
 
+    /// <summary>
+    /// 抢站点时等它空出来的上限（ms）
+    /// </summary>
     private readonly int _stationWaitTimeout;
 
     /// <summary>
-    /// 当前在等的那一步操作（站点准备、换段、取片、放片）；没在等为 null
+    /// 取片、放片（分段的伸臂、交接、缩臂）是第几步（从 0 数）：被中止时停在这几步要给机械手发设备中止
     /// </summary>
-    private ModuleOperation? _current;
+    private readonly HashSet<int> _motionSteps = [];
 
     /// <summary>
-    /// 建执行：机械手、来源、等站点空出来的上限
+    /// 给机械手发的设备中止；没发为 null
     /// </summary>
-    protected TransferExecution(string name, TransferStep initialStep, TransferOrigin origin, ITransferRobot robot, int stationWaitTimeout)
-        : base(name, initialStep)
+    private ModuleRoutine? _robotAbort;
+
+    /// <summary>
+    /// 建执行：日志记在谁名下（搬运管理）、动作名、机械手、来源、等站点空出来的上限
+    /// </summary>
+    protected TransferExecution(string module, string name, TransferOrigin origin, ITransferRobot robot, int stationWaitTimeout)
+        : base(module, name)
     {
         Origin = origin;
         Robot = robot;
         _stationWaitTimeout = stationWaitTimeout;
-        _grabSince = Stopwatch.GetTimestamp();
     }
 
     #endregion
@@ -132,7 +139,7 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
 
     #endregion
 
-    #region 抢站点、准备
+    #region 排步骤：抢站点、准备
 
     /// <summary>
     /// 准备一（抢站点），报错参数里的第几步
@@ -150,114 +157,89 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     protected const int NextLegPhase = 3;
 
     /// <summary>
-    /// 这一站从什么时候开始抢的；抢站点判超时用，换站点时重置
+    /// 加一步：抢站点（发准备一），抢到了 grabbed 记下占着它，再等准备一做完；站点不在待命就接着抢，等到上限才判负
     /// </summary>
-    private long _grabSince;
-
-    /// <summary>
-    /// 换站点了，抢站点的等待重新计时
-    /// </summary>
-    protected void RestartStationWait()
+    protected void AddGrabStep(ITransferStation station, TransferContext context, Action grabbed)
     {
-        _grabSince = Stopwatch.GetTimestamp();
+        Add(new StationGrabStep($"抢 {station.Name}", station, context, _stationWaitTimeout, grabbed));
     }
 
     /// <summary>
-    /// 抢站点（发准备一）：站点不在待命返回 null 不算失败，下一拍接着抢，等到超时才判负；抢到返回 true
+    /// 加一步：发一步准备（准备二、换段准备）、等它做完。已经占着站点还被拒，说明站点被人从旁边动过
     /// </summary>
-    protected bool GrabStation(ITransferStation station, TransferContext context, TransferStep next)
+    protected void AddPrepareStep(string name, ITransferStation station, Func<ModuleRoutine?> prepare, int phase)
     {
-        var operation = station.PrepareTransfer(context);
-        if (operation is not null)
-        {
-            _current = operation;
-            SetStep(next);
-            return true;
-        }
-
-        if (Stopwatch.GetElapsedTime(_grabSince).TotalMilliseconds > _stationWaitTimeout)
-        {
-            Abandon(ErrorCodes.StationBusy,
-                $"{station.Name} 等不到可服务（{_stationWaitTimeout}ms）",
-                station.Name,
-                _stationWaitTimeout.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return false;
+        string number = phase.ToString(CultureInfo.InvariantCulture);
+        Start(name, () => Prepared(station, prepare(), number),
+            (step, routine) => step.Fail(ErrorCodes.StationPrepareFailed, $"{station.Name} 第 {number} 步准备失败：{routine.Reason}", station.Name, number));
     }
 
     /// <summary>
-    /// 发一步准备（准备二、换段准备）：已经占着站点还被拒，说明站点被人从旁边动过
+    /// 站点给的准备动作：给了 null 是被拒
     /// </summary>
-    protected void BeginPrepare(ITransferStation station, ModuleOperation? operation, int phase, TransferStep next)
+    private static HandleResult<ModuleRoutine> Prepared(ITransferStation station, ModuleRoutine? routine, string phase)
     {
-        if (operation is null)
+        if (routine is null)
         {
-            Abandon(ErrorCodes.StationPrepareRejected,
-                $"{station.Name} 第 {phase} 步准备被拒",
-                station.Name,
-                phase.ToString(CultureInfo.InvariantCulture));
-            return;
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.StationPrepareRejected, station.Name, phase);
         }
 
-        _current = operation;
-        SetStep(next);
-    }
-
-    /// <summary>
-    /// 等一步准备收尾完成；成功才走下一步，做完返回 true
-    /// </summary>
-    protected bool WaitPrepare(ITransferStation station, int phase, TransferStep next)
-    {
-        var operation = _current;
-        if (operation is null || !operation.IsSettled)
-        {
-            return false;
-        }
-
-        _current = null;
-        if (!operation.IsSuccess)
-        {
-            Abandon(ErrorCodes.StationPrepareFailed,
-                $"{station.Name} 第 {phase} 步准备失败：{operation.Reason}",
-                station.Name,
-                phase.ToString(CultureInfo.InvariantCulture));
-            return false;
-        }
-
-        SetStep(next);
-        return true;
+        return HandleResult<ModuleRoutine>.Success(routine);
     }
 
     #endregion
 
-    #region 取放
+    #region 排步骤：取放
 
     /// <summary>
-    /// 先问机械手能不能做，再落"交互中"标记、发取片或放片；从落标记起就算动过手了。
-    /// 站点配了中途交接的走分段取放：机械手要有分段能力（<see cref="ITransferRobotStep"/>），这里先伸臂，交接、缩臂由 <see cref="TakeSettled"/> 接着推
+    /// 加一下取片或放片：站点没配中途交接就是一步；配了拆成 伸臂 → 站点交接 → 缩臂（机械手要有分段能力 <see cref="ITransferRobotStep"/>，
+    /// 没有的走到这一步就失败）。从落"交互中"标记起就算动过手了；没做成站点停在 Transferring 等人工确认
     /// </summary>
-    protected void BeginMotion(ITransferStation station, TransferContext context, int arm, int slot, bool pick, TransferStep next)
+    protected void AddMotionSteps(string name, ITransferStation station, TransferContext context, int arm, int slot, bool pick)
     {
-        string action = "Place";
         bool handoff = station.HandoffOnPlace;
         if (pick)
         {
-            action = "Pick";
             handoff = station.HandoffOnPick;
         }
 
-        ITransferRobotStep? stepRobot = null;
-        if (handoff)
+        if (!handoff)
         {
-            stepRobot = Robot as ITransferRobotStep;
-            if (stepRobot is null)
-            {
-                Abandon(ErrorCodes.RobotHandoffUnsupported, $"{station.Name} 要中途交接，{Robot.Name} 不能分段取放", Robot.Name);
-                return;
-            }
+            Start(name, () => BeginMotion(station, context, arm, slot, pick, null), (step, routine) => ReportMotionFailure(step, station, pick, routine));
+            MarkMotion();
+            return;
         }
 
+        var stepRobot = Robot as ITransferRobotStep;
+        if (stepRobot is null)
+        {
+            Do(name, () => HandleResult.Fail(ErrorCodes.RobotHandoffUnsupported, Robot.Name));
+            return;
+        }
+
+        Start($"{name}：伸臂", () => BeginMotion(station, context, arm, slot, pick, stepRobot), (step, routine) => ReportMotionFailure(step, station, pick, routine));
+        MarkMotion();
+        Start($"{name}：{station.Name} 交接", () => BeginHandoff(station, context, pick),
+            (step, routine) => StopAtHandoff(step, ErrorCodes.StationHandoffFailed, $"{station.Name} 中途交接没做成：{routine.Reason}", station.Name));
+        MarkMotion();
+        Start($"{name}：缩臂", () => BeginRetract(stepRobot, station, arm, slot, pick), (step, routine) => ReportMotionFailure(step, station, pick, routine));
+        MarkMotion();
+    }
+
+    /// <summary>
+    /// 刚加的这一步是取放（被中止时要给机械手发设备中止）
+    /// </summary>
+    private void MarkMotion()
+    {
+        _motionSteps.Add(StepCount - 1);
+    }
+
+    /// <summary>
+    /// 先问机械手能不能做，再落"交互中"标记、发取片或放片（分段的发伸臂）
+    /// </summary>
+    private HandleResult<ModuleRoutine> BeginMotion(ITransferStation station, TransferContext context, int arm, int slot, bool pick,
+        ITransferRobotStep? stepRobot)
+    {
         HandleResult? refused;
         if (pick)
         {
@@ -270,183 +252,40 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
 
         if (refused is not null)
         {
-            Abandon(refused.ErrorMessage, $"{Robot.Name} {action} 被拒：{refused.ErrorMessage}", [.. refused.Args]);
-            return;
+            return HandleResult<ModuleRoutine>.Fail(refused.ErrorMessage, [.. refused.Args]);
         }
 
         MotionStarted = true;
         if (!station.Transferring(context))
         {
-            Fail(ErrorCodes.TransferStepRejected,
-                $"{station.Name} 落不下 Transferring 标记",
-                station.Name,
-                "Transferring");
-            return;
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.TransferStepRejected, station.Name, "Transferring");
         }
 
-        HandleResult<ModuleOperation> started;
         if (stepRobot is not null && pick)
         {
-            started = stepRobot.ExtendPick(arm, station.Name, slot);
-        }
-        else if (stepRobot is not null)
-        {
-            started = stepRobot.ExtendPlace(arm, station.Name, slot);
-        }
-        else if (pick)
-        {
-            started = Robot.Pick(arm, station.Name, slot);
-        }
-        else
-        {
-            started = Robot.Place(arm, station.Name, slot);
+            return stepRobot.ExtendPick(arm, station.Name, slot);
         }
 
-        var operation = started.Result;
-        if (!started.IsSuccess || operation is null)
-        {
-            Fail(started.ErrorMessage, $"{Robot.Name} {action} 被拒：{started.ErrorMessage}", [.. started.Args]);
-            return;
-        }
-
-        _current = operation;
         if (stepRobot is not null)
         {
-            _handoffPhase = HandoffPhase.Extend;
-            _stepRobot = stepRobot;
-            _handoffStation = station;
-            _handoffContext = context;
-            _handoffPick = pick;
-            _handoffArm = arm;
-            _handoffSlot = slot;
+            return stepRobot.ExtendPlace(arm, station.Name, slot);
         }
 
-        SetStep(next);
-    }
-
-    /// <summary>
-    /// 当前在等的操作收尾完成了就交出来（清掉），还没完返回 null；分段取放要伸臂、交接、缩臂都走完（或者伸臂、缩臂没做成）才交出来
-    /// </summary>
-    protected ModuleOperation? TakeSettled()
-    {
-        AdvanceHandoff();
-        var operation = _current;
-        if (IsTerminal || _handoffPhase != HandoffPhase.None || operation is null || !operation.IsSettled)
+        if (pick)
         {
-            return null;
+            return Robot.Pick(arm, station.Name, slot);
         }
 
-        _current = null;
-        return operation;
-    }
-
-    /// <summary>
-    /// 取片或放片没做成：站点停在 Transferring 等人工确认；账没记上的原样带出账的错误码
-    /// </summary>
-    protected void ReportMotionFailure(ITransferStation station, string action, ModuleOperation operation)
-    {
-        LogHelper.Error(Robot.Name,
-            $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{operation.Reason}");
-        if (operation.Code == ErrorCodes.RobotLedgerMoveFailed)
-        {
-            Fail(operation.Code, operation.Reason, [.. operation.ErrorArgs]);
-            return;
-        }
-
-        Fail(ErrorCodes.TransferFailed,
-            $"{Robot.Name} {action} 失败：{operation.Reason}",
-            Robot.Name,
-            action);
-    }
-
-    #endregion
-
-    #region 分段取放：伸臂 → 站点交接 → 缩臂
-
-    /// <summary>
-    /// 这一下分段取放走到哪一段；不是分段的、或者已经走完为 None
-    /// </summary>
-    private HandoffPhase _handoffPhase;
-
-    /// <summary>
-    /// 做分段取放的机械手（就是 Robot，按可选能力取出来）
-    /// </summary>
-    private ITransferRobotStep? _stepRobot;
-
-    /// <summary>
-    /// 要中途交接的站点；这一轮的上下文（站点按它认）
-    /// </summary>
-    private ITransferStation? _handoffStation;
-
-    private TransferContext? _handoffContext;
-
-    /// <summary>
-    /// 交接的是取片（站点把片交到手上）还是放片（站点把片接走）；用哪只手、哪一槽（缩臂要对得上伸臂）
-    /// </summary>
-    private bool _handoffPick;
-
-    private int _handoffArm;
-
-    private int _handoffSlot;
-
-    /// <summary>
-    /// 站点正在做的交接；没在交接为 null
-    /// </summary>
-    private ModuleOperation? _handoff;
-
-    /// <summary>
-    /// 分段取放往下推：伸臂做完叫站点交接，交接做完叫机械手缩臂，缩臂收尾了交给取放收场；伸臂、缩臂没做成按取放失败收场
-    /// </summary>
-    private void AdvanceHandoff()
-    {
-        var stepRobot = _stepRobot;
-        var station = _handoffStation;
-        var context = _handoffContext;
-        if (_handoffPhase == HandoffPhase.None || stepRobot is null || station is null || context is null)
-        {
-            return;
-        }
-
-        if (_handoffPhase == HandoffPhase.Extend)
-        {
-            var extend = _current;
-            if (extend is null || !extend.IsSettled)
-            {
-                return;
-            }
-
-            if (!extend.IsSuccess)
-            {
-                // 伸臂没做成：跟一条指令取放没做成一样收场（站点停在交互中等人工）
-                _handoffPhase = HandoffPhase.None;
-                return;
-            }
-
-            _current = null;
-            StartHandoff(station, context);
-            return;
-        }
-
-        if (_handoffPhase == HandoffPhase.Handoff)
-        {
-            FinishHandoff(stepRobot, station);
-            return;
-        }
-
-        var retract = _current;
-        if (retract is not null && retract.IsSettled)
-        {
-            _handoffPhase = HandoffPhase.None;
-        }
+        return Robot.Place(arm, station.Name, slot);
     }
 
     /// <summary>
     /// 伸臂做完：叫站点交接；站点不收，机械手就地停下
     /// </summary>
-    private void StartHandoff(ITransferStation station, TransferContext context)
+    private HandleResult<ModuleRoutine> BeginHandoff(ITransferStation station, TransferContext context, bool pick)
     {
-        ModuleOperation? handoff;
-        if (_handoffPick)
+        ModuleRoutine? handoff;
+        if (pick)
         {
             handoff = station.HandoffPick(context);
         }
@@ -457,91 +296,73 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
 
         if (handoff is null)
         {
-            StopAtHandoff(ErrorCodes.StationHandoffRejected, $"{station.Name} 中途交接被拒", station.Name);
-            return;
+            StopRobot($"{station.Name} 中途交接被拒", station.Name);
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.StationHandoffRejected, station.Name);
         }
 
-        _handoff = handoff;
-        _handoffPhase = HandoffPhase.Handoff;
+        return HandleResult<ModuleRoutine>.Success(handoff);
     }
 
     /// <summary>
-    /// 站点交接做完：叫机械手缩臂。交接没做成机械手就地停下；缩臂被拒按机械手给的原因失败（手还伸着，等人工）
+    /// 站点交接做完：叫机械手缩臂；缩臂被拒按机械手给的原因失败（手还伸着，等人工）
     /// </summary>
-    private void FinishHandoff(ITransferRobotStep stepRobot, ITransferStation station)
+    private HandleResult<ModuleRoutine> BeginRetract(ITransferRobotStep stepRobot, ITransferStation station, int arm, int slot, bool pick)
     {
-        var handoff = _handoff;
-        if (handoff is null || !handoff.IsSettled)
+        HandleResult<ModuleRoutine> retract;
+        if (pick)
         {
-            return;
-        }
-
-        _handoff = null;
-        if (!handoff.IsSuccess)
-        {
-            StopAtHandoff(ErrorCodes.StationHandoffFailed, $"{station.Name} 中途交接没做成：{handoff.Reason}", station.Name);
-            return;
-        }
-
-        HandleResult<ModuleOperation> retract;
-        if (_handoffPick)
-        {
-            retract = stepRobot.RetractPick(_handoffArm, station.Name, _handoffSlot);
+            retract = stepRobot.RetractPick(arm, station.Name, slot);
         }
         else
         {
-            retract = stepRobot.RetractPlace(_handoffArm, station.Name, _handoffSlot);
+            retract = stepRobot.RetractPlace(arm, station.Name, slot);
         }
 
-        var operation = retract.Result;
-        if (!retract.IsSuccess || operation is null)
+        if (!retract.IsSuccess)
         {
-            _handoffPhase = HandoffPhase.None;
             LogHelper.Error(Robot.Name, $"{station.Name} 交接做完了，缩臂被拒：{retract.ErrorMessage}，手还伸在站里等人工确认");
-            Fail(retract.ErrorMessage, $"{Robot.Name} 缩臂被拒：{retract.ErrorMessage}", [.. retract.Args]);
+        }
+
+        return retract;
+    }
+
+    /// <summary>
+    /// 取片或放片（伸臂、缩臂）没做成：站点停在 Transferring 等人工确认；账没记上的原样带出账的错误码
+    /// </summary>
+    private void ReportMotionFailure(RoutineStep step, ITransferStation station, bool pick, ModuleRoutine routine)
+    {
+        string action = "Place";
+        if (pick)
+        {
+            action = "Pick";
+        }
+
+        LogHelper.Error(Robot.Name, $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{routine.Reason}");
+        if (routine.Code == ErrorCodes.RobotLedgerMoveFailed)
+        {
+            step.Fail(routine.Code, routine.Reason, [.. routine.ErrorArgs]);
             return;
         }
 
-        _current = operation;
-        _handoffPhase = HandoffPhase.Retract;
+        step.Fail(ErrorCodes.TransferFailed, $"{Robot.Name} {action} 失败：{routine.Reason}", Robot.Name, action);
     }
 
     /// <summary>
-    /// 交接被拒或没做成：机械手伸着停在站里，就地中止它（不缩臂，片可能交了一半），整趟失败等人工确认片位
+    /// 交接没做成：机械手伸着停在站里，就地中止它（不缩臂，片可能交了一半），整趟失败等人工确认片位
     /// </summary>
-    private void StopAtHandoff(string code, string reason, string station)
+    private void StopAtHandoff(RoutineStep step, string code, string reason, string station)
     {
-        _handoffPhase = HandoffPhase.None;
+        StopRobot(reason, station);
+        step.Fail(code, reason, station);
+    }
+
+    /// <summary>
+    /// 机械手伸在站里时就地停下
+    /// </summary>
+    private void StopRobot(string reason, string station)
+    {
         LogHelper.Error(Robot.Name, $"{reason}，机械手停在 {station} 里等人工确认");
-        _abortOperation = Robot.Abort();
-        _current?.AbortByHost(reason);
-        Fail(code, reason, station);
-    }
-
-    /// <summary>
-    /// 分段取放走到哪一段
-    /// </summary>
-    private enum HandoffPhase
-    {
-        /// <summary>
-        /// 不是分段取放，或者已经走完
-        /// </summary>
-        None,
-
-        /// <summary>
-        /// 机械手在伸臂
-        /// </summary>
-        Extend,
-
-        /// <summary>
-        /// 机械手伸着停在站里，站点在交接
-        /// </summary>
-        Handoff,
-
-        /// <summary>
-        /// 机械手在缩臂
-        /// </summary>
-        Retract,
+        _robotAbort = Robot.Abort();
     }
 
     #endregion
@@ -550,15 +371,12 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
 
     private volatile bool _abortRequested;
 
-    private ModuleOperation? _abortOperation;
-
     /// <summary>
-    /// 失败收场：没动过手就先撤站点，撤不掉保留占用，再落原始失败
+    /// 失败收场：没动过手就撤站点（撤不掉保留占用）；动过手的留着等人工
     /// </summary>
-    protected void Abandon(string code, string reason, params string[] args)
+    protected override void OnFailed()
     {
         ReleaseStations();
-        Fail(code, reason, args);
     }
 
     /// <summary>
@@ -597,31 +415,34 @@ public abstract class TransferExecution : ModuleOperation<TransferStep>
     }
 
     /// <summary>
-    /// 机械手的取片或放片正在做：被中止时要给机械手发设备中止
+    /// 机械手的取片或放片（分段的伸臂、交接、缩臂）正在做：被中止时要给机械手发设备中止
     /// </summary>
-    public bool IsMoving => Step is TransferStep.WaitPick or TransferStep.WaitPlace;
+    public bool IsMoving => _motionSteps.Contains(StepNumber - 1);
 
     /// <summary>
-    /// 被中止（急停、人工取消、Job 中止）：在途的设备动作、站点的中途交接跟着中止；没动过手才撤站点
+    /// 被中止（急停、人工取消、Job 中止）：机械手在取放就先给它发设备中止，没动过手才撤站点；在等的站点准备、交接随后由这一步跟着中止
     /// </summary>
     protected override void OnAborted(string reason)
     {
         if (IsMoving)
         {
-            _abortOperation = Robot.Abort();
+            _robotAbort = Robot.Abort();
         }
 
-        _current?.AbortByHost(reason);
-        _handoff?.AbortByHost(reason);
         ReleaseStations();
     }
 
     /// <summary>
-    /// 当前设备动作和设备中止都收尾后，搬运管理才释放资源、唤醒等待方
+    /// 停下来了，这一步手上的站点准备、取放、交接和给机械手的设备中止都收完尾，搬运管理才释放资源、唤醒等待方
     /// </summary>
-    internal bool ReadyToFinish => IsTerminal && (_current is null || _current.IsSettled)
-        && (_abortOperation is null || _abortOperation.IsSettled)
-        && (_handoff is null || _handoff.IsSettled);
+    internal bool ReadyToFinish
+    {
+        get
+        {
+            var robotAbort = _robotAbort;
+            return IsTerminal && IsChildSettled && (robotAbort is null || robotAbort.IsSettled);
+        }
+    }
 
     #endregion
 }

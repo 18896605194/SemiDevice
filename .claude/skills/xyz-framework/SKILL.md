@@ -30,11 +30,11 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 - 设备树：sc.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树，按开机几个阶段走：
   组件初始化（`InitComponent`）→ `Bind` → 开始扫描（sc 配了 `IsRun` 的根）→ `OnStarted`，退出倒着 `OnStopping`。组件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体组件，加组件不用改它们。
-- 设备动作 = `ModuleOperation`，在模块扫描线程里一步步推进；RPC 线程只发起和等待。
+- 设备动作 = `ModuleRoutine`（按顺序走的一串有名字的步骤，平台建动作、机型往里加步骤），在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 
 ### 依赖铁律
 1. 客户端不引用任何后端工程，只用 xyz.Shared 的契约。
-2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（`ModuleOperation` 挪到了组件层）、设备侧给 EAP 的接口
+2. xyz.Components 引用 xyz.Shared（2026-10-05 起，用户定的；原来是不引用）：错误码（模块动作 `ModuleRoutine` 挪到了组件层）、设备侧给 EAP 的接口
    （`Interfaces` 下的 ILoadPortAccess、IJobManager 和回调口）用到的 DTO，和组件自己推给界面的 DTO——**推送是组件自己的事**（2026-10-18 起）：
    组件在自己的扫描或钩子里 `EventBus.Send`，转 DTO 走映射组件（`IMapper`，规则写在 `MapperComponent`），不在启动代码里搭桥。
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
@@ -103,7 +103,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 | 要做的事 | 看哪里 |
 |---|---|
 | 加组件、SC/EC 参数、报警、GEM 事件 | backend.md §2 |
-| 加模块、加动作（ModuleOperation） | backend.md §3；机型实现见 machine-and-tools.md §2 |
+| 加模块、加动作（ModuleRoutine） | backend.md §3；机型实现见 machine-and-tools.md §2 |
 | 加品牌驱动、改通讯 | backend.md §4 |
 | 加 gRPC 服务或接口 | backend.md §5 清单（契约 → DTO → 实现 → 两处注册 → 错误码 → 语言包 → 冒烟） |
 | 后端推送、客户端订阅 | backend.md §5「事件推送」；client.md §4「事件」 |

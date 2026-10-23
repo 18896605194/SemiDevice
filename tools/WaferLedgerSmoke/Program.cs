@@ -897,21 +897,21 @@ sealed class LedgerProbeRobot : BaseModule, ITransferRobot
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
 
-    private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+    private HandleResult<ModuleRoutine> Refused() => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleOperation? IModule.InitModule() => null;
+    ModuleRoutine? IModule.InitModule() => null;
 
-    ModuleOperation? IModule.Reset() => null;
+    ModuleRoutine? IModule.Reset() => null;
 
-    ModuleOperation? IModule.Abort() => null;
+    ModuleRoutine? IModule.Abort() => null;
 
-    HandleResult<ModuleOperation> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleRoutine> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
 
-    HandleResult<ModuleOperation> ITransferRobot.Place(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleRoutine> ITransferRobot.Place(int arm, string station, int slot) => Refused();
 
     HandleResult? ITransferRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
     HandleResult? ITransferRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleOperation? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
+    ModuleRoutine? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
 }

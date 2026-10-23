@@ -145,7 +145,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// </summary>
     public virtual HandleResult? CheckPrepareTransfer()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             int state = State;
             if (state != StandbyState)
@@ -153,7 +153,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
                 return HandleResult.Fail(ErrorCodes.ModuleStateNotAllowed, Name, state.ToString(CultureInfo.InvariantCulture));
             }
 
-            if (HasUnsettledOperation())
+            if (HasUnsettledRoutine())
             {
                 return HandleResult.Fail(ErrorCodes.ModuleBusy, Name);
             }
@@ -165,12 +165,12 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 准备一：锁内重查准入并占用本轮传片环。
     /// </summary>
-    public ModuleOperation? PrepareTransfer(TransferContext context)
+    public ModuleRoutine? PrepareTransfer(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
-            if (HasUnsettledOperation() || CheckPrepareTransfer() is not null)
+            if (HasUnsettledRoutine() || CheckPrepareTransfer() is not null)
             {
                 return null;
             }
@@ -178,27 +178,27 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
             // 恢复动作可能绕过 TransferStep；旧上下文不代表仍在占用，新一轮准入后直接覆盖。
             var previous = _transferContext;
             _transferContext = context;
-            var operation = PrepareTransferCore(context);
-            if (operation is null)
+            var routine = PrepareTransferCore(context);
+            if (routine is null)
             {
                 _transferContext = previous;
             }
 
-            return operation;
+            return routine;
         }
     }
 
     /// <summary>
     /// 准备二
     /// </summary>
-    public ModuleOperation? PrepareTransfer2(TransferContext context)
+    public ModuleRoutine? PrepareTransfer2(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (!ReferenceEquals(_transferContext, context)
                 || State != TransferModuleState.PreTransfer
-                || HasUnsettledOperation())
+                || HasUnsettledRoutine())
             {
                 return null;
             }
@@ -213,9 +213,9 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     public bool Transferring(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
-            if (!ReferenceEquals(_transferContext, context) || HasUnsettledOperation())
+            if (!ReferenceEquals(_transferContext, context) || HasUnsettledRoutine())
             {
                 return false;
             }
@@ -229,16 +229,16 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 换段准备：一轮先取后放时取完、放之前调；只认同一份两段上下文、交互中、没有未收尾的动作，不受理返回 null
     /// </summary>
-    public ModuleOperation? PrepareNextLeg(TransferContext context)
+    public ModuleRoutine? PrepareNextLeg(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (!ReferenceEquals(_transferContext, context)
                 || !context.HasPick
                 || !context.HasPlace
                 || State != TransferModuleState.Transferring
-                || HasUnsettledOperation())
+                || HasUnsettledRoutine())
             {
                 return null;
             }
@@ -250,10 +250,10 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 取片交接：机械手伸到位停下后调；只认配了 HandoffOnPick、本轮带取片的上下文、交互中、没有未收尾的动作，不受理返回 null
     /// </summary>
-    public ModuleOperation? HandoffPick(TransferContext context)
+    public ModuleRoutine? HandoffPick(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (!HandoffOnPick || !context.HasPick || !CanHandoff(context))
             {
@@ -267,10 +267,10 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 放片交接：机械手伸到位停下后调；只认配了 HandoffOnPlace、本轮带放片的上下文、交互中、没有未收尾的动作，不受理返回 null
     /// </summary>
-    public ModuleOperation? HandoffPlace(TransferContext context)
+    public ModuleRoutine? HandoffPlace(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (!HandoffOnPlace || !context.HasPlace || !CanHandoff(context))
             {
@@ -288,7 +288,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     {
         return ReferenceEquals(_transferContext, context)
             && State == TransferModuleState.Transferring
-            && !HasUnsettledOperation();
+            && !HasUnsettledRoutine();
     }
 
     /// <summary>
@@ -297,10 +297,10 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     public bool TransferComplete(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (!ReferenceEquals(_transferContext, context)
-                || HasUnsettledOperation()
+                || HasUnsettledRoutine()
                 || !TransferStep(TransferModuleState.Transferring, TransferModuleState.TransferComplete))
             {
                 return false;
@@ -318,7 +318,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     public bool CancelTransfer(TransferContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             int state = State;
             if (!ReferenceEquals(_transferContext, context) || state == StandbyState)
@@ -326,7 +326,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
                 return true;
             }
 
-            if (HasUnsettledOperation()
+            if (HasUnsettledRoutine()
                 || (state != TransferModuleState.PreTransfer && state != TransferModuleState.TransferReady))
             {
                 return false;
@@ -357,7 +357,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 起站内任务：默认没有站内任务，返回 null。
     /// </summary>
-    public virtual ModuleOperation? StartTask(StationTaskRequest request)
+    public virtual ModuleRoutine? StartTask(StationTaskRequest request)
     {
         return null;
     }
@@ -369,35 +369,41 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 准备一扩展点；公共入口已经在锁内检查准入并记录本轮上下文
     /// </summary>
-    protected virtual ModuleOperation? PrepareTransferCore(TransferContext context)
+    protected virtual ModuleRoutine? PrepareTransferCore(TransferContext context)
     {
-        return TransferStep(StandbyState, TransferModuleState.PreTransfer)
-            ? new NoOpOperation("PrepareTransfer")
-            : null;
+        if (!TransferStep(StandbyState, TransferModuleState.PreTransfer))
+        {
+            return null;
+        }
+
+        return ModuleRoutine.Done(Name, "PrepareTransfer");
     }
 
     /// <summary>
-    /// 准备二扩展点；公共入口统一检查本轮上下文、状态和当前操作
+    /// 准备二扩展点；公共入口统一检查本轮上下文、状态和当前动作
     /// </summary>
-    protected virtual ModuleOperation? PrepareTransfer2Core(TransferContext context)
+    protected virtual ModuleRoutine? PrepareTransfer2Core(TransferContext context)
     {
-        return TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady)
-            ? new NoOpOperation("PrepareTransfer2")
-            : null;
+        if (!TransferStep(TransferModuleState.PreTransfer, TransferModuleState.TransferReady))
+        {
+            return null;
+        }
+
+        return ModuleRoutine.Done(Name, "PrepareTransfer2");
     }
 
     /// <summary>
     /// 换段准备扩展点：取片、放片要的机构位置不一样的站点重写，默认直接成功
     /// </summary>
-    protected virtual ModuleOperation? PrepareNextLegCore(TransferContext context)
+    protected virtual ModuleRoutine? PrepareNextLegCore(TransferContext context)
     {
-        return new NoOpOperation("PrepareNextLeg");
+        return ModuleRoutine.Done(Name, "PrepareNextLeg");
     }
 
     /// <summary>
     /// 取片交接扩展点：配了 HandoffOnPick 的站点重写，起动作把片交到手上（比如降顶针），做完仍停在交互中；默认没有交接动作，被拒
     /// </summary>
-    protected virtual ModuleOperation? HandoffPickCore(TransferContext context)
+    protected virtual ModuleRoutine? HandoffPickCore(TransferContext context)
     {
         return null;
     }
@@ -405,7 +411,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 放片交接扩展点：配了 HandoffOnPlace 的站点重写，起动作把片从手上接走（比如升顶针），做完仍停在交互中；默认被拒
     /// </summary>
-    protected virtual ModuleOperation? HandoffPlaceCore(TransferContext context)
+    protected virtual ModuleRoutine? HandoffPlaceCore(TransferContext context)
     {
         return null;
     }
@@ -438,7 +444,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// </summary>
     protected bool TransferStep(int expected, int next)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (State != expected)
             {
@@ -459,10 +465,10 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// <summary>
     /// 有还没收尾的动作（准备二、复位这类还在跑），这时不接新的交接步骤
     /// </summary>
-    private bool HasUnsettledOperation()
+    private bool HasUnsettledRoutine()
     {
-        var operation = CurrentOperation;
-        return operation is not null && !operation.IsSettled;
+        var routine = CurrentRoutine;
+        return routine is not null && !routine.IsSettled;
     }
 
     #endregion

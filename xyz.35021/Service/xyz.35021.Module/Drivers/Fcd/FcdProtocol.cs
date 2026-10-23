@@ -1,9 +1,7 @@
-﻿using xyz.Drivers.Loadport;
-
-namespace xyz._35021.Module.Drivers.Fcd;
+﻿namespace xyz._35021.Module.Drivers.Fcd;
 
 /// <summary>
-/// 富创得 LoadPort（LP300）B 类帧协议：指令类型前缀、回复类型、Mapping 字符
+/// 富创得 LoadPort（LP300）B 类帧协议：指令类型前缀、回复类型（槽图字符在取槽图指令 FcdGetMapCommand 里认）
 /// </summary>
 public static class FcdProtocol
 {
@@ -47,44 +45,6 @@ public static class FcdProtocol
     /// 拒绝
     /// </summary>
     public const string Nak = "NAK";
-
-    #endregion
-
-    #region Mapping 字符（E=空 P=有片 C=交叉 D=双片 ?=认不出）
-
-    /// <summary>
-    /// 把 FCD 的 Mapping 槽位串换成我们的槽位状态，下标 0 是第 1 槽；认不出的字符记 Undefined
-    /// </summary>
-    internal static IReadOnlyList<SlotState> ParseSlotMap(string mapData)
-    {
-        ArgumentNullException.ThrowIfNull(mapData);
-
-        string trimmed = mapData.Trim();
-        var slots = new SlotState[trimmed.Length];
-        for (int i = 0; i < trimmed.Length; i++)
-        {
-            switch (char.ToUpperInvariant(trimmed[i]))
-            {
-                case 'E':
-                    slots[i] = SlotState.Empty;
-                    break;
-                case 'P':
-                    slots[i] = SlotState.Normal;
-                    break;
-                case 'C':
-                    slots[i] = SlotState.Crossed;
-                    break;
-                case 'D':
-                    slots[i] = SlotState.Double;
-                    break;
-                default:
-                    slots[i] = SlotState.Undefined;
-                    break;
-            }
-        }
-
-        return slots;
-    }
 
     #endregion
 }

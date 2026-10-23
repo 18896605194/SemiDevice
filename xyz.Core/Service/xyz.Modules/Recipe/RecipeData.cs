@@ -83,7 +83,7 @@ public class RecipeData
         double.TryParse(Timeout, TimeoutStyle, CultureInfo.InvariantCulture, out double seconds) && seconds > 0 ? seconds : 0;
 
     /// <summary>
-    /// 超时时间换成毫秒（腔体工艺操作的上限）；没填、不是数的为 0。
+    /// 超时时间换成毫秒（腔体工艺动作的上限）；没填、不是数的为 0。
     /// </summary>
     [XmlIgnore]
     public int TimeoutMilliseconds => (int)Math.Min(int.MaxValue, Math.Round(TimeoutSeconds * MillisecondsPerSecond));

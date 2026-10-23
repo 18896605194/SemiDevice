@@ -32,7 +32,7 @@ public interface IProcessStation : IModule
     /// <summary>
     /// 起工艺：跟 <see cref="CheckProcess"/> 同一套检查，都过了才挂上工艺动作；被拒带原因返回，站点不动
     /// </summary>
-    HandleResult<ModuleOperation> StartProcess(ProcessRequest request);
+    HandleResult<ModuleRoutine> StartProcess(ProcessRequest request);
 
     /// <summary>
     /// 今天开工了几片（中止、失败的也算）；按天存库，开机读回来接着数

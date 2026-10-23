@@ -35,7 +35,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, chamber, chamber.Home(), chamber.HomeTimeout);
+        return RunRoutine(module, chamber, chamber.Home(), chamber.HomeTimeout);
     }
 
     public Task<RpcResponse> ResetAsync(string module)
@@ -46,7 +46,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, chamber, chamber.Reset(), chamber.CheckReset, chamber.ResetTimeout);
+        return RunRoutine(module, chamber, chamber.Reset(), chamber.CheckReset, chamber.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(string module)
@@ -57,7 +57,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, chamber, chamber.Abort(), chamber.CheckAbort, chamber.AbortTimeout);
+        return RunRoutine(module, chamber, chamber.Abort(), chamber.CheckAbort, chamber.AbortTimeout);
     }
 
     public Task<RpcResponse> ProcessAsync(ChamberProcessRequest request)
@@ -100,10 +100,10 @@ public class ChamberService : BaseService, IChamberService
         }
 
         // 配方对不对得上这个腔体（Type、选的摆臂和药液）、腔体此刻能不能起，都由腔体入口自己查；
-        // 起了就等到做完为止，上限跟工艺操作一样是配方头的超时时间
+        // 起了就等到做完为止，上限跟工艺动作一样是配方头的超时时间
         var process = new ProcessRequest { Origin = ProcessOrigin.Manual, RecipeName = recipe, Recipe = snapshot };
         int timeout = snapshot is null ? 0 : snapshot.TimeoutMilliseconds;
-        return RunOperation(module, chamber, chamber.StartProcess(process), timeout);
+        return RunRoutine(module, chamber, chamber.StartProcess(process), timeout);
     }
 
     #region 设备手动动作（轴、气缸按设备推送里的 Path 找）
@@ -205,7 +205,7 @@ public class ChamberService : BaseService, IChamberService
     /// 发设备动作并回包：被拒（找不到设备、参数不对、指令没发出去、状态不允许、已有动作在途）照原样回入口给的错误码 + 参数；
     /// 发起了就同步等设备做完（上限 EC DeviceActionTimeout）
     /// </summary>
-    private Task<RpcResponse> RunDeviceAction(string? module, Func<IChamber, HandleResult<ModuleOperation>> start)
+    private Task<RpcResponse> RunDeviceAction(string? module, Func<IChamber, HandleResult<ModuleRoutine>> start)
     {
         // protobuf 传输省略默认值字段，空字符串在接收端可能为 null。
         module ??= string.Empty;
@@ -215,7 +215,7 @@ public class ChamberService : BaseService, IChamberService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, chamber, start(chamber), chamber.DeviceActionTimeout);
+        return RunRoutine(module, chamber, start(chamber), chamber.DeviceActionTimeout);
     }
 
     #endregion

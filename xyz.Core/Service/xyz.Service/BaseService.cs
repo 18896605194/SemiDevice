@@ -64,34 +64,34 @@ public abstract class BaseService
     /// <summary>
     /// 下发 LoadPort 动作并同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, ILoadPort port,
-        ModuleOperation? operation, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, ILoadPort port,
+        ModuleRoutine? routine, int timeout)
     {
-        return RunOperation("LoadPort", module, port.State, operation, timeout);
+        return RunRoutine("LoadPort", module, port.State, routine, timeout);
     }
 
     /// <summary>
     /// 下发已经改成"状态 → 资源 → 互锁"入口的 LoadPort 动作：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, ILoadPort port,
-        HandleResult<ModuleOperation> started, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, ILoadPort port,
+        HandleResult<ModuleRoutine> started, int timeout)
     {
         if (!started.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
         }
 
-        return RunOperation("LoadPort", module, port.State, started.Result, timeout);
+        return RunRoutine("LoadPort", module, port.State, started.Result, timeout);
     }
 
     /// <summary>
     /// 下发 LoadPort 的复位、中止：这两个跟着组件基类返回动作或 null，被拒了再问端口原因（whyRejected，就是端口的 CheckReset / CheckAbort）回给界面；
     /// 问的时候状态已经变了、问不出原因的，回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, ILoadPort port,
-        ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, ILoadPort port,
+        ModuleRoutine? routine, Func<HandleResult?> whyRejected, int timeout)
     {
-        if (operation is null)
+        if (routine is null)
         {
             var rejected = whyRejected();
             if (rejected is not null)
@@ -100,31 +100,31 @@ public abstract class BaseService
             }
         }
 
-        return RunOperation("LoadPort", module, port.State, operation, timeout);
+        return RunRoutine("LoadPort", module, port.State, routine, timeout);
     }
 
     /// <summary>
     /// 下发 _robot 的动作（"状态 → 资源 → 互锁"入口，跟 LoadPort 一样）：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, IRobot robot,
-        HandleResult<ModuleOperation> started, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, IRobot robot,
+        HandleResult<ModuleRoutine> started, int timeout)
     {
         if (!started.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
         }
 
-        return RunOperation("_robot", module, robot.State, started.Result, timeout);
+        return RunRoutine("_robot", module, robot.State, started.Result, timeout);
     }
 
     /// <summary>
     /// 下发 _robot 的复位、急停：跟着组件基类返回动作或 null，被拒了再问原因（whyRejected，就是机械手的 CheckReset / CheckAbort）回给界面；
     /// 问不出原因的回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, IRobot robot,
-        ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, IRobot robot,
+        ModuleRoutine? routine, Func<HandleResult?> whyRejected, int timeout)
     {
-        if (operation is null)
+        if (routine is null)
         {
             var rejected = whyRejected();
             if (rejected is not null)
@@ -133,31 +133,31 @@ public abstract class BaseService
             }
         }
 
-        return RunOperation("_robot", module, robot.State, operation, timeout);
+        return RunRoutine("_robot", module, robot.State, routine, timeout);
     }
 
     /// <summary>
     /// 下发腔体的动作（"状态 → 资源 → 互锁"入口，跟 LoadPort 一样）：被拒照原样回入口给的错误码 + 参数，发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, IChamber chamber,
-        HandleResult<ModuleOperation> started, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, IChamber chamber,
+        HandleResult<ModuleRoutine> started, int timeout)
     {
         if (!started.IsSuccess)
         {
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
         }
 
-        return RunOperation("Chamber", module, chamber.State, started.Result, timeout);
+        return RunRoutine("Chamber", module, chamber.State, started.Result, timeout);
     }
 
     /// <summary>
     /// 下发腔体的复位、中止：跟着组件基类返回动作或 null，被拒了再问原因（whyRejected，就是腔体的 CheckReset / CheckAbort）回给界面；
     /// 问不出原因的回笼统的 module.action_rejected。发起了就同步等终态（回包规则见私有重载）。
     /// </summary>
-    protected static Task<RpcResponse> RunOperation(string module, IChamber chamber,
-        ModuleOperation? operation, Func<HandleResult?> whyRejected, int timeout)
+    protected static Task<RpcResponse> RunRoutine(string module, IChamber chamber,
+        ModuleRoutine? routine, Func<HandleResult?> whyRejected, int timeout)
     {
-        if (operation is null)
+        if (routine is null)
         {
             var rejected = whyRejected();
             if (rejected is not null)
@@ -166,32 +166,50 @@ public abstract class BaseService
             }
         }
 
-        return RunOperation("Chamber", module, chamber.State, operation, timeout);
+        return RunRoutine("Chamber", module, chamber.State, routine, timeout);
     }
 
     /// <summary>
     /// 下发动作并同步等终态：
-    /// 动作被拒（operation 为 null）→ module.action_rejected + 当前状态码（调用方在发起动作之后读取）；
-    /// 等待超时 → module.wait_timeout + [操作名, 等待ms]（操作仍在执行，不能据此判失败或重发）；
-    /// 到终态 → Ok 或操作自身错误码。
+    /// 动作被拒（routine 为 null）→ module.action_rejected + 当前状态码（调用方在发起动作之后读取）；
+    /// 等待超时 → module.wait_timeout + [动作名, 等待ms]（动作还在做，不能据此判失败或重发）；
+    /// 到终态 → Ok 或动作自身的错误码。
     /// </summary>
-    private static Task<RpcResponse> RunOperation(string category, string module, int state,
-        ModuleOperation? operation, int timeout)
+    private static Task<RpcResponse> RunRoutine(string category, string module, int state,
+        ModuleRoutine? routine, int timeout)
     {
-        if (operation is null)
+        if (routine is null)
         {
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, [module, state.ToString()]));
         }
 
-        LogHelper.Debug($"[{category}] {module} {operation.Name}: {operation.State}, Reason={operation.Reason}");
+        LogHelper.Debug($"[{category}] {module} {routine.Name}: {routine.State}, Reason={routine.Reason}");
 
-        if (!operation.WaitReply(timeout))
+        if (!routine.WaitReply(timeout))
         {
-            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaitTimeout, [operation.Name, timeout.ToString()]));
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaitTimeout, [routine.Name, timeout.ToString()]));
         }
 
-        return Task.FromResult(operation.IsSuccess
-            ? RpcResponse.Ok()
-            : RpcResponse.Fail(operation.Code, operation.ErrorArgs));
+        if (routine.IsSuccess)
+        {
+            return Task.FromResult(RpcResponse.Ok());
+        }
+
+        return Task.FromResult(Failed(routine));
+    }
+
+    /// <summary>
+    /// 动作没做成的回包：错误码 + 参数；不止一步的再带上停在第几步，界面加在原因前面
+    /// </summary>
+    protected static RpcResponse Failed(ModuleRoutine routine)
+    {
+        var response = RpcResponse.Fail(routine.Code, routine.ErrorArgs);
+        if (routine.StepCount > 1)
+        {
+            response.StepNumber = routine.StepNumber;
+            response.StepCount = routine.StepCount;
+        }
+
+        return response;
     }
 }

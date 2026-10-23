@@ -583,10 +583,10 @@ try
 
     TransferRoutine Finish(HandleResult<TransferRoutine> started, int maxTicks = 3000, int sleepMs = 0)
     {
-        var operation = started.Result;
-        Check(started.IsSuccess && operation is not null, $"搬运应启动：{started.ErrorMessage} [{string.Join(",", started.Args)}]");
-        Check(RunUntil(() => operation!.IsSettled, maxTicks, sleepMs), "搬运操作应收尾完成");
-        return operation!;
+        var routine = started.Result;
+        Check(started.IsSuccess && routine is not null, $"搬运应启动：{started.ErrorMessage} [{string.Join(",", started.Args)}]");
+        Check(RunUntil(() => routine!.IsSettled, maxTicks, sleepMs), "搬运操作应收尾完成");
+        return routine!;
     }
 
     void LoadCarrier(SmokePort port, params int[] slots)
@@ -704,7 +704,7 @@ try
 
     // 设备已执行取片，但记账冲突：整趟失败并保留资源，不能接着向目标放片。
     var ledgerConflict = StartTransfer("LP1", 1, "PM1", 1);
-    Check(ledgerConflict.IsSuccess && RunUntil(() => robot.State == RobotState.Picking && robot.CurrentOperation is not null),
+    Check(ledgerConflict.IsSuccess && RunUntil(() => robot.State == RobotState.Picking && robot.CurrentRoutine is not null),
         "记账冲突用例：搬运已完成站点准备，机械手取片操作已启动");
     var heldArm = ledgerConflict.Result!.Arm;
     var blockedArm = ledger.Create(robot.Name, heldArm, WaferStatus.Normal, "FOUP-LEDGER-CONFLICT")!;
@@ -715,13 +715,13 @@ try
         "取片设备动作成功但记账失败：向搬运调用方保留具体原因，按已动手失败进入恢复");
     Check(ledger.Get("LP1", 1)?.Id == first.Id && ledger.Get(robot.Name, heldArm)?.Id == blockedArm.Id
           && ledger.Get("PM1", 1) is null && lp1.State == TransferModuleState.Transferring
-          && transfers.HeldOperations.Count == 1 && ReferenceEquals(transfers.HeldOperations[0], failedLedgerTransfer)
+          && transfers.HeldRoutines.Count == 1 && ReferenceEquals(transfers.HeldRoutines[0], failedLedgerTransfer)
           && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
         "记账失败不执行后续放片、不通知源站完成，保留站点环、机械手、槽位和晶圆占用");
     Rejects(StartTransfer("LP1", 2, "PM2", 1, arm: heldArm), ErrorCodes.TransferArmUnavailable,
         [robot.Name, heldArm.ToString()], "记账失败保留的手臂不能用于新的搬运");
     Tick();
-    Check(robot.CurrentOperation is null && ledger.Get("PM1", 1) is null && transfers.HeldOperations.Count == 1,
+    Check(robot.CurrentRoutine is null && ledger.Get("PM1", 1) is null && transfers.HeldRoutines.Count == 1,
         "后续扫描不自动重发取片或继续放片，等待现场确认");
     ledger.Delete(robot.Name, heldArm);
     Check(transfers.ReleaseHold(first.Id), "记账冲突已人工核对后释放保留资源");
@@ -741,13 +741,13 @@ try
     Check(ledger.Get(robot.Name, sourceFinishFailed.Arm)?.Id == first.Id && ledger.Get("LP1", 1) is null
           && ledger.Get("PM1", 1) is null && pm1.State == TransferModuleState.PreTransfer
           && lp1.State == ModuleState.Error && robot.State == ModuleState.Idle
-          && transfers.HeldOperations.Contains(sourceFinishFailed)
+          && transfers.HeldRoutines.Contains(sourceFinishFailed)
           && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
         "源站点收尾失败不继续放片，不回滚晶圆账，不强改站点状态，保留整轮资源");
     Rejects(StartTransfer("LP1", 2, "PM2", 1, arm: sourceFinishFailed.Arm), ErrorCodes.TransferArmUnavailable,
         [robot.Name, sourceFinishFailed.Arm.ToString()], "源站点收尾失败保留手臂占用");
     Tick();
-    Check(robot.CurrentOperation is null && ledger.Get("PM1", 1) is null && transfers.HeldOperations.Count == 1,
+    Check(robot.CurrentRoutine is null && ledger.Get("PM1", 1) is null && transfers.HeldRoutines.Count == 1,
         "源站点收尾失败后扫描不自动继续放片");
     Check(ledger.Move(robot.Name, sourceFinishFailed.Arm, "LP1", 1), "人工把手上晶圆放回并校正账");
     lp1.NoteState(LoadPortState.Loaded);
@@ -763,48 +763,49 @@ try
           && targetFinishFailed.HasPicked && targetFinishFailed.NeedsRecovery
           && ledger.Get("PM1", 1)?.Id == first.Id && ledger.Get(robot.Name, targetFinishFailed.Arm) is null
           && lp1.State == LoadPortState.Loaded && pm1.State == ModuleState.Error
-          && transfers.HeldOperations.Contains(targetFinishFailed)
+          && transfers.HeldRoutines.Contains(targetFinishFailed)
           && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
         "目标站点收尾失败不能报成功，晶圆已在目标账上，整轮资源保留到人工处理");
     Tick();
-    Check(robot.CurrentOperation is null && ledger.Get("PM1", 1)?.Id == first.Id,
+    Check(robot.CurrentRoutine is null && ledger.Get("PM1", 1)?.Id == first.Id,
         "目标站点收尾失败后不自动重发放片");
     Check(ledger.Move("PM1", 1, "LP1", 1), "人工回片并校正账");
     pm1.NoteState(ModuleState.Idle);
     Check(transfers.ReleaseHold(first.Id), "确认目标站点恢复后释放资源");
 
     // 尚未运动但撤销被拒：来源拒绝时目标仍撤回；目标拒绝时来源仍撤回，失败和中止都保留整轮资源。
+    lp1.FailAfterPrepare = true;
     var sourceCancel = StartTransfer("LP1", 1, "PM1", 1);
-    Check(sourceCancel.IsSuccess && RunUntil(() => lp1.State == TransferModuleState.PreTransfer),
-        "撤销来源用例：两个站点已占用、机械手尚未运动");
-    lp1.NoteState(ModuleState.Error);
+    Check(sourceCancel.IsSuccess && RunUntil(() => !lp1.FailAfterPrepare) && lp1.State == ModuleState.Error,
+        "撤销来源用例：两个站点都占上了，端口刚被抢到就出错（机械手尚未运动）");
     var sourceCancelFailed = Finish(sourceCancel);
     Check(sourceCancelFailed.Code == ErrorCodes.StationPrepareRejected
           && sourceCancelFailed.ErrorArgs.SequenceEqual(["LP1", "2"])
           && !sourceCancelFailed.MotionStarted && sourceCancelFailed.NeedsRecovery
           && pm1.State == ModuleState.Idle && lp1.State == ModuleState.Error
-          && ledger.Get("LP1", 1)?.Id == first.Id && robot.CurrentOperation is null
-          && transfers.HeldOperations.Contains(sourceCancelFailed)
+          && ledger.Get("LP1", 1)?.Id == first.Id && robot.CurrentRoutine is null
+          && transfers.HeldRoutines.Contains(sourceCancelFailed)
           && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
         "准备失败后来源撤销被拒：保留原始错误及占用，目标仍成功撤回，晶圆未动");
     Rejects(StartTransfer("LP1", 2, "PM2", 1, arm: sourceCancelFailed.Arm), ErrorCodes.TransferArmUnavailable,
         [robot.Name, sourceCancelFailed.Arm.ToString()], "尚未运动但撤销失败仍保留手臂锁");
     Tick();
-    Check(transfers.HeldOperations.Count == 1 && lp1.State == ModuleState.Error,
+    Check(transfers.HeldRoutines.Count == 1 && lp1.State == ModuleState.Error,
         "撤销失败后不自动重试或强制回待命");
     lp1.NoteState(LoadPortState.Loaded);
     Check(transfers.ReleaseHold(first.Id), "来源状态已人工恢复后放锁");
 
+    lp1.HoldPrepare2 = true;
     var targetCancel = StartTransfer("LP1", 1, "PM1", 1);
-    Check(targetCancel.IsSuccess && RunUntil(() => lp1.State == TransferModuleState.PreTransfer),
-        "中止撤销目标用例：两个站点已占用");
+    Check(targetCancel.IsSuccess && RunUntil(() => !lp1.HoldPrepare2) && lp1.State == TransferModuleState.PreTransfer,
+        "中止撤销目标用例：两个站点已占用，停在端口准备二");
     pm1.NoteState(ModuleState.Error);
     Check(transfers.Cancel(targetCancel.Result!, "smoke station cancel refused"), "中止尚未运动的搬运");
     var targetCancelFailed = Finish(targetCancel);
-    Check(targetCancelFailed.State == OperationState.Aborted && targetCancelFailed.Code == ErrorCodes.Aborted
+    Check(targetCancelFailed.State == RoutineState.Aborted && targetCancelFailed.Code == ErrorCodes.Aborted
           && !targetCancelFailed.MotionStarted && targetCancelFailed.NeedsRecovery
           && lp1.State == LoadPortState.Loaded && pm1.State == ModuleState.Error
-          && ledger.Get("LP1", 1)?.Id == first.Id && transfers.HeldOperations.Contains(targetCancelFailed)
+          && ledger.Get("LP1", 1)?.Id == first.Id && transfers.HeldRoutines.Contains(targetCancelFailed)
           && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1),
         "尚未运动的中止撤销失败也要保留资源，来源已撤回但目标状态不被强改");
     Check(transfers.ReleaseHold(first.Id) && pm1.State == ModuleState.Error,
@@ -822,7 +823,7 @@ try
           && sameFinishFailed.HasPicked && sameFinishFailed.NeedsRecovery
           && ledger.Get("LP1", 10)?.Id == first.Id && ledger.Get("LP1", 1) is null
           && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("LP1", 10)
-          && transfers.HeldOperations.Contains(sameFinishFailed),
+          && transfers.HeldRoutines.Contains(sameFinishFailed),
         "同站点换槽收尾被拒：保留新槽的晶圆账及两槽占用");
     Check(ledger.Move("LP1", 10, "LP1", 1), "人工恢复同站点槽位");
     lp1.NoteState(LoadPortState.Loaded);
@@ -831,7 +832,7 @@ try
     // 3. 没动手就失败（目标一直不在待命，等站点超时）：片没动过，锁放开，不用人工确认。
     pm1.NoteState(ModuleState.NotInit);
     var notReady = Finish(StartTransfer("LP1", 1, "PM1", 1), sleepMs: 5);
-    Check(!notReady.IsSuccess && notReady.State == OperationState.Failed && notReady.Code == ErrorCodes.StationBusy
+    Check(!notReady.IsSuccess && notReady.State == RoutineState.Failed && notReady.Code == ErrorCodes.StationBusy
           && notReady.ErrorArgs.SequenceEqual(new[] { "PM1", "1000" }) && !notReady.NeedsRecovery,
         $"目标等不到：transfer.station_busy，参数是站点和等待毫秒数，不用人工确认，实际 {notReady.Code}");
     Check(ledger.Get("LP1", 1)?.Id == first.Id && !transfers.IsSlotLocked("LP1", 1) && lp1.State == LoadPortState.Loaded,
@@ -855,10 +856,10 @@ try
     var picked = Finish(StartTransfer("LP1", 1, "PM1", 1));
     Check(!picked.IsSuccess && picked.Code == ErrorCodes.TransferFailed && picked.ErrorArgs.SequenceEqual(new[] { "Robot1", "Pick" })
           && picked.NeedsRecovery && !picked.HasPicked, "取片失败：transfer.failed，要人工确认，结果记着没取到（Job 据此把出错记在取片上）");
-    Check(transfers.HeldOperations.Count == 1 && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1)
+    Check(transfers.HeldRoutines.Count == 1 && transfers.IsSlotLocked("LP1", 1) && transfers.IsSlotLocked("PM1", 1)
           && lp1.State == TransferModuleState.Transferring, "锁留着，源站点停在交互中挡住后续动作");
     Rejects(StartTransfer("LP1", 1, "PM2", 1), ErrorCodes.TransferSlotLocked, ["LP1", "1"], "保留占用的槽不接受新搬运");
-    Check(transfers.ReleaseHold(picked.WaferId) && !transfers.ReleaseHold(picked.WaferId) && transfers.HeldOperations.Count == 0
+    Check(transfers.ReleaseHold(picked.WaferId) && !transfers.ReleaseHold(picked.WaferId) && transfers.HeldRoutines.Count == 0
           && !transfers.IsSlotLocked("LP1", 1), "人工确认后放锁（只放一次）");
     robot.NoteState(ModuleState.Idle);
     lp1.NoteState(LoadPortState.Loaded);
@@ -871,7 +872,7 @@ try
     Check(!transfers.IsSlotLocked("LP1", 2) && !transfers.IsSlotLocked("PM2", 1), "被拒的请求不占资源");
     Check(transfers.Cancel(running.Result!, "smoke"), "请求中止当前搬运");
     var cancelled = Finish(running);
-    Check(cancelled.State == OperationState.Aborted && !cancelled.MotionStarted && !cancelled.NeedsRecovery, "未动手中止，不需要人工确认");
+    Check(cancelled.State == RoutineState.Aborted && !cancelled.MotionStarted && !cancelled.NeedsRecovery, "未动手中止，不需要人工确认");
     Check(!transfers.IsSlotLocked("LP1", 1) && !transfers.IsRobotInTransfer("Robot1"), "中止收尾后释放资源");
     Check(Finish(StartTransfer("LP1", 1, "PM1", 1)).IsSuccess && Finish(StartTransfer("PM1", 1, "LP1", 1)).IsSuccess, "资源空出来后重新执行并搬回");
 
@@ -1037,17 +1038,17 @@ try
 
     var liveRow = jobs.FindChild<TaskComponent>()!.Rows.First(row => row.Owner == "LOT-A-1" && row.SourceSlot == 1);
     Check(RunUntil(() => liveRow.Current?.Kind == StationTaskAction.Pick && liveRow.Current.State == WaferTaskState.Running), "执行器开始当前取片任务");
-    var liveTransfer = liveRow.Tasks[0].Operation;
+    var liveTransfer = liveRow.Tasks[0].Routine;
     Check(liveTransfer is TransferRoutine && liveRow.Tasks[1].State == WaferTaskState.Waiting
           && liveRow.Tasks.Count(task => task.State == WaferTaskState.Running) == 1, "操作直接挂在取片格上，放片仍等待，同一行只有当前格运行");
     Check(RunUntil(() => liveRow.Tasks[0].State == WaferTaskState.Done && liveRow.Tasks[1].State == WaferTaskState.Running), "取片确认后进入放片格");
-    Check(liveRow.Tasks[0].Operation is null && ReferenceEquals(liveRow.Tasks[1].Operation, liveTransfer)
+    Check(liveRow.Tasks[0].Routine is null && ReferenceEquals(liveRow.Tasks[1].Routine, liveTransfer)
           && liveRow.Current == liveRow.Tasks[1] && ledger.FindById(liveRow.WaferId)?.Module == "Robot1", "片在机械手上，操作沿用到放片格，取片格清掉执行引用");
     Check(RunUntil(() => liveRow.Tasks[2].State == WaferTaskState.Running)
-          && liveRow.Tasks[2].Operation is not null && liveRow.Tasks[1].Operation is null, "工艺同样直接挂在当前任务上，放片已完成并清掉引用");
+          && liveRow.Tasks[2].Routine is not null && liveRow.Tasks[1].Routine is null, "工艺同样直接挂在当前任务上，放片已完成并清掉引用");
 
     Check(RunUntil(() => CjOf("LOT-A")?.State == (int)ControlJobState.Completed), "跑完：CJ 进 COMPLETED");
-    Check(liveRow.Tasks.All(task => task.Operation is null), "整行完成后不留执行操作或第二份执行记录");
+    Check(liveRow.Tasks.All(task => task.Routine is null), "整行完成后不留执行操作或第二份执行记录");
     var cjA = CjOf("LOT-A")!;
     Check(cjA.CompletedBy == 10 && PjOf("LOT-A-1")?.EndedBy == 7 && PjOf("LOT-A-2")?.EndedBy == 7, "正常完成：CJ #10，PJ #7");
     for (int slot = 1; slot <= 3; slot++)
@@ -1393,9 +1394,9 @@ try
     var pickRow = PjOf("LOT-K-1")!.Wafers[0];
     var pickError = ErrorOf(pickRow)!;
     Check(pickRow.Tasks.IndexOf(pickError) == 0 && pickError.Code == ErrorCodes.TransferFailed && pickRow.Tasks[1].State == "Waiting"
-          && transfers.HeldOperations.Count == 1,
+          && transfers.HeldRoutines.Count == 1,
         "出错记在取片上（操作未确认取片），放片退回等着做；搬运资源保留等人确认");
-    Check(transfers.ReleaseHold(transfers.HeldOperations.Single().Wafers[0].Id), "人确认片还在源槽，放锁");
+    Check(transfers.ReleaseHold(transfers.HeldRoutines.Single().Wafers[0].Id), "人确认片还在源槽，放锁");
     robot.NoteState(ModuleState.Idle);
     lp1.NoteState(LoadPortState.Loaded);
     pm1.NoteState(ModuleState.Idle);
@@ -1413,9 +1414,9 @@ try
     var placeRow = jobs.FindChild<TaskComponent>()!.Rows.Single(row => row.Owner == "LOT-V-1");
     Check(placeRow.Tasks[0].State == WaferTaskState.Done && placeRow.Tasks[1].State == WaferTaskState.Error
           && placeRow.Tasks[1].Code == ErrorCodes.TransferFailed && placeRow.Tasks[1].Args.SequenceEqual(new[] { "Robot1", "Place" })
-          && placeRow.Tasks[2].State == WaferTaskState.Waiting && placeRow.Tasks.All(task => task.Operation is null),
+          && placeRow.Tasks[2].State == WaferTaskState.Waiting && placeRow.Tasks.All(task => task.Routine is null),
         "取片完成，放片记错，工艺等待，设备操作引用已收尾清空");
-    var heldPlace = transfers.HeldOperations.Single();
+    var heldPlace = transfers.HeldRoutines.Single();
     Check(heldPlace.Wafers[0].Progress == TransferWaferProgress.Picked && ledger.Get("Robot1", heldPlace.Wafers[0].Arm)?.Id == placeRow.WaferId
           && ledger.Get("LP1", 1) is null && ledger.Get("PM1", 1) is null, "取片已记账，失败后片仍在手上");
     Check(transfers.ReleaseHold(placeRow.WaferId), "人工确认片在手上后释放资源");
@@ -1424,7 +1425,7 @@ try
     pm2.NoteState(ModuleState.Idle);
     Check(Do(jobs.RetryTaskAsync("LOT-V-1", 1, 1)).IsSuccess, "只重做当前放片任务");
     Check(RunUntil(() => placeRow.Tasks[1].State == WaferTaskState.Running), "重新启动放片");
-    Check(placeRow.Tasks[1].Operation is TransferRoutine { Source: null, SourceName: "Robot1" }
+    Check(placeRow.Tasks[1].Routine is TransferRoutine { Source: null, SourceName: "Robot1" }
           && placeRow.Tasks[0].State == WaferTaskState.Done, "片在手上时直接放片，取片保持完成");
     Check(RunUntil(() => CjOf("LOT-V")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-V-1")!.Wafers[0])
           && ledger.Get("LP1", 1)?.Id == placeRow.WaferId, "恢复后工艺和回片正常完成");
@@ -1712,10 +1713,10 @@ try
     Check(RunUntil(() => machine.State == ModuleState.Idle), "一趟没做成：整机回 Idle");
     var failingOperation = failing.Result;
     Check(failingOperation is not null && failingOperation.Code == ErrorCodes.SystemReturnIncomplete
-          && failingOperation.ErrorArgs.SequenceEqual([leftCount]) && transfers.HeldOperations.Count == 1
+          && failingOperation.ErrorArgs.SequenceEqual([leftCount]) && transfers.HeldRoutines.Count == 1
           && leftInside.All(wafer => ledger.FindById(wafer.Id)?.Module == wafer.Module),
         "取片失败：整个停下（system.return_incomplete 带片数），不接着搬别的片，那一趟的锁留着");
-    Check(transfers.ReleaseHold(transfers.HeldOperations[0].Wafers[0].Id), "人工确认片位后放锁");
+    Check(transfers.ReleaseHold(transfers.HeldRoutines[0].Wafers[0].Id), "人工确认片位后放锁");
     robot.NoteState(ModuleState.Idle);
     lp1.NoteState(LoadPortState.Loaded);
     foreach (var chamber in new[] { pm1, pm2 })
@@ -1895,9 +1896,9 @@ try
               && failed.Wafers[0].Progress == TransferWaferProgress.Picked && failed.Wafers[1].Progress == TransferWaferProgress.None
               && ledger.Get("Robot1", 2)?.Id == waferB.Id && ledger.Get("Robot1", 1)?.Id == waferA.Id && ledger.Get("PM1", 1) is null,
             "放新片失败：旧片已取出（账在取片手上），新片还在放片手上，不回滚、不重取");
-        Check(transfers.HeldOperations.Count == 1 && ReferenceEquals(transfers.HeldOperations.Single(), failed)
+        Check(transfers.HeldRoutines.Count == 1 && ReferenceEquals(transfers.HeldRoutines.Single(), failed)
               && transfers.IsSlotLocked("Robot1", 1) && transfers.IsSlotLocked("Robot1", 2), "交换挂起：两片共用一条记录，资源保留");
-        Check(transfers.ReleaseHold(waferA.Id) && transfers.HeldOperations.Count == 0 && !transfers.ReleaseHold(waferB.Id)
+        Check(transfers.ReleaseHold(waferA.Id) && transfers.HeldRoutines.Count == 0 && !transfers.ReleaseHold(waferB.Id)
               && !transfers.IsSlotLocked("Robot1", 1) && !transfers.IsSlotLocked("Robot1", 2) && !transfers.IsSlotLocked("PM1", 1),
             "按其中一片放锁，整条记录的资源一起放开，另一片不用再放");
         robot.NoteState(ModuleState.Idle);
@@ -1908,11 +1909,11 @@ try
         var abortedSwap = transfers.StartSwap(SwapOf(1, 2, waferA.Id, waferB.Id)).Result!;
         Check(RunUntil(() => abortedSwap.Wafers[0].Progress == TransferWaferProgress.Picked) && transfers.Cancel(abortedSwap, "冒烟中止"),
             "取完旧片后请求中止");
-        Check(RunUntil(() => abortedSwap.IsSettled) && abortedSwap.State == OperationState.Aborted && abortedSwap.NeedsRecovery
+        Check(RunUntil(() => abortedSwap.IsSettled) && abortedSwap.State == RoutineState.Aborted && abortedSwap.NeedsRecovery
               && abortedSwap.Wafers[0].Progress == TransferWaferProgress.Picked && abortedSwap.Wafers[1].Progress == TransferWaferProgress.None
-              && ReferenceEquals(transfers.HeldOperations.Single(), abortedSwap),
+              && ReferenceEquals(transfers.HeldRoutines.Single(), abortedSwap),
             "放新片前中止：整条挂起等人工，旧片照实际记已取出");
-        Check(transfers.ReleaseHold(waferB.Id) && transfers.HeldOperations.Count == 0, "按另一片放锁也能放开整条");
+        Check(transfers.ReleaseHold(waferB.Id) && transfers.HeldRoutines.Count == 0, "按另一片放锁也能放开整条");
         robot.NoteState(ModuleState.Idle);
         pm1.NoteState(ModuleState.Idle);
         Check(ledger.Move("Robot1", 1, "LP1", 1) && ledger.Move("Robot1", 2, "LP1", 2), "手动交换用的两片收回");
@@ -1935,7 +1936,7 @@ try
         }
 
         Check(RowOf(lotSw[1]).Tasks[0].State == WaferTaskState.Done && RowOf(lotSw[1]).Tasks[1].State == WaferTaskState.Waiting
-              && RowOf(lotSw[1]).Tasks[1].Operation is null && ledger.Get("Robot1", spareArm) is null,
+              && RowOf(lotSw[1]).Tasks[1].Routine is null && ledger.Get("Robot1", spareArm) is null,
             "预取只取不放：取片记完成、放片留着另派，另一只手空着留给旧片");
         Check(HoldsFor(10, () => RowOf(lotSw[2]).IsWaiting && ledger.Get("LP1", 3)?.Id == lotSw[2]),
             "同一个站只预取一片：第三片不动，空手不被占光");
@@ -1944,11 +1945,11 @@ try
         SwapRoutine? scheduled = null;
         Check(RunUntil(() =>
         {
-            scheduled = RowOf(lotSw[0]).Current?.Operation as SwapRoutine;
+            scheduled = RowOf(lotSw[0]).Current?.Routine as SwapRoutine;
             return scheduled is not null;
         }), "第一片做完：调度在 PM1 派了交换");
         var swapped = scheduled!;
-        Check(ReferenceEquals(RowOf(lotSw[1]).Current?.Operation, swapped) && swapped.Station.Name == "PM1",
+        Check(ReferenceEquals(RowOf(lotSw[1]).Current?.Routine, swapped) && swapped.Station.Name == "PM1",
             "旧片的取片、新片的放片挂在同一趟交换上");
         Check(RunUntil(() => swapped.IsSettled) && swapped.IsSuccess
               && RowOf(lotSw[0]).Tasks[3].State == WaferTaskState.Done && RowOf(lotSw[0]).Tasks[4].State != WaferTaskState.Done
@@ -2032,7 +2033,7 @@ try
         Check(RunUntil(() =>
         {
             // 旧片一取出来它那行就翻到下一步了，按新片那行找（放片还挂在交换上）
-            shared = RowOf(lotX[1]).Current?.Operation as SwapRoutine;
+            shared = RowOf(lotX[1]).Current?.Routine as SwapRoutine;
             return shared is not null && shared.Wafers[0].Progress == TransferWaferProgress.Picked && !shared.IsTerminal;
         }) && shared!.Wafers[0].Id == lotX[0] && shared.Wafers[1].Id == lotX[1], "PJ1 的片换出来了，交换还在给 PJ2 的片放");
         var sharedSwap = shared!;
@@ -2153,7 +2154,7 @@ try
         // 人工收场：放锁、两头站点回待命（PM1 停在交互中、先抢的目标 LP1 停在准备里，现场复位）、机械手回原点
         void RecoverStepper(Guid waferId)
         {
-            Check(transfers.ReleaseHold(waferId) && transfers.HeldOperations.Count == 0, "人工确认片位后按片放锁");
+            Check(transfers.ReleaseHold(waferId) && transfers.HeldRoutines.Count == 0, "人工确认片位后按片放锁");
             pm1.NoteState(ModuleState.Idle);
             lp1.NoteState(LoadPortState.Loaded);
             Check(stepper.Home().IsSuccess && RunUntil(() => stepper.State == ModuleState.Idle), "机械手人工回原点");
@@ -2170,7 +2171,7 @@ try
         brokenHandoff.Break();
         Check(RunUntil(() => brokenStep.IsSettled) && brokenStep.Code == ErrorCodes.StationHandoffFailed
               && brokenStep.ErrorArgs.SequenceEqual(["PM1"]) && brokenStep.NeedsRecovery
-              && transfers.HeldOperations.Count == 1 && ReferenceEquals(transfers.HeldOperations[0], brokenStep),
+              && transfers.HeldRoutines.Count == 1 && ReferenceEquals(transfers.HeldRoutines[0], brokenStep),
             "PM1 交接没做成：transfer.station_handoff_failed [PM1]，整条挂起等人工");
         Check(stepper.State == ModuleState.NotInit && pm1.State == TransferModuleState.Transferring
               && ledger.Get("PM1", 1)?.Id == stepB && stepper.Steps.SequenceEqual(["ExtendPick"]),
@@ -2194,8 +2195,8 @@ try
         Check(RunUntil(() => stepper.State == RobotState.PickExtended && !waitingHandoff.IsTerminal && pm1.Handoffs.Count == 3)
               && transfers.Cancel(cancelledStep, "冒烟中止"),
             "停着等交接时请求中止");
-        Check(RunUntil(() => cancelledStep.IsSettled) && cancelledStep.State == OperationState.Aborted && cancelledStep.NeedsRecovery
-              && waitingHandoff.State == OperationState.Aborted && stepper.State == ModuleState.NotInit,
+        Check(RunUntil(() => cancelledStep.IsSettled) && cancelledStep.State == RoutineState.Aborted && cancelledStep.NeedsRecovery
+              && waitingHandoff.State == RoutineState.Aborted && stepper.State == ModuleState.NotInit,
             "停着等交接时被中止：站点的交接跟着中止，机械手就地停下，整条挂起");
         RecoverStepper(stepB);
 
@@ -2281,7 +2282,7 @@ try
         SwapRoutine? armSwap = null;
         Check(RunUntil(() =>
         {
-            armSwap = RowOf(dirtyB).Current?.Operation as SwapRoutine;
+            armSwap = RowOf(dirtyB).Current?.Routine as SwapRoutine;
             return armSwap is not null;
         }), "第一片做完：调度在 PM1 派了交换");
         Check(armSwap!.PickArm == 2 && armSwap.PlaceArm == 1, "交换：取旧片用 2 号手（PM1 许取）、放新片用 1 号手（PM1 许放）");
@@ -2398,7 +2399,7 @@ try
                     continue;
                 }
 
-                if (current.Operation is SwapRoutine running)
+                if (current.Routine is SwapRoutine running)
                 {
                     swapStations.Add(running.Station.Name);
                     swapRobots.Add(running.Robot.Name);
@@ -2761,8 +2762,8 @@ sealed class BareJobs : JobManager
 {
 }
 
-// 假动作：按扫描拍数做完；要失败的到点报失败。
-sealed class SmokeMotion : ModuleOperation
+// 假设备那一步：按扫描拍数做完（进这一步的那拍算第一拍）；要失败的到点报失败。
+sealed class SmokeMotion : RoutineStep
 {
     private readonly bool _fail;
     private int _left;
@@ -2773,22 +2774,25 @@ sealed class SmokeMotion : ModuleOperation
         _fail = fail;
     }
 
-    protected override void OnScan()
+    protected override void Run()
+    {
+    }
+
+    protected override bool Check()
     {
         _left--;
         if (_left > 0)
         {
-            return;
+            return false;
         }
 
         if (_fail)
         {
             Fail(ErrorCodes.DeviceFailed, "冒烟里故意失败", Name, "smoke");
+            return false;
         }
-        else
-        {
-            Complete();
-        }
+
+        return true;
     }
 }
 
@@ -2879,33 +2883,33 @@ class SmokeRobot : BaseRobotModule
 
     protected override IFrameCodec CreateCodec() => new SmokeCodec();
 
-    protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
+    protected override void AddHomeSteps(ModuleRoutine home) => home.Add(new SmokeMotion("Home", 1));
 
-    protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
+    protected override void AddResetSteps(ModuleRoutine reset) => reset.Add(new SmokeMotion("Reset", 1));
 
-    protected override ModuleOperation CreateAbortOperation() => new SmokeMotion("Abort", 1);
+    protected override void AddAbortSteps(ModuleRoutine abort) => abort.Add(new SmokeMotion("Abort", 1));
 
-    protected override ModuleOperation CreatePowerOnOperation() => new SmokeMotion("PowerOn", 1);
+    protected override void AddPowerOnSteps(ModuleRoutine powerOn) => powerOn.Add(new SmokeMotion("PowerOn", 1));
 
-    protected override ModuleOperation CreatePowerOffOperation() => new SmokeMotion("PowerOff", 1);
+    protected override void AddPowerOffSteps(ModuleRoutine powerOff) => powerOff.Add(new SmokeMotion("PowerOff", 1));
 
     // 发给设备的取放指令：动作、站号、槽号（buffer 段换成了实物层号），按先后记
     public List<(string Action, int Station, int Slot)> Commands { get; } = [];
 
-    protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
+    protected override void AddPickSteps(ModuleRoutine pick, int arm, int stationNumber, int slot)
     {
         Commands.Add(("Pick", stationNumber, slot));
         bool fail = FailNextPick;
         FailNextPick = false;
-        return new SmokeMotion("Pick", 2, fail);
+        pick.Add(new SmokeMotion("Pick", 2, fail));
     }
 
-    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
+    protected override void AddPlaceSteps(ModuleRoutine place, int arm, int stationNumber, int slot)
     {
         Commands.Add(("Place", stationNumber, slot));
         bool fail = FailNextPlace;
         FailNextPlace = false;
-        return new SmokeMotion("Place", 2, fail);
+        place.Add(new SmokeMotion("Place", 2, fail));
     }
 }
 
@@ -2938,15 +2942,15 @@ sealed class SmokeJobAligner : BaseAlignerModule
 
     protected override IFrameCodec CreateCodec() => new SmokeCodec();
 
-    protected override CommandOperation AddHomeSteps(CommandOperation operation) => operation.Then("回零", () => new SmokeCommand("Home"));
+    protected override void AddHomeSteps(ModuleRoutine home) => home.Command("回零", () => new SmokeCommand("Home"));
 
-    protected override CommandOperation AddAlignSteps(CommandOperation operation, double angle) => operation.Then("对准", () => new SmokeCommand("Align"));
+    protected override void AddAlignSteps(ModuleRoutine align, double angle) => align.Command("对准", () => new SmokeCommand("Align"));
 
-    protected override ModuleOperation CreateResetOperation() => new CommandOperation("Reset", _driver, () => new SmokeCommand("Reset"), () => ResetTimeout);
+    protected override void AddResetSteps(ModuleRoutine reset) => reset.Command("清报错", () => new SmokeCommand("Reset"));
 
-    protected override ModuleOperation CreateAbortOperation() => new CommandOperation("Abort", _driver, () => new SmokeCommand("Stop"), () => AbortTimeout);
+    protected override void AddAbortSteps(ModuleRoutine abort) => abort.Command("急停", () => new SmokeCommand("Stop"));
 
-    protected override ModuleOperation? PrepareTransferCore(TransferContext context)
+    protected override ModuleRoutine? PrepareTransferCore(TransferContext context)
     {
         if (context.HasPick)
         {
@@ -3063,13 +3067,13 @@ sealed class SmokeStepRobot(string name, params string[] stations) : SmokeRobot(
 {
     public List<string> Steps { get; } = [];
 
-    protected override ModuleOperation? CreateExtendPickOperation(int arm, int stationNumber, int slot) => NoteStep("ExtendPick");
+    protected override void AddExtendPickSteps(ModuleRoutine extend, int arm, int stationNumber, int slot) => extend.Add(NoteStep("ExtendPick"));
 
-    protected override ModuleOperation? CreateRetractPickOperation(int arm, int stationNumber, int slot) => NoteStep("RetractPick");
+    protected override void AddRetractPickSteps(ModuleRoutine retract, int arm, int stationNumber, int slot) => retract.Add(NoteStep("RetractPick"));
 
-    protected override ModuleOperation? CreateExtendPlaceOperation(int arm, int stationNumber, int slot) => NoteStep("ExtendPlace");
+    protected override void AddExtendPlaceSteps(ModuleRoutine extend, int arm, int stationNumber, int slot) => extend.Add(NoteStep("ExtendPlace"));
 
-    protected override ModuleOperation? CreateRetractPlaceOperation(int arm, int stationNumber, int slot) => NoteStep("RetractPlace");
+    protected override void AddRetractPlaceSteps(ModuleRoutine retract, int arm, int stationNumber, int slot) => retract.Add(NoteStep("RetractPlace"));
 
     private SmokeMotion NoteStep(string step)
     {
@@ -3078,16 +3082,17 @@ sealed class SmokeStepRobot(string name, params string[] stations) : SmokeRobot(
     }
 }
 
-// 站点的中途交接动作：测试手动做完（Finish）或做坏（Break）。
-sealed class SmokeHandoff(string name) : ModuleOperation(name)
+// 站点的中途交接动作：一步一直做不完，测试手动做完（Finish）或做坏（Break）。
+sealed class SmokeHandoff : ModuleRoutine
 {
+    public SmokeHandoff(string name) : base("Smoke", name)
+    {
+        Add("交接", null, _ => false);
+    }
+
     public void Finish() => Complete();
 
     public void Break() => Fail(ErrorCodes.DeviceFailed, "冒烟里故意交接失败", Name, "smoke");
-
-    protected override void OnScan()
-    {
-    }
 }
 
 // 假 LoadPort：在位、Mapping、状态由测试直接摆；不做 Load / Unload 这些动作。
@@ -3130,23 +3135,64 @@ sealed class SmokePort : BaseLoadPortModule
 
     protected override HandleResult? UnclampInterlock() => HandleResult.Fail(NoDevice, Name);
 
+    // 搬运一拍里抢到站点就接着走下一步，测试插不进手：要停在中间的用下面两个开关摆，用一次就清掉
+
+    /// <summary>
+    /// 下一次准备一做完当场出错（端口刚被抢到就报错）
+    /// </summary>
+    public bool FailAfterPrepare { get; set; }
+
+    /// <summary>
+    /// 下一次准备二一直做不完（搬运停在两个站点都占着、机械手还没动）
+    /// </summary>
+    public bool HoldPrepare2 { get; set; }
+
+    protected override ModuleRoutine? PrepareTransferCore(TransferContext context)
+    {
+        var prepare = base.PrepareTransferCore(context);
+        if (prepare is not null && FailAfterPrepare)
+        {
+            FailAfterPrepare = false;
+            State = ModuleState.Error;
+        }
+
+        return prepare;
+    }
+
+    protected override ModuleRoutine? PrepareTransfer2Core(TransferContext context)
+    {
+        if (HoldPrepare2)
+        {
+            HoldPrepare2 = false;
+            return new ModuleRoutine(Name, "PrepareTransfer2").Add("等测试放行", null, _ => false);
+        }
+
+        return base.PrepareTransfer2Core(context);
+    }
+
     protected override IFrameCodec CreateCodec() => new SmokeCodec();
 
-    protected override CommandOperation AddLoadSteps(CommandOperation operation) => operation;
+    protected override void AddLoadSteps(ModuleRoutine load)
+    {
+    }
 
-    protected override CommandOperation AddUnloadSteps(CommandOperation operation) => operation;
+    protected override void AddUnloadSteps(ModuleRoutine unload)
+    {
+    }
 
-    protected override CommandOperation AddMapSteps(CommandOperation operation) => operation;
+    protected override void AddMapSteps(ModuleRoutine map)
+    {
+    }
 
-    protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
+    protected override void AddHomeSteps(ModuleRoutine home) => home.Add(new SmokeMotion("Home", 1));
 
-    protected override ModuleOperation CreateClampOperation() => new SmokeMotion("Clamp", 1);
+    protected override void AddClampSteps(ModuleRoutine clamp) => clamp.Add(new SmokeMotion("Clamp", 1));
 
-    protected override ModuleOperation CreateUnclampOperation() => new SmokeMotion("Unclamp", 1);
+    protected override void AddUnclampSteps(ModuleRoutine unclamp) => unclamp.Add(new SmokeMotion("Unclamp", 1));
 
-    protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
+    protected override void AddResetSteps(ModuleRoutine reset) => reset.Add(new SmokeMotion("Reset", 1));
 
-    protected override ModuleOperation CreateAbortOperation() => new SmokeMotion("Abort", 1);
+    protected override void AddAbortSteps(ModuleRoutine abort) => abort.Add(new SmokeMotion("Abort", 1));
 }
 
 // 假腔体：工艺默认三拍做完（ProcessTicks 可调长），可以故意失败一次；记下收到几次中止。
@@ -3173,40 +3219,40 @@ sealed class SmokeChamber : BaseChamberModule
 
     public void Tick() => OnScan();
 
-    protected override ModuleOperation CreateHomeOperation() => new SmokeMotion("Home", 1);
+    protected override void AddHomeSteps(ModuleRoutine home) => home.Add(new SmokeMotion("Home", 1));
 
-    protected override ModuleOperation CreateResetOperation() => new SmokeMotion("Reset", 1);
+    protected override void AddResetSteps(ModuleRoutine reset) => reset.Add(new SmokeMotion("Reset", 1));
 
-    protected override ModuleOperation CreateAbortOperation()
+    protected override void AddAbortSteps(ModuleRoutine abort)
     {
         Aborts++;
-        return new SmokeMotion("Abort", 1);
+        abort.Add(new SmokeMotion("Abort", 1));
     }
 
-    protected override ModuleOperation CreateProcessOperation(ProcessRequest request)
+    protected override ModuleRoutine CreateProcessRoutine(ProcessRequest request)
     {
         bool fail = FailNextProcess;
         FailNextProcess = false;
-        return new SmokeMotion("Process", ProcessTicks, fail);
+        return new ModuleRoutine(Name, "Process").Add(new SmokeMotion("Process", ProcessTicks, fail));
     }
 
     // 中途交接：按先后记下取片（Pick）、放片（Place）；NextHandoff 摆下一次给什么（返回 null = 被拒），没摆就当场做完。
     public List<string> Handoffs { get; } = [];
 
-    public Func<ModuleOperation?>? NextHandoff { get; set; }
+    public Func<ModuleRoutine?>? NextHandoff { get; set; }
 
-    protected override ModuleOperation? HandoffPickCore(TransferContext context) => TakeHandoff("Pick");
+    protected override ModuleRoutine? HandoffPickCore(TransferContext context) => TakeHandoff("Pick");
 
-    protected override ModuleOperation? HandoffPlaceCore(TransferContext context) => TakeHandoff("Place");
+    protected override ModuleRoutine? HandoffPlaceCore(TransferContext context) => TakeHandoff("Place");
 
-    private ModuleOperation? TakeHandoff(string leg)
+    private ModuleRoutine? TakeHandoff(string leg)
     {
         Handoffs.Add(leg);
         var next = NextHandoff;
         NextHandoff = null;
         if (next is null)
         {
-            return new NoOpOperation("Handoff" + leg);
+            return ModuleRoutine.Done(Name, "Handoff" + leg);
         }
 
         return next();

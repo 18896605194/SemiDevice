@@ -775,8 +775,8 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
 
     public HandleResult? CheckProcess(ProcessRequest request) => null;
 
-    public HandleResult<ModuleOperation> StartProcess(ProcessRequest request) =>
-        HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    public HandleResult<ModuleRoutine> StartProcess(ProcessRequest request) =>
+        HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public int TodayWafers => 0;
 

@@ -62,28 +62,28 @@ void Throws<T>(Action action) where T : Exception
 var ec = new EcComponent();
 SmokeIoc.Use<IEc>(ec);
 
-ModuleOperation? rejected = null;
-Check(!rejected.Wait(0), "A rejected operation should return false.");
+ModuleRoutine? rejected = null;
+Check(!rejected.Wait(0), "A rejected routine should return false.");
 
-var pending = new ProbeOperation();
+var pending = new ProbeRoutine();
 Throws<TimeoutException>(() => pending.Wait(0));
-Check(pending.State == OperationState.Running && pending.Code.Length == 0,
-    "Wait timeout must not turn the operation into a device failure.");
+Check(pending.State == RoutineState.Running && pending.Code.Length == 0,
+    "Wait timeout must not turn the routine into a device failure.");
 pending.Succeed();
-Check(pending.Wait(0), "An operation must remain able to complete after a wait timeout.");
+Check(pending.Wait(0), "A routine must remain able to complete after a wait timeout.");
 
-var failed = new ProbeOperation();
+var failed = new ProbeRoutine();
 failed.Reject();
 Check(!failed.Wait(0) && failed.Code == ErrorCodes.DeviceFailed
     && failed.ErrorArgs.SequenceEqual(new[] { "Probe", "device error" }),
     "_loadport failure must preserve its error code and arguments.");
 
-var actionTimeout = new ProbeOperation();
+var actionTimeout = new ProbeRoutine();
 actionTimeout.TimeOut();
 Check(!actionTimeout.Wait(0) && actionTimeout.Code == ErrorCodes.Timeout,
     "An action timeout must remain distinct from a wait timeout.");
 
-var aborted = new ProbeOperation();
+var aborted = new ProbeRoutine();
 aborted.AbortByHost("replacement");
 aborted.Reject();
 aborted.AbortByHost("duplicate");
@@ -94,18 +94,18 @@ Check(!aborted.Wait(0) && aborted.Code == ErrorCodes.Aborted
 using (var cancellation = new CancellationTokenSource())
 using (var entered = new ManualResetEventSlim())
 {
-    var operation = new ProbeOperation();
+    var routine = new ProbeRoutine();
     var waiter = Task.Run(() =>
     {
         entered.Set();
-        Throws<OperationCanceledException>(() => operation.Wait(2000, cancellation.Token));
+        Throws<OperationCanceledException>(() => routine.Wait(2000, cancellation.Token));
     });
     Check(entered.Wait(2000), "Waiter did not start.");
     cancellation.Cancel();
     await waiter.WaitAsync(TimeSpan.FromSeconds(5));
-    Check(operation.State == OperationState.Running, "Cancellation must only stop waiting.");
-    operation.Succeed();
-    Check(operation.Wait(0), "Cancellation must not cancel a future wait for the operation.");
+    Check(routine.State == RoutineState.Running, "Cancellation must only stop waiting.");
+    routine.Succeed();
+    Check(routine.Wait(0), "Cancellation must not cancel a future wait for the routine.");
 }
 
 // Hold the module's completion callback to prove no waiter is released before state cleanup.
@@ -113,13 +113,13 @@ using (var entered = new ManualResetEventSlim())
 using (var release = new ManualResetEventSlim())
 {
     var module = new ProbeModule { Completing = entered, ReleaseCompletion = release };
-    var operation = new ProbeOperation { FinishOnScan = true };
-    Check(module.StartOperation(operation), "Failed to attach the operation.");
+    var routine = new ProbeRoutine { FinishOnScan = true };
+    Check(module.StartRoutine(routine), "Failed to attach the routine.");
     var scanner = Task.Run(module.Tick);
     try
     {
         Check(entered.Wait(2000), "Module completion callback did not start.");
-        Check(!operation.WaitReply(0), "Waiter was released before module state cleanup.");
+        Check(!routine.WaitReply(0), "Waiter was released before module state cleanup.");
     }
     finally
     {
@@ -127,42 +127,152 @@ using (var release = new ManualResetEventSlim())
     }
 
     await scanner.WaitAsync(TimeSpan.FromSeconds(5));
-    Check(operation.Wait(0) && module.CleanupDone && module.CurrentOperation is null,
+    Check(routine.Wait(0) && module.CleanupDone && module.CurrentRoutine is null,
         "Successful wait must observe a completed module transition and an empty slot.");
 }
 
 var replacementModule = new ProbeModule();
-var oldOperation = new ProbeOperation();
-var replacement = new ProbeOperation { FinishOnScan = true };
-Check(replacementModule.StartOperation(oldOperation), "Initial attach failed.");
-Check(!replacementModule.StartOperation(new ProbeOperation()), "Busy module accepted another action.");
-Check(replacementModule.StartOperation(replacement, replace: true), "Replacement failed.");
-Check(!oldOperation.Wait(0) && oldOperation.Code == ErrorCodes.Aborted,
-    "Replaced operation did not release its waiter with Aborted.");
+var replacedRoutine = new ProbeRoutine();
+var replacement = new ProbeRoutine { FinishOnScan = true };
+Check(replacementModule.StartRoutine(replacedRoutine), "Initial attach failed.");
+Check(!replacementModule.StartRoutine(new ProbeRoutine()), "Busy module accepted another action.");
+Check(replacementModule.StartRoutine(replacement, replace: true), "Replacement failed.");
+Check(!replacedRoutine.Wait(0) && replacedRoutine.Code == ErrorCodes.Aborted,
+    "Replaced routine did not release its waiter with Aborted.");
 replacementModule.Tick();
-Check(replacement.Wait(0) && replacementModule.CurrentOperation is null,
-    "Old operation cleanup lost the replacement operation.");
+Check(replacement.Wait(0) && replacementModule.CurrentRoutine is null,
+    "Old routine cleanup lost the replacement routine.");
 
 for (var i = 0; i < 200; i++)
 {
-    var operation = new ProbeOperation();
-    Parallel.Invoke(operation.Succeed, operation.Reject, () => operation.AbortByHost("race"));
-    Check(operation.WaitReply(0), "Concurrent completion did not release the waiter.");
+    var routine = new ProbeRoutine();
+    Parallel.Invoke(routine.Succeed, routine.Reject, () => routine.AbortByHost("race"));
+    Check(routine.WaitReply(0), "Concurrent completion did not release the waiter.");
     bool consistent = false;
-    switch (operation.State)
+    switch (routine.State)
     {
-        case OperationState.Completed:
-            consistent = operation.Code.Length == 0 && operation.ErrorArgs.Count == 0;
+        case RoutineState.Completed:
+            consistent = routine.Code.Length == 0 && routine.ErrorArgs.Count == 0;
             break;
-        case OperationState.Failed:
-            consistent = operation.Code == ErrorCodes.DeviceFailed && operation.ErrorArgs.Count == 2;
+        case RoutineState.Failed:
+            consistent = routine.Code == ErrorCodes.DeviceFailed && routine.ErrorArgs.Count == 2;
             break;
-        case OperationState.Aborted:
-            consistent = operation.Code == ErrorCodes.Aborted && operation.ErrorArgs.Count == 1;
+        case RoutineState.Aborted:
+            consistent = routine.Code == ErrorCodes.Aborted && routine.ErrorArgs.Count == 1;
             break;
     }
 
     Check(consistent, "Concurrent terminal paths produced a mixed result.");
+}
+
+// ── 动作引擎：一步一步走，做完的步骤当拍接着走下一步；停在哪一步、为什么，原因里带"第几步 / 共几步 + 步骤名" ──
+{
+    // 做完的步骤当拍接着走：前两步当场做完，第三步要等
+    bool ready = false;
+    int runs = 0;
+    var chained = new ModuleRoutine("Engine", "Chain")
+        .Do("检查", () => HandleResult.Success())
+        .Do("记账", () => HandleResult.Success())
+        .Add("等设备", _ => runs++, _ => ready);
+    chained.Scan();
+    Check(chained.State == RoutineState.Running && chained.StepCount == 3 && chained.StepNumber == 3 && chained.StepName == "等设备" && runs == 1,
+        "前两步当拍做完，接着进第三步（进这一步时做一次），要等就停在第三步");
+    chained.Scan();
+    Check(runs == 1 && !chained.IsTerminal, "进这一步时做的那一下只做一次，之后每拍只判");
+    ready = true;
+    chained.Scan();
+    Check(chained.IsSuccess && chained.IsSettled && chained.StepNumber == 3, "最后一步做完：整个动作做成（没挂在模块上的当场就收尾）");
+    Throws<InvalidOperationException>(() => chained.Do("晚了", () => HandleResult.Success()));
+
+    // 哪一步出错就停在哪一步：错误码 + 参数给界面，原因带"第几步 / 共几步 + 步骤名"
+    var broken = new ModuleRoutine("Engine", "Broken")
+        .Do("检查", () => HandleResult.Success())
+        .Add("等设备", null, step =>
+        {
+            step.Fail(ErrorCodes.DeviceFailed, "设备回错", "Engine", "E01");
+            return false;
+        })
+        .Do("记账", () => HandleResult.Success());
+    broken.Scan();
+    Check(broken.State == RoutineState.Failed && broken.Code == ErrorCodes.DeviceFailed && broken.ErrorArgs.SequenceEqual(["Engine", "E01"])
+          && broken.StepNumber == 2 && broken.StepName == "等设备" && broken.Reason == "2/3 等设备：设备回错",
+        $"停在第 2 步：错误码、参数原样，原因带步号和步骤名，实际 {broken.Reason}");
+    var rejectedDo = new ModuleRoutine("Engine", "Check").Do("检查", () => HandleResult.Fail(ErrorCodes.ModuleBusy, "Engine"));
+    rejectedDo.Scan();
+    Check(rejectedDo.Code == ErrorCodes.ModuleBusy && rejectedDo.ErrorArgs.SequenceEqual(["Engine"]) && rejectedDo.StepNumber == 1,
+        "当场做一下的步骤返回不成功：原样带它的错误码");
+
+    // 步骤里抛异常：判失败（operation_faulted），不往外抛、不卡住扫描
+    var faulted = new ModuleRoutine("Engine", "Fault").Add("抛异常", _ => throw new InvalidOperationException("boom"), null);
+    faulted.Scan();
+    Check(faulted.Code == ErrorCodes.OperationFaulted && faulted.ErrorArgs.SequenceEqual(["Fault", "boom"]),
+        "步骤抛异常：动作判 operation_faulted [动作名, 异常信息]");
+
+    // 整个动作的上限：超了在当时那一步判失败，报给的错误码 [模块名, ms]
+    var limited = new ModuleRoutine("Engine", "Limited").LimitTo(() => 20, ErrorCodes.ChamberActionTimeout).Add("一直等", null, _ => false);
+    limited.Scan();
+    Thread.Sleep(40);
+    limited.Scan();
+    Check(limited.Code == ErrorCodes.ChamberActionTimeout && limited.ErrorArgs.SequenceEqual(["Engine", "20"]) && limited.StepName == "一直等",
+        "整个动作超过上限：判给的超时码 [模块名, ms]，停在当时那一步");
+
+    // 等条件：上限 0 就是不等，判一次不成立就按给的错误码失败
+    var until = new ModuleRoutine("Engine", "Until")
+        .Until("等反馈", () => false, () => 0, () => HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, "Engine", "1"));
+    until.Scan();
+    Check(until.Code == ErrorCodes.RobotArmSensorUnknown && until.ErrorArgs.SequenceEqual(["Engine", "1"]), "等条件上限 0：判一次不成立就失败");
+
+    // 起别家的动作：被拒原样带拒的原因；没做成原样带它的错误码；给了收场办法的按自己判的码报
+    var refusedChild = new ModuleRoutine("Engine", "Parent")
+        .Start("起别家", () => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ModuleBusy, "Other"));
+    refusedChild.Scan();
+    Check(refusedChild.Code == ErrorCodes.ModuleBusy && refusedChild.ErrorArgs.SequenceEqual(["Other"]), "别家动作被拒：原样带拒的原因");
+    var failingChild = new ProbeRoutine();
+    var parent = new ModuleRoutine("Engine", "Parent").Start("起别家", () => HandleResult<ModuleRoutine>.Success(failingChild));
+    parent.Scan();
+    Check(parent.State == RoutineState.Running, "别家动作没收尾：这一步等着");
+    failingChild.Reject();
+    parent.Scan();
+    Check(parent.Code == ErrorCodes.DeviceFailed && parent.ErrorArgs.SequenceEqual(["Probe", "device error"]), "别家动作没做成：原样带它的错误码和参数");
+    var ownCode = new ProbeRoutine();
+    var handled = new ModuleRoutine("Engine", "Parent").Start("起别家", () => HandleResult<ModuleRoutine>.Success(ownCode),
+        (step, child) => step.Fail(ErrorCodes.TransferStepRejected, $"{child.Name} 没成", "Engine", "Child"));
+    handled.Scan();
+    ownCode.TimeOut();
+    handled.Scan();
+    Check(handled.Code == ErrorCodes.TransferStepRejected && handled.ErrorArgs.SequenceEqual(["Engine", "Child"]), "给了收场办法：按它判的错误码报");
+
+    // 中止：先让动作自己收场，再让正在走的那一步收场（作废在途指令、中止在等的别家动作）；还没进的步骤不收场
+    var order = new List<string>();
+    var notStarted = new TraceRoutine(order);
+    notStarted.Add(new TraceStep("第一步", order, false));
+    notStarted.AbortByHost("没开始就中止");
+    Check(notStarted.State == RoutineState.Aborted && order.SequenceEqual(["routine"]) && notStarted.Reason == "停在 1/1 第一步：没开始就中止",
+        $"还没推过就中止：只有动作自己收场，没进过的步骤不收场，实际 {notStarted.Reason}");
+    order.Clear();
+    var running = new TraceRoutine(order);
+    running.Add(new TraceStep("检查", order, true)).Add(new TraceStep("等设备", order, false));
+    running.Scan();
+    running.AbortByHost("急停");
+    running.AbortByHost("又一次");
+    Check(order.SequenceEqual(["routine", "等设备"]) && running.Code == ErrorCodes.Aborted && running.ErrorArgs.SequenceEqual(["Trace"])
+          && running.StepName == "等设备",
+        "走到第 2 步中止：先动作收场、再第 2 步收场，只收一次；错误码 action_aborted [动作名]");
+
+    // 不用做事的动作建好就做成；一步只能加进一个动作；发指令的动作得带通道和超时建
+    var done = ModuleRoutine.Done("Engine", "Nothing");
+    Check(done.IsSuccess && done.IsSettled && done.StepCount == 0 && done.StepNumber == 0 && done.CurrentStep is null, "Done：建好就做成、收好尾");
+    var shared = new TraceStep("共用", order, true);
+    new ModuleRoutine("Engine", "A").Add(shared);
+    Throws<InvalidOperationException>(() => new ModuleRoutine("Engine", "B").Add(shared));
+    Throws<InvalidOperationException>(() => new ModuleRoutine("Engine", "NoDriver").Command("发", () => new RejePickCommand(1, 1, 1)));
+
+    // 回包：不止一步的动作没做成，带上停在第几步 / 共几步（界面加在原因前面）；只有一步的不带
+    var stepResponse = ProbeService.FailedOf(broken);
+    Check(!stepResponse.Success && stepResponse.Code == ErrorCodes.DeviceFailed && stepResponse.StepNumber == 2 && stepResponse.StepCount == 3,
+        "回包带停在第 2 / 3 步");
+    var single = ProbeService.FailedOf(rejectedDo);
+    Check(single.Code == ErrorCodes.ModuleBusy && single.StepNumber == 0 && single.StepCount == 0, "只有一步的动作：回包不带步号");
 }
 
 // 跟开机装配一样：晶圆账先装出来，再做组件初始化——端口和载具在组件初始化时取一次账本（_ledger），
@@ -187,12 +297,12 @@ var service = new LoadPortService();
     SmokeIoc.Tree(servicePort);
     var portService = new LoadPortService();
 
-    bool Mounted(ModuleOperation operation)
+    bool Mounted(ModuleRoutine routine)
     {
         var watch = Stopwatch.StartNew();
         while (watch.ElapsedMilliseconds < 3000)
         {
-            if (ReferenceEquals(servicePort.CurrentOperation, operation))
+            if (ReferenceEquals(servicePort.CurrentRoutine, routine))
             {
                 return true;
             }
@@ -204,9 +314,9 @@ var service = new LoadPortService();
     }
 
     // 发一个动作：摆一个探针动作，等它挂上了按 finish 收尾、推一拍，回服务的回包
-    async Task<RpcResponse> Run(Func<string, Task<RpcResponse>> call, Action<ProbeOperation> finish)
+    async Task<RpcResponse> Run(Func<string, Task<RpcResponse>> call, Action<ProbeRoutine> finish)
     {
-        var probe = new ProbeOperation();
+        var probe = new ProbeRoutine();
         servicePort.Next = probe;
         var pending = Task.Run(() => call(servicePort.Name));
         Check(Mounted(probe), "动作应挂上");
@@ -254,11 +364,11 @@ var service = new LoadPortService();
     Check(!response.Success && response.Code == ErrorCodes.Aborted, "被顶替：回 action_aborted");
 
     servicePort.HomeTimeout = 0;
-    var waiting = new ProbeOperation();
+    var waiting = new ProbeRoutine();
     servicePort.Next = waiting;
     response = await portService.HomeAsync(servicePort.Name);
     Check(!response.Success && response.Code == ErrorCodes.WaitTimeout && response.Args.SequenceEqual(new[] { "Probe", "0" })
-          && waiting.State == OperationState.Running,
+          && waiting.State == RoutineState.Running,
         "等不到结果：回 wait_timeout，动作照样在跑");
     waiting.Succeed();
     servicePort.Tick();
@@ -275,20 +385,20 @@ var service = new LoadPortService();
 
     // 中止不看连没连上：没连上也能把在途的动作顶掉，不让它一直等到超时
     servicePort.NoteState(ModuleState.Idle);
-    var inflight = new ProbeOperation();
+    var inflight = new ProbeRoutine();
     servicePort.Next = inflight;
     Check(servicePort.Home().IsSuccess, "Home 发起、在途");
     servicePort.Channel.Close();
     var homeOffline = servicePort.Home();
     Check(!homeOffline.IsSuccess && homeOffline.ErrorMessage == ErrorCodes.ModuleNotConnected, "没连上：Home 当场被拒（回设备没连上）");
-    var abortOperation = new ProbeOperation();
-    servicePort.Next = abortOperation;
-    Check(ReferenceEquals(servicePort.Abort(), abortOperation) && inflight.State == OperationState.Aborted,
+    var abortRoutine = new ProbeRoutine();
+    servicePort.Next = abortRoutine;
+    Check(ReferenceEquals(servicePort.Abort(), abortRoutine) && inflight.State == RoutineState.Aborted,
         "没连上也能中止：顶掉在途的 Home");
 }
 
 // Load 入口：按 状态 → 资源 → 互锁 查，被拒照原样回入口给的错误码 + 参数（状态码由界面翻成状态字），端口不动；
-// 三项都过才发起。机型（这里是探针端口）只重写设备动作 CreateLoadOperation，三项检查照样过。
+// 三项都过才发起。机型（这里是探针端口）只重写设备动作 CreateLoadRoutine，三项检查照样过。
 {
     var loadPort = new ProbePort("ServiceLoadPort");
     Check(loadPort.InitComponent(), "Load 服务用的端口的组件初始化应成功");
@@ -312,10 +422,10 @@ var service = new LoadPortService();
 
     loadPort.NotePodPlaced(true);
     loadPort.Tick();
-    loadPort.Next = new ProbeOperation();
+    loadPort.Next = new ProbeRoutine();
     loadResponse = await loadService.LoadAsync(loadPort.Name);
     Check(!loadResponse.Success && loadResponse.Code == ErrorCodes.WaitTimeout && loadPort.State == LoadPortState.Loading
-          && ReferenceEquals(loadPort.CurrentOperation, loadPort.Next),
+          && ReferenceEquals(loadPort.CurrentRoutine, loadPort.Next),
         "Load：三项都过就发起、进 Loading（探针端口等结果的时间是 0，回等待超时，动作照样在跑）");
     loadPort.Next.Succeed();
     loadPort.Tick();
@@ -462,7 +572,7 @@ Check(port._carrier.Info!.CarrierId == "FOUP-777" && port._carrier.Info.IdStatus
 Check(ledger.Get(port.Name, 1)?.CarrierId == "FOUP-777", "读码回来后应补上账上所有片的载具号");
 Check(ledger.Get(port.Name, 4)?.CarrierId == "FOUP-777", "补载具号应覆盖整个模块");
 
-// 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnOperationCompleted）。
+// 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnRoutineCompleted）。
 // E87 的 IN ACCESS 照老 CTC：Load 好了就算开始取放。
 port.NoteState(ModuleState.Idle);
 Check(port.LocalTransferState == LoadPortTransferState.OutOfService, "端口维护模式（不交给调度用）时自己判停用");
@@ -470,7 +580,7 @@ port.SetProduction();
 Check(port.IsIdle && !port.IsLoaded && port.LocalTransferState == LoadPortTransferState.TransferBlocked,
     "空闲、有载具、还没干完：端口自己判挡着（不让天车取走）");
 
-var loadOp = new ProbeOperation();
+var loadOp = new ProbeRoutine();
 Check(port.BeginAction(LoadPortAction.Load, loadOp) is not null, "Idle 状态应能发起 Load");
 loadOp.Succeed();
 port.Tick();
@@ -490,7 +600,7 @@ Check(port.CanPrepareTransfer && port.PrepareTransfer(portTransferContext) is no
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.Read);
 
 // 取放途中出错：载具算没干完，落 Stopped
-var brokenUnload = new ProbeOperation();
+var brokenUnload = new ProbeRoutine();
 Check(port.BeginAction(LoadPortAction.Unload, brokenUnload) is not null, "Loaded 状态应能发起 Unload");
 brokenUnload.Reject();
 port.Tick();
@@ -501,14 +611,14 @@ Check(eap.Wait(nameof(IE87Callback.PortError)), "动作失败应上报 PortError
 port.NoteState(ModuleState.Idle);
 port._carrier.NoteComplete();
 Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.Complete, "上层判完成后应转 Complete");
-var reloadOp = new ProbeOperation();
+var reloadOp = new ProbeRoutine();
 port.BeginAction(LoadPortAction.Load, reloadOp);
 reloadOp.Succeed();
 // Load 好的这一拍，载具已经判干完：EC AutoUnload（默认开）当场走 Unload 入口发起卸载，用的就是摆好的 lastUnload
-var lastUnload = new ProbeOperation();
+var lastUnload = new ProbeRoutine();
 port.Next = lastUnload;
 port.Tick();
-Check(ReferenceEquals(port.CurrentOperation, lastUnload) && port.State == LoadPortState.Unloading,
+Check(ReferenceEquals(port.CurrentRoutine, lastUnload) && port.State == LoadPortState.Unloading,
     "干完的载具 Load 好了：自动 Unload 走入口发起，进 Unloading");
 lastUnload.Succeed();
 port.Tick();
@@ -551,12 +661,12 @@ Check(eap.Wait(nameof(IE87Callback.CarrierRemoved)), "FOUP 取走应上报 Carri
 port.NotePodPlaced(true);
 port.Tick();
 port.NoteState(ModuleState.Idle);
-var secondLoad = new ProbeOperation();
+var secondLoad = new ProbeRoutine();
 port.BeginAction(LoadPortAction.Load, secondLoad);
 secondLoad.Succeed();
 port.Tick();
 Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.InAccess, "第二个载具：Load 好了就在取放");
-var secondUnload = new ProbeOperation();
+var secondUnload = new ProbeRoutine();
 port.BeginAction(LoadPortAction.Unload, secondUnload);
 secondUnload.Succeed();
 port.Tick();
@@ -702,7 +812,7 @@ port.E87Callback = null;
     robot.NoteState(ModuleState.Idle);
 
     // 入口按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）、不起操作：资源这一步查站点、手指和晶圆账
-    bool RejectedWith(HandleResult<ModuleOperation> started, string code, params string[] args)
+    bool RejectedWith(HandleResult<ModuleRoutine> started, string code, params string[] args)
     {
         return !started.IsSuccess && started.Result is null && started.ErrorMessage == code && started.Args.SequenceEqual(args)
             && robot.State == ModuleState.Idle;
@@ -724,20 +834,21 @@ port.E87Callback = null;
         "分段取放是可选能力：机械手基类不自带（类上声明 ITransferRobotStep 才算）；没给分段动作的伸臂当场拒（robot.handoff_unsupported），没伸着不收缩臂");
 
     // Pick 成功：片从花篮槽位挪到手指上
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var beforePick = robot.CreateStateDto();
     Check(!beforePick.Arms[0].IsExtended, "没在取放时手指是缩着的");
-    var pickOperation = robot.Pick(1, "SmokeLP", 3).Result;
-    Check(pickOperation is not null && ReferenceEquals(robot.CurrentOperation, pickOperation)
-          && !ReferenceEquals(pickOperation, robot.Next), "Idle 状态发起包含设备动作和记账的完整 Pick");
+    var pickRoutine = robot.Pick(1, "SmokeLP", 3).Result;
+    Check(pickRoutine is not null && ReferenceEquals(robot.CurrentRoutine, pickRoutine)
+          && ReferenceEquals(robot.Next!.Routine, pickRoutine) && pickRoutine.StepCount == 2,
+        "Idle 状态发起完整的 Pick：机型给的设备那一步 + 平台加的记账");
     var picking = robot.CreateStateDto();
     Check(picking.Arms[0].IsExtended && picking.HasStateChanged(beforePick), "发出取片指令：Arm1 伸出，推送算变化（界面画伸出）");
     robot.Next!.Succeed();
-    Check(pickOperation is not null && !pickOperation.IsTerminal && !pickOperation.IsSettled
+    Check(pickRoutine is not null && !pickRoutine.IsTerminal && !pickRoutine.IsSettled
           && robotLedger.Get("SmokeLP", 3)?.Id == carried.Id,
         "设备动作刚成功但尚未记账：外层取片仍在执行，不提前唤醒等待方");
     robot.Tick();
-    Check(pickOperation is not null && pickOperation.IsSuccess && pickOperation.IsSettled,
+    Check(pickRoutine is not null && pickRoutine.IsSuccess && pickRoutine.IsSettled,
         "取片记账完成且模块收尾后，才向等待方确认成功");
     Check(!robot.CreateStateDto().Arms[0].IsExtended, "取片做完：Arm1 缩回");
     Check(robotLedger.Get("SmokeLP", 3) is null, "Pick 成功后原槽位应变空");
@@ -765,9 +876,9 @@ port.E87Callback = null;
     robotLedger.Delete("SmokeLP", 4);
 
     // Place 成功：片从手指放回另一个槽位
-    robot.Next = new ProbeOperation();
-    var placeOperation = robot.Place(1, "SmokeLP", 5).Result;
-    Check(placeOperation is not null && ReferenceEquals(robot.CurrentOperation, placeOperation), "应能发起完整 Place");
+    robot.Next = new ProbeStep();
+    var placeRoutine = robot.Place(1, "SmokeLP", 5).Result;
+    Check(placeRoutine is not null && ReferenceEquals(robot.CurrentRoutine, placeRoutine), "应能发起完整 Place");
     robot.Next!.Succeed();
     robot.Tick();
     Check(robotLedger.Get(robot.Name, 1) is null, "Place 成功后手指应空");
@@ -775,7 +886,7 @@ port.E87Callback = null;
 
     // 取放失败不动账：片到底在手上还是在槽里已经说不准了，乱改比不改更糟
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     robot.Pick(1, "SmokeLP", 5);
     robot.Next!.Reject();
     robot.Tick();
@@ -785,7 +896,7 @@ port.E87Callback = null;
 
     // 非取放动作终结时不碰账
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     robot.Home();
     robot.Next!.Succeed();
     robot.Tick();
@@ -798,7 +909,7 @@ port.E87Callback = null;
         "机械手默认不支持换片：Swap 返回 null，状态和账都不动");
 
     // 设备取片期间来源账被换成另一片（即使业务片号相同），不能误移新片的账。
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var replacedPick = robot.Pick(1, "SmokeLP", 5).Result;
     Check(replacedPick is not null && robotLedger.Move("SmokeLP", 5, "SmokeLP", 4), "取片启动后模拟原来源账被移走");
     var pickReplacement = robotLedger.Create("SmokeLP", 5)!;
@@ -807,20 +918,20 @@ port.E87Callback = null;
     robot.Tick();
     Check(replacedPick is not null && replacedPick.IsSettled && replacedPick.Code == ErrorCodes.RobotLedgerMoveFailed
           && replacedPick.ErrorArgs.SequenceEqual([robot.Name, "SmokeLP", "5", robot.Name, "1"])
-          && robot.State == ModuleState.Error && robot.Next.IsSuccess,
-        "设备取片成功但来源已换片：整次操作记账失败并落 Error");
+          && robot.State == ModuleState.Error && replacedPick.StepName == "记账",
+        "设备取片成功但来源已换片：设备那步做完了，停在记账那一步，整次取片失败并落 Error");
     Check(robotLedger.Get("SmokeLP", 5)?.Id == pickReplacement.Id && robotLedger.Get("SmokeLP", 4)?.Id == carried.Id
           && robotLedger.Get(robot.Name, 1) is null,
         "同号替换晶圆保留在来源，原晶圆账也保留，不把另一片记到机械手上");
     robot.Tick();
-    Check(robot.CurrentOperation is null && robotLedger.Get("SmokeLP", 5)?.Id == pickReplacement.Id,
+    Check(robot.CurrentRoutine is null && robotLedger.Get("SmokeLP", 5)?.Id == pickReplacement.Id,
         "来源身份不符后不自动重试设备动作或记账");
     robotLedger.Delete("SmokeLP", 5);
     Check(robotLedger.Move("SmokeLP", 4, "SmokeLP", 5), "人工恢复取片用例的原晶圆账");
     robot.NoteState(ModuleState.Idle);
 
     // 模拟动作发出后账发生冲突：设备成功也不能掩盖记账失败，不重发动作、不覆盖目标片。
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var ledgerFailedPick = robot.Pick(1, "SmokeLP", 5).Result;
     var armBlocker = robotLedger.Create(robot.Name, 1, WaferStatus.Normal, "FOUP-BLOCK-PICK")!;
     robot.Next!.Succeed();
@@ -832,19 +943,19 @@ port.E87Callback = null;
     Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id && robotLedger.Get(robot.Name, 1)?.Id == armBlocker.Id,
         "记账失败保留原账，不覆盖占位晶圆，也不伪造成功片位");
     robot.Tick();
-    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id && robot.CurrentOperation is null,
+    Check(robotLedger.Get("SmokeLP", 5)?.Id == carried.Id && robot.CurrentRoutine is null,
         "失败后下一拍不自动重试设备动作或记账");
 
     robotLedger.Delete(robot.Name, 1);
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var recoveredPick = robot.Pick(1, "SmokeLP", 5).Result;
     robot.Next!.Succeed();
     robot.Tick();
     Check(recoveredPick?.IsSuccess == true && robotLedger.Get(robot.Name, 1)?.Id == carried.Id,
         "核对并清理账后，由调用方重新发起取片可以正常完成");
 
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var replacedPlace = robot.Place(1, "SmokeLP", 3).Result;
     Check(replacedPlace is not null && robotLedger.Move(robot.Name, 1, "SmokeLP", 4), "放片启动后模拟手指来源账被移走");
     var placeReplacement = robotLedger.Create(robot.Name, 1)!;
@@ -859,7 +970,7 @@ port.E87Callback = null;
     robotLedger.Delete(robot.Name, 1);
     Check(robotLedger.Move("SmokeLP", 4, robot.Name, 1), "人工恢复放片用例的原晶圆账");
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var ledgerFailedPlace = robot.Place(1, "SmokeLP", 3).Result;
     var slotBlocker = robotLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-BLOCK-PLACE")!;
     robot.Next!.Succeed();
@@ -872,7 +983,7 @@ port.E87Callback = null;
         "放片记账失败不删除手指上的原账，也不覆盖目标片");
 
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var missingSource = robot.Place(1, "SmokeLP", 2).Result;
     robotLedger.Delete(robot.Name, 1);
     robot.Next!.Succeed();
@@ -885,8 +996,8 @@ port.E87Callback = null;
     robot.NoteState(ModuleState.Idle);
     robot.Close();
     Check(RejectedWith(robot.Home(), ErrorCodes.ModuleNotConnected, "SmokeRobot"), "驱动没连上：Home 被拒，module.not_connected [机械手]");
-    robot.Next = new ProbeOperation();
-    Check(robot.Abort() == robot.Next, "驱动没连上照样能急停");
+    robot.Next = new ProbeStep();
+    Check(ReferenceEquals(robot.Abort(), robot.Next!.Routine), "驱动没连上照样能急停");
 
     SmokeIoc.Use<ILedgerManager>(null);
 }
@@ -920,7 +1031,7 @@ port.E87Callback = null;
     robot.NoteState(ModuleState.Idle);
     arm1.WaferSensorTimeoutMs = 1000;
 
-    bool SensorRejected(HandleResult<ModuleOperation> started, string code, params string[] args)
+    bool SensorRejected(HandleResult<ModuleRoutine> started, string code, params string[] args)
     {
         return !started.IsSuccess && started.Result is null && started.ErrorMessage == code && started.Args.SequenceEqual(args)
             && robot.State == ModuleState.Idle;
@@ -944,8 +1055,8 @@ port.E87Callback = null;
           && SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorUnknown, "SmokeRobot", "1"),
         "传感器还没读到：取片被拒，robot.arm_sensor_unknown [机械手, 手指号]");
     Check(SensorCheck(ErrorCodes.RobotArmSensorUnknown), "传感器还没读到：回片前对账也算对不上（robot.arm_sensor_unknown）");
-    robot.Next = new ProbeOperation();
-    Check(robot.Home().Result == robot.Next, "传感器还没读到不拦 Home");
+    robot.Next = new ProbeStep();
+    Check(ReferenceEquals(robot.Home().Result, robot.Next!.Routine), "传感器还没读到不拦 Home");
     robot.Next!.Succeed();
     robot.Tick();
 
@@ -963,10 +1074,10 @@ port.E87Callback = null;
     // 取片：设备做完了还要等传感器看到片，才算做成、才记账
     sensor.Level = false;
     robot.Tick();
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var picking = robot.Pick(1, "SmokeLP", 3).Result;
-    Check(picking is not null && !ReferenceEquals(picking, robot.Next) && robot.State == RobotState.Picking,
-        "挂了传感器的手：取片外面套一层等传感器的操作");
+    Check(picking is not null && picking.StepCount == 3 && robot.State == RobotState.Picking,
+        "挂了传感器的手：设备那一步后面加一步等持片反馈，再记账");
     robot.Next!.Succeed();
     robot.Tick();
     Check(picking is not null && !picking.IsTerminal && sensorLedger.Get("SmokeLP", 3)?.Id == wafer.Id,
@@ -993,7 +1104,7 @@ port.E87Callback = null;
     sensor.Level = true;
     robot.Tick();
     arm1.WaferSensorTimeoutMs = 0;
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var placing = robot.Place(1, "SmokeLP", 4).Result;
     robot.Next!.Succeed();
     robot.Tick();
@@ -1004,22 +1115,23 @@ port.E87Callback = null;
 
     // 设备动作自己失败：原样带它的错误码，不等传感器
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var failing = robot.Place(1, "SmokeLP", 4).Result;
     robot.Next!.Reject();
     robot.Tick();
     Check(failing is not null && failing.Code == ErrorCodes.DeviceFailed && failing.ErrorArgs.SequenceEqual(["Probe", "device error"]),
         "设备动作失败：原样带设备的错误码和参数");
 
-    // 急停顶掉：等传感器那层和设备动作一起打断
+    // 急停顶掉：放片停下，正在走的设备那一步跟着收场（作废在途指令）
     robot.NoteState(ModuleState.Idle);
-    var motion = new ProbeOperation();
+    var motion = new ProbeStep();
     robot.Next = motion;
     var abortedPlace = robot.Place(1, "SmokeLP", 4).Result;
-    robot.Next = new ProbeOperation();
+    robot.Tick();
+    robot.Next = new ProbeStep();
     robot.Abort();
-    Check(abortedPlace is not null && abortedPlace.State == OperationState.Aborted && motion.State == OperationState.Aborted && motion.AbortCount == 1,
-        "急停顶掉放片：外层和设备动作都落 Aborted");
+    Check(abortedPlace is not null && abortedPlace.State == RoutineState.Aborted && abortedPlace.StepName == "探针" && motion.AbortCount == 1,
+        "急停顶掉放片：放片落 Aborted、停在设备那一步，那一步收一次场");
     robot.Next!.Succeed();
     robot.Tick();
 
@@ -1095,7 +1207,7 @@ port.E87Callback = null;
     arm.WaferSensorTimeoutMs = 1000;
 
     Check(robot.CheckPick(1, "SmokeLP", 3)?.ErrorMessage == ErrorCodes.RobotArmSensorUnknown
-          && !robot.Pick(1, "SmokeLP", 3).IsSuccess && robot.CurrentOperation is null,
+          && !robot.Pick(1, "SmokeLP", 3).IsSuccess && robot.CurrentRoutine is null,
         "非 DI 反馈未知时取片被拒，启用状态不随未知读数关闭");
     arm.Feedback = true;
     Check(robot.CheckPick(1, "SmokeLP", 3)?.ErrorMessage == ErrorCodes.RobotArmSensorHasWafer
@@ -1103,7 +1215,7 @@ port.E87Callback = null;
         "非 DI 反馈有片但账上为空：取片和 Home 都检查同一个 HasWafer");
 
     arm.Feedback = false;
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var pick = robot.Pick(1, "SmokeLP", 3).Result;
     Check(pick is not null && robot.State == RobotState.Picking, "非 DI 反馈为空时允许取片");
     robot.Next!.Succeed();
@@ -1120,7 +1232,7 @@ port.E87Callback = null;
     Check(robot.CheckPlace(1, "SmokeLP", 4)?.ErrorMessage == ErrorCodes.RobotArmSensorNoWafer,
         "非 DI 反馈没片时，放片前检查同样拒绝");
     arm.Feedback = true;
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var place = robot.Place(1, "SmokeLP", 4).Result;
     Check(place is not null, "非 DI 反馈有片时允许放片");
     robot.Next!.Succeed();
@@ -1133,7 +1245,7 @@ port.E87Callback = null;
         "非 DI 放片后反馈为空，才完成放片并记账");
 
     arm.WaferSensorTimeoutMs = 0;
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var unknownPick = robot.Pick(1, "SmokeLP", 4).Result;
     Check(unknownPick is not null, "反馈丢失用例：取片前反馈有效，动作已启动");
     arm.Feedback = null;
@@ -1182,7 +1294,7 @@ port.E87Callback = null;
     port.NotePodPlaced(true);
     port.Tick();
     port.NoteState(ModuleState.Idle);
-    var failedLoad = new ProbeOperation();
+    var failedLoad = new ProbeRoutine();
     Check(port.BeginAction(LoadPortAction.Load, failedLoad) is not null, "Idle 应能发起 Load");
     failedLoad.Reject();
     port.Tick();
@@ -1192,17 +1304,17 @@ port.E87Callback = null;
 
     // 报警复位走到端口的 Reset()，发了设备复位（探针动作下一拍做完）：出错复位完落 NotInit，要再 Home
     port.Tick();
-    Check(port.State == ModuleState.NotInit && port.CurrentOperation is null, "报警复位带的设备复位做完：出错复位完是 NotInit");
+    Check(port.State == ModuleState.NotInit && port.CurrentRoutine is null, "报警复位带的设备复位做完：出错复位完是 NotInit");
 
     // Home 超时 → 只报初始化超时，不再另报动作失败（一次失败一条报警）
-    var slowHome = new ProbeOperation();
+    var slowHome = new ProbeRoutine();
     Check(port.BeginAction(LoadPortAction.Home, slowHome) is not null, "NotInit 状态应允许 Home");
     slowHome.TimeOut();
     port.Tick();
     Check(Active(port, port.InitTimeoutAlarm) && !Active(port, port.ControlledStopAlarm), "Home 超时只报初始化超时，不重复报动作失败");
 
     // Home 成功回到 Idle 也不清，等人工复位；全部复位清掉
-    var goodHome = new ProbeOperation();
+    var goodHome = new ProbeRoutine();
     port.BeginAction(LoadPortAction.Home, goodHome);
     goodHome.Succeed();
     port.Tick();
@@ -1225,7 +1337,7 @@ port.E87Callback = null;
              })
     {
         port.NoteState(from);
-        var slow = new ProbeOperation();
+        var slow = new ProbeRoutine();
         Check(port.BeginAction(action, slow) is not null, $"{from} 应能发起 {action}");
         slow.TimeOut();
         port.Tick();
@@ -1235,8 +1347,8 @@ port.E87Callback = null;
     }
 
     // 操作员急停顶掉的动作不报
-    var interrupted = new ProbeOperation();
-    var abort = new ProbeOperation();
+    var interrupted = new ProbeRoutine();
+    var abort = new ProbeRoutine();
     port.BeginAction(LoadPortAction.Load, interrupted);
     port.BeginAction(LoadPortAction.Abort, abort);
     abort.Succeed();
@@ -1255,9 +1367,9 @@ port.E87Callback = null;
     Check(Active(robot, robot.RobotDeviceAlarm), "报错没了也不自动清——报警只能人工 Reset 清");
 
     // _robot 的 Reset 重写了组件基类的 Reset：先清报警，再发设备复位清错，把操作交出去等
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     var robotReset = robot.Reset();
-    Check(robotReset is not null && ReferenceEquals(robotReset, robot.Next) && !Active(robot, robot.RobotDeviceAlarm),
+    Check(robotReset is not null && ReferenceEquals(robotReset, robot.Next!.Routine) && !Active(robot, robot.RobotDeviceAlarm),
         "_robot Reset 应清掉报警并交出设备复位操作");
     robot.Next!.Succeed();
     robot.Tick();
@@ -1272,13 +1384,13 @@ port.E87Callback = null;
     Check(robot.InitComponent(), "重新做一遍组件初始化");
     robot.NoteDeviceError(null);
     robot.NoteState(ModuleState.Idle);
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     robot.Home();
     robot.Next!.Reject();
     robot.Tick();
     Check(Active(robot, robot.ControlledStopAlarm), "_robot 动作失败应报受控停止");
 
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     robot.Home();
     robot.Next!.Succeed();
     robot.Tick();
@@ -1286,7 +1398,7 @@ port.E87Callback = null;
         "Home 成功回到 Idle 也不自动清");
 
     // 界面按来源复位：机械手复位（2026-10-12 起）走入口、要挂一个设备复位操作，这里摆一个不收尾的，只看报警
-    robot.Next = new ProbeOperation();
+    robot.Next = new ProbeStep();
     Check(alarms.Reset(robot.FullPath) && !Active(robot, robot.ControlledStopAlarm), "人工复位才清");
 
     SmokeIoc.Use<IAlarm>(null);
@@ -1934,7 +2046,7 @@ port.E87Callback = null;
         "LoadPort 的组件初始化：驱动和子组件跟着基类递归走，不发 Home（不动硬件）");
     Check(initPort.Channel.IsConnected, "LoadPort 的组件初始化把品牌驱动连上了（连接写在驱动自己的 InitComponent 里，端口没点名）");
     trace.Clear();
-    initPort.Next = new ProbeOperation();
+    initPort.Next = new ProbeRoutine();
     Check(ReferenceEquals(initPort.InitModule(), initPort.Next) && initPort.Calls == calls + 1 && trace.Count == 0,
         "LoadPort 的模块初始化 InitModule = Home，不碰子组件");
 
@@ -1954,15 +2066,15 @@ port.E87Callback = null;
           && outsidePort.State == LoadPortState.Loaded,
         "门开着、有片在外面：InitModule 不发 Home，给一个做完的空操作（全部初始化当它好了），端口还是 Loaded");
     Check(outsideLedger.Move("OutsidePM", 1, "OutsidePort", 1), "片回到口上");
-    outsidePort.Next = new ProbeOperation();
+    outsidePort.Next = new ProbeRoutine();
     Check(ReferenceEquals(outsidePort.InitModule(), outsidePort.Next) && outsidePort.Calls == outsideCalls + 1,
         "片都回来了：照旧 Home");
     SmokeIoc.Use<ILedgerManager>(previousInitLedger);
 
     var initRobot = new ProbeRobot();
     Check(initRobot.InitComponent(), "机械手的组件初始化把品牌驱动连上");
-    initRobot.Next = new ProbeOperation();
-    Check(ReferenceEquals(initRobot.InitModule(), initRobot.Next), "机械手的模块初始化 InitModule = Home");
+    initRobot.Next = new ProbeStep();
+    Check(ReferenceEquals(initRobot.InitModule(), initRobot.Next!.Routine), "机械手的模块初始化 InitModule = Home");
 
     var bareModule = new ProbeAligner("InitAligner");
     Check(bareModule.InitModule() is null && bareModule.InitComponent(), "没有自己初始化动作的模块：InitModule 什么都不做，返回 null");
@@ -1970,11 +2082,11 @@ port.E87Callback = null;
     child.Fault();
     Check(child.HasAlarm && initPort.HasAlarm, "子组件报警算在模块头上");
     trace.Clear();
-    initPort.Next = new ProbeOperation();
+    initPort.Next = new ProbeRoutine();
     Check(ReferenceEquals(initPort.Abort(), initPort.Next) && trace.SequenceEqual(new[] { "Abort:Child" }),
         "LoadPort 的 Abort = 子组件中止 + 设备中止");
     Check(child.HasAlarm, "Abort 不清报警");
-    initPort.Next = new ProbeOperation();
+    initPort.Next = new ProbeRoutine();
     initPort.Reset();
     Check(!child.HasAlarm && !initPort.HasAlarm, "报警只有 Reset 清");
     SmokeIoc.Use<IAlarm>(null);
@@ -1987,7 +2099,7 @@ port.E87Callback = null;
 
     TransferRoutine RunTransfer(ProbeStation source, ProbeStation target, int waitMilliseconds)
     {
-        var routine = new TransferRoutine(TransferOrigin.Manual, transferRobot, source, 1, target, 1, 1, waitMilliseconds);
+        var routine = new TransferRoutine("Transfer", TransferOrigin.Manual, transferRobot, source, 1, target, 1, 1, waitMilliseconds);
         for (int scan = 0; scan < 10 && !routine.IsTerminal; scan++)
         {
             routine.Scan();
@@ -1996,18 +2108,18 @@ port.E87Callback = null;
         return routine;
     }
 
-    ModuleOperation Succeeded()
+    ModuleRoutine Succeeded()
     {
-        var operation = new ProbeOperation();
-        operation.Succeed();
-        return operation;
+        var routine = new ProbeRoutine();
+        routine.Succeed();
+        return routine;
     }
 
-    ModuleOperation Rejected()
+    ModuleRoutine Rejected()
     {
-        var operation = new ProbeOperation();
-        operation.Reject();
-        return operation;
+        var routine = new ProbeRoutine();
+        routine.Reject();
+        return routine;
     }
 
     // 先抢目标：目标一直抢不到（第 1 步准备总被拒），等待上限 0 ms——报目标站点，片没动过，源站点碰都没碰
@@ -2065,19 +2177,20 @@ port.E87Callback = null;
           && !cancelFault.MotionStarted && throwSource.Cancels == 1 && afterThrowTarget.Cancels == 1,
         "来源撤销抛异常不阻止目标撤销，不吞掉原始失败，异常站点保留占用");
 
-    var sameStation = new ProbeStation("SameStation") { First = Succeeded };
-    var sameCancel = new TransferRoutine(TransferOrigin.Manual, transferRobot, sameStation, 1, sameStation, 2, 1, 1000);
+    // 同站点换槽：抢到环、准备二还在做时中止（一拍里抢到就接着发准备二，准备二摆一个不收尾的，好停在这儿）
+    var sameStation = new ProbeStation("SameStation") { First = Succeeded, Second = () => new ProbeRoutine() };
+    var sameCancel = new TransferRoutine("Transfer", TransferOrigin.Manual, transferRobot, sameStation, 1, sameStation, 2, 1, 1000);
     sameCancel.Scan();
     sameCancel.AbortByHost("smoke same-station cancel");
-    Check(sameCancel.State == OperationState.Aborted && !sameCancel.NeedsRecovery
+    Check(sameCancel.State == RoutineState.Aborted && !sameCancel.NeedsRecovery
           && sameStation.Prepares == 1 && sameStation.Cancels == 1,
         "同站点换槽中止只撤销一次，成功撤销后无需保留资源");
 
-    var sameRefused = new ProbeStation("SameRefused") { First = Succeeded, Cancel = () => false };
-    var sameCancelFailed = new TransferRoutine(TransferOrigin.Manual, transferRobot, sameRefused, 1, sameRefused, 2, 1, 1000);
+    var sameRefused = new ProbeStation("SameRefused") { First = Succeeded, Second = () => new ProbeRoutine(), Cancel = () => false };
+    var sameCancelFailed = new TransferRoutine("Transfer", TransferOrigin.Manual, transferRobot, sameRefused, 1, sameRefused, 2, 1, 1000);
     sameCancelFailed.Scan();
     sameCancelFailed.AbortByHost("smoke same-station cancel refused");
-    Check(sameCancelFailed.State == OperationState.Aborted && !sameCancelFailed.MotionStarted
+    Check(sameCancelFailed.State == RoutineState.Aborted && !sameCancelFailed.MotionStarted
           && sameCancelFailed.NeedsRecovery && sameRefused.Prepares == 1 && sameRefused.Cancels == 1,
         "同站点换槽撤销被拒只调用一次并保留占用");
 }
@@ -2178,9 +2291,9 @@ port.E87Callback = null;
     // 机械手先回原点，做完了 LoadPort、腔体再一起初始化
     void InitAllOk()
     {
-        var robotOk = new ProbeOperation();
-        var portOk = new ProbeOperation();
-        var chamberOk = new ProbeOperation();
+        var robotOk = new ProbeRoutine();
+        var portOk = new ProbeRoutine();
+        var chamberOk = new ProbeRoutine();
         sysRobot.NextInit = robotOk;
         sysPort.NextInit = portOk;
         sysChamber.NextInit = chamberOk;
@@ -2235,9 +2348,9 @@ port.E87Callback = null;
     Check(modulePushes.Count == 2 && modulePushes[1].Modules[1].Mode == ModuleMode.Maintenance, "切回维护：再推一张");
 
     // 全部初始化：先只初始化机械手，它收完尾才轮到别的，都做成进空闲
-    var robotHome = new ProbeOperation();
-    var portHome = new ProbeOperation();
-    var chamberHome = new ProbeOperation();
+    var robotHome = new ProbeRoutine();
+    var portHome = new ProbeRoutine();
+    var chamberHome = new ProbeRoutine();
     sysRobot.NextInit = robotHome;
     sysPort.NextInit = portHome;
     sysChamber.NextInit = chamberHome;
@@ -2264,7 +2377,7 @@ port.E87Callback = null;
     Check(statusPushes.Count == 3 && !statusPushes[2].IsRunning, "做完了：推回不在运行");
 
     // 没做成、被拒：整趟没做成，回未初始化（报警逻辑还没接，不进 Error）
-    var badHome = new ProbeOperation();
+    var badHome = new ProbeRoutine();
     sysRobot.NextInit = badHome;
     var failing = machine.InitAll();
     machine.Tick();
@@ -2307,7 +2420,7 @@ port.E87Callback = null;
 
     // Stop：进停止中、关自动派单，只给在做动作的模块发中止；那个动作收完尾才算停下来，Auto 停完回空闲
     Check(equipment.AutoAsync(new RpcRequest()).Result.Success, "再切回 Auto");
-    var manualMove = new ProbeOperation();
+    var manualMove = new ProbeRoutine();
     sysPort.StartManual(manualMove);
     var stop = equipment.StopAsync(new RpcRequest()).Result;
     Check(stop.Success && machine.State == ModuleState.Aborting && !sysTransfers.IsAutoDispatch
@@ -2321,7 +2434,7 @@ port.E87Callback = null;
     Check(machine.State == ModuleState.Idle, "停下来了：Auto 停完回空闲（Manual）");
 
     // 初始化中 Stop：顶掉全部初始化，正在回原点的机械手发中止，停完回未初始化；未初始化时也能停
-    var homing = new ProbeOperation();
+    var homing = new ProbeRoutine();
     sysRobot.NextInit = homing;
     Check(machine.InitAll().IsSuccess, "再开一次全部初始化");
     machine.Tick();
@@ -2347,7 +2460,7 @@ port.E87Callback = null;
     Check(sysLedger.Create("SysRobot", 1) is not null, "机械手手上摆一片补账的片（不知道从哪个 LoadPort 来）");
     var noSource = equipment.ReturnAllAsync(new RpcRequest()).Result;
     Check(!noSource.Success && noSource.Code == ErrorCodes.SystemReturnNoSource && noSource.Args.SequenceEqual(["SysRobot.01", "SysRobot.01"])
-          && machine.State == ModuleState.Idle && machine.CurrentOperation is null && sysLedger.Get("SysRobot", 1) is not null,
+          && machine.State == ModuleState.Idle && machine.CurrentRoutine is null && sysLedger.Get("SysRobot", 1) is not null,
         "有片不知道从哪个 LoadPort 来：一开始就拦（system.return_no_source 带片号和位置），整机还是 Idle、没挂动作，片不动");
     Check(sysLedger.Delete("SysRobot", 1), "删掉那片");
     var empty = machine.ReturnAll();
@@ -2556,7 +2669,7 @@ port.E87Callback = null;
     Check(!pollPort.Channel.Send(new FcdLoadCommand()), "同名指令还在途时再发被拒");
     // 端口上这时没载具（上面判拿走了），Load 发不起来，用 Home 当那个没做成的动作
     pollPort.NoteState(ModuleState.Idle);
-    var failedHome = new ProbeOperation();
+    var failedHome = new ProbeRoutine();
     Check(pollPort.BeginAction(LoadPortAction.Home, failedHome) is not null, "Idle 应能发起 Home");
     failedHome.TimeOut();
     pollPort.Tick();
@@ -2841,8 +2954,8 @@ port.E87Callback = null;
     plainComm.Push($"ACK:MAPDT/PE{new string('E', 23)}");
     Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
           && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.Normal && plain._carrier.SlotMap[1] == SlotState.Empty
-          && plain.MapResults["PlainPort"][0] == SlotState.Normal,
-        "取到槽图才算 Load 做完：落 Loaded，槽图按 GET:MAPDT 回的落进 SlotMap，也存进 MapResults");
+          && plain.MapResults["PlainPort"].Slots[0] == SlotState.Normal && plain.MapResults["PlainPort"].Raw == $"PE{new string('E', 23)}",
+        "取到槽图才算 Load 做完：落 Loaded，槽图按 GET:MAPDT 回的落进 SlotMap，也连同设备回的原文存进 MapResults");
     var plainUnload = plain.Unload().Result;
     Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "Unload 发 CULOD");
     plainComm.Push("NAK:CULOD/BUSY");
@@ -2869,7 +2982,7 @@ port.E87Callback = null;
     bool MapAlarmActive(BaseLoadPortModule port, string code) =>
         mapAlarms.ActiveAlarms.Any(alarm => alarm.SourcePath == port.FullPath && alarm.AlarmCode == code);
 
-    ModuleOperation LoadWithMap(PlainPort port, string mapData)
+    ModuleRoutine LoadWithMap(PlainPort port, string mapData)
     {
         Check(port.InitComponent(), $"{port.Name} 的组件初始化应成功");
         ComponentLoader.BindAll([port]);
@@ -2914,7 +3027,7 @@ port.E87Callback = null;
     //     等着卸的时候在线把 EC 关掉，就改成只对账、不卸
     ProbePort CompletedCarrierPort(string name, bool autoUnload)
     {
-        var port = new ProbePort(name) { AutoUnload = autoUnload, Next = new ProbeOperation() };
+        var port = new ProbePort(name) { AutoUnload = autoUnload, Next = new ProbeRoutine() };
         Check(port.InitComponent(), $"{name} 的组件初始化应成功");
         ComponentLoader.BindAll([port]);
         port.NotePodPlaced(true);
@@ -3060,7 +3173,7 @@ port.E87Callback = null;
     }
 
     // 自动跑货的 Unload：先发 MAPDO 扫片（门不关），扫完取槽图，回 mapData；对得上才会接着发 CULOD
-    ModuleOperation UnloadWithMap(PlainPort port, string mapData)
+    ModuleRoutine UnloadWithMap(PlainPort port, string mapData)
     {
         var comm = port.Channel.Comm;
         var unload = port.Unload().Result;
@@ -3151,9 +3264,9 @@ port.E87Callback = null;
     {
         resetPort.NoteState(from);
         resetPort.NoteStatus(status);
-        var operation = new ProbeOperation();
-        Check(resetPort.BeginAction(action, operation) is not null, $"状态 {from} 应能发起 {action}");
-        operation.Succeed();
+        var routine = new ProbeRoutine();
+        Check(resetPort.BeginAction(action, routine) is not null, $"状态 {from} 应能发起 {action}");
+        routine.Succeed();
         resetPort.Tick();
         return resetPort.State;
     }
@@ -3173,7 +3286,7 @@ port.E87Callback = null;
     resetPort.BlockedAction = null;
 
     // 其余动作的联锁（在各自的入口里查）：平台默认不拦；机型重写了哪个动作的联锁，就只拦那个动作，回机型自己的原因（复位、中止不设联锁）
-    foreach (var (action, from, start) in new (LoadPortAction, int, Func<HandleResult<ModuleOperation>>)[]
+    foreach (var (action, from, start) in new (LoadPortAction, int, Func<HandleResult<ModuleRoutine>>)[]
              {
                  (LoadPortAction.Unload, LoadPortState.Loaded, resetPort.Unload),
                  (LoadPortAction.Home, ModuleState.Idle, resetPort.Home),
@@ -3187,9 +3300,9 @@ port.E87Callback = null;
         Check(!blockedStart.IsSuccess && blockedStart.ErrorMessage == ProbePort.BlockedCode && resetPort.State == from,
             $"机型重写了 {action} 联锁：不让发，回机型自己的原因，状态不动");
         resetPort.BlockedAction = null;
-        var allowed = new ProbeOperation();
+        var allowed = new ProbeRoutine();
         resetPort.Next = allowed;
-        Check(start().IsSuccess && ReferenceEquals(resetPort.CurrentOperation, allowed), $"{action} 联锁没拦（平台默认）：照常能发");
+        Check(start().IsSuccess && ReferenceEquals(resetPort.CurrentRoutine, allowed), $"{action} 联锁没拦（平台默认）：照常能发");
         allowed.Succeed();
         resetPort.Tick();
     }
@@ -3241,9 +3354,9 @@ port.E87Callback = null;
     {
         resetPort.NoteState(from);
         resetPort.NoteStatus(doorOpen);
-        var movingOperation = new ProbeOperation();
-        var abort = new ProbeOperation();
-        Check(resetPort.BeginAction(moving, movingOperation) is not null
+        var movingRoutine = new ProbeRoutine();
+        var abort = new ProbeRoutine();
+        Check(resetPort.BeginAction(moving, movingRoutine) is not null
               && resetPort.BeginAction(LoadPortAction.Abort, abort) is not null, $"{moving} 做到一半被中止顶替");
         abort.Succeed();
         resetPort.Tick();
@@ -3457,10 +3570,10 @@ port.E87Callback = null;
     var stuckRobot = new ProbeRobot { WaferEventEnabled = false };
     Check(stuckRobot.InitComponent(), "测动作超时的机械手组件初始化应成功");
     ComponentLoader.BindAll([stuckRobot]);
-    var stuckPick = new CommandOperation("Pick", stuckRobot._driver, () => new RejePickCommand(1, 3, 5), () => 0);
+    var stuckPick = new ModuleRoutine(stuckRobot.Name, "Pick", stuckRobot._driver, () => 50).Command("取片", () => new RejePickCommand(1, 3, 5));
     stuckPick.Scan();
     Check(!stuckPick.IsTerminal && !stuckRobot.Channel.Send(new RejePickCommand(1, 3, 5)), "取片指令发出去了（假通讯不回它），同一条还在途时再发被拒");
-    Thread.Sleep(5);
+    Thread.Sleep(60);
     stuckPick.Scan();
     Check(stuckPick.IsTerminal && stuckPick.Code == ErrorCodes.Timeout, "等回复超时：动作判失败（超时）");
     Check(stuckRobot.Channel.Send(new RejePickCommand(1, 3, 5)), "超时的那条作废了：同一条取片指令能再发");
@@ -3603,16 +3716,16 @@ port.E87Callback = null;
             Check(chamber.Transferring(beforeReset), "复位用例进入交互中状态");
         }
 
-        var resetting = new ProbeOperation();
+        var resetting = new ProbeStep();
         chamber.NextReset = resetting;
-        Check(ReferenceEquals(chamber.Reset(), resetting) && chamber.State == phase,
+        Check(ReferenceEquals(chamber.Reset(), resetting.Routine) && chamber.State == phase,
             "腔体真实状态表在复位执行中保留原来的传片状态");
         Check(chamber.PrepareTransfer2(beforeReset) is null && !chamber.Transferring(beforeReset)
               && !chamber.TransferComplete(beforeReset) && !chamber.CancelTransfer(beforeReset)
               && chamber.PrepareTransfer(afterReset) is null && chamber.State == phase,
             "复位执行中：上下文和状态即使仍匹配，也不能推进或撤销传片环");
         resetting.Succeed();
-        Check(!resetting.IsSettled && !chamber.Transferring(beforeReset), "复位已达终态但模块尚未收尾时仍拒绝旧交互");
+        Check(!resetting.Routine.IsSettled && !chamber.Transferring(beforeReset), "设备复位做完了、模块还没扫到收尾：仍拒绝旧交互");
         chamber.Tick();
         Check(chamber.State == ModuleState.Idle && chamber.CancelTransfer(beforeReset)
               && chamber.PrepareTransfer2(beforeReset) is null && !chamber.TransferComplete(beforeReset),
@@ -3624,7 +3737,7 @@ port.E87Callback = null;
 
     var idleReset = new ProbeChamber("ContextIdleReset");
     idleReset.NoteState(ModuleState.Idle);
-    idleReset.NextReset = new ProbeOperation();
+    idleReset.NextReset = new ProbeStep();
     Check(idleReset.Reset() is not null && !idleReset.CanPrepareTransfer
           && idleReset.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleBusy
           && idleReset.PrepareTransfer(context) is null, "待命状态执行复位时，查询和准备入口也都拒绝占用");
@@ -3658,7 +3771,7 @@ port.E87Callback = null;
         }
 
         Check(contextPort.Reset() is null && contextPort.State == phase, "LoadPort 传片状态不通过 Reset 退出");
-        var aborting = new ProbeOperation();
+        var aborting = new ProbeRoutine();
         contextPort.Next = aborting;
         Check(ReferenceEquals(contextPort.Abort(), aborting) && contextPort.State == ModuleState.Aborting
               && !contextPort.Transferring(beforeAbort), "LoadPort 中止执行中旧轮不能交互");
@@ -3676,7 +3789,7 @@ port.E87Callback = null;
     var robot = new ProbeTransferRobot { AllowMotion = true };
     TransferRoutine Run(ITransferStation? source, int pickSlot, ITransferStation? target, int placeSlot)
     {
-        var routine = new TransferRoutine(TransferOrigin.Manual, robot, source, pickSlot, target, placeSlot, 4, 1000);
+        var routine = new TransferRoutine("Transfer", TransferOrigin.Manual, robot, source, pickSlot, target, placeSlot, 4, 1000);
         for (int scan = 0; scan < 32 && !routine.IsTerminal; scan++)
         {
             routine.Scan();
@@ -3688,8 +3801,8 @@ port.E87Callback = null;
 
     ProbeStation Station(string name) => new(name)
     {
-        First = () => new NoOpOperation("Prepare"),
-        Second = () => new NoOpOperation("Prepare2"),
+        First = () => ModuleRoutine.Done(name, "Prepare"),
+        Second = () => ModuleRoutine.Done(name, "Prepare2"),
     };
 
     void CheckCalls(ProbeStation station, int? pickSlot, int? placeSlot, params string[] steps)
@@ -3732,15 +3845,15 @@ port.E87Callback = null;
 
     ProbeStation HandoffStation(string name, bool pick, bool place) => new(name)
     {
-        First = () => new NoOpOperation("Prepare"),
-        Second = () => new NoOpOperation("Prepare2"),
+        First = () => ModuleRoutine.Done(name, "Prepare"),
+        Second = () => ModuleRoutine.Done(name, "Prepare2"),
         HandoffOnPick = pick,
         HandoffOnPlace = place,
     };
 
     var handoffSource = HandoffStation("HandoffLP", true, false);
     var handoffTarget = HandoffStation("HandoffPM", false, true);
-    Check(RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, handoffSource, 5, handoffTarget, 1, 4, 1000)).IsSuccess
+    Check(RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, handoffSource, 5, handoffTarget, 1, 4, 1000)).IsSuccess
           && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
         "两头都配了交接：机械手分段取、分段放，各停一下等站点交接再继续");
     CheckCalls(handoffSource, 5, null, "Prepare", "Prepare2", "Transferring", "HandoffPick", "Complete");
@@ -3749,21 +3862,21 @@ port.E87Callback = null;
     stepRobot.Calls.Clear();
     var plainSource = Station("PlainLP");
     var placeHandoffTarget = HandoffStation("HandoffPM2", false, true);
-    Check(RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, plainSource, 5, placeHandoffTarget, 1, 4, 1000)).IsSuccess
+    Check(RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, plainSource, 5, placeHandoffTarget, 1, 4, 1000)).IsSuccess
           && stepRobot.Calls.SequenceEqual(["Pick", "ExtendPlace", "RetractPlace"]),
         "只看这一头的开关：来源没配就一条指令取完，目标配了放片才分段");
     CheckCalls(plainSource, 5, null, "Prepare", "Prepare2", "Transferring", "Complete");
 
     stepRobot.Calls.Clear();
     var handoffRelocate = HandoffStation("HandoffRelocate", true, true);
-    Check(RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, handoffRelocate, 5, handoffRelocate, 8, 4, 1000)).IsSuccess
+    Check(RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, handoffRelocate, 5, handoffRelocate, 8, 4, 1000)).IsSuccess
           && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
         "同站换槽两段各分段一次");
     CheckCalls(handoffRelocate, 5, 8, "Prepare", "Prepare2", "Transferring", "HandoffPick", "NextLeg", "Transferring", "HandoffPlace", "Complete");
 
     stepRobot.Calls.Clear();
     var handoffSwapStation = HandoffStation("HandoffSwap", true, true);
-    var steppedSwap = new SwapRoutine(new SwapRequest
+    var steppedSwap = new SwapRoutine("Transfer", new SwapRequest
     {
         Robot = stepRobot.Name,
         Station = handoffSwapStation.Name,
@@ -3784,12 +3897,12 @@ port.E87Callback = null;
     stepRobot.Calls.Clear();
     var refusingStation = new ProbeStation("HandoffRefused")
     {
-        First = () => new NoOpOperation("Prepare"),
-        Second = () => new NoOpOperation("Prepare2"),
+        First = () => ModuleRoutine.Done("HandoffRefused", "Prepare"),
+        Second = () => ModuleRoutine.Done("HandoffRefused", "Prepare2"),
         HandoffOnPick = true,
         Handoff = () => null,
     };
-    var handoffRefused = RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, refusingStation, 5, null, 4, 4, 1000));
+    var handoffRefused = RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, refusingStation, 5, null, 4, 4, 1000));
     Check(handoffRefused.Code == ErrorCodes.StationHandoffRejected && handoffRefused.ErrorArgs.SequenceEqual(["HandoffRefused"])
           && handoffRefused.MotionStarted && handoffRefused.NeedsRecovery && stepRobot.Calls.SequenceEqual(["ExtendPick"])
           && refusingStation.TransferCalls.Select(call => call.Step).SequenceEqual(["Prepare", "Prepare2", "Transferring", "HandoffPick"]),
@@ -3798,17 +3911,17 @@ port.E87Callback = null;
     stepRobot.Calls.Clear();
     var failingStation = new ProbeStation("HandoffFailed")
     {
-        First = () => new NoOpOperation("Prepare"),
-        Second = () => new NoOpOperation("Prepare2"),
+        First = () => ModuleRoutine.Done("HandoffFailed", "Prepare"),
+        Second = () => ModuleRoutine.Done("HandoffFailed", "Prepare2"),
         HandoffOnPlace = true,
         Handoff = () =>
         {
-            var failed = new ProbeOperation();
+            var failed = new ProbeRoutine();
             failed.Reject();
             return failed;
         },
     };
-    var handoffFailed = RunStepped(new TransferRoutine(TransferOrigin.Manual, stepRobot, null, 4, failingStation, 1, 4, 1000));
+    var handoffFailed = RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, null, 4, failingStation, 1, 4, 1000));
     Check(handoffFailed.Code == ErrorCodes.StationHandoffFailed && handoffFailed.ErrorArgs.SequenceEqual(["HandoffFailed"])
           && handoffFailed.NeedsRecovery && stepRobot.Calls.SequenceEqual(["ExtendPlace"])
           && failingStation.TransferCalls.All(call => call.Step != "Complete"),
@@ -3817,7 +3930,7 @@ port.E87Callback = null;
     var noStepRobot = new ProbeTransferRobot { AllowMotion = true };
     var noStepSource = HandoffStation("HandoffNoStep", true, false);
     var noStepTarget = Station("HandoffNoStepTarget");
-    var unsupported = RunStepped(new TransferRoutine(TransferOrigin.Manual, noStepRobot, noStepSource, 5, noStepTarget, 1, 4, 1000));
+    var unsupported = RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, noStepRobot, noStepSource, 5, noStepTarget, 1, 4, 1000));
     Check(unsupported.Code == ErrorCodes.RobotHandoffUnsupported && unsupported.ErrorArgs.SequenceEqual(["TransferRobot"])
           && !unsupported.MotionStarted && !unsupported.NeedsRecovery && noStepSource.Cancels == 1 && noStepTarget.Cancels == 1
           && noStepRobot.Calls.Count == 0,
@@ -3825,15 +3938,15 @@ port.E87Callback = null;
 
     // 站点交接还没做完就被中止：交接跟着中止，机械手停在站里，动过手，整趟挂起等人工
     stepRobot.Calls.Clear();
-    var slowHandoff = new ProbeOperation();
+    var slowHandoff = new ProbeRoutine();
     var slowStation = new ProbeStation("HandoffSlow")
     {
-        First = () => new NoOpOperation("Prepare"),
-        Second = () => new NoOpOperation("Prepare2"),
+        First = () => ModuleRoutine.Done("HandoffSlow", "Prepare"),
+        Second = () => ModuleRoutine.Done("HandoffSlow", "Prepare2"),
         HandoffOnPick = true,
         Handoff = () => slowHandoff,
     };
-    var slowRoutine = new TransferRoutine(TransferOrigin.Manual, stepRobot, slowStation, 5, null, 4, 4, 1000);
+    var slowRoutine = new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, slowStation, 5, null, 4, 4, 1000);
     for (int scan = 0; scan < 10; scan++)
     {
         slowRoutine.Scan();
@@ -3842,12 +3955,12 @@ port.E87Callback = null;
     Check(!slowRoutine.IsTerminal && stepRobot.Calls.SequenceEqual(["ExtendPick"]) && slowStation.TransferCalls[^1].Step == "HandoffPick",
         "站点交接没做完：机械手一直停着等");
     slowRoutine.AbortByHost("冒烟中止");
-    Check(slowRoutine.State == OperationState.Aborted && slowRoutine.NeedsRecovery
-          && slowHandoff.State == OperationState.Aborted && slowHandoff.AbortCount == 1,
+    Check(slowRoutine.State == RoutineState.Aborted && slowRoutine.NeedsRecovery
+          && slowHandoff.State == RoutineState.Aborted && slowHandoff.AbortCount == 1,
         "停着等交接时被中止：站点的交接跟着中止，整趟挂起等人工");
 
     var cancelled = new ContextProbeStation();
-    var oldRoutine = new TransferRoutine(TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
+    var oldRoutine = new TransferRoutine("Transfer", TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
     oldRoutine.Scan();
     cancelled.NoteState(ModuleState.Idle); // 模拟恢复完成，状态与上下文身份的真实覆盖已在上面的 Reset / Abort 用例验证。
     var replacementContext = TransferContext.ForPlace(robot.Name, 4, 1);
@@ -3879,7 +3992,7 @@ port.E87Callback = null;
     RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotArrived, "Job 查询：载具未到位，返回端口名和具体原因");
     RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotArrived, "搬运查询：Loaded 但载具未到位，同样返回具体原因");
     Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer(accessContext) is null
-          && accessPort.State == LoadPortState.Loaded && accessPort.CurrentOperation is null,
+          && accessPort.State == LoadPortState.Loaded && accessPort.CurrentRoutine is null,
         "载具不在：查询与动作都拒绝，状态和操作不变");
 
     accessPort.NoteState(ModuleState.Idle);
@@ -3954,7 +4067,7 @@ port.E87Callback = null;
         RefusesAccess(jobAccess.CheckCarrierForJob(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：Job 查询返回载具未被认可");
         RefusesAccess(transferAccess.CheckPrepareTransfer(), ErrorCodes.CarrierNotAccepted, $"槽图 {mapStatus}：搬运查询返回相同的认可原因");
         Check(!jobAccess.CanUseCarrierForJob && !transferAccess.CanPrepareTransfer && accessPort.PrepareTransfer(accessContext) is null
-              && accessPort.State == LoadPortState.Loaded && accessPort.CurrentOperation is null,
+              && accessPort.State == LoadPortState.Loaded && accessPort.CurrentRoutine is null,
             $"槽图 {mapStatus}：布尔属性与拒绝原因一致，之前查询成功也不能绕过动作入口重查");
     }
 
@@ -4006,14 +4119,14 @@ port.E87Callback = null;
     Check(stationAccess.CheckPrepareTransfer() is null && stationAccess.CanPrepareTransfer
           && (object)station is not IJobAccess,
         "普通站点复用搬运查询，无需实现载具 Job 能力");
-    var attempts = new ModuleOperation?[8];
+    var attempts = new ModuleRoutine?[8];
     var attemptContexts = Enumerable.Range(1, attempts.Length)
         .Select(arm => TransferContext.ForPlace("ParallelRobot", arm, 1)).ToArray();
     Parallel.For(0, attempts.Length, index => attempts[index] = station.PrepareTransfer(attemptContexts[index]));
-    Check(attempts.Count(operation => operation is not null) == 1 && !stationAccess.CanPrepareTransfer
+    Check(attempts.Count(routine => routine is not null) == 1 && !stationAccess.CanPrepareTransfer
           && stationAccess.CheckPrepareTransfer()?.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
         "八次并发准备只有一次成功；查询不会代替锁内占用");
-    var winner = Array.FindIndex(attempts, operation => operation is not null);
+    var winner = Array.FindIndex(attempts, routine => routine is not null);
     Check(station.CancelTransfer(attemptContexts[winner]) && stationAccess.CanPrepareTransfer && stationAccess.CheckPrepareTransfer() is null,
         "普通站点撤回准备后恢复可用");
 }
@@ -4119,9 +4232,10 @@ port.E87Callback = null;
     Check(PumpUntil(() => ownPort.Channel.Comm.SentCount("GET:MAPDT") == 1), "扫完发 GET:MAPDT 取槽图");
     ownPort.Channel.Comm.Push($"ACK:MAPDT/PP{new string('E', 23)}");
     Check(PumpUntil(() => ownMap!.IsTerminal) && ownMap!.IsSuccess && ownPort.State == LoadPortState.Loaded
-          && ownPort.MapResults["OwnMapLP"].Take(3).SequenceEqual([SlotState.Normal, SlotState.Normal, SlotState.Empty])
+          && ownPort.MapResults["OwnMapLP"].Slots.Take(3).SequenceEqual([SlotState.Normal, SlotState.Normal, SlotState.Empty])
+          && ownPort.MapResults["OwnMapLP"].Raw == $"PP{new string('E', 23)}"
           && ownPort._carrier.SlotMap.Count == 0 && mapLedger.CountWafers("OwnMapLP") == 0,
-        "单独扫片做完回 Loaded：槽图存进 MapResults（键是端口名），不落账、不动载具槽图");
+        "单独扫片做完回 Loaded：槽图连同设备回的原文存进 MapResults（键是端口名），不落账、不动载具槽图");
     ownPort.Close();
     ticks.Clear();
 
@@ -4224,14 +4338,17 @@ port.E87Callback = null;
     string whileMapping = TryTransfer("MapAligner", 1, "RobotMapLP", 3);
     Check(whileMapping == ErrorCodes.TransferRobotMapping, $"机械手在扫、手上空着：站点到站点的搬运也不接（transfer.robot_mapping），实际 {whileMapping}");
 
-    // 7) 机械手扫完回槽图：排队那条做完，Load 拿机械手 MapResults 里这个口的槽图落账，LoadPort 自己没扫
-    robot.CompleteMap(MapOf(2));
+    // 7) 机械手扫完回槽图：排队那条做完，Load 拿机械手 MapResults 里这个口的槽图落账，LoadPort 自己没扫。
+    //    探针机械手的原文用 1 / 0（别家的写法）：平台不认字符，原样存、原样写日志
+    string robotRaw = "11" + new string('0', 23);
+    robot.CompleteMap(MapOf(2), robotRaw);
     Check(PumpUntil(() => queuedLoad!.IsTerminal) && queuedLoad!.IsSuccess && lp.State == LoadPortState.Loaded
           && lp._carrier.SlotMap.Count == 25 && lp._carrier.SlotMap[1] == SlotState.Normal && lp._carrier.SlotMap[2] == SlotState.Empty
           && mapLedger.CountWafers("RobotMapLP") == 2 && lp.Channel.Comm.SentCount("MOV:MAPDO") == 0 && lp.Channel.Comm.SentCount("GET:MAPDT") == 0,
         $"机械手扫完：Load 做完落 Loaded，槽图按机械手扫的落账（2 片），LoadPort 自己没发 MAPDO / GET:MAPDT，实际 {queuedLoad!.Code}");
-    Check(PumpUntil(() => robot.State == ModuleState.Idle) && robot.MapResults["RobotMapLP"].Count == 25,
-        "机械手扫完回空闲，MapResults 里留着这个口最近一次的槽图");
+    Check(PumpUntil(() => robot.State == ModuleState.Idle) && robot.MapResults["RobotMapLP"].Slots.Count == 25
+          && robot.MapResults["RobotMapLP"].Raw == robotRaw,
+        "机械手扫完回空闲，MapResults 里留着这个口最近一次的槽图和机械手回的原文");
     Check(TryTransfer("MapAligner", 1, "RobotMapLP", 3) == string.Empty, "扫完从队里拿掉了：搬运照常接");
 
     // 8) 自动跑货 Unload 对账也由机械手扫：关门前排它扫，扫到的跟账对上才发 CULOD
@@ -4239,7 +4356,7 @@ port.E87Callback = null;
     var robotUnload = lp.Unload().Result;
     Check(robotUnload is not null && PumpUntil(() => robot.MapCalls == 2) && lp.Channel.Comm.SentCount("MOV:CULOD") == 0,
         "机械手扫片的口自动跑货 Unload：关门前先排机械手扫，门先不关");
-    robot.CompleteMap(MapOf(2));
+    robot.CompleteMap(MapOf(2), robotRaw);
     Check(PumpUntil(() => lp.Channel.Comm.SentCount("MOV:CULOD") == 1), "机械手扫到的跟账对上：这才发 CULOD 关门");
     lp.Channel.Comm.Push("INF:CULOD");
     Check(PumpUntil(() => robotUnload!.IsTerminal) && robotUnload!.IsSuccess && lp.State == ModuleState.Idle,
@@ -4264,7 +4381,7 @@ port.E87Callback = null;
     lp.Channel.Comm.Push("INF:CLOAD");
     Pump(3);
     lp.Abort();
-    Check(abortedLoad!.State == OperationState.Aborted, "中止顶掉排着等机械手的 Load");
+    Check(abortedLoad!.State == RoutineState.Aborted, "中止顶掉排着等机械手的 Load");
     Check(mapLedger.Delete("MapRobot", 1), "Arm1 上的片放下了");
     Pump(5);
     Check(robot.MapCalls == 2 && TryTransfer("MapAligner", 1, "RobotMapLP", 3) == string.Empty,
@@ -4277,7 +4394,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
+Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
 
 // 假帧通讯：顶替串口 / 网口，连接由测试摆（打不开、断线），发出去的帧体记下来；设备的回复由测试推，
 // 按通道交来的那家解码器解成报文往上交（跟真的接收泵一样），字节级的拆帧不在这里测（见 GatedTransport）。
@@ -4377,23 +4494,91 @@ sealed class ProbeChannel : DeviceDriverComponent
     }
 }
 
-sealed class ProbeOperation() : ModuleOperation("Probe")
+// 整段的探针动作：只有一步"探针"，用例当场判它做成 / 失败 / 超时（不等扫描）；FinishOnScan 的扫到就做完（像一台马上做完的设备）
+sealed class ProbeRoutine : ModuleRoutine
 {
+    public ProbeRoutine() : base("Probe", "Probe")
+    {
+        Add("探针", null, _ => FinishOnScan);
+    }
+
     public bool FinishOnScan { get; init; }
     public int AbortCount { get; private set; }
     public void Succeed() => Complete();
     public void Reject() => Fail(ErrorCodes.DeviceFailed, "device error", Name, "device error");
     public void TimeOut() => Fail(ErrorCodes.Timeout, "action timeout", Name, "1000");
 
-    protected override void OnScan()
+    protected override void OnAborted(string reason) => AbortCount++;
+}
+
+// 探针步骤：顶替机型加的设备那几条（机械手、腔体的动作由平台建，机型只加步骤）；用例摆结果，下一拍扫到才算，跟真设备回包一样
+sealed class ProbeStep() : RoutineStep("探针")
+{
+    private volatile bool _succeeded;
+
+    /// <summary>
+    /// 摆了失败：错误码；没摆为 null
+    /// </summary>
+    private volatile string? _failure;
+
+    public bool FinishOnScan { get; init; }
+
+    /// <summary>
+    /// 动作被中止时这一步在走、收了几次场
+    /// </summary>
+    public int AbortCount { get; private set; }
+
+    public void Succeed() => _succeeded = true;
+    public void Reject() => _failure = ErrorCodes.DeviceFailed;
+    public void TimeOut() => _failure = ErrorCodes.Timeout;
+
+    protected override void Run()
     {
-        if (FinishOnScan)
+    }
+
+    protected override bool Check()
+    {
+        var failure = _failure;
+        if (failure == ErrorCodes.DeviceFailed)
         {
-            Complete();
+            Fail(failure, "device error", "Probe", "device error");
+            return false;
         }
+
+        if (failure == ErrorCodes.Timeout)
+        {
+            Fail(failure, "action timeout", "Probe", "1000");
+            return false;
+        }
+
+        return _succeeded || FinishOnScan;
     }
 
     protected override void OnAborted(string reason) => AbortCount++;
+}
+
+// 记下中止时谁先收场的动作
+sealed class TraceRoutine(List<string> order) : ModuleRoutine("Engine", "Trace")
+{
+    protected override void OnAborted(string reason) => order.Add("routine");
+}
+
+// 记下收场的步骤：done 为真的进来就做完
+sealed class TraceStep(string name, List<string> order, bool done) : RoutineStep(name)
+{
+    protected override void Run()
+    {
+    }
+
+    protected override bool Check() => done;
+
+    protected override void OnAborted(string reason) => order.Add(Name);
+}
+
+// 拿服务基类给动作失败写回包的那一段（受保护的）
+sealed class ProbeService : BaseService
+{
+    public static RpcResponse FailedOf(ModuleRoutine routine) => Failed(routine);
 }
 
 sealed class ProbeModule : BaseModule
@@ -4403,9 +4588,9 @@ sealed class ProbeModule : BaseModule
     public ManualResetEventSlim? Completing { get; init; }
     public ManualResetEventSlim? ReleaseCompletion { get; init; }
     public bool CleanupDone { get; private set; }
-    public bool StartOperation(ModuleOperation operation, bool replace = false) => Run(operation, replace);
+    public bool StartRoutine(ModuleRoutine routine, bool replace = false) => Run(routine, replace);
     public void Tick() => OnScan();
-    protected override void OnOperationCompleted(ModuleOperation operation)
+    protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
         Completing?.Set();
         if (ReleaseCompletion is not null && !ReleaseCompletion.Wait(2000))
@@ -4434,7 +4619,7 @@ static class ProbeCarrier
 // 下面挂探针通道，测试看发出去的帧、往里推回复、模拟断线。
 sealed class ProbePort : LoadPortModule
 {
-    public ProbeOperation? Next { get; set; }
+    public ProbeRoutine? Next { get; set; }
     public int Calls { get; private set; }
 
     /// <summary>
@@ -4477,7 +4662,7 @@ sealed class ProbePort : LoadPortModule
     public void NoteStatus(LoadPortStatus? status) => Status = status;
 
     /// <summary>走真路径发起动作（状态表 + 操作登记），不是 Load() 那种直接返回。</summary>
-    public ModuleOperation? BeginAction(LoadPortAction action, ModuleOperation operation) => Begin(action, operation);
+    public ModuleRoutine? BeginAction(LoadPortAction action, ModuleRoutine routine) => Begin(action, routine);
 
     /// <summary>顶替机型自己加的联锁条件（光幕、机械手缩回这类）：摆哪个动作就拦哪个动作，null 不拦。</summary>
     public LoadPortAction? BlockedAction { get; set; }
@@ -4500,20 +4685,20 @@ sealed class ProbePort : LoadPortModule
     /// 建设备动作：记一次，给摆好的 Next；没摆就给一个下一拍就做完的探针动作（像一台马上做完的设备——
     /// 复位、报警复位这类测试不关心动作本身，别让它一直挂着挡住后面的动作）。
     /// </summary>
-    private ModuleOperation Take()
+    private ModuleRoutine Take()
     {
         Calls++;
-        return Next ?? new ProbeOperation { FinishOnScan = true };
+        return Next ?? new ProbeRoutine { FinishOnScan = true };
     }
 
     // 动作入口固定（三项检查都在里面），机型只能换设备动作
-    protected override ModuleOperation CreateLoadOperation() => Take();
-    protected override ModuleOperation CreateUnloadOperation(bool mapAndVerify) => Take();
-    protected override ModuleOperation CreateHomeOperation() => Take();
-    protected override ModuleOperation CreateResetOperation() => Take();
-    protected override ModuleOperation CreateAbortOperation() => Take();
-    protected override ModuleOperation CreateClampOperation() => Take();
-    protected override ModuleOperation CreateUnclampOperation() => Take();
+    protected override ModuleRoutine CreateLoadRoutine() => Take();
+    protected override ModuleRoutine CreateUnloadRoutine(bool mapAndVerify) => Take();
+    protected override ModuleRoutine CreateHomeRoutine() => Take();
+    protected override ModuleRoutine CreateResetRoutine() => Take();
+    protected override ModuleRoutine CreateAbortRoutine() => Take();
+    protected override ModuleRoutine CreateClampRoutine() => Take();
+    protected override ModuleRoutine CreateUnclampRoutine() => Take();
 }
 
 // 没挂 _carrier 子组件的端口：验装配错了开机就暴露。
@@ -4867,7 +5052,10 @@ sealed class RecordingE87Callback : IE87Callback
 // 只为验"取放成功之后账有没有跟着动"；下面挂探针通道，测试看发出去的帧、往里推回复。
 sealed class ProbeRobot : RobotModule
 {
-    public ProbeOperation? Next { get; set; }
+    /// <summary>
+    /// 下一个动作里设备那一步（一步只能加进一个动作，每个动作摆一个新的）
+    /// </summary>
+    public ProbeStep? Next { get; set; }
 
     /// <summary>
     /// 挂在下面的探针通道
@@ -4918,17 +5106,17 @@ sealed class ProbeRobot : RobotModule
     /// <summary>摆一个设备报错（生产里由查询或主动推送刷新）。</summary>
     public void NoteDeviceError(string? error) => DeviceError = error;
 
-    // 入口检查（状态 → 资源 → 互锁）走平台的；过了以后挂上去的设备动作换成用例摆的 Next
-    protected override ModuleOperation CreateHomeOperation() => Supply();
-    protected override ModuleOperation CreateResetOperation() => Supply();
-    protected override ModuleOperation CreateAbortOperation() => Supply();
-    protected override ModuleOperation CreatePowerOnOperation() => Supply();
-    protected override ModuleOperation CreatePowerOffOperation() => Supply();
-    protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot) => Supply();
-    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot) => Supply();
+    // 入口检查（状态 → 资源 → 互锁）走平台的；过了以后设备那几条换成用例摆的 Next（取放后面的持片检查、记账照样是平台加的）
+    protected override void AddHomeSteps(ModuleRoutine home) => home.Add(Supply());
+    protected override void AddResetSteps(ModuleRoutine reset) => reset.Add(Supply());
+    protected override void AddAbortSteps(ModuleRoutine abort) => abort.Add(Supply());
+    protected override void AddPowerOnSteps(ModuleRoutine powerOn) => powerOn.Add(Supply());
+    protected override void AddPowerOffSteps(ModuleRoutine powerOff) => powerOff.Add(Supply());
+    protected override void AddPickSteps(ModuleRoutine pick, int arm, int stationNumber, int slot) => pick.Add(Supply());
+    protected override void AddPlaceSteps(ModuleRoutine place, int arm, int stationNumber, int slot) => place.Add(Supply());
 
-    private ModuleOperation Supply() =>
-        Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
+    private ProbeStep Supply() =>
+        Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个探针步骤。");
 }
 
 // 能扫片的探针机械手：35021 的机械手类，类上声明 IWaferMap（平台基类写好的 Map / MapResults 就是实现），两只手；
@@ -4953,9 +5141,9 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
     public int MapStationNumber { get; private set; }
 
     /// <summary>
-    /// 最近一次扫片的设备动作
+    /// 最近一次扫片动作里设备那一步
     /// </summary>
-    public ProbeOperation? MapMotion { get; private set; }
+    public ProbeStep? MapMotion { get; private set; }
 
     public MapProbeRobot(string name)
     {
@@ -4985,21 +5173,21 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
     public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
 
     /// <summary>
-    /// 设备扫完：先存槽图、再做完（跟真机先回图再收尾一样）
+    /// 设备扫完：先存槽图和设备回的原文、再做完（跟真机先回图再收尾一样），下一拍扫到
     /// </summary>
-    public void CompleteMap(IReadOnlyList<SlotState> slots)
+    public void CompleteMap(IReadOnlyList<SlotState> slots, string raw)
     {
-        SaveMapResult(MapStation, slots);
+        SaveMapResult(MapStation, slots, raw);
         MapMotion!.Succeed();
     }
 
-    protected override ModuleOperation? CreateMapOperation(string station, int stationNumber)
+    protected override void AddMapSteps(ModuleRoutine map, string station, int stationNumber)
     {
         MapCalls++;
         MapStation = station;
         MapStationNumber = stationNumber;
-        MapMotion = new ProbeOperation();
-        return MapMotion;
+        MapMotion = new ProbeStep();
+        map.Add(MapMotion);
     }
 }
 
@@ -5026,13 +5214,16 @@ sealed class ProbeChamber : BaseChamberModule
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
     }
 
-    public ProbeOperation? NextReset { get; set; }
+    /// <summary>
+    /// 下一次复位里设备那一步；没摆就是一步一直做不完的探针
+    /// </summary>
+    public ProbeStep? NextReset { get; set; }
 
     public void NoteState(int state) => State = state;
 
     public void Tick() => OnScan();
 
-    protected override ModuleOperation CreateResetOperation() => NextReset ?? new ProbeOperation();
+    protected override void AddResetSteps(ModuleRoutine reset) => reset.Add(NextReset ?? new ProbeStep());
 }
 
 // 探针普通站点（对中台这类）：能放片，既不是 LoadPort 也不是腔体。
@@ -5052,7 +5243,7 @@ sealed class ContextProbeStation : BaseTransferStationModule
         return _cleanupFrom is int from && TransferStep(from, StandbyState);
     }
 
-    protected override ModuleOperation? PrepareTransfer2Core(TransferContext context)
+    protected override ModuleRoutine? PrepareTransfer2Core(TransferContext context)
     {
         SecondPrepares++;
         PreparedContext = context;
@@ -5064,16 +5255,16 @@ sealed class ContextProbeStation : BaseTransferStationModule
     /// </summary>
     public int Handoffs { get; private set; }
 
-    protected override ModuleOperation? HandoffPickCore(TransferContext context)
+    protected override ModuleRoutine? HandoffPickCore(TransferContext context)
     {
         Handoffs++;
-        return new NoOpOperation("HandoffPick");
+        return ModuleRoutine.Done(Name, "HandoffPick");
     }
 
-    protected override ModuleOperation? HandoffPlaceCore(TransferContext context)
+    protected override ModuleRoutine? HandoffPlaceCore(TransferContext context)
     {
         Handoffs++;
-        return new NoOpOperation("HandoffPlace");
+        return ModuleRoutine.Done(Name, "HandoffPlace");
     }
 
     protected override void OnTransferFinished(TransferContext context)
@@ -5157,8 +5348,8 @@ sealed class PlainChild : ComponentBase
 sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
 {
     public List<(string Step, TransferContext Context)> TransferCalls { get; } = [];
-    public Func<ModuleOperation?> First { get; init; } = () => null;
-    public Func<ModuleOperation?> Second { get; init; } = () => null;
+    public Func<ModuleRoutine?> First { get; init; } = () => null;
+    public Func<ModuleRoutine?> Second { get; init; } = () => null;
     public Func<bool> Cancel { get; init; } = () => true;
     public int Prepares { get; private set; }
     public int Cancels { get; private set; }
@@ -5166,24 +5357,24 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public string FullPath => Name;
     public int State => ModuleState.Idle;
     public bool IsEnabled => true;
-    public ModuleOperation? CurrentOperation => null;
-    public ModuleOperation? InitModule() => null;
-    public ModuleOperation? Reset() => null;
-    public ModuleOperation? Abort() => null;
+    public ModuleRoutine? CurrentRoutine => null;
+    public ModuleRoutine? InitModule() => null;
+    public ModuleRoutine? Reset() => null;
+    public ModuleRoutine? Abort() => null;
     public int SlotCount => 1;
     public StationKind Kind => StationKind.Other;
     public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
     public HandleResult? CheckPrepareTransfer() => null;
     public HandleResult? CheckWaferSensors() => null;
 
-    public ModuleOperation? PrepareTransfer(TransferContext context)
+    public ModuleRoutine? PrepareTransfer(TransferContext context)
     {
         TransferCalls.Add(("Prepare", context));
         Prepares++;
         return First();
     }
 
-    public ModuleOperation? PrepareTransfer2(TransferContext context)
+    public ModuleRoutine? PrepareTransfer2(TransferContext context)
     {
         TransferCalls.Add(("Prepare2", context));
         return Second();
@@ -5195,9 +5386,9 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
         return true;
     }
 
-    public Func<ModuleOperation?> NextLeg { get; init; } = () => new NoOpOperation("PrepareNextLeg");
+    public Func<ModuleRoutine?> NextLeg { get; init; } = () => ModuleRoutine.Done(name, "PrepareNextLeg");
 
-    public ModuleOperation? PrepareNextLeg(TransferContext context)
+    public ModuleRoutine? PrepareNextLeg(TransferContext context)
     {
         TransferCalls.Add(("NextLeg", context));
         return NextLeg();
@@ -5210,15 +5401,15 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     /// <summary>
     /// 中途交接给什么（null = 被拒）
     /// </summary>
-    public Func<ModuleOperation?> Handoff { get; init; } = () => new NoOpOperation("Handoff");
+    public Func<ModuleRoutine?> Handoff { get; init; } = () => ModuleRoutine.Done(name, "Handoff");
 
-    public ModuleOperation? HandoffPick(TransferContext context)
+    public ModuleRoutine? HandoffPick(TransferContext context)
     {
         TransferCalls.Add(("HandoffPick", context));
         return Handoff();
     }
 
-    public ModuleOperation? HandoffPlace(TransferContext context)
+    public ModuleRoutine? HandoffPlace(TransferContext context)
     {
         TransferCalls.Add(("HandoffPlace", context));
         return Handoff();
@@ -5241,7 +5432,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
 
     public HandleResult CheckTask(StationTaskRequest request) => HandleResult.Fail(ErrorCodes.StationTaskUnsupported, Name, request.Kind);
 
-    public ModuleOperation? StartTask(StationTaskRequest request) => null;
+    public ModuleRoutine? StartTask(StationTaskRequest request) => null;
 }
 
 // 探针机械手：默认拒绝动作；上下文贯通用例可开启即时完成的取放。收到的取放按先后记在 Calls。
@@ -5256,7 +5447,7 @@ class ProbeTransferRobot : ITransferRobot
     public StationKind Kind => StationKind.Robot;
 
     public bool IsEnabled => true;
-    public ModuleOperation? CurrentOperation => null;
+    public ModuleRoutine? CurrentRoutine => null;
 
     public int State => 0;
     public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
@@ -5271,14 +5462,14 @@ class ProbeTransferRobot : ITransferRobot
         return false;
     }
 
-    public ModuleOperation? InitModule() => null;
-    public ModuleOperation? Reset() => null;
-    public ModuleOperation? Abort() => null;
-    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => Move("Pick");
-    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => Move("Place");
+    public ModuleRoutine? InitModule() => null;
+    public ModuleRoutine? Reset() => null;
+    public ModuleRoutine? Abort() => null;
+    public HandleResult<ModuleRoutine> Pick(int arm, string station, int slot) => Move("Pick");
+    public HandleResult<ModuleRoutine> Place(int arm, string station, int slot) => Move("Place");
     public HandleResult? CheckPick(int arm, string station, int slot) => CheckMotion();
     public HandleResult? CheckPlace(int arm, string station, int slot) => CheckMotion();
-    public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
+    public ModuleRoutine? Swap(int pickArm, int placeArm, string station, int slot) => null;
 
     private HandleResult? CheckMotion()
     {
@@ -5293,26 +5484,26 @@ class ProbeTransferRobot : ITransferRobot
     /// <summary>
     /// 记下这一下、当场做完；没开动作的被拒
     /// </summary>
-    protected HandleResult<ModuleOperation> Move(string action)
+    protected HandleResult<ModuleRoutine> Move(string action)
     {
         var refused = CheckMotion();
         if (refused is not null)
         {
-            return HandleResult<ModuleOperation>.Fail(refused.ErrorMessage, [.. refused.Args]);
+            return HandleResult<ModuleRoutine>.Fail(refused.ErrorMessage, [.. refused.Args]);
         }
 
         Calls.Add(action);
-        return HandleResult<ModuleOperation>.Success(new NoOpOperation(action));
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(Name, action));
     }
 }
 
 // 能分段取放的探针机械手：声明 ITransferRobotStep，伸臂、缩臂当场做完，跟取放一起按先后记在 Calls。
 sealed class ProbeStepRobot : ProbeTransferRobot, ITransferRobotStep
 {
-    public HandleResult<ModuleOperation> ExtendPick(int arm, string station, int slot) => Move("ExtendPick");
-    public HandleResult<ModuleOperation> RetractPick(int arm, string station, int slot) => Move("RetractPick");
-    public HandleResult<ModuleOperation> ExtendPlace(int arm, string station, int slot) => Move("ExtendPlace");
-    public HandleResult<ModuleOperation> RetractPlace(int arm, string station, int slot) => Move("RetractPlace");
+    public HandleResult<ModuleRoutine> ExtendPick(int arm, string station, int slot) => Move("ExtendPick");
+    public HandleResult<ModuleRoutine> RetractPick(int arm, string station, int slot) => Move("RetractPick");
+    public HandleResult<ModuleRoutine> ExtendPlace(int arm, string station, int slot) => Move("ExtendPlace");
+    public HandleResult<ModuleRoutine> RetractPlace(int arm, string station, int slot) => Move("RetractPlace");
 }
 
 // 整机冒烟用的探针模块：初始化挂用例摆的操作（没摆就是被拒），能挂一个手动动作，中止把在做的动作当场打断（下一拍收尾）；
@@ -5334,31 +5525,31 @@ class SystemProbeModule : BaseModule, IMode
     public void SetMaintenance() => Mode = ModuleMode.Maintenance;
 
     /// <summary>下一次初始化挂的操作；null = 初始化被拒。挂上就清掉。</summary>
-    public ProbeOperation? NextInit { get; set; }
+    public ProbeRoutine? NextInit { get; set; }
 
     public int InitCalls { get; private set; }
 
     public int AbortCalls { get; private set; }
 
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         InitCalls++;
-        var operation = NextInit;
+        var routine = NextInit;
         NextInit = null;
-        if (operation is null || !Run(operation))
+        if (routine is null || !Run(routine))
         {
             return null;
         }
 
-        return operation;
+        return routine;
     }
 
-    public void StartManual(ModuleOperation operation) => Run(operation);
+    public void StartManual(ModuleRoutine routine) => Run(routine);
 
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         AbortCalls++;
-        CurrentOperation?.AbortByHost("整机停止");
+        CurrentRoutine?.AbortByHost("整机停止");
         return null;
     }
 
@@ -5391,17 +5582,17 @@ sealed class SystemProbeRobot(string name) : SystemProbeModule(name), IRobot
         return false;
     }
 
-    private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, "0");
+    private HandleResult<ModuleRoutine> Refused() => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, "0");
 
-    public HandleResult<ModuleOperation> Home() => Refused();
-    public override ModuleOperation? Reset() => null;
-    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot) => Refused();
-    public HandleResult<ModuleOperation> Place(int arm, string station, int slot) => Refused();
+    public HandleResult<ModuleRoutine> Home() => Refused();
+    public override ModuleRoutine? Reset() => null;
+    public HandleResult<ModuleRoutine> Pick(int arm, string station, int slot) => Refused();
+    public HandleResult<ModuleRoutine> Place(int arm, string station, int slot) => Refused();
     public HandleResult? CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
     public HandleResult? CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, "0");
-    public ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot) => null;
-    public HandleResult<ModuleOperation> PowerOn() => Refused();
-    public HandleResult<ModuleOperation> PowerOff() => Refused();
+    public ModuleRoutine? Swap(int pickArm, int placeArm, string station, int slot) => null;
+    public HandleResult<ModuleRoutine> PowerOn() => Refused();
+    public HandleResult<ModuleRoutine> PowerOff() => Refused();
 }
 
 // 整机冒烟用的系统模块：名字跟 sc.xml 一样叫 System，测试代替扫描线程推一拍。

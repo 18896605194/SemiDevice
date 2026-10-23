@@ -54,6 +54,11 @@ public class SystemModule : BaseStateComponent, ISystemModule
 
     private IReadOnlyList<IModule> _modules = [];
 
+    /// <summary>
+    /// 在做的全部初始化（收尾时认它）；没在做为 null
+    /// </summary>
+    private ModuleRoutine? _initRoutine;
+
     // 下面几个单例开机绑模块表时取；没装是 null
     private ITransferManager? _transfers;
     private IJobManager? _jobs;
@@ -89,12 +94,12 @@ public class SystemModule : BaseStateComponent, ISystemModule
     #region 动作入口
 
     /// <summary>
-    /// 全部初始化：先机械手回原点，再一起初始化其余模块（见 <see cref="SystemInitOperation"/>），都做成了进空闲。
+    /// 全部初始化：先机械手回原点（手缩回来，别的站点动起来才不刮手），都做成了再一起初始化其余模块（见 <see cref="SystemInitStep"/>），都做成了进空闲。
     /// 有一个被拒或没做成整机回未初始化，原因在日志里（模块自己也记、也报警）。
     /// </summary>
-    public HandleResult<ModuleOperation> InitAll()
+    public HandleResult<ModuleRoutine> InitAll()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(SystemAction.Init);
             if (rejected is not null)
@@ -102,7 +107,26 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 return Rejected(rejected);
             }
 
-            return Started(SystemAction.Init, new SystemInitOperation(_modules));
+            var init = new ModuleRoutine(Name, "Init");
+            var robots = _modules.Where(module => module is IRobot).ToList();
+            if (robots.Count > 0)
+            {
+                init.Add(new SystemInitStep("机械手回原点", robots));
+            }
+
+            var others = _modules.Where(module => module is not IRobot).ToList();
+            if (others.Count > 0)
+            {
+                init.Add(new SystemInitStep("其余模块初始化", others));
+            }
+
+            var started = Started(SystemAction.Init, init);
+            if (started.IsSuccess)
+            {
+                _initRoutine = init;
+            }
+
+            return started;
         }
     }
 
@@ -112,7 +136,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
     /// </summary>
     public HandleResult Auto()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(SystemAction.Auto);
             if (rejected is not null)
@@ -142,7 +166,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
     /// </summary>
     public HandleResult Manual()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(SystemAction.Manual);
             if (rejected is not null)
@@ -157,13 +181,13 @@ public class SystemModule : BaseStateComponent, ISystemModule
     }
 
     /// <summary>
-    /// 全部回片：整机 Idle 时，机内的片倒着走回各自来源 LoadPort 的原槽（见 <see cref="SystemReturnOperation"/>），回完回 Idle
+    /// 全部回片：整机 Idle 时，机内的片倒着走回各自来源 LoadPort 的原槽（见 <see cref="SystemReturnRoutine"/>），回完回 Idle
     /// </summary>
-    public HandleResult<ModuleOperation> ReturnAll()
+    public HandleResult<ModuleRoutine> ReturnAll()
     {
         ITransferManager transfers;
         ILedgerManager ledger;
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(SystemAction.ReturnAll) ?? CheckReturnResource();
             if (rejected is not null)
@@ -177,15 +201,15 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         // 开始前的检查在锁外做：要问 Job、各设备，不拿着整机的锁去等别人的锁
-        var prepared = SystemReturnOperation.Prepare(Name, transfers, ledger, _jobs);
-        var operation = prepared.Result;
-        if (!prepared.IsSuccess || operation is null)
+        var prepared = SystemReturnRoutine.Prepare(Name, transfers, ledger, _jobs);
+        var routine = prepared.Result;
+        if (!prepared.IsSuccess || routine is null)
         {
             LogHelper.Warn(Name, $"全部回片不能开始：{prepared.ErrorMessage} [{string.Join(", ", prepared.Args)}]");
             return prepared;
         }
 
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(SystemAction.ReturnAll);
             if (rejected is not null)
@@ -193,7 +217,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 return Rejected(rejected);
             }
 
-            return Started(SystemAction.ReturnAll, operation);
+            return Started(SystemAction.ReturnAll, routine);
         }
     }
 
@@ -226,29 +250,31 @@ public class SystemModule : BaseStateComponent, ISystemModule
     /// 正在做别的动作的模块直接发中止——正在搬运的机械手、给 Job 做工艺的腔体不在这里发，归搬运管理和 Job 的中止去停；
     /// 最后 Job 全部走中止（等设备确认、核对片位，不是直接删 Job）。等停的那一刻各模块手上的动作都收完尾，回到停之前该在的地方（见状态表）。
     /// </summary>
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         base.Abort();
 
-        SystemStopOperation stop;
-        lock (OperationGate)
+        SystemStopStep wait;
+        ModuleRoutine stop;
+        lock (RoutineGate)
         {
             if (CheckAbort() is not null)
             {
                 return null;
             }
 
-            var inFlight = new List<ModuleOperation>();
+            var inFlight = new List<ModuleRoutine>();
             foreach (var module in _modules)
             {
-                var current = module.CurrentOperation;
+                var current = module.CurrentRoutine;
                 if (current is not null)
                 {
                     inFlight.Add(current);
                 }
             }
 
-            stop = new SystemStopOperation(inFlight, _transfers);
+            wait = new SystemStopStep("等各模块停下", inFlight, _transfers);
+            stop = new ModuleRoutine(Name, "Abort").Add(wait);
             if (Begin(SystemAction.Abort, stop) is null)
             {
                 return null;
@@ -263,7 +289,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         int aborted = 0;
         foreach (var module in _modules)
         {
-            if (module.CurrentOperation is null)
+            if (module.CurrentRoutine is null)
             {
                 continue;
             }
@@ -285,7 +311,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         LogHelper.Info(Name, $"整机停止：自动派单已关，搬运已撤，Job 走中止；另有 {aborted} 个模块在做动作，已发中止");
-        stop.Issue();
+        wait.Issue();
         return stop;
     }
 
@@ -297,16 +323,16 @@ public class SystemModule : BaseStateComponent, ISystemModule
     /// <summary>
     /// 检查都过了，挂上动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态。
     /// </summary>
-    private HandleResult<ModuleOperation> Started(SystemAction action, ModuleOperation operation)
+    private HandleResult<ModuleRoutine> Started(SystemAction action, ModuleRoutine routine)
     {
-        var started = Begin(action, operation);
+        var started = Begin(action, routine);
         if (started is null)
         {
-            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
         }
 
         LogHelper.Info(Name, $"开始 {action}");
-        return HandleResult<ModuleOperation>.Success(started);
+        return HandleResult<ModuleRoutine>.Success(started);
     }
 
     /// <summary>当场切的动作（Auto / Manual）：不挂动作，直接落状态表的成功态。调用方已在锁里查过状态。</summary>
@@ -345,7 +371,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         // 先在锁外问 Job（要等 Job 的锁），再进自己的锁核对一遍还在 Auto
         var jobs = _jobs;
         int next = jobs is not null && jobs.HasRunningJob ? SystemState.AutoRunning : SystemState.AutoIdle;
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             int state = State;
             if (state != SystemState.AutoIdle && state != SystemState.AutoRunning)
@@ -363,25 +389,26 @@ public class SystemModule : BaseStateComponent, ISystemModule
 
     /// <summary>
     /// 动作没做成：基类已落 Error，报警逻辑还没接，先不进 Error——全部初始化没做成回未初始化，全部回片没做成回空闲。
-    /// 原因记日志（初始化是哪个模块被拒 / 没做成，回片是几片没回去，每片的原因前面已经记了）。
+    /// 原因记日志（初始化是哪个模块被拒 / 没做成，回片是几片没回去，每片的原因前面已经记了）；做成的动作自己记了每一步的用时
     /// </summary>
-    protected override void OnOperationCompleted(ModuleOperation operation)
+    protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
-        if (operation.IsSuccess)
+        var init = _initRoutine;
+        _initRoutine = null;
+        if (routine.IsSuccess)
         {
-            LogHelper.Info(Name, $"{operation.Name} 做完");
             return;
         }
 
-        if (operation is SystemInitOperation)
+        if (ReferenceEquals(routine, init))
         {
             State = ModuleState.NotInit;
-            LogHelper.Warn(Name, $"全部初始化没做成：{operation.Reason}");
+            LogHelper.Warn(Name, $"全部初始化没做成：{routine.Reason}");
         }
-        else if (operation is SystemReturnOperation)
+        else if (routine is SystemReturnRoutine)
         {
             State = ModuleState.Idle;
-            LogHelper.Warn(Name, $"全部回片没做完：{operation.Reason}");
+            LogHelper.Warn(Name, $"全部回片没做完：{routine.Reason}");
         }
     }
 
@@ -530,7 +557,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         {
             HasAlarm = alarms.Any(alarm => alarm.Level != AlarmLevel.Warn),
             HasWarning = alarms.Any(alarm => alarm.Level == AlarmLevel.Warn),
-            IsRunning = CurrentOperation is not null || _modules.Any(module => module.CurrentOperation is not null),
+            IsRunning = CurrentRoutine is not null || _modules.Any(module => module.CurrentRoutine is not null),
             WaferSize = WaferSizeComponent.SizeOf(_waferSize),
         };
     }

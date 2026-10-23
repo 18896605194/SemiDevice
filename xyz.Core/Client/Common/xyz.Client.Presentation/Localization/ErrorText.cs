@@ -23,7 +23,7 @@ public static class ErrorText
             args[1] = stateText(state);
         }
 
-        return L10n.Get(response.Code, args);
+        return StepPrefix(response) + L10n.Get(response.Code, args);
     }
 
     /// <summary>
@@ -36,6 +36,19 @@ public static class ErrorText
             return response.Message;
         }
 
-        return L10n.Get(response.Code, response.Args);
+        return StepPrefix(response) + L10n.Get(response.Code, response.Args);
+    }
+
+    /// <summary>
+    /// 动作停在第几步（不止一步的动作才带）："第 3/5 步："；没带为空
+    /// </summary>
+    private static string StepPrefix(RpcResponse response)
+    {
+        if (response.StepCount <= 1 || response.StepNumber <= 0)
+        {
+            return string.Empty;
+        }
+
+        return L10n.Get("routine.step_at", response.StepNumber, response.StepCount);
     }
 }

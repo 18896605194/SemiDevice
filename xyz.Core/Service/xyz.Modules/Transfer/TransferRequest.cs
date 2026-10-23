@@ -1,7 +1,7 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 搬运操作的输入参数：哪片从哪儿搬到哪儿。手动、Job、人工恢复共用，区别在 <see cref="Origin"/> 和 <see cref="Owner"/>。
+/// 一趟搬运的输入参数：哪片从哪儿搬到哪儿。手动、Job、人工恢复共用，区别在 <see cref="Origin"/> 和 <see cref="Owner"/>。
 /// 站点名就是模块名（sc.xml 原样），槽号从 1 开始。
 /// </summary>
 public sealed record TransferRequest
@@ -9,7 +9,9 @@ public sealed record TransferRequest
     /// <summary>调用来源：手动、自动（Job）、恢复。</summary>
     public TransferOrigin Origin { get; init; } = TransferOrigin.Manual;
 
-    /// <summary>任务所属 Job（PJ 名）；手动传片为空。Job 只能搬自己的片，中止时按归属停止操作。</summary>
+    /// <summary>
+    /// 任务所属 Job（PJ 名）；手动传片为空。Job 只能搬自己的片，中止时按归属停搬运。
+    /// </summary>
     public string? Owner { get; init; }
 
     /// <summary>

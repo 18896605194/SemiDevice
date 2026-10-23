@@ -12,7 +12,7 @@ namespace xyz.Modules;
 /// <summary>
 /// 全部回片：机内的片照晶圆账记的走过的位置倒着走，回各自来源 LoadPort 的原槽，一次只搬一趟
 /// </summary>
-internal sealed class SystemReturnOperation : ModuleOperation
+internal sealed class SystemReturnRoutine : ModuleRoutine
 {
     /// <summary>
     /// 回片表的一行：一片现在在哪、还要经过哪些站
@@ -44,11 +44,6 @@ internal sealed class SystemReturnOperation : ModuleOperation
         public required int ReturnSlot { get; init; }
     }
 
-    /// <summary>
-    /// 日志记在系统模块名下
-    /// </summary>
-    private readonly string _logModule;
-
     private readonly ITransferManager _transfers;
 
     private readonly ILedgerManager _ledger;
@@ -66,17 +61,16 @@ internal sealed class SystemReturnOperation : ModuleOperation
     /// <summary>
     /// 在搬的那一趟；没在搬为 null
     /// </summary>
-    private TransferRoutine? _routine;
+    private TransferRoutine? _transfer;
 
     /// <summary>
     /// 在搬的那一片
     /// </summary>
     private ReturnWafer? _moving;
 
-    private SystemReturnOperation(string logModule, ITransferManager transfers, ILedgerManager ledger, List<ReturnWafer> wafers)
-        : base("ReturnAll")
+    private SystemReturnRoutine(string module, ITransferManager transfers, ILedgerManager ledger, List<ReturnWafer> wafers)
+        : base(module, "ReturnAll")
     {
-        _logModule = logModule;
         _transfers = transfers;
         _ledger = ledger;
         _wafers = wafers;
@@ -89,6 +83,8 @@ internal sealed class SystemReturnOperation : ModuleOperation
         {
             _order.TryAdd(station.Name, _order.Count);
         }
+
+        Add("逐片搬回原槽", null, MoveNext);
     }
 
     #region 开始前：检查、排表
@@ -96,11 +92,11 @@ internal sealed class SystemReturnOperation : ModuleOperation
     /// <summary>
     /// 开始前把机内每片的去处、路线、要用到的设备、在位传感器都查一遍：有一条不过就不开始、回原因，都过了给回片动作
     /// </summary>
-    public static HandleResult<ModuleOperation> Prepare(string logModule, ITransferManager transfers, ILedgerManager ledger, IJobManager? jobs)
+    public static HandleResult<ModuleRoutine> Prepare(string module, ITransferManager transfers, ILedgerManager ledger, IJobManager? jobs)
     {
         if (jobs is not null && jobs.HasRunningJob)
         {
-            return HandleResult<ModuleOperation>.Fail(ErrorCodes.SystemReturnJobRunning);
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.SystemReturnJobRunning);
         }
 
         var wafers = new List<ReturnWafer>();
@@ -122,8 +118,8 @@ internal sealed class SystemReturnOperation : ModuleOperation
             return Refused(notReady);
         }
 
-        LogHelper.Info(logModule, $"全部回片：机内 {wafers.Count} 片，检查都过了");
-        return HandleResult<ModuleOperation>.Success(new SystemReturnOperation(logModule, transfers, ledger, wafers));
+        LogHelper.Info(module, $"全部回片：机内 {wafers.Count} 片，检查都过了");
+        return HandleResult<ModuleRoutine>.Success(new SystemReturnRoutine(module, transfers, ledger, wafers));
     }
 
     /// <summary>
@@ -336,9 +332,9 @@ internal sealed class SystemReturnOperation : ModuleOperation
     /// <summary>
     /// 检查没过：把原因原样转成全部回片入口的结果
     /// </summary>
-    private static HandleResult<ModuleOperation> Refused(HandleResult reason)
+    private static HandleResult<ModuleRoutine> Refused(HandleResult reason)
     {
-        return HandleResult<ModuleOperation>.Fail(reason.ErrorMessage, [.. reason.Args]);
+        return HandleResult<ModuleRoutine>.Fail(reason.ErrorMessage, [.. reason.Args]);
     }
 
     #endregion
@@ -346,68 +342,69 @@ internal sealed class SystemReturnOperation : ModuleOperation
     #region 一趟一趟搬
 
     /// <summary>
-    /// 每拍：收在搬的那一趟；没在搬的按先后挑第一片能动的下一趟；都动不了、也没有设备在做动作就停下
+    /// 每拍：收在搬的那一趟；没在搬的按先后挑第一片能动的下一趟；片都回去了这一步做完；都动不了、也没有设备在做动作就停下
     /// </summary>
-    protected override void OnScan()
+    private bool MoveNext(RoutineStep step)
     {
-        if (!Collect())
+        if (!Collect(step))
         {
-            return;
+            return false;
         }
 
         if (_wafers.Count == 0)
         {
-            LogHelper.Info(_logModule, "全部回片：片都回去了");
-            Complete();
-            return;
+            LogHelper.Info(Module, "全部回片：片都回去了");
+            return true;
         }
 
         foreach (var wafer in Ordered())
         {
-            if (TryStart(wafer) || IsTerminal)
+            if (TryStart(step, wafer) || IsTerminal)
             {
-                return;
+                return false;
             }
         }
 
         if (!AnyBusy())
         {
-            GiveUp("剩下的片都动不了（要去的槽满着、或者设备不在待命），也没有设备在做动作");
+            GiveUp(step, "剩下的片都动不了（要去的槽满着、或者设备不在待命），也没有设备在做动作");
         }
+
+        return false;
     }
 
     /// <summary>
     /// 收在搬的那一趟：没收完尾返回 false；做成了这片前进一站，到了 LoadPort 就划掉；没做成整个停
     /// </summary>
-    private bool Collect()
+    private bool Collect(RoutineStep step)
     {
-        var routine = _routine;
+        var transfer = _transfer;
         var wafer = _moving;
-        if (routine is null || wafer is null)
+        if (transfer is null || wafer is null)
         {
             return true;
         }
 
-        if (!routine.IsSettled)
+        if (!transfer.IsSettled)
         {
             return false;
         }
 
-        _routine = null;
+        _transfer = null;
         _moving = null;
-        if (!routine.IsSuccess)
+        if (!transfer.IsSuccess)
         {
-            GiveUp($"{wafer.Name} 从 {wafer.Module}.{wafer.Slot:00} 去 {wafer.Stops[0]} 没搬成：{routine.Reason}");
+            GiveUp(step, $"{wafer.Name} 从 {wafer.Module}.{wafer.Slot:00} 去 {wafer.Stops[0]} 没搬成：{transfer.Reason}");
             return false;
         }
 
-        wafer.Module = routine.TargetName;
-        wafer.Slot = routine.TargetSlot;
+        wafer.Module = transfer.TargetName;
+        wafer.Slot = transfer.TargetSlot;
         wafer.Stops.RemoveAt(0);
         if (wafer.Stops.Count == 0)
         {
             _wafers.Remove(wafer);
-            LogHelper.Info(_logModule, $"全部回片：{wafer.Name} 已回 {wafer.Module} {wafer.Slot}");
+            LogHelper.Info(Module, $"全部回片：{wafer.Name} 已回 {wafer.Module} {wafer.Slot}");
         }
 
         return true;
@@ -450,12 +447,12 @@ internal sealed class SystemReturnOperation : ModuleOperation
     /// 这片现在能动就下这一趟：片还在记的位置、下一站有空槽、两头站点在待命、有空闲的机械手和手；
     /// 动不了返回 false 看下一片，片被人挪过或者搬运被拒就整个停
     /// </summary>
-    private bool TryStart(ReturnWafer wafer)
+    private bool TryStart(RoutineStep step, ReturnWafer wafer)
     {
         var found = _ledger.FindById(wafer.Id);
         if (found is null || !string.Equals(found.Module, wafer.Module, StringComparison.OrdinalIgnoreCase) || found.Slot != wafer.Slot)
         {
-            GiveUp($"{wafer.Name} 不在 {wafer.Module}.{wafer.Slot:00} 了（被人挪过或删了账）");
+            GiveUp(step, $"{wafer.Name} 不在 {wafer.Module}.{wafer.Slot:00} 了（被人挪过或删了账）");
             return false;
         }
 
@@ -499,14 +496,14 @@ internal sealed class SystemReturnOperation : ModuleOperation
             Robot = robot.Value.Robot.Name,
             Arm = robot.Value.Arm,
         });
-        var routine = started.Result;
-        if (!started.IsSuccess || routine is null)
+        var transfer = started.Result;
+        if (!started.IsSuccess || transfer is null)
         {
-            GiveUp($"{wafer.Name} 从 {wafer.Module}.{wafer.Slot:00} 去 {next} {targetSlot} 的搬运被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+            GiveUp(step, $"{wafer.Name} 从 {wafer.Module}.{wafer.Slot:00} 去 {next} {targetSlot} 的搬运被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
             return false;
         }
 
-        _routine = routine;
+        _transfer = transfer;
         _moving = wafer;
         return true;
     }
@@ -561,10 +558,10 @@ internal sealed class SystemReturnOperation : ModuleOperation
         return false;
     }
 
-    private void GiveUp(string reason)
+    private void GiveUp(RoutineStep step, string reason)
     {
-        LogHelper.Warn(_logModule, $"全部回片停下：{reason}；还有 {_wafers.Count} 片没回去");
-        Fail(ErrorCodes.SystemReturnIncomplete, reason, _wafers.Count.ToString(CultureInfo.InvariantCulture));
+        LogHelper.Warn(Module, $"全部回片停下：{reason}；还有 {_wafers.Count} 片没回去");
+        step.Fail(ErrorCodes.SystemReturnIncomplete, reason, _wafers.Count.ToString(CultureInfo.InvariantCulture));
     }
 
     #endregion
@@ -651,7 +648,7 @@ internal sealed class SystemReturnOperation : ModuleOperation
     /// </summary>
     private static bool IsBusy(IModule module)
     {
-        var current = module.CurrentOperation;
+        var current = module.CurrentRoutine;
         return current is not null && !current.IsSettled;
     }
 

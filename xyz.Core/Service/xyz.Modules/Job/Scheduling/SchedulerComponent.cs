@@ -97,36 +97,36 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 按每行当前的 WaferTask 收执行进度。站内操作收尾后完成这一格；搬运按这一片实际做完的动作记，执行记录只挂在当前任务上。
+    /// 按每行当前的 WaferTask 收执行进度。站内动作收尾后完成这一格；搬运按这一片实际做完的动作记，执行记录只挂在当前任务上。
     /// </summary>
     public void Collect(ITaskComponent tasks)
     {
         foreach (var row in tasks.Rows)
         {
             var task = row.Current;
-            var operation = task?.Operation;
-            if (task is null || task.State != WaferTaskState.Running || operation is null)
+            var routine = task?.Routine;
+            if (task is null || task.State != WaferTaskState.Running || routine is null)
             {
                 continue;
             }
 
-            if (operation is TransferExecution transfer)
+            if (routine is TransferExecution transfer)
             {
                 CollectTransfer(row, task, transfer, tasks);
             }
-            else if (operation.IsSettled)
+            else if (routine.IsSettled)
             {
-                if (operation.IsSuccess)
+                if (routine.IsSuccess)
                 {
                     tasks.Done(row, task);
                 }
-                else if (row.IsAborting && operation.State == OperationState.Aborted)
+                else if (row.IsAborting && routine.State == RoutineState.Aborted)
                 {
                     tasks.Cancel(row, task);
                 }
                 else
                 {
-                    tasks.Fail(row, task, operation.Code, operation.ErrorArgs);
+                    tasks.Fail(row, task, routine.Code, routine.ErrorArgs);
                 }
             }
         }
@@ -136,9 +136,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// 按这一片在这趟执行里实际做完的动作记任务：取完转放片（只取不放的放片留着另派）、放完记完成；
     /// 执行结束这片还没走到下一步的，没动手退回等待，动过手记出错等人工。
     /// </summary>
-    private static void CollectTransfer(TaskRow row, WaferTask task, TransferExecution operation, ITaskComponent tasks)
+    private static void CollectTransfer(TaskRow row, WaferTask task, TransferExecution routine, ITaskComponent tasks)
     {
-        var wafer = operation.Wafers.FirstOrDefault(item => item.Id == row.WaferId);
+        var wafer = routine.Wafers.FirstOrDefault(item => item.Id == row.WaferId);
         if (wafer is null)
         {
             return;
@@ -160,7 +160,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             }
 
             tasks.Done(row, task, wafer.Arm);
-            tasks.Start(row, place, wafer.To, wafer.ToSlot, operation.Robot.Name, operation);
+            tasks.Start(row, place, wafer.To, wafer.ToSlot, routine.Robot.Name, routine);
             task = place;
         }
 
@@ -170,24 +170,24 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return;
         }
 
-        if (!operation.IsSettled)
+        if (!routine.IsSettled)
         {
             return;
         }
 
-        if (operation.IsSuccess)
+        if (routine.IsSuccess)
         {
             tasks.Done(row, task, wafer.Arm);
             return;
         }
 
-        if (!operation.NeedsRecovery)
+        if (!routine.NeedsRecovery)
         {
             tasks.Reset(task);
         }
         else
         {
-            tasks.Fail(row, task, operation.Code, operation.ErrorArgs);
+            tasks.Fail(row, task, routine.Code, routine.ErrorArgs);
         }
     }
 
@@ -224,7 +224,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return;
         }
 
-        var operation = executor.StartTask(new StationTaskRequest
+        var routine = executor.StartTask(new StationTaskRequest
         {
             Kind = task.Kind,
             Owner = row.Owner,
@@ -234,9 +234,9 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             RecipeName = task.RecipeName,
             Recipe = task.Recipe,
         });
-        if (operation is not null)
+        if (routine is not null)
         {
-            tasks.Start(row, task, location.Module, location.Slot, operation: operation);
+            tasks.Start(row, task, location.Module, location.Slot, routine: routine);
         }
     }
 
@@ -373,14 +373,14 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 PickOwner = finished.Owner,
                 PlaceOwner = row.Owner,
             });
-            var operation = started.Result;
-            if (!started.IsSuccess || operation is null)
+            var routine = started.Result;
+            if (!started.IsSuccess || routine is null)
             {
                 continue;
             }
 
-            tasks.Start(finished, pick, stationName, slot, robot.Name, operation);
-            tasks.Start(row, place, stationName, slot, robot.Name, operation);
+            tasks.Start(finished, pick, stationName, slot, robot.Name, routine);
+            tasks.Start(row, place, stationName, slot, robot.Name, routine);
             _prefetched.Remove(stationName);
             return true;
         }
@@ -481,13 +481,13 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 Robot = robot.Name,
                 Arm = carryArm,
             });
-            var operation = started.Result;
-            if (!started.IsSuccess || operation is null)
+            var routine = started.Result;
+            if (!started.IsSuccess || routine is null)
             {
                 continue;
             }
 
-            tasks.Start(row, pick, source.Module, source.Slot, robot.Name, operation);
+            tasks.Start(row, pick, source.Module, source.Slot, robot.Name, routine);
             _prefetched[stationName] = row.WaferId;
             return true;
         }
@@ -704,7 +704,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return false;
         }
 
-        var current = station.CurrentOperation;
+        var current = station.CurrentRoutine;
         return current is null || current.IsTerminal;
     }
 
@@ -717,7 +717,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 这一槽账上空着、也没被搬运操作占用
+    /// 这一槽账上空着、也没被搬运占用
     /// </summary>
     private bool IsSlotFree(string station, int slot)
     {
@@ -726,7 +726,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 这只手账上空着、也没被搬运操作当作位置占用
+    /// 这只手账上空着、也没被搬运当作位置占用
     /// </summary>
     private bool IsArmFree(ITransferRobot robot, int arm)
     {
@@ -759,7 +759,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 机械手可执行任务：启用、生产模式、空闲、没有搬运操作
+    /// 机械手可执行任务：启用、生产模式、空闲、没在搬运
     /// </summary>
     private bool IsRobotFree(ITransferRobot robot)
     {
@@ -774,7 +774,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     #endregion
 
     /// <summary>
-    /// 找机械手、启动实际搬运操作并挂到当前任务上；取片确认后才进入放片任务。
+    /// 找机械手、启动实际的搬运并挂到当前任务上；取片确认后才进入放片任务。
     /// 目标槽和机械手在启动时一起占住，避免取片后没有位置可放。
     /// 只放片（片在机械手手上）就用拿着片的那台。
     /// </summary>
@@ -805,19 +805,19 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
                 TargetSlot = targetSlot,
                 Robot = robot.Name,
             });
-            var operation = started.Result;
-            if (!started.IsSuccess || operation is null)
+            var routine = started.Result;
+            if (!started.IsSuccess || routine is null)
             {
                 continue;
             }
 
             if (task.Kind == StationTaskAction.Pick)
             {
-                tasks.Start(row, task, source.Module, source.Slot, robot.Name, operation);
+                tasks.Start(row, task, source.Module, source.Slot, robot.Name, routine);
             }
             else
             {
-                tasks.Start(row, task, target, targetSlot, robot.Name, operation);
+                tasks.Start(row, task, target, targetSlot, robot.Name, routine);
             }
 
             return true;

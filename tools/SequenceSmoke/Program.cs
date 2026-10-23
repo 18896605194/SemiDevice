@@ -493,24 +493,40 @@ sealed class ProbePort : BaseLoadPortModule
         Probe.Name(this, name, group);
     }
 
-    // 没挂通道：动作入口一律回"停用或驱动没装好"，设备那部分用不上，给最简单的
+    // 没挂通道：动作入口一律回"停用或驱动没装好"，设备那几条用不上，一条都不加
     protected override IFrameCodec CreateCodec() => throw new NotSupportedException("探针端口不连设备");
 
-    protected override CommandOperation AddLoadSteps(CommandOperation operation) => operation;
+    protected override void AddLoadSteps(ModuleRoutine load)
+    {
+    }
 
-    protected override CommandOperation AddUnloadSteps(CommandOperation operation) => operation;
+    protected override void AddUnloadSteps(ModuleRoutine unload)
+    {
+    }
 
-    protected override CommandOperation AddMapSteps(CommandOperation operation) => operation;
+    protected override void AddMapSteps(ModuleRoutine map)
+    {
+    }
 
-    protected override ModuleOperation CreateHomeOperation() => new NoOpOperation("Home");
+    protected override void AddHomeSteps(ModuleRoutine home)
+    {
+    }
 
-    protected override ModuleOperation CreateClampOperation() => new NoOpOperation("Clamp");
+    protected override void AddClampSteps(ModuleRoutine clamp)
+    {
+    }
 
-    protected override ModuleOperation CreateUnclampOperation() => new NoOpOperation("Unclamp");
+    protected override void AddUnclampSteps(ModuleRoutine unclamp)
+    {
+    }
 
-    protected override ModuleOperation CreateResetOperation() => new NoOpOperation("Reset");
+    protected override void AddResetSteps(ModuleRoutine reset)
+    {
+    }
 
-    protected override ModuleOperation CreateAbortOperation() => new NoOpOperation("Abort");
+    protected override void AddAbortSteps(ModuleRoutine abort)
+    {
+    }
 }
 
 // 探针腔体：要工艺配方的那一类站点（不做动作，冒烟里也不让它做）。
@@ -541,8 +557,8 @@ sealed class ProbeHotPlate : BaseTransferStationModule, IProcessStation
 
     public HandleResult? CheckProcess(ProcessRequest request) => null;
 
-    public HandleResult<ModuleOperation> StartProcess(ProcessRequest request) =>
-        HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    public HandleResult<ModuleRoutine> StartProcess(ProcessRequest request) =>
+        HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public int TodayWafers => 0;
 
@@ -608,23 +624,23 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
 
     public bool MapEnabled => false;
 
-    private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
+    private HandleResult<ModuleRoutine> Refused() => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleOperation? IModule.InitModule() => null;
+    ModuleRoutine? IModule.InitModule() => null;
 
-    ModuleOperation? IModule.Reset() => null;
+    ModuleRoutine? IModule.Reset() => null;
 
-    ModuleOperation? IModule.Abort() => null;
+    ModuleRoutine? IModule.Abort() => null;
 
-    HandleResult<ModuleOperation> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleRoutine> ITransferRobot.Pick(int arm, string station, int slot) => Refused();
 
-    HandleResult<ModuleOperation> ITransferRobot.Place(int arm, string station, int slot) => Refused();
+    HandleResult<ModuleRoutine> ITransferRobot.Place(int arm, string station, int slot) => Refused();
 
     HandleResult? ITransferRobot.CheckPick(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
     HandleResult? ITransferRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
-    ModuleOperation? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
+    ModuleRoutine? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
 }
 
 // 探针晶圆尺寸：切了就换、发 Changed，不写 sc.xml。

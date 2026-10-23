@@ -1938,7 +1938,7 @@ public class JobManager : ComponentBase, IJobManager
         foreach (string station in stations)
         {
             // 发不出去（状态不允许）的不等：站内任务照常做完，结束了照样往下走
-            if (Module(station)?.Abort() is ModuleOperation abort)
+            if (Module(station)?.Abort() is ModuleRoutine abort)
             {
                 job.DeviceAborts.Add(abort);
             }

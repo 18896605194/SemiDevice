@@ -1,27 +1,27 @@
 ﻿namespace xyz.Components.Enums;
 
 /// <summary>
-/// Operation状态
+/// 动作（ModuleRoutine）走到哪了
 /// </summary>
-public enum OperationState
+public enum RoutineState
 {
     /// <summary>
-    /// 执行中。
+    /// 在走
     /// </summary>
     Running,
 
     /// <summary>
-    /// 完成
+    /// 做成了
     /// </summary>
     Completed,
 
     /// <summary>
-    /// error
+    /// 失败了
     /// </summary>
     Failed,
 
     /// <summary>
-    /// 被终止
+    /// 被中止了
     /// </summary>
     Aborted,
 }

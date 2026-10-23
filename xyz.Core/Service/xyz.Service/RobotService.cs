@@ -24,7 +24,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.Home(), robot.HomeTimeout);
+        return RunRoutine(module, robot, robot.Home(), robot.HomeTimeout);
     }
 
     public Task<RpcResponse> ResetAsync(string module)
@@ -35,7 +35,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.Reset(), robot.CheckReset, robot.ResetTimeout);
+        return RunRoutine(module, robot, robot.Reset(), robot.CheckReset, robot.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(string module)
@@ -46,7 +46,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.Abort(), robot.CheckAbort, robot.AbortTimeout);
+        return RunRoutine(module, robot, robot.Abort(), robot.CheckAbort, robot.AbortTimeout);
     }
 
     /// <summary>
@@ -111,19 +111,24 @@ public class RobotService : BaseService, IRobotService
         }
 
         var started = _transfers.Start(request);
-        var operation = started.Result;
-        if (!started.IsSuccess || operation is null)
+        var routine = started.Result;
+        if (!started.IsSuccess || routine is null)
         {
             return RpcResponse.Fail(started.ErrorMessage, started.Args);
         }
 
         int timeout = _transfers.ManualWaitTimeoutMs;
-        if (!await Task.Run(() => operation.WaitReply(timeout)).ConfigureAwait(false))
+        if (!await Task.Run(() => routine.WaitReply(timeout)).ConfigureAwait(false))
         {
-            return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout, [operation.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
+            return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout, [routine.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
         }
 
-        return operation.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(operation.Code, operation.ErrorArgs);
+        if (routine.IsSuccess)
+        {
+            return RpcResponse.Ok();
+        }
+
+        return Failed(routine);
     }
 
     public Task<RpcResponse> PowerOnAsync(string module)
@@ -134,7 +139,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.PowerOn(), robot.PowerTimeout);
+        return RunRoutine(module, robot, robot.PowerOn(), robot.PowerTimeout);
     }
 
     public Task<RpcResponse> PowerOffAsync(string module)
@@ -145,7 +150,7 @@ public class RobotService : BaseService, IRobotService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, robot, robot.PowerOff(), robot.PowerTimeout);
+        return RunRoutine(module, robot, robot.PowerOff(), robot.PowerTimeout);
     }
 
     /// <summary>

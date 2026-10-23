@@ -27,39 +27,60 @@ public class RobotModule : BaseRobotModule
 
     #region 动作
 
-    protected override ModuleOperation CreateHomeOperation()
+    /// <summary>
+    /// 回零：@Home
+    /// </summary>
+    protected override void AddHomeSteps(ModuleRoutine home)
     {
-        return new CommandOperation("Home", _driver, () => new RejeHomeCommand(), () => HomeTimeout);
+        home.Command("回零", () => new RejeHomeCommand());
     }
 
-    protected override ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot)
+    /// <summary>
+    /// 取片：@GXYYZZ（持片检查、记账平台在后面加）
+    /// </summary>
+    protected override void AddPickSteps(ModuleRoutine pick, int arm, int stationNumber, int slot)
     {
-        return new CommandOperation("Pick", _driver, () => new RejePickCommand(arm, stationNumber, slot), () => PickTimeout);
+        pick.Command("取片", () => new RejePickCommand(arm, stationNumber, slot));
     }
 
-    protected override ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot)
+    /// <summary>
+    /// 放片：@PXYYZZ
+    /// </summary>
+    protected override void AddPlaceSteps(ModuleRoutine place, int arm, int stationNumber, int slot)
     {
-        return new CommandOperation("Place", _driver, () => new RejePlaceCommand(arm, stationNumber, slot), () => PlaceTimeout);
+        place.Command("放片", () => new RejePlaceCommand(arm, stationNumber, slot));
     }
 
-    protected override ModuleOperation CreatePowerOnOperation()
+    /// <summary>
+    /// 上使能
+    /// </summary>
+    protected override void AddPowerOnSteps(ModuleRoutine powerOn)
     {
-        return new CommandOperation("PowerOn", _driver, () => new RejePowerOnCommand(), () => PowerTimeout);
+        powerOn.Command("上使能", () => new RejePowerOnCommand());
     }
 
-    protected override ModuleOperation CreatePowerOffOperation()
+    /// <summary>
+    /// 下使能
+    /// </summary>
+    protected override void AddPowerOffSteps(ModuleRoutine powerOff)
     {
-        return new CommandOperation("PowerOff", _driver, () => new RejePowerOffCommand(), () => PowerTimeout);
+        powerOff.Command("下使能", () => new RejePowerOffCommand());
     }
 
-    protected override ModuleOperation CreateResetOperation()
+    /// <summary>
+    /// 清报错
+    /// </summary>
+    protected override void AddResetSteps(ModuleRoutine reset)
     {
-        return new CommandOperation("Reset", _driver, () => new RejeResetCommand(), () => ResetTimeout);
+        reset.Command("清报错", () => new RejeResetCommand());
     }
 
-    protected override ModuleOperation CreateAbortOperation()
+    /// <summary>
+    /// 急停：@Sstop
+    /// </summary>
+    protected override void AddAbortSteps(ModuleRoutine abort)
     {
-        return new CommandOperation("Abort", _driver, () => new RejeSStopCommand(), () => AbortTimeout);
+        abort.Command("急停", () => new RejeSStopCommand());
     }
 
     #endregion

@@ -121,7 +121,7 @@ try
         var task = Task.Run(call);
         // 等它真发出去（挂上操作或已经回包）再往下走，免得后面的检查跑在发起之前。
         var watch = Stopwatch.StartNew();
-        while (!task.IsCompleted && chamber.CurrentOperation is null && watch.ElapsedMilliseconds < 2000)
+        while (!task.IsCompleted && chamber.CurrentRoutine is null && watch.ElapsedMilliseconds < 2000)
         {
             Thread.Sleep(2);
         }
@@ -472,7 +472,7 @@ try
     var response = Run(() => service.SetProductionAsync("Chamber404"));
     Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "切生产：找不到模块回 module.not_found");
     response = Run(() => service.SetProductionAsync("Chamber9"));
-    Check(response.Success && chamber.Mode == ModuleMode.Production && chamber.CurrentOperation is null, "腔体切生产：Mode 变 Production，不挂动作");
+    Check(response.Success && chamber.Mode == ModuleMode.Production && chamber.CurrentRoutine is null, "腔体切生产：Mode 变 Production，不挂动作");
     response = Run(() => service.SetMaintenanceAsync("Chamber9"));
     Check(response.Success && chamber.Mode == ModuleMode.Maintenance, "腔体切维护：Mode 变 Maintenance");
 
@@ -504,7 +504,7 @@ try
     response = Run(() => service.AxisMoveAsync(new ChamberAxisMoveRequest { Module = "Chamber9", Axis = "chamber9.arm1", Position = 10 }));
     Check(!response.Success && response.Code == ErrorCodes.ChamberDeviceCommandRejected
         && response.Args.SequenceEqual(["chamber9.arm1", "Move"]), "轴没回零不能定位：chamber.device_command_rejected");
-    Check(chamber.State == ModuleState.NotInit && chamber.CurrentOperation is null, "指令没发出去不改模块状态、不挂操作");
+    Check(chamber.State == ModuleState.NotInit && chamber.CurrentRoutine is null, "指令没发出去不改模块状态、不挂操作");
 
     // 7. 执行中落 Manual、在途拒绝别的动作、做完回原来的状态
     plc.HoldCylinders = true;
@@ -711,23 +711,23 @@ try
     int sc1Opens = 0;
     bool sc1Was = false;
     double sc1TargetSeen = 0;
-    ModuleOperation RunProcess(ProcessRequest request, Func<bool>? until = null)
+    ModuleRoutine RunProcess(ProcessRequest request, Func<bool>? until = null)
     {
         var started = chamber.StartProcess(request);
-        var operation = started.Result;
-        if (!started.IsSuccess || operation is null)
+        var routine = started.Result;
+        if (!started.IsSuccess || routine is null)
         {
             throw new InvalidOperationException($"FAIL: 工艺应能发起，实际被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
         }
 
-        return Drive(operation, until);
+        return Drive(routine, until);
     }
 
     // 一拍一拍地扫，直到工艺结束（或者 until 成立，停下来看中间状态，之后再接着 Drive）
-    ModuleOperation Drive(ModuleOperation operation, Func<bool>? until = null)
+    ModuleRoutine Drive(ModuleRoutine routine, Func<bool>? until = null)
     {
         var watch = Stopwatch.StartNew();
-        while (!operation.IsTerminal && (until is null || !until()))
+        while (!routine.IsTerminal && (until is null || !until()))
         {
             if (watch.ElapsedMilliseconds > 10000)
             {
@@ -751,7 +751,7 @@ try
         }
 
         Tick();
-        return operation;
+        return routine;
     }
 
     // 两个喷嘴并排装在臂头上：示教位对着先到中心的 DIW，SC1 要喷到同一点轴还得多走 10（EC Offset，现场测的值）
@@ -855,7 +855,7 @@ try
 
     Check(aborting is not null && plc.ReadDo(6), "长工艺喷起来了");
     response = Run(() => service.AbortAsync("Chamber9"));
-    Check(response.Success && aborting!.State == OperationState.Aborted && chamber.State == ModuleState.Idle, "中止顶掉工艺，回空闲");
+    Check(response.Success && aborting!.State == RoutineState.Aborted && chamber.State == ModuleState.Idle, "中止顶掉工艺，回空闲");
     Check(!plc.ReadDo(6) && plc.Ao(0) == 0 && plc.LastCommand("Spin.Command") == MotionCommandId.Stop, "中止停液、停轴");
     Check(chamber.TodayWafers == 4 && chamber.TotalWafers == 4,
         "做成、转速超限、超时、中止的都算开工（4 片）；起工艺前就挡下的不算");
@@ -929,7 +929,7 @@ try
     Check(Disabled(disabledService.HomeAsync("Chamber8").Result), "停用的腔体回零被拒：module.disabled");
     Check(Disabled(disabledService.ResetAsync("Chamber8").Result) && Disabled(disabledService.AbortAsync("Chamber8").Result),
         "停用的腔体复位、中止被拒：服务再问 CheckReset / CheckAbort 拿到原因（module.disabled）");
-    Check(disabled.State == ModuleState.NotInit && disabled.CurrentOperation is null, "停用的腔体被拒的动作都没挂上，状态不动");
+    Check(disabled.State == ModuleState.NotInit && disabled.CurrentRoutine is null, "停用的腔体被拒的动作都没挂上，状态不动");
 
     // 17. 组件初始化（开机，不动硬件）与模块初始化：腔体开机只占晶圆账的槽位、一路递归到所有设备，不碰任何一根轴；
     //     模块初始化 InitModule 就是 Home（人或调度才调）；停用的腔体连账都不占
@@ -943,7 +943,7 @@ try
         Check(chamber.InitComponent(), "腔体的组件初始化应成功（设备都没有自己的开机动作）");
         Check(ledger.IsRegistered("Chamber9") && ledger.GetSlots("Chamber9").Count == chamber.SlotCount,
             "腔体的组件初始化登记了晶圆账槽位");
-        Check(arm.ActionState == armBefore && spin.ActionState == spinBefore && chamber.CurrentOperation is null,
+        Check(arm.ActionState == armBefore && spin.ActionState == spinBefore && chamber.CurrentRoutine is null,
             "组件初始化一路递归下去也不动轴：摆臂和卡盘的动作状态没变，腔体没挂操作");
         Check(disabled.InitComponent() && !ledger.IsRegistered("Chamber8"), "停用的腔体：组件初始化连账都不占");
 

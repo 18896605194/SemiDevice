@@ -16,7 +16,7 @@ namespace xyz.Modules;
 
 /// <summary>
 /// 腔体模块基类：回零、复位、中止、按工艺配方做工艺、手动页的设备动作、状态推送平台都写好了，照 sc 里这个腔体下挂的设备去发；
-/// 机型只在设备动作不一样时重写 CreateXxxOperation，要加条件重写 XxxInterlock（先调 base）
+/// 机型只在步骤不一样时重写 AddXxxSteps，要加条件重写 XxxInterlock（先调 base）
 /// </summary>
 public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 {
@@ -177,6 +177,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public IReadOnlyList<INozzle> Nozzles { get; private set; } = [];
 
     /// <summary>
+    /// 各条摆臂上的 Lift（没装 Lift 的摆臂不算），按摆臂的先后
+    /// </summary>
+    public IReadOnlyList<IChamberLift> Lifts { get; private set; } = [];
+
+    /// <summary>
     /// 晶圆账：组件初始化时取一次；没配晶圆账、或腔体停用（不登记账）为 null
     /// </summary>
     private ILedgerManager? _ledger;
@@ -207,23 +212,39 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// sc 里卡盘、门都没配的照旧直接准备好。自动跑货、机械手手动页的取放都经搬运管理走到这里。转不到位、门开不了（卡盘没回零、到位超时、PLC 断了）
     /// 准备判失败、腔体落 Error，搬运那边按"第 2 步准备失败"收场；卡盘、腔门气缸自己报到位超时
     /// </summary>
-    protected override ModuleOperation? PrepareTransfer2Core(TransferContext context)
+    protected override ModuleRoutine? PrepareTransfer2Core(TransferContext context)
     {
         if (Door is null && SpinMotor is null)
         {
             return base.PrepareTransfer2Core(context);
         }
 
-        // 指令由操作挂上之后在扫描里发，不会出现门开了、操作却没挂上没人等的情况
-        return Begin(ChamberAction.PrepareTransfer2, CreatePrepareTransferOperation());
+        // 指令由动作挂上之后在扫描里发，不会出现门开了、动作却没挂上没人等的情况
+        var prepare = new ModuleRoutine(Name, "PrepareTransfer2").LimitTo(() => DeviceActionTimeout, ErrorCodes.ChamberActionTimeout);
+        AddPrepareTransferSteps(prepare);
+        return Begin(ChamberAction.PrepareTransfer2, prepare);
     }
 
     /// <summary>
-    /// 取放准备二的设备动作（<see cref="ChamberPrepareTransferOperation"/>）；机型做法不一样就重写
+    /// 取放准备二：卡盘转到取放位、开门同时发（转位和开门互不碰，同时做省时间），都到位才算准备好。
+    /// 卡盘先发：没回零（绝对定位发不出去）就直接失败，门不开。sc 里没配卡盘或门的那一样就不动；机型做法不一样就重写
     /// </summary>
-    protected virtual ModuleOperation CreatePrepareTransferOperation()
+    protected virtual void AddPrepareTransferSteps(ModuleRoutine prepare)
     {
-        return new ChamberPrepareTransferOperation(this, DeviceActionTimeout);
+        var orders = new List<DeviceOrder>();
+        var spin = SpinMotor;
+        if (spin is not null)
+        {
+            orders.Add(new DeviceOrder(spin, ChamberDeviceAction.Move, () => spin.MoveTo(spin.TransferPosition)));
+        }
+
+        var door = Door;
+        if (door is not null)
+        {
+            orders.Add(new DeviceOrder(door, ChamberDeviceAction.Up, door.Open));
+        }
+
+        prepare.Devices("卡盘转到取放位、开门", orders);
     }
 
     #endregion
@@ -250,6 +271,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         Axes = FindChildren<IAxis>();
         Cylinders = FindChildren<ICylinder>();
         Nozzles = FindChildren<INozzle>();
+        Lifts = FindLifts();
 
         #endregion
 
@@ -282,6 +304,24 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         return devices.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// 摆臂上装了的 Lift
+    /// </summary>
+    private List<IChamberLift> FindLifts()
+    {
+        var lifts = new List<IChamberLift>();
+        foreach (var arm in Arms)
+        {
+            var lift = arm.Lift;
+            if (lift is not null)
+            {
+                lifts.Add(lift);
+            }
+        }
+
+        return lifts;
     }
 
     /// <summary>
@@ -571,7 +611,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null
     /// </summary>
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         var started = Home();
         if (!started.IsSuccess)
@@ -609,21 +649,21 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region 动作入口：状态 → 资源 → 互锁
 
     // 跟 LoadPort、机械手同一套：每个动作的入口在模块锁里按 状态 → 资源 → 互锁 查（三项怎么分见 BaseModule"动作检查"区），
-    // 哪项不过就带原因返回、腔体不动，都过了才挂上设备动作。设备动作平台给默认（照 sc 里挂的设备发），
-    // 机型动作不一样才重写 CreateXxxOperation，要加条件重写 XxxInterlock（先调 base）。
+    // 哪项不过就带原因返回、腔体不动，都过了才挂上动作。每个动作的步骤平台给默认（照 sc 里挂的设备发），
+    // 机型步骤不一样才重写 AddXxxSteps，要加条件重写 XxxInterlock（先调 base）。
 
     /// <summary>
     /// 检查都过了，挂上设备动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态
     /// </summary>
-    private HandleResult<ModuleOperation> Started(ChamberAction action, ModuleOperation operation)
+    private HandleResult<ModuleRoutine> Started(ChamberAction action, ModuleRoutine routine)
     {
-        var started = Begin(action, operation);
+        var started = Begin(action, routine);
         if (started is null)
         {
-            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
         }
 
-        return HandleResult<ModuleOperation>.Success(started);
+        return HandleResult<ModuleRoutine>.Success(started);
     }
 
     #region Home
@@ -631,9 +671,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// Home：整腔回零。调用方：手动页、模块初始化（整机初始化）
     /// </summary>
-    public HandleResult<ModuleOperation> Home()
+    public HandleResult<ModuleRoutine> Home()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(ChamberAction.Home) ?? HomeInterlock();
             if (rejected is not null)
@@ -641,17 +681,24 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(rejected);
             }
 
-            return Started(ChamberAction.Home, CreateHomeOperation());
+            var home = new ModuleRoutine(Name, "Home").LimitTo(() => HomeTimeout, ErrorCodes.ChamberActionTimeout);
+            AddHomeSteps(home);
+            return Started(ChamberAction.Home, home);
         }
     }
 
     /// <summary>
-    /// 回零的设备动作：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂、卡盘（和别的轴）回零 → Bowl 降，门不动（<see cref="ChamberHomeOperation"/>）；
-    /// 机型的先后不一样就重写
+    /// 回零：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂、卡盘（和别的轴）回零 → Bowl 降，门不动（门归站点交互环管）。
+    /// Lift 先升起来，摆臂回零时才不会刮到 Bowl 壁；卡盘要先停稳再回零，回过零取放准备才能按绝对位置转到取放位。
+    /// sc 里没配的设备那一步就不加；机型的先后不一样就重写
     /// </summary>
-    protected virtual ModuleOperation CreateHomeOperation()
+    protected virtual void AddHomeSteps(ModuleRoutine home)
     {
-        return new ChamberHomeOperation(this, HomeTimeout);
+        home.Devices("关喷嘴", Nozzles, ChamberDeviceAction.ValveOff);
+        home.Devices("卡盘停转", SpinMotor, ChamberDeviceAction.Stop);
+        home.Devices("Lift 升", Lifts, ChamberDeviceAction.Up);
+        home.Devices("轴回零", Axes, ChamberDeviceAction.Home);
+        home.Devices("Bowl 降", Bowls, ChamberDeviceAction.Down);
     }
 
     #endregion
@@ -662,9 +709,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// 起工艺：手动页、Job（站内任务）走同一个口子，检查跟 <see cref="CheckProcess"/> 一样、跟挂动作在同一把锁里。
     /// 挂上了就记下配方名（SV Recipe）、开工计数加一、账上的片标成加工中——扫描线程拿不到锁就推进不了，不会出现工艺做完了账才标加工中的倒挂
     /// </summary>
-    public HandleResult<ModuleOperation> StartProcess(ProcessRequest request)
+    public HandleResult<ModuleRoutine> StartProcess(ProcessRequest request)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckProcess(request);
             if (rejected is not null)
@@ -672,15 +719,15 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(rejected);
             }
 
-            var started = Started(ChamberAction.Process, CreateProcessOperation(request));
-            var operation = started.Result;
-            if (!started.IsSuccess || operation is null)
+            var started = Started(ChamberAction.Process, CreateProcessRoutine(request));
+            var routine = started.Result;
+            if (!started.IsSuccess || routine is null)
             {
                 return started;
             }
 
             _process = request;
-            _processOperation = operation;
+            _processRoutine = routine;
             _counter.Started();
             Recipe = request.RecipeName.Trim();
             if (_ledger is not null && _ledger.HasWafer(Name, request.Slot))
@@ -697,7 +744,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// </summary>
     public HandleResult? CheckProcess(ProcessRequest request)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             return CheckState(ChamberAction.Process) ?? CheckProcessResource(request) ?? ProcessInterlock(request);
         }
@@ -749,13 +796,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 工艺的设备动作：按请求里的配方快照一步一步转、摆、喷（<see cref="ChamberProcessOperation"/>，上限是配方头的超时时间）。
+    /// 工艺：按请求里的配方快照一步一步转、摆、喷（<see cref="ChamberProcessRoutine"/>，上限是配方头的超时时间）。
     /// 检查过了才调，配方快照一定有；机型做法不一样就重写
     /// </summary>
-    protected virtual ModuleOperation CreateProcessOperation(ProcessRequest request)
+    protected virtual ModuleRoutine CreateProcessRoutine(ProcessRequest request)
     {
         var recipe = request.Recipe ?? throw new InvalidOperationException($"{Name}：起工艺的请求没带配方快照（资源检查应该先挡下）");
-        return new ChamberProcessOperation(this, request.RecipeName, recipe);
+        return new ChamberProcessRoutine(this, request.RecipeName, recipe);
     }
 
     #endregion
@@ -765,11 +812,12 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     // 先认设备、查参数（找不到、参数不对直接回，跟腔体状态无关），再在锁里查 状态 → 互锁；都过了当场发指令：
     // 发不出去（PLC 没连、轴没回零……）直接带原因回，模块状态不动、也不报警；发出去了才挂上等它做完的动作，
     // 执行中落 ChamberState.Manual，做完回到原来的状态。停止不看忙不忙、不挂动作，发出去就回。
+    // 不带参数的（回零、复位、升降）跟整腔动作一样经 DeviceActions 发，带参数的（移动、步进）自己给怎么发。
 
     /// <summary>
     /// 轴回零
     /// </summary>
-    public HandleResult<ModuleOperation> AxisHome(string path)
+    public HandleResult<ModuleRoutine> AxisHome(string path)
     {
         var axis = FindAxis(path);
         if (axis is null)
@@ -777,13 +825,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             return Rejected(DeviceNotFound(path));
         }
 
-        return StartDeviceAction(axis, path, ChamberDeviceAction.Home, axis.Home);
+        return StartDeviceAction(axis, path, ChamberDeviceAction.Home);
     }
 
     /// <summary>
     /// 轴走到绝对位置；speed 为 0 按这根轴的 EC MoveSpeed
     /// </summary>
-    public HandleResult<ModuleOperation> AxisMove(string path, double position, double speed)
+    public HandleResult<ModuleRoutine> AxisMove(string path, double position, double speed)
     {
         var axis = FindAxis(path);
         if (axis is null)
@@ -802,7 +850,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 轴走一段（正负是方向，不能是 0）；speed 为 0 按这根轴的 EC MoveSpeed
     /// </summary>
-    public HandleResult<ModuleOperation> AxisStep(string path, double distance, double speed)
+    public HandleResult<ModuleRoutine> AxisStep(string path, double distance, double speed)
     {
         var axis = FindAxis(path);
         if (axis is null)
@@ -821,7 +869,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 轴复位清错
     /// </summary>
-    public HandleResult<ModuleOperation> AxisReset(string path)
+    public HandleResult<ModuleRoutine> AxisReset(string path)
     {
         var axis = FindAxis(path);
         if (axis is null)
@@ -829,13 +877,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             return Rejected(DeviceNotFound(path));
         }
 
-        return StartDeviceAction(axis, path, ChamberDeviceAction.Reset, axis.ResetDrive);
+        return StartDeviceAction(axis, path, ChamberDeviceAction.Reset);
     }
 
     /// <summary>
     /// 气缸升（true，开侧）或降
     /// </summary>
-    public HandleResult<ModuleOperation> MoveCylinder(string path, bool up)
+    public HandleResult<ModuleRoutine> MoveCylinder(string path, bool up)
     {
         var cylinder = FindCylinder(path);
         if (cylinder is null)
@@ -845,17 +893,17 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
         if (up)
         {
-            return StartDeviceAction(cylinder, path, ChamberDeviceAction.Up, cylinder.Open);
+            return StartDeviceAction(cylinder, path, ChamberDeviceAction.Up);
         }
 
-        return StartDeviceAction(cylinder, path, ChamberDeviceAction.Down, cylinder.Close);
+        return StartDeviceAction(cylinder, path, ChamberDeviceAction.Down);
     }
 
     /// <summary>
     /// 轴点动（速度正负是方向，不能是 0）：发起了就回，返回的动作等松手；按住期间界面调 <see cref="AxisJogRenew"/> 续，
     /// 松手发 <see cref="AxisStop"/>；EC HoldTimeoutMs 内没续上模块自己停
     /// </summary>
-    public HandleResult<ModuleOperation> AxisJog(string path, double speed)
+    public HandleResult<ModuleRoutine> AxisJog(string path, double speed)
     {
         var axis = FindAxis(path);
         if (axis is null)
@@ -868,7 +916,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             return Rejected(DeviceArgsInvalid(path, ChamberDeviceAction.Jog));
         }
 
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(ChamberAction.Manual) ?? DeviceActionInterlock(axis, ChamberDeviceAction.Jog);
             if (rejected is not null)
@@ -881,15 +929,63 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(DeviceCommandRejected(path, ChamberDeviceAction.Jog));
             }
 
-            var started = Started(ChamberAction.Manual, new ChamberHoldOperation(axis, HoldTimeoutMs, DeviceActionTimeout));
+            // 按住期间界面一直续；松手（界面发停止）或没续上就停轴，再等轴停下
+            var jog = new ModuleRoutine(Name, $"{axis.FullPath} {ChamberDeviceAction.Jog}");
+            jog.Add("按住", null, HoldJog);
+            jog.AwaitSent("等停下", axis, ChamberDeviceAction.Jog, () => DeviceActionTimeout);
+            _jogAxis = axis;
+            _jogReleased = false;
+            Interlocked.Exchange(ref _jogRenewedAt, Environment.TickCount64);
+            var started = Started(ChamberAction.Manual, jog);
             if (!started.IsSuccess)
             {
                 // 检查跟挂在同一把锁里，挂不上只是防万一；点动已经发出去了，先停下来
                 axis.Stop();
+                return started;
             }
 
+            _jogRoutine = jog;
             return started;
         }
+    }
+
+    /// <summary>
+    /// 按住期间每拍：界面松手了这一步就过；轴报失败先停再判失败；EC HoldTimeoutMs 内没续上（界面断了、客户端退了）就自己停、算松手
+    /// </summary>
+    private bool HoldJog(RoutineStep step)
+    {
+        var axis = _jogAxis;
+        if (axis is null || _jogReleased)
+        {
+            return true;
+        }
+
+        if (axis.ActionState == ActionState.Failed)
+        {
+            axis.Stop();
+            step.Fail(ErrorCodes.ChamberDeviceActionFailed, $"{axis.FullPath} 点动中轴报失败（设备报错）",
+                axis.FullPath, nameof(ChamberDeviceAction.Jog));
+            return false;
+        }
+
+        if (Environment.TickCount64 - Interlocked.Read(ref _jogRenewedAt) <= HoldTimeoutMs)
+        {
+            return false;
+        }
+
+        LogHelper.Warn(Name, $"{axis.FullPath} {HoldTimeoutMs} ms 没续上（界面断了或客户端退了），自己停");
+        axis.Stop();
+        _jogReleased = true;
+        return true;
+    }
+
+    /// <summary>
+    /// 正在点动这根轴：点动的动作还挂着、还在走
+    /// </summary>
+    private bool IsJogging(IAxis axis)
+    {
+        var jog = _jogRoutine;
+        return jog is not null && ReferenceEquals(CurrentRoutine, jog) && ReferenceEquals(_jogAxis, axis) && !jog.IsTerminal;
     }
 
     /// <summary>
@@ -908,9 +1004,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             return DeviceCommandRejected(path, ChamberDeviceAction.Stop);
         }
 
-        if (CurrentOperation is ChamberHoldOperation hold && hold.Axis == axis)
+        if (IsJogging(axis))
         {
-            hold.Release();
+            _jogReleased = true;
         }
 
         return HandleResult.Success();
@@ -922,20 +1018,29 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public bool AxisJogRenew(string path)
     {
         var axis = FindAxis(path);
-        if (axis is null)
+        if (axis is null || !IsJogging(axis) || _jogReleased)
         {
             return false;
         }
 
-        return CurrentOperation is ChamberHoldOperation hold && hold.Axis == axis && hold.Renew();
+        Interlocked.Exchange(ref _jogRenewedAt, Environment.TickCount64);
+        return true;
     }
 
     /// <summary>
-    /// 锁里查 状态 → 互锁，过了当场发指令，发出去了挂上等设备做完的动作
+    /// 不带参数的设备动作：经 DeviceActions 发（跟整腔动作同一处）
     /// </summary>
-    private HandleResult<ModuleOperation> StartDeviceAction(IDevice device, string path, ChamberDeviceAction action, Func<bool> send)
+    private HandleResult<ModuleRoutine> StartDeviceAction(IDevice device, string path, ChamberDeviceAction action)
     {
-        lock (OperationGate)
+        return StartDeviceAction(device, path, action, () => DeviceActions.Send(device, action));
+    }
+
+    /// <summary>
+    /// 锁里查 状态 → 互锁，过了当场发指令，发出去了挂上等设备做完的动作（设备回到 Idle 算被中止，EC DeviceActionTimeout 兜底）
+    /// </summary>
+    private HandleResult<ModuleRoutine> StartDeviceAction(IDevice device, string path, ChamberDeviceAction action, Func<bool> send)
+    {
+        lock (RoutineGate)
         {
             var rejected = CheckState(ChamberAction.Manual) ?? DeviceActionInterlock(device, action);
             if (rejected is not null)
@@ -948,7 +1053,9 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(DeviceCommandRejected(path, action));
             }
 
-            return Started(ChamberAction.Manual, new ChamberDeviceOperation(device, action, DeviceActionTimeout));
+            var manual = new ModuleRoutine(Name, $"{device.FullPath} {action}");
+            manual.AwaitSent("等做完", device, action, () => DeviceActionTimeout);
+            return Started(ChamberAction.Manual, manual);
         }
     }
 
@@ -1005,17 +1112,19 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// 复位：先清报警、复位子组件（轴在这一步发驱动器复位），再挂上等设备复位做完的动作。签名跟着组件基类（报警复位、整机复位按返回的动作等做完）；
     /// 只查状态，被拒的原因用 <see cref="CheckReset"/> 问。卡在交互环里（取放片失败停在 Transferring）也能复位，落 Idle 等于强制脱离这一轮交互
     /// </summary>
-    public override ModuleOperation? Reset()
+    public override ModuleRoutine? Reset()
     {
         base.Reset();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckReset() is not null)
             {
                 return null;
             }
 
-            return Begin(ChamberAction.Reset, CreateResetOperation());
+            var reset = new ModuleRoutine(Name, "Reset").LimitTo(() => ResetTimeout, ErrorCodes.ChamberActionTimeout);
+            AddResetSteps(reset);
+            return Begin(ChamberAction.Reset, reset);
         }
     }
 
@@ -1031,17 +1140,19 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// 中止（急停）：先中止子组件（轴在这一步发停止），再挂上设备中止；能顶替在途动作，不清报警。签名跟着组件基类（整机停止、搬运中止按返回的动作等停下）；
     /// 只查状态、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>），被拒的原因用 <see cref="CheckAbort"/> 问
     /// </summary>
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         base.Abort();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckAbort() is not null)
             {
                 return null;
             }
 
-            return Begin(ChamberAction.Abort, CreateAbortOperation());
+            var abort = new ModuleRoutine(Name, "Abort").LimitTo(() => AbortTimeout, ErrorCodes.ChamberActionTimeout);
+            AddAbortSteps(abort);
+            return Begin(ChamberAction.Abort, abort);
         }
     }
 
@@ -1054,19 +1165,22 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 复位的设备动作：等每根轴把驱动器复位做完（<see cref="ChamberResetOperation"/>）；机型不一样就重写
+    /// 复位：清错指令在这之前已经发了——腔体 Reset 先走组件基类的复位，一路递归到每根轴，轴自己发驱动器复位；
+    /// 这里等所有轴把复位做完。气缸、喷嘴的复位只是清报警，不用等。机型不一样就重写
     /// </summary>
-    protected virtual ModuleOperation CreateResetOperation()
+    protected virtual void AddResetSteps(ModuleRoutine reset)
     {
-        return new ChamberResetOperation(this, ResetTimeout);
+        reset.Await("等轴复位", Axes, ChamberDeviceAction.Reset);
     }
 
     /// <summary>
-    /// 中止的设备动作：喷嘴全部停液、等所有轴停下（<see cref="ChamberAbortOperation"/>）；机型不一样就重写
+    /// 中止（急停）：轴的停止在这之前已经发了——腔体 Abort 先走组件基类的中止，一路递归到每根轴，轴自己发停止；
+    /// 气缸、阀的中止只是不再等到位、输出保持原样，所以这里把喷嘴全部停液（别中止了还在喷），再等所有轴停下。机型不一样就重写
     /// </summary>
-    protected virtual ModuleOperation CreateAbortOperation()
+    protected virtual void AddAbortSteps(ModuleRoutine abort)
     {
-        return new ChamberAbortOperation(this, AbortTimeout);
+        abort.Devices("喷嘴停液", Nozzles, ChamberDeviceAction.ValveOff);
+        abort.Await("等轴停下", Axes, ChamberDeviceAction.Stop);
     }
 
     #endregion
@@ -1124,13 +1238,44 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     protected override bool CanBeginAction => IsEnable;
 
     /// <summary>
-    /// 操作终结（状态已由基类落好）：失败的动作报警；工艺做完把账上的片标成完成 / 失败 / 中止
+    /// 动作停下（状态已由基类落好）：失败的动作报警；工艺做完把账上的片标成完成 / 失败 / 中止；点动停下了不再认续
     /// </summary>
-    protected override void OnOperationCompleted(ModuleOperation operation)
+    protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
-        RaiseActionFailedAlarm(operation);
-        FinishProcess(operation);
+        RaiseActionFailedAlarm(routine);
+        FinishProcess(routine);
+        if (ReferenceEquals(routine, _jogRoutine))
+        {
+            _jogRoutine = null;
+            _jogAxis = null;
+        }
     }
+
+    #region 点动（按住动、松手停）
+
+    // 点动挂的动作要跟界面的续、松手对上：续、松手在 RPC 线程，扫描在模块线程，两边只碰这几个字段（一个腔体同一时间只有一个动作）
+
+    /// <summary>
+    /// 正在点动的那个动作；没在点动为 null
+    /// </summary>
+    private volatile ModuleRoutine? _jogRoutine;
+
+    /// <summary>
+    /// 点动的轴
+    /// </summary>
+    private volatile IAxis? _jogAxis;
+
+    /// <summary>
+    /// 已经松手（界面发了停止，或者没续上自己停了）
+    /// </summary>
+    private volatile bool _jogReleased;
+
+    /// <summary>
+    /// 界面上次续的时刻（Environment.TickCount64）
+    /// </summary>
+    private long _jogRenewedAt;
+
+    #endregion
 
     #region 工艺计数和进度（IProcessStation：Job 和手动起工艺走同一个口子）
 
@@ -1142,7 +1287,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 正在跑的工艺动作：只在模块锁里改，进度在别的线程读；没在跑为 null
     /// </summary>
-    private volatile ModuleOperation? _processOperation;
+    private volatile ModuleRoutine? _processRoutine;
 
     /// <summary>
     /// 开工计数：今天几片、累计几片、最近一次开工时间（按天存库）
@@ -1172,11 +1317,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 当前工艺进度 0~100：平台的工艺动作按配方每步时间算；没在做工艺、机型自己造的工艺动作为空
     /// </summary>
-    public int? ProcessPercent => (_processOperation as ChamberProcessOperation)?.Percent;
+    public int? ProcessPercent => (_processRoutine as ChamberProcessRoutine)?.Percent;
 
     /// <summary>
     /// 这个配方在这个腔体上跑不跑得了：配方头的 Type 要跟这个腔体的 Type 一样（不分大小写）；
-    /// 每一步选的摆臂、药液照名字在这个腔体里找（跟执行时同一段，见 ChamberProcessOperation.FindDevices）。
+    /// 每一步选的摆臂、药液照名字在这个腔体里找（跟执行时同一段，见 ChamberProcessRoutine.FindDevices）。
     /// 对得上返回 null；对不上回第一处的字段（按界面语言的名字，没装工艺配方库就用字段名）和值。
     /// 起工艺前、流程配方保存、Job 挑腔体时查，免得做到一半才发现
     /// </summary>
@@ -1189,7 +1334,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
         foreach (var step in recipe.Steps)
         {
-            var missing = ChamberProcessOperation.FindDevices(this, step, out _, out _);
+            var missing = ChamberProcessRoutine.FindDevices(this, step, out _, out _);
             if (missing is not null)
             {
                 return (FieldText(missing.Value.Key), missing.Value.Value);
@@ -1220,22 +1365,22 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 工艺动作终结（在模块锁里）：账上的片按结果标完成 / 失败 / 中止；不是工艺动作不管
+    /// 工艺动作停下（在模块锁里）：账上的片按结果标完成 / 失败 / 中止；不是工艺动作不管
     /// </summary>
-    private void FinishProcess(ModuleOperation operation)
+    private void FinishProcess(ModuleRoutine routine)
     {
-        if (!ReferenceEquals(operation, _processOperation))
+        if (!ReferenceEquals(routine, _processRoutine))
         {
             return;
         }
 
         var request = _process;
         _process = null;
-        _processOperation = null;
-        bool aborted = operation.State == OperationState.Aborted;
+        _processRoutine = null;
+        bool aborted = routine.State == RoutineState.Aborted;
 
         // 工艺做到一半失败、超时：先把喷嘴停了，别一直喷（中止由中止动作自己停液）
-        if (!operation.IsSuccess && !aborted)
+        if (!routine.IsSuccess && !aborted)
         {
             foreach (var nozzle in Nozzles)
             {
@@ -1249,7 +1394,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         var state = WaferProcessState.Failed;
-        if (operation.IsSuccess)
+        if (routine.IsSuccess)
         {
             state = WaferProcessState.Completed;
         }
@@ -1288,7 +1433,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 工艺转给 <see cref="StartProcess"/>：被拒回 null（调度下一拍再问）；别的站内任务腔体没有
     /// </summary>
-    public override ModuleOperation? StartTask(StationTaskRequest request)
+    public override ModuleRoutine? StartTask(StationTaskRequest request)
     {
         if (request.Kind != StationTaskAction.Process)
         {
@@ -1343,11 +1488,11 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 动作类报警：失败就报；动作成功也不清，只能人工 Reset 清。
     /// 人为急停顶掉的动作不报——那是操作员自己按的，不是故障。机型有自己的报警分法就重写（自己要管的情况先判、报了就 return，其余交给 base；整套换掉不调 base）；
-    /// 在操作终结的回调里调、在模块锁里：只报警，别等待、别去拿别的模块的锁
+    /// 在动作停下的回调里调、在模块锁里：只报警，别等待、别去拿别的模块的锁
     /// </summary>
-    protected virtual void RaiseActionFailedAlarm(ModuleOperation operation)
+    protected virtual void RaiseActionFailedAlarm(ModuleRoutine routine)
     {
-        if (!operation.IsSuccess && operation.Code != ErrorCodes.Aborted)
+        if (!routine.IsSuccess && routine.Code != ErrorCodes.Aborted)
         {
             RaiseAlarm(ControlledStopAlarm);
         }

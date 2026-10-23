@@ -206,7 +206,7 @@ ClearStage(aligner);
 driver.FailNext = "Align";
 int abandoned = driver.Abandoned;
 var failed = PlaceFromCarrier(aligner);
-var alignFailed = aligner.CurrentOperation;
+var alignFailed = aligner.CurrentRoutine;
 Check(RunUntil(aligner, () => aligner.State == ModuleState.Error) && alignFailed is not null && alignFailed.Code == ErrorCodes.DeviceFailed,
     "对准设备报错：动作失败（device_failed），对准器落出错");
 Check(Active(aligner, aligner.ControlledStopAlarm) && driver.Abandoned == abandoned + 1 && !aligner.IsWaferAligned
@@ -225,7 +225,7 @@ ClearStage(aligner);
 aligner.AlignTimeout = 1000;
 driver.Hang = true;
 PlaceFromCarrier(aligner);
-var timedOut = aligner.CurrentOperation;
+var timedOut = aligner.CurrentRoutine;
 Check(RunUntil(aligner, () => aligner.State == ModuleState.Error, 100, 50) && timedOut is not null && timedOut.Code == ErrorCodes.Timeout
       && Active(aligner, aligner.ControlledStopAlarm),
     "对准等不到回复：超过 EC AlignTimeout 判超时、落出错、报警");
@@ -254,7 +254,7 @@ Check(reset is not null && RunUntil(aligner, () => reset.IsSettled) && aligner.H
 ClearStage(aligner);
 driver.Ticks = 20;
 PlaceFromCarrier(aligner);
-var aborted = aligner.CurrentOperation;
+var aborted = aligner.CurrentRoutine;
 var abort = aligner.Abort();
 Check(abort is not null && aborted is not null && aborted.Code == ErrorCodes.Aborted && aligner.State == ModuleState.Aborting,
     "中止顶掉在途的对准");
@@ -302,24 +302,24 @@ sealed class SmokeAligner : BaseAlignerModule
         return new SmokeAlignerCodec();
     }
 
-    protected override CommandOperation AddHomeSteps(CommandOperation operation)
+    protected override void AddHomeSteps(ModuleRoutine home)
     {
-        return operation.Then("回零", () => new SmokeAlignerCommand("Home"));
+        home.Command("回零", () => new SmokeAlignerCommand("Home"));
     }
 
-    protected override CommandOperation AddAlignSteps(CommandOperation operation, double angle)
+    protected override void AddAlignSteps(ModuleRoutine align, double angle)
     {
-        return operation.Then("对准", () => new SmokeAlignerCommand("Align", angle));
+        align.Command("对准", () => new SmokeAlignerCommand("Align", angle));
     }
 
-    protected override ModuleOperation CreateResetOperation()
+    protected override void AddResetSteps(ModuleRoutine reset)
     {
-        return new CommandOperation("Reset", _driver, () => new SmokeAlignerCommand("Reset"), () => ResetTimeout);
+        reset.Command("清报错", () => new SmokeAlignerCommand("Reset"));
     }
 
-    protected override ModuleOperation CreateAbortOperation()
+    protected override void AddAbortSteps(ModuleRoutine abort)
     {
-        return new CommandOperation("Abort", _driver, () => new SmokeAlignerCommand("Stop"), () => AbortTimeout);
+        abort.Command("急停", () => new SmokeAlignerCommand("Stop"));
     }
 
     private static void SetName(ComponentBase component, string name, string path)

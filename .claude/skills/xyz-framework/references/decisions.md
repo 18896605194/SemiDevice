@@ -870,6 +870,8 @@
 - **为什么**：以后有的机台扫片不是 LoadPort 做、是机械手伸过去扫（JK 样例机台 TDS01 的开放料盒就是机械手 DHN1 扫）。对照过 JK（在用：料盒站的 CASSETTE_MAP 转给机械手 MAP，扫前锁机械手）和
   CTC（框架里 LoadPort 有 `IsMapWaferByLoadPort` + 传进来的机械手，品牌类写死 LoadPort 扫，没用起来）。
 - **接口 `IWaferMap`**（`xyz.Components\Interfaces`，用户定的形状）：`Map(station)` 做"扫片 + 取图"、取到的存进属性 `MapResults`（按站点名的字典，开扫时先删这个站的旧结果）。
+  字典的值是 `WaferMapResult`（`Slots` 槽图 + `Raw` 设备回的原文，2026-10-24 用户："map 的接口里面是不是也得存下来这个值"）：各家的槽图字符只在自己的取槽图指令里认，
+  平台不认任何一家的字符；Mapping 出错的日志写设备原文（`（设备回的：PPCPD…）`），原来基类把槽图拼回 E / P / C / D 的 `ToLogChar` 删了（用户："这种在 loadport 基类里面肯定是不对的"）。
   用户否过两版：带回调参数的 `Map(station, onMapped)`（"太麻烦了"），取结果的方法 `GetMapResult(station)`（"我说的是结果属性"）。按站点分开是因为一台机械手要扫好几个口，只放一个"最近一次"会被后面的口覆盖。
   不继承别的接口，有能力的类直接实现，调用方 `is` 判。
 - **LoadPort 也实现**（用户："loadport 这边实现这个接口的话，实现这个方法就好了，然后 load 之后自己调用一下"）：`Map(自己的名字)` 用自己的传感器单独扫一遍，
@@ -1348,3 +1350,27 @@
 - **sc.xml**：设备下的 `Driver` 节点 Type 一律 `xyz.Components.Components.DeviceDriverComponent`；RFID 节点 Type 写机型的读头类，下面挂自己的 `Driver`（串口配置挪到它上面）；
   机械手的 `Driver` 补了 `CommType=Tcp`（通道默认串口，原来锐洁壳写死走网口）。
 - **冒烟**：OperationWaitSmoke、RfidSmoke 引用机型工程，用真的 35021 LoadPort / 机械手 / 读头类 + 平台通道，只把帧通讯换成假的；AlignerSmoke、JobSmoke 用测试自己的假通道和指令。
+
+## 动作改成一串步骤（ModuleRoutine）（2026-10-23，用户："能不能用行为树替代现在的这种 operation"→ 要不阻塞、显式扫描、更简单；看了样稿说"你这样不知道哪一步出错，还不如之前的"，改成带步骤名的写法后"那你按照这种格式的话，你直接修改一下吧……把现有的 operation 改一个名字"，名字选 ModuleRoutine）
+- **为什么改**：以前每个动作一个 `ModuleOperation<TStep>` 子类，自己写 `switch (Step)`、自己记计时、自己判超时，失败只知道错误码，不知道走到哪了；`CommandOperation` 串指令又是另一套。
+  yield / 协程那种写法用户否了，行为树对设备动作太重（样稿在 `桌面\Operation重设计\Operation两种写法-样稿v1.html`）。
+- **做成什么样**：`ModuleRoutine` = 按顺序走的一串**有名字的步骤**；一步 = 进这一步时做一次（Run）+ 之后每拍判一次（Check）。引擎在挂着它的模块（或搬运管理）的扫描线程里每拍推一下，
+  做完的步骤当拍接着走下一步，碰到要等的就返回；不阻塞、不起线程。平台给常用步骤（`Command`、`Start`、`Do`、`Until`、`Devices`、`Await` / `AwaitSent`），特殊的写 `RoutineStep` 子类
+  （搬运抢站点 `StationGrabStep`、腔体工艺停留 `ChamberDwellStep`、整机初始化 / 停止 `SystemInitStep` / `SystemStopStep`）。用法见 backend.md §3「动作 = ModuleRoutine」。
+  - 哪一步出错停在哪一步：日志、`Reason` 都带"第几步 / 共几步 + 步骤名 + 在等什么 + 这一步多久 + 前面各步用时"；回包 `RpcResponse` 加了 `StepNumber` / `StepCount`（ProtoMember 6 / 7），
+    不止一步的动作没做成才带，界面 `ErrorText` 在原因前加"第 n/m 步："（语言包 `routine.step_at`）。
+  - **平台建动作、机型加步骤**：各模块的 `CreateXxxOperation` 换成平台建 `new ModuleRoutine(Name, "动作名", _driver, () => EC 超时)`、机型重写 `AddXxxSteps` 往里加；
+    整个做法不一样的才重写 `CreateXxxRoutine`（LoadPort 各动作、对准器回零 / 对准、腔体工艺）。机械手取放后面"等持片反馈对上""记账"两步平台加（原来的 `RobotTransferOperation` 删了）。
+  - 腔体的整腔动作（回零、复位、中止、取放准备二、手动设备动作、点动）不再各写一个类，都是 `BaseChamberModule` 里几行步骤（`AddHomeSteps` 这些，机型能重写）；
+    工艺 `ChamberProcessRoutine` 照配方一步一步加步骤（准备 / 每个配方步一组 / 收尾），进度 `Percent` 照旧按配方每步时间算（准备段 0、收尾段 99）。
+- **改名对照**（以前各节里的旧名字照这个读）：`ModuleOperation` → `ModuleRoutine`、`OperationState` → `RoutineState`、`CommandOperation` → `Command` 步骤、`NoOpOperation` → `ModuleRoutine.Done(模块名, 动作名)`、
+  `CurrentOperation` / `OnOperationCompleted` / `OperationGate` → `CurrentRoutine` / `OnRoutineCompleted` / `RoutineGate`、`CreateXxxOperation` → `AddXxxSteps`（或 `CreateXxxRoutine`）、
+  `WaferTask.Operation` → `Routine`、搬运管理 `HeldOperations` → `HeldRoutines`、`BaseService.RunOperation` → `RunRoutine`；目录 `Components\Operations`、`Clean\Operations`、`System\Operations`、
+  `Robot\Operations` 换成 `Components\Routines`、`Clean\Routines`、`System\Routines`（机械手的没了）；`ChamberProcessPhase` 删了。**错误码字符串没改**（`module.operation_faulted` 这些照旧）。
+- **自己定的细节**（交付时说了）：
+  - 日志记在谁名下的叫 `Module`（模块名），不叫 Owner——搬运的 `TransferRoutine.Owner` 已经是"所属 PJ"。
+  - 中止先调动作自己的 `OnAborted`、再让正在走的那一步收场：搬运被撤时先给机械手发急停，再中止在等的子动作，免得机械手先落 Error 再收不到急停；还没进的步骤不收场。
+  - 开始记 Debug（"开始：共 n 步……"）、每步做完记 Debug、做完记 Info、失败 Error、中止 Warn。计时用 Stopwatch（原来的 TickCount 只有十几 ms 精度）。
+  - 上限 0 的两处照原来的意思：`Until`（持片反馈）上限 0 = 判一次不成立就失败；搬运抢站点等待 0 = 抢一次没抢到就判负。
+  - 机械手扫片的动作默认按 EC `PickTimeout` 算，扫一趟慢的机型在 `AddMapSteps` 里先 `map.UseTimeout` 换。
+  - 冒烟工程名 OperationWaitSmoke 没改；一拍里会连着走好几步，以前靠"两拍之间看中间状态"的冒烟改成用探针开关停在中间（JobSmoke 假 LoadPort 的 `FailAfterPrepare` / `HoldPrepare2`）。

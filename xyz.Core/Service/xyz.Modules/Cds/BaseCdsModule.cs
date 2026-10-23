@@ -33,10 +33,10 @@ public abstract class BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess
     /// <summary>
     /// 初始化：功能还没做，直接算做完、进空闲（不动阀），全部初始化不会卡在这儿
     /// </summary>
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         State = ModuleState.Idle;
-        return new NoOpOperation("Init");
+        return ModuleRoutine.Done(Name, "Init");
     }
 
     /// <summary>

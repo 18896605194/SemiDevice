@@ -15,17 +15,17 @@ public interface ILoadPort : ILoadPortAccess, IJobAccess
     /// <summary>
     /// 回原点
     /// </summary>
-    HandleResult<ModuleOperation> Home();
+    HandleResult<ModuleRoutine> Home();
 
     /// <summary>
     /// 夹紧载具
     /// </summary>
-    HandleResult<ModuleOperation> Clamp();
+    HandleResult<ModuleRoutine> Clamp();
 
     /// <summary>
     /// 松开载具
     /// </summary>
-    HandleResult<ModuleOperation> Unclamp();
+    HandleResult<ModuleRoutine> Unclamp();
 
     #endregion
 
@@ -64,7 +64,7 @@ public interface ILoadPort : ILoadPortAccess, IJobAccess
     /// <summary>
     /// 手动 Unload
     /// </summary>
-    HandleResult<ModuleOperation> UnloadManually();
+    HandleResult<ModuleRoutine> UnloadManually();
 
     /// <summary>
     /// 现在能不能复位，不能的带原因

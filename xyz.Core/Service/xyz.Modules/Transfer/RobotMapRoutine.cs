@@ -9,9 +9,10 @@ using xyz.Shared.Errors;
 namespace xyz.Modules;
 
 /// <summary>
-/// 机械手替 LoadPort 扫一次片：在搬运管理里排队，轮到了、机械手没在搬片、手上全空才叫它扫；搬运管理的扫描线程推进
+/// 机械手替 LoadPort 扫一次片：在搬运管理里排队，轮到了、机械手没在搬片、手上全空才叫它扫；搬运管理的扫描线程推进。
+/// 被撤时机械手正在扫的不打断，让它扫完、结果不用
 /// </summary>
-public sealed class RobotMapRoutine : ModuleOperation<RobotMapStep>
+public sealed class RobotMapRoutine : ModuleRoutine
 {
     private readonly TransferManager _manager;
 
@@ -20,11 +21,16 @@ public sealed class RobotMapRoutine : ModuleOperation<RobotMapStep>
     /// </summary>
     private bool _waitLogged;
 
-    public RobotMapRoutine(TransferManager manager, ITransferRobot robot, string station) : base("Map", RobotMapStep.WaitRobot)
+    /// <summary>
+    /// 排上一条扫片：module 是日志记在谁名下（搬运管理）
+    /// </summary>
+    public RobotMapRoutine(string module, TransferManager manager, ITransferRobot robot, string station) : base(module, "Map")
     {
         _manager = manager;
         Robot = robot;
         Station = station;
+        Add($"等 {robot.Name} 空出来", null, WaitRobot);
+        Add($"{robot.Name} 扫 {station}", null, WaitMap);
     }
 
     /// <summary>
@@ -40,10 +46,10 @@ public sealed class RobotMapRoutine : ModuleOperation<RobotMapStep>
     /// <summary>
     /// 机械手的扫片动作；还没轮到是 null
     /// </summary>
-    public ModuleOperation? Motion { get; private set; }
+    public ModuleRoutine? Motion { get; private set; }
 
     /// <summary>
-    /// 可以从队列里拿掉了：自己做完了，机械手的扫片动作也停下了（被中止时机械手正在扫，等它扫完再放开机械手）
+    /// 可以从队列里拿掉了：自己停下了，机械手的扫片动作也停下了（被撤时机械手正在扫，等它扫完再放开机械手）
     /// </summary>
     public bool ReadyToFinish
     {
@@ -54,47 +60,29 @@ public sealed class RobotMapRoutine : ModuleOperation<RobotMapStep>
         }
     }
 
-    protected override void OnScan()
-    {
-        switch (Step)
-        {
-            case RobotMapStep.WaitRobot:
-                WaitRobot();
-                break;
-
-            case RobotMapStep.WaitMap:
-                WaitMap();
-                break;
-
-            default:
-                Fail(ErrorCodes.OperationFaulted, $"未知步骤: {Step}", Name, Step.ToString());
-                break;
-        }
-    }
-
     /// <summary>
-    /// 机械手停用、维护模式、出错或没初始化：不等，直接判失败；在忙就接着等
+    /// 排队等机械手：停用、维护模式、出错或没初始化不等，直接判失败；轮到了叫它扫，它在忙就下一拍再试
     /// </summary>
-    private void WaitRobot()
+    private bool WaitRobot(RoutineStep step)
     {
         if (!Robot.IsEnabled)
         {
-            Fail(ErrorCodes.ModuleDisabled, $"{Robot.Name} 停用了，扫不了 {Station}", Robot.Name);
-            return;
+            step.Fail(ErrorCodes.ModuleDisabled, $"{Robot.Name} 停用了，扫不了 {Station}", Robot.Name);
+            return false;
         }
 
         if (Robot is IMode mode && mode.Mode != ModuleMode.Production)
         {
-            Fail(ErrorCodes.ModuleMaintenance, $"{Robot.Name} 在维护模式，扫不了 {Station}", Robot.Name);
-            return;
+            step.Fail(ErrorCodes.ModuleMaintenance, $"{Robot.Name} 在维护模式，扫不了 {Station}", Robot.Name);
+            return false;
         }
 
         int state = Robot.State;
         if (state == ModuleState.Error || state == ModuleState.NotInit)
         {
-            Fail(ErrorCodes.ModuleStateNotAllowed, $"{Robot.Name} 出错或没初始化（{state}），扫不了 {Station}",
+            step.Fail(ErrorCodes.ModuleStateNotAllowed, $"{Robot.Name} 出错或没初始化（{state}），扫不了 {Station}",
                 Robot.Name, state.ToString(CultureInfo.InvariantCulture));
-            return;
+            return false;
         }
 
         if (!_manager.IsMapTurn(this))
@@ -105,13 +93,13 @@ public sealed class RobotMapRoutine : ModuleOperation<RobotMapStep>
                 LogHelper.Info(Robot.Name, $"{Station} 要扫片：等 {Robot.Name} 搬完、手上的片都放下");
             }
 
-            return;
+            return false;
         }
 
         if (Robot is not IWaferMap mapper)
         {
-            Fail(ErrorCodes.RobotMapUnsupported, $"{Robot.Name} 不能扫片", Robot.Name);
-            return;
+            step.Fail(ErrorCodes.RobotMapUnsupported, $"{Robot.Name} 不能扫片", Robot.Name);
+            return false;
         }
 
         var started = mapper.Map(Station);
@@ -119,34 +107,37 @@ public sealed class RobotMapRoutine : ModuleOperation<RobotMapStep>
         if (started.IsSuccess && motion is not null)
         {
             Motion = motion;
-            SetStep(RobotMapStep.WaitMap);
-            return;
+            return true;
         }
 
         // 机械手刚好在做别的（手动页回原点这类）：下一拍再试
         if (started.ErrorMessage == ErrorCodes.ModuleBusy || started.ErrorMessage == ErrorCodes.ModuleStateNotAllowed
             || started.ErrorMessage == ErrorCodes.ActionRejected)
         {
-            return;
+            return false;
         }
 
-        Fail(started.ErrorMessage, $"{Robot.Name} 扫片被拒：{started.ErrorMessage}", started.Args.ToArray());
+        step.Fail(started.ErrorMessage, $"{Robot.Name} 扫片被拒：{started.ErrorMessage}", [.. started.Args]);
+        return false;
     }
 
-    private void WaitMap()
+    /// <summary>
+    /// 机械手在扫：扫完算做完，没扫成原样带它的错误码
+    /// </summary>
+    private bool WaitMap(RoutineStep step)
     {
         var motion = Motion;
         if (motion is null || !motion.IsTerminal)
         {
-            return;
+            return false;
         }
 
         if (motion.IsSuccess)
         {
-            Complete();
-            return;
+            return true;
         }
 
-        Fail(motion.Code, $"{Robot.Name} 扫 {Station} 没成：{motion.Reason}", motion.ErrorArgs.ToArray());
+        step.Fail(motion.Code, $"{Robot.Name} 扫 {Station} 没成：{motion.Reason}", [.. motion.ErrorArgs]);
+        return false;
     }
 }

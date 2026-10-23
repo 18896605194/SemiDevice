@@ -27,11 +27,11 @@ public interface IRobot : ITransferRobot
 
     // 动作入口按 状态 → 资源 → 互锁 查，被拒带原因（错误码 + 参数）；复位、急停跟着组件基类，被拒返回 null。
 
-    HandleResult<ModuleOperation> Home();
+    HandleResult<ModuleRoutine> Home();
 
-    HandleResult<ModuleOperation> PowerOn();
+    HandleResult<ModuleRoutine> PowerOn();
 
-    HandleResult<ModuleOperation> PowerOff();
+    HandleResult<ModuleRoutine> PowerOff();
 
     #endregion
 

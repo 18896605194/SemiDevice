@@ -20,7 +20,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Load(), port.LoadTimeout);
+        return RunRoutine(module, port, port.Load(), port.LoadTimeout);
     }
 
     public Task<RpcResponse> UnloadAsync(string module)
@@ -31,7 +31,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.UnloadManually(), port.UnloadTimeout);
+        return RunRoutine(module, port, port.UnloadManually(), port.UnloadTimeout);
     }
 
     public Task<RpcResponse> HomeAsync(string module)
@@ -42,7 +42,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Home(), port.HomeTimeout);
+        return RunRoutine(module, port, port.Home(), port.HomeTimeout);
     }
 
     public Task<RpcResponse> ResetAsync(string module)
@@ -53,7 +53,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Reset(), port.CheckReset, port.ResetTimeout);
+        return RunRoutine(module, port, port.Reset(), port.CheckReset, port.ResetTimeout);
     }
 
     public Task<RpcResponse> AbortAsync(string module)
@@ -64,7 +64,7 @@ public class LoadPortService : BaseService, ILoadPortService
             return ModuleNotFound(module);
         }
 
-        return RunOperation(module, port, port.Abort(), port.CheckAbort, port.AbortTimeout);
+        return RunRoutine(module, port, port.Abort(), port.CheckAbort, port.AbortTimeout);
     }
 
 

@@ -41,9 +41,11 @@ public sealed class WaferTask
 
     public WaferTaskState State { get; internal set; } = WaferTaskState.Waiting;
 
-    /// <summary>当前执行的设备操作；调度直接从这一格收进度，不另建执行任务表。</summary>
+    /// <summary>
+    /// 当前在做的动作；调度直接从这一格收进度，不另建执行任务表。
+    /// </summary>
     [JsonIgnore]
-    public ModuleOperation? Operation { get; internal set; }
+    public ModuleRoutine? Routine { get; internal set; }
 
     /// <summary>
     /// 实际的站点：取片是从哪取、放片是放到哪、站内任务是在哪做。

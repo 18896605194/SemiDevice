@@ -40,6 +40,18 @@ public class RpcResponse
     public List<string> Args { get; set; } = [];
 
     /// <summary>
+    /// 动作没做成时停在第几步（从 1 数），界面在原因前面加"第 n/共 m 步"；不是动作的失败、动作只有一步为 0
+    /// </summary>
+    [ProtoMember(6)]
+    public int StepNumber { get; set; }
+
+    /// <summary>
+    /// 动作一共几步，跟 StepNumber 一起用
+    /// </summary>
+    [ProtoMember(7)]
+    public int StepCount { get; set; }
+
+    /// <summary>
     /// 成功响应（无数据）。
     /// </summary>
     public static RpcResponse Ok()

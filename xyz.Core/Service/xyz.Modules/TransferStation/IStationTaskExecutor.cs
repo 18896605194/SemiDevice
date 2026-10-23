@@ -1,4 +1,4 @@
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 using xyz.Shared.Dtos;
 
 namespace xyz.Modules;
@@ -21,5 +21,5 @@ public interface IStationTaskExecutor
     /// <summary>
     /// 校验并启动站内任务。
     /// </summary>
-    ModuleOperation? StartTask(StationTaskRequest request);
+    ModuleRoutine? StartTask(StationTaskRequest request);
 }

@@ -22,7 +22,7 @@ public abstract class BaseModule : BaseStateComponent, IModule
     [SCEditor("", "Module", "站点类型：几台一样的写同一个值（比如腔体 1~4 写 A、5~8 写 B），工艺配方按它挑能跑的站点；空 = 不分类型")]
     public string Type { get; set; } = string.Empty;
 
-    public virtual ModuleOperation? InitModule()
+    public virtual ModuleRoutine? InitModule()
     {
         return null;
     }
@@ -30,7 +30,7 @@ public abstract class BaseModule : BaseStateComponent, IModule
     /// <summary>
     /// 复位：子组件跟着复位、清自己的报警；模块有自己的复位动作就重写
     /// </summary>
-    public override ModuleOperation? Reset()
+    public override ModuleRoutine? Reset()
     {
         base.Reset();
         return null;
@@ -39,7 +39,7 @@ public abstract class BaseModule : BaseStateComponent, IModule
     /// <summary>
     /// 中止：子组件跟着中止；模块有自己的中止动作就重写
     /// </summary>
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         base.Abort();
         return null;

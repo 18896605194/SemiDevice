@@ -16,7 +16,7 @@ public interface ITaskComponent
     /// <summary>
     /// 任务开始了：记下站点、槽，取放还记机械手
     /// </summary>
-    void Start(TaskRow row, WaferTask task, string station, int slot, string? robot = null, ModuleOperation? operation = null);
+    void Start(TaskRow row, WaferTask task, string station, int slot, string? robot = null, ModuleRoutine? routine = null);
 
     /// <summary>
     /// 任务做完了，取放记下用的哪只手

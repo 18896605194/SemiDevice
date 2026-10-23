@@ -12,7 +12,7 @@ public interface IAligner : IModule
     /// <summary>
     /// 回零：台上有片的接着对一遍；状态 → 互锁查过才挂上，被拒带原因返回
     /// </summary>
-    HandleResult<ModuleOperation> Home();
+    HandleResult<ModuleRoutine> Home();
 
     /// <summary>
     /// 复位被拒的原因（复位本身是 IModule.Reset）

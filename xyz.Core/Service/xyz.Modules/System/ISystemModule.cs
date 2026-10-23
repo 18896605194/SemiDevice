@@ -14,15 +14,15 @@ public interface ISystemModule
 
     string Language { get; }
 
-    HandleResult<ModuleOperation> InitAll();
+    HandleResult<ModuleRoutine> InitAll();
 
     HandleResult Auto();
 
     HandleResult Manual();
 
-    ModuleOperation? Abort();
+    ModuleRoutine? Abort();
 
     HandleResult? CheckAbort();
 
-    HandleResult<ModuleOperation> ReturnAll();
+    HandleResult<ModuleRoutine> ReturnAll();
 }

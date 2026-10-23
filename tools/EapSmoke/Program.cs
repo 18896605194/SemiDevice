@@ -1238,7 +1238,7 @@ sealed class FakePort : ILoadPortAccess
 
     public bool IsEnabled => true;
 
-    public ModuleOperation? CurrentOperation => null;
+    public ModuleRoutine? CurrentRoutine => null;
 
     #endregion
 
@@ -1295,16 +1295,16 @@ sealed class FakePort : ILoadPortAccess
 
     public ConcurrentBag<string> Statuses { get; } = [];
 
-    public HandleResult<ModuleOperation> Load()
+    public HandleResult<ModuleRoutine> Load()
     {
         LoadRequested = true;
-        return HandleResult<ModuleOperation>.Success(new NoOpOperation("Load"));
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(Name, "Load"));
     }
 
-    public HandleResult<ModuleOperation> Unload()
+    public HandleResult<ModuleRoutine> Unload()
     {
         UnloadRequested = true;
-        return HandleResult<ModuleOperation>.Success(new NoOpOperation("Unload"));
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(Name, "Unload"));
     }
 
     /// <summary>测试摆的"端口现在不能卸"的原因；null = 能卸。</summary>
@@ -1312,11 +1312,11 @@ sealed class FakePort : ILoadPortAccess
 
     public HandleResult? CheckUnload() => UnloadRejection;
 
-    public ModuleOperation? InitModule() => new NoOpOperation("InitModule");
+    public ModuleRoutine? InitModule() => ModuleRoutine.Done(Name, "InitModule");
 
-    public ModuleOperation? Reset() => new NoOpOperation("Reset");
+    public ModuleRoutine? Reset() => ModuleRoutine.Done(Name, "Reset");
 
-    public ModuleOperation? Abort() => new NoOpOperation("Abort");
+    public ModuleRoutine? Abort() => ModuleRoutine.Done(Name, "Abort");
 
     public void SetAutoMode(bool autoMode)
     {

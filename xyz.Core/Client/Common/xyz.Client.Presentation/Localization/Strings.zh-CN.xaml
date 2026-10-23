@@ -15,6 +15,7 @@
     <sys:String x:Key="module.maintenance">{0} 在维护模式，不接别的模块要它做的动作；切到生产模式再试</sys:String>
     <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
+    <sys:String x:Key="routine.step_at">第 {0}/{1} 步：</sys:String>
 
     <!-- 整机（sc.xml 的 System 节点：全部初始化、Auto / Manual、整机停止、全部回片） -->
     <sys:String x:Key="system.not_installed">sc.xml 没配 System 节点（没有整机模块），初始化、Auto / Manual、Stop、全部回片都用不了</sys:String>

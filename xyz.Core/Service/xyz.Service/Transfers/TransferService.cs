@@ -9,7 +9,7 @@ using xyz.Tools;
 namespace xyz.Service.Transfers;
 
 /// <summary>
-/// 搬运 gRPC 服务：启动手动传片并等操作收尾、出错后人工放锁。校验、锁、执行都在搬运管理里，这里只管翻成回包。
+/// 搬运 gRPC 服务：启动手动传片并等搬运收尾、出错后人工放锁。校验、锁、执行都在搬运管理里，这里只管翻成回包。
 /// </summary>
 public class TransferService : BaseService, ITransferService
 {
@@ -40,32 +40,32 @@ public class TransferService : BaseService, ITransferService
             Arm = request.Arm,
         });
 
-        var operation = started.Result;
-        if (!started.IsSuccess || operation is null)
+        var routine = started.Result;
+        if (!started.IsSuccess || routine is null)
         {
             return RpcResponse.Fail(started.ErrorMessage, started.Args);
         }
 
         int timeout = _transfers.ManualWaitTimeoutMs;
-        if (!await Task.Run(() => operation.WaitReply(timeout, context.CancellationToken)).ConfigureAwait(false))
+        if (!await Task.Run(() => routine.WaitReply(timeout, context.CancellationToken)).ConfigureAwait(false))
         {
             return RpcResponse.Fail(ErrorCodes.TransferWaitTimeout,
-                [operation.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
+                [routine.Name, timeout.ToString(CultureInfo.InvariantCulture)]);
         }
 
-        if (!operation.IsSuccess)
+        if (!routine.IsSuccess)
         {
-            return RpcResponse.Fail(operation.Code, operation.ErrorArgs);
+            return Failed(routine);
         }
 
         return RpcResponse.Ok(JsonHelper.Serialize(new TransferDoneDto
         {
-            Robot = operation.Robot.Name,
-            Arm = operation.Arm,
-            Source = operation.SourceName,
-            SourceSlot = operation.SourceSlot,
-            Target = operation.TargetName,
-            TargetSlot = operation.TargetSlot,
+            Robot = routine.Robot.Name,
+            Arm = routine.Arm,
+            Source = routine.SourceName,
+            SourceSlot = routine.SourceSlot,
+            Target = routine.TargetName,
+            TargetSlot = routine.TargetSlot,
         }));
     }
 

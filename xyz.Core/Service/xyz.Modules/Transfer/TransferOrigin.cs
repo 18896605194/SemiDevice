@@ -1,7 +1,7 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 搬运操作的调用来源
+/// 搬运的调用来源
 /// </summary>
 public enum TransferOrigin
 {

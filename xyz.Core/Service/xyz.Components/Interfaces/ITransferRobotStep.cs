@@ -15,7 +15,7 @@ public interface ITransferRobotStep : ITransferRobot
     /// <param name="station"></param>
     /// <param name="slot"></param>
     /// <returns></returns>
-    HandleResult<ModuleOperation> ExtendPick(int arm, string station, int slot);
+    HandleResult<ModuleRoutine> ExtendPick(int arm, string station, int slot);
 
     /// <summary>
     /// 伸出缩回
@@ -24,7 +24,7 @@ public interface ITransferRobotStep : ITransferRobot
     /// <param name="station"></param>
     /// <param name="slot"></param>
     /// <returns></returns>
-    HandleResult<ModuleOperation> RetractPick(int arm, string station, int slot);
+    HandleResult<ModuleRoutine> RetractPick(int arm, string station, int slot);
 
     /// <summary>
     /// 伸出放
@@ -33,7 +33,7 @@ public interface ITransferRobotStep : ITransferRobot
     /// <param name="station"></param>
     /// <param name="slot"></param>
     /// <returns></returns>
-    HandleResult<ModuleOperation> ExtendPlace(int arm, string station, int slot);
+    HandleResult<ModuleRoutine> ExtendPlace(int arm, string station, int slot);
 
     /// <summary>
     /// 缩回放
@@ -42,5 +42,5 @@ public interface ITransferRobotStep : ITransferRobot
     /// <param name="station"></param>
     /// <param name="slot"></param>
     /// <returns></returns>
-    HandleResult<ModuleOperation> RetractPlace(int arm, string station, int slot);
+    HandleResult<ModuleRoutine> RetractPlace(int arm, string station, int slot);
 }

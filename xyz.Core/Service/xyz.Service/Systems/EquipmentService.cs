@@ -105,7 +105,7 @@ public class EquipmentService : BaseService, IEquipmentService
         return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }
 
-    private static Task<RpcResponse> Reply(HandleResult<ModuleOperation> result)
+    private static Task<RpcResponse> Reply(HandleResult<ModuleRoutine> result)
     {
         return Task.FromResult(result.IsSuccess ? RpcResponse.Ok() : RpcResponse.Fail(result.ErrorMessage, result.Args));
     }

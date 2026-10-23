@@ -31,22 +31,22 @@ public interface IModule
     /// <summary>
     /// 手上在做的动作，没有是 null
     /// </summary>
-    ModuleOperation? CurrentOperation { get; }
+    ModuleRoutine? CurrentRoutine { get; }
 
     /// <summary>
     /// 模块初始化（动硬件），被拒是 null
     /// </summary>
-    ModuleOperation? InitModule();
+    ModuleRoutine? InitModule();
 
     /// <summary>
     /// 复位
     /// </summary>
-    ModuleOperation? Reset();
+    ModuleRoutine? Reset();
 
     /// <summary>
     /// 中止
     /// </summary>
-    ModuleOperation? Abort();
+    ModuleRoutine? Abort();
 
     /// <summary>
     /// 组件全路径（sc 的分组节点也算上，如 Chamber.Chamber1）

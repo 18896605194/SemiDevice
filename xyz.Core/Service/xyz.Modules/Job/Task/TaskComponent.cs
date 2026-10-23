@@ -235,10 +235,10 @@ public class TaskComponent : ComponentBase, ITaskComponent
     #region 改任务状态（调度引擎执行任务时调）
 
     /// <summary>任务开始了：进行中，记下在哪个站点、哪一槽（取片是从哪取、放片是放到哪），取放还记下机械手。</summary>
-    public void Start(TaskRow row, WaferTask task, string station, int slot, string? robot = null, ModuleOperation? operation = null)
+    public void Start(TaskRow row, WaferTask task, string station, int slot, string? robot = null, ModuleRoutine? routine = null)
     {
         task.State = WaferTaskState.Running;
-        task.Operation = operation;
+        task.Routine = routine;
         task.Station = station;
         task.Slot = slot;
         task.Robot = robot;
@@ -276,7 +276,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     public void Cancel(TaskRow row, WaferTask task)
     {
         task.State = WaferTaskState.Cancelled;
-        task.Operation = null;
+        task.Routine = null;
         if (task.Kind == StationTaskAction.Process)
         {
             LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工已中止");
@@ -418,7 +418,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     private static void SetDone(WaferTask task, string? robot, int arm)
     {
         task.State = WaferTaskState.Done;
-        task.Operation = null;
+        task.Routine = null;
         task.Robot = robot;
         task.Arm = arm;
         task.Code = string.Empty;
@@ -429,7 +429,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     private static void SetWaiting(WaferTask task)
     {
         task.State = WaferTaskState.Waiting;
-        task.Operation = null;
+        task.Routine = null;
         task.Station = null;
         task.Slot = 0;
         task.Robot = null;
@@ -441,7 +441,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     private void SetError(TaskRow row, WaferTask task, string code, IReadOnlyList<string> args)
     {
         task.State = WaferTaskState.Error;
-        task.Operation = null;
+        task.Routine = null;
         task.Code = code;
         task.Args = args.ToList();
         LogHelper.Warn(Name, $"{row.Owner} {row.WaferName} 的任务 {task.Kind} 出错，停住等人处理：{code} [{string.Join(", ", args)}]");

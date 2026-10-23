@@ -48,12 +48,12 @@ public interface ILoadPortAccess : IModule
     /// <summary>
     /// Load 载具
     /// </summary>
-    HandleResult<ModuleOperation> Load();
+    HandleResult<ModuleRoutine> Load();
 
     /// <summary>
     /// Unload 载具
     /// </summary>
-    HandleResult<ModuleOperation> Unload();
+    HandleResult<ModuleRoutine> Unload();
 
     /// <summary>
     /// 现在能不能 Unload，不能的带原因

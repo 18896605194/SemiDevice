@@ -58,7 +58,7 @@ public interface ITransferManager
     /// <summary>
     /// 运动已开始或站点占用未解除时失败、等人工确认的搬运（一条记录只列一次）
     /// </summary>
-    IReadOnlyList<TransferExecution> HeldOperations { get; }
+    IReadOnlyList<TransferExecution> HeldRoutines { get; }
 
     /// <summary>
     /// 这个 Job 还有没收尾的搬运（在跑的、挂着等人工的记录里有它的片）
@@ -88,7 +88,7 @@ public interface ITransferManager
     /// <summary>
     /// 受理一次机械手扫片（LoadPort 要它扫）：排队，轮到了、机械手没在搬片、手上全空才扫；结果在机械手的 MapResults 里
     /// </summary>
-    HandleResult<ModuleOperation> StartMap(string robot, string station);
+    HandleResult<ModuleRoutine> StartMap(string robot, string station);
 
     /// <summary>
     /// 机械手能来取放片的站点

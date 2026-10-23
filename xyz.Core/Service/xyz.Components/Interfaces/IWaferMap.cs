@@ -1,5 +1,5 @@
 ﻿using xyz.Components.Components;
-using xyz.Drivers.Loadport;
+using xyz.Components.Models;
 using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
@@ -12,10 +12,10 @@ public interface IWaferMap
     /// <summary>
     /// 扫这个站点：扫片 + 取图，取到的存进 MapResults
     /// </summary>
-    HandleResult<ModuleOperation> Map(string station);
+    HandleResult<ModuleRoutine> Map(string station);
 
     /// <summary>
-    /// 各站点最近一次扫到的槽图，键是站点名、下标 0 是第 1 槽；开扫时先删掉这个站的旧结果
+    /// 各站点最近一次扫到的结果（槽图 + 设备回的原文），键是站点名；开扫时先删掉这个站的旧结果
     /// </summary>
-    IReadOnlyDictionary<string, IReadOnlyList<SlotState>> MapResults { get; }
+    IReadOnlyDictionary<string, WaferMapResult> MapResults { get; }
 }

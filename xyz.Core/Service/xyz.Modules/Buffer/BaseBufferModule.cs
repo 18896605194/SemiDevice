@@ -57,14 +57,14 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
     /// <summary>
     /// 初始化（全部初始化会调）：没有要动的机构，没在跟机械手交互就直接回待命；正在交互被拒（返回 null）
     /// </summary>
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         if (!IsEnable)
         {
-            return new NoOpOperation("Init");
+            return ModuleRoutine.Done(Name, "Init");
         }
 
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             int state = State;
             if (state != ModuleState.NotInit && state != ModuleState.Error && state != StandbyState)
@@ -73,7 +73,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
             }
 
             TransferStep(state, StandbyState);
-            return new NoOpOperation("Init");
+            return ModuleRoutine.Done(Name, "Init");
         }
     }
 }

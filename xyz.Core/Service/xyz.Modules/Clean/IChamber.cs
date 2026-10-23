@@ -13,7 +13,7 @@ public interface IChamber : IProcessStation
     /// <summary>
     /// 回零：状态 → 资源 → 互锁查过才挂上，被拒带原因返回
     /// </summary>
-    HandleResult<ModuleOperation> Home();
+    HandleResult<ModuleRoutine> Home();
 
     /// <summary>
     /// 复位被拒的原因（复位本身是 IModule.Reset，签名跟着组件基类）
@@ -52,32 +52,32 @@ public interface IChamber : IProcessStation
     /// <summary>
     /// 一根轴回零
     /// </summary>
-    HandleResult<ModuleOperation> AxisHome(string path);
+    HandleResult<ModuleRoutine> AxisHome(string path);
 
     /// <summary>
     /// 一根轴走到绝对位置；speed 为 0 按这根轴的 EC MoveSpeed
     /// </summary>
-    HandleResult<ModuleOperation> AxisMove(string path, double position, double speed);
+    HandleResult<ModuleRoutine> AxisMove(string path, double position, double speed);
 
     /// <summary>
     /// 一根轴走一段（相对）；speed 为 0 按这根轴的 EC MoveSpeed
     /// </summary>
-    HandleResult<ModuleOperation> AxisStep(string path, double distance, double speed);
+    HandleResult<ModuleRoutine> AxisStep(string path, double distance, double speed);
 
     /// <summary>
     /// 一根轴复位
     /// </summary>
-    HandleResult<ModuleOperation> AxisReset(string path);
+    HandleResult<ModuleRoutine> AxisReset(string path);
 
     /// <summary>
     /// 一个气缸升（开）或降（关）
     /// </summary>
-    HandleResult<ModuleOperation> MoveCylinder(string path, bool up);
+    HandleResult<ModuleRoutine> MoveCylinder(string path, bool up);
 
     /// <summary>
     /// 点动：发起了就回，返回的是等松手的动作；按住期间界面每隔一会儿续一次（AxisJogRenew）
     /// </summary>
-    HandleResult<ModuleOperation> AxisJog(string path, double speed);
+    HandleResult<ModuleRoutine> AxisJog(string path, double speed);
 
     /// <summary>
     /// 一根轴停下：不看腔体忙不忙、不挂动作，发出去就回

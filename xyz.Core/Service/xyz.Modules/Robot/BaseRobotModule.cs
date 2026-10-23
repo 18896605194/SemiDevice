@@ -630,7 +630,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null。
     /// </summary>
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         var started = Home();
         if (!started.IsSuccess)
@@ -644,21 +644,21 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region 动作入口：状态 → 资源 → 互锁
 
     // 跟 LoadPort 同一套：每个动作的入口在模块锁里按 状态 → 资源 → 互锁 查（三项怎么分见 BaseModule"动作检查"区），
-    // 哪项不过就带原因返回、机械手不动，都过了才挂上设备动作。设备动作（每个动作发哪条指令）由项目的机械手类实现 CreateXxxOperation。
+    // 哪项不过就带原因返回、机械手不动，都过了才挂上动作。每个动作发哪几条指令由项目的机械手类在 AddXxxSteps 里加。
     // 取放之前站点要先准备好（腔体开门、LoadPort 要 Load 着），那一段在搬运管理里：手动页、自动跑货的取放都经搬运管理走到这里。
 
     /// <summary>
     /// 检查都过了，挂上设备动作；挂不上（检查和挂在同一把锁里，正常不会）回笼统的被拒 + 当前状态。
     /// </summary>
-    private HandleResult<ModuleOperation> Started(RobotAction action, ModuleOperation operation)
+    private HandleResult<ModuleRoutine> Started(RobotAction action, ModuleRoutine routine)
     {
-        var started = Begin(action, operation);
+        var started = Begin(action, routine);
         if (started is null)
         {
-            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
         }
 
-        return HandleResult<ModuleOperation>.Success(started);
+        return HandleResult<ModuleRoutine>.Success(started);
     }
 
     #region Home
@@ -666,9 +666,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// Home：全轴回原点。调用方：手动页、模块初始化。
     /// </summary>
-    public HandleResult<ModuleOperation> Home()
+    public HandleResult<ModuleRoutine> Home()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.Home) ?? HomeInterlock();
             if (rejected is not null)
@@ -676,14 +676,24 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            return Started(RobotAction.Home, CreateHomeOperation());
+            return Started(RobotAction.Home, CreateHomeRoutine());
         }
     }
 
     /// <summary>
-    /// Home 的设备动作：项目的机械手类用自己品牌的指令给（超时用 EC HomeTimeout）
+    /// Home 的步骤：项目的 AddHomeSteps 加的那几条；整个做法不一样才重写
     /// </summary>
-    protected abstract ModuleOperation CreateHomeOperation();
+    protected virtual ModuleRoutine CreateHomeRoutine()
+    {
+        var home = new ModuleRoutine(Name, "Home", _driver, () => HomeTimeout);
+        AddHomeSteps(home);
+        return home;
+    }
+
+    /// <summary>
+    /// 回零那几条：项目的机械手类用自己品牌的指令加 Command 步骤（超时用 EC HomeTimeout）
+    /// </summary>
+    protected abstract void AddHomeSteps(ModuleRoutine home);
 
     #endregion
 
@@ -692,9 +702,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// Pick：用这只手从站点的这个槽取片。调用方：搬运管理（手动页的取片、自动跑货都经它，站点先准备好）。
     /// </summary>
-    public HandleResult<ModuleOperation> Pick(int arm, string station, int slot)
+    public HandleResult<ModuleRoutine> Pick(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckPick(arm, station, slot);
             if (rejected is not null)
@@ -712,7 +722,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     public HandleResult? CheckPick(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             return CheckState(RobotAction.Pick) ?? CheckPickResource(arm, station, slot) ?? PickInterlock(arm, station, slot);
         }
@@ -721,9 +731,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// Place：把这只手上的片放到站点的这个槽。调用方同 <see cref="Pick"/>。
     /// </summary>
-    public HandleResult<ModuleOperation> Place(int arm, string station, int slot)
+    public HandleResult<ModuleRoutine> Place(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckPlace(arm, station, slot);
             if (rejected is not null)
@@ -740,7 +750,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     public HandleResult? CheckPlace(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             return CheckState(RobotAction.Place) ?? CheckPlaceResource(arm, station, slot) ?? PlaceInterlock(arm, station, slot);
         }
@@ -848,9 +858,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     /// <summary>
     /// 挂上取 / 放片，同时记下去了哪个站点（推给界面画机械手朝向）和这一趟的意图（做完按它记账；没做完时界面画这只手伸出）。
-    /// 挂操作和记意图在同一把锁里：否则扫描线程可能在意图记上之前就把操作终结了，这一趟就不记账。
+    /// 挂动作和记意图在同一把锁里：否则扫描线程可能在意图记上之前就把动作走完了，这一趟就不记账。
     /// </summary>
-    private HandleResult<ModuleOperation> StartTransfer(RobotAction action, int arm, string station, int slot)
+    private HandleResult<ModuleRoutine> StartTransfer(RobotAction action, int arm, string station, int slot)
     {
         if (!TryGetStation(station, out var config))
         {
@@ -864,17 +874,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return Rejected(noWafer);
         }
 
-        ModuleOperation motion;
+        ModuleRoutine transfer;
         if (pick)
         {
-            motion = CreatePickOperation(arm, config.Number, slot);
+            transfer = new ModuleRoutine(Name, "Pick", _driver, () => PickTimeout);
+            AddPickSteps(transfer, arm, config.Number, slot);
         }
         else
         {
-            motion = CreatePlaceOperation(arm, config.Number, slot);
+            transfer = new ModuleRoutine(Name, "Place", _driver, () => PlaceTimeout);
+            AddPlaceSteps(transfer, arm, config.Number, slot);
         }
 
-        return StartWithLedger(action, motion, new TransferIntent(action, arm, station, slot, expectedWaferId), config);
+        return StartWithLedger(action, transfer, new TransferIntent(action, arm, station, slot, expectedWaferId), config);
     }
 
     /// <summary>
@@ -913,20 +925,18 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 设备动作套上持片检查和记账再挂上：机型只补设备动作，持片校验和记账由公共取放操作负责，记账通过后才向搬运管理确认成功
+    /// 设备那几条后面再加上"等手指持片反馈对上""记账"两步再挂上：机型只给设备那几条，持片校验和记账平台加，记账通过才向搬运管理确认成功
     /// </summary>
-    private HandleResult<ModuleOperation> StartWithLedger(RobotAction action, ModuleOperation motion, TransferIntent intent, RobotStation config)
+    private HandleResult<ModuleRoutine> StartWithLedger(RobotAction action, ModuleRoutine transfer, TransferIntent intent, RobotStation config)
     {
         var armComponent = FindArm(intent.Arm);
-        IRobotArm? sensorArm = null;
         if (armComponent is not null && armComponent.IsWaferCheckEnabled)
         {
-            sensorArm = armComponent;
+            AddSensorStep(transfer, armComponent, intent.Action == RobotAction.Pick);
         }
 
-        var operation = new RobotTransferOperation(motion, Name, sensorArm, expectWafer: intent.Action == RobotAction.Pick,
-            commitLedger: () => CommitTransferLedger(intent));
-        var started = Started(action, operation);
+        transfer.Do("记账", () => CommitTransferLedger(intent) ?? HandleResult.Success());
+        var started = Started(action, transfer);
         if (started.IsSuccess)
         {
             _currentStation = config;
@@ -937,19 +947,47 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 取片的设备动作（只管设备做，持片检查、记账平台在外面套）：项目的机械手类给（超时用 EC PickTimeout）
+    /// 设备做完以后等手指的持片反馈对上（取完该有片、放完该没片）；EC WaferSensorTimeoutMs 内没对上，按读到的报
     /// </summary>
-    protected abstract ModuleOperation CreatePickOperation(int arm, int stationNumber, int slot);
+    private void AddSensorStep(ModuleRoutine transfer, IRobotArm sensorArm, bool expectWafer)
+    {
+        string arm = sensorArm.Number.ToString(CultureInfo.InvariantCulture);
+        transfer.Until($"Arm{arm} 持片反馈对上", () => sensorArm.HasWafer == expectWafer, () => sensorArm.WaferSensorTimeoutMs,
+            () => SensorMismatch(sensorArm.HasWafer, arm));
+    }
 
     /// <summary>
-    /// 放片的设备动作：同取片（超时用 EC PlaceTimeout）
+    /// 持片反馈没对上报什么：读不到、该没片却有片、该有片却没片
     /// </summary>
-    protected abstract ModuleOperation CreatePlaceOperation(int arm, int stationNumber, int slot);
+    private HandleResult SensorMismatch(bool? sensed, string arm)
+    {
+        if (sensed is null)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, Name, arm);
+        }
+
+        if (sensed.Value)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotArmSensorHasWafer, Name, arm);
+        }
+
+        return HandleResult.Fail(ErrorCodes.RobotArmSensorNoWafer, Name, arm);
+    }
+
+    /// <summary>
+    /// 取片那几条（只管设备做，持片检查、记账平台在后面加）：项目的机械手类用自己品牌的指令加 Command 步骤（超时用 EC PickTimeout）
+    /// </summary>
+    protected abstract void AddPickSteps(ModuleRoutine pick, int arm, int stationNumber, int slot);
+
+    /// <summary>
+    /// 放片那几条：同取片（超时用 EC PlaceTimeout）
+    /// </summary>
+    protected abstract void AddPlaceSteps(ModuleRoutine place, int arm, int stationNumber, int slot);
 
     /// <summary>
     /// 换片：默认不支持，返回 null（被拒）。机械手支持换片的，在机型里重写。
     /// </summary>
-    public virtual ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot)
+    public virtual ModuleRoutine? Swap(int pickArm, int placeArm, string station, int slot)
     {
         return null;
     }
@@ -958,15 +996,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region 分段取放（伸臂 → 停在站里等站点交接 → 缩臂）
 
-    // 能分段取放的机械手类在类上声明 ITransferRobotStep（下面四个方法就是它的实现），再重写四个 CreateExtend / RetractXxxOperation 给出设备动作。
+    // 能分段取放的机械手类在类上声明 ITransferRobotStep（下面四个方法就是它的实现），再重写四个 AddExtend / RetractXxxSteps 加设备那几条。
     // 伸臂做完机械手停在"伸着"（PickExtended / PlaceExtended），手还在站里，状态表只收缩臂和急停；片在伸臂时认定，缩臂做完按它查持片、记账。
 
     /// <summary>
     /// 分段取片第一步：检查跟 Pick 一样；手伸到片下方停住，做完停在"取片伸着"
     /// </summary>
-    public HandleResult<ModuleOperation> ExtendPick(int arm, string station, int slot)
+    public HandleResult<ModuleRoutine> ExtendPick(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.ExtendPick) ?? CheckPickResource(arm, station, slot) ?? PickInterlock(arm, station, slot);
             if (rejected is not null)
@@ -981,9 +1019,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 分段取片第二步：只在"取片伸着"、而且是伸进去的那只手那一槽时收；缩回后查持片、片记到手上
     /// </summary>
-    public HandleResult<ModuleOperation> RetractPick(int arm, string station, int slot)
+    public HandleResult<ModuleRoutine> RetractPick(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.RetractPick) ?? CheckExtended(RobotAction.Pick, arm, station, slot);
             if (rejected is not null)
@@ -998,9 +1036,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 分段放片第一步：检查跟 Place 一样；带着片伸到放片位停住，做完停在"放片伸着"
     /// </summary>
-    public HandleResult<ModuleOperation> ExtendPlace(int arm, string station, int slot)
+    public HandleResult<ModuleRoutine> ExtendPlace(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.ExtendPlace) ?? CheckPlaceResource(arm, station, slot) ?? PlaceInterlock(arm, station, slot);
             if (rejected is not null)
@@ -1015,9 +1053,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 分段放片第二步：只在"放片伸着"、而且是伸进去的那只手那一槽时收；缩回后查持片、片记到站点
     /// </summary>
-    public HandleResult<ModuleOperation> RetractPlace(int arm, string station, int slot)
+    public HandleResult<ModuleRoutine> RetractPlace(int arm, string station, int slot)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.RetractPlace) ?? CheckExtended(RobotAction.Place, arm, station, slot);
             if (rejected is not null)
@@ -1047,7 +1085,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 挂上伸臂：伸臂不动账（片还在原处），这一趟的意图记下来留给缩臂；机械手类没给伸臂动作就拒
     /// </summary>
-    private HandleResult<ModuleOperation> StartExtend(RobotAction action, int arm, string station, int slot)
+    private HandleResult<ModuleRoutine> StartExtend(RobotAction action, int arm, string station, int slot)
     {
         if (!TryGetStation(station, out var config))
         {
@@ -1061,24 +1099,26 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return Rejected(noWafer);
         }
 
-        ModuleOperation? motion;
+        ModuleRoutine extend;
         var intentAction = RobotAction.Place;
         if (pick)
         {
-            motion = CreateExtendPickOperation(arm, config.Number, slot);
+            extend = new ModuleRoutine(Name, "ExtendPick", _driver, () => PickTimeout);
+            AddExtendPickSteps(extend, arm, config.Number, slot);
             intentAction = RobotAction.Pick;
         }
         else
         {
-            motion = CreateExtendPlaceOperation(arm, config.Number, slot);
+            extend = new ModuleRoutine(Name, "ExtendPlace", _driver, () => PlaceTimeout);
+            AddExtendPlaceSteps(extend, arm, config.Number, slot);
         }
 
-        if (motion is null)
+        if (extend.StepCount == 0)
         {
             return Rejected(HandleResult.Fail(ErrorCodes.RobotHandoffUnsupported, Name));
         }
 
-        var started = Started(action, motion);
+        var started = Started(action, extend);
         if (started.IsSuccess)
         {
             _currentStation = config;
@@ -1091,83 +1131,81 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 挂上缩臂：按伸臂时记下的那一趟查持片、记账；机械手类没给缩臂动作就拒（手还伸着，等人工）
     /// </summary>
-    private HandleResult<ModuleOperation> StartRetract(RobotAction action, TransferIntent intent)
+    private HandleResult<ModuleRoutine> StartRetract(RobotAction action, TransferIntent intent)
     {
         if (!TryGetStation(intent.Station, out var config))
         {
             return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, intent.Station));
         }
 
-        ModuleOperation? motion;
+        ModuleRoutine retract;
         if (intent.Action == RobotAction.Pick)
         {
-            motion = CreateRetractPickOperation(intent.Arm, config.Number, intent.Slot);
+            retract = new ModuleRoutine(Name, "RetractPick", _driver, () => PickTimeout);
+            AddRetractPickSteps(retract, intent.Arm, config.Number, intent.Slot);
         }
         else
         {
-            motion = CreateRetractPlaceOperation(intent.Arm, config.Number, intent.Slot);
+            retract = new ModuleRoutine(Name, "RetractPlace", _driver, () => PlaceTimeout);
+            AddRetractPlaceSteps(retract, intent.Arm, config.Number, intent.Slot);
         }
 
-        if (motion is null)
+        if (retract.StepCount == 0)
         {
             return Rejected(HandleResult.Fail(ErrorCodes.RobotHandoffUnsupported, Name));
         }
 
-        return StartWithLedger(action, motion, intent, config);
+        return StartWithLedger(action, retract, intent, config);
     }
 
     /// <summary>
-    /// 分段取片伸臂的设备动作：能分段取放的机械手类重写，发自己的伸臂指令（伸到片下方停住，不抬片）；默认没有，分段取放被拒
+    /// 分段取片伸臂那几条：能分段取放的机械手类重写，发自己的伸臂指令（伸到片下方停住，不抬片）；默认一条没有，分段取放被拒
     /// </summary>
-    protected virtual ModuleOperation? CreateExtendPickOperation(int arm, int stationNumber, int slot)
+    protected virtual void AddExtendPickSteps(ModuleRoutine extend, int arm, int stationNumber, int slot)
     {
-        return null;
     }
 
     /// <summary>
-    /// 分段取片缩臂的设备动作：站点已经把片交到手上，吸住确认后缩回；默认没有
+    /// 分段取片缩臂那几条：站点已经把片交到手上，吸住确认后缩回；默认没有
     /// </summary>
-    protected virtual ModuleOperation? CreateRetractPickOperation(int arm, int stationNumber, int slot)
+    protected virtual void AddRetractPickSteps(ModuleRoutine retract, int arm, int stationNumber, int slot)
     {
-        return null;
     }
 
     /// <summary>
-    /// 分段放片伸臂的设备动作：带着片伸到放片位停住，有吸附的手松开吸附；默认没有
+    /// 分段放片伸臂那几条：带着片伸到放片位停住，有吸附的手松开吸附；默认没有
     /// </summary>
-    protected virtual ModuleOperation? CreateExtendPlaceOperation(int arm, int stationNumber, int slot)
+    protected virtual void AddExtendPlaceSteps(ModuleRoutine extend, int arm, int stationNumber, int slot)
     {
-        return null;
     }
 
     /// <summary>
-    /// 分段放片缩臂的设备动作：站点已经把片接走，空手缩回；默认没有
+    /// 分段放片缩臂那几条：站点已经把片接走，空手缩回；默认没有
     /// </summary>
-    protected virtual ModuleOperation? CreateRetractPlaceOperation(int arm, int stationNumber, int slot)
+    protected virtual void AddRetractPlaceSteps(ModuleRoutine retract, int arm, int stationNumber, int slot)
     {
-        return null;
     }
 
     #endregion
 
     #region 扫片（可选能力 IWaferMap）
 
-    // 能扫片的机械手类在类上声明 IWaferMap（下面的 Map / MapResults 就是它的实现），再重写 CreateMapOperation 给出设备动作，拿到槽图调 SaveMapResult 存起来。
+    // 能扫片的机械手类在类上声明 IWaferMap（下面的 Map / MapResults 就是它的实现），再重写 AddMapSteps 加扫片那几条，拿到槽图连同设备回的原文调 SaveMapResult 存起来。
     // sc 开了 MapEnabled 的，它站点表里的 LoadPort 由它扫（LoadPort 开机时按这个认），扫片用站点原来的 Number；用哪只手扫是控制器示教的事，平台不选。
 
     private readonly object _mapGate = new();
-    private readonly Dictionary<string, IReadOnlyList<SlotState>> _mapResults = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, WaferMapResult> _mapResults = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 各站点最近一次扫到的槽图（副本）；开扫时先删掉这个站的旧结果
+    /// 各站点最近一次扫到的结果（副本，槽图 + 设备回的原文）；开扫时先删掉这个站的旧结果
     /// </summary>
-    public IReadOnlyDictionary<string, IReadOnlyList<SlotState>> MapResults
+    public IReadOnlyDictionary<string, WaferMapResult> MapResults
     {
         get
         {
             lock (_mapGate)
             {
-                return new Dictionary<string, IReadOnlyList<SlotState>>(_mapResults, StringComparer.OrdinalIgnoreCase);
+                return new Dictionary<string, WaferMapResult>(_mapResults, StringComparer.OrdinalIgnoreCase);
             }
         }
     }
@@ -1175,9 +1213,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 扫这个站点：空闲、开了扫片、站点在站点表里、手上全空才收；LoadPort 要它扫时由搬运管理排队，轮到了才调
     /// </summary>
-    public HandleResult<ModuleOperation> Map(string station)
+    public HandleResult<ModuleRoutine> Map(string station)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.Map) ?? CheckMapResource(station) ?? MapInterlock(station);
             if (rejected is not null)
@@ -1190,8 +1228,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
             }
 
-            var motion = CreateMapOperation(station, config.Number);
-            if (motion is null)
+            var map = new ModuleRoutine(Name, "Map", _driver, () => PickTimeout);
+            AddMapSteps(map, station, config.Number);
+            if (map.StepCount == 0)
             {
                 return Rejected(HandleResult.Fail(ErrorCodes.RobotMapUnsupported, Name));
             }
@@ -1202,7 +1241,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 _mapResults.Remove(station);
             }
 
-            var started = Started(RobotAction.Map, motion);
+            var started = Started(RobotAction.Map, map);
             if (started.IsSuccess)
             {
                 _currentStation = config;
@@ -1254,21 +1293,21 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 扫片的设备动作：能扫片的机械手类重写，发自己的扫片、读结果指令，拿到槽图调 SaveMapResult；默认没有，扫片被拒
+    /// 扫片那几条：能扫片的机械手类重写，加自己的扫片、读结果指令，拿到槽图连同设备回的原文调 SaveMapResult；默认一条没有，扫片被拒。
+    /// 超时默认按 EC PickTimeout 算，扫一趟比取片慢的先调 map.UseTimeout 换
     /// </summary>
-    protected virtual ModuleOperation? CreateMapOperation(string station, int stationNumber)
+    protected virtual void AddMapSteps(ModuleRoutine map, string station, int stationNumber)
     {
-        return null;
     }
 
     /// <summary>
-    /// 存一个站点扫到的槽图（下标 0 是第 1 槽），给 MapResults 读
+    /// 存一个站点扫到的槽图（下标 0 是第 1 槽）和设备回的原文（各家自己的写法，平台只拿来写日志），给 MapResults 读
     /// </summary>
-    protected void SaveMapResult(string station, IReadOnlyList<SlotState> slots)
+    protected void SaveMapResult(string station, IReadOnlyList<SlotState> slots, string raw)
     {
         lock (_mapGate)
         {
-            _mapResults[station] = slots.ToArray();
+            _mapResults[station] = new WaferMapResult { Slots = slots.ToArray(), Raw = raw };
         }
     }
 
@@ -1276,9 +1315,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region PowerOn / PowerOff
 
-    public HandleResult<ModuleOperation> PowerOn()
+    public HandleResult<ModuleRoutine> PowerOn()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.PowerOn) ?? PowerOnInterlock();
             if (rejected is not null)
@@ -1286,13 +1325,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            return Started(RobotAction.PowerOn, CreatePowerOnOperation());
+            var powerOn = new ModuleRoutine(Name, "PowerOn", _driver, () => PowerTimeout);
+            AddPowerOnSteps(powerOn);
+            return Started(RobotAction.PowerOn, powerOn);
         }
     }
 
-    public HandleResult<ModuleOperation> PowerOff()
+    public HandleResult<ModuleRoutine> PowerOff()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(RobotAction.PowerOff) ?? PowerOffInterlock();
             if (rejected is not null)
@@ -1300,19 +1341,21 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            return Started(RobotAction.PowerOff, CreatePowerOffOperation());
+            var powerOff = new ModuleRoutine(Name, "PowerOff", _driver, () => PowerTimeout);
+            AddPowerOffSteps(powerOff);
+            return Started(RobotAction.PowerOff, powerOff);
         }
     }
 
     /// <summary>
-    /// 上使能的设备动作：项目的机械手类给（超时用 EC PowerTimeout）
+    /// 上使能那几条：项目的机械手类给（超时用 EC PowerTimeout）
     /// </summary>
-    protected abstract ModuleOperation CreatePowerOnOperation();
+    protected abstract void AddPowerOnSteps(ModuleRoutine powerOn);
 
     /// <summary>
-    /// 下使能的设备动作：项目的机械手类给（超时用 EC PowerTimeout）
+    /// 下使能那几条：项目的机械手类给（超时用 EC PowerTimeout）
     /// </summary>
-    protected abstract ModuleOperation CreatePowerOffOperation();
+    protected abstract void AddPowerOffSteps(ModuleRoutine powerOff);
 
     #endregion
 
@@ -1321,17 +1364,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 复位：清设备报错。签名跟着组件基类（报警复位、整机复位按返回的动作等设备做完）；只查状态，被拒的原因用 <see cref="CheckReset"/> 问。
     /// </summary>
-    public override ModuleOperation? Reset()
+    public override ModuleRoutine? Reset()
     {
         base.Reset();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckReset() is not null)
             {
                 return null;
             }
 
-            return Begin(RobotAction.Reset, CreateResetOperation());
+            var reset = new ModuleRoutine(Name, "Reset", _driver, () => ResetTimeout);
+            AddResetSteps(reset);
+            return Begin(RobotAction.Reset, reset);
         }
     }
 
@@ -1344,17 +1389,19 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// 急停：签名跟着组件基类（整机停止、搬运中止按返回的动作等设备停下）；只查状态、不看设备连没连上（见 <see cref="BaseModule.CheckState{TAction}"/>）。
     /// 被拒的原因用 <see cref="CheckAbort"/> 问。
     /// </summary>
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         base.Abort();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckAbort() is not null)
             {
                 return null;
             }
 
-            return Begin(RobotAction.Abort, CreateAbortOperation());
+            var abort = new ModuleRoutine(Name, "Abort", _driver, () => AbortTimeout);
+            AddAbortSteps(abort);
+            return Begin(RobotAction.Abort, abort);
         }
     }
 
@@ -1364,14 +1411,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 复位的设备动作（清设备报错）：项目的机械手类给（超时用 EC ResetTimeout）
+    /// 复位那几条（清设备报错）：项目的机械手类给（超时用 EC ResetTimeout）
     /// </summary>
-    protected abstract ModuleOperation CreateResetOperation();
+    protected abstract void AddResetSteps(ModuleRoutine reset);
 
     /// <summary>
-    /// 中止的设备动作（急停）：项目的机械手类给（超时用 EC AbortTimeout）；被顶掉的取放指令平台已经作废
+    /// 中止那几条（急停）：项目的机械手类给（超时用 EC AbortTimeout）；被顶掉的取放指令平台已经作废
     /// </summary>
-    protected abstract ModuleOperation CreateAbortOperation();
+    protected abstract void AddAbortSteps(ModuleRoutine abort);
 
     /// <summary>
     /// 这台机械手的解码器（拆帧、解报文），开机时交给通道
@@ -1542,16 +1589,16 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 操作终结（状态已由基类落好，成功取放已提交晶圆账）：清除交互意图（分段取放伸臂做完停在"伸着"的留着给缩臂记账），失败的动作报警。
+    /// 动作停下（状态已由基类落好，做成的取放已经记了账）：清除交互意图（分段取放伸臂做完停在"伸着"的留着给缩臂记账），失败的动作报警。
     /// </summary>
-    protected override void OnOperationCompleted(ModuleOperation operation)
+    protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
         if (State != RobotState.PickExtended && State != RobotState.PlaceExtended)
         {
             _transferIntent = null;
         }
 
-        RaiseActionFailedAlarm(operation);
+        RaiseActionFailedAlarm(routine);
     }
 
     #endregion
@@ -1578,9 +1625,9 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
     }
 
-    protected virtual void RaiseActionFailedAlarm(ModuleOperation operation)
+    protected virtual void RaiseActionFailedAlarm(ModuleRoutine routine)
     {
-        if (!operation.IsSuccess && operation.Code != ErrorCodes.Aborted)
+        if (!routine.IsSuccess && routine.Code != ErrorCodes.Aborted)
         {
             RaiseAlarm(ControlledStopAlarm);
         }

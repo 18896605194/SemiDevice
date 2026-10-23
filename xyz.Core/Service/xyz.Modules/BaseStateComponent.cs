@@ -74,34 +74,34 @@ public abstract class BaseStateComponent : ComponentBase
 
     #endregion
 
-    #region 操作挂载（单动作，扫描线程统一步进）
+    #region 挂动作（一次一个，扫描线程统一推）
 
-    protected object OperationGate { get; } = new();
-    private ModuleOperation? _operation;
+    protected object RoutineGate { get; } = new();
+    private ModuleRoutine? _routine;
 
     /// <summary>
-    /// 当前挂载的操作；无则 null。
+    /// 当前挂着的动作；没有为 null
     /// </summary>
-    public ModuleOperation? CurrentOperation
+    public ModuleRoutine? CurrentRoutine
     {
         get
         {
-            lock (OperationGate)
+            lock (RoutineGate)
             {
-                return _operation;
+                return _routine;
             }
         }
     }
 
     /// <summary>
-    /// 挂载一个操作（单动作规则：已有在途操作时拒绝，replace=true 顶替并把旧的打断）。
+    /// 挂上一个动作（一次一个：已有在途的就拒，replace=true 顶替并把旧的打断）
     /// 挂载后由本模块扫描线程每周期自动步进，模块无需为此重写 OnScan。
     /// </summary>
-    protected bool Run(ModuleOperation operation, bool replace = false)
+    protected bool Run(ModuleRoutine routine, bool replace = false)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
-            var current = _operation;
+            var current = _routine;
             if (current is not null)
             {
                 if (!current.IsTerminal)
@@ -111,14 +111,14 @@ public abstract class BaseStateComponent : ComponentBase
                         return false;
                     }
 
-                    current.AbortByHost("被新操作顶替");
+                    current.AbortByHost("被新动作顶替");
                 }
 
-                CompleteOperation(current);
+                CompleteRoutine(current);
             }
 
-            operation.DeferCompletion();
-            _operation = operation;
+            routine.DeferCompletion();
+            _routine = routine;
             return true;
         }
     }
@@ -166,7 +166,7 @@ public abstract class BaseStateComponent : ComponentBase
     protected HandleResult? CheckState<TAction>(TAction action)
         where TAction : struct, Enum
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             string name = action.ToString();
 
@@ -202,7 +202,7 @@ public abstract class BaseStateComponent : ComponentBase
 
             #region 有没有正在做的动作（急停可以顶替，不查）
 
-            var current = _operation;
+            var current = _routine;
             if (current is not null && !current.IsTerminal && name != AbortAction)
             {
                 return HandleResult.Fail(ErrorCodes.ModuleBusy, Name);
@@ -219,24 +219,24 @@ public abstract class BaseStateComponent : ComponentBase
     /// </summary>
     /// <param name="rejected"></param>
     /// <returns></returns>
-    protected static HandleResult<ModuleOperation> Rejected(HandleResult rejected)
+    protected static HandleResult<ModuleRoutine> Rejected(HandleResult rejected)
     {
-        return HandleResult<ModuleOperation>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
+        return HandleResult<ModuleRoutine>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
     }
 
     #endregion
 
     /// <summary>
-    /// 发起一个动作：查迁移表 → 挂操作 → 落执行态
+    /// 发起一个动作：查迁移表 → 挂动作 → 落执行态
     /// </summary>
     /// <typeparam name="TAction"></typeparam>
     /// <param name="action"></param>
-    /// <param name="operation"></param>
+    /// <param name="routine"></param>
     /// <returns></returns>
-    protected ModuleOperation? Begin<TAction>(TAction action, ModuleOperation operation)
+    protected ModuleRoutine? Begin<TAction>(TAction action, ModuleRoutine routine)
         where TAction : struct, Enum
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (!CanBeginAction)
             {
@@ -249,49 +249,49 @@ public abstract class BaseStateComponent : ComponentBase
                 return null;
             }
 
-            if (!Run(operation, replace: name == AbortAction))
+            if (!Run(routine, replace: name == AbortAction))
             {
                 return null;
             }
 
             _transition = transition;
             State = transition.ExecutingState;
-            return operation;
+            return routine;
         }
     }
 
     /// <summary>
-    /// 扫描周期：先扫子组件，再步进挂载的操作。
+    /// 扫描周期：先扫子组件，再推一下挂着的动作
     /// 子类只在有自己的周期逻辑时才重写（记得调 base.OnScan）。
     /// </summary>
     protected override void OnScan()
     {
         base.OnScan();
 
-        lock (OperationGate)
+        lock (RoutineGate)
         {
-            var operation = _operation;
-            if (operation is null)
+            var routine = _routine;
+            if (routine is null)
             {
                 return;
             }
 
             //动作扫描
-            operation.Scan();
+            routine.Scan();
 
-            if (operation.IsTerminal)
+            if (routine.IsTerminal)
             {
-                CompleteOperation(operation);
+                CompleteRoutine(routine);
             }
         }
     }
 
-    private void CompleteOperation(ModuleOperation operation)
+    private void CompleteRoutine(ModuleRoutine routine)
     {
         try
         {
             // 先落状态：成功走迁移表的成功态，失败/被打断落 Error。回调里看到的已经是终态。
-            if (operation.IsSuccess)
+            if (routine.IsSuccess)
             {
                 State = _transition.SuccessState;
             }
@@ -300,19 +300,19 @@ public abstract class BaseStateComponent : ComponentBase
                 State = ModuleState.Error;
             }
 
-            OnOperationCompleted(operation);
+            OnRoutineCompleted(routine);
         }
         finally
         {
-            _operation = null;
-            operation.NotifyCompletion();   //通知操作完成
+            _routine = null;
+            routine.NotifyCompletion();   // 唤醒等结果的
         }
     }
 
     /// <summary>
-    /// 操作终结回调；状态已落好，模块在这儿做自己的收尾（报警、晶圆账、EAP 回调等）。
+    /// 动作停下以后的回调：状态已落好，模块在这儿做自己的收尾（报警、晶圆账、EAP 回调等）。
     /// </summary>
-    protected virtual void OnOperationCompleted(ModuleOperation operation)
+    protected virtual void OnRoutineCompleted(ModuleRoutine routine)
     {
     }
 

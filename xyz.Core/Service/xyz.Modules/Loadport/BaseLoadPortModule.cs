@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
-using System.Text;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Models;
 using xyz.Drivers.Communication;
 using xyz.Drivers.Device;
 using xyz.Drivers.Loadport;
@@ -595,7 +595,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 模块初始化 = Home；门开着、从这个口取出去的片还在机内时不 Home（回片要用这个口），算初始化好了
     /// </summary>
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         if (State == LoadPortState.Loaded)
         {
@@ -603,7 +603,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             if (outside > 0)
             {
                 LogHelper.Info(Name, $"初始化：门开着，从这个口取出去的 {outside} 片还在机内，不 Home（回片要用这个口）");
-                return new NoOpOperation("Init");
+                return ModuleRoutine.Done(Name, "Init");
             }
         }
 
@@ -622,24 +622,24 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// 状态 → 资源 → 互锁 +原因
     /// </summary>
     /// <param name="action"></param>
-    /// <param name="operation"></param>
+    /// <param name="routine"></param>
     /// <returns></returns>
-    private HandleResult<ModuleOperation> Started(LoadPortAction action, ModuleOperation operation)
+    private HandleResult<ModuleRoutine> Started(LoadPortAction action, ModuleRoutine routine)
     {
-        var started = Begin(action, operation);
+        var started = Begin(action, routine);
         if (started is null)
         {
-            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
         }
 
-        return HandleResult<ModuleOperation>.Success(started);
+        return HandleResult<ModuleRoutine>.Success(started);
     }
 
     #region Load
 
-    public HandleResult<ModuleOperation> Load()
+    public HandleResult<ModuleRoutine> Load()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckLoad();
             if (rejected is not null)
@@ -647,7 +647,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Load, CreateLoadOperation());
+            return Started(LoadPortAction.Load, CreateLoadRoutine());
         }
     }
 
@@ -662,44 +662,46 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// Load 的设备动作：先只装载开门，再扫片（自己扫或叫机械手扫），扫到的槽图落账
+    /// Load 的步骤：先只装载开门，再扫片（自己扫或叫机械手扫），扫到的槽图落账；整个做法不一样才重写
     /// </summary>
-    protected virtual ModuleOperation CreateLoadOperation()
+    protected virtual ModuleRoutine CreateLoadRoutine()
     {
-        var operation = AddLoadSteps(new CommandOperation("Load", _driver, () => LoadTimeout));
-        return AddMapStages(operation, TakeSlotMap);
+        var load = new ModuleRoutine(Name, "Load", _driver, () => LoadTimeout);
+        AddLoadSteps(load);
+        AddMapStages(load, TakeSlotMap);
+        return load;
     }
 
     /// <summary>
-    /// 装载开门那几条（不扫片）：项目的 LoadPort 类用自己品牌的指令串上（超时用 EC LoadTimeout）
+    /// 装载开门那几条（不扫片）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC LoadTimeout）
     /// </summary>
-    protected abstract CommandOperation AddLoadSteps(CommandOperation operation);
+    protected abstract void AddLoadSteps(ModuleRoutine load);
 
     #endregion
 
     #region Unload
 
-    public HandleResult<ModuleOperation> Unload()
+    public HandleResult<ModuleRoutine> Unload()
     {
         return StartUnload(AutoRunMapOnUnload);
     }
 
-    public HandleResult<ModuleOperation> UnloadManually()
+    public HandleResult<ModuleRoutine> UnloadManually()
     {
         return StartUnload(false);
     }
 
     public HandleResult? CheckUnload()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             return CheckState(LoadPortAction.Unload) ?? CheckCloseDoorResource() ?? UnloadInterlock();
         }
     }
 
-    private HandleResult<ModuleOperation> StartUnload(bool mapAndVerify)
+    private HandleResult<ModuleRoutine> StartUnload(bool mapAndVerify)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckUnload();
             if (rejected is not null)
@@ -707,36 +709,37 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Unload, CreateUnloadOperation(mapAndVerify));
+            return Started(LoadPortAction.Unload, CreateUnloadRoutine(mapAndVerify));
         }
     }
 
     /// <summary>
-    /// Unload 的设备动作：要对账就先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上再关门——门关了就扫不了
+    /// Unload 的步骤：要对账就先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上再关门——门关了就扫不了；整个做法不一样才重写
     /// </summary>
-    protected virtual ModuleOperation CreateUnloadOperation(bool mapAndVerify)
+    protected virtual ModuleRoutine CreateUnloadRoutine(bool mapAndVerify)
     {
-        var operation = new CommandOperation("Unload", _driver, () => UnloadTimeout);
-        if (!mapAndVerify)
+        var unload = new ModuleRoutine(Name, "Unload", _driver, () => UnloadTimeout);
+        if (mapAndVerify)
         {
-            return AddUnloadSteps(operation);
+            AddMapStages(unload, CheckUnloadSlotMap);
         }
 
-        return AddUnloadSteps(AddMapStages(operation, CheckUnloadSlotMap));
+        AddUnloadSteps(unload);
+        return unload;
     }
 
     /// <summary>
-    /// 关门那几条：项目的 LoadPort 类用自己品牌的指令串上（超时用 EC UnloadTimeout）
+    /// 关门那几条：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC UnloadTimeout）
     /// </summary>
-    protected abstract CommandOperation AddUnloadSteps(CommandOperation operation);
+    protected abstract void AddUnloadSteps(ModuleRoutine unload);
 
     #endregion
 
     #region Home
 
-    public HandleResult<ModuleOperation> Home()
+    public HandleResult<ModuleRoutine> Home()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckHome();
             if (rejected is not null)
@@ -744,7 +747,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Home, CreateHomeOperation());
+            return Started(LoadPortAction.Home, CreateHomeRoutine());
         }
     }
 
@@ -764,17 +767,27 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// Home 的设备动作（整机回零）：项目的 LoadPort 类给（超时用 EC HomeTimeout）
+    /// Home 的步骤：项目的 AddHomeSteps 加的那几条；整个做法不一样才重写
     /// </summary>
-    protected abstract ModuleOperation CreateHomeOperation();
+    protected virtual ModuleRoutine CreateHomeRoutine()
+    {
+        var home = new ModuleRoutine(Name, "Home", _driver, () => HomeTimeout);
+        AddHomeSteps(home);
+        return home;
+    }
+
+    /// <summary>
+    /// 回零那几条（整机回零）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC HomeTimeout）
+    /// </summary>
+    protected abstract void AddHomeSteps(ModuleRoutine home);
 
     #endregion
 
     #region Clamp / Unclamp
 
-    public HandleResult<ModuleOperation> Clamp()
+    public HandleResult<ModuleRoutine> Clamp()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(LoadPortAction.Clamp) ?? ClampInterlock();
             if (rejected is not null)
@@ -782,13 +795,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Clamp, CreateClampOperation());
+            return Started(LoadPortAction.Clamp, CreateClampRoutine());
         }
     }
 
-    public HandleResult<ModuleOperation> Unclamp()
+    public HandleResult<ModuleRoutine> Unclamp()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(LoadPortAction.Unclamp) ?? UnclampInterlock();
             if (rejected is not null)
@@ -796,18 +809,39 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Unclamp, CreateUnclampOperation());
+            return Started(LoadPortAction.Unclamp, CreateUnclampRoutine());
         }
     }
-    /// <summary>
-    /// 夹紧的设备动作：项目的 LoadPort 类给（超时用 EC ClampTimeout）
-    /// </summary>
-    protected abstract ModuleOperation CreateClampOperation();
 
     /// <summary>
-    /// 松开的设备动作：项目的 LoadPort 类给（超时用 EC UnclampTimeout）
+    /// 夹紧的步骤：项目的 AddClampSteps 加的那几条；整个做法不一样才重写
     /// </summary>
-    protected abstract ModuleOperation CreateUnclampOperation();
+    protected virtual ModuleRoutine CreateClampRoutine()
+    {
+        var clamp = new ModuleRoutine(Name, "Clamp", _driver, () => ClampTimeout);
+        AddClampSteps(clamp);
+        return clamp;
+    }
+
+    /// <summary>
+    /// 松开的步骤：项目的 AddUnclampSteps 加的那几条；整个做法不一样才重写
+    /// </summary>
+    protected virtual ModuleRoutine CreateUnclampRoutine()
+    {
+        var unclamp = new ModuleRoutine(Name, "Unclamp", _driver, () => UnclampTimeout);
+        AddUnclampSteps(unclamp);
+        return unclamp;
+    }
+
+    /// <summary>
+    /// 夹紧那几条：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC ClampTimeout）
+    /// </summary>
+    protected abstract void AddClampSteps(ModuleRoutine clamp);
+
+    /// <summary>
+    /// 松开那几条：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC UnclampTimeout）
+    /// </summary>
+    protected abstract void AddUnclampSteps(ModuleRoutine unclamp);
 
     #endregion
 
@@ -819,18 +853,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     private readonly object _mapGate = new();
 
     /// <summary>
-    /// 自己最近一次扫到的槽图；开扫时先清掉
+    /// 自己最近一次扫到的结果；开扫时先清掉
     /// </summary>
-    private IReadOnlyList<SlotState>? _mapResult;
+    private WaferMapResult? _mapResult;
 
     /// <summary>
-    /// 自己最近一次扫到的槽图，键是这个口的名字；开扫时先删掉
+    /// 自己最近一次扫到的结果（槽图 + 设备回的原文），键是这个口的名字；开扫时先删掉
     /// </summary>
-    public IReadOnlyDictionary<string, IReadOnlyList<SlotState>> MapResults
+    public IReadOnlyDictionary<string, WaferMapResult> MapResults
     {
         get
         {
-            var results = new Dictionary<string, IReadOnlyList<SlotState>>(StringComparer.OrdinalIgnoreCase);
+            var results = new Dictionary<string, WaferMapResult>(StringComparer.OrdinalIgnoreCase);
             lock (_mapGate)
             {
                 if (_mapResult is not null)
@@ -846,9 +880,9 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 用自己的扫片传感器单独扫一遍：只扫自己、门开着（Loaded）才收；扫到的存进 MapResults，不落账
     /// </summary>
-    public HandleResult<ModuleOperation> Map(string station)
+    public HandleResult<ModuleRoutine> Map(string station)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckMapStation(station) ?? CheckState(LoadPortAction.Map) ?? MapInterlock();
             if (rejected is not null)
@@ -856,7 +890,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
                 return Rejected(rejected);
             }
 
-            return Started(LoadPortAction.Map, CreateMapOperation());
+            return Started(LoadPortAction.Map, CreateMapRoutine());
         }
     }
 
@@ -874,40 +908,43 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 单独扫一遍的设备动作：扫片、取槽图
+    /// 单独扫一遍的步骤：扫片、取槽图；整个做法不一样才重写
     /// </summary>
-    protected virtual ModuleOperation CreateMapOperation()
+    protected virtual ModuleRoutine CreateMapRoutine()
     {
-        return AddOwnMapStages(new CommandOperation("Map", _driver, () => LoadTimeout), null);
+        var map = new ModuleRoutine(Name, "Map", _driver, () => LoadTimeout);
+        AddOwnMapStages(map, null);
+        return map;
     }
 
     /// <summary>
-    /// 自己扫片那几条（扫、取槽图）：项目的 LoadPort 类用自己品牌的指令串上，拿到槽图调 SaveMapResult 存起来（超时用 EC LoadTimeout / UnloadTimeout）
+    /// 自己扫片那几条（扫、取槽图）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤，拿到槽图连同设备回的原文调 SaveMapResult 存起来（超时用 EC LoadTimeout / UnloadTimeout）
     /// </summary>
-    protected abstract CommandOperation AddMapSteps(CommandOperation operation);
+    protected abstract void AddMapSteps(ModuleRoutine map);
 
     /// <summary>
-    /// 串上扫片：有机械手替这个口扫，就交搬运管理排它去扫，不然自己扫；扫到的槽图交给 check（Load 落账、Unload 对账）
+    /// 加上扫片：有机械手替这个口扫，就交搬运管理排它去扫，不然自己扫；扫到的结果交给 check（Load 落账、Unload 对账）
     /// </summary>
-    private CommandOperation AddMapStages(CommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult> check)
+    private void AddMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult> check)
     {
         var robot = _mapRobot;
         if (robot is null)
         {
-            return AddOwnMapStages(operation, check);
+            AddOwnMapStages(routine, check);
+            return;
         }
 
-        return operation.ThenWait($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
+        routine.Start($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
     }
 
     /// <summary>
-    /// 自己扫：先清掉上一次的结果，串上项目给的扫片那几条，扫完把存下的槽图交给 check（check 为 null 只存不用）
+    /// 自己扫：先清掉上一次的结果，加上项目给的扫片那几条，扫完把存下的结果交给 check（check 为 null 只存不用）
     /// </summary>
-    private CommandOperation AddOwnMapStages(CommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult>? check)
+    private void AddOwnMapStages(ModuleRoutine routine, Func<WaferMapResult, HandleResult>? check)
     {
-        operation.ThenCheck("清掉旧槽图", ClearMapResult);
-        AddMapSteps(operation);
-        return operation.ThenCheck("用槽图", () =>
+        routine.Do("清掉旧槽图", ClearMapResult);
+        AddMapSteps(routine);
+        routine.Do("用槽图", () =>
         {
             if (check is null)
             {
@@ -929,26 +966,26 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 存自己扫到的槽图（下标 0 是第 1 槽），给 MapResults 读；项目的扫片那几条拿到图时调
+    /// 存自己扫到的槽图（下标 0 是第 1 槽）和设备回的原文（各家自己的写法，平台只拿来写日志），给 MapResults 读；项目的扫片那几条拿到图时调
     /// </summary>
-    protected void SaveMapResult(IReadOnlyList<SlotState> slotMap)
+    protected void SaveMapResult(IReadOnlyList<SlotState> slotMap, string raw)
     {
         lock (_mapGate)
         {
-            _mapResult = slotMap.ToArray();
+            _mapResult = new WaferMapResult { Slots = slotMap.ToArray(), Raw = raw };
         }
     }
 
     /// <summary>
-    /// 自己这次扫到的槽图；扫片那几条没存上给空的，落账、对账按槽数对不上处理
+    /// 自己这次扫到的结果；扫片那几条没存上给空的，落账、对账按槽数对不上处理
     /// </summary>
-    private IReadOnlyList<SlotState> OwnMapResult()
+    private WaferMapResult OwnMapResult()
     {
         lock (_mapGate)
         {
             if (_mapResult is null)
             {
-                return [];
+                return new WaferMapResult();
             }
 
             return _mapResult;
@@ -958,45 +995,45 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 叫搬运管理排机械手来扫这个口（开机已查过搬运管理装了）
     /// </summary>
-    private HandleResult<ModuleOperation> StartRobotMap(ITransferRobot robot)
+    private HandleResult<ModuleRoutine> StartRobotMap(ITransferRobot robot)
     {
         var transfers = _transfers;
         if (transfers is null)
         {
-            return HandleResult<ModuleOperation>.Fail(ErrorCodes.TransferNotInstalled);
+            return HandleResult<ModuleRoutine>.Fail(ErrorCodes.TransferNotInstalled);
         }
 
         return transfers.StartMap(robot.Name, Name);
     }
 
     /// <summary>
-    /// 机械手扫到的这个口的槽图；没存上给空的，落账、对账按槽数对不上处理
+    /// 机械手扫到的这个口的结果；没存上给空的，落账、对账按槽数对不上处理
     /// </summary>
-    private IReadOnlyList<SlotState> RobotMapResult(ITransferRobot robot)
+    private WaferMapResult RobotMapResult(ITransferRobot robot)
     {
-        if (robot is IWaferMap mapper && mapper.MapResults.TryGetValue(Name, out var slotMap))
+        if (robot is IWaferMap mapper && mapper.MapResults.TryGetValue(Name, out var result))
         {
-            return slotMap;
+            return result;
         }
 
-        return [];
+        return new WaferMapResult();
     }
 
     #endregion
 
     #region Reset / Abort
 
-    public override ModuleOperation? Reset()
+    public override ModuleRoutine? Reset()
     {
         base.Reset();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckReset() is not null)
             {
                 return null;
             }
 
-            return Begin(LoadPortAction.Reset, CreateResetOperation());
+            return Begin(LoadPortAction.Reset, CreateResetRoutine());
         }
     }
 
@@ -1005,17 +1042,17 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         return CheckState(LoadPortAction.Reset);
     }
 
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         base.Abort();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckAbort() is not null)
             {
                 return null;
             }
 
-            return Begin(LoadPortAction.Abort, CreateAbortOperation());
+            return Begin(LoadPortAction.Abort, CreateAbortRoutine());
         }
     }
 
@@ -1025,14 +1062,34 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 复位的设备动作（清设备报错）：项目的 LoadPort 类给（超时用 EC ResetTimeout）
+    /// 复位的步骤：项目的 AddResetSteps 加的那几条；整个做法不一样才重写
     /// </summary>
-    protected abstract ModuleOperation CreateResetOperation();
+    protected virtual ModuleRoutine CreateResetRoutine()
+    {
+        var reset = new ModuleRoutine(Name, "Reset", _driver, () => ResetTimeout);
+        AddResetSteps(reset);
+        return reset;
+    }
 
     /// <summary>
-    /// 中止的设备动作（急停）：项目的 LoadPort 类给（超时用 EC AbortTimeout）
+    /// 中止的步骤：项目的 AddAbortSteps 加的那几条；整个做法不一样才重写
     /// </summary>
-    protected abstract ModuleOperation CreateAbortOperation();
+    protected virtual ModuleRoutine CreateAbortRoutine()
+    {
+        var abort = new ModuleRoutine(Name, "Abort", _driver, () => AbortTimeout);
+        AddAbortSteps(abort);
+        return abort;
+    }
+
+    /// <summary>
+    /// 复位那几条（清设备报错）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC ResetTimeout）
+    /// </summary>
+    protected abstract void AddResetSteps(ModuleRoutine reset);
+
+    /// <summary>
+    /// 中止那几条（急停）：项目的 LoadPort 类用自己品牌的指令加 Command 步骤（超时用 EC AbortTimeout）；被顶掉的在途指令平台已经作废
+    /// </summary>
+    protected abstract void AddAbortSteps(ModuleRoutine abort);
 
     /// <summary>
     /// 这台 LoadPort 的解码器（拆帧、解报文），开机时交给通道
@@ -1117,11 +1174,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// Load 时扫到的槽图落账：槽数对不上不落账，有交叉片、叠片、认不出的槽落了账也判失败
     /// </summary>
-    private HandleResult TakeSlotMap(IReadOnlyList<SlotState> slotMap)
+    private HandleResult TakeSlotMap(WaferMapResult map)
     {
+        var slotMap = map.Slots;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（{Describe(slotMap)}），没落账");
+            LogHelper.Error(Name, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽{RawText(map)}，没落账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -1139,7 +1197,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         if (abnormalSlots.Count > 0)
         {
             string slots = string.Join(",", abnormalSlots);
-            LogHelper.Error(Name, $"Mapping 有交叉片、叠片或认不出的槽：第 {slots} 槽（{Describe(slotMap)}）");
+            LogHelper.Error(Name, $"Mapping 有交叉片、叠片或认不出的槽：第 {slots} 槽{RawText(map)}");
             return HandleResult.Fail(ErrorCodes.SlotMapAbnormal, Name, slots);
         }
 
@@ -1149,11 +1207,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 自动跑货 Unload 关门前扫到的槽图跟晶圆账对：对不上判失败，账不改、载具槽图不动
     /// </summary>
-    private HandleResult CheckUnloadSlotMap(IReadOnlyList<SlotState> slotMap)
+    private HandleResult CheckUnloadSlotMap(WaferMapResult map)
     {
+        var slotMap = map.Slots;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（{Describe(slotMap)}），没法对账");
+            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽{RawText(map)}，没法对账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -1178,7 +1237,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         if (mismatchedSlots.Count > 0)
         {
             string slots = string.Join(",", mismatchedSlots);
-            LogHelper.Error(Name, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽（{Describe(slotMap)}），门不关");
+            LogHelper.Error(Name, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽{RawText(map)}，门不关");
             return HandleResult.Fail(ErrorCodes.UnloadSlotMapMismatch, Name, slots);
         }
 
@@ -1187,39 +1246,16 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 槽图写进日志：一槽一个字，E 空、P 有片、C 交叉、D 叠片、? 认不出
+    /// 日志里带上设备回的原文（各家自己的写法，平台不认、原样写）；没有原文（扫片那几条没存上）就不带
     /// </summary>
-    private static string Describe(IReadOnlyList<SlotState> slotMap)
+    private static string RawText(WaferMapResult map)
     {
-        var text = new StringBuilder(slotMap.Count);
-        foreach (var state in slotMap)
+        if (map.Raw.Length == 0)
         {
-            text.Append(ToLogChar(state));
+            return string.Empty;
         }
 
-        return text.ToString();
-    }
-
-    private static char ToLogChar(SlotState state)
-    {
-        switch (state)
-        {
-            case SlotState.Empty:
-                return 'E';
-
-            case SlotState.NotEmpty:
-            case SlotState.Normal:
-                return 'P';
-
-            case SlotState.Crossed:
-                return 'C';
-
-            case SlotState.Double:
-                return 'D';
-
-            default:
-                return '?';
-        }
+        return $"（设备回的：{map.Raw}）";
     }
 
     public void SetAutoMode(bool autoMode)
@@ -1259,15 +1295,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 发起动作（查状态表、挂操作、落执行态），记下是哪个动作、从哪个状态出发（做完按它收尾、复位 / 中止按它判门位）。
+    /// 发起动作（查状态表、挂动作、落执行态），记下是哪个动作、从哪个状态出发（做完按它收尾、复位 / 中止按它判门位）。
     /// 检查都在各动作的入口里（见"动作入口"区），这里不再查联锁。
     /// </summary>
-    protected ModuleOperation? Begin(LoadPortAction action, ModuleOperation operation)
+    protected ModuleRoutine? Begin(LoadPortAction action, ModuleRoutine routine)
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             int from = State;
-            var started = base.Begin(action, operation);
+            var started = base.Begin(action, routine);
             if (started is not null)
             {
                 _action = action;
@@ -1326,16 +1362,16 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 动作完成之后的钩子
     /// </summary>
-    /// <param name="operation"></param>
-    protected override void OnOperationCompleted(ModuleOperation operation)
+    /// <param name="routine"></param>
+    protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
-        RaiseActionFailedAlarm(_action, operation);
+        RaiseActionFailedAlarm(_action, routine);
 
         //动作失败
-        if (!operation.IsSuccess)
+        if (!routine.IsSuccess)
         {
             _driver?.AbandonAll("Abandoned");  //作废指令
-            string reason = operation.Reason;
+            string reason = routine.Reason;
 
             // 取放途中出错：这个载具算没干完，记中断（还没开始取放的载具不动）。
             _carrier.MarkAccessStopped();
@@ -1723,25 +1759,25 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// 动作做完以后报警
     /// </summary>
     /// <param name="action"></param>
-    /// <param name="operation"></param>
-    protected virtual void RaiseActionFailedAlarm(LoadPortAction action, ModuleOperation operation)
+    /// <param name="routine"></param>
+    protected virtual void RaiseActionFailedAlarm(LoadPortAction action, ModuleRoutine routine)
     {
        
-        if (operation.IsSuccess || operation.Code == ErrorCodes.Aborted)
+        if (routine.IsSuccess || routine.Code == ErrorCodes.Aborted)
         {
             return;
         }
 
         // 设备做完了、Mapping 不能用：报专门的一条，看报警就知道去查槽数、理片
-        if (operation.Code == ErrorCodes.SlotMapLengthMismatch || operation.Code == ErrorCodes.SlotMapAbnormal
-            || operation.Code == ErrorCodes.UnloadSlotMapMismatch)
+        if (routine.Code == ErrorCodes.SlotMapLengthMismatch || routine.Code == ErrorCodes.SlotMapAbnormal
+            || routine.Code == ErrorCodes.UnloadSlotMapMismatch)
         {
             RaiseAlarm(SlotMapAlarm);
             return;
         }
 
         // 不是超时：报动作失败，端口停在 Error，等人处理、复位
-        if (operation.Code != ErrorCodes.Timeout)
+        if (routine.Code != ErrorCodes.Timeout)
         {
             RaiseAlarm(ControlledStopAlarm);
             return;

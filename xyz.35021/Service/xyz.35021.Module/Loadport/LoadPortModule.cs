@@ -26,56 +26,70 @@ public class LoadPortModule : BaseLoadPortModule
     /// <summary>
     /// 装载开门：CLOAD（只开门，不扫片）
     /// </summary>
-    protected override CommandOperation AddLoadSteps(CommandOperation operation)
+    protected override void AddLoadSteps(ModuleRoutine load)
     {
-        return operation.Then("开门", () => new FcdLoadCommand());
+        load.Command("开门", () => new FcdLoadCommand());
     }
 
     /// <summary>
     /// 关门：CULOD
     /// </summary>
-    protected override CommandOperation AddUnloadSteps(CommandOperation operation)
+    protected override void AddUnloadSteps(ModuleRoutine unload)
     {
-        return operation.Then("关门", () => new FcdUnloadCommand());
+        unload.Command("关门", () => new FcdUnloadCommand());
     }
 
     /// <summary>
-    /// 自己扫片：MAPDO 扫，GET:MAPDT 取槽图存起来
+    /// 自己扫片：MAPDO 扫，GET:MAPDT 取槽图，连同设备回的原文存起来
     /// </summary>
-    protected override CommandOperation AddMapSteps(CommandOperation operation)
+    protected override void AddMapSteps(ModuleRoutine map)
     {
-        return operation
-            .Then("扫片", () => new FcdMapCommand())
-            .Then("取槽图", () => new FcdGetMapCommand(), command =>
+        map.Command("扫片", () => new FcdMapCommand())
+            .Command("取槽图", () => new FcdGetMapCommand(), command =>
             {
-                SaveMapResult(command.SlotMap);
+                SaveMapResult(command.SlotMap, command.Raw);
                 return HandleResult.Success();
             });
     }
 
-    protected override ModuleOperation CreateHomeOperation()
+    /// <summary>
+    /// 整机回零：MOV:ORGSH
+    /// </summary>
+    protected override void AddHomeSteps(ModuleRoutine home)
     {
-        return new CommandOperation("Home", _driver, () => new FcdHomeCommand(), () => HomeTimeout);
+        home.Command("回零", () => new FcdHomeCommand());
     }
 
-    protected override ModuleOperation CreateClampOperation()
+    /// <summary>
+    /// 夹紧 FOUP：MOV:PODCL
+    /// </summary>
+    protected override void AddClampSteps(ModuleRoutine clamp)
     {
-        return new CommandOperation("Clamp", _driver, () => new FcdClampCommand(), () => ClampTimeout);
+        clamp.Command("夹紧", () => new FcdClampCommand());
     }
 
-    protected override ModuleOperation CreateUnclampOperation()
+    /// <summary>
+    /// 松开 FOUP
+    /// </summary>
+    protected override void AddUnclampSteps(ModuleRoutine unclamp)
     {
-        return new CommandOperation("Unclamp", _driver, () => new FcdUnclampCommand(), () => UnclampTimeout);
+        unclamp.Command("松开", () => new FcdUnclampCommand());
     }
 
-    protected override ModuleOperation CreateResetOperation()
+    /// <summary>
+    /// 复位清错：SET:RESET
+    /// </summary>
+    protected override void AddResetSteps(ModuleRoutine reset)
     {
-        return new CommandOperation("Reset", _driver, () => new FcdResetCommand(), () => ResetTimeout);
+        reset.Command("清报错", () => new FcdResetCommand());
     }
 
-    protected override ModuleOperation CreateAbortOperation()
+    /// <summary>
+    /// 终止当前动作：MOV:ABORT
+    /// </summary>
+    protected override void AddAbortSteps(ModuleRoutine abort)
     {
-        return new CommandOperation("Abort", _driver, () => new FcdAbortCommand(), () => AbortTimeout);
+        abort.Command("急停", () => new FcdAbortCommand());
     }
 
     #endregion

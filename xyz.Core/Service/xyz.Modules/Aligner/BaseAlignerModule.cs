@@ -160,7 +160,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// <summary>
     /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null
     /// </summary>
-    public override ModuleOperation? InitModule()
+    public override ModuleRoutine? InitModule()
     {
         var started = Home();
         if (!started.IsSuccess)
@@ -183,7 +183,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         get
         {
             var wafer = WaferOnStage();
-            lock (OperationGate)
+            lock (RoutineGate)
             {
                 return wafer is not null && _alignedWafer == wafer.Id;
             }
@@ -240,7 +240,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         }
 
         var rejected = CheckState(AlignerAction.Align) ?? AlignInterlock();
-        if (rejected is null && BeginAction(AlignerAction.Align, CreateAlignOperation()) is not null)
+        if (rejected is null && BeginAction(AlignerAction.Align, CreateAlignRoutine()) is not null)
         {
             return;
         }
@@ -266,9 +266,9 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// <summary>
     /// 回零：台上有片的接着对一遍（回零转过台面，片的方向就不对了，对过才能让机械手取）。调用方：模块初始化（整机初始化）
     /// </summary>
-    public HandleResult<ModuleOperation> Home()
+    public HandleResult<ModuleRoutine> Home()
     {
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             var rejected = CheckState(AlignerAction.Home) ?? HomeInterlock();
             if (rejected is not null)
@@ -276,30 +276,32 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
                 return Rejected(rejected);
             }
 
-            var started = BeginAction(AlignerAction.Home, CreateHomeOperation(WaferOnStage() is not null));
+            var started = BeginAction(AlignerAction.Home, CreateHomeRoutine(WaferOnStage() is not null));
             if (started is null)
             {
-                return HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
+                return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
             }
 
-            return HandleResult<ModuleOperation>.Success(started);
+            return HandleResult<ModuleRoutine>.Success(started);
         }
     }
 
     /// <summary>
     /// 复位：先清报警、复位子组件，再挂上清设备报错的动作；只查状态，被拒的原因用 <see cref="CheckReset"/> 问
     /// </summary>
-    public override ModuleOperation? Reset()
+    public override ModuleRoutine? Reset()
     {
         base.Reset();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckReset() is not null)
             {
                 return null;
             }
 
-            return BeginAction(AlignerAction.Reset, CreateResetOperation());
+            var reset = new ModuleRoutine(Name, "Reset", _driver, () => ResetTimeout);
+            AddResetSteps(reset);
+            return BeginAction(AlignerAction.Reset, reset);
         }
     }
 
@@ -314,17 +316,19 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// <summary>
     /// 中止（急停）：先中止子组件，再挂上设备停止；能顶替在途动作，不清报警。只查停用和状态表，被拒的原因用 <see cref="CheckAbort"/> 问
     /// </summary>
-    public override ModuleOperation? Abort()
+    public override ModuleRoutine? Abort()
     {
         base.Abort();
-        lock (OperationGate)
+        lock (RoutineGate)
         {
             if (CheckAbort() is not null)
             {
                 return null;
             }
 
-            return BeginAction(AlignerAction.Abort, CreateAbortOperation());
+            var abort = new ModuleRoutine(Name, "Abort", _driver, () => AbortTimeout);
+            AddAbortSteps(abort);
+            return BeginAction(AlignerAction.Abort, abort);
         }
     }
 
@@ -339,9 +343,9 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// <summary>
     /// 挂上动作，记下是哪个动作；回零、对准会转台面，一发起旧的"对好了"就作废，记下这次要对的片（在模块锁里调）
     /// </summary>
-    private ModuleOperation? BeginAction(AlignerAction action, ModuleOperation operation)
+    private ModuleRoutine? BeginAction(AlignerAction action, ModuleRoutine routine)
     {
-        var started = Begin(action, operation);
+        var started = Begin(action, routine);
         if (started is null)
         {
             return null;
@@ -362,46 +366,50 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     #region 设备动作
 
     /// <summary>
-    /// 回零的设备动作：回零那几条；台上有片再串上对准那几条（按 EC AlignTimeout 算）
+    /// 回零：回零那几条；台上有片再接着加对准那几条（按 EC AlignTimeout 算）
     /// </summary>
-    protected virtual ModuleOperation CreateHomeOperation(bool hasWafer)
+    protected virtual ModuleRoutine CreateHomeRoutine(bool hasWafer)
     {
-        var operation = AddHomeSteps(new CommandOperation("Home", _driver, () => HomeTimeout));
+        var home = new ModuleRoutine(Name, "Home", _driver, () => HomeTimeout);
+        AddHomeSteps(home);
         if (hasWafer)
         {
-            AddAlignSteps(operation.UseTimeout(() => AlignTimeout), NotchAngle);
+            home.UseTimeout(() => AlignTimeout);
+            AddAlignSteps(home, NotchAngle);
         }
 
-        return operation;
+        return home;
     }
 
     /// <summary>
-    /// 对准的设备动作：把缺口转到 EC NotchAngle
+    /// 对准：把缺口转到 EC NotchAngle
     /// </summary>
-    protected virtual ModuleOperation CreateAlignOperation()
+    protected virtual ModuleRoutine CreateAlignRoutine()
     {
-        return AddAlignSteps(new CommandOperation("Align", _driver, () => AlignTimeout), NotchAngle);
+        var align = new ModuleRoutine(Name, "Align", _driver, () => AlignTimeout);
+        AddAlignSteps(align, NotchAngle);
+        return align;
     }
 
     /// <summary>
-    /// 回零那几条：项目的对准器类用自己品牌的指令串上
+    /// 回零那几条：项目的对准器类用自己品牌的指令加 Command 步骤
     /// </summary>
-    protected abstract CommandOperation AddHomeSteps(CommandOperation operation);
+    protected abstract void AddHomeSteps(ModuleRoutine home);
 
     /// <summary>
-    /// 对准那几条：把缺口转到 angle（度），做完要松开片；项目的对准器类用自己品牌的指令串上
+    /// 对准那几条：把缺口转到 angle（度），做完要松开片；项目的对准器类用自己品牌的指令加
     /// </summary>
-    protected abstract CommandOperation AddAlignSteps(CommandOperation operation, double angle);
+    protected abstract void AddAlignSteps(ModuleRoutine align, double angle);
 
     /// <summary>
-    /// 复位的设备动作（清设备报错）：项目的对准器类给（超时用 EC ResetTimeout）
+    /// 复位那几条（清设备报错）：项目的对准器类给（超时用 EC ResetTimeout）
     /// </summary>
-    protected abstract ModuleOperation CreateResetOperation();
+    protected abstract void AddResetSteps(ModuleRoutine reset);
 
     /// <summary>
-    /// 中止的设备动作（停止）：项目的对准器类给（超时用 EC AbortTimeout）
+    /// 中止那几条（停止）：项目的对准器类给（超时用 EC AbortTimeout）
     /// </summary>
-    protected abstract ModuleOperation CreateAbortOperation();
+    protected abstract void AddAbortSteps(ModuleRoutine abort);
 
     /// <summary>
     /// 这台对准器的解码器（拆帧、解报文），开机时交给通道
@@ -465,12 +473,12 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     }
 
     /// <summary>
-    /// 操作终结（状态已由基类落好）：回零、对准做成了才把发起时台上那片记成对好了；没做成的报警、作废在途指令
+    /// 动作停下（状态已由基类落好）：回零、对准做成了才把发起时台上那片记成对好了；没做成的报警、作废在途指令
     /// </summary>
-    protected override void OnOperationCompleted(ModuleOperation operation)
+    protected override void OnRoutineCompleted(ModuleRoutine routine)
     {
-        RaiseActionFailedAlarm(operation);
-        if (!operation.IsSuccess)
+        RaiseActionFailedAlarm(routine);
+        if (!routine.IsSuccess)
         {
             _driver?.AbandonAll("Abandoned");
             return;
@@ -485,9 +493,9 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// <summary>
     /// 动作类报警：失败就报，人为急停顶掉的不报；只能人工复位清。机型有自己的报警分法就重写（在模块锁里，只报警、别等待）
     /// </summary>
-    protected virtual void RaiseActionFailedAlarm(ModuleOperation operation)
+    protected virtual void RaiseActionFailedAlarm(ModuleRoutine routine)
     {
-        if (!operation.IsSuccess && operation.Code != ErrorCodes.Aborted)
+        if (!routine.IsSuccess && routine.Code != ErrorCodes.Aborted)
         {
             RaiseAlarm(ControlledStopAlarm);
         }

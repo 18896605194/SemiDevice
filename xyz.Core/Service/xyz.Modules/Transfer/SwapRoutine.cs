@@ -1,5 +1,6 @@
 ﻿using xyz.Components.Interfaces;
 using xyz.Components.Models;
+using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
 namespace xyz.Modules;
@@ -33,12 +34,12 @@ public sealed class SwapRoutine : TransferExecution
     private bool _holdingStation;
 
     /// <summary>
-    /// 建交换：参数在搬运管理受理时已经查过
+    /// 建交换：参数在搬运管理受理时已经查过；module 是日志记在谁名下（搬运管理）
     /// </summary>
-    public SwapRoutine(SwapRequest request, ITransferRobot robot, ITransferStation station,
+    public SwapRoutine(string module, SwapRequest request, ITransferRobot robot, ITransferStation station,
         string pickWaferName, string placeWaferName, int stationWaitTimeout)
-        : base($"Swap {station.Name}.{request.Slot:00} Arm{request.PickArm}↔Arm{request.PlaceArm}",
-            TransferStep.PrepareSource, request.Origin, robot, stationWaitTimeout)
+        : base(module, $"Swap {station.Name}.{request.Slot:00} Arm{request.PickArm}↔Arm{request.PlaceArm}",
+            request.Origin, robot, stationWaitTimeout)
     {
         _station = station;
         _slot = request.Slot;
@@ -59,6 +60,14 @@ public sealed class SwapRoutine : TransferExecution
             Owner = request.PlaceOwner,
         };
         _wafers = [_picked, _placed];
+
+        AddGrabStep(station, _context, () => _holdingStation = true);
+        AddPrepareStep($"{station.Name} 准备二", station, () => station.PrepareTransfer2(_context), SecondPreparePhase);
+        AddMotionSteps($"Arm{_pickArm} 取旧片", station, _context, _pickArm, _slot, true);
+        Do("取完记进度", FinishPick);
+        AddPrepareStep($"{station.Name} 换段准备", station, () => station.PrepareNextLeg(_context), NextLegPhase);
+        AddMotionSteps($"Arm{_placeArm} 放新片", station, _context, _placeArm, _slot, false);
+        Do("放完收尾", FinishPlace);
     }
 
     /// <summary>
@@ -98,110 +107,28 @@ public sealed class SwapRoutine : TransferExecution
             [_station.Name]);
     }
 
-    protected override void OnScan()
-    {
-        switch (Step)
-        {
-            case TransferStep.PrepareSource:
-                if (GrabStation(_station, _context, TransferStep.WaitPrepareSource))
-                {
-                    _holdingStation = true;
-                }
-
-                break;
-
-            case TransferStep.WaitPrepareSource:
-                WaitPrepare(_station, FirstPreparePhase, TransferStep.PrepareSource2);
-                break;
-
-            case TransferStep.PrepareSource2:
-                BeginPrepare(_station, _station.PrepareTransfer2(_context), SecondPreparePhase, TransferStep.WaitPrepareSource2);
-                break;
-
-            case TransferStep.WaitPrepareSource2:
-                WaitPrepare(_station, SecondPreparePhase, TransferStep.Pick);
-                break;
-
-            case TransferStep.Pick:
-                BeginMotion(_station, _context, _pickArm, _slot, true, TransferStep.WaitPick);
-                break;
-
-            case TransferStep.WaitPick:
-                WaitPicked();
-                break;
-
-            case TransferStep.PrepareNextLeg:
-                BeginPrepare(_station, _station.PrepareNextLeg(_context), NextLegPhase, TransferStep.WaitPrepareNextLeg);
-                break;
-
-            case TransferStep.WaitPrepareNextLeg:
-                WaitPrepare(_station, NextLegPhase, TransferStep.Place);
-                break;
-
-            case TransferStep.Place:
-                BeginMotion(_station, _context, _placeArm, _slot, false, TransferStep.WaitPlace);
-                break;
-
-            case TransferStep.WaitPlace:
-                WaitPlaced();
-                break;
-
-            default:
-                Abandon(ErrorCodes.OperationFaulted, $"未知步骤: {Step}", Name, Step.ToString());
-                break;
-        }
-    }
-
     /// <summary>
-    /// 旧片取完（机械手记完账）：不收尾，去换段准备；没取成站点停在 Transferring 等人工
+    /// 旧片取完（机械手记完账）：不收尾，接着换段准备；没取成不会走到这儿，站点停在 Transferring 等人工
     /// </summary>
-    private void WaitPicked()
+    private HandleResult FinishPick()
     {
-        var operation = TakeSettled();
-        if (operation is null)
-        {
-            return;
-        }
-
-        if (!operation.IsSuccess)
-        {
-            ReportMotionFailure(_station, "Pick", operation);
-            return;
-        }
-
         _picked.Progress = TransferWaferProgress.Picked;
-        SetStep(TransferStep.PrepareNextLeg);
+        return HandleResult.Success();
     }
 
     /// <summary>
     /// 新片放完（机械手记完账）：整轮收尾、放掉站点；没放成旧片照样算取出来了，整条挂起等人工
     /// </summary>
-    private void WaitPlaced()
+    private HandleResult FinishPlace()
     {
-        var operation = TakeSettled();
-        if (operation is null)
-        {
-            return;
-        }
-
-        if (!operation.IsSuccess)
-        {
-            ReportMotionFailure(_station, "Place", operation);
-            return;
-        }
-
         _placed.Progress = TransferWaferProgress.Placed;
         if (!_station.TransferComplete(_context))
         {
-            Fail(ErrorCodes.TransferStepRejected,
-                $"{_station.Name} 交换后的收尾被拒",
-                _station.Name,
-                "TransferComplete");
-            return;
+            return HandleResult.Fail(ErrorCodes.TransferStepRejected, _station.Name, "TransferComplete");
         }
 
         _holdingStation = false;
-        Complete();
+        return HandleResult.Success();
     }
 
     /// <summary>

@@ -43,12 +43,12 @@ public interface ITransferRobot : IModule
     /// <summary>
     /// 取片
     /// </summary>
-    HandleResult<ModuleOperation> Pick(int arm, string station, int slot);
+    HandleResult<ModuleRoutine> Pick(int arm, string station, int slot);
 
     /// <summary>
     /// 放片
     /// </summary>
-    HandleResult<ModuleOperation> Place(int arm, string station, int slot);
+    HandleResult<ModuleRoutine> Place(int arm, string station, int slot);
 
     /// <summary>
     /// 换片
@@ -58,5 +58,5 @@ public interface ITransferRobot : IModule
     /// <param name="station"></param>
     /// <param name="slot"></param>
     /// <returns></returns>
-    ModuleOperation? Swap(int pickArm, int placeArm, string station, int slot);
+    ModuleRoutine? Swap(int pickArm, int placeArm, string station, int slot);
 }
