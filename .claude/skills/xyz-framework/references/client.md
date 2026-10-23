@@ -251,8 +251,9 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机和闲置退出那次多一行"取消就当访客"；`notice` 是标题下的黄字提醒，`DialogNoticeTextStyle`）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
   `ShowUser`（新建 / 改账号）、`ShowRole`（新建角色 / 改名和说明）。都是传一个异步回调去调后端：回 null 关框，回一句话就红字写在框里、框不关。
   密码用 `PasswordBox` + `DefaultPasswordBoxStyle`（不进 VM、不绑定）。
-- **ModuleChip**（模块小框：圆点 + 名字，`Text`、`Tone`、`IsAuto`）：圆点按色调——就绪绿、报警红、其他灰；`IsAuto` 边框亮（跟就绪同一个绿 `DarkRunningStatus`），
-  否则灭（灰 `DarkDisabledText`，跟灰圆点一样；别用 `DarkBorderBrush`，它跟顶栏底色 #454545 几乎一样、看不出框），边框 2 粗、框 28 高。控件不认状态码，谁用谁给；顶栏模块行用它，别处要显示模块状态和 Auto / Manual 也用它。
+- **ModuleChip**（模块小框：圆点 + 名字，`Text`、`Tone`、`IsProduction`、`HasMode`）：圆点按色调——就绪绿、报警红、其他灰；`IsProduction`（生产模式）边框亮（跟就绪同一个绿 `DarkRunningStatus`），
+  否则灭（灰 `DarkDisabledText`，跟灰圆点一样；别用 `DarkBorderBrush`，它跟顶栏底色 #454545 几乎一样、看不出框），边框 2 粗、框 28 高；`HasMode` 为 False（供液这类不分生产 / 维护）不画边框、粗细照留。
+  控件不认状态码，谁用谁给；顶栏模块行用它，别处要显示模块状态和生产 / 维护也用它。
 - **ModuleStatusBar**（顶栏模块行，自带 VM `ModuleStatusBarViewModel`）：订整机推的 `ModuleStatusListDto`（token "ModuleStatus"，留存），一个模块一个 ModuleChip（WrapPanel）；
   状态码按 `ModuleStates.TextOf / ToneOf`（按 `StationKind` 分）翻，悬停看状态字；断开时全部未连接（灰点、边框灭）。
 - LogBar / AlarmBar / ModuleStatusBar 只在主窗口顶栏用。

@@ -55,7 +55,7 @@
                                             VerticalAlignment="Center"
                                             FontSize="{DynamicResource Size13}"
                                             Foreground="{DynamicResource DarkSecondaryText}"
-                                            Text="{DynamicResource lpmanual.offline}" />
+                                            Text="{DynamicResource lpmanual.maintenance}" />
                                     </StackPanel>
 
                                     <controls:Wafer

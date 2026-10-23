@@ -38,7 +38,9 @@ public class ChamberModel : ObservableObject
 
     private ModuleMode _mode;
 
-    /// <summary>模块模式（Online=参与自动调度 / Offline）。</summary>
+    /// <summary>
+    /// 模块模式（生产 = 交给调度用 / 维护）
+    /// </summary>
     public ModuleMode Mode
     {
         get => _mode;
@@ -46,13 +48,15 @@ public class ChamberModel : ObservableObject
         {
             if (SetProperty(ref _mode, value))
             {
-                OnPropertyChanged(nameof(IsOnline));
+                OnPropertyChanged(nameof(IsProduction));
             }
         }
     }
 
-    /// <summary>模式灯：Online 亮。</summary>
-    public bool IsOnline => Mode == ModuleMode.Online;
+    /// <summary>
+    /// 模式灯：生产模式亮
+    /// </summary>
+    public bool IsProduction => Mode == ModuleMode.Production;
 
     private bool _isEnable;
 

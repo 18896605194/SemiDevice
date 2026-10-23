@@ -15,7 +15,8 @@
             <DataTemplate>
                 <controls:ModuleChip
                     Margin="0,2,4,2"
-                    IsAuto="{Binding IsAuto}"
+                    HasMode="{Binding HasMode}"
+                    IsProduction="{Binding IsProduction}"
                     Text="{Binding Name}"
                     Tone="{Binding StateTone}"
                     ToolTip="{Binding StateText}" />

@@ -64,6 +64,41 @@ public static class ErrorCodes
     /// <summary>全部回片：有片没回去（每片的原因在日志里）。Args: [没回去的片数]</summary>
     public const string SystemReturnIncomplete = "system.return_incomplete";
 
+    /// <summary>
+    /// 全部回片：有 Job 在跑（执行中、暂停、中止中），不能开始。Args: []
+    /// </summary>
+    public const string SystemReturnJobRunning = "system.return_job_running";
+
+    /// <summary>
+    /// 全部回片：机内有片不知道从哪个 LoadPort 来（不是在 LoadPort 上建的、来源口没装、原槽超出槽数），不能开始。Args: [片号, 位置]
+    /// </summary>
+    public const string SystemReturnNoSource = "system.return_no_source";
+
+    /// <summary>
+    /// 全部回片：片的来源 LoadPort 上没有 Load 着的载具，不能开始。Args: [片号, LoadPort]
+    /// </summary>
+    public const string SystemReturnCarrierNotLoaded = "system.return_carrier_not_loaded";
+
+    /// <summary>
+    /// 全部回片：来源 LoadPort 上的载具换过了，不能开始。Args: [片号, LoadPort, 片记着的载具号, 现在的载具号]
+    /// </summary>
+    public const string SystemReturnCarrierChanged = "system.return_carrier_changed";
+
+    /// <summary>
+    /// 全部回片：片的原槽上已经有片，或者两片要回同一个槽，不能开始。Args: [片号, LoadPort, 槽号]
+    /// </summary>
+    public const string SystemReturnSlotOccupied = "system.return_slot_occupied";
+
+    /// <summary>
+    /// 全部回片：倒着走的路上有一段没有机械手够得着，不能开始。Args: [片号, 从哪, 到哪]
+    /// </summary>
+    public const string SystemReturnUnreachable = "system.return_unreachable";
+
+    /// <summary>
+    /// 全部回片：要用到的机械手或站点现在不能用（停用、没初始化、报警、在忙），不能开始。Args: [模块名]
+    /// </summary>
+    public const string SystemReturnModuleNotReady = "system.return_module_not_ready";
+
     #endregion
 
     #region LoadPort
@@ -205,6 +240,25 @@ public static class ErrorCodes
     /// 对准器台上的片还没对好（对准失败、重启过、人改过账），不让机械手来取；回零时台上有片会再对一遍。Args: [模块名]
     /// </summary>
     public const string AlignerWaferNotAligned = "aligner.wafer_not_aligned";
+
+    #endregion
+
+    #region 站点
+
+    /// <summary>
+    /// 站点的在位传感器看到有片，晶圆账上这个站没片。Args: [站点名]
+    /// </summary>
+    public const string StationWaferSensorHasWafer = "station.wafer_sensor_has_wafer";
+
+    /// <summary>
+    /// 站点的在位传感器没看到片，晶圆账上这个站有片。Args: [站点名]
+    /// </summary>
+    public const string StationWaferSensorNoWafer = "station.wafer_sensor_no_wafer";
+
+    /// <summary>
+    /// 站点的在位传感器读不到（PLC 没连上、点位不对）。Args: [站点名]
+    /// </summary>
+    public const string StationWaferSensorUnknown = "station.wafer_sensor_unknown";
 
     #endregion
 

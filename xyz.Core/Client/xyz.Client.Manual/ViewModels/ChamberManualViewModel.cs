@@ -103,9 +103,9 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
 
     public IAsyncRelayCommand ResetCommand { get; }
 
-    public IAsyncRelayCommand OnlineCommand { get; }
+    public IAsyncRelayCommand ProductionCommand { get; }
 
-    public IAsyncRelayCommand OfflineCommand { get; }
+    public IAsyncRelayCommand MaintenanceCommand { get; }
 
     /// <summary>选中的轴回零。</summary>
     public IAsyncRelayCommand AxisHomeCommand { get; }
@@ -186,8 +186,8 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         HomeCommand = new AsyncRelayCommand(DoHome);
         AbortCommand = new AsyncRelayCommand(DoAbort);
         ResetCommand = new AsyncRelayCommand(DoReset);
-        OnlineCommand = new AsyncRelayCommand(DoOnline);
-        OfflineCommand = new AsyncRelayCommand(DoOffline);
+        ProductionCommand = new AsyncRelayCommand(DoProduction);
+        MaintenanceCommand = new AsyncRelayCommand(DoMaintenance);
         AxisHomeCommand = new AsyncRelayCommand(DoAxisHome);
         AxisMoveCommand = new AsyncRelayCommand(DoAxisMove);
         AxisStopCommand = new AsyncRelayCommand(DoAxisStop, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -437,14 +437,14 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
         LogFailure(await _service.ResetAsync(ModuleName), "action.reset");
     }
 
-    private async Task DoOnline()
+    private async Task DoProduction()
     {
-        LogFailure(await _service.OnlineAsync(ModuleName), "action.online");
+        LogFailure(await _service.SetProductionAsync(ModuleName), "action.production");
     }
 
-    private async Task DoOffline()
+    private async Task DoMaintenance()
     {
-        LogFailure(await _service.OfflineAsync(ModuleName), "action.offline");
+        LogFailure(await _service.SetMaintenanceAsync(ModuleName), "action.maintenance");
     }
 
     #region 轴

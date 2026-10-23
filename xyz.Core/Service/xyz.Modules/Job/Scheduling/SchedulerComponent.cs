@@ -219,7 +219,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             station = Station(location.Module);
         }
 
-        if (station is null || !IsOnline(station) || station is not IStationTaskExecutor executor)
+        if (station is null || !IsProduction(station) || station is not IStationTaskExecutor executor)
         {
             return;
         }
@@ -496,13 +496,13 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 这个站里正在做工艺、或者做完等取的那一行，以及它的取片任务；站点停用、下线、出错的不算
+    /// 这个站里正在做工艺、或者做完等取的那一行，以及它的取片任务；站点停用、维护模式、出错的不算
     /// </summary>
     private TaskRow? FinishingRow(string stationName, IReadOnlyList<TaskRow> rows, out WaferTask? pick)
     {
         pick = null;
         var station = Station(stationName);
-        if (station is null || !station.IsEnabled || !IsOnline(station) || station.State == ModuleState.Error)
+        if (station is null || !station.IsEnabled || !IsProduction(station) || station.State == ModuleState.Error)
         {
             return null;
         }
@@ -593,7 +593,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 作废过时的预取意向：那片已经不在等这个站（放到别处、没取成）、站点停用下线出错、站里没有快做完的片
+    /// 作废过时的预取意向：那片已经不在等这个站（放到别处、没取成）、站点停用、维护模式、出错，站里没有快做完的片
     /// </summary>
     private void DropStalePrefetches(IReadOnlyList<TaskRow> rows)
     {
@@ -694,12 +694,12 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 站点现在能不能服务机械手：装了、启用、在线、在待命、没在做别的动作。
+    /// 站点现在能不能服务机械手：装了、启用、生产模式、在待命、没在做别的动作。
     /// </summary>
     private bool IsStationReady(string name)
     {
         var station = Station(name);
-        if (station is null || !station.IsEnabled || !IsOnline(station) || !station.CanPrepareTransfer)
+        if (station is null || !station.IsEnabled || !IsProduction(station) || !station.CanPrepareTransfer)
         {
             return false;
         }
@@ -709,12 +709,11 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 调度用到的站点（LoadPort、腔体……）和机械手都得在线：下线的不派新任务，已经在做的照常做完；上线了下一拍接着派。
-    /// 手动页、手动取放不看这个，下线就是留给人手动操作的。
+    /// 调度用到的站点和机械手都得是生产模式：维护模式不派新任务、手上的做完，切回生产下一拍接着派；手动页、手动取放不看这个
     /// </summary>
-    private static bool IsOnline(IModule module)
+    private static bool IsProduction(IModule module)
     {
-        return module.Mode == ModuleMode.Online;
+        return module is IMode target && target.Mode == ModuleMode.Production;
     }
 
     /// <summary>
@@ -760,7 +759,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     }
 
     /// <summary>
-    /// 机械手可执行任务：启用、在线、空闲、没有搬运操作
+    /// 机械手可执行任务：启用、生产模式、空闲、没有搬运操作
     /// </summary>
     private bool IsRobotFree(ITransferRobot robot)
     {
@@ -769,7 +768,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return false;
         }
 
-        return robot.IsEnabled && IsOnline(robot);
+        return robot.IsEnabled && IsProduction(robot);
     }
 
     #endregion

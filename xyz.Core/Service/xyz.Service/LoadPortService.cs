@@ -68,14 +68,14 @@ public class LoadPortService : BaseService, ILoadPortService
     }
 
 
-    public Task<RpcResponse> OnlineAsync(string module)
+    public Task<RpcResponse> SetProductionAsync(string module)
     {
-        return Online<ILoadPort>(module);
+        return SetProduction<ILoadPort>(module);
     }
 
-    public Task<RpcResponse> OfflineAsync(string module)
+    public Task<RpcResponse> SetMaintenanceAsync(string module)
     {
-        return Offline<ILoadPort>(module);
+        return SetMaintenance<ILoadPort>(module);
     }
 
     public Task<RpcResponse> AutoAsync(string module)

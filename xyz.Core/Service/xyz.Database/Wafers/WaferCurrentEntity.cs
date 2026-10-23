@@ -62,4 +62,10 @@ public class WaferCurrentEntity
 
     /// <summary>最后一次变动时刻。</summary>
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// 出了 LoadPort 以后待过的位置，模块名逗号隔开；老表补这一列时老行是空的
+    /// </summary>
+    [SugarColumn(Length = 1024, IsNullable = true)]
+    public string? Path { get; set; }
 }

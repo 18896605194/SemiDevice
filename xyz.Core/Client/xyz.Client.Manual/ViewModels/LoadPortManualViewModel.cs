@@ -46,9 +46,9 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
 
     public IAsyncRelayCommand ResetCommand { get; }
 
-    public IAsyncRelayCommand OnlineCommand { get; }
+    public IAsyncRelayCommand ProductionCommand { get; }
 
-    public IAsyncRelayCommand OfflineCommand { get; }
+    public IAsyncRelayCommand MaintenanceCommand { get; }
 
     public IAsyncRelayCommand AutoCommand { get; }
 
@@ -80,8 +80,8 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         LoadCommand = new AsyncRelayCommand(DoLoad);
         UnloadCommand = new AsyncRelayCommand(DoUnload);
         ResetCommand = new AsyncRelayCommand(DoReset);
-        OnlineCommand = new AsyncRelayCommand(DoOnline);
-        OfflineCommand = new AsyncRelayCommand(DoOffline);
+        ProductionCommand = new AsyncRelayCommand(DoProduction);
+        MaintenanceCommand = new AsyncRelayCommand(DoMaintenance);
         AutoCommand = new AsyncRelayCommand(DoAuto);
         ManualCommand = new AsyncRelayCommand(DoManual);
         ReadCarrierIdCommand = new AsyncRelayCommand(DoReadCarrierId);
@@ -159,21 +159,21 @@ public class LoadPortManualViewModel : BaseViewModel, IDisposable
         }
     }
 
-    private async Task DoOnline()
+    private async Task DoProduction()
     {
-        var response = await _service.OnlineAsync(ModuleName);
+        var response = await _service.SetProductionAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Online 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"切生产模式失败：{L10n.Get(response.Code, response.Args)}");
         }
     }
 
-    private async Task DoOffline()
+    private async Task DoMaintenance()
     {
-        var response = await _service.OfflineAsync(ModuleName);
+        var response = await _service.SetMaintenanceAsync(ModuleName);
         if (!response.Success)
         {
-            ClientLog.Error(ModuleName, $"Offline 失败：{L10n.Get(response.Code, response.Args)}");
+            ClientLog.Error(ModuleName, $"切维护模式失败：{L10n.Get(response.Code, response.Args)}");
         }
     }
 

@@ -5,7 +5,7 @@ using xyz.Client.Presentation.Models;
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
-/// 模块小框：一个圆点（状态）+ 模块名，边框亮灭表示 Auto / Manual。顶栏模块行用它，别处要显示模块状态和 Auto / Manual 也用它
+/// 模块小框：一个圆点（状态）+ 模块名，边框亮灭表示生产 / 维护。顶栏模块行用它，别处要显示模块状态和生产 / 维护也用它
 /// </summary>
 public partial class ModuleChip : UserControl
 {
@@ -15,8 +15,11 @@ public partial class ModuleChip : UserControl
     public static readonly DependencyProperty ToneProperty =
         DependencyProperty.Register(nameof(Tone), typeof(ModuleStateTone), typeof(ModuleChip), new PropertyMetadata(ModuleStateTone.Inactive));
 
-    public static readonly DependencyProperty IsAutoProperty =
-        DependencyProperty.Register(nameof(IsAuto), typeof(bool), typeof(ModuleChip), new PropertyMetadata(false));
+    public static readonly DependencyProperty IsProductionProperty =
+        DependencyProperty.Register(nameof(IsProduction), typeof(bool), typeof(ModuleChip), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty HasModeProperty =
+        DependencyProperty.Register(nameof(HasMode), typeof(bool), typeof(ModuleChip), new PropertyMetadata(true));
 
     public ModuleChip()
     {
@@ -42,11 +45,20 @@ public partial class ModuleChip : UserControl
     }
 
     /// <summary>
-    /// Auto：边框亮；Manual（或不知道）边框灭
+    /// 生产模式：边框亮；维护（或不知道）边框灭
     /// </summary>
-    public bool IsAuto
+    public bool IsProduction
     {
-        get => (bool)GetValue(IsAutoProperty);
-        set => SetValue(IsAutoProperty, value);
+        get => (bool)GetValue(IsProductionProperty);
+        set => SetValue(IsProductionProperty, value);
+    }
+
+    /// <summary>
+    /// 分不分生产 / 维护：不分的（供液）不画边框
+    /// </summary>
+    public bool HasMode
+    {
+        get => (bool)GetValue(HasModeProperty);
+        set => SetValue(HasModeProperty, value);
     }
 }

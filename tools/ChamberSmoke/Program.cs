@@ -468,13 +468,13 @@ try
     // 中间几节另装过腔体（换了整棵树），服务按接口在树上找模块，先换回这台
     SmokeIoc.Tree(chamber);
 
-    // 上线 / 下线走服务基类 → 模块基类的 Online / Offline，只改 Mode、不挂动作
-    var response = Run(() => service.OnlineAsync("Chamber404"));
-    Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "上线：找不到模块回 module.not_found");
-    response = Run(() => service.OnlineAsync("Chamber9"));
-    Check(response.Success && chamber.Mode == ModuleMode.Online && chamber.CurrentOperation is null, "腔体上线：Mode 变 Online，不挂动作");
-    response = Run(() => service.OfflineAsync("Chamber9"));
-    Check(response.Success && chamber.Mode == ModuleMode.Offline, "腔体下线：Mode 变 Offline");
+    // 切生产 / 维护走服务基类 → 模块的 SetProduction / SetMaintenance，只改 Mode、不挂动作
+    var response = Run(() => service.SetProductionAsync("Chamber404"));
+    Check(!response.Success && response.Code == ErrorCodes.ModuleNotFound, "切生产：找不到模块回 module.not_found");
+    response = Run(() => service.SetProductionAsync("Chamber9"));
+    Check(response.Success && chamber.Mode == ModuleMode.Production && chamber.CurrentOperation is null, "腔体切生产：Mode 变 Production，不挂动作");
+    response = Run(() => service.SetMaintenanceAsync("Chamber9"));
+    Check(response.Success && chamber.Mode == ModuleMode.Maintenance, "腔体切维护：Mode 变 Maintenance");
 
     // 5. 设备动作出错：找不到（轴的动作给了气缸路径、不是轴也不是气缸的组件）、参数不对、模块不存在
     response = Run(() => service.CylinderUpAsync(Device("Chamber9.Nope")));

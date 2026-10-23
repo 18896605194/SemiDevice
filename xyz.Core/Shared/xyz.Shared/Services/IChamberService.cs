@@ -70,16 +70,16 @@ public interface IChamberService
     Task<RpcResponse> CylinderDownAsync(ChamberDeviceRequest request);
 
     /// <summary>
-    /// 上线：模块模式切 Online（只改 Mode，不经设备）。
+    /// 切生产模式：交给调度用（只改 Mode，不经设备）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> OnlineAsync(string module);
+    Task<RpcResponse> SetProductionAsync(string module);
 
     /// <summary>
-    /// 下线：模块模式切 Offline（只改 Mode，不经设备）。
+    /// 切维护模式：调度不再派新活（只改 Mode，不经设备）
     /// </summary>
     [OperationContract]
-    Task<RpcResponse> OfflineAsync(string module);
+    Task<RpcResponse> SetMaintenanceAsync(string module);
 
     /// <summary>
     /// 查询当前状态。module 为空返回全部腔体；Data 为 ChamberDto（或其数组）的 JSON。

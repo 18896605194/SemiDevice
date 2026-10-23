@@ -19,6 +19,13 @@
     <sys:String x:Key="system.init_rejected">{0} refused to initialize (state not allowed, busy, or no initialization defined); initializing all did not succeed</sys:String>
     <sys:String x:Key="system.init_failed">{0} failed to initialize; initializing all did not succeed</sys:String>
     <sys:String x:Key="system.return_incomplete">Return all left {0} wafer(s) unreturned; see the log for the reasons</sys:String>
+    <sys:String x:Key="system.return_job_running">A job is running (executing, paused or aborting); Return All cannot start</sys:String>
+    <sys:String x:Key="system.return_no_source">It is unknown which load port {0} ({1}) came from; Return All cannot start. Handle this wafer on the ledger adjustment page first</sys:String>
+    <sys:String x:Key="system.return_carrier_not_loaded">There is no loaded carrier on {1}, the source of {0}; Return All cannot start</sys:String>
+    <sys:String x:Key="system.return_carrier_changed">The carrier on {1} has changed ({0} belongs to {2}, the current one is {3}); Return All cannot start</sys:String>
+    <sys:String x:Key="system.return_slot_occupied">{0} goes back to slot {2} of {1}, but that slot already holds a wafer (or another wafer goes back there too); Return All cannot start</sys:String>
+    <sys:String x:Key="system.return_unreachable">No robot can carry {0} from {1} to {2} on its way back; Return All cannot start</sys:String>
+    <sys:String x:Key="system.return_module_not_ready">{0}, needed for Return All, is not usable now (disabled, not initialized, in alarm or busy); Return All cannot start</sys:String>
 
     <!-- Wafer size (switch 8 / 12 inch on the main page) -->
     <sys:String x:Key="system.wafer_size_not_installed">WaferSize is not configured under the System node in sc.xml; the wafer size cannot be switched</sys:String>
@@ -101,6 +108,11 @@
     <sys:String x:Key="chamber.wafer_owned">{1} in {0} belongs to job {2}; it cannot be processed manually</sys:String>
     <sys:String x:Key="chamber.supply_not_ready">{0} cannot run process recipe {1}: supply {2} is not ready</sys:String>
     <sys:String x:Key="aligner.wafer_not_aligned">The wafer on {0} is not aligned and cannot be picked; home it first (a wafer on the stage is aligned again)</sys:String>
+
+    <!-- Stations (wafer presence sensor does not match the wafer ledger) -->
+    <sys:String x:Key="station.wafer_sensor_has_wafer">{0} presence sensor detects a wafer, but the wafer ledger says the station is empty: check the actual wafer position and fix the ledger</sys:String>
+    <sys:String x:Key="station.wafer_sensor_no_wafer">{0} presence sensor detects no wafer, but the wafer ledger says the station holds one: check the actual wafer position and fix the ledger</sys:String>
+    <sys:String x:Key="station.wafer_sensor_unknown">{0} presence sensor cannot be read (PLC not connected or wrong IO point)</sys:String>
     <sys:String x:Key="tank.busy">{0} is filling, draining, exchanging or supplying; stop it first</sys:String>
     <sys:String x:Key="tank.error">{0} has an alarm; reset it first</sys:String>
     <sys:String x:Key="tank.valve_group_missing">{0} has no {1} valve group</sys:String>
@@ -488,7 +500,7 @@
     <sys:String x:Key="permission.Alarm.Reset">Alarm reset</sys:String>
     <sys:String x:Key="permission.Main_tip">Create and start jobs; the main page cannot be hidden</sys:String>
     <sys:String x:Key="permission.Main.System_tip">Initialize, Auto, Manual, Stop, return all wafers, switch wafer size</sys:String>
-    <sys:String x:Key="permission.Manual.LoadPorts_tip">Load, Unload, Home, Reset, Abort, Online / Offline</sys:String>
+    <sys:String x:Key="permission.Manual.LoadPorts_tip">Load, Unload, Home, Reset, Abort, Production / Maintenance</sys:String>
     <sys:String x:Key="permission.Manual.Robot_tip">Pick, Place, power on / off, Home</sys:String>
     <sys:String x:Key="permission.Manual.Chamber_tip">Every chamber's manual page counts: axes, cylinders, processing</sys:String>
     <sys:String x:Key="permission.Recipe.Sequence_tip">New, rename, delete, save</sys:String>
@@ -655,9 +667,9 @@
     <sys:String x:Key="chambercard.shutter">Shutter</sys:String>
     <sys:String x:Key="chambercard.step_time">Step Time</sys:String>
     <sys:String x:Key="chambercard.recipe_time">Recipe Time</sys:String>
-    <sys:String x:Key="lpmanual.online">Online</sys:String>
-    <sys:String x:Key="lpmanual.online_tip">Online: joins automatic scheduling</sys:String>
-    <sys:String x:Key="lpmanual.offline">Offline</sys:String>
+    <sys:String x:Key="lpmanual.production">Production</sys:String>
+    <sys:String x:Key="lpmanual.mode_tip">Production: used by automatic scheduling; Maintenance: no new jobs, left for manual operation</sys:String>
+    <sys:String x:Key="lpmanual.maintenance">Maintenance</sys:String>
     <sys:String x:Key="lpmanual.carrier_id">Carrier ID:</sys:String>
 
     <!-- Robot manual page -->
@@ -668,9 +680,9 @@
     <sys:String x:Key="robotmanual.arm_tip">Lights up when the finger holds a wafer</sys:String>
     <sys:String x:Key="robotmanual.alarm">Alarm</sys:String>
     <sys:String x:Key="robotmanual.alarm_tip">Current device error</sys:String>
-    <sys:String x:Key="robotmanual.online_tip">Online: joins automatic scheduling</sys:String>
-    <sys:String x:Key="robotmanual.online">Online</sys:String>
-    <sys:String x:Key="robotmanual.offline">Offline</sys:String>
+    <sys:String x:Key="robotmanual.mode_tip">Production: used by automatic scheduling; Maintenance: no new jobs, left for manual operation</sys:String>
+    <sys:String x:Key="robotmanual.production">Production</sys:String>
+    <sys:String x:Key="robotmanual.maintenance">Maintenance</sys:String>
     <sys:String x:Key="robotmanual.fact_state">State:</sys:String>
     <sys:String x:Key="robotmanual.fact_station">Station:</sys:String>
     <sys:String x:Key="robotmanual.fact_rotation">Direction:</sys:String>
@@ -700,8 +712,8 @@
     <sys:String x:Key="action.reset">Reset</sys:String>
     <sys:String x:Key="action.pick">Pick</sys:String>
     <sys:String x:Key="action.place">Place</sys:String>
-    <sys:String x:Key="action.online">Online</sys:String>
-    <sys:String x:Key="action.offline">Offline</sys:String>
+    <sys:String x:Key="action.production">Production</sys:String>
+    <sys:String x:Key="action.maintenance">Maintenance</sys:String>
     <sys:String x:Key="action.auto">Auto</sys:String>
     <sys:String x:Key="action.manual">Manual</sys:String>
     <sys:String x:Key="action.read_id">Read ID</sys:String>
@@ -712,9 +724,9 @@
     <!-- Chamber manual page (one sub-menu per chamber under Manual) -->
     <sys:String x:Key="chambermanual.enable">Enabled</sys:String>
     <sys:String x:Key="chambermanual.enable_tip">IsEnable in sc.xml: a disabled (not installed) chamber accepts no action</sys:String>
-    <sys:String x:Key="chambermanual.online">Online</sys:String>
-    <sys:String x:Key="chambermanual.offline">Offline</sys:String>
-    <sys:String x:Key="chambermanual.online_tip">Online: joins automatic scheduling</sys:String>
+    <sys:String x:Key="chambermanual.production">Production</sys:String>
+    <sys:String x:Key="chambermanual.maintenance">Maintenance</sys:String>
+    <sys:String x:Key="chambermanual.mode_tip">Production: used by automatic scheduling; Maintenance: no new jobs, left for manual operation</sys:String>
     <sys:String x:Key="chambermanual.device_error">Error</sys:String>
     <sys:String x:Key="chambermanual.device_error_tip">Current device error</sys:String>
     <sys:String x:Key="chambermanual.current_recipe">Current recipe</sys:String>

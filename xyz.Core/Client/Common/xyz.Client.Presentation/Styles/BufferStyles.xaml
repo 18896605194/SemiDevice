@@ -7,21 +7,21 @@
             <Trigger Property="Text" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></Trigger>
         </Style.Triggers>
     </Style>
-    <Style x:Key="BufferOnlineDotStyle" TargetType="Border">
+    <Style x:Key="BufferModeDotStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource DarkDisabledText}" />
         <Style.Triggers>
-            <DataTrigger Binding="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:Buffer}}" Value="True">
+            <DataTrigger Binding="{Binding IsProduction, RelativeSource={RelativeSource AncestorType=local:Buffer}}" Value="True">
                 <Setter Property="Background" Value="{DynamicResource DarkRunningStatus}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
-    <Style x:Key="BufferOnlineTextStyle" TargetType="TextBlock">
+    <Style x:Key="BufferModeTextStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="{DynamicResource Size12}" />
         <Setter Property="Foreground" Value="{DynamicResource DarkDisabledText}" />
-        <Setter Property="Text" Value="{DynamicResource action.offline}" />
+        <Setter Property="Text" Value="{DynamicResource action.maintenance}" />
         <Style.Triggers>
-            <DataTrigger Binding="{Binding IsOnline, RelativeSource={RelativeSource AncestorType=local:Buffer}}" Value="True">
-                <Setter Property="Text" Value="{DynamicResource action.online}" />
+            <DataTrigger Binding="{Binding IsProduction, RelativeSource={RelativeSource AncestorType=local:Buffer}}" Value="True">
+                <Setter Property="Text" Value="{DynamicResource action.production}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>

@@ -14,7 +14,7 @@ public class ChamberDto
     public int State { get; set; }
 
     /// <summary>
-    /// Online/Offline
+    /// 生产 / 维护模式
     /// </summary>
     public ModuleMode Mode { get; set; }
 

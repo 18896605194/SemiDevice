@@ -1234,21 +1234,11 @@ sealed class FakePort : ILoadPortAccess
 
     public string FullPath => Name;
 
-    public ModuleMode Mode => ModuleMode.Online;
-
     public StationKind Kind => StationKind.LoadPort;
 
     public bool IsEnabled => true;
 
     public ModuleOperation? CurrentOperation => null;
-
-    public void Online()
-    {
-    }
-
-    public void Offline()
-    {
-    }
 
     #endregion
 

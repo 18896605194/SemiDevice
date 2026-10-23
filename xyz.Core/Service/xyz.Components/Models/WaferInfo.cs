@@ -67,6 +67,7 @@ public sealed class WaferInfo
         ProcessState = source.ProcessState;
         CreatedAt = source.CreatedAt;
         UpdatedAt = source.UpdatedAt;
+        Path = source.Path;
     }
 
     /// <summary>内部唯一标识，建片时生成，一直跟到删片（入库主键）；开机恢复的片还是原来那个。</summary>
@@ -116,6 +117,11 @@ public sealed class WaferInfo
 
     /// <summary>最后一次变动时刻（移动或改状态）。</summary>
     public DateTime UpdatedAt { get; internal set; }
+
+    /// <summary>
+    /// 出了 LoadPort 以后待过的位置（模块名，机械手也算），按先后；回到 LoadPort 清空，全部回片倒着走靠它
+    /// </summary>
+    public IReadOnlyList<string> Path { get; internal set; } = [];
 
     /// <summary>
     /// 复制一份快照：查询返回副本，外部拿不到账上的活对象。

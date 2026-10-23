@@ -585,10 +585,20 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// 模块初始化 = Home；被拒记一条带原因的日志，返回 null。
+    /// 模块初始化 = Home；门开着、从这个口取出去的片还在机内时不 Home（回片要用这个口），算初始化好了
     /// </summary>
     public override ModuleOperation? InitModule()
     {
+        if (State == LoadPortState.Loaded)
+        {
+            int outside = CountWafersOutside();
+            if (outside > 0)
+            {
+                LogHelper.Info(Name, $"初始化：门开着，从这个口取出去的 {outside} 片还在机内，不 Home（回片要用这个口）");
+                return new NoOpOperation("Init");
+            }
+        }
+
         var started = Home();
         if (!started.IsSuccess)
         {
@@ -1189,7 +1199,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     {
         get
         {
-            if (!IsEnable || Mode != ModuleMode.Online || State == ModuleState.NotInit || State == ModuleState.Error)
+            if (!IsEnable || Mode != ModuleMode.Production || State == ModuleState.NotInit || State == ModuleState.Error)
             {
                 return LoadPortTransferState.OutOfService;
             }

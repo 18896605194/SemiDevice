@@ -133,6 +133,13 @@ public class EquipmentService : BaseService, IEquipmentService
             return Task.FromResult(RpcResponse.Ok());
         }
 
+        // 整机不算模块，单独看：整机初始化过也不让切
+        var system = _system;
+        if (system is not null && system.State != ModuleState.NotInit)
+        {
+            return Task.FromResult(RpcResponse.Fail(ErrorCodes.WaferSizeInitialized, [system.Name]));
+        }
+
         foreach (var module in IocHelper.GetServices<IModule>())
         {
             if (module.State != ModuleState.NotInit)

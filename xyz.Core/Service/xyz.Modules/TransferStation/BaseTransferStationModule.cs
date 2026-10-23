@@ -1,19 +1,56 @@
 ﻿using System.Globalization;
+using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
+using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
+using xyz.Tools;
 
 namespace xyz.Modules;
 
 /// <summary>
 /// 机械手可服务工位基类
 /// </summary>
-public abstract class BaseTransferStationModule : BaseModule, ITransferStation, IStationTaskExecutor
+public abstract class BaseTransferStationModule : BaseModule, ITransferStation, IStationTaskExecutor, IMode
 {
+    #region 生产 / 维护模式
+
+    [VariableMark(VariableType.SV, ValueFormat.Enum, description: "模块模式（生产 / 维护）")]
+    public ModuleMode Mode { get; private set; } = ModuleMode.Maintenance;
+
+    /// <summary>
+    /// 切生产模式：交给调度用，只改 Mode、不经设备；机型要多做事就重写、记得调 base
+    /// </summary>
+    public virtual void SetProduction()
+    {
+        SetMode(ModuleMode.Production);
+    }
+
+    /// <summary>
+    /// 切维护模式：调度不再派新活，手上的做完；重写同 <see cref="SetProduction"/>
+    /// </summary>
+    public virtual void SetMaintenance()
+    {
+        SetMode(ModuleMode.Maintenance);
+    }
+
+    private void SetMode(ModuleMode mode)
+    {
+        if (Mode == mode)
+        {
+            return;
+        }
+
+        Mode = mode;
+        LogHelper.Info($"[{Name}] {mode}");
+    }
+
+    #endregion
+
     #region SC
 
     [SCEditor("False", "TransferStation",
@@ -33,6 +70,62 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// 各站点不一样：腔体是 Idle，LoadPort 是 Loaded（载具装好了才能取放）。
     /// </summary>
     protected virtual int StandbyState => ModuleState.Idle;
+
+    #endregion
+
+    #region 在位传感器
+
+    /// <summary>
+    /// 在位传感器：sc 里站点下面叫 WaferSensor 的 DI；没配为 null
+    /// </summary>
+    protected IDiSensor? WaferSensor { get; private set; }
+
+    /// <summary>
+    /// 晶圆账（组件初始化时取），在位传感器对账用；没配为 null
+    /// </summary>
+    private ILedgerManager? _sensorLedger;
+
+    /// <summary>
+    /// 组件初始化：认在位传感器、取晶圆账，子组件交给基类
+    /// </summary>
+    public override bool InitComponent()
+    {
+        WaferSensor = FindChild<IDiSensor>("WaferSensor");
+        _sensorLedger = IocHelper.GetService<ILedgerManager>();
+        return base.InitComponent();
+    }
+
+    /// <summary>
+    /// 在位传感器跟晶圆账对一遍：配了才比（看到有片 = 账上这个站有片），配了读不到也算对不上；传感器配法不一样的站点重写
+    /// </summary>
+    public virtual HandleResult? CheckWaferSensors()
+    {
+        var sensor = WaferSensor;
+        var ledger = _sensorLedger;
+        if (sensor is null || !sensor.IsConfigured || ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        bool? sensed = sensor.IsActive;
+        if (sensed is null)
+        {
+            return HandleResult.Fail(ErrorCodes.StationWaferSensorUnknown, Name);
+        }
+
+        bool booked = ledger.CountWafers(Name) > 0;
+        if (sensed.Value == booked)
+        {
+            return null;
+        }
+
+        if (sensed.Value)
+        {
+            return HandleResult.Fail(ErrorCodes.StationWaferSensorHasWafer, Name);
+        }
+
+        return HandleResult.Fail(ErrorCodes.StationWaferSensorNoWafer, Name);
+    }
 
     #endregion
 

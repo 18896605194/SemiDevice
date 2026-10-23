@@ -117,7 +117,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 模块动作 `ModuleOperation`（和泛型版、`NoOpOperation`、等待扩展）在 `Components\Operations`（命名空间 `xyz.Components.Components`），
   `OperationState` 在 `Enums`——2026-10-05 从模块层挪下来，好让设备侧接口放进组件层。
 - `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用）；2026-10-18 起每个单例组件都有接口：`IAlarm`、`IEc`、`IMapper`、
-  `IDataChart`、`IE30Component`……（Component 后缀在一个个去掉，见 §2），找组件一律按它们）、模块共有的 `IModule`（名字、状态、模式、在做的动作、InitModule / Reset / Abort、上下线；
+  `IDataChart`、`IE30Component`……（Component 后缀在一个个去掉，见 §2），找组件一律按它们）、模块共有的 `IModule`（名字、状态、在做的动作、InitModule / Reset / Abort；生产 / 维护是单独的能力接口 `IMode`，见 §3；
   `ILoadPortAccess`、`ITransferRobot` 继承它；`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
   还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，平台默认 `RfidDriverComponent` 实现）、`IE87Callback`、`IE84Callback`、
   `IE84Provider`、`IJobManager`、`IE40Callback`、`IE94Callback`、`IE90Callback`（挂在晶圆账 `LedgerManagerComponent.E90Callback` 上）；它们用到的 `E84Timer`、`LoadPortTransferState`、CJ / PJ 的状态和命令在 `Enums`，
@@ -137,9 +137,12 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   xyz.35021.Shared）。2026-10-18 只搭了架子：初始化直接进空闲，手动 / 自动、两槽切换、自动补液这些默认做法以后写在基类里。
   给别的模块用的那一面是 `Supply\ISupplyAccess`（`Name`、`IsReady`，2026-10-20）：`IsReady` 在供液模块自己的扫描里每拍算（`protected virtual CheckReady()`，
   默认 = 状态是空闲 + 有一个槽就绪或正在供液），存 volatile，别的线程只读。腔体按自己的 SC `Supply`（模块名）开机取到它，起工艺前看（见 decisions.md「模块之间访问」）。
-- `BaseModule : ComponentBase, IModule`：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、`InitModule()`（动硬件的模块初始化，默认返回 null）、
-  `Online()/Offline()`（虚方法，只改 Mode；LoadPort、腔体、机械手的服务都调 `BaseService.Online<TModule>` / `Offline<TModule>` 走到这里，不各写一份）、
-  动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）。
+- `BaseStateComponent : ComponentBase`（2026-10-23 从 BaseModule 拆出来，模块和整机都继承它）：`abstract int State`（子类加 `[VariableMark(SV, Int, ...)]`，初值 `ModuleState.NotInit`）、
+  动作迁移表（`(状态, 动作)` → 执行中/成功状态）、`Begin(action, operation)`（不允许就返回 null，只有 Abort 能顶替在途动作）、动作检查 `CheckState`、挂一个动作和扫描步进、慢扫描 EC。
+  `BaseModule : BaseStateComponent, IModule` 只放模块才有的：`Kind`、站点类型 `Type`、`InitModule()`（动硬件的模块初始化，默认返回 null）。
+- **生产 / 维护模式** `IMode`（`Mode`、`SetProduction()`、`SetMaintenance()`；2026-10-23 原来的上线 / 下线改名、从 IModule 拿出来，见 decisions.md「整机不算模块；上线 / 下线改成生产 / 维护模式」）：
+  不继承别的接口，要这个能力的类直接实现——`BaseTransferStationModule`（LoadPort、腔体、buffer、对准器）、`BaseRobotModule` 各写一份（虚方法，只改 Mode、不经设备，开机维护）；
+  供液、整机没有。调度、整机推模块表按 `is IMode` 判；LoadPort、腔体、机械手的服务都调 `BaseService.SetProduction<TModule>` / `SetMaintenance<TModule>`，不各写一份。
 - 状态码（`public const int`，有继承）：`ModuleState` NotInit 10 / Initing 20 / Idle 30 / Aborting 35 / Error 40；
   `TransferModuleState` 50/60/70/80；`LoadPortState` 100~150；`ChamberState` Homing 100 / Processing 110 / Manual 120（部件手动动作中）；`RobotState` 200/210/220。
   同一个码在不同模块意思不同，客户端按模块种类翻（`ModuleStates`）。
@@ -208,7 +211,7 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   |---|---|---|---|
   | `Load()` | 账上的片不归没结束的 Job（`loadport.wafers_in_job` [模块, PJ]，Load 会清账重建、片的内部标识全换新）；有片的槽没被搬运占着（`transfer.slot_locked`） | 载具到位（`loadport.carrier_not_arrived`）；E84 交接没在走（`IE84.IsHandoffRunning` → `loadport.handoff_running`） | `CreateLoadOperation` |
   | `Unload()`（自动口径）/ `UnloadManually()`；只查：`CheckUnload()` | 关门的资源（`CheckCloseDoorResource`）：取出去的片都回来了（`loadport.wafers_outside` [模块, 片数]）、片不归没结束的 Job | 不拦 | `CreateUnloadOperation(mapAndVerify)` |
-  | `Home()`（`InitModule` = Home，被拒记日志） | **只在 Loaded（门开着）时**查关门的资源；没初始化 / 出错 / 空闲出发不查——拦住就卡死（端口回不到 Loaded、片也回不来） | 不拦 | `CreateHomeOperation` |
+  | `Home()`（`InitModule` = Home，被拒记日志；门开着、从这个口取出去的片还在机内时 `InitModule` 不发 Home、回做完的空操作，全部初始化当它好了，回片要用这个口） | **只在 Loaded（门开着）时**查关门的资源；没初始化 / 出错 / 空闲出发不查——拦住就卡死（端口回不到 Loaded、片也回不来） | 不拦 | `CreateHomeOperation` |
   | `Clamp()` / `Unclamp()` | 不碰片和账，不查 | 不拦（现在没有调用方，手动页没按钮） | `CreateClampOperation` / `CreateUnclampOperation` |
   | `Reset()` / `Abort()` | 不查 | 不设 | `CreateResetOperation` / `CreateAbortOperation` |
 
@@ -217,7 +220,9 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 - 动作失败（被人中止顶掉的不算）在操作终结时由 `RaiseActionFailedAlarm`（`protected virtual`，机型可重写：自己要管的情况先判、报了就 return，其余交给 base，整套换掉不调 base；在模块锁里，只报警不等待）报警，一次失败只报一条：机械手、腔体报 `ControlledStopAlarm`；LoadPort 超时按动作报各自的超时报警（Load / Unload / Home=初始化 / 夹紧 / 松开 / 复位 / 中止，跟 EC 各动作超时一一对应），不是超时的报 `ControlledStopAlarm`（显示为"LoadPort 动作失败"）。设备报错每拍 `RaiseAlarm(XxxDeviceAlarm)`。
 - 站点类：`BaseTransferStationModule`（SlotCount、传片环 PrepareTransfer → PrepareTransfer2 → Transferring →（同一站先取后放时取完 PrepareNextLeg 再 Transferring）→ TransferComplete；
   公共入口在锁里查本轮上下文、状态、有没有没收尾的动作，站点只重写 `*Core` 扩展点；SC `HandoffOnPick` / `HandoffOnPlace`（默认 False）开了的站点，
-  机械手伸到位停下后调 `HandoffPick` / `HandoffPlace` 中途交接（比如降、升顶针），站点重写 `HandoffPickCore` / `HandoffPlaceCore`，默认被拒，见 decisions.md「分段取放」）、
+  机械手伸到位停下后调 `HandoffPick` / `HandoffPlace` 中途交接（比如降、升顶针），站点重写 `HandoffPickCore` / `HandoffPlaceCore`，默认被拒，见 decisions.md「分段取放」；
+  在位传感器：组件初始化认下面叫 `WaferSensor` 的 DI（`IDiSensor`），`CheckWaferSensors()`（`ITransferStation` 上）sc 配了才跟晶圆账比——看到有片 = 账上这个站有片，
+  读不到也算对不上（`station.wafer_sensor_*` [站点]），没配回 null；传感器配法不一样的站点重写它。全部回片开始前用，见 decisions.md「全部回片」）、
   `BaseLoadPortModule`（子组件按类型找 Driver / RFID / E84；`InitComponent` 里先登记晶圆账槽位、挂驱动的主动事件，再由基类把子组件（驱动、读头、E84）各自初始化——
   连接、E84 输出回初始写在它们自己的 `InitComponent` 里，端口不点名；RFID、驱动这一次没连上也照样往下走，
   返回 false 只为开机日志看得到，之后由驱动组件按间隔重连；`InitModule()` = `Home()`；**设备状态查询在平台**：按 EC `QueryStatusIntervalMs`（默认 1000 ms，从上一条发出去算）发一条 GET:STATE，超过 EC `QueryDataTimeOut` 没回就作废这一条、
@@ -230,7 +235,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、PickArms / PlaceArms（从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；推送的站点表还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、PickArms / PlaceArms（从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；推送的站点表还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
   分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
   能分段的机械手类在类上声明它、重写 `CreateExtend/RetractPick/PlaceOperation` 给设备动作（默认没有 → `robot.handoff_unsupported`）；伸臂做完停在
   `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账）、
@@ -321,12 +326,12 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   腔体按工艺配方的步骤执行（2026-10-10）见上面"腔体整腔动作"：执行按字段名认（Seconds、Rpm、Arm、Chemical、Flow、Mode、Position、ScanTo、ScanSpeed），流量下发到喷嘴的 `AoIndex`。
 - **buffer** `Buffer\BaseBufferModule : BaseTransferStationModule, IBuffer`（跟 LoadPort、腔体一样：自己的能力走 `IBuffer`，跟机械手交互走站点基类），
   机型写空类 `BufferModule : BaseBufferModule`：两台机械手之间放片的架子上的一段，只做取放、不做工艺。sc 里 `Buffer` 是分组节点（不写 Type），
-  下面进片段、出片段各配一个（SC `SlotCount` 几层、`IsEnable`），各自 `IsRun`。开机在晶圆账登记槽位、待命、自己上线
+  下面进片段、出片段各配一个（SC `SlotCount` 几层、`IsEnable`），各自 `IsRun`。开机在晶圆账登记槽位、待命、自己切生产模式
   （没有手动页）；全部初始化时直接回待命。跟 JK 一样，机械手控制器里两段各教一个站号，站点表里各配各的 `Number`，槽号原样发、不换算，
   机械手、搬运管理、调度都不认识 buffer。见 decisions.md「buffer」。
 - **对准器** `Aligner\BaseAlignerModule : BaseTransferStationModule, IAligner`（2026-10-22；机型写空类继承，跟 buffer 一样）：一个槽，`Kind` = `StationKind.Aligner`，只声明取放
   （流程配方这一步不选工艺配方，任务表只有放片、取片）。下面必挂一个驱动子组件（`IAlignerDriverComponent`：Home / Align(角度) / Stop / ResetDrive / AbandonAll，
-  指令句柄 `xyz.Drivers\Aligner\AlignerCommand`），没挂开机抛；还没有品牌驱动。开机登记晶圆账一个槽、自己上线（没有手动页），`InitModule()` = `Home()`。
+  指令句柄 `xyz.Drivers\Aligner\AlignerCommand`），没挂开机抛；还没有品牌驱动。开机登记晶圆账一个槽、自己切生产模式（没有手动页），`InitModule()` = `Home()`。
   **片放上来自己对准**：`OnTransferFinished` 里这一轮放了片就接着 `Begin(Align)`（`TransferComplete → Aligning → Idle`），搬运照常收尾、机械手不等；
   起不了（驱动断了、互锁 `AlignInterlock` 不让）落 Error、报 `ControlledStopAlarm`。**台上的片没对好不让取**：`CheckPrepareTransfer` 加一条 `aligner.wafer_not_aligned`
   （记的是对好的那片的内部标识，跟账上台上那片比，只在内存）。回零时台上有片串一条对准（`CreateHomeOperation(hasWafer)`）。
@@ -601,13 +606,14 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - 设备总状态 `EquipmentStatusDto`（四色灯红黄绿 + `WaferSize` = 晶圆尺寸组件现在的尺寸，没配是 12）：整机模块 `CreateEquipmentStatus()` 算一次；
   整机每拍算，变了才点亮下面挂的四色灯（`ILight`）、推给顶栏（token "EquipmentStatus"，留存）。
   **系统状态、模式不在这里**（三色灯是三色灯，系统状态是整机自己的状态机），看下面「整机」。切晶圆尺寸 `IEquipmentService.SetWaferSizeAsync`（参数 `IEquipmentService.WaferSizeKey`）：
-  启用的模块都是未初始化（整机模块也在里面，等于"整机没初始化"）、LoadPort 以外没片才切，切了写回 sc.xml（见 decisions.md「晶圆尺寸 8 / 12 寸」）。
-- **整机** `System\SystemModule`（sc.xml 顶层 `System` 节点，必配、开机就查；`BaseModule`，在根上自己一条扫描线程；下面挂 `WaferSize` 和四色灯；
+  整机和启用的模块都是未初始化（整机不算模块，单独查）、LoadPort 以外没片才切，切了写回 sc.xml（见 decisions.md「晶圆尺寸 8 / 12 寸」）。
+- **整机** `System\SystemModule`（sc.xml 顶层 `System` 节点，必配、开机就查；`BaseStateComponent`、不算模块（不实现 `IModule`，`ISystemModule` 自己声明 Name / State / Abort），在根上自己一条扫描线程；下面挂 `WaferSize` 和四色灯；
   SC `Language`；单例按 `ISystemModule` 找）：
   状态 `SystemState : ModuleState`——NotInit / Initing / Idle（Manual）/ Aborting（停止中）/ Error 直接用基础的，加 AutoIdle 100、AutoRunning 110、Returning 120；
   状态表 `SystemStateTable`。动作入口（在模块锁里查状态再挂）：`InitAll()`（`SystemInitOperation`：先 `IRobot` 的 `InitModule`，收完尾再一起初始化其余模块；
   被拒 `system.init_rejected` / 没做成 `system.init_failed` [模块]）、`Auto()` / `Manual()`（当场切、不挂动作；拨搬运管理的自动派单，Job 只看那个开关，开关只由整机拨）、
-  `ReturnAll()`（`SystemReturnOperation`，见 decisions.md）、`Abort()` = 整机停止（`SystemStopOperation`：先进停止中顶掉初始化 / 回片，锁外关自动派单、撤搬运、
+  `ReturnAll()`（锁里查状态 Idle 和搬运管理、晶圆账开着；锁外 `SystemReturnOperation.Prepare` 查 Job、每片去处、倒着走的路线、用得到的设备、在位传感器，
+  有一条不过当场回原因；进锁再核一遍状态才挂上 `SystemReturnOperation`：一次一趟、手上的 → 其余站点 → 工艺站，经搬运管理（Recovery）搬，见 decisions.md「全部回片」）、`Abort()` = 整机停止（`SystemStopOperation`：先进停止中顶掉初始化 / 回片，锁外关自动派单、撤搬运、
   给在做动作的模块发中止（在搬运的机械手、给 Job 做工艺的腔体除外）、Job 全部走中止；等停的那一刻各模块手上的动作和撤掉的搬运都收完尾才回到停之前该在的地方）。
   每拍 Auto 下按 `JobManager.HasRunningJob`（CJ 执行中 / 暂停 / 中止中）切自动运行 / 自动空闲。动作没做成先不进 Error（报警逻辑还没接）：初始化回 NotInit、回片回 Idle。
   推送 `SystemStateDto`（token "SystemState"，留存，变了才推）；另推各模块状态表 `ModuleStatusListDto`（每个模块 Name / Kind / State / Mode，token "ModuleStatus"，留存，
@@ -680,7 +686,8 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
 - 流水组件的套路（报警、晶圆账）：SC `EnableHistory` / `HistoryDatabase` / `HistoryKeepDays`，EC `HistoryBatchSize` / `HistoryBacklogWarning`；
   `OnSettingLoaded` 建 Channel 和写库任务（这时不碰库）；每天第一次写之前整张删过期日表。写库失败只记日志，不影响设备。
 - 量小、要马上查到的（人工调整记录）直接同步写一张不分表的表，用到时 `CodeFirst.InitTables` 建表。
-- **晶圆账存盘**（SC `IsPersistent`，EC `SnapshotIntervalMs` 默认 500）：表 `wafer_current` 存"现在"每片一行（内部标识、位置、来处、载具、状态），
+- **晶圆账存盘**（SC `IsPersistent`，EC `SnapshotIntervalMs` 默认 500）：表 `wafer_current` 存"现在"每片一行（内部标识、位置、来处、载具、状态、
+  走过的位置 `Path`——`WaferInfo.Path` 出了 LoadPort 以后待过的模块逗号隔开，移账一次记一站、回到 LoadPort 清空，全部回片倒着走靠它；老表补列时老行是空的），
   账一变（都走 `RecordHistory`）标脏，存盘线程隔一会儿整张重写（事务里删了再插）；**开机恢复之前不写**（开机那一刻的空账不能冲掉上次的）。
   `Restore()`（晶圆账自己的 `Bind` 里调：各模块组件初始化登记完槽位之后、开始扫描之前）：腔体、机械手上的放回去（同一个内部标识，流水记 `Restored`），**LoadPort 上的不恢复，以开机 Mapping 为准**，
   重启前在加工的记成中止，放不回去的（位置没装、越界、槽上有片）丢掉记告警。宿主退出（`ApplicationStopping`）调 `StopSnapshot()` 最后存一次。

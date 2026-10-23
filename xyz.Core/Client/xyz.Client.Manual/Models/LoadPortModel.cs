@@ -23,7 +23,9 @@ public class LoadPortModel : ObservableObject
 
     private ModuleMode _mode;
 
-    /// <summary>模块模式（Online/Offline）：是否参与自动调度。</summary>
+    /// <summary>
+    /// 模块模式（生产 = 交给调度用 / 维护）
+    /// </summary>
     public ModuleMode Mode
     {
         get => _mode;

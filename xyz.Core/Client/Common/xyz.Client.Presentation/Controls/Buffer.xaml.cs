@@ -45,15 +45,17 @@ public partial class Buffer : UserControl
     public static readonly DependencyProperty StateToneProperty = DependencyProperty.Register(
         nameof(StateTone), typeof(ModuleStateTone), typeof(Buffer), new PropertyMetadata(ModuleStateTone.Inactive));
 
-    /// <summary>参与调度的在线状态；无通讯驱动的被动 Buffer 也可使用。</summary>
-    public bool IsOnline
+    /// <summary>
+    /// 生产模式（交给调度用）亮，维护灭
+    /// </summary>
+    public bool IsProduction
     {
-        get => (bool)GetValue(IsOnlineProperty);
-        set => SetValue(IsOnlineProperty, value);
+        get => (bool)GetValue(IsProductionProperty);
+        set => SetValue(IsProductionProperty, value);
     }
 
-    public static readonly DependencyProperty IsOnlineProperty = DependencyProperty.Register(
-        nameof(IsOnline), typeof(bool), typeof(Buffer), new PropertyMetadata(false));
+    public static readonly DependencyProperty IsProductionProperty = DependencyProperty.Register(
+        nameof(IsProduction), typeof(bool), typeof(Buffer), new PropertyMetadata(false));
 
     /// <summary>最底层的物理槽号；用于显示同一个架子的某个槽段，默认 1。</summary>
     public int FirstSlot

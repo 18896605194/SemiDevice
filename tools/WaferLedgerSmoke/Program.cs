@@ -797,6 +797,12 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     var armWafer = before.Create("PLP", 3, WaferStatus.Normal, "FOUP-P")!;
     Check(before.Move("PLP", 2, "PPM", 1) && before.SetProcessState("PPM", 1, WaferProcessState.InProcess)
           && before.Move("PLP", 3, "PRB", 2), "摆好：一片在载具里、一片在腔体里加工、一片在机械手手上");
+    Check(before.Get("PPM", 1)?.Path.SequenceEqual(["PPM"]) == true && before.Get("PRB", 2)?.Path.SequenceEqual(["PRB"]) == true,
+        "出了 LoadPort 以后待过的位置记在片上（全部回片倒着走靠它）：腔里那片记着 PPM，手上那片记着 PRB");
+    Check(before.ManualMove("PLP", 1, "PRB", 1, "Smoke", "走过的位置") == WaferAdjustResult.Ok
+          && before.Get("PRB", 1)?.Path.SequenceEqual(["PRB"]) == true
+          && before.Move("PRB", 1, "PLP", 1) && before.Get("PLP", 1)?.Path.Count == 0,
+        "人工移账也记走过的位置；回到 LoadPort 清空");
     var mapper = IocHelper.GetService<IMapper>();
     var armNow = before.Get("PRB", 2);
     var armRow = mapper is not null && armNow is not null ? mapper.Map<WaferCurrentEntity>(armNow) : null;
@@ -805,8 +811,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && armRow.OriginSlot == armNow.OriginSlot && armRow.SourceLoadPort == armNow.SourceLoadPort && armRow.SourceSlot == armNow.SourceSlot
           && armRow.OriginCarrierId == armNow.OriginCarrierId && armRow.CarrierId == armNow.CarrierId && armRow.LotId == armNow.LotId
           && armRow.Status == armNow.Status.ToString() && armRow.ProcessState == armNow.ProcessState.ToString()
-          && armRow.CreatedAt == armNow.CreatedAt && armRow.UpdatedAt == armNow.UpdatedAt,
-        "映射组件转出来的存盘行跟账上的片逐字段对得上（Id 存成 WaferGuid，枚举存成名字）");
+          && armRow.CreatedAt == armNow.CreatedAt && armRow.UpdatedAt == armNow.UpdatedAt && armRow.Path == "PRB",
+        "映射组件转出来的存盘行跟账上的片逐字段对得上（Id 存成 WaferGuid，枚举存成名字，走过的位置逗号隔开）");
     var historyRow = mapper is not null && armNow is not null ? mapper.Map<WaferHistoryEntity>(armNow) : null;
     var otherHistoryRow = mapper is not null && armNow is not null ? mapper.Map<WaferHistoryEntity>(armNow) : null;
     Check(historyRow is not null && otherHistoryRow is not null && armNow is not null
@@ -840,6 +846,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && restoredChamber.SourceLoadPort == "PLP" && restoredChamber.SourceSlot == 2 && restoredChamber.CarrierId == "FOUP-P",
         "腔体里那片：还是同一片，来处、载具都在；重启前在加工的记成中止");
     Check(restoredArm is not null && restoredArm.Id == armWafer.Id && restoredArm.SourceSlot == 3, "机械手手上那片也回来了");
+    Check(restoredChamber is not null && restoredChamber.Path.SequenceEqual(["PPM"]) && restoredArm is not null && restoredArm.Path.SequenceEqual(["PRB"]),
+        "走过的位置跟着存盘恢复：重启后全部回片照样能倒着走");
     Check(after.Get("PLP", 2) is null && after.Get("PLP", 3) is null && after.Get("PLP", 1)?.Id != onPort.Id,
         "LoadPort 上的不恢复：以开机 Mapping 为准");
 

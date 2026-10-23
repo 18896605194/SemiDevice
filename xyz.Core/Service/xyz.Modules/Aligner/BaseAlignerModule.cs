@@ -27,7 +27,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     #region SC
 
-    [SCEditor("True", "Aligner", "是否启用对准器（False = 装机未接 / 停用：不登记槽位、不上线，调度不往这儿放片）")]
+    [SCEditor("True", "Aligner", "是否启用对准器（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
     public bool IsEnable { get; set; } = true;
 
     #endregion
@@ -125,7 +125,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     #region 组件初始化
 
     /// <summary>
-    /// 组件初始化（开机，不动硬件）：认驱动、登记晶圆账槽位；没有手动页，跟 buffer 一样开机就上线，全部初始化回零以后调度才会来
+    /// 组件初始化（开机，不动硬件）：认驱动、登记晶圆账槽位；没有手动页，跟 buffer 一样开机就切生产模式，全部初始化回零以后调度才会来
     /// </summary>
     public override bool InitComponent()
     {
@@ -143,7 +143,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         _driver = driver;
         _ledger = IocHelper.GetService<ILedgerManager>();
         _ledger?.RegisterLocation(Name, SlotCount);
-        Online();
+        SetProduction();
         return base.InitComponent();
     }
 

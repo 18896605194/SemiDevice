@@ -5,8 +5,8 @@
     xmlns:models="clr-namespace:xyz.Client.Presentation.Models"
     x:Name="Root">
 
-    <!--  模块小框：圆点是状态（就绪绿、报警红、其他灰），边框亮（跟就绪一样的绿）= Auto、灭（灰）= Manual，里面写模块名。
-          控件不认状态码：圆点按 Tone、边框按 IsAuto，谁用谁给  -->
+    <!--  模块小框：圆点是状态（就绪绿、报警红、其他灰），边框亮（跟就绪一样的绿）= 生产、灭（灰）= 维护，不分生产 / 维护的（供液）不画边框，里面写模块名。
+          控件不认状态码：圆点按 Tone、边框按 IsProduction / HasMode，谁用谁给  -->
     <Border>
         <Border.Style>
             <Style TargetType="Border">
@@ -18,8 +18,12 @@
                 <Setter Property="BorderThickness" Value="2" />
                 <Setter Property="CornerRadius" Value="4" />
                 <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsAuto, ElementName=Root}" Value="True">
+                    <DataTrigger Binding="{Binding IsProduction, ElementName=Root}" Value="True">
                         <Setter Property="BorderBrush" Value="{DynamicResource DarkRunningStatus}" />
+                    </DataTrigger>
+                    <!--  放在后面：不分模式的不管 IsProduction 都不画；边框粗细留着，小框高矮宽窄跟别的一样  -->
+                    <DataTrigger Binding="{Binding HasMode, ElementName=Root}" Value="False">
+                        <Setter Property="BorderBrush" Value="{x:Null}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>

@@ -22,10 +22,10 @@ public interface ILoadPortService
     Task<RpcResponse> AbortAsync(string module);
 
     [OperationContract]
-    Task<RpcResponse> OnlineAsync(string module);
+    Task<RpcResponse> SetProductionAsync(string module);
 
     [OperationContract]
-    Task<RpcResponse> OfflineAsync(string module);
+    Task<RpcResponse> SetMaintenanceAsync(string module);
 
     [OperationContract]
     Task<RpcResponse> AutoAsync(string module);

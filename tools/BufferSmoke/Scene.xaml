@@ -2,6 +2,6 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls;assembly=xyz.Client.Presentation"
       Width="460" Height="420">
-    <controls:Buffer x:Name="Rack" Title="Buffer" StateText="待命" StateTone="Ready" IsOnline="True"
+    <controls:Buffer x:Name="Rack" Title="Buffer" StateText="待命" StateTone="Ready" IsProduction="True"
                      FirstSlot="{Binding FirstSlot}" SlotCount="{Binding SlotCount}" Wafers="{Binding Wafers}" />
 </Grid>

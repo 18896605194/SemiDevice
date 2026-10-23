@@ -10,7 +10,7 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 
-// 对准器冒烟：装配（没挂驱动开机就抛、登记晶圆账一个槽、开机就上线、站点类型、只取放）、回零（没连上当场拒、台上没片只回零）、
+// 对准器冒烟：装配（没挂驱动开机就抛、登记晶圆账一个槽、开机就是生产模式、站点类型、只取放）、回零（没连上当场拒、台上没片只回零）、
 // 片放上来接着对准（搬运照常收尾不等对准、对准中不让取、对完回待命、缺口转到 EC 角度）、只取走不对、交换后对新片、
 // 台上的片没对过不让取（重启、人改账）而回零时接着对一遍、对准失败 / 超时落出错报警作废在途指令且复位回零后再对、
 // 片放上来起不了对准（驱动断了）落出错报警、中止顶掉对准不报警、状态不允许、停用。
@@ -100,7 +100,7 @@ void ClearStage(SmokeAligner target)
     }
 }
 
-// 1. 装配：没挂驱动开机就抛；挂了的登记晶圆账一个槽、开机就上线（没有手动页，跟 buffer 一样）、还没回零
+// 1. 装配：没挂驱动开机就抛；挂了的登记晶圆账一个槽、开机就是生产模式（没有手动页，跟 buffer 一样）、还没回零
 {
     var bare = new SmokeAligner("AL0", withDriver: false);
     bool threw = false;
@@ -121,7 +121,7 @@ var driver = aligner.Driver!;
 Check(aligner.InitComponent(), "对准器组件初始化");
 SmokeIoc.Tree(aligner);
 Check(ledger.GetSlots("AL1").Count == 1 && aligner.SlotCount == 1, "晶圆账登记一个槽");
-Check(aligner.Mode == ModuleMode.Online && aligner.State == ModuleState.NotInit, "开机就上线、还没回零");
+Check(aligner.Mode == ModuleMode.Production && aligner.State == ModuleState.NotInit, "开机就是生产模式、还没回零");
 Check(aligner.Kind == StationKind.Aligner && IocHelper.GetServices<IAligner>().Single() == aligner
       && IocHelper.GetServices<ITransferStation>().Single() == aligner,
     "站点类型是对准器；按 IAligner、ITransferStation 都找得到");
@@ -262,11 +262,11 @@ Check(RunUntil(aligner, () => abort!.IsSettled) && aligner.State == ModuleState.
 Check(aligner.Home().IsSuccess && RunUntil(aligner, () => aligner.State == ModuleState.Idle) && aligner.IsWaferAligned,
     "回零接着对好");
 
-// 11. 停用：不认驱动、不登记晶圆账、不上线，动作一律拒 module.disabled
+// 11. 停用：不认驱动、不登记晶圆账、不切生产模式，动作一律拒 module.disabled
 {
     var disabled = new SmokeAligner("AL2", withDriver: false) { IsEnable = false };
-    Check(disabled.InitComponent() && ledger.Locations.All(location => location.Module != "AL2") && disabled.Mode == ModuleMode.Offline,
-        "停用的对准器：不挂驱动也不抛，不登记晶圆账、不上线");
+    Check(disabled.InitComponent() && ledger.Locations.All(location => location.Module != "AL2") && disabled.Mode == ModuleMode.Maintenance,
+        "停用的对准器：不挂驱动也不抛，不登记晶圆账、不切生产模式");
     var disabledHome = disabled.Home();
     Check(!disabledHome.IsSuccess && disabledHome.ErrorMessage == ErrorCodes.ModuleDisabled && disabled.CheckAbort()?.ErrorMessage == ErrorCodes.ModuleDisabled,
         "停用的对准器：回零、中止都拒 module.disabled");

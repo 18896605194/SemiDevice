@@ -330,56 +330,56 @@ var service = new LoadPortService();
         $"驱动没连上：Load 当场被拒（不发出去再落 Error、报警），实际 {loadResponse.Code}");
 }
 
-// Online/Offline 只改模块模式 Mode，Auto/Manual 只改 LoadPort 的 Access Mode：
+// 生产 / 维护只改模块模式 Mode，Auto/Manual 只改 LoadPort 的 Access Mode：
 // 都不经设备协议，置位即成功，不产生操作、不等待，而且互不影响。
 SmokeIoc.Tree(port);
-var modeResponse = await service.OnlineAsync("missing");
+var modeResponse = await service.SetProductionAsync("missing");
 Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
-    "Online must report a missing module.");
+    "SetProduction must report a missing module.");
 modeResponse = await service.AutoAsync("missing");
 Check(!modeResponse.Success && modeResponse.Code == ErrorCodes.ModuleNotFound,
     "Auto must report a missing module.");
 
-Check(port.Mode == ModuleMode.Offline && !port.IsAutoMode, "Probe port must start offline and in manual mode.");
+Check(port.Mode == ModuleMode.Maintenance && !port.IsAutoMode, "Probe port must start in maintenance and manual mode.");
 var callsBeforeMode = port.Calls;
 var modeSnapshot = port.CreateStateDto();
-modeResponse = await service.OnlineAsync(port.Name);
-Check(modeResponse.Success && port.Mode == ModuleMode.Online && !port.IsAutoMode,
-    "Online must only set the module mode.");
+modeResponse = await service.SetProductionAsync(port.Name);
+Check(modeResponse.Success && port.Mode == ModuleMode.Production && !port.IsAutoMode,
+    "SetProduction must only set the module mode.");
 var onlineSnapshot = port.CreateStateDto();
-Check(onlineSnapshot is not null && onlineSnapshot.Mode == ModuleMode.Online
+Check(onlineSnapshot is not null && onlineSnapshot.Mode == ModuleMode.Production
       && port.CreateStateDto().HasStateChanged(modeSnapshot),
     "The module mode must reach the state snapshot and count as a change.");
 
 modeResponse = await service.AutoAsync(port.Name);
-Check(modeResponse.Success && port.IsAutoMode && port.Mode == ModuleMode.Online,
+Check(modeResponse.Success && port.IsAutoMode && port.Mode == ModuleMode.Production,
     "Auto must only set the access mode.");
 modeResponse = await service.ManualAsync(port.Name);
-Check(modeResponse.Success && !port.IsAutoMode && port.Mode == ModuleMode.Online,
+Check(modeResponse.Success && !port.IsAutoMode && port.Mode == ModuleMode.Production,
     "Manual must only clear the access mode.");
 
-modeResponse = await service.OfflineAsync(port.Name);
-Check(modeResponse.Success && port.Mode == ModuleMode.Offline && port.Calls == callsBeforeMode,
-    "Offline must clear the module mode without starting a device action.");
+modeResponse = await service.SetMaintenanceAsync(port.Name);
+Check(modeResponse.Success && port.Mode == ModuleMode.Maintenance && port.Calls == callsBeforeMode,
+    "SetMaintenance must clear the module mode without starting a device action.");
 
-// 机械手上线 / 下线：跟 LoadPort、腔体一样走服务基类 → 模块基类的 Online / Offline，只改 Mode；
+// 机械手切生产 / 维护：跟 LoadPort、腔体一样走服务基类 → 模块的 SetProduction / SetMaintenance，只改 Mode；
 // 按模块类型找，机械手的服务拉不动同名的 LoadPort。
 {
     var modeRobot = new ProbeRobot();
     SmokeIoc.Tree(modeRobot, port);
     var robotService = new RobotService();
-    var robotMode = await robotService.OnlineAsync("missing");
-    Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound, "机械手上线：找不到模块要回 module.not_found");
-    robotMode = await robotService.OnlineAsync(port.Name);
-    Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound && port.Mode == ModuleMode.Offline,
-        "机械手的服务只找机械手，不能把 LoadPort 拉上线");
-    Check(modeRobot.Mode == ModuleMode.Offline, "机械手开机是下线");
-    robotMode = await robotService.OnlineAsync(modeRobot.Name);
-    Check(robotMode.Success && modeRobot.Mode == ModuleMode.Online && modeRobot.CreateStateDto().Mode == ModuleMode.Online,
-        "机械手上线：Mode 变 Online，状态推送里带上");
-    robotMode = await robotService.OfflineAsync(modeRobot.Name);
-    Check(robotMode.Success && modeRobot.Mode == ModuleMode.Offline && modeRobot.CreateStateDto().Mode == ModuleMode.Offline,
-        "机械手下线：Mode 变 Offline，状态推送里带上");
+    var robotMode = await robotService.SetProductionAsync("missing");
+    Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound, "机械手切生产：找不到模块要回 module.not_found");
+    robotMode = await robotService.SetProductionAsync(port.Name);
+    Check(!robotMode.Success && robotMode.Code == ErrorCodes.ModuleNotFound && port.Mode == ModuleMode.Maintenance,
+        "机械手的服务只找机械手，不能把 LoadPort 切成生产");
+    Check(modeRobot.Mode == ModuleMode.Maintenance, "机械手开机是维护模式");
+    robotMode = await robotService.SetProductionAsync(modeRobot.Name);
+    Check(robotMode.Success && modeRobot.Mode == ModuleMode.Production && modeRobot.CreateStateDto().Mode == ModuleMode.Production,
+        "机械手切生产：Mode 变 Production，状态推送里带上");
+    robotMode = await robotService.SetMaintenanceAsync(modeRobot.Name);
+    Check(robotMode.Success && modeRobot.Mode == ModuleMode.Maintenance && modeRobot.CreateStateDto().Mode == ModuleMode.Maintenance,
+        "机械手切维护：Mode 变 Maintenance，状态推送里带上");
 }
 
 // EAP 口子：回调走 EAP 的派发组件（宿主里是 sc.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
@@ -462,8 +462,8 @@ Check(ledger.Get(port.Name, 4)?.CarrierId == "FOUP-777", "补载具号应覆盖�
 // 访问状态：走真路径（Begin → 状态表 → 操作终结 → OnOperationCompleted）。
 // E87 的 IN ACCESS 照老 CTC：Load 好了就算开始取放。
 port.NoteState(ModuleState.Idle);
-Check(port.LocalTransferState == LoadPortTransferState.OutOfService, "端口下线（不参与自动调度）时自己判停用");
-port.Online();
+Check(port.LocalTransferState == LoadPortTransferState.OutOfService, "端口维护模式（不交给调度用）时自己判停用");
+port.SetProduction();
 Check(port.IsIdle && !port.IsLoaded && port.LocalTransferState == LoadPortTransferState.TransferBlocked,
     "空闲、有载具、还没干完：端口自己判挡着（不让天车取走）");
 
@@ -513,7 +513,7 @@ port.Next = null;
 Check(port._carrier.Info!.AccessStatus == CarrierAccessStatus.Complete,
     "已经判完成的载具，Unload 不该把它改掉");
 Check(port.IsIdle && port.LocalTransferState == LoadPortTransferState.ReadyToUnload, "干完了、Unload 好了：端口自己判等取走");
-port.Offline();
+port.SetMaintenance();
 
 // Host 核对的进展写回设备侧（EAP 的 E87 用）：给了的那一项才改
 port._carrier.UpdateStatus(null, CarrierSlotMapStatus.WaitingForHost);
@@ -835,11 +835,24 @@ port.E87Callback = null;
             && robot.State == ModuleState.Idle;
     }
 
+    // 全部回片开始前的对账（CheckWaferSensors）：配了传感器的手跟账比，读不到也算对不上
+    bool SensorCheck(string? code)
+    {
+        var result = robot.CheckWaferSensors();
+        if (code is null)
+        {
+            return result is null;
+        }
+
+        return result is not null && result.ErrorMessage == code && result.Args.SequenceEqual(["SmokeRobot", "1"]);
+    }
+
     // 传感器还没读到：取放不敢伸手；Home 不碰片，不拦
     robot.Tick();
     Check(robot.Arms[0].HasWafer is null && robot.Arms[0].IsWaferCheckEnabled
           && SensorRejected(robot.Pick(1, "SmokeLP", 3), ErrorCodes.RobotArmSensorUnknown, "SmokeRobot", "1"),
         "传感器还没读到：取片被拒，robot.arm_sensor_unknown [机械手, 手指号]");
+    Check(SensorCheck(ErrorCodes.RobotArmSensorUnknown), "传感器还没读到：回片前对账也算对不上（robot.arm_sensor_unknown）");
     robot.Next = new ProbeOperation();
     Check(robot.Home().Result == robot.Next, "传感器还没读到不拦 Home");
     robot.Next!.Succeed();
@@ -854,6 +867,7 @@ port.E87Callback = null;
         "取片前传感器看到手上有片、账上没有：robot.arm_sensor_has_wafer [机械手, 手指号]");
     Check(robot.CheckPick(1, "SmokeLP", 3)?.ErrorMessage == ErrorCodes.RobotArmSensorHasWafer, "只查不动的 CheckPick 也查传感器（搬运管理落标记前先问它）");
     Check(SensorRejected(robot.Home(), ErrorCodes.RobotArmSensorHasWafer, "SmokeRobot", "1"), "Home 前账实不符也拦：先按实物改账");
+    Check(SensorCheck(ErrorCodes.RobotArmSensorHasWafer), "回片前对账：传感器看到有片、账上手空着，robot.arm_sensor_has_wafer");
 
     // 取片：设备做完了还要等传感器看到片，才算做成、才记账
     sensor.Level = false;
@@ -871,6 +885,7 @@ port.E87Callback = null;
     Check(picking is not null && picking.IsSuccess && robot.State == ModuleState.Idle && sensorLedger.Get(robot.Name, 1)?.Id == wafer.Id,
         "传感器跟上（有片）：取片做成，片记到 Arm1");
     Check(robot.Arms[0].LedgerHasWafer, "取片记账以后手指的 LedgerHasWafer 跟着账变成有片");
+    Check(SensorCheck(null), "回片前对账：传感器看到有片、账上手上也有，对得上");
     sensorLedger.IsEnable = false;
     Check(!robot.Arms[0].LedgerHasWafer, "账没开：LedgerHasWafer 为 false");
     sensorLedger.IsEnable = true;
@@ -881,6 +896,7 @@ port.E87Callback = null;
     Check(SensorRejected(robot.Place(1, "SmokeLP", 4), ErrorCodes.RobotArmSensorNoWafer, "SmokeRobot", "1"),
         "放片前传感器没看到片、账上有：robot.arm_sensor_no_wafer [机械手, 手指号]");
     Check(SensorRejected(robot.Home(), ErrorCodes.RobotArmSensorNoWafer, "SmokeRobot", "1"), "Home 前账上有片、传感器没看到：拦");
+    Check(SensorCheck(ErrorCodes.RobotArmSensorNoWafer), "回片前对账：账上手上有片、传感器没看到，robot.arm_sensor_no_wafer");
 
     // 放片做完、时限到了传感器还看到片：判失败、落 Error、不记账（片可能还挂在手上）
     sensor.Level = true;
@@ -915,6 +931,48 @@ port.E87Callback = null;
         "急停顶掉放片：外层和设备动作都落 Aborted");
     robot.Next!.Succeed();
     robot.Tick();
+
+    SmokeIoc.Use<ILedgerManager>(null);
+}
+
+// ── 站点在位传感器：站点下面挂了 WaferSensor（DI）的，sc 配了才跟晶圆账比（看到有片 = 账上这个站有片），读不到也算对不上；没配不查 ──
+{
+    var stationLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManager>(stationLedger);
+    var bare = new ProbeAligner("NoSensorStation");
+    Check(bare.InitComponent() && bare.CheckWaferSensors() is null, "站点没配在位传感器：不查");
+
+    var station = new ProbeAligner("SensorStation");
+    var sensor = new ProbeDi("SensorStation.WaferSensor") { AlarmEnabled = false, DebounceMs = 0 };
+    station.AddChild(sensor);
+    stationLedger.RegisterLocation("SensorStation", 1);
+    Check(station.InitComponent(), "站点组件初始化：认下面叫 WaferSensor 的 DI");
+
+    bool StationSensor(string? code)
+    {
+        var result = station.CheckWaferSensors();
+        if (code is null)
+        {
+            return result is null;
+        }
+
+        return result is not null && result.ErrorMessage == code && result.Args.SequenceEqual(["SensorStation"]);
+    }
+
+    sensor.Tick();
+    Check(StationSensor(ErrorCodes.StationWaferSensorUnknown), "配了传感器、还读不到：station.wafer_sensor_unknown [站点]");
+    sensor.Level = false;
+    sensor.Tick();
+    Check(StationSensor(null), "传感器没看到片、账上也没片：对得上");
+    sensor.Level = true;
+    sensor.Tick();
+    Check(StationSensor(ErrorCodes.StationWaferSensorHasWafer), "传感器看到有片、账上没有：station.wafer_sensor_has_wafer");
+    Check(stationLedger.Create("SensorStation", 1) is not null && StationSensor(null), "账上补上这片：对得上");
+    sensor.Level = false;
+    sensor.Tick();
+    Check(StationSensor(ErrorCodes.StationWaferSensorNoWafer), "账上有片、传感器没看到：station.wafer_sensor_no_wafer");
+    stationLedger.IsEnable = false;
+    Check(StationSensor(null), "晶圆账没开：没得比，不查");
 
     SmokeIoc.Use<ILedgerManager>(null);
 }
@@ -1143,7 +1201,7 @@ port.E87Callback = null;
     SmokeIoc.Use<IAlarm>(null);
 }
 
-// ── E84：按 CTC 时序走一遍送盒、取盒，闸门（没开/Manual/下线）、中途打断、超时锁住与人工恢复 ─────
+// ── E84：按 CTC 时序走一遍送盒、取盒，闸门（没开/Manual/维护）、中途打断、超时锁住与人工恢复 ─────
 {
     var alarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(alarms);
@@ -1160,15 +1218,15 @@ port.E87Callback = null;
     lp.NoteState(ModuleState.Idle);
 
     lp.Tick();
-    Check(e84.State == E84State.NotAvailable && e84.Outputs == default, "Manual + 下线时 E84 不可交接，输出全灭");
+    Check(e84.State == E84State.NotAvailable && e84.Outputs == default, "Manual + 维护模式时 E84 不可交接，输出全灭");
     lp.SetAutoMode(true);
     lp.Tick();
-    Check(e84.State == E84State.NotAvailable && !e84.Outputs.HoAvbl, "只切 Auto、没上线（Out Of Service）也不交接");
-    lp.Online();
+    Check(e84.State == E84State.NotAvailable && !e84.Outputs.HoAvbl, "只切 Auto、还是维护模式（Out Of Service）也不交接");
+    lp.SetProduction();
     lp.Tick();
     var outputs = e84.Outputs;
     Check(e84.State == E84State.Available && outputs.HoAvbl && outputs.Es && !outputs.LReq && !outputs.UReq,
-        "Auto + 上线 + 空闲 + 没载具：亮 HO_AVBL 等搬运车");
+        "Auto + 生产模式 + 空闲 + 没载具：亮 HO_AVBL 等搬运车");
     Check(events.Wait("AvailabilityChanged:True"), "HO_AVBL 亮了应上报");
 
     // 送盒：CS_0+VALID → L_REQ；TR_REQ → READY（交接开始）；BUSY 时载具放上 → 撤 L_REQ；BUSY 撤；COMPT → 撤 READY；信号全撤 → 完成
@@ -1289,7 +1347,7 @@ port.E87Callback = null;
     Check(bootPort.InitComponent(), "第一拍用的端口的组件初始化应成功");
     ComponentLoader.BindAll([bootPort]);
     bootPort.NoteState(ModuleState.Idle);
-    bootPort.Online();
+    bootPort.SetProduction();
     bootPort.SetAutoMode(true);
     bootPort.NotePodPlaced(true);
     bootPort.Tick();
@@ -1303,7 +1361,7 @@ port.E87Callback = null;
     Check(offPort.InitComponent(), "E84 没开的端口组件初始化也应成功");
     ComponentLoader.BindAll([offPort]);
     offPort.NoteState(ModuleState.Idle);
-    offPort.Online();
+    offPort.SetProduction();
     offPort.SetAutoMode(true);
     offE84.Set(cs0: true, valid: true);
     offPort.Tick();
@@ -1317,7 +1375,7 @@ port.E87Callback = null;
     Check(noE84Port.InitComponent() && noE84.Writes == 0, "E84 没装时端口照常初始化，E84 自己拦住不做（一次 IO 都不写）");
     ComponentLoader.BindAll([noE84Port]);
     noE84Port.NoteState(ModuleState.Idle);
-    noE84Port.Online();
+    noE84Port.SetProduction();
     noE84Port.SetAutoMode(true);
     noE84.Set(cs0: true, valid: true);
     noE84Port.Tick();
@@ -1340,7 +1398,7 @@ port.E87Callback = null;
     Check(tpPort.InitComponent(), "超时用的端口的组件初始化应成功");
     ComponentLoader.BindAll([tpPort]);
     tpPort.NoteState(ModuleState.Idle);
-    tpPort.Online();
+    tpPort.SetProduction();
     tpPort.SetAutoMode(true);
     tpE84.Set(cs0: true, valid: true);
     tpPort.Tick();
@@ -1789,6 +1847,27 @@ port.E87Callback = null;
     Check(ReferenceEquals(initPort.InitModule(), initPort.Next) && initPort.Calls == calls + 1 && trace.Count == 0,
         "LoadPort 的模块初始化 InitModule = Home，不碰子组件");
 
+    // 全部初始化碰到门开着、从这个口取出去的片还在机内的 LoadPort：不发 Home（关不了门，回片还要用这个口），给一个做完的空操作
+    var previousInitLedger = IocHelper.GetService<ILedgerManager>();
+    var outsideLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManager>(outsideLedger);
+    var outsidePort = new ProbePort("OutsidePort");
+    Check(outsidePort.InitComponent(), "有片在外面的 LoadPort：组件初始化");
+    outsideLedger.RegisterLocation("OutsidePM", 1);
+    Check(outsideLedger.Create("OutsidePort", 1) is not null && outsideLedger.Move("OutsidePort", 1, "OutsidePM", 1),
+        "从这个口取一片出去，放在腔里");
+    outsidePort.NoteState(LoadPortState.Loaded);
+    int outsideCalls = outsidePort.Calls;
+    var skippedInit = outsidePort.InitModule();
+    Check(skippedInit is not null && skippedInit.IsSuccess && skippedInit.IsSettled && outsidePort.Calls == outsideCalls
+          && outsidePort.State == LoadPortState.Loaded,
+        "门开着、有片在外面：InitModule 不发 Home，给一个做完的空操作（全部初始化当它好了），端口还是 Loaded");
+    Check(outsideLedger.Move("OutsidePM", 1, "OutsidePort", 1), "片回到口上");
+    outsidePort.Next = new ProbeOperation();
+    Check(ReferenceEquals(outsidePort.InitModule(), outsidePort.Next) && outsidePort.Calls == outsideCalls + 1,
+        "片都回来了：照旧 Home");
+    SmokeIoc.Use<ILedgerManager>(previousInitLedger);
+
     var initRobot = new ProbeRobot();
     Check(initRobot.InitComponent(), "机械手的组件初始化把品牌驱动连上");
     initRobot.Next = new ProbeOperation();
@@ -1992,12 +2071,12 @@ port.E87Callback = null;
     var sysChamber = new SystemProbeModule("SysPM");
     var machine = new SmokeSystem();
     SmokeIoc.Use<ISystemModule>(machine);
-    BaseModule[] sysModules = [machine, sysRobot, sysPort, sysChamber];
+    BaseModule[] sysModules = [sysRobot, sysPort, sysChamber];
     var sysTransfers = new TransferManager();
     SmokeIoc.Use<ITransferManager>(sysTransfers);
     sysTransfers.Bind(sysModules);
     machine.Bind(sysModules); // 整机开机绑模块表时取搬运管理、Job 管理、晶圆账
-    SmokeIoc.Tree(sysModules);
+    SmokeIoc.Tree([machine, .. sysModules]); // 整机也上树：它不算模块，按模块取的地方都不该取到它
     var equipment = new EquipmentService();
     bool StateRefused(RpcResponse response, int state)
     {
@@ -2029,7 +2108,9 @@ port.E87Callback = null;
     }
 
     var sysSettings = new SystemService().GetSettingsAsync(new RpcRequest()).Result.DeserializeData<SystemSettingsDto>();
-    Check(sysSettings.Modules.SequenceEqual(["SysRobot", "SysLP", "SysPM"]), "整机模块没有 IO，不进系统设置的模块名单");
+    Check(sysSettings.Modules.SequenceEqual(["SysRobot", "SysLP", "SysPM"]), "整机不算模块，不进系统设置的模块名单");
+    Check(IocHelper.GetServices<IModule>().SequenceEqual(sysModules) && ReferenceEquals(IocHelper.GetService<ISystemModule>(), machine),
+        "整机上了树也按模块取不到，按整机接口取得到");
     Check(machine.State == ModuleState.NotInit && !machine.IsAuto, "开机未初始化（Manual）");
     Check(StateRefused(equipment.AutoAsync(new RpcRequest()).Result, ModuleState.NotInit) && !sysTransfers.IsAutoDispatch,
         "没初始化切不了 Auto（module.state_not_allowed 带整机名和状态码）");
@@ -2043,24 +2124,24 @@ port.E87Callback = null;
     machine.Tick();
     Check(statusPushes.Count == 1 && !statusPushes[0].IsRunning, "整机自己推设备总状态：第一拍推一条，没变化不再推");
 
-    // 整机推各模块的状态和 Auto / Manual（ModuleStatusListDto，留存，顶栏模块行用）：不含整机自己、先后同模块表，有一个变了才推整张表
+    // 整机推各模块的状态和生产 / 维护（ModuleStatusListDto，留存，顶栏模块行用）：整机不在里面、先后同模块表，有一个变了才推整张表
     var modulePushes = new List<ModuleStatusListDto>();
     using var moduleSubscription = EventBus.Register<ModuleStatusListDto>(ModuleStatusListDto.EventToken, dto => modulePushes.Add(dto));
     Check(modulePushes.Count == 1 && modulePushes[0].Modules.Select(module => module.Name).SequenceEqual(["SysRobot", "SysLP", "SysPM"])
           && modulePushes[0].Modules.Select(module => module.Kind).SequenceEqual([sysRobot.Kind, sysPort.Kind, sysChamber.Kind])
-          && modulePushes[0].Modules.All(module => module.State == ModuleState.NotInit && module.Mode == ModuleMode.Offline),
-        "整机推模块状态（留存，订上就补发）：不含整机自己、先后同模块表，带类别、状态码、Auto / Manual");
+          && modulePushes[0].Modules.All(module => module.State == ModuleState.NotInit && module.Mode == ModuleMode.Maintenance),
+        "整机推模块状态（留存，订上就补发）：整机不在里面、先后同模块表，带类别、状态码、生产 / 维护（开机维护）");
     modulePushes.Clear();
     machine.Tick();
     Check(modulePushes.Count == 0, "模块都没变：不再推");
-    sysPort.Online();
+    sysPort.SetProduction();
     machine.Tick();
     machine.Tick();
-    Check(modulePushes.Count == 1 && modulePushes[0].Modules[1].Mode == ModuleMode.Online
-          && modulePushes[0].Modules[0].Mode == ModuleMode.Offline, "一个模块上线：推一张新表（只推一次）");
-    sysPort.Offline();
+    Check(modulePushes.Count == 1 && modulePushes[0].Modules[1].Mode == ModuleMode.Production
+          && modulePushes[0].Modules[0].Mode == ModuleMode.Maintenance, "一个模块切生产：推一张新表（只推一次）");
+    sysPort.SetMaintenance();
     machine.Tick();
-    Check(modulePushes.Count == 2 && modulePushes[1].Modules[1].Mode == ModuleMode.Offline, "下线了：再推一张");
+    Check(modulePushes.Count == 2 && modulePushes[1].Modules[1].Mode == ModuleMode.Maintenance, "切回维护：再推一张");
 
     // 全部初始化：先只初始化机械手，它收完尾才轮到别的，都做成进空闲
     var robotHome = new ProbeOperation();
@@ -2162,7 +2243,8 @@ port.E87Callback = null;
     machine.Tick();
     Check(machine.State == ModuleState.NotInit, "没有在做的动作：停完还是未初始化");
 
-    // 全部回片：要晶圆账；机内的片回不去（不知道从哪个 LoadPort 来）记下来、回空闲；机内没片直接做完
+    // 全部回片：要晶圆账；机内有片不知道从哪个 LoadPort 来，一开始就拦（不是跳过），整机不动；机内没片直接做完。
+    // 真搬片的（倒着走、先后、一趟没做成就停、卡住就停、Job 在跑不让开始）在 JobSmoke 里
     InitAllOk();
     var noLedger = equipment.ReturnAllAsync(new RpcRequest()).Result;
     Check(!noLedger.Success && noLedger.Code == ErrorCodes.WaferLedgerDisabled && machine.State == ModuleState.Idle,
@@ -2172,16 +2254,13 @@ port.E87Callback = null;
     machine.Bind(sysModules);
     sysLedger.RegisterLocation("SysRobot", 1);
     Check(sysLedger.Create("SysRobot", 1) is not null, "机械手手上摆一片补账的片（不知道从哪个 LoadPort 来）");
-    var returning = machine.ReturnAll();
-    Check(returning.IsSuccess && machine.State == SystemState.Returning, "全部回片开始：回片中");
-    machine.Tick();
-    machine.Tick();
-    var unreturned = returning.Result;
-    Check(unreturned is not null && unreturned.Code == ErrorCodes.SystemReturnIncomplete && unreturned.ErrorArgs.SequenceEqual(["1"])
-          && machine.State == ModuleState.Idle && sysLedger.Get("SysRobot", 1) is not null,
-        "回不去的片：system.return_incomplete 带片数，片不动，回空闲");
+    var noSource = equipment.ReturnAllAsync(new RpcRequest()).Result;
+    Check(!noSource.Success && noSource.Code == ErrorCodes.SystemReturnNoSource && noSource.Args.SequenceEqual(["SysRobot.01", "SysRobot.01"])
+          && machine.State == ModuleState.Idle && machine.CurrentOperation is null && sysLedger.Get("SysRobot", 1) is not null,
+        "有片不知道从哪个 LoadPort 来：一开始就拦（system.return_no_source 带片号和位置），整机还是 Idle、没挂动作，片不动");
     Check(sysLedger.Delete("SysRobot", 1), "删掉那片");
     var empty = machine.ReturnAll();
+    Check(empty.IsSuccess && machine.State == SystemState.Returning, "机内没片：全部回片照样开始，回片中");
     machine.Tick();
     machine.Tick();
     Check(empty.Result is not null && empty.Result.IsSuccess && machine.State == ModuleState.Idle, "机内没片：直接做完，回空闲");
@@ -2234,6 +2313,12 @@ port.E87Callback = null;
     Check(!initialized.Success && initialized.Code == ErrorCodes.WaferSizeInitialized && initialized.Args.SequenceEqual(["SizeLP"]) && waferSize.Size == 12,
         "有模块初始化过（不是未初始化）：不让切，尺寸不变");
     sizePort.NoteState(ModuleState.NotInit);
+    SmokeIoc.Use<ISystemModule>(machine);
+    var systemInitialized = SwitchSize("8");
+    Check(machine.State == ModuleState.Idle && !systemInitialized.Success && systemInitialized.Code == ErrorCodes.WaferSizeInitialized
+          && systemInitialized.Args.SequenceEqual(["System"]) && waferSize.Size == 12,
+        "模块都没初始化、整机初始化过（整机不算模块，单独查）：也不让切");
+    SmokeIoc.Use<ISystemModule>(previousSystem);
     var sizeLedger = new LedgerManagerComponent();
     SmokeIoc.Use<ILedgerManager>(sizeLedger);
     sizeLedger.RegisterLoadPort("SizeLP", 25);
@@ -2251,6 +2336,15 @@ port.E87Callback = null;
     Check(machine.CreateEquipmentStatus().WaferSize == 8, "设备总状态带上现在的尺寸");
     SmokeIoc.Use<IWaferSize>(previousWaferSize);
     SmokeIoc.Use<ILedgerManager>(previousSizeLedger);
+
+    // 不分生产 / 维护的模块（供液这类，这里拿没实现 IMode 的探针模块当它）：推的模式是 null，顶栏小框不画边框；分的照推
+    var supplySystem = new SmokeSystem();
+    supplySystem.Bind([sysPort, new ProbeModule()]);
+    supplySystem.Tick();
+    var supplyPush = modulePushes[^1];
+    Check(supplyPush.Modules.Count == 2 && supplyPush.Modules[0].Name == "SysLP"
+          && supplyPush.Modules[0].Mode == ModuleMode.Maintenance && supplyPush.Modules[1].Mode is null,
+        "不分生产 / 维护的模块推 null，分的照推");
 
     SmokeIoc.Use<ITransferManager>(previousTransfers);
 }
@@ -3674,10 +3768,10 @@ port.E87Callback = null;
         "Job 需要有效载具号，机械手手动搬运的准备条件继续独立判断");
     accessPort._carrier.SetId("ACCESS-A");
     accessPort._carrier.UpdateStatus(CarrierIdStatus.Read, null);
-    Check(accessPort.Mode == ModuleMode.Offline && carrierAccess.Info?.SlotMapStatus == CarrierSlotMapStatus.NotRead
+    Check(accessPort.Mode == ModuleMode.Maintenance && carrierAccess.Info?.SlotMapStatus == CarrierSlotMapStatus.NotRead
           && jobAccess.CanUseCarrierForJob && jobAccess.CheckCarrierForJob() is null
           && transferAccess.CanPrepareTransfer && transferAccess.CheckPrepareTransfer() is null,
-        "RFID 已读到有效载具号：未接 EAP 无需额外认定，查询也不增加自动调度的 Online 限制");
+        "RFID 已读到有效载具号：未接 EAP 无需额外认定，查询也不增加自动调度的生产模式限制");
 
     Check(accessPort.PrepareTransfer(accessContext) is not null && accessPort.State == TransferModuleState.PreTransfer,
         "通过查询后仍由 PrepareTransfer 正式占用传片环");
@@ -3790,7 +3884,7 @@ port.E87Callback = null;
         "普通站点撤回准备后恢复可用");
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the online/offline and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone, the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all recording the wafers it cannot return), the system module kept out of the IO module list, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -4546,11 +4640,8 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public string Name => name;
     public string FullPath => Name;
     public int State => ModuleState.Idle;
-    public ModuleMode Mode { get; private set; } = ModuleMode.Online;
     public bool IsEnabled => true;
     public ModuleOperation? CurrentOperation => null;
-    public void Online() => Mode = ModuleMode.Online;
-    public void Offline() => Mode = ModuleMode.Offline;
     public ModuleOperation? InitModule() => null;
     public ModuleOperation? Reset() => null;
     public ModuleOperation? Abort() => null;
@@ -4558,6 +4649,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     public StationKind Kind => StationKind.Other;
     public bool CanPrepareTransfer => CheckPrepareTransfer() is null;
     public HandleResult? CheckPrepareTransfer() => null;
+    public HandleResult? CheckWaferSensors() => null;
 
     public ModuleOperation? PrepareTransfer(TransferContext context)
     {
@@ -4636,19 +4728,10 @@ class ProbeTransferRobot : ITransferRobot
 
     public string Name => "TransferRobot";
     public string FullPath => Name;
-    public ModuleMode Mode => ModuleMode.Online;
     public StationKind Kind => StationKind.Robot;
 
     public bool IsEnabled => true;
     public ModuleOperation? CurrentOperation => null;
-
-    public void Online()
-    {
-    }
-
-    public void Offline()
-    {
-    }
 
     public int State => 0;
     public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
@@ -4703,8 +4786,9 @@ sealed class ProbeStepRobot : ProbeTransferRobot, ITransferRobotStep
     public HandleResult<ModuleOperation> RetractPlace(int arm, string station, int slot) => Move("RetractPlace");
 }
 
-// 整机冒烟用的探针模块：初始化挂用例摆的操作（没摆就是被拒），能挂一个手动动作，中止把在做的动作当场打断（下一拍收尾）。
-class SystemProbeModule : BaseModule
+// 整机冒烟用的探针模块：初始化挂用例摆的操作（没摆就是被拒），能挂一个手动动作，中止把在做的动作当场打断（下一拍收尾）；
+// 分生产 / 维护（开机维护）。
+class SystemProbeModule : BaseModule, IMode
 {
     public SystemProbeModule(string name)
     {
@@ -4713,6 +4797,12 @@ class SystemProbeModule : BaseModule
     }
 
     public override int State { get; protected set; } = ModuleState.NotInit;
+
+    public ModuleMode Mode { get; private set; } = ModuleMode.Maintenance;
+
+    public void SetProduction() => Mode = ModuleMode.Production;
+
+    public void SetMaintenance() => Mode = ModuleMode.Maintenance;
 
     /// <summary>下一次初始化挂的操作；null = 初始化被拒。挂上就清掉。</summary>
     public ProbeOperation? NextInit { get; set; }
@@ -4756,6 +4846,7 @@ sealed class SystemProbeRobot(string name) : SystemProbeModule(name), IRobot
     public int PowerTimeout => 0;
     public HandleResult? CheckReset() => null;
     public HandleResult? CheckAbort() => null;
+    public HandleResult? CheckWaferSensors() => null;
     public RobotDto CreateStateDto() => new() { Name = Name };
     public bool? IsServoOn => null;
     public string? DeviceError => null;

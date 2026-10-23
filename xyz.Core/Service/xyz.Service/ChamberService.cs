@@ -221,16 +221,16 @@ public class ChamberService : BaseService, IChamberService
     #endregion
 
     /// <summary>
-    /// 上线/下线走模块基类（见 <see cref="BaseService.Online{TModule}"/>）。
+    /// 切生产 / 维护模式走服务基类（见 <see cref="BaseService.SetProduction{TModule}"/>）
     /// </summary>
-    public Task<RpcResponse> OnlineAsync(string module)
+    public Task<RpcResponse> SetProductionAsync(string module)
     {
-        return Online<IChamber>(module);
+        return SetProduction<IChamber>(module);
     }
 
-    public Task<RpcResponse> OfflineAsync(string module)
+    public Task<RpcResponse> SetMaintenanceAsync(string module)
     {
-        return Offline<IChamber>(module);
+        return SetMaintenance<IChamber>(module);
     }
 
     /// <summary>

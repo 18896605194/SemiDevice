@@ -14,14 +14,9 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-/// <summary>
-/// 整机（sc.xml 的 System 节点）：系统状态和整机动作——全部初始化、Auto / Manual、整机停止、全部回片；
-/// 顺带放全系统一份的设置（界面语言）。状态码见 <see cref="SystemState"/>，状态表见 <see cref="SystemStateTable"/>。
-/// 系统状态只说整机在干什么，不汇总各模块：单个模块报警不改系统状态（看报警条数和四色灯）；各模块的状态和 Auto / Manual 另推一张表给顶栏。
-/// Auto 落地靠搬运管理的自动派单（Job 只看那个开关），开关只由这里拨。
-/// </summary>
+
 [Component(description: "整机：系统状态、全部初始化、Auto / Manual、整机停止、全部回片；界面语言")]
-public class SystemModule : BaseModule, ISystemModule
+public class SystemModule : BaseStateComponent, ISystemModule
 {
     public SystemModule()
     {
@@ -75,7 +70,7 @@ public class SystemModule : BaseModule, ISystemModule
     }
 
     /// <summary>
-    /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块（不含自己），先后跟 sc.xml 一样；
+    /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块，先后跟 sc.xml 一样；
     /// 搬运管理、Job 管理、晶圆账、报警、晶圆尺寸也在这里取一次。
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
@@ -85,7 +80,7 @@ public class SystemModule : BaseModule, ISystemModule
         _ledger = IocHelper.GetService<ILedgerManager>();
         _alarms = IocHelper.GetService<IAlarm>();
         _waferSize = IocHelper.GetService<IWaferSize>();
-        _modules = modules.Where(module => !ReferenceEquals(module, this)).ToList();
+        _modules = modules.ToList();
         LogHelper.Info(Name, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
     }
 
@@ -162,11 +157,12 @@ public class SystemModule : BaseModule, ISystemModule
     }
 
     /// <summary>
-    /// 全部回片：Manual 空闲时，机内的片回各自来源 LoadPort 的原槽（见 <see cref="SystemReturnOperation"/>），回完回空闲。
-    /// 要搬运管理和晶圆账都开着。
+    /// 全部回片：整机 Idle 时，机内的片倒着走回各自来源 LoadPort 的原槽（见 <see cref="SystemReturnOperation"/>），回完回 Idle
     /// </summary>
     public HandleResult<ModuleOperation> ReturnAll()
     {
+        ITransferManager transfers;
+        ILedgerManager ledger;
         lock (OperationGate)
         {
             var rejected = CheckState(SystemAction.ReturnAll) ?? CheckReturnResource();
@@ -176,7 +172,28 @@ public class SystemModule : BaseModule, ISystemModule
             }
 
             // 上面查过搬运管理、晶圆账都装着
-            return Started(SystemAction.ReturnAll, new SystemReturnOperation(Name, _transfers!, _ledger!, _jobs));
+            transfers = _transfers!;
+            ledger = _ledger!;
+        }
+
+        // 开始前的检查在锁外做：要问 Job、各设备，不拿着整机的锁去等别人的锁
+        var prepared = SystemReturnOperation.Prepare(Name, transfers, ledger, _jobs);
+        var operation = prepared.Result;
+        if (!prepared.IsSuccess || operation is null)
+        {
+            LogHelper.Warn(Name, $"全部回片不能开始：{prepared.ErrorMessage} [{string.Join(", ", prepared.Args)}]");
+            return prepared;
+        }
+
+        lock (OperationGate)
+        {
+            var rejected = CheckState(SystemAction.ReturnAll);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(SystemAction.ReturnAll, operation);
         }
     }
 
@@ -387,7 +404,7 @@ public class SystemModule : BaseModule, ISystemModule
     private ModuleStatusListDto? _lastModuleStatus;
 
     /// <summary>
-    /// 推各模块的状态和 Auto / Manual（顶栏的模块状态行用）：有一个变了才推整张表，留存
+    /// 推各模块的状态和生产 / 维护（顶栏的模块状态行用）：有一个变了才推整张表，留存
     /// </summary>
     private void PublishModuleStatus()
     {
@@ -404,7 +421,7 @@ public class SystemModule : BaseModule, ISystemModule
                 Name = module.Name,
                 Kind = module.Kind,
                 State = module.State,
-                Mode = module.Mode,
+                Mode = ModeOf(module),
             });
         }
 
@@ -413,7 +430,7 @@ public class SystemModule : BaseModule, ISystemModule
     }
 
     /// <summary>
-    /// 跟上次推的比：模块表换了（重新 Bind）、哪个模块的状态或 Auto / Manual 变了
+    /// 跟上次推的比：模块表换了（重新 Bind）、哪个模块的状态或生产 / 维护变了
     /// </summary>
     private bool HasModuleStatusChanged()
     {
@@ -428,13 +445,26 @@ public class SystemModule : BaseModule, ISystemModule
         {
             var module = modules[i];
             var sent = last.Modules[i];
-            if (sent.Name != module.Name || sent.State != module.State || sent.Mode != module.Mode)
+            if (sent.Name != module.Name || sent.State != module.State || sent.Mode != ModeOf(module))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// 模块的生产 / 维护；没有这个模式的（供液）是 null
+    /// </summary>
+    private static ModuleMode? ModeOf(IModule module)
+    {
+        if (module is IMode target)
+        {
+            return target.Mode;
+        }
+
+        return null;
     }
 
     #endregion

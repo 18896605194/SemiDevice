@@ -20,6 +20,13 @@
     <sys:String x:Key="system.init_rejected">{0} 的初始化被拒（状态不允许、在忙，或没写初始化），全部初始化没做成</sys:String>
     <sys:String x:Key="system.init_failed">{0} 初始化没做成，全部初始化没做成</sys:String>
     <sys:String x:Key="system.return_incomplete">全部回片有 {0} 片没回去，原因见日志</sys:String>
+    <sys:String x:Key="system.return_job_running">有 Job 在跑（执行中、暂停或中止中），不能全部回片</sys:String>
+    <sys:String x:Key="system.return_no_source">{0}（{1}）不知道从哪个 LoadPort 来，不能全部回片：先到账单调整页按实物处理这片</sys:String>
+    <sys:String x:Key="system.return_carrier_not_loaded">{0} 的来源 {1} 上没有 Load 着的载具，不能全部回片</sys:String>
+    <sys:String x:Key="system.return_carrier_changed">{1} 上的载具换过了（{0} 记着的是 {2}，现在是 {3}），不能全部回片</sys:String>
+    <sys:String x:Key="system.return_slot_occupied">{0} 要回 {1} 的 {2} 槽，那一槽已经有片（或另一片也要回这一槽），不能全部回片</sys:String>
+    <sys:String x:Key="system.return_unreachable">{0} 倒着走从 {1} 到 {2} 没有机械手够得着，不能全部回片</sys:String>
+    <sys:String x:Key="system.return_module_not_ready">回片要用的 {0} 现在不能用（停用、没初始化、报警或在忙），不能全部回片</sys:String>
 
     <!-- 晶圆尺寸（主界面切 8 / 12 寸） -->
     <sys:String x:Key="system.wafer_size_not_installed">sc.xml 的 System 节点下没配 WaferSize，切不了晶圆尺寸</sys:String>
@@ -102,6 +109,11 @@
     <sys:String x:Key="chamber.wafer_owned">{0} 里的 {1} 正在 Job {2} 里，不能手动起工艺</sys:String>
     <sys:String x:Key="chamber.supply_not_ready">{0} 起不了工艺配方 {1}：供液 {2} 没就绪</sys:String>
     <sys:String x:Key="aligner.wafer_not_aligned">{0} 上的片还没对好，不能取走：先回零，台上有片会再对一遍</sys:String>
+
+    <!-- 站点（在位传感器跟晶圆账对不上） -->
+    <sys:String x:Key="station.wafer_sensor_has_wafer">{0} 的在位传感器检测到有片，跟晶圆账（站上没片）对不上：先到现场确认片位，按实物改账</sys:String>
+    <sys:String x:Key="station.wafer_sensor_no_wafer">{0} 的在位传感器没检测到片，跟晶圆账（站上有片）对不上：先到现场确认片位，按实物改账</sys:String>
+    <sys:String x:Key="station.wafer_sensor_unknown">{0} 的在位传感器读不到（PLC 没连上或点位不对）</sys:String>
     <sys:String x:Key="tank.busy">{0} 正在补液、排液、换液或供液，先停止</sys:String>
     <sys:String x:Key="tank.error">{0} 有报警，先复位</sys:String>
     <sys:String x:Key="tank.valve_group_missing">{0} 没配 {1} 阀组</sys:String>
@@ -489,7 +501,7 @@
     <sys:String x:Key="permission.Alarm.Reset">报警复位</sys:String>
     <sys:String x:Key="permission.Main_tip">建 Job、启动 Job；主界面不能隐藏</sys:String>
     <sys:String x:Key="permission.Main.System_tip">初始化、Auto、Manual、Stop、全部回片、切晶圆尺寸</sys:String>
-    <sys:String x:Key="permission.Manual.LoadPorts_tip">Load、Unload、Home、复位、中止、上线下线</sys:String>
+    <sys:String x:Key="permission.Manual.LoadPorts_tip">Load、Unload、Home、复位、中止、生产 / 维护</sys:String>
     <sys:String x:Key="permission.Manual.Robot_tip">取片、放片、上电下电、回原点</sys:String>
     <sys:String x:Key="permission.Manual.Chamber_tip">每个腔体的手动页一起算：轴、气缸、做工艺</sys:String>
     <sys:String x:Key="permission.Recipe.Sequence_tip">新建、改名、删除、保存</sys:String>
@@ -655,9 +667,9 @@
     <sys:String x:Key="chambercard.shutter">腔门</sys:String>
     <sys:String x:Key="chambercard.step_time">步骤时间</sys:String>
     <sys:String x:Key="chambercard.recipe_time">配方时间</sys:String>
-    <sys:String x:Key="lpmanual.online">在线</sys:String>
-    <sys:String x:Key="lpmanual.online_tip">Online：参与自动调度</sys:String>
-    <sys:String x:Key="lpmanual.offline">下线</sys:String>
+    <sys:String x:Key="lpmanual.production">生产</sys:String>
+    <sys:String x:Key="lpmanual.mode_tip">生产：交给自动调度用；维护：调度不派新活，留给人手动操作</sys:String>
+    <sys:String x:Key="lpmanual.maintenance">维护</sys:String>
     <sys:String x:Key="lpmanual.carrier_id">载具 ID：</sys:String>
 
     <!-- Robot 手动页 -->
@@ -668,9 +680,9 @@
     <sys:String x:Key="robotmanual.arm_tip">手指上有片亮</sys:String>
     <sys:String x:Key="robotmanual.alarm">报警</sys:String>
     <sys:String x:Key="robotmanual.alarm_tip">设备当前报错</sys:String>
-    <sys:String x:Key="robotmanual.online_tip">Online：参与自动调度</sys:String>
-    <sys:String x:Key="robotmanual.online">在线</sys:String>
-    <sys:String x:Key="robotmanual.offline">下线</sys:String>
+    <sys:String x:Key="robotmanual.mode_tip">生产：交给自动调度用；维护：调度不派新活，留给人手动操作</sys:String>
+    <sys:String x:Key="robotmanual.production">生产</sys:String>
+    <sys:String x:Key="robotmanual.maintenance">维护</sys:String>
     <sys:String x:Key="robotmanual.fact_state">状态：</sys:String>
     <sys:String x:Key="robotmanual.fact_station">站点：</sys:String>
     <sys:String x:Key="robotmanual.fact_rotation">伸出方向：</sys:String>
@@ -700,8 +712,8 @@
     <sys:String x:Key="action.reset">复位</sys:String>
     <sys:String x:Key="action.pick">取片</sys:String>
     <sys:String x:Key="action.place">放片</sys:String>
-    <sys:String x:Key="action.online">上线</sys:String>
-    <sys:String x:Key="action.offline">下线</sys:String>
+    <sys:String x:Key="action.production">生产</sys:String>
+    <sys:String x:Key="action.maintenance">维护</sys:String>
     <sys:String x:Key="action.auto">自动</sys:String>
     <sys:String x:Key="action.manual">手动</sys:String>
     <sys:String x:Key="action.read_id">读 ID</sys:String>
@@ -712,9 +724,9 @@
     <!-- 腔体手动页（Manual 下一个腔体一个子菜单） -->
     <sys:String x:Key="chambermanual.enable">启用</sys:String>
     <sys:String x:Key="chambermanual.enable_tip">sc.xml 里的 IsEnable：停用（装机未接）时动作一律发不出去</sys:String>
-    <sys:String x:Key="chambermanual.online">在线</sys:String>
-    <sys:String x:Key="chambermanual.offline">下线</sys:String>
-    <sys:String x:Key="chambermanual.online_tip">Online：参与自动调度</sys:String>
+    <sys:String x:Key="chambermanual.production">生产</sys:String>
+    <sys:String x:Key="chambermanual.maintenance">维护</sys:String>
+    <sys:String x:Key="chambermanual.mode_tip">生产：交给自动调度用；维护：调度不派新活，留给人手动操作</sys:String>
     <sys:String x:Key="chambermanual.device_error">报错</sys:String>
     <sys:String x:Key="chambermanual.device_error_tip">设备当前报错</sys:String>
     <sys:String x:Key="chambermanual.current_recipe">当前配方</sys:String>

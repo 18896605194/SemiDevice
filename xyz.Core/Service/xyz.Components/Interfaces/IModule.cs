@@ -19,11 +19,6 @@ public interface IModule
     int State { get; }
 
     /// <summary>
-    /// 在线 / 离线
-    /// </summary>
-    ModuleMode Mode { get; }
-
-    /// <summary>
     /// sc 里启用了没有（停用的当没装）
     /// </summary>
     bool IsEnabled { get; }
@@ -57,14 +52,4 @@ public interface IModule
     /// 组件全路径（sc 的分组节点也算上，如 Chamber.Chamber1）
     /// </summary>
     string FullPath { get; }
-
-    /// <summary>
-    /// 上线：参与自动调度（只改 Mode、不经设备）
-    /// </summary>
-    void Online();
-
-    /// <summary>
-    /// 下线：退出自动调度
-    /// </summary>
-    void Offline();
 }

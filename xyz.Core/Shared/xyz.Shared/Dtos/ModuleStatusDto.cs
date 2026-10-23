@@ -1,7 +1,7 @@
 ﻿namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 各模块的状态和 Auto / Manual（顶栏的模块状态行按它显示），整机模块推。
+/// 各模块的状态和生产 / 维护模式（顶栏的模块状态行按它显示），整机模块推。
 /// 模块照 sc.xml 装配出来的、先后同 sc，不含整机自己。状态类消息：有一个变了才推整张表，留存。
 /// </summary>
 public class ModuleStatusListDto
@@ -12,7 +12,7 @@ public class ModuleStatusListDto
 }
 
 /// <summary>
-/// 一个模块：名字、哪一类、状态码、Auto / Manual
+/// 一个模块：名字、哪一类、状态码、生产 / 维护
 /// </summary>
 public class ModuleStatusDto
 {
@@ -32,7 +32,7 @@ public class ModuleStatusDto
     public int State { get; set; }
 
     /// <summary>
-    /// 在线（参与自动调度）算 Auto，离线算 Manual
+    /// 生产 / 维护；没有这个模式的模块（供液）是 null
     /// </summary>
-    public ModuleMode Mode { get; set; }
+    public ModuleMode? Mode { get; set; }
 }

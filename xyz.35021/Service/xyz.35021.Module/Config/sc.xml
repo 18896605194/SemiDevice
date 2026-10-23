@@ -644,6 +644,7 @@
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
 				<Value Name="DiIndex" Value="112" />
+				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>
@@ -742,6 +743,7 @@
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
 				<Value Name="DiIndex" Value="152" />
+				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>
@@ -840,6 +842,7 @@
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
 				<Value Name="DiIndex" Value="192" />
+				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>
@@ -938,6 +941,7 @@
 			</Setting>
 			<Setting Name="WaferSensor" Type="xyz.Components.Components.DiSensorComponent">
 				<Value Name="DiIndex" Value="232" />
+				<Value Name="TriggerValue" Value="true" />
 				<Value Name="AlarmEnabled" Value="False" />
 			</Setting>
 		</Setting>

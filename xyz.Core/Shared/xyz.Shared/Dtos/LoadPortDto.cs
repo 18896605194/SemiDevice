@@ -9,7 +9,9 @@ public class LoadPortDto
     /// <summary>模块状态码，取值见 ModuleState/LoadPortState。</summary>
     public int State { get; set; }
 
-    /// <summary>模块模式（Online/Offline）：是否参与自动调度。</summary>
+    /// <summary>
+    /// 模块模式（生产 / 维护）：是否交给调度用
+    /// </summary>
     public ModuleMode Mode { get; set; }
 
     /// <summary>驱动串口连接是否可用。</summary>

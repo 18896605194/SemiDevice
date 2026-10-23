@@ -68,6 +68,11 @@ public interface IRobot : ITransferRobot
     HandleResult? CheckAbort();
 
     /// <summary>
+    /// 手指的在位传感器跟晶圆账对一遍：sc 配了传感器的手才比，对得上或都没配回 null
+    /// </summary>
+    HandleResult? CheckWaferSensors();
+
+    /// <summary>
     /// 现在的状态（推给界面的那一份）
     /// </summary>
     RobotDto CreateStateDto();

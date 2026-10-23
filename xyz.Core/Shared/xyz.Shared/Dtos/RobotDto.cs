@@ -9,7 +9,9 @@ public class RobotDto
     /// <summary>模块状态码，取值见 ModuleState/RobotState。</summary>
     public int State { get; set; }
 
-    /// <summary>模块模式（Online=参与自动调度 / Offline）。</summary>
+    /// <summary>
+    /// 模块模式（生产 = 交给调度用 / 维护）
+    /// </summary>
     public ModuleMode Mode { get; set; }
 
     /// <summary>驱动连接是否可用。</summary>

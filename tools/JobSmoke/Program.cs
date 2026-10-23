@@ -83,10 +83,10 @@ try
         chamber.NoteState(ModuleState.Idle);
     }
 
-    // 调度用到的站点、机械手都得在线（开机默认下线），先都上线
-    foreach (var module in modules)
+    // 调度用到的站点、机械手都得是生产模式（开机默认维护），先都切生产
+    foreach (var module in modules.OfType<IMode>())
     {
-        module.Online();
+        module.SetProduction();
     }
 
     var transfers = new SmokeTransfers();
@@ -1241,7 +1241,7 @@ try
     // 12. PJ 中止：中止搬运、给在做工艺的腔体发中止；设备中止做完、在途动作都结束、片位都确定才结束（#16）。机内的片记中止，没投的记未执行。
     //     PM2 离线：片都去 PM1，加工时机械手闲着（手臂在动时中止，片位要人工确认，那条路在第 4 节验过）。
     LoadCarrier(lp1, 1, 2, 3);
-    pm2.Offline();
+    pm2.SetMaintenance();
     Check(Create("LOT-T", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A"), (3, "SEQ_A")).IsSuccess, "建 LOT-T");
     Check(RunUntil(() => PjOf("LOT-T-1")?.Wafers.Any(IsProcessing) == true), "跑到有片在加工");
     var processingIn = PjOf("LOT-T-1")!.Wafers.SelectMany(wafer => wafer.Tasks).First(task => task.Kind == StationTaskAction.Process && task.State == "Running").Station;
@@ -1273,7 +1273,7 @@ try
     }
 
     robot.NoteState(ModuleState.Idle);
-    pm2.Online();
+    pm2.SetProduction();
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-T") is null, 20), "LOT-T 删掉");
 
@@ -1281,7 +1281,7 @@ try
     //     人把腔体复位后点"重做"：工艺重新起，做成了接着回片。人工处理只认出错的任务。
     LoadCarrier(lp1, 1, 2);
     pm1.FailNextProcess = true;
-    Check(Create("LOT-F", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-F（PM1、PM2 都在线）");
+    Check(Create("LOT-F", "LP1", true, (1, "SEQ_A"), (2, "SEQ_A")).IsSuccess, "建 LOT-F（PM1、PM2 都是生产模式）");
     Check(RunUntil(() => PjOf("LOT-F-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "PM1 的工艺没做成：那一格记成出错");
     var failedRow = PjOf("LOT-F-1")!.Wafers.Single(wafer => ErrorOf(wafer) is not null);
     var failedTask = ErrorOf(failedRow)!;
@@ -1313,7 +1313,7 @@ try
 
     // 13b. 再来一次没做成，这回人在腔体手动页把工艺做完了：点"标记完成"，这一格算完成（手动），接着回片。
     LoadCarrier(lp1, 1);
-    pm2.Offline();
+    pm2.SetMaintenance();
     pm1.FailNextProcess = true;
     Check(Create("LOT-G", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-G（PM2 离线，去 PM1）");
     Check(RunUntil(() => PjOf("LOT-G-1")?.Wafers.Any(wafer => ErrorOf(wafer) is not null) == true), "工艺没做成：出错停住");
@@ -1324,34 +1324,34 @@ try
     Check(manualTask.State == "Done" && IsDone(PjOf("LOT-G-1")!.Wafers[0]), "那一格记成完成，这片照常回片");
     Check(ledger.Get("LP1", 1)?.ProcessState == WaferProcessState.Failed,
         "标记完成不改账：片的工艺状态跟着腔体走（这里没人真做，还是失败）");
-    pm2.Online();
+    pm2.SetProduction();
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-G") is null, 20), "LOT-G 删掉");
 
-    // 13c. 调度用到的站点、机械手都得在线：下线的不派新任务，在做的照常做完，上线了接着派。
-    //      机械手下线、源 LoadPort 下线都一片不投；放片途中目标腔体下线：片照常放进去，工艺不起，腔体上线了才起。
+    // 13c. 调度用到的站点、机械手都得是生产模式：维护模式不派新任务，在做的照常做完，切回生产接着派。
+    //      机械手切维护、源 LoadPort 切维护都一片不投；放片途中目标腔体切维护：片照常放进去，工艺不起，腔体切生产了才起。
     LoadCarrier(lp1, 1);
-    pm2.Offline();
-    robot.Offline();
-    Check(Create("LOT-O", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-O（机械手、PM2 下线）");
-    Check(RunUntil(() => PjOf("LOT-O-1")?.State == (int)ProcessJobState.Processing, 20), "机械手下线：PJ 照样开始");
+    pm2.SetMaintenance();
+    robot.SetMaintenance();
+    Check(Create("LOT-O", "LP1", true, (1, "SEQ_A")).IsSuccess, "建 LOT-O（机械手、PM2 切维护）");
+    Check(RunUntil(() => PjOf("LOT-O-1")?.State == (int)ProcessJobState.Processing, 20), "机械手切维护：PJ 照样开始");
     RunUntil(() => false, 30);
-    Check(PjOf("LOT-O-1")!.Wafers.All(IsWaiting), "机械手下线：一片都不投");
-    robot.Online();
-    lp1.Offline();
+    Check(PjOf("LOT-O-1")!.Wafers.All(IsWaiting), "机械手切维护：一片都不投");
+    robot.SetProduction();
+    lp1.SetMaintenance();
     RunUntil(() => false, 30);
-    Check(PjOf("LOT-O-1")!.Wafers.All(IsWaiting), "源 LoadPort 下线：一片都不投");
-    lp1.Online();
-    Check(RunUntil(() => PjOf("LOT-O-1")!.Wafers[0].Tasks[1].State == "Running"), "都上线了：接着派，片往 PM1 放");
-    pm1.Offline();
-    Check(RunUntil(() => PjOf("LOT-O-1")!.Wafers[0].Tasks[1].State == "Done"), "放片途中 PM1 下线：在做的放片照常做完");
+    Check(PjOf("LOT-O-1")!.Wafers.All(IsWaiting), "源 LoadPort 切维护：一片都不投");
+    lp1.SetProduction();
+    Check(RunUntil(() => PjOf("LOT-O-1")!.Wafers[0].Tasks[1].State == "Running"), "都切生产了：接着派，片往 PM1 放");
+    pm1.SetMaintenance();
+    Check(RunUntil(() => PjOf("LOT-O-1")!.Wafers[0].Tasks[1].State == "Done"), "放片途中 PM1 切维护：在做的放片照常做完");
     RunUntil(() => false, 30);
     Check(PjOf("LOT-O-1")!.Wafers[0].Tasks[2].State == "Waiting" && ledger.Get("PM1", 1) is not null,
-        "PM1 下线：片在腔里，工艺不起");
-    pm1.Online();
+        "PM1 切维护：片在腔里，工艺不起");
+    pm1.SetProduction();
     Check(RunUntil(() => CjOf("LOT-O")?.State == (int)ControlJobState.Completed) && IsDone(PjOf("LOT-O-1")!.Wafers[0]),
-        "PM1 上线：工艺起了，接着回片跑完");
-    pm2.Online();
+        "PM1 切生产：工艺起了，接着回片跑完");
+    pm2.SetProduction();
     UnloadCarrier(lp1);
     Check(RunUntil(() => CjOf("LOT-O") is null, 20), "LOT-O 删掉");
 
@@ -1657,6 +1657,15 @@ try
     Check(RunUntil(() => PjOf("LOT-E-1")?.Wafers.Any(IsProcessing) == true && !transfers.IsRobotInTransfer("Robot1")),
         "跑到有片在加工、机械手闲着");
     Check(machine.State == SystemState.AutoRunning, "有在跑的 Job：整机是自动运行");
+
+    // 有 Job 在跑：切到 Manual（整机 Idle）也不能全部回片，一开始就拦；再切回 Auto 接着跑
+    Check(machine.Manual().IsSuccess && machine.State == ModuleState.Idle, "切 Manual：整机 Idle");
+    var jobRunning = machine.ReturnAll();
+    Check(!jobRunning.IsSuccess && jobRunning.ErrorMessage == ErrorCodes.SystemReturnJobRunning && machine.State == ModuleState.Idle,
+        "有 Job 在跑（执行中）：全部回片一开始就拦（system.return_job_running），整机还是 Idle");
+    Check(machine.Auto().IsSuccess, "切回 Auto");
+    machine.Tick();
+    Check(machine.State == SystemState.AutoRunning, "切回 Auto：有在跑的 Job，又是自动运行");
     var equipment = new EquipmentService();
     var stop = equipment.StopAsync(new RpcRequest()).Result;
     Check(stop.Success && !transfers.IsAutoDispatch && machine.State == ModuleState.Aborting,
@@ -1678,7 +1687,44 @@ try
         chamber.NoteState(ModuleState.Idle);
     }
 
+    // 机械手停下来是未初始化：回片要用它，一开始就拦
+    robot.NoteState(ModuleState.NotInit);
+    var robotNotReady = equipment.ReturnAllAsync(new RpcRequest()).Result;
+    Check(!robotNotReady.Success && robotNotReady.Code == ErrorCodes.SystemReturnModuleNotReady && robotNotReady.Args.SequenceEqual(["Robot1"])
+          && machine.State == ModuleState.Idle,
+        "机械手没初始化：回片要用它，一开始就拦（system.return_module_not_ready [Robot1]），整机还是 Idle");
     robot.NoteState(ModuleState.Idle);
+    string leftCount = leftInside.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // 卡住：开始以后要回的原槽被占了（这里直接在账上摆片），片都动不了、也没有设备在做动作，整个停下
+    var stuck = machine.ReturnAll();
+    Check(stuck.IsSuccess && machine.State == SystemState.Returning, "全部回片开始：回片中");
+    Check(leftInside.All(wafer => ledger.Create("LP1", wafer.SourceSlot) is not null), "开始以后，在要回的原槽上都摆一片");
+    machine.Tick();
+    var stuckOperation = stuck.Result;
+    Check(stuckOperation is not null && stuckOperation.Code == ErrorCodes.SystemReturnIncomplete
+          && stuckOperation.ErrorArgs.SequenceEqual([leftCount]) && machine.State == ModuleState.Idle,
+        "片都动不了、也没有设备在做动作：整个停下，system.return_incomplete 带还没回去的片数，整机回 Idle");
+    Check(leftInside.All(wafer => ledger.Delete("LP1", wafer.SourceSlot)), "拿掉摆的片");
+
+    // 一趟没做成（取片失败）：整个停下、整机回 Idle，那一趟的锁留着等人工确认；放锁后再按一次接着回
+    robot.FailNextPick = true;
+    var failing = machine.ReturnAll();
+    Check(failing.IsSuccess && machine.State == SystemState.Returning, "全部回片开始：回片中");
+    Check(RunUntil(() => machine.State == ModuleState.Idle), "一趟没做成：整机回 Idle");
+    var failingOperation = failing.Result;
+    Check(failingOperation is not null && failingOperation.Code == ErrorCodes.SystemReturnIncomplete
+          && failingOperation.ErrorArgs.SequenceEqual([leftCount]) && transfers.HeldOperations.Count == 1
+          && leftInside.All(wafer => ledger.FindById(wafer.Id)?.Module == wafer.Module),
+        "取片失败：整个停下（system.return_incomplete 带片数），不接着搬别的片，那一趟的锁留着");
+    Check(transfers.ReleaseHold(transfers.HeldOperations[0].Wafers[0].Id), "人工确认片位后放锁");
+    robot.NoteState(ModuleState.Idle);
+    lp1.NoteState(LoadPortState.Loaded);
+    foreach (var chamber in new[] { pm1, pm2 })
+    {
+        chamber.NoteState(ModuleState.Idle);
+    }
+
     var returnAll = equipment.ReturnAllAsync(new RpcRequest()).Result;
     Check(returnAll.Success && machine.State == SystemState.Returning, "全部回片开始：回片中");
     Check(RunUntil(() => machine.State == ModuleState.Idle), "全部回片做完：回空闲");
@@ -1731,7 +1777,7 @@ try
     Check(secondRobot.InitComponent(), "第二台机械手的组件初始化");
     ComponentLoader.BindAll([secondRobot]);
     secondRobot.NoteState(ModuleState.Idle);
-    secondRobot.Online();
+    secondRobot.SetProduction();
     transfers.Bind([.. modules, secondRobot]);
     transfers.StartAutoDispatch();
     LoadCarrier(lp1, 1, 2, 3);
@@ -1942,7 +1988,7 @@ try
         Check(lefty.InitComponent(), "许可不对称的机械手组件初始化");
         ComponentLoader.BindAll([lefty]);
         lefty.NoteState(ModuleState.Idle);
-        lefty.Online();
+        lefty.SetProduction();
         transfers.Bind([lp1, lp2, lefty, pm1, pm2, pm9]);
         secondRobot = lefty;
         LoadCarrier(lp1, 1, 2);
@@ -1963,7 +2009,7 @@ try
         Check(single.InitComponent() && single.Arms.Count == 1 && ledger.GetSlots("Robot7").Count == 1, "单手机械手组件初始化（账上一只手）");
         ComponentLoader.BindAll([single]);
         single.NoteState(ModuleState.Idle);
-        single.Online();
+        single.SetProduction();
         transfers.Bind([lp1, lp2, single, pm1, pm2, pm9]);
         secondRobot = single;
         LoadCarrier(lp1, 1, 2);
@@ -2049,7 +2095,7 @@ try
         Check(stepper.InitComponent(), "能分段取放的机械手（类上声明 ITransferRobotStep）组件初始化");
         ComponentLoader.BindAll([stepper]);
         stepper.NoteState(ModuleState.Idle);
-        stepper.Online();
+        stepper.SetProduction();
         transfers.Bind([lp1, lp2, stepper, pm1, pm2, pm9]);
         secondRobot = stepper;
 
@@ -2201,7 +2247,7 @@ try
         Check(clean.InitComponent(), "取放分开配的机械手组件初始化");
         ComponentLoader.BindAll([clean]);
         clean.NoteState(ModuleState.Idle);
-        clean.Online();
+        clean.SetProduction();
         transfers.Bind([lp1, lp2, clean, pm1, pm2, pm9]);
         secondRobot = clean;
         Check(clean.TryGetStation("LP1", out var lpConfig) && lpConfig.PickArms.SequenceEqual([1]) && lpConfig.PlaceArms.SequenceEqual([2])
@@ -2287,16 +2333,16 @@ try
     }
 
     // 17h. buffer：两台机械手中间一个 10 层的架子，sc 里配成进片段、出片段两个站（各 5 层），流程配方各走一次——
-    //      进、出不共用一个站，调度照现在的规则连续跑一盒也不卡死，调度、机械手、搬运管理都不用改。buffer 段开机就待命、自己上线；
+    //      进、出不共用一个站，调度照现在的规则连续跑一盒也不卡死，调度、机械手、搬运管理都不用改。buffer 段开机就待命、自己切生产模式；
     //      交换、预取看机械手的手、不分片从哪来：B 从进片段把下一片提前拿上手、在腔门口交换，A 在 buffer 上不换；
     //      跟 JK 一样，机械手控制器里两段各教一个站号，槽号原样发，不用换算
     {
         var bufferIn = new SmokeBuffer("BufferIn", 5);
         var bufferOut = new SmokeBuffer("BufferOut", 5);
         Check(bufferIn.InitComponent() && bufferOut.InitComponent(), "两段 buffer 的组件初始化");
-        Check(bufferIn.State == ModuleState.Idle && bufferIn.Mode == ModuleMode.Online && bufferOut.Mode == ModuleMode.Online
+        Check(bufferIn.State == ModuleState.Idle && bufferIn.Mode == ModuleMode.Production && bufferOut.Mode == ModuleMode.Production
               && ledger.GetSlots("BufferIn").Count == 5 && ledger.GetSlots("BufferOut").Count == 5,
-            "buffer 段开机就待命、自己上线（没有手动页），晶圆账各登记 5 个槽");
+            "buffer 段开机就待命、自己切生产模式（没有手动页），晶圆账各登记 5 个槽");
         var bufferInit = bufferIn.InitModule();
         Check(bufferInit is not null && bufferInit.IsSuccess && bufferIn.State == ModuleState.Idle,
             "全部初始化调到 buffer：没有要动的机构，直接回待命、算做成");
@@ -2312,7 +2358,7 @@ try
         foreach (var bufferRobot in new[] { robotA, robotB })
         {
             bufferRobot.NoteState(ModuleState.Idle);
-            bufferRobot.Online();
+            bufferRobot.SetProduction();
         }
 
         BaseModule[] bufferModules = [lp1, lp2, robotA, robotB, pm1, pm2, pm9, bufferIn, bufferOut];
@@ -2401,6 +2447,41 @@ try
             "两段在机械手里各是一个站号（A：进 5 号、出 6 号；B：进 7 号、出 8 号），槽号原样发 1~5，不用换算");
         UnloadCarrier(lp1);
         Check(RunUntil(() => CjOf("LOT-BUF") is null, 20), "LOT-BUF 删掉");
+
+        // 全部回片过 buffer：路线照晶圆账记的走过的位置倒着走，不认 Job——腔里的片先放回进片段、再由 A 送回料盒，
+        // B 手上的片放回它刚取出来的进片段；先后：手上的 → 其余站点（buffer）→ 腔里的；一次只搬一趟（两台机械手也不并行）
+        var system = machine!;
+        LoadCarrier(lp1, 1, 2, 3);
+        var backIds = new[] { 1, 2, 3 }.Select(slot => ledger.Get("LP1", slot)!.Id).ToArray();
+        Finish(transfers.Start(new TransferRequest { Source = "LP1", SourceSlot = 1, Target = "BufferIn", TargetSlot = 1 }));
+        Finish(transfers.Start(new TransferRequest { Source = "BufferIn", SourceSlot = 1, Target = "PM1", TargetSlot = 1 }));
+        Finish(transfers.Start(new TransferRequest { Source = "LP1", SourceSlot = 2, Target = "BufferIn", TargetSlot = 2 }));
+        Finish(transfers.Start(new TransferRequest { Source = "LP1", SourceSlot = 3, Target = "BufferIn", TargetSlot = 3 }));
+        Finish(transfers.Start(new TransferRequest { Source = "BufferIn", SourceSlot = 3, Target = "RobotB", TargetSlot = 1 }));
+        Check(ledger.Get("PM1", 1)?.Id == backIds[0] && ledger.Get("BufferIn", 2)?.Id == backIds[1] && ledger.Get("RobotB", 1)?.Id == backIds[2]
+              && ledger.Get("PM1", 1)!.Path.SequenceEqual(["RobotA", "BufferIn", "RobotB", "PM1"]),
+            "手动摆出停在半路的三片（腔里、进片段、B 手上）；晶圆账记着每片出了 LoadPort 以后待过的位置");
+        robotA.Commands.Clear();
+        robotB.Commands.Clear();
+        var returnBuffer = system.ReturnAll();
+        Check(returnBuffer.IsSuccess && system.State == SystemState.Returning, "整机 Idle、没有 Job 在跑：全部回片开始");
+        int mostAtOnce = 0;
+        Check(RunUntil(() =>
+        {
+            int moving = new[] { "RobotA", "RobotB" }.Count(transfers.IsRobotInTransfer);
+            mostAtOnce = Math.Max(mostAtOnce, moving);
+            return system.State == ModuleState.Idle;
+        }) && returnBuffer.Result?.IsSuccess == true, "全部回片做完：回 Idle");
+        Check(new[] { 1, 2, 3 }.All(slot => ledger.Get("LP1", slot)?.Id == backIds[slot - 1])
+              && ledger.Get("PM1", 1) is null && ledger.CountWafers("BufferIn") == 0 && ledger.Get("RobotB", 1) is null,
+            "三片都回了原槽，腔、buffer、B 手上都空了");
+        Check(robotB.Commands.SequenceEqual([("Place", 7, 1), ("Pick", 3, 1), ("Place", 7, 1)]),
+            "B：先把手上那片放回进片段，最后才去腔里取片、放回进片段（倒着走，不走出片段）");
+        Check(robotA.Commands.SequenceEqual([("Pick", 5, 1), ("Place", 1, 3), ("Pick", 5, 2), ("Place", 1, 2), ("Pick", 5, 1), ("Place", 1, 1)]),
+            "A：从进片段一片一片送回料盒原槽；先后是手上的 → buffer 里的 → 腔里的");
+        Check(mostAtOnce == 1, "一次只搬一趟：两台机械手也不同时动");
+        Check(new[] { 1, 2, 3 }.All(slot => ledger.Get("LP1", slot)!.Path.Count == 0), "回到 LoadPort：走过的位置清空");
+        UnloadCarrier(lp1);
         extraTicks.Clear();
         secondRobot = null;
         transfers.Bind(modules);
@@ -2413,14 +2494,14 @@ try
     //      调度、任务表、搬运管理都不用改：对准中站点不在待命，调度就不来取；机械手放下片就走，不在旁边等对准
     {
         var aligner = new SmokeJobAligner("AL1");
-        Check(aligner.InitComponent() && aligner.Mode == ModuleMode.Online && ledger.GetSlots("AL1").Count == 1,
-            "对准器组件初始化：开机就上线、晶圆账一个槽");
+        Check(aligner.InitComponent() && aligner.Mode == ModuleMode.Production && ledger.GetSlots("AL1").Count == 1,
+            "对准器组件初始化：开机就是生产模式、晶圆账一个槽");
         var alignerRobot = new SmokeRobot("RobotAL", "LP1", "AL1", "PM1", "PM2");
         Check(alignerRobot.InitComponent(), "这一节的机械手（到得了对准器）组件初始化");
         ComponentLoader.BindAll([alignerRobot, aligner]);
         alignerRobot.NoteState(ModuleState.Idle);
-        alignerRobot.Online();
-        robot.Offline(); // 这一节只让到得了对准器的那台干活
+        alignerRobot.SetProduction();
+        robot.SetMaintenance(); // 这一节只让到得了对准器的那台干活
         BaseModule[] alignerModules = [lp1, lp2, robot, alignerRobot, pm1, pm2, pm9, aligner];
         transfers.Bind(alignerModules);
         sequences.Bind(alignerModules);
@@ -2462,7 +2543,7 @@ try
         UnloadCarrier(lp1);
         Check(RunUntil(() => CjOf("LOT-AL") is null, 20), "LOT-AL 删掉");
         extraTicks.Clear();
-        robot.Online();
+        robot.SetProduction();
         transfers.Bind(modules);
         sequences.Bind(modules);
         alignerRobot.Close();
@@ -2814,7 +2895,7 @@ class SmokeRobot : BaseRobotModule
     }
 }
 
-// 假 buffer 段：用平台的 BaseBufferModule（取放、开机待命上线、全部初始化回待命），名字挂在 Buffer 分组下
+// 假 buffer 段：用平台的 BaseBufferModule（取放、开机待命、切生产模式、全部初始化回待命），名字挂在 Buffer 分组下
 sealed class SmokeBuffer : BaseBufferModule
 {
     public SmokeBuffer(string name, int slotCount)

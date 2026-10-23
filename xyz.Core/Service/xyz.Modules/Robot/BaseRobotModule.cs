@@ -17,12 +17,46 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseRobotModule : BaseModule, IRobot
+public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 {
     /// <summary>
     /// 模块类型：机械手
     /// </summary>
     public override StationKind Kind => StationKind.Robot;
+
+    #region 生产 / 维护模式
+
+    [VariableMark(VariableType.SV, ValueFormat.Enum, description: "模块模式（生产 / 维护）")]
+    public ModuleMode Mode { get; private set; } = ModuleMode.Maintenance;
+
+    /// <summary>
+    /// 切生产模式：交给调度用，只改 Mode、不经设备；机型要多做事就重写、记得调 base
+    /// </summary>
+    public virtual void SetProduction()
+    {
+        SetMode(ModuleMode.Production);
+    }
+
+    /// <summary>
+    /// 切维护模式：调度不再派新活，手上的做完；重写同 <see cref="SetProduction"/>
+    /// </summary>
+    public virtual void SetMaintenance()
+    {
+        SetMode(ModuleMode.Maintenance);
+    }
+
+    private void SetMode(ModuleMode mode)
+    {
+        if (Mode == mode)
+        {
+            return;
+        }
+
+        Mode = mode;
+        LogHelper.Info($"[{Name}] {mode}");
+    }
+
+    #endregion
 
     #region SV
 
@@ -1334,6 +1368,39 @@ public abstract class BaseRobotModule : BaseModule, IRobot
         if (sensed.Value != expectWafer)
         {
             return ArmSensorMismatch(arm, sensed.Value);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 手指的在位传感器跟晶圆账对一遍：配了传感器的手才比，配了读不到也算对不上（全部回片开始前用）
+    /// </summary>
+    public virtual HandleResult? CheckWaferSensors()
+    {
+        var ledger = _ledger;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        foreach (var arm in Arms)
+        {
+            if (!arm.IsWaferCheckEnabled)
+            {
+                continue;
+            }
+
+            bool? sensed = arm.HasWafer;
+            if (sensed is null)
+            {
+                return HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, Name, arm.Number.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (sensed.Value != arm.LedgerHasWafer)
+            {
+                return ArmSensorMismatch(arm.Number, sensed.Value);
+            }
         }
 
         return null;

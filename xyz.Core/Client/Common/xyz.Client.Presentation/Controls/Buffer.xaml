@@ -41,8 +41,8 @@
                                             IsCompact="True" Text="{Binding StateText, ElementName=Root}"
                                             Tone="{Binding StateTone, ElementName=Root}" Style="{StaticResource BufferStateBadgeStyle}" />
                     <StackPanel Grid.Column="2" Margin="10,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="8" Height="8" Margin="0,0,5,0" CornerRadius="4" Style="{StaticResource BufferOnlineDotStyle}" />
-                        <TextBlock Style="{StaticResource BufferOnlineTextStyle}" />
+                        <Border Width="8" Height="8" Margin="0,0,5,0" CornerRadius="4" Style="{StaticResource BufferModeDotStyle}" />
+                        <TextBlock Style="{StaticResource BufferModeTextStyle}" />
                     </StackPanel>
                 </Grid>
             </Border>

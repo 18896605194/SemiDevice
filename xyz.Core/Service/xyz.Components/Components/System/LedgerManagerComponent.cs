@@ -533,9 +533,32 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
             processState = WaferProcessState.Aborted;
         }
 
-        return new WaferInfo(id, row.WaferId, row.Module, row.Slot, row.OriginModule, row.OriginSlot,
+        var wafer = new WaferInfo(id, row.WaferId, row.Module, row.Slot, row.OriginModule, row.OriginSlot,
             row.SourceLoadPort, row.SourceSlot, row.OriginCarrierId, row.CarrierId, row.LotId,
             status, processState, row.CreatedAt, DateTime.Now);
+        wafer.Path = ParsePath(row.Path);
+        return wafer;
+    }
+
+    /// <summary>
+    /// 走过的位置存盘时的写法：模块名逗号隔开
+    /// </summary>
+    internal static string PathText(IReadOnlyList<string> path)
+    {
+        return string.Join(",", path);
+    }
+
+    /// <summary>
+    /// 存盘里走过的位置读回来；老表没这一列（空）就是没记
+    /// </summary>
+    private static IReadOnlyList<string> ParsePath(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        return text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     #endregion
@@ -747,6 +770,19 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         return MoveCore(fromModule, fromSlot, toModule, toSlot, expectedWaferId);
     }
 
+    /// <summary>
+    /// 片移到新位置后走过的位置：回到 LoadPort 清空，别的位置接在后面
+    /// </summary>
+    private IReadOnlyList<string> NextPath(IReadOnlyList<string> path, string module)
+    {
+        if (_loadPorts.Contains(module))
+        {
+            return [];
+        }
+
+        return [.. path, module];
+    }
+
     private bool MoveCore(string fromModule, int fromSlot, string toModule, int toSlot, Guid? expectedWaferId)
     {
         if (!IsEnable)
@@ -791,6 +827,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
             target[toSlot - 1] = wafer;
             wafer.Module = toModule;
             wafer.Slot = toSlot;
+            wafer.Path = NextPath(wafer.Path, toModule);
             wafer.UpdatedAt = DateTime.Now;
             moved = wafer;
         }
@@ -1142,6 +1179,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
             target[toSlot - 1] = wafer;
             wafer.Module = toModule;
             wafer.Slot = toSlot;
+            wafer.Path = NextPath(wafer.Path, toModule);
             wafer.UpdatedAt = DateTime.Now;
             moved = wafer;
         }

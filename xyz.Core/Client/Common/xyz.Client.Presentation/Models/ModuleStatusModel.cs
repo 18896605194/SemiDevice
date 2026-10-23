@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 顶栏模块行上的一个模块：名字照 sc、状态色调和状态字、在不在 Auto
+/// 顶栏模块行上的一个模块：名字照 sc、状态色调和状态字、生产 / 维护
 /// </summary>
 public sealed class ModuleStatusModel : ObservableObject
 {
@@ -33,15 +33,26 @@ public sealed class ModuleStatusModel : ObservableObject
         private set => SetProperty(ref _stateTone, value);
     }
 
-    private bool _isAuto;
+    private bool _isProduction;
 
     /// <summary>
-    /// 在线（参与自动调度）算 Auto，小框边框亮
+    /// 生产模式：小框边框亮
     /// </summary>
-    public bool IsAuto
+    public bool IsProduction
     {
-        get => _isAuto;
-        private set => SetProperty(ref _isAuto, value);
+        get => _isProduction;
+        private set => SetProperty(ref _isProduction, value);
+    }
+
+    private bool _hasMode;
+
+    /// <summary>
+    /// 分不分生产 / 维护：供液这类没有，小框不画边框
+    /// </summary>
+    public bool HasMode
+    {
+        get => _hasMode;
+        private set => SetProperty(ref _hasMode, value);
     }
 
     /// <summary>
@@ -51,7 +62,8 @@ public sealed class ModuleStatusModel : ObservableObject
     {
         StateText = ModuleStates.TextOf(dto.Kind, dto.State);
         StateTone = ModuleStates.ToneOf(dto.Kind, dto.State);
-        IsAuto = dto.Mode == ModuleMode.Online;
+        HasMode = dto.Mode is not null;
+        IsProduction = dto.Mode == ModuleMode.Production;
     }
 
     /// <summary>
@@ -61,6 +73,6 @@ public sealed class ModuleStatusModel : ObservableObject
     {
         StateText = L10n.Get("module.state.disconnected");
         StateTone = ModuleStateTone.Inactive;
-        IsAuto = false;
+        IsProduction = false;
     }
 }

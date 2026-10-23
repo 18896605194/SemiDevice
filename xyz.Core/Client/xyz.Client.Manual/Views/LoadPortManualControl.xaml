@@ -21,7 +21,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!--  ① 状态信号：竖排四行 —— 模块名（右边带在线灯） / 状态徽标 / 信号灯（整行铺开） / 载具 ID  -->
+            <!--  ① 状态信号：竖排四行 —— 模块名（右边带模式灯） / 状态徽标 / 信号灯（整行铺开） / 载具 ID  -->
             <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -30,19 +30,19 @@
                     <RowDefinition Height="26" />
                 </Grid.RowDefinitions>
 
-                <!--  模块名（LoadPort1 / LoadPort2），最右边一盏在线灯：Online 绿、Offline 灰，由下面的上线 / 下线按钮切换  -->
+                <!--  模块名（LoadPort1 / LoadPort2），最右边一盏模式灯：生产绿、维护灰，由下面的生产 / 维护按钮切换  -->
                 <DockPanel Grid.Row="0" Margin="0,0,0,6">
                     <StackPanel
                         VerticalAlignment="Center"
                         DockPanel.Dock="Right"
                         Orientation="Horizontal"
-                        ToolTip="{DynamicResource lpmanual.online_tip}">
+                        ToolTip="{DynamicResource lpmanual.mode_tip}">
                         <Ellipse Width="14" Height="14" VerticalAlignment="Center">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
                                     <Setter Property="Fill" Value="#555" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
+                                        <DataTrigger Binding="{Binding Model.Mode}" Value="Production">
                                             <Setter Property="Fill" Value="{DynamicResource GreenHealthy}" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -56,10 +56,10 @@
                             Foreground="{DynamicResource DarkSecondaryText}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="{DynamicResource lpmanual.offline}" />
+                                    <Setter Property="Text" Value="{DynamicResource lpmanual.maintenance}" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Model.Mode}" Value="Online">
-                                            <Setter Property="Text" Value="{DynamicResource lpmanual.online}" />
+                                        <DataTrigger Binding="{Binding Model.Mode}" Value="Production">
+                                            <Setter Property="Text" Value="{DynamicResource lpmanual.production}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -187,7 +187,7 @@
                             Text="{DynamicResource lpmanual.alarm}" />
                     </StackPanel>
 
-                    <!--  AUTO：LoadPort Access Mode = Auto（Auto/Manual 按钮切换，与在线模式无关）  -->
+                    <!--  AUTO：LoadPort Access Mode = Auto（Auto/Manual 按钮切换，与生产 / 维护模式无关）  -->
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
@@ -281,15 +281,15 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!--  Online/Offline：模块模式（是否参与自动调度），刷新模块名右边的在线灯  -->
+                <!--  生产 / 维护：模块模式（交不交给调度用），刷新模块名右边的模式灯  -->
                 <UniformGrid Grid.Row="0" Columns="3">
                     <Button
-                        Command="{Binding OnlineCommand}"
-                        Content="{DynamicResource action.online}"
+                        Command="{Binding ProductionCommand}"
+                        Content="{DynamicResource action.production}"
                         Style="{DynamicResource CompactSuccessButtonStyle}" />
                     <Button
-                        Command="{Binding OfflineCommand}"
-                        Content="{DynamicResource action.offline}"
+                        Command="{Binding MaintenanceCommand}"
+                        Content="{DynamicResource action.maintenance}"
                         Style="{DynamicResource CompactButtonStyle}" />
                 </UniformGrid>
 

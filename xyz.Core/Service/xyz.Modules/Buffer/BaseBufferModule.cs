@@ -15,7 +15,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
 {
     #region SC
 
-    [SCEditor("True", "Buffer", "是否启用这一段 buffer（False = 装机未接 / 停用：不登记槽位、不上线，调度不往这儿放片）")]
+    [SCEditor("True", "Buffer", "是否启用这一段 buffer（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
     public bool IsEnable { get; set; } = true;
 
     [SCEditor("1", "Buffer", "这一段有几层（晶圆账按它登记槽位）；机械手控制器里每一段各教一个站号，这一段的 1 号槽就是那个站号的第 1 层")]
@@ -49,8 +49,8 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
         // 在晶圆账里也是个位置：片放在这一段的哪一层，账上就记在这个站的哪一槽
         IocHelper.GetService<ILedgerManager>()?.RegisterLocation(Name, SlotCount);
 
-        // 没有手动页、没有要人确认的设备：开机就上线，调度才会往这儿派片
-        Online();
+        // 没有手动页、没有要人确认的设备：开机就切生产模式，调度才会往这儿派片
+        SetProduction();
         return base.InitComponent();
     }
 

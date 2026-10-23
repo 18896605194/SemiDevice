@@ -24,9 +24,10 @@ public class MapperComponent : ComponentBase, IMapper
     public MapperComponent()
     {
 
-        // 账上的片 → 当前账存盘行：片的 Id 在表里叫 WaferGuid
+        // 账上的片 → 当前账存盘行：片的 Id 在表里叫 WaferGuid；走过的位置存成逗号隔开的一列
         _config.NewConfig<WaferInfo, WaferCurrentEntity>()
-            .Map(entity => entity.WaferGuid, wafer => wafer.Id.ToString());
+            .Map(entity => entity.WaferGuid, wafer => wafer.Id.ToString())
+            .Map(entity => entity.Path, wafer => LedgerManagerComponent.PathText(wafer.Path));
 
         // 账上的片 → 流水行：表自己的 Id 是雪花号，不能拿片的 Id 填；发生时刻就是片最后变动的时刻。动作、从哪来由记流水的地方填
         _config.NewConfig<WaferInfo, WaferHistoryEntity>()
