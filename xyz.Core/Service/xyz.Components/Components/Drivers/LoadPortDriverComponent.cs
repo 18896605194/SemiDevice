@@ -183,17 +183,23 @@ public abstract class LoadPortDriverComponent : ComponentBase, ILoadPortDriverCo
 
     #region 统一触发口
 
-    /// <summary>Load：开门 + Mapping（结果在 Response.SlotMap）。成功返回句柄（等 IsCompleted 读 Response），被拒返回 null。</summary>
+    /// <summary>
+    /// Load：只装载开门，不扫片。成功返回句柄（等 IsCompleted 读 Response），被拒返回 null。
+    /// </summary>
     public LoadPortCommand? Load() => CreateLoad().Execute();
 
     /// <summary>Unload：关门。</summary>
     public LoadPortCommand? Unload() => CreateUnload().Execute();
 
     /// <summary>
-    /// Map：原地扫一遍槽，不装载（结果在 Response.SlotMap）。端口 SC AutoRunMapOnUnload 开着时，
-    /// 自动跑货的 Unload 关好门后用它再扫一遍跟晶圆账对——设备没有一条指令就带图卸载的，所以单独一条。
+    /// Map：Load 好（门开着）时原地扫一遍槽；扫到的槽图用 GetMap 取。
     /// </summary>
     public LoadPortCommand? Map() => CreateMap().Execute();
+
+    /// <summary>
+    /// GetMap：取最后一次扫片的槽图（结果在 Response.SlotMap）。
+    /// </summary>
+    public LoadPortCommand? GetMap() => CreateGetMap().Execute();
 
     /// <summary>Home：整机回零。</summary>
     public LoadPortCommand? Home() => CreateHome().Execute();
@@ -228,6 +234,8 @@ public abstract class LoadPortDriverComponent : ComponentBase, ILoadPortDriverCo
     protected abstract LoadPortCommand CreateUnload();
 
     protected abstract LoadPortCommand CreateMap();
+
+    protected abstract LoadPortCommand CreateGetMap();
 
     protected abstract LoadPortCommand CreateHome();
 

@@ -564,6 +564,94 @@ port.Tick();
 SmokeIoc.Use<ILedgerManager>(null);
 port.E87Callback = null;
 
+// ── 机械手两种晶圆尺寸各一张站点表 ────────────────────────────────────────
+// sc 配 Stations12 / Stations8，整机现在几寸就用哪张（站点号、取放手、有哪些站点都能不一样）；只配 Stations 两种尺寸共用；
+// 同名的表配了两个开机就报；两张表配的手指开机都查。
+{
+    var previousWaferSize = IocHelper.GetService<IWaferSize>();
+    ModuleConfig StationNode(string name, string number, string pickArms)
+    {
+        return new ModuleConfig
+        {
+            Name = name,
+            Values =
+            [
+                new ValueConfig { Name = "Number", Value = number },
+                new ValueConfig { Name = "PickArms", Value = pickArms },
+            ],
+        };
+    }
+
+    ModuleConfig Table(string name, params ModuleConfig[] stations)
+    {
+        return new ModuleConfig { Name = name, Children = [.. stations] };
+    }
+
+    string RefusedWith(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception.Message;
+        }
+
+        return string.Empty;
+    }
+
+    List<string> PushedStations(ProbeRobot robot)
+    {
+        return robot.CreateStateDto().StationInfos.Select(info => $"{info.Name}:{info.Number}").ToList();
+    }
+
+    var waferSize = new WaferSizeComponent();
+    SmokeIoc.Use<IWaferSize>(waferSize);
+    var sized = new ProbeRobot();
+    sized.NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children =
+        [
+            Table("Stations12", StationNode("SmokeLP", "1", "1")),
+            Table("Stations8", StationNode("SmokeLP", "11", "1"), StationNode("SmokePM", "12", "1")),
+        ],
+    });
+    Check(sized.InitComponent(), "两张站点表的机械手组件初始化");
+    Check(sized.TryGetStation("SmokeLP", out var lp12) && lp12.Number == 1 && !sized.TryGetStation("SmokePM", out _)
+          && PushedStations(sized).SequenceEqual(["SmokeLP:1"]),
+        "12 寸：用 Stations12（站点号 1、没有 SmokePM），推给界面的也是这张");
+    waferSize.Size = 8;
+    Check(sized.TryGetStation("SmokeLP", out var lp8) && lp8.Number == 11 && sized.TryGetStation("SmokePM", out _)
+          && PushedStations(sized).SequenceEqual(["SmokeLP:11", "SmokePM:12"]) && sized.StationsOf(12).Count == 1,
+        "切到 8 寸：马上换成 Stations8（站点号 11、多了 SmokePM），推给界面的跟着换；12 寸那张不动");
+    waferSize.Size = 12;
+
+    var shared = new ProbeRobot();
+    shared.NoteSettings(new ModuleConfig { Name = "SmokeRobot", Children = [Table("Stations", StationNode("SmokeLP", "1", "1"))] });
+    Check(ReferenceEquals(shared.StationsOf(8), shared.StationsOf(12)) && shared.StationsOf(8).Count == 1,
+        "只配 Stations：两种尺寸共用这一张");
+
+    string twice = RefusedWith(() => new ProbeRobot().NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children = [Table("Stations8", StationNode("SmokeLP", "1", "1")), Table("Stations8", StationNode("SmokeLP", "2", "1"))],
+    }));
+    Check(twice.Contains("Stations8") && twice.Contains("2 个"), "同名的站点表配了两个（抄了一张忘改名）：开机就报，实际 " + twice);
+
+    var badArm = new ProbeRobot();
+    badArm.NoteSettings(new ModuleConfig
+    {
+        Name = "SmokeRobot",
+        Children = [Table("Stations12", StationNode("SmokeLP", "1", "1")), Table("Stations8", StationNode("SmokeLP", "1", "3"))],
+    });
+    string badArmRefused = RefusedWith(() => badArm.InitComponent());
+    Check(badArmRefused.Contains("8 寸") && badArmRefused.Contains("Arm3"),
+        "8 寸那张配了这台机械手没有的手（Arm3）：现在是 12 寸也开机就报，实际 " + badArmRefused);
+    SmokeIoc.Use<IWaferSize>(previousWaferSize);
+}
+
 // ── 机械手取放写晶圆账 ──────────────────────────────────────────────────
 {
     var robotLedger = new LedgerManagerComponent();
@@ -2722,7 +2810,8 @@ port.E87Callback = null;
         "旧泵退出没把新的一轮停掉：第二帧照样收到");
     frameLink.Close();
 
-    // 9) 平台默认动作：机型一个动作都不写也能用——一条驱动指令一个动作。Load 成功把 Mapping 落下来；设备回 NAK、等超时、没连上都判失败
+    // 9) 平台默认动作：机型一个动作都不写也能用。Load 先只发 CLOAD 开门（回执里带图也不用），再发 MAPDO 扫片、GET:MAPDT 取槽图落账；
+    //    设备回 NAK、等超时、没连上都判失败
     bool TickPlainUntil(PlainPort target, Func<bool> condition)
     {
         return WaitUntil(() =>
@@ -2744,11 +2833,17 @@ port.E87Callback = null;
     plain.Tick();
     var plainLoad = plain.Load().Result;
     Check(plainLoad is not null && plain.State == LoadPortState.Loading, "平台默认 Load：空闲能发起，进 Loading");
-    Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 发的是 FCD 的 CLOAD");
-    plainComm.Push($"INF:CLOAD/PE{new string('E', 23)}");
+    Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:CLOAD") == 1), "平台默认 Load 先发 FCD 的 CLOAD，只开门");
+    plainComm.Push($"INF:CLOAD/{new string('E', 25)}");
+    Check(TickPlainUntil(plain, () => plainComm.SentCount("MOV:MAPDO") == 1) && !plainLoad!.IsTerminal && plain._carrier.SlotMap.Count == 0,
+        "CLOAD 做完接着发 MAPDO 扫片；CLOAD 回执里带的图不用、不落账");
+    plainComm.Push("INF:MAPDO");
+    Check(TickPlainUntil(plain, () => plainComm.SentCount("GET:MAPDT") == 1), "扫完发 GET:MAPDT 取槽图");
+    plainComm.Push($"ACK:MAPDT/PE{new string('E', 23)}");
     Check(TickPlainUntil(plain, () => plainLoad!.IsTerminal) && plainLoad!.IsSuccess && plain.State == LoadPortState.Loaded
-          && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.Normal && plain._carrier.SlotMap[1] == SlotState.Empty,
-        "平台默认 Load：设备回完成就落 Loaded，Mapping 结果落进 SlotMap");
+          && plain._carrier.SlotMap.Count == 25 && plain._carrier.SlotMap[0] == SlotState.Normal && plain._carrier.SlotMap[1] == SlotState.Empty
+          && plain.MapResults["PlainPort"][0] == SlotState.Normal,
+        "取到槽图才算 Load 做完：落 Loaded，槽图按 GET:MAPDT 回的落进 SlotMap，也存进 MapResults");
     var plainUnload = plain.Unload().Result;
     Check(plainUnload is not null && TickPlainUntil(plain, () => plainComm.SentCount("MOV:CULOD") == 1), "平台默认 Unload 发 CULOD");
     plainComm.Push("NAK:CULOD/BUSY");
@@ -2768,7 +2863,7 @@ port.E87Callback = null;
         "没连上：Home 当场被拒（module.not_connected），不发指令、状态不动（以前是发出去判 command_rejected、落 Error）");
     plain.Close();
 
-    // 9b) Load 回来的 Mapping 不能用：槽数跟 sc 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
+    // 9b) Load 扫到的 Mapping 不能用：槽数跟 sc 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
     //     Load 判失败、落 Error，机械手进不来，报"Mapping 异常"（不报笼统的动作失败）
     var mapAlarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(mapAlarms);
@@ -2784,7 +2879,11 @@ port.E87Callback = null;
         port.Tick();
         var load = port.Load().Result;
         Check(load is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CLOAD") == 1), $"{port.Name} 发了 CLOAD");
-        port.Shell.Comm.Push($"INF:CLOAD/{mapData}");
+        port.Shell.Comm.Push("INF:CLOAD");
+        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:MAPDO") == 1), $"{port.Name} 接着发了 MAPDO");
+        port.Shell.Comm.Push("INF:MAPDO");
+        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("GET:MAPDT") == 1), $"{port.Name} 扫完取槽图");
+        port.Shell.Comm.Push($"ACK:MAPDT/{mapData}");
         Check(TickPlainUntil(port, () => load!.IsTerminal), $"{port.Name} 的 Load 做完了");
         return load!;
     }
@@ -2937,9 +3036,9 @@ port.E87Callback = null;
     movedPort.Close();
     SmokeIoc.Use<IAlarm>(null);
 
-    // 9d) 自动跑货的 Unload 带 Mapping 对账（SC AutoRunMapOnUnload，照老 CTC 的卸载对账）：FCD 没有带图卸载的指令，先发 CULOD 关门，
-    //     关好了再主动发 CLDMP 扫一遍；扫到的跟账一致 Unload 成功；少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error，
-    //     报 Mapping 异常和晶圆账的账实不符，账不动；关门没成就不扫；扫图没成 Unload 判失败；SC 关着只发 CULOD（第 9 节）
+    // 9d) 自动跑货的 Unload 带 Mapping 对账（SC AutoRunMapOnUnload，照老 CTC 的卸载对账）：门关了就扫不了，所以关门前先发 MAPDO 扫、
+    //     GET:MAPDT 取槽图跟账对，对得上才发 CULOD 关门、Unload 成功；少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error、门不关，
+    //     报 Mapping 异常和晶圆账的账实不符，账不动；扫片没成判失败、不取图不关门；对上了关门没成也判失败；SC 关着只发 CULOD（第 9 节）
     var unloadMapAlarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(unloadMapAlarms);
     PlainPort LoadedMapPort(string name)
@@ -2952,39 +3051,44 @@ port.E87Callback = null;
         port.Tick();
         var load = port.Load().Result;
         Check(load is not null && TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:CLOAD") == 1), $"{name} 发了 CLOAD");
-        port.Shell.Comm.Push($"INF:CLOAD/PPE{new string('E', 22)}");
+        port.Shell.Comm.Push("INF:CLOAD");
+        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("MOV:MAPDO") == 1), $"{name} 接着发了 MAPDO");
+        port.Shell.Comm.Push("INF:MAPDO");
+        Check(TickPlainUntil(port, () => port.Shell.Comm.SentCount("GET:MAPDT") == 1), $"{name} 扫完取槽图");
+        port.Shell.Comm.Push($"ACK:MAPDT/PPE{new string('E', 22)}");
         Check(TickPlainUntil(port, () => load!.IsTerminal) && load!.IsSuccess && port.State == LoadPortState.Loaded, $"{name} Load 好了，1、2 槽有片");
         return port;
     }
 
-    ModuleOperation UnloadThenMap(PlainPort port, params string[] mapReplies)
+    // 自动跑货的 Unload：先发 MAPDO 扫片（门不关），扫完取槽图，回 mapData；对得上才会接着发 CULOD
+    ModuleOperation UnloadWithMap(PlainPort port, string mapData)
     {
         var comm = port.Shell.Comm;
         var unload = port.Unload().Result;
-        Check(unload is not null && TickPlainUntil(port, () => comm.SentCount("MOV:CULOD") == 1) && comm.SentCount("MOV:CLDMP") == 0,
-            $"{port.Name}：AutoRunMapOnUnload 开着，Unload 先发普通的 CULOD 关门，门没关好不扫");
-        comm.Push("INF:CULOD");
-        Check(TickPlainUntil(port, () => comm.SentCount("MOV:CLDMP") == 1), $"{port.Name}：门关好了，再主动发 CLDMP 扫一遍");
-        foreach (string reply in mapReplies)
-        {
-            comm.Push(reply);
-        }
-
-        Check(TickPlainUntil(port, () => unload!.IsTerminal), $"{port.Name} 的 Unload 做完了");
+        Check(unload is not null && TickPlainUntil(port, () => comm.SentCount("MOV:MAPDO") == 2) && comm.SentCount("MOV:CULOD") == 0,
+            $"{port.Name}：AutoRunMapOnUnload 开着，Unload 先发 MAPDO 扫片，门先不关");
+        comm.Push("INF:MAPDO");
+        Check(TickPlainUntil(port, () => comm.SentCount("GET:MAPDT") == 2), $"{port.Name}：扫完发 GET:MAPDT 取槽图");
+        comm.Push($"ACK:MAPDT/{mapData}");
         return unload!;
     }
 
     var matchPort = LoadedMapPort("UnloadMapOkPort");
-    var matchUnload = UnloadThenMap(matchPort, $"INF:CLDMP/PPE{new string('E', 22)}");
-    Check(matchUnload.IsSuccess && matchPort.State == ModuleState.Idle && !matchPort.HasAlarm, "关门后扫到的跟账一致：Unload 成功、落 Idle，不报警");
+    var matchUnload = UnloadWithMap(matchPort, $"PPE{new string('E', 22)}");
+    Check(TickPlainUntil(matchPort, () => matchPort.Shell.Comm.SentCount("MOV:CULOD") == 1) && !matchUnload.IsTerminal,
+        "扫到的跟账一致：这才发 CULOD 关门");
+    matchPort.Shell.Comm.Push("INF:CULOD");
+    Check(TickPlainUntil(matchPort, () => matchUnload.IsTerminal) && matchUnload.IsSuccess && matchPort.State == ModuleState.Idle && !matchPort.HasAlarm,
+        "关门前扫到的跟账一致：Unload 成功、落 Idle，不报警");
     matchPort.Close();
 
-    // 1 槽账上有、没扫到（少片），3 槽扫到、账上没有（多片），4 槽交叉片；槽图走单独的 MAPDT 帧、终结帧不带数据也收
+    // 1 槽账上有、没扫到（少片），3 槽扫到、账上没有（多片），4 槽交叉片
     var mismatchPort = LoadedMapPort("UnloadMapBadPort");
-    var mismatchUnload = UnloadThenMap(mismatchPort, $"INF:MAPDT/EPPC{new string('E', 21)}", "INF:CLDMP");
-    Check(mismatchUnload.Code == ErrorCodes.UnloadSlotMapMismatch && mismatchUnload.ErrorArgs.SequenceEqual(new[] { "UnloadMapBadPort", "1,3,4" })
-          && mismatchPort.State == ModuleState.Error,
-        "少片、多片、交叉片：Unload 判失败（unload_slot_map_mismatch，带槽号），落 Error，不能就这么取走");
+    var mismatchUnload = UnloadWithMap(mismatchPort, $"EPPC{new string('E', 21)}");
+    Check(TickPlainUntil(mismatchPort, () => mismatchUnload.IsTerminal)
+          && mismatchUnload.Code == ErrorCodes.UnloadSlotMapMismatch && mismatchUnload.ErrorArgs.SequenceEqual(new[] { "UnloadMapBadPort", "1,3,4" })
+          && mismatchPort.State == ModuleState.Error && mismatchPort.Shell.Comm.SentCount("MOV:CULOD") == 0,
+        "少片、多片、交叉片：Unload 判失败（unload_slot_map_mismatch，带槽号），落 Error，门不关，不能就这么取走");
     Check(MapAlarmActiveIn(unloadMapAlarms, mismatchPort, mismatchPort.SlotMapAlarm)
           && unloadMapAlarms.ActiveAlarms.Any(alarm => alarm.AlarmCode == presenceLedger.WaferLedgerAlarm),
         "Unload 对账不符：报 Mapping 异常，晶圆账报账实不符");
@@ -2992,26 +3096,30 @@ port.E87Callback = null;
         "Unload 对账不符：账不动，等人按实物在账单调整页改");
     mismatchPort.Close();
 
-    // 关门没成（设备回 ABS）：Unload 判失败、落 Error，不再发 CLDMP 扫图
+    // 扫片对上了、关门没成（设备回 ABS）：Unload 判失败、落 Error
     var closeFailPort = LoadedMapPort("UnloadMapCloseFailPort");
     var closeFailComm = closeFailPort.Shell.Comm;
-    var closeFailUnload = closeFailPort.Unload().Result;
-    Check(closeFailUnload is not null && TickPlainUntil(closeFailPort, () => closeFailComm.SentCount("MOV:CULOD") == 1),
-        "关门没成用的端口：Unload 先发了 CULOD");
+    var closeFailUnload = UnloadWithMap(closeFailPort, $"PPE{new string('E', 22)}");
+    Check(TickPlainUntil(closeFailPort, () => closeFailComm.SentCount("MOV:CULOD") == 1), "关门没成用的端口：对上了才发 CULOD");
     closeFailComm.Push("ABS:CULOD/0301");
-    Check(TickPlainUntil(closeFailPort, () => closeFailUnload!.IsTerminal) && closeFailUnload!.Code == ErrorCodes.DeviceFailed
-          && closeFailPort.State == ModuleState.Error && closeFailComm.SentCount("MOV:CLDMP") == 0,
-        "关门没成：Unload 判失败（device_failed）、落 Error，不再发 CLDMP 扫图");
+    Check(TickPlainUntil(closeFailPort, () => closeFailUnload.IsTerminal) && closeFailUnload.Code == ErrorCodes.DeviceFailed
+          && closeFailPort.State == ModuleState.Error,
+        "扫片对上了、关门没成：Unload 判失败（device_failed）、落 Error");
     closeFailPort.Close();
 
-    // 门关好了、扫图没成（设备回 NAK）：Unload 判失败、落 Error——没扫成就对不了账，不能当卸好了让人取走
+    // 扫片没成（设备回 NAK）：Unload 判失败、落 Error，不取图、不关门——没扫成就对不了账，不能当卸好了让人取走
     var scanFailPort = LoadedMapPort("UnloadMapScanFailPort");
-    var scanFailUnload = UnloadThenMap(scanFailPort, "NAK:CLDMP/0103");
-    Check(scanFailUnload.Code == ErrorCodes.DeviceFailed && scanFailPort.State == ModuleState.Error,
-        "门关好了、扫图没成：Unload 判失败（device_failed）、落 Error，不当卸好了");
+    var scanFailComm = scanFailPort.Shell.Comm;
+    var scanFailUnload = scanFailPort.Unload().Result;
+    Check(scanFailUnload is not null && TickPlainUntil(scanFailPort, () => scanFailComm.SentCount("MOV:MAPDO") == 2),
+        "扫片没成用的端口：Unload 先发了 MAPDO");
+    scanFailComm.Push("NAK:MAPDO/0103");
+    Check(TickPlainUntil(scanFailPort, () => scanFailUnload!.IsTerminal) && scanFailUnload!.Code == ErrorCodes.DeviceFailed
+          && scanFailPort.State == ModuleState.Error && scanFailComm.SentCount("GET:MAPDT") == 1 && scanFailComm.SentCount("MOV:CULOD") == 0,
+        "扫片没成：Unload 判失败（device_failed）、落 Error，不取图、不关门，不当卸好了");
     scanFailPort.Close();
 
-    // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要关门后扫图对账）时，手动卸载照样只发普通 CULOD，关好门也不扫、不对账——
+    // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要关门前扫片对账）时，手动卸载照样只发普通 CULOD，不扫、不对账——
     //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货的 Unload）
     var manualPort = LoadedMapPort("ManualUnloadPort");
     var manualUnload = manualPort.UnloadManually().Result;
@@ -3019,8 +3127,9 @@ port.E87Callback = null;
         "手动 Unload：SC AutoRunMapOnUnload 开着也发普通的 CULOD");
     manualPort.Shell.Comm.Push("INF:CULOD");
     Check(TickPlainUntil(manualPort, () => manualUnload!.IsTerminal) && manualUnload!.IsSuccess
-          && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm && manualPort.Shell.Comm.SentCount("MOV:CLDMP") == 0,
-        "手动 Unload：关好门不扫、不对账——账上 1、2 槽有片也不拦，卸成功、落 Idle、不报警");
+          && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm
+          && manualPort.Shell.Comm.SentCount("MOV:MAPDO") == 1 && manualPort.Shell.Comm.SentCount("GET:MAPDT") == 1,
+        "手动 Unload：不扫、不对账（MAPDO、GET:MAPDT 只有 Load 时那一次）——账上 1、2 槽有片也不拦，卸成功、落 Idle、不报警");
     Check(presenceLedger.Get("ManualUnloadPort", 1) is not null && presenceLedger.Get("ManualUnloadPort", 2) is not null,
         "手动 Unload：账不动");
     manualPort.Close();
@@ -3884,7 +3993,266 @@ port.E87Callback = null;
         "普通站点撤回准备后恢复可用");
 }
 
-Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping check (a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: CULOD first, then an active CLDMP scan once the door is closed; missing, extra or crossed wafers failing the Unload with the mapping alarm and leaving the ledger alone, no scan after a failed close, a failed scan failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp).");
+// ── 扫片（IWaferMap）：LoadPort 自己单独扫一遍；机械手开了 MapEnabled 就由它替 LoadPort 扫（扫片用站点原来的 Number），
+//    经搬运管理排队：手上全空、没在搬才扫，排着时手上有片只拒往手上添片的、手上空了新搬运一律不接；维护模式、没初始化直接判失败 ──────
+{
+    var mapLedger = new LedgerManagerComponent();
+    SmokeIoc.Use<ILedgerManager>(mapLedger);
+    var ticks = new List<Action>();
+
+    // 顶替各自的扫描线程推一拍（端口、机械手、搬运管理），直到条件成立
+    bool PumpUntil(Func<bool> condition)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < 3000)
+        {
+            foreach (var tick in ticks)
+            {
+                tick();
+            }
+
+            if (condition())
+            {
+                return true;
+            }
+
+            Thread.Sleep(1);
+        }
+
+        return false;
+    }
+
+    void Pump(int times)
+    {
+        for (int index = 0; index < times; index++)
+        {
+            foreach (var tick in ticks)
+            {
+                tick();
+            }
+        }
+    }
+
+    ModuleConfig MapStations(string robotName, params (string Name, string Number)[] stations)
+    {
+        var nodes = new List<ModuleConfig>();
+        foreach (var station in stations)
+        {
+            nodes.Add(new ModuleConfig { Name = station.Name, Values = [new ValueConfig { Name = "Number", Value = station.Number }] });
+        }
+
+        return new ModuleConfig { Name = robotName, Children = [new ModuleConfig { Name = "Stations", Children = nodes }] };
+    }
+
+    string RefusedBy(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception.Message;
+        }
+
+        return string.Empty;
+    }
+
+    // 前 filled 槽有片、其余空着的 25 槽槽图
+    SlotState[] MapOf(int filled)
+    {
+        var slots = new SlotState[25];
+        for (int index = 0; index < slots.Length; index++)
+        {
+            slots[index] = SlotState.Empty;
+            if (index < filled)
+            {
+                slots[index] = SlotState.Normal;
+            }
+        }
+
+        return slots;
+    }
+
+    // 1) LoadPort 自己单独扫一遍：只在 Loaded（门开着）、只扫自己；扫到的存进 MapResults，不落账、不动载具槽图
+    var ownPort = new PlainPort("OwnMapLP");
+    Check(ownPort.InitComponent(), "自己扫片用的端口组件初始化应成功");
+    ComponentLoader.BindAll([ownPort]);
+    ticks.Add(ownPort.Tick);
+    ownPort.NoteState(ModuleState.Idle);
+    var notLoaded = ownPort.Map("OwnMapLP");
+    Check(!notLoaded.IsSuccess && notLoaded.ErrorMessage == ErrorCodes.ModuleStateNotAllowed,
+        $"门没开（没 Load）：LoadPort 单独扫片被拒（module.state_not_allowed），实际 {notLoaded.ErrorMessage}");
+    ownPort.NoteState(LoadPortState.Loaded);
+    var otherStation = ownPort.Map("OtherLP");
+    Check(!otherStation.IsSuccess && otherStation.ErrorMessage == ErrorCodes.StationNotFound && otherStation.Args.SequenceEqual(["OwnMapLP", "OtherLP"]),
+        "LoadPort 只扫自己：别的站点名被拒（robot.station_not_found [端口, 站点]）");
+    var ownMap = ownPort.Map("OwnMapLP").Result;
+    Check(ownMap is not null && ownPort.State == LoadPortState.Mapping && PumpUntil(() => ownPort.Shell.Comm.SentCount("MOV:MAPDO") == 1),
+        "门开着：单独扫片进扫片中（160），发 MAPDO");
+    ownPort.Shell.Comm.Push("INF:MAPDO");
+    Check(PumpUntil(() => ownPort.Shell.Comm.SentCount("GET:MAPDT") == 1), "扫完发 GET:MAPDT 取槽图");
+    ownPort.Shell.Comm.Push($"ACK:MAPDT/PP{new string('E', 23)}");
+    Check(PumpUntil(() => ownMap!.IsTerminal) && ownMap!.IsSuccess && ownPort.State == LoadPortState.Loaded
+          && ownPort.MapResults["OwnMapLP"].Take(3).SequenceEqual([SlotState.Normal, SlotState.Normal, SlotState.Empty])
+          && ownPort._carrier.SlotMap.Count == 0 && mapLedger.CountWafers("OwnMapLP") == 0,
+        "单独扫片做完回 Loaded：槽图存进 MapResults（键是端口名），不落账、不动载具槽图");
+    ownPort.Close();
+    ticks.Clear();
+
+    // 2) 开机查：开了 MapEnabled 的机械手类得能扫片（声明 IWaferMap）；两台开着扫片的机械手站点表里都有同一个口，不知道该谁扫
+    var notMapper = new ProbeRobot { MapEnabled = true };
+    Check(RefusedBy(() => notMapper.InitComponent()).Contains("MapEnabled"),
+        "机械手类没声明 IWaferMap 却开了 MapEnabled：组件初始化就抛，开机暴露");
+    var twinA = new MapProbeRobot("TwinRobotA") { MapEnabled = true };
+    var twinB = new MapProbeRobot("TwinRobotB") { MapEnabled = true };
+    twinA.NoteSettings(MapStations("TwinRobotA", ("TwinLP", "1")));
+    twinB.NoteSettings(MapStations("TwinRobotB", ("TwinLP", "2")));
+    var twinPort = new PlainPort("TwinLP");
+    Check(twinPort.InitComponent(), "两台机械手抢一个口用的端口组件初始化应成功");
+    SmokeIoc.Tree(twinPort, twinA, twinB);
+    string twinError = RefusedBy(() => twinPort.Bind());
+    Check(twinError.Contains("TwinRobotA") && twinError.Contains("TwinRobotB"),
+        "两台机械手都开了扫片、站点表里都有这个口：端口开机认扫片机械手时就抛，写清是哪两台");
+    twinPort.Close();
+
+    // 3) 机械手自己的扫片入口：开了扫片、站点在站点表里、手上全空才收
+    var robot = new MapProbeRobot("MapRobot") { MapEnabled = true };
+    robot.NoteSettings(MapStations("MapRobot", ("RobotMapLP", "7"), ("MapAligner", "8")));
+    var lp = new PlainPort("RobotMapLP");
+    var aligner = new ProbeAligner("MapAligner");
+    var transfers = new MapProbeTransfers();
+    mapLedger.RegisterLocation("MapAligner", 1);
+    Check(robot.InitComponent() && lp.InitComponent() && aligner.InitComponent(), "扫片用的机械手、端口、对准台组件初始化应成功");
+    SmokeIoc.Use<ITransferManager>(transfers);
+    SmokeIoc.Tree(lp, robot, aligner);
+    transfers.Bind([lp, robot, aligner]);
+    ComponentLoader.BindAll([lp, robot]);
+    ticks.Add(lp.Tick);
+    ticks.Add(robot.Tick);
+    ticks.Add(transfers.Tick);
+
+    // 只看搬运收不收：收了马上撤掉、等它收尾，资源放回去
+    string TryTransfer(string source, int sourceSlot, string target, int targetSlot)
+    {
+        var started = transfers.Start(new TransferRequest { Source = source, SourceSlot = sourceSlot, Target = target, TargetSlot = targetSlot });
+        var routine = started.Result;
+        if (!started.IsSuccess || routine is null)
+        {
+            return started.ErrorMessage;
+        }
+
+        transfers.Cancel(routine, "冒烟：只看收不收，收了就撤");
+        PumpUntil(() => !transfers.IsRobotInTransfer("MapRobot"));
+        return string.Empty;
+    }
+
+    robot.NoteState(ModuleState.Idle);
+    var noStation = robot.Map("NoSuchLP");
+    Check(!noStation.IsSuccess && noStation.ErrorMessage == ErrorCodes.StationNotFound && noStation.Args.SequenceEqual(["MapRobot", "NoSuchLP"])
+          && robot.MapCalls == 0,
+        "机械手扫片：站点不在站点表里被拒（robot.station_not_found）");
+    var held = mapLedger.Create("MapRobot", 2)!;
+    var armBusy = robot.Map("RobotMapLP");
+    Check(!armBusy.IsSuccess && armBusy.ErrorMessage == ErrorCodes.RobotArmHasWafer && armBusy.Args.SequenceEqual(["MapRobot", "2", held.WaferId]),
+        "机械手扫片：手上有片被拒（robot.arm_has_wafer [机械手, 手指号, 片号]）——不知道扫片传感器在哪只手上，拿着片扫会碰片");
+    robot.MapEnabled = false;
+    var switchedOff = robot.Map("RobotMapLP");
+    Check(!switchedOff.IsSuccess && switchedOff.ErrorMessage == ErrorCodes.RobotMapUnsupported && robot.MapCalls == 0,
+        "sc 没开 MapEnabled：机械手扫片被拒（robot.map_unsupported）");
+    robot.MapEnabled = true;
+
+    // 4) 替 LoadPort 扫片：Load 照样先发 CLOAD 开门，扫片交搬运管理排机械手去扫；机械手在维护模式不等，Load 当场判失败
+    lp.NoteState(ModuleState.Idle);
+    lp.NotePodPlaced(true);
+    lp.Tick();
+    var maintenanceLoad = lp.Load().Result;
+    Check(maintenanceLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 1), "机械手扫片的口：Load 照样先发 CLOAD 开门");
+    lp.Shell.Comm.Push("INF:CLOAD");
+    Check(PumpUntil(() => maintenanceLoad!.IsTerminal) && maintenanceLoad!.Code == ErrorCodes.ModuleMaintenance
+          && maintenanceLoad.ErrorArgs.SequenceEqual(["MapRobot"]) && lp.State == ModuleState.Error
+          && robot.MapCalls == 0 && lp.Shell.Comm.SentCount("MOV:MAPDO") == 0,
+        $"机械手在维护模式：不等，Load 判失败（module.maintenance），机械手没动，LoadPort 也不自己扫，实际 {maintenanceLoad?.Code}");
+
+    // 5) 生产模式、机械手手上还拿着片：扫片排着等（不按 Load 超时算）；这时只拒往手上添片的（只取到手上），把手上的片放出去的照接
+    robot.SetProduction();
+    lp.NoteState(ModuleState.Idle);
+    lp.LoadTimeout = 1000;
+    var queuedLoad = lp.Load().Result;
+    Check(queuedLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 2), "再 Load 一次：发 CLOAD");
+    lp.Shell.Comm.Push("INF:CLOAD");
+    Pump(3);
+    Thread.Sleep(1100);
+    Pump(3);
+    Check(!queuedLoad!.IsTerminal && robot.MapCalls == 0 && lp.State == LoadPortState.Loading,
+        "Arm2 上还拿着片：扫片排着等，机械手没动，Load 停在 Loading；等了超过 EC LoadTimeout 也不判超时");
+    Check(TryTransfer("MapRobot", 2, "MapAligner", 1) == string.Empty, "排着扫片、手上有片：把手上的片放出去的搬运照接");
+    Check(mapLedger.Create("MapAligner", 1) is not null, "对准台上摆一片");
+    string pickOnly = TryTransfer("MapAligner", 1, "MapRobot", 1);
+    Check(pickOnly == ErrorCodes.TransferRobotMapping,
+        $"排着扫片、手上有片：只取到手上的（预取）不接（transfer.robot_mapping），免得手上的片越拿越多、扫片一直轮不到，实际 {pickOnly}");
+
+    // 6) 手上的片放下了（这里直接删账顶替放片）：轮到扫片，机械手按站点原来的 Number 扫；手上空着，新搬运一律不接
+    Check(mapLedger.Delete("MapRobot", 2), "Arm2 上的片放下了");
+    Check(PumpUntil(() => robot.MapCalls == 1) && robot.State == RobotState.Mapping && robot.MapStation == "RobotMapLP" && robot.MapStationNumber == 7,
+        "手上空了、没在搬：叫机械手扫这个口，扫片用站点原来的 Number（7），机械手进扫片中（230）");
+    string whileMapping = TryTransfer("MapAligner", 1, "RobotMapLP", 3);
+    Check(whileMapping == ErrorCodes.TransferRobotMapping, $"机械手在扫、手上空着：站点到站点的搬运也不接（transfer.robot_mapping），实际 {whileMapping}");
+
+    // 7) 机械手扫完回槽图：排队那条做完，Load 拿机械手 MapResults 里这个口的槽图落账，LoadPort 自己没扫
+    robot.CompleteMap(MapOf(2));
+    Check(PumpUntil(() => queuedLoad!.IsTerminal) && queuedLoad!.IsSuccess && lp.State == LoadPortState.Loaded
+          && lp._carrier.SlotMap.Count == 25 && lp._carrier.SlotMap[1] == SlotState.Normal && lp._carrier.SlotMap[2] == SlotState.Empty
+          && mapLedger.CountWafers("RobotMapLP") == 2 && lp.Shell.Comm.SentCount("MOV:MAPDO") == 0 && lp.Shell.Comm.SentCount("GET:MAPDT") == 0,
+        $"机械手扫完：Load 做完落 Loaded，槽图按机械手扫的落账（2 片），LoadPort 自己没发 MAPDO / GET:MAPDT，实际 {queuedLoad!.Code}");
+    Check(PumpUntil(() => robot.State == ModuleState.Idle) && robot.MapResults["RobotMapLP"].Count == 25,
+        "机械手扫完回空闲，MapResults 里留着这个口最近一次的槽图");
+    Check(TryTransfer("MapAligner", 1, "RobotMapLP", 3) == string.Empty, "扫完从队里拿掉了：搬运照常接");
+
+    // 8) 自动跑货 Unload 对账也由机械手扫：关门前排它扫，扫到的跟账对上才发 CULOD
+    lp.AutoRunMapOnUnload = true;
+    var robotUnload = lp.Unload().Result;
+    Check(robotUnload is not null && PumpUntil(() => robot.MapCalls == 2) && lp.Shell.Comm.SentCount("MOV:CULOD") == 0,
+        "机械手扫片的口自动跑货 Unload：关门前先排机械手扫，门先不关");
+    robot.CompleteMap(MapOf(2));
+    Check(PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CULOD") == 1), "机械手扫到的跟账对上：这才发 CULOD 关门");
+    lp.Shell.Comm.Push("INF:CULOD");
+    Check(PumpUntil(() => robotUnload!.IsTerminal) && robotUnload!.IsSuccess && lp.State == ModuleState.Idle,
+        "关门做完：Unload 成功、落 Idle");
+    lp.AutoRunMapOnUnload = false;
+
+    // 9) 机械手没初始化：不等，Load 判失败（module.state_not_allowed，带机械手的状态码）
+    robot.NoteState(ModuleState.NotInit);
+    var notInitLoad = lp.Load().Result;
+    Check(notInitLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 3), "第三次 Load：发 CLOAD");
+    lp.Shell.Comm.Push("INF:CLOAD");
+    Check(PumpUntil(() => notInitLoad!.IsTerminal) && notInitLoad!.Code == ErrorCodes.ModuleStateNotAllowed
+          && notInitLoad.ErrorArgs.SequenceEqual(["MapRobot", ModuleState.NotInit.ToString()]) && robot.MapCalls == 2,
+        $"机械手没初始化：Load 判失败（module.state_not_allowed [机械手, 状态码]），机械手没动，实际 {notInitLoad?.Code}");
+    robot.NoteState(ModuleState.Idle);
+
+    // 10) Load 排着等机械手时被中止：排着的扫片跟着撤掉，之后机械手手上空了也不会再去扫，搬运照常接
+    lp.NoteState(ModuleState.Idle);
+    Check(mapLedger.Create("MapRobot", 1) is not null, "机械手 Arm1 上又拿着一片");
+    var abortedLoad = lp.Load().Result;
+    Check(abortedLoad is not null && PumpUntil(() => lp.Shell.Comm.SentCount("MOV:CLOAD") == 4), "第四次 Load：发 CLOAD");
+    lp.Shell.Comm.Push("INF:CLOAD");
+    Pump(3);
+    lp.Abort();
+    Check(abortedLoad!.State == OperationState.Aborted, "中止顶掉排着等机械手的 Load");
+    Check(mapLedger.Delete("MapRobot", 1), "Arm1 上的片放下了");
+    Pump(5);
+    Check(robot.MapCalls == 2 && TryTransfer("MapAligner", 1, "RobotMapLP", 3) == string.Empty,
+        "排着的扫片撤掉了：机械手手上空了也没去扫，搬运照常接");
+
+    lp.Close();
+    robot.Close();
+    SmokeIoc.Tree();
+    SmokeIoc.Use<ITransferManager>(null);
+    SmokeIoc.Use<ILedgerManager>(null);
+}
+
+Console.WriteLine($"PASS: {checks} operation wait checks (including 200 completion races, the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
 
 // 只为满足"驱动已连接"这个前置条件；真实帧收发不在本工具的范围内。
 sealed class FakeFrameCommunication : IFrameCommunication
@@ -4475,6 +4843,84 @@ sealed class ProbeRobot : BaseRobotModule
         Next ?? throw new InvalidOperationException("用例忘了给 ProbeRobot.Next 摆一个操作。");
 }
 
+// 能扫片的探针机械手：类上声明 IWaferMap（平台基类写好的 Map / MapResults 就是实现），两只手；
+// 扫片的设备动作是探针动作，用例用 CompleteMap 模拟设备扫完回槽图。
+sealed class MapProbeRobot : BaseRobotModule, IWaferMap
+{
+    /// <summary>
+    /// 品牌壳（真锐洁驱动 + 假通道），只为"驱动连上了"
+    /// </summary>
+    public ProbeRobotShell Shell { get; } = new();
+
+    /// <summary>
+    /// 叫它扫了几次（建了几次扫片的设备动作）
+    /// </summary>
+    public int MapCalls { get; private set; }
+
+    /// <summary>
+    /// 最近一次扫的站点、发给设备的站号
+    /// </summary>
+    public string MapStation { get; private set; } = string.Empty;
+
+    public int MapStationNumber { get; private set; }
+
+    /// <summary>
+    /// 最近一次扫片的设备动作
+    /// </summary>
+    public ProbeOperation? MapMotion { get; private set; }
+
+    public MapProbeRobot(string name)
+    {
+        typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
+        typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
+        QueryDataTimeOut = 0;
+        QueryStatusIntervalMs = 0;
+        AddChild(Shell);
+        AddChild(Named(new RobotAxisComponent(), "X"));
+        AddChild(Named(new RobotAxisComponent(), "Z"));
+        AddChild(Named(new RobotAxisComponent(), "Theta"));
+        AddChild(Named(new RobotArmComponent { Number = 1 }, "Arm1"));
+        AddChild(Named(new RobotArmComponent { Number = 2 }, "Arm2"));
+    }
+
+    private static T Named<T>(T component, string name) where T : ComponentBase
+    {
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.Name))!.SetValue(component, name);
+        typeof(ComponentBase).GetProperty(nameof(ComponentBase.FullPath))!.SetValue(component, name);
+        return component;
+    }
+
+    public void NoteState(int state) => State = state;
+
+    public void Tick() => OnScan();
+
+    public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
+
+    /// <summary>
+    /// 设备扫完：先存槽图、再做完（跟真机先回图再收尾一样）
+    /// </summary>
+    public void CompleteMap(IReadOnlyList<SlotState> slots)
+    {
+        SaveMapResult(MapStation, slots);
+        MapMotion!.Succeed();
+    }
+
+    protected override ModuleOperation? CreateMapOperation(string station, int stationNumber)
+    {
+        MapCalls++;
+        MapStation = station;
+        MapStationNumber = stationNumber;
+        MapMotion = new ProbeOperation();
+        return MapMotion;
+    }
+}
+
+// 搬运管理：顶替指挥层的扫描线程推一拍
+sealed class MapProbeTransfers : TransferManager
+{
+    public void Tick() => OnScan();
+}
+
 // 探针手指：模拟机型自己提供的有效持片反馈，不挂 DI 传感器。
 sealed class ProbeFeedbackArm : RobotArmComponent
 {
@@ -4736,6 +5182,10 @@ class ProbeTransferRobot : ITransferRobot
     public int State => 0;
     public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
 
+    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size) => Stations;
+
+    public bool MapEnabled => false;
+
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
     {
         config = null;
@@ -4851,6 +5301,10 @@ sealed class SystemProbeRobot(string name) : SystemProbeModule(name), IRobot
     public bool? IsServoOn => null;
     public string? DeviceError => null;
     public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
+
+    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size) => Stations;
+
+    public bool MapEnabled => false;
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
     {

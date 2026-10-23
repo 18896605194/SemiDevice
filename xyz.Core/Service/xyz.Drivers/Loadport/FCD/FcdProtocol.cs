@@ -38,7 +38,7 @@ public static class FcdProtocol
 
     /// <summary>
     /// 把 FCD Mapping 槽位串归一化为厂商无关的槽位状态，下标 0 对应第 1 槽；无法识别的字符记为 Undefined。
-    /// 只在 FCD 指令内部使用，结果经 LoadPortResponse.SlotMap 交给上层。
+    /// 只在 FCD 指令内部使用（取槽图 GET:MAPDT），结果经 LoadPortResponse.SlotMap 交给上层。
     /// </summary>
     internal static IReadOnlyList<SlotState> ParseSlotMap(string mapData)
     {

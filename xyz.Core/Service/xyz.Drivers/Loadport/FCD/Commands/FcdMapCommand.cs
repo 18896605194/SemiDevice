@@ -1,19 +1,19 @@
 ﻿namespace xyz.Drivers.Loadport.FCD.Commands;
 
 /// <summary>
-/// Map（MOV:CLDMP）：原地扫一遍槽，不装载——XM.Core 实机 Fortrend 驱动、FCD 仿真器都是这么用的。
-/// FCD 没有带图卸载的指令，自动跑货要对账时 Unload 关好门再发它；槽位串怎么收见 <see cref="FcdMappingCommand"/>。
+/// Map（MOV:MAPDO）：已经 Load 好（门开着）时原地扫一遍槽；扫完的槽图用 GET:MAPDT 取（<see cref="FcdGetMapCommand"/>）。
+/// TDK 系协议：CLOAD 只装载、CLDMP 装载并扫（已 Load 状态下发不扫）、MAPDO 是 Load 状态下扫，所以单独扫片用 MAPDO。
 /// </summary>
-public sealed class FcdMapCommand : FcdMappingCommand
+public sealed class FcdMapCommand : FcdCommand
 {
     public FcdMapCommand(ILoadPortDriver driver) : base(driver)
     {
     }
 
-    protected override string Name => "CLDMP";
+    protected override string Name => "MAPDO";
 
     public override string BuildMsg()
     {
-        return $"{FcdProtocol.Move}:CLDMP";
+        return $"{FcdProtocol.Move}:MAPDO";
     }
 }

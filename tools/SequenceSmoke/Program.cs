@@ -99,6 +99,39 @@ try
         "HotPlate 分组：热板不是腔体、只实现 IProcessStation，也要工艺配方");
     library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
 
+    // 1c. 机械手两种晶圆尺寸各一张站点表：切了尺寸，分组按新尺寸那张重新生成，发一条编号 0 的变更让流程配方页重拉。看完换回原来那一套。
+    {
+        var sizeProbe = new ProbeWaferSize();
+        SmokeIoc.Use<IWaferSize>(sizeProbe);
+        var sizedRobot = new ProbeRobot("SmokeRobot", "SmokeLP1", "SmokeLP2", "SmokePM1", "SmokePM2", "SmokeAligner");
+        sizedRobot.UseStations8("SmokeLP1", "SmokeLP2", "SmokePM3");
+        library.Bind([lp1, lp2, sizedRobot, pm1, pm2, pm3, aligner]);
+        string GroupsText() => string.Join("；", library.StationGroups.Select(group => $"{group.Name}={string.Join(",", group.Modules)}"));
+        string groups12 = "LoadPort=SmokeLP1,SmokeLP2；Chamber=SmokePM1,SmokePM2；SmokeAligner=SmokeAligner";
+        Check(GroupsText() == groups12, "12 寸：分组照 12 寸那张站点表，实际 " + GroupsText());
+
+        var sizeChanged = new List<int>();
+        using (EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => sizeChanged.Add(dto.Index)))
+        {
+            sizeProbe.SetSize(8);
+        }
+
+        Check(GroupsText() == "LoadPort=SmokeLP1,SmokeLP2；Chamber=SmokePM3" && sizeChanged.SequenceEqual([0]),
+            "切到 8 寸：分组换成 8 寸那张（到得了 SmokePM3、到不了 SmokeAligner），发一条编号 0 的变更，实际 " + GroupsText());
+        sizeProbe.SetSize(12);
+        Check(GroupsText() == groups12, "切回 12 寸：分组换回来，实际 " + GroupsText());
+
+        SmokeIoc.Use<IWaferSize>(null);
+        library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
+        var afterRebind = new List<int>();
+        using (EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => afterRebind.Add(dto.Index)))
+        {
+            sizeProbe.SetSize(8);
+        }
+
+        Check(afterRebind.Count == 0 && GroupsText() == groups12, "重新 Bind 摘掉了原来的晶圆尺寸：它再切不重算、不发变更");
+    }
+
     // 2. 新建：空编号上建，名称去掉首尾空白；内容按默认（LoadPort 全勾 → 第一个要工艺配方的分组全勾、配方留空 → LoadPort 全勾），
     //    版本 1，记创建人；写成 001.xml。名称、编号不对的回错误码，不建、不发事件。
     var changed = new List<int>();
@@ -515,10 +548,11 @@ sealed class ProbeStation : BaseTransferStationModule
     public override int SlotCount { get; set; } = 1;
 }
 
-// 只实现搬运能力：流程配方识别可达站点不依赖完整机械手管理接口。
+// 只实现搬运能力：流程配方识别可达站点不依赖完整机械手管理接口。另给了 8 寸那张站点表，就跟真机械手一样按登记的晶圆尺寸选表。
 sealed class ProbeRobot : BaseModule, ITransferRobot
 {
     private readonly Dictionary<string, RobotStation> _stations = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, RobotStation>? _stations8;
 
     public ProbeRobot(string name, params string[] stations)
     {
@@ -531,9 +565,30 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
 
     public override int State { get; protected set; } = ModuleState.Idle;
 
-    public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
+    public void UseStations8(params string[] stations)
+    {
+        _stations8 = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+        for (int index = 0; index < stations.Length; index++)
+        {
+            _stations8[stations[index]] = new RobotStation(stations[index], index + 1, RobotDirection.South, 0, [1, 2], [1, 2]);
+        }
+    }
 
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
+    public IReadOnlyDictionary<string, RobotStation> Stations => StationsOf(WaferSizeComponent.SizeOf(IocHelper.GetService<IWaferSize>()));
+
+    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size)
+    {
+        if (size == WaferSizeComponent.Inch8 && _stations8 is not null)
+        {
+            return _stations8;
+        }
+
+        return _stations;
+    }
+
+    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => Stations.TryGetValue(station, out config);
+
+    public bool MapEnabled => false;
 
     private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
@@ -552,6 +607,21 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
     HandleResult? ITransferRobot.CheckPlace(int arm, string station, int slot) => HandleResult.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 
     ModuleOperation? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
+}
+
+// 探针晶圆尺寸：切了就换、发 Changed，不写 sc.xml。
+sealed class ProbeWaferSize : IWaferSize
+{
+    public int Size { get; private set; } = WaferSizeComponent.Inch12;
+
+    public event Action<int>? Changed;
+
+    public HandleResult SetSize(int size)
+    {
+        Size = size;
+        Changed?.Invoke(size);
+        return HandleResult.Success();
+    }
 }
 
 // 记下配方库报上来的变化（经 EAP 的派发组件在别的线程上调），等到够数为止。

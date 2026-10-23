@@ -43,6 +43,16 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     private IRecipeComponent? _recipes;
     private IEapNotifierComponent? _notifier;
 
+    /// <summary>
+    /// 整机晶圆尺寸：切了尺寸机械手换站点表，分组要跟着重新生成
+    /// </summary>
+    private IWaferSize? _waferSize;
+
+    /// <summary>
+    /// 开机 Bind 时给的模块：切尺寸重新生成分组用
+    /// </summary>
+    private IReadOnlyList<IModule> _modules = [];
+
     #region SC
 
     [SCEditor("99", "Sequence", "流程配方个数：编号 1~N")]
@@ -144,14 +154,45 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 生成可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
-    /// 只留能放片、机械手到得了的站点（机械手站点表里配了的）；顶层直接装的站点自己成一组。工艺配方库、EAP 派发也在这里取一次
+    /// 生成可选站点分组（见 <see cref="BuildGroups"/>）；工艺配方库、EAP 派发、晶圆尺寸也在这里取一次
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
         _recipes = IocHelper.GetService<IRecipeComponent>();
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
-        var all = modules.ToList();
+
+        // 先摘后挂：Bind 能重入，保证只挂一份
+        if (_waferSize is not null)
+        {
+            _waferSize.Changed -= OnWaferSizeChanged;
+        }
+
+        _waferSize = IocHelper.GetService<IWaferSize>();
+        if (_waferSize is not null)
+        {
+            _waferSize.Changed += OnWaferSizeChanged;
+        }
+
+        _modules = modules.ToList();
+        BuildGroups();
+    }
+
+    /// <summary>
+    /// 切了晶圆尺寸：按新尺寸的站点表重新生成分组，发一条编号 0 的变更让流程配方页重拉
+    /// </summary>
+    private void OnWaferSizeChanged(int size)
+    {
+        BuildGroups();
+        EventBus.Send(new SequenceChangedDto(), SequenceListDto.EventToken, retain: false);
+    }
+
+    /// <summary>
+    /// 生成可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
+    /// 只留能放片、机械手到得了的站点（机械手现在这种尺寸的站点表里配了的）；顶层直接装的站点自己成一组
+    /// </summary>
+    private void BuildGroups()
+    {
+        var all = _modules;
         var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var robot in all.OfType<ITransferRobot>())
         {

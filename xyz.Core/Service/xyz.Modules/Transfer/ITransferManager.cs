@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
 
@@ -83,6 +84,11 @@ public interface ITransferManager
     /// 受理一次同腔交换（同一槽先取走旧片、再放进新片）
     /// </summary>
     HandleResult<SwapRoutine> StartSwap(SwapRequest request);
+
+    /// <summary>
+    /// 受理一次机械手扫片（LoadPort 要它扫）：排队，轮到了、机械手没在搬片、手上全空才扫；结果在机械手的 MapResults 里
+    /// </summary>
+    HandleResult<ModuleOperation> StartMap(string robot, string station);
 
     /// <summary>
     /// 机械手能来取放片的站点

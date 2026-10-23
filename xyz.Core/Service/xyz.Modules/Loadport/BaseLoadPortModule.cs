@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -14,7 +15,7 @@ using xyz.Tools;
 
 namespace xyz.Modules;
 
-public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
+public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort, IWaferMap
 {
     #region SV 
 
@@ -41,8 +42,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     public override int SlotCount { get; set; } = 25;
 
     [SCEditor("False", "LoadPort",
-        "自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：True = 关好门后主动扫一遍（FCD 发 CLDMP）核对，对不上 Unload 判失败、报警；False = 关门就完，不扫、不对账。" +
-        "Mapping 是 LoadPort 硬件自带的，这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账")]
+        "自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：True = 关门前先扫一遍（自己扫，或机械手开了扫片就叫它扫）核对，对不上 Unload 判失败、报警、门不关；False = 直接关门，不扫、不对账。" +
+        "这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账")]
     public bool AutoRunMapOnUnload { get; set; }
 
     #endregion
@@ -66,7 +67,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "30000", description: "Load 动作超时（开门+Mapping）")]
+        @default: "30000", description: "Load 动作超时（开门、自己扫片、取槽图每条各按它算；等机械手扫片不算）")]
     public int LoadTimeout
     {
         get { return GetEcInt(nameof(LoadTimeout)); }
@@ -74,7 +75,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, unit: "ms", min: "1000", max: "600000",
-        @default: "30000", description: "Unload 动作超时（关门；自动跑货带图对账时，关门后的扫图另按它算一次）")]
+        @default: "30000", description: "Unload 动作超时（关门；自动跑货带图对账时，关门前的扫片、取槽图每条各按它算，等机械手扫片不算）")]
     public int UnloadTimeout
     {
         get { return GetEcInt(nameof(UnloadTimeout)); }
@@ -164,10 +165,10 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #region Alarm
 
     // 动作超时：一个动作一条，跟 EC 里各动作的超时一一对应；Home 就是初始化
-    [Alarm("LoadPort Load 超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（开门 + Mapping）没在 EC LoadTimeout 内做完", Solution = "检查门、Mapping 传感器和 FOUP 有没有放好，看 LoadPort 有没有报错；处理好后复位，再 Home")]
+    [Alarm("LoadPort Load 超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Load（开门、扫片、取槽图）有一条没在 EC LoadTimeout 内做完", Solution = "检查门、Mapping 传感器和 FOUP 有没有放好，看 LoadPort 有没有报错；处理好后复位，再 Home")]
     public string LoadTimeoutAlarm = nameof(LoadTimeoutAlarm);
 
-    [Alarm("LoadPort Unload 超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门，或自动跑货对账时关门后的扫图）没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
+    [Alarm("LoadPort Unload 超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Unload（关门，或自动跑货对账时关门前的扫片、取槽图）有一条没在 EC UnloadTimeout 内做完", Solution = "检查门有没有被挡、FOUP 有没有放好；处理好后复位，再 Home")]
     public string UnloadTimeoutAlarm = nameof(UnloadTimeoutAlarm);
 
     [Alarm("LoadPort 初始化超时", AlarmCategory.IrrecoverableError, AlarmLevel = AlarmLevel.Alarm1, Description = "Home（初始化回原点）没在 EC HomeTimeout 内做完", Solution = "检查串口连接、LoadPort 硬件状态及供电")]
@@ -194,7 +195,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
 
     // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条；
     // EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条（只报警）
-    [Alarm("LoadPort Mapping 异常", AlarmCategory.DataIntegrity, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 回来的、或 Unload 关好门后扫的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
+    [Alarm("LoadPort Mapping 异常", AlarmCategory.DataIntegrity, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 时扫到的、或自动跑货 Unload 关门前扫到的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态（Unload 对账不符时门没关）。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备（或扫片机械手）的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
     public string SlotMapAlarm = nameof(SlotMapAlarm);
 
     #endregion
@@ -327,11 +328,51 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     private ITransferManager? _transfers;
     private IEapNotifierComponent? _notifier;
 
+    /// <summary>
+    /// 替这个口扫片的机械手（sc 开了 MapEnabled、站点表里有这个口）；没有是 null，自己扫
+    /// </summary>
+    private ITransferRobot? _mapRobot;
+
     public override void Bind()
     {
         _jobs = IocHelper.GetService<IJobManager>();
         _transfers = IocHelper.GetService<ITransferManager>();
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
+        _mapRobot = FindMapRobot();
+        if (_mapRobot is not null && _transfers is null)
+        {
+            throw new InvalidOperationException($"{Name} 要机械手 {_mapRobot.Name} 扫片，要经搬运管理排队，但 sc.xml 没配 Transfer 节点。");
+        }
+    }
+
+    /// <summary>
+    /// 开机认替这个口扫片的机械手：开了 MapEnabled、站点表里有这个口的；两台都是就是配错了，开机报出来
+    /// </summary>
+    private ITransferRobot? FindMapRobot()
+    {
+        ITransferRobot? found = null;
+        foreach (var robot in IocHelper.GetServices<ITransferRobot>())
+        {
+            if (!robot.MapEnabled || !robot.TryGetStation(Name, out _))
+            {
+                continue;
+            }
+
+            if (found is not null)
+            {
+                throw new InvalidOperationException(
+                    $"sc.xml 里机械手 {found.Name}、{robot.Name} 都开了 MapEnabled、站点表里都有 {Name}，不知道该谁扫这个口，只能留一台。");
+            }
+
+            found = robot;
+        }
+
+        if (found is not null)
+        {
+            LogHelper.Info(Name, $"扫片由机械手 {found.Name} 做");
+        }
+
+        return found;
     }
 
     public void Close()
@@ -654,12 +695,12 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// Load 的设备动作
+    /// Load 的设备动作：先只装载开门，再扫片（自己扫或叫机械手扫），扫到的槽图落账
     /// </summary>
-    /// <returns></returns>
     protected virtual ModuleOperation CreateLoadOperation()
     {
-        return new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout, TakeSlotMap);
+        var operation = new LoadPortCommandOperation("Load", () => _driver?.Load(), () => LoadTimeout);
+        return AddMapStages(operation, TakeSlotMap);
     }
 
     #endregion
@@ -698,15 +739,18 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         }
     }
 
+    /// <summary>
+    /// Unload 的设备动作：要对账就先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上再关门——门关了就扫不了
+    /// </summary>
     protected virtual ModuleOperation CreateUnloadOperation(bool mapAndVerify)
     {
-        var operation = new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout);
-        if (mapAndVerify)
+        if (!mapAndVerify)
         {
-            operation.Then("Unload 后扫图", () => _driver?.Map(), CheckUnloadSlotMap);
+            return new LoadPortCommandOperation("Unload", () => _driver?.Unload(), () => UnloadTimeout);
         }
 
-        return operation;
+        var operation = AddMapStages(new LoadPortCommandOperation("Unload", () => UnloadTimeout), CheckUnloadSlotMap);
+        return operation.Then("关门", () => _driver?.Unload());
     }
 
     #endregion
@@ -786,6 +830,159 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     protected virtual ModuleOperation CreateUnclampOperation()
     {
         return new LoadPortCommandOperation("Unclamp", () => _driver?.Unclamp(), () => UnclampTimeout);
+    }
+
+    #endregion
+
+    #region 扫片（IWaferMap）
+
+    // LoadPort 自带扫片传感器，所以也实现 IWaferMap：Map 用自己的传感器单独扫一遍（Loaded 时），扫到的存进 MapResults、不落账。
+    // Load、自动跑货 Unload 对账里的扫片走 AddMapStages：有机械手开了扫片、站点表里有这个口，就交搬运管理排它去扫，不然自己扫。
+
+    private readonly object _mapGate = new();
+
+    /// <summary>
+    /// 自己最近一次扫到的槽图；开扫时先清掉
+    /// </summary>
+    private IReadOnlyList<SlotState>? _mapResult;
+
+    /// <summary>
+    /// 自己最近一次扫到的槽图，键是这个口的名字；开扫时先删掉
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<SlotState>> MapResults
+    {
+        get
+        {
+            var results = new Dictionary<string, IReadOnlyList<SlotState>>(StringComparer.OrdinalIgnoreCase);
+            lock (_mapGate)
+            {
+                if (_mapResult is not null)
+                {
+                    results[Name] = _mapResult;
+                }
+            }
+
+            return results;
+        }
+    }
+
+    /// <summary>
+    /// 用自己的扫片传感器单独扫一遍：只扫自己、门开着（Loaded）才收；扫到的存进 MapResults，不落账
+    /// </summary>
+    public HandleResult<ModuleOperation> Map(string station)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckMapStation(station) ?? CheckState(LoadPortAction.Map) ?? MapInterlock();
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            return Started(LoadPortAction.Map, CreateMapOperation());
+        }
+    }
+
+    /// <summary>
+    /// 只扫自己：站点名要是这个口
+    /// </summary>
+    private HandleResult? CheckMapStation(string station)
+    {
+        if (string.Equals(station, Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
+    }
+
+    /// <summary>
+    /// 单独扫一遍的设备动作：扫片、取槽图
+    /// </summary>
+    protected virtual ModuleOperation CreateMapOperation()
+    {
+        return AddOwnMapStages(new LoadPortCommandOperation("Map", () => LoadTimeout), null);
+    }
+
+    /// <summary>
+    /// 串上扫片：有机械手替这个口扫，就交搬运管理排它去扫，不然自己扫；扫到的槽图交给 check（Load 落账、Unload 对账）
+    /// </summary>
+    private LoadPortCommandOperation AddMapStages(LoadPortCommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult> check)
+    {
+        var robot = _mapRobot;
+        if (robot is null)
+        {
+            return AddOwnMapStages(operation, check);
+        }
+
+        return operation.ThenWait($"{robot.Name} 扫片", () => StartRobotMap(robot), () => check(RobotMapResult(robot)));
+    }
+
+    /// <summary>
+    /// 自己扫：发扫片（先清旧结果），再取槽图存起来；check 不为 null 就接着把槽图交给它
+    /// </summary>
+    private LoadPortCommandOperation AddOwnMapStages(LoadPortCommandOperation operation, Func<IReadOnlyList<SlotState>, HandleResult>? check)
+    {
+        return operation
+            .Then("扫片", SendMap)
+            .Then("取槽图", () => _driver?.GetMap(), response =>
+            {
+                SaveMapResult(response.SlotMap);
+                if (check is null)
+                {
+                    return HandleResult.Success();
+                }
+
+                return check(response.SlotMap);
+            });
+    }
+
+    /// <summary>
+    /// 发扫片指令，先清掉上一次的结果
+    /// </summary>
+    private LoadPortCommand? SendMap()
+    {
+        lock (_mapGate)
+        {
+            _mapResult = null;
+        }
+
+        return _driver?.Map();
+    }
+
+    private void SaveMapResult(IReadOnlyList<SlotState> slotMap)
+    {
+        lock (_mapGate)
+        {
+            _mapResult = slotMap.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// 叫搬运管理排机械手来扫这个口（开机已查过搬运管理装了）
+    /// </summary>
+    private HandleResult<ModuleOperation> StartRobotMap(ITransferRobot robot)
+    {
+        var transfers = _transfers;
+        if (transfers is null)
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.TransferNotInstalled);
+        }
+
+        return transfers.StartMap(robot.Name, Name);
+    }
+
+    /// <summary>
+    /// 机械手扫到的这个口的槽图；没存上给空的，落账、对账按槽数对不上处理
+    /// </summary>
+    private IReadOnlyList<SlotState> RobotMapResult(ITransferRobot robot)
+    {
+        if (robot is IWaferMap mapper && mapper.MapResults.TryGetValue(Name, out var slotMap))
+        {
+            return slotMap;
+        }
+
+        return [];
     }
 
     #endregion
@@ -916,16 +1113,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     #endregion
 
     /// <summary>
-    /// Load 回来的 Mapping
+    /// Load 时扫到的槽图落账：槽数对不上不落账，有交叉片、叠片、认不出的槽落了账也判失败
     /// </summary>
-    /// <param name="response"></param>
-    /// <returns></returns>
-    private HandleResult TakeSlotMap(LoadPortResponse response)
+    private HandleResult TakeSlotMap(IReadOnlyList<SlotState> slotMap)
     {
-        var slotMap = response.SlotMap;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Mapping 槽数不对：设备回了 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（原文 {response.Content}），没落账");
+            LogHelper.Error(Name, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（{Describe(slotMap)}），没落账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -943,7 +1137,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         if (abnormalSlots.Count > 0)
         {
             string slots = string.Join(",", abnormalSlots);
-            LogHelper.Error(Name, $"Mapping 有交叉片、叠片或认不出的槽：第 {slots} 槽（原文 {response.Content}）");
+            LogHelper.Error(Name, $"Mapping 有交叉片、叠片或认不出的槽：第 {slots} 槽（{Describe(slotMap)}）");
             return HandleResult.Fail(ErrorCodes.SlotMapAbnormal, Name, slots);
         }
 
@@ -951,16 +1145,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     /// <summary>
-    /// unload 回来的map
+    /// 自动跑货 Unload 关门前扫到的槽图跟晶圆账对：对不上判失败，账不改、载具槽图不动
     /// </summary>
-    /// <param name="response"></param>
-    /// <returns></returns>
-    private HandleResult CheckUnloadSlotMap(LoadPortResponse response)
+    private HandleResult CheckUnloadSlotMap(IReadOnlyList<SlotState> slotMap)
     {
-        var slotMap = response.SlotMap;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：设备回了 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（原文 {response.Content}），没法对账");
+            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽（{Describe(slotMap)}），没法对账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -985,12 +1176,48 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
         if (mismatchedSlots.Count > 0)
         {
             string slots = string.Join(",", mismatchedSlots);
-            LogHelper.Error(Name, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽（原文 {response.Content}）");
+            LogHelper.Error(Name, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽（{Describe(slotMap)}），门不关");
             return HandleResult.Fail(ErrorCodes.UnloadSlotMapMismatch, Name, slots);
         }
 
         LogHelper.Info(Name, "Unload 对账：盒子里的片跟晶圆账一致");
         return HandleResult.Success();
+    }
+
+    /// <summary>
+    /// 槽图写进日志：一槽一个字，E 空、P 有片、C 交叉、D 叠片、? 认不出
+    /// </summary>
+    private static string Describe(IReadOnlyList<SlotState> slotMap)
+    {
+        var text = new StringBuilder(slotMap.Count);
+        foreach (var state in slotMap)
+        {
+            text.Append(ToLogChar(state));
+        }
+
+        return text.ToString();
+    }
+
+    private static char ToLogChar(SlotState state)
+    {
+        switch (state)
+        {
+            case SlotState.Empty:
+                return 'E';
+
+            case SlotState.NotEmpty:
+            case SlotState.Normal:
+                return 'P';
+
+            case SlotState.Crossed:
+                return 'C';
+
+            case SlotState.Double:
+                return 'D';
+
+            default:
+                return '?';
+        }
     }
 
     public void SetAutoMode(bool autoMode)
@@ -1083,6 +1310,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort
     }
 
     protected virtual HandleResult? UnclampInterlock()
+    {
+        return null;
+    }
+
+    protected virtual HandleResult? MapInterlock()
     {
         return null;
     }

@@ -116,6 +116,11 @@ public class TransferManager : ComponentBase, ITransferManager
     private readonly Dictionary<string, TransferExecution> _armLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<Guid, TransferExecution> _waferLocks = new();
 
+    /// <summary>
+    /// 机械手 → 排着的扫片（先来先扫）；队头轮到了、机械手没在搬片、手上全空才叫它扫
+    /// </summary>
+    private readonly Dictionary<string, List<RobotMapRoutine>> _maps = new(StringComparer.OrdinalIgnoreCase);
+
 
     #region 模块装配
 
@@ -172,7 +177,10 @@ public class TransferManager : ComponentBase, ITransferManager
                 continue;
             }
 
-            foreach (string name in robot.Stations.Keys)
+            // 两种晶圆尺寸的站点表都查：切到另一种尺寸才去的站，也开机就查出来
+            var names = robot.StationsOf(WaferSizeComponent.Inch12).Keys
+                .Union(robot.StationsOf(WaferSizeComponent.Inch8).Keys, StringComparer.OrdinalIgnoreCase);
+            foreach (string name in names)
             {
                 if (!TryGetStation(name, out var station) || !station.IsEnabled)
                 {
@@ -446,6 +454,16 @@ public class TransferManager : ComponentBase, ITransferManager
 
         #endregion
 
+        #region 扫片排着：手上空了就不接，手上有片只接不往手上添片的
+
+        var mapping = CheckMapQueued(robot, receiver is not null);
+        if (mapping is not null)
+        {
+            return mapping;
+        }
+
+        #endregion
+
         var operation = new TransferRoutine(request.Origin, robot, source, request.SourceSlot,
             target, request.TargetSlot, arm, StationWaitTimeoutMs)
         {
@@ -493,6 +511,47 @@ public class TransferManager : ComponentBase, ITransferManager
     private static bool Reaches(ITransferRobot robot, string source, string target)
     {
         return robot.TryGetStation(source, out _) && robot.TryGetStation(target, out _);
+    }
+
+    /// <summary>
+    /// 这台机械手排着扫片（锁里查）：手上全空就不再接搬运，等它扫；手上有片时只拒只取到手上的（预取），
+    /// 别的照接，让手上的片放出去——全拒的话，手上的片要等腔里的片先换出来，两边互相等死
+    /// </summary>
+    private HandleResult<TransferRoutine>? CheckMapQueued(ITransferRobot robot, bool pickOnly)
+    {
+        if (!_maps.TryGetValue(robot.Name, out var queue) || queue.Count == 0)
+        {
+            return null;
+        }
+
+        if (pickOnly || AreArmsEmpty(robot.Name))
+        {
+            return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferRobotMapping, robot.Name);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 晶圆账上这台机械手的手全空着（锁里调）；没装晶圆账当空着
+    /// </summary>
+    private bool AreArmsEmpty(string robot)
+    {
+        var ledger = _ledger;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return true;
+        }
+
+        foreach (var wafer in ledger.GetSlots(robot))
+        {
+            if (wafer is not null)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -792,6 +851,139 @@ public class TransferManager : ComponentBase, ITransferManager
 
     #endregion
 
+    #region 机械手扫片
+
+    /// <summary>
+    /// 受理一次机械手扫片（LoadPort Load / Unload 时要它扫）：排进这台机械手的队，轮到了、没在搬片、手上全空才叫它扫；
+    /// 排上以后这台机械手手上空了就不再接搬运，手上有片只接不往手上添片的
+    /// </summary>
+    public HandleResult<ModuleOperation> StartMap(string robot, string station)
+    {
+        if (!IsEnable)
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.TransferDisabled);
+        }
+
+        string robotName = robot.Trim();
+        if (!TryGetRobot(robotName, out var mapper))
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.ModuleNotFound, robotName);
+        }
+
+        if (mapper is not IWaferMap || !mapper.MapEnabled)
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.RobotMapUnsupported, mapper.Name);
+        }
+
+        if (!mapper.TryGetStation(station, out _))
+        {
+            return HandleResult<ModuleOperation>.Fail(ErrorCodes.StationNotFound, mapper.Name, station);
+        }
+
+        var routine = new RobotMapRoutine(this, mapper, station);
+        routine.DeferCompletion();
+        lock (_gate)
+        {
+            if (!_maps.TryGetValue(mapper.Name, out var queue))
+            {
+                queue = [];
+                _maps[mapper.Name] = queue;
+            }
+
+            queue.Add(routine);
+        }
+
+        LogHelper.Info(Name, $"{station} 要 {mapper.Name} 扫片，排上了");
+        return HandleResult<ModuleOperation>.Success(routine);
+    }
+
+    /// <summary>
+    /// 轮到这一条扫片了没有：排在这台机械手队头、机械手没在搬片、手上全空
+    /// </summary>
+    internal bool IsMapTurn(RobotMapRoutine routine)
+    {
+        lock (_gate)
+        {
+            if (!_maps.TryGetValue(routine.Robot.Name, out var queue) || queue.Count == 0 || !ReferenceEquals(queue[0], routine))
+            {
+                return false;
+            }
+
+            return !_running.ContainsKey(routine.Robot.Name) && AreArmsEmpty(routine.Robot.Name);
+        }
+    }
+
+    /// <summary>
+    /// 推进排着的扫片；扫完的、被撤了（机械手正在扫的等它扫完）的从队里拿掉
+    /// </summary>
+    private void ScanMaps()
+    {
+        List<RobotMapRoutine> maps;
+        lock (_gate)
+        {
+            maps = _maps.Values.SelectMany(queue => queue).ToList();
+        }
+
+        foreach (var routine in maps)
+        {
+            if (!routine.IsTerminal && IsEnable)
+            {
+                routine.Scan();
+            }
+
+            if (routine.ReadyToFinish)
+            {
+                FinishMap(routine);
+            }
+        }
+    }
+
+    private void FinishMap(RobotMapRoutine routine)
+    {
+        lock (_gate)
+        {
+            if (!_maps.TryGetValue(routine.Robot.Name, out var queue) || !queue.Remove(routine))
+            {
+                return;
+            }
+
+            if (queue.Count == 0)
+            {
+                _maps.Remove(routine.Robot.Name);
+            }
+        }
+
+        if (routine.IsSuccess)
+        {
+            LogHelper.Info(Name, $"{routine.Robot.Name} 扫完 {routine.Station}");
+        }
+        else
+        {
+            LogHelper.Warn(Name, $"{routine.Robot.Name} 扫 {routine.Station} 没成：{routine.Reason}");
+        }
+
+        routine.NotifyCompletion();
+    }
+
+    /// <summary>
+    /// 撤掉排着的扫片；机械手正在扫的让它扫完，结果不用
+    /// </summary>
+    private void CancelMaps(string reason)
+    {
+        List<RobotMapRoutine> maps;
+        lock (_gate)
+        {
+            maps = _maps.Values.SelectMany(queue => queue).ToList();
+        }
+
+        foreach (var routine in maps)
+        {
+            routine.AbortByHost(reason);
+        }
+    }
+
+    #endregion
+
     #region 中止、恢复、占用查询
 
     /// <summary>请求中止这个操作，由搬运扫描线程执行设备中止和收尾。</summary>
@@ -929,6 +1121,9 @@ public class TransferManager : ComponentBase, ITransferManager
                 Finish(operation);
             }
         }
+
+        // 搬运先收尾、再看扫片：这一拍刚搬完的机械手当拍就能轮到扫
+        ScanMaps();
     }
 
     private void Finish(TransferExecution operation)
@@ -976,6 +1171,7 @@ public class TransferManager : ComponentBase, ITransferManager
         base.Abort();
         StopAutoDispatch();
         CancelAll("搬运管理中止");
+        CancelMaps("搬运管理中止");
         return null;
     }
 

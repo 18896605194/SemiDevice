@@ -11,6 +11,7 @@
     <sys:String x:Key="module.not_connected">{0} device is not connected</sys:String>
     <sys:String x:Key="module.state_not_allowed">{0} is "{1}"; this action is not allowed now</sys:String>
     <sys:String x:Key="module.busy">{0} is busy with another action; try again when it finishes</sys:String>
+    <sys:String x:Key="module.maintenance">{0} is in maintenance mode and does not take actions requested by other modules; switch it to production and try again</sys:String>
     <sys:String x:Key="module.action_aborted">{0} aborted</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
 
@@ -54,6 +55,7 @@
     <sys:String x:Key="module.state.placing">Placing</sys:String>
     <sys:String x:Key="module.state.pick_extended">Pick extended</sys:String>
     <sys:String x:Key="module.state.place_extended">Place extended</sys:String>
+    <sys:String x:Key="module.state.mapping">Mapping</sys:String>
     <sys:String x:Key="module.state.processing">Processing</sys:String>
     <sys:String x:Key="module.state.manual">Manual action</sys:String>
     <sys:String x:Key="module.state.stopping">Stopping</sys:String>
@@ -89,6 +91,7 @@
     <sys:String x:Key="robot.arm_sensor_unknown">{0} Arm{1} presence sensor cannot be read (PLC not connected or wrong IO point); pick/place is not allowed</sys:String>
     <sys:String x:Key="robot.ledger_move_failed">{0} completed the pick/place motion, but the wafer ledger could not move the wafer from {1} slot {2} to {3} slot {4}; confirm the actual wafer position before recovery</sys:String>
     <sys:String x:Key="robot.handoff_unsupported">{0} cannot do step-wise pick/place, so it cannot serve a station that needs a mid-transfer handoff</sys:String>
+    <sys:String x:Key="robot.map_unsupported">{0} does not do wafer mapping (MapEnabled is off in sc, or this robot cannot map)</sys:String>
     <sys:String x:Key="robot.direction.north">North</sys:String>
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>
@@ -148,6 +151,7 @@
     <sys:String x:Key="transfer.no_arm">{0} has no usable arm right now (all hold wafers, are taken, or are not allowed at these stations)</sys:String>
     <sys:String x:Key="transfer.not_held">Wafer {0} has no resources retained after a failed transfer (already released, or wrong wafer ID)</sys:String>
     <sys:String x:Key="transfer.wait_timeout">Transfer {0} did not finish within {1} ms: it is still running, result not yet confirmed</sys:String>
+    <sys:String x:Key="transfer.robot_mapping">{0} is queued to map a LoadPort: once its arms are empty it maps first, so this transfer waits until the mapping is done</sys:String>
     <sys:String x:Key="job.not_installed">No Job node in sc.xml (job manager not installed)</sys:String>
     <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in sc.xml)</sys:String>
     <sys:String x:Key="job.command_timeout">The command was not accepted within {0} ms; it may still be applied, check the job state</sys:String>

@@ -891,6 +891,10 @@ sealed class LedgerProbeRobot : BaseModule, ITransferRobot
 
     public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
 
+    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size) => _stations;
+
+    public bool MapEnabled => false;
+
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
 
     private HandleResult<ModuleOperation> Refused() => HandleResult<ModuleOperation>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());

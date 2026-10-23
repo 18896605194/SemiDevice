@@ -11,9 +11,19 @@ namespace xyz.Components.Interfaces;
 public interface ITransferRobot : IModule
 {
     /// <summary>
-    /// 服务的站点
+    /// 服务的站点：整机现在几寸就是哪张站点表
     /// </summary>
     IReadOnlyDictionary<string, RobotStation> Stations { get; }
+
+    /// <summary>
+    /// 某种晶圆尺寸的站点表：开机检查要两种尺寸都查
+    /// </summary>
+    IReadOnlyDictionary<string, RobotStation> StationsOf(int size);
+
+    /// <summary>
+    /// 这台机械手用不用扫片（sc 开关）：开了，它站点表里的 LoadPort 由它扫
+    /// </summary>
+    bool MapEnabled { get; }
 
     /// <summary>
     /// 查询站点

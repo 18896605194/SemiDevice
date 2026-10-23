@@ -14,6 +14,9 @@ public static class LoadPortStateTable
             [(ModuleState.Idle, LoadPortAction.Load)] = (LoadPortState.Loading, LoadPortState.Loaded),
             [(LoadPortState.Loaded, LoadPortAction.Unload)] = (LoadPortState.Unloading, ModuleState.Idle),
 
+            // 单独扫一遍：门开着才扫，扫完还是 Loaded
+            [(LoadPortState.Loaded, LoadPortAction.Map)] = (LoadPortState.Mapping, LoadPortState.Loaded),
+
             [(ModuleState.NotInit, LoadPortAction.Home)] = (LoadPortState.Homing, ModuleState.Idle),
             [(ModuleState.Idle, LoadPortAction.Home)] = (LoadPortState.Homing, ModuleState.Idle),
             [(ModuleState.Error, LoadPortAction.Home)] = (LoadPortState.Homing, ModuleState.Idle),

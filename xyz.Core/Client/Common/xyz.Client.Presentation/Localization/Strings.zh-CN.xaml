@@ -12,6 +12,7 @@
     <sys:String x:Key="module.not_connected">{0} 设备没连上</sys:String>
     <sys:String x:Key="module.state_not_allowed">{0} 当前是「{1}」，这个动作现在不能做</sys:String>
     <sys:String x:Key="module.busy">{0} 正在做别的动作，等它做完再试</sys:String>
+    <sys:String x:Key="module.maintenance">{0} 在维护模式，不接别的模块要它做的动作；切到生产模式再试</sys:String>
     <sys:String x:Key="module.action_aborted">{0} 被 Abort 顶替</sys:String>
     <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
 
@@ -55,6 +56,7 @@
     <sys:String x:Key="module.state.placing">放片中</sys:String>
     <sys:String x:Key="module.state.pick_extended">取片伸着</sys:String>
     <sys:String x:Key="module.state.place_extended">放片伸着</sys:String>
+    <sys:String x:Key="module.state.mapping">扫片中</sys:String>
     <sys:String x:Key="module.state.processing">工艺中</sys:String>
     <sys:String x:Key="module.state.manual">手动动作中</sys:String>
     <sys:String x:Key="module.state.stopping">停止中</sys:String>
@@ -90,6 +92,7 @@
     <sys:String x:Key="robot.arm_sensor_unknown">{0} 的 Arm{1} 在位传感器读不到（PLC 没连上或点位不对），不能取放</sys:String>
     <sys:String x:Key="robot.ledger_move_failed">{0} 取放动作已完成，但晶圆账从 {1} 第 {2} 槽移至 {3} 第 {4} 槽失败；请确认实际片位后处理</sys:String>
     <sys:String x:Key="robot.handoff_unsupported">{0} 不能分段取放，做不了要站点中途交接的取放</sys:String>
+    <sys:String x:Key="robot.map_unsupported">{0} 不扫片（sc 没开 MapEnabled，或这台机械手不能扫片）</sys:String>
     <sys:String x:Key="robot.direction.north">北</sys:String>
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>
@@ -149,6 +152,7 @@
     <sys:String x:Key="transfer.no_arm">{0} 现在没有能用的手（都有片、都被占着，或站点不许用）</sys:String>
     <sys:String x:Key="transfer.not_held">晶圆 {0} 没有搬运失败保留的资源（已经释放，或标识不对）</sys:String>
     <sys:String x:Key="transfer.wait_timeout">搬运操作 {0} 等了 {1} ms 还没做完：搬运还在跑，结果待确认</sys:String>
+    <sys:String x:Key="transfer.robot_mapping">{0} 排着要替 LoadPort 扫片：手上空了就先扫片，这一趟等扫完再搬</sys:String>
     <sys:String x:Key="job.not_installed">sc.xml 没配 Job 节点（没有 Job 管理）</sys:String>
     <sys:String x:Key="job.disabled">Job 管理停用了（sc.xml Job 节点 IsEnable=False）</sys:String>
     <sys:String x:Key="job.command_timeout">命令等了 {0} ms 还没被受理，可能稍后还会执行，请看 Job 状态</sys:String>

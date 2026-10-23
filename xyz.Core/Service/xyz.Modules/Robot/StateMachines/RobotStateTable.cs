@@ -21,6 +21,9 @@ public static class RobotStateTable
             [(ModuleState.Idle, RobotAction.ExtendPlace)] = (RobotState.Placing, RobotState.PlaceExtended),
             [(RobotState.PlaceExtended, RobotAction.RetractPlace)] = (RobotState.Placing, ModuleState.Idle),
 
+            // 扫片：只在空闲时收，扫完回空闲
+            [(ModuleState.Idle, RobotAction.Map)] = (RobotState.Mapping, ModuleState.Idle),
+
             // Reset 只清设备报错，不占用独立执行状态；报错后位置不可信，清错回 NotInit，需 Home 才回 Idle。
             [(ModuleState.NotInit, RobotAction.Reset)] = (ModuleState.NotInit, ModuleState.NotInit),
             [(ModuleState.Idle, RobotAction.Reset)] = (ModuleState.Idle, ModuleState.Idle),

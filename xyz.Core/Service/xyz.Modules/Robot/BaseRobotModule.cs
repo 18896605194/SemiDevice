@@ -8,6 +8,7 @@ using xyz.Components.Enums;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
+using xyz.Drivers.Loadport;
 using xyz.Drivers.Robot;
 using xyz.Modules.Enums;
 using xyz.Modules.StateMachines;
@@ -88,6 +89,10 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     [SCEditor("True", "_robot",
         "手指在位主动推送：True = 连上先订阅，手指上有没有片由控制器主动推；False = 这台机械手不带这个功能，不发订阅（手指在位一直是没收到）")]
     public bool WaferEventEnabled { get; set; } = true;
+
+    [SCEditor("False", "_robot",
+        "扫片：True = 这台机械手用扫片，它站点表里的 LoadPort 由它扫（扫片用站点原来的 Number，机械手类要能扫片，不能就开机报错）；False = 不用，LoadPort 自己扫")]
+    public bool MapEnabled { get; set; }
 
     #endregion
 
@@ -191,33 +196,84 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region 站点表
 
-    private IReadOnlyDictionary<string, RobotStation> _stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-    public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
+    /// <summary>
+    /// 12 寸的站点表（sc 的 Stations12，没配用 Stations）；开机读好就不变
+    /// </summary>
+    private IReadOnlyDictionary<string, RobotStation> _stations12 = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 8 寸的站点表（sc 的 Stations8，没配用 Stations）；开机读好就不变
+    /// </summary>
+    private IReadOnlyDictionary<string, RobotStation> _stations8 = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 整机晶圆尺寸：组件初始化时取一次，站点表按它选；没配按 12 寸
+    /// </summary>
+    private IWaferSize? _waferSize;
+
+    /// <summary>
+    /// 现在用的站点表：整机现在几寸就是哪张
+    /// </summary>
+    public IReadOnlyDictionary<string, RobotStation> Stations => StationsOf(WaferSizeComponent.SizeOf(_waferSize));
     private volatile RobotStation? _currentStation;
+
+    /// <summary>
+    /// 某种尺寸的站点表：8 寸是 8 寸那张，其余是 12 寸那张
+    /// </summary>
+    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size)
+    {
+        if (size == WaferSizeComponent.Inch8)
+        {
+            return _stations8;
+        }
+
+        return _stations12;
+    }
 
     public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
     {
-        return _stations.TryGetValue(station, out config);
+        return Stations.TryGetValue(station, out config);
     }
 
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
 
-        var stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-        var node = setting.Children.FirstOrDefault(child =>
-            string.Equals(child.Name, "Stations", StringComparison.OrdinalIgnoreCase));
+        // 每种尺寸先找自己那张（Stations12 / Stations8），没配就用 Stations：只做一种尺寸的机型配一张 Stations 就够
+        var shared = ReadStations(setting, "Stations") ?? new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+        _stations12 = ReadStations(setting, "Stations12") ?? shared;
+        _stations8 = ReadStations(setting, "Stations8") ?? shared;
+    }
 
-        foreach (var stationNode in node?.Children ?? [])
+    /// <summary>
+    /// 读一张站点表：没配这个节点返回 null；同名的表配了两个开机就报（抄一张改另一张忘了改名，第二张会被悄悄丢掉）
+    /// </summary>
+    private static Dictionary<string, RobotStation>? ReadStations(ModuleConfig setting, string tableName)
+    {
+        var nodes = setting.Children
+            .Where(child => string.Equals(child.Name, tableName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (nodes.Count == 0)
         {
-            string path = $"{setting.Name}.Stations.{stationNode.Name}";
+            return null;
+        }
+
+        if (nodes.Count > 1)
+        {
+            throw new InvalidOperationException($"sc.xml 节点 {setting.Name}.{tableName} 配了 {nodes.Count} 个，只能配一个。");
+        }
+
+        var stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var stationNode in nodes[0].Children)
+        {
+            string path = $"{setting.Name}.{tableName}.{stationNode.Name}";
             if (!stations.TryAdd(stationNode.Name, RobotStation.FromConfig(stationNode, path)))
             {
                 throw new InvalidOperationException($"sc.xml 节点 {path} 重复配置。");
             }
         }
 
-        _stations = stations;
+        return stations;
     }
 
     #endregion
@@ -260,29 +316,21 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         #region 站点表校验
 
-        // 站点表里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒
-        foreach (var station in _stations.Values)
-        {
-            foreach (int arm in station.PickArms)
-            {
-                if (Arms.All(item => item.Number != arm))
-                {
-                    throw new InvalidOperationException(
-                        $"sc.xml 节点 {FullPath}.Stations.{station.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
-                }
-            }
+        // 站点表里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒；两种尺寸的表都查
+        CheckStationArms(WaferSizeComponent.Inch12);
+        CheckStationArms(WaferSizeComponent.Inch8);
 
-            foreach (int arm in station.PlaceArms)
-            {
-                if (Arms.All(item => item.Number != arm))
-                {
-                    throw new InvalidOperationException(
-                        $"sc.xml 节点 {FullPath}.Stations.{station.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
-                }
-            }
-        }
+        // 别的组件 Bind 时就会按尺寸取站点表，所以在组件初始化时取
+        _waferSize = IocHelper.GetService<IWaferSize>();
 
         #endregion
+
+        // 开了扫片，机械手类得能扫（声明了 IWaferMap）；配错开机就报出来，别等 Load 时才拒
+        if (MapEnabled && this is not IWaferMap)
+        {
+            throw new InvalidOperationException(
+                $"sc.xml 节点 {FullPath} 开了 MapEnabled，但机械手类 {GetType().Name} 不能扫片（没声明 IWaferMap）。");
+        }
 
         // 停用的机械手：不连驱动、不登记晶圆账
         if (!IsEnable)
@@ -313,6 +361,33 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         bool childrenInitialized = base.InitComponent();
         return robot is not null && childrenInitialized;
+    }
+
+    /// <summary>
+    /// 查一种尺寸的站点表：PickArms / PlaceArms 配的手指这台机械手都得有
+    /// </summary>
+    private void CheckStationArms(int size)
+    {
+        foreach (var station in StationsOf(size).Values)
+        {
+            foreach (int arm in station.PickArms)
+            {
+                if (Arms.All(item => item.Number != arm))
+                {
+                    throw new InvalidOperationException(
+                        $"sc.xml 机械手 {FullPath} 的 {size} 寸站点表里 {station.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                }
+            }
+
+            foreach (int arm in station.PlaceArms)
+            {
+                if (Arms.All(item => item.Number != arm))
+                {
+                    throw new InvalidOperationException(
+                        $"sc.xml 机械手 {FullPath} 的 {size} 寸站点表里 {station.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -541,6 +616,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     {
         var station = _currentStation;
         var intent = _transferIntent;
+        var stations = Stations;
         var dto = new RobotDto
         {
             Name = Name,
@@ -550,8 +626,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             Direction = station?.Direction ?? RobotDirection.North,
             Y = station?.Y ?? 0,
             ArmCount = Arms.Count,
-            Stations = _stations.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
-            StationInfos = _stations.Values
+            Stations = stations.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
+            StationInfos = stations.Values
                 .OrderBy(station => station.Number)
                 .Select(station => new RobotStationDto
                 {
@@ -1192,6 +1268,130 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     protected virtual ModuleOperation? CreateRetractPlaceOperation(int arm, int stationNumber, int slot)
     {
         return null;
+    }
+
+    #endregion
+
+    #region 扫片（可选能力 IWaferMap）
+
+    // 能扫片的机械手类在类上声明 IWaferMap（下面的 Map / MapResults 就是它的实现），再重写 CreateMapOperation 给出设备动作，拿到槽图调 SaveMapResult 存起来。
+    // sc 开了 MapEnabled 的，它站点表里的 LoadPort 由它扫（LoadPort 开机时按这个认），扫片用站点原来的 Number；用哪只手扫是控制器示教的事，平台不选。
+
+    private readonly object _mapGate = new();
+    private readonly Dictionary<string, IReadOnlyList<SlotState>> _mapResults = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 各站点最近一次扫到的槽图（副本）；开扫时先删掉这个站的旧结果
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<SlotState>> MapResults
+    {
+        get
+        {
+            lock (_mapGate)
+            {
+                return new Dictionary<string, IReadOnlyList<SlotState>>(_mapResults, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 扫这个站点：空闲、开了扫片、站点在站点表里、手上全空才收；LoadPort 要它扫时由搬运管理排队，轮到了才调
+    /// </summary>
+    public HandleResult<ModuleOperation> Map(string station)
+    {
+        lock (OperationGate)
+        {
+            var rejected = CheckState(RobotAction.Map) ?? CheckMapResource(station) ?? MapInterlock(station);
+            if (rejected is not null)
+            {
+                return Rejected(rejected);
+            }
+
+            if (!TryGetStation(station, out var config))
+            {
+                return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
+            }
+
+            var motion = CreateMapOperation(station, config.Number);
+            if (motion is null)
+            {
+                return Rejected(HandleResult.Fail(ErrorCodes.RobotMapUnsupported, Name));
+            }
+
+            // 先删旧结果再挂动作：扫完存的一定是这一次的
+            lock (_mapGate)
+            {
+                _mapResults.Remove(station);
+            }
+
+            var started = Started(RobotAction.Map, motion);
+            if (started.IsSuccess)
+            {
+                _currentStation = config;
+            }
+
+            return started;
+        }
+    }
+
+    /// <summary>
+    /// 扫片的资源：开了扫片、站点在站点表里、手上全空——不知道扫片传感器装在哪只手上，拿着片去扫可能碰到盒子里的片
+    /// </summary>
+    private HandleResult? CheckMapResource(string station)
+    {
+        if (!MapEnabled)
+        {
+            return HandleResult.Fail(ErrorCodes.RobotMapUnsupported, Name);
+        }
+
+        if (!TryGetStation(station, out _))
+        {
+            return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
+        }
+
+        var ledger = _ledger;
+        if (ledger is null || !ledger.IsEnable)
+        {
+            return null;
+        }
+
+        foreach (var arm in Arms)
+        {
+            var held = ledger.Get(Name, arm.Number);
+            if (held is not null)
+            {
+                return HandleResult.Fail(ErrorCodes.RobotArmHasWafer, Name, arm.Number.ToString(CultureInfo.InvariantCulture), held.WaferId);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 扫片前的互锁：平台不拦，机型要加条件就重写（先调 base）
+    /// </summary>
+    protected virtual HandleResult? MapInterlock(string station)
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 扫片的设备动作：能扫片的机械手类重写，发自己的扫片、读结果指令，拿到槽图调 SaveMapResult；默认没有，扫片被拒
+    /// </summary>
+    protected virtual ModuleOperation? CreateMapOperation(string station, int stationNumber)
+    {
+        return null;
+    }
+
+    /// <summary>
+    /// 存一个站点扫到的槽图（下标 0 是第 1 槽），给 MapResults 读
+    /// </summary>
+    protected void SaveMapResult(string station, IReadOnlyList<SlotState> slots)
+    {
+        lock (_mapGate)
+        {
+            _mapResults[station] = slots.ToArray();
+        }
     }
 
     #endregion

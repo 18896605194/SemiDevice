@@ -18,7 +18,7 @@ public interface ILoadPortDriverComponent
     event Action<LoadPortDeviceEvent>? DeviceEvent;
 
     /// <summary>
-    /// Load：开门 + Mapping，被拒是 null
+    /// Load：只装载开门、不扫片，被拒是 null
     /// </summary>
     LoadPortCommand? Load();
 
@@ -28,9 +28,14 @@ public interface ILoadPortDriverComponent
     LoadPortCommand? Unload();
 
     /// <summary>
-    /// 原地扫一遍槽，被拒是 null
+    /// Load 好时原地扫一遍槽，被拒是 null
     /// </summary>
     LoadPortCommand? Map();
+
+    /// <summary>
+    /// 取最后一次扫片的槽图，被拒是 null
+    /// </summary>
+    LoadPortCommand? GetMap();
 
     /// <summary>
     /// 回原点，被拒是 null

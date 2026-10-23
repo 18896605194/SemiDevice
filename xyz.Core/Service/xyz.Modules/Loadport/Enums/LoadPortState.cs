@@ -16,6 +16,8 @@ public class LoadPortState : TransferModuleState
     public const int Clamping = 140;
 
     public const int Unclamping = 150;
+
+    public const int Mapping = 160;
 }
 
 public enum LoadPortAction
@@ -26,6 +28,7 @@ public enum LoadPortAction
     Reset,
     Abort,
     Clamp,
-    Unclamp
+    Unclamp,
+    Map
 }
 

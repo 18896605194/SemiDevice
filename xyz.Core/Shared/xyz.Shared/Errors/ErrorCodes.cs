@@ -29,6 +29,11 @@ public static class ErrorCodes
     /// <summary>状态检查：模块正在做别的动作。Args: [模块名]</summary>
     public const string ModuleBusy = "module.busy";
 
+    /// <summary>
+    /// 模块在维护模式，不接别的模块自动发来的动作（比如 LoadPort Load 时要机械手去扫片）。Args: [模块名]
+    /// </summary>
+    public const string ModuleMaintenance = "module.maintenance";
+
     #endregion
 
     #region 晶圆尺寸（主界面切 8 / 12 寸）
@@ -186,6 +191,11 @@ public static class ErrorCodes
     /// 站点要中途交接（分段取放），机械手不能分段取放（没声明分段能力，或机械手类没给分段动作）。Args: [机械手模块名]
     /// </summary>
     public const string RobotHandoffUnsupported = "robot.handoff_unsupported";
+
+    /// <summary>
+    /// 机械手不扫片：sc 没开 MapEnabled，或机械手类没给扫片动作。Args: [机械手模块名]
+    /// </summary>
+    public const string RobotMapUnsupported = "robot.map_unsupported";
 
     #endregion
 
@@ -387,6 +397,11 @@ public static class ErrorCodes
 
     /// <summary>手动传片等结果超时：搬运还在跑，结果待确认。Args: [操作名称, 等待ms]</summary>
     public const string TransferWaitTimeout = "transfer.wait_timeout";
+
+    /// <summary>
+    /// 这台机械手排着扫片或正在扫片：手上空了就不再接搬运，手上有片只接不往手上添片的。Args: [机械手模块名]
+    /// </summary>
+    public const string TransferRobotMapping = "transfer.robot_mapping";
 
     #endregion
 

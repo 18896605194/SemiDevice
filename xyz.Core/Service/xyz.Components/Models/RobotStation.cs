@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Models;
 
 /// <summary>
-/// 机械手站点表一条：LoadPort / 腔体在 sc.xml _robot.Stations 下各编一条。
+/// 机械手站点表一条：LoadPort / 腔体在 sc.xml 机械手的 Stations12 / Stations8（只做一种尺寸就 Stations）下各编一条。
 /// Number 站点号；Y 机械手伸出距离（数值）；Direction 伸出方向（<see cref="RobotDirection"/>）；
 /// PickArms 从这个站取片能用哪几只手、PlaceArms 往这个站放片能用哪几只手（手指号，空 = 所有手指都能用）。
 /// </summary>

@@ -231,14 +231,17 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   判出来的叫 `Carrier.IsArrived`（载具到了，后台全用它；界面三维图的盒子不看它、跟原始两位走；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnOperationCompleted` 里把驱动的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
-Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**7 个动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，Load 成功调 `UpdateSlotMap`，它转给 `Carrier.UpdateSlotMap`；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时先发普通卸载、关好门再主动 `Map()`（FCD `CLDMP`；设备没有带图卸载的指令）扫一遍跟晶圆账对，两条指令用 `LoadPortCommandOperation.Then` 串在同一个动作里、前一条做成才发下一条；手动页面走 `UnloadManually()`，一律不扫图、不对账——Mapping 是 LoadPort 硬件自带的，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在设备动作不一样时重写对应的 `CreateXxxOperation`（动作入口不 virtual，见"动作入口"）；
+Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，机型换设备动作重写 `CreateLoadOperation`）；**动作平台给默认实现**（`LoadPortCommandOperation`：发驱动指令 → 等完结 → 超时判失败，几条用 `Then` 串、`ThenWait` 串一段别家动作（搬运管理排的机械手扫片）；**Load 和扫片分开**（2026-10-22，见 decisions.md「扫片：LoadPort 和机械手都能扫（IWaferMap）」）：Load 先只发 `CLOAD` 开门（回执带图也不用），再扫片——有机械手开了 `MapEnabled`、站点表里有这个口，就经搬运管理排它扫，不然自己发 `MAPDO` 扫、`GET:MAPDT` 取槽图——拿到的槽图交 `TakeSlotMap` 落账（转给 `Carrier.UpdateSlotMap`）；LoadPort 也实现 `IWaferMap`：`Map(自己的名字)` 只在 Loaded 时用自己的传感器单独扫一遍（状态 160 扫片中），结果存进 `MapResults`、不落账；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时**关门前**先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上才发 `CULOD`，对不上判失败、门不关；手动页面走 `UnloadManually()`，一律不扫图、不对账，SC 只管自动跑货用不用它），每拍最后 `PublishState`，机型类只在设备动作不一样时重写对应的 `CreateXxxOperation`（动作入口不 virtual，见"动作入口"）；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
   `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询（扫描线程，跟 LoadPort 一样同一时间一条在途；一圈查什么、什么顺序、回来写到哪从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来）：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标；SC `WaferEventEnabled` 关掉不订阅；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调驱动 `Abandon` 作废那一条；断线这一圈作废、订阅重订）和每拍状态发布也在平台，机型只写动作；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、PickArms / PlaceArms（从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；推送的站点表还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
   分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
   能分段的机械手类在类上声明它、重写 `CreateExtend/RetractPick/PlaceOperation` 给设备动作（默认没有 → `robot.handoff_unsupported`）；伸臂做完停在
-  `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账）、
+  `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账；
+  扫片（可选能力 `IWaferMap`，2026-10-22）的 `Map / MapResults` 也写在基类、不声明接口：能扫的机械手类在类上声明 `IWaferMap`、重写 `CreateMapOperation(站点, 站号)`
+  （拿到槽图调 `SaveMapResult`）；SC `MapEnabled` 开了，它站点表里的 LoadPort 由它扫（扫片用站点原来的 `Number`，用哪只手是控制器示教的事），类没声明接口开机抛；
+  入口查空闲、开关、站点、手上全空（`robot.map_unsupported`、`robot.station_not_found`、`robot.arm_has_wafer`），扫片中状态 230）、
   `BaseChamberModule`（`InitComponent` 照 sc 认一遍腔体里装的设备存起来（停用的也认），启用的再登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台）；
   2026-10-20 照 LoadPort / 机械手的写法改完：动作入口 `Home()` / `StartProcess` / 手动设备动作回 `HandleResult<ModuleOperation>`，入口不 virtual，
   机型类留空、只在设备做法不一样时重写 `CreateHomeOperation` / `CreateResetOperation` / `CreateAbortOperation` / `CreateProcessOperation` / `CreatePrepareTransferOperation`，
@@ -377,6 +380,9 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   都要在这站许用；一次占齐这一槽和两只手，旧片标 `EndsOnArm`（取完就算走完，下一步由调度另派）。决定见 decisions.md「同腔交换、预取」。
   **源可以是机械手**（片已经在手上：重启前搬到一半、手动取了没放）：`Source` 写机械手名、`SourceSlot` 写手指号，就用拿着它的那只手，只放片
   （`TransferRoutine` 抢目标 → 准备二 → 放；`Source` 为 null、`SourceName` 是机械手名）。
+  **机械手扫片** `StartMap(机械手, 站点)` → `HandleResult<ModuleOperation>`（`RobotMapRoutine`，LoadPort Load / 自动跑货 Unload 对账时调）：按机械手排队，
+  轮到队头、机械手没在搬片、手上全空才调机械手的 `IWaferMap.Map`；排着时 `Admit` 里手上空了一律拒新搬运、手上有片只拒只取到手上的（`transfer.robot_mapping`），
+  机械手停用 / 维护模式 / 出错或没初始化直接判失败；扫描时搬运先收尾再推扫片；中止搬运管理一起撤。决定见 decisions.md「扫片」。
   启动时问片归哪个 Job：开机 Bind 时取的 Job 管理的 `OwnerOf(片)`。EC：`StationWaitTimeoutMs`、`ManualWaitTimeoutMs`（手动服务等操作收尾）。
   服务 `ITransferService`（`xyz.Service\Transfers`）：`TransferAsync` 启动手动传片并等待操作收尾、`ReleaseAsync` 按晶圆标识释放保留资源（`transfer.not_held`）。
 - **Job** `Job\JobManager`（sc.xml `Dispatch.Job`，扫描由 Dispatch 带着；子节点 `Task` = 任务组件 `TaskComponent`（必须配），

@@ -52,7 +52,7 @@ public static class ModuleStates
     }
 
     /// <summary>
-    /// LoadPort：已装载是它的待命态（可被机械手服务），跟空闲一样算就绪；装卸、回零、夹紧/松开、传片环都算动作中。
+    /// LoadPort：已装载是它的待命态（可被机械手服务），跟空闲一样算就绪；装卸、回零、夹紧/松开、扫片、传片环都算动作中。
     /// </summary>
     public static string LoadPortText(int state)
     {
@@ -70,6 +70,8 @@ public static class ModuleStates
                 return L10n.Get("module.state.clamping");
             case 150:
                 return L10n.Get("module.state.unclamping");
+            case 160:
+                return L10n.Get("module.state.mapping");
             default:
                 return CommonText(state);
         }
@@ -86,6 +88,7 @@ public static class ModuleStates
             case 130:
             case 140:
             case 150:
+            case 160:
                 return ModuleStateTone.Busy;
             default:
                 return CommonTone(state);
@@ -124,7 +127,7 @@ public static class ModuleStates
     }
 
     /// <summary>
-    /// 机械手：空闲就绪；回零、取放都算动作中，分段取放伸着停在站里（211 / 221）也算。
+    /// 机械手：空闲就绪；回零、取放、扫片都算动作中，分段取放伸着停在站里（211 / 221）也算。
     /// </summary>
     public static string RobotText(int state)
     {
@@ -141,6 +144,8 @@ public static class ModuleStates
                 return L10n.Get("module.state.placing");
             case 221:
                 return L10n.Get("module.state.place_extended");
+            case 230:
+                return L10n.Get("module.state.mapping");
             default:
                 return CommonText(state);
         }
@@ -156,6 +161,7 @@ public static class ModuleStates
             case 211:
             case 220:
             case 221:
+            case 230:
                 return ModuleStateTone.Busy;
             default:
                 return CommonTone(state);
