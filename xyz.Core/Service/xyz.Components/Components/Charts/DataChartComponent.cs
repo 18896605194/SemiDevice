@@ -22,28 +22,28 @@ public class DataChartComponent : ComponentBase, IDataChart
 {
     #region SC
 
-    [SCEditor("True", "DataChart", "是否入库（False = 只采样给实时曲线，不写库，数据曲线页查不到新数据）")]
+    [Machine("True", "DataChart", "是否入库（False = 只采样给实时曲线，不写库，数据曲线页查不到新数据）")]
     public bool EnableRecord { get; set; } = true;
 
-    [SCEditor("Io", "DataChart", "落哪个库（sc.xml 的 Database 节点名）：秒级不停写，走单独的 Io 库，不跟业务数据挤")]
+    [Machine("Io", "DataChart", "落哪个库（sc.xml 的 Database 节点名）：秒级不停写，走单独的 Io 库，不跟业务数据挤")]
     public string Database { get; set; } = "Io";
 
-    [SCEditor("30", "DataChart", "保留天数：按天一张表，超期的整张删，每天清一次")]
+    [Machine("30", "DataChart", "保留天数：按天一张表，超期的整张删，每天清一次")]
     public int KeepDays { get; set; } = 30;
 
-    [SCEditor("1000", "DataChart", "采样周期（毫秒），按整周期对齐；每个周期整行都记，值没变也记")]
+    [Machine("1000", "DataChart", "采样周期（毫秒），按整周期对齐；每个周期整行都记，值没变也记")]
     public int SampleIntervalMs { get; set; } = 1000;
 
-    [SCEditor("", "DataChart", "不采的信号，逗号分隔：写信号名，或写上级路径整枝不采（如 LoadPort1__E84，层级用两个下划线隔开）")]
+    [Machine("", "DataChart", "不采的信号，逗号分隔：写信号名，或写上级路径整枝不采（如 LoadPort1__E84，层级用两个下划线隔开）")]
     public string Exclude { get; set; } = string.Empty;
 
-    [SCEditor("4000", "DataChart", "数据曲线页一次查询每条曲线最多返回多少点；时间段长了按时段取最小、最大值，峰谷不丢")]
+    [Machine("4000", "DataChart", "数据曲线页一次查询每条曲线最多返回多少点；时间段长了按时段取最小、最大值，峰谷不丢")]
     public int QueryMaxPoints { get; set; } = 4000;
 
-    [SCEditor("20", "DataChart", "数据曲线、实时曲线页最多同时画几条曲线")]
+    [Machine("20", "DataChart", "数据曲线、实时曲线页最多同时画几条曲线")]
     public int QueryMaxSignals { get; set; } = 20;
 
-    [SCEditor("Screenshots", "DataChart", "数据曲线、实时曲线页截图存到哪个文件夹（客户端那台电脑上）；写相对路径就在客户端程序目录下")]
+    [Machine("Screenshots", "DataChart", "数据曲线、实时曲线页截图存到哪个文件夹（客户端那台电脑上）；写相对路径就在客户端程序目录下")]
     public string ScreenshotDirectory { get; set; } = "Screenshots";
 
     #endregion
@@ -252,7 +252,7 @@ public class DataChartComponent : ComponentBase, IDataChart
     {
         foreach (var property in component.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (property.PropertyType != typeof(int) || property.GetCustomAttribute<SCEditorAttribute>() is null)
+            if (property.PropertyType != typeof(int) || property.GetCustomAttribute<MachineAttribute>() is null)
             {
                 continue;
             }

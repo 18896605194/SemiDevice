@@ -14,10 +14,10 @@ public class HeartbeatComponent : ComponentBase, IHeartbeat
 {
     #region SC
 
-    [SCEditor("-1", "IO", "心跳 DO 索引：按下面的时间轮流写通、断；-1 = 不发", Required = true)]
+    [Machine("-1", "IO", "心跳 DO 索引：按下面的时间轮流写通、断；-1 = 不发", Required = true)]
     public int DoIndex { get; set; } = -1;
 
-    [SCEditor("1000", "Config", "隔多久翻一次（毫秒）：1000 = 1 s 写一次通、1 s 写一次断；跟 PLC 那边判心跳的时间对好")]
+    [Machine("1000", "Config", "隔多久翻一次（毫秒）：1000 = 1 s 写一次通、1 s 写一次断；跟 PLC 那边判心跳的时间对好")]
     public int IntervalMs { get; set; } = 1000;
 
     #endregion

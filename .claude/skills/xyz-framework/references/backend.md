@@ -49,7 +49,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   先父后子挨个调；按接口找别的组件、认装起来的模块、订阅、开机恢复，如晶圆账恢复、配方库认腔体、EAP 接各标准）→ 开始扫描 →
   `OnStarted()`（都在扫了以后，如 EAP 开链路）→ 宿主退出时 `OnStopping()`（倒着来，一个出错记日志、不耽误后面的；EAP 断链路、数据曲线落库、
   断 PLC、晶圆账最后存一次）。都是 `ComponentBase` 的空虚方法，要用就重写。
-- 配置钩子：`OnSettingLoaded(ModuleConfig)`——[SCEditor] 灌完值后调，配置不对就抛异常（开机直接报出来）。
+- 配置钩子：`OnSettingLoaded(ModuleConfig)`——[Machine] 灌完值后调，配置不对就抛异常（开机直接报出来）。
 - **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的）：装配器照 sc 树把每个组件按它实现的 xyz 接口
   （命名空间 xyz 开头的）登记成单例（`ComponentLoader.Register(services, roots)`，宿主开机装配那一步；树本身也登记成 `IReadOnlyList<ComponentBase>`）。
   取一个用 `IocHelper.GetService<IXxx>()`，先取到变量再判空，没装就是 null、降级不崩（`IAlarm`、`IEc`、`ISystemModule`、`ILogComponent`、
@@ -70,12 +70,14 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   `xyz._35021.Module.Loadport.LoadPortModule`）——所以组件挪目录不能改命名空间。需要 public 无参构造。
 - 扫运行目录 `*.dll` + `Modules\**\*.dll`；找不到 Type 直接抛异常（宿主托盘变红）。
 - 没写 Type 的节点：父组件已有同名子组件就灌值给它，否则是纯分组（LoadPort、Database、Chamber），不生成组件、名字照样进 FullPath（Chamber.Chamber1）。
-- 灌值：先把所有可写 [SCEditor] 属性设成默认值，再按 `<Value Name>`（不分大小写）覆盖；支持 int / double / bool / string / enum（InvariantCulture），转不了抛异常带节点名和值。
+- 灌值：先把所有可写 [Machine] 属性设成默认值，再按 `<Value Name>`（不分大小写）覆盖；支持 int / double / bool / string / enum（InvariantCulture），转不了抛异常带节点名和值。
+  **名字对不上的（组件上没有这个 [Machine] 属性）记一条错误日志（模块名 = 节点全路径）、照常开机，那一项还是默认值**（2026-10-24 用户定：不抛）；
+  不写 Type、由组件自己读的数据节点（工艺配方的字段表 `RecipeField`）认名字的地方一样记错误日志。
 
 ### 参数：SC 和 EC（代码里不留魔法数）
-- **SC**（装机、接线、结构性的，改了重启生效）：`[SCEditor("默认值", "分组", "说明")]`，C# 初始值和默认值写成一样：
+- **SC**（装机、接线、结构性的，改了重启生效）：`[Machine("默认值", "分组", "说明")]`，C# 初始值和默认值写成一样：
   ```csharp
-  [SCEditor("25", "LoadPort", "花篮槽数")]
+  [Machine("25", "LoadPort", "花篮槽数")]
   public int SlotCount { get; set; } = 25;
   ```
   IO 下标默认 `"-1"`（没接）。开关一律 bool（`IsEnable`），不用 High/Low 这类字符串。
@@ -86,7 +88,7 @@ Service\xyz.GrpcHost  宿主（WinExe，托盘图标，单实例；→ Shared、
   ```
   键是"组件全路径.属性名"。ec.xml 不随源码，后端启动时 `EcComponent.Merge` 按组件树生成（只补新项、不动已有值）；界面在 设置 → EC 设置 改，
   后端校验格式/范围后写回并推送。
-- SC 一般只由 ScEdit 改、重启生效；**运行时要改、改完一直生效的**（现在只有晶圆尺寸 `WaferSizeComponent.Size`，主界面切换）用 `SC.SaveValue(组件全路径, 参数名, 值)`
+- SC 一般只由 ToolBuilder（原 ScEdit）改、重启生效；**运行时要改、改完一直生效的**（现在只有晶圆尺寸 `WaferSizeComponent.Size`，主界面切换）用 `SC.SaveValue(组件全路径, 参数名, 值)`
   写回宿主读的那份 sc.xml：只改那一个 Value（没有就照缩进补一行），别的内容、缩进、换行（LF / CRLF 照原文件）、BOM 原样，先写临时文件再换上去。
 - 协议、结构常量用 `const`。新组件先分好 `#region SC` / `#region EC` 再写逻辑。
 
@@ -131,7 +133,8 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   `Enums\`、`Models\`、`Routines\`、`StateMachines\`（`Job` 下的 `Model\`、`Task\` 是同一个做法）；**只归类，命名空间不改**（一般 `xyz.Modules`，状态码和动作枚举 `xyz.Modules.Enums`，状态表 `xyz.Modules.StateMachines`）。
   `Loadport` 已分好：`Enums\`（PodPresenceSource、LoadPortState 加 LoadPortAction；SlotPickOrder 在组件层 `xyz.Components\Enums`）、`StateMachines\`（LoadPortStateTable）；
   设备动作统一用组件层的 `ModuleRoutine`（2026-10-23；原来 LoadPort / 机械手 / 对准器各一个 `XxxCommandOperation`，合成 `CommandOperation` 以后同一天又换成一串步骤，见下面「动作 = ModuleRoutine」）；
-  `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`Models\`：RobotStation；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根）；
+  `Robot` 也已分（`Enums\`：RobotState 加 RobotAction；`StateMachines\`：RobotStateTable；`BaseRobotModule`、`IRobot` 契约留根；
+  示教点是组件层的 `Components\Robot\TeachPointComponent`，接口 `ITeachPoint`，2026-10-24 起替掉原来的 `Models\RobotStation`）；
   `Clean`、`E84` 还平铺，改到那一块时照这个分。
 - 供液（CDS）：`Cds\BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess`（一种药液一个模块，下面挂它的槽 `Tanks`；`ISupplyModule` = 不跟机械手交互的模块，
   跟 `ITransferStation` 平级）。机型的药液模块继承它（35021 的 `Cds\IpaModule`，推 `IpaDto`：IPA 的状态 + 下面各槽的 `TankDto`，DTO 放机型的
@@ -240,18 +243,18 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
   判出来的叫 `Carrier.IsArrived`（载具到了，后台全用它；界面三维图的盒子不看它、跟原始两位走；状态查询的原始位叫 `IsPresent` / `IsPlaced`，`LoadPortStatus` 的开关量一律 `Is` 开头）；动作没做成（失败、超时、被顶替）在 `OnRoutineCompleted` 里把通道的在途指令全部作废；Idle 一律当"门关好、没 Load"，门不确定落 NotInit：
 状态表 Reset / Abort 写最保守的（出错 / 没初始化复位、Loaded 复位、中止除 Idle / Error 外一律 NotInit），`Begin` 记下动作前的状态，做成后
 `SetStateByDoor` 对动作前门没在动的（Loaded、交互环）按状态查询改：门开且载具在 → Loaded，门关 → Idle，查不到 → 保持 NotInit；
-Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，整个做法不一样才重写 `CreateLoadRoutine`）；**动作的流程在平台、指令在机型**（2026-10-23，见 decisions.md「品牌驱动：平台只给通道」）：平台用 `ModuleRoutine` 的步骤（`Command` 发指令等做完、`Start` 起一段别家动作（搬运管理排的机械手扫片）、`Do` 当场检查、落账）搭好 Load / Unload / 扫片，每段发哪几条由机型填：`AddLoadSteps`（开门）、`AddUnloadSteps`（关门）、`AddMapSteps`（自己扫片，拿到槽图连同设备回的原文调 `SaveMapResult(槽图, 原文)`）；**Load 和扫片分开**（2026-10-22，见 decisions.md「扫片：LoadPort 和机械手都能扫（IWaferMap）」）：Load 先只开门（35021 发 `CLOAD`，回执带图也不用），再扫片——有机械手开了 `MapEnabled`、站点表里有这个口，就经搬运管理排它扫，不然自己扫（35021 发 `MAPDO` 扫、`GET:MAPDT` 取槽图）——拿到的槽图交 `TakeSlotMap` 落账（转给 `Carrier.UpdateSlotMap`）；LoadPort 也实现 `IWaferMap`：`Map(自己的名字)` 只在 Loaded 时用自己的传感器单独扫一遍（状态 160 扫片中），结果存进 `MapResults`、不落账；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时**关门前**先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上才发 `CULOD`，对不上判失败、门不关；手动页面走 `UnloadManually()`，一律不扫图、不对账，SC 只管自动跑货用不用它），每拍最后 `PublishState`；机型类必须填 `CreateCodec`、`AddLoadSteps` / `AddUnloadSteps` / `AddMapSteps`、
+Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadInterlock()` 返回 `HandleResult?`，默认要 `Carrier.IsArrived`、E84 交接没在走，机型有别的条件重写、先调 base；入口不 virtual，整个做法不一样才重写 `CreateLoadRoutine`）；**动作的流程在平台、指令在机型**（2026-10-23，见 decisions.md「品牌驱动：平台只给通道」）：平台用 `ModuleRoutine` 的步骤（`Command` 发指令等做完、`Start` 起一段别家动作（搬运管理排的机械手扫片）、`Do` 当场检查、落账）搭好 Load / Unload / 扫片，每段发哪几条由机型填：`AddLoadSteps`（开门）、`AddUnloadSteps`（关门）、`AddMapSteps`（自己扫片，拿到槽图连同设备回的原文调 `SaveMapResult(槽图, 原文)`）；**Load 和扫片分开**（2026-10-22，见 decisions.md「扫片：LoadPort 和机械手都能扫（IWaferMap）」）：Load 先只开门（35021 发 `CLOAD`，回执带图也不用），再扫片——有机械手开了 `MapEnabled`、示教点表里有这个口，就经搬运管理排它扫，不然自己扫（35021 发 `MAPDO` 扫、`GET:MAPDT` 取槽图）——拿到的槽图交 `TakeSlotMap` 落账（转给 `Carrier.UpdateSlotMap`）；LoadPort 也实现 `IWaferMap`：`Map(自己的名字)` 只在 Loaded 时用自己的传感器单独扫一遍（状态 160 扫片中），结果存进 `MapResults`、不落账；动作做成 / 失败时端口再告诉 Carrier：`StartAccess` / `EndAccess` / `MarkAccessStopped`；Unload 分两个口径：自动跑货（Job 干完自动卸、E87 放行 / 取消）走 `Unload()`，SC `AutoRunMapOnUnload` 开着时**关门前**先扫片（自己扫或叫机械手扫）跟晶圆账对，对得上才发 `CULOD`，对不上判失败、门不关；手动页面走 `UnloadManually()`，一律不扫图、不对账，SC 只管自动跑货用不用它），每拍最后 `PublishState`；机型类必须填 `CreateCodec`、`AddLoadSteps` / `AddUnloadSteps` / `AddMapSteps`、
 `AddHome/Clamp/Unclamp/Reset/AbortSteps`（一般一条指令一个 `Command` 步骤），可选 `QueryRound`、`OnReport`（主动上报：放上 / 拿走交 `SetDeviceReportedPlaced`），
 整个动作做法不一样的还能重写 `CreateLoadRoutine` 这些（动作入口不 virtual，见"动作入口"）；
   E84 子组件 SC `IsEnable`=False（本机没接搬运车）时 `E84` 属性为 null，端口当没有 E84：不初始化、不每拍推、不读写 IO
   （基类递归会带着 E84 一起初始化，所以 E84 自己的 `InitComponent` 也拦 `IsEnable`）——
   跟 EC `E84Enabled`（装了以后现场在线开关交接）分开）、
-  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询的节奏（`StatusQueryLoop`，扫描线程，跟 LoadPort 一样同一时间一条在途；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调通道 `Abandon` 作废那一条；断线这一圈作废、调 `OnDisconnected`）和每拍状态发布在平台；一圈查什么、什么顺序、回来写到哪由机型从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来；35021 锐洁：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标，SC `WaferEventEnabled` 关掉不订阅，断线清订阅标志下一圈重订），主动推送机型 `OnReport` 认（手指在位交 `NoteArmPresence`、报错写 `DeviceError`）；机型必须填 `CreateCodec` 和 `AddHome/Pick/Place/PowerOn/PowerOff/Reset/AbortSteps`（一般一条指令一个 `Command` 步骤；取放后面"等持片反馈对上""记账"两步平台加）；sc.xml 子节点 `Stations` 读站点表：Number、Y、Direction、PickArms / PlaceArms（从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；推送的站点表还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
+  `BaseRobotModule`（轴与手指是 sc.xml 节点：X/Z/Theta 用 `RobotAxisComponent`、Arm 用 `RobotArmComponent`（模块按接口 `IRobotAxis` / `IRobotArm` 用；节点名即轴名，SC `Number` 是手指号，`Position` 是查询回来的轴坐标，`SensorHasWafer` 挂了 `WaferSensor`（DI，按 `IDiSensor` 认）按它、没挂是设备推送的在位；`LedgerHasWafer` 是晶圆账上这只手有没有片（模块初始化时 `SetRobot(Name)`）；挂了的手取放前后、Home 前跟晶圆账对，没挂不查，见 decisions.md「机械手轴与手指做成组件」；全部回片开始前 `IRobot.CheckWaferSensors()` 把挂了的手都对一遍，读不到也算对不上）；设备状态轮询的节奏（`StatusQueryLoop`，扫描线程，跟 LoadPort 一样同一时间一条在途；一圈里各条一条回来接着发下一条，新的一圈要离上一圈开始满 EC `QueryStatusIntervalMs`（默认 1000 ms）才开；超时调通道 `Abandon` 作废那一条；断线这一圈作废、调 `OnDisconnected`）和每拍状态发布在平台；一圈查什么、什么顺序、回来写到哪由机型从上往下写在 `QueryRound` 里（`yield return` 一条 = 发出去等它回来；35021 锐洁：没订上先订手指在位推送、报错、伺服、速度、每根轴的坐标，SC `WaferEventEnabled` 关掉不订阅，断线清订阅标志下一圈重订），主动推送机型 `OnReport` 认（手指在位交 `NoteArmPresence`、报错写 `DeviceError`）；机型必须填 `CreateCodec` 和 `AddHome/Pick/Place/PowerOn/PowerOff/Reset/AbortSteps`（一般一条指令一个 `Command` 步骤；取放后面"等持片反馈对上""记账"两步平台加）；示教点表（2026-10-24，见 decisions.md「机械手示教点」）：机械手下 `Size12` / `Size8` 两个分组（一种晶圆尺寸一组，整机现在几寸用哪张，没配的那种尺寸是空表、到不了），下面一个站点一个示教点组件 `TeachPointComponent`（节点名 = 站点名；SC Number、Y、Direction、PickArms / PlaceArms：从这个站取片 / 往这个站放片许用的手，不配 = 所有手；配了这台机械手没有的手开机就抛，见 decisions.md「手臂取放分开」）；机械手组件初始化时按 `ITeachPoint` 收子组件、按挂在哪一组分成两张表（挂在两组以外、同组重名开机抛，一个都没有记错误日志），对外 `TeachPoints` / `TeachPointsOf(size)` / `TryGetTeachPoint`；推送的示教点表（`TeachPointDto`）还带槽数、站点类型 Kind（照抄模块自己报的 `IModule.Kind`，机械手不判断具体类型）；`Pick/Place(arm, 站点名, slot)` 成功后改晶圆账；
   分段取放（可选能力 `ITransferRobotStep : ITransferRobot`）的四个方法 `ExtendPick / RetractPick / ExtendPlace / RetractPlace` 也写在这里，但基类不声明接口：
   能分段的机械手类在类上声明它、重写 `AddExtend/RetractPick/PlaceSteps` 加设备那几条（默认一条没有 → `robot.handoff_unsupported`）；伸臂做完停在
   `PickExtended / PlaceExtended`（状态表只收对应的缩臂和急停），伸臂不动账，缩臂只收同一只手同一槽、做完照常查持片记账；
   扫片（可选能力 `IWaferMap`，2026-10-22）的 `Map / MapResults` 也写在基类、不声明接口：能扫的机械手类在类上声明 `IWaferMap`、重写 `AddMapSteps(map, 站点, 站号)`
-  （拿到槽图连同设备回的原文调 `SaveMapResult(站点, 槽图, 原文)`；一条没加就是不能扫，`robot.map_unsupported`）；SC `MapEnabled` 开了，它站点表里的 LoadPort 由它扫（扫片用站点原来的 `Number`，用哪只手是控制器示教的事），类没声明接口开机抛；
+  （拿到槽图连同设备回的原文调 `SaveMapResult(站点, 槽图, 原文)`；一条没加就是不能扫，`robot.map_unsupported`）；SC `MapEnabled` 开了，它示教点表里的 LoadPort 由它扫（扫片用示教点的 `Number`，用哪只手是控制器示教的事），类没声明接口开机抛；
   入口查空闲、开关、站点、手上全空（`robot.map_unsupported`、`robot.station_not_found`、`robot.arm_has_wafer`），扫片中状态 230）、
   `BaseChamberModule`（`InitComponent` 照 sc 认一遍腔体里装的设备存起来（停用的也认），启用的再登记晶圆账，子组件照基类递归；`InitModule()` = `Home()`；**回零、复位、中止、工艺平台给默认实现**（2026-10-10，跟 LoadPort 一样收进平台）；
   2026-10-20 照 LoadPort / 机械手的写法改完：动作入口 `Home()` / `StartProcess` / 手动设备动作回 `HandleResult<ModuleRoutine>`，入口不 virtual，
@@ -306,7 +309,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
   账一变下一拍就推给所有界面，不另发通知；界面画片以账为准（见 decisions.md）。
 - 流程配方库 `Recipe\SequenceComponent`（sc.xml `Sequence` 节点，SC：`Capacity` 99 个编号、`Folder` `Recipe\Sequence`、`NameMaxLength` 32）：
   编号 1~Capacity，一个编号一个文件（`001.xml`，`SequenceData`，先写 `.tmp` 再整个替换）；坏文件、编号越界的文件跳过并记日志。
-  可选站点分组由 `Bind(settings, modules)` 生成（模块全起来后调）：sc.xml 顶层没 Type 的分组节点下、机械手 `Stations` 到得了的站点模块，
+  可选站点分组由 `Bind(settings, modules)` 生成（模块全起来后调）：sc.xml 顶层没 Type 的分组节点下、机械手示教点表里到得了的站点模块，
   顶层直接装的站点自成一组；第 1 步和最后一步必须是 LoadPort 组（组里全是 LoadPort），有腔体的组每步要填工艺配方；名字一律照 sc.xml 原样。
   保存带版本号（对不上回 `sequence.revision_mismatch`，防两个人同时改）；不限步数、名称不限字符（2026-10-13 用户去掉的，只查必填、长度、不重名）；
   `Changed(编号)` 在锁外发。两个配方库的操作结果都直接用不带泛型的 `HandleResult`（不另造结果类，配方放在 `Result` 里，
@@ -341,7 +344,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 - **buffer** `Buffer\BaseBufferModule : BaseTransferStationModule, IBuffer`（跟 LoadPort、腔体一样：自己的能力走 `IBuffer`，跟机械手交互走站点基类），
   机型写空类 `BufferModule : BaseBufferModule`：两台机械手之间放片的架子上的一段，只做取放、不做工艺。sc 里 `Buffer` 是分组节点（不写 Type），
   下面进片段、出片段各配一个（SC `SlotCount` 几层、`IsEnable`），各自 `IsRun`。开机在晶圆账登记槽位、待命、自己切生产模式
-  （没有手动页）；全部初始化时直接回待命。跟 JK 一样，机械手控制器里两段各教一个站号，站点表里各配各的 `Number`，槽号原样发、不换算，
+  （没有手动页）；全部初始化时直接回待命。跟 JK 一样，机械手控制器里两段各教一个站号，示教点表里各配各的 `Number`，槽号原样发、不换算，
   机械手、搬运管理、调度都不认识 buffer。见 decisions.md「buffer」。
 - **对准器** `Aligner\BaseAlignerModule : BaseTransferStationModule, IAligner`（2026-10-22；机型写一个类继承、填品牌指令）：一个槽，`Kind` = `StationKind.Aligner`，只声明取放
   （流程配方这一步不选工艺配方，任务表只有放片、取片）。下面必挂一条通道（`Driver` 节点，`DeviceDriverComponent`），没挂开机抛；还没有品牌。
@@ -634,7 +637,7 @@ Load 走"状态 → 资源 → 互锁"入口（见上面"动作入口"，`LoadIn
 
 ### 主界面用到的几处（2026-10-04）
 - 系统设置 `SystemSettingsDto` 除了 Modules、Chambers，还带 `LoadPorts`、`Robots`（装配出来、启用的，先后同 sc.xml）：客户端主界面照它生成 LoadPort 页签和默认调度图。
-- 机械手站点 `RobotStationDto.Kind`（`StationKind`：LoadPort / Chamber / Other）：`BaseRobotModule` 跟槽数一样从搬运模块表认
+- 机械手示教点 `TeachPointDto.Kind`（`StationKind`：LoadPort / Chamber / Other）：`BaseRobotModule` 跟槽数一样从搬运模块表认
   （`TransferManager.TryGetStation` 拿到的站点按接口认：`ILoadPort` / `IChamber` / 别的），表没绑好或不在表里算 Other；变了算状态变化。
 - 设备总状态 `EquipmentStatusDto`（四色灯红黄绿 + `WaferSize` = 晶圆尺寸组件现在的尺寸，没配是 12）：整机模块 `CreateEquipmentStatus()` 算一次；
   整机每拍算，变了才点亮下面挂的四色灯（`ILight`）、推给顶栏（token "EquipmentStatus"，留存）。
@@ -746,8 +749,10 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   IO 点表 `Config\IO\*.csv` 来自机型工程。
 - 节点顺序：System → Rpc → EC → Database → Alarm → Log → LedgerManager → Account → Plc → Io → Safety → Monitor（分组）→ Computer → DataChart → RealChart →
   LoadPort → Robot → Transfer → Sequence → ProcessRecipe → Job → Eap（Hsms、E30、E39、E87、E90、E40、E94）→ Chamber → …（平台组件在前，模块在后）。加组件时把全部 Value 和注释写进 sc.xml。
-- 外部工具 ScEdit（`D:\tools\ScEdit`，源码不在本仓库）按 `[Component]` / `[SCEditor]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；
-  机械手站点表、工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）有专门的表格页。改了 ScEdit 要跑它的 build.ps1 发布到 app。
+- 外部工具 ToolBuilder（`D:\tools\ToolBuilder`，原 ScEdit 改的名，内部工程名还叫 ScEdit；旧的 `D:\tools\ScEdit` 只留作回退；源码不在本仓库）
+  按 `[Component]` / `[Machine]` 编辑 sc.xml，备份到 `Config\backup\`（已 gitignore）；工艺配方字段表（`ProcessRecipe.Fields`，「配方字段」页，规则跟后端一样）
+  有专门的表格页；机械手示教点按普通组件编辑（2026-10-24 删了它手写的站点页、站点参数表和站点校验，参数全从示教点组件的 [Machine] 来）。
+  改了 ToolBuilder 要跑它的 build.ps1 发布到 app-v2。
 
 ## 9. 日志
 

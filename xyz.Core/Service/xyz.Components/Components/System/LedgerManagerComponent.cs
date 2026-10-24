@@ -125,19 +125,19 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
 
     #region SC 
 
-    [SCEditor("True", "LedgerManager", "是否记晶圆账（False=不记账，设备照常动作）")]
+    [Machine("True", "LedgerManager", "是否记晶圆账（False=不记账，设备照常动作）")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("True", "LedgerManager", "是否把每次变动写成流水入库（False=只在内存记账）")]
+    [Machine("True", "LedgerManager", "是否把每次变动写成流水入库（False=只在内存记账）")]
     public bool EnableHistory { get; set; } = true;
 
-    [SCEditor("True", "LedgerManager", "是否把账存盘、开机恢复腔体和机械手上的片（LoadPort 以开机 Mapping 为准；False=只在内存，重启后机内的片要人工补账）")]
+    [Machine("True", "LedgerManager", "是否把账存盘、开机恢复腔体和机械手上的片（LoadPort 以开机 Mapping 为准；False=只在内存，重启后机内的片要人工补账）")]
     public bool IsPersistent { get; set; } = true;
 
-    [SCEditor("Default", "LedgerManager", "流水和存盘落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
+    [Machine("Default", "LedgerManager", "流水和存盘落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
     public string HistoryDatabase { get; set; } = XyzDb.DefaultName;
 
-    [SCEditor("90", "LedgerManager", "晶圆流水保留天数，超期每天清理一次")]
+    [Machine("90", "LedgerManager", "晶圆流水保留天数，超期每天清理一次")]
     public int HistoryKeepDays { get; set; } = 90;
 
     #endregion

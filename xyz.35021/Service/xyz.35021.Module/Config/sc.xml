@@ -291,43 +291,43 @@
 				</Setting>
 			</Setting>
 		
-			<Setting Name="Stations12">
-				<Setting Name="LoadPort1">
+			<Setting Name="Size12">
+				<Setting Name="LoadPort1" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="1" />
 					<Value Name="Y" Value="20" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="LoadPort2">
+				<Setting Name="LoadPort2" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="2" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber1">
+				<Setting Name="Chamber1" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="3" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber2">
+				<Setting Name="Chamber2" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="4" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber3">
+				<Setting Name="Chamber3" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="5" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber4">
+				<Setting Name="Chamber4" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="6" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
@@ -336,43 +336,43 @@
 				</Setting>
 			</Setting>
 
-			<Setting Name="Stations8">
-				<Setting Name="LoadPort1">
+			<Setting Name="Size8">
+				<Setting Name="LoadPort1" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="1" />
 					<Value Name="Y" Value="20" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="LoadPort2">
+				<Setting Name="LoadPort2" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="2" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="South" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber1">
+				<Setting Name="Chamber1" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="3" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber2">
+				<Setting Name="Chamber2" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="4" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber3">
+				<Setting Name="Chamber3" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="5" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />
 					<Value Name="PickArms" Value="1,2" />
 					<Value Name="PlaceArms" Value="1,2" />
 				</Setting>
-				<Setting Name="Chamber4">
+				<Setting Name="Chamber4" Type="xyz.Components.Components.TeachPointComponent">
 					<Value Name="Number" Value="6" />
 					<Value Name="Y" Value="0" />
 					<Value Name="Direction" Value="North" />

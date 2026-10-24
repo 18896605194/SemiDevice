@@ -15,10 +15,10 @@ public partial class AxisComponent : ComponentBase, IAxis
 {
     #region SC 
 
-    [SCEditor("", "Plc", "下发给 PLC 的命令块名（指令/目标位置/速度写到这儿），空 = 接线未定", Required = true)]
+    [Machine("", "Plc", "下发给 PLC 的命令块名（指令/目标位置/速度写到这儿），空 = 接线未定", Required = true)]
     public string SendPlcDataPath { get; set; } = string.Empty;
 
-    [SCEditor("", "Plc", "从 PLC 回读的状态块名（状态/实际位置/到位从这儿读），空 = 接线未定", Required = true)]
+    [Machine("", "Plc", "从 PLC 回读的状态块名（状态/实际位置/到位从这儿读），空 = 接线未定", Required = true)]
     public string ReceivePlcDataPath { get; set; } = string.Empty;
 
     #endregion

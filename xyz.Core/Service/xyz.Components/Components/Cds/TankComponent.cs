@@ -76,7 +76,7 @@ public class TankComponent : ComponentBase, ITank
 
     #region SC
 
-    [SCEditor("H", "Tank", "补液补到哪个信号亮算完成：L 或 H（HH 是报警位，不能当完成位）")]
+    [Machine("H", "Tank", "补液补到哪个信号亮算完成：L 或 H（HH 是报警位，不能当完成位）")]
     public string FillTo { get; set; } = "H";
 
     #endregion

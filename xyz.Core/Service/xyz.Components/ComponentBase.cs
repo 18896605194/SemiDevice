@@ -52,7 +52,7 @@ public abstract class ComponentBase
     /// <summary>
     /// 根组件是否由装配入口启动独立扫描线程；子组件随父组件扫描，不单独启动。
     /// </summary>
-    [SCEditor("false", "Component", "根组件是否启动独立扫描线程；子组件跟随父组件扫描，无需开启")]
+    [Machine("false", "Component", "根组件是否启动独立扫描线程；子组件跟随父组件扫描，无需开启")]
     public bool IsRun { get; set; }
 
     /// <summary>
@@ -407,8 +407,8 @@ public abstract class ComponentBase
     #region 装配钩子
 
     /// <summary>
-    /// 装配钩子：ComponentLoader 灌完 [SCEditor] 属性后，把本组件在 sc.xml 中的 Setting 节点原样交给组件，
-    /// 供读取名字不固定的配置（如机械手站点表）；默认无动作。配置不合法时抛异常，装配即失败。
+    /// 装配钩子：ComponentLoader 灌完 [Machine] 属性后，把本组件在 sc.xml 中的 Setting 节点原样交给组件，
+    /// 供读取名字不固定的配置（如工艺配方字段表）；默认无动作。配置不合法时抛异常，装配即失败。
     /// </summary>
     protected internal virtual void OnSettingLoaded(ModuleConfig setting)
     {

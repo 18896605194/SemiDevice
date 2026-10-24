@@ -28,7 +28,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
     /// <summary>
     /// 界面语言：客户端启动时按它加载语言包（Strings.{Language}.xaml）。
     /// </summary>
-    [SCEditor("zh-CN", "System", "界面语言：zh-CN 简体中文，en-US 英文；客户端启动时按它显示，改了重启客户端生效")]
+    [Machine("zh-CN", "System", "界面语言：zh-CN 简体中文，en-US 英文；客户端启动时按它显示，改了重启客户端生效")]
     public string Language { get; set; } = "zh-CN";
 
     #endregion

@@ -40,16 +40,16 @@ public class AiComponent : ComponentBase, IAi
 
     #region SC
 
-    [SCEditor("", "Ai", "模型服务地址：兼容 OpenAI 接口格式，带 /v1（如 http://192.168.10.50:8080/v1）", Required = true)]
+    [Machine("", "Ai", "模型服务地址：兼容 OpenAI 接口格式，带 /v1（如 http://192.168.10.50:8080/v1）", Required = true)]
     public string Endpoint { get; set; } = string.Empty;
 
-    [SCEditor("", "Ai", "模型名：模型服务里叫什么就填什么", Required = true)]
+    [Machine("", "Ai", "模型名：模型服务里叫什么就填什么", Required = true)]
     public string Model { get; set; } = string.Empty;
 
-    [SCEditor("", "Ai", "访问密钥：本地模型服务一般不要，空着就行")]
+    [Machine("", "Ai", "访问密钥：本地模型服务一般不要，空着就行")]
     public string ApiKey { get; set; } = string.Empty;
 
-    [SCEditor("1", "Ai", "同时最多几个请求在模型服务上算（本地一张显卡一般 1 个），多出来的排队")]
+    [Machine("1", "Ai", "同时最多几个请求在模型服务上算（本地一张显卡一般 1 个），多出来的排队")]
     public int MaxConcurrent { get; set; } = 1;
 
     #endregion

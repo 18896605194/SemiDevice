@@ -88,7 +88,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
        ...
    }
    ```
-4. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[SCEditor]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
+4. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[Machine]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
 5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
 6. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
 7. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。

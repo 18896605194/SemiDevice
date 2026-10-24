@@ -57,16 +57,16 @@ public class AlarmComponent : ComponentBase, IAlarm
 
     #region SC
 
-    [SCEditor("True", "Alarm", "是否把报警记录入库（False=只在内存里记当前报警）")]
+    [Machine("True", "Alarm", "是否把报警记录入库（False=只在内存里记当前报警）")]
     public bool EnableHistory { get; set; } = true;
 
-    [SCEditor("Default", "Alarm", "报警记录落哪个库（sc.xml 的 Database 节点名），报警属业务数据，走默认库")]
+    [Machine("Default", "Alarm", "报警记录落哪个库（sc.xml 的 Database 节点名），报警属业务数据，走默认库")]
     public string HistoryDatabase { get; set; } = XyzDb.DefaultName;
 
-    [SCEditor("90", "Alarm", "报警记录保留天数，超期每天清理一次")]
+    [Machine("90", "Alarm", "报警记录保留天数，超期每天清理一次")]
     public int HistoryKeepDays { get; set; } = 90;
 
-    [SCEditor("1000", "Alarm", "报警历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
+    [Machine("1000", "Alarm", "报警历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
     public int HistoryQueryMaxCount { get; set; } = 1000;
 
     #endregion

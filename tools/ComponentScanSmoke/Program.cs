@@ -1,6 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.Xml.Serialization;
 using Microsoft.Extensions.DependencyInjection;
+using NLog;
+using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Configs.Models;
@@ -107,7 +109,26 @@ Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && Lifecycle
     "Bind and OnStarted run in sc order, parent before child");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after a component throws");
 
-Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), components into the container by interface");
+// sc 里写错的参数名（组件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志，写清哪个节点、哪个名字
+var logs = new ConcurrentQueue<LogItem>();
+LogQueue.Start(logs.Enqueue);
+const string typoXml = """
+    <ArrayOfSetting>
+      <Setting Name="TypoGroup">
+        <Setting Name="Typo" Type="ScanProbe">
+          <Value Name="IsRunn" Value="true" />
+        </Setting>
+      </Setting>
+    </ArrayOfSetting>
+    """;
+using var typoReader = new StringReader(typoXml);
+var typo = (ScanProbe)ComponentLoader.Load(((ScConfig)serializer.Deserialize(typoReader)!).Modules).Single();
+Check(!typo.IsRun, "a misspelled SC name still loads and leaves that setting at its default");
+Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && item.Module == "TypoGroup.Typo"
+        && item.Message.Contains("TypoGroup.Typo") && item.Message.Contains("IsRunn")), 3000),
+    "a misspelled SC name is logged as an error naming the node path and the name");
+
+Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), components into the container by interface; a misspelled SC name logged as an error and left at its default");
 
 static void Check(bool condition, string message)
 {

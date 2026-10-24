@@ -16,10 +16,10 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
 {
     #region SC
 
-    [SCEditor("0", "RFID", "载具 ID 在标签内存里的起始偏移")]
+    [Machine("0", "RFID", "载具 ID 在标签内存里的起始偏移")]
     public int IdStart { get; set; }
 
-    [SCEditor("16", "RFID", "载具 ID 字节数")]
+    [Machine("16", "RFID", "载具 ID 字节数")]
     public int IdLength { get; set; } = 16;
 
     #endregion

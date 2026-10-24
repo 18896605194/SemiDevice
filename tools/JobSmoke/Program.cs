@@ -2218,7 +2218,7 @@ try
         secondRobot = null;
     }
 
-    // 17f. 手臂取放分开（清洗机的干净手 / 脏手）：机械手站点表每个站分开配 PickArms / PlaceArms。一片从取到放在同一只手上，
+    // 17f. 手臂取放分开（清洗机的干净手 / 脏手）：机械手示教点每个站分开配 PickArms / PlaceArms。一片从取到放在同一只手上，
     //      一趟搬运用的手要源站许取、目标站许放。LP1 取片只许 1 号、放片只许 2 号；PM1 放片只许 1 号、取片只许 2 号：
     //      没洗的片进腔用 1 号手，洗完的回料盒用 2 号手；交换时取旧片 2 号、放新片 1 号。开机查：配了这台机械手没有的手就报错。
     {
@@ -2238,7 +2238,7 @@ try
         }
 
         Check(initRefused.Contains("PM1") && initRefused.Contains("PlaceArms") && initRefused.Contains("Arm3"),
-            "开机查：站点表配了这台机械手没有的手（PM1 的 PlaceArms 配了 Arm3），组件初始化就报错");
+            "开机查：示教点配了这台机械手没有的手（PM1 的 PlaceArms 配了 Arm3），组件初始化就报错");
 
         var cleanPick = new Dictionary<string, string> { ["LP1"] = "1", ["PM1"] = "2" };
         var cleanPlace = new Dictionary<string, string> { ["LP1"] = "2", ["PM1"] = "1" };
@@ -2249,15 +2249,15 @@ try
         clean.SetProduction();
         transfers.Bind([lp1, lp2, clean, pm1, pm2, pm9]);
         secondRobot = clean;
-        Check(clean.TryGetStation("LP1", out var lpConfig) && lpConfig.PickArms.SequenceEqual([1]) && lpConfig.PlaceArms.SequenceEqual([2])
-              && clean.TryGetStation("LP2", out var lp2Config) && lp2Config.PickArms.Count == 0 && lp2Config.PlaceArms.Count == 0,
-            "站点表分开读 PickArms / PlaceArms，没配的站点两项都空（所有手都能用）");
-        var stationInfos = clean.CreateStateDto().StationInfos;
-        var lpInfo = stationInfos.Single(info => info.Name == "LP1");
-        var lp2Info = stationInfos.Single(info => info.Name == "LP2");
+        Check(clean.TryGetTeachPoint("LP1", out var lpConfig) && lpConfig.PickArmNumbers.SequenceEqual([1]) && lpConfig.PlaceArmNumbers.SequenceEqual([2])
+              && clean.TryGetTeachPoint("LP2", out var lp2Config) && lp2Config.PickArmNumbers.Count == 0 && lp2Config.PlaceArmNumbers.Count == 0,
+            "示教点分开读 PickArms / PlaceArms，没配的站点两项都空（所有手都能用）");
+        var teachPoints = clean.CreateStateDto().TeachPoints;
+        var lpInfo = teachPoints.Single(info => info.Name == "LP1");
+        var lp2Info = teachPoints.Single(info => info.Name == "LP2");
         Check(lpInfo.PickArms.SequenceEqual([1]) && lpInfo.PlaceArms.SequenceEqual([2])
               && lp2Info.PickArms.SequenceEqual([1, 2]) && lp2Info.PlaceArms.SequenceEqual([1, 2]),
-            "推给界面的站点表也分开给，没配的展开成所有手（手动页取片、放片的手臂下拉各列各的）");
+            "推给界面的示教点也分开给，没配的展开成所有手（手动页取片、放片的手臂下拉各列各的）");
 
         // 机械手自己的取放入口：取片查 PickArms，放片查 PlaceArms
         LoadCarrier(lp1, 1, 2);
@@ -2362,12 +2362,12 @@ try
 
         BaseModule[] bufferModules = [lp1, lp2, robotA, robotB, pm1, pm2, pm9, bufferIn, bufferOut];
         transfers.Bind(bufferModules);
-        var robotAInfos = robotA.CreateStateDto().StationInfos;
-        var robotBInfos = robotB.CreateStateDto().StationInfos;
+        var robotAInfos = robotA.CreateStateDto().TeachPoints;
+        var robotBInfos = robotB.CreateStateDto().TeachPoints;
         Check(robotAInfos.Single(info => info.Name == "BufferIn").Kind == StationKind.Buffer
               && robotAInfos.Single(info => info.Name == "LP1").Kind == StationKind.LoadPort
               && robotBInfos.Single(info => info.Name == "PM1").Kind == StationKind.Chamber,
-            "站点自己报类型（buffer、LoadPort、腔体），机械手推给界面的站点表照抄，不判断具体站型");
+            "站点自己报类型（buffer、LoadPort、腔体），机械手推给界面的示教点照抄，不判断具体站型");
         sequences.Bind(bufferModules);
         secondRobot = robotA;
         extraTicks.Add(robotB.Tick);
@@ -2509,8 +2509,8 @@ try
         var alignerInit = aligner.InitModule();
         Check(alignerInit is not null && RunUntil(() => alignerInit.IsSettled) && aligner.State == ModuleState.Idle,
             "全部初始化调到对准器：回零做完回待命");
-        Check(alignerRobot.CreateStateDto().StationInfos.Single(info => info.Name == "AL1").Kind == StationKind.Aligner,
-            "机械手推给界面的站点表里，对准器报自己的类型");
+        Check(alignerRobot.CreateStateDto().TeachPoints.Single(info => info.Name == "AL1").Kind == StationKind.Aligner,
+            "机械手推给界面的示教点里，对准器报自己的类型");
 
         Sequence(10, "SEQ_AL", Step("LoadPort", "", "LP1"), Step("Aligner", "", "AL1"), Step("Chamber", "R1", "PM1", "PM2"),
             Step("LoadPort", "", "LP1"));
@@ -2822,8 +2822,9 @@ class SmokeRobot : BaseRobotModule
     }
 
     // armCount：几只手（sc.xml Axes 下几个 Arm 节点），不给的都是两只。
-    // pickArms / placeArms：站点 → 取片 / 放片许用的手（sc.xml 站点节点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
-    // numbers：站点 → 站号（sc.xml 站点节点的 Number）；没写的站点按先后 1、2、3……
+    // pickArms / placeArms：站点 → 取片 / 放片许用的手（sc.xml 示教点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
+    // numbers：站点 → 站号（sc.xml 示教点的 Number）；没写的站点按先后 1、2、3……
+    // 示教点都挂在 Size12 组下（生产里由 ComponentLoader 照 sc.xml 建），组件初始化时收进示教点表。
     public SmokeRobot(string name, int armCount, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
         IReadOnlyDictionary<string, int> numbers, params string[] stations)
     {
@@ -2838,7 +2839,7 @@ class SmokeRobot : BaseRobotModule
             AddChild(Named(new RobotArmComponent { Number = arm }, "Arm" + arm.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
 
-        var nodes = new List<ModuleConfig>();
+        var points = new List<ModuleConfig>();
         for (int index = 0; index < stations.Length; index++)
         {
             int number = index + 1;
@@ -2847,24 +2848,24 @@ class SmokeRobot : BaseRobotModule
                 number = configured;
             }
 
-            var values = new List<ValueConfig>
+            var values = new List<(string Name, string Value)>
             {
-                new() { Name = "Number", Value = number.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                ("Number", number.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             };
             if (pickArms.TryGetValue(stations[index], out var pick))
             {
-                values.Add(new ValueConfig { Name = "PickArms", Value = pick });
+                values.Add(("PickArms", pick));
             }
 
             if (placeArms.TryGetValue(stations[index], out var place))
             {
-                values.Add(new ValueConfig { Name = "PlaceArms", Value = place });
+                values.Add(("PlaceArms", place));
             }
 
-            nodes.Add(new ModuleConfig { Name = stations[index], Values = values });
+            points.Add(SmokeTeachPoints.Point(stations[index], [.. values]));
         }
 
-        OnSettingLoaded(new ModuleConfig { Name = name, Children = [new ModuleConfig { Name = "Stations", Children = nodes }] });
+        SmokeTeachPoints.AddTo(this, SmokeTeachPoints.Table("Size12", [.. points]));
     }
 
     private static T Named<T>(T component, string name) where T : ComponentBase

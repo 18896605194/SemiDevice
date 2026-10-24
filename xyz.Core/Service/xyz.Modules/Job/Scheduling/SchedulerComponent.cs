@@ -2,7 +2,6 @@
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
-using xyz.Components.Models;
 using xyz.Modules.Enums;
 using xyz.Shared.Dtos;
 using xyz.Tools;
@@ -17,7 +16,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 {
     #region SC
 
-    [SCEditor("False", "Scheduler", "并行的工艺站挑最久没开工的那个，几个腔轮着用；False = 按流程配方勾的顺序，第一个能放的就用")]
+    [Machine("False", "Scheduler", "并行的工艺站挑最久没开工的那个，几个腔轮着用；False = 按流程配方勾的顺序，第一个能放的就用")]
     public bool PreferIdleStation { get; set; }
 
     #endregion
@@ -334,7 +333,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
     {
         var station = Station(stationName);
-        if (station is null || !IsStationReady(stationName) || !robot.TryGetStation(stationName, out var config)
+        if (station is null || !IsStationReady(stationName) || !robot.TryGetTeachPoint(stationName, out var config)
             || !config.AllowsPlace(placeArm))
         {
             return false;
@@ -428,7 +427,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
 
         foreach (var robot in _transfers!.Robots)
         {
-            if (!IsRobotFree(robot) || !robot.TryGetStation(source.Module, out var from))
+            if (!IsRobotFree(robot) || !robot.TryGetTeachPoint(source.Module, out var from))
             {
                 continue;
             }
@@ -446,10 +445,10 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// <summary>
     /// 为这个站预取：站里那片正在做或做完了、换出来有去处，机械手有一只手能从来源取、往这个站放，另有一只空手能取旧片
     /// </summary>
-    private bool TryPrefetchFor(TaskRow row, WaferTask pick, ITransferRobot robot, RobotStation from,
+    private bool TryPrefetchFor(TaskRow row, WaferTask pick, ITransferRobot robot, ITeachPoint from,
         (string Module, int Slot, bool IsArm) source, string stationName, IReadOnlyList<TaskRow> rows, ITaskComponent tasks)
     {
-        if (_prefetched.ContainsKey(stationName) || !robot.TryGetStation(stationName, out var at))
+        if (_prefetched.ContainsKey(stationName) || !robot.TryGetTeachPoint(stationName, out var at))
         {
             return false;
         }
@@ -545,7 +544,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// <summary>
     /// 给换出来的旧片挑一只空手：这个站许它取片、空着，拿着旧片的这只手下一站许它放、那里收得下；没有返回 0
     /// </summary>
-    private int FindPickArm(ITransferRobot robot, TaskRow row, WaferTask pick, RobotStation at, int excludeArm)
+    private int FindPickArm(ITransferRobot robot, TaskRow row, WaferTask pick, ITeachPoint at, int excludeArm)
     {
         var next = row.NextPlace(pick);
         if (next is null)
@@ -738,7 +737,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
     /// </summary>
     private static bool CanArmPlace(ITransferRobot robot, int arm, string station)
     {
-        return robot.TryGetStation(station, out var config) && config.AllowsPlace(arm);
+        return robot.TryGetTeachPoint(station, out var config) && config.AllowsPlace(arm);
     }
 
     /// <summary>
@@ -783,7 +782,7 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
         var transfers = _transfers!;
         foreach (var robot in transfers.Robots)
         {
-            if (!IsRobotFree(robot) || !robot.TryGetStation(target, out _))
+            if (!IsRobotFree(robot) || !robot.TryGetTeachPoint(target, out _))
             {
                 continue;
             }
@@ -836,6 +835,6 @@ public class SchedulerComponent : ComponentBase, ISchedulerComponent
             return string.Equals(robot.Name, source.Module, StringComparison.OrdinalIgnoreCase);
         }
 
-        return robot.TryGetStation(source.Module, out _);
+        return robot.TryGetTeachPoint(source.Module, out _);
     }
 }

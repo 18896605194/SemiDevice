@@ -15,10 +15,10 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
 {
     #region SC
 
-    [SCEditor("True", "Buffer", "是否启用这一段 buffer（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
+    [Machine("True", "Buffer", "是否启用这一段 buffer（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("1", "Buffer", "这一段有几层（晶圆账按它登记槽位）；机械手控制器里每一段各教一个站号，这一段的 1 号槽就是那个站号的第 1 层")]
+    [Machine("1", "Buffer", "这一段有几层（晶圆账按它登记槽位）；机械手控制器里每一段各教一个站号，这一段的 1 号槽就是那个站号的第 1 层")]
     public override int SlotCount { get; set; } = 1;
 
     #endregion

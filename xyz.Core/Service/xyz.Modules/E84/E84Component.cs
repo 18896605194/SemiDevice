@@ -14,52 +14,52 @@ public class E84Component : ComponentBase, IE84
 {
     #region SC
 
-    [SCEditor("True", "E84", "是否装了 E84（False = 本机没接搬运车：端口当没有 E84，不打开、不扫、不读写 IO；现场临时停交接用 EC E84Enabled）")]
+    [Machine("True", "E84", "是否装了 E84（False = 本机没接搬运车：端口当没有 E84，不打开、不扫、不读写 IO；现场临时停交接用 EC E84Enabled）")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("-1", "IO", "VALID 输入 DI 索引")]
+    [Machine("-1", "IO", "VALID 输入 DI 索引")]
     public int DiValidIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "CS_0 输入 DI 索引")]
+    [Machine("-1", "IO", "CS_0 输入 DI 索引")]
     public int DiCs0Index { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "CS_1 输入 DI 索引")]
+    [Machine("-1", "IO", "CS_1 输入 DI 索引")]
     public int DiCs1Index { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "AM_AVBL 输入 DI 索引")]
+    [Machine("-1", "IO", "AM_AVBL 输入 DI 索引")]
     public int DiAmAvblIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "TR_REQ 输入 DI 索引")]
+    [Machine("-1", "IO", "TR_REQ 输入 DI 索引")]
     public int DiTrReqIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "BUSY 输入 DI 索引")]
+    [Machine("-1", "IO", "BUSY 输入 DI 索引")]
     public int DiBusyIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "COMPT 输入 DI 索引")]
+    [Machine("-1", "IO", "COMPT 输入 DI 索引")]
     public int DiComptIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "CONT 输入 DI 索引")]
+    [Machine("-1", "IO", "CONT 输入 DI 索引")]
     public int DiContIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "光幕输入 DI 索引（-1 = 没有光幕，不做光幕互锁）")]
+    [Machine("-1", "IO", "光幕输入 DI 索引（-1 = 没有光幕，不做光幕互锁）")]
     public int DiLightCurtainIndex { get; set; } = -1;
 
-    [SCEditor("False", "IO", "光幕电平：False = 输入 OFF 算被挡，True = 输入 ON 算被挡")]
+    [Machine("False", "IO", "光幕电平：False = 输入 OFF 算被挡，True = 输入 ON 算被挡")]
     public bool LightCurtainReverse { get; set; }
 
-    [SCEditor("-1", "IO", "L_REQ 输出 DO 索引")]
+    [Machine("-1", "IO", "L_REQ 输出 DO 索引")]
     public int DoLReqIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "U_REQ 输出 DO 索引")]
+    [Machine("-1", "IO", "U_REQ 输出 DO 索引")]
     public int DoUReqIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "READY 输出 DO 索引")]
+    [Machine("-1", "IO", "READY 输出 DO 索引")]
     public int DoReadyIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "HO_AVBL 输出 DO 索引")]
+    [Machine("-1", "IO", "HO_AVBL 输出 DO 索引")]
     public int DoHoAvblIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "ES 输出 DO 索引")]
+    [Machine("-1", "IO", "ES 输出 DO 索引")]
     public int DoEsIndex { get; set; } = -1;
 
     #endregion

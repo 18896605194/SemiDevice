@@ -677,27 +677,14 @@ port.Tick();
 SmokeIoc.Use<ILedgerManager>(null);
 port.E87Callback = null;
 
-// ── 机械手两种晶圆尺寸各一张站点表 ────────────────────────────────────────
-// sc 配 Stations12 / Stations8，整机现在几寸就用哪张（站点号、取放手、有哪些站点都能不一样）；只配 Stations 两种尺寸共用；
-// 同名的表配了两个开机就报；两张表配的手指开机都查。
+// ── 机械手两种晶圆尺寸各一张示教点表 ────────────────────────────────────────
+// sc 在机械手下配 Size12 / Size8 两组示教点（TeachPointComponent），整机现在几寸就用哪张（站号、取放手、有哪些站点都能不一样）；
+// 只配一种尺寸的，另一种是空表；同名的组配了两个、示教点挂在两组以外、同组重名、站号 / 手指号写错开机就报；两张表配的手指开机都查。
 {
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
-    ModuleConfig StationNode(string name, string number, string pickArms)
+    ModuleConfig Point(string name, string number, string pickArms)
     {
-        return new ModuleConfig
-        {
-            Name = name,
-            Values =
-            [
-                new ValueConfig { Name = "Number", Value = number },
-                new ValueConfig { Name = "PickArms", Value = pickArms },
-            ],
-        };
-    }
-
-    ModuleConfig Table(string name, params ModuleConfig[] stations)
-    {
-        return new ModuleConfig { Name = name, Children = [.. stations] };
+        return SmokeTeachPoints.Point(name, ("Number", number), ("PickArms", pickArms));
     }
 
     string RefusedWith(Action action)
@@ -716,49 +703,70 @@ port.E87Callback = null;
 
     List<string> PushedStations(ProbeRobot robot)
     {
-        return robot.CreateStateDto().StationInfos.Select(info => $"{info.Name}:{info.Number}").ToList();
+        return robot.CreateStateDto().TeachPoints.Select(info => $"{info.Name}:{info.Number}").ToList();
     }
 
     var waferSize = new WaferSizeComponent();
     SmokeIoc.Use<IWaferSize>(waferSize);
     var sized = new ProbeRobot();
-    sized.NoteSettings(new ModuleConfig
-    {
-        Name = "SmokeRobot",
-        Children =
-        [
-            Table("Stations12", StationNode("SmokeLP", "1", "1")),
-            Table("Stations8", StationNode("SmokeLP", "11", "1"), StationNode("SmokePM", "12", "1")),
-        ],
-    });
-    Check(sized.InitComponent(), "两张站点表的机械手组件初始化");
-    Check(sized.TryGetStation("SmokeLP", out var lp12) && lp12.Number == 1 && !sized.TryGetStation("SmokePM", out _)
+    sized.NoteTeachPoints(
+        SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1")),
+        SmokeTeachPoints.Table("Size8", Point("SmokeLP", "11", "1"), Point("SmokePM", "12", "1")));
+    Check(sized.InitComponent(), "两张示教点表的机械手组件初始化");
+    Check(sized.TryGetTeachPoint("SmokeLP", out var lp12) && lp12.Number == 1 && !sized.TryGetTeachPoint("SmokePM", out _)
           && PushedStations(sized).SequenceEqual(["SmokeLP:1"]),
-        "12 寸：用 Stations12（站点号 1、没有 SmokePM），推给界面的也是这张");
+        "12 寸：用 Size12（站号 1、没有 SmokePM），推给界面的也是这张");
     waferSize.Size = 8;
-    Check(sized.TryGetStation("SmokeLP", out var lp8) && lp8.Number == 11 && sized.TryGetStation("SmokePM", out _)
-          && PushedStations(sized).SequenceEqual(["SmokeLP:11", "SmokePM:12"]) && sized.StationsOf(12).Count == 1,
-        "切到 8 寸：马上换成 Stations8（站点号 11、多了 SmokePM），推给界面的跟着换；12 寸那张不动");
+    Check(sized.TryGetTeachPoint("SmokeLP", out var lp8) && lp8.Number == 11 && sized.TryGetTeachPoint("SmokePM", out _)
+          && PushedStations(sized).SequenceEqual(["SmokeLP:11", "SmokePM:12"]) && sized.TeachPointsOf(12).Count == 1,
+        "切到 8 寸：马上换成 Size8（站号 11、多了 SmokePM），推给界面的跟着换；12 寸那张不动");
     waferSize.Size = 12;
 
-    var shared = new ProbeRobot();
-    shared.NoteSettings(new ModuleConfig { Name = "SmokeRobot", Children = [Table("Stations", StationNode("SmokeLP", "1", "1"))] });
-    Check(ReferenceEquals(shared.StationsOf(8), shared.StationsOf(12)) && shared.StationsOf(8).Count == 1,
-        "只配 Stations：两种尺寸共用这一张");
+    var only12 = new ProbeRobot();
+    only12.NoteTeachPoints(SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1")));
+    Check(only12.InitComponent() && only12.TeachPointsOf(12).Count == 1 && only12.TeachPointsOf(8).Count == 0,
+        "只配 Size12：8 寸那张是空表，切到 8 寸哪儿都到不了，不会拿 12 寸的示教点去取 8 寸片");
+
+    var oldName = new ProbeRobot();
+    oldName.NoteTeachPoints(SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP", ("Number", "1"), ("Arms", "2"))));
+    Check(oldName.InitComponent() && oldName.TryGetTeachPoint("SmokeLP", out var oldNamePoint)
+          && oldNamePoint.PickArmNumbers.Count == 0 && oldNamePoint.AllowsPick(1),
+        "示教点上写了不认识的参数（老写法 Arms）：照常开机，那一条没用上（记错误日志），手指还是没限定");
 
     string twice = RefusedWith(() => new ProbeRobot().NoteSettings(new ModuleConfig
     {
         Name = "SmokeRobot",
-        Children = [Table("Stations8", StationNode("SmokeLP", "1", "1")), Table("Stations8", StationNode("SmokeLP", "2", "1"))],
+        Children = [SmokeTeachPoints.Table("Size8"), SmokeTeachPoints.Table("Size8")],
     }));
-    Check(twice.Contains("Stations8") && twice.Contains("2 个"), "同名的站点表配了两个（抄了一张忘改名）：开机就报，实际 " + twice);
+    Check(twice.Contains("Size8") && twice.Contains("2 个"), "同名的示教点组配了两个（抄了一组忘改名）：开机就报，实际 " + twice);
+
+    var outside = new ProbeRobot();
+    outside.NoteTeachPoints(SmokeTeachPoints.Table("Stations12", Point("SmokeLP", "1", "1")));
+    string outsideRefused = RefusedWith(() => outside.InitComponent());
+    Check(outsideRefused.Contains("Stations12.SmokeLP") && outsideRefused.Contains("Size12"),
+        "示教点挂在 Size12 / Size8 以外的组里（还用老名字 Stations12）：开机就报，实际 " + outsideRefused);
+
+    var duplicated = new ProbeRobot();
+    duplicated.NoteTeachPoints(SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1"), Point("smokelp", "2", "1")));
+    string duplicatedRefused = RefusedWith(() => duplicated.InitComponent());
+    Check(duplicatedRefused.Contains("重复配置"), "同一组里两个示教点同名（不分大小写）：开机就报，实际 " + duplicatedRefused);
+
+    var sameNumber = new ProbeRobot();
+    sameNumber.NoteTeachPoints(SmokeTeachPoints.Table("Size12", Point("SmokeLP", "3", "1"), Point("SmokePM", "3", "1")));
+    string sameNumberRefused = RefusedWith(() => sameNumber.InitComponent());
+    Check(sameNumberRefused.Contains("SmokeLP") && sameNumberRefused.Contains("SmokePM") && sameNumberRefused.Contains("站号都是 3"),
+        "同一张表里两个站点站号一样（会被当成同一个工位去取放）：开机就报，实际 " + sameNumberRefused);
+
+    string noNumber = RefusedWith(() => ComponentLoader.Load([SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP"))]));
+    Check(noNumber.Contains("Size12.SmokeLP") && noNumber.Contains("Number"), "示教点没配站号：装配就报，实际 " + noNumber);
+
+    string badArms = RefusedWith(() => ComponentLoader.Load([SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1,x"))]));
+    Check(badArms.Contains("PickArms") && badArms.Contains("\"x\""), "手指号写错：装配就报，实际 " + badArms);
 
     var badArm = new ProbeRobot();
-    badArm.NoteSettings(new ModuleConfig
-    {
-        Name = "SmokeRobot",
-        Children = [Table("Stations12", StationNode("SmokeLP", "1", "1")), Table("Stations8", StationNode("SmokeLP", "1", "3"))],
-    });
+    badArm.NoteTeachPoints(
+        SmokeTeachPoints.Table("Size12", Point("SmokeLP", "1", "1")),
+        SmokeTeachPoints.Table("Size8", Point("SmokeLP", "1", "3")));
     string badArmRefused = RefusedWith(() => badArm.InitComponent());
     Check(badArmRefused.Contains("8 寸") && badArmRefused.Contains("Arm3"),
         "8 寸那张配了这台机械手没有的手（Arm3）：现在是 12 寸也开机就报，实际 " + badArmRefused);
@@ -770,38 +778,16 @@ port.E87Callback = null;
     var robotLedger = new LedgerManagerComponent();
     SmokeIoc.Use<ILedgerManager>(robotLedger);
     var robot = new ProbeRobot();
-    robot.NoteSettings(new ModuleConfig
-    {
-        Name = "SmokeRobot",
-        Children =
-        [
-            new ModuleConfig
-            {
-                Name = "Stations",
-                Children =
-                [
-                    new ModuleConfig
-                    {
-                        Name = "SmokeLP",
-                        Values =
-                        [
-                            new ValueConfig { Name = "Number", Value = "1" },
-                            new ValueConfig { Name = "Y", Value = "20" },
-                            new ValueConfig { Name = "Direction", Value = "South" },
-                        ],
-                    },
-                ],
-            },
-        ],
-    });
-    Check(robot.TryGetStation("SmokeLP", out var lpStation) && lpStation.Number == 1
-          && lpStation.Direction == RobotDirection.South && lpStation.Y == 20,
-        "站点表应从 sc.xml 节点读进来");
+    robot.NoteTeachPoints(SmokeTeachPoints.Table("Size12",
+        SmokeTeachPoints.Point("SmokeLP", ("Number", "1"), ("Y", "20"), ("Direction", "South"))));
 
     robotLedger.RegisterLocation("SmokeLP", 5);
     var carried = robotLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-ROBOT")!;
 
     Check(robot.InitComponent(), "探针机械手的组件初始化应成功");
+    Check(robot.TryGetTeachPoint("SmokeLP", out var lpStation) && lpStation.Number == 1
+          && lpStation.Direction == RobotDirection.South && lpStation.Y == 20,
+        "示教点从 sc.xml 节点读进来，组件初始化时收进示教点表");
     ComponentLoader.BindAll([robot]);
     Check(robotLedger.GetSlots(robot.Name).Count == robot.Arms.Count,
         $"开机应把手指注册成账本槽位，实际 {robotLedger.GetSlots(robot.Name).Count} 个");
@@ -819,7 +805,7 @@ port.E87Callback = null;
     }
 
     Check(RejectedWith(robot.Pick(1, "NoSuchStation", 1), ErrorCodes.StationNotFound, "SmokeRobot", "NoSuchStation"),
-        "没配在站点表里的站点：robot.station_not_found [机械手, 站点]");
+        "没配在示教点表里的站点：robot.station_not_found [机械手, 站点]");
     Check(RejectedWith(robot.Pick(2, "SmokeLP", 3), ErrorCodes.ArmNotAllowed, "SmokeRobot", "SmokeLP", "2"),
         "没有这只手（只配了 Arm1）：robot.arm_not_allowed [机械手, 站点, 手指号]");
     Check(RejectedWith(robot.Pick(1, "SmokeLP", 2), ErrorCodes.WaferNoWafer, "SmokeLP", "2"),
@@ -1010,18 +996,7 @@ port.E87Callback = null;
     var sensor = new ProbeDi("SmokeRobot.Arm1.WaferSensor") { AlarmEnabled = false, DebounceMs = 0 };
     var arm1 = robot.FindChild<RobotArmComponent>("Arm1")!;
     arm1.AddChild(sensor);
-    robot.NoteSettings(new ModuleConfig
-    {
-        Name = "SmokeRobot",
-        Children =
-        [
-            new ModuleConfig
-            {
-                Name = "Stations",
-                Children = [new ModuleConfig { Name = "SmokeLP", Values = [new ValueConfig { Name = "Number", Value = "1" }] }],
-            },
-        ],
-    });
+    robot.NoteTeachPoints(SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP", ("Number", "1"))));
     sensorLedger.RegisterLocation("SmokeLP", 5);
     var wafer = sensorLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-SENSOR")!;
     Check(robot.InitComponent() && ReferenceEquals(robot.Arms[0].WaferSensor, sensor),
@@ -1186,18 +1161,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(feedbackLedger);
     var arm = new ProbeFeedbackArm { Number = 1 };
     var robot = new ProbeRobot(arm);
-    robot.NoteSettings(new ModuleConfig
-    {
-        Name = "SmokeRobot",
-        Children =
-        [
-            new ModuleConfig
-            {
-                Name = "Stations",
-                Children = [new ModuleConfig { Name = "SmokeLP", Values = [new ValueConfig { Name = "Number", Value = "1" }] }],
-            },
-        ],
-    });
+    robot.NoteTeachPoints(SmokeTeachPoints.Table("Size12", SmokeTeachPoints.Point("SmokeLP", ("Number", "1"))));
     feedbackLedger.RegisterLocation("SmokeLP", 5);
     var wafer = feedbackLedger.Create("SmokeLP", 3, WaferStatus.Normal, "FOUP-FEEDBACK")!;
     Check(robot.InitComponent() && arm.WaferSensor is null && arm.IsWaferCheckEnabled,
@@ -2203,46 +2167,30 @@ port.E87Callback = null;
     var mainChamber = new ProbeChamber("MainPM");
     var mainAligner = new ProbeAligner("MainAligner");
     var mainRobot = new ProbeRobot();
-    ModuleConfig StationNode(string name, string number, string direction) => new()
+    ModuleConfig StationNode(string name, string number, string direction)
     {
-        Name = name,
-        Values =
-        [
-            new ValueConfig { Name = "Number", Value = number },
-            new ValueConfig { Name = "Direction", Value = direction },
-        ],
-    };
-    mainRobot.NoteSettings(new ModuleConfig
-    {
-        Name = "SmokeRobot",
-        Children =
-        [
-            new ModuleConfig
-            {
-                Name = "Stations",
-                Children =
-                [
-                    StationNode("MainLP", "1", "South"),
-                    StationNode("MainPM", "2", "North"),
-                    StationNode("MainAligner", "3", "East"),
-                    StationNode("Nowhere", "4", "West"),
-                ],
-            },
-        ],
-    });
+        return SmokeTeachPoints.Point(name, ("Number", number), ("Direction", direction));
+    }
+
+    mainRobot.NoteTeachPoints(SmokeTeachPoints.Table("Size12",
+        StationNode("MainLP", "1", "South"),
+        StationNode("MainPM", "2", "North"),
+        StationNode("MainAligner", "3", "East"),
+        StationNode("Nowhere", "4", "West")));
+    Check(mainRobot.InitComponent(), "主界面用的探针机械手组件初始化（收示教点表）");
     BaseModule[] mainModules = [mainPort, mainChamber, mainAligner, mainRobot];
 
     // 搬运模块表没绑之前认不出是哪一类（跟槽数一样），一律 Other；绑了之后 LoadPort / 腔体 / 其他分得开，不在表里的还是 Other
     SmokeIoc.Use<ITransferManager>(null);
     mainRobot.Bind(); // 机械手开机 Bind 时取搬运管理：这时没有
-    Check(mainRobot.CreateStateDto().StationInfos.All(info => info.Kind == StationKind.Other),
+    Check(mainRobot.CreateStateDto().TeachPoints.All(info => info.Kind == StationKind.Other),
         "搬运模块表还没绑时站点类型应一律是 Other");
     var mainTransfers = new TransferManager();
     SmokeIoc.Use<ITransferManager>(mainTransfers);
     mainTransfers.Bind(mainModules);
     mainRobot.Bind();
-    var unbound = new RobotDto { Name = "SmokeRobot", StationInfos = [new RobotStationDto { Name = "MainLP", Number = 1 }] };
-    var infos = mainRobot.CreateStateDto().StationInfos;
+    var unbound = new RobotDto { Name = "SmokeRobot", TeachPoints = [new TeachPointDto { Name = "MainLP", Number = 1 }] };
+    var infos = mainRobot.CreateStateDto().TeachPoints;
     StationKind KindOf(string name) => infos.First(info => info.Name == name).Kind;
     Check(KindOf("MainLP") == StationKind.LoadPort && KindOf("MainPM") == StationKind.Chamber
           && KindOf("MainAligner") == StationKind.Other && KindOf("Nowhere") == StationKind.Other,
@@ -2250,7 +2198,7 @@ port.E87Callback = null;
     var bound = new RobotDto
     {
         Name = "SmokeRobot",
-        StationInfos = [new RobotStationDto { Name = "MainLP", Number = 1, Kind = StationKind.LoadPort }],
+        TeachPoints = [new TeachPointDto { Name = "MainLP", Number = 1, Kind = StationKind.LoadPort }],
     };
     Check(bound.HasStateChanged(unbound), "只有站点类型变了也要算状态变化（搬运模块表绑好后推给界面换卡片）");
 
@@ -4171,15 +4119,15 @@ port.E87Callback = null;
         }
     }
 
-    ModuleConfig MapStations(string robotName, params (string Name, string Number)[] stations)
+    ModuleConfig MapStations(params (string Name, string Number)[] stations)
     {
-        var nodes = new List<ModuleConfig>();
+        var points = new List<ModuleConfig>();
         foreach (var station in stations)
         {
-            nodes.Add(new ModuleConfig { Name = station.Name, Values = [new ValueConfig { Name = "Number", Value = station.Number }] });
+            points.Add(SmokeTeachPoints.Point(station.Name, ("Number", station.Number)));
         }
 
-        return new ModuleConfig { Name = robotName, Children = [new ModuleConfig { Name = "Stations", Children = nodes }] };
+        return SmokeTeachPoints.Table("Size12", [.. points]);
     }
 
     string RefusedBy(Action action)
@@ -4239,25 +4187,26 @@ port.E87Callback = null;
     ownPort.Close();
     ticks.Clear();
 
-    // 2) 开机查：开了 MapEnabled 的机械手类得能扫片（声明 IWaferMap）；两台开着扫片的机械手站点表里都有同一个口，不知道该谁扫
+    // 2) 开机查：开了 MapEnabled 的机械手类得能扫片（声明 IWaferMap）；两台开着扫片的机械手示教点表里都有同一个口，不知道该谁扫
     var notMapper = new ProbeRobot { MapEnabled = true };
     Check(RefusedBy(() => notMapper.InitComponent()).Contains("MapEnabled"),
         "机械手类没声明 IWaferMap 却开了 MapEnabled：组件初始化就抛，开机暴露");
     var twinA = new MapProbeRobot("TwinRobotA") { MapEnabled = true };
     var twinB = new MapProbeRobot("TwinRobotB") { MapEnabled = true };
-    twinA.NoteSettings(MapStations("TwinRobotA", ("TwinLP", "1")));
-    twinB.NoteSettings(MapStations("TwinRobotB", ("TwinLP", "2")));
+    twinA.NoteTeachPoints(MapStations(("TwinLP", "1")));
+    twinB.NoteTeachPoints(MapStations(("TwinLP", "2")));
+    Check(twinA.InitComponent() && twinB.InitComponent(), "两台扫片机械手组件初始化（收示教点表）");
     var twinPort = new PlainPort("TwinLP");
     Check(twinPort.InitComponent(), "两台机械手抢一个口用的端口组件初始化应成功");
     SmokeIoc.Tree(twinPort, twinA, twinB);
     string twinError = RefusedBy(() => twinPort.Bind());
     Check(twinError.Contains("TwinRobotA") && twinError.Contains("TwinRobotB"),
-        "两台机械手都开了扫片、站点表里都有这个口：端口开机认扫片机械手时就抛，写清是哪两台");
+        "两台机械手都开了扫片、示教点表里都有这个口：端口开机认扫片机械手时就抛，写清是哪两台");
     twinPort.Close();
 
-    // 3) 机械手自己的扫片入口：开了扫片、站点在站点表里、手上全空才收
+    // 3) 机械手自己的扫片入口：开了扫片、站点在示教点表里、手上全空才收
     var robot = new MapProbeRobot("MapRobot") { MapEnabled = true };
-    robot.NoteSettings(MapStations("MapRobot", ("RobotMapLP", "7"), ("MapAligner", "8")));
+    robot.NoteTeachPoints(MapStations(("RobotMapLP", "7"), ("MapAligner", "8")));
     var lp = new PlainPort("RobotMapLP");
     var aligner = new ProbeAligner("MapAligner");
     var transfers = new MapProbeTransfers();
@@ -4290,7 +4239,7 @@ port.E87Callback = null;
     var noStation = robot.Map("NoSuchLP");
     Check(!noStation.IsSuccess && noStation.ErrorMessage == ErrorCodes.StationNotFound && noStation.Args.SequenceEqual(["MapRobot", "NoSuchLP"])
           && robot.MapCalls == 0,
-        "机械手扫片：站点不在站点表里被拒（robot.station_not_found）");
+        "机械手扫片：站点不在示教点表里被拒（robot.station_not_found）");
     var held = mapLedger.Create("MapRobot", 2)!;
     var armBusy = robot.Map("RobotMapLP");
     Check(!armBusy.IsSuccess && armBusy.ErrorMessage == ErrorCodes.RobotArmHasWafer && armBusy.Args.SequenceEqual(["MapRobot", "2", held.WaferId]),
@@ -5100,8 +5049,15 @@ sealed class ProbeRobot : RobotModule
     /// <summary>顶替扫描线程推一拍。</summary>
     public void Tick() => OnScan();
 
-    /// <summary>灌站点表（生产里由 ComponentLoader 把 sc.xml 节点交给 OnSettingLoaded）。</summary>
+    /// <summary>
+    /// 灌机械手自己的 sc 节点（生产里由 ComponentLoader 交给 OnSettingLoaded）
+    /// </summary>
     public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
+
+    /// <summary>
+    /// 挂示教点（生产里由 ComponentLoader 照 sc.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
+    /// </summary>
+    public void NoteTeachPoints(params ModuleConfig[] tables) => SmokeTeachPoints.AddTo(this, tables);
 
     /// <summary>摆一个设备报错（生产里由查询或主动推送刷新）。</summary>
     public void NoteDeviceError(string? error) => DeviceError = error;
@@ -5170,7 +5126,10 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
 
     public void Tick() => OnScan();
 
-    public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
+    /// <summary>
+    /// 挂示教点（生产里由 ComponentLoader 照 sc.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
+    /// </summary>
+    public void NoteTeachPoints(params ModuleConfig[] tables) => SmokeTeachPoints.AddTo(this, tables);
 
     /// <summary>
     /// 设备扫完：先存槽图和设备回的原文、再做完（跟真机先回图再收尾一样），下一拍扫到
@@ -5450,15 +5409,15 @@ class ProbeTransferRobot : ITransferRobot
     public ModuleRoutine? CurrentRoutine => null;
 
     public int State => 0;
-    public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints { get; } = new Dictionary<string, ITeachPoint>();
 
-    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size) => Stations;
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size) => TeachPoints;
 
     public bool MapEnabled => false;
 
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
+    public bool TryGetTeachPoint(string station, [MaybeNullWhen(false)] out ITeachPoint point)
     {
-        config = null;
+        point = null;
         return false;
     }
 
@@ -5570,15 +5529,15 @@ sealed class SystemProbeRobot(string name) : SystemProbeModule(name), IRobot
     public RobotDto CreateStateDto() => new() { Name = Name };
     public bool? IsServoOn => null;
     public string? DeviceError => null;
-    public IReadOnlyDictionary<string, RobotStation> Stations { get; } = new Dictionary<string, RobotStation>();
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints { get; } = new Dictionary<string, ITeachPoint>();
 
-    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size) => Stations;
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size) => TeachPoints;
 
     public bool MapEnabled => false;
 
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
+    public bool TryGetTeachPoint(string station, [MaybeNullWhen(false)] out ITeachPoint point)
     {
-        config = null;
+        point = null;
         return false;
     }
 

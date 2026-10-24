@@ -77,8 +77,8 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   右 **LoadPort 页签**（`UnderlineTabListBoxStyle`，一个 LoadPort 一个：载具 / 槽图状态 / 槽数、LotID、Sequence 选择框、创建 / 启动 Job、槽位表）。
 - **以后机台变了，要动的就是中间和右边，都不用改主界面**：
   - 右边页签照后端系统设置的 `SystemSettingsDto.LoadPorts`（sc.xml 装了的 LoadPort，先后同 sc）生成，3 个、4 个都不改代码。
-  - 中间默认是 `Views\DispatchView`：照 `SystemSettingsDto.Robots` 一台机械手一张公共调度图 `DispatchMap`，站点按机械手 sc.xml `Stations`
-    的 `Direction` 摆在上下左右，卡片按站点类型（`RobotStationDto.Kind`：LoadPort 花篮卡、腔体 / 其他单片卡）选，sc 里多一个站点图上就多一张。
+  - 中间默认是 `Views\DispatchView`：照 `SystemSettingsDto.Robots` 一台机械手一张公共调度图 `DispatchMap`，站点按机械手示教点（sc.xml `Size12` / `Size8`）
+    的 `Direction` 摆在上下左右，卡片按站点类型（`TeachPointDto.Kind`：LoadPort 花篮卡、腔体 / 其他单片卡）选，sc 里多一个站点图上就多一张。
   - 机型要别的摆法（几台机械手、缓存位、对中台……）：在机型 `IClientModule.Register` 里
     `services.AddKeyedSingleton<UserControl, 自己的View>(ClientViewKeys.MainDispatch)`，后注册的生效，整块换掉；
     自己的图照样可以拿 `DispatchMap`、`StationCard`、`Robot` 控件来拼。主界面由 `MainPageView` 构造时按这个键从 DI 取。
@@ -260,7 +260,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - 实时报警页上面的 AI 工具栏（`ShowWhenTagTrueStyle` 包着、Tag = `IsAiInstalled`）：连上后端问一次 `IAiService.GetStatusAsync`，配了 AI 才显示；
   表格 `SelectedItem` 绑 `SelectedAlarm`（报警一变整表重建，按来源 + 代码接着选中原来那条），"AI 分析"结果用 `DialogService.ShowConfirm` 只一个按钮显示（见 backend.md §5「AI 助手」）。
 - **DispatchMap**（调度图，Robot 手动页左边和主界面中间共用）：给 `RobotName`（机械手模块名）就自己建 `DispatchMapViewModel`、订机械手和各站点的推送
-  （都是留存消息，不用另外拉）；机械手在中间，站点按它 sc.xml `Stations` 的方向摆四周，每个站点一张 `StationCard`
+  （都是留存消息，不用另外拉）；机械手在中间，站点按它示教点的方向摆四周，每个站点一张 `StationCard`
   （`Kind` = LoadPort 用 `LoadPortInfoCard` 花篮卡，其他用 `ChamberInfoCard` 单片卡，用模板切、只建用得上的那张）。
   `CardWidth` / `CardHeight`（默认 280×233）、`RobotHeight`（默认 360）可设，卡片圆片直径跟着 RobotHeight 算（= 叉上的片）；
   一排放不下时那一排整体缩小（只缩不放），不裁站点。LoadPort 卡底栏六盏灯跟 `LoadPortDto` 走（通讯 / 在位 / 到位 / 报警 / 自动 / 手动），

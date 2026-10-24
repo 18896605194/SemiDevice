@@ -154,7 +154,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
     {
         var transfers = _transfers;
         if (transfers is null || !transfers.TryGetStation(name, out var station) || !station.IsEnabled
-            || !transfers.Robots.Any(robot => robot.TryGetStation(name, out _)))
+            || !transfers.Robots.Any(robot => robot.TryGetTeachPoint(name, out _)))
         {
             return false;
         }

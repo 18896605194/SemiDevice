@@ -23,28 +23,28 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
 
     #region SC
 
-    [SCEditor("CJSTART", "E94", "S16F27 的 CJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
+    [Machine("CJSTART", "E94", "S16F27 的 CJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
     public string StartCommandName { get; set; } = "CJSTART";
 
-    [SCEditor("CJPAUSE", "E94", "S16F27 的 CJ 暂停命令字符串")]
+    [Machine("CJPAUSE", "E94", "S16F27 的 CJ 暂停命令字符串")]
     public string PauseCommandName { get; set; } = "CJPAUSE";
 
-    [SCEditor("CJRESUME", "E94", "S16F27 的 CJ 恢复命令字符串")]
+    [Machine("CJRESUME", "E94", "S16F27 的 CJ 恢复命令字符串")]
     public string ResumeCommandName { get; set; } = "CJRESUME";
 
-    [SCEditor("CJCANCEL", "E94", "S16F27 的 CJ 取消命令字符串")]
+    [Machine("CJCANCEL", "E94", "S16F27 的 CJ 取消命令字符串")]
     public string CancelCommandName { get; set; } = "CJCANCEL";
 
-    [SCEditor("CJDESELECT", "E94", "S16F27 的 CJ 取消选中命令字符串")]
+    [Machine("CJDESELECT", "E94", "S16F27 的 CJ 取消选中命令字符串")]
     public string DeselectCommandName { get; set; } = "CJDESELECT";
 
-    [SCEditor("CJSTOP", "E94", "S16F27 的 CJ 停止命令字符串")]
+    [Machine("CJSTOP", "E94", "S16F27 的 CJ 停止命令字符串")]
     public string StopCommandName { get; set; } = "CJSTOP";
 
-    [SCEditor("CJABORT", "E94", "S16F27 的 CJ 中止命令字符串")]
+    [Machine("CJABORT", "E94", "S16F27 的 CJ 中止命令字符串")]
     public string AbortCommandName { get; set; } = "CJABORT";
 
-    [SCEditor("CJHOQ", "E94", "S16F27 的 CJ 插到队首命令字符串（Job 管理当前不支持执行此命令）")]
+    [Machine("CJHOQ", "E94", "S16F27 的 CJ 插到队首命令字符串（Job 管理当前不支持执行此命令）")]
     public string HeadOfQueueCommandName { get; set; } = "CJHOQ";
 
     #endregion

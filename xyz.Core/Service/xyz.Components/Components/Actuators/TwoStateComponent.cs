@@ -13,10 +13,10 @@ public abstract class TwoStateComponent : ComponentBase
 {
     #region SC
 
-    [SCEditor("-1", "IO", "开侧驱动 DO 索引", Required = true)]
+    [Machine("-1", "IO", "开侧驱动 DO 索引", Required = true)]
     public int DoOpenIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "关侧驱动 DO 索引", Required = true)]
+    [Machine("-1", "IO", "关侧驱动 DO 索引", Required = true)]
     public int DoCloseIndex { get; set; } = -1;
 
     #endregion

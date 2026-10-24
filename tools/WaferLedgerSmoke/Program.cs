@@ -611,7 +611,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     SmokeIoc.Use<IAlarm>(null);
 }
 
-// 16. 账单调整服务（直接调 gRPC 服务类，不起网络）：位置跟着机械手的站点表走——机械手在前，站点按站点表的先后，
+// 16. 账单调整服务（直接调 gRPC 服务类，不起网络）：位置跟着机械手的示教点表走——机械手在前，站点按示教点表的先后，
 //     几台机械手共用的站点只列一次，没登记槽位的站点不列；移账、删账的结果翻成错误码；没带操作人记成 Unknown。
 {
     var serviceGuard = new AlarmComponent();
@@ -636,7 +636,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     var view = (await service.GetLedgerAsync(new RpcRequest())).DeserializeData<WaferLedgerDto>();
     Check(view.IsEnabled && view.Locations.Select(location => location.Name)
               .SequenceEqual(new[] { "SvcRobot1", "SvcRobot2", "SvcLP1", "SvcPM1", "SvcBuffer" }),
-        "位置：机械手在前、站点按站点表先后、共用的只列一次、没登记槽位的不列，实际 "
+        "位置：机械手在前、站点按示教点表先后、共用的只列一次、没登记槽位的不列，实际 "
         + string.Join(",", view.Locations.Select(location => location.Name)));
     Check(view.Locations[0].Kind == StationKind.Robot && view.Locations[2].Kind == StationKind.Other,
         "种类照抄模块自己报的（机械手报机械手）；不是模块的站点归到其他");
@@ -867,12 +867,12 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     SmokeIoc.Use<IMapper>(null);
 }
 
-Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot station tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");
+Console.WriteLine($"PASS: {checks} wafer ledger checks (including 50 concurrent slot races, the wafer history persistence path, the ledger alarm raised, manually reset and written to the alarm history, manual move/delete/create with adjustment records in memory and in the database, the ledger adjustment service: locations from the robot teach point tables and every error code, and saving the ledger and restoring chamber and robot wafers after a restart; the rejection error logs above are expected).");
 
-// 只实现搬运能力：账单调整服务按机械手站点表列位置，不依赖完整机械手管理接口。
+// 只实现搬运能力：账单调整服务按机械手示教点表列位置，不依赖完整机械手管理接口。
 sealed class LedgerProbeRobot : BaseModule, ITransferRobot
 {
-    private readonly Dictionary<string, RobotStation> _stations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ITeachPoint> _teachPoints;
 
     // 假机械手没走机械手基类，自己报类型（真机械手由 BaseRobotModule 报）
     public override StationKind Kind => StationKind.Robot;
@@ -881,21 +881,18 @@ sealed class LedgerProbeRobot : BaseModule, ITransferRobot
     {
         typeof(ComponentBase).GetProperty(nameof(Name))!.SetValue(this, name);
         typeof(ComponentBase).GetProperty(nameof(FullPath))!.SetValue(this, name);
-        for (int index = 0; index < stations.Length; index++)
-        {
-            _stations[stations[index]] = new RobotStation(stations[index], index + 1, RobotDirection.South, 0, [1, 2], [1, 2]);
-        }
+        _teachPoints = SmokeTeachPoints.Numbered(stations);
     }
 
     public override int State { get; protected set; } = ModuleState.Idle;
 
-    public IReadOnlyDictionary<string, RobotStation> Stations => _stations;
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => _teachPoints;
 
-    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size) => _stations;
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size) => _teachPoints;
 
     public bool MapEnabled => false;
 
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => _stations.TryGetValue(station, out config);
+    public bool TryGetTeachPoint(string station, [MaybeNullWhen(false)] out ITeachPoint point) => _teachPoints.TryGetValue(station, out point);
 
     private HandleResult<ModuleRoutine> Refused() => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString());
 

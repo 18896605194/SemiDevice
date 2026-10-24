@@ -17,7 +17,7 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
 {
     #region SC
 
-    [SCEditor("-1", "IO", "盯的 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：每变一次（断→通、通→断）算用了一次", Required = true)]
+    [Machine("-1", "IO", "盯的 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：每变一次（断→通、通→断）算用了一次", Required = true)]
     public int DoIndex { get; set; } = -1;
 
     #endregion

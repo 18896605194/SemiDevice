@@ -36,13 +36,13 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #region SC 
 
-    [SCEditor("True", "LoadPort", "是否启用本 LoadPort (False=装机未接/停用)")]
+    [Machine("True", "LoadPort", "是否启用本 LoadPort (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("25", "LoadPort", "花篮槽数")]
+    [Machine("25", "LoadPort", "花篮槽数")]
     public override int SlotCount { get; set; } = 25;
 
-    [SCEditor("False", "LoadPort",
+    [Machine("False", "LoadPort",
         "自动跑货的 Unload（Job 干完自动卸、Host 放行或取消）要不要再扫一遍图跟晶圆账对：True = 关门前先扫一遍（自己扫，或机械手开了扫片就叫它扫）核对，对不上 Unload 判失败、报警、门不关；False = 直接关门，不扫、不对账。" +
         "这个开关只管自动跑货用不用它；手动卸载不受影响，一律不扫图、不对账")]
     public bool AutoRunMapOnUnload { get; set; }
@@ -340,7 +340,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     private IEapNotifierComponent? _notifier;
 
     /// <summary>
-    /// 替这个口扫片的机械手（sc 开了 MapEnabled、站点表里有这个口）；没有是 null，自己扫
+    /// 替这个口扫片的机械手（sc 开了 MapEnabled、示教点表里有这个口）；没有是 null，自己扫
     /// </summary>
     private ITransferRobot? _mapRobot;
 
@@ -357,14 +357,14 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     }
 
     /// <summary>
-    /// 开机认替这个口扫片的机械手：开了 MapEnabled、站点表里有这个口的；两台都是就是配错了，开机报出来
+    /// 开机认替这个口扫片的机械手：开了 MapEnabled、示教点表里有这个口的；两台都是就是配错了，开机报出来
     /// </summary>
     private ITransferRobot? FindMapRobot()
     {
         ITransferRobot? found = null;
         foreach (var robot in IocHelper.GetServices<ITransferRobot>())
         {
-            if (!robot.MapEnabled || !robot.TryGetStation(Name, out _))
+            if (!robot.MapEnabled || !robot.TryGetTeachPoint(Name, out _))
             {
                 continue;
             }
@@ -372,7 +372,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             if (found is not null)
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 里机械手 {found.Name}、{robot.Name} 都开了 MapEnabled、站点表里都有 {Name}，不知道该谁扫这个口，只能留一台。");
+                    $"sc.xml 里机械手 {found.Name}、{robot.Name} 都开了 MapEnabled、示教点表里都有 {Name}，不知道该谁扫这个口，只能留一台。");
             }
 
             found = robot;
@@ -848,7 +848,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     #region 扫片（IWaferMap）
 
     // LoadPort 自带扫片传感器，所以也实现 IWaferMap：Map 用自己的传感器单独扫一遍（Loaded 时），扫到的存进 MapResults、不落账。
-    // Load、自动跑货 Unload 对账里的扫片走 AddMapStages：有机械手开了扫片、站点表里有这个口，就交搬运管理排它去扫，不然自己扫。
+    // Load、自动跑货 Unload 对账里的扫片走 AddMapStages：有机械手开了扫片、示教点表里有这个口，就交搬运管理排它去扫，不然自己扫。
 
     private readonly object _mapGate = new();
 

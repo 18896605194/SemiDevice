@@ -13,7 +13,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 流程配方冒烟：sc.xml 节点、可选站点分组（按 sc 的分组节点 + 机械手站点表生成）、新建 / 改名 / 保存 / 删除和各项检查、
+// 流程配方冒烟：sc.xml 节点、可选站点分组（按 sc 的分组节点 + 机械手示教点表生成）、新建 / 改名 / 保存 / 删除和各项检查、
 // 文件读写（一个编号一个文件、坏文件跳过）、版本冲突、变更事件、gRPC 服务的错误码。不连设备，文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
 
@@ -63,7 +63,7 @@ try
     Check(ReferenceEquals(IocHelper.GetService<ISequenceComponent>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
 
-    // 1. 可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手站点表里有的；顶层直接装的站点自成一组；
+    // 1. 可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手示教点表里有的；顶层直接装的站点自成一组；
     //    机械手本身、机械手到不了的站点（SmokePM3）都不算。
     var lp1 = new ProbePort("SmokeLP1", "LoadPort");
     var lp2 = new ProbePort("SmokeLP2", "LoadPort");
@@ -100,16 +100,16 @@ try
         "HotPlate 分组：热板不是腔体、只实现 IProcessStation，也要工艺配方");
     library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
 
-    // 1c. 机械手两种晶圆尺寸各一张站点表：切了尺寸，分组按新尺寸那张重新生成，发一条编号 0 的变更让流程配方页重拉。看完换回原来那一套。
+    // 1c. 机械手两种晶圆尺寸各一张示教点表：切了尺寸，分组按新尺寸那张重新生成，发一条编号 0 的变更让流程配方页重拉。看完换回原来那一套。
     {
         var sizeProbe = new ProbeWaferSize();
         SmokeIoc.Use<IWaferSize>(sizeProbe);
         var sizedRobot = new ProbeRobot("SmokeRobot", "SmokeLP1", "SmokeLP2", "SmokePM1", "SmokePM2", "SmokeAligner");
-        sizedRobot.UseStations8("SmokeLP1", "SmokeLP2", "SmokePM3");
+        sizedRobot.UseTeachPoints8("SmokeLP1", "SmokeLP2", "SmokePM3");
         library.Bind([lp1, lp2, sizedRobot, pm1, pm2, pm3, aligner]);
         string GroupsText() => string.Join("；", library.StationGroups.Select(group => $"{group.Name}={string.Join(",", group.Modules)}"));
         string groups12 = "LoadPort=SmokeLP1,SmokeLP2；Chamber=SmokePM1,SmokePM2；SmokeAligner=SmokeAligner";
-        Check(GroupsText() == groups12, "12 寸：分组照 12 寸那张站点表，实际 " + GroupsText());
+        Check(GroupsText() == groups12, "12 寸：分组照 12 寸那张示教点表，实际 " + GroupsText());
 
         var sizeChanged = new List<int>();
         using (EventBus.Register<SequenceChangedDto>(SequenceListDto.EventToken, dto => sizeChanged.Add(dto.Index)))
@@ -582,45 +582,38 @@ sealed class ProbeStation : BaseTransferStationModule
     public override int SlotCount { get; set; } = 1;
 }
 
-// 只实现搬运能力：流程配方识别可达站点不依赖完整机械手管理接口。另给了 8 寸那张站点表，就跟真机械手一样按登记的晶圆尺寸选表。
+// 只实现搬运能力：流程配方识别可达站点不依赖完整机械手管理接口。另给了 8 寸那张示教点表，就跟真机械手一样按登记的晶圆尺寸选表。
 sealed class ProbeRobot : BaseModule, ITransferRobot
 {
-    private readonly Dictionary<string, RobotStation> _stations = new(StringComparer.OrdinalIgnoreCase);
-    private Dictionary<string, RobotStation>? _stations8;
+    private readonly Dictionary<string, ITeachPoint> _teachPoints;
+    private Dictionary<string, ITeachPoint>? _teachPoints8;
 
     public ProbeRobot(string name, params string[] stations)
     {
         Probe.Name(this, name);
-        for (int index = 0; index < stations.Length; index++)
-        {
-            _stations[stations[index]] = new RobotStation(stations[index], index + 1, RobotDirection.South, 0, [1, 2], [1, 2]);
-        }
+        _teachPoints = SmokeTeachPoints.Numbered(stations);
     }
 
     public override int State { get; protected set; } = ModuleState.Idle;
 
-    public void UseStations8(params string[] stations)
+    public void UseTeachPoints8(params string[] stations)
     {
-        _stations8 = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-        for (int index = 0; index < stations.Length; index++)
-        {
-            _stations8[stations[index]] = new RobotStation(stations[index], index + 1, RobotDirection.South, 0, [1, 2], [1, 2]);
-        }
+        _teachPoints8 = SmokeTeachPoints.Numbered(stations);
     }
 
-    public IReadOnlyDictionary<string, RobotStation> Stations => StationsOf(WaferSizeComponent.SizeOf(IocHelper.GetService<IWaferSize>()));
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeComponent.SizeOf(IocHelper.GetService<IWaferSize>()));
 
-    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size)
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size)
     {
-        if (size == WaferSizeComponent.Inch8 && _stations8 is not null)
+        if (size == WaferSizeComponent.Inch8 && _teachPoints8 is not null)
         {
-            return _stations8;
+            return _teachPoints8;
         }
 
-        return _stations;
+        return _teachPoints;
     }
 
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config) => Stations.TryGetValue(station, out config);
+    public bool TryGetTeachPoint(string station, [MaybeNullWhen(false)] out ITeachPoint point) => TeachPoints.TryGetValue(station, out point);
 
     public bool MapEnabled => false;
 

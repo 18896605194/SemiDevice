@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using xyz.Components.Components;
-using xyz.Components.Models;
 using xyz.Shared.Dtos;
 
 namespace xyz.Components.Interfaces;
@@ -11,24 +10,24 @@ namespace xyz.Components.Interfaces;
 public interface ITransferRobot : IModule
 {
     /// <summary>
-    /// 服务的站点：整机现在几寸就是哪张站点表
+    /// 能去的站点和怎么去：整机现在几寸就是哪张示教点表（键是站点名）
     /// </summary>
-    IReadOnlyDictionary<string, RobotStation> Stations { get; }
+    IReadOnlyDictionary<string, ITeachPoint> TeachPoints { get; }
 
     /// <summary>
-    /// 某种晶圆尺寸的站点表：开机检查要两种尺寸都查
+    /// 某种晶圆尺寸的示教点表：开机检查要两种尺寸都查
     /// </summary>
-    IReadOnlyDictionary<string, RobotStation> StationsOf(int size);
+    IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size);
 
     /// <summary>
-    /// 这台机械手用不用扫片（sc 开关）：开了，它站点表里的 LoadPort 由它扫
+    /// 这台机械手用不用扫片（sc 开关）：开了，它示教点表里的 LoadPort 由它扫
     /// </summary>
     bool MapEnabled { get; }
 
     /// <summary>
-    /// 查询站点
+    /// 查这台机械手去某个站点的示教点；表里没有就是到不了
     /// </summary>
-    bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config);
+    bool TryGetTeachPoint(string station, [MaybeNullWhen(false)] out ITeachPoint point);
 
     /// <summary>
     /// robot取片能不能做

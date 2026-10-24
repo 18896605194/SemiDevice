@@ -59,7 +59,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
     #region SC
 
-    [SCEditor("True", "Transfer", "是否启用搬运（False=不启动搬运操作，设备照常点动）")]
+    [Machine("True", "Transfer", "是否启用搬运（False=不启动搬运操作，设备照常点动）")]
     public bool IsEnable { get; set; } = true;
 
     #endregion
@@ -177,9 +177,9 @@ public class TransferManager : ComponentBase, ITransferManager
                 continue;
             }
 
-            // 两种晶圆尺寸的站点表都查：切到另一种尺寸才去的站，也开机就查出来
-            var names = robot.StationsOf(WaferSizeComponent.Inch12).Keys
-                .Union(robot.StationsOf(WaferSizeComponent.Inch8).Keys, StringComparer.OrdinalIgnoreCase);
+            // 两种晶圆尺寸的示教点表都查：切到另一种尺寸才去的站，也开机就查出来
+            var names = robot.TeachPointsOf(WaferSizeComponent.Inch12).Keys
+                .Union(robot.TeachPointsOf(WaferSizeComponent.Inch8).Keys, StringComparer.OrdinalIgnoreCase);
             foreach (string name in names)
             {
                 if (!TryGetStation(name, out var station) || !station.IsEnabled)
@@ -510,7 +510,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
     private static bool Reaches(ITransferRobot robot, string source, string target)
     {
-        return robot.TryGetStation(source, out _) && robot.TryGetStation(target, out _);
+        return robot.TryGetTeachPoint(source, out _) && robot.TryGetTeachPoint(target, out _);
     }
 
     /// <summary>
@@ -573,7 +573,7 @@ public class TransferManager : ComponentBase, ITransferManager
         string armText = arm.ToString(CultureInfo.InvariantCulture);
         string? wanted = request.Robot?.Trim();
         if ((!string.IsNullOrEmpty(wanted) && !string.Equals(wanted, holder.Name, StringComparison.OrdinalIgnoreCase))
-            || !holder.TryGetStation(target, out var to))
+            || !holder.TryGetTeachPoint(target, out var to))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, holder.Name, target);
         }
@@ -596,7 +596,7 @@ public class TransferManager : ComponentBase, ITransferManager
         string armText = arm.ToString(CultureInfo.InvariantCulture);
         string? wanted = request.Robot?.Trim();
         if ((!string.IsNullOrEmpty(wanted) && !string.Equals(wanted, receiver.Name, StringComparison.OrdinalIgnoreCase))
-            || !receiver.TryGetStation(source, out var from))
+            || !receiver.TryGetTeachPoint(source, out var from))
         {
             return HandleResult<TransferRoutine>.Fail(ErrorCodes.TransferNoRobot, source, receiver.Name);
         }
@@ -617,8 +617,8 @@ public class TransferManager : ComponentBase, ITransferManager
     {
         arm = 0;
         int armCount = ledger.GetSlots(robot.Name).Count;
-        robot.TryGetStation(source, out var from);
-        robot.TryGetStation(target, out var to);
+        robot.TryGetTeachPoint(source, out var from);
+        robot.TryGetTeachPoint(target, out var to);
 
         bool Usable(int candidate)
         {
@@ -724,7 +724,7 @@ public class TransferManager : ComponentBase, ITransferManager
                 station.SlotCount.ToString(CultureInfo.InvariantCulture));
         }
 
-        if (!robot.TryGetStation(station.Name, out var config))
+        if (!robot.TryGetTeachPoint(station.Name, out var config))
         {
             return HandleResult.Fail(ErrorCodes.TransferNoRobot, station.Name, robot.Name);
         }
@@ -875,7 +875,7 @@ public class TransferManager : ComponentBase, ITransferManager
             return HandleResult<ModuleRoutine>.Fail(ErrorCodes.RobotMapUnsupported, mapper.Name);
         }
 
-        if (!mapper.TryGetStation(station, out _))
+        if (!mapper.TryGetTeachPoint(station, out _))
         {
             return HandleResult<ModuleRoutine>.Fail(ErrorCodes.StationNotFound, mapper.Name, station);
         }

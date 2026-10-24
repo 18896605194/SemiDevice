@@ -44,7 +44,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     private IEapNotifierComponent? _notifier;
 
     /// <summary>
-    /// 整机晶圆尺寸：切了尺寸机械手换站点表，分组要跟着重新生成
+    /// 整机晶圆尺寸：切了尺寸机械手换示教点表，分组要跟着重新生成
     /// </summary>
     private IWaferSize? _waferSize;
 
@@ -55,13 +55,13 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     #region SC
 
-    [SCEditor("99", "Sequence", "流程配方个数：编号 1~N")]
+    [Machine("99", "Sequence", "流程配方个数：编号 1~N")]
     public int Capacity { get; set; } = 99;
 
-    [SCEditor("Recipe\\Sequence", "Sequence", "流程配方文件目录：相对宿主运行目录，也可以写绝对路径；一个编号一个文件")]
+    [Machine("Recipe\\Sequence", "Sequence", "流程配方文件目录：相对宿主运行目录，也可以写绝对路径；一个编号一个文件")]
     public string Folder { get; set; } = "Recipe\\Sequence";
 
-    [SCEditor("32", "Sequence", "流程配方名称最多几个字符")]
+    [Machine("32", "Sequence", "流程配方名称最多几个字符")]
     public int NameMaxLength { get; set; } = 32;
 
     #endregion
@@ -178,7 +178,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 切了晶圆尺寸：按新尺寸的站点表重新生成分组，发一条编号 0 的变更让流程配方页重拉
+    /// 切了晶圆尺寸：按新尺寸的示教点表重新生成分组，发一条编号 0 的变更让流程配方页重拉
     /// </summary>
     private void OnWaferSizeChanged(int size)
     {
@@ -188,7 +188,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
     /// <summary>
     /// 生成可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
-    /// 只留能放片、机械手到得了的站点（机械手现在这种尺寸的站点表里配了的）；顶层直接装的站点自己成一组
+    /// 只留能放片、机械手到得了的站点（机械手现在这种尺寸的示教点表里配了的）；顶层直接装的站点自己成一组
     /// </summary>
     private void BuildGroups()
     {
@@ -196,7 +196,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var robot in all.OfType<ITransferRobot>())
         {
-            reachable.UnionWith(robot.Stations.Keys);
+            reachable.UnionWith(robot.TeachPoints.Keys);
         }
 
         var groups = new List<SequenceStationGroup>();
@@ -217,7 +217,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         if (groups.Count == 0)
         {
-            LogHelper.Info(Name, "没有可选的站点分组（没有机械手，或机械手站点表里的站点都没装），流程配方编辑不了步骤");
+            LogHelper.Info(Name, "没有可选的站点分组（没有机械手，或机械手示教点表里的站点都没装），流程配方编辑不了步骤");
             return;
         }
 

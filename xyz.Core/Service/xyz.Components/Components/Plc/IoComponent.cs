@@ -48,13 +48,13 @@ public partial class IoComponent : ComponentBase, IIo
 
     #region SC
 
-    [SCEditor("IO", "Io", "点表目录（相对 sc.xml 所在目录），里面放 DI.csv / DO.csv / AI.csv / AO.csv")]
+    [Machine("IO", "Io", "点表目录（相对 sc.xml 所在目录），里面放 DI.csv / DO.csv / AI.csv / AO.csv")]
     public string PointTableDirectory { get; set; } = "IO";
 
-    [SCEditor("", "Io", "开机下发的 DO：连上 PLC 后按这里写一遍，如 DO12=false;DO13=true，多个用分号隔开，DO 不分大小写；空 = 不下发")]
+    [Machine("", "Io", "开机下发的 DO：连上 PLC 后按这里写一遍，如 DO12=false;DO13=true，多个用分号隔开，DO 不分大小写；空 = 不下发")]
     public string StartupDo { get; set; } = string.Empty;
 
-    [SCEditor("", "Io", "DI 触发时强制并锁定 DO，如 DI25=false:DO12=true,DO13=true;DI26=true:DO14=false；不分大小写，多条用分号、多个 DO 用逗号，支持中文标点；空 = 不启用")]
+    [Machine("", "Io", "DI 触发时强制并锁定 DO，如 DI25=false:DO12=true,DO13=true;DI26=true:DO14=false；不分大小写，多条用分号、多个 DO 用逗号，支持中文标点；空 = 不启用")]
     public string SaftyIoInterlock { get; set; } = string.Empty;
 
     #endregion

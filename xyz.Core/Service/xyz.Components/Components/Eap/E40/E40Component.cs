@@ -28,22 +28,22 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
 
     #region SC
 
-    [SCEditor("START", "E40", "S16F5 的 PJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
+    [Machine("START", "E40", "S16F5 的 PJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
     public string StartCommandName { get; set; } = "START";
 
-    [SCEditor("PAUSE", "E40", "S16F5 的 PJ 暂停命令字符串")]
+    [Machine("PAUSE", "E40", "S16F5 的 PJ 暂停命令字符串")]
     public string PauseCommandName { get; set; } = "PAUSE";
 
-    [SCEditor("RESUME", "E40", "S16F5 的 PJ 恢复命令字符串")]
+    [Machine("RESUME", "E40", "S16F5 的 PJ 恢复命令字符串")]
     public string ResumeCommandName { get; set; } = "RESUME";
 
-    [SCEditor("STOP", "E40", "S16F5 的 PJ 停止命令字符串")]
+    [Machine("STOP", "E40", "S16F5 的 PJ 停止命令字符串")]
     public string StopCommandName { get; set; } = "STOP";
 
-    [SCEditor("ABORT", "E40", "S16F5 的 PJ 中止命令字符串")]
+    [Machine("ABORT", "E40", "S16F5 的 PJ 中止命令字符串")]
     public string AbortCommandName { get; set; } = "ABORT";
 
-    [SCEditor("CANCEL", "E40", "S16F5 的 PJ 取消命令字符串")]
+    [Machine("CANCEL", "E40", "S16F5 的 PJ 取消命令字符串")]
     public string CancelCommandName { get; set; } = "CANCEL";
 
     #endregion

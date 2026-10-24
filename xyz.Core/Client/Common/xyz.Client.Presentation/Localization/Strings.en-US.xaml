@@ -147,7 +147,7 @@
     <sys:String x:Key="transfer.wafer_mismatch">{0} slot {1} now holds {2}, not the wafer to be moved (it may have been swapped or re-mapped)</sys:String>
     <sys:String x:Key="transfer.wafer_owned">{0} belongs to job {1} and cannot be moved manually</sys:String>
     <sys:String x:Key="transfer.slot_locked">{0} slot {1} is already in another transfer</sys:String>
-    <sys:String x:Key="transfer.no_robot">No robot can reach both {0} and {1} (not configured in the robot station tables)</sys:String>
+    <sys:String x:Key="transfer.no_robot">No robot can reach both {0} and {1} (not configured in the robot teach point tables)</sys:String>
     <sys:String x:Key="transfer.arm_unavailable">Arm {1} of {0} cannot be used (not allowed at both stations, holding a wafer, or taken by another transfer)</sys:String>
     <sys:String x:Key="transfer.no_arm">{0} has no usable arm right now (all hold wafers, are taken, or are not allowed at these stations)</sys:String>
     <sys:String x:Key="transfer.not_held">Wafer {0} has no resources retained after a failed transfer (already released, or wrong wafer ID)</sys:String>

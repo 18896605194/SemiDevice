@@ -108,19 +108,19 @@ public class AccountComponent : ComponentBase, IAccount
 
     #region SC
 
-    [SCEditor("True", "Account", "要不要登录：True = 客户端启动弹登录框，没登录按访客的权限；False = 不登录、不分权限，谁都能操作")]
+    [Machine("True", "Account", "要不要登录：True = 客户端启动弹登录框，没登录按访客的权限；False = 不登录、不分权限，谁都能操作")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("Default", "Account", "账号存在哪个库（sc.xml 的 Database 节点名）")]
+    [Machine("Default", "Account", "账号存在哪个库（sc.xml 的 Database 节点名）")]
     public string Database { get; set; } = "Default";
 
     /// <summary>
     /// 放 sc 不放 EC（用户 2026-10-22 定的）：EC 页工程师就能改，账号安全的规矩不该谁都能改
     /// </summary>
-    [SCEditor("15", "Account", "闲置自动退出：客户端键盘鼠标多少分钟没动就退出登录、弹登录框（取消按访客）；0 = 不自动退出，最长 1440")]
+    [Machine("15", "Account", "闲置自动退出：客户端键盘鼠标多少分钟没动就退出登录、弹登录框（取消按访客）；0 = 不自动退出，最长 1440")]
     public int IdleLogoutMinutes { get; set; } = 15;
 
-    [SCEditor("4", "Account", "密码最短几位（1 ~ 32）")]
+    [Machine("4", "Account", "密码最短几位（1 ~ 32）")]
     public int PasswordMinLength { get; set; } = 4;
 
     #endregion

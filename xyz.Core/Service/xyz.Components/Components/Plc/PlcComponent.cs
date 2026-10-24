@@ -30,28 +30,28 @@ public partial class PlcComponent : ComponentBase, IPlcIo, IPlcBlock
 
     #region SC
 
-    [SCEditor("", "Plc", "PLC 品牌（空 = 装机没接 PLC）")]
+    [Machine("", "Plc", "PLC 品牌（空 = 装机没接 PLC）")]
     public string Brand { get; set; } = string.Empty;
 
-    [SCEditor("", "Plc", "PLC 地址（IP 或倍福 AmsNetId；倍福填 Local = 连本机运行时/仿真器），空 = 接线未定，不连也不报警")]
+    [Machine("", "Plc", "PLC 地址（IP 或倍福 AmsNetId；倍福填 Local = 连本机运行时/仿真器），空 = 接线未定，不连也不报警")]
     public string Host { get; set; } = string.Empty;
 
-    [SCEditor("851", "Plc", "端口")]
+    [Machine("851", "Plc", "端口")]
     public int Port { get; set; } = 851;
 
-    [SCEditor("", "Plc", "DI 块在 PLC 里的变量名（如 IO_CSharp.DigIn）：气缸/传感器的 DI 索引就是这块的数组下标")]
+    [Machine("", "Plc", "DI 块在 PLC 里的变量名（如 IO_CSharp.DigIn）：气缸/传感器的 DI 索引就是这块的数组下标")]
     public string DiDataPath { get; set; } = string.Empty;
 
-    [SCEditor("", "Plc", "DO 块变量名（如 IO_CSharp.DigOut）：各部件的 DO 索引是这块的下标")]
+    [Machine("", "Plc", "DO 块变量名（如 IO_CSharp.DigOut）：各部件的 DO 索引是这块的下标")]
     public string DoDataPath { get; set; } = string.Empty;
 
-    [SCEditor("", "Plc", "AI 块变量名（如 IO_CSharp.AnaIn）：模拟量传感器按下标读原始码")]
+    [Machine("", "Plc", "AI 块变量名（如 IO_CSharp.AnaIn）：模拟量传感器按下标读原始码")]
     public string AiDataPath { get; set; } = string.Empty;
 
-    [SCEditor("", "Plc", "AO 块变量名（如 IO_CSharp.AnaOut）：按下标写模拟量")]
+    [Machine("", "Plc", "AO 块变量名（如 IO_CSharp.AnaOut）：按下标写模拟量")]
     public string AoDataPath { get; set; } = string.Empty;
 
-    [SCEditor("1000", "Plc", "IO 点数（每块最多多少个点，用于越界校验）")]
+    [Machine("1000", "Plc", "IO 点数（每块最多多少个点，用于越界校验）")]
     public int IoPointCount { get; set; } = 1000;
 
     #endregion

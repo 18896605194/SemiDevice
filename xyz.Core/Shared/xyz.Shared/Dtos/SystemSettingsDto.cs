@@ -36,7 +36,7 @@ public class SystemSettingsDto
 
     /// <summary>
     /// 其中哪些是机械手（按 sc.xml 的先后，如 Robot1）。
-    /// 主界面默认的调度图一台机械手画一张（站点按它站点表里的方向摆）。
+    /// 主界面默认的调度图一台机械手画一张（站点按它示教点表里的方向摆）。
     /// </summary>
     public List<string> Robots { get; set; } = [];
 

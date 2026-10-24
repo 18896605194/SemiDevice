@@ -83,15 +83,15 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #region SC
 
-    [SCEditor("True", "_robot", "是否启用本 _robot (False=装机未接/停用)")]
+    [Machine("True", "_robot", "是否启用本 _robot (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("True", "_robot",
+    [Machine("True", "_robot",
         "手指在位主动推送：True = 连上先订阅，手指上有没有片由控制器主动推；False = 这台机械手不带这个功能，不发订阅（手指在位一直是没收到）")]
     public bool WaferEventEnabled { get; set; } = true;
 
-    [SCEditor("False", "_robot",
-        "扫片：True = 这台机械手用扫片，它站点表里的 LoadPort 由它扫（扫片用站点原来的 Number，机械手类要能扫片，不能就开机报错）；False = 不用，LoadPort 自己扫")]
+    [Machine("False", "_robot",
+        "扫片：True = 这台机械手用扫片，它示教点表里的 LoadPort 由它扫（扫片用示教点的 Number，机械手类要能扫片，不能就开机报错）；False = 不用，LoadPort 自己扫")]
     public bool MapEnabled { get; set; }
 
     #endregion
@@ -202,86 +202,149 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #endregion
 
-    #region 站点表
+    #region 示教点表
 
     /// <summary>
-    /// 12 寸的站点表（sc 的 Stations12，没配用 Stations）；开机读好就不变
+    /// 12 寸示教点的分组名：机械手下一种晶圆尺寸一组，下面挂示教点组件
     /// </summary>
-    private IReadOnlyDictionary<string, RobotStation> _stations12 = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+    private const string TeachPoints12Name = "Size12";
 
     /// <summary>
-    /// 8 寸的站点表（sc 的 Stations8，没配用 Stations）；开机读好就不变
+    /// 8 寸示教点的分组名
     /// </summary>
-    private IReadOnlyDictionary<string, RobotStation> _stations8 = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
+    private const string TeachPoints8Name = "Size8";
 
     /// <summary>
-    /// 整机晶圆尺寸：组件初始化时取一次，站点表按它选；没配按 12 寸
+    /// 12 寸的示教点表（sc 里机械手下 Size12 那组）；组件初始化时收好就不变
+    /// </summary>
+    private IReadOnlyDictionary<string, ITeachPoint> _teachPoints12 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 8 寸的示教点表（sc 里机械手下 Size8 那组）；组件初始化时收好就不变
+    /// </summary>
+    private IReadOnlyDictionary<string, ITeachPoint> _teachPoints8 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 整机晶圆尺寸：组件初始化时取一次，示教点表按它选；没配按 12 寸
     /// </summary>
     private IWaferSize? _waferSize;
 
     /// <summary>
-    /// 现在用的站点表：整机现在几寸就是哪张
+    /// 现在用的示教点表：整机现在几寸就是哪张
     /// </summary>
-    public IReadOnlyDictionary<string, RobotStation> Stations => StationsOf(WaferSizeComponent.SizeOf(_waferSize));
-    private volatile RobotStation? _currentStation;
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPoints => TeachPointsOf(WaferSizeComponent.SizeOf(_waferSize));
+    private volatile ITeachPoint? _currentTeachPoint;
 
     /// <summary>
-    /// 某种尺寸的站点表：8 寸是 8 寸那张，其余是 12 寸那张
+    /// 某种尺寸的示教点表：8 寸是 Size8 那张，其余是 Size12 那张；没配的那种尺寸是空表（到不了）
     /// </summary>
-    public IReadOnlyDictionary<string, RobotStation> StationsOf(int size)
+    public IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size)
     {
         if (size == WaferSizeComponent.Inch8)
         {
-            return _stations8;
+            return _teachPoints8;
         }
 
-        return _stations12;
+        return _teachPoints12;
     }
 
-    public bool TryGetStation(string station, [MaybeNullWhen(false)] out RobotStation config)
+    public bool TryGetTeachPoint(string station, [MaybeNullWhen(false)] out ITeachPoint point)
     {
-        return Stations.TryGetValue(station, out config);
+        return TeachPoints.TryGetValue(station, out point);
     }
 
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
 
-        // 每种尺寸先找自己那张（Stations12 / Stations8），没配就用 Stations：只做一种尺寸的机型配一张 Stations 就够
-        var shared = ReadStations(setting, "Stations") ?? new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-        _stations12 = ReadStations(setting, "Stations12") ?? shared;
-        _stations8 = ReadStations(setting, "Stations8") ?? shared;
+        // 同名的组配了两个开机就报：抄一组改另一组忘了改名，两组的示教点会被并成一张
+        CheckSingleTable(setting, TeachPoints12Name);
+        CheckSingleTable(setting, TeachPoints8Name);
     }
 
     /// <summary>
-    /// 读一张站点表：没配这个节点返回 null；同名的表配了两个开机就报（抄一张改另一张忘了改名，第二张会被悄悄丢掉）
+    /// 一种尺寸只能配一组
     /// </summary>
-    private static Dictionary<string, RobotStation>? ReadStations(ModuleConfig setting, string tableName)
+    private static void CheckSingleTable(ModuleConfig setting, string tableName)
     {
-        var nodes = setting.Children
-            .Where(child => string.Equals(child.Name, tableName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        if (nodes.Count == 0)
+        int count = setting.Children.Count(child => string.Equals(child.Name, tableName, StringComparison.OrdinalIgnoreCase));
+        if (count > 1)
         {
-            return null;
+            throw new InvalidOperationException($"sc.xml 节点 {setting.Name}.{tableName} 配了 {count} 个，只能配一个。");
         }
+    }
 
-        if (nodes.Count > 1)
+    /// <summary>
+    /// 收示教点：下面挂的示教点组件按在 Size12 还是 Size8 组里分成两张表；挂在别处、同一组里重名、同一张表站号重复的开机就报
+    /// </summary>
+    private void CollectTeachPoints()
+    {
+        var points12 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
+        var points8 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
+        foreach (var point in FindChildren<ITeachPoint>())
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name}.{tableName} 配了 {nodes.Count} 个，只能配一个。");
-        }
-
-        var stations = new Dictionary<string, RobotStation>(StringComparer.OrdinalIgnoreCase);
-        foreach (var stationNode in nodes[0].Children)
-        {
-            string path = $"{setting.Name}.{tableName}.{stationNode.Name}";
-            if (!stations.TryAdd(stationNode.Name, RobotStation.FromConfig(stationNode, path)))
+            string table = TableOf(point);
+            Dictionary<string, ITeachPoint> points;
+            if (string.Equals(table, TeachPoints12Name, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 重复配置。");
+                points = points12;
+            }
+            else if (string.Equals(table, TeachPoints8Name, StringComparison.OrdinalIgnoreCase))
+            {
+                points = points8;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"sc.xml 节点 {point.FullPath}：示教点要挂在机械手 {Name} 下的 {TeachPoints12Name} 或 {TeachPoints8Name} 分组里（一种晶圆尺寸一组）。");
+            }
+
+            if (!points.TryAdd(point.Name, point))
+            {
+                throw new InvalidOperationException($"sc.xml 节点 {point.FullPath} 重复配置。");
             }
         }
 
-        return stations;
+        CheckDistinctNumbers(points12, TeachPoints12Name);
+        CheckDistinctNumbers(points8, TeachPoints8Name);
+        _teachPoints12 = points12;
+        _teachPoints8 = points8;
+        if (points12.Count == 0 && points8.Count == 0)
+        {
+            LogHelper.Error(Name, $"sc.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointComponent，不然哪儿都去不了");
+        }
+    }
+
+    /// <summary>
+    /// 一张表里站号不能重：两个站点同一个站号，机械手会把它们当成同一个工位去取放
+    /// </summary>
+    private void CheckDistinctNumbers(IReadOnlyDictionary<string, ITeachPoint> points, string tableName)
+    {
+        var seen = new Dictionary<int, string>();
+        foreach (var point in points.Values)
+        {
+            if (seen.TryGetValue(point.Number, out string? other))
+            {
+                throw new InvalidOperationException(
+                    $"sc.xml 机械手 {Name} 的 {tableName} 里 {other} 和 {point.Name} 的站号都是 {point.Number}：两个站点会被当成同一个工位去取放。");
+            }
+
+            seen[point.Number] = point.Name;
+        }
+    }
+
+    /// <summary>
+    /// 示教点挂在哪一组下：全路径里它前面那一段（Robot.Robot1.Size12.LoadPort1 是 Size12）
+    /// </summary>
+    private static string TableOf(ITeachPoint point)
+    {
+        string[] segments = point.FullPath.Split('.');
+        if (segments.Length < 2)
+        {
+            return string.Empty;
+        }
+
+        return segments[^2];
     }
 
     #endregion
@@ -322,13 +385,14 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         #endregion
 
-        #region 站点表校验
+        #region 示教点表
 
-        // 站点表里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒；两种尺寸的表都查
-        CheckStationArms(WaferSizeComponent.Inch12);
-        CheckStationArms(WaferSizeComponent.Inch8);
+        // 别的组件 Bind 时就会按尺寸取示教点表，所以在组件初始化时收表、取整机尺寸
+        CollectTeachPoints();
 
-        // 别的组件 Bind 时就会按尺寸取站点表，所以在组件初始化时取
+        // 示教点里配的手指必须存在：配了这台机械手没有的手，开机就报出来，别等取放时才拒；两种尺寸的表都查
+        CheckTeachPointArms(WaferSizeComponent.Inch12);
+        CheckTeachPointArms(WaferSizeComponent.Inch8);
         _waferSize = IocHelper.GetService<IWaferSize>();
 
         #endregion
@@ -374,27 +438,27 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 查一种尺寸的站点表：PickArms / PlaceArms 配的手指这台机械手都得有
+    /// 查一种尺寸的示教点表：PickArms / PlaceArms 配的手指这台机械手都得有
     /// </summary>
-    private void CheckStationArms(int size)
+    private void CheckTeachPointArms(int size)
     {
-        foreach (var station in StationsOf(size).Values)
+        foreach (var point in TeachPointsOf(size).Values)
         {
-            foreach (int arm in station.PickArms)
+            foreach (int arm in point.PickArmNumbers)
             {
                 if (Arms.All(item => item.Number != arm))
                 {
                     throw new InvalidOperationException(
-                        $"sc.xml 机械手 {FullPath} 的 {size} 寸站点表里 {station.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                        $"sc.xml 机械手 {FullPath} 的 {size} 寸示教点 {point.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
                 }
             }
 
-            foreach (int arm in station.PlaceArms)
+            foreach (int arm in point.PlaceArmNumbers)
             {
                 if (Arms.All(item => item.Number != arm))
                 {
                     throw new InvalidOperationException(
-                        $"sc.xml 机械手 {FullPath} 的 {size} 寸站点表里 {station.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                        $"sc.xml 机械手 {FullPath} 的 {size} 寸示教点 {point.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
                 }
             }
         }
@@ -489,35 +553,35 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// 未连接或停用时查询反馈（伺服使能、设备报错、速度）不可信，置 null；手指在位保留最后一次推送值；
     /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
     /// 手指伸出 = 这一趟取放还没做完（发出指令时记下、做完清掉）的那只手；
-    /// 站点表（含各站点槽数、允许的手指）与轴坐标（sc.xml 轴节点整表）下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
+    /// 示教点表（含各站点槽数、允许的手指）与轴坐标（sc.xml 轴节点整表）下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
-        var station = _currentStation;
+        var current = _currentTeachPoint;
         var intent = _transferIntent;
-        var stations = Stations;
+        var points = TeachPoints;
         var dto = new RobotDto
         {
             Name = Name,
             State = State,
             Mode = Mode,
-            Station = station?.Name,
-            Direction = station?.Direction ?? RobotDirection.North,
-            Y = station?.Y ?? 0,
+            Station = current?.Name,
+            Direction = current?.Direction ?? RobotDirection.North,
+            Y = current?.Y ?? 0,
             ArmCount = Arms.Count,
-            Stations = stations.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
-            StationInfos = stations.Values
-                .OrderBy(station => station.Number)
-                .Select(station => new RobotStationDto
+            Stations = points.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToList(),
+            TeachPoints = points.Values
+                .OrderBy(point => point.Number)
+                .Select(point => new TeachPointDto
                 {
-                    Name = station.Name,
-                    Number = station.Number,
-                    Direction = station.Direction,
-                    Y = station.Y,
-                    SlotCount = SlotCountOf(station.Name),
-                    PickArms = ArmsOf(station.PickArms),
-                    PlaceArms = ArmsOf(station.PlaceArms),
-                    Kind = KindOf(station.Name),
+                    Name = point.Name,
+                    Number = point.Number,
+                    Direction = point.Direction,
+                    Y = point.Y,
+                    SlotCount = SlotCountOf(point.Name),
+                    PickArms = ArmsOf(point.PickArmNumbers),
+                    PlaceArms = ArmsOf(point.PlaceArmNumbers),
+                    Kind = KindOf(point.Name),
                 })
                 .ToList(),
             Arms = Arms
@@ -556,7 +620,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 站点槽数：取站点模块在 sc.xml 里配的 SlotCount（LoadPort 25、腔体 1），不在站点表里重复配。
+    /// 站点槽数：取站点模块在 sc.xml 里配的 SlotCount（LoadPort 25、腔体 1），不在示教点里重复配。
     /// 搬运模块表还没绑好、或站点名不是可服务工位时为 0。
     /// </summary>
     private int SlotCountOf(string station)
@@ -821,11 +885,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 取片的手：站点在本机械手的站点表里、这只手存在、这个站许它取片（sc.xml 站点节点的 PickArms）
+    /// 取片的手：站点在本机械手的示教点表里、这只手存在、这个站许它取片（示教点的 PickArms）
     /// </summary>
     private HandleResult? CheckPickArm(int arm, string station)
     {
-        if (!TryGetStation(station, out var config))
+        if (!TryGetTeachPoint(station, out var config))
         {
             return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
         }
@@ -839,11 +903,11 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 放片的手：站点在本机械手的站点表里、这只手存在、这个站许它放片（sc.xml 站点节点的 PlaceArms）
+    /// 放片的手：站点在本机械手的示教点表里、这只手存在、这个站许它放片（示教点的 PlaceArms）
     /// </summary>
     private HandleResult? CheckPlaceArm(int arm, string station)
     {
-        if (!TryGetStation(station, out var config))
+        if (!TryGetTeachPoint(station, out var config))
         {
             return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
         }
@@ -862,7 +926,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private HandleResult<ModuleRoutine> StartTransfer(RobotAction action, int arm, string station, int slot)
     {
-        if (!TryGetStation(station, out var config))
+        if (!TryGetTeachPoint(station, out var config))
         {
             return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
         }
@@ -927,7 +991,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 设备那几条后面再加上"等手指持片反馈对上""记账"两步再挂上：机型只给设备那几条，持片校验和记账平台加，记账通过才向搬运管理确认成功
     /// </summary>
-    private HandleResult<ModuleRoutine> StartWithLedger(RobotAction action, ModuleRoutine transfer, TransferIntent intent, RobotStation config)
+    private HandleResult<ModuleRoutine> StartWithLedger(RobotAction action, ModuleRoutine transfer, TransferIntent intent, ITeachPoint config)
     {
         var armComponent = FindArm(intent.Arm);
         if (armComponent is not null && armComponent.IsWaferCheckEnabled)
@@ -939,7 +1003,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         var started = Started(action, transfer);
         if (started.IsSuccess)
         {
-            _currentStation = config;
+            _currentTeachPoint = config;
             _transferIntent = intent;
         }
 
@@ -1087,7 +1151,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private HandleResult<ModuleRoutine> StartExtend(RobotAction action, int arm, string station, int slot)
     {
-        if (!TryGetStation(station, out var config))
+        if (!TryGetTeachPoint(station, out var config))
         {
             return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
         }
@@ -1121,7 +1185,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         var started = Started(action, extend);
         if (started.IsSuccess)
         {
-            _currentStation = config;
+            _currentTeachPoint = config;
             _transferIntent = new TransferIntent(intentAction, arm, station, slot, expectedWaferId);
         }
 
@@ -1133,7 +1197,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     private HandleResult<ModuleRoutine> StartRetract(RobotAction action, TransferIntent intent)
     {
-        if (!TryGetStation(intent.Station, out var config))
+        if (!TryGetTeachPoint(intent.Station, out var config))
         {
             return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, intent.Station));
         }
@@ -1191,7 +1255,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region 扫片（可选能力 IWaferMap）
 
     // 能扫片的机械手类在类上声明 IWaferMap（下面的 Map / MapResults 就是它的实现），再重写 AddMapSteps 加扫片那几条，拿到槽图连同设备回的原文调 SaveMapResult 存起来。
-    // sc 开了 MapEnabled 的，它站点表里的 LoadPort 由它扫（LoadPort 开机时按这个认），扫片用站点原来的 Number；用哪只手扫是控制器示教的事，平台不选。
+    // sc 开了 MapEnabled 的，它示教点表里的 LoadPort 由它扫（LoadPort 开机时按这个认），扫片用示教点的 Number；用哪只手扫是控制器示教的事，平台不选。
 
     private readonly object _mapGate = new();
     private readonly Dictionary<string, WaferMapResult> _mapResults = new(StringComparer.OrdinalIgnoreCase);
@@ -1211,7 +1275,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 扫这个站点：空闲、开了扫片、站点在站点表里、手上全空才收；LoadPort 要它扫时由搬运管理排队，轮到了才调
+    /// 扫这个站点：空闲、开了扫片、站点在示教点表里、手上全空才收；LoadPort 要它扫时由搬运管理排队，轮到了才调
     /// </summary>
     public HandleResult<ModuleRoutine> Map(string station)
     {
@@ -1223,7 +1287,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            if (!TryGetStation(station, out var config))
+            if (!TryGetTeachPoint(station, out var config))
             {
                 return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
             }
@@ -1244,7 +1308,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             var started = Started(RobotAction.Map, map);
             if (started.IsSuccess)
             {
-                _currentStation = config;
+                _currentTeachPoint = config;
             }
 
             return started;
@@ -1252,7 +1316,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 扫片的资源：开了扫片、站点在站点表里、手上全空——不知道扫片传感器装在哪只手上，拿着片去扫可能碰到盒子里的片
+    /// 扫片的资源：开了扫片、站点在示教点表里、手上全空——不知道扫片传感器装在哪只手上，拿着片去扫可能碰到盒子里的片
     /// </summary>
     private HandleResult? CheckMapResource(string station)
     {
@@ -1261,7 +1325,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return HandleResult.Fail(ErrorCodes.RobotMapUnsupported, Name);
         }
 
-        if (!TryGetStation(station, out _))
+        if (!TryGetTeachPoint(station, out _))
         {
             return HandleResult.Fail(ErrorCodes.StationNotFound, Name, station);
         }

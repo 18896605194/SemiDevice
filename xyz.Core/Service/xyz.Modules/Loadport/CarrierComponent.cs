@@ -20,11 +20,11 @@ public class CarrierComponent : ComponentBase, ICarrier
 {
     #region SC
 
-    [SCEditor("Query", "_carrier",
+    [Machine("Query", "_carrier",
         "载具在位以什么为准：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化）；Event = 设备主动上报（PODON 放上 / PODOF 拿走）")]
     public PodPresenceSource PresenceSource { get; set; } = PodPresenceSource.Query;
 
-    [SCEditor("True", "_carrier", "载具到位后自动读码（False=只由上层/EAP 显式触发）")]
+    [Machine("True", "_carrier", "载具到位后自动读码（False=只由上层/EAP 显式触发）")]
     public bool AutoReadCarrierId { get; set; } = true;
 
     #endregion

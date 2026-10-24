@@ -29,19 +29,29 @@ public class RobotDto
     /// <summary>当前站点：最近一次发起成功的取放片站点名（如 LoadPort1）；还没取放过为 null。</summary>
     public string? Station { get; set; }
 
-    /// <summary>当前站点在 sc.xml 站点表里配置的伸出方向（RobotDirection），界面显示机械手朝哪伸出。</summary>
+    /// <summary>
+    /// 当前站点示教点的伸出方向（RobotDirection），界面显示机械手朝哪伸出。
+    /// </summary>
     public RobotDirection Direction { get; set; }
 
-    /// <summary>当前站点在 sc.xml 站点表里配置的伸出距离 Y（数值），界面显示机械手伸出多远。</summary>
+    /// <summary>
+    /// 当前站点示教点的伸出距离 Y（数值），界面显示机械手伸出多远。
+    /// </summary>
     public double Y { get; set; }
 
-    /// <summary>站点表（sc.xml 配置）里的全部站点名，界面下拉用；站点号/伸出方向/伸出距离都由后端下发，界面不写死。</summary>
+    /// <summary>
+    /// 示教点表里的全部站点名（这台机械手能去的站点），界面下拉用；站点号 / 伸出方向 / 伸出距离都由后端下发，界面不写死。
+    /// </summary>
     public List<string> Stations { get; set; } = [];
 
-    /// <summary>站点明细（含站点号 Number / 伸出距离 Y / 伸出方向 Direction），调度图与站点角标用；与 Stations 同源。</summary>
-    public List<RobotStationDto> StationInfos { get; set; } = [];
+    /// <summary>
+    /// 示教点明细（站号 Number / 伸出距离 Y / 伸出方向 Direction……），调度图与站点角标用；与 Stations 同源。
+    /// </summary>
+    public List<TeachPointDto> TeachPoints { get; set; } = [];
 
-    /// <summary>手指数：sc.xml 本机械手下的 RobotArmComponent 节点个数；界面画几只手臂按它（取放能用哪只手按站点的 Arms）。</summary>
+    /// <summary>
+    /// 手指数：sc.xml 本机械手下的 RobotArmComponent 节点个数；界面画几只手臂按它（取放能用哪只手按示教点的 PickArms / PlaceArms）。
+    /// </summary>
     public int ArmCount { get; set; }
 
     /// <summary>各手指（sc.xml 的 Arm 节点），按手指号升序；HasWafer 是设备推送的在位，还没收到推送时为 false。</summary>
@@ -119,15 +129,15 @@ public class RobotDto
             }
         }
 
-        if (StationInfos.Count != previous.StationInfos.Count)
+        if (TeachPoints.Count != previous.TeachPoints.Count)
         {
             return true;
         }
 
-        for (int i = 0; i < StationInfos.Count; i++)
+        for (int i = 0; i < TeachPoints.Count; i++)
         {
-            var current = StationInfos[i];
-            var last = previous.StationInfos[i];
+            var current = TeachPoints[i];
+            var last = previous.TeachPoints[i];
             if (current.Name != last.Name
                 || current.Number != last.Number
                 || current.Direction != last.Direction
@@ -185,36 +195,48 @@ public class RobotDto
 }
 
 /// <summary>
-/// Robot 站点表里的一条：站点号 + 伸出距离 + 伸出方向 + 槽数 + 取片 / 放片允许的手指 + 站点类型，供界面画调度图与限定取放的手臂、槽位。
+/// 机械手示教点表里的一条：站号 + 伸出距离 + 伸出方向 + 槽数 + 取片 / 放片允许的手指 + 站点类型，供界面画调度图与限定取放的手臂、槽位。
 /// </summary>
-public class RobotStationDto
+public class TeachPointDto
 {
-    /// <summary>站点名（与模块名一致，如 LoadPort1）。</summary>
+    /// <summary>
+    /// 站点名（与模块名一致，如 LoadPort1）。
+    /// </summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>设备站点号（sc.xml Number，如 1/2/3/4）。</summary>
+    /// <summary>
+    /// 控制器里的站号（示教点的 Number，如 1/2/3/4）。
+    /// </summary>
     public int Number { get; set; }
 
-    /// <summary>机械手伸出方向（sc.xml Direction）：North=腔体侧，South=LoadPort 侧。</summary>
+    /// <summary>
+    /// 机械手伸出方向（示教点的 Direction）：North=腔体侧，South=LoadPort 侧。
+    /// </summary>
     public RobotDirection Direction { get; set; }
 
-    /// <summary>机械手伸出距离（sc.xml Y，数值）。</summary>
+    /// <summary>
+    /// 机械手伸出距离（示教点的 Y，数值）。
+    /// </summary>
     public double Y { get; set; }
 
-    /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。</summary>
+    /// <summary>
+    /// 站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。
+    /// </summary>
     public int SlotCount { get; set; }
 
     /// <summary>
-    /// 从这个站取片能用的手（sc.xml 站点节点的 PickArms，没配就是所有手指），升序；取片手臂下拉只列这些
+    /// 从这个站取片能用的手（示教点的 PickArms，没配就是所有手指），升序；取片手臂下拉只列这些
     /// </summary>
     public List<int> PickArms { get; set; } = [];
 
     /// <summary>
-    /// 往这个站放片能用的手（sc.xml 站点节点的 PlaceArms，没配就是所有手指），升序；放片手臂下拉只列这些
+    /// 往这个站放片能用的手（示教点的 PlaceArms，没配就是所有手指），升序；放片手臂下拉只列这些
     /// </summary>
     public List<int> PlaceArms { get; set; } = [];
 
-    /// <summary>站点是哪一类模块（LoadPort / 腔体 / 其他），调度图按它选卡片；搬运模块表还没绑好时为 Other。</summary>
+    /// <summary>
+    /// 站点是哪一类模块（LoadPort / 腔体 / 其他），调度图按它选卡片；搬运模块表还没绑好时为 Other。
+    /// </summary>
     public StationKind Kind { get; set; }
 }
 

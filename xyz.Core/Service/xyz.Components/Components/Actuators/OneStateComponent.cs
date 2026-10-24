@@ -12,10 +12,10 @@ public abstract class OneStateComponent : ComponentBase
 {
     #region  SC
 
-    [SCEditor("-1", "IO", "驱动 DO 索引", Required = true)]
+    [Machine("-1", "IO", "驱动 DO 索引", Required = true)]
     public int DoIndex { get; set; } = -1;
 
-    [SCEditor("NC", "IO", "常开常闭：NC 常闭（DO 写 true 开）、NO 常开（DO 写 false 开）")]
+    [Machine("NC", "IO", "常开常闭：NC 常闭（DO 写 true 开）、NO 常开（DO 写 false 开）")]
     public NormalState NormalState { get; set; } = NormalState.NC;
 
     #endregion

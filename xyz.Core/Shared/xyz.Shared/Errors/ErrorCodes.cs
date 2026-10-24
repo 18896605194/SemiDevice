@@ -163,10 +163,14 @@ public static class ErrorCodes
 
     #region Robot
 
-    /// <summary>站点未在该机械手的站点表中配置。Args: [机械手模块名, 站点名]</summary>
+    /// <summary>
+    /// 站点不在这台机械手的示教点表里（LoadPort 扫片时：不是这个口）。Args: [机械手或 LoadPort 名, 站点名]
+    /// </summary>
     public const string StationNotFound = "robot.station_not_found";
 
-    /// <summary>站点不许用这只手取放（sc.xml 机械手站点节点的 Arms）。Args: [机械手模块名, 站点名, 手指号]</summary>
+    /// <summary>
+    /// 站点不许用这只手取放（示教点的 PickArms / PlaceArms），或机械手没有这只手。Args: [机械手模块名, 站点名, 手指号]
+    /// </summary>
     public const string ArmNotAllowed = "robot.arm_not_allowed";
 
     /// <summary>取片被拒：晶圆账上这只手已经有片。Args: [机械手模块名, 手指号, 片号]</summary>
@@ -383,7 +387,9 @@ public static class ErrorCodes
     /// <summary>这个槽（或槽上的片）已被别的搬运操作占用。Args: [站点名, 槽号]</summary>
     public const string TransferSlotLocked = "transfer.slot_locked";
 
-    /// <summary>没有一台机械手两个站点都到得了（站点表里没配）。Args: [源站点, 目标站点]</summary>
+    /// <summary>
+    /// 没有一台机械手两个站点都到得了（示教点表里没配）。Args: [源站点, 目标站点]
+    /// </summary>
     public const string TransferNoRobot = "transfer.no_robot";
 
     /// <summary>点名的这只手用不了：两个站点不都许用、手上有片，或正被别的操作占用。Args: [机械手模块名, 手指号]</summary>

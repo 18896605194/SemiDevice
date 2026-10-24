@@ -10,19 +10,19 @@ public class LightComponent : ComponentBase, ILight
 {
     #region SC 装机常量
 
-    [SCEditor("-1", "IO", "红灯 DO 索引", Required = true)]
+    [Machine("-1", "IO", "红灯 DO 索引", Required = true)]
     public int DoRedIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "黄灯 DO 索引", Required = true)]
+    [Machine("-1", "IO", "黄灯 DO 索引", Required = true)]
     public int DoYellowIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "绿灯 DO 索引", Required = true)]
+    [Machine("-1", "IO", "绿灯 DO 索引", Required = true)]
     public int DoGreenIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "蓝灯 DO 索引", Required = true)]
+    [Machine("-1", "IO", "蓝灯 DO 索引", Required = true)]
     public int DoBlueIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "蜂鸣器 DO 索引", Required = true)]
+    [Machine("-1", "IO", "蜂鸣器 DO 索引", Required = true)]
     public int DoBuzzerIndex { get; set; } = -1;
 
     #endregion

@@ -7,10 +7,10 @@ namespace xyz.Components.Components;
 
 public abstract class VirtualInputComponent : ComponentBase, IVirtualInputComponent
 {
-    [SCEditor("-1", "VirtualInput", "全局唯一索引：虚拟 DI 4000~4999，虚拟 AI 6000~6999", Required = true)]
+    [Machine("-1", "VirtualInput", "全局唯一索引：虚拟 DI 4000~4999，虚拟 AI 6000~6999", Required = true)]
     public int Index { get; set; } = -1;
 
-    [SCEditor("", "VirtualInput", "计算表达式：支持 IO 点、常量、括号、+ - * /、比较、&& || !", Required = true)]
+    [Machine("", "VirtualInput", "计算表达式：支持 IO 点、常量、括号、+ - * /、比较、&& || !", Required = true)]
     public string Expression { get; set; } = string.Empty;
 
     private sealed record State(double? Value);

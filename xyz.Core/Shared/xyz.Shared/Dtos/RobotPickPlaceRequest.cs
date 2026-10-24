@@ -21,7 +21,7 @@ public class RobotPickPlaceRequest
     public int Arm { get; set; }
 
     /// <summary>
-    /// 站点：站点表中的模块名，如 "LoadPort1"；站点号由该机械手的站点表解析。
+    /// 站点：示教点表中的模块名，如 "LoadPort1"；站点号由该机械手的示教点表解析。
     /// </summary>
     [ProtoMember(3)]
     public string Station { get; set; } = string.Empty;

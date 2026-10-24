@@ -6,7 +6,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，站点表 / 伸出方向 Direction / 伸出距离 Y（Stations / Direction / Y）、轴坐标都由后端按 sc.xml 配置推过来。
+/// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，示教点表 / 伸出方向 Direction / 伸出距离 Y（Stations / Direction / Y）、轴坐标都由后端按 sc.xml 配置推过来。
 /// 状态推送来了就地刷新：手臂按手指号保留同一实例，控件的运动动画不会因为换实例被打断。
 /// Robot 手动页右栏、调度图（DispatchMap，Robot 手动页和主界面共用）都用它。
 /// </summary>
@@ -146,7 +146,7 @@ public class RobotModel : ObservableObject
 
     private List<string> _stations = [];
 
-    /// <summary>站点表里的全部站点名（后端 sc.xml 配置），界面下拉用。</summary>
+    /// <summary>示教点表里的全部站点名（后端 sc.xml 配置），界面下拉用。</summary>
     public List<string> Stations
     {
         get => _stations;
@@ -315,8 +315,8 @@ public class RobotModel : ObservableObject
         Y = dto.Y;
         Stations = [.. dto.Stations];
 
-        var marks = dto.StationInfos.Count > 0
-            ? dto.StationInfos
+        var marks = dto.TeachPoints.Count > 0
+            ? dto.TeachPoints
                 .OrderBy(info => info.Number)
                 .Select(info => new RobotStationModel
                 {
@@ -339,7 +339,7 @@ public class RobotModel : ObservableObject
                 })
                 .ToList();
 
-        // 站点表跟上次一样就不换实例：每次推送都换，调度图的卡片会重建、站点下拉会被重置。
+        // 示教点表跟上次一样就不换实例：每次推送都换，调度图的卡片会重建、站点下拉会被重置。
         if (!SameStations(marks, StationMarks))
         {
             StationMarks = marks;

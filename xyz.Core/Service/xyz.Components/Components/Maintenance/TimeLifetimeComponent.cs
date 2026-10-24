@@ -19,10 +19,10 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
 {
     #region SC
 
-    [SCEditor("-1", "IO", "计时 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：只算它通着的时间，泵、加热器的运行时长填它的 DO；-1 = 不盯，从上次清零起按实际时间算（关机也算）")]
+    [Machine("-1", "IO", "计时 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：只算它通着的时间，泵、加热器的运行时长填它的 DO；-1 = 不盯，从上次清零起按实际时间算（关机也算）")]
     public int DoIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "清零 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：每变一次（断→通、通→断）清零重算，换液、换件这类由程序把虚拟 DO 翻一下；-1 = 只人工清零")]
+    [Machine("-1", "IO", "清零 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：每变一次（断→通、通→断）清零重算，换液、换件这类由程序把虚拟 DO 翻一下；-1 = 只人工清零")]
     public int ClearDoIndex { get; set; } = -1;
 
     #endregion

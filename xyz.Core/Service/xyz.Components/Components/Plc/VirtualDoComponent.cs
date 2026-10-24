@@ -22,7 +22,7 @@ public class VirtualDoComponent : ComponentBase, IVirtualDo
 
     #region SC
 
-    [SCEditor("-1", "VirtualOutput", "全局唯一点号：虚拟 DO 5000~5999", Required = true)]
+    [Machine("-1", "VirtualOutput", "全局唯一点号：虚拟 DO 5000~5999", Required = true)]
     public int Index { get; set; } = -1;
 
     #endregion

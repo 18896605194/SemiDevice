@@ -13,7 +13,7 @@ using xyz.Tools;
 namespace xyz.Client.Manual.ViewModels;
 
 /// <summary>
-/// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；站点表（含各站点槽数、允许的手指）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
+/// 机械手手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；示教点表（含各站点槽数、允许的手指）/ 方位 / 平移 / 轴坐标都是后端推的，这里不写死。
 /// Pick 用源手臂从源站点槽位取片、Place 用目标手臂往目标站点槽位放片——手臂和槽位下拉都跟着选中的站点走；
 /// Abort = 急停（AbortAsync，可顶替在途动作）、Reset = 清报警 + 设备复位清错（ResetAsync）；生产 / 维护只改模块模式。
 /// 左边的调度图是公共控件 DispatchMap，它自己订机械手和各站点的推送，这里只管右栏。
@@ -34,7 +34,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     private string _sourceStation = string.Empty;
 
-    /// <summary>源站点（Pick 从这儿取片），站点表里的模块名如 LoadPort1；换站点时源手臂、源槽位下拉跟着换。</summary>
+    /// <summary>源站点（Pick 从这儿取片），示教点表里的模块名如 LoadPort1；换站点时源手臂、源槽位下拉跟着换。</summary>
     public string SourceStation
     {
         get => _sourceStation;
@@ -168,7 +168,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
 
     public override void Init()
     {
-        // 先拉一次当前状态（含站点表），再订阅推送；只等推送的话页面刚打开会一直是空的。
+        // 先拉一次当前状态（含示教点表），再订阅推送；只等推送的话页面刚打开会一直是空的。
         try
         {
             var response = _service.GetStateAsync(ModuleName).GetAwaiter().GetResult();
@@ -207,7 +207,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     {
         Model.Update(dto);
 
-        // 源默认选站点表里的第一个（按站点号排，一般是 LoadPort1），目标默认选腔体侧（北）的第一个。
+        // 源默认选示教点表里的第一个（按站点号排，一般是 LoadPort1），目标默认选腔体侧（北）的第一个。
         if (string.IsNullOrEmpty(SourceStation) && Model.StationMarks.Count > 0)
         {
             SourceStation = Model.StationMarks[0].Name;

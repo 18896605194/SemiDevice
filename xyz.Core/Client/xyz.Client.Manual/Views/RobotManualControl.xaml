@@ -17,7 +17,7 @@
                 <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <!--  ① 调度图（公共控件 DispatchMap，主界面也用它）：站点按机械手站点表的方向摆在四周，LoadPort 画花篮卡片、腔体画单片卡片，
+            <!--  ① 调度图（公共控件 DispatchMap，主界面也用它）：站点按机械手示教点表的方向摆在四周，LoadPort 画花篮卡片、腔体画单片卡片，
                  片在哪都是同一个大小（卡片圆片直径 = 机械手叉上的片）  -->
             <Border
                 Grid.Column="0"

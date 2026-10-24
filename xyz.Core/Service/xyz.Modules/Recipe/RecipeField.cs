@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
+using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Configs.Models;
 using xyz.Shared.Dtos;
@@ -250,6 +251,7 @@ public sealed class RecipeField
             throw new InvalidOperationException($"sc.xml 节点 {path} 的名字 {key} 不能当字段名：字母开头，只用字母、数字、下划线");
         }
 
+        ReportUnknownValues(node, path);
         string text = Read(nameof(Text));
         if (text.Length == 0)
         {
@@ -347,6 +349,31 @@ public sealed class RecipeField
             OptionsByType = field.OptionsByType,
             Default = choice ? defaultText : field.Canonical(defaultText, []),
         };
+    }
+
+    /// <summary>
+    /// 字段节点上认的参数名；下拉选项 <c>Source.类型</c>、按尺寸的上限 <c>Max.尺寸</c> 另按前缀认
+    /// </summary>
+    private static readonly string[] KnownValueNames =
+        [nameof(Text), nameof(TextEn), nameof(Type), nameof(Unit), nameof(Min), "Max", nameof(Decimals), nameof(Required), nameof(Default), SourceName];
+
+    /// <summary>
+    /// 名字对不上的参数记一条错误日志、照常开机：写错的那一项按没配算
+    /// </summary>
+    private static void ReportUnknownValues(ModuleConfig node, string path)
+    {
+        foreach (var value in node.Values)
+        {
+            string name = (value.Name ?? string.Empty).Trim();
+            if (KnownValueNames.Contains(name, StringComparer.OrdinalIgnoreCase)
+                || name.StartsWith(MaxBySizePrefix, StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith(SourceName + SourceTypeSeparator, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            LogHelper.Error(path, $"sc.xml 节点 {path} 的参数 {name} 不认识：配方字段没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
+        }
     }
 
     /// <summary>

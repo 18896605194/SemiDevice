@@ -15,13 +15,13 @@ public class DiSensorComponent : ComponentBase, IDiSensor
 {
     #region SC
 
-    [SCEditor("-1", "IO", "监控的 DI 索引", Required = true)]
+    [Machine("-1", "IO", "监控的 DI 索引", Required = true)]
     public int DiIndex { get; set; } = -1;
 
-    [SCEditor("true", "Config", "触发有效电平：true=高电平触发，false=低电平触发")]
+    [Machine("true", "Config", "触发有效电平：true=高电平触发，false=低电平触发")]
     public bool TriggerValue { get; set; } = true;
 
-    [SCEditor("True", "Config", "是否直接报警（false = 只提供触发状态，由宿主处理）")]
+    [Machine("True", "Config", "是否直接报警（false = 只提供触发状态，由宿主处理）")]
     public bool AlarmEnabled { get; set; } = true;
 
     #endregion

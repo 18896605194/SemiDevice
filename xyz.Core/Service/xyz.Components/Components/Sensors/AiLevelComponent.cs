@@ -15,7 +15,7 @@ public class AiLevelComponent : ComponentBase, IAiLevel
 {
     #region SC
 
-    [SCEditor("-1", "IO", "液位计接的 AI 索引", Required = true)]
+    [Machine("-1", "IO", "液位计接的 AI 索引", Required = true)]
     public int AiIndex { get; set; } = -1;
 
     #endregion

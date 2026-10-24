@@ -253,7 +253,7 @@ public static class ComponentLoader
                     string.Equals(c.Name, setting.Name, StringComparison.OrdinalIgnoreCase));
                 if (existing is not null)
                 {
-                    AssignValues(existing, setting);
+                    AssignValues(existing, setting, path);
                     existing.OnSettingLoaded(setting);
                     component = existing;
                 }
@@ -275,7 +275,7 @@ public static class ComponentLoader
                 component.InitOrder = setting.InitOrder;
             }
 
-            AssignValues(component, setting);
+            AssignValues(component, setting, path);
             component.OnSettingLoaded(setting);
 
             if (parent is null)
@@ -296,18 +296,19 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 先给全部 [SCEditor] 属性灌默认值，再用同名 Value（忽略大小写）覆盖。
+    /// 先给全部 [Machine] 属性灌默认值，再用同名 Value（忽略大小写）覆盖；
+    /// 名字对不上的记一条错误日志、照常开机（写错的那一项还是默认值）
     /// </summary>
-    private static void AssignValues(ComponentBase component, ModuleConfig setting)
+    private static void AssignValues(ComponentBase component, ModuleConfig setting, string path)
     {
         var properties = component.GetType()
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.CanWrite && p.GetCustomAttribute<SCEditorAttribute>() is not null)
+            .Where(p => p.CanWrite && p.GetCustomAttribute<MachineAttribute>() is not null)
             .ToArray();
 
         foreach (var property in properties)
         {
-            var editor = property.GetCustomAttribute<SCEditorAttribute>()!;
+            var editor = property.GetCustomAttribute<MachineAttribute>()!;
             property.SetValue(component, ConvertValue(property.PropertyType, editor.DefaultValue));
         }
 
@@ -315,7 +316,14 @@ public static class ComponentLoader
         {
             var property = properties.FirstOrDefault(p =>
                 string.Equals(p.Name, value.Name, StringComparison.OrdinalIgnoreCase));
-            if (property is null || value.Value is null)
+            if (property is null)
+            {
+                LogHelper.Error(path,
+                    $"sc.xml 节点 {path} 的参数 {value.Name} 不认识：{component.GetType().Name} 没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
+                continue;
+            }
+
+            if (value.Value is null)
             {
                 continue;
             }

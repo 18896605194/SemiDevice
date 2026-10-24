@@ -13,7 +13,7 @@ public class RobotArmComponent : RobotAxisComponent, IRobotArm
 {
     #region SC
 
-    [SCEditor("1", "Arm", "手指号（取放与主动推送协议用，从 1 开始）", Required = true)]
+    [Machine("1", "Arm", "手指号（取放与主动推送协议用，从 1 开始）", Required = true)]
     public int Number { get; set; } = 1;
 
     #endregion

@@ -28,7 +28,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     #region SC
 
-    [SCEditor("True", "Aligner", "是否启用对准器（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
+    [Machine("True", "Aligner", "是否启用对准器（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
     public bool IsEnable { get; set; } = true;
 
     #endregion

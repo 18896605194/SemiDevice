@@ -26,7 +26,7 @@ public partial class ChamberInfoCard : UserControl
             new PropertyMetadata(string.Empty));
 
     /// <summary>
-    /// 站点号角标（机械手站点表里的设备站点号）；空就不显示。
+    /// 站点号角标（机械手示教点表里的设备站点号）；空就不显示。
     /// </summary>
     public string Number
     {

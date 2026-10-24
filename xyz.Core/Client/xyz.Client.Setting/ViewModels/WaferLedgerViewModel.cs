@@ -502,7 +502,7 @@ public class WaferLedgerViewModel : BaseViewModel
         var target = Target;
 
         Locations.Clear();
-        // 用后端给的先后：机械手在前，站点按各机械手站点表的先后；分组的先后就是各组第一次出现的先后
+        // 用后端给的先后：机械手在前，站点按各机械手示教点表的先后；分组的先后就是各组第一次出现的先后
         foreach (var dto in ledger.Locations)
         {
             Locations.Add(new LedgerLocationModel(dto));

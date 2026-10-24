@@ -14,28 +14,28 @@ public class DeviceDriverComponent : ComponentBase, IDeviceDriverComponent
 {
     #region SC
 
-    [SCEditor("Serial", "Driver", "通讯类型：Serial=串口，Tcp=网口")]
+    [Machine("Serial", "Driver", "通讯类型：Serial=串口，Tcp=网口")]
     public CommType CommType { get; set; } = CommType.Serial;
 
-    [SCEditor("COM", "Driver", "串口名称（CommType=Serial 时生效）")]
+    [Machine("COM", "Driver", "串口名称（CommType=Serial 时生效）")]
     public string PortName { get; set; } = string.Empty;
 
-    [SCEditor("9600", "Driver", "串口波特率（CommType=Serial 时生效）")]
+    [Machine("9600", "Driver", "串口波特率（CommType=Serial 时生效）")]
     public int BaudRate { get; set; } = 9600;
 
-    [SCEditor("None", "Driver", "串口校验位（CommType=Serial 时生效）")]
+    [Machine("None", "Driver", "串口校验位（CommType=Serial 时生效）")]
     public string Parity { get; set; } = "None";
 
-    [SCEditor("8", "Driver", "串口数据位（CommType=Serial 时生效）")]
+    [Machine("8", "Driver", "串口数据位（CommType=Serial 时生效）")]
     public int DataBits { get; set; } = 8;
 
-    [SCEditor("One", "Driver", "串口停止位（CommType=Serial 时生效）")]
+    [Machine("One", "Driver", "串口停止位（CommType=Serial 时生效）")]
     public string StopBits { get; set; } = "One";
 
-    [SCEditor("127.0.0.1", "Driver", "网口 IP（CommType=Tcp 时生效）")]
+    [Machine("127.0.0.1", "Driver", "网口 IP（CommType=Tcp 时生效）")]
     public string Host { get; set; } = "127.0.0.1";
 
-    [SCEditor("0", "Driver", "网口端口（CommType=Tcp 时生效）")]
+    [Machine("0", "Driver", "网口端口（CommType=Tcp 时生效）")]
     public int NetPort { get; set; }
 
     #endregion

@@ -14,19 +14,19 @@ public class AiSensorComponent : ComponentBase, IAiSensor
 {
     #region SC 装机常量
 
-    [SCEditor("-1", "IO", "监控的 AI 索引", Required = true)]
+    [Machine("-1", "IO", "监控的 AI 索引", Required = true)]
     public int AiIndex { get; set; } = -1;
 
-    [SCEditor("-1", "IO", "监控使能 DO 索引 (-1 = 始终监控)")]
+    [Machine("-1", "IO", "监控使能 DO 索引 (-1 = 始终监控)")]
     public int MonitoringDoIndex { get; set; } = -1;
 
-    [SCEditor("True", "IO", "监控使能有效电平 (true = 高电平有效)")]
+    [Machine("True", "IO", "监控使能有效电平 (true = 高电平有效)")]
     public bool MonitoringActiveHigh { get; set; } = true;
 
-    [SCEditor("True", "Config", "是否直接报警（false = 只提供状态，由宿主处理）")]
+    [Machine("True", "Config", "是否直接报警（false = 只提供状态，由宿主处理）")]
     public bool AlarmEnabled { get; set; } = true;
 
-    [SCEditor("False", "Config", "上下限按目标值的百分比判（True：喷嘴流量计这类，工艺每步给目标值；False：上下限是固定数，压力、温度这类）")]
+    [Machine("False", "Config", "上下限按目标值的百分比判（True：喷嘴流量计这类，工艺每步给目标值；False：上下限是固定数，压力、温度这类）")]
     public bool IsPercentOfTarget { get; set; }
 
     #endregion

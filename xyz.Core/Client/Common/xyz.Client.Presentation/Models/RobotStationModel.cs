@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 调度图上的一个站点：设备站点号 + 名称 + 所在方位 + 类型（机械手站点表推来，不变），
+/// 调度图上的一个站点：设备站点号 + 名称 + 所在方位 + 类型（机械手示教点表推来，不变），
 /// 外加站点模块自己的实时状态和站点上的片（调度图按站点名订阅 LoadPort / 腔体的状态推送，就地刷新；片以晶圆账为准）。
 /// </summary>
 public sealed class RobotStationModel : ObservableObject

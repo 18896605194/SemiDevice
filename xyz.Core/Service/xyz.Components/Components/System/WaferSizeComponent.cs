@@ -30,7 +30,7 @@ public class WaferSizeComponent : ComponentBase, IWaferSize
 
     #region SC
 
-    [SCEditor("12", "System", "晶圆尺寸（寸）：8 或 12；主界面系统操作里切换（整机没初始化、机台里没片时才让切），切了马上生效并写回这里")]
+    [Machine("12", "System", "晶圆尺寸（寸）：8 或 12；主界面系统操作里切换（整机没初始化、机台里没片时才让切），切了马上生效并写回这里")]
     public int Size { get; set; } = Inch12;
 
     #endregion

@@ -53,11 +53,11 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
 
     #region SC
 
-    [SCEditor("False", "TransferStation",
+    [Machine("False", "TransferStation",
         "取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令取完")]
     public bool HandoffOnPick { get; set; }
 
-    [SCEditor("False", "TransferStation",
+    [Machine("False", "TransferStation",
         "放片要站点中途交接：机械手伸到位先停下，站点把片接走（比如升顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令放完")]
     public bool HandoffOnPlace { get; set; }
 

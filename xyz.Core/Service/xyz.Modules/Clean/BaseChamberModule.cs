@@ -58,13 +58,13 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     #region SC
 
-    [SCEditor("True", "Chamber", "是否启用本腔体 (False=装机未接/停用)")]
+    [Machine("True", "Chamber", "是否启用本腔体 (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("1", "Chamber", "片位数（腔体一般 1 片；晶圆账按它注册槽位）")]
+    [Machine("1", "Chamber", "片位数（腔体一般 1 片；晶圆账按它注册槽位）")]
     public override int SlotCount { get; set; } = 1;
 
-    [SCEditor("", "Chamber", "这个腔体用的供液模块名（几个用逗号隔开，如 IPA,H2SO4；空 = 不看供液）：起工艺前都要就绪，EC SupplyCheckEnabled 关了不看")]
+    [Machine("", "Chamber", "这个腔体用的供液模块名（几个用逗号隔开，如 IPA,H2SO4；空 = 不看供液）：起工艺前都要就绪，EC SupplyCheckEnabled 关了不看")]
     public string Supply { get; set; } = string.Empty;
 
     #endregion

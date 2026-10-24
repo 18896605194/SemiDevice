@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:xyz.Client.Presentation.Controls">
 
-    <!--  调度图：一台机械手在中间，站点卡片按机械手站点表里的方向（sc.xml Direction）摆在上、下、左、右，
+    <!--  调度图：一台机械手在中间，站点卡片按机械手示教点表里的方向（sc.xml Direction）摆在上、下、左、右，
           LoadPort 画花篮卡片、腔体和其他站点画单片卡片；片在哪都一样大（卡片圆片直径 = 机械手叉上的片）。
           一排放不下时这一排整体缩小（只缩不放），不裁掉站点。
           DataContext（DispatchMapViewModel）由代码后置挂在 Root 上，不动控件自身的 DataContext  -->

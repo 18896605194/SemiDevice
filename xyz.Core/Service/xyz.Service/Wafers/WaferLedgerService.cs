@@ -165,7 +165,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
         foreach (var robot in robots)
         {
-            foreach (string station in robot.Stations.Keys)
+            foreach (string station in robot.TeachPoints.Keys)
             {
                 if (seen.Add(station))
                 {

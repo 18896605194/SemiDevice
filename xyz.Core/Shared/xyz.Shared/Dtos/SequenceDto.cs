@@ -78,7 +78,7 @@ public class SequenceStepDto
 
 /// <summary>
 /// 可选的站点分组：sc.xml 里的分组节点（不带 Type 的节点，如 LoadPort、Chamber）和下面装的模块，
-/// 只列能放片、并且机械手站点表里配了的模块。界面原样显示，不翻译、不写死。
+/// 只列能放片、并且机械手示教点表里配了的模块。界面原样显示，不翻译、不写死。
 /// </summary>
 public class SequenceStationGroupDto
 {

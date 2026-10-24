@@ -148,7 +148,7 @@
     <sys:String x:Key="transfer.wafer_mismatch">{0} 第 {1} 槽上现在是 {2}，不是要搬的那一片（可能被换过或重新 Mapping 过）</sys:String>
     <sys:String x:Key="transfer.wafer_owned">{0} 正在 Job {1} 里，不能手动搬</sys:String>
     <sys:String x:Key="transfer.slot_locked">{0} 第 {1} 槽已被别的搬运操作占用</sys:String>
-    <sys:String x:Key="transfer.no_robot">没有机械手同时到得了 {0} 和 {1}（机械手站点表里没配）</sys:String>
+    <sys:String x:Key="transfer.no_robot">没有机械手同时到得了 {0} 和 {1}（机械手示教点表里没配）</sys:String>
     <sys:String x:Key="transfer.arm_unavailable">{0} 的 {1} 号手用不了（两个站点不都许用、手上有片，或正被别的搬运操作占用）</sys:String>
     <sys:String x:Key="transfer.no_arm">{0} 现在没有能用的手（都有片、都被占着，或站点不许用）</sys:String>
     <sys:String x:Key="transfer.not_held">晶圆 {0} 没有搬运失败保留的资源（已经释放，或标识不对）</sys:String>

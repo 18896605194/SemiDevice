@@ -13,13 +13,13 @@ public class NozzleComponent : ValveComponent, INozzle
 {
     #region SC 装机常量
 
-    [SCEditor("", "Nozzle", "这一路的药液名 (DIW/SC1/HF...)，配方按它选喷嘴", Required = true)]
+    [Machine("", "Nozzle", "这一路的药液名 (DIW/SC1/HF...)，配方按它选喷嘴", Required = true)]
     public string Chemical { get; set; } = string.Empty;
 
-    [SCEditor("-1", "IO", "流量设定 AO 索引 (-1 = 没接流量设定，配方里的流量不下发，只给流量计当监控目标)")]
+    [Machine("-1", "IO", "流量设定 AO 索引 (-1 = 没接流量设定，配方里的流量不下发，只给流量计当监控目标)")]
     public int AoIndex { get; set; } = -1;
 
-    [SCEditor("True", "Nozzle", "停液关阀后流量清不清零（True：AO 设定和流量计目标都设 0；False：保持上一步的流量）")]
+    [Machine("True", "Nozzle", "停液关阀后流量清不清零（True：AO 设定和流量计目标都设 0；False：保持上一步的流量）")]
     public bool ClearFlowOnStop { get; set; } = true;
 
     #endregion

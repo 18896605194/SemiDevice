@@ -11,10 +11,10 @@ public class DataBaseComponent : ComponentBase
 {
     #region SC 
 
-    [SCEditor(XyzDb.DefaultConnectionString, "Database", "数据库连接字符串")]
+    [Machine(XyzDb.DefaultConnectionString, "Database", "数据库连接字符串")]
     public string ConnectionString { get; set; } = XyzDb.DefaultConnectionString;
 
-    [SCEditor("Sqlite", "Database", "数据库类型")]
+    [Machine("Sqlite", "Database", "数据库类型")]
     public DbType DbType { get; set; } = DbType.Sqlite;
 
     #endregion

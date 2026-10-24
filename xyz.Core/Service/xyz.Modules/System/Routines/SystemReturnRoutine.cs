@@ -590,7 +590,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     {
         if (heldArm > 0)
         {
-            if (transfers.TryGetRobot(from, out var holder) && holder.TryGetStation(to, out var place) && place.AllowsPlace(heldArm)
+            if (transfers.TryGetRobot(from, out var holder) && holder.TryGetTeachPoint(to, out var place) && place.AllowsPlace(heldArm)
                 && (!now || IsRobotReady(transfers, holder)))
             {
                 return (holder, heldArm);
@@ -601,7 +601,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
 
         foreach (var robot in transfers.Robots)
         {
-            if (!robot.TryGetStation(from, out var source) || !robot.TryGetStation(to, out var target)
+            if (!robot.TryGetTeachPoint(from, out var source) || !robot.TryGetTeachPoint(to, out var target)
                 || (now && !IsRobotReady(transfers, robot)))
             {
                 continue;

@@ -53,7 +53,7 @@ var node = new ModuleConfig
 var roots = SmokeIoc.Load([node]);
 var hsms = roots.OfType<HsmsComponent>().Single();
 Check(ReferenceEquals(IocHelper.GetService<IHsms>(), hsms), "装配出来就登记成单例");
-Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[SCEditor] 灌值生效（IsEnable/Port/DeviceId）");
+Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[Machine] 灌值生效（IsEnable/Port/DeviceId）");
 
 // 2. 登记处理方和闸门（链路打开之前）。
 var linkEvents = Channel.CreateUnbounded<string>();

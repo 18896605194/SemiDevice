@@ -19,16 +19,16 @@ public class LogComponent : ComponentBase, ILogComponent
     /// </summary>
     private readonly Queue<LogDto> _recent = new();
 
-    [SCEditor("1000", "Log", "日志历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
+    [Machine("1000", "Log", "日志历史页一次最多返回多少条（取最新的），超出界面提示缩小时间段或加条件")]
     public int HistoryQueryMaxCount { get; set; } = 1000;
 
-    [SCEditor("200", "Log", "后端保留最近多少条日志，客户端连上（或重连）时补拉这一段；0 = 不留")]
+    [Machine("200", "Log", "后端保留最近多少条日志，客户端连上（或重连）时补拉这一段；0 = 不留")]
     public int RecentLogCount { get; set; } = 200;
 
-    [SCEditor("2000", "Log", "客户端实时日志页最多显示多少条，超出丢最旧的")]
+    [Machine("2000", "Log", "客户端实时日志页最多显示多少条，超出丢最旧的")]
     public int RealtimeDisplayMaxCount { get; set; } = 2000;
 
-    [SCEditor("500", "Log", "客户端顶部日志栏最多保留多少条，超出丢最旧的")]
+    [Machine("500", "Log", "客户端顶部日志栏最多保留多少条，超出丢最旧的")]
     public int LogBarDisplayMaxCount { get; set; } = 500;
 
     /// <summary>

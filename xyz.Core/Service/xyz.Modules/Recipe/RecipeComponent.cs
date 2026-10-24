@@ -84,13 +84,13 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     #region SC
 
-    [SCEditor("99", "ProcessRecipe", "工艺配方个数：编号 1~N")]
+    [Machine("99", "ProcessRecipe", "工艺配方个数：编号 1~N")]
     public int Capacity { get; set; } = 99;
 
-    [SCEditor("Recipe\\Process", "ProcessRecipe", "工艺配方文件目录：相对宿主运行目录，也可以写绝对路径；一个编号一个文件")]
+    [Machine("Recipe\\Process", "ProcessRecipe", "工艺配方文件目录：相对宿主运行目录，也可以写绝对路径；一个编号一个文件")]
     public string Folder { get; set; } = "Recipe\\Process";
 
-    [SCEditor("32", "ProcessRecipe", "工艺配方名称最多几个字符")]
+    [Machine("32", "ProcessRecipe", "工艺配方名称最多几个字符")]
     public int NameMaxLength { get; set; } = 32;
 
     #endregion

@@ -55,22 +55,22 @@ public class JobManager : ComponentBase, IJobManager
 
     #region SC
 
-    [SCEditor("True", "Job", "是否启用 Job 管理（False = 不收 Job 命令、不按 Job 调度）")]
+    [Machine("True", "Job", "是否启用 Job 管理（False = 不收 Job 命令、不按 Job 调度）")]
     public bool IsEnable { get; set; } = true;
 
-    [SCEditor("True", "Job", "PJ 准备好后直接开始；False = 等待 PJ Start 命令")]
+    [Machine("True", "Job", "PJ 准备好后直接开始；False = 等待 PJ Start 命令")]
     public bool ProcessJobAutoStart { get; set; } = true;
 
-    [SCEditor("False", "Job", "CJ 的载具准备好后直接开始；False = 等待 CJ Start 命令")]
+    [Machine("False", "Job", "CJ 的载具准备好后直接开始；False = 等待 CJ Start 命令")]
     public bool ControlJobAutoStart { get; set; }
 
-    [SCEditor("True", "Job", "是否把 Job 记进库（CJ、PJ 各一行，每片的任务明细跟着 PJ）：开机把上次没做完的记成中止（重启后不接着跑）")]
+    [Machine("True", "Job", "是否把 Job 记进库（CJ、PJ 各一行，每片的任务明细跟着 PJ）：开机把上次没做完的记成中止（重启后不接着跑）")]
     public bool IsPersistent { get; set; } = true;
 
-    [SCEditor("Default", "Job", "Job 记录落哪个库（sc.xml 的 Database 节点名）")]
+    [Machine("Default", "Job", "Job 记录落哪个库（sc.xml 的 Database 节点名）")]
     public string Database { get; set; } = XyzDb.DefaultName;
 
-    [SCEditor("1000", "Job", "Job 历史页一次最多返回多少个 CJ（取最新的），超出界面提示缩小时间段或加条件")]
+    [Machine("1000", "Job", "Job 历史页一次最多返回多少个 CJ（取最新的），超出界面提示缩小时间段或加条件")]
     public int HistoryQueryMaxCount { get; set; } = 1000;
 
     #endregion

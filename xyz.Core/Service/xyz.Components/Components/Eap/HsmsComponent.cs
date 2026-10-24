@@ -33,42 +33,42 @@ public class HsmsComponent : ComponentBase, IHsms
     /// <summary>S9F5：Stream 认识、Function 不认识。</summary>
     private const byte UnknownFunctionFunction = 5;
 
-    #region 配置（[SCEditor]，现场可在 EC 页改 sc.xml）
+    #region 配置（[Machine]，现场可在 EC 页改 sc.xml）
 
-    [SCEditor("False", "Hsms", "是否启用 EAP；没接 EAP 的机器保持 False，不监听端口、不连设备，各标准组件也不接到设备上")]
+    [Machine("False", "Hsms", "是否启用 EAP；没接 EAP 的机器保持 False，不监听端口、不连设备，各标准组件也不接到设备上")]
     public bool IsEnable { get; set; }
 
-    [SCEditor("False", "Hsms", "主动连出（设备连 EAP）：False = 被动监听等 EAP 连入（设备常规模式）")]
+    [Machine("False", "Hsms", "主动连出（设备连 EAP）：False = 被动监听等 EAP 连入（设备常规模式）")]
     public bool IsActive { get; set; }
 
-    [SCEditor("", "Hsms", "对端 EAP 地址（IsActive=True 时用，如 192.168.1.10）；被动模式不用")]
+    [Machine("", "Hsms", "对端 EAP 地址（IsActive=True 时用，如 192.168.1.10）；被动模式不用")]
     public string Host { get; set; } = string.Empty;
 
-    [SCEditor("5000", "Hsms", "HSMS 端口，SEMI 惯例 5000；不能跟 Rpc 节点的 gRPC 端口相同（相同时 EAP 链路不启动、记错误），接 EAP 时把 gRPC 挪走")]
+    [Machine("5000", "Hsms", "HSMS 端口，SEMI 惯例 5000；不能跟 Rpc 节点的 gRPC 端口相同（相同时 EAP 链路不启动、记错误），接 EAP 时把 gRPC 挪走")]
     public int Port { get; set; } = 5000;
 
-    [SCEditor("0", "Hsms", "设备号（DeviceId/SessionId），要和 EAP 侧配置一致，不一致的报文会被丢弃")]
+    [Machine("0", "Hsms", "设备号（DeviceId/SessionId），要和 EAP 侧配置一致，不一致的报文会被丢弃")]
     public int DeviceId { get; set; }
 
-    [SCEditor("45000", "Hsms", "T3：数据事务等回复超时（毫秒）")]
+    [Machine("45000", "Hsms", "T3：数据事务等回复超时（毫秒）")]
     public int T3ReplyTimeoutMs { get; set; } = 45_000;
 
-    [SCEditor("10000", "Hsms", "T5：断线后重连间隔（毫秒）")]
+    [Machine("10000", "Hsms", "T5：断线后重连间隔（毫秒）")]
     public int T5ConnectRetryMs { get; set; } = 10_000;
 
-    [SCEditor("5000", "Hsms", "T6：控制事务（Select/Linktest）等回复超时（毫秒）")]
+    [Machine("5000", "Hsms", "T6：控制事务（Select/Linktest）等回复超时（毫秒）")]
     public int T6ControlTimeoutMs { get; set; } = 5_000;
 
-    [SCEditor("10000", "Hsms", "T7：TCP 连上后等 Select 的超时（毫秒），超时断开等重连")]
+    [Machine("10000", "Hsms", "T7：TCP 连上后等 Select 的超时（毫秒），超时断开等重连")]
     public int T7NotSelectedTimeoutMs { get; set; } = 10_000;
 
-    [SCEditor("5000", "Hsms", "T8：一帧内部字节间超时（毫秒），防半包挂死")]
+    [Machine("5000", "Hsms", "T8：一帧内部字节间超时（毫秒），防半包挂死")]
     public int T8IntercharacterTimeoutMs { get; set; } = 5_000;
 
-    [SCEditor("30000", "Hsms", "Linktest 心跳周期（毫秒），0 = 不主动发；双方都必应答")]
+    [Machine("30000", "Hsms", "Linktest 心跳周期（毫秒），0 = 不主动发；双方都必应答")]
     public int LinktestIntervalMs { get; set; } = 30_000;
 
-    [SCEditor("True", "Hsms", "报文明文进日志（fab 验收和现场排障全靠它；报文量大时可以关）")]
+    [Machine("True", "Hsms", "报文明文进日志（fab 验收和现场排障全靠它；报文量大时可以关）")]
     public bool LogMessages { get; set; } = true;
 
     #endregion

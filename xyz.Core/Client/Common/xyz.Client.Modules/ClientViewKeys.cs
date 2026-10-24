@@ -7,7 +7,7 @@
 public static class ClientViewKeys
 {
     /// <summary>
-    /// 主界面中间的"整机调度"：平台默认按机械手站点表自动摆（一台机械手一张调度图，站点按 sc.xml 的方向摆在四周）；
+    /// 主界面中间的"整机调度"：平台默认按机械手示教点表自动摆（一台机械手一张调度图，站点按 sc.xml 的方向摆在四周）；
     /// 机型要别的摆法（几台机械手、缓存位、对中台……）就注册自己的，主界面别的地方不用动。
     /// </summary>
     public const string MainDispatch = "Main.Dispatch";

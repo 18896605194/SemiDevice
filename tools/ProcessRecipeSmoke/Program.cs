@@ -1,4 +1,5 @@
-﻿using xyz.Components;
+﻿using xyz.Common.Log;
+using xyz.Components;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Configs.Models;
@@ -246,6 +247,24 @@ try
     Rejects(LibraryWith(HeadNode(without: "Timeout"), SecondsNode()), "配方头少了固定的超时时间");
     Rejects(LibraryWith(HeadNode(wrongType: "Type"), SecondsNode()), "配方头固定的 Type 类型写错（不是 Choice）");
     Rejects(LibraryWith(HeadNode(extra: FieldNode("name", ("Text", "又一个"), ("Type", "Text"))), SecondsNode()), "配方头字段名重复（不分大小写）");
+    // 字段节点上写了不认识的参数（Max 写成 Maximum）：照常装上，那一项按没配算（没有上限），记一条错误日志写清节点和名字；
+    // 认的写法（Max.12 这种按尺寸的上限、Source.A 这种按 Type 的选项）不记
+    var logs = new System.Collections.Concurrent.ConcurrentQueue<LogItem>();
+    LogQueue.Start(logs.Enqueue);
+    var typoLibrary = (RecipeComponent)SmokeIoc.Load([LibraryNode(SecondsNode(),
+        FieldNode("Flow", ("Text", "流量"), ("Type", "Double"), ("Maximum", "5"), ("Max.12", "10")),
+        FieldNode("Mode", ("Text", "方式"), ("Type", "Choice"), ("Source.A", "Time,Scan")))]).Single();
+    Check(typoLibrary.Fields.First(field => field.Key == "Flow").MaxFor(8) is null
+          && typoLibrary.Fields.First(field => field.Key == "Flow").MaxFor(12) == 10,
+        "写错的 Maximum 按没配算（8 寸没有上限），认的 Max.12 照常生效");
+    bool LoggedTypo()
+    {
+        return logs.Any(item => item.Level == NLog.LogLevel.Error && item.Message.Contains("ProcessRecipe.Fields.Flow") && item.Message.Contains("Maximum"));
+    }
+
+    Check(SpinWait.SpinUntil(LoggedTypo, 3000), "字段节点上不认识的参数记一条错误日志：写清节点和名字");
+    Check(!logs.Any(item => item.Message.Contains("Max.12") || item.Message.Contains("Source.A")),
+        "按尺寸的上限 Max.12、按 Type 的选项 Source.A 是认的写法，不记错误日志");
     SmokeIoc.Use<IRecipeComponent>(library);
 
     // 2. 模块全起来后 Bind：记下腔体和它们配的 Type（配方头 Type 的选项）。三个探针腔体都是 Type A，装的不一样：

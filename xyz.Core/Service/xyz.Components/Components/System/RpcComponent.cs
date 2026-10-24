@@ -17,13 +17,13 @@ public class RpcComponent : ComponentBase, IRpc
     /// <summary>
     /// 监听地址：前端壳和后端同机，保持 localhost；远程调试时才需要改。
     /// </summary>
-    [SCEditor("localhost", "Rpc", "gRPC 监听地址：前端壳与本服务同机，保持 localhost；改端口要同步改客户端 exe 旁的 client.json")]
+    [Machine("localhost", "Rpc", "gRPC 监听地址：前端壳与本服务同机，保持 localhost；改端口要同步改客户端 exe 旁的 client.json")]
     public string Host { get; set; } = "localhost";
 
     /// <summary>
     /// 监听端口：默认 5000（与老版本一致）。HSMS 惯例端口也是 5000，接 EAP 时这里挪走，
     /// 客户端 exe 旁的 client.json（GrpcAddress）跟着改，两边要一致。
     /// </summary>
-    [SCEditor("5000", "Rpc", "gRPC 监听端口，默认 5000。注意 HSMS（EAP）惯例端口也是 5000，接 EAP 时把一边挪开；改这里要同步改客户端的 client.json")]
+    [Machine("5000", "Rpc", "gRPC 监听端口，默认 5000。注意 HSMS（EAP）惯例端口也是 5000，接 EAP 时把一边挪开；改这里要同步改客户端的 client.json")]
     public int Port { get; set; } = DefaultPort;
 }

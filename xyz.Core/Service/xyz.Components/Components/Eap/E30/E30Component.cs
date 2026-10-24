@@ -60,16 +60,16 @@ public partial class E30Component : ComponentBase, IE30Component
 
     #region SC
 
-    [SCEditor("xyz", "E30", "MDLN 设备型号：通讯建立（S1F13 / S1F14）、在线询问（S1F2）时报给 Host")]
+    [Machine("xyz", "E30", "MDLN 设备型号：通讯建立（S1F13 / S1F14）、在线询问（S1F2）时报给 Host")]
     public string EquipmentModel { get; set; } = "xyz";
 
-    [SCEditor("1.0.0", "E30", "SOFTREV 软件版本：跟 MDLN 一起报给 Host")]
+    [Machine("1.0.0", "E30", "SOFTREV 软件版本：跟 MDLN 一起报给 Host")]
     public string SoftwareRevision { get; set; } = "1.0.0";
 
-    [SCEditor("Default", "E30", "Host 定的报告、开关、缓存存哪个库（sc.xml 的 Database 节点名）")]
+    [Machine("Default", "E30", "Host 定的报告、开关、缓存存哪个库（sc.xml 的 Database 节点名）")]
     public string Database { get; set; } = XyzDb.DefaultName;
 
-    [SCEditor("False", "E30", "Host 对时（S2F31）时是不是真改本机时钟：False = 只答收下不改（要不要对时是现场的规矩），True = 改（宿主要有改时间的权限，改不了回 TIACK=1）")]
+    [Machine("False", "E30", "Host 对时（S2F31）时是不是真改本机时钟：False = 只答收下不改（要不要对时是现场的规矩），True = 改（宿主要有改时间的权限，改不了回 TIACK=1）")]
     public bool ApplyHostTime { get; set; }
 
     #endregion
