@@ -2779,11 +2779,7 @@ port.E87Callback = null;
     }) && flapComm.Opens == 1 + 2, "连上一下又断的照样算重连，次数用完停下、报警（以前次数一直清零，永远停不下来）");
     flapPort.Close();
 
-    var previousPlcIo = IocHelper.GetService<IPlcIo>();
-    var previousPlcBlock = IocHelper.GetService<IPlcBlock>();
     var giveUpPlc = new ProbePlc();
-    SmokeIoc.Use<IPlcIo>(giveUpPlc);
-    SmokeIoc.Use<IPlcBlock>(giveUpPlc);
     giveUpPlc.ReconnectIntervalMs = 10;
     giveUpPlc.ReconnectMaxCount = 2;
     Check(!giveUpPlc.Open() && giveUpPlc.Connects == 1, "PLC 开机连不上");
@@ -2807,8 +2803,6 @@ port.E87Callback = null;
         return giveUpPlc.IsConnected;
     }), "PLC 人工复位以后从头再连，连上了");
     giveUpPlc.Close();
-    SmokeIoc.Use<IPlcIo>(previousPlcIo);
-    SmokeIoc.Use<IPlcBlock>(previousPlcBlock);
     SmokeIoc.Use<IAlarm>(previousAlarms);
 
     // 7) _rfid 读头连不上：LoadPort 照样开自己的通道、登记晶圆账槽位（以前整台 LoadPort 都不能动）；读头之后按间隔重连上。
@@ -5000,6 +4994,14 @@ sealed class ProbePlc : PlcComponent
     {
         Interlocked.Increment(ref _connects);
         return !FailConnect;
+    }
+
+    protected override void DisconnectDevice()
+    {
+    }
+
+    protected override void RefreshData()
+    {
     }
 }
 

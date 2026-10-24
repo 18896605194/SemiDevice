@@ -113,13 +113,13 @@ public string TimeoutAlarm = nameof(TimeoutAlarm);
 ### 目录（xyz.Components）
 - 顶层只有 `Attributes` / `Collectors` / `Components` / `Enums` / `Interfaces` / `Models` + `ComponentBase.cs`、`ComponentLoader.cs`。
   顶层目录 = 命名空间（`xyz.Components.Models` 等）。
-- `Components\` 下按类别分 System / Plc（PLC、IO、心跳 `HeartbeatComponent`：按 machine.xml 的时间轮流写一个 DO，见 decisions.md「心跳」；虚拟 IO `VirtualIoComponent`：下面挂虚拟 DO，程序按点号读写，见 decisions.md「虚拟 IO」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（设备通道：串口 `SerialDriverComponent`、网口 `TcpDriverComponent`，共用基类 `DeviceDriverComponent`；读头底座 `RfidReaderComponent`、重连 `DriverReconnector`；品牌在机型工程）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
+- `Components\` 下按类别分 System / Plc（PLC：抽象底座 `PlcComponent` 只管连接、重连、掉线报警，品牌子类 `BeckhoffPlcComponent`（ADS，`IPlcIo` + `IPlcBlock`）、`OpcUaPlcComponent`（OPC UA，只 `IPlcIo`）管读什么、对外给哪个接口，见 decisions.md「PLC 底座只留连接、OPC UA PLC」；IO、心跳 `HeartbeatComponent`：按 machine.xml 的时间轮流写一个 DO，见 decisions.md「心跳」；虚拟 IO `VirtualIoComponent`：下面挂虚拟 DO，程序按点号读写，见 decisions.md「虚拟 IO」）/ Actuators（气缸、阀、阀组、喷嘴、灯）/ Sensors / Motion / Drivers（设备通道：串口 `SerialDriverComponent`、网口 `TcpDriverComponent`，共用基类 `DeviceDriverComponent`；读头底座 `RfidReaderComponent`、重连 `DriverReconnector`；品牌在机型工程）/ Charts / Eap / Cds（供液：槽 `TankComponent`，见 decisions.md「CDS 供液：槽 Tank」）/
   Maintenance（部件寿命：次数型 `CountLifetimeComponent` 挂在部件下面盯 DO 计次、时间型 `TimeLifetimeComponent` 默认从清零起按实际时间算，配了计时 DO 只算它通着的、配了清零 DO 它一变就清零重算，见 decisions.md「部件寿命」）/ Ai（AI 助手 `AiComponent`，见 §5「AI 助手」），
   **命名空间一律 `xyz.Components.Components`**（子目录只归类）。
 - 纯数据类进 `Models`（一个类一个文件），枚举进 `Enums`；只给某个组件用的内部类跟着组件放。不建按领域分的顶层目录。
 - 模块动作 `ModuleRoutine` 和步骤（`RoutineStep`、平台给的几种步骤、等待扩展 `Wait`）在 `Components\Routines`（命名空间 `xyz.Components.Components`），
   `RoutineState` 在 `Enums`、`DeviceOrder` 在 `Models`——2026-10-05 从模块层挪下来（当时叫 ModuleOperation），好让设备侧接口放进组件层。
-- `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用）；2026-10-18 起每个单例组件都有接口：`IAlarm`、`IEc`、`IMapper`、
+- `Interfaces` 下有组件自己的（PLC 分点位 `IPlcIo`（IO 组件用）和数据块 `IPlcBlock`（轴用），由品牌子类自己声明支持哪个；2026-10-18 起每个单例组件都有接口：`IAlarm`、`IEc`、`IMapper`、
   `IDataChart`、`IE30Component`……（Component 后缀在一个个去掉，见 §2），找组件一律按它们）、模块共有的 `IModule`（名字、状态、在做的动作、InitModule / Reset / Abort；生产 / 维护是单独的能力接口 `IMode`，见 §3；
   `ILoadPortAccess`、`ITransferRobot` 继承它；`ILoadPort`、`IRobot`、`IChamber`、`ISystemModule`、`ITransferManager`、`ITaskComponent`、`ISupplyModule` 用到模块层的类型，放在 xyz.Modules），
   还有设备侧给 EAP 的命令接口和上报口：`ILoadPortAccess`（LoadPort 给 EAP 用的那一面，完整的 `ILoadPort : ILoadPortAccess, IJobAccess` 在模块层）、`ICarrier`（经 `ILoadPortAccess._carrier` 拿到，一个端口一个载具组件）、`ICarrierIdReader`（载具读码器，读头底座 `RfidReaderComponent` 实现，品牌读头类在机型工程）、`IE87Callback`、`IE84Callback`、

@@ -32,8 +32,9 @@
   要几个组件共用一条扫描线程的，写 Type 做成父组件（像腔体带部件），见「指挥层 Dispatch」；设备模块仍在根上。
   界面要短名的（腔体手动页的页签、气缸行）取模块名那一段后面的，不能假设路径以模块名开头。
 - **PLC 接口拆成点位和数据块**（2026-10-19，用户提的）：原来一个 `IPlc`，拆成 `IPlcIo`（`IsConnected` + DI/DO/AI/AO 读写，IO 组件用）
-  和 `IPlcBlock`（`Register` / `TryReadBlock` / `WriteBlock`，轴用），`PlcComponent` 两个都实现。两边用的人不重叠，
+  和 `IPlcBlock`（`Register` / `TryReadBlock` / `WriteBlock`，轴用）。两边用的人不重叠，
   而且 IO 和轴不一定接在同一台设备上（IO 走远程 IO / 板卡、轴在倍福上），拆开后换来源只实现对应那个。不再往细拆（DI/DO 各一个、读写分开）。
+  2026-10-25 起接口由品牌子类自己声明（倍福两个都实现，OPC UA 只实现 `IPlcIo`），`PlcComponent` 只留连接，见「PLC 底座只留连接、OPC UA PLC」。
 - **LoadPort 接口拆成 EAP 用的和设备用的**（2026-10-19，用户："说白了就是把现在的这个拆开，eap 用到的和设备用到的"）：
   组件层 `ILoadPortAccess : IModule`（名字用户选的，跟 `IJobAccess`、`ICarrierAccess` 一样，Access = 给别的组件用的那一面）只放 E87 / E84 用的：
   载具、槽数、自动模式、IsLoaded / IsIdle、LocalTransferState、Load / Unload / CheckUnload / SetAutoMode、三个 EAP 口子；E87 / E84 的回调参数都是它。
@@ -1410,3 +1411,33 @@
   - 上限 0 的两处照原来的意思：`Until`（持片反馈）上限 0 = 判一次不成立就失败；搬运抢站点等待 0 = 抢一次没抢到就判负。
   - 机械手扫片的动作默认按 EC `PickTimeout` 算，扫一趟慢的机型在 `AddMapSteps` 里先 `map.UseTimeout` 换。
   - 冒烟工程名 OperationWaitSmoke 没改；一拍里会连着走好几步，以前靠"两拍之间看中间状态"的冒烟改成用探针开关停在中间（JobSmoke 假 LoadPort 的 `FailAfterPrepare` / `HoldPrepare2`）。
+
+## PLC 底座只留连接、OPC UA PLC（2026-10-25，用户看了 CTC C1 用 OPC UA 连供液柜，"我们的架构也想集成一下 放在平台里面"；拆法逐条定："这个留给倍福自己"、"读取数据扫描的意思都留给倍福自己"、"扫描的那个是不是留钩子好一点"、"开始做吧，并且做一下这个opcua的"）
+- **`PlcComponent` 改成抽象底座、不实现接口**：只留 machine.xml `Host`、`Port`，EC 重连间隔 / 次数 / 掉线防抖，SV `IsConnected`，`PlcOfflineAlarm`，重连器、`Open` / `Close` / `Reset`，
+  扫描骨架（`_scanGate` 锁里：子组件 → 重连检查 → 连着就调 `RefreshData()` → 掉线报警，顺序跟以前一样），抽象钩子 `ConnectDevice` / `DisconnectDevice` / `RefreshData`，
+  虚钩子 `OnConnectionChanged`（连接状态一变就调，子类清自己的缓存——原来在 `IsConnected` 的 setter 里直接清字节缓存，IoIndexSmoke"重连后不能拿断线前的帧"就靠它，所以留了这个钩子）。
+  不能直接配在 machine.xml 里（跟 `DeviceDriverComponent` 一样没有 `[Component]`）。
+- **`IPlcIo` / `IPlcBlock` 由品牌子类自己声明**（用户："得是 BeckhoffPlcComponent 这个实现……PlcComponent 这个不要实现，这样才能更加好扩展"）：
+  倍福 `BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock`，`DiDataPath` 等四个、`IoPointCount`、字节块缓存、`TryReadDi` 那些、`Decode*`、`PlcDataErrorAlarm` 都挪进它，行为不变；
+  OPC UA 只声明 `IPlcIo`，容器里就不会被当成 `IPlcBlock`、轴接不到它。
+- **删了 machine.xml `Brand`**（没人读，品牌就是 Type）；`Port` 留在底座（用户定），默认 851 是倍福的，OPC UA 在 machine.xml 写 4840。
+- **OPC UA PLC `OpcUaPlcComponent`**（西门子 1500、欧姆龙 NX、汇川、Codesys 这类自带 OPC UA 服务的 PLC）：
+  - 库用 OPC 基金会官方的 UA-.NETStandard，`OPCFoundation.NetStandard.Opc.Ua.Client` 2.0.1：2.x 起 MIT；1.5.x 对非会员是 GPL 2.0，CTC 用的 `OpcUaHelper`（第三方封装）只能配 1.5，不用。
+    包引用在 `xyz.Components`（跟 TwinCAT 一起）；它把 `Microsoft.Extensions.*` 带到 10.0.12，组件层、服务层和 17 个冒烟直接钉的版本都调到 10.0.12（低了还原报 NU1605 降级）。
+  - **连接就用官方的 `ManagedSessionBuilder`**（用户："opcua 有类似 AdsClient 这种的吗……直接一个连接就行"）：`UseEndpoint(url, MessageSecurityMode.None, SecurityPolicies.None)`（不写默认是签名加密）
+    + `WithUserIdentity` + `ConnectAsync`，会话 `ManagedSession` 就是倍福 `_client` 那个位置。**不另写连接类**（用户："OpcUaConnection 这个不应该出现"，跟倍福一样写在组件里）。
+    比 ADS 多一份客户端配置（OPC UA 规定客户端要有自己的证书）：第一次连接时建、证书放运行目录 `OpcUa\pki`，以后重连复用。会话自带的重连不靠它：读写一失败就关会话，重连走底座（次数上限、人工复位）。
+  - 安全只做 None，匿名或用户名密码（machine.xml `UserName` / `Password`，空 = 匿名）；签名加密要认证书，现场要了再加。
+  - 地址：`DiDataPath` 等写数组节点名，推荐 `nsu=命名空间地址;s=…`（连上按服务端命名空间表换编号，PLC 重新下载后编号变了照样认；CTC 写死 `ns=4`），`ns=编号;s=…` 也认。数组下标一律从 0 数。
+  - 读：按 EC `ReadIntervalMs`（默认 50，PLC 的 OPC UA 服务跟不上 10 ms 一次）一次往返读回四个数组；不用订阅（只推变化，"这一次读不到就清缓存"做不出来）。
+    缓存按类型存（DI/DO `bool[]`，AI/AO `double[]`，INT / UINT / REAL 等数值都认，不丢小数，不转字节）。某个节点读不成（认不出、服务端没有、类型不对）只清那一个、报 `PlcDataErrorAlarm`，
+    同一个原因只记一次日志；整次读不成（断线、超时）按断线处理。
+  - 写：DO / AO 按下标只写数组那一格（OPC UA 的 IndexRange），不改回读缓存；DO 读回来过就按数组长度挡越界，没读到过交给服务端判；
+    AO 按读回来的数组类型换算（整数四舍五入、超出范围不写；换算在同目录的帮助类 `OpcUaHelper.TryMakeElement`，用户要单独放），没读到过不知道类型、不写。写被 PLC 拒只记日志、不报警（跟倍福一样）。
+  - EC `OperationTimeoutMs`（默认 1000：一次读写最多等多久，SDK 默认两分钟，服务端一卡线程就卡死）；建连接要来回好几趟，单独给 5 s（常量 `ConnectTimeoutMs`）。
+  - 线程：读在 PLC 扫描线程、写在调用方线程，都在 `_deviceGate` 里串行；官方库只有异步接口，同步等（这些线程没有同步上下文，不会死锁）；报警、断线处理放锁外。
+  - 冒烟 `OpcUaSmoke`：本机用官方服务端包起假 PLC，走真网络测连接、读写、类型和越界、节点出错报警、PLC 重启后命名空间换编号照样重连认回来、Close 以后不再连。
+- **没做的**：
+  - 多台 PLC 选哪台：IO 组件、轴都是 `IocHelper.GetService` 取唯一一台，配两台时微软容器静默拿后登记的那台；要"IO 走 OPC UA、轴走倍福"混用，先给 IO 组件、轴加 machine.xml `Plc`（按名字挑、多台没配开机就抛）。
+  - 外部柜子按变量名读写的 OPC UA 通道（CTC 那种，柜子模块直接读写节点）：用到再做，那时再把连接部分抽出来共用。
+  - 用户名登录、签名加密没在冒烟里测（假 PLC 只开了匿名 + None）；按下标写数组个别 PLC 的 OPC UA 服务不支持，要拿真 PLC 验。

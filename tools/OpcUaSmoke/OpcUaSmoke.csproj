@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Components\xyz.Components.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
+    <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <!-- 本机起一个假的 OPC UA PLC（官方 SDK 的服务端），客户端走真的网络读写 -->
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="2.0.1" />
+  </ItemGroup>
+</Project>

@@ -21,15 +21,19 @@
     <!-- TwinCAT.Ads 的传递依赖。DLL 走 Libs 本地引用，NuGet 不知道它依赖谁，所以这几个得自己列出来：
          漏了在 ASP.NET 宿主里看不出来（框架自带），换成普通控制台就 FileNotFoundException。
          版本也得跟 TwinCAT 编译时的 10.0 对齐，项目里别的包带的是 8.0，不顶上去运行时 MissingMethodException。
-         补丁版本跟着下面 AI 包要的走（它要 Logging.Abstractions 10.0.9 以上，钉低了还原报降级），还是 10.0 这一档。 -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
+         补丁版本跟着依赖里要得最高的走（下面 OPC UA 官方包要 10.0.12，钉低了还原报降级），还是 10.0 这一档。 -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12" />
     <PackageReference Include="System.ComponentModel.Composition" Version="10.0.3" />
     <PackageReference Include="System.Reactive" Version="6.1.0" />
     <!-- AI 助手（AiComponent）接模型用微软官方的 Microsoft.Extensions.AI（IChatClient）：
          这个包是它对"兼容 OpenAI 接口格式"服务的适配，厂内网的本地模型服务大多兼容这个格式；换别家只换这一层。 -->
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <!-- OPC UA PLC（OpcUaPlcComponent）用 OPC 基金会官方的 UA-.NETStandard：2.x 起是 MIT 许可，可以闭源商用；
+         1.5.x 那一代对非会员是 GPL 2.0（CTC 用的 OpcUaHelper 只能配 1.5），别换回去。
+         它把 Microsoft.Extensions.* 带到 10.0.12，引用到组件层的工程直接钉的版本不能比它低（还原报降级）。 -->
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="2.0.1" />
   </ItemGroup>
 
   <!-- ModuleOperation 在组件层，可"动作什么时候算真正做完"（DeferCompletion / NotifyCompletion）只该由模块基类控制：

@@ -175,7 +175,7 @@ static class AxisCommands
     }
 
     /// <summary>假 PLC：块存字典里，扫描把字典刷进缓存，写记下来。</summary>
-    private sealed class CachePlc : PlcComponent
+    private sealed class CachePlc : BeckhoffPlcComponent
     {
         private readonly Dictionary<string, byte[]> _data = [];
         public List<MotionCSharpToPlcCommand> Writes { get; } = [];

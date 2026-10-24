@@ -52,7 +52,6 @@
 	</Setting>
 	<Setting Name="Plc" Type="xyz.Components.Components.BeckhoffPlcComponent">
 		<Value Name="IsRun" Value="true" />
-		<Value Name="Brand" Value="Beckhoff" />
 		<Value Name="Host" Value="Local" />
 		<Value Name="Port" Value="851" />
 		<Value Name="DiDataPath" Value=".DigIn" />
