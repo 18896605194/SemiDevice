@@ -1,6 +1,6 @@
 ---
 name: xyz-framework
-description: xyz 半导体设备框架（D:\Code）的架构分层和编码规范——后端组件/模块/驱动/gRPC 服务/配置/数据库，WPF 客户端 MVVM/样式/语言包，机型层，冒烟测试，验证和交付方式。在这个仓库里写或改任何代码（C#、XAML、sc.xml、冒烟测试）之前先读；加组件、模块、动作、服务、推送、页面、菜单、报警、SC/EC 参数、错误码、数据表时按里面的清单做。
+description: xyz 半导体设备框架（D:\Code）的架构分层和编码规范——后端组件/模块/驱动/gRPC 服务/配置/数据库，WPF 客户端 MVVM/样式/语言包，机型层，冒烟测试，验证和交付方式。在这个仓库里写或改任何代码（C#、XAML、machine.xml、冒烟测试）之前先读；加组件、模块、动作、服务、推送、页面、菜单、报警、machine.xml / ec.xml 参数、错误码、数据表时按里面的清单做。
 ---
 
 # xyz 框架开发规范
@@ -9,7 +9,7 @@ description: xyz 半导体设备框架（D:\Code）的架构分层和编码规�
 
 | 文件 | 内容 |
 |---|---|
-| `references/backend.md` | 组件、SC/EC 参数、报警、模块和动作、驱动、gRPC 服务、事件推送、错误码、数据库、配置文件、日志、线程 |
+| `references/backend.md` | 组件、machine.xml / ec.xml 参数、报警、模块和动作、驱动、gRPC 服务、事件推送、错误码、数据库、配置文件、日志、线程 |
 | `references/client.md` | 客户端工程、启动、菜单和页面、ViewModel、View、样式、控件、语言包、显示模型、旧代码里的不一致 |
 | `references/machine-and-tools.md` | 仓库顶层、机型层和部署、冒烟测试、把软件跑起来看、界面离屏预览 |
 | `references/decisions.md` | 已经跟用户定下来的设计，改相关功能前先看，不要改回去 |
@@ -19,16 +19,16 @@ description: xyz 半导体设备框架（D:\Code）的架构分层和编码规�
 ```
 xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、JsonHelper、IocHelper）
 xyz.Core\Service  后端：xyz.Components（组件）→ xyz.Modules（模块）→ xyz.Service（gRPC 服务、装配、事件桥）→ xyz.GrpcHost（宿主）
-                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（SECS/HSMS）、xyz.Database（SqlSugar）、xyz.Configs（读 sc.xml，文件本身归机型）、xyz.Common（日志）
+                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（SECS/HSMS）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志）
 xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Main/Alarm/DataCenter/Io/Manual/Recipe/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
                   → Common\xyz.Client.Common（RPC/事件/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
-xyz.35021         机型层：继承平台 Base*Module 写具体设备（品牌协议、指令在 Drivers\<品牌>）、机型客户端页面、sc.xml 和 IO 点表；编译后部署到宿主和客户端的 Modules\35021（sc.xml、点表进宿主 Config），运行时扫描加载
+xyz.35021         机型层：继承平台 Base*Module 写具体设备（品牌协议、指令在 Drivers\<品牌>）、机型客户端页面、machine.xml 和 IO 点表；编译后部署到宿主和客户端的 Modules\35021（machine.xml、点表进宿主 Config），运行时扫描加载
 tools             冒烟测试（控制台程序，不是单元测试工程）、部署和编码脚本
 ```
 
 - 客户端和后端之间只有两条路：gRPC（protobuf-net code-first，契约在 xyz.Shared）和远程事件流（后端 `EventBus.Send` → 客户端 `EventBus.Register`）。
-- 设备树：sc.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树，按开机几个阶段走：
-  组件初始化（`InitComponent`）→ `Bind` → 开始扫描（sc 配了 `IsRun` 的根）→ `OnStarted`，退出倒着 `OnStopping`。组件自己的开机准备、收尾、推送
+- 设备树：machine.xml 一个节点 = 一个组件实例（`Type` 写类型全名），模块是带状态和动作的组件；后端启动时装配整棵树，按开机几个阶段走：
+  组件初始化（`InitComponent`）→ `Bind` → 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted`，退出倒着 `OnStopping`。组件自己的开机准备、收尾、推送
   都写在这几个钩子和自己的 `OnScan` 里；启动代码（`ServiceExtensions`、宿主 `Program`）只做框架的事、不写具体组件，加组件不用改它们。
 - 设备动作 = `ModuleRoutine`（按顺序走的一串有名字的步骤，平台建动作、机型往里加步骤），在模块扫描线程里一步步推进；RPC 线程只发起和等待。
 
@@ -40,15 +40,15 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
    组件层的内部成员只对 xyz.Modules 开放（InternalsVisibleTo）。
 3. 平台不引用机型；机型能用平台抽象的就用（继承 Base*Module、实现 I*），平台缺抽象就补到平台。
 4. 客户端功能模块之间不互相引用；共用的下沉到 Presentation / Common。xyz.Drivers 不引用 Components。
-5. **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的，不按基类、不按具体类）：装配器照 sc 树把每个组件
+5. **组件都在 IoC 容器里，找组件一律按接口、从 `IocHelper` 取**（2026-10-18 用户定的，不按基类、不按具体类）：装配器照 machine.xml 树把每个组件
    按它实现的 xyz 接口登记进容器（`ComponentLoader.Register`），用的地方 `IocHelper.GetService<IXxx>()`（取一个，没装是 null）、
-   要一类的全部（所有 LoadPort、所有腔体）用 `IocHelper.GetServices<IXxx>()`（按 sc 先后，停用的连同下面的跳过）。不在组件基类上另包取法，
+   要一类的全部（所有 LoadPort、所有腔体）用 `IocHelper.GetServices<IXxx>()`（按 machine.xml 先后，停用的连同下面的跳过）。不在组件基类上另包取法，
    不写 `Xxx.Current`、不在构造里登记、不往 Bind 里传整棵树；**组件里用到的单例开机时取一次存字段**（`Bind` 里取，开机准备就要用的在
    `InitComponent` 里取），不在每个方法里现取；服务在构造里取。模块共有的走 `IModule`，跟机械手交互的站点 `ITransferStation`、不交互的（供液）`ISupplyModule`；
    能做工艺的站点 `IProcessStation`（带 `Type`，配方、流程配方、Job 认它），腔体手动页那些在继承它的 `IChamber` 里。
-   **模块要用另一个模块**（2026-10-20 用户定的，比如腔体起工艺要看供液就绪）：在 sc 上直接配对方的模块名，`Bind` 里按名字从
+   **模块要用另一个模块**（2026-10-20 用户定的，比如腔体起工艺要看供液就绪）：在 machine.xml 上直接配对方的模块名，`Bind` 里按名字从
    `IocHelper.GetServices<对方专门给别人用的接口>()` 挑出来存字段，配了却找不到就抛（开机暴露）；不靠药液名之类隐式对号，
-   只经那个接口读对方自己算好的结论，不碰对方的子组件、不在扫描线程等对方、不拿对方的锁。供液给别人用的是 `ISupplyAccess`（腔体 SC `Supply` 配模块名）。
+   只经那个接口读对方自己算好的结论，不碰对方的子组件、不在扫描线程等对方、不拿对方的锁。供液给别人用的是 `ISupplyAccess`（腔体 machine.xml `Supply` 配模块名）。
 
 ## 二、硬规矩（所有 C#、XAML，包括 tools 下的冒烟）
 
@@ -88,7 +88,7 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
        ...
    }
    ```
-4. **不留魔法数**：装机、接线、结构性的进 sc.xml（`[Machine]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
+4. **不留魔法数**：装机、接线、结构性的进 machine.xml（`[Machine]`）；现场要调的（超时、防抖、周期、批量）进 ec.xml（EC `[VariableMark]`）；协议常量写 `const`。
 5. 文件级命名空间；私有字段 `_camelCase`；常量 PascalCase；目录 = 命名空间（组件 `Components\<类别>` 例外）。
 6. 源文件（.cs、.xaml、.csproj、.xml）UTF-8 **带 BOM**；含中文的 PowerShell 5.1 脚本也要带 BOM。skill 的 .md 不加 BOM（frontmatter 要从第一个字节开始）。
 7. 线程：共享状态 `lock (_gate)`，事件在锁外发、给调用方副本；扫描线程里不等待；后台写库走单读者 `Channel`。
@@ -102,14 +102,14 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 
 | 要做的事 | 看哪里 |
 |---|---|
-| 加组件、SC/EC 参数、报警、GEM 事件 | backend.md §2 |
+| 加组件、machine.xml / ec.xml 参数、报警、GEM 事件 | backend.md §2 |
 | 加模块、加动作（ModuleRoutine） | backend.md §3；机型实现见 machine-and-tools.md §2 |
 | 加品牌驱动、改通讯 | backend.md §4 |
 | 加 gRPC 服务或接口 | backend.md §5 清单（契约 → DTO → 实现 → 两处注册 → 错误码 → 语言包 → 冒烟） |
 | 后端推送、客户端订阅 | backend.md §5「事件推送」；client.md §4「事件」 |
 | 加错误码 | backend.md §6（+ 两个语言包） |
 | 加表、流水、历史清理 | backend.md §7 |
-| 改 sc.xml、启动顺序 | backend.md §5「启动顺序」、§8 |
+| 改 machine.xml、启动顺序 | backend.md §5「启动顺序」、§8 |
 | 加客户端页面、菜单 | client.md §3 清单 |
 | 改主界面、按机型换整机调度图、LoadPort 页签 | client.md §3「主界面」；机型注册见 machine-and-tools.md §2 |
 | 写 ViewModel / View | client.md §4、§5 |

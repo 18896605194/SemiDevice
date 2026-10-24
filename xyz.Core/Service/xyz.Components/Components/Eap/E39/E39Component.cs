@@ -10,7 +10,7 @@ using xyz.Secs.SecsII;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 对象服务（SEMI E39，sc.xml 的 Eap 下的 E39 节点）：Host 用 S14 按对象类型查属性（S14F1）、改属性（S14F3）、
+/// 对象服务（SEMI E39，machine.xml 的 Eap 下的 E39 节点）：Host 用 S14 按对象类型查属性（S14F1）、改属性（S14F3）、
 /// 问有哪些类型（S14F5）、问属性名（S14F7）、建对象（S14F9）、删对象（S14F11）。
 /// 自己不管任何对象：E87、E90、E40、E94 开机时把自己的对象类型登记进来，这里只解析报文、过滤、拼回复。
 /// 查在 ON-LINE 就行；改、建、删是动作命令，要 ON-LINE REMOTE。

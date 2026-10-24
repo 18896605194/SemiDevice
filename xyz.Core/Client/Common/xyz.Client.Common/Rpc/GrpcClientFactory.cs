@@ -9,8 +9,8 @@ namespace xyz.Client.Common.Rpc;
 /// 通用 gRPC 客户端工厂。
 /// Channel 由程序启动时初始化一次，后续所有服务代理共用。
 /// 地址优先级：显式传参 &gt; client.json 的 GrpcAddress（跟客户端 exe 同目录，可选）&gt; 默认 localhost:5000。
-/// 端口必须在连上后端之前就知道——后端的端口配在 sc.xml 的 Rpc 节点里，客户端没法走 gRPC 去问
-/// （鸡生蛋），所以客户端这边的覆盖走本地文件，和后端 sc.xml 保持一致即可。
+/// 端口必须在连上后端之前就知道——后端的端口配在 machine.xml 的 Rpc 节点里，客户端没法走 gRPC 去问
+/// （鸡生蛋），所以客户端这边的覆盖走本地文件，和后端 machine.xml 保持一致即可。
 /// </summary>
 public static class GrpcClientFactory
 {

@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 一个双作用气缸（门、Bowl、Lift）的显示模型：腔体三维图绑它画开关 / 升降。sc.xml 里没配时 IsPresent 为 false。
+/// 一个双作用气缸（门、Bowl、Lift）的显示模型：腔体三维图绑它画开关 / 升降。machine.xml 里没配时 IsPresent 为 false。
 /// 三维图跟反馈走：到位画在那一头，未知（命令发了、到位信号还没亮）画在行程中间并高亮。
 /// </summary>
 public class ChamberCylinderModel : ObservableObject
@@ -20,7 +20,7 @@ public class ChamberCylinderModel : ObservableObject
 
     private bool _isPresent;
 
-    /// <summary>sc.xml 里配了这个设备。</summary>
+    /// <summary>machine.xml 里配了这个设备。</summary>
     public bool IsPresent
     {
         get => _isPresent;
@@ -58,7 +58,7 @@ public class ChamberCylinderModel : ObservableObject
     public bool IsUnknown => IsPresent && Position == CylinderPosition.Unknown;
 
     /// <summary>
-    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配这个设备。
+    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 machine.xml 里没配这个设备。
     /// </summary>
     public void Update(ChamberCylinderDto? dto)
     {

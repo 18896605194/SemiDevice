@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 工艺步骤的一行：一个字段一格，按字段表的先后（字段表来自 sc.xml，界面不写死字段）。一格改了就告诉页面；字段之间不互相管。
+/// 工艺步骤的一行：一个字段一格，按字段表的先后（字段表来自 machine.xml，界面不写死字段）。一格改了就告诉页面；字段之间不互相管。
 /// 下拉的选项按配方头选的 Type 取那一套（Type 换了页面整行重摆）。
 /// </summary>
 public sealed class ProcessRecipeStepModel : ObservableObject

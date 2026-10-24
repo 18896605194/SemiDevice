@@ -14,7 +14,7 @@ namespace xyz.Modules;
 [Component(description: "调度引擎：从任务表拿任务执行（站内任务交给站点、取放交给搬运管理），做完记回任务表")]
 public class SchedulerComponent : ComponentBase, ISchedulerComponent
 {
-    #region SC
+    #region Machine
 
     [Machine("False", "Scheduler", "并行的工艺站挑最久没开工的那个，几个腔轮着用；False = 按流程配方勾的顺序，第一个能放的就用")]
     public bool PreferIdleStation { get; set; }

@@ -14,7 +14,7 @@ using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
 // LoadPort 三维图冒烟：LoadPort（LoadPortVisual3D）+ 托板上的花篮（CarrierVisual3D，片用 DiskVisual3D）组合起来的 LoadPortScene。
-// 槽数照 sc（花篮高度、槽号、片数、取景跟着变）、片的数据就地换、点片选中、每个动作 0.5 s 且有先后（先推进去再开门 / 先关门再退出）、
+// 槽数照 machine.xml（花篮高度、槽号、片数、取景跟着变）、片的数据就地换、点片选中、每个动作 0.5 s 且有先后（先推进去再开门 / 先关门再退出）、
 // 只亮在动的那块、门在半路停中间一直亮、中途反向不跳、藏起来直接落位、面板灯、盒子跟在位 / 到位两盏灯走（都亮才画）、视角工具栏、片数和空槽的字，
 // 以及手动页的显示模型按状态和门反馈推出对接 / 门开 / 门在半路。不连后端。
 internal static class Program
@@ -77,15 +77,15 @@ internal static class Program
             Color idleCarriage = ColorOf(carriage);
             bool Lit(HardwareVisual3D part) => ColorOf(part) != (ReferenceEquals(part, door) ? idleDoor : idleCarriage);
 
-            // 1. 没载具、或者有载具但还不知道槽数（sc 的 SlotCount 还没推上来）：托板上不装花篮，片数和框外一行都不写
+            // 1. 没载具、或者有载具但还不知道槽数（machine.xml 的 SlotCount 还没推上来）：托板上不装花篮，片数和框外一行都不写
             Check(Carrier() is null && !Shown("Counter") && ((FrameworkElement)scene.FindName("InfoRow")).Visibility != Visibility.Visible,
                 "没载具：不装花篮、不写片数和空槽");
             scene.IsPresent = true;
             scene.IsPlaced = true;
             Pump(20);
-            Check(Carrier() is null, "槽数还是 0（sc 没推上来）：不装花篮，也不按 25 槽兜底");
+            Check(Carrier() is null, "槽数还是 0（machine.xml 没推上来）：不装花篮，也不按 25 槽兜底");
 
-            // 2. 槽数照 sc：25 槽 → 花篮装上，槽号 01 / 05 / … / 25 六个；片数、空槽按槽数算
+            // 2. 槽数照 machine.xml：25 槽 → 花篮装上，槽号 01 / 05 / … / 25 六个；片数、空槽按槽数算
             scene.Wafers = Wafers(25, [6, 12, 20]);
             scene.SlotCount = 25;
             Pump(20);
@@ -289,7 +289,7 @@ internal static class Program
 
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine($"PASS: {_checks} LoadPort scene checks (sc slot count, Disk wafers, selection, 0.5 s ordered motions, highlight, unknown door, lamps, carrier follows lamps, views, model mapping).");
+            Console.WriteLine($"PASS: {_checks} LoadPort scene checks (machine.xml slot count, Disk wafers, selection, 0.5 s ordered motions, highlight, unknown door, lamps, carrier follows lamps, views, model mapping).");
             return 0;
         }
         catch (Exception ex)

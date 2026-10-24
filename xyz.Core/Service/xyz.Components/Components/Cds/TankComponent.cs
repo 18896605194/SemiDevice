@@ -60,7 +60,7 @@ public class TankComponent : ComponentBase, ITank
     #endregion
 
     /// <summary>
-    /// SC FillTo 指的那个
+    /// machine.xml FillTo 指的那个
     /// </summary>
     private IDiSensor? _fillTo;
 
@@ -74,7 +74,7 @@ public class TankComponent : ComponentBase, ITank
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("H", "Tank", "补液补到哪个信号亮算完成：L 或 H（HH 是报警位，不能当完成位）")]
     public string FillTo { get; set; } = "H";
@@ -217,7 +217,7 @@ public class TankComponent : ComponentBase, ITank
     #endregion
 
     /// <summary>
-    /// SC 灌完值：补液完成位只能是 L 或 H，配错开机就报
+    /// machine.xml 灌完值：补液完成位只能是 L 或 H，配错开机就报
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
@@ -234,7 +234,7 @@ public class TankComponent : ComponentBase, ITank
             return;
         }
 
-        throw new InvalidOperationException($"{FullPath} 的 SC FillTo 配成了 \"{FillTo}\"，只能是 L 或 H");
+        throw new InvalidOperationException($"{FullPath} 的 machine.xml FillTo 配成了 \"{FillTo}\"，只能是 L 或 H");
     }
 
     /// <summary>

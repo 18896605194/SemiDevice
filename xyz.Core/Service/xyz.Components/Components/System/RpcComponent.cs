@@ -4,8 +4,8 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 对前端壳的 gRPC 服务端点（sc.xml 的 Rpc 节点）：监听地址与端口。
-/// 宿主在装配完组件树之后从这里取值配 Kestrel；sc.xml 没配该节点时退回默认值 localhost:5000（与老版本一致）。
+/// 对前端壳的 gRPC 服务端点（machine.xml 的 Rpc 节点）：监听地址与端口。
+/// 宿主在装配完组件树之后从这里取值配 Kestrel；machine.xml 没配该节点时退回默认值 localhost:5000（与老版本一致）。
 /// 端口规划注意：HSMS（EAP 链路）惯例端口也是 5000，接 EAP 时把其中一边挪开。
 /// </summary>
 [Component(description: "对前端壳的 gRPC 服务端点（监听地址与端口）")]

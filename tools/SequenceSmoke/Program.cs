@@ -13,7 +13,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 流程配方冒烟：sc.xml 节点、可选站点分组（按 sc 的分组节点 + 机械手示教点表生成）、新建 / 改名 / 保存 / 删除和各项检查、
+// 流程配方冒烟：machine.xml 节点、可选站点分组（按 machine.xml 的分组节点 + 机械手示教点表生成）、新建 / 改名 / 保存 / 删除和各项检查、
 // 文件读写（一个编号一个文件、坏文件跳过）、版本冲突、变更事件、gRPC 服务的错误码。不连设备，文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
 
@@ -43,27 +43,27 @@ SequenceData? Data(HandleResult result)
 string folder = Path.Combine(Path.GetTempPath(), "xyz-sequence-smoke-" + Guid.NewGuid().ToString("N"));
 try
 {
-    // 0. 真 sc.xml 里配了流程配方库节点，三个参数都写全；装配时 Folder 换成临时目录（不往运行目录写文件）。
-    var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
-    Check(scConfig is not null, "sc.xml 解析失败");
-    var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Sequence", StringComparison.OrdinalIgnoreCase));
-    Check(node is not null && node.Type == typeof(SequenceComponent).FullName, "sc.xml 里应有指向 SequenceComponent 的 Sequence 节点");
+    // 0. 真 machine.xml 里配了流程配方库节点，三个参数都写全；装配时 Folder 换成临时目录（不往运行目录写文件）。
+    var machineSettings = XmlHelper.Deserialize<MachineSettings>(Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"));
+    Check(machineSettings is not null, "machine.xml 解析失败");
+    var node = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Sequence", StringComparison.OrdinalIgnoreCase));
+    Check(node is not null && node.Type == typeof(SequenceComponent).FullName, "machine.xml 里应有指向 SequenceComponent 的 Sequence 节点");
     string ValueOf(string name)
     {
         return node!.Values.First(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase)).Value ?? string.Empty;
     }
 
     Check(ValueOf("Capacity") == "99" && ValueOf("NameMaxLength") == "32" && ValueOf("Folder") == "Recipe\\Sequence",
-        "sc.xml 里写全三个参数：个数 99、名称最长 32、目录 Recipe\\Sequence");
+        "machine.xml 里写全三个参数：个数 99、名称最长 32、目录 Recipe\\Sequence");
     node!.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = folder;
 
     var roots = SmokeIoc.Load([node]);
     var library = roots.OfType<SequenceComponent>().Single();
-    Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个流程配方库，参数按 sc.xml");
+    Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个流程配方库，参数按 machine.xml");
     Check(ReferenceEquals(IocHelper.GetService<ISequenceComponent>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
 
-    // 1. 可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手示教点表里有的；顶层直接装的站点自成一组；
+    // 1. 可选站点分组：按 machine.xml 的分组节点（模块全路径的第一层）和下面装的模块，只留能放片、机械手示教点表里有的；顶层直接装的站点自成一组；
     //    机械手本身、机械手到不了的站点（SmokePM3）都不算。
     var lp1 = new ProbePort("SmokeLP1", "LoadPort");
     var lp2 = new ProbePort("SmokeLP2", "LoadPort");
@@ -83,7 +83,7 @@ try
     library.Bind([lp1, lp2, robot, pm1, pm2, pm3, aligner]);
     var groups = library.StationGroups;
     Check(groups.Select(group => group.Name).SequenceEqual(new[] { "LoadPort", "Chamber", "SmokeAligner" }),
-        "分组按 sc.xml 的先后：LoadPort、Chamber、顶层的 SmokeAligner，实际 " + string.Join(",", groups.Select(group => group.Name)));
+        "分组按 machine.xml 的先后：LoadPort、Chamber、顶层的 SmokeAligner，实际 " + string.Join(",", groups.Select(group => group.Name)));
     Check(groups[0].Modules.SequenceEqual(new[] { "SmokeLP1", "SmokeLP2" }) && groups[0].IsLoadPort && !groups[0].NeedsRecipe,
         "LoadPort 分组：两个 LoadPort，不要工艺配方");
     Check(groups[1].Modules.SequenceEqual(new[] { "SmokePM1", "SmokePM2" }) && !groups[1].IsLoadPort && groups[1].NeedsRecipe,
@@ -157,7 +157,7 @@ try
     Fails(library.Create(100, "HUNDRED", "Tester"), ErrorCodes.SequenceIndexOutOfRange, ["100", "99"], "编号超过个数");
     Check(changed.Count == 1 && library.List().Count == 1, "没成的不建、不发事件");
 
-    // 3. 保存：版本对得上、步骤检查通过才存，版本加 1、记修改人；分组、站点按 sc 的写法和先后规整，不要配方的分组把配方清掉。
+    // 3. 保存：版本对得上、步骤检查通过才存，版本加 1、记修改人；分组、站点按 machine.xml 的写法和先后规整，不要配方的分组把配方清掉。
     var good = new List<SequenceStep>
     {
         new("loadport", ["smokelp2", "SmokeLP1"], "IGNORED"),
@@ -170,7 +170,7 @@ try
     var savedSteps = Data(saved)!.Steps;
     Check(savedSteps[0].Group == "LoadPort" && savedSteps[0].Stations.SequenceEqual(new[] { "SmokeLP1", "SmokeLP2" }) && savedSteps[0].Recipe == string.Empty
           && savedSteps[1].Stations.SequenceEqual(new[] { "SmokePM2" }) && savedSteps[1].Recipe == "SC1_60S",
-        "规整：分组、站点按 sc 的写法和先后，LoadPort 不带配方，配方去掉空白");
+        "规整：分组、站点按 machine.xml 的写法和先后，LoadPort 不带配方，配方去掉空白");
     Check(changed.SequenceEqual(new[] { 1, 1 }), "保存发一次变更事件");
 
     Fails(library.Save(1, 1, string.Empty, good, "Saver"), ErrorCodes.SequenceRevisionMismatch, ["1"], "旧版本存不进去（别处改过）");
@@ -464,14 +464,14 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} sequence checks (sc.xml node, station groups from sc groups and robot stations, create/rename/save/delete with every rule, host recipe management by name (export as JSON, import as new or overwrite through the same checks, delete, change reports), files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library and to fit every chamber picked).");
+Console.WriteLine($"PASS: {checks} sequence checks (machine.xml node, station groups from machine.xml groups and robot stations, create/rename/save/delete with every rule, host recipe management by name (export as JSON, import as new or overwrite through the same checks, delete, change reports), files written and read back with bad files skipped, revision conflicts, change events, the sequence service error codes, and recipes required to be in the process recipe library and to fit every chamber picked).");
 
 /// <summary>
 /// 探针用：生产里名字由装配器经 internal setter 设，这里反射设。
 /// </summary>
 static class Probe
 {
-    // group：sc.xml 里套在哪个分组节点下（全路径的第一层），顶层直接装的不给
+    // group：machine.xml 里套在哪个分组节点下（全路径的第一层），顶层直接装的不给
     public static void Name(ComponentBase component, string name, string? group = null)
     {
         string path = name;
@@ -636,7 +636,7 @@ sealed class ProbeRobot : BaseModule, ITransferRobot
     ModuleRoutine? ITransferRobot.Swap(int pickArm, int placeArm, string station, int slot) => null;
 }
 
-// 探针晶圆尺寸：切了就换、发 Changed，不写 sc.xml。
+// 探针晶圆尺寸：切了就换、发 Changed，不写 machine.xml。
 sealed class ProbeWaferSize : IWaferSize
 {
     public int Size { get; private set; } = WaferSizeComponent.Inch12;

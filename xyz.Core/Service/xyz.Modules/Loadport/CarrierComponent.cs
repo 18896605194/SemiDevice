@@ -18,7 +18,7 @@ namespace xyz.Modules;
 [Component(description: "载具（FOUP）：到达、读码、槽图、取放状态，向 E87 上报")]
 public class CarrierComponent : ComponentBase, ICarrier
 {
-    #region SC
+    #region Machine
 
     [Machine("Query", "_carrier",
         "载具在位以什么为准：Query = 状态查询（在位、到位两位都亮算放好，都灭算拿走，一亮一灭不算变化）；Event = 设备主动上报（PODON 放上 / PODOF 拿走）")]
@@ -34,7 +34,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     private volatile bool _isArrived;
 
     /// <summary>
-    /// 载具到了（SV）：按 SC PresenceSource 判出来的结果，不是哪个传感器的原始值——Query 看状态查询的在位（IsPresent）、
+    /// 载具到了（SV）：按 machine.xml PresenceSource 判出来的结果，不是哪个传感器的原始值——Query 看状态查询的在位（IsPresent）、
     /// 到位（IsPlaced）两位，Event 看 PODON/PODOF；只在端口的扫描线程上改。载具到达、拿走、E84 交接、Job、回片、E87 用的都是它。
     /// 界面不看它：三维图上的盒子跟原始两位走（两位都亮才画）。
     /// </summary>
@@ -334,7 +334,7 @@ public class CarrierComponent : ComponentBase, ICarrier
     }
 
     /// <summary>
-    /// 扫描周期：先扫子组件，再收读头读码的结果。读头是端口下的兄弟节点、在 sc.xml 里排在本组件前面，
+    /// 扫描周期：先扫子组件，再收读头读码的结果。读头是端口下的兄弟节点、在 machine.xml 里排在本组件前面，
     /// 同一拍里它先出结果、这里紧跟着取。
     /// </summary>
     protected override void OnScan()

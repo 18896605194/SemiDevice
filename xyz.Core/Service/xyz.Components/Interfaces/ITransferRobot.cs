@@ -20,7 +20,7 @@ public interface ITransferRobot : IModule
     IReadOnlyDictionary<string, ITeachPoint> TeachPointsOf(int size);
 
     /// <summary>
-    /// 这台机械手用不用扫片（sc 开关）：开了，它示教点表里的 LoadPort 由它扫
+    /// 这台机械手用不用扫片（machine.xml 开关）：开了，它示教点表里的 LoadPort 由它扫
     /// </summary>
     bool MapEnabled { get; }
 

@@ -30,28 +30,28 @@ void Check(bool condition, string message)
     checks++;
 }
 
-// 0. 真 sc.xml 里配了账本节点（这里只装配这一个节点：整份 sc.xml 要机型模块程序集，不是本工具的事）。
-// 读编译时从 xyz.Configs 拷到输出目录的那份（跟源码 sc.xml 同一份），不写死仓库位置。
-var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
-Check(scConfig is not null, "sc.xml 解析失败");
-var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "LedgerManager", StringComparison.OrdinalIgnoreCase));
-Check(node is not null && node.Type == typeof(LedgerManagerComponent).FullName, "sc.xml 里应有指向 LedgerManagerComponent 的顶层节点");
-var databaseGroup = scConfig.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Database", StringComparison.OrdinalIgnoreCase));
-Check(databaseGroup is not null, "sc.xml 应有 Database 节点");
-var mapperNode = scConfig.Modules.FirstOrDefault(setting => setting.Type == typeof(MapperComponent).FullName);
-Check(mapperNode is not null, "账本的存盘、流水、人工调整记录靠映射组件转，sc.xml 里应有 MapperComponent 节点");
+// 0. 真 machine.xml 里配了账本节点（这里只装配这一个节点：整份 machine.xml 要机型模块程序集，不是本工具的事）。
+// 读编译时从 xyz.Configs 拷到输出目录的那份（跟源码 machine.xml 同一份），不写死仓库位置。
+var machineSettings = XmlHelper.Deserialize<MachineSettings>(Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"));
+Check(machineSettings is not null, "machine.xml 解析失败");
+var node = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "LedgerManager", StringComparison.OrdinalIgnoreCase));
+Check(node is not null && node.Type == typeof(LedgerManagerComponent).FullName, "machine.xml 里应有指向 LedgerManagerComponent 的顶层节点");
+var databaseGroup = machineSettings.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Database", StringComparison.OrdinalIgnoreCase));
+Check(databaseGroup is not null, "machine.xml 应有 Database 节点");
+var mapperNode = machineSettings.Modules.FirstOrDefault(setting => setting.Type == typeof(MapperComponent).FullName);
+Check(mapperNode is not null, "账本的存盘、流水、人工调整记录靠映射组件转，machine.xml 里应有 MapperComponent 节点");
 
 // 连库、映射组件和账本一起装：账本的流水库名要能在这些连接里找到，否则会回落到默认库。
 // 后面直接 new 出来的账本也用这里装出来的映射组件。
 var roots = SmokeIoc.Load([databaseGroup!, mapperNode!, node!]);
-Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && IocHelper.GetService<IMapper>() is not null, "sc.xml 应装出映射组件");
+Check(roots.OfType<MapperComponent>().SingleOrDefault() is not null && IocHelper.GetService<IMapper>() is not null, "machine.xml 应装出映射组件");
 Check(XyzDb.IsRegistered("Default") && XyzDb.IsRegistered("Io"),
     "Database 节点应注册出业务库与设备数据库两路连接，实际: " + string.Join(",", XyzDb.RegisteredNames));
 Check(node!.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
                                 && string.Equals(value.Value, "Default", StringComparison.OrdinalIgnoreCase)),
     "晶圆流水属业务数据，应配在默认库");
 var assembled = roots.OfType<LedgerManagerComponent>().SingleOrDefault();
-Check(assembled is not null && assembled.IsEnable && assembled.Name == "LedgerManager", "sc.xml 应装出一个启用的 LedgerManagerComponent");
+Check(assembled is not null && assembled.IsEnable && assembled.Name == "LedgerManager", "machine.xml 应装出一个启用的 LedgerManagerComponent");
 Check(ReferenceEquals(IocHelper.GetService<ILedgerManager>(), assembled), "装配出来就登记成单例");
 // 启动时只对 roots 里的 BaseModule 调 Start()，账本不在其中，所以没有扫描线程。
 Check(!roots.OfType<BaseModule>().Any(module => ReferenceEquals(module, assembled)), "账本不该出现在会被 Start 的模块清单里");
@@ -234,7 +234,7 @@ var databases = SmokeIoc.Load([
 Check(databases.Count == 1 && XyzDb.IsRegistered("SmokeWafer"), "Database 节点应按节点名注册连接");
 Check(!XyzDb.IsRegistered("没配过的库"), "没配的库名不算注册");
 
-// 11. 流水入库：只有装配出来（读到 SC）的账本才落库，建/移/改/删各写一行，能按片的内部 ID 回溯全程。
+// 11. 流水入库：只有装配出来（读到 machine.xml）的账本才落库，建/移/改/删各写一行，能按片的内部 ID 回溯全程。
 var recorded = SmokeIoc.Load([
     new ModuleConfig
     {
@@ -335,13 +335,13 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 // 14. 报警：账实不符要报出来，不能只写日志（CTC 那边就是静默，现场表现成"片凭空消失"）；
 //     报出去以后只能人工复位清；报出、清除都入库。
 {
-    var alarmNode = scConfig.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Alarm", StringComparison.OrdinalIgnoreCase));
+    var alarmNode = machineSettings.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Alarm", StringComparison.OrdinalIgnoreCase));
     Check(alarmNode is not null && alarmNode.Type == typeof(AlarmComponent).FullName
           && alarmNode.Values.Any(value => string.Equals(value.Name, "HistoryDatabase", StringComparison.OrdinalIgnoreCase)
                                            && string.Equals(value.Value, "Default", StringComparison.OrdinalIgnoreCase)),
-        "sc.xml 应有报警节点；报警记录属业务数据，应配在默认库");
+        "machine.xml 应有报警节点；报警记录属业务数据，应配在默认库");
 
-    // 装配出来（读到 SC）的报警组件才入库；这里落到冒烟库，不碰默认库
+    // 装配出来（读到 machine.xml）的报警组件才入库；这里落到冒烟库，不碰默认库
     var alarmSince = DateTime.Now.AddSeconds(-1);
     var alarms = SmokeIoc.Load([
         new ModuleConfig
@@ -734,7 +734,7 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
     SmokeIoc.Use<IAlarm>(null);
 }
 
-// 存盘与开机恢复：装配出来（读到 SC）的账本隔一会儿把当前账整张存盘；"重启"后新的一本账在模块登记完槽位后恢复——
+// 存盘与开机恢复：装配出来（读到 machine.xml）的账本隔一会儿把当前账整张存盘；"重启"后新的一本账在模块登记完槽位后恢复——
 // 腔体、机械手上的片放回去（还是同一个内部标识，来处、载具都在），LoadPort 上的不恢复（以开机 Mapping 为准），
 // 重启前在加工的记成中止；恢复之前不存盘（开机那一刻的空账不能把上次存的冲掉）；退出时最后存一次。
 {

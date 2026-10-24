@@ -16,8 +16,8 @@
     <sys:String x:Key="module.operation_faulted">{0} operation faulted: {1}</sys:String>
     <sys:String x:Key="routine.step_at" xml:space="preserve">Step {0}/{1}: </sys:String>
 
-    <!-- Equipment (System node in sc.xml: initialize all, Auto / Manual, stop, return all) -->
-    <sys:String x:Key="system.not_installed">The System node is not configured in sc.xml (no equipment module); Init, Auto / Manual, Stop and Return All are unavailable</sys:String>
+    <!-- Equipment (System node in machine.xml: initialize all, Auto / Manual, stop, return all) -->
+    <sys:String x:Key="system.not_installed">The System node is not configured in machine.xml (no equipment module); Init, Auto / Manual, Stop and Return All are unavailable</sys:String>
     <sys:String x:Key="system.init_rejected">{0} refused to initialize (state not allowed, busy, or no initialization defined); initializing all did not succeed</sys:String>
     <sys:String x:Key="system.init_failed">{0} failed to initialize; initializing all did not succeed</sys:String>
     <sys:String x:Key="system.return_incomplete">Return all left {0} wafer(s) unreturned; see the log for the reasons</sys:String>
@@ -30,11 +30,11 @@
     <sys:String x:Key="system.return_module_not_ready">{0}, needed for Return All, is not usable now (disabled, not initialized, in alarm or busy); Return All cannot start</sys:String>
 
     <!-- Wafer size (switch 8 / 12 inch on the main page) -->
-    <sys:String x:Key="system.wafer_size_not_installed">WaferSize is not configured under the System node in sc.xml; the wafer size cannot be switched</sys:String>
+    <sys:String x:Key="system.wafer_size_not_installed">WaferSize is not configured under the System node in machine.xml; the wafer size cannot be switched</sys:String>
     <sys:String x:Key="system.wafer_size_invalid">Wafer size must be 8 or 12; got {0}</sys:String>
     <sys:String x:Key="system.wafer_size_initialized">{0} has been initialized; switch the wafer size while the equipment is not initialized</sys:String>
     <sys:String x:Key="system.wafer_size_has_wafer">There is still a wafer in {0}; the equipment (outside the load ports) must be empty to switch the wafer size</sys:String>
-    <sys:String x:Key="system.wafer_size_save_failed">Failed to save the wafer size to sc.xml: {0}</sys:String>
+    <sys:String x:Key="system.wafer_size_save_failed">Failed to save the wafer size to machine.xml: {0}</sys:String>
 
     <!-- Module state texts; codes defined in xyz.Modules ModuleState/TransferModuleState/LoadPortState -->
     <sys:String x:Key="module.state.not_init">Not initialized</sys:String>
@@ -84,7 +84,7 @@
     <sys:String x:Key="loadport.handoff_running">{0} handoff with the transport vehicle is not finished (or timed out and waiting for the operator); cannot load</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} has no station configured: {1}</sys:String>
-    <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} for this pick / place (pick: PickArms, place: PlaceArms of the station node in sc.xml)</sys:String>
+    <sys:String x:Key="robot.arm_not_allowed">{0}: station {1} does not allow Arm{2} for this pick / place (pick: PickArms, place: PlaceArms of the station node in machine.xml)</sys:String>
     <sys:String x:Key="robot.arm_has_wafer">{0} Arm{1} already holds a wafer: {2}; cannot pick another (if the ledger is wrong, fix it on the wafer ledger adjustment page first)</sys:String>
     <sys:String x:Key="robot.arm_no_wafer">{0} Arm{1} holds no wafer; nothing to place (if the ledger is wrong, fix it on the wafer ledger adjustment page first)</sys:String>
     <sys:String x:Key="robot.arm_sensor_has_wafer">{0} Arm{1} presence sensor detects a wafer, but the wafer ledger says the arm is empty: check the actual wafer position and fix the ledger</sys:String>
@@ -92,7 +92,7 @@
     <sys:String x:Key="robot.arm_sensor_unknown">{0} Arm{1} presence sensor cannot be read (PLC not connected or wrong IO point); pick/place is not allowed</sys:String>
     <sys:String x:Key="robot.ledger_move_failed">{0} completed the pick/place motion, but the wafer ledger could not move the wafer from {1} slot {2} to {3} slot {4}; confirm the actual wafer position before recovery</sys:String>
     <sys:String x:Key="robot.handoff_unsupported">{0} cannot do step-wise pick/place, so it cannot serve a station that needs a mid-transfer handoff</sys:String>
-    <sys:String x:Key="robot.map_unsupported">{0} does not do wafer mapping (MapEnabled is off in sc, or this robot cannot map)</sys:String>
+    <sys:String x:Key="robot.map_unsupported">{0} does not do wafer mapping (MapEnabled is off in machine.xml, or this robot cannot map)</sys:String>
     <sys:String x:Key="robot.direction.north">North</sys:String>
     <sys:String x:Key="robot.direction.east">East</sys:String>
     <sys:String x:Key="robot.direction.south">South</sys:String>
@@ -126,7 +126,7 @@
     <sys:String x:Key="tank.not_ready">{0} is not ready; fill it before supplying</sys:String>
     <sys:String x:Key="tank.valve_failed">{0}: a valve in the {1} group could not be opened (PLC offline or DO point not configured); all valves were closed again</sys:String>
     <sys:String x:Key="tank.close_failed">{0}: some valves could not be closed (PLC offline or DO point not configured)</sys:String>
-    <sys:String x:Key="ai.not_installed">AI is not configured on this tool (Ai node in sc.xml)</sys:String>
+    <sys:String x:Key="ai.not_installed">AI is not configured on this tool (Ai node in machine.xml)</sys:String>
     <sys:String x:Key="ai.alarm_not_found">Alarm {1} on {0} is no longer active (it may have been reset)</sys:String>
     <sys:String x:Key="ai.timeout">AI did not answer within {0} ms</sys:String>
     <sys:String x:Key="ai.failed">AI service error: {0}</sys:String>
@@ -139,8 +139,8 @@
     <sys:String x:Key="transfer.station_handoff_failed">{0}: the mid-transfer handoff did not complete (timeout or device error). The robot is stopped inside the station; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} failed: the station stays in Transferring; check where the wafer is on site before resetting</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} could not be marked {1} (the station state does not match the transfer progress; it may have been operated manually)</sys:String>
-    <sys:String x:Key="transfer.not_installed">Cannot switch to Auto: no Transfer node in sc.xml (transfer manager not installed)</sys:String>
-    <sys:String x:Key="transfer.disabled">The transfer manager is disabled (IsEnable=False on the Transfer node in sc.xml): cannot switch to Auto or submit transfers</sys:String>
+    <sys:String x:Key="transfer.not_installed">Cannot switch to Auto: no Transfer node in machine.xml (transfer manager not installed)</sys:String>
+    <sys:String x:Key="transfer.disabled">The transfer manager is disabled (IsEnable=False on the Transfer node in machine.xml): cannot switch to Auto or submit transfers</sys:String>
     <sys:String x:Key="transfer.station_not_found">{0} is not a station that can hold wafers (not in the transfer module table)</sys:String>
     <sys:String x:Key="transfer.slot_out_of_range">{0} has no slot {1} ({2} slots)</sys:String>
     <sys:String x:Key="transfer.same_slot">Source and target are the same slot</sys:String>
@@ -153,8 +153,8 @@
     <sys:String x:Key="transfer.not_held">Wafer {0} has no resources retained after a failed transfer (already released, or wrong wafer ID)</sys:String>
     <sys:String x:Key="transfer.wait_timeout">Transfer {0} did not finish within {1} ms: it is still running, result not yet confirmed</sys:String>
     <sys:String x:Key="transfer.robot_mapping">{0} is queued to map a LoadPort: once its arms are empty it maps first, so this transfer waits until the mapping is done</sys:String>
-    <sys:String x:Key="job.not_installed">No Job node in sc.xml (job manager not installed)</sys:String>
-    <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in sc.xml)</sys:String>
+    <sys:String x:Key="job.not_installed">No Job node in machine.xml (job manager not installed)</sys:String>
+    <sys:String x:Key="job.disabled">The job manager is disabled (IsEnable=False on the Job node in machine.xml)</sys:String>
     <sys:String x:Key="job.command_timeout">The command was not accepted within {0} ms; it may still be applied, check the job state</sys:String>
     <sys:String x:Key="job.not_found">Job {0} not found</sys:String>
     <sys:String x:Key="job.command_not_allowed">{0} does not accept {1} in state {2}</sys:String>
@@ -186,22 +186,22 @@
     <sys:String x:Key="job.task_position_mismatch">Cannot mark {1} done for {0}: the ledger has it at {2}, not where this step leaves it</sys:String>
     <sys:String x:Key="job.wafer_moved">{0} is not where it should be (expected at {1}; ledger changed, carrier removed, or re-mapped)</sys:String>
 
-    <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in sc.xml)</sys:String>
+    <sys:String x:Key="alarm.not_installed">Alarm component is not installed (no Alarm node in machine.xml)</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} has never raised an alarm, nothing to reset</sys:String>
 
     <sys:String x:Key="history.query_failed">Query failed: {0}</sys:String>
 
-    <sys:String x:Key="datachart.not_installed">Data chart is not installed (no DataChart node in sc.xml)</sys:String>
-    <sys:String x:Key="realchart.not_installed">Real-time chart is not installed (no RealChart node in sc.xml)</sys:String>
+    <sys:String x:Key="datachart.not_installed">Data chart is not installed (no DataChart node in machine.xml)</sys:String>
+    <sys:String x:Key="realchart.not_installed">Real-time chart is not installed (no RealChart node in machine.xml)</sys:String>
 
-    <sys:String x:Key="ec.not_installed">EC component is not installed (no EC node in sc.xml)</sys:String>
+    <sys:String x:Key="ec.not_installed">EC component is not installed (no EC node in machine.xml)</sys:String>
     <sys:String x:Key="ec.not_found">No such EC item: {0}</sys:String>
     <sys:String x:Key="ec.invalid_format">{0}: invalid value (expected {1})</sys:String>
     <sys:String x:Key="ec.out_of_range">{0} is out of range {1} ~ {2} {3}</sys:String>
     <sys:String x:Key="ec.invalid_option">{0} must be one of: {1}</sys:String>
     <sys:String x:Key="ec.save_failed">{0} was not changed: cannot write ec.xml (file in use or access denied)</sys:String>
 
-    <sys:String x:Key="wafer.ledger_disabled">The wafer ledger is off (no LedgerManager node in sc.xml, or IsEnable=False)</sys:String>
+    <sys:String x:Key="wafer.ledger_disabled">The wafer ledger is off (no LedgerManager node in machine.xml, or IsEnable=False)</sys:String>
     <sys:String x:Key="wafer.location_not_found">The ledger has no location named {0}</sys:String>
     <sys:String x:Key="wafer.slot_out_of_range">{0} has no slot {1} (it has {2} slots)</sys:String>
     <sys:String x:Key="wafer.no_wafer">There is no wafer in {0} slot {1} (the ledger may have just been changed elsewhere)</sys:String>
@@ -209,7 +209,7 @@
     <sys:String x:Key="wafer.same_slot">Source and target are the same slot</sys:String>
     <sys:String x:Key="wafer.id_required">Enter a wafer ID to create a ledger entry</sys:String>
     <sys:String x:Key="wafer.duplicate_id">Wafer {0} is already in the ledger ({1} slot {2}); use Move to bring it here</sys:String>
-    <sys:String x:Key="sequence.not_installed">The sequence library is not installed (no Sequence node in sc.xml)</sys:String>
+    <sys:String x:Key="sequence.not_installed">The sequence library is not installed (no Sequence node in machine.xml)</sys:String>
     <sys:String x:Key="sequence.index_out_of_range">No. {0} does not exist (1 ~ {1})</sys:String>
     <sys:String x:Key="sequence.not_found">No. {0} has no sequence (it may have just been deleted elsewhere)</sys:String>
     <sys:String x:Key="sequence.index_occupied">No. {0} already has a sequence: {1}</sys:String>
@@ -218,7 +218,7 @@
     <sys:String x:Key="sequence.name_duplicate">The name {0} is already used by No. {1}</sys:String>
     <sys:String x:Key="sequence.revision_mismatch">No. {0} was changed elsewhere after you opened it, so it can't be saved: discard your changes and open it again</sys:String>
     <sys:String x:Key="sequence.step_not_loadport">Step {0} must be a LoadPort</sys:String>
-    <sys:String x:Key="sequence.group_not_found">Step {0}: group {1} no longer exists (sc.xml changed, or the robot can't reach it)</sys:String>
+    <sys:String x:Key="sequence.group_not_found">Step {0}: group {1} no longer exists (machine.xml changed, or the robot can't reach it)</sys:String>
     <sys:String x:Key="sequence.station_required">Step {0}: no station ticked</sys:String>
     <sys:String x:Key="sequence.station_not_in_group">Step {0}: {1} is not in group {2}</sys:String>
     <sys:String x:Key="sequence.recipe_required">Step {0}: no process recipe selected</sys:String>
@@ -229,7 +229,7 @@
     <sys:String x:Key="sequence.name_not_found">Sequence {0} not found in the sequence library</sys:String>
     <sys:String x:Key="sequence.body_invalid">The content of sequence {0} cannot be read (it must be JSON in the format this equipment exports)</sys:String>
     <sys:String x:Key="recipe.locked_by_host">In ON-LINE REMOTE recipes can only be changed by the host, not on this equipment</sys:String>
-    <sys:String x:Key="process_recipe.not_installed">The process recipe library is not installed (no ProcessRecipe node in sc.xml)</sys:String>
+    <sys:String x:Key="process_recipe.not_installed">The process recipe library is not installed (no ProcessRecipe node in machine.xml)</sys:String>
     <sys:String x:Key="process_recipe.index_out_of_range">No. {0} does not exist (1 ~ {1})</sys:String>
     <sys:String x:Key="process_recipe.not_found">No. {0} has no process recipe (it may have just been deleted elsewhere)</sys:String>
     <sys:String x:Key="process_recipe.index_occupied">No. {0} already has a process recipe: {1}</sys:String>
@@ -260,7 +260,7 @@
     <sys:String x:Key="process_recipe.body_invalid">The content of process recipe {0} cannot be read (it must be JSON in the format this equipment exports)</sys:String>
 
     <!-- Accounts (login, users, roles) -->
-    <sys:String x:Key="account.not_installed">No Account node in sc.xml (no account component); login, users and roles are unavailable</sys:String>
+    <sys:String x:Key="account.not_installed">No Account node in machine.xml (no account component); login, users and roles are unavailable</sys:String>
     <sys:String x:Key="account.login_failed">Wrong user name or password</sys:String>
     <sys:String x:Key="account.user_disabled">Account {0} is disabled and cannot log in</sys:String>
     <sys:String x:Key="account.user_not_found">Account {0} not found (it may have been deleted)</sys:String>
@@ -282,7 +282,7 @@
 
     <!-- ==================== UI texts ====================
          XAML uses {DynamicResource key}, view models use L10n.Get(key, args). Platform texts live here, equipment texts in the equipment pack.
-         The UI language comes from the System node (Language) in the backend sc.xml, fetched once at client startup. -->
+         The UI language comes from the System node (Language) in the backend machine.xml, fetched once at client startup. -->
 
     <!-- Common -->
     <sys:String x:Key="common.ok">OK</sys:String>
@@ -728,7 +728,7 @@
 
     <!-- Chamber manual page (one sub-menu per chamber under Manual) -->
     <sys:String x:Key="chambermanual.enable">Enabled</sys:String>
-    <sys:String x:Key="chambermanual.enable_tip">IsEnable in sc.xml: a disabled (not installed) chamber accepts no action</sys:String>
+    <sys:String x:Key="chambermanual.enable_tip">IsEnable in machine.xml: a disabled (not installed) chamber accepts no action</sys:String>
     <sys:String x:Key="chambermanual.production">Production</sys:String>
     <sys:String x:Key="chambermanual.maintenance">Maintenance</sys:String>
     <sys:String x:Key="chambermanual.mode_tip">Production: used by automatic scheduling; Maintenance: no new jobs, left for manual operation</sys:String>
@@ -846,8 +846,8 @@
     <sys:String x:Key="main.wafer_size_done">Switched to {0}-inch wafers</sys:String>
     <sys:String x:Key="main.wafer_size_failed">Failed to switch the wafer size: {0}</sys:String>
     <sys:String x:Key="main.dispatch">Equipment</sys:String>
-    <sys:String x:Key="main.no_robot">No robot to show: the backend was not reachable at startup, or there is no Robot in sc.xml</sys:String>
-    <sys:String x:Key="main.no_loadport">No LoadPort: the backend was not reachable at startup, or there is no LoadPort in sc.xml</sys:String>
+    <sys:String x:Key="main.no_robot">No robot to show: the backend was not reachable at startup, or there is no Robot in machine.xml</sys:String>
+    <sys:String x:Key="main.no_loadport">No LoadPort: the backend was not reachable at startup, or there is no LoadPort in machine.xml</sys:String>
     <sys:String x:Key="main.none">—</sys:String>
     <sys:String x:Key="main.carrier">Carrier</sys:String>
     <sys:String x:Key="main.slots">Slots</sys:String>
@@ -893,7 +893,7 @@
     <sys:String x:Key="main.legend.unledgered_tip">A wafer is sensed here but not recorded in the wafer ledger. Reconcile it in Settings → Wafer Ledger.</sys:String>
 
     <!-- Menu names: menus are declared in code (not in the database); the display name is menu.{Code}, the code itself when missing.
-         Per-module menus (IO, chamber manual) show the module name from sc.xml and are not configured here.
+         Per-module menus (IO, chamber manual) show the module name from machine.xml and are not configured here.
          Framework menus (including LoadPort and Transfer declared by equipment modules) live here; equipment-unique menus live in the equipment pack. -->
     <sys:String x:Key="menu.Main">Main</sys:String>
     <sys:String x:Key="menu.Manual">Manual</sys:String>
@@ -923,7 +923,7 @@
     <sys:String x:Key="picker.select">Select</sys:String>
     <sys:String x:Key="picker.empty">Nothing to select</sys:String>
 
-    <!-- 流程配方页（配方 → 流程配方）：左边编号列表，右边基本信息、流程步骤、路线预览。分组名、模块名照 sc.xml 原样显示，不在这里配 -->
+    <!-- 流程配方页（配方 → 流程配方）：左边编号列表，右边基本信息、流程步骤、路线预览。分组名、模块名照 machine.xml 原样显示，不在这里配 -->
     <sys:String x:Key="recipe.sequence.list">Sequences</sys:String>
     <sys:String x:Key="recipe.sequence.create">New</sys:String>
     <sys:String x:Key="recipe.sequence.rename">Rename</sys:String>
@@ -983,7 +983,7 @@
     <sys:String x:Key="recipe.sequence.offline">Not connected to the backend</sys:String>
     <sys:String x:Key="recipe.sequence.loading">Loading sequences…</sys:String>
 
-    <!-- 工艺配方页（配方 → 工艺配方）：左边编号列表，右边基本信息、工艺步骤。摆臂名、药液名照 sc.xml 原样显示，不在这里配 -->
+    <!-- 工艺配方页（配方 → 工艺配方）：左边编号列表，右边基本信息、工艺步骤。摆臂名、药液名照 machine.xml 原样显示，不在这里配 -->
     <sys:String x:Key="recipe.process.list">Recipes</sys:String>
     <sys:String x:Key="recipe.process.create">New</sys:String>
     <sys:String x:Key="recipe.process.rename">Rename</sys:String>

@@ -6,7 +6,7 @@ using xyz.Tools;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// EAP（SECS/GEM，sc.xml 的 Eap 节点）：链路 Hsms、上报派发 Notifier，加上每个 SEMI 标准一个组件（E30、E39、E87、E90、E40、E94）
+/// EAP（SECS/GEM，machine.xml 的 Eap 节点）：链路 Hsms、上报派发 Notifier，加上每个 SEMI 标准一个组件（E30、E39、E87、E90、E40、E94）
 /// 和 E30 里的配方管理 Recipe、Trace 数据采集 Trace，都是它的子节点。
 /// 开机分两步：模块开始扫描之前 <see cref="Bind"/>，按顺序把各标准接到链路和设备上（只挂上报口、登记处理方）；设备侧都起来以后 <see cref="Open"/> 打开链路——
 /// Host 一连进来就可能发报文，处理方和设备都得先在。链路没启用（Hsms 的 IsEnable=False）时什么都不接，设备侧的上报口保持 null，照常跑。

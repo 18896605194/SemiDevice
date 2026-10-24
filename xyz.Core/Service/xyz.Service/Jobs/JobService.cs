@@ -32,7 +32,7 @@ public class JobService : BaseService, IJobService
     public JobService()
     {
         _jobs = IocHelper.GetService<IJobManager>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     #endregion

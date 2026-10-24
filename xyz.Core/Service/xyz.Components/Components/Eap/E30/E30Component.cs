@@ -12,7 +12,7 @@ using xyz.Tools;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// GEM（SEMI E30，sc.xml 的 Eap 下的 E30 节点）：设备跟 Host 打交道的总规矩，别的标准（E87、E40……）都在它上面。
+/// GEM（SEMI E30，machine.xml 的 Eap 下的 E30 节点）：设备跟 Host 打交道的总规矩，别的标准（E87、E40……）都在它上面。
 /// ① 控制状态（OFF-LINE 三个子状态、ON-LINE LOCAL / REMOTE）：离线时 Host 只能建立通讯、请求上线；LOCAL 时 Host 能查不能下动作命令；
 /// ② 通讯状态：链路连上后设备发 S1F13（Host 先发也行），换过一次才算建立了通讯，之前 Host 的报文不理；
 /// ③ 事件报告：Host 定义报告（S2F33）、挂到事件上（S2F35）、开关事件（S2F37），设备这边谁报事件都经这里统一发 S6F11；
@@ -58,7 +58,7 @@ public partial class E30Component : ComponentBase, IE30Component
     [ThreadStatic]
     private static bool _applyingHostConstants;
 
-    #region SC
+    #region Machine
 
     [Machine("xyz", "E30", "MDLN 设备型号：通讯建立（S1F13 / S1F14）、在线询问（S1F2）时报给 Host")]
     public string EquipmentModel { get; set; } = "xyz";
@@ -66,7 +66,7 @@ public partial class E30Component : ComponentBase, IE30Component
     [Machine("1.0.0", "E30", "SOFTREV 软件版本：跟 MDLN 一起报给 Host")]
     public string SoftwareRevision { get; set; } = "1.0.0";
 
-    [Machine("Default", "E30", "Host 定的报告、开关、缓存存哪个库（sc.xml 的 Database 节点名）")]
+    [Machine("Default", "E30", "Host 定的报告、开关、缓存存哪个库（machine.xml 的 Database 节点名）")]
     public string Database { get; set; } = XyzDb.DefaultName;
 
     [Machine("False", "E30", "Host 对时（S2F31）时是不是真改本机时钟：False = 只答收下不改（要不要对时是现场的规矩），True = 改（宿主要有改时间的权限，改不了回 TIACK=1）")]

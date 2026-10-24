@@ -185,7 +185,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     }
 
     /// <summary>
-    /// 步骤的一个字段给界面：下拉带上 sc.xml 里按站点 Type 分开写的选项。
+    /// 步骤的一个字段给界面：下拉带上 machine.xml 里按站点 Type 分开写的选项。
     /// </summary>
     private ProcessRecipeFieldDto ToDto(RecipeField field)
     {
@@ -195,7 +195,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     }
 
     /// <summary>
-    /// 配方头的一项给界面：程序算的标出来；Type 的选项是腔体配的几种 Type，自己加的下拉是 sc.xml 里写的那一套。
+    /// 配方头的一项给界面：程序算的标出来；Type 的选项是腔体配的几种 Type，自己加的下拉是 machine.xml 里写的那一套。
     /// Type 必不必填看腔体：有腔体没配 Type（空着也是一种），Type 就能空着，跟后端保存时一样。
     /// </summary>
     private ProcessRecipeFieldDto ToHeadDto(RecipeField field, IReadOnlyList<string> stationTypes)
@@ -240,7 +240,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
     }
 
     /// <summary>
-    /// ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包，没锁返回 null
+    /// ON-LINE REMOTE 时 Host 锁着本地改配方（machine.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包，没锁返回 null
     /// </summary>
     private Task<RpcResponse>? LockedByHost()
     {

@@ -14,7 +14,7 @@ using xyz.Shared.Services;
 namespace xyz.Client.Alarm.ViewModels;
 
 /// <summary>
-/// 报警历史页 ViewModel：按时间段（精确到分钟）查报警记录（报出、清除各一条），可按等级、关键字筛；一次最多显示多少条按后端 sc.xml 配置，超出只留最新的。
+/// 报警历史页 ViewModel：按时间段（精确到分钟）查报警记录（报出、清除各一条），可按等级、关键字筛；一次最多显示多少条按后端 machine.xml 配置，超出只留最新的。
 /// </summary>
 public class AlarmHistoryViewModel : BaseViewModel
 {

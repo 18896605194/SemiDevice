@@ -57,12 +57,12 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     private readonly SortedDictionary<int, RecipeData> _items = new();
 
     /// <summary>
-    /// 步骤字段表，按 sc.xml 里的先后（就是步骤表从左到右）。
+    /// 步骤字段表，按 machine.xml 里的先后（就是步骤表从左到右）。
     /// </summary>
     private IReadOnlyList<RecipeField> _fields = [];
 
     /// <summary>
-    /// 配方头字段表，按 sc.xml 里的先后。
+    /// 配方头字段表，按 machine.xml 里的先后。
     /// </summary>
     private IReadOnlyList<RecipeField> _headFields = [];
 
@@ -72,7 +72,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     private IReadOnlyList<IProcessStation> _stations = [];
 
     /// <summary>
-    /// 能做工艺的站点配的几种 Type（按 sc.xml 里的先后，不分大小写去重；没配的是空字符串）：配方头 Type 的选项。
+    /// 能做工艺的站点配的几种 Type（按 machine.xml 里的先后，不分大小写去重；没配的是空字符串）：配方头 Type 的选项。
     /// 还没 Bind（没有站点）时只有空字符串一种，配方不分类型。
     /// </summary>
     private IReadOnlyList<string> _stationTypes = [string.Empty];
@@ -82,7 +82,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     private IEapNotifierComponent? _notifier;
     private IWaferSize? _waferSize;
 
-    #region SC
+    #region Machine
 
     [Machine("99", "ProcessRecipe", "工艺配方个数：编号 1~N")]
     public int Capacity { get; set; } = 99;
@@ -96,7 +96,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     #endregion
 
     /// <summary>
-    /// 步骤字段表（装配时从 sc.xml 读的，之后不变）。
+    /// 步骤字段表（装配时从 machine.xml 读的，之后不变）。
     /// </summary>
     public IReadOnlyList<RecipeField> Fields
     {
@@ -110,7 +110,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 配方头字段表（装配时从 sc.xml 读的，之后不变）。
+    /// 配方头字段表（装配时从 machine.xml 读的，之后不变）。
     /// </summary>
     public IReadOnlyList<RecipeField> HeadFields
     {
@@ -138,7 +138,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 装配读完 SC：先查参数和字段表（配错了开机就报出来），再从目录把工艺配方读进来。
+    /// 装配读完 machine.xml：先查参数和字段表（配错了开机就报出来），再从目录把工艺配方读进来。
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
@@ -146,17 +146,17 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
         if (Capacity < 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {Name} 的 Capacity 要大于 0，现在是 {Capacity}");
+            throw new InvalidOperationException($"machine.xml 节点 {Name} 的 Capacity 要大于 0，现在是 {Capacity}");
         }
 
         if (NameMaxLength < 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {Name} 的 NameMaxLength 要大于 0，现在是 {NameMaxLength}");
+            throw new InvalidOperationException($"machine.xml 节点 {Name} 的 NameMaxLength 要大于 0，现在是 {NameMaxLength}");
         }
 
         if (string.IsNullOrWhiteSpace(Folder))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {Name} 没配 Folder（工艺配方文件放哪）");
+            throw new InvalidOperationException($"machine.xml 节点 {Name} 没配 Folder（工艺配方文件放哪）");
         }
 
         var fields = ReadFields(setting);
@@ -178,7 +178,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         var node = setting.Children.FirstOrDefault(child => string.Equals(child.Name, FieldsNodeName, StringComparison.OrdinalIgnoreCase));
         if (node is null)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 下没配 {FieldsNodeName}（工艺配方每一步有哪些字段，一个子节点一个）");
+            throw new InvalidOperationException($"machine.xml 节点 {setting.Name} 下没配 {FieldsNodeName}（工艺配方每一步有哪些字段，一个子节点一个）");
         }
 
         var fields = new List<RecipeField>();
@@ -188,7 +188,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             var field = RecipeField.FromConfig(fieldNode, path);
             if (FindField(fields, field.Key) is not null)
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path}：字段名 {field.Key} 重复了");
+                throw new InvalidOperationException($"machine.xml 节点 {path}：字段名 {field.Key} 重复了");
             }
 
             fields.Add(field);
@@ -198,7 +198,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         if (seconds is null || seconds.Type != ProcessRecipeFieldType.Double)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {setting.Name}.{FieldsNodeName} 里要有 {RecipeField.SecondsKey}（步骤时长，Type 为 Double）：合计时长和工艺超时靠它");
+                $"machine.xml 节点 {setting.Name}.{FieldsNodeName} 里要有 {RecipeField.SecondsKey}（步骤时长，Type 为 Double）：合计时长和工艺超时靠它");
         }
 
         return fields;
@@ -206,14 +206,14 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     /// <summary>
     /// 读配方头字段表：字段名不能重复；固定的几项（<see cref="RecipeHead"/>）都要有，类型跟固定的一样。
-    /// Type 那一项的选项是能做工艺的站点配的几种 Type，不在 sc.xml 里写；自己加的下拉只写一套 Source。
+    /// Type 那一项的选项是能做工艺的站点配的几种 Type，不在 machine.xml 里写；自己加的下拉只写一套 Source。
     /// </summary>
     private static List<RecipeField> ReadHeadFields(ModuleConfig setting)
     {
         var node = setting.Children.FirstOrDefault(child => string.Equals(child.Name, HeadNodeName, StringComparison.OrdinalIgnoreCase));
         if (node is null)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 下没配 {HeadNodeName}（工艺配方的配方头有哪些项，一个子节点一项）");
+            throw new InvalidOperationException($"machine.xml 节点 {setting.Name} 下没配 {HeadNodeName}（工艺配方的配方头有哪些项，一个子节点一项）");
         }
 
         var fields = new List<RecipeField>();
@@ -221,10 +221,10 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         {
             string path = $"{setting.Name}.{HeadNodeName}.{fieldNode.Name}";
             bool isType = string.Equals(fieldNode.Name.Trim(), RecipeHead.TypeKey, StringComparison.OrdinalIgnoreCase);
-            var field = RecipeField.FromConfig(fieldNode, path, optionsInSc: !isType);
+            var field = RecipeField.FromConfig(fieldNode, path, optionsInMachineXml: !isType);
             if (FindField(fields, field.Key) is not null)
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path}：字段名 {field.Key} 重复了");
+                throw new InvalidOperationException($"machine.xml 节点 {path}：字段名 {field.Key} 重复了");
             }
 
             fields.Add(field);
@@ -235,7 +235,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             var field = FindField(fields, pair.Key);
             if (field is null || field.Type != pair.Value)
             {
-                throw new InvalidOperationException($"sc.xml 节点 {setting.Name}.{HeadNodeName} 里要有 {pair.Key}（配方头固定的一项，Type 为 {pair.Value}）");
+                throw new InvalidOperationException($"machine.xml 节点 {setting.Name}.{HeadNodeName} 里要有 {pair.Key}（配方头固定的一项，Type 为 {pair.Value}）");
             }
         }
 
@@ -314,7 +314,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     /// <summary>
     /// 记下装起来的、能做工艺的站点和它们配的几种 Type（装配完、模块起来之后调一次），配方用到具体站点时按名字找它核对（<see cref="FindMismatch"/>）。
     /// 按这几种 Type 查字段表：步骤的下拉每种 Type 都要写了选项、默认值在每一套里；配方头自己加的下拉要写了选项、默认值在里面——配错开机就抛。
-    /// 老配方没写 Type 的补成第一种（sc.xml 里排最前的站点那种），下次保存写进文件。整机（界面语言）、EAP 派发、晶圆尺寸也在这里取一次。
+    /// 老配方没写 Type 的补成第一种（machine.xml 里排最前的站点那种），下次保存写进文件。整机（界面语言）、EAP 派发、晶圆尺寸也在这里取一次。
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)
     {
@@ -377,7 +377,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             {
                 if (!types.Contains(written, StringComparer.OrdinalIgnoreCase))
                 {
-                    LogHelper.Warn(Name, $"sc.xml 节点 {path} 写了 {SourceOf(written)}，但没有站点的 Type 是 {TypeText(written)}，用不上");
+                    LogHelper.Warn(Name, $"machine.xml 节点 {path} 写了 {SourceOf(written)}，但没有站点的 Type 是 {TypeText(written)}，用不上");
                 }
             }
         }
@@ -396,12 +396,12 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     {
         if (options.Count == 0)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 是下拉，没写{what}");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 是下拉，没写{what}");
         }
 
         if (field.Default.Length > 0 && !options.Contains(field.Default, StringComparer.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{field.Default}\" 不在{what}里");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 的 Default=\"{field.Default}\" 不在{what}里");
         }
     }
 
@@ -414,7 +414,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
     }
 
     /// <summary>
-    /// 这种 Type 的选项在 sc.xml 里写在哪个参数：没配 Type 的是 Source，配了的是 Source.类型。
+    /// 这种 Type 的选项在 machine.xml 里写在哪个参数：没配 Type 的是 Source，配了的是 Source.类型。
     /// </summary>
     private static string SourceOf(string type)
     {
@@ -1142,7 +1142,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
 
     /// <summary>
     /// 规整步骤（检查通过之后调）：只留字段表里的字段、按字段表的先后（空的也写，见 <see cref="RecipeStep"/>），
-    /// 数字、开关换成统一写法，下拉换成这种 Type 选项里的写法（大小写跟 sc.xml 一样）。
+    /// 数字、开关换成统一写法，下拉换成这种 Type 选项里的写法（大小写跟 machine.xml 一样）。
     /// </summary>
     private static List<RecipeStep> Normalize(IReadOnlyList<RecipeStep> steps, IReadOnlyList<RecipeField> fields, string stationType)
     {

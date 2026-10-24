@@ -12,7 +12,7 @@ using xyz.Shared.Services;
 namespace xyz.Client.DataCenter.ViewModels;
 
 /// <summary>
-/// 日志历史页 ViewModel：按时间段（精确到分钟）查后端日志文件，可按级别、关键字筛；一次最多显示多少条按后端 sc.xml 配置，超出只留最新的。
+/// 日志历史页 ViewModel：按时间段（精确到分钟）查后端日志文件，可按级别、关键字筛；一次最多显示多少条按后端 machine.xml 配置，超出只留最新的。
 /// </summary>
 public class LogHistoryViewModel : BaseViewModel
 {

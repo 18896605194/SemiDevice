@@ -8,7 +8,7 @@ namespace xyz.Components.Components;
 [Component(description: "四色灯和蜂鸣器组件")]
 public class LightComponent : ComponentBase, ILight
 {
-    #region SC 装机常量
+    #region Machine 装机常量
 
     [Machine("-1", "IO", "红灯 DO 索引", Required = true)]
     public int DoRedIndex { get; set; } = -1;
@@ -42,7 +42,7 @@ public class LightComponent : ComponentBase, ILight
     #endregion
 
     /// <summary>
-    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// IO 组件（开机 Bind 时取）；machine.xml 没配 Io 节点是 null
     /// </summary>
     private IIo? _io;
 
@@ -99,7 +99,7 @@ public class LightComponent : ComponentBase, ILight
         var io = _io;
         if (io is null)
         {
-            throw new InvalidOperationException("sc.xml 没配 Io 节点，四色灯没有输出通道");
+            throw new InvalidOperationException("machine.xml 没配 Io 节点，四色灯没有输出通道");
         }
 
         if (!io.WriteDo(doIndex, isOn))

@@ -7,7 +7,7 @@ using xyz.Tools;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 日志（sc.xml 的 Log 节点）：全系统一份的日志配置，加上把后端日志转给界面——留最近一段（客户端连上补拉）、每条实时推事件流。
+/// 日志（machine.xml 的 Log 节点）：全系统一份的日志配置，加上把后端日志转给界面——留最近一段（客户端连上补拉）、每条实时推事件流。
 /// </summary>
 [Component(description: "日志（历史查询条数、显示条数，转给界面的实时日志和最近日志）")]
 public class LogComponent : ComponentBase, ILogComponent

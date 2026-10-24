@@ -14,7 +14,7 @@ using xyz.Shared.Permissions;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 账号冒烟：账号组件（sc 的 Account 节点）开机建表、删老的 User / Role / Menu 表、预置管理员 / 访客 / 工程师 / 操作员四个角色和内置账号 admin（只预置一次，重开不重复）；
+// 账号冒烟：账号组件（machine.xml 的 Account 节点）开机建表、删老的 User / Role / Menu 表、预置管理员 / 访客 / 工程师 / 操作员四个角色和内置账号 admin（只预置一次，重开不重复）；
 // 登录（对、错、不分大小写、停用、记最后登录）；会话（访客、普通角色带档位、管理员不带档位）；密码只存加盐哈希；改密码、重置密码；
 // 账号的增删改（登录名 / 显示名不对、重名、密码太短、角色不在、访客角色不给账号、内置 admin 不能删 / 停用 / 改角色）；
 // 角色（重名、名字 / 说明不对、内置的不能改名和删、有账号在用不能删、删角色连权限一起删、管理员权限不能改、权限整张换、档位不对、同一项以最后一次为准）；
@@ -42,7 +42,7 @@ using var subscription = EventBus.Register<AccountChangedDto>(AccountChangedDto.
 
 try
 {
-    // 1. 装配：按 IAccount 进容器；SC 默认要登录、库照 sc、闲置 15 分钟自动退出、密码最短 4 位（这两个放 sc 不放 EC）；
+    // 1. 装配：按 IAccount 进容器；machine.xml 默认要登录、库照 machine.xml、闲置 15 分钟自动退出、密码最短 4 位（这两个放 machine.xml 不放 EC）；
     //    闲置分钟数、密码最短几位配错开机就报
     string? LoadError(params ValueConfig[] values)
     {
@@ -70,8 +70,8 @@ try
     var roots = SmokeIoc.Load([Node("Account", typeof(AccountComponent), Value("Database", DbName))]);
     var account = (AccountComponent)roots[0];
     Check(ReferenceEquals(IocHelper.GetService<IAccount>(), account), "按 IAccount 找得到账号组件");
-    Check(account.IsEnable && account.Database == DbName, "SC：IsEnable 默认 True，库照 sc");
-    Check(account.IdleLogoutMinutes == 15 && account.PasswordMinLength == 4, "SC 默认：闲置 15 分钟自动退出、密码最短 4 位");
+    Check(account.IsEnable && account.Database == DbName, "machine.xml：IsEnable 默认 True，库照 machine.xml");
+    Check(account.IdleLogoutMinutes == 15 && account.PasswordMinLength == 4, "machine.xml 默认：闲置 15 分钟自动退出、密码最短 4 位");
     Check(typeof(AccountComponent).GetProperty(nameof(AccountComponent.IdleLogoutMinutes))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0
         && typeof(AccountComponent).GetProperty(nameof(AccountComponent.PasswordMinLength))!.GetCustomAttributes(typeof(VariableMarkAttribute), false).Length == 0,
         "闲置分钟数、密码最短几位不是 EC（EC 页改不了）");
@@ -142,14 +142,14 @@ try
     // 3. 重开（新组件、同一个库）：不重复预置
     var again = new AccountComponent { Database = DbName, IdleLogoutMinutes = 7 };
     Check(again.InitComponent() && again.GetRoles().Result!.Count == 4 && again.GetUsers().Result!.Count == 1, "重开同一个库：角色还是 4 个、账号还是 1 个");
-    Check(again.GetSession(string.Empty).Result!.IdleLogoutMinutes == 7, "sc 配的闲置分钟数跟着会话给客户端");
+    Check(again.GetSession(string.Empty).Result!.IdleLogoutMinutes == 7, "machine.xml 配的闲置分钟数跟着会话给客户端");
 
     // 4. 登录：对的、不分大小写、错的、没有这个人；记最后登录
     changed = 0;
     var login = account.Login(AccountComponent.AdminUserName, AccountComponent.AdminInitialPassword);
     Check(login.IsSuccess && login.Result!.UserName == AccountComponent.AdminUserName && login.Result.RoleKind == RoleKind.Admin
         && login.Result.Permissions.Count == 0, "admin / admin 登录：管理员，不带档位（全部能操作）");
-    Check(login.Result!.IdleLogoutMinutes == 15 && account.GetSession(string.Empty).Result!.IdleLogoutMinutes == 15, "会话带闲置自动退出的分钟数（sc）");
+    Check(login.Result!.IdleLogoutMinutes == 15 && account.GetSession(string.Empty).Result!.IdleLogoutMinutes == 15, "会话带闲置自动退出的分钟数（machine.xml）");
     Check(account.Login("ADMIN", AccountComponent.AdminInitialPassword).IsSuccess, "登录名不分大小写");
     Check(account.Login(" admin ", AccountComponent.AdminInitialPassword).IsSuccess, "登录名前后的空格去掉");
     login = account.Login(AccountComponent.AdminUserName, "wrong");

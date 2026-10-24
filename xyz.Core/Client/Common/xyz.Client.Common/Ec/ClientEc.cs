@@ -21,7 +21,7 @@ public static class ClientEc
     private static IDisposable? _subscription;
 
     /// <summary>
-    /// 全部 EC，按后端给的先后——组件树的先后，也就是 sc.xml 的先后。
+    /// 全部 EC，按后端给的先后——组件树的先后，也就是 machine.xml 的先后。
     /// </summary>
     public static IReadOnlyList<EcItemDto> Items => _ordered;
 

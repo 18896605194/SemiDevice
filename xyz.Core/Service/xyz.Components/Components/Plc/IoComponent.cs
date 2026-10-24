@@ -33,7 +33,7 @@ public partial class IoComponent : ComponentBase, IIo
     }
 
     /// <summary>
-    /// 本组件用的 PLC（开机准备时取）；sc.xml 没配 PLC 是 null
+    /// 本组件用的 PLC（开机准备时取）；machine.xml 没配 PLC 是 null
     /// </summary>
     private IPlcIo? _plc;
 
@@ -46,9 +46,9 @@ public partial class IoComponent : ComponentBase, IIo
         AttachVirtualInputs(registry);
     }
 
-    #region SC
+    #region Machine
 
-    [Machine("IO", "Io", "点表目录（相对 sc.xml 所在目录），里面放 DI.csv / DO.csv / AI.csv / AO.csv")]
+    [Machine("IO", "Io", "点表目录（相对 machine.xml 所在目录），里面放 DI.csv / DO.csv / AI.csv / AO.csv")]
     public string PointTableDirectory { get; set; } = "IO";
 
     [Machine("", "Io", "开机下发的 DO：连上 PLC 后按这里写一遍，如 DO12=false;DO13=true，多个用分号隔开，DO 不分大小写；空 = 不下发")]
@@ -133,7 +133,7 @@ public partial class IoComponent : ComponentBase, IIo
         // 全限定：组件基类自己有个 Path 属性（组件路径），这儿的 Path 不是它。
         string directory = System.IO.Path.IsPathRooted(PointTableDirectory)
             ? PointTableDirectory
-            : System.IO.Path.Combine(SC.ConfigDirectory, PointTableDirectory);
+            : System.IO.Path.Combine(MachineXml.ConfigDirectory, PointTableDirectory);
 
         Di.Load(System.IO.Path.Combine(directory, "DI.csv"));
         Do.Load(System.IO.Path.Combine(directory, "DO.csv"));

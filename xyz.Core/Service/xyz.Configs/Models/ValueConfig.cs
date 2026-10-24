@@ -3,7 +3,7 @@
 namespace xyz.Configs.Models;
 
 /// <summary>
-/// SC 配置中的 Value 节点。
+/// machine.xml 配置中的 Value 节点。
 /// </summary>
 [XmlType("Value")]
 public class ValueConfig

@@ -17,7 +17,7 @@ namespace xyz.Components.Components;
 [Component(description: "部件寿命（时间）组件（默认从上次清零起按实际时间算，关机也照算；配了 DoIndex 只算那个 DO 通着的时间；配了 ClearDoIndex 那个 DO 每变一次就清零重算；到 EC 警告时间报警告、到报警时间报报警）")]
 public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
 {
-    #region SC
+    #region Machine
 
     [Machine("-1", "IO", "计时 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：只算它通着的时间，泵、加热器的运行时长填它的 DO；-1 = 不盯，从上次清零起按实际时间算（关机也算）")]
     public int DoIndex { get; set; } = -1;
@@ -171,7 +171,7 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
     private IVirtualIo? _virtualIo;
 
     /// <summary>
-    /// SC 灌完值：计时 DO 和清零 DO 配成同一个，通断一次就清零一次、算不出时长，开机就报
+    /// machine.xml 灌完值：计时 DO 和清零 DO 配成同一个，通断一次就清零一次、算不出时长，开机就报
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {

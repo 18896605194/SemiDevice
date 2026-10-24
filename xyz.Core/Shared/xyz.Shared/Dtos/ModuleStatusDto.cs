@@ -2,7 +2,7 @@
 
 /// <summary>
 /// 各模块的状态和生产 / 维护模式（顶栏的模块状态行按它显示），整机模块推。
-/// 模块照 sc.xml 装配出来的、先后同 sc，不含整机自己。状态类消息：有一个变了才推整张表，留存。
+/// 模块照 machine.xml 装配出来的、先后同 machine.xml，不含整机自己。状态类消息：有一个变了才推整张表，留存。
 /// </summary>
 public class ModuleStatusListDto
 {
@@ -17,7 +17,7 @@ public class ModuleStatusListDto
 public class ModuleStatusDto
 {
     /// <summary>
-    /// 模块名（sc.xml 原样，如 LoadPort1）
+    /// 模块名（machine.xml 原样，如 LoadPort1）
     /// </summary>
     public string Name { get; set; } = string.Empty;
 

@@ -11,7 +11,7 @@ namespace xyz.Service.Events;
 
 /// <summary>
 /// 日志 gRPC 服务：客户端连上后拉取后端最近日志（历史），实时日志走事件流；日志历史页按时间段查日志文件；
-/// 客户端日志显示条数也从这里取（sc.xml 的 Log 节点）。
+/// 客户端日志显示条数也从这里取（machine.xml 的 Log 节点）。
 /// </summary>
 public class LogService : ILogService
 {
@@ -102,7 +102,7 @@ public class LogService : ILogService
     }
 
     /// <summary>
-    /// 客户端日志显示条数：读 sc.xml 的 Log 节点（ILogComponent），没装或配得不对时给默认值。
+    /// 客户端日志显示条数：读 machine.xml 的 Log 节点（ILogComponent），没装或配得不对时给默认值。
     /// </summary>
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
     {

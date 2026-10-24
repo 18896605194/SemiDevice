@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 旋转电机（卡盘）的显示模型：腔体三维图绑它转盘面。sc.xml 里没配时 IsPresent 为 false。
+/// 旋转电机（卡盘）的显示模型：腔体三维图绑它转盘面。machine.xml 里没配时 IsPresent 为 false。
 /// </summary>
 public class ChamberSpinModel : ObservableObject
 {
@@ -19,7 +19,7 @@ public class ChamberSpinModel : ObservableObject
 
     private bool _isPresent;
 
-    /// <summary>sc.xml 里配了旋转电机。</summary>
+    /// <summary>machine.xml 里配了旋转电机。</summary>
     public bool IsPresent
     {
         get => _isPresent;
@@ -58,7 +58,7 @@ public class ChamberSpinModel : ObservableObject
     }
 
     /// <summary>
-    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 sc.xml 里没配旋转电机。转向看实际速度的正负，正的算顺时针。
+    /// 用推送就地刷新（界面线程调用）；dto 为 null 表示 machine.xml 里没配旋转电机。转向看实际速度的正负，正的算顺时针。
     /// </summary>
     public void Update(ChamberAxisDto? dto)
     {

@@ -15,7 +15,7 @@ public partial class SignalLamp : UserControl
     }
 
     /// <summary>
-    /// 名字（sc 里的节点名，原样显示）
+    /// 名字（machine.xml 里的节点名，原样显示）
     /// </summary>
     public string Text
     {

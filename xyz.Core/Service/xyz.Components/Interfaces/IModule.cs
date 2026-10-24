@@ -19,7 +19,7 @@ public interface IModule
     int State { get; }
 
     /// <summary>
-    /// sc 里启用了没有（停用的当没装）
+    /// machine.xml 里启用了没有（停用的当没装）
     /// </summary>
     bool IsEnabled { get; }
 
@@ -49,7 +49,7 @@ public interface IModule
     ModuleRoutine? Abort();
 
     /// <summary>
-    /// 组件全路径（sc 的分组节点也算上，如 Chamber.Chamber1）
+    /// 组件全路径（machine.xml 的分组节点也算上，如 Chamber.Chamber1）
     /// </summary>
     string FullPath { get; }
 }

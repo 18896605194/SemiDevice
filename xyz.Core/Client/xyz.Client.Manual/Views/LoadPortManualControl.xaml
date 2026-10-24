@@ -257,7 +257,7 @@
             <Border Grid.Row="1" Style="{DynamicResource SectionDividerBorderStyle}" />
 
             <!--  ② 三维设备视图：LoadPort + 托板上的花篮，占满中间这一段。花篮跟在位、到位两盏灯走（都亮才画）；门跟开到位 / 关到位反馈走，
-                 对接按状态和门推（见 LoadPortModel）；槽数按后端 sc.xml 的 LoadPort 节点 SlotCount，片以晶圆账为准  -->
+                 对接按状态和门推（见 LoadPortModel）；槽数按后端 machine.xml 的 LoadPort 节点 SlotCount，片以晶圆账为准  -->
             <threeD:LoadPortScene
                 Grid.Row="2"
                 IsAutoMode="{Binding Model.AutoMode}"

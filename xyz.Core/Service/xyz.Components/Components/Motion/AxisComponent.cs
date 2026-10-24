@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 [Component(description: "运动轴组件")]
 public partial class AxisComponent : ComponentBase, IAxis
 {
-    #region SC 
+    #region Machine 
 
     [Machine("", "Plc", "下发给 PLC 的命令块名（指令/目标位置/速度写到这儿），空 = 接线未定", Required = true)]
     public string SendPlcDataPath { get; set; } = string.Empty;

@@ -21,8 +21,8 @@ namespace xyz.Client;
 public static class ServiceExtensions
 {
     /// <summary>
-    /// 注册客户端服务。settings 里是后端 sc.xml 里装了的模块名（及其中的腔体），按模块分的页面与菜单（IO、腔体手动）照它生成——
-    /// sc.xml 里没配的模块，菜单里就不该出现。后端没起时是空的，那些菜单一并不出现。
+    /// 注册客户端服务。settings 里是后端 machine.xml 里装了的模块名（及其中的腔体），按模块分的页面与菜单（IO、腔体手动）照它生成——
+    /// machine.xml 里没配的模块，菜单里就不该出现。后端没起时是空的，那些菜单一并不出现。
     /// </summary>
     public static IServiceCollection AddXyzClientServices(
         this IServiceCollection services, SystemSettingsDto settings)

@@ -142,7 +142,7 @@ static class ActuatorCommands
     }
 
     /// <summary>
-    /// 不走 sc 装配直接 new 的组件起个名（Name 只给装配写，这里用反射）
+    /// 不走 machine.xml 装配直接 new 的组件起个名（Name 只给装配写，这里用反射）
     /// </summary>
     private static T Named<T>(T component, string name) where T : ComponentBase
     {

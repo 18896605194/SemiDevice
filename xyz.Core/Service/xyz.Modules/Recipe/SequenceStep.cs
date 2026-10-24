@@ -3,7 +3,7 @@
 namespace xyz.Modules;
 
 /// <summary>
-/// 流程配方的一步：站点分组（sc.xml 里的分组节点名，如 LoadPort、Chamber）、这一步可去的站点（勾几个 = 哪个空去哪个）、
+/// 流程配方的一步：站点分组（machine.xml 里的分组节点名，如 LoadPort、Chamber）、这一步可去的站点（勾几个 = 哪个空去哪个）、
 /// 工艺配方（分组要的时候才有，比如工艺腔）。
 /// </summary>
 public class SequenceStep

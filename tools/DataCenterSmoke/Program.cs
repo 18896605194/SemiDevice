@@ -247,7 +247,7 @@ try
         return roots;
     }
 
-    // 跑一小会儿：200ms 采一行，在它自己的扫描里采（跟 sc 配 IsRun 一样起），停下时把攒着的一批写完。
+    // 跑一小会儿：200ms 采一行，在它自己的扫描里采（跟 machine.xml 配 IsRun 一样起），停下时把攒着的一批写完。
     int sampledRows = 0;
     DataChartComponent RunChart(List<ComponentBase> roots)
     {
@@ -337,7 +337,7 @@ try
 
     Check(rejected, "部件名以下划线结尾（跟分隔符 __ 分不清）开机就报，报错里带名字");
 
-    // sc 里没配 IsRun：不起扫描，一行都不采
+    // machine.xml 里没配 IsRun：不起扫描，一行都不采
     var idle = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200 };
     SmokeIoc.Use<IDataChart>(idle);
     int idleRows = 0;
@@ -346,7 +346,7 @@ try
     ComponentLoader.StartScanning([idle]);
     Thread.Sleep(600);
     idle.StopSampling();
-    Check(Volatile.Read(ref idleRows) == 0, "sc 里没配 IsRun 就不起扫描、不采样");
+    Check(Volatile.Read(ref idleRows) == 0, "machine.xml 里没配 IsRun 就不起扫描、不采样");
 
     // 实时曲线：接在数据曲线的采样上，在自己的扫描里（配了 IsRun）把采到的行一帧一帧推给界面（不留存）；每帧带这一轮的标识，值跟信号表一样多
     var realSource = new DataChartComponent { Database = "ChartSmoke", SampleIntervalMs = 200, IsRun = true };

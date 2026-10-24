@@ -234,7 +234,7 @@
                         </Grid>
                     </Border>
 
-                    <!--  轴位：按 sc.xml 轴表（Driver 的 Axes）整表列出，坐标扫描查询刷新；还没查到或没连上显示"—"  -->
+                    <!--  轴位：按 machine.xml 轴表（Driver 的 Axes）整表列出，坐标扫描查询刷新；还没查到或没连上显示"—"  -->
                     <StackPanel Margin="14,10,14,0">
                         <TextBlock
                             Margin="0,0,0,6"
@@ -272,7 +272,7 @@
                     <Border Margin="14,12" Style="{DynamicResource SectionDividerBorderStyle}" />
 
                     <!--  取放：源 / 目标 各一行 站点·手臂·槽位，手臂和槽位都跟着选中的站点走
-                         （手臂取 sc.xml 机械手站点节点的 Arms，槽位取站点的槽数：LoadPort 1~25、腔体 1）；
+                         （手臂取 machine.xml 机械手站点节点的 Arms，槽位取站点的槽数：LoadPort 1~25、腔体 1）；
                          Pick 用源手臂从源取片、Place 用目标手臂往目标放片；这一页只看时连选站点一起灰掉  -->
                     <StackPanel Margin="14,0,14,0" helpers:Permission.Operate="True">
                         <TextBlock

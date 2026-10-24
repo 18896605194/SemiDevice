@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace xyz.Client.Setting.Models;
 
 /// <summary>
-/// EC 设置页左边组件树的一个节点：组件全路径按点号分层（模块 → 部件 → 子部件），跟 sc.xml 的组件层级一个样子。
+/// EC 设置页左边组件树的一个节点：组件全路径按点号分层（模块 → 部件 → 子部件），跟 machine.xml 的组件层级一个样子。
 /// 点哪个节点，右边就列这个组件和它下级的全部参数；最上面那个"全部"节点（Path 为空）列整机的。
 /// 列什么由页面定，这里只把"选中了"交出去（onSelected）。
 /// </summary>

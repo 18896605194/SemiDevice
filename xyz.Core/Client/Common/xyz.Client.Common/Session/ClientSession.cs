@@ -20,7 +20,7 @@ public static class ClientSession
     private static SessionDto _current = new() { RoleKind = RoleKind.Guest };
 
     /// <summary>
-    /// 要不要登录（后端 sc.xml 的 Account 节点）；不要登录时谁都全部能操作
+    /// 要不要登录（后端 machine.xml 的 Account 节点）；不要登录时谁都全部能操作
     /// </summary>
     public static bool IsLoginEnabled { get; private set; }
 

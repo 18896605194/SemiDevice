@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 [Component(description: "机械手示教点（站号、伸出方向、伸出距离、取放能用的手）")]
 public class TeachPointComponent : ComponentBase, ITeachPoint
 {
-    #region SC
+    #region Machine
 
     [Machine("0", "TeachPoint", "控制器里的站号（取放指令发的就是它），必配、正整数", Required = true)]
     public int Number { get; set; }
@@ -60,17 +60,17 @@ public class TeachPointComponent : ComponentBase, ITeachPoint
         base.OnSettingLoaded(setting);
         if (Number < 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {FullPath} 的 Number={Number} 不是有效站号（必配，正整数）。");
+            throw new InvalidOperationException($"machine.xml 节点 {FullPath} 的 Number={Number} 不是有效站号（必配，正整数）。");
         }
 
         if (!Enum.IsDefined(Direction))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {FullPath} 的 Direction={Direction} 不是有效伸出方向（North / East / South / West）。");
+            throw new InvalidOperationException($"machine.xml 节点 {FullPath} 的 Direction={Direction} 不是有效伸出方向（North / East / South / West）。");
         }
 
         if (!double.IsFinite(Y))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {FullPath} 的 Y={Y} 不是有效伸出距离（要是有限的数）。");
+            throw new InvalidOperationException($"machine.xml 节点 {FullPath} 的 Y={Y} 不是有效伸出距离（要是有限的数）。");
         }
 
         PickArmNumbers = ParseArms(PickArms, nameof(PickArms));
@@ -88,7 +88,7 @@ public class TeachPointComponent : ComponentBase, ITeachPoint
             if (!int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int arm) || arm < 1)
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {FullPath} 的 {name}=\"{text}\" 里 \"{part}\" 不是有效手指号（正整数，英文逗号隔开，如 1,2）。");
+                    $"machine.xml 节点 {FullPath} 的 {name}=\"{text}\" 里 \"{part}\" 不是有效手指号（正整数，英文逗号隔开，如 1,2）。");
             }
 
             if (!arms.Contains(arm))

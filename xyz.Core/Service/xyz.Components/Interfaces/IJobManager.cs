@@ -101,7 +101,7 @@ public interface IJobManager
     bool HasRunningJob { get; }
 
     /// <summary>
-    /// Job 记录落的库（sc.xml 的 Database 节点名），历史页查它
+    /// Job 记录落的库（machine.xml 的 Database 节点名），历史页查它
     /// </summary>
     string Database { get; }
 

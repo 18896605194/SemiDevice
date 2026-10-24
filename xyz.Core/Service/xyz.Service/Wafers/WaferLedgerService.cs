@@ -14,7 +14,7 @@ namespace xyz.Service.Wafers;
 
 /// <summary>
 /// 晶圆账 gRPC 服务（设置 → 账单调整页）：给界面看账，人按实物移账、删账、补账。只改系统账，不让设备做任何动作。
-/// 能调整的位置跟着配置走：所有机械手 sc.xml 里 Stations 配的站点合并，再加上机械手自己（手指）；
+/// 能调整的位置跟着配置走：所有机械手 machine.xml 里 Stations 配的站点合并，再加上机械手自己（手指）；
 /// 4 个 LoadPort、2 台机械手、8 个腔体也好，再多 Aligner、Buffer 也好，页面都不用改。
 /// </summary>
 public class WaferLedgerService : BaseService, IWaferLedgerService

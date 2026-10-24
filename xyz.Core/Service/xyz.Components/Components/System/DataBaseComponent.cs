@@ -9,7 +9,7 @@ namespace xyz.Components.Components;
 [Component(description: "数据库连接（节点名即库名）")]
 public class DataBaseComponent : ComponentBase
 {
-    #region SC 
+    #region Machine 
 
     [Machine(XyzDb.DefaultConnectionString, "Database", "数据库连接字符串")]
     public string ConnectionString { get; set; } = XyzDb.DefaultConnectionString;
@@ -22,7 +22,7 @@ public class DataBaseComponent : ComponentBase
     #region 数据库访问
 
     /// <summary>
-    /// 装配读完 SC 后，按本节点名把连接注册进 XyzDb。
+    /// 装配读完 machine.xml 后，按本节点名把连接注册进 XyzDb。
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {

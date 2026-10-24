@@ -23,7 +23,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         RegisterTransitions(SystemStateTable.ToModuleTable());
     }
 
-    #region SC
+    #region Machine
 
     /// <summary>
     /// 界面语言：客户端启动时按它加载语言包（Strings.{Language}.xaml）。
@@ -75,7 +75,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
     }
 
     /// <summary>
-    /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块，先后跟 sc.xml 一样；
+    /// 绑模块表（开机，模块开始扫描之前）：全部初始化、整机停止管的就是这些模块，先后跟 machine.xml 一样；
     /// 搬运管理、Job 管理、晶圆账、报警、晶圆尺寸也在这里取一次。
     /// </summary>
     public void Bind(IEnumerable<IModule> modules)

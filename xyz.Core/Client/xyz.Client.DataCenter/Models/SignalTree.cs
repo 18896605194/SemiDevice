@@ -4,7 +4,7 @@ namespace xyz.Client.DataCenter.Models;
 
 /// <summary>
 /// 信号勾选树：按信号名的层级分隔符 __ 分层长出来，数据曲线、实时曲线两页共用。
-/// 同一层里先放属性（叶子）再放部件，各自按第一次出现的先后——后端给的顺序就是 SV 编号表、点表的顺序，基本跟 sc.xml 一致。
+/// 同一层里先放属性（叶子）再放部件，各自按第一次出现的先后——后端给的顺序就是 SV 编号表、点表的顺序，基本跟 machine.xml 一致。
 /// </summary>
 public static class SignalTree
 {

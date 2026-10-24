@@ -15,7 +15,7 @@ public sealed class ModuleStatusBarViewModel : BaseViewModel
     #region Column
 
     /// <summary>
-    /// 各模块，先后同 sc.xml
+    /// 各模块，先后同 machine.xml
     /// </summary>
     public ObservableCollection<ModuleStatusModel> Modules { get; } = [];
 
@@ -51,7 +51,7 @@ public sealed class ModuleStatusBarViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 模块表跟 sc 走、开机后不变，就地刷新；名字或先后对不上（后端换了 sc 重启过）才重建
+    /// 模块表跟 machine.xml 走、开机后不变，就地刷新；名字或先后对不上（后端换了 machine.xml 重启过）才重建
     /// </summary>
     private void OnModulesChanged(ModuleStatusListDto list)
     {

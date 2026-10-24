@@ -11,7 +11,7 @@ namespace xyz.Shared.Services;
 public interface IEcService
 {
     /// <summary>
-    /// 全部 EC 项的定义与当前值，先后跟 sc.xml 的组件层级一样。Data 为 List&lt;EcItemDto&gt; 的 JSON；没装 EC 组件时为空表。
+    /// 全部 EC 项的定义与当前值，先后跟 machine.xml 的组件层级一样。Data 为 List&lt;EcItemDto&gt; 的 JSON；没装 EC 组件时为空表。
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetDefinitionsAsync(RpcRequest request, CallContext context = default);

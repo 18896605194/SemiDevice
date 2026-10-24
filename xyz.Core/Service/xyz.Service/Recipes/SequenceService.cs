@@ -163,7 +163,7 @@ public class SequenceService : BaseService, ISequenceService
     }
 
     /// <summary>
-    /// ON-LINE REMOTE 时 Host 锁着本地改配方（sc.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包，没锁返回 null
+    /// ON-LINE REMOTE 时 Host 锁着本地改配方（machine.xml Eap.Recipe 的 LockLocalEditInRemote）：返回拒绝的回包，没锁返回 null
     /// </summary>
     private Task<RpcResponse>? LockedByHost()
     {

@@ -11,7 +11,7 @@ namespace xyz.Components.Components;
 /// </summary>
 public abstract class TwoStateComponent : ComponentBase
 {
-    #region SC
+    #region Machine
 
     [Machine("-1", "IO", "开侧驱动 DO 索引", Required = true)]
     public int DoOpenIndex { get; set; } = -1;
@@ -43,7 +43,7 @@ public abstract class TwoStateComponent : ComponentBase
     #endregion
 
     /// <summary>
-    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// IO 组件（开机 Bind 时取）；machine.xml 没配 Io 节点是 null
     /// </summary>
     private IIo? _io;
 

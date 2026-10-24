@@ -51,7 +51,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("False", "TransferStation",
         "取片要站点中途交接：机械手伸到位先停下，站点把片交到手上（比如降顶针）再缩臂；到这个站的机械手驱动要有分段指令。False = 机械手一条指令取完")]
@@ -76,7 +76,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     #region 在位传感器
 
     /// <summary>
-    /// 在位传感器：sc 里站点下面叫 WaferSensor 的 DI；没配为 null
+    /// 在位传感器：machine.xml 里站点下面叫 WaferSensor 的 DI；没配为 null
     /// </summary>
     protected IDiSensor? WaferSensor { get; private set; }
 

@@ -9,12 +9,12 @@ using xyz.Configs.Models;
 namespace xyz.Components;
 
 /// <summary>
-/// 组件装载器：按 sc.xml 的 Setting/Value 树构建组件实例
+/// 组件装载器：按 machine.xml 的 Setting/Value 树构建组件实例
 /// </summary>
 public static class ComponentLoader
 {
     /// <summary>
-    /// 开机第一步：根组件按 InitOrder、再按 sc 先后做开机准备，子组件由基类递归带着做
+    /// 开机第一步：根组件按 InitOrder、再按 machine.xml 先后做开机准备，子组件由基类递归带着做
     /// </summary>
     public static void InitAll(IEnumerable<ComponentBase> roots)
     {
@@ -28,7 +28,7 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 开机第二步：开机准备都做完、开始扫描之前，整棵树按 sc 先后挨个 Bind
+    /// 开机第二步：开机准备都做完、开始扫描之前，整棵树按 machine.xml 先后挨个 Bind
     /// </summary>
     public static void BindAll(IEnumerable<ComponentBase> roots)
     {
@@ -53,7 +53,7 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 开机第四步：都开始扫描以后，整棵树按 sc 先后挨个 OnStarted
+    /// 开机第四步：都开始扫描以后，整棵树按 machine.xml 先后挨个 OnStarted
     /// </summary>
     public static void StartedAll(IEnumerable<ComponentBase> roots)
     {
@@ -82,7 +82,7 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 启用的组件按 sc 先后（父在前、子在后）；停用的连同下面的都跳过
+    /// 启用的组件按 machine.xml 先后（父在前、子在后）；停用的连同下面的都跳过
     /// </summary>
     private static IEnumerable<ComponentBase> Walk(IEnumerable<ComponentBase> components)
     {
@@ -102,7 +102,7 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 把 SC.Load() 的配置树装载为组件实例树，返回根组件列表（含模块）。
+    /// 把 MachineXml.Load() 的配置树装载为组件实例树，返回根组件列表（含模块）。
     /// </summary>
     public static List<ComponentBase> Load(IEnumerable<ModuleConfig> settings)
     {
@@ -114,7 +114,7 @@ public static class ComponentLoader
             Build(setting, catalog, parent: null, parentPath: string.Empty, roots);
         }
 
-        // 构造时挂好的子组件（sc.xml 里不写 Type 的那种）还没有路径，这里接在父组件后面补上。
+        // 构造时挂好的子组件（machine.xml 里不写 Type 的那种）还没有路径，这里接在父组件后面补上。
         foreach (var root in roots)
         {
             AssignFullPath(root, parentPath: string.Empty);
@@ -126,7 +126,7 @@ public static class ComponentLoader
     }
 
     /// <summary>
-    /// 组件进容器：整棵树照 sc 先后（父在前、子在后，停用的连同下面的都跳过），每个组件按它实现的 xyz 接口登记成单例；
+    /// 组件进容器：整棵树照 machine.xml 先后（父在前、子在后，停用的连同下面的都跳过），每个组件按它实现的 xyz 接口登记成单例；
     /// 一类有好几个的（LoadPort、腔体）用的地方取全部，只有一个的（搬运管理、晶圆账）取一个。树本身也登记，宿主开机、收尾按它走
     /// </summary>
     public static void Register(IServiceCollection services, IReadOnlyList<ComponentBase> roots)
@@ -236,7 +236,7 @@ public static class ComponentLoader
 
     /// <summary>
     /// 装一个节点和它下面的节点。parentPath 是上一级节点的路径：分组节点（不写 Type）不生成组件，
-    /// 但名字照样进路径，组件全路径跟 sc.xml 的层级一样（Chamber.Chamber1.Door）。
+    /// 但名字照样进路径，组件全路径跟 machine.xml 的层级一样（Chamber.Chamber1.Door）。
     /// </summary>
     private static void Build(ModuleConfig setting, Dictionary<string, Type> catalog, ComponentBase? parent, string parentPath,
         List<ComponentBase> roots)
@@ -264,7 +264,7 @@ public static class ComponentLoader
             if (!catalog.TryGetValue(setting.Type, out var type))
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {setting.Name} 的 Type \"{setting.Type}\" 未找到组件类（程序集未加载或未标记 [Component]）。");
+                    $"machine.xml 节点 {setting.Name} 的 Type \"{setting.Type}\" 未找到组件类（程序集未加载或未标记 [Component]）。");
             }
 
             component = (ComponentBase)Activator.CreateInstance(type)!;
@@ -319,7 +319,7 @@ public static class ComponentLoader
             if (property is null)
             {
                 LogHelper.Error(path,
-                    $"sc.xml 节点 {path} 的参数 {value.Name} 不认识：{component.GetType().Name} 没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
+                    $"machine.xml 节点 {path} 的参数 {value.Name} 不认识：{component.GetType().Name} 没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
                 continue;
             }
 
@@ -336,7 +336,7 @@ public static class ComponentLoader
                 exception is FormatException or ArgumentException or NotSupportedException)
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {setting.Name} 的值 {value.Name}=\"{value.Value}\" 无法转换为 {property.PropertyType.Name}。", exception);
+                    $"machine.xml 节点 {setting.Name} 的值 {value.Name}=\"{value.Value}\" 无法转换为 {property.PropertyType.Name}。", exception);
             }
         }
     }
@@ -368,6 +368,6 @@ public static class ComponentLoader
             return Enum.Parse(targetType, value, ignoreCase: true);
         }
 
-        throw new NotSupportedException($"{targetType.Name} 不支持的 SC 配置类型。");
+        throw new NotSupportedException($"{targetType.Name} 不支持的 machine.xml 配置类型。");
     }
 }

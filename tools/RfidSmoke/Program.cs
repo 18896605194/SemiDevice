@@ -132,7 +132,7 @@ void Check(bool condition, string message)
         threw = true;
     }
 
-    Check(threw, "sc 里读头下面没挂通道：组件初始化就抛");
+    Check(threw, "machine.xml 里读头下面没挂通道：组件初始化就抛");
 }
 
 // ── 5. 读码正常路径 ─────────────────────────────────────────────────────

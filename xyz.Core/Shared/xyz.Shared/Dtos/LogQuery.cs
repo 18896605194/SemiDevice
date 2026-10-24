@@ -9,7 +9,7 @@ namespace xyz.Shared.Dtos;
 public class LogQuery
 {
     /// <summary>
-    /// 拉取条数；&lt;=0（默认）表示后端缓冲里有多少给多少，缓冲条数在 sc.xml 的 Log 节点（RecentLogCount）配。
+    /// 拉取条数；&lt;=0（默认）表示后端缓冲里有多少给多少，缓冲条数在 machine.xml 的 Log 节点（RecentLogCount）配。
     /// </summary>
     [ProtoMember(1)]
     public int Count { get; set; }

@@ -18,9 +18,9 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// AI 冒烟：AI 组件（sc 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAi 进容器；
+// AI 冒烟：AI 组件（machine.xml 的 Ai 节点）配错开机就报（地址、模型名、同时几个）；按 IAi 进容器；
 // 解释报警：报警不在当前报警里回 ai.alarm_not_found、不问模型；交给模型的材料（报警的说明和处理办法、来源下面的信号前后怎么变的和现在的值、
-// 最近的告警和错误日志），EC 限条数，回答的语言跟界面，回答带它看了哪些数据；模型回空的、出错、超时（含排队）的错误码；同时只让 SC MaxConcurrent 个在模型上算；
+// 最近的告警和错误日志），EC 限条数，回答的语言跟界面，回答带它看了哪些数据；模型回空的、出错、超时（含排队）的错误码；同时只让 machine.xml MaxConcurrent 个在模型上算；
 // 服务（没配回 ai.not_installed、状态带模型名、回答转成 AiAnswerDto）；
 // 真走一遍微软 Microsoft.Extensions.AI 的 OpenAI 格式适配：本机起一个假的模型服务（HttpListener），看请求的路径、模型名、消息，回答原样回来；服务停了当场报错不重试。
 // 假的模型（IChatClient）、假的日志和数据曲线，不连真模型。
@@ -92,7 +92,7 @@ try
     var door = roots[1].FullPath == Source ? (AlarmProbe)roots[1] : throw new InvalidOperationException("FAIL: 报警来源的路径不对：" + roots[1].FullPath);
     Check(ai.InitComponent(), "AI 组件初始化：只建对象，不连网");
     ComponentLoader.BindAll(roots);
-    Check(ReferenceEquals(IocHelper.GetService<IAi>(), ai) && ai.Model == "qwen-test", "按 IAi 找得到 AI 组件，模型名照 sc");
+    Check(ReferenceEquals(IocHelper.GetService<IAi>(), ai) && ai.Model == "qwen-test", "按 IAi 找得到 AI 组件，模型名照 machine.xml");
     Check(ai.TimeoutMs == 120000 && ai.LogCount == 50 && ai.SignalWindowSeconds == 120 && ai.SignalCount == 20
         && ai.MaxOutputTokens == 1000 && Math.Abs(ai.Temperature - 0.2) < 1e-9 && ai.MaxConcurrent == 1,
         "默认：超时 120 s、50 条日志、前后各 120 s、20 个信号、回答 1000 token、随机程度 0.2、同时 1 个");
@@ -120,7 +120,7 @@ try
     Check(result.IsSuccess && answer is not null && answer.Text == "可能是开到位传感器坏了。\n先查 Opened 信号的接线。" && answer.Model == "qwen-test",
         "报警还在：问了模型，回答去掉前后空白原样带回，带模型名（来源不分大小写）");
     Check(answer!.Signals.SequenceEqual(["Chamber__Chamber1__Door__DoOpen", "Chamber__Chamber1__Door__Opened", "Chamber__Chamber1__Door__Closed", "Chamber__Chamber1__Door__Pressure"])
-        && answer.LogCount == 3, "回答带它看了哪些数据：来源下面的 4 个信号（按 sc 先后，DoorLock、Spin 不算），3 条日志");
+        && answer.LogCount == 3, "回答带它看了哪些数据：来源下面的 4 个信号（按 machine.xml 先后，DoorLock、Spin 不算），3 条日志");
     Check(chart.LastNames.SequenceEqual(answer.Signals) && Math.Abs((raised.RaisedAt.LocalDateTime - chart.LastStart).TotalSeconds - 120) < 1
         && chart.LastEnd <= DateTime.Now && chart.LastEnd >= raised.RaisedAt.LocalDateTime,
         "数据曲线按这 4 个信号查报警前 120 s 到现在（还没过报警后 120 s）");
@@ -206,7 +206,7 @@ try
     result = await ai.ExplainAlarmAsync(Source, Code, "zh-CN", CancellationToken.None);
     Check(result.IsSuccess, "超时以后照样能问（排队的位置放回去了）");
 
-    // 9. 排队：SC MaxConcurrent = 1 时两个一起问，模型上同时只算一个，后一个等前一个答完；超时把排队也算在内
+    // 9. 排队：machine.xml MaxConcurrent = 1 时两个一起问，模型上同时只算一个，后一个等前一个答完；超时把排队也算在内
     fake.MaxRunning = 0;
     var gate = new TaskCompletionSource();
     fake.Gate = gate;
@@ -258,7 +258,7 @@ try
         Check(root.GetProperty("model").GetString() == "test-model" && messages.GetArrayLength() == 2
             && messages[0].GetProperty("role").GetString() == "system" && messages[1].GetProperty("role").GetString() == "user"
             && (messages[1].GetProperty("content").GetString() ?? string.Empty).Contains("开/关到位超时", StringComparison.Ordinal),
-            "请求里模型名照 sc、两条消息（规矩 + 材料）");
+            "请求里模型名照 machine.xml、两条消息（规矩 + 材料）");
         foreach (string field in new[] { "max_completion_tokens", "max_tokens" })
         {
             if (root.TryGetProperty(field, out var value) && value.GetInt32() == 1000)
@@ -281,7 +281,7 @@ finally
     SmokeIoc.Use<IAlarm>(previousAlarm);
 }
 
-Console.WriteLine($"PASS: {checks} ai checks (sc errors at startup, found by IAi, alarm not active, the material handed to the model "
+Console.WriteLine($"PASS: {checks} ai checks (machine.xml errors at startup, found by IAi, alarm not active, the material handed to the model "
     + "(alarm text, description and solution, related signals before and after the alarm with their changes and current values, recent warn / error logs), "
     + "EC limits, answer language following the UI, answer with what it looked at, empty answer / service error / timeout codes, one request at a time on the model, "
     + $"the service (status, answer DTO, not installed), and a real HTTP round trip through Microsoft.Extensions.AI's OpenAI adapter (max tokens sent as {maxTokensField}), no retry when the model service is down)");
@@ -543,7 +543,7 @@ public sealed class FakeModelServer : IDisposable
     }
 
     /// <summary>
-    /// 填进 sc Endpoint 的地址
+    /// 填进 machine.xml Endpoint 的地址
     /// </summary>
     public string Endpoint { get; }
 

@@ -3,7 +3,7 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 晶圆账全貌（设置 → 账单调整页）：能调整的位置——所有机械手 sc.xml 里 Stations 配的站点合并，再加上机械手自己（手指），
+/// 晶圆账全貌（设置 → 账单调整页）：能调整的位置——所有机械手 machine.xml 里 Stations 配的站点合并，再加上机械手自己（手指），
 /// 以及每个位置的槽和槽上的片。先后：机械手在前，站点按各机械手 Stations 里的先后，多台机械手共用的站点只列一次。
 /// 账一变（建片、移片、改信息、删片）后端就推一条 <see cref="WaferLedgerChangedDto"/>（token = EventToken，不留存），界面收到后自己重拉。
 /// </summary>
@@ -12,7 +12,7 @@ public class WaferLedgerDto
     public const string EventToken = "WaferLedger";
 
     /// <summary>
-    /// 晶圆账开着没有（sc.xml 没配 LedgerManager 或 IsEnable=False 时为 false，位置表是空的）。
+    /// 晶圆账开着没有（machine.xml 没配 LedgerManager 或 IsEnable=False 时为 false，位置表是空的）。
     /// </summary>
     public bool IsEnabled { get; set; }
 

@@ -7,7 +7,7 @@ namespace xyz.Shared.Services;
 /// <summary>
 /// 整机操作服务契约（主界面左上的系统操作）：全部初始化、切 Auto / Manual、整机停止、全部回片、切晶圆尺寸。
 /// 动作开了就回，系统状态不用查：系统状态推送（SystemStateDto，留存）里带着，模式按它算。复位走 IAlarmService.ResetAllAsync（跟右上角的复位一样）。
-/// 没配整机（sc.xml 的 System 节点）回 system.not_installed；当前状态不让做回 module.state_not_allowed [整机名, 状态码]。
+/// 没配整机（machine.xml 的 System 节点）回 system.not_installed；当前状态不让做回 module.state_not_allowed [整机名, 状态码]。
 /// </summary>
 [ServiceContract]
 public interface IEquipmentService
@@ -46,9 +46,9 @@ public interface IEquipmentService
 
     /// <summary>
     /// 切晶圆尺寸：参数 <see cref="WaferSizeKey"/> = 8 或 12。整机没初始化（每个模块都是未初始化）、机台里（LoadPort 以外）没片才让切；
-    /// 切了马上生效并写回 sc.xml，当前尺寸由设备总状态推送带给界面。跟现在一样直接回成功。
+    /// 切了马上生效并写回 machine.xml，当前尺寸由设备总状态推送带给界面。跟现在一样直接回成功。
     /// 尺寸不对回 system.wafer_size_invalid，没配晶圆尺寸回 system.wafer_size_not_installed，有模块初始化过回 system.wafer_size_initialized，
-    /// 机台里有片回 system.wafer_size_has_wafer，写 sc.xml 失败回 system.wafer_size_save_failed。
+    /// 机台里有片回 system.wafer_size_has_wafer，写 machine.xml 失败回 system.wafer_size_save_failed。
     /// </summary>
     [OperationContract]
     Task<RpcResponse> SetWaferSizeAsync(RpcRequest request, CallContext context = default);

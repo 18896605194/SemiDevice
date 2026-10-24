@@ -15,7 +15,7 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 
 /// <summary>
 /// 腔体三维图：底座上装 Bowl、旋转盘、腔门和每条摆臂（Lift 立柱、摆臂、喷嘴管、Home 接液杯）。
-/// 装哪些设备看 Devices（后端按 sc.xml 推来的设备组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
+/// 装哪些设备看 Devices（后端按 machine.xml 推来的设备组成），状态全部绑定显示模型；盘上的片绑 Wafer（晶圆账）。
 /// 摆臂收到新位置后 0.2 s 过渡过去。门、Bowl、Lift 跟到位反馈走：到位画在那一头，未知（命令发了、到位信号还没亮）画在行程中间、整块变红；
 /// 摆臂、旋转盘跟轴推送的驱动器报错（IsError）走，报错整块变红。
 /// 不注册逐帧事件：液柱长度只在摆臂角度、Lift 高度或出液变化时重算，只有动画进行中角度和高度才会逐帧变，停下来就一点不算。
@@ -230,7 +230,7 @@ public partial class ChamberScene : UserControl
     }
 
     /// <summary>
-    /// 按现在的设备组成重搭：sc 里配了门、Bowl 才装，旋转盘一直在；摆臂按先后放右、左两个安装位。
+    /// 按现在的设备组成重搭：machine.xml 里配了门、Bowl 才装，旋转盘一直在；摆臂按先后放右、左两个安装位。
     /// 旧摆臂先解绑、停动画，再整个拆掉。
     /// </summary>
     private void Rebuild()

@@ -23,7 +23,7 @@ public class RealChartService : IRealChartService
     {
         _realChart = IocHelper.GetService<IRealChart>();
         _dataChart = IocHelper.GetService<IDataChart>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetLayoutAsync(RpcRequest request, CallContext context = default)

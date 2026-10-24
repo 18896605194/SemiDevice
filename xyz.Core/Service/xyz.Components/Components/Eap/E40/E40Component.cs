@@ -12,7 +12,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// PJ 管理（SEMI E40，sc.xml 的 Eap 下的 E40 节点）：Host 的 S16 翻成 Job 管理的命令
+/// PJ 管理（SEMI E40，machine.xml 的 Eap 下的 E40 节点）：Host 的 S16 翻成 Job 管理的命令
 /// </summary>
 [Component(description: "PJ 管理（SEMI E40）：S16 建 PJ、PJ 命令、查 PJ，PJ 状态转换报事件")]
 public class E40Component : ComponentBase, IE40Callback, IE40Component
@@ -26,7 +26,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
     /// <summary>GRANT：可以发。</summary>
     private const byte Granted = 0;
 
-    #region SC
+    #region Machine
 
     [Machine("START", "E40", "S16F5 的 PJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
     public string StartCommandName { get; set; } = "START";
@@ -102,7 +102,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
     }
 
     /// <summary>
-    /// 默认命令名：用于兜底，并检查 SC 是否占用了其他命令的名称
+    /// 默认命令名：用于兜底，并检查 machine.xml 是否占用了其他命令的名称
     /// </summary>
     private static readonly (string Name, ProcessJobCommand Command)[] StandardCommands =
     [
@@ -347,7 +347,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
         string carrierId = SecsRead.Text(entry[0], "CARRIERID").Trim();
         var slots = SecsRead.List(entry[1], "SLOTID 表").Select(slot => (int)SecsRead.Code(slot, "SLOTID")).ToList();
 
-        // 保留报文格式校验；PJ 启动方式统一由设备的 SC 配置决定。
+        // 保留报文格式校验；PJ 启动方式统一由设备的 machine.xml 配置决定。
         SecsRead.Flag(autoStart, "PRPROCESSSTART");
         var result = await jobs.CreateProcessJobAsync(
             loadPort: null,
@@ -367,7 +367,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
 
     /// <summary>
     /// S16F5 PJ 命令 → S16F6 L[2]{PRJOBID, L[2]{ACKA, 错误表}}：L[4]{DATAID, PRJOBID, PRCMDNAME, L{参数}}。
-    /// PRCMDNAME 只收命令字符串：优先识别 SC 名称，默认 START（也认 STARTPROCESS）/ PAUSE / RESUME / STOP / ABORT / CANCEL 兜底。
+    /// PRCMDNAME 只收命令字符串：优先识别 machine.xml 名称，默认 START（也认 STARTPROCESS）/ PAUSE / RESUME / STOP / ABORT / CANCEL 兜底。
     /// </summary>
     private async Task<SecsReply> CommandAsync(HsmsMessage message)
     {
@@ -389,7 +389,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
         return SecsReply.Of(SecsItem.L(SecsItem.A(GemValue.Ascii(id)), Ack(errors)));
     }
 
-    /// <summary>解析 PJ 命令名；运行期间 SC 被修改后，仍拒绝重复名称或与默认名称含义冲突的命令。</summary>
+    /// <summary>解析 PJ 命令名；运行期间 machine.xml 被修改后，仍拒绝重复名称或与默认名称含义冲突的命令。</summary>
     private ProcessJobCommand? ParseCommand(string name)
     {
         name = name.Trim();
@@ -429,7 +429,7 @@ public class E40Component : ComponentBase, IE40Callback, IE40Component
             {
                 if (matched is not null && matched != entry.Command)
                 {
-                    LogHelper.Warn(Name, $"PJ 命令字符串配置冲突：{name} 在 SC 中表示 {matched}，默认名称表示 {entry.Command}，拒绝执行");
+                    LogHelper.Warn(Name, $"PJ 命令字符串配置冲突：{name} 在 machine.xml 中表示 {matched}，默认名称表示 {entry.Command}，拒绝执行");
                     return null;
                 }
 

@@ -2,7 +2,7 @@
 
 /// <summary>
 /// 一趟搬运的输入参数：哪片从哪儿搬到哪儿。手动、Job、人工恢复共用，区别在 <see cref="Origin"/> 和 <see cref="Owner"/>。
-/// 站点名就是模块名（sc.xml 原样），槽号从 1 开始。
+/// 站点名就是模块名（machine.xml 原样），槽号从 1 开始。
 /// </summary>
 public sealed record TransferRequest
 {
@@ -34,7 +34,7 @@ public sealed record TransferRequest
     /// <summary>目标槽号（目标是机械手时是手指号）。</summary>
     public int TargetSlot { get; init; }
 
-    /// <summary>用哪台机械手；空 = 挑第一台两个站点都到得了的（按 sc.xml 先后）。</summary>
+    /// <summary>用哪台机械手；空 = 挑第一台两个站点都到得了的（按 machine.xml 先后）。</summary>
     public string? Robot { get; init; }
 
     /// <summary>用哪只手；0 = 挑一只空着、两个站点都许用的（手指号从小到大）。</summary>

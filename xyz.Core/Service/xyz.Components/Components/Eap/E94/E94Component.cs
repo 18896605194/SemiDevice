@@ -11,7 +11,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// CJ 管理（SEMI E94，sc.xml 的 Eap 下的 E94 节点）：Host 用 S14F9 建 CJ（E39 Create Object，对象类型 ControlJob）
+/// CJ 管理（SEMI E94，machine.xml 的 Eap 下的 E94 节点）：Host 用 S14F9 建 CJ（E39 Create Object，对象类型 ControlJob）
 /// </summary>
 [Component(description: "CJ 管理（SEMI E94）：S14F9 建 CJ、S16F27 CJ 命令，CJ 状态转换报事件")]
 public class E94Component : ComponentBase, IE94Callback, IE94Component
@@ -21,7 +21,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
     /// <summary>E39/E94 的 CJ 对象类型及属性名，统一保留协议中的名称写法。</summary>
     
 
-    #region SC
+    #region Machine
 
     [Machine("CJSTART", "E94", "S16F27 的 CJ 启动命令字符串（忽略大小写及首尾空格；不能重复或占用其他命令的默认名称）")]
     public string StartCommandName { get; set; } = "CJSTART";
@@ -50,7 +50,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
     #endregion
 
     /// <summary>
-    /// 默认兼容命令名：用于兜底，并检查 SC 是否占用了其他命令的名称  只是局限于字符串
+    /// 默认兼容命令名：用于兜底，并检查 machine.xml 是否占用了其他命令的名称  只是局限于字符串
     /// </summary>
     private static readonly (string Name, ControlJobCommand Command)[] StandardCommands =
     [
@@ -65,7 +65,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
     ];
 
     /// <summary>
-    /// 装配钩子：SC 命令名字符串加载完先查一遍不能为空、不能互相重复、不能占用其他命令的默认名称；
+    /// 装配钩子：machine.xml 命令名字符串加载完先查一遍不能为空、不能互相重复、不能占用其他命令的默认名称；
     /// 配置错了装配即失败（开机就暴露），运行期的 ParseCommand 另有一层冲突拒绝兜底。
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
@@ -202,7 +202,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
         link.Handle(16, 27, CommandAsync);
         if (objects is null)
         {
-            LogHelper.Error(Name, "sc.xml 的 Eap 下没配 E39 节点：Host 建不了 CJ（S14F9）");
+            LogHelper.Error(Name, "machine.xml 的 Eap 下没配 E39 节点：Host 建不了 CJ（S14F9）");
             return;
         }
 
@@ -243,7 +243,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
 
     /// <summary>
     /// S16F27 CJ 命令 → S16F28 L[2]{ACKA, L[0 或 2]{ERRCODE, ERRTEXT}}：L[3]{CTLJOBID, CTLJOBCMD, L[0 或 2]{"Action", CPVAL}}。
-    /// CTLJOBCMD 的标准格式是 U1（1 Start … 8 HOQ）；兼容 SC 配置的字符串（默认 CjStart…）。Action 给数（0 SaveJobs、1 RemoveJobs）或名字都认，
+    /// CTLJOBCMD 的标准格式是 U1（1 Start … 8 HOQ）；兼容 machine.xml 配置的字符串（默认 CjStart…）。Action 给数（0 SaveJobs、1 RemoveJobs）或名字都认，
     /// 也认多包一层的 L[1]{L[2]{...}}；不给 Action 按 SaveJobs。
     /// </summary>
     private async Task<SecsReply> CommandAsync(HsmsMessage message)
@@ -322,14 +322,14 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
                 matched = entry.Command;
             }
 
-            // 默认名称兜底；SC 同时命中时必须含义一致，避免把停止请求解析成启动等其他命令。
+            // 默认名称兜底；machine.xml 同时命中时必须含义一致，避免把停止请求解析成启动等其他命令。
             foreach (var entry in StandardCommands)
             {
                 if (string.Equals(name, entry.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     if (matched is not null && matched != entry.Command)
                     {
-                        LogHelper.Warn(Name, $"CJ 命令字符串配置冲突：{name} 在 SC 中表示 {matched}，默认名称表示 {entry.Command}，拒绝执行");
+                        LogHelper.Warn(Name, $"CJ 命令字符串配置冲突：{name} 在 machine.xml 中表示 {matched}，默认名称表示 {entry.Command}，拒绝执行");
                         return null;
                     }
 
@@ -379,7 +379,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
     #region 建 CJ（S14F9，经 E39）
 
     /// <summary>
-    /// 建 CJ：属性 ObjID（不给就用 OBJSPEC）、ProcessingCtrlSpec（必须，L{L[3]{PRJOBID, 规则, 阈值}}）、StartMethod（BOOLEAN，启动方式由 SC 决定）、
+    /// 建 CJ：属性 ObjID（不给就用 OBJSPEC）、ProcessingCtrlSpec（必须，L{L[3]{PRJOBID, 规则, 阈值}}）、StartMethod（BOOLEAN，启动方式由 machine.xml 决定）、
     /// ProcessOrderMgmt（1/2/3 都收，本机按列表先后做）；MtrlOutSpec、MtrlOutByStatus、PauseEvent 只能空；CarrierInputSpec、DataCollectionPlan 不看。
     /// </summary>
     private async Task<E39Created> CreateAsync(string objectSpec, IReadOnlyList<(string Name, SecsItem Value)> attributes)
@@ -413,7 +413,7 @@ public class E94Component : ComponentBase, IE94Callback, IE94Component
                     break;
 
                 case ControlJobNames.StartMethod:
-                    // 保留报文格式校验；CJ 启动方式统一由设备的 SC 配置决定。
+                    // 保留报文格式校验；CJ 启动方式统一由设备的 machine.xml 配置决定。
                     SecsRead.Flag(value, ControlJobNames.StartMethod);
                     break;
 

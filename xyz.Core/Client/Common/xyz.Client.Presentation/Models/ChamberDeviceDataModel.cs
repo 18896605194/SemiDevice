@@ -5,8 +5,8 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 腔体三维图的设备显示模型：内容来自后端的设备状态推送（ChamberDeviceDataDto，结构跟 sc.xml 一样）。
-/// 门、Bowl（画第一个）、卡盘、各条摆臂（带它的 Lift 和喷嘴）直接照推送的树取；sc 里没配的就不画。
+/// 腔体三维图的设备显示模型：内容来自后端的设备状态推送（ChamberDeviceDataDto，结构跟 machine.xml 一样）。
+/// 门、Bowl（画第一个）、卡盘、各条摆臂（带它的 Lift 和喷嘴）直接照推送的树取；machine.xml 里没配的就不画。
 /// 推送来了就地刷新；设备组成变了才重建摆臂，并把 Revision 加一，三维图据此重搭。
 /// </summary>
 public class ChamberDeviceDataModel : ObservableObject
@@ -16,21 +16,21 @@ public class ChamberDeviceDataModel : ObservableObject
     /// <summary>腔体模块名，如 "Chamber1"；还没收到推送时为空。</summary>
     public string Module => _module;
 
-    /// <summary>腔门；sc 里没配时 IsPresent 为 false。</summary>
+    /// <summary>腔门；machine.xml 里没配时 IsPresent 为 false。</summary>
     public ChamberCylinderModel Door { get; } = new();
 
-    /// <summary>Bowl；sc 里没配时 IsPresent 为 false。</summary>
+    /// <summary>Bowl；machine.xml 里没配时 IsPresent 为 false。</summary>
     public ChamberCylinderModel Bowl { get; } = new();
 
-    /// <summary>旋转电机；sc 里没配时 IsPresent 为 false。</summary>
+    /// <summary>旋转电机；machine.xml 里没配时 IsPresent 为 false。</summary>
     public ChamberSpinModel Spin { get; } = new();
 
-    /// <summary>各条摆臂，按 sc.xml 里的先后。</summary>
+    /// <summary>各条摆臂，按 machine.xml 里的先后。</summary>
     public ObservableCollection<ChamberArmModel> Arms { get; } = [];
 
     private int _revision;
 
-    /// <summary>设备组成的版本：第一次收到推送、或者 sc 里配的设备变了就加一。</summary>
+    /// <summary>设备组成的版本：第一次收到推送、或者 machine.xml 里配的设备变了就加一。</summary>
     public int Revision
     {
         get => _revision;

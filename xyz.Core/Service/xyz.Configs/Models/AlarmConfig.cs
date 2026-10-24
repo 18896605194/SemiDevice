@@ -3,7 +3,7 @@
 namespace xyz.Configs.Models;
 
 /// <summary>
-/// SC 配置中的 Alarm 节点。
+/// machine.xml 配置中的 Alarm 节点。
 /// </summary>
 [XmlType("Alarm")]
 public class AlarmConfig

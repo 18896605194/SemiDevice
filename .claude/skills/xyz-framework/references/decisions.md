@@ -16,16 +16,19 @@
 - **注册扩展类叫 ServiceExtensions**（2026-10-03）：各工程根目录的 `ServiceCollectionExtensions.cs` 全部改名 `ServiceExtensions.cs`，类名同名。
 - **不写花括号模式匹配**（2026-10-02）：`x is { } y`、`is not { } y`、`is { Prop: v }`、列表模式 `is [..]`、switch 里的属性模式都不要；
   先取局部变量再显式判空、判属性，判空用 `is null` / `is not null`。全框架改过一遍。
-- **参数化**（2026-09-30）："该是 sc 就是 sc，该是 ec 就是 ec"：开关、落哪个库、保留天数、采样周期、查询上限进 sc.xml；
+- **参数化**（2026-09-30）："该是 machine.xml 就是 machine.xml，该是 ec 就是 ec"：开关、落哪个库、保留天数、采样周期、查询上限进 machine.xml；
   批量大小、积压告警、推送周期、超时、防抖进 ec.xml。代码里不留魔法数。
-- **sc.xml 参数的特性叫 `[Machine]`**（2026-10-24，用户定的：名字里不要 SC、也不要 Config，"就叫 Machine"）：原来叫 `[SCEditor]`，
-  像是给编辑器用的；`[ScParameter]`、`[Config]` 都被否了。类 `MachineAttribute`，参数照旧（默认值、分组、说明、Required），EC 照旧用 `[VariableMark(VariableType.EC, ...)]`。
+- **machine.xml 参数的特性叫 `[Machine]`**（2026-10-24，用户定的，"就叫 Machine"）：不要像是给编辑器用的名字，也不要 `[Config]`（都被否过）。
+  类 `MachineAttribute`，参数照旧（默认值、分组、说明、Required），EC 照旧用 `[VariableMark(VariableType.EC, ...)]`。
+- **配置文件叫 machine.xml**（2026-10-24，用户定的，跟 `[Machine]` 对上）：读文件的类 `MachineXml`、根模型 `MachineSettings`，35021 的部署目标 `DeployMachineToHost`，
+  参数分组 `#region Machine`；ToolBuilder 的工程叫 ToolBuilder.*，管路布局目录按文件名取（`CdsLayouts/machine/`）。**改名就彻底改**（用户："……任何东西，都不要出现在程序里面了"）：
+  代码、脚本、测试、界面文字里不留旧名字，不做旧文件兼容、不做自动改名，机台上的文件升级时现场改；药液名 SC1 / SC2、Windows 命令 `sc.exe` 跟它无关，照旧。
 - **开关量配置一律 bool**（2026-10-02）：涉及 High/Low 的配置全部改成 bool，不做兼容。
 - **组件 DLL 目录**（2026-10-02）：顶层只有 Attributes / Collectors / Components / Enums / Interfaces / Models；顶层目录 = 命名空间；
   `Components\<类别>` 只归类，命名空间固定 `xyz.Components.Components`；纯数据类进 Models；不建按领域的顶层目录。
-- **分组节点名进组件全路径**（2026-10-11，用户："sc 应该就是把没写 type 的也算进去"）：sc.xml 里不写 Type 的分组节点（LoadPort、Robot、Chamber、
+- **分组节点名进组件全路径**（2026-10-11，用户："machine.xml 应该就是把没写 type 的也算进去"）：machine.xml 里不写 Type 的分组节点（LoadPort、Robot、Chamber、
   Robot1 下的 Axes）照旧不生成组件，但名字进 `FullPath`：`Chamber.Chamber1.Door`，EC 的键、报警来源、GEM 采集名、数据曲线列名都跟着带分组，
-  EC 页左边的树自然跟 sc 一样。不另加"sc 路径"字段（试过 `ScPath`，用户嫌绕），也不把分组做成组件（模块就不在根上了）。
+  EC 页左边的树自然跟 machine.xml 一样。不另加"machine.xml 路径"字段（试过，用户嫌绕），也不把分组做成组件（模块就不在根上了）。
   要几个组件共用一条扫描线程的，写 Type 做成父组件（像腔体带部件），见「指挥层 Dispatch」；设备模块仍在根上。
   界面要短名的（腔体手动页的页签、气缸行）取模块名那一段后面的，不能假设路径以模块名开头。
 - **PLC 接口拆成点位和数据块**（2026-10-19，用户提的）：原来一个 `IPlc`，拆成 `IPlcIo`（`IsConnected` + DI/DO/AI/AO 读写，IO 组件用）
@@ -40,7 +43,7 @@
 
 ## 组件初始化 InitComponent 和模块初始化 InitModule（2026-10-09，用户定的名和分工）
 - **起因**（用户："组件调用子组件的时候，不需要什么写死声明，应该就是通过框架获取所有的子组件"）：LoadPort / Robot 的 `Open()` 里手写找读头、E84、驱动再逐个开，
-  子组件清单散在好几处；sc.xml 里多挂一个要连接的设备，没人去开它也不报错。腔体早就是框架走树的写法（部件表照组件树扫），LoadPort / Robot 补成一样。
+  子组件清单散在好几处；machine.xml 里多挂一个要连接的设备，没人去开它也不报错。腔体早就是框架走树的写法（部件表照组件树扫），LoadPort / Robot 补成一样。
 - **两个名字，两档事**：`ComponentBase.InitComponent()` = **不动硬件**的开机初始化（连接、登记晶圆账、挂事件、E84 输出回安全态）；
   `BaseModule.InitModule()` = **动硬件**的模块初始化（回原点，返回 `ModuleOperation?`），人或调度才调、开机不调。
   原来的 `Init()` 一个名字两件事（组件递归 + 模块 = Home），拆开了；`BaseModule.Open()`、`IE84.Open()`、三个驱动组件上的 `Open()` 都没有了，连接写进各自的 `InitComponent()`。
@@ -66,8 +69,8 @@
 - **设置菜单**：EC 1（菜单上就叫"EC"）、账单调整 2、用户管理 3、角色管理 4。EC 设置是设置下第一个子菜单。
 
 ## 数据曲线 / 实时曲线（2026-09-30）
-- 只记 sc.xml 配置了的：组件上能画成曲线的 SV + 组件绑定的 IO（`Di/Do/Ai/Ao…Index`，-1 不算）；点表有、sc 没绑的不记（"这个非常重要"）。
-- 列名由 sc 生成：SV = 组件全路径 + 属性名；IO = 组件全路径 + 配置项名去掉 Index。勾选树 = 库里的列 = sc 结构，不显示旧列。
+- 只记 machine.xml 配置了的：组件上能画成曲线的 SV + 组件绑定的 IO（`Di/Do/Ai/Ao…Index`，-1 不算）；点表有、machine.xml 没绑的不记（"这个非常重要"）。
+- 列名由 machine.xml 生成：SV = 组件全路径 + 属性名；IO = 组件全路径 + 配置项名去掉 Index。勾选树 = 库里的列 = machine.xml 结构，不显示旧列。
   **DI 组件只有一个点，列名就是组件全路径**（2026-10-16，用户嫌 `Door__Opened__Di` 怪）：`Chamber__Chamber1__Door__Opened`、`Safety__Emo`；
   AI 组件照旧带 `__Ai`（它还绑了监控使能 DO `__MonitoringDo`，去掉的话勾选树同一层会出两个同名的），阀照旧 `__Do`、气缸 `__DoOpen` / `__DoClose`。
 - **层级用两个下划线 `__` 隔开**（`Chamber1__Door__DiOpened`，2026-10-15 用户定：库表全走 SqlSugar、不写 SQL，换库不用改）：
@@ -75,7 +78,7 @@
   不许下划线开头结尾，不合规开机抛错。建表、补列用 `DbMaintenance`（类型名由 `DbBind` 按库给），写库在事务里先删同一时刻的行再插，
   查用 `SelectModel` / `ConditionalModel` / `OrderByModel`；只剩 SQLite 的 WAL 那一句，按库类型判断。老的带点号日表不要了，直接删。
 - 宽表：每秒一行（Time = UTC 毫秒 + 全部值），按天一张 `DataRecord_yyyyMMdd`，Io 库（io.db、WAL），保留 30 天；每秒都记，读不到存 NULL，曲线断开不画 0。
-- **采样在 DataChart 自己的扫描里**（2026-10-17，用户："把采集的放在这个里面不好吗……datachart 自己单独用一个线程"）：sc 的 DataChart 节点配 `IsRun=true`，
+- **采样在 DataChart 自己的扫描里**（2026-10-17，用户："把采集的放在这个里面不好吗……datachart 自己单独用一个线程"）：machine.xml 的 DataChart 节点配 `IsRun=true`，
   跟别的根组件一样由统一启动扫描起一条它自己的线程；`OnScan` 到了下一个整周期就采一行，行的时间记整周期（读数比整周期晚几十毫秒，1 秒一行看不出来），
   落下一个周期以上从下一个整周期重新对齐、中间不补。装配层只在开始扫描前调 `Bind(roots)` 定信号表、开写库管道，原来自己开的采样线程（`StartSampling`）删了；
   没配 IsRun 开机记一条警告、不采。宿主退出时 `StopSampling` 等扫描线程手上那一行发完，再把最后一批写进库。
@@ -93,15 +96,15 @@
   （ΔX 标在绘图区顶上、ΔY 标在右边）。线钉在数据上，缩放平移后还在原处；打开时原来的位置不在眼前就放到当前这一段的 1/3、2/3。
   开着 X 线时信息表多"X1 处 / X2 处"两列。绘图区上面固定留 40 的空，右上角那排按钮浮在空里不挡曲线。数据曲线、实时曲线、放大窗口都有，截图带上。
   样稿在桌面"数据曲线基准线样稿-v1"。
-- 最多同时画几条 = sc.xml DataChart 节点 `QueryMaxSignals`（20）。
+- 最多同时画几条 = machine.xml DataChart 节点 `QueryMaxSignals`（20）。
 - 实时曲线显示范围 1、2、5、10、30、60 分钟（2026-10-15 加了 30、60，用户："增加一下 30 分钟和一小时"）：客户端那几档写死，
   超过后端 RealChart 节点 `WindowSeconds` 的不给选，所以 `WindowSeconds` 默认改成 3600（后端内存留一小时，约 10 MB）。
 - **曲线截图**（2026-10-15）：曲线面板右上角"放大"左边一个相机图标，只截折线图那块（坐标轴 + 曲线，不带按钮和信息表，底色跟卡片一样），
-  不弹窗，直接存到 sc.xml DataChart 节点 `ScreenshotDirectory`（用户："sc 配置地址"；默认 Screenshots，相对路径算客户端程序目录），
+  不弹窗，直接存到 machine.xml DataChart 节点 `ScreenshotDirectory`（用户："machine.xml 配置地址"；默认 Screenshots，相对路径算客户端程序目录），
   文件名"页面名_时间.png"，图标旁边小字提示存到哪 5 秒。数据曲线、实时曲线两页、放大窗口里都有。
 - Safety 组件（用户起的名）：整机安全信号（急停、门、漏液、烟感、气源/排风），一个信号一个 DiSensor/AiSensor 子节点；报警先都关着。
-- **没绑组件的点要看**（2026-10-15）：sc.xml 的 `Monitor` 分组节点（不写 Type）下挂 DiSensor / AiSensor，一个点一个节点、`AlarmEnabled=False`，
-  列名 DI 是 `Monitor__节点名`、AI 是 `Monitor__节点名__Ai`。只是分组、不扫描、不报警，只记值。**不加 `IncludeIo` 这类按点号记的配置**（列名就不是 sc 结构了）。
+- **没绑组件的点要看**（2026-10-15）：machine.xml 的 `Monitor` 分组节点（不写 Type）下挂 DiSensor / AiSensor，一个点一个节点、`AlarmEnabled=False`，
+  列名 DI 是 `Monitor__节点名`、AI 是 `Monitor__节点名__Ai`。只是分组、不扫描、不报警，只记值。**不加 `IncludeIo` 这类按点号记的配置**（列名就不是 machine.xml 结构了）。
   DO / AO 没有单点组件，真要看没绑的 DO / AO 时再照 DiSensor 加。
 - **Computer 组件**（2026-10-15，用户起的名）：本程序和整台电脑**两边都要**，分两个子节点（用户："自己程序节点下面三个，电脑节点下面三个"）：
   `Computer.Program`（`ProgramUsageComponent`：后端进程的 CPU %（占整台电脑的）、内存 MB（工作集）、线程数，`Process.GetCurrentProcess()` 取）、
@@ -118,7 +121,7 @@
   `WaferStates.Of` 以前把"未处理"画成浅绿 `IdleHasjob`（图例里未处理是灰白），状态不明也没单独上色；改成跟 `LedgerSlotModel.ToneOf` 同一规则——
   交叉片 / 叠片 / 状态不明按物理状态，正常片未处理 = 灰白 `IdleNojob`（`WaferStates.Idle`）、工艺中、已完成、失败或中止 = 红。
   圆片控件、LoadPort 卡的槽线补了 Unknown 的颜色。`IdleHasjob`（浅绿）现在没人用了。
-- 位置 = 所有机械手 sc.xml `Stations` 合并 + 机械手自己（手指也是槽位）；多台机械手共用的站点只列一次；没登记槽位的不列。
+- 位置 = 所有机械手 machine.xml `Stations` 合并 + 机械手自己（手指也是槽位）；多台机械手共用的站点只列一次；没登记槽位的不列。
 - 页面：源、目标两栏对称（左位置列表按机械手 / LoadPort / 腔体 / 其他分组，右选中位置的槽位表）+ 调整记录（最近 50 条）；
   位置再多也只是列表变长。LoadPort 槽大号在上（25 → 01）。
 - 人工移账 / 删账只改系统账、设备不动作；校验不过不报晶圆账报警，原因显示给人看；每次调整记一条记录（操作人、原因）到 `wafer_adjustment`。
@@ -134,8 +137,8 @@
 ## 流程配方页（配方 → 流程配方，2026-10-03）
 - 菜单：配方下 流程配方 `Recipe.Sequence` 1、工艺配方 `Recipe.Process` 2。流程配方是机台级的（片走哪些站点），
   工艺配方是腔体级的（腔体里怎么做），流程配方的每个工艺步骤引用一个工艺配方。
-- 左边列表只有编号、名称两列；个数是 sc.xml `Sequence` 节点的 `Capacity`（99，`[Machine]`，"99 这种东西都是 sc 里可以编辑的"），
-  目录、名称长度也是 SC。列表标题条上 新建 / 重命名 / 删除，填编号名称马上生效；**没有页面顶部工具栏**。
+- 左边列表只有编号、名称两列；个数是 machine.xml `Sequence` 节点的 `Capacity`（99，`[Machine]`，"99 这种东西都是 machine.xml 里可以编辑的"），
+  目录、名称长度也是 machine.xml。列表标题条上 新建 / 重命名 / 删除，填编号名称马上生效；**没有页面顶部工具栏**。
 - 右边分块、每块带标题条（"功能区域划分要明显"）：基本信息（编号、名称、创建人/时间、修改人/时间、版本只读，说明可改）
   → 流程步骤 → 路线预览（保留）。
 - **新建、重命名框只有一个名称输入框**（2026-10-03）：标题带编号（"新建流程配方 06""重命名流程配方 01"），下面就是名称框（重命名带出原名并选中）；
@@ -145,8 +148,8 @@
 - 步骤号就是普通数字 1、2、3，不加圆圈、不写"取片"这类字。第 1 步和最后一步是 LoadPort（可多选），**默认从哪来回哪去**；
   源 LoadPort 没勾在最后一步里时，放到勾了的 LoadPort 的同号槽（支持 LoadPort1 取、LoadPort2 放）。
   不要"回原槽"选项、槽位规则下拉、备注。
-- 步骤块标题条只有 添加 / 删除：点一行选中，添加插在它后面、删除删它；不要每行的 ↑↓✕。添加 = 公共选择弹窗选 sc 的站点分组，**不默认选 Chamber**。
-- 分组名、模块名照 sc.xml 原样显示（"Chamber"，不翻成"腔体"），正常字号；可选的分组、站点都来自 sc.xml。
+- 步骤块标题条只有 添加 / 删除：点一行选中，添加插在它后面、删除删它；不要每行的 ↑↓✕。添加 = 公共选择弹窗选 machine.xml 的站点分组，**不默认选 Chamber**。
+- 分组名、模块名照 machine.xml 原样显示（"Chamber"，不翻成"腔体"），正常字号；可选的分组、站点都来自 machine.xml。
 - 工艺配方列用公共选择框 `PickerBox`（文本 + "…" 弹窗），宽 260，**不用下拉框**；选择框、选择弹窗做成公共的，宽高可设。
   选择弹窗就是一个普通窗口，不包 DialogHost、不动主窗口（"本质上就是一个窗口"）。
 - 配方框只能从工艺配方库里选（2026-10-04 工艺配方库做好后改的；弹窗列 编号、名称、说明、时长），保存时前后端都查配方在不在库里；
@@ -159,27 +162,27 @@
   新建、重命名框同流程配方页（标题带编号，只有名称框）。
 - 工艺步骤标题条最右：`[合计 N s] [有没保存的修改] [添加] [删除] [保存]`；合计不能超过配方头的超时时间。
 - **配方 = 配方头 + 步骤（2026-10-13，按桌面「配方头样图」做，用户确认过）**：
-  - 配方头整份一组值，**一项一行、左边名字右边值**（页面上一行排四项，说明这类文本项三项宽）；也是字段表配的（sc.xml `ProcessRecipe.Head`，ScEdit「配方头」页），
+  - 配方头整份一组值，**一项一行、左边名字右边值**（页面上一行排四项，说明这类文本项三项宽）；也是字段表配的（machine.xml `ProcessRecipe.Head`，ToolBuilder「配方头」页），
     用户："你也可以配置啊，只不过你先固定那几个"。固定的 10 项锁着（字段名、类型不能改、不能删）：编号、名称、创建人、创建时间、修改人、修改时间、版本由程序算（只显示），
     Type、超时时间（Timeout，s，默认 600）、说明在页面上填；自己加的项都是填的，值存在配方文件的 `<Head …/>` 上。
-  - **Type 叫 Type，不叫 ChamberType**（用户："未来可能还会扩展其他的，所以就叫做一个 type 吧"）：`BaseModule` 上的 SC 参数，sc 里写 `<Value Name="Type" Value="A" />`
+  - **Type 叫 Type，不叫 ChamberType**（用户："未来可能还会扩展其他的，所以就叫做一个 type 吧"）：`BaseModule` 上的 machine.xml 参数，machine.xml 里写 `<Value Name="Type" Value="A" />`
     （节点上已有写类名的 Type 属性，所以只能放 Value），用户确认"这个是可以的"。几台一样的站点写同一个值（8 个腔体 1~4 写 A、5~8 写 B）。35021 四个腔体都是 A。
-  - 配方头 Type 的选项就是腔体配的几种 Type；**步骤下拉的选项按 Type 分开写**（`Source.A`、`Source.B`，腔体没配 Type 的写 `Source`），ScEdit「配方字段」页一种 Type 一列；
+  - 配方头 Type 的选项就是腔体配的几种 Type；**步骤下拉的选项按 Type 分开写**（`Source.A`、`Source.B`，腔体没配 Type 的写 `Source`），ToolBuilder「配方字段」页一种 Type 一列；
     配方头选了哪种 Type 步骤下拉就列哪一套，换 Type 后不在新选项里的值标红、不自动清。**配方只能在 Type 一样的腔体上跑**（流程配方勾腔体、Job 挑腔体、腔体起工艺都挡）。
   - **超时时间取代了腔体 EC 的 ProcessTimeout**（EC 删了）：腔体工艺操作、手动起工艺等结果都按配方头的超时时间。
-  - ScEdit 的类型列显示 C# 类型 int / double / bool / string / collection（下拉），sc.xml 里还是 Int / Double / Bool / Text / Choice（用户："只改 ScEdit 显示"）。
+  - ToolBuilder 的类型列显示 C# 类型 int / double / bool / string / collection（下拉），machine.xml 里还是 Int / Double / Bool / Text / Choice（用户：只改工具里的显示）。
 - **字段可以自己配（2026-10-04）**：每一步有哪些列、每列叫什么、什么类型（整数、小数、下拉、开关、文本）、单位、上下限、小数位、默认值、必填、
-  下拉的选项，都在 sc.xml 的字段表（`ProcessRecipe.Fields`）里配，用 ScEdit 的「配方字段」页改；工艺配方页按它生成，不改代码。
-  - **下拉的选项就是在 ScEdit 里自己写的一个集合**（2026-10-13 改，用户："下拉框就用集合这个数据类型……我会保证……每一项都和 sc 下面的对应腔体的轴组件的名字是一样的"）：
-    sc.xml 里 `Source.A` 英文逗号隔开（`Arm1`、`DIW,SC1`、`Time,Scan`；按 Type 分开见上面的配方头），ScEdit 格子里直接输，或点"…"一行一个地加删排序。
+  下拉的选项，都在 machine.xml 的字段表（`ProcessRecipe.Fields`）里配，用 ToolBuilder 的「配方字段」页改；工艺配方页按它生成，不改代码。
+  - **下拉的选项就是在 ToolBuilder 里自己写的一个集合**（2026-10-13 改，用户："下拉框就用集合这个数据类型……我会保证……每一项都和 machine.xml 下面的对应腔体的轴组件的名字是一样的"）：
+    machine.xml 里 `Source.A` 英文逗号隔开（`Arm1`、`DIW,SC1`、`Time,Scan`；按 Type 分开见上面的配方头），ToolBuilder 格子里直接输，或点"…"一行一个地加删排序。
     原来那套 `Devices:类型[.属性][@字段名]` 从腔体设备取选项的写法整个删了，别再加回来。摆臂、药液不是单独的类型，就是写了选项的下拉；
-    写的值要跟 sc 里一样（摆臂的节点名、喷嘴的 Chemical），由配 sc 的人保证。
+    写的值要跟 machine.xml 里一样（摆臂的节点名、喷嘴的 Chemical），由配 machine.xml 的人保证。
   - **字段之间不配关系**（用户："这个不需要"）：每一步所有列都显示，不出液的步骤药液、流量那几格空着（不是必填）；原来写死的跨字段检查（Scan 两头不能一样）不要了。
   - **字段表全机一份**：8 个腔、1–4 一样、5–8 一样时，页面、字段表都一样，"本质上也就是数据源不一样"——选项按腔体的 Type 分开写，
     用到具体腔体（流程配方勾的腔体、Job 挑腔体、腔体起工艺）时先比 Type，再由腔体照名字找配方里选的摆臂、药液（跟执行时同一段），对不上就挡下。
   - **喷嘴喷的东西不单独加字段**（用户："即使背面可以冲洗也就是一个喷嘴药液"）：背面冲洗、N2 这类都在药液里选、流量填在流量里。
-  - 时间（`Seconds`）固定保留（合计时长靠它）；字段作用到哪个设备（AO 等）这一版不配，做腔体执行时再定（AO 本来就配在 sc 腔体下面）。
-- 现在 sc.xml 里配的 9 列：步骤、时间 s、转速 rpm、**摆臂 → 药液 → 流量 L/min → 方式 → 位置 → 到 → 速度 mm/s**。
+  - 时间（`Seconds`）固定保留（合计时长靠它）；字段作用到哪个设备（AO 等）这一版不配，做腔体执行时再定（AO 本来就配在 machine.xml 腔体下面）。
+- 现在 machine.xml 里配的 9 列：步骤、时间 s、转速 rpm、**摆臂 → 药液 → 流量 L/min → 方式 → 位置 → 到 → 速度 mm/s**。
   - 摆臂、药液、方式都是**下拉框**，样子跟项目里的下拉框一致（`ToolbarComboBoxStyle`）——这几个是短的固定选项，用下拉；从库里选才用选择框。
   - 药液列字段表里写的（35021：`DIW,SC1`），不跟着摆臂变（字段之间不配关系）；选的摆臂上有没有这种药液，用到具体腔体时由腔体核对。
   - 摆臂选"—"（不选）= 这一步不喷，摆臂在 Home。
@@ -189,7 +192,7 @@
   - 位置是晶圆坐标：0 = 从 Home 摆过去先到的晶圆边缘，晶圆中心 = 半径（12 寸 150、8 寸 100，见下面「晶圆尺寸 8 / 12 寸」和腔体手动页的摆臂示教位）。
   - **速度就是轴的设计速度，不换算**（2026-10-15 用户："配方里面的速度就是设计速度，不需要转换"）：Scan 的"速度"原样给摆臂轴，
     不按 Edge / Center 示教位跟位置一起换（原来的 `ToAxisSpeed` 删了）。
-- 字段、范围、下拉选项都来自后端（sc.xml），界面不写死；检查前后端一样，提示文字用同一套错误码。
+- 字段、范围、下拉选项都来自后端（machine.xml），界面不写死；检查前后端一样，提示文字用同一套错误码。
 - 腔体手动页的配方框换成选择框（点"…"从工艺配方库里选），原来那个灰着的"选择"按钮删了。
 - 用户押后（"先不管"）：流程配方在用的工艺配方不让删、不让改名。
 - 腔体按工艺配方的步骤真的执行、流量下发到喷嘴 AO：2026-10-10 做了，见下面「腔体收进平台」。
@@ -201,8 +204,8 @@
 ## 腔体手动页（三维，2026-10-03）
 - **直接三维**（"为什么要放二维的，直接就是三维的"）：左边是 `ChamberScene`，二维 `Chamber` 俯视控件已删。
   样子照 Codex 的 ChamberPreview 预览（底座、Bowl、旋转盘、腔门，摆臂左右两个安装位，Home 接液杯）。
-- **sc.xml 的 Bowl 先只留一层 `Bowl1`**（原来是 Bowl 分组下 Bowl1~3）：名字跟点表、仿真器一样，点表和仿真器都不改，
-  Bowl2、Bowl3 的点留在点表里没接组件（用户："仿真那边有 bowl1 的话，这边 sc 里面直接改成 bowl1 不就好了"）。
+- **machine.xml 的 Bowl 先只留一层 `Bowl1`**（原来是 Bowl 分组下 Bowl1~3）：名字跟点表、仿真器一样，点表和仿真器都不改，
+  Bowl2、Bowl3 的点留在点表里没接组件（用户："仿真那边有 bowl1 的话，这边 machine.xml 里面直接改成 bowl1 不就好了"）。
   代码按"腔体下名字以 Bowl 开头的第一个气缸"认。三维 Bowl 一个环，升起时底边不动、侧壁拉长（预览那版"连续侧壁"）。
 - **摆臂示教位**（用户讲定的）：回零后轴在 0 位 = Home（仿真器也是）；配方用晶圆坐标——从 Home 摆过去先到的**第一个边缘 = 0、
   晶圆中心 = 半径（12 寸 150、8 寸 100）**；EC `Center` 和边缘存示教的实际轴位置（比如边缘 100、Center 200）。
@@ -211,18 +214,18 @@
 - **喷嘴偏移**（2026-10-15 用户定的）：一条臂上几个喷嘴**并排装在臂头上、离转轴一样远**，示教位是对着先到中心的那个喷嘴示教的；
   每个喷嘴一个 EC `Offset`（默认 0，示教的那个填 0，别的填现场测出来的轴差值），摆臂换算配方位置时**直接加上**（`ToAxisPosition(位置, 喷嘴)`），
   中心、边缘、Scan 两头都加；不选药液只摆臂按 0。不给每个喷嘴单独示教 Center / 边缘（并排装、走同一条弧，一个偏移就准）。
-- **喷嘴流量**（2026-10-15 用户定的）：流量设定 SC 叫 **`AoIndex`**（用户点名，原来叫 FlowAoIndex），**不配（-1）就不能设流量**；
+- **喷嘴流量**（2026-10-15 用户定的）：流量设定 machine.xml 叫 **`AoIndex`**（用户点名，原来叫 FlowAoIndex），**不配（-1）就不能设流量**；
   流量计**跟现成的 AI 组件结合，不写进喷嘴**：喷嘴下面挂 `AiSensorComponent`（节点名 Flow），`MonitoringDoIndex` 跟喷嘴 `DoIndex` 填同一个
   （用户确认两边都配、手写，不从父节点推），**没挂就是没流量计、不显示流量**；开阀后多久开始判 = AI 组件的 EC `MonitoringDelayMs`。
   35021 八路照点表配了（AI 100/101、120/121、140/141、160/161）。
   **思路照 CTC（`IoFlowRate`）：配方只给目标值，判是流量计自己的事**（2026-10-15 用户定）：工艺每步调喷嘴 `SetFlow(配方流量)`——
   挂了流量计的给它 `SetTarget`，接了 AO 的再下发；**没 AO 的一路配方照填、不下发，只当监控目标**。上下限**按目标值的百分比**
   （**AI 组件只有一套上下限 EC：`AlarmMin` / `AlarmMax` / `WarnMin` / `WarnMax`**，用户点名，原来叫 Min/Max/WarningMin/WarningMax，
-  别再另加一套百分比的；SC `IsPercentOfTarget` 定这套数是目标的百分比（流量计配 True）还是固定数（压力这类，默认），百分比时哪边 0 哪边不判）。
+  别再另加一套百分比的；machine.xml `IsPercentOfTarget` 定这套数是目标的百分比（流量计配 True）还是固定数（压力这类，默认），百分比时哪边 0 哪边不判）。
   目标值是运行时的、不存盘（AI 组件原来有个 EC `Setpoint`，没人用，2026-10-16 用户指出后删了；目标别再做成 EC，每步一改就写 ec.xml、重启还留着上一步的）；目标 0（没给、停液清掉）不按百分比判（CTC 这里会误报）；开着监控换了目标，延时重新计。
   AI 组件跟 DI 一样有接口 `IAiSensor`（2026-10-16 用户："AiSensorComponent 这个最好和 di 组件一样提供接口"）：`Value`、`IsOutOfRange`、`Target`、`SetTarget`，
   喷嘴 `FlowMeter` 按它认；`IsInWarning` 没人用，没放进接口。
-  停液后流量清不清零做成**喷嘴的 SC `ClearFlowOnStop`**（2026-10-16 用户："关闭阀门之后这个流量需不需要设置 0，做成可配置的"，"做成 SC 配置吧"）：
+  停液后流量清不清零做成**喷嘴的 machine.xml `ClearFlowOnStop`**（2026-10-16 用户："关闭阀门之后这个流量需不需要设置 0，做成可配置的"，"做成 machine.xml 配置吧"）：
   默认 True（原来的行为：AO 设定和流量计目标都清 0）；False 只关阀，AO 和目标都保持上一步的（目标跟着下发走，两个不拆开配）。35021 八路都写了 True。
   **工艺中超限只报警**，报警怎么落到腔体、要不要停工艺，用户说"先不着急"。流量显示在哪还没定。
 - **腔体三维里的动画一律 0.2 s，写死**（LoadPort 三维是 0.5 s，见「LoadPort 手动页（三维）」）：摆臂收到新位置的过渡（`ArmTransitionMilliseconds`）、Lift、Bowl、门的全行程过渡都是 0.2 s
@@ -232,7 +235,7 @@
 - 摆臂组件推 `Reach`（0 = Home，1 = Center）和 `EdgeReach`（Edge / Center），
   三维按 Home → 边缘 → 中心分两段画（轴在 Edge 时喷嘴画在盘边、在 Center 时正对盘心）；没示教（Edge 跟 Home 重合）就一段。
 - **Start 按钮先一直能点**（空配方在日志里提示），用户：先不管，后面按腔体状态设计。
-- **页面照用户给的参考图排（2026-10-04）**——之前三版样稿（部件卡片一列堆下去、照 sc 树的列表 + 原地展开、按功能分区）都被否，
+- **页面照用户给的参考图排（2026-10-04）**——之前三版样稿（部件卡片一列堆下去、照 machine.xml 树的列表 + 原地展开、按功能分区）都被否，
   用户最后直接给了图（"你按照这个界面来写"）。一整张卡：
   左边是"腔体视图"（三维图 + 图下面一条视角工具栏，带图标；用户后来说只留默认视角、俯视，左转、右转、放大都不要——拖动旋转、滚轮缩放还在；回到默认的那个**不叫"复位"**，
   跟整腔操作、轴上的复位（设备清错）重名，用户让改名）→ 轴页签（一根轴一个，右边 ">" 切下一根）
@@ -244,16 +247,16 @@
   宽屏上轴的状态、参数、按钮三块并排成一行（参考图是窄屏，三块上下叠），省下的高度给三维图。
 - 照图时用户选的：**阀（喷嘴）和传感器这页先不放**；按钮字**走语言包**（中文界面显示中文，不照图用英文）；参数框**加一个步距**
   （步进要用，图上没有）；腔体状态**保持整条色块徽标**（不照图改成"● 空闲"）。图上没有的也不做：示教、伺服开关；
-  图的标题"布局示意"、底下"当前部件：Chamber1.Arm1"当成示意图外框。页签、气缸表按 sc 的先后（图上是按字母排的）。
-- **腔体里装什么照 sc 认、强类型**（2026-10-10 改的，取代原来的"通用部件"：`[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典，
-  用户："搞成了部件 part 这种模式……感觉有点麻烦，未来其他项目的时候直接修改 sc 文件就行，代码基本不要修改"）：
+  图的标题"布局示意"、底下"当前部件：Chamber1.Arm1"当成示意图外框。页签、气缸表按 machine.xml 的先后（图上是按字母排的）。
+- **腔体里装什么照 machine.xml 认、强类型**（2026-10-10 改的，取代原来的"通用部件"：`[PartKind]` / `[LiveValue]` / `[ManualAction]` + 反射 + 字符串字典，
+  用户："搞成了部件 part 这种模式……感觉有点麻烦，未来其他项目的时候直接修改 machine.xml 文件就行，代码基本不要修改"）：
   腔体模块直接从子节点认门、Bowl、卡盘、摆臂（不另建"部件表"类，用户问过"ChamberParts 怎么还有这个东西"）；
-  推送 `ChamberDeviceDataDto`（名字用户定的）结构跟 sc 一样（门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴），不拆成几张表再靠角色字段连（用户："一个表就行了吧"）；
+  推送 `ChamberDeviceDataDto`（名字用户定的）结构跟 machine.xml 一样（门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴），不拆成几张表再靠角色字段连（用户："一个表就行了吧"）；
   服务是具体方法（轴回零 / 移动 / 步进 / 点动 / 停止 / 复位，气缸升 / 降），前后端名字编译时对得上。**代码里不再用 Part 这个叫法**（用户："这些没有什么就是关于 Part 这个东西了吧"），统一叫 Device（设备）。
-  sc 里加 Arm2、Bowl2、喷嘴照样自动多页签、多一行，不改代码。**不要改回特性 + 反射那套。**
+  machine.xml 里加 Arm2、Bowl2、喷嘴照样自动多页签、多一行，不改代码。**不要改回特性 + 反射那套。**
 - **摆臂是一个组件 `SwingArmComponent`**（2026-10-10，名字用户选的；用户："arm 轴上面有哪些喷嘴药液，然后这个 arm 可以升降，组合起来搞一个"）：
   它自己就是摆动轴，升降和喷嘴是挂在它下面的现成组件——升降用普通气缸组件（用户："这个不能直接用那个就是气缸组件吗"，不把升降的 IO 摊成摆臂的配置项），
-  喷嘴有几路挂几个。sc 样子见 sc.xml 的 Chamber1。
+  喷嘴有几路挂几个。machine.xml 样子见 machine.xml 的 Chamber1。
 - **气缸三态**（用户定义："命令下去了，到位信号没有亮……那就是 unknown 状态"）：命令发到哪一侧就看那一侧到没到位，没到是未知，
   上电两个线圈都没通时只看到位反馈。气缸表显示升到位 / 降到位 / 未知；**三维跟反馈走，未知画在行程中间、整块变红**（2026-10-17 用户："只要是 unknow 的那种就是红色……即使正常情况之下也是经过红色过渡"，
   不区分在走还是卡住、后端不加"在动"；气缸表"未知"也是红字；轴的三维件——摆臂、旋转盘——跟轴推送的 IsError 走，报错整块变红），到位后再走到头
@@ -273,8 +276,8 @@
 - **整机一个开关，放主界面系统操作**（用户选的）：一行"晶圆尺寸 12 寸 [切换]"，点一下切到另一种，不弹确认（跟 Auto / Manual 一样），结果写顶栏日志。
   **不放 EC**（用户："ec 其实是随时能切换的"）；**整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外）没片才让切**（用户定的条件），
   后端 `IEquipmentService.SetWaferSizeAsync` 查，不行回原因。LoadPort 上的片盒不算（换尺寸本来要换盒）。
-- 存在 sc.xml：System 节点下一个子组件 `WaferSize`（`WaferSizeComponent`，SC `Size` = 8 / 12，组件层，摆臂直接取得到），
-  切的时候后端只改这一个值写回 sc.xml（`SC.SaveValue`：别的内容、缩进、换行、BOM 原样，先写临时文件再换），马上生效，重启后还是它。
+- 存在 machine.xml：System 节点下一个子组件 `WaferSize`（`WaferSizeComponent`，machine.xml `Size` = 8 / 12，组件层，摆臂直接取得到），
+  切的时候后端只改这一个值写回 machine.xml（`MachineXml.SaveValue`：别的内容、缩进、换行、BOM 原样，先写临时文件再换），马上生效，重启后还是它。
   当前尺寸跟设备总状态推送（`EquipmentStatusDto.WaferSize`）走。
 - **边缘示教位 8 寸、12 寸各一个、Center 共用**（用户选的）：两种片都放在卡盘正中，中心是同一个轴位置，只有边缘不一样；来回切不用重新示教。
 - **配方上限按尺寸手写**：字段表里 `Max.8` / `Max.12`（跟 `Source.类型` 一个写法），切到哪个尺寸用哪个，没写的用 `Max`；35021 的"位置""到"写 100 / 150。
@@ -283,24 +286,24 @@
 - **机械手站点表按尺寸各一张**（2026-10-23 用户："12 寸第一个站点组，8 寸第一个站点组不就好了，这样都可以自定义很多东西"）：机械手下配
   `Stations12` / `Stations8` 两整张，站点号、Y、方向、PickArms / PlaceArms、有哪些站点都能不一样。我提的"站点上写 `Number.8` / `Number.12`"被否
   （以后 PickArms 也要变就烦）。整机现在几寸，`Stations` / `TryGetStation` 就给哪张（调度、任务、取放、账单调整页都不用改）；没配带尺寸的那张就用
-  `Stations`（只做一种尺寸的机型、冒烟照旧）。节点名不带点（sc 路径用点隔开）。同名的表配了两个开机就报（抄一张忘改名会被悄悄丢掉）；
+  `Stations`（只做一种尺寸的机型、冒烟照旧）。节点名不带点（machine.xml 路径用点隔开）。同名的表配了两个开机就报（抄一张忘改名会被悄悄丢掉）；
   两张表配的手指、搬运管理的中途交接检查两张都查（`ITransferRobot.StationsOf(size)`）。切了尺寸流程配方的站点分组按新表重算，推一条
   `SequenceChangedDto`（编号 0）让流程配方页重拉；推给界面的站点表随机械手状态推送自己换。35021 两张现在内容一样。
   **2026-10-24 改**：站点表做成示教点组件、分组改名 `Size12` / `Size8`，共用的 `Stations` 去掉（没配的那种尺寸是空表），见「机械手示教点」。
 - **片盒尺寸检测（2026-10-23 设计中，只写了接口 `ICarrierSize`）**：对照 JK（料盒台每种尺寸一到两个 DI 传感器，主监控判恰好一种亮 = 这个尺寸、两种同时亮报 801），
-  用户定：是 LoadPort 的可选功能（"有的 loadport 就没有这个功能"）。做法：sc 里 LoadPort 下配一个尺寸检测子组件（下面按尺寸挂 DI 信号节点），配了才有、没配不查；
+  用户定：是 LoadPort 的可选功能（"有的 loadport 就没有这个功能"）。做法：machine.xml 里 LoadPort 下配一个尺寸检测子组件（下面按尺寸挂 DI 信号节点），配了才有、没配不查；
   子组件实现 `ICarrierSize`（`Sensors` 每种尺寸亮没亮、`Size` 认出的尺寸），LoadPort 开机找它存字段，Load 前和建 Job 时比整机尺寸。
   这次只做 DI 一种实现，协议报尺寸的 LoadPort 以后让品牌实现同一接口。还等用户答：35021 传感器接哪、几个；冲突报警人工复位还是自动清；LoadPort 页要不要尺寸灯；漏配要不要开机日志提示。
 
-## 腔体收进平台（2026-10-10，用户定的方向："未来其他项目的时候直接修改 sc 文件就行，代码基本不要修改啥"）
-- 跟 LoadPort（2026-10-06）一样：**回零、复位、中止、按工艺配方做工艺平台给默认实现**，照 sc 里挂的部件发轴和 IO；35021 的 `ChamberModule` 留空类给机型扩展，
-  定时空转的 `TimedOperation` 删了。新项目只配 sc；动作跟平台不一样才在机型类重写。
+## 腔体收进平台（2026-10-10，用户定的方向："未来其他项目的时候直接修改 machine.xml 文件就行，代码基本不要修改啥"）
+- 跟 LoadPort（2026-10-06）一样：**回零、复位、中止、按工艺配方做工艺平台给默认实现**，照 machine.xml 里挂的部件发轴和 IO；35021 的 `ChamberModule` 留空类给机型扩展，
+  定时空转的 `TimedOperation` 删了。新项目只配 machine.xml；动作跟平台不一样才在机型类重写。
 - **回零的先后**（用户确认）：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂回零 → Bowl 降，**门不动**。别的轴跟摆臂一起回零（自己定的，交付时说了）。
   **卡盘要回原点**（2026-10-15 用户："肯定是需要回原点的"，原来只停转不回零）：停稳后跟摆臂一起回零。
 - **取放片前卡盘转到取放位**（2026-10-15 用户提的）：卡盘 EC `TransferPosition` = 取放片示教位；取放准备二里卡盘转到这个位置、同时开门，
   都到位机械手才伸手。单位跟别的轴一样写 "unit"、范围没改（问过用户，还没回）。
 - **工艺**（用户确认的大框架）：转速给卡盘；摆臂选哪条、药液开哪一路喷嘴；Time 停在位置上喷，Scan 在两个位置之间来回扫；这一步时间到就进下一步；
-  sc 字段表里没配的列就跳过；流量要喷嘴挂 AO（sc `AoIndex`，35021 照点表 AO 100/101、120/121……配上了）。
+  machine.xml 字段表里没配的列就跳过；流量要喷嘴挂 AO（machine.xml `AoIndex`，35021 照点表 AO 100/101、120/121……配上了）。
   自己定的细节（交付时说了）：开喷前 Lift 升、Bowl 升（围住盘面挡液），收尾停液 → 摆臂回 Home → 停转 → Bowl 降；
   别的摆臂回 Home（轴 0 位）；同一个喷嘴连着两步不关了再开、转速一样不重发；时间从开喷算起，扫到一半到点当场停轴；
   工艺失败 / 超时先把喷嘴停了；卡盘速度单位就是 rpm（配方转速原样下发），EC MaxSpeed 要不小于配方转速。
@@ -319,7 +322,7 @@
   腔体那边还是 0.2 s，没让改。
 - **门跟设备上报的开到位 / 关到位走**（用户："门开，门关应该都是有数据上报上来的"），两个都灭画在中间并高亮；**对接没有反馈、后台不加**，
   在手动页显示模型 `LoadPortModel` 里按状态推（装载中、已装载算推进去，门开着或在半路一定是推进去的）。
-- **槽数来自 sc**（用户："25 片这个要是可配置的，要来自 sc……未来可能会有不是 25 片的"）：花篮高度、槽齿、槽号、片数、空槽、满载都按 LoadPort 的 SlotCount；
+- **槽数来自 machine.xml**（用户："25 片这个要是可配置的，要来自 machine.xml……未来可能会有不是 25 片的"）：花篮高度、槽齿、槽号、片数、空槽、满载都按 LoadPort 的 SlotCount；
   还没收到槽数时不画花篮，不兜底 25；槽数多、花篮高出背板时取景跟着放大。
 - **盒子跟在位、到位两盏灯走**（2026-10-14，用户："其中有一个点位不亮，那么就是这个盒子就得不显示"）：两位都亮才画花篮，灭一个、查不到反馈（没连上、停用）都不画。
   `LoadPortScene` 自己按 `IsPresent` / `IsPlaced` 判，原来的 `IsCarrierPresent`（绑后台判的 `IsCarrierArrived`）删了，DTO 的 `IsCarrierArrived` 没人用也删了。
@@ -333,14 +336,14 @@
 ## 主界面（菜单 Main，2026-10-04，照用户给的图做）
 - **布局照图**：左"系统操作"（系统状态、当前模式、报警条数，Auto / Manual / Stop / Reset 两行两列）、中"整机调度"（上排腔体卡、中间机械手、
   下排 LoadPort 卡）、右边 LoadPort 页签（载具 | 映射完成 | 槽位，LotID，Sequence 选择框，创建 Job / 启动 Job，槽位表 槽位 / Wafer / 状态 / Sequence / ⊕ ⊖）。
-- 用户点名的重点：**以后变的是中间的调度界面和右边几个 LoadPort**。所以右边页签照 sc.xml 的 LoadPort 生成；中间默认照机械手示教点表自动摆
+- 用户点名的重点：**以后变的是中间的调度界面和右边几个 LoadPort**。所以右边页签照 machine.xml 的 LoadPort 生成；中间默认照机械手示教点表自动摆
   （公共控件 DispatchMap，Robot 手动页也换成了它），机型要别的摆法按 `ClientViewKeys.MainDispatch` 注册自己的整块换掉，主界面别处不动。
 - 系统状态用**整条色块徽标**（不照图写"空闲 ●"，用户选的，跟腔体页一样）。
 - **晶圆颜色说明**（2026-10-11 用户要的，位置照用户圈的图：左栏最底下，跟系统操作上下分开）：两列 8 项——待处理、处理中、已完成、失败 / 中止、
   交叉片、叠片、状态不明、账上没有（传感器有片、账上没登记，悬停说去账单调整对账）。字跟槽位表状态列同一套（`main.wafer.*`）。
 - **陪片（Dummy）删了**（2026-10-11 用户定的）：没有任何地方会把片设成陪片（Mapping 只出正常 / 交叉 / 叠片 / 不明，补账固定正常片），
   老 CTC 也一样只有几处判断、从没设过。后端 `WaferStatus.Dummy`、客户端颜色 `WaferDummy`、样式触发器、语言包一起删了；以后真做暖腔 / 陪片管理再按需求加。
-- **Job 先只做界面**（2026-10-04 用户选的），2026-10-05 后端 Job 做好后接上：创建 Job 把这一页签的 LotID 和各槽的 Sequence 交给后端（2026-10-07 改为 SC 配置 CJ 启动方式，默认建好等启动），
+- **Job 先只做界面**（2026-10-04 用户选的），2026-10-05 后端 Job 做好后接上：创建 Job 把这一页签的 LotID 和各槽的 Sequence 交给后端（2026-10-07 改为 machine.xml 配置 CJ 启动方式，默认建好等启动），
   这个 LoadPort 上有没删的 CJ 时点不了；启动 Job 在 Auto 下、这个 LoadPort 上的 CJ 是 WAITINGFORSTART 时能点（发 CJStart）。按钮位置、样子没动，
   Job 列表 / 详情界面还没做（要先给参考图或出样稿）。
 - **⊕ ⊖ 的意思**（用户讲的）：⊕ 给这一槽单独选一个 Sequence（公共选择弹窗），⊖ 把这一槽的 Sequence 清空。上面的 Sequence 框一选就给全篮能做的片套上
@@ -362,7 +365,7 @@
   加 AutoIdle、AutoRunning、Returning，一共 8 个。界面字：Aborting 在整机显示"停止中"，其余跟模块一样，加"自动空闲 / 自动运行 / 回片中"。
 - **全部初始化、整机安全信号拉报警都是标配**（用户："废话，肯定会有这个功能的""肯定的"），但 **报警逻辑先不做**（Safety → Error 后面再接）。
   所以现在没有路径进 Error：动作没做成先不进 Error，全部初始化没做成回未初始化，全部回片没做成回空闲（自己定的，交付时说了）；Error 那几行状态表先留着。
-- **放哪**：sc.xml 原来的 System 节点（只放界面语言的 SystemComponent，组件层）换成 `xyz.Modules.SystemModule`，语言挪进来、SystemComponent 删了；
+- **放哪**：machine.xml 原来的 System 节点（只放界面语言的 SystemComponent，组件层）换成 `xyz.Modules.SystemModule`，语言挪进来、SystemComponent 删了；
   晶圆尺寸是另一会话同天做的独立子组件 `System.WaferSize`（摆臂在组件层要取得到），原样挂在下面。
 - **系统状态只说整机在干什么，不汇总模块**：单个模块报警不改系统状态（看报警条数和四色灯），跟用户"能执行的任务肯定是接着跑"一致；系统对模块只往下管（初始化、停止）。
 - 自己定的细节（交付时说了）：全部初始化照 CTC HomeAll 先机械手（手缩回来，别的站点动才不刮手）、再其余模块一起；有一个被拒或没做成整趟没做成，已经在做的让它做完。
@@ -392,40 +395,40 @@
 - **JK 怎么做的**（`sch_transfer.cpp` 传送线程，按钮"全部清片"发 START_TR_CLEAR）：调度外另一条线程、一次一个动作；开搬前所有模块环境检查 + 在位传感器逐位对账，
   有一处不对整个不做；先后 机械手手上的 → PM（清洗腔优先）→ BM；按载具号找料盒回原槽号；只有 TM1 回料盒，TM2 以后放配置的中转站。用户："这些其实都是挺有道理的"。
 - **还是整机的一个动作**（用户："回片是单独的一个线程""回片的时候系统状态肯定是回片中…直接整机作为回片的入口"）：入口 `SystemModule.ReturnAll`，
-  做法在 `SystemReturnOperation`，跟全部初始化、整机停止一样，在整机自己的扫描线程上推；不走 Job 的调度，不另做组件、sc 不加节点（先提过回片组件，用户问"初始化那些在一个组件里吗"后定成跟它们一样）。
+  做法在 `SystemReturnOperation`，跟全部初始化、整机停止一样，在整机自己的扫描线程上推；不走 Job 的调度，不另做组件、machine.xml 不加节点（先提过回片组件，用户问"初始化那些在一个组件里吗"后定成跟它们一样）。
 - **能按**：整机**状态 Idle**（用户纠正："Manual 是整机的模式，不是状态，状态应该是 Idle"），而且没有 Job 在执行 / 暂停 / 中止中（`system.return_job_running`）；
   回片肯定是初始化之后的（用户）。配套：全部初始化碰到门开着、从这个口取出去的片还在机内的 LoadPort 不发 Home（关不了门，回片还要用这个口），
   `InitModule` 回一个做完的空操作算它好了——不然 Stop 之后全部初始化必失败、整机落未初始化，回片按不了。
 - **路线 = 倒着走，不认 Job**（用户："正常跑是什么站点，回片就是什么站点""回片哪里会有 job 这个概念"）：晶圆账给每片记 `WaferInfo.Path`（出了 LoadPort 以后待过的位置，
   机械手也算；移账一次记一站，回到 LoadPort 清空；存盘多一列，重启后照样有）。回片把它倒过来：不算机械手、片现在待的那一站、能做工艺的站（`IProcessStation`），
   片在手上时刚取出来的那一站要放回去；最后回来源 LoadPort 原槽。没有记录的（就地补账的）直接回。
-  被否掉的：sc 里手写"回片中转站"（"怎么能写回片中转站呢"）、"照剩下的路线往前走、跳过工艺站"（"太复杂了"）、从 Job 的任务行取路线。
+  被否掉的：machine.xml 里手写"回片中转站"（"怎么能写回片中转站呢"）、"照剩下的路线往前走、跳过工艺站"（"太复杂了"）、从 Job 的任务行取路线。
 - **开始前就拦，不是跳过**（用户："这个不是跳过，这个应该是一开始回片就卡住吧"）：不知道从哪个口来（`system.return_no_source` [片号, 位置]）、来源口没有 Load 着的载具（`_carrier_not_loaded`）、
   载具换过了（`_carrier_changed` [片号, 口, 片记的, 现在的]）、原槽有片或两片回同一槽（`_slot_occupied`）、路上有一段没有机械手够得着（`_unreachable` [片号, 从, 到]）；
   用得到的机械手（启用、Idle、没在搬）、站点（启用、`CheckPrepareTransfer` 过）现在不能用（`_module_not_ready` [模块]）；
-  在位传感器跟晶圆账对不上——**sc 配了才比，没配不查，机械手手指也一样**（用户："这个传感器很简单"），配了读不到也算对不上：
+  在位传感器跟晶圆账对不上——**machine.xml 配了才比，没配不查，机械手手指也一样**（用户："这个传感器很简单"），配了读不到也算对不上：
   机械手 `IRobot.CheckWaferSensors`（手指现成的三个 `robot.arm_sensor_*`），站点 `ITransferStation.CheckWaferSensors`（站点基类认下面叫 `WaferSensor` 的 DI，看到有片 = 账上这个站有片，
   `station.wafer_sensor_*`；传感器配法不一样的站点自己重写）。35021 的手指没挂 DI，不查；四个腔体的 `WaferSensor` 以前配了没人读，补了 `TriggerValue`。
 - **怎么搬**：一次只搬一趟，搬完再挑下一片，两台机械手也不并行；每次按片现在在哪挑第一片能动的：**机械手手上的 → 其余站点上的 → 能做工艺的站点上的**（用户："先机械手上的回去，最后才是腔体之类的"），
-  同一类按 sc 先后、槽号；中间站挑第一个空槽，回 LoadPort 就是原槽；"能动" = 片还在记的位置、两头站点在待命、有空闲的机械手和一只两头都许用的空手（片在手上就用拿着它的那只）。
+  同一类按 machine.xml 先后、槽号；中间站挑第一个空槽，回 LoadPort 就是原槽；"能动" = 片还在记的位置、两头站点在待命、有空闲的机械手和一只两头都许用的空手（片在手上就用拿着它的那只）。
   每一趟是交给搬运管理的一张单（口径人工恢复），站点交互的准备动作（开门、转位、顶针、分段交接）跟跑货完全一样（用户问"autorun 和站点交互的准备动作是不是都保留"——是）。
 - **停**：一趟没做成、片被人挪过、搬运被拒，整个停下；剩下的片都动不了、也没有设备在做动作（有在做的就等，比如对准器在对准），整个停下；都记 `system.return_incomplete` [还没回去的片数]，
   原因进日志，整机回 Idle。Stop 照旧顶掉回片、撤掉在搬的那一趟。
-- **必须通用**（用户："不同的设备不同的 sequence 和站点…调度都没有修改平台，回片还要修改平台"）：回片代码只按接口认（站点、LoadPort、工艺站、机械手），可达和手指许可看 sc 的机械手示教点表，
-  换机型只写模块、配 sc。边界跟调度一样：两台机械手直接交接、一次取放多片都不支持。
+- **必须通用**（用户："不同的设备不同的 sequence 和站点…调度都没有修改平台，回片还要修改平台"）：回片代码只按接口认（站点、LoadPort、工艺站、机械手），可达和手指许可看 machine.xml 的机械手示教点表，
+  换机型只写模块、配 machine.xml。边界跟调度一样：两台机械手直接交接、一次取放多片都不支持。
 - **先不做**：双机械手、进 / 出片分两段 buffer 的机型，做过工艺的片在出片段时倒着走会经进片段（脏片区）回去；回片前冲洗（JK 的退片清洗）。
 
 ## LoadPort 在位和驱动恢复（2026-10-06，用户定的）
-- **在位二选一做成 SC**（用户："事件和这个状态查询的结果，二选一"）：`PresenceSource` = Query（状态查询）/ Event（PODON / PODOF），**默认 Query**
-  （2026-10-09 起这个 SC 在 `Carrier` 子组件上，见下面「载具收进 CarrierComponent」）。
+- **在位二选一做成 machine.xml**（用户："事件和这个状态查询的结果，二选一"）：`PresenceSource` = Query（状态查询）/ Event（PODON / PODOF），**默认 Query**
+  （2026-10-09 起这个 machine.xml 在 `Carrier` 子组件上，见下面「载具收进 CarrierComponent」）。
   以前只认事件、状态查询只给界面看：开机时盒子已经在端口上就认不到（重启后要收片、建 Job 都走不通）。
 - **Query 怎么判**（用户："这两个都是亮的才是放好了，这两个都灭了，才是被拿走了"）：在位、到位两位都亮 = 放好，都灭 = 拿走，
   一亮一灭不算变化（保持原判断），查不到也保持。所以不另加防抖（读错一位不会被当成拿走）。界面上原来也用这个判出来的值；2026-10-14 起三维图上的盒子改成跟原始两位走（见「LoadPort 手动页（三维）」），后台这条规则不变。
 - **驱动的问题一起改**（用户："这次一起改肯定要改的"）：回复丢了指令永远占着在途位 → 超时作废；断线不重连 → 按 EC 间隔后台重连；
   RFID 连不上整台 LoadPort 不能动 → 照常开 LoadPort，读头后台重连。做法见 backend.md §3、§4。
-- **E84 装没装做成 SC `IsEnable`**（用户："本机跑的时候不要E84，这边没必要加载的吧"）：False = 端口当没有 E84（不打开、不扫、不读写 IO）；
-  跟 EC `E84Enabled`（装了以后现场在线开关交接，默认关）分开。仓库里的 sc.xml 两个 E84 配 False（本机没接搬运车），真机装了改 True。
-  数据曲线照旧按 sc 记 E84 的 IO 点（它不认任何组件的 IsEnable），不想要在 DataChart 的 Exclude 里加 `LoadPort1__E84,LoadPort2__E84`。
+- **E84 装没装做成 machine.xml `IsEnable`**（用户："本机跑的时候不要E84，这边没必要加载的吧"）：False = 端口当没有 E84（不打开、不扫、不读写 IO）；
+  跟 EC `E84Enabled`（装了以后现场在线开关交接，默认关）分开。仓库里的 machine.xml 两个 E84 配 False（本机没接搬运车），真机装了改 True。
+  数据曲线照旧按 machine.xml 记 E84 的 IO 点（它不认任何组件的 IsEnable），不想要在 DataChart 的 Exclude 里加 `LoadPort1__E84,LoadPort2__E84`。
 - **LoadPort 给多设备复用：收进平台，不单独拆 DLL**（2026-10-06，用户："以后很多设备都要用"）。用户原想把 LoadPort 从驱动到通信底层拆成一个 DLL；
   没拆的原因：通信层机械手、RFID 也在用；Job、机械手、流程配方、E87 直接用 `BaseLoadPortModule` / `ILoadPort`，单拆会循环引用；驱动到通信底层
   本来就是独立的 `xyz.Drivers.dll`（不引用任何工程）。真正挡复用的是每个机型要抄一份 LoadPort 动作——所以 7 个动作收进平台（默认实现），
@@ -481,19 +484,19 @@
   `module.state_not_allowed` 的状态码按模块种类翻成状态字。
 
 ## LoadPort 的载具收进 CarrierComponent（2026-10-09，用户："专门搞一个 Carrier 的组件，LoadPort 里关于载具的东西都放进去，实现 ICarrier"）
-- **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，sc.xml 每个 LoadPort 下一个 `Carrier` 节点
+- **结构**：`xyz.Modules\Loadport\CarrierComponent : ComponentBase, ICarrier`，machine.xml 每个 LoadPort 下一个 `Carrier` 节点
   （`Type="xyz.Modules.CarrierComponent"`，写在 RFID 节点后面，同一拍读头先出结果、载具紧跟着取）。**必配**：端口 `InitComponent()` 开头 `FindChild<ICarrier>()`、
   `Attach` 后存进 `Carrier`，找不到抛 `InvalidOperationException`，开机就暴露（停用的端口也一样）。2026-10-09 用户定：不在属性 getter 里懒找，写在 InitComponent 里
   （开机先组件初始化、再起扫描和服务，所以别处用到时已经挂好；冒烟里的探针端口也要先 InitComponent 再用 Carrier）。
   **端口只认 `ICarrier`、对外也只给 `ICarrier`**（用户："万一以后换了这个组件"、"不要再搞一个接口"）：端口要调的那几个口和 `Info`、`IsAccepted` 都在 `ICarrier` 里
-  （`CarrierInfo` 因此在 `xyz.Components\Models`），换载具组件就是写一个实现 `ICarrier` 的组件、改 sc.xml 的 Type，端口不动；代价是 EAP 也看得见端口专用的口，
+  （`CarrierInfo` 因此在 `xyz.Components\Models`），换载具组件就是写一个实现 `ICarrier` 的组件、改 machine.xml 的 Type，端口不动；代价是 EAP 也看得见端口专用的口，
   接口里分了一段注明"EAP 别调"。读码器同理（2026-10-09 用户："这个确实得抽取出来"，名字用户定）：端口和载具只认 `ICarrierIdReader`
   （`ReadCarrierIdTimeout` / `StartReadCarrierId` / `GetCarrierIdResult` / `Close`，在 `xyz.Components\Interfaces`），读头底座 `RfidReaderComponent` 实现它（2026-10-23 前是 `RfidDriverComponent`）；
-  换 RFID 牌子在机型工程写读头类（继承读头底座、给解码器和读码指令），换扫码枪这类非 RFID 的就实现这个接口，sc.xml 的 Type 写它。端口的组件引用（`_driver`、`_rfid`、`_carrier`）一律在 InitComponent 里找出来存下，
+  换 RFID 牌子在机型工程写读头类（继承读头底座、给解码器和读码指令），换扫码枪这类非 RFID 的就实现这个接口，machine.xml 的 Type 写它。端口的组件引用（`_driver`、`_rfid`、`_carrier`）一律在 InitComponent 里找出来存下，
   不写每次现找的属性。`ICarrier` 在 `xyz.Components\Interfaces`，经 `ILoadPort.Carrier` 拿到；
   `ILoadPort` 里原来的 `IsCarrierArrived` / `CarrierId` / `SlotMap` / `ReadCarrierId` / `SetCarrierId` / `UpdateCarrierStatus` / `NoteCarrierComplete` 删了（不留重复）。
 - **分工的标准：主语是载具的进 Carrier，主语是端口的留下，两边都沾的由端口组合**。进 Carrier 的有：载具快照 `CarrierInfo`（`Info`）和它的锁、
-  在位判断的**规则**（SC `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（SC `AutoReadCarrierId`、
+  在位判断的**规则**（machine.xml `PresenceSource`：Query 两位全亮到、全灭走、一亮一灭或查不到保持；Event 看 PODON/PODOF）和到达 / 拿走的边沿处理、读码（machine.xml `AutoReadCarrierId`、
   收读头结果）、改号和核对进度写回（`SetId` / `UpdateStatus`）、Mapping 落晶圆账、取放状态（Load 好进取放、Unload 好 / 动作失败记中断、`NoteComplete`）、
   载具这一半的 E87 上报（到达、拿走、读码成功 / 失败、槽图读到、取放开始 / 结束、干完）、SV `IsArrived` / `CarrierId`、事件 `FoupArrived` / `FoupRemoved`。
   留在端口的有：`SlotCount`（站点的槽数，Carrier 在到达时拿它当 `Capacity`）、`IsLoaded`、`CanAssignCarrierToJob`（= 启用 && `Carrier.IsArrived` && `IsLoaded` && `Carrier.IsAccepted`，
@@ -520,12 +523,12 @@
   整理时把判 `IsEnable` 挪到了前面，停用的口 `_carrier` 一直为 null，扫描每拍抛、有一个口停用就建不了 Job。冒烟 OperationWaitSmoke 7d 盯着。
 
 ## LoadPort 对照老 CTC 补的几处（2026-10-09 ~ 10-10，用户定的）
-- **Mapping 异常**（用户："这个肯定是要报警的"、"一样用一个报警就行了"）：Load 回来的槽数 ≠ SC `SlotCount` → 不落账，Load 判失败（`loadport.slot_map_length_mismatch`）；
+- **Mapping 异常**（用户："这个肯定是要报警的"、"一样用一个报警就行了"）：Load 回来的槽数 ≠ machine.xml `SlotCount` → 不落账，Load 判失败（`loadport.slot_map_length_mismatch`）；
   有交叉片、叠片、认不出的槽 → 账照落（界面看得到哪几槽），Load 判失败（`loadport.slot_map_abnormal`，参数带槽号）。两种都报同一条 `SlotMapAlarm`，不报笼统的动作失败；
   端口落 Error，机械手进不来（交叉片占两槽，取放相邻槽、往账上空着的槽回片都会碰片）。处理：复位、Home、理好片再 Load。
   做法：设备动作（现在是 `CommandOperation`，2026-10-23 前是 `LoadPortCommandOperation`）的成功后处理返回 `HandleResult`，失败就按它判动作失败。CTC 是报警但照样落账、端口靠报警进 Error。
-- **Job 做完自动 Unload**（用户："做成 SC，接不接 EAP 都生效"；2026-10-10 用户又要"增加一个 ec"，改成 LoadPort 的 **EC** `AutoUnload`（默认 True），SC 删了）：
-  现场在线开关、Host 也能经 S2F13 / S2F15 读改（CTC 是 SC `LoadPort.IsAutoUnloadWhenJobComplete`，也登记成 ECID 给 Host）；E87 原来的 `AutoUnload` SC 删了，E87 不再自己卸，CarrierRelease 照旧。
+- **Job 做完自动 Unload**（用户："做成 machine.xml，接不接 EAP 都生效"；2026-10-10 用户又要"增加一个 ec"，改成 LoadPort 的 **EC** `AutoUnload`（默认 True），machine.xml 删了）：
+  现场在线开关、Host 也能经 S2F13 / S2F15 读改（CTC 是 machine.xml `LoadPort.IsAutoUnloadWhenJobComplete`，也登记成 ECID 给 Host）；E87 原来的 `AutoUnload` machine.xml 删了，E87 不再自己卸，CarrierRelease 照旧。
   **EC 关着时干完对账**（2026-10-10，用户："你先补这个"，照 CTC：参数关着时走 `LPAutoCloseDoorRoutine`——名字叫关门，实际不动门，
   拿 PLC 里 Load 时的槽图跟账对、再给 Host 报 DoorClosed；我们只照搬对账，"门关了"事件不报，门开着报就是假消息）：
   收尾（`CheckCarrierComplete`）跟自动卸共用等待（机械手回 Loaded、片回齐），等完了按那时的 EC 定：开着 Unload，关着 `CheckCompletedSlotMap`——
@@ -542,9 +545,9 @@
   第一拍只记不比；开机端口是 Manual（Auto/Manual 不存盘），不会误报。
 - **Unload 时带 Mapping 对账 + 手动豁免**（2026-10-10，用户："unload 的时候是都要 map"、"这个应该是在 AutoRun 的时候进行这个判定，手动的这种不会用到这个配置"）：
   **2026-10-22 起扫片的时机和指令改了**：对账改成关门前扫（`MAPDO` + `GET:MAPDT`，或叫机械手扫），对上了才发 `CULOD`，下面"先 Unload、再主动 Map（CLDMP）"作废，
-  见「扫片：LoadPort 和机械手都能扫（IWaferMap）」；SC 只管自动跑货、手动不扫不对账、账不改、不碰载具槽图这几条照旧。
-  SC `AutoRunMapOnUnload`（默认 False）**只管自动跑货的 Unload**（Job 干完自动卸、E87 Host 放行 / 取消）：True = 关好门后再主动扫一遍跟晶圆账对，对不上判失败、报警；False = 关门就完，不扫、不对账。
-  **手动卸载不吃这个 SC**：`BaseLoadPortModule.UnloadManually()`（手动服务 `LoadPortService.UnloadAsync` 走它）一律发普通卸载，不扫图、不对账——账乱了也得能让操作员把盒子放出去。
+  见「扫片：LoadPort 和机械手都能扫（IWaferMap）」；machine.xml 只管自动跑货、手动不扫不对账、账不改、不碰载具槽图这几条照旧。
+  machine.xml `AutoRunMapOnUnload`（默认 False）**只管自动跑货的 Unload**（Job 干完自动卸、E87 Host 放行 / 取消）：True = 关好门后再主动扫一遍跟晶圆账对，对不上判失败、报警；False = 关门就完，不扫、不对账。
+  **手动卸载不吃这个 machine.xml**：`BaseLoadPortModule.UnloadManually()`（手动服务 `LoadPortService.UnloadAsync` 走它）一律发普通卸载，不扫图、不对账——账乱了也得能让操作员把盒子放出去。
   Mapping 是 LoadPort 硬件自带的，所以**不做能力开关**。
   **先 Unload、再主动 Map**（同日改，用户："CUDMP 没有依据，这个功能其实是没有的，直接 unload 然后 map"）：FCD 没有带图卸载的指令，原来照 TDK 系写的 `MOV:CUDMP`
   （驱动组件 `UnloadWithMap` / `CreateUnloadWithMap`、`FcdUnloadWithMapCommand`、冒烟里测它的用例）整套删了——仿真器不认 CUDMP，XM.Core 实机 Fortrend 驱动也没有。
@@ -556,7 +559,7 @@
   没装晶圆账只查交叉片、叠片；槽数对不上没法对账，按 `slot_map_length_mismatch` 判失败。
   CTC 对照（2026-10-10 查的）：CTC 的 `Unload`（手动 / Host 的 FAUnload）是纯卸载；对账挂在 `LPAutoCloseDoorRoutine`（`QueryWaferMap → CheckMap → OnDoorClosed`）上，
   而且只有 `AutoTransfer` 里 `IsAutoUnloadWhenJobComplete=false` 那条分支才走到（默认 true 那条反而是纯卸载）；老 FinalClean 的 `LPUnloadRoutine` 本来有完整的"Map → 对账 → Unload"，
-  FinalClean2 整段注释掉了。IO 表里的 `DO_UnloadAndMap` / `DI_UnLoadMapFinish` FinalClean2 代码一处不引用。框架里的 Hirata-II / HirataIII 驱动（FinalClean2 不用）是 SC `IsNeedMapOnUnload`
+  FinalClean2 整段注释掉了。IO 表里的 `DO_UnloadAndMap` / `DI_UnLoadMapFinish` FinalClean2 代码一处不引用。框架里的 Hirata-II / HirataIII 驱动（FinalClean2 不用）是 machine.xml `IsNeedMapOnUnload`
   （`LoadPortBaseDevice` 读 `LoadPort.LPx.IsNeedMapOnUnload`），开着每次 Unload（手动的也算）都发 CUDMP 再 GET:MAPRD 取图。
 
 ## SECS / HSMS / E84（2026-10-02）
@@ -569,7 +572,7 @@
      跟本地界面的服务调同一个接口、过同一套检查，不给 EAP 另开一条进设备的路。调用当场回受理结果（被拒带错误码），后面的进展走回调和状态。
   2. **上报口**：设备侧挂回调接口属性，**按 SEMI 标准号起名**：`IE87Callback` / `E87Callback`、`IE84Callback` / `E84Callback`；
      Job 是 `IE40Callback` / `E40Callback`（PJ）和 `IE94Callback` / `E94Callback`（CJ）。没接 EAP 时为 null，设备照常跑；
-     所有上报共用 EAP 的派发组件 `EapNotifierComponent`（sc.xml Eap 下的 `Notifier`，单例 `Current`）一条线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢），设备侧不再各自 new、各起线程（2026-10-07 用户："做成组件，直接拿他的单例"；原来每个对象一条线程，不同来源报给 Host 的先后会乱）。
+     所有上报共用 EAP 的派发组件 `EapNotifierComponent`（machine.xml Eap 下的 `Notifier`，单例 `Current`）一条线程按发生顺序发（单读者 Channel，不占扫描线程、不拿模块锁，积压只告警不丢），设备侧不再各自 new、各起线程（2026-10-07 用户："做成组件，直接拿他的单例"；原来每个对象一条线程，不同来源报给 Host 的先后会乱）。
   3. **反查口**：要 Host 拿主意的事，设备侧问 provider，同样按标准号起名（`IE84Provider` / `E84Provider`），为 null 时按本地规则自己判断。
      没有要问的就不开（Job 现在不开：载具核验归 E87 → LoadPort，Host 命令收不收归 E30 控制状态）。
 - 真正的状态只在设备侧存一份，EAP 侧不另记一份当真；Host 的决定（确认载具 ID、确认槽图、Job 命令）都经设备侧接口写回（例：`Carrier.SetId` 后 ID 状态为已核验）。
@@ -583,18 +586,18 @@
 
 ## EAP 各标准（2026-10-05 做完，用户："开始吧"，顺序 E30（连 E39、HSMS 按 S/F 分发）→ E87 → E90 → E40 / E94；E116 以后再说）
 做法在 backend.md §4「EAP」。下面是做的时候**我替用户定的**（交付时说了，等用户确认；用户改了就改这里）：
-- **结构**：sc.xml 新增 `Eap` 节点（`EapComponent`），`Hsms` 挪到它下面（原来在顶层；链路状态 SV 的编号会换新的，老的停用保号），
+- **结构**：machine.xml 新增 `Eap` 节点（`EapComponent`），`Hsms` 挪到它下面（原来在顶层；链路状态 SV 的编号会换新的，老的停用保号），
   下面 `E30` / `E39` / `E87` / `E90` / `E40` / `E94` 一个标准一个组件。原来 HsmsComponent 里的 GEM 答话（S1F13、S1F3、S5F1……）全挪进 E30，
   HsmsComponent 只管链路和按 S/F 分发。MDLN / SOFTREV 从 Hsms 节点挪到 E30 节点。
 - **E30 默认**：开机 OFF-LINE / HOST OFF-LINE（等 Host 发 S1F17 上线），上线进 REMOTE；缓存默认什么都不缓存（Host 用 S2F43 指定才缓存，
-  免得不懂缓存的 Host 重连后收不到事件）；S2F31 对时默认只答收下、不改本机时钟（SC `ApplyHostTime`）；S2F41 本机没有远程命令，一律回 HCACK=1；
+  免得不懂缓存的 Host 重连后收不到事件）；S2F31 对时默认只答收下、不改本机时钟（machine.xml `ApplyHostTime`）；S2F41 本机没有远程命令，一律回 HCACK=1；
   Host 的动作命令（载具动作、建 Job、Job 命令、改 / 建 / 删对象）要 ON-LINE REMOTE，查询 ON-LINE 就行，S2F15 改 EC 在 LOCAL 也收。
 - **E87 照老 CTC 重写**（2026-10-08，用户："按照老的 CTC 那种来写"，参考微信文件夹 CTC 的 `FrameworkLocal\FACore_GTX\E87FA`）：
   - **结构**（用户选"拆成几个状态机类"）：每个 LoadPort 一个 `E87LoadPort`，挂 6 个小状态机（搬运、存取方式、关联、载具 ID、槽图、取放），
     共用 E87 里的小基类 `E87StateMachine`（转换表 + 进状态时按"从哪来"报事件；框架的 BaseStateMachine 在模块层，组件层用不到）。
     载具状态就是端口上这几个状态机的状态，没有单独的载具对象和载具表；设备的事实（在位、槽图、槽数、忙闲）直接问 LoadPort。
     E87 只自己记载具号（拿走时 LoadPort 已清号，#21 还要带）和"Host 取消 / 放行了这一盒"。
-  - **流程照 CTC**：读到号一律等 Host；ID 认定就 Load（没有开关，`AutoLoad` SC 删了）；槽图一律等 Host，设备不自己认定（#13 删了）；
+  - **流程照 CTC**：读到号一律等 Host；ID 认定就 Load（没有开关，`AutoLoad` machine.xml 删了）；槽图一律等 Host，设备不自己认定（#13 删了）；
     第二次 ProceedWithCarrier 带了槽图就跟读到的比，对不上回 CAACK=3，片号表当场写晶圆账；ID 阶段带的槽图 / 片号表不用（记日志）。
   - **IN ACCESS 改回 Load 好就算**（用户选"照 CTC"，LoadPort 模块在 Load 完成时调 `Carrier.StartAccess`，原来叫 `MarkInAccess`）：后果是 Load 以后 Host 不能取消，
     槽图核对不过要操作员 Unload（CTC 也这样）。取放过、没判完成就 Unload 的记中断，这条不变。
@@ -616,8 +619,8 @@
 
 ## Host 远程管配方（E30 工艺程序管理 S7，2026-10-07，用户："因为远程 eap 肯定会控制的"）
 - **用户定的三条**：流程配方、工艺配方**都归 Host 管**；配方内容**原样传 JSON**（不做 S7F23 / F25 带格式的参数）；
-  REMOTE 时锁不锁本地编辑**做成 SC**（用户："这个做成一个 sc 不就好了"）——`Eap.Recipe.LockLocalEditInRemote`，默认 False（本地照样改、改了报 Host）。
-- **配方号不加前缀**（用户："先都不需要，全部拿掉，未来需要的话也是在 sc 里面对应组件里面增加"）：配方号就是配方名。
+  REMOTE 时锁不锁本地编辑**做成 machine.xml**（用户："这个做成一个 machine.xml 不就好了"）——`Eap.Recipe.LockLocalEditInRemote`，默认 False（本地照样改、改了报 Host）。
+- **配方号不加前缀**（用户："先都不需要，全部拿掉，未来需要的话也是在 machine.xml 里面对应组件里面增加"）：配方号就是配方名。
   两个库同名的不管（用户："流程配方 SC1 是不可能存在的"），不加"两个库名字不许重"的检查；Host 下的新名字看 JSON 样子分库（这一条绕不开）。
 - **SEMI 分工**（用户问过"谁管"）：E94 管 CJ、E40 管 PJ、E87 管载具、E90 管片的路径转移和片的工艺状态、E30 管配方增删改（S7）；
   腔体一级的工艺过程（哪个腔、哪一步）是 E157，还没做，客户 GEM 要求里有再做。
@@ -646,22 +649,22 @@
 ## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05 做的，2026-10-06 按用户的设计重做，需求文档《通用 Job 组件功能需求文档》v0.1）
 - **结构**（2026-10-06 用户定的）：Job 组件 `JobManager` 管着 CJ 管理、PJ 管理（各有接口 `ICjManager` / `IPjManager`，各管自己的队列和 SEMI 状态机；
   转换表就写在各自里面，跟 LoadPort 的状态表一个写法，不另造通用转换表类），CJ / PJ 建好、状态变化都报 EAP；下面挂**任务组件**
-  （sc.xml `Task`，平台的 `TaskComponent`）和**调度引擎**（`Scheduler`，`SchedulerComponent`）——原来写的"机型自己继承任务组件、调度换 Type 换策略"2026-10-12 作废，见下一条。
+  （machine.xml `Task`，平台的 `TaskComponent`）和**调度引擎**（`Scheduler`，`SchedulerComponent`）——原来写的"机型自己继承任务组件、调度换 Type 换策略"2026-10-12 作废，见下一条。
   搬运管理 `TransferManager` 还是手动、Job、人工恢复共用的唯一执行口，**不学 CTC 拆 AutoTransfer / ManualTransfer**。
   **JobManager 里面有 CJ 管理、PJ 管理**（用户："应该是 jobmanager 里面有 PjManager 和 cjmanager，你的设计反了"）：两个管理不拿 JobManager，只管自己的队列、状态机、命令，转了发事件；
   建 Job、给设备发中止、任务表收场、告诉 LoadPort、报 EAP 这些牵扯别处的事都在 JobManager。推动转换的枚举叫 `ControlStateAction` / `ProcessStateAction`
   （用户定的名，跟 LoadPortAction 一个意思）。
 - **Job 是标准件**（2026-10-12，用户："job 这个东西本质上来说是标准化的东西，不会留给项目去做啥的"）：CJ / PJ 管理、任务组件、调度引擎全在平台，
-  机型不写 Job 代码、不换 Type。原来 35021 有个空的 `TaskComponent : BaseTaskComponent`（sc.xml 的 Task 指向它），调度引擎开着一串 virtual——都收了：
-  `BaseTaskComponent` 改成平台的具体类 `TaskComponent`，sc.xml `Task` 指 `xyz.Modules.TaskComponent`，两个类里的 virtual 全去掉
+  机型不写 Job 代码、不换 Type。原来 35021 有个空的 `TaskComponent : BaseTaskComponent`（machine.xml 的 Task 指向它），调度引擎开着一串 virtual——都收了：
+  `BaseTaskComponent` 改成平台的具体类 `TaskComponent`，machine.xml `Task` 指 `xyz.Modules.TaskComponent`，两个类里的 virtual 全去掉
   （JobSmoke 查任务组件、调度引擎、Job 管理不是抽象类、没有自己开的 virtual）。机型、站点的差别只从两处进来：站点自己声明、执行任务
   （`ITransferStation.SupportedTasks` / `StartTask`），走哪些站点由流程配方定；平台规则不够用就补平台，不给机型开口子。
-- **调度可以有多个，都写在平台**（2026-10-19 用户："机型不写，平台写，这样的话，sc配置的时候直接就是可以用，以后这个平台也会是用很多设备"）：
-  上一条"不换 Type"放宽成"在平台提供的调度里选"——不同的调度逻辑在平台里各写一个调度组件（实现 `ISchedulerComponent`），机型在 sc 的 `Scheduler` 节点选 Type，
+- **调度可以有多个，都写在平台**（2026-10-19 用户："机型不写，平台写，这样的话，machine.xml配置的时候直接就是可以用，以后这个平台也会是用很多设备"）：
+  上一条"不换 Type"放宽成"在平台提供的调度里选"——不同的调度逻辑在平台里各写一个调度组件（实现 `ISchedulerComponent`），机型在 machine.xml 的 `Scheduler` 节点选 Type，
   不写调度代码；对外的东西通用（任务表、`TransferRequest` / `SwapRequest`、`StationTaskRequest`、`ModuleOperation` 和每片进度）。
-  分界：同一套流程上的变化（交换、预取这类）在现有调度上加 SC 开关；节拍根本不一样的才另写一个。站点能力（批量、剩余时间、Q-time）先补进站点契约和任务生成，
+  分界：同一套流程上的变化（交换、预取这类）在现有调度上加 machine.xml 开关；节拍根本不一样的才另写一个。站点能力（批量、剩余时间、Q-time）先补进站点契约和任务生成，
   不藏在某个调度里，免得混合机台（单片腔 + 浸泡槽）要为每种组合各写一个调度。现在只有 `SchedulerComponent` 一个：不先建调度基类，
-  写第二个时再把共用的（收进度、找站点和空槽、起搬运）提到 `BaseSchedulerComponent`，JobSmoke 里"sc 的 Scheduler 必须是 SchedulerComponent"那项检查到时放宽成"平台里的调度类型"。
+  写第二个时再把共用的（收进度、找站点和空槽、起搬运）提到 `BaseSchedulerComponent`，JobSmoke 里"machine.xml 的 Scheduler 必须是 SchedulerComponent"那项检查到时放宽成"平台里的调度类型"。
   **本轮确认（2026-10-18，用户："针对不同的设备调度逻辑写不同的调度组件，你先记一下"）**：保持对外任务、搬运请求、站内任务和执行结果契约通用，
   不同派单策略分别实现调度组件；公共结果收集和执行方法后续统一复用。`BaseSchedulerComponent` 只是后续整理项，本次只记录，不新增基类或调度实现。
 - **命名**（2026-10-07 用户逐个点名改的，别改回去）：类型名写全不用 SEMI 缩写——`ProcessJobState` / `ControlJobState`、`ProcessJobCommand` / `ControlJobCommand`、
@@ -714,7 +717,7 @@
 - **Job 历史页放数据中心**（2026-10-22 用户："这个放在 Data 那个里面吧"；之前对照过 JK 的作业日志页、CTC 的 Wafer History / LotHistory）：菜单 `DataCenter.JobHistory`（第 5 项，只看），
   跟主界面下面要做的 Job 页（看在跑的、发命令）是两回事。一页四块：上面 CJ（按建的时刻查、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前）| PJ（选中 CJ 下面的，按 `ControlJobRowId` 取），
   下面晶圆（选中 PJ 的每一片）| 任务（选中那一片的任务明细，就是 PJ 行里存的 JSON）。结果列界面按库里的转换号认：CJ #10 完成、#11 停止、#12 中止（标着重启的叫重启中止）、EndedBy #2 取消，
-  PJ #7 / #16 / #17 / #18；片按任务认（有一格出错算出错、全完成算完成、PJ 结束了还没走完算没做完）。一次最多返回多少个 CJ 是 Job 节点的 SC `HistoryQueryMaxCount`（默认 1000，
+  PJ #7 / #16 / #17 / #18；片按任务认（有一格出错算出错、全完成算完成、PJ 结束了还没走完算没做完）。一次最多返回多少个 CJ 是 Job 节点的 machine.xml `HistoryQueryMaxCount`（默认 1000，
   超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 默认 4 MB。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
   不归任何 CJ 的 PJ（没进 CJ 就取消的）不列。
 - **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；库里上次没做完的记成中止（标着重启）；机内的片人到现场确认片位后收回，
@@ -730,10 +733,10 @@
   还没做：Job 页（样稿 v2 等确认）、救片任务、
   设备动作中禁止改账的联锁（用户押后）。腔体按工艺配方真执行（照每一步去转、摆臂、喷液）用户说不做。
 - **Job 创建接口（2026-10-07 用户明确）**：PJ 独立创建，参数包含 LoadPort、PJ 名、槽位集合、Sequence、LotId；提供独立取消 PJ。CJ 创建接收 LoadPort 和已有 PJ 的名称集合（一个 CJ 可以有多个 PJ）。CreateJob 使用已经创建的 PJ，内部创建 CJ 并关联，不重新生成 PJ 和任务。CJ/PJ 管理提供明确的停止、中止、暂停、恢复方法，仍使用各自状态机；Pick、Place 保持独立 WaferTask。
-- **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 SC `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply。
+- **创建参数与 PJ 启动配置（2026-10-07 用户明确）**：不用 ProcessJobSpec / ControlJobSpec 这类参数包装，内部方法直接收参数；PJ 的 AutoStart 由 machine.xml `ProcessJobAutoStart` 配置，不放在创建请求或每个 PJ 对象里。本地和 EAP 统一使用设备配置。JobService 按区域管理，用传统 if / return，不封装 NotInstalled / Reply。
 - **Job 命令入口（2026-10-07 用户：重复就重复先，没关系）**：去掉 Execute / WithProcessJob 的委托包装，各入口直接写检查、锁超时、执行、发布、异常处理；PJ 创建合并到 CreateProcessJobAsync，不为减少重复增加调用层次。保留原有锁和状态机行为。
 - **设备状态判断归模块（2026-10-07 用户明确）**：载具能不能分给 Job 由 BaseLoadPortModule.CanAssignCarrierToJob 判断（2026-10-09 由 IsCarrierReady 改名：它在机械手正在取放时也是 true，只管排活，机械手进站看 CanPrepare）（模块启用、载具到位、IsLoaded；2026-10-08 加：接了 EAP 时槽图被 Host 认定）；JobManager 直接读取模块结果，不在 Job 内重复解释 LoadPort 状态码。
-- **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 SC ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 SC。
+- **CJ 简化（2026-10-07 用户明确）**：删除 CJ / PJ 的 CarrierInstance，不额外比较载具对象 GUID；完成的 CJ 在检测到来源 LoadPort 载具不在位后删除。CJ 的 AutoStart 也由 machine.xml ControlJobAutoStart 配置（默认 False），从运行对象、创建参数和请求 DTO 删除；E94 StartMethod 不覆盖 machine.xml。
 - **Job 发布简化（2026-10-07 用户明确）**：删除 _dirty、_version、_publishedTasks 及任务表的 Version / Touch 计数；JobListDto 不带版本号。扫描直接发布当前快照，命令执行后也直接发布，存库仍通过已有后台线程合并最新记录。
   **2026-10-22 用户："写入数据库没有必要每一次都写"**（扫描改成 10ms 以后一秒交 100 次写库）：发布时把全貌转成 JSON 跟上次交去写的比，一样就不交写库
   （还是不加 dirty 标记）；推送照旧每拍发。上一批没写进库期间每次发布都交，写好了再只在变了时交。
@@ -747,23 +750,23 @@
 - **JobManager 跟随优化（2026-10-07 用户授权）**：使用传统方法体和区域管理，明确命令方法各自直接执行 CJ/PJ 对象动作，EAP 编号入口仅选择对应方法；不增加委托执行包装或 partial 拆文件。扫描分为 PJ 推进、CJ 推进、任务许可，保留先 PJ 后 CJ 及设备收尾判据。创建检查 Queue 结果，失败撤销本次登记、任务或关联，保留先前创建的 PJ；无数据变化的创建校验失败不发布。删除 `_snapshot` 缓存，查询在 Job 锁内生成独立 DTO。
 
 ## 指挥层 Dispatch：Job 和搬运管理共用一条扫描线程（2026-10-12，用户定的）
-- **起因**：讲搬运管理和工单的关系时，用户问"这三个没有线程竞争吗"，随后定："把这几个放到一个大的下面去，共用一个线程""这样的 sc 就得改一下"。
+- **起因**：讲搬运管理和工单的关系时，用户问"这三个没有线程竞争吗"，随后定："把这几个放到一个大的下面去，共用一个线程""这样的 machine.xml 就得改一下"。
   我一开始把机械手也放了进去，用户纠正"这个 robot 怎么能在下面呢"——机械手是设备，跟 LoadPort、腔体一样在根上、各自一条线程。
-- **做法**：sc.xml 顶层 `Dispatch`（Type `xyz.Modules.DispatchComponent`），下面先挂 `Job`（带 Task、Scheduler）、再挂 `Transfer`。Dispatch 一条线程，
-  一拍里按 sc.xml 先后逐个 `ScanChild`：先 Job（收结果、派单）后 Transfer（推工单），新派的单当拍就走第一步；每个子组件单独兜异常、单独计慢扫描，
+- **做法**：machine.xml 顶层 `Dispatch`（Type `xyz.Modules.DispatchComponent`），下面先挂 `Job`（带 Task、Scheduler）、再挂 `Transfer`。Dispatch 一条线程，
+  一拍里按 machine.xml 先后逐个 `ScanChild`：先 Job（收结果、派单）后 Transfer（推工单），新派的单当拍就走第一步；每个子组件单独兜异常、单独计慢扫描，
   Job 一直出错也不耽误搬运推工单。工单（TransferRoutine）没有自己的线程，跟着搬运管理在这条线程上走。
-- **名字、放法是用户选的**：父节点叫 Dispatch（我提的 Handling 没用）；选"加父组件"，没选"Transfer 挂到 Job 下面"（那样 sc 里拿掉 Job，搬运也没了，可手动传片用不到 Job）。
+- **名字、放法是用户选的**：父节点叫 Dispatch（我提的 Handling 没用）；选"加父组件"，没选"Transfer 挂到 Job 下面"（那样 machine.xml 里拿掉 Job，搬运也没了，可手动传片用不到 Job）。
 - **跟 10-11「分组节点不做成组件」不冲突**：那条说的是不写 Type 的分组节点；要共用线程就写 Type 做成父组件（用户："这个也不是一定的，腔体不就是那样的么"）。
   设备模块仍在根上，所以服务层找模块、开机装配的模块表、客户端都不用改。
-- **开机**（2026-10-18 起绑表是各自的 `Bind()`、起扫描统一按 sc 的 `IsRun`，下面是当时的做法）：`AddXyzServices` 里搬运管理、Job 照旧绑表；挂在 Dispatch 下面的不再各自 `Start()`（不然会被扫两遍），两边都绑完表后 `Dispatch.Start()`；
-  单独挂在根上的照旧自己 Start（老 sc 照样能跑）。
+- **开机**（2026-10-18 起绑表是各自的 `Bind()`、起扫描统一按 machine.xml 的 `IsRun`，下面是当时的做法）：`AddXyzServices` 里搬运管理、Job 照旧绑表；挂在 Dispatch 下面的不再各自 `Start()`（不然会被扫两遍），两边都绑完表后 `Dispatch.Start()`；
+  单独挂在根上的照旧自己 Start（老 machine.xml 照样能跑）。
 - **跟着变的**：全路径 `Transfer` → `Dispatch.Transfer`、`Job` → `Dispatch.Job`（Task、Scheduler 跟着）；EC 键、报警来源、GEM 采集名、数据曲线列名跟着变，
   ec.xml 里旧路径的值不自动搬（开机提示"组件树上没有了"，这几项回默认值）。
 - **合线程不解决的**：界面请求线程（机械手页的 Home / 上下使能、账单调整）插进搬运空档的那几处，跟合不合线程无关，要另外补。
 
 ## 同腔交换、预取（2026-10-18，用户："你直接做吧"；方案先跟另一个会话对过几轮，用户："我做的是框架平台"）
 - **为什么**：单片机型一个腔一个槽，原来只能等旧片回去、再取新片进来；交换 = 机械手两只手，在站门口先取走做完的旧片、再放进手上的新片，
-  站点少等一来一回。做成平台能力，机型只配 sc、不写代码。
+  站点少等一来一回。做成平台能力，机型只配 machine.xml、不写代码。
 - **站点一轮两段**：`TransferContext` 分取、放两段（`ForPick` / `ForPlace` / `ForPickThenPlace` 三个工厂，构造私有，号 < 1、机械手名空抛异常）。
   一轮先取后放时取完不收尾，调 `ITransferStation.PrepareNextLeg`（换段准备：只认同一份两段上下文、在交互中、没有没收尾的动作，不收返回 null），
   再放，整轮站点一直占着，别的轮次进不来。基类默认给空操作，站点两段之间要动设备（比如换段前顶针、门）就重写 `PrepareNextLegCore`。同站换槽也走这条。
@@ -775,7 +778,7 @@
 - **Job 中止只中止还有活的搬运**：`CancelOwner(Job)` 只中止这个 Job 还有片没走完的（`HasPendingWork`）——交换里它的旧片已经取出来了，
   就让交换把别的 Job 的新片放完；Job 中止收尾（#16）还要等 `HasUnfinishedTransfer(Job)`（在跑的和挂起的都算）为 false。
 - **交换、预取没有开关，换不换看机械手**（2026-10-20 改，用户："这种交换片更多的是robot的能力，放在那边就是错的"，又让对照 JK）：
-  原来是调度上两个 SC 开关 `EnableSwap`、`EnablePrefetch`（默认都关），预取还只在"投新片"那一圈做——两台机械手中间隔着 buffer 时，
+  原来是调度上两个 machine.xml 开关 `EnableSwap`、`EnablePrefetch`（默认都关），预取还只在"投新片"那一圈做——两台机械手中间隔着 buffer 时，
   buffer 里等着进腔的片不会被提前拿上手，腔那边的机械手开了交换也换不起来。JK 没有交换开关（Schedule.cfg 只有几只手、哪只手启用、每只手在每站许不许取放），
   交换是"取片前判下一站"里自然出来的：下一站满着、这台机械手还有另一只空手能把站里那片换出来就照样先取，料盒、腔、BM 取片都走同一个判断。
   现在照这个做：两个开关删掉；交换每拍都试，排在"走机内的片"前面——站里的片做完了、手上有片等着进这一槽就派交换；
@@ -801,7 +804,7 @@
   手还在站里，机械手页的回原点、上下使能都进不来（「指挥层 Dispatch」记过界面请求会插进搬运空档；之前评审担心的"拆成两个动作伸完臂回 Idle"就是靠这个状态守住的）。
   片在伸臂时认定（意图留到缩臂），伸臂不动账，缩臂做完照常查持片、记账（`RobotTransferOperation`）；缩臂只收跟伸臂同一只手、同一站同一槽。
   伸臂、缩臂各用 PickTimeout / PlaceTimeout，等交接的上限归站点交接动作自己。界面状态文字"取片伸着 / 放片伸着"。
-- **"这个站要交接"只配一处，在站点上**：站点 SC `HandoffOnPick` / `HandoffOnPlace`（`BaseTransferStationModule`，默认 False），交接动作写在站点类的
+- **"这个站要交接"只配一处，在站点上**：站点 machine.xml `HandoffOnPick` / `HandoffOnPlace`（`BaseTransferStationModule`，默认 False），交接动作写在站点类的
   `HandoffPickCore` / `HandoffPlaceCore`（默认被拒）；入口 `HandoffPick / HandoffPlace` 跟换段准备一样在锁里查：开关开着、同一份上下文、带这一段、交互中、没有没收尾的动作。
   另一个会话的方案把开关放在机械手站点表（RobotStation 上两个 bool），交接动作却在站点里，两处会对不上，没用。
 - **三段由搬运执行推**（指挥层下令，机械手、站点之间不直接调）：`TransferExecution.BeginMotion` 看站点开关，要交接就调 `ExtendPick / ExtendPlace`，
@@ -820,7 +823,7 @@
   脏片 LoadPort → 腔、净片 腔 → LoadPort 要用不同的手，两个站就都得许两只手，等于没限制。参考 JK：Schedule.cfg 里可达表取、放分开配（`TM_PickGroup` / `TM_PlaceGroup`），
   再按手禁用（`X_Pick_Intlk` / `X_Place_Intlk`）。
 - **配法**：机械手 `Stations`（2026-10-23 起按尺寸 `Stations12` / `Stations8` 各一张，见「晶圆尺寸 8 / 12 寸」）下每个站配 `PickArms`（从这个站取片能用的手）、`PlaceArms`（往这个站放片能用的手），逗号分隔，不配 = 所有手；
-  原来的 `Arms` 去掉（同一件事只留一种配法）。老 sc 里剩下的 `Arms` 装配时不认、回到所有手（2026-10-24 起记一条错误日志），要照原值改成两项。几只手 = `Axes` 下几个 Arm 节点。换项目只配 sc。
+  原来的 `Arms` 去掉（同一件事只留一种配法）。老 machine.xml 里剩下的 `Arms` 装配时不认、回到所有手（2026-10-24 起记一条错误日志），要照原值改成两项。几只手 = `Axes` 下几个 Arm 节点。换项目只配 machine.xml。
   （2026-10-24 起每个站是一个示教点组件，见「机械手示教点」。）
   35021 六个站都写成 `PickArms="1,2"`、`PlaceArms="1,2"`（跟原来一样，写出来当样子）。
 - **挑手**：一趟搬运用的手要在源站 PickArms 里、也在目标站 PlaceArms 里（搬运管理 `PickArm`）；只放片看目标站 PlaceArms，只取片（预取）看源站 PickArms；
@@ -830,8 +833,8 @@
   **两头配不配得上不查**（用户 10-19 定）：不按流程配方查每一段"源站 PickArms 和目标站 PlaceArms 有没有共同的手"，开机、存流程配方、建 Job 都不查，配的人自己对；
   配错了的表现是那片一直等着、不报警。
 
-## 机械手示教点；sc 写错参数名记错误日志（2026-10-24，用户："你应该记录一下错误的日志就行了"、"做成组件"、"Stations12 这个改成 Size12 这种的"）
-- **起因**：三方架构对比时查出 sc `<Value Name>` 写错会悄悄用默认值（`ComponentLoader.AssignValues` 找不到同名属性就跳过）。用户定**不抛、照常开机、记一条错误日志**
+## 机械手示教点；machine.xml 写错参数名记错误日志（2026-10-24，用户："你应该记录一下错误的日志就行了"、"做成组件"、"Stations12 这个改成 Size12 这种的"）
+- **起因**：三方架构对比时查出 machine.xml `<Value Name>` 写错会悄悄用默认值（`ComponentLoader.AssignValues` 找不到同名属性就跳过）。用户定**不抛、照常开机、记一条错误日志**
   （模块名 = 节点全路径，写清哪个节点、哪个名字）。组件节点在装配器一处查；不写 Type、组件自己读的数据节点（工艺配方字段表 `RecipeField`）在读的地方查，
   按前缀认的写法（`Max.8`、`Source.A`）不记。名字对、值转不了照旧抛。
 - **站点表做成组件**：原来机械手下的站点是没 Type 的数据行，装配器不知道该有哪些名字；ToolBuilder 也只能手写一份站点参数表（还是旧名 `Arms`，早跟后端对不上）。
@@ -841,7 +844,7 @@
 - **叫"示教点"，跟模块那边的"站点"分开**（用户："后者是纯数据……改一个名字比较好"）：模块上实现的 `ITransferStation`（站点：让不让取放、取放前后自己做什么）不改名；
   机械手这一头（这台机械手去某个站点的站号、方向、伸出距离、能用哪只手）叫示教点：`TeachPoints` / `TeachPointsOf(size)` / `TryGetTeachPoint`、`TeachPointDto`、
   文字"示教点表"。错误码 `robot.station_not_found` 不改（LoadPort 扫片"不是这个口"也用它，意思就是站点没找到）；界面上的站点卡片（`RobotStationModel`）画的是模块，不改。
-- **sc 结构**：机械手下 `Size12` / `Size8` 两个分组（名字用户定的），下面一个站点一个示教点，节点名 = 站点（模块）名。原来没分尺寸的共用表 `Stations` 去掉：
+- **machine.xml 结构**：机械手下 `Size12` / `Size8` 两个分组（名字用户定的），下面一个站点一个示教点，节点名 = 站点（模块）名。原来没分尺寸的共用表 `Stations` 去掉：
   只做一种尺寸的机型只配那一种，另一种是空表、到不了（原来切过去会拿 12 寸的示教点去取 8 寸片）。机械手组件初始化时按 `ITeachPoint` 收子组件、按挂在哪一组分表
   （别的组件 Bind 时就要用表）；挂在两组以外（比如还用老名字 `Stations12`）、同组重名开机抛，一个示教点都没有记错误日志；同名的组配了两个照旧开机抛（`OnSettingLoaded` 查）。
 - **ToolBuilder**：手写的站点页、`StationSpecs`、加站点按钮、站点校验删掉，示教点按普通组件编辑、校验；改名提示照旧列出要跟着改名的示教点。
@@ -852,8 +855,8 @@
   JK 样例机（涂胶显影）也是这么配的：CBUFIN / CBUFOUT 各是一个模块、各 10 槽、`PM_Skip_Process 1`，靠取放分开的可达表各走一个方向，机械手各教一个站号。
 - **类跟 LoadPort、腔体一致**（用户："自身设备的能力，还有就是和机械手交互的接口分开"）：平台 `BaseBufferModule : BaseTransferStationModule, IBuffer`，
   机型 `BufferModule : BaseBufferModule`（空）。`IBuffer : IModule` 放 buffer 自己的能力（现在还没有，在位传感器、门这些以后加），跟机械手交互走站点基类的 `ITransferStation`。
-- **sc**：`Buffer` 是分组节点（用户："这个应该不需要配置组件的吧……就跟那个 loadport 一样"），下面每段一个 `BufferModule`，各自 `IsRun`（两条线程，被动的架子不碍事）；
-  每段只配 SC `SlotCount`（几层）。以后 buffer 有门、真空这类两段要一起管的硬件，再加一层父模块。
+- **machine.xml**：`Buffer` 是分组节点（用户："这个应该不需要配置组件的吧……就跟那个 loadport 一样"），下面每段一个 `BufferModule`，各自 `IsRun`（两条线程，被动的架子不碍事）；
+  每段只配 machine.xml `SlotCount`（几层）。以后 buffer 有门、真空这类两段要一起管的硬件，再加一层父模块。
 - **机械手控制器里两段各教一个站号，跟 JK 一样**（用户："教成两个站号……改一下吧变成两个"）：示教点表里两段各配各的 `Number`，槽号原样发，不用换算。
   先做过"整个架子一个站号、机械手按段的 `FirstSlot` 换层号、搬运管理开机查层重叠"，用户否了："现在都要修改机械手的基类啥的吗？这个肯定是不对啊"——
   机械手基类不该认识 buffer，已撤回；**机械手、搬运管理、调度都不为 buffer 改**。真碰到控制器只能教一个站号的架子，做法是机械手对所有站一视同仁地问"第几槽在设备上是第几槽"，规则归站点，机械手不认具体站型。
@@ -886,7 +889,7 @@
 - **还没做**（交付时说了，接到具体设备再做）：品牌（解码器和指令在机型工程写，通道、重连、在途作废平台都有了）、手动页和服务、主界面显示、
   机械手按对准器报的偏心量补位（取片指令现在不带补偿，对准器自己带 XY 平台的不用）、读片号（OCR 组件 + E90 核对，读不出来怎么办要定规则）、角度跟产品走。
 
-## 扫片：LoadPort 和机械手都能扫（IWaferMap）（2026-10-22，用户："机械手可能增加这样的能力，就是单独写一个机械手的 map 接口……在 sc 里面配置了就用"、"手上全空才扫 是的，你直接做吧"）
+## 扫片：LoadPort 和机械手都能扫（IWaferMap）（2026-10-22，用户："机械手可能增加这样的能力，就是单独写一个机械手的 map 接口……在 machine.xml 里面配置了就用"、"手上全空才扫 是的，你直接做吧"）
 - **为什么**：以后有的机台扫片不是 LoadPort 做、是机械手伸过去扫（JK 样例机台 TDS01 的开放料盒就是机械手 DHN1 扫）。对照过 JK（在用：料盒站的 CASSETTE_MAP 转给机械手 MAP，扫前锁机械手）和
   CTC（框架里 LoadPort 有 `IsMapWaferByLoadPort` + 传进来的机械手，品牌类写死 LoadPort 扫，没用起来）。
 - **接口 `IWaferMap`**（`xyz.Components\Interfaces`，用户定的形状）：`Map(station)` 做"扫片 + 取图"、取到的存进属性 `MapResults`（按站点名的字典，开扫时先删这个站的旧结果）。
@@ -902,7 +905,7 @@
   （CLOAD 带扫、CLDMP 原位扫）跟这套相反，我们原来照它写的 `CLDMP` 关门后扫图按 TDK 语义会把盒子重新装上——整套改成 `MAPDO` + `GET:MAPDT`，`FcdMappingCommand` 删了。
   **待核实**：Fortrend 真机要是真没有 `MAPDO`，会回 NAK，去现场前拿手册或问厂家对一下。
 - **Unload 对账改成关门前扫**：门关了扫不了（机械手伸不进去，TDK 系也没有关着门扫的指令），对得上才发 `CULOD`，对不上判失败、门不关。机械手扫的口也一样。
-- **谁扫配在机械手上、不配在 LoadPort 上**（我先提的"LoadPort 上配扫片机械手、空着自己扫"被否："这样配置肯定是不对的吧"）：机械手 SC `MapEnabled`（默认 False，用户："机械手里面也要开启这个 map 的能力"），
+- **谁扫配在机械手上、不配在 LoadPort 上**（我先提的"LoadPort 上配扫片机械手、空着自己扫"被否："这样配置肯定是不对的吧"）：机械手 machine.xml `MapEnabled`（默认 False，用户："机械手里面也要开启这个 map 的能力"），
   开了它示教点表里的 LoadPort 由它扫；LoadPort 开机 `Bind` 时按接口找开了扫片、示教点表里有自己的机械手存字段，没有就自己扫。
   **扫片用站点原来的 `Number`**，没加 `MapNumber`（用户："同样都是去 loadport 这个站点好应该是一样的呀"；JK 号不同是 DHN 控制器把手和示教组编进了站号：取放 11101、扫片 201）；
   **不选手**（JK 样例 Station.cfg 开头"Map 时 不用指定手"，扫片用哪只手是控制器示教的事），原来提的 `IsMapper` 去掉；控制器要另一个号的品牌在自己的实现里换算。8 / 12 寸先不管（用户："目前就用一个吧"）。
@@ -928,7 +931,7 @@
 - **进度是百分比**（用户："我说的这个进度是百分比"、"这个也只是内存的"）：平台的 `ChamberProcessOperation` 每拍（`OnWaiting`）按配方每步的时间算：
   （做完的步骤时间 + 这一步已经喷了多久）÷ 总时间；准备段（关喷嘴、Lift / Bowl 升）0，步骤做完、还在收尾停在 99，动作真做完站点进度变空；每步都没填时间按做完几步算。
   机型重写 `CreateProcessOperation` 自己造的工艺动作不认，进度为空。
-- **调度拿什么挑**：SC `PreferIdleStation`（默认关）开着挑最久没开工的（`LastStartedTimestamp`），几个腔轮着用。**不拿累计片数挑**：会追平——腔 2 修了一周回来，
+- **调度拿什么挑**：machine.xml `PreferIdleStation`（默认关）开着挑最久没开工的（`LastStartedTimestamp`），几个腔轮着用。**不拿累计片数挑**：会追平——腔 2 修了一周回来，
   片少时每片都去腔 2，腔 1 要闲到腔 2 追上几千片，又回到一个腔一直闲着。挑站三处（普通放片、交换、预取）都按它排；不做工艺的站（缓冲、LoadLock）没有开工时间，照配方顺序。
 
 ## 站内工艺开不开工归站点模块（2026-10-19，用户："CheckProcess 这个模块自己实现就好了，比方说后面接入浸泡，浸泡模块自己实现就好了"）
@@ -944,10 +947,10 @@
 
 ## 机械手轴与手指做成组件（2026-10-10，用户："你就是直接这样设计吧"）
 - **一根轴一个组件**：`RobotAxisComponent` 只出数据（`Position` 是机械手协议查询回来的坐标，SV；不接 PLC、没有手动动作），X/Z/Theta 直接配它；
-  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，SC `Number` 是取放/主动推送用的手指号；`SensorHasWafer`（原名 HasWafer，2026-10-16 用户改名）挂了 `WaferSensor` 按它、没挂是设备推送的在位（null = 还没读到 / 收到）；
+  `RobotArmComponent : RobotAxisComponent` 是手指，节点名即轴名，machine.xml `Number` 是取放/主动推送用的手指号；`SensorHasWafer`（原名 HasWafer，2026-10-16 用户改名）挂了 `WaferSensor` 按它、没挂是设备推送的在位（null = 还没读到 / 收到）；
   手指上的传感器（缩回到位、真空……）作为子组件挂在手指节点下。
 - **轴表单一来源**：删掉 `RobotDriverComponent.Axes/AxisList/ArmCount` 和 `BaseRobotModule._axisPositions/_armWafers`；
-  轴的先后 = sc.xml 轴节点的先后；`Axes` / `Arms` 是普通属性（不写 `=>` 懒加载），在 `InitComponent` 开头赋值：
+  轴的先后 = machine.xml 轴节点的先后；`Axes` / `Arms` 是普通属性（不写 `=>` 懒加载），在 `InitComponent` 开头赋值：
   `Axes` = `FindChildren<IRobotAxis>()` = 整张轴表（含 Arm），`Arms` = 从 `Axes` 里挑出 `IRobotArm`、按手指号排；
   `ArmCount` = `Arms.Count`（DTO 照填，界面画几只手臂按它），晶圆账槽位 = 手指号（手指号要唯一、从 1 连续，装配期校验，配错抛）。
 - **模块按接口用轴和手指**（2026-10-15 改，用户："RobotAxisComponent 这个是不是也最好是有接口的，在 robot 模块组件里面使用的时候也是用接口"；
@@ -956,10 +959,10 @@
   派生类照旧自己标 `[Component]`（`ComponentAttribute` 是 `Inherited=false`）。
 - **手指在位传感器跟晶圆账对**（2026-10-15，用户："arm 里面配置一下 DI 点位……内部的账单和这个 di 信号做一个对比"；"如果没有配置的话，就当没有这个传感器"；
   "DI 的组件也搞一下接口，使用的时候都用接口"；"WaferSensorTimeoutMs 在 robotarm 组件上更加合理"）：
-  - Arm 节点下挂名叫 `WaferSensor` 的 `DiSensorComponent`（配 `AlarmEnabled=False`，SC `TriggerValue` 填有片时的电平，抖动时间是它的 EC `DebounceMs`）；
+  - Arm 节点下挂名叫 `WaferSensor` 的 `DiSensorComponent`（配 `AlarmEnabled=False`，machine.xml `TriggerValue` 填有片时的电平，抖动时间是它的 EC `DebounceMs`）；
     **`IsActive` 两边都防抖**（2026-10-16 用户："没有片的时候也要抖动"）：有片、没片都要持续满 `DebounceMs` 才认，没认下来保持原来的，读不到为 null、重新读到重新稳满；
     报警用的 `IsTriggered` 照旧（离开报警电平立刻撤）。不两边防抖的后果：放片后真空抖一下就判放好、账记进腔体，片其实还在手上；
-    DI 组件的触发电平 SC 原来叫 `TriggerLevel`，同日用户改名 `TriggerValue`（sc.xml 里不认的值名装配时直接跳过，旧名会悄悄回到默认 true，sc.xml 要一起改）；手指按接口 `IDiSensor` 认（`IsActive`：没读到 null，读到了是防抖后的触发）。
+    DI 组件的触发电平 machine.xml 原来叫 `TriggerLevel`，同日用户改名 `TriggerValue`（machine.xml 里不认的值名装配时直接跳过，旧名会悄悄回到默认 true，machine.xml 要一起改）；手指按接口 `IDiSensor` 认（`IsActive`：没读到 null，读到了是防抖后的触发）。
     挂了 `SensorHasWafer` 就按它，没挂照旧按控制器推送。**没挂 = 没有传感器、什么都不查**（控制器推送的在位只显示，不拿来比）。
   - **手指上账和实物分开给**（2026-10-16 用户："手指的组件里面应该增加一个 bool 值，账单里面这个 arm 上面有没有值"）：`SensorHasWafer`（原名 `HasWafer`，同日用户提议改名，跟 `LedgerHasWafer` 对着）只看实物（传感器 / 推送），
     `LedgerHasWafer` 看晶圆账（机械手初始化时 `SetRobot(Name)` 告诉手指自己属于哪台，账按"机械手名 + 手指号"查；账没开为 false）。
@@ -976,7 +979,7 @@
 - **轮询顺序查表、查询超时作废**（2026-10-10，用户："count % 5 这种写法不好，加一个还得改"；又嫌"罗里吧嗦"，同日收成一个 switch）：
   顺序写在 `QueryOrder` 表里（订阅、报错、伺服、速度、轴位 ×2，轴位每格轮一根轴），不再写 `count % N`；`SendNextQuery` 发的时候连同"回来了写到哪"
   （`_onQueryReply`，轴位直接记住那根轴组件）一起定，不再一个 switch 发、一个 switch 按 `_queryKind` 对号收，也不再按轴名找轴；加一种查询 = 表里加一格 + 一个 case。
-  订阅那格：模块 SC `WaferEventEnabled` 关着（机械手不带在位推送）或已经订上就空过，没订上每圈试一次；失败的回复一律不写（订阅被拒也不再记日志）。
+  订阅那格：模块 machine.xml `WaferEventEnabled` 关着（机械手不带在位推送）或已经订上就空过，没订上每圈试一次；失败的回复一律不写（订阅被拒也不再记日志）。
   **同日又改（用户："写法非常繁琐和奇怪"，选了"扫描线程按顺序写"）**：删掉 `RobotQueryKind`、`QueryOrder`、`_onQueryReply`、两个下标。
   `QueryRound(robot)` 是一个 `IEnumerable<RobotCommand?>`，一圈从上往下写：发一条 → `yield return` → 回来了用 `ReplyOf` 取成功的回复写到模块 / 轴上；
   `LoopQueryStatus` 跟 LoadPort 同一个骨架（没连上 → 等在途那条、超时作废 → 往下走一步），一圈走完下一拍重开；轴位每圈每根轴各查一次（不再每圈两根）。
@@ -989,20 +992,20 @@
 ## 对象映射放映射组件（2026-10-14，用户："写一个 map 的组件，里面就是 Mapster 的功能，用的时候直接使用组件"）
 - **包**：Mapster 只在 xyz.Tools 引用一次，前后端经 xyz.Shared 都带上；各工程不再自己引用。客户端照旧直接 `Adapt<T>()`（同名字段，不用配）。
 - **后端**：名字对不上的映射规则（如片的 `Id` → 存盘行的 `WaferGuid`）配在 `MapperComponent` 构造里（组件自己的 `TypeAdapterConfig`，不放 Mapster 全局），
-  用的地方取映射组件 `IMapper` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；sc.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
+  用的地方取映射组件 `IMapper` 的 `Map<T>(source)`（2026-10-18 起按接口、从 IocHelper 取，组件开机时、服务构造时取一次存字段）；machine.xml 顶层配 `Mapper` 节点（2026-10-18 起开机必配，没配就抛）。
   2026-10-18 起报警、EC、曲线推给界面和服务回包的 DTO 也都走它，原来服务层的 AlarmMapper、EcMapper、ChartMapper 删了。
 - **晶圆账里能映射的都映射**：片 → 存盘行、流水行、人工调整记录都走组件（流水、调整表自己的 `Id` 是雪花号，规则里 `Ignore` 掉，不拿片的 Id 填）；
   动作、从哪到哪、操作人这些片上没有的，映射完再赋值。开机恢复（存盘行 → 片）有解析失败跳过、加工中记中止这些逻辑，照旧手写。
 - 账本开着却没配映射组件，开机恢复时抛 `InvalidOperationException`（开机就暴露）。原来空着的 `RoleMappingConfig.Register()` 删了。
 
-## 开机下发 DO（2026-10-14，用户："写在 IO 那个组件里面，搞一个 sc 配置，连接上之后隔多久下发搞一个 ec"）
-- 配在 `Io` 节点的 SC `StartupDo`：`DO12=false;DO13=true`，分号隔开，`DO` 和 true/false 不分大小写；空 = 不下发。写错开机就抛异常（`OnSettingLoaded`）。
+## 开机下发 DO（2026-10-14，用户："写在 IO 那个组件里面，搞一个 machine.xml 配置，连接上之后隔多久下发搞一个 ec"）
+- 配在 `Io` 节点的 machine.xml `StartupDo`：`DO12=false;DO13=true`，分号隔开，`DO` 和 true/false 不分大小写；空 = 不下发。写错开机就抛异常（`OnSettingLoaded`）。
 - EC `StartupDoDelayMs`（默认 1000 ms）：PLC 连上满这么久才下发；等的时候掉线就重新计时。IO 组件因此成了扫描根，装配在 `Open` 之后 `Start`。
 - **一次开机只下发一次**，断线重连不再下发（我定的，用户没反对前照此）：跑工艺中途网络抖一下，重连时把阀之类强制写回初值会打断工艺。
 - 走 IO 组件的 `WriteDo`，点表里没有的点记警告跳过；写失败只记警告，不报警、不重试。
 
 ## CDS 供液：槽 Tank（2026-10-16，用户定的结构）
-- **结构**（用户："一般叫做 CDS，下面比方说有 IPA 或者硫酸，然后下面还会有 Tank，有的一个 Tank，有的两个"）：sc.xml `CDS` → 药液（IPA、H2SO4……）→ Tank1 / Tank2。
+- **结构**（用户："一般叫做 CDS，下面比方说有 IPA 或者硫酸，然后下面还会有 Tank，有的一个 Tank，有的两个"）：machine.xml `CDS` → 药液（IPA、H2SO4……）→ Tank1 / Tank2。
   两个槽的一般一个在供液、另一个在补液或换液，轮换着用（用户确认）——这是药液那一层的事，还没写。CTC 里的 SC1、SC2 是供液柜（自带 PLC，CTC 只跟它握手 + 读数），不是这套。
 - **槽 `TankComponent`**（`Components\Cds`，接口 `ITank`，液位枚举 `TankLevel`）：子节点 `LL / L / H / HH / Overfill` 挂现成的 `DiSensorComponent`（装液位计的挂 AI 液位信号，见下「AI 液位计」），名字固定，
   **五个都是 DI 信号、一样对待**（用户："LL、L、H、HH 都是 di 信号"，Overfill "不是开关，只是信号，亮的直接就是已经满出来了"；别叫"开关"）；
@@ -1024,7 +1027,7 @@
   （2026-10-20 "能不能供液"另放进给别的模块用的 `ISupplyAccess`，`ISupplyModule` 没动，见「模块之间访问」。）
   挂在 CDS 基类上（`BaseCdsModule : BaseModule`，以后的药液模块继承就自带），IPA 模块放机型层（用户定的；`CdsIpaModule`，现在只推 `IpaDto`）。
 - **阀组**：子节点 `Fill` / `Drain` / `Supply` 是 `ValveGroupComponent`（下面挂几个 `ValveComponent`，一起开、一起关，接口 `IValveGroup`），补液、排液会有多个阀（用户）；没挂就没有那个功能。
-- **SC `FillTo`**（用户："增加一个 sc，补液到什么时候哪一个液位算是补液完成"）：L 或 H，默认 H，不分大小写，配错开机抛；只给 L / H 是我定的（HH 是报警位，补到 HH 每次都报高高）。
+- **machine.xml `FillTo`**（用户："增加一个 machine.xml，补液到什么时候哪一个液位算是补液完成"）：L 或 H，默认 H，不分大小写，配错开机抛；只给 L / H 是我定的（HH 是报警位，补到 HH 每次都报高高）。
 - **状态 `TankState`（SV）**：空闲 / 就绪 / 补液中 / 排液中 / 换液中 / 供液中 / 出错（用户要的，"真正的机台跑的时候肯定是要求你的 tank 都是 ready 状态"）。
   - **就绪只能补液得到**（用户："开机时槽里已经有液……这个不能算作就绪，算是 idle"）：开机从空闲开始、**不动阀**（开机关阀用户说先不管）；FillTo 本来就亮着补液不开阀直接就绪；
     就绪时液位不在 L ~ HH 之间（掉到 L 以下、不知道……）回空闲。叫 Ready 不叫 Standby：CTC 供液柜的信号就叫 Ready，框架里 Standby 已经是站点"机械手能来取放"的意思。
@@ -1044,7 +1047,7 @@
   **罐壁透明度滑块删了**（用户："这个直接删除，做成控件的依赖属性，外部可以调整"），只留 `WallTransparency` 依赖属性，默认 0.72。
   细节见 Controls\ThreeD\README.md。
 - **信号灯跟各自的 DI，不从液位推**（2026-10-16 改的，原来照预览按液位推、少配了也画五盏；用户："那五个 di 实际上就是物理存在的，不需要推断"）：
-  一盏灯对一个 DI 组件，亮灭是它的 `IsActive`，名字照 sc 节点名，sc 里没配的不画；液面、右上角的字还是跟液位。信号对不上时液位不知道，灯照样各亮各的，看得出是哪个点坏了。
+  一盏灯对一个 DI 组件，亮灭是它的 `IsActive`，名字照 machine.xml 节点名，machine.xml 里没配的不画；液面、右上角的字还是跟液位。信号对不上时液位不知道，灯照样各亮各的，看得出是哪个点坏了。
   TankScene 收整个槽的显示模型（依赖属性 `Tank` = `TankModel`，用户同意），不再只收 `Level`。信号灯是公共控件 `Controls\SignalLamp`（灯 + 名字，只收 `IsActive` / `Text` / `IsAlarm`），别处显示 DI 也用它。
 - **槽的推送**（2026-10-18 改成跟着 IPA 模块推；原来是槽自己发 C# 事件 `Changed`、`xyz.Service\Events\TankPublisher` 按槽的全路径推，那一套删了）：
   IPA 模块的扫描线程每拍扫槽（基类递归），槽算液位、状态；机型的 `Cds\IpaModule` 在自己的 `OnScan` 最后把 IPA 的状态和下面各槽转成 `TankDto`
@@ -1054,7 +1057,7 @@
   （`Components\Sensors`，实现 `IDiSensor`）：读 `AiIndex` 那个 AI，到了自己的触发值算触发。对外跟 DI 信号一样，**槽、`TankDto`、`TankScene` 都没改**。
   - 两种配法（用户："要么就是只有一个 ai"；"混着也只是溢流有可能单独 di，其他的还是一个 ai"）：五个都挂 AI 液位信号、`AiIndex` 填同一个液位计；
     或者 LL～HH 挂 AI 液位信号、Overfill 挂 DI 浮球。混着用时浮球亮了、液位计没到 HH，照现有规则报"液位信号异常"，看得出有一个坏了。
-  - **阈值放 EC，所以不用虚拟点**（用户："这个应该还是用 ec"）：虚拟 DI 的阈值写在 sc 的表达式里、在线改不了；虚拟点也没加容错，保持原样。
+  - **阈值放 EC，所以不用虚拟点**（用户："这个应该还是用 ec"）：虚拟 DI 的阈值写在 machine.xml 的表达式里、在线改不了；虚拟点也没加容错，保持原样。
     每个点各一份 EC：`TriggerValue` 触发值（单位 L，默认 0 = 没设：当读不到、开机记一条警告）、`Tolerance` 容错（默认 0.2 L：触发后掉到 触发值 − 容错 以下才算没触发）、
     `DebounceMs` 防抖（默认 200 ms，触发、没触发两边都防，跟 DI 信号一样）。
     名字都是用户定的：组件原来叫 `AiLevelSignalComponent`；`TriggerValue` 跟 DI 信号的触发值同一个叫法（原来叫 `TriggerLevel`，跟 DI 以前的触发电平撞名），
@@ -1072,15 +1075,15 @@
   `TankComponent` ↔ `TankScene`、`DiSensorComponent` ↔ `SignalLamp`。`CylinderComponent`、`AxisComponent` 这类基类只是代码复用，界面上不出现。
 - **不做通用的 `CylinderDto` / `AxisDto`，Chamber 前缀不去**（用户："每一种气缸形态都是不一样的"；"这些形态目前都是腔体里面的形态，换做其他模块，轴的形态又不一样了"）。
   只有在哪都一个样的才共用，目前就是 DI 信号灯。
-- 组合照 sc 树：Tank 下挂 DI → `TankDto` 里带 `DiSensorDto` → `TankScene` 里放 `SignalLamp`。整个设备的图收整个模型，底下的小件只收简单的值。
-- LoadPort 的在位 / 放置到位 / 门 / 报警几盏灯是 LoadPort 控制器串口状态查询报的（不是 PLC 的 DI、sc 里也没挂 DI 组件），本来就是 LoadPort 自己的状态，平铺在 `LoadPortDto` 里是对的，不改。
+- 组合照 machine.xml 树：Tank 下挂 DI → `TankDto` 里带 `DiSensorDto` → `TankScene` 里放 `SignalLamp`。整个设备的图收整个模型，底下的小件只收简单的值。
+- LoadPort 的在位 / 放置到位 / 门 / 报警几盏灯是 LoadPort 控制器串口状态查询报的（不是 PLC 的 DI、machine.xml 里也没挂 DI 组件），本来就是 LoadPort 自己的状态，平铺在 `LoadPortDto` 里是对的，不改。
 
 ## 阀 NC / NO、到位反馈改成 DI 组件（2026-10-16，用户定的）
-- **阀、喷嘴（`OneStateComponent`）加 SC `NormalState`**（用户："叫做 NC 和 NO，这个是行业内的叫法"）：NC 常闭（默认，DO 写 true 开）、NO 常开（DO 写 false 开、写 true 关）；
+- **阀、喷嘴（`OneStateComponent`）加 machine.xml `NormalState`**（用户："叫做 NC 和 NO，这个是行业内的叫法"）：NC 常闭（默认，DO 写 true 开）、NO 常开（DO 写 false 开、写 true 关）；
   没挂反馈时回读 DO 判开没开也按它比。35021 的阀、喷嘴都显式写 `NormalState=NC`（用户："都是要配置一下的，默认的话就是 NC"）。
   **气缸不加**（双电控两个线圈各自通电动作，没有常开常闭，用户选的）。
 - **到位反馈从"直接配 DI 号"改成 DI 组件子节点**（用户："改成 DI 组件不行吗"，我也建议改：常闭的到位开关原来没地方配、只能改代码；趁 35021 还在开发改代价最小）：
-  阀、喷嘴挂 `Feedback`（喷嘴的流量开关也是它），气缸挂 `Opened` / `Closed`；SC `DiIndex`、`DiOpenedIndex`、`DiClosedIndex` 删了，**老写法不兼容**
+  阀、喷嘴挂 `Feedback`（喷嘴的流量开关也是它），气缸挂 `Opened` / `Closed`；machine.xml `DiIndex`、`DiOpenedIndex`、`DiClosedIndex` 删了，**老写法不兼容**
   （用户："老的写法肯定是不需要了"；装配时不认的配置名直接跳过，没改的老配置会悄悄丢反馈，所以 35021 一次全改了）。触发电平、两边防抖（默认 200 ms，用户："默认都是 200 就行"）都用 DI 组件自己的。
 - **没挂、或者挂了但 DiIndex 配成 -1，都算没有这个点**（用户："没有配置或这个配置的是 -1 的话就是没有到位反馈的"）：`ComponentBase.FindSignal(名字)`（按名字找 DI 子节点，
   `IDiSensor.IsConfigured` 为 false 也返回 null），阀、气缸的反馈和 Tank 的液位信号都用它。机械手手指的 `WaferSensor` 还是 `FindChild`（没改，配 -1 会当"读不到"）。
@@ -1089,12 +1092,12 @@
 ## 推送和开机归组件自己、找组件按接口（2026-10-18，用户定的："一起做掉吧"）
 - **起因**（用户）："数据推送啥的应该就是自己组件的事情，不需要外部启动啥的"；"以后新增加组件不可能是还来改这个文件的"。原来 `ServiceExtensions` 里
   点名开 PLC、IO、轴，挨个 Bind 搬运 / Job / 配方库 / EAP，再搭报警、EC、晶圆账、配方变更的推送桥，加四个 `Events\*Publisher`（设备总状态、IO、实时曲线、槽）。
-- **开机几个阶段**（`ComponentBase` 的空虚方法，`ComponentLoader` 统一调，启动代码不点名任何组件）：`InitComponent`（根按 InitOrder 再按 sc 先后：PLC 100、IO 200）
-  → `Bind()`（整棵树按 sc 先后、先父后子）→ 开始扫描（sc 配了 `IsRun` 的根）→ `OnStarted()` → 宿主退出 `OnStopping()`（倒着来，一个出错记日志、不耽误后面的）。
+- **开机几个阶段**（`ComponentBase` 的空虚方法，`ComponentLoader` 统一调，启动代码不点名任何组件）：`InitComponent`（根按 InitOrder 再按 machine.xml 先后：PLC 100、IO 200）
+  → `Bind()`（整棵树按 machine.xml 先后、先父后子）→ 开始扫描（machine.xml 配了 `IsRun` 的根）→ `OnStarted()` → 宿主退出 `OnStopping()`（倒着来，一个出错记日志、不耽误后面的）。
   `Bind` 不带参数（用户："为什么要传递整个树，需要用到哪一个组件，自己知道的呀"）；要测的组件另留一个带模块表的重载给冒烟传。
 - **找组件一律按接口**（用户："很重要的一点就是，找组件的时候都要根据接口而不是基类去找"）：单例构造时 `Register<IXxx>(this)`，用 `ComponentBase.Find<IXxx>()`；
   一类的全部用 `ComponentBase.FindAll<IXxx>()`（整棵树 `ComponentBase.Roots` 上找，停用的连同下面的跳过；用户："应该有一个地方提供获取这些的方法"）。
-  `Xxx.Current` 全删了。讨论过放进 IoC 当单例，当时定的是这样（静态登记 + 按接口取；同一天后来改成进 IoC、从 IocHelper 取，见下一节），以后有人另写一个数据曲线组件，实现同一个接口、sc 里换 Type 就行。
+  `Xxx.Current` 全删了。讨论过放进 IoC 当单例，当时定的是这样（静态登记 + 按接口取；同一天后来改成进 IoC、从 IocHelper 取，见下一节），以后有人另写一个数据曲线组件，实现同一个接口、machine.xml 里换 Type 就行。
   接口名带 Component 后缀（用户选的；10-20 起用户在一个个去掉，见「接口去掉 Component 后缀」）；EAP 那边只看得到组件层，配方库给它的是 `ISequenceLibrary` / `IRecipeLibrary`，模块层的 `ISequenceComponent` /
   `IRecipeComponent` 继承它们。模块共有的 `IModule`（`ILoadPort`、`IRobot` 继承），腔体 `IChamber`（用户："腔体按照道理也应该和 loadport 一样增加接口"）；
   搬运、Job、整机认模块用 `IModule` 不用 `BaseModule`（用户："为什么要用 BaseModule 这个"）。机型类不重复写基类已经实现的接口（用户："基类已经实现了"）。
@@ -1106,15 +1109,15 @@
   自己留最近 `RecentLogCount` 条、自己推，`LogService` 从它取；`LogHistory` 和开机代码里那段转发删了，Log 节点改成必配（不然界面收不到日志）。
 - **谁推什么**：EC 组件值一变推 `EcItemDto`；报警组件报出、清掉都推 `AlarmDto`；晶圆账一变推 `WaferLedgerChangedDto`；两个配方库存、删、改名推变更，
   切晶圆尺寸工艺配方库推一条编号 0 的；IO 组件在自己的扫描里按 EC 周期推整包 `IoDto`；实时曲线在自己的扫描里一帧一帧推（用户："单独自己一个线程然后写在 OnScan 里面"，
-  sc 配 `IsRun`）；数据曲线在自己的扫描里采（同上）；设备总状态挪进整机模块（用户："状态就是收紧这个系统模块里面"），整机每拍算、变了点四色灯（挂在 System 下）再推，
+  machine.xml 配 `IsRun`）；数据曲线在自己的扫描里采（同上）；设备总状态挪进整机模块（用户："状态就是收紧这个系统模块里面"），整机每拍算、变了点四色灯（挂在 System 下）再推，
   System 节点必配；槽跟着 IPA 推 `IpaDto`（见「CDS 供液：槽 Tank」）。转 DTO 一律走用户写的映射组件（`IMapper`），服务层的 AlarmMapper / EcMapper / ChartMapper
   和四个 Publisher 都删了，Mapper 节点必配。
 - **gRPC 服务自动认**（用户："这个是需要的"）：`ServiceExtensions.GrpcServices()` 在装进来的 xyz 程序集里找实现了带 `[ServiceContract]` 接口的公开类，
   DI 注册成 Transient（跟原来一样）、宿主照这张表 `MapGrpcService`，加服务不用改 `ServiceExtensions` 和宿主 `Program`。
 - **CDS / IPA 只搭架子**（用户："先搭建架子，不需要做"）：`BaseCdsModule : BaseModule, ISupplyModule`（初始化直接进空闲、扫描时推状态），机型 `IpaModule` 继承它，
-  sc 里配了 CDS → IPA → Tank1 / Tank2（点都还没接，`DiIndex` / `DoIndex` 先写 -1）。"就绪"这类等做 IPA 功能时再加（用户："先不着急"）。
+  machine.xml 里配了 CDS → IPA → Tank1 / Tank2（点都还没接，`DiIndex` / `DoIndex` 先写 -1）。"就绪"这类等做 IPA 功能时再加（用户："先不着急"）。
 - **没动的**：腔体替子组件拼设备 DTO 的那几段（用户："这个先暂时不动吧"）。
-- **跟着变的**：轴"两根轴配了同一个命令块"的检查从启动代码挪进轴自己的 `InitComponent`（比的还是装起来的那棵树）；EAP 的 Bind 跟着 sc 的先后走
+- **跟着变的**：轴"两根轴配了同一个命令块"的检查从启动代码挪进轴自己的 `InitComponent`（比的还是装起来的那棵树）；EAP 的 Bind 跟着 machine.xml 的先后走
   （现在排在配方库、Job 后面，它用的都是单例，跟先后无关）；`IModule` 加了 `IsEnabled`，调度、任务表判站点能不能用不再转成 `BaseModule`；
   两处 switch 表达式改成 if。
 
@@ -1122,17 +1125,17 @@
 - **起因**（用户）：服务、组件里每个方法都现取一次单例——"你怎么能每一个方法里面都获取呢，单例的不需要这个样子啊"；
   又问"这些所有的组件能不能放在 ioc 里面统一管理"，我先说了容器还没建、同类要按名字登记这些顾虑，用户："本质上来还是系应该 ioc……你直接调整顺序不就好了"；
   定的取法："ioc 获取的话都要用 IocHelper 这个帮助类"（不在组件基类上另包 `GetService`，服务也不写构造参数注入）。先改"每个方法现取"，再换 IoC。
-- **进容器**：`ComponentLoader.Register(services, roots)`——整棵树照 sc 先后（父在前、子在后，停用的连同下面的跳过），每个组件按它实现的接口里
+- **进容器**：`ComponentLoader.Register(services, roots)`——整棵树照 machine.xml 先后（父在前、子在后，停用的连同下面的跳过），每个组件按它实现的接口里
   命名空间 xyz 开头的登记成单例实例（不由容器建、也不由容器释放，开机、收尾照旧归装配器）；树本身登记成 `IReadOnlyList<ComponentBase>`。
   取一个 `IocHelper.GetService<T>()`（没登记是 null；登记了好几个的拿最后一个，跟原来"后登记的生效"一样），取一类全部 `IocHelper.GetServices<T>()`
-  （按登记先后，就是 sc 先后）。`ComponentBase` 上的静态 `Roots`、`Find`、`FindAll`、`Register` 和各组件构造里的登记都删了；`GemCollectors.Current` 也删了，
+  （按登记先后，就是 machine.xml 先后）。`ComponentBase` 上的静态 `Roots`、`Find`、`FindAll`、`Register` 和各组件构造里的登记都删了；`GemCollectors.Current` 也删了，
   编号表登记在容器里（E30、Trace 接链路时取，数据曲线 Bind 时取）；`DiSensorComponent` 按 DI 号找组件的静态表没人用，一起删了。
 - **开机顺序**：容器要先建好，所以组件开机挪到 `builder.Build()` 以后。`AddXyzServices` 只装树、进容器（组件构造、`OnSettingLoaded` 里不取别的组件，查过没有）；
   `app.Services.StartComponents()` 设 `IocHelper.ServiceProvider`，再查必配、合并 EC 和 GEM 编号表、按阶段开机；退出 `StopComponents()`。
   监听地址原来是装完树马上从 Rpc 组件取、再配 Kestrel；现在 Kestrel 的选项在 Build 时就定了（那时还没开机），改成 Kestrel 只定 HTTP/2，
   地址开完机从容器里的 Rpc 组件取、加进 `app.Urls`（localhost 照旧监听两个回环，别的按明确地址，IPv6 加方括号）。开机仍在开端口之前（PLC 先连先扫描不变）。
 - **单例开机取一次**：组件在 `Bind` 里取、存字段。开机准备里就要用的在 `InitComponent` 里取：晶圆账（模块开机准备时就登记槽位，LoadPort 连上驱动就可能
-  Mapping 建片、记流水、存盘，要映射组件；它在 sc 里排在各模块前面）、IO 组件（E84 开机准备时就经它清输出，IO 排在 PLC 后、别的前）、E84 自己。
+  Mapping 建片、记流水、存盘，要映射组件；它在 machine.xml 里排在各模块前面）、IO 组件（E84 开机准备时就经它清输出，IO 排在 PLC 后、别的前）、E84 自己。
   被父组件在它的 Bind 里接上的（E30、E87、Trace 由 Eap 的 Bind 调 `Attach`，父先子后，那时它们自己的 Bind 还没轮到）在 `Attach` 里取。
   有 `Bind(modules)` 重载的（整机、Job、搬运管理、两个配方库）在重载里取，冒烟直接调重载也取得到；Job 没配 Scheduler 时自己建的那个不在树上、轮不到 Bind，Job 替它 Bind。
   模块动作（全部回片、整机停止）要用的搬运管理、晶圆账、Job 由整机经构造传进去。组件基类的报警、EC、报事件三个公共方法照旧每次现取（开机每个阶段、所有组件都用，
@@ -1147,51 +1150,51 @@
 ## 部件寿命：次数型盯 DO 计次、时间型从清零起算或只算 DO 通着的（2026-10-20 ~ 10-21，用户："单独搞一个寿命的接口"、"现有的都不要动"、"只要是这个 do 变了就记录一下"、"表 count_lifetime 就按照这样去修改"）
 - **起因**：问 JK 气缸有没有记次数做寿命管理——没有，气缸基类只管控制方式、超时、开关后延时、报警，全树也没有寿命 / 保养计数。
 - **结构**：次数型接口 `ICountLifetime`（`UsedCount` 已用次数、`WarnCount` 警告次数、`AlarmCount` 报警次数、`Clear()` 换件清零）+ 现成的 `CountLifetimeComponent`
-  （`Components\Maintenance`）。要管寿命的部件在 sc 里挂一个寿命子节点，跟气缸挂 Opened / Closed 一样；寿命页、报警按 `GetServices<ICountLifetime>()` / `GetServices<ITimeLifetime>()` 找全部。
+  （`Components\Maintenance`）。要管寿命的部件在 machine.xml 里挂一个寿命子节点，跟气缸挂 Opened / Closed 一样；寿命页、报警按 `GetServices<ICountLifetime>()` / `GetServices<ITimeLifetime>()` 找全部。
 - **按量的是什么起名**（10-21 用户："后面还会有时间类型的"）：次数型 `ICountLifetime` / `CountLifetimeComponent` / 表 `count_lifetime`，时间型 `ITimeLifetime` / `TimeLifetimeComponent` / 表 `time_lifetime`；
   不按盯的是什么起名（时间型以后也可能盯 DO，比如泵的运行时长）。两种不共用父接口：次数、时长的列本来就不一样，周期管理页分两张表各取各的。
 - **不让部件自己实现接口、也不用继承**：计数、存库、EC、报警写一遍就够；C# 单继承，气缸、阀、轴各有父类，继承就得插到每条链底下，所有同类都带上寿命，
-  要不要管就成了代码定死、sc 改不了，一个部件也只能记一份。
-- **现有组件一行不改**（用户："能不能就是现有的都不要动"）：寿命组件不靠父组件通知，自己在扫描里（跟着父组件每 10 ms）读 SC `DoIndex` 那个 DO，
+  要不要管就成了代码定死、machine.xml 改不了，一个部件也只能记一份。
+- **现有组件一行不改**（用户："能不能就是现有的都不要动"）：寿命组件不靠父组件通知，自己在扫描里（跟着父组件每 10 ms）读 machine.xml `DoIndex` 那个 DO，
   **每变一次算一次**（断→通、通→断各一次，用户定的）；第一拍、读不到以后重新读到的那一拍只记下不算（中间变过也不补）。双线圈气缸盯开侧线圈，开、关各算一次。
   记的是出命令的次数（超时没到位也算，阀已经动了）；只管 DO 驱动的（气缸、阀、泵），轴、机械手没 DO，到时再说。`DoIndex` 跟父节点的 DO 号手写一致，不推导。
 - **两个次数都是 EC**（用户："增加一下那个警告次数和报警次数"），各自 0 = 不管：到报警次数报 `ExpiredAlarm`（Alarm1），没到报警次数、到了警告次数报 `WarnAlarm`（Warn）；
   到了报警次数只报报警、不再叠一条警告。报过的再报不重复，人工复位后还到着就再报（跟 DI 报警一样），换件清零后复位才算消。现在只报不停机。
 - **存库**：表 `count_lifetime` 一个次数寿命组件一行（键 = 全路径），默认库；开机 `Bind` 读回接着数，读不成这次从 0 数；每变一次放进队列，后台一个读者给那行**加 1**
   （没有就插一行 1），不写总数——开机没读成也不会把库里的数冲掉（跟开工计数一个道理）；`Clear()` 内存马上清，库里那行由后台清零，记一条日志带清零前的次数。
-  sc 里改了节点名（全路径变了）就是新的一行，从 0 数。
+  machine.xml 里改了节点名（全路径变了）就是新的一行，从 0 数。
 - **时间型**（10-21，用户的例子："药液在 tank 里面多久了需要报警"；"具体怎么使用先等一下，你先就是搞一下组件出来"）：`TimeLifetimeComponent` 默认从上次清零起**按实际时间算，关机也照算**；
   EC `WarnMinutes` / `AlarmMinutes`（分钟，0 = 不管），报警规则跟次数型一样（到报警时间只报 Alarm1，没到、到了警告时间报 Warn）。表 `time_lifetime` 一个组件一行：起算时间 `StartedAt`（上次清零的时间）、
   盯 DO 的通着秒数 `UsedSeconds`；开机 `Bind` 读回；第一次开机库里没有就从开机算并存下来（宁可早报，也不能一直不报）；不盯 DO 的读不成这次从开机算、库里不动；`Clear()` 从现在起重新算、后台改库。
   不盯 DO 的靠本机时钟：时钟往回调到起算之前算 0，往前跳就多算——跨关机只能这样。
-- **时间型也盯 DO，跟次数型一样只配 sc**（10-21 用户："能不能做到和这个次数的一样简单的用法"、"不需要直接引用我们的组件……中间可以通过其他方式转换，衔接一下"、
+- **时间型也盯 DO，跟次数型一样只配 machine.xml**（10-21 用户："能不能做到和这个次数的一样简单的用法"、"不需要直接引用我们的组件……中间可以通过其他方式转换，衔接一下"、
   "不单单是 Tank，以后还会有其他的……Tank 只是举例子"、"槽那边先不用管，你先就是搞一下就是这个 time 的组件"）：
-  - 寿命组件只认点号，不认识发信号的组件；发信号的组件也不认识寿命组件，**中间用虚拟 IO 接**（sc 里两边填同一个点号）。哪个组件知道"什么时候算"，
-    就在它自己身上配一个点号 SC、到时候写虚拟 DO（跟次数型"程序里数的"同一个做法）；以后再有别的组件要接，寿命组件不用改。
+  - 寿命组件只认点号，不认识发信号的组件；发信号的组件也不认识寿命组件，**中间用虚拟 IO 接**（machine.xml 里两边填同一个点号）。哪个组件知道"什么时候算"，
+    就在它自己身上配一个点号 machine.xml、到时候写虚拟 DO（跟次数型"程序里数的"同一个做法）；以后再有别的组件要接，寿命组件不用改。
   - **用 DO 不用 AO**（用户问"用 do 好还是用 Ao 好"，我建议 DO，用户接着让做）：要传的只是通断、发生了一次，一位就够；泵、阀、加热器本来就是 DO，能直接盯真点；
     次数型也盯 DO，一个点能同时给两种寿命用；虚拟 IO 只有虚拟 DO。同一拍（10 ms）里翻两下会抵消——换液、换件几分钟以上才一次，碰不到；真要传数值或高频计数再说 AO。
-  - SC `DoIndex`（计时 DO，-1 = 不盯）：**只算这个 DO 通着的时间**（泵、加热器运行时长填它的真 DO；程序里的"在用"状态由程序开始写通、结束写断虚拟 DO），关机那段不算。
+  - machine.xml `DoIndex`（计时 DO，-1 = 不盯）：**只算这个 DO 通着的时间**（泵、加热器运行时长填它的真 DO；程序里的"在用"状态由程序开始写通、结束写断虚拟 DO），关机那段不算。
     两拍之间的时长用开机计时器（`Environment.TickCount64`）量，改系统时钟不影响；上一拍通着、这一拍读得到才算这一段，第一拍、读不到以后重新读到的那一拍只记下（跟次数型一样）。
     存库只加不写总数：通着攒满 60 s（const）给那行加一次，不通了（断了、读不到）把攒的整秒加进去，零头留着下次一起写；突然断电最多丢不到一分钟；读不成这次从 0 算、库里照样加。
-  - SC `ClearDoIndex`（清零 DO，-1 = 只人工清零）：**这个 DO 每变一次（断→通、通→断）就清零重算**，换液、换件这类由知道时机的组件把虚拟 DO 翻一下；
-    第一拍、读不到以后重新读到的那一拍只记下——虚拟 DO 开机都是断，关机前是通的也不会当成变了。两个 SC 能一起配；**配成同一个 DO 装配时就抛**（通断一次清零一次，算不出时长）。
+  - machine.xml `ClearDoIndex`（清零 DO，-1 = 只人工清零）：**这个 DO 每变一次（断→通、通→断）就清零重算**，换液、换件这类由知道时机的组件把虚拟 DO 翻一下；
+    第一拍、读不到以后重新读到的那一拍只记下——虚拟 DO 开机都是断，关机前是通的也不会当成变了。两个 machine.xml 能一起配；**配成同一个 DO 装配时就抛**（通断一次清零一次，算不出时长）。
   - 两个 DO 都先问虚拟 IO 有没有这个点号、有就读它，没有再读真 DO（跟次数型一样；配了虚拟点号却没挂那个虚拟 DO 同样查不出来）。
   - `UsedSeconds` 带 `DefaultValue = "0"`：老表补这一列时 SqlSugar 靠它把老行填 0；不写的话老行是空值，往上加还是空（10-21 拿临时库试过）。
-- **药液在槽里多久**（这次只做了时间组件，槽没动）：打算由槽在"空过（液位低于 LL）以后补到就绪"那一下翻一个虚拟 DO（槽上配点号 SC），药液时长那个时间寿命的 `ClearDoIndex` 填同一个点号。
+- **药液在槽里多久**（这次只做了时间组件，槽没动）：打算由槽在"空过（液位低于 LL）以后补到就绪"那一下翻一个虚拟 DO（槽上配点号 machine.xml），药液时长那个时间寿命的 `ClearDoIndex` 填同一个点号。
   **报警以后做什么，以后统一设计**（用户："这种报警后续做啥，到时候会统一设计的"）。现在的情况已经跟用户说过：槽"身上有任何报警就出错、阀全关"（按路径、不分级别），
   寿命挂在槽下面的话，报"快到期"（Warn）槽就停供液；到期出错后又不让换液，复位后下一拍又报，要换液得先调高 EC 或手动清零。挂在槽外面（IPA 下面）就只报警、不停槽。
   给槽里的阀挂次数寿命也一样。
-- **还没做**：槽翻虚拟 DO（用户："槽那边先不用管"）；报警以后的处理（停不停、挡不挡开工和换液）等统一设计；周期管理页面（看次数和时长、清零）；35021 sc.xml 里还没挂寿命节点；
+- **还没做**：槽翻虚拟 DO（用户："槽那边先不用管"）；报警以后的处理（停不停、挡不挡开工和换液）等统一设计；周期管理页面（看次数和时长、清零）；35021 machine.xml 里还没挂寿命节点；
   次数型要不要也加 `ClearDoIndex`（比如这一槽液处理了多少片、换液自动清零）没定。
 
-## 模块之间访问：sc 上配对方的名字，经对方专门的接口取（2026-10-20，用户："可以在配置里面直接配置 sc，然后模块里面直接就是根据 sc 配置的名字获取这个，当然肯定是通过接口，所以我想专门创建一个这样的接口"）
+## 模块之间访问：machine.xml 上配对方的名字，经对方专门的接口取（2026-10-20，用户："可以在配置里面直接配置 machine.xml，然后模块里面直接就是根据 machine.xml 配置的名字获取这个，当然肯定是通过接口，所以我想专门创建一个这样的接口"）
 - **起因**：用户问"模块之间的访问怎么进行，比方说腔体工艺需要看 CDS 准备好了没"。我先提的是按药液名隐式对号（配方 Chemical → 喷嘴 Chemical → 同名供液模块），
-  用户纠正成上面那句。**以后模块 A 要用模块 B 都照这个**：A 的 sc 上直接写 B 的模块名；B 专门出一个给别的模块用的接口（只放别人该看、该调的）；
+  用户纠正成上面那句。**以后模块 A 要用模块 B 都照这个**：A 的 machine.xml 上直接写 B 的模块名；B 专门出一个给别的模块用的接口（只放别人该看、该调的）；
   A 在 `Bind` 里按名字从 `IocHelper.GetServices<那个接口>()` 挑出来存字段（跟服务层 `FindModule<T>(name)` 一个取法），配了找不到就抛 `InvalidOperationException`
   （`BindAll` 不吞异常，开机就暴露）。A 只读 B 自己算好的结论（B 在自己扫描里算、存 volatile），不碰 B 的子组件、不在扫描线程等 B、不拿 B 的锁。
 - **腔体看供液**：接口 `xyz.Modules\Supply\ISupplyAccess`（`Name`、`IsReady`），`BaseCdsModule` 实现；**不继承 `IModule`**，腔体经它碰不到供液模块的复位、中止，
   也看不到下面的槽和阀。`ISupplyModule`（"不跟机械手交互"那一类）没动。
-  - **名字配在腔体上**（`BaseChamberModule` SC `Supply`：这个腔体用的供液模块名，几个逗号隔开，跟机械手示教点 `PickArms="1,2"` 一样；空 = 不看供液）。
+  - **名字配在腔体上**（`BaseChamberModule` machine.xml `Supply`：这个腔体用的供液模块名，几个逗号隔开，跟机械手示教点 `PickArms="1,2"` 一样；空 = 不看供液）。
     我先做成配在喷嘴上（只查配方用到的喷嘴），用户："你这个是在喷嘴上面的，但是腔体上面需要咋整"——按模块之间的关系配在模块上，喷嘴上的那个删了。
     代价是只要配了的供液有一个没就绪，这个腔体什么配方都起不了（配方只用 DIW 也一样），给用户选的时候说过。名字不分大小写、去空格、重复的只取一次；
     停用的腔体（`IsEnable=False`）不取（不起工艺，配错也不报）。
@@ -1205,7 +1208,7 @@
   - **"能不能供液"的规则归供液模块**：`BaseCdsModule.CheckReady()`（`protected virtual`）默认 = 状态是空闲 + 有一个槽就绪或正在供液，每拍在 IPA 自己的扫描里算。
     这是我按现在只搭了架子的 CDS 定的；真正的规则（两槽切换、自动补液）等写 IPA 功能时重定。
 - **还没做**：界面上看不出 Job 的片在等供液（调度被拒不记原因）；供液那边"有没有腔体正在用"（换液、排液前要知道的话，让腔体去登记占用，不让供液模块回头看腔体）；
-  35021 sc.xml 的腔体都没配 `Supply`（喷嘴是 DIW、SC1，CDS 下只有 IPA 且点还没接，配上 IPA 腔体就一直起不了工艺）。
+  35021 machine.xml 的腔体都没配 `Supply`（喷嘴是 DIW、SC1，CDS 下只有 IPA 且点还没接，配上 IPA 腔体就一直起不了工艺）。
 
 ## 腔体照 LoadPort / 机械手的写法改（2026-10-20，用户："BaseChamberModule 这个里面很多写法都很奇怪，其次不规范，你按照就是loadport以及robot那边的写法……不要搞什么内部类"；先要了分析，看完说"就按照你说的，改造一下这个腔体这边"）
 - **动作入口统一成 状态 → 资源 → 互锁**：`Home()`、`StartProcess`、手动页的设备动作（`AxisHome` / `AxisMove` / `AxisStep` / `AxisReset` / `MoveCylinder` / `AxisJog`）都回
@@ -1223,32 +1226,32 @@
   全改 public（跟 `LoadPortCommandOperation`、`RobotCommandOperation` 一样）；`ChamberProcessOperation` 里嵌的 `Phase` 枚举挪成 `Clean\Enums\ChamberProcessPhase`。
   Clean 照 Loadport 分了 `Enums\`（ChamberState、ChamberProcessPhase）、`StateMachines\`（ChamberStateTable），只挪文件、命名空间不改。
   LoadPort / 机械手里剩下的嵌套类型（`LoadPortCommandOperation.Stage`、`BaseRobotModule.TransferIntent`、`RobotTransferOperation.CheckStep`）和 internal 的 `RobotTransferOperation` 这次没动。
-- **删了没人用的**：SC `Brand`、EC `QueryDataTimeOut`（腔体没有设备状态查询）。**SV `DeviceError` 和"腔体设备报警"留着**：分析时说过可以删，但它连着腔体手动页右栏"报错"那一行
+- **删了没人用的**：machine.xml `Brand`、EC `QueryDataTimeOut`（腔体没有设备状态查询）。**SV `DeviceError` 和"腔体设备报警"留着**：分析时说过可以删，但它连着腔体手动页右栏"报错"那一行
   （用户给的参考图里有），删了要连界面一起改；留着给接了腔体控制器的机型写（`protected set`）。
 - 客户端腔体手动页的失败原因跟 LoadPort、机械手页一样走 `ErrorText.Of(response, ModuleStates.ChamberText)`，`module.state_not_allowed` 的状态码翻成腔体状态字。
 
 ## AI 助手：AI 组件 + IAi，接厂内网的本地模型（2026-10-20，用户："写一个 ai 组件是不是更好一点，然后就是再写一个 ai 对应的接口"、"可以啊，你直接写，然后就是这个直接用微软官方的那么 ai dll"）
 - **起因**：用户问"这一套架构能不能引入 AI、哪些能用 AI 做"。我答 AI 只当参谋（只读、给建议），不进扫描线程、联锁、动作、开工条件、EAP 回复；
   用户说现场**不能联网**，所以模型只能在厂内网另一台带显卡的机器上跑本地开源模型（Claude 这类云端模型现场用不了；开发侧照用）。
-  我提过"当成又一个客户端"，用户要做成组件 + 接口——确实更顺：组件 `Bind` 里直接按接口取报警、日志、数据曲线，sc 没配就是没有 AI，换模型、哪天能联网换别家，写一个实现同一接口的组件、sc 换 Type。
+  我提过"当成又一个客户端"，用户要做成组件 + 接口——确实更顺：组件 `Bind` 里直接按接口取报警、日志、数据曲线，machine.xml 没配就是没有 AI，换模型、哪天能联网换别家，写一个实现同一接口的组件、machine.xml 换 Type。
 - **第一版只做报警解释**（我提的先后：报警解释 → 问设备 → 交接班摘要；用户"可以啊"）。"问设备"要模型自己决定查什么，小模型做不稳，放第二步。
 - **接口叫 `IAi`**（用户："IAiComponent 这个改成 IAi"）：不带 Component 后缀，是"单例组件接口带 Component 后缀"那条的例外，
-  跟 `ICountLifetime`、`ITank` 这类一样；组件类还叫 `AiComponent`，sc 节点还叫 `Ai`。
+  跟 `ICountLifetime`、`ITank` 这类一样；组件类还叫 `AiComponent`，machine.xml 节点还叫 `Ai`。
 - **微软官方的库**：`Microsoft.Extensions.AI`（`IChatClient`）+ `Microsoft.Extensions.AI.OpenAI`（10.11.0，按兼容 OpenAI 接口格式连）——本地模型服务大多兼容这个格式。
   这个包要 `Microsoft.Extensions.Logging.Abstractions` 10.0.9 以上，组件层原来为 TwinCAT 钉的三个 Microsoft.Extensions 包从 10.0.3 抬到 10.0.9（还是 10.0 这一档，仓库别处已经在用 10.0.9）。
-- **我定的细节**：不重试（模型服务没开当场报，不让人干等）；超时含排队、在 EC；同时几个在 SC（一张显卡一般 1 个）；日志只记 Info 进文件（界面自己报，免得顶栏日志栏报两遍）；
+- **我定的细节**：不重试（模型服务没开当场报，不让人干等）；超时含排队、在 EC；同时几个在 machine.xml（一张显卡一般 1 个）；日志只记 Info 进文件（界面自己报，免得顶栏日志栏报两遍）；
   材料里数字量只列变化、一个信号最多 20 次（const），模拟量写最小、最大、报警时，都带现在的值；规矩里写死"不建议跳过联锁、屏蔽报警或改安全设置"；回答语言跟界面。
   界面：实时报警页原来"只显示、没有按钮"，加了一条工具栏，**只有配了 AI 才显示**（连上后端问一次），没配的机台页面跟原来一样；结果用公共确认弹窗，下面写"仅供参考，以现场确认为准"。
 - **没做的**：问设备、交接班摘要；部件变慢这类统计预警（归部件自己，气缸、阀现在没记每次动作用时）；报警一来自动分析；把 AI 的回答存库留底；
-  35021 sc.xml 没加 `Ai` 节点（还没有模型服务）；没在真模型上试过（冒烟用假模型 + 本机假的模型服务走了一遍 HTTP）。
+  35021 machine.xml 没加 `Ai` 节点（还没有模型服务）；没在真模型上试过（冒烟用假模型 + 本机假的模型服务走了一遍 HTTP）。
 
-## 心跳：给 PLC 发的心跳 DO（2026-10-21，用户："目前的话就是给一个do就是1s发一次true，1s发一次false这样，然后do以及这个时间都是可以sc配置的"）
+## 心跳：给 PLC 发的心跳 DO（2026-10-21，用户："目前的话就是给一个do就是1s发一次true，1s发一次false这样，然后do以及这个时间都是可以machine.xml配置的"）
 - **起因**：用户提"增加一个心跳的组件"。我先提的是双向（我们翻 DO + 看 PLC 回的 DI 超时报警，间隔、超时放 EC），用户收成上面那句：
-  **只发不收**——一个 DO 按时间轮流写通、断，PLC 那边看它停了自己进安全态（那是 PLC 程序的事）；DO 号和时间**都在 SC**，不是 EC。
+  **只发不收**——一个 DO 按时间轮流写通、断，PLC 那边看它停了自己进安全态（那是 PLC 程序的事）；DO 号和时间**都在 machine.xml**，不是 EC。
 - **结构**：接口 `IHeartbeat : IDevice`（只有 `IsAlive`：最近一次写 DO 写成了，没配 DO 是 false；名字用户从几个里选的，我起的 `IsSending` 被要求改）
   + `HeartbeatComponent`（`Components\Plc`）。挂在哪个节点下就跟着那个大组件的扫描线程走；经 IO 组件写（点表索引，跟寿命组件、DI 组件一样），所以 DO 要在点表里。
   以后供液柜、腔体有自己的心跳点，在对应节点下再挂一个，按 `GetServices<IHeartbeat>()` 找全部。
-- **SC**：`DoIndex`（-1 = 不发）、`IntervalMs`（默认 1000：1 s 写一次通、1 s 写一次断，要跟 PLC 那边判心跳的时间对好）。
+- **machine.xml**：`DoIndex`（-1 = 不发）、`IntervalMs`（默认 1000：1 s 写一次通、1 s 写一次断，要跟 PLC 那边判心跳的时间对好）。
 - **报警 `SendFailedAlarm`"心跳发送失败"**（Alarm1、通讯故障）：DO 写不成就报（PLC 没连、点表里没这个点、被 IO 联锁拒了），不防抖——跟 PLC 读块失败报警一样当场报；
   只能人工复位清，复位 `Plc` 时跟着清。
 - **我定的细节**（交付时说了）：第一拍马上写通；写不成也算写过一次，等满间隔再写、不每拍重试（被联锁拒时 IO 组件每次记一条警告，每拍试就刷屏）；
@@ -1265,16 +1268,16 @@
   **虚拟 IO 也不实现 `IIo`**：11 处 `GetService<IIo>()` 会取到后登记的那个（虚拟 IO）、虚拟输入登记要求树上只有一个 `IIo`（有两个就抛）、DI / AI / AO 那些成员都得写空的。
 - **次数寿命怎么读**（用户选的"更省的写法"；时间寿命的计时 DO、清零 DO 也这样读）：先问虚拟 IO 有没有这个点号，有就读它，没有再经 `IIo` 读真 DO；不按号段判断。
   代价：配了虚拟点号却没挂那个虚拟 DO，会去读真 IO（读不到）、一直不计数，开机查不出来。
-- **程序那边**：要计数的组件配一个点号（SC），`Bind` 里取 `IVirtualIo`，计数的地方 `ToggleDo(点号)`。还没接任何具体的计数点（等用户说接哪个）。
+- **程序那边**：要计数的组件配一个点号（machine.xml），`Bind` 里取 `IVirtualIo`，计数的地方 `ToggleDo(点号)`。还没接任何具体的计数点（等用户说接哪个）。
   同一拍（10 ms）里翻两次会翻回原样、两次都漏；取放、过片一次几秒，碰不到。
-- **没做**：现有的虚拟 DI / AI（拿真实点用表达式算的）照旧走 IO 组件，没并进来；IO 页不显示虚拟点；35021 sc.xml 没配虚拟 IO 节点。
+- **没做**：现有的虚拟 DI / AI（拿真实点用表达式算的）照旧走 IO 组件，没并进来；IO 页不显示虚拟点；35021 machine.xml 没配虚拟 IO 节点。
 
 ## 接口去掉 Component 后缀（2026-10-21，用户一个个点名："IAlarmComponent 这个帮我改成IAlarm"、"IDataChartComponent 这个帮我改成 IDataChart"、"IDeviceComponent 这个帮我改成IDevice"、"IEcComponent 这个帮我改成IEc"……）
 - 10-18 定的"单例组件的接口带 Component 后缀"（见「推送和开机归组件自己、找组件按接口」）用户在一个个改掉：10-20 `IAiComponent` → `IAi`、`IIoComponent` → `IIo`；
   10-21 `IAlarmComponent` → `IAlarm`、`IDataChartComponent` → `IDataChart`、`IEcComponent` → `IEc`、`IHsmsComponent` → `IHsms`、`ILedgerManagerComponent` → `ILedgerManager`、
   `ILightComponent` → `ILight`、`IMapperComponent` → `IMapper`、`IRealChartComponent` → `IRealChart`、`IRpcComponent` → `IRpc`、`ISafetyComponent` → `ISafety`、`IWaferSizeComponent` → `IWaferSize`，
   设备组件的公共接口 `IDeviceComponent` → `IDevice`（气缸、阀、阀组、轴、DI / AI 传感器、槽、寿命、心跳、虚拟 DO 的接口都继承它）。
-- 只改接口名和它的文件名（`Interfaces\IAlarm.cs` 这些）；组件类（`AlarmComponent`、`EcComponent`、`MapperComponent`……）、sc 节点、命名空间、
+- 只改接口名和它的文件名（`Interfaces\IAlarm.cs` 这些）；组件类（`AlarmComponent`、`EcComponent`、`MapperComponent`……）、machine.xml 节点、命名空间、
   取到它的字段名（`_alarms`、`_ec`、`_mapper`……）都不变。`IMapper` 跟 Mapster 包里的 `MapsterMapper.IMapper` 同名，仓库只引用 `Mapster` 命名空间、不引用 `MapsterMapper`，所以不冲突。
 - **`ILoadPortDriverComponent` 用户选了先不改**：去掉后缀就跟驱动层 `xyz.Drivers.Loadport.ILoadPortDriver`（品牌协议驱动的接口）同名，
   `LoadPortDriverComponent`、`BaseLoadPortModule` 和两个冒烟两个都用到。`IRobotDriverComponent` 跟 `xyz.Drivers.Robot.IRobotDriver` 是一样的情况，按同一个办法。
@@ -1282,7 +1285,7 @@
 - 还带后缀、用户没点名的先不动；已经去掉的别改回去。
 
 ## 登录和菜单权限（2026-10-21，用户："规整一下就是这个菜单权限，和登录权限的设计"；样稿 `桌面\登录权限样稿-v1` 看过说"大体上没啥问题"，然后"直接开工吧"）
-- **账号表**：用户、角色、角色权限三张表（`account_user` / `account_role` / `account_role_permission`，在 sc `Account` 节点配的库里）；**一个用户一个角色**。
+- **账号表**：用户、角色、角色权限三张表（`account_user` / `account_role` / `account_role_permission`，在 machine.xml `Account` 节点配的库里）；**一个用户一个角色**。
   老的 User / Role / Permission / UserRole 实体删了；库里老服务建过的 `User`、`Role` 两张表，账号组件开机看见就删（2026-10-22 用户："这个直接删除"；
   菜单进库那时候老菜单服务建的 `Menu` 表同一类，我一起加进去了，交付时说了；删的是账号库里的，35021 配的就是默认库；删不掉只记警告、不耽误登录）。密码只存加盐哈希（PBKDF2-SHA256，十万次），看不到原文；输错不锁账号（以后要再加）。
 - **三档**：每一项权限是 **隐藏**（菜单里看不到）/ **只看**（能进页面、能查询，改东西的按钮灰掉）/ **能操作**。没配过的新菜单按"只看"。
@@ -1292,21 +1295,21 @@
 - **内置角色**：管理员（固定全部能操作，不能改、不能删）、访客（没登录的人按它算，不能删、能改；默认主界面 / 报警 / 数据中心只看，手动、配方、设置、IO 隐藏）。
   第一次开机还预置工程师（全部能操作）、操作员（主界面、整机控制、报警复位能操作，手动、配方只看，设置、IO 隐藏——用户："io这种肯定是工程师级别的"），之后随便改。
   内置账号 admin / admin（不能删、不能停用、不能换角色，密码能改）；开机日志提示改初始密码。
-- **要不要登录是 sc 开关**（用户："sc配置就是关掉就不需要登录，打开就是需要登录"）：`Account` 节点 `IsEnable`，开着客户端启动弹登录框，**取消就当访客**（用户："当然能看"）；
-  关着不登录、不分权限，跟以前一样谁都能操作（操作人记 Admin）。sc 里没配 `Account` 节点也是不登录。
+- **要不要登录是 machine.xml 开关**（用户："machine.xml配置就是关掉就不需要登录，打开就是需要登录"）：`Account` 节点 `IsEnable`，开着客户端启动弹登录框，**取消就当访客**（用户："当然能看"）；
+  关着不登录、不分权限，跟以前一样谁都能操作（操作人记 Admin）。machine.xml 里没配 `Account` 节点也是不登录。
 - **后端不把关**（用户："不做"）：只在界面上挡（菜单不建、按钮灰掉），后端服务不查是谁、不查权限，操作人照旧是客户端在请求里带的名字。
   我解释过"后端把关"= 统一拦截 + 给写操作的服务方法标特性 + 带会话令牌，用户不要。
 - **闲置自动退出**（2026-10-22 用户："默认多久没有人操作之后，自动回到这个登录界面，需要重新登录"）：键盘鼠标到时间没动就退出登录，**接着弹登录框**
   （跟开机那个一样，标题下黄字"N 分钟没有操作，已自动退出，请重新登录"，登录名填好刚才那个人），**取消就按访客、只能看**（用户选的 A："就按照这个来"）；
   后面那一页访客看不到时先退回主界面，重新登录看得到了**回到原来那一页**（中间人自己点了别的菜单就作废）；已经开着登录框（点了换人就走开了）不再叠一个。
-  分钟数是 **sc** `Account/IdleLogoutMinutes`（默认 15，0 = 不自动退出，最长 1440；用户："这个肯定是sc"——原来是 EC，EC 页工程师就能改成 0），
-  `PasswordMinLength`（密码最短，默认 4，1 ~ 32）同一个道理也挪进 sc（我加的，交付时说了）；两个配错 `OnSettingLoaded` 开机就报。分钟数跟着会话下来，客户端不用读 sc。
+  分钟数是 **machine.xml** `Account/IdleLogoutMinutes`（默认 15，0 = 不自动退出，最长 1440；用户："这个肯定是machine.xml"——原来是 EC，EC 页工程师就能改成 0），
+  `PasswordMinLength`（密码最短，默认 4，1 ~ 32）同一个道理也挪进 machine.xml（我加的，交付时说了）；两个配错 `OnSettingLoaded` 开机就报。分钟数跟着会话下来，客户端不用读 machine.xml。
   看的是 Windows 记的最后一次键盘、鼠标、触摸（`GetLastInputInfo`，整台电脑的），从登录那一刻起算、换人才重新计时（2026-10-22 真机走查改的）：
   原来看 WPF 的输入事件，鼠标停在窗口上时界面一刷新（顶栏时钟每秒走）WPF 就补发"鼠标移动"，机台全屏、鼠标总在窗口上，就永远不注销——
   鼠标停在窗口中间等 100 秒没注销，挪到任务栏上 60 秒注销，复核两次。代价：这台电脑上别的程序有人在用也算没闲着（机台电脑一般就这一个软件）。
 - **我定的细节**（交付时说了）：管理员会话不带档位（全部能操作）；登录名不分大小写、前后空格去掉；登录不成一律回"登录名或密码不对"，不说是哪一样；
   正在登录着的被停用、删了或者改了角色，后端推账号变了，客户端重新取会话（停用 / 删了的回访客）；后端连不上时客户端先当要登录、什么都只看，连上再定；
-  密码最短见上面「闲置自动退出」（sc）；角色页改了档位先标"有修改没保存"、点保存才生效，换角色前问要不要放弃；
+  密码最短见上面「闲置自动退出」（machine.xml）；角色页改了档位先标"有修改没保存"、点保存才生效，换角色前问要不要放弃；
   只看的页面在底部导航右边挂一个"这一页只看 · 角色"的小标签，二级菜单名后面带一只眼睛。
 - **没做的**：后端把关和操作日志（用户不要）；登录失败锁账号；密码框里"看一眼密码"的小眼睛；灰掉的按钮悬停说明为什么灰。
 
@@ -1321,12 +1324,12 @@
   设备报错、通讯断开、动作失败）5；设备状况要留意、本身不算故障（寿命、通用 DI 信号）6；要人来看一下（定不了片、有人手动放拿载具）7；
   账、Mapping 对不上 8。
 - **拿不准、交给用户定的**：溢流（给了 2，槽里是 IPA 这类易燃的也许该 1）；E84 意外放上 / 拿走载具（原来是安全联锁，按"人手动放拿撞不上天车"给了 7）；
-  通用 DI"开关信号异常"（给了 6；急停、门、漏液这些安全信号接上报警以后该是 1 / 2，可一条声明只有一个分类，要按点分得让 sc 能配分类）；
+  通用 DI"开关信号异常"（给了 6；急停、门、漏液这些安全信号接上报警以后该是 1 / 2，可一条声明只有一个分类，要按点分得让 machine.xml 能配分类）；
   卡盘到速超时（当工艺量给了 4，也可以算 5）。
 - **没动的**：实时报警页、历史页的"分类"列照旧直接显示枚举名（英文，没走语言包）；历史库存的是名字，老记录还是老名字。
 
 ## 顶栏模块行（2026-10-23，用户："不管切换什么都能看到子模块的这个状态以及子模块的这个 auto 还是 manual"）
-- **要什么**：壳上常驻、切哪一页都看得到各模块（照 sc 装的，名字原样）的状态和 Auto / Manual。Auto / Manual 就是模块的 `Mode`（Online / Offline，手动页上线 / 下线那个），
+- **要什么**：壳上常驻、切哪一页都看得到各模块（照 machine.xml 装的，名字原样）的状态和 Auto / Manual。Auto / Manual 就是模块的 `Mode`（Online / Offline，手动页上线 / 下线那个），
   不是 LoadPort 的 E84 Access Mode。2026-10-23 起叫生产 / 维护（`IsProduction`），供液这类没有模式的不画边框（`HasMode`）。
 - **样稿走了几版**（都在 scratchpad 副本里做、离屏出图，仓库没动）：顶栏下另起一行（每格 名字 + 状态徽标 + Auto/Manual 标签）→ 用户问 12 个腔体怎么办、
   "整体收窄"、单独一行"导致下面的显示区域太小了" → 塞进顶栏、日志框右边两行小卡片 → "未来还是不够扩展更多的设备" → **定稿**：
@@ -1341,8 +1344,8 @@
   - 一行放 16 个模块（12 个腔体那种）还有余；再多折到第二行，顶栏跟着变高（20 个模块时槽位表剩 24 槽可见）。
 - **做成控件**（用户："直接做成一个控件，可以一起使用，放出依赖属性就行"）：`ModuleChip`（`Text`、`Tone`、`IsAuto`），控件不认状态码；顶栏模块行 `ModuleStatusBar` 用它。
 - **字号**（用户定）：外壳只两档——模块名 14，按钮、日志、报警、时间、用户名 12；菜单、状态显示跟模块名一档（14）；小字（日期附注、角色附注）都去掉，角色挪到用户名的悬停提示。
-- **数据**：整机模块每拍比一次各模块的 Name / State / Mode，有一个变了推整张 `ModuleStatusListDto`（token "ModuleStatus"，留存）；模块表就是整机 `Bind` 认的那张（不含整机自己、先后同 sc），
-  sc 里加减模块界面自己跟着变。客户端断开时全部灰点、边框灭。
+- **数据**：整机模块每拍比一次各模块的 Name / State / Mode，有一个变了推整张 `ModuleStatusListDto`（token "ModuleStatus"，留存）；模块表就是整机 `Bind` 认的那张（不含整机自己、先后同 machine.xml），
+  machine.xml 里加减模块界面自己跟着变。客户端断开时全部灰点、边框灭。
 
 ## 品牌驱动：平台只给通道，指令和协议在机型工程（2026-10-23，用户："一旦某一个机械手增加一个指令啥的都要修改平台……新的机械手来了，他只需要继承我们自己的一些最基础的东西，然后他可以自己实现所谓的协议解析以及动作指令"、"直接修改吧"）
 - **为什么改**：以前品牌协议在平台（`xyz.Drivers` 的 `Robot\Reje`、`Loadport\FCD`、`Rfid\FCD`），每类设备一套驱动接口（`IRobotDriverComponent` 上 Home / Pick / Place 这些固定动作）、
@@ -1367,9 +1370,22 @@
   - 锐洁急停 `Sstop` 原来要"打断在途的运动指令"，现在动作被中止时 `CommandOperation` 自己作废它在途的那条，不用品牌管。
   - 一个通道一个解码器实例（解码器自带接收缓冲），开机由设备交给通道；通道已经按别的解码器打开过再换就抛。
   - 主动上报（没有在途指令认的报文）走通道的 `Reported`，设备在 `OnReport` 里认（锐洁手指在位 / 报错推送、富创得 PODON / PODOF）。
-- **sc.xml**：设备下的 `Driver` 节点 Type 一律 `xyz.Components.Components.DeviceDriverComponent`；RFID 节点 Type 写机型的读头类，下面挂自己的 `Driver`（串口配置挪到它上面）；
-  机械手的 `Driver` 补了 `CommType=Tcp`（通道默认串口，原来锐洁壳写死走网口）。
+- **machine.xml**：设备下的 `Driver` 节点 Type 一律 `xyz.Components.Components.DeviceDriverComponent`；RFID 节点 Type 写机型的读头类，下面挂自己的 `Driver`（串口配置挪到它上面）；
+  机械手的 `Driver` 补了 `CommType=Tcp`（通道默认串口，原来锐洁壳写死走网口）。（2026-10-25 起通道拆成串口、网口两个组件，`CommType` 删了，见下一节。）
 - **冒烟**：OperationWaitSmoke、RfidSmoke 引用机型工程，用真的 35021 LoadPort / 机械手 / 读头类 + 平台通道，只把帧通讯换成假的；AlignerSmoke、JobSmoke 用测试自己的假通道和指令。
+
+## 串口、网口各一个通道组件，都配上时用 IsEnable 选一条（2026-10-25，用户："应该串口一个组件节点网口一个，然后用哪一个就哪一个启动"、"配置里面针对这两个得做一下就是启用哪一个"、"做吧"）
+- **为什么改**：原来一个 `DeviceDriverComponent` 节点上串口、网口两套参数都挂着，靠 `CommType` 切，用不上的那套也在节点上，看着乱。
+- **做成什么样**：`SerialDriverComponent`（PortName / BaudRate / Parity / DataBits / StopBits）、`TcpDriverComponent`（Host / NetPort）各一个组件，各带各的参数；
+  连接、EC 重连、重连失败报警、收发、machine.xml `IsEnable` 留在抽象基类 `DeviceDriverComponent`（不能直接配在 machine.xml 里，老写法装配就报"找不到组件类"），子类只建字节传输。
+  `CommType` 枚举、工厂里按它分支的 `Create` 删了。设备只经 `IDeviceDriverComponent` 用通道（接口上加了 `IsEnable`），不认识串口网口，所以设备模块一行没改。
+- **启用哪一条**：一个设备下面串口、网口可以都配上，`FindIn` 只认启用的那条；启用两条开机抛；一条没启用返回 null，各设备照没挂通道处理（LoadPort、机械手记错误日志，读头、对准器开机抛）；
+  没启用的不建、不连、不重连、不报警。只配一条时可以不写 `IsEnable`（默认 True），35021 都写出来了。
+  **同一台设备协议一样、只是串口换网口（或反过来），只对调两边的 `IsEnable`、重启，代码不动**（协议不一样本来就是另写一套，不在这个范围）。
+  没做"设备上一个参数选用哪条"（那等于把 `CommType` 挪回设备上），对调两个开关改错了开机就报。
+- **machine.xml（35021）**：两个 LoadPort 原来串口、网口参数都有，拆成 `Serial`（启用，COM2 / COM4）+ `Tcp`（不启用，192.168.1.100 / .101:4004）；
+  两个读头只有串口（`Serial`，COM6 / COM8）；机械手只有网口（`Tcp`，127.0.0.1:9000）。节点名从 `Driver` 换成 `Serial` / `Tcp`，
+  通道上两个重连 EC 的键、重连失败报警的编号跟着节点路径变成新的（开发阶段，EC 回到默认）。
 
 ## 动作改成一串步骤（ModuleRoutine）（2026-10-23，用户："能不能用行为树替代现在的这种 operation"→ 要不阻塞、显式扫描、更简单；看了样稿说"你这样不知道哪一步出错，还不如之前的"，改成带步骤名的写法后"那你按照这种格式的话，你直接修改一下吧……把现有的 operation 改一个名字"，名字选 ModuleRoutine）
 - **为什么改**：以前每个动作一个 `ModuleOperation<TStep>` 子类，自己写 `switch (Step)`、自己记计时、自己判超时，失败只知道错误码，不知道走到哪了；`CommandOperation` 串指令又是另一套。

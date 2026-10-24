@@ -33,7 +33,7 @@ public interface INozzle : IValve
     bool SetFlow(double litersPerMinute);
 
     /// <summary>
-    /// 停液；SC 配了清零的流量设成 0
+    /// 停液；machine.xml 配了清零的流量设成 0
     /// </summary>
     /// <returns></returns>
     bool Stop();

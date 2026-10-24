@@ -281,7 +281,7 @@ public class ModuleRoutine
     }
 
     /// <summary>
-    /// 加一步：这几个设备同时发同一个动作（升降、开关阀、回零、停），都做完算这一步完成；一个设备都没有（sc 里没配）就不加这一步
+    /// 加一步：这几个设备同时发同一个动作（升降、开关阀、回零、停），都做完算这一步完成；一个设备都没有（machine.xml 里没配）就不加这一步
     /// </summary>
     public ModuleRoutine Devices<TDevice>(string name, IEnumerable<TDevice> devices, ChamberDeviceAction action)
         where TDevice : IDevice
@@ -296,7 +296,7 @@ public class ModuleRoutine
     }
 
     /// <summary>
-    /// 加一步：一个设备发一个动作；设备为 null（sc 里没配）就不加这一步
+    /// 加一步：一个设备发一个动作；设备为 null（machine.xml 里没配）就不加这一步
     /// </summary>
     public ModuleRoutine Devices(string name, IDevice? device, ChamberDeviceAction action)
     {

@@ -14,7 +14,7 @@ namespace xyz.Components.Components;
 /// </summary>
 public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrierIdReader where TReadCommand : DeviceCommand
 {
-    #region SC
+    #region Machine
 
     [Machine("0", "RFID", "载具 ID 在标签内存里的起始偏移")]
     public int IdStart { get; set; }
@@ -57,7 +57,7 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
         var driver = DeviceDriverComponent.FindIn(this);
         if (driver is null)
         {
-            throw new InvalidOperationException($"读头 {FullPath} 的 sc.xml 节点下没挂通道（Driver 节点，Type=xyz.Components.Components.DeviceDriverComponent）。");
+            throw new InvalidOperationException($"读头 {FullPath} 的 machine.xml 节点下没有启用的通道（串口 SerialDriverComponent 或网口 TcpDriverComponent，IsEnable=True）。");
         }
 
         _codec ??= CreateCodec();

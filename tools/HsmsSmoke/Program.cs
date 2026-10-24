@@ -11,7 +11,7 @@ using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 using xyz.Tools;
 
-// HsmsComponent 冒烟（链路和报文分发，不带 GEM）：组件经 ComponentLoader 按 sc.xml 同款结构装配，登记几个测试处理方，
+// HsmsComponent 冒烟（链路和报文分发，不带 GEM）：组件经 ComponentLoader 按 machine.xml 同款结构装配，登记几个测试处理方，
 // 假 EAP 用 HsmsConnector 连入，验证：按 Stream/Function 交给处理方（在派发线程上，可以 await）、处理方抛数据错回 S9F7、
 // 抛别的错回 SxF0、没人登记的回 S9F3 / S9F5、闸门挡住的照闸门回、回完再做的事排在回复之后、设备主动发报文等回复、
 // 连上 / 断开按先后通知、断线重连后照常分发、Close 发 Separate、跟 gRPC 同端口 / 配置不对 / 端口被占时 Open 只记错误不抛。

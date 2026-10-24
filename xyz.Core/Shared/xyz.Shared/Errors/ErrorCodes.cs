@@ -38,7 +38,7 @@ public static class ErrorCodes
 
     #region 晶圆尺寸（主界面切 8 / 12 寸）
 
-    /// <summary>sc.xml 的 System 节点下没配 WaferSize（晶圆尺寸组件），切不了晶圆尺寸。Args: []</summary>
+    /// <summary>machine.xml 的 System 节点下没配 WaferSize（晶圆尺寸组件），切不了晶圆尺寸。Args: []</summary>
     public const string WaferSizeNotInstalled = "system.wafer_size_not_installed";
 
     /// <summary>晶圆尺寸只能是 8 或 12。Args: [给的值]</summary>
@@ -50,14 +50,14 @@ public static class ErrorCodes
     /// <summary>机台里（LoadPort 以外的位置）还有片，切不了晶圆尺寸。Args: [位置]</summary>
     public const string WaferSizeHasWafer = "system.wafer_size_has_wafer";
 
-    /// <summary>晶圆尺寸写回 sc.xml 失败。Args: [原因]</summary>
+    /// <summary>晶圆尺寸写回 machine.xml 失败。Args: [原因]</summary>
     public const string WaferSizeSaveFailed = "system.wafer_size_save_failed";
 
     #endregion
 
     #region 整机
 
-    /// <summary>sc.xml 没配 System 节点（没有整机模块），整机操作都用不了。Args: []</summary>
+    /// <summary>machine.xml 没配 System 节点（没有整机模块），整机操作都用不了。Args: []</summary>
     public const string SystemNotInstalled = "system.not_installed";
 
     /// <summary>全部初始化：有模块的初始化被拒（状态不允许、在忙、没写初始化）。Args: [模块名]</summary>
@@ -120,7 +120,7 @@ public static class ErrorCodes
     /// <summary>读码没发起（没挂读头、读头未连接或上一次还没读完）。Args: [模块名]</summary>
     public const string ReadCarrierIdRejected = "loadport.read_carrier_id_rejected";
 
-    /// <summary>Load 回来的 Mapping 槽数跟 sc 配的槽数对不上，没落账。Args: [模块名, 设备回的槽数, sc 配的槽数]</summary>
+    /// <summary>Load 回来的 Mapping 槽数跟 machine.xml 配的槽数对不上，没落账。Args: [模块名, 设备回的槽数, machine.xml 配的槽数]</summary>
     public const string SlotMapLengthMismatch = "loadport.slot_map_length_mismatch";
 
     /// <summary>Load 回来的 Mapping 有交叉片、叠片或认不出的槽。Args: [模块名, 槽号（逗号隔开）]</summary>
@@ -197,7 +197,7 @@ public static class ErrorCodes
     public const string RobotHandoffUnsupported = "robot.handoff_unsupported";
 
     /// <summary>
-    /// 机械手不扫片：sc 没开 MapEnabled，或机械手类没给扫片动作。Args: [机械手模块名]
+    /// 机械手不扫片：machine.xml 没开 MapEnabled，或机械手类没给扫片动作。Args: [机械手模块名]
     /// </summary>
     public const string RobotMapUnsupported = "robot.map_unsupported";
 
@@ -242,7 +242,7 @@ public static class ErrorCodes
     public const string ChamberWaferOwned = "chamber.wafer_owned";
 
     /// <summary>
-    /// 起工艺时这个腔体用的供液模块（sc 腔体上配的 Supply）没就绪。Args: [模块名, 配方名, 供液模块名]
+    /// 起工艺时这个腔体用的供液模块（machine.xml 腔体上配的 Supply）没就绪。Args: [模块名, 配方名, 供液模块名]
     /// </summary>
     public const string ChamberSupplyNotReady = "chamber.supply_not_ready";
 
@@ -310,7 +310,7 @@ public static class ErrorCodes
     #region AI 助手
 
     /// <summary>
-    /// sc.xml 没配 Ai 节点（这台机没有 AI）。Args: []
+    /// machine.xml 没配 Ai 节点（这台机没有 AI）。Args: []
     /// </summary>
     public const string AiNotInstalled = "ai.not_installed";
 
@@ -363,10 +363,10 @@ public static class ErrorCodes
     /// <summary>环标记落不下去（站点状态跟搬运进度对不上，多半是被人工插手动了）。Args: [站点名, 标记]</summary>
     public const string TransferStepRejected = "transfer.step_rejected";
 
-    /// <summary>sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto。Args: []</summary>
+    /// <summary>machine.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto。Args: []</summary>
     public const string TransferNotInstalled = "transfer.not_installed";
 
-    /// <summary>搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto、启动不了搬运操作。Args: []</summary>
+    /// <summary>搬运管理停用了（machine.xml Transfer 节点 IsEnable=False），切不了 Auto、启动不了搬运操作。Args: []</summary>
     public const string TransferDisabled = "transfer.disabled";
 
     /// <summary>搬运参数里的站点不在搬运模块表里（没装、或不是能放片的站点）。Args: [站点名]</summary>
@@ -413,10 +413,10 @@ public static class ErrorCodes
 
     #region Job（SEMI E94 CJ / E40 PJ）
 
-    /// <summary>sc.xml 没配 Job 节点（没有 Job 管理）。Args: []</summary>
+    /// <summary>machine.xml 没配 Job 节点（没有 Job 管理）。Args: []</summary>
     public const string JobNotInstalled = "job.not_installed";
 
-    /// <summary>Job 管理停用了（sc.xml Job 节点 IsEnable=False）。Args: []</summary>
+    /// <summary>Job 管理停用了（machine.xml Job 节点 IsEnable=False）。Args: []</summary>
     public const string JobDisabled = "job.disabled";
 
     /// <summary>命令等 Job 管理受理超时，命令可能稍后还会执行。Args: [等待ms]</summary>
@@ -513,7 +513,7 @@ public static class ErrorCodes
 
     #region 报警
 
-    /// <summary>报警组件没装（sc.xml 没配 Alarm 节点）。</summary>
+    /// <summary>报警组件没装（machine.xml 没配 Alarm 节点）。</summary>
     public const string AlarmNotInstalled = "alarm.not_installed";
 
     /// <summary>这个来源没报过报警，没有可复位的。Args: [来源路径]</summary>
@@ -542,7 +542,7 @@ public static class ErrorCodes
 
     #region EC
 
-    /// <summary>EC 组件没装（sc.xml 没配 EC 节点）。</summary>
+    /// <summary>EC 组件没装（machine.xml 没配 EC 节点）。</summary>
     public const string EcNotInstalled = "ec.not_installed";
 
     /// <summary>没有这一项 EC（组件树上没声明）。Args: [键]</summary>
@@ -564,7 +564,7 @@ public static class ErrorCodes
 
     #region 晶圆账
 
-    /// <summary>晶圆账没开（sc.xml 没配 LedgerManager，或 IsEnable=False）。</summary>
+    /// <summary>晶圆账没开（machine.xml 没配 LedgerManager，或 IsEnable=False）。</summary>
     public const string WaferLedgerDisabled = "wafer.ledger_disabled";
 
     /// <summary>账上没有这个位置（模块没登记过槽位）。Args: [位置]</summary>
@@ -592,7 +592,7 @@ public static class ErrorCodes
 
     #region 流程配方
 
-    /// <summary>流程配方库没装（sc.xml 没配 Sequence 节点）。Args: []</summary>
+    /// <summary>流程配方库没装（machine.xml 没配 Sequence 节点）。Args: []</summary>
     public const string SequenceNotInstalled = "sequence.not_installed";
 
     /// <summary>编号超出范围。Args: [编号, 个数]</summary>
@@ -619,7 +619,7 @@ public static class ErrorCodes
     /// <summary>第 1 步或最后一步不是 LoadPort 分组。Args: [步号]</summary>
     public const string SequenceStepNotLoadPort = "sequence.step_not_loadport";
 
-    /// <summary>步骤的站点分组不在可选分组里（sc.xml 改过，或这个分组的站点机械手都到不了）。Args: [步号, 分组名]</summary>
+    /// <summary>步骤的站点分组不在可选分组里（machine.xml 改过，或这个分组的站点机械手都到不了）。Args: [步号, 分组名]</summary>
     public const string SequenceGroupNotFound = "sequence.group_not_found";
 
     /// <summary>这一步一个站点都没勾。Args: [步号]</summary>
@@ -653,7 +653,7 @@ public static class ErrorCodes
 
     #region 工艺配方
 
-    /// <summary>工艺配方库没装（sc.xml 没配 ProcessRecipe 节点）。Args: []</summary>
+    /// <summary>工艺配方库没装（machine.xml 没配 ProcessRecipe 节点）。Args: []</summary>
     public const string ProcessRecipeNotInstalled = "process_recipe.not_installed";
 
     /// <summary>编号超出范围。Args: [编号, 个数]</summary>
@@ -722,7 +722,7 @@ public static class ErrorCodes
     /// <summary>配方头的值小数位比字段表里配的多。Args: [字段, 最多几位]</summary>
     public const string ProcessRecipeHeadValueTooPrecise = "process_recipe.head_value_too_precise";
 
-    /// <summary>配方头下拉、开关的值不在能选的里面（比如 Type 不是 sc 里站点配的）。Args: [字段, 值]</summary>
+    /// <summary>配方头下拉、开关的值不在能选的里面（比如 Type 不是 machine.xml 里站点配的）。Args: [字段, 值]</summary>
     public const string ProcessRecipeHeadValueNotInOptions = "process_recipe.head_value_not_in_options";
 
     /// <summary>合计时长超过配方头的超时时间（腔体会在做完之前就判超时）。Args: [合计秒数, 超时秒数]</summary>
@@ -744,7 +744,7 @@ public static class ErrorCodes
 
     #region 配方管理（Host 远程管配方）
 
-    /// <summary>ON-LINE REMOTE 时配方只能由 Host 改（sc.xml Eap.Recipe 的 LockLocalEditInRemote 开着），本地新建、改名、保存、删除都拒。Args: []</summary>
+    /// <summary>ON-LINE REMOTE 时配方只能由 Host 改（machine.xml Eap.Recipe 的 LockLocalEditInRemote 开着），本地新建、改名、保存、删除都拒。Args: []</summary>
     public const string RecipeLockedByHost = "recipe.locked_by_host";
 
     #endregion
@@ -758,10 +758,10 @@ public static class ErrorCodes
 
     #region 数据曲线
 
-    /// <summary>数据曲线没装（sc.xml 没配 DataChart 节点）。</summary>
+    /// <summary>数据曲线没装（machine.xml 没配 DataChart 节点）。</summary>
     public const string DataChartNotInstalled = "datachart.not_installed";
 
-    /// <summary>实时曲线没装（sc.xml 没配 RealChart 节点）。</summary>
+    /// <summary>实时曲线没装（machine.xml 没配 RealChart 节点）。</summary>
     public const string RealChartNotInstalled = "realchart.not_installed";
 
     #endregion
@@ -769,7 +769,7 @@ public static class ErrorCodes
     #region 账号（登录、用户、角色）
 
     /// <summary>
-    /// sc.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了。Args: []
+    /// machine.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了。Args: []
     /// </summary>
     public const string AccountNotInstalled = "account.not_installed";
 

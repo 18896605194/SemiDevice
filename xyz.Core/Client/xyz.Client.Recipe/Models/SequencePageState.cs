@@ -11,7 +11,7 @@ public enum SequencePageState
     /// <summary>连上了，还没拉到列表。</summary>
     Loading,
 
-    /// <summary>后端没装流程配方库（sc.xml 没配 Sequence 节点）。</summary>
+    /// <summary>后端没装流程配方库（machine.xml 没配 Sequence 节点）。</summary>
     NotInstalled,
 
     Ready,

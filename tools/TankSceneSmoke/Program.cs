@@ -17,7 +17,7 @@ using xyz.Shared.Dtos;
 
 // 供液槽三维图冒烟：TankScene（透明圆筒 TankVisual3D + 液位信号灯 SignalLamp）绑 TankModel（后端推的 TankDto）。
 // 液面跟液位：七个液位的液面高度、液体颜色、右上角的字；液面 0.2 s 过渡、中途换目标落在最后一个、藏着直接落位、液位不知道不画液体；
-// 信号灯跟各自的 DI 信号：亮灭、名字照推送，读不到是"不知道"色，信号对不上时液位不知道、灯照样各亮各的，sc 里没配的不画；换槽改绑；
+// 信号灯跟各自的 DI 信号：亮灭、名字照推送，读不到是"不知道"色，信号对不上时液位不知道、灯照样各亮各的，machine.xml 里没配的不画；换槽改绑；
 // 罐壁透明度（依赖属性，外部设或绑定；图上没有滑块）、默认视角 / 正视图、滚轮缩放、前后两半罐壁跟着相机分、信号灯在图里且在罐右边；中英文的字。不连后端。
 internal static class Program
 {
@@ -103,7 +103,7 @@ internal static class Program
             // 2. 七个液位：液面落在上下两个信号点中间，液体到高高变红；灯照推来的各个信号亮（HH、Overfill 是报警位，亮红）
             Expect(scene, body, tank, Dto(TankLevel.LL, false, false, false, false, false), 0.05, "Off,Off,Off,Off,Off", false, "低低液位", "DarkWarningStatus");
             Check(string.Join(",", LampNames.Select(name => LampText((SignalLamp)scene.FindName(name)))) == "LL,L,H,HH,Overfill",
-                "灯的名字照推送里的信号名（sc 的节点名）");
+                "灯的名字照推送里的信号名（machine.xml 的节点名）");
             Expect(scene, body, tank, Dto(TankLevel.L, true, false, false, false, false), 0.205, "On,Off,Off,Off,Off", false, "低液位", "DarkWarningStatus");
             Expect(scene, body, tank, Dto(TankLevel.Normal, true, true, false, false, false), 0.47, "On,On,Off,Off,Off", false, "液位正常", "DarkRunningStatus");
             Expect(scene, body, tank, Dto(TankLevel.H, true, true, true, false, false), 0.72, "On,On,On,Off,Off", false, "高液位", "DarkWarningStatus");
@@ -143,7 +143,7 @@ internal static class Program
             tank.Update(Dto(TankLevel.Normal, true, true, false, false, false));
             Pump(320);
 
-            // 5. sc 里只配了 LL、H：只画这两盏，位置还是各自的高度；换一个槽灯改绑新的，旧槽再变不影响图
+            // 5. machine.xml 里只配了 LL、H：只画这两盏，位置还是各自的高度；换一个槽灯改绑新的，旧槽再变不影响图
             var partial = new TankModel();
             partial.Update(new TankDto
             {

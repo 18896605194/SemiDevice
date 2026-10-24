@@ -11,7 +11,7 @@ using xyz.Shared.Errors;
 using xyz.Shared.Rpc;
 using xyz.Tools;
 
-// 工艺配方冒烟：sc.xml 节点和两张字段表（配方头、步骤）、字段表配错开机就报、步骤下拉的选项按腔体 Type 照 sc.xml 写的、配方头的 Type 和超时时间、新建 / 改名 / 保存 / 删除和按字段表的每一条检查、
+// 工艺配方冒烟：machine.xml 节点和两张字段表（配方头、步骤）、字段表配错开机就报、步骤下拉的选项按腔体 Type 照 machine.xml 写的、配方头的 Type 和超时时间、新建 / 改名 / 保存 / 删除和按字段表的每一条检查、
 // 规整（数字、开关、下拉的写法，只留字段表里的字段）、文件读写（字段都写进文件、老配方缺的字段按默认值补、坏文件跳过）、版本冲突、变更事件、
 // 配方用到具体腔体时腔体照名字核对摆臂和药液、gRPC 服务的列表 / 字段表 / 错误码，腔体起工艺时配方要在库里、选的摆臂和药液这个腔体要有。
 // 不连设备，文件写在临时目录，跑完删掉。
@@ -40,7 +40,7 @@ RecipeData? Data(HandleResult result)
     return result.Result as RecipeData;
 }
 
-// 一步：按 sc.xml 字段表的字段名给值，不给的就是空的
+// 一步：按 machine.xml 字段表的字段名给值，不给的就是空的
 RecipeStep Step(string seconds, string rpm, string arm = "", string chemical = "", string flow = "", string mode = "",
     string position = "", string scanTo = "", string scanSpeed = "")
 {
@@ -58,7 +58,7 @@ RecipeData Content(string description, List<RecipeStep> steps, string type = "A"
     return new RecipeData { Type = type, Timeout = timeout, Description = description, Steps = steps };
 }
 
-// 探针腔体：下面按给的装摆臂轴，摆臂下面按药液装喷嘴（跟 sc.xml 里的层级一样）；Type 跟 sc.xml 里的腔体一样写 A
+// 探针腔体：下面按给的装摆臂轴，摆臂下面按药液装喷嘴（跟 machine.xml 里的层级一样）；Type 跟 machine.xml 里的腔体一样写 A
 ProbeChamber Chamber(string name, params (string Arm, string[] Chemicals)[] arms)
 {
     var chamber = new ProbeChamber(name) { Type = "A" };
@@ -93,7 +93,7 @@ ModuleConfig SecondsNode()
     return FieldNode("Seconds", ("Text", "时间"), ("Type", "Double"), ("Min", "0.1"), ("Required", "true"));
 }
 
-// 配方头字段表：固定的几项（跟 sc.xml 一样），extra 是自己加的项；without 是故意不写的那一项、wrongType 把那一项的类型写错（查配错用）
+// 配方头字段表：固定的几项（跟 machine.xml 一样），extra 是自己加的项；without 是故意不写的那一项、wrongType 把那一项的类型写错（查配错用）
 ModuleConfig HeadNode(string without = "", string wrongType = "", params ModuleConfig[] extra)
 {
     var items = new List<ModuleConfig>();
@@ -151,28 +151,28 @@ void Rejects(ModuleConfig node, string message)
 
 try
 {
-    // 0. 真 sc.xml 里配了工艺配方库节点和字段表；装配时 Folder 换成临时目录（不往运行目录写文件）。
-    var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
-    Check(scConfig is not null, "sc.xml 解析失败");
-    var node = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "ProcessRecipe", StringComparison.OrdinalIgnoreCase));
-    Check(node is not null && node.Type == typeof(RecipeComponent).FullName, "sc.xml 里应有指向 RecipeComponent 的 ProcessRecipe 节点");
+    // 0. 真 machine.xml 里配了工艺配方库节点和字段表；装配时 Folder 换成临时目录（不往运行目录写文件）。
+    var machineSettings = XmlHelper.Deserialize<MachineSettings>(Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"));
+    Check(machineSettings is not null, "machine.xml 解析失败");
+    var node = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "ProcessRecipe", StringComparison.OrdinalIgnoreCase));
+    Check(node is not null && node.Type == typeof(RecipeComponent).FullName, "machine.xml 里应有指向 RecipeComponent 的 ProcessRecipe 节点");
     string ValueOf(string name)
     {
         return node!.Values.First(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase)).Value ?? string.Empty;
     }
 
     Check(ValueOf("Capacity") == "99" && ValueOf("Folder") == "Recipe\\Process" && ValueOf("NameMaxLength") == "32"
-          && node!.Values.Count == 3, "sc.xml 里写全参数：个数 99、目录 Recipe\\Process、名称 32（上下限都挪进字段表了）");
+          && node!.Values.Count == 3, "machine.xml 里写全参数：个数 99、目录 Recipe\\Process、名称 32（上下限都挪进字段表了）");
     node!.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = folder;
 
     var roots = SmokeIoc.Load([node]);
     var library = roots.OfType<RecipeComponent>().Single();
-    Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个工艺配方库，参数按 sc.xml");
+    Check(library.Capacity == 99 && library.NameMaxLength == 32, "装出一个工艺配方库，参数按 machine.xml");
     Check(ReferenceEquals(IocHelper.GetService<IRecipeComponent>(), library), "装配出来就登记成单例");
     Check(Directory.Exists(folder) && library.List().Count == 0, "目录没有就建，开始是空的");
     var fields = library.Fields;
     Check(fields.Select(field => field.Key).SequenceEqual(new[] { "Seconds", "Rpm", "Arm", "Chemical", "Flow", "Mode", "Position", "ScanTo", "ScanSpeed" }),
-        "字段表：9 个字段，按 sc.xml 的先后，实际 " + string.Join(",", fields.Select(field => field.Key)));
+        "字段表：9 个字段，按 machine.xml 的先后，实际 " + string.Join(",", fields.Select(field => field.Key)));
     RecipeField F(string key)
     {
         return fields.First(field => field.Key == key);
@@ -184,7 +184,7 @@ try
     Check(F("Rpm").Type == ProcessRecipeFieldType.Int && F("Rpm").Min == 0 && F("Rpm").MaxFor(12) == 3000 && F("Rpm").Default == "500" && F("Rpm").Decimals is null,
         "转速：整数、0 ~ 3000、默认 500");
     Check(F("Arm").Type == ProcessRecipeFieldType.Choice && F("Arm").OptionsFor("A").SequenceEqual(new[] { "Arm1" }) && !F("Arm").Required,
-        "摆臂：下拉，Type A 的选项照 sc.xml 写的（腔体里摆臂的名字 Arm1）");
+        "摆臂：下拉，Type A 的选项照 machine.xml 写的（腔体里摆臂的名字 Arm1）");
     Check(F("Chemical").Type == ProcessRecipeFieldType.Choice && F("Chemical").OptionsFor(" a ").SequenceEqual(new[] { "DIW", "SC1" })
           && F("Chemical").OptionsFor("B").Count == 0 && F("Chemical").OptionsFor(string.Empty).Count == 0,
         "药液：Type A 的选项 DIW、SC1（Type 不分大小写、去掉首尾空白）；没写的 Type 没有选项");
@@ -195,7 +195,7 @@ try
     Check(headFields.Select(field => field.Key).SequenceEqual(new[]
           {
               "Index", "Name", "Type", "Timeout", "CreatedBy", "CreatedAt", "ModifiedBy", "ModifiedAt", "Revision", "Description",
-          }), "配方头字段表：固定的 10 项，按 sc.xml 的先后（说明放最后），实际 " + string.Join(",", headFields.Select(field => field.Key)));
+          }), "配方头字段表：固定的 10 项，按 machine.xml 的先后（说明放最后），实际 " + string.Join(",", headFields.Select(field => field.Key)));
     var timeoutField = headFields.First(field => field.Key == "Timeout");
     Check(timeoutField.Type == ProcessRecipeFieldType.Double && timeoutField.Required && timeoutField.Min == 1 && timeoutField.MaxFor(12) == 3600
           && timeoutField.Decimals == 0 && timeoutField.Default == "600" && timeoutField.Unit == "s" && timeoutField.Text == "超时时间",
@@ -203,7 +203,7 @@ try
     Check(headFields.First(field => field.Key == "Type").Type == ProcessRecipeFieldType.Choice
           && headFields.First(field => field.Key == "Type").OptionsByType.Count == 0
           && RecipeHead.IsAuto("revision") && !RecipeHead.IsAuto("Timeout") && RecipeHead.IsCustom("N2Purge"),
-        "配方头 Type：下拉，选项不在 sc.xml 里写（是腔体配的 Type）；版本这类是程序算的，自己加的项不是固定项");
+        "配方头 Type：下拉，选项不在 machine.xml 里写（是腔体配的 Type）；版本这类是程序算的，自己加的项不是固定项");
     Check(library.StationTypes.SequenceEqual(new[] { string.Empty }), "还没 Bind（没有腔体）时只有空 Type 一种");
 
     // 1. 字段表配错了装配时就抛（报清楚哪个节点），不留到编辑配方时才发现。
@@ -390,7 +390,7 @@ try
     Fails(SaveOne(Step("5", "-1")), ErrorCodes.ProcessRecipeValueBelowMin, ["2", "转速", "0", " rpm"], "转速是负的");
     Fails(SaveOne(Step("5", "300", "Arm1", "DIW", "1.5", "Time", "151")), ErrorCodes.ProcessRecipeValueAboveMax, ["2", "位置", "150", ""], "位置过了中心（没单位）");
     Fails(SaveOne(Step("5", "300", "Arm1", "DIW", "1.25")), ErrorCodes.ProcessRecipeValueTooPrecise, ["2", "流量", "1"], "流量多了一位小数");
-    Fails(SaveOne(Step("5", "300", "Arm2")), ErrorCodes.ProcessRecipeValueNotInOptions, ["2", "摆臂", "Arm2"], "摆臂不在选项里（腔体里装了也不行，选项照 sc.xml 写的）");
+    Fails(SaveOne(Step("5", "300", "Arm2")), ErrorCodes.ProcessRecipeValueNotInOptions, ["2", "摆臂", "Arm2"], "摆臂不在选项里（腔体里装了也不行，选项照 machine.xml 写的）");
     Fails(SaveOne(Step("5", "300", "Arm1", "HF")), ErrorCodes.ProcessRecipeValueNotInOptions, ["2", "药液", "HF"], "药液不在选项里");
     Fails(SaveOne(Step("5", "300", mode: "Spin")), ErrorCodes.ProcessRecipeValueNotInOptions, ["2", "方式", "Spin"], "方式只有 Time、Scan");
     Fails(library.Save(1, 2, Content(string.Empty, [Step("600", "300"), Step("1.5", "300")]), "Saver"), ErrorCodes.ProcessRecipeTotalTooLong, ["601.5", "600"],
@@ -407,15 +407,15 @@ try
     Check(Data(library.Get(1))!.Steps[1].Get("Mode") == "Scan" && Data(library.Get(1))!.Steps[1].Get("Chemical") == "SC1"
           && Data(library.Get(1))!.Steps[1].Get("Arm") == "Arm1", "下拉的写法跟选项一样");
 
-    // 4b. 晶圆尺寸：位置、到的上限在 sc.xml 里按尺寸分开写（Max.8 = 100、Max.12 = 150），整机切到哪个尺寸用哪个，没配晶圆尺寸组件按 12 寸；
-    //     切尺寸写回 sc.xml（输出目录里链接过来的那份），只改 Size 那一个值、别的一个字节不动，切回来跟原来一模一样。
+    // 4b. 晶圆尺寸：位置、到的上限在 machine.xml 里按尺寸分开写（Max.8 = 100、Max.12 = 150），整机切到哪个尺寸用哪个，没配晶圆尺寸组件按 12 寸；
+    //     切尺寸写回 machine.xml（输出目录里链接过来的那份），只改 Size 那一个值、别的一个字节不动，切回来跟原来一模一样。
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
     SmokeIoc.Use<IWaferSize>(null);
     Check(F("Position").MaxFor(8) == 100 && F("Position").MaxFor(12) == 150 && F("ScanTo").MaxFor(8) == 100 && F("ScanTo").MaxFor(12) == 150
           && F("Seconds").MaxFor(8) == 3600 && F("Position").MaxFor(WaferSizeComponent.SizeOf(null)) == 150,
         "位置、到按尺寸分开写上限：8 寸 100、12 寸 150；没分开写的两种尺寸一样；没配晶圆尺寸按 12 寸");
-    string scFile = Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml");
-    byte[] scBefore = File.ReadAllBytes(scFile);
+    string machineFile = Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml");
+    byte[] machineBefore = File.ReadAllBytes(machineFile);
     try
     {
         var sizeRoots = SmokeIoc.Load(
@@ -448,17 +448,17 @@ try
         library.Bind([pm1, pm2, pm3]);
         sizeLibrary.Bind();
         Check(IocHelper.GetService<IWaferSize>() == waferSize && waferSize.FullPath == "System.WaferSize" && waferSize.Size == 12,
-            "晶圆尺寸组件挂在 System 下面，路径跟 sc.xml 的层级一样");
+            "晶圆尺寸组件挂在 System 下面，路径跟 machine.xml 的层级一样");
         Fails(waferSize.SetSize(6), ErrorCodes.WaferSizeInvalid, ["6"], "只能切 8 寸、12 寸");
         Check(waferSize.SetSize(8).IsSuccess && waferSize.Size == 8 && sizeEvents == 1
               && sizePushes.SequenceEqual(new[] { 0 }), "切到 8 寸：马上换上，发一次变更，配方库推一条编号 0 的");
         const string size12Line = "<Value Name=\"Size\" Value=\"12\" />";
         const string size8Line = "<Value Name=\"Size\" Value=\"8\" />";
-        string beforeText = System.Text.Encoding.UTF8.GetString(scBefore);
-        byte[] scAfter = File.ReadAllBytes(scFile);
-        Check(beforeText.Split(size12Line).Length == 2 && System.Text.Encoding.UTF8.GetString(scAfter) == beforeText.Replace(size12Line, size8Line)
-              && scAfter.Take(3).SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }),
-            "写回 sc.xml：只有 System 下 WaferSize 那一行的 Size 改成 8，别的一个字都没变，还是带 BOM 的 UTF-8");
+        string beforeText = System.Text.Encoding.UTF8.GetString(machineBefore);
+        byte[] machineAfter = File.ReadAllBytes(machineFile);
+        Check(beforeText.Split(size12Line).Length == 2 && System.Text.Encoding.UTF8.GetString(machineAfter) == beforeText.Replace(size12Line, size8Line)
+              && machineAfter.Take(3).SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }),
+            "写回 machine.xml：只有 System 下 WaferSize 那一行的 Size 改成 8，别的一个字都没变，还是带 BOM 的 UTF-8");
         var sizeOptions = (await new ProcessRecipeService().GetOptionsAsync(new RpcRequest())).DeserializeData<ProcessRecipeOptionsDto>();
         Check(sizeOptions.Fields.First(field => field.Key == "Position").Max == 100 && sizeOptions.Fields.First(field => field.Key == "ScanTo").Max == 100,
             "8 寸：界面拿到的字段表里位置、到的上限是 100");
@@ -467,31 +467,31 @@ try
             ErrorCodes.ProcessRecipeValueAboveMax, ["2", "位置", "100", ""], "8 寸：位置过了 8 寸的中心（库里不动）");
         Check(F("Position").CheckFormat("100", [], waferSize.Size) is null, "8 寸：位置 100（中心）合规");
         Check(waferSize.SetSize(8).IsSuccess && sizeEvents == 1 && sizePushes.Count == 1, "跟现在一样直接成功，不发变更、不推");
-        Check(waferSize.SetSize(12).IsSuccess && sizeEvents == 2 && File.ReadAllBytes(scFile).SequenceEqual(scBefore),
-            "切回 12 寸：sc.xml 跟原来一个字节都不差（缩进、换行、BOM 都没动）");
+        Check(waferSize.SetSize(12).IsSuccess && sizeEvents == 2 && File.ReadAllBytes(machineFile).SequenceEqual(machineBefore),
+            "切回 12 寸：machine.xml 跟原来一个字节都不差（缩进、换行、BOM 都没动）");
 
         // 节点下没写 Size（装配时用的默认 12）：切的时候照节点的缩进补一行，补出来跟手写的一样
         string lineBreak = beforeText.Contains("\r\n") ? "\r\n" : "\n";
         string withoutSize = beforeText.Replace(lineBreak + "\t\t\t" + size12Line, string.Empty);
-        Check(withoutSize != beforeText, "造一份 WaferSize 下没写 Size 的 sc.xml");
-        File.WriteAllText(scFile, withoutSize, new System.Text.UTF8Encoding(false));
-        Check(waferSize.SetSize(8).IsSuccess && System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(scFile)) == beforeText.Replace(size12Line, size8Line),
+        Check(withoutSize != beforeText, "造一份 WaferSize 下没写 Size 的 machine.xml");
+        File.WriteAllText(machineFile, withoutSize, new System.Text.UTF8Encoding(false));
+        Check(waferSize.SetSize(8).IsSuccess && System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(machineFile)) == beforeText.Replace(size12Line, size8Line),
             "没写 Size 的节点：补上一行 Size = 8，缩进跟别的行一样");
-        Check(waferSize.SetSize(12).IsSuccess && File.ReadAllBytes(scFile).SequenceEqual(scBefore), "再切回 12 寸");
+        Check(waferSize.SetSize(12).IsSuccess && File.ReadAllBytes(machineFile).SequenceEqual(machineBefore), "再切回 12 寸");
 
         // 换行照原文件：git 签出来是 CRLF、仓库里存的是 LF，两种来回切都一个字节不差
         foreach (string newLine in new[] { "\r\n", "\n" })
         {
             string sameText = beforeText.Replace("\r\n", "\n").Replace("\n", newLine);
             byte[] sameBytes = new System.Text.UTF8Encoding(false).GetBytes(sameText);
-            File.WriteAllBytes(scFile, sameBytes);
-            Check(waferSize.SetSize(8).IsSuccess && waferSize.SetSize(12).IsSuccess && File.ReadAllBytes(scFile).SequenceEqual(sameBytes),
-                $"换行是 {(newLine.Length == 2 ? "CRLF" : "LF")} 的 sc.xml：切过去再切回来跟原来一样");
+            File.WriteAllBytes(machineFile, sameBytes);
+            Check(waferSize.SetSize(8).IsSuccess && waferSize.SetSize(12).IsSuccess && File.ReadAllBytes(machineFile).SequenceEqual(sameBytes),
+                $"换行是 {(newLine.Length == 2 ? "CRLF" : "LF")} 的 machine.xml：切过去再切回来跟原来一样");
         }
     }
     finally
     {
-        File.WriteAllBytes(scFile, scBefore);
+        File.WriteAllBytes(machineFile, machineBefore);
         SmokeIoc.Use<IWaferSize>(previousWaferSize);
     }
 
@@ -662,7 +662,7 @@ try
           && options.Fields.First(field => field.Key == "Arm").OptionsByType["A"].SequenceEqual(new[] { "Arm1" })
           && options.Fields.First(field => field.Key == "Mode").OptionsByType["A"].SequenceEqual(new[] { "Time", "Scan" })
           && chemicalDto.Options.Count == 0,
-        "步骤字段表：下拉带上 sc.xml 里按 Type 分开写的选项");
+        "步骤字段表：下拉带上 machine.xml 里按 Type 分开写的选项");
     var one = (await service.GetAsync(new ProcessRecipeIndexRequest { Index = 1 })).DeserializeData<ProcessRecipeDto>();
     Check(one.Index == 1 && one.Revision == 5 && one.Steps.Count == 1 && one.Steps[0].Values["Chemical"] == "SC1" && one.Steps[0].Values.Count == 9
           && one.Type == "A" && one.Timeout == "600", "取一个：配方头（Type、超时时间）和每一步的字段值");
@@ -744,7 +744,7 @@ finally
     }
 }
 
-Console.WriteLine($"PASS: {checks} process recipe checks (sc.xml node with the recipe header and step field tables, options written per station Type, recipe Type and timeout in the header, host recipe management by name (JSON export without the XML-only attributes, import as new or overwrite through the same checks, delete, change reports), field table mistakes rejected at load, dropdown options exactly as written in sc.xml, create/rename/save/delete with every field rule, normalizing, every field written to the file with defaults filled in for old recipes, bad files skipped, revision conflicts, change events, recipes checked against a specific chamber's arms and nozzles by name, the process recipe service, and chamber process requiring a recipe that fits the chamber).");
+Console.WriteLine($"PASS: {checks} process recipe checks (machine.xml node with the recipe header and step field tables, options written per station Type, recipe Type and timeout in the header, host recipe management by name (JSON export without the XML-only attributes, import as new or overwrite through the same checks, delete, change reports), field table mistakes rejected at load, dropdown options exactly as written in machine.xml, create/rename/save/delete with every field rule, normalizing, every field written to the file with defaults filled in for old recipes, bad files skipped, revision conflicts, change events, recipes checked against a specific chamber's arms and nozzles by name, the process recipe service, and chamber process requiring a recipe that fits the chamber).");
 
 /// <summary>
 /// 探针用：生产里名字由装配器经 internal setter 设，这里反射设。

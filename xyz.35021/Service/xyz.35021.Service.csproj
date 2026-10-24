@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="xyz.35021.Module\Config\sc.xml">
+    <None Update="xyz.35021.Module\Config\machine.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

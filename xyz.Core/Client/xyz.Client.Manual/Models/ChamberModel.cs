@@ -6,7 +6,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Manual.Models;
 
 /// <summary>
-/// 腔体显示模型，腔体手动页直接绑它；只做显示，启用、模式、设备报错、当前配方、片位（晶圆账）都由后端按 sc.xml 与晶圆账推过来。
+/// 腔体显示模型，腔体手动页直接绑它；只做显示，启用、模式、设备报错、当前配方、片位（晶圆账）都由后端按 machine.xml 与晶圆账推过来。
 /// 状态推送来了就地刷新；片位没变就不换盘上的片，三维图的盘面不会跟着别的字段一起重建。
 /// </summary>
 public class ChamberModel : ObservableObject
@@ -60,7 +60,7 @@ public class ChamberModel : ObservableObject
 
     private bool _isEnable;
 
-    /// <summary>是否启用（sc.xml 腔体节点的 IsEnable）：停用时动作一律发不出去。</summary>
+    /// <summary>是否启用（machine.xml 腔体节点的 IsEnable）：停用时动作一律发不出去。</summary>
     public bool IsEnable
     {
         get => _isEnable;

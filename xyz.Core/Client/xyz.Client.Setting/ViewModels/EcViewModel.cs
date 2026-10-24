@@ -15,7 +15,7 @@ using xyz.Shared.Services;
 namespace xyz.Client.Setting.ViewModels;
 
 /// <summary>
-/// EC 设置页 ViewModel：左边组件树（层级、先后跟 sc.xml 的组件层级一样），右边列选中组件（含下级）的 EC 参数，一行一项。
+/// EC 设置页 ViewModel：左边组件树（层级、先后跟 machine.xml 的组件层级一样），右边列选中组件（含下级）的 EC 参数，一行一项。
 /// 在那一行的"设定值"里填新值、点"设置"就改：后端按声明的格式、上下限查过才改，写回 ec.xml 并立即生效。
 /// 参数和当前值都取自 ClientEc（连上后端拉全量，之后哪一项变了后端推哪一项），这一页自己不拉。
 /// </summary>
@@ -24,12 +24,12 @@ public class EcViewModel : BaseViewModel
     #region Column
 
     /// <summary>
-    /// 组件树：最上面是"全部"，下面照 sc.xml 的先后一个组件一个节点。
+    /// 组件树：最上面是"全部"，下面照 machine.xml 的先后一个组件一个节点。
     /// </summary>
     public ObservableCollection<EcNodeModel> Nodes { get; } = [];
 
     /// <summary>
-    /// 全部参数（按 sc.xml 的先后）；表格绑的是过滤后的 <see cref="ItemsView"/>。
+    /// 全部参数（按 machine.xml 的先后）；表格绑的是过滤后的 <see cref="ItemsView"/>。
     /// </summary>
     public ObservableCollection<EcItemModel> Items { get; } = [];
 
@@ -79,7 +79,7 @@ public class EcViewModel : BaseViewModel
 
     /// <summary>
     /// EC 目录变了。参数还是那些（平时都是这样：只是某一项的值改了）就只刷当前值，选中的节点、正在填的设定值都不动；
-    /// 参数有增减、定义变了（后端换了版本或 sc.xml 重启过）才整个重建。
+    /// 参数有增减、定义变了（后端换了版本或 machine.xml 重启过）才整个重建。
     /// </summary>
     private void OnCatalogChanged()
     {

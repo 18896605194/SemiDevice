@@ -53,7 +53,7 @@ public sealed class CjStateMachine : BaseStateMachine<ControlJobState, ControlSt
             [(ControlJobState.Aborting, ControlStateAction.FinishAbort)] =
                 new() { TargetState = ControlJobState.Aborted },
 
-            // 参考表未接入 WaitingForStart；保留本设备由 SC 决定的手动启动路径。
+            // 参考表未接入 WaitingForStart；保留本设备由 machine.xml 决定的手动启动路径。
             [(ControlJobState.Selected, ControlStateAction.WaitForStart)] =
                 new() { TargetState = ControlJobState.WaitingForStart },
             [(ControlJobState.WaitingForStart, ControlStateAction.Activate)] =

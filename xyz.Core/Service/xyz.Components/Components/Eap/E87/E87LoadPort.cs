@@ -31,7 +31,7 @@ internal sealed class E87LoadPort
     /// <summary>端口上这一盒载具（设备侧的载具事实和 E87 能下的命令），建端口时取一次，状态机和 Host 报文都从这儿用。</summary>
     public ICarrier _carrier { get; }
 
-    /// <summary>PortID：按 sc.xml 里 LoadPort 的先后，从 1 开始。</summary>
+    /// <summary>PortID：按 machine.xml 里 LoadPort 的先后，从 1 开始。</summary>
     public byte Id { get; }
 
     /// <summary>
@@ -84,7 +84,7 @@ internal sealed class E87LoadPort
     }
 
     /// <summary>
-    /// Load 着的卸下来（关门、松开）；没 Load 的不用动。走自动跑货口径：SC AutoRunMapOnUnload 生效（带图对账）。动作攒到锁外做。
+    /// Load 着的卸下来（关门、松开）；没 Load 的不用动。走自动跑货口径：machine.xml AutoRunMapOnUnload 生效（带图对账）。动作攒到锁外做。
     /// 端口能不能卸由端口自己查（状态 → 资源 → 互锁），被拒带原因记日志；回 Host 之前已经用 CheckUnload 问过一次。
     /// </summary>
     public void UnloadLater(string why)

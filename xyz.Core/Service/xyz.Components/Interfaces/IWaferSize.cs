@@ -13,7 +13,7 @@ public interface IWaferSize
     int Size { get; }
 
     /// <summary>
-    /// 切尺寸，写回 sc.xml
+    /// 切尺寸，写回 machine.xml
     /// </summary>
     HandleResult SetSize(int size);
 

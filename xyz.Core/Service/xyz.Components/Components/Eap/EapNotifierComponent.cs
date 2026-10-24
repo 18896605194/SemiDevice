@@ -6,7 +6,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// EAP 上报派发（sc.xml Eap 节点下的 Notifier）：设备侧要报给 EAP 的事（LoadPort 的 E87 / E84、晶圆账的 E90、Job 管理的 E40 / E94）都放进来，
+/// EAP 上报派发（machine.xml Eap 节点下的 Notifier）：设备侧要报给 EAP 的事（LoadPort 的 E87 / E84、晶圆账的 E90、Job 管理的 E40 / E94）都放进来，
 /// 整个 EAP 一条专用线程按入队顺序一条条调出去——不同来源的事报给 Host 的先后，就是它们发生的先后。
 /// 不占扫描线程、不拿模块锁：EAP 侧发 SECS 卡住时不会拖住设备；第一次真入队才起线程；积压只告警不丢（EAP 事件丢了比慢更糟）；单条出异常只记日志。
 /// 设备侧只在上报口挂上（不为 null）时投递；Eap 下没配这个节点 EAP 就不接（见 <see cref="EapComponent.Bind"/>），上报口一直是 null。

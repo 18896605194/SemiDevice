@@ -12,7 +12,7 @@ namespace xyz.Modules;
 [Component(description: "E84 交接组件（IO 版）")]
 public class E84Component : ComponentBase, IE84
 {
-    #region SC
+    #region Machine
 
     [Machine("True", "E84", "是否装了 E84（False = 本机没接搬运车：端口当没有 E84，不打开、不扫、不读写 IO；现场临时停交接用 EC E84Enabled）")]
     public bool IsEnable { get; set; } = true;
@@ -143,7 +143,7 @@ public class E84Component : ComponentBase, IE84
     private E84Outputs _written;
 
     /// <summary>
-    /// IO 组件（开机准备时取，开机就要清输出）；sc.xml 没配 Io 节点是 null
+    /// IO 组件（开机准备时取，开机就要清输出）；machine.xml 没配 Io 节点是 null
     /// </summary>
     private IIo? _io;
 

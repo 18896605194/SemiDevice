@@ -7,7 +7,7 @@ using xyz.Configs.Models;
 using xyz.Tools;
 
 /// <summary>
-/// 心跳：照 sc 装、按 IHeartbeat 找得到；第一拍写通、没满间隔不写、满了写反面；写不成（PLC 断了、点表里没这个点）
+/// 心跳：照 machine.xml 装、按 IHeartbeat 找得到；第一拍写通、没满间隔不写、满了写反面；写不成（PLC 断了、点表里没这个点）
 /// 报心跳发送失败、等满间隔再写同一个值，恢复后报警还在、人工复位才清；DoIndex 配 -1 不发
 /// </summary>
 static class Heartbeats
@@ -32,7 +32,7 @@ static class Heartbeats
             var alarms = new AlarmComponent();
             SmokeIoc.Use<IAlarm>(alarms);
 
-            // 1. 照 sc 装：挂在 Plc 分组下，DO 号、间隔从 sc 来；没配的用默认值（-1 不发、1000 ms）
+            // 1. 照 machine.xml 装：挂在 Plc 分组下，DO 号、间隔从 machine.xml 来；没配的用默认值（-1 不发、1000 ms）
             var plcGroup = new ModuleConfig
             {
                 Name = "Plc",
@@ -49,10 +49,10 @@ static class Heartbeats
             var missing = (HeartbeatProbe)roots[1];
             var idle = (HeartbeatProbe)roots[2];
             Check(heartbeat.FullPath == "Plc.Heartbeat" && heartbeat.DoIndex == 0 && heartbeat.IntervalMs == 200,
-                "心跳照 sc 装：路径带 Plc 分组，DO 号和间隔从 sc 来");
+                "心跳照 machine.xml 装：路径带 Plc 分组，DO 号和间隔从 machine.xml 来");
             Check(idle.DoIndex == -1 && idle.IntervalMs == 1000, "没配的用默认值：DO -1、间隔 1000 ms");
             Check(IocHelper.GetServices<IHeartbeat>().SequenceEqual(new IHeartbeat[] { heartbeat, missing, idle }),
-                "按 IHeartbeat 找得到，按 sc 先后");
+                "按 IHeartbeat 找得到，按 machine.xml 先后");
             Check(!heartbeat.IsAlive, "还没写过 IsAlive 是 false");
 
             bool Active(ComponentBase source)
@@ -94,7 +94,7 @@ static class Heartbeats
             alarms.Reset(heartbeat.FullPath);
             Check(!Active(heartbeat), "人工复位清掉");
 
-            // 5. 点表里没有 sc 配的 DO：写不成，报警；没走到 PLC
+            // 5. 点表里没有 machine.xml 配的 DO：写不成，报警；没走到 PLC
             attempts = plc.Attempts;
             missing.Tick();
             Check(Active(missing) && !missing.IsAlive && plc.Attempts == attempts, "点表里没有这个 DO：报心跳发送失败，不写 PLC");
@@ -103,7 +103,7 @@ static class Heartbeats
             idle.Tick();
             Check(plc.Attempts == attempts && !Active(idle) && !idle.IsAlive, "DoIndex -1 不发、不报警");
 
-            Console.WriteLine("PASS: 心跳（照 sc 装、轮流写通断、没满间隔不写、写不成报警且等满间隔再写、恢复写反面、人工复位清、点表外报警、-1 不发）");
+            Console.WriteLine("PASS: 心跳（照 machine.xml 装、轮流写通断、没满间隔不写、写不成报警且等满间隔再写、恢复写反面、人工复位清、点表外报警、-1 不发）");
         }
         finally
         {

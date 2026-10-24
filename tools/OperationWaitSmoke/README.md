@@ -22,4 +22,4 @@ InitOrder), overriding is optional, a module's Init runs Home, and Abort never c
 
 Uses in-memory test modules and operations; EC values live in an in-memory EC component, and the
 round trip uses a temporary file. Does not start the gRPC host, open hardware connections, or
-load/write the SC/EC configuration files. Exits nonzero on a failed check.
+load/write the machine.xml / ec.xml configuration files. Exits nonzero on a failed check.

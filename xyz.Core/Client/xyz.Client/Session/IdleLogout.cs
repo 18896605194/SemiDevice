@@ -5,7 +5,7 @@ using xyz.Client.Common.Session;
 namespace xyz.Client.Session;
 
 /// <summary>
-/// 闲置自动退出：键盘鼠标多久没动（会话带的分钟数，账号组件 sc 的 IdleLogoutMinutes）就退出登录，接着由顶栏弹登录框要重新登录。
+/// 闲置自动退出：键盘鼠标多久没动（会话带的分钟数，账号组件 machine.xml 的 IdleLogoutMinutes）就退出登录，接着由顶栏弹登录框要重新登录。
 /// 看的是 Windows 记的最后一次有人碰键盘、鼠标、触摸屏的时刻（整台电脑的），不看 WPF 自己的输入事件：
 /// 鼠标停在窗口上时，界面一刷新（顶栏时钟每秒走一下）WPF 就补发一次"鼠标移动"，那样永远算不上闲着
 /// </summary>

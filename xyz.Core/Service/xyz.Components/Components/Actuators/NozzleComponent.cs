@@ -11,7 +11,7 @@ namespace xyz.Components.Components;
 [Component(description: "喷嘴组件 (一路药液的通断阀，NC / NO 可选；流量开关挂子节点 Feedback、流量计挂子节点 AiSensorComponent，可选流量设定 AO)")]
 public class NozzleComponent : ValveComponent, INozzle
 {
-    #region SC 装机常量
+    #region Machine 装机常量
 
     [Machine("", "Nozzle", "这一路的药液名 (DIW/SC1/HF...)，配方按它选喷嘴", Required = true)]
     public string Chemical { get; set; } = string.Empty;
@@ -35,7 +35,7 @@ public class NozzleComponent : ValveComponent, INozzle
 
     #endregion
 
-    #region 流量计（sc.xml 里喷嘴节点下面挂的）
+    #region 流量计（machine.xml 里喷嘴节点下面挂的）
 
     /// <summary>
     /// 这一路的流量计：喷嘴下面挂的 AI 组件，按 <see cref="IAiSensor"/> 认；没挂为 null（这一路没流量计，不监控、不显示流量）。
@@ -95,7 +95,7 @@ public class NozzleComponent : ValveComponent, INozzle
     }
 
     /// <summary>
-    /// 停液：关阀；SC ClearFlowOnStop 开着的再把流量清零。
+    /// 停液：关阀；machine.xml ClearFlowOnStop 开着的再把流量清零。
     /// </summary>
     public bool Stop()
     {

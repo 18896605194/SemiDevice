@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 顶栏模块行上的一个模块：名字照 sc、状态色调和状态字、生产 / 维护
+/// 顶栏模块行上的一个模块：名字照 machine.xml、状态色调和状态字、生产 / 维护
 /// </summary>
 public sealed class ModuleStatusModel : ObservableObject
 {

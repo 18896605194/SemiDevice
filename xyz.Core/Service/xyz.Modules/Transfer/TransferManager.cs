@@ -57,7 +57,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("True", "Transfer", "是否启用搬运（False=不启动搬运操作，设备照常点动）")]
     public bool IsEnable { get; set; } = true;
@@ -190,7 +190,7 @@ public class TransferManager : ComponentBase, ITransferManager
                 if (station.HandoffOnPick || station.HandoffOnPlace)
                 {
                     throw new InvalidOperationException(
-                        $"sc.xml 站点 {name} 配了取放中途交接（HandoffOnPick / HandoffOnPlace），机械手 {robot.Name} 不能分段取放（没声明 ITransferRobotStep），到不了这个站");
+                        $"machine.xml 站点 {name} 配了取放中途交接（HandoffOnPick / HandoffOnPlace），机械手 {robot.Name} 不能分段取放（没声明 ITransferRobotStep），到不了这个站");
                 }
             }
         }
@@ -475,7 +475,7 @@ public class TransferManager : ComponentBase, ITransferManager
     }
 
     /// <summary>
-    /// 挑机械手：点了名的要两个站点都到得了；没点名的按 sc.xml 先后挑第一台到得了的。
+    /// 挑机械手：点了名的要两个站点都到得了；没点名的按 machine.xml 先后挑第一台到得了的。
     /// </summary>
     private HandleResult<TransferRoutine>? PickRobot(string? wanted, string source, string target, out ITransferRobot robot)
     {

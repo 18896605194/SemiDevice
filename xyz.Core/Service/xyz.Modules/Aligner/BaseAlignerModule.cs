@@ -26,7 +26,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("True", "Aligner", "是否启用对准器（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
     public bool IsEnable { get; set; } = true;
@@ -87,7 +87,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     #endregion
 
     /// <summary>
-    /// 设备通道（sc 里本对准器下的 Driver 节点），项目的对准器类用它发指令；没挂开机就抛
+    /// 设备通道（machine.xml 里本对准器下启用的那条：串口或网口），项目的对准器类用它发指令；没挂开机就抛
     /// </summary>
     public IDeviceDriverComponent? _driver { get; private set; }
 
@@ -143,7 +143,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         var driver = DeviceDriverComponent.FindIn(this);
         if (driver is null)
         {
-            throw new InvalidOperationException($"对准器 {Name} 的 sc.xml 节点下没挂设备通道（Driver 节点，Type=xyz.Components.Components.DeviceDriverComponent）。");
+            throw new InvalidOperationException($"对准器 {Name} 的 machine.xml 节点下没有启用的设备通道（串口 SerialDriverComponent 或网口 TcpDriverComponent，IsEnable=True）。");
         }
 
         _codec ??= CreateCodec();

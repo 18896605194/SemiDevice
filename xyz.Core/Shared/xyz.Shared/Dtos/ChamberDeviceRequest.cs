@@ -12,7 +12,7 @@ public class ChamberDeviceRequest
     [ProtoMember(1)]
     public string Module { get; set; } = string.Empty;
 
-    /// <summary>设备全路径（sc.xml 的组件路径，如 "Chamber1.Arm1"），就是设备推送里的 Path。</summary>
+    /// <summary>设备全路径（machine.xml 的组件路径，如 "Chamber1.Arm1"），就是设备推送里的 Path。</summary>
     [ProtoMember(2)]
     public string Device { get; set; } = string.Empty;
 }

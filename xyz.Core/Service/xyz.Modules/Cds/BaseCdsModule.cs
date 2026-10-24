@@ -16,7 +16,7 @@ public abstract class BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess
     public override int State { get; protected set; } = ModuleState.NotInit;
 
     /// <summary>
-    /// 下面挂的槽，按 sc 的先后
+    /// 下面挂的槽，按 machine.xml 的先后
     /// </summary>
     public IReadOnlyList<ITank> Tanks => FindChildren<ITank>();
 

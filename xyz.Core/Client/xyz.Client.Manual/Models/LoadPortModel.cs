@@ -118,7 +118,7 @@ public class LoadPortModel : ObservableObject
 
     private int _slotCount;
 
-    /// <summary>花篮槽数（后端 sc.xml 里 LoadPort 节点的 SlotCount）；还没收到状态时为 0，界面不画槽。</summary>
+    /// <summary>花篮槽数（后端 machine.xml 里 LoadPort 节点的 SlotCount）；还没收到状态时为 0，界面不画槽。</summary>
     public int SlotCount
     {
         get => _slotCount;

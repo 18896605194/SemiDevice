@@ -53,7 +53,7 @@ public class JobManager : ComponentBase, IJobManager
         _controlJobs.StateChanged += OnControlJobStateChanged;
     }
 
-    #region SC
+    #region Machine
 
     [Machine("True", "Job", "是否启用 Job 管理（False = 不收 Job 命令、不按 Job 调度）")]
     public bool IsEnable { get; set; } = true;
@@ -67,7 +67,7 @@ public class JobManager : ComponentBase, IJobManager
     [Machine("True", "Job", "是否把 Job 记进库（CJ、PJ 各一行，每片的任务明细跟着 PJ）：开机把上次没做完的记成中止（重启后不接着跑）")]
     public bool IsPersistent { get; set; } = true;
 
-    [Machine("Default", "Job", "Job 记录落哪个库（sc.xml 的 Database 节点名）")]
+    [Machine("Default", "Job", "Job 记录落哪个库（machine.xml 的 Database 节点名）")]
     public string Database { get; set; } = XyzDb.DefaultName;
 
     [Machine("1000", "Job", "Job 历史页一次最多返回多少个 CJ（取最新的），超出界面提示缩小时间段或加条件")]
@@ -143,7 +143,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：sc.xml Job 节点下的 Task（任务组件）必须配，Scheduler 没配就自己建一个；
+    /// 绑定模块表（装配完、模块和搬运管理起来之后调一次）：machine.xml Job 节点下的 Task（任务组件）必须配，Scheduler 没配就自己建一个；
     /// 两个都是平台的标准件，机型不另写。开了存库的先把库里上次没做完的 Job 记成中止（重启后不接着跑），再起写库线程。
     /// 搬运管理、晶圆账、流程配方库、EAP 派发也在这里取一次。
     /// </summary>
@@ -154,7 +154,7 @@ public class JobManager : ComponentBase, IJobManager
         _sequences = IocHelper.GetService<ISequenceComponent>();
         _notifier = IocHelper.GetService<IEapNotifierComponent>();
         var tasks = FindChild<ITaskComponent>()
-            ?? throw new InvalidOperationException($"{Name}：sc.xml 的 Job 节点下没配 Task 子节点（任务组件 {typeof(TaskComponent).FullName}）");
+            ?? throw new InvalidOperationException($"{Name}：machine.xml 的 Job 节点下没配 Task 子节点（任务组件 {typeof(TaskComponent).FullName}）");
         var table = new Dictionary<string, IModule>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
         {
@@ -180,7 +180,7 @@ public class JobManager : ComponentBase, IJobManager
     }
 
     /// <summary>
-    /// sc.xml 没配 Scheduler：自己建一个。它不在组件树上，开机 Bind 轮不到它，这里替它 Bind
+    /// machine.xml 没配 Scheduler：自己建一个。它不在组件树上，开机 Bind 轮不到它，这里替它 Bind
     /// </summary>
     private static SchedulerComponent CreateScheduler()
     {
@@ -2567,7 +2567,7 @@ public class JobManager : ComponentBase, IJobManager
 
     #region 设备
 
-    /// <summary>任务组件（装配时从 sc.xml 的 Task 子节点取）。</summary>
+    /// <summary>任务组件（装配时从 machine.xml 的 Task 子节点取）。</summary>
     private ITaskComponent Tasks
     {
         get
@@ -2587,7 +2587,7 @@ public class JobManager : ComponentBase, IJobManager
         get { return _transfers?.IsAutoDispatch == true; }
     }
 
-    /// <summary>装了的 LoadPort（按 sc.xml 先后）。</summary>
+    /// <summary>装了的 LoadPort（按 machine.xml 先后）。</summary>
     private IEnumerable<ILoadPort> LoadPorts
     {
         get { return _modules.Values.OfType<ILoadPort>(); }

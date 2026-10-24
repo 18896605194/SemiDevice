@@ -29,7 +29,7 @@ public class ChamberArmModel : ObservableObject
     /// <summary>装在这条臂上的升降气缸；没配时 IsPresent 为 false。</summary>
     public ChamberCylinderModel Lift { get; } = new();
 
-    /// <summary>装在这条臂上的喷嘴，按 sc.xml 里的先后。</summary>
+    /// <summary>装在这条臂上的喷嘴，按 machine.xml 里的先后。</summary>
     public IReadOnlyList<ChamberNozzleModel> Nozzles { get; }
 
     private double _reach;

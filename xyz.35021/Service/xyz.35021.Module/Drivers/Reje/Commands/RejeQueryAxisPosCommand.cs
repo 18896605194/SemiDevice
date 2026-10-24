@@ -3,7 +3,7 @@
 namespace xyz._35021.Module.Drivers.Reje.Commands;
 
 /// <summary>
-/// &lt;轴&gt;Pos（如 @XPos;、@Arm1Pos;）：查一根轴的当前坐标，轴名照 sc 的轴节点
+/// &lt;轴&gt;Pos（如 @XPos;、@Arm1Pos;）：查一根轴的当前坐标，轴名照 machine.xml 的轴节点
 /// </summary>
 public sealed class RejeQueryAxisPosCommand : RejeCommand
 {

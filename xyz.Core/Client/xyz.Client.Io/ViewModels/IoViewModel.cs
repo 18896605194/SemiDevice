@@ -82,7 +82,7 @@ public class IoViewModel : BaseViewModel, IDisposable
 
     #region Service
 
-    /// <summary>本页对应的模块名，跟点表 Module 列、sc.xml 里的模块名对齐。</summary>
+    /// <summary>本页对应的模块名，跟点表 Module 列、machine.xml 里的模块名对齐。</summary>
     private readonly string _module;
 
     private readonly IIoService _service;

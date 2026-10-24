@@ -16,7 +16,7 @@ public abstract class BaseModule : BaseStateComponent, IModule
     public virtual StationKind Kind => StationKind.Other;
 
     /// <summary>
-    /// 站点的类型（sc.xml 里写成 <c>&lt;Value Name="Type" Value="A" /&gt;</c>，不是节点上写类名的那个 Type 属性）：
+    /// 站点的类型（machine.xml 里写成 <c>&lt;Value Name="Type" Value="A" /&gt;</c>，不是节点上写类名的那个 Type 属性）：
     /// 几台一样的站点写同一个值（比如 8 个腔体 1~4 写 A、5~8 写 B），工艺配方按它定给哪种站点用。空 = 不分类型。
     /// </summary>
     [Machine("", "Module", "站点类型：几台一样的写同一个值（比如腔体 1~4 写 A、5~8 写 B），工艺配方按它挑能跑的站点；空 = 不分类型")]

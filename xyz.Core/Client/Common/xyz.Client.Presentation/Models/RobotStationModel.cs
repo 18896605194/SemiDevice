@@ -11,25 +11,25 @@ public sealed class RobotStationModel : ObservableObject
 {
     public string Name { get; init; } = string.Empty;
 
-    /// <summary>设备站点号（sc.xml Number，如 LoadPort1=1、Chamber1=3）。</summary>
+    /// <summary>设备站点号（machine.xml Number，如 LoadPort1=1、Chamber1=3）。</summary>
     public int Number { get; init; }
 
-    /// <summary>机械手伸出方向（sc.xml Direction）：调度图按它把卡片摆在机械手的上、下、左、右。</summary>
+    /// <summary>机械手伸出方向（machine.xml Direction）：调度图按它把卡片摆在机械手的上、下、左、右。</summary>
     public RobotDirection Direction { get; init; }
 
-    /// <summary>机械手伸出距离（sc.xml Y，数值）。</summary>
+    /// <summary>机械手伸出距离（machine.xml Y，数值）。</summary>
     public double Y { get; init; }
 
-    /// <summary>站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1），取放槽位下拉按它列 1~N。</summary>
+    /// <summary>站点槽数（站点模块在 machine.xml 里配的 SlotCount：LoadPort 25、腔体 1），取放槽位下拉按它列 1~N。</summary>
     public int SlotCount { get; init; }
 
     /// <summary>
-    /// 从这个站取片能用的手指号（sc.xml 站点节点的 PickArms，后端已把没配展开成所有手指）；取片手臂下拉只列这些
+    /// 从这个站取片能用的手指号（machine.xml 站点节点的 PickArms，后端已把没配展开成所有手指）；取片手臂下拉只列这些
     /// </summary>
     public IReadOnlyList<int> PickArms { get; init; } = [];
 
     /// <summary>
-    /// 往这个站放片能用的手指号（sc.xml 站点节点的 PlaceArms，后端已把没配展开成所有手指）；放片手臂下拉只列这些
+    /// 往这个站放片能用的手指号（machine.xml 站点节点的 PlaceArms，后端已把没配展开成所有手指）；放片手臂下拉只列这些
     /// </summary>
     public IReadOnlyList<int> PlaceArms { get; init; } = [];
 

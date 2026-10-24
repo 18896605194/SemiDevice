@@ -67,7 +67,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 - 没注册页面的菜单显示占位页。
 
 ### 主窗口顶栏（`xyz.Client\MainWindow.xaml`，2026-10-23 照用户的样稿改，见 decisions.md「顶栏模块行」）
-- 平时 96 高、三行：日志下拉框、报警下拉框（各 30 高）、模块行（`ModuleStatusBar`：sc 装了的模块一个 `ModuleChip`，通到最右边，一行放不下折行、顶栏跟着变高）。
+- 平时 96 高、三行：日志下拉框、报警下拉框（各 30 高）、模块行（`ModuleStatusBar`：machine.xml 装了的模块一个 `ModuleChip`，通到最右边，一行放不下折行、顶栏跟着变高）。
   右边那块只占上两行：日期、时间一组（一个时钟图标），下面隔开是当前用户（角色在悬停提示里）| 注销 / 复位 / 关蜂鸣器竖排（20 高、宽度随字）| 最右边四色灯，都直接用顶栏的底色。
 - 字号只两档：模块名（和菜单、状态显示）14，按钮、日志、报警、时间、用户名 12，不要小字。页面区高度保持 920（主界面槽位表 25 槽一屏放下）——壳上要加常驻的东西别另起一行。
 
@@ -76,9 +76,9 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   `WaferLegendDotStyle` 圆点 + `WaferLegendTextStyle`，颜色跟圆片控件同一套 `Wafer*`，圆片加了新颜色这里也要加一项）| 中 **整机调度**（可替换）|
   右 **LoadPort 页签**（`UnderlineTabListBoxStyle`，一个 LoadPort 一个：载具 / 槽图状态 / 槽数、LotID、Sequence 选择框、创建 / 启动 Job、槽位表）。
 - **以后机台变了，要动的就是中间和右边，都不用改主界面**：
-  - 右边页签照后端系统设置的 `SystemSettingsDto.LoadPorts`（sc.xml 装了的 LoadPort，先后同 sc）生成，3 个、4 个都不改代码。
-  - 中间默认是 `Views\DispatchView`：照 `SystemSettingsDto.Robots` 一台机械手一张公共调度图 `DispatchMap`，站点按机械手示教点（sc.xml `Size12` / `Size8`）
-    的 `Direction` 摆在上下左右，卡片按站点类型（`TeachPointDto.Kind`：LoadPort 花篮卡、腔体 / 其他单片卡）选，sc 里多一个站点图上就多一张。
+  - 右边页签照后端系统设置的 `SystemSettingsDto.LoadPorts`（machine.xml 装了的 LoadPort，先后同 machine.xml）生成，3 个、4 个都不改代码。
+  - 中间默认是 `Views\DispatchView`：照 `SystemSettingsDto.Robots` 一台机械手一张公共调度图 `DispatchMap`，站点按机械手示教点（machine.xml `Size12` / `Size8`）
+    的 `Direction` 摆在上下左右，卡片按站点类型（`TeachPointDto.Kind`：LoadPort 花篮卡、腔体 / 其他单片卡）选，machine.xml 里多一个站点图上就多一张。
   - 机型要别的摆法（几台机械手、缓存位、对中台……）：在机型 `IClientModule.Register` 里
     `services.AddKeyedSingleton<UserControl, 自己的View>(ClientViewKeys.MainDispatch)`，后注册的生效，整块换掉；
     自己的图照样可以拿 `DispatchMap`、`StationCard`、`Robot` 控件来拼。主界面由 `MainPageView` 构造时按这个键从 DI 取。
@@ -95,7 +95,7 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   Sequence 是界面上选的（点创建 Job 时交给后端）：上面的 Sequence 框一选给全篮能做的片套上，⊕ 弹公共选择弹窗给这一片单独选，⊖ 清空（这片不做）；
   后来才放上 / Mapping 出来的片也套上面选的那个；交叉片、叠片、状态不明的没有 ⊕ ⊖。
 - **创建 / 启动 Job**（2026-10-05 接上）：订 Job 全貌推送（`JobListDto`，token "Job"，留存），每个页签认自己 LoadPort 上没删的 CJ（`LoadPortJobModel.ControlJob`），
-  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽、操作人；启动方式由设备 SC 决定，后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
+  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽、操作人；启动方式由设备 machine.xml 决定，后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
   启动 Job = `ControlJobCommandAsync`（CJStart），Auto 下、CJ 是 WAITINGFORSTART（`ControlJobDto.StateWaitingForStart`）才能点。结果写顶栏日志。
   Job 的列表、详情、暂停 / 停止 / 中止这些按钮还没有界面（要先给参考图或出样稿）。
 
@@ -270,15 +270,15 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - **三维硬件**（`Controls\ThreeD`，说明见那儿的 README）：Arm / Lift / FluidPipe / Bowl / HomeCup / Door / Disk / ChamberBase 组件，
   `ChamberScene` 把它们装成腔体手动页的三维图（`Devices` 绑 `ChamberDeviceDataModel`、`Wafer` 绑晶圆账的片），视角工具栏在图下面。
   LoadPort（`LoadPortVisual3D`）和花篮（`CarrierVisual3D`，片用 Disk）两个公共组件由 `LoadPortScene` 组合成 LoadPort 手动页中间的三维图
-  （槽数跟 sc 的 SlotCount、每个动作 0.5 s，见 decisions.md「LoadPort 手动页（三维）」）；原来的二维花篮控件 `LoadPort` 删了。
+  （槽数跟 machine.xml 的 SlotCount、每个动作 0.5 s，见 decisions.md「LoadPort 手动页（三维）」）；原来的二维花篮控件 `LoadPort` 删了。
   供液槽：`TankVisual3D`（透明圆筒 + 液体）由 `TankScene` 装成三维图，`Tank` 绑槽的显示模型（`Models\TankModel`，后端跟着供液模块推：35021 的 `IpaDto` 里带各槽的 `TankDto`，token 是模块名）、
-  `WallTransparency` 罐壁透明度；液面跟液位，罐右边的信号灯跟各自的 DI 信号、sc 里没配的不画。还没接进页面（Tank 手动页没做）。
-- **SignalLamp**（信号灯：一盏灯 + 名字，对一个 DI 信号）：`IsActive`（触发亮绿、没触发灭、null 读不到是"不知道"色）、`Text`（sc 节点名原样）、
+  `WallTransparency` 罐壁透明度；液面跟液位，罐右边的信号灯跟各自的 DI 信号、machine.xml 里没配的不画。还没接进页面（Tank 手动页没做）。
+- **SignalLamp**（信号灯：一盏灯 + 名字，对一个 DI 信号）：`IsActive`（触发亮绿、没触发灭、null 读不到是"不知道"色）、`Text`（machine.xml 节点名原样）、
   `IsAlarm`（报警位，触发亮红）。灯的颜色、字用 `SignalLampBorderStyle` / `SignalLampTextStyle`。显示 DI 信号都用它（界面件对后台组件的定法见 decisions.md）。
   三维对象不在逻辑树里，颜色用 `DarkHardware*` token（XAML 里 StaticResource、代码里 TryFindResource），不注册逐帧事件。
 - **圆片没有右键菜单**：右键建片 / 删片 2026-10-10 删了（二维 `Wafer`、三维 Disk、机械手、各站点卡片、Transfer 页），建片统一在账单调整页做。
 - **腔体手动页**（`xyz.Client.Manual\Views\ChamberManualControl`，布局照用户给的参考图，见 decisions.md）：数据都来自后端的设备状态推送
-  `ChamberDeviceDataDto`（结构跟 sc 一样：门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴）——`ChamberDeviceDataModel.Update` 照树取三维要画的；
+  `ChamberDeviceDataDto`（结构跟 machine.xml 一样：门、Bowl、卡盘、各条摆臂带它的 Lift 和喷嘴）——`ChamberDeviceDataModel.Update` 照树取三维要画的；
   VM 从同一份推送取轴页签（卡盘 + 各条摆臂，`AxisTabModel`）和气缸表（门、Bowl、各臂的 Lift，`CylinderRowModel`）。界面不再抄后端的属性名、方法名（2026-10-10 删了 PartValueNames / PartActionNames / PartKinds，Part 的叫法也去掉了）。
   动作调 `IChamberService` 的具体方法（`AxisHomeAsync` / `AxisMoveAsync` / `AxisStepAsync` / `AxisJogAsync` / `AxisStopAsync` / `AxisResetAsync`、`CylinderUpAsync` / `CylinderDownAsync`）；
   点动用 HoldButton：按下 Jog、续 `AxisJogRenewAsync`、松手先等点动请求回来再发 Stop。轴参数（移动速度、点动速度、步距）默认值取这根轴的 EC，`ClientEc` 拉到后补上空着的。
@@ -287,13 +287,13 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 
 - `Strings.zh-CN.xaml`、`Strings.en-US.xaml`，`<sys:String x:Key="...">`，**两份的 key 必须一一对应**（加一条就两边都加）。
 - **界面上显示的都要多语言**（标题、按钮、状态、提示、报错，用户 2026-10-04 定的）；从数据库、配置查出来的数据
-  （sc 里的模块 / 部件名、配方名、日志内容、片号）原样显示，不翻。后端报错参数里带的固定标识也要换成叫法再显示，
+  （machine.xml 里的模块 / 部件名、配方名、日志内容、片号）原样显示，不翻。后端报错参数里带的固定标识也要换成叫法再显示，
   比如设备动作名（Shared 枚举 `ChamberDeviceAction`，如 ValveOn）走 `DeviceActionText.Of` → `device.action.{转小写下划线}`，中文界面不露英文。
 - key 小写点分、叶子 snake_case：错误码（= `xyz.Shared\Errors\ErrorCodes.cs` 的常量值，如 `wafer.slot_occupied`）、`module.state.*`、
   `common.*`、`shell.*`、`setting.ledger.*`、`menu.{Code}`（Code 保留大小写）；枚举值做叶子时保留原样（`setting.ledger.process.InProcess`）；提示文字 `_tip` 结尾。
 - XAML 用 `{DynamicResource key}`；C# 用 `L10n.Get(key, 参数...)`（`string.Format`，可写 `{0:00}`）、`L10n.Get(code, response.Args)`；没有这个 key 时返回 key 本身。
 - 机型独有的文字放机型的 `*.Client.Presentation\Localization\Strings.{lang}.xaml`；框架页面（包括机型挂的框架菜单）的文字放平台包。
-- 界面语言由后端 sc.xml `System` 节点的 `Language` 决定，客户端启动时问一次。
+- 界面语言由后端 machine.xml `System` 节点的 `Language` 决定，客户端启动时问一次。
 
 ## 9. 显示模型
 
@@ -304,7 +304,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
 - 当前用户 `xyz.Client.Common.Session.ClientSession`（2026-10-21 起有登录）：`UserName` 记操作人用（不用登录时是 Admin，没登录是 Guest），
   `LoginName` / `DisplayName` / `RoleKind` / `IsLoggedIn` / `IsAdmin`、`LevelOf(编码)` / `CanOperate(编码)`；会话一变发 `Changed`（界面线程）。
-  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置自动退出 `Session\IdleLogout`（分钟数是后端 sc，跟会话一起下来；到点退出以后发 `TimedOut`，
+  登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置自动退出 `Session\IdleLogout`（分钟数是后端 machine.xml，跟会话一起下来；到点退出以后发 `TimedOut`，
   顶栏 `TopBarViewModel` 接着弹登录框（写明原因、登录名填好，取消当访客；开着一个就不再叠）；`MainViewModel` 记着被藏掉的那一页，重新登录看得到了回去；
   闲没闲看 Windows 的 `GetLastInputInfo`，**别改回 WPF 的 `InputManager.PreProcessInput`**——鼠标停在窗口上时界面一刷新 WPF 就补发鼠标移动，永远不算闲着）。
 - EC 目录 `ClientEc`（连上拉全量 + 推送增量，`TryGet("组件全路径.参数名")`）、当前报警 `ClientAlarms`。

@@ -45,7 +45,7 @@ public interface IHsms
     Task<HsmsMessage> SendAsync(SecsMessage message);
 
     /// <summary>
-    /// 链路启用了没有（sc 的 IsEnable）
+    /// 链路启用了没有（machine.xml 的 IsEnable）
     /// </summary>
     bool IsEnable { get; }
 

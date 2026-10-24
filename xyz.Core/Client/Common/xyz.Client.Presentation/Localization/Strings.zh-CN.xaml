@@ -17,8 +17,8 @@
     <sys:String x:Key="module.operation_faulted">{0} 操作异常：{1}</sys:String>
     <sys:String x:Key="routine.step_at">第 {0}/{1} 步：</sys:String>
 
-    <!-- 整机（sc.xml 的 System 节点：全部初始化、Auto / Manual、整机停止、全部回片） -->
-    <sys:String x:Key="system.not_installed">sc.xml 没配 System 节点（没有整机模块），初始化、Auto / Manual、Stop、全部回片都用不了</sys:String>
+    <!-- 整机（machine.xml 的 System 节点：全部初始化、Auto / Manual、整机停止、全部回片） -->
+    <sys:String x:Key="system.not_installed">machine.xml 没配 System 节点（没有整机模块），初始化、Auto / Manual、Stop、全部回片都用不了</sys:String>
     <sys:String x:Key="system.init_rejected">{0} 的初始化被拒（状态不允许、在忙，或没写初始化），全部初始化没做成</sys:String>
     <sys:String x:Key="system.init_failed">{0} 初始化没做成，全部初始化没做成</sys:String>
     <sys:String x:Key="system.return_incomplete">全部回片有 {0} 片没回去，原因见日志</sys:String>
@@ -31,11 +31,11 @@
     <sys:String x:Key="system.return_module_not_ready">回片要用的 {0} 现在不能用（停用、没初始化、报警或在忙），不能全部回片</sys:String>
 
     <!-- 晶圆尺寸（主界面切 8 / 12 寸） -->
-    <sys:String x:Key="system.wafer_size_not_installed">sc.xml 的 System 节点下没配 WaferSize，切不了晶圆尺寸</sys:String>
+    <sys:String x:Key="system.wafer_size_not_installed">machine.xml 的 System 节点下没配 WaferSize，切不了晶圆尺寸</sys:String>
     <sys:String x:Key="system.wafer_size_invalid">晶圆尺寸只能是 8 或 12，给的是 {0}</sys:String>
     <sys:String x:Key="system.wafer_size_initialized">{0} 已经初始化过（不是未初始化），要在整机没初始化时切晶圆尺寸</sys:String>
     <sys:String x:Key="system.wafer_size_has_wafer">{0} 里还有片，机台里（LoadPort 以外）都没片才能切晶圆尺寸</sys:String>
-    <sys:String x:Key="system.wafer_size_save_failed">晶圆尺寸写回 sc.xml 失败：{0}</sys:String>
+    <sys:String x:Key="system.wafer_size_save_failed">晶圆尺寸写回 machine.xml 失败：{0}</sys:String>
 
     <!-- 模块状态文字：码值见 xyz.Modules 的 ModuleState/TransferModuleState/LoadPortState -->
     <sys:String x:Key="module.state.not_init">未初始化</sys:String>
@@ -85,7 +85,7 @@
     <sys:String x:Key="loadport.handoff_running">{0} 跟搬运车的交接还没走完（或交接超时等人处理），不能装载</sys:String>
 
     <sys:String x:Key="robot.station_not_found">{0} 未配置站点：{1}</sys:String>
-    <sys:String x:Key="robot.arm_not_allowed">{0} 的站点 {1} 不允许用 Arm{2} 做这一下取放（取片见 sc.xml 站点节点的 PickArms，放片见 PlaceArms）</sys:String>
+    <sys:String x:Key="robot.arm_not_allowed">{0} 的站点 {1} 不允许用 Arm{2} 做这一下取放（取片见 machine.xml 站点节点的 PickArms，放片见 PlaceArms）</sys:String>
     <sys:String x:Key="robot.arm_has_wafer">{0} 的 Arm{1} 上已经有片：{2}，不能再取片（账不对先到账单调整页按实物改账）</sys:String>
     <sys:String x:Key="robot.arm_no_wafer">{0} 的 Arm{1} 上没有片，不能放片（账不对先到账单调整页按实物改账）</sys:String>
     <sys:String x:Key="robot.arm_sensor_has_wafer">{0} 的 Arm{1} 在位传感器检测到有片，跟晶圆账（手上没片）对不上：先到现场确认片位，按实物改账</sys:String>
@@ -93,7 +93,7 @@
     <sys:String x:Key="robot.arm_sensor_unknown">{0} 的 Arm{1} 在位传感器读不到（PLC 没连上或点位不对），不能取放</sys:String>
     <sys:String x:Key="robot.ledger_move_failed">{0} 取放动作已完成，但晶圆账从 {1} 第 {2} 槽移至 {3} 第 {4} 槽失败；请确认实际片位后处理</sys:String>
     <sys:String x:Key="robot.handoff_unsupported">{0} 不能分段取放，做不了要站点中途交接的取放</sys:String>
-    <sys:String x:Key="robot.map_unsupported">{0} 不扫片（sc 没开 MapEnabled，或这台机械手不能扫片）</sys:String>
+    <sys:String x:Key="robot.map_unsupported">{0} 不扫片（machine.xml 没开 MapEnabled，或这台机械手不能扫片）</sys:String>
     <sys:String x:Key="robot.direction.north">北</sys:String>
     <sys:String x:Key="robot.direction.east">东</sys:String>
     <sys:String x:Key="robot.direction.south">南</sys:String>
@@ -127,7 +127,7 @@
     <sys:String x:Key="tank.not_ready">{0} 不是就绪，先补液再供液</sys:String>
     <sys:String x:Key="tank.valve_failed">{0} 的 {1} 阀组有阀开不了（PLC 没连上或 DO 点没配），已经全关回去</sys:String>
     <sys:String x:Key="tank.close_failed">{0} 有阀没关上（PLC 没连上或 DO 点没配）</sys:String>
-    <sys:String x:Key="ai.not_installed">这台机没配 AI（sc.xml 的 Ai 节点）</sys:String>
+    <sys:String x:Key="ai.not_installed">这台机没配 AI（machine.xml 的 Ai 节点）</sys:String>
     <sys:String x:Key="ai.alarm_not_found">{0} 的报警 {1} 已经没了（可能已经复位）</sys:String>
     <sys:String x:Key="ai.timeout">AI 超过 {0} ms 没回答</sys:String>
     <sys:String x:Key="ai.failed">AI 服务出错：{0}</sys:String>
@@ -140,8 +140,8 @@
     <sys:String x:Key="transfer.station_handoff_failed">{0} 中途交接没做成（超时或设备报错）：机械手停在站里，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.failed">{0} {1} 没做成：站点会停在搬运中，先到现场确认片在哪再复位</sys:String>
     <sys:String x:Key="transfer.step_rejected">{0} 落不下 {1} 标记（站点状态跟搬运进度对不上，可能被人工动过）</sys:String>
-    <sys:String x:Key="transfer.not_installed">sc.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto</sys:String>
-    <sys:String x:Key="transfer.disabled">搬运管理停用了（sc.xml Transfer 节点 IsEnable=False），切不了 Auto，也启动不了搬运操作</sys:String>
+    <sys:String x:Key="transfer.not_installed">machine.xml 没配 Transfer 节点（没有搬运管理），切不了 Auto</sys:String>
+    <sys:String x:Key="transfer.disabled">搬运管理停用了（machine.xml Transfer 节点 IsEnable=False），切不了 Auto，也启动不了搬运操作</sys:String>
     <sys:String x:Key="transfer.station_not_found">{0} 不是能放片的站点（不在搬运模块表里）</sys:String>
     <sys:String x:Key="transfer.slot_out_of_range">{0} 没有第 {1} 槽（共 {2} 槽）</sys:String>
     <sys:String x:Key="transfer.same_slot">源和目标是同一个槽</sys:String>
@@ -154,8 +154,8 @@
     <sys:String x:Key="transfer.not_held">晶圆 {0} 没有搬运失败保留的资源（已经释放，或标识不对）</sys:String>
     <sys:String x:Key="transfer.wait_timeout">搬运操作 {0} 等了 {1} ms 还没做完：搬运还在跑，结果待确认</sys:String>
     <sys:String x:Key="transfer.robot_mapping">{0} 排着要替 LoadPort 扫片：手上空了就先扫片，这一趟等扫完再搬</sys:String>
-    <sys:String x:Key="job.not_installed">sc.xml 没配 Job 节点（没有 Job 管理）</sys:String>
-    <sys:String x:Key="job.disabled">Job 管理停用了（sc.xml Job 节点 IsEnable=False）</sys:String>
+    <sys:String x:Key="job.not_installed">machine.xml 没配 Job 节点（没有 Job 管理）</sys:String>
+    <sys:String x:Key="job.disabled">Job 管理停用了（machine.xml Job 节点 IsEnable=False）</sys:String>
     <sys:String x:Key="job.command_timeout">命令等了 {0} ms 还没被受理，可能稍后还会执行，请看 Job 状态</sys:String>
     <sys:String x:Key="job.not_found">没有 Job {0}</sys:String>
     <sys:String x:Key="job.command_not_allowed">{0} 当前状态 {2} 不收 {1}</sys:String>
@@ -187,22 +187,22 @@
     <sys:String x:Key="job.task_position_mismatch">{0} 标记不了 {1} 完成：账上它在 {2}，不在这一步做完该在的地方</sys:String>
     <sys:String x:Key="job.wafer_moved">{0} 不在该在的地方（应该在 {1}；被改了账、载具被拿走或重新 Mapping 过）</sys:String>
 
-    <sys:String x:Key="alarm.not_installed">报警组件没装（sc.xml 没配 Alarm 节点）</sys:String>
+    <sys:String x:Key="alarm.not_installed">报警组件没装（machine.xml 没配 Alarm 节点）</sys:String>
     <sys:String x:Key="alarm.source_not_found">{0} 没报过报警，没有可复位的</sys:String>
 
     <sys:String x:Key="history.query_failed">查询失败：{0}</sys:String>
 
-    <sys:String x:Key="datachart.not_installed">数据曲线没装（sc.xml 没配 DataChart 节点）</sys:String>
-    <sys:String x:Key="realchart.not_installed">实时曲线没装（sc.xml 没配 RealChart 节点）</sys:String>
+    <sys:String x:Key="datachart.not_installed">数据曲线没装（machine.xml 没配 DataChart 节点）</sys:String>
+    <sys:String x:Key="realchart.not_installed">实时曲线没装（machine.xml 没配 RealChart 节点）</sys:String>
 
-    <sys:String x:Key="ec.not_installed">EC 组件没装（sc.xml 没配 EC 节点）</sys:String>
+    <sys:String x:Key="ec.not_installed">EC 组件没装（machine.xml 没配 EC 节点）</sys:String>
     <sys:String x:Key="ec.not_found">没有这一项 EC：{0}</sys:String>
     <sys:String x:Key="ec.invalid_format">{0} 的值写法不对（应为 {1}）</sys:String>
     <sys:String x:Key="ec.out_of_range">{0} 超出范围 {1} ~ {2} {3}</sys:String>
     <sys:String x:Key="ec.invalid_option">{0} 只能是：{1}</sys:String>
     <sys:String x:Key="ec.save_failed">{0} 没改成：ec.xml 写不进去（文件被占着或没有权限）</sys:String>
 
-    <sys:String x:Key="wafer.ledger_disabled">晶圆账没开（sc.xml 没配 LedgerManager 节点，或 IsEnable=False）</sys:String>
+    <sys:String x:Key="wafer.ledger_disabled">晶圆账没开（machine.xml 没配 LedgerManager 节点，或 IsEnable=False）</sys:String>
     <sys:String x:Key="wafer.location_not_found">账上没有这个位置：{0}</sys:String>
     <sys:String x:Key="wafer.slot_out_of_range">{0} 没有第 {1} 槽（共 {2} 槽）</sys:String>
     <sys:String x:Key="wafer.no_wafer">{0} 第 {1} 槽上没有片（可能刚被别处改过账）</sys:String>
@@ -210,7 +210,7 @@
     <sys:String x:Key="wafer.same_slot">源和目标是同一个槽</sys:String>
     <sys:String x:Key="wafer.id_required">补账要填片号</sys:String>
     <sys:String x:Key="wafer.duplicate_id">片号 {0} 已经在账上（{1} 第 {2} 槽），要挪过来请用移动账单</sys:String>
-    <sys:String x:Key="sequence.not_installed">流程配方库没装（sc.xml 没配 Sequence 节点）</sys:String>
+    <sys:String x:Key="sequence.not_installed">流程配方库没装（machine.xml 没配 Sequence 节点）</sys:String>
     <sys:String x:Key="sequence.index_out_of_range">没有 {0} 号（编号 1 ~ {1}）</sys:String>
     <sys:String x:Key="sequence.not_found">{0} 号没有流程配方（可能刚被别处删了）</sys:String>
     <sys:String x:Key="sequence.index_occupied">{0} 号已经有流程配方了：{1}</sys:String>
@@ -219,7 +219,7 @@
     <sys:String x:Key="sequence.name_duplicate">名称 {0} 跟 {1} 号重了</sys:String>
     <sys:String x:Key="sequence.revision_mismatch">{0} 号打开以后被别处改过，存不进去：先放弃修改，重新打开再改</sys:String>
     <sys:String x:Key="sequence.step_not_loadport">第 {0} 步要是 LoadPort</sys:String>
-    <sys:String x:Key="sequence.group_not_found">第 {0} 步的分组 {1} 现在没有了（sc.xml 改过，或机械手到不了）</sys:String>
+    <sys:String x:Key="sequence.group_not_found">第 {0} 步的分组 {1} 现在没有了（machine.xml 改过，或机械手到不了）</sys:String>
     <sys:String x:Key="sequence.station_required">第 {0} 步一个站点都没勾</sys:String>
     <sys:String x:Key="sequence.station_not_in_group">第 {0} 步勾的 {1} 不在分组 {2} 里</sys:String>
     <sys:String x:Key="sequence.recipe_required">第 {0} 步没选工艺配方</sys:String>
@@ -230,7 +230,7 @@
     <sys:String x:Key="sequence.name_not_found">流程配方库里没有 {0}</sys:String>
     <sys:String x:Key="sequence.body_invalid">流程配方 {0} 的内容读不出来（要这边给出去的那种 JSON）</sys:String>
     <sys:String x:Key="recipe.locked_by_host">在线远程（ON-LINE REMOTE）时配方只能由 Host 改，本机改不了</sys:String>
-    <sys:String x:Key="process_recipe.not_installed">工艺配方库没装（sc.xml 没配 ProcessRecipe 节点）</sys:String>
+    <sys:String x:Key="process_recipe.not_installed">工艺配方库没装（machine.xml 没配 ProcessRecipe 节点）</sys:String>
     <sys:String x:Key="process_recipe.index_out_of_range">没有 {0} 号（编号 1 ~ {1}）</sys:String>
     <sys:String x:Key="process_recipe.not_found">{0} 号没有工艺配方（可能刚被别处删了）</sys:String>
     <sys:String x:Key="process_recipe.index_occupied">{0} 号已经有工艺配方了：{1}</sys:String>
@@ -261,7 +261,7 @@
     <sys:String x:Key="process_recipe.body_invalid">工艺配方 {0} 的内容读不出来（要这边给出去的那种 JSON）</sys:String>
 
     <!-- 账号（登录、用户、角色） -->
-    <sys:String x:Key="account.not_installed">sc.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了</sys:String>
+    <sys:String x:Key="account.not_installed">machine.xml 没配 Account 节点（没有账号组件），登录、用户、角色都用不了</sys:String>
     <sys:String x:Key="account.login_failed">登录名或密码不对</sys:String>
     <sys:String x:Key="account.user_disabled">账号 {0} 停用了，登录不了</sys:String>
     <sys:String x:Key="account.user_not_found">没有账号 {0}（可能已经被删了）</sys:String>
@@ -283,7 +283,7 @@
 
     <!-- ==================== 界面文字 ====================
          XAML 用 {DynamicResource key}，ViewModel 用 L10n.Get(key, 参数)。平台界面的放这里，机型的放机型自己的语言包。
-         界面语言由后端 sc.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
+         界面语言由后端 machine.xml 的 System 节点 Language 决定（客户端启动时拉一次）。 -->
 
     <!-- 通用 -->
     <sys:String x:Key="common.ok">确定</sys:String>
@@ -728,7 +728,7 @@
 
     <!-- 腔体手动页（Manual 下一个腔体一个子菜单） -->
     <sys:String x:Key="chambermanual.enable">启用</sys:String>
-    <sys:String x:Key="chambermanual.enable_tip">sc.xml 里的 IsEnable：停用（装机未接）时动作一律发不出去</sys:String>
+    <sys:String x:Key="chambermanual.enable_tip">machine.xml 里的 IsEnable：停用（装机未接）时动作一律发不出去</sys:String>
     <sys:String x:Key="chambermanual.production">生产</sys:String>
     <sys:String x:Key="chambermanual.maintenance">维护</sys:String>
     <sys:String x:Key="chambermanual.mode_tip">生产：交给自动调度用；维护：调度不派新活，留给人手动操作</sys:String>
@@ -846,8 +846,8 @@
     <sys:String x:Key="main.wafer_size_done">已切到 {0} 寸</sys:String>
     <sys:String x:Key="main.wafer_size_failed">切换晶圆尺寸失败：{0}</sys:String>
     <sys:String x:Key="main.dispatch">整机调度</sys:String>
-    <sys:String x:Key="main.no_robot">没有机械手可画：启动时没连上后端，或 sc.xml 没配 Robot</sys:String>
-    <sys:String x:Key="main.no_loadport">没有 LoadPort：启动时没连上后端，或 sc.xml 没配 LoadPort</sys:String>
+    <sys:String x:Key="main.no_robot">没有机械手可画：启动时没连上后端，或 machine.xml 没配 Robot</sys:String>
+    <sys:String x:Key="main.no_loadport">没有 LoadPort：启动时没连上后端，或 machine.xml 没配 LoadPort</sys:String>
     <sys:String x:Key="main.none">—</sys:String>
     <sys:String x:Key="main.carrier">载具</sys:String>
     <sys:String x:Key="main.slots">槽位</sys:String>
@@ -893,7 +893,7 @@
     <sys:String x:Key="main.legend.unledgered_tip">传感器检测到有片，晶圆账上却没有登记，请到 设置 → 账单调整 对账</sys:String>
 
     <!-- 菜单名：菜单写在代码里（不进数据库），显示名按菜单编码取 menu.{Code}，没配就显示编码本身；
-         按模块生成的菜单（IO、腔体手动）直接显示 sc.xml 里的模块名，不在这里配。
+         按模块生成的菜单（IO、腔体手动）直接显示 machine.xml 里的模块名，不在这里配。
          框架提供的菜单（含机型模块声明的 LoadPort 手动、Transfer）都配在这里；机型独有的菜单配在机型语言包。 -->
     <sys:String x:Key="menu.Main">主界面</sys:String>
     <sys:String x:Key="menu.Manual">手动</sys:String>
@@ -923,7 +923,7 @@
     <sys:String x:Key="picker.select">点开选择</sys:String>
     <sys:String x:Key="picker.empty">没有可选的内容</sys:String>
 
-    <!-- 流程配方页（配方 → 流程配方）：左边编号列表，右边基本信息、流程步骤、路线预览。分组名、模块名照 sc.xml 原样显示，不在这里配 -->
+    <!-- 流程配方页（配方 → 流程配方）：左边编号列表，右边基本信息、流程步骤、路线预览。分组名、模块名照 machine.xml 原样显示，不在这里配 -->
     <sys:String x:Key="recipe.sequence.list">流程配方</sys:String>
     <sys:String x:Key="recipe.sequence.create">新建</sys:String>
     <sys:String x:Key="recipe.sequence.rename">重命名</sys:String>
@@ -983,7 +983,7 @@
     <sys:String x:Key="recipe.sequence.offline">没连上后端</sys:String>
     <sys:String x:Key="recipe.sequence.loading">正在读取流程配方…</sys:String>
 
-    <!-- 工艺配方页（配方 → 工艺配方）：左边编号列表，右边基本信息、工艺步骤。摆臂名、药液名照 sc.xml 原样显示，不在这里配 -->
+    <!-- 工艺配方页（配方 → 工艺配方）：左边编号列表，右边基本信息、工艺步骤。摆臂名、药液名照 machine.xml 原样显示，不在这里配 -->
     <sys:String x:Key="recipe.process.list">工艺配方</sys:String>
     <sys:String x:Key="recipe.process.create">新建</sys:String>
     <sys:String x:Key="recipe.process.rename">重命名</sys:String>

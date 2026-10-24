@@ -9,6 +9,11 @@ namespace xyz.Components.Interfaces;
 public interface IDeviceDriverComponent
 {
     /// <summary>
+    /// 启用了没有：设备只用启用的那条通道（串口、网口都配上时选一条）
+    /// </summary>
+    bool IsEnable { get; }
+
+    /// <summary>
     /// 连上了没有
     /// </summary>
     bool IsConnected { get; }

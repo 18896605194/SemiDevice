@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 [Component(description: "实时曲线（订阅数据曲线的采样，留最近一段，推给界面）")]
 public class RealChartComponent : ComponentBase, IRealChart
 {
-    #region SC
+    #region Machine
 
     [Machine("3600", "RealChart", "内存里留最近多少秒：实时曲线页打开、新勾曲线时先补这一段，也是页面上能选的最长显示范围（页面有 1、2、5、10、30、60 分钟几档，超过这个的不给选）")]
     public int WindowSeconds { get; set; } = 3600;
@@ -82,7 +82,7 @@ public class RealChartComponent : ComponentBase, IRealChart
         var source = IocHelper.GetService<IDataChart>();
         if (source is null)
         {
-            LogHelper.Warn(Name, "sc.xml 没配 DataChart 节点：实时曲线没有数据");
+            LogHelper.Warn(Name, "machine.xml 没配 DataChart 节点：实时曲线没有数据");
             return;
         }
 
@@ -100,7 +100,7 @@ public class RealChartComponent : ComponentBase, IRealChart
         _subscription = source.Records.Subscribe(Keep);
         if (!IsRun)
         {
-            LogHelper.Warn(Name, "sc.xml 的 RealChart 节点没配 IsRun=true：不推，实时曲线页没有新数据");
+            LogHelper.Warn(Name, "machine.xml 的 RealChart 节点没配 IsRun=true：不推，实时曲线页没有新数据");
         }
 
         LogHelper.Info(Name, $"实时曲线接上数据曲线的采样，内存留最近 {WindowSeconds} 秒");

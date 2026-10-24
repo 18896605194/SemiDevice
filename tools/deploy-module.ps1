@@ -76,18 +76,18 @@ function Deploy-Module {
         Write-Host "已部署 $Label IO 点表 -> $ioDirectory"
     }
 
-    # 机型的 sc.xml（服务端才有）部署进宿主的 Config：只在源文件比宿主那份新时才拷，现场在运行目录改过的不冲掉。
-    $scSource = Join-Path $configSource 'sc.xml'
-    if (Test-Path $scSource) {
+    # 机型的 machine.xml（服务端才有）部署进宿主的 Config：只在源文件比宿主那份新时才拷，现场在运行目录改过的不冲掉。
+    $machineSource = Join-Path $configSource 'machine.xml'
+    if (Test-Path $machineSource) {
         $configDirectory = Join-Path $destinationOutput.FullName 'Config'
-        $scTarget = Join-Path $configDirectory 'sc.xml'
-        if ((Test-Path $scTarget) -and (Get-Item $scTarget).LastWriteTimeUtc -ge (Get-Item $scSource).LastWriteTimeUtc) {
-            Write-Host "宿主的 sc.xml 不比源文件旧（现场改过或已是最新），没覆盖：$scTarget"
+        $machineTarget = Join-Path $configDirectory 'machine.xml'
+        if ((Test-Path $machineTarget) -and (Get-Item $machineTarget).LastWriteTimeUtc -ge (Get-Item $machineSource).LastWriteTimeUtc) {
+            Write-Host "宿主的 machine.xml 不比源文件旧（现场改过或已是最新），没覆盖：$machineTarget"
         }
         else {
             New-Item -ItemType Directory -Force -Path $configDirectory | Out-Null
-            Copy-Item -Path $scSource -Destination $scTarget -Force
-            Write-Host "已部署 $Label sc.xml -> $scTarget"
+            Copy-Item -Path $machineSource -Destination $machineTarget -Force
+            Write-Host "已部署 $Label machine.xml -> $machineTarget"
         }
     }
 }

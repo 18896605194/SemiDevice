@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:xyz.Client.Presentation.Controls">
 
-    <!--  顶栏模块行：sc.xml 装了的模块一个小框（宽度随名字），一行放不下折到下一行；悬停看状态字  -->
+    <!--  顶栏模块行：machine.xml 装了的模块一个小框（宽度随名字），一行放不下折到下一行；悬停看状态字  -->
     <ItemsControl ItemsSource="{Binding Modules}">
         <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>

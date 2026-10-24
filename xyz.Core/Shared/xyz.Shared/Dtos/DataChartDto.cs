@@ -3,7 +3,7 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 数据曲线（实时曲线也用）的一个信号。名字全部由 sc.xml 生成、按两个下划线 __ 分层（模块 → 部件 → 属性），界面照它长出勾选树：
+/// 数据曲线（实时曲线也用）的一个信号。名字全部由 machine.xml 生成、按两个下划线 __ 分层（模块 → 部件 → 属性），界面照它长出勾选树：
 /// SV = 组件全路径 + 属性名；组件绑的 IO = 组件全路径 + 配置项名去掉 Index（Chamber1__Door__DiOpened）。
 /// 名字就是库表里的列名，查询按名字查；不用点号是因为 SqlSugar 会把点号拆成"表.列"。
 /// </summary>
@@ -35,15 +35,15 @@ public class DataChartSignalDto
 }
 
 /// <summary>
-/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：就是正在记的那些——sc.xml 里配置了的（组件上的 SV + 组件绑的 IO），
-/// 顺序跟 sc.xml 一样；库里记的也正是这些。
+/// 数据曲线能选哪些信号（RpcResponse.Data 的 JSON）：就是正在记的那些——machine.xml 里配置了的（组件上的 SV + 组件绑的 IO），
+/// 顺序跟 machine.xml 一样；库里记的也正是这些。
 /// </summary>
 public class DataChartSignalsDto
 {
     public List<DataChartSignalDto> Signals { get; set; } = [];
 
     /// <summary>
-    /// 最多同时画几条曲线（sc.xml 的 DataChart 节点 QueryMaxSignals）。
+    /// 最多同时画几条曲线（machine.xml 的 DataChart 节点 QueryMaxSignals）。
     /// </summary>
     public int MaxSignals { get; set; }
 
@@ -53,7 +53,7 @@ public class DataChartSignalsDto
     public int SampleIntervalMs { get; set; }
 
     /// <summary>
-    /// 截图存到哪个文件夹（sc.xml 的 DataChart 节点 ScreenshotDirectory；相对路径算客户端程序目录）。
+    /// 截图存到哪个文件夹（machine.xml 的 DataChart 节点 ScreenshotDirectory；相对路径算客户端程序目录）。
     /// </summary>
     public string ScreenshotDirectory { get; set; } = string.Empty;
 }

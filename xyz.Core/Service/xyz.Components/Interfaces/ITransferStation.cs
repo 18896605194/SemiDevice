@@ -23,7 +23,7 @@ public interface ITransferStation : IModule
     HandleResult? CheckPrepareTransfer();
 
     /// <summary>
-    /// 在位传感器跟晶圆账对一遍：sc 配了传感器才比，对得上或没配回 null
+    /// 在位传感器跟晶圆账对一遍：machine.xml 配了传感器才比，对得上或没配回 null
     /// </summary>
     HandleResult? CheckWaferSensors();
 

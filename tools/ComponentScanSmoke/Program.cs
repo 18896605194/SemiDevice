@@ -35,9 +35,9 @@ const string xml = """
     </ArrayOfSetting>
     """;
 
-var serializer = new XmlSerializer(typeof(ScConfig));
+var serializer = new XmlSerializer(typeof(MachineSettings));
 using var reader = new StringReader(xml);
-var config = (ScConfig)serializer.Deserialize(reader)!;
+var config = (MachineSettings)serializer.Deserialize(reader)!;
 var roots = SmokeIoc.Load(config.Modules);
 var running = (ScanProbe)roots.Single(root => root.Name == "Running");
 var child = (ScanProbe)running.Children.Single(component => component.Name == "Child");
@@ -46,7 +46,7 @@ var grouped = (ScanProbe)roots.Single(root => root.Name == "GroupedRoot");
 var idle = roots.OfType<ScanProbe>().Where(root => root != running && root != grouped).ToList();
 
 Check(running.IsRun && child.IsRun && grouped.IsRun && !sharedChild.IsRun,
-    "SC property names and boolean values are case insensitive; default is false");
+    "machine.xml property names and boolean values are case insensitive; default is false");
 Check(grouped.FullPath == "Group.GroupedRoot", "untyped groups preserve root scan eligibility");
 Check(roots.OfType<ScanProbe>().All(root => root.Threads.IsEmpty), "assembly alone starts no scan threads");
 
@@ -74,9 +74,9 @@ Thread.Sleep(1000);
 int scansInOneSecond = running.Count - scansBefore;
 Check(scansInOneSecond >= 55, $"roots scan about every 10 ms: {scansInOneSecond} scans in one second");
 
-// 开机各阶段（组件自己的开机准备、收尾都挂在这几个钩子上）：组件初始化按 InitOrder、再按 sc 先后，子组件跟着父组件；
-// Bind、OnStarted 按 sc 先后（先父后子）；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
-// 进容器（宿主开机装配那一步，ComponentLoader.Register）：每个组件按它实现的 xyz 接口登记，取一类全部按 sc 先后、停用的连同下面跳过，
+// 开机各阶段（组件自己的开机准备、收尾都挂在这几个钩子上）：组件初始化按 InitOrder、再按 machine.xml 先后，子组件跟着父组件；
+// Bind、OnStarted 按 machine.xml 先后（先父后子）；退出 OnStopping 倒着来，一个出错不耽误后面的；停用的连同下面的都不参与。
+// 进容器（宿主开机装配那一步，ComponentLoader.Register）：每个组件按它实现的 xyz 接口登记，取一类全部按 machine.xml 先后、停用的连同下面跳过，
 // 同一接口登记了好几个、取一个的拿最后登记的，没人实现的取不到（null）；装好的树本身也登记（宿主开机、收尾按它走）。
 const string lifecycleXml = """
     <ArrayOfSetting>
@@ -91,25 +91,25 @@ const string lifecycleXml = """
     </ArrayOfSetting>
     """;
 using var lifecycleReader = new StringReader(lifecycleXml);
-var lifecycleRoots = ComponentLoader.Load(((ScConfig)serializer.Deserialize(lifecycleReader)!).Modules);
+var lifecycleRoots = ComponentLoader.Load(((MachineSettings)serializer.Deserialize(lifecycleReader)!).Modules);
 var services = new ServiceCollection();
 ComponentLoader.Register(services, lifecycleRoots);
 IocHelper.ServiceProvider = services.BuildServiceProvider();
 Check(ReferenceEquals(IocHelper.GetRequiredService<IReadOnlyList<ComponentBase>>(), lifecycleRoots), "the assembled tree itself goes into the container");
 Check(string.Join(",", IocHelper.GetServices<ILifecycleProbe>().Select(probe => probe.Name)) == "Late,LateChild,Early,Faulty",
-    "every component goes in by its xyz interfaces in sc order; a disabled node is skipped with everything under it");
+    "every component goes in by its xyz interfaces in machine.xml order; a disabled node is skipped with everything under it");
 Check(IocHelper.GetService<ILifecycleProbe>()?.Name == "Faulty" && IocHelper.GetService<INotInstalledProbe>() is null,
     "asking for one gives the last registered; an interface nobody implements is not installed (null)");
 ComponentLoader.InitAll(lifecycleRoots);
 ComponentLoader.BindAll(lifecycleRoots);
 ComponentLoader.StartedAll(lifecycleRoots);
 ComponentLoader.StopAll(lifecycleRoots);
-Check(LifecycleProbe.Calls("Init") == "Early,Late,LateChild,Faulty", "InitAll goes by InitOrder, then sc order; children follow their parent");
+Check(LifecycleProbe.Calls("Init") == "Early,Late,LateChild,Faulty", "InitAll goes by InitOrder, then machine.xml order; children follow their parent");
 Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && LifecycleProbe.Calls("Started") == "Late,LateChild,Early,Faulty",
-    "Bind and OnStarted run in sc order, parent before child");
+    "Bind and OnStarted run in machine.xml order, parent before child");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after a component throws");
 
-// sc 里写错的参数名（组件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志，写清哪个节点、哪个名字
+// machine.xml 里写错的参数名（组件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志，写清哪个节点、哪个名字
 var logs = new ConcurrentQueue<LogItem>();
 LogQueue.Start(logs.Enqueue);
 const string typoXml = """
@@ -122,13 +122,13 @@ const string typoXml = """
     </ArrayOfSetting>
     """;
 using var typoReader = new StringReader(typoXml);
-var typo = (ScanProbe)ComponentLoader.Load(((ScConfig)serializer.Deserialize(typoReader)!).Modules).Single();
-Check(!typo.IsRun, "a misspelled SC name still loads and leaves that setting at its default");
+var typo = (ScanProbe)ComponentLoader.Load(((MachineSettings)serializer.Deserialize(typoReader)!).Modules).Single();
+Check(!typo.IsRun, "a misspelled machine.xml name still loads and leaves that setting at its default");
 Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && item.Module == "TypoGroup.Typo"
         && item.Message.Contains("TypoGroup.Typo") && item.Message.Contains("IsRunn")), 3000),
-    "a misspelled SC name is logged as an error naming the node path and the name");
+    "a misspelled machine.xml name is logged as an error naming the node path and the name");
 
-Console.WriteLine("PASS: configured root scans, case-insensitive SC, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; lifecycle stages (init by InitOrder, bind and started in sc order, stopping in reverse past a failure), components into the container by interface; a misspelled SC name logged as an error and left at its default");
+Console.WriteLine("PASS: configured root scans, case-insensitive machine.xml, default/disabled gating, groups, child sharing and concurrent duplicate starts, a 10 ms scan period; lifecycle stages (init by InitOrder, bind and started in machine.xml order, stopping in reverse past a failure), components into the container by interface; a misspelled machine.xml name logged as an error and left at its default");
 
 static void Check(bool condition, string message)
 {

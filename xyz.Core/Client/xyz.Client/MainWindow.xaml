@@ -104,7 +104,7 @@
                     Foreground="{DynamicResource DarkDisabledText}"
                     Kind="ViewGridOutline" />
 
-                <!--  模块行：sc.xml 装了的模块一个小框（圆点 = 状态，边框亮 = Auto），切哪一页都在  -->
+                <!--  模块行：machine.xml 装了的模块一个小框（圆点 = 状态，边框亮 = Auto），切哪一页都在  -->
                 <controls:ModuleStatusBar
                     Grid.Row="2"
                     Grid.Column="1"

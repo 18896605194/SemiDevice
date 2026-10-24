@@ -341,16 +341,16 @@ Points 为二维页面坐标，X 向右、Y 向下。外观、路径和流动状
 
 | 依赖属性 | 含义 |
 | --- | --- |
-| `Devices` | `ChamberDeviceDataModel`：后端的设备状态推送（`ChamberDeviceDataDto`，结构跟 sc 一样）就地刷新，照树取门、Bowl、卡盘、摆臂 |
+| `Devices` | `ChamberDeviceDataModel`：后端的设备状态推送（`ChamberDeviceDataDto`，结构跟 machine.xml 一样）就地刷新，照树取门、Bowl、卡盘、摆臂 |
 | `Wafer` | 盘上的片（晶圆账，`WaferModel`）；null 显示空盘 |
 
 ```xml
 <threeD:ChamberScene Devices="{Binding Devices}" Wafer="{Binding Model.Wafer}" />
 ```
 
-- 装哪些设备看 sc.xml（`ChamberDeviceDataModel` 照推送的树取，认法在后端腔体模块）：腔体下名叫 Door 的气缸、名字以 Bowl 开头的第一个气缸（Bowl1）配了才装，
+- 装哪些设备看 machine.xml（`ChamberDeviceDataModel` 照推送的树取，认法在后端腔体模块）：腔体下名叫 Door 的气缸、名字以 Bowl 开头的第一个气缸（Bowl1）配了才装，
   旋转盘一直在（架在主轴上，比 Bowl 降下时的上沿高、比升起时低：降下露出盘面好取放片，升起围住盘面挡液）；
-  摆臂是 SwingArmComponent，它下面第一个气缸是 Lift、下面的喷嘴按 sc 先后排，摆臂按 sc 先后放在 Bowl 右、左两个安装位，
+  摆臂是 SwingArmComponent，它下面第一个气缸是 Lift、下面的喷嘴按 machine.xml 先后排，摆臂按 machine.xml 先后放在 Bowl 右、左两个安装位，
   最多两条（多配的在日志里提示）。`Revision` 变了（设备组成变了）才整套重搭，平时只改绑定的状态。
 - 状态都是绑定：门 `IsOpen`、Bowl / Lift `IsRaised` 跟到位反馈（开到位 / 关到位），未知（命令发了、到位信号还没亮）绑 `IsUnknown`
   画在行程中间、整块变红；喷嘴出液跟 `IsOn`；旋转盘在转就按固定的显示转速转（不跟实际转速，几百转画出来只会频闪），转向跟实际转速正负。
@@ -389,7 +389,7 @@ LoadPort 和上面的花篮是**两个公共组件，组合起来用**（用户�
 
 | 依赖属性 | 含义 |
 | --- | --- |
-| `SlotCount` | 槽数，**照 sc.xml 的 LoadPort SlotCount**（用户："未来可能会有不是 25 片的"）：槽距不变，槽数多花篮就高；0 = 还不知道，什么都不画（不兜底 25） |
+| `SlotCount` | 槽数，**照 machine.xml 的 LoadPort SlotCount**（用户："未来可能会有不是 25 片的"）：槽距不变，槽数多花篮就高；0 = 还不知道，什么都不画（不兜底 25） |
 | `Wafers` | 花篮里的片（`WaferModel`，按 Slot 放）；超出槽数的不画 |
 | `SelectedSlot` | 选中的槽，那一片高亮；那一槽没片了自动取消 |
 
@@ -446,7 +446,7 @@ LoadPort 和上面的花篮是**两个公共组件，组合起来用**（用户�
 - 液面跟液位：只是档位示意（没有连续液位），落在上下两个信号点中间；换液位 0.2 s 过渡，页面藏着、换槽直接落位；液位不知道不画液体。高高、溢流液体变红。
 - **信号灯跟各自的 DI 信号，不从液位推**（2026-10-16 用户："那五个 di 实际上就是物理存在的，不需要推断"）：一盏灯对一个 DI 组件，
   亮灭是它推上来的 `IsActive`（已按触发值、防抖算好）——触发亮绿（HH、Overfill 是报警位，亮红）、没触发灭、读不到是"不知道"色；
-  名字照推送里的信号名（sc 节点名）。信号对不上时液位是不知道，灯照样各亮各的，看得出是哪个点不对。**sc 里没配的信号不画**，没给槽、还没收到推送一盏都不画。
+  名字照推送里的信号名（machine.xml 节点名）。信号对不上时液位是不知道，灯照样各亮各的，看得出是哪个点不对。**machine.xml 里没配的信号不画**，没给槽、还没收到推送一盏都不画。
 - 颜色都是 token：`DarkHardwareTank*`、`DarkHardwareLiquid*`（三维件）、`DarkSignalLamp*`（信号灯，样式 `SignalLampBorderStyle` / `SignalLampTextStyle`）；
   液位的点和字用 `TankLevelDotBorderStyle` / `TankLevelTextStyle`（Tag = Level）。
 
@@ -525,7 +525,7 @@ ChamberScene 按部件组成搭建、摆臂对盘心和接液杯、液柱落点�
 dotnet run --project tools/ChamberSceneSmoke -- D:\Code\artifacts\chamber-scene.png
 ```
 
-LoadPortScene 槽数跟 sc（13 / 25 / 26 / 40 槽的花篮高度、槽号、取景）、片用 DiskVisual3D 且就地换数据、点片选中、每个动作 0.5 s 且有先后、
+LoadPortScene 槽数跟 machine.xml（13 / 25 / 26 / 40 槽的花篮高度、槽号、取景）、片用 DiskVisual3D 且就地换数据、点片选中、每个动作 0.5 s 且有先后、
 只亮在动的那块、门在半路停中间、中途反向、藏起来直接落位、面板灯、视角工具栏、片数和空槽的字，以及手动页显示模型的对接 / 门推法，附带装载完成图：
 
 ```powershell

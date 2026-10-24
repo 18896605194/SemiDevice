@@ -3,7 +3,7 @@
 namespace xyz.Modules;
 
 /// <summary>
-/// 配方头固定的几项（sc.xml ProcessRecipe → Head 字段表里必须有，字段名、类型不能改，中文名、英文名、先后能改）：
+/// 配方头固定的几项（machine.xml ProcessRecipe → Head 字段表里必须有，字段名、类型不能改，中文名、英文名、先后能改）：
 /// 编号、名称、创建人、创建时间、修改人、修改时间、版本由程序算，页面上只显示；Type、超时时间、说明在页面上填。
 /// 字段表里别的项是自己加的，都在页面上填，值存在配方的 Head 里。
 /// </summary>
@@ -14,7 +14,7 @@ public static class RecipeHead
     public const string NameKey = "Name";
 
     /// <summary>
-    /// 配方给哪种站点用：选项是 sc 里站点配的几种 Type（BaseModule.Type）。
+    /// 配方给哪种站点用：选项是 machine.xml 里站点配的几种 Type（BaseModule.Type）。
     /// </summary>
     public const string TypeKey = "Type";
 

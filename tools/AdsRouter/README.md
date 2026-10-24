@@ -23,4 +23,4 @@ powershell -ExecutionPolicy Bypass -File .\tools\AdsRouter\install-service.ps1
 
 1. 路由（服务，开机就在）。
 2. 统一仿真器按 35021 机型启动：`D:\仿真\统一仿真器\Start-35021.cmd`。
-3. 后端 sc.xml 的 PLC 节点 `Host` = `Local`，启动后端和客户端。
+3. 后端 machine.xml 的 PLC 节点 `Host` = `Local`，启动后端和客户端。

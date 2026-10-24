@@ -5,7 +5,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Shared.Services;
 
 /// <summary>
-/// 系统设置服务契约：sc.xml 的 System 节点（界面语言等）。
+/// 系统设置服务契约：machine.xml 的 System 节点（界面语言等）。
 /// </summary>
 [ServiceContract]
 public interface ISystemService

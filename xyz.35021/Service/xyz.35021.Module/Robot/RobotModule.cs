@@ -88,11 +88,11 @@ public class RobotModule : BaseRobotModule
     #region 状态查询和上报
 
     /// <summary>
-    /// 一圈：没订上先订手指在位推送，再查报错、伺服、速度、每根轴的坐标（按 sc 轴节点的先后）
+    /// 一圈：没订上先订手指在位推送，再查报错、伺服、速度、每根轴的坐标（按 machine.xml 轴节点的先后）
     /// </summary>
     protected override IEnumerable<DeviceCommand> QueryRound()
     {
-        // 手指在位推送：SC 开着又还没订上，每圈开头订一次，订上为止
+        // 手指在位推送：machine.xml 开着又还没订上，每圈开头订一次，订上为止
         if (WaferEventEnabled && !_waferEventSubscribed)
         {
             var subscribe = new RejeSubscribeWaferEventCommand();

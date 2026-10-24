@@ -9,7 +9,7 @@ using xyz.Secs.SecsII;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 片跟踪（SEMI E90，sc.xml 的 Eap 下的 E90 节点）：按晶圆账报片的位置和工艺状态。片在哪、做到哪只有账本一份是真的，这里照着报。
+/// 片跟踪（SEMI E90，machine.xml 的 Eap 下的 E90 节点）：按晶圆账报片的位置和工艺状态。片在哪、做到哪只有账本一份是真的，这里照着报。
 /// ① 片对象：载具的槽图认定了（E87 说料到了）才有——Host 给的片号先写进账，片号才定；不在 LoadPort 上建的片（人工建在腔体里）建了就有。
 ///    没接 E87 时建片就有。
 /// ② 片的位置（E90 Transport）：在来源载具（AT SOURCE）→ 机内（AT WORK）→ 回到载具（AT DESTINATION）；

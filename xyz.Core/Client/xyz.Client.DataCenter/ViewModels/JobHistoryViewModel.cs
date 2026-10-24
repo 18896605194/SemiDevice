@@ -14,7 +14,7 @@ namespace xyz.Client.DataCenter.ViewModels;
 
 /// <summary>
 /// Job 历史页 ViewModel：按时间段查库里的 CJ（最新的在前），选中一个 CJ 取它下面的 PJ，
-/// 选中 PJ 列它的每一片，选中一片列它的任务。一次最多显示多少个 CJ 按后端 sc.xml 配置。
+/// 选中 PJ 列它的每一片，选中一片列它的任务。一次最多显示多少个 CJ 按后端 machine.xml 配置。
 /// </summary>
 public class JobHistoryViewModel : BaseViewModel
 {

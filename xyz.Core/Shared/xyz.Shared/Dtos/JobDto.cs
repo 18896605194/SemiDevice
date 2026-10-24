@@ -39,7 +39,7 @@ public class ControlJobDto
     /// <summary>E94 上报状态（0~5）；旧 DTO 未提供此字段时沿用 State。</summary>
     public int? E94State { get; set; }
 
-    /// <summary>StartMethod：设备 SC 的 CJ 自动启动配置值，用于查询和上报。</summary>
+    /// <summary>StartMethod：设备 machine.xml 的 CJ 自动启动配置值，用于查询和上报。</summary>
     public bool AutoStart { get; set; }
 
     /// <summary>收下的 Stop / Abort，等 PJ 都结束：None / Stop / Abort。</summary>
@@ -92,7 +92,7 @@ public class ProcessJobDto
     /// </summary>
     public int State { get; set; }
 
-    /// <summary>PRProcessStart：设备 SC 的 PJ 自动启动配置值，用于查询和上报。</summary>
+    /// <summary>PRProcessStart：设备 machine.xml 的 PJ 自动启动配置值，用于查询和上报。</summary>
     public bool AutoStart { get; set; }
 
     public List<JobWaferDto> Wafers { get; set; } = [];

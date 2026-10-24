@@ -35,7 +35,7 @@ public class AxisTabModel : ObservableObject
     /// <summary>组件全路径，如 "Chamber.Chamber1.Arm1"；动作按它找设备。</summary>
     public string Path { get; }
 
-    /// <summary>页签上的名字：sc 路径去掉腔体名，照 sc 原样显示。</summary>
+    /// <summary>页签上的名字：machine.xml 路径去掉腔体名，照 machine.xml 原样显示。</summary>
     public string Name { get; }
 
     /// <summary>移动速度输入框按它从 EC 取格式、上下限。</summary>

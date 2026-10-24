@@ -27,7 +27,7 @@ public partial class ModuleChip : UserControl
     }
 
     /// <summary>
-    /// 框里的字（模块名，sc 原样）
+    /// 框里的字（模块名，machine.xml 原样）
     /// </summary>
     public string Text
     {

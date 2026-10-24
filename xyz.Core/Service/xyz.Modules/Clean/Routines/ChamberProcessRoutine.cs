@@ -8,7 +8,7 @@ using xyz.Shared.Errors;
 namespace xyz.Modules;
 
 /// <summary>
-/// 腔体按工艺配方做一次工艺（平台默认做法，照 sc 里挂的设备走），建的时候按配方快照把步骤排好：
+/// 腔体按工艺配方做一次工艺（平台默认做法，照 machine.xml 里挂的设备走），建的时候按配方快照把步骤排好：
 /// 先把喷嘴全关、Lift 升（摆臂要越过 Bowl 壁）、Bowl 升（围住盘面挡液）；然后配方一步一步做——
 /// 先关掉这一步不用的喷嘴（卡盘加减速时不让上一步的药液接着喷），转速给卡盘；
 /// 选了摆臂的，别的摆臂回 Home、这条摆到"位置"，开它上面药液对得上的喷嘴（有流量设定 AO 的先给流量）；
@@ -20,7 +20,7 @@ namespace xyz.Modules;
 /// </summary>
 public sealed class ChamberProcessRoutine : ModuleRoutine
 {
-    // 配方字段名（sc.xml ProcessRecipe → Fields 下的节点名）：执行认这几个名字。时间是 RecipeField.SecondsKey。
+    // 配方字段名（machine.xml ProcessRecipe → Fields 下的节点名）：执行认这几个名字。时间是 RecipeField.SecondsKey。
     private const string RpmKey = "Rpm";
     private const string ArmKey = "Arm";
     private const string ChemicalKey = "Chemical";

@@ -6,7 +6,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Presentation.Models;
 
 /// <summary>
-/// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，示教点表 / 伸出方向 Direction / 伸出距离 Y（Stations / Direction / Y）、轴坐标都由后端按 sc.xml 配置推过来。
+/// 机械手显示模型，界面上的 Robot 控件直接绑它；只做显示，示教点表 / 伸出方向 Direction / 伸出距离 Y（Stations / Direction / Y）、轴坐标都由后端按 machine.xml 配置推过来。
 /// 状态推送来了就地刷新：手臂按手指号保留同一实例，控件的运动动画不会因为换实例被打断。
 /// Robot 手动页右栏、调度图（DispatchMap，Robot 手动页和主界面共用）都用它。
 /// </summary>
@@ -122,7 +122,7 @@ public class RobotModel : ObservableObject
 
     private RobotDirection _direction;
 
-    /// <summary>伸出方向：当前站点在 sc.xml 里配置的 Direction（<see cref="RobotDirection"/>）。</summary>
+    /// <summary>伸出方向：当前站点在 machine.xml 里配置的 Direction（<see cref="RobotDirection"/>）。</summary>
     public RobotDirection Direction
     {
         get => _direction;
@@ -137,7 +137,7 @@ public class RobotModel : ObservableObject
 
     private double _y;
 
-    /// <summary>伸出距离：当前站点在 sc.xml 里配置的 Y（数值）。</summary>
+    /// <summary>伸出距离：当前站点在 machine.xml 里配置的 Y（数值）。</summary>
     public double Y
     {
         get => _y;
@@ -146,7 +146,7 @@ public class RobotModel : ObservableObject
 
     private List<string> _stations = [];
 
-    /// <summary>示教点表里的全部站点名（后端 sc.xml 配置），界面下拉用。</summary>
+    /// <summary>示教点表里的全部站点名（后端 machine.xml 配置），界面下拉用。</summary>
     public List<string> Stations
     {
         get => _stations;
@@ -189,7 +189,7 @@ public class RobotModel : ObservableObject
 
     private int _armCount;
 
-    /// <summary>手指数：sc.xml 轴表里 Arm* 的个数（后端下发，1~4）；还没收到状态时为 0。</summary>
+    /// <summary>手指数：machine.xml 轴表里 Arm* 的个数（后端下发，1~4）；还没收到状态时为 0。</summary>
     public int ArmCount
     {
         get => _armCount;
@@ -204,7 +204,7 @@ public class RobotModel : ObservableObject
 
     private List<RobotAxisModel> _axisPositions = [];
 
-    /// <summary>各轴当前坐标（扫描查询刷新）：按 sc.xml 轴表整表列出，轴名总在；坐标还没查到或没连上为 null，显示"—"。</summary>
+    /// <summary>各轴当前坐标（扫描查询刷新）：按 machine.xml 轴表整表列出，轴名总在；坐标还没查到或没连上为 null，显示"—"。</summary>
     public List<RobotAxisModel> AxisPositions
     {
         get => _axisPositions;
@@ -348,7 +348,7 @@ public class RobotModel : ObservableObject
             .Select(axis => new RobotAxisModel { Name = axis.Name, Position = axis.Position })
             .ToList();
 
-        // 手指数以 sc.xml 轴表为准；后端没给（驱动没配）时才按推送过的最大手指号、账上登记的手指数推。
+        // 手指数以 machine.xml 轴表为准；后端没给（驱动没配）时才按推送过的最大手指号、账上登记的手指数推。
         if (dto.ArmCount > 0)
         {
             ArmCount = Math.Clamp(dto.ArmCount, 1, MaxArmCount);

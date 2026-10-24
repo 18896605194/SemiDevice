@@ -11,7 +11,7 @@ public class DiSensorModel : ObservableObject
     private bool _isPresent;
 
     /// <summary>
-    /// sc 里配了这个信号
+    /// machine.xml 里配了这个信号
     /// </summary>
     public bool IsPresent
     {
@@ -22,7 +22,7 @@ public class DiSensorModel : ObservableObject
     private string _name = string.Empty;
 
     /// <summary>
-    /// sc 里的节点名
+    /// machine.xml 里的节点名
     /// </summary>
     public string Name
     {
@@ -42,7 +42,7 @@ public class DiSensorModel : ObservableObject
     }
 
     /// <summary>
-    /// 用推送就地刷新；dto 为 null 是 sc 里没配
+    /// 用推送就地刷新；dto 为 null 是 machine.xml 里没配
     /// </summary>
     public void Update(DiSensorDto? dto)
     {

@@ -21,11 +21,11 @@ public class DataChartService : IDataChartService
     public DataChartService()
     {
         _chart = IocHelper.GetService<IDataChart>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     /// <summary>
-    /// 能选的信号就是正在记的那些——sc.xml 里配置了的（组件上的 SV + 组件绑的 IO），顺序、层级跟 sc.xml 一样；
+    /// 能选的信号就是正在记的那些——machine.xml 里配置了的（组件上的 SV + 组件绑的 IO），顺序、层级跟 machine.xml 一样；
     /// 库里记的也正是这些，所以列出来的一定查得到。
     /// </summary>
     public Task<RpcResponse> GetSignalsAsync(RpcRequest request, CallContext context = default)

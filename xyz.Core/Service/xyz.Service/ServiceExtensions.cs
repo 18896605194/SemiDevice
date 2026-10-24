@@ -19,11 +19,11 @@ namespace xyz.Service;
 public static class ServiceExtensions
 {
     /// <summary>
-    /// 注册 xyz 后端：照 sc.xml 装组件树，组件、GEM 编号表、gRPC 服务进容器。不开机，组件等容器建好以后由 <see cref="StartComponents"/> 起
+    /// 注册 xyz 后端：照 machine.xml 装组件树，组件、GEM 编号表、gRPC 服务进容器。不开机，组件等容器建好以后由 <see cref="StartComponents"/> 起
     /// </summary>
     public static IServiceCollection AddXyzServices(this IServiceCollection services)
     {
-        var settings = SC.Load();
+        var settings = MachineXml.Load();
         services.AddSingleton<IReadOnlyList<ModuleConfig>>(settings);
 
         var roots = ComponentLoader.Load(settings);
@@ -58,10 +58,10 @@ public static class ServiceExtensions
         }
         else
         {
-            LogHelper.Warn("EC", "sc.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
+            LogHelper.Warn("EC", "machine.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
         }
 
-        IocHelper.GetRequiredService<GemCollectors>().Merge(roots, SC.ConfigDirectory);
+        IocHelper.GetRequiredService<GemCollectors>().Merge(roots, MachineXml.ConfigDirectory);
 
         ComponentLoader.InitAll(roots);
         ComponentLoader.BindAll(roots);
@@ -133,7 +133,7 @@ public static class ServiceExtensions
     {
         if (IocHelper.GetService<T>() is null)
         {
-            throw new InvalidOperationException($"sc.xml 没配 {node} 节点（{what}），这是必配的");
+            throw new InvalidOperationException($"machine.xml 没配 {node} 节点（{what}），这是必配的");
         }
     }
 }

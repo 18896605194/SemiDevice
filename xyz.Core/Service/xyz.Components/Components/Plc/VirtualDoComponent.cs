@@ -20,7 +20,7 @@ public class VirtualDoComponent : ComponentBase, IVirtualDo
     /// </summary>
     public const int LastIndex = 5999;
 
-    #region SC
+    #region Machine
 
     [Machine("-1", "VirtualOutput", "全局唯一点号：虚拟 DO 5000~5999", Required = true)]
     public int Index { get; set; } = -1;

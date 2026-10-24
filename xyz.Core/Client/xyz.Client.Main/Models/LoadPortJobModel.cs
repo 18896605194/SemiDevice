@@ -18,7 +18,7 @@ public sealed class LoadPortJobModel : ObservableObject
         Name = name;
     }
 
-    /// <summary>LoadPort 模块名（sc.xml 原样，如 LoadPort1），也是页签上的字和状态推送的 token。</summary>
+    /// <summary>LoadPort 模块名（machine.xml 原样，如 LoadPort1），也是页签上的字和状态推送的 token。</summary>
     public string Name { get; }
 
     private string _carrierId = string.Empty;
@@ -50,7 +50,7 @@ public sealed class LoadPortJobModel : ObservableObject
 
     private int _slotCount;
 
-    /// <summary>花篮槽数（sc.xml LoadPort 的 SlotCount）；还没收到推送为 0，槽位表是空的。</summary>
+    /// <summary>花篮槽数（machine.xml LoadPort 的 SlotCount）；还没收到推送为 0，槽位表是空的。</summary>
     public int SlotCount
     {
         get => _slotCount;

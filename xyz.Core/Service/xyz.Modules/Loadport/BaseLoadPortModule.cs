@@ -34,7 +34,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     #endregion
 
-    #region SC 
+    #region Machine 
 
     [Machine("True", "LoadPort", "是否启用本 LoadPort (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
@@ -196,7 +196,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
     // 设备做完了、但 Mapping 结果不能用：槽数对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的跟账对不上，都报这一条；
     // EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条（只报警）
-    [Alarm("LoadPort Mapping 异常", AlarmCategory.DataIntegrity, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 时扫到的、或自动跑货 Unload 关门前扫到的 Mapping 不能用：槽数跟 sc.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态（Unload 对账不符时门没关）。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备（或扫片机械手）的槽数设置和 sc.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
+    [Alarm("LoadPort Mapping 异常", AlarmCategory.DataIntegrity, AlarmLevel = AlarmLevel.Alarm1, Description = "Load 时扫到的、或自动跑货 Unload 关门前扫到的 Mapping 不能用：槽数跟 machine.xml 的 SlotCount 对不上，有交叉片、叠片、认不出的槽，或者 Unload 时扫到的片跟晶圆账对不上；动作判失败，LoadPort 停在错误状态（Unload 对账不符时门没关）。另外 EC AutoUnload 关着时载具干完、Load 时的槽图跟晶圆账对不上也报这一条，这种只报警，端口不停", Solution = "看报警前后的日志：槽数不对就核对 LoadPort 设备（或扫片机械手）的槽数设置和 machine.xml 的 SlotCount；交叉片、叠片就复位、Home 关门，把盒子拿下来理好片再放上 Load；Unload 对账不符就按实物在账单调整页改账，再复位、Home；干完对账不符就按日志里的槽号查实物，在账单调整页改账")]
     public string SlotMapAlarm = nameof(SlotMapAlarm);
 
     #endregion
@@ -204,7 +204,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     #region Component
 
     /// <summary>
-    /// 设备通道（sc 里本端口下的 Driver 节点）：项目的 LoadPort 类用它发指令
+    /// 设备通道（machine.xml 里本端口下启用的那条：串口或网口）：项目的 LoadPort 类用它发指令
     /// </summary>
     public IDeviceDriverComponent? _driver { get; private set; }
 
@@ -292,7 +292,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var carrier = FindChild<ICarrier>();
         if (carrier is null)
         {
-            throw new InvalidOperationException($"LoadPort {Name} 的 sc.xml 节点下没配 _carrier 子组件（实现 ICarrier 的组件，平台默认 Type=xyz.Modules.CarrierComponent）。");
+            throw new InvalidOperationException($"LoadPort {Name} 的 machine.xml 节点下没配 _carrier 子组件（实现 ICarrier 的组件，平台默认 Type=xyz.Modules.CarrierComponent）。");
         }
 
         // 读头交给载具读码用；没配读头为 null（这个端口不读码，ID 由 Host 给）。
@@ -322,7 +322,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         }
         else
         {
-            LogHelper.Error(Name, "sc.xml 没挂设备通道：本端口下要有 Driver 子节点（Type=xyz.Components.Components.DeviceDriverComponent）");
+            LogHelper.Error(Name, "machine.xml 没有启用的设备通道：本端口下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
         }
 
         #endregion
@@ -340,7 +340,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     private IEapNotifierComponent? _notifier;
 
     /// <summary>
-    /// 替这个口扫片的机械手（sc 开了 MapEnabled、示教点表里有这个口）；没有是 null，自己扫
+    /// 替这个口扫片的机械手（machine.xml 开了 MapEnabled、示教点表里有这个口）；没有是 null，自己扫
     /// </summary>
     private ITransferRobot? _mapRobot;
 
@@ -352,7 +352,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         _mapRobot = FindMapRobot();
         if (_mapRobot is not null && _transfers is null)
         {
-            throw new InvalidOperationException($"{Name} 要机械手 {_mapRobot.Name} 扫片，要经搬运管理排队，但 sc.xml 没配 Transfer 节点。");
+            throw new InvalidOperationException($"{Name} 要机械手 {_mapRobot.Name} 扫片，要经搬运管理排队，但 machine.xml 没配 Transfer 节点。");
         }
     }
 
@@ -372,7 +372,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             if (found is not null)
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 里机械手 {found.Name}、{robot.Name} 都开了 MapEnabled、示教点表里都有 {Name}，不知道该谁扫这个口，只能留一台。");
+                    $"machine.xml 里机械手 {found.Name}、{robot.Name} 都开了 MapEnabled、示教点表里都有 {Name}，不知道该谁扫这个口，只能留一台。");
             }
 
             found = robot;
@@ -1179,7 +1179,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var slotMap = map.Slots;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽{RawText(map)}，没落账");
+            LogHelper.Error(Name, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，machine.xml 配的是 {SlotCount} 槽{RawText(map)}，没落账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -1212,7 +1212,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var slotMap = map.Slots;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，sc 配的是 {SlotCount} 槽{RawText(map)}，没法对账");
+            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，machine.xml 配的是 {SlotCount} 槽{RawText(map)}，没法对账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -1682,7 +1682,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var loadedMap = _carrier.SlotMap;
         if (loadedMap.Count != SlotCount)
         {
-            LogHelper.Warn(Name, $"载具干完了，但 Load 时的槽图是 {loadedMap.Count} 槽、sc 配的是 {SlotCount} 槽，没法对账");
+            LogHelper.Warn(Name, $"载具干完了，但 Load 时的槽图是 {loadedMap.Count} 槽、machine.xml 配的是 {SlotCount} 槽，没法对账");
             return;
         }
 

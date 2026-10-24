@@ -3,7 +3,7 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// Job 历史查询：按 CJ 建的时刻查一段时间里的 CJ，可再按关键字筛；最多返回多少个按后端 sc.xml 配置（取最新的）。
+/// Job 历史查询：按 CJ 建的时刻查一段时间里的 CJ，可再按关键字筛；最多返回多少个按后端 machine.xml 配置（取最新的）。
 /// 时间用本机时间，传过去只保留刻度。
 /// </summary>
 [ProtoContract]

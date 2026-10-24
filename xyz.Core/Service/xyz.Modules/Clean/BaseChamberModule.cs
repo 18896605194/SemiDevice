@@ -15,7 +15,7 @@ using xyz.Tools;
 namespace xyz.Modules;
 
 /// <summary>
-/// 腔体模块基类：回零、复位、中止、按工艺配方做工艺、手动页的设备动作、状态推送平台都写好了，照 sc 里这个腔体下挂的设备去发；
+/// 腔体模块基类：回零、复位、中止、按工艺配方做工艺、手动页的设备动作、状态推送平台都写好了，照 machine.xml 里这个腔体下挂的设备去发；
 /// 机型只在步骤不一样时重写 AddXxxSteps，要加条件重写 XxxInterlock（先调 base）
 /// </summary>
 public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
@@ -56,7 +56,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("True", "Chamber", "是否启用本腔体 (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
@@ -112,7 +112,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Bool, @default: "True",
-        description: "起工艺前看不看供液就绪（sc Supply 配的供液模块）；False = 不看，调试时供液还没调好用")]
+        description: "起工艺前看不看供液就绪（machine.xml Supply 配的供液模块）；False = 不看，调试时供液还没调好用")]
     public bool SupplyCheckEnabled
     {
         get { return !bool.TryParse(GetEcString(nameof(SupplyCheckEnabled)), out bool enabled) || enabled; }
@@ -139,7 +139,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     #region Component
 
-    // 腔体里装的设备：组件初始化时照 sc 认一次存起来（sc.xml 这个腔体节点下面挂的），节点名只标识实例，按接口认用途
+    // 腔体里装的设备：组件初始化时照 machine.xml 认一次存起来（machine.xml 这个腔体节点下面挂的），节点名只标识实例，按接口认用途
 
     /// <summary>
     /// 腔门；没装为 null
@@ -147,7 +147,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public IChamberDoor? Door { get; private set; }
 
     /// <summary>
-    /// 接液杯，可以多层，按 sc 的先后
+    /// 接液杯，可以多层，按 machine.xml 的先后
     /// </summary>
     public IReadOnlyList<IChamberBowl> Bowls { get; private set; } = [];
 
@@ -157,22 +157,22 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     public ISpinMotor? SpinMotor { get; private set; }
 
     /// <summary>
-    /// 摆臂（它上面的 Lift、喷嘴在摆臂组件上），按 sc 的先后
+    /// 摆臂（它上面的 Lift、喷嘴在摆臂组件上），按 machine.xml 的先后
     /// </summary>
     public IReadOnlyList<ISwingArm> Arms { get; private set; } = [];
 
     /// <summary>
-    /// 所有轴（卡盘、摆臂……），按 sc 的先后（先父后子）
+    /// 所有轴（卡盘、摆臂……），按 machine.xml 的先后（先父后子）
     /// </summary>
     public IReadOnlyList<IAxis> Axes { get; private set; } = [];
 
     /// <summary>
-    /// 所有双作用气缸（门、Bowl、Lift……），按 sc 的先后（先父后子）
+    /// 所有双作用气缸（门、Bowl、Lift……），按 machine.xml 的先后（先父后子）
     /// </summary>
     public IReadOnlyList<ICylinder> Cylinders { get; private set; } = [];
 
     /// <summary>
-    /// 所有喷嘴，按 sc 的先后（先父后子）
+    /// 所有喷嘴，按 machine.xml 的先后（先父后子）
     /// </summary>
     public IReadOnlyList<INozzle> Nozzles { get; private set; } = [];
 
@@ -197,7 +197,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     private ISystemModule? _system;
 
     /// <summary>
-    /// 这个腔体用的供液模块：开机 Bind 时按 SC Supply 配的名字取好
+    /// 这个腔体用的供液模块：开机 Bind 时按 machine.xml Supply 配的名字取好
     /// </summary>
     private IReadOnlyList<ISupplyAccess> _supplies = [];
 
@@ -209,7 +209,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     /// <summary>
     /// 取放准备二：卡盘转到取放片示教位（卡盘 EC TransferPosition）、开腔门，都到位才算准备好（进 TransferReady），机械手才伸手进来。
-    /// sc 里卡盘、门都没配的照旧直接准备好。自动跑货、机械手手动页的取放都经搬运管理走到这里。转不到位、门开不了（卡盘没回零、到位超时、PLC 断了）
+    /// machine.xml 里卡盘、门都没配的照旧直接准备好。自动跑货、机械手手动页的取放都经搬运管理走到这里。转不到位、门开不了（卡盘没回零、到位超时、PLC 断了）
     /// 准备判失败、腔体落 Error，搬运那边按"第 2 步准备失败"收场；卡盘、腔门气缸自己报到位超时
     /// </summary>
     protected override ModuleRoutine? PrepareTransfer2Core(TransferContext context)
@@ -227,7 +227,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
 
     /// <summary>
     /// 取放准备二：卡盘转到取放位、开门同时发（转位和开门互不碰，同时做省时间），都到位才算准备好。
-    /// 卡盘先发：没回零（绝对定位发不出去）就直接失败，门不开。sc 里没配卡盘或门的那一样就不动；机型做法不一样就重写
+    /// 卡盘先发：没回零（绝对定位发不出去）就直接失败，门不开。machine.xml 里没配卡盘或门的那一样就不动；机型做法不一样就重写
     /// </summary>
     protected virtual void AddPrepareTransferSteps(ModuleRoutine prepare)
     {
@@ -257,7 +257,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region 组件初始化
 
     /// <summary>
-    /// 组件初始化（开机，不动硬件）：照 sc 认一遍腔体里装的设备存起来（停用的腔体也认，推送、手动页照样看得到）；
+    /// 组件初始化（开机，不动硬件）：照 machine.xml 认一遍腔体里装的设备存起来（停用的腔体也认，推送、手动页照样看得到）；
     /// 启用的再登记晶圆账槽位，子组件交给基类递归。只能装一个的（腔门、卡盘）配重了开机就报
     /// </summary>
     public override bool InitComponent()
@@ -325,7 +325,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 开机 Bind：取工艺配方库、整机，按 SC Supply 取供液模块，开工片数读回今天那行接着数
+    /// 开机 Bind：取工艺配方库、整机，按 machine.xml Supply 取供液模块，开工片数读回今天那行接着数
     /// </summary>
     public override void Bind()
     {
@@ -338,7 +338,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 按 SC Supply 配的名字取到供液模块（不分大小写，重复的只取一次）：配了却没有这个模块，开机就报；停用的腔体不起工艺，不取
+    /// 按 machine.xml Supply 配的名字取到供液模块（不分大小写，重复的只取一次）：配了却没有这个模块，开机就报；停用的腔体不起工艺，不取
     /// </summary>
     private void BindSupplies()
     {
@@ -351,7 +351,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 var supply = all.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
                 if (supply is null)
                 {
-                    throw new InvalidOperationException($"sc.xml 节点 {FullPath} 的 Supply 配了 {name}，但没有这个供液模块（没配或停用了）。");
+                    throw new InvalidOperationException($"machine.xml 节点 {FullPath} 的 Supply 配了 {name}，但没有这个供液模块（没配或停用了）。");
                 }
 
                 if (!supplies.Contains(supply))
@@ -395,7 +395,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     }
 
     /// <summary>
-    /// 片位表：按 SlotCount 逐位查晶圆账；账上没注册这个腔体（停用、或 sc.xml 没配晶圆账）时全给空
+    /// 片位表：按 SlotCount 逐位查晶圆账；账上没注册这个腔体（停用、或 machine.xml 没配晶圆账）时全给空
     /// </summary>
     private List<ChamberSlotDto> CreateSlotDtos()
     {
@@ -480,7 +480,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     private volatile ChamberDeviceDataDto? _lastPublishedDeviceData;
 
     /// <summary>
-    /// 设备状态快照，结构跟 sc 一样：门、Bowl、卡盘、各条摆臂（摆臂下面是它的 Lift 和喷嘴）
+    /// 设备状态快照，结构跟 machine.xml 一样：门、Bowl、卡盘、各条摆臂（摆臂下面是它的 Lift 和喷嘴）
     /// </summary>
     public ChamberDeviceDataDto CreateDeviceDataDto()
     {
@@ -649,7 +649,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     #region 动作入口：状态 → 资源 → 互锁
 
     // 跟 LoadPort、机械手同一套：每个动作的入口在模块锁里按 状态 → 资源 → 互锁 查（三项怎么分见 BaseModule"动作检查"区），
-    // 哪项不过就带原因返回、腔体不动，都过了才挂上动作。每个动作的步骤平台给默认（照 sc 里挂的设备发），
+    // 哪项不过就带原因返回、腔体不动，都过了才挂上动作。每个动作的步骤平台给默认（照 machine.xml 里挂的设备发），
     // 机型步骤不一样才重写 AddXxxSteps，要加条件重写 XxxInterlock（先调 base）。
 
     /// <summary>
@@ -690,7 +690,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
     /// <summary>
     /// 回零：喷嘴全关 → 卡盘停转 → Lift 升 → 摆臂、卡盘（和别的轴）回零 → Bowl 降，门不动（门归站点交互环管）。
     /// Lift 先升起来，摆臂回零时才不会刮到 Bowl 壁；卡盘要先停稳再回零，回过零取放准备才能按绝对位置转到取放位。
-    /// sc 里没配的设备那一步就不加；机型的先后不一样就重写
+    /// machine.xml 里没配的设备那一步就不加；机型的先后不一样就重写
     /// </summary>
     protected virtual void AddHomeSteps(ModuleRoutine home)
     {

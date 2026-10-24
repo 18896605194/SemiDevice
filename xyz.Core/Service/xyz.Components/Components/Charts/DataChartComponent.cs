@@ -20,12 +20,12 @@ namespace xyz.Components.Components;
 [Component(description: "数据曲线（每秒采样入库，按名字、按时间查询）")]
 public class DataChartComponent : ComponentBase, IDataChart
 {
-    #region SC
+    #region Machine
 
     [Machine("True", "DataChart", "是否入库（False = 只采样给实时曲线，不写库，数据曲线页查不到新数据）")]
     public bool EnableRecord { get; set; } = true;
 
-    [Machine("Io", "DataChart", "落哪个库（sc.xml 的 Database 节点名）：秒级不停写，走单独的 Io 库，不跟业务数据挤")]
+    [Machine("Io", "DataChart", "落哪个库（machine.xml 的 Database 节点名）：秒级不停写，走单独的 Io 库，不跟业务数据挤")]
     public string Database { get; set; } = "Io";
 
     [Machine("30", "DataChart", "保留天数：按天一张表，超期的整张删，每天清一次")]
@@ -131,7 +131,7 @@ public class DataChartComponent : ComponentBase, IDataChart
             + (EnableRecord ? $"，入 {Database} 库、保留 {KeepDays} 天" : "，不入库（EnableRecord=False）"));
         if (!IsRun)
         {
-            LogHelper.Warn(Name, "sc.xml 的 DataChart 节点没配 IsRun=true：不采样，数据曲线、实时曲线都没有新数据");
+            LogHelper.Warn(Name, "machine.xml 的 DataChart 节点没配 IsRun=true：不采样，数据曲线、实时曲线都没有新数据");
         }
 
         if (EnableRecord)
@@ -169,8 +169,8 @@ public class DataChartComponent : ComponentBase, IDataChart
     }
 
     /// <summary>
-    /// 信号表：照 sc.xml 装出来的组件树按顺序走一遍，每个组件先记它能画成曲线的 SV，再记它绑的 IO——
-    /// 顺序、层级都跟 sc.xml 一样。Exclude 里的不要。
+    /// 信号表：照 machine.xml 装出来的组件树按顺序走一遍，每个组件先记它能画成曲线的 SV，再记它绑的 IO——
+    /// 顺序、层级都跟 machine.xml 一样。Exclude 里的不要。
     /// </summary>
     private IReadOnlyList<DataSignal> BuildSignals(IReadOnlyList<ComponentBase> roots)
     {
@@ -220,7 +220,7 @@ public class DataChartComponent : ComponentBase, IDataChart
                     if (!warnedNoIo)
                     {
                         warnedNoIo = true;
-                        LogHelper.Warn(Name, "sc.xml 没配 Io 节点：组件绑的 IO 都读不到，数据曲线只记 SV");
+                        LogHelper.Warn(Name, "machine.xml 没配 Io 节点：组件绑的 IO 都读不到，数据曲线只记 SV");
                     }
 
                     break;
@@ -240,13 +240,13 @@ public class DataChartComponent : ComponentBase, IDataChart
     }
 
     /// <summary>
-    /// sc.xml 里绑 IO 的配置项：int 型的 SC 配置、名字里带 Di / Do / Ai / Ao、以 Index 结尾
+    /// machine.xml 里绑 IO 的配置项：int 型的 machine.xml 配置、名字里带 Di / Do / Ai / Ao、以 Index 结尾
     /// （DiOpenedIndex、DoIndex、AiIndex、MonitoringDoIndex、DiValidIndex……），-1 表示没接线。
     /// </summary>
     private static readonly Regex BindingPattern = new("^[A-Za-z]*?(Di|Do|Ai|Ao)[A-Za-z0-9]*Index$", RegexOptions.Compiled);
 
     /// <summary>
-    /// 一个组件在 sc.xml 里绑的 IO：信号名 = 组件全路径 + 配置项名去掉 Index，层级用 __ 隔开；DI 组件只有一个点，信号名就是组件全路径
+    /// 一个组件在 machine.xml 里绑的 IO：信号名 = 组件全路径 + 配置项名去掉 Index，层级用 __ 隔开；DI 组件只有一个点，信号名就是组件全路径
     /// </summary>
     private static IEnumerable<(string Name, string Type, int Index)> IoBindings(ComponentBase component)
     {
@@ -322,7 +322,7 @@ public class DataChartComponent : ComponentBase, IDataChart
 
         if (point is null)
         {
-            LogHelper.Warn(Name, $"sc.xml 里 {name} 绑了 {type}{index}，点表里没有这个点，数据曲线这一列会一直是空的");
+            LogHelper.Warn(Name, $"machine.xml 里 {name} 绑了 {type}{index}，点表里没有这个点，数据曲线这一列会一直是空的");
         }
 
         Func<double?> read;
@@ -513,7 +513,7 @@ public class DataChartComponent : ComponentBase, IDataChart
 
         if (!XyzDb.IsRegistered(Database))
         {
-            LogHelper.Warn(Name, $"数据曲线库 {Database} 没在 sc.xml 的 Database 节点里配，落到默认库");
+            LogHelper.Warn(Name, $"数据曲线库 {Database} 没在 machine.xml 的 Database 节点里配，落到默认库");
         }
 
         // WAL 是 SQLite 自己的设置，SqlSugar 没有对应的接口；换了别的库就不用切

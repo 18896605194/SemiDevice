@@ -143,12 +143,12 @@ public class MainPageViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 右栏的页签：sc.xml 里配了几个 LoadPort 就几个，先后跟 sc.xml 一样。
+    /// 右栏的页签：machine.xml 里配了几个 LoadPort 就几个，先后跟 machine.xml 一样。
     /// </summary>
     public ObservableCollection<LoadPortJobModel> LoadPorts { get; }
 
     /// <summary>
-    /// 有没有 LoadPort：没有（启动时没连上后端，或 sc.xml 没配）时右栏显示一句提示。
+    /// 有没有 LoadPort：没有（启动时没连上后端，或 machine.xml 没配）时右栏显示一句提示。
     /// </summary>
     public bool HasLoadPorts => LoadPorts.Count > 0;
 
@@ -604,7 +604,7 @@ public class MainPageViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 创建 Job：当前页签选了 Sequence 的片交给后端（同一个 Sequence 的片一个 PJ，整篮一个 CJ，名字用 LotID），启动方式由设备 SC 配置决定。
+    /// 创建 Job：当前页签选了 Sequence 的片交给后端（同一个 Sequence 的片一个 PJ，整篮一个 CJ，名字用 LotID），启动方式由设备 machine.xml 配置决定。
     /// 建没建成看回包；之后的进展看 Job 推送。
     /// </summary>
     private async Task DoCreateJob()

@@ -28,7 +28,7 @@ public class RecipeData
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 给哪种站点用（sc 里站点配的 Type）：只在 Type 一样的腔体上跑，步骤下拉的选项也按它取。
+    /// 给哪种站点用（machine.xml 里站点配的 Type）：只在 Type 一样的腔体上跑，步骤下拉的选项也按它取。
     /// </summary>
     [XmlAttribute]
     public string Type { get; set; } = string.Empty;

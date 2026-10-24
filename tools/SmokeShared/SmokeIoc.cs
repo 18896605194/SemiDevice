@@ -28,7 +28,7 @@ static class SmokeIoc
     }
 
     /// <summary>
-    /// 照 sc 装一棵树（宿主开机装配那一步），装出来的组件都进容器
+    /// 照 machine.xml 装一棵树（宿主开机装配那一步），装出来的组件都进容器
     /// </summary>
     public static List<ComponentBase> Load(IEnumerable<ModuleConfig> settings)
     {

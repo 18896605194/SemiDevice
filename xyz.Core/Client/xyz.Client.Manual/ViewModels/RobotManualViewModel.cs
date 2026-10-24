@@ -103,15 +103,15 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 源手臂下拉：源站点许取片的手指（sc.xml 机械手站点节点的 PickArms，没配就是所有手指）
+    /// 源手臂下拉：源站点许取片的手指（machine.xml 机械手站点节点的 PickArms，没配就是所有手指）
     /// </summary>
     public ObservableCollection<int> SourceArmOptions { get; } = new();
 
-    /// <summary>源槽位下拉：1~源站点的槽数（站点模块在 sc.xml 里配的 SlotCount，LoadPort 25、腔体 1）。</summary>
+    /// <summary>源槽位下拉：1~源站点的槽数（站点模块在 machine.xml 里配的 SlotCount，LoadPort 25、腔体 1）。</summary>
     public ObservableCollection<int> SourceSlotOptions { get; } = new();
 
     /// <summary>
-    /// 目标手臂下拉：目标站点许放片的手指（sc.xml 机械手站点节点的 PlaceArms）
+    /// 目标手臂下拉：目标站点许放片的手指（machine.xml 机械手站点节点的 PlaceArms）
     /// </summary>
     public ObservableCollection<int> TargetArmOptions { get; } = new();
 
@@ -266,7 +266,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 从站点取片能用的手（sc.xml 站点节点的 PickArms）；站点还没选上时为空
+    /// 从站点取片能用的手（machine.xml 站点节点的 PickArms）；站点还没选上时为空
     /// </summary>
     private static IReadOnlyList<int> PickArmsOf(RobotStationModel? mark)
     {
@@ -279,7 +279,7 @@ public class RobotManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 往站点放片能用的手（sc.xml 站点节点的 PlaceArms）；站点还没选上时为空
+    /// 往站点放片能用的手（machine.xml 站点节点的 PlaceArms）；站点还没选上时为空
     /// </summary>
     private static IReadOnlyList<int> PlaceArmsOf(RobotStationModel? mark)
     {

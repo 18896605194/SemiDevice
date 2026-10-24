@@ -15,7 +15,7 @@ using xyz.Client.Presentation.Localization;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 
-// 腔体三维图冒烟：从后端的设备状态推送（ChamberDeviceDataDto，结构跟 sc 一样）取出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
+// 腔体三维图冒烟：从后端的设备状态推送（ChamberDeviceDataDto，结构跟 machine.xml 一样）取出门、Bowl、卡盘、摆臂（Lift、喷嘴）并搭建、摆臂工艺位对盘心 / Home 对接液杯、
 // 液柱落点、0.2 s 过渡（中途换目标不跳、隐藏时直接落位）、Lift 升降带动摆臂和液柱、门 / Bowl / Lift 跟到位反馈（未知停在行程中间、变红）、
 // 旋转跟状态、摆臂 / 卡盘轴报错变红、组成变化重搭、多于两条摆臂只画两条、视角工具栏（默认视角、俯视）、解绑。不连后端，推送直接喂显示模型。
 internal static class Program
@@ -86,7 +86,7 @@ internal static class Program
             Check(devices.Arms.Select(arm => arm.Path).SequenceEqual(["Chamber1.Arm1", "Chamber1.Arm2"])
                 && devices.Arms[0].Lift.Path == "Chamber1.Arm1.Lift"
                 && devices.Arms[1].Nozzles.Select(nozzle => nozzle.Path).SequenceEqual(["Chamber1.Arm2.Nozzle_DIW", "Chamber1.Arm2.Nozzle_SC1"]),
-                "摆臂按类名认，它下面的气缸是 Lift、阀按 sc 先后是喷嘴");
+                "摆臂按类名认，它下面的气缸是 Lift、阀按 machine.xml 先后是喷嘴");
 
             // 3. 工艺位：两路喷嘴的中点正对盘心，液柱落到盘面
             var center = disk.TransformToAncestor(plate).Transform(new Point3D());
@@ -266,7 +266,7 @@ internal static class Program
             devices.Update(State(arms: 1, door: false).ToDto());
             Pump(30);
             Check(devices.Revision == 2 && plate.Attachments.Count == 5 && !plate.Attachments.OfType<DoorVisual3D>().Any()
-                && plate.Attachments.OfType<ArmVisual3D>().Count() == 1, "组成变了重搭：sc 没配门就不画门，只剩一条摆臂");
+                && plate.Attachments.OfType<ArmVisual3D>().Count() == 1, "组成变了重搭：machine.xml 没配门就不画门，只剩一条摆臂");
             Check(!plate.Attachments.Contains(arms[1]) && !BindingOperations.IsDataBound(arms[1], HardwareVisual3D.IsMovingProperty),
                 "拆掉的摆臂解了绑定");
 
@@ -312,7 +312,7 @@ internal static class Program
 
             host.RootVisual = null;
             app.Shutdown();
-            Console.WriteLine($"PASS: {_checks} chamber scene checks (devices taken from the sc-shaped device push, device action labels, process/home alignment, stream landing, "
+            Console.WriteLine($"PASS: {_checks} chamber scene checks (devices taken from the device push shaped like machine.xml, device action labels, process/home alignment, stream landing, "
                 + "0.2 s transition with retarget and hidden settle, lift/door/bowl follow feedback with unknown mid-stroke in red, arm/spin red on axis error, spin direction, "
                 + "default-view / top-view toolbar below the view, rebuild, arm limit, unbind)");
             return 0;
@@ -452,7 +452,7 @@ internal static class Program
 }
 
 /// <summary>
-/// 冒烟用的设备状态：一项项改，ToDto() 换成后端推的设备状态（结构跟 sc 里 Chamber1 一样）：
+/// 冒烟用的设备状态：一项项改，ToDto() 换成后端推的设备状态（结构跟 machine.xml 里 Chamber1 一样）：
 /// Door、Bowl1、SpinMotor、ArmN（下面 Lift、Nozzle_DIW、Nozzle_SC1）。
 /// </summary>
 internal sealed class SceneState

@@ -99,7 +99,7 @@ public interface IChamber : IProcessStation
     ChamberDto CreateStateDto();
 
     /// <summary>
-    /// 设备状态快照，结构跟 sc 一样
+    /// 设备状态快照，结构跟 machine.xml 一样
     /// </summary>
     ChamberDeviceDataDto CreateDeviceDataDto();
 

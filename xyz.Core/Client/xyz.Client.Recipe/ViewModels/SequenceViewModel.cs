@@ -24,7 +24,7 @@ namespace xyz.Client.Recipe.ViewModels;
 /// <summary>
 /// 流程配方页 ViewModel（配方 → 流程配方）：左边编号 1~N 的列表（个数由后端给），右边选中那一个的基本信息、流程步骤、路线预览。
 /// 新建、重命名、删除是列表上的操作，马上生效；说明和步骤改完点"保存"才存，带上打开时的版本，别处改过就存不进去。
-/// 站点分组、模块名都来自后端 sc.xml，原样显示。后端推"变了"通知，这里攒一下再重拉；页面不在前台时只记一笔，切回来再拉。
+/// 站点分组、模块名都来自后端 machine.xml，原样显示。后端推"变了"通知，这里攒一下再重拉；页面不在前台时只记一笔，切回来再拉。
 /// </summary>
 public class SequenceViewModel : BaseViewModel
 {
@@ -499,7 +499,7 @@ public class SequenceViewModel : BaseViewModel
     private bool _isInstalled = true;
 
     /// <summary>
-    /// 可选的站点分组（来自后端 sc.xml）。
+    /// 可选的站点分组（来自后端 machine.xml）。
     /// </summary>
     private List<StationGroupModel> _groups = [];
 
@@ -801,7 +801,7 @@ public class SequenceViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 建一步：分组在可选分组里就列出这个分组的全部模块（勾上存过的）；分组在 sc.xml 里没了，就只列存过的站点并标红，让人删掉重加。
+    /// 建一步：分组在可选分组里就列出这个分组的全部模块（勾上存过的）；分组在 machine.xml 里没了，就只列存过的站点并标红，让人删掉重加。
     /// </summary>
     private SequenceStepModel CreateStep(string groupName, IEnumerable<string> stations, string recipe)
     {
@@ -930,7 +930,7 @@ public class SequenceViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 添加一步：在公共选择弹窗里选站点分组（列的是 sc.xml 的分组），新步骤插在选中那一步后面
+    /// 添加一步：在公共选择弹窗里选站点分组（列的是 machine.xml 的分组），新步骤插在选中那一步后面
     /// （选中最后一步时插在它前面），默认勾上这个分组的全部模块。
     /// </summary>
     private void DoAddStep()

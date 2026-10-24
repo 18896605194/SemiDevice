@@ -19,7 +19,7 @@ using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 using xyz.Tools;
 
-// 腔体冒烟：照 sc 认设备（轴表、气缸表、喷嘴表，门 / Bowl / Lift / 卡盘 / 摆臂和它上面的喷嘴），气缸三态、喷嘴、卡盘、摆臂 Reach，有变化才推；
+// 腔体冒烟：照 machine.xml 认设备（轴表、气缸表、喷嘴表，门 / Bowl / Lift / 卡盘 / 摆臂和它上面的喷嘴），气缸三态、喷嘴、卡盘、摆臂 Reach，有变化才推；
 // 动作入口跟 LoadPort、机械手一样走 状态 → 资源 → 互锁，被拒带原因（状态不允许带状态码、停用，复位 / 中止被拒再问原因）；
 // 设备手动动作（找不到、参数不对、指令没发出去、执行中 Manual、在途拒绝、Abort 顶替、失败、停用、停止腔体忙也照发、
 // 点动按住 / 续 / 松手 / 没续上自己停，以及各设备真走一遍）；平台默认的整腔动作：回零按先后走（卡盘也回零）、
@@ -27,7 +27,7 @@ using xyz.Tools;
 // 按工艺配方做工艺（Lift / Bowl 升、转速、摆到位置、开对的喷嘴、给流量、Time / Scan、收尾，失败停液、超时、中止、配方对不上）。
 // 工艺的开工片数（按天存库、开机读回来接着数）和进度百分比。部件寿命（次数：盯 DO 计次；时间：从清零起按实际时间算，或盯计时 DO 只算通着的，
 // 清零 DO 变了就清零重算；警告 / 报警、存库读回、清零）。虚拟 IO（虚拟 DO 按点号读写、不下发 PLC，寿命组件先读它）。
-// 起工艺前看供液就绪（腔体 sc 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
+// 起工艺前看供液就绪（腔体 machine.xml 上配供液模块名，开机按名字取，配错开机报，没就绪挡下，开工后掉了不管，EC 开关能关掉）。
 // 全用假 PLC 和内存 EC，不连设备、不读写配置文件；开工片数、寿命次数写进临时库。
 
 SmokeIoc.Reset();
@@ -100,7 +100,7 @@ try
 
     Check(door.InitComponent() && bowl.InitComponent() && lift.InitComponent() && diw.InitComponent() && sc1.InitComponent(),
         "门、Bowl、Lift、喷嘴的组件初始化：认出到位反馈、流量开关");
-    // 腔体自己的组件初始化（开机由装配器调）：照 sc 认一遍腔体里装的设备存起来；这时没装晶圆账，不登记槽位（第 17 节再测登记）
+    // 腔体自己的组件初始化（开机由装配器调）：照 machine.xml 认一遍腔体里装的设备存起来；这时没装晶圆账，不登记槽位（第 17 节再测登记）
     Check(chamber.InitComponent(), "腔体的组件初始化：认出腔体里装的设备");
     // 开机 Bind：设备取 IO 组件
     ComponentLoader.BindAll([chamber]);
@@ -240,7 +240,7 @@ try
     flexibleConfig.Children.Add(Node("Bowl99", typeof(CylinderComponent)));
     flexibleConfig.Children.Add(Node("InnerCup", typeof(ChamberBowlComponent)));
     var flexible = (SmokeChamber)SmokeIoc.Load([flexibleConfig]).Single();
-    Check(flexible.InitComponent(), "改名的腔体组件初始化：照 sc 认设备");
+    Check(flexible.InitComponent(), "改名的腔体组件初始化：照 machine.xml 认设备");
     Check(flexible.Door?.Name == "FrontGate", "改名的腔门按接口识别，普通气缸叫 Door 也不会被认成腔门");
     Check(flexible.Bowls.Select(item => item.Name).SequenceEqual(["OuterCup", "InnerCup"]),
         "多层接液杯按接口识别，普通气缸叫 Bowl99 也不会混进来");
@@ -306,26 +306,26 @@ try
     duplicateBlock.Children[3].Values[0].Value = "Spin.Command";
     RejectDuplicate(duplicateBlock, "轴命令块路径重复: Spin.Command", "摆臂跟卡盘配了同一个命令块（会抢着写同一块），开机报错");
 
-    // 1. 照 sc 认设备：轴表、气缸表、喷嘴表按 sc 先后（先父后子）；门、Bowl、Lift、卡盘、摆臂和它上面的喷嘴都认出来；WaferSensor 不在里面
+    // 1. 照 machine.xml 认设备：轴表、气缸表、喷嘴表按 machine.xml 先后（先父后子）；门、Bowl、Lift、卡盘、摆臂和它上面的喷嘴都认出来；WaferSensor 不在里面
     Check(chamber.Door == door && chamber.Bowls.SequenceEqual([bowl]) && chamber.SpinMotor == spin,
         "腔体按各部件接口认门、Bowl 和卡盘");
     Check(chamber.Arms.SequenceEqual([arm]) && arm.Lift == lift && arm.Nozzles.SequenceEqual([diw, sc1]),
         "摆臂按升降接口认 Lift，按喷嘴接口认药液");
     Check(chamber.Axes.SequenceEqual<IAxis>([spin, arm]) && chamber.Cylinders.SequenceEqual<ICylinder>([door, bowl, lift])
-        && chamber.Nozzles.SequenceEqual([diw, sc1]), "轴、气缸、喷嘴照 sc 的先后（先父后子）");
+        && chamber.Nozzles.SequenceEqual([diw, sc1]), "轴、气缸、喷嘴照 machine.xml 的先后（先父后子）");
     Check(chamber.FindArm("arm1") == arm && arm.FindNozzle("sc1") == sc1 && chamber.FindArm("Arm2") is null,
         "摆臂按节点名找、喷嘴按药液找，忽略大小写");
     var sc1Meter = sc1.FlowMeter ?? throw new InvalidOperationException("FAIL: SC1 下面挂了流量计，应认出来");
-    Check(diw.FlowMeter is null && sc1Meter.FullPath == "Chamber9.Arm1.Nozzle_SC1.Flow", "流量计照 sc、按 IAiSensor 认：SC1 下面挂了，DIW 没挂（没流量计）");
+    Check(diw.FlowMeter is null && sc1Meter.FullPath == "Chamber9.Arm1.Nozzle_SC1.Flow", "流量计照 machine.xml、按 IAiSensor 认：SC1 下面挂了，DIW 没挂（没流量计）");
     var dto = chamber.CreateDeviceDataDto();
     Check(dto.Module == "Chamber9", "设备快照带模块名");
     Check(dto.Door is not null && dto.Door.Path == "Chamber9.Door" && dto.Bowls.Select(item => item.Path).SequenceEqual(["Chamber9.Bowl1"])
-        && dto.Spin is not null && dto.Spin.Path == "Chamber9.SpinMotor", "跟 sc 一样：门、Bowl、卡盘各在各的位置");
+        && dto.Spin is not null && dto.Spin.Path == "Chamber9.SpinMotor", "跟 machine.xml 一样：门、Bowl、卡盘各在各的位置");
     var armDto = dto.Arms.Single();
     Check(armDto.Path == "Chamber9.Arm1" && armDto.Lift is not null && armDto.Lift.Path == "Chamber9.Arm1.Lift"
         && armDto.Nozzles.Select(nozzle => (nozzle.Path, nozzle.Chemical)).SequenceEqual([
             ("Chamber9.Arm1.Nozzle_DIW", "DIW"), ("Chamber9.Arm1.Nozzle_SC1", "SC1")]),
-        "摆臂下面是它的 Lift 和喷嘴（带药液），跟 sc 一样；WaferSensor 不在里面");
+        "摆臂下面是它的 Lift 和喷嘴（带药液），跟 machine.xml 一样；WaferSensor 不在里面");
     Check(armDto.HasPlcData && armDto.CurrentPosition == 0 && !armDto.IsError && !dto.Spin!.IsBusy, "轴的数据都是实打实的属性");
 
     // 2. 气缸三态：命令发到哪一侧就看那一侧到没到位，没到是未知；两个线圈都没通只看到位反馈；PLC 断了未知
@@ -363,7 +363,7 @@ try
     Check(sc1.Stop() && plc.Ao(1) == 0 && sc1Meter.Target == 0, "停液：AO 设定和流量计的目标都清零");
     sc1.ClearFlowOnStop = false;
     Check(sc1.SetFlow(2) && sc1.On() && sc1.Stop() && !plc.ReadDo(7) && plc.Ao(1) == 2 && sc1Meter.Target == 2,
-        "SC ClearFlowOnStop=False：停液只关阀，AO 设定和流量计目标保持上一步的");
+        "machine.xml ClearFlowOnStop=False：停液只关阀，AO 设定和流量计目标保持上一步的");
     sc1.ClearFlowOnStop = true;
     Check(sc1.Stop() && plc.Ao(1) == 0 && sc1Meter.Target == 0, "ClearFlowOnStop 改回 True：停液清零");
 
@@ -1363,7 +1363,7 @@ try
         SmokeIoc.Use<IAlarm>(previousAlarm);
     }
 
-    // 19. 起工艺前看供液就绪没有：腔体 SC Supply 配供液模块名（几个逗号隔开），开机 Bind 时按名字经 ISupplyAccess 取到（不分大小写、去空格、重复的只取一次；
+    // 19. 起工艺前看供液就绪没有：腔体 machine.xml Supply 配供液模块名（几个逗号隔开），开机 Bind 时按名字经 ISupplyAccess 取到（不分大小写、去空格、重复的只取一次；
     //     配了没有的开机就报，停用的腔体不取）；起工艺时有一个没就绪就挡下 chamber.supply_not_ready、腔体不动；没配的不看；只看开工这一下，喷的中途掉了也不管；
     //     EC SupplyCheckEnabled（默认开）关了不看，调试时供液还没调好用，改了当场生效
     var supplyRoots = SmokeIoc.Load([Node("IPA", typeof(SupplyProbe)), Node("H2SO4", typeof(SupplyProbe))]);
@@ -1426,7 +1426,7 @@ try
     chamber.Bind();
     Check(chamber.CheckProcess(useSupply) is null, "没配 Supply 的腔体：不看供液");
 
-    Console.WriteLine($"PASS: {checks} chamber checks (devices from sc: door, bowls, spin, swing arms with their lift and nozzles, push shaped like sc, "
+    Console.WriteLine($"PASS: {checks} chamber checks (devices from machine.xml: door, bowls, spin, swing arms with their lift and nozzles, push shaped like machine.xml, "
         + "cylinder tri-state, nozzle flow AO, spin / arm values, push on change with retained replay, device actions: not found, invalid args, "
         + "command rejected, Manual state, rejections with their reasons (state not allowed with the state code, disabled, reset / abort asked for the reason), "
         + "stop while busy, abort replacement, failure to Error, axis end to end, "
@@ -1440,7 +1440,7 @@ try
         + "warn / alarm thresholds, read back, clear on part change; a time lifetime counting only while a DO is on (monotonic clock, "
         + "saved by adding whole seconds, read back) or restarted by every change of a DO, the same DO for both refused at load; "
         + "virtual IO (virtual DO by index in memory, read first by the lifetimes); "
-        + "supply readiness checked when a process starts: the chamber's supplies named in sc and bound by name at startup, a missing name failing startup, "
+        + "supply readiness checked when a process starts: the chamber's supplies named in machine.xml and bound by name at startup, a missing name failing startup, "
         + "a disabled chamber not binding, any not-ready supply refusing the start, no supplies configured means no check, a supply drop after the start ignored, "
         + "the EC switch turning the check off and back on at once)");
     return 0;
@@ -1623,7 +1623,7 @@ public sealed class InterfaceBowlProbe : InterfaceCylinderProbe, IChamberBowl
 }
 
 /// <summary>
-/// 冒烟用的供液模块：只实现给别的模块用的那一面，名字照 sc 节点名，就绪由冒烟摆；证明腔体按接口、按 sc 配的名字取
+/// 冒烟用的供液模块：只实现给别的模块用的那一面，名字照 machine.xml 节点名，就绪由冒烟摆；证明腔体按接口、按 machine.xml 配的名字取
 /// </summary>
 [Component(description: "冒烟用供液模块")]
 public sealed class SupplyProbe : ComponentBase, ISupplyAccess

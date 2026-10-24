@@ -11,7 +11,7 @@ public class ProcessRecipeListDto
     public const string EventToken = "ProcessRecipe";
 
     /// <summary>
-    /// 编号个数（sc.xml ProcessRecipe 节点的 Capacity）：界面按它列出 1~Capacity，不写死。
+    /// 编号个数（machine.xml ProcessRecipe 节点的 Capacity）：界面按它列出 1~Capacity，不写死。
     /// </summary>
     public int Capacity { get; set; }
 
@@ -48,7 +48,7 @@ public class ProcessRecipeDto
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 这份配方给哪种站点用（sc.xml 里站点配的 Type）：只能在 Type 一样的腔体上跑，步骤里下拉的选项也按它取。
+    /// 这份配方给哪种站点用（machine.xml 里站点配的 Type）：只能在 Type 一样的腔体上跑，步骤里下拉的选项也按它取。
     /// </summary>
     public string Type { get; set; } = string.Empty;
 
@@ -81,7 +81,7 @@ public class ProcessRecipeDto
 }
 
 /// <summary>
-/// 工艺配方字段的类型（sc.xml 字段表里的 Type）：整数、小数、下拉、开关、文本。
+/// 工艺配方字段的类型（machine.xml 字段表里的 Type）：整数、小数、下拉、开关、文本。
 /// </summary>
 public enum ProcessRecipeFieldType
 {
@@ -93,7 +93,7 @@ public enum ProcessRecipeFieldType
 }
 
 /// <summary>
-/// 一步：每个字段的值（字段名 → 值，都按文字传；有哪些字段由 sc.xml 的字段表定，见 <see cref="ProcessRecipeFieldDto"/>）。
+/// 一步：每个字段的值（字段名 → 值，都按文字传；有哪些字段由 machine.xml 的字段表定，见 <see cref="ProcessRecipeFieldDto"/>）。
 /// 既是 <see cref="ProcessRecipeDto"/> 里的数据（走 JSON），也是保存请求里的消息（走 protobuf），所以带 ProtoContract。
 /// </summary>
 [ProtoContract]
@@ -104,7 +104,7 @@ public class ProcessRecipeStepDto
 }
 
 /// <summary>
-/// 编辑工艺配方用的两张字段表：配方头（sc.xml ProcessRecipe → Head，一项一行）和步骤（ProcessRecipe → Fields，一个字段一列），
+/// 编辑工艺配方用的两张字段表：配方头（machine.xml ProcessRecipe → Head，一项一行）和步骤（ProcessRecipe → Fields，一个字段一列），
 /// 界面按它们生成配方头和步骤表，不写死字段。
 /// </summary>
 public class ProcessRecipeOptionsDto
@@ -121,8 +121,8 @@ public class ProcessRecipeOptionsDto
 }
 
 /// <summary>
-/// 字段表里的一个字段：步骤表的一列，或配方头的一项。下拉的选项就是 sc.xml 字段表里写的：
-/// 步骤的按站点的 Type 分开写（配方头选了哪种 Type 用哪一套），配方头的只有一套（Type 那一项的选项是 sc 里站点配的几种 Type）。
+/// 字段表里的一个字段：步骤表的一列，或配方头的一项。下拉的选项就是 machine.xml 字段表里写的：
+/// 步骤的按站点的 Type 分开写（配方头选了哪种 Type 用哪一套），配方头的只有一套（Type 那一项的选项是 machine.xml 里站点配的几种 Type）。
 /// </summary>
 public class ProcessRecipeFieldDto
 {
@@ -179,7 +179,7 @@ public class ProcessRecipeFieldDto
     public List<string> Options { get; set; } = [];
 
     /// <summary>
-    /// 步骤下拉的选项（步骤的下拉才有）：站点的 Type → 选项，按 sc.xml 里写的先后；站点没配 Type 的那一套键是空字符串。
+    /// 步骤下拉的选项（步骤的下拉才有）：站点的 Type → 选项，按 machine.xml 里写的先后；站点没配 Type 的那一套键是空字符串。
     /// </summary>
     public Dictionary<string, List<string>> OptionsByType { get; set; } = new();
 

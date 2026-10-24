@@ -54,7 +54,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     private readonly List<ReturnWafer> _wafers;
 
     /// <summary>
-    /// 机械手、站点在 sc 里的先后，挑片时同一类按它排
+    /// 机械手、站点在 machine.xml 里的先后，挑片时同一类按它排
     /// </summary>
     private readonly Dictionary<string, int> _order = new(StringComparer.OrdinalIgnoreCase);
 
@@ -296,7 +296,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     }
 
     /// <summary>
-    /// 启用的机械手、站点：sc 配了在位传感器的都跟晶圆账对一遍
+    /// 启用的机械手、站点：machine.xml 配了在位传感器的都跟晶圆账对一遍
     /// </summary>
     private static HandleResult? CheckSensors(ITransferManager transfers)
     {
@@ -411,7 +411,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     }
 
     /// <summary>
-    /// 挑片的先后：机械手手上的 → 其余站点上的 → 能做工艺的站点上的；同一类按 sc 先后、槽号
+    /// 挑片的先后：机械手手上的 → 其余站点上的 → 能做工艺的站点上的；同一类按 machine.xml 先后、槽号
     /// </summary>
     private List<ReturnWafer> Ordered()
     {
@@ -582,7 +582,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     }
 
     /// <summary>
-    /// 挑能搬这一段的机械手和手：片在手上就是拿着它的那只手（要许它往目标放）；片在站点上按 sc 先后挑第一台两头都到得了、
+    /// 挑能搬这一段的机械手和手：片在手上就是拿着它的那只手（要许它往目标放）；片在站点上按 machine.xml 先后挑第一台两头都到得了、
     /// 有一只手两头都许用的。now = 现在就要搬：机械手还要空闲、那只手账上空着没被占
     /// </summary>
     private static (ITransferRobot Robot, int Arm)? FindRobot(ITransferManager transfers, ILedgerManager ledger,

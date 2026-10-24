@@ -15,7 +15,7 @@ namespace xyz.Components.Components;
 [Component(description: "部件寿命（次数）组件（盯一个 DO，断→通、通→断各算一次；到 EC 警告次数报警告、到报警次数报报警）")]
 public class CountLifetimeComponent : ComponentBase, ICountLifetime
 {
-    #region SC
+    #region Machine
 
     [Machine("-1", "IO", "盯的 DO 索引（真 DO，或虚拟 IO 里的虚拟 DO 5000~5999）：每变一次（断→通、通→断）算用了一次", Required = true)]
     public int DoIndex { get; set; } = -1;

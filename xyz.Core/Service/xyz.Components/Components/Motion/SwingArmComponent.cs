@@ -43,7 +43,7 @@ public class SwingArmComponent : AxisComponent, ISwingArm
 
     #endregion
 
-    #region 装在这条臂上的（sc.xml 里摆臂节点下面挂的）
+    #region 装在这条臂上的（machine.xml 里摆臂节点下面挂的）
 
     public IChamberLift? Lift
     {

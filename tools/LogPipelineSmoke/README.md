@@ -33,5 +33,5 @@ waits the given number of seconds, then prints:
 - `sample`: the newest line the UI would show.
 
 Exits nonzero when nothing arrived. To exercise the history path, start the backend first
-with a broken port (`sc.xml` `PortName=COM99`), wait a few seconds, then run the client:
+with a broken port (`machine.xml` `PortName=COM99`), wait a few seconds, then run the client:
 the startup `驱动连接失败` errors are only reachable through history.

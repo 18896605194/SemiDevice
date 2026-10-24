@@ -4,12 +4,12 @@ using xyz.Components.Interfaces;
 using xyz.Configs.Models;
 
 /// <summary>
-/// 冒烟造机械手示教点：跟 sc.xml 一样写 Size12 / Size8 分组和示教点节点，用 ComponentLoader 照样建出来。各冒烟工程链接这一个文件
+/// 冒烟造机械手示教点：跟 machine.xml 一样写 Size12 / Size8 分组和示教点节点，用 ComponentLoader 照样建出来。各冒烟工程链接这一个文件
 /// </summary>
 static class SmokeTeachPoints
 {
     /// <summary>
-    /// 示教点组件的类型全名（sc.xml 的 Type）
+    /// 示教点组件的类型全名（machine.xml 的 Type）
     /// </summary>
     public const string Type = "xyz.Components.Components.TeachPointComponent";
 
@@ -22,7 +22,7 @@ static class SmokeTeachPoints
     }
 
     /// <summary>
-    /// 一个示教点节点：名字是站点名，参数照 sc.xml 写（Number、Y、Direction、PickArms、PlaceArms）
+    /// 一个示教点节点：名字是站点名，参数照 machine.xml 写（Number、Y、Direction、PickArms、PlaceArms）
     /// </summary>
     public static ModuleConfig Point(string name, params (string Name, string Value)[] values)
     {

@@ -20,7 +20,7 @@ namespace xyz.Client.Manual.ViewModels;
 /// <summary>
 /// 腔体手动操作面板 ViewModel：按钮发指令，状态靠订阅刷新；启用、模式、片位、当前配方、设备状态都是后端推的，这里不写死。
 /// 整腔：Start 按配方框里的配方名起工艺（Process，只在空闲时允许）；Abort = 急停（可顶替在途动作）、Reset = 清报警 + 设备复位清错。
-/// 设备：后端按 sc.xml 推来的轴表一根一个页签（Axes），气缸表一行一个（Cylinders），三维图也用同一份推送（Devices）。
+/// 设备：后端按 machine.xml 推来的轴表一根一个页签（Axes），气缸表一行一个（Cylinders），三维图也用同一份推送（Devices）。
 /// 设备动作按设备路径调腔体服务的具体方法（轴回零 / 移动 / 步进 / 点动 / 停止 / 复位，气缸升 / 降）：点动按住期间每 200 ms 续一次，松手发停止。
 /// </summary>
 public class ChamberManualViewModel : BaseViewModel, IDisposable
@@ -43,7 +43,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     public ChamberDeviceDataModel Devices { get; } = new();
 
     /// <summary>
-    /// 轴页签：sc 里这个腔体下的轴（摆臂、旋转电机……），按 sc 的先后；加了轴自动多一个页签。
+    /// 轴页签：machine.xml 里这个腔体下的轴（摆臂、旋转电机……），按 machine.xml 的先后；加了轴自动多一个页签。
     /// </summary>
     public ObservableCollection<AxisTabModel> Axes { get; } = [];
 
@@ -59,7 +59,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 气缸表：sc 里这个腔体下的双作用气缸（Door、Bowl1、Arm1.Lift……），按 sc 的先后。
+    /// 气缸表：machine.xml 里这个腔体下的双作用气缸（Door、Bowl1、Arm1.Lift……），按 machine.xml 的先后。
     /// </summary>
     public ObservableCollection<CylinderRowModel> Cylinders { get; } = [];
 
@@ -698,7 +698,7 @@ public class ChamberManualViewModel : BaseViewModel, IDisposable
     /// <summary>
     /// 失败原因：有错误码按语言包翻，老接口没码才用 Message。
     /// 设备动作的错误码第二个参数是动作名（ChamberDeviceAction，如 Move），先换成语言包里的叫法，中文界面不露英文；
-    /// 设备路径照 sc 原样显示，不翻。别的码（状态不允许这类）跟 LoadPort、机械手页一样走公共的 ErrorText，状态码翻成腔体的状态字
+    /// 设备路径照 machine.xml 原样显示，不翻。别的码（状态不允许这类）跟 LoadPort、机械手页一样走公共的 ErrorText，状态码翻成腔体的状态字
     /// </summary>
     private static string ReasonOf(RpcResponse response)
     {

@@ -12,7 +12,7 @@ namespace xyz.Components.Components;
 /// <summary>
 /// 晶圆尺寸组件
 /// </summary>
-[Component(description: "晶圆尺寸：8 寸 / 12 寸（主界面切换，写回 sc.xml）")]
+[Component(description: "晶圆尺寸：8 寸 / 12 寸（主界面切换，写回 machine.xml）")]
 public class WaferSizeComponent : ComponentBase, IWaferSize
 {
     /// <summary>8 寸片（200 mm）。</summary>
@@ -28,7 +28,7 @@ public class WaferSizeComponent : ComponentBase, IWaferSize
     /// </summary>
     public event Action<int>? Changed;
 
-    #region SC
+    #region Machine
 
     [Machine("12", "System", "晶圆尺寸（寸）：8 或 12；主界面系统操作里切换（整机没初始化、机台里没片时才让切），切了马上生效并写回这里")]
     public int Size { get; set; } = Inch12;
@@ -77,7 +77,7 @@ public class WaferSizeComponent : ComponentBase, IWaferSize
     }
 
     /// <summary>
-    /// 切尺寸：先写回 sc.xml，写成了才换上、发 <see cref="Changed"/>（重启后还是这个尺寸）。跟现在一样直接成功。
+    /// 切尺寸：先写回 machine.xml，写成了才换上、发 <see cref="Changed"/>（重启后还是这个尺寸）。跟现在一样直接成功。
     /// 能不能切（整机没初始化、机台里没片）由调用方先查，这里只管尺寸对不对、存不存得下。
     /// </summary>
     public HandleResult SetSize(int size)
@@ -97,18 +97,18 @@ public class WaferSizeComponent : ComponentBase, IWaferSize
 
             try
             {
-                SC.SaveValue(FullPath, nameof(Size), sizeText);
+                MachineXml.SaveValue(FullPath, nameof(Size), sizeText);
             }
             catch (Exception exception)
             {
-                LogHelper.Error(Name, $"晶圆尺寸切到 {size} 寸没成：写回 sc.xml 失败，{exception.Message}");
+                LogHelper.Error(Name, $"晶圆尺寸切到 {size} 寸没成：写回 machine.xml 失败，{exception.Message}");
                 return HandleResult.Fail(ErrorCodes.WaferSizeSaveFailed, exception.Message);
             }
 
             Size = size;
         }
 
-        LogHelper.Info(Name, $"晶圆尺寸切到 {size} 寸，已写回 sc.xml");
+        LogHelper.Info(Name, $"晶圆尺寸切到 {size} 寸，已写回 machine.xml");
         Changed?.Invoke(size);
         return HandleResult.Success();
     }

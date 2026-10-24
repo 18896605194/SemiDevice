@@ -38,7 +38,7 @@ public class AiComponent : ComponentBase, IAi
     /// </summary>
     private const string ClockFormat = "HH:mm:ss";
 
-    #region SC
+    #region Machine
 
     [Machine("", "Ai", "模型服务地址：兼容 OpenAI 接口格式，带 /v1（如 http://192.168.10.50:8080/v1）", Required = true)]
     public string Endpoint { get; set; } = string.Empty;
@@ -81,7 +81,7 @@ public class AiComponent : ComponentBase, IAi
     }
 
     [VariableMark(VariableType.EC, ValueFormat.Int, min: "0", max: "100",
-        @default: "20", description: "带给模型的相关信号最多几个（报警来源下面的，按 sc 先后）")]
+        @default: "20", description: "带给模型的相关信号最多几个（报警来源下面的，按 machine.xml 先后）")]
     public int SignalCount
     {
         get { return GetEcInt(nameof(SignalCount)); }
@@ -123,17 +123,17 @@ public class AiComponent : ComponentBase, IAi
         if (!Uri.TryCreate(Endpoint.Trim(), UriKind.Absolute, out var endpoint)
             || (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 的 Endpoint=\"{Endpoint}\" 不是有效的 http / https 地址（模型服务地址，带 /v1）。");
+            throw new InvalidOperationException($"machine.xml 节点 {setting.Name} 的 Endpoint=\"{Endpoint}\" 不是有效的 http / https 地址（模型服务地址，带 /v1）。");
         }
 
         if (Model.Trim().Length == 0)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 没配 Model（模型服务里的模型名）。");
+            throw new InvalidOperationException($"machine.xml 节点 {setting.Name} 没配 Model（模型服务里的模型名）。");
         }
 
         if (MaxConcurrent < 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name} 的 MaxConcurrent={MaxConcurrent} 不对：至少是 1。");
+            throw new InvalidOperationException($"machine.xml 节点 {setting.Name} 的 MaxConcurrent={MaxConcurrent} 不对：至少是 1。");
         }
     }
 

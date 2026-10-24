@@ -4,7 +4,7 @@ using xyz.Shared.Dtos;
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 一个可选的站点分组（来自 sc.xml 的分组节点和下面装的模块），名字原样显示；"添加"时在公共选择弹窗里列出来挑。
+/// 一个可选的站点分组（来自 machine.xml 的分组节点和下面装的模块），名字原样显示；"添加"时在公共选择弹窗里列出来挑。
 /// </summary>
 public sealed class StationGroupModel
 {

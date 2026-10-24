@@ -27,7 +27,7 @@ using xyz.Tools;
 // 一篮两个 Sequence 跑完（两步加工、转换号顺序、重发被正常检查拦住、建 CJ 被拒撤掉已建的 PJ）、配方快照、回到别的 LoadPort、PJ 暂停 / 恢复、CJ 暂停（只不启动新 PJ）、
 // CJ 停止、PJ 中止、工艺出错停住等人（别的片照常跑）后重做 / 标记完成、片不在该在的地方、搬运动过手才失败、Host 先建 PJ 再建 CJ（EAP 按载具号找 CJ、PJ）、
 // 料没到先建 PJ（载具到了、Load 好、接了 EAP 时槽图被认定才定片；同一载具的槽和 CJ 不能重；定不了片报警、PJ 留在排队）、整机停止走 Job 中止、
-// 对准器（片放上来自己对准、对好了才让取，调度不用改）、服务层错误码、重启收场、指挥层 Dispatch（sc.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
+// 对准器（片放上来自己对准、对好了才让取，调度不用改）、服务层错误码、重启收场、指挥层 Dispatch（machine.xml 里 Job、Transfer 挂在它下面，按先后扫，一个出错不耽误另一个）、
 // Job 是标准件（任务组件、调度引擎都是平台的，不给机型留重写的口子）。
 // 不连设备：机械手、LoadPort、腔体都是假的（动作按扫描拍数做完），扫描由测试一拍一拍推；配方文件写在临时目录，跑完删掉。
 SmokeIoc.Reset();
@@ -93,29 +93,29 @@ try
     transfers.Bind(modules);
     transfers.StationWaitTimeoutMs = 1000;
 
-    // 配方库：用真 sc.xml 的 Sequence、ProcessRecipe 节点（字段表照 sc），目录换成临时目录
-    var scConfig = XmlHelper.Deserialize<ScConfig>(Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"));
-    Check(scConfig is not null, "sc.xml 解析失败");
+    // 配方库：用真 machine.xml 的 Sequence、ProcessRecipe 节点（字段表照 machine.xml），目录换成临时目录
+    var machineSettings = XmlHelper.Deserialize<MachineSettings>(Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"));
+    Check(machineSettings is not null, "machine.xml 解析失败");
     ModuleConfig Node(string name)
     {
-        var node = scConfig!.Modules.First(setting => string.Equals(setting.Name, name, StringComparison.OrdinalIgnoreCase));
+        var node = machineSettings!.Modules.First(setting => string.Equals(setting.Name, name, StringComparison.OrdinalIgnoreCase));
         node.Values.First(value => string.Equals(value.Name, "Folder", StringComparison.OrdinalIgnoreCase)).Value = Path.Combine(folder, name);
         return node;
     }
 
     // 指挥层：Job、搬运管理挂在 Dispatch 下面共用一条扫描线程，先 Job 后 Transfer；顶层不再单独挂这两个
-    var dispatchNode = scConfig!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Dispatch", StringComparison.OrdinalIgnoreCase));
+    var dispatchNode = machineSettings!.Modules.FirstOrDefault(setting => string.Equals(setting.Name, "Dispatch", StringComparison.OrdinalIgnoreCase));
     Check(dispatchNode is not null && dispatchNode.Type == typeof(DispatchComponent).FullName
           && dispatchNode.Children.Select(child => child.Name).SequenceEqual(["Job", "Transfer"])
           && dispatchNode.Children[1].Type == typeof(TransferManager).FullName
-          && scConfig.Modules.All(setting => setting.Name != "Job" && setting.Name != "Transfer"),
-        "sc.xml 里应有 Dispatch 节点（DispatchComponent），下面先挂 Job、再挂 Transfer（TransferManager），顶层不再单独挂这两个");
+          && machineSettings.Modules.All(setting => setting.Name != "Job" && setting.Name != "Transfer"),
+        "machine.xml 里应有 Dispatch 节点（DispatchComponent），下面先挂 Job、再挂 Transfer（TransferManager），顶层不再单独挂这两个");
 
     var jobNode = dispatchNode!.Children.FirstOrDefault(setting => string.Equals(setting.Name, "Job", StringComparison.OrdinalIgnoreCase));
     Check(jobNode is not null && jobNode.Type == typeof(JobManager).FullName
           && jobNode.Children.Any(child => child.Name == "Task" && child.Type == typeof(TaskComponent).FullName)
           && jobNode.Children.Any(child => child.Name == "Scheduler" && child.Type == typeof(SchedulerComponent).FullName),
-        "sc.xml 里应有 Job 节点（JobManager），下面挂 Task（平台的 TaskComponent）和 Scheduler（SchedulerComponent）");
+        "machine.xml 里应有 Job 节点（JobManager），下面挂 Task（平台的 TaskComponent）和 Scheduler（SchedulerComponent）");
 
     // Job 是标准件：任务组件、调度引擎、Job 管理都不给机型留重写的口子（不是抽象类，没有自己开的 virtual）
     static bool IsStandard(Type type)
@@ -128,13 +128,13 @@ try
     Check(IsStandard(typeof(TaskComponent)) && IsStandard(typeof(SchedulerComponent)) && IsStandard(typeof(JobManager)),
         "Job 是标准件：任务组件、调度引擎、Job 管理不是抽象类，也没有自己开的 virtual");
 
-    // 宿主开机就是装配器照 sc.xml 的 Type 建组件：这两个节点要认得出平台类（认不出开机就抛"未找到组件类"）
+    // 宿主开机就是装配器照 machine.xml 的 Type 建组件：这两个节点要认得出平台类（认不出开机就抛"未找到组件类"）
     var jobParts = SmokeIoc.Load(jobNode!.Children.Where(child => child.Name is "Task" or "Scheduler"));
     Check(jobParts.Count == 2 && jobParts.OfType<TaskComponent>().Count() == 1 && jobParts.OfType<SchedulerComponent>().Count() == 1,
-        "装配器照 sc.xml 建得出 Task（TaskComponent）、Scheduler（SchedulerComponent）");
+        "装配器照 machine.xml 建得出 Task（TaskComponent）、Scheduler（SchedulerComponent）");
     Check(jobNode!.Values.Any(value => value.Name == nameof(JobManager.ProcessJobAutoStart) && value.Value == "True")
           && jobNode.Values.Any(value => value.Name == nameof(JobManager.ControlJobAutoStart) && value.Value == "False"),
-        "sc.xml 配置 PJ 自动开始、CJ 等待 Start，创建请求不传启动方式");
+        "machine.xml 配置 PJ 自动开始、CJ 等待 Start，创建请求不传启动方式");
 
     var libraryRoots = SmokeIoc.Load([Node("Sequence"), Node("ProcessRecipe")]);
     var sequences = libraryRoots.OfType<SequenceComponent>().Single();
@@ -187,7 +187,7 @@ try
     Probe.Name(jobs, "Job");
     jobs.Database = "JobSmoke";
     jobs.Bind(modules);
-    // 开机 Bind（生产里 BindAll 照 sc 先后挨个调）：Job 下面的任务组件、搬运管理（这时才有 Job 管理）、各模块都在这里取单例
+    // 开机 Bind（生产里 BindAll 照 machine.xml 先后挨个调）：Job 下面的任务组件、搬运管理（这时才有 Job 管理）、各模块都在这里取单例
     ComponentLoader.BindAll(jobs.Children);
     transfers.Bind(modules);
     ComponentLoader.BindAll(modules);
@@ -491,7 +491,7 @@ try
     Check(afterFault.Wait(2000) && afterFault.Result.ErrorMessage == ErrorCodes.JobNotFound,
         "异常后释放锁，其他线程仍能执行 Job 命令");
 
-    // 上报口直接挂假的 EAP；上报都经 EAP 的派发组件发（宿主里是 sc.xml Eap 下的 Notifier）
+    // 上报口直接挂假的 EAP；上报都经 EAP 的派发组件发（宿主里是 machine.xml Eap 下的 Notifier）
     SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
     jobs.Bind(modules); // Job 管理开机 Bind 时取 EAP 的派发组件
     var events = new RecordingJobEvents();
@@ -1025,7 +1025,7 @@ try
         "HOQ 明确拒绝，不更改 CJ 状态或字典顺序");
     Check(CjOf("LOT-A")?.E94State == 2 && CjOf("LOT-A")?.State == ControlJobDto.StateWaitingForStart,
         "手动启动的内部状态编号与界面一致，E94 仍上报 WAITINGFORSTART = 2");
-    Check(CjOf("LOT-A")?.AutoStart == false, "SC 关闭 CJ 自动启动时，查询与上报也反映等待 Start");
+    Check(CjOf("LOT-A")?.AutoStart == false, "machine.xml 关闭 CJ 自动启动时，查询与上报也反映等待 Start");
     Check(PjOf("LOT-A-1")?.State == (int)ProcessJobState.QueuedPooled && PjOf("LOT-A-2")?.State == (int)ProcessJobState.QueuedPooled,
         "CJ 没启动前 PJ 都排着");
     Refuses(Do(jobs.StartControlJobAsync("LOT-A")),
@@ -1481,7 +1481,7 @@ try
           && forEap.FindProcessJobsByCarrier("CAR-1").First(job => job.Id == "PJ-H1").Wafers.Count == 1,
         "全量和载具查询均返回独立 DTO，修改嵌套集合不影响实际任务");
     Check(RunUntil(() => CjOf("CJ-H")?.State == (int)ControlJobState.Completed) && CjOf("CJ-H")?.CompletedBy == 10, "Host 建的照样跑完");
-    Check(CjOf("CJ-H")?.AutoStart == true, "SC 开启 CJ 自动启动，创建后无需 CJ Start 即执行完成");
+    Check(CjOf("CJ-H")?.AutoStart == true, "machine.xml 开启 CJ 自动启动，创建后无需 CJ Start 即执行完成");
     Check(forEap.FindProcessJobsByCarrier("CAR-1").Select(job => job.Id).SequenceEqual(new[] { "PJ-H1", "PJ-H2" })
           && forEap.FindProcessJobsByCarrier("CAR-1").All(job => job.EndedBy == 7),
         "CJ 保留期间按载具查询仍包含其已结束的 PJ");
@@ -1549,18 +1549,18 @@ try
     Check(Do(jobs.CancelProcessJobAsync("PJ-RAW")).IsSuccess, "PJ 有独立取消方法");
     UnloadCarrier(lp1);
 
-    // PJ 启动方式来自 SC，而不是创建请求中的参数。
+    // PJ 启动方式来自 machine.xml，而不是创建请求中的参数。
     jobs.ProcessJobAutoStart = false;
     LoadCarrier(lp1, 1);
-    Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-SC", [1], "SEQ_A", "LOT-SC")).IsSuccess
-          && Do(jobs.CreateJobAsync("LP1", ["PJ-SC"], "CJ-SC")).IsSuccess, "SC 关闭 PJ 自动启动时仍可正常创建 PJ 和 CJ");
-    Check(RunUntil(() => PjOf("PJ-SC")?.State == (int)ProcessJobState.WaitingForStart), "SC 关闭后 PJ 准备完成进入等待启动");
-    Check(PjOf("PJ-SC")?.AutoStart == false && ledger.Get("LP1", 1) is not null
-          && PjOf("PJ-SC")!.Wafers[0].Tasks.All(task => task.State == "Waiting"), "等待 PJ Start 时不投片，上报启动方式来自 SC");
-    Check(Do(jobs.StartProcessJobAsync("PJ-SC")).IsSuccess
-          && RunUntil(() => CjOf("CJ-SC")?.State == (int)ControlJobState.Completed), "PJ Start 后完成取放、工艺和回片");
+    Check(Do(jobs.CreateProcessJobAsync("LP1", "PJ-AUTO-OFF", [1], "SEQ_A", "LOT-AUTO-OFF")).IsSuccess
+          && Do(jobs.CreateJobAsync("LP1", ["PJ-AUTO-OFF"], "CJ-AUTO-OFF")).IsSuccess, "machine.xml 关闭 PJ 自动启动时仍可正常创建 PJ 和 CJ");
+    Check(RunUntil(() => PjOf("PJ-AUTO-OFF")?.State == (int)ProcessJobState.WaitingForStart), "machine.xml 关闭后 PJ 准备完成进入等待启动");
+    Check(PjOf("PJ-AUTO-OFF")?.AutoStart == false && ledger.Get("LP1", 1) is not null
+          && PjOf("PJ-AUTO-OFF")!.Wafers[0].Tasks.All(task => task.State == "Waiting"), "等待 PJ Start 时不投片，上报启动方式来自 machine.xml");
+    Check(Do(jobs.StartProcessJobAsync("PJ-AUTO-OFF")).IsSuccess
+          && RunUntil(() => CjOf("CJ-AUTO-OFF")?.State == (int)ControlJobState.Completed), "PJ Start 后完成取放、工艺和回片");
     UnloadCarrier(lp1);
-    Check(RunUntil(() => CjOf("CJ-SC") is null, 20), "SC 手动启动的 Job 随载具移走结束");
+    Check(RunUntil(() => CjOf("CJ-AUTO-OFF") is null, 20), "machine.xml 手动启动的 Job 随载具移走结束");
     jobs.ProcessJobAutoStart = true;
 
     // 15c. 料没到先建 PJ（Host）：PJ、CJ 先建着排队，CJ 选中后等料；载具到了、Load 好，接了 EAP 时槽图还要被 Host 认定，才定片、开始。
@@ -2300,7 +2300,7 @@ try
         secondRobot = null;
     }
 
-    // 17g. 并行的工艺站轮着用（调度 SC PreferIdleStation，默认关）：一次只跑一片时，关着每片都进流程配方里勾在前面的 PM1；
+    // 17g. 并行的工艺站轮着用（调度 machine.xml PreferIdleStation，默认关）：一次只跑一片时，关着每片都进流程配方里勾在前面的 PM1；
     //      开着挑最久没开工的那个，PM1、PM2 轮着用。开工时间、片数是腔体自己记的（IProcessStation），调度只读
     {
         var scheduler = jobs.Scheduler;
@@ -2331,7 +2331,7 @@ try
         scheduler.PreferIdleStation = false;
     }
 
-    // 17h. buffer：两台机械手中间一个 10 层的架子，sc 里配成进片段、出片段两个站（各 5 层），流程配方各走一次——
+    // 17h. buffer：两台机械手中间一个 10 层的架子，machine.xml 里配成进片段、出片段两个站（各 5 层），流程配方各走一次——
     //      进、出不共用一个站，调度照现在的规则连续跑一盒也不卡死，调度、机械手、搬运管理都不用改。buffer 段开机就待命、自己切生产模式；
     //      交换、预取看机械手的手、不分片从哪来：B 从进片段把下一片提前拿上手、在腔门口交换，A 在 buffer 上不换；
     //      跟 JK 一样，机械手控制器里两段各教一个站号，槽号原样发，不用换算
@@ -2591,7 +2591,7 @@ try
         "早先做完的不受影响");
     Check(lotR.All(id => jobs.OwnerOf(id) is null), "片不再归任何 Job");
 
-    // Job 历史页看得到重启收场的 CJ、PJ；一次最多返回多少个按 SC，超出只留最新的
+    // Job 历史页看得到重启收场的 CJ、PJ；一次最多返回多少个按 machine.xml，超出只留最新的
     var restartedService = new JobService();
     restarted.HistoryQueryMaxCount = 2;
     var latest = QueryHistory(restartedService, string.Empty, DateTime.Today, DateTime.Today.AddDays(1));
@@ -2657,7 +2657,7 @@ Console.WriteLine($"PASS: {checks} job checks (transfer manager: admission check
     "every CJ and PJ recorded as one database row with each wafer's tasks and written again only when the jobs change, " +
     "the Dispatch node scanning Job then Transfer on one thread without one child's exception skipping the other, " +
     "a restart that marks unfinished jobs aborted in the database instead of resuming them, " +
-    "and the job history page querying control jobs by time and keyword (newest first, capped by SC) with their process jobs and task rows)");
+    "and the job history page querying control jobs by time and keyword (newest first, capped by machine.xml) with their process jobs and task rows)");
 
 // ── 假件 ─────────────────────────────────────────────────────────────
 
@@ -2693,7 +2693,7 @@ sealed class ScanProbe : ComponentBase
 // 名字、路径：生产里由 ComponentLoader 经内部 setter 填。
 static class Probe
 {
-    // group：sc.xml 里套在哪个分组节点下（全路径的第一层，流程配方按它分组），顶层直接装的不给
+    // group：machine.xml 里套在哪个分组节点下（全路径的第一层，流程配方按它分组），顶层直接装的不给
     public static void Name(ComponentBase component, string name, string? group = null)
     {
         string path = name;
@@ -2711,7 +2711,7 @@ static class Probe
         typeof(ComponentBase).GetProperty(nameof(ComponentBase.IsEnabled))!.SetValue(component, enabled);
     }
 
-    // 端口下挂的载具组件：生产里是 sc.xml 的 _carrier 节点。
+    // 端口下挂的载具组件：生产里是 machine.xml 的 _carrier 节点。
     public static CarrierComponent Carrier(ComponentBase port, PodPresenceSource presence)
     {
         var carrier = new CarrierComponent { PresenceSource = presence };
@@ -2721,7 +2721,7 @@ static class Probe
         return carrier;
     }
 
-    // 设备下挂的通道：生产里是 sc.xml 的 Driver 节点。
+    // 设备下挂的通道：生产里是 machine.xml 的 Driver 节点。
     public static SmokeChannel Channel(ComponentBase device)
     {
         var channel = new SmokeChannel();
@@ -2738,7 +2738,7 @@ sealed class SmokeTransfers : TransferManager
     public void Tick() => OnScan();
 }
 
-// Job 管理下面挂任务组件（生产里是 sc.xml 的 Task 子节点）。
+// Job 管理下面挂任务组件（生产里是 machine.xml 的 Task 子节点）。
 sealed class SmokeJobs : JobManager
 {
     public SmokeJobs()
@@ -2751,7 +2751,7 @@ sealed class SmokeJobs : JobManager
         AddChild(Scheduler);
     }
 
-    // 调度挂在 Job 下面（生产里是 sc.xml 的 Scheduler 子节点），测试直接拨它的 PreferIdleStation 开关。
+    // 调度挂在 Job 下面（生产里是 machine.xml 的 Scheduler 子节点），测试直接拨它的 PreferIdleStation 开关。
     public SchedulerComponent Scheduler { get; }
 
     public void Tick() => OnScan();
@@ -2821,16 +2821,16 @@ class SmokeRobot : BaseRobotModule
     {
     }
 
-    // armCount：几只手（sc.xml Axes 下几个 Arm 节点），不给的都是两只。
-    // pickArms / placeArms：站点 → 取片 / 放片许用的手（sc.xml 示教点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
-    // numbers：站点 → 站号（sc.xml 示教点的 Number）；没写的站点按先后 1、2、3……
-    // 示教点都挂在 Size12 组下（生产里由 ComponentLoader 照 sc.xml 建），组件初始化时收进示教点表。
+    // armCount：几只手（machine.xml Axes 下几个 Arm 节点），不给的都是两只。
+    // pickArms / placeArms：站点 → 取片 / 放片许用的手（machine.xml 示教点的 PickArms / PlaceArms，如 "1,2"）；没写的站点所有手都能用。
+    // numbers：站点 → 站号（machine.xml 示教点的 Number）；没写的站点按先后 1、2、3……
+    // 示教点都挂在 Size12 组下（生产里由 ComponentLoader 照 machine.xml 建），组件初始化时收进示教点表。
     public SmokeRobot(string name, int armCount, IReadOnlyDictionary<string, string> pickArms, IReadOnlyDictionary<string, string> placeArms,
         IReadOnlyDictionary<string, int> numbers, params string[] stations)
     {
         Probe.Name(this, name);
         Probe.Channel(this);
-        // sc.xml 的轴节点（生产里由 ComponentLoader 建，这里直接挂）。
+        // machine.xml 的轴节点（生产里由 ComponentLoader 建，这里直接挂）。
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
         AddChild(Named(new RobotAxisComponent(), "Theta"));
@@ -2967,6 +2967,8 @@ sealed class SmokeChannel : ComponentBase, IDeviceDriverComponent
 {
     private readonly List<(SmokeCommand Command, int SentAt)> _inflight = [];
     private int _ticks;
+
+    public bool IsEnable => true;
 
     public bool IsConnected => true;
 
@@ -3197,7 +3199,7 @@ sealed class SmokePort : BaseLoadPortModule
 }
 
 // 假腔体：工艺默认三拍做完（ProcessTicks 可调长），可以故意失败一次；记下收到几次中止。
-// NoProcess 打开时声明成只能取放（不能做工艺），验"站点不支持要用的任务就不建 Job"。Type 跟 sc.xml 里的腔体一样写 A（配方字段表只写了 A 的选项）。
+// NoProcess 打开时声明成只能取放（不能做工艺），验"站点不支持要用的任务就不建 Job"。Type 跟 machine.xml 里的腔体一样写 A（配方字段表只写了 A 的选项）。
 sealed class SmokeChamber : BaseChamberModule
 {
     public SmokeChamber(string name)

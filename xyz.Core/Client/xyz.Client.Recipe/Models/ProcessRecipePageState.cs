@@ -16,7 +16,7 @@ public enum ProcessRecipePageState
     Loading,
 
     /// <summary>
-    /// 后端没装工艺配方库（sc.xml 没配 ProcessRecipe 节点）。
+    /// 后端没装工艺配方库（machine.xml 没配 ProcessRecipe 节点）。
     /// </summary>
     NotInstalled,
 

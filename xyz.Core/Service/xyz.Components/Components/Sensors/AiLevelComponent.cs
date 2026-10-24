@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 [Component(description: "AI 液位信号（读液位计的 AI，到了 EC 设的触发值算触发；跟 DI 信号一样挂在槽的 LL / L / H / HH / Overfill 上）")]
 public class AiLevelComponent : ComponentBase, IAiLevel
 {
-    #region SC
+    #region Machine
 
     [Machine("-1", "IO", "液位计接的 AI 索引", Required = true)]
     public int AiIndex { get; set; } = -1;
@@ -97,7 +97,7 @@ public class AiLevelComponent : ComponentBase, IAiLevel
     }
 
     /// <summary>
-    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// IO 组件（开机 Bind 时取）；machine.xml 没配 Io 节点是 null
     /// </summary>
     private IIo? _io;
 

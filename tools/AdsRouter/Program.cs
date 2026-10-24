@@ -82,7 +82,7 @@ internal sealed class RouterService(ILogger<RouterService> logger, ILoggerFactor
 
     /// <summary>
     /// 本机 AmsNetId：配置里给了（appsettings.json 的 NetId）就用它，否则按本机 IPv4 + ".1.1"，跟 TwinCAT 默认的取法一样。
-    /// 仿真器和后端都按"本机"连（后端 sc.xml 的 Host = Local），所以这个值变了也不用改它们的配置。
+    /// 仿真器和后端都按"本机"连（后端 machine.xml 的 Host = Local），所以这个值变了也不用改它们的配置。
     /// </summary>
     private AmsNetId ResolveNetId()
     {

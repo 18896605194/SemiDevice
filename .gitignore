@@ -371,10 +371,10 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-# 运行/冒烟生成的 SQLite 库（sc.xml 的 Database 节点建出来的，不进版本库）
+# 运行/冒烟生成的 SQLite 库（machine.xml 的 Database 节点建出来的，不进版本库）
 *.db
 *.db-shm
 *.db-wal
 
-# ScEdit 保存 sc.xml 前的备份（放在 sc.xml 同级的 backup 子目录），只留在本机
+# ToolBuilder 保存 machine.xml 前的备份（放在 machine.xml 同级的 backup 子目录），只留在本机
 **/Config/backup/

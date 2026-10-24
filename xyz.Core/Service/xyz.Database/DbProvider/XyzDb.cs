@@ -7,7 +7,7 @@ namespace xyz.Database.DbProvider;
 /// SqlSugar 数据库访问入口：按名字分库。
 /// 每个用途一个连接（登录鉴权、晶圆流水、日志……），互不影响——流水写得又多又频，
 /// 跟鉴权挤在同一个 SQLite 文件上会互相抢写锁，一个库出问题也不该把别的拖下水。
-/// 连接在装配时由 sc.xml 的 Database 节点注册（见 DataBaseComponent）；没注册的名字回落到默认连接。
+/// 连接在装配时由 machine.xml 的 Database 节点注册（见 DataBaseComponent）；没注册的名字回落到默认连接。
 /// </summary>
 public static class XyzDb
 {

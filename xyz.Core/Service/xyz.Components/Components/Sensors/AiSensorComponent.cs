@@ -12,7 +12,7 @@ namespace xyz.Components.Components;
 [Component(description: "AI 值监控组件")]
 public class AiSensorComponent : ComponentBase, IAiSensor
 {
-    #region SC 装机常量
+    #region Machine 装机常量
 
     [Machine("-1", "IO", "监控的 AI 索引", Required = true)]
     public int AiIndex { get; set; } = -1;
@@ -88,7 +88,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     [Alarm("AI 测量值超出允许范围", AlarmCategory.ParameterControlError,
         AlarmLevel = AlarmLevel.Alarm1,
         Description = "AI 测量值超出允许范围",
-        Solution = "检查对应工艺变量及传感器；上下限在 EC AlarmMin/AlarmMax 调整（SC IsPercentOfTarget 为 True 时是目标值的百分比）")]
+        Solution = "检查对应工艺变量及传感器；上下限在 EC AlarmMin/AlarmMax 调整（machine.xml IsPercentOfTarget 为 True 时是目标值的百分比）")]
     public string AiSensorAlarm = nameof(AiSensorAlarm);
 
     #endregion
@@ -155,7 +155,7 @@ public class AiSensorComponent : ComponentBase, IAiSensor
     #endregion
 
     /// <summary>
-    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// IO 组件（开机 Bind 时取）；machine.xml 没配 Io 节点是 null
     /// </summary>
     private IIo? _io;
 

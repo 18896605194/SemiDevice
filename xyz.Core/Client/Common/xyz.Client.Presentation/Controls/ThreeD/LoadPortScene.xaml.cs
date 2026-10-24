@@ -140,7 +140,7 @@ public partial class LoadPortScene : UserControl
     public static readonly DependencyProperty IsAutoModeProperty = DependencyProperty.Register(
         nameof(IsAutoMode), typeof(bool), typeof(LoadPortScene), new PropertyMetadata(false, OnPortChanged));
 
-    /// <summary>槽数（sc.xml 的 SlotCount）：花篮高度、槽号、片数、空槽都按它；0 = 还不知道，不装花篮。</summary>
+    /// <summary>槽数（machine.xml 的 SlotCount）：花篮高度、槽号、片数、空槽都按它；0 = 还不知道，不装花篮。</summary>
     public int SlotCount
     {
         get => (int)GetValue(SlotCountProperty);

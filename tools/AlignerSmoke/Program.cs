@@ -115,7 +115,7 @@ void ClearStage(SmokeAligner target)
         threw = true;
     }
 
-    Check(threw, "sc 里对准器下面没挂驱动：组件初始化就抛");
+    Check(threw, "machine.xml 里对准器下面没挂驱动：组件初始化就抛");
 }
 
 var aligner = new SmokeAligner("AL1");
@@ -385,6 +385,8 @@ sealed class SmokeAlignerCodec : IFrameCodec
 sealed class FakeAlignerDriver : ComponentBase, IDeviceDriverComponent
 {
     private readonly List<Pending> _inflight = [];
+
+    public bool IsEnable => true;
 
     public bool IsConnected { get; set; } = true;
 

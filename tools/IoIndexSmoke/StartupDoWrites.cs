@@ -86,7 +86,7 @@ static class StartupDoWrites
         }
     }
 
-    /// <summary>把装配钩子露出来：冒烟里没有 sc.xml，直接调。</summary>
+    /// <summary>把装配钩子露出来：冒烟里没有 machine.xml，直接调。</summary>
     sealed class ConfiguredIo : IoComponent
     {
         public void Load()

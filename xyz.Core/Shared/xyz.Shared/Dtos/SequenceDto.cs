@@ -11,7 +11,7 @@ public class SequenceListDto
     public const string EventToken = "Sequence";
 
     /// <summary>
-    /// 编号个数（sc.xml Sequence 节点的 Capacity）：界面按它列出 1~Capacity，不写死。
+    /// 编号个数（machine.xml Sequence 节点的 Capacity）：界面按它列出 1~Capacity，不写死。
     /// </summary>
     public int Capacity { get; set; }
 
@@ -60,7 +60,7 @@ public class SequenceDto
 }
 
 /// <summary>
-/// 一步：站点分组（sc.xml 里的分组节点名，如 LoadPort、Chamber）、这一步可去的站点（勾几个 = 哪个空去哪个）、
+/// 一步：站点分组（machine.xml 里的分组节点名，如 LoadPort、Chamber）、这一步可去的站点（勾几个 = 哪个空去哪个）、
 /// 工艺配方（分组要的时候才有）。既是 <see cref="SequenceDto"/> 里的数据（走 JSON），也是保存请求里的消息（走 protobuf），所以带 ProtoContract。
 /// </summary>
 [ProtoContract]
@@ -77,7 +77,7 @@ public class SequenceStepDto
 }
 
 /// <summary>
-/// 可选的站点分组：sc.xml 里的分组节点（不带 Type 的节点，如 LoadPort、Chamber）和下面装的模块，
+/// 可选的站点分组：machine.xml 里的分组节点（不带 Type 的节点，如 LoadPort、Chamber）和下面装的模块，
 /// 只列能放片、并且机械手示教点表里配了的模块。界面原样显示，不翻译、不写死。
 /// </summary>
 public class SequenceStationGroupDto

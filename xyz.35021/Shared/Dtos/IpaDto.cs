@@ -18,7 +18,7 @@ public class IpaDto
     public int State { get; set; }
 
     /// <summary>
-    /// 下面的槽，按 sc 的先后
+    /// 下面的槽，按 machine.xml 的先后
     /// </summary>
     public List<TankDto> Tanks { get; set; } = [];
 

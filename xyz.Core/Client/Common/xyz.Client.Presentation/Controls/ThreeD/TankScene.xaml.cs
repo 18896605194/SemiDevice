@@ -176,7 +176,7 @@ public partial class TankScene : UserControl
     }
 
     /// <summary>
-    /// 灯的亮灭、名字跟这个信号走，sc 里没配就不画
+    /// 灯的亮灭、名字跟这个信号走，machine.xml 里没配就不画
     /// </summary>
     private static void BindSignal(SignalLamp lamp, DiSensorModel? signal)
     {

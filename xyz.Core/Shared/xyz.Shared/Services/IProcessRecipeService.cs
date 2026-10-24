@@ -7,7 +7,7 @@ namespace xyz.Shared.Services;
 /// <summary>
 /// 工艺配方服务契约（配方 → 工艺配方页；流程配方页、腔体手动页选工艺配方也用它的列表）：编号 1~N 的工艺配方，
 /// 看列表、看内容、看能选什么，新建、改名、删除、保存。
-/// 没装工艺配方库（sc.xml 没配 ProcessRecipe 节点）时每个接口都回 process_recipe.not_installed。
+/// 没装工艺配方库（machine.xml 没配 ProcessRecipe 节点）时每个接口都回 process_recipe.not_installed。
 /// </summary>
 [ServiceContract]
 public interface IProcessRecipeService
@@ -26,7 +26,7 @@ public interface IProcessRecipeService
     Task<RpcResponse> GetAsync(ProcessRecipeIndexRequest request, CallContext context = default);
 
     /// <summary>
-    /// 能选什么、范围多少（摆臂和药液来自 sc.xml，合计上限来自腔体工艺超时）。Data 为 ProcessRecipeOptionsDto 的 JSON。
+    /// 能选什么、范围多少（摆臂和药液来自 machine.xml，合计上限来自腔体工艺超时）。Data 为 ProcessRecipeOptionsDto 的 JSON。
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetOptionsAsync(RpcRequest request, CallContext context = default);

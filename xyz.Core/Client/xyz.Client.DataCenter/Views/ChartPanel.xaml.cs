@@ -54,7 +54,7 @@ public partial class ChartPanel : UserControl
     }
 
     /// <summary>
-    /// 截图存到哪个文件夹（页面 ViewModel 从后端 sc.xml 的 DataChart 节点拿的）；相对路径算客户端程序目录。
+    /// 截图存到哪个文件夹（页面 ViewModel 从后端 machine.xml 的 DataChart 节点拿的）；相对路径算客户端程序目录。
     /// </summary>
     public string ScreenshotDirectory
     {

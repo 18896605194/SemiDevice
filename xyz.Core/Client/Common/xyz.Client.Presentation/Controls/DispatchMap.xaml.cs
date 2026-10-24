@@ -6,7 +6,7 @@ namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
 /// 调度图（公共控件，Robot 手动页和主界面都用）：给一个机械手模块名，控件自己建 ViewModel、订推送，
-/// 机械手画在中间，站点卡片按它示教点表里的方向摆在四周——sc.xml 里多一个腔体、一个 LoadPort，图上就多一张卡片，不用改界面。
+/// 机械手画在中间，站点卡片按它示教点表里的方向摆在四周——machine.xml 里多一个腔体、一个 LoadPort，图上就多一张卡片，不用改界面。
 /// 机型的主界面要别的摆法（两台机械手、缓存位……）时，自己写调度图，照样可以拿它、StationCard、Robot 来拼。
 /// </summary>
 public partial class DispatchMap : UserControl

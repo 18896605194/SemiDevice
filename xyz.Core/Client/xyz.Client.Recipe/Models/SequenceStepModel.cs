@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 流程步骤的一行：步号、站点分组（sc.xml 里的分组名，原样显示）、这个分组的模块（勾几个 = 哪个空去哪个）、工艺配方（分组要的时候才有）。
+/// 流程步骤的一行：步号、站点分组（machine.xml 里的分组名，原样显示）、这个分组的模块（勾几个 = 哪个空去哪个）、工艺配方（分组要的时候才有）。
 /// 勾选、改配方都告诉页面（页面标记"有没保存的修改"、重新检查、重画路线预览）。检查结果由页面填回来。
 /// </summary>
 public sealed class SequenceStepModel : ObservableObject
@@ -58,7 +58,7 @@ public sealed class SequenceStepModel : ObservableObject
     public bool IsLoadPort { get; }
 
     /// <summary>
-    /// 分组还在可选分组里（sc.xml 改过、分组没了时为 false）。
+    /// 分组还在可选分组里（machine.xml 改过、分组没了时为 false）。
     /// </summary>
     public bool IsKnownGroup { get; }
 
@@ -79,7 +79,7 @@ public sealed class SequenceStepModel : ObservableObject
     }
 
     /// <summary>
-    /// 勾上的站点名，按 sc.xml 里的先后。
+    /// 勾上的站点名，按 machine.xml 里的先后。
     /// </summary>
     public List<string> CheckedStations => Options.Where(option => option.IsChecked).Select(option => option.Name).ToList();
 

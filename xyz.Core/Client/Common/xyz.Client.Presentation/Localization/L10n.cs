@@ -63,7 +63,7 @@ public static class L10n
 
     /// <summary>
     /// 切换界面语言：把 Application 资源里的各语言包（平台和各机型的）换成目标语言的，
-    /// 目标语言缺哪个包就保留原来的，界面不会出现空白。要在建界面之前调（启动时按后端 sc.xml 的 System 节点设）。
+    /// 目标语言缺哪个包就保留原来的，界面不会出现空白。要在建界面之前调（启动时按后端 machine.xml 的 System 节点设）。
     /// </summary>
     public static void Apply(string language)
     {

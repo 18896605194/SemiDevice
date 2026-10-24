@@ -9,7 +9,7 @@ using xyz.Tools;
 namespace xyz.Service.Ai;
 
 /// <summary>
-/// AI 助手 gRPC 服务：转给 AI 组件（IAi），回答用的语言跟界面一样（整机 sc 的 Language）；没配 Ai 节点回 ai.not_installed。
+/// AI 助手 gRPC 服务：转给 AI 组件（IAi），回答用的语言跟界面一样（整机 machine.xml 的 Language）；没配 Ai 节点回 ai.not_installed。
 /// </summary>
 public class AiService : IAiService
 {
@@ -23,7 +23,7 @@ public class AiService : IAiService
     {
         _ai = IocHelper.GetService<IAi>();
         _system = IocHelper.GetService<ISystemModule>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetStatusAsync(RpcRequest request, CallContext context = default)

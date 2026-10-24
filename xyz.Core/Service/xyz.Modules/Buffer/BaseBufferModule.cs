@@ -13,7 +13,7 @@ namespace xyz.Modules;
 /// </summary>
 public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
 {
-    #region SC
+    #region Machine
 
     [Machine("True", "Buffer", "是否启用这一段 buffer（False = 装机未接 / 停用：不登记槽位、不切生产模式，调度不往这儿放片）")]
     public bool IsEnable { get; set; } = true;
@@ -38,7 +38,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
         if (SlotCount < 1)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {FullPath} 的 SlotCount={SlotCount.ToString(CultureInfo.InvariantCulture)} 不对：要是正整数。");
+                $"machine.xml 节点 {FullPath} 的 SlotCount={SlotCount.ToString(CultureInfo.InvariantCulture)} 不对：要是正整数。");
         }
 
         if (!IsEnable)

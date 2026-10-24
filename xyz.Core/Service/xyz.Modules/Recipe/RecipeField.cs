@@ -29,7 +29,7 @@ public sealed class RecipeField
     private static readonly Regex KeyRule = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     /// <summary>
-    /// sc.xml 里写下拉选项的参数名：选项用英文逗号隔开，如 <c>Time,Scan</c>。
+    /// machine.xml 里写下拉选项的参数名：选项用英文逗号隔开，如 <c>Time,Scan</c>。
     /// 步骤的下拉按站点的 Type 分开写：<c>Source.A</c> 是 Type 为 A 的站点那一套，<c>Source</c> 是站点没配 Type 的那一套。
     /// </summary>
     public const string SourceName = "Source";
@@ -81,7 +81,7 @@ public sealed class RecipeField
     public double? Min { get; private init; }
 
     /// <summary>
-    /// sc.xml 里写的 <c>Max</c>：没按尺寸分开写时用它。上限按晶圆尺寸取，见 <see cref="MaxFor"/>。
+    /// machine.xml 里写的 <c>Max</c>：没按尺寸分开写时用它。上限按晶圆尺寸取，见 <see cref="MaxFor"/>。
     /// </summary>
     private double? DefaultMax { get; init; }
 
@@ -103,8 +103,8 @@ public sealed class RecipeField
     public bool Required { get; private init; }
 
     /// <summary>
-    /// 下拉的选项（下拉才有）：站点的 Type → 选项，照 sc.xml 里写的先后；键是空字符串的是 <c>Source</c>（站点没配 Type、配方头的下拉用它）。
-    /// 摆臂、药液这类选腔体里设备的，写的就是 sc 里的设备名、药液名，腔体执行时照名字找设备（找不到这个腔体就跑不了这个配方）。
+    /// 下拉的选项（下拉才有）：站点的 Type → 选项，照 machine.xml 里写的先后；键是空字符串的是 <c>Source</c>（站点没配 Type、配方头的下拉用它）。
+    /// 摆臂、药液这类选腔体里设备的，写的就是 machine.xml 里的设备名、药液名，腔体执行时照名字找设备（找不到这个腔体就跑不了这个配方）。
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> OptionsByType { get; private init; } =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -202,7 +202,7 @@ public sealed class RecipeField
     }
 
     /// <summary>
-    /// 存进文件的写法（查过之后调）：整数、小数去掉多余的写法（+5 存 5、1.50 存 1.5），下拉换成 options 里的写法（大小写跟 sc.xml 一样），
+    /// 存进文件的写法（查过之后调）：整数、小数去掉多余的写法（+5 存 5、1.50 存 1.5），下拉换成 options 里的写法（大小写跟 machine.xml 一样），
     /// 开关小写，文本去掉首尾空白。
     /// </summary>
     public string Canonical(string value, IReadOnlyList<string> options)
@@ -233,11 +233,11 @@ public sealed class RecipeField
     }
 
     /// <summary>
-    /// 从 sc.xml 的字段节点读一个字段；配错就抛，path 是节点路径（报错用）。
-    /// optionsInSc：下拉的选项写在 sc.xml 里（Source、Source.类型）；配方头的 Type 那一项传 false，它的选项是站点配的几种 Type。
+    /// 从 machine.xml 的字段节点读一个字段；配错就抛，path 是节点路径（报错用）。
+    /// optionsInMachineXml：下拉的选项写在 machine.xml 里（Source、Source.类型）；配方头的 Type 那一项传 false，它的选项是站点配的几种 Type。
     /// 下拉的默认值在不在选项里，要知道有哪几种站点才查得了，由工艺配方库 Bind 时查。
     /// </summary>
-    public static RecipeField FromConfig(ModuleConfig node, string path, bool optionsInSc = true)
+    public static RecipeField FromConfig(ModuleConfig node, string path, bool optionsInMachineXml = true)
     {
         string Read(string name)
         {
@@ -248,20 +248,20 @@ public sealed class RecipeField
         string key = node.Name.Trim();
         if (!KeyRule.IsMatch(key))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的名字 {key} 不能当字段名：字母开头，只用字母、数字、下划线");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 的名字 {key} 不能当字段名：字母开头，只用字母、数字、下划线");
         }
 
         ReportUnknownValues(node, path);
         string text = Read(nameof(Text));
         if (text.Length == 0)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 没配 Text（配方页上这一列叫什么）");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 没配 Text（配方页上这一列叫什么）");
         }
 
         string typeText = Read(nameof(Type));
         if (!Enum.TryParse(typeText, ignoreCase: true, out ProcessRecipeFieldType type) || !Enum.IsDefined(type) || int.TryParse(typeText, out _))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Type=\"{typeText}\" 不对：只能是 Int、Double、Choice、Bool、Text");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 的 Type=\"{typeText}\" 不对：只能是 Int、Double、Choice、Bool、Text");
         }
 
         bool number = type is ProcessRecipeFieldType.Int or ProcessRecipeFieldType.Double;
@@ -272,7 +272,7 @@ public sealed class RecipeField
         {
             if (min is not null && min.Value > limit)
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 的下限 {Number(min.Value)} 比上限 {Number(limit)} 大");
+                throw new InvalidOperationException($"machine.xml 节点 {path} 的下限 {Number(min.Value)} 比上限 {Number(limit)} 大");
             }
         }
 
@@ -282,7 +282,7 @@ public sealed class RecipeField
         {
             if (!int.TryParse(decimalsText, NumberStyles.None, CultureInfo.InvariantCulture, out int places))
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 的 Decimals=\"{decimalsText}\" 要是 0 或正整数");
+                throw new InvalidOperationException($"machine.xml 节点 {path} 的 Decimals=\"{decimalsText}\" 要是 0 或正整数");
             }
 
             decimals = places;
@@ -292,11 +292,11 @@ public sealed class RecipeField
         string requiredText = Read(nameof(Required));
         if (requiredText.Length > 0 && !bool.TryParse(requiredText, out required))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 Required=\"{requiredText}\" 只能是 true 或 false");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 的 Required=\"{requiredText}\" 只能是 true 或 false");
         }
 
         bool choice = type == ProcessRecipeFieldType.Choice;
-        var optionsByType = choice && optionsInSc
+        var optionsByType = choice && optionsInMachineXml
             ? ReadOptions(node, path)
             : new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var field = new RecipeField
@@ -329,7 +329,7 @@ public sealed class RecipeField
                 var problem = field.CheckFormat(defaultText, [], size);
                 if (problem is not null)
                 {
-                    throw new InvalidOperationException($"sc.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
+                    throw new InvalidOperationException($"machine.xml 节点 {path} 的 Default=\"{defaultText}\" 不合规（{problem.Value.Code}）");
                 }
             }
         }
@@ -372,7 +372,7 @@ public sealed class RecipeField
                 continue;
             }
 
-            LogHelper.Error(path, $"sc.xml 节点 {path} 的参数 {name} 不认识：配方字段没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
+            LogHelper.Error(path, $"machine.xml 节点 {path} 的参数 {name} 不认识：配方字段没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
         }
     }
 
@@ -406,7 +406,7 @@ public sealed class RecipeField
             {
                 if (options.Contains(option, StringComparer.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name}=\"{text}\" 里选项 {option} 写了两遍");
+                    throw new InvalidOperationException($"machine.xml 节点 {path} 的 {name}=\"{text}\" 里选项 {option} 写了两遍");
                 }
 
                 options.Add(option);
@@ -414,19 +414,19 @@ public sealed class RecipeField
 
             if (options.Count == 0)
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name} 一个选项都没有（英文逗号隔开，如 Time,Scan）");
+                throw new InvalidOperationException($"machine.xml 节点 {path} 的 {name} 一个选项都没有（英文逗号隔开，如 Time,Scan）");
             }
 
             if (!result.TryAdd(stationType, options))
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name} 写了两遍（Type 不分大小写）");
+                throw new InvalidOperationException($"machine.xml 节点 {path} 的 {name} 写了两遍（Type 不分大小写）");
             }
         }
 
         if (result.Count == 0)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {path} 是下拉，要写选项：{SourceName}（站点没配 Type 时），或按站点的 Type 分开写 {SourceName}{SourceTypeSeparator}A、{SourceName}{SourceTypeSeparator}B……");
+                $"machine.xml 节点 {path} 是下拉，要写选项：{SourceName}（站点没配 Type 时），或按站点的 Type 分开写 {SourceName}{SourceTypeSeparator}A、{SourceName}{SourceTypeSeparator}B……");
         }
 
         return result;
@@ -450,7 +450,7 @@ public sealed class RecipeField
             if (!int.TryParse(sizeText, NumberStyles.None, CultureInfo.InvariantCulture, out int size) || !WaferSizeComponent.IsSupported(size))
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {path} 的 {name} 不对：按晶圆尺寸分开写的上限只能是 {MaxBySizePrefix}{WaferSizeComponent.Inch8} 或 {MaxBySizePrefix}{WaferSizeComponent.Inch12}");
+                    $"machine.xml 节点 {path} 的 {name} 不对：按晶圆尺寸分开写的上限只能是 {MaxBySizePrefix}{WaferSizeComponent.Inch8} 或 {MaxBySizePrefix}{WaferSizeComponent.Inch12}");
             }
 
             double? limit = ReadLimit((value.Value ?? string.Empty).Trim(), name, path, type);
@@ -461,7 +461,7 @@ public sealed class RecipeField
 
             if (!result.TryAdd(size, limit.Value))
             {
-                throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name} 写了两遍");
+                throw new InvalidOperationException($"machine.xml 节点 {path} 的 {name} 写了两遍");
             }
         }
 
@@ -480,12 +480,12 @@ public sealed class RecipeField
 
         if (!double.TryParse(text, DecimalStyle, CultureInfo.InvariantCulture, out double value) || !double.IsFinite(value))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 的 {name}=\"{text}\" 不是数");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 的 {name}=\"{text}\" 不是数");
         }
 
         if (type == ProcessRecipeFieldType.Int && value != Math.Floor(value))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {path} 是整数字段，{name}=\"{text}\" 也要是整数");
+            throw new InvalidOperationException($"machine.xml 节点 {path} 是整数字段，{name}=\"{text}\" 也要是整数");
         }
 
         return value;

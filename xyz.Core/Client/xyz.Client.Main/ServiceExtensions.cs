@@ -14,7 +14,7 @@ namespace xyz.Client.Main;
 public static class ServiceExtensions
 {
     /// <summary>
-    /// 注册主界面（菜单 Code "Main"）和它中间的默认整机调度。settings 里是后端 sc.xml 装了的 LoadPort、机械手：
+    /// 注册主界面（菜单 Code "Main"）和它中间的默认整机调度。settings 里是后端 machine.xml 装了的 LoadPort、机械手：
     /// 右栏一个 LoadPort 一个页签、默认调度图一台机械手一张都照它生成；后端没起时是空的，页面上显示提示。
     /// 整机调度按 ClientViewKeys.MainDispatch 注册：机型在自己的 IClientModule.Register 里用同一个键再注册一个 UserControl，
     /// 就换成机型的（机型后注册，后注册的生效）。

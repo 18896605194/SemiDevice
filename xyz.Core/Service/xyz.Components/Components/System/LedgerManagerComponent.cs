@@ -123,7 +123,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
 
     #endregion
 
-    #region SC 
+    #region Machine 
 
     [Machine("True", "LedgerManager", "是否记晶圆账（False=不记账，设备照常动作）")]
     public bool IsEnable { get; set; } = true;
@@ -134,7 +134,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
     [Machine("True", "LedgerManager", "是否把账存盘、开机恢复腔体和机械手上的片（LoadPort 以开机 Mapping 为准；False=只在内存，重启后机内的片要人工补账）")]
     public bool IsPersistent { get; set; } = true;
 
-    [Machine("Default", "LedgerManager", "流水和存盘落哪个库（sc.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
+    [Machine("Default", "LedgerManager", "流水和存盘落哪个库（machine.xml 的 Database 节点名），晶圆信息属业务数据，走默认库")]
     public string HistoryDatabase { get; set; } = XyzDb.DefaultName;
 
     [Machine("90", "LedgerManager", "晶圆流水保留天数，超期每天清理一次")]
@@ -311,7 +311,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         // 存盘行、流水行、人工调整记录都靠映射组件转，账本开着却没配它：开机就报出来
         if (IsEnable && _mapper is null)
         {
-            throw new InvalidOperationException($"{Name} 的存盘、流水、人工调整记录要靠映射组件转，但 sc.xml 里没配映射组件（MapperComponent）");
+            throw new InvalidOperationException($"{Name} 的存盘、流水、人工调整记录要靠映射组件转，但 machine.xml 里没配映射组件（MapperComponent）");
         }
 
         if (!IsEnable || !_persisting)
@@ -1455,7 +1455,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         _historyCleanedDay = DateTime.Today;
         if (!XyzDb.IsRegistered(HistoryDatabase))
         {
-            LogHelper.Warn(Name, $"晶圆流水库 {HistoryDatabase} 没在 sc.xml 的 Database 节点里配，落到默认库");
+            LogHelper.Warn(Name, $"晶圆流水库 {HistoryDatabase} 没在 machine.xml 的 Database 节点里配，落到默认库");
         }
 
         CleanupHistory();
@@ -1468,7 +1468,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
     {
         try
         {
-            var deadline = DateTime.Today.AddDays(-HistoryKeepDays); //SC 配置
+            var deadline = DateTime.Today.AddDays(-HistoryKeepDays); //machine.xml 配置
             using var db = XyzDb.Create(HistoryDatabase);
             var expired = db.SplitHelper<WaferHistoryEntity>().GetTables()
                 .Where(table => table.Date < deadline)

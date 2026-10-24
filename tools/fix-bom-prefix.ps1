@@ -1,10 +1,10 @@
 # Repair the broken EF BB BD prefix written by add-bom.ps1 (typo: 0xBD instead of 0xBF).
 # - Normal files: EF BB BD -> EF BB BF (true UTF-8 BOM)
-# - Runtime-loaded configs (sc.xml / ec.xml): strip the 3-byte prefix to restore original bytes
+# - Runtime-loaded configs (machine.xml / ec.xml): strip the 3-byte prefix to restore original bytes
 $root = 'D:\Code'
 $exclude = '\\(bin|obj|\.git|\.vs|packages|node_modules|Libs|\.codex)(\\|$)'
 $exts = '.cs', '.xaml', '.md', '.resx', '.xml', '.config', '.csproj'
-$runtimeConfigs = '\\xyz\.Configs\\Config\\(sc|ec)\.xml$'
+$runtimeConfigs = '\\xyz\.Configs\\Config\\(machine|ec)\.xml$'
 
 $fixedBom = 0; $stripped = 0; $untouched = 0
 Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue |

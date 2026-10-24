@@ -20,7 +20,7 @@ namespace xyz.Client.Recipe.ViewModels;
 
 /// <summary>
 /// 工艺配方页 ViewModel（配方 → 工艺配方）：左边编号 1~N 的列表（个数由后端给），右边选中那一个的配方头、工艺步骤。
-/// 配方头有哪些项、每一步有哪些字段（列）都不写死：按后端给的两张字段表（sc.xml ProcessRecipe → Head、Fields）生成，类型、范围、默认值、
+/// 配方头有哪些项、每一步有哪些字段（列）都不写死：按后端给的两张字段表（machine.xml ProcessRecipe → Head、Fields）生成，类型、范围、默认值、
 /// 下拉的选项都按它们来；步骤下拉的选项按配方头选的 Type 取那一套。新建、重命名、删除是列表上的操作，马上生效；
 /// 配方头能填的项和步骤改完点"保存"才存，带上打开时的版本，别处改过就存不进去。
 /// 后端推"变了"通知，这里攒一下再重拉；页面不在前台时只记一笔，切回来再拉。
@@ -650,7 +650,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 换上后端给的两张字段表（名字按界面语言）。字段表只在后端重启时可能变（sc.xml 改了），
+    /// 换上后端给的两张字段表（名字按界面语言）。字段表只在后端重启时可能变（machine.xml 改了），
     /// 别的时候重拉（谁存了配方都会触发）字段表一样，就不重建。变了返回 true，打开着的工艺配方要按新字段表重摆。
     /// </summary>
     private bool ApplyOptions(ProcessRecipeOptionsDto options)
@@ -924,7 +924,7 @@ public class ProcessRecipeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 改着没保存的时候后端换了字段表（改了 sc.xml 又重启）：按新字段表重摆配方头和每一步，不然表头换了、格子还是老的，对不齐。
+    /// 改着没保存的时候后端换了字段表（改了 machine.xml 又重启）：按新字段表重摆配方头和每一步，不然表头换了、格子还是老的，对不齐。
     /// 还算"有没保存的修改"，再查一遍。
     /// </summary>
     private void Relayout()

@@ -13,7 +13,7 @@ namespace xyz.Components.Components;
 [Component(description: "DI 值监控组件")]
 public class DiSensorComponent : ComponentBase, IDiSensor
 {
-    #region SC
+    #region Machine
 
     [Machine("-1", "IO", "监控的 DI 索引", Required = true)]
     public int DiIndex { get; set; } = -1;
@@ -85,7 +85,7 @@ public class DiSensorComponent : ComponentBase, IDiSensor
     #endregion
 
     /// <summary>
-    /// IO 组件（开机 Bind 时取）；sc.xml 没配 Io 节点是 null
+    /// IO 组件（开机 Bind 时取）；machine.xml 没配 Io 节点是 null
     /// </summary>
     private IIo? _io;
 

@@ -3,7 +3,7 @@
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 一步里的一个可选站点（勾选块）：模块名照 sc.xml 原样显示；勾上、去掉都告诉这一步。
+/// 一步里的一个可选站点（勾选块）：模块名照 machine.xml 原样显示；勾上、去掉都告诉这一步。
 /// </summary>
 public sealed class StationOptionModel : ObservableObject
 {

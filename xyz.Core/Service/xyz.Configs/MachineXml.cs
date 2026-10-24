@@ -8,26 +8,26 @@ using xyz.Configs.Models;
 namespace xyz.Configs;
 
 /// <summary>
-/// SC 配置文件读取器（先解析模块级 Setting 节点）。
+/// machine.xml 配置文件读取器（先解析模块级 Setting 节点）。
 /// </summary>
-public static class SC
+public static class MachineXml
 {
     public static IReadOnlyList<ModuleConfig> Load()
     {
         var path = FindConfigFile();
-        var config = XmlHelper.Deserialize<ScConfig>(path);
+        var config = XmlHelper.Deserialize<MachineSettings>(path);
         return config?.Modules ?? [];
     }
 
     /// <summary>
-    /// 配置目录（sc.xml 所在目录）；ec.xml 和各编号表（EcDefinitions.xml 等）都跟它放一起。
+    /// 配置目录（machine.xml 所在目录）；ec.xml 和各编号表（EcDefinitions.xml 等）都跟它放一起。
     /// </summary>
     public static string ConfigDirectory => Path.GetDirectoryName(FindConfigFile())!;
 
     /// <summary>
-    /// 把一个参数写回 sc.xml（界面上改、改完一直生效的，现在只有 System 的晶圆尺寸）：settingPath 是组件全路径（"System"、"Chamber.Chamber1"，
+    /// 把一个参数写回 machine.xml（界面上改、改完一直生效的，现在只有 System 的晶圆尺寸）：settingPath 是组件全路径（"System"、"Chamber.Chamber1"，
     /// 分组节点的名字也在里面），按它一层层找到 Setting，改下面同名的 Value（不分大小写），没有就照上一行的缩进加一行。
-    /// 别的内容、缩进、换行原样不动；先写临时文件再换上去，写到一半出事不会把 sc.xml 写坏。找不到节点、写不了文件就抛，调用方转成错误码。
+    /// 别的内容、缩进、换行原样不动；先写临时文件再换上去，写到一半出事不会把 machine.xml 写坏。找不到节点、写不了文件就抛，调用方转成错误码。
     /// </summary>
     public static void SaveValue(string settingPath, string name, string value)
     {
@@ -43,7 +43,7 @@ public static class SC
             node = level.FirstOrDefault(element => string.Equals((string?)element.Attribute("Name"), segment, StringComparison.OrdinalIgnoreCase));
             if (node is null)
             {
-                throw new InvalidOperationException($"sc.xml 里找不到节点 {settingPath}");
+                throw new InvalidOperationException($"machine.xml 里找不到节点 {settingPath}");
             }
 
             level = node.Elements("Setting");
@@ -51,7 +51,7 @@ public static class SC
 
         if (node is null)
         {
-            throw new InvalidOperationException("没给 sc.xml 的节点路径");
+            throw new InvalidOperationException("没给 machine.xml 的节点路径");
         }
 
         var existing = node.Elements("Value")
@@ -118,26 +118,26 @@ public static class SC
             }
 
             var fullPath = Path.GetFullPath(configPath, AppContext.BaseDirectory);
-            var scFile = Path.Combine(fullPath, "sc.xml");
-            if (!File.Exists(scFile))
+            var machineFile = Path.Combine(fullPath, "machine.xml");
+            if (!File.Exists(machineFile))
             {
-                throw new FileNotFoundException($"配置目录未找到 sc.xml: {fullPath}");
+                throw new FileNotFoundException($"配置目录未找到 machine.xml: {fullPath}");
             }
 
-            return scFile;
+            return machineFile;
         }
 
         // 没有 Paths.json 时的兼容查找
         var candidates = new[]
         {
-            Path.Combine(AppContext.BaseDirectory, "sc.xml"),
-            Path.Combine(AppContext.BaseDirectory, "Config", "sc.xml"),
-            Path.Combine(Directory.GetCurrentDirectory(), "sc.xml"),
-            Path.Combine(Directory.GetCurrentDirectory(), "Config", "sc.xml")
+            Path.Combine(AppContext.BaseDirectory, "machine.xml"),
+            Path.Combine(AppContext.BaseDirectory, "Config", "machine.xml"),
+            Path.Combine(Directory.GetCurrentDirectory(), "machine.xml"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Config", "machine.xml")
         };
 
         return candidates.FirstOrDefault(File.Exists)
-            ?? throw new FileNotFoundException("未找到 sc.xml 配置文件");
+            ?? throw new FileNotFoundException("未找到 machine.xml 配置文件");
     }
 
     private static string? ReadConfigPath()

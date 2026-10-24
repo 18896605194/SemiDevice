@@ -11,7 +11,7 @@ namespace xyz.Components.Components;
 [Component(description: "机械手指（Robot 的 Arm，本身是一根 Arm 轴）")]
 public class RobotArmComponent : RobotAxisComponent, IRobotArm
 {
-    #region SC
+    #region Machine
 
     [Machine("1", "Arm", "手指号（取放与主动推送协议用，从 1 开始）", Required = true)]
     public int Number { get; set; } = 1;

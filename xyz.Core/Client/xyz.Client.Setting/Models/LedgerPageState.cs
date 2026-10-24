@@ -14,7 +14,7 @@ public enum LedgerPageState
     /// <summary>没连上后端，也没有拉到过账。</summary>
     Offline,
 
-    /// <summary>晶圆账没开（sc.xml 没配 LedgerManager，或 IsEnable=False）。</summary>
+    /// <summary>晶圆账没开（machine.xml 没配 LedgerManager，或 IsEnable=False）。</summary>
     Disabled,
 
     /// <summary>账开着，但没有能放片的位置（机械手的 Stations 都没配，或站点没登记槽位）。</summary>

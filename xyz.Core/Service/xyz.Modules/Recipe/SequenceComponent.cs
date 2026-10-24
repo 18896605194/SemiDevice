@@ -53,7 +53,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     /// </summary>
     private IReadOnlyList<IModule> _modules = [];
 
-    #region SC
+    #region Machine
 
     [Machine("99", "Sequence", "流程配方个数：编号 1~N")]
     public int Capacity { get; set; } = 99;
@@ -91,17 +91,17 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         if (Capacity < 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {Name} 的 Capacity 要大于 0，现在是 {Capacity}");
+            throw new InvalidOperationException($"machine.xml 节点 {Name} 的 Capacity 要大于 0，现在是 {Capacity}");
         }
 
         if (NameMaxLength < 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {Name} 的 NameMaxLength 要大于 0，现在是 {NameMaxLength}");
+            throw new InvalidOperationException($"machine.xml 节点 {Name} 的 NameMaxLength 要大于 0，现在是 {NameMaxLength}");
         }
 
         if (string.IsNullOrWhiteSpace(Folder))
         {
-            throw new InvalidOperationException($"sc.xml 节点 {Name} 没配 Folder（流程配方文件放哪）");
+            throw new InvalidOperationException($"machine.xml 节点 {Name} 没配 Folder（流程配方文件放哪）");
         }
 
         Load();
@@ -187,7 +187,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 生成可选站点分组：按 sc.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
+    /// 生成可选站点分组：按 machine.xml 的分组节点（模块全路径的第一层，如 Chamber.Chamber1 的 Chamber），
     /// 只留能放片、机械手到得了的站点（机械手现在这种尺寸的示教点表里配了的）；顶层直接装的站点自己成一组
     /// </summary>
     private void BuildGroups()
@@ -225,7 +225,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
     }
 
     /// <summary>
-    /// 站点在 sc.xml 里的分组：全路径的第一层；顶层直接装的就是它自己
+    /// 站点在 machine.xml 里的分组：全路径的第一层；顶层直接装的就是它自己
     /// </summary>
     private static string GroupOf(IModule module)
     {

@@ -121,7 +121,7 @@ public class AlarmRealtimeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 连上后端时问一次配没配 AI（后端重启时 sc 可能改了）
+    /// 连上后端时问一次配没配 AI（后端重启时 machine.xml 可能改了）
     /// </summary>
     private void OnConnectionChanged(bool connected)
     {

@@ -10,7 +10,7 @@ using xyz.Client.Presentation.Models;
 namespace xyz.Client.Presentation.Controls;
 
 /// <summary>
-/// 标题栏位于底部的近方形 LoadPort 信息卡片：底栏标题 + 状态灯；主体左花篮（槽数跟 sc 的 SlotCount，一槽一条细线）右 disk 圆片 + 槽数。
+/// 标题栏位于底部的近方形 LoadPort 信息卡片：底栏标题 + 状态灯；主体左花篮（槽数跟 machine.xml 的 SlotCount，一槽一条细线）右 disk 圆片 + 槽数。
 /// 按真实字号排版、随给定尺寸伸缩，不整卡缩放。调度图下排两颗 LP 用它。
 /// </summary>
 public partial class LoadPortInfoCard : UserControl
@@ -162,7 +162,7 @@ public partial class LoadPortInfoCard : UserControl
         DependencyProperty.Register(nameof(Wafers), typeof(IEnumerable), typeof(LoadPortInfoCard),
             new PropertyMetadata(null, OnWafersChanged));
 
-    /// <summary>花篮槽数（sc.xml 的 LoadPort.SlotCount）；0 表示还不知道、不画槽。</summary>
+    /// <summary>花篮槽数（machine.xml 的 LoadPort.SlotCount）；0 表示还不知道、不画槽。</summary>
     public int SlotCount
     {
         get => (int)GetValue(SlotCountProperty);

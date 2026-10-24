@@ -41,7 +41,7 @@
                     <local:TankVisual3D x:Name="Body" BodyColor="{StaticResource DarkHardwareTankRimColor}" />
                 </Viewport3D>
 
-                <!--  信号灯贴在罐的右边沿外面，位置由代码按相机算；一盏灯对一个 DI 信号，亮灭、名字跟着它，sc 里没配的不画  -->
+                <!--  信号灯贴在罐的右边沿外面，位置由代码按相机算；一盏灯对一个 DI 信号，亮灭、名字跟着它，machine.xml 里没配的不画  -->
                 <Canvas IsHitTestVisible="False">
                     <controls:SignalLamp x:Name="OverfillSignal" IsAlarm="True" />
                     <controls:SignalLamp x:Name="HighHighSignal" IsAlarm="True" />

@@ -14,7 +14,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{DynamicResource DarkWindowBackground}">
-        <!--  三块：左 系统操作（平台固定）| 中 整机调度（可替换：机型按 ClientViewKeys.MainDispatch 注册自己的）| 右 LoadPort（sc.xml 配几个就几个页签）。
+        <!--  三块：左 系统操作（平台固定）| 中 整机调度（可替换：机型按 ClientViewKeys.MainDispatch 注册自己的）| 右 LoadPort（machine.xml 配几个就几个页签）。
               权限：系统操作那几个按钮归功能项"整机控制"，Reset 归"报警复位"；右边建 Job、启动 Job 跟主界面这一项走  -->
         <Grid Margin="8">
             <Grid.ColumnDefinitions>
@@ -396,7 +396,7 @@
                         </Grid>
                     </DockPanel>
 
-                    <!--  没有 LoadPort（启动时没连上后端，或 sc.xml 没配）：没有页签可选  -->
+                    <!--  没有 LoadPort（启动时没连上后端，或 machine.xml 没配）：没有页签可选  -->
                     <TextBlock
                         Margin="24"
                         Style="{DynamicResource CenterNullHintTextStyle}"

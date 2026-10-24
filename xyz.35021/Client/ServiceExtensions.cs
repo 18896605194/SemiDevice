@@ -15,13 +15,13 @@ public static class ServiceExtensions
 {
     public static IServiceCollection AddXyz35021ClientServices(this IServiceCollection services)
     {
-        // 大手动界面：一个页面里按 sc.xml 配的 LoadPort 数量动态生成多个面板。
+        // 大手动界面：一个页面里按 machine.xml 配的 LoadPort 数量动态生成多个面板。
         services.AddSingleton<LoadPortsManualViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<LoadPortsManualViewModel>());
 
         services.AddKeyedSingleton<UserControl, LoadPortsManualView>("Manual.LoadPorts");
 
-        // Robot 手动界面：一个页面里按 sc.xml 配的 Robot 数量动态生成多个面板。
+        // Robot 手动界面：一个页面里按 machine.xml 配的 Robot 数量动态生成多个面板。
         services.AddSingleton<RobotManualViewModel>();
         services.AddSingleton<BaseViewModel>(sp => sp.GetRequiredService<RobotManualViewModel>());
 

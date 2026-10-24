@@ -8,7 +8,7 @@ namespace xyz.Components.Interfaces;
 public interface IAccount
 {
     /// <summary>
-    /// 要不要登录（SC）：False 时客户端不登录、不分权限
+    /// 要不要登录（machine.xml）：False 时客户端不登录、不分权限
     /// </summary>
     bool IsEnable { get; }
 

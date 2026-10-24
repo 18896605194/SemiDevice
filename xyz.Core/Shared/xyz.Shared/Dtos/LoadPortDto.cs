@@ -35,7 +35,7 @@ public class LoadPortDto
     /// <summary>Auto/Manual（LoadPort 的 Access Mode）：true = Auto（搬运车经 E84 自动交接），false = Manual（人工放取）。</summary>
     public bool AutoMode { get; set; }
 
-    /// <summary>花篮槽数（sc.xml 里 LoadPort 节点的 SlotCount），界面按它画槽位。</summary>
+    /// <summary>花篮槽数（machine.xml 里 LoadPort 节点的 SlotCount），界面按它画槽位。</summary>
     public int SlotCount { get; set; }
 
     /// <summary>花篮槽位表（设备 Mapping 结果），下标顺序即槽位顺序；取放片、人工改账之后它不变，界面画片以 LedgerSlots 为准。</summary>

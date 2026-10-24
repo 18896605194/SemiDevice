@@ -81,7 +81,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("True", "_robot", "是否启用本 _robot (False=装机未接/停用)")]
     public bool IsEnable { get; set; } = true;
@@ -183,7 +183,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region Component
 
     /// <summary>
-    /// 设备通道（sc 里本模块下的 Driver 节点）：项目的机械手类用它发指令
+    /// 设备通道（machine.xml 里本模块下启用的那条：串口或网口）：项目的机械手类用它发指令
     /// </summary>
     public IDeviceDriverComponent? _driver { get; private set; }
 
@@ -215,12 +215,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     private const string TeachPoints8Name = "Size8";
 
     /// <summary>
-    /// 12 寸的示教点表（sc 里机械手下 Size12 那组）；组件初始化时收好就不变
+    /// 12 寸的示教点表（machine.xml 里机械手下 Size12 那组）；组件初始化时收好就不变
     /// </summary>
     private IReadOnlyDictionary<string, ITeachPoint> _teachPoints12 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 8 寸的示教点表（sc 里机械手下 Size8 那组）；组件初始化时收好就不变
+    /// 8 寸的示教点表（machine.xml 里机械手下 Size8 那组）；组件初始化时收好就不变
     /// </summary>
     private IReadOnlyDictionary<string, ITeachPoint> _teachPoints8 = new Dictionary<string, ITeachPoint>(StringComparer.OrdinalIgnoreCase);
 
@@ -270,7 +270,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         int count = setting.Children.Count(child => string.Equals(child.Name, tableName, StringComparison.OrdinalIgnoreCase));
         if (count > 1)
         {
-            throw new InvalidOperationException($"sc.xml 节点 {setting.Name}.{tableName} 配了 {count} 个，只能配一个。");
+            throw new InvalidOperationException($"machine.xml 节点 {setting.Name}.{tableName} 配了 {count} 个，只能配一个。");
         }
     }
 
@@ -296,12 +296,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             else
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {point.FullPath}：示教点要挂在机械手 {Name} 下的 {TeachPoints12Name} 或 {TeachPoints8Name} 分组里（一种晶圆尺寸一组）。");
+                    $"machine.xml 节点 {point.FullPath}：示教点要挂在机械手 {Name} 下的 {TeachPoints12Name} 或 {TeachPoints8Name} 分组里（一种晶圆尺寸一组）。");
             }
 
             if (!points.TryAdd(point.Name, point))
             {
-                throw new InvalidOperationException($"sc.xml 节点 {point.FullPath} 重复配置。");
+                throw new InvalidOperationException($"machine.xml 节点 {point.FullPath} 重复配置。");
             }
         }
 
@@ -311,7 +311,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         _teachPoints8 = points8;
         if (points12.Count == 0 && points8.Count == 0)
         {
-            LogHelper.Error(Name, $"sc.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointComponent，不然哪儿都去不了");
+            LogHelper.Error(Name, $"machine.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointComponent，不然哪儿都去不了");
         }
     }
 
@@ -326,7 +326,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             if (seen.TryGetValue(point.Number, out string? other))
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 机械手 {Name} 的 {tableName} 里 {other} 和 {point.Name} 的站号都是 {point.Number}：两个站点会被当成同一个工位去取放。");
+                    $"machine.xml 机械手 {Name} 的 {tableName} 里 {other} 和 {point.Name} 的站号都是 {point.Number}：两个站点会被当成同一个工位去取放。");
             }
 
             seen[point.Number] = point.Name;
@@ -374,13 +374,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             if (arm.Number != index + 1)
             {
                 throw new InvalidOperationException(
-                    $"sc.xml 节点 {arm.FullPath} 的手指号 {arm.Number} 不合法：要唯一、从 1 连续到 {Arms.Count}（晶圆账槽位 = 手指号）。");
+                    $"machine.xml 节点 {arm.FullPath} 的手指号 {arm.Number} 不合法：要唯一、从 1 连续到 {Arms.Count}（晶圆账槽位 = 手指号）。");
             }
         }
 
         if (Axes.Count == 0)
         {
-            LogHelper.Error(Name, "sc.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
+            LogHelper.Error(Name, "machine.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
         }
 
         #endregion
@@ -401,7 +401,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         if (MapEnabled && this is not IWaferMap)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {FullPath} 开了 MapEnabled，但机械手类 {GetType().Name} 不能扫片（没声明 IWaferMap）。");
+                $"machine.xml 节点 {FullPath} 开了 MapEnabled，但机械手类 {GetType().Name} 不能扫片（没声明 IWaferMap）。");
         }
 
         // 停用的机械手：不连驱动、不登记晶圆账
@@ -424,7 +424,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
         else
         {
-            LogHelper.Error(Name, "sc.xml 没挂设备通道：本模块下要有 Driver 子节点（Type=xyz.Components.Components.DeviceDriverComponent）");
+            LogHelper.Error(Name, "machine.xml 没有启用的设备通道：本模块下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
         }
 
         #endregion
@@ -449,7 +449,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 if (Arms.All(item => item.Number != arm))
                 {
                     throw new InvalidOperationException(
-                        $"sc.xml 机械手 {FullPath} 的 {size} 寸示教点 {point.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                        $"machine.xml 机械手 {FullPath} 的 {size} 寸示教点 {point.Name} 的 PickArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
                 }
             }
 
@@ -458,7 +458,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 if (Arms.All(item => item.Number != arm))
                 {
                     throw new InvalidOperationException(
-                        $"sc.xml 机械手 {FullPath} 的 {size} 寸示教点 {point.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
+                        $"machine.xml 机械手 {FullPath} 的 {size} 寸示教点 {point.Name} 的 PlaceArms 配了 Arm{arm}，但这台机械手没配这个手指节点。");
                 }
             }
         }
@@ -487,7 +487,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 记一只手的在位推送；设备推了 sc.xml 里没配的手指，不凭空长一只手，记日志忽略
+    /// 记一只手的在位推送；设备推了 machine.xml 里没配的手指，不凭空长一只手，记日志忽略
     /// </summary>
     protected void NoteArmPresence(int arm, bool hasWafer)
     {
@@ -553,7 +553,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// 未连接或停用时查询反馈（伺服使能、设备报错、速度）不可信，置 null；手指在位保留最后一次推送值；
     /// 当前站点及其伸出方向、伸出距离 Y 取最近一次发起成功的取放片，还没取放过为 北 / 0；
     /// 手指伸出 = 这一趟取放还没做完（发出指令时记下、做完清掉）的那只手；
-    /// 示教点表（含各站点槽数、允许的手指）与轴坐标（sc.xml 轴节点整表）下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
+    /// 示教点表（含各站点槽数、允许的手指）与轴坐标（machine.xml 轴节点整表）下推，界面（站点 / 手臂 / 槽位下拉、轴位表）不写死。
     /// </summary>
     public RobotDto CreateStateDto()
     {
@@ -597,7 +597,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         dto.IsConnected = _driver?.IsConnected ?? false;
 
-        // 轴位表按 sc.xml 轴节点整表下发（轴名总在，界面没数据也列得出轴）：
+        // 轴位表按 machine.xml 轴节点整表下发（轴名总在，界面没数据也列得出轴）：
         // 连上了才带坐标，还没查到或没连上的轴坐标为 null——组件里存的是断线前的旧值，不作数。
         bool trusted = dto.IsConnected && IsEnable;
         foreach (var axis in Axes)
@@ -620,7 +620,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     }
 
     /// <summary>
-    /// 站点槽数：取站点模块在 sc.xml 里配的 SlotCount（LoadPort 25、腔体 1），不在示教点里重复配。
+    /// 站点槽数：取站点模块在 machine.xml 里配的 SlotCount（LoadPort 25、腔体 1），不在示教点里重复配。
     /// 搬运模块表还没绑好、或站点名不是可服务工位时为 0。
     /// </summary>
     private int SlotCountOf(string station)
@@ -1255,7 +1255,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     #region 扫片（可选能力 IWaferMap）
 
     // 能扫片的机械手类在类上声明 IWaferMap（下面的 Map / MapResults 就是它的实现），再重写 AddMapSteps 加扫片那几条，拿到槽图连同设备回的原文调 SaveMapResult 存起来。
-    // sc 开了 MapEnabled 的，它示教点表里的 LoadPort 由它扫（LoadPort 开机时按这个认），扫片用示教点的 Number；用哪只手扫是控制器示教的事，平台不选。
+    // machine.xml 开了 MapEnabled 的，它示教点表里的 LoadPort 由它扫（LoadPort 开机时按这个认），扫片用示教点的 Number；用哪只手扫是控制器示教的事，平台不选。
 
     private readonly object _mapGate = new();
     private readonly Dictionary<string, WaferMapResult> _mapResults = new(StringComparer.OrdinalIgnoreCase);
@@ -1607,7 +1607,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             Name, arm.ToString(CultureInfo.InvariantCulture));
     }
 
-    /// <summary>按手指号找手指组件；sc.xml 没配这只手为 null。</summary>
+    /// <summary>按手指号找手指组件；machine.xml 没配这只手为 null。</summary>
     private IRobotArm? FindArm(int arm)
     {
         return Arms.FirstOrDefault(item => item.Number == arm);

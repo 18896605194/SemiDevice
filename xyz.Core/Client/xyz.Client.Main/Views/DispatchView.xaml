@@ -9,7 +9,7 @@
     d:DesignWidth="1020"
     mc:Ignorable="d">
 
-    <!--  默认的整机调度：一台机械手一张调度图（公共控件 DispatchMap，站点按 sc.xml 的方向摆在四周），几台机械手就左右排几张。
+    <!--  默认的整机调度：一台机械手一张调度图（公共控件 DispatchMap，站点按 machine.xml 的方向摆在四周），几台机械手就左右排几张。
           卡片跟 Robot 手动页一样大（字排得下）；主界面中间这一块窄，一排放不下时那一排整体缩一点（四个腔体那排约九成）。
           机型要别的摆法就按 ClientViewKeys.MainDispatch 注册自己的，把这一块整个换掉  -->
     <Grid>
@@ -26,7 +26,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!--  没有机械手（启动时没连上后端，或 sc.xml 没配 Robot）  -->
+        <!--  没有机械手（启动时没连上后端，或 machine.xml 没配 Robot）  -->
         <TextBlock
             x:Name="EmptyHint"
             Margin="24"

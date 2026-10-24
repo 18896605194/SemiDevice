@@ -3,10 +3,10 @@
 namespace xyz.Configs.Models;
 
 /// <summary>
-/// SC 配置文件根对象。
+/// machine.xml 配置文件根对象。
 /// </summary>
 [XmlRoot("ArrayOfSetting")]
-public class ScConfig
+public class MachineSettings
 {
     [XmlElement("Setting")]
     public List<ModuleConfig> Modules { get; set; } = new();

@@ -106,16 +106,16 @@ public class AccountComponent : ComponentBase, IAccount
 
     #endregion
 
-    #region SC
+    #region Machine
 
     [Machine("True", "Account", "要不要登录：True = 客户端启动弹登录框，没登录按访客的权限；False = 不登录、不分权限，谁都能操作")]
     public bool IsEnable { get; set; } = true;
 
-    [Machine("Default", "Account", "账号存在哪个库（sc.xml 的 Database 节点名）")]
+    [Machine("Default", "Account", "账号存在哪个库（machine.xml 的 Database 节点名）")]
     public string Database { get; set; } = "Default";
 
     /// <summary>
-    /// 放 sc 不放 EC（用户 2026-10-22 定的）：EC 页工程师就能改，账号安全的规矩不该谁都能改
+    /// 放 machine.xml 不放 EC（用户 2026-10-22 定的）：EC 页工程师就能改，账号安全的规矩不该谁都能改
     /// </summary>
     [Machine("15", "Account", "闲置自动退出：客户端键盘鼠标多少分钟没动就退出登录、弹登录框（取消按访客）；0 = 不自动退出，最长 1440")]
     public int IdleLogoutMinutes { get; set; } = 15;
@@ -143,13 +143,13 @@ public class AccountComponent : ComponentBase, IAccount
         if (IdleLogoutMinutes < 0 || IdleLogoutMinutes > IdleLogoutMaxMinutes)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {setting.Name} 的 IdleLogoutMinutes={IdleLogoutMinutes} 不对：0 ~ {IdleLogoutMaxMinutes}（0 = 不自动退出）。");
+                $"machine.xml 节点 {setting.Name} 的 IdleLogoutMinutes={IdleLogoutMinutes} 不对：0 ~ {IdleLogoutMaxMinutes}（0 = 不自动退出）。");
         }
 
         if (PasswordMinLength < PasswordMinLengthLowest || PasswordMinLength > PasswordMinLengthHighest)
         {
             throw new InvalidOperationException(
-                $"sc.xml 节点 {setting.Name} 的 PasswordMinLength={PasswordMinLength} 不对：{PasswordMinLengthLowest} ~ {PasswordMinLengthHighest}。");
+                $"machine.xml 节点 {setting.Name} 的 PasswordMinLength={PasswordMinLength} 不对：{PasswordMinLengthLowest} ~ {PasswordMinLengthHighest}。");
         }
     }
 

@@ -36,7 +36,7 @@ public sealed class HsmsListener : IDisposable
     }
 
     /// <summary>
-    /// 开始监听 sc 配置的端口（IPAddress.Any）。端口已被别的程序占着时抛 HsmsConnectionException，可以换端口后再调。
+    /// 开始监听 machine.xml 配置的端口（IPAddress.Any）。端口已被别的程序占着时抛 HsmsConnectionException，可以换端口后再调。
     /// </summary>
     public void Start()
     {

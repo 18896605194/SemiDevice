@@ -495,7 +495,7 @@ Check(modeResponse.Success && port.Mode == ModuleMode.Maintenance && port.Calls 
         "机械手切维护：Mode 变 Maintenance，状态推送里带上");
 }
 
-// EAP 口子：回调走 EAP 的派发组件（宿主里是 sc.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
+// EAP 口子：回调走 EAP 的派发组件（宿主里是 machine.xml Eap 下的 Notifier）；本工具不跑扫描循环，正好证明派发不依赖扫描。
 SmokeIoc.Use<IEapNotifierComponent>(new EapNotifierComponent());
 port.Bind(); // 端口开机 Bind 时取 EAP 的派发组件
 var eap = new RecordingE87Callback();
@@ -678,7 +678,7 @@ SmokeIoc.Use<ILedgerManager>(null);
 port.E87Callback = null;
 
 // ── 机械手两种晶圆尺寸各一张示教点表 ────────────────────────────────────────
-// sc 在机械手下配 Size12 / Size8 两组示教点（TeachPointComponent），整机现在几寸就用哪张（站号、取放手、有哪些站点都能不一样）；
+// machine.xml 在机械手下配 Size12 / Size8 两组示教点（TeachPointComponent），整机现在几寸就用哪张（站号、取放手、有哪些站点都能不一样）；
 // 只配一种尺寸的，另一种是空表；同名的组配了两个、示教点挂在两组以外、同组重名、站号 / 手指号写错开机就报；两张表配的手指开机都查。
 {
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
@@ -787,7 +787,7 @@ port.E87Callback = null;
     Check(robot.InitComponent(), "探针机械手的组件初始化应成功");
     Check(robot.TryGetTeachPoint("SmokeLP", out var lpStation) && lpStation.Number == 1
           && lpStation.Direction == RobotDirection.South && lpStation.Y == 20,
-        "示教点从 sc.xml 节点读进来，组件初始化时收进示教点表");
+        "示教点从 machine.xml 节点读进来，组件初始化时收进示教点表");
     ComponentLoader.BindAll([robot]);
     Check(robotLedger.GetSlots(robot.Name).Count == robot.Arms.Count,
         $"开机应把手指注册成账本槽位，实际 {robotLedger.GetSlots(robot.Name).Count} 个");
@@ -1113,7 +1113,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-// ── 站点在位传感器：站点下面挂了 WaferSensor（DI）的，sc 配了才跟晶圆账比（看到有片 = 账上这个站有片），读不到也算对不上；没配不查 ──
+// ── 站点在位传感器：站点下面挂了 WaferSensor（DI）的，machine.xml 配了才跟晶圆账比（看到有片 = 账上这个站有片），读不到也算对不上；没配不查 ──
 {
     var stationLedger = new LedgerManagerComponent();
     SmokeIoc.Use<ILedgerManager>(stationLedger);
@@ -1534,7 +1534,7 @@ port.E87Callback = null;
     offPort.Tick();
     Check(offE84.State == E84State.NotAvailable && offE84.Outputs == default, "E84 没开（EC）不该理搬运车");
 
-    // 没装（SC IsEnable=False，本机没接搬运车）：端口当没有 E84——不打开、不每拍推、不读写 IO
+    // 没装（machine.xml IsEnable=False，本机没接搬运车）：端口当没有 E84——不打开、不每拍推、不读写 IO
     var noE84Port = new ProbePort("E84NotInstalledPort");
     var noE84 = new ProbeE84(noE84Port.Name) { IsEnable = false };
     noE84Port.AddChild(noE84);
@@ -1947,6 +1947,15 @@ port.E87Callback = null;
         Check(reloaded.Get(ecPort.FullPath, nameof(ecPort.HomeTimeout)) == "4321"
               && reloaded.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000",
             "重新读 ec.xml 应拿到改过的值和合并补建的项");
+
+        // 清空了的 ec.xml（文件还在、里面没东西）跟没有一样：照组件树整份重建，不抛
+        File.WriteAllText(file, string.Empty);
+        var emptied = new EcComponent();
+        SmokeIoc.Use<IEc>(emptied);
+        emptied.Load(file);
+        Check(emptied.Merge([ecPort]) && emptied.Get(ecPort.FullPath, nameof(ecPort.ClampTimeout)) == "10000"
+              && new FileInfo(file).Length > 0,
+            "清空了的 ec.xml 当成没有：照组件树整份重建、写回文件");
     }
     finally
     {
@@ -1954,7 +1963,7 @@ port.E87Callback = null;
         SmokeIoc.Use<IEc>(ec);
     }
 
-    // 分组节点（不写 Type）不生成组件，但名字进组件全路径：EC 的键、EC 页的树都跟 sc.xml 的层级一样
+    // 分组节点（不写 Type）不生成组件，但名字进组件全路径：EC 的键、EC 页的树都跟 machine.xml 的层级一样
     var grouped = SmokeIoc.Load([new ModuleConfig
     {
         Name = "EcGroupSmoke",
@@ -2427,7 +2436,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(previousSystemLedger);
 
     // 晶圆尺寸：整机没初始化（启用的模块都是未初始化）、机台里（LoadPort 以外）没片才让切；尺寸不对、没配晶圆尺寸各回各的码。
-    // 这里没有 sc.xml，过了这几道检查就是写回失败（不换尺寸）；写成功、写回的样子在 ProcessRecipeSmoke 里用真 sc.xml 查。
+    // 这里没有 machine.xml，过了这几道检查就是写回失败（不换尺寸）；写成功、写回的样子在 ProcessRecipeSmoke 里用真 machine.xml 查。
     var previousWaferSize = IocHelper.GetService<IWaferSize>();
     var previousSizeLedger = IocHelper.GetService<ILedgerManager>();
     SmokeIoc.Use<IWaferSize>(null);
@@ -2483,7 +2492,7 @@ port.E87Callback = null;
     var notSaved = SwitchSize("8");
     Check(!notSaved.Success && notSaved.Code == ErrorCodes.WaferSizeSaveFailed && notSaved.Args.Count == 1 && waferSize.Size == 12
           && machine.CreateEquipmentStatus().WaferSize == 12,
-        "LoadPort 上的片不挡；写不了 sc.xml 就不换尺寸");
+        "LoadPort 上的片不挡；写不了 machine.xml 就不换尺寸");
     waferSize.Size = 8;
     Check(machine.CreateEquipmentStatus().WaferSize == 8, "设备总状态带上现在的尺寸");
     SmokeIoc.Use<IWaferSize>(previousWaferSize);
@@ -2501,7 +2510,71 @@ port.E87Callback = null;
     SmokeIoc.Use<ITransferManager>(previousTransfers);
 }
 
-// ── LoadPort 在位来源（SC PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
+// ── 设备通道：串口、网口各一个组件（参数各带各的），一个设备下面都配上时只认启用的那条；换接法只改 machine.xml 里两边的 IsEnable ─────────
+{
+    string ChannelRefused(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception.Message;
+        }
+
+        return string.Empty;
+    }
+
+    ModuleConfig Channel(string name, string type, string enabled, params (string Name, string Value)[] values)
+    {
+        var node = new ModuleConfig { Name = name, Type = type };
+        node.Values.Add(new ValueConfig { Name = "IsEnable", Value = enabled });
+        foreach (var value in values)
+        {
+            node.Values.Add(new ValueConfig { Name = value.Name, Value = value.Value });
+        }
+
+        return node;
+    }
+
+    var channels = ComponentLoader.Load([new ModuleConfig
+    {
+        Name = "SmokeDevice",
+        Children =
+        [
+            Channel("Serial", "xyz.Components.Components.SerialDriverComponent", "False", ("PortName", "COM9"), ("BaudRate", "19200")),
+            Channel("Tcp", "xyz.Components.Components.TcpDriverComponent", "True", ("Host", "10.0.0.8"), ("NetPort", "4004")),
+        ],
+    }]);
+    var holder = new ChannelHolder();
+    foreach (var channel in channels)
+    {
+        holder.AddChild(channel);
+    }
+
+    var serial = channels.OfType<SerialDriverComponent>().Single();
+    var tcp = channels.OfType<TcpDriverComponent>().Single();
+    Check(serial.PortName == "COM9" && serial.BaudRate == 19200 && !serial.IsEnable
+          && tcp.Host == "10.0.0.8" && tcp.NetPort == 4004 && tcp.IsEnable,
+        "串口、网口各是一个组件，参数照 machine.xml 各进各的（串口没启用、网口启用）");
+    Check(ReferenceEquals(DeviceDriverComponent.FindIn(holder), tcp), "设备只认启用的那条（网口），没启用的串口不管");
+
+    serial.IsEnable = true;
+    string both = ChannelRefused(() => DeviceDriverComponent.FindIn(holder));
+    Check(both.Contains("启用了两条"), "串口、网口都启用：开机就报（不知道该连哪条），实际 " + both);
+
+    serial.IsEnable = false;
+    tcp.IsEnable = false;
+    Check(DeviceDriverComponent.FindIn(holder) is null, "一条都没启用：当成没挂通道（设备照没挂通道处理）");
+    Check(serial.InitComponent() && !serial.IsConnected,
+        "没启用的通道开机不建、不连：没交解码器也不报错，连接一直是断的");
+
+    string oldType = ChannelRefused(() => ComponentLoader.Load([new ModuleConfig { Name = "Driver", Type = "xyz.Components.Components.DeviceDriverComponent" }]));
+    Check(oldType.Contains("DeviceDriverComponent"), "老写法 Type=DeviceDriverComponent（基类，不能直接配）：装配就报，实际 " + oldType);
+}
+
+// ── LoadPort 在位来源（machine.xml PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
 //    断线按间隔重连、_rfid 连不上不连累 LoadPort、帧通讯重连时旧接收泵只停自己那一轮 ─────────────────────────
 {
     var previousLedger = IocHelper.GetService<ILedgerManager>();
@@ -2818,7 +2891,7 @@ port.E87Callback = null;
 
     Check(bareThrown, "端口下没配 _carrier 子组件：组件初始化抛 InvalidOperationException（开机就暴露）");
 
-    // 7d) 装机停用（SC IsEnable=False）的端口：载具照样挂上——停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
+    // 7d) 装机停用（machine.xml IsEnable=False）的端口：载具照样挂上——停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
     //     不连驱动、不发动作
     var disabledPort = new PlainPort("DisabledPort") { IsEnable = false };
     Check(disabledPort.InitComponent(), "停用的端口：组件初始化直接算成功");
@@ -2923,7 +2996,7 @@ port.E87Callback = null;
         "没连上：Home 当场被拒（module.not_connected），不发指令、状态不动（以前是发出去判 command_rejected、落 Error）");
     plain.Close();
 
-    // 9b) Load 扫到的 Mapping 不能用：槽数跟 sc 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
+    // 9b) Load 扫到的 Mapping 不能用：槽数跟 machine.xml 的 SlotCount 对不上（不落账），或者有交叉片、叠片、认不出的槽（账照落）——
     //     Load 判失败、落 Error，机械手进不来，报"Mapping 异常"（不报笼统的动作失败）
     var mapAlarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(mapAlarms);
@@ -2952,7 +3025,7 @@ port.E87Callback = null;
     var shortLoad = LoadWithMap(shortPort, new string('P', 24));
     Check(shortLoad.Code == ErrorCodes.SlotMapLengthMismatch && shortLoad.ErrorArgs.SequenceEqual(new[] { "ShortMapPort", "24", "25" })
           && shortPort.State == ModuleState.Error,
-        "设备回了 24 槽、sc 配的 25 槽：Load 判失败（slot_map_length_mismatch），落 Error");
+        "设备回了 24 槽、machine.xml 配的 25 槽：Load 判失败（slot_map_length_mismatch），落 Error");
     Check(shortPort._carrier.SlotMap.Count == 0 && presenceLedger.CountWafers("ShortMapPort") == 0, "槽数对不上：不落账（载具没槽图，账上没片）");
     Check(MapAlarmActive(shortPort, shortPort.SlotMapAlarm) && !MapAlarmActive(shortPort, shortPort.ControlledStopAlarm),
         "槽数对不上：报 Mapping 异常，不报笼统的动作失败");
@@ -3096,9 +3169,9 @@ port.E87Callback = null;
     movedPort.Close();
     SmokeIoc.Use<IAlarm>(null);
 
-    // 9d) 自动跑货的 Unload 带 Mapping 对账（SC AutoRunMapOnUnload，照老 CTC 的卸载对账）：门关了就扫不了，所以关门前先发 MAPDO 扫、
+    // 9d) 自动跑货的 Unload 带 Mapping 对账（machine.xml AutoRunMapOnUnload，照老 CTC 的卸载对账）：门关了就扫不了，所以关门前先发 MAPDO 扫、
     //     GET:MAPDT 取槽图跟账对，对得上才发 CULOD 关门、Unload 成功；少片、多片、交叉片都判失败（unload_slot_map_mismatch）、落 Error、门不关，
-    //     报 Mapping 异常和晶圆账的账实不符，账不动；扫片没成判失败、不取图不关门；对上了关门没成也判失败；SC 关着只发 CULOD（第 9 节）
+    //     报 Mapping 异常和晶圆账的账实不符，账不动；扫片没成判失败、不取图不关门；对上了关门没成也判失败；machine.xml 关着只发 CULOD（第 9 节）
     var unloadMapAlarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(unloadMapAlarms);
     PlainPort LoadedMapPort(string name)
@@ -3179,12 +3252,12 @@ port.E87Callback = null;
         "扫片没成：Unload 判失败（device_failed）、落 Error，不取图、不关门，不当卸好了");
     scanFailPort.Close();
 
-    // 9e) 手动 Unload 不吃 SC AutoRunMapOnUnload：SC 开着（自动跑货要关门前扫片对账）时，手动卸载照样只发普通 CULOD，不扫、不对账——
-    //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，SC 只管自动跑货的 Unload）
+    // 9e) 手动 Unload 不吃 machine.xml AutoRunMapOnUnload：machine.xml 开着（自动跑货要关门前扫片对账）时，手动卸载照样只发普通 CULOD，不扫、不对账——
+    //     账跟实物对不上也得能让操作员把盒子放出去（跟 CTC 的手动卸载一致，machine.xml 只管自动跑货的 Unload）
     var manualPort = LoadedMapPort("ManualUnloadPort");
     var manualUnload = manualPort.UnloadManually().Result;
     Check(manualUnload is not null && TickPlainUntil(manualPort, () => manualPort.Channel.Comm.SentCount("MOV:CULOD") == 1),
-        "手动 Unload：SC AutoRunMapOnUnload 开着也发普通的 CULOD");
+        "手动 Unload：machine.xml AutoRunMapOnUnload 开着也发普通的 CULOD");
     manualPort.Channel.Comm.Push("INF:CULOD");
     Check(TickPlainUntil(manualPort, () => manualUnload!.IsTerminal) && manualUnload!.IsSuccess
           && manualPort.State == ModuleState.Idle && !manualPort.HasAlarm
@@ -3367,7 +3440,7 @@ port.E87Callback = null;
     Check(WaitUntil(() => robotComm.Sent.Count == expected.Length),
         $"18 拍应发出两圈 16 条查询（超时的作废了，同名的还能再发），实际 {robotComm.Sent.Count} 条");
     Check(robotComm.Sent.SequenceEqual(expected),
-        "一圈的顺序：订阅 → 报错 → 伺服 → 速度 → 每根轴一条（按 sc.xml 轴节点先后），没订上每圈都订一次；实际 "
+        "一圈的顺序：订阅 → 报错 → 伺服 → 速度 → 每根轴一条（按 machine.xml 轴节点先后），没订上每圈都订一次；实际 "
         + string.Join(",", robotComm.Sent));
 
     // 2) 回来了就写到查的那根轴 / 那个状态上，接着查下一条（超时拉长，免得等回复时被作废）
@@ -3439,7 +3512,7 @@ port.E87Callback = null;
     Check(pollRobot.InitComponent() && pollRobot.Channel.Send(new RejeHomeCommand()), "重新连上以后同名指令能再发");
     pollRobot.Close();
 
-    // 5) 这台机械手不带手指在位推送（SC WaferEventEnabled = False）：一圈不订阅，一条订阅都不发
+    // 5) 这台机械手不带手指在位推送（machine.xml WaferEventEnabled = False）：一圈不订阅，一条订阅都不发
     var plainRobot = new ProbeRobot { WaferEventEnabled = false };
     var plainComm = plainRobot.Channel.Comm;
     Check(plainRobot.InitComponent(), "不带手指在位推送的机械手组件初始化应成功");
@@ -3451,7 +3524,7 @@ port.E87Callback = null;
 
     Check(WaitUntil(() => plainComm.Sent.Count == 14), $"16 拍应发出两圈 14 条查询（一圈 7 条 + 空一拍），实际 {plainComm.Sent.Count} 条");
     Check(!plainComm.Sent.Contains("SubWafer1") && plainComm.Sent[0] == "Error",
-        "SC 关了就不订阅：第一条直接查报错；实际 " + string.Join(",", plainComm.Sent));
+        "machine.xml 关了就不订阅：第一条直接查报错；实际 " + string.Join(",", plainComm.Sent));
     plainRobot.Close();
 
     // 6) 查询周期（EC QueryStatusIntervalMs）管的是"圈"：一圈里的各条照旧一拍一条，一圈查完要离这一圈开始满一个周期才开下一圈
@@ -4247,7 +4320,7 @@ port.E87Callback = null;
     robot.MapEnabled = false;
     var switchedOff = robot.Map("RobotMapLP");
     Check(!switchedOff.IsSuccess && switchedOff.ErrorMessage == ErrorCodes.RobotMapUnsupported && robot.MapCalls == 0,
-        "sc 没开 MapEnabled：机械手扫片被拒（robot.map_unsupported）");
+        "machine.xml 没开 MapEnabled：机械手扫片被拒（robot.map_unsupported）");
     robot.MapEnabled = true;
 
     // 4) 替 LoadPort 扫片：Load 照样先发 CLOAD 开门，扫片交搬运管理排机械手去扫；机械手在维护模式不等，Load 当场判失败
@@ -4343,7 +4416,7 @@ port.E87Callback = null;
     SmokeIoc.Use<ILedgerManager>(null);
 }
 
-Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the SC switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
+Console.WriteLine($"PASS: {checks} routine wait checks (including 200 completion races, the routine engine (finished steps chained within one scan, a failure stopping at a named step with its number in the reason, the whole-routine limit, Until with no wait, child routines refused, failed or handled, abort settling the routine before the step in progress, Done, one step per routine, the step number in the RPC reply), the LoadPort action entries over RPC (every action checks state, resource and interlock and returns the reason; reset/abort asked for the reason after a refusal; terminal results translated; a disconnected driver refused up front while abort still replaces the in-flight action), the production/maintenance and auto/manual mode switches, the EAP callback path, the carrier component: its lifecycle from arrival to removal, a Host-accepted slot map staying accepted across a re-map, the automatic carrier-id read retrying while the reader is down and reporting a read failure after the reader timeout, and a port without its _carrier node refusing to open, a disabled port still attaching its carrier so scanning and the state push work, the Load mapping (CLOAD only opens the door and any map in its reply is ignored, then MAPDO scans and GET:MAPDT fetches the slot map; a slot count mismatch or crossed/double/unrecognized slots failing the Load with the mapping alarm), the auto unload once the carrier completes (waiting for the robot and for wafers still out; with the AutoUnload EC off, a ledger check against the load-time slot map instead, tolerating wafers returned to another LoadPort), the E84 alarm for a carrier placed or removed without a handoff in Auto, the unload mapping check against the wafer ledger (when AutoRunMapOnUnload is on: MAPDO and GET:MAPDT before closing the door, CULOD only after a match; missing, extra or crossed wafers failing the Unload with the mapping alarm, the door left open and the ledger alone, a failed scan failing the Unload without fetching or closing, a failed close after a match failing the Unload, while the manual unload ignores that switch: plain CULOD, no scan, no check, no ledger change), and robot pick/place writing the wafer ledger, LoadPort/_robot alarms raised and cleared only by a manual reset, the E84 handoff flow: load, unload, gating, abort, timeout and recovery, DI/AI alarm debounce with the module-level HasAlarm, the program's and the whole computer's CPU/memory usage and thread count sampled once per EC interval, and the EC component: live read/write, declaration merge, fallback when not installed and an ec.xml round trip, and the init/abort hooks: InitComponent (no hardware motion) recursing through every level of children by InitOrder with a failing child not holding back its siblings, optional overrides, InitModule = Home leaving the children alone (except a LoadPort with its door open and wafers still out, which reports done without homing), the E84 and driver components connecting themselves from InitComponent, and Abort without clearing alarms, and transfer routine failures reported with the station, the preparation step number and the wait time as error args, and the main page backend: LoadPort/robot lists in the system settings, station kinds for the dispatch map, the system module behind the equipment service (init all: robots first, then the rest, idle when all succeed and back to not initialized on a refusal or failure; Auto/Manual switching on the spot and driving the dispatch switch; Stop waiting for the actions in flight to settle and going back to where it stopped from; return all refusing to start when a wafer has no source LoadPort, with nothing in the machine finishing at once), robot and station wafer presence sensors checked against the wafer ledger only when configured (an unreadable sensor counting as a mismatch), the system module not counted as a module (kept out of the IO module list and the module lookups), modules without a production/maintenance mode pushing a null mode, and the LoadPort presence source: query (both bits) or event, status queries paced by the EC interval with timeout recovery, abandoning in-flight driver commands, LoadPort/_rfid reconnect capped at the EC count (then stopping with an alarm until a manual reset starts over, the PLC too), an _rfid outage not blocking the LoadPort and frame pump sessions across reconnects, the robot status query (one round in order: subscription retried at the start of each round until it succeeds, then error, servo, speed and every axis, replies landing on the axis or state they asked about, a lost reply abandoned on timeout so the same query goes out again, a late no-error reply not taken for an error push, closing the connection abandoning in-flight commands, and no wafer-event subscription when the machine.xml switch is off, the EC interval pacing whole rounds, reconnecting in the background after a drop and subscribing again, and a timed-out action abandoning its command so the same command can go out again), and the LoadPort end states after Reset/Abort: NotInit after an error, an interrupted motion or an unknown door, Loaded/Idle by the door position, and the entry checks: no Load without a carrier or while an E84 handoff is running, no Unload or door-open Home while wafers are still out, Home from NotInit not blocked by wafers out, machine-specific interlocks with their own reasons on Load/Unload/Home/Clamp/Unclamp), and wafer mapping (IWaferMap): a LoadPort mapping itself on its own from Loaded only, keeping the result in MapResults without touching the ledger or the carrier map; a robot with MapEnabled mapping its LoadPorts through the transfer manager's queue with the station's own Number — waiting while it holds a wafer or is transferring, meanwhile refusing pick-only transfers while it still holds one and every new transfer once its arms are empty, failing at once in maintenance mode or when not initialized, its own entry checking the switch, the station and empty arms; the startup checks for a robot class without the capability and for two robots mapping the same port; a robot-mapped auto-run unload checking before closing the door; and an aborted Load dropping its queued map without moving the robot.");
 
 // 假帧通讯：顶替串口 / 网口，连接由测试摆（打不开、断线），发出去的帧体记下来；设备的回复由测试推，
 // 按通道交来的那家解码器解成报文往上交（跟真的接收泵一样），字节级的拆帧不在这里测（见 GatedTransport）。
@@ -4425,7 +4498,7 @@ sealed class ProbeChannel : DeviceDriverComponent
     public FakeFrameCommunication Comm { get; } = new();
 
     /// <summary>
-    /// 挂到设备下面（生产里是 sc.xml 设备节点下的 Driver 节点）
+    /// 挂到设备下面（生产里是 machine.xml 设备节点下的 Driver 节点）
     /// </summary>
     public static ProbeChannel AddTo(ComponentBase device)
     {
@@ -4441,6 +4514,19 @@ sealed class ProbeChannel : DeviceDriverComponent
         Comm.Codec = codec;
         return Comm;
     }
+
+    /// <summary>
+    /// 探针整个帧通讯都换成假的，不建字节传输，走不到这里
+    /// </summary>
+    protected override ICommunication CreateTransport()
+    {
+        throw new NotSupportedException("探针通道不建字节传输");
+    }
+}
+
+// 只用来挂通道的空组件：测设备按 IsEnable 认通道
+sealed class ChannelHolder : ComponentBase
+{
 }
 
 // 整段的探针动作：只有一步"探针"，用例当场判它做成 / 失败 / 超时（不等扫描）；FinishOnScan 的扫到就做完（像一台马上做完的设备）
@@ -4551,7 +4637,7 @@ sealed class ProbeModule : BaseModule
     }
 }
 
-// 探针端口下挂的载具组件：生产里是 sc.xml 的 _carrier 节点，名字由装配器经 internal setter 设，这里反射设。
+// 探针端口下挂的载具组件：生产里是 machine.xml 的 _carrier 节点，名字由装配器经 internal setter 设，这里反射设。
 static class ProbeCarrier
 {
     public static CarrierComponent Add(ComponentBase port, PodPresenceSource presence)
@@ -4702,7 +4788,7 @@ sealed class ProbeRfidReader : FcdRfidReader
     public ProbeChannel Channel { get; }
 
     /// <summary>
-    /// 挂到端口下面（生产里是 sc.xml LoadPort 节点下的读头节点）
+    /// 挂到端口下面（生产里是 machine.xml LoadPort 节点下的读头节点）
     /// </summary>
     public static ProbeRfidReader AddTo(ComponentBase port, string name)
     {
@@ -5029,7 +5115,7 @@ sealed class ProbeRobot : RobotModule
         AbortTimeout = 0;
         PowerTimeout = 0;
         Channel = ProbeChannel.AddTo(this);
-        // sc.xml 的轴节点：本冒烟装一指（生产里由 ComponentLoader 建，这里直接挂）。
+        // machine.xml 的轴节点：本冒烟装一指（生产里由 ComponentLoader 建，这里直接挂）。
         AddChild(Named(new RobotAxisComponent(), "X"));
         AddChild(Named(new RobotAxisComponent(), "Z"));
         AddChild(Named(new RobotAxisComponent(), "Theta"));
@@ -5050,12 +5136,12 @@ sealed class ProbeRobot : RobotModule
     public void Tick() => OnScan();
 
     /// <summary>
-    /// 灌机械手自己的 sc 节点（生产里由 ComponentLoader 交给 OnSettingLoaded）
+    /// 灌机械手自己的 machine.xml 节点（生产里由 ComponentLoader 交给 OnSettingLoaded）
     /// </summary>
     public void NoteSettings(ModuleConfig setting) => OnSettingLoaded(setting);
 
     /// <summary>
-    /// 挂示教点（生产里由 ComponentLoader 照 sc.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
+    /// 挂示教点（生产里由 ComponentLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
     /// </summary>
     public void NoteTeachPoints(params ModuleConfig[] tables) => SmokeTeachPoints.AddTo(this, tables);
 
@@ -5127,7 +5213,7 @@ sealed class MapProbeRobot : RobotModule, IWaferMap
     public void Tick() => OnScan();
 
     /// <summary>
-    /// 挂示教点（生产里由 ComponentLoader 照 sc.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
+    /// 挂示教点（生产里由 ComponentLoader 照 machine.xml 机械手下的 Size12 / Size8 建）；组件初始化时收进示教点表
     /// </summary>
     public void NoteTeachPoints(params ModuleConfig[] tables) => SmokeTeachPoints.AddTo(this, tables);
 
@@ -5554,7 +5640,7 @@ sealed class SystemProbeRobot(string name) : SystemProbeModule(name), IRobot
     public HandleResult<ModuleRoutine> PowerOff() => Refused();
 }
 
-// 整机冒烟用的系统模块：名字跟 sc.xml 一样叫 System，测试代替扫描线程推一拍。
+// 整机冒烟用的系统模块：名字跟 machine.xml 一样叫 System，测试代替扫描线程推一拍。
 sealed class SmokeSystem : SystemModule
 {
     public SmokeSystem()

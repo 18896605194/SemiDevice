@@ -9,8 +9,8 @@ namespace xyz.Client.Menus;
 /// 真有机型独有的页面时，才由机型实现 IClientMenuProvider 挂到这里的一级菜单下。
 /// 显示名在语言包里配 menu.{Code}；菜单 Code 就是权限项编码（PermissionCodes），角色页、预置角色认同一份。
 ///
-/// 按模块分的二级菜单是例外：照后端 sc.xml 里实际装的模块生成，机台配了几个就有几项，显示名就是模块名——
-/// IO 下一个模块一项，Manual 下一个腔体一项（四个腔体一模一样也是四项）；sc.xml 里没配 Chamber3，菜单里就不会有 Chamber3。
+/// 按模块分的二级菜单是例外：照后端 machine.xml 里实际装的模块生成，机台配了几个就有几项，显示名就是模块名——
+/// IO 下一个模块一项，Manual 下一个腔体一项（四个腔体一模一样也是四项）；machine.xml 里没配 Chamber3，菜单里就不会有 Chamber3。
 /// 它们在权限上各合成一项：每个腔体的手动页都算 Manual.Chamber，每个模块的 IO 页都算 Io。
 /// </summary>
 public sealed class PlatformMenuProvider : IClientMenuProvider

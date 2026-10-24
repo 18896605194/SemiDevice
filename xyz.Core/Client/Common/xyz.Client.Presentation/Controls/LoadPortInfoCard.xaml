@@ -265,7 +265,7 @@
                 </StackPanel>
             </Border>
 
-            <!--  主体：左花篮（槽数跟 sc 的 SlotCount，25 在上、1 在下，一槽一条细线），右圆片（直径 DiskSize，跟机械手叉上的片一样大）+ 槽数  -->
+            <!--  主体：左花篮（槽数跟 machine.xml 的 SlotCount，25 在上、1 在下，一槽一条细线），右圆片（直径 DiskSize，跟机械手叉上的片一样大）+ 槽数  -->
             <Grid Margin="12,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

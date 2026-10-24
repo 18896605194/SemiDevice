@@ -52,7 +52,7 @@ public class LogViewModel : BaseViewModel, IDisposable
     private Task? _consumer;
 
     /// <summary>
-    /// 界面最多保留的日志条数，超出丢最旧的；连上后端时按 sc.xml 的 Log 节点（LogBarDisplayMaxCount）更新。
+    /// 界面最多保留的日志条数，超出丢最旧的；连上后端时按 machine.xml 的 Log 节点（LogBarDisplayMaxCount）更新。
     /// </summary>
     private int _maxLogs = LogSettingsDto.DefaultLogBarDisplayMaxCount;
 
@@ -102,7 +102,7 @@ public class LogViewModel : BaseViewModel, IDisposable
 
         try
         {
-            // 后端缓冲里有多少补多少（缓冲条数在 sc.xml 的 Log 节点配）
+            // 后端缓冲里有多少补多少（缓冲条数在 machine.xml 的 Log 节点配）
             var response = await service.GetRecentAsync(new LogQuery());
             if (!response.Success)
             {
@@ -128,7 +128,7 @@ public class LogViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 取后端配的显示条数（sc.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// 取后端配的显示条数（machine.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
     /// </summary>
     private async Task LoadSettingsAsync(ILogService service)
     {

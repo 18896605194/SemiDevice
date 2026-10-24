@@ -55,12 +55,12 @@ public class AlarmComponent : ComponentBase, IAlarm
         _mapper = IocHelper.GetService<IMapper>();
     }
 
-    #region SC
+    #region Machine
 
     [Machine("True", "Alarm", "是否把报警记录入库（False=只在内存里记当前报警）")]
     public bool EnableHistory { get; set; } = true;
 
-    [Machine("Default", "Alarm", "报警记录落哪个库（sc.xml 的 Database 节点名），报警属业务数据，走默认库")]
+    [Machine("Default", "Alarm", "报警记录落哪个库（machine.xml 的 Database 节点名），报警属业务数据，走默认库")]
     public string HistoryDatabase { get; set; } = XyzDb.DefaultName;
 
     [Machine("90", "Alarm", "报警记录保留天数，超期每天清理一次")]
@@ -352,9 +352,9 @@ public class AlarmComponent : ComponentBase, IAlarm
     private int _historyPending;
 
     /// <summary>
-    /// 装配读完 SC 后开记录队列与写库线程；EnableHistory=False 就不开，不碰数据库。
+    /// 装配读完 machine.xml 后开记录队列与写库线程；EnableHistory=False 就不开，不碰数据库。
     /// 这里不建表也不连库：日表由实体上的 [SplitTable] 让 ORM 插入时自动建；
-    /// sc.xml 里 Database 节点万一排在后面，这会儿连接还没注册，等真有记录要写（那时整棵树早装完了）再碰库。
+    /// machine.xml 里 Database 节点万一排在后面，这会儿连接还没注册，等真有记录要写（那时整棵树早装完了）再碰库。
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
@@ -551,7 +551,7 @@ public class AlarmComponent : ComponentBase, IAlarm
         _historyCleanedDay = DateTime.Today;
         if (!XyzDb.IsRegistered(HistoryDatabase))
         {
-            LogHelper.Warn(Name, $"报警记录库 {HistoryDatabase} 没在 sc.xml 的 Database 节点里配，落到默认库");
+            LogHelper.Warn(Name, $"报警记录库 {HistoryDatabase} 没在 machine.xml 的 Database 节点里配，落到默认库");
         }
 
         CleanupHistory();

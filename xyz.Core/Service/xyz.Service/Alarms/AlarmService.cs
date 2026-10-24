@@ -23,7 +23,7 @@ public class AlarmService : IAlarmService
     public AlarmService()
     {
         _alarms = IocHelper.GetService<IAlarm>();
-        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("sc.xml 没配映射组件（Mapper）");
+        _mapper = IocHelper.GetService<IMapper>() ?? throw new InvalidOperationException("machine.xml 没配映射组件（Mapper）");
     }
 
     public Task<RpcResponse> GetActiveAsync(RpcRequest request, CallContext context = default)

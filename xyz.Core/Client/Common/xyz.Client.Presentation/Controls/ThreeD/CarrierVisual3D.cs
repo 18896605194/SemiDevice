@@ -11,7 +11,7 @@ namespace xyz.Client.Presentation.Controls.ThreeD;
 /// <summary>
 /// 载具（花篮）三维外观：底板、两侧带槽齿的侧壁、前后立柱、顶梁和提手，前立柱上标槽号（1、5、10……）；
 /// 有片的槽各放一片 <see cref="DiskVisual3D"/>（跟腔体的旋转盘同一个组件，盘面状态色、片号都沿用）。
-/// 槽数照 sc 配（<see cref="SlotCount"/>），槽距不变、槽数多花篮就高。
+/// 槽数照 machine.xml 配（<see cref="SlotCount"/>），槽距不变、槽数多花篮就高。
 /// 开口朝 +Z（操作员那面）露出晶圆，背面朝 -Z 对着 LoadPort 背板。原点在底面中心，Y 向上；
 /// 放进 <see cref="LoadPortVisual3D.Attachments"/> 就坐在托板的定位销上、跟着对接前后走。只显示，点了哪片由装配层用 <see cref="SlotOf"/> 认。
 /// </summary>
@@ -61,7 +61,7 @@ public sealed class CarrierVisual3D : HardwareVisual3D
         RebuildGeometry();
     }
 
-    /// <summary>槽数（sc.xml 里 LoadPort 的 SlotCount），花篮高度、槽齿、槽号都跟着它；0 = 还不知道，什么都不画。</summary>
+    /// <summary>槽数（machine.xml 里 LoadPort 的 SlotCount），花篮高度、槽齿、槽号都跟着它；0 = 还不知道，什么都不画。</summary>
     public int SlotCount
     {
         get => (int)GetValue(SlotCountProperty);

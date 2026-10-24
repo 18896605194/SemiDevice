@@ -12,7 +12,7 @@ using xyz.Tools;
 using xyz._35021.Module.Cds;
 using xyz._35021.Shared.Dtos;
 
-// CDS 冒烟：槽（Tank）照 sc 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
+// CDS 冒烟：槽（Tank）照 machine.xml 认液位 DI 信号（LL / L / H / HH / Overfill，没挂 = 没有这个点）、触发值照配的电平、
 // 按配了的信号算液位（Overfill 亮了就是溢流）、读不到算不知道、信号对不上 / 液位高高 / 溢流报警且只能人工复位清；
 // 五个功能（补液、排液、换液、供液、停止）开关哪组阀、状态怎么走（就绪只能补液得到、有报警就出错）、开始前的检查和被拒原因；
 // 推送（槽跟着 IPA 模块推 IpaDto：液位、状态、各信号有变化才推，没配的信号是 null）；
@@ -68,7 +68,7 @@ try
     var tank = Load("Tank1", ("LL", 0, false), ("L", 1, true), ("H", 2, true), ("HH", 3, true), ("Overfill", 4, true));
     Check(tank.FullPath == "CDS.IPA.Tank1", "槽的全路径带上分组 CDS.IPA");
     Check(tank.FindChild<DiSensorComponent>("LL")!.TriggerValue == false
-        && tank.FindChild<DiSensorComponent>("L")!.TriggerValue, "信号的触发值照 sc 配的电平装上");
+        && tank.FindChild<DiSensorComponent>("L")!.TriggerValue, "信号的触发值照 machine.xml 配的电平装上");
     Check(tank.Level == TankLevel.Unknown, "还没扫过，液位不知道");
 
     // 液面到了哪几个信号：按各自的触发值摆 DI
@@ -383,7 +383,7 @@ try
         "没挂 H（补液完成位）：补液被拒");
     Check(partialTank.Supply().ErrorMessage == ErrorCodes.TankValveGroupMissing, "没挂 Supply 阀组：供液被拒");
 
-    // SC FillTo：补到 L 就算完成；不分大小写；配成 L、H 以外开机就报
+    // machine.xml FillTo：补到 L 就算完成；不分大小写；配成 L、H 以外开机就报
     var lowTarget = LoadTank("Tank12", "l", [("LL", 14, true), ("L", 15, true), ("H", 16, true)], fill: [(5, -1)], drain: [], supply: []);
     Check(lowTarget.FillTo == "L", "FillTo 不分大小写，规整成 L");
     plc.SetDi(14, true);
@@ -668,11 +668,11 @@ finally
 }
 
 Console.WriteLine($"PASS: {checks} cds checks (tank: level DI signals found by node name (a missing node means no such point), "
-    + "trigger values loaded from sc, the level band from the signals that are configured with overfill as the top one, "
+    + "trigger values loaded from machine.xml, the level band from the signals that are configured with overfill as the top one, "
     + "unknown when a signal cannot be read unless overfill is on, the signal mismatch / high-high / overfill alarms raised by the tank "
     + "after each one's EC debounce time and cleared only by a manual reset; the fill / drain / exchange / supply / stop functions "
     + "driving their valve groups, ready only through a fill, any alarm putting the tank into error with every valve closed, "
-    + "the SC fill target, the checks before each function with their error codes, "
+    + "the machine.xml fill target, the checks before each function with their error codes, "
     + "and the push of level / state / each signal only on change, with unconfigured signals as null; "
     + "supply readiness for other modules (ISupplyAccess, worked out on the IPA scan: initialized, idle and one tank ready or supplying); "
     + "AI level signals reading one level meter against EC trigger values with a tolerance and debounce, "
@@ -684,7 +684,7 @@ static SmokeTank Load(string name, params (string Signal, int Di, bool Trigger)[
     return LoadTank(name, null, signals, [], [], []);
 }
 
-// 照 sc 的写法装一个槽：CDS、IPA 是分组，信号按 (节点名, DI 号, 触发值)、阀组的阀按 (DO 号, 到位 DI 号) 挂上去，阀名叫 V+DO 号；
+// 照 machine.xml 的写法装一个槽：CDS、IPA 是分组，信号按 (节点名, DI 号, 触发值)、阀组的阀按 (DO 号, 到位 DI 号) 挂上去，阀名叫 V+DO 号；
 // AI 液位信号按 (节点名, AI 号, 触发值) 挂，触发值是 EC，装好了再设；信号和报警的防抖都设成 0，一拍就认
 static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, bool Trigger)[] signals,
     (int Do, int Di)[] fill, (int Do, int Di)[] drain, (int Do, int Di)[] supply,
@@ -702,7 +702,7 @@ static SmokeTank LoadTank(string name, string? fillTo, (string Signal, int Di, b
     return loaded;
 }
 
-// 槽装在 IPA 模块下面（sc 里 CDS → IPA → 槽，IPA 配了 Type）：推送跟着 IPA 走
+// 槽装在 IPA 模块下面（machine.xml 里 CDS → IPA → 槽，IPA 配了 Type）：推送跟着 IPA 走
 static SmokeIpa LoadIpa(string name, (string Signal, int Di, bool Trigger)[] signals, (int Do, int Di)[] fill)
 {
     var group = new ModuleConfig

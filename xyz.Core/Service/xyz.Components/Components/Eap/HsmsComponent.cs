@@ -14,9 +14,9 @@ using xyz.Tools;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// EAP 主机链路（SEMI E37 HSMS，sc.xml 的 Eap 下的 Hsms 节点）：只管链路和报文分发，不懂 GEM。
+/// EAP 主机链路（SEMI E37 HSMS，machine.xml 的 Eap 下的 Hsms 节点）：只管链路和报文分发，不懂 GEM。
 /// 传输与编解码在 xyz.Secs 类库（专用线程 + 同步泵），本组件做三件事：
-/// ① 按 sc.xml 建链路（被动监听等 EAP 连入是设备常规，IsActive=True 主动连出）；
+/// ① 按 machine.xml 建链路（被动监听等 EAP 连入是设备常规，IsActive=True 主动连出）；
 /// ② Host 发来的 primary 按 Stream/Function 交给登记的处理方（E30、E87……各标准组件开机时登记），
 ///    在一条专用派发线程上按收到的先后一条一条处理——不占收包线程，处理方可以等设备侧的命令结果；处理完照结果回。
 ///    处理前先过闸门（E30 的通讯、控制状态）：还没建立通讯时不理、离线时不该收的回 SxF0。
@@ -33,7 +33,7 @@ public class HsmsComponent : ComponentBase, IHsms
     /// <summary>S9F5：Stream 认识、Function 不认识。</summary>
     private const byte UnknownFunctionFunction = 5;
 
-    #region 配置（[Machine]，现场可在 EC 页改 sc.xml）
+    #region 配置（[Machine]，现场可在 EC 页改 machine.xml）
 
     [Machine("False", "Hsms", "是否启用 EAP；没接 EAP 的机器保持 False，不监听端口、不连设备，各标准组件也不接到设备上")]
     public bool IsEnable { get; set; }
@@ -149,7 +149,7 @@ public class HsmsComponent : ComponentBase, IHsms
     {
         if (IocHelper.GetService<IEapComponent>() is null)
         {
-            LogHelper.Error(Name, "sc.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
+            LogHelper.Error(Name, "machine.xml 的 Hsms 节点要放在 Eap 节点下（跟 E30 等标准组件一起），现在这样 EAP 不接");
         }
     }
 

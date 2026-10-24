@@ -9,7 +9,7 @@ namespace xyz.Components.Interfaces;
 public interface IAi
 {
     /// <summary>
-    /// 模型名（sc 里配的）
+    /// 模型名（machine.xml 里配的）
     /// </summary>
     string Model { get; }
 

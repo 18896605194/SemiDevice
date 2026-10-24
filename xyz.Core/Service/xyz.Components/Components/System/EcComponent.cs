@@ -13,13 +13,13 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// EC 管理组件。ec.xml 不随程序发布，是启动时照组件树生成的：组件上每个 [VariableMark(EC)] 属性一项，
-/// 层级、先后都跟组件树（也就是 sc.xml）一样；文件已经有了就只补新的、更新说明和上下限，改过的值不动。
+/// 层级、先后都跟组件树（也就是 machine.xml）一样；文件已经有了就只补新的、更新说明和上下限，改过的值不动。
 /// </summary>
 [Component(description: "EC 管理组件（在线可调参数 ec.xml）")]
 public class EcComponent : ComponentBase, IEc
 {
     /// <summary>
-    /// 当前 EC；sc.xml 里装出来即生效。没装时各组件的 EC 属性读回退 [VariableMark] 的默认值，写不生效。
+    /// 当前 EC；machine.xml 里装出来即生效。没装时各组件的 EC 属性读回退 [VariableMark] 的默认值，写不生效。
     /// 冒烟与测试直接 new 一个：只在内存里，不读也不写 ec.xml。
     /// </summary>
     private readonly object _gate = new();
@@ -30,7 +30,7 @@ public class EcComponent : ComponentBase, IEc
 
     /// <summary>
     /// 组件树上声明了的项（"路径\0名字"），合并声明时定；还没合并过为 null（那时文件里有什么算什么）。
-    /// ec.xml 里多出来的（组件从 sc.xml 拿掉了、属性从代码里删了）值留着不丢，但不给界面，界面也改不了。
+    /// ec.xml 里多出来的（组件从 machine.xml 拿掉了、属性从代码里删了）值留着不丢，但不给界面，界面也改不了。
     /// </summary>
     private HashSet<string>? _declared;
 
@@ -57,27 +57,43 @@ public class EcComponent : ComponentBase, IEc
     #region 装载
 
     /// <summary>
-    /// 装配读完 SC 后读 ec.xml（跟 sc.xml 同一个配置目录）。
+    /// 装配读完 machine.xml 后读 ec.xml（跟 machine.xml 同一个配置目录）。
     /// </summary>
     protected internal override void OnSettingLoaded(ModuleConfig setting)
     {
         base.OnSettingLoaded(setting);
-        Load(System.IO.Path.Combine(SC.ConfigDirectory, "ec.xml"));
+        Load(System.IO.Path.Combine(MachineXml.ConfigDirectory, "ec.xml"));
     }
 
     /// <summary>
-    /// 读 ec.xml 并建索引，之后的改动都写回这个文件；文件不存在时为空树（等 Merge 补建）。
+    /// 读 ec.xml 并建索引，之后的改动都写回这个文件；文件不存在或是空的（清空了）时为空树，等 Merge 照组件树整份建出来。
     /// </summary>
     public void Load(string filePath)
     {
         lock (_gate)
         {
             FilePath = filePath;
-            _settings = File.Exists(filePath)
-                ? XmlHelper.Deserialize<EcConfig>(filePath)?.Settings ?? new List<EcSettingConfig>()
-                : new List<EcSettingConfig>();
+            _settings = ReadSettings(filePath);
             RebuildIndex();
         }
+    }
+
+    /// <summary>
+    /// 文件不存在、或者里面什么都没有，当成空树；有内容才按 ec.xml 读
+    /// </summary>
+    private static List<EcSettingConfig> ReadSettings(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            return new List<EcSettingConfig>();
+        }
+
+        if (string.IsNullOrWhiteSpace(File.ReadAllText(filePath)))
+        {
+            return new List<EcSettingConfig>();
+        }
+
+        return XmlHelper.Deserialize<EcConfig>(filePath)?.Settings ?? new List<EcSettingConfig>();
     }
 
     #endregion
@@ -128,7 +144,7 @@ public class EcComponent : ComponentBase, IEc
 
         if (orphans > 0)
         {
-            LogHelper.Info(Name, $"ec.xml 里有 {orphans} 项在组件树上已经没有了（组件从 sc.xml 拿掉了，或属性从代码里删了）：值留着不动，界面不列");
+            LogHelper.Info(Name, $"ec.xml 里有 {orphans} 项在组件树上已经没有了（组件从 machine.xml 拿掉了，或属性从代码里删了）：值留着不动，界面不列");
         }
 
         return changed;
@@ -169,8 +185,8 @@ public class EcComponent : ComponentBase, IEc
     }
 
     /// <summary>
-    /// 按组件树的先后重排 ec.xml：节点跟着组件走、节点里的值跟着声明走，文件的层级和先后就跟 sc.xml 一样
-    /// （后加进 sc.xml 的组件不会一直挂在文件末尾）。树上已经没有的留在各层最后，原来的先后不变。调用方持锁；返回先后变了没有。
+    /// 按组件树的先后重排 ec.xml：节点跟着组件走、节点里的值跟着声明走，文件的层级和先后就跟 machine.xml 一样
+    /// （后加进 machine.xml 的组件不会一直挂在文件末尾）。树上已经没有的留在各层最后，原来的先后不变。调用方持锁；返回先后变了没有。
     /// </summary>
     private bool Reorder(List<(string Path, string Name, VariableMarkAttribute Mark)> declarations)
     {

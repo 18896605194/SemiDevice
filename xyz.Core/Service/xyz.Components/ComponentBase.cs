@@ -35,12 +35,12 @@ public abstract class ComponentBase
     public string? Role { get; internal set; }
 
     /// <summary>
-    /// 完整层级路径，sc.xml 的分组节点（不写 Type 的 LoadPort、Chamber）也算上，比如 Chamber.Chamber1.Door。
+    /// 完整层级路径，machine.xml 的分组节点（不写 Type 的 LoadPort、Chamber）也算上，比如 Chamber.Chamber1.Door。
     /// </summary>
     public string FullPath { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// 初始化顺序，默认 10000，越小越先（InitComponent 时同一层的子组件按它依次初始化；sc.xml 节点的 InitOrder 属性配）。
+    /// 初始化顺序，默认 10000，越小越先（InitComponent 时同一层的子组件按它依次初始化；machine.xml 节点的 InitOrder 属性配）。
     /// </summary>
     public int InitOrder { get; internal set; } = 10000;
 
@@ -407,7 +407,7 @@ public abstract class ComponentBase
     #region 装配钩子
 
     /// <summary>
-    /// 装配钩子：ComponentLoader 灌完 [Machine] 属性后，把本组件在 sc.xml 中的 Setting 节点原样交给组件，
+    /// 装配钩子：ComponentLoader 灌完 [Machine] 属性后，把本组件在 machine.xml 中的 Setting 节点原样交给组件，
     /// 供读取名字不固定的配置（如工艺配方字段表）；默认无动作。配置不合法时抛异常，装配即失败。
     /// </summary>
     protected internal virtual void OnSettingLoaded(ModuleConfig setting)

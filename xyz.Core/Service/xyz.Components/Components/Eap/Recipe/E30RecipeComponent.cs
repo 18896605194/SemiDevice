@@ -11,14 +11,14 @@ using xyz.Shared.Dtos;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// 配方管理（SEMI E30 工艺程序管理，sc.xml 的 Eap 下的 Recipe 节点）：Host 的 S7 翻成流程配方库（ISequenceLibrary）、
+/// 配方管理（SEMI E30 工艺程序管理，machine.xml 的 Eap 下的 Recipe 节点）：Host 的 S7 翻成流程配方库（ISequenceLibrary）、
 /// 工艺配方库（IRecipeLibrary）各自的命令（跟本地两个配方页同一套检查），两个库报上来的"变了"翻成事件。
 /// 流程配方、工艺配方各在自己的库里，这里分开处理、不混在一起：Host 那边的配方号（PPID）就是名字，先看流程配方库有没有，再看工艺配方库
 /// （两个库的名字不会重）；Host 下一个两个库都还没有的名字，看 JSON 的样子由库自己认（流程配方每一步是分组 + 站点，工艺配方每一步是字段名 → 值）。
 /// 内容（PPBODY）是 JSON，发出去用 B（UTF-8），收的时候 A、B 都认。
 /// ① S7F1 问能不能下 → S7F2 PPGNT；② S7F3 下（没有就新建、有就覆盖）→ S7F4 ACKC7；③ S7F5 要 → S7F6；
 /// ④ S7F17 删（空表 = 两个库全删）→ S7F18 ACKC7；⑤ S7F19 列 → S7F20。下、删要 ON-LINE REMOTE；要、列在 ON-LINE 就行（离线由 E30 挡掉）。
-/// SC LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地两个配方页（配方服务改之前问 <see cref="IsLocalEditLocked"/>）。
+/// machine.xml LockLocalEditInRemote：ON-LINE REMOTE 时锁住本地两个配方页（配方服务改之前问 <see cref="IsLocalEditLocked"/>）。
 /// </summary>
 [Component(description: "配方管理（SEMI E30 工艺程序管理）：S7 下、取、删、列流程配方和工艺配方，变了报事件")]
 public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeComponent
@@ -61,7 +61,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
     private ISequenceLibrary? _sequences;
     private IRecipeLibrary? _processRecipes;
 
-    #region SC
+    #region Machine
 
     [Machine("False", "Recipe", "ON-LINE REMOTE 时锁住本地改流程配方、工艺配方：True = 两个配方页新建、改名、保存、删除都拒，只能 Host 改；False = 本地照样能改，改了报给 Host")]
     public bool LockLocalEditInRemote { get; set; }
@@ -111,7 +111,7 @@ public class E30RecipeComponent : ComponentBase, IE30Callback, IE30RecipeCompone
         }
     }
 
-    /// <summary>本地改流程配方、工艺配方现在锁着没有：SC LockLocalEditInRemote 开了、EAP 接着、控制状态是 ON-LINE REMOTE。配方服务改之前问它。</summary>
+    /// <summary>本地改流程配方、工艺配方现在锁着没有：machine.xml LockLocalEditInRemote 开了、EAP 接着、控制状态是 ON-LINE REMOTE。配方服务改之前问它。</summary>
     public bool IsLocalEditLocked => LockLocalEditInRemote && IsRemote;
 
     #endregion

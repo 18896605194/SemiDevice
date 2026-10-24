@@ -39,7 +39,7 @@ public class ProcessJobEntity : BaseEntity
     /// </summary>
     public int State { get; set; }
 
-    /// <summary>记录当时设备 SC 的 PJ 自动启动配置值。</summary>
+    /// <summary>记录当时设备 machine.xml 的 PJ 自动启动配置值。</summary>
     public bool AutoStart { get; set; }
 
     [SugarColumn(IsNullable = true)]

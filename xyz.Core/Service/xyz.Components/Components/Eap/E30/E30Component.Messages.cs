@@ -353,7 +353,7 @@ public partial class E30Component
     }
 
     /// <summary>
-    /// S2F31 对时 → S2F32 TIACK：时间格式不对回 1；SC ApplyHostTime 为 False 时只答收下、不改本机时钟（现场的规矩），
+    /// S2F31 对时 → S2F32 TIACK：时间格式不对回 1；machine.xml ApplyHostTime 为 False 时只答收下、不改本机时钟（现场的规矩），
     /// 为 True 时改本机时钟，改不了（没权限）回 1。
     /// </summary>
     private SecsReply TimeSet(HsmsMessage message)

@@ -51,7 +51,7 @@ public static class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // 照 sc.xml 装组件树，组件和 gRPC 服务进容器；组件等容器建好以后再开机
+        // 照 machine.xml 装组件树，组件和 gRPC 服务进容器；组件等容器建好以后再开机
         builder.Services.AddXyzServices();
 
         // 只走 HTTP/2；监听哪个地址、端口等组件起来以后从 Rpc 组件上取（见下面 app.Urls）
@@ -74,7 +74,7 @@ public static class Program
         app.Services.StartComponents();
         app.Lifetime.ApplicationStopping.Register(ServiceExtensions.StopComponents);
 
-        // gRPC 端点本身是组件（sc.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
+        // gRPC 端点本身是组件（machine.xml 的 Rpc 节点），地址端口从它上面取；没配该节点退回默认 localhost:5000
         var rpc = IocHelper.GetService<IRpc>();
         string host = "localhost";
         if (rpc is not null && !string.IsNullOrEmpty(rpc.Host))

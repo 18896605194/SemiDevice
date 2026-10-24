@@ -1,7 +1,7 @@
 ﻿namespace xyz.Modules;
 
 /// <summary>
-/// 流程配方可选的一组站点：sc.xml 里的分组节点名（如 LoadPort、Chamber）和下面装的、能放片、机械手到得了的模块。
+/// 流程配方可选的一组站点：machine.xml 里的分组节点名（如 LoadPort、Chamber）和下面装的、能放片、机械手到得了的模块。
 /// </summary>
 public sealed class SequenceStationGroup
 {
@@ -19,7 +19,7 @@ public sealed class SequenceStationGroup
     public string Name { get; }
 
     /// <summary>
-    /// 模块名，按 sc.xml 里的先后。
+    /// 模块名，按 machine.xml 里的先后。
     /// </summary>
     public IReadOnlyList<string> Modules { get; }
 

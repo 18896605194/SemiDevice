@@ -6,7 +6,7 @@ namespace xyz.Shared.Services;
 
 /// <summary>
 /// 流程配方服务契约（配方 → 流程配方页）：编号 1~N 的流程配方，看列表、看内容、新建、改名、删除、保存。
-/// 没装流程配方库（sc.xml 没配 Sequence 节点）时每个接口都回 sequence.not_installed。
+/// 没装流程配方库（machine.xml 没配 Sequence 节点）时每个接口都回 sequence.not_installed。
 /// </summary>
 [ServiceContract]
 public interface ISequenceService
@@ -25,7 +25,7 @@ public interface ISequenceService
     Task<RpcResponse> GetAsync(SequenceIndexRequest request, CallContext context = default);
 
     /// <summary>
-    /// 可选的站点分组（来自 sc.xml 的分组节点和装起来的模块）。Data 为 List&lt;SequenceStationGroupDto&gt; 的 JSON。
+    /// 可选的站点分组（来自 machine.xml 的分组节点和装起来的模块）。Data 为 List&lt;SequenceStationGroupDto&gt; 的 JSON。
     /// </summary>
     [OperationContract]
     Task<RpcResponse> GetStationGroupsAsync(RpcRequest request, CallContext context = default);

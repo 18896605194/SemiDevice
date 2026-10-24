@@ -176,7 +176,7 @@ public class DataChartViewModel : BaseViewModel
     private int _maxSignals = 20;
 
     /// <summary>
-    /// 最多同时画几条（后端 sc.xml 的 DataChart 节点 QueryMaxSignals）。
+    /// 最多同时画几条（后端 machine.xml 的 DataChart 节点 QueryMaxSignals）。
     /// </summary>
     public int MaxSignals
     {
@@ -187,7 +187,7 @@ public class DataChartViewModel : BaseViewModel
     private string _screenshotDirectory = string.Empty;
 
     /// <summary>
-    /// 截图存到哪个文件夹（后端 sc.xml 的 DataChart 节点 ScreenshotDirectory）；信号表没拿到之前是空的。
+    /// 截图存到哪个文件夹（后端 machine.xml 的 DataChart 节点 ScreenshotDirectory）；信号表没拿到之前是空的。
     /// </summary>
     public string ScreenshotDirectory
     {

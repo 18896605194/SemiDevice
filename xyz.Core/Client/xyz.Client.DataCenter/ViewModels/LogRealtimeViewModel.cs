@@ -115,7 +115,7 @@ public class LogRealtimeViewModel : BaseViewModel
     private IDisposable? _subscription;
 
     /// <summary>
-    /// 页面最多保留的日志条数，超出丢最旧的；连上后端时按 sc.xml 的 Log 节点（RealtimeDisplayMaxCount）更新。
+    /// 页面最多保留的日志条数，超出丢最旧的；连上后端时按 machine.xml 的 Log 节点（RealtimeDisplayMaxCount）更新。
     /// </summary>
     private int _maxLogs = LogSettingsDto.DefaultRealtimeDisplayMaxCount;
 
@@ -160,7 +160,7 @@ public class LogRealtimeViewModel : BaseViewModel
 
         try
         {
-            // 后端缓冲里有多少补多少（缓冲条数在 sc.xml 的 Log 节点配）
+            // 后端缓冲里有多少补多少（缓冲条数在 machine.xml 的 Log 节点配）
             var response = await _service.GetRecentAsync(new LogQuery());
             if (!response.Success)
             {
@@ -184,7 +184,7 @@ public class LogRealtimeViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// 取后端配的显示条数（sc.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// 取后端配的显示条数（machine.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
     /// </summary>
     private async Task LoadSettingsAsync()
     {

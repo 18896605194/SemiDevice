@@ -3,7 +3,7 @@
 namespace xyz.Components.Attributes;
 
 /// <summary>
-/// 装机参数：属性的值从 sc.xml 组件节点下同名的 Value 灌（装机、接线、结构性的，改了重启生效；现场在线调的用 EC）
+/// 装机参数：属性的值从 machine.xml 组件节点下同名的 Value 灌（装机、接线、结构性的，改了重启生效；现场在线调的用 EC）
 /// </summary>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
 public sealed class MachineAttribute : Attribute

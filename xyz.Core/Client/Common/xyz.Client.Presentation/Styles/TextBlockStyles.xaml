@@ -332,7 +332,7 @@
         <Setter Property="Foreground" Value="{StaticResource DarkAccent}" />
     </Style>
 
-    <!--  信号灯（SignalLamp）的名字：sc 里的信号节点名（供液槽的 LL、H……）  -->
+    <!--  信号灯（SignalLamp）的名字：machine.xml 里的信号节点名（供液槽的 LL、H……）  -->
     <Style x:Key="SignalLampTextStyle" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="FontSize" Value="{StaticResource Size15}" />

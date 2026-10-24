@@ -176,21 +176,24 @@
 			<Value Name="IsRun" Value="true" />
 			<Value Name="SlotCount" Value="25" />
 			<Value Name="AutoRunMapOnUnload" Value="False" />
-			<Setting Name="Driver" Type="xyz.Components.Components.DeviceDriverComponent">
-				<Value Name="CommType" Value="Serial" />
+			<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+				<Value Name="IsEnable" Value="True" />
 				<Value Name="PortName" Value="COM2" />
 				<Value Name="BaudRate" Value="9600" />
 				<Value Name="Parity" Value="None" />
 				<Value Name="DataBits" Value="8" />
 				<Value Name="StopBits" Value="One" />
+			</Setting>
+			<Setting Name="Tcp" Type="xyz.Components.Components.TcpDriverComponent">
+				<Value Name="IsEnable" Value="False" />
 				<Value Name="Host" Value="192.168.1.100" />
 				<Value Name="NetPort" Value="4004" />
 			</Setting>
 			<Setting Name="RFID" Type="xyz._35021.Module.Drivers.Fcd.Rfid.FcdRfidReader">
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
-				<Setting Name="Driver" Type="xyz.Components.Components.DeviceDriverComponent">
-					<Value Name="CommType" Value="Serial" />
+				<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+					<Value Name="IsEnable" Value="True" />
 					<Value Name="PortName" Value="COM6" />
 					<Value Name="BaudRate" Value="9600" />
 					<Value Name="Parity" Value="None" />
@@ -225,21 +228,24 @@
 			<Value Name="IsRun" Value="true" />
 			<Value Name="SlotCount" Value="25" />		
 			<Value Name="AutoRunMapOnUnload" Value="False" />
-			<Setting Name="Driver" Type="xyz.Components.Components.DeviceDriverComponent">
-				<Value Name="CommType" Value="Serial" />
+			<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+				<Value Name="IsEnable" Value="True" />
 				<Value Name="PortName" Value="COM4" />
 				<Value Name="BaudRate" Value="9600" />
 				<Value Name="Parity" Value="None" />
 				<Value Name="DataBits" Value="8" />
 				<Value Name="StopBits" Value="One" />
+			</Setting>
+			<Setting Name="Tcp" Type="xyz.Components.Components.TcpDriverComponent">
+				<Value Name="IsEnable" Value="False" />
 				<Value Name="Host" Value="192.168.1.101" />
 				<Value Name="NetPort" Value="4004" />
 			</Setting>
 			<Setting Name="RFID" Type="xyz._35021.Module.Drivers.Fcd.Rfid.FcdRfidReader">
 				<Value Name="IdStart" Value="0" />
 				<Value Name="IdLength" Value="16" />
-				<Setting Name="Driver" Type="xyz.Components.Components.DeviceDriverComponent">
-					<Value Name="CommType" Value="Serial" />
+				<Setting Name="Serial" Type="xyz.Components.Components.SerialDriverComponent">
+					<Value Name="IsEnable" Value="True" />
 					<Value Name="PortName" Value="COM8" />
 					<Value Name="BaudRate" Value="9600" />
 					<Value Name="Parity" Value="None" />
@@ -273,8 +279,8 @@
 	<Setting Name="Robot">
 		<Setting Type="xyz._35021.Module.Robot.RobotModule" Name="Robot1">
 			<Value Name="IsRun" Value="true" />
-			<Setting Name="Driver" Type="xyz.Components.Components.DeviceDriverComponent">
-				<Value Name="CommType" Value="Tcp" />
+			<Setting Name="Tcp" Type="xyz.Components.Components.TcpDriverComponent">
+				<Value Name="IsEnable" Value="True" />
 				<Value Name="Host" Value="127.0.0.1" />
 				<Value Name="NetPort" Value="9000" />
 			</Setting>

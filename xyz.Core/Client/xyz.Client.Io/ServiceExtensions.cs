@@ -12,7 +12,7 @@ namespace xyz.Client.Io;
 public static class ServiceExtensions
 {
     /// <summary>
-    /// 注册一个模块的 IO 页面。模块有几个、叫什么由机型定（跟 sc.xml 里的模块名对齐），
+    /// 注册一个模块的 IO 页面。模块有几个、叫什么由机型定（跟 machine.xml 里的模块名对齐），
     /// 机型每个模块调一次，页面按菜单 Code "Io.&lt;模块名&gt;" 注册。
     ///
     /// 页面内容（哪些点、几类点）仍然由后端推的点表决定——点表里给这个模块加一行，界面上就多一行。

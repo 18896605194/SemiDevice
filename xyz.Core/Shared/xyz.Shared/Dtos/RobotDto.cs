@@ -50,11 +50,11 @@ public class RobotDto
     public List<TeachPointDto> TeachPoints { get; set; } = [];
 
     /// <summary>
-    /// 手指数：sc.xml 本机械手下的 RobotArmComponent 节点个数；界面画几只手臂按它（取放能用哪只手按示教点的 PickArms / PlaceArms）。
+    /// 手指数：machine.xml 本机械手下的 RobotArmComponent 节点个数；界面画几只手臂按它（取放能用哪只手按示教点的 PickArms / PlaceArms）。
     /// </summary>
     public int ArmCount { get; set; }
 
-    /// <summary>各手指（sc.xml 的 Arm 节点），按手指号升序；HasWafer 是设备推送的在位，还没收到推送时为 false。</summary>
+    /// <summary>各手指（machine.xml 的 Arm 节点），按手指号升序；HasWafer 是设备推送的在位，还没收到推送时为 false。</summary>
     public List<RobotArmDto> Arms { get; set; } = [];
 
     /// <summary>
@@ -63,7 +63,7 @@ public class RobotDto
     /// </summary>
     public List<WaferSlotDto> LedgerSlots { get; set; } = [];
 
-    /// <summary>各轴当前坐标（扫描查询刷新）：按 sc.xml 轴表整表下发、顺序同轴表，轴名总在；坐标还没查到或驱动没连上为 null。</summary>
+    /// <summary>各轴当前坐标（扫描查询刷新）：按 machine.xml 轴表整表下发、顺序同轴表，轴名总在；坐标还没查到或驱动没连上为 null。</summary>
     public List<RobotAxisPositionDto> AxisPositions { get; set; } = [];
 
     /// <summary>
@@ -220,7 +220,7 @@ public class TeachPointDto
     public double Y { get; set; }
 
     /// <summary>
-    /// 站点槽数（站点模块在 sc.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。
+    /// 站点槽数（站点模块在 machine.xml 里配的 SlotCount：LoadPort 25、腔体 1）；取放槽位下拉按它列 1~N。
     /// </summary>
     public int SlotCount { get; set; }
 

@@ -33,7 +33,7 @@ public sealed class ClientMenu
     public int Sort { get; }
 
     /// <summary>
-    /// 显示名。按模块生成的菜单填模块名（sc.xml 里的名字，如 Chamber1，不翻译）；
+    /// 显示名。按模块生成的菜单填模块名（machine.xml 里的名字，如 Chamber1，不翻译）；
     /// null 时按 Code 到语言包取 menu.{Code}。
     /// </summary>
     public string? Title { get; }

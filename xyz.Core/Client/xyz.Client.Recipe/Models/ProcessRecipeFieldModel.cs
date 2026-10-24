@@ -7,7 +7,7 @@ using xyz.Shared.Errors;
 namespace xyz.Client.Recipe.Models;
 
 /// <summary>
-/// 工艺步骤表的一列、配方头的一项（后端字段表里的一个字段，来自 sc.xml）：名字、类型、范围、默认值、下拉的选项都按它来，界面不写死字段。
+/// 工艺步骤表的一列、配方头的一项（后端字段表里的一个字段，来自 machine.xml）：名字、类型、范围、默认值、下拉的选项都按它来，界面不写死字段。
 /// 一格怎么查也在这里，跟后端保存时的检查一样，提示文字用同一套错误码。
 /// </summary>
 public sealed class ProcessRecipeFieldModel
@@ -147,7 +147,7 @@ public sealed class ProcessRecipeFieldModel
     public IReadOnlyList<string> Options { get; }
 
     /// <summary>
-    /// 下拉能选的：步骤的按配方头选的 Type 取那一套（sc.xml 里按站点 Type 分开写的）；配方头的就是 <see cref="Options"/>。
+    /// 下拉能选的：步骤的按配方头选的 Type 取那一套（machine.xml 里按站点 Type 分开写的）；配方头的就是 <see cref="Options"/>。
     /// </summary>
     public IReadOnlyList<string> OptionsFor(string stationType)
     {

@@ -40,7 +40,7 @@ public static class DeviceActions
                 return false;
 
             case ChamberDeviceAction.ValveOff:
-                // 喷嘴关阀走 Stop：SC 配了的还把流量清零
+                // 喷嘴关阀走 Stop：machine.xml 配了的还把流量清零
                 if (device is INozzle nozzle)
                 {
                     return nozzle.Stop();

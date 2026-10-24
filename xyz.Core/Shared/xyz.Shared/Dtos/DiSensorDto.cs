@@ -6,7 +6,7 @@
 public record DiSensorDto
 {
     /// <summary>
-    /// sc 里的节点名，原样显示
+    /// machine.xml 里的节点名，原样显示
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
