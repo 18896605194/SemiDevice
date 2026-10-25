@@ -4,7 +4,7 @@ using Opc.Ua;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// OPC UA 取值、写值用的小工具（官方库的 Variant 是强类型的，类型不对服务端拒收）
+/// OPC UA 取值
 /// </summary>
 internal static class OpcUaHelper
 {

@@ -12,7 +12,7 @@ using xyz.Components.Interfaces;
 namespace xyz.Components.Components;
 
 /// <summary>
-/// OPC UA PLC 组件：西门子 1500、欧姆龙 NX、汇川、Codesys 这类自带 OPC UA 服务的 PLC，按数组节点读写 DI/DO/AI/AO
+/// OPC UA PLC 组件
 /// </summary>
 [Component(description: "OPC UA PLC 组件")]
 public class OpcUaPlcComponent : PlcComponent, IPlcIo
