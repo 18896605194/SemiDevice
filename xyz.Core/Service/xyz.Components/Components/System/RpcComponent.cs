@@ -14,6 +14,8 @@ public class RpcComponent : ComponentBase, IRpc
 
     public const int DefaultPort = 5000;
 
+    public const int DefaultMaxMessageSizeMb = 26;
+
     /// <summary>
     /// 监听地址：前端壳和后端同机，保持 localhost；远程调试时才需要改。
     /// </summary>
@@ -26,4 +28,10 @@ public class RpcComponent : ComponentBase, IRpc
     /// </summary>
     [Machine("5000", "Rpc", "gRPC 监听端口，默认 5000。注意 HSMS（EAP）惯例端口也是 5000，接 EAP 时把一边挪开；改这里要同步改客户端的 client.json")]
     public int Port { get; set; } = DefaultPort;
+
+    /// <summary>
+    /// 单条消息上限：gRPC 默认 4 MB，放到 26 MB 给大查询留余量
+    /// </summary>
+    [Machine("26", "Rpc", "单条 gRPC 消息最大多少 MB（后端收的上限，gRPC 默认是 4 MB）；客户端收的上限在客户端 exe 旁 client.json 的 MaxMessageSizeMb，两边保持一致")]
+    public int MaxMessageSizeMb { get; set; } = DefaultMaxMessageSizeMb;
 }

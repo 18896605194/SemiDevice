@@ -1,3 +1,4 @@
+﻿using xyz.Common.Log;
 using xyz.Components.Enums;
 using xyz.Modules.StateMachines;
 
@@ -6,7 +7,7 @@ namespace xyz.Modules;
 /// <summary>CJ 状态机；只维护状态和转换表，不持有 ControlJob 或 PJ。</summary>
 public sealed class CjStateMachine : BaseStateMachine<ControlJobState, ControlStateAction>
 {
-    public CjStateMachine()
+    public CjStateMachine(ILogSource logOwner) : base(logOwner)
     {
         CurrentState = ControlJobState.Created;
         Transitions = BuildTransitions();

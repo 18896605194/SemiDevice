@@ -1,0 +1,60 @@
+﻿<UserControl
+    x:Class="xyz.Client.Presentation.Controls.ProgressOverlay"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    x:Name="Root"
+    Visibility="Collapsed">
+
+    <!--  进度弹框：放在页面根 Grid 的最后、盖住整页（蒙暗，下面点不到）。中间跟确认框一样的深色卡片：
+          圆环（知道进度的按百分比走、中间写百分比；不知道的一直转）、下面一行字、取消。开关、进度、取消都在 State 上  -->
+    <Grid Background="{DynamicResource DarkOverlayBackground}">
+        <materialDesign:Card
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Style="{DynamicResource DialogCardStyle}"
+            TextElement.FontSize="{DynamicResource Size14}"
+            TextElement.Foreground="{DynamicResource DarkPrimaryText}">
+            <StackPanel Width="340">
+                <!--  圆环：底圈用窗口底色，走过的部分强调蓝；大小、粗细跟代码里画弧的一致  -->
+                <Grid
+                    Width="136"
+                    Height="136"
+                    Margin="0,8,0,0"
+                    HorizontalAlignment="Center">
+                    <Ellipse Stroke="{DynamicResource DarkWindowBackground}" StrokeThickness="10" />
+                    <Path
+                        x:Name="Arc"
+                        RenderTransformOrigin="0.5,0.5"
+                        Stroke="{DynamicResource DarkAccent}"
+                        StrokeEndLineCap="Round"
+                        StrokeStartLineCap="Round"
+                        StrokeThickness="10">
+                        <Path.RenderTransform>
+                            <RotateTransform x:Name="Spin" />
+                        </Path.RenderTransform>
+                    </Path>
+                    <TextBlock
+                        x:Name="PercentText"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size24}"
+                        FontWeight="Bold" />
+                </Grid>
+
+                <TextBlock
+                    Margin="0,20,0,0"
+                    HorizontalAlignment="Center"
+                    Text="{Binding Text, ElementName=Root}"
+                    TextTrimming="CharacterEllipsis" />
+
+                <Button
+                    Margin="0,20,0,0"
+                    HorizontalAlignment="Center"
+                    Command="{Binding State.CancelCommand, ElementName=Root}"
+                    Content="{DynamicResource common.cancel}"
+                    Style="{DynamicResource ToolbarOutlinedButtonStyle}" />
+            </StackPanel>
+        </materialDesign:Card>
+    </Grid>
+</UserControl>

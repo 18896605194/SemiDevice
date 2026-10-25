@@ -7,6 +7,7 @@ using ProtoBuf.Grpc.Server;
 using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
+using xyz.Components.Logging;
 using xyz.Service;
 using xyz.Tools;
 
@@ -24,32 +25,44 @@ public static class Program
             return;
         }
 
-        // 没有控制台了，崩溃原因只能进日志。
+        // 没有控制台了，崩溃原因只能进日志：日志是异步写的，记完等它写进文件再让进程没掉。
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-            LogHelper.Error("Host", $"后端异常退出：{e.ExceptionObject}");
+        {
+            LogHelper.Error(LogHelper.HostModule, $"后端异常退出：{e.ExceptionObject}");
+            LogHelper.Flush(TimeSpan.FromSeconds(3));
+        };
 
         // 右下角状态灯：灰 = 启动中，绿 = 运行中，红 = 启动失败。
         using var tray = new HostTrayIcon();
         try
         {
             Run(args, tray);
-            LogHelper.Info("Host", "后端已退出");
+            LogHelper.Info(LogHelper.HostModule, "后端已退出");
         }
         catch (Exception exception) when (tray.ExitRequested.IsCancellationRequested)
         {
-            LogHelper.Error("Host", $"后端退出时出错：{exception}");
+            LogHelper.Error(LogHelper.HostModule, $"后端退出时出错：{exception}");
         }
         catch (Exception exception)
         {
-            LogHelper.Error("Host", $"后端启动失败：{exception}");
+            LogHelper.Error(LogHelper.HostModule, $"后端启动失败：{exception}");
             tray.SetFailed(exception.Message);
             tray.WaitForExit(); // 红灯留着，等人在托盘上点退出
+        }
+        finally
+        {
+            // 日志队列里还没写的写完、文件关掉
+            LogHelper.Shutdown();
         }
     }
 
     private static void Run(string[] args, HostTrayIcon tray)
     {
         var builder = WebApplication.CreateBuilder(args);
+
+        // 宿主（ASP.NET Core、gRPC 框架）自己的日志也走 LogHelper，记在 Host 名下，只转 Warn 以上
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new LogHelperLoggerProvider(LogHelper.HostModule));
 
         // 照 machine.xml 装组件树，组件和 gRPC 服务进容器；组件等容器建好以后再开机
         builder.Services.AddXyzServices();
@@ -66,7 +79,13 @@ public static class Program
         // 退出时不干等长连接：客户端的事件流不会自己断，按默认 30 秒超时要等半分钟才退得掉。
         builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(3));
 
-        builder.Services.AddCodeFirstGrpc();
+        // 单条消息上限从 Rpc 组件取：这个选项第一次用到是在映射服务的时候（已经开完机），那时容器里取得到。
+        // 所有调用都过 ActionFilter：记操作日志（谁点了什么）
+        builder.Services.AddCodeFirstGrpc(options =>
+        {
+            options.MaxReceiveMessageSize = MaxMessageSizeMb() * 1024 * 1024;
+            options.Interceptors.Add<ActionFilter>();
+        });
 
         var app = builder.Build();
 
@@ -96,6 +115,15 @@ public static class Program
         tray.ExitRequested.Register(app.Lifetime.StopApplication);
 
         app.Run();
+    }
+
+    /// <summary>
+    /// 单条消息最大多少 MB：没配 Rpc 节点按默认 26 MB
+    /// </summary>
+    private static int MaxMessageSizeMb()
+    {
+        var rpc = IocHelper.GetService<IRpc>();
+        return rpc?.MaxMessageSizeMb ?? RpcComponent.DefaultMaxMessageSizeMb;
     }
 
     /// <summary>

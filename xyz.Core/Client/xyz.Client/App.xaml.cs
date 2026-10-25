@@ -49,6 +49,15 @@ public partial class App : Application
 
     public static IServiceProvider Services { get; private set; } = default!;
 
+    /// <summary>
+    /// 退出：日志队列里还没写的写完、文件关掉
+    /// </summary>
+    protected override void OnExit(ExitEventArgs e)
+    {
+        ClientLog.Shutdown();
+        base.OnExit(e);
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         #region 异常
@@ -260,6 +269,8 @@ public partial class App : Application
         {
             var message = args.ExceptionObject as Exception;
             ClientLog.Error("Client", message?.Message ?? args.ExceptionObject?.ToString() ?? "未知异常");
+            // 日志是异步写的：等它写进文件再让进程没掉
+            ClientLog.Flush(TimeSpan.FromSeconds(3));
         };
 
         TaskScheduler.UnobservedTaskException += (_, args) =>

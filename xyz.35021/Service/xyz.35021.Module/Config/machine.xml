@@ -10,6 +10,7 @@
 	<Setting Name="Rpc" Type="xyz.Components.Components.RpcComponent">
 		<Value Name="Host" Value="localhost" />
 		<Value Name="Port" Value="5000" />
+		<Value Name="MaxMessageSizeMb" Value="26" />
 	</Setting>
 	<Setting Name="EC" Type="xyz.Components.Components.EcComponent" />
 	<Setting Name="Database">
@@ -33,6 +34,7 @@
 		<Value Name="RecentLogCount" Value="200" />
 		<Value Name="RealtimeDisplayMaxCount" Value="2000" />
 		<Value Name="LogBarDisplayMaxCount" Value="500" />
+		<Value Name="KeepDays" Value="30" />
 	</Setting>
 	<Setting Name="Mapper" Type="xyz.Components.Components.MapperComponent" />
 	<Setting Name="LedgerManager" Type="xyz.Components.Components.LedgerManagerComponent">
@@ -597,6 +599,18 @@
 			<Value Name="AbortCommandName" Value="CJABORT" />
 			<Value Name="HeadOfQueueCommandName" Value="CJHOQ" />
 		</Setting>
+	</Setting>
+	
+	<!-- EDA（Interface A，Freeze 2：SOAP 1.2）：给厂里 FDC / APC 采数据的 Web 服务，跟 EAP 互不依赖；IsEnable=True 开机起服务，
+	     客户端先连 http://本机:Port/E132InterfaceDiscovery。EquipmentName 是 EDA 结构树的根名；权限表、持久采集计划存 Database 指的库；
+	     DefaultMaxSessions 最多几个会话。设备自描述照组件树和 GEM 编号表生成，不用配 -->
+	<Setting Name="Eda" Type="xyz.Components.Components.EdaComponent">
+		<Value Name="IsEnable" Value="False" />
+		<Value Name="Host" Value="0.0.0.0" />
+		<Value Name="Port" Value="8790" />
+		<Value Name="EquipmentName" Value="Equipment" />
+		<Value Name="Database" Value="Default" />
+		<Value Name="DefaultMaxSessions" Value="10" />
 	</Setting>
 	
 	<Setting Name="Chamber">

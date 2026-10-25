@@ -82,7 +82,7 @@ public class RealChartComponent : ComponentBase, IRealChart
         var source = IocHelper.GetService<IDataChart>();
         if (source is null)
         {
-            LogHelper.Warn(Name, "machine.xml 没配 DataChart 节点：实时曲线没有数据");
+            LogHelper.Warn(this, "machine.xml 没配 DataChart 节点：实时曲线没有数据");
             return;
         }
 
@@ -100,10 +100,10 @@ public class RealChartComponent : ComponentBase, IRealChart
         _subscription = source.Records.Subscribe(Keep);
         if (!IsRun)
         {
-            LogHelper.Warn(Name, "machine.xml 的 RealChart 节点没配 IsRun=true：不推，实时曲线页没有新数据");
+            LogHelper.Warn(this, "machine.xml 的 RealChart 节点没配 IsRun=true：不推，实时曲线页没有新数据");
         }
 
-        LogHelper.Info(Name, $"实时曲线接上数据曲线的采样，内存留最近 {WindowSeconds} 秒");
+        LogHelper.Info(this, $"实时曲线接上数据曲线的采样，内存留最近 {WindowSeconds} 秒");
     }
 
     /// <summary>
@@ -177,7 +177,7 @@ public class RealChartComponent : ComponentBase, IRealChart
             if (_lastPushFault != exception.Message)
             {
                 _lastPushFault = exception.Message;
-                LogHelper.Warn(Name, $"实时曲线推送失败: {exception.Message}");
+                LogHelper.Warn(this, $"实时曲线推送失败: {exception.Message}");
             }
         }
     }

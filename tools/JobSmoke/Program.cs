@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
+using xyz.Common.Log;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Components;
@@ -193,7 +194,7 @@ try
     ComponentLoader.BindAll(modules);
 
     // CJ 管理按参考用对象提交事件，注册与入队分开，实体和状态机不对外暴露。
-    ICjManager controls = new CjManager();
+    ICjManager controls = new CjManager(new SmokeLog("Job"));
     var controlEvents = new List<(string Id, ControlJobState State)>();
     var controlTransitions = new List<(string Id, ControlJobState State, int Number)>();
     controls.StateChanged += (job, state, number) =>
@@ -274,7 +275,7 @@ try
     Check(controls.ControlJobs.Count == 0, "Remove 后所有实体都从字典移除");
 
     // PJ 与 CJ 一样按字典登记，每个 PJ 有独立状态机，登记不自动入队。
-    IPjManager processes = new PjManager();
+    IPjManager processes = new PjManager(new SmokeLog("Job"));
     var processEvents = new List<(string Id, ProcessJobState State, int Number)>();
     processes.StateChanged += (process, state, number) => processEvents.Add((process.Id, state, number));
     ProcessJob ProcessForStateMachine(string id)
@@ -632,7 +633,6 @@ try
             LoadPort = port,
             LotId = lot,
             Slots = slots.Select(item => new JobSlotDto { Slot = item.Slot, Sequence = item.Sequence }).ToList(),
-            Operator = "Smoke",
         });
         Check(task.IsCompleted, "建 Job 应当场做完");
         var response = task.Result;
@@ -2963,7 +2963,7 @@ sealed class SmokeJobAligner : BaseAlignerModule
 }
 
 // 假通道：一直连着；发来的指令过 5 拍做完（对准器用），按先后记下名字。机械手、LoadPort 的动作是假的，挂它只为把"通道已连接"这道门打开
-sealed class SmokeChannel : ComponentBase, IDeviceDriverComponent
+sealed class SmokeChannel : ComponentBase, ICommDriver
 {
     private readonly List<(SmokeCommand Command, int SentAt)> _inflight = [];
     private int _ticks;
@@ -3088,7 +3088,7 @@ sealed class SmokeStepRobot(string name, params string[] stations) : SmokeRobot(
 // 站点的中途交接动作：一步一直做不完，测试手动做完（Finish）或做坏（Break）。
 sealed class SmokeHandoff : ModuleRoutine
 {
-    public SmokeHandoff(string name) : base("Smoke", name)
+    public SmokeHandoff(string name) : base(new SmokeLog("Smoke"), name)
     {
         Add("交接", null, _ => false);
     }
@@ -3167,7 +3167,7 @@ sealed class SmokePort : BaseLoadPortModule
         if (HoldPrepare2)
         {
             HoldPrepare2 = false;
-            return new ModuleRoutine(Name, "PrepareTransfer2").Add("等测试放行", null, _ => false);
+            return new ModuleRoutine(this, "PrepareTransfer2").Add("等测试放行", null, _ => false);
         }
 
         return base.PrepareTransfer2Core(context);
@@ -3236,7 +3236,7 @@ sealed class SmokeChamber : BaseChamberModule
     {
         bool fail = FailNextProcess;
         FailNextProcess = false;
-        return new ModuleRoutine(Name, "Process").Add(new SmokeMotion("Process", ProcessTicks, fail));
+        return new ModuleRoutine(this, "Process").Add(new SmokeMotion("Process", ProcessTicks, fail));
     }
 
     // 中途交接：按先后记下取片（Pick）、放片（Place）；NextHandoff 摆下一次给什么（返回 null = 被拒），没摆就当场做完。
@@ -3255,7 +3255,7 @@ sealed class SmokeChamber : BaseChamberModule
         NextHandoff = null;
         if (next is null)
         {
-            return ModuleRoutine.Done(Name, "Handoff" + leg);
+            return ModuleRoutine.Done(this, "Handoff" + leg);
         }
 
         return next();
@@ -3306,6 +3306,10 @@ sealed class RecordingJobEvents : IE40Callback, IE94Callback
 
 sealed class SmokeStateMachine : xyz.Modules.StateMachines.BaseStateMachine<ControlJobState, ControlStateAction>
 {
+    public SmokeStateMachine() : base(new SmokeLog("Smoke"))
+    {
+    }
+
     protected override ControlJobState? GetErrorState()
     {
         return ControlJobState.Aborted;
@@ -3370,4 +3374,14 @@ sealed class SmokeSystem : SystemModule
     public void Tick() => OnScan();
 
     public void NoteState(int state) => State = state;
+}
+
+/// <summary>
+/// 冒烟里不是组件的地方记日志用的来源：只有第一层
+/// </summary>
+sealed class SmokeLog(string module) : ILogSource
+{
+    public string LogModule => module;
+
+    public string LogPart => string.Empty;
 }

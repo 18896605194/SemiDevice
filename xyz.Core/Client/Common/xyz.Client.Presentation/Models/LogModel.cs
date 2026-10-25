@@ -13,8 +13,13 @@ public class LogModel
     /// <summary>级别：Debug / Info / Warn / Error。</summary>
     public string Level { get; init; } = "Info";
 
-    /// <summary>来源模块（如 LoadPort1），可为空。</summary>
+    /// <summary>来源模块（日志的第一层，如 LoadPort.LoadPort1），可为空。</summary>
     public string Module { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 部件（日志的第二层，如 Serial、RFID.Serial）；模块自己写的为空
+    /// </summary>
+    public string Part { get; init; } = string.Empty;
 
     /// <summary>日志正文。</summary>
     public string Message { get; init; } = string.Empty;
@@ -35,6 +40,7 @@ public class LogModel
             Time = dto.Time,
             Level = dto.Level,
             Module = dto.Module,
+            Part = dto.Part,
             Message = dto.Message,
             Source = dto.Source,
         };

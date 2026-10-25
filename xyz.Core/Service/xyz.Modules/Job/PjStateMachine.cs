@@ -1,3 +1,4 @@
+﻿using xyz.Common.Log;
 using xyz.Components.Enums;
 using xyz.Modules.StateMachines;
 
@@ -6,7 +7,7 @@ namespace xyz.Modules;
 /// <summary>PJ 状态机；保留 E40 子状态，每个 PJ 使用自己的转换表。</summary>
 public sealed class PjStateMachine : BaseStateMachine<ProcessJobState, ProcessStateAction>
 {
-    public PjStateMachine()
+    public PjStateMachine(ILogSource logOwner) : base(logOwner)
     {
         CurrentState = ProcessJobState.Created;
         Transitions = BuildTransitions();

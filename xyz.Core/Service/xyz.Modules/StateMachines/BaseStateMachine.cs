@@ -1,4 +1,4 @@
-using xyz.Common.Log;
+﻿using xyz.Common.Log;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
 
@@ -8,11 +8,21 @@ namespace xyz.Modules.StateMachines;
 public abstract class BaseStateMachine<TState, TAction> where TState : struct, Enum where TAction : struct, Enum
 {
     private readonly object _stateLock = new();
+
+    /// <summary>
+    /// 日志记在谁名下（建这个状态机的管理者）
+    /// </summary>
+    private readonly ILogSource _logOwner;
     private TState _currentState;
 
     public Dictionary<(TState, TAction), StateTransition<TState>> Transitions { get; set; } = [];
 
     public event Action<TState, TState>? OnStateChanged;
+
+    protected BaseStateMachine(ILogSource logOwner)
+    {
+        _logOwner = logOwner;
+    }
 
     public TState CurrentState
     {
@@ -96,7 +106,7 @@ public abstract class BaseStateMachine<TState, TAction> where TState : struct, E
                     CurrentState = errorState.Value;
                 }
 
-                LogHelper.Error(GetType().Name, exception.Message);
+                LogHelper.Error(_logOwner, $"{GetType().Name}：{exception.Message}");
                 var failure = HandleResult.Fail(ErrorCodes.OperationFaulted, GetType().Name, exception.Message);
                 transition.ErrorHandler?.Invoke(failure, parameters);
                 return failure;

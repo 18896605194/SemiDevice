@@ -22,6 +22,11 @@ public class ModuleRoutine
     private readonly List<RoutineStep> _steps = [];
 
     /// <summary>
+    /// 做这个动作的模块（日志记在它名下）
+    /// </summary>
+    private readonly ILogSource _logOwner;
+
+    /// <summary>
     /// 做完的每一步各用了多久（ms），按先后；做成、失败、中止时写进日志
     /// </summary>
     private readonly List<long> _durations = [];
@@ -29,7 +34,7 @@ public class ModuleRoutine
     /// <summary>
     /// 发指令的步骤默认用的通道
     /// </summary>
-    private readonly IDeviceDriverComponent? _driver;
+    private readonly ICommDriver? _driver;
 
     /// <summary>
     /// 发指令的步骤默认的超时；不发指令的动作为 null
@@ -67,19 +72,25 @@ public class ModuleRoutine
     #endregion
 
     /// <summary>
-    /// 建一个动作：module 是日志记在谁名下（模块名），name 是动作名（日志、错误码参数用）
+    /// 建一个动作：owner 是做这个动作的模块（日志记在它名下），name 是动作名（日志、错误码参数用）
     /// </summary>
-    public ModuleRoutine(string module, string name)
+    public ModuleRoutine(ILogSource owner, string name)
     {
-        Module = module;
+        _logOwner = owner;
+        Module = owner.LogModule;
+        if (owner is ComponentBase component)
+        {
+            Module = component.Name;
+        }
+
         Name = name;
     }
 
     /// <summary>
     /// 建一个发指令的动作：后面加的 Command 步骤经这个通道发、按这个超时等（UseTimeout 能换后面几步的超时）
     /// </summary>
-    public ModuleRoutine(string module, string name, IDeviceDriverComponent? driver, Func<int> commandTimeoutMs)
-        : this(module, name)
+    public ModuleRoutine(ILogSource owner, string name, ICommDriver? driver, Func<int> commandTimeoutMs)
+        : this(owner, name)
     {
         _driver = driver;
         _commandTimeoutMs = commandTimeoutMs;
@@ -88,9 +99,14 @@ public class ModuleRoutine
     #region 结果（调用方看）
 
     /// <summary>
-    /// 日志记在谁名下（模块名）
+    /// 做这个动作的模块名（原因、错误码参数里显示）
     /// </summary>
     public string Module { get; }
+
+    /// <summary>
+    /// 日志记在谁名下（做这个动作的模块），子类自己记日志时用
+    /// </summary>
+    protected ILogSource LogOwner => _logOwner;
 
     /// <summary>
     /// 动作名，如 Home、Load
@@ -404,7 +420,7 @@ public class ModuleRoutine
             _startedAt = Stopwatch.GetTimestamp();
             if (_steps.Count > 0)
             {
-                LogHelper.Debug(Module, $"{Name} 开始：共 {_steps.Count} 步（{string.Join(" / ", _steps.Select(step => step.Name))}）");
+                LogHelper.Debug(_logOwner, $"{Name} 开始：共 {_steps.Count} 步（{string.Join(" / ", _steps.Select(step => step.Name))}）");
             }
         }
 
@@ -443,7 +459,7 @@ public class ModuleRoutine
 
             long used = step.ElapsedMs;
             _durations.Add(used);
-            LogHelper.Debug(Module, $"{Name} {_index + 1}/{_steps.Count} {step.Name}：做完 {used} ms");
+            LogHelper.Debug(_logOwner, $"{Name} {_index + 1}/{_steps.Count} {step.Name}：做完 {used} ms");
             _entered = false;
             _index++;
         }
@@ -478,11 +494,11 @@ public class ModuleRoutine
 
         if (_steps.Count == 1)
         {
-            LogHelper.Info(Module, $"{Name} 做完 {total} ms");
+            LogHelper.Info(_logOwner, $"{Name} 做完 {total} ms");
             return;
         }
 
-        LogHelper.Info(Module, $"{Name} 做完 {total} ms（{DoneSteps()}）");
+        LogHelper.Info(_logOwner, $"{Name} 做完 {total} ms（{DoneSteps()}）");
     }
 
     /// <summary>
@@ -514,7 +530,7 @@ public class ModuleRoutine
 
         if (_steps.Count > 0)
         {
-            LogHelper.Warn(Module, $"{Name} 中止在 {where}：{reason}{DoneSoFar()}");
+            LogHelper.Warn(_logOwner, $"{Name} 中止在 {where}：{reason}{DoneSoFar()}");
         }
 
         try
@@ -529,7 +545,7 @@ public class ModuleRoutine
         catch (Exception exception)
         {
             // 收场出错不打断打断方
-            LogHelper.Warn(Module, $"{Name} 中止收场出错：{exception.Message}");
+            LogHelper.Warn(_logOwner, $"{Name} 中止收场出错：{exception.Message}");
         }
     }
 
@@ -550,9 +566,9 @@ public class ModuleRoutine
     /// <summary>
     /// 不用做事、建好就算做成的动作（站点不用准备、没有设备的初始化）
     /// </summary>
-    public static ModuleRoutine Done(string module, string name)
+    public static ModuleRoutine Done(ILogSource owner, string name)
     {
-        var routine = new ModuleRoutine(module, name);
+        var routine = new ModuleRoutine(owner, name);
         routine.TrySetTerminal(RoutineState.Completed, string.Empty, string.Empty, []);
         return routine;
     }
@@ -565,14 +581,14 @@ public class ModuleRoutine
             return;
         }
 
-        LogHelper.Error(Module, $"{Name} 失败在 {where}：{reason}{StepDetail()}{DoneSoFar()}");
+        LogHelper.Error(_logOwner, $"{Name} 失败在 {where}：{reason}{StepDetail()}{DoneSoFar()}");
         try
         {
             OnFailed();
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Module, $"{Name} 失败收场出错：{exception.Message}");
+            LogHelper.Warn(_logOwner, $"{Name} 失败收场出错：{exception.Message}");
         }
     }
 

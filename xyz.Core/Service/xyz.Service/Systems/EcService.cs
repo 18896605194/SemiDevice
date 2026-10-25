@@ -70,7 +70,7 @@ public class EcService : IEcService
             case EcSetResult.SaveFailed:
                 return Fail(ErrorCodes.EcSaveFailed, key);
             case EcSetResult.Ok:
-                LogHelper.Info("EC", $"界面改 EC {key}：{old} → {item.Value} {item.Unit}".TrimEnd());
+                LogChange($"界面改 EC {key}：{old} → {item.Value} {item.Unit}".TrimEnd());
                 break;
         }
 
@@ -80,5 +80,19 @@ public class EcService : IEcService
     private static Task<RpcResponse> Fail(string code, params string[] args)
     {
         return Task.FromResult(RpcResponse.Fail(code, args));
+    }
+
+    /// <summary>
+    /// 改 EC 的记录（带改之前的值，操作日志里没有）记在 EC 组件名下
+    /// </summary>
+    private void LogChange(string message)
+    {
+        if (_ec is ILogSource source)
+        {
+            LogHelper.Info(source, message);
+            return;
+        }
+
+        LogHelper.Info(LogHelper.HostModule, message);
     }
 }

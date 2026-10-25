@@ -7,6 +7,7 @@ using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Secs;
 using xyz.Secs.Diagnostics;
+using xyz.Secs.Gem;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 using xyz.Tools;
@@ -57,26 +58,26 @@ Check(hsms.IsEnable && hsms.Port == port && hsms.DeviceId == 7, "[Machine] 灌�
 
 // 2. 登记处理方和闸门（链路打开之前）。
 var linkEvents = Channel.CreateUnbounded<string>();
-hsms.LinkSelected += () => linkEvents.Writer.TryWrite("Selected");
-hsms.LinkClosed += reason => linkEvents.Writer.TryWrite("Closed");
-hsms.Handle(1, 1, message => SecsReply.Of(SecsItem.L(SecsItem.A("MDLN"), SecsItem.A("REV"))));
-hsms.Handle(1, 3, async message =>
+hsms.Link.LinkSelected += () => linkEvents.Writer.TryWrite("Selected");
+hsms.Link.LinkClosed += reason => linkEvents.Writer.TryWrite("Closed");
+hsms.Link.Handle(1, 1, message => SecsReply.Of(SecsItem.L(SecsItem.A("MDLN"), SecsItem.A("REV"))));
+hsms.Link.Handle(1, 3, async message =>
 {
     await Task.Delay(50);
     throw new SecsException("测试：数据不对");
 });
-hsms.Handle(2, 1, SecsReply (HsmsMessage message) => throw new InvalidOperationException("测试：处理方自己出错"));
-hsms.Handle(6, 15, message => SecsReply.Of(SecsItem.B(0)).Then(() =>
+hsms.Link.Handle(2, 1, SecsReply (HsmsMessage message) => throw new InvalidOperationException("测试：处理方自己出错"));
+hsms.Link.Handle(6, 15, message => SecsReply.Of(SecsItem.B(0)).Then(() =>
 {
     // 回完再做的事：在回复发出去之后发一条 primary，假 EAP 应该先收到回复、后收到它
-    _ = hsms.SendAsync(new SecsMessage(6, 11, true, SecsItem.L(SecsItem.U4(1), SecsItem.U4(2), SecsItem.L())));
+    _ = hsms.Link.SendAsync(new SecsMessage(6, 11, true, SecsItem.L(SecsItem.U4(1), SecsItem.U4(2), SecsItem.L())));
 }));
-hsms.Handle(2, 13, message => SecsReply.Of(SecsItem.L()));
-hsms.Gate = message => message.Header.Stream == 2 && message.Header.Function == 13 ? SecsReply.Abort : null;
+hsms.Link.Handle(2, 13, message => SecsReply.Of(SecsItem.L()));
+hsms.Link.Gate = message => message.Header.Stream == 2 && message.Header.Function == 13 ? SecsReply.Abort : null;
 bool duplicate = false;
 try
 {
-    hsms.Handle(1, 1, SecsReply (HsmsMessage message) => SecsReply.None);
+    hsms.Link.Handle(1, 1, SecsReply (HsmsMessage message) => SecsReply.None);
 }
 catch (InvalidOperationException)
 {
@@ -154,7 +155,7 @@ var after = await primaries.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromS
 Check(after.Name == "S6F11 W", "回完再做的事（发 S6F11）在回复之后到");
 
 // 3.4 设备主动发报文等回复：假 EAP 回 B(0)。
-var reply = await hsms.SendAsync(new SecsMessage(5, 1, true, SecsItem.L(SecsItem.B(0x80), SecsItem.U4(1), SecsItem.A("x"))));
+var reply = await hsms.Link.SendAsync(new SecsMessage(5, 1, true, SecsItem.L(SecsItem.B(0x80), SecsItem.U4(1), SecsItem.A("x"))));
 Check(reply.Name == "S5F2" && reply.Body!.GetBinary()[0] == 0, "设备发 S5F1 等到 S5F2");
 await primaries.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
 
@@ -174,7 +175,7 @@ Check(closed, "Close 后对端再问应失败（链路已断）");
 bool notConnected = false;
 try
 {
-    await hsms.SendAsync(new SecsMessage(6, 11, true));
+    await hsms.Link.SendAsync(new SecsMessage(6, 11, true));
 }
 catch (HsmsConnectionException)
 {

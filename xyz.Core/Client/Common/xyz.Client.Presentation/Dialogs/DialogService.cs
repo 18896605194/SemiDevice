@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Windows;
+using Microsoft.Win32;
 using xyz.Client.Presentation.Controls;
 
 namespace xyz.Client.Presentation.Dialogs;
@@ -94,5 +95,37 @@ public static class DialogService
         };
 
         return dialog.ShowDialog() == true;
+    }
+
+    /// <summary>
+    /// 弹出系统的另存为窗口：filter 如 "Excel 文件 (*.xlsx)|*.xlsx"；选好返回完整路径，取消返回 null
+    /// </summary>
+    public static string? ShowSaveFile(string title, string fileName, string filter)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = title,
+            FileName = fileName,
+            Filter = filter,
+            AddExtension = true,
+            OverwritePrompt = true,
+        };
+        var owner = Application.Current?.MainWindow;
+        bool? chosen;
+        if (owner is not null)
+        {
+            chosen = dialog.ShowDialog(owner);
+        }
+        else
+        {
+            chosen = dialog.ShowDialog();
+        }
+
+        if (chosen != true)
+        {
+            return null;
+        }
+
+        return dialog.FileName;
     }
 }

@@ -135,14 +135,14 @@ public partial class IoComponent : ComponentBase, IIo
             ? PointTableDirectory
             : System.IO.Path.Combine(MachineXml.ConfigDirectory, PointTableDirectory);
 
-        Di.Load(System.IO.Path.Combine(directory, "DI.csv"));
-        Do.Load(System.IO.Path.Combine(directory, "DO.csv"));
-        Ai.Load(System.IO.Path.Combine(directory, "AI.csv"));
-        Ao.Load(System.IO.Path.Combine(directory, "AO.csv"));
+        Di.Load(System.IO.Path.Combine(directory, "DI.csv"), this);
+        Do.Load(System.IO.Path.Combine(directory, "DO.csv"), this);
+        Ai.Load(System.IO.Path.Combine(directory, "AI.csv"), this);
+        Ao.Load(System.IO.Path.Combine(directory, "AO.csv"), this);
         _virtualInputs?.ValidateSources();
         ValidateInterlockPoints();
 
-        LogHelper.Info($"[{FullPath}] 点表装载：DI {Di.Points.Count}、DO {Do.Points.Count}、"
+        LogHelper.Info(this, $"点表装载：DI {Di.Points.Count}、DO {Do.Points.Count}、"
                        + $"AI {Ai.Points.Count}、AO {Ao.Points.Count} 点（{directory}）");
         return true;
     }
@@ -226,7 +226,7 @@ public partial class IoComponent : ComponentBase, IIo
                     states[rule.DiIndex] is null
                         ? $"DI{rule.DiIndex} 读不到，无法确认联锁已解除（规则：{rule.Text}）"
                         : $"DI{rule.DiIndex}={BoolText(rule.DiValue)} 联锁正在触发，DO{index} 被强制为 {BoolText(rule.DoValue)}（规则：{rule.Text}）"));
-                LogHelper.Warn($"[{FullPath}] {reason}");
+                LogHelper.Warn(this, $"{reason}");
                 EnforceInterlocks(states);
                 return false;
             }
@@ -357,20 +357,20 @@ public partial class IoComponent : ComponentBase, IIo
             string text = $"DO{index}={(on ? "true" : "false")}";
             if (Do.Find(index) is null)
             {
-                LogHelper.Warn($"[{FullPath}] 开机下发 {text}：DO 点表里没有这个点，没下发");
+                LogHelper.Warn(this, $"开机下发 {text}：DO 点表里没有这个点，没下发");
                 continue;
             }
 
             if (!WriteDo(index, on))
             {
-                LogHelper.Warn($"[{FullPath}] 开机下发 {text}：写 PLC 失败或被 IO 联锁拒绝");
+                LogHelper.Warn(this, $"开机下发 {text}：写 PLC 失败或被 IO 联锁拒绝");
                 continue;
             }
 
             written.Add(text);
         }
 
-        LogHelper.Info($"[{FullPath}] 开机下发 DO {written.Count}/{_startupDo.Count} 个：{string.Join(";", written)}");
+        LogHelper.Info(this, $"开机下发 DO {written.Count}/{_startupDo.Count} 个：{string.Join(";", written)}");
     }
 
     #endregion

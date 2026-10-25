@@ -11,7 +11,7 @@ namespace xyz.Components.Components;
 /// </summary>
 internal sealed class CommandStep : RoutineStep
 {
-    private readonly IDeviceDriverComponent? _driver;
+    private readonly ICommDriver? _driver;
     private readonly Func<DeviceCommand> _create;
     private readonly Func<int> _timeoutMs;
     private readonly Func<DeviceCommand, HandleResult>? _onSuccess;
@@ -21,7 +21,7 @@ internal sealed class CommandStep : RoutineStep
     /// </summary>
     private DeviceCommand? _command;
 
-    public CommandStep(string name, IDeviceDriverComponent? driver, Func<DeviceCommand> create, Func<int> timeoutMs,
+    public CommandStep(string name, ICommDriver? driver, Func<DeviceCommand> create, Func<int> timeoutMs,
         Func<DeviceCommand, HandleResult>? onSuccess) : base(name)
     {
         _driver = driver;

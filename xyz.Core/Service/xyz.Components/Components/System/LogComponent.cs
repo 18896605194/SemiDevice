@@ -9,7 +9,7 @@ namespace xyz.Components.Components;
 /// <summary>
 /// 日志（machine.xml 的 Log 节点）：全系统一份的日志配置，加上把后端日志转给界面——留最近一段（客户端连上补拉）、每条实时推事件流。
 /// </summary>
-[Component(description: "日志（历史查询条数、显示条数，转给界面的实时日志和最近日志）")]
+[Component(description: "日志（历史查询条数、显示条数、文件保留天数，转给界面的实时日志和最近日志）")]
 public class LogComponent : ComponentBase, ILogComponent
 {
     private readonly object _gate = new();
@@ -31,12 +31,41 @@ public class LogComponent : ComponentBase, ILogComponent
     [Machine("500", "Log", "客户端顶部日志栏最多保留多少条，超出丢最旧的")]
     public int LogBarDisplayMaxCount { get; set; } = 500;
 
+    [Machine("30", "Log", "日志文件留多少天（后端主日志、轮询文件，客户端日志也照这个），更早的自动删；0 = 不删")]
+    public int KeepDays { get; set; } = 30;
+
     /// <summary>
-    /// 开机：接上日志队列。开机到这会儿的日志都在队列里攒着，接上就补进来，一条不落
+    /// 日志的第一层都有哪些（日志历史页模块下拉的选项），开机时从组件树取一次
+    /// </summary>
+    public IReadOnlyList<string> Modules { get; private set; } = [];
+
+    /// <summary>
+    /// 开机：按 KeepDays 定日志留几天；记下第一层有哪些；接上日志队列——开机到这会儿的日志都在队列里攒着，接上就补进来，一条不落
     /// </summary>
     public override void Bind()
     {
+        LogHelper.SetKeepDays(KeepDays);
+        Modules = ModulesOf(IocHelper.GetService<IReadOnlyList<ComponentBase>>() ?? []);
         LogQueue.Start(Forward);
+    }
+
+    /// <summary>
+    /// 第一层：组件树最顶上那层（停用的不算，它们不跑、不写日志），按 machine.xml 先后；再加不是组件的两个固定名字
+    /// </summary>
+    private static List<string> ModulesOf(IReadOnlyList<ComponentBase> roots)
+    {
+        var modules = new List<string>();
+        foreach (var root in roots)
+        {
+            if (root.IsEnabled && !modules.Contains(root.LogModule))
+            {
+                modules.Add(root.LogModule);
+            }
+        }
+
+        modules.Add(LogHelper.OperationModule);
+        modules.Add(LogHelper.HostModule);
+        return modules;
     }
 
     /// <summary>
@@ -60,6 +89,7 @@ public class LogComponent : ComponentBase, ILogComponent
             Time = item.Time,
             Level = item.Level.Name,
             Module = item.Module,
+            Part = item.Part,
             Message = item.Message,
             Source = "Server",
         };

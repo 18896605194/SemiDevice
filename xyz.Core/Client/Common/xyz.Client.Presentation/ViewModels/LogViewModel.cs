@@ -128,7 +128,7 @@ public class LogViewModel : BaseViewModel, IDisposable
     }
 
     /// <summary>
-    /// 取后端配的显示条数（machine.xml 的 Log 节点），配小了就马上把多出来的旧日志丢掉；取不到保持现值。
+    /// 取后端的日志设置（machine.xml 的 Log 节点）：客户端日志文件也照后端的天数留；显示条数配小了就马上把多出来的旧日志丢掉；取不到保持现值。
     /// </summary>
     private async Task LoadSettingsAsync(ILogService service)
     {
@@ -136,7 +136,13 @@ public class LogViewModel : BaseViewModel, IDisposable
         {
             var response = await service.GetSettingsAsync(new RpcRequest());
             var settings = response.Success ? JsonHelper.Deserialize<LogSettingsDto>(response.Data) : null;
-            if (settings is null || settings.LogBarDisplayMaxCount <= 0)
+            if (settings is null)
+            {
+                return;
+            }
+
+            ClientLog.SetKeepDays(settings.KeepDays);
+            if (settings.LogBarDisplayMaxCount <= 0)
             {
                 return;
             }

@@ -1,7 +1,12 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using Grpc.Core;
+using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using ProtoBuf.Grpc.Client;
 using xyz.Client.Common.Log;
+using xyz.Client.Common.Session;
+using xyz.Shared.Rpc;
+using xyz.Tools;
 
 namespace xyz.Client.Common.Rpc;
 
@@ -11,12 +16,23 @@ namespace xyz.Client.Common.Rpc;
 /// 地址优先级：显式传参 &gt; client.json 的 GrpcAddress（跟客户端 exe 同目录，可选）&gt; 默认 localhost:5000。
 /// 端口必须在连上后端之前就知道——后端的端口配在 machine.xml 的 Rpc 节点里，客户端没法走 gRPC 去问
 /// （鸡生蛋），所以客户端这边的覆盖走本地文件，和后端 machine.xml 保持一致即可。
+/// 单条消息上限（MaxMessageSizeMb）同理：默认 26 MB，client.json 可改，和后端 Rpc 节点保持一致。
+/// 每次调用都经 <see cref="UserHeader"/> 带上当前操作人，后端记操作日志、账单调整和配方的操作人都从这里取。
 /// </summary>
 public static class GrpcClientFactory
 {
     private const string DefaultAddress = "http://localhost:5000";
 
-    private static GrpcChannel? _channel;
+    /// <summary>
+    /// 单条消息上限：gRPC 默认 4 MB，放到 26 MB 给大查询留余量
+    /// </summary>
+    private const int DefaultMaxMessageSizeMb = 26;
+
+
+    /// <summary>
+    /// 通道外面包一层 UserHeader，服务代理都从它建
+    /// </summary>
+    private static CallInvoker? _invoker;
 
     /// <summary>
     /// 在程序启动时调用一次，创建全局唯一的 GrpcChannel。
@@ -24,43 +40,120 @@ public static class GrpcClientFactory
     public static void Initialize(string? address = null)
     {
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
-        address ??= ReadClientConfig() ?? DefaultAddress;
-        _channel = GrpcChannel.ForAddress(address);
-        ClientLog.Info("Client", $"gRPC 通道：{address}");
+        var config = ReadClientConfig();
+        address ??= config.GrpcAddress ?? DefaultAddress;
+        int maxMessageSizeMb = DefaultMaxMessageSizeMb;
+        if (config.MaxMessageSizeMb > 0)
+        {
+            maxMessageSizeMb = config.MaxMessageSizeMb;
+        }
+
+        var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
+        {
+            MaxReceiveMessageSize = maxMessageSizeMb * 1024 * 1024,
+        });
+        _invoker = channel.Intercept(new UserHeader());
+        ClientLog.Info("Client", $"gRPC 通道：{address}，单条消息上限 {maxMessageSizeMb} MB");
     }
 
     public static T Create<T>() where T : class
     {
-        return GetChannel().CreateGrpcService<T>();
+        return GetInvoker().CreateGrpcService<T>();
     }
 
     /// <summary>
-    /// 读 exe 旁的 client.json（可缺）里的 GrpcAddress，例如 { "GrpcAddress": "http://localhost:5050" }。
-    /// 文件不存在、格式不对、字段缺失都按 null 处理（用默认地址连），不让配置问题挡启动。
+    /// 读 exe 旁的 client.json（可缺），例如 { "GrpcAddress": "http://localhost:5050", "MaxMessageSizeMb": 26 }。
+    /// 文件不存在、格式不对、字段缺失都按默认值处理，不让配置问题挡启动。
     /// </summary>
-    private static string? ReadClientConfig()
+    private static ClientConfig ReadClientConfig()
     {
         try
         {
             var path = Path.Combine(AppContext.BaseDirectory, "client.json");
             if (!File.Exists(path))
             {
-                return null;
+                return new ClientConfig();
             }
 
-            using var document = JsonDocument.Parse(File.ReadAllText(path));
-            return document.RootElement.TryGetProperty("GrpcAddress", out var value) ? value.GetString() : null;
+            return JsonHelper.Deserialize<ClientConfig>(File.ReadAllText(path)) ?? new ClientConfig();
         }
         catch (Exception exception)
         {
-            ClientLog.Warn("Client", $"client.json 读取失败，按默认地址 {DefaultAddress} 连：{exception.Message}");
-            return null;
+            ClientLog.Warn("Client", $"client.json 读取失败，按默认地址 {DefaultAddress}、默认上限 {DefaultMaxMessageSizeMb} MB 连：{exception.Message}");
+            return new ClientConfig();
         }
     }
 
-    private static GrpcChannel GetChannel()
+    /// <summary>
+    /// client.json 的内容
+    /// </summary>
+    private sealed class ClientConfig
     {
-        return _channel
+        public string? GrpcAddress { get; set; }
+
+        public int MaxMessageSizeMb { get; set; }
+    }
+
+    private static CallInvoker GetInvoker()
+    {
+        return _invoker
             ?? throw new InvalidOperationException("请先在程序启动时调用 GrpcClientFactory.Initialize()");
+    }
+
+    /// <summary>
+    /// 每次调用都在请求头里带上当前操作人（ClientSession.UserName：登录名，没登录是 Guest，没启用登录是 Admin）
+    /// </summary>
+    private sealed class UserHeader : Interceptor
+    {
+        public override TResponse BlockingUnaryCall<TRequest, TResponse>(TRequest request, ClientInterceptorContext<TRequest, TResponse> context,
+            BlockingUnaryCallContinuation<TRequest, TResponse> continuation)
+        {
+            return continuation(request, WithOperator(context));
+        }
+
+        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(TRequest request, ClientInterceptorContext<TRequest, TResponse> context,
+            AsyncUnaryCallContinuation<TRequest, TResponse> continuation)
+        {
+            return continuation(request, WithOperator(context));
+        }
+
+        public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(TRequest request,
+            ClientInterceptorContext<TRequest, TResponse> context, AsyncServerStreamingCallContinuation<TRequest, TResponse> continuation)
+        {
+            return continuation(request, WithOperator(context));
+        }
+
+        public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(
+            ClientInterceptorContext<TRequest, TResponse> context, AsyncClientStreamingCallContinuation<TRequest, TResponse> continuation)
+        {
+            return continuation(WithOperator(context));
+        }
+
+        public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(
+            ClientInterceptorContext<TRequest, TResponse> context, AsyncDuplexStreamingCallContinuation<TRequest, TResponse> continuation)
+        {
+            return continuation(WithOperator(context));
+        }
+
+        /// <summary>
+        /// 原来的请求头照抄一份，再加上操作人（UTF-8 字节：登录名可能是中文）
+        /// </summary>
+        private static ClientInterceptorContext<TRequest, TResponse> WithOperator<TRequest, TResponse>(ClientInterceptorContext<TRequest, TResponse> context)
+            where TRequest : class
+            where TResponse : class
+        {
+            var headers = new Metadata();
+            var original = context.Options.Headers;
+            if (original is not null)
+            {
+                foreach (var entry in original)
+                {
+                    headers.Add(entry);
+                }
+            }
+
+            headers.Add(RpcHeaders.Operator, Encoding.UTF8.GetBytes(ClientSession.UserName));
+            return new ClientInterceptorContext<TRequest, TResponse>(context.Method, context.Host, context.Options.WithHeaders(headers));
+        }
     }
 }

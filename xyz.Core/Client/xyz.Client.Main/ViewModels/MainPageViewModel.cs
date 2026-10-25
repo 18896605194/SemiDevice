@@ -5,7 +5,6 @@ using xyz.Client.Common.Alarms;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
-using xyz.Client.Common.Session;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Main.Models;
 using xyz.Client.Presentation.Controls;
@@ -620,7 +619,6 @@ public class MainPageViewModel : BaseViewModel
             LoadPort = port.Name,
             LotId = port.LotId.Trim(),
             Slots = port.SelectedSlots.Select(slot => new JobSlotDto { Slot = slot.Slot, Sequence = slot.Sequence }).ToList(),
-            Operator = ClientSession.UserName,
         };
         try
         {

@@ -1,14 +1,14 @@
 ﻿namespace xyz.Drivers.Communication;
 
 /// <summary>
-/// 帧级通讯：字节传输（ICommunication）加解码器（IFrameCodec），收上来的已经是解好的报文，发的时候给帧体
+/// 帧级通讯：字节传输（ICommunication）加解码器（IFrameCodec），收上来的已经是拆好的帧和解好的报文，发的时候给帧体
 /// </summary>
 public interface IFrameCommunication
 {
     /// <summary>
-    /// 收到一条解好的报文，在接收线程上触发，订阅方要及时返回
+    /// 收到一帧：帧体原文（不带壳，记日志用）和解好的报文（解不出来为 null），在接收线程上触发，订阅方要及时返回
     /// </summary>
-    event Action<object>? MessageReceived;
+    event Action<string, object?>? MessageReceived;
 
     /// <summary>
     /// 连接是否可用

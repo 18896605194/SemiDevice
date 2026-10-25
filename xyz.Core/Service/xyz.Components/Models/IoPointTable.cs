@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using xyz.Common.Log;
+using xyz.Tools;
 
 namespace xyz.Components.Models;
 
@@ -27,11 +28,11 @@ public sealed class IoPointTable
     }
 
     /// <summary>
-    /// 读点表 csv。格式跟仿真器同一份：表头按列名定位（Index/Module/Component/Name/Tag/Description，
-    /// AI/AO 另有 Unit/PhysicalMax/PhysicalMin/LogicalMax/LogicalMin），列顺序不限。
-    /// 文件不在就是空表——装机还没给点表时照常空转，不拦启动。
+    /// 读点表 csv（ExcelHelper.ReadCsv）。格式跟仿真器同一份：表头按列名定位（Index/Module/Component/Name/Tag/Description，
+    /// AI/AO 另有 Unit/PhysicalMax/PhysicalMin/LogicalMax/LogicalMin），列顺序不限、不分大小写，带引号的格子里可以有逗号。
+    /// 文件不在就是空表——装机还没给点表时照常空转，不拦启动。点表有问题的日志记在 owner（IO 组件）名下。
     /// </summary>
-    public void Load(string csvPath)
+    public void Load(string csvPath, ILogSource owner)
     {
         var points = new List<IoPoint>();
         _byIndex.Clear();
@@ -42,44 +43,18 @@ public sealed class IoPointTable
             return;
         }
 
-        string[] lines = File.ReadAllLines(csvPath);
-        if (lines.Length < 2)
+        var rows = ExcelHelper.ReadCsv(csvPath);
+        if (rows.Count > 0 && !rows[0].ContainsKey("Index"))
         {
+            LogHelper.Warn(owner, $"{csvPath} 缺少 Index 列，本区不采集");
             Points = points;
             return;
         }
 
-        string[] headers = lines[0].Split(',');
-        int indexColumn = FindColumn(headers, "Index");
-        if (indexColumn < 0)
+        for (int row = 0; row < rows.Count; row++)
         {
-            LogHelper.Warn("Io", $"{csvPath} 缺少 Index 列，本区不采集");
-            Points = points;
-            return;
-        }
-
-        int nameColumn = FindColumn(headers, "Name");
-        int moduleColumn = FindColumn(headers, "Module");
-        int componentColumn = FindColumn(headers, "Component");
-        int tagColumn = FindColumn(headers, "Tag");
-        int descriptionColumn = FindColumn(headers, "Description");
-        int unitColumn = FindColumn(headers, "Unit");
-        int physicalMaxColumn = FindColumn(headers, "PhysicalMax");
-        int physicalMinColumn = FindColumn(headers, "PhysicalMin");
-        int logicalMaxColumn = FindColumn(headers, "LogicalMax");
-        int logicalMinColumn = FindColumn(headers, "LogicalMin");
-
-        for (int line = 1; line < lines.Length; line++)
-        {
-            if (string.IsNullOrWhiteSpace(lines[line]))
-            {
-                continue;
-            }
-
-            string[] fields = lines[line].Split(',');
-            if (indexColumn >= fields.Length
-                || !int.TryParse(fields[indexColumn].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int index)
-                || index < 0)
+            var cells = rows[row];
+            if (!int.TryParse(Cell(cells, "Index"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) || index < 0)
             {
                 continue;
             }
@@ -87,21 +62,22 @@ public sealed class IoPointTable
             var point = new IoPoint
             {
                 Index = index,
-                Name = Cell(fields, nameColumn),
-                Module = Cell(fields, moduleColumn),
-                Component = Cell(fields, componentColumn),
-                Tag = Cell(fields, tagColumn),
-                Description = Cell(fields, descriptionColumn),
-                Unit = Cell(fields, unitColumn),
-                PhysicalMax = Number(fields, physicalMaxColumn),
-                PhysicalMin = Number(fields, physicalMinColumn),
-                LogicalMax = Number(fields, logicalMaxColumn),
-                LogicalMin = Number(fields, logicalMinColumn),
+                Name = Cell(cells, "Name"),
+                Module = Cell(cells, "Module"),
+                Component = Cell(cells, "Component"),
+                Tag = Cell(cells, "Tag"),
+                Description = Cell(cells, "Description"),
+                Unit = Cell(cells, "Unit"),
+                PhysicalMax = Number(cells, "PhysicalMax"),
+                PhysicalMin = Number(cells, "PhysicalMin"),
+                LogicalMax = Number(cells, "LogicalMax"),
+                LogicalMin = Number(cells, "LogicalMin"),
             };
 
             if (!_byIndex.TryAdd(index, point))
             {
-                LogHelper.Warn("Io", $"{Name} 点表索引 {index} 重复，忽略第 {line + 1} 行");
+                // 表头是第 1 行，数据从第 2 行起
+                LogHelper.Warn(owner, $"{Name} 点表索引 {index} 重复，忽略第 {row + 2} 行");
                 continue;
             }
 
@@ -111,29 +87,18 @@ public sealed class IoPointTable
         Points = points;
     }
 
-    private static string Cell(string[] fields, int column)
+    private static string Cell(Dictionary<string, string> cells, string column)
     {
-        return column < 0 || column >= fields.Length ? string.Empty : fields[column].Trim();
+        return cells.GetValueOrDefault(column) ?? string.Empty;
     }
 
-    private static double Number(string[] fields, int column)
+    private static double Number(Dictionary<string, string> cells, string column)
     {
-        return double.TryParse(Cell(fields, column), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
-            ? value
-            : 0;
-    }
-
-    /// <summary>表头带 BOM 的第一列也要能认出来。</summary>
-    private static int FindColumn(string[] headers, string columnName)
-    {
-        for (int i = 0; i < headers.Length; i++)
+        if (double.TryParse(Cell(cells, column), NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
         {
-            if (string.Equals(headers[i].Trim().TrimStart('﻿'), columnName, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
+            return value;
         }
 
-        return -1;
+        return 0;
     }
 }

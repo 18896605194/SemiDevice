@@ -96,7 +96,7 @@ internal sealed partial class HostTrayIcon : IDisposable
         catch (Exception exception) when (
             exception is UnauthorizedAccessException or IOException or WaitHandleCannotBeOpenedException)
         {
-            LogHelper.Warn("Host", $"重复启动提醒挂不上，不影响运行：{exception.Message}");
+            LogHelper.Warn(LogHelper.HostModule, $"重复启动提醒挂不上，不影响运行：{exception.Message}");
         }
     }
 
@@ -230,7 +230,7 @@ internal sealed partial class HostTrayIcon : IDisposable
         }
         catch (Exception exception)
         {
-            LogHelper.Warn("Host", $"托盘状态灯挂不上，后端照常运行：{exception.Message}");
+            LogHelper.Warn(LogHelper.HostModule, $"托盘状态灯挂不上，后端照常运行：{exception.Message}");
             created = false;
         }
         finally
@@ -270,7 +270,7 @@ internal sealed partial class HostTrayIcon : IDisposable
             IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
         if (_window == IntPtr.Zero)
         {
-            LogHelper.Warn("Host", $"托盘状态灯挂不上，后端照常运行：{new Win32Exception().Message}");
+            LogHelper.Warn(LogHelper.HostModule, $"托盘状态灯挂不上，后端照常运行：{new Win32Exception().Message}");
             return false;
         }
 
@@ -339,7 +339,7 @@ internal sealed partial class HostTrayIcon : IDisposable
         catch (Exception exception)
         {
             // 异常不能穿回原生回调，穿过去会直接带崩整个后端。
-            LogHelper.Warn("Host", $"托盘状态灯出错：{exception.Message}");
+            LogHelper.Warn(LogHelper.HostModule, $"托盘状态灯出错：{exception.Message}");
         }
 
         return DefWindowProcW(window, message, wParam, lParam);
@@ -555,7 +555,7 @@ internal sealed partial class HostTrayIcon : IDisposable
             return;
         }
 
-        LogHelper.Info("Host", "托盘请求退出，后端停止中");
+        LogHelper.Info(LogHelper.HostModule, "托盘请求退出，后端停止中");
         SetState(HostState.Stopping, string.Empty);
         _exit.Cancel();
     }
@@ -571,7 +571,7 @@ internal sealed partial class HostTrayIcon : IDisposable
         catch (Exception exception) when (
             exception is Win32Exception or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            LogHelper.Warn("Host", $"打不开日志目录：{exception.Message}");
+            LogHelper.Warn(LogHelper.HostModule, $"打不开日志目录：{exception.Message}");
         }
     }
 

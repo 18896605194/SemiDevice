@@ -35,7 +35,7 @@ public class LogService : ILogService
     }
 
     /// <summary>
-    /// 按时间段读日志文件，再按级别、关键字筛；超过条数只留最新的。读文件放线程池，不占 gRPC 线程。
+    /// 按时间段读主日志文件，再按模块（第一层完全一样）、级别、关键字（模块、部件、内容里包含）筛；超过条数只留最新的。读文件放线程池，不占 gRPC 线程。
     /// </summary>
     public Task<RpcResponse> QueryHistoryAsync(LogHistoryQuery query, CallContext context = default)
     {
@@ -43,6 +43,7 @@ public class LogService : ILogService
         {
             try
             {
+                var module = query.Module ?? string.Empty;
                 var level = query.Level ?? string.Empty;
                 var keyword = query.Keyword ?? string.Empty;
                 var configured = _log?.HistoryQueryMaxCount ?? 0;
@@ -57,13 +58,21 @@ public class LogService : ILogService
                 bool truncated = false;
                 foreach (var item in LogFileReader.Read(query.Start, query.End))
                 {
-                    if (level.Length > 0 && !string.Equals(item.Level.Name, level, StringComparison.OrdinalIgnoreCase))
+                    if (module.Length > 0 && !string.Equals(item.Module, module, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    // 收发原文没有级别（那一格写的是发 / 收），选了级别就不要它们
+                    if (level.Length > 0
+                        && (item.Direction.Length > 0 || !string.Equals(item.Level.Name, level, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }
 
                     if (keyword.Length > 0
                         && !item.Module.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                        && !item.Part.Contains(keyword, StringComparison.OrdinalIgnoreCase)
                         && !item.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
@@ -84,8 +93,9 @@ public class LogService : ILogService
                         .Select(item => new LogDto
                         {
                             Time = item.Time,
-                            Level = item.Level.Name,
+                            Level = LevelOf(item),
                             Module = item.Module,
+                            Part = item.Part,
                             Message = item.Message,
                             Source = "Server",
                         })
@@ -102,7 +112,7 @@ public class LogService : ILogService
     }
 
     /// <summary>
-    /// 客户端日志显示条数：读 machine.xml 的 Log 节点（ILogComponent），没装或配得不对时给默认值。
+    /// 客户端的日志设置：显示条数、文件留几天、日志历史页的模块下拉选项，读 machine.xml 的 Log 节点（ILogComponent），没装或配得不对时给默认值。
     /// </summary>
     public Task<RpcResponse> GetSettingsAsync(RpcRequest request, CallContext context = default)
     {
@@ -112,7 +122,27 @@ public class LogService : ILogService
             LogBarDisplayMaxCount = PositiveOr(_log?.LogBarDisplayMaxCount, LogSettingsDto.DefaultLogBarDisplayMaxCount),
         };
 
+        var log = _log;
+        if (log is not null)
+        {
+            settings.KeepDays = log.KeepDays;
+            settings.Modules = [.. log.Modules];
+        }
+
         return Task.FromResult(RpcResponse.Ok(JsonHelper.Serialize(settings)));
+    }
+
+    /// <summary>
+    /// 级别那一格：收发原文显示方向（发 / 收），别的显示级别
+    /// </summary>
+    private static string LevelOf(LogItem item)
+    {
+        if (item.Direction.Length > 0)
+        {
+            return item.Direction;
+        }
+
+        return item.Level.Name;
     }
 
     private static int PositiveOr(int? value, int fallback)

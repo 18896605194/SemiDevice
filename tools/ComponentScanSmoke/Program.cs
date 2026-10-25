@@ -109,7 +109,7 @@ Check(LifecycleProbe.Calls("Bind") == "Late,LateChild,Early,Faulty" && Lifecycle
     "Bind and OnStarted run in machine.xml order, parent before child");
 Check(LifecycleProbe.Calls("Stopping") == "Faulty,Early,LateChild,Late", "StopAll runs in reverse and keeps going after a component throws");
 
-// machine.xml 里写错的参数名（组件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志，写清哪个节点、哪个名字
+// machine.xml 里写错的参数名（组件上没有这个 [Machine] 属性）：照常装上，那一项还是默认值，记一条错误日志（开机读配置的事记在 Host 下），写清哪个节点、哪个名字
 var logs = new ConcurrentQueue<LogItem>();
 LogQueue.Start(logs.Enqueue);
 const string typoXml = """
@@ -124,7 +124,7 @@ const string typoXml = """
 using var typoReader = new StringReader(typoXml);
 var typo = (ScanProbe)ComponentLoader.Load(((MachineSettings)serializer.Deserialize(typoReader)!).Modules).Single();
 Check(!typo.IsRun, "a misspelled machine.xml name still loads and leaves that setting at its default");
-Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && item.Module == "TypoGroup.Typo"
+Check(SpinWait.SpinUntil(() => logs.Any(item => item.Level == LogLevel.Error && item.Module == LogHelper.HostModule
         && item.Message.Contains("TypoGroup.Typo") && item.Message.Contains("IsRunn")), 3000),
     "a misspelled machine.xml name is logged as an error naming the node path and the name");
 

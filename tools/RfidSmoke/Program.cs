@@ -379,7 +379,7 @@ namespace RfidSmoke
     /// <summary>
     /// 平台通道的冒烟版：只把串口换成假读头，收发、在途表、握手都是生产代码
     /// </summary>
-    internal sealed class SmokeChannel(FakeFcdReader device) : DeviceDriverComponent
+    internal sealed class SmokeChannel(FakeFcdReader device) : CommDriverComponent
     {
         protected override ICommunication CreateTransport()
         {

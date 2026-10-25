@@ -18,7 +18,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!--  查询条件：时间段（精确到分钟，截止那一分钟也算）、级别、关键字；今天 / 最近 7 天直接查  -->
+            <!--  查询条件：时间段（精确到分钟，截止那一分钟也算）、模块、级别、关键字；今天 / 最近 7 天直接查  -->
             <Border Grid.Row="0" Style="{DynamicResource ToolbarBorderStyle}">
                 <DockPanel>
                     <TextBlock
@@ -36,6 +36,13 @@
                             Margin="0,0,10,0"
                             Hint="{DynamicResource common.end_time}"
                             Value="{Binding EndTime}" />
+                        <ComboBox
+                            Width="220"
+                            Margin="0,0,10,0"
+                            materialDesign:HintAssist.Hint="{DynamicResource log.module}"
+                            ItemsSource="{Binding Modules}"
+                            SelectedItem="{Binding SelectedModule}"
+                            Style="{DynamicResource ToolbarComboBoxStyle}" />
                         <ComboBox
                             Width="140"
                             Margin="0,0,10,0"
@@ -83,10 +90,15 @@
                             ElementStyle="{DynamicResource LogLevelDataGridTextStyle}"
                             Header="{DynamicResource log.level}" />
                         <DataGridTextColumn
-                            Width="180"
+                            Width="200"
                             Binding="{Binding Module}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                             Header="{DynamicResource log.module}" />
+                        <DataGridTextColumn
+                            Width="140"
+                            Binding="{Binding Part}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource log.part}" />
                         <DataGridTextColumn
                             Width="*"
                             Binding="{Binding Message}"

@@ -94,7 +94,7 @@ public class TransferManager : ComponentBase, ITransferManager
         }
 
         IsAutoDispatch = enabled;
-        LogHelper.Info(Name, enabled ? "自动派单已开启" : "自动派单已关闭");
+        LogHelper.Info(this, enabled ? "自动派单已开启" : "自动派单已关闭");
     }
 
     #endregion
@@ -161,7 +161,7 @@ public class TransferManager : ComponentBase, ITransferManager
         _robots = table.Values.OfType<ITransferRobot>().ToList();
         CheckHandoffSupport();
 
-        LogHelper.Info(Name,
+        LogHelper.Info(this,
             $"搬运模块表 {table.Count} 个，机械手 {_robots.Count} 台：{string.Join(", ", _robots.Select(r => r.Name))}");
     }
 
@@ -307,7 +307,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
         #endregion
 
-        LogHelper.Info(Name, $"开始搬运：{routine.WaferName} {routine.Name}（{routine.Origin}）");
+        LogHelper.Info(this, $"开始搬运：{routine.WaferName} {routine.Name}（{routine.Origin}）");
         return HandleResult<TransferRoutine>.Success(routine);
     }
 
@@ -464,7 +464,7 @@ public class TransferManager : ComponentBase, ITransferManager
 
         #endregion
 
-        var routine = new TransferRoutine(Name, request.Origin, robot, source, request.SourceSlot,
+        var routine = new TransferRoutine(this, request.Origin, robot, source, request.SourceSlot,
             target, request.TargetSlot, arm, StationWaitTimeoutMs)
         {
             Owner = request.Owner,
@@ -694,13 +694,13 @@ public class TransferManager : ComponentBase, ITransferManager
                 return HandleResult<SwapRoutine>.Fail(rejected.ErrorMessage, [.. rejected.Args]);
             }
 
-            routine = new SwapRoutine(Name, request, robot, station, pickName, placeName, StationWaitTimeoutMs);
+            routine = new SwapRoutine(this, request, robot, station, pickName, placeName, StationWaitTimeoutMs);
             routine.DeferCompletion();
             Lock(routine);
             _running[robot.Name] = routine;
         }
 
-        LogHelper.Info(Name, $"开始交换：{routine.WaferNames} {routine.Name}（{routine.Origin}）");
+        LogHelper.Info(this, $"开始交换：{routine.WaferNames} {routine.Name}（{routine.Origin}）");
         return HandleResult<SwapRoutine>.Success(routine);
     }
 
@@ -880,7 +880,7 @@ public class TransferManager : ComponentBase, ITransferManager
             return HandleResult<ModuleRoutine>.Fail(ErrorCodes.StationNotFound, mapper.Name, station);
         }
 
-        var routine = new RobotMapRoutine(Name, this, mapper, station);
+        var routine = new RobotMapRoutine(this, mapper, station);
         routine.DeferCompletion();
         lock (_gate)
         {
@@ -893,7 +893,7 @@ public class TransferManager : ComponentBase, ITransferManager
             queue.Add(routine);
         }
 
-        LogHelper.Info(Name, $"{station} 要 {mapper.Name} 扫片，排上了");
+        LogHelper.Info(this, $"{station} 要 {mapper.Name} 扫片，排上了");
         return HandleResult<ModuleRoutine>.Success(routine);
     }
 
@@ -955,11 +955,11 @@ public class TransferManager : ComponentBase, ITransferManager
 
         if (routine.IsSuccess)
         {
-            LogHelper.Info(Name, $"{routine.Robot.Name} 扫完 {routine.Station}");
+            LogHelper.Info(this, $"{routine.Robot.Name} 扫完 {routine.Station}");
         }
         else
         {
-            LogHelper.Warn(Name, $"{routine.Robot.Name} 扫 {routine.Station} 没成：{routine.Reason}");
+            LogHelper.Warn(this, $"{routine.Robot.Name} 扫 {routine.Station} 没成：{routine.Reason}");
         }
 
         routine.NotifyCompletion();
@@ -1047,7 +1047,7 @@ public class TransferManager : ComponentBase, ITransferManager
             Unlock(routine);
         }
 
-        LogHelper.Info(Name, $"{routine.WaferNames} 的搬运占用已人工放开（片位及站点状态已确认）：{routine.Name}");
+        LogHelper.Info(this, $"{routine.WaferNames} 的搬运占用已人工放开（片位及站点状态已确认）：{routine.Name}");
         return true;
     }
 
@@ -1160,15 +1160,15 @@ public class TransferManager : ComponentBase, ITransferManager
 
         if (routine.IsSuccess)
         {
-            LogHelper.Info(Name, $"搬运完成：{routine.WaferNames} {routine.Name}");
+            LogHelper.Info(this, $"搬运完成：{routine.WaferNames} {routine.Name}");
         }
         else if (routine.NeedsRecovery)
         {
-            LogHelper.Error(Name, $"搬运未完成，运动已开始或站点占用未解除，资源保留到人工确认片位及站点状态：{routine.WaferNames} {routine.Name}（{routine.Reason}）");
+            LogHelper.Error(this, $"搬运未完成，运动已开始或站点占用未解除，资源保留到人工确认片位及站点状态：{routine.WaferNames} {routine.Name}（{routine.Reason}）");
         }
         else
         {
-            LogHelper.Warn(Name, $"搬运未完成，片没动过，资源已释放：{routine.Name}（{routine.Reason}）");
+            LogHelper.Warn(this, $"搬运未完成，片没动过，资源已释放：{routine.Name}（{routine.Reason}）");
         }
 
         routine.NotifyCompletion();

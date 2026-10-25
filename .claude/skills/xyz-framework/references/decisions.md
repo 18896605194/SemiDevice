@@ -518,7 +518,7 @@
 - **留着不动**（用户："后续要支持 cyclerun"）：`IsCycle`、`CycleRunTotal` 两个 EC 没人用，但**不删**，连同 `PickOrder` 一起原样留在 LoadPort 上、没搬
   （它们是"怎么处理这一盒的片"的策略，不是载具生命周期）。
 - **别做大**：一个端口一个，只管"这个端口上的这一盒"；不做载具表、工厂、ID 生成器，也不是 E39 的 Carrier 对象（那个用户砍过，别借机加回来）。
-- **写法**（用户："用一个变量接收一下"）：用到载具的地方取一次存起来——端口里是缓存的 `_carrier` 字段，`E87LoadPort.Carrier` 建端口时取一次，E87 三个状态机构造时接成 `_carrier`，
+- **写法**（用户："用一个变量接收一下"）：用到载具的地方取一次存起来——端口里是缓存的 `_carrier` 字段，E87 经 `E87PortDevice` 用它（xyz.Secs 那边不认载具，三个状态机构造时接的是 `IE87Port`），
   其它地方用局部变量；别到处写 `device.Carrier.Xxx` 一长串。
 - **停用的端口也挂载具**（2026-10-09 修）：`InitComponent` 先找载具、挂上，再判 `IsEnable`。停用的口照样扫描、推状态，Job 按载具号找端口也会查它的载具；
   整理时把判 `IsEnable` 挪到了前面，停用的口 `_carrier` 一直为 null，扫描每拍抛、有一个口停用就建不了 Job。冒烟 OperationWaitSmoke 7d 盯着。
@@ -596,7 +596,8 @@
 - **E87 照老 CTC 重写**（2026-10-08，用户："按照老的 CTC 那种来写"，参考微信文件夹 CTC 的 `FrameworkLocal\FACore_GTX\E87FA`）：
   - **结构**（用户选"拆成几个状态机类"）：每个 LoadPort 一个 `E87LoadPort`，挂 6 个小状态机（搬运、存取方式、关联、载具 ID、槽图、取放），
     共用 E87 里的小基类 `E87StateMachine`（转换表 + 进状态时按"从哪来"报事件；框架的 BaseStateMachine 在模块层，组件层用不到）。
-    载具状态就是端口上这几个状态机的状态，没有单独的载具对象和载具表；设备的事实（在位、槽图、槽数、忙闲）直接问 LoadPort。
+    2026-10-25 起这些都在 xyz.Secs 的 `Gem\E87`（`E87Engine`），框架这边剩 `E87Component` 和 `E87PortDevice`（见「EDA」里 xyz.Secs 一条）。
+    载具状态就是端口上这几个状态机的状态，没有单独的载具对象和载具表；设备的事实（在位、槽图、槽数、忙闲）直接问 LoadPort（现在经 `IE87Port`）。
     E87 只自己记载具号（拿走时 LoadPort 已清号，#21 还要带）和"Host 取消 / 放行了这一盒"。
   - **流程照 CTC**：读到号一律等 Host；ID 认定就 Load（没有开关，`AutoLoad` machine.xml 删了）；槽图一律等 Host，设备不自己认定（#13 删了）；
     第二次 ProceedWithCarrier 带了槽图就跟读到的比，对不上回 CAACK=3，片号表当场写晶圆账；ID 阶段带的槽图 / 片号表不用（记日志）。
@@ -646,6 +647,46 @@
   2. 腔体工艺上下文 SV：当前步号、配方名、片号（在 `BaseChamberModule` 跑配方的地方），FDC 靠它们把 Trace 数据按片、按步切开。
   3. 腔体"步开始 / 步结束"事件（带步号、配方名、片号的 DV）。
   4. 设备端按步算平均 / 最大 / 最小值（CTC `Fdc.cs` 那种）不在这次待办里，客户 GEM 规范要求"步结束带汇总"再做。
+  （这三条也是 EDA 的前提：没有它们，走 SECS 还是 Interface A，FDC 都按片、按步切不开数据。）
+
+## EDA（Interface A，2026-10-25，用户："那你就先做这个 Freeze 2"）
+做法在 backend.md §4「EDA」。
+- **用户定的**：Freeze 2（SOAP）、Freeze 3（gRPC）两个都要，**逻辑和传输分开**（会话、元数据、采集计划共用，两个版本只换外面那层），先做 Freeze 2；
+  SOAP 用 **CoreWCF**（用户："好用就用他啊"），Freeze 3 用 SEMI 的 .proto + 官方 Grpc.Tools 生成；**不建 xyz.Eda 类库**（当天后来改成放 xyz.Secs，见下一条）；
+  事件出口**走接口**（`IEventReceiver`，名字是我起的、等用户定）；**标准正文不买**（只有免费的 WSDL / XSD / .proto 和 E164 样例），
+  E164 **只做我们有的**（E30 控制状态、E40、E94、E87、E90）；端口和默认权限用户让我定。
+- **底层单独一个 DLL：xyz.Secs**（同一天。用户先说"把现有的包括 secs 的底层我建议全部放过去，上层只留直接调用以及应用"，分两步、"第一步你先做"；
+  第一步做完后定："还是改成 xyz.Secs，然后单独是一个解决方案，后续我们只需要调用 xyz.Secs 这个 dll"、"单独创建一个仓库，仓库就叫做 Secs……和现在的架构用的是一个 github 账户"）：
+  - **单独仓库、框架只引 DLL**：源码 `D:\Secs\xyz.Secs`（自己的 sln：`xyz.Secs` 工程 + `tools\SecsSmoke`），GitHub `18896605194/Secs`（私有，我按用户要求用同一个账号建的）。
+    编 Release 时工程里的 `CopyToFrameworkLibs` 把 dll / pdb / xml 拷到 `D:\Code\Libs`（那个目录在才拷），组件层用 HintPath 引 `Libs\xyz.Secs.dll`，跟 TwinCAT 一样。
+    引 DLL 不带 NuGet 依赖，组件层自己列 ASP.NET Core 框架 + CoreWCF + WCF 客户端包（版本跟 xyz.Secs.csproj 一致）；直接用 xyz.Secs 类型的工程（冒烟）也要自己引 DLL。
+    xyz.Secs 不引框架任何工程，命名空间照目录：`xyz.Secs`（异常）、`.SecsII`、`.Hsms`、`.Diagnostics`（`ISecsSink`）、`.Gem.*`、`.Eda.*`。
+  - 第一步（做完）：SECS-II / HSMS，EDA 的模型、会话 / 权限、自描述查验、采集计划、E164 样例和标准事件翻译、Freeze 2 传输、SEMI 原文件都进 xyz.Secs；EDA 对外只给 `EdaServer` + 宿主实现的
+    `IEdaSettings` / `IEdaEquipment` / `IEdaStore` / `IEdaLog`（日志口照 `ISecsSink` 的路子）。框架里只剩 `EdaComponent`（设定、EC、收事件和报警、起停）、`EdaEquipment`（组件树建自描述、读值、E39 对象、哪个组件算哪种 GEM300 对象）、`EdaStore`。
+    原来 Eda 下的 E132 / E125 / E134 三个子组件和 `IE132` / `IE125` / `IE134` 去掉（逻辑成了 xyz.Secs 里的三个 Manager），它们的 machine.xml、EC 参数挪到 `Eda` 节点上。
+  - 第二步（做完，E40 / E94 也搬，用户："搬家呀"）：GEM 各标准的协议进 xyz.Secs 的引擎（`xyz.Secs.Gem.*`），组件留 machine.xml / EC、事件声明、接设备和 Job 的口子；做法在 backend.md「EAP」。
+    - **PJ / CJ 不会有两套**（用户问过）：账只在 Job 管理里，E40 / E94 经 `IGemJobs` 现取只读快照，命令也经它下去。
+    - **`GemData` 留在框架**：`ComponentBase.RaiseEvent` 的参数要是 xyz.Secs 的类型，所有调它的工程（模块、机型）都得引 DLL；所以 xyz.Secs 的 `IGemEvents` 收（名字, 值）元组。
+    - **存过的 `gem_config` 照旧能读**：引擎里的 JSON 用 System.Text.Json 的 Web 默认，跟框架 JsonHelper 一样，不用迁。
+    - 引擎名 `E30Engine`、`E87Engine` 这些是我起的（问过用户，没回，按这个做了）。
+    - 顺带改对的：E30 自己的事件（控制状态、缓存、操作员改常量）以前直接交给发送线、EDA 收不到，现在也走 `RaiseEvent`；E87 回 Host 的几条 ERRTEXT 被以前的批量改名改成 "_carrier …"，改回 "Carrier …"。
+- **我替用户定的**（没有正文可依，交付时说了）：
+  - 端口 8790、默认监听 0.0.0.0（启用开关默认关）；权限表空着谁都能做，加了条目就照条目管；权限一个操作一项（"标准号.操作名"）。
+  - 错误码自定（1 会话没建立、2 没权限、3 会话满、4 没这份计划、5 计划在跑、6 计划没在跑、7 计划不对、8 请求不对、9 不认识的权限），说明用英文。
+  - 设备发给客户端的消息头 SessionIdHash 用会话号的 SHA-1；接口发现的路径 `/E132InterfaceDiscovery` 照 SEMI WSDL 样例，另外四个 `/E132/...`、`/E125/...`、`/E134/...`。
+  - 会话、计划、采集报告都发到客户端建会话时给的同一个地址（按 SOAP 动作名分）；设备每 60 秒问一次活，连着 3 次问不到关会话。
+  - 报警号 = 报警编号表全名（"组件全路径.代码"），全设备不重；DV 只在事件那一刻有，定周期采样要 DV 当毛病回（InvalidContext）。
+  - 定周期采样开始时马上采一次（我们 SECS Trace 是一个周期以后）；采样次数 0 = 不限；最短周期 EC 100 ms。
+  - 持久计划会话断了休眠、同一客户端 ID 再连上接着跑；不持久的随定义它的客户端走（它没别的会话就删）；数据发给激活计划的那个会话。
+  - 元数据开机建一次不变，NotifyOnRevisions 收下不发；节点名不合 E120 的换成合的、记告警。
+  - E164：GEM300 转换事件按我们事件码里的转换号对 E164 的事件号；同号几个去向（E40 #10、E90 #12 / #14）按事件里的状态值认；样例里我们不报的普通事件去掉，
+    EAP 链路没启用时这部分整个不带（那时 GEM300 组件不接设备、不报事件）。E87 没有 E39 载具对象（10-08 删的），载具属性只能从事件带的 DV 拿。
+  - SEMI 补充材料页写着这些文件"要跟标准正文一起用"，用户选了不买正文，交付时说了。
+- **重新生成服务定义**（换 WSDL 版本时）：`dotnet tool install --tool-path <目录> dotnet-svcutil`，在一个空 net10 类库里
+  `DOTNET_ROLL_FORWARD=Major dotnet-svcutil Wsdl\*.wsdl Wsdl\*.xsd --serializer XmlSerializer --serviceContract --namespace "*,xyz.Secs.Eda.Freeze2" --outputFile Freeze2Contracts.cs`
+  （svcutil 8.0 要 .NET 9 运行时，本机没有就前滚到 10；WSDL 互相 import，要全部一起给）。CoreWCF 直接认生成代码里的 `System.ServiceModel` 特性，不用改。
+- **待办 / 没做**：Freeze 3；E116（设备性能跟踪）、E148（对时）、E157（腔体工艺跟踪）的 E164 部分（我们还没这几个标准）；E87 端口状态机；Trace 那三条（工艺数据 SV、步号片号、步开始结束事件）；
+  界面（会话、计划列表）没做；没对真的厂里 EDA 客户端联调过。
 
 ## Job（SEMI E94 CJ / E40 PJ，2026-10-04 ~ 10-05 做的，2026-10-06 按用户的设计重做，需求文档《通用 Job 组件功能需求文档》v0.1）
 - **结构**（2026-10-06 用户定的）：Job 组件 `JobManager` 管着 CJ 管理、PJ 管理（各有接口 `ICjManager` / `IPjManager`，各管自己的队列和 SEMI 状态机；
@@ -719,7 +760,7 @@
   跟主界面下面要做的 Job 页（看在跑的、发命令）是两回事。一页四块：上面 CJ（按建的时刻查、关键字筛 CJ 名 / LotID / 载具号 / LoadPort，最新的在前）| PJ（选中 CJ 下面的，按 `ControlJobRowId` 取），
   下面晶圆（选中 PJ 的每一片）| 任务（选中那一片的任务明细，就是 PJ 行里存的 JSON）。结果列界面按库里的转换号认：CJ #10 完成、#11 停止、#12 中止（标着重启的叫重启中止）、EndedBy #2 取消，
   PJ #7 / #16 / #17 / #18；片按任务认（有一格出错算出错、全完成算完成、PJ 结束了还没走完算没做完）。一次最多返回多少个 CJ 是 Job 节点的 machine.xml `HistoryQueryMaxCount`（默认 1000，
-  超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 默认 4 MB。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
+  超出界面提示截断）——不限的话查一大段时间回包会超过 gRPC 单条消息上限（2026-10-25 起 26 MB，见「gRPC 单条消息上限」）。没做的：每一步的时刻（任务明细里没有时间，要的话得给 `JobWaferDto` 加片的内部标识再去连片子流水）、
   不归任何 CJ 的 PJ（没进 CJ 就取消的）不列。
 - **重启以后**（2026-10-05 用户定的，行业通常也这么收场）：Job 不接着跑；库里上次没做完的记成中止（标着重启）；机内的片人到现场确认片位后收回，
   再重新建 Job；没做的片要不要做、做了一半的返工还是报废由 MES / 工程师定。全部回片 2026-10-06 删了（用户："整体回片先不做"），2026-10-15 跟整机一起做回来、2026-10-23 重做（见「全部回片」：主界面手动点、整机 Idle 且没有 Job 在跑时才能做，路线照晶圆账倒着走）。
@@ -873,7 +914,7 @@
 
 ## 对准器 Aligner：片放上来自己对准，对好了才让取（2026-10-22，用户："写在模块里面……专门弄一个就是对中平台的文件夹"）
 - **放哪**：平台 `xyz.Modules\Aligner`（`BaseAlignerModule : BaseTransferStationModule, IAligner`，`Enums\`、`StateMachines\` 照 LoadPort 分）。
-  设备通道跟 LoadPort、机械手一样是平台的 `DeviceDriverComponent`（2026-10-23 起，见「品牌驱动：平台只给通道」；原来的驱动口 `IAlignerDriverComponent`、指令句柄 `xyz.Drivers\Aligner`、
+  设备通道跟 LoadPort、机械手一样是平台的 `CommDriverComponent`（2026-10-23 起，见「品牌驱动：平台只给通道」；原来的驱动口 `IAlignerDriverComponent`、指令句柄 `xyz.Drivers\Aligner`、
   `AlignerCommandOperation` 删了）；品牌的解码器和回零、对准（Align 做完要松开片）、复位、停止发哪几条指令由机型的对准器类填。`StationKind.Aligner`（5）。
 - **流程里怎么走**（先跟用户讲过、用户认了做法）：流程配方加一步选对准器、不选工艺配方，任务表就是"放片 → 取片"（跟 buffer 一样），**调度、任务表、搬运管理一行不改**。
   对准是站点自己的事：一轮交互收尾（`OnTransferFinished`）时这一轮放了片就接着 `Begin` 对准（状态表 `(TransferComplete, Align) → (Aligning, Idle)`），
@@ -982,7 +1023,7 @@
   （`_onQueryReply`，轴位直接记住那根轴组件）一起定，不再一个 switch 发、一个 switch 按 `_queryKind` 对号收，也不再按轴名找轴；加一种查询 = 表里加一格 + 一个 case。
   订阅那格：模块 machine.xml `WaferEventEnabled` 关着（机械手不带在位推送）或已经订上就空过，没订上每圈试一次；失败的回复一律不写（订阅被拒也不再记日志）。
   **同日又改（用户："写法非常繁琐和奇怪"，选了"扫描线程按顺序写"）**：删掉 `RobotQueryKind`、`QueryOrder`、`_onQueryReply`、两个下标。
-  `QueryRound(robot)` 是一个 `IEnumerable<RobotCommand?>`，一圈从上往下写：发一条 → `yield return` → 回来了用 `ReplyOf` 取成功的回复写到模块 / 轴上；
+  `QueryRound(robot)`（2026-10-26 改名 `QueryDataLoop`）是一个 `IEnumerable<RobotCommand?>`，一圈从上往下写：发一条 → `yield return` → 回来了用 `ReplyOf` 取成功的回复写到模块 / 轴上；
   `LoopQueryStatus` 跟 LoadPort 同一个骨架（没连上 → 等在途那条、超时作废 → 往下走一步），一圈走完下一拍重开；轴位每圈每根轴各查一次（不再每圈两根）。
   断线时这一圈作废、`_waferEventSubscribed` 清掉（订阅跟着连接走，连上重订）。没选后台线程（多一条线程、跨线程字段、跟 LoadPort 不一样），也没选"一圈一起发"（锐洁吃不吃得消没在真机验过）。
   查询超时照 LoadPort 调驱动 `Abandon` 让出在途位（以前只丢句柄，回复丢了这一种就再也查不了）；驱动关连接时在途指令全部作废；
@@ -1282,7 +1323,7 @@
   取到它的字段名（`_alarms`、`_ec`、`_mapper`……）都不变。`IMapper` 跟 Mapster 包里的 `MapsterMapper.IMapper` 同名，仓库只引用 `Mapster` 命名空间、不引用 `MapsterMapper`，所以不冲突。
 - **`ILoadPortDriverComponent` 用户选了先不改**：去掉后缀就跟驱动层 `xyz.Drivers.Loadport.ILoadPortDriver`（品牌协议驱动的接口）同名，
   `LoadPortDriverComponent`、`BaseLoadPortModule` 和两个冒烟两个都用到。`IRobotDriverComponent` 跟 `xyz.Drivers.Robot.IRobotDriver` 是一样的情况，按同一个办法。
-  （2026-10-23 品牌驱动重做，这几个接口和类都删了，通道统一叫 `IDeviceDriverComponent`，这条不用再管。）
+  （2026-10-23 品牌驱动重做，这几个接口和类都删了，通道统一叫 `ICommDriver`，这条不用再管。）
 - 还带后缀、用户没点名的先不动；已经去掉的别改回去。
 
 ## 登录和菜单权限（2026-10-21，用户："规整一下就是这个菜单权限，和登录权限的设计"；样稿 `桌面\登录权限样稿-v1` 看过说"大体上没啥问题"，然后"直接开工吧"）
@@ -1362,24 +1403,24 @@
   8. **每条指令必须自己实现 `Handle`**（同日，用户看 `FcdLoadCommand` 问"怎么只有创建发送的指令，没有解析的呢"，然后"必须实现，把品牌基类里那份删掉"、"都要这样设计"）：
      品牌基类（`FcdCommand`、`RejeCommand`、`FcdRfidCommand`）只放在途键、指令名 / 下发体、组帧，不写 `Handle`，原来的 `CompleteOnAck` / `ReadData`、`Echoes` / `FailureEchoes` /
      `ReadContent` / `OnFailureCode`、`ExpectedResponseIds` / `Read` 这些钩子一起删了。代价是动作类几条的 `Handle` 写得几乎一样，用户认了；以后加品牌照这个写，别再在品牌基类里收拢解析。
-- **做成什么样**：平台 `DeviceCommand` / `DeviceCommand<TMessage>`、`DeviceDriver`、`IFrameCodec`（多了 `Decode`）、`IFrameLink`（握手）、`DeviceDriverComponent`（`Driver` 节点）、
+- **做成什么样**：平台 `DeviceCommand` / `DeviceCommand<TMessage>`、`DeviceDriver`、`IFrameCodec`（多了 `Decode`）、`IFrameLink`（握手）、`CommDriverComponent`（`Driver` 节点）、
   `CommandOperation`（原来三个 `XxxCommandOperation` 合成一个）、`StatusQueryLoop`、`RfidReaderComponent<T>`；`Base*Module` 只留动作入口、流程和节奏，
-  设备那几处做成抽象（`CreateCodec`、`CreateXxxOperation` / `AddXxxSteps`），`QueryRound` / `OnReport` / `OnDisconnected` 可选重写。细节见 backend.md §4。
+  设备那几处做成抽象（`CreateCodec`、`CreateXxxOperation` / `AddXxxSteps`），`QueryDataLoop`（原 `QueryRound`，2026-10-26 改名）/ `OnReport` / `OnDisconnected` 可选重写。细节见 backend.md §4。
 - **自己定的细节**（交付时说了）：
-  - 读头挂在 LoadPort 下面、自己再挂一条 `Driver`；设备找通道只认直接挂的那条（`DeviceDriverComponent.FindIn`）——组件基类的 `FindChild` 是递归的，会把读头那条也找出来。
+  - 读头挂在 LoadPort 下面、自己再挂一条 `Driver`；设备找通道只认直接挂的那条（`CommDriverComponent.FindIn`）——组件基类的 `FindChild` 是递归的，会把读头那条也找出来。
   - 富创得读头的 ENQ/EOT/ACK/NAK 握手放进它的解码器（实现 `IFrameLink`），通道是 sealed、不按品牌派生；读头拒收（NAK）通道把在途作废，读码立刻失败。
   - 锐洁急停 `Sstop` 原来要"打断在途的运动指令"，现在动作被中止时 `CommandOperation` 自己作废它在途的那条，不用品牌管。
   - 一个通道一个解码器实例（解码器自带接收缓冲），开机由设备交给通道；通道已经按别的解码器打开过再换就抛。
   - 主动上报（没有在途指令认的报文）走通道的 `Reported`，设备在 `OnReport` 里认（锐洁手指在位 / 报错推送、富创得 PODON / PODOF）。
-- **machine.xml**：设备下的 `Driver` 节点 Type 一律 `xyz.Components.Components.DeviceDriverComponent`；RFID 节点 Type 写机型的读头类，下面挂自己的 `Driver`（串口配置挪到它上面）；
+- **machine.xml**：设备下的 `Driver` 节点 Type 一律 `xyz.Components.Components.CommDriverComponent`；RFID 节点 Type 写机型的读头类，下面挂自己的 `Driver`（串口配置挪到它上面）；
   机械手的 `Driver` 补了 `CommType=Tcp`（通道默认串口，原来锐洁壳写死走网口）。（2026-10-25 起通道拆成串口、网口两个组件，`CommType` 删了，见下一节。）
 - **冒烟**：OperationWaitSmoke、RfidSmoke 引用机型工程，用真的 35021 LoadPort / 机械手 / 读头类 + 平台通道，只把帧通讯换成假的；AlignerSmoke、JobSmoke 用测试自己的假通道和指令。
 
 ## 串口、网口各一个通道组件，都配上时用 IsEnable 选一条（2026-10-25，用户："应该串口一个组件节点网口一个，然后用哪一个就哪一个启动"、"配置里面针对这两个得做一下就是启用哪一个"、"做吧"）
-- **为什么改**：原来一个 `DeviceDriverComponent` 节点上串口、网口两套参数都挂着，靠 `CommType` 切，用不上的那套也在节点上，看着乱。
+- **为什么改**：原来一个 `CommDriverComponent` 节点上串口、网口两套参数都挂着，靠 `CommType` 切，用不上的那套也在节点上，看着乱。
 - **做成什么样**：`SerialDriverComponent`（PortName / BaudRate / Parity / DataBits / StopBits）、`TcpDriverComponent`（Host / NetPort）各一个组件，各带各的参数；
-  连接、EC 重连、重连失败报警、收发、machine.xml `IsEnable` 留在抽象基类 `DeviceDriverComponent`（不能直接配在 machine.xml 里，老写法装配就报"找不到组件类"），子类只建字节传输。
-  `CommType` 枚举、工厂里按它分支的 `Create` 删了。设备只经 `IDeviceDriverComponent` 用通道（接口上加了 `IsEnable`），不认识串口网口，所以设备模块一行没改。
+  连接、EC 重连、重连失败报警、收发、machine.xml `IsEnable` 留在抽象基类 `CommDriverComponent`（不能直接配在 machine.xml 里，老写法装配就报"找不到组件类"），子类只建字节传输。
+  `CommType` 枚举、工厂里按它分支的 `Create` 删了。设备只经 `ICommDriver` 用通道（接口上加了 `IsEnable`），不认识串口网口，所以设备模块一行没改。
 - **启用哪一条**：一个设备下面串口、网口可以都配上，`FindIn` 只认启用的那条；启用两条开机抛；一条没启用返回 null，各设备照没挂通道处理（LoadPort、机械手记错误日志，读头、对准器开机抛）；
   没启用的不建、不连、不重连、不报警。只配一条时可以不写 `IsEnable`（默认 True），35021 都写出来了。
   **同一台设备协议一样、只是串口换网口（或反过来），只对调两边的 `IsEnable`、重启，代码不动**（协议不一样本来就是另写一套，不在这个范围）。
@@ -1406,6 +1447,7 @@
   `Robot\Operations` 换成 `Components\Routines`、`Clean\Routines`、`System\Routines`（机械手的没了）；`ChamberProcessPhase` 删了。**错误码字符串没改**（`module.operation_faulted` 这些照旧）。
 - **自己定的细节**（交付时说了）：
   - 日志记在谁名下的叫 `Module`（模块名），不叫 Owner——搬运的 `TransferRoutine.Owner` 已经是"所属 PJ"。
+    2026-10-26 日志改成两层名字后，构造收的是 `ILogSource`（模块传 this），日志记在它名下；`Module` 还是显示用的模块名，子类记日志用 `LogOwner`。
   - 中止先调动作自己的 `OnAborted`、再让正在走的那一步收场：搬运被撤时先给机械手发急停，再中止在等的子动作，免得机械手先落 Error 再收不到急停；还没进的步骤不收场。
   - 开始记 Debug（"开始：共 n 步……"）、每步做完记 Debug、做完记 Info、失败 Error、中止 Warn。计时用 Stopwatch（原来的 TickCount 只有十几 ms 精度）。
   - 上限 0 的两处照原来的意思：`Until`（持片反馈）上限 0 = 判一次不成立就失败；搬运抢站点等待 0 = 抢一次没抢到就判负。
@@ -1416,7 +1458,7 @@
 - **`PlcComponent` 改成抽象底座、不实现接口**：只留 machine.xml `Host`、`Port`，EC 重连间隔 / 次数 / 掉线防抖，SV `IsConnected`，`PlcOfflineAlarm`，重连器、`Open` / `Close` / `Reset`，
   扫描骨架（`_scanGate` 锁里：子组件 → 重连检查 → 连着就调 `RefreshData()` → 掉线报警，顺序跟以前一样），抽象钩子 `ConnectDevice` / `DisconnectDevice` / `RefreshData`，
   虚钩子 `OnConnectionChanged`（连接状态一变就调，子类清自己的缓存——原来在 `IsConnected` 的 setter 里直接清字节缓存，IoIndexSmoke"重连后不能拿断线前的帧"就靠它，所以留了这个钩子）。
-  不能直接配在 machine.xml 里（跟 `DeviceDriverComponent` 一样没有 `[Component]`）。
+  不能直接配在 machine.xml 里（跟 `CommDriverComponent` 一样没有 `[Component]`）。
 - **`IPlcIo` / `IPlcBlock` 由品牌子类自己声明**（用户："得是 BeckhoffPlcComponent 这个实现……PlcComponent 这个不要实现，这样才能更加好扩展"）：
   倍福 `BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock`，`DiDataPath` 等四个、`IoPointCount`、字节块缓存、`TryReadDi` 那些、`Decode*`、`PlcDataErrorAlarm` 都挪进它，行为不变；
   OPC UA 只声明 `IPlcIo`，容器里就不会被当成 `IPlcBlock`、轴接不到它。
@@ -1441,3 +1483,74 @@
   - 多台 PLC 选哪台：IO 组件、轴都是 `IocHelper.GetService` 取唯一一台，配两台时微软容器静默拿后登记的那台；要"IO 走 OPC UA、轴走倍福"混用，先给 IO 组件、轴加 machine.xml `Plc`（按名字挑、多台没配开机就抛）。
   - 外部柜子按变量名读写的 OPC UA 通道（CTC 那种，柜子模块直接读写节点）：用到再做，那时再把连接部分抽出来共用。
   - 用户名登录、签名加密没在冒烟里测（假 PLC 只开了匿名 + None）；按下标写数组个别 PLC 的 OPC UA 服务不支持，要拿真 PLC 验。
+
+## 串口 / 网口通道的父类和接口改名：CommDriverComponent、ICommDriver（2026-10-25，用户："DeviceDriverComponent 这个是串口组件和网口组件共同的父类……这个改一下名字比较好，包括接口"）
+- 只改父类和接口：`DeviceDriverComponent` → `CommDriverComponent`（通讯驱动，一眼看出是串口 / 网口这种收发，跟品牌驱动、PLC 分开）、`IDeviceDriverComponent` → `ICommDriver`。
+  **子类 `SerialDriverComponent`、`TcpDriverComponent` 不改名**，参数分组还是 `"Driver"`，35021 machine.xml 不用动（用户："这两个名字不用修改"）。
+- 被否的：先改成 Channel 一套（`DeviceChannelComponent` / `SerialChannelComponent` / `TcpChannelComponent` / `IDeviceChannel`）——用户"不认同"；
+  `IDriver`——"这个名字太大了"。`xyz.Drivers` 里管在途指令的 `DeviceDriver` 是协议层的，不改。
+- 模块上的通道引用 `_driver`（10-23 用户定的名字）不动。
+
+## gRPC 单条消息上限 26 MB（2026-10-25，用户："把4mb改成默认26mb"）
+
+- **两头各配一处、保持一致**：后端收的上限是 machine.xml Rpc 节点的 `MaxMessageSizeMb`（默认 26），客户端收的上限是 exe 旁 `client.json` 的 `MaxMessageSizeMb`（可缺，默认 26），
+  跟端口一样客户端连上之前就要知道、没法走 gRPC 去问。发的一方两头都不限（gRPC 默认）。原来两头都是 gRPC 默认的 4 MB。
+- **后端在 `AddCodeFirstGrpc` 的选项回调里从 Rpc 组件取**：回调第一次执行是映射服务的时候，那时已经开完机、容器里取得到；没配 Rpc 节点按 26。
+- **数据曲线本来就碰不到**：每条曲线最多 `QueryMaxPoints`（4000）点、一次最多 `QueryMaxSignals`（20）条，回包约 1 MB，跟查多长时间无关；放大、拖动按看到的那段重查。
+  26 MB 是给以后调大条数、点数留的余量。要拿一大段原始数据走导出，不走画图这条查询。
+
+## 数据曲线导出 Excel、公共进度弹框（2026-10-25，用户一条条定的，样稿在桌面"进度条控件样稿"）
+
+- **导出什么**（用户："导出到 excel 这个功能也要实现一下"）：数据曲线页工具栏「今天」后面隔开一点放「导出」，弹另存为（默认文件名"数据曲线_起_止.xlsx"）。
+  导的是**这次查询定下的时间段**（`RangeStart` ~ `RangeEnd`，用户："查出什么时间，就导出什么时间"；放大、拖动不改它）、勾着的曲线，每秒一行原始数据、不抽稀。
+  一天一张表（表名是日期；Excel 一张表最多 104 万行，一天 86400 行），第一列时间（`yyyy-MM-dd HH:mm:ss`），后面每条曲线一列（列名 machine.xml 原样），读不到留空；
+  没数据的那天只有表头；整段都没数据不建文件、提示。最长导多少天不限（问了几次用户没定，按建议不限：有进度、能取消）。结果写顶栏日志。
+- **数据怎么走**：后端 `IDataChart.Export` 按天表、再按 1 小时切片读（每片一次短查询；WAL 下一直开着的读会让 WAL 文件合不回主库），
+  `IDataChartService.ExportAsync` 服务端流一片推一条（`DataChartExportDto`：Times + Names + Values，约 0.7 MB；名字用户定的，不叫 Chunk——"这个是啥意思"）；
+  客户端后台线程收一片写一片，两头内存里都只有一片。写文件先写旁边的 `.tmp`、写完再换上去：后端中途出错、取消都不留半个文件，也不先冲掉原来同名的文件。
+  后端回的错误码回到界面线程再翻（`L10n` 读 Application 资源，不在后台线程调）。
+- **Excel 库用 MiniExcel 1.46**（用户："后续还会用到 csv 等等，而且也要读取 excel 的"；对比过 SpreadCheetah：实测快好几倍、文件小一半，但只能写 xlsx）；
+  2.0 还是预览版、接口重写，出正式版再升。**放 `xyz.Tools`**（前后端共用的帮助类都在这里，跟 JsonHelper、XmlHelper 一起；用户："xyz.Tools 你应该放在这个里面，
+  因为需要读取的是后台需要读取的"——一开始放过 xyz.Client.Common，更早想放 Presentation，都被纠正）。
+  `ExcelHelper.Save(路径, 列, 表)`（类名用户定的）写 xlsx：行包成读取器（`ExcelRowsReader`）交给 MiniExcel，没有行的表也写得出表头（直接给空的 IEnumerable 连表头都没有）。
+  `ReadCsv` / `SaveCsv`（用户："读写 CSV 这个搞一下"）：读按表头取值、表头不分大小写，带引号的格子里可以有逗号；写成 UTF-8 带 BOM（不带的话 Excel 打开中文乱码）。
+- **IO 点表改用 `ExcelHelper.ReadCsv`**（`IoPointTable.Load`）：原来 `ReadAllLines` + 按逗号 `Split`，描述里带一个逗号，后面的单位、量程整体错位，AI/AO 换算就错了。
+  规矩照旧：文件不在是空表、缺 Index 列记告警、索引重复记告警留第一个、列顺序不限；35021 的四张真点表读出来点数跟文件行数一样（DI 101、DO 60、AI 16、AO 8）。
+- **公共进度弹框**（用户："做一个公共的进度控件，以后关于这种进度的都用这一个"、"中间一个弹出框，然后一个圆环，里面是百分比"）：
+  `Presentation\Controls\ProgressOverlay` 放在页面根 Grid 最后、盖住整页（蒙暗），中间跟确认框一样的深色卡片：圆环（知道进度的按百分比走、中间写百分比；不知道的一直转）、
+  下面一行字、取消。依赖属性 `State`、`Text`（页面绑语言包）、`IsIndeterminate`、`ShowDelay`（默认 500 ms，过这么久还没完才弹，放大拖动的快查询不闪）。
+  VM 一件事一个 `Presentation\Models\ProgressState`（用户："每一个用到的界面 IsExporting 都得写这个？"——收成一个类）：`IsOpen`、`Value`、`CancelCommand` +
+  `RunAsync(work, token)`，开关、取消、进度回界面线程都在里面；后一次顶掉前一次时，前一次收尾不关后一次的弹框。
+  导出只写"正在导出…"（用户："不需要写什么日期"），不写文件路径。启动加载窗不换，保持它自己的（用户："就用自己单独的"）。
+  一开始出的是工具栏里一条细进度条的样稿，用户要的是弹框。
+- **查询也走这个弹框**（用户："数据曲线页查询时只有文字提示没有圆环，那这个也得修改……这个和导出保持一致"）：查询套在 `Query.RunAsync` 里，圆环一直转、能取消
+  （取消就是取消这次 gRPC 调用，图保留原来的）；工具栏右边不再写"查询中…"，跟弹框重复了。
+
+## 日志重整：操作日志、两层名字、轮询原文单独一个文件（2026-10-25 ~ 10-26，用户："界面点击的所有按钮，本质上都得能从日志里面能看到，并且记录谁点击的"、"底层的那种数据解析以及收到的数据这个难道也属于这个loadport1吗"，逐条定完说"开始做吧"）
+- **操作日志在后端统一记**：gRPC 服务端拦截器，**用户起名 `ActionFilter`**（类在 `xyz.Service`，宿主 `AddCodeFirstGrpc` 里 `Interceptors.Add<ActionFilter>()`；
+  原说放 GrpcHost，挪到 xyz.Service 是为了冒烟能直接测，注册还在宿主）。每个调用进来记一条、回包记一条（`操作人@IP 服务.方法 参数JSON` / `→ 成功 | 失败 码 [参数] | 出错` + 用时），
+  第一层 `Operation`，只进主日志、不推顶栏（界面自己会提示结果，推了显示两遍）。不在 218 个按钮命令上逐个加：后端一处、局域网多客户端也全、被拒的也有码。
+  - 不记：`Get` / `Query` 开头的（只读，轮询会刷屏），加 `AxisJogRenew`（按住点动客户端自动反复发）、`Subscribe`、`Publish`；切页这类纯界面按钮不经后端，不记（用户："不记录"）。
+  - 参数里名字带 Password 的写 `***`；参数 JSON 中文原样（`JsonHelper.ToLogText`，默认的会转成 \uXXXX）。
+- **操作人走请求头**：客户端 `GrpcClientFactory` 里私有的 `UserHeader`（客户端拦截器）每次调用带 `xyz-user-bin`（UTF-8：登录名可能是中文，普通请求头只能 ASCII）= `ClientSession.UserName`；
+  服务里要"谁"的（账单调整、工艺配方、流程配方、建 Job）用 `RpcOperator.Of(context)`，没带记 `Unknown`。**请求 DTO 上的 `Operator` 删了**（用户："删除吧"）：只留一个来源；
+  账单调整历史行（查出来的）的 `Operator` 留着。
+- **日志分两层名字**（用户："全路径的话太多了……单独搞一个【】第一级别的 LoadPort.LoadPort1"）：第一层 = 树上第一个真组件的全路径（带外面分组名，分组节点也进路径，所以是
+  `LoadPort.LoadPort1` 不是 `LoadPort1`），第二层 = 往下剩的（`Serial`、`RFID.Serial`），模块自己写的没有第二层。`ILogSource`（`LogModule` / `LogPart`），组件基类实现，装配时算好。
+  日志历史页一个"模块"下拉列第一层（后端从组件树取、按 machine.xml 先后，再加 Operation、Host），不要"类别"、不要"带通讯原文"的勾（用户："不需要这个类别"、"这个也不需要啊"）。
+  Job、Transfer 挂在 Dispatch 下，所以记成 `【Dispatch】【Job】`；Monitor、Database 分组下每个组件各成一个第一层——要改去改 machine.xml 的树，不在规则里开例外。
+- **收发原文**：记在通道组件自己名下（不是 LoadPort1 的业务日志，量差几个数量级、通道也不一定只服务一个模块）。动作指令的原文进主日志，选了模块时跟动作按时间穿插；
+  **状态轮询的一问一答单独一个文件 `poll-日期.log`**（用户："能不能就是单独放在一个文件里面"、"日志查询不要查询这个就是轮训的文件"），一天约 100 MB，历史页不查，只在机台上开文件看。
+  - **怎么分（用户选 A）**：指令上一个标记 `DeviceCommand.IsPolling`，只有 `StatusQueryLoop` 发之前设 true；最底层的通道 `DeviceDriver` 发的时候看它、收的时候看认领那一帧的指令。
+    B（谁发谁记、不要标记）讲过：要把原文和到达时刻存到指令上转交、记日志的代码散到三处，用户最后定 A。用户想要的方法名 `InfoLoop`（`LogHelper.InfoLoop` 写轮询文件）。
+  - 帧通讯往上交改成 `(帧原文, 报文)`，解不出来的也交（报文 null），通道记"解不出来，丢掉"——以前是悄悄丢的。记帧体不带壳，控制字符写 `<CR>`、`<0x02>`。
+- **后端记日志一律走 LogHelper**（用户："记录日志必须都是用LogHelper"，只管后端，客户端照旧 ClientLog）：删了模板留下的 `Worker.cs`、appsettings 的 Logging；
+  宿主（ASP.NET Core）和 OPC UA 库自己的日志经 `LogHelperLoggerProvider` 转进来（只 Warn 以上，以前一个打控制台、一个直接丢）；HSMS 的报文明文开着时记成收发原文进主日志。
+- **保留天数**放日志组件（用户："这个肯定放到日志组件里面的呀"）：machine.xml `KeepDays` 默认 30，主日志、轮询文件、客户端日志共用；NLog 6 文件名带日期也会按 `MaxArchiveDays` 清
+  （实测过），但它只在打开文件时清，所以设完要把配置重新挂一遍，不然要等换天。
+- **NLog 性能**：`async="true"`（设备线程不碰磁盘，队列满了丢不阻塞）、去掉控制台、`autoReload` 关（热加载冲掉代码设的天数）；改成异步以后退出要 `Shutdown`、崩溃要 `Flush`，
+  不然最后几条（包括崩溃原因）还在队列里进程就没了。别的参数用默认值：每秒几条到几十条的量，再调也测不出差别。
+- **轮询相关一起改的**：`StatusQueryLoop` 挪到 `xyz.Components\Components\Drivers`（只依赖通道接口、指令基类和 LogHelper，放模块层组件层的设备用不了）；
+  `QueryRound` 改名 **`QueryDataLoop`**（用户定）；`StatusQueryResult` 改名 `StatusQueryEvent`（`Waiting` → `None`，变量叫 `happened`）——用户看 `var result = …Scan(...)` 以为是查询结果，
+  其实只是"这一拍出了什么事"，查到的值在 `QueryDataLoop` 里 yield 后面写；**机械手查询超时、断线跟 LoadPort 一样清空查到的状态**（用户："和 LOADPORT 一样"），以前保留旧值、界面看不出已经不准了。
+- 第三方库、`ModuleRoutine`、PJ / CJ 管理、状态机、开工计数这类不是组件的，把所属组件作为 `ILogSource` 传进去；开机读 machine.xml 写错、GEM 编号表这类记 `Host`。

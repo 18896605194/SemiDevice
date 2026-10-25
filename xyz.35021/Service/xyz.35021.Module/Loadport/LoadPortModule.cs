@@ -99,7 +99,7 @@ public class LoadPortModule : BaseLoadPortModule
     /// <summary>
     /// 一圈就一条 GET:STATE，查到的写进 Status
     /// </summary>
-    protected override IEnumerable<DeviceCommand> QueryRound()
+    protected override IEnumerable<DeviceCommand> QueryDataLoop()
     {
         var state = new FcdGetStateCommand();
         yield return state;

@@ -277,13 +277,13 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
                 FillHeadDefaults(data, headFields);
                 if (!loaded.TryAdd(data.Index, data))
                 {
-                    LogHelper.Warn(Name, $"跳过 {file}：{data.Index} 号已经有一个文件了（文件名写法不同但编号一样）");
+                    LogHelper.Warn(this, $"跳过 {file}：{data.Index} 号已经有一个文件了（文件名写法不同但编号一样）");
                 }
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            LogHelper.Error(Name, $"工艺配方目录打不开：{folder}（{exception.Message}），列表先是空的");
+            LogHelper.Error(this, $"工艺配方目录打不开：{folder}（{exception.Message}），列表先是空的");
         }
 
         lock (_gate)
@@ -295,7 +295,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             }
         }
 
-        LogHelper.Info(Name, $"读入工艺配方 {loaded.Count} 个（目录 {folder}）");
+        LogHelper.Info(this, $"读入工艺配方 {loaded.Count} 个（目录 {folder}）");
     }
 
     /// <summary>
@@ -356,7 +356,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             }
         }
 
-        LogHelper.Info(Name, $"站点的 Type：{string.Join(", ", types.Select(TypeText))}"
+        LogHelper.Info(this, $"站点的 Type：{string.Join(", ", types.Select(TypeText))}"
             + (filled == 0 ? string.Empty : $"；{filled} 个老配方没写 Type，按 {types[0]} 补上"));
     }
 
@@ -377,7 +377,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             {
                 if (!types.Contains(written, StringComparer.OrdinalIgnoreCase))
                 {
-                    LogHelper.Warn(Name, $"machine.xml 节点 {path} 写了 {SourceOf(written)}，但没有站点的 Type 是 {TypeText(written)}，用不上");
+                    LogHelper.Warn(this, $"machine.xml 节点 {path} 写了 {SourceOf(written)}，但没有站点的 Type 是 {TypeText(written)}，用不上");
                 }
             }
         }
@@ -595,7 +595,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         }
 
         var saved = result.Result as RecipeData;
-        LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
+        LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
         EventBus.Send(new ProcessRecipeChangedDto { Index = index }, ProcessRecipeListDto.EventToken, retain: false);
 
         var callback = E30Callback;
@@ -816,7 +816,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            LogHelper.Error(Name, $"{data.Index} 号工艺配方写文件失败，库里的没改：{exception.Message}");
+            LogHelper.Error(this, $"{data.Index} 号工艺配方写文件失败，库里的没改：{exception.Message}");
             DeleteTemp(temp);
             return HandleResult.Fail(ErrorCodes.ProcessRecipeSaveFailed, Text(data.Index), exception.Message);
         }
@@ -837,7 +837,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            LogHelper.Error(Name, $"{index} 号工艺配方文件删不掉，库里的没动：{exception.Message}");
+            LogHelper.Error(this, $"{index} 号工艺配方文件删不掉，库里的没动：{exception.Message}");
             return HandleResult.Fail(ErrorCodes.ProcessRecipeSaveFailed, Text(index), exception.Message);
         }
 
@@ -856,7 +856,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            LogHelper.Warn(Name, $"临时文件删不掉（下次写会覆盖）：{temp}（{exception.Message}）");
+            LogHelper.Warn(this, $"临时文件删不掉（下次写会覆盖）：{temp}（{exception.Message}）");
         }
     }
 
@@ -868,7 +868,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         if (!int.TryParse(System.IO.Path.GetFileNameWithoutExtension(file), NumberStyles.None, CultureInfo.InvariantCulture, out int index)
             || index < 1 || index > Capacity)
         {
-            LogHelper.Warn(Name, $"跳过 {file}：文件名不是 1~{Capacity} 的编号");
+            LogHelper.Warn(this, $"跳过 {file}：文件名不是 1~{Capacity} 的编号");
             return null;
         }
 
@@ -877,7 +877,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
             var data = XmlHelper.Deserialize<RecipeData>(file);
             if (data is null)
             {
-                LogHelper.Warn(Name, $"跳过 {file}：内容是空的");
+                LogHelper.Warn(this, $"跳过 {file}：内容是空的");
                 return null;
             }
 
@@ -886,7 +886,7 @@ public class RecipeComponent : ComponentBase, IRecipeComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            LogHelper.Error(Name, $"跳过 {file}：读不出来（{exception.Message}）");
+            LogHelper.Error(this, $"跳过 {file}：读不出来（{exception.Message}）");
             return null;
         }
     }

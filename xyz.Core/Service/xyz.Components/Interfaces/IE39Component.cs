@@ -1,4 +1,4 @@
-﻿using xyz.Components.Components;
+﻿using xyz.Secs.Gem.E39;
 
 namespace xyz.Components.Interfaces;
 
@@ -13,7 +13,7 @@ public interface IE39Component
     void Attach(IHsms link, IE30Component gem);
 
     /// <summary>
-    /// 别的标准往里登记一种对象（PJ、CJ、片、位置）
+    /// 对象服务的协议部分（xyz.Secs）：别的标准往里登记对象类型，EDA 按类型名找对象；没接链路为 null
     /// </summary>
-    internal void Register(IE39ObjectType type);
+    E39Engine? Engine { get; }
 }

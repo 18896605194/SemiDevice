@@ -115,7 +115,7 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
             _writes.Writer.TryWrite(new CountWrite(true, DateTime.Now));
         }
 
-        LogHelper.Info(FullPath, $"已用次数清零（换件），清零前 {before} 次");
+        LogHelper.Info(this, $"已用次数清零（换件），清零前 {before} 次");
     }
 
     #endregion
@@ -221,7 +221,7 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
         }
         catch (Exception exception)
         {
-            LogHelper.Error(path, $"读已用次数失败，这次从 0 数（库里照样加）：{exception.Message}");
+            LogHelper.Error(this, $"读已用次数失败，这次从 0 数（库里照样加）：{exception.Message}");
         }
 
         _ = Task.Run(WriteLoopAsync);
@@ -276,7 +276,7 @@ public class CountLifetimeComponent : ComponentBase, ICountLifetime
             }
             catch (Exception exception)
             {
-                LogHelper.Error(_path, $"写已用次数失败：{exception.Message}");
+                LogHelper.Error(this, $"写已用次数失败：{exception.Message}");
             }
         }
     }

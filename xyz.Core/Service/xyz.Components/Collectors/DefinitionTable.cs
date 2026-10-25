@@ -99,7 +99,7 @@ internal static class DefinitionTable
         {
             if (row.Id < firstId || row.Id > lastId)
             {
-                LogHelper.Warn(kind, $"{row.Name} 的编号 {row.Id} 不在号段 {firstId}-{lastId} 内，保留原号");
+                LogHelper.Warn(LogHelper.HostModule, $"{kind}：{row.Name} 的编号 {row.Id} 不在号段 {firstId}-{lastId} 内，保留原号");
             }
             else if (row.Id >= nextId)
             {
@@ -118,7 +118,7 @@ internal static class DefinitionTable
             {
                 if (nextId > lastId)
                 {
-                    LogHelper.Error(kind, $"号段 {firstId}-{lastId} 已用完，{name} 分不到编号");
+                    LogHelper.Error(LogHelper.HostModule, $"{kind}：号段 {firstId}-{lastId} 已用完，{name} 分不到编号");
                     continue;
                 }
 

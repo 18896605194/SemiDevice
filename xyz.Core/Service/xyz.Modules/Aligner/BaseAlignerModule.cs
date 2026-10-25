@@ -89,7 +89,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// <summary>
     /// 设备通道（machine.xml 里本对准器下启用的那条：串口或网口），项目的对准器类用它发指令；没挂开机就抛
     /// </summary>
-    public IDeviceDriverComponent? _driver { get; private set; }
+    public ICommDriver? _driver { get; private set; }
 
     /// <summary>
     /// 这台对准器的解码器：开机时建一次交给通道
@@ -140,7 +140,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
             return true;
         }
 
-        var driver = DeviceDriverComponent.FindIn(this);
+        var driver = CommDriverComponent.FindIn(this);
         if (driver is null)
         {
             throw new InvalidOperationException($"对准器 {Name} 的 machine.xml 节点下没有启用的设备通道（串口 SerialDriverComponent 或网口 TcpDriverComponent，IsEnable=True）。");
@@ -165,7 +165,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
         var started = Home();
         if (!started.IsSuccess)
         {
-            LogHelper.Warn(Name, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
         }
 
         return started.Result;
@@ -251,7 +251,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
             reason = $"{rejected.ErrorMessage} [{string.Join(", ", rejected.Args)}]";
         }
 
-        LogHelper.Warn(Name, $"片放上来了，但起不了对准：{reason}");
+        LogHelper.Warn(this, $"片放上来了，但起不了对准：{reason}");
         RaiseAlarm(ControlledStopAlarm);
         TransferStep(TransferModuleState.TransferComplete, ModuleState.Error);
     }
@@ -299,7 +299,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
                 return null;
             }
 
-            var reset = new ModuleRoutine(Name, "Reset", _driver, () => ResetTimeout);
+            var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
             AddResetSteps(reset);
             return BeginAction(AlignerAction.Reset, reset);
         }
@@ -326,7 +326,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
                 return null;
             }
 
-            var abort = new ModuleRoutine(Name, "Abort", _driver, () => AbortTimeout);
+            var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
             AddAbortSteps(abort);
             return BeginAction(AlignerAction.Abort, abort);
         }
@@ -370,7 +370,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     protected virtual ModuleRoutine CreateHomeRoutine(bool hasWafer)
     {
-        var home = new ModuleRoutine(Name, "Home", _driver, () => HomeTimeout);
+        var home = new ModuleRoutine(this, "Home", _driver, () => HomeTimeout);
         AddHomeSteps(home);
         if (hasWafer)
         {
@@ -386,7 +386,7 @@ public abstract class BaseAlignerModule : BaseTransferStationModule, IAligner
     /// </summary>
     protected virtual ModuleRoutine CreateAlignRoutine()
     {
-        var align = new ModuleRoutine(Name, "Align", _driver, () => AlignTimeout);
+        var align = new ModuleRoutine(this, "Align", _driver, () => AlignTimeout);
         AddAlignSteps(align, NotchAngle);
         return align;
     }

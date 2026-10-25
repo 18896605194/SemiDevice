@@ -127,11 +127,11 @@ public class DataChartComponent : ComponentBase, IDataChart
 
         _signals = BuildSignals(roots);
         int svCount = _signals.Count(signal => signal.Source == "SV");
-        LogHelper.Info(Name, $"数据曲线：每 {SampleIntervalMs}ms 采一行，{_signals.Count} 个信号（SV {svCount}、IO {_signals.Count - svCount}）"
+        LogHelper.Info(this, $"数据曲线：每 {SampleIntervalMs}ms 采一行，{_signals.Count} 个信号（SV {svCount}、IO {_signals.Count - svCount}）"
             + (EnableRecord ? $"，入 {Database} 库、保留 {KeepDays} 天" : "，不入库（EnableRecord=False）"));
         if (!IsRun)
         {
-            LogHelper.Warn(Name, "machine.xml 的 DataChart 节点没配 IsRun=true：不采样，数据曲线、实时曲线都没有新数据");
+            LogHelper.Warn(this, "machine.xml 的 DataChart 节点没配 IsRun=true：不采样，数据曲线、实时曲线都没有新数据");
         }
 
         if (EnableRecord)
@@ -189,7 +189,7 @@ public class DataChartComponent : ComponentBase, IDataChart
             // 组件全路径 + 属性名 / 配置项名，本来就唯一；真撞上了（SV 名跟配置项名撞）只记第一个。
             if (!names.Add(signal.Name))
             {
-                LogHelper.Warn(Name, $"数据曲线信号 {signal.Name} 重名，{signal.Source} 这个不记");
+                LogHelper.Warn(this, $"数据曲线信号 {signal.Name} 重名，{signal.Source} 这个不记");
                 return;
             }
 
@@ -220,7 +220,7 @@ public class DataChartComponent : ComponentBase, IDataChart
                     if (!warnedNoIo)
                     {
                         warnedNoIo = true;
-                        LogHelper.Warn(Name, "machine.xml 没配 Io 节点：组件绑的 IO 都读不到，数据曲线只记 SV");
+                        LogHelper.Warn(this, "machine.xml 没配 Io 节点：组件绑的 IO 都读不到，数据曲线只记 SV");
                     }
 
                     break;
@@ -232,7 +232,7 @@ public class DataChartComponent : ComponentBase, IDataChart
 
         if (signals.Count > DataRecordTable.MaxSignals)
         {
-            LogHelper.Error(Name, $"数据曲线信号 {signals.Count} 个，超过一张表的列数上限，只记前 {DataRecordTable.MaxSignals} 个（用 Exclude 去掉不要的）");
+            LogHelper.Error(this, $"数据曲线信号 {signals.Count} 个，超过一张表的列数上限，只记前 {DataRecordTable.MaxSignals} 个（用 Exclude 去掉不要的）");
             signals.RemoveRange(DataRecordTable.MaxSignals, signals.Count - DataRecordTable.MaxSignals);
         }
 
@@ -322,7 +322,7 @@ public class DataChartComponent : ComponentBase, IDataChart
 
         if (point is null)
         {
-            LogHelper.Warn(Name, $"machine.xml 里 {name} 绑了 {type}{index}，点表里没有这个点，数据曲线这一列会一直是空的");
+            LogHelper.Warn(this, $"machine.xml 里 {name} 绑了 {type}{index}，点表里没有这个点，数据曲线这一列会一直是空的");
         }
 
         Func<double?> read;
@@ -408,7 +408,7 @@ public class DataChartComponent : ComponentBase, IDataChart
             if (_lastFault != exception.Message)
             {
                 _lastFault = exception.Message;
-                LogHelper.Warn(Name, $"数据曲线采样出错: {exception.Message}");
+                LogHelper.Warn(this, $"数据曲线采样出错: {exception.Message}");
             }
         }
         finally
@@ -459,7 +459,7 @@ public class DataChartComponent : ComponentBase, IDataChart
             .Subscribe(WriteBatch,
                 exception =>
                 {
-                    LogHelper.Error(Name, $"数据曲线写库管道异常结束: {exception.Message}");
+                    LogHelper.Error(this, $"数据曲线写库管道异常结束: {exception.Message}");
                     done.TrySetResult();
                 },
                 () => done.TrySetResult());
@@ -471,7 +471,7 @@ public class DataChartComponent : ComponentBase, IDataChart
         int warning = RecordBacklogWarning;
         if (warning > 0 && before / warning != (before + batch.Count) / warning)
         {
-            LogHelper.Warn(Name, $"数据曲线待写库积压 {before + batch.Count} 行，检查数据库是否卡住");
+            LogHelper.Warn(this, $"数据曲线待写库积压 {before + batch.Count} 行，检查数据库是否卡住");
         }
     }
 
@@ -491,7 +491,7 @@ public class DataChartComponent : ComponentBase, IDataChart
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"数据曲线写库失败，丢弃 {batch.Count} 行: {exception.Message}");
+            LogHelper.Warn(this, $"数据曲线写库失败，丢弃 {batch.Count} 行: {exception.Message}");
             // 表可能被人动过（删表、删列），下一批重新核对。
             _checkedTables.Clear();
         }
@@ -513,7 +513,7 @@ public class DataChartComponent : ComponentBase, IDataChart
 
         if (!XyzDb.IsRegistered(Database))
         {
-            LogHelper.Warn(Name, $"数据曲线库 {Database} 没在 machine.xml 的 Database 节点里配，落到默认库");
+            LogHelper.Warn(this, $"数据曲线库 {Database} 没在 machine.xml 的 Database 节点里配，落到默认库");
         }
 
         // WAL 是 SQLite 自己的设置，SqlSugar 没有对应的接口；换了别的库就不用切
@@ -551,7 +551,7 @@ public class DataChartComponent : ComponentBase, IDataChart
 
             if (missing.Count > 0)
             {
-                LogHelper.Info(Name, $"数据曲线表 {table} 补了 {missing.Count} 列（新加的信号）");
+                LogHelper.Info(this, $"数据曲线表 {table} 补了 {missing.Count} 列（新加的信号）");
             }
         }
 
@@ -595,12 +595,12 @@ public class DataChartComponent : ComponentBase, IDataChart
 
             if (expired.Count > 0)
             {
-                LogHelper.Info(Name, $"清理数据曲线 {expired.Count} 张过期日表（保留 {KeepDays} 天）");
+                LogHelper.Info(this, $"清理数据曲线 {expired.Count} 张过期日表（保留 {KeepDays} 天）");
             }
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"清理数据曲线失败: {exception.Message}");
+            LogHelper.Warn(this, $"清理数据曲线失败: {exception.Message}");
         }
     }
 
@@ -629,6 +629,34 @@ public class DataChartComponent : ComponentBase, IDataChart
         using var db = XyzDb.Create(Database);
         return DataRecordQuery.Run(db, names, from, to, start.Date, end.AddTicks(-1).Date,
             QueryMaxPoints, Math.Max(100, SampleIntervalMs), token);
+    }
+
+    #endregion
+
+    #region 导出（数据曲线页导出 Excel）
+
+    /// <summary>
+    /// 导出一段给一次：1 小时，1 秒一行、20 条曲线时一段约 0.7 MB，离 gRPC 单条消息上限很远
+    /// </summary>
+    private const long ExportSliceMs = 3_600_000;
+
+    /// <summary>
+    /// 按名字导出 [start, end)（本机时间）的原始行，不抽稀；按 1 小时一段边读边给，用的地方枚举到哪读到哪
+    /// </summary>
+    public IEnumerable<DataExport> Export(IReadOnlyList<string> names, DateTime start, DateTime end, CancellationToken token)
+    {
+        if (names.Count == 0 || end <= start)
+        {
+            yield break;
+        }
+
+        long from = new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+        long to = new DateTimeOffset(DateTime.SpecifyKind(end, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+        using var db = XyzDb.Create(Database);
+        foreach (var slice in DataRecordQuery.Export(db, names, from, to, start.Date, end.AddTicks(-1).Date, ExportSliceMs, token))
+        {
+            yield return slice;
+        }
     }
 
     #endregion

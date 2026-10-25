@@ -22,7 +22,7 @@ public static class ComponentLoader
         {
             if (!root.InitComponent())
             {
-                LogHelper.Error(root.FullPath, "组件初始化没全做成（驱动连接失败等，原因见前面的日志）");
+                LogHelper.Error(root, "组件初始化没全做成（驱动连接失败等，原因见前面的日志）");
             }
         }
     }
@@ -76,7 +76,7 @@ public static class ComponentLoader
             }
             catch (Exception exception)
             {
-                LogHelper.Error(component.FullPath, $"退出收尾出错：{exception.Message}");
+                LogHelper.Error(component, $"退出收尾出错：{exception.Message}");
             }
         }
     }
@@ -114,10 +114,11 @@ public static class ComponentLoader
             Build(setting, catalog, parent: null, parentPath: string.Empty, roots);
         }
 
-        // 构造时挂好的子组件（machine.xml 里不写 Type 的那种）还没有路径，这里接在父组件后面补上。
+        // 构造时挂好的子组件（machine.xml 里不写 Type 的那种）还没有路径，这里接在父组件后面补上；
+        // 顺带定日志的两层名字：最顶上那个组件的全路径是第一层（日志历史页的模块下拉就是这些）。
         foreach (var root in roots)
         {
-            AssignFullPath(root, parentPath: string.Empty);
+            AssignFullPath(root, parentPath: string.Empty, modulePath: string.Empty);
         }
 
         // 虚拟点可分布于任意模块，整棵树装好后统一校验索引与依赖。
@@ -144,16 +145,22 @@ public static class ComponentLoader
         }
     }
 
-    private static void AssignFullPath(ComponentBase component, string parentPath)
+    private static void AssignFullPath(ComponentBase component, string parentPath, string modulePath)
     {
         if (component.FullPath.Length == 0)
         {
             component.FullPath = Join(parentPath, component.Name);
         }
 
+        if (modulePath.Length == 0)
+        {
+            modulePath = component.FullPath;
+        }
+
+        component.AssignLogNames(modulePath);
         foreach (var child in component.Children)
         {
-            AssignFullPath(child, component.FullPath);
+            AssignFullPath(child, component.FullPath, modulePath);
         }
     }
 
@@ -318,7 +325,7 @@ public static class ComponentLoader
                 string.Equals(p.Name, value.Name, StringComparison.OrdinalIgnoreCase));
             if (property is null)
             {
-                LogHelper.Error(path,
+                LogHelper.Error(LogHelper.HostModule,
                     $"machine.xml 节点 {path} 的参数 {value.Name} 不认识：{component.GetType().Name} 没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
                 continue;
             }

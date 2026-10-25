@@ -304,6 +304,7 @@
     <sys:String x:Key="common.total">共 {0} 条</sys:String>
     <sys:String x:Key="common.query_hint">选好时间段后点查询</sys:String>
     <sys:String x:Key="common.query_failed">查询失败</sys:String>
+    <sys:String x:Key="common.excel_filter">Excel 文件 (*.xlsx)|*.xlsx</sys:String>
     <sys:String x:Key="common.truncated">只显示最新的 {0} 条，缩短日期段或加条件再查</sys:String>
     <sys:String x:Key="common.days_duration">{0}天 {1}</sys:String>
 
@@ -334,8 +335,9 @@
     <!-- 日志页 -->
     <sys:String x:Key="log.level">级别</sys:String>
     <sys:String x:Key="log.module">模块</sys:String>
+    <sys:String x:Key="log.part">部件</sys:String>
     <sys:String x:Key="log.message">内容</sys:String>
-    <sys:String x:Key="log.keyword_hint">关键字（模块 / 内容）</sys:String>
+    <sys:String x:Key="log.keyword_hint">关键字（模块 / 部件 / 内容）</sys:String>
     <sys:String x:Key="log.pause">暂停</sys:String>
     <sys:String x:Key="log.resume">继续</sys:String>
     <sys:String x:Key="log.clear">清空</sys:String>
@@ -638,6 +640,12 @@
     <sys:String x:Key="datachart.points">共 {0} 个时间点</sys:String>
     <sys:String x:Key="datachart.decimated">时间段较长，每 {0} 秒取最小、最大值画（统计按原始数据）</sys:String>
     <sys:String x:Key="datachart.no_data">这段时间没有数据</sys:String>
+    <sys:String x:Key="datachart.export">导出</sys:String>
+    <sys:String x:Key="datachart.exporting">正在导出…</sys:String>
+    <sys:String x:Key="datachart.exported">已导出到 {0}</sys:String>
+    <sys:String x:Key="datachart.export_canceled">导出已取消</sys:String>
+    <sys:String x:Key="datachart.export_empty">这段时间没有数据，没有生成文件</sys:String>
+    <sys:String x:Key="datachart.export_failed">导出失败：{0}</sys:String>
     <sys:String x:Key="realchart.window">显示范围</sys:String>
     <sys:String x:Key="realchart.minute_unit">分钟</sys:String>
     <sys:String x:Key="realchart.pause">暂停</sys:String>

@@ -19,11 +19,6 @@ namespace xyz.Service.Wafers;
 /// </summary>
 public class WaferLedgerService : BaseService, IWaferLedgerService
 {
-    /// <summary>
-    /// 客户端没带操作人时记成这个（客户端还没做登录前都会带上当前用户名，这里只是兜底）。
-    /// </summary>
-    private const string UnknownOperator = "Unknown";
-
     private readonly ILedgerManager? _ledger;
 
     public WaferLedgerService()
@@ -60,7 +55,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
         }
 
         string from = request.FromModule.Trim(), to = request.ToModule.Trim();
-        var result = _ledger.ManualMove(from, request.FromSlot, to, request.ToSlot, OperatorOf(request.Operator), request.Reason);
+        var result = _ledger.ManualMove(from, request.FromSlot, to, request.ToSlot, RpcOperator.Of(context), request.Reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -94,7 +89,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
         }
 
         string module = request.Module.Trim();
-        var result = _ledger.ManualDelete(module, request.Slot, OperatorOf(request.Operator), request.Reason);
+        var result = _ledger.ManualDelete(module, request.Slot, RpcOperator.Of(context), request.Reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -119,7 +114,7 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
 
         string module = request.Module.Trim();
         string waferId = request.WaferId.Trim();
-        var result = _ledger.ManualCreate(module, request.Slot, waferId, OperatorOf(request.Operator), request.Reason);
+        var result = _ledger.ManualCreate(module, request.Slot, waferId, RpcOperator.Of(context), request.Reason);
         switch (result)
         {
             case WaferAdjustResult.Ok:
@@ -221,11 +216,6 @@ public class WaferLedgerService : BaseService, IWaferLedgerService
             Operator = row.Operator,
             Reason = row.Reason,
         };
-    }
-
-    private static string OperatorOf(string? name)
-    {
-        return string.IsNullOrWhiteSpace(name) ? UnknownOperator : name.Trim();
     }
 
     /// <summary>

@@ -290,11 +290,12 @@ public class LogRealtimeViewModel : BaseViewModel
         var keyword = Keyword.Trim();
         return keyword.Length == 0
                || log.Module.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+               || log.Part.Contains(keyword, StringComparison.OrdinalIgnoreCase)
                || log.Message.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static (DateTime Time, string Module, string Message) KeyOf(LogModel model)
+    private static (DateTime Time, string Module, string Part, string Message) KeyOf(LogModel model)
     {
-        return (model.Time, model.Module, model.Message);
+        return (model.Time, model.Module, model.Part, model.Message);
     }
 }

@@ -23,7 +23,7 @@ public abstract class PlcComponent : ComponentBase
         bool opened = Open();
         if (!opened)
         {
-            LogHelper.Error(Name, "PLC 连接失败");
+            LogHelper.Error(this, "PLC 连接失败");
         }
 
         return base.InitComponent() && opened;
@@ -114,7 +114,7 @@ public abstract class PlcComponent : ComponentBase
         _closed = false;
         if (string.IsNullOrWhiteSpace(Host))
         {
-            LogHelper.Info($"[{FullPath}] 未配 Host，PLC 空转（装机没接 PLC）");
+            LogHelper.Info(this, $"未配 Host，PLC 空转（装机没接 PLC）");
             return true;
         }
 
@@ -189,7 +189,7 @@ public abstract class PlcComponent : ComponentBase
         }
 
         // 停下来不另报警：下面的掉线报警断着就一直在，人看到了复位就会重新开始连。
-        _reconnector.Check(FullPath, IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
+        _reconnector.Check(this, IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
         {
             IsConnected = ConnectDevice();
         });

@@ -698,7 +698,6 @@ public class WaferLedgerViewModel : BaseViewModel
                     ToModule = target.Location.Name,
                     ToSlot = target.Slot,
                     Reason = Reason.Trim(),
-                    Operator = OperatorName,
                 }),
                 "setting.ledger.move_failed",
                 L10n.Get("setting.ledger.moved", source.WaferId, source.PositionText, target.PositionText));
@@ -715,7 +714,6 @@ public class WaferLedgerViewModel : BaseViewModel
                     Module = source.Location.Name,
                     Slot = source.Slot,
                     Reason = Reason.Trim(),
-                    Operator = OperatorName,
                 }),
                 "setting.ledger.delete_failed",
                 L10n.Get("setting.ledger.deleted", source.WaferId, source.PositionText));
@@ -729,7 +727,6 @@ public class WaferLedgerViewModel : BaseViewModel
                     Slot = target.Slot,
                     WaferId = waferId,
                     Reason = Reason.Trim(),
-                    Operator = OperatorName,
                 }),
                 "setting.ledger.create_failed",
                 L10n.Get("setting.ledger.created", waferId, target.PositionText));

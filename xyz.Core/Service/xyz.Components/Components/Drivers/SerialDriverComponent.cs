@@ -7,7 +7,7 @@ namespace xyz.Components.Components;
 /// 串口通道：设备经串口收发，参数只有串口的；同一台设备改接网口时，在 machine.xml 里启用旁边的网口通道、关掉这条就行
 /// </summary>
 [Component(description: "设备通道：串口（参数只有串口的；跟网口通道都配上时用 IsEnable 选一条）")]
-public class SerialDriverComponent : DeviceDriverComponent
+public class SerialDriverComponent : CommDriverComponent
 {
     #region Machine
 

@@ -253,7 +253,7 @@ public class E84Component : ComponentBase, IE84
     {
         lock (_gate)
         {
-            LogHelper.Info(FullPath, "E84 Retry：放弃这次交接，重新等搬运车");
+            LogHelper.Info(this, "E84 Retry：放弃这次交接，重新等搬运车");
             bool? load = _isLoad;
             if (IsHandoffStarted(_state) && load is not null)
             {
@@ -273,20 +273,20 @@ public class E84Component : ComponentBase, IE84
             bool? load = _isLoad;
             if (_state != E84State.TimedOut || load is null)
             {
-                LogHelper.Warn(FullPath, "E84 没有超时锁住的交接，Complete 不处理");
+                LogHelper.Warn(this, "E84 没有超时锁住的交接，Complete 不处理");
                 return false;
             }
 
             bool isLoad = load.Value;
             if (isLoad != carrierPlaced)
             {
-                LogHelper.Warn(FullPath, isLoad
+                LogHelper.Warn(this, isLoad
                     ? "E84 Complete 被拒：载具不在位，送盒没有完成"
                     : "E84 Complete 被拒：载具还在，取盒没有完成");
                 return false;
             }
 
-            LogHelper.Info(FullPath, $"E84 人工确认{Direction(isLoad)}交接已完成");
+            LogHelper.Info(this, $"E84 人工确认{Direction(isLoad)}交接已完成");
             _reports.Add(E84Report.Completed(isLoad));
             Clear();
             Flush();
@@ -383,7 +383,7 @@ public class E84Component : ComponentBase, IE84
                 if (!selected)
                 {
                     // 还没开始交接搬运车就撤了：收回请求，回去等下一次。
-                    LogHelper.Info(FullPath, $"E84 搬运车撤销选中，收回{Direction(_isLoad == true)}请求");
+                    LogHelper.Info(this, $"E84 搬运车撤销选中，收回{Direction(_isLoad == true)}请求");
                     _outputs = _outputs with { LReq = false, UReq = false };
                     _isLoad = null;
                     Enter(E84State.Available);
@@ -392,7 +392,7 @@ public class E84Component : ComponentBase, IE84
                 {
                     _outputs = _outputs with { Ready = true };
                     Enter(E84State.WaitBusy);
-                    LogHelper.Info(FullPath, $"E84 {Direction(_isLoad == true)}交接开始");
+                    LogHelper.Info(this, $"E84 {Direction(_isLoad == true)}交接开始");
                     _reports.Add(E84Report.Started(_isLoad == true));
                 }
 
@@ -430,7 +430,7 @@ public class E84Component : ComponentBase, IE84
                     bool isLoad = _isLoad == true;
                     _isLoad = null;
                     Enter(E84State.Available);
-                    LogHelper.Info(FullPath, $"E84 {Direction(isLoad)}交接完成");
+                    LogHelper.Info(this, $"E84 {Direction(isLoad)}交接完成");
                     _reports.Add(E84Report.Completed(isLoad));
                 }
 
@@ -459,7 +459,7 @@ public class E84Component : ComponentBase, IE84
             return;
         }
 
-        LogHelper.Warn(FullPath, $"E84 Auto 模式下载具没走交接就被{(carrierPlaced ? "放上" : "拿走")}了（E84 在 {_state}）");
+        LogHelper.Warn(this, $"E84 Auto 模式下载具没走交接就被{(carrierPlaced ? "放上" : "拿走")}了（E84 在 {_state}）");
         RaiseAlarm(UnexpectedCarrierAlarm);
     }
 
@@ -507,7 +507,7 @@ public class E84Component : ComponentBase, IE84
         if (IsHandoffStarted(_state) && load is not null)
         {
             bool isLoad = load.Value;
-            LogHelper.Warn(FullPath, $"E84 {Direction(isLoad)}交接中止：{reason}");
+            LogHelper.Warn(this, $"E84 {Direction(isLoad)}交接中止：{reason}");
             _reports.Add(E84Report.Aborted(isLoad, reason));
         }
 
@@ -521,7 +521,7 @@ public class E84Component : ComponentBase, IE84
         _isLoad = isLoad;
         _outputs = isLoad ? _outputs with { LReq = true } : _outputs with { UReq = true };
         Enter(E84State.Requesting);
-        LogHelper.Info(FullPath, $"E84 搬运车选中本端口，请求{Direction(isLoad)}");
+        LogHelper.Info(this, $"E84 搬运车选中本端口，请求{Direction(isLoad)}");
     }
 
     /// <summary>
@@ -550,7 +550,7 @@ public class E84Component : ComponentBase, IE84
         _timedOutTimer = timer;
         _state = E84State.TimedOut;
         _stepWatch.Reset();
-        LogHelper.Warn(FullPath,
+        LogHelper.Warn(this,
             $"E84 {Direction(isLoad)}交接 {timer} 超时（{TimeoutOf(timer)}ms），输出已撤，等人工 Retry 或 Complete");
         RaiseAlarm(E84TimeoutAlarm);
         _reports.Add(E84Report.TimedOut(isLoad, timer));
@@ -611,7 +611,7 @@ public class E84Component : ComponentBase, IE84
         if (_inputs != _loggedInputs || _outputs != _written)
         {
             _loggedInputs = _inputs;
-            LogHelper.Info(FullPath,
+            LogHelper.Info(this,
                 $"E84 信号 VALID={Bit(_inputs.Valid)} CS_0={Bit(_inputs.Cs0)} TR_REQ={Bit(_inputs.TrReq)} " +
                 $"BUSY={Bit(_inputs.Busy)} COMPT={Bit(_inputs.Compt)} | L_REQ={Bit(_outputs.LReq)} " +
                 $"U_REQ={Bit(_outputs.UReq)} READY={Bit(_outputs.Ready)} HO_AVBL={Bit(_outputs.HoAvbl)} ES={Bit(_outputs.Es)}");
@@ -696,11 +696,11 @@ public class E84Component : ComponentBase, IE84
         _outputsWritable = written;
         if (written)
         {
-            LogHelper.Info(FullPath, "E84 输出写入恢复");
+            LogHelper.Info(this, "E84 输出写入恢复");
         }
         else
         {
-            LogHelper.Warn(FullPath, "E84 输出写入失败（PLC 没连或 DO 索引不在点表里），下一拍再写");
+            LogHelper.Warn(this, "E84 输出写入失败（PLC 没连或 DO 索引不在点表里），下一拍再写");
         }
 
         return written;

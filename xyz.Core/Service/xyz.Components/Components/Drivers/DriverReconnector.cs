@@ -51,9 +51,9 @@ internal sealed class DriverReconnector
 
     /// <summary>
     /// 看一眼连接（扫描线程上调）：断了、到点了就在后台跑一次 reopen（先关后开）；重开满 maxCount 次还没连上就停下（0 = 不自动重连）。
-    /// source 是记日志用的组件路径。返回 true 表示这一拍刚停下来（只返回这一次），组件拿它报"已停止重连"。
+    /// source 是日志记在谁名下（所属组件）。返回 true 表示这一拍刚停下来（只返回这一次），组件拿它报"已停止重连"。
     /// </summary>
-    public bool Check(string source, bool isConnected, int intervalMs, int maxCount, Action reopen)
+    public bool Check(ILogSource source, bool isConnected, int intervalMs, int maxCount, Action reopen)
     {
         if (!_isEnabled)
         {

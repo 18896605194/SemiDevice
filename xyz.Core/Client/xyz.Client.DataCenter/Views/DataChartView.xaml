@@ -49,6 +49,12 @@
                             Command="{Binding TodayCommand}"
                             Content="{DynamicResource common.today}"
                             Style="{DynamicResource ToolbarButtonStyle}" />
+                        <!--  导出跟查询那组隔开一点：导的是这次查询的时间段、勾着的曲线  -->
+                        <Button
+                            Margin="8,0,8,0"
+                            Command="{Binding ExportCommand}"
+                            Content="{DynamicResource datachart.export}"
+                            Style="{DynamicResource ToolbarButtonStyle}" />
                     </WrapPanel>
                 </DockPanel>
             </Border>
@@ -75,5 +81,12 @@
                     WindowTitle="{DynamicResource menu.DataCenter.DataChart}" />
             </Grid>
         </Grid>
+
+        <!--  查询、导出的进度弹框，盖住整页：查询不知道进度、圆环一直转；导出按百分比走  -->
+        <controls:ProgressOverlay
+            IsIndeterminate="True"
+            State="{Binding Query}"
+            Text="{DynamicResource datachart.querying}" />
+        <controls:ProgressOverlay State="{Binding Export}" Text="{DynamicResource datachart.exporting}" />
     </Grid>
 </UserControl>

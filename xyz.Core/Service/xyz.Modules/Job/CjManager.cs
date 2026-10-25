@@ -5,8 +5,10 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>保存 CJ 及各自状态机；PJ 协调由 JobManager 处理。</summary>
-public sealed class CjManager : ICjManager
+/// <summary>
+/// 保存 CJ 及各自状态机；PJ 协调由 JobManager 处理。logOwner 是日志记在谁名下（Job 管理）
+/// </summary>
+public sealed class CjManager(ILogSource logOwner) : ICjManager
 {
     #region CJ 字典
 
@@ -35,7 +37,7 @@ public sealed class CjManager : ICjManager
             return;
         }
 
-        var stateMachine = new CjStateMachine();
+        var stateMachine = new CjStateMachine(logOwner);
         stateMachine.CurrentState = controlJob.State;
         var entity = new CjEntity(controlJob, stateMachine);
         stateMachine.OnStateChanged += (previous, current) => OnStateChanged(entity, previous, current);
@@ -257,7 +259,7 @@ public sealed class CjManager : ICjManager
             job.EndedAt = now;
         }
 
-        LogHelper.Info("Job", $"CJ {job.Id}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
+        LogHelper.Info(logOwner, $"CJ {job.Id}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
         StateChanged?.Invoke(job, current, e94TransitionNumber);
     }
 

@@ -1,8 +1,14 @@
-﻿using System.Reflection;
+﻿using System.IO;
+using System.Reflection;
 using System.ServiceModel;
 using System.Text;
+using MiniExcelLibs;
 using NLog;
+using ProtoBuf.Grpc;
 using SqlSugar;
+using xyz.Client.DataCenter.Models;
+using xyz.Client.Presentation.Controls;
+using xyz.Client.Presentation.Models;
 using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
@@ -15,6 +21,7 @@ using xyz.Database.Alarms;
 using xyz.Database.DbProvider;
 using xyz.Service;
 using xyz.Service.Alarms;
+using xyz.Service.Charts;
 using xyz.Service.Events;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -37,11 +44,13 @@ void Check(bool condition, string message)
 }
 
 static string Line(DateTime time, LogLevel level, string module, string message) =>
-    new LogItem(module, level, message) { Time = time }.ToString();
+    new LogItem(module, string.Empty, level, message) { Time = time }.ToString();
 
 var day = new DateTime(2020, 1, 2);
 Directory.CreateDirectory(LogFileReader.LogDirectory);
 var stem = Path.Combine(LogFileReader.LogDirectory, $"xyz-{day:yyyy-MM-dd}");
+var day2 = new DateTime(2020, 1, 3);
+var stem2 = Path.Combine(LogFileReader.LogDirectory, $"xyz-{day2:yyyy-MM-dd}");
 var dbFile = Path.Combine(Path.GetTempPath(), $"datacenter-smoke-{Guid.NewGuid():N}.db");
 
 try
@@ -143,6 +152,175 @@ try
     var recentTail = JsonHelper.Deserialize<List<LogDto>>(recentReply.Data)!;
     Check(recentReply.Success && recentTail.Count == 2 && recentTail[^1].Message == "第 4 条", "日志服务从日志组件取最近一段，带了条数只回最新的几条");
 
+    // ── 2c. 两层名字、收发原文、操作日志：文件格式和历史查询的模块筛选 ─────
+    File.WriteAllLines(stem2 + ".log",
+    [
+        new LogItem("LoadPort.LoadPort1", string.Empty, LogLevel.Info, "Load 做完 5746 ms") { Time = day2.AddHours(9) }.ToString(),
+        new LogItem("LoadPort.LoadPort1", "Serial", LogLevel.Info, "MOV:CLOAD") { Time = day2.AddHours(9).AddSeconds(1), Direction = LogHelper.Sent }.ToString(),
+        new LogItem("LoadPort.LoadPort1", "RFID.Serial", LogLevel.Warn, "读码超时（3000ms）") { Time = day2.AddHours(9).AddSeconds(2) }.ToString(),
+        new LogItem(LogHelper.OperationModule, string.Empty, LogLevel.Info, "张三@192.168.1.20 LoadPort.Load \"LoadPort1\"") { Time = day2.AddHours(9).AddSeconds(3) }.ToString(),
+        new LogItem("LoadPort.LoadPort2", string.Empty, LogLevel.Error, "Unload 失败在 关门") { Time = day2.AddHours(10) }.ToString(),
+    ], Encoding.UTF8);
+    var parsed2 = LogFileReader.Read(day2, day2.AddDays(1)).ToList();
+    Check(parsed2.Count == 5 && parsed2[1].Module == "LoadPort.LoadPort1" && parsed2[1].Part == "Serial" && parsed2[1].Direction == LogHelper.Sent
+          && parsed2[1].Message == "MOV:CLOAD" && parsed2[2].Part == "RFID.Serial" && parsed2[0].Part.Length == 0,
+        "新格式：部件那一格有就解出来、没有就空；收发原文的级别那一格是方向");
+    Check(LogFileReader.TryParse("【2020-01-03 09:00:00.000】 【INFO】 【LoadPort1】 改之前的旧格式", out var oldItem)
+          && oldItem.Module == "LoadPort1" && oldItem.Part.Length == 0 && oldItem.Message == "改之前的旧格式",
+        "改之前写的旧格式照样认");
+
+    var byModule = await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Module = "LoadPort.LoadPort1" });
+    Check(byModule.Items.Count == 3 && byModule.Items.All(log => log.Module == "LoadPort.LoadPort1"),
+        "按模块筛：只要第一层完全一样的，它的部件（串口、RFID）也一起出来");
+    Check(byModule.Items.Any(log => log.Part == "RFID.Serial") && byModule.Items.Any(log => log.Level == LogHelper.Sent && log.Part == "Serial"),
+        "查出来带部件；收发原文的级别显示方向");
+    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Module = "LoadPort" })).Items.Count == 0,
+        "模块要完全一样：只写分组名查不到");
+    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Module = LogHelper.OperationModule })).Items.Count == 1,
+        "选 Operation 就是谁点了什么");
+    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Level = "Info" })).Items.All(log => log.Level == "Info")
+          && (await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Level = "Info" })).Items.Count == 2,
+        "选了级别就不要收发原文（它们没有级别）");
+    Check((await QueryLogs(new LogHistoryQuery { Start = day2, End = day2.AddDays(1), Keyword = "rfid" })).Items.Count == 1,
+        "关键字也搜部件");
+
+    // LogHelper 真写文件：用后端的 NLog.config（这个冒烟也引了客户端，运行目录里那份不一定是后端的）
+    string repoRoot = AppContext.BaseDirectory;
+    while (!File.Exists(Path.Combine(repoRoot, "xyz.Framework.sln")))
+    {
+        repoRoot = Path.GetDirectoryName(repoRoot.TrimEnd(Path.DirectorySeparatorChar))!;
+    }
+
+    LogManager.Setup().LoadConfigurationFromFile(Path.Combine(repoRoot, "xyz.Core", "Service", "xyz.Common", "Log", "NLog.config"));
+    var writeStarted = DateTime.Now.AddMilliseconds(-1);
+    var serial = new SmokeLogSource("LoadPort.LoadPort1", "Serial");
+    LogHelper.Comm(serial, LogHelper.Sent, "MOV:CLOAD\r");
+    LogHelper.InfoLoop(serial, LogHelper.Received, "ACK:STATE/0100-smoke");
+    LogHelper.Info(new SmokeLogSource("Eap", "E87"), "两层名字写进文件");
+
+    // 操作日志：ActionFilter 记谁、哪台电脑、调了什么、参数，回包记结果；Get / Query 和自动反复发的不记；密码写成 ***
+    var filter = new ActionFilter();
+    var loadContext = SmokeCall.Context("张三", "/xyz.Shared.Services.LoadPortService/Load", "ipv4:192.168.1.20:5123");
+    await filter.UnaryServerHandler("LoadPort1", loadContext, (_, _) => Task.FromResult(RpcResponse.Ok()));
+    var rejectContext = SmokeCall.Context("李四", "/xyz.Shared.Services.LoadPortService/HomeAsync", "ipv6:[::1]:5123");
+    await filter.UnaryServerHandler("LoadPort1", rejectContext,
+        (_, _) => Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, ["LoadPort1", "3"])));
+    await filter.UnaryServerHandler(new RpcRequest(), SmokeCall.Context("张三", "/xyz.Shared.Services.LoadPortService/GetStatus"),
+        (_, _) => Task.FromResult(RpcResponse.Ok()));
+    await filter.UnaryServerHandler(new RpcRequest(), SmokeCall.Context("张三", "/xyz.Shared.Services.ChamberService/AxisJogRenew"),
+        (_, _) => Task.FromResult(RpcResponse.Ok()));
+    await filter.UnaryServerHandler(new LoginRequest { UserName = "张三", Password = "secret-smoke" },
+        SmokeCall.Context(null, "/xyz.Shared.Services.AccountService/Login"), (_, _) => Task.FromResult(RpcResponse.Ok()));
+    bool thrown = false;
+    try
+    {
+        await filter.UnaryServerHandler("LoadPort1", SmokeCall.Context("张三", "/xyz.Shared.Services.LoadPortService/Unload"),
+            (_, _) => Task.FromException<RpcResponse>(new InvalidOperationException("smoke-boom")));
+    }
+    catch (InvalidOperationException)
+    {
+        thrown = true;
+    }
+
+    Check(thrown, "服务抛的异常 ActionFilter 记完照样往上抛");
+    Check(RpcOperator.Of(SmokeCall.As("王五")) == "王五" && RpcOperator.Of(default(CallContext)) == RpcOperator.Unknown,
+        "操作人从请求头取（中文名照样）；没带记 Unknown");
+
+    LogHelper.Flush(TimeSpan.FromSeconds(3));
+    var written = LogFileReader.Read(writeStarted, DateTime.Now.AddSeconds(1)).ToList();
+    Check(written.Any(item => item.Direction == LogHelper.Sent && item.Module == "LoadPort.LoadPort1" && item.Part == "Serial" && item.Message == "MOV:CLOAD<CR>"),
+        "收发原文进主日志：方向、两层名字，回车写成 <CR>");
+    Check(!written.Any(item => item.Message.Contains("ACK:STATE/0100-smoke")), "轮询原文不进主日志");
+    string pollFile = Path.Combine(LogFileReader.LogDirectory, $"poll-{DateTime.Today:yyyy-MM-dd}.log");
+    string pollText = string.Empty;
+    using (var stream = new FileStream(pollFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+    using (var reader = new StreamReader(stream, Encoding.UTF8))
+    {
+        pollText = reader.ReadToEnd();
+    }
+
+    Check(pollText.Contains("【收】 【LoadPort.LoadPort1】 【Serial】 ACK:STATE/0100-smoke"), "轮询原文记在轮询文件 poll-日期.log");
+    Check(written.Any(item => item.Module == "Eap" && item.Part == "E87" && item.Message == "两层名字写进文件"), "运行日志带两层名字写进文件");
+
+    var operations = written.Where(item => item.Module == LogHelper.OperationModule).Select(item => item.Message).ToList();
+    Check(operations.Contains("张三@192.168.1.20 LoadPort.Load \"LoadPort1\"") && operations.Any(text => text.StartsWith("张三@192.168.1.20 LoadPort.Load → 成功 ")),
+        "操作日志：请求进来一条（谁@哪台电脑 服务.方法 参数），回包一条（成功、用时）");
+    Check(operations.Any(text => text.StartsWith("李四@::1 LoadPort.Home → 失败 module.action_rejected [LoadPort1, 3] "))
+          && written.Any(item => item.Module == LogHelper.OperationModule && item.Level == LogLevel.Warn && item.Message.StartsWith("李四@::1 LoadPort.Home → 失败")),
+        "回的是失败记 Warn，带错误码和参数；方法名去掉 Async，IPv6 去掉方括号");
+    Check(!operations.Any(text => text.Contains("GetStatus") || text.Contains("AxisJogRenew")), "Get / Query 开头的、续点动不记");
+    Check(operations.Any(text => text.StartsWith("Unknown@127.0.0.1 Account.Login ") && text.Contains("\"password\":\"***\"") && text.Contains("\"userName\":\"张三\""))
+          && !operations.Any(text => text.Contains("secret-smoke")),
+        "没带操作人记 Unknown；参数里的密码写成 ***，中文原样（不转成 \\uXXXX）");
+    Check(written.Any(item => item.Module == LogHelper.OperationModule && item.Level == LogLevel.Error && item.Message.Contains("LoadPort.Unload → 出错") && item.Message.EndsWith("smoke-boom")),
+        "服务抛异常记 Error");
+    lock (pushedLogs)
+    {
+        Check(!pushedLogs.Any(log => log.Module == LogHelper.OperationModule || log.Message.Contains("MOV:CLOAD")),
+            "操作日志、收发原文不推界面");
+    }
+
+    // 保留天数：日志组件开机按 KeepDays 设，主日志、轮询文件都按天清掉更早的（文件名带日期也认），近的留着
+    var oldMain = Path.Combine(LogFileReader.LogDirectory, $"xyz-{DateTime.Today.AddDays(-40):yyyy-MM-dd}.log");
+    var oldMainSplit = Path.Combine(LogFileReader.LogDirectory, $"xyz-{DateTime.Today.AddDays(-40):yyyy-MM-dd}.1.log");
+    var oldPoll = Path.Combine(LogFileReader.LogDirectory, $"poll-{DateTime.Today.AddDays(-40):yyyy-MM-dd}.log");
+    var recentMain = Path.Combine(LogFileReader.LogDirectory, $"xyz-{DateTime.Today.AddDays(-5):yyyy-MM-dd}.log");
+    foreach (var (path, ageDays) in new[] { (oldMain, 40), (oldMainSplit, 40), (oldPoll, 40), (recentMain, 5) })
+    {
+        File.WriteAllText(path, "smoke", Encoding.UTF8);
+        File.SetCreationTime(path, DateTime.Now.AddDays(-ageDays));
+        File.SetLastWriteTime(path, DateTime.Now.AddDays(-ageDays));
+    }
+
+    LogHelper.SetKeepDays(30);
+    LogHelper.Info(LogHelper.HostModule, "保留天数冒烟");
+    LogHelper.InfoLoop(serial, LogHelper.Sent, "GET:STATE");
+    LogHelper.Flush(TimeSpan.FromSeconds(3));
+    var keepDeadline = DateTime.UtcNow.AddSeconds(3);
+    while (DateTime.UtcNow < keepDeadline && (File.Exists(oldMain) || File.Exists(oldPoll)))
+    {
+        Thread.Sleep(50);
+    }
+
+    Check(!File.Exists(oldMain) && !File.Exists(oldMainSplit) && !File.Exists(oldPoll) && File.Exists(recentMain),
+        "KeepDays：40 天前的主日志（连拆出来的）、轮询文件删了，5 天前的留着");
+    File.Delete(recentMain);
+
+    // 日志的第一层：组件树最顶上那层（带外面的分组名），按 machine.xml 先后；下面的部件是第二层；再加 Operation、Host
+    var logTree = ComponentLoader.Load(
+    [
+        new ModuleConfig
+        {
+            Name = "LoadPort",
+            Children =
+            {
+                new ModuleConfig
+                {
+                    Name = "LoadPort1",
+                    Type = typeof(MapperComponent).FullName,
+                    Children = { new ModuleConfig { Name = "Serial", Type = typeof(MapperComponent).FullName } },
+                },
+            },
+        },
+        new ModuleConfig { Name = "Plc", Type = typeof(MapperComponent).FullName },
+    ]);
+    Check(logTree.Count == 2 && logTree[0].LogModule == "LoadPort.LoadPort1" && logTree[0].LogPart.Length == 0
+          && logTree[0].Children[0].LogModule == "LoadPort.LoadPort1" && logTree[0].Children[0].LogPart == "Serial"
+          && logTree[1].LogModule == "Plc",
+        "两层名字：分组下的模块第一层带分组名，它下面的部件第一层同它、第二层是剩下的路径");
+    SmokeIoc.Use<IReadOnlyList<ComponentBase>>(logTree);
+    var moduleLog = new LogComponent { KeepDays = 30 };
+    moduleLog.Bind();
+    Check(moduleLog.Modules.SequenceEqual(["LoadPort.LoadPort1", "Plc", LogHelper.OperationModule, LogHelper.HostModule]),
+        "模块下拉的选项：树最顶上那层按先后，再加 Operation、Host");
+    SmokeIoc.Use<ILogComponent>(moduleLog);
+    var settingsReply = await new LogService().GetSettingsAsync(new RpcRequest());
+    var logSettings = JsonHelper.Deserialize<LogSettingsDto>(settingsReply.Data)!;
+    Check(settingsReply.Success && logSettings.KeepDays == 30 && logSettings.Modules.SequenceEqual(moduleLog.Modules),
+        "日志设置带给客户端：保留天数、模块下拉的选项");
+    SmokeIoc.Use<ILogComponent>(logComponent);
+    SmokeIoc.Use<IReadOnlyList<ComponentBase>>(null);
+
     // ── 3. 当前报警与人工复位：走报警组件；复位不存在的来源给错误码；没装报警组件给错误码 ─────
     var alarms = new AlarmComponent();
     SmokeIoc.Use<IAlarm>(alarms);
@@ -224,6 +402,7 @@ finally
 {
     File.Delete(stem + ".1.log");
     File.Delete(stem + ".log");
+    File.Delete(stem2 + ".log");
     SqliteCleanup(dbFile);
 }
 
@@ -325,6 +504,117 @@ try
     Check(oldSpeed.Count > speed.Count && newSpeed.Count > 0 && newSpeed.Count < oldSpeed.Count,
         $"老信号两次的行都在（{oldSpeed.Count}），新信号只有补列以后的（{newSpeed.Count}）");
 
+    // 导出：原始行一段一段给、不抽稀；这天表里没有的列整列空
+    List<string> exportNames = ["Chart1__Door__Speed", "Chart1__Lift__Speed", "Chart1__Nope"];
+    var exported = second.Export(exportNames, window.Start, DateTime.Now.AddMinutes(1), CancellationToken.None).ToList();
+    int exportedRows = exported.Sum(slice => slice.Times.Length);
+    Check(exportedRows == oldSpeed.Count && exported.All(slice => slice.Names.SequenceEqual(exportNames)),
+        $"导出的行数跟库里一样，不抽稀：{exportedRows} 行");
+    Check(exported.SelectMany(slice => slice.Values[0]).All(value => value == 12.5)
+          && exported.SelectMany(slice => slice.Values[1]).Count(value => value is not null) == newSpeed.Count
+          && exported.SelectMany(slice => slice.Values[2]).All(value => value is null),
+        "导出的值照原样：老信号都是 12.5，新信号补列以前为空，库里没有的名字整列空");
+
+    // 按 1 小时一段：造一张 2000-01-02 的日表，00:00 起每 10 分钟一行、3 小时 18 行
+    long dayStart = new DateTimeOffset(new DateTime(2000, 1, 2, 0, 0, 0, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+    using (var db = XyzDb.Create("ChartSmoke"))
+    {
+        string table = "DataRecord_20000102";
+        db.DbMaintenance.CreateTable(table,
+        [
+            new DbColumnInfo { TableName = table, DbColumnName = "Time", DataType = db.Ado.DbBind.GetDbTypeName("Int64"), IsPrimarykey = true },
+            new DbColumnInfo { TableName = table, DbColumnName = "Chart1__Door__Speed", DataType = db.Ado.DbBind.GetDbTypeName("Double"), IsNullable = true },
+        ]);
+        for (int index = 0; index < 18; index++)
+        {
+            db.Ado.ExecuteCommand($"INSERT INTO {table} (Time, Chart1__Door__Speed) VALUES ({dayStart + index * 600_000L}, {index})");
+        }
+    }
+
+    var hours = second.Export(["Chart1__Door__Speed"], new DateTime(2000, 1, 2), new DateTime(2000, 1, 2, 3, 0, 0), CancellationToken.None).ToList();
+    Check(hours.Count == 3 && hours.All(slice => slice.Times.Length == 6)
+          && hours.Select((slice, hour) => slice.Times.All(time => time >= dayStart + hour * 3_600_000L && time < dayStart + (hour + 1) * 3_600_000L)).All(inHour => inHour),
+        $"导出按 1 小时一段给，每段都在自己那 1 小时里：{string.Join(",", hours.Select(slice => slice.Times.Length))}");
+
+    bool exportStopped = false;
+    using (var canceled = new CancellationTokenSource())
+    {
+        canceled.Cancel();
+        try
+        {
+            second.Export(["Chart1__Door__Speed"], new DateTime(2000, 1, 2), new DateTime(2000, 1, 2, 3, 0, 0), canceled.Token).ToList();
+        }
+        catch (OperationCanceledException)
+        {
+            exportStopped = true;
+        }
+    }
+
+    Check(exportStopped, "导出取消了就不往下读");
+
+    // 导出服务 + 客户端导出：进程里直接把服务交给客户端的导出逻辑（不走网络），写成 xlsx 再读回来核对
+    var xlsx = Path.Combine(Path.GetTempPath(), $"datachart-smoke-{Guid.NewGuid():N}.xlsx");
+    try
+    {
+        var percents = new ListProgress();
+        var saved = await DataChartExport.SaveAsync(new DataChartService(), ["Chart1__Door__Speed", "Chart1__Nope"],
+            new DateTime(2000, 1, 1, 23, 0, 0), new DateTime(2000, 1, 3), xlsx, "Time", percents, CancellationToken.None);
+        var sheetNames = MiniExcel.GetSheetNames(xlsx);
+        var firstDay = MiniExcel.Query(xlsx, useHeaderRow: false, sheetName: "2000-01-01").Cast<IDictionary<string, object>>().ToList();
+        var secondDay = MiniExcel.Query(xlsx, useHeaderRow: true, sheetName: "2000-01-02").Cast<IDictionary<string, object>>().ToList();
+        Check(saved.Success && sheetNames.SequenceEqual(["2000-01-01", "2000-01-02"]),
+            $"一天一张表，没数据的那天也有：{string.Join(",", sheetNames)}");
+        Check(firstDay.Count == 1 && firstDay[0].Values.Select(value => value?.ToString()).SequenceEqual(["Time", "Chart1__Door__Speed", "Chart1__Nope"]),
+            "没数据的那天只有表头：时间 + 每条曲线一列");
+        Check(secondDay.Count == 18 && secondDay[0]["Time"] is DateTime firstTime && firstTime == new DateTime(2000, 1, 2)
+              && secondDay.Select(row => Convert.ToDouble(row["Chart1__Door__Speed"])).SequenceEqual(Enumerable.Range(0, 18).Select(index => (double)index))
+              && secondDay.All(row => !row.TryGetValue("Chart1__Nope", out var nope) || nope is null),
+            $"有数据的那天每秒原样一行、库里没有的列留空：{secondDay.Count} 行");
+        Check(percents.Values.Count >= 3 && percents.Values[^1] == 100 && percents.Values.Zip(percents.Values.Skip(1)).All(pair => pair.First <= pair.Second),
+            $"进度按收到的时刻往上走、最后 100：{string.Join(",", percents.Values.Select(value => Math.Round(value)))}");
+        Check(!File.Exists(xlsx + ".tmp"), "写完临时文件换上去了，旁边不留");
+
+        File.Delete(xlsx);
+        var empty = await DataChartExport.SaveAsync(new DataChartService(), ["Chart1__Door__Speed"],
+            new DateTime(2000, 1, 5), new DateTime(2000, 1, 6), xlsx, "Time", new ListProgress(), CancellationToken.None);
+        Check(empty.Code == DataChartExport.EmptyCode && !File.Exists(xlsx), "这段时间没数据：回 export_empty，不建文件");
+
+        // 后端写到一半出错、中途取消：原来同名的文件不动，旁边不留临时文件
+        File.WriteAllText(xlsx, "原来的文件");
+        var broken = await DataChartExport.SaveAsync(new FakeExportService(failAfterFirst: true), ["Chart1__Door__Speed"],
+            new DateTime(2000, 1, 2), new DateTime(2000, 1, 3), xlsx, "Time", new ListProgress(), CancellationToken.None);
+        Check(broken.Code == ErrorCodes.HistoryQueryFailed && File.ReadAllText(xlsx) == "原来的文件" && !File.Exists(xlsx + ".tmp"),
+            $"后端写到一半出错：回后端的错误码（{broken.Code}），原来同名的文件不动、不留临时文件");
+
+        using var cancel = new CancellationTokenSource();
+        var cancelOnFirst = new ListProgress(() => cancel.Cancel());
+        bool exportCanceled = false;
+        try
+        {
+            await DataChartExport.SaveAsync(new FakeExportService(failAfterFirst: false), ["Chart1__Door__Speed"],
+                new DateTime(2000, 1, 2), new DateTime(2000, 1, 3), xlsx, "Time", cancelOnFirst, cancel.Token);
+        }
+        catch (Exception) when (cancel.IsCancellationRequested)
+        {
+            exportCanceled = true;
+        }
+
+        Check(exportCanceled && File.ReadAllText(xlsx) == "原来的文件" && !File.Exists(xlsx + ".tmp"),
+            "导出中途取消：停下、原来同名的文件不动、不留临时文件");
+
+        SmokeIoc.Use<IDataChart>(null);
+        File.Delete(xlsx);
+        var notInstalled = await DataChartExport.SaveAsync(new DataChartService(), ["Chart1__Door__Speed"],
+            new DateTime(2000, 1, 2), new DateTime(2000, 1, 3), xlsx, "Time", new ListProgress(), CancellationToken.None);
+        Check(notInstalled.Code == ErrorCodes.DataChartNotInstalled && !File.Exists(xlsx), "没装数据曲线：导出回 datachart.not_installed，不建文件");
+        SmokeIoc.Use<IDataChart>(second);
+    }
+    finally
+    {
+        File.Delete(xlsx);
+        File.Delete(xlsx + ".tmp");
+    }
+
     bool rejected = false;
     try
     {
@@ -383,9 +673,9 @@ try
     File.WriteAllText(ioCsv, "Index,Name,PhysicalMin,PhysicalMax,LogicalMin,LogicalMax\n0,P0,0,0,0,0\n1,P1,0,0,0,0\n2,P2,0,10,0,10\n");
     var chartIo = new IoComponent();
     SmokeIoc.Use<IIo>(chartIo);
-    chartIo.Di.Load(ioCsv);
-    chartIo.Do.Load(ioCsv);
-    chartIo.Ai.Load(ioCsv);
+    chartIo.Di.Load(ioCsv, chartIo);
+    chartIo.Do.Load(ioCsv, chartIo);
+    chartIo.Ai.Load(ioCsv, chartIo);
     try
     {
         var door = new ModuleConfig
@@ -447,10 +737,137 @@ finally
         "认出来的都是契约对应的那个类：IAlarmService → AlarmService");
 }
 
+// ── 7. 进度弹框：ProgressState 开、关、取消、后一次顶掉前一次；ProgressOverlay 慢的才弹 ─────
+{
+    var state = new ProgressState();
+    bool openInside = false;
+    bool finished = await state.RunAsync((_, _) =>
+    {
+        openInside = state.IsOpen;
+        return Task.CompletedTask;
+    });
+    Check(finished && openInside && !state.IsOpen, "跑的时候开着，跑完关上、回 true");
+
+    var waiting = new TaskCompletionSource();
+    var canceledRun = state.RunAsync((_, token) => waiting.Task.WaitAsync(token));
+    Check(state.IsOpen && state.CancelCommand.CanExecute(null), "跑着的时候能点取消");
+    state.CancelCommand.Execute(null);
+    Check(!await canceledRun && !state.IsOpen && !state.CancelCommand.CanExecute(null), "点了取消：回 false、关上，取消按钮灰掉");
+
+    var firstGate = new TaskCompletionSource();
+    var secondGate = new TaskCompletionSource();
+    var firstRun = state.RunAsync((_, _) => firstGate.Task);
+    var secondRun = state.RunAsync((_, _) => secondGate.Task);
+    firstGate.SetResult();
+    await firstRun;
+    Check(state.IsOpen, "后一次顶掉前一次：前一次收尾不去关后一次开着的弹框");
+    secondGate.SetResult();
+    await secondRun;
+    Check(!state.IsOpen, "最后一次跑完才关");
+
+    bool thrown = false;
+    try
+    {
+        await state.RunAsync((_, _) => throw new InvalidOperationException("坏了"));
+    }
+    catch (InvalidOperationException)
+    {
+        thrown = true;
+    }
+
+    Check(thrown && !state.IsOpen, "不是取消的错照抛，弹框照样关上");
+
+    // 没有界面线程时 Progress<T> 在线程池上回调，等它落下来
+    var reportGate = new TaskCompletionSource();
+    var reporting = state.RunAsync(async (progress, _) =>
+    {
+        progress.Report(42);
+        await reportGate.Task;
+    });
+    SpinWait.SpinUntil(() => state.Value == 42, 2000);
+    Check(state.Value == 42, "报的进度落到 Value 上");
+    reportGate.SetResult();
+    await reporting;
+
+    // 弹框要界面线程：起一个 STA 线程，在里面跑消息循环看什么时候弹
+    string overlayResult = "没跑";
+    var ui = new Thread(() =>
+    {
+        try
+        {
+            overlayResult = OverlayCheck();
+        }
+        catch (Exception exception)
+        {
+            overlayResult = exception.ToString();
+        }
+    });
+    ui.SetApartmentState(ApartmentState.STA);
+    ui.Start();
+    ui.Join();
+    Check(overlayResult == "ok", $"弹框 ShowDelay 内跑完的不弹、超过才弹、跑完收起：{overlayResult}");
+
+    static string OverlayCheck()
+    {
+        SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext());
+        var state = new ProgressState();
+        var overlay = new ProgressOverlay { ShowDelay = 300, State = state };
+        var quick = new TaskCompletionSource();
+        _ = state.RunAsync((_, _) => quick.Task);
+        Pump(100);
+        quick.SetResult();
+        Pump(400);
+        if (overlay.Visibility == System.Windows.Visibility.Visible)
+        {
+            return "快的也弹出来了";
+        }
+
+        var slow = new TaskCompletionSource();
+        _ = state.RunAsync((_, _) => slow.Task);
+        Pump(100);
+        if (overlay.Visibility == System.Windows.Visibility.Visible)
+        {
+            return "还没到 ShowDelay 就弹了";
+        }
+
+        Pump(400);
+        if (overlay.Visibility != System.Windows.Visibility.Visible)
+        {
+            return "过了 ShowDelay 还没弹";
+        }
+
+        slow.SetResult();
+        Pump(100);
+        if (overlay.Visibility == System.Windows.Visibility.Visible)
+        {
+            return "跑完没收起";
+        }
+
+        return "ok";
+    }
+
+    static void Pump(int milliseconds)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(milliseconds) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+}
+
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
-                  "log history filters and truncation, recent and realtime logs forwarded by the log component, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
+                  "log history filters and truncation, two-level log names (module + part) with the module filter, comm lines in the main log and poll lines in the poll file, " +
+                  "the operation log from ActionFilter (who, from where, what, arguments, result; reads and repeats skipped; passwords masked; operator from the request header), " +
+                  "log files kept for KeepDays, the module list for the history page, recent and realtime logs forwarded by the log component, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
                   "alarm history over day-split tables, and data chart sampling on its own scan (IsRun, whole periods), " +
                   "signal names (a DI component named by its own path) / day tables through SqlSugar, real chart frames pushed from its own scan, " +
+                  "data chart export in hour slices written to xlsx one sheet per day (empty days keep the header, backend failure / cancel leave the old file), " +
+                  "progress state and overlay (cancel, newer run wins, shown only after the delay), " +
                   "and gRPC services found by contract).");
 
 static void SqliteCleanup(string path)
@@ -483,6 +900,56 @@ sealed class ProbeDevice : ComponentBase
 }
 
 /// <summary>
+/// 当场记下每次报的进度（不像 Progress&lt;T&gt; 另起线程回调）；给了 onFirst 就在第一次报的时候调一下
+/// </summary>
+sealed class ListProgress(Action? onFirst = null) : IProgress<double>
+{
+    private Action? _onFirst = onFirst;
+
+    public List<double> Values { get; } = [];
+
+    public void Report(double value)
+    {
+        lock (Values)
+        {
+            Values.Add(value);
+        }
+
+        Interlocked.Exchange(ref _onFirst, null)?.Invoke();
+    }
+}
+
+/// <summary>
+/// 假的数据曲线服务：导出先给一段（2000-01-02 零点起 3 行），然后要么回一条失败、要么一直等到被取消
+/// </summary>
+sealed class FakeExportService(bool failAfterFirst) : IDataChartService
+{
+    public Task<RpcResponse> GetSignalsAsync(RpcRequest request, CallContext context = default)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<RpcResponse> QueryAsync(DataChartQuery query, CallContext context = default)
+    {
+        throw new NotSupportedException();
+    }
+
+    public async IAsyncEnumerable<RpcResponse> ExportAsync(DataChartQuery query, CallContext context = default)
+    {
+        long start = new DateTimeOffset(new DateTime(2000, 1, 2, 0, 0, 0, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+        var first = new DataChartExportDto { Times = [start, start + 1000, start + 2000], Names = ["Chart1__Door__Speed"], Values = [[1, 2, 3]] };
+        yield return RpcResponse.Ok(JsonHelper.Serialize(first));
+        if (failAfterFirst)
+        {
+            yield return RpcResponse.Fail(ErrorCodes.HistoryQueryFailed, ["坏了"]);
+            yield break;
+        }
+
+        await Task.Delay(Timeout.Infinite, context.CancellationToken);
+    }
+}
+
+/// <summary>
 /// 数据曲线探针：一个模拟量 SV、一个开关量 SV，值固定，好对查出来的数。
 /// </summary>
 [Component(description: "数据曲线冒烟用部件")]
@@ -493,4 +960,14 @@ public sealed class ChartProbe : ComponentBase
 
     [VariableMark(VariableType.SV, ValueFormat.Bool, description: "开着")]
     public bool IsOn { get; set; } = true;
+}
+
+/// <summary>
+/// 冒烟里写日志用的来源：两层名字由测试给
+/// </summary>
+sealed class SmokeLogSource(string module, string part) : ILogSource
+{
+    public string LogModule => module;
+
+    public string LogPart => part;
 }

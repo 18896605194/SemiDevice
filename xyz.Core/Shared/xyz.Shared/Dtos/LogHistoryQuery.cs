@@ -3,7 +3,7 @@
 namespace xyz.Shared.Dtos;
 
 /// <summary>
-/// 日志历史查询：按时间段查后端日志文件，可再按级别、关键字筛；最多返回的条数按后端 machine.xml 配置（取最新的）。
+/// 日志历史查询：按时间段查后端主日志文件，可再按模块、级别、关键字筛；最多返回的条数按后端 machine.xml 配置（取最新的）。
 /// 时间用本机时间，传过去只保留刻度。
 /// </summary>
 [ProtoContract]
@@ -39,4 +39,10 @@ public class LogHistoryQuery
     /// </summary>
     [ProtoMember(5)]
     public int MaxCount { get; set; }
+
+    /// <summary>
+    /// 只查这个模块（日志的第一层，跟它完全一样的才要）；空表示全部。
+    /// </summary>
+    [ProtoMember(6)]
+    public string Module { get; set; } = string.Empty;
 }

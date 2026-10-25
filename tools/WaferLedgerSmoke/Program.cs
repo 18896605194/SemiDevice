@@ -651,8 +651,8 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
 
     var moved = await service.MoveAsync(new WaferMoveRequest
     {
-        FromModule = "SvcPM1", FromSlot = 1, ToModule = "SvcRobot2", ToSlot = 1, Reason = "取片报警", Operator = "Tester",
-    });
+        FromModule = "SvcPM1", FromSlot = 1, ToModule = "SvcRobot2", ToSlot = 1, Reason = "取片报警",
+    }, SmokeCall.As("Tester"));
     Check(moved.Success && serviceLedger.Get("SvcRobot2", 1)?.WaferId == "W-PM" && serviceLedger.Get("SvcPM1", 1) is null, "移账");
 
     var noWafer = await service.MoveAsync(new WaferMoveRequest { FromModule = "SvcPM1", FromSlot = 1, ToModule = "SvcRobot2", ToSlot = 2 });
@@ -687,12 +687,12 @@ using (var cleanup = XyzDb.Create("SmokeWafer"))
           && serviceRecords[0].FromModule == "SvcLP1" && serviceRecords[0].FromSlot == 5 && serviceRecords[0].ToModule is null
           && serviceRecords[1].Action == "Move" && serviceRecords[1].FromModule == "SvcPM1" && serviceRecords[1].ToModule == "SvcRobot2"
           && serviceRecords[1].ToSlot == 1 && serviceRecords[1].Operator == "Tester" && serviceRecords[1].Reason == "取片报警",
-        "调整记录：新的在前，没带操作人记成 Unknown");
+        "调整记录：新的在前，操作人从请求头取，没带的记成 Unknown");
 
     var svcCreated = await service.CreateAsync(new WaferCreateRequest
     {
-        Module = "SvcPM1", Slot = 1, WaferId = "W-NEW", Reason = "重启后账丢了", Operator = "Tester",
-    });
+        Module = "SvcPM1", Slot = 1, WaferId = "W-NEW", Reason = "重启后账丢了",
+    }, SmokeCall.As("Tester"));
     Check(svcCreated.Success && serviceLedger.Get("SvcPM1", 1)?.WaferId == "W-NEW", "补账");
     var noWaferId = await service.CreateAsync(new WaferCreateRequest { Module = "SvcBuffer", Slot = 1, WaferId = "  " });
     Check(!noWaferId.Success && noWaferId.Code == ErrorCodes.WaferIdRequired, "补账没填片号：错误码");

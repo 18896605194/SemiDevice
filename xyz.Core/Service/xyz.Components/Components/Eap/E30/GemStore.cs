@@ -2,36 +2,41 @@
 using xyz.Common.Log;
 using xyz.Database.DbProvider;
 using xyz.Database.Eap;
-using xyz.Tools;
+using xyz.Secs.Gem.E30;
 
 namespace xyz.Components.Components;
 
 /// <summary>
-/// GEM 存盘：设定一行 JSON（gem_config），缓存的报文一条一行（gem_spool）。
+/// GEM 存盘（xyz.Secs 的 E30 要的）：设定一行 JSON（gem_config），缓存的报文一条一行（gem_spool）。
 /// 量很小（设定只在 Host 改的时候写，缓存只在断了通讯时写），直接同步写；写不进去只记日志，GEM 照跑。
 /// 几条线程都会写（派发线程改设定、发送线程进出缓存），所以写库串成一条。
 /// </summary>
-internal sealed class GemStore
+internal sealed class GemStore : IGemStore
 {
     private readonly string _database;
-    private readonly Func<string> _owner;
+    private readonly ILogSource _owner;
     private readonly object _gate = new();
     private bool _tablesReady;
     private bool _failing;
 
-    public GemStore(string database, Func<string> owner)
+    public GemStore(string database, ILogSource owner)
     {
         _database = database;
         _owner = owner;
     }
 
-    /// <summary>读回存着的设定；没存过或读不出来返回 null（当第一次开机，记日志）。</summary>
-    public GemConfig? LoadConfig()
+    /// <summary>读回存着的设定（JSON）；没存过或读不出来返回 null（当第一次开机，记日志）。</summary>
+    public string? LoadConfig()
     {
-        return Run("读 GEM 设定", db =>
+        return Run<string?>("读 GEM 设定", db =>
         {
             var row = db.Queryable<GemConfigEntity>().InSingle(1);
-            return row is null || string.IsNullOrWhiteSpace(row.Json) ? null : JsonHelper.Deserialize<GemConfig>(row.Json);
+            if (row is null || string.IsNullOrWhiteSpace(row.Json))
+            {
+                return null;
+            }
+
+            return row.Json;
         });
     }
 
@@ -51,16 +56,30 @@ internal sealed class GemStore
         return Run("数缓存", db => db.Queryable<GemSpoolEntity>().Count());
     }
 
-    /// <summary>进缓存一条。</summary>
-    public bool AppendSpool(GemSpoolEntity row)
+    /// <summary>进缓存一条（号用表自己的雪花号，按时间递增）。</summary>
+    public bool AppendSpool(GemSpooledMessage message)
     {
+        var row = new GemSpoolEntity
+        {
+            Stream = message.Stream,
+            Function = message.Function,
+            ReplyExpected = message.ReplyExpected,
+            Body = message.Body,
+            CreatedAt = message.CreatedAt,
+        };
         return Run("写缓存", db => db.Insertable(row).ExecuteCommand() > 0);
     }
 
     /// <summary>最早的一条（先进先出）；空了返回 null。</summary>
-    public GemSpoolEntity? OldestSpool()
+    public GemSpooledMessage? OldestSpool()
     {
-        return Run("取缓存", db => db.Queryable<GemSpoolEntity>().OrderBy(row => row.Id).First());
+        var row = Run("取缓存", db => db.Queryable<GemSpoolEntity>().OrderBy(item => item.Id).First());
+        if (row is null)
+        {
+            return null;
+        }
+
+        return new GemSpooledMessage(row.Id, row.Stream, row.Function, row.ReplyExpected, row.Body, row.CreatedAt);
     }
 
     /// <summary>删一条（发出去了、或者满了被挤掉）。</summary>
@@ -93,7 +112,7 @@ internal sealed class GemStore
                 if (_failing)
                 {
                     _failing = false;
-                    LogHelper.Info(_owner(), "GEM 存盘恢复正常");
+                    LogHelper.Info(_owner, "GEM 存盘恢复正常");
                 }
 
                 return result;
@@ -103,7 +122,7 @@ internal sealed class GemStore
                 if (!_failing)
                 {
                     _failing = true;
-                    LogHelper.Warn(_owner(), $"{what}失败（GEM 照跑）：{exception.Message}");
+                    LogHelper.Warn(_owner, $"{what}失败（GEM 照跑）：{exception.Message}");
                 }
 
                 return default;

@@ -246,7 +246,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
         task.Args = [];
         if (task.Kind == StationTaskAction.Process)
         {
-            LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {station} 开始加工（第 {task.Step + 1} 站，{task.RecipeName}）");
+            LogHelper.Info(this, $"PJ {row.Owner} {row.WaferName} 在 {station} 开始加工（第 {task.Step + 1} 站，{task.RecipeName}）");
         }
     }
 
@@ -256,7 +256,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
         SetDone(task, task.Robot, arm);
         if (task.Kind == StationTaskAction.Process)
         {
-            LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工完成");
+            LogHelper.Info(this, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工完成");
         }
     }
 
@@ -279,7 +279,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
         task.Routine = null;
         if (task.Kind == StationTaskAction.Process)
         {
-            LogHelper.Info(Name, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工已中止");
+            LogHelper.Info(this, $"PJ {row.Owner} {row.WaferName} 在 {task.Station} 加工已中止");
         }
     }
 
@@ -333,7 +333,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
         }
 
         SetWaiting(task);
-        LogHelper.Info(Name, $"{job.Id} {row.WaferName} 第 {index + 1} 个任务（{task.Kind}）人工重做");
+        LogHelper.Info(this, $"{job.Id} {row.WaferName} 第 {index + 1} 个任务（{task.Kind}）人工重做");
         return HandleResult.Success(job.Id);
     }
 
@@ -379,7 +379,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
             SetDone(task, task.Robot, task.Arm);
         }
 
-        LogHelper.Info(Name, $"{job.Id} {row.WaferName} 第 {index + 1} 个任务（{task.Kind}）人工标记完成");
+        LogHelper.Info(this, $"{job.Id} {row.WaferName} 第 {index + 1} 个任务（{task.Kind}）人工标记完成");
         return HandleResult.Success(job.Id);
     }
 
@@ -444,7 +444,7 @@ public class TaskComponent : ComponentBase, ITaskComponent
         task.Routine = null;
         task.Code = code;
         task.Args = args.ToList();
-        LogHelper.Warn(Name, $"{row.Owner} {row.WaferName} 的任务 {task.Kind} 出错，停住等人处理：{code} [{string.Join(", ", args)}]");
+        LogHelper.Warn(this, $"{row.Owner} {row.WaferName} 的任务 {task.Kind} 出错，停住等人处理：{code} [{string.Join(", ", args)}]");
     }
 
 

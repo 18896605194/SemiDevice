@@ -87,7 +87,7 @@ public sealed class ChamberProcessRoutine : ModuleRoutine
     /// 按配方快照排好步骤；配方选的摆臂、药液这个腔体没有（起工艺前已经查过，正常不会）就在那一步失败
     /// </summary>
     public ChamberProcessRoutine(BaseChamberModule chamber, string recipeName, RecipeData recipe)
-        : base(chamber.Name, $"Process {recipeName.Trim()}")
+        : base(chamber, $"Process {recipeName.Trim()}")
     {
         _chamber = chamber;
         _recipeName = recipeName.Trim();

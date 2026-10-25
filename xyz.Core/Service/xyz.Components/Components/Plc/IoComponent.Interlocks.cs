@@ -134,7 +134,7 @@ public partial class IoComponent
 
                 if (_forcedDo.Add(index))
                 {
-                    LogHelper.Info($"[{FullPath}] 联锁强制 DO{index}={BoolText(forced)}：{string.Join("；", active.Select(rule => rule.Text).Distinct())}");
+                    LogHelper.Info(this, $"联锁强制 DO{index}={BoolText(forced)}：{string.Join("；", active.Select(rule => rule.Text).Distinct())}");
                 }
             }
 
@@ -146,7 +146,7 @@ public partial class IoComponent
     {
         if (!_interlockErrors.TryGetValue(index, out string? previous) || previous != message)
         {
-            LogHelper.Warn($"[{FullPath}] {message}");
+            LogHelper.Warn(this, $"{message}");
             _interlockErrors[index] = message;
         }
     }

@@ -7,7 +7,7 @@ namespace xyz.Components.Components;
 /// 网口通道（TCP 客户端）：设备经网口收发，参数只有网口的；同一台设备改接串口时，在 machine.xml 里启用旁边的串口通道、关掉这条就行
 /// </summary>
 [Component(description: "设备通道：网口（TCP 客户端，参数只有网口的；跟串口通道都配上时用 IsEnable 选一条）")]
-public class TcpDriverComponent : DeviceDriverComponent
+public class TcpDriverComponent : CommDriverComponent
 {
     #region Machine
 

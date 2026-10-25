@@ -47,8 +47,8 @@ public class JobManager : ComponentBase, IJobManager
 
     public JobManager()
     {
-        _processJobs = new PjManager();
-        _controlJobs = new CjManager();
+        _processJobs = new PjManager(this);
+        _controlJobs = new CjManager(this);
         _processJobs.StateChanged += OnProcessJobStateChanged;
         _controlJobs.StateChanged += OnControlJobStateChanged;
     }
@@ -176,7 +176,7 @@ public class JobManager : ComponentBase, IJobManager
             Publish();
         }
 
-        LogHelper.Info(Name, "Job 管理已绑定");
+        LogHelper.Info(this, "Job 管理已绑定");
     }
 
     /// <summary>
@@ -384,7 +384,7 @@ public class JobManager : ComponentBase, IJobManager
 
             if (job.IsWaitingForMaterial)
             {
-                LogHelper.Info(Name, $"PJ {id} 建好了，等载具 {carrier} 到 LoadPort、能取片（Load 好，接了 EAP 时槽图认定）再定片");
+                LogHelper.Info(this, $"PJ {id} 建好了，等载具 {carrier} 到 LoadPort、能取片（Load 好，接了 EAP 时槽图认定）再定片");
             }
 
             Publish();
@@ -392,7 +392,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -569,7 +569,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -640,7 +640,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -687,7 +687,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -734,7 +734,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -789,7 +789,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -844,7 +844,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -891,7 +891,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -958,7 +958,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1010,7 +1010,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1062,7 +1062,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1129,7 +1129,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1193,7 +1193,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1252,7 +1252,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1304,7 +1304,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1367,7 +1367,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1419,7 +1419,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1493,7 +1493,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1533,7 +1533,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1573,7 +1573,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"Job 命令执行出错：{exception.Message}");
+            LogHelper.Error(this, $"Job 命令执行出错：{exception.Message}");
             return Task.FromResult(HandleResult.Fail(ErrorCodes.OperationFaulted, Name, exception.Message));
         }
         finally
@@ -1957,7 +1957,7 @@ public class JobManager : ComponentBase, IJobManager
             var finished = access.NotifyJobFinished(job.CarrierId ?? string.Empty);
             if (!finished.IsSuccess)
             {
-                LogHelper.Warn(Name, $"CJ {job.Id} 已结束，{access.Name} 拒绝载具 {job.CarrierId} 的结束通知："
+                LogHelper.Warn(this, $"CJ {job.Id} 已结束，{access.Name} 拒绝载具 {job.CarrierId} 的结束通知："
                     + $"{finished.ErrorMessage} [{string.Join(", ", finished.Args)}]");
             }
         }
@@ -2026,7 +2026,7 @@ public class JobManager : ComponentBase, IJobManager
                 if (reason != job.MaterialError)
                 {
                     job.MaterialError = reason;
-                    LogHelper.Warn(Name, $"PJ {job.Id} 等的载具 {job.CarrierId} 到了 {port.Name}，但定不了片：{reason}。PJ 留在排队，核对后取消或重新建");
+                    LogHelper.Warn(this, $"PJ {job.Id} 等的载具 {job.CarrierId} 到了 {port.Name}，但定不了片：{reason}。PJ 留在排队，核对后取消或重新建");
                 }
 
                 continue;
@@ -2041,7 +2041,7 @@ public class JobManager : ComponentBase, IJobManager
                 control.LoadPort = port.Name;
             }
 
-            LogHelper.Info(Name, $"PJ {job.Id} 的料到了：{port.Name} 槽 {string.Join(",", job.Rows.Select(row => row.SourceSlot))}");
+            LogHelper.Info(this, $"PJ {job.Id} 的料到了：{port.Name} 槽 {string.Join(",", job.Rows.Select(row => row.SourceSlot))}");
         }
     }
 
@@ -2299,7 +2299,7 @@ public class JobManager : ComponentBase, IJobManager
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"Job 推送失败：{exception.Message}");
+            LogHelper.Warn(this, $"Job 推送失败：{exception.Message}");
         }
     }
 
@@ -2405,13 +2405,13 @@ public class JobManager : ComponentBase, IJobManager
 
             if (interrupted.Count > 0)
             {
-                LogHelper.Warn(Name, $"上次有 {interrupted.Count} 个 Job 没做完就重启了：{string.Join("、", interrupted)}。重启后不接着跑，库里已记成中止；"
+                LogHelper.Warn(this, $"上次有 {interrupted.Count} 个 Job 没做完就重启了：{string.Join("、", interrupted)}。重启后不接着跑，库里已记成中止；"
                     + "机内的片到现场确认片位后收回，再重新建 Job");
             }
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Name, $"重启收场写库失败（上次没做完的 Job 在库里还是原来的状态）：{exception.Message}");
+            LogHelper.Error(this, $"重启收场写库失败（上次没做完的 Job 在库里还是原来的状态）：{exception.Message}");
         }
     }
 
@@ -2524,7 +2524,7 @@ public class JobManager : ComponentBase, IJobManager
             if (!_storeFailing)
             {
                 _storeFailing = true;
-                LogHelper.Warn(Name, $"Job 写库失败（Job 照跑，下一次变化再写）：{exception.Message}");
+                LogHelper.Warn(this, $"Job 写库失败（Job 照跑，下一次变化再写）：{exception.Message}");
             }
 
             return;
@@ -2533,7 +2533,7 @@ public class JobManager : ComponentBase, IJobManager
         if (_storeFailing)
         {
             _storeFailing = false;
-            LogHelper.Info(Name, "Job 写库恢复正常");
+            LogHelper.Info(this, "Job 写库恢复正常");
         }
     }
 

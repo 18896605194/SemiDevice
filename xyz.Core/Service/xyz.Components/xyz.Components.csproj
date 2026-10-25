@@ -12,19 +12,13 @@
     <!-- 品牌驱动组件（RobotDriverComponent/RejeRobotComponent）按薄壳模式关品牌指令；
          Drivers 保持纯协议不回引 Components，引用单向。 -->
     <ProjectReference Include="..\xyz.Drivers\xyz.Drivers.csproj" />
-    <!-- EAP 主机链路的传输与编解码（SECS-II/HSMS），零业务依赖的独立 DLL；HsmsComponent 在组件层做 GEM 答话。 -->
-    <ProjectReference Include="..\xyz.Secs\xyz.Secs.csproj" />
     <!-- 契约层（错误码、Job 的 DTO）：模块动作 ModuleOperation 和设备侧给 EAP 的接口（Interfaces）挪到组件层后要用到；
          xyz.Shared 只引用 xyz.Tools，不会回头引用组件层，不成环。 -->
     <ProjectReference Include="..\..\Shared\xyz.Shared\xyz.Shared.csproj" />
     <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
-    <!-- TwinCAT.Ads 的传递依赖。DLL 走 Libs 本地引用，NuGet 不知道它依赖谁，所以这几个得自己列出来：
-         漏了在 ASP.NET 宿主里看不出来（框架自带），换成普通控制台就 FileNotFoundException。
-         版本也得跟 TwinCAT 编译时的 10.0 对齐，项目里别的包带的是 8.0，不顶上去运行时 MissingMethodException。
-         补丁版本跟着依赖里要得最高的走（下面 OPC UA 官方包要 10.0.12，钉低了还原报降级），还是 10.0 这一档。 -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12" />
+    <!-- TwinCAT.Ads 的传递依赖 Microsoft.Extensions.Logging.Abstractions / Configuration / Configuration.Binder（10.0 这一档）：
+         DLL 走 Libs 本地引用，NuGet 不知道它依赖谁。原来在这里手动列，2026-10-25 为 xyz.Secs（EDA）引了 ASP.NET Core 框架（见下面），
+         框架引用会传到引用组件层的控制台冒烟里，这几个框架自带，手动列的就删了（留着还原报 NU1510）。 -->
     <PackageReference Include="System.ComponentModel.Composition" Version="10.0.3" />
     <PackageReference Include="System.Reactive" Version="6.1.0" />
     <!-- AI 助手（AiComponent）接模型用微软官方的 Microsoft.Extensions.AI（IChatClient）：
@@ -57,6 +51,21 @@
     <Reference Include="TwinCAT.Ads.ConfigurationProviders">
       <HintPath>..\..\..\Libs\TwinCAT.Ads.ConfigurationProviders.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <!-- 跟主机、厂里系统通讯的底层 xyz.Secs（SECS-II / HSMS、EDA 引擎）：单独一个仓库（GitHub Secs，本机 D:\Secs\xyz.Secs），
+       这里只引编好的 DLL（那边编 Release 自动拷到 Libs）。组件层只调它：Eap 下各组件接设备、Job、晶圆账，EdaComponent 给 EdaServer 设定、设备侧、存盘、日志。
+       DLL 引用 NuGet 不知道它依赖谁，下面照 xyz.Secs.csproj 列一遍（改版本两边一起改）：EDA 的 Freeze 2 用 CoreWCF 当服务端、WCF 客户端包推数据，
+       EdaServer 自己起 Kestrel 要 ASP.NET Core 框架（框架引用会传给引用组件层的工程）。 -->
+  <ItemGroup>
+    <Reference Include="xyz.Secs">
+      <HintPath>..\..\..\Libs\xyz.Secs.dll</HintPath>
+    </Reference>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="CoreWCF.Http" Version="1.9.1" />
+    <PackageReference Include="CoreWCF.Primitives" Version="1.9.1" />
+    <PackageReference Include="System.ServiceModel.Http" Version="10.1.0" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="10.1.0" />
   </ItemGroup>
 
 </Project>

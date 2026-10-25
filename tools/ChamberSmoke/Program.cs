@@ -2,6 +2,7 @@
 using System.Data.Common;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Components;
@@ -885,7 +886,7 @@ try
     }
 
     var reloaded = new ProcessCounter();
-    reloaded.Load("Chamber9", XyzDb.DefaultName);
+    reloaded.Load("Chamber9", XyzDb.DefaultName, new SmokeLog("Chamber9"));
     Check(reloaded.Today == 4 && reloaded.Total == 9 && reloaded.LastStartedTimestamp is null,
         "重启读回来：今天接着从 4 片数，累计把昨天的 5 片加上（9 片）；开工时间戳只在内存，读回来是空");
 
@@ -1946,4 +1947,14 @@ public sealed class FakePlc : IPlcIo, IPlcBlock
             }
         }
     }
+}
+
+/// <summary>
+/// 冒烟里不是组件的地方记日志用的来源：只有第一层
+/// </summary>
+sealed class SmokeLog(string module) : ILogSource
+{
+    public string LogModule => module;
+
+    public string LogPart => string.Empty;
 }

@@ -127,7 +127,7 @@ public class BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock
         }
 
         _lastConnectError = reason;
-        LogHelper.Warn($"[{FullPath}] {reason}");
+        LogHelper.Warn(this, $"{reason}");
     }
 
     protected override void DisconnectDevice()
@@ -162,7 +162,7 @@ public class BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock
         }
         catch (Exception exception)
         {
-            LogHelper.Warn($"[{FullPath}] 断开 PLC 出错: {exception.Message}");
+            LogHelper.Warn(this, $"断开 PLC 出错: {exception.Message}");
         }
     }
 
@@ -518,7 +518,7 @@ public class BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock
 
         if (isNew)
         {
-            LogHelper.Warn($"[{FullPath}] 读 {path} 没读成（{error}），句柄作废，下一拍重新取");
+            LogHelper.Warn(this, $"读 {path} 没读成（{error}），句柄作废，下一拍重新取");
         }
     }
 
@@ -614,7 +614,7 @@ public class BeckhoffPlcComponent : PlcComponent, IPlcIo, IPlcBlock
     /// </summary>
     private void OnAdsFailed(string path, Exception exception)
     {
-        LogHelper.Warn($"[{FullPath}] 读写 {path} 失败: {exception.Message}");
+        LogHelper.Warn(this, $"读写 {path} 失败: {exception.Message}");
 
         if (exception is AdsErrorException)
         {

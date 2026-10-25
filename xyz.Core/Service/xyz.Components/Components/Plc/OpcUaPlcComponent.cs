@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Numerics;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
@@ -8,6 +9,7 @@ using xyz.Common.Log;
 using xyz.Components.Attributes;
 using xyz.Components.Enums;
 using xyz.Components.Interfaces;
+using xyz.Components.Logging;
 
 namespace xyz.Components.Components;
 
@@ -23,12 +25,18 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
     private const int ConnectTimeoutMs = 5000;
 
     private readonly object _deviceGate = new();
-    private readonly ITelemetryContext _telemetry = DefaultTelemetry.Create(_ => { });
+    private readonly ITelemetryContext _telemetry;
 
     /// <summary>
     /// 客户端配置：第一次连接时连客户端证书一起建（证书放运行目录 OpcUa\pki），以后重连都用它
     /// </summary>
     private ApplicationConfiguration? _configuration;
+
+    public OpcUaPlcComponent()
+    {
+        // 官方库自己的日志（证书、会话、通讯层出的问题）转进 LogHelper，记在这个组件名下，只转 Warn 以上
+        _telemetry = DefaultTelemetry.Create(builder => builder.AddProvider(new LogHelperLoggerProvider(this)));
+    }
 
     /// <summary>
     /// 官方库的会话，相当于倍福的 AdsClient：连上以后经它读写
@@ -243,7 +251,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
 
             if (node.IsNull)
             {
-                LogHelper.Warn($"[{FullPath}] 节点名认不出：{path}（写法不对，或者服务端没有这个命名空间）");
+                LogHelper.Warn(this, $"节点名认不出：{path}（写法不对，或者服务端没有这个命名空间）");
                 continue;
             }
 
@@ -319,7 +327,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
         }
 
         _lastConnectError = reason;
-        LogHelper.Warn($"[{FullPath}] {reason}");
+        LogHelper.Warn(this, $"{reason}");
     }
 
     /// <summary>
@@ -327,7 +335,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
     /// </summary>
     private void OnCommunicationFailed(string action, Exception exception)
     {
-        LogHelper.Warn($"[{FullPath}] {action} PLC 失败，按断线处理: {exception.Message}");
+        LogHelper.Warn(this, $"{action} PLC 失败，按断线处理: {exception.Message}");
         IsConnected = false;
         DisconnectDevice();
     }
@@ -511,7 +519,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
             _faults[path] = fault;
         }
 
-        LogHelper.Warn($"[{FullPath}] 读 {path} 没读成（{fault}）");
+        LogHelper.Warn(this, $"读 {path} 没读成（{fault}）");
     }
 
     private static bool[]? ToBits(DataValue? value, ref string fault)
@@ -684,7 +692,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
 
         if (!OpcUaHelper.TryMakeElement(type, value, out var element))
         {
-            LogHelper.Warn($"[{FullPath}] 写 AO{index} = {value} 没写：超出 PLC 里 {type} 的范围");
+            LogHelper.Warn(this, $"写 AO{index} = {value} 没写：超出 PLC 里 {type} 的范围");
             return false;
         }
 
@@ -724,7 +732,7 @@ public class OpcUaPlcComponent : PlcComponent, IPlcIo
             return true;
         }
 
-        LogHelper.Warn($"[{FullPath}] 写 {path}[{index}] 被 PLC 拒了（{status}）");
+        LogHelper.Warn(this, $"写 {path}[{index}] 被 PLC 拒了（{status}）");
         return false;
     }
 

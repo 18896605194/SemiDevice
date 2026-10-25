@@ -54,7 +54,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
 
         Mode = mode;
-        LogHelper.Info($"[{Name}] {mode}");
+        LogHelper.Info(this, $"{mode}");
     }
 
     #endregion
@@ -185,7 +185,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// <summary>
     /// 设备通道（machine.xml 里本模块下启用的那条：串口或网口）：项目的机械手类用它发指令
     /// </summary>
-    public IDeviceDriverComponent? _driver { get; private set; }
+    public ICommDriver? _driver { get; private set; }
 
     /// <summary>
     /// 这台机械手的解码器：开机时建一次交给通道
@@ -311,7 +311,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         _teachPoints8 = points8;
         if (points12.Count == 0 && points8.Count == 0)
         {
-            LogHelper.Error(Name, $"machine.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointComponent，不然哪儿都去不了");
+            LogHelper.Error(this, $"machine.xml 没配示教点：机械手下要有 {TeachPoints12Name} / {TeachPoints8Name} 分组，下面每个站点一个 TeachPointComponent，不然哪儿都去不了");
         }
     }
 
@@ -380,7 +380,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
 
         if (Axes.Count == 0)
         {
-            LogHelper.Error(Name, "machine.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
+            LogHelper.Error(this, "machine.xml 没配轴节点：本模块下要有 X / Z / Theta / Arm* 这些 RobotAxisComponent / RobotArmComponent 节点");
         }
 
         #endregion
@@ -413,7 +413,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         #region 设备通道
 
         // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有在位主动推送
-        var driver = DeviceDriverComponent.FindIn(this);
+        var driver = CommDriverComponent.FindIn(this);
         if (driver is not null)
         {
             _codec ??= CreateCodec();
@@ -424,7 +424,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         }
         else
         {
-            LogHelper.Error(Name, "machine.xml 没有启用的设备通道：本模块下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
+            LogHelper.Error(this, "machine.xml 没有启用的设备通道：本模块下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
         }
 
         #endregion
@@ -494,7 +494,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         var component = FindArm(arm);
         if (component is null)
         {
-            LogHelper.Warn(Name, $"收到手指 {arm} 的在位推送，但没配这个手指节点");
+            LogHelper.Warn(this, $"收到手指 {arm} 的在位推送，但没配这个手指节点");
             return;
         }
 
@@ -508,7 +508,8 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     private StatusQueryLoop? _queries;
 
     /// <summary>
-    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryRound 给
+    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryDataLoop 给。
+    /// 查到的值由 QueryDataLoop 自己写，这里只处理出事的：没连上、查询超时都把查到的状态清空（跟 LoadPort 一样，界面显示"不知道"，下一圈查到再填）
     /// </summary>
     private void LoopQueryStatus()
     {
@@ -518,11 +519,32 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return;
         }
 
-        _queries ??= new StatusQueryLoop(Name);
-        var result = _queries.Scan(driver, QueryRound, QueryStatusIntervalMs, QueryDataTimeOut);
-        if (result == StatusQueryResult.Disconnected)
+        _queries ??= new StatusQueryLoop(this);
+        var happened = _queries.Scan(driver, QueryDataLoop, QueryStatusIntervalMs, QueryDataTimeOut);
+        if (happened == StatusQueryEvent.TimedOut)
         {
+            ClearQueriedStatus();
+            return;
+        }
+
+        if (happened == StatusQueryEvent.Disconnected)
+        {
+            ClearQueriedStatus();
             OnDisconnected();
+        }
+    }
+
+    /// <summary>
+    /// 查到的状态全清掉：伺服、速度、报错、各轴坐标
+    /// </summary>
+    private void ClearQueriedStatus()
+    {
+        IsServoOn = null;
+        Speed = null;
+        DeviceError = null;
+        foreach (var axis in Axes)
+        {
+            axis.UpdatePosition(null);
         }
     }
 
@@ -530,7 +552,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 平台替它发出去、等它回来（或超时作废）再往下走；
     /// 没做成的那一项这圈不写（看指令的 IsSuccess）。默认不查（全靠设备主动推的品牌）
     /// </summary>
-    protected virtual IEnumerable<DeviceCommand> QueryRound()
+    protected virtual IEnumerable<DeviceCommand> QueryDataLoop()
     {
         yield break;
     }
@@ -699,7 +721,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         var started = Home();
         if (!started.IsSuccess)
         {
-            LogHelper.Warn(Name, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
         }
 
         return started.Result;
@@ -749,7 +771,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
     /// </summary>
     protected virtual ModuleRoutine CreateHomeRoutine()
     {
-        var home = new ModuleRoutine(Name, "Home", _driver, () => HomeTimeout);
+        var home = new ModuleRoutine(this, "Home", _driver, () => HomeTimeout);
         AddHomeSteps(home);
         return home;
     }
@@ -941,12 +963,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         ModuleRoutine transfer;
         if (pick)
         {
-            transfer = new ModuleRoutine(Name, "Pick", _driver, () => PickTimeout);
+            transfer = new ModuleRoutine(this, "Pick", _driver, () => PickTimeout);
             AddPickSteps(transfer, arm, config.Number, slot);
         }
         else
         {
-            transfer = new ModuleRoutine(Name, "Place", _driver, () => PlaceTimeout);
+            transfer = new ModuleRoutine(this, "Place", _driver, () => PlaceTimeout);
             AddPlaceSteps(transfer, arm, config.Number, slot);
         }
 
@@ -1167,13 +1189,13 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         var intentAction = RobotAction.Place;
         if (pick)
         {
-            extend = new ModuleRoutine(Name, "ExtendPick", _driver, () => PickTimeout);
+            extend = new ModuleRoutine(this, "ExtendPick", _driver, () => PickTimeout);
             AddExtendPickSteps(extend, arm, config.Number, slot);
             intentAction = RobotAction.Pick;
         }
         else
         {
-            extend = new ModuleRoutine(Name, "ExtendPlace", _driver, () => PlaceTimeout);
+            extend = new ModuleRoutine(this, "ExtendPlace", _driver, () => PlaceTimeout);
             AddExtendPlaceSteps(extend, arm, config.Number, slot);
         }
 
@@ -1205,12 +1227,12 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
         ModuleRoutine retract;
         if (intent.Action == RobotAction.Pick)
         {
-            retract = new ModuleRoutine(Name, "RetractPick", _driver, () => PickTimeout);
+            retract = new ModuleRoutine(this, "RetractPick", _driver, () => PickTimeout);
             AddRetractPickSteps(retract, intent.Arm, config.Number, intent.Slot);
         }
         else
         {
-            retract = new ModuleRoutine(Name, "RetractPlace", _driver, () => PlaceTimeout);
+            retract = new ModuleRoutine(this, "RetractPlace", _driver, () => PlaceTimeout);
             AddRetractPlaceSteps(retract, intent.Arm, config.Number, intent.Slot);
         }
 
@@ -1292,7 +1314,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(HandleResult.Fail(ErrorCodes.StationNotFound, Name, station));
             }
 
-            var map = new ModuleRoutine(Name, "Map", _driver, () => PickTimeout);
+            var map = new ModuleRoutine(this, "Map", _driver, () => PickTimeout);
             AddMapSteps(map, station, config.Number);
             if (map.StepCount == 0)
             {
@@ -1389,7 +1411,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            var powerOn = new ModuleRoutine(Name, "PowerOn", _driver, () => PowerTimeout);
+            var powerOn = new ModuleRoutine(this, "PowerOn", _driver, () => PowerTimeout);
             AddPowerOnSteps(powerOn);
             return Started(RobotAction.PowerOn, powerOn);
         }
@@ -1405,7 +1427,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return Rejected(rejected);
             }
 
-            var powerOff = new ModuleRoutine(Name, "PowerOff", _driver, () => PowerTimeout);
+            var powerOff = new ModuleRoutine(this, "PowerOff", _driver, () => PowerTimeout);
             AddPowerOffSteps(powerOff);
             return Started(RobotAction.PowerOff, powerOff);
         }
@@ -1438,7 +1460,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return null;
             }
 
-            var reset = new ModuleRoutine(Name, "Reset", _driver, () => ResetTimeout);
+            var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
             AddResetSteps(reset);
             return Begin(RobotAction.Reset, reset);
         }
@@ -1463,7 +1485,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
                 return null;
             }
 
-            var abort = new ModuleRoutine(Name, "Abort", _driver, () => AbortTimeout);
+            var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
             AddAbortSteps(abort);
             return Begin(RobotAction.Abort, abort);
         }
@@ -1724,7 +1746,7 @@ public abstract class BaseRobotModule : BaseModule, IRobot, IMode
             return null;
         }
 
-        LogHelper.Error(Name, $"{intent.Action} 动作已完成但账没记上：{fromModule}.{fromSlot:00} → {toModule}.{toSlot:00}，需确认实际片位");
+        LogHelper.Error(this, $"{intent.Action} 动作已完成但账没记上：{fromModule}.{fromSlot:00} → {toModule}.{toSlot:00}，需确认实际片位");
         return HandleResult.Fail(ErrorCodes.RobotLedgerMoveFailed, Name,
             fromModule, fromSlot.ToString(CultureInfo.InvariantCulture),
             toModule, toSlot.ToString(CultureInfo.InvariantCulture));

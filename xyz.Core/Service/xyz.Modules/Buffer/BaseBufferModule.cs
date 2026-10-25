@@ -61,7 +61,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
     {
         if (!IsEnable)
         {
-            return ModuleRoutine.Done(Name, "Init");
+            return ModuleRoutine.Done(this, "Init");
         }
 
         lock (RoutineGate)
@@ -73,7 +73,7 @@ public abstract class BaseBufferModule : BaseTransferStationModule, IBuffer
             }
 
             TransferStep(state, StandbyState);
-            return ModuleRoutine.Done(Name, "Init");
+            return ModuleRoutine.Done(this, "Init");
         }
     }
 }

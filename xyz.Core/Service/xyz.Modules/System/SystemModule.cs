@@ -86,7 +86,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         _alarms = IocHelper.GetService<IAlarm>();
         _waferSize = IocHelper.GetService<IWaferSize>();
         _modules = modules.ToList();
-        LogHelper.Info(Name, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
+        LogHelper.Info(this, $"整机管 {_modules.Count} 个模块：{string.Join(", ", _modules.Select(module => module.Name))}");
     }
 
     #endregion
@@ -107,7 +107,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 return Rejected(rejected);
             }
 
-            var init = new ModuleRoutine(Name, "Init");
+            var init = new ModuleRoutine(this, "Init");
             var robots = _modules.Where(module => module is IRobot).ToList();
             if (robots.Count > 0)
             {
@@ -201,11 +201,11 @@ public class SystemModule : BaseStateComponent, ISystemModule
         }
 
         // 开始前的检查在锁外做：要问 Job、各设备，不拿着整机的锁去等别人的锁
-        var prepared = SystemReturnRoutine.Prepare(Name, transfers, ledger, _jobs);
+        var prepared = SystemReturnRoutine.Prepare(this, transfers, ledger, _jobs);
         var routine = prepared.Result;
         if (!prepared.IsSuccess || routine is null)
         {
-            LogHelper.Warn(Name, $"全部回片不能开始：{prepared.ErrorMessage} [{string.Join(", ", prepared.Args)}]");
+            LogHelper.Warn(this, $"全部回片不能开始：{prepared.ErrorMessage} [{string.Join(", ", prepared.Args)}]");
             return prepared;
         }
 
@@ -274,7 +274,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
             }
 
             wait = new SystemStopStep("等各模块停下", inFlight, _transfers);
-            stop = new ModuleRoutine(Name, "Abort").Add(wait);
+            stop = new ModuleRoutine(this, "Abort").Add(wait);
             if (Begin(SystemAction.Abort, stop) is null)
             {
                 return null;
@@ -310,7 +310,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
             _ = jobs.AbortAllAsync();
         }
 
-        LogHelper.Info(Name, $"整机停止：自动派单已关，搬运已撤，Job 走中止；另有 {aborted} 个模块在做动作，已发中止");
+        LogHelper.Info(this, $"整机停止：自动派单已关，搬运已撤，Job 走中止；另有 {aborted} 个模块在做动作，已发中止");
         wait.Issue();
         return stop;
     }
@@ -331,7 +331,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
             return HandleResult<ModuleRoutine>.Fail(ErrorCodes.ActionRejected, Name, State.ToString(CultureInfo.InvariantCulture));
         }
 
-        LogHelper.Info(Name, $"开始 {action}");
+        LogHelper.Info(this, $"开始 {action}");
         return HandleResult<ModuleRoutine>.Success(started);
     }
 
@@ -341,7 +341,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
         if (TryGetTransition(State, action.ToString(), out var transition))
         {
             State = transition.SuccessState;
-            LogHelper.Info(Name, $"{action}");
+            LogHelper.Info(this, $"{action}");
         }
     }
 
@@ -382,7 +382,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
             if (next != state)
             {
                 State = next;
-                LogHelper.Info(Name, next == SystemState.AutoRunning ? "有 Job 在跑：自动运行" : "Job 都结束了：自动空闲");
+                LogHelper.Info(this, next == SystemState.AutoRunning ? "有 Job 在跑：自动运行" : "Job 都结束了：自动空闲");
             }
         }
     }
@@ -403,12 +403,12 @@ public class SystemModule : BaseStateComponent, ISystemModule
         if (ReferenceEquals(routine, init))
         {
             State = ModuleState.NotInit;
-            LogHelper.Warn(Name, $"全部初始化没做成：{routine.Reason}");
+            LogHelper.Warn(this, $"全部初始化没做成：{routine.Reason}");
         }
         else if (routine is SystemReturnRoutine)
         {
             State = ModuleState.Idle;
-            LogHelper.Warn(Name, $"全部回片没做完：{routine.Reason}");
+            LogHelper.Warn(this, $"全部回片没做完：{routine.Reason}");
         }
     }
 
@@ -536,7 +536,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
             if (_lastStatusFault != exception.Message)
             {
                 _lastStatusFault = exception.Message;
-                LogHelper.Warn(Name, $"设备总状态刷新失败: {exception.Message}");
+                LogHelper.Warn(this, $"设备总状态刷新失败: {exception.Message}");
             }
         }
     }
@@ -585,7 +585,7 @@ public class SystemModule : BaseStateComponent, ISystemModule
                 name = component.FullPath;
             }
 
-            LogHelper.Warn(Name, $"{name} 四色灯输出失败: {exception.Message}");
+            LogHelper.Warn(this, $"{name} 四色灯输出失败: {exception.Message}");
         }
     }
 

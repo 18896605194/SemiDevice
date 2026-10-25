@@ -206,7 +206,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// <summary>
     /// 设备通道（machine.xml 里本端口下启用的那条：串口或网口）：项目的 LoadPort 类用它发指令
     /// </summary>
-    public IDeviceDriverComponent? _driver { get; private set; }
+    public ICommDriver? _driver { get; private set; }
 
     /// <summary>
     /// 这台 LoadPort 的解码器：开机时建一次交给通道
@@ -311,7 +311,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         #region 设备通道
 
         // 通道打开之前把解码器交给它；先摘后挂：初始化可重入，保证只挂一份；先挂再连，连上就可能有放上 / 拿走的主动上报
-        var driver = DeviceDriverComponent.FindIn(this);
+        var driver = CommDriverComponent.FindIn(this);
         if (driver is not null)
         {
             _codec ??= CreateCodec();
@@ -322,7 +322,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         }
         else
         {
-            LogHelper.Error(Name, "machine.xml 没有启用的设备通道：本端口下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
+            LogHelper.Error(this, "machine.xml 没有启用的设备通道：本端口下要挂串口 SerialDriverComponent 或网口 TcpDriverComponent，并启用一条（IsEnable=True）");
         }
 
         #endregion
@@ -380,7 +380,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
         if (found is not null)
         {
-            LogHelper.Info(Name, $"扫片由机械手 {found.Name} 做");
+            LogHelper.Info(this, $"扫片由机械手 {found.Name} 做");
         }
 
         return found;
@@ -419,8 +419,8 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     private StatusQueryLoop? _queries;
 
     /// <summary>
-    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryRound 给。
-    /// 没连上、查询超时都把状态清空——查到之前在位保持原判断（载具只认查到的）
+    /// 设备状态轮询（扫描线程）：节奏是平台的（同一时间一条在途、超时作废、一圈查完满 EC QueryStatusIntervalMs 再开下一圈），一圈查什么由 QueryDataLoop 给。
+    /// 查到的值由 QueryDataLoop 自己写进 Status，这里只处理出事的：没连上、查询超时都把状态清空——查到之前在位保持原判断（载具只认查到的）
     /// </summary>
     private void LoopQueryStatus()
     {
@@ -430,15 +430,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             return;
         }
 
-        _queries ??= new StatusQueryLoop(Name);
-        var result = _queries.Scan(driver, QueryRound, QueryStatusIntervalMs, QueryDataTimeOut);
-        if (result == StatusQueryResult.TimedOut)
+        _queries ??= new StatusQueryLoop(this);
+        var happened = _queries.Scan(driver, QueryDataLoop, QueryStatusIntervalMs, QueryDataTimeOut);
+        if (happened == StatusQueryEvent.TimedOut)
         {
             Status = null;
             return;
         }
 
-        if (result == StatusQueryResult.Disconnected)
+        if (happened == StatusQueryEvent.Disconnected)
         {
             Status = null;
             OnDisconnected();
@@ -449,7 +449,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// 一圈查什么、回来写到哪，从上往下写：yield return 一条 = 平台替它发出去、等它回来（或超时作废）再往下走；
     /// 查到的设备状态写进 Status。默认不查（全靠设备主动推的品牌）
     /// </summary>
-    protected virtual IEnumerable<DeviceCommand> QueryRound()
+    protected virtual IEnumerable<DeviceCommand> QueryDataLoop()
     {
         yield break;
     }
@@ -602,15 +602,15 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             int outside = CountWafersOutside();
             if (outside > 0)
             {
-                LogHelper.Info(Name, $"初始化：门开着，从这个口取出去的 {outside} 片还在机内，不 Home（回片要用这个口）");
-                return ModuleRoutine.Done(Name, "Init");
+                LogHelper.Info(this, $"初始化：门开着，从这个口取出去的 {outside} 片还在机内，不 Home（回片要用这个口）");
+                return ModuleRoutine.Done(this, "Init");
             }
         }
 
         var started = Home();
         if (!started.IsSuccess)
         {
-            LogHelper.Warn(Name, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
         }
 
         return started.Result;
@@ -666,7 +666,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateLoadRoutine()
     {
-        var load = new ModuleRoutine(Name, "Load", _driver, () => LoadTimeout);
+        var load = new ModuleRoutine(this, "Load", _driver, () => LoadTimeout);
         AddLoadSteps(load);
         AddMapStages(load, TakeSlotMap);
         return load;
@@ -718,7 +718,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateUnloadRoutine(bool mapAndVerify)
     {
-        var unload = new ModuleRoutine(Name, "Unload", _driver, () => UnloadTimeout);
+        var unload = new ModuleRoutine(this, "Unload", _driver, () => UnloadTimeout);
         if (mapAndVerify)
         {
             AddMapStages(unload, CheckUnloadSlotMap);
@@ -771,7 +771,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateHomeRoutine()
     {
-        var home = new ModuleRoutine(Name, "Home", _driver, () => HomeTimeout);
+        var home = new ModuleRoutine(this, "Home", _driver, () => HomeTimeout);
         AddHomeSteps(home);
         return home;
     }
@@ -818,7 +818,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateClampRoutine()
     {
-        var clamp = new ModuleRoutine(Name, "Clamp", _driver, () => ClampTimeout);
+        var clamp = new ModuleRoutine(this, "Clamp", _driver, () => ClampTimeout);
         AddClampSteps(clamp);
         return clamp;
     }
@@ -828,7 +828,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateUnclampRoutine()
     {
-        var unclamp = new ModuleRoutine(Name, "Unclamp", _driver, () => UnclampTimeout);
+        var unclamp = new ModuleRoutine(this, "Unclamp", _driver, () => UnclampTimeout);
         AddUnclampSteps(unclamp);
         return unclamp;
     }
@@ -912,7 +912,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateMapRoutine()
     {
-        var map = new ModuleRoutine(Name, "Map", _driver, () => LoadTimeout);
+        var map = new ModuleRoutine(this, "Map", _driver, () => LoadTimeout);
         AddOwnMapStages(map, null);
         return map;
     }
@@ -1066,7 +1066,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateResetRoutine()
     {
-        var reset = new ModuleRoutine(Name, "Reset", _driver, () => ResetTimeout);
+        var reset = new ModuleRoutine(this, "Reset", _driver, () => ResetTimeout);
         AddResetSteps(reset);
         return reset;
     }
@@ -1076,7 +1076,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
     /// </summary>
     protected virtual ModuleRoutine CreateAbortRoutine()
     {
-        var abort = new ModuleRoutine(Name, "Abort", _driver, () => AbortTimeout);
+        var abort = new ModuleRoutine(this, "Abort", _driver, () => AbortTimeout);
         AddAbortSteps(abort);
         return abort;
     }
@@ -1179,7 +1179,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var slotMap = map.Slots;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，machine.xml 配的是 {SlotCount} 槽{RawText(map)}，没落账");
+            LogHelper.Error(this, $"Mapping 槽数不对：扫到 {slotMap.Count} 槽，machine.xml 配的是 {SlotCount} 槽{RawText(map)}，没落账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -1197,7 +1197,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         if (abnormalSlots.Count > 0)
         {
             string slots = string.Join(",", abnormalSlots);
-            LogHelper.Error(Name, $"Mapping 有交叉片、叠片或认不出的槽：第 {slots} 槽{RawText(map)}");
+            LogHelper.Error(this, $"Mapping 有交叉片、叠片或认不出的槽：第 {slots} 槽{RawText(map)}");
             return HandleResult.Fail(ErrorCodes.SlotMapAbnormal, Name, slots);
         }
 
@@ -1212,7 +1212,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var slotMap = map.Slots;
         if (slotMap.Count != SlotCount)
         {
-            LogHelper.Error(Name, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，machine.xml 配的是 {SlotCount} 槽{RawText(map)}，没法对账");
+            LogHelper.Error(this, $"Unload 的 Mapping 槽数不对：扫到 {slotMap.Count} 槽，machine.xml 配的是 {SlotCount} 槽{RawText(map)}，没法对账");
             return HandleResult.Fail(ErrorCodes.SlotMapLengthMismatch, Name, slotMap.Count.ToString(), SlotCount.ToString());
         }
 
@@ -1237,11 +1237,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         if (mismatchedSlots.Count > 0)
         {
             string slots = string.Join(",", mismatchedSlots);
-            LogHelper.Error(Name, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽{RawText(map)}，门不关");
+            LogHelper.Error(this, $"Unload 时扫到的片跟晶圆账对不上：第 {slots} 槽{RawText(map)}，门不关");
             return HandleResult.Fail(ErrorCodes.UnloadSlotMapMismatch, Name, slots);
         }
 
-        LogHelper.Info(Name, "Unload 对账：盒子里的片跟晶圆账一致");
+        LogHelper.Info(this, "Unload 对账：盒子里的片跟晶圆账一致");
         return HandleResult.Success();
     }
 
@@ -1617,7 +1617,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
             if (!_completeWaitLogged)
             {
                 _completeWaitLogged = true;
-                LogHelper.Warn(Name, $"载具干完了，但从这个口取出去的片还有 {outside} 片不在 LoadPort 上，片回齐了再收尾（自动 Unload 或对账）");
+                LogHelper.Warn(this, $"载具干完了，但从这个口取出去的片还有 {outside} 片不在 LoadPort 上，片回齐了再收尾（自动 Unload 或对账）");
             }
 
             return;
@@ -1634,11 +1634,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var unload = Unload();
         if (!unload.IsSuccess)
         {
-            LogHelper.Warn(Name, $"载具干完了，但 Unload 被拒（{unload.ErrorMessage}：{string.Join(", ", unload.Args)}），等操作员处理");
+            LogHelper.Warn(this, $"载具干完了，但 Unload 被拒（{unload.ErrorMessage}：{string.Join(", ", unload.Args)}），等操作员处理");
             return;
         }
 
-        LogHelper.Info(Name, "载具干完了，自动 Unload");
+        LogHelper.Info(this, "载具干完了，自动 Unload");
     }
 
    /// <summary>
@@ -1682,7 +1682,7 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
         var loadedMap = _carrier.SlotMap;
         if (loadedMap.Count != SlotCount)
         {
-            LogHelper.Warn(Name, $"载具干完了，但 Load 时的槽图是 {loadedMap.Count} 槽、machine.xml 配的是 {SlotCount} 槽，没法对账");
+            LogHelper.Warn(this, $"载具干完了，但 Load 时的槽图是 {loadedMap.Count} 槽、machine.xml 配的是 {SlotCount} 槽，没法对账");
             return;
         }
 
@@ -1733,11 +1733,11 @@ public abstract class BaseLoadPortModule : BaseTransferStationModule, ILoadPort,
 
         if (mismatched.Count == 0)
         {
-            LogHelper.Info(Name, "载具干完了（EC AutoUnload 关着，不卸）：Load 时的槽图跟晶圆账一致");
+            LogHelper.Info(this, "载具干完了（EC AutoUnload 关着，不卸）：Load 时的槽图跟晶圆账一致");
             return;
         }
 
-        LogHelper.Error(Name, $"载具干完了，Load 时的槽图跟晶圆账对不上：{string.Join("；", mismatched)}");
+        LogHelper.Error(this, $"载具干完了，Load 时的槽图跟晶圆账对不上：{string.Join("；", mismatched)}");
         RaiseAlarm(SlotMapAlarm);
     }
 

@@ -101,14 +101,14 @@ public class WaferSizeComponent : ComponentBase, IWaferSize
             }
             catch (Exception exception)
             {
-                LogHelper.Error(Name, $"晶圆尺寸切到 {size} 寸没成：写回 machine.xml 失败，{exception.Message}");
+                LogHelper.Error(this, $"晶圆尺寸切到 {size} 寸没成：写回 machine.xml 失败，{exception.Message}");
                 return HandleResult.Fail(ErrorCodes.WaferSizeSaveFailed, exception.Message);
             }
 
             Size = size;
         }
 
-        LogHelper.Info(Name, $"晶圆尺寸切到 {size} 寸，已写回 machine.xml");
+        LogHelper.Info(this, $"晶圆尺寸切到 {size} 寸，已写回 machine.xml");
         Changed?.Invoke(size);
         return HandleResult.Success();
     }

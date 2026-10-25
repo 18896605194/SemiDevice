@@ -37,4 +37,9 @@ public interface IDataChart
     /// </summary>
     DataQueryResult Query(IReadOnlyList<string> names, DateTime start, DateTime end, CancellationToken token);
 
+    /// <summary>
+    /// 按名字导出 [start, end)（本机时间）的原始行，一段一段给
+    /// </summary>
+    IEnumerable<DataExport> Export(IReadOnlyList<string> names, DateTime start, DateTime end, CancellationToken token);
+
 }

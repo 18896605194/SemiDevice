@@ -9,6 +9,7 @@ using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataCenter.Models;
 using xyz.Client.DataModels.ViewModels;
+using xyz.Client.Presentation.Dialogs;
 using xyz.Client.Presentation.Localization;
 using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
@@ -86,7 +87,13 @@ public class DataChartViewModel : BaseViewModel
     public DateTime? RangeStart
     {
         get => _rangeStart;
-        private set => SetProperty(ref _rangeStart, value);
+        private set
+        {
+            if (SetProperty(ref _rangeStart, value))
+            {
+                ExportCommand.NotifyCanExecuteChanged();
+            }
+        }
     }
 
     private DateTime? _rangeEnd;
@@ -94,7 +101,13 @@ public class DataChartViewModel : BaseViewModel
     public DateTime? RangeEnd
     {
         get => _rangeEnd;
-        private set => SetProperty(ref _rangeEnd, value);
+        private set
+        {
+            if (SetProperty(ref _rangeEnd, value))
+            {
+                ExportCommand.NotifyCanExecuteChanged();
+            }
+        }
     }
 
     private bool _followRange = true;
@@ -198,13 +211,23 @@ public class DataChartViewModel : BaseViewModel
     private string _summary = L10n.Get("common.query_hint");
 
     /// <summary>
-    /// 工具栏右侧的说明：查询中、多少个时间点、是否抽稀、失败原因。
+    /// 工具栏右侧的说明：多少个时间点、是否抽稀、失败原因（查询中看弹框）。
     /// </summary>
     public string Summary
     {
         get => _summary;
         private set => SetProperty(ref _summary, value);
     }
+
+    /// <summary>
+    /// 查询的进度弹框（圆环一直转）：超过半秒没查完才弹，放大、拖动的快查询不弹
+    /// </summary>
+    public ProgressState Query { get; } = new();
+
+    /// <summary>
+    /// 导出的进度弹框（按百分比走）
+    /// </summary>
+    public ProgressState Export { get; } = new();
 
     #endregion
 
@@ -219,6 +242,11 @@ public class DataChartViewModel : BaseViewModel
     public IRelayCommand ClearCommand { get; }
 
     public IAsyncRelayCommand RefreshSignalsCommand { get; }
+
+    /// <summary>
+    /// 把这次查询定下的时间段（RangeStart ~ RangeEnd）、勾着的曲线导出成 Excel（原始数据，一天一张表）
+    /// </summary>
+    public IAsyncRelayCommand ExportCommand { get; }
 
     #endregion
 
@@ -263,6 +291,8 @@ public class DataChartViewModel : BaseViewModel
         TodayCommand = new RelayCommand(DoToday);
         ClearCommand = new RelayCommand(DoClear);
         RefreshSignalsCommand = new AsyncRelayCommand(DoRefreshSignals);
+        ExportCommand = new AsyncRelayCommand(DoExportAsync, CanExport);
+        Series.CollectionChanged += (_, _) => ExportCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -337,6 +367,66 @@ public class DataChartViewModel : BaseViewModel
     private Task DoRefreshSignals()
     {
         return LoadSignalsAsync();
+    }
+
+    private bool CanExport()
+    {
+        return Series.Count > 0 && RangeStart is not null && RangeEnd is not null;
+    }
+
+    /// <summary>
+    /// 选好存哪，再按这次查询的时间段导出勾着的曲线；结果写顶栏日志
+    /// </summary>
+    private async Task DoExportAsync()
+    {
+        var start = RangeStart;
+        var end = RangeEnd;
+        if (start is null || end is null || Series.Count == 0)
+        {
+            return;
+        }
+
+        string fileName = $"{L10n.MenuName("DataCenter.DataChart")}_{start.Value:yyyyMMdd_HHmm}-{end.Value:yyyyMMdd_HHmm}.xlsx";
+        string? path = DialogService.ShowSaveFile(L10n.Get("datachart.export"), fileName, L10n.Get("common.excel_filter"));
+        if (path is null)
+        {
+            return;
+        }
+
+        var names = Series.Select(series => series.Name).ToList();
+        string timeHeader = L10n.Get("common.time");
+        RpcResponse? result = null;
+        try
+        {
+            bool done = await Export.RunAsync(async (progress, token) =>
+            {
+                result = await DataChartExport.SaveAsync(_service, names, start.Value, end.Value, path, timeHeader, progress, token);
+            });
+            if (!done)
+            {
+                ClientLog.Warn("DataCenter", L10n.Get("datachart.export_canceled"));
+                return;
+            }
+        }
+        catch (Exception exception)
+        {
+            ClientLog.Error("DataCenter", L10n.Get("datachart.export_failed", exception.Message));
+            return;
+        }
+
+        if (result is not null && result.Code == DataChartExport.EmptyCode)
+        {
+            ClientLog.Warn("DataCenter", L10n.Get(DataChartExport.EmptyCode));
+            return;
+        }
+
+        if (result is not null && !result.Success)
+        {
+            ClientLog.Error("DataCenter", L10n.Get("datachart.export_failed", L10n.Get(result.Code, result.Args)));
+            return;
+        }
+
+        ClientLog.Info("DataCenter", L10n.Get("datachart.exported", path));
     }
 
     /// <summary>
@@ -467,27 +557,39 @@ public class DataChartViewModel : BaseViewModel
             return;
         }
 
-        Summary = L10n.Get("datachart.querying");
         (now ? _fetchNow : _fetchSettled).OnNext(new ChartFetch(start, end, names));
     }
 
     /// <summary>
-    /// 查一次。出错不往管道里抛（抛了整条管道就断了），带着错误信息回去由 Apply 显示；被新查询顶掉时 token 取消，结果没人要。
+    /// 查一次（套在查询弹框里，慢的才弹）。出错不往管道里抛（抛了整条管道就断了），带着错误信息回去由 Apply 显示；
+    /// 被新查询顶掉时 token 取消，结果没人要；弹框上点了取消，回一个"取消了"，图保留原来的。
     /// </summary>
     private async Task<ChartOutcome> FetchAsync(ChartFetch fetch, CancellationToken token)
     {
+        RpcResponse? response = null;
         try
         {
-            var response = await _service.QueryAsync(
-                new DataChartQuery { Start = fetch.Start, End = fetch.End, Names = fetch.Names.ToList() },
-                new CallContext(new CallOptions(cancellationToken: token)));
-            return response.Success
-                ? new ChartOutcome(response.DeserializeData<DataChartResultDto>(), null, null)
-                : new ChartOutcome(null, response.Code, response.Args);
+            bool done = await Query.RunAsync(async (_, cancel) =>
+            {
+                response = await _service.QueryAsync(
+                    new DataChartQuery { Start = fetch.Start, End = fetch.End, Names = fetch.Names.ToList() },
+                    new CallContext(new CallOptions(cancellationToken: cancel)));
+            }, token);
+            if (!done || response is null)
+            {
+                return new ChartOutcome(null, null, null, true);
+            }
+
+            if (!response.Success)
+            {
+                return new ChartOutcome(null, response.Code, response.Args, false);
+            }
+
+            return new ChartOutcome(response.DeserializeData<DataChartResultDto>(), null, null, false);
         }
         catch (Exception exception) when (!token.IsCancellationRequested)
         {
-            return new ChartOutcome(null, null, [exception.Message]);
+            return new ChartOutcome(null, null, [exception.Message], false);
         }
     }
 
@@ -497,6 +599,11 @@ public class DataChartViewModel : BaseViewModel
     /// </summary>
     private void Apply(ChartOutcome outcome)
     {
+        if (outcome.IsCanceled)
+        {
+            return;
+        }
+
         var result = outcome.Result;
         if (result is null)
         {
@@ -548,7 +655,7 @@ public class DataChartViewModel : BaseViewModel
     private sealed record ChartFetch(DateTime Start, DateTime End, string[] Names);
 
     /// <summary>
-    /// 查询结果或失败原因（错误码 + 参数，界面线程上再翻成当前语言）。
+    /// 查询结果或失败原因（错误码 + 参数，界面线程上再翻成当前语言）；IsCanceled = 弹框上点了取消，什么都不改。
     /// </summary>
-    private sealed record ChartOutcome(DataChartResultDto? Result, string? Code, List<string>? Args);
+    private sealed record ChartOutcome(DataChartResultDto? Result, string? Code, List<string>? Args, bool IsCanceled);
 }

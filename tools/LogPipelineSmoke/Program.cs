@@ -3,6 +3,7 @@ using NLog;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
+using xyz.Client.Presentation.Models;
 using xyz.Client.Presentation.ViewModels;
 using xyz.Common.Log;
 using xyz.Shared.Dtos;
@@ -87,7 +88,7 @@ LogQueue.Start(item =>
 // 1) 单生产者：顺序与不丢
 for (var i = 0; i < 1000; i++)
 {
-    LogQueue.Enqueue(new LogItem("Order", LogLevel.Warn, i.ToString()));
+    LogQueue.Enqueue(new LogItem("Order", string.Empty, LogLevel.Warn, i.ToString()));
 }
 Check(WaitFor(1000), "队列未投递 1000 条。");
 lock (gate)
@@ -104,7 +105,7 @@ await Task.WhenAll(Enumerable.Range(0, 4).Select(worker => Task.Run(() =>
 {
     for (var i = 0; i < concurrentTotal / 4; i++)
     {
-        LogQueue.Enqueue(new LogItem("Concurrent", LogLevel.Warn, $"{worker}-{i}"));
+        LogQueue.Enqueue(new LogItem("Concurrent", string.Empty, LogLevel.Warn, $"{worker}-{i}"));
     }
 })));
 Check(WaitFor(baseline + concurrentTotal), "并发入队丢消息。");
@@ -117,9 +118,9 @@ lock (gate)
 // 3) 级别过滤：低于 MinLevel 只落 NLog，不进队列
 var beforeFilter = DeliveredCount();
 LogQueue.MinLevel = LogLevel.Warn;
-LogQueue.Enqueue(new LogItem("Filter", LogLevel.Debug, "debug-should-drop"));
-LogQueue.Enqueue(new LogItem("Filter", LogLevel.Info, "info-should-drop"));
-LogQueue.Enqueue(new LogItem("Filter", LogLevel.Warn, "warn-should-pass"));
+LogQueue.Enqueue(new LogItem("Filter", string.Empty, LogLevel.Debug, "debug-should-drop"));
+LogQueue.Enqueue(new LogItem("Filter", string.Empty, LogLevel.Info, "info-should-drop"));
+LogQueue.Enqueue(new LogItem("Filter", string.Empty, LogLevel.Warn, "warn-should-pass"));
 Check(WaitFor(beforeFilter + 1), "Warn 未投递。");
 Thread.Sleep(200);
 Check(DeliveredCount() == beforeFilter + 1, "级别过滤漏了低级别日志。");
@@ -135,9 +136,33 @@ LogHelper.Warn("SmokeModule", "hello from LogHelper");
 Check(WaitFor(beforeHelper + 1), "LogHelper 未入队。");
 lock (gate)
 {
-    Check(delivered[^1].Module == "SmokeModule" && delivered[^1].Message == "hello from LogHelper",
+    Check(delivered[^1].Module == "SmokeModule" && delivered[^1].Part.Length == 0 && delivered[^1].Message == "hello from LogHelper",
         "LogHelper 入队内容被改变。");
 }
+
+// 4.1) 组件写的带两层名字：第一层模块、第二层部件
+var beforeSource = DeliveredCount();
+LogHelper.Warn(new SmokeSource("LoadPort.LoadPort1", "RFID.Serial"), "读码超时");
+Check(WaitFor(beforeSource + 1), "带两层名字的日志没入队。");
+lock (gate)
+{
+    Check(delivered[^1].Module == "LoadPort.LoadPort1" && delivered[^1].Part == "RFID.Serial",
+        "两层名字：第一层 LoadPort.LoadPort1、第二层 RFID.Serial");
+    Check(delivered[^1].ToString().Contains("【WARN】 【LoadPort.LoadPort1】 【RFID.Serial】 读码超时"),
+        "写进文件的一行：级别、模块、部件各一格");
+}
+
+// 4.2) 操作日志、收发原文、轮询原文只落文件，不进推送队列（不推顶栏）
+var beforeFileOnly = DeliveredCount();
+LogHelper.Operation(LogLevel.Warn, "张三@127.0.0.1 LoadPort.Load → 失败 module.action_rejected [LoadPort1, 3] 1 ms");
+LogHelper.Comm(new SmokeSource("LoadPort.LoadPort1", "Serial"), LogHelper.Sent, "MOV:CLOAD");
+LogHelper.InfoLoop(new SmokeSource("LoadPort.LoadPort1", "Serial"), LogHelper.Received, "ACK:STATE/0100");
+Thread.Sleep(200);
+Check(DeliveredCount() == beforeFileOnly, "操作日志、收发原文、轮询原文都不进推送队列");
+
+// 4.3) 收发原文里看不见的字符写成 <CR> 这种，能显示的（包括中文）原样
+Check(LogHelper.Escape("s00MOV:CLOAD;\r\n\u0002中文") == "s00MOV:CLOAD;<CR><LF><0x02>中文",
+    "原文转义：回车换行和控制字符写成尖括号，中文原样");
 
 // 5) 客户端：队列 → LogViewModel（界面即消费者）
 var viewModel = new LogViewModel();
@@ -160,7 +185,8 @@ var original = new LogDto
 {
     Time = DateTime.Now,
     Level = "Error",
-    Module = "LoadPort1",
+    Module = "LoadPort.LoadPort1",
+    Part = "Serial",
     Message = "中文消息 {0}",
     Source = "Server",
 };
@@ -169,16 +195,28 @@ Check(envelope.TypeName == typeof(LogDto).FullName, "信封类型名被改变。
 var roundTrip = (LogDto)EventEnvelope.From(envelope, typeof(LogDto));
 Check(roundTrip.Level == original.Level
       && roundTrip.Module == original.Module
+      && roundTrip.Part == original.Part
       && roundTrip.Message == original.Message
       && roundTrip.Source == original.Source,
     "LogDto 往返后内容被改变。");
+Check(LogModel.From(roundTrip).Part == "Serial", "界面的日志模型带上部件");
 
 // 7) Stop 后不再投递
 LogQueue.Stop();
 var afterStop = DeliveredCount();
-LogQueue.Enqueue(new LogItem("AfterStop", LogLevel.Error, "should-drop"));
+LogQueue.Enqueue(new LogItem("AfterStop", string.Empty, LogLevel.Error, "should-drop"));
 Thread.Sleep(200);
 Check(DeliveredCount() == afterStop, "Stop 后仍在投递。");
 
-Console.WriteLine($"PASS: {checks} log pipeline checks (queue order, concurrency, level filter, LogHelper, LogViewModel, JSON round-trip, stop).");
+Console.WriteLine($"PASS: {checks} log pipeline checks (queue order, concurrency, level filter, LogHelper, two-level names, file-only lines, escape, LogViewModel, JSON round-trip, stop).");
 return 0;
+
+/// <summary>
+/// 冒烟里的日志来源：两层名字由测试给
+/// </summary>
+sealed class SmokeSource(string module, string part) : ILogSource
+{
+    public string LogModule => module;
+
+    public string LogPart => part;
+}

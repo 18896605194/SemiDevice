@@ -28,6 +28,16 @@ public interface ILogComponent
     int LogBarDisplayMaxCount { get; }
 
     /// <summary>
+    /// 日志文件留多少天（后端主日志、轮询文件，客户端日志也照这个）
+    /// </summary>
+    int KeepDays { get; }
+
+    /// <summary>
+    /// 日志的第一层都有哪些（日志历史页模块下拉的选项）：组件树最顶上那层，按 machine.xml 先后，再加 Operation、Host
+    /// </summary>
+    IReadOnlyList<string> Modules { get; }
+
+    /// <summary>
     /// 最近一段后端日志（最旧的在前），客户端连上时补拉
     /// </summary>
     IReadOnlyList<LogDto> Recent();

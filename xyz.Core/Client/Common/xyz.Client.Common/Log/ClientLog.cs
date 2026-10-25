@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Threading.Channels;
 using NLog;
+using NLog.Targets;
 using xyz.Shared.Dtos;
 
 namespace xyz.Client.Common.Log;
@@ -62,7 +63,13 @@ public static class ClientLog
         }
 
         _channel.Writer.TryWrite(log);
-        Logger.Log(ToNLogLevel(log.Level), "{0}: {1}", log.Module, log.Message);
+        if (string.IsNullOrEmpty(log.Part))
+        {
+            Logger.Log(ToNLogLevel(log.Level), "{0}: {1}", log.Module, log.Message);
+            return;
+        }
+
+        Logger.Log(ToNLogLevel(log.Level), "{0} {1}: {2}", log.Module, log.Part, log.Message);
     }
 
     public static void Error(string module, string message)
@@ -78,6 +85,42 @@ public static class ClientLog
     public static void Info(string module, string message)
     {
         Write("Info", module, message);
+    }
+
+    /// <summary>
+    /// 日志文件留多少天（连上后端时按后端日志组件的 KeepDays 设），更早的自动删；0 = 不删
+    /// </summary>
+    public static void SetKeepDays(int days)
+    {
+        var configuration = LogManager.Configuration;
+        if (configuration is null || days <= 0)
+        {
+            return;
+        }
+
+        foreach (var target in configuration.AllTargets.OfType<FileTarget>())
+        {
+            target.MaxArchiveDays = days;
+        }
+
+        // 配置重新挂一遍：开着的文件关掉重开。NLog 只在打开文件时按天数清旧文件，不这样要等到换天才清
+        LogManager.Configuration = configuration;
+    }
+
+    /// <summary>
+    /// 把还没写进文件的写完（崩溃前用），最多等这么久
+    /// </summary>
+    public static void Flush(TimeSpan timeout)
+    {
+        LogManager.Flush(timeout);
+    }
+
+    /// <summary>
+    /// 退出时调：写完、关文件
+    /// </summary>
+    public static void Shutdown()
+    {
+        LogManager.Shutdown();
     }
 
     /// <summary>

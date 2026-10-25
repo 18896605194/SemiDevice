@@ -1,4 +1,5 @@
-﻿using xyz.Components.Interfaces;
+﻿using xyz.Common.Log;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -34,11 +35,11 @@ public sealed class SwapRoutine : TransferExecution
     private bool _holdingStation;
 
     /// <summary>
-    /// 建交换：参数在搬运管理受理时已经查过；module 是日志记在谁名下（搬运管理）
+    /// 建交换：参数在搬运管理受理时已经查过；owner 是日志记在谁名下（搬运管理）
     /// </summary>
-    public SwapRoutine(string module, SwapRequest request, ITransferRobot robot, ITransferStation station,
+    public SwapRoutine(ILogSource owner, SwapRequest request, ITransferRobot robot, ITransferStation station,
         string pickWaferName, string placeWaferName, int stationWaitTimeout)
-        : base(module, $"Swap {station.Name}.{request.Slot:00} Arm{request.PickArm}↔Arm{request.PlaceArm}",
+        : base(owner, $"Swap {station.Name}.{request.Slot:00} Arm{request.PickArm}↔Arm{request.PlaceArm}",
             request.Origin, robot, stationWaitTimeout)
     {
         _station = station;

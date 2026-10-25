@@ -617,7 +617,7 @@ public class TankComponent : ComponentBase, ITank
 
         _exchangeFilling = true;
         _stepSince = Stopwatch.GetTimestamp();
-        LogHelper.Info(FullPath, "换液：排完了，开始补液");
+        LogHelper.Info(this, "换液：排完了，开始补液");
     }
 
     #endregion
@@ -645,7 +645,7 @@ public class TankComponent : ComponentBase, ITank
             return true;
         }
 
-        LogHelper.Warn(FullPath, $"{groupName} 阀组没关上（PLC 没连上或 DO 点没配）");
+        LogHelper.Warn(this, $"{groupName} 阀组没关上（PLC 没连上或 DO 点没配）");
         return false;
     }
 
@@ -658,11 +658,11 @@ public class TankComponent : ComponentBase, ITank
 
         if (state == TankState.Error)
         {
-            LogHelper.Warn(FullPath, $"{_state} → {state}：{reason}");
+            LogHelper.Warn(this, $"{_state} → {state}：{reason}");
         }
         else
         {
-            LogHelper.Info(FullPath, $"{_state} → {state}：{reason}");
+            LogHelper.Info(this, $"{_state} → {state}：{reason}");
         }
 
         _state = state;

@@ -372,7 +372,7 @@ public sealed class RecipeField
                 continue;
             }
 
-            LogHelper.Error(path, $"machine.xml 节点 {path} 的参数 {name} 不认识：配方字段没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
+            LogHelper.Error(LogHelper.HostModule, $"machine.xml 节点 {path} 的参数 {name} 不认识：配方字段没有这个参数（名字写错了，或者参数已经删了），这一条没用上");
         }
     }
 

@@ -15,11 +15,6 @@ namespace xyz.Service.Recipes;
 /// </summary>
 public class SequenceService : BaseService, ISequenceService
 {
-    /// <summary>
-    /// 客户端没带操作人时记成这个（客户端还没做登录前都会带上当前用户名，这里只是兜底）。
-    /// </summary>
-    private const string UnknownOperator = "Unknown";
-
     private readonly ISequenceComponent? _library;
 
     /// <summary>
@@ -82,7 +77,7 @@ public class SequenceService : BaseService, ISequenceService
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> RenameAsync(SequenceRenameRequest request, CallContext context = default)
@@ -92,7 +87,7 @@ public class SequenceService : BaseService, ISequenceService
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> DeleteAsync(SequenceDeleteRequest request, CallContext context = default)
@@ -102,7 +97,7 @@ public class SequenceService : BaseService, ISequenceService
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Delete(request.Index, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Delete(request.Index, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> SaveAsync(SequenceSaveRequest request, CallContext context = default)
@@ -117,7 +112,7 @@ public class SequenceService : BaseService, ISequenceService
             step.Group ?? string.Empty,
             (step.Stations ?? []).Select(station => station ?? string.Empty),
             step.Recipe ?? string.Empty)).ToList();
-        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, request.Description ?? string.Empty, steps, RpcOperator.Of(context)));
     }
 
     private static Task<RpcResponse> Reply(HandleResult result)
@@ -150,11 +145,6 @@ public class SequenceService : BaseService, ISequenceService
                 Recipe = step.Recipe,
             }).ToList(),
         };
-    }
-
-    private static string OperatorOf(string? name)
-    {
-        return string.IsNullOrWhiteSpace(name) ? UnknownOperator : name.Trim();
     }
 
     private static Task<RpcResponse> NotInstalled()

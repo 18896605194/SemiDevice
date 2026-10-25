@@ -139,12 +139,12 @@ public class EcComponent : ComponentBase, IEc
         if (changed)
         {
             Flush();
-            LogHelper.Info(Name, $"EC 声明合并完成（新增 {added} 项），已写回 {FilePath}");
+            LogHelper.Info(this, $"EC 声明合并完成（新增 {added} 项），已写回 {FilePath}");
         }
 
         if (orphans > 0)
         {
-            LogHelper.Info(Name, $"ec.xml 里有 {orphans} 项在组件树上已经没有了（组件从 machine.xml 拿掉了，或属性从代码里删了）：值留着不动，界面不列");
+            LogHelper.Info(this, $"ec.xml 里有 {orphans} 项在组件树上已经没有了（组件从 machine.xml 拿掉了，或属性从代码里删了）：值留着不动，界面不列");
         }
 
         return changed;
@@ -329,7 +329,7 @@ public class EcComponent : ComponentBase, IEc
             {
                 // 没写进文件就不算改了：内存里的值退回去，不然重启后悄悄变回旧值。
                 existing.Value = old;
-                LogHelper.Error(Name, $"EC 写不进 {FilePath}: {exception.Message}");
+                LogHelper.Error(this, $"EC 写不进 {FilePath}: {exception.Message}");
                 return EcSetResult.SaveFailed;
             }
 

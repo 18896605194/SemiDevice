@@ -219,12 +219,6 @@ public class ProcessRecipeCreateRequest
 
     [ProtoMember(2)]
     public string Name { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 操作人（客户端当前用户），记成创建人、修改人。
-    /// </summary>
-    [ProtoMember(3)]
-    public string Operator { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -238,9 +232,6 @@ public class ProcessRecipeRenameRequest
 
     [ProtoMember(2)]
     public string Name { get; set; } = string.Empty;
-
-    [ProtoMember(3)]
-    public string Operator { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -251,12 +242,6 @@ public class ProcessRecipeDeleteRequest
 {
     [ProtoMember(1)]
     public int Index { get; set; }
-
-    /// <summary>
-    /// 操作人，记进日志。
-    /// </summary>
-    [ProtoMember(2)]
-    public string Operator { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -279,9 +264,6 @@ public class ProcessRecipeSaveRequest
 
     [ProtoMember(4)]
     public List<ProcessRecipeStepDto> Steps { get; set; } = [];
-
-    [ProtoMember(5)]
-    public string Operator { get; set; } = string.Empty;
 
     [ProtoMember(6)]
     public string Type { get; set; } = string.Empty;

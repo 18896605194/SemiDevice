@@ -202,9 +202,6 @@ public class JobCreateRequest
     /// <summary>要做的槽和各自的流程配方。</summary>
     [ProtoMember(3)]
     public List<JobSlotDto> Slots { get; set; } = [];
-
-    [ProtoMember(6)]
-    public string Operator { get; set; } = string.Empty;
 }
 
 /// <summary>

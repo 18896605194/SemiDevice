@@ -15,11 +15,6 @@ namespace xyz.Service.Recipes;
 /// </summary>
 public class ProcessRecipeService : BaseService, IProcessRecipeService
 {
-    /// <summary>
-    /// 客户端没带操作人时记成这个（客户端还没做登录前都会带上当前用户名，这里只是兜底）。
-    /// </summary>
-    private const string UnknownOperator = "Unknown";
-
     private readonly IRecipeComponent? _library;
 
     /// <summary>
@@ -93,7 +88,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Create(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> RenameAsync(ProcessRecipeRenameRequest request, CallContext context = default)
@@ -103,7 +98,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Rename(request.Index, request.Name ?? string.Empty, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> DeleteAsync(ProcessRecipeDeleteRequest request, CallContext context = default)
@@ -113,7 +108,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             return NotInstalled();
         }
 
-        return LockedByHost() ?? Reply(_library.Delete(request.Index, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Delete(request.Index, RpcOperator.Of(context)));
     }
 
     public Task<RpcResponse> SaveAsync(ProcessRecipeSaveRequest request, CallContext context = default)
@@ -132,7 +127,7 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Head = ToValues(request.Head),
             Steps = (request.Steps ?? []).Select(step => ToValues(step.Values)).ToList(),
         };
-        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, content, OperatorOf(request.Operator)));
+        return LockedByHost() ?? Reply(_library.Save(request.Index, request.Revision, content, RpcOperator.Of(context)));
     }
 
     private static RecipeStep ToValues(Dictionary<string, string>? values)
@@ -227,11 +222,6 @@ public class ProcessRecipeService : BaseService, IProcessRecipeService
             Default = field.Default,
             Required = field.Required,
         };
-    }
-
-    private static string OperatorOf(string? name)
-    {
-        return string.IsNullOrWhiteSpace(name) ? UnknownOperator : name.Trim();
     }
 
     private static Task<RpcResponse> NotInstalled()

@@ -90,7 +90,7 @@ public class AiLevelComponent : ComponentBase, IAiLevel
     {
         if (IsConfigured && TriggerValue <= 0)
         {
-            LogHelper.Warn(FullPath, "EC TriggerValue（触发值）还没设，这个点当读不到，槽的液位会是不知道");
+            LogHelper.Warn(this, "EC TriggerValue（触发值）还没设，这个点当读不到，槽的液位会是不知道");
         }
 
         return base.InitComponent();

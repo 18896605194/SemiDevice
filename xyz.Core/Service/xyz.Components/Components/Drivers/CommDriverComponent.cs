@@ -10,7 +10,7 @@ namespace xyz.Components.Components;
 /// 设备通道的公共部分（machine.xml 里设备下面的通道节点）：管连接和断线重连，只把指令发下去、把回复交给指令；用哪家的解码器由所属设备开机时交给它。
 /// 串口、网口各是一个子类（SerialDriverComponent / TcpDriverComponent），只管怎么建字节传输
 /// </summary>
-public abstract class DeviceDriverComponent : ComponentBase, IDeviceDriverComponent
+public abstract class CommDriverComponent : ComponentBase, ICommDriver
 {
     #region Machine
 
@@ -68,12 +68,12 @@ public abstract class DeviceDriverComponent : ComponentBase, IDeviceDriverCompon
     /// <summary>
     /// 找设备直接挂着的、启用了的那条通道（machine.xml 里设备下面的通道节点）：一条都没启用为 null，启用了两条开机就报
     /// </summary>
-    public static IDeviceDriverComponent? FindIn(ComponentBase owner)
+    public static ICommDriver? FindIn(ComponentBase owner)
     {
-        IDeviceDriverComponent? found = null;
+        ICommDriver? found = null;
         foreach (var child in owner.Children)
         {
-            if (child is IDeviceDriverComponent driver && driver.IsEnable)
+            if (child is ICommDriver driver && driver.IsEnable)
             {
                 if (found is not null)
                 {
@@ -122,7 +122,7 @@ public abstract class DeviceDriverComponent : ComponentBase, IDeviceDriverCompon
                 throw new InvalidOperationException($"{FullPath} 没有解码器：挂它的设备要在开机时交给它（UseCodec）。");
             }
 
-            driver = new DeviceDriver(CreateCommunication(codec), codec as IFrameLink);
+            driver = new DeviceDriver(CreateCommunication(codec), codec as IFrameLink, this);
             driver.Reported += OnDriverReported;
             _driver = driver;
         }
@@ -154,7 +154,7 @@ public abstract class DeviceDriverComponent : ComponentBase, IDeviceDriverCompon
             return;
         }
 
-        bool gaveUp = _reconnector.Check(FullPath, driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
+        bool gaveUp = _reconnector.Check(this, driver.IsConnected, ReconnectIntervalMs, ReconnectMaxCount, () =>
         {
             driver.Close();
             driver.Open();

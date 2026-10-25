@@ -65,7 +65,7 @@ public sealed class DvCollector
         {
             if (!names.Add(declared.Name))
             {
-                LogHelper.Error(Kind, $"{declared.Name} 重复声明，只认第一个");
+                LogHelper.Error(LogHelper.HostModule, $"{Kind}：{declared.Name} 重复声明，只认第一个");
                 continue;
             }
 
@@ -76,7 +76,7 @@ public sealed class DvCollector
         var path = Path.Combine(directory, FileName);
         if (!DefinitionTable.TryLoad<DvDefinitionFile, DvDefinition>(path, out var rows, out var error))
         {
-            LogHelper.Error(Kind, $"{path} {error}，不覆盖原文件，本次 DVID 不可用");
+            LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} {error}，不覆盖原文件，本次 DVID 不可用");
             return false;
         }
 
@@ -93,7 +93,7 @@ public sealed class DvCollector
             }
             catch (Exception exception)
             {
-                LogHelper.Error(Kind, $"{path} 写不进去，本次 DVID 不可用: {exception.Message}");
+                LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} 写不进去，本次 DVID 不可用: {exception.Message}");
                 return false;
             }
         }
@@ -107,7 +107,7 @@ public sealed class DvCollector
             _alarmPayloadDvids = AlarmPayload.Select(payload => enabled[payload.Name]).ToList();
         }
 
-        LogHelper.Info(Kind, $"{FileName}：在用 {enabled.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
+        LogHelper.Info(LogHelper.HostModule, $"{Kind}：{FileName}：在用 {enabled.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
             + (result.Changed ? "，已写回" : "，无变化"));
         return result.Changed;
     }
@@ -168,14 +168,14 @@ public sealed class DvCollector
                 var code = CollectorHelper.ReadCode(member, component);
                 if (string.IsNullOrWhiteSpace(code))
                 {
-                    LogHelper.Error(Kind, $"{component.FullPath}.{member.Name} 的 DV 代码读不出来，不编号");
+                    LogHelper.Error(LogHelper.HostModule, $"{Kind}：{component.FullPath}.{member.Name} 的 DV 代码读不出来，不编号");
                     continue;
                 }
 
                 var name = $"{component.FullPath}.{code}";
                 if (!names.Add(name))
                 {
-                    LogHelper.Error(Kind, $"{name} 重复声明，只认第一个");
+                    LogHelper.Error(LogHelper.HostModule, $"{Kind}：{name} 重复声明，只认第一个");
                     continue;
                 }
 

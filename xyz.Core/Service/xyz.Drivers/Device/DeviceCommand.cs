@@ -17,6 +17,11 @@ public abstract class DeviceCommand
     public abstract string Key { get; }
 
     /// <summary>
+    /// 是不是状态轮询发的（状态轮询发之前设上，别处不设）：通道把这条的收发原文记到轮询文件，不进主日志
+    /// </summary>
+    public bool IsPolling { get; set; }
+
+    /// <summary>
     /// 做完了没有，成功失败都算
     /// </summary>
     public bool IsCompleted => _isCompleted;

@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
-using xyz.Client.Common.Session;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Controls;
 using xyz.Client.Presentation.Dialogs;
@@ -1008,7 +1007,6 @@ public class SequenceViewModel : BaseViewModel
                 Stations = step.CheckedStations,
                 Recipe = step.NeedsRecipe ? step.Recipe.Trim() : string.Empty,
             }).ToList(),
-            Operator = ClientSession.UserName,
         };
 
         var response = await Call(() => _service.SaveAsync(request), "recipe.sequence.save_failed");
@@ -1108,7 +1106,6 @@ public class SequenceViewModel : BaseViewModel
         {
             Index = slot.Index,
             Name = DialogName.Trim(),
-            Operator = ClientSession.UserName,
         }));
         if (response is null)
         {
@@ -1143,7 +1140,6 @@ public class SequenceViewModel : BaseViewModel
         {
             Index = current.Index,
             Name = DialogName.Trim(),
-            Operator = ClientSession.UserName,
         }));
         if (response is null)
         {
@@ -1182,7 +1178,6 @@ public class SequenceViewModel : BaseViewModel
         var response = await CallInDialog(() => _service.DeleteAsync(new SequenceDeleteRequest
         {
             Index = current.Index,
-            Operator = ClientSession.UserName,
         }));
         if (response is null)
         {

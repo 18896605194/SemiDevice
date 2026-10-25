@@ -36,7 +36,7 @@ public abstract class BaseCdsModule : BaseModule, ISupplyModule, ISupplyAccess
     public override ModuleRoutine? InitModule()
     {
         State = ModuleState.Idle;
-        return ModuleRoutine.Done(Name, "Init");
+        return ModuleRoutine.Done(this, "Init");
     }
 
     /// <summary>

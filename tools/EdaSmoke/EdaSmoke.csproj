@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\xyz.Core\Service\xyz.Components\xyz.Components.csproj" />
+    <!-- 直接用到 SECS / EDA 的类型：间接引的 DLL 编译时看不到，自己再引一次 -->
+    <Reference Include="xyz.Secs">
+      <HintPath>..\..\Libs\xyz.Secs.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 冒烟共用的容器：组件照树进容器、换单例时重建（宿主里是 ASP.NET 自己的容器） -->
+    <Compile Include="..\SmokeShared\SmokeIoc.cs" Link="SmokeIoc.cs" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+  </ItemGroup>
+</Project>

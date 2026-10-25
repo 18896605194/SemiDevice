@@ -357,7 +357,7 @@ public class CarrierComponent : ComponentBase, ICarrier
 
         if (!result.IsSuccess)
         {
-            LogHelper.Warn(Port.Name, $"读码失败: {result.ErrorMessage}");
+            LogHelper.Warn(this, $"读码失败: {result.ErrorMessage}");
             UpdateInfo(info => info with { IdStatus = CarrierIdStatus.ReadFailed });
             NotifyE87((callback, port) => callback.CarrierIdReadFailed(port));
             return;
@@ -478,7 +478,7 @@ public class CarrierComponent : ComponentBase, ICarrier
         }
 
         _autoReadPending = false;
-        LogHelper.Warn(Port.Name, $"读头一直没能发起读码（{timeout}ms 内没连上或一直在忙），按读码失败处理");
+        LogHelper.Warn(this, $"读头一直没能发起读码（{timeout}ms 内没连上或一直在忙），按读码失败处理");
         UpdateInfo(current => current with { IdStatus = CarrierIdStatus.ReadFailed });
         NotifyE87((callback, port) => callback.CarrierIdReadFailed(port));
     }
@@ -551,7 +551,7 @@ public class CarrierComponent : ComponentBase, ICarrier
 
         var info = _info;
         int created = _ledger.ApplySlotMap(port.Name, statuses, info?.CarrierId, info?.LotId);
-        LogHelper.Info($"[{port.Name}] Mapping 落账：{created} 片");
+        LogHelper.Info(this, $"Mapping 落账：{created} 片");
     }
 
     /// <summary>

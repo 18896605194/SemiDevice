@@ -34,8 +34,8 @@ public abstract class TransferExecution : ModuleRoutine
     /// <summary>
     /// 建执行：日志记在谁名下（搬运管理）、动作名、机械手、来源、等站点空出来的上限
     /// </summary>
-    protected TransferExecution(string module, string name, TransferOrigin origin, ITransferRobot robot, int stationWaitTimeout)
-        : base(module, name)
+    protected TransferExecution(ILogSource owner, string name, TransferOrigin origin, ITransferRobot robot, int stationWaitTimeout)
+        : base(owner, name)
     {
         Origin = origin;
         Robot = robot;
@@ -320,7 +320,7 @@ public abstract class TransferExecution : ModuleRoutine
 
         if (!retract.IsSuccess)
         {
-            LogHelper.Error(Robot.Name, $"{station.Name} 交接做完了，缩臂被拒：{retract.ErrorMessage}，手还伸在站里等人工确认");
+            LogRobotError($"{station.Name} 交接做完了，缩臂被拒：{retract.ErrorMessage}，手还伸在站里等人工确认");
         }
 
         return retract;
@@ -337,7 +337,7 @@ public abstract class TransferExecution : ModuleRoutine
             action = "Pick";
         }
 
-        LogHelper.Error(Robot.Name, $"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{routine.Reason}");
+        LogRobotError($"{action} 失败，{station.Name} 停在 Transferring 等人工确认：{routine.Reason}");
         if (routine.Code == ErrorCodes.RobotLedgerMoveFailed)
         {
             step.Fail(routine.Code, routine.Reason, [.. routine.ErrorArgs]);
@@ -361,7 +361,7 @@ public abstract class TransferExecution : ModuleRoutine
     /// </summary>
     private void StopRobot(string reason, string station)
     {
-        LogHelper.Error(Robot.Name, $"{reason}，机械手停在 {station} 里等人工确认");
+        LogRobotError($"{reason}，机械手停在 {station} 里等人工确认");
         _robotAbort = Robot.Abort();
     }
 
@@ -391,11 +391,11 @@ public abstract class TransferExecution : ModuleRoutine
                 return true;
             }
 
-            LogHelper.Error(Robot.Name, $"{station.Name} 撤销搬运准备被拒，保留本轮占用");
+            LogRobotError($"{station.Name} 撤销搬运准备被拒，保留本轮占用");
         }
         catch (Exception exception)
         {
-            LogHelper.Error(Robot.Name, $"{station.Name} 撤销搬运准备异常，保留本轮占用：{exception.Message}");
+            LogRobotError($"{station.Name} 撤销搬运准备异常，保留本轮占用：{exception.Message}");
         }
 
         return false;
@@ -445,4 +445,18 @@ public abstract class TransferExecution : ModuleRoutine
     }
 
     #endregion
+
+    /// <summary>
+    /// 机械手出的事记在机械手名下（机械手都是组件）；不是组件的（测试用的假机械手）记在搬运管理名下、带上机械手名
+    /// </summary>
+    private void LogRobotError(string message)
+    {
+        if (Robot is ILogSource source)
+        {
+            LogHelper.Error(source, message);
+            return;
+        }
+
+        LogHelper.Error(LogOwner, $"{Robot.Name}：{message}");
+    }
 }

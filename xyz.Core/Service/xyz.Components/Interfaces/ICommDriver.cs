@@ -6,7 +6,7 @@ namespace xyz.Components.Interfaces;
 /// <summary>
 /// 设备通道：模块经它把指令发下去、收回复；不认识任何品牌，也没有固定动作
 /// </summary>
-public interface IDeviceDriverComponent
+public interface ICommDriver
 {
     /// <summary>
     /// 启用了没有：设备只用启用的那条通道（串口、网口都配上时选一条）

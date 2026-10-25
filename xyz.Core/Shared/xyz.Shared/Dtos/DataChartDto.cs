@@ -104,6 +104,21 @@ public class DataChartResultDto
 }
 
 /// <summary>
+/// 导出流里的一条（RpcResponse.Data 的 JSON）：一段时间的原始行，不抽稀。Values[i] 是 Names[i] 那条曲线，跟 Times 一一对应，null = 这一刻没读到。
+/// </summary>
+public class DataChartExportDto
+{
+    /// <summary>
+    /// 时间轴，UTC 毫秒（Unix 时间戳）。
+    /// </summary>
+    public List<long> Times { get; set; } = [];
+
+    public List<string> Names { get; set; } = [];
+
+    public List<List<double?>> Values { get; set; } = [];
+}
+
+/// <summary>
 /// 一条曲线：Values 跟 Times 一一对应，null = 这一刻没数据（曲线断开）；
 /// Min / Max / Avg / Count 是查询时间段内原始数据的精确统计（抽不抽稀都一样）。
 /// </summary>

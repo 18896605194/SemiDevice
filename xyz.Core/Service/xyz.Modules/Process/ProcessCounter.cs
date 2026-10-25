@@ -21,6 +21,11 @@ public sealed class ProcessCounter
         Channel.CreateUnbounded<ProcessDailyCountEntity>(new UnboundedChannelOptions { SingleReader = true });
 
     private string _station = string.Empty;
+
+    /// <summary>
+    /// 日志记在谁名下（这个站点模块）；Load 之前为 null
+    /// </summary>
+    private ILogSource? _owner;
     private string _database = XyzDb.DefaultName;
 
     /// <summary>
@@ -85,9 +90,9 @@ public sealed class ProcessCounter
     }
 
     /// <summary>
-    /// 开机读回来：这个站今天那行接着数，各天加起来是累计；读不了只记日志，今天、累计这次从 0 数（库里照样按天加）
+    /// 开机读回来：这个站今天那行接着数，各天加起来是累计；读不了只记日志（记在 owner 名下），今天、累计这次从 0 数（库里照样按天加）
     /// </summary>
-    public void Load(string station, string database)
+    public void Load(string station, string database, ILogSource owner)
     {
         lock (_gate)
         {
@@ -97,6 +102,7 @@ public sealed class ProcessCounter
             }
 
             _station = station;
+            _owner = owner;
             _database = database;
             _loaded = true;
         }
@@ -115,7 +121,7 @@ public sealed class ProcessCounter
         }
         catch (Exception exception)
         {
-            LogHelper.Error(station, $"读开工片数失败，今天、累计这次从 0 数（库里照样按天加）：{exception.Message}");
+            LogHelper.Error(owner, $"读开工片数失败，今天、累计这次从 0 数（库里照样按天加）：{exception.Message}");
         }
 
         _ = Task.Run(WriteLoopAsync);
@@ -174,7 +180,15 @@ public sealed class ProcessCounter
             }
             catch (Exception exception)
             {
-                LogHelper.Error(row.Station, $"写开工片数失败：{exception.Message}");
+                var owner = _owner;
+                if (owner is null)
+                {
+                    LogHelper.Error(row.Station, $"写开工片数失败：{exception.Message}");
+                }
+                else
+                {
+                    LogHelper.Error(owner, $"写开工片数失败：{exception.Message}");
+                }
             }
         }
     }

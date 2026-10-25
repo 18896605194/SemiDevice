@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
+using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
 using xyz.Client.DataModels.ViewModels;
@@ -8,11 +9,12 @@ using xyz.Client.Presentation.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Rpc;
 using xyz.Shared.Services;
+using xyz.Tools;
 
 namespace xyz.Client.DataCenter.ViewModels;
 
 /// <summary>
-/// 日志历史页 ViewModel：按时间段（精确到分钟）查后端日志文件，可按级别、关键字筛；一次最多显示多少条按后端 machine.xml 配置，超出只留最新的。
+/// 日志历史页 ViewModel：按时间段（精确到分钟）查后端主日志文件，可按模块、级别、关键字筛；一次最多显示多少条按后端 machine.xml 配置，超出只留最新的。
 /// </summary>
 public class LogHistoryViewModel : BaseViewModel
 {
@@ -22,6 +24,19 @@ public class LogHistoryViewModel : BaseViewModel
     /// 查到的日志，最新的在最前。
     /// </summary>
     public ObservableCollection<LogModel> Logs { get; } = [];
+
+    /// <summary>
+    /// 模块下拉框选项："全部" + 日志的第一层（后端按 machine.xml 给，连上后端时取）
+    /// </summary>
+    public ObservableCollection<string> Modules { get; } = [LevelOptions.All];
+
+    private string _selectedModule = LevelOptions.All;
+
+    public string SelectedModule
+    {
+        get => _selectedModule;
+        set => SetProperty(ref _selectedModule, value);
+    }
 
     /// <summary>
     /// 级别下拉框选项。
@@ -61,7 +76,7 @@ public class LogHistoryViewModel : BaseViewModel
     private string _keyword = string.Empty;
 
     /// <summary>
-    /// 关键字：模块名或内容里包含（不分大小写）。
+    /// 关键字：模块、部件或内容里包含（不分大小写）。
     /// </summary>
     public string Keyword
     {
@@ -107,6 +122,63 @@ public class LogHistoryViewModel : BaseViewModel
         LastWeekCommand = new AsyncRelayCommand(DoLastWeek);
     }
 
+    public override void Init()
+    {
+        RemoteEventBus.ConnectionChanged -= OnConnectionChanged;
+        RemoteEventBus.ConnectionChanged += OnConnectionChanged;
+        if (RemoteEventBus.IsConnected)
+        {
+            OnConnectionChanged(true);
+        }
+    }
+
+    /// <summary>
+    /// 连上后端时取模块下拉的选项（换了 machine.xml 重开后端，选项跟着变）
+    /// </summary>
+    private async void OnConnectionChanged(bool connected)
+    {
+        if (!connected)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await _service.GetSettingsAsync(new RpcRequest());
+            if (!response.Success)
+            {
+                return;
+            }
+
+            var settings = JsonHelper.Deserialize<LogSettingsDto>(response.Data);
+            if (settings is null)
+            {
+                return;
+            }
+
+            string selected = SelectedModule;
+            Modules.Clear();
+            Modules.Add(LevelOptions.All);
+            foreach (string module in settings.Modules)
+            {
+                Modules.Add(module);
+            }
+
+            if (Modules.Contains(selected))
+            {
+                SelectedModule = selected;
+            }
+            else
+            {
+                SelectedModule = LevelOptions.All;
+            }
+        }
+        catch
+        {
+            // 后端不可用：断线重连时还会再取。
+        }
+    }
+
     private async Task DoQuery()
     {
         var range = QueryDateRange.Of(StartTime ?? QueryDateRange.Today().Start, EndTime ?? QueryDateRange.Today().End);
@@ -116,6 +188,7 @@ public class LogHistoryViewModel : BaseViewModel
             {
                 Start = range.Start,
                 End = range.End,
+                Module = LevelOptions.ToQuery(SelectedModule),
                 Level = LevelOptions.ToQuery(SelectedLevel),
                 Keyword = Keyword.Trim(),
             });

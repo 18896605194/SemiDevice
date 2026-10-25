@@ -1,5 +1,4 @@
-﻿using xyz.Common.Log;
-using xyz.Components.Components;
+﻿using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Modules;
 using xyz.Shared.Dtos;
@@ -67,7 +66,7 @@ public abstract class BaseService
     protected static Task<RpcResponse> RunRoutine(string module, ILoadPort port,
         ModuleRoutine? routine, int timeout)
     {
-        return RunRoutine("LoadPort", module, port.State, routine, timeout);
+        return RunRoutine(module, port.State, routine, timeout);
     }
 
     /// <summary>
@@ -81,7 +80,7 @@ public abstract class BaseService
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
         }
 
-        return RunRoutine("LoadPort", module, port.State, started.Result, timeout);
+        return RunRoutine(module, port.State, started.Result, timeout);
     }
 
     /// <summary>
@@ -100,7 +99,7 @@ public abstract class BaseService
             }
         }
 
-        return RunRoutine("LoadPort", module, port.State, routine, timeout);
+        return RunRoutine(module, port.State, routine, timeout);
     }
 
     /// <summary>
@@ -114,7 +113,7 @@ public abstract class BaseService
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
         }
 
-        return RunRoutine("_robot", module, robot.State, started.Result, timeout);
+        return RunRoutine(module, robot.State, started.Result, timeout);
     }
 
     /// <summary>
@@ -133,7 +132,7 @@ public abstract class BaseService
             }
         }
 
-        return RunRoutine("_robot", module, robot.State, routine, timeout);
+        return RunRoutine(module, robot.State, routine, timeout);
     }
 
     /// <summary>
@@ -147,7 +146,7 @@ public abstract class BaseService
             return Task.FromResult(RpcResponse.Fail(started.ErrorMessage, [.. started.Args]));
         }
 
-        return RunRoutine("Chamber", module, chamber.State, started.Result, timeout);
+        return RunRoutine(module, chamber.State, started.Result, timeout);
     }
 
     /// <summary>
@@ -166,7 +165,7 @@ public abstract class BaseService
             }
         }
 
-        return RunRoutine("Chamber", module, chamber.State, routine, timeout);
+        return RunRoutine(module, chamber.State, routine, timeout);
     }
 
     /// <summary>
@@ -175,7 +174,7 @@ public abstract class BaseService
     /// 等待超时 → module.wait_timeout + [动作名, 等待ms]（动作还在做，不能据此判失败或重发）；
     /// 到终态 → Ok 或动作自身的错误码。
     /// </summary>
-    private static Task<RpcResponse> RunRoutine(string category, string module, int state,
+    private static Task<RpcResponse> RunRoutine(string module, int state,
         ModuleRoutine? routine, int timeout)
     {
         if (routine is null)
@@ -183,7 +182,6 @@ public abstract class BaseService
             return Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, [module, state.ToString()]));
         }
 
-        LogHelper.Debug($"[{category}] {module} {routine.Name}: {routine.State}, Reason={routine.Reason}");
 
         if (!routine.WaitReply(timeout))
         {

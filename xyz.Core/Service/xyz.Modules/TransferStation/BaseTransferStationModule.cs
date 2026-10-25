@@ -46,7 +46,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
         }
 
         Mode = mode;
-        LogHelper.Info($"[{Name}] {mode}");
+        LogHelper.Info(this, $"{mode}");
     }
 
     #endregion
@@ -376,7 +376,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
             return null;
         }
 
-        return ModuleRoutine.Done(Name, "PrepareTransfer");
+        return ModuleRoutine.Done(this, "PrepareTransfer");
     }
 
     /// <summary>
@@ -389,7 +389,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
             return null;
         }
 
-        return ModuleRoutine.Done(Name, "PrepareTransfer2");
+        return ModuleRoutine.Done(this, "PrepareTransfer2");
     }
 
     /// <summary>
@@ -397,7 +397,7 @@ public abstract class BaseTransferStationModule : BaseModule, ITransferStation, 
     /// </summary>
     protected virtual ModuleRoutine? PrepareNextLegCore(TransferContext context)
     {
-        return ModuleRoutine.Done(Name, "PrepareNextLeg");
+        return ModuleRoutine.Done(this, "PrepareNextLeg");
     }
 
     /// <summary>

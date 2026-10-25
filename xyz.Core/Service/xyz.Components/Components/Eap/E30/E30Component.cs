@@ -6,6 +6,8 @@ using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Configs.Models;
 using xyz.Database.DbProvider;
+using xyz.Secs.Gem;
+using xyz.Secs.Gem.E30;
 using xyz.Secs.SecsII;
 using xyz.Tools;
 
@@ -13,29 +15,14 @@ namespace xyz.Components.Components;
 
 /// <summary>
 /// GEM（SEMI E30，machine.xml 的 Eap 下的 E30 节点）：设备跟 Host 打交道的总规矩，别的标准（E87、E40……）都在它上面。
-/// ① 控制状态（OFF-LINE 三个子状态、ON-LINE LOCAL / REMOTE）：离线时 Host 只能建立通讯、请求上线；LOCAL 时 Host 能查不能下动作命令；
-/// ② 通讯状态：链路连上后设备发 S1F13（Host 先发也行），换过一次才算建立了通讯，之前 Host 的报文不理；
-/// ③ 事件报告：Host 定义报告（S2F33）、挂到事件上（S2F35）、开关事件（S2F37），设备这边谁报事件都经这里统一发 S6F11；
-/// ④ 报警：报出、清除都发 S5F1（Host 能开关，S5F3），同时报对应的报警事件；
-/// ⑤ 变量和常量：SV 查询（S1F3）、名单（S1F11 / S1F21 / S1F23）、EC 查改（S2F13 / S2F15 / S2F29）、时间（S2F17 / S2F31）；
-/// ⑥ 缓存（Spooling）：断了通讯时 Host 要缓存的报文存盘，Host 用 S6F23 要了再发。
-/// Host 定的报告、开关、缓存范围掉电保持（存库）。EAP 没启用时不接到链路上，组件里的事件也不报。
+/// 协议（控制状态、通讯建立、报告、报警、变量和常量、缓存）在 xyz.Secs 的 E30Engine；这里给它设定（machine.xml、EC）、
+/// 编号表和当前值（GemDictionary）、存盘（GemStore），把组件报的事件（RaiseEvent）换成 CEID、报警换成 ALID 交进去。
+/// EAP 没启用时不接到链路上，组件里的事件也不报
 /// </summary>
 [Component(description: "GEM（SEMI E30）：控制状态、通讯建立、事件报告、报警、变量和常量、缓存")]
-public partial class E30Component : ComponentBase, IE30Component
+public class E30Component : ComponentBase, IE30Component, IEventReceiver, IE30Settings, IGemEvents
 {
-    /// <summary>ALTX 最长 40 个字符（E5）。</summary>
-    private const int MaxAlarmTextLength = 40;
-
-    /// <summary>ALCD 最高位：报警在报着。</summary>
-    private const byte AlarmSetBit = 0x80;
-
-    private readonly GemBook _book = new();
-    private IHsms? _link;
-    private GemStore? _store;
-    private GemSpool? _spool;
-    private GemSender? _sender;
-    private int _dataId;
+    private E30Engine? _engine;
 
     /// <summary>
     /// 报警组件（接链路时取）；没装是 null
@@ -48,15 +35,9 @@ public partial class E30Component : ComponentBase, IE30Component
     private IEc? _ec;
 
     /// <summary>
-    /// GEM 编号表（接链路时取）：SV、EC、DV、事件、报警的编号都查它
+    /// GEM 编号表（接链路时取）：组件报的事件、DV、报警按它换成编号
     /// </summary>
     private GemCollectors? _collectors;
-
-    /// <summary>
-    /// Host 改 EC（S2F15）的那一刻：EC 变化的通知也在这条线程上发，见到这个标记就不当成操作员改的（不报操作员改常量的事件）。
-    /// </summary>
-    [ThreadStatic]
-    private static bool _applyingHostConstants;
 
     #region Machine
 
@@ -91,9 +72,13 @@ public partial class E30Component : ComponentBase, IE30Component
     {
         get
         {
-            return Enum.TryParse(GetEcString(nameof(OfflineSubState)), true, out GemControlState state) && IsOffline(state)
-                ? state
-                : GemControlState.HostOffline;
+            if (Enum.TryParse(GetEcString(nameof(OfflineSubState)), true, out GemControlState state)
+                && state is GemControlState.EquipmentOffline or GemControlState.AttemptOnline or GemControlState.HostOffline)
+            {
+                return state;
+            }
+
+            return GemControlState.HostOffline;
         }
         set { SetEc(nameof(OfflineSubState), value.ToString()); }
     }
@@ -113,10 +98,13 @@ public partial class E30Component : ComponentBase, IE30Component
     {
         get
         {
-            return Enum.TryParse(GetEcString(nameof(OnlineFailedState)), true, out GemControlState state)
-                   && state is GemControlState.EquipmentOffline or GemControlState.HostOffline
-                ? state
-                : GemControlState.HostOffline;
+            if (Enum.TryParse(GetEcString(nameof(OnlineFailedState)), true, out GemControlState state)
+                && state is GemControlState.EquipmentOffline or GemControlState.HostOffline)
+            {
+                return state;
+            }
+
+            return GemControlState.HostOffline;
         }
         set { SetEc(nameof(OnlineFailedState), value.ToString()); }
     }
@@ -173,149 +161,199 @@ public partial class E30Component : ComponentBase, IE30Component
 
     #region SV
 
-    /// <summary>控制状态（E30 ControlState，U1：1 EQUIPMENT OFF-LINE、2 ATTEMPT ON-LINE、3 HOST OFF-LINE、4 LOCAL、5 REMOTE）。</summary>
+    /// <summary>
+    /// 控制状态（E30 ControlState，U1：1 EQUIPMENT OFF-LINE、2 ATTEMPT ON-LINE、3 HOST OFF-LINE、4 LOCAL、5 REMOTE）
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "GEM 控制状态：1 设备离线、2 正在上线、3 等 Host 上线、4 在线本地、5 在线远程")]
     public byte ControlState => (byte)CurrentControlState;
 
-    /// <summary>上一个控制状态（E30 PreviousControlState）。</summary>
+    /// <summary>
+    /// 上一个控制状态（E30 PreviousControlState）
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "GEM 上一个控制状态")]
-    public byte PreviousControlState
-    {
-        get
-        {
-            lock (_stateGate)
-            {
-                return (byte)_previous;
-            }
-        }
-    }
+    public byte PreviousControlState => (byte)(_engine?.PreviousControlState ?? GemControlState.EquipmentOffline);
 
-    /// <summary>通讯状态：1 没建立、2 建立了。</summary>
+    /// <summary>
+    /// 通讯状态：1 没建立、2 建立了
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "GEM 通讯状态：1 没建立、2 建立了")]
     public byte CommunicationState => (byte)CommState;
 
-    /// <summary>设备时钟（E30 Clock），格式按 TimeFormat。</summary>
+    /// <summary>
+    /// 设备时钟（E30 Clock），格式按 TimeFormat
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "设备时钟（格式按 EC TimeFormat）")]
     public string Clock => GemValue.Time(DateTime.Now, TimeFormat);
 
-    /// <summary>开着的事件（E30 EventsEnabled）：CEID 列表。</summary>
+    /// <summary>
+    /// 开着的事件（E30 EventsEnabled）：CEID 列表
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "开着的事件（CEID 列表）")]
-    public SecsItem EventsEnabled =>
-        SecsItem.L(AllEventIds().Where(_book.IsEventEnabled).Select(ceid => SecsItem.U4(ceid)));
+    public SecsItem EventsEnabled => _engine?.EventsEnabled ?? SecsItem.L();
 
-    /// <summary>开着的报警（E30 AlarmsEnabled）：ALID 列表。</summary>
+    /// <summary>
+    /// 开着的报警（E30 AlarmsEnabled）：ALID 列表
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "开着的报警（ALID 列表）")]
-    public SecsItem AlarmsEnabled =>
-        SecsItem.L(AllAlarmIds().Where(_book.IsAlarmEnabled).Select(alid => SecsItem.U4(alid)));
+    public SecsItem AlarmsEnabled => _engine?.AlarmsEnabled ?? SecsItem.L();
 
-    /// <summary>正在报着的报警（E30 AlarmsSet）：ALID 列表。</summary>
+    /// <summary>
+    /// 正在报着的报警（E30 AlarmsSet）：ALID 列表
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "正在报着的报警（ALID 列表）")]
-    public SecsItem AlarmsSet =>
-        SecsItem.L(ActiveAlarmIds().Select(alid => SecsItem.U4(alid)));
+    public SecsItem AlarmsSet => _engine?.AlarmsSet ?? SecsItem.L();
 
-    /// <summary>缓存里现在有几条（E30 SpoolCountActual）。</summary>
+    /// <summary>
+    /// 缓存里现在有几条（E30 SpoolCountActual）
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "缓存里现在有几条报文")]
-    public uint SpoolCountActual => (uint)(_spool?.CountActual ?? 0);
+    public uint SpoolCountActual => _engine?.SpoolCountActual ?? 0;
 
-    /// <summary>这一轮缓存一共进来过几条（E30 SpoolCountTotal）。</summary>
+    /// <summary>
+    /// 这一轮缓存一共进来过几条（E30 SpoolCountTotal）
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.Int, description: "这一轮缓存一共进来过几条报文（含满了丢掉的）")]
-    public uint SpoolCountTotal => _spool?.CountTotal ?? 0;
+    public uint SpoolCountTotal => _engine?.SpoolCountTotal ?? 0;
 
-    /// <summary>这一轮缓存开始的时刻（E30 SpoolStartTime）。</summary>
+    /// <summary>
+    /// 这一轮缓存开始的时刻（E30 SpoolStartTime）
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "这一轮缓存开始的时刻")]
-    public string SpoolStartTime => FormatTime(_spool?.StartTime);
+    public string SpoolStartTime => _engine?.SpoolStartTime ?? string.Empty;
 
-    /// <summary>这一轮缓存满了的时刻（E30 SpoolFullTime）。</summary>
+    /// <summary>
+    /// 这一轮缓存满了的时刻（E30 SpoolFullTime）
+    /// </summary>
     [VariableMark(VariableType.SV, ValueFormat.String, description: "这一轮缓存满了的时刻（没满过为空）")]
-    public string SpoolFullTime => FormatTime(_spool?.FullTime);
+    public string SpoolFullTime => _engine?.SpoolFullTime ?? string.Empty;
 
     #endregion
 
     #region 事件、DV
 
     [EventAttribut("控制状态：离线", Description = "进 OFF-LINE（操作员点离线、Host 请求离线）；离线前最后报的一条")]
-    public readonly string EquipmentOfflineEvent = "EquipmentOffline";
+    public readonly string EquipmentOfflineEvent = E30Codes.EquipmentOffline;
 
     [EventAttribut("控制状态：在线本地", Description = "进 ON-LINE LOCAL")]
-    public readonly string ControlStateLocalEvent = "ControlStateLocal";
+    public readonly string ControlStateLocalEvent = E30Codes.ControlStateLocal;
 
     [EventAttribut("控制状态：在线远程", Description = "进 ON-LINE REMOTE")]
-    public readonly string ControlStateRemoteEvent = "ControlStateRemote";
+    public readonly string ControlStateRemoteEvent = E30Codes.ControlStateRemote;
 
     [EventAttribut("开始缓存", Description = "断了通讯，开始缓存 Host 要缓存的报文（开始时刻看 SV SpoolStartTime）")]
-    public readonly string SpoolingActivatedEvent = "SpoolingActivated";
+    public readonly string SpoolingActivatedEvent = E30Codes.SpoolingActivated;
 
     [EventAttribut("缓存清空", Description = "缓存发完或被清掉，不再缓存")]
-    public readonly string SpoolingDeactivatedEvent = "SpoolingDeactivated";
+    public readonly string SpoolingDeactivatedEvent = E30Codes.SpoolingDeactivated;
 
     [EventAttribut("缓存发送失败", Description = "按 Host 要求发缓存时断了，没发完的留在缓存里")]
-    public readonly string SpoolTransmitFailureEvent = "SpoolTransmitFailure";
+    public readonly string SpoolTransmitFailureEvent = E30Codes.SpoolTransmitFailure;
 
     [EventAttribut("操作员改了设备常量", Description = "操作员在界面上改了 EC（Host 用 S2F15 改的不报）",
-        Data = new[] { "ChangedEcid", "ChangedEcValue" })]
-    public readonly string OperatorEquipmentConstantChangeEvent = "OperatorEquipmentConstantChange";
+        Data = new[] { E30Codes.ChangedEcid, E30Codes.ChangedEcValue })]
+    public readonly string OperatorEquipmentConstantChangeEvent = E30Codes.OperatorEquipmentConstantChange;
 
     [DataVariable(ValueFormat.Int, "操作员改的 EC 的 ECID")]
-    public readonly string ChangedEcidData = "ChangedEcid";
+    public readonly string ChangedEcidData = E30Codes.ChangedEcid;
 
     [DataVariable(ValueFormat.String, "操作员改的 EC 改成的值")]
-    public readonly string ChangedEcValueData = "ChangedEcValue";
+    public readonly string ChangedEcValueData = E30Codes.ChangedEcValue;
+
+    #endregion
+
+    #region 状态（给界面、别的组件看）
+
+    /// <summary>
+    /// GEM 的协议部分（xyz.Secs）；没接链路为 null
+    /// </summary>
+    public E30Engine? Engine => _engine;
+
+    /// <summary>
+    /// 接到链路上了（EAP 启用了）：Host 的报文有人答、组件报的事件会发
+    /// </summary>
+    public bool IsAttached => _engine is not null;
+
+    /// <summary>
+    /// 当前控制状态（没接链路是设备离线）
+    /// </summary>
+    public GemControlState CurrentControlState => _engine?.CurrentControlState ?? GemControlState.EquipmentOffline;
+
+    /// <summary>
+    /// 当前通讯状态（没接链路是没建立）
+    /// </summary>
+    public GemCommState CommState => _engine?.CommState ?? GemCommState.NotCommunicating;
+
+    /// <summary>
+    /// ON-LINE（LOCAL 或 REMOTE）：事件、报警才往 Host 报
+    /// </summary>
+    public bool IsOnline => _engine?.IsOnline ?? false;
+
+    /// <summary>
+    /// ON-LINE REMOTE：Host 的动作命令（载具动作、建 Job、Job 命令……）才收
+    /// </summary>
+    public bool IsRemote => _engine?.IsRemote ?? false;
+
+    /// <summary>
+    /// 操作员点"上线"（EQUIPMENT OFF-LINE → ATTEMPT ON-LINE，发 S1F1 问 Host）；不在 EQUIPMENT OFF-LINE、没接链路返回 false
+    /// </summary>
+    public bool RequestOnline()
+    {
+        return _engine?.RequestOnline() ?? false;
+    }
+
+    /// <summary>
+    /// 操作员点"离线"；不能离线、没接链路返回 false
+    /// </summary>
+    public bool RequestOffline()
+    {
+        return _engine?.RequestOffline() ?? false;
+    }
+
+    /// <summary>
+    /// 操作员切 REMOTE / LOCAL，只在 ON-LINE 时
+    /// </summary>
+    public bool RequestRemote(bool remote)
+    {
+        return _engine?.RequestRemote(remote) ?? false;
+    }
 
     #endregion
 
     #region 接链路
 
-    /// <summary>接到链路上了（EAP 启用了）：Host 的报文有人答、组件报的事件会发。</summary>
-    public bool IsAttached => _link is not null;
-
     /// <summary>
-    /// 接到链路上（EAP 组件在链路打开之前调）：读回存着的设定、登记各报文的处理方和闸门、订链路连上 / 断开、
-    /// 订报警和 EC 变化，最后按 EC 进开机的控制状态。
+    /// 接到链路上（EAP 组件在链路打开之前调）：建 E30 的协议部分（读回存着的设定、登记各报文的处理方和闸门），
+    /// 订报警和 EC 变化，最后按 EC 进开机的控制状态
     /// </summary>
     public void Attach(IHsms link)
     {
         ArgumentNullException.ThrowIfNull(link);
-        if (_link is not null)
+        if (_engine is not null)
         {
             throw new InvalidOperationException($"{Name} 已经接过链路了");
         }
 
-        var store = new GemStore(Database, () => Name);
-        _store = store;
-        _book.Load(store.LoadConfig());
-        var spool = new GemSpool(store, SaveConfig, () => MaxSpoolMessages, () => OverwriteSpool);
-        spool.Restore(_book.Config);
-        _spool = spool;
-        _sender = new GemSender(() => _link, spool, _book, () => CommState == GemCommState.Communicating,
-            CommunicationFailed, OnSpoolEmptied, OnSpoolTransmitFailed, () => Name);
-        _link = link;
-
-        link.Gate = Admit;
-        link.LinkSelected += OnLinkSelected;
-        link.LinkClosed += OnLinkClosed;
-        RegisterHandlers(link);
-
         _collectors = IocHelper.GetService<GemCollectors>();
         _alarms = IocHelper.GetService<IAlarm>();
+        _ec = IocHelper.GetService<IEc>();
+        var dictionary = new GemDictionary(_collectors, _ec, _alarms);
+        _engine = new E30Engine(link.Link, this, dictionary, new GemStore(Database, this), this, new SecsLog(this), Name);
         if (_alarms is not null)
         {
             _alarms.AlarmChanged += OnAlarmChanged;
         }
 
-        _ec = IocHelper.GetService<IEc>();
         if (_ec is not null)
         {
             _ec.ValueChanged += OnConstantChanged;
         }
 
-        EnterInitialState();
-        if (spool.IsActive)
-        {
-            LogHelper.Warn(Name, $"上次关机时缓存还开着（{spool.CountActual} 条），接着开着，等 Host 用 S6F23 要");
-        }
+        _engine.Start();
     }
 
-    /// <summary>从链路上摘下来（宿主退出时）：不再订报警和 EC 变化。</summary>
+    /// <summary>
+    /// 从链路上摘下来（宿主退出时）：不再订报警和 EC 变化
+    /// </summary>
     public void Detach()
     {
         var alarms = _alarms;
@@ -330,31 +368,8 @@ public partial class E30Component : ComponentBase, IE30Component
             ec.ValueChanged -= OnConstantChanged;
         }
 
-        var link = _link;
-        if (link is not null)
-        {
-            link.LinkSelected -= OnLinkSelected;
-            link.LinkClosed -= OnLinkClosed;
-        }
-
-        _link = null;
-    }
-
-    /// <summary>把设定（连同缓存的状态）存盘。</summary>
-    private void SaveConfig()
-    {
-        var store = _store;
-        if (store is null)
-        {
-            return;
-        }
-
-        var spool = _spool;
-        string json = _book.Serialize(config =>
-        {
-            spool?.CopyTo(config);
-        });
-        store.SaveConfig(json);
+        _engine?.Stop();
+        _engine = null;
     }
 
     #endregion
@@ -362,74 +377,50 @@ public partial class E30Component : ComponentBase, IE30Component
     #region 报事件（S6F11）
 
     /// <summary>
-    /// 报一个事件（任意线程）：code 是 source 组件上 [EventAttribut] 的代码，data 是这个事件带的 DV（[DataVariable] 的代码 → 值）。
-    /// 值在这一刻取好（SV、EC 现读，DV 用给的），排进发送线程按先后发。没接链路、离线、事件没编号或被 Host 关了都不报。
+    /// 收一个事件（任意线程）：code 是 source 组件上 [EventAttribut] 的代码，data 是这个事件带的 DV（[DataVariable] 的代码 → 值）。
+    /// 按编号表换成 CEID、DVID，DV 的值按格式落成 SECS 项，交给 E30 排进发送线程。没接链路、事件没编号都不报（离线、被 Host 关了由 E30 挡）
     /// </summary>
     public void Report(ComponentBase source, string code, params GemData[] data)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (!IsAttached)
-        {
-            return;
-        }
-
         var collectors = _collectors;
-        if (collectors is null)
+        if (_engine is null || collectors is null)
         {
             return;
         }
 
-        var values = new Dictionary<int, object?>();
+        var values = new Dictionary<uint, SecsItem>();
         foreach (var item in data)
         {
             int dvid = collectors.Dv.DvidOf($"{source.FullPath}.{item.Name}");
             if (dvid == 0)
             {
-                LogHelper.Warn(Name, $"{source.FullPath} 报事件 {code} 带的 {item.Name} 没有 DV 编号，不带");
+                LogHelper.Warn(this, $"{source.FullPath} 报事件 {code} 带的 {item.Name} 没有 DV 编号，不带");
                 continue;
             }
 
-            values[dvid] = item.Value;
+            values[(uint)dvid] = GemValue.From(item.Value, FormatOf(collectors, dvid));
         }
 
         ReportEvent($"{source.FullPath}.{code}", values);
     }
 
     /// <summary>
-    /// 发一条设备主动发的报文（S6F1 这类），离线不发；没通讯、缓存跟 S6F11 一样处理
+    /// E30 自己的事件（控制状态、缓存）也经 RaiseEvent 报：别的收事件的组件（EDA）一样收得到
     /// </summary>
-    public void Send(SecsMessage message)
+    void IGemEvents.Report(string code, params (string Name, object? Value)[] data)
     {
-        ArgumentNullException.ThrowIfNull(message);
-        var sender = _sender;
-        if (sender is null || !IsOnline)
-        {
-            return;
-        }
-
-        // 发送线反正要丢的这里先丢、不记日志：Trace 一秒能有好几条，断线时不然会刷屏
-        var spool = _spool;
-        if (spool is not null && spool.IsActive)
-        {
-            if (!_book.IsSpoolable(message.Stream, message.Function))
-            {
-                return;
-            }
-        }
-        else if (CommState != GemCommState.Communicating)
-        {
-            return;
-        }
-
-        sender.Enqueue(message);
+        RaiseEvent(code, data.Select(item => new GemData(item.Name, item.Value)).ToArray());
     }
 
-    /// <summary>按事件全名报（报警事件这种不挂在组件上的）：dvs 是 DVID → 值。</summary>
-    private void ReportEvent(string eventName, IReadOnlyDictionary<int, object?> dvs)
+    /// <summary>
+    /// 按事件全名报（报警事件这种不挂在组件上的）：values 是 DVID → 值
+    /// </summary>
+    private void ReportEvent(string eventName, IReadOnlyDictionary<uint, SecsItem> values)
     {
-        var sender = _sender;
+        var engine = _engine;
         var collectors = _collectors;
-        if (sender is null || collectors is null)
+        if (engine is null || collectors is null)
         {
             return;
         }
@@ -437,38 +428,25 @@ public partial class E30Component : ComponentBase, IE30Component
         int ceid = collectors.Event.CeidOf(eventName);
         if (ceid == 0)
         {
-            LogHelper.Warn(Name, $"事件 {eventName} 没有 CEID（编号表不可用或没声明），不报");
+            LogHelper.Warn(this, $"事件 {eventName} 没有 CEID（编号表不可用或没声明），不报");
             return;
         }
 
-        if (!IsOnline || !_book.IsEventEnabled((uint)ceid))
-        {
-            return;
-        }
-
-        var body = SecsItem.L(SecsItem.U4(NextDataId()), SecsItem.U4((uint)ceid), BuildReports((uint)ceid, dvs, annotated: false));
-        sender.Enqueue(new SecsMessage(6, 11, true, body));
+        engine.ReportEvent((uint)ceid, values);
     }
 
     /// <summary>
-    /// 一个事件的报告部分 L[a]{L[2]{RPTID, L[b]{V}}}（annotated 时每个值是 L[2]{VID, V}）：按 Host 挂的报告取值。
+    /// DV 在编号表里的格式；没有这一行给空（按值的类型落格式）
     /// </summary>
-    private SecsItem BuildReports(uint ceid, IReadOnlyDictionary<int, object?>? dvs, bool annotated)
+    private static string FormatOf(GemCollectors collectors, int dvid)
     {
-        return SecsItem.L(_book.ReportsOf(ceid).Select(report =>
-            SecsItem.L(SecsItem.U4(report.ReportId), ReportValues(report.Variables, dvs, annotated))));
-    }
+        var dv = collectors.Dv.ByDvid(dvid);
+        if (dv is null)
+        {
+            return string.Empty;
+        }
 
-    private SecsItem ReportValues(IReadOnlyList<uint> variables, IReadOnlyDictionary<int, object?>? dvs, bool annotated)
-    {
-        return SecsItem.L(variables.Select(vid => annotated
-            ? SecsItem.L(SecsItem.U4(vid), VariableValue(vid, dvs))
-            : VariableValue(vid, dvs)));
-    }
-
-    private uint NextDataId()
-    {
-        return unchecked((uint)Interlocked.Increment(ref _dataId));
+        return dv.Format;
     }
 
     #endregion
@@ -476,15 +454,16 @@ public partial class E30Component : ComponentBase, IE30Component
     #region 报警（S5F1 + 报警事件）
 
     /// <summary>
-    /// 报警报出 / 清除：Host 开着这个报警就发 S5F1（ALCD 最高位 1 = 报出，低 7 位是报警分类），再报这条报警对应的报出 / 清除事件（带报警的几项 DV）。
-    /// 没有 ALID 的报警只记日志。
+    /// 报警报出 / 清除：按编号表找 ALID 交给 E30 发 S5F1（Host 开着这个报警才发），再报这条报警对应的报出 / 清除事件（带报警的几项 DV）。
+    /// 没有 ALID 的报警只记日志
     /// </summary>
     private void OnAlarmChanged(AlarmItem alarm)
     {
         try
         {
+            var engine = _engine;
             var collectors = _collectors;
-            if (collectors is null)
+            if (engine is null || collectors is null)
             {
                 return;
             }
@@ -494,26 +473,19 @@ public partial class E30Component : ComponentBase, IE30Component
                 .FirstOrDefault(row => row.Enabled && string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase));
             if (definition is null)
             {
-                LogHelper.Warn(Name, $"报警没有 ALID 编号，不报 Host：{name}");
+                LogHelper.Warn(this, $"报警没有 ALID 编号，不报 Host：{name}");
                 return;
             }
 
-            uint alid = (uint)definition.Id;
-            var sender = _sender;
-            if (sender is not null && IsOnline && _book.IsAlarmEnabled(alid))
-            {
-                byte alcd = Alcd(alarm.IsActive, alarm.Category);
-                sender.Enqueue(new SecsMessage(5, 1, true,
-                    SecsItem.L(SecsItem.B(alcd), SecsItem.U4(alid), SecsItem.A(AlarmText(definition.Name)))));
-            }
+            engine.ReportAlarm((uint)definition.Id, alarm.IsActive, (byte)alarm.Category, definition.Name);
 
             var payload = collectors.Dv.AlarmPayloadDvids;
-            var dvs = new Dictionary<int, object?>();
+            var values = new Dictionary<uint, SecsItem>();
             if (payload.Count == DvCollector.AlarmPayload.Count)
             {
-                object?[] values =
+                object?[] items =
                 [
-                    alid,
+                    (uint)definition.Id,
                     definition.Name,
                     alarm.SourcePath,
                     alarm.Category.ToString(),
@@ -522,64 +494,29 @@ public partial class E30Component : ComponentBase, IE30Component
                 ];
                 for (int index = 0; index < payload.Count; index++)
                 {
-                    dvs[payload[index]] = values[index];
+                    values[(uint)payload[index]] = GemValue.From(items[index], FormatOf(collectors, payload[index]));
                 }
             }
 
-            ReportEvent(EventCollector.AlarmEventName(definition.Id, clear: !alarm.IsActive), dvs);
+            ReportEvent(EventCollector.AlarmEventName(definition.Id, clear: !alarm.IsActive), values);
         }
         catch (Exception exception)
         {
             // 报 Host 出错绝不能反过来影响报警系统本身
-            LogHelper.Warn(Name, $"报警报 Host 失败：{exception.Message}");
+            LogHelper.Warn(this, $"报警报 Host 失败：{exception.Message}");
         }
-    }
-
-    /// <summary>
-    /// ALTX：E5 限 40 个字符、只能 ASCII。报警文字是中文发不出去，发"组件全路径.报警代码"（跟编号表里的名字一样），
-    /// 超长只留后面 40 个字符（报警代码在后面）。Host 一般按 ALID 对自己的报警表，这段只是方便人看。
-    /// </summary>
-    private static string AlarmText(string name)
-    {
-        string text = GemValue.Ascii(name);
-        return text.Length > MaxAlarmTextLength ? text[^MaxAlarmTextLength..] : text;
-    }
-
-    /// <summary>
-    /// ALCD：最高位是还在不在报，低 7 位是报警分类（[Alarm] 上声明的，跟 E5 的类别一一对应）。
-    /// </summary>
-    private static byte Alcd(bool active, AlarmCategory category)
-    {
-        byte alcd = (byte)category;
-        if (active)
-        {
-            alcd |= AlarmSetBit;
-        }
-
-        return alcd;
-    }
-
-    /// <summary>
-    /// 编号表里记的分类名换回枚举；没有这一行或名字认不出就当"不用"（0）。
-    /// </summary>
-    private static AlarmCategory CategoryOf(AlarmDefinition? definition)
-    {
-        if (definition is not null && Enum.TryParse(definition.Category, out AlarmCategory category))
-        {
-            return category;
-        }
-
-        return AlarmCategory.NotUsed;
     }
 
     #endregion
 
     #region 操作员改常量
 
-    /// <summary>EC 变了：不是 Host 改的就报"操作员改了设备常量"（带 ECID 和新值）。</summary>
+    /// <summary>
+    /// EC 变了：不是 Host 改的就报"操作员改了设备常量"（带 ECID 和新值）
+    /// </summary>
     private void OnConstantChanged(string path, EcValueConfig value)
     {
-        if (_applyingHostConstants)
+        if (GemDictionary.ApplyingHostConstants)
         {
             return;
         }
@@ -590,121 +527,9 @@ public partial class E30Component : ComponentBase, IE30Component
             return;
         }
 
-        Report(this, OperatorEquipmentConstantChangeEvent,
-            new GemData(ChangedEcidData, (uint)ecid),
-            new GemData(ChangedEcValueData, GemValue.FromText(value.Value ?? string.Empty, value.Format ?? string.Empty)));
-    }
-
-    #endregion
-
-    #region 缓存的回调
-
-    /// <summary>缓存取空或清掉了：关缓存，报"缓存清空"。</summary>
-    private void OnSpoolEmptied()
-    {
-        if (_spool is not null && _spool.Deactivate())
-        {
-            LogHelper.Info(Name, "缓存清空，不再缓存");
-            Report(this, SpoolingDeactivatedEvent);
-        }
-    }
-
-    /// <summary>发缓存的时候断了：报"缓存发送失败"（这条自己也会进缓存）。</summary>
-    private void OnSpoolTransmitFailed()
-    {
-        Report(this, SpoolTransmitFailureEvent);
-    }
-
-    #endregion
-
-    #region 变量（SV / EC / DV）
-
-    /// <summary>变量号存在吗：在用、标了上传的 SV、EC，或者在用的 DV。</summary>
-    private bool VariableExists(uint vid)
-    {
-        var collectors = _collectors;
-        if (collectors is null || vid > int.MaxValue)
-        {
-            return false;
-        }
-
-        int id = (int)vid;
-        if (collectors.Sv.TryRead(id, out var sv, out _))
-        {
-            return sv is not null && sv.Visible;
-        }
-
-        var ec = collectors.Ec.ByEcid(id);
-        if (ec is not null)
-        {
-            return ec.Visible;
-        }
-
-        return collectors.Dv.ByDvid(id) is not null;
-    }
-
-    /// <summary>
-    /// 一个变量现在的值：SV、EC 现读；DV 用报事件时给的（没给的报空项）。不存在的号报空 ASCII（跟 S1F3 一样）。
-    /// </summary>
-    private SecsItem VariableValue(uint vid, IReadOnlyDictionary<int, object?>? dvs)
-    {
-        var collectors = _collectors;
-        if (collectors is null || vid > int.MaxValue)
-        {
-            return SecsItem.A(string.Empty);
-        }
-
-        int id = (int)vid;
-        if (collectors.Sv.TryRead(id, out var sv, out object? raw))
-        {
-            return sv is not null && sv.Visible ? GemValue.From(raw, sv.Format) : SecsItem.A(string.Empty);
-        }
-
-        var ec = collectors.Ec.ByEcid(id);
-        if (ec is not null)
-        {
-            return ec.Visible ? GemValue.FromText(ec.Value, ec.Format) : SecsItem.A(string.Empty);
-        }
-
-        var dv = collectors.Dv.ByDvid(id);
-        if (dv is not null)
-        {
-            return dvs is not null && dvs.TryGetValue(id, out object? value) ? GemValue.From(value, dv.Format) : GemValue.Empty(dv.Format);
-        }
-
-        return SecsItem.A(string.Empty);
-    }
-
-    /// <summary>全部在用事件的 CEID。</summary>
-    private IReadOnlyList<uint> AllEventIds()
-    {
-        return _collectors?.Event.Definitions.Where(row => row.Enabled).Select(row => (uint)row.Id).ToList() ?? [];
-    }
-
-    /// <summary>全部在用报警的 ALID。</summary>
-    private IReadOnlyList<uint> AllAlarmIds()
-    {
-        return _collectors?.Alarm.Definitions.Where(row => row.Enabled).Select(row => (uint)row.Id).ToList() ?? [];
-    }
-
-    /// <summary>正在报着的报警的 ALID。</summary>
-    private IReadOnlyList<uint> ActiveAlarmIds()
-    {
-        var collectors = _collectors;
-        var alarms = _alarms;
-        if (collectors is null || alarms is null)
-        {
-            return [];
-        }
-
-        var active = alarms.ActiveAlarms.Select(alarm => $"{alarm.SourcePath}.{alarm.AlarmCode}")
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return collectors.Alarm.Definitions.Where(row => row.Enabled && active.Contains(row.Name)).Select(row => (uint)row.Id).ToList();
-    }
-
-    private string FormatTime(DateTime? time)
-    {
-        return time is null ? string.Empty : GemValue.Time(time.Value, TimeFormat);
+        RaiseEvent(E30Codes.OperatorEquipmentConstantChange,
+            new GemData(E30Codes.ChangedEcid, (uint)ecid),
+            new GemData(E30Codes.ChangedEcValue, GemValue.FromText(value.Value ?? string.Empty, value.Format ?? string.Empty)));
     }
 
     #endregion

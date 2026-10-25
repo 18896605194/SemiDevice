@@ -6,8 +6,10 @@ using xyz.Shared.Errors;
 
 namespace xyz.Modules;
 
-/// <summary>保存 PJ、各自状态机和晶圆归属；执行进度与设备协调由 JobManager 处理。</summary>
-public sealed class PjManager : IPjManager
+/// <summary>
+/// 保存 PJ、各自状态机和晶圆归属；执行进度与设备协调由 JobManager 处理。logOwner 是日志记在谁名下（Job 管理）
+/// </summary>
+public sealed class PjManager(ILogSource logOwner) : IPjManager
 {
     #region PJ 字典
 
@@ -37,7 +39,7 @@ public sealed class PjManager : IPjManager
             return;
         }
 
-        var stateMachine = new PjStateMachine();
+        var stateMachine = new PjStateMachine(logOwner);
         stateMachine.CurrentState = processJob.State;
         var entity = new PjEntity(processJob, stateMachine);
         stateMachine.OnStateChanged += (previous, current) => OnStateChanged(entity, previous, current);
@@ -290,7 +292,7 @@ public sealed class PjManager : IPjManager
             job.EndedAt = now;
         }
 
-        LogHelper.Info("Job", $"PJ {job.Id} E40 #{e40TransitionNumber}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
+        LogHelper.Info(logOwner, $"PJ {job.Id} E40 #{e40TransitionNumber}：{JobNames.Of(previous)} → {JobNames.Of(current)}");
         StateChanged?.Invoke(job, current, e40TransitionNumber);
     }
 

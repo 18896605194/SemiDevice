@@ -37,7 +37,7 @@ public class EapNotifierComponent : ComponentBase, IEapNotifierComponent
         int pending = Interlocked.Increment(ref _pending);
         if (pending > 0 && pending % BacklogWarning == 0)
         {
-            LogHelper.Warn(Name, $"EAP 上报积压 {pending} 条，检查 EAP 侧是否卡住");
+            LogHelper.Warn(this, $"EAP 上报积压 {pending} 条，检查 EAP 侧是否卡住");
         }
     }
 
@@ -52,7 +52,7 @@ public class EapNotifierComponent : ComponentBase, IEapNotifierComponent
             }
             catch (Exception exception)
             {
-                LogHelper.Warn(Name, $"EAP 上报出错：{exception.Message}");
+                LogHelper.Warn(this, $"EAP 上报出错：{exception.Message}");
             }
         }
     }

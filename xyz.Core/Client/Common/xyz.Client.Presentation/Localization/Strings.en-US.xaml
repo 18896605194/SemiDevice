@@ -303,6 +303,7 @@
     <sys:String x:Key="common.total">{0} records</sys:String>
     <sys:String x:Key="common.query_hint">Pick the time range, then click Search</sys:String>
     <sys:String x:Key="common.query_failed">Search failed</sys:String>
+    <sys:String x:Key="common.excel_filter">Excel files (*.xlsx)|*.xlsx</sys:String>
     <sys:String x:Key="common.truncated">Showing only the latest {0} records; narrow the dates or add filters</sys:String>
     <sys:String x:Key="common.days_duration">{0}d {1}</sys:String>
 
@@ -333,8 +334,9 @@
     <!-- Log pages -->
     <sys:String x:Key="log.level">Level</sys:String>
     <sys:String x:Key="log.module">Module</sys:String>
+    <sys:String x:Key="log.part">Part</sys:String>
     <sys:String x:Key="log.message">Message</sys:String>
-    <sys:String x:Key="log.keyword_hint">Keyword (module / message)</sys:String>
+    <sys:String x:Key="log.keyword_hint">Keyword (module / part / message)</sys:String>
     <sys:String x:Key="log.pause">Pause</sys:String>
     <sys:String x:Key="log.resume">Resume</sys:String>
     <sys:String x:Key="log.clear">Clear</sys:String>
@@ -638,6 +640,12 @@
     <sys:String x:Key="datachart.points">{0} time points</sys:String>
     <sys:String x:Key="datachart.decimated">Long range: plotted as min/max per {0} s (statistics use the raw data)</sys:String>
     <sys:String x:Key="datachart.no_data">No data in this range</sys:String>
+    <sys:String x:Key="datachart.export">Export</sys:String>
+    <sys:String x:Key="datachart.exporting">Exporting…</sys:String>
+    <sys:String x:Key="datachart.exported">Exported to {0}</sys:String>
+    <sys:String x:Key="datachart.export_canceled">Export canceled</sys:String>
+    <sys:String x:Key="datachart.export_empty">No data in this range; no file was created</sys:String>
+    <sys:String x:Key="datachart.export_failed">Export failed: {0}</sys:String>
     <sys:String x:Key="realchart.window">Window</sys:String>
     <sys:String x:Key="realchart.minute_unit">min</sys:String>
     <sys:String x:Key="realchart.pause">Pause</sys:String>

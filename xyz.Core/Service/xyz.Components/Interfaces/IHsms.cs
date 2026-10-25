@@ -1,6 +1,4 @@
-﻿using xyz.Components.Models;
-using xyz.Secs.Hsms;
-using xyz.Secs.SecsII;
+﻿using xyz.Secs.Gem;
 
 namespace xyz.Components.Interfaces;
 
@@ -10,39 +8,14 @@ namespace xyz.Components.Interfaces;
 public interface IHsms
 {
     /// <summary>
+    /// 链路本身（xyz.Secs）：各标准往上登记处理方、闸门，设备主动发的报文也经它
+    /// </summary>
+    HsmsLink Link { get; }
+
+    /// <summary>
     /// 链路选上了（Host 连上、Select 成功）
     /// </summary>
     bool IsSelected { get; }
-
-    /// <summary>
-    /// 收到的消息先过这一道
-    /// </summary>
-    Func<HsmsMessage, SecsReply?>? Gate { get; set; }
-
-    /// <summary>
-    /// 链路选上了
-    /// </summary>
-    event Action? LinkSelected;
-
-    /// <summary>
-    /// 链路断了（带原因）
-    /// </summary>
-    event Action<string>? LinkClosed;
-
-    /// <summary>
-    /// 登记一种消息（S、F）的处理
-    /// </summary>
-    void Handle(byte stream, byte function, Func<HsmsMessage, Task<SecsReply>> handler);
-
-    /// <summary>
-    /// 登记一种消息（S、F）的处理
-    /// </summary>
-    void Handle(byte stream, byte function, Func<HsmsMessage, SecsReply> handler);
-
-    /// <summary>
-    /// 发一条消息，等回复
-    /// </summary>
-    Task<HsmsMessage> SendAsync(SecsMessage message);
 
     /// <summary>
     /// 链路启用了没有（machine.xml 的 IsEnable）

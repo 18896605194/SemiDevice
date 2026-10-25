@@ -238,7 +238,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         int backlogWarning = HistoryBacklogWarning;
         if (backlogWarning > 0 && pending > 0 && pending % backlogWarning == 0)
         {
-            LogHelper.Warn(Name, $"晶圆流水积压 {pending} 行，检查数据库是否卡住");
+            LogHelper.Warn(this, $"晶圆流水积压 {pending} 行，检查数据库是否卡住");
         }
     }
 
@@ -271,7 +271,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
             }
             catch (Exception exception)
             {
-                LogHelper.Warn(Name, $"晶圆流水写库失败，丢弃 {batch.Count} 行: {exception.Message}");
+                LogHelper.Warn(this, $"晶圆流水写库失败，丢弃 {batch.Count} 行: {exception.Message}");
             }
         }
     }
@@ -331,7 +331,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         {
             // 读不出来就从空账开始、存盘照开：这一轮的账才是真的
             _restored = true;
-            LogHelper.Error(Name, $"晶圆账开机恢复读库失败，账从空的开始（机内的片要人工补账）：{exception.Message}");
+            LogHelper.Error(this, $"晶圆账开机恢复读库失败，账从空的开始（机内的片要人工补账）：{exception.Message}");
             return 0;
         }
 
@@ -377,21 +377,21 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         {
             string list = string.Join("、", restored.Select(wafer => $"{wafer.WaferId}（{wafer.Module}.{wafer.Slot:00}）"));
             string cut = interrupted.Count > 0 ? $"；{string.Join("、", interrupted)} 重启前在加工，记成中止" : string.Empty;
-            LogHelper.Warn(Name, $"开机恢复晶圆账：机内还有 {restored.Count} 片 {list}{cut}；到现场确认片位后用全部回片送回来源槽");
+            LogHelper.Warn(this, $"开机恢复晶圆账：机内还有 {restored.Count} 片 {list}{cut}；到现场确认片位后用全部回片送回来源槽");
         }
         else
         {
-            LogHelper.Info(Name, "开机恢复晶圆账：机内没有片");
+            LogHelper.Info(this, "开机恢复晶圆账：机内没有片");
         }
 
         if (onLoadPorts > 0)
         {
-            LogHelper.Info(Name, $"LoadPort 上的 {onLoadPorts} 片不恢复，以开机 Mapping 为准");
+            LogHelper.Info(this, $"LoadPort 上的 {onLoadPorts} 片不恢复，以开机 Mapping 为准");
         }
 
         if (dropped.Count > 0)
         {
-            LogHelper.Warn(Name, $"存盘里有 {dropped.Count} 片放不回去（位置没装、槽号越界、槽上已经有片或数据认不出来），已丢掉：{string.Join("、", dropped)}");
+            LogHelper.Warn(this, $"存盘里有 {dropped.Count} 片放不回去（位置没装、槽号越界、槽上已经有片或数据认不出来），已丢掉：{string.Join("、", dropped)}");
         }
 
         return restored.Count;
@@ -488,7 +488,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
             if (!_snapshotFailing)
             {
                 _snapshotFailing = true;
-                LogHelper.Warn(Name, $"晶圆账存盘失败（账照记，下一轮再存）：{exception.Message}");
+                LogHelper.Warn(this, $"晶圆账存盘失败（账照记，下一轮再存）：{exception.Message}");
             }
 
             return false;
@@ -497,7 +497,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         if (_snapshotFailing)
         {
             _snapshotFailing = false;
-            LogHelper.Info(Name, "晶圆账存盘恢复正常");
+            LogHelper.Info(this, "晶圆账存盘恢复正常");
         }
 
         return true;
@@ -603,7 +603,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
 
             if (existing is not null)
             {
-                LogHelper.Warn(Name, $"{module} 槽数由 {existing.Length} 改为 {slotCount}，该模块的账已重建");
+                LogHelper.Warn(this, $"{module} 槽数由 {existing.Length} 改为 {slotCount}，该模块的账已重建");
             }
 
             _locations[module] = new WaferInfo?[slotCount];
@@ -1188,7 +1188,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         WaferMoved?.Invoke(snapshot, fromModule, fromSlot);
         RecordHistory(WaferHistoryAction.Moved, snapshot, fromModule, fromSlot);
         RecordAdjustment("Move", snapshot, fromModule, fromSlot, toModule, toSlot, operatorName, reason);
-        LogHelper.Info(Name, $"人工移账：{snapshot.WaferId} {fromModule}.{fromSlot:00} → {toModule}.{toSlot:00}，操作人 {operatorName}"
+        LogHelper.Info(this, $"人工移账：{snapshot.WaferId} {fromModule}.{fromSlot:00} → {toModule}.{toSlot:00}，操作人 {operatorName}"
             + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"，原因：{reason}"));
         return WaferAdjustResult.Ok;
     }
@@ -1253,7 +1253,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         WaferCreated?.Invoke(snapshot);
         RecordHistory(WaferHistoryAction.Created, snapshot);
         RecordAdjustment("Create", snapshot, module, slot, null, null, operatorName, reason);
-        LogHelper.Info(Name, $"人工补账：{snapshot.WaferId} {module}.{slot:00}，操作人 {operatorName}"
+        LogHelper.Info(this, $"人工补账：{snapshot.WaferId} {module}.{slot:00}，操作人 {operatorName}"
             + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"，原因：{reason}"));
         return WaferAdjustResult.Ok;
     }
@@ -1301,7 +1301,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         WaferDeleted?.Invoke(snapshot);
         RecordHistory(WaferHistoryAction.Deleted, snapshot);
         RecordAdjustment("Delete", snapshot, module, slot, null, null, operatorName, reason);
-        LogHelper.Info(Name, $"人工删账：{snapshot.WaferId} {module}.{slot:00}，操作人 {operatorName}"
+        LogHelper.Info(this, $"人工删账：{snapshot.WaferId} {module}.{slot:00}，操作人 {operatorName}"
             + (string.IsNullOrWhiteSpace(reason) ? string.Empty : $"，原因：{reason}"));
         return WaferAdjustResult.Ok;
     }
@@ -1325,7 +1325,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
             }
             catch (Exception exception)
             {
-                LogHelper.Warn(Name, $"查人工调整记录失败，给本次运行里的: {exception.Message}");
+                LogHelper.Warn(this, $"查人工调整记录失败，给本次运行里的: {exception.Message}");
             }
         }
 
@@ -1388,7 +1388,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"人工调整记录写库失败（账已经改了）: {exception.Message}");
+            LogHelper.Warn(this, $"人工调整记录写库失败（账已经改了）: {exception.Message}");
         }
     }
 
@@ -1434,7 +1434,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
     /// <param name="message"></param>
     private void Fault(string message)
     {
-        LogHelper.Error(Name, $"晶圆账: {message}");
+        LogHelper.Error(this, $"晶圆账: {message}");
         RaiseAlarm(WaferLedgerAlarm);
     }
 
@@ -1455,7 +1455,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         _historyCleanedDay = DateTime.Today;
         if (!XyzDb.IsRegistered(HistoryDatabase))
         {
-            LogHelper.Warn(Name, $"晶圆流水库 {HistoryDatabase} 没在 machine.xml 的 Database 节点里配，落到默认库");
+            LogHelper.Warn(this, $"晶圆流水库 {HistoryDatabase} 没在 machine.xml 的 Database 节点里配，落到默认库");
         }
 
         CleanupHistory();
@@ -1481,7 +1481,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
 
             if (expired.Count > 0)
             {
-                LogHelper.Info($"[{Name}] 清理晶圆流水 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
+                LogHelper.Info(this, $"清理晶圆流水 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
             }
 
             if (db.DbMaintenance.IsAnyTable("wafer_adjustment", false))
@@ -1491,7 +1491,7 @@ public class LedgerManagerComponent : ComponentBase, ILedgerManager
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"清理晶圆流水失败: {exception.Message}");
+            LogHelper.Warn(this, $"清理晶圆流水失败: {exception.Message}");
         }
     }
 

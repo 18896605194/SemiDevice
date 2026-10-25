@@ -22,9 +22,9 @@ public sealed class RobotMapRoutine : ModuleRoutine
     private bool _waitLogged;
 
     /// <summary>
-    /// 排上一条扫片：module 是日志记在谁名下（搬运管理）
+    /// 排上一条扫片：日志记在搬运管理名下
     /// </summary>
-    public RobotMapRoutine(string module, TransferManager manager, ITransferRobot robot, string station) : base(module, "Map")
+    public RobotMapRoutine(TransferManager manager, ITransferRobot robot, string station) : base(manager, "Map")
     {
         _manager = manager;
         Robot = robot;
@@ -90,7 +90,7 @@ public sealed class RobotMapRoutine : ModuleRoutine
             if (!_waitLogged)
             {
                 _waitLogged = true;
-                LogHelper.Info(Robot.Name, $"{Station} 要扫片：等 {Robot.Name} 搬完、手上的片都放下");
+                LogHelper.Info(LogOwner, $"{Station} 要扫片：等 {Robot.Name} 搬完、手上的片都放下");
             }
 
             return false;

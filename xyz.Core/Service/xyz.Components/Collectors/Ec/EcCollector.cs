@@ -39,7 +39,7 @@ public sealed class EcCollector
         var path = Path.Combine(directory, FileName);
         if (!DefinitionTable.TryLoad<EcDefinitionFile, EcDefinition>(path, out var rows, out var error))
         {
-            LogHelper.Error(Kind, $"{path} {error}，不覆盖原文件，本次 ECID 不可用");
+            LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} {error}，不覆盖原文件，本次 ECID 不可用");
             return false;
         }
 
@@ -56,7 +56,7 @@ public sealed class EcCollector
             }
             catch (Exception exception)
             {
-                LogHelper.Error(Kind, $"{path} 写不进去，本次 ECID 不可用: {exception.Message}");
+                LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} 写不进去，本次 ECID 不可用: {exception.Message}");
                 return false;
             }
         }
@@ -66,7 +66,7 @@ public sealed class EcCollector
             .Select(row => (row, byName[row.Name]))
             .ToList();
         _byEcid = _items.ToDictionary(item => item.Row.Id);
-        LogHelper.Info(Kind, $"{FileName}：在用 {_items.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
+        LogHelper.Info(LogHelper.HostModule, $"{Kind}：{FileName}：在用 {_items.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
             + (result.Changed ? "，已写回" : "，无变化"));
         return result.Changed;
     }

@@ -68,10 +68,15 @@
                             ElementStyle="{DynamicResource LogLevelDataGridTextStyle}"
                             Header="{DynamicResource log.level}" />
                         <DataGridTextColumn
-                            Width="180"
+                            Width="200"
                             Binding="{Binding Module}"
                             ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
                             Header="{DynamicResource log.module}" />
+                        <DataGridTextColumn
+                            Width="140"
+                            Binding="{Binding Part}"
+                            ElementStyle="{DynamicResource EllipsisDataGridTextStyle}"
+                            Header="{DynamicResource log.part}" />
                         <DataGridTextColumn
                             Width="*"
                             Binding="{Binding Message}"

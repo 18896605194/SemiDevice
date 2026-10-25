@@ -230,11 +230,11 @@ public class AiComponent : ComponentBase, IAi
             string text = response.Text.Trim();
             if (text.Length == 0)
             {
-                LogHelper.Info(Name, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode}：模型回了空的");
+                LogHelper.Info(this, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode}：模型回了空的");
                 return HandleResult<AiAnswer>.Fail(ErrorCodes.AiEmptyAnswer);
             }
 
-            LogHelper.Info(Name, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode}：用时 {watch.ElapsedMilliseconds} ms，带了 {material.LogCount} 条日志、{material.Signals.Count} 个信号");
+            LogHelper.Info(this, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode}：用时 {watch.ElapsedMilliseconds} ms，带了 {material.LogCount} 条日志、{material.Signals.Count} 个信号");
             return HandleResult<AiAnswer>.Success(new AiAnswer
             {
                 Text = text,
@@ -246,12 +246,12 @@ public class AiComponent : ComponentBase, IAi
         }
         catch (OperationCanceledException)
         {
-            LogHelper.Info(Name, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode}：{timeout} ms 内没等到回答");
+            LogHelper.Info(this, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode}：{timeout} ms 内没等到回答");
             return HandleResult<AiAnswer>.Fail(ErrorCodes.AiTimeout, timeout.ToString(CultureInfo.InvariantCulture));
         }
         catch (Exception exception)
         {
-            LogHelper.Info(Name, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode} 没做成：{exception.Message}");
+            LogHelper.Info(this, $"AI 分析 {alarm.SourcePath} 的 {alarm.AlarmCode} 没做成：{exception.Message}");
             return HandleResult<AiAnswer>.Fail(ErrorCodes.AiFailed, exception.Message);
         }
         finally

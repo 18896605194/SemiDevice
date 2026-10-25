@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
+using xyz.Common.Log;
 using xyz.Components;
 using xyz.Components.Attributes;
 using xyz.Components.Collectors;
@@ -12,6 +13,7 @@ using xyz.Database.DbProvider;
 using xyz.Drivers.Loadport;
 using xyz.Secs;
 using xyz.Secs.Diagnostics;
+using xyz.Secs.Gem.E30;
 using xyz.Secs.Hsms;
 using xyz.Secs.SecsII;
 using xyz.Shared.Dtos;
@@ -1215,7 +1217,7 @@ sealed class HostLog
 /// 假的 LoadPort：状态都是字段，测试按真端口的顺序调回调（放上、读码、读槽图、Load 好、干完、Unload 好、拿走）；
 /// 槽图照样落到晶圆账。EAP 发的动作（Load、Unload、改存取方式、写载具号和核对状态）都记下来。
 /// </summary>
-sealed class FakePort : ILoadPortAccess
+sealed class FakePort : ILoadPortAccess, ILogSource
 {
     private readonly LedgerManagerComponent _ledger;
     private bool _loaded;
@@ -1229,6 +1231,10 @@ sealed class FakePort : ILoadPortAccess
     }
 
     public string Name { get; }
+
+    public string LogModule => Name;
+
+    public string LogPart => string.Empty;
 
     #region 接口里这个冒烟用不到的（假件给默认值）
 
@@ -1298,13 +1304,13 @@ sealed class FakePort : ILoadPortAccess
     public HandleResult<ModuleRoutine> Load()
     {
         LoadRequested = true;
-        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(Name, "Load"));
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Load"));
     }
 
     public HandleResult<ModuleRoutine> Unload()
     {
         UnloadRequested = true;
-        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(Name, "Unload"));
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(this, "Unload"));
     }
 
     /// <summary>测试摆的"端口现在不能卸"的原因；null = 能卸。</summary>
@@ -1312,11 +1318,11 @@ sealed class FakePort : ILoadPortAccess
 
     public HandleResult? CheckUnload() => UnloadRejection;
 
-    public ModuleRoutine? InitModule() => ModuleRoutine.Done(Name, "InitModule");
+    public ModuleRoutine? InitModule() => ModuleRoutine.Done(this, "InitModule");
 
-    public ModuleRoutine? Reset() => ModuleRoutine.Done(Name, "Reset");
+    public ModuleRoutine? Reset() => ModuleRoutine.Done(this, "Reset");
 
-    public ModuleRoutine? Abort() => ModuleRoutine.Done(Name, "Abort");
+    public ModuleRoutine? Abort() => ModuleRoutine.Done(this, "Abort");
 
     public void SetAutoMode(bool autoMode)
     {

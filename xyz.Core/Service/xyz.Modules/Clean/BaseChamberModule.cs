@@ -220,7 +220,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         }
 
         // 指令由动作挂上之后在扫描里发，不会出现门开了、动作却没挂上没人等的情况
-        var prepare = new ModuleRoutine(Name, "PrepareTransfer2").LimitTo(() => DeviceActionTimeout, ErrorCodes.ChamberActionTimeout);
+        var prepare = new ModuleRoutine(this, "PrepareTransfer2").LimitTo(() => DeviceActionTimeout, ErrorCodes.ChamberActionTimeout);
         AddPrepareTransferSteps(prepare);
         return Begin(ChamberAction.PrepareTransfer2, prepare);
     }
@@ -334,7 +334,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         BindSupplies();
 
         // 开工片数跟晶圆账一样是业务数据，走默认库；开机读回今天那行接着数
-        _counter.Load(Name, XyzDb.DefaultName);
+        _counter.Load(Name, XyzDb.DefaultName, this);
     }
 
     /// <summary>
@@ -616,7 +616,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
         var started = Home();
         if (!started.IsSuccess)
         {
-            LogHelper.Warn(Name, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
+            LogHelper.Warn(this, $"初始化（Home）被拒：{started.ErrorMessage} [{string.Join(", ", started.Args)}]");
         }
 
         return started.Result;
@@ -681,7 +681,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(rejected);
             }
 
-            var home = new ModuleRoutine(Name, "Home").LimitTo(() => HomeTimeout, ErrorCodes.ChamberActionTimeout);
+            var home = new ModuleRoutine(this, "Home").LimitTo(() => HomeTimeout, ErrorCodes.ChamberActionTimeout);
             AddHomeSteps(home);
             return Started(ChamberAction.Home, home);
         }
@@ -930,7 +930,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             }
 
             // 按住期间界面一直续；松手（界面发停止）或没续上就停轴，再等轴停下
-            var jog = new ModuleRoutine(Name, $"{axis.FullPath} {ChamberDeviceAction.Jog}");
+            var jog = new ModuleRoutine(this, $"{axis.FullPath} {ChamberDeviceAction.Jog}");
             jog.Add("按住", null, HoldJog);
             jog.AwaitSent("等停下", axis, ChamberDeviceAction.Jog, () => DeviceActionTimeout);
             _jogAxis = axis;
@@ -973,7 +973,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
             return false;
         }
 
-        LogHelper.Warn(Name, $"{axis.FullPath} {HoldTimeoutMs} ms 没续上（界面断了或客户端退了），自己停");
+        LogHelper.Warn(this, $"{axis.FullPath} {HoldTimeoutMs} ms 没续上（界面断了或客户端退了），自己停");
         axis.Stop();
         _jogReleased = true;
         return true;
@@ -1053,7 +1053,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return Rejected(DeviceCommandRejected(path, action));
             }
 
-            var manual = new ModuleRoutine(Name, $"{device.FullPath} {action}");
+            var manual = new ModuleRoutine(this, $"{device.FullPath} {action}");
             manual.AwaitSent("等做完", device, action, () => DeviceActionTimeout);
             return Started(ChamberAction.Manual, manual);
         }
@@ -1122,7 +1122,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return null;
             }
 
-            var reset = new ModuleRoutine(Name, "Reset").LimitTo(() => ResetTimeout, ErrorCodes.ChamberActionTimeout);
+            var reset = new ModuleRoutine(this, "Reset").LimitTo(() => ResetTimeout, ErrorCodes.ChamberActionTimeout);
             AddResetSteps(reset);
             return Begin(ChamberAction.Reset, reset);
         }
@@ -1150,7 +1150,7 @@ public abstract class BaseChamberModule : BaseTransferStationModule, IChamber
                 return null;
             }
 
-            var abort = new ModuleRoutine(Name, "Abort").LimitTo(() => AbortTimeout, ErrorCodes.ChamberActionTimeout);
+            var abort = new ModuleRoutine(this, "Abort").LimitTo(() => AbortTimeout, ErrorCodes.ChamberActionTimeout);
             AddAbortSteps(abort);
             return Begin(ChamberAction.Abort, abort);
         }

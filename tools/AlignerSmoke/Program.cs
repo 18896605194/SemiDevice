@@ -382,7 +382,7 @@ sealed class SmokeAlignerCodec : IFrameCodec
 }
 
 // 假通道：每条指令过 Ticks 拍做完；FailNext 摆下一条哪种指令报错，Hang 开着一直不回
-sealed class FakeAlignerDriver : ComponentBase, IDeviceDriverComponent
+sealed class FakeAlignerDriver : ComponentBase, ICommDriver
 {
     private readonly List<Pending> _inflight = [];
 

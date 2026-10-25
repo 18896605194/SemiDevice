@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using xyz.Common.Log;
 using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Components;
@@ -170,7 +171,7 @@ for (var i = 0; i < 200; i++)
     // 做完的步骤当拍接着走：前两步当场做完，第三步要等
     bool ready = false;
     int runs = 0;
-    var chained = new ModuleRoutine("Engine", "Chain")
+    var chained = new ModuleRoutine(new SmokeLog("Engine"), "Chain")
         .Do("检查", () => HandleResult.Success())
         .Do("记账", () => HandleResult.Success())
         .Add("等设备", _ => runs++, _ => ready);
@@ -185,7 +186,7 @@ for (var i = 0; i < 200; i++)
     Throws<InvalidOperationException>(() => chained.Do("晚了", () => HandleResult.Success()));
 
     // 哪一步出错就停在哪一步：错误码 + 参数给界面，原因带"第几步 / 共几步 + 步骤名"
-    var broken = new ModuleRoutine("Engine", "Broken")
+    var broken = new ModuleRoutine(new SmokeLog("Engine"), "Broken")
         .Do("检查", () => HandleResult.Success())
         .Add("等设备", null, step =>
         {
@@ -197,19 +198,19 @@ for (var i = 0; i < 200; i++)
     Check(broken.State == RoutineState.Failed && broken.Code == ErrorCodes.DeviceFailed && broken.ErrorArgs.SequenceEqual(["Engine", "E01"])
           && broken.StepNumber == 2 && broken.StepName == "等设备" && broken.Reason == "2/3 等设备：设备回错",
         $"停在第 2 步：错误码、参数原样，原因带步号和步骤名，实际 {broken.Reason}");
-    var rejectedDo = new ModuleRoutine("Engine", "Check").Do("检查", () => HandleResult.Fail(ErrorCodes.ModuleBusy, "Engine"));
+    var rejectedDo = new ModuleRoutine(new SmokeLog("Engine"), "Check").Do("检查", () => HandleResult.Fail(ErrorCodes.ModuleBusy, "Engine"));
     rejectedDo.Scan();
     Check(rejectedDo.Code == ErrorCodes.ModuleBusy && rejectedDo.ErrorArgs.SequenceEqual(["Engine"]) && rejectedDo.StepNumber == 1,
         "当场做一下的步骤返回不成功：原样带它的错误码");
 
     // 步骤里抛异常：判失败（operation_faulted），不往外抛、不卡住扫描
-    var faulted = new ModuleRoutine("Engine", "Fault").Add("抛异常", _ => throw new InvalidOperationException("boom"), null);
+    var faulted = new ModuleRoutine(new SmokeLog("Engine"), "Fault").Add("抛异常", _ => throw new InvalidOperationException("boom"), null);
     faulted.Scan();
     Check(faulted.Code == ErrorCodes.OperationFaulted && faulted.ErrorArgs.SequenceEqual(["Fault", "boom"]),
         "步骤抛异常：动作判 operation_faulted [动作名, 异常信息]");
 
     // 整个动作的上限：超了在当时那一步判失败，报给的错误码 [模块名, ms]
-    var limited = new ModuleRoutine("Engine", "Limited").LimitTo(() => 20, ErrorCodes.ChamberActionTimeout).Add("一直等", null, _ => false);
+    var limited = new ModuleRoutine(new SmokeLog("Engine"), "Limited").LimitTo(() => 20, ErrorCodes.ChamberActionTimeout).Add("一直等", null, _ => false);
     limited.Scan();
     Thread.Sleep(40);
     limited.Scan();
@@ -217,25 +218,25 @@ for (var i = 0; i < 200; i++)
         "整个动作超过上限：判给的超时码 [模块名, ms]，停在当时那一步");
 
     // 等条件：上限 0 就是不等，判一次不成立就按给的错误码失败
-    var until = new ModuleRoutine("Engine", "Until")
+    var until = new ModuleRoutine(new SmokeLog("Engine"), "Until")
         .Until("等反馈", () => false, () => 0, () => HandleResult.Fail(ErrorCodes.RobotArmSensorUnknown, "Engine", "1"));
     until.Scan();
     Check(until.Code == ErrorCodes.RobotArmSensorUnknown && until.ErrorArgs.SequenceEqual(["Engine", "1"]), "等条件上限 0：判一次不成立就失败");
 
     // 起别家的动作：被拒原样带拒的原因；没做成原样带它的错误码；给了收场办法的按自己判的码报
-    var refusedChild = new ModuleRoutine("Engine", "Parent")
+    var refusedChild = new ModuleRoutine(new SmokeLog("Engine"), "Parent")
         .Start("起别家", () => HandleResult<ModuleRoutine>.Fail(ErrorCodes.ModuleBusy, "Other"));
     refusedChild.Scan();
     Check(refusedChild.Code == ErrorCodes.ModuleBusy && refusedChild.ErrorArgs.SequenceEqual(["Other"]), "别家动作被拒：原样带拒的原因");
     var failingChild = new ProbeRoutine();
-    var parent = new ModuleRoutine("Engine", "Parent").Start("起别家", () => HandleResult<ModuleRoutine>.Success(failingChild));
+    var parent = new ModuleRoutine(new SmokeLog("Engine"), "Parent").Start("起别家", () => HandleResult<ModuleRoutine>.Success(failingChild));
     parent.Scan();
     Check(parent.State == RoutineState.Running, "别家动作没收尾：这一步等着");
     failingChild.Reject();
     parent.Scan();
     Check(parent.Code == ErrorCodes.DeviceFailed && parent.ErrorArgs.SequenceEqual(["Probe", "device error"]), "别家动作没做成：原样带它的错误码和参数");
     var ownCode = new ProbeRoutine();
-    var handled = new ModuleRoutine("Engine", "Parent").Start("起别家", () => HandleResult<ModuleRoutine>.Success(ownCode),
+    var handled = new ModuleRoutine(new SmokeLog("Engine"), "Parent").Start("起别家", () => HandleResult<ModuleRoutine>.Success(ownCode),
         (step, child) => step.Fail(ErrorCodes.TransferStepRejected, $"{child.Name} 没成", "Engine", "Child"));
     handled.Scan();
     ownCode.TimeOut();
@@ -260,12 +261,12 @@ for (var i = 0; i < 200; i++)
         "走到第 2 步中止：先动作收场、再第 2 步收场，只收一次；错误码 action_aborted [动作名]");
 
     // 不用做事的动作建好就做成；一步只能加进一个动作；发指令的动作得带通道和超时建
-    var done = ModuleRoutine.Done("Engine", "Nothing");
+    var done = ModuleRoutine.Done(new SmokeLog("Engine"), "Nothing");
     Check(done.IsSuccess && done.IsSettled && done.StepCount == 0 && done.StepNumber == 0 && done.CurrentStep is null, "Done：建好就做成、收好尾");
     var shared = new TraceStep("共用", order, true);
-    new ModuleRoutine("Engine", "A").Add(shared);
-    Throws<InvalidOperationException>(() => new ModuleRoutine("Engine", "B").Add(shared));
-    Throws<InvalidOperationException>(() => new ModuleRoutine("Engine", "NoDriver").Command("发", () => new RejePickCommand(1, 1, 1)));
+    new ModuleRoutine(new SmokeLog("Engine"), "A").Add(shared);
+    Throws<InvalidOperationException>(() => new ModuleRoutine(new SmokeLog("Engine"), "B").Add(shared));
+    Throws<InvalidOperationException>(() => new ModuleRoutine(new SmokeLog("Engine"), "NoDriver").Command("发", () => new RejePickCommand(1, 1, 1)));
 
     // 回包：不止一步的动作没做成，带上停在第几步 / 共几步（界面加在原因前面）；只有一步的不带
     var stepResponse = ProbeService.FailedOf(broken);
@@ -2072,7 +2073,7 @@ port.E87Callback = null;
 
     TransferRoutine RunTransfer(ProbeStation source, ProbeStation target, int waitMilliseconds)
     {
-        var routine = new TransferRoutine("Transfer", TransferOrigin.Manual, transferRobot, source, 1, target, 1, 1, waitMilliseconds);
+        var routine = new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, transferRobot, source, 1, target, 1, 1, waitMilliseconds);
         for (int scan = 0; scan < 10 && !routine.IsTerminal; scan++)
         {
             routine.Scan();
@@ -2152,7 +2153,7 @@ port.E87Callback = null;
 
     // 同站点换槽：抢到环、准备二还在做时中止（一拍里抢到就接着发准备二，准备二摆一个不收尾的，好停在这儿）
     var sameStation = new ProbeStation("SameStation") { First = Succeeded, Second = () => new ProbeRoutine() };
-    var sameCancel = new TransferRoutine("Transfer", TransferOrigin.Manual, transferRobot, sameStation, 1, sameStation, 2, 1, 1000);
+    var sameCancel = new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, transferRobot, sameStation, 1, sameStation, 2, 1, 1000);
     sameCancel.Scan();
     sameCancel.AbortByHost("smoke same-station cancel");
     Check(sameCancel.State == RoutineState.Aborted && !sameCancel.NeedsRecovery
@@ -2160,7 +2161,7 @@ port.E87Callback = null;
         "同站点换槽中止只撤销一次，成功撤销后无需保留资源");
 
     var sameRefused = new ProbeStation("SameRefused") { First = Succeeded, Second = () => new ProbeRoutine(), Cancel = () => false };
-    var sameCancelFailed = new TransferRoutine("Transfer", TransferOrigin.Manual, transferRobot, sameRefused, 1, sameRefused, 2, 1, 1000);
+    var sameCancelFailed = new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, transferRobot, sameRefused, 1, sameRefused, 2, 1, 1000);
     sameCancelFailed.Scan();
     sameCancelFailed.AbortByHost("smoke same-station cancel refused");
     Check(sameCancelFailed.State == RoutineState.Aborted && !sameCancelFailed.MotionStarted
@@ -2558,20 +2559,20 @@ port.E87Callback = null;
     Check(serial.PortName == "COM9" && serial.BaudRate == 19200 && !serial.IsEnable
           && tcp.Host == "10.0.0.8" && tcp.NetPort == 4004 && tcp.IsEnable,
         "串口、网口各是一个组件，参数照 machine.xml 各进各的（串口没启用、网口启用）");
-    Check(ReferenceEquals(DeviceDriverComponent.FindIn(holder), tcp), "设备只认启用的那条（网口），没启用的串口不管");
+    Check(ReferenceEquals(CommDriverComponent.FindIn(holder), tcp), "设备只认启用的那条（网口），没启用的串口不管");
 
     serial.IsEnable = true;
-    string both = ChannelRefused(() => DeviceDriverComponent.FindIn(holder));
+    string both = ChannelRefused(() => CommDriverComponent.FindIn(holder));
     Check(both.Contains("启用了两条"), "串口、网口都启用：开机就报（不知道该连哪条），实际 " + both);
 
     serial.IsEnable = false;
     tcp.IsEnable = false;
-    Check(DeviceDriverComponent.FindIn(holder) is null, "一条都没启用：当成没挂通道（设备照没挂通道处理）");
+    Check(CommDriverComponent.FindIn(holder) is null, "一条都没启用：当成没挂通道（设备照没挂通道处理）");
     Check(serial.InitComponent() && !serial.IsConnected,
         "没启用的通道开机不建、不连：没交解码器也不报错，连接一直是断的");
 
-    string oldType = ChannelRefused(() => ComponentLoader.Load([new ModuleConfig { Name = "Driver", Type = "xyz.Components.Components.DeviceDriverComponent" }]));
-    Check(oldType.Contains("DeviceDriverComponent"), "老写法 Type=DeviceDriverComponent（基类，不能直接配）：装配就报，实际 " + oldType);
+    string oldType = ChannelRefused(() => ComponentLoader.Load([new ModuleConfig { Name = "Driver", Type = "xyz.Components.Components.CommDriverComponent" }]));
+    Check(oldType.Contains("CommDriverComponent"), "老写法 Type=CommDriverComponent（基类，不能直接配）：装配就报，实际 " + oldType);
 }
 
 // ── LoadPort 在位来源（machine.xml PresenceSource 二选一）和驱动恢复：状态查询超时作废重发、动作没做成作废在途指令、关连接作废、
@@ -2662,6 +2663,7 @@ port.E87Callback = null;
     Check(!eventPort._carrier.IsArrived && eventPort._carrier.Info is null, "Event：PODOF 算拿走");
 
     // 3) 状态查询走真驱动：按 EC 周期一条条发（回来了也要等满一个周期）；一条没回就超时作废、接着发（以前同名查询一直占着在途位，再也查不了）
+    var pollStarted = DateTime.Now.AddMilliseconds(-1);
     var pollPort = new ProbePort("PollPort", PodPresenceSource.Query);
     pollPort.QueryDataTimeOut = 100;
     pollPort.QueryStatusIntervalMs = 500;
@@ -2688,6 +2690,34 @@ port.E87Callback = null;
     var stuckLoad = new FcdLoadCommand();
     Check(pollPort.Channel.Send(stuckLoad), "发一条 Load 指令（假通讯不回它）");
     Check(!pollPort.Channel.Send(new FcdLoadCommand()), "同名指令还在途时再发被拒");
+
+    // 3b) 收发原文分文件：状态轮询发的指令打了 IsPolling，一问一答记到轮询文件 poll-日期.log；动作指令进主日志
+    pollComm.Push("INF:SMOKE");
+    LogHelper.Flush(TimeSpan.FromSeconds(3));
+    var commLines = LogFileReader.Read(pollStarted, DateTime.Now.AddSeconds(1)).Where(item => item.Direction.Length > 0).ToList();
+    Check(commLines.Any(item => item.Direction == LogHelper.Sent && item.Message == "MOV:CLOAD"), "动作指令的原文进主日志（发）");
+    Check(commLines.Any(item => item.Direction == LogHelper.Received && item.Message == "INF:SMOKE"), "没人认的（设备主动发来的）进主日志（收）");
+    Check(!commLines.Any(item => item.Message.StartsWith("GET:STATE", StringComparison.Ordinal) || item.Message.StartsWith("ACK:STATE", StringComparison.Ordinal)),
+        "状态轮询的一问一答不进主日志");
+    var pollLines = new List<LogItem>();
+    using (var stream = new FileStream(Path.Combine(LogFileReader.LogDirectory, $"poll-{DateTime.Today:yyyy-MM-dd}.log"),
+               FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+    using (var reader = new StreamReader(stream))
+    {
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            if (LogFileReader.TryParse(line, out var item) && item.Time >= pollStarted)
+            {
+                pollLines.Add(item);
+            }
+        }
+    }
+
+    Check(pollLines.Count(item => item.Direction == LogHelper.Sent && item.Message == "GET:STATE") >= 3
+          && pollLines.Any(item => item.Direction == LogHelper.Received && item.Message.StartsWith("ACK:STATE/", StringComparison.Ordinal)),
+        "状态轮询的一问一答记到轮询文件：发出去的每一条、回来的都在");
+    Check(pollLines.All(item => item.Message != "MOV:CLOAD"), "动作指令不进轮询文件");
     // 端口上这时没载具（上面判拿走了），Load 发不起来，用 Home 当那个没做成的动作
     pollPort.NoteState(ModuleState.Idle);
     var failedHome = new ProbeRoutine();
@@ -2916,7 +2946,7 @@ port.E87Callback = null;
     var codec = new FcdCodec();
     var frameLink = new FrameCommunication(transport, new FcdCodec());
     var received = new ConcurrentQueue<string>();
-    frameLink.MessageReceived += message =>
+    frameLink.MessageReceived += (_, message) =>
     {
         if (message is FcdMessage fcd)
         {
@@ -3487,13 +3517,15 @@ port.E87Callback = null;
 
     Check(WaitUntil(() => robotComm.Sent.Count == 38), $"订上以后 15 拍应再发 13 条查询，实际共 {robotComm.Sent.Count} 条");
     Check(!robotComm.Sent.Skip(18).Contains("SubWafer1"), "订上了就不再订阅；实际 " + string.Join(",", robotComm.Sent.Skip(18)));
+    Check(pollRobot.DeviceError is null && pollRobot.IsServoOn is null && pollRobot.Speed is null && theta.Position is null,
+        "查询超时：查到的状态清空（报错、伺服、速度、轴坐标），跟 LoadPort 一样，下一圈查到再填");
 
     // 3) 没有查报错在途时来了一帧成功码的 Error（作废以后迟到的"没有报错"回复）：不当报错推送，设备报错不变
     //    后面跟一帧手指在位推送，它落下来了，说明前面那帧也处理过了（同一条路由队列，按先后处理）
     robotComm.Push(">00000000#@Error");
     robotComm.Push(">00000000#SubWaferEx,1,0@Event");
     Check(WaitUntil(() => pollRobot.Arms[0].HasWafer == true), "手指在位推送应落到 Arm1 上");
-    Check(pollRobot.DeviceError == "40010006#Arm2 No Wafer When Put",
+    Check(pollRobot.DeviceError is null,
         $"成功码的 Error 帧不是报错推送，设备报错不该被它改掉，实际 {pollRobot.DeviceError}");
 
     // 4) 关连接：在途的指令全部作废（等它的人不会一直等）；重新连上以后同名指令能再发
@@ -3585,7 +3617,7 @@ port.E87Callback = null;
     var stuckRobot = new ProbeRobot { WaferEventEnabled = false };
     Check(stuckRobot.InitComponent(), "测动作超时的机械手组件初始化应成功");
     ComponentLoader.BindAll([stuckRobot]);
-    var stuckPick = new ModuleRoutine(stuckRobot.Name, "Pick", stuckRobot._driver, () => 50).Command("取片", () => new RejePickCommand(1, 3, 5));
+    var stuckPick = new ModuleRoutine(stuckRobot, "Pick", stuckRobot._driver, () => 50).Command("取片", () => new RejePickCommand(1, 3, 5));
     stuckPick.Scan();
     Check(!stuckPick.IsTerminal && !stuckRobot.Channel.Send(new RejePickCommand(1, 3, 5)), "取片指令发出去了（假通讯不回它），同一条还在途时再发被拒");
     Thread.Sleep(60);
@@ -3804,7 +3836,7 @@ port.E87Callback = null;
     var robot = new ProbeTransferRobot { AllowMotion = true };
     TransferRoutine Run(ITransferStation? source, int pickSlot, ITransferStation? target, int placeSlot)
     {
-        var routine = new TransferRoutine("Transfer", TransferOrigin.Manual, robot, source, pickSlot, target, placeSlot, 4, 1000);
+        var routine = new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, robot, source, pickSlot, target, placeSlot, 4, 1000);
         for (int scan = 0; scan < 32 && !routine.IsTerminal; scan++)
         {
             routine.Scan();
@@ -3816,8 +3848,8 @@ port.E87Callback = null;
 
     ProbeStation Station(string name) => new(name)
     {
-        First = () => ModuleRoutine.Done(name, "Prepare"),
-        Second = () => ModuleRoutine.Done(name, "Prepare2"),
+        First = () => ModuleRoutine.Done(new SmokeLog(name), "Prepare"),
+        Second = () => ModuleRoutine.Done(new SmokeLog(name), "Prepare2"),
     };
 
     void CheckCalls(ProbeStation station, int? pickSlot, int? placeSlot, params string[] steps)
@@ -3860,15 +3892,15 @@ port.E87Callback = null;
 
     ProbeStation HandoffStation(string name, bool pick, bool place) => new(name)
     {
-        First = () => ModuleRoutine.Done(name, "Prepare"),
-        Second = () => ModuleRoutine.Done(name, "Prepare2"),
+        First = () => ModuleRoutine.Done(new SmokeLog(name), "Prepare"),
+        Second = () => ModuleRoutine.Done(new SmokeLog(name), "Prepare2"),
         HandoffOnPick = pick,
         HandoffOnPlace = place,
     };
 
     var handoffSource = HandoffStation("HandoffLP", true, false);
     var handoffTarget = HandoffStation("HandoffPM", false, true);
-    Check(RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, handoffSource, 5, handoffTarget, 1, 4, 1000)).IsSuccess
+    Check(RunStepped(new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, stepRobot, handoffSource, 5, handoffTarget, 1, 4, 1000)).IsSuccess
           && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
         "两头都配了交接：机械手分段取、分段放，各停一下等站点交接再继续");
     CheckCalls(handoffSource, 5, null, "Prepare", "Prepare2", "Transferring", "HandoffPick", "Complete");
@@ -3877,21 +3909,21 @@ port.E87Callback = null;
     stepRobot.Calls.Clear();
     var plainSource = Station("PlainLP");
     var placeHandoffTarget = HandoffStation("HandoffPM2", false, true);
-    Check(RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, plainSource, 5, placeHandoffTarget, 1, 4, 1000)).IsSuccess
+    Check(RunStepped(new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, stepRobot, plainSource, 5, placeHandoffTarget, 1, 4, 1000)).IsSuccess
           && stepRobot.Calls.SequenceEqual(["Pick", "ExtendPlace", "RetractPlace"]),
         "只看这一头的开关：来源没配就一条指令取完，目标配了放片才分段");
     CheckCalls(plainSource, 5, null, "Prepare", "Prepare2", "Transferring", "Complete");
 
     stepRobot.Calls.Clear();
     var handoffRelocate = HandoffStation("HandoffRelocate", true, true);
-    Check(RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, handoffRelocate, 5, handoffRelocate, 8, 4, 1000)).IsSuccess
+    Check(RunStepped(new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, stepRobot, handoffRelocate, 5, handoffRelocate, 8, 4, 1000)).IsSuccess
           && stepRobot.Calls.SequenceEqual(["ExtendPick", "RetractPick", "ExtendPlace", "RetractPlace"]),
         "同站换槽两段各分段一次");
     CheckCalls(handoffRelocate, 5, 8, "Prepare", "Prepare2", "Transferring", "HandoffPick", "NextLeg", "Transferring", "HandoffPlace", "Complete");
 
     stepRobot.Calls.Clear();
     var handoffSwapStation = HandoffStation("HandoffSwap", true, true);
-    var steppedSwap = new SwapRoutine("Transfer", new SwapRequest
+    var steppedSwap = new SwapRoutine(new SmokeLog("Transfer"), new SwapRequest
     {
         Robot = stepRobot.Name,
         Station = handoffSwapStation.Name,
@@ -3912,12 +3944,12 @@ port.E87Callback = null;
     stepRobot.Calls.Clear();
     var refusingStation = new ProbeStation("HandoffRefused")
     {
-        First = () => ModuleRoutine.Done("HandoffRefused", "Prepare"),
-        Second = () => ModuleRoutine.Done("HandoffRefused", "Prepare2"),
+        First = () => ModuleRoutine.Done(new SmokeLog("HandoffRefused"), "Prepare"),
+        Second = () => ModuleRoutine.Done(new SmokeLog("HandoffRefused"), "Prepare2"),
         HandoffOnPick = true,
         Handoff = () => null,
     };
-    var handoffRefused = RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, refusingStation, 5, null, 4, 4, 1000));
+    var handoffRefused = RunStepped(new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, stepRobot, refusingStation, 5, null, 4, 4, 1000));
     Check(handoffRefused.Code == ErrorCodes.StationHandoffRejected && handoffRefused.ErrorArgs.SequenceEqual(["HandoffRefused"])
           && handoffRefused.MotionStarted && handoffRefused.NeedsRecovery && stepRobot.Calls.SequenceEqual(["ExtendPick"])
           && refusingStation.TransferCalls.Select(call => call.Step).SequenceEqual(["Prepare", "Prepare2", "Transferring", "HandoffPick"]),
@@ -3926,8 +3958,8 @@ port.E87Callback = null;
     stepRobot.Calls.Clear();
     var failingStation = new ProbeStation("HandoffFailed")
     {
-        First = () => ModuleRoutine.Done("HandoffFailed", "Prepare"),
-        Second = () => ModuleRoutine.Done("HandoffFailed", "Prepare2"),
+        First = () => ModuleRoutine.Done(new SmokeLog("HandoffFailed"), "Prepare"),
+        Second = () => ModuleRoutine.Done(new SmokeLog("HandoffFailed"), "Prepare2"),
         HandoffOnPlace = true,
         Handoff = () =>
         {
@@ -3936,7 +3968,7 @@ port.E87Callback = null;
             return failed;
         },
     };
-    var handoffFailed = RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, null, 4, failingStation, 1, 4, 1000));
+    var handoffFailed = RunStepped(new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, stepRobot, null, 4, failingStation, 1, 4, 1000));
     Check(handoffFailed.Code == ErrorCodes.StationHandoffFailed && handoffFailed.ErrorArgs.SequenceEqual(["HandoffFailed"])
           && handoffFailed.NeedsRecovery && stepRobot.Calls.SequenceEqual(["ExtendPlace"])
           && failingStation.TransferCalls.All(call => call.Step != "Complete"),
@@ -3945,7 +3977,7 @@ port.E87Callback = null;
     var noStepRobot = new ProbeTransferRobot { AllowMotion = true };
     var noStepSource = HandoffStation("HandoffNoStep", true, false);
     var noStepTarget = Station("HandoffNoStepTarget");
-    var unsupported = RunStepped(new TransferRoutine("Transfer", TransferOrigin.Manual, noStepRobot, noStepSource, 5, noStepTarget, 1, 4, 1000));
+    var unsupported = RunStepped(new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, noStepRobot, noStepSource, 5, noStepTarget, 1, 4, 1000));
     Check(unsupported.Code == ErrorCodes.RobotHandoffUnsupported && unsupported.ErrorArgs.SequenceEqual(["TransferRobot"])
           && !unsupported.MotionStarted && !unsupported.NeedsRecovery && noStepSource.Cancels == 1 && noStepTarget.Cancels == 1
           && noStepRobot.Calls.Count == 0,
@@ -3956,12 +3988,12 @@ port.E87Callback = null;
     var slowHandoff = new ProbeRoutine();
     var slowStation = new ProbeStation("HandoffSlow")
     {
-        First = () => ModuleRoutine.Done("HandoffSlow", "Prepare"),
-        Second = () => ModuleRoutine.Done("HandoffSlow", "Prepare2"),
+        First = () => ModuleRoutine.Done(new SmokeLog("HandoffSlow"), "Prepare"),
+        Second = () => ModuleRoutine.Done(new SmokeLog("HandoffSlow"), "Prepare2"),
         HandoffOnPick = true,
         Handoff = () => slowHandoff,
     };
-    var slowRoutine = new TransferRoutine("Transfer", TransferOrigin.Manual, stepRobot, slowStation, 5, null, 4, 4, 1000);
+    var slowRoutine = new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, stepRobot, slowStation, 5, null, 4, 4, 1000);
     for (int scan = 0; scan < 10; scan++)
     {
         slowRoutine.Scan();
@@ -3975,7 +4007,7 @@ port.E87Callback = null;
         "停着等交接时被中止：站点的交接跟着中止，整趟挂起等人工");
 
     var cancelled = new ContextProbeStation();
-    var oldRoutine = new TransferRoutine("Transfer", TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
+    var oldRoutine = new TransferRoutine(new SmokeLog("Transfer"), TransferOrigin.Manual, robot, null, 4, cancelled, 1, 4, 1000);
     oldRoutine.Scan();
     cancelled.NoteState(ModuleState.Idle); // 模拟恢复完成，状态与上下文身份的真实覆盖已在上面的 Reset / Abort 用例验证。
     var replacementContext = TransferContext.ForPlace(robot.Name, 4, 1);
@@ -4420,7 +4452,7 @@ sealed class FakeFrameCommunication : IFrameCommunication
     private int _opens;
     private volatile bool _isConnected;
 
-    public event Action<object>? MessageReceived;
+    public event Action<string, object?>? MessageReceived;
 
     public bool IsConnected => _isConnected;
 
@@ -4461,15 +4493,11 @@ sealed class FakeFrameCommunication : IFrameCommunication
     public void Send(string body) => _sent.Enqueue(body);
 
     /// <summary>
-    /// 设备回一帧（拆好的、不带外壳）：用解码器解好交上去，解不出的丢掉
+    /// 设备回一帧（拆好的、不带外壳）：用解码器解好、连原文一起交上去（解不出的报文为 null，通道记一行丢掉），跟真的接收泵一样
     /// </summary>
     public void Push(string frame)
     {
-        var message = Codec!.Decode(frame);
-        if (message is not null)
-        {
-            MessageReceived?.Invoke(message);
-        }
+        MessageReceived?.Invoke(frame, Codec!.Decode(frame));
     }
 
     /// <summary>
@@ -4484,7 +4512,7 @@ sealed class FakeFrameCommunication : IFrameCommunication
 }
 
 // 探针通道：平台的通道组件（在途表、重连、握手都是生产代码），只把帧通讯换成假的。
-sealed class ProbeChannel : DeviceDriverComponent
+sealed class ProbeChannel : CommDriverComponent
 {
     /// <summary>
     /// 通道底下的假帧通讯：测试看发出去的帧、往里推回复、模拟断线
@@ -4526,7 +4554,7 @@ sealed class ChannelHolder : ComponentBase
 // 整段的探针动作：只有一步"探针"，用例当场判它做成 / 失败 / 超时（不等扫描）；FinishOnScan 的扫到就做完（像一台马上做完的设备）
 sealed class ProbeRoutine : ModuleRoutine
 {
-    public ProbeRoutine() : base("Probe", "Probe")
+    public ProbeRoutine() : base(new SmokeLog("Probe"), "Probe")
     {
         Add("探针", null, _ => FinishOnScan);
     }
@@ -4587,7 +4615,7 @@ sealed class ProbeStep() : RoutineStep("探针")
 }
 
 // 记下中止时谁先收场的动作
-sealed class TraceRoutine(List<string> order) : ModuleRoutine("Engine", "Trace")
+sealed class TraceRoutine(List<string> order) : ModuleRoutine(new SmokeLog("Engine"), "Trace")
 {
     protected override void OnAborted(string reason) => order.Add("routine");
 }
@@ -5305,13 +5333,13 @@ sealed class ContextProbeStation : BaseTransferStationModule
     protected override ModuleRoutine? HandoffPickCore(TransferContext context)
     {
         Handoffs++;
-        return ModuleRoutine.Done(Name, "HandoffPick");
+        return ModuleRoutine.Done(new SmokeLog(Name), "HandoffPick");
     }
 
     protected override ModuleRoutine? HandoffPlaceCore(TransferContext context)
     {
         Handoffs++;
-        return ModuleRoutine.Done(Name, "HandoffPlace");
+        return ModuleRoutine.Done(new SmokeLog(Name), "HandoffPlace");
     }
 
     protected override void OnTransferFinished(TransferContext context)
@@ -5433,7 +5461,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
         return true;
     }
 
-    public Func<ModuleRoutine?> NextLeg { get; init; } = () => ModuleRoutine.Done(name, "PrepareNextLeg");
+    public Func<ModuleRoutine?> NextLeg { get; init; } = () => ModuleRoutine.Done(new SmokeLog(name), "PrepareNextLeg");
 
     public ModuleRoutine? PrepareNextLeg(TransferContext context)
     {
@@ -5448,7 +5476,7 @@ sealed class ProbeStation(string name) : ITransferStation, IStationTaskExecutor
     /// <summary>
     /// 中途交接给什么（null = 被拒）
     /// </summary>
-    public Func<ModuleRoutine?> Handoff { get; init; } = () => ModuleRoutine.Done(name, "Handoff");
+    public Func<ModuleRoutine?> Handoff { get; init; } = () => ModuleRoutine.Done(new SmokeLog(name), "Handoff");
 
     public ModuleRoutine? HandoffPick(TransferContext context)
     {
@@ -5540,7 +5568,7 @@ class ProbeTransferRobot : ITransferRobot
         }
 
         Calls.Add(action);
-        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(Name, action));
+        return HandleResult<ModuleRoutine>.Success(ModuleRoutine.Done(new SmokeLog(Name), action));
     }
 }
 
@@ -5652,4 +5680,14 @@ sealed class SmokeSystem : SystemModule
     }
 
     public void Tick() => OnScan();
+}
+
+/// <summary>
+/// 冒烟里不是组件的地方记日志用的来源：只有第一层
+/// </summary>
+sealed class SmokeLog(string module) : ILogSource
+{
+    public string LogModule => module;
+
+    public string LogPart => string.Empty;
 }

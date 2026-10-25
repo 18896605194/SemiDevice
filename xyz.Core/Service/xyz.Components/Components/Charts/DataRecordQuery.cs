@@ -91,6 +91,101 @@ internal static class DataRecordQuery
         };
     }
 
+    /// <summary>
+    /// 导出：[from, to) 的原始行，不抽稀。按天表、再按 sliceMs 切成一段一段读，每段单独一次短查询：
+    /// 内存里只有一段；WAL 下一直开着的读会让 WAL 文件合不回主库、越积越大，短读不会。读到一段给一段，这段没行就跳过。
+    /// </summary>
+    public static IEnumerable<DataExport> Export(ISqlSugarClient db, IReadOnlyList<string> names, long from, long to,
+        DateTime firstDay, DateTime lastDay, long sliceMs, CancellationToken token)
+    {
+        if (names.Count == 0 || to <= from)
+        {
+            yield break;
+        }
+
+        foreach (var (day, table) in DataRecordTable.ListTables(db))
+        {
+            if (day < firstDay || day > lastDay)
+            {
+                continue;
+            }
+
+            var columns = DataRecordTable.ColumnsOf(db, table).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var present = Enumerable.Range(0, names.Count).Where(index => columns.Contains(names[index])).ToArray();
+            if (present.Length == 0)
+            {
+                continue;
+            }
+
+            long dayFrom = Math.Max(from, LocalMilliseconds(day));
+            long dayTo = Math.Min(to, LocalMilliseconds(day.AddDays(1)));
+            for (long sliceFrom = dayFrom; sliceFrom < dayTo; sliceFrom += sliceMs)
+            {
+                token.ThrowIfCancellationRequested();
+                var slice = ReadSlice(db, table, names, present, sliceFrom, Math.Min(dayTo, sliceFrom + sliceMs), token);
+                if (slice is not null)
+                {
+                    yield return slice;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 读一段：库里有的列照读，这天表里没有的列整列为 null；一行都没有返回 null
+    /// </summary>
+    private static DataExport? ReadSlice(ISqlSugarClient db, string table, IReadOnlyList<string> names, int[] present,
+        long from, long to, CancellationToken token)
+    {
+        var times = new List<long>();
+        var values = Enumerable.Range(0, names.Count).Select(_ => new List<double?>()).ToArray();
+        using (var reader = DataRecordTable.Read(db, table, present.Select(index => names[index]).ToList(), from, to))
+        {
+            while (reader.Read())
+            {
+                if ((times.Count & 0xFFF) == 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                }
+
+                times.Add(reader.GetInt64(0));
+                foreach (var list in values)
+                {
+                    list.Add(null);
+                }
+
+                for (int column = 0; column < present.Length; column++)
+                {
+                    if (!reader.IsDBNull(column + 1))
+                    {
+                        // 开关量列是 INTEGER，一样按 double 读。
+                        values[present[column]][times.Count - 1] = reader.GetDouble(column + 1);
+                    }
+                }
+            }
+        }
+
+        if (times.Count == 0)
+        {
+            return null;
+        }
+
+        return new DataExport
+        {
+            Times = times.ToArray(),
+            Names = names,
+            Values = values.Select(list => list.ToArray()).ToArray(),
+        };
+    }
+
+    /// <summary>
+    /// 本机日期的零点 → UTC 毫秒（日表按本机日期分）
+    /// </summary>
+    private static long LocalMilliseconds(DateTime day)
+    {
+        return new DateTimeOffset(DateTime.SpecifyKind(day, DateTimeKind.Local)).ToUnixTimeMilliseconds();
+    }
+
     private static float? ToFloat(double? value)
     {
         return value is not null ? (float)value.Value : null;

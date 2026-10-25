@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.Input;
 using xyz.Client.Common.Events;
 using xyz.Client.Common.Log;
 using xyz.Client.Common.Rpc;
-using xyz.Client.Common.Session;
 using xyz.Client.DataModels.ViewModels;
 using xyz.Client.Presentation.Localization;
 using xyz.Client.Recipe.Models;
@@ -1173,7 +1172,6 @@ public class ProcessRecipeViewModel : BaseViewModel
             Description = HeadValue(DescriptionKey),
             Head = head,
             Steps = Steps.Select(step => step.ToDto()).ToList(),
-            Operator = ClientSession.UserName,
         };
 
         var response = await Call(() => _service.SaveAsync(request), "recipe.process.save_failed");
@@ -1273,7 +1271,6 @@ public class ProcessRecipeViewModel : BaseViewModel
         {
             Index = slot.Index,
             Name = DialogName.Trim(),
-            Operator = ClientSession.UserName,
         }));
         if (response is null)
         {
@@ -1308,7 +1305,6 @@ public class ProcessRecipeViewModel : BaseViewModel
         {
             Index = current.Index,
             Name = DialogName.Trim(),
-            Operator = ClientSession.UserName,
         }));
         if (response is null)
         {
@@ -1347,7 +1343,6 @@ public class ProcessRecipeViewModel : BaseViewModel
         var response = await CallInDialog(() => _service.DeleteAsync(new ProcessRecipeDeleteRequest
         {
             Index = current.Index,
-            Operator = ClientSession.UserName,
         }));
         if (response is null)
         {

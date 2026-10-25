@@ -124,13 +124,13 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
                 if (!loaded.TryAdd(data.Index, data))
                 {
-                    LogHelper.Warn(Name, $"跳过 {file}：{data.Index} 号已经有一个文件了（文件名写法不同但编号一样）");
+                    LogHelper.Warn(this, $"跳过 {file}：{data.Index} 号已经有一个文件了（文件名写法不同但编号一样）");
                 }
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            LogHelper.Error(Name, $"流程配方目录打不开：{folder}（{exception.Message}），列表先是空的");
+            LogHelper.Error(this, $"流程配方目录打不开：{folder}（{exception.Message}），列表先是空的");
         }
 
         lock (_gate)
@@ -142,7 +142,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
             }
         }
 
-        LogHelper.Info(Name, $"读入流程配方 {loaded.Count} 个（目录 {folder}）");
+        LogHelper.Info(this, $"读入流程配方 {loaded.Count} 个（目录 {folder}）");
     }
 
     /// <summary>
@@ -217,11 +217,11 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
 
         if (groups.Count == 0)
         {
-            LogHelper.Info(Name, "没有可选的站点分组（没有机械手，或机械手示教点表里的站点都没装），流程配方编辑不了步骤");
+            LogHelper.Info(this, "没有可选的站点分组（没有机械手，或机械手示教点表里的站点都没装），流程配方编辑不了步骤");
             return;
         }
 
-        LogHelper.Info(Name, $"可选站点分组 {groups.Count} 个：{string.Join("；", groups.Select(group => $"{group.Name}（{string.Join(", ", group.Modules)}）"))}");
+        LogHelper.Info(this, $"可选站点分组 {groups.Count} 个：{string.Join("；", groups.Select(group => $"{group.Name}（{string.Join(", ", group.Modules)}）"))}");
     }
 
     /// <summary>
@@ -365,7 +365,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
 
         var saved = result.Result as SequenceData;
-        LogHelper.Info(Name, saved is null ? message : $"{message}，版本 {saved.Revision}");
+        LogHelper.Info(this, saved is null ? message : $"{message}，版本 {saved.Revision}");
         EventBus.Send(new SequenceChangedDto { Index = index }, SequenceListDto.EventToken, retain: false);
 
         var callback = E30Callback;
@@ -605,7 +605,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            LogHelper.Error(Name, $"{data.Index} 号流程配方写文件失败，库里的没改：{exception.Message}");
+            LogHelper.Error(this, $"{data.Index} 号流程配方写文件失败，库里的没改：{exception.Message}");
             DeleteTemp(temp);
             return HandleResult.Fail(ErrorCodes.SequenceSaveFailed, Text(data.Index), exception.Message);
         }
@@ -626,7 +626,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            LogHelper.Error(Name, $"{index} 号流程配方文件删不掉，库里的没动：{exception.Message}");
+            LogHelper.Error(this, $"{index} 号流程配方文件删不掉，库里的没动：{exception.Message}");
             return HandleResult.Fail(ErrorCodes.SequenceSaveFailed, Text(index), exception.Message);
         }
 
@@ -645,7 +645,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            LogHelper.Warn(Name, $"临时文件删不掉（下次写会覆盖）：{temp}（{exception.Message}）");
+            LogHelper.Warn(this, $"临时文件删不掉（下次写会覆盖）：{temp}（{exception.Message}）");
         }
     }
 
@@ -657,7 +657,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         if (!int.TryParse(System.IO.Path.GetFileNameWithoutExtension(file), NumberStyles.None, CultureInfo.InvariantCulture, out int index)
             || index < 1 || index > Capacity)
         {
-            LogHelper.Warn(Name, $"跳过 {file}：文件名不是 1~{Capacity} 的编号");
+            LogHelper.Warn(this, $"跳过 {file}：文件名不是 1~{Capacity} 的编号");
             return null;
         }
 
@@ -666,7 +666,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
             var data = XmlHelper.Deserialize<SequenceData>(file);
             if (data is null)
             {
-                LogHelper.Warn(Name, $"跳过 {file}：内容是空的");
+                LogHelper.Warn(this, $"跳过 {file}：内容是空的");
                 return null;
             }
 
@@ -675,7 +675,7 @@ public class SequenceComponent : ComponentBase, ISequenceComponent
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            LogHelper.Error(Name, $"跳过 {file}：读不出来（{exception.Message}）");
+            LogHelper.Error(this, $"跳过 {file}：读不出来（{exception.Message}）");
             return null;
         }
     }

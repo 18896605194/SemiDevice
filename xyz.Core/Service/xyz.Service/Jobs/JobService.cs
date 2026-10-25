@@ -20,11 +20,6 @@ public class JobService : BaseService, IJobService
 {
     #region 基础成员
 
-    /// <summary>客户端没带操作人时记成这个。</summary>
-    private const string UnknownOperator = "Unknown";
-
-    private const string LogModule = "Job";
-
     private readonly IJobManager? _jobs;
 
     private readonly IMapper _mapper;
@@ -283,9 +278,8 @@ public class JobService : BaseService, IJobService
             return RpcResponse.Fail(control.ErrorMessage, control.Args);
         }
 
-        string operatorName = (request.Operator ?? string.Empty).Trim();
-        LogHelper.Info(LogModule, $"建 Job {controlId}（{port.Name}，{created.Count} 个 PJ，{groups.Sum(group => group.Slots.Count)} 片，"
-            + $"操作人 {(operatorName.Length == 0 ? UnknownOperator : operatorName)}）");
+        LogJobInfo($"建 Job {controlId}（{port.Name}，{created.Count} 个 PJ，{groups.Sum(group => group.Slots.Count)} 片，"
+            + $"操作人 {RpcOperator.Of(context)}）");
         string json = JsonHelper.Serialize(control.Result);
         return RpcResponse.Ok(json);
     }
@@ -435,16 +429,44 @@ public class JobService : BaseService, IJobService
     }
 
     /// <summary>建 Job 中途被拒：已经建好的 PJ 撤掉（还在排队的 PJ 收到取消就删，E40 #18）。</summary>
-    private static async Task CancelAsync(IJobManager jobs, IEnumerable<string> processJobs)
+    private async Task CancelAsync(IJobManager jobs, IEnumerable<string> processJobs)
     {
         foreach (string id in processJobs)
         {
             var result = await jobs.CancelProcessJobAsync(id).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
-                LogHelper.Warn(LogModule, $"建 Job 没成，已经建好的 PJ {id} 没撤掉（{result.ErrorMessage}），要手动取消");
+                LogJobWarn($"建 Job 没成，已经建好的 PJ {id} 没撤掉（{result.ErrorMessage}），要手动取消");
             }
         }
+    }
+
+    /// <summary>
+    /// Job 的日志记在 Job 管理名下（它是组件）；不是组件的（冒烟里的假 Job 管理）记在 Host 下
+    /// </summary>
+    private void LogJobInfo(string message)
+    {
+        if (_jobs is ILogSource source)
+        {
+            LogHelper.Info(source, message);
+            return;
+        }
+
+        LogHelper.Info(LogHelper.HostModule, message);
+    }
+
+    /// <summary>
+    /// 同 <see cref="LogJobInfo"/>，记告警
+    /// </summary>
+    private void LogJobWarn(string message)
+    {
+        if (_jobs is ILogSource source)
+        {
+            LogHelper.Warn(source, message);
+            return;
+        }
+
+        LogHelper.Warn(LogHelper.HostModule, message);
     }
 
     #endregion

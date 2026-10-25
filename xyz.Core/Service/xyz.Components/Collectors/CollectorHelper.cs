@@ -54,13 +54,13 @@ internal static class CollectorHelper
                 var getter = property.GetMethod;
                 if (getter is null || !getter.IsPublic || property.GetIndexParameters().Length != 0)
                 {
-                    LogHelper.Warn(kind, $"{name} 没有可读的公开 get，不编号");
+                    LogHelper.Warn(LogHelper.HostModule, $"{kind}：{name} 没有可读的公开 get，不编号");
                     continue;
                 }
 
                 if (!names.Add(name))
                 {
-                    LogHelper.Error(kind, $"{name} 重复声明，只认第一个");
+                    LogHelper.Error(LogHelper.HostModule, $"{kind}：{name} 重复声明，只认第一个");
                     continue;
                 }
 
@@ -113,7 +113,7 @@ internal static class CollectorHelper
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(kind, $"{declaration.Name} 读值失败: {(exception.InnerException ?? exception).Message}");
+            LogHelper.Warn(LogHelper.HostModule, $"{kind}：{declaration.Name} 读值失败: {(exception.InnerException ?? exception).Message}");
             return string.Empty;
         }
     }

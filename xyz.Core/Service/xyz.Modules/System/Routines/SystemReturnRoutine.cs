@@ -68,7 +68,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     /// </summary>
     private ReturnWafer? _moving;
 
-    private SystemReturnRoutine(string module, ITransferManager transfers, ILedgerManager ledger, List<ReturnWafer> wafers)
+    private SystemReturnRoutine(ILogSource module, ITransferManager transfers, ILedgerManager ledger, List<ReturnWafer> wafers)
         : base(module, "ReturnAll")
     {
         _transfers = transfers;
@@ -92,7 +92,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
     /// <summary>
     /// 开始前把机内每片的去处、路线、要用到的设备、在位传感器都查一遍：有一条不过就不开始、回原因，都过了给回片动作
     /// </summary>
-    public static HandleResult<ModuleRoutine> Prepare(string module, ITransferManager transfers, ILedgerManager ledger, IJobManager? jobs)
+    public static HandleResult<ModuleRoutine> Prepare(ILogSource module, ITransferManager transfers, ILedgerManager ledger, IJobManager? jobs)
     {
         if (jobs is not null && jobs.HasRunningJob)
         {
@@ -353,7 +353,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
 
         if (_wafers.Count == 0)
         {
-            LogHelper.Info(Module, "全部回片：片都回去了");
+            LogHelper.Info(LogOwner, "全部回片：片都回去了");
             return true;
         }
 
@@ -404,7 +404,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
         if (wafer.Stops.Count == 0)
         {
             _wafers.Remove(wafer);
-            LogHelper.Info(Module, $"全部回片：{wafer.Name} 已回 {wafer.Module} {wafer.Slot}");
+            LogHelper.Info(LogOwner, $"全部回片：{wafer.Name} 已回 {wafer.Module} {wafer.Slot}");
         }
 
         return true;
@@ -560,7 +560,7 @@ internal sealed class SystemReturnRoutine : ModuleRoutine
 
     private void GiveUp(RoutineStep step, string reason)
     {
-        LogHelper.Warn(Module, $"全部回片停下：{reason}；还有 {_wafers.Count} 片没回去");
+        LogHelper.Warn(LogOwner, $"全部回片停下：{reason}；还有 {_wafers.Count} 片没回去");
         step.Fail(ErrorCodes.SystemReturnIncomplete, reason, _wafers.Count.ToString(CultureInfo.InvariantCulture));
     }
 

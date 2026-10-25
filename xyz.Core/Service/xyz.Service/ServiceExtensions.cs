@@ -58,7 +58,7 @@ public static class ServiceExtensions
         }
         else
         {
-            LogHelper.Warn("EC", "machine.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
+            LogHelper.Warn(LogHelper.HostModule, "machine.xml 没配 EC 节点：EC 参数全按代码默认值走，改了也不落盘");
         }
 
         IocHelper.GetRequiredService<GemCollectors>().Merge(roots, MachineXml.ConfigDirectory);
@@ -69,7 +69,7 @@ public static class ServiceExtensions
         ComponentLoader.StartedAll(roots);
 
         var scanningRoots = roots.Where(root => root.IsEnabled && root.IsRun).ToList();
-        LogHelper.Info($"根组件装配 {roots.Count} 个，模块 {IocHelper.GetServices<IModule>().Count} 个，启动独立扫描 {scanningRoots.Count} 个："
+        LogHelper.Info(LogHelper.HostModule, $"根组件装配 {roots.Count} 个，模块 {IocHelper.GetServices<IModule>().Count} 个，启动独立扫描 {scanningRoots.Count} 个："
             + string.Join(", ", scanningRoots.Select(root => root.FullPath)));
     }
 

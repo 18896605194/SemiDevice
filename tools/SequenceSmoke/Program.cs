@@ -337,22 +337,22 @@ try
         ];
     }
 
-    var savedBySvc = await service.SaveAsync(new SequenceSaveRequest { Index = 3, Revision = 1, Description = "d", Operator = "Op", Steps = ServiceSteps() });
-    Check(savedBySvc.Success && savedBySvc.DeserializeData<SequenceDto>().Revision == 2, "服务保存：版本加 1");
-    var stale = await service.SaveAsync(new SequenceSaveRequest { Index = 3, Revision = 1, Operator = "Op", Steps = ServiceSteps() });
+    var savedBySvc = await service.SaveAsync(new SequenceSaveRequest { Index = 3, Revision = 1, Description = "d", Steps = ServiceSteps() }, SmokeCall.As("Op"));
+    Check(savedBySvc.Success && savedBySvc.DeserializeData<SequenceDto>().Revision == 2 && savedBySvc.DeserializeData<SequenceDto>().ModifiedBy == "Op",
+        "服务保存：版本加 1，修改人是请求头里的操作人");
+    var stale = await service.SaveAsync(new SequenceSaveRequest { Index = 3, Revision = 1, Steps = ServiceSteps() }, SmokeCall.As("Op"));
     Check(!stale.Success && stale.Code == ErrorCodes.SequenceRevisionMismatch && stale.Args.SequenceEqual(new[] { "3" }), "版本冲突：错误码带编号");
     var noRecipe = await service.SaveAsync(new SequenceSaveRequest
     {
         Index = 3,
         Revision = 2,
-        Operator = "Op",
         Steps = [new SequenceStepDto { Group = "LoadPort", Stations = ["SmokeLP1"] }, new SequenceStepDto { Group = "Chamber", Stations = ["SmokePM1"] }, new SequenceStepDto { Group = "LoadPort", Stations = ["SmokeLP1"] }],
-    });
+    }, SmokeCall.As("Op"));
     Check(!noRecipe.Success && noRecipe.Code == ErrorCodes.SequenceRecipeRequired && noRecipe.Args.SequenceEqual(new[] { "2" }), "没选工艺配方：错误码带步号");
-    var duplicate = await service.RenameAsync(new SequenceRenameRequest { Index = 3, Name = "sc1_lp1_to_lp2", Operator = "Op" });
+    var duplicate = await service.RenameAsync(new SequenceRenameRequest { Index = 3, Name = "sc1_lp1_to_lp2" }, SmokeCall.As("Op"));
     Check(!duplicate.Success && duplicate.Code == ErrorCodes.SequenceNameDuplicate && duplicate.Args.SequenceEqual(new[] { "sc1_lp1_to_lp2", "1" }),
         "改名重了：错误码带名称和编号");
-    Check((await service.DeleteAsync(new SequenceDeleteRequest { Index = 3, Operator = "Op" })).Success, "服务删除");
+    Check((await service.DeleteAsync(new SequenceDeleteRequest { Index = 3 }, SmokeCall.As("Op"))).Success, "服务删除");
     var gone = await service.GetAsync(new SequenceIndexRequest { Index = 3 });
     Check(!gone.Success && gone.Code == ErrorCodes.SequenceNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 

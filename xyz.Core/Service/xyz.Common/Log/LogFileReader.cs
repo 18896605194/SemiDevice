@@ -6,9 +6,10 @@ using NLog;
 namespace xyz.Common.Log;
 
 /// <summary>
-/// 读后端日志文件，给日志历史查询用，只读不写。
+/// 读后端主日志文件，给日志历史查询用，只读不写。
 /// 文件与格式都跟着写入方走：NLog.config 的 file 目标（运行目录 Log\xyz-yyyy-MM-dd.log，超 100MB 再分出 .1、.2……），
-/// 每条日志一行，格式即 <see cref="LogItem.ToString"/>；消息里带换行（如异常堆栈）时续行归到上一条。
+/// 每条日志一行，格式即 <see cref="LogItem.ToString"/>（部件那一格没有就不写，改之前的旧文件也没有）；消息里带换行（如异常堆栈）时续行归到上一条。
+/// 轮询文件 poll-yyyy-MM-dd.log 不读（量大，只在机台上开文件看）。
 /// </summary>
 public static class LogFileReader
 {
@@ -20,7 +21,7 @@ public static class LogFileReader
     private const string FilePrefix = "xyz-";
 
     private static readonly Regex LinePattern = new(
-        @"^【(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})】 【(?<level>[A-Za-z]+)】 【(?<module>[^】]*)】 ?(?<message>.*)$",
+        @"^【(?<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})】 【(?<level>[^】]+)】 【(?<module>[^】]*)】(?: 【(?<part>[^】]*)】)? ?(?<message>.*)$",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -57,21 +58,33 @@ public static class LogFileReader
             return false;
         }
 
-        LogLevel level;
-        try
+        // 收发原文的级别那一格写的是方向
+        string levelText = match.Groups["level"].Value;
+        string direction = string.Empty;
+        LogLevel level = LogLevel.Info;
+        if (levelText == LogHelper.Sent || levelText == LogHelper.Received)
         {
-            level = LogLevel.FromString(match.Groups["level"].Value);
+            direction = levelText;
         }
-        catch (ArgumentException)
+        else
         {
-            return false;
+            try
+            {
+                level = LogLevel.FromString(levelText);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
         }
 
         item = new LogItem
         {
             Time = time,
             Level = level,
+            Direction = direction,
             Module = match.Groups["module"].Value,
+            Part = match.Groups["part"].Value,
             Message = match.Groups["message"].Value,
         };
         return true;

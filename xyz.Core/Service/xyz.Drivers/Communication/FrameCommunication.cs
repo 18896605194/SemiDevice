@@ -32,9 +32,9 @@ public class FrameCommunication : IFrameCommunication, IDisposable
     }
 
     /// <summary>
-    /// 收到一条解好的报文，在接收泵线程触发；订阅方要及时返回，异常不会拖垮接收泵
+    /// 收到一帧：帧体原文和解好的报文（解不出来为 null），在接收泵线程触发；订阅方要及时返回，异常不会拖垮接收泵
     /// </summary>
-    public event Action<object>? MessageReceived;
+    public event Action<string, object?>? MessageReceived;
 
     /// <param name="transport">字节传输（串口/网口）。</param>
     /// <param name="codec">品牌的解码器，自带接收缓冲，一条通讯一个实例；帧文本的编码也按它的。</param>
@@ -163,17 +163,23 @@ public class FrameCommunication : IFrameCommunication, IDisposable
 
             foreach (string frame in _codec.Extract(_encoding.GetString(data)))
             {
+                object? message = null;
                 try
                 {
-                    var message = _codec.Decode(frame);
-                    if (message is not null)
-                    {
-                        MessageReceived?.Invoke(message);
-                    }
+                    message = _codec.Decode(frame);
                 }
                 catch
                 {
-                    // 解不了的帧、订阅方的异常都不拖垮接收泵。
+                    // 解码抛了当解不出来：原文照样往上交（通道记成"解不出来"），不拖垮接收泵。
+                }
+
+                try
+                {
+                    MessageReceived?.Invoke(frame, message);
+                }
+                catch
+                {
+                    // 订阅方的异常不拖垮接收泵。
                 }
             }
         }

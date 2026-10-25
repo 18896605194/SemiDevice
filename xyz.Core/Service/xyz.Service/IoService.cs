@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using xyz.Common.Log;
 using xyz.Components.Components;
 using xyz.Components.Interfaces;
 using xyz.Shared.Dtos;
@@ -30,7 +29,6 @@ public class IoService : IIoService
             return WriteFailed("DO", request.Index);
         }
 
-        LogHelper.Info("Io", $"手动写 DO {request.Index} = {(on ? 1 : 0)}");
         return Task.FromResult(RpcResponse.Ok());
     }
 
@@ -59,7 +57,6 @@ public class IoService : IIoService
             return WriteFailed("AO", request.Index);
         }
 
-        LogHelper.Info("Io", $"手动下发 AO {request.Index} = {Format(request.Value)} {point.Unit}");
         return Task.FromResult(RpcResponse.Ok());
     }
 

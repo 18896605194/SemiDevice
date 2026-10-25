@@ -50,7 +50,14 @@ internal sealed class SystemInitStep : RoutineStep
                 return;
             }
 
-            LogHelper.Info(module.Name, "全部初始化：开始初始化");
+            if (module is ILogSource source)
+            {
+                LogHelper.Info(source, "全部初始化：开始初始化");
+            }
+            else
+            {
+                LogHelper.Info(module.Name, "全部初始化：开始初始化");
+            }
             _started.Add((module, routine));
         }
     }

@@ -682,21 +682,21 @@ try
 
     var savedBySvc = await service.SaveAsync(new ProcessRecipeSaveRequest
     {
-        Index = 3, Revision = 1, Type = "A", Timeout = "120", Description = "d", Operator = "Op", Steps = ServiceSteps("1.5"),
-    });
+        Index = 3, Revision = 1, Type = "A", Timeout = "120", Description = "d", Steps = ServiceSteps("1.5"),
+    }, SmokeCall.As("Op"));
     var savedDto = savedBySvc.DeserializeData<ProcessRecipeDto>();
     Check(savedBySvc.Success && savedDto.Revision == 2 && savedDto.ModifiedBy == "Op" && savedDto.Steps[0].Values["ScanTo"] == "60"
           && savedDto.Steps[1].Values["Arm"].Length == 0 && savedDto.Type == "A" && savedDto.Timeout == "120",
         "服务保存：版本加 1，配方头的 Type、超时时间存上，没给的字段存成空的");
-    var stale = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 1, Type = "A", Timeout = "600", Operator = "Op", Steps = ServiceSteps("1.5") });
+    var stale = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 1, Type = "A", Timeout = "600", Steps = ServiceSteps("1.5") }, SmokeCall.As("Op"));
     Check(!stale.Success && stale.Code == ErrorCodes.ProcessRecipeRevisionMismatch && stale.Args.SequenceEqual(new[] { "3" }), "版本冲突：错误码带编号");
-    var badFlow = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 2, Type = "A", Timeout = "600", Operator = "Op", Steps = ServiceSteps("9") });
+    var badFlow = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 2, Type = "A", Timeout = "600", Steps = ServiceSteps("9") }, SmokeCall.As("Op"));
     Check(!badFlow.Success && badFlow.Code == ErrorCodes.ProcessRecipeValueAboveMax && badFlow.Args.SequenceEqual(new[] { "1", "流量", "3", " L/min" }),
         "流量超了：错误码带步号、字段名、上限和单位");
-    var badType = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 2, Type = "B", Timeout = "600", Operator = "Op", Steps = ServiceSteps("1.5") });
+    var badType = await service.SaveAsync(new ProcessRecipeSaveRequest { Index = 3, Revision = 2, Type = "B", Timeout = "600", Steps = ServiceSteps("1.5") }, SmokeCall.As("Op"));
     Check(!badType.Success && badType.Code == ErrorCodes.ProcessRecipeHeadValueNotInOptions && badType.Args.SequenceEqual(new[] { "Type", "B" }),
         "Type 不是腔体配的：配方头的错误码带名字和值");
-    var duplicate = await service.RenameAsync(new ProcessRecipeRenameRequest { Index = 3, Name = "sc1_45s", Operator = "Op" });
+    var duplicate = await service.RenameAsync(new ProcessRecipeRenameRequest { Index = 3, Name = "sc1_45s" }, SmokeCall.As("Op"));
     Check(!duplicate.Success && duplicate.Code == ErrorCodes.ProcessRecipeNameDuplicate && duplicate.Args.SequenceEqual(new[] { "sc1_45s", "1" }),
         "改名重了：错误码带名称和编号");
 
@@ -717,7 +717,7 @@ try
     var empty = await chamberService.ProcessAsync(new ChamberProcessRequest { Module = "SmokePM1", Recipe = "  " });
     Check(!empty.Success && empty.Code == ErrorCodes.RecipeRequired, "没填配方还是 chamber.recipe_required");
 
-    Check((await service.DeleteAsync(new ProcessRecipeDeleteRequest { Index = 3, Operator = "Op" })).Success, "服务删除");
+    Check((await service.DeleteAsync(new ProcessRecipeDeleteRequest { Index = 3 }, SmokeCall.As("Op"))).Success, "服务删除");
     var gone = await service.GetAsync(new ProcessRecipeIndexRequest { Index = 3 });
     Check(!gone.Success && gone.Code == ErrorCodes.ProcessRecipeNotFound && gone.Args.SequenceEqual(new[] { "3" }), "删了再取：没有");
 

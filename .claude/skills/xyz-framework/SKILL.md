@@ -17,9 +17,9 @@ description: xyz 半导体设备框架（D:\Code）的架构分层和编码规�
 ## 一、架构
 
 ```
-xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、JsonHelper、IocHelper）
+xyz.Core\Shared   契约 xyz.Shared（服务接口 Services\、DTO Dtos\、错误码 Errors\）+ 工具 xyz.Tools（EventBus、JsonHelper、IocHelper、ExcelHelper，前后端共用的帮助类都放这里）
 xyz.Core\Service  后端：xyz.Components（组件）→ xyz.Modules（模块）→ xyz.Service（gRPC 服务、装配、事件桥）→ xyz.GrpcHost（宿主）
-                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（SECS/HSMS）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志）
+                  旁支：xyz.Drivers（通讯、设备通道、指令底座；品牌协议不在这里）、xyz.Secs（跟主机、厂里系统通讯的底层：SECS/HSMS、GEM 各标准协议、EDA 引擎；单独仓库 D:\Secs\xyz.Secs，框架只引 Libs\xyz.Secs.dll）、xyz.Database（SqlSugar）、xyz.Configs（读 machine.xml，文件本身归机型）、xyz.Common（日志）
 xyz.Core\Client   客户端：xyz.Client（壳）→ 功能模块 Main/Alarm/DataCenter/Io/Manual/Recipe/Setting → Common\xyz.Client.Presentation（控件/样式/语言包）
                   → Common\xyz.Client.Common（RPC/事件/日志）、Common\xyz.Client.DataModels（BaseViewModel）；Common\xyz.Client.Modules（机型模块接口）
 xyz.35021         机型层：继承平台 Base*Module 写具体设备（品牌协议、指令在 Drivers\<品牌>）、机型客户端页面、machine.xml 和 IO 点表；编译后部署到宿主和客户端的 Modules\35021（machine.xml、点表进宿主 Config），运行时扫描加载
@@ -97,6 +97,10 @@ tools             冒烟测试（控制台程序，不是单元测试工程）�
 9. 用户看得到的文字都走语言包，**zh-CN、en-US 两份的 key 一一对应**，加一条两边都加。
 10. 客户端：模块状态用 `ModuleStateBadge`；输入用 `InputTextBox`（绑 Value）；样式只放 `Presentation\Styles`，颜色、字号用 token（`Dark*`、`SizeNN`）；页面里不写资源、不写死颜色和字号。
 11. 删功能要删干净：界面、逻辑、语言包、样式、DTO 字段、测试一起删，不留没人用的代码。
+12. **后端记日志一律走 `LogHelper`**（用户 2026-10-25 定）：不写 `Console.WriteLine`、`ILogger`、`LogManager.GetLogger`；组件里写 `LogHelper.Info(this, …)`（两层名字：模块、部件），
+    不是组件的写固定名字（`LogHelper.HostModule`）；第三方库的日志用 `LogHelperLoggerProvider` 转进来。客户端照旧 `ClientLog`。见 backend.md §9。
+13. **定时查设备状态一律写在模块的 `QueryDataLoop` 里，交给 `StatusQueryLoop` 发**（2026-10-26）：别在扫描里自己定时 `Send`——它发的指令打 `IsPolling`，
+    通道才知道把收发原文记到轮询文件，不然会刷满主日志。
 
 ## 三、按任务找做法
 

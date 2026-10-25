@@ -21,4 +21,11 @@ public interface IDataChartService
     /// </summary>
     [OperationContract]
     Task<RpcResponse> QueryAsync(DataChartQuery query, CallContext context = default);
+
+    /// <summary>
+    /// 导出：按名字把一段时间的原始行一段一段推回来（服务端流，不抽稀）。每条 Data 为 DataChartExportDto 的 JSON；
+    /// 没装数据曲线、读库出错推一条失败就结束；客户端取消就停。
+    /// </summary>
+    [OperationContract]
+    IAsyncEnumerable<RpcResponse> ExportAsync(DataChartQuery query, CallContext context = default);
 }

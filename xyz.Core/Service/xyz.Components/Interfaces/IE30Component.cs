@@ -1,5 +1,4 @@
-﻿using xyz.Components.Models;
-using xyz.Secs.SecsII;
+﻿using xyz.Secs.Gem.E30;
 
 namespace xyz.Components.Interfaces;
 
@@ -14,24 +13,9 @@ public interface IE30Component
     bool IsRemote { get; }
 
     /// <summary>
-    /// 时间格式（EC TimeFormat）
+    /// GEM 的协议部分（xyz.Secs）：别的标准接链路时要它；没接链路（EAP 没启用）为 null
     /// </summary>
-    int TimeFormat { get; }
-
-    /// <summary>
-    /// 从在线进了离线
-    /// </summary>
-    event Action? WentOffline;
-
-    /// <summary>
-    /// 报一个事件（S6F11）
-    /// </summary>
-    void Report(ComponentBase source, string code, params GemData[] data);
-
-    /// <summary>
-    /// 发一条设备主动发的报文（S6F1 这类），离线不发
-    /// </summary>
-    void Send(SecsMessage message);
+    E30Engine? Engine { get; }
 
     /// <summary>
     /// 接到链路上

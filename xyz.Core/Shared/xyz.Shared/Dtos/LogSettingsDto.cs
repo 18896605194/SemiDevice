@@ -24,4 +24,14 @@ public class LogSettingsDto
     /// 顶部日志栏最多保留多少条，超出丢最旧的。
     /// </summary>
     public int LogBarDisplayMaxCount { get; set; } = DefaultLogBarDisplayMaxCount;
+
+    /// <summary>
+    /// 日志文件留多少天（客户端自己的日志也照这个）；0 = 不删
+    /// </summary>
+    public int KeepDays { get; set; }
+
+    /// <summary>
+    /// 日志历史页"模块"下拉的选项：日志的第一层（组件树最顶上那层，按 machine.xml 先后，再加 Operation、Host）
+    /// </summary>
+    public List<string> Modules { get; set; } = [];
 }

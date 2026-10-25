@@ -9,6 +9,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\xyz.Core\Service\xyz.Components\xyz.Components.csproj" />
+    <!-- 直接用到 SECS 的类型：间接引的 DLL 编译时看不到，自己再引一次 -->
+    <Reference Include="xyz.Secs">
+      <HintPath>..\..\Libs\xyz.Secs.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

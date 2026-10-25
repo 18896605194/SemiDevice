@@ -23,7 +23,9 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
 ## 2. 启动顺序（`xyz.Client\App.xaml.cs`）
 
 1. 挂全局异常（Dispatcher / AppDomain / TaskScheduler），一律 `ClientLog.Error("Client", ...)`；显示加载窗口。
-2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`，exe 旁 `client.json` 的 `GrpcAddress` 可改）。
+2. `GrpcClientFactory.Initialize()`（默认 `http://localhost:5000`、单条消息上限 26 MB，exe 旁 `client.json` 的 `GrpcAddress`、`MaxMessageSizeMb` 可改，跟后端 machine.xml 的 Rpc 节点一致）。
+   通道外面包一层私有的 `UserHeader`（gRPC 客户端拦截器）：每次调用都在请求头 `xyz-user-bin` 带上 `ClientSession.UserName`（UTF-8），后端记操作日志、
+   账单调整和配方的操作人都从这儿取——请求 DTO 上不再带 `Operator`，页面里也不用填（2026-10-26）。
 3. 问后端系统设置 `ISystemService.GetSettingsAsync`（3 s 超时，每 1 s 重试，最多等 30 s）→ `L10n.Apply(语言)`；
    返回的模块名、腔体名用来生成 IO / 腔体菜单，LoadPort、机械手名单用来生成主界面的 LoadPort 页签和默认调度图。
    后端一直不在就用 zh-CN、这些按模块生成的东西整次为空（主界面显示提示）；换语言要重启客户端。
@@ -95,9 +97,15 @@ Common\xyz.Client.Modules：机型客户端模块的接口（IClientModule、[Cl
   Sequence 是界面上选的（点创建 Job 时交给后端）：上面的 Sequence 框一选给全篮能做的片套上，⊕ 弹公共选择弹窗给这一片单独选，⊖ 清空（这片不做）；
   后来才放上 / Mapping 出来的片也套上面选的那个；交叉片、叠片、状态不明的没有 ⊕ ⊖。
 - **创建 / 启动 Job**（2026-10-05 接上）：订 Job 全貌推送（`JobListDto`，token "Job"，留存），每个页签认自己 LoadPort 上没删的 CJ（`LoadPortJobModel.ControlJob`），
-  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽、操作人；启动方式由设备 machine.xml 决定，后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
+  断开时清掉。创建 Job = `IJobService.CreateAsync`（LoadPort、LotID、选了 Sequence 的槽；操作人在请求头里；启动方式由设备 machine.xml 决定，后端跟 Host 一样先建 PJ 再建 CJ），有要做的片、这个 LoadPort 上没 CJ 才能点；
   启动 Job = `ControlJobCommandAsync`（CJStart），Auto 下、CJ 是 WAITINGFORSTART（`ControlJobDto.StateWaitingForStart`）才能点。结果写顶栏日志。
   Job 的列表、详情、暂停 / 停止 / 中止这些按钮还没有界面（要先给参考图或出样稿）。
+
+### 数据中心 · 日志（`xyz.Client.DataCenter`，2026-10-26 改，见 decisions.md「日志重整」）
+- 日志历史页工具栏：起止时间、**模块**（下拉：全部 + 日志的第一层，选项是连上后端时取的 `LogSettingsDto.Modules`，machine.xml 的组件树最顶上那层再加 Operation、Host）、
+  级别、关键字（模块 / 部件 / 内容）、查询 / 今天 / 最近 7 天；不要"类别"、不要"带通讯原文"的勾（用户定）。只查主日志，轮询文件不查。
+- 表格（历史、实时都是）：时间 | 级别 | 模块 | 部件 | 内容；收发原文的级别显示"发 / 收"。顶栏日志栏模块后面跟部件。
+- 客户端日志 `ClientLog`：NLog 异步写，留几天跟后端（`LogSettingsDto.KeepDays`，`LogViewModel` 连上时设），退出 `ClientLog.Shutdown()`、崩溃 `ClientLog.Flush`。
 
 ### 数据中心 · Job 历史（`xyz.Client.DataCenter`，2026-10-22，见 decisions.md「Job」）
 - 工具栏跟日志历史一样（起止时间、关键字 `InputTextBox`、查询 / 今天 / 最近 7 天，右边共几条 / 截断提示），不自动查。下面四块 `ZoneBorderStyle`：
@@ -248,6 +256,15 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   单选，双击或"确定"返回选中项，取消返回 null；打开时选中跟当前值对得上的那项，没有就什么都不选（不默认第一项）。不配 PickerBox 也能直接调（流程配方页"添加"选站点分组）。
 - **公共确认弹窗** `DialogService.ShowConfirm(标题, 说明, 确定按钮字, danger, showCancel)`：跟选择弹窗一个样子，说明多行、长了滚动；
   danger = 确定按钮红色（中止、删除这类），showCancel = false 只有一个按钮（只是告知）。以后 Job 页的停止 / 中止用它。
+- **另存为** `DialogService.ShowSaveFile(标题, 默认文件名, 过滤)`：系统的另存为窗口，选好回完整路径、取消回 null；Excel 的过滤用语言包 `common.excel_filter`。
+- **进度弹框 ProgressOverlay**（查询、导出这类要等的都用它，见 decisions.md「数据曲线导出 Excel、公共进度弹框」）：放在页面根 Grid 最后，盖住整页、蒙暗，
+  中间深色卡片：圆环 + 下面一行字 + 取消。VM 上一件事一个 `ProgressState` 属性，页面一行：
+  `<controls:ProgressOverlay State="{Binding Export}" Text="{DynamicResource datachart.exporting}" />`（不知道进度的加 `IsIndeterminate="True"`，圆环一直转、不写百分比）；
+  `ShowDelay` 默认 500 ms，过这么久还没完才弹。VM 里 `bool done = await Export.RunAsync((progress, token) => ...)`：开关、取消（`CancelCommand`）、
+  后台 `progress.Report(0～100)` 回界面线程都在 `ProgressState` 里；被取消回 false，别的异常照抛；后一次顶掉前一次时弹框不提前关。
+- **Excel / CSV**（`xyz.Core\Shared\xyz.Tools\ExcelHelper`，前后端共用，MiniExcel 1.46）：`ExcelHelper.Save(路径, 列, 表)` 按表写 xlsx，各表同一组列（`ExcelColumn` 列名、显示格式、列宽），
+  第一行列名并冻结；表的行（`ExcelSheet.Rows`）写的时候才枚举，可以边收边写。`SaveCsv(路径, 列名, 行)` 写 CSV（UTF-8 带 BOM），`ReadCsv(路径)` 读 CSV
+  （每行按表头取值，表头不分大小写）。写都是先写 `.tmp` 写完再换上去。放后台线程调。以后读 xlsx 也加在这里。
 - **账号弹窗**（一样的卡片样子）：`ShowLogin`（登录框，开机和闲置退出那次多一行"取消就当访客"；`notice` 是标题下的黄字提醒，`DialogNoticeTextStyle`）、`ShowPassword`（改自己的密码要旧密码 / 管理员重置不要）、
   `ShowUser`（新建 / 改账号）、`ShowRole`（新建角色 / 改名和说明）。都是传一个异步回调去调后端：回 null 关框，回一句话就红字写在框里、框不关。
   密码用 `PasswordBox` + `DefaultPasswordBoxStyle`（不进 VM、不绑定）。
@@ -302,7 +319,7 @@ var data = response.DeserializeData<XxxDto>();   // 失败会抛 InvalidOperatio
   `DiSensorModel`（一个 DI 信号：配了没有、名字、`IsActive`）、`TankModel`（槽：液位 + 五个信号）……），
   页面自己的在功能模块 `Models\`。
 - DTO → 模型：简单的 `dto.Adapt<T>()`（Mapster，整体替换）；要保住实例的（动画、选中状态）写 `Update(dto)` 就地改；也可以构造里手写映射。
-- 当前用户 `xyz.Client.Common.Session.ClientSession`（2026-10-21 起有登录）：`UserName` 记操作人用（不用登录时是 Admin，没登录是 Guest），
+- 当前用户 `xyz.Client.Common.Session.ClientSession`（2026-10-21 起有登录）：`UserName` 记操作人用（不用登录时是 Admin，没登录是 Guest；`GrpcClientFactory` 的 `UserHeader` 每次调用都带上它），
   `LoginName` / `DisplayName` / `RoleKind` / `IsLoggedIn` / `IsAdmin`、`LevelOf(编码)` / `CanOperate(编码)`；会话一变发 `Changed`（界面线程）。
   登录、注销、刷新会话走壳里的 `Session\ClientAccount`，闲置自动退出 `Session\IdleLogout`（分钟数是后端 machine.xml，跟会话一起下来；到点退出以后发 `TimedOut`，
   顶栏 `TopBarViewModel` 接着弹登录框（写明原因、登录名填好，取消当访客；开着一个就不再叠）；`MainViewModel` 记着被藏掉的那一页，重新登录看得到了回去；

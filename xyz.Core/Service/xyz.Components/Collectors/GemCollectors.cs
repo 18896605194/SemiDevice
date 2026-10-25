@@ -55,7 +55,7 @@ public sealed class GemCollectors
         }
         catch (Exception exception)
         {
-            LogHelper.Error(kind, $"编号表合并失败，本次不可用: {exception.Message}");
+            LogHelper.Error(LogHelper.HostModule, $"{kind}：编号表合并失败，本次不可用: {exception.Message}");
         }
     }
 }

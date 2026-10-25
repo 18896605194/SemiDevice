@@ -161,7 +161,7 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
             }
         }
 
-        LogHelper.Info(FullPath, $"已用时间清零（{reason}），清零前 {(long)before.TotalMinutes} 分钟");
+        LogHelper.Info(this, $"已用时间清零（{reason}），清零前 {(long)before.TotalMinutes} 分钟");
     }
 
     #endregion
@@ -374,11 +374,11 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
             // 读不成只记日志：盯 DO 的这次从 0 算（库里照样只加不写总数），不盯的这次从现在算（库里不动）
             if (DoIndex >= 0)
             {
-                LogHelper.Error(path, $"读已用时间失败，这次从 0 算（库里照样加）：{exception.Message}");
+                LogHelper.Error(this, $"读已用时间失败，这次从 0 算（库里照样加）：{exception.Message}");
             }
             else
             {
-                LogHelper.Error(path, $"读起算时间失败，这次从现在算（库里不动）：{exception.Message}");
+                LogHelper.Error(this, $"读起算时间失败，这次从现在算（库里不动）：{exception.Message}");
             }
         }
 
@@ -418,7 +418,7 @@ public class TimeLifetimeComponent : ComponentBase, ITimeLifetime
             }
             catch (Exception exception)
             {
-                LogHelper.Error(_path, $"写已用时间失败：{exception.Message}");
+                LogHelper.Error(this, $"写已用时间失败：{exception.Message}");
             }
         }
     }

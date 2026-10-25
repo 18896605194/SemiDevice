@@ -14,7 +14,7 @@ namespace xyz.Components;
 /// <summary>
 /// 组件基类
 /// </summary>
-public abstract class ComponentBase
+public abstract class ComponentBase : ILogSource
 {
     #region Column
 
@@ -38,6 +38,42 @@ public abstract class ComponentBase
     /// 完整层级路径，machine.xml 的分组节点（不写 Type 的 LoadPort、Chamber）也算上，比如 Chamber.Chamber1.Door。
     /// </summary>
     public string FullPath { get; internal set; } = string.Empty;
+
+    private string _logModule = string.Empty;
+
+    /// <summary>
+    /// 日志第一层：树上最顶上那个组件的全路径（装配时算好；不是装配出来的组件用自己的名字）
+    /// </summary>
+    public string LogModule
+    {
+        get
+        {
+            if (_logModule.Length > 0)
+            {
+                return _logModule;
+            }
+
+            return Name;
+        }
+    }
+
+    /// <summary>
+    /// 日志第二层：从第一层往下剩的路径；最顶上那个组件自己为空
+    /// </summary>
+    public string LogPart { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// 装配时定日志的两层名字：modulePath 是这棵树最顶上那个组件的全路径
+    /// </summary>
+    internal void AssignLogNames(string modulePath)
+    {
+        _logModule = modulePath;
+        LogPart = string.Empty;
+        if (FullPath.Length > modulePath.Length && FullPath.StartsWith(modulePath + ".", StringComparison.Ordinal))
+        {
+            LogPart = FullPath.Substring(modulePath.Length + 1);
+        }
+    }
 
     /// <summary>
     /// 初始化顺序，默认 10000，越小越先（InitComponent 时同一层的子组件按它依次初始化；machine.xml 节点的 InitOrder 属性配）。
@@ -222,17 +258,17 @@ public abstract class ComponentBase
         catch (Exception exception)
         {
             // 单周期异常不杀扫描线程：记录后继续下一周期。
-            LogHelper.Warn("Scan", $"[{FullPath}] OnScan 异常: {exception.Message}");
+            LogHelper.Warn(this, $"OnScan 异常: {exception.Message}");
         }
 
         var elapsed = watch.ElapsedMilliseconds;
         if (elapsed > SlowScanAlarmMilliseconds)
         {
-            LogHelper.Error("Scan", $"[{FullPath}] 慢扫描报警 {elapsed}ms（阈值 {SlowScanAlarmMilliseconds}ms）");
+            LogHelper.Error(this, $"慢扫描报警 {elapsed}ms（阈值 {SlowScanAlarmMilliseconds}ms）");
         }
         else if (elapsed > SlowScanWarnMilliseconds)
         {
-            LogHelper.Warn("Scan", $"[{FullPath}] 慢扫描警告 {elapsed}ms（阈值 {SlowScanWarnMilliseconds}ms）");
+            LogHelper.Warn(this, $"慢扫描警告 {elapsed}ms（阈值 {SlowScanWarnMilliseconds}ms）");
         }
     }
 
@@ -360,11 +396,15 @@ public abstract class ComponentBase
 
     /// <summary>
     /// 报事件（GEM 的 Collection Event）：事件码就是组件上带 [EventAttribut] 的那个字段值，data 是事件带的 DV
-    /// （[DataVariable] 的代码 → 这一刻的值）。经 E30 统一发 S6F11；没接 EAP、离线、Host 关了这个事件时什么都不做。任意线程可调。
+    /// （[DataVariable] 的代码 → 这一刻的值）。发给全部收事件的组件（IEventReceiver）：E30 发 S6F11，EDA 按采集计划采；
+    /// 没接 EAP、离线、Host 关了这个事件时 E30 什么都不做，EDA 没有计划要它时也不做。任意线程可调。
     /// </summary>
     protected void RaiseEvent(string code, params Models.GemData[] data)
     {
-        IocHelper.GetService<IE30Component>()?.Report(this, code, data);
+        foreach (var receiver in IocHelper.GetServices<IEventReceiver>())
+        {
+            receiver.Report(this, code, data);
+        }
     }
 
     /// <summary>

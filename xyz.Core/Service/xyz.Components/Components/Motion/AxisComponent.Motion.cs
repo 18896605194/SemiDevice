@@ -43,7 +43,7 @@ public partial class AxisComponent
             CheckCommandBlock();
             if (!Open(plc))
             {
-                LogHelper.Warn(FullPath, "轴收发块未配置，未登记 PLC 数据块");
+                LogHelper.Warn(this, "轴收发块未配置，未登记 PLC 数据块");
             }
         }
 

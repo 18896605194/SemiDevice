@@ -65,7 +65,7 @@ public sealed class EventCollector
         var path = Path.Combine(directory, FileName);
         if (!DefinitionTable.TryLoad<EventDefinitionFile, EventDefinition>(path, out var rows, out var error))
         {
-            LogHelper.Error(Kind, $"{path} {error}，不覆盖原文件，本次 CEID 不可用");
+            LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} {error}，不覆盖原文件，本次 CEID 不可用");
             return false;
         }
 
@@ -82,7 +82,7 @@ public sealed class EventCollector
             }
             catch (Exception exception)
             {
-                LogHelper.Error(Kind, $"{path} 写不进去，本次 CEID 不可用: {exception.Message}");
+                LogHelper.Error(LogHelper.HostModule, $"{Kind}：{path} 写不进去，本次 CEID 不可用: {exception.Message}");
                 return false;
             }
         }
@@ -91,7 +91,7 @@ public sealed class EventCollector
         _enabledCeids = rows.Where(row => row.Enabled)
             .ToDictionary(row => row.Name, row => row.Id, StringComparer.OrdinalIgnoreCase);
         _byCeid = rows.Where(row => row.Enabled).ToDictionary(row => row.Id);
-        LogHelper.Info(Kind, $"{FileName}：在用 {_enabledCeids.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
+        LogHelper.Info(LogHelper.HostModule, $"{Kind}：{FileName}：在用 {_enabledCeids.Count} 项（新增 {result.Added}，恢复 {result.Restored}，停用 {result.Disabled}）"
             + (result.Changed ? "，已写回" : "，无变化"));
         return result.Changed;
     }
@@ -137,14 +137,14 @@ public sealed class EventCollector
                 var code = CollectorHelper.ReadCode(member, component);
                 if (string.IsNullOrWhiteSpace(code))
                 {
-                    LogHelper.Error(Kind, $"{component.FullPath}.{member.Name} 的事件代码读不出来，不编号");
+                    LogHelper.Error(LogHelper.HostModule, $"{Kind}：{component.FullPath}.{member.Name} 的事件代码读不出来，不编号");
                     continue;
                 }
 
                 var name = $"{component.FullPath}.{code}";
                 if (!names.Add(name))
                 {
-                    LogHelper.Error(Kind, $"{name} 重复声明，只认第一个");
+                    LogHelper.Error(LogHelper.HostModule, $"{Kind}：{name} 重复声明，只认第一个");
                     continue;
                 }
 
@@ -154,7 +154,7 @@ public sealed class EventCollector
                     int dvid = dvs?.DvidOf($"{component.FullPath}.{data}") ?? 0;
                     if (dvid == 0)
                     {
-                        LogHelper.Error(Kind, $"{name} 带的 DV {data} 没有编号（组件上没声明 [DataVariable]，或 DV 表不可用），不带");
+                        LogHelper.Error(LogHelper.HostModule, $"{Kind}：{name} 带的 DV {data} 没有编号（组件上没声明 [DataVariable]，或 DV 表不可用），不带");
                         continue;
                     }
 

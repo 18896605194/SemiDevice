@@ -14,6 +14,11 @@ public class LogDto
 
     public string Module { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 第二层：模块下面的部件（Serial、RFID.Serial）；模块自己写的、客户端的为空
+    /// </summary>
+    public string Part { get; set; } = string.Empty;
+
     public string Message { get; set; } = string.Empty;
 
     public string Source { get; set; } = string.Empty;

@@ -171,7 +171,7 @@ public class AccountComponent : ComponentBase, IAccount
                 var seeded = db.Ado.UseTran(() => Seed(db));
                 if (!seeded.IsSuccess)
                 {
-                    LogHelper.Error(FullPath, $"预置账号、角色失败，登录、用户、角色都用不了：{seeded.ErrorMessage}");
+                    LogHelper.Error(this, $"预置账号、角色失败，登录、用户、角色都用不了：{seeded.ErrorMessage}");
                     return false;
                 }
 
@@ -180,7 +180,7 @@ public class AccountComponent : ComponentBase, IAccount
         }
         catch (Exception exception)
         {
-            LogHelper.Error(FullPath, $"账号库建表失败，登录、用户、角色都用不了：{exception.Message}");
+            LogHelper.Error(this, $"账号库建表失败，登录、用户、角色都用不了：{exception.Message}");
             return false;
         }
 
@@ -199,12 +199,12 @@ public class AccountComponent : ComponentBase, IAccount
                 if (db.DbMaintenance.IsAnyTable(table, false))
                 {
                     db.DbMaintenance.DropTable(table);
-                    LogHelper.Info(FullPath, $"删掉了不再用的老表 {table}（账号已经换成 account_* 三张表，菜单写在代码里）");
+                    LogHelper.Info(this, $"删掉了不再用的老表 {table}（账号已经换成 account_* 三张表，菜单写在代码里）");
                 }
             }
             catch (Exception exception)
             {
-                LogHelper.Warn(FullPath, $"老表 {table} 没删掉（不影响登录），下次开机再删：{exception.Message}");
+                LogHelper.Warn(this, $"老表 {table} 没删掉（不影响登录），下次开机再删：{exception.Message}");
             }
         }
     }
@@ -241,7 +241,7 @@ public class AccountComponent : ComponentBase, IAccount
             InsertRole(db, "操作员", "跑货、复位报警，其余只看", RoleKind.Normal,
                 Defaults(PermissionLevel.Operate, PermissionLevel.Operate, PermissionLevel.View, PermissionLevel.View,
                     PermissionLevel.Operate, PermissionLevel.Hidden, PermissionLevel.Hidden));
-            LogHelper.Info(FullPath, "第一次开机：预置了管理员、访客、工程师、操作员四个角色");
+            LogHelper.Info(this, "第一次开机：预置了管理员、访客、工程师、操作员四个角色");
         }
 
         #endregion
@@ -258,7 +258,7 @@ public class AccountComponent : ComponentBase, IAccount
                 RoleId = admin.Id,
                 IsBuiltIn = true
             }).ExecuteCommand();
-            LogHelper.Warn(FullPath, $"建了内置账号 {AdminUserName}，初始密码是 {AdminInitialPassword}，登录后请改掉");
+            LogHelper.Warn(this, $"建了内置账号 {AdminUserName}，初始密码是 {AdminInitialPassword}，登录后请改掉");
         }
 
         #endregion
@@ -337,13 +337,13 @@ public class AccountComponent : ComponentBase, IAccount
                 var user = FindUser(db, name);
                 if (user is null || !VerifyPassword(password ?? string.Empty, user.PasswordHash))
                 {
-                    LogHelper.Warn(FullPath, $"登录没成：{name}（登录名或密码不对）");
+                    LogHelper.Warn(this, $"登录没成：{name}（登录名或密码不对）");
                     return HandleResult<SessionDto>.Fail(ErrorCodes.AccountLoginFailed);
                 }
 
                 if (!user.IsEnabled)
                 {
-                    LogHelper.Warn(FullPath, $"登录没成：{user.UserName} 已停用");
+                    LogHelper.Warn(this, $"登录没成：{user.UserName} 已停用");
                     return HandleResult<SessionDto>.Fail(ErrorCodes.AccountUserDisabled, user.UserName);
                 }
 
@@ -356,7 +356,7 @@ public class AccountComponent : ComponentBase, IAccount
                 session.Result!.IdleLogoutMinutes = IdleLogoutMinutes;
                 user.LastLoginTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.LastLoginTime }).ExecuteCommand();
-                LogHelper.Info(FullPath, $"{user.UserName} 登录（{session.Result?.RoleName}）");
+                LogHelper.Info(this, $"{user.UserName} 登录（{session.Result?.RoleName}）");
                 return session;
             }
             catch (Exception exception)
@@ -428,11 +428,11 @@ public class AccountComponent : ComponentBase, IAccount
 
         if (isIdle)
         {
-            LogHelper.Info(FullPath, $"{name} 闲置自动注销");
+            LogHelper.Info(this, $"{name} 闲置自动注销");
             return;
         }
 
-        LogHelper.Info(FullPath, $"{name} 注销");
+        LogHelper.Info(this, $"{name} 注销");
     }
 
     public HandleResult ChangePassword(string userName, string oldPassword, string newPassword)
@@ -468,7 +468,7 @@ public class AccountComponent : ComponentBase, IAccount
                 user.PasswordHash = HashPassword(newPassword);
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.PasswordHash, item.UpdatedTime }).ExecuteCommand();
-                LogHelper.Info(FullPath, $"{user.UserName} 改了自己的密码");
+                LogHelper.Info(this, $"{user.UserName} 改了自己的密码");
                 return HandleResult.Success();
             }
             catch (Exception exception)
@@ -596,7 +596,7 @@ public class AccountComponent : ComponentBase, IAccount
                 user.Id = db.Insertable(user).ExecuteReturnBigIdentity();
                 var roles = db.Queryable<RoleEntity>().ToList().ToDictionary(item => item.Id);
                 result = HandleResult<UserDto>.Success(ToUserDto(user, roles));
-                LogHelper.Info(FullPath, $"新建账号 {name}（{role!.Name}）");
+                LogHelper.Info(this, $"新建账号 {name}（{role!.Name}）");
             }
             catch (Exception exception)
             {
@@ -649,7 +649,7 @@ public class AccountComponent : ComponentBase, IAccount
                 user.RoleId = request.RoleId;
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.DisplayName, item.RoleId, item.UpdatedTime }).ExecuteCommand();
-                LogHelper.Info(FullPath, $"改了账号 {user.UserName}：显示名 {user.DisplayName}，角色 {role!.Name}");
+                LogHelper.Info(this, $"改了账号 {user.UserName}：显示名 {user.DisplayName}，角色 {role!.Name}");
             }
             catch (Exception exception)
             {
@@ -688,7 +688,7 @@ public class AccountComponent : ComponentBase, IAccount
                 user.PasswordHash = HashPassword(request.Password);
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.PasswordHash, item.UpdatedTime }).ExecuteCommand();
-                LogHelper.Info(FullPath, $"重置了账号 {user.UserName} 的密码");
+                LogHelper.Info(this, $"重置了账号 {user.UserName} 的密码");
                 return HandleResult.Success();
             }
             catch (Exception exception)
@@ -729,7 +729,7 @@ public class AccountComponent : ComponentBase, IAccount
                 user.IsEnabled = request.IsEnabled;
                 user.UpdatedTime = DateTime.Now;
                 db.Updateable(user).UpdateColumns(item => new { item.IsEnabled, item.UpdatedTime }).ExecuteCommand();
-                LogHelper.Info(FullPath, request.IsEnabled ? $"启用了账号 {user.UserName}" : $"停用了账号 {user.UserName}");
+                LogHelper.Info(this, request.IsEnabled ? $"启用了账号 {user.UserName}" : $"停用了账号 {user.UserName}");
             }
             catch (Exception exception)
             {
@@ -765,7 +765,7 @@ public class AccountComponent : ComponentBase, IAccount
                 }
 
                 db.Deleteable<UserEntity>().In(id).ExecuteCommand();
-                LogHelper.Info(FullPath, $"删了账号 {user.UserName}");
+                LogHelper.Info(this, $"删了账号 {user.UserName}");
             }
             catch (Exception exception)
             {
@@ -862,7 +862,7 @@ public class AccountComponent : ComponentBase, IAccount
 
                 var role = InsertRole(db, name, description, RoleKind.Normal, null);
                 result = HandleResult<RoleDto>.Success(ToRoleDto(role, 0));
-                LogHelper.Info(FullPath, $"新建角色 {name}");
+                LogHelper.Info(this, $"新建角色 {name}");
             }
             catch (Exception exception)
             {
@@ -910,7 +910,7 @@ public class AccountComponent : ComponentBase, IAccount
                 role.Description = description;
                 role.UpdatedTime = DateTime.Now;
                 db.Updateable(role).UpdateColumns(item => new { item.Name, item.Description, item.UpdatedTime }).ExecuteCommand();
-                LogHelper.Info(FullPath, $"改了角色 {before}：名字 {name}，说明 {description}");
+                LogHelper.Info(this, $"改了角色 {before}：名字 {name}，说明 {description}");
             }
             catch (Exception exception)
             {
@@ -958,11 +958,11 @@ public class AccountComponent : ComponentBase, IAccount
                 });
                 if (!deleted.IsSuccess)
                 {
-                    LogHelper.Error(FullPath, $"删角色 {role.Name} 时读写账号库出错：{deleted.ErrorMessage}");
+                    LogHelper.Error(this, $"删角色 {role.Name} 时读写账号库出错：{deleted.ErrorMessage}");
                     return HandleResult.Fail(ErrorCodes.AccountFailed, deleted.ErrorMessage);
                 }
 
-                LogHelper.Info(FullPath, $"删了角色 {role.Name}");
+                LogHelper.Info(this, $"删了角色 {role.Name}");
             }
             catch (Exception exception)
             {
@@ -1063,11 +1063,11 @@ public class AccountComponent : ComponentBase, IAccount
                 });
                 if (!saved.IsSuccess)
                 {
-                    LogHelper.Error(FullPath, $"存角色 {role.Name} 的权限时读写账号库出错：{saved.ErrorMessage}");
+                    LogHelper.Error(this, $"存角色 {role.Name} 的权限时读写账号库出错：{saved.ErrorMessage}");
                     return HandleResult.Fail(ErrorCodes.AccountFailed, saved.ErrorMessage);
                 }
 
-                LogHelper.Info(FullPath, $"改了角色 {role.Name} 的权限（{rows.Count} 项）");
+                LogHelper.Info(this, $"改了角色 {role.Name} 的权限（{rows.Count} 项）");
             }
             catch (Exception exception)
             {
@@ -1266,13 +1266,13 @@ public class AccountComponent : ComponentBase, IAccount
 
     private HandleResult Failed(string what, Exception exception)
     {
-        LogHelper.Error(FullPath, $"{what}时读写账号库出错：{exception.Message}");
+        LogHelper.Error(this, $"{what}时读写账号库出错：{exception.Message}");
         return HandleResult.Fail(ErrorCodes.AccountFailed, exception.Message);
     }
 
     private HandleResult<T> Failed<T>(string what, Exception exception)
     {
-        LogHelper.Error(FullPath, $"{what}时读写账号库出错：{exception.Message}");
+        LogHelper.Error(this, $"{what}时读写账号库出错：{exception.Message}");
         return HandleResult<T>.Fail(ErrorCodes.AccountFailed, exception.Message);
     }
 

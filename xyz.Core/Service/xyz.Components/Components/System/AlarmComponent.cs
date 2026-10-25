@@ -156,7 +156,7 @@ public class AlarmComponent : ComponentBase, IAlarm
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"报警 {alarmCode} 上报失败: {exception.Message}");
+            LogHelper.Warn(this, $"报警 {alarmCode} 上报失败: {exception.Message}");
             return false;
         }
 
@@ -186,7 +186,7 @@ public class AlarmComponent : ComponentBase, IAlarm
 
         if (cleared > 0)
         {
-            LogHelper.Info(Name, $"{path} 复位，清除报警 {cleared} 条");
+            LogHelper.Info(this, $"{path} 复位，清除报警 {cleared} 条");
             PublishChanges();
         }
 
@@ -336,7 +336,7 @@ public class AlarmComponent : ComponentBase, IAlarm
             }
             catch (Exception exception)
             {
-                LogHelper.Warn(Name, $"{source.AlarmSource} 复位失败: {exception.Message}");
+                LogHelper.Warn(this, $"{source.AlarmSource} 复位失败: {exception.Message}");
             }
         }
 
@@ -411,7 +411,7 @@ public class AlarmComponent : ComponentBase, IAlarm
         int backlogWarning = HistoryBacklogWarning;
         if (backlogWarning > 0 && pending > 0 && pending % backlogWarning == 0)
         {
-            LogHelper.Warn(Name, $"报警记录积压 {pending} 行，检查数据库是否卡住");
+            LogHelper.Warn(this, $"报警记录积压 {pending} 行，检查数据库是否卡住");
         }
     }
 
@@ -446,7 +446,7 @@ public class AlarmComponent : ComponentBase, IAlarm
             }
             catch (Exception exception)
             {
-                LogHelper.Warn(Name, $"报警记录写库失败，丢弃 {batch.Count} 行: {exception.Message}");
+                LogHelper.Warn(this, $"报警记录写库失败，丢弃 {batch.Count} 行: {exception.Message}");
             }
         }
     }
@@ -551,7 +551,7 @@ public class AlarmComponent : ComponentBase, IAlarm
         _historyCleanedDay = DateTime.Today;
         if (!XyzDb.IsRegistered(HistoryDatabase))
         {
-            LogHelper.Warn(Name, $"报警记录库 {HistoryDatabase} 没在 machine.xml 的 Database 节点里配，落到默认库");
+            LogHelper.Warn(this, $"报警记录库 {HistoryDatabase} 没在 machine.xml 的 Database 节点里配，落到默认库");
         }
 
         CleanupHistory();
@@ -577,12 +577,12 @@ public class AlarmComponent : ComponentBase, IAlarm
 
             if (expired.Count > 0)
             {
-                LogHelper.Info($"[{Name}] 清理报警记录 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
+                LogHelper.Info(this, $"清理报警记录 {expired.Count} 张过期日表（保留 {HistoryKeepDays} 天）");
             }
         }
         catch (Exception exception)
         {
-            LogHelper.Warn(Name, $"清理报警记录失败: {exception.Message}");
+            LogHelper.Warn(this, $"清理报警记录失败: {exception.Message}");
         }
     }
 

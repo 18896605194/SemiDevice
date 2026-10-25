@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace xyz.Tools;
 
@@ -13,6 +14,22 @@ public static class JsonHelper
     /// 统一序列化选项。
     /// </summary>
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// 写日志用的选项：跟 Options 一样，只是中文、引号这些原样写，不转成 \uXXXX（日志是给人看的）
+    /// </summary>
+    private static readonly JsonSerializerOptions LogOptions = new(JsonSerializerDefaults.Web)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    /// <summary>
+    /// 转成写日志用的 JSON（中文原样）；只用来记日志，不拿去传、不拿去存
+    /// </summary>
+    public static string ToLogText<T>(T value)
+    {
+        return JsonSerializer.Serialize(value, LogOptions);
+    }
 
     /// <summary>
     /// 序列化为 JSON 字符串。

@@ -41,6 +41,13 @@
                         FontSize="{DynamicResource Size12}"
                         Style="{DynamicResource LogLevelTextStyle}"
                         Text="{Binding Module}" />
+                    <!--  部件（Serial、RFID.Serial）：模块自己写的为空，不占地方  -->
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="{DynamicResource Size12}"
+                        Style="{DynamicResource LogLevelTextStyle}"
+                        Text="{Binding Part}" />
                     <TextBlock
                         Margin="8,0,0,0"
                         VerticalAlignment="Center"

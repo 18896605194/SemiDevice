@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="10.0.9" />
+  </ItemGroup>
+
+  <!-- 收发原文在设备通道里记（LogHelper）：后端日志一律走它 -->
+  <ItemGroup>
+    <ProjectReference Include="..\xyz.Common\xyz.Common.csproj" />
   </ItemGroup>
 
 </Project>

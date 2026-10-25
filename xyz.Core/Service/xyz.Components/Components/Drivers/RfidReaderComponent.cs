@@ -38,7 +38,7 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
 
     #region 通道
 
-    private IDeviceDriverComponent? _driver;
+    private ICommDriver? _driver;
     private IFrameCodec? _codec;
 
     /// <summary>
@@ -54,7 +54,7 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
     /// </summary>
     public override bool InitComponent()
     {
-        var driver = DeviceDriverComponent.FindIn(this);
+        var driver = CommDriverComponent.FindIn(this);
         if (driver is null)
         {
             throw new InvalidOperationException($"读头 {FullPath} 的 machine.xml 节点下没有启用的通道（串口 SerialDriverComponent 或网口 TcpDriverComponent，IsEnable=True）。");
@@ -179,7 +179,7 @@ public abstract class RfidReaderComponent<TReadCommand> : ComponentBase, ICarrie
             _result = HandleResult<string>.Fail($"读码超时（{timeout}ms）");
             _reading = null;
             _watch.Reset();
-            LogHelper.Warn(Name, $"读码超时（{timeout}ms）");
+            LogHelper.Warn(this, $"读码超时（{timeout}ms）");
         }
     }
 

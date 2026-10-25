@@ -446,6 +446,10 @@ public sealed class FakeLogs : ILogComponent
 
     public int LogBarDisplayMaxCount => 500;
 
+    public int KeepDays => 30;
+
+    public IReadOnlyList<string> Modules => [];
+
     public IReadOnlyList<LogDto> Recent()
     {
         return Items.ToArray();
@@ -521,6 +525,11 @@ public sealed class FakeChart : IDataChart
         }
 
         return new DataQueryResult { Times = Times, Series = series };
+    }
+
+    public IEnumerable<DataExport> Export(IReadOnlyList<string> names, DateTime start, DateTime end, CancellationToken token)
+    {
+        return [];
     }
 }
 

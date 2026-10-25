@@ -46,7 +46,7 @@ public partial class IoComponent
             if (_lastPublishFault != exception.Message)
             {
                 _lastPublishFault = exception.Message;
-                LogHelper.Warn(Name, $"IO 点位推送失败: {exception.Message}");
+                LogHelper.Warn(this, $"IO 点位推送失败: {exception.Message}");
             }
         }
     }
@@ -61,7 +61,7 @@ public partial class IoComponent
         AddType(dto, Do, true);
         AddType(dto, Ai, false);
         AddType(dto, Ao, true);
-        LogHelper.Info(Name, $"IO 界面骨架建好：{string.Join("、", dto.Types.Select(
+        LogHelper.Info(this, $"IO 界面骨架建好：{string.Join("、", dto.Types.Select(
             type => $"{type.Type} {type.Modules.Count} 个模块 {type.Modules.Sum(module => module.Points.Count)} 点"))}");
         return dto;
     }

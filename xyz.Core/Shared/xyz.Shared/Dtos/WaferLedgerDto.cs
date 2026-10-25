@@ -186,12 +186,6 @@ public class WaferMoveRequest
     /// </summary>
     [ProtoMember(5)]
     public string Reason { get; set; } = string.Empty;
-
-    /// <summary>
-    /// 操作人（客户端当前用户），记进调整记录。
-    /// </summary>
-    [ProtoMember(6)]
-    public string Operator { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -211,9 +205,6 @@ public class WaferCreateRequest
 
     [ProtoMember(4)]
     public string Reason { get; set; } = string.Empty;
-
-    [ProtoMember(5)]
-    public string Operator { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -230,7 +221,4 @@ public class WaferDeleteRequest
 
     [ProtoMember(3)]
     public string Reason { get; set; } = string.Empty;
-
-    [ProtoMember(4)]
-    public string Operator { get; set; } = string.Empty;
 }

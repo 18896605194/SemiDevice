@@ -46,26 +46,26 @@ public class EapComponent : ComponentBase, IEapComponent
         var link = FindChild<IHsms>();
         if (link is null)
         {
-            LogHelper.Warn(Name, "Eap 下没配 Hsms 节点：EAP 不接");
+            LogHelper.Warn(this, "Eap 下没配 Hsms 节点：EAP 不接");
             return;
         }
 
         if (!link.IsEnable)
         {
-            LogHelper.Info(Name, "EAP 链路未启用（Hsms 的 IsEnable=False）：各标准不接到设备上，设备照常跑");
+            LogHelper.Info(this, "EAP 链路未启用（Hsms 的 IsEnable=False）：各标准不接到设备上，设备照常跑");
             return;
         }
 
         if (FindChild<IEapNotifierComponent>() is null)
         {
-            LogHelper.Error(Name, "Eap 下没配 Notifier 节点：设备侧报给 EAP 的事没有派发线程，EAP 不接");
+            LogHelper.Error(this, "Eap 下没配 Notifier 节点：设备侧报给 EAP 的事没有派发线程，EAP 不接");
             return;
         }
 
         var gem = FindChild<IE30Component>();
         if (gem is null)
         {
-            LogHelper.Error(Name, "Eap 下没配 E30 节点：GEM 是 EAP 的底子，没有它 EAP 不接");
+            LogHelper.Error(this, "Eap 下没配 E30 节点：GEM 是 EAP 的底子，没有它 EAP 不接");
             return;
         }
 
@@ -86,16 +86,16 @@ public class EapComponent : ComponentBase, IEapComponent
         {
             if (ledger is null)
             {
-                LogHelper.Warn(Name, "没有晶圆账（LedgerManager）：E90 不接");
+                LogHelper.Warn(this, "没有晶圆账（LedgerManager）：E90 不接");
                 substrates = null;
             }
             else
             {
-                substrates.Attach(gem, objects, ledger, waitForCarrier: carriers is not null);
+                substrates.Attach(objects, ledger, waitForCarrier: carriers is not null);
             }
         }
 
-        carriers?.Attach(link, gem, ports, substrates is null ? null : substrates.MaterialArrived);
+        carriers?.Attach(link, gem, ports, substrates);
 
         var processJobs = FindChild<IE40Component>();
         var controlJobs = FindChild<IE94Component>();
@@ -103,7 +103,7 @@ public class EapComponent : ComponentBase, IEapComponent
         {
             if (processJobs is not null || controlJobs is not null)
             {
-                LogHelper.Warn(Name, "没有 Job 管理：E40 / E94 不接，Host 建不了 Job");
+                LogHelper.Warn(this, "没有 Job 管理：E40 / E94 不接，Host 建不了 Job");
             }
         }
         else
@@ -113,7 +113,7 @@ public class EapComponent : ComponentBase, IEapComponent
         }
 
         IsBound = true;
-        LogHelper.Info(Name, "EAP 接到设备上了：" + string.Join("、", Children.Select(child => child.Name)));
+        LogHelper.Info(this, "EAP 接到设备上了：" + string.Join("、", Children.Select(child => child.Name)));
     }
 
     /// <summary>打开链路（宿主在设备侧都起来以后调一次）：Host 一连进来就可能发报文，得等处理方和设备都在。没接上（<see cref="Bind"/> 没接成）的不开。</summary>
@@ -125,7 +125,7 @@ public class EapComponent : ComponentBase, IEapComponent
         }
 
         FindChild<IHsms>()?.Open();
-        LogHelper.Info(Name, "EAP 链路打开");
+        LogHelper.Info(this, "EAP 链路打开");
     }
 
     /// <summary>收：先断链路（发 Separate），再把各标准从设备上摘下来。宿主退出时调。</summary>

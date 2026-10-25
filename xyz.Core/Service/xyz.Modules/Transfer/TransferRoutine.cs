@@ -1,4 +1,5 @@
-﻿using xyz.Components.Interfaces;
+﻿using xyz.Common.Log;
+using xyz.Components.Interfaces;
 using xyz.Components.Models;
 using xyz.Shared.Dtos;
 using xyz.Shared.Errors;
@@ -110,10 +111,10 @@ public sealed class TransferRoutine : TransferExecution
     protected override bool IsHoldingStation => _holdingSource || _holdingTarget;
 
     /// <summary>
-    /// 建一趟搬运，按源、目标的情况把步骤排好；module 是日志记在谁名下（搬运管理）
+    /// 建一趟搬运，按源、目标的情况把步骤排好；owner 是日志记在谁名下（搬运管理）
     /// </summary>
     public TransferRoutine(
-        string module,
+        ILogSource owner,
         TransferOrigin origin,
         ITransferRobot robot,
         ITransferStation? source,
@@ -122,7 +123,7 @@ public sealed class TransferRoutine : TransferExecution
         int targetSlot,
         int arm,
         int stationWaitTimeout)
-        : base(module, $"Transfer {source?.Name ?? robot.Name}.{sourceSlot:00}→{target?.Name ?? robot.Name}.{targetSlot:00}",
+        : base(owner, $"Transfer {source?.Name ?? robot.Name}.{sourceSlot:00}→{target?.Name ?? robot.Name}.{targetSlot:00}",
             origin, robot, stationWaitTimeout)
     {
         if (source is null && target is null)
