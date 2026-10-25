@@ -19,7 +19,7 @@ namespace xyz.Service;
 public static class ServiceExtensions
 {
     /// <summary>
-    /// 注册 xyz 后端：照 machine.xml 装组件树，组件、GEM 编号表、gRPC 服务进容器。不开机，组件等容器建好以后由 <see cref="StartComponents"/> 起
+    /// 注册 xyz 后端：照 machine.xml 装组件树，组件、GEM 编号表、gRPC 服务、操作日志进容器。不开机，组件等容器建好以后由 <see cref="StartComponents"/> 起
     /// </summary>
     public static IServiceCollection AddXyzServices(this IServiceCollection services)
     {
@@ -35,6 +35,9 @@ public static class ServiceExtensions
         {
             services.AddTransient(contract, implementation);
         }
+
+        // 操作日志：宿主的 ActionFilter 每个调用经它记
+        services.AddSingleton<IActionFilter, ActionFilter>();
 
         return services;
     }

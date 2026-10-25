@@ -832,7 +832,8 @@ public const string WaferSlotOccupied = "wafer.slot_occupied";
   一行：`【时间】 【级别】 【模块】 【部件】 内容`（没有部件那一格不写；改之前的旧文件照样认）。
 - **文件两种**（`Log\` 下，一天一个、超 100 MB 拆）：主日志 `xyz-日期.log`（运行、操作、动作指令收发原文）、轮询文件 `poll-日期.log`（状态轮询的一问一答，量大，日志历史页不查，只在机台上开文件看）。
   收发原文的级别那一格写方向（`LogHelper.Sent` 发 / `Received` 收）：`LogHelper.Comm`（主日志）、`LogHelper.InfoLoop`（轮询文件）。
-- **操作日志**（谁点了什么）：`xyz.Service\ActionFilter`（gRPC 服务端拦截器，宿主在 `AddCodeFirstGrpc` 里挂）每个调用进来记一条（`操作人@IP 服务.方法 参数JSON`）、回包记一条（成功 / 失败 错误码 [参数] / 出错，带用时），
+- **操作日志**（谁点了什么）：`xyz.GrpcHost\ActionFilter`（gRPC 服务端拦截器，在 `AddCodeFirstGrpc` 里挂，只做 gRPC 这一层）把方法名、来路、请求头的操作人交给 `xyz.Service\IActionFilterLog`
+  （实现 `ActionFilterLog`，`AddXyzServices` 注册成单例、构造注入给 `ActionFilter`；记不记、怎么记都在它里面，冒烟经接口测它）：每个调用进来记一条（`操作人@IP 服务.方法 参数JSON`）、回包记一条（成功 / 失败 错误码 [参数] / 出错，带用时），
   第一层 `Operation`、只进主日志不推顶栏（`LogHelper.Operation`）。不记：`Get` / `Query` 开头的、`AxisJogRenew` / `Subscribe` / `Publish`；参数里名字带 Password 的写成 `***`、中文原样（`JsonHelper.ToLogText`）。
   操作人是客户端每次调用带的请求头 `xyz-user-bin`（`RpcHeaders.Operator`，UTF-8），服务里要"谁"的（账单调整、两个配方库、建 Job）也从这儿取：`RpcOperator.Of(context)`，没带记 `Unknown`；请求 DTO 上不再有 `Operator`。
 - Warn 以上的运行日志进 `LogQueue`，由日志组件（`LogComponent`，machine.xml 的 Log 节点）在它的 `Bind` 里接上：留最近 `RecentLogCount` 条（客户端连上补拉），每条推给客户端顶栏；接上之前的日志都在队列里攒着（最多 2000 条），不会丢。操作日志、收发原文不进队列。

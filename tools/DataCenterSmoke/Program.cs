@@ -198,31 +198,42 @@ try
     LogHelper.InfoLoop(serial, LogHelper.Received, "ACK:STATE/0100-smoke");
     LogHelper.Info(new SmokeLogSource("Eap", "E87"), "两层名字写进文件");
 
-    // 操作日志：ActionFilter 记谁、哪台电脑、调了什么、参数，回包记结果；Get / Query 和自动反复发的不记；密码写成 ***
-    var filter = new ActionFilter();
-    var loadContext = SmokeCall.Context("张三", "/xyz.Shared.Services.LoadPortService/Load", "ipv4:192.168.1.20:5123");
-    await filter.UnaryServerHandler("LoadPort1", loadContext, (_, _) => Task.FromResult(RpcResponse.Ok()));
-    var rejectContext = SmokeCall.Context("李四", "/xyz.Shared.Services.LoadPortService/HomeAsync", "ipv6:[::1]:5123");
-    await filter.UnaryServerHandler("LoadPort1", rejectContext,
-        (_, _) => Task.FromResult(RpcResponse.Fail(ErrorCodes.ActionRejected, ["LoadPort1", "3"])));
-    await filter.UnaryServerHandler(new RpcRequest(), SmokeCall.Context("张三", "/xyz.Shared.Services.LoadPortService/GetStatus"),
-        (_, _) => Task.FromResult(RpcResponse.Ok()));
-    await filter.UnaryServerHandler(new RpcRequest(), SmokeCall.Context("张三", "/xyz.Shared.Services.ChamberService/AxisJogRenew"),
-        (_, _) => Task.FromResult(RpcResponse.Ok()));
-    await filter.UnaryServerHandler(new LoginRequest { UserName = "张三", Password = "secret-smoke" },
-        SmokeCall.Context(null, "/xyz.Shared.Services.AccountService/Login"), (_, _) => Task.FromResult(RpcResponse.Ok()));
-    bool thrown = false;
-    try
+    // 操作日志：经接口 IActionFilter 测 ActionFilter（宿主的 ActionFilter 每个调用把方法名、来路、请求头里的操作人交给它）：
+    // 记谁、哪台电脑、调了什么、参数，回包记结果；Get / Query 和自动反复发的不记；密码写成 ***
+    IActionFilter actionLog = new ActionFilter();
+    var load = actionLog.Begin("/xyz.Shared.Services.LoadPortService/Load", "ipv4:192.168.1.20:5123", "张三", "LoadPort1");
+    Check(load is not null, "LoadPort.Load 要记");
+    if (load is not null)
     {
-        await filter.UnaryServerHandler("LoadPort1", SmokeCall.Context("张三", "/xyz.Shared.Services.LoadPortService/Unload"),
-            (_, _) => Task.FromException<RpcResponse>(new InvalidOperationException("smoke-boom")));
-    }
-    catch (InvalidOperationException)
-    {
-        thrown = true;
+        actionLog.End(load, RpcResponse.Ok());
     }
 
-    Check(thrown, "服务抛的异常 ActionFilter 记完照样往上抛");
+    var home = actionLog.Begin("/xyz.Shared.Services.LoadPortService/HomeAsync", "ipv6:[::1]:5123", "李四", "LoadPort1");
+    if (home is not null)
+    {
+        actionLog.End(home, RpcResponse.Fail(ErrorCodes.ActionRejected, ["LoadPort1", "3"]));
+    }
+
+    Check(actionLog.Begin("/xyz.Shared.Services.LoadPortService/GetStatus", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
+          && actionLog.Begin("/xyz.Shared.Services.LogService/QueryHistory", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
+          && actionLog.Begin("/xyz.Shared.Services.ChamberService/AxisJogRenew", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
+          && actionLog.Begin("/xyz.Shared.Services.EventService/Subscribe", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null
+          && actionLog.Begin("/xyz.Shared.Services.EventService/Publish", "ipv4:127.0.0.1:50000", "张三", new RpcRequest()) is null,
+        "Get / Query 开头的、续点动、订阅推送、上行发布不记");
+    string noHeader = RpcOperator.Of(SmokeCall.Context(null, "/xyz.Shared.Services.AccountService/Login"));
+    var login = actionLog.Begin("/xyz.Shared.Services.AccountService/Login", "ipv4:127.0.0.1:50000", noHeader,
+        new LoginRequest { UserName = "张三", Password = "secret-smoke" });
+    if (login is not null)
+    {
+        actionLog.End(login, RpcResponse.Ok());
+    }
+
+    var unload = actionLog.Begin("/xyz.Shared.Services.LoadPortService/Unload", "ipv4:127.0.0.1:50000", "张三", "LoadPort1");
+    if (unload is not null)
+    {
+        actionLog.Fault(unload, new InvalidOperationException("smoke-boom"));
+    }
+
     Check(RpcOperator.Of(SmokeCall.As("王五")) == "王五" && RpcOperator.Of(default(CallContext)) == RpcOperator.Unknown,
         "操作人从请求头取（中文名照样）；没带记 Unknown");
 
@@ -862,7 +873,7 @@ finally
 
 Console.WriteLine($"PASS: {checks} data center checks (log file parsing with continuation lines and rolled files, " +
                   "log history filters and truncation, two-level log names (module + part) with the module filter, comm lines in the main log and poll lines in the poll file, " +
-                  "the operation log from ActionFilter (who, from where, what, arguments, result; reads and repeats skipped; passwords masked; operator from the request header), " +
+                  "the operation log through IActionFilter (who, from where, what, arguments, result; reads and repeats skipped; passwords masked; operator from the request header), " +
                   "log files kept for KeepDays, the module list for the history page, recent and realtime logs forwarded by the log component, active alarms with reset / reset-all / not-installed error codes and their pushes, " +
                   "alarm history over day-split tables, and data chart sampling on its own scan (IsRun, whole periods), " +
                   "signal names (a DI component named by its own path) / day tables through SqlSugar, real chart frames pushed from its own scan, " +

@@ -1527,8 +1527,10 @@
   （取消就是取消这次 gRPC 调用，图保留原来的）；工具栏右边不再写"查询中…"，跟弹框重复了。
 
 ## 日志重整：操作日志、两层名字、轮询原文单独一个文件（2026-10-25 ~ 10-26，用户："界面点击的所有按钮，本质上都得能从日志里面能看到，并且记录谁点击的"、"底层的那种数据解析以及收到的数据这个难道也属于这个loadport1吗"，逐条定完说"开始做吧"）
-- **操作日志在后端统一记**：gRPC 服务端拦截器，**用户起名 `ActionFilter`**（类在 `xyz.Service`，宿主 `AddCodeFirstGrpc` 里 `Interceptors.Add<ActionFilter>()`；
-  原说放 GrpcHost，挪到 xyz.Service 是为了冒烟能直接测，注册还在宿主）。每个调用进来记一条、回包记一条（`操作人@IP 服务.方法 参数JSON` / `→ 成功 | 失败 码 [参数] | 出错` + 用时），
+- **操作日志在后端统一记**：gRPC 服务端拦截器，**用户起名 `ActionFilter`**，放 xyz.GrpcHost（宿主 `AddCodeFirstGrpc` 里 `Interceptors.Add<ActionFilter>()`），
+  **接口化**（用户："肯定是接口化编程"）：`ActionFilter` 只做 gRPC 这一层（取方法名、来路、请求头的操作人，回包 / 抛异常告诉它），记不记、怎么记在 xyz.Service 的
+  `IActionFilterLog` / `ActionFilterLog`（名字用户定："既然是过滤器，肯定是用这两个名字"；容器单例，`AddXyzServices` 里注册，构造注入给 `ActionFilter`），冒烟经接口测 `ActionFilterLog`。中间一度把整个 `ActionFilter` 挪到 xyz.Service 只为能测，
+  用户问"放在这里面不行吗"、"你提供一个过滤器的接口不就好了"，就拆成这样。每个调用进来记一条、回包记一条（`操作人@IP 服务.方法 参数JSON` / `→ 成功 | 失败 码 [参数] | 出错` + 用时），
   第一层 `Operation`，只进主日志、不推顶栏（界面自己会提示结果，推了显示两遍）。不在 218 个按钮命令上逐个加：后端一处、局域网多客户端也全、被拒的也有码。
   - 不记：`Get` / `Query` 开头的（只读，轮询会刷屏），加 `AxisJogRenew`（按住点动客户端自动反复发）、`Subscribe`、`Publish`；切页这类纯界面按钮不经后端，不记（用户："不记录"）。
   - 参数里名字带 Password 的写 `***`；参数 JSON 中文原样（`JsonHelper.ToLogText`，默认的会转成 \uXXXX）。
